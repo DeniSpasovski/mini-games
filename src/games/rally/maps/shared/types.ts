@@ -591,8 +591,28 @@ export interface PropPlacement {
 }
 
 export interface EnvironmentDef {
+  /** Sun angles (deg; azimuth from +Z = south towards +X = east). Used when `timeOfDay` is not set. */
   sunElevation: number;
   sunAzimuth: number;
+  /**
+   * Time of day in hours (6 = sunrise in the east, 12 = noon in the south, 18 = sunset in the west): sets the sun
+   * angles (`engine/environment.ts` `sunAt`) and, through them, its colour. Try others with `?tod=<hours>`.
+   */
+  timeOfDay?: number;
+  /** Override the sun colour / intensity (default: warmer and dimmer the lower the sun). */
+  sunColor?: string;
+  sunIntensity?: number;
+  /** Hemisphere fill: sky colour (cool, the shadows) and intensity; its ground colour is a warm bounce of `groundTint`. */
+  fillSky?: string;
+  fillIntensity?: number;
+  /** Image-based light from the sky + ground env map (default 0.3). */
+  envIntensity?: number;
+  /** Tone mapping (default 'aces'); `?tonemap=aces|agx|neutral` overrides it for comparisons. */
+  toneMapping?: 'aces' | 'agx' | 'neutral';
+  /** Sky clouds: coverage / density 0..1 (default 0.4 / 0.4) and drift speed multiplier (default 1). */
+  cloudCoverage?: number;
+  cloudDensity?: number;
+  cloudSpeed?: number;
   turbidity: number;
   rayleigh: number;
   fogColor: string;

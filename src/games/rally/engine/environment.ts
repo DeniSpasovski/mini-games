@@ -1,12 +1,19 @@
 import {
+  ACESFilmicToneMapping,
+  AgXToneMapping,
+  CircleGeometry,
   Color,
   DirectionalLight,
   FogExp2,
   HemisphereLight,
   MathUtils,
+  Mesh,
+  MeshBasicMaterial,
+  NeutralToneMapping,
   Object3D,
   PMREMGenerator,
   Scene,
+  type ToneMapping,
   Vector3,
   type Texture,
   type WebGLRenderer,
@@ -15,6 +22,41 @@ import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import type { EnvironmentDef } from '../maps/shared/types';
 import { displayExposure, onDisplayChange } from './display';
 import type { QualitySettings } from './quality';
+
+/** Tone-mapping operators a map can pick (`EnvironmentDef.toneMapping`, `?tonemap=` overrides for comparisons). */
+export const TONE_MAPPINGS: Record<string, ToneMapping> = {
+  aces: ACESFilmicToneMapping,
+  agx: AgXToneMapping,
+  neutral: NeutralToneMapping,
+};
+
+/** Highest sun of the day (deg): late spring at ~42 deg N (all maps are at 40-42 deg N). */
+const NOON_ELEVATION = 58;
+
+/**
+ * Sun position for a time of day (hours, 6 = sunrise, 12 = noon, 18 = sunset): a plain half-circle sun path,
+ * rising in the east (+X), due south (+Z) at noon, setting in the west (-X). Azimuth from +Z towards +X (deg).
+ */
+export function sunAt(hour: number): { elevation: number; azimuth: number } {
+  const t = MathUtils.clamp((hour - 6) / 12, 0, 1);
+  return {
+    elevation: Math.max(2, NOON_ELEVATION * Math.sin(Math.PI * t)),
+    azimuth: (((90 - t * 180) % 360) + 360) % 360,
+  };
+}
+
+/** `?tod=<hours>` (try a time of day on any map with `timeOfDay`) and `?tonemap=aces|agx|neutral`. */
+function urlNumber(name: string): number | undefined {
+  if (typeof location === 'undefined') return undefined;
+  const v = new URLSearchParams(location.search).get(name);
+  return v !== null && v !== '' && Number.isFinite(Number(v))
+    ? Number(v)
+    : undefined;
+}
+function urlString(name: string): string | undefined {
+  if (typeof location === 'undefined') return undefined;
+  return new URLSearchParams(location.search).get(name) ?? undefined;
+}
 
 /**
  * Sky dome, sun (with a shadow box that follows the focus point), hemisphere
@@ -26,11 +68,19 @@ export class Environment {
   readonly sun = new DirectionalLight(0xfff1dc, 3);
   readonly hemi = new HemisphereLight(0xbcd2ee, 0x4a4630, 0.18);
   readonly sunDir = new Vector3();
+  /** Effective sun angles (deg) after `timeOfDay` / `?tod=`. */
+  sunElevation = 0;
+  sunAzimuth = 0;
   private target = new Object3D();
   private pmrem: PMREMGenerator;
   private envMap?: Texture;
   private shadowExtent: number;
   private offDisplay: () => void;
+  /** Light-space axes of the shadow camera (texel snapping). */
+  private lightRight = new Vector3();
+  private lightUp = new Vector3();
+  private center = new Vector3();
+  private t0 = performance.now();
 
   constructor(
     private scene: Scene,
@@ -72,15 +122,44 @@ export class Environment {
     u.rayleigh.value = def.rayleigh;
     u.mieCoefficient.value = 0.004;
     u.mieDirectionalG.value = 0.82;
-    const phi = MathUtils.degToRad(90 - def.sunElevation);
-    const theta = MathUtils.degToRad(def.sunAzimuth);
+    u.cloudCoverage.value = def.cloudCoverage ?? 0.4;
+    u.cloudDensity.value = def.cloudDensity ?? 0.4;
+
+    // Time of day (map default, `?tod=` to try others) or the fixed angles.
+    let elevation = def.sunElevation;
+    let azimuth = def.sunAzimuth;
+    if (def.timeOfDay !== undefined) {
+      const s = sunAt(urlNumber('tod') ?? def.timeOfDay);
+      elevation = s.elevation;
+      azimuth = s.azimuth;
+    }
+    this.sunElevation = elevation;
+    this.sunAzimuth = azimuth;
+    const phi = MathUtils.degToRad(90 - elevation);
+    const theta = MathUtils.degToRad(azimuth);
     this.sunDir.setFromSphericalCoords(1, phi, theta);
     u.sunPosition.value.copy(this.sunDir);
+    // Shadow camera axes (DirectionalLight looks at its target with up = +Y): x = up x dir, y = dir x x.
+    this.lightRight.set(0, 1, 0).cross(this.sunDir).normalize();
+    this.lightUp.copy(this.sunDir).cross(this.lightRight).normalize();
 
-    // Warmer, dimmer sun near the horizon.
-    const low = MathUtils.clamp(1 - def.sunElevation / 40, 0, 1);
-    this.sun.color.setRGB(1, 0.93 - low * 0.18, 0.84 - low * 0.32);
-    this.sun.intensity = 3.1 - low * 1.2;
+    // Warmer, dimmer sun near the horizon (golden below ~25 deg), unless the map sets it.
+    const low = MathUtils.clamp(1 - elevation / 40, 0, 1);
+    if (def.sunColor) this.sun.color.set(def.sunColor);
+    else this.sun.color.setRGB(1, 0.93 - low * 0.2, 0.84 - low * 0.38);
+    this.sun.intensity = def.sunIntensity ?? 3.1 - low * 1.1;
+
+    // Fill: cool sky light in the shadows, warm bounce from the map's ground.
+    this.hemi.color.set(def.fillSky ?? '#9fb8e6');
+    this.hemi.groundColor
+      .set(def.groundTint?.grass ?? '#7a6a48')
+      .lerp(new Color('#8a6a40'), 0.45)
+      .multiplyScalar(0.7);
+    this.hemi.intensity = def.fillIntensity ?? 0.26;
+
+    this.renderer.toneMapping =
+      TONE_MAPPINGS[urlString('tonemap') ?? def.toneMapping ?? 'aces'] ??
+      ACESFilmicToneMapping;
 
     this.scene.fog = new FogExp2(new Color(def.fogColor), def.fogDensity);
     this.refreshExposure();
@@ -103,35 +182,68 @@ export class Environment {
       'rayleigh',
       'mieCoefficient',
       'mieDirectionalG',
+      'cloudCoverage',
+      'cloudDensity',
+      'cloudScale',
+      'cloudElevation',
     ] as const)
       dst[k].value = src[k].value;
     dst.sunPosition.value.copy(src.sunPosition.value);
     envScene.add(sky);
+    // Ground under the sky: paint, glass and water reflect earth below the horizon, not more sky. Its radiance
+    // ~ albedo x (sun + sky), in the map's ground colour, a little warm.
+    const groundCol = new Color(this.def.groundTint?.grass ?? '#7a6a48')
+      .lerp(new Color('#6b5a3e'), 0.5)
+      .multiplyScalar(
+        0.25 + 0.55 * Math.sin(MathUtils.degToRad(this.sunElevation)),
+      );
+    const ground = new Mesh(
+      new CircleGeometry(900, 48).rotateX(-Math.PI / 2),
+      new MeshBasicMaterial({ color: groundCol, fog: false }),
+    );
+    ground.position.y = -12;
+    envScene.add(ground);
     this.envMap?.dispose();
     this.envMap = this.pmrem.fromScene(envScene, 0, 0.1, 2000).texture;
     this.scene.environment = this.envMap;
     // Key/fill balance: keep IBL + hemi low enough that sun shadows read clearly.
-    this.scene.environmentIntensity = 0.28;
+    this.scene.environmentIntensity = this.def.envIntensity ?? 0.3;
     sky.material.dispose();
     sky.geometry.dispose();
+    ground.geometry.dispose();
+    (ground.material as MeshBasicMaterial).dispose();
   }
 
-  /** Keep the sun shadow box centred on `focus`, snapped to shadow texels to avoid shimmering. */
-  update(focus: Vector3): void {
+  /**
+   * Place the sun's shadow box. It covers the area AHEAD of the camera (`forward`, horizontal; centred half a box
+   * in front of `focus`) and is snapped to shadow-map texels in light space, so its edges don't crawl while driving.
+   */
+  update(focus: Vector3, forward?: Vector3): void {
+    const c = this.center.copy(focus);
+    if (forward) {
+      const l = Math.hypot(forward.x, forward.z);
+      if (l > 1e-3) {
+        c.x += (forward.x / l) * this.shadowExtent * 0.5;
+        c.z += (forward.z / l) * this.shadowExtent * 0.5;
+      }
+    }
+    // Snap along the shadow camera's right / up axes (its texel grid); depth along the light needs no snap.
     const texel = (this.shadowExtent * 2) / this.sun.shadow.mapSize.x;
-    const fx = Math.round(focus.x / texel) * texel;
-    const fz = Math.round(focus.z / texel) * texel;
-    this.target.position.set(fx, focus.y, fz);
-    this.sun.position
-      .copy(this.target.position)
-      .addScaledVector(this.sunDir, 300);
+    for (const axis of [this.lightRight, this.lightUp]) {
+      const a = c.dot(axis);
+      c.addScaledVector(axis, Math.round(a / texel) * texel - a);
+    }
+    this.target.position.copy(c);
+    this.sun.position.copy(c).addScaledVector(this.sunDir, 300);
     this.sun.updateMatrixWorld();
     this.target.updateMatrixWorld();
   }
 
-  /** Move the sky dome with the camera so it never clips. */
+  /** Move the sky dome with the camera so it never clips; drift the clouds. */
   follow(cameraPos: Vector3): void {
     this.sky.position.copy(cameraPos);
+    this.sky.material.uniforms.time.value =
+      ((performance.now() - this.t0) / 1000) * (this.def.cloudSpeed ?? 1);
   }
 
   dispose(): void {

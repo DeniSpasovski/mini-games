@@ -4,6 +4,7 @@ import {
   SRGBColorSpace,
   WebGLRenderer,
 } from 'three';
+import { setFoliageAntialias } from './materials';
 import type { QualitySettings } from './quality';
 
 /** Shared renderer setup for the game and every debug page (same look everywhere). */
@@ -22,6 +23,8 @@ export function createRenderer(
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = PCFShadowMap;
+  // MSAA on -> alpha-to-coverage on the grass / leaf cards.
+  setFoliageAntialias(quality.antialias);
   renderer.domElement.style.display = 'block';
   container.append(renderer.domElement);
 

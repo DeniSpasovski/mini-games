@@ -17,6 +17,8 @@ export interface RallySettings {
   carNumber: number;
   /** Starting camera (C cycles in game). */
   camera: CameraMode;
+  /** How far trees, buildings and props are drawn (multiplies the graphics preset's LOD distances). */
+  objectDistance: ObjectDistance;
   /** Last selection in the menu, preselected next time. */
   map: string;
   car: string;
@@ -29,9 +31,19 @@ export const DEFAULT_SETTINGS: RallySettings = {
   traction: true,
   carNumber: 7,
   camera: 'chase',
+  objectDistance: 'normal',
   map: '',
   car: '',
   livery: 0,
+};
+
+export type ObjectDistance = 'normal' | 'far' | 'max';
+
+/** Object draw distance option -> multiplier on the quality preset's `lodScale` (objects only, not terrain). */
+export const OBJECT_DISTANCE: Record<ObjectDistance, number> = {
+  normal: 1,
+  far: 1.5,
+  max: 2,
 };
 
 const KEY = 'rally.settings';

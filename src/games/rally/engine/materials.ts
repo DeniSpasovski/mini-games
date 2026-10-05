@@ -18,6 +18,29 @@ export type MaterialId =
 
 const cache = new Map<MaterialId, Material>();
 
+const FOLIAGE: MaterialId[] = [
+  'foliage_card',
+  'foliage_card_dry',
+  'foliage_card_spring',
+];
+let foliageA2C = false;
+
+/**
+ * Grass / leaf cards: alpha-to-coverage when the renderer has MSAA (smooth, non-shimmering card edges at no cost;
+ * three keeps the `alphaTest` cut and antialiases across it). Without MSAA it would do nothing: plain alpha test.
+ * `createRenderer` calls this with the quality preset's `antialias`.
+ */
+export function setFoliageAntialias(on: boolean): void {
+  foliageA2C = on;
+  for (const id of FOLIAGE) {
+    const m = cache.get(id);
+    if (m && m.alphaToCoverage !== on) {
+      m.alphaToCoverage = on;
+      m.needsUpdate = true;
+    }
+  }
+}
+
 export function getMaterial(id: MaterialId): Material {
   let m = cache.get(id);
   if (m) return m;
@@ -94,6 +117,7 @@ export function getMaterial(id: MaterialId): Material {
       break;
   }
   m.name = id;
+  if (FOLIAGE.includes(id)) m.alphaToCoverage = foliageA2C;
   cache.set(id, m);
   return m;
 }

@@ -1,5 +1,7 @@
+import { Vector3 } from 'three';
 import { describe, expect, test } from '@rstest/core';
 import { jackieMap } from '../../src/games/rally/maps/jackie/map';
+import { barrierPoint } from '../../src/games/rally/world/barriers';
 import { goreCushions, goreWedges } from '../../src/games/rally/world/gore';
 import { newPathQuery } from '../../src/games/rally/world/real-data';
 import { newRoadQuery } from '../../src/games/rally/world/road';
@@ -456,5 +458,240 @@ describe('jackie: overpass at 1 855 m (B4)', () => {
     }
     for (const j of world.gen.junctions)
       expect(j.along < 1840 || j.along > 1880).toBe(true);
+  });
+});
+
+describe('jackie: bridge starts and ends', () => {
+  test('a street continuing onto a deck meets the deck end without a step (< 0.15 m)', () => {
+    const net = world.gen.paths!;
+    const pd = { x: 0, z: 0 };
+    const pg = { x: 0, z: 0 };
+    let ends = 0;
+    net.paths.forEach((p, di) => {
+      if (!p.bridge || world.gen.isPortalDeck(di)) return;
+      const D = net.lengths[di];
+      for (const atEnd of [false, true]) {
+        net.pointAt(di, atEnd ? D : 0, pd);
+        const yd = world.gen.pathHeight(di, atEnd ? D : 0);
+        net.paths.forEach((q, gi) => {
+          if (q.bridge) return;
+          const G = net.lengths[gi];
+          for (const gEnd of [false, true]) {
+            net.pointAt(gi, gEnd ? G : 0, pg);
+            if (Math.hypot(pg.x - pd.x, pg.z - pd.z) > 2.5) continue;
+            ends++;
+            const dy = world.gen.pathHeight(gi, gEnd ? G : 0) - yd;
+            expect(Math.abs(dy)).toBeLessThan(0.15);
+          }
+        });
+      }
+    });
+    expect(ends).toBeGreaterThan(30);
+  });
+});
+
+describe('jackie: underpasses are drivable', () => {
+  test('under a stage-road bridge a probe from street level gets the street, from the deck the deck', () => {
+    const spans = (road.def.spans ?? []).filter((s) => s.kind === 'bridge');
+    const out = { height: 0, normal: new Vector3(), surface: undefined } as never as Parameters<
+      typeof world.sampleGround
+    >[2];
+    let tall = 0;
+    for (const sp of spans) {
+      const mid = road.at((sp.from + sp.to) / 2);
+      const street = world.heightfield.height(mid.x, mid.z);
+      const deck = world.gen.deckHeightAt(mid.x, mid.z);
+      expect(Number.isNaN(deck)).toBe(false);
+      if (deck - street < 3) continue; // a bridge over nothing: solid ground under it
+      tall++;
+      world.sampleGround(mid.x, mid.z, out, street + 1);
+      expect(out.height).toBeLessThan(deck - 3);
+      world.sampleGround(mid.x, mid.z, out, deck + 0.5);
+      expect(out.height).toBeCloseTo(deck, 1);
+    }
+    expect(tall).toBeGreaterThan(2);
+  });
+});
+
+describe('jackie: parallel bridges line up', () => {
+  test('the opposite carriageway deck starts and ends on the same lines as the stage-road span (< 2.5 m)', () => {
+    const net = world.gen.paths!;
+    const pt = { x: 0, z: 0 };
+    const q = newRoadQuery();
+    let aligned = 0;
+    for (const sp of (road.def.spans ?? []).filter((s) => s.kind === 'bridge')) {
+      net.paths.forEach((p, pi) => {
+        if (!p.bridge || p.kind !== 'motorway') return;
+        const L = net.lengths[pi];
+        let lo = Infinity;
+        let hi = -Infinity;
+        for (const a of [0, L]) {
+          net.pointAt(pi, a, pt);
+          road.query(pt.x, pt.z, q);
+          if (!q.found || q.distance > 30) return;
+          lo = Math.min(lo, q.along);
+          hi = Math.max(hi, q.along);
+        }
+        if (hi < sp.from - 3 || lo > sp.to + 3) return; // another structure
+        aligned++;
+        expect(Math.abs(lo - sp.from)).toBeLessThan(2.5);
+        expect(Math.abs(hi - sp.to)).toBeLessThan(2.5);
+      });
+    }
+    expect(aligned).toBeGreaterThanOrEqual(6);
+  });
+});
+
+describe('jackie: ground under bridges', () => {
+  test('terrain never comes up through a stage-road span or a deck beside the stage road', () => {
+    const net = world.gen.paths!;
+    const pt = { x: 0, z: 0 };
+    const nx = { x: 0, z: 0 };
+    const q = newRoadQuery();
+    let worst = -Infinity;
+    for (const sp of (road.def.spans ?? []).filter((x) => x.kind === 'bridge'))
+      for (let a = sp.from; a <= sp.to; a++) {
+        const s = road.at(a);
+        for (let l = -s.halfWidth; l <= s.halfWidth; l += 1)
+          worst = Math.max(
+            worst,
+            world.heightfield.height(s.x + s.tz * l, s.z - s.tx * l) - s.y,
+          );
+      }
+    expect(worst).toBeLessThan(0.05);
+    let decks = 0;
+    net.paths.forEach((p, pi) => {
+      if (!p.bridge || world.gen.isPortalDeck(pi)) return;
+      const L = net.lengths[pi];
+      net.pointAt(pi, L / 2, pt);
+      road.query(pt.x, pt.z, q);
+      if (!q.found || q.distance > 40) return; // the interchange beyond the finish is not part of the stage
+      decks++;
+      for (let a = 2; a <= L - 2; a++) {
+        net.pointAt(pi, a - 1, pt);
+        net.pointAt(pi, a + 1, nx);
+        const tl = Math.hypot(nx.x - pt.x, nx.z - pt.z) || 1;
+        net.pointAt(pi, a, pt);
+        const hw = net.halfWidthAt(pi, a) - 0.3;
+        for (let l = -hw; l <= hw; l += 1) {
+          const x = pt.x + ((nx.z - pt.z) / tl) * l;
+          const z = pt.z - ((nx.x - pt.x) / tl) * l;
+          expect(world.heightfield.height(x, z) - world.gen.pathHeight(pi, a)).toBeLessThan(0.2);
+        }
+      }
+    });
+    expect(decks).toBeGreaterThan(8);
+  });
+});
+
+describe('jackie: deck profiles', () => {
+  test('no cliff along a deck, ends included (grade < 15 % over any 3 m)', () => {
+    const net = world.gen.paths!;
+    const bad: string[] = [];
+    let decks = 0;
+    const mid = { x: 0, z: 0 };
+    const rq = newRoadQuery();
+    net.paths.forEach((p, pi) => {
+      if (!p.bridge) return;
+      const L = net.lengths[pi];
+      net.pointAt(pi, L / 2, mid);
+      road.query(mid.x, mid.z, rq);
+      if (!rq.found || rq.distance > 60) return; // the interchange beyond the finish is not part of the stage
+      decks++;
+      for (let a = 0; a + 3 <= L; a += 1) {
+        const g = Math.abs(world.gen.pathHeight(pi, a + 3) - world.gen.pathHeight(pi, a)) / 3;
+        if (g > 0.15) bad.push(`deck ${pi} ${p.kind} at ${a}/${L.toFixed(0)}: ${(g * 100).toFixed(0)} %`);
+      }
+    });
+    expect(decks).toBeGreaterThan(15);
+    expect(bad).toEqual([]);
+  });
+});
+
+describe('jackie: path barriers', () => {
+  test('no barrier of the opposite carriageway stands on an exit / entrance ramp or another road (B3)', () => {
+    const net = world.gen.paths!;
+    const pq = newPathQuery();
+    const ctx = { road, net };
+    let on = 0;
+    for (const r of world.barrierRuns) {
+      if (r.path === undefined) continue; // the stage road's own barriers: parapets over streets are on the deck
+      for (let a = r.from; a <= r.to; a += 2) {
+        const p = barrierPoint(ctx, world.heightfield as never, r, a);
+        net.query(p.x, p.z, pq, 'tarmac', (qi) => qi !== r.path && !net.paths[qi].bridge);
+        if (pq.found && pq.distance < pq.halfWidth - 0.4) on++;
+      }
+    }
+    // A few 2 m overlaps at path ends remain; hundreds of samples (a wall across a ramp lane) were there before.
+    expect(on).toBeLessThan(30);
+  });
+});
+
+describe('jackie: twin deck ends', () => {
+  test('the two directions of an overpass end on the same cross line (< 1 m stagger)', () => {
+    const net = world.gen.paths!;
+    const decks = net.paths
+      .map((p, pi) => ({ p, pi }))
+      .filter(({ p, pi }) => {
+        if (!p.bridge || p.surface !== 'tarmac' || /^(motorway|trunk)/.test(p.kind) || world.gen.isPortalDeck(pi)) return false;
+        const m = { x: 0, z: 0 };
+        net.pointAt(pi, net.lengths[pi] / 2, m);
+        const rq = newRoadQuery();
+        road.query(m.x, m.z, rq);
+        return rq.found && rq.distance < 60; // the interchange beyond the finish is not part of the stage
+      });
+    const a = { x: 0, z: 0 };
+    const b = { x: 0, z: 0 };
+    const c = { x: 0, z: 0 };
+    let pairs = 0;
+    for (const A of decks)
+      for (const B of decks) {
+        if (A.pi >= B.pi) continue;
+        const LA = net.lengths[A.pi];
+        const LB = net.lengths[B.pi];
+        net.pointAt(A.pi, 0, a);
+        net.pointAt(A.pi, LA, b);
+        const cl = Math.hypot(b.x - a.x, b.z - a.z);
+        const dx = (b.x - a.x) / cl;
+        const dz = (b.z - a.z) / cl;
+        net.pointAt(B.pi, 0, c);
+        const t0 = (c.x - a.x) * dx + (c.z - a.z) * dz;
+        const u0 = (c.x - a.x) * dz - (c.z - a.z) * dx;
+        net.pointAt(B.pi, LB, c);
+        const t1 = (c.x - a.x) * dx + (c.z - a.z) * dz;
+        const u1 = (c.x - a.x) * dz - (c.z - a.z) * dx;
+        const sep = Math.abs((u0 + u1) / 2);
+        if (sep < 3 || sep > 14 || Math.abs(u1 - u0) > 0.25 * Math.abs(t1 - t0)) continue;
+        const overlap = Math.min(cl, Math.max(t0, t1)) - Math.max(0, Math.min(t0, t1));
+        if (overlap < 0.7 * Math.min(cl, Math.abs(t1 - t0))) continue; // another structure beside it
+        if (Math.min(cl, Math.abs(t1 - t0)) < 0.6 * Math.max(cl, Math.abs(t1 - t0))) continue;
+        pairs++;
+        const info = `decks ${A.pi}/${B.pi} ${A.p.kind}/${B.p.kind} L ${LA.toFixed(0)}/${LB.toFixed(0)} t ${t0.toFixed(1)}..${t1.toFixed(1)} of ${cl.toFixed(1)} sep ${sep.toFixed(1)}`;
+        expect({ info, low: Math.abs(Math.min(t0, t1)) < 1 }).toEqual({ info, low: true });
+        expect({ info, high: Math.abs(Math.max(t0, t1) - cl) < 1 }).toEqual({ info, high: true });
+      }
+    expect(pairs).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('jackie: opposite carriageway width (B2a)', () => {
+  test('two-lane carriageways beside the stage road are as wide as the stage road where the median allows', () => {
+    const net = world.gen.paths!;
+    const pt = { x: 0, z: 0 };
+    const q = newRoadQuery();
+    let beside = 0;
+    let same = 0;
+    net.paths.forEach((p, pi) => {
+      if (p.kind !== 'motorway' || p.surface !== 'tarmac' || (p.lanes ?? 2) > 2) return;
+      net.pointAt(pi, net.lengths[pi] / 2, pt);
+      road.query(pt.x, pt.z, q);
+      if (!q.found || q.distance > 12 || net.lengths[pi] < 20) return;
+      beside++;
+      if (Math.abs(p.width - road.def.width) < 0.05) same++;
+      expect(p.width).toBeGreaterThanOrEqual(5.99);
+      expect(p.width).toBeLessThanOrEqual(road.def.width + 0.05);
+    });
+    expect(beside).toBeGreaterThan(10);
+    expect(same / beside).toBeGreaterThan(0.5);
   });
 });

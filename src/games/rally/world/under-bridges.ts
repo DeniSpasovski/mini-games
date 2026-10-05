@@ -400,3 +400,284 @@ export function trimMergingDecks(paths: PathDef[]): PathDef[] {
   }
   return out.filter((_, i) => !gone.has(i));
 }
+
+/** A carriageway deck beside the stage road is aligned to its span when it lies within this lateral reach (m). */
+const ALIGN_LATERAL = 30;
+/** ... and its ends may move at most this far along the road (m). */
+const ALIGN_MAX_SHIFT = 25;
+
+/** Metres of polyline `pts`. */
+function polyLength(pts: number[]): number {
+  let t = 0;
+  for (let k = 0; k + 3 < pts.length; k += 2)
+    t += Math.hypot(pts[k + 2] - pts[k], pts[k + 3] - pts[k + 1]);
+  return t;
+}
+
+/** `pts` without its first (`atEnd` false) / last `len` metres. */
+function cutEnd(pts: number[], atEnd: boolean, len: number): number[] {
+  const L = polyLength(pts);
+  const [a, , c] = splitAt(pts, atEnd ? L - len : len, atEnd ? L - len : len);
+  return atEnd ? a : c;
+}
+
+/**
+ * Bridges of the stage road and of the carriageway beside it are one structure: the opposite carriageway's deck
+ * (OSM `bridge=yes` way, its own end nodes) starts and ends on the same lines across the road as the stage road's
+ * span, up to 10 m off in the baked data (abutments that did not line up, one carriageway "broken" at every
+ * crossing). The deck is cut back where it is longer (the rest becomes ground carriageway) or extended where it is
+ * shorter (the ground ways that met its old end are shortened to meet the new one).
+ */
+export function alignParallelDecks(paths: PathDef[], road: Road): PathDef[] {
+  const spans = (road.def.spans ?? []).filter((s) => s.kind === 'bridge');
+  if (!spans.length) return paths;
+  const rq = newRoadQuery();
+  const out = paths.slice();
+  const extra: PathDef[] = [];
+  const trimmed = new Map<number, number[]>();
+  const ptsOf = (i: number) => trimmed.get(i) ?? out[i].pts;
+  paths.forEach((p, pi) => {
+    if (!p.bridge || p.surface !== 'tarmac') return;
+    if (p.kind !== 'motorway' && p.kind !== 'trunk') return;
+    const L = polyLength(p.pts);
+    if (L < 6) return;
+    // Along-road coordinate of the deck every metre (and how parallel / near it runs).
+    const f: number[] = [];
+    let near = 0;
+    for (let a = 0; a <= L; a++) {
+      const [x, z, dx, dz] = polyAt(p.pts, a);
+      road.query(x, z, rq);
+      f.push(rq.found ? rq.along : NaN);
+      if (rq.found && rq.distance <= ALIGN_LATERAL) {
+        const s = road.samples[rq.index];
+        if (Math.abs(dx * s.tx + dz * s.tz) > 0.9) near++;
+      }
+    }
+    if (near < f.length * 0.8) return;
+    const inc = f[f.length - 1] >= f[0];
+    const lo = Math.min(f[0], f[f.length - 1]);
+    const hi = Math.max(f[0], f[f.length - 1]);
+    // The span this deck overlaps most.
+    let best: { from: number; to: number } | undefined;
+    let bestOv = 0;
+    for (const s of spans) {
+      const ov = Math.min(hi, s.to) - Math.max(lo, s.from);
+      if (ov > bestOv) {
+        bestOv = ov;
+        best = s;
+      }
+    }
+    if (
+      !best ||
+      bestOv <= 0 ||
+      Math.abs((lo + hi) / 2 - (best.from + best.to) / 2) > ALIGN_MAX_SHIFT
+    )
+      return;
+    const tStart = inc ? best.from : best.to; // along-road target at the deck's start / end
+    const tEnd = inc ? best.to : best.from;
+    const shift0 = Math.abs(f[0] - tStart);
+    const shift1 = Math.abs(f[f.length - 1] - tEnd);
+    if (shift0 > ALIGN_MAX_SHIFT || shift1 > ALIGN_MAX_SHIFT) return;
+    if (shift0 < 0.5 && shift1 < 0.5) return;
+    // Arc positions of the targets on the deck (nearest sample), or beyond its ends (negative / > L).
+    const arc = (target: number, atEnd: boolean): number => {
+      const sign = inc ? 1 : -1;
+      const end = atEnd ? f.length - 1 : 0;
+      const beyond = sign * (atEnd ? target - f[end] : f[end] - target); // > 0: target lies outside the deck
+      if (beyond > 0) return atEnd ? L + beyond : -beyond;
+      let bi = atEnd ? f.length - 1 : 0;
+      let bd = Infinity;
+      for (let i = 0; i < f.length; i++) {
+        const d = Math.abs(f[i] - target);
+        if (d < bd) [bi, bd] = [i, d];
+      }
+      return bi;
+    };
+    const a0 = arc(tStart, false);
+    const a1 = arc(tEnd, true);
+    if (a1 - a0 < 6) return;
+    // Deck polyline: [a0, a1] clamped to the deck, extended along the end tangents where the target is outside.
+    const c0 = Math.max(0, a0);
+    const c1 = Math.min(L, a1);
+    const [, deck] = c0 > 0 || c1 < L ? splitAt(p.pts, c0, c1) : [[], p.pts];
+    let pts = deck.slice();
+    const [sx, sz, sdx, sdz] = polyAt(p.pts, 0);
+    const [ex, ez, edx, edz] = polyAt(p.pts, L);
+    if (a0 < 0) pts = [sx + sdx * a0, sz + sdz * a0, ...pts];
+    if (a1 > L) pts = [...pts, ex + edx * (a1 - L), ez + edz * (a1 - L)];
+    // Pieces cut off the deck stay as ground carriageway.
+    const ground = (g: number[]) => {
+      const q: PathDef = { ...p, pts: g };
+      delete q.bridge;
+      delete q.layer;
+      return q;
+    };
+    if (a0 > 0.5) extra.push(ground(splitAt(p.pts, a0, a0)[0]));
+    if (a1 < L - 0.5) extra.push(ground(splitAt(p.pts, a1, a1)[2]));
+    // Ground ways that met an end the deck now overshoots are shortened to the new end.
+    const trim = (atEnd: boolean, ox: number, oz: number, grow: number) => {
+      if (grow < 0.5) return;
+      paths.forEach((q, qi) => {
+        if (qi === pi || q.bridge) return;
+        const n = q.pts.length;
+        for (const qEnd of [false, true]) {
+          const x = qEnd ? q.pts[n - 2] : q.pts[0];
+          const z = qEnd ? q.pts[n - 1] : q.pts[1];
+          if (Math.hypot(x - ox, z - oz) > 2.5) continue;
+          const cur = ptsOf(qi);
+          if (polyLength(cur) < grow + 3) continue;
+          trimmed.set(qi, cutEnd(cur, qEnd, grow));
+        }
+      });
+      void atEnd;
+    };
+    trim(false, sx, sz, a0 < 0 ? -a0 : 0);
+    trim(true, ex, ez, a1 > L ? a1 - L : 0);
+    out[pi] = { ...p, pts };
+  });
+  return [
+    ...out.map((p, i) => (trimmed.has(i) ? { ...p, pts: trimmed.get(i)! } : p)),
+    ...extra,
+  ];
+}
+
+/** Twin decks: free lateral distance between their centre lines (m), see `alignTwinDeckEnds`. */
+const TWIN_SEP: [number, number] = [3, 14];
+/** Largest end correction of a twin deck (m). */
+const TWIN_MAX_GROW = 10;
+
+/** Ground ways with an end at (ox, oz) lose `grow` metres there (they now meet the grown deck end). */
+function trimNeighbours(
+  paths: PathDef[],
+  trimmed: Map<number, number[]>,
+  skip: number,
+  ox: number,
+  oz: number,
+  grow: number,
+): void {
+  paths.forEach((q, qi) => {
+    if (qi === skip || q.bridge) return;
+    const n = q.pts.length;
+    for (const qEnd of [false, true]) {
+      const x = qEnd ? q.pts[n - 2] : q.pts[0];
+      const z = qEnd ? q.pts[n - 1] : q.pts[1];
+      if (Math.hypot(x - ox, z - oz) > 2.5) continue;
+      const cur = trimmed.get(qi) ?? q.pts;
+      if (polyLength(cur) < grow + 3) continue;
+      trimmed.set(qi, cutEnd(cur, qEnd, grow));
+    }
+  });
+}
+
+/**
+ * The two directions of an overpass street are two decks side by side (OSM: a way per direction) whose end nodes sit
+ * a few metres apart along the street. Drawn as one slab (twin-decks.ts) that leaves a stepped end: the shorter
+ * deck is extended so both end on the same cross line (the union of their extents).
+ */
+export function alignTwinDeckEnds(paths: PathDef[]): PathDef[] {
+  const isStreetDeck = (p: PathDef) =>
+    !!p.bridge && p.surface === 'tarmac' && STREET_KINDS.has(p.kind);
+  const out = paths.slice();
+  const trimmed = new Map<number, number[]>();
+  const ends = (p: PathDef) => {
+    const L = polyLength(p.pts);
+    const [sx, sz, sdx, sdz] = polyAt(p.pts, 0);
+    const [ex, ez, edx, edz] = polyAt(p.pts, L);
+    return { L, sx, sz, sdx, sdz, ex, ez, edx, edz };
+  };
+  for (let i = 0; i < paths.length; i++) {
+    if (!isStreetDeck(paths[i])) continue;
+    for (let j = i + 1; j < paths.length; j++) {
+      if (!isStreetDeck(paths[j])) continue;
+      const a = out[i];
+      const b = out[j];
+      if ((a.layer ?? 1) !== (b.layer ?? 1)) continue;
+      const ea = ends(a);
+      const eb = ends(b);
+      const cx = ea.ex - ea.sx;
+      const cz = ea.ez - ea.sz;
+      const cl = Math.hypot(cx, cz);
+      if (cl < 6) continue;
+      const dx = cx / cl;
+      const dz = cz / cl;
+      // b's chord in a's frame (t along a's chord, u across).
+      const bt0 = (eb.sx - ea.sx) * dx + (eb.sz - ea.sz) * dz;
+      const bt1 = (eb.ex - ea.sx) * dx + (eb.ez - ea.sz) * dz;
+      const bu0 = (eb.sx - ea.sx) * dz - (eb.sz - ea.sz) * dx;
+      const bu1 = (eb.ex - ea.sx) * dz - (eb.ez - ea.sz) * dx;
+      const bcl = Math.abs(bt1 - bt0);
+      if (bcl < 6 || Math.abs(bu1 - bu0) > 0.25 * bcl) continue; // not parallel
+      if (Math.min(cl, bcl) < 0.6 * Math.max(cl, bcl)) continue; // a short deck beside a long one: another structure
+      const sep = Math.abs((bu0 + bu1) / 2);
+      if (sep < TWIN_SEP[0] || sep > TWIN_SEP[1]) continue;
+      const lo = Math.min(bt0, bt1);
+      const hi = Math.max(bt0, bt1);
+      const overlap = Math.min(cl, hi) - Math.max(0, lo);
+      if (overlap < 0.7 * Math.min(cl, hi - lo)) continue;
+      const T0 = Math.min(0, lo);
+      const T1 = Math.max(cl, hi);
+      // Extend an end of deck `k` by `grow` m along its end tangent.
+      const extend = (k: number, atEnd: boolean, grow: number) => {
+        if (grow < 0.3 || grow > TWIN_MAX_GROW) return;
+        const p = out[k];
+        const e = ends(p);
+        const [ox, oz, tx, tz] = atEnd
+          ? [e.ex, e.ez, e.edx, e.edz]
+          : [e.sx, e.sz, -e.sdx, -e.sdz]; // outward tangent
+        const nxp = [ox + tx * grow, oz + tz * grow];
+        out[k] = { ...p, pts: atEnd ? [...p.pts, ...nxp] : [...nxp, ...p.pts] };
+        trimNeighbours(paths, trimmed, k, ox, oz, grow);
+      };
+      // a: start at t = 0, end at cl.  b: its low-t / high-t ends.
+      extend(i, false, -T0);
+      extend(i, true, T1 - cl);
+      const bLowIsStart = bt0 <= bt1;
+      extend(j, !bLowIsStart, lo - T0); // the end with the lower t
+      extend(j, bLowIsStart, T1 - hi); // the end with the higher t
+    }
+  }
+  return out.map((p, i) =>
+    trimmed.has(i) ? { ...p, pts: trimmed.get(i)! } : p,
+  );
+}
+
+/** Median left between the stage road and the opposite carriageway when its width is matched (m). */
+const MIN_MEDIAN = 0.5;
+/** The opposite carriageway is at most this far from the stage road (centre to centre, m). */
+const CARRIAGEWAY_REACH = 16;
+
+/**
+ * The opposite carriageway of the divided highway looks like the stage road: same width (OSM lane counts and the
+ * baker's room limit gave it 6.0 - 8.3 m against the stage road's 7.4, so its lane markings, edge lines and barriers
+ * did not match), as far as the median allows (a median of at least MIN_MEDIAN). Only two-lane mainline ways that
+ * run parallel beside the stage road; wider / narrower ways (lane gains, ramps) keep their width.
+ */
+export function matchCarriagewayWidth(paths: PathDef[], road: Road): PathDef[] {
+  const rq = newRoadQuery();
+  const target = road.def.width;
+  return paths.map((p) => {
+    if (p.kind !== 'motorway' || p.surface !== 'tarmac') return p;
+    if (p.lanes !== undefined && p.lanes > 2) return p;
+    const L = polyLength(p.pts);
+    if (L < 6) return p;
+    const d: number[] = [];
+    let near = 0;
+    let total = 0;
+    for (let a = 0; a <= L; a += 2) {
+      const [x, z, dx, dz] = polyAt(p.pts, a);
+      road.query(x, z, rq);
+      total++;
+      if (!rq.found || rq.distance > CARRIAGEWAY_REACH) continue;
+      const s = road.samples[rq.index];
+      if (Math.abs(dx * s.tx + dz * s.tz) < 0.9) continue;
+      near++;
+      d.push(rq.distance);
+    }
+    if (near < total * 0.8) return p;
+    d.sort((u, v) => u - v);
+    const room =
+      2 * (d[Math.floor(d.length * 0.1)] - road.def.width / 2 - MIN_MEDIAN);
+    const width = Math.min(target, Math.max(6, room));
+    return Math.abs(width - p.width) < 0.05 ? p : { ...p, width };
+  });
+}

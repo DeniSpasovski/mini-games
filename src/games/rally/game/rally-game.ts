@@ -25,17 +25,19 @@ import type { GearingId, SetupId } from '../physics/types';
 import { PHYSICS_HZ, Vehicle } from '../physics/vehicle';
 import { isTestCar, isTestMap, TEST_NOTE } from '../release';
 import { Breakables } from '../world/breakables';
+import { DistanceCull } from '../world/distance-cull';
 import { InstanceStreamer } from '../world/instance-streamer';
 import { buildRoadMesh } from '../world/road-mesh';
 import { TerrainRenderer } from '../world/terrain-renderer';
 import { World } from '../world/world';
 import { CarAudio } from './audio';
 import { Autopilot, finishStopControls } from './autopilot';
+import { ContactShadow } from './contact-shadow';
 import { CameraRig } from './camera-rig';
 import { ParticleSystem } from './dust';
 import { Hud } from './hud';
 import { InputController, type InputAction } from './input';
-import { type RallySettings, saveSettings } from './settings';
+import { OBJECT_DISTANCE, type RallySettings, saveSettings } from './settings';
 import {
   bestKey,
   formatDelta,
@@ -89,6 +91,9 @@ export class RallyGame {
   model!: CarModel;
   env!: Environment;
   terrain!: TerrainRenderer;
+  /** Hides road-group meshes beyond the terrain view distance (world/distance-cull.ts). */
+  roadCull!: DistanceCull;
+  private contactShadow!: ContactShadow;
   streamer!: InstanceStreamer;
   /** Marker posts the car knocks over (drawn by the streamer). */
   breakables!: Breakables;
@@ -121,6 +126,7 @@ export class RallyGame {
   private renderPos = new Vector3();
   private renderFwd = new Vector3();
   private renderUp = new Vector3();
+  private camDir = new Vector3();
   private emitAcc = [0, 0, 0, 0];
   private dustColor = new Color();
   private lastCount = -1;
@@ -166,7 +172,10 @@ export class RallyGame {
     await frame();
 
     progress(0.15, 'Road');
-    this.scene.add(buildRoadMesh(this.world));
+    const road = buildRoadMesh(this.world);
+    this.scene.add(road);
+    // Whole-map meshes: nothing past the streamed terrain (no ground under them there).
+    this.roadCull = new DistanceCull(road, q.viewDistance);
     await frame();
 
     const spawn = this.world.spawn(this.opts.spawn);
@@ -193,8 +202,10 @@ export class RallyGame {
 
     progress(0.8, 'Vegetation & props');
     this.streamer = new InstanceStreamer(this.world, {
-      lodScale: q.lodScale,
+      lodScale: q.lodScale * OBJECT_DISTANCE[this.opts.settings.objectDistance],
       detailDensity: q.detailDensity,
+      // Nothing past the streamed terrain (it would stand on nothing).
+      maxDistance: q.viewDistance,
     });
     this.scene.add(this.streamer.group);
     this.streamer.updateNow(spawn.position);
@@ -217,6 +228,11 @@ export class RallyGame {
       tyre: this.opts.tyre,
     });
     this.scene.add(this.model.root);
+    // Soft dark patch under the car: grounds it at any shadow resolution.
+    this.contactShadow = new ContactShadow(this.vehicle, (x, z) =>
+      this.world.heightAt(x, z),
+    );
+    this.scene.add(this.contactShadow.mesh);
     this.dust = new ParticleSystem(q.particles);
     this.dust.material.uniforms.uLight.value.setScalar(1.7);
     this.scene.add(this.dust.points, this.forceLines.lines);
@@ -250,6 +266,11 @@ export class RallyGame {
     this.vehicle.drivetrain.automatic = s.automatic;
     this.vehicle.tractionControl = s.traction;
     this.rig.mode = s.camera;
+    // Object draw distance (options): the streamer re-buckets on its next update.
+    const lodScale =
+      this.opts.quality.lodScale * OBJECT_DISTANCE[s.objectDistance];
+    if (this.streamer.lodScale !== lodScale)
+      this.streamer.setOptions({ lodScale });
     this.model.setBadge({
       number: s.carNumber,
       rally: rallyName(this.world.map.name),
@@ -566,6 +587,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
 
     // --- car model + camera -------------------------------------------------------------
     this.model.updateFromVehicle(v, alpha);
+    this.contactShadow.update(this.model.root);
+    this.model.setBrake(v.controls.brake);
     this.renderPos.copy(this.model.root.position);
     this.renderFwd.set(0, 0, 1).applyQuaternion(this.model.root.quaternion);
     this.renderUp.set(0, 1, 0).applyQuaternion(this.model.root.quaternion);
@@ -576,8 +599,10 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     // --- streaming ----------------------------------------------------------------------------
     const camPos = this.camera.position;
     this.terrain.update(camPos, 2.5);
+    this.roadCull.update(camPos);
     this.streamer.update(camPos);
-    this.env.update(this.renderPos);
+    // Shadow box ahead of the camera (where the player looks), not centred on the car.
+    this.env.update(this.renderPos, this.camera.getWorldDirection(this.camDir));
     this.env.follow(camPos);
 
     // --- effects / audio / HUD ------------------------------------------------------------------

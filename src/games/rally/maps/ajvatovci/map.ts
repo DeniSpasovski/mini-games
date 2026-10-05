@@ -468,11 +468,13 @@ export const ajvatovciMap: MapDef = {
     sunElevation: 40,
     // Afternoon sun from the south-west (azimuth from +Z towards +X; +Z = south).
     sunAzimuth: 315,
+    // Spring morning: low sun in the east (~22 deg) - the stage drives towards it up to the hill. ?tod=<hours> to try.
+    timeOfDay: 7.5,
     turbidity: 6,
     rayleigh: 1.5,
     fogColor: '#c3c9cf',
     fogDensity: 0.00042,
-    exposure: 0.82,
+    exposure: 0.88,
     // Spring: fresh green meadows and young crops, golden wheat parcels.
     groundTint: { grass: '#65952f', amount: 0.8, crop: '#c49c36' },
   },

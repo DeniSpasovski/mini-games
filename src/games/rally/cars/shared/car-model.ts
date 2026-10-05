@@ -196,6 +196,15 @@ function lampCellTexture(): CanvasTexture {
   return cellTex;
 }
 
+/** Mark a lamp material as a brake light: its emissive intensity goes from today's value to `on` when braking. */
+function markBrakeLamp<M extends Material & { emissiveIntensity: number }>(
+  m: M,
+  on: number,
+): M {
+  m.userData.brakeLamp = { off: m.emissiveIntensity, on };
+  return m;
+}
+
 /**
  * Tinted lamps: a coloured metallic reflector (facets catch the sky like the cells of a real
  * lamp) under a thin glossy tinted lens - reads as translucent plastic with depth.
@@ -223,6 +232,10 @@ const tintedLens = (color: number, opacity: number) =>
 const redReflectorMat = tintedReflector(0x5c0509, 0.08);
 const amberReflectorMat = tintedReflector(0x9a4c06, 0.08);
 const redLensMat = tintedLens(0x8a0a14, 0.24);
+// Brake lamps: glow off / with the brake pedal down (CarModel.setBrake).
+markBrakeLamp(tailMat, 3);
+markBrakeLamp(redReflectorMat, 2.2);
+markBrakeLamp(redLensMat, 2.7);
 const amberLensMat = tintedLens(0xd88214, 0.24);
 /** Tyres: vertex colours (rubber, compound ring, road dust) - cars/shared/tyre-mesh.ts. */
 const tireVertexMat = new MeshStandardMaterial({
@@ -311,6 +324,9 @@ export class CarModel {
   private badgeKey = '';
   private importedPaint: BadgeTarget[] = [];
   private owned: (Material | Texture | BufferGeometry)[] = [];
+  /** This car's own copies of its brake-lamp materials (collected on the first setBrake / after the import). */
+  private brakeLamps?: MeshStandardMaterial[];
+  private brakeLevel = 0;
   /** Fitted compound (null = plain tyre). */
   private tyre: TyreId | null;
   /** The wheel geometries currently on the instanced meshes (owned here, replaced by `refreshWheels`). */
@@ -492,6 +508,7 @@ export class CarModel {
               matrix: m.matrixWorld.clone(),
             }));
             this.body.add(obj);
+            this.brakeLamps = undefined;
             for (const m of procedural) m.visible = false;
             if (def.model.gltf?.addOns)
               addParts(buildCarParts(def, this.shape, true));
@@ -855,6 +872,43 @@ export class CarModel {
     if (this.discs && w.disc) {
       this.discs.geometry = w.disc;
       this.wheelGeoms.push(w.disc);
+    }
+  }
+
+  /**
+   * Brake lights: 0 = off (the lamps' faint idle glow), 1 = brake pedal fully down (bright). The car's brake-lamp
+   * materials (`userData.brakeLamp`) are cloned once per CarModel, so other cars (showroom, bench) never light up.
+   */
+  setBrake(level: number): void {
+    if (!this.brakeLamps) {
+      const own = new Map<Material, MeshStandardMaterial>();
+      this.root.traverse((o) => {
+        const mesh = o as Mesh;
+        if (!mesh.isMesh) return;
+        const m = mesh.material as MeshStandardMaterial;
+        if (!m || Array.isArray(m) || !m.userData.brakeLamp) return;
+        if (m.userData.brakeOwner === this) {
+          own.set(m, m);
+          return;
+        }
+        let c = own.get(m);
+        if (!c) {
+          c = m.clone();
+          c.userData = { ...m.userData, brakeOwner: this };
+          own.set(m, c);
+          this.owned.push(c);
+        }
+        mesh.material = c;
+      });
+      this.brakeLamps = [...new Set(own.values())];
+      this.brakeLevel = -1;
+    }
+    const l = Math.max(0, Math.min(1, level));
+    if (Math.abs(l - this.brakeLevel) < 0.02) return;
+    this.brakeLevel = l;
+    for (const m of this.brakeLamps) {
+      const { off, on } = m.userData.brakeLamp as { off: number; on: number };
+      m.emissiveIntensity = off + (on - off) * l;
     }
   }
 

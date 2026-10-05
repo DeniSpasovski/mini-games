@@ -62,7 +62,12 @@ import {
   type NavAction,
   type NavDir,
 } from './pad-nav';
-import { loadSettings, saveSettings, type RallySettings } from './settings';
+import {
+  loadSettings,
+  saveSettings,
+  type ObjectDistance,
+  type RallySettings,
+} from './settings';
 import { Showroom } from './showroom';
 import { formatTime, loadTimes, sectorTimes, type RunRecord } from './stage';
 
@@ -777,6 +782,19 @@ export function buildOptions(opts: {
       },
     ),
     opts.onQuality ? 'reloads the stage' : '',
+  );
+  row(
+    'Object distance',
+    choice(
+      [
+        ['normal', 'Normal'],
+        ['far', 'Far'],
+        ['max', 'Max'],
+      ] as [ObjectDistance, string][],
+      s.objectDistance,
+      (v) => set({ objectDistance: v }),
+    ),
+    'trees, houses and props pop in further away · Max costs GPU',
   );
   row(
     'Display',

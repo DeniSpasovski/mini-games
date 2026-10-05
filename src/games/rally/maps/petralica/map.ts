@@ -332,11 +332,13 @@ export const petralicaMap: MapDef = {
     sunElevation: 38,
     // Afternoon sun from the south-west (azimuth from +Z towards +X; +Z = south).
     sunAzimuth: 320,
+    // Late afternoon: low warm sun from the WSW (~22 deg), long shadows. Try others with ?tod=<hours>.
+    timeOfDay: 16.5,
     turbidity: 5,
     rayleigh: 1.6,
     fogColor: '#c2cbd2',
     fogDensity: 0.00036,
-    exposure: 0.82,
+    exposure: 0.95,
     groundTint: { grass: '#9d9562', amount: 0.6 },
   },
 };

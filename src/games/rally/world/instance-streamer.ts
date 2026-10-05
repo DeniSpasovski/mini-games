@@ -8,7 +8,7 @@ import {
   Quaternion,
   Vector3,
 } from 'three';
-import { getAssetMeta, type AssetMeta } from '../assets/catalog';
+import { ASSET_CATALOG, getAssetMeta, type AssetMeta } from '../assets/catalog';
 import { getAsset } from '../assets/library';
 import { hash3 } from '../../../shared/rng';
 import type { ScatterInstance } from './scatter';
@@ -59,7 +59,17 @@ export interface StreamerOptions {
   rebuildDistance?: number;
   /** Max ms per frame spent on a rebuild job. */
   budgetMs?: number;
+  /**
+   * Nothing is drawn further than this (m), whatever the LOD distances say: the game passes the terrain view
+   * distance, so no tree / house stands past the streamed ground. Unset = the longest LOD distance.
+   */
+  maxDistance?: number;
 }
+
+/** Longest last-LOD distance of any asset (power pylons, buildings): the widest chunk sweep needed. */
+const LONGEST_LOD = Math.max(
+  ...ASSET_CATALOG.map((a) => a.lods[a.lods.length - 1].maxDistance),
+);
 
 const _m = new Matrix4();
 const _q = new Quaternion();
@@ -77,6 +87,8 @@ export class InstanceStreamer {
   private maxRange: number;
   private detailRange: number;
   private job: Iterator<void> | null = null;
+  /** Per instance list (a scatter chunk): the longest last-LOD distance in it, to skip far chunks wholesale. */
+  private reach = new WeakMap<ScatterInstance[], number>();
   /** Instances drawn after the last commit (stats). */
   drawn = 0;
   /** Completed rebuilds (stats / tests). */
@@ -105,6 +117,11 @@ export class InstanceStreamer {
     }
     this.maxRange = max;
     this.detailRange = detail;
+  }
+
+  /** Current LOD distance multiplier. */
+  get lodScale(): number {
+    return this.opts.lodScale;
   }
 
   setOptions(o: Partial<StreamerOptions>): void {
@@ -148,8 +165,14 @@ export class InstanceStreamer {
     const scatter = this.world.scatter;
     const cs = scatter.chunkSize;
     const lodScale = this.opts.lodScale;
-    const range = this.maxRange * lodScale;
-    const dRange = this.detailRange * lodScale;
+    const maxD = this.opts.maxDistance ?? Infinity;
+    // Buildings / pylons / landmark props (fixed instances) may reach further than the map's scatter rules;
+    // chunks with nothing that far are skipped by their reach below.
+    const range = Math.min(
+      maxD,
+      Math.max(this.maxRange, LONGEST_LOD) * lodScale,
+    );
+    const dRange = Math.min(maxD, this.detailRange * lodScale);
     const b = this.world.map.bounds;
     let drawn = 0;
 
@@ -168,6 +191,7 @@ export class InstanceStreamer {
         const dx = inst.x - focus.x;
         const dz = inst.z - focus.z;
         const dist = Math.sqrt(dx * dx + dz * dz);
+        if (dist > maxD) continue;
         let lod = -1;
         for (let i = 0; i < lods.length; i++) {
           if (dist < lods[i].maxDistance * lodScale) {
@@ -193,7 +217,9 @@ export class InstanceStreamer {
           Math.hypot((cx + 0.5) * cs - focus.x, (cz + 0.5) * cs - focus.z) -
           cs * 0.71;
         if (near > range) continue;
-        visit(scatter.chunk(cx, cz).instances, false);
+        const list = scatter.chunk(cx, cz).instances;
+        // A far chunk of short-range assets (bushes, orchards, rocks) has nothing to draw: skip its instances.
+        if (near <= this.reachOf(list) * lodScale) visit(list, false);
         // Grass needs the 1 m heightfield; skip until terrain streaming has built it.
         if (
           dRange > 0 &&
@@ -235,6 +261,22 @@ export class InstanceStreamer {
       im.addUpdateRange(i * 16, 16);
       im.needsUpdate = true;
     }
+  }
+
+  private reachOf(list: ScatterInstance[]): number {
+    let r = this.reach.get(list);
+    if (r === undefined) {
+      r = 0;
+      const seen = new Set<string>();
+      for (const inst of list) {
+        if (seen.has(inst.asset)) continue;
+        seen.add(inst.asset);
+        const lods = getAssetMeta(inst.asset).lods;
+        r = Math.max(r, lods[lods.length - 1].maxDistance);
+      }
+      this.reach.set(list, r);
+    }
+    return r;
   }
 
   private dataOf(inst: ScatterInstance): InstanceData {

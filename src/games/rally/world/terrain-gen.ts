@@ -14,7 +14,10 @@ import {
 import { connectPaths, type Junction } from './junctions';
 import { twinAt } from './twin-decks';
 import {
+  alignParallelDecks,
+  alignTwinDeckEnds,
   bridgeOverUnderSpans,
+  matchCarriagewayWidth,
   dropDuplicateDecks,
   trimMergingDecks,
 } from './under-bridges';
@@ -109,6 +112,8 @@ const DECK_GRADE = 0.07;
 const PARALLEL_REACH = 45;
 /** Profile sample spacing (m). */
 const PROFILE_STEP = 4;
+/** The ground under a deck stays this far below its road surface inside its footprint (m). */
+const DECK_SOFFIT_GAP = 0.35;
 /** Where a road meets / crosses a more important one it is eased to its height over at least this length (m). */
 const JUNCTION_EASE = 30;
 
@@ -123,6 +128,11 @@ export class TerrainGenerator {
   private dq: RoadQuery = newRoadQuery();
   /** 1 = path is a bridge deck (OSM bridge=yes): not carved into the ground, lifted over lower roads. */
   private deckFlag = new Uint8Array(0);
+  private hasDeckPaths = false;
+  private readonly capQ = newPathQuery();
+  private readonly capQ2 = newPathQuery();
+  private readonly isDeckPath = (pi: number): boolean =>
+    this.deckFlag[pi] === 1;
   /** 1 = a deck that crosses a portal slab: a street at the structure's level, never lifted over / dipped under anything else. */
   private portalDeck = new Uint8Array(0);
   /** Path accept filters (decks are not ground). */
@@ -196,10 +206,20 @@ export class TerrainGenerator {
       // Side roads are extended up to the stage road (junctions).
       // Streets over a parkway that runs under them become bridge decks, then side roads are joined to the stage road.
       const joined = connectPaths(
-        trimMergingDecks(
-          dropDuplicateDecks(
-            bridgeOverUnderSpans(dropDuplicateDecks(map.paths), this.road)
-              .paths,
+        alignTwinDeckEnds(
+          alignParallelDecks(
+            trimMergingDecks(
+              dropDuplicateDecks(
+                bridgeOverUnderSpans(
+                  matchCarriagewayWidth(
+                    dropDuplicateDecks(map.paths),
+                    this.road,
+                  ),
+                  this.road,
+                ).paths,
+              ),
+            ),
+            this.road,
           ),
         ),
         this.road,
@@ -211,6 +231,7 @@ export class TerrainGenerator {
       this.deckFlag = Uint8Array.from(this.paths.paths, (p) =>
         p.bridge ? 1 : 0,
       );
+      this.hasDeckPaths = this.deckFlag.some((f) => f === 1);
       const water = joined.paths.filter((p) => p.surface === 'water');
       if (water.length) {
         this.channels = new PathNetwork(water);
@@ -522,6 +543,48 @@ export class TerrainGenerator {
     done.fill(0);
     for (const pi of all) if (this.underStreet(pi)) done[pi] = 1;
     for (const pi of ground) if (!this.underStreet(pi)) anchor(pi);
+    this.snapDeckEnds(net, profiles);
+  }
+
+  /**
+   * Last pass: a ground way that continues onto a bridge deck meets the deck end at exactly the deck height (the
+   * passes above - dips, re-anchoring, the twin mean - can leave a step of up to a metre there, the most visible
+   * glitch of a bridge). The difference is faded out over the next 10-40 m of the way, never reaching its far end.
+   */
+  private snapDeckEnds(net: PathNetwork, profiles: Float32Array[]): void {
+    const pd = { x: 0, z: 0 };
+    const pg = { x: 0, z: 0 };
+    net.paths.forEach((_p, di) => {
+      if (!this.deckFlag[di]) return;
+      const ydeck = profiles[di];
+      for (const atEnd of [false, true]) {
+        net.pointAt(di, atEnd ? net.lengths[di] : 0, pd);
+        const yd = ydeck[atEnd ? ydeck.length - 1 : 0];
+        net.paths.forEach((_q, gi) => {
+          if (this.deckFlag[gi]) return;
+          const G = net.lengths[gi];
+          const ys = profiles[gi];
+          const n = ys.length;
+          const step = G / (n - 1) || 1;
+          for (const gEnd of [false, true]) {
+            net.pointAt(gi, gEnd ? G : 0, pg);
+            if (Math.hypot(pg.x - pd.x, pg.z - pd.z) > 2.5) continue;
+            const diff = yd - ys[gEnd ? n - 1 : 0];
+            if (Math.abs(diff) < 0.02) continue;
+            const e = Math.min(
+              Math.max(10, Math.abs(diff) / 0.06),
+              40,
+              G * 0.8,
+            );
+            for (let i = 0; i < n; i++) {
+              const d = gEnd ? G - i * step : i * step;
+              if (d >= e) continue;
+              ys[i] += diff * (1 - smoothstep(0, e, d));
+            }
+          }
+        });
+      }
+    });
   }
 
   /**
@@ -543,7 +606,8 @@ export class TerrainGenerator {
       const n = ys.length;
       const L = net.lengths[pi];
       const step = L / (n - 1) || 1;
-      let out: Float32Array | undefined;
+      const delta = new Float32Array(n).fill(NaN);
+      let any = false;
       for (let i = 0; i < n; i++) {
         const t = twinAt(
           net,
@@ -563,9 +627,26 @@ export class TerrainGenerator {
         const k = Math.floor(f);
         const y2 =
           yo[k] + (yo[Math.min(yo.length - 1, k + 1)] - yo[k]) * (f - k);
-        (out ??= ys.slice())[i] = (ys[i] + y2) / 2;
+        delta[i] = (y2 - ys[i]) / 2;
+        any = true;
       }
-      if (out) mean.set(pi, out);
+      if (!any) continue;
+      // Samples without a twin (the ends of the deck, where the other one starts later / stops earlier) take the
+      // nearest twin sample's adjustment, fading out over 16 m: no cliff where the shared height line begins.
+      const out = ys.slice();
+      for (let i = 0; i < n; i++) {
+        let d = delta[i];
+        if (Number.isNaN(d)) {
+          let best = Infinity;
+          let bj = -1;
+          for (let j = 0; j < n; j++)
+            if (!Number.isNaN(delta[j]) && Math.abs(i - j) < best)
+              [best, bj] = [Math.abs(i - j), j];
+          d = delta[bj] * (1 - smoothstep(0, 16, best * step));
+        }
+        out[i] = ys[i] + d;
+      }
+      mean.set(pi, out);
     }
     for (const [pi, ys] of mean) profiles[pi].set(ys);
   }
@@ -618,6 +699,32 @@ export class TerrainGenerator {
       }
     }
     if (!spans.length && !deckPts.length) return;
+    // Deck points in a grid (cell >= the widest deck reach): each street sample checks the 3 x 3 cells around it
+    // instead of every deck point of the map (a town has hundreds of streets, the A2 dozens of decks).
+    let reach = 0;
+    for (const d of deckPts) reach = Math.max(reach, d.hw + 0.5);
+    const cell = Math.max(8, reach);
+    const deckGrid = new Map<number, number[]>();
+    const cellKey = (cx: number, cz: number) => cx * 73856093 + cz * 19349663;
+    deckPts.forEach((d, k) => {
+      const key = cellKey(Math.floor(d.x / cell), Math.floor(d.z / cell));
+      const list = deckGrid.get(key);
+      if (list) list.push(k);
+      else deckGrid.set(key, [k]);
+    });
+    // Stage-road spans as boxes (+ the widest reach): a street sample outside every box cannot be under one.
+    const spanBoxes = spans.map((sp) => {
+      const b = [Infinity, -Infinity, Infinity, -Infinity];
+      for (const s of this.road.samples) {
+        if (s.dist < sp.from || s.dist > sp.to) continue;
+        const m = s.halfWidth + 1;
+        b[0] = Math.min(b[0], s.x - m);
+        b[1] = Math.max(b[1], s.x + m);
+        b[2] = Math.min(b[2], s.z - m);
+        b[3] = Math.max(b[3], s.z + m);
+      }
+      return b;
+    });
     const rq = newRoadQuery();
     // Per street way: the ceiling (Infinity = free) and its sample step.
     const caps = new Map<number, Float32Array>();
@@ -631,6 +738,16 @@ export class TerrainGenerator {
       const cap = new Float32Array(n).fill(Infinity);
       for (let i = 0; i < n; i++) {
         net.pointAt(pi, i * step, pt);
+        const gx = Math.floor(pt.x / cell);
+        const gz = Math.floor(pt.z / cell);
+        // Cheap reject: no stage-road span box and no deck point near this sample (most of a town's streets).
+        let near = spanBoxes.some(
+          (b) => pt.x >= b[0] && pt.x <= b[1] && pt.z >= b[2] && pt.z <= b[3],
+        );
+        for (let cx = gx - 1; cx <= gx + 1 && !near; cx++)
+          for (let cz = gz - 1; cz <= gz + 1 && !near; cz++)
+            near = deckGrid.has(cellKey(cx, cz));
+        if (!near) continue;
         net.pointAt(pi, Math.min(net.lengths[pi], (i + 1) * step), nx);
         net.pointAt(pi, Math.max(0, (i - 1) * step), pv);
         const dl = Math.hypot(nx.x - pv.x, nx.z - pv.z) || 1;
@@ -643,11 +760,14 @@ export class TerrainGenerator {
           if (Math.abs(dx * t.tx + dz * t.tz) > CROSS_COS) continue;
           cap[i] = Math.min(cap[i], rq.height - BRIDGE_CLEARANCE);
         }
-        for (const d of deckPts) {
-          if (Math.hypot(pt.x - d.x, pt.z - d.z) > d.hw + 0.5) continue;
-          if (Math.abs(dx * d.tx + dz * d.tz) > CROSS_COS) continue;
-          cap[i] = Math.min(cap[i], d.y - BRIDGE_CLEARANCE);
-        }
+        for (let cx = gx - 1; cx <= gx + 1; cx++)
+          for (let cz = gz - 1; cz <= gz + 1; cz++)
+            for (const k of deckGrid.get(cellKey(cx, cz)) ?? []) {
+              const d = deckPts[k];
+              if (Math.hypot(pt.x - d.x, pt.z - d.z) > d.hw + 0.5) continue;
+              if (Math.abs(dx * d.tx + dz * d.tz) > CROSS_COS) continue;
+              cap[i] = Math.min(cap[i], d.y - BRIDGE_CLEARANCE);
+            }
       }
       caps.set(pi, cap);
       steps.set(pi, step);
@@ -672,11 +792,29 @@ export class TerrainGenerator {
       net.pointAt(pi, net.lengths[pi], pt);
       ends.push({ pi, last: true, x: pt.x, z: pt.z });
     }
-    const joined = ends.map((e) =>
-      ends.filter(
-        (o) => o.pi !== e.pi && Math.hypot(o.x - e.x, o.z - e.z) <= JOINT_TOL,
-      ),
-    );
+    // Joints via a grid of the ends (cell >= JOINT_TOL), neighbours in index order like a full scan.
+    const jc = Math.max(JOINT_TOL, 1);
+    const jKey = (cx: number, cz: number) => cx * 73856093 + cz * 19349663;
+    const endGrid = new Map<number, number[]>();
+    ends.forEach((e, k) => {
+      const g = jKey(Math.floor(e.x / jc), Math.floor(e.z / jc));
+      const list = endGrid.get(g);
+      if (list) list.push(k);
+      else endGrid.set(g, [k]);
+    });
+    const joined = ends.map((e) => {
+      const near: number[] = [];
+      const cx = Math.floor(e.x / jc);
+      const cz = Math.floor(e.z / jc);
+      for (let gx = cx - 1; gx <= cx + 1; gx++)
+        for (let gz = cz - 1; gz <= cz + 1; gz++)
+          for (const k of endGrid.get(jKey(gx, gz)) ?? []) {
+            const o = ends[k];
+            if (o.pi !== e.pi && Math.hypot(o.x - e.x, o.z - e.z) <= JOINT_TOL)
+              near.push(k);
+          }
+      return near.sort((a, b) => a - b).map((k) => ends[k]);
+    });
     for (const pi of finite) vee(pi);
     for (let iter = 0; iter < 12; iter++) {
       let changed = false;
@@ -736,6 +874,40 @@ export class TerrainGenerator {
     return inside >= 2 && inside >= n / 3;
   }
 
+  /** Way ends of a path network in a 4 m grid (built once per network, for `continuation`). */
+  private endGrids = new WeakMap<PathNetwork, Map<number, number[]>>();
+
+  /** Indices (ascending) of the ways with an end within 4 m of (x, z) - a superset of the 1.5 m matches. */
+  private waysEndingNear(net: PathNetwork, x: number, z: number): number[] {
+    const C = 4;
+    const key = (cx: number, cz: number) => cx * 73856093 + cz * 19349663;
+    let grid = this.endGrids.get(net);
+    if (!grid) {
+      grid = new Map();
+      net.paths.forEach((q, qi) => {
+        const k = q.pts.length;
+        if (k < 4) return;
+        for (const [qx, qz] of [
+          [q.pts[0], q.pts[1]],
+          [q.pts[k - 2], q.pts[k - 1]],
+        ]) {
+          const g = key(Math.floor(qx / C), Math.floor(qz / C));
+          const list = grid!.get(g);
+          if (!list) grid!.set(g, [qi]);
+          else if (list[list.length - 1] !== qi) list.push(qi);
+        }
+      });
+      this.endGrids.set(net, grid);
+    }
+    const out = new Set<number>();
+    const cx = Math.floor(x / C);
+    const cz = Math.floor(z / C);
+    for (let gx = cx - 1; gx <= cx + 1; gx++)
+      for (let gz = cz - 1; gz <= cz + 1; gz++)
+        for (const qi of grid.get(key(gx, gz)) ?? []) out.add(qi);
+    return [...out].sort((a, b) => a - b);
+  }
+
   /**
    * Land heights (every `step` m, moving away) along the ways that continue path `pi`
    * past its start / end: at each end the way leaving the shared point straightest.
@@ -768,8 +940,10 @@ export class TerrainGenerator {
       let best = -1;
       let bestEnd = false;
       let bestDot = 0.5;
-      net.paths.forEach((q, qi) => {
-        if (seen.has(qi) || q.pts.length < 4) return;
+      // Ways with an end near (ex, ez), in index order (same result as scanning every way).
+      for (const qi of this.waysEndingNear(net, ex, ez)) {
+        const q = net.paths[qi];
+        if (seen.has(qi) || q.pts.length < 4) continue;
         const k = q.pts.length;
         for (const qEnd of [false, true]) {
           const qx = qEnd ? q.pts[k - 2] : q.pts[0];
@@ -783,7 +957,7 @@ export class TerrainGenerator {
           const dot = ox * dx + oz * dz;
           if (dot > bestDot) [best, bestEnd, bestDot] = [qi, qEnd, dot];
         }
-      });
+      }
       if (best < 0) break;
       const Lq = net.lengths[best];
       for (let d = step; d <= Math.min(Lq, left); d += step) {
@@ -1152,6 +1326,10 @@ export class TerrainGenerator {
    * the deck itself is `deckHeightAt`.
    */
   height(x: number, z: number): number {
+    return this.capUnderDecks(x, z, this.heightUncapped(x, z));
+  }
+
+  private heightUncapped(x: number, z: number): number {
     let base = this.naturalHeight(x, z);
     const q = this.road.query(x, z, this.q);
     if (this.paths) base = this.carvePaths(x, z, base, q.found ? q.along : NaN);
@@ -1176,11 +1354,42 @@ export class TerrainGenerator {
     // Short spans (a 12 m road bridge) get a proportionally short ramp.
     const ramp = Math.min(BRIDGE_RAMP, (span.to - span.from) * 0.3);
     // On a street's own width the ground is its profile all the way (a street crossing near a span end stays flat across).
-    return (
+    const raw =
       carved +
       (ground - carved) *
-        Math.max(smoothstep(0, ramp, e), smoothstep(0.9, 1, near))
-    );
+        Math.max(smoothstep(0, ramp, e), smoothstep(0.9, 1, near));
+    // Never above the deck inside its footprint (a hump of natural ground under a bridge over nothing came up through
+    // the lane: gravel in the road); no cap right at the abutments, where the ground meets the road.
+    const cap = q.height - DECK_SOFFIT_GAP * smoothstep(0, 4, e);
+    const w = 1 - smoothstep(hw, hw + 2.5, q.distance);
+    return w > 0 && raw > cap ? raw - (raw - cap) * w : raw;
+  }
+
+  /**
+   * The ground under the deck of another road (OSM bridge=yes): never above the deck inside its footprint (+ 2.5 m,
+   * blended), except at the deck ends where the way meets the ground road. Terrain is not carved for decks, so a
+   * hump of natural ground used to come up through them.
+   */
+  private capUnderDecks(x: number, z: number, h: number): number {
+    const net = this.paths;
+    if (!net || !this.hasDeckPaths) return h;
+    const dq = net.query(x, z, this.capQ, undefined, this.isDeckPath);
+    if (!dq.found) return h;
+    const over = dq.distance - dq.halfWidth;
+    if (over > 2.5) return h;
+    const L = net.lengths[dq.path];
+    const end = Math.min(dq.along, L - dq.along);
+    // Beyond / at a deck end the nearest point is the end itself: that is the ground road's land, not under the deck.
+    if (end < 1) return h;
+    // A ground road's own land (a street beside / meeting the deck) follows that road, not this cap.
+    const gq = net.query(x, z, this.capQ2, undefined, this.onGround);
+    if (gq.found && gq.distance - gq.halfWidth <= 1) return h;
+    const cap =
+      this.pathHeight(dq.path, dq.along) -
+      DECK_SOFFIT_GAP * smoothstep(1, 8, end);
+    if (h <= cap) return h;
+    const w = 1 - smoothstep(0, 2.5, over);
+    return h - (h - cap) * w;
   }
 
   /**

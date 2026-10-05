@@ -22,6 +22,28 @@ tests), `tyre=tarmac|mixed|gravel`, `susp=soft|medium|stiff`, `gear=short|medium
 tyre, the matching set-up, the map's gearing) and `spawn` (`start`, a flat-area name such as `pad` = free-drive pad, or
 metres along the road = free drive from there: no clock, never ranked). Any of these skips the menu.
 `?display=auto|sdr|hdr` (every page) lowers the tone-mapping exposure on HDR monitors, where sunlit white paint would glare.
+Look experiments (every page): `?tod=<hours>` sets the time of day on maps that use `environment.timeOfDay` (e.g. `tod=7.5`
+low morning sun in the east, `tod=12` noon, `tod=17` low evening sun in the west), `?tonemap=aces|agx|neutral` swaps the
+tone-mapping operator.
+
+### Look (engine/environment.ts)
+
+- **Sun:** `environment.timeOfDay` (hours) places the sun on a simple path (`sunAt`: east at 6, south at 12 at 58 deg,
+  west at 18) - lower = warmer and dimmer; `sunColor` / `sunIntensity` override. Maps without it use `sunElevation` /
+  `sunAzimuth`. Petralica 16:30 (WSW, ~22 deg), Ajvatovci 7:30 (east, ~22 deg - the stage drives towards it), Jackie 8:00.
+  A lower sun puts less light on flat ground: raise the map `exposure` with it (Petralica 0.95, Ajvatovci 0.88).
+- **Fill:** hemisphere light with a cool sky colour (`fillSky`, default `#9fb8e6`: blue-ish shadows) and a warm ground
+  bounce from the map's `groundTint`; `fillIntensity` (0.26), `envIntensity` (IBL, 0.3).
+- **Env map:** PMREM of the sky (with its clouds) over a ground disc in the map's ground colour, so paint / glass / water
+  reflect earth below the horizon.
+- **Shadows:** one shadow map whose box sits half a box AHEAD of the camera (`Environment.update(focus, forward)`), snapped
+  to texels in light space (no crawling edges while driving).
+- **Clouds:** the sky's clouds drift (`cloudSpeed`, default 1) with `cloudCoverage` / `cloudDensity` per map (0.4 / 0.4).
+- **Tone mapping:** ACES by default, `environment.toneMapping: 'agx' | 'neutral'` per map (Neutral keeps the most colour and
+  contrast, AgX is the flattest).
+- **Grass cards:** alpha-to-coverage when MSAA is on (`setFoliageAntialias`, medium / high): smooth card edges, same cost.
+- **Car:** a soft contact shadow under the body (`game/contact-shadow.ts`, one draw call, fades in the air) and brake lights
+  (`CarModel.setBrake`, from the brake pedal; lamp materials marked `userData.brakeLamp` = idle / braking glow, cloned per car).
 
 ### Controls
 
@@ -40,7 +62,7 @@ metres along the road = free drive from there: no clock, never ranked). Any of t
   set-up, or the optional **Setup car** screen. The selected car stands in a 3D showroom behind the panel (`game/showroom.ts`).
   Map renders are cached per map and warmed up in the background; very large maps (over `LARGE_MAP_AREA`, 8 km²) get a cheap
   top-down "map card" instead of the full scene.
-- **Options** (main and pause menu, `game/menu.ts`): quality, volume, gearbox auto / manual, traction assist, car number (1-99,
+- **Options** (main and pause menu, `game/menu.ts`): quality, object distance, volume, gearbox auto / manual, traction assist, car number (1-99,
   shown on the door plates), start camera. Stored in localStorage (`game/settings.ts`).
 - **Pause** (`Esc`): resume, restart, free-drive pad <-> stage, options, main menu.
 - **About:** every external resource with links, per map (`MapDef.sources`) and per car (`CarDef.sources`), plus the game version
@@ -107,6 +129,7 @@ the baked `data.json`; the format and shared helpers are in `maps/shared/`.
   retaining-wall cuts (`cut-wall-mesh.ts`), lane drops, gore areas, overhead signs, city streets with kerbs / crosswalks / lamps
   (`street-detail.ts`) and street dressing with parked and emergency vehicles. Tests: `tests/rally/bridges.test.ts`,
   `city-maps.test.ts`, `junctions.test.ts`, `side-roads.test.ts`, `water.test.ts`, `stage-signs.test.ts`.
+  Bridge handling (twin decks, parallel carriageway alignment, junction stubs, terrain cap, drivable underpasses): `maps/jackie/DETAILS.md` "Bridges: rules and mechanics".
 
 ## Cars
 
@@ -173,9 +196,20 @@ pages/          entry points listed in game.json
 - Streaming is time-sliced and must stay that way: terrain (`terrain.update(pos, budgetMs)`), the 1 m heightfield
   (`Heightfield.prepare`) and instance re-bucketing (`InstanceStreamer`, ~2 ms per frame). Only LOD0 terrain uses the 1 m cache;
   whole-map work (scatter, road mesh) uses `world.analytic`.
-- Only LOD0 casts shadows, so every LOD0 radius must stay >= the shadow box (`quality.shadowExtent`, <= 75 m).
+- Only LOD0 casts shadows, so every LOD0 radius should stay >= the far edge of the shadow box, which sits half a box ahead of
+  the camera: 1.5 x `quality.shadowExtent` (<= 75 m, so ~112 m on high).
 - Draw-distance knobs: `engine/quality.ts`, LOD distances in `assets/catalog.ts`, `TERRAIN_LODS` in `game/rally-game.ts`, map
-  `fogDensity`.
+  `fogDensity`, and the **Object distance** option (Normal / Far / Max = x1 / x1.5 / x2 on the preset's object `lodScale`,
+  `OBJECT_DISTANCE` in `game/settings.ts`, live from the pause menu; objects only, the terrain keeps the preset).
+- Nothing is drawn past the streamed terrain (`quality.viewDistance`): the instance streamer gets it as `maxDistance`, and the
+  whole-map road group (stage road, other roads, barriers, bridges, water, landmarks, cables) is distance-culled by
+  `world/distance-cull.ts` (re-checked every 10 m of camera travel). Before, a wide real map drew roads, barriers and trees to
+  the 3 km far plane over empty sky.
+- The streamer skips a scatter chunk wholesale when it is further than the longest LOD distance of anything in it (per-chunk
+  reach): far chunks of bushes / orchards / rocks cost nothing. Ajvatovci, driving: a re-bucketing job takes 3 frames at x1
+  (was 6) and 5 at x2 (was 11), so objects lag 1-2.5 m behind the camera instead of 3-6 m.
+- Whole-map set-up loops must not compare everything with everything (a town map has ~900 roads, ~2000 way ends): use a
+  spatial grid (`junctions.ts` shared ends, `terrain-gen.ts` deck points / way ends / street joints).
 - Measure with `__rally.benchmark(n)` and find what to trim with `__rallyProbe()` (what the camera draws per group and the heaviest
   instanced assets; `engine/perf-probe.ts`) and `__roadJobMs` (road mesh build times). On a desktop GPU the maps run at
   roughly 3-6 ms per frame with 0.7-1.1k draw calls and 1.2-1.7M triangles in view.

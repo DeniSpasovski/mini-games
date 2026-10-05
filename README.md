@@ -5,6 +5,8 @@ It is an educational, just-for-fun project: no commercial goal, no accounts, no 
 written together with AI coding agents under my direction, and everything is kept readable so it can be studied,
 played and modified locally.
 
+**Play it in the browser: [games.deni.io](https://games.deni.io)**
+
 | Game                             | What it is                                                                                                |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | [Gravel Rally](src/games/rally/) | Point-to-point rally on real-world roads (OpenStreetMap + elevation data), custom raycast-vehicle physics |
@@ -39,6 +41,38 @@ npm run build -- --environment rally   # rebuild only dist/games/rally/
 
 Games are discovered automatically from `src/games/<id>/game.json`. Folder layout, the portal, deployment and other
 project internals: [`DETAILS.md`](DETAILS.md).
+
+## How it started
+
+This was the very first prompt I gave the coding agent, and it built the portal and the first version of Gravel Rally
+(physics, test map, map viewer, car viewer and asset debugger) from it. Everything since grew from there, one round of
+feedback at a time. Try it with your own bots and see what you can build:
+
+```text
+Hey Clod let's start on bit more fun of a projects - mini game portal
+
+Start simple the website should just have screen shot and links to minigames.
+All mini games will be hosted in a separate folder so this is quick and easy for navigation.
+All the games should be build using three.js unless otherwise specified.
+Don't spend too much time on the portal - this should just help us navigate things quickly.
+
+The first game that we want to start with is Rally Racing game.
+The key component of good racing games are game physics and maps.
+we will use realistic maps which we'll create later - for now add a very short map called test map that will allow us to test the physics - create a classic gravel rally.
+
+As we'll be doing iterations on models and maps - please create map exterior view debugger page which will allow me ariel view and quickly view the map as a whole.
+Then add a card view page - which will allow us to inspect and iterate on the car models.
+And lastly add a asset debug page - which will allow us to quickly navigate all assets.
+For quick navigation the car and asset page should also support URL routing to an object + seed, and also menu on left side on which we can toggle variables / models.
+
+I'm not sure if we'll need a map editor yet so don't build that for now - probably we'll prompt here to edit maps.
+
+go at it - let's make fun games!
+
+Notes: as you iterate please create skills and update read me files and leave good trail that will allow us to make quick changes in the future - this will require a lot of iterations - as the Key to good game is rich content, and we are not doing that just yet.
+
+The graphic quality that we aim for is late 2000s games, including lighting, terrain, dynamic asset loading for large maps etc., we got to make sure our game both looks decent but more importantly it's playable and doesn't lag. so use proper asset references when rendering objects.
+```
 
 ## License
 

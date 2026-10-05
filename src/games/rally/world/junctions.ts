@@ -60,10 +60,30 @@ export function connectPaths(
       ends.push({ x: p.pts[n - 2], z: p.pts[n - 1], path: pi });
     }
   });
-  const sharedEnd = (pi: number, x: number, z: number): boolean =>
-    ends.some(
-      (e) => e.path !== pi && Math.hypot(e.x - x, e.z - z) < SHARED_END,
+  // Grid of the ends (cell = SHARED_END): a 3 x 3 cell lookup instead of a scan of every end (a town has thousands).
+  const cellKey = (cx: number, cz: number) => cx * 73856093 + cz * 19349663;
+  const grid = new Map<number, number[]>();
+  ends.forEach((e, k) => {
+    const key = cellKey(
+      Math.floor(e.x / SHARED_END),
+      Math.floor(e.z / SHARED_END),
     );
+    const list = grid.get(key);
+    if (list) list.push(k);
+    else grid.set(key, [k]);
+  });
+  const sharedEnd = (pi: number, x: number, z: number): boolean => {
+    const cx = Math.floor(x / SHARED_END);
+    const cz = Math.floor(z / SHARED_END);
+    for (let gx = cx - 1; gx <= cx + 1; gx++)
+      for (let gz = cz - 1; gz <= cz + 1; gz++)
+        for (const k of grid.get(cellKey(gx, gz)) ?? []) {
+          const e = ends[k];
+          if (e.path !== pi && Math.hypot(e.x - x, e.z - z) < SHARED_END)
+            return true;
+        }
+    return false;
+  };
   const out = paths.map((p, pi) => {
     // Water, roads the baker marked as passing over / under the stage road (no junction), bridge decks.
     if (p.surface === 'water' || p.junction === false || p.bridge) return p;

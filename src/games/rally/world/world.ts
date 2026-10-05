@@ -569,9 +569,10 @@ export class World implements GroundProvider {
         break;
       }
     }
-    // On a bridge of the stage road the heightfield is the ground beneath the deck: drive on the deck.
+    // On a bridge of the stage road the heightfield is the ground beneath the deck: drive on the deck - unless the
+    // probe starts under it (a car on the street below the bridge keeps the street: the underpass is drivable).
     const deck = this.gen.deckHeightAt(x, z);
-    if (!Number.isNaN(deck)) {
+    if (!Number.isNaN(deck) && deck <= fromY + 0.6) {
       out.height = deck;
       this.gen.deckNormal(x, z, out.normal);
       return out;

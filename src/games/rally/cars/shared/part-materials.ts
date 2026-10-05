@@ -39,6 +39,12 @@ export type PartName =
 
 const cache = new Map<string, Material>();
 
+/** Brake lamp (CarModel.setBrake): emissive from its idle value to `on` with the brake down. */
+function lamp(m: MeshPhysicalMaterial, on: number): MeshPhysicalMaterial {
+  m.userData.brakeLamp = { off: m.emissiveIntensity, on };
+  return m;
+}
+
 export function partMaterial(name: string): Material | undefined {
   const build = BUILDERS[name as PartName];
   if (!build) return undefined;
@@ -725,34 +731,40 @@ const BUILDERS: Record<PartName, () => Material> = {
     }),
   tail: () => {
     const { map, glow } = tailMaps();
-    return new MeshPhysicalMaterial({
-      map,
-      emissive: 0xffffff,
-      emissiveMap: glow,
-      emissiveIntensity: 0.5,
-      roughness: 0.16,
-      metalness: 0.1,
-      clearcoat: 1,
-      clearcoatRoughness: 0.05,
-    });
+    return lamp(
+      new MeshPhysicalMaterial({
+        map,
+        emissive: 0xffffff,
+        emissiveMap: glow,
+        emissiveIntensity: 0.5,
+        roughness: 0.16,
+        metalness: 0.1,
+        clearcoat: 1,
+        clearcoatRoughness: 0.05,
+      }),
+      5.5,
+    );
   },
   /** Modelled cockpit of an imported body (seats, cage, dash, door cards): dark, matte - without it the cockpit got the livery. */
   interior: () => new MeshStandardMaterial({ color: 0x2a2c30, roughness: 0.9 }),
   /** Fabia R5 tail lamp: even red lens + white reversing square, see tailCMaps - needs `parts.wrap` 'corner'. */
   tailc: () => {
     const { map, glow } = tailCMaps();
-    return new MeshPhysicalMaterial({
-      map,
-      emissive: 0xffffff,
-      emissiveMap: glow,
-      emissiveIntensity: 0.4,
-      roughness: 0.16,
-      metalness: 0,
-      transparent: true,
-      opacity: 0.8,
-      clearcoat: 1,
-      clearcoatRoughness: 0.05,
-    });
+    return lamp(
+      new MeshPhysicalMaterial({
+        map,
+        emissive: 0xffffff,
+        emissiveMap: glow,
+        emissiveIntensity: 0.4,
+        roughness: 0.16,
+        metalness: 0,
+        transparent: true,
+        opacity: 0.8,
+        clearcoat: 1,
+        clearcoatRoughness: 0.05,
+      }),
+      5,
+    );
   },
   reflector: () =>
     new MeshPhysicalMaterial({

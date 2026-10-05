@@ -182,7 +182,12 @@ export function pathBarrierRuns(
       qz,
       pq,
       undefined,
-      (qi) => qi !== pi && !isDeck(qi) && !continues(pi, qi),
+      (qi) =>
+        qi !== pi &&
+        !isDeck(qi) &&
+        // Only the same carriageway split into OSM ways is exempt: an exit ramp / entrance forking off at the shared
+        // node lies beside the carriageway (the wall belongs between them), not on it.
+        (!continues(pi, qi) || net.paths[qi].kind !== net.paths[pi].kind),
     );
     return pq.found && pq.distance <= pq.halfWidth + 0.3;
   };
