@@ -137,6 +137,14 @@ export const MATS = {
     decal: 2,
     shadow: false,
   },
+  /** Asphalt laid over another ground decal (the hilltop gate apron over the gravel car park). */
+  patchAsphalt: {
+    map: 'lot_asphalt',
+    tile: [5, 5],
+    roughness: 0.96,
+    decal: 2,
+    shadow: false,
+  },
   patchPavers: {
     map: 'lot_pavers',
     tile: [3.2, 3.2],
@@ -154,6 +162,14 @@ export const MATS = {
   },
   /** Painted road markings / parking bays: vertex colour on a decal. */
   marking: { tile: [1, 1], roughness: 0.7, decal: 3, shadow: false },
+  /** Hilltop church (maps/ajvatovci/hilltop): rough-cut limestone walls. */
+  ashlar: { map: 'lot_ashlar', tile: [2, 2], roughness: 0.92 },
+  /** Hilltop bell tower: rubble stone masonry. */
+  rubble: { map: 'lot_rubble', tile: [2, 2], roughness: 0.95 },
+  /** Low concrete walls (the hilltop courtyard wall). */
+  wall: { map: 'lot_concrete', tile: [4, 4], roughness: 0.92 },
+  /** Clay roof tiles: u along the eaves, v up the slope. */
+  tiles: { map: 'lot_roof_tiles', tile: [2, 2], roughness: 0.8 },
 } satisfies Record<string, MatDef>;
 
 export type MatKey = keyof typeof MATS;

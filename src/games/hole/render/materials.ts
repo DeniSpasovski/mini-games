@@ -28,10 +28,16 @@ import type { ItemStyle } from '../items/catalog';
  * the Mesher: arcade screens, lamps, robot eyes). Glow adds the vertex colour on top of the lighting.
  */
 const PAINT_COLOR_VERTEX =
-  ShaderChunk.color_vertex.replace(
-    'vColor.rgb *= instanceColor.rgb;',
-    'vColor.rgb *= mix( vec3( 1.0 ), instanceColor.rgb, ( paint > 0.5 && paint < 1.5 ) ? 1.0 : 0.0 );',
-  ) + '\nvGlow = paint > 1.5 ? 1.0 : 0.0;';
+  ShaderChunk.color_vertex
+    .replace(
+      'vColor.rgb *= instanceColor.rgb;',
+      'vColor.rgb *= mix( vec3( 1.0 ), instanceColor.rgb, ( paint > 0.5 && paint < 1.5 ) ? 1.0 : 0.0 );',
+    )
+    // items are BatchedMeshes (render/item-instances.ts): same rule for the batch colour
+    .replace(
+      'vColor *= getBatchingColor( getIndirectIndex( gl_DrawID ) );',
+      'vColor *= mix( vec4( 1.0 ), getBatchingColor( getIndirectIndex( gl_DrawID ) ), ( paint > 0.5 && paint < 1.5 ) ? 1.0 : 0.0 );',
+    ) + '\nvGlow = paint > 1.5 ? 1.0 : 0.0;';
 
 /**
  * Building fade: items that are nearer to the camera than the hole and drawn over

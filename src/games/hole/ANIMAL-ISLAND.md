@@ -91,9 +91,11 @@ T22 22.7 · T23 26.5 · T24 30.9 · T25 36.
 
 - `World` keeps every item in struct-of-arrays form (`x`, `z`, `rot`, ...) and a **static** 8 m spatial hash that is
   built once (`query()` is how the hole finds items near it).
-- `ItemInstances` draws one `InstancedMesh` per item type + variant + **64 m map cell**, with a bounding sphere of the
-  cell + 14 m, so the camera and the shadow only draw the cells they see. Matrices are written once; afterwards only
-  `world.active` items (teetering / tipping / falling) are rewritten.
+- `ItemInstances` draws every item through a few `BatchedMesh`es (one per material style + shadow flag), culled per
+  **64 m map cell** (32 m with movers) and per item at the frustum edge, so the camera and the shadow only draw what
+  they see (DETAILS.md "Performance"). Matrices are written once; afterwards only `world.active` items (teetering /
+  tipping / falling) and moved movers are rewritten. (This section was written for the older one-`InstancedMesh`-per-
+  type-and-cell renderer; the rules below still hold.)
 - One sim tick costs 0.03-0.11 ms; triangles per frame are 70k (level 1) to 164k (level 15) on City Island.
 
 ### 4.2 Measured cost of moving items (node, dev PC, throw-away benchmark)
@@ -615,10 +617,10 @@ AI-51 / AI-52 (ground, rivers and ponds, mood), AI-60 (item viewer, map viewer a
 ### Product and polish
 
 - [ ] **"ISLAND CLEARED!" banner colour** for this map; the menu card and the README shots are done.
-- [ ] **AI-01 Real-device pass**: the animal map is heavier than the City (dev PC, `quality=low`: ~130k triangles at
-      level 1, ~190k at level 8, ~310k at level 15, 170 / 310 / 640 draw calls; City: 70k / 97k / 164k). Measure
-      `__hole.benchmark(240)` on an iPad and a phone (high / low). If too slow, in this order: hide tiny animals far from
-      the camera, cheaper animal rigs (`roundDetail` in `items/kit.ts`), a bigger `CELL_MOVERS`.
+- [ ] **AI-01 Real-device pass**: since the item batching the map draws in 23-26 calls with 24k / 108k / 321k
+      triangles at level 1 / 8 / 15 (dev PC, shadows on; was 165 / 578 / 1 739 calls). Measure `__hole.benchmark(240)`
+      on an iPad and a phone (high / low). If too slow, in this order: raise `TINY_K` / `SHADOW_TINY_K` in
+      `render/item-instances.ts`, cheaper animal rigs (`roundDetail` in `items/kit.ts`).
 - [ ] **Bot leads moving targets** (`sim/bot.ts`): the greedy bot aims at where an animal is, so fleeing animals cost it a
       lot (Hard 100 s: level 5 with 1.7 x flee speed, level 10+ with the shipped knobs). Leading would make the bot a
       fairer stand-in for a player.
@@ -644,8 +646,8 @@ AI-51 / AI-52 (ground, rivers and ponds, mood), AI-60 (item viewer, map viewer a
   (D7) and test on a device before tuning anything else.
 - **Pace.** Movement and fleeing slow the bot down; leashes keep animals from running into empty ground. Re-run the
   bands after every behaviour change.
-- **Triangles + draw calls.** Mover meshes are split by home cell: more types x variants x cells = more draw calls.
-  Measure with `__hole.game.renderer.info.render` after AI-13 and after every asset phase.
+- **Triangles.** Draw calls no longer grow with types x cells (items are batched), but triangles still do: measure with
+  `__hole.game.renderer.info.render` after every asset phase.
 - **Determinism.** Everything that moves must be stepped in the sim at the fixed rate; never animate gameplay positions
   in the renderer. The bot runs at 30 steps/s, the game at 60 Hz: behaviours must be dt-stable.
 - **Thin tiers.** Tiers 18, 19, 25 and level 9 have only 3 types (2 at P0); the first cut there breaks the coverage

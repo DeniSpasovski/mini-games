@@ -27,7 +27,8 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 - Real-world stages with bridges, junctions, buildings, power lines and city streets (see maps below).
 - Seeded procedural vegetation, rocks and props through one instanced asset library, streamed terrain with LODs.
 - Tyre compounds, tyre sizes, suspension and gearing set-ups per car, with a live 3D set-up screen.
-- Stage timer with sectors, time penalties for cutting, top-10 times per stage (stored locally).
+- Stage timer with sectors, time penalties for cutting and knocking over marker posts, top-10 times per stage (stored
+  locally).
 - Tool pages: map viewer, car viewer, asset debugger (dev server).
 
 ## Stages
@@ -53,13 +54,12 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 
 ## Documentation
 
-| Doc                                        | Content                                                                                          |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| [`DETAILS.md`](DETAILS.md)                 | pages and URLs, game / stage flow, map engine features, architecture, performance, set-up screen |
-| [`PHYSICS.md`](PHYSICS.md)                 | vehicle model, tuning guide, tyres and set-ups, test results                                     |
-| [`HANDLING-REVIEW.md`](HANDLING-REVIEW.md) | handling review notes                                                                            |
-| [`TASKS.md`](TASKS.md)                     | open tasks + index of every map / car task list                                                  |
-| `maps/<id>/`, `cars/<car>/`                | per map / car: `README.md` (overview) and `DETAILS.md` (sources, licences, build notes)          |
+| Doc                         | Content                                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------------------ |
+| [`DETAILS.md`](DETAILS.md)  | pages and URLs, game / stage flow, map engine features, architecture, performance, set-up screen |
+| [`PHYSICS.md`](PHYSICS.md)  | vehicle model, tuning guide, tyres and set-ups, test results                                     |
+| [`TASKS.md`](TASKS.md)      | open tasks + index of every map / car task list                                                  |
+| `maps/<id>/`, `cars/<car>/` | per map / car: `README.md` (overview) and `DETAILS.md` (sources, licences, build notes)          |
 
 ## Credits
 

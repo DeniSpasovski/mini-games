@@ -12,6 +12,7 @@ import {
   type PathQuery,
 } from './real-data';
 import { connectPaths, type Junction } from './junctions';
+import { twinAt } from './twin-decks';
 import {
   bridgeOverUnderSpans,
   dropDuplicateDecks,
@@ -57,6 +58,8 @@ const CHANNEL_DEPTH: Record<string, number> = {
 const CHANNEL_BANK = 2.5;
 /** Water surface sits this fraction of the channel depth below the banks. */
 const WATER_FREEBOARD = 0.5;
+/** A drain ending in another channel drops to its bank line over this run (m). */
+const TRIBUTARY_RUN = 60;
 /** Channel bank line smoothing (m). */
 const CHANNEL_SMOOTHING = 80;
 
@@ -116,6 +119,7 @@ export class TerrainGenerator {
   private q: RoadQuery = newRoadQuery();
   private pq: PathQuery = newPathQuery();
   private pq2: PathQuery = newPathQuery();
+  private cq: PathQuery = newPathQuery();
   private dq: RoadQuery = newRoadQuery();
   /** 1 = path is a bridge deck (OSM bridge=yes): not carved into the ground, lifted over lower roads. */
   private deckFlag = new Uint8Array(0);
@@ -211,6 +215,7 @@ export class TerrainGenerator {
       if (water.length) {
         this.channels = new PathNetwork(water);
         this.bankProfiles = water.map((_, i) => this.buildBankProfile(i));
+        this.joinTributaries();
       }
       // Portals (the slab the street grid sits on where the parkway is sunken) before the profiles: decks are
       // lifted onto them, streets on the structure are raised with the land.
@@ -422,7 +427,14 @@ export class TerrainGenerator {
         // slab it is an ordinary street on the structure's pad (nothing to clear).
         if (this.portalDeck[pi]) {
           const ph = this.portals.at(pt.x, pt.z);
-          if (ph?.inside) {
+          // The first sample beside the slab counts too (the land there is the level pad): the deck is
+          // interpolated between its samples, so its entry onto the slab must not dip under the top.
+          if (
+            ph &&
+            ph.outside === 0 &&
+            ph.lateral <= ph.latL + PROFILE_STEP &&
+            ph.lateral >= ph.latR - PROFILE_STEP
+          ) {
             // 0.2 m: the slab top is interpolated between rows, the deck between its 4 m samples.
             req[i] = Math.max(req[i], ph.top + 0.2);
             any = true;
@@ -449,7 +461,12 @@ export class TerrainGenerator {
             (this.deckFlag[qi] === 0 ||
               (done[qi] === 1 && (net.paths[qi].layer ?? 1) < (p.layer ?? 1))),
         );
-        if (pq.found && pq.distance <= pq.halfWidth + reach) {
+        // A road that only ends at the deck (a street meeting a small bridge at grade) does not pass beneath it.
+        const thru =
+          pq.found &&
+          pq.along > reach + 2 &&
+          pq.along < net.lengths[pq.path] - reach - 2;
+        if (thru && pq.distance <= pq.halfWidth + reach) {
           dirAt(pq.path, pq.along, d1);
           if (Math.abs(d0[0] * d1[0] + d0[1] * d1[1]) < CROSS_COS) {
             req[i] = Math.max(
@@ -490,6 +507,7 @@ export class TerrainGenerator {
       lift(pi, anchor(pi));
       done[pi] = 1;
     }
+    this.matchTwinDecks(net, profiles);
     const ground = all
       .filter((i) => !this.deckFlag[i])
       .sort((a, b) => net.paths[b].width - net.paths[a].width || a - b);
@@ -504,6 +522,52 @@ export class TerrainGenerator {
     done.fill(0);
     for (const pi of all) if (this.underStreet(pi)) done[pi] = 1;
     for (const pi of ground) if (!this.underStreet(pi)) anchor(pi);
+  }
+
+  /**
+   * Twin decks (the two directions of an overpass street, side by side, see twin-decks.ts) share one height line:
+   * each sample takes the mean of its own height and its twin's at the nearest point, so the bridge is flat across
+   * and the ground streets that join the decks afterwards meet one level. Both were lifted over the same road, so
+   * the mean keeps the clearance (the difference is the approach ground, not the crossing).
+   */
+  private matchTwinDecks(net: PathNetwork, profiles: Float32Array[]): void {
+    const isStreetDeck = (pi: number) =>
+      !!this.deckFlag[pi] &&
+      !this.portalDeck[pi] &&
+      net.paths[pi].surface === 'tarmac' &&
+      !/^(motorway|trunk)/.test(net.paths[pi].kind);
+    const mean = new Map<number, Float32Array>();
+    for (const pi of net.paths.keys()) {
+      if (!isStreetDeck(pi)) continue;
+      const ys = profiles[pi];
+      const n = ys.length;
+      const L = net.lengths[pi];
+      const step = L / (n - 1) || 1;
+      let out: Float32Array | undefined;
+      for (let i = 0; i < n; i++) {
+        const t = twinAt(
+          net,
+          (q) =>
+            isStreetDeck(q) &&
+            (net.paths[q].layer ?? 1) === (net.paths[pi].layer ?? 1),
+          pi,
+          i * step,
+          net.halfWidthAt(pi, i * step),
+        );
+        if (!t) continue;
+        const yo = profiles[t.other];
+        const f = Math.min(
+          yo.length - 1,
+          Math.max(0, (t.along / net.lengths[t.other]) * (yo.length - 1)),
+        );
+        const k = Math.floor(f);
+        const y2 =
+          yo[k] + (yo[Math.min(yo.length - 1, k + 1)] - yo[k]) * (f - k);
+        (out ??= ys.slice())[i] = (ys[i] + y2) / 2;
+      }
+      if (out) mean.set(pi, out);
+    }
+    for (const [pi, ys] of mean) profiles[pi].set(ys);
   }
 
   /**
@@ -758,6 +822,49 @@ export class TerrainGenerator {
     return ys;
   }
 
+  /**
+   * A drain that ends in another channel (a confluence) drops to that channel's bank line over its last
+   * TRIBUTARY_RUN m, so its water meets the main channel's instead of standing above it behind a dam.
+   */
+  private joinTributaries(): void {
+    const net = this.channels!;
+    const q = newPathQuery();
+    const pt = { x: 0, z: 0 };
+    const lowered = this.bankProfiles.map((ys, ci) => {
+      const L = net.lengths[ci];
+      const n = ys.length;
+      const step = L / (n - 1) || 1;
+      let out: Float32Array | undefined;
+      for (const end of [0, 1]) {
+        net.pointAt(ci, end * L, pt);
+        const o = net.query(pt.x, pt.z, q, undefined, (qi) => qi !== ci);
+        if (!o.found || o.distance > o.halfWidth + CHANNEL_BANK) continue;
+        const main = profileAt(
+          this.bankProfiles[o.path],
+          net.lengths[o.path],
+          o.along,
+        );
+        const mouth = end ? n - 1 : 0;
+        if (main >= ys[mouth]) continue;
+        out ??= Float32Array.from(ys);
+        for (let i = 0; i < n; i++) {
+          const d = Math.abs(i - mouth) * step;
+          if (d > TRIBUTARY_RUN) continue;
+          const t = smoothstep(0, TRIBUTARY_RUN, d);
+          out[i] = Math.min(out[i], main + (ys[i] - main) * t);
+        }
+        // Water still falls steadily towards the lowest end.
+        if (out[0] >= out[n - 1])
+          for (let i = 1; i < n; i++) out[i] = Math.min(out[i], out[i - 1]);
+        else
+          for (let i = n - 2; i >= 0; i--)
+            out[i] = Math.min(out[i], out[i + 1]);
+      }
+      return out ?? ys;
+    });
+    this.bankProfiles = lowered;
+  }
+
   /** Water surface height of channel `ci` at `along` metres. */
   channelWaterLevel(ci: number, along: number): number {
     const kind = this.channels!.paths[ci].kind;
@@ -798,6 +905,18 @@ export class TerrainGenerator {
   /** Profile height of path `pi` at `along` metres (road surface; for decks the deck top). */
   pathHeight(pi: number, along: number): number {
     return profileAt(this.pathProfiles[pi], this.paths!.lengths[pi], along);
+  }
+
+  /**
+   * Half width of deck `pi` at `along` (bridge-mesh rows, parapet colliders). A `concrete` style deck keeps its own
+   * width end to end - parallel railings - unless the map asks for `bridgeCorners` (then it follows the taper to a
+   * continuing way of another width, like the road itself).
+   */
+  deckHalfWidth(pi: number, along: number): number {
+    const net = this.paths!;
+    if (this.map.bridgeStyle === 'concrete' && !this.map.bridgeCorners)
+      return net.paths[pi].width / 2;
+    return net.halfWidthAt(pi, along);
   }
 
   /** Paths (indices into `paths.paths`) that are bridge decks. */
@@ -870,6 +989,21 @@ export class TerrainGenerator {
       const off = this.map.road.cutWalls!.offset + CUT_SETBACK - verge;
       const cut = ph + (base - ph) * smoothstep(off, off + CUT_RISE, e);
       h += (cut - h) * w;
+    }
+    // A street / track along a drain bank: its embankment stops at the channel's water, the channel stays
+    // open (only the road's own surface fills it - a crossing / culvert).
+    if (this.channels && h > base) {
+      const cq = this.channels.query(x, z, this.cq);
+      if (cq.found) {
+        const open =
+          1 -
+          smoothstep(
+            this.channelWaterHalfWidth(cq.path),
+            cq.halfWidth + CHANNEL_BANK,
+            cq.distance,
+          );
+        h += (base - h) * open;
+      }
     }
     return h;
   }

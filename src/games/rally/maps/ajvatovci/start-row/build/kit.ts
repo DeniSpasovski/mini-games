@@ -157,11 +157,13 @@ export class Frame {
     readonly bucket: Bucket,
     readonly tile: string,
     readonly plane?: Plane,
+    /** World position of site (0, 0): the start row's origin unless another landmark reuses the kit. */
+    readonly origin: { x: number; z: number } = ORIGIN,
   ) {}
 
   /** A derived frame on another tile of the same bucket (long street runs are split). */
   onTile(tile: string): Frame {
-    return new Frame(this.bucket, tile, this.plane);
+    return new Frame(this.bucket, tile, this.plane, this.origin);
   }
 
   private write(
@@ -179,8 +181,8 @@ export class Frame {
       _p.applyMatrix4(m);
       _n.applyMatrix3(nm!).normalize();
     }
-    const X = _p.x + ORIGIN.x;
-    const Z = _p.z + ORIGIN.z;
+    const X = _p.x + this.origin.x;
+    const Z = _p.z + this.origin.z;
     let Y = _p.y;
     if (this.plane) {
       Y += this.plane.a * X + this.plane.b * Z + this.plane.c;
@@ -399,7 +401,7 @@ export class Frame {
           soup,
           [p.x, y + (o.lift ? o.lift(p.x, p.y) : 0), p.y],
           [0, 1, 0],
-          [(p.x + ORIGIN.x) / tu, (p.y + ORIGIN.z) / tv],
+          [(p.x + this.origin.x) / tu, (p.y + this.origin.z) / tv],
           col,
         );
     }

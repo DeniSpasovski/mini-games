@@ -185,4 +185,4 @@ export function difficultyById(id: string): Difficulty {
 }
 
 /** Bonus points per remaining second when the whole island is eaten. */
-export const CLEAR_BONUS_PER_SECOND = 2;
+export const CLEAR_BONUS_PER_SECOND = 10;

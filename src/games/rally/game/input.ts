@@ -49,8 +49,8 @@ const PAD_ACTIONS: Record<number, InputAction> = {
 /**
  * Keyboard steer limit (fraction of full lock) at a forward speed (m/s): ~0.76 at 30 km/h (hairpins), 0.53 at 60,
  * 0.34 at 100, 0.24 at 140. Close to the steering that gives peak grip (+30-50 %) - the old `1 / (1 + v / 26)` was 2-3x
- * it at speed, so a held key slid the front tyres, scrubbed speed and made traction control cut the power
- * (HANDLING-REVIEW.md finding 2). Counter-steering into a slide still gets more (see update()).
+ * it at speed, so a held key slid the front tyres, scrubbed speed and made traction control cut the power.
+ * Counter-steering into a slide still gets more (see update()).
  */
 export function keyboardSteerLimit(speed: number): number {
   return 1 / (1 + (Math.max(0, speed) / 18) ** 1.5);

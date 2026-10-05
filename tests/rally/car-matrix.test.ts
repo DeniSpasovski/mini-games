@@ -83,7 +83,7 @@ describe.each(ALL_CARS.map((c) => c.id))('%s', (carId) => {
 });
 
 // No "Fabia wins the gravel test map" check: the AWD car should feel better on gravel, but a car with more power may be
-// quicker over the stage (HANDLING-REVIEW.md 7).
+// quicker over the stage (by design, src/games/rally/PHYSICS.md "Stage times").
 test('cars rank by character: Bimmer wins on tarmac, Zastava is slowest', () => {
   const t = (car: string, map: string) => best.get(`${car}/${map}`)!;
   const [fabia, bimmer, zastava] = ['skoda_rally', 'bimmer_m3', 'zastava_101'];

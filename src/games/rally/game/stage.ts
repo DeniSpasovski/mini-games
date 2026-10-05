@@ -33,6 +33,8 @@ const COUNTDOWN = 3;
 /** Time penalties (s) added to the stage time. */
 export const PENALTY_RESET = 2;
 export const PENALTY_CUT = 5;
+/** Per marker post (breakable prop) knocked over during the stage. */
+export const PENALTY_MARKER = 10;
 /** Progress only follows the road within this many metres of the current progress. */
 const WINDOW = 40;
 /** Metres beyond the road edge that start the off-stage warning (10 = strict). */

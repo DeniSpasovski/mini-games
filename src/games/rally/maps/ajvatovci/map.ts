@@ -6,6 +6,7 @@ import type {
   PathDef,
 } from '../shared/types';
 import data from './data.json';
+import { HILLTOP_FLATS } from './hilltop';
 import { startRowPads } from './start-row';
 
 /**
@@ -19,6 +20,8 @@ import { startRowPads } from './start-row';
  * (elevation: AWS Terrain Tiles; land cover: ESA WorldCover 2021 + OSM; roads: OSM).
  * Edit THIS file for gameplay / look; re-bake only to change the source data.
  * World (0, 0) = 42.004 N, 21.596 E; +X east, +Z south. Task list: ./TODO.md.
+ * The baked area reaches well past the stage (Ilinden town, Marino, the A2) so free drive has
+ * real roads and buildings to explore (bounds below).
  */
 
 /** Road width by distance along the route (m): industrial street, field road, village, hill. */
@@ -79,13 +82,18 @@ export const ajvatovciMap: MapDef = {
     },
   ],
   stageNumber: 1,
-  buildings: buildingsFromData(data.buildings),
-  // 65 pylons / poles + 4 power lines from OSM: lattice towers on the long spans, wooden poles on the short ones.
+  // Plain instanced boxes (house / flat): the baked `kind` (mesh buildings with facades) is left out so
+  // the ~6 500 buildings of the Ilinden / Marino background stay cheap and the stage keeps its look.
+  buildings: buildingsFromData({ ...data.buildings, kinds: undefined }),
+  // 125 pylons / poles + 6 power lines from OSM: lattice towers on the long spans, wooden poles on the short ones.
   pylons: data.pylons as [number, number][],
   powerLines: data.powerLines as number[][],
   // The industrial street at the start: hand-modelled lots replace the placeholder boxes there.
-  landmarks: ['ajvatovci-start-row'],
-  bounds: { minX: -1900, maxX: 2100, minZ: -1050, maxZ: 800 },
+  // The hilltop: the church of St. Peter and St. Paul + bell tower at the finish, the playground court.
+  landmarks: ['ajvatovci-start-row', 'ajvatovci-hilltop'],
+  // Stage + free-drive background: Ilinden town / A2 (west, south-west) and Marino (south). The baked
+  // detail heights / land cover / roads / buildings cover this box (scripts/realmap/ajvatovci.json).
+  bounds: { minX: -4300, maxX: 2600, minZ: -1450, maxZ: 3500 },
   terrain: {
     baseHeight: 0,
     // Shift so the start (232 m above sea level) sits near y = 0.
@@ -96,7 +104,8 @@ export const ajvatovciMap: MapDef = {
       { scale: 16, amplitude: 0.18, octaves: 2 },
     ],
     edgeRise: 0,
-    flatAreas: [],
+    // Level lawn round the hilltop church and the court's terrace (the 30 m DEM slopes ~20 % there).
+    flatAreas: HILLTOP_FLATS,
     // Level yards for the start row's lots (levelled to the sidewalk in front of each).
     pads: startRowPads(),
   },
@@ -435,6 +444,8 @@ export const ajvatovciMap: MapDef = {
     outer: { kind: 'guardrail', offset: 0.55 },
     medianReach: 60,
   },
+  // The A2 overpasses and the small street bridges are modern concrete bridges with steel railings (not stone).
+  bridgeStyle: 'concrete',
   // Marshals / onlookers behind the closed junction mouths.
   streetDressing: { spectators: { perJunction: 4, reach: 400 } },
   // Every side road / track meeting the stage road is closed with barriers (as on a real stage).
@@ -444,6 +455,14 @@ export const ajvatovciMap: MapDef = {
   props: [
     { asset: 'village_sign', along: 2335, lateral: 5.2, rotY: 180 },
     { asset: 'village_sign', along: 3690, lateral: -5.2 },
+    // Barrier row across the road 11 m before its end (15 m out from the monastery gate), facing the
+    // driver: a car that overshoots the finish has to stop before it - or hit it (solid, 2.2 m each).
+    ...[-3.3, -1.1, 1.1, 3.3].map((lateral) => ({
+      asset: 'road_barrier',
+      along: -11,
+      lateral,
+      rotY: 180,
+    })),
   ],
   environment: {
     sunElevation: 40,

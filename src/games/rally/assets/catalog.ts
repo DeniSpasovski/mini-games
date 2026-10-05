@@ -50,6 +50,11 @@ export interface AssetMeta {
   colliders?: ColliderSpec[];
   /** Per-instance colour jitter (0 = none), applied via instanceColor. */
   tint?: number;
+  /**
+   * Knocked over when the car drives through it (no collider, the car is not slowed): falls down and costs a time
+   * penalty (world/breakables.ts). `r` = radius and `h` = height (m, unscaled) of the hit test.
+   */
+  breakable?: { r: number; h: number };
 }
 
 /**
@@ -517,11 +522,12 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'marker_post',
     name: 'Marker post',
     category: 'markers',
-    // No collider: flimsy posts would stop the car dead. TODO breakable props.
+    // No collider: flimsy posts would stop the car dead. Breakable: the car knocks it over (+10 s penalty).
     description:
-      'Road-edge delineator post with reflector. Drive-through (not solid) until breakable props exist.',
+      'Road-edge delineator post with reflector. Breakable: the car drives over it, it falls down and costs a time penalty.',
     variants: 1,
     lods: [{ maxDistance: 450, castShadow: false }],
+    breakable: { r: 0.06, h: 1.05 },
   },
   {
     id: 'chevron_sign',

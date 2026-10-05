@@ -87,7 +87,9 @@ describe.each(ALL_MAPS.map((m) => [m.id, m] as const))('map %s', (_id, map) => {
   test('no solid scatter on the road', () => {
     const out: StaticCollider[] = [];
     const q = newRoadQuery();
-    for (let along = 0; along < world.road.length; along += 10) {
+    // The stage up to 100 m past the finish; beyond that the run-out may be closed on purpose
+    // (ajvatovci: a barrier row across the road before the monastery gate).
+    for (let along = 0; along < world.stage.finish + 100; along += 10) {
       const c = world.road.at(along);
       const n = world.queryColliders(c.x, c.z, 12, out);
       for (let i = 0; i < n; i++) {

@@ -77,7 +77,7 @@ export function carSurfaces(
       const sizeMu = f.hard + (f.loose - f.hard) * loose;
       // Rough 0.12 (was 0.08: on gravel a soft vs stiff set-up was worth only +-2.4 % against +-6 % on tarmac, so stiff
       // was the safe pick everywhere). 0.15 tipped two knife edges: the Bimmer's loose-gravel launch and the limit
-      // driver over the test map's crest at ~870 m (HANDLING-REVIEW.md finding 3).
+      // driver over the test map's crest at ~870 m.
       const setupMu = 1 + 0.12 * match * rough - 0.06 * match * (1 - rough);
       const setupResponse = 1 + 0.08 * match * (1 - rough);
       table[base.id] = {

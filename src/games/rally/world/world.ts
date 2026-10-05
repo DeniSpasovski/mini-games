@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import type { MapDef } from '../maps/shared/types';
-import { SURFACES } from '../physics/surfaces';
+import { SURFACES, type SurfaceId } from '../physics/surfaces';
 import type {
   GroundProvider,
   GroundSample,
@@ -107,6 +107,8 @@ export class World implements GroundProvider {
   readonly piers: DeckPier[];
   /** Raised ground of the landmarks (kerbs, sidewalks): the physical height there. */
   private groundFns: ((x: number, z: number) => number)[] = [];
+  /** Paved ground of the landmarks (a gravel courtyard, a court): the surface there. */
+  private surfaceFns: ((x: number, z: number) => SurfaceId | undefined)[] = [];
   private splatTmp = new Float32Array(4);
 
   constructor(readonly map: MapDef) {
@@ -204,7 +206,8 @@ export class World implements GroundProvider {
         junctions: this.gen.junctions,
         height: (x, z) => this.analytic.height(x, z),
         pathHeight: (pi, a) => this.gen.pathHeight(pi, a),
-        blocked: (x, z, r) => this.buildings.contains(x, z, r),
+        blocked: (x, z, r) =>
+          this.buildings.contains(x, z, r) || this.keptClear(x, z),
         streetDetail: this.streetDetail,
         sidewalk: map.cityStreets?.sidewalk ?? 1.5,
         lampEvery: map.cityStreets?.lampEvery ?? 0,
@@ -235,6 +238,8 @@ export class World implements GroundProvider {
         this.scatter.addFixed(inst);
       const lift = landmark.groundOverride?.(this.analytic);
       if (lift) this.groundFns.push(lift);
+      if (landmark.surfaceAt)
+        this.surfaceFns.push(landmark.surfaceAt.bind(landmark));
     }
 
     const finish = this.road.length - map.stage.finishFromEnd;
@@ -254,6 +259,11 @@ export class World implements GroundProvider {
     );
     for (const c of this.overheadSigns.colliders)
       this.scatter.addFixedCollider(c);
+  }
+
+  /** A landmark keeps junction dressing off (x, z) (Landmark.keepsClear). */
+  private keptClear(x: number, z: number): boolean {
+    return this.landmarks.some((l) => l.keepsClear?.(x, z));
   }
 
   /** Side-road mouths closed with a row of barriers (MapDef.junctionBarriers). */
@@ -300,6 +310,7 @@ export class World implements GroundProvider {
       if (gap(t) < setback) continue;
       const cx = j.x + j.dx * t;
       const cz = j.z + j.dz * t;
+      if (this.keptClear(cx, cz)) continue;
       for (let i = 0; i < n; i++) {
         const off = (i - (n - 1) / 2) * rule.length;
         const x = cx + Math.cos(rotY) * off;
@@ -454,7 +465,8 @@ export class World implements GroundProvider {
             net.pointAt(pi, Math.min(L, s + 1), b);
             const tl = Math.hypot(b.x - a.x, b.z - a.z) || 1;
             const lat =
-              side * (net.halfWidthAt(pi, s) + DECK_OVERHANG - PARAPET_T / 2);
+              side *
+              (this.gen.deckHalfWidth(pi, s) + DECK_OVERHANG - PARAPET_T / 2);
             net.pointAt(pi, s, o);
             o.x += ((b.z - a.z) / tl) * lat;
             o.z -= ((b.x - a.x) / tl) * lat;
@@ -550,6 +562,13 @@ export class World implements GroundProvider {
     const hf = this.heightfield;
     hf.splatAt(x, z, this.splatTmp);
     out.surface = SURFACES[this.gen.surfaceAt(x, z, this.splatTmp)];
+    for (const surface of this.surfaceFns) {
+      const id = surface(x, z);
+      if (id) {
+        out.surface = SURFACES[id];
+        break;
+      }
+    }
     // On a bridge of the stage road the heightfield is the ground beneath the deck: drive on the deck.
     const deck = this.gen.deckHeightAt(x, z);
     if (!Number.isNaN(deck)) {

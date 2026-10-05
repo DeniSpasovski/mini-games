@@ -393,6 +393,7 @@ function clearScene(): void {
   stations = [];
   if (lineup) {
     scene.remove(lineup.instances.group);
+    lineup.instances.dispose();
     lineup.labels.forEach((l) => l.remove());
     lineup = null;
   }

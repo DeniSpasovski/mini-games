@@ -75,9 +75,9 @@ test('clearing the island early gives a time bonus', () => {
   run(sim, 1);
   expect(sim.over).toBe(true);
   expect(sim.cleared).toBe(true);
-  // 2 points per second left of 100 s
-  expect(sim.clearBonus).toBeGreaterThan(195);
-  expect(sim.clearBonus).toBeLessThanOrEqual(200);
+  // 10 points per second left of 100 s
+  expect(sim.clearBonus).toBeGreaterThan(975);
+  expect(sim.clearBonus).toBeLessThanOrEqual(1000);
   expect(sim.score).toBe(1 + sim.clearBonus);
 });
 

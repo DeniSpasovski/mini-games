@@ -45,6 +45,8 @@ export interface ScatterInstance {
 export interface ScatterChunk {
   instances: ScatterInstance[];
   colliders: StaticCollider[];
+  /** Instances of breakable assets (catalog `breakable`), knocked over by the car (breakables.ts). */
+  breakables: ScatterInstance[];
 }
 
 export class ScatterField {
@@ -131,6 +133,7 @@ export class ScatterField {
           ...instances.flatMap(collidersOf),
           ...(this.fixedColliders.get(k) ?? []),
         ],
+        breakables: instances.filter((i) => getAssetMeta(i.asset).breakable),
       };
       this.chunks.set(k, c);
     }

@@ -117,9 +117,22 @@ export const jackieMap: MapDef = {
     // The lidar has a void where the parkway descends into the Kew Gardens trench (7 040-7 190 m: the land reads
     // 5-10 m BELOW the road): the Union Turnpike service roads and the street grid sit at the rim of the trench.
     trenchFills: [{ from: 7035, to: 7186, halfWidth: 75, depth: [0.3, 5.6] }],
-    points: routePoints(data.route, () => 7.4),
+    // The baked route ends at the Union Turnpike (7 345 m); the finish is past the Queens Blvd portal, so the stage
+    // road runs on along the turnpike (OSM primary, same direction) for ~90 m: the run-out to stop in. Not baked
+    // (moving the end waypoint makes the baker take another route).
+    points: routePoints(
+      [
+        ...data.route,
+        [2835, -1847],
+        [2866, -1858.6],
+        [2896, -1870.9],
+      ],
+      () => 7.4,
+    ),
   },
-  stage: { start: 40, finishFromEnd: 100, splits: 4 },
+  // Finish at 7 298 m: past the Queens Blvd portal (7 186-7 273 m), 2 m before the last green gantry (7 300 m; the two
+  // gantries clipped when they stood on the same spot).
+  stage: { start: 40, finishFromEnd: 47, splits: 4 },
   scatter: [
     // Forest Park / cemetery woodland: oaks, birches and a few pines.
     {
@@ -292,7 +305,7 @@ export const jackieMap: MapDef = {
       asset: 'spectator',
       at: [
         30, 62, 95, 1470, 1495, 2910, 2935, 4350, 4375, 5790, 5815, 7120, 7160,
-        7205, 7250,
+        7205, 7298,
       ],
       side: 'both',
       offset: 3.4,

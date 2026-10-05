@@ -10,15 +10,15 @@
   "heightBase": 232,
   "detail": {
     "cell": 10,
-    "extent": [-2100, 2300, -1250, 950]
+    "extent": [-4500, 2800, -1650, 3700]
   },
   "outer": {
     "cell": 50,
-    "extent": [-5000, 5000, -4200, 3800]
+    "extent": [-5000, 5000, -4200, 6000]
   },
   "landcover": {
     "cell": 5,
-    "extent": [-1950, 2150, -1100, 850],
+    "extent": [-4350, 2650, -1500, 3550],
     "manualCover": [
       {
         "cover": "orchard",

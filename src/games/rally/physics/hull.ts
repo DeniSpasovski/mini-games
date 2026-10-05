@@ -53,7 +53,7 @@ export interface LowSphere {
  * Hull fitted to a real body: `autoHull`'s corner / belt / roof spheres (sides, roof, walls, trees) moved to the body's
  * centre `centreZ` (bodies are rarely centred on the COM), its high centre floor spheres dropped, plus `low` spheres
  * that follow the splitter, sills, floor and rear bumper - so a low car scrapes on crests and landings like its model
- * looks (HANDLING-REVIEW.md finding 6). The hull is body-fixed: a ride-height preset lifts it with the body.
+ * looks. The hull is body-fixed: a ride-height preset lifts it with the body.
  */
 export function bodyHull(
   d: HullBody,

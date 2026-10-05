@@ -1,6 +1,5 @@
 import {
   Group,
-  InstancedMesh,
   Mesh,
   MeshBasicMaterial,
   Plane,
@@ -192,7 +191,7 @@ function regenerate(): void {
   if (groundGroup) scene.remove(groundGroup);
   if (instances) {
     scene.remove(instances.group);
-    for (const m of instances.group.children) (m as InstancedMesh).dispose();
+    instances.dispose();
   }
   groundGroup = buildMapGround(map) as Group;
   scene.add(groundGroup);
@@ -333,9 +332,9 @@ dom.addEventListener('pointerup', (e) => {
     instances.group.children.filter((c) => c.visible),
     false,
   );
-  const hit = hits.find((h) => h.instanceId !== undefined);
-  if (hit && hit.object instanceof InstancedMesh) {
-    const i = instances.itemOf(hit.object, hit.instanceId!);
+  const hit = hits.find((h) => h.batchId !== undefined);
+  if (hit) {
+    const i = instances.itemOf(hit.object, hit.batchId!);
     const info = getItem(world.types[world.type[i]].id);
     setClicked({
       item: `${info.name} (${info.id})`,

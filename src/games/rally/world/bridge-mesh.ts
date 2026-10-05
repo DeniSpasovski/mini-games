@@ -22,6 +22,7 @@ import { newRoadQuery } from './road';
 import { getRoadMaterial, pathTexture, texLength } from './road-mesh';
 import { STREET_KINDS } from './street-detail';
 import { DECK_DEPTH } from './terrain-gen';
+import { TWIN_OVERLAP, twinAt } from './twin-decks';
 import type { World } from './world';
 
 /**
@@ -29,7 +30,8 @@ import type { World } from './world';
  * overpasses, ramps, the interchange) share one detailed bridge builder:
  *
  * - the deck: fascia girders, a recessed soffit with a row of beams (seen from the road below), stone
- *   parapets with pilasters (decks of other roads), dark expansion joints across the road at both ends;
+ *   parapets with pilasters (decks of other roads; MapDef.bridgeStyle 'concrete': a concrete edge beam with
+ *   an open steel railing, no stone arch, concrete abutments), dark expansion joints across the road at both ends;
  * - abutments: a stone-faced wall under each deck end from the ground up to the soffit, with returns that
  *   taper into the slope, and wing walls retaining the approach fill beside the road;
  * - piers (decks of other roads): a column with a cap beam, drawn here, solid via World.piers.
@@ -50,6 +52,8 @@ const BEAM_W = 0.4;
 /** Abutment return length beyond the deck edge (tapers into the slope) and wing wall length along the road (m). */
 const RETURN_L = 5;
 const WING_L = 10;
+/** Outward splay of a modern deck's wing walls: metres away from the road edge per metre along it (~35 deg). */
+const WING_FLARE = 0.7;
 /** Stone texture repeat (m). */
 const STONE_TS = 2;
 /** Concrete texture repeat (m). */
@@ -361,10 +365,14 @@ function openRuns(rows: Row[], flags?: boolean[]): Row[][] {
 /** Rise of a shallow arch soffit: the intrados springs from the abutments at girder depth up to the slab at midspan. */
 const ARCH_RISE = GIRDER - SLAB_T;
 
+/** Height of the concrete edge beam under the steel railing of a `concrete` style deck (m). */
+const CURB_H = 0.35;
+
 /**
  * Deck body: fascia girders, soffit + beams, parapets with pilasters (other roads), expansion joints. `arch`: the old
  * stone-bridge look - a shallow arch soffit along the span (low at the abutments, highest at midspan) with stone
- * spandrels instead of the flat soffit and beams.
+ * spandrels instead of the flat soffit and beams. `modern`: a concrete edge beam with an open steel railing instead
+ * of the stone parapet (MapDef.bridgeStyle 'concrete').
  */
 function deckBody(
   parts: Parts,
@@ -372,6 +380,7 @@ function deckBody(
   parapet: boolean,
   cov?: Coverage,
   arch = false,
+  modern = false,
 ): void {
   const { conc, stone } = parts;
   const L = OVERHANG;
@@ -454,7 +463,18 @@ function deckBody(
       SOFFIT,
     );
   }
-  if (parapet) {
+  if (parapet && modern) {
+    const I = L - PARAPET_T;
+    for (const s of [-1, 1] as const) {
+      // Concrete edge beam (outer face, top, inner face) with the railing standing on it.
+      for (const rr of openRuns(rows, s > 0 ? cov?.left : cov?.right)) {
+        conc.strip(rr, [s * L, 0, s], [s * L, CURB_H, s], CONC);
+        conc.strip(rr, [s * L, CURB_H, s], [s * I, CURB_H, s], CONC, false);
+        conc.strip(rr, [s * I, CURB_H, s], [s * I, 0, s], CONC);
+        railing(parts.metal, rr, s * (L - PARAPET_T / 2), CURB_H, s);
+      }
+    }
+  } else if (parapet) {
     const I = L - PARAPET_T;
     for (const s of [-1, 1] as const) {
       // Outer face, top, inner face of the stone parapet (a coping stone ledge on top).
@@ -534,7 +554,10 @@ function abutment(
   end: Row,
   inward: 1 | -1,
   roadYAt: (s: number) => number,
+  modern = false,
 ): void {
+  const face = modern ? parts.conc : parts.stone;
+  const faceCol = modern ? CONC : STONE;
   // The ground under the deck (gen.height), not the surface (analytic: the deck of a stage-road span).
   const ground = world.gen;
   const W = end.hw + OVERHANG;
@@ -542,7 +565,7 @@ function abutment(
   const nz = -end.tx;
   const topY = end.y - SLAB_T;
   // Face: from -W-RETURN_L to W+RETURN_L across the road.
-  const face: { x: number; z: number; bot: number; top: number }[] = [];
+  const wallPts: { x: number; z: number; bot: number; top: number }[] = [];
   let high = 0;
   const half = W + RETURN_L;
   const n = Math.ceil((2 * half) / 1.2);
@@ -555,12 +578,12 @@ function abutment(
     const t =
       over > 0 ? Math.max(g, topY + (g - topY) * (over / RETURN_L)) : topY;
     high = Math.max(high, t - g);
-    face.push({ x, z, bot: g - 0.5, top: Math.max(t, g - 0.3) });
+    wallPts.push({ x, z, bot: g - 0.5, top: Math.max(t, g - 0.3) });
   }
   if (high >= 0.4) {
-    parts.stone.wall(face, STONE);
-    // Coping: a heavier stone course on the seat under the slab edge (the full width, 0.35 m).
-    parts.stone.box(
+    face.wall(wallPts, faceCol);
+    // Coping: a heavier course on the seat under the slab edge (the full width, 0.35 m).
+    face.box(
       end.x - end.tx * inward * 0.2,
       end.z - end.tz * inward * 0.2,
       end.tx,
@@ -569,22 +592,24 @@ function abutment(
       W,
       topY - 0.3,
       topY,
-      [0.85, 0.83, 0.78],
+      modern ? CONC : [0.85, 0.83, 0.78],
     );
   }
-  // Wing walls beside the road, running away from the span.
+  // Wing walls beside the road, running away from the span. Modern: splayed outward (the end opens up, never
+  // closes in over the approach), the top stepping down with the fill as it leaves the road edge.
   for (const s of [-1, 1] as const) {
     const pts: { x: number; z: number; bot: number; top: number }[] = [];
     for (let d = 0; d <= WING_L; d += 1.5) {
-      const l = s * (end.hw + 0.25);
+      const out = modern ? d * WING_FLARE : 0;
+      const l = s * (end.hw + 0.25 + out);
       const x = end.x - end.tx * inward * d + nx * l;
       const z = end.z - end.tz * inward * d + nz * l;
       const g = ground.height(x, z);
-      const top = roadYAt(d) - 0.04;
+      const top = roadYAt(d) - 0.04 - out;
       if (top - g < 0.3) break;
       pts.push({ x, z, bot: g - 0.4, top });
     }
-    parts.stone.wall(pts, STONE);
+    face.wall(pts, faceCol);
   }
 }
 
@@ -655,19 +680,42 @@ function pathDecks(world: World, group: Group, tiles: TileParts): void {
       net.pointAt(pi, Math.max(0, a - 1.5), pt);
       net.pointAt(pi, Math.min(L, a + 1.5), nx);
       const tl = Math.hypot(nx.x - pt.x, nx.z - pt.z) || 1;
+      // Unit tangent BEFORE pt is reused for the row's own point (taking it after gave half-length tangents
+      // inside the deck and a zero one at its end: decks drawn half wide, pinched to a point at the far end).
+      const tx = (nx.x - pt.x) / tl;
+      const tz = (nx.z - pt.z) / tl;
       net.pointAt(pi, a, pt);
       rows.push({
         x: pt.x,
         y: gen.pathHeight(pi, a),
         z: pt.z,
-        tx: (nx.x - pt.x) / tl,
-        tz: (nx.z - pt.z) / tl,
+        tx,
+        tz,
         d: a,
-        hw: net.halfWidthAt(pi, a),
+        hw: gen.deckHalfWidth(pi, a),
       });
     }
     decks.push({ pi, rows });
   }
+  // Twin decks (the two directions of one overpass street): widen both so their roadways overlap a little - one
+  // slab, the facing edges are inside the other deck (no parapet / fascia between them, see Coverage).
+  const isStreetDeck = (q: number) =>
+    !!net.paths[q].bridge &&
+    !gen.isPortalDeck(q) &&
+    net.paths[q].surface === 'tarmac' &&
+    !/^(motorway|trunk)/.test(net.paths[q].kind);
+  const widen = decks.map(({ pi, rows }) =>
+    isStreetDeck(pi)
+      ? rows.map((r) => {
+          const t = twinAt(net, isStreetDeck, pi, r.d, r.hw);
+          return t ? Math.max(0, t.gap / 2 + TWIN_OVERLAP / 2) : 0;
+        })
+      : undefined,
+  );
+  decks.forEach(({ rows }, k) => {
+    const w = widen[k];
+    if (w) rows.forEach((r, i) => (r.hw += w[i]));
+  });
   /** Is (x, z, y) on the roadway of a deck other than `self` (same height within 1.5 m)? */
   const onOther = (self: number, x: number, z: number, y: number): number => {
     for (const d of decks) {
@@ -770,14 +818,18 @@ function pathDecks(world: World, group: Group, tiles: TileParts): void {
     const mid = rows[rows.length >> 1];
     const parts = tiles.of(mid.x, mid.z);
     // Streets over the parkway: the old stone arch look (ramps and the motorway decks keep the beam soffit).
-    const arch = STREET_KINDS.has(p.kind) && L >= 12 && !gen.isPortalDeck(pi);
-    deckBody(parts, rows, true, cov, arch);
+    // A modern overpass (bridgeStyle 'concrete'): beam soffit, edge beam + open railing, concrete abutments.
+    const modern = world.map.bridgeStyle === 'concrete';
+    const arch =
+      !modern && STREET_KINDS.has(p.kind) && L >= 12 && !gen.isPortalDeck(pi);
+    deckBody(parts, rows, true, cov, arch, modern);
+    // Wing walls retain the approach: their top follows the approach road's height going AWAY from the span
+    // (the deck's own profile rises the other way - walls taken from it stand up beside the approach).
+    const approach = (end: Row, inward: 1 | -1) => (s: number) =>
+      gen.height(end.x - end.tx * inward * s, end.z - end.tz * inward * s);
     if (!cov.end0)
-      abutment(world, parts, rows[0], 1, (s) => gen.pathHeight(pi, s));
-    if (!cov.end1)
-      abutment(world, parts, rows[rows.length - 1], -1, (s) =>
-        gen.pathHeight(pi, L - s),
-      );
+      abutment(world, parts, rows[0], 1, approach(rows[0], 1), modern);
+    if (!cov.end1) abutment(world, parts, last, -1, approach(last, -1), modern);
   }
 }
 

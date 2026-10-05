@@ -12,16 +12,16 @@ describe('ajvatovci', () => {
   test('the dense orchard south of the farmland road is orchard land cover (~60 ha)', () => {
     const lc = world.gen.landcover!;
     const d = lc.def;
+    // Only the stage area (the land cover extent before the Ilinden / Marino background was added).
+    const [x0, x1, z0, z1] = [-1950, 2150, -1100, 850];
     let cells = 0;
     for (let j = 0; j < d.rows; j++)
-      for (let i = 0; i < d.cols; i++)
-        if (
-          lc.coverAt(
-            d.originX + (i + 0.5) * d.cell,
-            d.originZ + (j + 0.5) * d.cell,
-          ) === 'orchard'
-        )
-          cells++;
+      for (let i = 0; i < d.cols; i++) {
+        const x = d.originX + (i + 0.5) * d.cell;
+        const z = d.originZ + (j + 0.5) * d.cell;
+        if (x < x0 || x > x1 || z < z0 || z > z1) continue;
+        if (lc.coverAt(x, z) === 'orchard') cells++;
+      }
     const ha = (cells * d.cell * d.cell) / 1e4;
     console.info(`[ajvatovci] orchard ${ha.toFixed(0)} ha`);
     expect(ha).toBeGreaterThan(50);

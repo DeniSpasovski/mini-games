@@ -1,6 +1,8 @@
 import type { Group } from 'three';
+import { hilltopLandmark } from '../maps/ajvatovci/hilltop';
 import { startRowLandmark } from '../maps/ajvatovci/start-row';
 import type { BuildingDef, MapDef } from '../maps/shared/types';
+import type { SurfaceId } from '../physics/surfaces';
 import type { StaticCollider } from '../physics/types';
 import type { TerrainSampler } from './heightfield';
 import type { ScatterInstance } from './scatter';
@@ -24,6 +26,13 @@ export interface Landmark {
    * physics only, the landmark draws the same surface itself.
    */
   groundOverride?(ground: TerrainSampler): (x: number, z: number) => number;
+  /**
+   * Junction dressing (the barrier rows closing side-road mouths, marshals, parked emergency vehicles) is
+   * not placed here: the landmark has its own (a paved apron, a gate barrier).
+   */
+  keepsClear?(x: number, z: number): boolean;
+  /** The surface the car drives on where the landmark paves the ground (undefined elsewhere): physics only. */
+  surfaceAt?(x: number, z: number): SurfaceId | undefined;
   /** Rally assets (trees, bushes) it stands among: added to the fixed scatter, so they get LOD / colliders. */
   instances(ground: TerrainSampler): ScatterInstance[];
   /** Geometry, built in a time-sliced job (yield now and then). Browser only. */
@@ -32,6 +41,7 @@ export interface Landmark {
 
 const REGISTRY: Record<string, Landmark> = {
   [startRowLandmark.id]: startRowLandmark,
+  [hilltopLandmark.id]: hilltopLandmark,
 };
 
 export function landmarksOf(map: MapDef): Landmark[] {

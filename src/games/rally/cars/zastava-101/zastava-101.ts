@@ -29,7 +29,7 @@ const REAR: AxleDef = {
   travel: 0.22,
   antiRoll: 4000,
   // 23 % rear (front 1200): the light rear (40 % static, less under braking) must not lock before the front - at
-  // 35 % braking mid-corner spun the car. Total torque kept so part-pedal stops stay the same (HANDLING-REVIEW.md).
+  // 35 % braking mid-corner spun the car. Total torque kept so part-pedal stops stay the same.
   brakeTorque: 350,
   handbrakeTorque: 1800,
   steer: 0,

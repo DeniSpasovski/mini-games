@@ -203,7 +203,7 @@ Each item has a small state machine in `sim/fall.ts`, deterministic (seeded per 
 - **XP = points**. Each item eaten fills the level bar with its points. Levelling up animates the diameter to the new
   size (exponential approach, time constant 0.18 s), so items at the rim fall in as the hole grows. Level 25 is the cap;
   after that XP only adds score.
-- **Island cleared bonus** (100 % of the island eaten before time runs out): **+2 points per remaining second**. The run
+- **Island cleared bonus** (100 % of the island eaten before time runs out): **+10 points per remaining second**. The run
   ends immediately with the bonus. Easy (500 s) is the difficulty where this normally happens.
 - Results also show **% eaten**, by points: points eaten ÷ total island points (City Island 30 000, Toy Emporium 25 000). The HUD shows the same percentage live.
 - Combos and multipliers are not in v0 (see iterations).
@@ -245,10 +245,11 @@ end and start delay, `flee`) becomes a **mover**: `sim/world.ts` keeps its state
 - **Flee** (`FLEE` in `sim/movers.ts`: range 1.3 x the hole diameter + size, 1.6 s, 1.1 x walking speed, any tier): an
   animal the hole can eat walks away from it. **Insects (`bugs`) and giants never flee** (`flee: false`). A thing that is too big
   to eat stops and teeters when the hole is under it. A mover that commits to falling freezes and falls like any item.
-- **Rendering** (`render/item-instances.ts`): movers get their own `InstancedMesh`es (key `...#1`), on a smaller cell
+- **Rendering** (`render/item-instances.ts`): movers get their own culling cells (key `...#1`), on a smaller cell
   grid (32 m instead of 64 m: `CELL_MOVERS`) because the animals are heavier; matrices are rewritten only for movers
-  that moved (`world.moving`, cleared by the renderer), the culling sphere of such a mesh is recomputed from its real
-  positions, `world.lift` raises an idle mover (hop, flutter, a small walking bounce). Static items are untouched.
+  that moved (`world.moving`, cleared by the renderer), the item sphere follows the animal and the cell sphere is
+  recomputed from its members' real positions, `world.lift` raises an idle mover (hop, flutter, a small walking
+  bounce). Static items are untouched.
 - **Cost** (`tests/hole/movers.test.ts`): a tick with 2 500 awake movers takes well under 3 ms in node (benchmark: 0.1 ms
   for the movement, 0.1 ms for the matrices); the game has about 2 500 movers, a few hundred awake.
 - Not done: the bot does not lead moving targets, no leg animation (animals bob / hop as a whole), herd followers,
@@ -272,7 +273,7 @@ Measured with the headless bot (`sim/bot.ts`, 4 map seeds, 30 steps/s):
 | Easy 500 s   | island cleared (~400 s) | island cleared (~310 s)                 |
 
 Humans on touch will be slower than the bot. Medium and Easy are close in feel (both reach the top level and clear most
-of the island); the clear bonus (+2 / s left) is what ranks fast Easy runs. Tune with real players (TASKS).
+of the island); the clear bonus (+10 / s left) is what ranks fast Easy runs. Tune with real players (TASKS).
 
 ## Camera
 
@@ -466,11 +467,10 @@ under 0.24 m deep).
 
 Sounds: squeak (bugs, critters), grunt (animals, giants), thud (hills, rocks), clank (zoo, lab) - `Sfx.gulp(tier, group)`.
 Swallow puffs: fur tufts and leaves. Ground (`render/animal-ground.ts`): a base fan coloured per coast segment, the 10 m
-biome cells (two greens per biome), sand ring, flat rects, river ribbons with mud banks, ponds, the sea.
+biome cells (two greens per biome), sand ring, flat rects, river ribbons with mud banks (one mitered ribbon per river, pieces share their edge points so bends have no spikes), ponds, the sea.
 
-**Performance** (dev PC, software renderer, `quality=low`): about 130k triangles at level 1, 190k at level 8, 310k at
-level 15 (City Island: 70k / 97k / 164k) with 170 / 310 / 640 draw calls: heavier than the City, **not yet measured on a
-device** (open task AI-01).
+**Performance**: since the items are batched (see "Performance" under Architecture) the map draws in 23-26 calls and
+24k / 108k / 321k triangles at level 1 / 8 / 15 (shadows on); **not yet measured on a device** (open task AI-01).
 
 ## Art style
 
@@ -495,8 +495,8 @@ device** (open task AI-01).
 - **Hole:** see "Assets – hole".
 - **Geometry budgets** (enforced by `tests/hole/items.test.ts`): litter ≤ 60 tris, street ≤ 140, people ≤ 80,
   nature / park / beach ≤ 260, vehicles ≤ 500, harbour ≤ 300, houses and shops ≤ 450, buildings and skyscrapers
-  ≤ 900. Each item is built once and every placement is an `InstancedMesh` instance (repo rule: never clone per
-  instance).
+  ≤ 900. Each item is built once and every placement is an instance of it in a `BatchedMesh` (repo rule: never clone
+  per instance).
 - **No clipping** (enforced by `tests/hole/clip.test.ts`, checker in `debug/clip-check.ts`): in every item and variant,
   (1) no two faces that point the same way may share a plane (within 4 mm) and overlap - that is z-fighting, a flicker
   where the colours fight; (2) no box / cylinder may be completely hidden inside the model (a door behind its wall, a
@@ -814,7 +814,7 @@ src/games/hole/
     city-decor.ts        curbs, roundabouts, road decals, rocks, pier (render-only, derived from MapData)
     toy-ground.ts        toy store floor, skirt, void, walls; map-ground.ts picks the right one
     hole-mesh.ts         mask disc, walls, bottom, rim, level-up pulse, colour presets
-    item-instances.ts    one InstancedMesh per item type + variant; only moving items are rewritten
+    item-instances.ts    one BatchedMesh per material style (+ shadow flag), own cell culling; only moving items are rewritten
     camera-rig.ts        follow camera, distance / pitch per level, portrait factor
   game/
     hole-game.ts         menu <-> run loop, fixed step + interpolation, events -> HUD / audio
@@ -826,21 +826,46 @@ src/games/hole/
 tests/hole/
 ```
 
-**Performance** (measured on the dev machine's software renderer, so only the counts matter). Targets for real
-devices: 60 fps on an iPad (A12 or newer), 30+ fps on a mid-range phone, pixel ratio capped at 2 (1.5 on `low`).
-What is in place:
+**Performance**. Targets for real devices: 60 fps on an iPad (A12 or newer), 30+ fps on a mid-range phone, pixel
+ratio capped at 2 (1.5 on `low`). What is in place:
 
-- **Chunked culling** (`render/item-instances.ts`): items are one `InstancedMesh` per type + variant + 64 m map cell, each
-  with a bounding sphere (cell + 14 m for items sliding into the hole) and `frustumCulled` on. The camera and the sun
-  shadow draw only the cells they see. Measured triangles per frame (`low`, no shadow pass): 434k -> 70k at level 1,
-  97k at level 8, 164k at level 15 (draw calls 107 / 175 / 342; they grow because the view covers more cells).
+- **Batched items** (`render/item-instances.ts`): every item of one material style (`prop`, `punched`, `ribbon`, `glass`)
+  that shares the shadow flag (size ≥ 0.5 m casts) is one `BatchedMesh`, so a map has 4-8 item meshes and each draws
+  with **one multi-draw call per pass** (`WEBGL_multi_draw`: iOS 15+, Chrome, Firefox; without it three.js falls back
+  to one draw per item). Before, it was one `InstancedMesh` per type + variant + 64 m cell: 1 200-2 300 meshes of ~4
+  items each, so the frame was CPU bound on draw-call overhead (1 240 calls at level 15 on the City).
+- **Own culling** (`ItemBatch.cull`, replaces BatchedMesh's per-instance matrix read + sphere test): instances are added
+  cell by cell (64 m, 32 m on maps with movers), so a cell is a contiguous id range. Per pass: one frustum test per cell
+  (sphere of its items + 14 m for items sliding into the hole), visible cells sorted front to back, and only in cells
+  that cross the frustum edge a sphere test per item (spheres in flat arrays, updated when an item is re-posed: movers,
+  falling items). Pixel-identical to drawing everything (checked by rendering both and diffing).
+- **Level of detail** (`setView`, called with the rig distance before every render): items smaller than distance x
+  `TINY_K` (0.003, about 2 px) are not drawn and smaller than distance x `SHADOW_TINY_K` (0.008) cast no shadow. Changes
+  ~0.5 % of the pixels at level 15 (specks), halves the triangles on Animal Island at level 15. Viewers skip it.
+- **Paint**: per-instance colours are the batch colour texture; the `paint` mask patch covers both `instanceColor` and
+  `getBatchingColor` (`render/materials.ts`). `tests/hole/item-instances.test.ts` checks the culling and fails if a
+  three.js upgrade renames the internals / shader line it relies on.
 - **Adaptive resolution** (`adaptResolution` in `game/hole-game.ts`): during a run, a smoothed frame time above 24 ms
   steps the render scale down (x0.88 every 1.5 s, floor 70 %); below 18 ms for 6 s it steps back up.
 - **Idle frame cap**: menus, pause and results render at ~30 fps (the sim of the menu demo still steps in real time).
-- CPU is not a bottleneck: one sim tick costs 0.03 ms (level 1) to 0.11 ms (level 15) with the bot.
+- The sim is cheap: one tick costs 0.03 ms (level 1) to 0.11 ms (level 15) with the bot.
 
-If a device is still too slow, in this order: hide tiny tiers (1-3) beyond a camera distance, cheaper shadows (smaller
-box on `low`), merge the road dashes / zebra stripes into a texture (they are ~12k triangles of the ground mesh).
+Measured 2026-10-04 on the dev PC (RTX 3070 Ti laptop, Chrome, 1280 x 720, `high` = shadows on, bot-driven
+`__hole.benchmark`, frame incl. GPU finish). Draw calls include the shadow pass and the ground chunks:
+
+| Map / level | Before: calls · tris · ms | After: calls · tris · ms |
+| ----------- | ------------------------- | ------------------------ |
+| City L1     | 254 · 186k · 9.2          | 34 · 21k · 1.0           |
+| City L8     | 523 · 291k · 14.9         | 35 · 75k · 1.8           |
+| City L15    | 1 240 · 621k · 33.3       | 46 · 226k · 3.6          |
+| Toy L1      | 94 · 74k · 3.4            | 28 · 22k · 1.0           |
+| Toy L15     | 652 · 443k · 13.2         | 36 · 171k · 1.5          |
+| Animal L1   | 165 · 88k · 6.1           | 23 · 24k · 0.9           |
+| Animal L15  | 1 739 · 834k · 26.8       | 26 · 321k · 1.8          |
+
+Building the batches for a run takes ~7 ms. Still open: the numbers on a real iPad / phone (`TASKS.md`). If a device
+is still too slow, in this order: raise `TINY_K` / `SHADOW_TINY_K`, cheaper shadows (smaller box on `low`), merge the
+road dashes / zebra stripes into a texture (they are ~12k triangles of the ground mesh).
 
 ## Feature iterations (after v0)
 

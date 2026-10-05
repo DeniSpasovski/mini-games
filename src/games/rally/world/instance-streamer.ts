@@ -45,6 +45,9 @@ interface InstanceData {
   meta: AssetMeta;
   /** Bucket key per LOD, built once (no per-rebuild string garbage). */
   keys: string[];
+  /** Moved instances (setMatrix): slot staged by the running job / drawn since the last commit. */
+  staged?: { bucket: Bucket; i: number } | null;
+  slot?: { bucket: Bucket; i: number } | null;
 }
 
 export interface StreamerOptions {
@@ -68,6 +71,8 @@ export class InstanceStreamer {
   readonly group = new Group();
   private buckets = new Map<string, Bucket>();
   private data = new WeakMap<ScatterInstance, InstanceData>();
+  /** Instances whose matrix was changed by setMatrix (their draw slot is tracked so it can be patched). */
+  private moved = new Set<InstanceData>();
   private lastFocus = new Vector3(Infinity, 0, 0);
   private maxRange: number;
   private detailRange: number;
@@ -139,6 +144,7 @@ export class InstanceStreamer {
 
   private *rebuildJob(focus: Vector3): Generator<void> {
     for (const b of this.buckets.values()) b.sCount = 0;
+    for (const d of this.moved) d.staged = null;
     const scatter = this.world.scatter;
     const cs = scatter.chunkSize;
     const lodScale = this.opts.lodScale;
@@ -205,20 +211,35 @@ export class InstanceStreamer {
     this.commits++;
   }
 
+  /**
+   * Move one instance (a knocked-over breakable): its drawn matrix is patched in place right away and every later
+   * rebuild uses it. `null` puts it back where the map placed it.
+   */
+  setMatrix(inst: ScatterInstance, m: Matrix4 | null): void {
+    const d = this.dataOf(inst);
+    if (m) d.m.set(m.elements);
+    else {
+      placedMatrix(inst, d.m);
+      this.moved.delete(d);
+    }
+    if (m) this.moved.add(d);
+    if (d.slot) this.patch(d.slot.bucket, d.slot.i, d.m);
+    if (!m) d.slot = d.staged = null;
+  }
+
+  private patch(b: Bucket, i: number, m: Float32Array): void {
+    if (i >= b.count) return;
+    for (const mesh of b.meshes) {
+      const im = mesh.instanceMatrix;
+      (im.array as Float32Array).set(m, i * 16);
+      im.addUpdateRange(i * 16, 16);
+      im.needsUpdate = true;
+    }
+  }
+
   private dataOf(inst: ScatterInstance): InstanceData {
     let d = this.data.get(inst);
     if (!d) {
-      _e.set(inst.tiltX, inst.rotY, inst.tiltZ, 'YXZ');
-      _q.setFromEuler(_e);
-      _m.compose(
-        _p.set(inst.x, inst.y, inst.z),
-        _q,
-        _s.set(
-          inst.scale * (inst.sx ?? 1),
-          inst.scale * (inst.sy ?? 1),
-          inst.scale * (inst.sz ?? 1),
-        ),
-      );
       const meta = getAssetMeta(inst.asset);
       const tint = meta.tint ?? 0;
       const t =
@@ -231,7 +252,7 @@ export class InstanceStreamer {
       const keys = meta.lods.map(
         (_, lod) => `${inst.asset}:${inst.variant}:${lod}`,
       );
-      d = { m: new Float32Array(_m.elements), t, meta, keys };
+      d = { m: placedMatrix(inst, new Float32Array(16)), t, meta, keys };
       this.data.set(inst, d);
     }
     return d;
@@ -257,6 +278,7 @@ export class InstanceStreamer {
       this.createMeshes(bucket, inst, lod, 64);
     }
     const i = bucket.sCount++;
+    if (this.moved.has(d)) d.staged = { bucket, i };
     if (i * 16 >= bucket.sMat.length) {
       const m = new Float32Array(bucket.sMat.length * 2);
       m.set(bucket.sMat);
@@ -278,6 +300,7 @@ export class InstanceStreamer {
 
   /** Copy staging -> GPU buffers for every bucket, uploading only the used range. */
   private commit(): void {
+    for (const d of this.moved) d.slot = d.staged;
     for (const b of this.buckets.values()) {
       if (b.sCount > b.capacity) {
         let cap = Math.max(64, b.capacity);
@@ -305,6 +328,9 @@ export class InstanceStreamer {
         }
       }
     }
+    // A move during the job staged the old matrix: draw the current one.
+    for (const d of this.moved)
+      if (d.slot) this.patch(d.slot.bucket, d.slot.i, d.m);
   }
 
   private createMeshes(
@@ -411,4 +437,21 @@ export class InstanceStreamer {
     this.buckets.clear();
     this.group.clear();
   }
+}
+
+/** World matrix of an instance as the map placed it. */
+function placedMatrix(inst: ScatterInstance, out: Float32Array): Float32Array {
+  _e.set(inst.tiltX, inst.rotY, inst.tiltZ, 'YXZ');
+  _q.setFromEuler(_e);
+  _m.compose(
+    _p.set(inst.x, inst.y, inst.z),
+    _q,
+    _s.set(
+      inst.scale * (inst.sx ?? 1),
+      inst.scale * (inst.sy ?? 1),
+      inst.scale * (inst.sz ?? 1),
+    ),
+  );
+  out.set(_m.elements);
+  return out;
 }

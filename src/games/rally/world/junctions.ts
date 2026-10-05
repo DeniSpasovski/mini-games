@@ -38,6 +38,8 @@ const MAX_RAY = 45;
 const REF_BACK = 8;
 /** The extended end stops this far past the stage road edge (hidden under its ribbon, m). */
 const OVERSHOOT = 1;
+/** Way ends closer than this are one node of the street network (m). */
+const SHARED_END = 2.5;
 
 export function connectPaths(
   paths: PathDef[],
@@ -46,7 +48,23 @@ export function connectPaths(
   const junctions: Junction[] = [];
   const q = newRoadQuery();
   const spans = road.def.spans ?? [];
-  const out = paths.map((p) => {
+  // Ends of every way. An end shared with another way (a node of the street network: a street continuing onto a
+  // bridge deck, a T of several streets) is no loose end - the baker only leaves those where it cut a side road
+  // short of the stage road. Extending shared ends put a junction mouth, its barrier row and gaps in the parkway
+  // barriers under every overpass.
+  const ends: { x: number; z: number; path: number }[] = [];
+  paths.forEach((p, pi) => {
+    const n = p.pts.length;
+    if (n >= 4) {
+      ends.push({ x: p.pts[0], z: p.pts[1], path: pi });
+      ends.push({ x: p.pts[n - 2], z: p.pts[n - 1], path: pi });
+    }
+  });
+  const sharedEnd = (pi: number, x: number, z: number): boolean =>
+    ends.some(
+      (e) => e.path !== pi && Math.hypot(e.x - x, e.z - z) < SHARED_END,
+    );
+  const out = paths.map((p, pi) => {
     // Water, roads the baker marked as passing over / under the stage road (no junction), bridge decks.
     if (p.surface === 'water' || p.junction === false || p.bridge) return p;
     // A parallel carriageway of a divided highway is not a side road: it is never joined to the stage road
@@ -60,6 +78,7 @@ export function connectPaths(
       const vz = (i: number) => pts[(atEnd ? n - 1 - i : i) * 2 + 1];
       const ex = vx(0);
       const ez = vz(0);
+      if (sharedEnd(pi, ex, ez)) continue;
       let k = 1;
       while (k < n - 1 && Math.hypot(ex - vx(k), ez - vz(k)) < REF_BACK) k++;
       const len = Math.hypot(ex - vx(k), ez - vz(k));

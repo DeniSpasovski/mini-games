@@ -40,12 +40,12 @@ Every level has a short **`README.md`** (rendered by GitHub: what it is, 1-4 in-
 licence summary, links to deeper docs) and a sibling **`DETAILS.md`** with everything else (architecture, flows, URLs, build
 notes, every source link, measured numbers). Keep READMEs high level - move detail into `DETAILS.md`, never the other way round.
 
-| Level                         | `README.md` (high level)                                 | `DETAILS.md` / other docs                                                                                                                            |
-| ----------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| root                          | purpose (learning three.js), games, quick start, licence | portal layout, domain lock, analytics, PWA, deploying; `THIRD-PARTY.md` (all third-party sources + licence status)                                   |
-| `src/games/<id>/`             | game overview, screenshots, stages / cars tables         | rules, flows, architecture, debug tools; `TASKS.md` (open work); rally: `PHYSICS.md`, `HANDLING-REVIEW.md`; hole: `TOY-STORE.md`, `ANIMAL-ISLAND.md` |
-| `src/games/rally/maps/<id>/`  | route, screenshots, data credits + licences              | every source link, bake notes, reference images; `TODO.md` (open work)                                                                               |
-| `src/games/rally/cars/<car>/` | description, screenshots, credits + licence              | build notes, rebuild commands, every source; `TODO.md` where present                                                                                 |
+| Level                         | `README.md` (high level)                                 | `DETAILS.md` / other docs                                                                                                      |
+| ----------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| root                          | purpose (learning three.js), games, quick start, licence | portal layout, domain lock, analytics, PWA, deploying; `THIRD-PARTY.md` (all third-party sources + licence status)             |
+| `src/games/<id>/`             | game overview, screenshots, stages / cars tables         | rules, flows, architecture, debug tools; `TASKS.md` (open work); rally: `PHYSICS.md`; hole: `TOY-STORE.md`, `ANIMAL-ISLAND.md` |
+| `src/games/rally/maps/<id>/`  | route, screenshots, data credits + licences              | every source link, bake notes, reference images; `TODO.md` (open work)                                                         |
+| `src/games/rally/cars/<car>/` | description, screenshots, credits + licence              | build notes, rebuild commands, every source; `TODO.md` where present                                                           |
 
 - **Screenshots** live in a `screenshots/` folder next to the README that shows them: taken in game (car / map viewer or the game
   page), 16:9 jpg, about 1280-1536 px wide, no debug panels. Retake them when a car, map or the look changes visibly.

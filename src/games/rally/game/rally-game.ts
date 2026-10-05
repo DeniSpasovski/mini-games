@@ -24,6 +24,7 @@ import { TYRES, type TyreId } from '../physics/tyres';
 import type { GearingId, SetupId } from '../physics/types';
 import { PHYSICS_HZ, Vehicle } from '../physics/vehicle';
 import { isTestCar, isTestMap, TEST_NOTE } from '../release';
+import { Breakables } from '../world/breakables';
 import { InstanceStreamer } from '../world/instance-streamer';
 import { buildRoadMesh } from '../world/road-mesh';
 import { TerrainRenderer } from '../world/terrain-renderer';
@@ -43,6 +44,7 @@ import {
   type RunRecord,
   formatTime,
   PENALTY_CUT,
+  PENALTY_MARKER,
   PENALTY_RESET,
   StageTimer,
   type StageEvent,
@@ -88,6 +90,8 @@ export class RallyGame {
   env!: Environment;
   terrain!: TerrainRenderer;
   streamer!: InstanceStreamer;
+  /** Marker posts the car knocks over (drawn by the streamer). */
+  breakables!: Breakables;
   stage!: StageTimer;
   readonly input = new InputController();
   rig!: CameraRig;
@@ -194,6 +198,9 @@ export class RallyGame {
     });
     this.scene.add(this.streamer.group);
     this.streamer.updateNow(spawn.position);
+    this.breakables = new Breakables(this.world.scatter, (x, z) =>
+      this.world.heightAt(x, z),
+    );
     await frame();
 
     progress(0.9, 'Car');
@@ -278,6 +285,7 @@ export class RallyGame {
     const spawn = this.world.spawn(this.opts.spawn);
     this.vehicle.reset(spawn.position, spawn.heading);
     this.rig.snap();
+    this.breakables.reset((inst) => this.streamer.setMatrix(inst, null));
     if (this.freeDrive) {
       this.stage.freeDrive();
       this.hud.message('FREE DRIVE', 2, 'small');
@@ -552,6 +560,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         steps++;
       }
       if (steps === MAX_STEPS) this.acc = 0; // slow-mo instead of a death spiral
+      this.knockPosts(dt);
     } else this.input.poll();
     const alpha = this.paused ? 1 : this.acc / STEP;
 
@@ -588,8 +597,12 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       loose,
       v.impact,
     );
-    // Start gantry clock runs from GO whether or not the car has moved: a forgotten start shows.
-    if (!this.freeDrive) setClockTime('start', this.stage.time);
+    // Gantry clocks run from GO whether or not the car has moved (a forgotten start shows); the
+    // finish clock stops on the stage time (penalties included) once the car crosses the line.
+    if (!this.freeDrive) {
+      setClockTime('start', this.stage.time);
+      setClockTime('finish', this.stage.time);
+    }
     this.hud.update(
       dt,
       {
@@ -623,6 +636,24 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     );
     this.stats.set('fx', `${this.dust.aliveCount} particles`);
     this.stats.end();
+  }
+
+  /** Marker posts under the car fall over (+PENALTY_MARKER each while the stage clock runs). */
+  private knockPosts(dt: number): void {
+    const v = this.vehicle;
+    const hits = this.breakables.hit({
+      position: v.position,
+      quaternion: v.quaternion,
+      velocity: v.velocity,
+      length: v.def.length,
+      width: v.def.width,
+    }).length;
+    if (hits && this.stage.phase === 'running') {
+      const pen = hits * PENALTY_MARKER;
+      this.stage.addPenalty(pen);
+      this.hud.message(`MARKER POST +${pen}s`, 1.5, 'small bad');
+    }
+    this.breakables.update(dt, (inst, m) => this.streamer.setMatrix(inst, m));
   }
 
   /**

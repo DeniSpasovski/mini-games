@@ -20,8 +20,9 @@ import type { KV } from './storage';
  * 6 = City Island rework: a real harbour bay with headlands, more coast features, warped district rings
  *     plus a commercial avenue, a traffic light / street sign on every crossing corner (every seed changed).
  * 7 = a canal along one road line (rowboats on it), every run starts at a random spot.
+ * 8 = clear bonus 10 points per second left (was 2); every map bumped.
  */
-export const SCORING_VERSION = 7;
+export const SCORING_VERSION = 8;
 /**
  * Scoring version per map. City Island keeps `SCORING_VERSION` (and the original storage key), so
  * adding a map never erases another map's lists. Bump a map's number when ITS scoring changes
@@ -30,11 +31,12 @@ export const SCORING_VERSION = 7;
  * 3 = Layout A atrium spread out as a hall with Ferris wheel / carousel pairs (map content changed);
  * Animal history: 1 = first release (21000 points, moving animals, 37 giants, secret zoo + lab).
  * 4 = Plush Meadow thinned (shares of layouts A / B), whale and penguin plush stocked in the Splash Zone, random start.
+ * 5 = clear bonus 10 points per second left (shared rule, every map bumped; animal 2).
  */
 export const MAP_SCORING_VERSIONS: Record<string, number> = {
   city: SCORING_VERSION,
-  toy: 4,
-  animal: 1,
+  toy: 5,
+  animal: 2,
 };
 const versionKey = (map: string) =>
   map === 'city' ? 'hole.scores.version' : `hole.scores.version.${map}`;

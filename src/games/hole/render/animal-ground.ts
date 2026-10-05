@@ -79,41 +79,86 @@ export function buildAnimalGround(map: MapData): Group {
     }
   for (const r of map.rects) ground.flat(r.x0, r.z0, r.x1, r.z1, r.y, r.color);
 
-  // rivers: a mud bank strip under a water strip, in 2 m pieces so the mouth stops at the coast
+  // rivers: a mud bank ribbon under a water ribbon, cut in 2 m pieces so the mouth stops at the coast.
+  // Pieces share their edge points and the offset at every bend is mitered, so neighbouring pieces never
+  // overlap on the inside or leave a notch / spike on the outside of a bend.
   const piece = 2;
-  for (const rv of t.rivers)
+  const MITER_MAX = 2.5;
+  for (const rv of t.rivers) {
+    // sample the polyline every <= 2 m; each sample keeps the unit normal of its segment
+    const sx: number[] = [];
+    const sz: number[] = [];
+    const sn: [number, number][] = [];
     for (let k = 0; k + 1 < rv.pts.length; k++) {
       const [ax, az] = rv.pts[k];
       const [bx, bz] = rv.pts[k + 1];
       const len = Math.hypot(bx - ax, bz - az);
-      const steps = Math.max(1, Math.ceil(len / piece));
+      if (len < 1e-6) continue;
       const nx = -(bz - az) / len;
       const nz = (bx - ax) / len;
-      for (let s = 0; s < steps; s++) {
-        const p0 = s / steps;
-        const p1 = (s + 1) / steps;
-        const x0 = ax + (bx - ax) * p0;
-        const z0 = az + (bz - az) * p0;
-        const x1 = ax + (bx - ax) * p1;
-        const z1 = az + (bz - az) * p1;
-        if (!insideIsland(map.coast, (x0 + x1) / 2, (z0 + z1) / 2, -1))
-          continue;
-        for (const [hw, y, col] of [
-          [rv.width / 2 + 2.2, 0.006, MUD_COLOR],
-          [rv.width / 2, 0.009, WATER_COLOR],
-        ] as const)
-          ground.quad(
-            [
-              [x0 + nx * hw, z0 + nz * hw],
-              [x1 + nx * hw, z1 + nz * hw],
-              [x1 - nx * hw, z1 - nz * hw],
-              [x0 - nx * hw, z0 - nz * hw],
-            ],
-            y,
-            col,
-          );
+      const steps = Math.max(1, Math.ceil(len / piece));
+      for (let s = 0; s <= steps; s++) {
+        // the shared bend point is pushed once per segment, then merged below
+        sx.push(ax + ((bx - ax) * s) / steps);
+        sz.push(az + ((bz - az) * s) / steps);
+        sn.push([nx, nz]);
       }
     }
+    // merge the duplicate sample at each bend: average the two normals and scale by 1 / cos(half angle)
+    const px: number[] = [];
+    const pz: number[] = [];
+    const ox: number[] = [];
+    const oz: number[] = [];
+    for (let i = 0; i < sx.length; i++) {
+      const dup =
+        i + 1 < sx.length &&
+        Math.abs(sx[i] - sx[i + 1]) < 1e-6 &&
+        Math.abs(sz[i] - sz[i + 1]) < 1e-6;
+      if (!dup) {
+        px.push(sx[i]);
+        pz.push(sz[i]);
+        ox.push(sn[i][0]);
+        oz.push(sn[i][1]);
+        continue;
+      }
+      let mx = sn[i][0] + sn[i + 1][0];
+      let mz = sn[i][1] + sn[i + 1][1];
+      const ml = Math.hypot(mx, mz) || 1;
+      mx /= ml;
+      mz /= ml;
+      const cos = Math.max(1 / MITER_MAX, mx * sn[i][0] + mz * sn[i][1]);
+      px.push(sx[i]);
+      pz.push(sz[i]);
+      ox.push(mx / cos);
+      oz.push(mz / cos);
+      i++; // skip the second copy
+    }
+    for (let i = 0; i + 1 < px.length; i++) {
+      if (
+        !insideIsland(
+          map.coast,
+          (px[i] + px[i + 1]) / 2,
+          (pz[i] + pz[i + 1]) / 2,
+          -1,
+        )
+      )
+        continue;
+      for (const [hw, y, col] of [
+        [rv.width / 2 + 2.2, 0.006, MUD_COLOR],
+        [rv.width / 2, 0.009, WATER_COLOR],
+      ] as const)
+        ground.quad(
+          [
+            [px[i] + ox[i] * hw, pz[i] + oz[i] * hw],
+            [px[i + 1] + ox[i + 1] * hw, pz[i + 1] + oz[i + 1] * hw],
+            [px[i + 1] - ox[i + 1] * hw, pz[i + 1] - oz[i + 1] * hw],
+            [px[i] - ox[i] * hw, pz[i] - oz[i] * hw],
+          ],
+          y,
+          col,
+        );
+    }
+  }
   for (const pd of t.ponds) {
     ground.disc(pd.x, pd.z, pd.r + 2.2, 0.006, MUD_COLOR, 24);
     ground.disc(pd.x, pd.z, pd.r, 0.009, WATER_COLOR, 24);

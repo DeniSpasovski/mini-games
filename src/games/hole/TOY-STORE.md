@@ -356,9 +356,9 @@ Everything that is not in the table above and sits on the floor must be an **edi
 | dolls   | 450           | store    | 1000          |
 |         |               | landmark | 1400          |
 
-Each item is built once and every placement is an `InstancedMesh` instance (repo rule). Plush sizes are **separate
-catalog ids** (different proportions), not a runtime scale of one geometry. Measured (`quality=low`, layout A):
-63k / 94k / 261k triangles and 75 / 103 / 252 draw calls at level 1 / 8 / 15 (City Island: 70k / 97k / 164k, 107 / 175 / 342).
+Each item is built once and every placement is an instance of it in a `BatchedMesh` (repo rule). Plush sizes are **separate
+catalog ids** (different proportions), not a runtime scale of one geometry. Measured (shadows on, layout A, after the
+item batching): 22k / 55k / 171k triangles and 28 / 30 / 36 draw calls at level 1 / 8 / 15 (DETAILS.md "Performance").
 
 ## 5. Sample layouts
 

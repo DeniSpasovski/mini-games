@@ -103,6 +103,13 @@ scripts/realmap/<id>.json` (config `trace`: screenshot, start / end marker pixel
    use it to match screenshots. Keep `maps/<id>/TODO.md` updated (missing assets, screenshots needed); a new map
    (even a planned one) gets a row in the "Map task lists" table of `src/games/rally/TASKS.md`.
 
+Widening a real map (free-drive background, worked example `maps/ajvatovci/DETAILS.md` "Free-drive background"): grow the
+config's `detail` / `outer` / `landcover` extents (keep their origins on the cell grid) and `bounds` in `map.ts`; bake to a
+temp `out` dir holding a copy of the current `data.json` (stable building ids) and check before copying it in: identical
+`route`, unchanged heights near the road, old building rows unchanged. A newer bake also carries building `kind`s - strip
+them (`kinds: undefined`) to keep box buildings. Then run the water / side-road / junction tests: towns bring streets along
+drain banks and small bridges that rural stages never had.
+
 Buildings (real maps): the baker merges OSM + Microsoft ML footprints (`scripts/realmap/buildings.py`) into
 `data.buildings` (oriented boxes, type house / flat, wall height, floors) + `<map>/buildings.csv`; `World` places
 them as per-axis scaled instances of `house_pitched` / `building_flat` with `box` colliders and keeps scatter out.
@@ -128,7 +135,10 @@ City maps (example `maps/jackie/`, config `scripts/realmap/jackie.json`) - extra
   with `bridge` / `layer` / `lanes` / `oneway` / `name`.
 - Bridges: the baker writes `routeSpans` (route on `bridge=yes` / `layer<0`) -> `routeSpans(data.routeSpans)` in
   `RoadDef.spans`; the stage road is then a deck over lowered ground (street / rail beneath). OSM `bridge=yes` paths are
-  elevated decks (lifted over what crosses them, piers, parapets) - see the rally DETAILS.md "City maps". Check with
+  elevated decks (lifted over what crosses them, piers, parapets; `bridgeStyle`: `stone` parkway look by default,
+  `concrete` = modern overpass with an open railing - use it for anything that is not an old stone bridge; concrete decks
+  keep parallel railings end to end unless the map sets `bridgeCorners: true`, and their wing walls splay outward - the
+  ends open up, never close in) - see the rally DETAILS.md "City maps". Check with
   `tests/rally/bridges.test.ts` and the map viewer (`?map=<id>&along=<m>&zoom=0.5`).
 - Buildings with `kind` (baker `classify_kind`: house, row, apartment, commercial, industrial, garage, church, tomb) are mesh
   buildings (`world/building-mesh.ts`: real outline, OSM `height`, facade textures in `engine/facade-textures.ts`).
@@ -170,6 +180,10 @@ poles colliders and kerbs `groundOverride` ground so the car feels them (`start-
 Parked vehicles are instanced (`build/vehicles.ts`): keep a car < ~500 triangles. Check: `tests/rally/start-row.test.ts` style
 tests + the stage test (colliders must stay off the road), look at it in `/games/rally/?map=<id>&spawn=<along>`.
 If the layout is taken from another project (here the Yuma Interactive site), treat that project as read-only.
+Single buildings away from the stage road (example `maps/ajvatovci/hilltop/`: church, bell tower, court): positions from
+OSM ways reprojected with the baker's `Proj`, one `Local` frame per structure (`hilltop/build/shapes.ts`: the kit's
+`Frame` with its own `origin`, walls with real openings, tiled roof planes), ground levelled with named `flatAreas`
+(pads need a stage-road frontage) - keep their blend rim off the road (`tests/rally/hilltop.test.ts`).
 
 ## New map checklist
 

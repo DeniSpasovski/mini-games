@@ -258,8 +258,7 @@ export class HoleGame {
   }
 
   private disposeInstances(): void {
-    for (const m of this.instances.group.children)
-      (m as { dispose?: () => void }).dispose?.();
+    this.instances.dispose();
   }
 
   /** Background demo: a bot-driven hole roams the island behind the menu. */
@@ -495,6 +494,7 @@ export class HoleGame {
     );
     this.fadeBuildings();
     this.animateScene();
+    this.instances.setView(this.rig.distance);
     this.renderer.render(this.scene, this.rig.camera);
     if (this.debugEl.classList.contains('on')) this.updateDebug();
     this.updateRings();
@@ -817,6 +817,7 @@ export class HoleGame {
       this.updateRig(STEP);
       this.syncHole(1);
       this.fadeBuildings();
+      this.instances.setView(this.rig.distance);
       this.renderer.render(this.scene, this.rig.camera);
       gl.finish();
       times.push(performance.now() - t0);

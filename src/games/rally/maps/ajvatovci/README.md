@@ -12,7 +12,12 @@ narrow tarmac with a loose gravel film, in spring colours. Map id `ajvatovci`, s
 | the farmland road (orchards, power lines)       | switchbacks up Ajvatovci Hill           |
 
 The first ~500 m, the **start street**, is hand-modelled: lots with real window and door openings, yards, fences,
-kerbs, sidewalks, power poles and about 100 parked vehicles ([`start-row/`](start-row/)).
+kerbs, sidewalks, power poles and about 100 parked vehicles ([`start-row/`](start-row/)). At the finish, the hilltop
+church of St. Peter and St. Paul with its bell tower, and the village playground court on the way up, are hand-modelled
+too ([`hilltop/`](hilltop/), `?spawn=church` / `?spawn=court`).
+
+Around the stage, the map reaches over Ilinden town, the A2 and Marino (6.9 x 4.95 km of real roads, about 6 500
+buildings, fields and drains) to explore in free drive.
 
 ```bash
 npm run dev     # /games/rally/?map=ajvatovci&spawn=200      (drive from 200 m)
@@ -32,6 +37,7 @@ npm run dev     # /games/rally/?map=ajvatovci&spawn=200      (drive from 200 m)
 The baked `data.json` is a derived database of the ODbL sources above and stays under the ODbL (attribution +
 share-alike). A few shapes (the orchard outline and the lot positions of the start street) were traced by eye from
 satellite / street-level screenshots; no imagery is shipped. The start street's buildings are original models, not
-copies of the real ones, and the company sign on one building is the author's own company.
+copies of the real ones, and the company sign on one building is the author's own company. The hilltop church, bell
+tower and court are original procedural models made from reference photos (not shipped).
 
 Full source list, re-bake instructions and notes: [`DETAILS.md`](DETAILS.md). Open work: [`TODO.md`](TODO.md).

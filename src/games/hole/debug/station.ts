@@ -58,8 +58,7 @@ export class Station {
 
   dispose(scene: Scene): void {
     scene.remove(this.instances.group, this.holeMesh.group);
-    for (const m of this.instances.group.children)
-      (m as { dispose?: () => void }).dispose?.();
+    this.instances.dispose();
   }
 
   setColor(hex: number): void {

@@ -90,7 +90,7 @@ describe.each(ALL_CARS.map((c) => c.id))('%s', (carId) => {
         0.02,
       );
     }
-    // Soft rides highest, stiff lowest; at most a few cm either way (HANDLING-REVIEW.md task 6c).
+    // Soft rides highest, stiff lowest; at most a few cm either way.
     const ride = (id: SetupId) => def.setups[id].ride;
     expect(ride('soft')).toBeGreaterThanOrEqual(ride('medium'));
     expect(ride('medium')).toBeGreaterThanOrEqual(ride('stiff'));

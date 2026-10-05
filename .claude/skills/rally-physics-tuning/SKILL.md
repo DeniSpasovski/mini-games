@@ -38,8 +38,8 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
    - `tests/rally/handling.test.ts` = whole-car handling (ramp / step steer, lift / power / brake mid-corner, handbrake,
      slalom, keyboard lock, braking, drops, ruts) per car x tyre x set-up x surface; `HANDLING_FULL=1` all set-ups,
      `HANDLING_OUT=x.json` dumps every number. To try a change without editing a car, pass a modified def
-     (`Cfg.def`) or a Vehicle patch (`Cfg.patch`) to the manoeuvres in `handling-harness.ts`. Last review:
-     `src/games/rally/HANDLING-REVIEW.md`.
+     (`Cfg.def`) or a Vehicle patch (`Cfg.patch`) to the manoeuvres in `handling-harness.ts`. Last review notes
+     (local only, git-ignored): `sources/cars/HANDLING-REVIEW.md`.
    - In game `/games/rally/?car=<id>&spawn=pad&mute=1` (always `mute=1` when testing; AGENTS.md "Sound while testing"): `F2` telemetry (per-wheel load, compression, slip ratio/angle,
      Fx/Fy, surface), `F4` force vectors + hull.
    - For a specific stage spot: `?spawn=<metres along road>`.

@@ -29,8 +29,7 @@ import {
 
 /**
  * Handling overview: standard vehicle-dynamics manoeuvres on flat (and rough) ground for every car x tyre x set-up x
- * surface, so car balance can be judged now that tyres + suspension are variables (results + analysis:
- * src/games/rally/HANDLING-REVIEW.md; manoeuvres in handling-harness.ts).
+ * surface, so car balance can be judged now that tyres + suspension are variables (manoeuvres in handling-harness.ts).
  *
  *  - ramp steer at constant speed (60 / 100 km/h): max lateral g, understeer gradient, grip used per axle at the limit
  *  - step steer (80 km/h): yaw-rate response time + overshoot
@@ -46,8 +45,7 @@ import {
  * Sign convention: `bo` = sideslip towards oversteer (+ = the tail is out of the turn), degrees.
  *
  * Assertions are only the guards every combination passes today (nothing rolls, TC catches power-on, lift-off and
- * straight braking stay calm, slalom settles); the numbers are for judging balance. Known issue NOT asserted: full
- * brake mid-corner spins the Zastava (rear brakes lock first) - see the review.
+ * straight braking stay calm, slalom settles); the numbers are for judging balance.
  */
 const FULL = !!process.env.HANDLING_FULL;
 

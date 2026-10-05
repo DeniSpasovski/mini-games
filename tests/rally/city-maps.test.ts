@@ -4,6 +4,7 @@ import { goreCushions, goreWedges } from '../../src/games/rally/world/gore';
 import { newPathQuery } from '../../src/games/rally/world/real-data';
 import { newRoadQuery } from '../../src/games/rally/world/road';
 import { STREET_KINDS } from '../../src/games/rally/world/street-detail';
+import { twinAt } from '../../src/games/rally/world/twin-decks';
 import { World } from '../../src/games/rally/world/world';
 
 /**
@@ -196,6 +197,23 @@ describe('jackie: portals (under spans)', () => {
     }
     const finish = portals.list.find((p) => p.from > 7000)!;
     expect(finish.name).toMatch(/Queens Boulevard/);
+  });
+
+  test('the opposite carriageway runs through every portal span and the run-out (OSM tunnel ways are kept)', () => {
+    const pq = newPathQuery();
+    const motorway = (pi: number) => net.paths[pi].kind === 'motorway';
+    const spans = (road.def.spans ?? []).filter((s) => s.kind === 'under');
+    expect(spans.length).toBeGreaterThanOrEqual(3);
+    // 7 150 -> 7 320 m: the finish portal and the baked run-out (the road goes on along the turnpike after 7 345 m).
+    const ends = [...spans.map((s) => [s.from - 10, s.to + 10]), [7150, 7320]];
+    for (const [from, to] of ends)
+      for (let a = from; a <= to; a += 4) {
+        const c = road.at(a);
+        net.query(c.x, c.z, pq, 'tarmac', motorway);
+        expect(pq.found).toBe(true);
+        // Beside the stage road (the median gap), not a far-away parkway piece.
+        expect(pq.distance).toBeLessThan(25);
+      }
   });
 
   test('street decks over a slab lie on its top; nothing is dipped under them', () => {
@@ -395,5 +413,48 @@ describe('jackie: gore areas', () => {
       road.query(c.x, c.z, q);
       expect(q.distance).toBeGreaterThan(q.halfWidth + 1.5);
     }
+  });
+});
+
+describe('jackie: overpass at 1 855 m (B4)', () => {
+  test('twin decks (the two directions of one street) share a height line', () => {
+    const net = world.gen.paths!;
+    const isStreetDeck = (q: number) =>
+      !!net.paths[q].bridge &&
+      !world.gen.isPortalDeck(q) &&
+      net.paths[q].surface === 'tarmac' &&
+      !/^(motorway|trunk)/.test(net.paths[q].kind);
+    let checked = 0;
+    net.paths.forEach((p, pi) => {
+      if (!isStreetDeck(pi)) return;
+      for (let a = 0; a <= net.lengths[pi]; a += 3) {
+        const t = twinAt(net, isStreetDeck, pi, a, net.halfWidthAt(pi, a));
+        if (!t) continue;
+        checked++;
+        expect(
+          Math.abs(
+            world.gen.pathHeight(pi, a) - world.gen.pathHeight(t.other, t.along),
+          ),
+        ).toBeLessThan(0.3);
+      }
+    });
+    console.info(`[jackie] twin deck samples: ${checked}`);
+    expect(checked).toBeGreaterThan(20);
+  });
+
+  test('the stage road barriers run unbroken under the overpass (no false junction at the deck ends)', () => {
+    const gaps = (side: number) =>
+      world.barrierRuns.filter(
+        (r) => r.path === undefined && r.side === side && r.to > 1800 && r.from < 1900,
+      );
+    // One Jersey wall (median side) and one guard rail cover 1 800-1 900 m completely.
+    for (const side of [1, -1]) {
+      const runs = gaps(side);
+      expect(runs.length).toBe(1);
+      expect(runs[0].from).toBeLessThan(1800);
+      expect(runs[0].to).toBeGreaterThan(1900);
+    }
+    for (const j of world.gen.junctions)
+      expect(j.along < 1840 || j.along > 1880).toBe(true);
   });
 });

@@ -5,7 +5,7 @@ import type { CarDef } from '../../src/games/rally/cars/shared/types';
 import { autoHull } from '../../src/games/rally/physics/hull';
 
 /**
- * The collision hull follows the real body (HANDLING-REVIEW.md finding 6, `bodyHull` in physics/hull.ts): in the
+ * The collision hull follows the real body (`bodyHull` in physics/hull.ts): in the
  * front overhang, between the axles and in the rear overhang the hull's underside is within a few cm of the model's
  * lowest point, and the nose / tail reach the bumpers. Before this the Bimmer's hull sat at 0.29 m under 0.11 m
  * bumpers - it could never scrape. Prints each car's profile (read `LowSphere.bottom` values off it for a new car).

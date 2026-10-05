@@ -30,9 +30,6 @@ src/games/rally/cars/**/TODO.md
 src/games/rally/maps/**/DETAILS.md
 src/games/rally/maps/**/TODO.md
 
-# Rally physics notes and the handling review - local only for now (temporary, user 2026-10-04)
-src/games/rally/PHYSICS.md
-src/games/rally/HANDLING-REVIEW.md
 
 # Open task lists - local only for now
 src/games/*/TASKS.md

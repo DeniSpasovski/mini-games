@@ -71,7 +71,7 @@ test('difficulty times and clear bonus', () => {
     ['medium', 250],
     ['hard', 100],
   ]);
-  expect(CLEAR_BONUS_PER_SECOND).toBe(2);
+  expect(CLEAR_BONUS_PER_SECOND).toBe(10);
 });
 
 test('levels 16..25 only grow the hole: x1.075 per level to ~99 m, nothing new to eat', () => {

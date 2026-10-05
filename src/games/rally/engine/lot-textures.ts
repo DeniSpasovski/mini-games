@@ -3,7 +3,8 @@ import { hash3, Rng } from '../../../shared/rng';
 /**
  * Textures of the hand-modelled lots (maps/ajvatovci/start-row): render, sandwich panels, trapezoid
  * sheeting, roller doors, glass, yard asphalt, pavers, concrete, wire fence, roof membrane, solar
- * panels, striped barrier, signs. Drawn on canvases like every texture in `textures.ts`, which
+ * panels, striped barrier, signs; and of the hilltop church (maps/ajvatovci/hilltop): cut limestone,
+ * rubble stone, clay roof tiles. Drawn on canvases like every texture in `textures.ts`, which
  * registers them (`LOT_DEFS`). Wall textures are light neutrals: the meshes multiply a per-building
  * vertex colour on top. The metres each texture covers is written on its entry, and
  * `build/materials.ts` sets the UVs to match.
@@ -23,7 +24,10 @@ export type LotTextureId =
   | 'lot_roofing'
   | 'lot_solar'
   | 'lot_barrier'
-  | 'lot_sign_mileks';
+  | 'lot_sign_mileks'
+  | 'lot_ashlar'
+  | 'lot_rubble'
+  | 'lot_roof_tiles';
 
 export interface LotTexDef {
   name: string;
@@ -200,6 +204,25 @@ function crack(
       ctx.lineTo(px + qx - pts[0][0], py + qy - pts[0][1]);
     ctx.stroke();
   });
+}
+
+/** Multiplies every pixel by 1 +- `amount` of a fine noise field (stone grain over drawn shapes). */
+function grain(
+  ctx: Ctx,
+  w: number,
+  h: number,
+  seed: number,
+  amount: number,
+): void {
+  const n = tileNoise(w, h, 32, 3, seed);
+  const img = ctx.getImageData(0, 0, w, h);
+  for (let i = 0; i < w * h; i++) {
+    const k = 1 + (n[i] - 0.5) * 2 * amount;
+    img.data[i * 4] = Math.min(255, img.data[i * 4] * k);
+    img.data[i * 4 + 1] = Math.min(255, img.data[i * 4 + 1] * k);
+    img.data[i * 4 + 2] = Math.min(255, img.data[i * 4 + 2] * k);
+  }
+  ctx.putImageData(img, 0, 0);
 }
 
 export const LOT_DEFS: Record<LotTextureId, LotTexDef> = {
@@ -665,6 +688,195 @@ export const LOT_DEFS: Record<LotTextureId, LotTexDef> = {
       ctx.fillText('MILEKS-AS', w / 2, h / 2 + 4);
       ctx.fillStyle = '#1f7f86';
       ctx.fillRect(0, h - 6, w, 6);
+    },
+  },
+  lot_ashlar: {
+    // 2 m x 2 m. Rough-cut limestone blocks of the hilltop church: courses 0.2-0.32 m, blocks
+    // 0.25-0.65 m, cream / peach / tan / grey stones in pale mortar, each block a little pillowed.
+    name: 'Lot: cut limestone blocks (church walls, 2 m)',
+    size: [512, 512],
+    color: true,
+    draw(ctx, w, h) {
+      const px = w / 2; // pixels per metre
+      ctx.fillStyle = 'rgb(196,190,178)';
+      ctx.fillRect(0, 0, w, h);
+      const palette: RGB[] = [
+        [236, 214, 184],
+        [230, 202, 166],
+        [224, 190, 150],
+        [216, 202, 182],
+        [232, 210, 178],
+        [220, 180, 140],
+        [240, 224, 200],
+      ];
+      const rng = new Rng(811);
+      // Course heights scaled to fill the tile exactly (so it tiles vertically).
+      const raw: number[] = [];
+      let sum = 0;
+      while (sum < 2) {
+        const c = rng.range(0.2, 0.32);
+        raw.push(c);
+        sum += c;
+      }
+      const scale = h / (sum * px);
+      let y = 0;
+      for (const c of raw) {
+        const ch = c * px * scale;
+        const x0 = -rng.range(0, 0.5) * px;
+        let x = x0;
+        while (x < x0 + w - 1) {
+          const bw = Math.min(rng.range(0.25, 0.65) * px, x0 + w - x);
+          const base = palette[rng.int(0, palette.length - 1)];
+          const tone = rng.range(0.9, 1.06);
+          for (const ox of [0, -w, w]) {
+            const bx = x + ox;
+            if (bx + bw < 0 || bx > w) continue;
+            ctx.fillStyle = `rgb(${base.map((v) => Math.min(255, v * tone)).join(',')})`;
+            ctx.fillRect(bx + 2, y + 2, bw - 4, ch - 4);
+            // Pillowed face: a darker rim and a lit top edge.
+            ctx.strokeStyle = 'rgba(70,55,40,0.18)';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(bx + 4, y + 4, bw - 8, ch - 8);
+            ctx.fillStyle = 'rgba(255,250,240,0.22)';
+            ctx.fillRect(bx + 3, y + 3, bw - 6, 2);
+          }
+          x += bw;
+        }
+        y += ch;
+      }
+      grain(ctx, w, h, 812, 0.14);
+      streaks(ctx, w, h, 813, 25, 0.05);
+      grit(ctx, w, h, 814, 6000, 0.08);
+    },
+  },
+  lot_rubble: {
+    // 2 m x 2 m. Random rubble masonry of the bell tower: irregular stones 0.15-0.3 m (grey, beige,
+    // rust, slate) in a lot of pale mortar. A tileable Voronoi (nearest / second-nearest seed).
+    name: 'Lot: rubble stone masonry (bell tower, 2 m)',
+    size: [512, 512],
+    color: true,
+    draw(ctx, w, h) {
+      const rng = new Rng(821);
+      const cols = 9;
+      const rows = 12;
+      const palette: RGB[] = [
+        [168, 162, 150],
+        [196, 184, 160],
+        [150, 132, 112],
+        [176, 140, 104],
+        [128, 124, 120],
+        [210, 200, 180],
+        [158, 112, 86],
+        [112, 108, 100],
+      ];
+      const seeds: { x: number; y: number; c: RGB }[] = [];
+      for (let j = 0; j < rows; j++)
+        for (let i = 0; i < cols; i++) {
+          const base = palette[rng.int(0, palette.length - 1)];
+          const k = rng.range(0.88, 1.1);
+          seeds.push({
+            x: ((i + 0.5 + rng.range(-0.35, 0.35)) * w) / cols,
+            y: ((j + 0.5 + rng.range(-0.3, 0.3)) * h) / rows,
+            c: base.map((v) => v * k) as RGB,
+          });
+        }
+      const n = tileNoise(w, h, 24, 3, 822);
+      const img = ctx.createImageData(w, h);
+      // Stones are wider than tall: squash horizontal distances.
+      const ax = 0.78;
+      // Seeds stay inside their grid cell (+- 0.35 / 0.3 of it): the 5 x 3 cells round a pixel's
+      // own hold its nearest two.
+      const cw = w / cols;
+      const chh = h / rows;
+      for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++) {
+          let d1 = Infinity;
+          let d2 = Infinity;
+          let best = 0;
+          const ci = Math.floor(x / cw);
+          const cj = Math.floor(y / chh);
+          for (let dj = -1; dj <= 1; dj++)
+            for (let di = -2; di <= 2; di++) {
+              const s =
+                ((cj + dj + rows) % rows) * cols + ((ci + di + cols) % cols);
+              let dx = Math.abs(x - seeds[s].x);
+              let dy = Math.abs(y - seeds[s].y);
+              if (dx > w / 2) dx = w - dx;
+              if (dy > h / 2) dy = h - dy;
+              const d = Math.hypot(dx * ax, dy);
+              if (d < d1) {
+                d2 = d1;
+                d1 = d;
+                best = s;
+              } else if (d < d2) d2 = d;
+            }
+          const i = (y * w + x) * 4;
+          const gap = d2 - d1;
+          const g = 0.85 + n[y * w + x] * 0.3;
+          if (gap < 5) {
+            // Mortar, recessed: darker right at the stone edge.
+            const m = 186 * g * (0.82 + 0.18 * Math.min(1, gap / 5));
+            img.data[i] = m;
+            img.data[i + 1] = m * 0.98;
+            img.data[i + 2] = m * 0.93;
+          } else {
+            // Stone: rounded face, darker towards the joint.
+            const edge = 0.78 + 0.22 * Math.min(1, (gap - 5) / 9);
+            const c = seeds[best].c;
+            img.data[i] = Math.min(255, c[0] * g * edge);
+            img.data[i + 1] = Math.min(255, c[1] * g * edge);
+            img.data[i + 2] = Math.min(255, c[2] * g * edge);
+          }
+          img.data[i + 3] = 255;
+        }
+      ctx.putImageData(img, 0, 0);
+      grit(ctx, w, h, 823, 5000, 0.1);
+    },
+  },
+  lot_roof_tiles: {
+    // 2 m x 2 m. Terracotta interlocking clay tiles: 6 courses (u along the eaves, v up the slope:
+    // canvas down = down the roof), 8 tiles per course with a rounded roll each, the nose of the
+    // course above shading the top of the one below. Tint per roof with the vertex colour.
+    name: 'Lot: clay roof tiles (2 m)',
+    size: [512, 512],
+    color: true,
+    draw(ctx, w, h) {
+      const courses = 6;
+      const across = 8;
+      const ch = h / courses;
+      const tw = w / across;
+      const n = tileNoise(w, h, 16, 3, 831);
+      const img = ctx.createImageData(w, h);
+      for (let y = 0; y < h; y++) {
+        const row = Math.floor(y / ch);
+        const fy = (y - row * ch) / ch;
+        // Shadow of the course above (top of the course), lit nose at its bottom edge.
+        const shade =
+          fy < 0.16
+            ? 0.55 + (fy / 0.16) * 0.4
+            : fy > 0.93
+              ? 1.08
+              : 0.95 + (fy - 0.16) * 0.12;
+        for (let x = 0; x < w; x++) {
+          // Courses are offset by half a tile, like laid tiles.
+          const xs = (x + (row % 2) * tw * 0.5) % w;
+          const col = Math.floor(xs / tw);
+          const fx = (xs - col * tw) / tw;
+          const roll =
+            0.86 + 0.2 * Math.sin(fx * Math.PI) ** 0.6 - (fx > 0.94 ? 0.25 : 0);
+          const jitter = 0.9 + (0.2 * hash3(col, row, 3, 832)) / 4294967296;
+          const g = 0.88 + n[y * w + x] * 0.24;
+          const k = shade * roll * jitter * g;
+          const i = (y * w + x) * 4;
+          img.data[i] = Math.min(255, 192 * k);
+          img.data[i + 1] = Math.min(255, 86 * k);
+          img.data[i + 2] = Math.min(255, 56 * k);
+          img.data[i + 3] = 255;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+      // Lichen / dust specks.
+      grit(ctx, w, h, 833, 2500, 0.1);
     },
   },
 };

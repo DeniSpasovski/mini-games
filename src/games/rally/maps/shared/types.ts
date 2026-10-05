@@ -52,6 +52,17 @@ export interface MapDef {
   cityStreets?: CityStreets;
   /** Barriers along the OTHER carriageways (paths of the given OSM kinds): the same wall / rail as the stage road. */
   pathBarriers?: PathBarrierRule;
+  /**
+   * Look of the other roads' bridge decks (OSM bridge=yes, world/bridge-mesh.ts): `stone` (default) = old parkway
+   * bridges - solid stone parapets with pilasters, a stone arch on street bridges, stone abutments; `concrete` =
+   * modern overpass - concrete edge beam with an open steel railing, beam soffit, concrete abutments.
+   */
+  bridgeStyle?: 'stone' | 'concrete';
+  /**
+   * `concrete` decks only: follow the road's width taper at their ends (the railing turns a corner where the bridge
+   * meets a wider / narrower way). Default false: the deck keeps one width, railings run parallel end to end.
+   */
+  bridgeCorners?: boolean;
   /** Overhead guide signs on steel gantries (highway maps): exit signs from the ramps + hand-placed boards (world/overhead-signs.ts). */
   overheadSigns?: OverheadSignDef;
   /**
@@ -300,6 +311,8 @@ export interface FlatArea {
   surface?: SurfaceId;
   /** Name shown in the map viewer / used by `?spawn=<name>`. */
   name?: string;
+  /** false: no map viewer label (a levelled spot under a landmark, still spawnable by name). */
+  label?: boolean;
 }
 
 export interface TerrainDef {

@@ -18,8 +18,9 @@ describe.each(
   const rq = newRoadQuery();
   const pt = { x: 0, z: 0 };
   // Dense city street grids (hundreds of crossings, bridge approach ramps) step by a few tens of cm
-  // where roads cross at slightly different heights: looser limits than a village / mountain map.
-  const city = (map.paths?.length ?? 0) > 600;
+  // where roads cross at slightly different heights: looser limits than a village / mountain map
+  // (a map with many roads in its free-drive background, e.g. ajvatovci, keeps the strict ones).
+  const city = !!map.cityStreets;
   const maxAcross = city ? 0.35 : 0.1;
   const maxBump = city ? 0.8 : 0.3;
 

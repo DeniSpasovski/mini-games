@@ -27,7 +27,7 @@ import type {
  *   5. gravity, aero, then rigid body integration
  *   6. hull spheres vs ground / static colliders (impulses + position fix)
  *
- * Read DETAILS.md in this game folder for the tuning guide.
+ * Tuning guide: PHYSICS.md in this game folder.
  */
 export { autoHull };
 
@@ -445,7 +445,7 @@ export class Vehicle {
       // Stability: also back off when cornering + traction exceed peak combined grip
       // (stops power-oversteer spins when the throttle is held flat mid-corner). Driven FRONT tyres get a much
       // higher threshold: past their peak they are understeering (too much lock), and cutting power there only bogged
-      // the AWD / FWD cars down mid-corner; it still catches them at high speed on loose ground (HANDLING-REVIEW.md 2).
+      // the AWD / FWD cars down mid-corner; it still catches them at high speed on loose ground.
       if (this.speed > 5)
         excess = Math.max(
           excess,

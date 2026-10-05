@@ -98,7 +98,7 @@ export const skodaRally: CarDef = {
     ),
     engine: {
       // R5 level (1.6 turbo, 32 mm restrictor: ~400 Nm, ~280 hp at 5500). At the old 350 Nm the 450 Nm Bimmer M3 launched
-      // harder on gravel (0-100 4.8 vs 5.2 s) and won the test map (HANDLING-REVIEW.md 7). 1.2x (420 Nm) is faster still, but
+      // harder on gravel (0-100 4.8 vs 5.2 s) and won the test map. 1.2x (420 Nm) is faster still, but
       // the limit driver then lands a 150 km/h crest on Jackie (~1.88 km) badly and spins.
       torqueCurve: [
         [1000, 184],

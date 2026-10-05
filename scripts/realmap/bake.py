@@ -894,7 +894,8 @@ def main():
     for w in ways.values():
         t = w['tags']
         hw, ww = t.get('highway'), t.get('waterway')
-        if t.get('tunnel') in ('yes', 'building_passage', 'culvert') and ww is None:
+        is_tunnel = t.get('tunnel') in ('yes', 'building_passage', 'culvert') and ww is None
+        if is_tunnel and hw not in big_kinds:
             continue  # underground: nothing to draw on the surface
         if hw in widths:
             kind = hw
@@ -918,6 +919,10 @@ def main():
             continue  # a piece of the stage road itself (the route follows it)
         pts = resample(pts, 4.0)
         d, ri = route_kd.query(pts)
+        if is_tunnel and np.percentile(d, 10) > 40:
+            continue  # a motorway tunnel away from the stage road
+        # The stage road runs through its own tunnels as an `under` span (portal structure); the other carriageway
+        # of the divided highway beside it is kept as an ordinary path in that trench, else it ends at the portal.
         is_deck = t.get('bridge') not in (None, 'no')
         # Within reach of the stage road. Divided highway: the opposite carriageway runs close beside it.
         near = d <= (width / 2 + 2 if kind in big_kinds else width / 2 + 5)
@@ -950,8 +955,8 @@ def main():
         extra = {}
         if t.get('bridge') not in (None, 'no'):
             extra['bridge'] = True
-        if t.get('layer', '').lstrip('-').isdigit() and int(t['layer']) != 0:
-            extra['layer'] = int(t['layer'])
+        if t.get('layer', '').lstrip('-').isdigit() and int(t['layer']) != 0 and not is_tunnel:
+            extra['layer'] = int(t['layer'])  # a kept tunnel carriageway lies on the ground (layer -1 would sink it)
         if t.get('oneway') == 'yes':
             extra['oneway'] = True
         if t.get('lanes', '').isdigit():

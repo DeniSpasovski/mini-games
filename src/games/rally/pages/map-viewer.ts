@@ -178,6 +178,7 @@ function buildMarkers(): Group {
   st.splits.forEach((s, i) => pole(s, `SPLIT ${i + 1}`, '#40a0ff'));
   pole(st.finish, 'FINISH', '#ff5050');
   for (const f of map.terrain.flatAreas) {
+    if (f.label === false) continue;
     const l = label(f.name ?? 'flat', '#f0c040');
     l.position.set(f.x, world.heightAt(f.x, f.z) + 20, f.z);
     g.add(l);
@@ -454,9 +455,7 @@ function groundTarget(): void {
   const o = camera.position;
   camera.getWorldDirection(_dir);
   const gap = (t: number) =>
-    o.y +
-    _dir.y * t -
-    world.gen.height(o.x + _dir.x * t, o.z + _dir.z * t);
+    o.y + _dir.y * t - world.gen.height(o.x + _dir.x * t, o.z + _dir.z * t);
   if (gap(0) <= 0) return; // camera under the ground
   let prev = 0;
   let t = 0.25;
