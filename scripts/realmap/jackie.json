@@ -1,0 +1,54 @@
+{
+  "id": "jackie",
+  "name": "Jackie Robinson Parkway",
+  "out": "src/games/rally/maps/jackie/data.json",
+  "origin": [40.698, -73.863],
+  "waypoints": [
+    [40.6808527, -73.8963462],
+    [40.6988507, -73.8689168],
+    [40.714605, -73.8298097]
+  ],
+  "osm": {
+    "source": "overpass"
+  },
+  "route": {
+    "highways": true,
+    "offHighwayCost": 5,
+    "width": 7.4
+  },
+  "dem": {
+    "source": "3dep",
+    "cell": 5,
+    "credit": "Elevation: USGS 3D Elevation Program (3DEP) bare-earth DEM, public domain"
+  },
+  "heightBase": 20,
+  "detail": {
+    "cell": 10,
+    "extent": [-3800, 3800, -2700, 2700]
+  },
+  "outer": {
+    "cell": 50,
+    "extent": [-8000, 8000, -6000, 6000]
+  },
+  "landcover": {
+    "cell": 5,
+    "extent": [-3300, 3700, -2400, 2400],
+    "highTrees": "trees",
+    "osmWood": "trees",
+    "plainOrchards": false
+  },
+  "canopy": {},
+  "routeSmoothSigma": 4,
+  "routeTolerance": 0.8,
+  "minCornerRadius": 25,
+  "stage": 3,
+  "paths": {
+    "corridor": 350,
+    "highwayCorridor": 900
+  },
+  "buildings": {
+    "microsoft": false,
+    "roadClearance": 6.0,
+    "corridor": 500
+  }
+}

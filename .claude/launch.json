@@ -1,0 +1,27 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "portal-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "portal-dev-3010",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "3010"],
+      "port": 3010
+    },
+    {
+      "name": "portal-dev-auto",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "-e",
+        "require('child_process').spawn('npm', ['run', 'dev', '--', '--port', process.env.PORT || '3030'], { stdio: 'inherit', shell: true })"
+      ],
+      "port": 3030,
+      "autoPort": true
+    }
+  ]
+}

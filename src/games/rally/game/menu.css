@@ -1,0 +1,839 @@
+/* --- main menu (game/menu.ts) + options form (also used in the pause menu) --- */
+.menu-root {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  color: #eee;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+.menu-bg {
+  position: absolute;
+  inset: 0;
+}
+.menu-panel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: min(440px, 100%);
+  box-sizing: border-box;
+  padding: 40px 32px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  background: linear-gradient(
+    90deg,
+    rgba(8, 10, 14, 0.92) 0%,
+    rgba(8, 10, 14, 0.8) 75%,
+    rgba(8, 10, 14, 0) 100%
+  );
+}
+.menu-panel[data-screen='welcome'] {
+  justify-content: center;
+}
+
+.menu-brand {
+  margin-bottom: 18px;
+}
+.menu-title {
+  font:
+    800 64px/0.92 Impact,
+    'Arial Black',
+    sans-serif;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  text-shadow: 0 3px 18px rgba(0, 0, 0, 0.6);
+}
+.menu-title::first-line {
+  color: #f0a020;
+}
+.menu-tagline {
+  margin-top: 10px;
+  color: #aab3bf;
+  font-size: 14px;
+}
+.menu-version {
+  /* game.json version, bottom left over every menu screen (in the panel's bottom padding) */
+  position: absolute;
+  left: 10px;
+  bottom: 6px;
+  font-size: 11px;
+  color: #6f7986;
+  pointer-events: none;
+}
+.menu-foot {
+  margin-top: 18px;
+  font-size: 12px;
+  color: #6f7986;
+}
+
+.menu-header h1 {
+  margin: 0;
+  font:
+    800 32px/1 Impact,
+    'Arial Black',
+    sans-serif;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.menu-header div {
+  margin-top: 6px;
+  color: #f0a020;
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.menu-list.compact {
+  gap: 6px;
+}
+.menu-btn,
+.menu-card,
+.menu-seg button {
+  font: inherit;
+  color: #eee;
+  background: rgba(34, 40, 48, 0.85);
+  border: 1px solid #333b46;
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+  outline: none;
+}
+.menu-btn {
+  padding: 10px 14px;
+  font-size: 15px;
+}
+.menu-btn.big {
+  padding: 14px 18px;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.menu-btn.small {
+  padding: 2px 10px;
+}
+.menu-btn:hover,
+.menu-btn:focus-visible,
+.menu-card:hover,
+.menu-card:focus-visible,
+.menu-seg button:hover,
+.menu-seg button:focus-visible {
+  border-color: #f0a020;
+}
+.menu-btn.primary,
+.menu-btn.big[data-primary] {
+  background: #f0a020;
+  border-color: #f0a020;
+  color: #111;
+  font-weight: 600;
+}
+.menu-btn.primary:focus-visible,
+.menu-btn.big[data-primary]:focus-visible {
+  box-shadow: 0 0 0 2px #fff;
+}
+.menu-btn.selected,
+.menu-card.selected {
+  border-color: #f0a020;
+  background: rgba(240, 160, 32, 0.14);
+}
+
+.menu-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 8px;
+}
+.menu-buttons .menu-btn {
+  flex: 1;
+  text-align: center;
+}
+
+/* map cards */
+.menu-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.menu-card {
+  display: flex;
+  gap: 14px;
+  padding: 12px;
+  align-items: flex-start;
+}
+.menu-route {
+  flex: 0 0 92px;
+  height: 92px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 4px;
+}
+.menu-route polyline {
+  fill: none;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.menu-route .all {
+  stroke: rgba(255, 255, 255, 0.25);
+  stroke-width: 1.6;
+}
+.menu-route .stage {
+  stroke: #f0a020;
+  stroke-width: 2.6;
+}
+.menu-route .start {
+  fill: #3ddc6a;
+}
+.menu-route .finish {
+  fill: #ff4a3a;
+}
+.menu-card-title {
+  font-size: 17px;
+  font-weight: 600;
+}
+.menu-card-desc {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #aab3bf;
+}
+.menu-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.menu-tags span {
+  font-size: 11px;
+  padding: 1px 7px;
+  border: 1px solid #3a434f;
+  border-radius: 3px;
+  color: #cfd6de;
+}
+.menu-best {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #f0a020;
+}
+
+/* tyre select */
+.menu-tyre {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.menu-tyre > span:first-of-type {
+  flex: 1;
+  min-width: 0;
+}
+.menu-tyre small {
+  display: block;
+  font-size: 11px;
+  color: #8b95a3;
+}
+.menu-tyre-dot {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 4px rgba(0, 0, 0, 0.35);
+}
+.menu-reco {
+  margin-left: 8px;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: #2f7d4f;
+  color: #fff;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.menu-tyre-grip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: #8b95a3;
+  text-align: right;
+}
+.menu-tyre-grip b {
+  display: inline-block;
+  min-width: 34px;
+  margin-left: 6px;
+  font-weight: 700;
+}
+.menu-tyre-grip .r3 b {
+  color: #5fd08a;
+}
+.menu-tyre-grip .r2 b {
+  color: #b9d86a;
+}
+.menu-tyre-grip .r1 b {
+  color: #f0a020;
+}
+.menu-tyre-grip .r0 b {
+  color: #e0584f;
+}
+
+.menu-panel[data-screen='setup'] .menu-header {
+  align-self: flex-start;
+  padding: 4px 14px 6px;
+  border-radius: 8px;
+  background: rgba(8, 10, 14, 0.72);
+}
+/* setup screen: two rows of big picker boxes, each a transparent window onto the showroom canvas */
+.menu-panel[data-screen='setup'] .menu-buttons {
+  justify-content: flex-start;
+  gap: 12px;
+}
+.menu-panel[data-screen='setup'] .menu-buttons .menu-btn {
+  flex: none;
+  min-width: 150px;
+  padding: 15px 28px;
+}
+.menu-panel[data-screen='setup'] {
+  width: 100%;
+  padding: 18px 40px 16px;
+  gap: 10px;
+  background: none;
+}
+.menu-row-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  background: rgba(8, 10, 14, 0.72);
+}
+.menu-row-title b {
+  font-size: 20px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f0a020;
+}
+.menu-row-title small {
+  font-size: 13px;
+  color: #aab3bf;
+}
+/* a section is as wide as its row of fixed-size boxes (room to add more on the right); the active one has an amber edge */
+.setup-section {
+  flex: none;
+  width: fit-content;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.setup-section.active .menu-row-title {
+  box-shadow: inset 4px 0 0 #f0a020;
+}
+.setup-row {
+  display: flex;
+  gap: 14px;
+}
+.setup-card {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: 270px;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  font: inherit;
+  color: #eee;
+  text-align: left;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  border-radius: 10px;
+  /* no background: the .setup-view area is a window onto the 3D canvas behind the panel */
+  background: none;
+}
+.setup-card:hover,
+.setup-card:focus-visible {
+  border-color: #5a6a7c;
+  outline: none;
+}
+.setup-card.selected {
+  border-color: #f0a020;
+  box-shadow:
+    0 0 0 2px rgba(240, 160, 32, 0.3),
+    0 0 26px rgba(240, 160, 32, 0.28);
+}
+.setup-view {
+  flex: none;
+  height: clamp(96px, 16vh, 170px);
+  /* 40% mid-dark grey over the 3D window: lifts the part off the ground, lighter than the main menu darks */
+  background: rgba(60, 66, 76, 0.4);
+}
+.setup-label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 12px 10px;
+  background: rgba(10, 13, 18, 0.8);
+  backdrop-filter: blur(6px);
+}
+.setup-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+}
+.setup-label small {
+  font-size: 11px;
+  line-height: 1.3;
+  color: #8b95a3;
+}
+.setup-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  font-size: 11px;
+  color: #8b95a3;
+}
+.setup-chips b {
+  margin-left: 5px;
+  font-weight: 700;
+  color: #eee;
+}
+.setup-chips .r3 b {
+  color: #5fd08a;
+}
+.setup-chips .r2 b {
+  color: #b9d86a;
+}
+.setup-chips .r1 b {
+  color: #f0a020;
+}
+.setup-chips .r0 b {
+  color: #e0584f;
+}
+.menu-tyre-dot.spring {
+  border-radius: 3px;
+  width: 10px;
+  height: 22px;
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.3);
+}
+.setup-chips .bars,
+.menu-tyre-grip .bars {
+  letter-spacing: 1px;
+  color: #eee;
+}
+.setup-chips .bars i,
+.menu-tyre-grip .bars i {
+  font-style: normal;
+  color: #3a434f;
+}
+.menu-range {
+  margin-left: auto;
+  width: min(260px, 40%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: #8b95a3;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.menu-range > div {
+  position: relative;
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #f2c230, #f08a24, #e0413a);
+  opacity: 0.35;
+}
+.menu-range > div i {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  border-radius: 5px;
+  border: 2px solid #fff;
+  background: rgba(255, 255, 255, 0.25);
+  box-sizing: border-box;
+}
+.menu-range > div {
+  opacity: 1;
+  background:
+    linear-gradient(90deg, rgba(8, 10, 14, 0.55), rgba(8, 10, 14, 0.55)),
+    linear-gradient(90deg, #f2c230, #f08a24, #e0413a);
+  background-blend-mode: normal;
+}
+.menu-setup-line {
+  margin-top: 10px;
+  padding: 6px 8px;
+  border-left: 3px solid #2f7d4f;
+  background: rgba(47, 125, 79, 0.12);
+  font-size: 12px;
+  color: #cfe9d8;
+}
+.menu-setup-line.custom {
+  border-left-color: #f0a020;
+  background: rgba(240, 160, 32, 0.12);
+  color: #f3dcb2;
+}
+.menu-setup-line em {
+  margin-left: 6px;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+/* test-only car / map (dev server only, see release.ts) */
+.menu-test {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 3px;
+  background: #d9304f;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  vertical-align: 2px;
+}
+.menu-specs p.menu-test-note {
+  padding: 6px 8px;
+  border-left: 3px solid #d9304f;
+  background: rgba(217, 48, 79, 0.12);
+  color: #f3c3cc;
+}
+
+/* car list + specs */
+.menu-car {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.menu-car small {
+  display: block;
+  font-size: 11px;
+  color: #8b95a3;
+}
+.menu-car-best {
+  font:
+    13px ui-monospace,
+    Consolas,
+    monospace;
+  color: #f0a020;
+}
+.menu-specs p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #aab3bf;
+}
+.menu-specs dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  margin: 0;
+  font-size: 13px;
+}
+.menu-specs dt {
+  color: #8b95a3;
+}
+.menu-specs dd {
+  margin: 0;
+  font-weight: 600;
+}
+.menu-livery {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: #8b95a3;
+}
+.menu-livery b {
+  min-width: 20px;
+  text-align: center;
+  color: #eee;
+}
+.menu-number {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.menu-number b {
+  min-width: 28px;
+  text-align: center;
+  font-size: 18px;
+  color: #eee;
+}
+
+/* options */
+.menu-options {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+}
+.menu-opt {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: #cfd6de;
+}
+.menu-opt small {
+  margin-left: 8px;
+  font-size: 11px;
+  color: #6f7986;
+}
+.menu-seg {
+  display: flex;
+  gap: 4px;
+}
+.menu-seg button {
+  flex: 1;
+  padding: 7px 6px;
+  font-size: 13px;
+  text-align: center;
+}
+.menu-seg button.on {
+  background: #f0a020;
+  border-color: #f0a020;
+  color: #111;
+  font-weight: 600;
+}
+.menu-opt input[type='range'] {
+  width: 100%;
+  accent-color: #f0a020;
+}
+
+/* pause menu: options inside the overlay box */
+.overlay .menu-options {
+  min-width: 340px;
+}
+
+/* about */
+.menu-panel[data-screen='about'] {
+  width: min(560px, 100%);
+}
+.menu-about {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #cfd6de;
+}
+.menu-about p {
+  margin: 0 0 10px;
+}
+.menu-about .menu-keys b {
+  color: #f0a020;
+}
+.menu-about h2 {
+  margin: 18px 0 4px;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #f0a020;
+}
+.menu-about h3 {
+  margin: 10px 0 2px;
+  font-size: 14px;
+  color: #eee;
+}
+.menu-about ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.menu-about li {
+  margin: 3px 0;
+}
+.menu-about a {
+  color: #7ab8ff;
+}
+.menu-about small {
+  display: block;
+  font-size: 11px;
+  color: #8b95a3;
+}
+.menu-none {
+  margin: 0;
+  font-size: 12px;
+  color: #8b95a3;
+}
+
+/* stage results leaderboard */
+.menu-board {
+  margin-bottom: 14px;
+  min-width: 340px;
+}
+.menu-board table {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  font:
+    13px ui-monospace,
+    Consolas,
+    monospace;
+}
+.menu-board td {
+  padding: 3px 6px;
+  border-bottom: 1px solid #232a33;
+}
+.menu-board td:first-child {
+  color: #8b95a3;
+  width: 22px;
+}
+.menu-board td:last-child {
+  text-align: right;
+  color: #8b95a3;
+}
+.menu-board th {
+  padding: 2px 6px 6px;
+  font:
+    700 11px system-ui,
+    sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6f7986;
+  text-align: left;
+  border-bottom: 1px solid #2c333d;
+}
+.menu-board th:last-child {
+  text-align: right;
+}
+/* Set-up columns (tyres / suspension / gearing): a quieter sans so the times stay the focus. */
+.menu-board td.set {
+  font:
+    13px system-ui,
+    sans-serif;
+  color: #aab3bf;
+  white-space: nowrap;
+}
+.menu-board tr.me td.set {
+  color: #111;
+}
+.menu-board .na {
+  color: #4b5562;
+}
+.menu-board tr.me .na {
+  color: #5a3d08;
+}
+/* Car column never wraps ("YOU Skoda Rally #1" on the highlighted row). */
+.menu-board tr:not(.sec) td:nth-child(3) {
+  white-space: nowrap;
+}
+.menu-board td small {
+  color: #6f7986;
+}
+.menu-board tr.me td {
+  color: #111;
+  background: #f0a020;
+  font-weight: 700;
+}
+.menu-board tr.me td small {
+  color: #5a3d08;
+}
+/* sector line under each row: no divider between it and its row */
+.menu-board tr:has(+ tr.sec) td {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.menu-board tr.sec td {
+  padding-top: 0;
+  font-size: 11px;
+  color: #8b95a3;
+  text-align: left;
+}
+.menu-board tr.me.sec td {
+  color: #4a3208;
+  font-weight: 400;
+}
+.menu-board tr.me:not(.sec) td {
+  font-size: 15px;
+}
+.menu-board .pen,
+.yours .pen {
+  color: #ff4a3a;
+  font-size: 0.55em;
+  font-weight: 600;
+}
+.menu-board .pen {
+  font-size: 0.85em;
+}
+.menu-sectors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.menu-sectors div {
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: #1c222a;
+  font:
+    13px ui-monospace,
+    Consolas,
+    monospace;
+}
+.menu-sectors .good {
+  color: #3ddc6a;
+}
+.menu-sectors .bad {
+  color: #ff4a3a;
+}
+.menu-sectors span {
+  margin-right: 6px;
+  color: #f0a020;
+  font-weight: 700;
+}
+.menu-board tr.gap td {
+  text-align: center;
+  border: none;
+}
+.overlay .box {
+  max-height: calc(100vh - 32px);
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+.menu-about .menu-credit {
+  color: #f0a020;
+  font-weight: 600;
+}
+
+/* Gamepad navigation (pad-nav.ts): programmatic focus doesn't always match
+   :focus-visible, so mark the focused control explicitly. */
+[data-input='pad'] .menu-root :focus,
+[data-input='pad'] .overlay :focus {
+  outline: 2px solid #f0a020;
+  outline-offset: 2px;
+}
+
+/* Gearing row: a speed-per-gear chart instead of a 3D part (setup screen). */
+.setup-view.gear-view {
+  /* the chart needs less height than a 3D part: keeps the three rows shorter */
+  height: clamp(72px, 11vh, 120px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+}
+.gear-view svg {
+  width: 100%;
+  height: 100%;
+}
+.gear-view text {
+  font-size: 10px;
+  fill: #8b95a3;
+}
+.gear-view text.top {
+  font-size: 12px;
+  font-weight: 700;
+  fill: #eee;
+}
+.setup-card.fixed {
+  cursor: default;
+  opacity: 0.85;
+}

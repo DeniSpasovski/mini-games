@@ -1,0 +1,37 @@
+# Ajvatovci Hill
+
+Real-world stage near Ilinden, North Macedonia: it starts in the Ilinden industrial zone beside the A2 motorway, crosses
+the Aracinovo canal, follows a farmland road to Ajvatovci village and climbs the hill in switchbacks. 4.46 km of old,
+narrow tarmac with a loose gravel film, in spring colours. Map id `ajvatovci`, stage 1.
+
+![Start street](screenshots/start-street.jpg)
+
+|                                                 |                                         |
+| ----------------------------------------------- | --------------------------------------- |
+| ![Farmland road](screenshots/farmland-road.jpg) | ![Hill road](screenshots/hill-road.jpg) |
+| the farmland road (orchards, power lines)       | switchbacks up Ajvatovci Hill           |
+
+The first ~500 m, the **start street**, is hand-modelled: lots with real window and door openings, yards, fences,
+kerbs, sidewalks, power poles and about 100 parked vehicles ([`start-row/`](start-row/)).
+
+```bash
+npm run dev     # /games/rally/?map=ajvatovci&spawn=200      (drive from 200 m)
+                # /games/rally/map-viewer.html?map=ajvatovci (fly around the whole map)
+```
+
+## Data and credits
+
+| What                                     | Source                                                                                                                     | Licence                                                                          |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Stage route                              | [Google Maps route (start -> Ajvatovci Hill)](https://www.google.com/maps/dir/42.0001365,21.5777226/42.0085904,21.6141518) | stage waypoints only                                                             |
+| Roads, land use, buildings, pylons       | [OpenStreetMap](https://www.openstreetmap.org/copyright)                                                                   | ODbL, © OpenStreetMap contributors                                               |
+| Building footprints (where OSM has none) | [Microsoft Global ML Building Footprints](https://github.com/microsoft/GlobalMLBuildingFootprints)                         | ODbL                                                                             |
+| Land cover                               | [ESA WorldCover 2021](https://esa-worldcover.org/)                                                                         | CC BY 4.0                                                                        |
+| Elevation                                | [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (SRTM / EU-DEM based)                                    | [attributions](https://github.com/tilezen/joerd/blob/master/docs/attribution.md) |
+
+The baked `data.json` is a derived database of the ODbL sources above and stays under the ODbL (attribution +
+share-alike). A few shapes (the orchard outline and the lot positions of the start street) were traced by eye from
+satellite / street-level screenshots; no imagery is shipped. The start street's buildings are original models, not
+copies of the real ones, and the company sign on one building is the author's own company.
+
+Full source list, re-bake instructions and notes: [`DETAILS.md`](DETAILS.md). Open work: [`TODO.md`](TODO.md).

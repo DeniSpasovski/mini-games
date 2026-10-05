@@ -1,0 +1,103 @@
+import { DoubleSide, MeshStandardMaterial, type Material } from 'three';
+import { getTexture } from './textures';
+
+/**
+ * Shared material library. Assets reference materials by id so thousands of
+ * instances / dozens of asset types share a handful of GPU programs.
+ */
+export type MaterialId =
+  | 'vegetation'
+  | 'foliage_card'
+  | 'foliage_card_dry'
+  | 'foliage_card_spring'
+  | 'rock'
+  | 'props'
+  | 'chevron'
+  | 'vehicle'
+  | 'village_sign';
+
+const cache = new Map<MaterialId, Material>();
+
+export function getMaterial(id: MaterialId): Material {
+  let m = cache.get(id);
+  if (m) return m;
+  switch (id) {
+    case 'vegetation':
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: getTexture('detail'),
+        roughness: 0.92,
+      });
+      break;
+    case 'foliage_card':
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: getTexture('grass_card'),
+        alphaTest: 0.45,
+        side: DoubleSide,
+        roughness: 1,
+      });
+      break;
+    case 'foliage_card_dry':
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: getTexture('grass_card_dry'),
+        alphaTest: 0.45,
+        side: DoubleSide,
+        roughness: 1,
+      });
+      break;
+    case 'foliage_card_spring':
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: getTexture('grass_card_spring'),
+        alphaTest: 0.45,
+        side: DoubleSide,
+        roughness: 1,
+      });
+      break;
+    case 'rock':
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: getTexture('rock'),
+        roughness: 0.88,
+      });
+      break;
+    case 'props':
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: getTexture('detail'),
+        roughness: 0.7,
+      });
+      break;
+    case 'vehicle':
+      // Vertex-coloured paint; the decals atlas supplies the lettering (plain faces sample its white corner).
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: getTexture('vehicle_decals'),
+        roughness: 0.42,
+        metalness: 0.3,
+      });
+      break;
+    case 'village_sign':
+      m = new MeshStandardMaterial({
+        map: getTexture('village_sign'),
+        roughness: 0.55,
+        side: DoubleSide,
+      });
+      break;
+    case 'chevron':
+      m = new MeshStandardMaterial({
+        map: getTexture('chevron'),
+        roughness: 0.55,
+      });
+      break;
+  }
+  m.name = id;
+  cache.set(id, m);
+  return m;
+}
+
+export function allMaterials(): Material[] {
+  return [...cache.values()];
+}

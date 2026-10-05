@@ -1,0 +1,38 @@
+# Local
+.DS_Store
+*.local
+.env
+.env.*
+!.env.example
+*.log*
+
+# Dist
+node_modules
+dist/
+
+# Profile
+.rspack-profile-*/
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Real-world map baker download cache
+scripts/realmap/.cache/
+
+# Original source files (models, reference photos, data downloads) - local only, see the source-files skill
+sources/
+
+# Private working notes per car / map (build diary, open work) - local only, README.md is the public doc
+src/games/rally/cars/**/DETAILS.md
+src/games/rally/cars/**/TODO.md
+src/games/rally/maps/**/DETAILS.md
+src/games/rally/maps/**/TODO.md
+
+# Rally physics notes and the handling review - local only for now (temporary, user 2026-10-04)
+src/games/rally/PHYSICS.md
+src/games/rally/HANDLING-REVIEW.md
+
+# Open task lists - local only for now
+src/games/*/TASKS.md

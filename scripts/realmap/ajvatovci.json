@@ -1,0 +1,60 @@
+{
+  "id": "ajvatovci",
+  "name": "Ajvatovci Hill",
+  "out": "src/games/rally/maps/ajvatovci/data.json",
+  "origin": [42.004, 21.596],
+  "waypoints": [
+    [42.0001365, 21.5777226],
+    [42.0085904, 21.6141518]
+  ],
+  "heightBase": 232,
+  "detail": {
+    "cell": 10,
+    "extent": [-2100, 2300, -1250, 950]
+  },
+  "outer": {
+    "cell": 50,
+    "extent": [-5000, 5000, -4200, 3800]
+  },
+  "landcover": {
+    "cell": 5,
+    "extent": [-1950, 2150, -1100, 850],
+    "manualCover": [
+      {
+        "cover": "orchard",
+        "note": "dense fruit orchard SE of the farmland road (traced from ref-01-satellite-route, fitted to the route line: 2.945 m/px, 1.4 m median residual; WorldCover calls it cropland, OSM has no polygon)",
+        "ring": [
+          [42.004568, 21.591606],
+          [42.003243, 21.591677],
+          [42.001572, 21.594414],
+          [42.002951, 21.594912],
+          [42.002606, 21.596796],
+          [41.996641, 21.599746],
+          [41.993088, 21.604971],
+          [41.995607, 21.606393],
+          [41.998735, 21.602661],
+          [42.002686, 21.604616],
+          [42.002606, 21.602981],
+          [42.003985, 21.601132],
+          [42.003852, 21.59868],
+          [42.005257, 21.596938]
+        ]
+      }
+    ]
+  },
+  "canopy": {
+    "pine": 7,
+    "trees": 5,
+    "orchard": 2,
+    "urban": 2.5,
+    "industrial": 3
+  },
+  "routeSmoothSigma": 4,
+  "routeTolerance": 0.8,
+  "minCornerRadius": 13,
+  "stage": 1,
+  "buildings": {
+    "microsoft": true,
+    "roadClearance": 5.0
+  }
+}

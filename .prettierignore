@@ -1,0 +1,10 @@
+# Lock files
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Skills lock
+skills-lock.json
+
+# Generated real-world map data (scripts/realmap/bake.py)
+src/games/rally/maps/*/data.json

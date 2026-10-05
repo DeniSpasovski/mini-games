@@ -1,0 +1,34 @@
+{
+  "name": "rsbuild-project",
+  "version": "1.0.0",
+  "description": "Mini Game Portal: browser games built to learn three.js (educational, non-commercial)",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rsbuild build",
+    "dev": "rsbuild",
+    "format": "prettier --write .",
+    "lint": "rslint",
+    "preview": "rsbuild preview",
+    "test": "rstest",
+    "test:watch": "rstest --watch"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "^2.2.11",
+    "@rslint/core": "^0.9.0",
+    "@rstest/adapter-rsbuild": "^0.12.2",
+    "@rstest/core": "^0.12.2",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@types/node": "^24.13.6",
+    "happy-dom": "^20.14.5",
+    "meshoptimizer": "^0.22.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@types/three": "^0.186.0",
+    "three": "^0.186.1"
+  }
+}

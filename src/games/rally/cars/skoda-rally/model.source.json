@@ -1,0 +1,357 @@
+{
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/skoda-rally/skoda-fabia-r5-rally-car-senturyuk.glb (CC BY 4.0, SenturyUK). The GLB is already model-aligned (+x left, +y up, +z nose, ground y 0) at true scale (its 2.475 m wheelbase is the Fabia R5's 2,470 mm) but sits at x ~ -6.86; the offset centres it and puts the front hub on physics front.z = 1.15. The atlas block is also read by livery.ts at runtime - keep them in sync by editing only here.",
+  "source": "sources/cars/skoda-rally/skoda-fabia-r5-rally-car-senturyuk.glb -> glb-to-parts-stl.py -> sources/cars/skoda-rally/skoda-rally-parts.stl",
+  "output": "public/models/cars/skoda_rally.glb",
+  "axes": ["x", "y", "z"],
+  "scale": 1.0,
+  "offset": [6.861, 0, -0.395],
+  "groundAtMin": false,
+  "targetTriangles": 70000,
+  "creaseDeg": 40,
+  "wheels": {
+    "$comment": "the wheels are separate meshes (dropped below) - nothing to cut",
+    "radius": 0,
+    "minAbsX": 9,
+    "centres": []
+  },
+  "atlas": {
+    "pxPerMetre": 256,
+    "width": 4.35,
+    "height": 9.6,
+    "bounds": {
+      "x": [-1.05, 1.05],
+      "y": [0, 1.7],
+      "z": [-2.15, 2.15]
+    },
+    "charts": {
+      "left": [0, 0],
+      "right": [0, 1.75],
+      "top": [0, 3.5],
+      "front": [0, 5.65],
+      "rear": [2.2, 5.65],
+      "bottom": [0, 7.45]
+    },
+    "chartBoxes": [
+      {
+        "$comment": "front bumper lip (y 0.19 - 0.27, same band on the side and front charts): its top ledge took the top chart (white saw teeth along the lip) and the corner chamfer the side charts (green tips) - every body face of the lip and round the corners reads the front chart; undersides (ny < -0.5) stay on the dark bottom chart",
+        "chart": "front",
+        "minNy": -0.5,
+        "x": [0, 0.95],
+        "y": [0.0, 0.3],
+        "z": [1.7, 2.2]
+      },
+      {
+        "$comment": "rear bumper corner (|x| 0.55 - 1.1, y 0.15 - 0.56, z < -1.72): the corner chamfer and the fin beside the arch were split between the left / right and rear charts (ragged band edge, white chips next to the green) - every face except undersides reads the rear chart, so the band is one clean shape",
+        "chart": "rear",
+        "minNy": -0.5,
+        "x": [0.55, 1.1],
+        "y": [0.15, 0.56],
+        "z": [-2.2, -1.72]
+      }
+    ]
+  },
+  "gltf": {
+    "$comment": "primitive -> material (first matching rule wins; x / y / z boxes are in the GLB's own world coordinates, before scale / offset). Wheels_0 = 4 tyres (350k triangles) + rims, replaced by the game's physics wheels. Object_13 / Object_38 are two tiny logo decals on the dash. mat_15 (Object_40) = the model's four brake discs (4 x 92 triangles, 0.34 m across at the hubs): they fell to the default trim and showed as flat black discs next to the game's own discs + calipers.",
+    "drop": ["Wheels_0", "Object_13", "Object_38", "mat_15"],
+    "parts": [
+      {
+        "$comment": "manufacturer badge reliefs (grille centre, tailgate centre) - no logos (AGENTS.md)",
+        "mat": "mat_9",
+        "x": [-6.95, -6.77],
+        "y": [0.64, 0.76],
+        "z": [2.22, 2.35],
+        "material": "logo"
+      },
+      {
+        "mat": "mat_9",
+        "x": [-6.95, -6.77],
+        "y": [0.79, 0.93],
+        "z": [-1.55, -1.43],
+        "material": "logo"
+      },
+      {
+        "$comment": "wing (blade, end plates, uprights) and roof scoop: carbon, picked as whole islands inside the box so the roof lip / roof next to them stay out",
+        "mat": "Car_body",
+        "whole": true,
+        "x": [-7.461, -6.261],
+        "y": [1.25, 1.43],
+        "z": [-1.425, -1.035],
+        "material": "carbon"
+      },
+      {
+        "mat": "Car_body",
+        "whole": true,
+        "x": [-7.091, -6.631],
+        "y": [1.33, 1.44],
+        "z": [0.255, 0.755],
+        "material": "carbon"
+      },
+      {
+        "$comment": "black screen borders (the body mesh runs right up to the glass, the real car has a black ceramic border + black A-pillars): windscreen and rear screen glass are mat_25 - the side windows are mat_25 too, so `facing` keeps only the screens' samples (their normals have |x| < 0.1, the side glass ~0.94)",
+        "mat": "Car_body",
+        "near": {
+          "mat": "mat_25",
+          "z": [0.85, 1.45],
+          "facing": {
+            "|x|": [0, 0.6]
+          },
+          "d": 0.05
+        },
+        "y": [0.955, 2],
+        "material": "trim"
+      },
+      {
+        "$comment": "A-pillars black (as the real car): the front end (model z > 0.17) of the roof-rail island (480 triangles each side) - the windscreen ring alone left them white with black teeth",
+        "mat": "Car_body",
+        "islandTris": [470, 490],
+        "x": [-6.311, -6.121],
+        "y": [0.9, 1.34],
+        "z": [0.565, 1.255],
+        "material": "trim"
+      },
+      {
+        "mat": "Car_body",
+        "islandTris": [470, 490],
+        "x": [-7.601, -7.411],
+        "y": [0.9, 1.34],
+        "z": [0.565, 1.255],
+        "material": "trim"
+      },
+      {
+        "mat": "Car_body",
+        "near": {
+          "mat": "mat_25",
+          "z": [-1.45, -0.9],
+          "facing": {
+            "|x|": [0, 0.6]
+          },
+          "d": 0.08
+        },
+        "material": "trim",
+        "y": [1.005, 2],
+        "$comment": "rear screen ring: only above the tailgate's top edge (y 1.0), lower down the big tailgate triangles turned into black spikes"
+      },
+      {
+        "$comment": "black frame round the rear screen (as the real car): roof lip under the wing, the screen frame, the fins beside it - whole islands, the C-pillar outer skin is one big island and stays body",
+        "mat": "Car_body",
+        "whole": true,
+        "x": [-7.591, -6.131],
+        "y": [0.97, 1.44],
+        "z": [-1.305, -0.695],
+        "material": "trim"
+      },
+      {
+        "$comment": "body behind the lower bumper grille shows through its slots: black like the real car's grille backing",
+        "mat": "Car_body",
+        "x": [-7.31, -6.41],
+        "y": [0.22, 0.48],
+        "z": [1.995, 2.255],
+        "material": "trim"
+      },
+      {
+        "$comment": "front bumper corner intakes (the pocket behind the bumper face, model z < 1.9; outline traced in the front view): the pocket floor and walls were body colour, the real car has black openings. An exact outline cut - a centre-based box left saw teeth along the top edge",
+        "mat": "Car_body",
+        "region": {
+          "view": "front",
+          "poly": [
+            [0.43, 0.383],
+            [0.9, 0.383],
+            [0.9, 0.215],
+            [0.5, 0.215]
+          ],
+          "depth": [1.4, 1.9],
+          "mirror": true
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "mirror glass: the backward-facing island of each mirror head",
+        "mat": "mat_9",
+        "whole": true,
+        "x": [-6.111, -5.94],
+        "y": [0.9, 0.99],
+        "z": [0.875, 0.925],
+        "material": "mirror"
+      },
+      {
+        "mat": "mat_9",
+        "whole": true,
+        "x": [-7.78, -7.611],
+        "y": [0.9, 0.99],
+        "z": [0.875, 0.925],
+        "material": "mirror"
+      },
+      {
+        "$comment": "rear bumper lower valance (below y 0.29, like the real car's black diffuser area): the model's diffuser fins intersect the bumper skin, which showed as black teeth poking through the white from below - both black now, so the intersection line disappears. Exact outline cut, rear view",
+        "mat": "Car_body",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [-1.1, 0.0],
+            [1.1, 0.0],
+            [1.1, 0.29],
+            [-1.1, 0.29]
+          ],
+          "depth": [-2.1, -1.7]
+        },
+        "material": "trim"
+      },
+      {
+        "node": "Object_17",
+        "material": "body"
+      },
+      {
+        "node": "Object_18",
+        "material": "body"
+      },
+      {
+        "$comment": "windscreen header: the black border stopped ~3 cm short of the roof edge, where the model's inner windscreen layer and two small 6-triangle glass wedges at the corners showed as glass teeth - that strip of mat_25 (y > 1.27, model z 0.2 - 0.34) is black border too",
+        "mat": "mat_25",
+        "y": [1.27, 1.4],
+        "z": [0.595, 0.735],
+        "material": "trim"
+      },
+      {
+        "$comment": "headlight outer cover (the whole mat_24 island in front of model z 1.3, incl. its wrap round the outer corner - until 2026-10-04 that part was dark glass): smoked see-through, so the modelled reflector bowls show",
+        "mat": "mat_24",
+        "y": [0.4, 1.0],
+        "z": [1.7, 3],
+        "material": "lenscover"
+      },
+      {
+        "$comment": "tail lamp covers (and the third brake light's): dropped - the clear cover washed the red lens pink (env reflection + 20 % haze); the lamp shell shows directly",
+        "mat": "mat_24",
+        "z": [-3, -0.8],
+        "material": "logo"
+      },
+      {
+        "mat": "mat_24",
+        "material": "glass"
+      },
+      {
+        "mat": "mat_25",
+        "material": "glass"
+      },
+      {
+        "mat": "mat_18",
+        "material": "mesh",
+        "$comment": "mat_18 = the two bonnet vent slots (y > 0.7) and the lower bumper intake panel: wire mesh"
+      },
+      {
+        "$comment": "indicator bulbs: the small bulb in the outer reflector of each headlight (whole islands)",
+        "mat": "mat_7",
+        "whole": true,
+        "x": [-6.171, -6.121],
+        "y": [0.66, 0.695],
+        "z": [1.905, 1.94],
+        "material": "amber"
+      },
+      {
+        "mat": "mat_7",
+        "whole": true,
+        "x": [-7.601, -7.551],
+        "y": [0.66, 0.695],
+        "z": [1.905, 1.94],
+        "material": "amber"
+      },
+      {
+        "$comment": "front half of mat_7 = the lamp unit: reflector bowls, bolts, bezel",
+        "mat": "mat_7",
+        "z": [0.9, 3],
+        "material": "chrome"
+      },
+      {
+        "$comment": "tail lamp inner wall (the side towards the tailgate, model |x| 0.5 - 0.6, faces pointing at the car's centre): the lens shell's wall, the body's opening wall and the black seal lie within 1 cm of each other - the transparent lens showed through as a red wedge outside the light (z-fighting). Black like the seal",
+        "mat": "mat_7",
+        "x": [-6.361, -6.261],
+        "y": [0.6, 0.95],
+        "z": [-3, -0.6],
+        "facing": { "x": [-1, -0.4] },
+        "material": "trim"
+      },
+      {
+        "mat": "mat_7",
+        "x": [-7.461, -7.361],
+        "y": [0.6, 0.95],
+        "z": [-3, -0.6],
+        "facing": { "x": [0.4, 1] },
+        "material": "trim"
+      },
+      {
+        "$comment": "ribbon of lens faces beyond the inner edge of the white light: it lay in the black seam gap / over the body opening and showed as a pink wedge outside the light from the side. Exact straight cut (rear view, model x, y) 0.6 cm outside the white parallelogram's inner edge (x 0.563 at y 0.759 -> 0.577 at y 0.829, i.e. x = 0.569 + 0.2 (y - 0.759)) - a centre-based box left saw teeth through the white",
+        "mat": "mat_7",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [0.48, 0.6],
+            [0.537, 0.6],
+            [0.607, 0.95],
+            [0.48, 0.95]
+          ],
+          "depth": [-2.1, -1.6],
+          "mirror": true
+        },
+        "material": "trim"
+      },
+      {
+        "mat": "mat_7",
+        "z": [-3, -0.6],
+        "material": "tailc"
+      },
+      {
+        "mat": "mat_7",
+        "material": "trim"
+      },
+      {
+        "mat": "mat_12",
+        "material": "trim"
+      },
+      {
+        "mat": "mat_9",
+        "material": "trim"
+      },
+      {
+        "mat": "mat_11",
+        "material": "trim"
+      },
+      {
+        "mat": "mat_10",
+        "material": "interior"
+      },
+      {
+        "mat": "mat_13",
+        "material": "interior"
+      },
+      {
+        "mat": "mat_19",
+        "material": "interior"
+      }
+    ],
+    "default": "trim"
+  },
+  "parts": {
+    "materials": [
+      "body",
+      "trim",
+      "glass",
+      "headlight",
+      "tailc",
+      "lenscover",
+      "chrome",
+      "amber",
+      "mesh",
+      "interior",
+      "logo",
+      "carbon",
+      "mirror"
+    ],
+    "wrap": {
+      "headlight": "corner",
+      "tailc": "corner"
+    },
+    "drop": ["logo"],
+    "maxTriangles": {
+      "interior": 16000
+    }
+  }
+}

@@ -1,0 +1,784 @@
+{
+  "$comment": "Input for scripts/car-model/segment-stl.py (parts) and stl-to-glb.mjs (everything else). Single-shell 1:33 print model (no kit assembly): raw x = width, raw y = length (nose at -y), raw z = up -> axes below is a proper rotation (a swap alone mirrors the mesh and inverts every normal). Scale from the wheelbase (82.0 mm between the contact patches = 2.722 m), offset from the mid-point between the axles and the body's centre line (raw x 119.3). Wheels + tyres are modelled in: cut out (`wheels`), the game draws its own. Ride: the mesh is a lowered street car (floor 7 cm) - offset y lifts the whole body (now -0.5 cm: the 7 cm lift was taken back, the user wanted the wheels low in the arches) vs the tyre-bottom pose (floor 0.142 m; 4 cm for the test map's crests, 3 more so the wheels sit lower in the arches, hubs stay at 0.345: rally stance; the autopilot beached on the test map's crests at 7 cm). Every y in `parts` / `wheels` below is in that raised model space.",
+  "source": "sources/cars/bimmer-m3/bmw-e46-coupe-tuning.stl",
+  "output": "public/models/cars/bimmer_m3.glb",
+  "axes": ["x", "z", "-y"],
+  "scale": 0.0332,
+  "offset": [-3.961, -0.005, 3.818],
+  "groundAtMin": true,
+  "targetTriangles": 60000,
+  "creaseDeg": 40,
+  "wheels": {
+    "$comment": "the modelled wheels are removed by the `wheel cut` region picks in `parts` (an exact circular clip, no saw teeth) - nothing left for the radius cut; centres kept for the hub rule / arch options",
+    "radius": 0,
+    "minAbsX": 0.45,
+    "centres": [
+      [1.361, 0.34],
+      [-1.361, 0.34]
+    ],
+    "liner": {
+      "$comment": "the cut-out leaves the arch see-through (the tyre was unioned with the liner - removing it left tyre-shaped holes in the well): a dark cup from |x| 0.45 out to 0.9, r 0.40 just inside the arch opening (r ~0.415 at the top), ends 0.3 rad below the hub (kept like this: a longer cup / wider outerX read as extended fenders on this non-GTR body). Its inner wall (hidden behind the tyre) is closed down to floorY 0.145 so the well is not an open window into the hollow body from underneath",
+      "radius": 0.4,
+      "outerX": 0.9,
+      "below": 0.3,
+      "floorY": 0.07
+    }
+  },
+  "wheelRim": {
+    "$comment": "Input for stl-wheel-extract.py: the model's own 8-spoke rim (front-left wheel) -> wheel GLB (`wheelModel`). Measured in radial sections: tyre r 0.215 - 0.345 (tread blocks 0.36), |x| 0.645 - 0.96; its inner wall at r 0.215 doubles as the rim barrel (jagged, fused into the tyre) -> replaced by the `lathe` lip + barrel; spokes + hub |x| 0.83 - 0.94 inside r 0.232, brake disc / caliper behind |x| 0.83 (dropped: the game draws its own). The model's wheels have NEGATIVE CAMBER (tuning stance): `axis` = the outer sidewall's plane normal (x = 0.9616 - 0.0757 dy - 0.002 dz, 4.3 deg, no toe, residual 9 mm); after removing it the hub bore, tyre tread and lip circles agree within 2 mm on `hub` (z 1.361, y 0.344 at depth x 0.80). The spoke pattern is NOT symmetric - centring on its 45 deg self-overlap (y 0.323) put the bore 2.7 cm off the axle (wheel debugger, car viewer `wheels=1`)",
+    "hub": [1.361, 0.344, 0.8],
+    "axis": [1, 0.0757, 0.002],
+    "side": 1,
+    "face": { "minX": 0.83, "maxR": 0.232 },
+    "lathe": [
+      [0.213, 0.642],
+      [0.213, 0.9],
+      [0.216, 0.922],
+      [0.224, 0.932],
+      [0.236, 0.932],
+      [0.243, 0.925],
+      [0.243, 0.912],
+      [0.236, 0.904],
+      [0.224, 0.9],
+      [0.224, 0.66],
+      [0.232, 0.652],
+      [0.232, 0.642]
+    ],
+    "segments": 96,
+    "tyre": { "minX": 0.64, "minR": 0.2, "maxR": 0.365 },
+    "rim": "sources/cars/bimmer-m3/bimmer-m3-rim-fl.stl",
+    "tyreOut": "sources/cars/bimmer-m3/bimmer-m3-tyre-fl.stl"
+  },
+  "atlas": {
+    "pxPerMetre": 256,
+    "width": 4.8,
+    "height": 8.8,
+    "bounds": {
+      "x": [-1.05, 1.05],
+      "y": [0, 1.45],
+      "z": [-2.45, 2.3]
+    },
+    "charts": {
+      "left": [0, 0],
+      "right": [0, 1.5],
+      "top": [0, 3.0],
+      "front": [0, 5.15],
+      "rear": [2.2, 5.15],
+      "bottom": [0, 6.65]
+    },
+    "chartBoxes": [
+      {
+        "$comment": "rear bumper's side, from the arch to the corner (|x| > 0.6, z -2.1 .. -1.65, y 0.12 - 0.7): its top ledge (y 0.54 - 0.61) was on the top chart (crest-row cells: a blue band with a white streak across the checkers), a strip on the rear chart and the groove undersides on the bottom chart (light / dark lines through the red row, user view 2026-10-04) -> side chart, which holds the checker rows. Before the rear boxes; it reaches z -2.25 so the side / rear switch on the corner falls INSIDE the last side column (k = 6, z <= -2.08, the same colours as the rear's outer column) - ending at -2.1 put the switch on column k = 5 and the chart tint showed rear faces spiking into it (teeth, next user view)",
+        "chart": "side",
+        "maxNy": 1.01,
+        "minNy": -1.01,
+        "x": [0.6, 1.1],
+        "y": [0.12, 0.7],
+        "z": [-2.25, -1.65]
+      },
+      {
+        "$comment": "rear bumper ledges (up-facing, y 0.3 - 0.68, behind z -2.0) were on the top chart, whose cells there are the boot lid's checker rows (blue at |x| 0.40 - 0.62, white elsewhere): a blue strip with white teeth along the bumper top across the red / blue rows (user view 2026-10-04) -> rear chart, which holds the row colour at the ledge's height",
+        "chart": "rear",
+        "minNy": 0.3,
+        "x": [0, 1.1],
+        "y": [0.3, 0.68],
+        "z": [-2.5, -2.0]
+      },
+      {
+        "$comment": "same bumper, inner part (|x| < 0.6, no side faces): the lips' undersides were on the bottom chart (dark undercoat lines under the ledges) and the plate-recess walls on the side charts -> rear chart too",
+        "chart": "rear",
+        "minNy": -1.01,
+        "x": [0, 0.6],
+        "y": [0.3, 0.68],
+        "z": [-2.5, -2.0]
+      },
+      {
+        "$comment": "rear bumper corner behind z -2.25 (|x| > 0.6): groove undersides were on the bottom chart (dark lines) -> rear chart; side-facing faces here land on the rear's outer column, which repeats the side's last column (k = 6, z <= -2.08), so the colours agree",
+        "chart": "rear",
+        "minNy": -1.01,
+        "x": [0.6, 1.1],
+        "y": [0.12, 0.68],
+        "z": [-2.5, -2.25]
+      },
+      {
+        "$comment": "number plate recess on the boot lid (|x| < 0.55, y 0.66 - 0.92, z -2.5 .. -2.15): its side walls were on the side charts (blue checker texels: a blue triangle in the recess's top corners) and its top lip on the bottom chart (dark), user view 2026-10-04 -> rear chart (white there)",
+        "chart": "rear",
+        "minNy": -1.01,
+        "x": [0, 0.55],
+        "y": [0.66, 0.92],
+        "z": [-2.5, -2.15]
+      },
+      {
+        "$comment": "lower door + sill between the arches: the up-facing ledges of the side mouldings / skirt landed on the top chart (white there) and showed as white streaks in the blue behind the side split (user view 2026-10-04) -> side chart of their own side, where the diagonal split applies",
+        "chart": "side",
+        "maxNy": 1.01,
+        "minNy": -0.2,
+        "x": [0.78, 1.1],
+        "y": [0.05, 0.62],
+        "z": [-1.0, 0.95]
+      },
+      {
+        "$comment": "door side between the arches, y 0.2 - 0.84 (below the belt at 0.86): the shoulder crease's up-facing ledge (y 0.72 - 0.84) was on the top chart (a white line through the blue) and the mouldings' undersides on the bottom chart (dark undercoat lines on the white door) -> every face here to the side chart",
+        "chart": "side",
+        "maxNy": 1.01,
+        "minNy": -1.01,
+        "x": [0.78, 1.1],
+        "y": [0.2, 0.84],
+        "z": [-1.0, 0.95]
+      },
+      {
+        "$comment": "door shut-line walls (facing along the car) between the arches landed on the end charts (white there): a white line down the door's rear gap in the blue -> side chart",
+        "chart": "side",
+        "x": [0.7, 1.1],
+        "y": [0.05, 1.0],
+        "z": [-1.0, 0.95]
+      },
+      {
+        "$comment": "B / C pillar round the rear quarter window: the frame steps facing along the car (z -1.34 .. -0.57, y 0.98 - 1.31) were on the end charts (white) - white dashes down the B pillar in the blue, a white sliver at the window's rear corner (user view 2026-10-04) -> side chart. Stops at z -1.35, in front of the tail checkers (z < -1.42)",
+        "chart": "side",
+        "x": [0.5, 0.9],
+        "y": [0.88, 1.4],
+        "z": [-1.35, -0.45]
+      }
+    ]
+  },
+  "parts": {
+    "$comment": "12 deg crease: at 25 deg the glass panes, roof, doors and bonnet were one skin (the panel gaps are engraved grooves ~1 cm wide); at 12 deg every pane / panel is its own segment. The tail lamps are flush with the body (groove outline only) -> `region` outlines traced off the crease renders (rear view x 0.465 -> corner, y 0.665 -> 0.85 boot-lid gap; side: curved front edge z -2.075 at the bottom to -2.16 at the top).",
+    "creaseDeg": 12,
+    "absorbArea": 0.0004,
+    "materials": [
+      "body",
+      "trim",
+      "gloss",
+      "mesh",
+      "carbon",
+      "glass",
+      "lens",
+      "reflector",
+      "twinlamp",
+      "mirror",
+      "cut",
+      "amber",
+      "tail"
+    ],
+    "preview": {
+      "body": "#c8ccd0",
+      "trim": "#2a2c30",
+      "gloss": "#101114",
+      "mesh": "#d08a2a",
+      "carbon": "#6a4a8a",
+      "glass": "#1d3140",
+      "lens": "#f2ecd8",
+      "reflector": "#c0141c",
+      "twinlamp": "#9fc4e0",
+      "mirror": "#e0e8f0",
+      "cut": "#ff00ff",
+      "amber": "#ff9a1a",
+      "tail": "#e0242c"
+    },
+    "picks": [
+      {
+        "name": "wheel cut (front): the modelled tyre + rim + hub carrier / disc / inner rim (|x| > 0.45: everything of the old wheel assembly, so the game's wheel + suspension have room), clipped exactly along a circle (r 0.372: tread blocks reach 0.36, the arch lip starts at ~0.375) - the converter drops this material (parts.drop); the game draws its own wheels",
+        "material": "cut",
+        "region": {
+          "view": "left",
+          "poly": [
+            [1.733, 0.34],
+            [1.7312, 0.3765],
+            [1.7259, 0.4126],
+            [1.717, 0.448],
+            [1.7047, 0.4824],
+            [1.6891, 0.5154],
+            [1.6703, 0.5467],
+            [1.6486, 0.576],
+            [1.624, 0.603],
+            [1.597, 0.6276],
+            [1.5677, 0.6493],
+            [1.5364, 0.6681],
+            [1.5034, 0.6837],
+            [1.469, 0.696],
+            [1.4336, 0.7049],
+            [1.3975, 0.7102],
+            [1.361, 0.712],
+            [1.3245, 0.7102],
+            [1.2884, 0.7049],
+            [1.253, 0.696],
+            [1.2186, 0.6837],
+            [1.1856, 0.6681],
+            [1.1543, 0.6493],
+            [1.125, 0.6276],
+            [1.098, 0.603],
+            [1.0734, 0.576],
+            [1.0517, 0.5467],
+            [1.0329, 0.5154],
+            [1.0173, 0.4824],
+            [1.005, 0.448],
+            [0.9961, 0.4126],
+            [0.9908, 0.3765],
+            [0.989, 0.34],
+            [0.9908, 0.3035],
+            [0.9961, 0.2674],
+            [1.005, 0.232],
+            [1.0173, 0.1976],
+            [1.0329, 0.1646],
+            [1.0517, 0.1333],
+            [1.0734, 0.104],
+            [1.098, 0.077],
+            [1.125, 0.0524],
+            [1.1543, 0.0307],
+            [1.1856, 0.0119],
+            [1.2186, -0.0037],
+            [1.253, -0.016],
+            [1.2884, -0.0249],
+            [1.3245, -0.0302],
+            [1.361, -0.032],
+            [1.3975, -0.0302],
+            [1.4336, -0.0249],
+            [1.469, -0.016],
+            [1.5034, -0.0037],
+            [1.5364, 0.0119],
+            [1.5677, 0.0307],
+            [1.597, 0.0524],
+            [1.624, 0.077],
+            [1.6486, 0.104],
+            [1.6703, 0.1333],
+            [1.6891, 0.1646],
+            [1.7047, 0.1976],
+            [1.717, 0.232],
+            [1.7259, 0.2674],
+            [1.7312, 0.3035]
+          ],
+          "depth": [0.45, 1.1],
+          "facing": -1,
+          "any": true
+        }
+      },
+      {
+        "name": "wheel cut (rear): the modelled tyre + rim + hub carrier / disc / inner rim (|x| > 0.45: everything of the old wheel assembly, so the game's wheel + suspension have room), clipped exactly along a circle (r 0.372: tread blocks reach 0.36, the arch lip starts at ~0.375) - the converter drops this material (parts.drop); the game draws its own wheels",
+        "material": "cut",
+        "region": {
+          "view": "left",
+          "poly": [
+            [-0.989, 0.34],
+            [-0.9908, 0.3765],
+            [-0.9961, 0.4126],
+            [-1.005, 0.448],
+            [-1.0173, 0.4824],
+            [-1.0329, 0.5154],
+            [-1.0517, 0.5467],
+            [-1.0734, 0.576],
+            [-1.098, 0.603],
+            [-1.125, 0.6276],
+            [-1.1543, 0.6493],
+            [-1.1856, 0.6681],
+            [-1.2186, 0.6837],
+            [-1.253, 0.696],
+            [-1.2884, 0.7049],
+            [-1.3245, 0.7102],
+            [-1.361, 0.712],
+            [-1.3975, 0.7102],
+            [-1.4336, 0.7049],
+            [-1.469, 0.696],
+            [-1.5034, 0.6837],
+            [-1.5364, 0.6681],
+            [-1.5677, 0.6493],
+            [-1.597, 0.6276],
+            [-1.624, 0.603],
+            [-1.6486, 0.576],
+            [-1.6703, 0.5467],
+            [-1.6891, 0.5154],
+            [-1.7047, 0.4824],
+            [-1.717, 0.448],
+            [-1.7259, 0.4126],
+            [-1.7312, 0.3765],
+            [-1.733, 0.34],
+            [-1.7312, 0.3035],
+            [-1.7259, 0.2674],
+            [-1.717, 0.232],
+            [-1.7047, 0.1976],
+            [-1.6891, 0.1646],
+            [-1.6703, 0.1333],
+            [-1.6486, 0.104],
+            [-1.624, 0.077],
+            [-1.597, 0.0524],
+            [-1.5677, 0.0307],
+            [-1.5364, 0.0119],
+            [-1.5034, -0.0037],
+            [-1.469, -0.016],
+            [-1.4336, -0.0249],
+            [-1.3975, -0.0302],
+            [-1.361, -0.032],
+            [-1.3245, -0.0302],
+            [-1.2884, -0.0249],
+            [-1.253, -0.016],
+            [-1.2186, -0.0037],
+            [-1.1856, 0.0119],
+            [-1.1543, 0.0307],
+            [-1.125, 0.0524],
+            [-1.098, 0.077],
+            [-1.0734, 0.104],
+            [-1.0517, 0.1333],
+            [-1.0329, 0.1646],
+            [-1.0173, 0.1976],
+            [-1.005, 0.232],
+            [-0.9961, 0.2674],
+            [-0.9908, 0.3035]
+          ],
+          "depth": [0.45, 1.1],
+          "facing": -1,
+          "any": true
+        }
+      },
+      {
+        "name": "windscreen",
+        "material": "glass",
+        "mirror": false,
+        "seeds": [
+          ["top", 0.7, 0.0],
+          ["top", 0.6, 0.3],
+          ["top", 0.6, -0.3]
+        ]
+      },
+      {
+        "name": "rear window",
+        "material": "glass",
+        "mirror": false,
+        "seeds": [
+          ["top", -1.25, 0.0],
+          ["top", -1.15, 0.3],
+          ["top", -1.15, -0.3]
+        ]
+      },
+      {
+        "name": "front side windows",
+        "material": "glass",
+        "seeds": [
+          ["left", 0.0, 1.145],
+          ["left", -0.3, 1.095]
+        ]
+      },
+      {
+        "name": "rear quarter windows",
+        "material": "glass",
+        "seeds": [
+          ["left", -0.85, 1.095],
+          ["left", -1.0, 1.075]
+        ]
+      },
+      {
+        "name": "window surrounds: every small segment touching a pane (frame strips, the engraved gap, belt moulding) - the big door / roof skins are over maxArea",
+        "material": "trim",
+        "adjacent": { "to": "glass", "maxArea": 0.006, "y": [0.78, 1.4] }
+      },
+      {
+        "name": "window surround: rear quarter window + B pillar = the black plastic frame of the real car (user 2026-10-04, reference photo of a silver E46 coupe): the recessed band round the quarter glass, traced on a side-view depth map of the mesh (outermost |x| per 2.5 mm; walking out from the glass until the surface steps back up 5 mm: ~5.5 cm along the top up to the drip rail, out to z -1.30 at the rear corner where a 2 cm step ends it, 2 - 3 cm along the belt) plus the flat B-pillar panel (|x| 0.718) between the quarter glass and the door glass rear edge, belt to roof. Replaced the pane outline grown 2 cm, which left the recess and the B pillar livery-coloured",
+        "material": "trim",
+        "region": {
+          "view": "left",
+          "poly": [[-0.6, 1.31], [-0.716, 1.297], [-0.756, 1.291], [-0.791, 1.285], [-0.841, 1.278], [-0.88, 1.271], [-0.925, 1.258], [-0.963, 1.249], [-1.009, 1.23], [-1.046, 1.217], [-1.088, 1.195], [-1.129, 1.178], [-1.18, 1.151], [-1.256, 1.109], [-1.3, 1.077], [-1.303, 1.045], [-1.301, 1.012], [-1.279, 0.985], [-1.233, 0.972], [-1.185, 0.966], [-1.111, 0.964], [-1.024, 0.962], [-0.939, 0.956], [-0.83, 0.953], [-0.713, 0.951], [-0.505, 0.953], [-0.512, 0.987], [-0.597, 1.304]],
+          "depth": [0.3, 1.2],
+          "facing": -0.2
+        }
+      },
+      {
+        "name": "window surround: door window (pane outline from the glass segments, grown 2 cm; first pick wins so the glass stays glass)",
+        "material": "trim",
+        "region": {
+          "view": "left",
+          "poly": [
+            [-0.597, 1.304],
+            [-0.274, 1.3],
+            [-0.172, 1.292],
+            [-0.046, 1.271],
+            [0.032, 1.247],
+            [0.181, 1.175],
+            [0.423, 1.018],
+            [0.456, 0.886],
+            [-0.487, 0.918],
+            [-0.512, 0.987]
+          ],
+          "depth": [0.3, 1.2],
+          "grow": 0.02
+        }
+      },
+      {
+        "name": "window surround: rear window from above (outline of the glass, grown 1 cm - thin border; with 2 cm + a side-view ring the black spilled onto the C pillars and the boot lid like the windscreen did, user 2026-10-04)",
+        "material": "trim",
+        "mirror": false,
+        "region": {
+          "view": "top",
+          "poly": [
+            [-1.909, 0.018],
+            [-1.901, 0.197],
+            [-1.888, 0.301],
+            [-1.864, 0.429],
+            [-1.837, 0.502],
+            [-1.794, 0.493],
+            [-1.648, 0.495],
+            [-1.585, 0.505],
+            [-1.541, 0.482],
+            [-1.49, 0.499],
+            [-1.457, 0.48],
+            [-1.325, 0.519],
+            [-1.253, 0.49],
+            [-1.212, 0.497],
+            [-1.146, 0.493],
+            [-1.118, 0.511],
+            [-1.163, 0.176],
+            [-1.169, 0.024],
+            [-1.162, -0.208],
+            [-1.134, -0.403],
+            [-1.137, -0.41],
+            [-1.122, -0.49],
+            [-1.174, -0.519],
+            [-1.227, -0.483],
+            [-1.3, -0.515],
+            [-1.36, -0.51],
+            [-1.407, -0.495],
+            [-1.442, -0.514],
+            [-1.457, -0.484],
+            [-1.523, -0.518],
+            [-1.55, -0.489],
+            [-1.65, -0.516],
+            [-1.726, -0.504],
+            [-1.814, -0.516],
+            [-1.848, -0.479],
+            [-1.885, -0.322],
+            [-1.901, -0.211]
+          ],
+          "depth": [0.9, 1.5],
+          "grow": 0.01
+        }
+      },
+      {
+        "name": "window surround: windscreen from above (outline of the glass, grown 1 cm: a thin black border only - at 2 cm, together with a side-view ring that took the whole A pillars, the black read as the windscreen spilling onto the pillars and the bonnet corners, user 2026-10-04)",
+        "material": "trim",
+        "mirror": false,
+        "region": {
+          "view": "top",
+          "poly": [
+            [0.133, -0.503],
+            [0.164, -0.32],
+            [0.183, -0.049],
+            [0.172, 0.243],
+            [0.158, 0.371],
+            [0.133, 0.501],
+            [0.254, 0.499],
+            [0.317, 0.481],
+            [0.347, 0.506],
+            [0.384, 0.484],
+            [0.48, 0.525],
+            [0.549, 0.495],
+            [0.624, 0.493],
+            [0.686, 0.474],
+            [0.708, 0.527],
+            [0.724, 0.476],
+            [0.792, 0.51],
+            [0.815, 0.423],
+            [0.826, 0.339],
+            [0.83, 0.345],
+            [0.832, 0.332],
+            [0.842, 0.221],
+            [0.846, -0.026],
+            [0.846, -0.201],
+            [0.838, -0.3],
+            [0.834, -0.294],
+            [0.816, -0.424],
+            [0.791, -0.513],
+            [0.715, -0.492],
+            [0.605, -0.488],
+            [0.575, -0.534],
+            [0.557, -0.46],
+            [0.513, -0.512],
+            [0.511, -0.475],
+            [0.442, -0.526],
+            [0.449, -0.494],
+            [0.398, -0.484],
+            [0.309, -0.512],
+            [0.24, -0.505],
+            [0.179, -0.516]
+          ],
+          "depth": [0.8, 1.5],
+          "grow": 0.01
+        }
+      },
+      {
+        "name": "headlights - lamp (projector bowls): the engraved lamp outline traced on a front-view relief map of the mesh (2000 px/m, groove centre lines): top edge y 0.666 sweeping down to the inner tip at (0.376, 0.558) by the kidney, bottom y 0.545 with a hump to 0.56 under the inner bowl; ends at the amber divider |x| 0.74 (a groove at 0.73 - 0.75). `any`: also takes what earlier segment picks labelled; `facing` -0.5: the lamp wraps round the corner, sideways faces count, only the shell's inside (facing back) does not; depth from z 1.75 (12 hidden faces of an inner wall at z 1.6 - 1.7 behind the outer bowl would stretch the lamp UVs; only the amber below reaches back to z 1.6); depth from z 1.75 (12 hidden faces of an inner wall at z 1.6 - 1.7 behind the outer bowl would stretch the lamp UVs; only the amber below reaches back to z 1.6)",
+        "material": "twinlamp",
+        "region": { "view": "front", "poly": [[0.376, 0.5577], [0.38, 0.5695], [0.385, 0.577], [0.39, 0.5855], [0.4, 0.6008], [0.41, 0.6135], [0.43, 0.634], [0.45, 0.6472], [0.48, 0.6558], [0.52, 0.6607], [0.56, 0.6633], [0.6, 0.664], [0.64, 0.666], [0.68, 0.6667], [0.74, 0.666], [0.74, 0.546], [0.72, 0.546], [0.64, 0.5443], [0.6, 0.5457], [0.58, 0.5517], [0.56, 0.562], [0.52, 0.5607], [0.48, 0.5537], [0.45, 0.555], [0.41, 0.557], [0.38, 0.5577]], "depth": [1.75, 2.3], "facing": -0.5, "any": true }
+      },
+      {
+        "name": "headlights - amber indicator: the lamp outline's outer end (|x| 0.74 -> the rounded end at 0.84), same relief map; own glowing part instead of a texture block (the old wrap texture drew it with a zig-zag edge)",
+        "material": "amber",
+        "region": { "view": "front", "poly": [[0.74, 0.666], [0.76, 0.6663], [0.78, 0.663], [0.8, 0.6545], [0.8125, 0.64], [0.825, 0.62], [0.8335, 0.6], [0.8385, 0.58], [0.8395, 0.565], [0.838, 0.553], [0.83, 0.5465], [0.8, 0.5455], [0.74, 0.546]], "depth": [1.6, 2.3], "facing": -0.5, "any": true }
+      },
+      {
+        "name": "kidney slats + frames",
+        "material": "gloss",
+        "mirror": false,
+        "inside": {
+          "x": [-0.36, 0.36],
+          "y": [0.495, 0.735],
+          "z": [1.9, 2.35]
+        }
+      },
+      {
+        "name": "fog lamps",
+        "material": "lens",
+        "seeds": [["front", 0.72, 0.295]],
+        "maxArea": 0.03
+      },
+      {
+        "name": "fog lamp rings",
+        "material": "trim",
+        "seeds": [
+          ["front", 0.72, 0.35],
+          ["front", 0.665, 0.295]
+        ],
+        "maxArea": 0.03
+      },
+      {
+        "name": "bumper side intakes (recess round the fog lamps): exact outline of the recess opening, read row by row off a front-view depth map of the raw mesh (surface more than 6 mm behind the bumper face: slanted inner tip from |x| 0.467, top y 0.333, rounded outer end round the lamp to |x| 0.79, bottom y 0.23), grown 3 mm so the recess walls are included. Replaced an `inside` box that only took the recess segments on the car's right - on the left they are merged into a segment that pokes out of the box, so that recess stayed body colour (user 2026-10-04)",
+        "material": "trim",
+        "region": { "view": "front", "poly": [[0.467, 0.229], [0.467, 0.235], [0.47, 0.25], [0.477, 0.26], [0.484, 0.27], [0.491, 0.28], [0.498, 0.29], [0.5037, 0.3], [0.5123, 0.31], [0.5243, 0.32], [0.5343, 0.325], [0.5537, 0.33], [0.57, 0.334], [0.74, 0.334], [0.7543, 0.33], [0.7663, 0.325], [0.7783, 0.315], [0.785, 0.305], [0.789, 0.295], [0.791, 0.285], [0.789, 0.275], [0.7863, 0.265], [0.779, 0.255], [0.7683, 0.245], [0.7463, 0.235], [0.6203, 0.23]], "depth": [1.9, 2.4], "facing": -0.5, "grow": 0.003 }
+      },
+      {
+        "name": "central intake grill",
+        "material": "mesh",
+        "mirror": false,
+        "seeds": [["front", 0.0, 0.295]],
+        "maxArea": 0.3
+      },
+      {
+        "name": "central intake walls",
+        "material": "trim",
+        "mirror": false,
+        "inside": {
+          "x": [-0.36, 0.36],
+          "y": [0.195, 0.395],
+          "z": [1.95, 2.35]
+        }
+      },
+      {
+        "name": "bonnet vent slats (the heat-out lines in the recess behind the dome): an exact rounded-rectangle outline cut, z 1.012 - 1.14 (the slats span z 1.02 - 1.13), x -0.338 .. 0.322 (traced at 1800 px/m) - a box pick took whole big skin triangles by their centre and left a ragged black patch",
+        "material": "trim",
+        "mirror": false,
+        "region": {
+          "view": "top",
+          "poly": [
+            [1.012, -0.318],
+            [1.0127, -0.3232],
+            [1.0147, -0.328],
+            [1.0179, -0.3321],
+            [1.022, -0.3353],
+            [1.0268, -0.3373],
+            [1.032, -0.338],
+            [1.12, -0.338],
+            [1.1252, -0.3373],
+            [1.13, -0.3353],
+            [1.1341, -0.3321],
+            [1.1373, -0.328],
+            [1.1393, -0.3232],
+            [1.14, -0.318],
+            [1.14, 0.302],
+            [1.1393, 0.3072],
+            [1.1373, 0.312],
+            [1.1341, 0.3161],
+            [1.13, 0.3193],
+            [1.1252, 0.3213],
+            [1.12, 0.322],
+            [1.032, 0.322],
+            [1.0268, 0.3213],
+            [1.022, 0.3193],
+            [1.0179, 0.3161],
+            [1.0147, 0.312],
+            [1.0127, 0.3072],
+            [1.012, 0.302]
+          ],
+          "facing": -1
+        }
+      },
+      {
+        "name": "wiper arms + blades + the cowl lip they rest on: one band along the windscreen base (x -0.6 .. 0.56, from the glass edge 6 - 8 cm forward - wider on the left where the arm is parked forward), exact outline cut - the two wipers are parked differently and their crease segments interleave, so a segment pick came out ragged (and took the cowl panel)",
+        "material": "trim",
+        "mirror": false,
+        "region": {
+          "view": "top",
+          "poly": [
+            [0.769, -0.6],
+            [0.795, -0.5],
+            [0.802, -0.46],
+            [0.809, -0.4],
+            [0.827, -0.3],
+            [0.83, -0.2],
+            [0.833, -0.1],
+            [0.834, 0.0],
+            [0.833, 0.1],
+            [0.83, 0.2],
+            [0.824, 0.3],
+            [0.81, 0.4],
+            [0.793, 0.5],
+            [0.783, 0.56],
+            [0.857, 0.56],
+            [0.867, 0.5],
+            [0.884, 0.4],
+            [0.898, 0.3],
+            [0.904, 0.2],
+            [0.907, 0.1],
+            [0.916, 0.0],
+            [0.923, -0.1],
+            [0.922, -0.2],
+            [0.921, -0.3],
+            [0.903, -0.4],
+            [0.894, -0.46],
+            [0.877, -0.5],
+            [0.831, -0.6]
+          ],
+          "facing": -1
+        }
+      },
+      {
+        "name": "fender gills",
+        "material": "gloss",
+        "inside": {
+          "x": [0.8, 1.02],
+          "y": [0.595, 0.725],
+          "z": [0.75, 1.12]
+        }
+      },
+      {
+        "name": "door handles",
+        "material": "trim",
+        "inside": {
+          "x": [0.84, 1.02],
+          "y": [0.735, 0.895],
+          "z": [-0.62, -0.26]
+        }
+      },
+      {
+        "name": "mirror glass",
+        "material": "mirror",
+        "box": {
+          "x": [0.84, 1.06],
+          "y": [0.875, 1.075],
+          "z": [0.3, 0.66],
+          "facing": {
+            "z": [-1, -0.45]
+          }
+        }
+      },
+      {
+        "name": "mirror housings + stalks black (user 2026-10-04: not livery-coloured): front-view outline round the mirror + stalk (|x| 0.86 - 1.04, y 0.87 - 1.08, z 0.29 - 0.60) that follows the door skin narrowing with height (max |x| 0.81 at y 0.875, 0.79 at 0.9, 0.755 at 0.95, 0.74 at 1.0 - a single |x| > 0.858 box left the stalk root white); after the mirror glass pick so the glass stays glass",
+        "material": "trim",
+        "region": { "view": "front", "poly": [[0.835, 0.855], [1.07, 0.855], [1.07, 1.095], [0.775, 1.095], [0.77, 0.95], [0.8, 0.9], [0.83, 0.875]], "depth": [0.25, 0.65], "facing": -1 }
+      },
+      {
+        "name": "tail lamps - rear face",
+        "material": "tail",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [0.465, 0.662],
+            [0.465, 0.841],
+            [0.9, 0.841],
+            [0.9, 0.662]
+          ],
+          "depth": [-2.5, -2.17]
+        }
+      },
+      {
+        "name": "tail lamps - side (wraps the corner, curved front edge)",
+        "material": "tail",
+        "region": {
+          "view": "left",
+          "poly": [
+            [-2.075, 0.662],
+            [-2.09, 0.715],
+            [-2.105, 0.755],
+            [-2.13, 0.795],
+            [-2.15, 0.825],
+            [-2.16, 0.841],
+            [-2.5, 0.841],
+            [-2.5, 0.662]
+          ],
+          "depth": [0.55, 1.1]
+        }
+      },
+      {
+        "name": "exhaust tips",
+        "material": "lens",
+        "inside": {
+          "x": [0.18, 0.52],
+          "y": [0.195, 0.395],
+          "z": [-2.5, -2.2]
+        }
+      },
+      {
+        "name": "rear diffuser recess",
+        "material": "trim",
+        "mirror": false,
+        "seeds": [["rear", 0.0, 0.195]],
+        "maxArea": 0.3
+      },
+      {
+        "name": "underbody (floor, driveshaft, exhaust, arms - seen from below / through the arches)",
+        "material": "trim",
+        "mirror": false,
+        "inside": {
+          "x": [-0.95, 0.95],
+          "y": [-0.005, 0.195],
+          "z": [-2.5, 2.5]
+        }
+      },
+      {
+        "name": "axles: driveshaft, arms, diff (|x| < 0.45 only - segment picks run BEFORE region cuts, so anything of the old wheel taken here would survive the wheel-cut circle; the hub carriers / discs / rims at |x| > 0.45 are left for the circle)",
+        "material": "trim",
+        "mirror": false,
+        "inside": {
+          "x": [-0.45, 0.45],
+          "y": [-0.005, 0.495],
+          "z": [1.0, 1.75]
+        }
+      },
+      {
+        "name": "axles (rear)",
+        "material": "trim",
+        "mirror": false,
+        "inside": {
+          "x": [-0.45, 0.45],
+          "y": [-0.005, 0.495],
+          "z": [-1.75, -1.0]
+        }
+      },
+      {
+        "name": "arch wells",
+        "material": "trim",
+        "hub": {
+          "radius": 0.46,
+          "facing": -0.5,
+          "minAbsX": 0.4,
+          "maxY": 0.755,
+          "$comment": "facing -0.5 (not -0.25): the flares' rolled lips are big irregular triangles whose normals lean towards the hub a little - at -0.25 the border between dark lip and body ran through them as a saw-tooth crown over each arch; now only faces pointing clearly at the hub (liner, lip underside) are dark. radius 0.46: the liner is within that, the flare's outer skin further out"
+        }
+      }
+    ],
+    "wrap": { "twinlamp": "corner", "tail": "corner" },
+    "flatten": {
+      "$comment": "the print model domes the headlight glass over each bowl by up to 1 cm (user: the cover should be one big semi-flat glass, the bulges made the lamps behind look bad) -> one smooth cover fitted through the lamp outline. tiltDeg 10: the opening leans back 22 deg (top edge 5.5 cm behind the bottom over 12 cm) and the lamp read as aimed upwards from the front (user) - the cover now stands 12 deg more upright about its mid-height (upper half up to ~1.3 cm forward, lower half back), the shift ramped in over 2.5 cm from the outline so it rolls into the fixed border",
+      "twinlamp": { "axis": "z", "tiltDeg": 12 }
+    },
+    "drop": ["cut"],
+    "fills": [
+      {
+        "$comment": "windscreen plane continued under the wipers: the glass stops at z ~0.84 (y 1.0 - 1.01) while the wiper bars (z 0.84 - 0.89) hover over empty space down to the cowl trough (z 0.91, y 0.955) - looked cut out. Plane fitted to the glass (slope -0.617 dy/dz), 2 mm below it, from z 0.838 (hidden overlap) to 0.885 (the cowl trough dips below the plane further forward - a longer fill would float over it; the black wiper band covers the rest), |x| < 0.5",
+        "material": "glass",
+        "poly": [
+          [-0.5, 0.9389, 0.838],
+          [0.5, 0.9389, 0.838],
+          [0.5, 0.9099, 0.885],
+          [-0.5, 0.9099, 0.885]
+        ]
+      }
+    ]
+  }
+}

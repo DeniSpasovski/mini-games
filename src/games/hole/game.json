@@ -1,0 +1,38 @@
+{
+  "id": "hole",
+  "title": "Hole Island",
+  "version": "0.4.2",
+  "description": "Steer a gravity hole around a blocky toy-city island, a giant toy store or an island full of animals and swallow everything that fits. Grow from trash cans (toy bricks, ants) to skyscrapers (a store-sized teddy bear, giant lab-grown elephants) before time runs out.",
+  "tags": ["three.js", "casual", "touch"],
+  "pages": [
+    {
+      "id": "play",
+      "entry": "pages/play.ts",
+      "title": "Hole Island",
+      "label": "Play"
+    },
+    {
+      "id": "item-viewer",
+      "entry": "pages/item-viewer.ts",
+      "title": "Hole \u00b7 Item viewer",
+      "label": "Item viewer",
+      "dev": true,
+      "hideInProd": true
+    },
+    {
+      "id": "map-viewer",
+      "entry": "pages/map-viewer.ts",
+      "title": "Hole \u00b7 Map viewer",
+      "label": "Map viewer",
+      "dev": true
+    },
+    {
+      "id": "balance",
+      "entry": "pages/balance.ts",
+      "title": "Hole \u00b7 Balance",
+      "label": "Balance",
+      "dev": true,
+      "hideInProd": true
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+# Third-party models
+
+Files in `public/models/cars/` are optional imported car bodies (see
+`.claude/skills/rally-content/SKILL.md` -> "Imported models"). When a file is
+present the game uses it instead of the procedural body; credits are also shown
+in the car viewer.
+
+| File                         | Model                                                                                                                                                                                                             | Author               | Licence                        | Source                                                                                    |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ------------------------------ | ----------------------------------------------------------------------------------------- |
+| `cars/bimmer_m3.glb`         | "BMW E46 Coupe - Tuning - Model" (MakerWorld; the in-game "Bimmer M3") - body STL, labelled by `scripts/car-model/segment-stl.py`, converted by `scripts/car-model/stl-to-glb.mjs`                                | Doomas3D             | CC BY 4.0 (checked 2026-10-04) | https://makerworld.com/en/models/2056872-bmw-e46-coupe-tuning-model                       |
+| `cars/bimmer_m3_wheel.glb`   | "BMW E46 Coupe - Tuning - Model" (MakerWorld) - the model's own 8-spoke rim, cut out by `scripts/car-model/stl-wheel-extract.py` (lip + barrel re-turned), converted by `scripts/car-model/wheel-stl-to-glb.mjs --keep` | Doomas3D             | CC BY 4.0 (checked 2026-10-04) | https://makerworld.com/en/models/2056872-bmw-e46-coupe-tuning-model                       |
+| `cars/skoda_rally.glb`       | "Skoda Fabia R5 Rally Car" (Sketchfab) - GLB, primitives mapped by `scripts/car-model/glb-to-parts-stl.py`, converted by `scripts/car-model/stl-to-glb.mjs` (wheels + badges dropped, repainted)                  | SenturyUK            | CC BY 4.0 (checked 2026-10-04) | https://sketchfab.com/3d-models/skoda-fabia-r5-rally-car-fe062f0fd05e43a6a32a88a1aa39ef14 |
+| `cars/skoda_rally_wheel.glb` | "Skoda Fabia R5 Rally Car" (Sketchfab) - the model's own rim, exported by `scripts/car-model/glb-to-parts-stl.py`, converted by `scripts/car-model/wheel-stl-to-glb.mjs --keep` (the model's tyre mesh is unused) | SenturyUK            | CC BY 4.0 (checked 2026-10-04) | https://sketchfab.com/3d-models/skoda-fabia-r5-rally-car-fe062f0fd05e43a6a32a88a1aa39ef14 |
+| _(not shipped)_              | Zastava 101 (Stojadin) - shape reference only, the car is hand-built in code, no GLB is used                                                                                                                      | Tomislav Tomljenović | CC BY 4.0                      | https://sketchfab.com/3d-models/zastava-101-stojadin-52c885cfc52a4ac1acb14f84a3feacfa     |
+
+Bimmer M3 (`cars/bimmer_m3.glb`) model + livery references (the M3 ALMS livery it wears; articles, nothing copied):
+
+- https://www.topgear.com/car-news/motorsport/e46-m3-gtr-would-be-ultimate-track-day-toy
+- https://www.bmw-m.com/en/topics/magazine-article-pool/bmw-m3-gtr-need-for-speed-most-wanted.html
+- https://bimmerlife.com/2026/08/11/the-m3-gtr-took-the-american-le-mans-series-by-storm-25-years-ago/
+
+CC BY 4.0 requires attribution - keep this file and the `credit` fields in
+`src/games/rally/cars/*.ts` up to date when adding models. Car makes/models are
+trademarks of their owners; this is a non-commercial fan project.

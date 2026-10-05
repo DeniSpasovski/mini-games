@@ -1,0 +1,37 @@
+{
+  "id": "rally",
+  "title": "Gravel Rally",
+  "version": "0.8.1",
+  "description": "Point-to-point gravel rally stages. Custom raycast vehicle physics, streamed terrain, procedural assets.",
+  "tags": ["three.js", "racing", "physics"],
+  "pages": [
+    {
+      "id": "play",
+      "entry": "pages/play.ts",
+      "title": "Gravel Rally",
+      "label": "Play"
+    },
+    {
+      "id": "map-viewer",
+      "entry": "pages/map-viewer.ts",
+      "title": "Rally · Map viewer",
+      "label": "Map viewer",
+      "dev": true
+    },
+    {
+      "id": "car-viewer",
+      "entry": "pages/car-viewer.ts",
+      "title": "Rally · Car viewer",
+      "label": "Car viewer",
+      "dev": true
+    },
+    {
+      "id": "asset-debug",
+      "entry": "pages/asset-debug.ts",
+      "title": "Rally · Asset debugger",
+      "label": "Assets",
+      "dev": true,
+      "hideInProd": true
+    }
+  ]
+}

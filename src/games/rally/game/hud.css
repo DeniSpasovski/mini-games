@@ -1,0 +1,518 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+#root {
+  position: fixed;
+  inset: 0;
+}
+
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: #fff;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  user-select: none;
+}
+
+.hud-top-left {
+  position: absolute;
+  left: 18px;
+  top: 14px;
+  width: 240px;
+}
+.hud-test {
+  display: inline-block;
+  margin: 4px 0 2px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(217, 48, 79, 0.85);
+  font-size: 11px;
+  font-weight: 600;
+  text-shadow: none;
+}
+.hud-title {
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.hud-progress {
+  margin-top: 6px;
+  height: 7px;
+  display: flex;
+  gap: 3px;
+}
+.hud-progress .sector {
+  flex-basis: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.hud-progress .sector div {
+  height: 100%;
+  width: 0;
+  background: #f0a020;
+}
+.hud-progress .sector.done div {
+  background: #e8e8e8;
+}
+.hud-progress .sector.good div {
+  background: #3ddc6a;
+}
+.hud-progress .sector.bad div {
+  background: #ff4a3a;
+}
+.hud-dist {
+  margin-top: 3px;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.hud-top {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+.hud-time {
+  font:
+    600 34px/1 'Consolas',
+    ui-monospace,
+    monospace;
+  letter-spacing: 1px;
+}
+.hud-splits {
+  margin-top: 4px;
+  font:
+    13px ui-monospace,
+    Consolas,
+    monospace;
+  opacity: 0.9;
+}
+
+.hud-center {
+  position: absolute;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.9);
+  font:
+    800 56px/1 Impact,
+    'Arial Black',
+    sans-serif;
+  letter-spacing: 2px;
+  opacity: 0;
+  transition:
+    opacity 0.2s,
+    transform 0.2s;
+  text-align: center;
+  white-space: pre;
+}
+.hud-center.show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+.hud-center.good {
+  color: #7dff8a;
+}
+.hud-center.bad {
+  color: #ff7a6a;
+}
+.hud-center.small {
+  font-size: 28px;
+}
+
+.hud-warn {
+  position: absolute;
+  top: 44%;
+  width: 100%;
+  text-align: center;
+  font: 700 22px system-ui;
+  color: #ffd040;
+}
+
+.hud-warn.cut {
+  color: #ff5a3c;
+  text-shadow: 0 1px 3px #000a;
+}
+
+.hud-dash {
+  position: absolute;
+  right: 22px;
+  bottom: 20px;
+  width: 230px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.hud-rpm {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+}
+.hud-rpm i {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 1px;
+}
+.hud-rpm i.on {
+  background: #f0f0f0;
+}
+.hud-rpm i.red {
+  background: #ff3a2a;
+}
+.hud-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.hud-gear {
+  font:
+    700 46px/1 Impact,
+    'Arial Black',
+    sans-serif;
+  color: #f0a020;
+  min-width: 40px;
+}
+.hud-speed {
+  font:
+    600 46px/1 'Consolas',
+    ui-monospace,
+    monospace;
+}
+.hud-speed small {
+  font-size: 13px;
+  margin-left: 4px;
+  opacity: 0.7;
+}
+.hud-flags {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  margin-top: 4px;
+  opacity: 0.85;
+}
+.hud-flags span {
+  padding: 1px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 3px;
+  color: rgba(255, 255, 255, 0.4);
+}
+.hud-flags span.on {
+  color: #fff;
+}
+.hud-flags span.active {
+  background: #f0a020;
+  color: #000;
+  text-shadow: none;
+}
+
+.hud-hints {
+  position: absolute;
+  left: 18px;
+  bottom: 16px;
+  font-size: 12px;
+  line-height: 1.6;
+  opacity: 0.85;
+  transition: opacity 1.5s;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+.hud-hints.fade {
+  opacity: 0;
+}
+.hud-hints b {
+  color: #f0a020;
+}
+
+/* --- overlays (loading / pause / results) -------------------------------- */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 10, 14, 0.72);
+  color: #eee;
+  font-family: system-ui, sans-serif;
+  z-index: 30;
+}
+.overlay.hidden {
+  display: none;
+}
+.overlay .box {
+  min-width: 320px;
+  max-width: 90vw;
+  background: #161a20;
+  border: 1px solid #2c333d;
+  border-radius: 10px;
+  padding: 22px 24px;
+}
+.overlay h2 {
+  margin: 0 0 14px;
+  font-size: 20px;
+  letter-spacing: 1px;
+}
+.overlay .bar {
+  height: 8px;
+  background: #2a3038;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.overlay .bar div {
+  height: 100%;
+  width: 0;
+  background: #f0a020;
+  transition: width 0.2s;
+}
+.overlay .status {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #8b95a3;
+}
+.overlay .menu {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.overlay button,
+.overlay select,
+.overlay a.btn {
+  font: inherit;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #333b46;
+  background: #222830;
+  color: #eee;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+}
+.overlay button:hover,
+.overlay button:focus-visible,
+.overlay a.btn:hover {
+  border-color: #f0a020;
+}
+.overlay label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: #aab3bf;
+}
+.overlay .yours {
+  margin: 8px 0 14px;
+  padding: 10px 14px 12px;
+  border-radius: 8px;
+  border: 2px solid #f0a020;
+  background: rgba(240, 160, 32, 0.1);
+}
+.overlay .yours .label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #f0a020;
+}
+.overlay .result {
+  font:
+    700 52px ui-monospace,
+    Consolas,
+    monospace;
+  margin: 2px 0 2px;
+}
+/* Stage results: a wide two-column window - your time + buttons left, the leaderboard (with set-up columns) right;
+   one column on narrow screens, scrolls when taller than the screen. */
+.overlay .box.results {
+  width: min(1180px, 94vw);
+  max-width: none;
+  max-height: 92vh;
+  overflow: auto;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  gap: 18px 24px;
+  align-items: start;
+  padding: 24px 26px;
+}
+.overlay .box.results .yours {
+  margin-top: 0;
+}
+.overlay .box.results .res-board .menu-board {
+  margin: 0;
+  min-width: 0;
+}
+/* The bigger window gets bigger rows: easier to read at a glance from the sofa / on a TV. */
+.overlay .box.results .menu-board table {
+  font-size: 15px;
+}
+.overlay .box.results .menu-board td {
+  padding: 6px 7px;
+}
+.overlay .box.results .menu-board td.set {
+  font-size: 13px;
+}
+.overlay .box.results .menu-board tr.sec td {
+  padding-top: 0;
+  padding-bottom: 6px;
+  font-size: 12px;
+}
+.overlay .box.results .menu-board tr.me:not(.sec) td {
+  font-size: 15px;
+}
+.overlay .box.results .menu-seg button {
+  padding: 9px 8px;
+  font-size: 14px;
+}
+.overlay .box.results .menu .btn,
+.overlay .box.results .menu button {
+  padding: 11px 14px;
+}
+@media (max-width: 860px) {
+  .overlay .box.results {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.overlay .sub {
+  color: #aab3bf;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.telemetry {
+  position: absolute;
+  left: 12px;
+  top: 90px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #cfe;
+  font:
+    11px/1.4 ui-monospace,
+    Consolas,
+    monospace;
+  padding: 8px 10px;
+  border-radius: 6px;
+  white-space: pre;
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* --- touch controls (touch-controls.ts) ------------------------------------ */
+.touch-controls {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+/* Hidden under the pause / results overlays (z-index 30) and while loading. */
+.touch-pad {
+  position: absolute;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: flex;
+  gap: 12px;
+  pointer-events: auto;
+  touch-action: none;
+}
+.touch-pad.left {
+  left: max(16px, env(safe-area-inset-left));
+}
+.touch-pad.right {
+  right: max(16px, env(safe-area-inset-right));
+  align-items: flex-end;
+}
+.touch-btn {
+  --size: clamp(64px, 13vmin + 20px, 120px);
+  width: var(--size);
+  height: var(--size);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(20, 24, 30, 0.42);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: calc(var(--size) * 0.32);
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  transition:
+    background 0.06s,
+    transform 0.06s;
+}
+.touch-btn.brake,
+.touch-btn.gas {
+  font-size: calc(var(--size) * 0.17);
+  border-radius: 18px;
+}
+.touch-btn.gas {
+  height: calc(var(--size) * 1.45);
+  border-color: rgba(120, 230, 120, 0.6);
+}
+.touch-btn.brake {
+  border-color: rgba(255, 110, 90, 0.6);
+}
+.touch-btn.on {
+  background: rgba(240, 160, 32, 0.55);
+  transform: scale(0.94);
+}
+.touch-pause {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  background: rgba(20, 24, 30, 0.42);
+  color: #fff;
+  font-size: 15px;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+/* Touch layout: the dash moves to the bottom centre (between the thumbs),
+   keyboard hints are hidden. */
+html.touch .hud-hints {
+  display: none;
+}
+html.touch .hud-dash {
+  right: auto;
+  left: 50%;
+  transform: translateX(-50%) scale(0.8);
+  transform-origin: bottom center;
+  bottom: max(8px, env(safe-area-inset-bottom));
+}
+html.touch,
+html.touch body {
+  overscroll-behavior: none;
+}
+html.touch canvas {
+  touch-action: none;
+}
+
+/* Mobile held in portrait (no orientation lock, e.g. iPad Safari): turn the
+   whole game 90° so it is landscape when the device is held sideways. */
+html.touch.force-landscape #root {
+  inset: auto;
+  top: 0;
+  left: 0;
+  width: 100vh;
+  height: 100vw;
+  width: 100dvh;
+  height: 100dvw;
+  transform-origin: top left;
+  transform: rotate(90deg) translateY(-100%);
+}
