@@ -29,8 +29,8 @@ For other content types follow the same pattern (`sources/<kind>/<folder>/`, mir
    **Car body model (STL / GLB / OBJ)?** Scan it right away - `python scripts/car-model/scan-mesh.py <file>` - and report the
    verdict (already split / real panel edges / blob) before anything else is built on it; a blob (image-to-3D, photo mesh) is
    documented in the DETAILS.md as rejected and not imported (`.claude/skills/rally-car-import/SKILL.md`, step 1).
-3. **Document** in the code folder's `DETAILS.md` (create it if missing - description of the car / map + file table):
-   - a "Sources - `sources/<kind>/<folder>/` (local only, not in git)" table: file, what it is, what it was used for;
+3. **Document** in the code folder's `DETAILS.md` (create it if missing; keep it short, see `AGENTS.md` "Write short" - a file table, not a story):
+   - a "Sources - `sources/<kind>/<folder>/` (local only, not in git)" table: file, what it is, what it was used for - one short row each;
    - credit-worthy links (model pages, data sets) also go in the def's `sources` (`CarDef` / `MapDef`) - shown on
      the main menu About screen;
    - a "Links" table: every URL the user gave (model page, photo source, map / data portal) with what it was used

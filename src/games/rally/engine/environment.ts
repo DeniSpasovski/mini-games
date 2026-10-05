@@ -20,6 +20,13 @@ import {
 } from 'three';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import type { EnvironmentDef } from '../maps/shared/types';
+import { getTexture } from './textures';
+import {
+  setFogBase,
+  setShadowBox,
+  setWorldShading,
+  setWorldTime,
+} from './world-shading';
 import { displayExposure, onDisplayChange } from './display';
 import type { QualitySettings } from './quality';
 
@@ -162,6 +169,18 @@ export class Environment {
       ACESFilmicToneMapping;
 
     this.scene.fog = new FogExp2(new Color(def.fogColor), def.fogDensity);
+    // Cloud shadows, height fog + sun glow, foliage wind (engine/world-shading.ts).
+    setWorldShading({
+      sunDir: this.sunDir,
+      sunColor: this.sun.color,
+      cloudShadow: def.cloudShadow ?? 0.5,
+      cloudCoverage: def.cloudCoverage ?? 0.4,
+      cloudSpeed: def.cloudSpeed ?? 1,
+      wind: def.wind ?? 1,
+      fogSunGlow: def.fogSunGlow ?? 0.45,
+      fogFalloff: def.fogFalloff ?? 0.004,
+      macro: getTexture('macro'),
+    });
     this.refreshExposure();
     this.rebuildEnvMap();
   }
@@ -219,6 +238,7 @@ export class Environment {
    * in front of `focus`) and is snapped to shadow-map texels in light space, so its edges don't crawl while driving.
    */
   update(focus: Vector3, forward?: Vector3): void {
+    setFogBase(focus.y);
     const c = this.center.copy(focus);
     if (forward) {
       const l = Math.hypot(forward.x, forward.z);
@@ -234,6 +254,7 @@ export class Environment {
       c.addScaledVector(axis, Math.round(a / texel) * texel - a);
     }
     this.target.position.copy(c);
+    setShadowBox(c.x, c.z, this.shadowExtent);
     this.sun.position.copy(c).addScaledVector(this.sunDir, 300);
     this.sun.updateMatrixWorld();
     this.target.updateMatrixWorld();
@@ -242,6 +263,7 @@ export class Environment {
   /** Move the sky dome with the camera so it never clips; drift the clouds. */
   follow(cameraPos: Vector3): void {
     this.sky.position.copy(cameraPos);
+    setWorldTime((performance.now() - this.t0) / 1000);
     this.sky.material.uniforms.time.value =
       ((performance.now() - this.t0) / 1000) * (this.def.cloudSpeed ?? 1);
   }

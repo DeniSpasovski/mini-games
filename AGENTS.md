@@ -37,8 +37,8 @@ visible and redistributable by anyone, so treat every file as published.
 ## Documentation structure
 
 Every level has a short **`README.md`** (rendered by GitHub: what it is, 1-4 in-game screenshots, how to run, credits and
-licence summary, links to deeper docs) and a sibling **`DETAILS.md`** with everything else (architecture, flows, URLs, build
-notes, every source link, measured numbers). Keep READMEs high level - move detail into `DETAILS.md`, never the other way round.
+licence summary, links to deeper docs) and a sibling **`DETAILS.md`** with everything else (architecture, flows, URLs, short build
+notes, source links). Keep READMEs high level - move detail into `DETAILS.md`, never the other way round.
 
 | Level                         | `README.md` (high level)                                 | `DETAILS.md` / other docs                                                                                                      |
 | ----------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
@@ -46,6 +46,21 @@ notes, every source link, measured numbers). Keep READMEs high level - move deta
 | `src/games/<id>/`             | game overview, screenshots, stages / cars tables         | rules, flows, architecture, debug tools; `TASKS.md` (open work); rally: `PHYSICS.md`; hole: `TOY-STORE.md`, `ANIMAL-ISLAND.md` |
 | `src/games/rally/maps/<id>/`  | route, screenshots, data credits + licences              | every source link, bake notes, reference images; `TODO.md` (open work)                                                         |
 | `src/games/rally/cars/<car>/` | description, screenshots, credits + licence              | build notes, rebuild commands, every source; `TODO.md` where present                                                           |
+
+**Write short.** Docs describe how things work NOW, for someone who has not seen the session; they are not a diary.
+
+- **Size:** a README fits one screen or two (about 60 lines max). A `DETAILS.md` is a reference, not a log: when it grows past a
+  few hundred lines, condense it instead of appending.
+- **Say it once:** one fact lives in one place; link to it, do not copy it. Name the code (file, function, setting) instead of
+  retelling what the code does.
+- **Keep:** what it is, how to use it, how it is wired, the rules that must not be broken, and the reason behind a non-obvious
+  decision (one sentence).
+- **Leave out:** history ("was X before", "round 4", dated passes - git has it), tuning trial-and-error, bench logs, numbers that
+  rot (frame times, triangle counts, per-map tweaks), trivia, and anything the code or a test already states.
+- **Shape:** lead with the point, use bullets and tables, short sentences, no filler or hedging; 1-2 lines per bullet.
+- **Open work** goes in `TASKS.md` / `TODO.md` as short checkboxes; when finished, delete the item and, only if it changed how
+  things work, add a line to the matching doc.
+- When you touch a doc, also trim what you pass: stale, repeated or diary-style text goes.
 
 - **Screenshots** live in a `screenshots/` folder next to the README that shows them: taken in game (car / map viewer or the game
   page), 16:9 jpg, about 1280-1536 px wide, no debug panels. Retake them when a car, map or the look changes visibly.
@@ -96,7 +111,7 @@ notes, every source link, measured numbers). Keep READMEs high level - move deta
 - Rally release flags: `src/games/rally/release.ts` tracks every car / map id - `AVAILABLE_CARS` / `AVAILABLE_MAPS` ship in the published build, `TEST_CARS` / `TEST_MAPS` are dev server only (TEST badge). A new car / map goes into `TEST_*` first.
 - Game versions: `version` in `src/games/<id>/game.json` (semver, every game stays at `0.x.y`), shown on the game's main menu and About screen. Minor = a new feature, patch = a small fix. Do NOT bump it on your own - only when the user says we are making a build; then bump per feature / fix since the last build.
 - Rally: NEVER bump `TIMES_VERSION` in `src/games/rally/game/stage.ts` on your own - saved times are the owner's way to compare changes and players do not care. When physics / handling / time penalties / a map's road change enough that times are no longer comparable, only mention it; bump (which erases saved times) only when the user explicitly says so.
-- Hole Island: when scoring logic changes (item points / tiers, clear bonus, difficulty times, map content), bump `SCORING_VERSION` in `src/games/hole/game/scores.ts` so saved high scores are erased.
+- Hole Island: when scoring logic changes (item points / tiers, clear bonus, difficulty times, map content), bump that map's number in `MAP_SCORING_VERSIONS` (`src/games/hole/game/scores.ts`; shared rules in `sim/` = every map) so its saved high scores are erased. Each map is wiped on its own.
 
 ## Docs
 

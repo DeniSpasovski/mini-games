@@ -1,4 +1,6 @@
 import { MathUtils, Scene, Vector2, Vector3, type Object3D } from 'three';
+import { seconds, track, type EventParams } from '../../../shared/analytics';
+import gameManifest from '../game.json';
 import { MAPS, getMapDef, type MapDef } from '../map/registry';
 import { pickStart } from '../map/start';
 import type { MapData } from '../map/types';
@@ -40,6 +42,7 @@ import {
   purgeStaleScores,
   recordScore,
   type ScoreEntry,
+  MAP_SCORING_VERSIONS,
 } from './scores';
 import { loadSettings, saveSettings, type HoleSettings } from './settings';
 import { defaultStorage } from './storage';
@@ -202,8 +205,14 @@ export class HoleGame {
         saveSettings(this.store, this.settings);
       },
       onResume: () => this.resume(),
-      onRestart: () => this.startRun(this.difficulty),
-      onMainMenu: () => this.toMenu(),
+      onRestart: () => {
+        this.trackQuit('restart');
+        this.startRun(this.difficulty);
+      },
+      onMainMenu: () => {
+        this.trackQuit('menu');
+        this.toMenu();
+      },
       onAgain: () => this.startRun(this.difficulty),
       onClick: () => this.sfx.click(),
       onPreview: (on) => (this.previewHole = on),
@@ -293,6 +302,7 @@ export class HoleGame {
     this.rig.snap();
     this.updateRig(0);
     this.state = 'countdown';
+    if (this.ranked()) track('level_start', this.runParams());
     this.countT = 0;
     this.lastCount = -1;
     this.acc = 0;
@@ -326,6 +336,43 @@ export class HoleGame {
     this.menu.welcome();
   }
 
+  /** Dev runs (custom time / start level / bot) are not ranked and not tracked. */
+  private ranked(): boolean {
+    return (
+      this.params.get('time') === null &&
+      this.params.get('level') === null &&
+      this.params.get('bot') !== '1'
+    );
+  }
+
+  /** Shared GA params of a run (see src/shared/analytics.ts, DETAILS.md "Analytics"). */
+  private runParams(): EventParams {
+    const map = this.mapDef.id;
+    return {
+      game: 'hole',
+      level_name: map,
+      difficulty: this.difficulty.id,
+      seed: this.mapDef.seeded ? this.settings.seed : undefined,
+      layout: this.mapDef.layouts?.length ? this.settings.layout : undefined,
+      game_version: gameManifest.version,
+      scoring_version: MAP_SCORING_VERSIONS[map],
+    };
+  }
+
+  /** GA `level_end` with success=false when a run is left from the pause menu. */
+  private trackQuit(reason: string): void {
+    if (!this.ranked() || this.sim.over) return;
+    if (this.state !== 'paused' && this.state !== 'playing') return;
+    track('level_end', {
+      ...this.runParams(),
+      success: false,
+      reason,
+      time_s: seconds(this.sim.time),
+      score: this.sim.score,
+      hole_level: this.sim.hole.level,
+    });
+  }
+
   private finishRun(): void {
     const sim = this.sim;
     this.state = 'results';
@@ -339,11 +386,25 @@ export class HoleGame {
       color: this.settings.color,
       date: Date.now(),
     };
-    // dev runs (custom time / start level / bot) are not ranked
-    const ranked =
-      this.params.get('time') === null &&
-      this.params.get('level') === null &&
-      this.params.get('bot') !== '1';
+    const ranked = this.ranked();
+    if (ranked) {
+      const params = this.runParams();
+      track('level_end', {
+        ...params,
+        success: true,
+        cleared: sim.cleared,
+        score: entry.score,
+        hole_level: entry.level,
+        items_eaten: entry.eaten,
+        pct_eaten: Math.round(entry.pct * 100),
+      });
+      track('post_score', {
+        ...params,
+        score: entry.score,
+        level: entry.level,
+        character: this.settings.color,
+      });
+    }
     const res = ranked
       ? recordScore(this.store, this.mapDef.id, this.difficulty.id, entry)
       : {

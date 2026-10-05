@@ -8,6 +8,7 @@ import {
 import { getTexture } from '../engine/textures';
 import { CROSS_LEN, KERB_H, KERB_W } from './street-detail';
 import type { World } from './world';
+import { GroundTerrain } from './heightfield';
 
 /**
  * Kerbs + sidewalks along the streets near the stage road and zebra crosswalks at their junctions
@@ -38,7 +39,8 @@ export function* streetDetailMeshJob(
   const detail = world.streetDetail;
   if (!cfg || !net || !detail) return undefined;
   const W = cfg.sidewalk ?? 1.5;
-  const hf = world.analytic;
+  // The ground, not the top surface: a street under a stage-road bridge stays down in its underpass.
+  const hf = new GroundTerrain(world.gen);
   const tiles = new Map<string, Acc>();
   const tileOf = (x: number, z: number): Acc => {
     const k = `${Math.floor(x / TILE)},${Math.floor(z / TILE)}`;
@@ -111,9 +113,12 @@ export function* streetDetailMeshJob(
           acc.uv.push(r.d / 3, o / 3);
         }
       }
+      // Front faces up / outward on both sides (the material is double sided: a back face gets its normal flipped
+      // and the right-hand sidewalk of every street rendered black).
       for (let i = 0; i < rows.length - 1; i++) {
         const q = v0 + i * 2;
-        acc.idx.push(q, q + 2, q + 3, q, q + 3, q + 1);
+        if (run.side > 0) acc.idx.push(q, q + 2, q + 3, q, q + 3, q + 1);
+        else acc.idx.push(q, q + 3, q + 2, q, q + 1, q + 3);
       }
     }
     if (++n % 40 === 0) yield;

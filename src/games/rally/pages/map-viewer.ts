@@ -17,6 +17,7 @@ import {
   Vector3,
 } from 'three';
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
+import { track } from '../../../shared/analytics';
 import { CAMERA_LINK_DEFAULTS, ViewerShell } from '../debug/viewer-shell';
 import { DEFAULT_MAP, getMap, MAPS } from '../maps';
 import { isTestMap, listLabel, TEST_NOTE } from '../release';
@@ -56,6 +57,10 @@ const DEFAULTS = {
 };
 const state = readUrlState(DEFAULTS);
 const sync = (push = false) => writeUrlState(state, DEFAULTS, push);
+track('select_content', {
+  content_type: 'rally_map_viewer',
+  content_id: state.map,
+});
 
 const map = getMap(state.map);
 const b = map.bounds;

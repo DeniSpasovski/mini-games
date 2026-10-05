@@ -1,5 +1,6 @@
 import type { PathDef } from '../maps/shared/types';
 import { newRoadQuery, type Road } from './road';
+import { CUT_RISE, CUT_SETBACK, UNDERPASS_WALL } from './terrain-gen';
 
 /**
  * Structures over the stage road. OSM tags a parkway that runs under a street as `layer=-1` on the
@@ -404,7 +405,7 @@ export function trimMergingDecks(paths: PathDef[]): PathDef[] {
 /** A carriageway deck beside the stage road is aligned to its span when it lies within this lateral reach (m). */
 const ALIGN_LATERAL = 30;
 /** ... and its ends may move at most this far along the road (m). */
-const ALIGN_MAX_SHIFT = 25;
+const ALIGN_MAX_SHIFT = 45;
 
 /** Metres of polyline `pts`. */
 function polyLength(pts: number[]): number {
@@ -478,7 +479,6 @@ export function alignParallelDecks(paths: PathDef[], road: Road): PathDef[] {
     const shift0 = Math.abs(f[0] - tStart);
     const shift1 = Math.abs(f[f.length - 1] - tEnd);
     if (shift0 > ALIGN_MAX_SHIFT || shift1 > ALIGN_MAX_SHIFT) return;
-    if (shift0 < 0.5 && shift1 < 0.5) return;
     // Arc positions of the targets on the deck (nearest sample), or beyond its ends (negative / > L).
     const arc = (target: number, atEnd: boolean): number => {
       const sign = inc ? 1 : -1;
@@ -493,9 +493,64 @@ export function alignParallelDecks(paths: PathDef[], road: Road): PathDef[] {
       }
       return bi;
     };
-    const a0 = arc(tStart, false);
-    const a1 = arc(tEnd, true);
+    let a0 = arc(tStart, false);
+    let a1 = arc(tEnd, true);
+    // A street crossing at a skew passes under this carriageway at another place along the road than under the
+    // stage road: the deck must cover it too (+ its trench walls, across the deck's whole width), else the carriageway's
+    // ground sits on top of the street (the B2 rock face). Crossings within 25 m beyond either end count.
+    {
+      const [sx0, sz0, sdx0, sdz0] = polyAt(p.pts, 0);
+      const [ex0, ez0, edx0, edz0] = polyAt(p.pts, L);
+      const ext = [
+        sx0 - sdx0 * 25,
+        sz0 - sdz0 * 25,
+        ...p.pts,
+        ex0 + edx0 * 25,
+        ez0 + edz0 * 25,
+      ];
+      const segs: [number, number, number, number, number][] = []; // ax, az, bx, bz, arc at a (from -25)
+      let acc = -25;
+      for (let k = 0; k + 3 < ext.length; k += 2) {
+        const l = Math.hypot(ext[k + 2] - ext[k], ext[k + 3] - ext[k + 1]);
+        segs.push([ext[k], ext[k + 1], ext[k + 2], ext[k + 3], acc]);
+        acc += l;
+      }
+      for (const q of paths) {
+        if (q.bridge || q.surface !== 'tarmac' || !STREET_KINDS.has(q.kind))
+          continue;
+        for (let k = 0; k + 3 < q.pts.length; k += 2) {
+          const qx = q.pts[k];
+          const qz = q.pts[k + 1];
+          const rx = q.pts[k + 2] - qx;
+          const rz = q.pts[k + 3] - qz;
+          const rl = Math.hypot(rx, rz) || 1;
+          for (const [ax, az, bx, bz, arc0] of segs) {
+            const dx = bx - ax;
+            const dz = bz - az;
+            const dl = Math.hypot(dx, dz) || 1;
+            const den = dx * rz - dz * rx;
+            if (Math.abs(den) < 1e-9) continue;
+            const t = ((qx - ax) * rz - (qz - az) * rx) / den;
+            const u = ((qx - ax) * dz - (qz - az) * dx) / den;
+            if (t < 0 || t > 1 || u < 0 || u > 1) continue;
+            const sin = Math.abs(den) / (dl * rl);
+            if (sin < 0.5) continue; // running along, not crossing
+            const at = arc0 + t * dl;
+            // The trench (street + walls + the sheer step behind them) along the deck's centre line, plus the shift of
+            // its edges across the deck's own half width at this skew.
+            const cos = Math.sqrt(1 - sin * sin);
+            const need =
+              (q.width / 2 + UNDERPASS_WALL + CUT_SETBACK + CUT_RISE) / sin +
+              ((p.width / 2) * cos) / sin +
+              2;
+            if (at - need < a0) a0 = Math.max(-25, at - need);
+            if (at + need > a1) a1 = Math.min(L + 25, at + need);
+          }
+        }
+      }
+    }
     if (a1 - a0 < 6) return;
+    if (Math.abs(a0) < 0.5 && Math.abs(a1 - L) < 0.5) return; // already aligned
     // Deck polyline: [a0, a1] clamped to the deck, extended along the end tangents where the target is outside.
     const c0 = Math.max(0, a0);
     const c1 = Math.min(L, a1);
@@ -503,8 +558,46 @@ export function alignParallelDecks(paths: PathDef[], road: Road): PathDef[] {
     let pts = deck.slice();
     const [sx, sz, sdx, sdz] = polyAt(p.pts, 0);
     const [ex, ez, edx, edz] = polyAt(p.pts, L);
-    if (a0 < 0) pts = [sx + sdx * a0, sz + sdz * a0, ...pts];
-    if (a1 > L) pts = [...pts, ex + edx * (a1 - L), ez + edz * (a1 - L)];
+    // A grown end takes over the first metres of the ground way that continues it (its own line: a straight
+    // tangent stood up to 1 m beside the lane it joins); with no such way, along the end tangent.
+    const takeOver = (
+      ox: number,
+      oz: number,
+      grow: number,
+    ): number[] | undefined => {
+      for (const [qi, q] of paths.entries()) {
+        if (qi === pi || q.bridge || q.kind !== p.kind) continue;
+        const cur = ptsOf(qi);
+        const n = cur.length;
+        for (const qEnd of [false, true]) {
+          const x = qEnd ? cur[n - 2] : cur[0];
+          const z = qEnd ? cur[n - 1] : cur[1];
+          if (Math.hypot(x - ox, z - oz) > 2.5) continue;
+          const QL = polyLength(cur);
+          if (QL < grow + 3) continue;
+          const piece = splitAt(cur, qEnd ? QL - grow : 0, qEnd ? QL : grow)[1];
+          if (!qEnd) return piece; // from the joint outward
+          const rev: number[] = [];
+          for (let k = piece.length - 2; k >= 0; k -= 2)
+            rev.push(piece[k], piece[k + 1]);
+          return rev;
+        }
+      }
+      return undefined;
+    };
+    if (a0 < 0) {
+      const t = takeOver(sx, sz, -a0);
+      const head: number[] = [];
+      if (t)
+        for (let k = t.length - 2; k >= 2; k -= 2) head.push(t[k], t[k + 1]);
+      pts = t ? [...head, ...pts] : [sx + sdx * a0, sz + sdz * a0, ...pts];
+    }
+    if (a1 > L) {
+      const t = takeOver(ex, ez, a1 - L);
+      pts = t
+        ? [...pts, ...t.slice(2)]
+        : [...pts, ex + edx * (a1 - L), ez + edz * (a1 - L)];
+    }
     // Pieces cut off the deck stay as ground carriageway.
     const ground = (g: number[]) => {
       const q: PathDef = { ...p, pts: g };

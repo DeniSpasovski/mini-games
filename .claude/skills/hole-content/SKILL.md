@@ -36,7 +36,7 @@ so bump that map's scoring version (below).
 5. **Place it.** City: add its `SPAWN` row in `map/spawn.ts` (zones its centre may be in; only vehicles may list `road`, see
    DETAILS.md "Map generation rules") and a placement in `map/generate.ts` through `tryPut` / `spotFor`. Toy: it is picked up automatically by the zone of its department
    (`homeOf` in `map/toy/generate.ts`); anything with size > 14.5 m homes in the atrium. Check `map-viewer.html?map=toy`.
-6. **Docs + scores.** Update the DETAILS.md / `TOY-STORE.md` roster row. Bump the scoring version of the map (below).
+6. **Docs + scores.** Update the DETAILS.md / `TOY-STORE.md` roster row (one row, no prose). Bump the scoring version of the map (below).
 
 ## Add an animal / scenery item (Animal Island)
 

@@ -20,7 +20,10 @@ Rules (performance — late-2000s look must not lag):
 - Use `engine/geo.ts` (`paint`, `merge`, `shade`, `foliageNormals`, UV helpers): non-indexed, vertex-coloured,
   merged into as FEW parts as possible. Each part = 1 draw call per (variant, LOD).
 - Materials ONLY from `engine/materials.ts` (`getMaterial(id)`); add a new id there if needed. Never `new Material`
-  inside a builder.
+  inside a builder. Foliage materials carry `defines` for the world shading (`engine/world-shading.ts`):
+  `RALLY_WIND` (sway, bends ~ height² above the asset origin - keep origins at ground level), `RALLY_FOLIAGE`
+  (backlight glow), `RALLY_GROUND` (receives the far canopy shadows). A material with its own `onBeforeCompile` must
+  call `addWorldUniforms(shader)`.
 - Budget guide: tree LOD0 < 1k tris, LOD1 < 250, LOD2 < 50. Far LODs must not cast shadows.
 - Front of props faces +Z, origin at ground level.
 - Alpha grass cards: `foliage_card` (olive green) / `foliage_card_spring` (bright green) / `foliage_card_dry`

@@ -141,6 +141,8 @@ const CAP: Record<string, number> = {
   elephant_big: 4,
   beetle_big: 6,
   gorilla_big: 6,
+  panda_big: 5,
+  tiger_big: 5,
   tortoise_big: 6,
   ant_big: 18,
   rabbit_big: 8,
@@ -886,9 +888,17 @@ function buildCompound(c: Ctx): void {
         ['tortoise_big', 2],
         ['gorilla_big', 2],
         ['beetle_big', 2],
+        ['panda_big', 2],
       ],
     },
-    { lz0: 40, lz1: 64, ids: [['elephant_big', 2]] },
+    {
+      lz0: 40,
+      lz1: 64,
+      ids: [
+        ['elephant_big', 2],
+        ['tiger_big', 2],
+      ],
+    },
   ];
   const zstep = 5.5 / comp.k;
   for (const pen of pens) {

@@ -2,42 +2,30 @@ import { DIFFICULTIES } from '../sim/progression';
 import type { KV } from './storage';
 
 /**
- * Version of the scoring rules the saved high scores were earned under.
+ * Scoring version per map: the rules its saved high scores were earned under.
  *
- * BUMP THIS whenever scoring changes, so old scores are erased (they would no
- * longer be comparable): item points / size tiers (items/catalog.ts,
- * sim/progression.ts), the clear bonus, the difficulty times, the amount of
- * content on the map (map/generate.ts) or how a run is scored (sim/sim.ts).
- * On every game start `purgeStaleScores` compares it with the version stored in
- * `hole.scores.version` and wipes all top-10 lists when they differ.
+ * On every game start `purgeStaleScores` compares each map's number with the one stored next to its
+ * lists and erases ONLY that map's top-10 lists when they differ. Bump a map when ITS scoring changes:
+ * item points / sizes, point total, map content (its generator), difficulty times or the clear bonus.
+ * A shared rule (`sim/progression.ts`, `sim/sim.ts`, the clear bonus) changes every map: bump them all.
  *
- * History: 1 = first release (unversioned lists); 2 = 15 hole levels, hole
- * 20 % bigger, Easy 500 s, clear bonus 2 points per second.
- * 3 = every map holds exactly 25000 points (10 x 10 tiles x 250), 10 x 10 grid.
- * 4 = 25 hole levels (levels 16-25 only grow the hole, +XP to level up).
- * 5 = City Island holds 30000 points (10 x 10 tiles x 300) and items only spawn on their own
- *     ground (map/spawn.ts), so the map content changed.
- * 6 = City Island rework: a real harbour bay with headlands, more coast features, warped district rings
- *     plus a commercial avenue, a traffic light / street sign on every crossing corner (every seed changed).
- * 7 = a canal along one road line (rowboats on it), every run starts at a random spot.
- * 8 = clear bonus 10 points per second left (was 2); every map bumped.
- */
-export const SCORING_VERSION = 8;
-/**
- * Scoring version per map. City Island keeps `SCORING_VERSION` (and the original storage key), so
- * adding a map never erases another map's lists. Bump a map's number when ITS scoring changes
- * (for the toy store: toy item dimensions / points, `map/toy/*`, the clear bonus, difficulty times).
+ * City history: 1 = first release (unversioned lists); 2 = 15 hole levels, hole 20 % bigger, Easy 500 s,
+ *   clear bonus 2 points per second; 3 = exactly 25000 points, 10 x 10 grid; 4 = 25 hole levels;
+ *   5 = 30000 points, items spawn on their own ground; 6 = harbour bay, coast features, district rings,
+ *   commercial avenue, traffic lights / street signs; 7 = canal with rowboats, random start;
+ *   8 = clear bonus 10 points per second.
  * Toy history: 1 = first release (25000 points, 600 x 400 m Grand Hall); 2 = 25 hole levels;
- * 3 = Layout A atrium spread out as a hall with Ferris wheel / carousel pairs (map content changed);
- * Animal history: 1 = first release (21000 points, moving animals, 37 giants, secret zoo + lab).
- * 4 = Plush Meadow thinned (shares of layouts A / B), whale and penguin plush stocked in the Splash Zone, random start.
- * 5 = clear bonus 10 points per second left (shared rule, every map bumped; animal 2).
+ *   3 = Layout A atrium as a hall with Ferris wheel / carousel pairs; 4 = Plush Meadow thinned, whale and
+ *   penguin plush in the Splash Zone, random start; 5 = clear bonus 10 points per second.
+ * Animal history: 1 = first release (21000 points, moving animals, 37 giants, secret zoo + lab);
+ *   2 = clear bonus 10 points per second; 3 = panda_big + tiger_big.
  */
 export const MAP_SCORING_VERSIONS: Record<string, number> = {
-  city: SCORING_VERSION,
+  city: 8,
   toy: 5,
-  animal: 2,
+  animal: 3,
 };
+/** City Island keeps the original (pre-multi-map) storage key, so its old lists stay valid. */
 const versionKey = (map: string) =>
   map === 'city' ? 'hole.scores.version' : `hole.scores.version.${map}`;
 /** Maps that have score lists (see scoreKey). */
@@ -111,9 +99,9 @@ export function bestScore(store: KV, map: string, difficulty: string): number {
 }
 
 /**
- * Erase every saved top-10 list when they were saved under another
- * `SCORING_VERSION` (or before versions existed). Returns true when it wiped.
- * Call once when the game opens.
+ * Per map: erase that map's top-10 lists when they were saved under another
+ * `MAP_SCORING_VERSIONS` number (or before versions existed). Other maps are
+ * untouched. Returns true when anything was wiped. Call once when the game opens.
  */
 export function purgeStaleScores(store: KV): boolean {
   let wiped = false;

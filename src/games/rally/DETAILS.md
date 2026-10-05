@@ -23,27 +23,23 @@ tyre, the matching set-up, the map's gearing) and `spawn` (`start`, a flat-area 
 metres along the road = free drive from there: no clock, never ranked). Any of these skips the menu.
 `?display=auto|sdr|hdr` (every page) lowers the tone-mapping exposure on HDR monitors, where sunlit white paint would glare.
 Look experiments (every page): `?tod=<hours>` sets the time of day on maps that use `environment.timeOfDay` (e.g. `tod=7.5`
-low morning sun in the east, `tod=12` noon, `tod=17` low evening sun in the west), `?tonemap=aces|agx|neutral` swaps the
-tone-mapping operator.
+low morning sun, `tod=17` evening) and `?tonemap=aces|agx|neutral` swaps the tone-mapping operator.
 
-### Look (engine/environment.ts)
+### Look (`engine/environment.ts`, `engine/world-shading.ts`)
 
-- **Sun:** `environment.timeOfDay` (hours) places the sun on a simple path (`sunAt`: east at 6, south at 12 at 58 deg,
-  west at 18) - lower = warmer and dimmer; `sunColor` / `sunIntensity` override. Maps without it use `sunElevation` /
-  `sunAzimuth`. Petralica 16:30 (WSW, ~22 deg), Ajvatovci 7:30 (east, ~22 deg - the stage drives towards it), Jackie 8:00.
-  A lower sun puts less light on flat ground: raise the map `exposure` with it (Petralica 0.95, Ajvatovci 0.88).
-- **Fill:** hemisphere light with a cool sky colour (`fillSky`, default `#9fb8e6`: blue-ish shadows) and a warm ground
-  bounce from the map's `groundTint`; `fillIntensity` (0.26), `envIntensity` (IBL, 0.3).
-- **Env map:** PMREM of the sky (with its clouds) over a ground disc in the map's ground colour, so paint / glass / water
-  reflect earth below the horizon.
-- **Shadows:** one shadow map whose box sits half a box AHEAD of the camera (`Environment.update(focus, forward)`), snapped
-  to texels in light space (no crawling edges while driving).
-- **Clouds:** the sky's clouds drift (`cloudSpeed`, default 1) with `cloudCoverage` / `cloudDensity` per map (0.4 / 0.4).
-- **Tone mapping:** ACES by default, `environment.toneMapping: 'agx' | 'neutral'` per map (Neutral keeps the most colour and
-  contrast, AgX is the flattest).
-- **Grass cards:** alpha-to-coverage when MSAA is on (`setFoliageAntialias`, medium / high): smooth card edges, same cost.
-- **Car:** a soft contact shadow under the body (`game/contact-shadow.ts`, one draw call, fades in the air) and brake lights
-  (`CarModel.setBrake`, from the brake pedal; lamp materials marked `userData.brakeLamp` = idle / braking glow, cloned per car).
+Per-map settings live in `MapDef.environment`; everything below has a sensible default.
+
+- **Light:** the sun follows `timeOfDay` (or `sunElevation` / `sunAzimuth`); a lower sun is warmer and dimmer, so raise `exposure`
+  with it. A cool sky-coloured hemisphere fill with a warm ground bounce keeps shadows blue-ish, and a PMREM of the sky over a
+  ground disc gives paint, glass and water something to reflect.
+- **Shadows:** one shadow map that sits ahead of the camera and snaps to texels, so edges do not crawl while driving.
+- **Sky and tone mapping:** drifting clouds (`cloudCoverage`, `cloudSpeed`); ACES by default, `toneMapping: 'agx' | 'neutral'` per map.
+- **World shading** (installed on import; tune live with `__worldShading`): cloud shadows drifting over the ground, a top-down
+  **canopy shadow** texture so woods stay dark outside the shadow-map box (`world/canopy-shadows.ts`), height fog that warms
+  towards the sun, wind on trees and grass, and leaf translucency when backlit. Custom shaders call `addWorldUniforms(shader)`.
+- **Surfaces:** roads, rocks and terrain use bump relief (off on low quality); grass cards use alpha-to-coverage when MSAA is on.
+- **Effects:** wheel dust, gravel spray and hanging dust clouds (`game/dust.ts`), tyre marks (`game/tyre-marks.ts`: ruts on loose
+  ground, rubber on hard ground when sliding), a soft contact shadow under the car, and brake lights.
 
 ### Controls
 
@@ -60,18 +56,18 @@ tone-mapping operator.
 - **Main menu:** welcome (Start rally / Options / About) -> **select stage** (aerial 3D render of the map with the stage ribbon,
   length, splits, best time) -> **select car** (specs, livery, best time) -> **Start stage** with the recommended tyres and
   set-up, or the optional **Setup car** screen. The selected car stands in a 3D showroom behind the panel (`game/showroom.ts`).
-  Map renders are cached per map and warmed up in the background; very large maps (over `LARGE_MAP_AREA`, 8 km²) get a cheap
-  top-down "map card" instead of the full scene.
+  The stage view orbits the stage: large maps show a pre-baked stage card (`tools/stage-card.ts`, baked with
+  `/games/rally/?bakecard=<id>` on the dev server - only when the user asks), small maps are built live.
 - **Options** (main and pause menu, `game/menu.ts`): quality, object distance, volume, gearbox auto / manual, traction assist, car number (1-99,
   shown on the door plates), start camera. Stored in localStorage (`game/settings.ts`).
 - **Pause** (`Esc`): resume, restart, free-drive pad <-> stage, options, main menu.
 - **About:** every external resource with links, per map (`MapDef.sources`) and per car (`CarDef.sources`), plus the game version
   (`version` in `game.json`).
-- **Time penalties:** manual reset +2 s, forced off-stage reset +5 s, +10 s per knocked-over marker post (`game/stage.ts`),
-  added to the stage time.
+- **Time penalties:** manual reset +2 s, forced off-stage reset +5 s (`game/stage.ts`),
+  added to the stage time. Knocked-over marker posts cost nothing.
 - **Breakable props** (catalog `breakable`, so far `marker_post`): no collider, the car drives over them; the post tips over
   in the push direction, slides a little and lies on the ground until the stage restarts (`world/breakables.ts`, drawn by
-  patching its slot in `InstanceStreamer.setMatrix`). The penalty only counts while the stage clock runs.
+  patching its slot in `InstanceStreamer.setMatrix`). No time penalty.
 - **Results and top 10:** your time with the delta to the best run and sector chips, then a top 10 for the stage (all cars / this
   car) with tyres, suspension and gearing per run. Times are stored per map in localStorage (`rally.times.<map>`).
   **Times are versioned:** when physics, penalties or a map's road change enough that times are no longer comparable, bump
@@ -181,8 +177,8 @@ assets/
   library.ts      id -> builder, cached shared geometry per (id, variant, lod)
 release.ts      AVAILABLE_* / TEST_* lists
 cars/           index.ts = registry; <car>/ = one folder per car; shared/ = body, parts, tyres, suspension, livery, door plate
-engine/         renderer, quality presets, sky / sun / fog / IBL, textures, materials
-game/           rally-game.ts (frame loop), input, camera, stage timing, HUD, dust, audio, autopilot, menu.ts, showroom.ts
+engine/         renderer, quality presets, sky / sun / fog / IBL, world-shading (clouds, canopy, fog, wind), textures, materials
+game/           rally-game.ts (frame loop), input, camera, stage timing, HUD, dust / gravel / haze, tyre marks, audio, autopilot, menu.ts, showroom.ts
 maps/           one folder per map, shared/ (format + helpers), index.ts registry
 debug/          shared shell of the tool pages
 pages/          entry points listed in game.json
@@ -253,6 +249,6 @@ line appears at GO for a poor pick, and `F2` shows tyre, set-up and per-wheel gr
 - Chevrons are drive-through, not solid (marker posts are breakable, see Time penalties).
 - Generation runs on the main thread (time-sliced). Very large maps would need a Web Worker for heightfield and scatter
   generation, merged far terrain chunks and per-chunk instance culling.
-- Not done: tyre relaxation length, skid marks, gravel spray, co-driver pace notes, car damage.
+- Not done: tyre relaxation length, co-driver pace notes, car damage.
 - Real-world maps: map data is not lazy-loaded yet, and a bare-earth DEM would help where the elevation model includes trees.
 - Asset and car art is procedural or converted from open models; use the car and asset viewers to iterate.

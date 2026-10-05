@@ -11,7 +11,7 @@ A map is pure data: one folder per map, `src/games/rally/maps/<id>/map.ts` expor
 (format in `maps/shared/types.ts`; helpers shared by maps in `maps/shared/`), registered in `maps/index.ts`.
 Map-specific files (baked `data.json`, `TODO.md`, later textures / props) live in the map's folder.
 Every map folder has a `DETAILS.md` tracking ALL external links / files used (route links, data sources +
-licences / citations, downloaded files, reference screenshots) - add a row whenever you use a new source. Public-facing
+licences / citations, downloaded files, reference screenshots) - add one short row whenever you use a new source (no prose; `AGENTS.md` "Write short"). Public-facing
 sources (data sets, route links) also go in `MapDef.sources` (label / url / note) - listed on the main menu About screen. Everything (heightfield, road carving, trees, colliders) is
 generated deterministically from it. There is no map editor on purpose — edit the data.
 
@@ -26,7 +26,8 @@ generated deterministically from it. There is no map editor on purpose — edit 
   - Keep consecutive points 30-80 m apart; tight hairpins need 3-4 points ~25-35 m apart.
   - The road must not cross itself or come within ~50 m of another part (terrain carving blends to the nearest road).
   - Crest / jump: three close points (~15 m apart) with `dy` 0 -> 1.5..2 -> 0 (see test map #16-18).
-- Height: the road follows terrain smoothed over `smoothing` m, clamped to `maxGrade` (0.11 = 11%), then `dy` is added.
+- Height: the road follows terrain smoothed over `smoothing` m, clamped to `maxGrade` (0.11 = 11%), the grade changes rounded over
+  `gradeSmoothing` m (default 12; fast stages need ~50 or a +7/-7 % kink launches the car), then `dy` is added.
 - Cross-section: `width`, `shoulder` (loose verge), `ditch`, `crown`.
 - Surface changes along the stage: `road.sections: [{ from: <metres along>, surface, texture }]` (applies until the
   next entry; `road.surface` / `texture` are used before the first). E.g. asphalt valley road -> gravel climb
@@ -59,6 +60,10 @@ generated deterministically from it. There is no map editor on purpose — edit 
    click terrain -> "Drive from here").
 4. Drive: `/games/rally/?map=<id>&spawn=<metres>&mute=1` to test a section directly.
 5. **No sound while testing**: add `mute=1` to every game URL you open (see AGENTS.md "Sound while testing").
+6. **Stage card** (large maps, stage select): NEVER re-bake on your own - only when the user asks. Then
+   `/games/rally/?bakecard=<id>&mute=1` on the dev server (or `?bakecards=1`), wait for "saved", and the changed
+   `maps/<id>/preview/stage-card.{json,jpg}` go in the commit. An out-of-date card only warns in the dev console -
+   mention it to the user. Flat map: `previewRelief` (e.g. 1.8) needs no re-bake. Code: `tools/stage-card*.ts`.
 
 ## Real-world maps (OSM + elevation + land cover)
 
@@ -149,7 +154,8 @@ City maps (example `maps/jackie/`, config `scripts/realmap/jackie.json`) - extra
   crossing over a tunnelled parkway (`under` spans) become bridge decks automatically (`world/under-bridges.ts`) and the span
   becomes a portal structure (`world/portals.ts`: slab, headwalls with name / clearance plates, railings, median piers; the
   street grid on top is padded to the slab top). Overpass decks are drivable in free roam. Bridge rules (parallel walls, check start / end, twin decks,
-  carriageway alignment, terrain cap, drivable underpasses): maps/jackie/DETAILS.md "Bridges: rules and mechanics".
+  carriageway alignment, terrain cap, drivable underpasses): maps/jackie/DETAILS.md "Bridges: rules and mechanics"; underpass
+  rules (straight fenceless walls, ground vs top surface, wall lamps) + the step-by-step bridge-bug workflow: same file, "Underpasses and approaches".
 - Looking at a map in the preview pane (it renders one frame every few seconds): `window.__mapViewer.look(cx, cy, cz, lx, ly, lz, fov)`
   parks the camera and streams all terrain + instances around it; wait ~10-30 s, then screenshot. Helpers to build camera
   positions along the road: `world.road.at(d)` (x, y, z, tx, tz), lateral `x + tz * l, z - tx * l`.

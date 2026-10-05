@@ -305,8 +305,9 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   piece or black disc is a source part that was not dropped or recoloured: find its island (`glb-to-parts-stl.py` warning, or
   bbox of the part around the hub) and drop it.
 - `npx tsc --noEmit -p tsconfig.json`, `npm run lint`, `npm run test`.
-- Car `README.md` (high level: description, 3 screenshots, credits + licence) and `DETAILS.md` (sources + links tables, measured numbers, rebuild commands (orient -> segment -> convert ->
-  view-glb), build notes for every decision above, open items (never a licence TODO: the gate is done before the import). `public/models/CREDITS.md` row,
+- Car `README.md` (high level: description, 3 screenshots, credits + licence) and a **short** `DETAILS.md` (sources + links tables, the few
+  measured numbers the code does not show, rebuild commands (orient -> segment -> convert -> view-glb), one line per non-obvious
+  decision, no diary of what was tried - see `AGENTS.md` "Write short"; never a licence TODO: the gate is done before the import). `public/models/CREDITS.md` row,
   `src/games/rally/DETAILS.md` car table, `TASKS.md` open items.
 
 ## Tyres and set-ups (every new car)

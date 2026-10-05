@@ -18,7 +18,7 @@ import type { World } from './world';
  * Built by a time-sliced job (`job()`, yields per scatter chunk); the mesh
  * appears when the whole map is collected.
  */
-interface Canopy {
+export interface Canopy {
   /** Disc radius and height above the instance origin at scale 1 (m). */
   radius: number;
   height: number;
@@ -28,8 +28,8 @@ interface Canopy {
 const canopies = new Map<string, Canopy>();
 let disc: CircleGeometry | undefined;
 
-/** Canopy of an asset, measured from its farthest LOD (variant 0). */
-function canopyOf(id: string): Canopy {
+/** Canopy of an asset, measured from its farthest LOD (variant 0). Also used by canopy-shadows.ts. */
+export function canopyOf(id: string): Canopy {
   let c = canopies.get(id);
   if (c) return c;
   const meta = getAssetMeta(id);

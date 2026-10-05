@@ -107,7 +107,7 @@ export class Road {
     this.smoothHeights(def.smoothing);
     if (def.maxGrade) {
       this.limitGrade(def.maxGrade);
-      this.smoothHeights(12);
+      this.smoothHeights(def.gradeSmoothing ?? 12);
     }
     this.samples.forEach((s, i) => (s.y += dys[i]));
     this.bridges = (def.spans ?? [])

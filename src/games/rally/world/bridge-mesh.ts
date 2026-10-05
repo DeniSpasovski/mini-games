@@ -21,7 +21,7 @@ import { newPathQuery } from './real-data';
 import { newRoadQuery } from './road';
 import { getRoadMaterial, pathTexture, texLength } from './road-mesh';
 import { STREET_KINDS } from './street-detail';
-import { DECK_DEPTH } from './terrain-gen';
+import { DECK_DEPTH, UNDERPASS_WALL } from './terrain-gen';
 import { TWIN_OVERLAP, twinAt } from './twin-decks';
 import type { World } from './world';
 
@@ -555,6 +555,7 @@ function abutment(
   inward: 1 | -1,
   roadYAt: (s: number) => number,
   modern = false,
+  wings = true,
 ): void {
   const face = modern ? parts.conc : parts.stone;
   const faceCol = modern ? CONC : STONE;
@@ -580,8 +581,24 @@ function abutment(
     high = Math.max(high, t - g);
     wallPts.push({ x, z, bot: g - 0.5, top: Math.max(t, g - 0.3) });
   }
+  // The face, its returns and the wing walls never stand in the trench of a street that passes under the deck (the
+  // underpass opens through them; its own retaining walls take over).
+  const net = world.gen.paths;
+  const pq = newPathQuery();
+  const onStreet = (p: { x: number; z: number }): boolean => {
+    if (!net) return false;
+    net.query(p.x, p.z, pq, 'tarmac', (qi) => world.gen.isUnderpass(qi));
+    return pq.found && pq.distance <= pq.halfWidth + UNDERPASS_WALL + 0.5;
+  };
   if (high >= 0.4) {
-    face.wall(wallPts, faceCol);
+    let run: typeof wallPts = [];
+    for (const p of wallPts) {
+      if (onStreet(p)) {
+        face.wall(run, faceCol);
+        run = [];
+      } else run.push(p);
+    }
+    face.wall(run, faceCol);
     // Coping: a heavier course on the seat under the slab edge (the full width, 0.35 m).
     face.box(
       end.x - end.tx * inward * 0.2,
@@ -597,7 +614,7 @@ function abutment(
   }
   // Wing walls beside the road, running away from the span. Modern: splayed outward (the end opens up, never
   // closes in over the approach), the top stepping down with the fill as it leaves the road edge.
-  for (const s of [-1, 1] as const) {
+  for (const s of wings ? ([-1, 1] as const) : []) {
     const pts: { x: number; z: number; bot: number; top: number }[] = [];
     for (let d = 0; d <= WING_L; d += 1.5) {
       const out = modern ? d * WING_FLARE : 0;
@@ -607,6 +624,11 @@ function abutment(
       const g = ground.height(x, z);
       const top = roadYAt(d) - 0.04 - out;
       if (top - g < 0.3) break;
+      if (onStreet({ x, z })) {
+        face.wall(pts, faceCol);
+        pts.length = 0;
+        continue;
+      }
       pts.push({ x, z, bot: g - 0.4, top });
     }
     face.wall(pts, faceCol);
@@ -827,9 +849,27 @@ function pathDecks(world: World, group: Group, tiles: TileParts): void {
     // (the deck's own profile rises the other way - walls taken from it stand up beside the approach).
     const approach = (end: Row, inward: 1 | -1) => (s: number) =>
       gen.height(end.x - end.tx * inward * s, end.z - end.tz * inward * s);
+    // (a walled approach has its own retaining walls, cut-wall-mesh.ts: no short wing walls inside them)
     if (!cov.end0)
-      abutment(world, parts, rows[0], 1, approach(rows[0], 1), modern);
-    if (!cov.end1) abutment(world, parts, last, -1, approach(last, -1), modern);
+      abutment(
+        world,
+        parts,
+        rows[0],
+        1,
+        approach(rows[0], 1),
+        modern,
+        !gen.hasApproach(pi, false),
+      );
+    if (!cov.end1)
+      abutment(
+        world,
+        parts,
+        last,
+        -1,
+        approach(last, -1),
+        modern,
+        !gen.hasApproach(pi, true),
+      );
   }
 }
 

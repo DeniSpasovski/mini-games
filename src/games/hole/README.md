@@ -29,7 +29,7 @@ Pick a difficulty and a hole colour, then drag to steer. Add `?map=toy` for the 
 |                                                                                 |                                                          |
 | ------------------------------------------------------------------------------- | -------------------------------------------------------- |
 | ![Animal Island, early game](screenshots/animal-early.jpg)                      | ![Animal Island, late game](screenshots/animal-late.jpg) |
-| **Animal Island** - ants, rabbits and zebras first; 37 giant animals, 190 types | The secret zoo and laboratory, where the giants are made |
+| **Animal Island** - ants, rabbits and zebras first; 37 giant animals, 192 types | The secret zoo and laboratory, where the giants are made |
 
 ## Features
 

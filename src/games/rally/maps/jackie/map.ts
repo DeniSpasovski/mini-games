@@ -1,4 +1,10 @@
-import { buildingsFromData, routePoints, routeSpans } from '../shared/real-map';
+import {
+  buildingsFromData,
+  fitBridgesToStreets,
+  lengthenBridges,
+  routePoints,
+  routeSpans,
+} from '../shared/real-map';
 import type {
   HeightmapDef,
   LakeDef,
@@ -23,6 +29,20 @@ import data from './data.json';
 
 /** Covers where dry / mown grass grows (detail layer). */
 const LAWN = ['grass', 'shrub', 'bare', 'cemetery'];
+
+const baseSpans = routeSpans(data.routeSpans);
+const fittedSpans = fitBridgesToStreets(
+  baseSpans,
+  data.route,
+  data.paths as never,
+  { left: 20, right: -9, margin: 9, maxGrow: 40 },
+);
+const bridgeSpans = lengthenBridges(
+  baseSpans.map((s, i) =>
+    s.kind === 'bridge' && s.to - s.from < 36 ? fittedSpans[i] : s,
+  ),
+  36,
+);
 
 export const jackieMap: MapDef = {
   id: 'jackie',
@@ -107,10 +127,15 @@ export const jackieMap: MapDef = {
     // Long vertical curves: at 140 km/h a short crest would launch the car.
     smoothing: 120,
     maxGrade: 0.07,
+    // +7 % -> -7 % within 16 m (1.88 km) launched a car at 150 km/h: round the grade changes over 50 m.
+    gradeSmoothing: 50,
     surface: 'tarmac',
     texture: 'road_parkway',
     // Where the parkway runs on a bridge over a street (OSM bridge=yes): deck over lowered ground.
-    spans: routeSpans(data.routeSpans),
+    // Short bridges (under 36 m) grow to hold the whole street crossing beneath them (skewed: the footprint along the
+    // parkway is longer than the street is wide) + room for the abutment returns and the underpass walls, and are at
+    // least 36 m long. The long ones are left as they are.
+    spans: bridgeSpans,
     // Cuts deeper than 2.5 m are sheer, held back by a stone retaining wall (the parkway runs sunken there).
     // Stone walls + picket railing on the old parkway; concrete + chain-link from the Kew Gardens approach on.
     cutWalls: { minHeight: 2.5, offset: 1.6, concreteFrom: 6900 },
@@ -121,12 +146,7 @@ export const jackieMap: MapDef = {
     // road runs on along the turnpike (OSM primary, same direction) for ~90 m: the run-out to stop in. Not baked
     // (moving the end waypoint makes the baker take another route).
     points: routePoints(
-      [
-        ...data.route,
-        [2835, -1847],
-        [2866, -1858.6],
-        [2896, -1870.9],
-      ],
+      [...data.route, [2835, -1847], [2866, -1858.6], [2896, -1870.9]],
       () => 7.4,
     ),
   },

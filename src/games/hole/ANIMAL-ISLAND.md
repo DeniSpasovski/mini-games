@@ -243,8 +243,8 @@ small hand-made layout (like the toy store floor plans) placed by the seed:
   `lab_crate`s, `container`s, a helipad (render-only decal) with the `helicopter`, a jetty (render-only, like the City
   pier) on the coast.
 - **Secret zoo** (north half): pens built from `zoo_fence` rows for the lab-stage-1 animals (`rabbit_big`,
-  `frog_big`, `tortoise_big`, `gorilla_big`, `elephant_big`) and **giant pens** built from `cage_bars` rows (9 m tall
-  bars) for the giants, with `feeding_station`s, `giant_carrot`s, `hay_bale`s, `keeper_hut`s, an `aviary`, a hippo pool
+  `frog_big`, `tortoise_big`, `gorilla_big`, `panda_big`, `elephant_big`, `tiger_big`) and **giant pens** built from
+  `cage_bars` rows (9 m tall bars) for the giants, with `feeding_station`s, `giant_carrot`s, `hay_bale`s, `keeper_hut`s, an `aviary`, a hippo pool
   (pond) and a croc channel.
 - **Life**: `scientist`s patrol between lab doors, `zookeeper`s between pens, `research_jeep`s and the
   `transport_truck` drive the loop road (render-only road decal, patrol path).
@@ -330,6 +330,8 @@ part) so "made in the lab" reads at a glance; giants also get a lab number patch
 | chicken   | `chick`, `hen`, `rooster` (T1)         | -                          | `chicken_giant` 18 m (T21)   |
 | tortoise  | `tortoise` 1 m (T2)                    | `tortoise_big` 6 m (T14)   | `tortoise_giant` 26 m (T23)  |
 | gorilla   | `gorilla` 1.6 m (T5)                   | `gorilla_big` 5 m (T13)    | `gorilla_giant` 28 m (T24)   |
+| panda     | `panda` 1.4 m (T4)                     | `panda_big` 3.5 m (T10)    | -                            |
+| tiger     | `tiger` 1.9 m (T6)                     | `tiger_big` 4.8 m (T12)    | -                            |
 | bear      | `bear` 1.9 m (T6)                      | -                          | `bear_giant` 22 m (T22)      |
 | lion      | `lion` 2.2 m (T7)                      | -                          | `lion_giant` 22 m (T22)      |
 | giraffe   | `giraffe_calf` (T5), `giraffe` (T9)    | -                          | `giraffe_giant` 64 m (T20)   |
@@ -338,7 +340,7 @@ part) so "made in the lab" reads at a glance; giants also get a lab number patch
 | crocodile | `crocodile` 4.5 m (T12)                | `crocodile_big` 13 m (T19) | `crocodile_giant` 30 m (T24) |
 | elephant  | `elephant_calf` (T8), `elephant` (T14) | `elephant_big` 8.8 m (T16) | `elephant_giant` 34 m (T25)  |
 
-### 6.2 Edible catalog (190 types)
+### 6.2 Edible catalog (192 types)
 
 Dimensions are the proposal (animals: w = length along +X). Tier, points and level were derived with the rules of
 `sim/progression.ts` by a throw-away script; **re-derive them with the real catalog code and the tests before trusting
@@ -348,7 +350,7 @@ first playable (104 types, every tier 1-25 and level 1-15 has >= 2 P0 types) · 
 
 Coverage (all 190): tier 1 has 58 types, the thinnest tiers are 18 and 19 (3 types) and 25 (3); level 9 has 3 types,
 level 15 has 3. P0 alone: tiers 9, 12, 14, 16-19, 23-25 and levels 9, 13-15 have exactly 2 - **protect those when
-cutting items**. 95 of the 190 types move.
+cutting items**. 97 of the 192 types move.
 
 | Tier | Pts | Lvl | id                | Pri | Group    | Zone                      | w×d×h (m)      | size  | Moves   | Notes                                                                            |
 | ---- | --- | --- | ----------------- | --- | -------- | ------------------------- | -------------- | ----- | ------- | -------------------------------------------------------------------------------- |
@@ -435,7 +437,7 @@ cutting items**. 95 of the 190 types move.
 | 4    | 4   | L2  | `dirt_mound`      | P0  | hills    | Meadow, Savanna           | 1.4×1.4×0.5    | 1.4   | -       | hill ladder                                                                      |
 | 4    | 4   | L2  | `lab_desk`        | P1  | lab      | Lab                       | 1.4×0.7×1      | 1.4   | -       | computer desk, glowing screen                                                    |
 | 4    | 4   | L2  | `log`             | P0  | flora    | Forest, river bank        | 1.4×0.4×0.4    | 1.4   | -       |                                                                                  |
-| 4    | 4   | L2  | `panda`           | P1  | animals  | Jungle, Zoo               | 1.4×0.8×1      | 1.4   | wander  | near the bamboo                                                                  |
+| 4    | 4   | L2  | `panda`           | P1  | animals  | Jungle, Zoo               | 1.4×0.8×1      | 1.4   | wander  | near the bamboo; ladder: panda -> panda_big                                      |
 | 5    | 5   | L3  | `giraffe_calf`    | P1  | animals  | Savanna                   | 1.6×0.5×3      | 1.6   | herd    | follows a giraffe                                                                |
 | 5    | 5   | L3  | `gorilla`         | P0  | animals  | Jungle, Zoo               | 1.6×1×1.5      | 1.6   | wander  | knuckle walk; ladder: gorilla -> gorilla_big -> gorilla_giant                    |
 | 5    | 5   | L3  | `growth_vat`      | P0  | lab      | Lab                       | 1.6×1.6×3.2    | 1.6   | -       | glass tank, green glow, a small animal inside (the lab signature)                |
@@ -447,7 +449,7 @@ cutting items**. 95 of the 190 types move.
 | 6    | 6   | L3  | `seal`            | P1  | animals  | Beach                     | 1.8×0.6×0.6    | 1.8   | wander  | flops (slow, bob)                                                                |
 | 6    | 6   | L3  | `bear`            | P0  | animals  | Forest                    | 1.9×0.9×1.3    | 1.9   | wander  | ladder: bear -> bear_giant                                                       |
 | 6    | 6   | L3  | `boulder_big`     | P1  | rocks    | Highlands                 | 1.9×1.6×1.4    | 1.9   | -       |                                                                                  |
-| 6    | 6   | L3  | `tiger`           | P0  | animals  | Jungle                    | 1.9×0.6×1      | 1.9   | wander  | stripes                                                                          |
+| 6    | 6   | L3  | `tiger`           | P0  | animals  | Jungle                    | 1.9×0.6×1      | 1.9   | wander  | stripes; ladder: tiger -> tiger_big                                              |
 | 7    | 7   | L3  | `berry_bush`      | P1  | flora    | Forest                    | 2×2×1.3        | 2     | -       | paint berries                                                                    |
 | 7    | 7   | L3  | `fence_wood`      | P0  | zoo      | Farm, Zoo                 | 2.1×0.1×1.2    | 2.1   | -       | rows                                                                             |
 | 7    | 7   | L3  | `hedge`           | P1  | flora    | Zoo, Lab                  | 2.1×0.8×1.2    | 2.1   | -       |                                                                                  |
@@ -473,6 +475,7 @@ cutting items**. 95 of the 190 types move.
 | 10   | 10  | L4  | `fallen_log`      | P1  | flora    | Forest, river bank        | 3.4×0.8×0.8    | 3.4   | -       |                                                                                  |
 | 10   | 10  | L4  | `keeper_hut`      | P1  | zoo      | Zoo                       | 3.5×3×3        | 3.5   | -       |                                                                                  |
 | 10   | 10  | L4  | `rabbit_big`      | P0  | animals  | Zoo, Meadow               | 3.5×1.8×3      | 3.5   | hop     | lab stage 1; one escaped near the start (first teeter target)                    |
+| 10   | 10  | L4  | `panda_big`       | P1  | animals  | Zoo, Jungle               | 3.5×2×2.5      | 3.5   | wander  | lab stage 1, zoo pen + escaped near the bamboo                                   |
 | 10   | 10  | L4  | `research_jeep`   | P0  | labveh   | Lab, Zoo                  | 3.5×1.8×1.8    | 3.5   | patrol  | drives the compound loop road                                                    |
 | 10   | 10  | L4  | `rhino`           | P0  | animals  | Savanna                   | 3.5×1.5×1.8    | 3.5   | wander  | ladder: rhino -> rhino_giant                                                     |
 | 11   | 11  | L5  | `beetle_big`      | P1  | animals  | Lab, Forest               | 4×2.6×1.8      | 4     | skitter | lab stage 1                                                                      |
@@ -486,6 +489,7 @@ cutting items**. 95 of the 190 types move.
 | 12   | 12  | L5  | `hippo`           | P0  | animals  | River, Wetland            | 4.5×1.8×1.8    | 4.5   | swim    | half submerged while swimming; ladder: hippo -> hippo_giant                      |
 | 12   | 12  | L5  | `giant_carrot`    | P1  | zoo      | Zoo                       | 4.6×1.2×1.2    | 4.6   | -       | food for the giant rabbits                                                       |
 | 12   | 12  | L5  | `beaver_dam`      | P1  | flora    | River                     | 4.8×2×1.5      | 4.8   | -       | across a stream                                                                  |
+| 12   | 12  | L5  | `tiger_big`       | P1  | animals  | Zoo, Jungle               | 4.8×1.5×2.5    | 4.8   | wander  | lab stage 1, zoo pen + escaped into the jungle                                   |
 | 13   | 13  | L6  | `gorilla_big`     | P1  | animals  | Zoo                       | 5×3×5          | 5     | wander  | lab stage 1                                                                      |
 | 13   | 13  | L6  | `hill_5`          | P0  | hills    | Highlands, everywhere     | 5.5×5.5×1.8    | 5.5   | -       | soft dome                                                                        |
 | 13   | 13  | L6  | `jungle_tree`     | P0  | flora    | Jungle                    | 5.5×5.5×12     | 5.5   | -       | buttress roots, tall                                                             |

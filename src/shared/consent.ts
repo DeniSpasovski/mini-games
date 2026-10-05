@@ -124,8 +124,9 @@ function bannerHtml(): string {
     </p>
     <div class="mgp-consent-details hg-scroll" hidden>
       <p><b>Who:</b> ${owner} runs this personal, non-commercial site.${contact}</p>
-      <p><b>What, if you accept:</b> Google Analytics 4 records the pages you open, your
-      browser / device type, approximate location (country / city, no full IP stored) and a
+      <p><b>What, if you accept:</b> Google Analytics 4 records the pages you open, game
+      events (run started / finished or quit, with the map, car or difficulty and your
+      time or score), your browser / device type, approximate location (country / city, no full IP stored) and a
       random visitor ID kept in the <code>_ga</code> cookies for up to 2 years. Google
       processes this data, possibly outside the EU
       (<a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google privacy policy</a>).</p>
@@ -182,7 +183,8 @@ export function openConsentBanner(): void {
  */
 export function consentEnabled(): boolean {
   const mode = SITE.showPrivacyBanner;
-  const shown = mode === true || (mode === 'production' && import.meta.env.PROD);
+  const shown =
+    mode === true || (mode === 'production' && import.meta.env.PROD);
   return shown && !!SITE.gaMeasurementId;
 }
 

@@ -343,6 +343,18 @@ export const ASSET_CATALOG: AssetMeta[] = [
     ],
     colliders: [{ kind: 'cylinder', r: 0.12, h: 8 }],
   },
+  {
+    id: 'wall_lamp',
+    name: 'Wall lamp',
+    category: 'props',
+    description:
+      'Underpass light fixed to a retaining wall face (z = 0), luminaire at 3.6 m over the sidewalk (+Z).',
+    variants: 1,
+    lods: [
+      { maxDistance: 90, castShadow: false },
+      { maxDistance: 300, castShadow: false },
+    ],
+  },
   // --- buildings (unit footprint, scaled per instance: sx = width, sy = height, sz = depth) ---
   {
     id: 'house_pitched',
@@ -522,9 +534,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'marker_post',
     name: 'Marker post',
     category: 'markers',
-    // No collider: flimsy posts would stop the car dead. Breakable: the car knocks it over (+10 s penalty).
+    // No collider: flimsy posts would stop the car dead. Breakable: the car knocks it over (no penalty).
     description:
-      'Road-edge delineator post with reflector. Breakable: the car drives over it, it falls down and costs a time penalty.',
+      'Road-edge delineator post with reflector. Breakable: the car drives over it and it falls down.',
     variants: 1,
     lods: [{ maxDistance: 450, castShadow: false }],
     breakable: { r: 0.06, h: 1.05 },

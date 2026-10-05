@@ -45,6 +45,29 @@ export class AnalyticTerrain implements TerrainSampler {
   }
 }
 
+/**
+ * Uncached sampler of the GROUND (no stage-road deck): for things that lie on the land even where a stage-road
+ * bridge passes over them - the ribbons, sidewalks and crossings of the streets under it (the analytic sampler
+ * put them on the deck: the street climbed up to the bridge and back down).
+ */
+export class GroundTerrain implements TerrainSampler {
+  readonly chunkSize = CHUNK_CELLS;
+  constructor(private gen: TerrainGenerator) {}
+  height(x: number, z: number): number {
+    return this.gen.height(x, z);
+  }
+  normal(x: number, z: number, out: Vector3): Vector3 {
+    const g = this.gen;
+    return out
+      .set(
+        g.height(x - 1, z) - g.height(x + 1, z),
+        2,
+        g.height(x, z - 1) - g.height(x, z + 1),
+      )
+      .normalize();
+  }
+}
+
 export class HeightChunk {
   /** (N+3)^2 heights, includes a 1-sample border for normals. */
   readonly heights: Float32Array;

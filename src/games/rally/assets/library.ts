@@ -6,6 +6,7 @@ import {
   roadBarrier,
   spectator,
   streetLamp,
+  wallLamp,
   tapePost,
   villageSign,
 } from './builders/props';
@@ -59,6 +60,7 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   dry_grass: dryGrass,
   spring_grass: springGrass,
   street_lamp: streetLamp,
+  wall_lamp: wallLamp,
   rock_boulder: rockBoulder,
   rock_small: rockSmall,
   hay_bale: hayBale,

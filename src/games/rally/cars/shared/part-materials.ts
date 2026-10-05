@@ -6,6 +6,7 @@ import {
   SRGBColorSpace,
   type Material,
 } from 'three';
+import { addWorldUniforms } from '../../engine/world-shading';
 
 /**
  * Materials for the named parts of an imported body (scripts/car-model/segment-stl.py
@@ -500,6 +501,7 @@ function twinLampDepth(m: MeshPhysicalMaterial): void {
     )
     .join(', ');
   m.onBeforeCompile = (shader) => {
+    addWorldUniforms(shader);
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',

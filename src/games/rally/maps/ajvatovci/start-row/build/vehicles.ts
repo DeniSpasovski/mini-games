@@ -26,7 +26,7 @@ import {
   type Placement,
   type VehicleKind,
 } from '../layout';
-import type { Build } from './ctx';
+import { standHeight, type Build } from './ctx';
 
 /**
  * The parked vehicles of the lots: three cars (a modern hatchback, a small boxy Yugo-style hatch,
@@ -846,13 +846,14 @@ export function buildFleet(b: Build): Group {
     const model = MODEL[kind]();
     const { length, width } = VEHICLE_SIZE[kind];
     const matrices = placements.map(({ x, z, heading }) => {
-      // Stand on the ground under the four corners, not level at the middle: a long truck on a sloping yard
-      // otherwise hangs in the air at one end. Each end / side takes its higher corner (the yard surface is
-      // lifted to clear the ground), the body pitches and rolls to match.
+      // Stand on the yard surface (or the ground) under the four corners, not level at the middle: a long truck
+      // on a sloping yard otherwise hangs in the air at one end. Each end / side takes its higher corner, the
+      // body pitches and rolls to match.
       const f = [Math.cos(heading), -Math.sin(heading)];
       const r = [-f[1], f[0]];
       const h = (i: number, j: number) =>
-        b.ground(
+        standHeight(
+          b,
           x + (f[0] * i * length) / 2 + (r[0] * j * width) / 2,
           z + (f[1] * i * length) / 2 + (r[1] * j * width) / 2,
         );

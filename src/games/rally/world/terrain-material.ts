@@ -1,12 +1,15 @@
 import { Color, MeshStandardMaterial } from 'three';
 import type { EnvironmentDef } from '../maps/shared/types';
 import { getTexture } from '../engine/textures';
+import { addWorldUniforms } from '../engine/world-shading';
 
 /**
  * Terrain splat material: MeshStandardMaterial (so it gets sun, shadows, fog
  * and IBL for free) with the diffuse replaced by a 4-way blend of tiling
  * world-space textures driven by the per-vertex `splat` attribute
  * [grass, dirt, rock, gravel], plus two scales of macro variation to hide tiling.
+ * Relief: the blended textures' brightness doubles as a height map (bump from screen-space derivatives, rock and
+ * gravel strongest, faded out by ~90 m) so a low sun picks out stones and ruts.
  * Weight the four channels leave unused (sum < 1) is drawn as ripe crop (wheat fields).
  *
  * One instance is shared by every terrain chunk.
@@ -33,10 +36,15 @@ export function getTerrainMaterial(): MeshStandardMaterial {
     uTintGrass: { value: new Color(1, 1, 1) },
     uTintAmount: { value: 0 },
     uTintCrop: { value: new Color(DEFAULT_CROP) },
+    /** Bump strength (0 = flat, `setTerrainRelief`). */
+    uRelief: { value: 1 },
   };
   mat.userData.uniforms = uniforms;
+  // Canopy shadows beyond the shadow map (engine/world-shading.ts).
+  mat.defines = { RALLY_GROUND: 1 };
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
+    addWorldUniforms(shader);
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -60,8 +68,26 @@ export function getTerrainMaterial(): MeshStandardMaterial {
         uniform vec3 uTintGrass;
         uniform float uTintAmount;
         uniform vec3 uTintCrop;
+        uniform float uRelief;
         varying vec4 vSplat;
-        varying vec3 vWPos;`,
+        varying vec3 vWPos;
+        // Bump from a screen-space height gradient (three's perturbNormalArb, Mikkelsen).
+        vec3 terrainPerturb( vec3 surf_pos, vec3 surf_norm, vec2 dHdxy, float faceDirection ) {
+          vec3 vSigmaX = normalize( dFdx( surf_pos.xyz ) );
+          vec3 vSigmaY = normalize( dFdy( surf_pos.xyz ) );
+          vec3 R1 = cross( vSigmaY, surf_norm );
+          vec3 R2 = cross( surf_norm, vSigmaX );
+          float fDet = dot( vSigmaX, R1 ) * faceDirection;
+          vec3 vGrad = sign( fDet ) * ( dHdxy.x * R1 + dHdxy.y * R2 );
+          return normalize( abs( fDet ) * surf_norm - vGrad );
+        }`,
+      )
+      .replace(
+        '#include <normal_fragment_maps>',
+        `#include <normal_fragment_maps>
+        // No branch: screen-space derivatives are undefined in non-uniform control flow (0 relief = same normal).
+        float reliefFade = uRelief * ( 1.0 - smoothstep( 25.0, 90.0, length( vWPos - cameraPosition ) ) );
+        normal = terrainPerturb( - vViewPosition, normal, vec2( dFdx( terrainH ), dFdy( terrainH ) ) * reliefFade, faceDirection );`,
       )
       .replace(
         '#include <map_fragment>',
@@ -92,12 +118,25 @@ export function getTerrainMaterial(): MeshStandardMaterial {
         col *= mix(0.78, 1.16, macro);
         if (uDebugSplat > 0.5) col = vec3(w.x * 0.2 + w.y * 0.6 + w.w * 0.9 + crop, w.x * 0.8 + w.y * 0.4 + w.w * 0.8 + crop * 0.8, w.z + w.w * 0.5);
         diffuseColor.rgb *= col;
+        // Height for the relief: per-layer brightness, rock / gravel bumpiest, grass nearly flat.
+        vec4 lum = vec4(
+          dot(cGrass, vec3(0.3333)) * 0.25,
+          dot(cDirt, vec3(0.3333)) * 0.6,
+          dot(cRock, vec3(0.3333)),
+          dot(cGravel, vec3(0.3333)) * 0.9
+        );
+        float terrainH = dot(lum, w) * 4.0;
         `,
       );
   };
-  mat.customProgramCacheKey = () => 'rally-terrain-v2';
+  mat.customProgramCacheKey = () => 'rally-terrain-v3';
   shared = mat;
   return mat;
+}
+
+/** Terrain bump strength (0 = flat; low quality turns it off). */
+export function setTerrainRelief(strength: number): void {
+  getTerrainMaterial().userData.uniforms.uRelief.value = strength;
 }
 
 /** Per-map grass / crop recolour (EnvironmentDef.groundTint); undefined = original texture. */

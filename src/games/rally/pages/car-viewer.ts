@@ -1,5 +1,6 @@
 import { parseTyre, TYRE_IDS } from '../physics/tyres';
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
+import { track } from '../../../shared/analytics';
 import { CarModel } from '../cars/shared/car-model';
 import { hasImportedModel } from '../cars/shared/car-gltf';
 import { CARS, DEFAULT_CAR, getCar } from '../cars';
@@ -60,6 +61,12 @@ const DEFAULTS = {
 };
 const state = readUrlState(DEFAULTS);
 const sync = (push = false) => writeUrlState(state, DEFAULTS, push);
+const trackCar = () =>
+  track('select_content', {
+    content_type: 'rally_car_viewer',
+    content_id: state.car,
+  });
+trackCar();
 
 const shell = new ViewerShell({ title: 'Car viewer' });
 const { scene, camera, controls } = shell;
@@ -115,6 +122,7 @@ pick.list(
   (id) => {
     state.car = id;
     sync(true);
+    trackCar();
     rebuild();
   },
 );

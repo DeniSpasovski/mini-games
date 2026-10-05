@@ -14,7 +14,8 @@ import {
   type QualityName,
   type QualitySettings,
 } from '../engine/quality';
-import { DEFAULT_MAP, MAPS } from '../maps';
+import { ALL_MAPS, DEFAULT_MAP, MAPS } from '../maps';
+import { isLargeMap } from '../tools/stage-card';
 import type { MapDef, SourceLink } from '../maps/shared/types';
 import { peakPower } from '../physics/drivetrain';
 import {
@@ -165,12 +166,57 @@ class MainMenu {
       <div class="menu-version">v${VERSION}</div>`;
     container.append(this.root);
     this.panel = this.root.querySelector('.menu-panel')!;
-    this.showroom = new Showroom(this.root.querySelector('.menu-bg')!, quality);
+    const bg = this.root.querySelector<HTMLElement>('.menu-bg')!;
+    // The 3D subject (car / stage) is centred in the screen area right of the panel.
+    this.showroom = new Showroom(
+      bg,
+      quality,
+      () =>
+        this.panel.getBoundingClientRect().right -
+        bg.getBoundingClientRect().left,
+    );
     this.showroom.setCar(this.car.id, this.livery, this.badge);
     window.addEventListener('keydown', this.onKey);
     // Console handle: __rallyMenu.showroom
     (window as unknown as { __rallyMenu: MainMenu }).__rallyMenu = this;
     this.show('welcome');
+    if (import.meta.env.DEV) this.bakeCardsFromUrl();
+  }
+
+  /**
+   * DEV: `?bakecard=<id>` / `?bakecards=1` (every large map) bakes the stage-select cards (tools/stage-card-bake.ts)
+   * into maps/<id>/preview/, with the progress shown over the menu. Reload afterwards.
+   */
+  private bakeCardsFromUrl(): void {
+    const q = new URLSearchParams(location.search);
+    const one = q.get('bakecard');
+    if (!one && !q.get('bakecards')) return;
+    const ids = one ? [one] : ALL_MAPS.filter(isLargeMap).map((m) => m.id);
+    const box = document.createElement('pre');
+    box.className = 'menu-bake-log';
+    Object.assign(box.style, {
+      position: 'fixed',
+      right: '12px',
+      bottom: '12px',
+      zIndex: '50',
+      margin: '0',
+      padding: '10px 12px',
+      maxWidth: '50vw',
+      background: 'rgba(0,0,0,0.75)',
+      color: '#cfe',
+      font: '12px/1.4 ui-monospace, Consolas, monospace',
+      whiteSpace: 'pre-wrap',
+    } satisfies Partial<CSSStyleDeclaration>);
+    this.root.append(box);
+    const log = (s: string) => {
+      console.info(`[stage card] ${s}`);
+      box.textContent = `${box.textContent}${s}\n`;
+    };
+    log(`baking ${ids.join(', ')}...`);
+    this.showroom
+      .bakeStageCards(ids, log)
+      .then(() => log('done - reload the page (without ?bakecard) to see them'))
+      .catch((e: unknown) => log(`FAILED: ${String(e)}`));
   }
 
   private get map(): MapDef {

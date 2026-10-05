@@ -219,6 +219,40 @@ export default defineConfig({
           res.end(`saved ${path.relative(root, out)}`);
         });
       });
+      // Dev-only helper: save a rally map's baked stage card (stage-select view) into
+      // src/games/rally/maps/<map>/preview/ (see src/games/rally/tools/stage-card-bake.ts).
+      server.middlewares.use('/__dev/stage-card', (req, res) => {
+        const url = new URL(req.url ?? '', 'http://x');
+        const map = (url.searchParams.get('map') ?? '').replace(
+          /[^a-z0-9_-]/gi,
+          '',
+        );
+        const mapDir = path.join(gamesDir, 'rally', 'maps', map);
+        if (req.method !== 'POST' || !map || !fs.existsSync(mapDir)) {
+          res.statusCode = 400;
+          res.end('unknown map');
+          return;
+        }
+        const chunks: Buffer[] = [];
+        req.on('data', (c: Buffer) => chunks.push(c));
+        req.on('end', () => {
+          const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+            json: string;
+            jpeg: string;
+          };
+          const dir = path.join(mapDir, 'preview');
+          fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(path.join(dir, 'stage-card.json'), body.json);
+          fs.writeFileSync(
+            path.join(dir, 'stage-card.jpg'),
+            Buffer.from(
+              body.jpeg.replace(/^data:image\/\w+;base64,/, ''),
+              'base64',
+            ),
+          );
+          res.end(`saved ${path.relative(root, dir)}`);
+        });
+      });
     },
   },
 });

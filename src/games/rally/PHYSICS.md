@@ -92,7 +92,7 @@ Three compounds, room for two more (max 5). Every `MapDef` has a required `tyre`
 
 | Id       | Ring colour | Recommended on                                            | Best on       | Feel                                                    |
 | -------- | ----------- | --------------------------------------------------------- | ------------- | ------------------------------------------------------- |
-| `tarmac` | red         | `jackie` (Jackie Robinson Parkway)                        | clean tarmac  | sharp, direct, grips hard - skates and lets go on loose |
+| `tarmac` | red         | `jackie` (Jackie - inspired by Jackie Robinson Parkway)   | clean tarmac  | sharp, direct, grips hard - skates and lets go on loose |
 | `mixed`  | yellow      | `ajvatovci` (Ajvatovci Hill, near Ilinden - dusty tarmac) | dusty tarmac  | all-rounder, never bad anywhere                         |
 | `gravel` | white       | `petralica` (near Kriva Palanka), `test`                  | gravel / dirt | lazy turn-in, big easy drifts; floaty on asphalt        |
 | (`snow`) | blue        | a future winter map (`snow` surface exists)               |               | not built - only when a snow map exists                 |

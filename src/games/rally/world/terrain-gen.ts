@@ -95,7 +95,7 @@ export const CUT_SETBACK = 1.5;
 /** A mainline carriageway keeps a flat verge this wide beyond its edge whatever other road overlaps it (m). */
 const CARRIAGEWAY_VERGE = 2.0;
 /** Free height under a bridge deck (m): street clearance (real viaducts over a sunken parkway are ~10 m above the street below). */
-const BRIDGE_CLEARANCE = 10;
+const BRIDGE_CLEARANCE = 7.5;
 /** Where a stage-road bridge starts / ends, the fill slopes down to the lowered ground over this length (m). */
 const BRIDGE_RAMP = 14;
 /** A deck crosses a road when their directions differ by more than ~22 degrees (|cos| below this); a shallower one runs alongside. */
@@ -112,10 +112,36 @@ const DECK_GRADE = 0.07;
 const PARALLEL_REACH = 45;
 /** Profile sample spacing (m). */
 const PROFILE_STEP = 4;
+/** Street kinds whose approach to an overpass is walled. */
+const STREET_KINDS_SET = new Set([
+  'primary',
+  'secondary',
+  'tertiary',
+  'unclassified',
+  'residential',
+  'living_street',
+  'service',
+]);
+/** Concrete walls of an underpass trench: wall face this far beyond the street edge (m; room for the sidewalk). */
+export const UNDERPASS_WALL = 2.2;
+/** Concrete retaining walls of an overpass approach: wall face this far beyond the street edge (m; room for the sidewalk). */
+export const APPROACH_WALL = 2.1;
+/** The walled approach of an overpass reaches this far from the deck end (m, straight line: it follows the street across its ways). */
+export const APPROACH_LEN = 75;
 /** The ground under a deck stays this far below its road surface inside its footprint (m). */
-const DECK_SOFFIT_GAP = 0.35;
+const DECK_SOFFIT_GAP = DECK_DEPTH + 0.3; // below the girders: no ground shows between a wall top and the deck
 /** Where a road meets / crosses a more important one it is eased to its height over at least this length (m). */
 const JUNCTION_EASE = 30;
+
+/** The end of an overpass street deck: the streets within `len` m of it climb on a walled fill (concrete retaining walls). */
+export interface ApproachSite {
+  x: number;
+  z: number;
+  /** The deck and which of its ends. */
+  deck: number;
+  deckAtEnd: boolean;
+  len: number;
+}
 
 export class TerrainGenerator {
   readonly road: Road;
@@ -129,6 +155,12 @@ export class TerrainGenerator {
   /** 1 = path is a bridge deck (OSM bridge=yes): not carved into the ground, lifted over lower roads. */
   private deckFlag = new Uint8Array(0);
   private hasDeckPaths = false;
+  /** Streets that pass under a bridge / deck: an underpass trench with sheer concrete walls (cut-wall-mesh.ts). */
+  private readonly underpass = new Set<number>();
+  /** Overpass approaches with sheer concrete retaining walls (cut-wall-mesh.ts draws them). */
+  readonly approaches: ApproachSite[] = [];
+  /** Per underpass street: how far the dip lowered the profile below the land (m), per profile sample. */
+  private readonly underpassDip = new Map<number, Float32Array>();
   private readonly capQ = newPathQuery();
   private readonly capQ2 = newPathQuery();
   private readonly isDeckPath = (pi: number): boolean =>
@@ -142,6 +174,60 @@ export class TerrainGenerator {
     const p = this.paths!.paths[pi];
     return (
       !p.bridge &&
+      p.surface === 'tarmac' &&
+      (p.kind === 'motorway' || p.kind === 'trunk')
+    );
+  }
+  /** A street in an underpass trench (passes under a stage-road span or a deck of another road). */
+  isUnderpass(pi: number): boolean {
+    return this.underpass.has(pi);
+  }
+  /** (x, z) is in or right beside an underpass trench (floor, walls, the top of the walls + `margin`): no trees there. */
+  inUnderpassTrench(x: number, z: number, margin = 4): boolean {
+    if (!this.paths || !this.underpass.size) return false;
+    const pq = this.paths.query(x, z, this.capQ2, undefined, (qi) =>
+      this.underpass.has(qi),
+    );
+    return (
+      pq.found &&
+      pq.distance - pq.halfWidth <=
+        UNDERPASS_WALL + CUT_SETBACK + CUT_RISE + margin &&
+      this.underpassDipAt(pq.path, pq.along) > 1
+    );
+  }
+  /** The deck end has a walled approach (its wing walls would stand inside the approach wall). */
+  hasApproach(deck: number, deckAtEnd: boolean): boolean {
+    return this.approaches.some(
+      (a) => a.deck === deck && a.deckAtEnd === deckAtEnd,
+    );
+  }
+  /** 0..1: how strongly (x, z) lies in the walled approach of an overpass (1 at its deck end, 0 APPROACH_LEN m away). */
+  approachWeightAt(x: number, z: number): number {
+    let w = 0;
+    for (const a of this.approaches) {
+      const d = Math.hypot(x - a.x, z - a.z);
+      if (d >= a.len) continue;
+      w = Math.max(w, 1 - smoothstep(a.len * 0.7, a.len, d));
+    }
+    return w;
+  }
+  /** How far the street's profile lies below the land at `along` metres (underpass streets, else 0). */
+  underpassDipAt(pi: number, along: number): number {
+    const d = this.underpassDip.get(pi);
+    if (!d) return 0;
+    const f = Math.min(
+      d.length - 1,
+      Math.max(0, (along / this.paths!.lengths[pi]) * (d.length - 1)),
+    );
+    const k = Math.floor(f);
+    return d[k] + (d[Math.min(d.length - 1, k + 1)] - d[k]) * (f - k);
+  }
+  /** The deck of a mainline carriageway (opposite carriageway on a bridge): its cut walls continue beside it. */
+  isCarriagewayDeck(pi: number): boolean {
+    const p = this.paths!.paths[pi];
+    return (
+      !!p.bridge &&
+      !this.portalDeck[pi] &&
       p.surface === 'tarmac' &&
       (p.kind === 'motorway' || p.kind === 'trunk')
     );
@@ -560,6 +646,18 @@ export class TerrainGenerator {
       for (const atEnd of [false, true]) {
         net.pointAt(di, atEnd ? net.lengths[di] : 0, pd);
         const yd = ydeck[atEnd ? ydeck.length - 1 : 0];
+        if (
+          !this.portalDeck[di] &&
+          net.paths[di].surface === 'tarmac' &&
+          !/^(motorway|trunk)/.test(net.paths[di].kind)
+        )
+          this.approaches.push({
+            x: pd.x,
+            z: pd.z,
+            deck: di,
+            deckAtEnd: atEnd,
+            len: APPROACH_LEN,
+          });
         net.paths.forEach((_q, gi) => {
           if (this.deckFlag[gi]) return;
           const G = net.lengths[gi];
@@ -839,6 +937,7 @@ export class TerrainGenerator {
       const cap = caps.get(pi)!;
       const n = ys.length;
       const step = steps.get(pi)!;
+      const natural = ys.slice();
       for (let i = 0; i < n; i++) if (cap[i] < ys[i]) ys[i] = cap[i];
       // Round the corners of the dip, never above the ceiling.
       const smooth = ys.slice();
@@ -846,6 +945,11 @@ export class TerrainGenerator {
       for (let i = 0; i < n; i++)
         if (smooth[i] < ys[i] || ys[i] === cap[i])
           ys[i] = Math.min(smooth[i], cap[i], ys[i] + 0.5);
+      this.underpass.add(pi);
+      this.underpassDip.set(
+        pi,
+        Float32Array.from(natural, (v, i) => Math.max(0, v - ys[i])),
+      );
     }
   }
 
@@ -1117,8 +1221,13 @@ export class TerrainGenerator {
     let pq2 = this.pq2;
     // A carriageway's verge wins over a street that overlaps its edge (OSM draws the service road of a sunken
     // parkway right on the carriageway's edge): the carriageway stays flat out to its verge, the step comes after.
+    const underFloor = (q: PathQuery) =>
+      this.underpass.has(q.path) &&
+      q.distance - q.halfWidth <= UNDERPASS_WALL &&
+      this.underpassDipAt(q.path, q.along) > 0.8;
     if (
       pq2.found &&
+      !underFloor(pq) &&
       !this.isCarriageway(pq.path) &&
       this.isCarriageway(pq2.path) &&
       pq2.distance - pq2.halfWidth <= CARRIAGEWAY_VERGE &&
@@ -1133,6 +1242,9 @@ export class TerrainGenerator {
     const verge = this.isCarriageway(pq.path) ? CARRIAGEWAY_VERGE : 0;
     const e = pq.distance - pq.halfWidth - verge;
     if (e <= 0) return ph;
+    // The floor of an underpass trench (street + sidewalk out to the wall line) is the street's own level: a
+    // neighbouring road's verge or embankment never lifts it (the ribbon curled up beside the parkway's fill).
+    if (underFloor(pq)) return ph;
     const a1 =
       1 -
       smoothstep(0.3, Math.min(PATH_REACH, 1.5 + Math.abs(base - ph) * 1.6), e);
@@ -1158,9 +1270,28 @@ export class TerrainGenerator {
         h = blended + (ph - blended) * (1 - smoothstep(0, 0.3, e));
       }
     }
-    const w = this.pathCutWeight(pq.path, base - ph, pq2, along, ph);
+    // The approach of an overpass is a sheer fill held by a concrete retaining wall (no grass embankment), where the
+    // road stands well above the land.
+    if (
+      this.approaches.length &&
+      ph > base + 0.8 &&
+      STREET_KINDS_SET.has(this.paths!.paths[pq.path].kind)
+    ) {
+      const k = this.approachWeightAt(x, z) * smoothstep(0.8, 1.8, ph - base);
+      if (k > 0) {
+        const sheer =
+          ph + (base - ph) * smoothstep(APPROACH_WALL, APPROACH_WALL + 0.8, e);
+        h += (sheer - h) * k;
+      }
+    }
+    const w = this.pathCutWeight(pq.path, base - ph, pq2, along, ph, pq.along);
     if (w > 0) {
-      const off = this.map.road.cutWalls!.offset + CUT_SETBACK - verge;
+      const off =
+        (this.underpass.has(pq.path)
+          ? UNDERPASS_WALL
+          : this.map.road.cutWalls!.offset) +
+        CUT_SETBACK -
+        verge;
       const cut = ph + (base - ph) * smoothstep(off, off + CUT_RISE, e);
       h += (cut - h) * w;
     }
@@ -1192,17 +1323,40 @@ export class TerrainGenerator {
     other: PathQuery | undefined,
     along: number,
     carriagewayY: number,
+    pathAlong = NaN,
   ): number {
     const cw = this.map.road.cutWalls;
-    if (!cw || !this.isCarriageway(pi)) return 0;
-    let w = smoothstep(cw.minHeight, cw.minHeight + 1.5, rise);
+    if (
+      !cw ||
+      !(
+        this.isCarriageway(pi) ||
+        this.underpass.has(pi) ||
+        this.isCarriagewayDeck(pi)
+      )
+    )
+      return 0;
+    // An underpass trench keeps its wall down to ~1 m (a wall that stops where the trench gets shallower leaves a
+    // grass bank in the middle of it: the B5 "interrupted" wall).
+    const under = this.underpass.has(pi) && !this.isCarriageway(pi);
+    let w = under
+      ? smoothstep(1, 1.6, rise)
+      : smoothstep(cw.minHeight, cw.minHeight + 1.5, rise);
+    // An underpass street is walled only where the dip really lowered it below the land (not along a hillside).
+    if (w > 0 && !this.isCarriageway(pi))
+      w *= smoothstep(0.8, 2, this.underpassDipAt(pi, pathAlong));
     if (
       w > 0 &&
       other?.found &&
       !this.isCarriageway(other.path) &&
       !(Number.isFinite(along) && this.underSpanAt(along)) &&
       // A street up on the land (as high as the cut is deep) runs along the top of the wall, not into it.
-      this.pathHeight(other.path, other.along) - carriagewayY < rise - 1.5
+      this.pathHeight(other.path, other.along) - carriagewayY < rise - 1.5 &&
+      // The next way of the same underpass street (an OSM joint, the point beside it, not on it): the trench goes on.
+      !(
+        this.underpass.has(other.path) &&
+        Math.abs(this.pathHeight(other.path, other.along) - carriagewayY) < 1 &&
+        other.distance - other.halfWidth > 1
+      )
     )
       w *= smoothstep(4, PATH_REACH, other.distance - other.halfWidth);
     return w;
@@ -1226,6 +1380,7 @@ export class TerrainGenerator {
       other,
       q.found ? q.along : NaN,
       own.found ? this.pathHeight(pi, own.along) : -Infinity,
+      own.found ? own.along : NaN,
     );
   }
 
@@ -1338,7 +1493,11 @@ export class TerrainGenerator {
     const span = this.road.bridges.length
       ? this.road.bridgeAt(q.along)
       : undefined;
-    if (!span) return carved;
+    if (!span) {
+      // The floor of an underpass trench beside the road's embankment is the street's own ground.
+      const hold = this.underpassHold(x, z);
+      return hold > 0 ? carved + (base - carved) * hold : carved;
+    }
     // Under the deck: no embankment, the land drops away to clear the street (at least BRIDGE_CLEARANCE
     // under the deck) and the fill ramps down to it over BRIDGE_RAMP m from each abutment.
     const hw = q.halfWidth;
@@ -1357,7 +1516,11 @@ export class TerrainGenerator {
     const raw =
       carved +
       (ground - carved) *
-        Math.max(smoothstep(0, ramp, e), smoothstep(0.9, 1, near));
+        Math.max(
+          smoothstep(0, ramp, e),
+          smoothstep(0.9, 1, near),
+          this.underpassHold(x, z),
+        );
     // Never above the deck inside its footprint (a hump of natural ground under a bridge over nothing came up through
     // the lane: gravel in the road); no cap right at the abutments, where the ground meets the road.
     const cap = q.height - DECK_SOFFIT_GAP * smoothstep(0, 4, e);
@@ -1376,17 +1539,48 @@ export class TerrainGenerator {
     const dq = net.query(x, z, this.capQ, undefined, this.isDeckPath);
     if (!dq.found) return h;
     const over = dq.distance - dq.halfWidth;
-    if (over > 2.5) return h;
+    // A carriageway's deck runs in the parkway's cut: beside it the land is cut down to the deck level out to the
+    // cut-wall line, then rises sheer (as beside the ground carriageway) - it never comes up over the parapet.
+    const carriageway = /^(motorway|trunk)$/.test(net.paths[dq.path].kind);
+    const zone = carriageway
+      ? (this.map.road.cutWalls?.offset ?? 1.6) + CUT_SETBACK
+      : 0;
+    if (over > Math.max(2.5, carriageway ? zone + 12 : 0)) return h;
     const L = net.lengths[dq.path];
     const end = Math.min(dq.along, L - dq.along);
-    // Beyond / at a deck end the nearest point is the end itself: that is the ground road's land, not under the deck.
-    if (end < 1) return h;
-    // A ground road's own land (a street beside / meeting the deck) follows that road, not this cap.
-    const gq = net.query(x, z, this.capQ2, undefined, this.onGround);
-    if (gq.found && gq.distance - gq.halfWidth <= 1) return h;
-    const cap =
-      this.pathHeight(dq.path, dq.along) -
-      DECK_SOFFIT_GAP * smoothstep(1, 8, end);
+    const y = this.pathHeight(dq.path, dq.along);
+    // Beside the deck, a ground road's own land (a street beside / meeting the deck, the carriageway it continues)
+    // follows that road. Not under it: a ground way that ends at the deck (a 2 m stub of the carriageway) reached
+    // ~4 m into the footprint with its rounded end and lifted the ground through the deck.
+    {
+      const gq = net.query(x, z, this.capQ2, undefined, this.onGround);
+      const G = gq.found ? net.lengths[gq.path] : 0;
+      if (
+        gq.found &&
+        gq.distance - gq.halfWidth <= 1 &&
+        (over > 0 || (gq.along > 0.3 && gq.along < G - 0.3))
+      )
+        return h;
+    }
+    if (over > 0 && carriageway) {
+      // Beside (up to its very ends, the median next to the abutment too): level with the deck out to the wall
+      // line, then the sheer rise.
+      if (h <= y) return h;
+      // A real cut (as high as the cut walls start) rises sheer at the wall line; a low rise of the land is a gentle
+      // bank from further out (a sheer step lower than a wall read as a lump of earth over the parapet).
+      const rise = h - y;
+      const minWall = this.map.road.cutWalls?.minHeight ?? 2.5;
+      const sheer = smoothstep(zone, zone + CUT_RISE, over);
+      const bank = smoothstep(zone, zone + 4 + rise * 3, over);
+      const k = smoothstep(minWall - 0.5, minWall, rise);
+      return y + rise * (sheer * k + bank * (1 - k));
+    }
+    // Beyond / at a deck end the nearest point is the end itself: the ground road meets the deck there at its level
+    // (its own land is handled above), the rest never rises over the road surface.
+    if (end < 1) return Math.min(h, y);
+    // Under: below the girders, right up to the abutments (the ground used to rise to the road surface over the last
+    // 8 m and come up through the parapet / show as rock under the deck).
+    const cap = y - DECK_SOFFIT_GAP;
     if (h <= cap) return h;
     const w = 1 - smoothstep(0, 2.5, over);
     return h - (h - cap) * w;
@@ -1438,12 +1632,35 @@ export class TerrainGenerator {
     return 1 - smoothstep(0.5, 6, pq.distance - pq.halfWidth);
   }
 
+  /**
+   * 0..1: the floor and the walls of an underpass trench (street + sidewalk + wall step) keep the street's own
+   * ground under a stage-road span, however close to its ends (the blend towards the road level stops there).
+   */
+  private underpassHold(x: number, z: number): number {
+    if (!this.paths || !this.underpass.size) return 0;
+    const pq = this.paths.query(x, z, this.pq, undefined, (qi) =>
+      this.underpass.has(qi),
+    );
+    if (!pq.found) return 0;
+    const edge = pq.distance - pq.halfWidth;
+    const wall = UNDERPASS_WALL + CUT_SETBACK + CUT_RISE;
+    // Only where the dip really lowered the street (not along its undipped stretches).
+    return (
+      (1 - smoothstep(wall, wall + 2, edge)) *
+      smoothstep(0.5, 1.2, this.underpassDipAt(pq.path, pq.along))
+    );
+  }
+
   /** 0..1: how close (x, z) is to a street / channel that can pass under a bridge (full within 1 m of its edge, none beyond 9 m). */
   private crossingNear(x: number, z: number): number {
     let w = 0;
     if (this.paths) {
-      const pq = this.paths.query(x, z, this.pq, undefined, (qi) =>
-        this.underStreet(qi),
+      const pq = this.paths.query(
+        x,
+        z,
+        this.pq,
+        undefined,
+        (qi) => this.underStreet(qi) && !this.underpass.has(qi),
       );
       if (pq.found) w = 1 - smoothstep(1, 9, pq.distance - pq.halfWidth);
     }

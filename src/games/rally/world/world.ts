@@ -136,7 +136,9 @@ export class World implements GroundProvider {
           (f) => Math.hypot(x - f.x, z - f.z) < f.radius + 4,
         ) ||
         this.buildings.contains(x, z, 1.5) ||
-        this.landmarks.some((l) => l.occupies(x, z, 1.5)),
+        this.landmarks.some((l) => l.occupies(x, z, 1.5)) ||
+        // No trees hanging into an underpass trench.
+        this.gen.inUnderpassTrench(x, z),
       this.heightfield,
       {
         landcover: this.gen.landcover,
@@ -196,6 +198,8 @@ export class World implements GroundProvider {
         net: this.gen.paths,
         roadDistance: (x, z) => near(x, z).d,
         blocked: (x, z, r) => this.buildings.contains(x, z, r),
+        underpass: (pi, a) =>
+          this.gen.isUnderpass(pi) && this.gen.underpassDipAt(pi, a) > 1,
       });
     }
     if (map.streetDressing)
@@ -204,10 +208,13 @@ export class World implements GroundProvider {
         road: this.road,
         net: this.gen.paths,
         junctions: this.gen.junctions,
-        height: (x, z) => this.analytic.height(x, z),
+        // The ground, not the top surface: under a stage-road span `analytic` is the deck.
+        height: (x, z) => this.gen.height(x, z),
         pathHeight: (pi, a) => this.gen.pathHeight(pi, a),
         blocked: (x, z, r) =>
           this.buildings.contains(x, z, r) || this.keptClear(x, z),
+        underpass: (pi, a) =>
+          this.gen.isUnderpass(pi) && this.gen.underpassDipAt(pi, a) > 1,
         streetDetail: this.streetDetail,
         sidewalk: map.cityStreets?.sidewalk ?? 1.5,
         lampEvery: map.cityStreets?.lampEvery ?? 0,

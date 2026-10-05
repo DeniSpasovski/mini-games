@@ -545,8 +545,23 @@ export const SMALL_BUILDERS: Record<string, Builder> = {
       m.box(-1.45, 0.3 + i * 0.3, 0, 0.06, 0.06, 0.6, C.grey);
   },
   swing_set(m) {
-    for (const x of [-1.4, 1.4])
-      for (const z of [-0.9, 0.9]) m.box(x, 0, z, 0.12, 2.1, 0.12, C.red);
+    // A-frame ends: each leg leans from its foot (z = ±0.9) in to the top beam at z = 0;
+    // the back leg is a bit thinner so the crossing legs do not share side planes (z-fighting)
+    const apex = 2.07;
+    const lean = Math.atan2(0.9, apex);
+    const leg = Math.hypot(0.9, apex);
+    for (const x of [-1.4, 1.4]) {
+      for (const s of [-1, 1])
+        m.xf(
+          x,
+          0,
+          s * 0.9,
+          () => m.box(0, 0, 0, s < 0 ? 0.1 : 0.12, leg, 0.12, C.red),
+          0,
+          -s * lean,
+        );
+      m.box(x, 0.8, 0, 0.08, 0.08, 1.1, C.red);
+    }
     m.box(0, 2.0, 0, 3.0, 0.14, 0.14, C.red);
     for (const x of [-0.6, 0.6]) {
       m.box(x - 0.2, 0.5, 0, 0.03, 1.5, 0.03, C.dark);

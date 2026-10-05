@@ -338,6 +338,12 @@ body {
   max-height: 100%;
   box-sizing: border-box;
   padding: 22px 24px;
+  /* a card taller than the screen (3 map cards on a phone) scrolls instead of being cut off */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  flex-shrink: 1;
   border-radius: 28px;
   background: var(--hg-card);
   box-shadow:
@@ -537,7 +543,9 @@ body {
 }
 .hg-swatches {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* capped so both rows plus the Done button fit a landscape phone */
+  grid-template-columns: repeat(4, minmax(0, 72px));
+  justify-content: center;
   gap: 12px;
 }
 .hg-swatch {
@@ -719,6 +727,17 @@ body {
   align-items: center;
   gap: 6px;
   white-space: normal;
+}
+
+/* very narrow phones: tighter cards so the 5-column score table fits */
+@media (max-width: 360px) {
+  .hg-card {
+    padding: 18px 14px;
+  }
+  .hg-table td,
+  .hg-table th {
+    padding: 6px 4px;
+  }
 }
 
 /* narrow screens: stack score and island completion so they don't run into the timer */

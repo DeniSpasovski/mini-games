@@ -34,6 +34,11 @@ export interface MapDef {
   seed: number;
   /** Area that is rendered / streamed. Terrain outside rises to form a horizon. */
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
+  /**
+   * Stage-select view (baked stage card, tools/stage-card.ts): vertical exaggeration of the card's relief, e.g. 1.8
+   * for a flat city map so its terrain still reads from the air. Default 1. Changing it needs no re-bake.
+   */
+  previewRelief?: number;
   terrain: TerrainDef;
   road: RoadDef;
   stage: StageDef;
@@ -361,6 +366,8 @@ export interface RoadDef {
   smoothing: number;
   /** Max longitudinal grade (0.12 = 12%). The terrain is cut / filled to match. Jumps (dy) are added after. */
   maxGrade?: number;
+  /** Window (m) that rounds the grade changes `maxGrade` leaves (default 12). Longer = gentler crests at speed. */
+  gradeSmoothing?: number;
   surface: SurfaceId;
   /** Road texture: 'road' (gravel, default), 'road_tarmac' (worn asphalt with loose gravel) or 'road_parkway' (clean asphalt, painted lane lines). */
   texture?: RoadTexture;
@@ -613,6 +620,18 @@ export interface EnvironmentDef {
   cloudCoverage?: number;
   cloudDensity?: number;
   cloudSpeed?: number;
+  /** How dark the drifting cloud shadows on the ground get, 0..1 (default 0.5, 0 = none). */
+  cloudShadow?: number;
+  /** How dark the baked far tree shadows on the ground get (world/canopy-shadows.ts), 0..1 (default 0.6). */
+  canopyShadow?: number;
+  /** Foliage wind sway multiplier (default 1, 0 = still). */
+  wind?: number;
+  /**
+   * Fog thins with height above the camera (valleys hazier, hill tops clearer): falloff per metre (default 0.004,
+   * 0 = flat `FogExp2`). `fogSunGlow` = how much the fog warms towards the sun (x sun colour, default 0.45).
+   */
+  fogFalloff?: number;
+  fogSunGlow?: number;
   turbidity: number;
   rayleigh: number;
   fogColor: string;

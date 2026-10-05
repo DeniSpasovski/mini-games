@@ -20,6 +20,7 @@ import { stageSignMeshJob } from './stage-sign-mesh';
 import { buildingMeshJob } from './building-mesh';
 import { waterMeshJob } from './water-mesh';
 import type { World } from './world';
+import { GroundTerrain } from './heightfield';
 
 /**
  * Road surface ribbon. Vertices sample the terrain generator (so the ribbon hugs
@@ -74,12 +75,17 @@ export function getRoadMaterial(
   if (!m) {
     m = new MeshStandardMaterial({
       map: getTexture(texture),
+      // Relief from the texture itself: gravel stones / tarmac grain catch a low sun.
+      bumpMap: getTexture(texture),
+      bumpScale: texture === 'road' ? 2.2 : 1.2,
       roughness: texture === 'road' ? 0.93 : 0.86,
       metalness: 0,
       polygonOffset: true,
       polygonOffsetFactor: layer === 0 ? -3 : layer === 2 ? -2 : -1,
       polygonOffsetUnits: layer === 0 ? -6 : layer === 2 ? -4 : -2,
     });
+    // Canopy shadows beyond the shadow map (engine/world-shading.ts).
+    m.defines = { RALLY_GROUND: 1 };
     roadMaterials.set(key, m);
   }
   return m;
@@ -234,7 +240,8 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
     (p) => p.surface === 'tarmac' && !p.bridge,
   );
   if (!paths?.length) return undefined;
-  const hf = world.analytic;
+  // The ground, not the top surface: a street under a stage-road bridge stays down in its underpass.
+  const hf = new GroundTerrain(world.gen);
   const nTmp = new Vector3();
   const rq = newRoadQuery();
   const tiles = new Map<
@@ -293,13 +300,16 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
         const x = pts[r][0] + tz * lat;
         const z = pts[r][1] - tx * lat;
         // Same 3 cm lift as the stage ribbon (polygon offset decides who is on top) - but sunk under the
-        // stage road where they overlap, so a ramp / side street never paints over its lane markings.
+        // stage road where they overlap, so a ramp / side street never paints over its lane markings. Not a street
+        // passing under a stage-road bridge (it sank into the trench floor: gravel through the street).
         world.road.query(x, z, rq);
-        const sink = rq.found
-          ? 1 -
-            Math.min(1, Math.max(0, (rq.distance - rq.halfWidth + 0.2) / 1.0))
-          : 0;
-        tile.pos.push(x, hf.height(x, z) + 0.03 - 0.08 * sink, z);
+        const y = hf.height(x, z);
+        const sink =
+          rq.found && Math.abs(world.road.at(rq.along).y - y) < 1
+            ? 1 -
+              Math.min(1, Math.max(0, (rq.distance - rq.halfWidth + 0.2) / 1.0))
+            : 0;
+        tile.pos.push(x, y + 0.03 - 0.08 * sink, z);
         // One normal per row (taken at the centre): the ribbons are flat roads, and this saves four height samples per vertex.
         tile.nor.push(nTmp.x, nTmp.y, nTmp.z);
         tile.uv.push(1 - (PATH_ACROSS[c] + 1) / 2, pts[r][2] / texLength(tex));

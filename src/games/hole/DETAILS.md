@@ -79,7 +79,7 @@ not.
   Buttons: Play again (same difficulty) and Main menu.
 - **Persistence** (localStorage; every access is wrapped in try/catch and falls back to memory, so private mode works):
   - `hole.settings`: colour, volume, quality, last difficulty, last map, island seed, toy floor plan
-  - `hole.scores.<map>.easy|medium|hard` (`city`, `toy`): top 10 `{ score, level, eaten, pct, color, date }`, sorted by
+  - `hole.scores.<map>.easy|medium|hard` (`city`, `toy`, `animal`): top 10 `{ score, level, eaten, pct, color, date }`, sorted by
     score. Ties go to the higher level, then the earlier date.
   - No player names in v0 (one device = one player). Initials are listed under iterations.
 
@@ -211,10 +211,10 @@ Each item has a small state machine in `sim/fall.ts`, deterministic (seeded per 
 #### High scores and the scoring version
 
 High scores are only comparable while the scoring rules stay the same. The version is **per map**
-(`MAP_SCORING_VERSIONS` in `game/scores.ts`: `city` = `SCORING_VERSION`, `toy`) and saved next to the lists
-(`hole.scores.version` for the city, `hole.scores.version.toy`); **when the game opens and a saved version differs from
+(`MAP_SCORING_VERSIONS` in `game/scores.ts`) and saved next to the lists
+(`hole.scores.version` for the city, `hole.scores.version.<map>` for the others); **when the game opens and a saved version differs from
 the code, that map's top-10 lists are erased** (`purgeStaleScores`, also true for lists saved before versions existed).
-Changing one map never erases the other map's scores.
+Bumping one map never erases another map's scores; a shared rule (`sim/`, clear bonus) means bumping every map.
 
 **Whenever scoring logic changes, bump the version of the map it affects** (and add a line to the history comment). A
 change to shared rules (tier table, clear bonus, difficulty times, `sim/sim.ts`) bumps every map. That means any change
@@ -510,7 +510,7 @@ biome cells (two greens per biome), sand ring, flat rects, river ribbons with mu
 ### Edible items (catalog)
 
 `size` = `max(w, d, h·0.25)`. `Tier` = size tier (1–25); `Pts` = points of that tier. The hole level that first eats an item is shown in the viewers (levels 1–15, see "Hole levels"). Sizes were checked
-against the tier table (every size tier 1–25 and every hole level 1–15 has at least 2 item types). If you change a size, keep its tier in mind (it sets the points, and changing it means bumping `SCORING_VERSION`).
+against the tier table (every size tier 1–25 and every hole level 1–15 has at least 2 item types). If you change a size, keep its tier in mind (it sets the points, and changing it means bumping `MAP_SCORING_VERSIONS.city`).
 The item viewer shows the live value.
 
 | Tier | Pts | id                   | Group       | w × d × h (m) | size | District(s)                 | Notes                                          |

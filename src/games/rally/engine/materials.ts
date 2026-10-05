@@ -18,6 +18,13 @@ export type MaterialId =
 
 const cache = new Map<MaterialId, Material>();
 
+/**
+ * Wind sway (`RALLY_WIND`, metres of sway per m² of height) and leaf translucency (`RALLY_FOLIAGE`) for the
+ * world shading (engine/world-shading.ts). Trees bend at the top, grass / reed cards at their tips.
+ */
+const TREE_DEFINES = { RALLY_WIND: 0.0009, RALLY_FOLIAGE: 0.3 };
+const CARD_DEFINES = { RALLY_WIND: 0.1, RALLY_FOLIAGE: 0.25, RALLY_GROUND: 1 };
+
 const FOLIAGE: MaterialId[] = [
   'foliage_card',
   'foliage_card_dry',
@@ -51,6 +58,7 @@ export function getMaterial(id: MaterialId): Material {
         map: getTexture('detail'),
         roughness: 0.92,
       });
+      m.defines = { ...TREE_DEFINES };
       break;
     case 'foliage_card':
       m = new MeshStandardMaterial({
@@ -83,6 +91,8 @@ export function getMaterial(id: MaterialId): Material {
       m = new MeshStandardMaterial({
         vertexColors: true,
         map: getTexture('rock'),
+        bumpMap: getTexture('rock'),
+        bumpScale: 2,
         roughness: 0.88,
       });
       break;
@@ -117,7 +127,10 @@ export function getMaterial(id: MaterialId): Material {
       break;
   }
   m.name = id;
-  if (FOLIAGE.includes(id)) m.alphaToCoverage = foliageA2C;
+  if (FOLIAGE.includes(id)) {
+    m.alphaToCoverage = foliageA2C;
+    m.defines = { ...CARD_DEFINES };
+  }
   cache.set(id, m);
   return m;
 }

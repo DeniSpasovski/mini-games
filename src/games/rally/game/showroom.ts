@@ -1,10 +1,7 @@
 import {
-  BufferGeometry,
   CircleGeometry,
-  CylinderGeometry,
+  Color,
   Group,
-  DoubleSide,
-  Float32BufferAttribute,
   HalfFloatType,
   LinearMipmapLinearFilter,
   Mesh,
@@ -36,17 +33,30 @@ import { InstanceStreamer } from '../world/instance-streamer';
 import { roadMeshJob } from '../world/road-mesh';
 import { setGroundTint } from '../world/terrain-material';
 import { RENDER_MARGIN, World } from '../world/world';
+import {
+  cardMesh,
+  isLargeMap,
+  LARGE_MAP_AREA,
+  loadStageCard,
+  mapHash,
+  STAGE_CARD_VERSION,
+  stageBox,
+  stageOverlay,
+  stagePoints,
+} from '../tools/stage-card';
 
-/** Setup screen: the car is centred on the screen, the picker rows may cover part of it (fraction of the width, + = right). */
-const SETUP_SHIFT = 0;
-const CAR_ENV = { ...testMap.environment, fogDensity: 0.02, sunElevation: 24 };
 /**
- * Maps bigger than this (m²) get the cheap aerial preview: thinned scatter, trees as
- * green circles, everything baked into a top-down texture on a coarse mesh (a map
- * card, ~75k triangles). Smaller maps show their real terrain / trees / rocks.
+ * Car screens (welcome, car select, setup): the car's screen shift (fraction of the width, + = right) - the same on all
+ * of them, so the car doesn't move when the screen changes.
  */
-const LARGE_MAP_AREA = 8e6;
-/** Map card: quads in the coarse terrain mesh, long side of the baked texture (px). */
+const CAR_SHIFT = 0.1;
+const CAR_ENV = { ...testMap.environment, fogDensity: 0.02, sunElevation: 24 };
+/** Map view: camera height angle over the stage (rad), ~36 deg. */
+const ORBIT_ELEVATION = Math.atan2(0.7, 0.95);
+/**
+ * Live map card (fallback for a large map without a baked stage card, stage-card.ts): thinned scatter, trees as
+ * green circles, baked at runtime into a top-down texture on a coarse mesh. Quads in that mesh, texture long side.
+ */
 const CARD_QUADS = 34000;
 const CARD_TEXTURE = 2048;
 
@@ -62,6 +72,7 @@ interface MapView {
   detail: Group;
   /** Stage ribbon, start / finish poles, floor (+ the card mesh on large maps). */
   overlay: Group;
+  /** Orbit centre and size (m): the stage's bounding box + margin (`stageBox`), not the whole map. */
   center: Vector3;
   size: number;
   card?: MapCard;
@@ -72,6 +83,28 @@ interface MapView {
   /** Large maps: free the detail meshes once the final card is baked. */
   freeDetail: () => void;
   dispose: () => void;
+  /** Baked-card view of a map that has no card (yet): build it live when it is wanted. */
+  missing?: boolean;
+  /** Stage line points the orbit keeps in view (`fitDistance`); empty = fit the bounding sphere (`size`). */
+  fit: Vector3[];
+  /** Cached orbit distance for one view shape (fov / aspect / shift). */
+  fitCache?: { key: string; d: number };
+}
+
+/** Stage view: the orbit centre sits this fraction of the screen height above the middle (more sky room below). */
+const MAP_LIFT = 0.06;
+/** Margin around the stage line in the stage view (x its projected extent). */
+const FIT_MARGIN = 1.15;
+/** Orbit angles sampled for the (constant) zoom: the stage fits at every angle. */
+const FIT_ANGLES = 24;
+
+/** Every `n`-th point of a line (and the last one), so the fit stays cheap. */
+function thin(points: Vector3[], max = 160): Vector3[] {
+  const n = Math.max(1, Math.ceil(points.length / max));
+  const out = points.filter((_, i) => i % n === 0);
+  if (points.length && out[out.length - 1] !== points[points.length - 1])
+    out.push(points[points.length - 1]);
+  return out;
 }
 
 /** Large maps: the detail meshes rendered top-down into a texture on a coarse mesh. */
@@ -113,8 +146,11 @@ export class Showroom {
   readonly scene = new Scene();
   readonly camera = new PerspectiveCamera(30, 1, 0.1, 3000);
   readonly renderer: WebGLRenderer;
-  /** Horizontal screen shift of the car (fraction of the width, + = right) so it clears the menu panel. */
-  shift = 0.2;
+  /**
+   * Fixed horizontal screen shift of the subject (fraction of the width, + = right; car / setup screens), or null =
+   * centred in the screen area right of the menu panel (`panelRight`, the stage view).
+   */
+  private fixedShift: number | null = CAR_SHIFT;
   private env: Environment;
   private ground: Mesh;
   private model?: CarModel;
@@ -137,6 +173,7 @@ export class Showroom {
   private uploadCam = new PerspectiveCamera(30, 1, 2, 3000);
   private bakeCam = new OrthographicCamera();
   private maps = new Map<string, MapView>();
+  private preloaded = false;
   /** Displayed map (undefined = car mode). */
   private mapView?: MapView;
   /** Requested map, shown once its terrain is built. */
@@ -145,6 +182,8 @@ export class Showroom {
   constructor(
     container: HTMLElement,
     private quality: QualitySettings,
+    /** Right edge of the menu panel (CSS px from the canvas' left edge); 0 = no panel. */
+    private panelRight: () => number = () => 0,
   ) {
     this.renderer = createRenderer(container, quality);
     setTextureAnisotropy(
@@ -215,11 +254,11 @@ export class Showroom {
     this.bench = undefined;
     this.benchCar = '';
     this.benchBoxes = [];
-    this.shift = 0.2;
+    this.fixedShift = CAR_SHIFT;
   }
 
   /**
-   * Setup mode: the turntable car stays behind the menu (pushed further right, the boxes fill the left) and each
+   * Setup mode: the turntable car stays where it is on the car screens (the picker boxes sit over the left) and each
    * picker box (`key` = `tyre:<id>` / `susp:<id>`, a transparent DOM element) shows its own live 3D part - the car's
    * tyre on its rim or coil-over (see setup-bench.ts). Call again after the menu re-renders (the elements change); the
    * studios are only rebuilt when the car changes.
@@ -234,7 +273,7 @@ export class Showroom {
     }
     this.benchBoxes = boxes;
     // The normal turntable ground + sky + car stay as the background (like the car screen), the pickers sit over them.
-    this.shift = SETUP_SHIFT;
+    this.fixedShift = CAR_SHIFT;
   }
 
   /**
@@ -243,6 +282,8 @@ export class Showroom {
    * until the map's terrain is built, then roads / trees / buildings fill in.
    */
   showMap(mapId: string): void {
+    this.fixedShift = null;
+    this.preloadCards();
     this.wanted = this.getMap(mapId);
     if (this.wanted.ready()) this.display(this.wanted);
   }
@@ -250,12 +291,49 @@ export class Showroom {
   private getMap(mapId: string): MapView {
     let view = this.maps.get(mapId);
     if (!view) {
-      view = buildMapView(mapId, this.quality);
-      view.group.visible = false;
-      this.maps.set(mapId, view);
-      this.scene.add(view.group);
+      view = isLargeMap(getMap(mapId))
+        ? cardView(mapId)
+        : buildMapView(mapId, this.quality);
+      this.addView(view);
     }
     return view;
+  }
+
+  private addView(view: MapView): void {
+    view.group.visible = false;
+    this.maps.set(view.id, view);
+    this.scene.add(view.group);
+  }
+
+  /** A large map without a baked card: replace its (empty) card view with a live build. */
+  private buildLive(old: MapView): MapView {
+    console.warn(
+      `[stage card] ${old.id}: no baked card - building the view live (bake it: /games/rally/?bakecard=${old.id})`,
+    );
+    this.scene.remove(old.group);
+    const view = buildMapView(old.id, this.quality);
+    this.addView(view);
+    if (this.wanted === old) this.wanted = view;
+    return view;
+  }
+
+  /** Start loading every large map's baked card (cheap: two small files each, no map build). */
+  private preloadCards(): void {
+    if (this.preloaded) return;
+    this.preloaded = true;
+    for (const m of MAPS) if (isLargeMap(m)) this.getMap(m.id);
+  }
+
+  /**
+   * DEV: bake the stage cards of `ids` (stage-card-bake.ts, saved into maps/<id>/preview/ by the dev server), one
+   * after another. Stops the menu loop - reload the page afterwards to see the new cards.
+   */
+  async bakeStageCards(ids: string[], log: (s: string) => void): Promise<void> {
+    if (!import.meta.env.DEV) return; // the baker (and its chunk) never ships
+    this.running = false;
+    const { bakeStageCard } = await import('../tools/stage-card-bake');
+    for (const id of ids)
+      log(await bakeStageCard(this.renderer, this.quality, id, log));
   }
 
   private display(view: MapView | undefined): void {
@@ -282,22 +360,15 @@ export class Showroom {
     const c = this.renderer.domElement;
     const w = c.width || 1;
     const h = c.height || 1;
-    // The requested map first (a big budget until its terrain shows - the menu doesn't
-    // need 60 fps then), then warm up the other maps in the background (from the
-    // welcome screen on) so switching stage is instant.
-    const wanted = this.wanted;
+    // Only the requested map is built (a big budget until its terrain shows - the menu doesn't need 60 fps then).
+    // No background warm-up: large maps load a baked stage card (stage-card.ts), small ones build in ~0.1 s.
+    let wanted = this.wanted;
+    if (wanted?.missing) wanted = this.buildLive(wanted);
     if (wanted?.build) {
       const r = step(wanted, wanted.ready() ? 8 : 30);
       if (r) this.finished(wanted, r === 2, true);
-      if (wanted.ready()) this.display(wanted);
-    } else {
-      const next = MAPS.find((m) => this.maps.get(m.id)?.build !== null);
-      if (next) {
-        const v = this.getMap(next.id);
-        const r = step(v, wanted ? 6 : 4);
-        if (r) this.finished(v, r === 2, false);
-      }
     }
+    if (wanted?.ready()) this.display(wanted);
 
     if (this.mapView) {
       this.mapFrame(dt, this.mapView, w, h);
@@ -334,14 +405,77 @@ export class Showroom {
   }
 
   /** Aerial orbit camera for a map view. */
+  /**
+   * Screen shift of the subject (fraction of the width): the centre of the area right of the menu panel - panel
+   * width / 2 of the canvas width (the 440 px panel: 0.17 at 1280 px, 0.11 at 1920 px). Phones (panel over most of
+   * the screen): none.
+   */
+  private shift(): number {
+    if (this.fixedShift !== null) return this.fixedShift;
+    const width = this.renderer.domElement.clientWidth || 1;
+    const panel = this.panelRight();
+    return panel > width * 0.6 ? 0 : panel / (2 * width);
+  }
+
   private aim(cam: PerspectiveCamera, v: MapView, aspect: number): void {
-    const r = v.size * 0.95 * Math.max(1, 1.5 / aspect);
+    const d = this.fitDistance(v, cam.fov, aspect);
+    const flat = d * Math.cos(ORBIT_ELEVATION);
     cam.position.set(
-      v.center.x + Math.sin(this.angle) * r,
-      v.center.y + v.size * 0.7,
-      v.center.z + Math.cos(this.angle) * r,
+      v.center.x + Math.sin(this.angle) * flat,
+      v.center.y + d * Math.sin(ORBIT_ELEVATION),
+      v.center.z + Math.cos(this.angle) * flat,
     );
     cam.lookAt(v.center);
+  }
+
+  /**
+   * Orbit distance (constant while it turns): the closest at which the whole stage line (+ FIT_MARGIN) is in view at
+   * every sampled orbit angle - vertically, and horizontally in the room either side of the orbit centre (the
+   * off-centre projection puts the centre `shift` of the width right, see `render`). Long thin stages come much
+   * closer than with their bounding sphere (which is the fallback without fit points).
+   */
+  private fitDistance(v: MapView, fov: number, aspect: number): number {
+    const t = Math.tan((fov * Math.PI) / 360);
+    const shift = aspect > 1 ? this.shift() : 0;
+    const tH = t * aspect * (1 - 2 * shift);
+    // Lifted centre (MAP_LIFT, see `render`): less room above it, more below.
+    const tUp = t * (1 - 2 * MAP_LIFT);
+    const tDown = t * (1 + 2 * MAP_LIFT);
+    const key = `${fov}|${aspect.toFixed(3)}|${shift.toFixed(3)}|${v.fit.length}`;
+    if (v.fitCache?.key === key) return v.fitCache.d;
+    let d: number;
+    if (!v.fit.length) {
+      d = v.size / 2 / Math.sin(Math.atan(Math.min(tUp, tH)));
+    } else {
+      d = 0;
+      const ce = Math.cos(ORBIT_ELEVATION);
+      const se = Math.sin(ORBIT_ELEVATION);
+      for (let k = 0; k < FIT_ANGLES; k++) {
+        const a = (k / FIT_ANGLES) * Math.PI * 2;
+        // Camera looks along f = -(sin a ce, se, cos a ce); right = f x up; camera up = right x f.
+        const fx = -Math.sin(a) * ce;
+        const fy = -se;
+        const fz = -Math.cos(a) * ce;
+        const rl = Math.hypot(fz, fx);
+        const rx = -fz / rl;
+        const rz = fx / rl;
+        const ux = -rz * fy;
+        const uy = rz * fx - rx * fz;
+        const uz = rx * fy;
+        for (const p of v.fit) {
+          const px = p.x - v.center.x;
+          const py = p.y - v.center.y;
+          const pz = p.z - v.center.z;
+          const x = Math.abs(px * rx + pz * rz) * FIT_MARGIN;
+          const yc = (px * ux + py * uy + pz * uz) * FIT_MARGIN;
+          const y = Math.abs(yc) / (yc > 0 ? tUp : tDown);
+          const z = px * fx + py * fy + pz * fz;
+          d = Math.max(d, Math.max(x / tH, y) - z);
+        }
+      }
+    }
+    v.fitCache = { key, d };
+    return d;
   }
 
   /**
@@ -466,8 +600,10 @@ export class Showroom {
     cam.near = near;
     cam.far = far;
     // Off-centre projection: keep the subject right of the menu panel (also updates the projection).
-    const shift = w > h ? this.shift : 0;
-    cam.setViewOffset(w, h, -w * shift, 0, w, h);
+    const shift = w > h ? this.shift() : 0;
+    // Stage view: the subject a little above the middle (MAP_LIFT); car screens: vertically centred.
+    const lift = this.mapView ? h * MAP_LIFT : 0;
+    cam.setViewOffset(w, h, -w * shift, lift, w, h);
     this.env.follow(cam.position);
     this.renderer.render(this.scene, cam);
   }
@@ -510,16 +646,100 @@ function previewMap(map: MapDef): { map: MapDef; grow: number } {
   return { map: { ...map, scatter }, grow: Math.min(3, 1 / Math.sqrt(k)) };
 }
 
+/**
+ * Map view from the map's baked stage card (stage-card.ts): nothing to build, `ready()` once the two files are loaded
+ * and decoded. Marked `missing` when the map has no card yet (the menu then builds it live).
+ */
+function cardView(mapId: string): MapView {
+  const map = getMap(mapId);
+  const group = new Group();
+  const detail = new Group();
+  const overlay = new Group();
+  group.add(detail, overlay);
+  let loaded = false;
+  let mesh: Mesh | undefined;
+  let marks: ReturnType<typeof stageOverlay> | undefined;
+  const view: MapView = {
+    id: mapId,
+    group,
+    detail,
+    overlay,
+    center: new Vector3(),
+    size: 1,
+    ready: () => loaded,
+    fit: [],
+    build: null,
+    freeDetail: () => {},
+    dispose: () => {
+      mesh?.geometry.dispose();
+      (mesh?.material as MeshBasicMaterial | undefined)?.map?.dispose();
+      (mesh?.material as MeshBasicMaterial | undefined)?.dispose();
+      marks?.dispose();
+    },
+  };
+  loadStageCard(mapId).then(
+    (card) => {
+      const d = card.data;
+      if (
+        import.meta.env.DEV &&
+        (d.version !== STAGE_CARD_VERSION || d.hash !== mapHash(map))
+      )
+        console.warn(
+          `[stage card] ${mapId}: out of date (map or baker changed) - re-bake: /games/rally/?bakecard=${mapId}`,
+        );
+      // Relief exaggeration around the card's lowest point (flat maps read better with some).
+      const relief = map.previewRelief ?? 1;
+      const base = d.grid.min;
+      const ex = (y: number) => base + (y - base) * relief;
+      mesh = cardMesh(card, relief, base);
+      overlay.add(mesh);
+      const points: Vector3[] = [];
+      for (let i = 0; i < d.stage.length; i += 3)
+        points.push(
+          new Vector3(d.stage[i], ex(d.stage[i + 1]), d.stage[i + 2]),
+        );
+      view.center.set(d.center[0], ex(d.center[1]), d.center[2]);
+      view.size = d.size;
+      view.fit = thin(points);
+      marks = stageOverlay({
+        points,
+        size: d.size,
+        floor: {
+          x: d.rect.x0 + d.rect.w / 2,
+          y: base - 5,
+          z: d.rect.z0 + d.rect.h / 2,
+          radius: Math.max(d.rect.w, d.rect.h) * 4,
+          color: new Color(d.floor),
+        },
+      });
+      overlay.add(marks.group);
+      loaded = true;
+    },
+    () => {
+      view.missing = true;
+    },
+  );
+  return view;
+}
+
 function buildMapView(mapId: string, quality: QualitySettings): MapView {
   const map = getMap(mapId);
   const b = map.bounds;
   const large = (b.maxX - b.minX) * (b.maxZ - b.minZ) > LARGE_MAP_AREA;
   const preview = large ? previewMap(map) : undefined;
   const world = new World(preview?.map ?? map);
-  const size = Math.max(b.maxX - b.minX, b.maxZ - b.minZ);
+  // Map extent (terrain floor) vs the stage: the orbit camera circles the STAGE (start -> finish bounding box),
+  // not the map bounds - on maps where the stage uses a corner of the map (Ajvatovci) the view stays on it.
+  const mapSize = Math.max(b.maxX - b.minX, b.maxZ - b.minZ);
   const cx = (b.minX + b.maxX) / 2;
   const cz = (b.minZ + b.maxZ) / 2;
-  const center = new Vector3(cx, world.heightAt(cx, cz), cz);
+  const stage = stageBox(world);
+  const size = stage.size;
+  const center = new Vector3(
+    stage.x,
+    world.heightAt(stage.x, stage.z),
+    stage.z,
+  );
   const group = new Group();
   const detail = new Group();
   const overlay = new Group();
@@ -598,34 +818,7 @@ function buildMapView(mapId: string, quality: QualitySettings): MapView {
     }
   }
 
-  // Stage highlight: start -> finish drawn over the terrain + start / finish poles.
-  const st = world.stage;
-  // Flat ribbon (GL lines are 1 px), width scaled to the map so it reads from the air.
-  const half = size / 320;
-  const pos: number[] = [];
-  const idx: number[] = [];
-  for (let d = st.start, i = 0; d <= st.finish; d += 4, i++) {
-    const p = world.road.at(d);
-    pos.push(p.x - p.tz * half, p.y + 2, p.z + p.tx * half);
-    pos.push(p.x + p.tz * half, p.y + 2, p.z - p.tx * half);
-    if (i) idx.push(2 * i - 2, 2 * i - 1, 2 * i, 2 * i - 1, 2 * i + 1, 2 * i);
-  }
-  const lineGeo = new BufferGeometry();
-  lineGeo.setAttribute('position', new Float32BufferAttribute(pos, 3));
-  lineGeo.setIndex(idx);
-  const lineMat = new MeshBasicMaterial({
-    color: 0xf0a020,
-    depthTest: false,
-    side: DoubleSide,
-    fog: false,
-  });
-  const line = new Mesh(lineGeo, lineMat);
-  line.renderOrder = 10;
-  // Ground beyond the streamed area, so the map doesn't float in the sky.
-  const floorGeo = new CircleGeometry(size * 4, 48);
-  const floorMat = new MeshBasicMaterial({ color: 0x5a5c48 });
-  const floor = new Mesh(floorGeo, floorMat);
-  floor.rotation.x = -Math.PI / 2;
+  // Stage highlight (ribbon + start / finish poles) and the floor beyond the map, at its lowest point.
   let minY = Infinity;
   for (let i = 0; i <= 16; i++)
     for (let j = 0; j <= 16; j++)
@@ -636,20 +829,20 @@ function buildMapView(mapId: string, quality: QualitySettings): MapView {
           b.minZ + ((b.maxZ - b.minZ) * j) / 16,
         ),
       );
-  floor.position.set(cx, minY - 5, cz);
   if (card) card.minY = minY - 100;
-  overlay.add(floor);
-  const poleGeo = new CylinderGeometry(4, 4, size * 0.05, 10);
-  const poleMats = [0x3ddc6a, 0xff4a3a].map(
-    (color) => new MeshBasicMaterial({ color }),
-  );
-  [st.start, st.finish].forEach((along, i) => {
-    const p = world.road.at(along);
-    const m = new Mesh(poleGeo, poleMats[i]);
-    m.position.set(p.x, p.y + size * 0.025, p.z);
-    overlay.add(m);
+  const line = stagePoints(world);
+  const stageMarks = stageOverlay({
+    points: line,
+    size,
+    floor: {
+      x: cx,
+      y: minY - 5,
+      z: cz,
+      radius: mapSize * 4,
+      color: new Color(0x5a5c48),
+    },
   });
-  overlay.add(line);
+  overlay.add(stageMarks.group);
 
   let detailFreed = false;
   const freeDetail = () => {
@@ -670,6 +863,7 @@ function buildMapView(mapId: string, quality: QualitySettings): MapView {
     size,
     card,
     ready: () => (card ? card.baked : terrain.done),
+    fit: thin(line),
     build: build(),
     freeDetail,
     dispose: () => {
@@ -679,12 +873,7 @@ function buildMapView(mapId: string, quality: QualitySettings): MapView {
         (card.mesh.material as MeshBasicMaterial).dispose();
         card.target.dispose();
       }
-      lineGeo.dispose();
-      lineMat.dispose();
-      floorGeo.dispose();
-      floorMat.dispose();
-      poleGeo.dispose();
-      poleMats.forEach((m) => m.dispose());
+      stageMarks.dispose();
     },
   };
 }

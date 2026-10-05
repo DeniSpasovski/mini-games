@@ -6,6 +6,7 @@ import type { Road } from './road';
 import { nearestRoadPoint } from './road-distance';
 import type { ScatterInstance } from './scatter';
 import { KERB_H, KERB_W, type StreetDetail } from './street-detail';
+import { UNDERPASS_WALL } from './terrain-gen';
 
 /**
  * City dressing placed from the road network (MapDef.streetDressing): parked cars along the kerbs of
@@ -27,6 +28,8 @@ export interface DressingContext {
   pathHeight: (pi: number, along: number) => number;
   /** Something solid (a building) within `r` m of the point. */
   blocked: (x: number, z: number, r: number) => boolean;
+  /** Path `pi` at `along` m runs in an underpass trench (retaining walls `UNDERPASS_WALL` past its edge). */
+  underpass?: (pi: number, along: number) => boolean;
   /** Sidewalk runs of the city streets (lamps stand on them), sidewalk width, lamp spacing (0 = none). */
   streetDetail?: StreetDetail;
   sidewalk?: number;
@@ -37,6 +40,9 @@ export interface DressingContext {
 const SLOT = 6.4;
 /** Distance of the stage road samples used for the "within reach" tests (m). */
 const ROAD_STEP = 12;
+/** Wheel base / track half sizes a parked car is fitted to the street with (m). */
+const CAR_HALF_L = 1.9;
+const CAR_HALF_W = 0.8;
 /** Streets with a mainline role never get parked cars / crowds. */
 const MAINLINE = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link']);
 
@@ -57,6 +63,8 @@ export function streetDressingInstances(
     z: number,
     rotY: number,
     y = ctx.height(x, z),
+    tiltX = 0,
+    tiltZ = 0,
   ): void => {
     out.push({
       asset,
@@ -66,9 +74,42 @@ export function streetDressingInstances(
       z,
       rotY,
       scale: 1,
-      tiltX: 0,
-      tiltZ: 0,
+      tiltX,
+      tiltZ,
     });
+  };
+  /**
+   * A parked car on a sloping street: on the plane through the ground under its wheels, pitched and rolled to
+   * match (level, its uphill end sank into the street). Tilts are in the car's frame (YXZ: nose = +X).
+   */
+  const placeCar = (
+    asset: string,
+    variant: number,
+    x: number,
+    z: number,
+    rotY: number,
+  ): void => {
+    // Local +X (nose) and +Z (the side a positive roll lowers) on the ground.
+    const fx = Math.cos(rotY);
+    const fz = -Math.sin(rotY);
+    const h = (u: number, v: number) =>
+      ctx.height(x + fx * u - fz * v, z + fz * u + fx * v);
+    const L = CAR_HALF_L;
+    const W = CAR_HALF_W;
+    const front = (h(L, W) + h(L, -W)) / 2;
+    const rear = (h(-L, W) + h(-L, -W)) / 2;
+    const sideZ = (h(L, W) + h(-L, W)) / 2;
+    const sideNegZ = (h(L, -W) + h(-L, -W)) / 2;
+    place(
+      asset,
+      variant,
+      x,
+      z,
+      rotY,
+      (front + rear) / 2,
+      Math.atan2(sideNegZ - sideZ, 2 * W),
+      Math.atan2(front - rear, 2 * L),
+    );
   };
 
   // --- parked cars --------------------------------------------------------------------------
@@ -127,8 +168,8 @@ export function streetDressingInstances(
           const flip = rng.chance(0.5) ? 1 : -1;
           const yaw = yawAlong(tx * flip, tz * flip);
           if (parked.taxiShare && rng.chance(parked.taxiShare))
-            place('taxi', 0, x, z, yaw);
-          else place('street_car', rng.int(0, 11), x, z, yaw);
+            placeCar('taxi', 0, x, z, yaw);
+          else placeCar('street_car', rng.int(0, 11), x, z, yaw);
         }
       }
     });
@@ -185,6 +226,7 @@ export function streetDressingInstances(
     const pt = { x: 0, z: 0 };
     const nx = { x: 0, z: 0 };
     const W = ctx.sidewalk ?? 1.5;
+    const lq = newPathQuery();
     for (const run of detail.runs) {
       const hw = net.paths[run.path].width / 2;
       // The two sides alternate (offset by half a spacing), every run starts on a spacing multiple.
@@ -206,6 +248,26 @@ export function streetDressingInstances(
         const x = pt.x + ox * off;
         const z = pt.z + oz * off;
         if (ctx.blocked(x, z, 0.5)) continue;
+        // No pole under or beside a bridge deck (it would stand up through it): in an underpass trench the light is
+        // fixed to the retaining wall instead, elsewhere the slot stays empty.
+        net.query(x, z, lq, 'tarmac', (qi) => !!net.paths[qi].bridge);
+        const deck =
+          nearRoad(x, z).d < road.at(0).halfWidth + 4 ||
+          (lq.found && lq.distance <= lq.halfWidth + 2);
+        if (deck) {
+          if (ctx.underpass?.(run.path, a)) {
+            const wall = hw + UNDERPASS_WALL;
+            place(
+              'wall_lamp',
+              0,
+              pt.x + ox * wall,
+              pt.z + oz * wall,
+              yawToward(-ox, -oz),
+              ctx.height(x, z),
+            );
+          }
+          continue;
+        }
         // The arm points +Z: turn it over the street.
         place(
           'street_lamp',

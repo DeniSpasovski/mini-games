@@ -6,7 +6,7 @@ import {
 } from '../../src/games/hole/game/stick';
 import { memoryStorage } from '../../src/games/hole/game/storage';
 import {
-  SCORING_VERSION,
+  MAP_SCORING_VERSIONS,
   loadScores,
   purgeStaleScores,
   recordScore,
@@ -82,10 +82,32 @@ test('high scores are erased when the scoring version changes', () => {
   expect(purgeStaleScores(store)).toBe(false);
   expect(loadScores(store, 'city', 'easy').length).toBe(1);
   // a different stored version wipes every difficulty
-  store.setItem('hole.scores.version', String(SCORING_VERSION - 1));
+  store.setItem('hole.scores.version', String(MAP_SCORING_VERSIONS.city - 1));
   recordScore(store, 'city', 'medium', entry(70));
   expect(purgeStaleScores(store)).toBe(true);
   for (const d of ['easy', 'medium', 'hard'])
     expect(loadScores(store, 'city', d)).toEqual([]);
-  expect(store.getItem('hole.scores.version')).toBe(String(SCORING_VERSION));
+  expect(store.getItem('hole.scores.version')).toBe(
+    String(MAP_SCORING_VERSIONS.city),
+  );
+});
+
+test('a scoring version bump erases only that map', () => {
+  const store = memoryStorage();
+  purgeStaleScores(store);
+  for (const map of Object.keys(MAP_SCORING_VERSIONS))
+    recordScore(store, map, 'hard', entry(100));
+  // city bumped: only the city lists go
+  store.setItem('hole.scores.version', String(MAP_SCORING_VERSIONS.city - 1));
+  expect(purgeStaleScores(store)).toBe(true);
+  expect(loadScores(store, 'city', 'hard')).toEqual([]);
+  expect(loadScores(store, 'toy', 'hard').length).toBe(1);
+  expect(loadScores(store, 'animal', 'hard').length).toBe(1);
+  // animal bumped: city (re-recorded) and toy survive
+  recordScore(store, 'city', 'hard', entry(100));
+  store.setItem('hole.scores.version.animal', '0');
+  expect(purgeStaleScores(store)).toBe(true);
+  expect(loadScores(store, 'animal', 'hard')).toEqual([]);
+  expect(loadScores(store, 'city', 'hard').length).toBe(1);
+  expect(loadScores(store, 'toy', 'hard').length).toBe(1);
 });

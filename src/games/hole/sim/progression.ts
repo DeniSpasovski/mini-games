@@ -11,8 +11,8 @@
  *   level 15): the hole just keeps growing x1.075 per level, up to ~100 m.
  *
  * Changing points, tiers, the clear bonus or the difficulty times changes what
- * a score means: bump `SCORING_VERSION` in game/scores.ts so old high scores
- * are erased.
+ * a score means on every map: bump every map in `MAP_SCORING_VERSIONS`
+ * (game/scores.ts) so old high scores are erased.
  */
 export const TIER_COUNT = 25;
 /** Size tier that each hole level can eat up to. 15 levels, bigger jumps early on. */

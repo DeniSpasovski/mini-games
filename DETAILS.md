@@ -64,6 +64,24 @@ details" is the privacy notice - set `SITE.privacyContact` to show a contact e-m
 GA only loads in production builds on a non-local host, so `npm run dev` / `npm run preview` never send hits (the banner
 still shows, for testing). Empty / unset `PUBLIC_GA_MEASUREMENT_ID` (a fresh clone, or any fork) removes both the banner and analytics.
 
+**Game events** (`track()` in `src/shared/analytics.ts`, GA4's recommended game events; sent only when gtag.js is loaded,
+so never without consent or in dev). `?analytics=log` prints each event to the console, also in dev.
+
+| Event            | Sent when                                                                    | Params                                                                                                                                                           |
+| ---------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `level_start`    | rally: stage clock starts (GO); hole: run starts (countdown)                 | `game`, `level_name` (map id), `game_version`; rally `car`, `tyre`, `setup`, `gearing`, `times_version`; hole `difficulty`, `seed` / `layout`, `scoring_version` |
+| `level_end`      | run finished (`success: true`) or left mid-run (`success: false` + `reason`) | start params + rally `time_s`, `penalty_s`, `new_best` (quit: `time_s`, `progress_pct`); hole `score`, `hole_level`, `items_eaten`, `pct_eaten`, `cleared`       |
+| `post_score`     | run finished                                                                 | start params + `score` (rally: stage time in ms, lower is better; hole: points + `level`), `character` (car / hole colour)                                       |
+| `select_content` | a viewer page opens (car viewer: also on car change)                         | `content_type` (`rally_map_viewer`, `rally_car_viewer`, `hole_map_viewer`), `content_id` (map / car id)                                                          |
+
+- Only ranked runs are tracked: no rally free drive / test pad, no Hole dev runs (`?time=`, `?level=`, `?bot=1`).
+- Quits are tracked from the pause menu (restart, main menu, portal, rally spawn change); closing the tab is not.
+- `times_version` / `scoring_version` keep times / scores from before a physics or scoring change apart in reports.
+- GA admin setup: register each param above as an event-scoped custom dimension (`time_s`, `score`, `pct_eaten`... as
+  custom metrics) or it only shows in Realtime / DebugView; registration is not retroactive. Turn **off** Enhanced
+  measurement -> "Page changes based on browser history events": viewers rewrite the URL (camera links) on every
+  change, which would otherwise count as page views. Page views of the viewer pages themselves are recorded anyway.
+
 **Banner setting:** `SITE.showPrivacyBanner` in `src/site.config.ts`. `'production'` (current) = banner + footer link only in
 the production build, hidden on `npm run dev`; `true` = also in dev (to test the banner); `false` = hidden everywhere.
 Wherever the banner is hidden, GA does not load either (it only ever runs after Accept, as GDPR / ePrivacy require).

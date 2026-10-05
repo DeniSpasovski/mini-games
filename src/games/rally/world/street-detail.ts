@@ -54,6 +54,8 @@ export interface StreetContext {
   roadDistance: (x: number, z: number) => number;
   /** A building within `r` m of the point. */
   blocked: (x: number, z: number, r: number) => boolean;
+  /** The street lies down in an underpass trench at `a` m: the roads above it (stage road, carriageways) are no obstacle. */
+  underpass?: (path: number, along: number) => boolean;
 }
 
 export function streetDetail(
@@ -105,20 +107,27 @@ export function streetDetail(
         net.pointAt(pi, a, pt);
         let ok =
           ctx.roadDistance(pt.x, pt.z) <= cfg.reach && a > 3 && a < L - 3;
+        const below = !!ctx.underpass?.(pi, a);
         if (ok) {
-          // Kerb line and the outer edge of the sidewalk must be clear of other roads, the stage road, buildings.
+          // Kerb line and the outer edge of the sidewalk must be clear of other roads, the stage road, buildings
+          // (not of the roads above an underpass: they pass over it).
           for (const o of [0.3, KERB_W + W]) {
             const lat = side * (hw + o);
             const x = pt.x + tz * lat;
             const z = pt.z - tx * lat;
             road.query(x, z, rq);
-            if (rq.found && rq.distance <= rq.halfWidth + 3) ok = false;
+            if (!below && rq.found && rq.distance <= rq.halfWidth + 3)
+              ok = false;
             net.query(
               x,
               z,
               pq,
               undefined,
-              (qi) => qi !== pi && !net.paths[qi].bridge && !continues(pi, qi),
+              (qi) =>
+                qi !== pi &&
+                !net.paths[qi].bridge &&
+                !continues(pi, qi) &&
+                !(below && /^(motorway|trunk)/.test(net.paths[qi].kind)),
             );
             if (pq.found && pq.distance <= pq.halfWidth + 0.4) ok = false;
             if (ctx.blocked(x, z, 0.15)) ok = false;

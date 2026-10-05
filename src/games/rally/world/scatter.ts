@@ -121,6 +121,11 @@ export class ScatterField {
       }
   }
 
+  /** A chunk only if it was generated already (never generates: for background jobs that must not hitch). */
+  cachedChunk(cx: number, cz: number): ScatterChunk | undefined {
+    return this.chunks.get(key(cx, cz));
+  }
+
   chunk(cx: number, cz: number): ScatterChunk {
     const k = key(cx, cz);
     let c = this.chunks.get(k);

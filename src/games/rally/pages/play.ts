@@ -113,6 +113,7 @@ function play(params: typeof DEFAULTS): void {
     probeScene(game.scene, game.camera, game.renderer);
 
   const nav = (o: Partial<typeof DEFAULTS>) => {
+    game.trackQuit('spawn');
     writeUrlState({ ...params, ...o }, KEEP);
     location.reload();
   };
@@ -161,8 +162,14 @@ function play(params: typeof DEFAULTS): void {
     if (a === 'pad') nav({ spawn: 'pad' });
     if (a === 'stage') nav({ spawn: 'start' });
     if (a === 'options') showPauseOptions();
-    if (a === 'menu') mainMenu();
-    if (a === 'portal') goToPortal();
+    if (a === 'menu') {
+      game.trackQuit('menu');
+      mainMenu();
+    }
+    if (a === 'portal') {
+      game.trackQuit('portal');
+      goToPortal();
+    }
   });
 
   // --- stage results ------------------------------------------------------------------------

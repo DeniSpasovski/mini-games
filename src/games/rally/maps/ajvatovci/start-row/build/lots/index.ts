@@ -259,18 +259,22 @@ function buildLot(b: Build, yard: Yard, index: number): void {
       strip.map((p): Corner => [p.x, p.y]),
       true,
     );
-    f.polygon(surface, strip, style === 'mileks' ? 0.03 : 0.04, tint);
+    const top = style === 'mileks' ? 0.03 : 0.04;
+    f.polygon(surface, strip, top, tint);
+    b.pads.push({ polygon: strip, plane: f.plane!, top });
     // Parts of the yard with another ground (sand, dirt, pavement) lie on the same plane as the strip they
     // are cut from, so they never dip below the yard under them.
     for (const patch of patches) {
       const part = clipConvex(strip, patch.polygon);
-      if (part.length >= 3)
+      if (part.length >= 3) {
         f.polygon(
           patch.material === 'pavers' ? 'patchPavers' : 'patchConcrete',
           part,
           0.07,
           patch.tint,
         );
+        b.pads.push({ polygon: part, plane: f.plane!, top: 0.07 });
+      }
     }
   }
   if (yard.drive.length)

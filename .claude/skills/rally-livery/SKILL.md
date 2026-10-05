@@ -212,5 +212,5 @@ a `$comment` saying which glitch it fixed):
 - Debug overlays are in-page only: they vanish on reload and must never be committed.
 
 Verification before you say "done": `npx tsc --noEmit -p tsconfig.json`, `npm run lint`, `npm run test`; the user's view + its
-mirror + a wide 3/4 + a top-down; for converter changes the geometry-unchanged check (4.6). Docs: car DETAILS.md "Livery" (shapes,
-numbers, why), `TODO.md` (leftovers), `model.source.json` `$comment`s; add a new technique here when you learn one.
+mirror + a wide 3/4 + a top-down; for converter changes the geometry-unchanged check (4.6). Docs (short, `AGENTS.md` "Write short"): car DETAILS.md "Livery"
+(the shapes and the one-line why of each seam fix, not the attempts), `TODO.md` (leftovers), `model.source.json` `$comment`s; add a new technique here when you learn one.

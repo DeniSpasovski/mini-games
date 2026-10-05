@@ -19,6 +19,7 @@ export function* buildStartRow(world: World): Generator<void, Group> {
   const b: Build = {
     bucket,
     ground: (x, z) => ground.height(x + ORIGIN.x, z + ORIGIN.z),
+    pads: [],
   };
   buildLots(b);
   yield;

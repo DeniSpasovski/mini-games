@@ -9,6 +9,7 @@ import {
   Vector3,
 } from 'three';
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
+import { track } from '../../../shared/analytics';
 import { ViewerShell } from '../debug/viewer-shell';
 import { getItem } from '../items/catalog';
 import { DEFAULT_CITY, generateCity, targetPoints } from '../map/generate';
@@ -50,6 +51,10 @@ const DEFAULTS = {
 };
 const state = readUrlState(DEFAULTS);
 const sync = () => writeUrlState(state, DEFAULTS);
+track('select_content', {
+  content_type: 'hole_map_viewer',
+  content_id: state.map,
+});
 
 const shell = new ViewerShell('Map viewer');
 const { scene, panel } = shell;

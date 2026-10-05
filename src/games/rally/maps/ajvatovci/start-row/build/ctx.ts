@@ -1,12 +1,29 @@
-import { Matrix4 } from 'three';
+import { Matrix4, Vector2 } from 'three';
 import { ORIGIN, type Corner } from '../frame';
-import { Bucket, Frame, fitPlane, tileKey } from './kit';
+import { inside } from '../layout';
+import { Bucket, Frame, fitPlane, tileKey, type Plane } from './kit';
 
 /** Everything the builders share: where geometry goes, the terrain, the placed assets. */
 export interface Build {
   bucket: Bucket;
   /** World ground height at a site point. */
   ground: (x: number, z: number) => number;
+  /** Paved yard surfaces on their own planes (lifted above the ground): the parked vehicles stand on them. */
+  pads: { polygon: Vector2[]; plane: Plane; top: number }[];
+}
+
+const _q = new Vector2();
+/** Height a vehicle stands on at a site point: the highest yard surface over it, else the ground. */
+export function standHeight(b: Build, x: number, z: number): number {
+  let y = b.ground(x, z);
+  _q.set(x, z);
+  for (const { polygon, plane, top } of b.pads)
+    if (inside(_q, polygon))
+      y = Math.max(
+        y,
+        plane.a * (x + ORIGIN.x) + plane.b * (z + ORIGIN.z) + plane.c + top,
+      );
+  return y;
 }
 
 /**
