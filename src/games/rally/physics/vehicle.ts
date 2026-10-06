@@ -434,7 +434,8 @@ export class Vehicle {
   }
 
   private tractionAssist(dt: number): number {
-    if (!this.tractionControl) return (this.tcFactor = 1);
+    if (!this.tractionControl || this.def.noTractionControl)
+      return (this.tcFactor = 1);
     let excess = 0;
     for (const w of this.wheels) {
       if (!w.driven || !w.contact) continue;

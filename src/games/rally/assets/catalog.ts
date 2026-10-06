@@ -36,6 +36,10 @@ export interface LodSpec {
   /** Use this LOD while camera distance < maxDistance (m). */
   maxDistance: number;
   castShadow: boolean;
+  /** Every instance uses variant 0's geometry (one draw call per asset instead of per variant: far LODs). */
+  oneVariant?: boolean;
+  /** Camera-facing 2-triangle diamond built from the previous LOD (assets/impostor.ts). */
+  impostor?: boolean;
 }
 
 export interface AssetMeta {
@@ -60,11 +64,16 @@ export interface AssetMeta {
 /**
  * LOD 0 must cover the sun's shadow box (quality.shadowExtent <= 75 m), so
  * farther LODs never cast shadows - they'd only cost shadow-pass draws.
+ * Past ~420 m the variants share one crown, past 900 m a camera-facing impostor.
  */
 const tree = (maxDist: number): LodSpec[] => [
   { maxDistance: 110, castShadow: true },
   { maxDistance: 420, castShadow: false },
-  { maxDistance: maxDist, castShadow: false },
+  ...farTree(maxDist),
+];
+const farTree = (maxDist: number): LodSpec[] => [
+  { maxDistance: 900, castShadow: false, oneVariant: true },
+  { maxDistance: maxDist, castShadow: false, oneVariant: true, impostor: true },
 ];
 
 export const ASSET_CATALOG: AssetMeta[] = [
@@ -200,7 +209,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     lods: [
       { maxDistance: 90, castShadow: true },
       { maxDistance: 380, castShadow: false },
-      { maxDistance: 1100, castShadow: false },
+      ...farTree(1100),
     ],
     colliders: [{ kind: 'cylinder', r: 0.14, h: 1.2, y: -0.3 }],
     tint: 0.14,

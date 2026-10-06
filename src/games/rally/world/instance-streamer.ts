@@ -24,7 +24,19 @@ import type { World } from './world';
  * `rebuildDistance` metres a new job walks the chunks in range, filling
  * staging arrays with a small per-frame time budget, then commits all buckets
  * at once (no half-updated frames). Commits upload only the used range.
+ *
+ * View culling (`setView`, the game calls it every frame): three.js cannot cull single instances and a
+ * bucket spans the whole view ring, so buckets that cast no shadow (LOD1+ = the far, numerous instances)
+ * keep their instances sorted by angle around the commit focus (a bin sort) and only the angular window
+ * the camera sees is packed to the front of the GPU buffer and drawn. Re-packed after REPACK of turning.
+ * Shadow casters (LOD0) are always drawn whole: things behind the camera throw shadows into the view.
  */
+const BINS = 360;
+/** Instances this close to the commit focus are always drawn (m). */
+const NEAR = 60;
+/** Re-pack the view window after the camera turned this far (rad). */
+const REPACK = (8 * Math.PI) / 180;
+
 interface Bucket {
   key: string;
   meshes: InstancedMesh[];
@@ -32,6 +44,14 @@ interface Bucket {
   count: number;
   castShadow: boolean;
   tinted: boolean;
+  /** Committed instances (sorted by angle when culled); `drawnCount` of them are on the GPU now. */
+  cMat: Float32Array;
+  cCol: Float32Array;
+  /** Staged index -> committed position. */
+  order: Uint32Array;
+  /** First committed position of each bin (0 = near, 1..BINS = angle; BINS + 2 entries), null = drawn whole. */
+  binStart: Uint32Array | null;
+  drawnCount: number;
   // Staging (filled by the job, copied on commit).
   sMat: Float32Array;
   sCol: Float32Array;
@@ -95,6 +115,11 @@ export class InstanceStreamer {
   commits = 0;
   /** Disable categories / single assets from debug UIs. */
   filter: (asset: string) => boolean = () => true;
+  /** Commit focus (angles are measured from it). */
+  private sortX = 0;
+  private sortZ = 0;
+  /** View window (centre angle + half width, rad) the buckets are packed for; null = draw everything. */
+  private view: { yaw: number; half: number } | null = null;
 
   constructor(
     private world: World,
@@ -157,6 +182,22 @@ export class InstanceStreamer {
     const job = this.rebuildJob(focus.clone());
     while (!job.next().done);
     this.job = null;
+  }
+
+  /**
+   * Draw only what the camera can see: `yaw` = atan2(dz, dx) of its horizontal view direction, `half` = half the
+   * horizontal field of view plus a margin (rad). null draws every instance (aerial views, tools).
+   */
+  setView(view: { yaw: number; half: number } | null): void {
+    const v = this.view;
+    if (!view && !v) return;
+    if (view && v) {
+      let d = Math.abs(view.yaw - v.yaw) % (2 * Math.PI);
+      if (d > Math.PI) d = 2 * Math.PI - d;
+      if (d < REPACK && Math.abs(view.half - v.half) < REPACK) return;
+    }
+    this.view = view ? { ...view } : null;
+    for (const b of this.buckets.values()) if (b.binStart) this.pack(b);
   }
 
   private *rebuildJob(focus: Vector3): Generator<void> {
@@ -232,6 +273,8 @@ export class InstanceStreamer {
       }
     }
     if (dRange > 0) scatter.pruneDetail(focus.x, focus.z, dRange * 2 + cs);
+    this.sortX = focus.x;
+    this.sortZ = focus.z;
     this.commit();
     this.drawn = drawn;
     this.commits++;
@@ -255,10 +298,16 @@ export class InstanceStreamer {
 
   private patch(b: Bucket, i: number, m: Float32Array): void {
     if (i >= b.count) return;
+    const pos = b.order[i];
+    b.cMat.set(m, pos * 16);
+    if (b.binStart) {
+      this.pack(b);
+      return;
+    }
     for (const mesh of b.meshes) {
       const im = mesh.instanceMatrix;
-      (im.array as Float32Array).set(m, i * 16);
-      im.addUpdateRange(i * 16, 16);
+      (im.array as Float32Array).set(m, pos * 16);
+      im.addUpdateRange(pos * 16, 16);
       im.needsUpdate = true;
     }
   }
@@ -291,8 +340,9 @@ export class InstanceStreamer {
           2 -
           1) *
           tint;
+      // Far LODs flagged `oneVariant` share one bucket (getAsset draws variant 0 for them).
       const keys = meta.lods.map(
-        (_, lod) => `${inst.asset}:${inst.variant}:${lod}`,
+        (l, lod) => `${inst.asset}:${l.oneVariant ? 0 : inst.variant}:${lod}`,
       );
       d = { m: placedMatrix(inst, new Float32Array(16)), t, meta, keys };
       this.data.set(inst, d);
@@ -312,6 +362,7 @@ export class InstanceStreamer {
         count: 0,
         castShadow: d.meta.lods[lod].castShadow,
         tinted,
+        ...emptyCommitted(tinted),
         sMat: new Float32Array(16 * 64),
         sCol: new Float32Array(tinted ? 3 * 64 : 0),
         sCount: 0,
@@ -340,7 +391,7 @@ export class InstanceStreamer {
     }
   }
 
-  /** Copy staging -> GPU buffers for every bucket, uploading only the used range. */
+  /** Staging -> committed copy (angle-sorted for culled buckets) -> GPU buffers, uploading only the used range. */
   private commit(): void {
     for (const d of this.moved) d.slot = d.staged;
     for (const b of this.buckets.values()) {
@@ -352,27 +403,107 @@ export class InstanceStreamer {
         this.createMeshes(b, inst, Number(lod), cap);
       }
       b.count = b.sCount;
-      for (const mesh of b.meshes) {
-        mesh.count = b.count;
-        mesh.visible = b.count > 0;
-        if (!b.count) continue;
-        const im = mesh.instanceMatrix;
-        (im.array as Float32Array).set(b.sMat.subarray(0, b.count * 16));
-        im.clearUpdateRanges();
-        im.addUpdateRange(0, b.count * 16);
-        im.needsUpdate = true;
-        if (b.tinted && mesh.instanceColor) {
-          const ic = mesh.instanceColor;
-          (ic.array as Float32Array).set(b.sCol.subarray(0, b.count * 3));
-          ic.clearUpdateRanges();
-          ic.addUpdateRange(0, b.count * 3);
-          ic.needsUpdate = true;
-        }
-      }
+      this.sortCommitted(b);
+      this.pack(b);
     }
     // A move during the job staged the old matrix: draw the current one.
     for (const d of this.moved)
       if (d.slot) this.patch(d.slot.bucket, d.slot.i, d.m);
+  }
+
+  /** Copy the staged instances into the committed arrays; buckets without shadows bin-sorted by angle. */
+  private sortCommitted(b: Bucket): void {
+    const n = b.count;
+    if (b.cMat.length < n * 16) {
+      b.cMat = new Float32Array(b.sMat.length);
+      b.cCol = new Float32Array(b.sCol.length);
+    }
+    if (b.order.length < n) b.order = new Uint32Array(b.sMat.length / 16);
+    if (b.castShadow || n < 64) {
+      b.cMat.set(b.sMat.subarray(0, n * 16));
+      if (b.tinted) b.cCol.set(b.sCol.subarray(0, n * 3));
+      for (let i = 0; i < n; i++) b.order[i] = i;
+      b.binStart = null;
+      return;
+    }
+    // Bin 0 = near the focus (always drawn: its angle from the focus says little), 1..BINS = angle.
+    const start = (b.binStart ??= new Uint32Array(BINS + 2));
+    start.fill(0);
+    if (_bins.length < n) _bins = new Uint16Array(n * 2);
+    const bins = _bins;
+    const k = BINS / (2 * Math.PI);
+    for (let i = 0; i < n; i++) {
+      const dx = b.sMat[i * 16 + 12] - this.sortX;
+      const dz = b.sMat[i * 16 + 14] - this.sortZ;
+      const bin =
+        dx * dx + dz * dz < NEAR * NEAR
+          ? 0
+          : 1 +
+            Math.min(BINS - 1, Math.floor((Math.atan2(dz, dx) + Math.PI) * k));
+      bins[i] = bin;
+      start[bin + 1]++;
+    }
+    for (let i = 0; i <= BINS; i++) start[i + 1] += start[i];
+    const cursor = _cursor;
+    cursor.set(start.subarray(0, BINS + 1));
+    for (let i = 0; i < n; i++) {
+      const pos = cursor[bins[i]]++;
+      b.order[i] = pos;
+      b.cMat.set(b.sMat.subarray(i * 16, i * 16 + 16), pos * 16);
+      if (b.tinted) b.cCol.set(b.sCol.subarray(i * 3, i * 3 + 3), pos * 3);
+    }
+  }
+
+  /** Committed -> GPU: everything, or only the bins of the view window (1 or 2 contiguous ranges). */
+  private pack(b: Bucket): void {
+    const ranges: [number, number][] = [];
+    const start = b.binStart;
+    if (!start || !this.view) ranges.push([0, b.count]);
+    else {
+      const k = BINS / (2 * Math.PI);
+      // Angles were measured from the commit focus; the camera stays near it (rebuildDistance).
+      const lo = Math.floor((this.view.yaw - this.view.half + Math.PI) * k);
+      const hi = Math.floor((this.view.yaw + this.view.half + Math.PI) * k);
+      if (hi - lo >= BINS - 1) ranges.push([0, b.count]);
+      else {
+        ranges.push([start[0], start[1]]);
+        for (let bin = lo; bin <= hi;) {
+          const w = ((bin % BINS) + BINS) % BINS;
+          const end = Math.min(hi, bin + (BINS - 1 - w));
+          ranges.push([start[w + 1], start[w + 1 + (end - bin) + 1]]);
+          bin = end + 1;
+        }
+      }
+    }
+    let n = 0;
+    for (const mesh of b.meshes) {
+      const im = mesh.instanceMatrix;
+      const arr = im.array as Float32Array;
+      const ic = b.tinted ? mesh.instanceColor : null;
+      n = 0;
+      for (const [r0, r1] of ranges) {
+        if (r1 <= r0) continue;
+        arr.set(b.cMat.subarray(r0 * 16, r1 * 16), n * 16);
+        if (ic)
+          (ic.array as Float32Array).set(
+            b.cCol.subarray(r0 * 3, r1 * 3),
+            n * 3,
+          );
+        n += r1 - r0;
+      }
+      mesh.count = n;
+      mesh.visible = n > 0;
+      if (!n) continue;
+      im.clearUpdateRanges();
+      im.addUpdateRange(0, n * 16);
+      im.needsUpdate = true;
+      if (ic) {
+        ic.clearUpdateRanges();
+        ic.addUpdateRange(0, n * 3);
+        ic.needsUpdate = true;
+      }
+    }
+    b.drawnCount = n;
   }
 
   private createMeshes(
@@ -426,6 +557,7 @@ export class InstanceStreamer {
       const meta = getAssetMeta(id);
       for (let v = 0; v < meta.variants; v++) {
         for (let lod = 0; lod < meta.lods.length; lod++) {
+          if (v > 0 && meta.lods[lod].oneVariant) continue;
           const key = `${id}:${v}:${lod}`;
           if (!this.buckets.has(key)) {
             const tinted = (meta.tint ?? 0) > 0;
@@ -436,6 +568,7 @@ export class InstanceStreamer {
               count: 0,
               castShadow: meta.lods[lod].castShadow,
               tinted,
+              ...emptyCommitted(tinted),
               sMat: new Float32Array(16 * 64),
               sCol: new Float32Array(tinted ? 3 * 64 : 0),
               sCount: 0,
@@ -457,7 +590,7 @@ export class InstanceStreamer {
   /** Re-apply visibility after prewarm/compile. */
   settle(): void {
     for (const b of this.buckets.values())
-      for (const m of b.meshes) m.visible = b.count > 0;
+      for (const m of b.meshes) m.visible = m.count > 0;
   }
 
   /** True while a rebuild job is in progress. */
@@ -480,6 +613,17 @@ export class InstanceStreamer {
     this.group.clear();
   }
 }
+
+let _bins = new Uint16Array(4096);
+const _cursor = new Uint32Array(BINS + 1);
+
+const emptyCommitted = (tinted: boolean) => ({
+  cMat: new Float32Array(16 * 64),
+  cCol: new Float32Array(tinted ? 3 * 64 : 0),
+  order: new Uint32Array(64),
+  binStart: null,
+  drawnCount: 0,
+});
 
 /** World matrix of an instance as the map placed it. */
 function placedMatrix(inst: ScatterInstance, out: Float32Array): Float32Array {

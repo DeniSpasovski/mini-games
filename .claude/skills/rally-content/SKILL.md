@@ -24,7 +24,9 @@ Rules (performance — late-2000s look must not lag):
   `RALLY_WIND` (sway, bends ~ height² above the asset origin - keep origins at ground level), `RALLY_FOLIAGE`
   (backlight glow), `RALLY_GROUND` (receives the far canopy shadows). A material with its own `onBeforeCompile` must
   call `addWorldUniforms(shader)`.
-- Budget guide: tree LOD0 < 1k tris, LOD1 < 250, LOD2 < 50. Far LODs must not cast shadows.
+- Budget guide: tree LOD0 < 1k tris, LOD1 < 250, LOD2 < 50. Far LODs must not cast shadows. Far tree LODs set
+  `oneVariant` (all variants share one bucket = one draw call) and the last one `impostor` (a 2-triangle camera-facing
+  diamond built from the previous LOD, `assets/impostor.ts`) - use the catalog's `tree()` / `farTree()` helpers.
 - Front of props faces +Z, origin at ground level.
 - Alpha grass cards: `foliage_card` (olive green) / `foliage_card_spring` (bright green) / `foliage_card_dry`
   (golden) - the card TEXTURE carries the colour,

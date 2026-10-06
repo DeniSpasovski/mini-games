@@ -1,5 +1,6 @@
 import { DoubleSide, MeshStandardMaterial, type Material } from 'three';
 import { getTexture } from './textures';
+import { addWorldUniforms } from './world-shading';
 
 /**
  * Shared material library. Assets reference materials by id so thousands of
@@ -14,7 +15,8 @@ export type MaterialId =
   | 'props'
   | 'chevron'
   | 'vehicle'
-  | 'village_sign';
+  | 'village_sign'
+  | 'tree_impostor';
 
 const cache = new Map<MaterialId, Material>();
 
@@ -125,6 +127,9 @@ export function getMaterial(id: MaterialId): Material {
         roughness: 0.55,
       });
       break;
+    case 'tree_impostor':
+      m = impostorMaterial();
+      break;
   }
   m.name = id;
   if (FOLIAGE.includes(id)) {
@@ -137,4 +142,37 @@ export function getMaterial(id: MaterialId): Material {
 
 export function allMaterials(): Material[] {
   return [...cache.values()];
+}
+
+/**
+ * Far trees (assets/impostor.ts): a flat diamond turned to face the camera in the vertex shader - 2 triangles
+ * instead of an 8-face crown. Geometry x = sideways offset, y = height; the instance matrix places the axis.
+ * Lit like a crown seen from the front (normal towards the camera, tipped up), no wind (sub-pixel).
+ */
+function impostorMaterial(): MeshStandardMaterial {
+  const m = new MeshStandardMaterial({ vertexColors: true, roughness: 0.92 });
+  m.defines = { RALLY_FOLIAGE: TREE_DEFINES.RALLY_FOLIAGE };
+  m.onBeforeCompile = (shader) => {
+    addWorldUniforms(shader);
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <defaultnormal_vertex>',
+        '#include <defaultnormal_vertex>\ntransformedNormal = normalize( vec3( 0.0, 0.55, 1.0 ) );',
+      )
+      .replace(
+        '#include <project_vertex>',
+        `vec4 mvPosition = vec4( 0.0, transformed.y, 0.0, 1.0 );
+#ifdef USE_INSTANCING
+	mvPosition = instanceMatrix * mvPosition;
+	float impostorScale = length( instanceMatrix[ 0 ].xyz );
+#else
+	float impostorScale = 1.0;
+#endif
+mvPosition = modelViewMatrix * mvPosition;
+mvPosition.x += transformed.x * impostorScale;
+gl_Position = projectionMatrix * mvPosition;`,
+      );
+  };
+  m.customProgramCacheKey = () => 'tree-impostor-v1';
+  return m;
 }

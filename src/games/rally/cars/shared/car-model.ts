@@ -317,6 +317,8 @@ export class CarModel {
   readonly shape: BodyShape;
   /** Resolves true when an imported glTF body replaced the procedural one. */
   readonly imported: Promise<boolean>;
+  /** Resolves once the imported body / wheel model (if any) are in and the car is shown. */
+  readonly ready: Promise<void> = Promise.resolve();
   private disposed = false;
   /** Painted body surfaces (body space) the door plates are projected onto; resolves after an import. */
   private paintTargets: Promise<BadgeTarget[]>;
@@ -327,6 +329,7 @@ export class CarModel {
   /** This car's own copies of its brake-lamp materials (collected on the first setBrake / after the import). */
   private brakeLamps?: MeshStandardMaterial[];
   private brakeLevel = 0;
+  private reversing = false;
   /** Fitted compound (null = plain tyre). */
   private tyre: TyreId | null;
   /** The wheel geometries currently on the instanced meshes (owned here, replaced by `refreshWheels`). */
@@ -417,7 +420,7 @@ export class CarModel {
       this.addMesh(g.lights, lightMat),
       this.addMesh(g.tail, tailMat),
       this.addMesh(g.amber, amberMat),
-      this.addMesh(g.interior, interiorMat),
+      this.addMesh(g.interior, interiorMat, false),
       this.addMesh(g.cage, cageMat),
       this.addMesh(g.lining, liningMat, false),
       ...(g.chrome ? [this.addMesh(g.chrome, chromeMat)] : []),
@@ -492,8 +495,11 @@ export class CarModel {
               obj.traverse((o) => {
                 const mesh = o as Mesh;
                 if (!mesh.isMesh) return;
-                const part = partMaterial((mesh.material as Material).name);
+                const name = (mesh.material as Material).name;
+                const part = partMaterial(name);
                 mesh.material = part ?? mat;
+                // The cockpit sits inside the body's shadow: casting it only costs shadow-pass triangles.
+                if (name === 'interior') mesh.castShadow = false;
                 if (!part && mesh.visible) painted.push(mesh);
               });
             } else {
@@ -509,6 +515,7 @@ export class CarModel {
             }));
             this.body.add(obj);
             this.brakeLamps = undefined;
+            this.setBrake(Math.max(0, this.brakeLevel), this.reversing); // keep the lamp state set before the import landed
             for (const m of procedural) m.visible = false;
             if (def.model.gltf?.addOns)
               addParts(buildCarParts(def, this.shape, true));
@@ -592,9 +599,11 @@ export class CarModel {
     if (willImport || hasWheelModel(wheelModel)) {
       const parts = [...this.root.children];
       for (const o of parts) o.visible = false;
-      void Promise.allSettled([this.imported, wheelsLoaded]).then(() => {
-        if (!this.disposed) for (const o of parts) o.visible = true;
-      });
+      this.ready = Promise.allSettled([this.imported, wheelsLoaded]).then(
+        () => {
+          if (!this.disposed) for (const o of parts) o.visible = true;
+        },
+      );
     }
 
     this.debug.visible = false;
@@ -878,8 +887,10 @@ export class CarModel {
   /**
    * Brake lights: 0 = off (the lamps' faint idle glow), 1 = brake pedal fully down (bright). The car's brake-lamp
    * materials (`userData.brakeLamp`) are cloned once per CarModel, so other cars (showroom, bench) never light up.
+   * `reversing` (gear R): lamps with a `reverseGlow` map light their white reversing section full bright, unless the brake level is up
+   * (the game passes the pedal that brakes in reverse): then only the red brake glow shows.
    */
-  setBrake(level: number): void {
+  setBrake(level: number, reversing = false): void {
     if (!this.brakeLamps) {
       const own = new Map<Material, MeshStandardMaterial>();
       this.root.traverse((o) => {
@@ -904,11 +915,26 @@ export class CarModel {
       this.brakeLevel = -1;
     }
     const l = Math.max(0, Math.min(1, level));
-    if (Math.abs(l - this.brakeLevel) < 0.02) return;
+    if (Math.abs(l - this.brakeLevel) < 0.02 && reversing === this.reversing)
+      return;
     this.brakeLevel = l;
+    this.reversing = reversing;
     for (const m of this.brakeLamps) {
-      const { off, on } = m.userData.brakeLamp as { off: number; on: number };
-      m.emissiveIntensity = off + (on - off) * l;
+      const { off, on, reverseGlow } = m.userData.brakeLamp as {
+        off: number;
+        on: number;
+        reverseGlow?: Texture;
+      };
+      m.userData.brakeGlow ??= m.emissiveMap;
+      const lit = off + (on - off) * l;
+      if (reverseGlow && reversing && l < 0.02) {
+        // Reversing without the brake pedal: the white section only. With the brake down the white one goes dark.
+        m.emissiveMap = reverseGlow;
+        m.emissiveIntensity = on;
+      } else {
+        m.emissiveMap = m.userData.brakeGlow as Texture | null;
+        m.emissiveIntensity = lit;
+      }
     }
   }
 

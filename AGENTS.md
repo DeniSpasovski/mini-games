@@ -37,7 +37,7 @@ visible and redistributable by anyone, so treat every file as published.
 ## Documentation structure
 
 Every level has a short **`README.md`** (rendered by GitHub: what it is, 1-4 in-game screenshots, how to run, credits and
-licence summary, links to deeper docs) and a sibling **`DETAILS.md`** with everything else (architecture, flows, URLs, short build
+licence summary, links to deeper docs) and a sibling **`DETAILS.md`** (optional for a small car whose README covers it) with everything else (architecture, flows, URLs, short build
 notes, source links). Keep READMEs high level - move detail into `DETAILS.md`, never the other way round.
 
 | Level                         | `README.md` (high level)                                 | `DETAILS.md` / other docs                                                                                                      |
@@ -80,7 +80,7 @@ notes, source links). Keep READMEs high level - move detail into `DETAILS.md`, n
 - `src/games/rally/TASKS.md` - open rally tasks + index of every map / car task list; finished work moves into the DETAILS.md files (game / car / map), not this file.
 - `src/games/rally/maps/<id>/` - one folder per map (`map.ts`, baked `data.json`, `TODO.md` task list, `README.md` = overview + screenshots + data credits, `DETAILS.md` = every source link / licence / reference used - keep updated); `maps/shared/` = map format + shared helpers.
 - `src/games/rally/cars/<car>/` - one folder per car (`<car>.ts` + `README.md` = description + screenshots + credits / licence, `DETAILS.md` = build notes + every source / licence); `cars/shared/` = car code used by every car.
-- `sources/cars/<car>/`, `sources/maps/<map>/` - original files the user shared (models, reference photos, data downloads). Git-ignored + never served; each file is listed in the matching code folder's `DETAILS.md`. When the user shares a file for a car / map, copy it here and add the DETAILS row.
+- `sources/cars/<car>/`, `sources/maps/<map>/` - original files the user shared (models, reference photos, data downloads). Git-ignored + never served; models, data and licence-relevant files are listed in the matching code folder's `DETAILS.md`; reference photos / screenshots are only listed in the local `NOTES.md` next to them (use the car's `NOTES.md` for cars). When the user shares a file for a car / map, copy it here and add the DETAILS row.
 - `scripts/car-model/scan-mesh.py` - run on every new car model BEFORE importing (gate in `rally-car-import` step 1, after the **licence gate** - no licence check, no import): already split / real panel edges / blob = abandon.
 - `scripts/car-model/assemble-kit.py` - assembles a car printed as a model KIT (parts on a sprue frame) into one oriented body STL (`kit` block of `model.source.json`).
 - `scripts/car-model/chart-probe.py` - which atlas chart each body triangle of a car GLB uses (per box / seam / height profile): livery debugging, see `rally-livery`.

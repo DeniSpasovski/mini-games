@@ -11,22 +11,40 @@ import { getTerrainMaterial, setGroundTint } from './terrain-material';
 import { RENDER_MARGIN, type World } from './world';
 
 /**
- * Streams terrain chunk meshes around a focus point.
+ * Streams terrain meshes around a focus point.
  *
  *  - LOD by distance: vertex step 1/2/4/8 cells. LOD0 reads the cached
  *    heightfield (exact match with physics), LOD1-3 sample the generator
  *    directly at coarse resolution so far terrain never fills the cache.
+ *  - Far tiles merge chunks to save draw calls: 2 x 2 chunks once a block is all
+ *    LOD2, 4 x 4 once it is all LOD3 (same vertex spacing, one mesh each).
  *  - Skirts hide cracks between neighbouring LODs.
- *  - Index buffers are shared per LOD (same topology for every chunk).
- *  - Work is time-sliced: `update()` builds chunks until its ms budget is used.
+ *  - Index buffers are shared per grid size (same topology for every tile).
+ *  - Work is time-sliced: `update()` builds tiles until its ms budget is used.
+ *    A replaced tile stays until every tile covering its area is built.
  */
 const STEPS = [1, 2, 4, 8];
+/** Merged tile sizes (chunks per side) -> the LOD they need: 2 x 2 at LOD2, 4 x 4 at LOD3. */
+const MERGE: Record<number, number> = { 2: 2, 4: 3 };
+const TOP = 4;
+/** Metres of camera travel before the tile plan is redone (well inside the 10% LOD hysteresis). */
+const REPLAN = 8;
 
-interface ChunkMesh {
+interface Tile {
+  /** Origin chunk (a multiple of `span`) and size in chunks. */
   cx: number;
   cz: number;
+  span: number;
   lod: number;
   mesh: Mesh;
+}
+
+interface Want {
+  cx: number;
+  cz: number;
+  span: number;
+  lod: number;
+  d: number;
 }
 
 export interface TerrainOptions {
@@ -37,12 +55,18 @@ export interface TerrainOptions {
 
 export class TerrainRenderer {
   readonly group = new Group();
-  private meshes = new Map<number, ChunkMesh>();
+  private tiles = new Map<number, Tile>();
   private indexCache = new Map<number, BufferAttribute>();
   private lodDistances: [number, number, number];
   private cs: number;
   private heightAbove = 0;
-  /** Chunk builds still wanted (for loading screens / stats). */
+  /** Where the tile plan was last made (re-planned after REPLAN m of travel). */
+  private planned = { x: Infinity, z: Infinity, h: 0 };
+  private want = new Map<number, Want>();
+  /** Builds of the current plan, nearest first; `next` = the first not yet done. */
+  private todo: Want[] = [];
+  private next = 0;
+  /** Tile builds still wanted (for loading screens / stats). */
   pending = 0;
 
   constructor(
@@ -55,71 +79,150 @@ export class TerrainRenderer {
     setGroundTint(world.map.environment.groundTint);
   }
 
+  /** Terrain meshes (one draw call each). */
   get chunkCount(): number {
-    return this.meshes.size;
+    return this.tiles.size;
   }
 
   setViewDistance(d: number): void {
     this.opts.viewDistance = d;
+    this.planned.x = Infinity;
   }
 
   /**
-   * Load / unload / re-LOD chunks around `focus`. Returns true when nothing
+   * Load / unload / re-LOD tiles around `focus`. Returns true when nothing
    * is left to build. `heightAboveGround` makes LODs coarser for aerial views.
    */
   update(focus: Vector3, budgetMs = 4, heightAboveGround = 0): boolean {
-    this.heightAbove = Math.max(0, heightAboveGround);
     const t0 = performance.now();
-    const b = this.world.map.bounds;
-    const m = RENDER_MARGIN;
-    const vd = this.opts.viewDistance;
-    const cs = this.cs;
-    const cx0 = Math.floor(Math.max(b.minX - m, focus.x - vd) / cs);
-    const cx1 = Math.floor(Math.min(b.maxX + m, focus.x + vd) / cs);
-    const cz0 = Math.floor(Math.max(b.minZ - m, focus.z - vd) / cs);
-    const cz1 = Math.floor(Math.min(b.maxZ + m, focus.z + vd) / cs);
+    // The plan (walking every tile costs ~0.3 ms) is redone only after REPLAN m of travel; in between
+    // the queued builds continue.
+    const p = this.planned;
+    const h = Math.max(0, heightAboveGround);
+    const moved = Math.hypot(focus.x - p.x, focus.z - p.z, h - p.h) >= REPLAN;
+    if (moved) {
+      p.x = focus.x;
+      p.z = focus.z;
+      p.h = h;
+      this.heightAbove = h;
+      this.plan(focus);
+    } else if (this.pending === 0) {
+      this.world.heightfield.tick();
+      return true;
+    }
 
-    const wanted: { cx: number; cz: number; lod: number; d: number }[] = [];
-    const keep = new Set<number>();
-    for (let cz = cz0; cz <= cz1; cz++) {
-      for (let cx = cx0; cx <= cx1; cx++) {
-        const d = this.chunkDistance(cx, cz, focus);
-        if (d > vd) continue;
-        const k = key(cx, cz);
-        keep.add(k);
-        const lod = this.lodFor(d, this.meshes.get(k)?.lod);
-        const cur = this.meshes.get(k);
-        if (!cur || cur.lod !== lod) wanted.push({ cx, cz, lod, d });
-      }
-    }
-    // Unload chunks out of range.
-    for (const [k, c] of this.meshes) {
-      if (!keep.has(k)) {
-        this.disposeChunk(c);
-        this.meshes.delete(k);
-      }
-    }
-    wanted.sort((a, b2) => a.d - b2.d);
+    const todo = this.todo;
     let built = 0;
     // Always allow ~1 ms of progress so streaming never stalls.
     const deadline = Math.max(t0 + budgetMs, performance.now() + 1);
-    for (const w of wanted) {
+    for (; this.next < todo.length; this.next++) {
+      const w = todo[this.next];
+      if (this.tiles.get(key(w.cx, w.cz, w.span))?.lod === w.lod) continue;
       if (built > 0 && performance.now() > deadline) break;
       // LOD0 needs the 1 m heightfield: generate it time-sliced, build the mesh when ready.
       if (w.lod === 0 && !this.world.heightfield.prepare(w.cx, w.cz, deadline))
         break;
-      this.buildChunk(w.cx, w.cz, w.lod);
+      this.buildTile(w);
       built++;
     }
-    this.pending = wanted.length - built;
+    this.pending = todo.length - this.next;
+    if (moved || built > 0) this.unloadReplaced();
     this.world.heightfield.tick();
     return this.pending === 0;
   }
 
-  private chunkDistance(cx: number, cz: number, p: Vector3): number {
+  /** Wanted tiles around `focus` and the builds they need, nearest first. */
+  private plan(focus: Vector3): void {
+    const b = this.world.map.bounds;
+    const m = RENDER_MARGIN;
+    const vd = this.opts.viewDistance;
     const cs = this.cs;
-    const dx = Math.max(cx * cs - p.x, 0, p.x - (cx + 1) * cs);
-    const dz = Math.max(cz * cs - p.z, 0, p.z - (cz + 1) * cs);
+    // Chunks inside the map (+ margin); single chunks also stay inside the view square.
+    const lx0 = Math.floor((b.minX - m) / cs);
+    const lx1 = Math.floor((b.maxX + m) / cs);
+    const lz0 = Math.floor((b.minZ - m) / cs);
+    const lz1 = Math.floor((b.maxZ + m) / cs);
+    const cx0 = Math.max(lx0, Math.floor((focus.x - vd) / cs));
+    const cx1 = Math.min(lx1, Math.floor((focus.x + vd) / cs));
+    const cz0 = Math.max(lz0, Math.floor((focus.z - vd) / cs));
+    const cz1 = Math.min(lz1, Math.floor((focus.z + vd) / cs));
+
+    // Wanted tiles: split each 4 x 4 block until its parts are far enough to merge.
+    const want = new Map<number, Want>();
+    const visit = (cx: number, cz: number, span: number): void => {
+      const d = this.tileDistance(cx, cz, span, focus);
+      if (d > vd) return;
+      if (span === 1) {
+        if (cx < cx0 || cx > cx1 || cz < cz0 || cz > cz1) return;
+        const k = key(cx, cz, 1);
+        const lod = this.lodFor(d, this.tiles.get(k)?.lod);
+        want.set(k, { cx, cz, span, lod, d });
+        return;
+      }
+      const lod = MERGE[span];
+      const k = key(cx, cz, span);
+      const inMap =
+        cx >= lx0 && cx + span - 1 <= lx1 && cz >= lz0 && cz + span - 1 <= lz1;
+      // Hysteresis: merge 10% past the threshold, split again right at it.
+      const t = this.lodDistances[lod - 1] * (this.tiles.has(k) ? 1 : 1.1);
+      if (inMap && d >= t) {
+        want.set(k, { cx, cz, span, lod, d });
+        return;
+      }
+      const h = span / 2;
+      for (let j = 0; j < 2; j++)
+        for (let i = 0; i < 2; i++) visit(cx + i * h, cz + j * h, h);
+    };
+    for (let bz = Math.floor(cz0 / TOP); bz <= Math.floor(cz1 / TOP); bz++)
+      for (let bx = Math.floor(cx0 / TOP); bx <= Math.floor(cx1 / TOP); bx++)
+        visit(bx * TOP, bz * TOP, TOP);
+
+    const todo: Want[] = [];
+    for (const [k, w] of want)
+      if (this.tiles.get(k)?.lod !== w.lod) todo.push(w);
+    todo.sort((a, b2) => a.d - b2.d);
+    this.want = want;
+    this.todo = todo;
+    this.next = 0;
+  }
+
+  /** Unload tiles nobody wants once the tiles replacing them are built (no holes while merging / splitting). */
+  private unloadReplaced(): void {
+    const want = this.want;
+    const ready = (cx: number, cz: number): boolean => {
+      for (let span = 1; span <= TOP; span *= 2) {
+        const k = key(
+          Math.floor(cx / span) * span,
+          Math.floor(cz / span) * span,
+          span,
+        );
+        const w = want.get(k);
+        if (w) return this.tiles.get(k)?.lod === w.lod;
+      }
+      return true; // out of range
+    };
+    for (const [k, t] of this.tiles) {
+      if (want.has(k)) continue;
+      let covered = true;
+      for (let j = 0; j < t.span && covered; j++)
+        for (let i = 0; i < t.span && covered; i++)
+          covered = ready(t.cx + i, t.cz + j);
+      if (covered) {
+        this.disposeTile(t);
+        this.tiles.delete(k);
+      }
+    }
+  }
+
+  private tileDistance(
+    cx: number,
+    cz: number,
+    span: number,
+    p: Vector3,
+  ): number {
+    const cs = this.cs;
+    const dx = Math.max(cx * cs - p.x, 0, p.x - (cx + span) * cs);
+    const dz = Math.max(cz * cs - p.z, 0, p.z - (cz + span) * cs);
     return Math.hypot(dx, dz, this.heightAbove);
   }
 
@@ -134,29 +237,34 @@ export class TerrainRenderer {
     return 3;
   }
 
-  private buildChunk(cx: number, cz: number, lod: number): void {
-    const k = key(cx, cz);
-    const old = this.meshes.get(k);
-    const geometry = this.buildGeometry(cx, cz, lod);
+  private buildTile(w: Want): void {
+    const k = key(w.cx, w.cz, w.span);
+    const old = this.tiles.get(k);
+    const geometry = this.buildGeometry(w.cx, w.cz, w.span, w.lod);
     if (old) {
       releaseGeometry(old.mesh.geometry);
       old.mesh.geometry = geometry;
-      old.lod = lod;
+      old.lod = w.lod;
       return;
     }
     const mesh = new Mesh(geometry, getTerrainMaterial());
-    mesh.position.set(cx * this.cs, 0, cz * this.cs);
+    mesh.position.set(w.cx * this.cs, 0, w.cz * this.cs);
     mesh.receiveShadow = true;
     mesh.matrixAutoUpdate = false;
     mesh.updateMatrix();
-    mesh.name = `terrain ${cx},${cz}`;
+    mesh.name = `terrain ${w.cx},${w.cz}${w.span > 1 ? ` x${w.span}` : ''}`;
     this.group.add(mesh);
-    this.meshes.set(k, { cx, cz, lod, mesh });
+    this.tiles.set(k, { cx: w.cx, cz: w.cz, span: w.span, lod: w.lod, mesh });
   }
 
-  private buildGeometry(cx: number, cz: number, lod: number): BufferGeometry {
+  private buildGeometry(
+    cx: number,
+    cz: number,
+    span: number,
+    lod: number,
+  ): BufferGeometry {
     const step = STEPS[lod];
-    const n = CHUNK_CELLS / step + 1;
+    const n = (span * CHUNK_CELLS) / step + 1;
     const vcount = n * n + 4 * n;
     const pos = new Float32Array(vcount * 3);
     const nor = new Float32Array(vcount * 3);
@@ -185,7 +293,17 @@ export class TerrainRenderer {
         }
       }
     } else {
-      this.sampleCoarse(cx, cz, step, n, pos, nor, spl);
+      // Coarse LODs sample the generator directly (no heightfield cache).
+      const g = new TerrainGrid(
+        this.world.gen,
+        cx * this.cs,
+        cz * this.cs,
+        step * cell,
+        n,
+        n,
+      );
+      g.heights(0, n + 2);
+      g.vertices(0, n, pos, nor, spl);
     }
 
     // Skirts: copies of the edge vertices pushed down.
@@ -212,29 +330,6 @@ export class TerrainRenderer {
     g.computeBoundingSphere();
     g.computeBoundingBox();
     return g;
-  }
-
-  /** Coarse LOD: sample the generator directly (no heightfield cache). */
-  private sampleCoarse(
-    cx: number,
-    cz: number,
-    step: number,
-    n: number,
-    pos: Float32Array,
-    nor: Float32Array,
-    spl: Uint8Array,
-  ): void {
-    const d = step * this.world.heightfield.cell;
-    const g = new TerrainGrid(
-      this.world.gen,
-      cx * this.cs,
-      cz * this.cs,
-      d,
-      n,
-      n,
-    );
-    g.heights(0, n + 2);
-    g.vertices(0, n, pos, nor, spl);
   }
 
   private indexFor(n: number): BufferAttribute {
@@ -273,14 +368,14 @@ export class TerrainRenderer {
     return idx;
   }
 
-  private disposeChunk(c: ChunkMesh): void {
-    this.group.remove(c.mesh);
-    releaseGeometry(c.mesh.geometry);
+  private disposeTile(t: Tile): void {
+    this.group.remove(t.mesh);
+    releaseGeometry(t.mesh.geometry);
   }
 
   dispose(): void {
-    for (const c of this.meshes.values()) this.disposeChunk(c);
-    this.meshes.clear();
+    for (const t of this.tiles.values()) this.disposeTile(t);
+    this.tiles.clear();
   }
 }
 
@@ -371,6 +466,6 @@ function releaseGeometry(g: BufferGeometry): void {
   g.dispose();
 }
 
-function key(cx: number, cz: number): number {
-  return (cx + 32768) * 65536 + (cz + 32768);
+function key(cx: number, cz: number, span: number): number {
+  return ((cx + 32768) * 65536 + (cz + 32768)) * 8 + span;
 }

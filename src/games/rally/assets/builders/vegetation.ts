@@ -238,6 +238,8 @@ function broadleaf(
     colors: string[];
     bark: string;
     lean?: number;
+    /** Crown clumps at LOD1 (default 3): orchards use 1 - thousands of rows in the 90-400 m band. */
+    lod1Clumps?: number;
   },
 ): BufferGeometry {
   const parts: BufferGeometry[] = [];
@@ -266,7 +268,12 @@ function broadleaf(
       parts.push(cylindricalUV(paint(br, o.bark, rng, 0.06), 0.5, 1));
     }
   }
-  const clumps = lod === 0 ? o.clumps : lod === 1 ? Math.min(3, o.clumps) : 1;
+  const clumps =
+    lod === 0
+      ? o.clumps
+      : lod === 1
+        ? Math.min(o.lod1Clumps ?? 3, o.clumps)
+        : 1;
   const cy = o.trunkTop + (o.height - o.trunkTop) * 0.5;
   for (let i = 0; i < clumps; i++) {
     const r = clumps === 1 ? o.crownR : o.crownR * rng.range(0.5, 0.72);
@@ -316,6 +323,7 @@ export const fruitTree: AssetBuilder = ({ seed, lod }) => {
     clumps: 5,
     colors: ['#5d7a2e', '#6b8435', '#557030', '#728a3a'],
     bark: '#5a4636',
+    lod1Clumps: 1,
   });
   return { parts: [{ geometry, material: getMaterial('vegetation') }] };
 };

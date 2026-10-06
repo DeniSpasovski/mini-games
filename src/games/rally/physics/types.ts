@@ -190,6 +190,8 @@ export interface CarPhysicsDef {
   comHeight: number;
   /** Ride height offset of the current set-up (m, set by `applySetup` from the preset's `ride`); missing = 0. */
   rideHeight?: number;
+  /** No traction control fitted (a 1970s road car): the assist is always off and its option / key do nothing. */
+  noTractionControl?: boolean;
   /** Scales the box inertia (real cars are ~0.8-1.0 of a solid box). */
   inertiaScale: number;
   wheelRadius: number;

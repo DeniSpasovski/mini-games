@@ -1,13 +1,10 @@
 # Bimmer M3 (`bimmer_m3`)
 
-A lowered E46 coupe (tuning / street version) converted from a **CC BY
-1:33 print model** - one shell, no kit assembly. Glass, headlights, tail lamps, kidneys, fog lamps, intakes, gills, handles, mirrors,
-exhaust tips, the underbody and the arch wells are separate parts with their own materials; the modelled wheel assemblies are cut out
-exactly along a circle (a dark liner cup closes the wells); the game draws its own tyres round the model's own 8-spoke rim
-(cut out of the STL with a re-turned lip + barrel); the body sits at the model's lowered street
-stance (floor 6.7 cm; the test map needs ~9 cm of hull clearance, so no lower). The in-game name is **Bimmer M3**; the id stays `bimmer_m3`. Physics: RWD V8, 1180 kg with this body's wheelbase and street wheels (245/40 R18, gravel 205/65 R16).
-It wears the **M3 ALMS livery** (hood fitted to this body; the rest drawn for another mesh - the adaptation is the next step, see
-[TODO.md](TODO.md)). Released (`AVAILABLE_CARS`).
+A lowered E46 coupe (tuning / street version) converted from a **CC BY 1:33 print model**: one shell split into parts (glass, lamps,
+kidneys, intakes, mirrors, exhaust, underbody, arch wells), the model's own 8-spoke rim under the game's tyres, and its lowered
+street stance (floor 6.7 cm). In game it is **Bimmer M3**; the id stays `bimmer_m3`. RWD V8, 1180 kg, street wheels (245/40 R18,
+gravel 205/65 R16). Wears the **M3 ALMS livery** (hood fitted to this body, the rest still to adapt).
+Released (`AVAILABLE_CARS`).
 
 ![Front three-quarter](screenshots/front-34.jpg)
 
@@ -49,8 +46,6 @@ home tyre + set-up, 2026-10-04): `straight()` in `tests/rally/handling-harness.t
 | `bimmer-m3.ts`      | `CarDef`: RWD V8 drivetrain with this body's wheelbase / size / hull / street tyres, fallback body, glTF |
 | `livery.ts`         | body atlas painter: the M3 ALMS livery, hood outline fitted to this mesh, matte black arch patch         |
 | `model.source.json` | converter settings (axes, scale, offset, wheel cut, atlas) and `parts` (material picks)                  |
-| `DETAILS.md`        | build notes, measured numbers, every source                                                              |
-| `TODO.md`           | open work (livery, lights, parts round 2, wheels, stance, release)                                       |
 
 ## Credits and licence
 
@@ -63,4 +58,4 @@ home tyre + set-up, 2026-10-04): `straight()` in `tests/rally/handling-harness.t
 
 BMW and M3 are trademarks of BMW AG; the mesh's roundels are plain unpainted discs.
 
-Build notes, measured numbers, every source: [`DETAILS.md`](DETAILS.md). Open work: [`TODO.md`](TODO.md).
+Tyres, suspension and gearing: [`PHYSICS.md`](../../PHYSICS.md).

@@ -38,7 +38,10 @@ export function canopyOf(id: string): Canopy {
   let n = 0;
   let y = 0;
   const color = new Color(0, 0, 0);
-  const parts = getAsset(id, 0, meta.lods.length - 1).parts;
+  // Farthest real LOD (an impostor is a flat card).
+  let lod = meta.lods.length - 1;
+  while (lod > 0 && meta.lods[lod].impostor) lod--;
+  const parts = getAsset(id, 0, lod).parts;
   for (const p of parts) {
     const pos = p.geometry.getAttribute('position');
     for (let i = 0; i < pos.count; i++) maxY = Math.max(maxY, pos.getY(i));

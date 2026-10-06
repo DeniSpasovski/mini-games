@@ -1,5 +1,6 @@
 import {
   Color,
+  type Object3D,
   PerspectiveCamera,
   Scene,
   Vector3,
@@ -80,6 +81,8 @@ export interface GameOptions {
 const STEP = 1 / PHYSICS_HZ;
 /** Terrain LOD bands at lodScale 1 (m): 1 m grid / 2 m / 4 m / 8 m beyond. */
 const TERRAIN_LODS = [160, 520, 1100];
+/** Extra half-angle (rad) around the camera view for scatter view culling (`InstanceStreamer.setView`). */
+const VIEW_MARGIN = (25 * Math.PI) / 180;
 const MAX_STEPS = 10;
 
 /**
@@ -291,9 +294,24 @@ export class RallyGame {
     this.updateParticleScale();
     this.applySettings(this.opts.settings);
     this.placeAtSpawn();
-    // Warm up shaders so the first frames don't hitch.
+    // Warm up so the first frames don't hitch: wait for the imported car (hidden until then, so compile()
+    // would skip it), then render one frame with culling off - compile() covers neither the shadow pass nor
+    // the buffer uploads, and a culled render uploads only what the spawn camera sees.
+    await this.model.ready;
+    this.model.updateFromVehicle(this.vehicle, 1);
+    this.env.update(
+      this.model.root.position,
+      this.camera.getWorldDirection(this.camDir),
+    );
     this.streamer.prewarm();
     this.renderer.compile(this.scene, this.camera);
+    const culled: Object3D[] = [];
+    this.scene.traverse((o) => {
+      if (o.frustumCulled) culled.push(o);
+      o.frustumCulled = false;
+    });
+    this.renderer.render(this.scene, this.camera);
+    for (const o of culled) o.frustumCulled = true;
     this.streamer.settle();
     progress(1, 'Ready');
   }
@@ -458,6 +476,10 @@ export class RallyGame {
         );
         break;
       case 'traction':
+        if (this.car.physics.noTractionControl) {
+          this.hud.message('NO TRACTION CONTROL', 1.2, 'small');
+          break;
+        }
         v.tractionControl = !v.tractionControl;
         saveSettings({ traction: v.tractionControl });
         this.hud.message(
@@ -695,7 +717,12 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     // --- car model + camera -------------------------------------------------------------
     this.model.updateFromVehicle(v, alpha);
     this.contactShadow.update(this.model.root);
-    this.model.setBrake(v.controls.brake);
+    // In reverse gear the throttle key brakes (see Vehicle.resolvePedals), so that is the brake lamp's pedal.
+    const reversing = v.drivetrain.gear === -1;
+    this.model.setBrake(
+      reversing ? v.controls.throttle : v.controls.brake,
+      reversing,
+    );
     this.renderPos.copy(this.model.root.position);
     this.renderFwd.set(0, 0, 1).applyQuaternion(this.model.root.quaternion);
     this.renderUp.set(0, 1, 0).applyQuaternion(this.model.root.quaternion);
@@ -708,8 +735,20 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.terrain.update(camPos, 2.5);
     this.roadCull.update(camPos);
     this.streamer.update(camPos);
+    // Far scatter: draw only the instances inside the camera's horizontal view (+ margin for the repack step
+    // and the streamer's focus lagging the camera). Looking steeply down: everything.
+    const dir = this.camera.getWorldDirection(this.camDir);
+    const flat = Math.hypot(dir.x, dir.z);
+    const halfFov = Math.atan(
+      Math.tan((this.camera.fov * Math.PI) / 360) * this.camera.aspect,
+    );
+    this.streamer.setView(
+      flat > 0.4
+        ? { yaw: Math.atan2(dir.z, dir.x), half: halfFov + VIEW_MARGIN }
+        : null,
+    );
     // Shadow box ahead of the camera (where the player looks), not centred on the car.
-    this.env.update(this.renderPos, this.camera.getWorldDirection(this.camDir));
+    this.env.update(this.renderPos, dir);
     this.env.follow(camPos);
     this.canopy.update();
 
@@ -727,6 +766,17 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     );
     const loose =
       v.wheels.reduce((s, w) => s + (w.contact ? w.surface.loose : 0), 0) / 4;
+    // Braking lock-up: fraction of the ground speed a braked wheel is behind (0 = rolling, 1 = locked).
+    let lock = 0;
+    const gs = Math.abs(v.speed);
+    if (gs > 2 && (v.controls.brake > 0.3 || v.controls.handbrake > 0.3))
+      for (const w of v.wheels)
+        if (w.contact)
+          lock = Math.max(lock, 1 - (Math.abs(w.omega) * w.radius) / gs);
+    const surfaces: Partial<Record<SurfaceId, number>> = {};
+    for (const w of v.wheels)
+      if (w.contact)
+        surfaces[w.surface.id] = (surfaces[w.surface.id] ?? 0) + 0.25;
     this.audio.update(
       v.drivetrain.rpm,
       v.drivetrain.effectiveThrottle,
@@ -734,6 +784,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       slide,
       loose,
       v.impact,
+      surfaces,
+      lock,
     );
     // Gantry clocks run from GO whether or not the car has moved (a forgotten start shows); the
     // finish clock stops on the stage time (penalties included) once the car crosses the line.
@@ -749,7 +801,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         redline: v.def.engine.redlineRpm,
         gear: v.drivetrain.gear,
         automatic: v.drivetrain.automatic,
-        tc: v.tractionControl,
+        tc: v.tractionControl && !this.car.physics.noTractionControl,
         tcActive: v.tcFactor < 0.95,
         hold: v.parked || v.holding,
       },

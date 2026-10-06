@@ -43,7 +43,26 @@ home tyre + set-up, 2026-10-04): `straight()` in `tests/rally/handling-harness.t
 | Outlines and dimensions     | a 4-view factory blueprint (outlines traced, dimensions measured);                                                                                   | public domain            |
 | Body, paint, physics        | own work                                                                                                                                             | project licence          |
 
-No brand wordmarks are modelled (plain grille bar, blank plate). Zastava is a trademark of its owner.
+## Files
 
-Measurements, build notes, sources and set-ups: [`DETAILS.md`](DETAILS.md). Open work: see
-[`../../TASKS.md`](../../TASKS.md).
+| File             | What                                                                                      |
+| ---------------- | ----------------------------------------------------------------------------------------- |
+| `zastava-101.ts` | `CarDef`: physics (+ explicit hull), `custom` body, glass / paint finish, wheels          |
+| `blueprint.ts`   | every measured dimension as data / curves (silhouette, edges, sections, arches, windows)  |
+| `body.ts`        | mesh builder (`cars/shared/mesh-kit.ts`): painted shell + glass, trim, lamps, cabin       |
+| `lamps.ts`       | 3D lamp building blocks: bezel frames, reflector dishes, ribbed lenses, wrap-round lenses |
+| `paint.ts`       | atlas layout + UV functions + the paint texture painter                                   |
+| `wheels.ts`      | 145/80 R13 tyre (grooved tread, road dust) on a holed steel rim                           |
+
+## Build notes
+
+- Outlines and dimensions come from the 4-view factory blueprint (length 3836, wheelbase 2448 mm), overlay-checked against
+  orthographic car-viewer renders; `tests/rally/zastava-body.test.ts` pins them. The blueprint shows the early car (round lamps,
+  chrome bumpers): grille, lamps and bumpers follow the later car's photos instead.
+- The rear arch is as tight as the real one (2 cm over the tyre): on full bump the tyre pokes into it.
+- The rim barrel is a closed 4 mm section (a single surface vanished from inside); the front wheel wells reach 0.36 m in so the
+  wheels clear them at full lock.
+- No traction control (`physics.noTractionControl`: the assist is always off, the Options row is hidden). Brake light is red
+  only (no reversing lamp).
+- Tyres, suspension, gearing: [`PHYSICS.md`](../../PHYSICS.md).
+  Open work: [`../../TASKS.md`](../../TASKS.md).

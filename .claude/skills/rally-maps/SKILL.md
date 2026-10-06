@@ -94,7 +94,9 @@ scripts/realmap/<id>.json` (config `trace`: screenshot, start / end marker pixel
    flat on their own smoothed height line (`PATH_PROFILE` per OSM kind in `world/terrain-gen.ts`); a new road kind
    that should be smoother / steeper gets a row there. `tests/rally/side-roads.test.ts` checks them. Water ways
    (canal / drain / river / stream / ditch, depth per kind in `CHANNEL_DEPTH`) are carved and filled with water
-   automatically (`world/water-mesh.ts`); `tests/rally/water.test.ts` checks every channel holds water. Lakes /
+   automatically (`world/water-mesh.ts`); `tests/rally/water.test.ts` checks every channel holds water. A street along a drain bank
+   stops its embankment at the water (only its own surface crosses a channel, as a culvert); a drain ending in another
+   drops to that channel's level over its last 60 m. Lakes /
    ponds / reservoirs come from the baker (`data.lakes`): set `lakes: data.lakes` in `map.ts`. To add them to an
    already baked map without renumbering its buildings, bake to a temp `out` and copy only `lakes` into its data.json. Roadside `minRadius` keeps solid props out of hairpins.
    Junctions: side roads are joined to the stage road automatically (`world/junctions.ts`); add
@@ -160,8 +162,9 @@ City maps (example `maps/jackie/`, config `scripts/realmap/jackie.json`) - extra
 - Power lines: `MapDef.pylons` / `powerLines` (baked from OSM, `data.pylons` / `data.powerLines`) become `power_pylon` / `power_pole` instances + cables
   (`world/power-lines.ts`). Scatter option `channelDist: [min, max]` = only within that distance of a canal / drain edge (willows, reeds).
 - Railways: `MapDef.railways` = `data.railways` (baker `railway_lines`: OSM `railway=rail`, electrified flag). Tracks become
-  `rail` paths (ballast bed carved, decks over them lifted for the catenary), drawn by `world/rail-mesh.ts`, masts on the
-  electrified ones. To add them to an already baked map: bake to a temp `out`, copy only `railways` into its data.json (as
+  `rail` paths (300 m smoothing, 2.5 % grade limit, never eased to a road - a road crossing at grade meets the rail level;
+  drivable ballast hump carved, decks over them lifted by `RAIL_CLEARANCE`, placeholder buildings on the bed dropped), drawn
+  by `world/rail-mesh.ts`, masts every ~58 m on the electrified ones. To add them to an already baked map: bake to a temp `out`, copy only `railways` into its data.json (as
   for lakes). Check `tests/rally/railways.test.ts` and look under the road bridges in the map viewer. Stations and
   platforms are landmarks (example `maps/ajvatovci/station/`: platforms placed from the baked tracks in `site.ts`).
 - Road texture `road_parkway` (lane lines), structures `jersey_barrier` / `guard_rail` / `concrete_block`, roadside rule
@@ -192,7 +195,10 @@ Owner rules - a review fails on any of these:
 Where it lives: path pipeline in `TerrainGen` (`world/under-bridges.ts`: `separateStreets`, `alignParallelDecks`, ...), trench and deck
 terrain in `terrain-gen.ts` (`dipUnderBridges`, `pathCutWeight`, `capUnderDecks`), walls in `cut-wall-mesh.ts`, span fitting in
 `maps/shared/real-map.ts`. `World.analytic` is the TOP surface (includes the stage deck): anything on a street samples the ground
-(`GroundTerrain` / `gen.height`).
+(`GroundTerrain` / `gen.height`). No terrain through streets: a street ribbon holds its own height line where the land under it
+falls away (cut beside it, trench under a portal slab; not on / under the stage road, `pathMeshesJob`), the ground under a deck
+end is not pitted inside a junction plaza (`capUnderDecks`), a sidewalk is lifted clear of a bank, and decks on a portal slab
+carry sidewalks (`street-detail.ts` `deck`).
 
 Most bugs come from **OSM way joints**: one street is several ways, and every per-way step (2 m sampling, square ends, a profile
 smoothed alone, "another road here" checks) breaks at the joint - sample to the exact end, mitre to the mean direction, treat the next way

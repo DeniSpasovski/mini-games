@@ -5,6 +5,7 @@ import {
   Group,
   Matrix3,
   Matrix4,
+  type Material,
   Mesh,
   ShapeUtils,
   Vector2,
@@ -12,12 +13,22 @@ import {
   type ColorRepresentation,
 } from 'three';
 import { ORIGIN } from '../frame';
-import { castsShadow, lotMaterial, tileOf, type MatKey } from './materials';
+import {
+  castsShadow,
+  groupCastsShadow,
+  groupMaterial,
+  groupOf,
+  lotMatOf,
+  lotMaterial,
+  tileOf,
+  type MatGroup,
+  type MatKey,
+} from './materials';
 
 /**
  * Geometry toolkit of the start row: pieces (boxes, quads, flat polygons, sweeps, any three.js
  * geometry) are written into per-material "soups" with the paint baked into vertex colours, so the
- * whole row ends up as a few dozen meshes (merged per 64 m tile and material).
+ * whole row ends up as a few dozen meshes (merged per 128 m tile and material group, materials.ts).
  *
  * Pieces are built in *site* metres (x east, z south, y up above the lot's ground, see frame.ts).
  * A `Frame` moves them into the world: translate by the site origin, then shear y onto the lot's
@@ -111,23 +122,79 @@ export class Bucket {
   build(name: string): Group {
     const group = new Group();
     group.name = name;
-    for (const [tile, soups] of this.tiles)
+    const add = (
+      tile: string,
+      label: string,
+      g: BufferGeometry,
+      mat: Material,
+      shadow: boolean,
+    ) => {
+      const mesh = new Mesh(g, mat);
+      mesh.name = `${tile} ${label}`;
+      mesh.castShadow = shadow;
+      mesh.receiveShadow = true;
+      mesh.matrixAutoUpdate = false;
+      group.add(mesh);
+    };
+    for (const [tile, soups] of this.tiles) {
+      // Grouped keys: one mesh per tile and group (materials.ts `groupMaterial`).
+      const grouped = new Map<MatGroup, [MatKey, Soup][]>();
       for (const [key, soup] of soups) {
         if (!soup.pos.length) continue;
-        const mesh = new Mesh(soup.geometry(), lotMaterial(key));
-        mesh.name = `${tile} ${key}`;
-        mesh.castShadow = castsShadow(key);
-        mesh.receiveShadow = true;
-        mesh.matrixAutoUpdate = false;
-        group.add(mesh);
+        const gr = groupOf(key);
+        if (gr) {
+          const list = grouped.get(gr) ?? [];
+          list.push([key, soup]);
+          grouped.set(gr, list);
+        } else
+          add(tile, key, soup.geometry(), lotMaterial(key), castsShadow(key));
       }
+      for (const [gr, list] of grouped)
+        add(
+          tile,
+          gr,
+          mergeSoups(list),
+          groupMaterial(gr),
+          groupCastsShadow(gr),
+        );
+    }
     return group;
   }
 }
 
-/** Tile key (64 m) of a site point. */
+/** One geometry from the soups of a material group, each vertex tagged with its key's `lotMat`. */
+function mergeSoups(list: [MatKey, Soup][]): BufferGeometry {
+  let n = 0;
+  for (const [, s] of list) n += s.pos.length / 3;
+  const pos = new Float32Array(n * 3);
+  const nor = new Float32Array(n * 3);
+  const uv = new Float32Array(n * 2);
+  const col = new Float32Array(n * 3);
+  const mat = new Float32Array(n * 4);
+  let v = 0;
+  for (const [key, s] of list) {
+    const m = lotMatOf(key);
+    const k = s.pos.length / 3;
+    pos.set(s.pos, v * 3);
+    nor.set(s.nor, v * 3);
+    uv.set(s.uv, v * 2);
+    col.set(s.col, v * 3);
+    for (let i = 0; i < k; i++) mat.set(m, (v + i) * 4);
+    v += k;
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(pos, 3));
+  g.setAttribute('normal', new BufferAttribute(nor, 3));
+  g.setAttribute('uv', new BufferAttribute(uv, 2));
+  g.setAttribute('color', new BufferAttribute(col, 3));
+  g.setAttribute('lotMat', new BufferAttribute(mat, 4));
+  g.computeBoundingSphere();
+  return g;
+}
+
+/** Tile key (128 m) of a site point: one mesh per tile and material (group); bigger tiles = fewer draw calls. */
 export const tileKey = (x: number, z: number): string =>
-  `${Math.floor((x + ORIGIN.x) / 64)},${Math.floor((z + ORIGIN.z) / 64)}`;
+  `${Math.floor((x + ORIGIN.x) / 128)},${Math.floor((z + ORIGIN.z) / 128)}`;
 
 type V3 = [number, number, number];
 

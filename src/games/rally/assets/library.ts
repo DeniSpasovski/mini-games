@@ -45,6 +45,7 @@ import {
   willowTree,
 } from './builders/vegetation';
 import { getAssetMeta } from './catalog';
+import { impostorOf } from './impostor';
 import type { AssetBuilder, BuiltAsset } from './types';
 
 /** id -> geometry builder. Metadata (LODs, colliders, variants) lives in catalog.ts. */
@@ -104,10 +105,14 @@ const cache = new Map<string, BuiltAsset>();
  * world references the same BuiltAsset - never clone these per instance.
  */
 export function getAsset(id: string, variant: number, lod: number): BuiltAsset {
+  const spec = getAssetMeta(id).lods[lod];
+  if (spec?.oneVariant) variant = 0;
   const key = `${id}:${variant}:${lod}`;
   let a = cache.get(key);
   if (!a) {
-    a = buildAsset(id, variantSeed(id, variant), variant, lod);
+    a = spec?.impostor
+      ? impostorOf(getAsset(id, variant, lod - 1))
+      : buildAsset(id, variantSeed(id, variant), variant, lod);
     cache.set(key, a);
   }
   return a;

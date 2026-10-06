@@ -6,7 +6,7 @@
   "scale": 1.0,
   "offset": [6.861, 0, -0.395],
   "groundAtMin": false,
-  "targetTriangles": 70000,
+  "targetTriangles": 61100,
   "creaseDeg": 40,
   "wheels": {
     "$comment": "the wheels are separate meshes (dropped below) - nothing to cut",
@@ -47,6 +47,14 @@
         "x": [0.55, 1.1],
         "y": [0.15, 0.56],
         "z": [-2.2, -1.72]
+      },
+      {
+        "$comment": "rear bumper lower edge (|x| < 0.55, y 0.28 - 0.34, z -2.0 - -1.85): the 45 degree bevel under the bumper (normal y -0.7) went to the dark bottom chart and showed as black triangles between the body colour - it reads the rear chart like the rest of the bumper",
+        "chart": "rear",
+        "minNy": -0.8,
+        "x": [0, 0.55],
+        "y": [0.28, 0.34],
+        "z": [-2.0, -1.85]
       }
     ]
   },
@@ -351,7 +359,7 @@
     },
     "drop": ["logo"],
     "maxTriangles": {
-      "interior": 16000
+      "interior": 6000
     }
   }
 }

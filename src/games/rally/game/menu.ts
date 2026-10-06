@@ -286,6 +286,7 @@ class MainMenu {
       this.panel.append(
         header('Options'),
         buildOptions({
+          tractionControl: !this.car.physics.noTractionControl,
           onBack: () => this.show('welcome'),
           // Car number -> door plates on the showroom car.
           onChange: () =>
@@ -779,6 +780,8 @@ class MainMenu {
  * changes call `onQuality` (the game needs a reload to rebuild the renderer).
  */
 export function buildOptions(opts: {
+  /** false = the selected car has no traction control: the option is hidden. */
+  tractionControl?: boolean;
   onBack: () => void;
   onChange?: (s: RallySettings) => void;
   onQuality?: (q: QualityName) => void;
@@ -873,18 +876,19 @@ export function buildOptions(opts: {
     ),
     'G in game · Q/E shift',
   );
-  row(
-    'Traction assist',
-    choice(
-      [
-        [true, 'On'],
-        [false, 'Off'],
-      ],
-      s.traction,
-      (v) => set({ traction: v }),
-    ),
-    'T in game',
-  );
+  if (opts.tractionControl !== false)
+    row(
+      'Traction assist',
+      choice(
+        [
+          [true, 'On'],
+          [false, 'Off'],
+        ],
+        s.traction,
+        (v) => set({ traction: v }),
+      ),
+      'T in game',
+    );
   const num = div('menu-number');
   const numLabel = document.createElement('b');
   const step = (d: number) => {

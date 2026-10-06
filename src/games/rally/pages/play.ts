@@ -4,7 +4,7 @@ import '../game/menu.css';
 import { goToPortal, portalUrl } from '../../../shared/portal-link';
 import { installThumbnailCapture } from '../../../shared/thumbnail';
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
-import { DEFAULT_CAR } from '../cars';
+import { DEFAULT_CAR, getCar } from '../cars';
 import { loadQuality } from '../engine/quality';
 import {
   buildLeaderboard,
@@ -143,6 +143,7 @@ function play(params: typeof DEFAULTS): void {
     pauseBox.innerHTML = `<h2>Options</h2>`;
     pauseBox.append(
       buildOptions({
+        tractionControl: !getCar(params.car).physics.noTractionControl,
         onBack: showPauseMenu,
         onChange: (s) => game.applySettings(s),
         // The renderer is built for one quality: reload into the same stage.

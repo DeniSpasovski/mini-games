@@ -24,6 +24,7 @@ import { rimRadius } from '../cars/shared/tyre-mesh';
  *   car-viewer.html?car=bimmer_m3&cam=-1.2,4,-1.6&look=-0.5,0.7,-1.8&fov=14&clean=1
  * `cam` overrides `view`; choosing a view in the panel clears the free camera.
  * "Copy camera link" (Pose section) writes the current orbit (position, target, fov) into these params and copies the URL.
+ * `lamps=brake|reverse|reverse+brake` lights the rear lamps (brake pedal down / gear R).
  * Wheels section (debug/wheel-debug.ts): `wheels=1` overlay (fixed hub crosshair + tyre / bead circles, spin pointer, fitted
  * arch circle + offsets), `wangle=<deg>` wheel angle while not spinning, `tyres=0` / `rims=0` / `brakes=0` / `body=0` hide
  * parts, `wcam=FL|FR|RL|RR` near-orthographic camera straight along that wheel's axle, e.g.
@@ -53,6 +54,8 @@ const DEFAULTS = {
   hull: false,
   wire: false,
   turntable: false,
+  /** off | brake | reverse | reverse+brake: rear lamps lit (CarModel.setBrake). */
+  lamps: 'off',
   view: 'three-quarter',
   cam: '',
   look: '',
@@ -195,6 +198,16 @@ pose.checkbox('Spin wheels', state.spin, (v) => {
   state.spin = v;
   sync();
 });
+pose.select(
+  'Rear lamps',
+  state.lamps,
+  ['off', 'brake', 'reverse', 'reverse+brake'],
+  (v) => {
+    state.lamps = v;
+    applyLamps();
+    sync();
+  },
+);
 pose.checkbox('Turntable', state.turntable, (v) => {
   state.turntable = v;
   sync();
@@ -336,8 +349,16 @@ function rebuild(): void {
   if (!state.paint) paintCtl.set(model.livery.base);
   applyBadge();
   applyWire();
+  applyLamps();
   applyWheelDebug();
   updateSpecs();
+}
+
+function applyLamps(): void {
+  model?.setBrake(
+    state.lamps === 'brake' || state.lamps === 'reverse+brake' ? 1 : 0,
+    state.lamps.startsWith('reverse'),
+  );
 }
 
 function applyWire(): void {

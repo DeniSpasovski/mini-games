@@ -9,7 +9,7 @@ import {
   Vector2,
 } from 'three';
 import { hash3 } from '../../../shared/rng';
-import { getTexture } from '../engine/textures';
+import { layeredMaterial, textureArray } from '../engine/texture-array';
 import type { FacadeId } from '../engine/facade-textures';
 import type { BuildingDef } from '../maps/shared/types';
 import type { World } from './world';
@@ -20,7 +20,8 @@ import type { World } from './world';
  * (windows repeat every 3.2 m x 3.2 m floor), flat roofs with a parapet + rooftop clutter (stair
  * bulkheads, NYC water tanks) or pitched gable roofs on houses / churches / tombs.
  *
- * Merged per 128 m tile and facade style, so a whole district costs a few dozen draw calls.
+ * Merged per 192 m tile into ONE mesh (facades = layers of one texture array, `layeredMaterial`), so a
+ * whole district costs a few dozen draw calls.
  * Colliders are the footprint boxes (world.ts); the scatter keeps trees out via BuildingIndex.
  */
 
@@ -390,41 +391,61 @@ export function* buildingMeshJob(
   }
   const group = new Group();
   group.name = 'buildings';
-  const roofMat = new MeshStandardMaterial({
-    vertexColors: true,
-    roughness: 0.93,
-    metalness: 0,
-  });
-  const mats = new Map<FacadeId, MeshStandardMaterial>();
-  const wallMat = (id: FacadeId) => {
-    let m = mats.get(id);
-    if (!m)
-      mats.set(
-        id,
-        (m = new MeshStandardMaterial({
-          map: getTexture(id),
-          vertexColors: true,
-          roughness: 0.9,
-          metalness: 0,
-        })),
-      );
-    return m;
-  };
+  // One mesh per tile: every facade is a layer of one texture array, roofs are untextured (layer -1).
+  const mat = buildingMaterial();
   for (const tile of tiles.values()) {
-    for (const [id, acc] of tile.walls) group.add(toMesh(acc, wallMat(id)));
-    if (tile.roof.idx.length) group.add(toMesh(tile.roof, roofMat));
+    const parts: [Acc, number][] = [...tile.walls].map(([id, acc]) => [
+      acc,
+      FACADES.indexOf(id),
+    ]);
+    if (tile.roof.idx.length) parts.push([tile.roof, -1]);
+    if (parts.length) group.add(toMesh(parts, mat));
     yield;
   }
   return group;
 }
 
-function toMesh(a: Acc, mat: MeshStandardMaterial): Mesh {
+const FACADES = [...new Set(Object.values(FACADE))];
+let material: MeshStandardMaterial | undefined;
+function buildingMaterial(): MeshStandardMaterial {
+  return (material ??= layeredMaterial(textureArray(FACADES, 192), 'facades', {
+    roughness: 0.9,
+    metalness: 0,
+  }));
+}
+
+function toMesh(parts: [Acc, number][], mat: MeshStandardMaterial): Mesh {
+  let nv = 0;
+  let ni = 0;
+  for (const [a] of parts) {
+    nv += a.pos.length / 3;
+    ni += a.idx.length;
+  }
+  const pos = new Float32Array(nv * 3);
+  const nor = new Float32Array(nv * 3);
+  const col = new Float32Array(nv * 3);
+  const uv = new Float32Array(nv * 2);
+  const layer = new Float32Array(nv);
+  const idx = nv > 65535 ? new Uint32Array(ni) : new Uint16Array(ni);
+  let v = 0;
+  let i = 0;
+  for (const [a, l] of parts) {
+    pos.set(a.pos, v * 3);
+    nor.set(a.nor, v * 3);
+    col.set(a.col, v * 3);
+    uv.set(a.uv, v * 2);
+    const k = a.pos.length / 3;
+    layer.fill(l, v, v + k);
+    for (const q of a.idx) idx[i++] = q + v;
+    v += k;
+  }
   const g = new BufferGeometry();
-  g.setAttribute('position', new BufferAttribute(new Float32Array(a.pos), 3));
-  g.setAttribute('normal', new BufferAttribute(new Float32Array(a.nor), 3));
-  g.setAttribute('color', new BufferAttribute(new Float32Array(a.col), 3));
-  g.setAttribute('uv', new BufferAttribute(new Float32Array(a.uv), 2));
-  g.setIndex(a.idx);
+  g.setAttribute('position', new BufferAttribute(pos, 3));
+  g.setAttribute('normal', new BufferAttribute(nor, 3));
+  g.setAttribute('color', new BufferAttribute(col, 3));
+  g.setAttribute('uv', new BufferAttribute(uv, 2));
+  g.setAttribute('layer', new BufferAttribute(layer, 1));
+  g.setIndex(new BufferAttribute(idx, 1));
   g.computeBoundingSphere();
   const m = new Mesh(g, mat);
   m.castShadow = true;

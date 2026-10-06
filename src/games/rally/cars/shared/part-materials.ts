@@ -40,9 +40,16 @@ export type PartName =
 
 const cache = new Map<string, Material>();
 
-/** Brake lamp (CarModel.setBrake): emissive from its idle value to `on` with the brake down. */
-function lamp(m: MeshPhysicalMaterial, on: number): MeshPhysicalMaterial {
-  m.userData.brakeLamp = { off: m.emissiveIntensity, on };
+/**
+ * Brake lamp (CarModel.setBrake): emissive from its idle value to `on` with the brake down. `reverseGlow` = an
+ * emissive map that lights only the white reversing section; CarModel swaps it in while the car is in reverse gear.
+ */
+function lamp(
+  m: MeshPhysicalMaterial,
+  on: number,
+  reverseGlow?: CanvasTexture,
+): MeshPhysicalMaterial {
+  m.userData.brakeLamp = { off: m.emissiveIntensity, on, reverseGlow };
   return m;
 }
 
@@ -247,7 +254,11 @@ const TAIL = {
   ],
 };
 
-function tailMaps(): { map: CanvasTexture; glow: CanvasTexture } {
+function tailMaps(): {
+  map: CanvasTexture;
+  glow: CanvasTexture;
+  reverseGlow: CanvasTexture;
+} {
   const { W, H } = TAIL;
   const bars = (g: CanvasRenderingContext2D, fill: string) => {
     g.fillStyle = fill;
@@ -283,7 +294,14 @@ function tailMaps(): { map: CanvasTexture; glow: CanvasTexture } {
     g.fillRect(0, 0, W, H);
     bars(g, '#ff2a1c');
   });
-  return { map, glow };
+  const reverseGlow = canvas(W, H, (g) => {
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, W, H);
+    const [r0, r1] = TAIL.reverseV;
+    g.fillStyle = '#ffffff';
+    g.fillRect(0, r0 * H, TAIL.reverseU * W, (r1 - r0) * H);
+  });
+  return { map, glow, reverseGlow };
 }
 
 /**
@@ -294,7 +312,11 @@ function tailMaps(): { map: CanvasTexture; glow: CanvasTexture } {
  * mesh by calibrating the camera on the recessed box's four corner vertices and ray-casting the traced corners onto the
  * lamp triangles (u, v = 0.704, 0.755 / 0.349, 0.762 / 0.29, 0.866 / 0.662, 0.866). Everything else is a light red lens.
  */
-function tailCMaps(): { map: CanvasTexture; glow: CanvasTexture } {
+function tailCMaps(): {
+  map: CanvasTexture;
+  glow: CanvasTexture;
+  reverseGlow: CanvasTexture;
+} {
   const W = 256;
   const H = 256;
   const box = (g: CanvasRenderingContext2D, color: string) => {
@@ -318,9 +340,14 @@ function tailCMaps(): { map: CanvasTexture; glow: CanvasTexture } {
   const glow = canvas(W, H, (g) => {
     g.fillStyle = '#3a0608';
     g.fillRect(0, 0, W, H);
-    box(g, '#9a9a9a');
+    box(g, '#3a0608'); // brake light stays red-only: the white box has no brake glow
   });
-  return { map, glow };
+  const reverseGlow = canvas(W, H, (g) => {
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, W, H);
+    box(g, '#ffffff');
+  });
+  return { map, glow, reverseGlow };
 }
 
 /**
@@ -732,7 +759,7 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoatRoughness: 0.05,
     }),
   tail: () => {
-    const { map, glow } = tailMaps();
+    const { map, glow, reverseGlow } = tailMaps();
     return lamp(
       new MeshPhysicalMaterial({
         map,
@@ -745,13 +772,14 @@ const BUILDERS: Record<PartName, () => Material> = {
         clearcoatRoughness: 0.05,
       }),
       5.5,
+      reverseGlow,
     );
   },
   /** Modelled cockpit of an imported body (seats, cage, dash, door cards): dark, matte - without it the cockpit got the livery. */
   interior: () => new MeshStandardMaterial({ color: 0x2a2c30, roughness: 0.9 }),
   /** Fabia R5 tail lamp: even red lens + white reversing square, see tailCMaps - needs `parts.wrap` 'corner'. */
   tailc: () => {
-    const { map, glow } = tailCMaps();
+    const { map, glow, reverseGlow } = tailCMaps();
     return lamp(
       new MeshPhysicalMaterial({
         map,
@@ -766,6 +794,7 @@ const BUILDERS: Record<PartName, () => Material> = {
         clearcoatRoughness: 0.05,
       }),
       5,
+      reverseGlow,
     );
   },
   reflector: () =>

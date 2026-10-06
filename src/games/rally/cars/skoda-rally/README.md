@@ -47,4 +47,4 @@ home tyre + set-up, 2026-10-04): `straight()` in `tests/rally/handling-harness.t
 The model's manufacturer badges are removed; no brand wordmarks or sponsor logos are painted. Skoda and Fabia are trademarks
 of their owner and name the car only.
 
-Measurements, conversion, checks and sources: [`DETAILS.md`](DETAILS.md). Open work: [`TODO.md`](TODO.md).
+Tyres, suspension and gearing: [`PHYSICS.md`](../../PHYSICS.md).

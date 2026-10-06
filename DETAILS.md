@@ -81,10 +81,14 @@ does; `game_id` is added to every event. `?analytics=log` prints each event to t
 - Only ranked runs are tracked: no rally free drive / test pad, no Hole dev runs (`?time=`, `?level=`, `?bot=1`).
 - Quits are tracked from the pause menu (restart, main menu, portal, rally spawn change); closing the tab is not.
 - `game_rally_times_version` / `game_hole_scoring_version` keep times / scores from before a physics or scoring change apart in reports.
-- GA admin setup: register each param above as an event-scoped custom dimension (`game_time_s`, `game_score`, `game_hole_pct_eaten`...
-  as custom metrics) or it only shows in Realtime / DebugView; registration is not retroactive. Turn **off** Enhanced
-  measurement -> "Page changes based on browser history events": viewers rewrite the URL (camera links) on every
-  change, which would otherwise count as page views. Page views of the viewer pages themselves are recorded anyway.
+- GA property settings (Admin; not in code, redo them for a new property):
+  - every param above registered as an event-scoped custom dimension (`game_time_s`, `game_score`, `game_hole_level`,
+    `game_hole_items_eaten`, `game_hole_pct_eaten`, `game_rally_penalty_s`, `game_rally_progress_pct` as custom metrics);
+    unregistered params only show in Realtime / DebugView, and registration is not retroactive.
+  - Enhanced measurement: "Page changes based on browser history events" **off** (viewers rewrite the URL on every camera
+    move); Form interactions and Site search off.
+  - Data retention 14 months; Google signals and ads personalization off (the banner promises no ads); internal traffic
+    filter active for the owner's IP.
 
 **Banner setting:** `SITE.showPrivacyBanner` in `src/site.config.ts`. `'production'` (current) = banner + footer link only in
 the production build, hidden on `npm run dev`; `true` = also in dev (to test the banner); `false` = hidden everywhere.

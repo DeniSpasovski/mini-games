@@ -183,6 +183,8 @@ export interface Plot {
   /** A line of red and white barriers across the yard, closing off its back part, with a gap. */
   divider?: { from: Corner; to: Corner; gate: [number, number] };
   maxVehicles?: number;
+  /** Cars keep this many metres clear of the yard's fence (their corners, not their middles). */
+  fenceClearance?: number;
   maxTrucks?: number;
   maxCars?: number;
 }
@@ -271,7 +273,11 @@ export const DEALER = (() => {
   return {
     east,
     along,
-    carports: [px(1266, 531), px(1333, 541)],
+    // Pulled south where needed so each carport (9 x 5.6 m) stands wholly behind the street fence.
+    carports: [px(1266, 531), px(1333, 541)].map(([x, z]): Corner => {
+      const fenceZ = lineAt(SOUTH_FENCE - 0.4)(x);
+      return [x, Math.max(z, fenceZ + 2.8 + 0.6)];
+    }),
     truss: px(1377, 536),
     flags: [px(1247, 516), px(1253, 517), px(1259, 518)],
   };
@@ -631,8 +637,8 @@ const PLOT_LAYOUT: Plot[] = [
     style: 'carPark',
     paving: 'gravel',
     yard: westYard(WEST.parking),
-    // At most 20 cars (user, 2026-10-04).
-    maxVehicles: 20,
+    // At most 10 cars (user, 2026-10-06; was 20).
+    maxVehicles: 10,
     rows: [
       {
         fence: 'n',
@@ -715,6 +721,8 @@ const PLOT_LAYOUT: Plot[] = [
         vans: 0.2,
       },
     ],
+    // Seven or eight cars in front of the service, no more.
+    maxVehicles: 8,
     fixed: [{ kind: 'box', at: px16(960, 735), heading: 1.3 }],
   },
   {
@@ -1184,28 +1192,28 @@ const PLOT_LAYOUT: Plot[] = [
       street: [sx(LOT_X.dealer[0]), sx(LOT_X.dealer[1])],
       back: BACK.dealer.map(([x, y]) => px(x, y)),
     },
-    // Cars for sale in rows along the back fence and a row facing it behind the carports, stopping short of
-    // the truss slab at the east end; a row along the west fence.
+    // Cars for sale in two rows down the middle of the yard, parked east-west (nose along the street),
+    // well clear of the fences and the truss slab at the east end. The line sits half a car width north of
+    // each row's centre (rows 3.3 m apart, ~5 m from the back fence).
     rows: [
       {
-        line: [px(1350, 590), px(1243, 590)],
+        line: [px(1262, 563), px(1350, 563)],
         kind: 'car',
-        layout: 'dock',
+        layout: 'along',
         fill: 0.95,
-        gap: 0.6,
-        vans: 0.1,
+        gap: 0,
+        vans: 0,
       },
       {
-        line: [px(1350, 590), px(1243, 590)],
+        line: [px(1262, 575), px(1350, 575)],
         kind: 'car',
-        layout: 'dock',
-        fill: 0.9,
-        gap: 7.2,
-        vans: 0.1,
-        noseIn: true,
+        layout: 'along',
+        fill: 0.95,
+        gap: 0,
+        vans: 0,
       },
-      { fence: 'w', kind: 'car', layout: 'dock', fill: 0.9, gap: 0.8, vans: 0 },
     ],
+    fenceClearance: 1.2,
     fixed: DEALER_CARS,
   },
   {
@@ -1807,6 +1815,14 @@ const layoutPlots = (): Layout => {
       )
         return false;
       if (!corners.every((c) => inside(c, yard.polygon))) return false;
+      const clear = yard.plot.fenceClearance;
+      if (
+        clear !== undefined &&
+        corners.some((c) =>
+          yard.fence.some((run) => distanceToLine(c, run) < clear),
+        )
+      )
+        return false;
       if (blockers.some((b) => overlaps(corners, b, 0.6))) return false;
       if (placed.some((o) => overlaps(corners, o.polygon, 0.35))) return false;
     }

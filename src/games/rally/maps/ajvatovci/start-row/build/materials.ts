@@ -2,9 +2,13 @@ import {
   DoubleSide,
   FrontSide,
   MeshStandardMaterial,
+  ShaderChunk,
+  type DataArrayTexture,
   type Material,
 } from 'three';
 import { getTexture, type TextureId } from '../../../../engine/textures';
+import { textureArray } from '../../../../engine/texture-array';
+import { addWorldUniforms } from '../../../../engine/world-shading';
 
 /**
  * Materials of the start row. Every material is a MeshStandardMaterial with vertex colours (the
@@ -203,6 +207,131 @@ export function lotMaterial(key: MatKey): Material {
   cache.set(key, m);
   return m;
 }
+
+/**
+ * Material groups: the keys of a group share ONE material (and one mesh per tile) - their textures are
+ * layers of one texture array and roughness / metalness / env strength ride on a per-vertex `lotMat`
+ * attribute. Cuts the row's ~20 materials per tile to a handful of draw calls. Keys outside a group
+ * keep their own material: signs (wide textures), glass (casts no shadow; in 'solid' the panes shadow their
+ * own frames), fence, leaf (flat shaded), markings.
+ */
+export type MatGroup = 'solid' | 'ground' | 'patch';
+const GROUPS: Partial<Record<MatKey, MatGroup>> = {
+  render: 'solid',
+  panel: 'solid',
+  sheet: 'solid',
+  roller: 'solid',
+  roofing: 'solid',
+  solar: 'solid',
+  barrier: 'solid',
+  paint: 'solid',
+  metal: 'solid',
+  ashlar: 'solid',
+  rubble: 'solid',
+  wall: 'solid',
+  tiles: 'solid',
+  asphalt: 'ground',
+  gravel: 'ground',
+  pavers: 'ground',
+  concrete: 'ground',
+  lawn: 'ground',
+  patchConcrete: 'patch',
+  patchAsphalt: 'patch',
+  patchPavers: 'patch',
+};
+/** Decal layer of each group (same polygon offsets as the single materials). */
+const GROUP_DECAL: Record<MatGroup, number> = { solid: 0, ground: 1, patch: 2 };
+/** Side of a texture-array layer (px); every texture is resampled to it. */
+const LAYER = 512;
+
+export const groupOf = (key: MatKey): MatGroup | undefined => GROUPS[key];
+
+let layers: TextureId[] | undefined;
+const layerIds = (): TextureId[] =>
+  (layers ??= [
+    ...new Set(
+      (Object.keys(GROUPS) as MatKey[])
+        .map((k) => (MATS[k] as MatDef).map)
+        .filter((m): m is TextureId => !!m),
+    ),
+  ]);
+
+/** Per-vertex material of a grouped key: texture layer (-1 = none), roughness, metalness, env strength. */
+export function lotMatOf(key: MatKey): [number, number, number, number] {
+  const def: MatDef = MATS[key];
+  return [
+    def.map ? layerIds().indexOf(def.map) : -1,
+    def.roughness,
+    def.metalness ?? 0,
+    def.envMapIntensity ?? 1,
+  ];
+}
+
+let array: DataArrayTexture | undefined;
+/** Every grouped key's texture, resampled to LAYER x LAYER, as one sRGB texture array. */
+const lotArray = (): DataArrayTexture =>
+  (array ??= textureArray(layerIds(), LAYER));
+
+const groupCache = new Map<MatGroup, Material>();
+
+/** The shared material of a group (vertex colours x array layer; PBR values per vertex). */
+export function groupMaterial(group: MatGroup): Material {
+  const m = groupCache.get(group);
+  if (m) return m;
+  const decal = GROUP_DECAL[group];
+  const mat = new MeshStandardMaterial({
+    vertexColors: true,
+    polygonOffset: decal > 0,
+    polygonOffsetFactor: -2 * decal,
+    polygonOffsetUnits: -4 * decal,
+  });
+  const maps = { value: lotArray() };
+  mat.onBeforeCompile = (shader) => {
+    addWorldUniforms(shader);
+    shader.uniforms.lotMaps = maps;
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nattribute vec4 lotMat;\nvarying vec4 vLotMat;\nvarying vec2 vLotUv;',
+      )
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvLotMat = lotMat;\nvLotUv = uv;',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nuniform mediump sampler2DArray lotMaps;\nvarying vec4 vLotMat;\nvarying vec2 vLotUv;',
+      )
+      .replace(
+        '#include <map_fragment>',
+        // Sampled outside any branch (a layer change across a pixel quad keeps its derivatives).
+        'vec4 lotTex = texture( lotMaps, vec3( vLotUv, max( floor( vLotMat.x + 0.5 ), 0.0 ) ) );\n' +
+          'diffuseColor *= vLotMat.x < -0.5 ? vec4( 1.0 ) : lotTex;',
+      )
+      .replace(
+        '#include <roughnessmap_fragment>',
+        'float roughnessFactor = vLotMat.y;',
+      )
+      .replace(
+        '#include <metalnessmap_fragment>',
+        'float metalnessFactor = vLotMat.z;',
+      )
+      .replace(
+        // The uniform carries scene.environmentIntensity (scene.environment lit materials): scale it, never replace it.
+        '#include <envmap_physical_pars_fragment>',
+        ShaderChunk.envmap_physical_pars_fragment
+          .split('envMapIntensity')
+          .join('( envMapIntensity * vLotMat.w )'),
+      );
+  };
+  mat.customProgramCacheKey = () => 'lot-array-v2';
+  mat.name = `lot_${group}`;
+  groupCache.set(group, mat);
+  return mat;
+}
+
+export const groupCastsShadow = (group: MatGroup): boolean => group === 'solid';
 
 export const castsShadow = (key: MatKey): boolean => {
   const def: MatDef = MATS[key];

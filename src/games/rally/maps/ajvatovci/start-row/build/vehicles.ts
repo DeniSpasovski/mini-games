@@ -887,7 +887,9 @@ export function buildFleet(b: Build): Group {
             new Color(part === 'cab' ? (pl.cabColor ?? pl.color) : pl.color),
           ),
         );
-      mesh.castShadow = part !== 'glass';
+      // Paint + cab carry the shape; glass, chrome and details (wheels, mirrors, lamps) sit inside that shadow.
+      // Each mesh spans the whole row (never culled), so every extra caster is a full-fleet shadow draw.
+      mesh.castShadow = part === 'paint' || part === 'cab';
       mesh.receiveShadow = true;
       mesh.computeBoundingSphere();
       group.add(mesh);
