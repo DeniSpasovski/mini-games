@@ -4,7 +4,6 @@ import gameManifest from '../game.json';
 import { HOLE_COLORS } from '../render/hole-mesh';
 import {
   DIFFICULTIES,
-  difficultiesFor,
   MAX_LEVEL,
   TIER_COUNT,
   type Difficulty,
@@ -298,7 +297,7 @@ export class Menu {
     const row = el('div', 'hg-diffs');
     const mapId = this.api.mapId();
     const noun = this.api.maps.find((m) => m.id === mapId)?.noun ?? 'island';
-    for (const d of difficultiesFor(mapId)) {
+    for (const d of DIFFICULTIES) {
       const b = el('button', `hg-diff ${d.id}`, '', { type: 'button' });
       const best = this.api.best(mapId, d.id);
       b.append(
