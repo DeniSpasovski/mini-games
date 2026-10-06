@@ -31,10 +31,8 @@ import {
  * fence and which trucks and cars are parked where. Pure layout, no rendering and no DOM:
  * `build/` turns it into geometry, `index.ts` into pads, colliders and the physical kerb.
  *
- * Ported from the Yuma Interactive site's `three/map/plots.ts` (read-only reference): the lot
- * styles and parking rows. Their positions are the real ones from the image - the Yuma scene had
- * moved some lots to make room for its yards, and drew a fence per lot (two where lots touch);
- * here neighbours share one fence (`Yard.fence` is deduplicated).
+ * Lot styles and parking rows. Positions are the real ones from the image, and neighbours share
+ * one fence (`Yard.fence` is deduplicated).
  */
 
 export type Compass = 'n' | 'e' | 's' | 'w';
@@ -720,7 +718,7 @@ const PLOT_LAYOUT: Plot[] = [
     fixed: [{ kind: 'box', at: px16(960, 735), heading: 1.3 }],
   },
   {
-    // BETASPED: the big grey warehouse with the red trim (the freight forwarder's) with its solar
+    // North 1: the big grey warehouse with the red trim (the freight forwarder's) with its solar
     // roof, set back from the street behind its car parks, in one big asphalt yard that wraps round
     // behind the next three lots. Its office tower stands on the street front.
     name: 'north 1',

@@ -7,7 +7,7 @@ around a blocky toy-city island and swallow everything that fits. Each thing you
 at trash cans and flowers and ends at skyscrapers. You play against the clock, and the score goes on a top-10 list for
 each difficulty.
 
-> **Status: v0 playable, three maps** (City Island, Toy Emporium and **Animal Island**, see "Map: Animal Island"). Menus, run loop, scoring, top 10, touch controls, **City Island** (83 item types)
+> **Status: playable, three maps** (City Island, Toy Emporium and **Animal Island**, see "Map: Animal Island"). Menus, run loop, scoring, top 10, touch controls, **City Island** (83 item types)
 > and **Toy Emporium** (a giant toy store, 210 item types, see "Map: Toy Emporium"), the item viewer, the map viewer and
 > the balance page all work. Not done yet (see [`TASKS.md`](TASKS.md), [`TOY-STORE.md`](TOY-STORE.md)): real-device
 > tuning on iPad / phone, enemy holes.
@@ -205,6 +205,9 @@ Each item has a small state machine in `sim/fall.ts`, deterministic (seeded per 
   after that XP only adds score.
 - **Island cleared bonus** (100 % of the island eaten before time runs out): **+10 points per remaining second**. The run
   ends immediately with the bonus. Easy (500 s) is the difficulty where this normally happens.
+- **Leftover rings:** once fewer than 100 points are left, every remaining item gets a pulsing white ground ring (at least
+  5 % of the camera distance wide) and tiny items are drawn regardless of size, so stragglers are easy to find from a big hole
+  (`render/leftover-rings.ts`, `LEFTOVER_POINTS`).
 - Results also show **% eaten**, by points: points eaten ÷ total island points (City Island 30 000, Toy Emporium 25 000). The HUD shows the same percentage live.
 - Combos and multipliers are not in v0 (see iterations).
 

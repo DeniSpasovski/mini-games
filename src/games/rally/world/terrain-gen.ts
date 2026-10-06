@@ -19,6 +19,7 @@ import {
   bridgeOverUnderSpans,
   matchCarriagewayWidth,
   dropDuplicateDecks,
+  separateStreets,
   trimMergingDecks,
 } from './under-bridges';
 import {
@@ -32,8 +33,17 @@ import {
   type LakeQuery,
 } from './lakes';
 import { PadField } from './pads';
+import { markParkwayLanes } from './parkway-lanes';
+import { Plazas } from './plazas';
 import { buildPortals, Portals } from './portals';
 import { newRoadQuery, Road, type RoadQuery } from './road';
+import {
+  ballastAt,
+  BALLAST_H,
+  RAIL_CLEARANCE,
+  RAIL_KIND,
+  railPaths,
+} from './railways';
 
 /**
  * Pure height/surface function of a map: noise layers (+ real elevation) + flat
@@ -81,8 +91,12 @@ const PATH_PROFILE: Record<string, [number, number]> = {
   living_street: [30, 0.14],
   service: [30, 0.15],
   track: [25, 0.18],
+  // Railways: long, gentle grades (a main line rarely exceeds 2.5 %).
+  rail: [300, 0.025],
 };
 const PATH_PROFILE_DEFAULT: [number, number] = [14, 0.3];
+/** Streets ease from a junction plaza's height back to their own over this distance beyond its edge (m). */
+const PLAZA_EASE = 30;
 /** Depth of the girder under a deck surface (m): the underside of a bridge sits this far below the road. */
 export const DECK_DEPTH = 1.5;
 /** A sheer cut rises from the road to the land over this distance (m): the retaining wall hides it. */
@@ -154,6 +168,10 @@ export class TerrainGenerator {
   private dq: RoadQuery = newRoadQuery();
   /** 1 = path is a bridge deck (OSM bridge=yes): not carved into the ground, lifted over lower roads. */
   private deckFlag = new Uint8Array(0);
+  /** 1 = a road in the highway's cut beside the carriageways (MapDef.parkwayLanes): treated as a carriageway. */
+  private laneFlag: Uint8Array = new Uint8Array(0);
+  /** 1 = path is a railway track (MapDef.railways): ballast bed, never anchored to the roads it crosses. */
+  private railFlag = new Uint8Array(0);
   private hasDeckPaths = false;
   /** Streets that pass under a bridge / deck: an underpass trench with sheer concrete walls (cut-wall-mesh.ts). */
   private readonly underpass = new Set<number>();
@@ -163,6 +181,7 @@ export class TerrainGenerator {
   private readonly underpassDip = new Map<number, Float32Array>();
   private readonly capQ = newPathQuery();
   private readonly capQ2 = newPathQuery();
+  private readonly slabQ = newPathQuery();
   private readonly isDeckPath = (pi: number): boolean =>
     this.deckFlag[pi] === 1;
   /** 1 = a deck that crosses a portal slab: a street at the structure's level, never lifted over / dipped under anything else. */
@@ -175,8 +194,26 @@ export class TerrainGenerator {
     return (
       !p.bridge &&
       p.surface === 'tarmac' &&
-      (p.kind === 'motorway' || p.kind === 'trunk')
+      (p.kind === 'motorway' || p.kind === 'trunk' || this.laneFlag[pi] === 1)
     );
+  }
+  /** A road in the highway's cut beside the carriageways (MapDef.parkwayLanes). */
+  isParkwayLane(pi: number): boolean {
+    return this.laneFlag[pi] === 1;
+  }
+
+  /** Paths `a` and `b` share an end node (one street split into OSM ways, or a junction at an end). */
+  private joinsEnd(a: number, b: number): boolean {
+    const pa = this.paths!.paths[a].pts;
+    const pb = this.paths!.paths[b].pts;
+    for (const i of [0, pa.length - 2])
+      for (const j of [0, pb.length - 2])
+        if (
+          Math.abs(pa[i] - pb[j]) < 2.5 &&
+          Math.abs(pa[i + 1] - pb[j + 1]) < 2.5
+        )
+          return true;
+    return false;
   }
   /** A street in an underpass trench (passes under a stage-road span or a deck of another road). */
   isUnderpass(pi: number): boolean {
@@ -256,6 +293,8 @@ export class TerrainGenerator {
   readonly junctions: Junction[] = [];
   /** Structures the stage road runs under (`RoadSpan` kind `under`): slab, walls, pad (portals.ts). */
   readonly portals: Portals;
+  /** Junction plazas on top of the portals (MapDef.junctionPlazas, plazas.ts). */
+  plazas: Plazas;
   private readonly underSpans: { from: number; to: number }[];
   /** Smoothed, grade-limited height of each path every PROFILE_STEP m (other roads are flat, not DEM bumps). */
   private pathProfiles: Float32Array[] = [];
@@ -288,7 +327,10 @@ export class TerrainGenerator {
       (sp) => sp.kind === 'under',
     );
     this.portals = new Portals([], this.road);
-    if (map.paths) {
+    this.plazas = new Plazas([], this.portals);
+    // Railway tracks join the other roads (after them: the road indices stay those of map.paths).
+    const allPaths = [...(map.paths ?? []), ...railPaths(map.railways ?? [])];
+    if (allPaths.length) {
       // Side roads are extended up to the stage road (junctions).
       // Streets over a parkway that runs under them become bridge decks, then side roads are joined to the stage road.
       const joined = connectPaths(
@@ -297,9 +339,16 @@ export class TerrainGenerator {
             trimMergingDecks(
               dropDuplicateDecks(
                 bridgeOverUnderSpans(
-                  matchCarriagewayWidth(
-                    dropDuplicateDecks(map.paths),
+                  markParkwayLanes(
+                    separateStreets(
+                      matchCarriagewayWidth(
+                        dropDuplicateDecks(allPaths),
+                        this.road,
+                      ),
+                      this.road,
+                    ),
                     this.road,
+                    map.parkwayLanes,
                   ),
                   this.road,
                 ).paths,
@@ -318,6 +367,12 @@ export class TerrainGenerator {
         p.bridge ? 1 : 0,
       );
       this.hasDeckPaths = this.deckFlag.some((f) => f === 1);
+      this.laneFlag = Uint8Array.from(this.paths.paths, (p) =>
+        p.parkwayLane ? 1 : 0,
+      );
+      this.railFlag = Uint8Array.from(this.paths.paths, (p) =>
+        p.kind === RAIL_KIND ? 1 : 0,
+      );
       const water = joined.paths.filter((p) => p.surface === 'water');
       if (water.length) {
         this.channels = new PathNetwork(water);
@@ -334,6 +389,7 @@ export class TerrainGenerator {
         }),
         this.road,
       );
+      this.plazas = new Plazas(map.junctionPlazas ?? [], this.portals);
       this.portalDeck = Uint8Array.from(this.paths.paths, (p, pi) => {
         if (!p.bridge || this.portals.empty) return 0;
         const pt = { x: 0, z: 0 };
@@ -449,7 +505,10 @@ export class TerrainGenerator {
       const n = ys.length;
       const step = net.lengths[pi] / (n - 1) || 1;
       const locked = new Uint8Array(n);
-      const motorway = p.kind === 'motorway' || p.kind === 'motorway_link';
+      const motorway =
+        p.kind === 'motorway' ||
+        p.kind === 'motorway_link' ||
+        this.laneFlag[pi] === 1;
       // Anchors: samples lying on the stage road / a finished road -> height difference.
       const at: number[] = [];
       const dy: number[] = [];
@@ -482,7 +541,12 @@ export class TerrainGenerator {
           )
             continue;
           at.push(i * step);
-          dy.push(this.pathHeight(pq.path, pq.along) - ys[i]);
+          // A level crossing meets the top of the ballast (where the rails are), not the formation.
+          dy.push(
+            this.pathHeight(pq.path, pq.along) +
+              (this.railFlag[pq.path] ? BALLAST_H : 0) -
+              ys[i],
+          );
         }
       }
       // Correction: exact at the anchors, linear between neighbouring anchors, fading out
@@ -542,8 +606,12 @@ export class TerrainGenerator {
             ph.lateral <= ph.latL + PROFILE_STEP &&
             ph.lateral >= ph.latR - PROFILE_STEP
           ) {
-            // 0.2 m: the slab top is interpolated between rows, the deck between its 4 m samples.
-            req[i] = Math.max(req[i], ph.top + 0.2);
+            // At the junction plaza's level where it has one (that is the slab top, or the straight grade between the
+            // headwall tops): a deck lifted above it left a raised edge across the street where it meets the plaza.
+            const top = this.plazas.empty
+              ? ph.top + 0.05
+              : Math.max(ph.top, this.plazas.height(pt.x, pt.z) ?? ph.top);
+            req[i] = Math.max(req[i], top);
             any = true;
           }
           continue;
@@ -578,7 +646,8 @@ export class TerrainGenerator {
           if (Math.abs(d0[0] * d1[0] + d0[1] * d1[1]) < CROSS_COS) {
             req[i] = Math.max(
               req[i],
-              this.pathHeight(pq.path, pq.along) + DECK_CLEARANCE,
+              this.pathHeight(pq.path, pq.along) +
+                (this.railFlag[pq.path] ? RAIL_CLEARANCE : DECK_CLEARANCE),
             );
             any = true;
           }
@@ -615,11 +684,17 @@ export class TerrainGenerator {
       done[pi] = 1;
     }
     this.matchTwinDecks(net, profiles);
+    // Railways first and never eased to a road: a road crossing a track at grade meets the rail level instead.
     const ground = all
       .filter((i) => !this.deckFlag[i])
-      .sort((a, b) => net.paths[b].width - net.paths[a].width || a - b);
+      .sort(
+        (a, b) =>
+          this.railFlag[b] - this.railFlag[a] ||
+          net.paths[b].width - net.paths[a].width ||
+          a - b,
+      );
     for (const pi of ground) {
-      anchor(pi);
+      if (!this.railFlag[pi]) anchor(pi);
       done[pi] = 1;
     }
     this.dipUnderBridges(net, profiles);
@@ -628,8 +703,62 @@ export class TerrainGenerator {
     // joints were met in the first pass, and two anchors at one joint would fight.
     done.fill(0);
     for (const pi of all) if (this.underStreet(pi)) done[pi] = 1;
-    for (const pi of ground) if (!this.underStreet(pi)) anchor(pi);
+    for (const pi of ground)
+      if (!this.underStreet(pi) && !this.railFlag[pi]) anchor(pi);
     this.snapDeckEnds(net, profiles);
+    this.fitParkwayLanes(net, profiles);
+    this.fitPlazas(net, profiles);
+  }
+
+  /** Parkway lanes (MapDef.parkwayLanes) lie at the stage road's level all along: they run down in its cut. */
+  private fitParkwayLanes(net: PathNetwork, profiles: Float32Array[]): void {
+    const pt = { x: 0, z: 0 };
+    const rq = newRoadQuery();
+    net.paths.forEach((_, pi) => {
+      if (!this.laneFlag[pi]) return;
+      const ys = profiles[pi];
+      const n = ys.length;
+      const step = net.lengths[pi] / (n - 1) || 1;
+      for (let i = 0; i < n; i++) {
+        net.pointAt(pi, i * step, pt);
+        this.road.query(pt.x, pt.z, rq);
+        if (rq.found && rq.distance <= PARALLEL_REACH) ys[i] = rq.height;
+      }
+    });
+  }
+
+  /**
+   * Ground streets crossing a junction plaza (plazas.ts) lie at its height inside it and ease back to their own
+   * height line over PLAZA_EASE m beyond its edge (a street whose own line runs below / above the box met it with a
+   * step). Not the roads down in the trench under the slab.
+   */
+  private fitPlazas(net: PathNetwork, profiles: Float32Array[]): void {
+    if (this.plazas.empty) return;
+    const pt = { x: 0, z: 0 };
+    net.paths.forEach((_, pi) => {
+      if (
+        this.deckFlag[pi] ||
+        this.railFlag[pi] ||
+        this.laneFlag[pi] ||
+        this.trenchPath(net, pi)
+      )
+        return;
+      const ys = profiles[pi];
+      const n = ys.length;
+      const step = net.lengths[pi] / (n - 1) || 1;
+      for (let i = 0; i < n; i++) {
+        net.pointAt(pi, i * step, pt);
+        const d = this.plazas.inside(pt.x, pt.z)
+          ? 0
+          : this.plazas.distance(pt.x, pt.z);
+        if (d >= PLAZA_EASE) continue;
+        const top = this.plazas.height(pt.x, pt.z);
+        if (top === undefined) continue;
+        // The plaza height at the sample itself (not at the edge): a street crossing the edge at an angle stays flat
+        // across where its inner half is the plaza.
+        ys[i] += (top - ys[i]) * (1 - smoothstep(0, PLAZA_EASE, d));
+      }
+    });
   }
 
   /**
@@ -932,12 +1061,13 @@ export class TerrainGenerator {
       if (!changed) break;
       for (const pi of finite) vee(pi);
     }
+    const naturals = new Map<number, Float32Array>();
     for (const pi of finite) {
       const ys = profiles[pi];
       const cap = caps.get(pi)!;
       const n = ys.length;
       const step = steps.get(pi)!;
-      const natural = ys.slice();
+      naturals.set(pi, ys.slice());
       for (let i = 0; i < n; i++) if (cap[i] < ys[i]) ys[i] = cap[i];
       // Round the corners of the dip, never above the ceiling.
       const smooth = ys.slice();
@@ -945,10 +1075,34 @@ export class TerrainGenerator {
       for (let i = 0; i < n; i++)
         if (smooth[i] < ys[i] || ys[i] === cap[i])
           ys[i] = Math.min(smooth[i], cap[i], ys[i] + 0.5);
+    }
+    // Each way was smoothed on its own: their ends drifted apart at a joint (a 0.17 m step, the ground showed
+    // through the street there). Both meet at the mean, the correction fading over 12 m into each way.
+    const fixes: [number, boolean, number][] = [];
+    ends.forEach((e, ei) => {
+      if (!finite.has(e.pi)) return;
+      const ys = profiles[e.pi];
+      const k = e.last ? ys.length - 1 : 0;
+      const others = joined[ei].filter((o) => finite.has(o.pi));
+      if (others.length !== 1) return;
+      const o = others[0];
+      const oy = profiles[o.pi];
+      const target = (ys[k] + oy[o.last ? oy.length - 1 : 0]) / 2;
+      const diff = target - ys[k];
+      if (Math.abs(diff) >= 0.005) fixes.push([e.pi, e.last, diff]);
+    });
+    for (const [pi, last, diff] of fixes) {
+      const ys = profiles[pi];
+      const m = Math.max(1, Math.round(12 / steps.get(pi)!));
+      for (let j = 0; j <= m && j < ys.length; j++)
+        ys[last ? ys.length - 1 - j : j] += diff * (1 - j / m);
+    }
+    for (const pi of finite) {
+      const ys = profiles[pi];
       this.underpass.add(pi);
       this.underpassDip.set(
         pi,
-        Float32Array.from(natural, (v, i) => Math.max(0, v - ys[i])),
+        Float32Array.from(naturals.get(pi)!, (v, i) => Math.max(0, v - ys[i])),
       );
     }
   }
@@ -960,7 +1114,8 @@ export class TerrainGenerator {
       p.kind === 'motorway' ||
       p.kind === 'trunk' ||
       p.kind === 'motorway_link' ||
-      p.kind === 'trunk_link'
+      p.kind === 'trunk_link' ||
+      p.parkwayLane
     )
       return true;
     if (this.portals.empty || this.deckFlag[pi]) return false;
@@ -1197,6 +1352,22 @@ export class TerrainGenerator {
     return net.halfWidthAt(pi, along);
   }
 
+  /** Road surface of another road's deck over (x, z) (its width + `margin`), NaN where there is none. */
+  otherDeckAt(x: number, z: number, margin = 0.5): number {
+    if (!this.paths || !this.hasDeckPaths) return NaN;
+    const q = this.paths.query(x, z, this.capQ, undefined, this.isDeckPath);
+    return q.found && q.distance <= q.halfWidth + margin
+      ? this.pathHeight(q.path, q.along)
+      : NaN;
+  }
+
+  /** Paths (indices into `paths.paths`) that are railway tracks, in MapDef.railways order. */
+  railPaths(): number[] {
+    const out: number[] = [];
+    this.railFlag.forEach((f, i) => f && out.push(i));
+    return out;
+  }
+
   /** Paths (indices into `paths.paths`) that are bridge decks. */
   deckPaths(): number[] {
     const out: number[] = [];
@@ -1241,7 +1412,18 @@ export class TerrainGenerator {
     const ph = this.pathHeight(pq.path, pq.along);
     const verge = this.isCarriageway(pq.path) ? CARRIAGEWAY_VERGE : 0;
     const e = pq.distance - pq.halfWidth - verge;
-    if (e <= 0) return ph;
+    if (e <= 0) {
+      if (!this.railFlag[pq.path]) return ph;
+      // A railway's ballast bed; where a road crosses it at grade (or a neighbouring bed overlaps), the higher wins.
+      let top = ph + ballastAt(pq.distance);
+      if (pq2.found && pq2.distance <= pq2.halfWidth)
+        top = Math.max(
+          top,
+          this.pathHeight(pq2.path, pq2.along) +
+            (this.railFlag[pq2.path] ? ballastAt(pq2.distance) : 0),
+        );
+      return top;
+    }
     // The floor of an underpass trench (street + sidewalk out to the wall line) is the street's own level: a
     // neighbouring road's verge or embankment never lifts it (the ribbon curled up beside the parkway's fill).
     if (underFloor(pq)) return ph;
@@ -1338,6 +1520,15 @@ export class TerrainGenerator {
     // An underpass trench keeps its wall down to ~1 m (a wall that stops where the trench gets shallower leaves a
     // grass bank in the middle of it: the B5 "interrupted" wall).
     const under = this.underpass.has(pi) && !this.isCarriageway(pi);
+    // A street up on the rim right beside a carriageway (a service road 1-3 m above the parkway): a wall holds it
+    // from 1 m (a bare step below the wall threshold showed as a sawtooth rock face).
+    const rim =
+      !under &&
+      other?.found &&
+      STREET_KINDS_SET.has(this.paths!.paths[other.path].kind) &&
+      other.distance - other.halfWidth < 3 &&
+      this.pathHeight(other.path, other.along) - carriagewayY >= 1;
+    if (rim) return smoothstep(1, 1.6, rise);
     let w = under
       ? smoothstep(1, 1.6, rise)
       : smoothstep(cw.minHeight, cw.minHeight + 1.5, rise);
@@ -1354,6 +1545,7 @@ export class TerrainGenerator {
       // The next way of the same underpass street (an OSM joint, the point beside it, not on it): the trench goes on.
       !(
         this.underpass.has(other.path) &&
+        this.joinsEnd(pi, other.path) &&
         Math.abs(this.pathHeight(other.path, other.along) - carriagewayY) < 1 &&
         other.distance - other.halfWidth > 1
       )
@@ -1423,6 +1615,9 @@ export class TerrainGenerator {
     // The top of a portal structure (street level) around the sunken parkway.
     if (portals && this.portals && !this.portals.empty)
       h = this.portals.padRaise(x, z, h);
+    // Junction plazas on top of it: level.
+    if (portals && this.plazas && !this.plazas.empty)
+      h = this.plazas.level(x, z, h);
     // Canals / drains / streams: a channel with sloped banks, cut into / built up to its
     // bank line, blending back to the land.
     if (channels && this.channels) {
@@ -1488,6 +1683,25 @@ export class TerrainGenerator {
     let base = this.naturalHeight(x, z);
     const q = this.road.query(x, z, this.q);
     if (this.paths) base = this.carvePaths(x, z, base, q.found ? q.along : NaN);
+    // A junction plaza stays level over the streets meeting in it (inside only: the streets ease onto it, fitPlazas).
+    // Under a portal slab the walls carry it: the ground stays at a carriageway / lane's level out to its wall
+    // line + setback, whatever street runs on top (a street along the slab edge pulled rock up in front of the wall).
+    if (this.paths && !this.portals.empty && this.portals.inside(x, z)) {
+      const tq = this.paths.query(x, z, this.slabQ, 'tarmac', (qi) =>
+        this.isCarriageway(qi),
+      );
+      const wall = (this.map.road.cutWalls?.offset ?? 1.6) + CUT_SETBACK;
+      if (tq.found && tq.distance - tq.halfWidth < wall)
+        base = Math.min(base, this.pathHeight(tq.path, tq.along));
+    }
+    // Not under the slab: the trench there holds the carriageways / lanes in their tunnels (the ground between
+    // them only kept under the plaza surface).
+    if (!this.plazas.empty) {
+      if (!this.portals.inside(x, z))
+        base = this.plazas.level(x, z, base, false);
+      else if (this.plazas.inside(x, z))
+        base = Math.min(base, this.plazas.height(x, z)! - 0.05);
+    }
     if (!q.found) return base;
     const carved = this.carveRoad(x, z, base, q);
     const span = this.road.bridges.length
@@ -1495,8 +1709,11 @@ export class TerrainGenerator {
       : undefined;
     if (!span) {
       // The floor of an underpass trench beside the road's embankment is the street's own ground.
+      // Never lifts the road's own surface to the land beside the trench (gravel through the lane at the B6 deck
+      // corner).
       const hold = this.underpassHold(x, z);
-      return hold > 0 ? carved + (base - carved) * hold : carved;
+      const lift = base > carved && q.distance < q.halfWidth + 1;
+      return hold > 0 && !lift ? carved + (base - carved) * hold : carved;
     }
     // Under the deck: no embankment, the land drops away to clear the street (at least BRIDGE_CLEARANCE
     // under the deck) and the fill ramps down to it over BRIDGE_RAMP m from each abutment.
@@ -1536,6 +1753,9 @@ export class TerrainGenerator {
   private capUnderDecks(x: number, z: number, h: number): number {
     const net = this.paths;
     if (!net || !this.hasDeckPaths) return h;
+    // A junction plaza is the street surface over the deck ends: its land stays level (a pit under the deck end
+    // showed at the plaza edge as a cliff through the street ribbons beyond it).
+    if (!this.plazas.empty && this.plazas.inside(x, z)) return h;
     const dq = net.query(x, z, this.capQ, undefined, this.isDeckPath);
     if (!dq.found) return h;
     const over = dq.distance - dq.halfWidth;
@@ -1854,7 +2074,11 @@ export class TerrainGenerator {
       const pq = this.paths.query(x, z, this.pq, undefined, this.onGround);
       if (pq.found) {
         const e = pq.distance - pq.halfWidth;
-        if (this.paths.paths[pq.path].surface === 'tarmac')
+        // Tarmac and railway ballast: gravel beside them (the track bed strip covers the bed itself).
+        if (
+          this.paths.paths[pq.path].surface === 'tarmac' ||
+          this.railFlag[pq.path]
+        )
           gv = Math.max(gv, 1 - smoothstep(-0.5, 1.2, e));
         else d = Math.max(d, 1 - smoothstep(-0.6, 0.8, e));
       }
@@ -1971,7 +2195,9 @@ export class TerrainGenerator {
       if (pq.found && pq.distance <= pq.halfWidth)
         return this.paths.paths[pq.path].surface === 'tarmac'
           ? 'tarmac'
-          : 'dirt';
+          : this.railFlag[pq.path]
+            ? 'gravel_loose'
+            : 'dirt';
     }
     // Canal / river / lake bed under the water: mud.
     if (this.lakes?.query(x, z, this.lq) && this.lq.sd <= 0) return 'mud';

@@ -3,8 +3,7 @@ import data from '../data.json';
 
 /**
  * Coordinate frame of the start row. The lots are laid out in "site" metres around the Mileks
- * warehouse (x east, z south, y up), the frame the Yuma Interactive site's exterior scene uses
- * (read-only reference, see DETAILS.md), and moved into the rally world by a plain translation:
+ * warehouse (x east, z south, y up) and moved into the rally world by a plain translation:
  * every point of the site's street centre line lies within 1 m of the baked stage road.
  */
 export type Corner = [number, number];
@@ -19,7 +18,7 @@ export const toSite = (x: number, z: number): Corner => [
 ];
 
 /**
- * The OSM / Yuma-traced footprints and the motorway line (south side, hand-modelled lots) sit this far
+ * The OSM footprints and the motorway line (south side, hand-modelled lots) sit this far
  * (m, along z) from where the satellite image puts them relative to the baked road: the road is drawn
  * ~3.5 m north of the asphalt in the image, the buildings were traced to the image (see trace.ts).
  */

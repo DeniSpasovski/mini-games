@@ -194,7 +194,9 @@ export function bridgeOverUnderSpans(
       p.surface === 'tarmac' &&
       (p.kind === 'motorway' ||
         p.kind === 'motorway_link' ||
-        p.kind === 'trunk'),
+        p.kind === 'trunk' ||
+        // a lane in the parkway's cut (parkway-lanes.ts) runs in its own bore under the slab
+        !!p.parkwayLane),
   );
   const overCarriageway = (x: number, z: number): boolean => {
     for (const c of carriageways) {
@@ -219,7 +221,12 @@ export function bridgeOverUnderSpans(
   paths = rejoinCrossings(paths, road, spans);
   const out: PathDef[] = [];
   paths.forEach((p, pi) => {
-    if (p.bridge || p.surface !== 'tarmac' || !STREET_KINDS.has(p.kind)) {
+    if (
+      p.bridge ||
+      p.parkwayLane ||
+      p.surface !== 'tarmac' ||
+      !STREET_KINDS.has(p.kind)
+    ) {
       out.push(p);
       return;
     }
@@ -772,5 +779,89 @@ export function matchCarriagewayWidth(paths: PathDef[], road: Road): PathDef[] {
       2 * (d[Math.floor(d.length * 0.1)] - road.def.width / 2 - MIN_MEDIAN);
     const width = Math.min(target, Math.max(6, room));
     return Math.abs(width - p.width) < 0.05 ? p : { ...p, width };
+  });
+}
+
+/** Free gap kept between a street and a carriageway it runs beside (m): room for the barrier between them. */
+const SEPARATE_GAP = 1.2;
+
+/**
+ * A street drawn alongside a carriageway of the parkway (a service road, an avenue beside it) never overlaps its
+ * lanes: OSM centre lines with real widths overlapped by up to 2.5 m (the north lane looked broken and the barrier
+ * between them could not stand anywhere). The street's nodes move sideways, away from the carriageway, until the
+ * road edges are SEPARATE_GAP apart. Only where the two run parallel (crossings and junctions stay as they are).
+ */
+export function separateStreets(paths: PathDef[], road: Road): PathDef[] {
+  const portals = (road.def.spans ?? []).filter((sp) => sp.kind === 'under');
+  const rq = newRoadQuery();
+  const lanes = paths.filter(
+    (p) =>
+      !p.bridge && p.surface === 'tarmac' && /^(motorway|trunk)$/.test(p.kind),
+  );
+  if (!lanes.length) return paths;
+  // Moved nodes: other ways that share them (a cross street at a junction) move with them.
+  const moves: [number, number, number, number][] = [];
+  const out = paths.map((p) => {
+    if (p.bridge || p.surface !== 'tarmac' || !STREET_KINDS.has(p.kind))
+      return p;
+    const pts = p.pts.slice();
+    let moved = false;
+    for (let k = 0; k < pts.length; k += 2) {
+      const x = pts[k];
+      const z = pts[k + 1];
+      // Not on / next to a portal slab: the street grid there is the plaza on top of it.
+      road.query(x, z, rq);
+      if (
+        rq.found &&
+        portals.some((sp) => rq.along > sp.from - 30 && rq.along < sp.to + 30)
+      )
+        continue;
+      // Street direction at this node.
+      const k0 = Math.max(0, k - 2);
+      const k1 = Math.min(pts.length - 2, k + 2);
+      const sl = Math.hypot(pts[k1] - pts[k0], pts[k1 + 1] - pts[k0 + 1]) || 1;
+      const sx = (pts[k1] - pts[k0]) / sl;
+      const sz = (pts[k1 + 1] - pts[k0 + 1]) / sl;
+      for (const c of lanes) {
+        const need = p.width / 2 + c.width / 2 + SEPARATE_GAP;
+        for (let j = 0; j + 3 < c.pts.length; j += 2) {
+          const ax = c.pts[j];
+          const az = c.pts[j + 1];
+          const ex = c.pts[j + 2] - ax;
+          const ez = c.pts[j + 3] - az;
+          const l2 = ex * ex + ez * ez;
+          if (l2 < 1e-6) continue;
+          const t = ((x - ax) * ex + (z - az) * ez) / l2;
+          if (t < 0 || t > 1) continue;
+          const px = ax + ex * t;
+          const pz = az + ez * t;
+          const d = Math.hypot(x - px, z - pz);
+          if (d >= need || d < 0.5) continue;
+          const l = Math.sqrt(l2);
+          if (Math.abs((sx * ex + sz * ez) / l) < 0.9) continue; // crossing / joining, not alongside
+          pts[k] = px + ((x - px) / d) * need;
+          pts[k + 1] = pz + ((z - pz) / d) * need;
+          moves.push([x, z, pts[k], pts[k + 1]]);
+          moved = true;
+        }
+      }
+    }
+    return moved ? { ...p, pts } : p;
+  });
+  if (!moves.length) return out;
+  return out.map((p, i) => {
+    if (p !== paths[i] || p.bridge) return p;
+    let pts: number[] | undefined;
+    for (let k = 0; k < p.pts.length; k += 2)
+      for (const [ox, oz, nx, nz] of moves)
+        if (
+          Math.abs(p.pts[k] - ox) < 0.3 &&
+          Math.abs(p.pts[k + 1] - oz) < 0.3
+        ) {
+          pts ??= p.pts.slice();
+          pts[k] = nx;
+          pts[k + 1] = nz;
+        }
+    return pts ? { ...p, pts } : p;
   });
 }

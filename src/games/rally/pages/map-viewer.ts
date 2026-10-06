@@ -57,9 +57,9 @@ const DEFAULTS = {
 };
 const state = readUrlState(DEFAULTS);
 const sync = (push = false) => writeUrlState(state, DEFAULTS, push);
-track('select_content', {
-  content_type: 'rally_map_viewer',
-  content_id: state.map,
+track('rally', 'select_content', {
+  game_content_type: 'map_viewer',
+  game_content_id: state.map,
 });
 
 const map = getMap(state.map);

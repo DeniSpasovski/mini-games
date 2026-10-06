@@ -26,18 +26,18 @@ npm run dev     # /games/rally/?map=ajvatovci&spawn=200      (drive from 200 m)
 
 ## Data and credits
 
-| What                                     | Source                                                                                                                     | Licence                                                                          |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Stage route                              | [Google Maps route (start -> Ajvatovci Hill)](https://www.google.com/maps/dir/42.0001365,21.5777226/42.0085904,21.6141518) | stage waypoints only                                                             |
-| Roads, land use, buildings, pylons       | [OpenStreetMap](https://www.openstreetmap.org/copyright)                                                                   | ODbL, © OpenStreetMap contributors                                               |
-| Building footprints (where OSM has none) | [Microsoft Global ML Building Footprints](https://github.com/microsoft/GlobalMLBuildingFootprints)                         | ODbL                                                                             |
-| Land cover                               | [ESA WorldCover 2021](https://esa-worldcover.org/)                                                                         | CC BY 4.0                                                                        |
-| Elevation                                | [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (SRTM / EU-DEM based)                                    | [attributions](https://github.com/tilezen/joerd/blob/master/docs/attribution.md) |
+| What                                         | Source                                                                                                                     | Licence                                                                          |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Stage route                                  | [Google Maps route (start -> Ajvatovci Hill)](https://www.google.com/maps/dir/42.0001365,21.5777226/42.0085904,21.6141518) | stage waypoints only                                                             |
+| Roads, railways, land use, buildings, pylons | [OpenStreetMap](https://www.openstreetmap.org/copyright)                                                                   | ODbL, © OpenStreetMap contributors                                               |
+| Building footprints (where OSM has none)     | [Microsoft Global ML Building Footprints](https://github.com/microsoft/GlobalMLBuildingFootprints)                         | ODbL                                                                             |
+| Land cover                                   | [ESA WorldCover 2021](https://esa-worldcover.org/)                                                                         | CC BY 4.0                                                                        |
+| Elevation                                    | [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (SRTM / EU-DEM based)                                    | [attributions](https://github.com/tilezen/joerd/blob/master/docs/attribution.md) |
 
 The baked `data.json` is a derived database of the ODbL sources above and stays under the ODbL (attribution +
 share-alike). A few shapes (the orchard outline and the lot positions of the start street) were traced by eye from
 satellite / street-level screenshots; no imagery is shipped. The start street's buildings are original models, not
-copies of the real ones, and the company sign on one building is the author's own company. The hilltop church, bell
+copies of the real ones, and the company sign on one building belongs to a friend's company and is used with the owners' approval. The hilltop church, bell
 tower and court are original procedural models made from reference photos (not shipped).
 
 Full source list, re-bake instructions and notes: [`DETAILS.md`](DETAILS.md). Open work: [`TODO.md`](TODO.md).

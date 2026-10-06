@@ -31,9 +31,8 @@ import { standHeight, type Build } from './ctx';
 /**
  * The parked vehicles of the lots: three cars (a modern hatchback, a small boxy Yugo-style hatch,
  * a 90s sports saloon), two vans (a Caddy-type and a high-roof Transit-type) and three trucks (a
- * cab-over box truck, a tractor unit with a box semi-trailer and the same with a tank semi-trailer). Each is built once from the side
- * profiles measured on the Yuma Interactive site's `exterior/car.ts`, `van.ts` and `truck.ts`
- * (read-only reference) and drawn as instanced meshes, one per part (paint, cab paint, glass,
+ * cab-over box truck, a tractor unit with a box semi-trailer and the same with a tank semi-trailer). Each is built once from simple side
+ * profiles and drawn as instanced meshes, one per part (paint, cab paint, glass,
  * chrome, details), so a hundred vehicles cost a few dozen draw calls. Only what reads from the
  * road is modelled (body, glass, lamps, bumpers, grille, wheels): a car is ~500 triangles, a
  * tractor-trailer ~1500. Models face +x with the origin on the ground under their middle

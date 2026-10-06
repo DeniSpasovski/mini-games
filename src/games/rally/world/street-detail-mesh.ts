@@ -50,12 +50,47 @@ export function* streetDetailMeshJob(
   };
   const pt = { x: 0, z: 0 };
   const nx = { x: 0, z: 0 };
+  // A street deck on a portal slab carries sidewalks too: its surface is the deck profile, not the ground.
+  const onDeck = (pi: number) => !!net.paths[pi].bridge;
+  const surfaceY = (pi: number, d: number, x: number, z: number) =>
+    (onDeck(pi) ? world.gen.pathHeight(pi, d) : hf.height(x, z)) + 0.03;
+  // Direction of the way that continues `pi` at its start / end (exactly one other way there), pointing along `pi`:
+  // the sidewalk ends are mitred to the mean direction so the two runs meet at a bend (no wedge / step).
+  const cont = (pi: number, atEnd: boolean): [number, number] | undefined => {
+    const L = net.lengths[pi];
+    net.pointAt(pi, atEnd ? L : 0, pt);
+    let hit: [number, number] | undefined;
+    let count = 0;
+    net.paths.forEach((_q, qi) => {
+      if (qi === pi) return;
+      const QL = net.lengths[qi];
+      for (const qEnd of [false, true]) {
+        net.pointAt(qi, qEnd ? QL : 0, nx);
+        if (Math.abs(nx.x - pt.x) > 0.5 || Math.abs(nx.z - pt.z) > 0.5)
+          continue;
+        count++;
+        const c = { x: 0, z: 0 };
+        net.pointAt(qi, qEnd ? Math.max(0, QL - 3) : Math.min(QL, 3), c);
+        let dx = c.x - nx.x;
+        let dz = c.z - nx.z;
+        if (!atEnd) [dx, dz] = [-dx, -dz];
+        const l = Math.hypot(dx, dz) || 1;
+        hit = [dx / l, dz / l];
+      }
+    });
+    return count === 1 ? hit : undefined;
+  };
   let n = 0;
   for (const run of detail.runs) {
+    const PL = net.lengths[run.path];
+    const c0 = run.from <= 0.01 ? cont(run.path, false) : undefined;
+    const c1 = run.to >= PL - 0.01 ? cont(run.path, true) : undefined;
     const rows: {
       x: number;
       z: number;
       y: number;
+      /** Sidewalk top above `y`: the kerb height, more where the land beside the street rises over it. */
+      top: number;
       tx: number;
       tz: number;
       d: number;
@@ -65,15 +100,33 @@ export function* streetDetailMeshJob(
       net.pointAt(run.path, Math.max(0, d - 1.5), pt);
       net.pointAt(run.path, Math.min(net.lengths[run.path], d + 1.5), nx);
       const tl = Math.hypot(nx.x - pt.x, nx.z - pt.z) || 1;
-      const tx = (nx.x - pt.x) / tl;
-      const tz = (nx.z - pt.z) / tl;
+      let tx = (nx.x - pt.x) / tl;
+      let tz = (nx.z - pt.z) / tl;
+      const j = d <= 0.01 ? c0 : d >= PL - 0.01 ? c1 : undefined;
+      if (j) {
+        tx = (tx + j[0]) / 2;
+        tz = (tz + j[1]) / 2;
+        const l = Math.hypot(tx, tz) || 1;
+        tx /= l;
+        tz /= l;
+      }
       net.pointAt(run.path, d, pt);
       const hw = net.halfWidthAt(run.path, d);
       const lat = run.side * hw;
       const x = pt.x + tz * lat;
       const z = pt.z - tx * lat;
-      // Street surface height at the edge (the ribbon sits 3 cm above the ground).
-      rows.push({ x, z, y: hf.height(x, z) + 0.03, tx, tz, d });
+      // Street surface height at the edge (the ribbon / deck surface sits 3 cm above its ground / profile).
+      const y = surfaceY(run.path, d, x, z);
+      // A bank beside the street (the land blends back up from the edge) buried the flat sidewalk: lift it clear.
+      let land = -Infinity;
+      if (!onDeck(run.path))
+        for (const o of [KERB_W + W * 0.5, KERB_W + W])
+          land = Math.max(
+            land,
+            hf.height(x + tz * run.side * o, z - tx * run.side * o),
+          );
+      const top = KERB_H + Math.min(0.6, Math.max(0, land + 0.02 - y - KERB_H));
+      rows.push({ x, z, y, top, tx, tz, d });
       if (d >= run.to) break;
     }
     if (rows.length < 2) continue;
@@ -105,7 +158,11 @@ export function* streetDetailMeshJob(
           [o0, y0],
           [o1, y1],
         ]) {
-          acc.pos.push(r.x + ox * o, r.y + dy, r.z + oz * o);
+          acc.pos.push(
+            r.x + ox * o,
+            r.y + (dy === KERB_H ? r.top : dy),
+            r.z + oz * o,
+          );
           // The kerb face looks at the street (-outward), the tops up, the buried face outward.
           const [no, ny] = nors[s];
           acc.nor.push(ox * no, ny, oz * no);
@@ -171,12 +228,13 @@ export function* streetDetailMeshJob(
       // dl: across the street (left = (tz, -tx)), dla: along it.
       const x = pt.x + tz * hw * dl + tx * (CROSS_LEN / 2) * dla;
       const z = pt.z - tx * hw * dl + tz * (CROSS_LEN / 2) * dla;
-      cw.pos.push(x, hf.height(x, z) + 0.05, z);
+      cw.pos.push(x, surfaceY(c.path, c.at, x, z) + 0.02, z);
       cw.nor.push(0, 1, 0);
       cw.col.push(1, 1, 1);
       cw.uv.push((dl * hw + hw) / 4, dla > 0 ? 1 : 0);
     }
-    cw.idx.push(v0, v0 + 1, v0 + 2, v0, v0 + 2, v0 + 3);
+    // Wound to face up (a back face gets its normal flipped: the zebras were lit from below, dark green-grey).
+    cw.idx.push(v0, v0 + 2, v0 + 1, v0, v0 + 3, v0 + 2);
     // Stop line 0.9 m short of the crosswalk, 0.45 m deep, on the right-hand half of the arriving traffic: that is the
     // +left half of a street whose junction is at its start, the -left half at its end.
     if (!p.oneway) {
@@ -192,12 +250,12 @@ export function* streetDetailMeshJob(
       ]) {
         const x = pt.x + tz * dl * half + tx * dla * out;
         const z = pt.z - tx * dl * half + tz * dla * out;
-        sl.pos.push(x, hf.height(x, z) + 0.05, z);
+        sl.pos.push(x, surfaceY(c.path, c.at, x, z) + 0.02, z);
         sl.nor.push(0, 1, 0);
         sl.col.push(0.92, 0.92, 0.88);
         sl.uv.push(0, 0);
       }
-      sl.idx.push(k0, k0 + 1, k0 + 2, k0, k0 + 2, k0 + 3);
+      sl.idx.push(k0, k0 + 2, k0 + 1, k0, k0 + 3, k0 + 2);
     }
   }
   if (sl.idx.length) {

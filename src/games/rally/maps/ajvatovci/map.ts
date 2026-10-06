@@ -7,6 +7,7 @@ import type {
 } from '../shared/types';
 import data from './data.json';
 import { HILLTOP_FLATS } from './hilltop';
+import { STATION_FLAT } from './station';
 import { startRowPads } from './start-row';
 
 /**
@@ -63,7 +64,7 @@ export const ajvatovciMap: MapDef = {
     {
       label: 'OpenStreetMap',
       url: 'https://www.openstreetmap.org/copyright',
-      note: 'route, roads, canals, land use, buildings, power lines - (c) OpenStreetMap contributors, ODbL',
+      note: 'route, roads, railways, canals, land use, buildings, power lines - (c) OpenStreetMap contributors, ODbL',
     },
     {
       label: 'AWS Terrain Tiles (Terrarium)',
@@ -88,9 +89,12 @@ export const ajvatovciMap: MapDef = {
   // 125 pylons / poles + 6 power lines from OSM: lattice towers on the long spans, wooden poles on the short ones.
   pylons: data.pylons as [number, number][],
   powerLines: data.powerLines as number[][],
+  // The Tabanovci - Gevgelija main line (electrified) through Ilinden station + sidings, the freight line north.
+  railways: data.railways,
   // The industrial street at the start: hand-modelled lots replace the placeholder boxes there.
   // The hilltop: the church of St. Peter and St. Paul + bell tower at the finish, the playground court.
-  landmarks: ['ajvatovci-start-row', 'ajvatovci-hilltop'],
+  // Ilinden railway station west of the start: building, platforms, crossing.
+  landmarks: ['ajvatovci-start-row', 'ajvatovci-hilltop', 'ajvatovci-station'],
   // Stage + free-drive background: Ilinden town / A2 (west, south-west) and Marino (south). The baked
   // detail heights / land cover / roads / buildings cover this box (scripts/realmap/ajvatovci.json).
   bounds: { minX: -4300, maxX: 2600, minZ: -1450, maxZ: 3500 },
@@ -105,7 +109,7 @@ export const ajvatovciMap: MapDef = {
     ],
     edgeRise: 0,
     // Level lawn round the hilltop church and the court's terrace (the 30 m DEM slopes ~20 % there).
-    flatAreas: HILLTOP_FLATS,
+    flatAreas: [...HILLTOP_FLATS, STATION_FLAT],
     // Level yards for the start row's lots (levelled to the sidewalk in front of each).
     pads: startRowPads(),
   },

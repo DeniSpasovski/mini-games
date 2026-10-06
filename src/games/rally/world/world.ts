@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import type { MapDef } from '../maps/shared/types';
+import type { BuildingDef, MapDef } from '../maps/shared/types';
 import { SURFACES, type SurfaceId } from '../physics/surfaces';
 import type {
   GroundProvider,
@@ -31,6 +31,12 @@ import {
   type PowerSupport,
   type PowerSpan,
 } from './power-lines';
+import {
+  catenaryMasts,
+  mastInstances,
+  RAIL_KIND,
+  type CatenaryMast,
+} from './railways';
 import { streetDetail, type StreetDetail } from './street-detail';
 import { goreCushions, goreWedges } from './gore';
 import { streetDressingInstances } from './street-dressing';
@@ -40,6 +46,8 @@ import {
   PARAPET_T,
   PIER_GAP,
   SLAB_T,
+  laneWalls,
+  type LaneWallRow,
 } from './portals';
 import { DECK_DEPTH, TerrainGenerator } from './terrain-gen';
 
@@ -99,10 +107,14 @@ export class World implements GroundProvider {
   readonly landmarks: Landmark[];
   /** Continuous barriers (MapDef.barriers): drawn by barrier-mesh.ts, solid via box colliders. */
   readonly barrierRuns: BarrierRun[];
+  /** Walls in the portal tunnels between the parkway lanes and the parkway (portals.ts laneWalls). */
+  readonly laneWalls: LaneWallRow[][];
   /** City maps (MapDef.cityStreets): where the streets have kerbs / sidewalks / crosswalks / lamps. */
   readonly streetDetail?: StreetDetail;
   /** Power line supports + spans (MapDef.pylons / powerLines): instances here, cables by power-line-mesh.ts. */
   readonly power?: { supports: PowerSupport[]; spans: PowerSpan[] };
+  /** Catenary masts of the electrified railways (instances here, wires by rail-mesh.ts). */
+  readonly catenary: CatenaryMast[] = [];
   /** Piers under the decks of other roads (drawn by bridge-mesh.ts, solid). */
   readonly piers: DeckPier[];
   /** Raised ground of the landmarks (kerbs, sidewalks): the physical height there. */
@@ -117,9 +129,12 @@ export class World implements GroundProvider {
     this.heightfield = new Heightfield(this.gen);
     this.analytic = new AnalyticTerrain(this.gen);
     this.landmarks = landmarksOf(map);
+    const rails = this.gen.railPaths();
     this.buildings = new BuildingIndex(
       (map.buildings ?? []).filter(
-        (b) => !this.landmarks.some((l) => l.replaces(b)),
+        (b) =>
+          !this.landmarks.some((l) => l.replaces(b)) &&
+          !(rails.length && this.onTrackBed(b)),
       ),
     );
     const b = map.bounds;
@@ -147,6 +162,7 @@ export class World implements GroundProvider {
         lakes: this.gen.lakes,
       },
     );
+    const crowdQ = newPathQuery();
     for (const inst of roadsideInstances(
       this.road,
       this.analytic,
@@ -155,13 +171,91 @@ export class World implements GroundProvider {
       this.gen.junctions,
       this.gen.paths,
     )) {
+      // A lamp post in a portal would stand up through the slab (the portal has its own strip lights).
+      if (
+        inst.asset === 'street_lamp' &&
+        this.gen.portals.inside(inst.x, inst.z)
+      )
+        continue;
+      // No crowd standing on another carriageway / parkway lane beside the stage road.
+      if (inst.asset === 'spectator' && this.gen.paths) {
+        const q = this.gen.paths.query(inst.x, inst.z, crowdQ, 'tarmac', (pi) =>
+          this.gen.isCarriageway(pi),
+        );
+        if (q.found && q.distance <= q.halfWidth + 0.5) continue;
+      }
       this.scatter.addFixed(inst);
     }
     for (const inst of this.propInstances()) this.scatter.addFixed(inst);
+    const bq = newPathQuery();
+    const ba = { x: 0, z: 0 };
+    const bb = { x: 0, z: 0 };
+    const lanesNet = this.gen.paths;
+    this.laneWalls = lanesNet
+      ? this.gen.portals.list.flatMap((p) =>
+          laneWalls(p, lanesNet, (pi) => this.gen.isParkwayLane(pi)),
+        )
+      : [];
+    // A barrier on a tunnel wall's line: the wall is the barrier there.
+    const onLaneWall = (x: number, z: number): boolean =>
+      this.laneWalls.some((run) =>
+        run.some((r) => Math.hypot(r.x - x, r.z - z) < 1.6),
+      );
+    const net = this.gen.paths;
+    // A junction mouth on the median side (the opposite carriageway runs right there) does not open the median
+    // barrier: a street cannot reach the stage road through the other carriageway.
+    const cq = newPathQuery();
+    const mouths = this.gen.junctions.filter((j) => {
+      if (!net) return true;
+      const f = this.road.at(j.along);
+      const lat = j.side * (f.halfWidth + 3);
+      net.query(
+        f.x + f.tz * lat,
+        f.z - f.tx * lat,
+        cq,
+        'tarmac',
+        (qi) =>
+          !net.paths[qi].bridge &&
+          /^(motorway|trunk)$/.test(net.paths[qi].kind),
+      );
+      return !(cq.found && cq.distance <= cq.halfWidth + 1);
+    });
     this.barrierRuns = barrierRuns(
       this.road,
       map.barriers ?? [],
-      this.gen.junctions,
+      mouths,
+      net
+        ? (x, z, along) => {
+            if (onLaneWall(x, z)) return true;
+            // The opposite carriageway is what the median barrier separates: only ramps / streets break a run.
+            net.query(
+              x,
+              z,
+              bq,
+              'tarmac',
+              (qi) =>
+                !net.paths[qi].bridge &&
+                !/^(motorway|trunk)$/.test(net.paths[qi].kind),
+            );
+            if (
+              !bq.found ||
+              bq.distance > bq.halfWidth - 0.3 ||
+              Math.abs(
+                this.gen.pathHeight(bq.path, bq.along) - this.road.at(along).y,
+              ) >= 1.5
+            )
+              return false;
+            // Only a road running alongside (a merge lane); a street crossing the line (a junction stub) does not.
+            const L = net.lengths[bq.path];
+            net.pointAt(bq.path, Math.max(0, bq.along - 2), ba);
+            net.pointAt(bq.path, Math.min(L, bq.along + 2), bb);
+            const f = this.road.at(along);
+            const bl = Math.hypot(bb.x - ba.x, bb.z - ba.z) || 1;
+            return (
+              Math.abs(((bb.x - ba.x) * f.tx + (bb.z - ba.z) * f.tz) / bl) > 0.8
+            );
+          }
+        : undefined,
     );
     if (map.pathBarriers && this.gen.paths)
       this.barrierRuns.push(
@@ -170,6 +264,12 @@ export class World implements GroundProvider {
           this.road,
           (pi) => !!this.gen.paths!.paths[pi].bridge,
           map.pathBarriers,
+          // (not under the slab: the walls there are down in the trench)
+          (x, z) =>
+            (this.gen.plazas.inside(x, z, 1) &&
+              !this.gen.portals.inside(x, z)) ||
+            onLaneWall(x, z),
+          (pi) => this.gen.isParkwayLane(pi),
         ),
       );
     for (const c of barrierColliders(
@@ -191,6 +291,19 @@ export class World implements GroundProvider {
         this.scatter.addFixed(inst);
       }
     }
+    if (rails.length) {
+      const electrified = rails.filter((_, i) => map.railways![i]?.electrified);
+      this.catenary = catenaryMasts(
+        this.gen.paths!,
+        electrified,
+        rails,
+        (x, z) => this.mastBlocked(x, z),
+      );
+      for (const inst of mastInstances(this.catenary, (x, z) =>
+        this.analytic.height(x, z),
+      ))
+        this.scatter.addFixed(inst);
+    }
     if (map.cityStreets && this.gen.paths) {
       const near = nearestRoadPoint(this.road);
       this.streetDetail = streetDetail(map.cityStreets, {
@@ -200,6 +313,11 @@ export class World implements GroundProvider {
         blocked: (x, z, r) => this.buildings.contains(x, z, r),
         underpass: (pi, a) =>
           this.gen.isUnderpass(pi) && this.gen.underpassDipAt(pi, a) > 1,
+        skip: (pi) => this.gen.isParkwayLane(pi),
+        deck: (pi) => this.gen.isPortalDeck(pi),
+        plaza: this.gen.plazas.empty
+          ? undefined
+          : (x, z, pad) => this.gen.plazas.inside(x, z, pad),
       });
     }
     if (map.streetDressing)
@@ -216,6 +334,7 @@ export class World implements GroundProvider {
         underpass: (pi, a) =>
           this.gen.isUnderpass(pi) && this.gen.underpassDipAt(pi, a) > 1,
         streetDetail: this.streetDetail,
+        paved: (x, z) => this.gen.plazas.inside(x, z, 1),
         sidewalk: map.cityStreets?.sidewalk ?? 1.5,
         lampEvery: map.cityStreets?.lampEvery ?? 0,
       }))
@@ -266,6 +385,46 @@ export class World implements GroundProvider {
     );
     for (const c of this.overheadSigns.colliders)
       this.scatter.addFixedCollider(c);
+  }
+
+  /** A placeholder building (centre or a corner) standing on a railway's bed: OSM / ML footprints of wagons, sheds over the tracks. */
+  private onTrackBed(b: BuildingDef): boolean {
+    const net = this.gen.paths!;
+    const q = newPathQuery();
+    const rail = (pi: number) => net.paths[pi].kind === RAIL_KIND;
+    const c = Math.cos(b.angle);
+    const s = Math.sin(b.angle);
+    for (const [u, v] of [
+      [0, 0],
+      [1, 1],
+      [1, -1],
+      [-1, 1],
+      [-1, -1],
+    ]) {
+      const x = b.x + (u * b.w * c - v * b.d * s) / 2;
+      const z = b.z + (u * b.w * s + v * b.d * c) / 2;
+      if (net.query(x, z, q, undefined, rail).found && q.distance < q.halfWidth)
+        return true;
+    }
+    return false;
+  }
+
+  /** A catenary mast cannot stand at (x, z): the stage road, another road, a channel, a building. */
+  private mastBlocked(x: number, z: number): boolean {
+    const q = this.road.query(x, z, newRoadQuery());
+    if (q.found && q.distance < q.halfWidth + 3) return true;
+    const net = this.gen.paths!;
+    const pq = newPathQuery();
+    if (
+      net.query(x, z, pq, undefined, (pi) => net.paths[pi].kind !== RAIL_KIND)
+        .found &&
+      pq.distance < pq.halfWidth + 1.2
+    )
+      return true;
+    const ch = this.gen.channels;
+    if (ch?.query(x, z, pq).found && pq.distance < pq.halfWidth + 2.5)
+      return true;
+    return this.buildings.contains(x, z, 1);
   }
 
   /** A landmark keeps junction dressing off (x, z) (Landmark.keepsClear). */
@@ -502,12 +661,18 @@ export class World implements GroundProvider {
           });
           const q0 = p(r0);
           const q1 = p(r1);
+          if (this.gen.plazas.inside((q0.x + q1.x) / 2, (q0.z + q1.z) / 2, 1))
+            continue;
           net.query((q0.x + q1.x) / 2, (q0.z + q1.z) / 2, pq, 'tarmac', isDeck);
           if (pq.found && pq.distance <= pq.halfWidth + 0.6) continue;
           box(q0.x, q0.z, q1.x, q1.z, (r0.top + r1.top) / 2);
         }
       }
     }
+    // Tunnel walls between the parkway lanes and the parkway.
+    for (const run of this.laneWalls)
+      for (let i = 0; i + 1 < run.length; i++)
+        box(run[i].x, run[i].z, run[i + 1].x, run[i + 1].z, run[i].y);
     return out;
   }
 

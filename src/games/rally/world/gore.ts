@@ -53,6 +53,8 @@ export function goreWedges(road: Road, net: PathNetwork): GoreWedge[] {
       // The ramp end was extended under the stage road by `connectPaths`.
       if (!rq.found || rq.distance > rq.halfWidth + 1.5) continue;
       if (road.bridgeAt(rq.along)) continue;
+      // A ramp meeting the stage road's very start / end continues it (lead-in), it does not merge.
+      if (rq.along < 1 || rq.along > road.length - 1) continue;
       const rows: GoreRow[] = [];
       let wide = false;
       for (let t = STEP; t <= REACH; t += STEP) {

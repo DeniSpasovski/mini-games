@@ -62,9 +62,9 @@ const DEFAULTS = {
 const state = readUrlState(DEFAULTS);
 const sync = (push = false) => writeUrlState(state, DEFAULTS, push);
 const trackCar = () =>
-  track('select_content', {
-    content_type: 'rally_car_viewer',
-    content_id: state.car,
+  track('rally', 'select_content', {
+    game_content_type: 'car_viewer',
+    game_content_id: state.car,
   });
 trackCar();
 

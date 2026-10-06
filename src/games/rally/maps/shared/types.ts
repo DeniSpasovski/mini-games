@@ -53,10 +53,22 @@ export interface MapDef {
   /** Power line supports [x, z] and line polylines (flat x, z lists), baked from OSM: towers / poles + cables (world/power-lines.ts). */
   pylons?: [number, number][];
   powerLines?: number[][];
+  /**
+   * Railway tracks baked from OSM (`railway=rail`): a ballast bed carved into the terrain, sleepers + rails, and
+   * catenary masts / wires on the electrified ones (world/railways.ts). Road decks crossing them clear the wires.
+   */
+  railways?: RailwayDef[];
   /** City streets: city asphalt on the other roads (centre lines on the wide ones), kerbs, sidewalks, crosswalks and lamps near the stage road (world/street-detail-mesh.ts). */
   cityStreets?: CityStreets;
   /** Barriers along the OTHER carriageways (paths of the given OSM kinds): the same wall / rail as the stage road. */
   pathBarriers?: PathBarrierRule;
+  /**
+   * Roads that run in the divided highway's cut beside its carriageways, parallel to the stage road (OSM maps them
+   * as ordinary streets: the sunken inner Union Turnpike lanes beside the Jackie). They are treated as carriageways:
+   * stage-road level, walls beyond them, path barriers, lane markings, no sidewalks. `reach` = max lateral distance
+   * of the road's centre from the stage road (m).
+   */
+  parkwayLanes?: { kinds: string[]; names?: string[]; reach: number };
   /**
    * Look of the other roads' bridge decks (OSM bridge=yes, world/bridge-mesh.ts): `stone` (default) = old parkway
    * bridges - solid stone parapets with pilasters, a stone arch on street bridges, stone abutments; `concrete` =
@@ -75,6 +87,12 @@ export interface MapDef {
    * (the gore area of a highway exit). City maps with a divided highway.
    */
   goreAreas?: boolean;
+  /**
+   * Junction plazas: outlines (`[x0, z0, x1, z1, ...]`, world m) of big city intersections on top of a portal slab
+   * (`RoadSpan` kind `under`). Inside one the junction is a single plain asphalt surface at the slab top: no street
+   * ribbons / decks / parapets crossing each other (world/plazas.ts). Keep it off the open trench beyond the span.
+   */
+  junctionPlazas?: number[][];
   /** Hand-placed props. */
   props: PropPlacement[];
   /**
@@ -244,6 +262,8 @@ export interface PathDef {
   /** Flat [x0, z0, x1, z1, ...]. */
   pts: number[];
   /** false = passes over / under the stage road (bridge, not connected): never joined to it or barriered. */
+  /** A road in the divided highway's cut beside its carriageways (set by world/parkway-lanes.ts, MapDef.parkwayLanes). */
+  parkwayLane?: boolean;
   junction?: boolean;
   /** OSM bridge=yes: an elevated deck (not carved into the terrain, drawn as a bridge mesh). */
   bridge?: boolean;
@@ -253,6 +273,16 @@ export interface PathDef {
   lanes?: number;
   /** Road name (motorways / main roads). */
   name?: string;
+}
+
+/** One railway track (one OSM way: a single track). */
+export interface RailwayDef {
+  /** Centre line, flat [x0, z0, x1, z1, ...]. */
+  pts: number[];
+  /** Overhead contact line (OSM electrified): catenary masts + wires. */
+  electrified?: boolean;
+  /** OSM service (siding / spur / yard); absent = a running line. */
+  service?: string;
 }
 
 /** One green board of an overhead sign (generic text: road names, no shields / logos). */
@@ -350,7 +380,12 @@ export type RoadPoint =
     };
 
 export type RoadTexture =
-  'road' | 'road_tarmac' | 'road_parkway' | 'road_street' | 'road_city';
+  | 'road'
+  | 'road_tarmac'
+  | 'road_parkway'
+  | 'road_street'
+  | 'road_street4'
+  | 'road_city';
 
 export interface RoadDef {
   points: RoadPoint[];

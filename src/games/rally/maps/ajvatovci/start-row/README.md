@@ -12,5 +12,4 @@ kerbs and stops at fences.
 npm run dev     # /games/rally/?map=ajvatovci&spawn=200
 ```
 
-The layout started from the author's own website scene and was then repositioned from satellite imagery (traced by
-eye, no imagery shipped). Details, coordinate frame, budget and modelling choices: [`DETAILS.md`](DETAILS.md).
+The layout is traced by eye from satellite imagery (no imagery shipped). Details, coordinate frame, budget and modelling choices: [`DETAILS.md`](DETAILS.md).

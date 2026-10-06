@@ -22,11 +22,14 @@ export type TextureId =
   | 'dirt'
   | 'rock'
   | 'gravel'
+  | 'rail_track'
   | 'road'
   | 'road_tarmac'
   | 'road_parkway'
   | 'road_street'
+  | 'road_street4'
   | 'road_city'
+  | 'junction_asphalt'
   | 'sidewalk'
   | 'crosswalk'
   | 'gore'
@@ -337,6 +340,14 @@ function wearOver(
 
 // --- definitions ---------------------------------------------------------------------
 
+/** Crushed granite of a railway's ballast: blue-grey, a few rusty stones. */
+const BALLAST_PALETTE: RGB[] = [
+  [128, 128, 126],
+  [104, 104, 104],
+  [150, 148, 142],
+  [86, 86, 88],
+  [124, 112, 98],
+];
 const GRAVEL_PALETTE: RGB[] = [
   [150, 140, 125],
   [128, 120, 108],
@@ -442,6 +453,58 @@ const DEFS: Record<TextureId, TexDef> = {
       stones(ctx, w, h, 5200, [1.2, 3.2], 42, GRAVEL_PALETTE);
     },
   },
+  rail_track: {
+    // u (x) across the ballast bed (4.8 m, toe to toe), v (y) along it (1.2 m: two concrete sleepers).
+    name: 'Railway track bed',
+    size: [512, 256],
+    color: true,
+    draw(ctx, w, h) {
+      fillNoise(
+        ctx,
+        w,
+        h,
+        (n, n2) => mix([92, 90, 88], [128, 124, 118], n * 0.7 + n2 * 0.3),
+        8,
+        71,
+      );
+      stones(ctx, w, h, 4200, [1.4, 3.4], 72, BALLAST_PALETTE);
+      const pxU = w / 4.8;
+      const pxV = h / 1.2;
+      // Rust-stained ballast under the rails (brake dust).
+      for (const r of [2.4 - 0.7175, 2.4 + 0.7175]) {
+        const g = ctx.createLinearGradient(
+          (r - 0.5) * pxU,
+          0,
+          (r + 0.5) * pxU,
+          0,
+        );
+        g.addColorStop(0, 'rgba(110,62,34,0)');
+        g.addColorStop(0.5, 'rgba(110,62,34,0.35)');
+        g.addColorStop(1, 'rgba(110,62,34,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect((r - 0.5) * pxU, 0, pxU, h);
+      }
+      // Concrete sleepers (2.6 x 0.24 m), shadow on the far side, fastening clips at the rails.
+      const rng = new Rng(73);
+      for (const v of [0.3, 0.9]) {
+        const y0 = (v - 0.12) * pxV;
+        const sh = 0.24 * pxV;
+        const x0 = (2.4 - 1.3) * pxU;
+        const sw = 2.6 * pxU;
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillRect(x0 + 2, y0 + sh, sw, 0.04 * pxV);
+        const l = rng.range(0.92, 1.05);
+        ctx.fillStyle = `rgb(${158 * l},${154 * l},${146 * l})`;
+        ctx.fillRect(x0, y0, sw, sh);
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.fillRect(x0, y0, sw, sh * 0.25);
+        for (const r of [2.4 - 0.7175, 2.4 + 0.7175]) {
+          ctx.fillStyle = '#3b3632';
+          ctx.fillRect((r - 0.16) * pxU, y0 + sh * 0.2, 0.32 * pxU, sh * 0.6);
+        }
+      }
+    },
+  },
   road: {
     name: 'Gravel road',
     size: [512, 512],
@@ -511,12 +574,57 @@ const DEFS: Record<TextureId, TexDef> = {
       wearOver(ctx, w, h, [0.5], 102);
     },
   },
+  road_street4: {
+    name: 'Four-lane city street: double yellow centre line, white dashed lane lines (3 m dash, 9 m gap; 12 m per repeat)',
+    size: [512, 512],
+    color: true,
+    draw(ctx, w, h) {
+      drawCityAsphalt(ctx, w, h, 106);
+      ctx.fillStyle = '#d2a82a';
+      ctx.fillRect(w * 0.5 - 6, 0, 3, h);
+      ctx.fillRect(w * 0.5 + 3, 0, 3, h);
+      ctx.fillStyle = '#d8d8d2';
+      for (const u of [0.26, 0.74]) ctx.fillRect(w * u - 2, 0, 4, h / 4);
+      wearOver(ctx, w, h, [0.26, 0.5, 0.74], 107);
+    },
+  },
   road_city: {
     name: 'City side street asphalt, no markings (8 m per repeat)',
     size: [512, 512],
     color: true,
     draw(ctx, w, h) {
       drawCityAsphalt(ctx, w, h, 111);
+    },
+  },
+  junction_asphalt: {
+    name: 'Junction box asphalt: city asphalt without wheel tracks or seams, any direction (8 x 8 m per repeat)',
+    size: [512, 512],
+    color: true,
+    draw(ctx, w, h) {
+      fillNoise(
+        ctx,
+        w,
+        h,
+        (n, n2) => mix([66, 66, 68], [100, 99, 97], n * 0.55 + n2 * 0.45),
+        16,
+        141,
+      );
+      // A few patches and oil stains (round: no direction; off the edges: the tile wraps).
+      const rng = new Rng(142);
+      for (let i = 0; i < 14; i++) {
+        ctx.fillStyle = `rgba(28,28,30,${rng.range(0.06, 0.16)})`;
+        ctx.beginPath();
+        ctx.ellipse(
+          rng.range(0.1, 0.9) * w,
+          rng.range(0.1, 0.9) * h,
+          rng.range(8, 40),
+          rng.range(8, 40),
+          rng.next() * Math.PI,
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      }
     },
   },
   sidewalk: {

@@ -2,8 +2,7 @@ import type { Corner } from './frame';
 import { quad, rect, SOUTH_FIELD } from './trace';
 
 /**
- * The south side's building footprints (site metres, see frame.ts). `SOUTH_OSM` are the OSM outlines the
- * Yuma Interactive site's exterior scene used (its `scene-data.ts`, read-only reference): only the placeholder
+ * The south side's building footprints (site metres, see frame.ts). `SOUTH_OSM` are the OSM outlines: only the placeholder
  * buildings under them are hidden now. The buildings themselves are traced from the satellite image.
  */
 
@@ -60,8 +59,7 @@ export const SOUTH_BUILDINGS: Record<
 };
 
 /**
- * Small strips along the south verge that belong to those buildings (OSM slivers 11-15 in the
- * Yuma site's data): the placeholder buildings the game placed there are hidden with the rest.
+ * Small strips along the south verge that belong to those buildings (OSM slivers 11-15): the placeholder buildings the game placed there are hidden with the rest.
  */
 export const SOUTH_STRIPS: Corner[][] = [
   // The field east of south 6 behind the truck yard (no buildings in the image).

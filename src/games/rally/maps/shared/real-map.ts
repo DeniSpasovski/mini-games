@@ -118,7 +118,14 @@ export function fitBridgesToStreets(
   spans: RoadSpan[],
   route: number[][],
   paths: FitPath[],
-  opts: { left: number; right: number; margin: number; maxGrow: number },
+  opts: {
+    left: number;
+    right: number;
+    margin: number;
+    maxGrow: number;
+    /** |cos| of the angle to the road above which a street runs along it, not across (default 0.8). */
+    maxCos?: number;
+  },
 ): RoadSpan[] {
   const cum = [0];
   for (let i = 1; i < route.length; i++)
@@ -185,7 +192,7 @@ export function fitBridgesToStreets(
           // Crossing, not running along the parkway.
           const dx = (p.pts[k + 2] - ax) / (L || 1);
           const dz = (p.pts[k + 3] - az) / (L || 1);
-          if (Math.abs(dx * q.tx + dz * q.tz) > 0.8) continue;
+          if (Math.abs(dx * q.tx + dz * q.tz) > (opts.maxCos ?? 0.8)) continue;
           lo = Math.min(lo, q.along - opts.margin);
           hi = Math.max(hi, q.along + opts.margin);
         }

@@ -261,3 +261,68 @@ export class Portals {
     return !!this.at(x, z)?.inside;
   }
 }
+
+/** A wall under a portal slab between a parkway lane and the parkway (bridge-mesh.ts draws it, world.ts makes it solid). */
+export interface LaneWallRow {
+  along: number;
+  x: number;
+  z: number;
+  tx: number;
+  tz: number;
+  /** Stage road height (the wall foot) and the slab top. */
+  y: number;
+  top: number;
+}
+
+/** Half the free gap between a lane and the roadway inside it: the wall stands in the middle of the gap (m). */
+const LANE_WALL_GAP = 0.6;
+
+/**
+ * Walls under a portal slab between each parkway lane (MapDef.parkwayLanes) and the parkway beside it: in the tunnel
+ * the lanes run in their own bore (lane | wall | carriageway | barrier | stage road | wall | lane). One run of rows per
+ * side, along the lane's inner edge.
+ */
+export function laneWalls(
+  portal: Portal,
+  net: PathNetwork,
+  isLane: (pi: number) => boolean,
+): LaneWallRow[][] {
+  const pq = newPathQuery();
+  const out: LaneWallRow[][] = [];
+  for (const side of [1, -1] as const) {
+    let run: LaneWallRow[] = [];
+    for (const r of portal.rows) {
+      let edge = NaN;
+      for (let l = 1; l <= 30; l += 0.25) {
+        net.query(
+          r.x + r.tz * l * side,
+          r.z - r.tx * l * side,
+          pq,
+          'tarmac',
+          isLane,
+        );
+        if (pq.found && pq.distance <= pq.halfWidth) {
+          edge = l;
+          break;
+        }
+      }
+      if (Number.isNaN(edge)) {
+        if (run.length > 1) out.push(run);
+        run = [];
+        continue;
+      }
+      const lat = side * (edge - LANE_WALL_GAP);
+      run.push({
+        along: r.along,
+        x: r.x + r.tz * lat,
+        z: r.z - r.tx * lat,
+        tx: r.tx,
+        tz: r.tz,
+        y: r.y,
+        top: r.top,
+      });
+    }
+    if (run.length > 1) out.push(run);
+  }
+  return out;
+}

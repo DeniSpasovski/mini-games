@@ -232,6 +232,8 @@ describe('jackie: portals (under spans)', () => {
         net.pointAt(pi, a, pt);
         const hit = portals.at(pt.x, pt.z);
         if (!hit?.inside) continue;
+        // A junction plaza replaces the decks on it (not drawn there, its own surface is the street).
+        if (world.gen.plazas.inside(pt.x, pt.z)) continue;
         const dy = world.gen.pathHeight(pi, a) - hit.top;
         expect(dy).toBeGreaterThanOrEqual(-0.1);
         expect(dy).toBeLessThan(0.6);
@@ -261,6 +263,180 @@ describe('jackie: portals (under spans)', () => {
     for (const j of world.gen.junctions)
       for (const sp of road.def.spans ?? [])
         expect(j.along < sp.from - 8 || j.along > sp.to + 8).toBe(true);
+  });
+});
+
+describe('jackie: four roadways in the finish cut (Union Tpke inner lanes beside the parkway)', () => {
+  const gen = world.gen;
+  const net = gen.paths!;
+  const pq = newPathQuery();
+
+  test('lane | stage road | carriageway | lane at parkway level, with a gap (barrier room) between each', () => {
+    const lanes = net.paths.filter((_, pi) => gen.isParkwayLane(pi));
+    expect(lanes.length).toBeGreaterThanOrEqual(4); // both sides, open cut + under the Queens Blvd slab
+    for (let a = 7000; a <= 7260; a += 10) {
+      const s = road.at(a);
+      // Roadways met going across from the far right to the far left (-25 .. +25 m).
+      const seq: { id: number; from: number; to: number }[] = [];
+      for (let l = -25; l <= 25; l += 0.25) {
+        const x = s.x + s.tz * l;
+        const z = s.z - s.tx * l;
+        const rq = road.query(x, z, newRoadQuery());
+        let id = -2;
+        if (rq.found && rq.distance <= rq.halfWidth) id = -1;
+        else {
+          net.query(x, z, pq, 'tarmac', (pi) => gen.isCarriageway(pi));
+          if (pq.found && pq.distance <= pq.halfWidth) id = pq.path;
+        }
+        const last = seq[seq.length - 1];
+        if (last && last.id === id) last.to = l;
+        else seq.push({ id, from: l, to: l });
+      }
+      const ways = seq.filter((w) => w.id !== -2);
+      const kinds = ways.map((w) =>
+        w.id === -1 ? 'stage' : gen.isParkwayLane(w.id) ? 'lane' : 'cw',
+      );
+      expect(kinds.join(' ')).toBe('lane stage cw lane');
+      // Gaps between neighbours (the barrier stands in them).
+      for (let i = 0; i + 1 < ways.length; i++)
+        expect(ways[i + 1].from - ways[i].to).toBeGreaterThanOrEqual(0.9);
+      // The lanes lie at the parkway's level.
+      for (const w of ways)
+        if (w.id >= 0 && gen.isParkwayLane(w.id)) {
+          const l = (w.from + w.to) / 2;
+          net.query(
+            s.x + s.tz * l,
+            s.z - s.tx * l,
+            pq,
+            undefined,
+            (qi) => qi === w.id,
+          );
+          expect(Math.abs(gen.pathHeight(w.id, pq.along) - s.y)).toBeLessThan(
+            0.3,
+          );
+        }
+    }
+  });
+
+  test('under the Queens Blvd slab each lane has its own bore: a wall between it and the parkway, off every roadway', () => {
+    const fin = gen.portals.list.find((p) => p.from > 7000)!;
+    const runs = world.laneWalls.filter(
+      (r) => r[0].along >= fin.from - 1 && r[r.length - 1].along <= fin.to + 1,
+    );
+    expect(runs.length).toBe(2);
+    for (const run of runs) {
+      expect(run[run.length - 1].along - run[0].along).toBeGreaterThan(
+        (fin.to - fin.from) * 0.9,
+      );
+      for (const r of run) {
+        const rq = road.query(r.x, r.z, newRoadQuery());
+        expect(rq.distance - rq.halfWidth).toBeGreaterThan(0.25);
+        net.query(r.x, r.z, pq, 'tarmac', (pi) => gen.isCarriageway(pi));
+        expect(pq.distance - pq.halfWidth).toBeGreaterThan(0.25);
+      }
+    }
+    // The lanes' ground is open under the slab (their road is not buried by the street on top).
+    for (let a = fin.from + 4; a < fin.to - 4; a += 6) {
+      const s = road.at(a);
+      for (const l of [-9, 15]) {
+        const x = s.x + s.tz * l;
+        const z = s.z - s.tx * l;
+        expect(Math.abs(gen.height(x, z) - s.y)).toBeLessThan(0.3);
+      }
+    }
+  });
+
+  test('barriers between them: median Jersey, Jersey beside the north lane, rail beside the south lane', () => {
+    const at = (a: number) =>
+      world.barrierRuns.filter((r) =>
+        r.path === undefined ? r.from <= a && r.to >= a : false,
+      );
+    for (const a of [7020, 7100, 7170]) {
+      const stage = at(a).map((r) => `${r.rule.kind}-${r.rule.side}`);
+      expect(stage).toContain('jersey-left');
+      expect(stage).toContain('guardrail-right');
+    }
+    // The carriageway has a Jersey on its lane side; the lanes add none on their inner side.
+    const cwJersey = world.barrierRuns.filter(
+      (r) =>
+        r.path !== undefined &&
+        !gen.isParkwayLane(r.path) &&
+        gen.isCarriageway(r.path) &&
+        r.rule.kind === 'jersey',
+    );
+    expect(cwJersey.length).toBeGreaterThan(0);
+  });
+});
+
+describe('jackie: junction plaza on the finish portal', () => {
+  const plazas = world.gen.plazas;
+  const portals = world.gen.portals;
+  const pt = { x: 0, z: 0 };
+
+  test('covers the whole finish slab, never the open trench beyond it, and the land under it stays below it', () => {
+    expect(plazas.empty).toBe(false);
+    const finish = portals.list.find((p) => p.from > 7000)!;
+    // Every slab row (wall to wall, 1 m inside the walls; not the rows on the headwall lines) is paved.
+    for (const r of finish.rows.slice(1, -1))
+      for (let l = r.latR + 1; l <= r.latL - 1; l += 1)
+        expect(plazas.inside(r.x + r.tz * l, r.z - r.tx * l)).toBe(true);
+    // Beyond the headwalls the trench stays open.
+    for (const a of [finish.from - 4, finish.to + 4]) {
+      const c = road.at(a);
+      expect(plazas.inside(c.x, c.z)).toBe(false);
+    }
+    // No land / street ribbon comes up through the plaza (its surface is drawn 3 cm over its height).
+    const p = plazas.polys[0];
+    let n = 0;
+    for (let x = p.minX; x <= p.maxX; x += 1.5)
+      for (let z = p.minZ; z <= p.maxZ; z += 1.5) {
+        if (!plazas.inside(x, z)) continue;
+        n++;
+        expect(world.gen.height(x, z)).toBeLessThanOrEqual(
+          plazas.height(x, z)! + 0.02,
+        );
+      }
+    expect(n).toBeGreaterThan(1000);
+  });
+
+  test('no barrier runs across it (the ones down in the trench under the slab stay)', () => {
+    const ctx = { road, net: world.gen.paths };
+    for (const r of world.barrierRuns)
+      for (let a = r.from; a <= r.to; a += 2) {
+        const b = barrierPoint(ctx, world.analytic, r, a);
+        if (!plazas.inside(b.x, b.z)) continue;
+        expect(b.y).toBeLessThan(plazas.height(b.x, b.z)! - 3);
+      }
+  });
+
+  test('no sidewalks inside it; its edge has the crosswalks', () => {
+    const net = world.gen.paths!;
+    const d = world.streetDetail!;
+    // On the kerb line of each run (the street's centre may cut a plaza corner while its sidewalk is outside).
+    const nx = { x: 0, z: 0 };
+    for (const r of d.runs) {
+      const L = net.lengths[r.path];
+      const lat = r.side * (net.paths[r.path].width / 2 + 0.3);
+      for (let a = r.from; a <= r.to; a += 2) {
+        net.pointAt(r.path, Math.max(0, a - 1.5), pt);
+        net.pointAt(r.path, Math.min(L, a + 1.5), nx);
+        const tl = Math.hypot(nx.x - pt.x, nx.z - pt.z) || 1;
+        const tx = (nx.x - pt.x) / tl;
+        const tz = (nx.z - pt.z) / tl;
+        net.pointAt(r.path, a, pt);
+        expect(plazas.inside(pt.x + tz * lat, pt.z - tx * lat)).toBe(false);
+      }
+    }
+    const edge = d.crossings.filter((c) => {
+      net.pointAt(c.path, c.at, pt);
+      return plazas.inside(pt.x, pt.z, 4);
+    });
+    console.info(`[jackie] plaza edge crosswalks: ${edge.length}`);
+    expect(edge.length).toBeGreaterThanOrEqual(4);
+    for (const c of edge) {
+      net.pointAt(c.path, c.at, pt);
+      expect(plazas.inside(pt.x, pt.z)).toBe(false);
+    }
   });
 });
 

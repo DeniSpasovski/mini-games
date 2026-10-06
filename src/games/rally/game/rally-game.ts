@@ -507,29 +507,30 @@ export class RallyGame {
   /** Shared GA params of a ranked run (see src/shared/analytics.ts, DETAILS.md "Analytics"). */
   private runParams(): EventParams {
     return {
-      game: 'rally',
-      level_name: this.world.map.id,
-      car: this.car.id,
-      tyre: this.opts.tyre,
-      setup: this.opts.setup,
-      gearing: hasGearings(this.car.physics) ? this.opts.gearing : undefined,
+      game_level_name: this.world.map.id,
       game_version: gameManifest.version,
-      times_version: TIMES_VERSION,
+      game_rally_car: this.car.id,
+      game_rally_tyre: this.opts.tyre,
+      game_rally_setup: this.opts.setup,
+      game_rally_gearing: hasGearings(this.car.physics)
+        ? this.opts.gearing
+        : undefined,
+      game_rally_times_version: TIMES_VERSION,
     };
   }
 
   /**
-   * GA `level_end` with success=false when a ranked run is left mid-stage (restart, menu,
+   * GA `level_end` with game_success=false when a ranked run is left mid-stage (restart, menu,
    * portal, other spawn). Free drive is never tracked.
    */
   trackQuit(reason: string): void {
     if (this.freeDrive || this.stage.phase !== 'running') return;
-    track('level_end', {
+    track('rally', 'level_end', {
       ...this.runParams(),
-      success: false,
-      reason,
-      time_s: seconds(this.stage.time),
-      progress_pct: Math.round(
+      game_success: false,
+      game_reason: reason,
+      game_time_s: seconds(this.stage.time),
+      game_rally_progress_pct: Math.round(
         (100 * this.stage.progress) / this.world.stage.finish,
       ),
     });
@@ -537,7 +538,7 @@ export class RallyGame {
 
   private onStageEvent(e: StageEvent): void {
     if (e.type === 'go') {
-      if (!this.freeDrive) track('level_start', this.runParams());
+      if (!this.freeDrive) track('rally', 'level_start', this.runParams());
       const wrong = this.wrongTyreSurface();
       if (wrong)
         this.hud.message(
@@ -592,18 +593,18 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
           );
       if (ranked) {
         const params = this.runParams();
-        track('level_end', {
+        track('rally', 'level_end', {
           ...params,
-          success: true,
-          time_s: seconds(e.time!),
-          penalty_s: e.penalty || 0,
-          new_best: e.delta === undefined || e.delta < 0,
+          game_success: true,
+          game_time_s: seconds(e.time!),
+          game_rally_penalty_s: e.penalty || 0,
+          game_rally_new_best: e.delta === undefined || e.delta < 0,
         });
         // GA4 score event: lower is better here (stage time in ms).
-        track('post_score', {
+        track('rally', 'post_score', {
           ...params,
-          score: Math.round(e.time! * 1000),
-          character: this.car.id,
+          game_score: Math.round(e.time! * 1000),
+          game_character: this.car.id,
         });
       }
       this.onFinish?.(e.time!, e.delta, run, board);

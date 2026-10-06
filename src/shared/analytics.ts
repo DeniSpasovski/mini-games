@@ -1,6 +1,7 @@
 /**
- * Game events for Google Analytics 4 (names / params follow GA4's recommended
- * game events: `level_start`, `level_end`, `post_score`, `select_content`).
+ * Game events for Google Analytics 4, named `game_<game id>_<event>` (e.g.
+ * `game_rally_level_end`); `<event>` follows GA4's recommended game events
+ * (`level_start`, `level_end`, `post_score`, `select_content`).
  *
  * `window.gtag` only exists after the visitor accepted the cookie banner on a
  * production host (consent.ts), so `track()` is a no-op everywhere else - no
@@ -30,8 +31,22 @@ export function analyticsLogging(search: string = location.search): boolean {
   return new URLSearchParams(search).get('analytics') === 'log';
 }
 
-export function track(name: string, params: EventParams = {}): void {
-  const p = cleanParams(params);
+/** GA4 event names: letters, digits, `_`, starting with a letter, max 40 characters. */
+export function eventName(game: string, event: string): string {
+  return `game_${game}_${event}`.replace(/[^A-Za-z0-9_]/g, '_').slice(0, 40);
+}
+
+/**
+ * Sends `game_<game>_<event>`; `game_id` is also added as a param (one report across games).
+ * Param names: `game_<name>` when every game sends it, `game_<game>_<name>` when only one does.
+ */
+export function track(
+  game: string,
+  event: string,
+  params: EventParams = {},
+): void {
+  const name = eventName(game, event);
+  const p = cleanParams({ game_id: game, ...params });
   try {
     if (analyticsLogging()) console.info('[analytics]', name, p);
   } catch {

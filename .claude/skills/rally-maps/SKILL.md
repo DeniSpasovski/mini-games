@@ -148,19 +148,22 @@ City maps (example `maps/jackie/`, config `scripts/realmap/jackie.json`) - extra
 - Buildings with `kind` (baker `classify_kind`: house, row, apartment, commercial, industrial, garage, church, tomb) are mesh
   buildings (`world/building-mesh.ts`: real outline, OSM `height`, facade textures in `engine/facade-textures.ts`).
 - More city options (see the rally DETAILS.md "City maps"): `pathBarriers` (Jersey / guard rail along the opposite carriageway),
-  `road.cutWalls` (sheer cuts with a stone retaining wall; `concreteFrom` = concrete + chain-link), `goreAreas` (hatched wedge between the road and a shallow ramp), `cityStreets` (city asphalt, kerbs, sidewalks, crosswalks, lamps),
+  `road.cutWalls` (sheer cuts with a stone retaining wall; `concreteFrom` = concrete + chain-link), `goreAreas` (hatched wedge between the road and a shallow ramp), `junctionPlazas` (outline of a big junction on a portal slab: one plain asphalt box, no crossing ribbons), `parkwayLanes` (streets OSM draws beside the carriageways that really run down in the cut: treated as carriageways), `cityStreets` (city asphalt, kerbs, sidewalks, crosswalks, lamps),
   `streetDressing` (parked cars, crowds, police / ambulance / fire vehicles), `overheadSigns` (green "EXIT n" gantries from the
   ramps + hand-placed boards), `road.trenchFills` (pad the land where the lidar has a void beside a sunken stretch). Streets
   crossing over a tunnelled parkway (`under` spans) become bridge decks automatically (`world/under-bridges.ts`) and the span
   becomes a portal structure (`world/portals.ts`: slab, headwalls with name / clearance plates, railings, median piers; the
-  street grid on top is padded to the slab top). Overpass decks are drivable in free roam. Bridge rules (parallel walls, check start / end, twin decks,
-  carriageway alignment, terrain cap, drivable underpasses): maps/jackie/DETAILS.md "Bridges: rules and mechanics"; underpass
-  rules (straight fenceless walls, ground vs top surface, wall lamps) + the step-by-step bridge-bug workflow: same file, "Underpasses and approaches".
+  street grid on top is padded to the slab top). Overpass decks are drivable in free roam. Bridges / underpasses: see "Bridges and underpasses (city maps)" below.
 - Looking at a map in the preview pane (it renders one frame every few seconds): `window.__mapViewer.look(cx, cy, cz, lx, ly, lz, fov)`
   parks the camera and streams all terrain + instances around it; wait ~10-30 s, then screenshot. Helpers to build camera
   positions along the road: `world.road.at(d)` (x, y, z, tx, tz), lateral `x + tz * l, z - tx * l`.
 - Power lines: `MapDef.pylons` / `powerLines` (baked from OSM, `data.pylons` / `data.powerLines`) become `power_pylon` / `power_pole` instances + cables
   (`world/power-lines.ts`). Scatter option `channelDist: [min, max]` = only within that distance of a canal / drain edge (willows, reeds).
+- Railways: `MapDef.railways` = `data.railways` (baker `railway_lines`: OSM `railway=rail`, electrified flag). Tracks become
+  `rail` paths (ballast bed carved, decks over them lifted for the catenary), drawn by `world/rail-mesh.ts`, masts on the
+  electrified ones. To add them to an already baked map: bake to a temp `out`, copy only `railways` into its data.json (as
+  for lakes). Check `tests/rally/railways.test.ts` and look under the road bridges in the map viewer. Stations and
+  platforms are landmarks (example `maps/ajvatovci/station/`: platforms placed from the baked tracks in `site.ts`).
 - Road texture `road_parkway` (lane lines), structures `jersey_barrier` / `guard_rail` / `concrete_block`, roadside rule
   options `onBridge` / `skipJunctions`, `terrain.rockSlope` (grassed cut slopes instead of bare rock).
 - Browser checks: the preview pane throttles rendering hard; stream terrain by hand from the console
@@ -170,6 +173,31 @@ City maps (example `maps/jackie/`, config `scripts/realmap/jackie.json`) - extra
 Gotchas: +Z is SOUTH (the baker handles it); uneven control-point spacing makes Catmull-Rom loop (the baker evens
 it out, `world.test.ts` "no loops or kinks" catches it); the elevation is a surface model (trees / roofs) - tune
 `canopy` if roads climb walls of forest.
+
+## Bridges and underpasses (city maps)
+
+Owner rules - a review fails on any of these:
+
+- Approved bridge tops are never touched; bridge walls run parallel unless the bridge curves; always check the bridge START and END.
+- Retaining walls are concrete, straight, continuous (also at OSM way joints), never on a road / shoulder, never through the deck above,
+  never higher than the parkway beside them; no fence on underpass / approach walls; no tunnels in underpasses.
+- The street under a bridge is flat and unbroken (no ground through it); sidewalks continue under bridges; lamps under a deck go on the
+  wall (`wall_lamp`), never a pole; nothing scattered in a trench; no barrier / wall / sign post on another road; streets never overlap
+  a carriageway.
+
+Where it lives: path pipeline in `TerrainGen` (`world/under-bridges.ts`: `separateStreets`, `alignParallelDecks`, ...), trench and deck
+terrain in `terrain-gen.ts` (`dipUnderBridges`, `pathCutWeight`, `capUnderDecks`), walls in `cut-wall-mesh.ts`, span fitting in
+`maps/shared/real-map.ts`. `World.analytic` is the TOP surface (includes the stage deck): anything on a street samples the ground
+(`GroundTerrain` / `gen.height`).
+
+Most bugs come from **OSM way joints**: one street is several ways, and every per-way step (2 m sampling, square ends, a profile
+smoothed alone, "another road here" checks) breaks at the joint - sample to the exact end, mitre to the mean direction, treat the next way
+of the same street as itself.
+
+Fixing one: open the owner's camera link in your own preview (`__mapViewer.look(...)`), hide scene groups (`terrain`, `road` children
+`bridges` / `cut-walls` / `paths` / `street-detail` / `barriers`) + `shell.renderer.render(...)` to name the culprit mesh, probe heights in
+the page (`gen.height` vs `world.analytic.height`, `pathHeight`, path ends near the point - indices shift, find ways by position), fix the
+rule (never a per-bridge offset), re-check start / end and the other underpasses, run `city-maps` / `bridges` / `side-roads` tests.
 
 ## Landmarks (hand-modelled streets / lots) and pads
 
@@ -186,7 +214,6 @@ road (`start-row/trace.ts`), share one fence between neighbouring lots (`layout.
 poles colliders and kerbs `groundOverride` ground so the car feels them (`start-row/index.ts`, `streetwork.ts`).
 Parked vehicles are instanced (`build/vehicles.ts`): keep a car < ~500 triangles. Check: `tests/rally/start-row.test.ts` style
 tests + the stage test (colliders must stay off the road), look at it in `/games/rally/?map=<id>&spawn=<along>`.
-If the layout is taken from another project (here the Yuma Interactive site), treat that project as read-only.
 Single buildings away from the stage road (example `maps/ajvatovci/hilltop/`: church, bell tower, court): positions from
 OSM ways reprojected with the baker's `Proj`, one `Local` frame per structure (`hilltop/build/shapes.ts`: the kit's
 `Frame` with its own `origin`, walls with real openings, tiled roof planes), ground levelled with named `flatAreas`

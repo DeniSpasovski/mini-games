@@ -478,6 +478,19 @@ export const ASSET_CATALOG: AssetMeta[] = [
     colliders: [{ kind: 'cylinder', r: 0.16, h: 10 }],
   },
   {
+    id: 'catenary_mast',
+    name: 'Catenary mast',
+    category: 'structures',
+    description:
+      'Railway overhead-line mast, 7.9 m H-beam, the cantilever reaches 3.1 m along local +Z to the track centre (world/railways.ts). The wires are a line mesh (world/rail-mesh.ts). Solid.',
+    variants: 1,
+    lods: [
+      { maxDistance: 180, castShadow: true },
+      { maxDistance: 1100, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.28, h: 8 }],
+  },
+  {
     id: 'concrete_block',
     name: 'Concrete block',
     category: 'structures',

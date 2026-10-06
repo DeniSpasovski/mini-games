@@ -6,9 +6,8 @@ import { COLOR, dockDoors, hippedRoof, ribbon, type LotCtx } from './common';
 /**
  * The north side of the street, west to east: north 1 (the freight forwarder's warehouse with its
  * office tower), north 2 (car service), north 4 (glass-fronted showroom), north 5 (the framed hall)
- * and north 10 (the villa); the offices of north 6-9 are in `north-offices.ts`. Details measured
- * from the Yuma Interactive site's `exterior/neighbours.ts` (read-only reference) and rebuilt with
- * real openings.
+ * and north 10 (the villa); the offices of north 6-9 are in `north-offices.ts`. Built with real
+ * openings.
  */
 
 /** Distances from the end of a wall nearest the street, as a u range. */

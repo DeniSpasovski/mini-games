@@ -79,6 +79,8 @@ export const MATS = {
   },
   /** Fascia sign; UVs 0..1. */
   sign: { map: 'lot_sign_mileks', tile: [1, 1], roughness: 0.6 },
+  /** Ilinden station name board (maps/ajvatovci/station); UVs 0..1. */
+  stationSign: { map: 'lot_sign_station', tile: [1, 1], roughness: 0.55 },
   /** Red-white striped barrier. */
   barrier: { map: 'lot_barrier', tile: [1, 1], roughness: 0.8 },
   /** Wire mesh fence (alpha-tested). */

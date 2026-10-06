@@ -9,8 +9,7 @@ import { meshFence, powerPole, powerWires } from './props';
  * with their wires along the south verge. The asphalt is the game's road. Everything follows the
  * road's own height (the sidewalk stays level across the ditch), the same surface the car feels:
  * `index.ts` raises the physical ground to the kerb and sidewalk (`groundOverride`).
- * Layout data (gaps, fence runs, poles): `streetwork.ts`. From the Yuma Interactive site's
- * `map/street.ts` (read-only reference).
+ * Layout data (gaps, fence runs, poles): `streetwork.ts`.
  */
 
 /** Kerb top above the road centre (m); the sidewalk behind it is 2 cm lower. */

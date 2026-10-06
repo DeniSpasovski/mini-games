@@ -30,16 +30,181 @@ import data from './data.json';
 /** Covers where dry / mown grass grows (detail layer). */
 const LAWN = ['grass', 'shrub', 'bare', 'cemetery'];
 
-const baseSpans = routeSpans(data.routeSpans);
-const fittedSpans = fitBridgesToStreets(
-  baseSpans,
-  data.route,
-  data.paths as never,
-  { left: 20, right: -9, margin: 9, maxGrow: 40 },
+/**
+ * The on-ramp behind the start (OSM way 126109619, from the Highland Blvd ramps under the Highland Blvd bridge to the
+ * start waypoint). The route begins part-way along that way and the bake drops every way the route uses, so the
+ * piece before route point 0 was missing (the stage road ended in the grass behind the start). Ends exactly on the
+ * stage road's first point, at the stage road's width. OSM tags it motorway_link; `motorway` here gives it the stage
+ * road's parkway lane markings (a link gets plain tarmac).
+ */
+const START_RAMP: PathDef = {
+  kind: 'motorway',
+  width: 7.4,
+  surface: 'tarmac',
+  oneway: true,
+  lanes: 2,
+  pts: [
+    -2847.1,
+    2009.4,
+    -2841.3,
+    2006.6,
+    -2836.0,
+    2003.7,
+    -2830.7,
+    1999.7,
+    -2826.1,
+    1995.3,
+    -2822.2,
+    1991.4,
+    -2818.8,
+    1987.1,
+    -2816.1,
+    1982.8,
+    -2813.7,
+    1978.2,
+    -2811.7,
+    1972.3,
+    -2810.5,
+    1967.0,
+    -2809.5,
+    1960.8,
+    -2809.3,
+    1955.3,
+    -2809.5,
+    1949.9,
+    -2810.2,
+    1944.1,
+    ...data.route[0],
+  ],
+};
+/**
+ * Park Lane over the Union Tpke overlook deck (6 720 m): 4 lanes (OSM `lanes=4`; the bake makes every residential street
+ * 5 m wide). The OSM pieces (two deck halves 4 m out of line, the south approach) become ONE straight 13 m path from
+ * 40 m north of the deck to just past the south junction: one deck in the middle (bridgeOverUnderSpans), full width to
+ * both deck ends; the lane drop to the 5 m one-way street north of it is on the ground. South of the junction OSM has
+ * 3 lanes to the Forest Park Dr fork (10 m) and 2 beyond it (7 m): the widths step down, so no wide street end owns the
+ * land of the narrow one past the fork (PathNetwork.query takes the full width; terrain came up through the lanes).
+ * Matched by end points (path indices shift on a re-bake).
+ */
+const PARK_LANE_N: [number, number] = [2272.5, -1535.1];
+const PARK_LANE_S: [number, number][] = [
+  [2290.1, -1515.6],
+  [2295.1, -1509.0],
+  [2305.7, -1497.0],
+];
+function parkLane(list: PathDef[]): PathDef[] {
+  const near = (x: number, z: number, [px, pz]: [number, number]) =>
+    Math.hypot(x - px, z - pz) < 2;
+  const out: PathDef[] = [];
+  let cut: number[] | undefined;
+  for (const p of list) {
+    const n = p.pts.length;
+    const ends: [number, number][] = [
+      [p.pts[0], p.pts[1]],
+      [p.pts[n - 2], p.pts[n - 1]],
+    ];
+    // The OSM pieces of the 4-lane street (dropped, replaced below).
+    if (
+      p.kind === 'residential' &&
+      (p.lanes ?? 0) >= 3 &&
+      ends.some(([x, z]) =>
+        [PARK_LANE_N, PARK_LANE_S[0], [2289, -1517] as [number, number]].some(
+          (e) => near(x, z, e),
+        ),
+      )
+    )
+      continue;
+    // Park Lane beyond the fork: 2 lanes.
+    if (
+      p.kind === 'residential' &&
+      p.lanes === 2 &&
+      ends.some(([x, z]) => near(x, z, PARK_LANE_S[2]))
+    )
+      out.push({ ...p, width: 7 });
+    // The one-way street north of it loses its last 40 m to the 4-lane path.
+    else if (
+      p.kind === 'residential' &&
+      !p.lanes &&
+      near(...ends[1], PARK_LANE_N) &&
+      n >= 4
+    ) {
+      const [ax, az, bx, bz] = p.pts.slice(n - 4);
+      const t = 1 - 40 / Math.hypot(bx - ax, bz - az);
+      if (t > 0.1) {
+        cut = [ax + (bx - ax) * t, az + (bz - az) * t];
+        out.push({ ...p, pts: [...p.pts.slice(0, n - 2), ...cut] });
+      } else out.push(p);
+    } else out.push(p);
+  }
+  if (!cut) return list;
+  out.push({
+    kind: 'residential',
+    width: 13,
+    surface: 'tarmac',
+    lanes: 4,
+    pts: [...cut, ...PARK_LANE_N, ...PARK_LANE_S.slice(0, 2).flat()],
+  });
+  out.push({
+    kind: 'residential',
+    width: 10,
+    surface: 'tarmac',
+    lanes: 3,
+    pts: PARK_LANE_S.slice(1).flat(),
+  });
+  return out;
+}
+/**
+ * OSM nodes moved (from -> to, m): the north Union Tpke service road west of the overlook slab hugs the cut so closely
+ * that its inner lane lay up to 1.8 m over the open trench (the ribbon edge curled down into it). 2 m away from the
+ * parkway; nothing else uses these nodes.
+ */
+const MOVED_NODES: [number, number, number, number][] = [
+  [2264.0, -1526.7, 2262.7, -1528.3],
+  [2239.6, -1505.9, 2238.3, -1507.5],
+];
+const moveNodes = (list: PathDef[]): PathDef[] =>
+  list.map((p) => {
+    let pts: number[] | undefined;
+    for (let k = 0; k < p.pts.length; k += 2)
+      for (const [fx, fz, tx, tz] of MOVED_NODES)
+        if (Math.hypot(p.pts[k] - fx, p.pts[k + 1] - fz) < 0.2) {
+          pts ??= [...p.pts];
+          pts[k] = tx;
+          pts[k + 1] = tz;
+        }
+    return pts ? { ...p, pts } : p;
+  });
+const paths = [...parkLane(moveNodes(data.paths as PathDef[])), START_RAMP];
+
+// The Union Tpke overlook slab (OSM tunnel 6 708-6 733 m) is as wide as Park Lane on top: 13 m street + kerbs and
+// 1.5 m sidewalks, centred on the crossing (6 719.75 m, nearly square to the road).
+const baseSpans = routeSpans(data.routeSpans).map((s) =>
+  s.kind === 'under' && Math.abs(s.from - 6708) < 1
+    ? { ...s, from: 6711, to: 6728.5 }
+    : s,
 );
+const fittedSpans = fitBridgesToStreets(baseSpans, data.route, paths as never, {
+  left: 20,
+  right: -9,
+  margin: 9,
+  maxGrow: 40,
+});
+// Long spans keep their length, except where a skewed street trench reaches the road edge just past an end (B6: a
+// sliver of verge hung over the trench at the deck corner) - a few metres at most.
+const edgeFitted = fitBridgesToStreets(baseSpans, data.route, paths as never, {
+  left: 9,
+  right: -9,
+  margin: 6,
+  maxGrow: 10,
+  maxCos: 0.97,
+});
 const bridgeSpans = lengthenBridges(
   baseSpans.map((s, i) =>
-    s.kind === 'bridge' && s.to - s.from < 36 ? fittedSpans[i] : s,
+    s.kind !== 'bridge'
+      ? s
+      : s.to - s.from < 36
+        ? fittedSpans[i]
+        : edgeFitted[i],
   ),
   36,
 );
@@ -116,7 +281,7 @@ export const jackieMap: MapDef = {
       crop: [0.9, 0.1, 0, 0],
     },
   },
-  paths: data.paths as PathDef[],
+  paths,
   lakes: data.lakes as LakeDef[],
   road: {
     // One carriageway of the parkway: two narrow lanes, no real shoulder, concrete barriers each side.
@@ -141,7 +306,13 @@ export const jackieMap: MapDef = {
     cutWalls: { minHeight: 2.5, offset: 1.6, concreteFrom: 6900 },
     // The lidar has a void where the parkway descends into the Kew Gardens trench (7 040-7 190 m: the land reads
     // 5-10 m BELOW the road): the Union Turnpike service roads and the street grid sit at the rim of the trench.
-    trenchFills: [{ from: 7035, to: 7186, halfWidth: 75, depth: [0.3, 5.6] }],
+    // Same at the Union Tpke overlook (6 711-6 728 m): the service roads at the rim of the cut overlapped the cut slope
+    // (their inner lanes over the trench floor, terrain through the asphalt); depths follow the streets' height.
+    trenchFills: [
+      { from: 7035, to: 7186, halfWidth: 75, depth: [0.3, 5.6] },
+      { from: 6706, to: 6732, halfWidth: 30, depth: [5.5, 5.6] },
+      { from: 6732, to: 6765, halfWidth: 30, depth: [5.6, 1.0] },
+    ],
     // The baked route ends at the Union Turnpike (7 345 m); the finish is past the Queens Blvd portal, so the stage
     // road runs on along the turnpike (OSM primary, same direction) for ~90 m: the run-out to stop in. Not baked
     // (moving the end waypoint makes the baker take another route).
@@ -279,6 +450,9 @@ export const jackieMap: MapDef = {
     outer: { kind: 'guardrail', offset: 0.55 },
     medianReach: 40,
   },
+  // The inner Union Turnpike lanes run down in the parkway's cut beside its carriageways (4 roadways side by side,
+  // the outer Union Tpke service roads at grade): OSM has them as primary streets.
+  parkwayLanes: { kinds: ['primary'], names: ['Union Turnpike'], reach: 22 },
   // Parked cars on the side streets, crowds on the overpasses and behind the closed junction mouths, police
   // cars and fire trucks standing at the junctions (all derived from the road network, see world/street-dressing.ts).
   // Kerbs, sidewalks, crosswalks and lamps on the streets within 500 m of the parkway (world/street-detail.ts).
@@ -341,6 +515,20 @@ export const jackieMap: MapDef = {
   // Green guide signs on steel gantries: "EXIT n" before every ramp leaving the parkway, and the real sequence of
   // boards at the Kew Gardens end (plain road names, no route shields).
   goreAreas: true,
+  // Queens Blvd x Union Tpke on top of the finish portal: one paved junction box (x / z: the OSM junction nodes of
+  // the carriageways; the west / east edges run along the portal headwalls through the slab corners).
+  junctionPlazas: [
+    [
+      2650.8, -1815.9, 2668, -1840, 2690, -1846, 2712, -1848, 2736.3, -1848.5,
+      2750.8, -1806.3, 2742, -1796, 2728, -1784, 2712, -1784, 2695, -1780,
+      2672.5, -1776.9,
+    ],
+    // Park Lane x Union Tpke at both ends of the overlook slab (6 720 m): from inside the trench wall line (no slab
+    // edge parapet across Park Lane) to past the Park Lane deck ends (no deck parapets / abutments across the Union
+    // Tpke mouths).
+    [2278.2, -1513.2, 2294.2, -1526.1, 2302.3, -1516.0, 2286.4, -1503.1],
+    [2268.4, -1525.3, 2284.3, -1538.2, 2276.5, -1547.9, 2260.5, -1535.0],
+  ],
   overheadSigns: {
     exits: true,
     signs: [

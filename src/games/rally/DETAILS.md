@@ -107,6 +107,12 @@ the baked `data.json`; the format and shared helpers are in `maps/shared/`.
 - **Water:** canals, drains and rivers (`paths` with surface `water`) and lakes (`MapDef.lakes`, `world/lakes.ts`) hold flat
   water with real banks and water physics. A street along a drain bank stops its embankment at the water (only its own
   surface crosses a channel, as a culvert); a drain ending in another drops to that channel's level over its last 60 m.
+- **Railways** (`MapDef.railways`, baked from OSM `railway=rail`; `world/railways.ts`): each track joins the other roads as a
+  path of kind `rail` (300 m smoothing, 2.5 % grade limit, never eased to a road - a road crossing at grade meets the rail
+  level), with a ballast hump carved into the terrain (drivable, `gravel_loose`). Road decks crossing a track are lifted by
+  `RAIL_CLEARANCE`. `world/rail-mesh.ts` draws the ballast + sleeper strip (texture `rail_track`) and the rails per 256 m
+  tile; electrified tracks get `catenary_mast`s every ~58 m and contact / messenger wires (dropped under decks).
+  Placeholder buildings on a track bed are dropped. Test: `tests/rally/railways.test.ts`.
 - **Season look:** `environment.groundTint` (grass / crop colours) and the grass-card variants (`grass_tuft`, `spring_grass`,
   `dry_grass`).
 - **Buildings:** placeholder boxes (`building_flat`, `house_pitched`) with stable ids along the route (`buildings.csv`, map
@@ -117,15 +123,20 @@ the baked `data.json`; the format and shared helpers are in `maps/shared/`.
 - **Landmarks** (`MapDef.landmarks`, `world/landmarks.ts`): hand-modelled groups that replace the placeholders under them (lots
   with real window openings, yards, fences, kerbs, parked vehicles) on graded **pads** (`world/pads.ts`). First one:
   `maps/ajvatovci/start-row/`; second `maps/ajvatovci/hilltop/` (church, bell tower, courtyard, court on `flatAreas`,
-  reusing the start row's kit with its own site origin). Optional hooks: `surfaceAt` (paved ground: physics surface),
+  reusing the start row's kit with its own site origin); third `maps/ajvatovci/station/` (Ilinden railway station: platforms
+  placed from the baked tracks, raised platform ground via `groundOverride`). Optional hooks: `surfaceAt` (paved ground: physics surface),
   `keepsClear` (no junction barriers / marshals there), `groundOverride` (kerbs). `FlatArea.label: false` hides a
   levelled spot's map viewer label.
 - **City maps** (first used by `jackie`): one-way carriageway routing, bridges and decks of other roads (`bridge-mesh.ts`, piers,
-  parapets, drivable decks), portals (`world/portals.ts`), continuous Jersey / guard-rail barriers (`barriers.ts`), sheer
+  parapets, drivable decks), portals (`world/portals.ts`), junction plazas on a portal (`MapDef.junctionPlazas`, `world/plazas.ts`), parkway lanes (streets in the cut beside the carriageways, `MapDef.parkwayLanes`, `world/parkway-lanes.ts`), continuous Jersey / guard-rail barriers (`barriers.ts`), sheer
   retaining-wall cuts (`cut-wall-mesh.ts`), lane drops, gore areas, overhead signs, city streets with kerbs / crosswalks / lamps
   (`street-detail.ts`) and street dressing with parked and emergency vehicles. Tests: `tests/rally/bridges.test.ts`,
   `city-maps.test.ts`, `junctions.test.ts`, `side-roads.test.ts`, `water.test.ts`, `stage-signs.test.ts`.
-  Bridge handling (twin decks, parallel carriageway alignment, junction stubs, terrain cap, drivable underpasses): `maps/jackie/DETAILS.md` "Bridges: rules and mechanics".
+  Bridges, underpasses, retaining walls and street joints - rules and the bug-fix workflow: rally-maps skill "Bridges and underpasses".
+  No terrain through streets: a street ribbon holds its own height line where the land under it falls away (cut beside it,
+  trench under a portal slab; not on / under the stage road, `pathMeshesJob`), the ground under a deck end is not pitted inside
+  a junction plaza (`capUnderDecks`), a sidewalk is lifted clear of a bank beside the street, and decks on a portal slab carry
+  sidewalks (`street-detail.ts` `deck`).
 
 ## Cars
 

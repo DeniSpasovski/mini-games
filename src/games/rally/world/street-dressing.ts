@@ -32,6 +32,8 @@ export interface DressingContext {
   underpass?: (pi: number, along: number) => boolean;
   /** Sidewalk runs of the city streets (lamps stand on them), sidewalk width, lamp spacing (0 = none). */
   streetDetail?: StreetDetail;
+  /** On a junction plaza (plazas.ts): no crowd there. */
+  paved?: (x: number, z: number) => boolean;
   sidewalk?: number;
   lampEvery?: number;
 }
@@ -207,6 +209,8 @@ export function streetDressingInstances(
         const lat = side * (hw - 0.45 - rng.next() * 0.35);
         const x = pt.x + tz * lat;
         const z = pt.z - tx * lat;
+        // Not in the middle of a junction plaza (a street deck over a portal slab is no overpass to watch from).
+        if (ctx.paved?.(x, z)) continue;
         const r = nearRoad(x, z);
         place(
           'spectator',

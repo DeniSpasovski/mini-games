@@ -10,6 +10,7 @@ import { buildMapGround, disposeGround } from '../render/map-ground';
 import { HoleMesh, holeColorById } from '../render/hole-mesh';
 import { clearHoleFade, updateHoleFade } from '../render/hole-fade';
 import { ItemInstances } from '../render/item-instances';
+import { LeftoverRings } from '../render/leftover-rings';
 import { Puffs } from '../render/puffs';
 import {
   Environment,
@@ -77,6 +78,7 @@ export class HoleGame {
   private ground: Object3D | null = null;
   private holeMesh: HoleMesh;
   private instances: ItemInstances;
+  private leftovers: LeftoverRings;
   private puffs = new Puffs();
   private bufferSize = new Vector2();
   private stage = el('div', 'hg-stage');
@@ -138,6 +140,8 @@ export class HoleGame {
     this.sim = new Sim(this.map, { seconds: 1e9 });
     this.instances = new ItemInstances(this.sim.world);
     this.scene.add(this.instances.group);
+    this.leftovers = new LeftoverRings(this.sim.world);
+    this.scene.add(this.leftovers.mesh);
 
     this.controls = new Controls(this.stage, root);
     this.controls.onThreeFingerTap = () => this.toggleDebug();
@@ -255,6 +259,10 @@ export class HoleGame {
     (this as { sim: Sim }).sim = sim;
     this.instances = new ItemInstances(sim.world);
     this.scene.add(this.instances.group);
+    this.scene.remove(this.leftovers.mesh);
+    this.leftovers.dispose();
+    this.leftovers = new LeftoverRings(sim.world);
+    this.scene.add(this.leftovers.mesh);
     return sim;
   }
 
@@ -555,10 +563,23 @@ export class HoleGame {
     );
     this.fadeBuildings();
     this.animateScene();
-    this.instances.setView(this.rig.distance);
+    this.updateLeftovers();
     this.renderer.render(this.scene, this.rig.camera);
     if (this.debugEl.classList.contains('on')) this.updateDebug();
     this.updateRings();
+  }
+
+  /** Last items of a run (< `LEFTOVER_POINTS` left): pulsing rings, and drawn even when tiny for the camera. */
+  private updateLeftovers(): void {
+    const run = this.state === 'playing' || this.state === 'ending';
+    const sim = this.sim;
+    if (run)
+      this.leftovers.update(
+        sim.world.totalPoints - sim.pointsEaten,
+        this.rig.distance,
+        performance.now() / 1000,
+      );
+    this.instances.setView(this.leftovers.active ? 0 : this.rig.distance);
   }
 
   /** Drifting water and the sky dome follow the camera; both are cosmetic. */

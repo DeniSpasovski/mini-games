@@ -9,9 +9,8 @@ import { Shell, type Wall } from './wall';
  * The Mileks building (the warehouse): white rendered walls with pilasters and bands, the
  * two-storey office front with its loggia, canopy, glazed doors and fascia sign, the roll-up
  * door in the wall on the yard side, the concrete yard and the front garden behind its low wall
- * (the wall and the lot's fences are in `streetwork.ts`). Measured from the Yuma Interactive site's
- * `exterior/our-building.ts` (read-only reference) and rebuilt with real wall openings and the
- * rally's PBR materials; that scene's walls were flat boxes on a flat map.
+ * (the wall and the lot's fences are in `streetwork.ts`). Built with real wall openings
+ * and the rally's PBR materials.
  *
  * The facade was measured for a 19.1 m wide building; the real roof in the satellite image is
  * narrower, so the front and back features are scaled across (`K`), the side walls are as measured.

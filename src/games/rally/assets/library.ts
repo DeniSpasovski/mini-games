@@ -19,7 +19,7 @@ import {
   streetCar,
   taxi,
 } from './builders/vehicles';
-import { powerPole, powerPylon } from './builders/power';
+import { catenaryMast, powerPole, powerPylon } from './builders/power';
 import {
   concreteBlock,
   crashCushion,
@@ -88,6 +88,7 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   tall_weeds: tallWeeds,
   power_pylon: powerPylon,
   power_pole: powerPole,
+  catenary_mast: catenaryMast,
   village_sign: villageSign,
 };
 

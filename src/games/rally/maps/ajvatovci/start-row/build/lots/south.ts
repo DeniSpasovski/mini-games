@@ -9,8 +9,7 @@ import { fromFront } from './north';
  * The south side of the street (behind the wire fence, backs to the fields), west to east:
  * south 1 (grey depot with blue office), south 2 (white panel hall), south 3 (red-roofed hall
  * with yellow bands), south 4 (logistics centre), south 5 (two dark sheds), south 6 (grey office
- * block with a round glazed front). Details measured from the Yuma Interactive site's
- * `exterior/neighbours.ts` (read-only reference) and rebuilt with real openings.
+ * block with a round glazed front). Built with real openings.
  */
 
 const RED = '#c8322b';

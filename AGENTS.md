@@ -16,7 +16,7 @@ This is a **public, source-available repository** (educational three.js project,
 visible and redistributable by anyone, so treat every file as published.
 
 - **Project licence:** code, procedural assets, docs and screenshots = [PolyForm Noncommercial 1.0.0](LICENSE) (noncommercial use,
-  modification and sharing allowed; commercial use not). Baked map data (`maps/*/data.json`, `buildings.csv`) is derived from
+  modification and sharing allowed; commercial use not). Baked map data (`maps/*/data.json`, `buildings.csv`, `preview/stage-card.json` + its `.jpg` render) is derived from
   OpenStreetMap and stays **ODbL** (attribution + share-alike). Third-party models / data keep their own licences.
 - **Never commit a third-party file** (3D model, texture, font, sound, image, dataset) unless its licence explicitly allows
   redistribution of the file AND of derivatives (CC0, CC BY, CC BY-SA, MIT ...). "Personal use only", "Standard Digital File
@@ -93,7 +93,7 @@ notes, source links). Keep READMEs high level - move detail into `DETAILS.md`, n
 
 - `.claude/skills/new-minigame/SKILL.md` - add a new game to the portal
 - `.claude/skills/hole-content/SKILL.md` - Hole Island: add an item (catalog row + builder + tests) or a new map (bounds, zones, budget, registry, scores version)
-- `.claude/skills/rally-maps/SKILL.md` - create / edit rally maps, verify in the map viewer
+- `.claude/skills/rally-maps/SKILL.md` - create / edit rally maps, verify in the map viewer (bridges / underpasses of city maps: its "Bridges and underpasses" section)
 - `.claude/skills/rally-content/SKILL.md` - add / iterate assets and cars (procedural builders, LODs, liveries)
 - `.claude/skills/rally-car-import/SKILL.md` - import a 3D car model as a new car (starts with the LICENCE GATE): orient, split parts, convert, materials, livery, verify (checklist + gotchas; worked example `cars/skoda-rally/`)
 - `.claude/skills/rally-livery/SKILL.md` - create / change / debug a car's livery (atlas painter, chart seams, panel-line edges, checker grids; camera links, chart tinting, debug grid, `chart-probe.py`, `chartBoxes`, symptom table; worked example `cars/bimmer-m3/`)

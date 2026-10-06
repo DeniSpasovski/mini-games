@@ -291,9 +291,10 @@ export class Plates {
   ): void {
     let g = this.geo.get(tex);
     if (!g) this.geo.set(tex, (g = { pos: [], uv: [], idx: [] }));
-    // Right of the viewer facing the plate = (nz, -nx)... the plate's left (its u = 0) is at the viewer's left.
-    const rx = -nz;
-    const rz = nx;
+    // Right of the viewer facing the plate (looking along -n) = (nz, -nx): the plate's left (its u = 0) is at the
+    // viewer's left (it was (-nz, nx): every plate read mirrored).
+    const rx = nz;
+    const rz = -nx;
     const v0 = g.pos.length / 3;
     const corners: [number, number, number, number][] = [
       [-1, -1, 0, 0],
@@ -305,6 +306,7 @@ export class Plates {
       g.pos.push(x + rx * (w / 2) * u, y + (h / 2) * v, z + rz * (w / 2) * u);
       g.uv.push(tu, tv);
     }
+    // Wound counter-clockwise seen from the viewer's side (the face normal points at them).
     g.idx.push(v0, v0 + 1, v0 + 2, v0, v0 + 2, v0 + 3);
   }
   flush(group: Group): void {
@@ -770,24 +772,25 @@ function pathDecks(world: World, group: Group, tiles: TileParts): void {
       x: r.x + r.tz * (r.hw + 0.2) * side,
       z: r.z - r.tx * (r.hw + 0.2) * side,
     });
-    // Inside another deck, or on a portal slab (the slab is the structure there): no body of its own.
+    // Inside another deck, or on a portal slab / junction plaza (the slab is the structure there): no body of its own.
     const portals = gen.portals;
+    const plazas = gen.plazas;
+    const onSlab = (x: number, z: number) =>
+      portals.inside(x, z) || plazas.inside(x, z, 1);
     const last = rows[rows.length - 1];
     const cov: Coverage = {
       left: rows.map((r) => {
         const e = edge(r, 1);
-        return onOther(pi, e.x, e.z, r.y) >= 0 || portals.inside(e.x, e.z);
+        return onOther(pi, e.x, e.z, r.y) >= 0 || onSlab(e.x, e.z);
       }),
       right: rows.map((r) => {
         const e = edge(r, -1);
-        return onOther(pi, e.x, e.z, r.y) >= 0 || portals.inside(e.x, e.z);
+        return onOther(pi, e.x, e.z, r.y) >= 0 || onSlab(e.x, e.z);
       }),
       end0:
         onOther(pi, rows[0].x, rows[0].z, rows[0].y) >= 0 ||
-        portals.inside(rows[0].x, rows[0].z),
-      end1:
-        onOther(pi, last.x, last.z, last.y) >= 0 ||
-        portals.inside(last.x, last.z),
+        onSlab(rows[0].x, rows[0].z),
+      end1: onOther(pi, last.x, last.z, last.y) >= 0 || onSlab(last.x, last.z),
     };
     // Roads lying on top of each other (a ramp merging into a wide road): the narrower one is drawn a hair higher.
     let stagger = 0;
@@ -809,20 +812,31 @@ function pathDecks(world: World, group: Group, tiles: TileParts): void {
     const uv: number[] = [];
     const idx: number[] = [];
     const nor: number[] = [];
+    // Columns across (right edge first, like the stage ribbon: the winding then faces up). Inner columns keep the
+    // lane lines straight where the width tapers (two-vertex rows skew the texture into a zigzag).
+    const cols = [-1, -0.5, 0, 0.5, 1];
+    const nc = cols.length;
     rows.forEach((r, k) => {
-      // Right edge first, like the stage ribbon: the winding then faces up.
-      for (const side of [-1, 1]) {
+      for (const side of cols) {
         pos.push(
           r.x + r.tz * r.hw * side,
           r.y + 0.03 + stagger * 0.012,
           r.z - r.tx * r.hw * side,
         );
         nor.push(0, 1, 0);
-        uv.push(side < 0 ? 1 : 0, r.d / texLength(tex));
+        uv.push((1 - side) / 2, r.d / texLength(tex));
       }
-      if (k < rows.length - 1) {
-        const q = k * 2;
-        idx.push(q, q + 2, q + 3, q, q + 3, q + 1);
+      // Inside a junction plaza the plaza is the street surface.
+      if (
+        k < rows.length - 1 &&
+        !(
+          plazas.inside(r.x, r.z) && plazas.inside(rows[k + 1].x, rows[k + 1].z)
+        )
+      ) {
+        for (let c = 0; c + 1 < nc; c++) {
+          const q = k * nc + c;
+          idx.push(q, q + nc, q + nc + 1, q, q + nc + 1, q + 1);
+        }
       }
     });
     surf.setAttribute(
@@ -991,7 +1005,14 @@ function portalStructures(
         const z = r.z - r.tx * l;
         const rq = world.road.query(x, z, roadQ);
         if (rq.found && rq.distance <= rq.halfWidth) continue;
-        net.query(x, z, pq, 'tarmac', (pi) => gen.isCarriageway(pi));
+        // (the parkway's own carriageway: a lane in its own bore is behind a wall)
+        net.query(
+          x,
+          z,
+          pq,
+          'tarmac',
+          (pi) => gen.isCarriageway(pi) && !gen.isParkwayLane(pi),
+        );
         if (pq.found && pq.distance <= pq.halfWidth) {
           if (Number.isNaN(a)) a = l;
           b = l;
@@ -1035,6 +1056,8 @@ function portalStructures(
         const x = r.x + r.tz * r.hw * side;
         const z = r.z - r.tx * r.hw * side;
         if (!net) return false;
+        // Paved over by a junction plaza: the street continues at grade beyond the edge.
+        if (gen.plazas.inside(x, z, 1)) return true;
         net.query(x, z, pq, 'tarmac', isDeck);
         return pq.found && pq.distance <= pq.halfWidth + 0.6;
       });
@@ -1149,6 +1172,27 @@ function portalStructures(
       });
     }
   }
+  // Tunnel walls between the parkway lanes and the parkway: from below the road up to the soffit.
+  for (const run of world.laneWalls)
+    for (let i = 0; i + 1 < run.length; i++) {
+      const a = run[i];
+      const b = run[i + 1];
+      const dx = b.x - a.x;
+      const dz = b.z - a.z;
+      const L = Math.hypot(dx, dz) || 1;
+      const { conc } = parts(a.x, a.z);
+      conc.box(
+        (a.x + b.x) / 2,
+        (a.z + b.z) / 2,
+        dx / L,
+        dz / L,
+        L / 2 + 0.03,
+        0.25,
+        Math.min(a.y, b.y) - 0.4,
+        Math.min(a.top, b.top) - SLAB_T,
+        CONC,
+      );
+    }
 }
 const roadQ = newRoadQuery();
 

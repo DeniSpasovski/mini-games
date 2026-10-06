@@ -6,7 +6,7 @@ import type {
 import type { StaticCollider } from '../physics/types';
 import type { TerrainSampler } from './heightfield';
 import type { Junction } from './junctions';
-import type { PathNetwork } from './real-data';
+import { newPathQuery, type PathNetwork } from './real-data';
 import type { Road } from './road';
 
 /**
@@ -161,6 +161,7 @@ export function overheadSigns(
   for (const s of def.signs ?? [])
     plans.push({ along: s.along, span: s.span ?? 'portal', boards: s.boards });
 
+  const postQ = newPathQuery();
   for (const p of plans) {
     const s = road.at(p.along);
     const drop = (lat: number): number => {
@@ -169,13 +170,27 @@ export function overheadSigns(
       return s.y - ground.height(x, z);
     };
     const edge = s.halfWidth + POST_CLEAR;
+    // A post never stands on another road (the opposite carriageway, a ramp, a service road beside the parkway):
+    // it steps outward until it is clear of every road surface.
+    const clear = (side: 1 | -1): number => {
+      let lat = side * edge;
+      for (let k = 0; net && k < 200; k++) {
+        const x = s.x + s.tz * lat;
+        const z = s.z - s.tx * lat;
+        net.query(x, z, postQ, 'tarmac');
+        // 0.5 m: a post fits the barrier gap between two roads.
+        if (!postQ.found || postQ.distance > postQ.halfWidth + 0.5) break;
+        lat += side * 0.1;
+      }
+      return lat;
+    };
     const posts =
       p.span === 'portal'
-        ? [
-            { lateral: edge, drop: drop(edge) },
-            { lateral: -edge, drop: drop(-edge) },
-          ]
-        : [{ lateral: -edge, drop: drop(-edge) }];
+        ? [clear(1), clear(-1)].map((lateral) => ({
+            lateral,
+            drop: drop(lateral),
+          }))
+        : [{ lateral: clear(-1), drop: drop(clear(-1)) }];
     // Boards: a cantilever hangs its boards over the right half of the road; a portal spreads them across.
     const boards = p.boards.map((def2, i) => {
       const k = p.boards.length;

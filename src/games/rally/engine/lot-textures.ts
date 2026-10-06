@@ -25,6 +25,7 @@ export type LotTextureId =
   | 'lot_solar'
   | 'lot_barrier'
   | 'lot_sign_mileks'
+  | 'lot_sign_station'
   | 'lot_ashlar'
   | 'lot_rubble'
   | 'lot_roof_tiles';
@@ -688,6 +689,26 @@ export const LOT_DEFS: Record<LotTextureId, LotTexDef> = {
       ctx.fillText('MILEKS-AS', w / 2, h / 2 + 4);
       ctx.fillStyle = '#1f7f86';
       ctx.fillRect(0, h - 6, w, 6);
+    },
+  },
+  lot_sign_station: {
+    // 6 : 1 station name board (Ilinden): white Cyrillic name over the Latin one on railway blue, white border.
+    // A place name only - no operator logo.
+    name: 'Lot: Ilinden station name board',
+    size: [1024, 192],
+    color: true,
+    draw(ctx, w, h) {
+      ctx.fillStyle = '#f2f2ee';
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#1d4f91';
+      ctx.fillRect(8, 8, w - 16, h - 16);
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '700 92px "Arial Narrow", Arial, Helvetica, sans-serif';
+      ctx.fillText('ИЛИНДЕН', w / 2, h * 0.38);
+      ctx.font = '600 50px "Arial Narrow", Arial, Helvetica, sans-serif';
+      ctx.fillText('ILINDEN', w / 2, h * 0.78);
     },
   },
   lot_ashlar: {

@@ -7,6 +7,7 @@ import {
   STONE,
   type Row,
 } from './bridge-mesh';
+import { SLAB_T } from './portals';
 import { newRoadQuery } from './road';
 import { newPathQuery } from './real-data';
 import {
@@ -38,6 +39,8 @@ const STREETS = new Set([
 ]);
 /** Walls lower than this are not built (the terrain slope reads fine) (m). */
 const MIN_H = 0.9;
+/** Underpass wall lines run this far past the ends of their way (m): a small overlap at the mitred joints. */
+const WALL_EXT = 0.3;
 /** Longest piece of one mesh (m of road). */
 const PIECE = 120;
 /** Chain-link fence on a concrete wall: height (m), post spacing (m), mesh texture repeat (m). */
@@ -82,6 +85,8 @@ interface WallRow {
 /** A road the walls follow: the stage road or a carriageway path. */
 interface Line {
   length: number;
+  /** The path this line runs beside (none = the stage road). */
+  path?: number;
   at(d: number): {
     x: number;
     z: number;
@@ -121,6 +126,7 @@ export function* cutWallMeshJob(
 
   // A wall under a deck stops below its soffit: its top (and the coping walk) must never come up through the road above.
   const dq = newPathQuery();
+  const oq = newPathQuery();
   const soffitAt = (x: number, z: number): number => {
     let y = Infinity;
     const stage = gen.deckHeightAt(x, z);
@@ -204,8 +210,15 @@ export function* cutWallMeshJob(
     );
     cope.strip(cr, [sgn * 0.2, 0.14, 0], [sgn * 0.2, 0, 0], copeCol);
     // Railing / fence on the coping (set back 0.3 m from the face), on walls a driver can see over the parapet of.
-    const high = rows.filter((r) => r.fence && r.top - r.y >= 1.4);
-    if (high.length >= 2) {
+    // One railing per run of consecutive fenced rows: filtering them into one list drew a single railing straight
+    // across every gap (the rim fence ran over the junction plaza on top of a portal slab).
+    const runs: WallRow[][] = [[]];
+    for (const r of rows) {
+      if (r.fence && r.top - r.y >= 1.4) runs[runs.length - 1].push(r);
+      else if (runs[runs.length - 1].length) runs.push([]);
+    }
+    for (const high of runs) {
+      if (high.length < 2) continue;
       const rr: Row[] = high.map((r) => {
         const l = r.lat + Math.sign(r.lat) * 0.3;
         const p = at(r, l);
@@ -313,19 +326,59 @@ export function* cutWallMeshJob(
         return;
       const L = net.lengths[pi];
       if (L < 8) return;
+      // Direction of the underpass way that continues each end (start, end), pointing the same way as this one.
+      const joint: ([number, number] | undefined)[] = [undefined, undefined];
+      if (under)
+        for (const [ei, at] of [
+          [0, 0],
+          [1, L],
+        ] as const) {
+          net.pointAt(pi, at, pa);
+          net.paths.forEach((_q, qi) => {
+            if (qi === pi || !gen.isUnderpass(qi)) return;
+            const QL = net.lengths[qi];
+            for (const qEnd of [false, true]) {
+              net.pointAt(qi, qEnd ? QL : 0, pb);
+              if (Math.hypot(pb.x - pa.x, pb.z - pa.z) > 0.5) continue;
+              const c = { x: 0, z: 0 };
+              net.pointAt(qi, qEnd ? QL - 3 : 3, c);
+              // Away from the joint along q; flip so it continues this way's direction.
+              let dx = c.x - pb.x;
+              let dz = c.z - pb.z;
+              if (ei === 0) [dx, dz] = [-dx, -dz];
+              const n = Math.hypot(dx, dz) || 1;
+              joint[ei] = [dx / n, dz / n];
+            }
+          });
+        }
       lines.push({
         length: L,
+        path: pi,
         at: (d) => {
           net.pointAt(pi, Math.max(0, d - 1.5), pa);
           net.pointAt(pi, Math.min(L, d + 1.5), pb);
           const tl = Math.hypot(pb.x - pa.x, pb.z - pa.z) || 1;
-          const tx = (pb.x - pa.x) / tl;
-          const tz = (pb.z - pa.z) / tl;
+          let tx = (pb.x - pa.x) / tl;
+          let tz = (pb.z - pa.z) / tl;
+          // At a joint with the next way of the street the end is mitred to the mean direction: both walls end on
+          // one face point (square ends left a slot / a fin at every bend).
+          const j = d >= L - 1.5 ? joint[1] : d <= 1.5 ? joint[0] : undefined;
+          if (j) {
+            const k =
+              1 - Math.min(1, Math.max(0, d >= L - 1.5 ? L - d : d) / 1.5);
+            tx += (j[0] - tx) * 0.5 * k;
+            tz += (j[1] - tz) * 0.5 * k;
+            const n = Math.hypot(tx, tz) || 1;
+            tx /= n;
+            tz /= n;
+          }
           net.pointAt(pi, d, pa);
+          // Past an end (underpass lines overrun their way by WALL_EXT): along the end tangent.
+          const over = d < 0 ? d : d > L ? d - L : 0;
           return {
-            x: pa.x,
-            z: pa.z,
-            y: gen.pathHeight(pi, d),
+            x: pa.x + tx * over,
+            z: pa.z + tz * over,
+            y: gen.pathHeight(pi, Math.min(L, Math.max(0, d))),
             tx,
             tz,
             hw: net.halfWidthAt(pi, d),
@@ -351,7 +404,13 @@ export function* cutWallMeshJob(
     for (const side of [1, -1] as const) {
       let rows: WallRow[] = [];
       let gap = 0;
-      for (let d = 0; d <= line.length; d += STEP) {
+      // Underpass walls overrun their way's ends: at a joint the next way's wall starts at another angle, square ends
+      // left a wedge-shaped slot in the wall.
+      const ext = line.straight ? WALL_EXT : 0;
+      const last = line.length + ext;
+      for (let d0 = -ext; d0 < last + STEP - 1e-6; d0 += STEP) {
+        // The last sample is always the line's end (2 m steps stopped up to 2 m short: a slot at every joint).
+        const d = Math.min(d0, last);
         const s = line.at(d);
         let top = NaN;
         let lat = side * (s.hw + line.offset - 0.05);
@@ -389,6 +448,15 @@ export function* cutWallMeshJob(
                 top,
                 parkwayCap(s.x + s.tz * lat, s.z - s.tx * lat),
               );
+            // Under a portal slab: below its soffit (the coping stood up through the street / junction box on top).
+            const ph = gen.portals.at(s.x + s.tz * lat, s.z - s.tx * lat);
+            if (
+              ph &&
+              ph.outside === 0 &&
+              ph.lateral <= ph.latL + 1 &&
+              ph.lateral >= ph.latR - 1
+            )
+              top = Math.min(top, ph.top - SLAB_T);
             // The face stands well in front of where the land actually rises - the mesh smears a
             // step over a cell, and a street at the rim overlapping the carriageway's edge can pull the step closer
             // than the wall line - never closer to the road than the verge.
@@ -408,6 +476,35 @@ export function* cutWallMeshJob(
                 break;
               }
             }
+          }
+        }
+        // Never on another road: a ramp merging beside the parkway, a street at a junction mouth (the fence stood
+        // across the merge lane).
+        if (!Number.isNaN(top) && net) {
+          const fx = s.x + s.tz * lat;
+          const fz = s.z - s.tx * lat;
+          net.query(
+            fx,
+            fz,
+            oq,
+            'tarmac',
+            (qi) => qi !== line.path && !net.paths[qi].bridge,
+          );
+          if (
+            oq.found &&
+            oq.distance <= oq.halfWidth + 0.3 &&
+            Math.abs(gen.pathHeight(oq.path, oq.along) - s.y) < 2
+          )
+            top = NaN;
+          // ... nor on the stage road / its shoulder (an underpass wall's end reached into the parkway's edge).
+          if (line.path !== undefined && !Number.isNaN(top)) {
+            road.query(fx, fz, wq);
+            if (
+              wq.found &&
+              !road.bridgeAt(wq.along) &&
+              wq.distance <= wq.halfWidth + def.shoulder + 0.5
+            )
+              top = NaN;
           }
         }
         // A straight (underpass) wall does not open for a single sample that misses the test: hold the last top.
@@ -440,9 +537,12 @@ export function* cutWallMeshJob(
           back,
           top,
           concrete,
-          fence: !line.noFence,
+          // (not where a junction plaza paves over the wall top: the street continues at grade there)
+          fence:
+            !line.noFence &&
+            !gen.plazas.inside(s.x + s.tz * lat, s.z - s.tx * lat, 1),
         });
-        if (d % 100 === 0) yield;
+        if (Math.round(d + ext) % 100 === 0) yield;
       }
       build(rows);
       yield;

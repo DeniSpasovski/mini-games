@@ -56,6 +56,15 @@ export interface StreetContext {
   blocked: (x: number, z: number, r: number) => boolean;
   /** The street lies down in an underpass trench at `a` m: the roads above it (stage road, carriageways) are no obstacle. */
   underpass?: (path: number, along: number) => boolean;
+  /** No kerbs / sidewalks / crosswalks on this street (a lane in the highway's cut). */
+  skip?: (path: number) => boolean;
+  /** On a junction plaza (plazas.ts), or within `pad` m of it: no sidewalks there, crosswalks at its edge. */
+  plaza?: (x: number, z: number, pad?: number) => boolean;
+  /**
+   * A street deck on a portal slab (the street at the structure's level): it has sidewalks like the ground street,
+   * the roads beneath it are no obstacle.
+   */
+  deck?: (path: number) => boolean;
 }
 
 export function streetDetail(
@@ -86,16 +95,36 @@ export function streetDetail(
   const eligible = (pi: number) => {
     const p = net.paths[pi];
     return (
-      !p.bridge &&
+      (!p.bridge || !!ctx.deck?.(pi)) &&
+      !ctx.skip?.(pi) &&
       p.surface === 'tarmac' &&
       STREET_KINDS.has(p.kind) &&
       net.lengths[pi] >= 14
     );
   };
+  // An end where exactly one other street way continues (an OSM joint, no junction): the sidewalk runs on.
+  const joint = (pi: number, atEnd: boolean): boolean => {
+    const k = atEnd ? 2 : 0;
+    const x = ends[pi][k];
+    const z = ends[pi][k + 1];
+    let n = 0;
+    let street = true;
+    ends.forEach((e, qi) => {
+      if (qi === pi) return;
+      for (const j of [0, 2])
+        if (Math.hypot(e[j] - x, e[j + 1] - z) < 2.5) {
+          n++;
+          street &&= eligible(qi);
+        }
+    });
+    return n === 1 && street;
+  };
   net.paths.forEach((p, pi) => {
     if (!eligible(pi)) return;
     const L = net.lengths[pi];
     const hw = p.width / 2;
+    const lo = joint(pi, false) ? -1 : 3;
+    const hi = joint(pi, true) ? L + 1 : L - 3;
     for (const side of [1, -1] as const) {
       let start = -1;
       for (let a = 0; a <= L + 1e-6; a += STEP) {
@@ -105,9 +134,9 @@ export function streetDetail(
         const tx = (nx.x - pt.x) / tl;
         const tz = (nx.z - pt.z) / tl;
         net.pointAt(pi, a, pt);
-        let ok =
-          ctx.roadDistance(pt.x, pt.z) <= cfg.reach && a > 3 && a < L - 3;
+        let ok = ctx.roadDistance(pt.x, pt.z) <= cfg.reach && a > lo && a < hi;
         const below = !!ctx.underpass?.(pi, a);
+        const over = !!ctx.deck?.(pi);
         if (ok) {
           // Kerb line and the outer edge of the sidewalk must be clear of other roads, the stage road, buildings
           // (not of the roads above an underpass: they pass over it).
@@ -116,7 +145,7 @@ export function streetDetail(
             const x = pt.x + tz * lat;
             const z = pt.z - tx * lat;
             road.query(x, z, rq);
-            if (!below && rq.found && rq.distance <= rq.halfWidth + 3)
+            if (!below && !over && rq.found && rq.distance <= rq.halfWidth + 3)
               ok = false;
             net.query(
               x,
@@ -129,18 +158,38 @@ export function streetDetail(
                 !continues(pi, qi) &&
                 !(below && /^(motorway|trunk)/.test(net.paths[qi].kind)),
             );
-            if (pq.found && pq.distance <= pq.halfWidth + 0.4) ok = false;
+            if (!over && pq.found && pq.distance <= pq.halfWidth + 0.4)
+              ok = false;
             if (ctx.blocked(x, z, 0.15)) ok = false;
+            if (ctx.plaza?.(x, z, 1)) ok = false;
             if (!ok) break;
           }
         }
         if (ok && start < 0) start = a;
         if ((!ok || a + STEP > L) && start >= 0) {
-          const end = ok ? a : a - STEP;
+          // Through a joint the run reaches the way's very end (the 2 m samples stopped short: a hole at the joint).
+          const end = ok ? (hi > L && a + STEP > L ? L : a) : a - STEP;
           if (end - start >= MIN_RUN)
             runs.push({ path: pi, side, from: start, to: end });
           start = -1;
         }
+      }
+    }
+    // Crosswalks where the street enters a junction plaza: just outside its edge (the plaza is the junction box).
+    if (ctx.plaza) {
+      let prev = false;
+      for (let a = 0; a <= L + 1e-6; a += 1) {
+        net.pointAt(pi, Math.min(a, L), pt);
+        const inside = ctx.plaza(pt.x, pt.z);
+        if (a > 0 && inside !== prev) {
+          // Entering (inside now): the crosswalk before it; leaving: after it.
+          const at = inside
+            ? a - 1 - CROSS_LEN / 2 - 0.5
+            : a + CROSS_LEN / 2 + 0.5;
+          if (at > CROSS_LEN && at < L - CROSS_LEN && p.width >= 4)
+            crossings.push({ path: pi, at, atEnd: inside });
+        }
+        prev = inside;
       }
     }
     // Crosswalks where this street ends at another street (T junction), a few metres before the junction.
@@ -158,6 +207,7 @@ export function streetDetail(
         (qi) => qi !== pi && !net.paths[qi].bridge && !continues(pi, qi),
       );
       if (!pq.found || pq.distance > pq.halfWidth + 1) continue;
+      if (ctx.plaza?.(pt.x, pt.z, CROSS_SETBACK + CROSS_LEN)) continue; // the plaza edge has its own
       // Wide enough street, and room for the crosswalk.
       if (L < CROSS_SETBACK * 2 + 4 || p.width < 4) continue;
       crossings.push({

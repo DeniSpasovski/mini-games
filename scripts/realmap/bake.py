@@ -770,6 +770,45 @@ def lake_polygons(ways, rels, nodes, proj, ext, min_area=150.0):
     return out
 
 
+def railway_lines(ways, nodes, proj, ext, pad=300.0):
+    """OSM `railway=rail` ways (main lines, sidings, spurs; not tunnels) inside the baked box + `pad` m, clipped to it:
+    {pts, electrified?, service?}. Rail bridges are kept as ordinary track (the game bridges small channels with the
+    track bed); `service` = OSM siding / spur / yard (no catenary unless tagged electrified)."""
+    out = []
+    lo_x, hi_x, lo_z, hi_z = ext[0] - pad, ext[1] + pad, ext[2] - pad, ext[3] + pad
+    for w in ways.values():
+        t = w['tags']
+        if t.get('railway') != 'rail' or t.get('tunnel') not in (None, 'no'):
+            continue
+        pts = np.array([proj.fwd(*nodes[r]) for r in w['refs'] if r in nodes])
+        if len(pts) < 2:
+            continue
+        inside = (pts[:, 0] > lo_x) & (pts[:, 0] < hi_x) & (pts[:, 1] > lo_z) & (pts[:, 1] < hi_z)
+        if not inside.any():
+            continue
+        # Keep the inside run(s) plus one point beyond each end, so the track leaves the box instead of stopping short.
+        keep = inside | np.r_[inside[1:], False] | np.r_[False, inside[:-1]]
+        run = []
+        for k, p in zip(keep, pts):
+            if k:
+                run.append(p)
+                continue
+            if len(run) > 1:
+                out.append((run, t))
+            run = []
+        if len(run) > 1:
+            out.append((run, t))
+    rows = []
+    for run, t in out:
+        row = {'pts': np.array(run).round(1).ravel().tolist()}
+        if t.get('electrified') not in (None, 'no'):
+            row['electrified'] = True
+        if t.get('service'):
+            row['service'] = t['service']
+        rows.append(row)
+    return rows
+
+
 def main():
     cfg_path = sys.argv[1]
     preview = '--preview' in sys.argv
@@ -895,7 +934,7 @@ def main():
         t = w['tags']
         hw, ww = t.get('highway'), t.get('waterway')
         is_tunnel = t.get('tunnel') in ('yes', 'building_passage', 'culvert') and ww is None
-        if is_tunnel and hw not in big_kinds:
+        if is_tunnel and hw not in big_kinds + ('primary', 'secondary'):
             continue  # underground: nothing to draw on the surface
         if hw in widths:
             kind = hw
@@ -919,8 +958,16 @@ def main():
             continue  # a piece of the stage road itself (the route follows it)
         pts = resample(pts, 4.0)
         d, ri = route_kd.query(pts)
-        if is_tunnel and np.percentile(d, 10) > 40:
-            continue  # a motorway tunnel away from the stage road
+        # Beside the stage road and parallel to it all along (the sunken service lanes of a parkway, e.g. the inner
+        # Union Turnpike beside the Jackie): kept whole like a carriageway, never cut short as a side road.
+        beside = False
+        if surface != 'water' and len(pts) > 2 and np.percentile(d, 90) < 30:
+            rt = smooth[np.minimum(ri + 1, len(smooth) - 1)] - smooth[np.maximum(ri - 1, 0)]
+            wt = np.gradient(pts, axis=0)
+            cos = np.abs((rt * wt).sum(1)) / (np.linalg.norm(rt, axis=1) * np.linalg.norm(wt, axis=1) + 1e-9)
+            beside = float(np.mean(cos > 0.95)) > 0.8 and float(np.percentile(d, 10)) > stage_hw + 0.5
+        if is_tunnel and (np.percentile(d, 10) > 40 or (hw not in big_kinds and not beside)):
+            continue  # a tunnel away from the stage road (or a street crossing under it)
         # The stage road runs through its own tunnels as an `under` span (portal structure); the other carriageway
         # of the divided highway beside it is kept as an ordinary path in that trench, else it ends at the portal.
         is_deck = t.get('bridge') not in (None, 'no')
@@ -945,7 +992,7 @@ def main():
             if sp['kind'] == 'bridge':
                 under_bridge |= (acc[ri] >= sp['from'] - 4) & (acc[ri] <= sp['to'] + 4)
         # Mainline carriageways beside the stage road are kept whole (only pieces ON the route are cut).
-        cut = (d <= 2.5) if mainline else near
+        cut = (d <= 2.5) if mainline or beside else near
         cutoff = cut & ~under_bridge if not is_deck else np.zeros(len(pts), bool)
         keep = ~cutoff | (surface == 'water')
         lim = hw_corridor if kind in big_kinds else corridor
@@ -1023,6 +1070,8 @@ def main():
     for w in ways.values():
         if w['tags'].get('power') in ('line', 'minor_line'):
             lines.append(np.array([proj.fwd(*nodes[r]) for r in w['refs']]).round(1).ravel().tolist())
+    railways = railway_lines(ways, nodes, proj, ext)
+    print(f'  {len(railways)} railway way(s), {sum(1 for r in railways if r.get("electrified"))} electrified')
 
     data = {
         'meta': {
@@ -1032,7 +1081,7 @@ def main():
             'sources': [
                 elev_credit,
                 'Land cover: ESA WorldCover 10 m 2021 v200 (CC BY 4.0)',
-                'Roads, land use, buildings, power: (c) OpenStreetMap contributors (ODbL)',
+                'Roads, railways, land use, buildings, power: (c) OpenStreetMap contributors (ODbL)',
             ],
             'axes': '+X east, +Z south (north = -Z), metres from origin',
             'routeLength': round(length, 1),
@@ -1058,6 +1107,7 @@ def main():
         'lakes': lakes,
         'pylons': pylons,
         'powerLines': lines,
+        'railways': railways,
     }
     out = os.path.join(ROOT, cfg['out'])
     with open(out, 'w') as f:

@@ -136,10 +136,10 @@ export const southEdge = (name: SouthLine): { front: Corner; back: Corner } => {
 
 /**
  * Real roofs of the north row, west to east (corner order NW, NE, SE, SW), and of the two south
- * sheds. The traced Yuma Interactive footprints were close; these follow the image.
+ * sheds. These follow the satellite image.
  */
 export const ROOFS = {
-  /** BETASPED: warehouse + the lower office strip along its street front. */
+  /** North 1: warehouse + the lower office strip along its street front. */
   north1: rect(quad([552, 272], [718, 315], [666, 563], [500, 520])),
   /** Car service (workshop) and the red-roofed building behind it. */
   north2: rect(quad([735, 461], [795, 462], [796, 508], [736, 509])),

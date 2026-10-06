@@ -96,6 +96,8 @@ export function barrierRuns(
   road: Road,
   rules: readonly BarrierRule[],
   junctions: readonly { along: number; width: number; side: 1 | -1 }[] = [],
+  /** The barrier point (x, z) at `along` stands on another road at the road's level (a ramp merging alongside). */
+  onRoad?: (x: number, z: number, along: number) => boolean,
 ): BarrierRun[] {
   const out: BarrierRun[] = [];
   for (const rule of rules) {
@@ -119,6 +121,11 @@ export function barrierRuns(
           )
         )
           ok = false;
+        if (ok && onRoad) {
+          const f = road.at(a);
+          const lat = side * (f.halfWidth + rule.offset);
+          if (onRoad(f.x + f.tz * lat, f.z - f.tx * lat, a)) ok = false;
+        }
         if (ok && start < 0) start = a;
         if ((!ok || a + STEP > hi + 1e-6) && start >= 0) {
           // A run ends AT the first sample it no longer holds: the next rule's run (bridge / open road) starts there.
@@ -148,6 +155,10 @@ export function pathBarrierRuns(
   road: Road,
   isDeck: (path: number) => boolean,
   rule: PathBarrierRule,
+  /** Paved over (a junction plaza on a portal slab, plazas.ts): no barrier. */
+  paved?: (x: number, z: number) => boolean,
+  /** Roads in the highway's cut beside the carriageways (MapDef.parkwayLanes): mainline too. */
+  isLane?: (path: number) => boolean,
 ): BarrierRun[] {
   const out: BarrierRun[] = [];
   const reach = rule.medianReach ?? 40;
@@ -158,8 +169,8 @@ export function pathBarrierRuns(
     const q = net.paths[qi];
     return (
       !isDeck(qi) &&
-      rule.kinds.includes(q.kind) &&
-      q.width >= (rule.minWidth ?? 0)
+      ((rule.kinds.includes(q.kind) && q.width >= (rule.minWidth ?? 0)) ||
+        !!isLane?.(qi))
     );
   };
   // Paths that continue path `pi` end to end (one carriageway split into several OSM ways).
@@ -218,6 +229,7 @@ export function pathBarrierRuns(
         road.query(bp.x, bp.z, rq);
         if (rq.found && rq.distance <= rq.halfWidth + 1.2) continue;
         if (probe(pi, bp.x, bp.z)) continue;
+        if (paved?.(bp.x, bp.z)) continue;
         // Median side: the stage road or another mainline carriageway lies across the median.
         let median = false;
         for (let m = 5; m <= reach && !median; m += 4) {
@@ -235,6 +247,8 @@ export function pathBarrierRuns(
             if (pq.found && pq.distance <= pq.halfWidth) median = true;
           }
         }
+        // A parkway lane's inner side: the roadway beside it (stage road / carriageway) has the wall there.
+        if (median && isLane?.(pi)) continue;
         const r = median ? rule.median : rule.outer;
         state[i] = r.kind === 'jersey' ? 1 : 2;
       }
@@ -287,7 +301,10 @@ export function barrierPoint(
   // left = (tz, -tx)
   const x = s.x + s.tz * lat;
   const z = s.z - s.tx * lat;
-  return { x, z, y: ground.height(x, z), tx: s.tx, tz: s.tz };
+  // Under a portal slab the surface sampler reads the slab top: a stage-road barrier stands on the road there.
+  let y = ground.height(x, z);
+  if (run.path === undefined && y > s.y + 1) y = s.y;
+  return { x, z, y, tx: s.tx, tz: s.tz };
 }
 
 /** Box colliders along every run (one per ~4 m, following the curve). */

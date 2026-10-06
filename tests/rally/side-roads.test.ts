@@ -53,8 +53,9 @@ describe.each(
   /** Calls fn at every `step` m of each road, away from the stage road and other roads' crossings. */
   function along(step: number, fn: (pi: number, a: number) => void) {
     net.paths.forEach((p, pi) => {
-      // Bridge decks are not ground: the terrain under them is something else.
-      if (p.width < 3 || p.bridge || stub(pi)) return;
+      // Bridge decks are not ground: the terrain under them is something else. Railways have a ballast hump
+      // (railways.test.ts).
+      if (p.width < 3 || p.bridge || p.kind === 'rail' || stub(pi)) return;
       for (let a = 0; a <= net.lengths[pi]; a += step) {
         net.pointAt(pi, a, pt);
         if (net.query(pt.x, pt.z, pq).path !== pi) continue;
