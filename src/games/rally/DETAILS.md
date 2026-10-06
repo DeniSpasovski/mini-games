@@ -40,7 +40,7 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 |          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist           |
 |          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F8` autopilot, `F9` save the portal thumbnail (dev)      |
 | Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B |
-| Touch    | on-screen steer arrows, BRAKE / GAS and pause, landscape only (`game/touch-controls.ts`)                                   |
+| Touch    | on-screen steer arrows, BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                    |
 
 ## Game flow
 

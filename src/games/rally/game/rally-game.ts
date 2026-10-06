@@ -435,6 +435,29 @@ export class RallyGame {
     this.setPaused(false);
   }
 
+  /** Put the car back on the road (R / B button / touch + pause-menu button); costs a penalty while the stage runs. */
+  resetToRoad(): void {
+    const v = this.vehicle;
+    if (this.paused || this.stage.phase === 'countdown') return;
+    if (this.stage.phase === 'running') {
+      // Back onto the stretch of stage around the progress (never a later leg).
+      const along = this.stage.resetAlong(v.position.x, v.position.z);
+      this.placeOnRoad(along);
+      this.stage.rejoin(along);
+      this.stage.addPenalty(PENALTY_RESET);
+      this.hud.message(`RESET +${PENALTY_RESET}s`, 1.5, 'small bad');
+    } else {
+      const s = this.world.resetSpawn(
+        v.position.x,
+        v.position.z,
+        this.stage.progress,
+      );
+      v.reset(s.position, s.heading);
+      this.tyreMarks.breakStrips();
+      this.rig.snap();
+    }
+  }
+
   private onAction(a: InputAction): void {
     const v = this.vehicle;
     switch (a) {
@@ -442,24 +465,7 @@ export class RallyGame {
         this.setPaused(!this.paused);
         break;
       case 'reset':
-        if (this.paused || this.stage.phase === 'countdown') return;
-        if (this.stage.phase === 'running') {
-          // Back onto the stretch of stage around the progress (never a later leg).
-          const along = this.stage.resetAlong(v.position.x, v.position.z);
-          this.placeOnRoad(along);
-          this.stage.rejoin(along);
-          this.stage.addPenalty(PENALTY_RESET);
-          this.hud.message(`RESET +${PENALTY_RESET}s`, 1.5, 'small bad');
-        } else {
-          const s = this.world.resetSpawn(
-            v.position.x,
-            v.position.z,
-            this.stage.progress,
-          );
-          v.reset(s.position, s.heading);
-          this.tyreMarks.breakStrips();
-          this.rig.snap();
-        }
+        this.resetToRoad();
         break;
       case 'camera':
         this.rig.next();
