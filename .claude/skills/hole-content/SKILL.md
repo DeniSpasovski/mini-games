@@ -55,7 +55,7 @@ so bump that map's scoring version (below).
 1. A generator `map/<id>/generate.ts` returning `MapData` (`map/types.ts`): `placements`, `rects` (flat floor patches),
    `start`, and either `coast` (island) or `bounds` (`hx`, `hz`, `inset`, `door`) for a closed rectangle. Deterministic
    (`src/shared/rng.ts`), DOM-free.
-2. **Exact point total** per map (City Island 30 000, Toy Emporium 25 000): fill, then trim small items / top up with 1-point fillers
+2. **Exact point total** per map (City Island 30 000, Toy Emporium 22 000): fill, then trim small items / top up with 1-point fillers
    (`balancePoints` in `map/generate.ts` and `map/toy/generate.ts`). Every tier 1-25 and level 1-15 has >= 2 types placed,
    every type up to tier 20 is placed, the start has > 15 tier 1-3 items within 25 m, total >= 2 x `cumulativeXp(15)`.
 3. **Pace it with the bot** (`sim/bot.ts`, `balance.html?map=<id>`): good bot, Hard 120 s reaches level >= 10, Medium

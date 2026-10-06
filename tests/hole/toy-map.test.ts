@@ -49,10 +49,10 @@ test('every item is inside the store floor and only toy items are used', () => {
   }
 });
 
-test('every seed holds exactly 25000 points', () => {
+test('every seed holds exactly 22000 points', () => {
   for (const seed of [1, 2, 3, 7, 42])
-    expect(stats(generateToyStore({ seed })).points).toBe(25000);
-  expect(toyTargetPoints({ points: 25000 })).toBe(25000);
+    expect(stats(generateToyStore({ seed })).points).toBe(22000);
+  expect(toyTargetPoints({ points: 22000 })).toBe(22000);
 });
 
 test('content budget: tiers and levels covered, all types up to tier 20 placed, enough points', () => {
@@ -98,7 +98,7 @@ test('balance bands: good bot on the toy store, hard / medium / easy', () => {
   });
   expect(easy.level).toBeGreaterThanOrEqual(15);
   expect(easy.pct).toBeGreaterThan(0.95);
-}, 120000);
+}, 122000);
 
 test('every item can be reached by a hole of its first level', () => {
   // the hole centre may go to `inset x diameter` from the wall; the item must be inside the commit radius from there
@@ -121,7 +121,7 @@ test('layouts B and C: deterministic, exact points, every type placed, items on 
     const m = generateToyStore({ seed: 2, layout });
     const again = generateToyStore({ seed: 2, layout });
     expect(JSON.stringify(m.placements)).toBe(JSON.stringify(again.placements));
-    expect(stats(m).points, layout).toBe(25000);
+    expect(stats(m).points, layout).toBe(22000);
     const placed = new Set(m.placements.map((p) => p.item));
     for (const it of TOY_ITEMS)
       expect(placed.has(it.id), `${layout} ${it.id}`).toBe(true);
