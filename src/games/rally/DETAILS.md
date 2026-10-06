@@ -60,7 +60,7 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 - **Sectors:** one bar segment per sector, amber while running, green / red against your best run.
 - **Cutting** (`StageTimer.updateCut`): up to `CUT_WARN` (20 m off the road edge) is allowed. Past it the HUD shows `OFF STAGE`
   and a grace timer runs; when it ends, or past `CUT_MAX`, or on a later part of the road, the car is put back where it left.
-- **Penalties:** manual reset +2 s, forced reset +5 s. Knocked-over marker posts (`breakable` assets, `world/breakables.ts`)
+- **Penalties:** manual reset +2 s (+10 s when flipped), forced reset +5 s. Knocked-over marker posts (`breakable` assets, `world/breakables.ts`)
   are free: the car drives over them and they tip over until the stage restarts.
 - **Finish:** the car brakes itself to a stop on the run-off (`finishStopControls()`), so every map needs a run-off. The
   autopilot (`F8`, finish stop) runs per 240 Hz physics step, exactly as in the tests.

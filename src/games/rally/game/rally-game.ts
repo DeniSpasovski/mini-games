@@ -54,6 +54,8 @@ import {
   formatTime,
   PENALTY_CUT,
   PENALTY_RESET,
+  PENALTY_RESET_FLIPPED,
+  FLIPPED_UP_Y,
   StageTimer,
   type StageEvent,
   TIMES_VERSION,
@@ -444,8 +446,10 @@ export class RallyGame {
       const along = this.stage.resetAlong(v.position.x, v.position.z);
       this.placeOnRoad(along);
       this.stage.rejoin(along);
-      this.stage.addPenalty(PENALTY_RESET);
-      this.hud.message(`RESET +${PENALTY_RESET}s`, 1.5, 'small bad');
+      const penalty =
+        v.up.y < FLIPPED_UP_Y ? PENALTY_RESET_FLIPPED : PENALTY_RESET;
+      this.stage.addPenalty(penalty);
+      this.hud.message(`RESET +${penalty}s`, 1.5, 'small bad');
     } else {
       const s = this.world.resetSpawn(
         v.position.x,
