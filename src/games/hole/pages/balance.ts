@@ -5,6 +5,7 @@ import { MAPS, getMapDef } from '../map/registry';
 import { BOT_SKILLS, runBot, type RunResult } from '../sim/bot';
 import {
   DIFFICULTIES,
+  difficultiesFor,
   MAX_LEVEL,
   cumulativeXp,
   holeDiameter,
@@ -175,7 +176,7 @@ interface Group {
 
 async function run(): Promise<void> {
   runBtn.disabled = true;
-  const diffs = DIFFICULTIES.filter(
+  const diffs = difficultiesFor(state.map).filter(
     (d) => state.difficulty === 'all' || d.id === state.difficulty,
   );
   const groups: Group[] = [];

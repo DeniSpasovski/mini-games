@@ -16,13 +16,14 @@ import type { KV } from './storage';
  *   8 = clear bonus 10 points per second; 9 = balance change; 10 = driving cars and walking people.
  * Toy history: 1 = first release (25000 points, 600 x 400 m Grand Hall); 2 = 25 hole levels;
  *   3 = Layout A atrium as a hall with Ferris wheel / carousel pairs; 4 = Plush Meadow thinned, whale and
- *   penguin plush in the Splash Zone, random start; 5 = clear bonus 10 points per second.
+ *   penguin plush in the Splash Zone, random start; 5 = clear bonus 10 points per second;
+ *   7 = own time limits (Easy 560 / Medium 280 / Hard 140 s).
  * Animal history: 1 = first release (21000 points, moving animals, 37 giants, secret zoo + lab);
  *   2 = clear bonus 10 points per second; 3 = panda_big + tiger_big.
  */
 export const MAP_SCORING_VERSIONS: Record<string, number> = {
   city: 10,
-  toy: 6,
+  toy: 7,
   animal: 4,
 };
 /** City Island keeps the original (pre-multi-map) storage key, so its old lists stay valid. */

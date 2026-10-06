@@ -2,6 +2,8 @@ import { expect, test } from '@rstest/core';
 import {
   CLEAR_BONUS_PER_SECOND,
   DIFFICULTIES,
+  difficultiesFor,
+  difficultyById,
   LEVEL_TIERS,
   GROWTH_LEVELS,
   ITEM_LEVELS,
@@ -71,6 +73,15 @@ test('difficulty times and clear bonus', () => {
     ['medium', 240],
     ['hard', 120],
   ]);
+  // the toy store has its own limits; maps without an override keep City Island's
+  expect(difficultiesFor('toy').map((d) => [d.id, d.seconds])).toEqual([
+    ['easy', 560],
+    ['medium', 280],
+    ['hard', 140],
+  ]);
+  expect(difficultiesFor('animal')).toBe(DIFFICULTIES);
+  expect(difficultyById('hard', 'toy').seconds).toBe(140);
+  expect(difficultyById('nope', 'toy').id).toBe('medium');
   expect(CLEAR_BONUS_PER_SECOND).toBe(10);
 });
 

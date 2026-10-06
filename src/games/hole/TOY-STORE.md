@@ -432,7 +432,7 @@ Entrance south, start at the south-west corner of the ring.
 
 ### Layout C - "Warehouse Sale" (drawn 280 x 100 m, built x2.9): a speed run
 
-Five vertical bands, small -> huge, west -> east, like a conveyor. Best for the Hard (120 s) run and the balance
+Five vertical bands, small -> huge, west -> east, like a conveyor. Best for the Hard (140 s) run and the balance
 bot (a straight line of travel). Entrance and start at the west end.
 
 ```
@@ -483,9 +483,9 @@ wheel / carousel pairs (toy score version 3), the menu floor-plan picker.
 
 ### Product
 
-- [ ] **Per-map difficulty times** if real play shows the store is easier / harder than the island (today both use
-      Easy 480 / Medium 240 / Hard 120 s; the bot clears the store in ~320 s on layout A). Pace target: level 15 at
-      120-160 s (now ~90 s).
+- [ ] **Re-check the store's times with real players** (own limits Easy 560 / Medium 280 / Hard 140 s, `MAP_SECONDS` in
+      `sim/progression.ts`: the good bot clears layouts A in ~175-185 s vs City Island ~155 s, so the timers keep City's
+      limit / clear-time ratios). Level 15 comes at ~100-110 s (target 120-160 s: that is floor density, not timers).
 - [ ] **Real-device pass** on iPad / phone for the toy store: 600 x 400 m floor, 9 600 items, camera framing at level 15
       near the walls, adaptive resolution (see TASKS.md real-device pass).
 

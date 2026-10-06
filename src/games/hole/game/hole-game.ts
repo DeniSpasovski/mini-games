@@ -162,7 +162,7 @@ export class HoleGame {
     // dev deep link: ?difficulty=hard skips the menu
     const diff = this.params.get('difficulty');
     if (diff) {
-      this.startRun(difficultyById(diff));
+      this.startRun(difficultyById(diff, this.mapDef.id));
     } else {
       this.menu.welcome();
     }
@@ -287,7 +287,8 @@ export class HoleGame {
     this.hud.show(false);
   }
 
-  private startRun(d: Difficulty): void {
+  private startRun(picked: Difficulty): void {
+    const d = difficultyById(picked.id, this.mapDef.id); // time limits are per map
     this.difficulty = d;
     this.startLevel = Math.max(1, Number(this.params.get('level') ?? 1));
     this.seconds = Number(this.params.get('time') ?? d.seconds);

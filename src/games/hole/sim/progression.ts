@@ -180,8 +180,25 @@ export const DIFFICULTIES: Difficulty[] = [
   { id: 'hard', label: 'Hard', seconds: 120 },
 ];
 
-export function difficultyById(id: string): Difficulty {
-  return DIFFICULTIES.find((d) => d.id === id) ?? DIFFICULTIES[1];
+/**
+ * Per-map time limits (s), where a map's pace differs from City Island's. The toy store's floor takes the good bot
+ * ~15-20 % longer to clear (~175 s vs ~155 s), so it keeps City Island's timer / clear-time ratios.
+ */
+const MAP_SECONDS: Record<string, Record<Difficulty['id'], number>> = {
+  toy: { easy: 560, medium: 280, hard: 140 },
+};
+
+/** The three difficulties with the time limits of `mapId` (City Island's when the map has no override). */
+export function difficultiesFor(mapId?: string): Difficulty[] {
+  const secs = mapId ? MAP_SECONDS[mapId] : undefined;
+  return secs
+    ? DIFFICULTIES.map((d) => ({ ...d, seconds: secs[d.id] }))
+    : DIFFICULTIES;
+}
+
+export function difficultyById(id: string, mapId?: string): Difficulty {
+  const all = difficultiesFor(mapId);
+  return all.find((d) => d.id === id) ?? all[1];
 }
 
 /** Bonus points per remaining second when the whole island is eaten. */

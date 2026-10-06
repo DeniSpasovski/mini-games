@@ -6,6 +6,7 @@ import {
 import { TOY_ITEMS, getItem } from '../../src/games/hole/items/catalog';
 import { insideMap } from '../../src/games/hole/map/types';
 import { Sim } from '../../src/games/hole/sim/sim';
+import { difficultyById } from '../../src/games/hole/sim/progression';
 import { BOT_SKILLS, runBot } from '../../src/games/hole/sim/bot';
 import {
   holeDiameter,
@@ -85,17 +86,29 @@ test('start is on the floor with small items nearby, and the departments tile th
 
 test('balance bands: good bot on the toy store, hard / medium / easy', () => {
   const m = generateToyStore({ seed: 1 });
-  const hard = runBot(new Sim(m, { seconds: 120 }), BOT_SKILLS.good, {
-    dt: 1 / 30,
-  });
+  const hard = runBot(
+    new Sim(m, { seconds: difficultyById('hard', 'toy').seconds }),
+    BOT_SKILLS.good,
+    {
+      dt: 1 / 30,
+    },
+  );
   expect(hard.level).toBeGreaterThanOrEqual(10);
-  const medium = runBot(new Sim(m, { seconds: 240 }), BOT_SKILLS.good, {
-    dt: 1 / 30,
-  });
+  const medium = runBot(
+    new Sim(m, { seconds: difficultyById('medium', 'toy').seconds }),
+    BOT_SKILLS.good,
+    {
+      dt: 1 / 30,
+    },
+  );
   expect(medium.level).toBeGreaterThanOrEqual(15);
-  const easy = runBot(new Sim(m, { seconds: 480 }), BOT_SKILLS.good, {
-    dt: 1 / 30,
-  });
+  const easy = runBot(
+    new Sim(m, { seconds: difficultyById('easy', 'toy').seconds }),
+    BOT_SKILLS.good,
+    {
+      dt: 1 / 30,
+    },
+  );
   expect(easy.level).toBeGreaterThanOrEqual(15);
   expect(easy.pct).toBeGreaterThan(0.95);
 }, 120000);

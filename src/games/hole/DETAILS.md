@@ -60,13 +60,15 @@ not.
   tabs (Grand Hall / Ring Walk / Warehouse Sale, saved as `settings.layout`); the menu background shows the pick. Every
   seed holds the same points, so one top 10 per map and difficulty covers all islands (the toy layouts share one list
   too; layout B is a fast run and C a slow one, see TOY-STORE.md). `?seed=` / `?layout=` in the URL win over the saved
-  choice (dev links). The setting is the time limit (same three times on every map):
+  choice (dev links). The setting is the time limit (City Island and the animal map share three times; the toy store has its own):
 
   | Difficulty | Time  | Notes                                                          |
   | ---------- | ----- | -------------------------------------------------------------- |
   | Easy       | 480 s | enough time to eat the whole island and collect the time bonus |
   | Medium     | 240 s | a good run reaches skyscrapers around 2/3 of the way           |
   | Hard       | 120 s | fast scoring; the highest levels are a stretch goal            |
+
+  The toy store has its own limits (Easy 560 / Medium 280 / Hard 140 s, `MAP_SECONDS` in `sim/progression.ts`).
 
   Each card shows your best score for that difficulty.
 
