@@ -259,7 +259,7 @@ export const ITEM_DEFS: ItemDef[] = [
     1.6,
     3.5,
     'streets, residential',
-    { variants: 2 },
+    { variants: 3 },
   ),
   def('beach_chair', 'Beach chair', 'beach', 1.6, 0.6, 0.8, 'beach', {
     paints: [0xe8543a, 0x3b82d6, 0xf2c230, 0x39a35a],
@@ -302,7 +302,7 @@ export const ITEM_DEFS: ItemDef[] = [
   def('lifeguard_tower', 'Lifeguard tower', 'beach', 2.5, 2.5, 4.0, 'beach'),
   def('bus_stop', 'Bus stop', 'street', 2.6, 1.4, 2.5, 'main roads'),
   def('tree', 'Tree', 'nature', 2.6, 2.6, 6.0, 'parks, residential', {
-    variants: 2,
+    variants: 3,
   }),
   // level 9
   def('fountain', 'Fountain', 'park', 3.0, 3.0, 1.8, 'plaza, parks'),
@@ -355,7 +355,9 @@ export const ITEM_DEFS: ItemDef[] = [
   def('beach_hut', 'Beach hut', 'beach', 5.5, 5.0, 4.0, 'beach', {
     paints: [0xe8543a, 0x3b82d6, 0xf2c230, 0x39a35a],
   }),
-  def('tree_big', 'Big tree', 'nature', 5.5, 5.5, 10, 'parks'),
+  def('tree_big', 'Big tree', 'nature', 5.5, 5.5, 10, 'parks', {
+    variants: 2,
+  }),
   // level 14
   def('water_tower', 'Water tower', 'harbour', 6, 6, 14, 'harbour, commercial'),
   def('lighthouse', 'Lighthouse', 'harbour', 6, 6, 20, 'headland'),
@@ -385,7 +387,7 @@ export const ITEM_DEFS: ItemDef[] = [
     7.0,
     6.0,
     'residential',
-    { paints: WALL_PAINTS },
+    { paints: WALL_PAINTS, variants: 2 },
   ),
   def('fire_truck', 'Fire truck', 'vehicle', 8.5, 2.5, 3.2, 'fire station'),
   // level 17
@@ -394,6 +396,7 @@ export const ITEM_DEFS: ItemDef[] = [
   }),
   def('house', 'House', 'residential', 9.5, 9.0, 8.0, 'residential', {
     paints: WALL_PAINTS,
+    variants: 2,
   }),
   def('corner_shop', 'Corner shop', 'commercial', 10, 8, 5, 'commercial', {
     paints: WALL_PAINTS,

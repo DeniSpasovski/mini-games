@@ -1,6 +1,7 @@
 import { Noise2D } from '../../../shared/noise';
 import { Rng } from '../../../shared/rng';
 import { ITEMS, getItem, hasItem } from '../items/catalog';
+import { LANE, animatePeople } from './city-movers';
 import {
   CANAL_Y,
   ROAD_Y,
@@ -18,6 +19,7 @@ import {
   type GroundRect,
   type MapData,
   type Placement,
+  type RoadNet,
 } from './types';
 
 /**
@@ -124,6 +126,8 @@ interface Ctx {
   zones: ZoneMap | null;
   /** Blocks by use, for the zone samplers. */
   lists: { live: Block[]; lots: Block[]; parks: Block[]; edges: Block[] };
+  /** Crossings and asphalt arms (the lanes of the driving cars). */
+  roads: RoadNet;
 }
 
 /** Total points every map of these parameters holds (before the clear bonus). */
@@ -299,6 +303,7 @@ export function generateCity(params: Partial<CityParams> = {}): MapData {
     occ: new Occupancy(),
     zones: null,
     lists: { live: [], lots: [], parks: [], edges: [] },
+    roads: { nodes: [], edges: [] },
   };
 
   const canal = pickCanal(p);
@@ -409,6 +414,7 @@ export function generateCity(params: Partial<CityParams> = {}): MapData {
   ensureAllTypes(c);
   const start = startPoint(c, blocks);
   balancePoints(c, start);
+  animatePeople(c.placements, blocks, coast, p.beachWidth, p.seed);
   return {
     id: 'city',
     seed: p.seed,
@@ -418,6 +424,7 @@ export function generateCity(params: Partial<CityParams> = {}): MapData {
     blocks: blocks.map(({ d: _d, ...b }) => b),
     placements: c.placements,
     start,
+    roads: c.roads,
   };
 }
 
@@ -537,6 +544,17 @@ function buildRoads(c: Ctx, blocks: Block[], canal: Canal): void {
   const lo = -Math.floor(p.tiles / 2) - 1;
   const hi = lo + p.tiles;
   const shift = p.tiles % 2 === 0 ? 1 : 0.5;
+  const nodeId = new Map<string, number>();
+  const node = (i: number, j: number): number => {
+    const key = `${i},${j}`;
+    let id = nodeId.get(key);
+    if (id === undefined) {
+      id = c.roads.nodes.length;
+      c.roads.nodes.push([(i + shift) * p.pitch, (j + shift) * p.pitch]);
+      nodeId.set(key, id);
+    }
+    return id;
+  };
   for (let i = lo; i <= hi; i++) {
     for (let j = lo; j <= hi; j++) {
       const x = (i + shift) * p.pitch;
@@ -549,6 +567,7 @@ function buildRoads(c: Ctx, blocks: Block[], canal: Canal): void {
         has(i + 1, j + 1),
       ];
       if (!around.some(Boolean)) continue;
+      node(i, j);
       rect(c, x - 5, z - 5, x + 5, z + 5, ROAD_Y, COLORS.road);
       if (onCanal('z', x)) covered.push([z - 5, z + 5]);
       if (onCanal('x', z)) covered.push([x - 5, x + 5]);
@@ -559,6 +578,7 @@ function buildRoads(c: Ctx, blocks: Block[], canal: Canal): void {
           covered.push([z + 5, z + p.pitch - 5]);
         } else {
           rect(c, x - 5, z + 5, x + 5, z + p.pitch - 5, ROAD_Y, COLORS.road);
+          c.roads.edges.push([node(i, j), node(i, j + 1)]);
           dashes(c, x, z + 5, z + p.pitch - 5, 'z');
           zebra(c, x, z + 5, 1, 'z');
           zebra(c, x, z + p.pitch - 5, -1, 'z');
@@ -571,6 +591,7 @@ function buildRoads(c: Ctx, blocks: Block[], canal: Canal): void {
           covered.push([x + 5, x + p.pitch - 5]);
         } else {
           rect(c, x + 5, z - 5, x + p.pitch - 5, z + 5, ROAD_Y, COLORS.road);
+          c.roads.edges.push([node(i, j), node(i + 1, j)]);
           dashes(c, z, x + 5, x + p.pitch - 5, 'x');
           zebra(c, z, x + 5, 1, 'x');
           zebra(c, z, x + p.pitch - 5, -1, 'x');
@@ -1052,7 +1073,7 @@ function vehicleOn(
         ]
       : ['pickup', 'car_compact', 'car_sedan', 'pickup'];
   const id = tram ? 'tram' : r.pick(pool);
-  const lane = (r.chance(0.5) ? 1 : -1) * (tram ? 0 : 2.4);
+  const lane = (r.chance(0.5) ? 1 : -1) * LANE;
   const along = r.range(-6, 6);
   const px = axis === 'x' ? x + along : x + lane;
   const pz = axis === 'x' ? z + lane : z + along;
@@ -1064,7 +1085,35 @@ function vehicleOn(
       : lane >= 0
         ? Math.PI / 2
         : -Math.PI / 2;
-  tryPut(c, id, px, pz, rot, 2);
+  if (!tryPut(c, id, px, pz, rot, 2)) return;
+  // this one drives: along its arm in the right-hand lane (rot 0 / pi = along x, +-pi/2 = along z)
+  // from one crossing to the next, then on along the road graph (`sim/movers.ts`). Own Rng: the layout stays put.
+  const half = c.p.pitch / 2;
+  const [fx, fz, tx, tz] =
+    axis === 'x'
+      ? lane >= 0
+        ? [x - half, z, x + half, z]
+        : [x + half, z, x - half, z]
+      : lane >= 0
+        ? [x, z + half, x, z - half]
+        : [x, z - half, x, z + half];
+  const speedRng = new Rng(
+    Math.round(px * 31 + pz * 17) * 2654435 + c.p.seed * 97,
+  );
+  c.placements[c.placements.length - 1].move = {
+    kind: 'drive',
+    hx: fx,
+    hz: fz,
+    tx,
+    tz,
+    leash: LANE,
+    speed:
+      id === 'bus' || id === 'tram' || id === 'delivery_truck'
+        ? speedRng.range(4, 6)
+        : speedRng.range(5.5, 8.5),
+    delay: speedRng.range(0, 2),
+    flee: false,
+  };
 }
 
 /** A few rowboats on the canal. */

@@ -11,7 +11,11 @@ const mk =
   (m, v, w, d, h) =>
     fn(F(m, w, d, h), v);
 
-/** Shelf unit facing +Z: back panel, uprights, boards, and stock blocks on each board. */
+/**
+ * Shelf unit facing +Z: back panel, uprights, boards, and stock blocks on each board. The unit is
+ * **terraced** (every higher board is set back by `step`) and the top cap only covers the top board, so
+ * the top-down game camera sees the stock of every row, not just a roof.
+ */
 function shelf(
   f: Frac,
   rows: number,
@@ -24,34 +28,41 @@ function shelf(
     2,
     Math.min(10, Math.round(f.w / (kind === 'plush' ? 0.7 : 0.4))),
   );
+  const step = Math.min(0.16, 0.46 / rows);
+  const front = (r: number) => 0.47 - r * step;
   f.box(0, 0.02, -0.43, 0.98, 0.98, 0.1, frame);
   f.box(0, 0, 0, 0.96, 0.07, 0.94, T.dark);
   for (const sx of [-1, 1]) f.box(sx * 0.48, 0, 0, 0.04, 1, 1, frame);
-  f.box(0, 0.96, 0, 0.92, 0.04, 0.98, cap);
+  // the cap sits on the top board only (from the back panel to just past that board's front edge)
+  const capFront = front(rows - 1) + 0.03;
+  f.box(0, 0.96, (capFront - 0.49) / 2, 0.92, 0.04, capFront + 0.49, cap);
   const usable = 0.86;
   for (let r = 0; r < rows; r++) {
     const y0 = 0.09 + (r * usable) / rows;
     const rh = usable / rows;
-    f.box(
-      0,
-      y0 + (r === 0 ? 0 : 0.0),
-      0.02,
-      0.92,
-      0.03,
-      0.9 - r * 0.01,
-      T.white,
-    );
+    const fz = front(r);
+    const dep = fz + 0.38; // board: from just in front of the back panel to its front edge
+    f.box(0, y0, (fz - 0.38) / 2, 0.92, 0.03, dep, T.white);
     for (let i = 0; i < n; i++) {
       const cx = -0.44 + ((i + 0.5) * 0.88) / n;
       const col = palette[(i * 3 + r) % palette.length];
       const bh = rh * (kind === 'tall' ? 0.78 : 0.5 + ((i + r) % 3) * 0.12);
       const bw = (0.88 / n) * (kind === 'plush' ? 0.9 : 0.78);
-      const dd = 0.4 + ((i + r) % 3) * 0.05;
+      const dd = Math.min(0.4 + ((i + r) % 3) * 0.05, dep - 0.08);
+      const zc = fz - 0.04 - dd / 2; // stock stands at the front of its board
       if (kind === 'plush')
-        f.puff(cx, y0 + 0.03, -0.05, bw, rh * 0.8, 0.5, col);
+        f.puff(
+          cx,
+          y0 + 0.03,
+          fz - 0.04 - (dep - 0.08) / 2,
+          bw,
+          rh * 0.8,
+          dep - 0.08,
+          col,
+        );
       else if (kind === 'flat')
-        f.box(cx, y0 + 0.03, 0.0, bw, bh, dd * 0.4, col);
-      else f.box(cx, y0 + 0.03, -0.05, bw, bh, dd, col);
+        f.box(cx, y0 + 0.03, fz - 0.04 - dd * 0.2, bw, bh, dd * 0.4, col);
+      else f.box(cx, y0 + 0.03, zc, bw, bh, dd, col);
     }
   }
 }
@@ -209,25 +220,34 @@ export const TOY_BUILDERS: Record<string, Builder> = {
     f.box(0.05, 0, 0.5 + 0.012 / f.d, 0.2, 0.34, 0.03, T.yellow);
   }),
   brick_dragon: mk((f) => {
-    f.box(0, 0.08, 0, 0.5, 0.34, 0.7, T.green);
-    f.box(-0.32, 0.1, 0, 0.3, 0.2, 0.46, T.darkGreen, { taper: 0.5 });
-    f.box(0.32, 0.38, 0, 0.3, 0.3, 0.4, T.green);
-    f.box(0.44, 0.5, 0, 0.18, 0.18, 0.3, T.green);
-    for (const z of [-1, 1])
-      f.box(0.0, 0.44, z * 0.62, 0.34, 0.56, 0.04, T.red, { taper: 0.6 });
+    // a dragon built from bricks: feet, body, stepped tail, stepped neck, head, wings, back spikes
+    for (const sx of [-0.12, 0.2])
+      for (const sz of [-1, 1])
+        f.box(sx, 0, sz * 0.17, 0.16, 0.1, 0.16, T.darkGreen);
+    f.box(0.04, 0.08, 0, 0.56, 0.3, 0.44, T.green);
+    f.box(0.04, 0.08, 0, 0.5, 0.05, 0.46, T.cream);
+    f.box(-0.32, 0.12, 0, 0.2, 0.22, 0.3, T.green);
+    f.box(-0.43, 0.14, 0, 0.14, 0.16, 0.2, T.green);
+    f.box(-0.5, 0.16, 0, 0.1, 0.1, 0.12, T.darkGreen);
+    f.box(0.3, 0.3, 0, 0.18, 0.34, 0.26, T.green);
+    f.box(0.38, 0.55, 0, 0.18, 0.28, 0.24, T.green);
+    f.box(0.42, 0.78, 0, 0.26, 0.2, 0.3, T.green);
+    f.box(0.55, 0.8, 0, 0.1, 0.12, 0.2, T.darkGreen);
+    for (const sz of [-1, 1]) {
+      f.box(0.5, 0.88, sz * 0.16, 0.04, 0.05, 0.03, T.yellow);
+      f.box(0.36, 0.96, sz * 0.08, 0.04, 0.04, 0.04, T.cream);
+      f.box(0, 0.3, sz * 0.43, 0.34, 0.42, 0.05, T.red, { taper: 0.5 });
+    }
     for (let i = 0; i < 4; i++)
       f.box(
-        -0.1 + i * 0.12,
-        0.42,
+        -0.15 + i * 0.14,
+        0.38,
         0,
         0.06,
-        0.1 + (i % 2) * 0.08,
-        0.08,
+        0.1 + (i % 2) * 0.05,
+        0.06,
         T.orange,
       );
-    for (const z of [-1, 1])
-      for (const x of [-0.2, 0.2])
-        f.box(x, 0, z * 0.3, 0.14, 0.12, 0.14, T.darkGreen);
   }),
   brick_car_big: mk((f) => {
     f.box(0, 0.18, 0, 1, 0.3, 0.9, T.yellow);
@@ -360,13 +380,26 @@ export const TOY_BUILDERS: Record<string, Builder> = {
     }
   }),
   dino_diorama: mk((f) => {
-    f.box(0, 0, 0, 1, 0.14, 1, T.sand);
-    f.box(-0.3, 0.14, -0.2, 0.3, 0.3, 0.3, T.stone);
-    f.box(0.3, 0.14, 0.1, 0.34, 0.8, 0.34, T.cocoa, { taper: 0.5 });
-    f.puff(0.3, 0.7, 0.1, 0.5, 0.3, 0.5, T.leaf);
-    f.box(-0.1, 0.14, 0.25, 0.4, 0.4, 0.5, T.green);
-    f.box(0.02, 0.45, 0.25, 0.14, 0.4, 0.18, T.green);
-    f.box(-0.32, 0.14, 0.3, 0.3, 0.2, 0.12, T.darkGreen, { taper: 0.4 });
+    // sand base, a smoking volcano, a palm, a nest and a T-rex with a jaw full of teeth
+    f.box(0, 0, 0, 1, 0.1, 1, T.sand);
+    f.cyl(-0.3, 0.1, -0.25, 0.28, 0.1, 0.85, 8, T.cocoa);
+    f.cyl(-0.3, 0.95, -0.25, 0.09, 0.09, 0.05, 8, T.orange, { glow: true });
+    f.box(0.38, 0.1, -0.3, 0.04, 0.55, 0.06, T.cocoa);
+    f.box(0.38, 0.64, -0.3, 0.2, 0.04, 0.06, T.leaf);
+    f.box(0.38, 0.68, -0.3, 0.06, 0.04, 0.2, T.leaf);
+    f.puff(-0.36, 0.1, 0.32, 0.1, 0.1, 0.1, T.cream);
+    f.puff(-0.26, 0.1, 0.38, 0.08, 0.08, 0.08, T.cream);
+    f.box(0.12, 0.26, 0.15, 0.3, 0.26, 0.22, T.green);
+    f.box(-0.12, 0.28, 0.15, 0.22, 0.14, 0.14, T.green);
+    f.box(-0.28, 0.3, 0.15, 0.16, 0.09, 0.09, T.darkGreen);
+    for (const z of [0.07, 0.23])
+      f.box(0.1, 0.1, z, 0.12, 0.16, 0.07, T.darkGreen);
+    f.box(0.27, 0.46, 0.15, 0.12, 0.26, 0.14, T.green);
+    f.box(0.34, 0.62, 0.15, 0.2, 0.16, 0.16, T.green);
+    f.box(0.37, 0.6, 0.15, 0.14, 0.04, 0.12, T.darkGreen);
+    f.box(0.47, 0.64, 0.15, 0.02, 0.04, 0.1, T.white);
+    for (const sz of [-1, 1])
+      f.box(0.38, 0.72, 0.15 + sz * 0.085, 0.03, 0.04, 0.02, T.black);
   }),
   // ---------------------------------------------------------------- small toys
   bouncy_ball: mk((f) => {
@@ -572,20 +605,32 @@ export const TOY_BUILDERS: Record<string, Builder> = {
     for (const sx of [-1, 1])
       for (const sz of [-1, 1])
         f.box(sx * 0.42, 0, sz * 0.42, 0.1, 0.7, 0.1, T.woodDark);
-    for (let i = 0; i < 4; i++)
-      for (let j = 0; j < 4; j++)
+    f.box(0, 0.8, 0, 0.9, 0.01, 0.9, T.cream);
+    for (let i = 0; i < 6; i++)
+      for (let j = 0; j < 6; j++)
         if ((i + j) % 2 === 0)
           f.box(
-            -0.36 + i * 0.24,
-            0.8,
-            -0.36 + j * 0.24,
-            0.24,
+            -0.375 + i * 0.15,
+            0.81,
+            -0.375 + j * 0.15,
+            0.15,
             0.01,
-            0.24,
+            0.15,
             T.black,
           );
-    f.box(-0.2, 0.81, 0.1, 0.1, 0.19, 0.1, T.white);
-    f.box(0.15, 0.81, -0.2, 0.1, 0.19, 0.1, T.black);
+    // pieces: a white and a black side, pawns plus a tall king each
+    for (const [x, z, c, h] of [
+      [-0.3, 0.3, T.white, 0.12],
+      [-0.15, 0.3, T.white, 0.12],
+      [0, 0.3, T.white, 0.12],
+      [0.15, 0.3, T.white, 0.12],
+      [-0.075, 0.375, T.white, 0.18],
+      [-0.3, -0.3, T.black, 0.12],
+      [-0.15, -0.3, T.black, 0.12],
+      [0.15, -0.3, T.black, 0.12],
+      [0.075, -0.375, T.black, 0.18],
+    ] as const)
+      f.cyl(x, 0.82, z, 0.035, 0.028, h, 6, c);
   }),
   claw_machine: mk((f) => {
     f.box(0, 0, 0, 1, 0.34, 1, T.purple);
@@ -685,16 +730,16 @@ export const TOY_BUILDERS: Record<string, Builder> = {
   }),
   giant_board_game: mk((f) => {
     f.box(0, 0, 0, 1, 0.6, 1, T.white);
-    for (let i = 0; i < 4; i++)
-      for (let j = 0; j < 4; j++)
+    for (let i = 0; i < 6; i++)
+      for (let j = 0; j < 6; j++)
         if ((i + j) % 2 === 0)
           f.box(
-            -0.375 + i * 0.25,
+            -0.4167 + i * 0.1667,
             0.6,
-            -0.375 + j * 0.25,
-            0.24,
+            -0.4167 + j * 0.1667,
+            0.16,
             0.4,
-            0.24,
+            0.16,
             STOCK[(i * 3 + j) % 8],
           );
   }),
@@ -980,8 +1025,10 @@ export const TOY_BUILDERS: Record<string, Builder> = {
   plush_throne: mk((f) => {
     f.box(0, 0, 0.08, 0.96, 0.34, 0.8, T.purple);
     f.box(0, 0.34, -0.36, 1, 0.66, 0.26, T.purple);
-    for (const sx of [-1, 1])
+    for (const sx of [-1, 1]) {
       f.box(sx * 0.44, 0.34, 0.1, 0.12, 0.3, 0.7, T.hotPink);
+      f.box(sx * 0.46, 0.68, -0.36, 0.08, 0.32, 0.2, T.gold);
+    }
     f.box(0, 0.34, 0.08, 0.68, 0.12, 0.6, T.rose);
     f.puff(0, 0.46, 0.0, 0.5, 0.45, 0.4, T.brown);
     f.puff(0, 0.8, 0.0, 0.34, 0.2, 0.3, T.brown);

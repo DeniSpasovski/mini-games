@@ -13,7 +13,7 @@ import type { KV } from './storage';
  *   clear bonus 2 points per second; 3 = exactly 25000 points, 10 x 10 grid; 4 = 25 hole levels;
  *   5 = 30000 points, items spawn on their own ground; 6 = harbour bay, coast features, district rings,
  *   commercial avenue, traffic lights / street signs; 7 = canal with rowboats, random start;
- *   8 = clear bonus 10 points per second.
+ *   8 = clear bonus 10 points per second; 9 = balance change; 10 = driving cars and walking people.
  * Toy history: 1 = first release (25000 points, 600 x 400 m Grand Hall); 2 = 25 hole levels;
  *   3 = Layout A atrium as a hall with Ferris wheel / carousel pairs; 4 = Plush Meadow thinned, whale and
  *   penguin plush in the Splash Zone, random start; 5 = clear bonus 10 points per second.
@@ -21,7 +21,7 @@ import type { KV } from './storage';
  *   2 = clear bonus 10 points per second; 3 = panda_big + tiger_big.
  */
 export const MAP_SCORING_VERSIONS: Record<string, number> = {
-  city: 9,
+  city: 10,
   toy: 6,
   animal: 4,
 };

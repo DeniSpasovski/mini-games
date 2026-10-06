@@ -22,11 +22,15 @@ export const BOT_SKILLS: Record<string, BotSkill> = {
   perfect: { reaction: 0.25, speed: 1, wobble: 0 },
 };
 
+/** Longest lead (s): movers change their minds, so never aim further ahead than this. */
+const MAX_LEAD = 1.5;
+
 export class Bot {
   private target = -1;
   private nextThink = 0;
   private rng: Rng;
   private wob = 0;
+  private aimPoint = { x: 0, z: 0, t: 0 };
 
   constructor(
     private sim: Sim,
@@ -52,8 +56,9 @@ export class Bot {
       this.wob = (this.rng.next() - 0.5) * 2 * skill.wobble;
     }
     if (this.target < 0) return { x: 0, z: 0 };
-    let dx = w.x[this.target] - h.x;
-    let dz = w.z[this.target] - h.z;
+    const aim = this.intercept(this.target);
+    let dx = aim.x - h.x;
+    let dz = aim.z - h.z;
     const dist = Math.hypot(dx, dz) || 1;
     dx /= dist;
     dz /= dist;
@@ -64,6 +69,38 @@ export class Bot {
       x: (dx * c - dz * s) * skill.speed * slow,
       z: (dx * s + dz * c) * skill.speed * slow,
     };
+  }
+
+  /**
+   * Where to steer for item `i`: its own position, or for a mover the point the hole can reach at the same
+   * time it does (capped lead). Allocation-free: returns the shared `aimPoint`.
+   */
+  private intercept(i: number): { x: number; z: number; t: number } {
+    const { sim, skill, aimPoint: p } = this;
+    const w = sim.world;
+    const h = sim.hole;
+    const rx = w.x[i] - h.x;
+    const rz = w.z[i] - h.z;
+    const full = moveSpeed(h.diameter);
+    const s = full * skill.speed;
+    p.x = w.x[i];
+    p.z = w.z[i];
+    p.t = Math.hypot(rx, rz) / full;
+    if (!w.isMover[i]) return p;
+    const vx = w.mVx[i];
+    const vz = w.mVz[i];
+    const a = vx * vx + vz * vz - s * s;
+    if ((vx === 0 && vz === 0) || a > -1e-6) return p;
+    // |r + v t| = s t  ->  a t^2 + 2 (r.v) t + r.r = 0, a < 0: one positive root
+    const b = rx * vx + rz * vz;
+    const disc = b * b - a * (rx * rx + rz * rz);
+    const t = (-b - Math.sqrt(disc)) / a;
+    if (!(t > 0)) return p;
+    p.t = t;
+    const lead = Math.min(t, MAX_LEAD);
+    p.x += vx * lead;
+    p.z += vz * lead;
+    return p;
   }
 
   private choose(): number {
@@ -77,6 +114,7 @@ export class Bot {
     for (let i = 0; i < w.n; i++) {
       if (w.state[i] !== FallState.Idle || w.level[i] > h.level) continue;
       const dist = Math.hypot(w.x[i] - h.x, w.z[i] - h.z);
+      const travel = w.isMover[i] ? this.intercept(i).t : dist / speed;
       let value = w.points[i];
       // cluster bonus: neighbours the hole would swallow on the way
       let neighbours = 0;
@@ -87,7 +125,7 @@ export class Bot {
         });
       }
       value += neighbours * 0.6;
-      const score = value / (dist / speed + 1.5);
+      const score = value / (travel + 1.5);
       if (score > bestScore) {
         bestScore = score;
         best = i;

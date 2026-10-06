@@ -15,6 +15,8 @@ export interface BoxOpts {
   paint?: boolean;
   /** Part glows: its colour is added on top of the lighting (screens, lamps, robot eyes); see `render/materials.ts`. */
   glow?: boolean;
+  /** See-through part (domes, panes): drawn as a 50 % screen-door dither, see `render/materials.ts`. */
+  glass?: boolean;
   /** Side faces use the window-tile UVs of the building materials. */
   wall?: boolean;
   /** Scale of the top face (1 = straight box, <1 = taper). */
@@ -27,6 +29,8 @@ export interface CylOpts {
   paint?: boolean;
   /** Glowing part (see BoxOpts.glow). */
   glow?: boolean;
+  /** See-through part (domes, panes): drawn as a 50 % screen-door dither, see `render/materials.ts`. */
+  glass?: boolean;
   /** Cylinder axis. Default 'y'. */
   axis?: 'x' | 'y' | 'z';
   /** Close the ends (default true; the bottom cap of 'y' cylinders is skipped). */
@@ -39,6 +43,8 @@ export interface BallOpts {
   paint?: boolean;
   /** Glowing part (see BoxOpts.glow). */
   glow?: boolean;
+  /** See-through part (domes, panes): drawn as a 50 % screen-door dither, see `render/materials.ts`. */
+  glass?: boolean;
   /** Facets around (default from `roundDetail`). */
   seg?: number;
   /** Latitude rows, pole to pole (default from `roundDetail`). */
@@ -110,6 +116,8 @@ export class Mesher {
   private paintAttr: number[] = [];
   /** Set while a `glow` box / cylinder is emitted: its vertices get paint attribute 2. */
   private glowNow = false;
+  /** Set while a `glass` part is emitted: its vertices get paint attribute 3 (see-through dither in the item material). */
+  private glassNow = false;
   private stack: Matrix4[] = [];
   private m = new Matrix4();
 
@@ -182,8 +190,8 @@ export class Mesher {
     tmpColor.setHex(paint ? 0xffffff : color);
     this.col.push(tmpColor.r, tmpColor.g, tmpColor.b);
     this.uv.push(uv[0], uv[1]);
-    // paint attribute: 0 = plain, 1 = takes the instance colour, 2 = glows (emissive)
-    this.paintAttr.push(this.glowNow ? 2 : paint ? 1 : 0);
+    // paint attribute: 0 = plain, 1 = takes the instance colour, 2 = glows (emissive), 3 = glass (see-through dither)
+    this.paintAttr.push(this.glowNow ? 2 : this.glassNow ? 3 : paint ? 1 : 0);
   }
 
   /** Triangle, wound so its normal points along `hint` (outward). */
@@ -239,6 +247,7 @@ export class Mesher {
   ): void {
     this.primCount++;
     this.glowNow = !!o.glow;
+    this.glassNow = !!o.glass;
     if (Mesher.decoplanar && (o.taper ?? 1) === 1) {
       const e = this.m.elements;
       const plain =
@@ -313,6 +322,7 @@ export class Mesher {
     this.quad(t[0], t[1], t[2], t[3], color, [0, 1, 0], paint);
     if (o.bottom) this.quad(b[0], b[1], b[2], b[3], color, [0, -1, 0], paint);
     this.glowNow = false;
+    this.glassNow = false;
   }
 
   /** Pull faces that share a plane with an earlier box inward (see `decoplanar`). */
@@ -363,6 +373,7 @@ export class Mesher {
   ): void {
     this.primCount++;
     this.glowNow = !!o.glow;
+    this.glassNow = !!o.glass;
     const axis = o.axis ?? 'y';
     const paint = !!o.paint;
     const caps = o.caps ?? true;
@@ -427,6 +438,7 @@ export class Mesher {
       );
     }
     this.glowNow = false;
+    this.glassNow = false;
   }
 
   /**
@@ -446,6 +458,7 @@ export class Mesher {
   ): void {
     this.primCount++;
     this.glowNow = !!o.glow;
+    this.glassNow = !!o.glass;
     const paint = !!o.paint;
     const det = roundDetail(Math.max(rx, ry, rz));
     const seg = Math.max(3, o.seg ?? det.seg);
@@ -510,6 +523,7 @@ export class Mesher {
         );
     }
     this.glowNow = false;
+    this.glassNow = false;
   }
 
   /** Gable roof: ridge along X. (cx, cz) centre, y0 eave height, rh ridge rise. */

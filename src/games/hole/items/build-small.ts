@@ -44,6 +44,21 @@ function cluster(n: number, w: number, fn: (x: number, i: number) => void) {
   for (let i = 0; i < n; i++) fn(-w / 2 + step * (i + 0.5), i);
 }
 
+/** Stacked cones (a pine): `n` tiers from `y0`, each `h` tall, spaced `step`, radius shrinking from `r0` by `dr`. */
+function pine(
+  m: Mesher,
+  n: number,
+  y0: number,
+  step: number,
+  h: number,
+  r0: number,
+  dr: number,
+  colors: [number, number],
+): void {
+  for (let k = 0; k < n; k++)
+    m.cyl(0, y0 + k * step, 0, r0 - k * dr, 0.12, h, 8, colors[k % 2]);
+}
+
 export const SMALL_BUILDERS: Record<string, Builder> = {
   // ---------------------------------------------------------------- litter
   soda_can(m) {
@@ -331,7 +346,10 @@ export const SMALL_BUILDERS: Record<string, Builder> = {
   },
   tree_small(m, v) {
     m.box(0, 0, 0, 0.25, 1.5, 0.25, C.woodDark);
-    if (v === 0) {
+    if (v === 2) {
+      // a small pine
+      pine(m, 3, 0.9, 0.8, 1.0, 0.8, 0.2, [C.leafDark, C.leaf]);
+    } else if (v === 0) {
       // one egg crown
       blob(m, 0, 1.3, 0, 1.6, 2.2, 1.6, C.leaf, {
         taper: 0.22,
@@ -407,7 +425,10 @@ export const SMALL_BUILDERS: Record<string, Builder> = {
   },
   tree(m, v) {
     m.box(0, 0, 0, 0.4, 2.4, 0.4, C.woodDark);
-    if (v === 0) {
+    if (v === 2) {
+      // a pine: four cones
+      pine(m, 4, 1.4, 1.0, 1.6, 1.3, 0.25, [C.leafDark, C.leaf]);
+    } else if (v === 0) {
       // stacked balls, big to small
       blob(m, 0, 1.9, 0, 2.6, 2.4, 2.6, C.leaf, { jitter: 0.04, seed: 14 });
       blob(m, 0, 3.4, 0, 2.0, 1.8, 2.0, C.leafDark, { jitter: 0.04, seed: 15 });
@@ -430,8 +451,13 @@ export const SMALL_BUILDERS: Record<string, Builder> = {
       blob(m, 0, 4.3, 0, 1.6, 1.7, 1.6, C.leafDark, { jitter: 0.05, seed: 20 });
     }
   },
-  tree_big(m) {
+  tree_big(m, v) {
     m.box(0, 0, 0, 0.9, 4.2, 0.9, C.woodDark);
+    if (v === 1) {
+      // a big pine: five cones
+      pine(m, 5, 2.2, 1.55, 1.6, 2.75, 0.45, [C.leafDark, C.leaf]);
+      return;
+    }
     m.box(0, 1.6, 0.45, 0.5, 0.9, 0.3, C.woodDark);
     const o = (seed: number): BallOpts => ({
       seg: 8,

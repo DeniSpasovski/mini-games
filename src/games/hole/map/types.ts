@@ -12,7 +12,9 @@ export type MoveKind =
   | 'swim' // wander inside water cells
   | 'trail' // loop between home and a second point (ant columns)
   | 'patrol' // loop between home and a second point, never stops long
-  | 'roam'; // giants: slow wander, long idles
+  | 'roam' // giants: slow wander, long idles
+  | 'drive' // City Island cars: follow the road graph (`MapData.roads`) in their right-hand lane, turn at crossings
+  | 'stroll'; // City Island people: walk round the sidewalk ring of one block
 
 export interface MoveSpec {
   kind: MoveKind;
@@ -30,6 +32,19 @@ export interface MoveSpec {
   delay?: number;
   /** Flees from a hole that can eat it (default true; insects never flee). */
   flee?: boolean;
+  /**
+   * `drive`: (hx, hz) = road node the car comes from, (tx, tz) = node it drives to, `leash` = lane offset (m).
+   * `stroll`: (hx, hz) = block centre, `leash` = ring half size (m), (tx, tz) = first corner to walk to,
+   * `dir` = +1 clockwise on the map (x right, z down) or -1.
+   */
+  dir?: 1 | -1;
+}
+
+/** Road network of City Island: crossings and the asphalt arms between them (canal arms are not roads). */
+export interface RoadNet {
+  nodes: [number, number][];
+  /** Pairs of node indices; every arm is straight, axis-aligned and `pitch` long. */
+  edges: [number, number][];
 }
 
 export interface Placement {
@@ -137,6 +152,8 @@ export interface MapData {
   walk?: WalkGrid;
   /** Rivers, ponds, biomes (Animal Island). */
   terrain?: Terrain;
+  /** Road crossings and arms (City Island): the lanes of the driving cars. */
+  roads?: RoadNet;
 }
 
 /** Island radius at an angle (linear interpolation of the coast table). */

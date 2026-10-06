@@ -116,9 +116,13 @@ export class Hud {
     });
   }
 
-  /** Big centre banner; `kind` (a map id) picks the colour (the store is pink, the island gold). */
+  /** Big centre banner; `kind` (a map id) picks the colour (store pink, Animal Island green, City gold). */
   banner(text: string, kind = ''): void {
-    const b = el('div', 'hg-banner' + (kind === 'toy' ? ' toy' : ''), text);
+    const b = el(
+      'div',
+      'hg-banner' + (kind === 'toy' || kind === 'animal' ? ` ${kind}` : ''),
+      text,
+    );
     this.el.append(b);
     b.addEventListener('animationend', () => b.remove());
   }

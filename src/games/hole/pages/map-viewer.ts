@@ -1,10 +1,19 @@
 import {
+  BufferGeometry,
+  Color,
+  DataTexture,
+  Float32BufferAttribute,
   Group,
+  LineBasicMaterial,
+  LineSegments,
   Mesh,
   MeshBasicMaterial,
+  NearestFilter,
   Plane,
   PlaneGeometry,
+  RGBAFormat,
   Raycaster,
+  SRGBColorSpace,
   Vector2,
   Vector3,
 } from 'three';
@@ -12,8 +21,10 @@ import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { track } from '../../../shared/analytics';
 import { ViewerShell } from '../debug/viewer-shell';
 import { getItem } from '../items/catalog';
+import { BIOMES, BIOME_COLORS, SEA } from '../map/animal/biomes';
+import { RING_CORNERS } from '../map/city-movers';
 import { DEFAULT_CITY, generateCity, targetPoints } from '../map/generate';
-import type { DistrictId, MapData } from '../map/types';
+import type { DistrictId, MapData, MoveKind } from '../map/types';
 import { buildMapGround } from '../render/map-ground';
 import { getMapDef } from '../map/registry';
 import { ItemInstances } from '../render/item-instances';
@@ -43,6 +54,12 @@ const DEFAULTS = {
   downtown: D.downtownMax,
   commercial: D.commercialMax,
   overlay: true,
+  /** Animal Island overlays: biome grid, walk grid (land / water / blocked), leash circles, trail paths. */
+  biomes: false,
+  walkgrid: false,
+  leash: false,
+  paths: false,
+  roads: false,
   tier: 0,
   level: 8,
   gamecam: false,
@@ -73,6 +90,15 @@ shell.onFrame(() =>
 );
 const overlay = new Group();
 scene.add(overlay);
+/** Animal Island overlays (biome / walk textures, leash circles, paths), rebuilt with the map. */
+const animalOverlay = {
+  biomes: new Group(),
+  walkgrid: new Group(),
+  leash: new Group(),
+  paths: new Group(),
+  roads: new Group(),
+};
+for (const g of Object.values(animalOverlay)) scene.add(g);
 const marker = new Mesh(
   new PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
   new MeshBasicMaterial({
@@ -85,6 +111,20 @@ const marker = new Mesh(
 marker.renderOrder = 10;
 marker.visible = false;
 scene.add(marker);
+
+const MOVE_COLOR: Record<MoveKind, number> = {
+  wander: 0xffffff,
+  hop: 0xffe66d,
+  crawl: 0xc08a5a,
+  skitter: 0xff9f43,
+  flutter: 0x7fdbff,
+  swim: 0x3d9cff,
+  trail: 0xff4d6d,
+  patrol: 0xd33fff,
+  roam: 0xff2d2d,
+  drive: 0xffd400,
+  stroll: 0x00e5a8,
+};
 
 const DISTRICT_COLOR: Record<DistrictId, number> = {
   core: 0xff2d55,
@@ -172,6 +212,23 @@ view.button('Top-down overview', () => {
   shell.controls.target.set(0, 0, 0);
   shell.camera.position.set(0, 380, 330);
 });
+const moverView = mapDef.id !== 'toy' ? panel.section('Movers') : null;
+const moverToggle = (
+  label: string,
+  key: 'biomes' | 'walkgrid' | 'leash' | 'paths' | 'roads',
+) =>
+  moverView?.checkbox(label, state[key], (v) => {
+    state[key] = v;
+    applyAnimalOverlays();
+    sync();
+  });
+if (mapDef.id === 'animal') {
+  moverToggle('Biome grid', 'biomes');
+  moverToggle('Walk grid (land / water / blocked)', 'walkgrid');
+}
+moverToggle('Leash circles (colour = behaviour)', 'leash');
+moverToggle('Trail / patrol / stroll paths', 'paths');
+if (mapDef.id === 'city') moverToggle('Road network (car lanes)', 'roads');
 const play = panel.section('Play');
 play.button('Play from the red marker', () => {
   location.href = `./?map=${state.map}&seed=${state.seed}&x=${state.x.toFixed(1)}&z=${state.z.toFixed(1)}&level=${state.level}&difficulty=medium`;
@@ -204,6 +261,7 @@ function regenerate(): void {
   instances = new ItemInstances(world);
   scene.add(instances.group);
   buildOverlay();
+  buildAnimalOverlays();
   applyTier();
   if (state.x === 0 && state.z === 0) {
     state.x = map.start.x;
@@ -245,6 +303,173 @@ function buildOverlay(): void {
     overlay.add(m);
   }
   overlay.visible = state.overlay;
+}
+
+/** A flat grid of `nx` x `nz` cells as one textured plane; `colorOf` returns [r, g, b, a] (0-255) per cell. */
+function gridPlane(
+  g: { x0: number; z0: number; cell: number; nx: number; nz: number },
+  colorOf: (ix: number, iz: number) => [number, number, number, number],
+  y: number,
+): Mesh {
+  const px = new Uint8Array(g.nx * g.nz * 4);
+  for (let iz = 0; iz < g.nz; iz++)
+    for (let ix = 0; ix < g.nx; ix++) {
+      // texture row 0 is the bottom (largest z after rotateX(-90deg)), so store the rows reversed
+      px.set(colorOf(ix, iz), ((g.nz - 1 - iz) * g.nx + ix) * 4);
+    }
+  const tex = new DataTexture(px, g.nx, g.nz, RGBAFormat);
+  tex.colorSpace = SRGBColorSpace;
+  tex.magFilter = NearestFilter;
+  tex.minFilter = NearestFilter;
+  tex.needsUpdate = true;
+  const w = g.nx * g.cell;
+  const d = g.nz * g.cell;
+  const m = new Mesh(
+    new PlaneGeometry(w, d).rotateX(-Math.PI / 2),
+    new MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
+  );
+  m.position.set(g.x0 + w / 2, y, g.z0 + d / 2);
+  m.renderOrder = 5;
+  return m;
+}
+
+function lineSet(segs: number[], cols: number[], y: number): LineSegments {
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new Float32BufferAttribute(segs, 3));
+  geo.setAttribute('color', new Float32BufferAttribute(cols, 3));
+  const l = new LineSegments(
+    geo,
+    new LineBasicMaterial({ vertexColors: true, depthTest: false }),
+  );
+  l.position.y = y;
+  l.renderOrder = 8;
+  return l;
+}
+
+function buildAnimalOverlays(): void {
+  for (const g of Object.values(animalOverlay)) g.clear();
+  const t = map.terrain;
+  if (t)
+    animalOverlay.biomes.add(
+      gridPlane(
+        t.biome,
+        (ix, iz) => {
+          const c = t.biome.data[iz * t.biome.nx + ix];
+          if (c === SEA) return [0, 0, 0, 0];
+          const hex = BIOME_COLORS[BIOMES[c]][0];
+          return [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255, 200];
+        },
+        0.55,
+      ),
+    );
+  const wg = map.walk;
+  if (wg)
+    animalOverlay.walkgrid.add(
+      gridPlane(
+        wg,
+        (ix, iz) => {
+          const c = wg.data[iz * wg.nx + ix];
+          if (c === 1) return [60, 200, 90, 90];
+          if (c === 2) return [40, 140, 255, 170];
+          return [230, 50, 50, 170];
+        },
+        0.6,
+      ),
+    );
+  // one leash circle per distinct home + radius + behaviour (a herd shares one); trails / patrols get a line
+  const seen = new Set<string>();
+  const circ: number[] = [];
+  const circCol: number[] = [];
+  const path: number[] = [];
+  const pathCol: number[] = [];
+  const c = new Color();
+  const STEPS = 40;
+  for (const p of map.placements) {
+    const mv = p.move;
+    if (!mv) continue;
+    c.setHex(MOVE_COLOR[mv.kind]);
+    if (mv.kind === 'drive') continue; // cars follow the road network overlay
+    if (mv.kind === 'trail' || mv.kind === 'patrol') {
+      path.push(mv.hx, 0, mv.hz, mv.tx ?? mv.hx, 0, mv.tz ?? mv.hz);
+      pathCol.push(c.r, c.g, c.b, c.r, c.g, c.b);
+    }
+    if (mv.kind === 'stroll') {
+      // the sidewalk ring round the block, once per block and size
+      const rk = `ring:${mv.hx.toFixed(0)}:${mv.hz.toFixed(0)}:${mv.leash.toFixed(1)}`;
+      if (!seen.has(rk)) {
+        seen.add(rk);
+        const o = mv.leash;
+        for (let k = 0; k < 4; k++) {
+          const [ax, az] = RING_CORNERS[k];
+          const [bx, bz] = RING_CORNERS[(k + 1) % 4];
+          path.push(
+            mv.hx + ax * o,
+            0,
+            mv.hz + az * o,
+            mv.hx + bx * o,
+            0,
+            mv.hz + bz * o,
+          );
+          pathCol.push(c.r, c.g, c.b, c.r, c.g, c.b);
+        }
+      }
+      continue;
+    }
+    const key = `${mv.kind}:${mv.hx.toFixed(0)}:${mv.hz.toFixed(0)}:${mv.leash.toFixed(0)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    for (let k = 0; k < STEPS; k++) {
+      const a0 = (k / STEPS) * Math.PI * 2;
+      const a1 = ((k + 1) / STEPS) * Math.PI * 2;
+      circ.push(
+        mv.hx + Math.cos(a0) * mv.leash,
+        0,
+        mv.hz + Math.sin(a0) * mv.leash,
+        mv.hx + Math.cos(a1) * mv.leash,
+        0,
+        mv.hz + Math.sin(a1) * mv.leash,
+      );
+      circCol.push(c.r, c.g, c.b, c.r, c.g, c.b);
+    }
+  }
+  if (circ.length) animalOverlay.leash.add(lineSet(circ, circCol, 0.7));
+  if (path.length) animalOverlay.paths.add(lineSet(path, pathCol, 0.75));
+  const net = map.roads;
+  if (net) {
+    const seg: number[] = [];
+    const segCol: number[] = [];
+    c.setHex(MOVE_COLOR.drive);
+    for (const [a, b] of net.edges) {
+      seg.push(
+        net.nodes[a][0],
+        0,
+        net.nodes[a][1],
+        net.nodes[b][0],
+        0,
+        net.nodes[b][1],
+      );
+      segCol.push(c.r, c.g, c.b, c.r, c.g, c.b);
+    }
+    if (seg.length) animalOverlay.roads.add(lineSet(seg, segCol, 0.8));
+  }
+  applyAnimalOverlays();
+}
+
+function applyAnimalOverlays(): void {
+  animalOverlay.biomes.visible = state.biomes;
+  animalOverlay.walkgrid.visible = state.walkgrid;
+  animalOverlay.leash.visible = state.leash;
+  animalOverlay.paths.visible = state.paths;
+  animalOverlay.roads.visible = state.roads;
+}
+
+function moverSummary(): string {
+  const n: Partial<Record<MoveKind, number>> = {};
+  for (const p of map.placements)
+    if (p.move) n[p.move.kind] = (n[p.move.kind] ?? 0) + 1;
+  return `${world.movers.length}: ${Object.entries(n)
+    .map(([k, v]) => `${k} ${v}`)
+    .join(' · ')}`;
 }
 
 function applyTier(): void {
@@ -312,6 +537,7 @@ function refreshBudget(): void {
             .join(' · '),
         }
       : {}),
+    ...(world.movers.length ? { movers: moverSummary() } : {}),
     start: `${map.start.x.toFixed(0)}, ${map.start.z.toFixed(0)}`,
   });
 }

@@ -25,7 +25,9 @@ import type { ItemStyle } from '../items/catalog';
 
 /**
  * The per-vertex `paint` attribute: 0 = plain, 1 = takes the instance colour, 2 = glows (`glow` parts of
- * the Mesher: arcade screens, lamps, robot eyes). Glow adds the vertex colour on top of the lighting.
+ * the Mesher: arcade screens, lamps, robot eyes), 3 = glass (`glass` parts: domes, panes). Glow adds the
+ * vertex colour on top of the lighting; glass drops every other screen pixel (a screen-door dither), so
+ * the batches stay opaque (no sorting, no extra pass) and the things inside a dome show through.
  */
 const PAINT_COLOR_VERTEX =
   ShaderChunk.color_vertex
@@ -37,7 +39,8 @@ const PAINT_COLOR_VERTEX =
     .replace(
       'vColor *= getBatchingColor( getIndirectIndex( gl_DrawID ) );',
       'vColor *= mix( vec4( 1.0 ), getBatchingColor( getIndirectIndex( gl_DrawID ) ), ( paint > 0.5 && paint < 1.5 ) ? 1.0 : 0.0 );',
-    ) + '\nvGlow = paint > 1.5 ? 1.0 : 0.0;';
+    ) +
+  '\nvGlow = ( paint > 1.5 && paint < 2.5 ) ? 1.0 : 0.0;\nvGlass = paint > 2.5 ? 1.0 : 0.0;';
 
 /**
  * Building fade: items that are nearer to the camera than the hole and drawn over
@@ -64,24 +67,29 @@ const FADE_FRAGMENT = /* glsl */ `
   }
 `;
 
+/** Glass parts keep a checkerboard of screen pixels (half of them), whatever the camera does. */
+const GLASS_FRAGMENT = /* glsl */ `
+  if (vGlass > 0.5 && mod(floor(gl_FragCoord.x) + floor(gl_FragCoord.y), 2.0) < 0.5) discard;
+`;
+
 function patchPaint(shader: WebGLProgramParametersWithUniforms): void {
   Object.assign(shader.uniforms, holeFade);
   shader.vertexShader = shader.vertexShader
     .replace(
       '#include <common>',
-      '#include <common>\nattribute float paint;\nvarying float vGlow;',
+      '#include <common>\nattribute float paint;\nvarying float vGlow;\nvarying float vGlass;',
     )
     .replace('#include <color_vertex>', PAINT_COLOR_VERTEX);
   shader.fragmentShader = shader.fragmentShader
     .replace(
       '#include <common>',
-      '#include <common>\nuniform vec4 uHoleFade;\nuniform float uFadeMargin;\nvarying float vGlow;',
+      '#include <common>\nuniform vec4 uHoleFade;\nuniform float uFadeMargin;\nvarying float vGlow;\nvarying float vGlass;',
     )
     .replace(
       '#include <emissivemap_fragment>',
       '#include <emissivemap_fragment>\ntotalEmissiveRadiance += vColor.rgb * vGlow * 0.85;',
     )
-    .replace('void main() {', `void main() {${FADE_FRAGMENT}`);
+    .replace('void main() {', `void main() {${FADE_FRAGMENT}${GLASS_FRAGMENT}`);
 }
 
 function windowTexture(style: Exclude<ItemStyle, 'prop'>): CanvasTexture {

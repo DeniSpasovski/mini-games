@@ -226,7 +226,7 @@ to: item points or size tiers (`sim/progression.ts`, item dimensions in `items/c
 difficulty times, how a run is scored (`sim/sim.ts`) or how much content the map holds (`map/generate.ts`, e.g. `tiles` or `pointsPerTile`). Pure
 rebalancing of the XP curve, speed or camera does not change what a score means and needs no bump.
 
-### Moving items (Animal Island)
+### Moving items (Animal Island and City Island)
 
 Items can move. A placement with a `move` spec (`MoveSpec` in `map/types.ts`: kind, home, leash, speed, optional path
 end and start delay, `flee`) becomes a **mover**: `sim/world.ts` keeps its state in struct-of-arrays (`isMover`,
@@ -256,8 +256,22 @@ end and start delay, `flee`) becomes a **mover**: `sim/world.ts` keeps its state
   bounce). Static items are untouched.
 - **Cost** (`tests/hole/movers.test.ts`): a tick with 2 500 awake movers takes well under 3 ms in node (benchmark: 0.1 ms
   for the movement, 0.1 ms for the matrices); the game has about 2 500 movers, a few hundred awake.
-- Not done: the bot does not lead moving targets, no leg animation (animals bob / hop as a whole), herd followers,
-  see [`ANIMAL-ISLAND.md`](ANIMAL-ISLAND.md) section 7.
+- **The bot leads moving targets** (`Bot.intercept`: aims at `p + v * t`, lead capped at 1.5 s; velocity from `World.mVx / mVz`).
+- **City Island** uses two more behaviours, with no walk grid (the road graph and the sidewalk ring are the ground rules):
+  - `drive` (cars): the lane vehicles of `vehicleOn` (taxi, sedan, bus, van, pickup, trucks, the tram) follow `MapData.roads`
+    (`RoadNet`: crossings + 50 m arms, none on the canal; `sim/roads.ts` makes the adjacency lists) in the **right-hand lane**
+    (`LANE` 1.9 m: clear of the curb lane, where cars stay parked). Per crossing: head for the lane point 5 m before it, pick an
+    exit (straight 4 : turn 1.5, a dead end turns the car round), cut across at 55 % speed. A car brakes for a vehicle within
+    2.5 m in front (parked ones included) and, held up 3 s, creeps on for 2 s so a four-way stand-off clears. Cars **never
+    sleep** (a frozen car would make the queue behind it merge into it) and never flee; speed 4-8.5 m/s, capped like every mover.
+    Curb-parked cars have no `move` and stay parked.
+  - `stroll` (people): a pedestrian on the sidewalk ring walks round its block corner to corner (`RING_CORNERS`), pausing
+    now and then and turning back at 25 % of the corners. Pedestrians in a park or on the beach `wander` in a circle that stays
+    in the park / on the sand; plaza and lot pedestrians stand. `map/city-movers.ts` assigns them after generation with its own
+    Rng, so the layout and the 30 000 points never change. People face +Z (`Movers.face`), animals and cars +X.
+  - `tests/hole/city-movers.test.ts`: cars stay on the asphalt, make progress and do not stack; strollers stay on the ring;
+    deterministic; cheap. Overlays: map viewer "Road network", "Trail / patrol / stroll paths".
+- Not done: no leg animation (animals bob / hop as a whole), herd followers, see [`ANIMAL-ISLAND.md`](ANIMAL-ISLAND.md) section 7.
 
 ### Movement
 
@@ -307,7 +321,7 @@ World axes: +X east, +Z south (same as rally).
 | Residential  | beyond: four lots per block with a house / small house / townhouses, front fences with a gate gap, hedges, driveway car, mailbox, bushes, shed, trees                                                                                                                                                                                                                                                                                                                                                   |
 | Parks        | 5 blocks (the first near the centre = the start): fountain plaza, playground or woods, with paths, benches, flower beds, tall grass and flowers                                                                                                                                                                                                                                                                                                                                                         |
 | Canal        | one road line near the middle (a column or a row, seeded, own RNG) is **water instead of asphalt**: 10 m wide between the sidewalks, the crossings on it stay asphalt and are the **bridges** (parapets from `city-decor.ts`), at both ends it runs on to the coast. Zone `water` in `map/spawn.ts` (rects at `CANAL_Y`): nothing may stand in it except 5 **rowboats**, no traffic on it. **The hole is only clamped to the coast, so it crosses the canal freely** (the water is cut like the ground) |
-| Streets      | lamp posts, hydrants, trash cans, bus stops, billboards, vending machines, a **traffic light (busy / commercial blocks) or street sign (residential, parks) on every crossing corner of a live block**, parked cars at the curb, one vehicle per road segment                                                                                                                                                                                                                                           |
+| Streets      | lamp posts, hydrants, trash cans, bus stops, billboards, vending machines, a **traffic light (busy / commercial blocks) or street sign (residential, parks) on every crossing corner of a live block**, parked cars at the curb, one vehicle per road segment (these **drive**, see "Moving items"), pedestrians on the sidewalk ring (they **walk**)                                                                                                                                                                                                                                           |
 | Beach        | up to ~660 placement attempts in the sand band: chairs, umbrellas, palms, huts, lifeguard towers, rowboats, stands                                                                                                                                                                                                                                                                                                                                                                                      |
 | Harbour      | at the bay: quay (plus a render-only pier, see Non-edible assets), crates, rowboats, speedboat, delivery trucks, water towers, lighthouse on the opposite headland                                                                                                                                                                                                                                                                                                                                      |
 | Edge blocks  | blocks that don't fit are left as lawn with trees, bushes, grass and flowers                                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -432,7 +446,7 @@ Swallow puffs: dust on City Island, **confetti** in the store (`MapDef.puffs`), 
 
 The menu's map cards show a picture each (`screenshots/menu-city.jpg`, `menu-toy.jpg`, `menu-animal.jpg`: 640 x 360 in-game shots, taken
 with the game camera through the dev thumbnail endpoint, see "Debug tools"); the results screen colours the 25 tier bars
-blue -> red, and the store's "STORE CLEARED!" banner is pink (the island's is gold).
+blue -> red, and the "CLEARED!" banner is pink in the store, green on Animal Island and gold on City Island (`.hg-banner.<map id>` in `hole.css`).
 
 ## Map: Animal Island
 
@@ -489,6 +503,10 @@ biome cells (two greens per biome), sand ring, flat rects, river ribbons with mu
   vertex colour on top of the lighting (`vGlow` in `render/materials.ts`), so arcade screens, the claw machine lamp,
   pinball marquee and robot eyes / chest lights light up flat and bright. Paint attribute 1 is still "takes the instance
   colour" (the item tests count only 1 as paint).
+- **Glass**: a part with `{ glass: true }` (box / cylinder / ball) writes paint attribute 3; the item material drops every
+  other screen pixel for it (`GLASS_FRAGMENT`: a screen-door dither, so the batches stay opaque: no sorting, no extra
+  pass), and `findBuried` ignores glass as an occluder. Used by the biodome, lab dome and greenhouse walls: whatever is
+  inside shows. Parts inside a glass shell must not rest on solid discs (use `caps: false` rings); the shadow stays solid.
 - **Ambient occlusion feel**: vertex colours are darkened over the bottom 20 % (max 4 m) of every item.
 - **Lighting:** a warm sun (directional) with one 2048 shadow map (high quality), a sky/ground hemisphere light and
   light fog towards the sky colour. `low` quality turns shadows off, caps the pixel ratio at 1.5 and drops
@@ -545,7 +563,7 @@ The item viewer shows the live value.
 | 4    | 4   | `recycling_bins`     | street      | 1.4×0.7×1.2   | 1.40 | residential                 | 3 coloured bins                                |
 | 4    | 4   | `bush_large`         | nature      | 1.4×1.4×1.2   | 1.40 | residential, parks          |                                                |
 | 5    | 5   | `traffic_light`      | street      | 1.5×0.4×4.5   | 1.50 | crossings                   | short arm                                      |
-| 5    | 5   | `tree_small`         | nature      | 1.6×1.6×3.5   | 1.60 | streets, residential        | egg crown / 3 balls (2 variants)               |
+| 5    | 5   | `tree_small`         | nature      | 1.6×1.6×3.5   | 1.60 | streets, residential        | egg crown / 3 balls / small pine (3 variants)  |
 | 5    | 5   | `beach_chair`        | beach       | 1.6×0.6×0.8   | 1.60 | beach                       | striped (instanceColor)                        |
 | 6    | 6   | `bench`              | park        | 1.8×0.6×0.9   | 1.80 | parks, sidewalks, beach     | wood slats + metal legs                        |
 | 6    | 6   | `picnic_table`       | park        | 1.8×1.6×0.8   | 1.80 | parks                       |                                                |
@@ -558,7 +576,7 @@ The item viewer shows the live value.
 | 7    | 7   | `hotdog_stand`       | street      | 2.2×1.2×2.3   | 2.20 | plazas, beach               | cart + umbrella                                |
 | 8    | 8   | `lifeguard_tower`    | beach       | 2.5×2.5×4.0   | 2.50 | beach                       | stilts + hut                                   |
 | 8    | 8   | `bus_stop`           | street      | 2.6×1.4×2.5   | 2.60 | main roads                  | shelter + bench                                |
-| 8    | 8   | `tree`               | nature      | 2.6×2.6×6.0   | 2.60 | parks, residential          | stacked balls / cloud of 4 (2 variants)        |
+| 8    | 8   | `tree`               | nature      | 2.6×2.6×6.0   | 2.60 | parks, residential          | stacked balls / cloud of 4 / pine (3 variants) |
 | 9    | 9   | `fountain`           | park        | 3.0×3.0×1.8   | 3.00 | plaza, parks                | animated water = iteration                     |
 | 9    | 9   | `playground_slide`   | park        | 3.0×1.0×2.2   | 3.00 | parks                       |                                                |
 | 9    | 9   | `swing_set`          | park        | 3.0×2.0×2.2   | 3.00 | parks                       |                                                |
@@ -573,16 +591,16 @@ The item viewer shows the live value.
 | 13   | 13  | `van`                | vehicle     | 5.5×2.0×2.3   | 5.50 | commercial                  |                                                |
 | 13   | 13  | `pickup`             | vehicle     | 5.4×2.0×1.9   | 5.40 | residential                 |                                                |
 | 13   | 13  | `beach_hut`          | beach       | 5.5×5.0×4.0   | 5.50 | beach                       | stilts, striped walls                          |
-| 13   | 13  | `tree_big`           | nature      | 5.5×5.5×10    | 5.50 | parks                       | oak-style crown of 4 balls                     |
+| 13   | 13  | `tree_big`           | nature      | 5.5×5.5×10    | 5.50 | parks                       | oak-style crown of 4 balls / big pine (2 var.) |
 | 14   | 14  | `water_tower`        | harbour     | 6×6×14        | 6.00 | harbour, commercial         | legs + tank                                    |
 | 14   | 14  | `lighthouse`         | harbour     | 6×6×20        | 6.00 | headland                    | red/white bands                                |
 | 14   | 14  | `delivery_truck`     | vehicle     | 6.5×2.4×3.4   | 6.50 | commercial, harbour         |                                                |
 | 15   | 15  | `food_truck`         | vehicle     | 7.5×2.4×3.2   | 7.50 | plazas, beach               |                                                |
 | 15   | 15  | `speedboat`          | harbour     | 7.5×2.5×2.0   | 7.50 | harbour slipway             | on trailer                                     |
-| 16   | 16  | `house_small`        | residential | 8.0×7.0×6.0   | 8.00 | residential                 | pitched roof, 4 wall colours                   |
+| 16   | 16  | `house_small`        | residential | 8.0×7.0×6.0   | 8.00 | residential                 | hip or gable roof (2 variants), 4 wall colours |
 | 16   | 16  | `fire_truck`         | vehicle     | 8.5×2.5×3.2   | 8.50 | fire station lot            | ladder                                         |
 | 17   | 17  | `bus`                | vehicle     | 10×2.5×3.2    | 10.0 | main roads, depot           |                                                |
-| 17   | 17  | `house`              | residential | 9.5×9.0×8.0   | 9.50 | residential                 | 2 floors, garage                               |
+| 17   | 17  | `house`              | residential | 9.5×9.0×8.0   | 9.50 | residential                 | 2 floors, garage, hip or gable roof (2 var.)   |
 | 17   | 17  | `corner_shop`        | commercial  | 10×8×5        | 10.0 | commercial                  | awning, sign                                   |
 | 18   | 18  | `townhouse_row`      | residential | 12×8×9        | 12.0 | residential/commercial edge | 3 colourful units                              |
 | 18   | 18  | `tram`               | vehicle     | 12×2.6×3.4    | 12.0 | downtown stop               | static                                         |
@@ -715,6 +733,7 @@ are City Island only.
 - Seed, island radius, coast noise, parks, litter density, downtown / commercial radius: the island regenerates live.
 - Overlays: district colours, "show only tier N" filter. Click an item to inspect it (name, level, points, size,
   position). Click the ground to move the red marker (drawn at the hole size of the chosen level).
+- `map=animal` adds an **Animals** section (URL keys `biomes`, `walkgrid`, `leash`, `paths`): biome grid colours, walk grid (green land, blue water, red blocked), leash circles (one per home / radius / behaviour, colour = behaviour) and the ant / patrol path lines; the content box also counts movers per behaviour.
 - **Content budget box:** item count, total points against the exact target (30 000 City Island, 25 000 Toy Emporium), tiers with fewer than 2 item types, items
   and points per tier, skyscraper count, start position; draw calls and triangles in the F3 box.
 - **Game camera** at the marker for level L (checks framing over the real map); **Play from the red marker** opens
@@ -876,7 +895,7 @@ road dashes / zebra stripes into a texture (they are ~12k triangles of the groun
 - **Enemy holes**: AI holes that move around the map and eat the same items. You can eat a smaller hole, and a bigger
   hole can eat you. **Out of scope for v0.** Keep `sim/` ready by putting hole state in a list (one player hole in
   v0), and keep the bot as the base for enemy AI.
-- Moving content on the other maps: the mover engine ("Moving items") exists now, so walking pedestrians, driving cars and buses on the road graph, boats on the water, carousels are a `MoveSpec` away.
+- More moving content: the mover engine ("Moving items") drives City Island's cars and people now; boats on the canal / harbour, a stoplight rhythm at crossings, kids on playgrounds, carousels in the toy store are a `MoveSpec` away.
 - More maps: forest, farm, harbour, desert, winter (add a `MapDef` to `map/registry.ts` + a generator; the menu picker and per-map scores already exist).
 - Rigid-body falling (Rapier) for better tumbling and stacking, if mobile performance allows.
 - Combo multiplier (eat quickly in a row), time-bonus pickups, temporary "magnet" or "speed" power-ups.

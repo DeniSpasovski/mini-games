@@ -504,11 +504,24 @@ function octopus(f: Frac, s: Spec): void {
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
     f.box(Math.cos(a) * 0.4, 0, Math.sin(a) * 0.4, 0.2, 0.26, 0.2, s.body);
+    // the tip curls up and away from the body, in the light belly colour
+    f.box(
+      Math.cos(a) * 0.46,
+      0.2,
+      Math.sin(a) * 0.46,
+      0.1,
+      0.14,
+      0.1,
+      s.belly ?? s.body,
+    );
   }
   for (const sx of [-1, 1]) {
-    f.box(sx * 0.16, 0.5, 0.4 + proud * 0.3, 0.12, 0.14, proud, T.white);
-    f.box(sx * 0.16, 0.54, 0.4 + proud * 0.9, 0.06, 0.07, proud * 0.7, T.black);
+    f.box(sx * 0.16, 0.48, 0.4 + proud * 0.3, 0.16, 0.18, proud, T.white);
+    f.box(sx * 0.16, 0.52, 0.4 + proud * 0.9, 0.08, 0.09, proud * 0.7, T.black);
+    // bow: two wings and a knot, on the front-left of the dome
+    f.box(-0.2 + sx * 0.07, 0.84, 0.22, 0.08, 0.08, 0.08, T.yellow);
   }
+  f.box(-0.2, 0.85, 0.22, 0.05, 0.06, 0.06, T.orange);
   f.box(0, 0.38, 0.4 + proud * 0.3, 0.14, 0.05, proud, T.rose);
 }
 
@@ -540,7 +553,11 @@ function whale(f: Frac, s: Spec): void {
       T.black,
     );
   }
-  f.box(0.26, 0.62, 0, 0.1, 0.1, 0.1, 0x9cd3ff);
+  // red scarf round the body, a smile, and a spout that fans out at the top
+  f.box(0.12, 0.02, 0, 0.09, 0.66, 1.0, T.red);
+  f.box(0.395, 0.24, 0, 0.03, 0.04, 0.34, T.black);
+  f.box(0.26, 0.62, 0, 0.06, 0.2, 0.06, 0x9cd3ff);
+  f.box(0.26, 0.8, 0, 0.18, 0.06, 0.18, 0x9cd3ff);
 }
 
 /** plush_<family>_<size>: the family comes from the id. */

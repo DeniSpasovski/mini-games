@@ -1,8 +1,10 @@
 import { Rng } from '../../../shared/rng';
+import { RING_CORNERS } from '../map/city-movers';
 import type { MapData, WalkGrid } from '../map/types';
 import { teeterAmount } from './eat';
 import { FallState } from './fall';
 import { cameraDistance, holeDiameter, moveSpeed } from './progression';
+import { RoadGraph } from './roads';
 import { MOVE_KINDS, type World } from './world';
 
 /**
@@ -25,6 +27,13 @@ const VISIBLE = 150;
 export const FLEE = { range: 1.3, time: 1.6, mul: 1.1, minTier: 1 };
 /** No mover is faster than this share of the full speed of the hole level that can first eat it. */
 const SPEED_CAP = 0.5;
+/** Cars: distance (m) from a crossing centre where the crossing starts (half the 10 m road). */
+const CROSS_EDGE = 5;
+/** Cars: a car held up this long (s) drives on regardless for `CREEP` seconds (breaks four-way stand-offs). */
+const HELD_MAX = 3;
+const CREEP = 2;
+/** Cars: bumper gap (m) at which a car brakes for the vehicle in front. */
+const GAP = 2.5;
 
 const K = Object.fromEntries(MOVE_KINDS.map((k, i) => [k, i])) as Record<
   (typeof MOVE_KINDS)[number],
@@ -41,13 +50,37 @@ export interface HoleView {
 export class Movers {
   private rng: Rng;
   private walk: WalkGrid | undefined;
+  private roads: RoadGraph | undefined;
 
   constructor(
     private world: World,
-    map: Pick<MapData, 'walk' | 'seed'>,
+    map: Pick<MapData, 'walk' | 'seed' | 'roads'>,
   ) {
     this.walk = map.walk;
+    this.roads = map.roads ? new RoadGraph(map.roads) : undefined;
     this.rng = new Rng(map.seed * 7919 + 31);
+    this.initPaths();
+  }
+
+  /** Resolve the road nodes of the cars and the first corner of the strollers from their specs. */
+  private initPaths(): void {
+    const w = this.world;
+    for (const i of w.movers) {
+      const kind = w.mKind[i];
+      if (kind === K.drive && this.roads) {
+        w.mFrom[i] = this.roads.nodeAt(w.mHx[i], w.mHz[i]);
+        w.mNode[i] = this.roads.nodeAt(w.mPx[i], w.mPz[i]);
+        if (w.mFrom[i] < 0) w.mNode[i] = -1;
+      } else if (kind === K.stroll) {
+        const sx = w.mPx[i] > w.mHx[i] ? 1 : -1;
+        const sz = w.mPz[i] > w.mHz[i] ? 1 : -1;
+        w.mNode[i] = RING_CORNERS.findIndex(
+          ([cx, cz]) => cx === sx && cz === sz,
+        );
+        w.mTx[i] = w.mPx[i];
+        w.mTz[i] = w.mPz[i];
+      }
+    }
   }
 
   get count(): number {
@@ -89,12 +122,16 @@ export class Movers {
     const awake = cameraDistance(hole.diameter) * AWAKE_CAMERA;
     const awake2 = awake * awake;
     for (const i of w.movers) {
+      w.mVx[i] = 0;
+      w.mVz[i] = 0;
       if (w.state[i] !== FallState.Idle) continue;
       const dx = w.x[i] - hole.x;
       const dz = w.z[i] - hole.z;
       const d2 = dx * dx + dz * dz;
       const seen = w.size[i] * VISIBLE;
-      if (d2 > awake2 || d2 > seen * seen) {
+      // cars never sleep: a frozen car would make the ones behind it queue up and merge with it (there are
+      // only a few dozen, so driving them everywhere costs nothing)
+      if (w.mKind[i] !== K.drive && (d2 > awake2 || d2 > seen * seen)) {
         if (w.lift[i] !== 0 && w.mKind[i] !== K.flutter) this.settle(i);
         continue;
       }
@@ -117,6 +154,8 @@ export class Movers {
   private stepOne(i: number, dt: number, hole: HoleView, dist: number): void {
     const w = this.world;
     const kind = w.mKind[i];
+    if (kind === K.drive) return this.drive(i, dt);
+    if (kind === K.stroll) return this.stroll(i, dt);
     // flee (only things the hole can eat; insects never)
     if (
       w.mCanFlee[i] &&
@@ -179,17 +218,214 @@ export class Movers {
       w.mWait[i] = this.rng.range(0.3, 1.2);
       return;
     }
+    w.mVx[i] = (nx - w.x[i]) / dt;
+    w.mVz[i] = (nz - w.z[i]) / dt;
     w.x[i] = nx;
     w.z[i] = nz;
     w.relocate(i);
-    // face the way it walks (animals face +X: yaw = -atan2(dz, dx)), turning smoothly
-    const want = -Math.atan2(dz, dx);
-    let turn = want - w.rot[i];
-    turn = Math.atan2(Math.sin(turn), Math.cos(turn));
-    const rate = (kind === K.roam ? 1.4 : 7) * dt;
-    w.rot[i] += Math.max(-rate, Math.min(rate, turn));
+    this.face(i, dx, dz, (kind === K.roam ? 1.4 : 7) * dt);
     this.animate(i, kind, dt, speed);
     w.moving.add(i);
+  }
+
+  /** Turn towards the way it moves, at most `rate` rad: animals and vehicles face +X, people +Z. */
+  private face(i: number, dx: number, dz: number, rate: number): void {
+    const w = this.world;
+    const want =
+      w.types[w.type[i]].group === 'people'
+        ? Math.atan2(dx, dz)
+        : -Math.atan2(dz, dx);
+    let turn = want - w.rot[i];
+    turn = Math.atan2(Math.sin(turn), Math.cos(turn));
+    w.rot[i] += Math.max(-rate, Math.min(rate, turn));
+  }
+
+  /** Move `i` towards (tx, tz) at `speed`; returns the distance left. Sets the velocity the bot leads with. */
+  private advance(
+    i: number,
+    dt: number,
+    tx: number,
+    tz: number,
+    speed: number,
+    turnRate: number,
+  ): number {
+    const w = this.world;
+    const dx = tx - w.x[i];
+    const dz = tz - w.z[i];
+    const d = Math.hypot(dx, dz);
+    if (d < 1e-6) return 0;
+    const step = Math.min(d, speed * dt);
+    const nx = w.x[i] + (dx / d) * step;
+    const nz = w.z[i] + (dz / d) * step;
+    w.mVx[i] = (nx - w.x[i]) / dt;
+    w.mVz[i] = (nz - w.z[i]) / dt;
+    w.x[i] = nx;
+    w.z[i] = nz;
+    w.relocate(i);
+    this.face(i, dx, dz, turnRate * dt);
+    w.moving.add(i);
+    return d - step;
+  }
+
+  /** City Island people: walk the sidewalk ring of a block, pausing at corners and now and then turning back. */
+  private stroll(i: number, dt: number): void {
+    const w = this.world;
+    if (w.mWait[i] > 0) {
+      w.mWait[i] -= dt;
+      return;
+    }
+    if (Math.hypot(w.mTx[i] - w.x[i], w.mTz[i] - w.z[i]) < 0.4) {
+      let dir = w.mStage[i];
+      if (this.rng.chance(0.25)) dir = -dir;
+      w.mStage[i] = dir;
+      const idx = (w.mNode[i] + dir + 4) % 4;
+      w.mNode[i] = idx;
+      w.mTx[i] = w.mHx[i] + RING_CORNERS[idx][0] * w.mLeash[i];
+      w.mTz[i] = w.mHz[i] + RING_CORNERS[idx][1] * w.mLeash[i];
+      if (this.rng.chance(0.3)) w.mWait[i] = this.rng.range(0.5, 2.5);
+      return;
+    }
+    const speed = Math.min(
+      SPEED_CAP * moveSpeed(holeDiameter(w.level[i])),
+      w.mSpeed[i],
+    );
+    this.advance(i, dt, w.mTx[i], w.mTz[i], speed, 7);
+    this.animate(i, K.stroll, dt, speed);
+  }
+
+  /**
+   * City Island cars: drive along the road graph in the right-hand lane. On an arm the car heads for the
+   * lane point where the next crossing starts; there it picks an exit (mostly straight on, a dead end turns
+   * it round) and heads for the lane point where that arm starts, slower. It brakes for a vehicle in front
+   * and, held up for `HELD_MAX` s (a four-way stand-off), creeps on for `CREEP` s.
+   */
+  private drive(i: number, dt: number): void {
+    const w = this.world;
+    const g = this.roads;
+    if (!g || w.mNode[i] < 0) return;
+    if (w.mWait[i] > 0) {
+      w.mWait[i] -= dt;
+      return;
+    }
+    const lane = w.mLeash[i];
+    let tx = w.x[i];
+    let tz = w.z[i];
+    let found = false;
+    for (let guard = 0; guard < 3 && !found; guard++) {
+      const n = w.mNode[i];
+      const f = w.mFrom[i];
+      const nx = g.x[n];
+      const nz = g.z[n];
+      let dx = nx - g.x[f];
+      let dz = nz - g.z[f];
+      const len = Math.hypot(dx, dz) || 1;
+      dx /= len;
+      dz /= len;
+      const stage = w.mStage[i];
+      if (stage === 0) {
+        const along = (nx - w.x[i]) * dx + (nz - w.z[i]) * dz;
+        if (along > CROSS_EDGE + 0.3) {
+          tx = nx - dx * CROSS_EDGE - dz * lane;
+          tz = nz - dz * CROSS_EDGE + dx * lane;
+          found = true;
+        } else {
+          w.mNext[i] = this.pickExit(n, f, dx, dz);
+          w.mStage[i] = w.mNext[i] === f ? 2 : 1;
+        }
+      } else if (stage === 2) {
+        // dead end: swing round past the centre of the crossing, then leave on the other lane
+        tx = nx + dx * 2;
+        tz = nz + dz * 2;
+        if (Math.hypot(tx - w.x[i], tz - w.z[i]) < 0.8) w.mStage[i] = 1;
+        else found = true;
+      } else {
+        const m = w.mNext[i];
+        let ex = g.x[m] - nx;
+        let ez = g.z[m] - nz;
+        const el = Math.hypot(ex, ez) || 1;
+        ex /= el;
+        ez /= el;
+        tx = nx + ex * CROSS_EDGE - ez * lane;
+        tz = nz + ez * CROSS_EDGE + ex * lane;
+        if (Math.hypot(tx - w.x[i], tz - w.z[i]) < 0.8) {
+          w.mFrom[i] = n;
+          w.mNode[i] = m;
+          w.mNext[i] = -1;
+          w.mStage[i] = 0;
+        } else found = true;
+      }
+    }
+    if (!found) return;
+    const cap = SPEED_CAP * moveSpeed(holeDiameter(w.level[i]));
+    let speed = Math.min(cap, w.mSpeed[i]) * (w.mStage[i] === 0 ? 1 : 0.55);
+    if (this.held(i, dt)) speed = 0;
+    if (speed > 0) this.advance(i, dt, tx, tz, speed, 6);
+  }
+
+  /** Where a car at node `n` (coming from `f`, heading (dx, dz)) goes next. */
+  private pickExit(n: number, f: number, dx: number, dz: number): number {
+    const g = this.roads!;
+    const adj = g.adj[n];
+    if (adj.length <= 1) return f;
+    let total = 0;
+    const weight = (m: number): number => {
+      if (m === f) return 0;
+      const ex = g.x[m] - g.x[n];
+      const ez = g.z[m] - g.z[n];
+      return (ex * dx + ez * dz) / (Math.hypot(ex, ez) || 1) > 0.9 ? 4 : 1.5;
+    };
+    for (const m of adj) total += weight(m);
+    let roll = this.rng.next() * total;
+    for (const m of adj) {
+      roll -= weight(m);
+      if (roll <= 0 && weight(m) > 0) return m;
+    }
+    return adj.find((m) => m !== f) ?? f;
+  }
+
+  /** True while another vehicle is close in front of car `i` (and it has not been held up too long). */
+  private held(i: number, dt: number): boolean {
+    const w = this.world;
+    if (w.mBlock[i] < 0) {
+      w.mBlock[i] = Math.min(0, w.mBlock[i] + dt);
+      return false;
+    }
+    const me = w.types[w.type[i]];
+    const yaw = w.rot[i];
+    const hx = Math.cos(yaw);
+    const hz = -Math.sin(yaw);
+    const reach = me.w / 2 + GAP + 6.5;
+    let blocked = false;
+    w.query(
+      w.x[i] + (hx * reach) / 2,
+      w.z[i] + (hz * reach) / 2,
+      reach / 2 + 3,
+      (j) => {
+        if (blocked || j === i || w.state[j] !== FallState.Idle) return;
+        const o = w.types[w.type[j]];
+        if (o.group !== 'vehicle') return;
+        const ox = w.x[j] - w.x[i];
+        const oz = w.z[j] - w.z[i];
+        const along = ox * hx + oz * hz;
+        const lat = Math.abs(-ox * hz + oz * hx);
+        const c = Math.abs(Math.cos(w.rot[j] - yaw));
+        const s = Math.abs(Math.sin(w.rot[j] - yaw));
+        const oAlong = c * (o.w / 2) + s * (o.d / 2);
+        const oLat = c * (o.d / 2) + s * (o.w / 2);
+        if (along > 0.2 && along - oAlong - me.w / 2 < GAP)
+          if (lat < (me.d / 2 + oLat) * 0.95) blocked = true;
+      },
+    );
+    if (!blocked) {
+      w.mBlock[i] = Math.max(0, w.mBlock[i] - dt);
+      return false;
+    }
+    w.mBlock[i] += dt;
+    if (w.mBlock[i] > HELD_MAX) {
+      w.mBlock[i] = -CREEP;
+      return false;
+    }
+    return true;
   }
 
   /** Pick the next target when the current one is reached. */

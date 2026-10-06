@@ -395,16 +395,21 @@ export const TOYVEH_BUILDERS: Record<string, Builder> = {
   rocket_big: rocket,
   rocket_giant: rocket,
   spaceship_display: mk((f) => {
-    f.box(0, 0.1, 0, 0.9, 0.3, 0.5, T.light, { taper: 0.8 });
-    f.box(0.38, 0.2, 0, 0.3, 0.2, 0.3, T.light, { taper: 0.5 });
-    f.box(0, 0.4, 0, 0.5, 0.3, 0.3, T.glassDark);
-    f.box(0, 0.7, 0, 0.4, 0.3, 0.24, T.light);
+    // a starfighter on three legs: nose cone, canopy, swept wings with red tips, tail fin, twin engines
+    f.box(0.28, 0, 0, 0.07, 0.18, 0.07, T.steel);
+    for (const sz of [-1, 1])
+      f.box(-0.28, 0, sz * 0.2, 0.07, 0.18, 0.07, T.steel);
+    f.box(-0.05, 0.16, 0, 0.76, 0.3, 0.34, T.light);
+    f.box(0.38, 0.2, 0, 0.16, 0.22, 0.24, T.light);
+    f.box(0.47, 0.24, 0, 0.06, 0.14, 0.14, T.red);
+    f.box(0.14, 0.44, 0, 0.3, 0.14, 0.22, T.glassDark);
     for (const sz of [-1, 1]) {
-      f.box(-0.2, 0.15, sz * 0.4, 0.5, 0.1, 0.2, T.red, { taper: 0.5 });
-      f.box(-0.45, 0, sz * 0.2, 0.1, 0.5, 0.1, T.steel);
+      f.box(-0.1, 0.26, sz * 0.3, 0.5, 0.05, 0.3, T.light);
+      f.box(-0.2, 0.265, sz * 0.45, 0.3, 0.04, 0.12, T.red);
+      f.box(-0.47, 0.22, sz * 0.1, 0.1, 0.16, 0.12, T.steelDark);
+      f.box(-0.5, 0.25, sz * 0.1, 0.03, 0.1, 0.08, T.orange);
     }
-    f.box(-0.4, 0.2, 0, 0.2, 0.18, 0.4, T.orange);
-    f.box(0, 0.98, 0, 0.04, 0.02, 0.04, T.red);
+    f.box(-0.36, 0.44, 0, 0.2, 0.56, 0.05, T.red);
   }),
   // ---------------------------------------------------------------- outdoor / inflatables
   beach_ball: mk((f) => {
@@ -545,9 +550,13 @@ export const TOYVEH_BUILDERS: Record<string, Builder> = {
     for (const sx of [-1, 1]) f.box(sx * 0.48, 0, 0, 0.04, 1, 0.1, T.white);
     f.box(0, 0.94, 0, 1, 0.06, 0.1, T.white);
     f.box(0, 0.5, -0.4, 0.9, 0.44, 0.06, T.light);
-    for (const sx of [-1, 1])
+    for (const sx of [-1, 1]) {
       f.box(sx * 0.48, 0, -0.45, 0.04, 0.9, 0.1, T.light);
+      f.box(sx * 0.47, 0.02, -0.22, 0.015, 0.88, 0.34, T.light);
+    }
     f.box(0, 0, -0.45, 1, 0.04, 0.1, T.light);
+    f.puff(0.18, 0, 0.34, 0.12, 0.2, 0.12, T.white);
+    f.box(0.18, 0.1, 0.34 + 0.07, 0.05, 0.06, 0.012, T.black);
   }),
   inflatable_raft: mk((f) => raft(f, true)),
   raft_family: mk((f) => raft(f, false)),
@@ -603,17 +612,41 @@ export const TOYVEH_BUILDERS: Record<string, Builder> = {
     f.box(0.26, 0.62, 0, 0.1, 0.3, 0.1, 0x9cd3ff);
   }),
   inflatable_pool_big: mk((f) => {
-    f.cyl(0, 0, 0, 0.5, 0.5, 0.8, 8, T.sky);
-    f.cyl(0, 0.8, 0, 0.5, 0.5, 0.2, 8, T.blue, { caps: false });
-    f.cyl(0, 0.5, 0, 0.44, 0.44, 0.2, 8, T.water);
+    // a ring of inflated tubes round a water disc, with a duck and a ball floating in it
+    f.cyl(0, 0, 0, 0.5, 0.5, 0.1, 12, T.blue);
+    f.cyl(0, 0.1, 0, 0.4, 0.4, 0.52, 12, T.water);
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      f.cyl(
+        Math.cos(a) * 0.39,
+        0,
+        Math.sin(a) * 0.39,
+        0.125,
+        0.115,
+        i % 2 ? 0.9 : 0.86,
+        6,
+        i % 2 ? T.white : T.sky,
+      );
+    }
+    f.puff(0.1, 0.58, 0.05, 0.09, 0.14, 0.1, T.yellow);
+    f.box(0.16, 0.66, 0.05, 0.04, 0.03, 0.05, T.orange);
+    f.puff(-0.14, 0.58, -0.1, 0.08, 0.12, 0.08, T.red);
   }),
   giant_inflatable_slide: mk((f) => {
-    f.puff(-0.3, 0, 0, 0.4, 1, 0.9, T.red);
-    f.puff(-0.34, 0.8, 0, 0.5, 0.2, 0.96, T.yellow);
-    f.box(0.12, 0.2, 0, 0.8, 0.14, 0.5, T.blue, { taper: 0.9 });
-    for (const sz of [-1, 1])
-      f.puff(0.12, 0.2, sz * 0.3, 0.8, 0.4, 0.14, T.yellow);
-    f.puff(0.44, 0, 0, 0.18, 0.2, 0.7, T.yellow);
+    // a red tower with four yellow turrets and a flag, a blue stepped chute with yellow rails, a landing cushion
+    f.box(-0.3, 0, 0, 0.36, 0.62, 0.92, T.red);
+    for (const sx of [-0.43, -0.17])
+      for (const sz of [-0.4, 0.4])
+        f.cyl(sx, 0.62, sz, 0.06, 0.05, 0.3, 6, T.yellow);
+    f.box(-0.3, 0.62, 0, 0.012, 0.38, 0.03, T.white);
+    for (let k = 0; k < 8; k++) {
+      const x = -0.08 + k * 0.062;
+      const hk = 0.52 - k * 0.058;
+      f.box(x, 0, 0, 0.062, hk, 0.5, T.blue);
+      for (const sz of [-1, 1])
+        f.box(x, hk, sz * 0.29, 0.062, 0.1, 0.07, T.yellow);
+    }
+    f.puff(0.44, 0, 0, 0.12, 0.12, 0.6, T.sky);
   }),
   // ---------------------------------------------------------------- store trucks
   delivery_truck_box: mk((f) => {

@@ -262,6 +262,10 @@ body {
 .hg-banner.toy {
   background: linear-gradient(#ff8fc1, #e0357a);
 }
+/* Animal Island's is leaf green */
+.hg-banner.animal {
+  background: linear-gradient(#8fdc6a, #2f9e44);
+}
 @keyframes hg-banner {
   from {
     opacity: 0;

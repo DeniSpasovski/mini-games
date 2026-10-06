@@ -193,17 +193,87 @@ B.barn = fit((f, _v, w, d, h) => {
   f.box(0, h * 0.04, d * 0.52, w * 0.012, h * 0.4, d * 0.012, 0xc4452f);
   f.box(0, h * 0.7, d * 0.51, w * 0.14, h * 0.14, d * 0.02, C.white);
 });
+/** A thin round strut from (ax, ay, az) to (bx, by, bz): a cylinder tilted onto the segment (open frames). */
+function strut(
+  f: F,
+  a: [number, number, number],
+  b: [number, number, number],
+  r: number,
+  color: number,
+): void {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const dz = b[2] - a[2];
+  const len = Math.hypot(dx, dy, dz);
+  f.xf(
+    a[0],
+    a[1],
+    a[2],
+    () => f.cyl(0, 0, 0, r, r, len, 4, color, { caps: false }),
+    Math.atan2(dx, dz),
+    Math.acos(dy / len),
+    0,
+  );
+}
+
+// an open net dome (ribs + rings, so the birds inside show) on a steel base ring
 B.aviary = fit((f, _v, w, d, h) => {
-  f.cyl(0, 0, 0, w * 0.52, w * 0.52, h * 0.06, 12, STEEL_DARK);
-  f.ball(0, h * 0.06, 0, w * 0.5, h * 0.94, d * 0.5, 0xcfe8f0, {
-    half: true,
-    seg: 12,
-    rings: 8,
-  });
-  for (const t of [0.35, 0.65]) {
-    const r = 0.5 * Math.sqrt(1 - t * t) * 1.025;
-    f.cyl(0, h * (0.06 + t * 0.94), 0, w * r, w * r, h * 0.02, 12, STEEL);
+  const base = h * 0.06;
+  f.cyl(0, 0, 0, w * 0.52, w * 0.52, base, 12, STEEL_DARK);
+  const rim = h * 0.012;
+  const at = (az: number, el: number): [number, number, number] => [
+    Math.cos(el) * Math.cos(az) * w * 0.5,
+    base + Math.sin(el) * (h - base) * 0.97,
+    Math.cos(el) * Math.sin(az) * d * 0.5,
+  ];
+  const ribs = 6;
+  const steps = 4;
+  const top = 1.2; // the ribs stop short of the apex (a cap sits there), so they never pile up
+  for (let k = 0; k < ribs; k++) {
+    const az = (k / ribs) * Math.PI * 2;
+    for (let s = 0; s < steps; s++)
+      strut(
+        f,
+        at(az, (s / steps) * top),
+        at(az, ((s + 1) / steps) * top),
+        w * 0.012,
+        STEEL,
+      );
   }
+  for (const el of [0.4, 0.85]) {
+    const seg = 12;
+    for (let k = 0; k < seg; k++)
+      strut(
+        f,
+        at((k / seg) * Math.PI * 2, el),
+        at(((k + 1) / seg) * Math.PI * 2, el),
+        w * 0.01,
+        STEEL,
+      );
+  }
+  f.ball(
+    0,
+    base + (h - base) * 0.97 * Math.sin(top) + rim,
+    0,
+    w * 0.04,
+    w * 0.04,
+    w * 0.04,
+    STEEL,
+    {
+      seg: 6,
+      rings: 3,
+    },
+  );
+  // the birds: a red, a blue and a yellow one on the lawn / perched
+  for (const [x, y, z, c] of [
+    [-0.2, 0.25, 0.1, 0xd94a3a],
+    [0.18, 0.5, -0.15, 0x3b82d6],
+    [0.05, 0.12, 0.28, 0xf2c230],
+  ] as const)
+    f.ball(w * x, h * y, d * z, w * 0.05, w * 0.04, w * 0.035, c, {
+      seg: 6,
+      rings: 3,
+    });
 });
 
 // ------------------------------------------------------------------------------------------ the laboratory
@@ -395,7 +465,7 @@ B.watchtower = fit((f, _v, w, d, h) => {
   });
 });
 B.greenhouse = fit((f, _v, w, d, h) => {
-  f.box(0, 0, 0, w, h * 0.6, d, 0xcfe8f0, { wall: true });
+  f.box(0, 0, 0, w, h * 0.6, d, 0xcfe8f0, { wall: true, glass: true });
   f.gable(
     0,
     h * 0.6,
@@ -407,6 +477,9 @@ B.greenhouse = fit((f, _v, w, d, h) => {
     false,
     0xcfe8f0,
   );
+  // plants on benches under the glass
+  for (const sx of [-1, 1])
+    f.box(sx * w * 0.3, h * 0.1, 0, w * 0.22, h * 0.12, d * 0.7, 0x8a6a4a);
   f.box(0, h * 0.02, 0, w * 1.02, h * 0.06, d * 1.02, STEEL_DARK);
   for (const x of [-0.25, 0.1, 0.35])
     f.ball(x * w, h * 0.05, 0, w * 0.1, h * 0.4, d * 0.18, 0x3c8a3e, {
@@ -416,10 +489,18 @@ B.greenhouse = fit((f, _v, w, d, h) => {
 });
 B.lab_dome = fit((f, _v, w, d, h) => {
   f.cyl(0, 0, 0, w * 0.5, w * 0.5, h * 0.35, 12, LAB_WHITE);
-  f.ball(0, h * 0.35, 0, w * 0.5, h * 0.65, d * 0.5, 0xf4f6f6, {
+  f.ball(0, h * 0.35, 0, w * 0.5, h * 0.65, d * 0.5, 0xdcecf0, {
     half: true,
     seg: 12,
     rings: 8,
+    glass: true,
+  });
+  // the specimen under the glass: a glowing core on a plinth
+  f.cyl(0, h * 0.35, 0, w * 0.16, w * 0.16, h * 0.08, 8, STEEL_DARK);
+  f.ball(0, h * 0.45, 0, w * 0.13, h * 0.16, d * 0.13, GLOW, {
+    glow: true,
+    seg: 8,
+    rings: 5,
   });
   f.box(0, h * 0.12, d * 0.505, w * 0.18, h * 0.22, d * 0.03, STEEL_DARK);
   f.box(0, h * 0.22, d * 0.5, w * 0.6, h * 0.04, d * 0.08, GLOW, {
@@ -468,10 +549,53 @@ B.biodome = fit((f, _v, w, d, h) => {
     half: true,
     seg: 14,
     rings: 8,
+    glass: true,
   });
+  // the jungle inside: three trees of different height and a pond
+  for (const [x, z, th] of [
+    [-0.22, 0.05, 0.6],
+    [0.18, -0.12, 0.5],
+    [0.08, 0.24, 0.38],
+  ] as const) {
+    f.cyl(
+      x * w,
+      h * 0.1,
+      z * d,
+      w * 0.025,
+      w * 0.02,
+      h * th * 0.6,
+      5,
+      0x6b4a2a,
+    );
+    f.ball(
+      x * w,
+      h * (0.1 + th * 0.62),
+      z * d,
+      w * 0.11,
+      h * th * 0.4,
+      d * 0.11,
+      0x3c8a3e,
+      {
+        seg: 6,
+        rings: 4,
+      },
+    );
+  }
+  f.cyl(
+    -0.08 * w,
+    h * 0.1,
+    -0.25 * d,
+    w * 0.1,
+    w * 0.1,
+    h * 0.012,
+    8,
+    0x4aa3df,
+  );
   for (const t of [0.3, 0.6]) {
     const r = 0.5 * Math.sqrt(1 - t * t) * 1.025;
-    f.cyl(0, h * (0.1 + t * 0.9), 0, w * r, w * r, h * 0.02, 14, STEEL);
+    f.cyl(0, h * (0.1 + t * 0.9), 0, w * r, w * r, h * 0.02, 14, STEEL, {
+      caps: false,
+    });
   }
 });
 B.lab_tower = fit((f, _v, w, d, h) => {

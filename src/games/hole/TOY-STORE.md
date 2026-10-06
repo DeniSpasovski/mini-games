@@ -477,14 +477,9 @@ wheel / carousel pairs (toy score version 3), the menu floor-plan picker.
 
 ### Art and look
 
-- [ ] **Plush readability.** Done: a bow / scarf in a random colour on every animal plush (the rig's one `paint` part,
-      `paints` set in `catalog-toy.ts`), a raised waving arm on the unicorn, penguin, puppy, kitten and lion, lifted tails
-      (a curl up for the long ones, a bobble for puff / cotton, a stub for the penguin). Left: octopus and whale have no
-      bow (own rigs), and the least readable families (kitten, lion, octopus, whale, penguin) still need a look at
-      `gamecam=1` on a device.
-- [ ] **Item art pass** in `item-viewer.html?map=toy&mode=lineup&gamecam=1`: shelves hide their lower rows from the top
-      camera (consider 3 rows and tilted stock), the dollhouses / castles are generic boxes with roofs, `rc_helicopter`,
-      `spaceship_display`, `ride_on_helicopter` and `kids_goal` are the weakest silhouettes.
+- [ ] **Item art pass** in `item-viewer.html?map=toy&mode=lineup&gamecam=1`: shelves are terraced now (every row shows from
+      the top camera), the nine P2 placeholders have real shapes, the plush octopus / whale got a bow / scarf. Left: look at
+      kitten, lion and penguin plush on a device, and the weakest silhouettes (`rc_helicopter`, `ride_on_helicopter`).
 
 ### Product
 
@@ -493,11 +488,6 @@ wheel / carousel pairs (toy score version 3), the menu floor-plan picker.
       120-160 s (now ~90 s).
 - [ ] **Real-device pass** on iPad / phone for the toy store: 600 x 400 m floor, 9 600 items, camera framing at level 15
       near the walls, adaptive resolution (see TASKS.md real-device pass).
-
-### Content
-
-- [ ] **P2 polish items** that are only placeholders: `brick_dragon`, `dino_diorama`, `floor_puzzle_mat`,
-      `giant_board_game`, `inflatable_pool_big`, `giant_inflatable_slide`, `chess_table`, `kids_goal`, `plush_throne`.
 
 ### Phase G - After the first playable (nice to have)
 

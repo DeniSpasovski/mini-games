@@ -192,6 +192,9 @@ export function findBuried(geo: BufferGeometry): string[] {
   if (!prims || !sites) return [];
   const tris: [V, V, V][] = [];
   for (let t = 0; t < n; t++) tris.push(tri(pos, t));
+  // glass parts (paint attribute 3) are see-through: they hide nothing behind them
+  const paint = geo.getAttribute('paint')?.array;
+  const solid = (k: number) => !paint || paint[k * 3] !== 3;
   const seen = new Map<number, { site: string; up: number; shown: number }>();
   for (let t = 0; t < n; t++) {
     const T = tris[t];
@@ -212,7 +215,7 @@ export function findBuried(geo: BufferGeometry): string[] {
       exposed(
         mid,
         nn,
-        tris.filter((_, k) => prims[k] !== prims[t]),
+        tris.filter((_, k) => prims[k] !== prims[t] && solid(k)),
       )
     )
       rec.shown++;

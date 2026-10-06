@@ -16,6 +16,8 @@ export const MOVE_KINDS: MoveKind[] = [
   'trail',
   'patrol',
   'roam',
+  'drive',
+  'stroll',
 ];
 
 /**
@@ -68,6 +70,17 @@ export class World {
   /** Far end of a trail / patrol path. */
   readonly mPx: Float32Array;
   readonly mPz: Float32Array;
+  /** Velocity (m/s) of the last step, 0 while idle or asleep (the bot leads its target with it). */
+  readonly mVx: Float32Array;
+  readonly mVz: Float32Array;
+  /** `drive`: road node the car is heading to / came from / has chosen to turn into (-1 = not yet), and the crossing stage. */
+  readonly mNode: Int32Array;
+  readonly mFrom: Int32Array;
+  readonly mNext: Int32Array;
+  /** `drive`: 0 = on the arm, 1 = crossing, 2 = U-turn at a dead end. `stroll`: walking direction (+1 / -1). */
+  readonly mStage: Int8Array;
+  /** `drive`: seconds the car has been held up by traffic (negative = ignoring traffic for a moment). */
+  readonly mBlock: Float32Array;
   /** Seconds left to idle. */
   readonly mWait: Float32Array;
   /** Animation clock (hop arc, flutter bob, waddle). */
@@ -121,6 +134,13 @@ export class World {
     this.mTz = new Float32Array(n);
     this.mPx = new Float32Array(n);
     this.mPz = new Float32Array(n);
+    this.mVx = new Float32Array(n);
+    this.mVz = new Float32Array(n);
+    this.mNode = new Int32Array(n).fill(-1);
+    this.mFrom = new Int32Array(n).fill(-1);
+    this.mNext = new Int32Array(n).fill(-1);
+    this.mStage = new Int8Array(n);
+    this.mBlock = new Float32Array(n);
     this.mWait = new Float32Array(n);
     this.mPhase = new Float32Array(n);
     this.mFlee = new Float32Array(n);
@@ -177,6 +197,7 @@ export class World {
         this.mWait[i] = mv.delay ?? 0;
         this.mPhase[i] = (this.seed[i] % 1000) / 1000;
         this.mCanFlee[i] = mv.flee === false ? 0 : 1;
+        this.mStage[i] = mv.kind === 'stroll' ? (mv.dir ?? 1) : 0;
         if (mv.kind === 'flutter') this.lift[i] = 0.6;
       }
     }

@@ -88,6 +88,10 @@ interface Quad {
   hs: number;
   neck?: number;
   lt?: number;
+  /** Dark hooves at the foot of every leg (tall-legged hoofed animals). */
+  hoof?: boolean;
+  /** Neck width multiplier (giraffe: a neck as thick as a body part, not a stick). */
+  nw?: number;
   snout?: 'short' | 'long' | 'pig' | 'trunk';
   ears?: 'round' | 'long' | 'big' | 'pointy' | 'none';
   tail?: 'stub' | 'bushy' | 'long' | 'tuft' | 'curl' | 'flat';
@@ -140,9 +144,30 @@ function quadruped(
   const paint = cx.paint && !!s.paint;
   // legs (tops hidden inside the body)
   const legTop = bodyY0 + bh * 0.4;
+  const hoofH = s.hoof ? lh * 0.07 : 0;
   for (const sx of [-1, 1])
-    for (const sz of [-1, 1])
-      f.box(bx + sx * bl * 0.3, 0, sz * bw * 0.3, lt, legTop, lt, lc);
+    for (const sz of [-1, 1]) {
+      f.box(
+        bx + sx * bl * 0.3,
+        hoofH,
+        sz * bw * 0.3,
+        lt,
+        legTop - hoofH,
+        lt,
+        lc,
+      );
+      // hoof: a touch wider than the leg, sits under it (its top faces up, the leg's bottom faces down)
+      if (hoofH > 0)
+        f.box(
+          bx + sx * bl * 0.3,
+          0,
+          sz * bw * 0.3,
+          lt * 1.25,
+          hoofH,
+          lt * 1.25,
+          darker(lc, 0.55),
+        );
+    }
   // body
   if (s.wool) {
     const wc = body;
@@ -193,9 +218,9 @@ function quadruped(
       hx - hr * 0.55,
       cy + bh * 0.2,
       0,
-      hr * 1.7,
+      hr * 1.7 * (s.nw ?? 1),
       neck + hr * 0.4,
-      hr * 1.4,
+      hr * 1.4 * (s.nw ?? 1),
       body,
       {
         taper: 0.62,
@@ -570,6 +595,7 @@ const QUADS: Record<string, Quad> = {
     tail: 'bushy',
   },
   deer: {
+    hoof: true,
     c: 0xb07a4a,
     lh: 0.5,
     bh: 0.28,
@@ -649,6 +675,7 @@ const QUADS: Record<string, Quad> = {
     lt: 0.13,
   },
   horse: {
+    hoof: true,
     c: 0x8a5a35,
     paint: true,
     lh: 0.5,
@@ -663,6 +690,7 @@ const QUADS: Record<string, Quad> = {
     lt: 0.1,
   },
   zebra: {
+    hoof: true,
     c: WHITE,
     dark: DARK,
     lh: 0.45,
@@ -784,18 +812,21 @@ const QUADS: Record<string, Quad> = {
   giraffe: {
     c: 0xe0b050,
     dark: 0x6a3a1a,
-    lh: 0.48,
-    bh: 0.2,
-    hs: 0.1,
+    lh: 0.44,
+    bh: 0.24,
+    hs: 0.11,
     neck: 0.5,
+    nw: 1.25,
+    hoof: true,
     ears: 'round',
     tail: 'tuft',
     horns: 'horns',
     spots: 8,
-    lt: 0.12,
+    lt: 0.17,
     snout: 'short',
   },
   moose: {
+    hoof: true,
     c: 0x6a5038,
     lh: 0.45,
     bh: 0.32,
@@ -821,6 +852,7 @@ const QUADS: Record<string, Quad> = {
     lt: 0.14,
   },
   antelope: {
+    hoof: true,
     c: 0xc89a60,
     lh: 0.5,
     bh: 0.28,
@@ -1122,10 +1154,20 @@ function bird(f: F, s: Bird, w: number, d: number, h: number, cx: Ctx): void {
   const bodyH = h * (s.upright ? 0.55 : 0.4);
   const cy = legH + bodyH * 0.45;
   // legs
+  // long legs (flamingo, ostrich, heron) get a thickness that follows the height, not the narrow width
+  const lw = Math.max(d * 0.047, neckH > 0 ? h * 0.026 : 0);
   for (const sz of [-1, 1]) {
-    f.box(0, 0, sz * d * 0.14, d * 0.047, legH + bodyH * 0.2, d * 0.047, s.lc);
+    f.box(0, 0, sz * d * 0.14, lw, legH + bodyH * 0.2, lw, s.lc);
     if (d > 0.24)
-      f.box(w * 0.08, 0, sz * d * 0.14, w * 0.3, h * 0.015, d * 0.0913, s.lc);
+      f.box(
+        w * 0.08,
+        0,
+        sz * d * 0.14,
+        w * 0.3,
+        h * 0.015,
+        Math.max(d * 0.0913, lw * 1.7),
+        s.lc,
+      );
   }
   // body
   if (s.upright)
@@ -1162,17 +1204,31 @@ function bird(f: F, s: Bird, w: number, d: number, h: number, cx: Ctx): void {
   const hx = w * (s.upright ? 0.03 : 0.3);
   const top = cy + bodyH * (s.upright ? 1.0 : 0.6);
   const hy = top + neckH + headR * 0.5;
-  if (neckH > 0)
+  if (neckH > 0) {
+    // an S-shaped neck: the lower part leans back over the body, the upper part carries the head forward
+    const nc = s.hc ?? s.c;
+    const nw = headR * 1.15;
     f.box(
-      hx - w * 0.02,
+      hx - w * 0.07,
       top - bodyH * 0.2,
       0,
-      headR * 0.9,
-      neckH + bodyH * 0.2,
-      headR * 0.9,
-      s.hc ?? s.c,
-      { taper: 0.7 },
+      nw,
+      neckH * 0.62 + bodyH * 0.2,
+      nw,
+      nc,
+      { taper: 0.85 },
     );
+    f.box(
+      hx - w * 0.015,
+      top + neckH * 0.42,
+      0,
+      nw * 0.85,
+      neckH * 0.58 + headR * 0.2,
+      nw * 0.85,
+      nc,
+      { taper: 0.8 },
+    );
+  }
   f.ball(hx, hy, 0, headR, headR, headR * 0.95, s.hc ?? s.c, { taper: 0.05 });
   f.cyl(
     hx + headR * 0.95,

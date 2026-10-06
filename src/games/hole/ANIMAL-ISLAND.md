@@ -166,7 +166,7 @@ position). A too-big animal with the hole under it **stops** and teeters, and wa
 - `sim/movers.ts` (new, DOM-free): behaviours above, per-item `Rng` from `world.seed`, awake set, flee (D7), walkable
   grid lookup. Called from `Sim.step` before `commitItems`.
 - `sim/sim.ts`: commit uses the current position (it already reads `world.x / z`); teeter stops the mover.
-- `sim/bot.ts`: lead moving targets (aim at `x + vx * t`), re-target when the target leaves the chase radius.
+- `sim/bot.ts`: leads moving targets (`Bot.intercept`, aim at `x + vx * t`).
 - `map/types.ts`: `Placement.move?` (home / leash / path / herd id, written by the generator), `MapData.rivers?`,
   `ponds?`, `biomes?` (grid), `walkable?` (bitset), `paths?` (ant trails, patrol loops).
 - `render/item-instances.ts`: mover meshes grouped by home cell with leash-sized bounds, rewritten per frame from the
@@ -296,12 +296,13 @@ would crowd the zoo and the wild biomes. Tune within 30-45 with the bot.
 21 000 points, about 4 900 items (1 880 of them tier 1), of which about 2 500 move (ants are the bulk). Pace targets are the same as the other
 maps (good bot: Hard 120 s level >= 10, Medium 240 s level >= 15, Easy 480 s clears > 95 %), measured **with movement
 and fleeing on**; `tests/hole/animal-map.test.ts` keeps the bands on three seeds (Hard level 10-20, Medium >= 15, Easy
-cleared in 110-400 s). Measured (good bot, seeds 1-3, with the busy start): Hard level 16-17 (12-16 with a sparse start), Medium level 25, Easy cleared at 156-186 s.
+cleared in 110-400 s). Measured (good bot that leads moving targets, seeds 1-3): Hard level 15-18, Medium level 25, Easy cleared at 143-151 s
+(without the lead: Hard 14-16, Easy 154-163 s).
 What decided the pace (the XP curve was not touched): the **island radius** (210 m; the point split between tiers hardly
 matters once the island is small), the per-tier share of the points (`TIER_FRACTION`, tiers 1-10 hold ~55 %, tier 1 7.5 %),
 **hotspots** (80 % of the small and mid items gather around ~50 spots, `HOT_SHARE`), the 50-hill cap, and the flee knobs
-(`FLEE` in `sim/movers.ts`; with the first guess, 1.7 x speed, the bot only reached level 5 in 100 s because it does not
-lead moving targets). Radius sweep (seed 1, Hard level / Easy clear time): 168 m L25 / 98 s, 190 m L20 / 143 s, 210 m
+(`FLEE` in `sim/movers.ts`; with the first guess, 1.7 x speed, the bot only reached level 5 in 100 s before it learned to
+lead moving targets: `Bot.intercept` aims at `p + v * t`, lead capped at 1.5 s, velocity from `World.mVx / mVz`). Radius sweep (seed 1, Hard level / Easy clear time): 168 m L25 / 98 s, 190 m L20 / 143 s, 210 m
 L14 / 153 s, 240 m L8-12 / ~200 s.
 
 **Reachability.** An item must be far enough from the coast for the biggest hole to eat it (the hole centre stops
@@ -620,16 +621,13 @@ AI-51 / AI-52 (ground, rivers and ponds, mood), AI-60 (item viewer, map viewer a
 
 ### Product and polish
 
-- [ ] **"ISLAND CLEARED!" banner colour** for this map; the menu card and the README shots are done.
 - [ ] **AI-01 Real-device pass**: since the item batching the map draws in 23-26 calls with 24k / 108k / 321k
       triangles at level 1 / 8 / 15 (dev PC, shadows on; was 165 / 578 / 1 739 calls). Measure `__hole.benchmark(240)`
       on an iPad and a phone (high / low). If too slow, in this order: raise `TINY_K` / `SHADOW_TINY_K` in
       `render/item-instances.ts`, cheaper animal rigs (`roundDetail` in `items/kit.ts`).
-- [ ] **Bot leads moving targets** (`sim/bot.ts`): the greedy bot aims at where an animal is, so fleeing animals cost it a
-      lot (Hard 100 s: level 5 with 1.7 x flee speed, level 10+ with the shipped knobs). Leading would make the bot a
-      fairer stand-in for a player.
-- [ ] **Item art pass** in `item-viewer.html?map=animal&mode=lineup&gamecam=1`: the rigs are first versions (giraffe
-      legs, the long-necked birds, the lab vats, the aviary / biodome domes are opaque), give each family a look.
+- [ ] **Item art pass** in `item-viewer.html?map=animal&mode=lineup&gamecam=1`: giraffe, the long-necked birds, the
+      aviary (open rib dome), the biodome / lab dome / greenhouse (glass, see `DETAILS.md` "Glass") and hooves (deer, horse,
+      moose, zebra, antelope, giraffe: `hoof: true`) are done. Left: give each remaining family a look.
 
 ### Mechanics left out of v1
 
@@ -637,7 +635,6 @@ AI-51 / AI-52 (ground, rivers and ponds, mood), AI-60 (item viewer, map viewer a
       so walkers move their legs; today animals only bob / hop as a whole.
 - [ ] **Herd followers**: calves, lambs and ducklings should follow their parent (today a herd shares a home and leash
       only); ducks swim in the rivers, ducklings do not trail them.
-- [ ] **Map viewer overlays**: biome colours, leash circles and mover paths in `map-viewer.html?map=animal`.
 - [ ] **Ground polish**: flowing ripples along the rivers and foam at the mouths, coast rocks and a jetty at the
       compound, a visible loop road, helipad marking (the compound is flat rects + biome colours today).
 - [ ] **AI-63 (P2) Escapes**: eating every `cage_bars` piece of the paddock widens the leash of the giants inside.
