@@ -15,8 +15,7 @@ import {
   type QualitySettings,
 } from '../engine/quality';
 import { ALL_MAPS, DEFAULT_MAP, MAPS } from '../maps';
-import { isLargeMap } from '../tools/stage-card';
-import type { MapDef, SourceLink } from '../maps/shared/types';
+import type { MapInfo, SourceLink } from '../maps/shared/types';
 import { peakPower } from '../physics/drivetrain';
 import {
   applySetup,
@@ -191,7 +190,7 @@ class MainMenu {
     const q = new URLSearchParams(location.search);
     const one = q.get('bakecard');
     if (!one && !q.get('bakecards')) return;
-    const ids = one ? [one] : ALL_MAPS.filter(isLargeMap).map((m) => m.id);
+    const ids = one ? [one] : ALL_MAPS.map((m) => m.id);
     const box = document.createElement('pre');
     box.className = 'menu-bake-log';
     Object.assign(box.style, {
@@ -219,7 +218,7 @@ class MainMenu {
       .catch((e: unknown) => log(`FAILED: ${String(e)}`));
   }
 
-  private get map(): MapDef {
+  private get map(): MapInfo {
     return MAPS[this.mapIndex];
   }
 
@@ -384,7 +383,7 @@ class MainMenu {
           <div class="menu-tags">
             <span>${(stageLength(m) / 1000).toFixed(1)} km</span>
             <span>${m.stage.splits} splits</span>
-            <span>${[...new Set([m.road.surface, ...(m.road.sections ?? []).map((s) => s.surface)])].map((s) => s.replace(/_/g, ' + ')).join(' → ')}</span>
+            <span>${[...new Set(m.surfaces)].map((s) => s.replace(/_/g, ' + ')).join(' → ')}</span>
           </div>
           <div class="menu-best">${best ? `Best ${formatTime(best.time)} · ${carName(best.car)}` : 'No time set yet'}</div>
         </div>`;
@@ -489,12 +488,7 @@ class MainMenu {
     // The car behind the pickers re-renders with the chosen tyre and suspension (ride height) on every pick.
     this.showSetupCar();
     // The road surfaces the stage uses, in driving order.
-    const surfaces = [
-      ...new Set([
-        map.road.surface,
-        ...(map.road.sections ?? []).map((s) => s.surface),
-      ]),
-    ];
+    const surfaces = [...new Set(map.surfaces)];
     const reco = '<em class="menu-reco">recommended</em>';
     const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
     const card = (
@@ -1076,14 +1070,12 @@ function driveLabel(frontSplit: number): string {
 
 const last = (a: number[]) => a[a.length - 1];
 
-function roadXZ(m: MapDef): { x: number; z: number }[] {
-  return m.road.points.map((p) =>
-    Array.isArray(p) ? { x: p[0], z: p[1] } : p,
-  );
+function roadXZ(m: MapInfo): { x: number; z: number }[] {
+  return m.route.map(([x, z]) => ({ x, z }));
 }
 
 /** Road polyline lengths (control points; close enough to the spline for menus). */
-function cumulative(m: MapDef): number[] {
+function cumulative(m: MapInfo): number[] {
   const pts = roadXZ(m);
   const out = [0];
   for (let i = 1; i < pts.length; i++)
@@ -1093,13 +1085,13 @@ function cumulative(m: MapDef): number[] {
   return out;
 }
 
-function stageLength(m: MapDef): number {
+function stageLength(m: MapInfo): number {
   const total = last(cumulative(m));
   return Math.max(0, total - m.stage.start - m.stage.finishFromEnd);
 }
 
 /** Small route outline: whole road faint, stage start -> finish highlighted (north up). */
-function routeSvg(m: MapDef): string {
+function routeSvg(m: MapInfo): string {
   const pts = roadXZ(m);
   const acc = cumulative(m);
   const total = last(acc);

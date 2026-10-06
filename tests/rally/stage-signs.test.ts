@@ -1,5 +1,5 @@
 import { describe, expect, test } from '@rstest/core';
-import { ALL_MAPS } from '../../src/games/rally/maps';
+import { ALL_MAPS } from '../../src/games/rally/maps/all';
 import { newRoadQuery } from '../../src/games/rally/world/road';
 import { World } from '../../src/games/rally/world/world';
 

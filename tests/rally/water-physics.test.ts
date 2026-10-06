@@ -6,7 +6,7 @@ import type {
   GroundProvider,
   GroundSample,
 } from '../../src/games/rally/physics/types';
-import { MAPS } from '../../src/games/rally/maps';
+import { ALL_MAPS } from '../../src/games/rally/maps/all';
 import { PHYSICS_HZ, Vehicle } from '../../src/games/rally/physics/vehicle';
 import { World } from '../../src/games/rally/world/world';
 
@@ -83,7 +83,7 @@ describe.each(ALL_CARS.map((c) => c.id))('water %s', (carId) => {
 });
 
 test('real canal: the car wades along the Ajvatovci drain', () => {
-  const world = new World(MAPS.find((m) => m.id === 'ajvatovci')!);
+  const world = new World(ALL_MAPS.find((m) => m.id === 'ajvatovci')!);
   const net = world.gen.channels!;
   const a = { x: 0, z: 0 };
   const b = { x: 0, z: 0 };

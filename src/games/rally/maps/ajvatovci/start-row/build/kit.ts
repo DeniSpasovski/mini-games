@@ -119,7 +119,8 @@ export class Bucket {
     return n;
   }
 
-  build(name: string): Group {
+  /** `plain`: grouped keys get the untextured group material (no lot texture array to build). */
+  build(name: string, o: { plain?: boolean } = {}): Group {
     const group = new Group();
     group.name = name;
     const add = (
@@ -154,7 +155,7 @@ export class Bucket {
           tile,
           gr,
           mergeSoups(list),
-          groupMaterial(gr),
+          groupMaterial(gr, o.plain),
           groupCastsShadow(gr),
         );
     }

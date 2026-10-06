@@ -219,7 +219,15 @@ const finish = (parts: BufferGeometry[]) => ({
 });
 
 /** A parked car: variant picks the shape (sedan / hatch / SUV) and the paint. */
+/**
+ * Variants 0-11: shape `variant % 3`, a seeded paint (street dressing picks among these). From 12 on: fixed
+ * [shape, paint] for cars a map places on purpose (`props`, e.g. the white hatch at a Petralica house).
+ */
+const FIXED_CARS: [number, string][] = [[1, '#e9eaec']];
+
 export const streetCar: AssetBuilder = ({ seed, variant, lod }) => {
+  const fixed = FIXED_CARS[variant - 12];
+  if (fixed) return finish(carParts(SHAPES[fixed[0]], fixed[1], lod));
   const rng = new Rng(seed);
   const shape = SHAPES[variant % SHAPES.length];
   const color = PAINTS[(variant * 7 + rng.int(0, 3)) % PAINTS.length];

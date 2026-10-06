@@ -50,6 +50,9 @@ import {
   type LaneWallRow,
 } from './portals';
 import { DECK_DEPTH, TerrainGenerator } from './terrain-gen';
+import { bakeGroundMoisture, type GroundMoisture } from './ground-moisture';
+import { cornerFanInstances } from './corner-fans';
+import { newLakeQuery } from './lakes';
 
 /**
  * Everything about a map that is not rendering: terrain, road, scatter,
@@ -89,6 +92,20 @@ export interface StageLayout {
 /** Extra distance outside map bounds that is still rendered (horizon). */
 export const RENDER_MARGIN = 260;
 
+/** The tunnel echo fades in over this distance past a portal headwall (m). */
+const ENCLOSURE_FADE = 10;
+
+/** Where the car is in a portal (World.tunnelAt): the tunnel echo in game/audio.ts. */
+export interface TunnelAcoustics {
+  /** 0..1, faded in over ENCLOSURE_FADE m from each headwall. */
+  enclosure: number;
+  /** Distance to the left / right wall (m). */
+  wallL: number;
+  wallR: number;
+  /** Portal length along the road (m). */
+  length: number;
+}
+
 export class World implements GroundProvider {
   readonly gen: TerrainGenerator;
   readonly road: Road;
@@ -122,6 +139,14 @@ export class World implements GroundProvider {
   /** Paved ground of the landmarks (a gravel courtyard, a court): the surface there. */
   private surfaceFns: ((x: number, z: number) => SurfaceId | undefined)[] = [];
   private splatTmp = new Float32Array(4);
+  private moistureMap?: GroundMoisture;
+  /** Fan groups in the corners (MapDef.cornerFans, world/corner-fans.ts), also in `scatter`. */
+  readonly cornerFans: ScatterInstance[];
+
+  /** Ground moisture texture for the grass tint (baked on first use, world/ground-moisture.ts). */
+  get moisture(): GroundMoisture {
+    return (this.moistureMap ??= bakeGroundMoisture(this.gen, this.map));
+  }
 
   constructor(readonly map: MapDef) {
     this.gen = new TerrainGenerator(map);
@@ -163,18 +188,49 @@ export class World implements GroundProvider {
       },
     );
     const crowdQ = newPathQuery();
-    for (const inst of roadsideInstances(
-      this.road,
-      this.analytic,
-      map.roadside,
-      map.seed,
-      this.gen.junctions,
-      this.gen.paths,
-    )) {
+    const fanQ = newPathQuery();
+    const fanLq = newLakeQuery();
+    this.cornerFans = map.cornerFans
+      ? cornerFanInstances(
+          this.road,
+          (x, z) => this.analytic.height(x, z),
+          map.cornerFans,
+          map.seed,
+          this.gen.junctions,
+          (x, z) =>
+            map.terrain.flatAreas.some(
+              (f) => Math.hypot(x - f.x, z - f.z) < f.radius + 4,
+            ) ||
+            this.buildings.contains(x, z, 1) ||
+            this.landmarks.some((l) => l.occupies(x, z, 1)) ||
+            (!!this.gen.paths?.query(x, z, fanQ).found &&
+              fanQ.distance < fanQ.halfWidth + 1) ||
+            (!!this.gen.channels?.query(x, z, fanQ).found &&
+              fanQ.distance < fanQ.halfWidth + 3) ||
+            (!!this.gen.lakes?.query(x, z, fanLq) && fanLq.sd < 3),
+        )
+      : [];
+    for (const inst of [
+      ...roadsideInstances(
+        this.road,
+        this.analytic,
+        map.roadside,
+        map.seed,
+        this.gen.junctions,
+        this.gen.paths,
+      ),
+      ...this.cornerFans,
+    ]) {
       // A lamp post in a portal would stand up through the slab (the portal has its own strip lights).
       if (
         inst.asset === 'street_lamp' &&
         this.gen.portals.inside(inst.x, inst.z)
+      )
+        continue;
+      // No crowd standing in a house (a crowd spot in a village).
+      if (
+        inst.asset === 'spectator' &&
+        this.buildings.contains(inst.x, inst.z, 0.5)
       )
         continue;
       // No crowd standing on another carriageway / parkway lane beside the stage road.
@@ -318,6 +374,7 @@ export class World implements GroundProvider {
         plaza: this.gen.plazas.empty
           ? undefined
           : (x, z, pad) => this.gen.plazas.inside(x, z, pad),
+        plazaCrosswalks: !!map.plazaCrosswalks?.length,
       });
     }
     if (map.streetDressing)
@@ -335,6 +392,11 @@ export class World implements GroundProvider {
           this.gen.isUnderpass(pi) && this.gen.underpassDipAt(pi, a) > 1,
         streetDetail: this.streetDetail,
         paved: (x, z) => this.gen.plazas.inside(x, z, 1),
+        islands: this.gen.plazas.islands,
+        signals: map.plazaSignals,
+        trees: map.plazaTrees,
+        islandTop: (x, z) =>
+          this.gen.plazas.surface(x, z) ?? this.gen.height(x, z),
         sidewalk: map.cityStreets?.sidewalk ?? 1.5,
         lampEvery: map.cityStreets?.lampEvery ?? 0,
       }))
@@ -751,6 +813,27 @@ export class World implements GroundProvider {
     }
     out.height = hf.height(x, z);
     hf.normal(x, z, out.normal);
+    // On a junction plaza over a portal slab (its paving replaces the decks there): its surface unless the probe is
+    // down in the trench under the slab.
+    const plaza = this.plazaHeight(x, z, fromY === Infinity);
+    if (plaza > out.height + 0.05 && plaza <= fromY + 0.6) {
+      out.height = plaza;
+      // The paving's slope (an island kerb is a step in height, not a tilt).
+      const e = 1;
+      const plazas = this.gen.plazas;
+      const h0 = plazas.height(x, z);
+      const hx = plazas.height(x + e, z);
+      const hz = plazas.height(x, z + e);
+      out.normal
+        .set(
+          h0 !== undefined && hx !== undefined ? h0 - hx : 0,
+          e,
+          h0 !== undefined && hz !== undefined ? h0 - hz : 0,
+        )
+        .normalize();
+      out.surface = SURFACES.tarmac;
+      return out;
+    }
     // On the deck of another road (an overpass): its surface when it is above the ground here and the probe is
     // not underneath it (a car on the street below keeps the street).
     const over = this.pathDeckHeight(x, z, fromY === Infinity);
@@ -802,10 +885,80 @@ export class World implements GroundProvider {
   // --- helpers ------------------------------------------------------------------------
 
   /** Ground height (the deck on a stage-road bridge, the deck of another road where it is above the ground). */
+  /**
+   * 0..1: how far (x, y, z) is inside a portal - under its slab, faded in over ENCLOSURE_FADE m from each headwall
+   * (the tunnel echo, game/audio.ts). 0 on top of the slab or in the open.
+   */
+  enclosureAt(x: number, y: number, z: number): number {
+    return this.tunnelAt(x, y, z)?.enclosure ?? 0;
+  }
+
+  private tunnel: TunnelAcoustics = {
+    enclosure: 0,
+    wallL: 0,
+    wallR: 0,
+    length: 0,
+  };
+  /** The portal around (x, y, z) for the tunnel echo (`enclosureAt` + wall distances, length); undefined in the open. */
+  tunnelAt(x: number, y: number, z: number): TunnelAcoustics | undefined {
+    const portals = this.gen.portals;
+    if (portals.empty) return undefined;
+    const h = portals.at(x, z);
+    if (!h || !h.inside || y > h.top - 2) return undefined;
+    const d = Math.min(h.along - h.portal.from, h.portal.to - h.along);
+    const t = this.tunnel;
+    t.enclosure = Math.min(1, Math.max(0, d / ENCLOSURE_FADE));
+    t.wallL = Math.max(0.5, h.latL0 - h.lateral);
+    t.wallR = Math.max(0.5, h.lateral - h.latR0);
+    t.length = h.portal.to - h.portal.from;
+    return t;
+  }
+
   heightAt(x: number, z: number): number {
     const deck = this.gen.deckHeightAt(x, z);
     if (!Number.isNaN(deck)) return deck;
-    return Math.max(this.heightfield.height(x, z), this.pathDeckHeight(x, z));
+    return Math.max(
+      this.heightfield.height(x, z),
+      this.plazaHeight(x, z),
+      this.pathDeckHeight(x, z),
+    );
+  }
+
+  private plazaQuery = newPathQuery();
+  private readonly isCarriagewayPath = (pi: number): boolean =>
+    this.gen.isCarriageway(pi);
+  /**
+   * Surface height of a junction plaza at (x, z) (plazas.ts: one paved box on a portal slab, drawn 3 cm over it),
+   * -Infinity off every plaza. Without a probe height (`blind`) a point on the stage road or a carriageway down in the
+   * trench keeps that road.
+   */
+  private plazaHeight(x: number, z: number, blind = true): number {
+    const plazas = this.gen.plazas;
+    if (plazas.empty || !plazas.inside(x, z)) return -Infinity;
+    const top = plazas.surface(x, z);
+    if (top === undefined) return -Infinity;
+    if (blind) {
+      const rq = this.road.query(x, z, this.rq);
+      if (rq.found && rq.distance <= rq.halfWidth + 1 && rq.height < top - 2)
+        return -Infinity;
+      const net = this.gen.paths;
+      if (net) {
+        const q = net.query(
+          x,
+          z,
+          this.plazaQuery,
+          'tarmac',
+          this.isCarriagewayPath,
+        );
+        if (
+          q.found &&
+          q.distance <= q.halfWidth + 1 &&
+          this.gen.pathHeight(q.path, q.along) < top - 2
+        )
+          return -Infinity;
+      }
+    }
+    return top + 0.03;
   }
 
   private deckQuery = newPathQuery();

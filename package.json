@@ -8,6 +8,7 @@
   "scripts": {
     "build": "rsbuild build",
     "dev": "rsbuild",
+    "dev:noreload": "rsbuild dev --env-mode noreload",
     "format": "prettier --write .",
     "lint": "rslint",
     "preview": "rsbuild preview",

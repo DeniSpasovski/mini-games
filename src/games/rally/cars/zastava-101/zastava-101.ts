@@ -56,6 +56,19 @@ export const zastava101: CarDef = {
       note: 'styling reference for the hand-built body + optional imported model, CC BY 4.0',
     },
   ],
+  // Carburettor 1.3 four on a road silencer, no turbo: weak, thin and buzzy - mostly intake honk and a rough idle,
+  // the odd carb backfire on a lift, soft road gearbox.
+  sound: {
+    layout: 'i4',
+    displacement: 1.3,
+    exhaust: 0.15,
+    intake: 0.7,
+    pops: 0.1,
+    gearWhine: 0.1,
+    gearbox: 'manual',
+    cam: 0.1,
+    roughness: 0.15,
+  },
   physics: {
     noTractionControl: true,
     mass: 870,

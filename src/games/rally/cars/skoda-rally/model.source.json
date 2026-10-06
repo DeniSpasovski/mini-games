@@ -6,7 +6,7 @@
   "scale": 1.0,
   "offset": [6.861, 0, -0.395],
   "groundAtMin": false,
-  "targetTriangles": 61100,
+  "targetTriangles": 85100,
   "creaseDeg": 40,
   "wheels": {
     "$comment": "the wheels are separate meshes (dropped below) - nothing to cut",
@@ -323,6 +323,43 @@
         "material": "trim"
       },
       {
+        "$comment": "roll cage (light grey, as the real car): mat_19 holds the cage, seats, door cards and floor in one primitive. Before the tube rule: the steering column and the gear rod are tubes too but stay interior (whole islands in these boxes)",
+        "mat": "mat_19",
+        "whole": true,
+        "x": [-6.58, -6.51],
+        "y": [0.58, 0.84],
+        "z": [0.66, 1.34],
+        "material": "interior"
+      },
+      {
+        "mat": "mat_19",
+        "whole": true,
+        "x": [-6.89, -6.84],
+        "y": [0.32, 0.84],
+        "z": [0.48, 0.58],
+        "material": "interior"
+      },
+      {
+        "$comment": "cage gusset plates with lightening holes on the roof rails behind the main hoop (flat, so not tubes)",
+        "mat": "mat_19",
+        "whole": true,
+        "islandTris": [190, 195],
+        "x": [-7.53, -6.19],
+        "y": [1.18, 1.33],
+        "z": [-0.62, -0.02],
+        "material": "cage"
+      },
+      {
+        "$comment": "every cage tube: whole islands shaped like a 1.2 - 2.4 cm radius tube at least 30 cm long (glb-to-parts-stl.py `tube`)",
+        "mat": "mat_19",
+        "tube": {
+          "r": [0.012, 0.024],
+          "score": 0.15,
+          "length": 0.3
+        },
+        "material": "cage"
+      },
+      {
         "mat": "mat_10",
         "material": "interior"
       },
@@ -351,7 +388,8 @@
       "interior",
       "logo",
       "carbon",
-      "mirror"
+      "mirror",
+      "cage"
     ],
     "wrap": {
       "headlight": "corner",
@@ -359,7 +397,8 @@
     },
     "drop": ["logo"],
     "maxTriangles": {
-      "interior": 6000
+      "interior": 24000,
+      "cage": 6000
     }
   }
 }

@@ -215,6 +215,60 @@ export const ASSET_CATALOG: AssetMeta[] = [
     tint: 0.14,
   },
   {
+    id: 'hazelnut_tree',
+    name: 'Hazelnut bush',
+    category: 'vegetation',
+    description:
+      'Plantation hazelnut: multi-stemmed bush with a low, wide, fresh green crown. Planted in rows on `hazelnut` cover.',
+    variants: 3,
+    lods: [
+      { maxDistance: 90, castShadow: true },
+      { maxDistance: 380, castShadow: false },
+      ...farTree(1000),
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.12, h: 1, y: -0.3 }],
+    tint: 0.14,
+  },
+  {
+    id: 'pale_tree',
+    name: 'Pale lane tree',
+    category: 'vegetation',
+    description:
+      'Tall plane / ash with a long grey-white trunk and an open yellow-green crown, lining country lanes (Petralica).',
+    variants: 4,
+    lods: tree(1700),
+    colliders: [{ kind: 'cylinder', r: 0.3, h: 6, y: -0.5 }],
+    tint: 0.12,
+  },
+  {
+    id: 'young_tree',
+    name: 'Young lane tree',
+    category: 'vegetation',
+    description:
+      'Slender elm / ash sapling, crown taller than wide, starting to yellow. Fills the hedges along lanes.',
+    variants: 4,
+    lods: [
+      { maxDistance: 100, castShadow: true },
+      { maxDistance: 400, castShadow: false },
+      ...farTree(1100),
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.14, h: 2.5, y: -0.3 }],
+    tint: 0.14,
+  },
+  {
+    id: 'thicket_shrub',
+    name: 'Roadside thicket',
+    category: 'vegetation',
+    description:
+      'Dense hawthorn / blackthorn / elm-sucker shrub in autumn colours, 2.5-4.5 m, along lane edges and field borders. Drive-through (brush).',
+    variants: 4,
+    lods: [
+      { maxDistance: 90, castShadow: true },
+      { maxDistance: 450, castShadow: false },
+    ],
+    tint: 0.16,
+  },
+  {
     id: 'oak_tree',
     name: 'Oak tree',
     category: 'vegetation',
@@ -314,6 +368,18 @@ export const ASSET_CATALOG: AssetMeta[] = [
     lods: [{ maxDistance: 300, castShadow: false }],
   },
   {
+    id: 'fan_flag',
+    name: 'Fan flag',
+    category: 'props',
+    description:
+      'Flag on a pole stuck in the ground among the fans (variant = generic design, saturated colours). Flies along +X.',
+    variants: 8,
+    lods: [
+      { maxDistance: 90, castShadow: true },
+      { maxDistance: 450, castShadow: false },
+    ],
+  },
+  {
     id: 'road_barrier',
     name: 'Road barrier',
     category: 'props',
@@ -351,6 +417,19 @@ export const ASSET_CATALOG: AssetMeta[] = [
       { maxDistance: 700, castShadow: false },
     ],
     colliders: [{ kind: 'cylinder', r: 0.12, h: 8 }],
+  },
+  {
+    id: 'traffic_signal',
+    name: 'Traffic signal',
+    category: 'props',
+    description:
+      'City traffic signal: grey pole, 5 m mast arm over the road (+Z), three-lamp heads facing +X (on the arm and the pole), a pedestrian head. Generic. Solid pole.',
+    variants: 1,
+    lods: [
+      { maxDistance: 120, castShadow: true },
+      { maxDistance: 500, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 0.14, h: 6 }],
   },
   {
     id: 'wall_lamp',
@@ -399,8 +478,8 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Street car',
     category: 'props',
     description:
-      'Parked car, low poly: variant picks the shape (0 sedan, 1 hatch, 2 SUV; variant % 3) and the paint. Faces +X. Solid.',
-    variants: 12,
+      'Parked car, low poly: variants 0-11 pick the shape (0 sedan, 1 hatch, 2 SUV; variant % 3) and a paint; 12 = white hatch (placed on purpose). Faces +X. Solid.',
+    variants: 13,
     lods: [
       { maxDistance: 90, castShadow: true },
       { maxDistance: 420, castShadow: false },

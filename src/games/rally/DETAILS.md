@@ -44,9 +44,11 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 
 ## Game flow
 
-- **Menus** (`game/menu.ts`): welcome -> **select stage** (orbiting 3D view of the stage, length, splits, best time; large maps
-  show a pre-baked stage card, `tools/stage-card.ts`, re-baked with `?bakecard=<id>` only when asked) -> **select car** ->
-  **Start stage** with the recommended set-up, or **Setup car**. The car stands in a 3D showroom (`game/showroom.ts`).
+- **Menus** (`game/menu.ts`): welcome -> **select stage** (orbiting 3D view of the stage, length, splits, best time; every map
+  shows a pre-baked stage card, `tools/stage-card.ts`, re-baked with `?bakecard=<id>` only when asked) -> **select car** ->
+  **Start stage** with the recommended set-up, or **Setup car**. The car stands in a 3D showroom (`game/showroom.ts`): car
+  screens add studio strip lights to the env map (`Environment` `studio`) and a shallow depth of field
+  (`engine/depth-of-field.ts`, off on low quality); the stage view keeps the map's sky env, no blur. Console (dev): `__showroom`.
 - **Options** (main and pause menu): quality, object distance, volume, gearbox, traction assist (hidden for cars with
   `physics.noTractionControl`), car number (door plates), start camera. Saved in localStorage (`game/settings.ts`).
 - **Pause** (`Esc`): resume, restart, free-drive pad <-> stage, options, main menu.
@@ -95,12 +97,30 @@ A map is `maps/<id>/map.ts` (gameplay and look) plus a baked `data.json` (`scrip
 WorldCover, elevation). Format and helpers: `maps/shared/`. World axes: +X east, **+Z south**. How to build and verify maps:
 rally-maps skill.
 
+**Lazy loading:** the registry (`maps/index.ts`) holds each map's light `MapInfo` (`<id>/info.ts` + the small baked
+`route.json`: menus, stage select, URL defaults) and a dynamic import of the full `MapDef` (`map.ts` + `data.json` = its own
+chunk). Menus use `MAPS` / `getMap(id)` (info); anything that builds a `World` awaits `loadMap(id)`. Tests and tools that need
+every full map use `maps/all.ts`. `info.ts` must not import `data.json` (the landmark code in `world/` imports map files
+eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks the info against the full map.
+
 **Map features** (all set in `MapDef`):
 
 - **Terrain:** real heightmap (detail + horizon grids), cover splat, field patchwork, `groundTint` season look
-  (`world/terrain-gen.ts`, `real-data.ts`).
+  (`world/terrain-gen.ts`, `real-data.ts`). Grass moisture: greener in hollows and along water, straw on ridges and steep
+  slopes - a baked map texture (`world/ground-moisture.ts`, `World.moisture`) + the slope in the terrain shader;
+  `groundTint.moisture` sets the strength (0 = off).
+- **Horizon backdrop** (`horizon`, real maps): the land ~25 km around the map (terrain + land cover from Terrarium /
+  WorldCover, no roads or buildings), baked by `scripts/realmap/horizon.py` into `<map>/horizon.json`, drawn behind
+  everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain).
+- **Corner fans** (`cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
+  spectators, flags (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`).
 - **Other roads** (`paths`): tarmac ribbons, dirt paint or canals with their own surface; side roads carved with grade limits
-  and extended to meet the stage road, `junctionBarriers` closes the mouths (`world/junctions.ts`).
+  and extended to meet the stage road, `junctionBarriers` closes the mouths (`world/junctions.ts`). Dirt tracks / paths are
+  only painted into the splat; coarse terrain tiles paint them at least ~a vertex step wide (`splat` `minPathHw`) so
+  they stay lines from afar.
+  The baker splits an OSM way where it folds back (> 120 deg) or revisits one of its nodes (two ways meeting there);
+  a ground way under 15 m anchored at both ends is one straight ramp (`SHORT_JOINT`). Paved mouths on rural
+  maps get rounded corners (`junctionFillets`, drawn with the street ribbons in `road-mesh.ts`; not on `cityStreets` maps).
 - **Water:** canals / drains / rivers (`paths` surface `water`) and `lakes`, with real banks and water physics
   (`world/lakes.ts`, `water-mesh.ts`).
 - **Railways:** OSM tracks as `rail` paths with a drivable ballast hump, rails and catenary (`world/railways.ts`, `rail-mesh.ts`).
@@ -124,12 +144,29 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
 | `bimmer_m3`   | Bimmer M3   | RWD   | lowered E46 coupe from a CC BY print model, own livery                               |
 | `zastava_101` | Zastava 101 | FWD   | stock "Stojadin", body hand-built from dimensions and a blueprint                    |
 
-- A car is `cars/<car>/<car>.ts` (a `CarDef`: physics + model) with its README. A GLB in `public/models/cars/` replaces the
+- A car is `cars/<car>/<car>.ts` (a `CarDef`: physics + model + sound) with its README. A GLB in `public/models/cars/` replaces the
   procedural body (`cars/shared/car-gltf.ts`; credits in `public/models/CREDITS.md`). Imports: rally-car-import skill.
 - **Door plates** (`cars/shared/rally-badge.ts`): our own event plate (emblem, car number, map name) projected onto both front
   doors. Liveries carry no numbers or lettering.
 - **Release flags** (`release.ts`): every car / map id is in `AVAILABLE_*` (published) or `TEST_*` (dev only, TEST badge).
   Unknown ids fall back to the defaults; `tests/rally/release.test.ts` guards the lists. The flag only hides - code still ships.
+
+## Sound (`game/audio.ts`, `game/engine-sound.ts`)
+
+All synthesised (Web Audio, no samples), tuned per car by `CarDef.sound` (`CarSoundDef` in `cars/shared/types.ts`).
+
+- **Engine**: one 4-stroke cycle of exhaust pulses from the firing order (`layout`: `i4 / i5 / i6`, `v8` cross-plane, `flat4`
+  unequal headers) becomes a PeriodicWave played at rpm / 120 Hz; uneven layouts burble between the firing orders.
+  `displacement` sets loudness and low end (a 1.3 l is thin and weak, a 4 l V8 heavy), `exhaust` the drive / rasp / brightness,
+  `intake` the induction roar, `cam` the idle lope, `roughness` the cylinder-to-cylinder variation (seeded).
+- **Events**: `turbo` = whistle + spool, then anti-lag bangs off throttle (`antiLag`) or a wastegate flutter on a lift; no
+  `turbo` = none of it. `pops` = overrun crackle (and a crack on flat upshifts); `gearbox: 'sequential'` = clunk + ignition
+  cut per shift; `gearWhine` follows road speed; rev limiter stutter.
+- **Listener** = camera mode: hood / bumper hear more intake, gearbox and wind, less exhaust; far chase is quieter and duller.
+- **Tunnels**: `World.tunnelAt` (portal slabs) -> `setEnclosure`: low-mid build-up, a slap echo per ear at each wall's
+  distance (narrow = tighter flutter), a tail that grows with the tunnel length, a whump at each headwall.
+- Ambient: wind (speed²), tyre roll on hard ground, gravel crunch, slide / lock-up per surface (`SLIDE_SOUND`), impacts. A
+  compressor keeps bangs and tunnel build-up from clipping.
 
 ## Physics and set-up
 
@@ -177,8 +214,10 @@ pages/        entry points listed in game.json; debug/ = tool page shell
 
 ## Performance rules (keep these)
 
-The game is CPU bound: **draw calls cost more than triangles**. Measure with `__rally.benchmark(n)` / `__rallyProbe()` on an
-idle machine and compare old / new back to back (background load easily doubles the numbers).
+The game is CPU bound: **draw calls cost more than triangles**. Measure with `__rally.benchmark(n)` / `__rallyProbe()` on
+`npm run dev:noreload`. Background load (other sessions, builds) and the tab (background tabs run slower) swing a single
+run 2-3x, so compare old / new **in the same page, interleaved** over several rounds (switch at runtime, e.g.
+`__setVariantSets(on)` + `__rally.streamer.reset(pos)`) and use the median; never compare runs minutes apart.
 
 **Instancing and streaming**
 
@@ -198,6 +237,10 @@ idle machine and compare old / new back to back (background load easily doubles 
   angle-sorted and only the camera's view (+ 25 deg) is drawn. LOD0 shadow casters are drawn whole.
 - Far trees: variants share one bucket past ~420 m (`LodSpec.oneVariant`); past 900 m they are 2-triangle camera-facing
   impostors (`LodSpec.impostor`, `assets/impostor.ts`).
+- Variant sets (`getVariantSet`, `assets/library.ts`): the other LODs draw every variant with ONE `InstancedMesh` per material -
+  all variants in one geometry, the instance's `instVariant` picks one, the shader clips the rest (`variantMaterial` /
+  `variantDepthMaterial` for the shadow pass). Costs vertex work x variants, so sets are capped (vegetation 1200 triangles:
+  big tree crowns stay per variant). `?variantsets=0` turns them off; test `variant-sets`.
 
 **Distances**
 

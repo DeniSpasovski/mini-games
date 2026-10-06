@@ -54,6 +54,9 @@ export interface PortalRow {
   /** Lateral extent of the slab (wall lines): left (> 0) and right (< 0), + = left of travel. */
   latL: number;
   latR: number;
+  /** The cut's wall lines (= latL / latR unless a skewed end trims the slab there). */
+  latL0: number;
+  latR0: number;
 }
 
 export interface Portal {
@@ -74,6 +77,9 @@ export interface PortalHit {
   top: number;
   latL: number;
   latR: number;
+  /** The cut's wall lines here (wider than the slab where a skewed end trims it). */
+  latL0: number;
+  latR0: number;
   /** Inside the slab footprint (between the walls, within the span). */
   inside: boolean;
 }
@@ -128,6 +134,8 @@ export function buildPortals(
         top: s.y + opts.clearance,
         latL: Math.max(own, extent(1)),
         latR: -Math.max(own, extent(-1)),
+        latL0: 0,
+        latR0: 0,
       });
       if (along >= sp.to) break;
     }
@@ -149,6 +157,24 @@ export function buildPortals(
     }
     // The smoothing never takes the top below the clearance.
     for (const r of rows) r.top = Math.max(r.top, r.y + opts.clearance);
+    // Skewed ends (RoadSpan.skew): each row keeps only the laterals the slab covers there.
+    for (const r of rows) {
+      r.latL0 = r.latL;
+      r.latR0 = r.latR;
+      const [k0, k1] = sp.skew ?? [0, 0];
+      const d = r.along - sp.from;
+      const e = sp.to - r.along;
+      if (k0 < 0) r.latR = Math.max(r.latR, r.latL0 + d / k0);
+      if (k0 > 0) r.latL = Math.min(r.latL, r.latR0 + d / k0);
+      if (k1 < 0) r.latL = Math.min(r.latL, r.latR0 - e / k1);
+      if (k1 > 0) r.latR = Math.max(r.latR, r.latL0 - e / k1);
+    }
+    while (rows.length > 2 && rows[0].latL - rows[0].latR < 1) rows.shift();
+    while (
+      rows.length > 2 &&
+      rows[rows.length - 1].latL - rows[rows.length - 1].latR < 1
+    )
+      rows.pop();
     // Name on the headwall: the widest named deck that crosses the slab.
     let name: string | undefined;
     if (net) {
@@ -174,7 +200,12 @@ export function buildPortals(
         }
       });
     }
-    out.push({ from: sp.from, to: sp.to, rows, name });
+    out.push({
+      from: rows[0].along,
+      to: rows[rows.length - 1].along,
+      rows,
+      name,
+    });
   }
   return out;
 }
@@ -221,6 +252,8 @@ export class Portals {
         top: lerp(a.top, b.top),
         latL,
         latR,
+        latL0: lerp(a.latL0, b.latL0),
+        latR0: lerp(a.latR0, b.latR0),
         inside: outside === 0 && q.lateral <= latL && q.lateral >= latR,
       };
     }
@@ -312,6 +345,12 @@ export function laneWalls(
         continue;
       }
       const lat = side * (edge - LANE_WALL_GAP);
+      // Not where a skewed end leaves the lane in the open (the wall stands under the slab only).
+      if (lat > r.latL || lat < r.latR) {
+        if (run.length > 1) out.push(run);
+        run = [];
+        continue;
+      }
       run.push({
         along: r.along,
         x: r.x + r.tz * lat,

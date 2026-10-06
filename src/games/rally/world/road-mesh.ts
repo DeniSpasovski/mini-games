@@ -21,6 +21,7 @@ import { streetDetailMeshJob } from './street-detail-mesh';
 import { newRoadQuery } from './road';
 import { gantryMeshJob } from './gantry-mesh';
 import { goreMeshJob } from './gore-mesh';
+import { junctionFillets } from './junctions';
 import { plazaMeshJob } from './plaza-mesh';
 import { stageSignMeshJob } from './stage-sign-mesh';
 import { buildingMeshJob } from './building-mesh';
@@ -376,7 +377,11 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
         let top = y + 0.03 - 0.08 * sink;
         if (onTop && !plazas.empty && plazas.inside(x, z)) {
           const ph = plazas.height(x, z);
-          if (ph !== undefined) top = Math.min(top, ph + 0.01);
+          // (an area that keeps its ribbons: they lie on the paving)
+          if (ph !== undefined)
+            top = plazas.keepsRibbons(x, z)
+              ? ph + 0.02
+              : Math.min(top, ph + 0.01);
         }
         tile.pos.push(x, top, z);
         // One normal per row (taken at the centre): the ribbons are flat roads, and this saves four height samples per vertex.
@@ -391,7 +396,8 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
         onTop &&
         !plazas.empty &&
         plazas.inside(pts[r][0], pts[r][1]) &&
-        plazas.inside(pts[r + 1][0], pts[r + 1][1])
+        plazas.inside(pts[r + 1][0], pts[r + 1][1]) &&
+        !plazas.keepsRibbons(pts[r][0], pts[r][1])
       )
         continue;
       for (let c = 0; c < cols - 1; c++) {
@@ -402,6 +408,52 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
     }
     yield;
   }
+  // Rounded corners at the junction mouths of plain tarmac side roads (junctions.ts `junctionFillets`): the same
+  // tiles / material as the ribbons (no extra draws) and the ribbon's height rule (sunk under the stage road's edge).
+  // Textured with the dusty edge band of `road_tarmac`. City maps (kerbs, sidewalks, plazas, markings) are left out.
+  for (const j of world.map.cityStreets ? [] : world.gen.junctions) {
+    if (j.surface !== 'tarmac') continue;
+    const tex = pathTexture(j.kind, j.width, !!world.map.cityStreets);
+    if (tex !== 'road_tarmac') continue;
+    const s0 = world.road.at(j.along);
+    const edge = (d: number): [number, number] => {
+      const s = world.road.at(j.along + d);
+      const lat = j.side * s.halfWidth;
+      return [s.x + s.tz * lat, s.z - s.tx * lat];
+    };
+    for (const f of junctionFillets(j, s0.tx, s0.tz, edge)) {
+      const key = `${tex}:${Math.floor(f.c[0] / PATH_TILE)},${Math.floor(f.c[1] / PATH_TILE)}`;
+      let tile = tiles.get(key);
+      if (!tile)
+        tiles.set(key, (tile = { tex, pos: [], nor: [], uv: [], idx: [] }));
+      const v0 = tile.pos.length / 3;
+      hf.normal(f.c[0], f.c[1], nTmp);
+      for (const [k, [x, z]] of [f.c, ...f.arc].entries()) {
+        world.road.query(x, z, rq);
+        const ground = hf.height(x, z);
+        const sink =
+          rq.found && Math.abs(world.road.at(rq.along).y - ground) < 1
+            ? 1 -
+              Math.min(1, Math.max(0, (rq.distance - rq.halfWidth + 0.2) / 1.0))
+            : 0;
+        tile.pos.push(x, ground + 0.03 - 0.08 * sink, z);
+        tile.nor.push(nTmp.x, nTmp.y, nTmp.z);
+        // The corner gets the inner edge band, the arc the outer dusty edge.
+        tile.uv.push(
+          k === 0 ? 0.1 : 0.01,
+          ((x - j.x) * j.dx + (z - j.z) * j.dz) / texLength(tex),
+        );
+      }
+      // Fan from the corner; winding so the face points up (+Y) whichever side the arc runs.
+      const cross =
+        (f.arc[0][0] - f.c[0]) * (f.arc[1][1] - f.c[1]) -
+        (f.arc[0][1] - f.c[1]) * (f.arc[1][0] - f.c[0]);
+      for (let k = 1; k < f.arc.length; k++)
+        if (cross < 0) tile.idx.push(v0, v0 + k, v0 + k + 1);
+        else tile.idx.push(v0, v0 + k + 1, v0 + k);
+    }
+  }
+  yield;
   const group = new Group();
   group.name = 'paths';
   for (const t of tiles.values()) {

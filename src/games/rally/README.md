@@ -58,7 +58,6 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 | --------------------------- | ------------------------------------------------------------------------------------------------ |
 | [`DETAILS.md`](DETAILS.md)  | pages and URLs, game / stage flow, map engine features, architecture, performance, set-up screen |
 | [`PHYSICS.md`](PHYSICS.md)  | vehicle model, tuning guide, tyres and set-ups, test results                                     |
-| [`TASKS.md`](TASKS.md)      | open tasks + index of every map / car task list                                                  |
 | `maps/<id>/`, `cars/<car>/` | per map / car: `README.md` (overview) and `DETAILS.md` (sources, licences, build notes)          |
 
 ## Credits

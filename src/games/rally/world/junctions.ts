@@ -145,3 +145,60 @@ export function connectPaths(
   junctions.sort((a, b) => a.along - b.along);
   return { paths: out, junctions };
 }
+
+/** One rounded corner of a junction mouth: tarmac between the corner `c` and the concave `arc` (A on the stage road edge -> B on the side road edge). */
+export interface JunctionFillet {
+  c: [number, number];
+  arc: [number, number][];
+}
+
+/** Arc points of a fillet (incl. both ends). */
+const FILLET_STEPS = 6;
+
+/**
+ * The two rounded corners of a junction mouth (a real junction flares out instead of meeting the stage road as a
+ * square T). For each side: C = where the side road's edge meets the stage road's edge, A / B = `radius` back from C
+ * along the stage edge / the side road edge, and the arc A -> B a quadratic curve bowing towards C (close to a
+ * circle tangent to both edges). `tx, tz` = stage road tangent at the junction; `edge(d)` = the stage road edge on
+ * the junction's side `d` metres further along (C and A sit on the real, possibly curved, edge; default: the
+ * tangent line). A side whose edges meet at a very acute angle (the corner far from the mouth) gets no fillet.
+ */
+export function junctionFillets(
+  j: Junction,
+  tx: number,
+  tz: number,
+  edge: (d: number) => [number, number] = (d) => [j.x + tx * d, j.z + tz * d],
+  radius = Math.min(8, Math.max(4, j.width * 1.4)),
+): JunctionFillet[] {
+  const out: JunctionFillet[] = [];
+  const w = j.width / 2;
+  // Perpendicular to the side road.
+  const nx = -j.dz;
+  const nz = j.dx;
+  for (const s of [1, -1]) {
+    // Side road edge: E + d u; stage edge: J + t v. Solve s w n + d u = t v.
+    const ex = s * w * nx;
+    const ez = s * w * nz;
+    const det = j.dx * -tz - j.dz * -tx;
+    if (Math.abs(det) < 0.35) continue; // nearly parallel: no clean corner
+    const u = (-ex * -tz + ez * -tx) / det;
+    const v = (j.dx * -ez + j.dz * ex) / det;
+    if (Math.abs(u) > 2 * j.width || Math.abs(v) > 3 * j.width) continue;
+    const [cx, cz] = edge(v);
+    // Away from the side road along the stage edge, away from the stage road along the side edge.
+    const sv = Math.sign(v) || s;
+    const [ax, az] = edge(v + sv * radius);
+    const bx = cx + j.dx * radius;
+    const bz = cz + j.dz * radius;
+    const arc: [number, number][] = [];
+    for (let k = 0; k <= FILLET_STEPS; k++) {
+      const t = k / FILLET_STEPS;
+      const a = (1 - t) * (1 - t);
+      const m = 2 * (1 - t) * t;
+      const b = t * t;
+      arc.push([a * ax + m * cx + b * bx, a * az + m * cz + b * bz]);
+    }
+    out.push({ c: [cx, cz], arc });
+  }
+  return out;
+}

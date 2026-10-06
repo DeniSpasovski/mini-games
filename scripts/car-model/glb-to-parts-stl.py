@@ -39,6 +39,12 @@ primitive) instead of triangle centres: an island matches only when its bounding
 scoop or mirror glass that is welded into a bigger primitive without nibbling the panel next to it. `"islandTris": [min, max]`
 keeps islands with that many triangles (separates a lamp housing from the bowls inside it).
 
+`"tube": {"r": [0.012, 0.024], "score": 0.15, "length": 0.3}` keeps whole islands shaped like a tube of radius r (metres)
+at least `length` long - a roll cage modelled into the same primitive as the seats and door cards. The test
+(`tube_scores`): every vertex moves inward along its normal by d; on a tube of radius d the edges round each ring collapse
+onto the axis, so `score` = the share of the island's edges that shrink below 25 % (tube ~0.2 - 0.5, panel / seat ~0).
+Steering columns and gear rods pass too: send them elsewhere with an earlier rule.
+
 After the labelling it prints two sanity reports (a leftover brake disc shipped as black `trim` plates in the Skoda import):
   * `defaulted`: every primitive (or part of one) that matched no rule and fell to `gltf.default` - check each is really trim;
   * `disc-like islands`: round flat plates (< 5 cm thick, 0.25 - 0.7 m across, roughly square the other two) in the output - brake discs,
@@ -172,6 +178,34 @@ def islands(T):
     np.minimum.at(lo, vid, P)
     np.maximum.at(hi, vid, P)
     return iid, lo, hi, np.bincount(iid, minlength=n)
+
+
+def tube_scores(T, iid, n):
+    """Per island (ids iid, n islands): best tube score and the radius d it was found at (see the `tube` rule)."""
+    _, first, vid = np.unique(np.round(T.reshape(-1, 3) / 1e-5).astype(np.int64), axis=0, return_index=True,
+                              return_inverse=True)
+    P = T.reshape(-1, 3)[first]
+    vid = vid.reshape(-1, 3)
+    FN = np.cross(T[:, 1] - T[:, 0], T[:, 2] - T[:, 0])  # area weighted
+    VN = np.zeros_like(P)
+    for k in range(3):
+        np.add.at(VN, vid[:, k], FN)
+    VN /= np.linalg.norm(VN, axis=1)[:, None] + 1e-20
+    E = np.unique(np.sort(np.concatenate([vid[:, [0, 1]], vid[:, [1, 2]], vid[:, [2, 0]]]), axis=1), axis=0)
+    viid = np.zeros(len(P), int)
+    viid[vid.ravel()] = np.repeat(iid, 3)
+    ei = viid[E[:, 0]]
+    L0 = np.linalg.norm(P[E[:, 0]] - P[E[:, 1]], axis=1)
+    ne = np.maximum(np.bincount(ei, minlength=n), 1)
+    best, bestd = np.zeros(n), np.zeros(n)
+    for d in np.arange(0.004, 0.05, 0.001):
+        for s in (1, -1):  # outward or inward normals
+            Q = P - s * d * VN
+            L = np.linalg.norm(Q[E[:, 0]] - Q[E[:, 1]], axis=1)
+            sc = np.bincount(ei, (L < 0.25 * L0).astype(float), minlength=n) / ne
+            upd = sc > best
+            best[upd], bestd[upd] = sc[upd], d
+    return best, bestd
 
 
 VIEW_AXES = {'front': (0, 1, 2), 'rear': (0, 1, 2), 'left': (2, 1, 0), 'right': (2, 1, 0), 'top': (2, 0, 1)}
@@ -318,13 +352,18 @@ def main():
                 isl = None
                 continue
             keep = np.ones(len(T), bool)
-            if r.get('whole') or 'islandTris' in r:
+            if r.get('whole') or 'islandTris' in r or 'tube' in r:
                 if isl is None:
                     isl = islands(T)
                 iid, ilo, ihi, isz = isl
                 ok = np.ones(len(isz), bool)
                 if 'islandTris' in r:
                     ok &= (isz >= r['islandTris'][0]) & (isz <= r['islandTris'][1])
+                if 'tube' in r:
+                    tb = r['tube']
+                    score, rad = tube_scores(T, iid, len(isz))
+                    ok &= (rad >= tb['r'][0]) & (rad <= tb['r'][1]) & (score >= tb.get('score', 0.15))
+                    ok &= (ihi - ilo).max(1) >= tb.get('length', 0)
                 for ax, k in (('x', 0), ('y', 1), ('z', 2)):
                     if ax in r and r.get('whole'):
                         ok &= (ilo[:, k] >= r[ax][0]) & (ihi[:, k] <= r[ax][1])

@@ -22,6 +22,16 @@
       ],
       "port": 3030,
       "autoPort": true
+    },
+    {
+      "name": "portal-dev-noreload",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "-e",
+        "require('child_process').spawn('npm', ['run', 'dev:noreload', '--', '--port', process.env.PORT || '3040'], { stdio: 'inherit', shell: true })"
+      ],
+      "port": 3040,
+      "autoPort": true
     }
   ]
 }

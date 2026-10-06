@@ -83,8 +83,8 @@ source-available rather than OSI "open source".
 
 Two things are **not** covered by that licence:
 
-- the baked map data (`src/games/rally/maps/*/data.json`, `buildings.csv`, `preview/stage-card.json` and the
-  `preview/stage-card.jpg` render of it) is derived from OpenStreetMap and other open
+- the baked map data of the real maps (in `src/games/rally/maps/<id>/`: `data.json`, `route.json`, `horizon.json`,
+  `junction*.json`, `buildings.csv`, `preview/stage-card.json` + its `.jpg` render) is derived from OpenStreetMap and other open
   datasets and stays under the [ODbL 1.0](https://opendatacommons.org/licenses/odbl/) with attribution, so it can be
   reused freely under those terms;
 - third-party models and data keep their own licences, see [`THIRD-PARTY.md`](THIRD-PARTY.md).
@@ -92,7 +92,7 @@ Two things are **not** covered by that licence:
 ## Credits and data
 
 The maps are baked from open data (© OpenStreetMap contributors, ESA WorldCover, Copernicus DEM, USGS 3DEP, Microsoft
-building footprints); some car bodies are converted from models shared by their authors. Every source, licence and
+building footprints and road detections); some car bodies are converted from models shared by their authors. Every source, licence and
 attribution is listed in [`THIRD-PARTY.md`](THIRD-PARTY.md) and in each map / car folder.
 
 Car makes and models, brand names and real places are used for identification only. This is a non-commercial fan

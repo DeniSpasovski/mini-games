@@ -1,5 +1,9 @@
 import { describe, expect, test } from '@rstest/core';
-import { ALL_MAPS } from '../../src/games/rally/maps';
+import { ALL_MAPS } from '../../src/games/rally/maps/all';
+import {
+  junctionFillets,
+  type Junction,
+} from '../../src/games/rally/world/junctions';
 import { newRoadQuery } from '../../src/games/rally/world/road';
 import { World } from '../../src/games/rally/world/world';
 
@@ -49,5 +53,52 @@ describe.each(
           q.halfWidth + map.road.shoulder + 1.5,
         );
     }
+  });
+});
+
+/** Rounded corners at a junction mouth (`junctionFillets`): on the field side of both edges, tangent-ish at A / B. */
+describe('junction fillets', () => {
+  // Stage road along +X (its edge is z = 0), a 5 m side road leaving it towards +Z at x = 0.
+  const square: Junction = {
+    x: 0,
+    z: 0,
+    dx: 0,
+    dz: 1,
+    width: 5,
+    surface: 'tarmac',
+    kind: 'residential',
+    along: 0,
+    side: 1,
+  };
+
+  test('square junction: two corners at the side road edges, arcs from the stage edge to the side edge', () => {
+    const f = junctionFillets(square, 1, 0, undefined, 6);
+    expect(f.length).toBe(2);
+    for (const { c, arc } of f) {
+      expect(Math.abs(Math.abs(c[0]) - 2.5)).toBeLessThan(1e-9);
+      expect(Math.abs(c[1])).toBeLessThan(1e-9);
+      const a = arc[0];
+      const b = arc[arc.length - 1];
+      // A on the stage edge, 6 m further out; B on the side road edge, 6 m up it.
+      expect(Math.abs(a[1])).toBeLessThan(1e-9);
+      expect(Math.abs(Math.abs(a[0]) - 8.5)).toBeLessThan(1e-9);
+      expect(Math.abs(Math.abs(b[0]) - 2.5)).toBeLessThan(1e-9);
+      expect(Math.abs(b[1] - 6)).toBeLessThan(1e-9);
+      // The whole arc is on the field side: off the stage road (z >= 0) and outside the side road (|x| >= 2.5).
+      for (const [x, z] of arc) {
+        expect(z).toBeGreaterThanOrEqual(-1e-9);
+        expect(Math.abs(x)).toBeGreaterThanOrEqual(2.5 - 1e-9);
+      }
+    }
+  });
+
+  test('angled junction: corners still on the stage edge; a near-parallel side gets none', () => {
+    const a = Math.PI / 4;
+    const angled = { ...square, dx: Math.cos(a), dz: Math.sin(a) };
+    const f = junctionFillets(angled, 1, 0);
+    expect(f.length).toBe(2);
+    for (const { c } of f) expect(Math.abs(c[1])).toBeLessThan(1e-9);
+    const shallow = { ...square, dx: Math.cos(0.2), dz: Math.sin(0.2) };
+    expect(junctionFillets(shallow, 1, 0).length).toBe(0);
   });
 });

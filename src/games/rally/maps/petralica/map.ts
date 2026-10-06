@@ -1,15 +1,24 @@
-import { buildingsFromData, routePoints } from '../shared/real-map';
+import {
+  buildingsFromData,
+  bridgeChannelCrossings,
+  lengthenBridges,
+  routePoints,
+  routeSpans,
+} from '../shared/real-map';
 import type {
   HeightmapDef,
+  HorizonDef,
   LakeDef,
   LandcoverDef,
   MapDef,
   PathDef,
 } from '../shared/types';
 import data from './data.json';
+import horizon from './horizon.json';
+import { petralicaInfo as info } from './info';
 
 /**
- * "Petralica" - real-world mountain stage in north-east North Macedonia: Ginovci village
+ * "Petralica" - real-world mountain stage in Rankovce municipality, north-east North Macedonia: Ginovci village
  * -> across the E-871 -> straight valley road up to Petralica -> narrow switchback track
  * through oak woods and pasture up to Vila Ristovski. ~9.6 km, 478 m -> 1040 m above sea level.
  *
@@ -38,46 +47,13 @@ function widthAt(along: number): number {
 const DRY = ['grass', 'shrub', 'bare', 'urban', 'industrial'];
 
 export const petralicaMap: MapDef = {
-  id: 'petralica',
-  name: 'Petralica',
-  year: 2026,
-  /** Recommended tyre (pre-selected on the car screen; see ../../PHYSICS.md). */
-  tyre: 'gravel',
-  description:
-    'Real-world mountain stage in north-east North Macedonia: from Ginovci up the valley to Petralica, then a narrow switchback climb through oak woods to Vila Ristovski. 9.6 km, 560 m of climb.',
-  seed: 4222,
-  geo: { lat: data.meta.origin[0], lon: data.meta.origin[1] },
-  credits: data.meta.sources,
-  sources: [
-    {
-      label: 'Google Maps route (Ginovci -> Vila Ristovski)',
-      url: 'https://www.google.com/maps/dir/42.1707824,22.1691664/42.2401682,22.2009501',
-      note: 'stage waypoints; the two parts of the road missing in OpenStreetMap were traced from a screenshot of this route',
-    },
-    {
-      label: 'OpenStreetMap',
-      url: 'https://www.openstreetmap.org/copyright',
-      note: 'route, roads, tracks, river, land use, buildings - (c) OpenStreetMap contributors, ODbL',
-    },
-    {
-      label: 'Copernicus DEM GLO-30 (via OpenTopography)',
-      url: 'https://doi.org/10.5069/G9028PQB',
-      note: 'elevation - (c) DLR e.V. 2010-2014 and (c) Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the European Union and ESA',
-    },
-    {
-      label: 'AWS Terrain Tiles (Terrarium)',
-      url: 'https://registry.opendata.aws/terrain-tiles/',
-      note: 'far horizon elevation - SRTM / EU-DEM derived',
-    },
-    {
-      label: 'ESA WorldCover 10 m 2021 v200',
-      url: 'https://esa-worldcover.org/',
-      note: 'land cover + built-up areas used to place the houses - contains modified Copernicus Sentinel data (2021), CC BY 4.0',
-    },
-  ],
-  stageNumber: 2,
-  buildings: buildingsFromData(data.buildings),
-  bounds: { minX: -2400, maxX: 2400, minZ: -4800, maxZ: 4800 },
+  ...info,
+  // Box houses (the newer bake's building kinds would switch them to mesh buildings).
+  buildings: buildingsFromData({ ...data.buildings, kinds: undefined }),
+  // Fenced hazelnut farm + yard, tall trees along the road through the hedge (maps/petralica/properties/).
+  landmarks: ['petralica-properties'],
+  // Far land around the map (terrain + land cover) as a backdrop: scripts/realmap/horizon.py.
+  horizon: horizon as HorizonDef,
   terrain: {
     baseHeight: 0,
     // Shift so the start (478 m above sea level) sits near y = 0.
@@ -99,6 +75,8 @@ export const petralicaMap: MapDef = {
       pine: [0.5, 0.5, 0, 0],
       trees: [0.55, 0.43, 0.02, 0],
       orchard: [0.6, 0.4, 0, 0],
+      // Mown grass between the hazelnut rows.
+      hazelnut: [0.85, 0.15, 0, 0],
       urban: [0.6, 0.28, 0, 0.12],
       industrial: [0.25, 0.25, 0, 0.5],
       bare: [0.08, 0.5, 0.12, 0.3],
@@ -121,7 +99,10 @@ export const petralicaMap: MapDef = {
       ],
     },
   },
-  paths: data.paths as PathDef[],
+  // Roads over the river get a short bridge deck (OSM has no bridge way at most crossings; the brook is a culvert).
+  paths: bridgeChannelCrossings(data.paths as PathDef[]),
+  // OSM bridge decks (the E-871 viaducts, road bridges over streams): modern concrete, not old stone.
+  bridgeStyle: 'concrete',
   lakes: data.lakes as LakeDef[],
   road: {
     width: 5,
@@ -138,8 +119,10 @@ export const petralicaMap: MapDef = {
     texture: 'road_tarmac',
     sections: [{ from: GRAVEL, surface: 'gravel', texture: 'road' }],
     points: routePoints(data.route, widthAt),
+    // Bridge over the E-871 (OSM bridge=yes, ~1.1 km): the motorway dips under it (TerrainGen.dipUnderBridges).
+    // OSM's 34 m deck sits off-centre over the motorway: its cut reached the north abutment, so it is lengthened.
+    spans: lengthenBridges(routeSpans(data.routeSpans), 44),
   },
-  stage: { start: 40, finishFromEnd: 150, splits: 4 },
   scatter: [
     // Oak / beech woods on the slopes, with darker pine clumps mixed in.
     {
@@ -171,6 +154,54 @@ export const petralicaMap: MapDef = {
       scale: [0.8, 1.5],
       sink: 0.15,
     },
+    // Lane edges (Street View, S3): patchy belts of autumn thicket and young trees close to the road, an odd tall
+    // pale-barked plane / ash among them, more saplings in the woods.
+    {
+      asset: 'thicket_shrub',
+      cover: ['grass', 'shrub', 'trees', 'crop'],
+      density: 22,
+      minRoadDist: 2.2,
+      maxRoadDist: 10,
+      maxSlope: 0.8,
+      mask: { scale: 120, threshold: 0.3 },
+      scale: [0.8, 1.2],
+      tilt: 3,
+      sink: 0.15,
+    },
+    {
+      asset: 'young_tree',
+      cover: ['grass', 'shrub', 'trees'],
+      density: 8,
+      minRoadDist: 3,
+      maxRoadDist: 14,
+      maxSlope: 0.7,
+      mask: { scale: 120, threshold: 0.35 },
+      scale: [0.8, 1.2],
+      tilt: 3,
+      sink: 0.2,
+    },
+    {
+      asset: 'young_tree',
+      cover: ['trees'],
+      density: 3,
+      minRoadDist: 3,
+      maxSlope: 0.7,
+      scale: [0.8, 1.2],
+      tilt: 3,
+      sink: 0.2,
+    },
+    {
+      asset: 'pale_tree',
+      cover: ['grass', 'shrub', 'trees', 'water'],
+      density: 1.5,
+      minRoadDist: 3.5,
+      maxRoadDist: 18,
+      maxSlope: 0.6,
+      mask: { scale: 200, threshold: 0.55 },
+      scale: [0.85, 1.15],
+      tilt: 2,
+      sink: 0.25,
+    },
     // Valley-floor poplars by the river.
     {
       asset: 'poplar_tree',
@@ -192,6 +223,17 @@ export const petralicaMap: MapDef = {
       tilt: 4,
       sink: 0.1,
     },
+    // Hazelnut plantation above the hamlet (bake config manualCover): bushes in tight rows.
+    {
+      asset: 'hazelnut_tree',
+      cover: ['hazelnut'],
+      density: 0,
+      rows: { spacing: 4.5, rowSpacing: 5.5, jitter: 0.4, keep: 0.95 },
+      minRoadDist: 3,
+      scale: [0.75, 1.1],
+      tilt: 3,
+      sink: 0.1,
+    },
     // Village gardens.
     {
       asset: 'fruit_tree',
@@ -203,7 +245,8 @@ export const petralicaMap: MapDef = {
       tilt: 5,
       sink: 0.1,
     },
-    // Open pasture: scattered scrub, lone oaks and rocks.
+    // Open pasture: scattered scrub, lone oaks and rocks. The valley's tree patches are scrub too (bake
+    // landcover.plainTreesAs): mostly bushes and autumn thicket, a tall oak / plane every 25-40 m.
     {
       asset: 'scrub_bush',
       cover: ['shrub'],
@@ -211,6 +254,36 @@ export const petralicaMap: MapDef = {
       minRoadDist: 2,
       scale: [0.8, 1.7],
       sink: 0.15,
+    },
+    {
+      asset: 'thicket_shrub',
+      cover: ['shrub'],
+      density: 6,
+      minRoadDist: 2.2,
+      maxSlope: 0.8,
+      scale: [0.75, 1.15],
+      tilt: 3,
+      sink: 0.15,
+    },
+    {
+      asset: 'oak_tree',
+      cover: ['shrub'],
+      density: 0.6,
+      minRoadDist: 4,
+      maxSlope: 0.7,
+      scale: [0.8, 1.2],
+      tilt: 4,
+      sink: 0.25,
+    },
+    {
+      asset: 'pale_tree',
+      cover: ['shrub'],
+      density: 0.6,
+      minRoadDist: 4,
+      maxSlope: 0.6,
+      scale: [0.85, 1.15],
+      tilt: 2,
+      sink: 0.25,
     },
     {
       asset: 'scrub_bush',
@@ -325,20 +398,16 @@ export const petralicaMap: MapDef = {
     },
   ],
   // Every side road / track meeting the stage road is closed with barriers (as on a real stage).
+  // Small fan groups (tape, spectators, flags) inside the tight corners.
+  cornerFans: {},
   junctionBarriers: { asset: 'road_barrier', length: 2.2, setback: 4 },
+  // Steel guard rails over the E-871 bridge (1097-1141 m), a few metres past each end over the embankments.
+  barriers: [
+    { kind: 'guardrail', side: 'both', offset: 0.9, from: 1085, to: 1147 },
+  ],
   // Start / finish gantries, lines and split boards come from `stage` (world/stage-signs.ts).
-  props: [],
-  environment: {
-    sunElevation: 38,
-    // Afternoon sun from the south-west (azimuth from +Z towards +X; +Z = south).
-    sunAzimuth: 320,
-    // Late afternoon: low warm sun from the WSW (~22 deg), long shadows. Try others with ?tod=<hours>.
-    timeOfDay: 16.5,
-    turbidity: 5,
-    rayleigh: 1.6,
-    fogColor: '#c2cbd2',
-    fogDensity: 0.00036,
-    exposure: 0.95,
-    groundTint: { grass: '#9d9562', amount: 0.6 },
-  },
+  props: [
+    // White hatchback in the yard of house 665 (stage-road side, parallel to the house).
+    { asset: 'street_car', variant: 12, x: -338.5, z: 2440.5, rotY: 50 },
+  ],
 };

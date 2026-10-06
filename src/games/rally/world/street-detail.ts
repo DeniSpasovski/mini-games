@@ -60,6 +60,8 @@ export interface StreetContext {
   skip?: (path: number) => boolean;
   /** On a junction plaza (plazas.ts), or within `pad` m of it: no sidewalks there, crosswalks at its edge. */
   plaza?: (x: number, z: number, pad?: number) => boolean;
+  /** The plazas have their own crosswalks (MapDef.plazaCrosswalks): none per street mouth at their edge. */
+  plazaCrosswalks?: boolean;
   /**
    * A street deck on a portal slab (the street at the structure's level): it has sidewalks like the ground street,
    * the roads beneath it are no obstacle.
@@ -176,7 +178,7 @@ export function streetDetail(
       }
     }
     // Crosswalks where the street enters a junction plaza: just outside its edge (the plaza is the junction box).
-    if (ctx.plaza) {
+    if (ctx.plaza && !ctx.plazaCrosswalks) {
       let prev = false;
       for (let a = 0; a <= L + 1e-6; a += 1) {
         net.pointAt(pi, Math.min(a, L), pt);

@@ -82,6 +82,17 @@ export const bimmerM3: CarDef = {
       note: 'livery reference',
     },
   ],
+  // Cross-plane race V8 (~4 l), open race exhaust, individual throttle bodies, sequential race box.
+  sound: {
+    layout: 'v8',
+    displacement: 4,
+    exhaust: 1,
+    intake: 0.6,
+    pops: 0.8,
+    gearWhine: 0.6,
+    gearbox: 'sequential',
+    cam: 0.6,
+  },
   physics: {
     mass: 1180,
     ...BODY,

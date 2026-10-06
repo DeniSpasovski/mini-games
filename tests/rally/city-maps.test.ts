@@ -1,6 +1,7 @@
 import { Vector3 } from 'three';
 import { describe, expect, test } from '@rstest/core';
 import { jackieMap } from '../../src/games/rally/maps/jackie/map';
+import type { GroundSample } from '../../src/games/rally/physics/types';
 import { barrierPoint } from '../../src/games/rally/world/barriers';
 import { goreCushions, goreWedges } from '../../src/games/rally/world/gore';
 import { newPathQuery } from '../../src/games/rally/world/real-data';
@@ -198,8 +199,9 @@ describe('jackie: portals (under spans)', () => {
     expect(portals.list.length).toBe(spans.length);
     for (const p of portals.list) {
       for (const r of p.rows) expect(r.top - r.y).toBeGreaterThanOrEqual(5.5);
-      expect(p.rows[0].latL).toBeGreaterThan(5);
-      expect(p.rows[0].latR).toBeLessThan(-5);
+      // The cut's wall lines (a skewed end trims the slab itself at its corners).
+      expect(p.rows[0].latL0).toBeGreaterThan(5);
+      expect(p.rows[0].latR0).toBeLessThan(-5);
     }
     const finish = portals.list.find((p) => p.from > 7000)!;
     expect(finish.name).toMatch(/Queens Boulevard/);
@@ -250,6 +252,8 @@ describe('jackie: portals (under spans)', () => {
         net.pointAt(pi, a, pt);
         const hit = portals.at(pt.x, pt.z);
         if (!hit || hit.outside > 0 || hit.inside) continue;
+        // Down in the cut (a skewed end leaves part of it open): not on the structure.
+        if (hit.lateral <= hit.latL0 && hit.lateral >= hit.latR0) continue;
         if (Math.abs(hit.lateral) > Math.max(hit.latL, -hit.latR) + 40)
           continue;
         checked++;
@@ -325,8 +329,9 @@ describe('jackie: four roadways in the finish cut (Union Tpke inner lanes beside
     );
     expect(runs.length).toBe(2);
     for (const run of runs) {
+      // (the skewed ends leave the lanes open at one corner each)
       expect(run[run.length - 1].along - run[0].along).toBeGreaterThan(
-        (fin.to - fin.from) * 0.9,
+        (fin.to - fin.from) * 0.75,
       );
       for (const r of run) {
         const rq = road.query(r.x, r.z, newRoadQuery());
@@ -386,17 +391,94 @@ describe('jackie: junction plaza on the finish portal', () => {
       expect(plazas.inside(c.x, c.z)).toBe(false);
     }
     // No land / street ribbon comes up through the plaza (its surface is drawn 3 cm over its height).
-    const p = plazas.polys[0];
+    const p = plazas.polys.find((q) => q.area)!;
     let n = 0;
     for (let x = p.minX; x <= p.maxX; x += 1.5)
       for (let z = p.minZ; z <= p.maxZ; z += 1.5) {
         if (!plazas.inside(x, z)) continue;
         n++;
         expect(world.gen.height(x, z)).toBeLessThanOrEqual(
-          plazas.height(x, z)! + 0.02,
+          plazas.height(x, z)! + 0.03,
         );
       }
     expect(n).toBeGreaterThan(1000);
+  });
+
+  test('is solid in free roam over the trench; a car down in the trench keeps the road', () => {
+    const finish = portals.list.find((p) => p.from > 7000)!;
+    const s = {
+      height: 0,
+      normal: new Vector3(),
+      surface: undefined,
+    } as unknown as GroundSample;
+    let over = 0;
+    for (const r of finish.rows.slice(1, -1))
+      for (let l = r.latR + 1; l <= r.latL - 1; l += 2) {
+        const x = r.x + r.tz * l;
+        const z = r.z - r.tx * l;
+        if (!plazas.inside(x, z)) continue;
+        const top = plazas.height(x, z)!;
+        const ground = world.gen.height(x, z);
+        world.sampleGround(x, z, s, top + 1);
+        // On a raised island the kerb height on top.
+        expect(s.height).toBeCloseTo(plazas.surface(x, z)! + 0.03, 2);
+        // (up to ~18 deg at the skewed slab corners, where the slab top meets the lower service road beside it)
+        expect(s.normal.y).toBeGreaterThan(0.95);
+        if (ground < top - 3) {
+          over++;
+          world.sampleGround(x, z, s, ground + 1);
+          expect(s.height).toBeLessThan(top - 3);
+        }
+      }
+    console.info(`[jackie] plaza points over the trench: ${over}`);
+    expect(over).toBeGreaterThan(20);
+    // A spawn on the stage road under the slab stays down on the road.
+    const mid = road.at((finish.from + finish.to) / 2);
+    expect(world.heightAt(mid.x, mid.z)).toBeLessThan(
+      plazas.height(mid.x, mid.z)! - 3,
+    );
+  });
+
+  test('islands (NYC planimetric medians / sidewalks) lie on the plaza; raised ones are a kerb above it', () => {
+    expect(plazas.islands.length).toBeGreaterThan(5);
+    for (const il of plazas.islands) {
+      let cx = 0;
+      let cz = 0;
+      const n = il.pts.length / 2;
+      for (let i = 0; i < il.pts.length; i += 2) {
+        cx += il.pts[i] / n;
+        cz += il.pts[i + 1] / n;
+      }
+      // On the plaza (the parts over the open cut beside the slab are not drawn; a median down in the cut is not either).
+      if (
+        il.pts.every(
+          (_, i) =>
+            i % 2 === 1 || world.gen.inOpenCut(il.pts[i], il.pts[i + 1]),
+        )
+      )
+        continue;
+      expect(
+        il.pts.some(
+          (_, i) => i % 2 === 0 && plazas.inside(il.pts[i], il.pts[i + 1], 0.5),
+        ),
+      ).toBe(true);
+      if (il.kind === 'painted' || !plazas.islandAt(cx, cz)) continue;
+      expect(plazas.surface(cx, cz)! - plazas.height(cx, cz)!).toBeCloseTo(
+        0.15,
+        3,
+      );
+    }
+  });
+
+  test('the tunnel echo: full under the slab, none in the open or on top of it', () => {
+    const finish = portals.list.find((p) => p.from > 7000)!;
+    const mid = road.at((finish.from + finish.to) / 2);
+    expect(world.enclosureAt(mid.x, mid.y + 1, mid.z)).toBe(1);
+    const open = road.at(finish.from - 15);
+    expect(world.enclosureAt(open.x, open.y + 1, open.z)).toBe(0);
+    expect(
+      world.enclosureAt(mid.x, plazas.height(mid.x, mid.z)! + 1, mid.z),
+    ).toBe(0);
   });
 
   test('no barrier runs across it (the ones down in the trench under the slab stay)', () => {
@@ -409,7 +491,7 @@ describe('jackie: junction plaza on the finish portal', () => {
       }
   });
 
-  test('no sidewalks inside it; its edge has the crosswalks', () => {
+  test('no sidewalks inside it; its crosswalks are the OSM zebra crossings', () => {
     const net = world.gen.paths!;
     const d = world.streetDetail!;
     // On the kerb line of each run (the street's centre may cut a plaza corner while its sidewalk is outside).
@@ -431,12 +513,18 @@ describe('jackie: junction plaza on the finish portal', () => {
       net.pointAt(c.path, c.at, pt);
       return plazas.inside(pt.x, pt.z, 4);
     });
-    console.info(`[jackie] plaza edge crosswalks: ${edge.length}`);
-    expect(edge.length).toBeGreaterThanOrEqual(4);
-    for (const c of edge) {
-      net.pointAt(c.path, c.at, pt);
-      expect(plazas.inside(pt.x, pt.z)).toBe(false);
-    }
+    // The OSM zebra crossings replace the automatic one per street mouth: none of those at the edge.
+    expect(edge.length).toBe(0);
+    const cw = jackieMap.plazaCrosswalks!;
+    console.info(`[jackie] plaza crosswalks (OSM): ${cw.length}`);
+    expect(cw.length).toBeGreaterThanOrEqual(8);
+    // Each one touches the plaza's surroundings (some cross the streets just outside it).
+    for (const line of cw)
+      expect(
+        line.some(
+          (_, i) => i % 2 === 0 && plazas.inside(line[i], line[i + 1], 13),
+        ),
+      ).toBe(true);
   });
 });
 

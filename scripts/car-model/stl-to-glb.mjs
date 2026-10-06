@@ -488,23 +488,123 @@ if (W.liner) {
       outUv.push(bu / A.width, bv / A.height);
     }
   };
+  // Outermost body surface (|x| on side `sgn`) at a (y, z) point, from the body / part triangles before the liner.
+  const skinTris = [];
+  for (const p of prims)
+    for (let k = 0; k < p.idx.length; k += 3) {
+      const t = [0, 1, 2].map((j) =>
+        p.pos.slice(p.idx[k + j] * 3, p.idx[k + j] * 3 + 3),
+      );
+      if (Math.max(...t.map((q) => Math.abs(q[0]))) > L.outerX - 0.1)
+        skinTris.push(t);
+    }
+  const skinX = (sgn, y, z) => {
+    let best = null;
+    for (const [a, b, c] of skinTris) {
+      if (a[0] * sgn < 0) continue;
+      const d = (b[1] - a[1]) * (c[2] - a[2]) - (c[1] - a[1]) * (b[2] - a[2]);
+      if (Math.abs(d) < 1e-12) continue;
+      const u = ((y - a[1]) * (c[2] - a[2]) - (c[1] - a[1]) * (z - a[2])) / d;
+      const v = ((b[1] - a[1]) * (z - a[2]) - (y - a[1]) * (b[2] - a[2])) / d;
+      if (u < 0 || v < 0 || u + v > 1) continue;
+      const x = (a[0] + u * (b[0] - a[0]) + v * (c[0] - a[0])) * sgn;
+      if (best === null || x > best) best = x;
+    }
+    return best;
+  };
   const n = 16;
   const a0 = -L.below;
   const a1 = Math.PI + L.below;
   for (const [zc, yc] of W.centres)
     for (const sgn of [1, -1]) {
       const x0 = sgn * W.minAbsX;
-      const x1 = sgn * L.outerX;
+      // The cup's rim follows the skin: where the body is narrower than `outerX` at the cup radius (arch top, the
+      // bumper behind a rear arch) the rim stops 3 mm inside it, else the black cup end shows through the paint.
+      // Sampled per half segment, smallest of the neighbours (as the rings below).
+      const rimHalf = [];
+      for (let j = 0; j <= 2 * n; j++) {
+        const a = a0 + ((a1 - a0) * j) / (2 * n);
+        const x = skinX(
+          sgn,
+          yc + Math.sin(a) * L.radius,
+          zc + Math.cos(a) * L.radius,
+        );
+        rimHalf.push(x === null ? L.outerX : Math.min(L.outerX, x - 0.003));
+      }
+      const rimX = [];
+      for (let i = 0; i <= n; i++)
+        rimX.push(
+          sgn *
+            Math.min(
+              rimHalf[2 * i],
+              rimHalf[Math.max(0, 2 * i - 1)],
+              rimHalf[Math.min(2 * n, 2 * i + 1)],
+            ),
+        );
       const at = (i, x) => {
         const a = a0 + ((a1 - a0) * i) / n;
         return [x, yc + Math.sin(a) * L.radius, zc + Math.cos(a) * L.radius];
       };
+      // The body's cut edge sits further out than the cup's rim (`outerX`): between the skin and the cup is an open
+      // slit into the hollow body, seen at a grazing angle behind the wheel. `liner.lip` closes it with flat rings at the
+      // rim's x and 3 / 6 cm deeper (grazing rays cross the first ring further out), each from `radius` out to 4 mm
+      // inside the skin (raycast along x), at most 6 / 12 / 18 cm wide. Sampled per half segment, a ring vertex = the
+      // smallest of its neighbours: a straight ring edge between samples must not cut through a narrower bumper.
+      const rings = [];
+      for (let k = 0; L.lip && k < 3; k++) {
+        const rx = L.outerX - 0.03 * k;
+        const reach = (a) => {
+          let r = L.radius;
+          for (
+            let s = L.radius + 0.005;
+            s <= L.radius + 0.06 * (k + 1);
+            s += 0.005
+          ) {
+            const x = skinX(sgn, yc + Math.sin(a) * s, zc + Math.cos(a) * s);
+            if (x === null || x < rx + 0.004) break;
+            r = s;
+          }
+          return r;
+        };
+        const half = [];
+        for (let j = 0; j <= 2 * n; j++)
+          half.push(reach(a0 + ((a1 - a0) * j) / (2 * n)));
+        const R = [];
+        for (let i = 0; i <= n; i++)
+          R.push(
+            Math.min(
+              half[2 * i],
+              half[Math.max(0, 2 * i - 1)],
+              half[Math.min(2 * n, 2 * i + 1)],
+            ),
+          );
+        rings.push({ x: sgn * rx, R });
+      }
+      const ringAt = (i, x, r) => {
+        const a = a0 + ((a1 - a0) * i) / n;
+        return [x, yc + Math.sin(a) * r, zc + Math.cos(a) * r];
+      };
       for (let i = 0; i < n; i++) {
         const am = a0 + ((a1 - a0) * (i + 0.5)) / n;
         const inward = [0, -Math.sin(am), -Math.cos(am)];
-        addTri(at(i, x0), at(i, x1), at(i + 1, x1), inward);
-        addTri(at(i, x0), at(i + 1, x1), at(i + 1, x0), inward);
+        addTri(at(i, x0), at(i, rimX[i]), at(i + 1, rimX[i + 1]), inward);
+        addTri(at(i, x0), at(i + 1, rimX[i + 1]), at(i + 1, x0), inward);
         addTri([x0, yc, zc], at(i, x0), at(i + 1, x0), [sgn, 0, 0]);
+        for (const { x, R } of rings)
+          if (R[i] > L.radius || R[i + 1] > L.radius) {
+            addTri(
+              ringAt(i, x, L.radius),
+              ringAt(i, x, R[i]),
+              ringAt(i + 1, x, R[i + 1]),
+              [sgn, 0, 0],
+            );
+            addTri(
+              ringAt(i, x, L.radius),
+              ringAt(i + 1, x, R[i + 1]),
+              ringAt(i + 1, x, L.radius),
+              [sgn, 0, 0],
+            );
+          }
       }
       // `liner.floorY`: close the inner wall's lower wedge too (the sector below the cup's end angles), its rim clamped
       // to the floor line - without it you look through the well into the hollow body from underneath.

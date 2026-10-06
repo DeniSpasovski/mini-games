@@ -1,4 +1,5 @@
 import {
+  BufferGeometry,
   DynamicDrawUsage,
   Euler,
   Group,
@@ -9,8 +10,10 @@ import {
   Vector3,
 } from 'three';
 import { ASSET_CATALOG, getAssetMeta, type AssetMeta } from '../assets/catalog';
-import { getAsset } from '../assets/library';
+import { getAsset, getVariantSet } from '../assets/library';
+import { variantDepthMaterial } from '../engine/materials';
 import { hash3 } from '../../../shared/rng';
+import { CORNER_FAN_ASSETS } from './corner-fans';
 import type { ScatterInstance } from './scatter';
 import type { World } from './world';
 
@@ -18,7 +21,9 @@ import type { World } from './world';
  * Turns scatter instances near the camera into InstancedMeshes.
  *
  * One InstancedMesh per (asset, variant, LOD, part); geometry and materials
- * always come from the shared asset library - nothing is cloned.
+ * always come from the shared asset library - nothing is cloned. Where the library has a variant set
+ * (`getVariantSet`: all variants in one geometry) it is one InstancedMesh per (asset, LOD, material) and each
+ * instance carries its variant (`instVariant`) - far fewer draw calls for the near, many-variant LODs.
  *
  * Re-bucketing (distance -> LOD) runs as an incremental JOB: every
  * `rebuildDistance` metres a new job walks the chunks in range, filling
@@ -44,9 +49,13 @@ interface Bucket {
   count: number;
   castShadow: boolean;
   tinted: boolean;
+  /** Variant set: every instance also carries its variant (`instVariant`, on per-part `geometries`). */
+  variants: boolean;
+  geometries: BufferGeometry[];
   /** Committed instances (sorted by angle when culled); `drawnCount` of them are on the GPU now. */
   cMat: Float32Array;
   cCol: Float32Array;
+  cVar: Float32Array;
   /** Staged index -> committed position. */
   order: Uint32Array;
   /** First committed position of each bin (0 = near, 1..BINS = angle; BINS + 2 entries), null = drawn whole. */
@@ -55,6 +64,7 @@ interface Bucket {
   // Staging (filled by the job, copied on commit).
   sMat: Float32Array;
   sCol: Float32Array;
+  sVar: Float32Array;
   sCount: number;
 }
 
@@ -63,6 +73,7 @@ interface InstanceData {
   /** Brightness multiplier (per-instance tint). */
   t: number;
   meta: AssetMeta;
+  variant: number;
   /** Bucket key per LOD, built once (no per-rebuild string garbage). */
   keys: string[];
   /** Moved instances (setMatrix): slot staged by the running job / drawn since the last commit. */
@@ -129,6 +140,7 @@ export class InstanceStreamer {
     const metas = new Set([
       ...world.map.scatter.map((r) => r.asset),
       ...world.map.roadside.map((r) => r.asset),
+      ...(world.map.cornerFans ? CORNER_FAN_ASSETS : []),
       ...world.map.props.map((p) => p.asset),
     ]);
     let max = 0;
@@ -340,11 +352,18 @@ export class InstanceStreamer {
           2 -
           1) *
           tint;
-      // Far LODs flagged `oneVariant` share one bucket (getAsset draws variant 0 for them).
+      // Far LODs flagged `oneVariant` share one bucket (getAsset draws variant 0 for them), variant sets too ('v').
       const keys = meta.lods.map(
-        (l, lod) => `${inst.asset}:${l.oneVariant ? 0 : inst.variant}:${lod}`,
+        (l, lod) =>
+          `${inst.asset}:${getVariantSet(inst.asset, lod) ? 'v' : l.oneVariant ? 0 : inst.variant}:${lod}`,
       );
-      d = { m: placedMatrix(inst, new Float32Array(16)), t, meta, keys };
+      d = {
+        m: placedMatrix(inst, new Float32Array(16)),
+        t,
+        meta,
+        variant: inst.variant,
+        keys,
+      };
       this.data.set(inst, d);
     }
     return d;
@@ -354,19 +373,7 @@ export class InstanceStreamer {
     const key = d.keys[lod];
     let bucket = this.buckets.get(key);
     if (!bucket) {
-      const tinted = (d.meta.tint ?? 0) > 0;
-      bucket = {
-        key,
-        meshes: [],
-        capacity: 0,
-        count: 0,
-        castShadow: d.meta.lods[lod].castShadow,
-        tinted,
-        ...emptyCommitted(tinted),
-        sMat: new Float32Array(16 * 64),
-        sCol: new Float32Array(tinted ? 3 * 64 : 0),
-        sCount: 0,
-      };
+      bucket = newBucket(key, d.meta, lod);
       this.buckets.set(key, bucket);
       this.createMeshes(bucket, inst, lod, 64);
     }
@@ -381,8 +388,14 @@ export class InstanceStreamer {
         c.set(bucket.sCol);
         bucket.sCol = c;
       }
+      if (bucket.variants) {
+        const v = new Float32Array(bucket.sVar.length * 2);
+        v.set(bucket.sVar);
+        bucket.sVar = v;
+      }
     }
     bucket.sMat.set(d.m, i * 16);
+    if (bucket.variants) bucket.sVar[i] = d.variant;
     if (bucket.tinted) {
       const t = d.t;
       bucket.sCol[i * 3] = t;
@@ -399,7 +412,10 @@ export class InstanceStreamer {
         let cap = Math.max(64, b.capacity);
         while (cap < b.sCount) cap *= 2;
         const [id, variant, lod] = b.key.split(':');
-        const inst = { asset: id, variant: Number(variant) } as ScatterInstance;
+        const inst = {
+          asset: id,
+          variant: variant === 'v' ? 0 : Number(variant),
+        } as ScatterInstance;
         this.createMeshes(b, inst, Number(lod), cap);
       }
       b.count = b.sCount;
@@ -417,11 +433,13 @@ export class InstanceStreamer {
     if (b.cMat.length < n * 16) {
       b.cMat = new Float32Array(b.sMat.length);
       b.cCol = new Float32Array(b.sCol.length);
+      b.cVar = new Float32Array(b.sVar.length);
     }
     if (b.order.length < n) b.order = new Uint32Array(b.sMat.length / 16);
     if (b.castShadow || n < 64) {
       b.cMat.set(b.sMat.subarray(0, n * 16));
       if (b.tinted) b.cCol.set(b.sCol.subarray(0, n * 3));
+      if (b.variants) b.cVar.set(b.sVar.subarray(0, n));
       for (let i = 0; i < n; i++) b.order[i] = i;
       b.binStart = null;
       return;
@@ -451,6 +469,7 @@ export class InstanceStreamer {
       b.order[i] = pos;
       b.cMat.set(b.sMat.subarray(i * 16, i * 16 + 16), pos * 16);
       if (b.tinted) b.cCol.set(b.sCol.subarray(i * 3, i * 3 + 3), pos * 3);
+      if (b.variants) b.cVar[pos] = b.sVar[i];
     }
   }
 
@@ -480,6 +499,11 @@ export class InstanceStreamer {
       const im = mesh.instanceMatrix;
       const arr = im.array as Float32Array;
       const ic = b.tinted ? mesh.instanceColor : null;
+      const iv = b.variants
+        ? (mesh.geometry.getAttribute(
+            'instVariant',
+          ) as InstancedBufferAttribute)
+        : null;
       n = 0;
       for (const [r0, r1] of ranges) {
         if (r1 <= r0) continue;
@@ -489,6 +513,7 @@ export class InstanceStreamer {
             b.cCol.subarray(r0 * 3, r1 * 3),
             n * 3,
           );
+        if (iv) (iv.array as Float32Array).set(b.cVar.subarray(r0, r1), n);
         n += r1 - r0;
       }
       mesh.count = n;
@@ -501,6 +526,11 @@ export class InstanceStreamer {
         ic.clearUpdateRanges();
         ic.addUpdateRange(0, n * 3);
         ic.needsUpdate = true;
+      }
+      if (iv) {
+        iv.clearUpdateRanges();
+        iv.addUpdateRange(0, n);
+        iv.needsUpdate = true;
       }
     }
     b.drawnCount = n;
@@ -516,9 +546,19 @@ export class InstanceStreamer {
       this.group.remove(old);
       old.dispose(); // frees instance buffers only - geometry/material are shared
     }
-    const asset = getAsset(inst.asset, inst.variant, lod);
-    bucket.meshes = asset.parts.map((part) => {
-      const mesh = new InstancedMesh(part.geometry, part.material, cap);
+    const set = bucket.variants ? getVariantSet(inst.asset, lod) : null;
+    const asset = set ?? getAsset(inst.asset, inst.variant, lod);
+    bucket.meshes = asset.parts.map((part, pi) => {
+      let geometry = part.geometry;
+      if (set) {
+        // A wrapper sharing the cached vertex buffers, carrying this bucket's per-instance variants.
+        geometry = bucket.geometries[pi] ??= shareAttributes(part.geometry);
+        const iv = new InstancedBufferAttribute(new Float32Array(cap), 1);
+        iv.setUsage(DynamicDrawUsage);
+        geometry.setAttribute('instVariant', iv);
+      }
+      const mesh = new InstancedMesh(geometry, part.material, cap);
+      if (set) mesh.customDepthMaterial = variantDepthMaterial(part.material);
       mesh.instanceMatrix.setUsage(DynamicDrawUsage);
       if (bucket.tinted) {
         mesh.instanceColor = new InstancedBufferAttribute(
@@ -534,7 +574,7 @@ export class InstanceStreamer {
       mesh.frustumCulled = false;
       mesh.castShadow = bucket.castShadow;
       mesh.receiveShadow = true;
-      mesh.name = `${inst.asset}#${inst.variant} lod${lod}`;
+      mesh.name = `${inst.asset}#${set ? 'all' : inst.variant} lod${lod}`;
       this.group.add(mesh);
       return mesh;
     });
@@ -551,28 +591,18 @@ export class InstanceStreamer {
     const ids = new Set([
       ...this.world.map.scatter.map((r) => r.asset),
       ...this.world.map.roadside.map((r) => r.asset),
+      ...(this.world.map.cornerFans ? CORNER_FAN_ASSETS : []),
       ...this.world.map.props.map((p) => p.asset),
     ]);
     for (const id of ids) {
       const meta = getAssetMeta(id);
       for (let v = 0; v < meta.variants; v++) {
         for (let lod = 0; lod < meta.lods.length; lod++) {
-          if (v > 0 && meta.lods[lod].oneVariant) continue;
-          const key = `${id}:${v}:${lod}`;
+          const set = !!getVariantSet(id, lod);
+          if (v > 0 && (meta.lods[lod].oneVariant || set)) continue;
+          const key = `${id}:${set ? 'v' : v}:${lod}`;
           if (!this.buckets.has(key)) {
-            const tinted = (meta.tint ?? 0) > 0;
-            const bucket: Bucket = {
-              key,
-              meshes: [],
-              capacity: 0,
-              count: 0,
-              castShadow: meta.lods[lod].castShadow,
-              tinted,
-              ...emptyCommitted(tinted),
-              sMat: new Float32Array(16 * 64),
-              sCol: new Float32Array(tinted ? 3 * 64 : 0),
-              sCount: 0,
-            };
+            const bucket = newBucket(key, meta, lod);
             this.buckets.set(key, bucket);
             this.createMeshes(
               bucket,
@@ -612,18 +642,54 @@ export class InstanceStreamer {
     this.buckets.clear();
     this.group.clear();
   }
+
+  /** Drop every bucket and cached bucket key and rebuild from scratch (after `setVariantSets`; dev A/B). */
+  reset(focus: Vector3): void {
+    this.dispose();
+    this.data = new WeakMap();
+    this.moved.clear();
+    this.job = null;
+    this.updateNow(focus);
+  }
 }
 
 let _bins = new Uint16Array(4096);
 const _cursor = new Uint32Array(BINS + 1);
 
-const emptyCommitted = (tinted: boolean) => ({
-  cMat: new Float32Array(16 * 64),
-  cCol: new Float32Array(tinted ? 3 * 64 : 0),
-  order: new Uint32Array(64),
-  binStart: null,
-  drawnCount: 0,
-});
+function newBucket(key: string, meta: AssetMeta, lod: number): Bucket {
+  const tinted = (meta.tint ?? 0) > 0;
+  const variants = key.split(':')[1] === 'v';
+  return {
+    key,
+    meshes: [],
+    capacity: 0,
+    count: 0,
+    castShadow: meta.lods[lod].castShadow,
+    tinted,
+    variants,
+    geometries: [],
+    cMat: new Float32Array(16 * 64),
+    cCol: new Float32Array(tinted ? 3 * 64 : 0),
+    cVar: new Float32Array(variants ? 64 : 0),
+    order: new Uint32Array(64),
+    binStart: null,
+    drawnCount: 0,
+    sMat: new Float32Array(16 * 64),
+    sCol: new Float32Array(tinted ? 3 * 64 : 0),
+    sVar: new Float32Array(variants ? 64 : 0),
+    sCount: 0,
+  };
+}
+
+/** A geometry drawing the same vertex buffers as `src` (shared attribute objects = shared GPU buffers). */
+function shareAttributes(src: BufferGeometry): BufferGeometry {
+  const g = new BufferGeometry();
+  for (const [name, attr] of Object.entries(src.attributes))
+    g.setAttribute(name, attr);
+  g.boundingSphere = src.boundingSphere;
+  g.boundingBox = src.boundingBox;
+  return g;
+}
 
 /** World matrix of an instance as the map placed it. */
 function placedMatrix(inst: ScatterInstance, out: Float32Array): Float32Array {

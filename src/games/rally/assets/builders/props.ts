@@ -1,5 +1,6 @@
 import {
   BoxGeometry,
+  Color,
   CylinderGeometry,
   IcosahedronGeometry,
   PlaneGeometry,
@@ -44,6 +45,7 @@ export const hayBale: AssetBuilder = ({ seed, lod }) => {
   return { parts: [{ geometry: merge([p]), material: getMaterial('props') }] };
 };
 
+/** Mostly saturated: small bright spots make a stage look alive at speed. */
 const JACKETS = [
   '#c0302a',
   '#2a5fc0',
@@ -53,12 +55,16 @@ const JACKETS = [
   '#333333',
   '#e06a1a',
   '#7a3ab0',
+  '#d4e21c', // hi-vis yellow
+  '#e0306e',
+  '#1aa6c8',
+  '#f05a10', // hi-vis orange
 ];
 const SKIN = ['#e8c4a0', '#c99a72', '#8d5a3b', '#f0d0b0'];
 
 export const spectator: AssetBuilder = ({ seed, variant, lod }) => {
   const rng = new Rng(seed);
-  const jacket = JACKETS[(variant * 3 + rng.int(0, 7)) % JACKETS.length];
+  const jacket = JACKETS[(variant * 5 + rng.int(0, 11)) % JACKETS.length];
   const pants = rng.pick(['#2b2f3a', '#3b3a36', '#25344f', '#4a4a4a']);
   const skin = rng.pick(SKIN);
   const s = rng.range(0.92, 1.08);
@@ -104,20 +110,141 @@ export const spectator: AssetBuilder = ({ seed, variant, lod }) => {
   return { parts: [{ geometry: g, material: getMaterial('props') }] };
 };
 
-export const tapePost: AssetBuilder = () => {
+/**
+ * Both faces of a one-sided sheet (the props material is front-side): the sheet + a copy with every triangle's
+ * winding (position, colour, uv) reversed, normals recomputed. Non-indexed input.
+ */
+function twoSided(front: BufferGeometry): BufferGeometry[] {
+  front.computeVertexNormals();
+  const back = front.clone();
+  for (const name of ['position', 'color', 'uv']) {
+    const attr = back.getAttribute(name);
+    const arr = attr.array as Float32Array;
+    const n = attr.itemSize;
+    for (let t = 0; t < attr.count; t += 3)
+      for (let k = 0; k < n; k++) {
+        const s = arr[(t + 1) * n + k];
+        arr[(t + 1) * n + k] = arr[(t + 2) * n + k];
+        arr[(t + 2) * n + k] = s;
+      }
+  }
+  back.computeVertexNormals();
+  return [front, back];
+}
+
+/** Colour every triangle of a non-indexed geometry by its centroid (crisp pattern edges on the mesh grid). */
+function colourTriangles(
+  g: BufferGeometry,
+  f: (x: number, y: number) => Color,
+): void {
+  const p = g.getAttribute('position');
+  const col = g.getAttribute('color');
+  for (let t = 0; t < p.count; t += 3) {
+    const c = f(
+      (p.getX(t) + p.getX(t + 1) + p.getX(t + 2)) / 3,
+      (p.getY(t) + p.getY(t + 1) + p.getY(t + 2)) / 3,
+    );
+    for (let k = 0; k < 3; k++) col.setXYZ(t + k, c.r, c.g, c.b);
+  }
+}
+
+const TAPE_RED = new Color('#d8231b');
+const TAPE_WHITE = new Color('#f2f2ee');
+
+/** Post with red / white tape running 2.6 m either way along local X (posts 5.2 m apart make a continuous line). */
+export const tapePost: AssetBuilder = ({ lod }) => {
   const post = new CylinderGeometry(0.025, 0.03, 1.05, 5, 3);
   post.translate(0, 0.52, 0);
   const pp = paint(post, '#f2f2f2');
   shade(pp, (_x, y) => (Math.floor(y * 4) % 2 ? 1 : 0.25));
-  const tape = new PlaneGeometry(2.6, 0.07);
-  tape.translate(1.3, 0.92, 0);
-  const tp = paint(tape, '#ffffff');
-  shade(tp, (x) => (Math.floor(x * 3) % 2 ? 1 : 0.18));
-  const tape2 = tp.clone();
-  tape2.rotateY(Math.PI);
+  // 26 stripes of 20 cm over both stubs (13 at the far LOD: 40 cm, still reads as striped).
+  const n = lod === 0 ? 26 : 13;
+  const tape = paint(new PlaneGeometry(5.2, 0.08, n, 1), '#ffffff');
+  colourTriangles(tape, (x) =>
+    Math.floor((x + 2.6) / (5.2 / n)) % 2 ? TAPE_WHITE : TAPE_RED,
+  );
+  // Sags a little between the posts.
+  const tp = tape.getAttribute('position');
+  for (let i = 0; i < tp.count; i++) {
+    const u = Math.abs(tp.getX(i)) / 2.6;
+    tp.setY(i, tp.getY(i) + 0.92 - 0.06 * Math.sin(u * Math.PI));
+  }
   return {
     parts: [
-      { geometry: merge([pp, tp, tape2]), material: getMaterial('props') },
+      {
+        geometry: merge([pp, ...twoSided(tape)]),
+        material: getMaterial('props'),
+      },
+    ],
+  };
+};
+
+/** Fan flag colours and patterns (generic, no national or club flags): [pattern, colours]. */
+const FLAGS: [
+  'check' | 'halves' | 'band' | 'stripe' | 'hoist',
+  string,
+  string,
+][] = [
+  ['check', '#f2f2ee', '#1a1a1a'],
+  ['stripe', '#f2c018', '#1f55c4'],
+  ['hoist', '#ee6a12', '#f2f2ee'],
+  ['band', '#d62a22', '#f2f2ee'],
+  ['halves', '#1f55c4', '#ee6a12'],
+  ['stripe', '#2a9a3a', '#f2c018'],
+  ['halves', '#d62a22', '#1a1a1a'],
+  ['band', '#f2c018', '#d62a22'],
+];
+
+/**
+ * Fan flag on a pole stuck in the ground (2.3-2.9 m): a rippled cloth in saturated colours, flying along +X.
+ * Variant = design (`FLAGS`). The cloth is two one-sided sheets (opposite windings), the props material is front-side.
+ */
+export const fanFlag: AssetBuilder = ({ seed, variant, lod }) => {
+  const rng = new Rng(seed);
+  const [pattern, a, b] = FLAGS[variant % FLAGS.length];
+  const H = rng.range(2.3, 2.9);
+  const W = 1.15;
+  const FH = 0.75;
+  const pole = new CylinderGeometry(0.018, 0.024, H, lod === 0 ? 5 : 3);
+  pole.translate(0, H / 2, 0);
+  const seg = lod === 0 ? 6 : 3;
+  const front = paint(new PlaneGeometry(W, FH, seg * 2, seg), '#ffffff');
+  const ca = new Color(a);
+  const cb = new Color(b);
+  const pick = (u: number, v: number): Color => {
+    switch (pattern) {
+      case 'check':
+        return (Math.floor(u * 4) + Math.floor(v * 3)) % 2 ? ca : cb;
+      case 'halves':
+        return v > 0.5 ? ca : cb;
+      case 'band':
+        return Math.abs(v - 0.5) < 0.17 ? cb : ca;
+      case 'stripe':
+        return Math.abs(u - 0.5) < 0.17 ? cb : ca;
+      case 'hoist':
+        return u < 0.25 ? cb : ca;
+    }
+  };
+  // Colour per triangle (crisp pattern edges on the 12 x 6 / 6 x 3 grid), then ripple: waves grow towards the free
+  // end, the tip droops.
+  colourTriangles(front, (x, y) => pick(x / W + 0.5, y / FH + 0.5));
+  const p = front.getAttribute('position');
+  const phase = rng.range(0, Math.PI * 2);
+  for (let i = 0; i < p.count; i++) {
+    const u = p.getX(i) / W + 0.5;
+    p.setXYZ(
+      i,
+      u * W,
+      p.getY(i) + H - FH / 2 - 0.04 - u * u * 0.12,
+      Math.sin(u * 7 + phase) * 0.09 * u,
+    );
+  }
+  return {
+    parts: [
+      {
+        geometry: merge([paint(pole, '#d8d8d4'), ...twoSided(front)]),
+        material: getMaterial('props'),
+      },
     ],
   };
 };
@@ -209,6 +336,39 @@ export const streetLamp: AssetBuilder = ({ seed, lod }) => {
   parts.push(paint(arm, '#a9aeb2'));
   parts.push(box(0.32, 0.12, 0.62, 0, H + 0.2, 1.4, '#8f9599'));
   if (lod === 0) parts.push(box(0.24, 0.03, 0.48, 0, H + 0.13, 1.4, '#f4efd8'));
+  return {
+    parts: [{ geometry: merge(parts), material: getMaterial('props') }],
+  };
+};
+
+/**
+ * City traffic signal: a grey pole with a mast arm over the road (+Z), two three-lamp heads facing +X (the traffic coming
+ * from +X sees them) - one on the arm, one on the pole - and a pedestrian head. Generic, no signs.
+ */
+export const trafficSignal: AssetBuilder = ({ lod }) => {
+  const grey = '#7d8286';
+  const parts: BufferGeometry[] = [];
+  const pole = new CylinderGeometry(0.09, 0.12, 6, lod === 0 ? 10 : 6);
+  pole.translate(0, 3, 0);
+  parts.push(cylindricalUV(paint(pole, grey), 0.5, 2));
+  const arm = new CylinderGeometry(0.06, 0.08, 5, 6);
+  arm.rotateX(Math.PI / 2);
+  arm.translate(0, 5.6, 2.5);
+  parts.push(paint(arm, grey));
+  const head = (z: number, y: number) => {
+    parts.push(box(0.36, 1.05, 0.36, 0.1, y, z, '#2c3e34'));
+    if (lod === 0)
+      for (const [dy, c] of [
+        [0.33, '#b03024'],
+        [0, '#b88a20'],
+        [-0.33, '#2f8a4a'],
+      ] as const)
+        parts.push(box(0.04, 0.22, 0.22, 0.3, y + dy, z, c));
+  };
+  head(4.4, 5.1);
+  head(0, 3.3);
+  // Pedestrian head on the pole, facing the crosswalk (+Z side).
+  parts.push(box(0.32, 0.5, 0.3, 0, 2.6, 0.3, '#2c3e34'));
   return {
     parts: [{ geometry: merge(parts), material: getMaterial('props') }],
   };

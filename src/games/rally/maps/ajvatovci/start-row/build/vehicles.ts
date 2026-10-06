@@ -830,15 +830,31 @@ const MODEL: Record<VehicleKind, () => Model> = {
   tanker: () => ({ pieces: buildTruck('tanker'), centre: -4.13 }),
 };
 
+/** Vehicles nearer than this (m) to the camera draw in full; farther ones as a two-box stand-in. */
+const FLEET_NEAR = 200;
+/** Re-sort near / far after the camera moved this far (m). */
+const FLEET_STEP = 10;
+
 /**
  * Every parked vehicle of the layout as instanced meshes: per model one mesh per part (paint,
  * cab paint, glass, chrome, details), instance colours carrying each vehicle's paint.
+ *
+ * Far LOD: the meshes span the whole row (never culled), so vehicles beyond FLEET_NEAR move to one
+ * stand-in mesh per model (`proxyOf`: two boxes, ~20 triangles, no shadow - they are past the shadow
+ * box). The split is redone from the camera of the frame (`onBeforeRender`) after FLEET_STEP of travel.
  */
 export function buildFleet(b: Build): Group {
   const group = new Group();
   group.name = 'start-row vehicles';
   const mats = materialFor();
   const layout = getLayout();
+  const kinds: {
+    matrices: Matrix4[];
+    paint: Color[];
+    cab: Color[];
+    parts: [Part, InstancedMesh][];
+    proxy: InstancedMesh;
+  }[] = [];
   for (const kind of Object.keys(MODEL) as VehicleKind[]) {
     const placements: Placement[] = layout.vehicles[kind];
     if (!placements.length) continue;
@@ -869,6 +885,9 @@ export function buildFleet(b: Build): Group {
         .setPosition(x + ORIGIN.x, y, z + ORIGIN.z);
       return m.multiply(new Matrix4().makeTranslation(-model.centre, 0, 0));
     });
+    const paint = placements.map((pl) => new Color(pl.color));
+    const cab = placements.map((pl) => new Color(pl.cabColor ?? pl.color));
+    const parts: [Part, InstancedMesh][] = [];
     for (const part of [
       'paint',
       'cab',
@@ -881,19 +900,138 @@ export function buildFleet(b: Build): Group {
       const mesh = new InstancedMesh(geometry, mats[part], placements.length);
       matrices.forEach((m, i) => mesh.setMatrixAt(i, m));
       if (part === 'paint' || part === 'cab')
-        placements.forEach((pl, i) =>
-          mesh.setColorAt(
-            i,
-            new Color(part === 'cab' ? (pl.cabColor ?? pl.color) : pl.color),
-          ),
-        );
+        (part === 'cab' ? cab : paint).forEach((c, i) => mesh.setColorAt(i, c));
       // Paint + cab carry the shape; glass, chrome and details (wheels, mirrors, lamps) sit inside that shadow.
-      // Each mesh spans the whole row (never culled), so every extra caster is a full-fleet shadow draw.
       mesh.castShadow = part === 'paint' || part === 'cab';
       mesh.receiveShadow = true;
-      mesh.computeBoundingSphere();
+      parts.push([part, mesh]);
       group.add(mesh);
     }
+    const proxy = new InstancedMesh(
+      proxyOf(model.pieces),
+      mats.detail,
+      placements.length,
+    );
+    matrices.forEach((m, i) => proxy.setMatrixAt(i, m));
+    paint.forEach((c, i) => proxy.setColorAt(i, c));
+    proxy.receiveShadow = true;
+    group.add(proxy);
+    kinds.push({ matrices, paint, cab, parts, proxy });
   }
+
+  const meshesOf = (k: (typeof kinds)[number]) => [
+    k.proxy,
+    ...k.parts.map(([, m]) => m),
+  ];
+  // Bounding spheres (distance culling, world/distance-cull.ts) are taken now, with every instance in every mesh.
+  for (const k of kinds)
+    for (const m of meshesOf(k)) {
+      m.computeBoundingSphere();
+      // The instance counts change with the camera: a cached sphere would be stale.
+      m.frustumCulled = false;
+    }
+  let lastX = Infinity;
+  let lastZ = Infinity;
+  const near: number[] = [];
+  const far: number[] = [];
+  const split = (cx: number, cz: number) => {
+    if (Math.hypot(cx - lastX, cz - lastZ) < FLEET_STEP) return;
+    lastX = cx;
+    lastZ = cz;
+    for (const k of kinds) {
+      near.length = 0;
+      far.length = 0;
+      k.matrices.forEach((m, i) => {
+        const e = m.elements;
+        (Math.hypot(e[12] - cx, e[14] - cz) < FLEET_NEAR ? near : far).push(i);
+      });
+      for (const [part, mesh] of k.parts) {
+        const colors =
+          part === 'paint' ? k.paint : part === 'cab' ? k.cab : null;
+        near.forEach((i, n) => {
+          mesh.setMatrixAt(n, k.matrices[i]);
+          if (colors) mesh.setColorAt(n, colors[i]);
+        });
+        fill(mesh, near.length);
+      }
+      far.forEach((i, n) => {
+        k.proxy.setMatrixAt(n, k.matrices[i]);
+        k.proxy.setColorAt(n, k.paint[i]);
+      });
+      fill(k.proxy, far.length);
+    }
+  };
+  for (const k of kinds)
+    for (const m of meshesOf(k))
+      m.onBeforeRender = (_r, _s, camera) =>
+        split(camera.position.x, camera.position.z);
   return group;
+}
+
+function fill(mesh: InstancedMesh, count: number): void {
+  // Never hidden: a mesh with no instances still runs the split for the others (onBeforeRender).
+  mesh.count = count;
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+}
+
+/**
+ * Far stand-in of a model: a lower box (the body) and an upper box (cabin / cargo box), each the bounding box of
+ * the model's vertices below / above 55 % of its height. White on the body (= the instance paint); on top the
+ * average tone of what is up there (dark where it is mostly glass, paint on a truck's box).
+ */
+function proxyOf(pieces: Pieces): BufferGeometry {
+  const tone: Record<Part, number> = {
+    paint: 1,
+    cab: 1,
+    glass: 0.12,
+    chrome: 0.8,
+    detail: 0.3,
+  };
+  let maxY = 0;
+  const all: [Part, BufferGeometry][] = [];
+  for (const part of Object.keys(tone) as Part[]) {
+    const g = pieces.geometry(part);
+    if (!g) continue;
+    all.push([part, g]);
+    const p = g.getAttribute('position');
+    for (let i = 0; i < p.count; i++) maxY = Math.max(maxY, p.getY(i));
+  }
+  const cut = maxY * 0.55;
+  const lo = [Infinity, Infinity, -Infinity, -Infinity];
+  const hi = [Infinity, Infinity, -Infinity, -Infinity];
+  let topTone = 0;
+  let topN = 0;
+  for (const [part, g] of all) {
+    const p = g.getAttribute('position');
+    for (let i = 0; i < p.count; i++) {
+      const top = p.getY(i) > cut;
+      const bb = top ? hi : lo;
+      bb[0] = Math.min(bb[0], p.getX(i));
+      bb[1] = Math.min(bb[1], p.getZ(i));
+      bb[2] = Math.max(bb[2], p.getX(i));
+      bb[3] = Math.max(bb[3], p.getZ(i));
+      if (top) {
+        topTone += tone[part];
+        topN++;
+      }
+    }
+    g.dispose();
+  }
+  const box = (bb: number[], y0: number, y1: number, t: number) => {
+    const g = new BoxGeometry(bb[2] - bb[0], y1 - y0, bb[3] - bb[1]);
+    g.translate((bb[0] + bb[2]) / 2, (y0 + y1) / 2, (bb[1] + bb[3]) / 2);
+    const flat = g.toNonIndexed();
+    g.dispose();
+    flat.deleteAttribute('uv');
+    const n = flat.getAttribute('position').count;
+    flat.setAttribute(
+      'color',
+      new BufferAttribute(new Float32Array(n * 3).fill(t), 3),
+    );
+    return flat;
+  };
+  const boxes = [box(lo, 0.25, cut, 1)];
+  if (topN) boxes.push(box(hi, cut, maxY, topTone / topN));
+  return mergeGeometries(boxes)!;
 }

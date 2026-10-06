@@ -89,20 +89,27 @@ const splitZ = (y: number) => 0.3 - 0.79 * (y - 0.15);
 // panel's crest (y ~0.9, |x| ~0.72). Cell edges are placed so each seam runs INSIDE one cell that
 // is painted the same colour on both charts: the side's last column = the rear's outer column, the
 // side's crest row = the top chart's outer cell, and the top chart's last column = the rear's top row.
-/** Side columns k = 0..TAIL_COLS-1 run rearward from TAIL_Z; the last one reaches the tail. */
+/**
+ * Side columns k = 0..TAIL_COLS-1 run rearward from TAIL_Z; the last one reaches the tail. 8 columns: the last starts
+ * at z -2.19, so the boot lid (z -1.92 .. -2.35) gets 11 cm cells to its rear edge and the side / rear seam (side
+ * chart ends at z -2.22 .. -2.39 beside the lamps) stays inside that last column.
+ */
 const CELL = 0.11;
 const TAIL_Z = -1.42;
-const TAIL_COLS = 7;
+const TAIL_COLS = 8;
 /**
  * Rows r = 0..7: lower edges on the side / rear charts (the first runs down from the chart bottom,
- * the last up to the top). Row 7 is the CREST row: on the side chart y >= 0.86, on the top chart
+ * the last up to the top). Row 7 is the CREST row: on the side chart y >= 0.841, on the top chart
  * the outer cell |x| >= COLS_X[0] - it holds the quarter panel's crest (side -> top), so the
  * faces on either side of the crest are in one cell and agree. Rows 8, 9, 10 continue inward
  * across the trunk lid (top chart, the columns of COLS_X; two inward rows now). The bumper ledge (y ~0.5, row 3) is
- * on the top chart's outer cell too, so rows 3 and 7 have the same parity and colour.
+ * on the top chart's outer cell too, so rows 3 and 7 have the same parity and colour. Rows 5 + 6 = the tail lamps'
+ * height (y 0.662 - 0.841, model.source.json `tail` pick), so no sliver of another row shows above or below a lamp.
  */
-const ROWS = [0, 0.2, 0.31, 0.42, 0.53, 0.64, 0.75, 0.86];
+const ROWS = [0, 0.2, 0.31, 0.42, 0.53, 0.662, 0.75, 0.841];
 const CREST = ROWS.length - 1;
+/** Rear chart: the crest row's corner cell starts here (below the lamp top 0.841; the lamp covers the rest). */
+const CREST_SEAL_Y = 0.82;
 /**
  * First checker column per row (bumper .. crest): solid blue in front of it. The lower rows start
  * just behind the arch, the upper ones further forward; each starts on a white cell
@@ -116,10 +123,23 @@ const ROOF_X = 0.42;
 /** Checkerboard over (column, row): coloured, else white. */
 const coloured = (m: number, n: number) => (m + n) % 2 === 0;
 
+/**
+ * Edge between columns 5 and 6, moved 2 cm back from the grid's -2.08: that put it on the curved lip under the tail
+ * lamp's lower-front corner (the lamp starts at z -2.075), where it showed as a blue tooth. At -2.10 the fold is inside
+ * column 5 and the light-blue lamp-height cell meets the lamp's front edge.
+ */
+const LAMP_EDGE_Z = -2.1;
+/** Front edge of side column k. */
+const colEdge = (k: number) => (k === 6 ? LAMP_EDGE_Z : TAIL_Z - k * CELL);
+/**
+ * Last side column of row r (it runs off the tail). Row 6 (upper lamp row) stops at column 6: column 7 is behind the
+ * lamp there except a sliver at the lamp's top front corner (groove at z -2.17 .. -2.19), a white wedge next to the seal.
+ */
+const lastCol = (r: number) => (r === 6 ? 6 : TAIL_COLS - 1);
 /** z range of side column k (the last runs off the tail). */
 const colZ = (k: number): Pt => [
-  TAIL_Z - k * CELL,
-  k === TAIL_COLS - 1 ? B.z[0] : TAIL_Z - (k + 1) * CELL,
+  colEdge(k),
+  k === TAIL_COLS - 1 ? B.z[0] : colEdge(k + 1),
 ];
 /** |x| range of rear / top column j (the outermost runs off the side). */
 const colX = (j: number): Pt => [j === 0 ? B.x[1] : COLS_X[j - 1], COLS_X[j]];
@@ -161,24 +181,30 @@ function paint(
     blue,
   );
   FIRST_COL.forEach((k0, r) => {
-    for (let k = k0; k < TAIL_COLS; k++) {
-      const [z0, z1] = colZ(k);
+    const last = lastCol(r);
+    for (let k = k0; k <= last; k++) {
+      const z0 = colZ(k)[0];
+      const z1 = k === last ? B.z[0] : colZ(k)[1];
       const [y0, y1] = rowY(r);
       sides(ctx, rect(z0, y0, z1, y1), cellColour(k, r));
     }
   });
 
   // --- rear: the flag carries on round the corners (column j continues the sides' k), white
-  // in the middle. From lamp height up only the corner column: further in, the lamps leave
-  // just tall slivers of the boot lid's rear face, which stays white as on the car. -----------
+  // in the middle. At lamp height (rows 5, 6) only the corner column: further in, the lamps
+  // leave just slivers. The top row is the boot lid's rear face above the lamps: the same
+  // cells as the lid's last column on the top chart, so the squares fold over the lid's edge. --
   for (let r = 0; r < ROWS.length; r++) {
-    for (let j = 0; j < (r < 5 ? COLS_X.length : 1); j++) {
+    for (let j = 0; j < (r === 5 || r === 6 ? 1 : COLS_X.length); j++) {
       const m = TAIL_COLS - 1 + j;
       if (!coloured(m, r)) continue;
       const [y0, y1] = rowY(r);
       const [x0, x1] = colX(j);
+      // Corner cell of the crest row reaches down over the lamp's top seal: the body band just under it (y 0.82 -
+      // 0.841) is row 6 on the rear chart, which is white there (a pale strip on top of the lamp).
+      const lo = r === CREST && j === 0 ? CREST_SEAL_Y : y0;
       for (const s of [1, -1])
-        fill(ctx, 'rear', rect(s * x0, y0, s * x1, y1), rowColour(r));
+        fill(ctx, 'rear', rect(s * x0, lo, s * x1, y1), rowColour(r));
     }
   }
 

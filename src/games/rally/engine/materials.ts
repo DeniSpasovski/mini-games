@@ -1,4 +1,11 @@
-import { DoubleSide, MeshStandardMaterial, type Material } from 'three';
+import {
+  DoubleSide,
+  Material,
+  MeshDepthMaterial,
+  MeshStandardMaterial,
+  type WebGLProgramParametersWithUniforms,
+  type WebGLRenderer,
+} from 'three';
 import { getTexture } from './textures';
 import { addWorldUniforms } from './world-shading';
 
@@ -43,10 +50,11 @@ export function setFoliageAntialias(on: boolean): void {
   foliageA2C = on;
   for (const id of FOLIAGE) {
     const m = cache.get(id);
-    if (m && m.alphaToCoverage !== on) {
-      m.alphaToCoverage = on;
-      m.needsUpdate = true;
-    }
+    for (const x of m ? [m, variantMats.get(m)] : [])
+      if (x && x.alphaToCoverage !== on) {
+        x.alphaToCoverage = on;
+        x.needsUpdate = true;
+      }
   }
 }
 
@@ -174,5 +182,55 @@ gl_Position = projectionMatrix * mvPosition;`,
       );
   };
   m.customProgramCacheKey = () => 'tree-impostor-v1';
+  return m;
+}
+
+/**
+ * Variant sets (assets/library.ts `getVariantSet`): every variant of an asset in ONE geometry, each vertex tagged with
+ * its `variantId`; the instance picks one with the per-instance `instVariant` attribute and the vertex shader clips
+ * the other variants' triangles (all three corners to one point outside the clip volume). One draw per (asset, LOD,
+ * material) instead of one per variant - the GPU runs the vertex shader over every variant, so keep sets small.
+ */
+const VARIANT_PARS = /* glsl */ `
+attribute float variantId;
+attribute float instVariant;`;
+const VARIANT_CLIP = /* glsl */ `#include <project_vertex>
+	if ( abs( variantId - instVariant ) > 0.5 ) gl_Position = vec4( 0.0, 0.0, 2.0, 1.0 );`;
+
+function injectVariants(shader: WebGLProgramParametersWithUniforms): void {
+  shader.vertexShader = shader.vertexShader
+    .replace('#include <common>', `#include <common>${VARIANT_PARS}`)
+    .replace('#include <project_vertex>', VARIANT_CLIP);
+}
+
+const variantMats = new Map<Material, Material>();
+const variantDepth = new Map<Material, MeshDepthMaterial>();
+
+/** `base` for variant-set meshes (cached; its own `onBeforeCompile`, or the world-shading default, runs first). */
+export function variantMaterial(base: Material): Material {
+  let m = variantMats.get(base);
+  if (m) return m;
+  m = base.clone();
+  const baseHook = Object.prototype.hasOwnProperty.call(base, 'onBeforeCompile')
+    ? base.onBeforeCompile
+    : Material.prototype.onBeforeCompile;
+  const baseKey = base.customProgramCacheKey();
+  m.onBeforeCompile = (shader, renderer: WebGLRenderer) => {
+    baseHook.call(base, shader, renderer);
+    injectVariants(shader);
+  };
+  m.customProgramCacheKey = () => `${baseKey}|variants`;
+  variantMats.set(base, m);
+  return m;
+}
+
+/** Shadow-pass material for variant-set meshes of `base` (`customDepthMaterial`; three copies map / alphaTest onto it). */
+export function variantDepthMaterial(base: Material): MeshDepthMaterial {
+  let m = variantDepth.get(base);
+  if (m) return m;
+  m = new MeshDepthMaterial();
+  m.onBeforeCompile = (shader) => injectVariants(shader);
+  m.customProgramCacheKey = () => 'depth|variants';
+  variantDepth.set(base, m);
   return m;
 }

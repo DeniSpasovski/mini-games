@@ -161,6 +161,8 @@ only the UV chart assignment may differ. Keep a copy of the old GLB in the scrat
 - **One colour across a strip that holds several heights** (quarter-panel top + bumper ledge on the same top-chart strip): give the
   rows involved the same parity and colour, or two colours split at some x make teeth.
 - **Rows aligned with features**: a row boundary at lamp top/bottom, bumper ledge height; cells behind a lamp are dropped (slivers).
+- **Changing the column / row count moves every edge**: recheck each `chartBoxes` boundary (its `$comment` names the cell it relies
+  on) and every edge near a lamp corner. Move a single bad edge on its own (`LAMP_EDGE_Z` in `cars/bimmer-m3/livery.ts`).
 - **A thin line/strip sticking out of a shape** = a vertical wall or ledge on another chart at the shape's edge: route it onto the
   shape's chart (6c), never "fix" it by shrinking the shape.
 - **Edges that follow a panel line**: outer side of the groove wall, 1 - 2 cm clear of walls you must not cross, and verify in a
@@ -196,6 +198,7 @@ a `$comment` saying which glitch it fixed):
 | paint on the wrong side of the car                    | the shape is on the `top`/`left` chart only; or non-mirrored loop -> `[1, -1]`     |
 | bumper corner pattern breaks                          | seam not inside one cell -> `--seam rear`, 5                                       |
 | blue specks in a lamp recess                          | rim faces of the recess: shrink the outline 1 - 2 cm from the rim; not worth boxes |
+| a tooth / wedge of one cell at a lamp corner          | a cell edge on the curved lip there: raycast it, move that edge 1 - 2 cm past it   |
 | texture looks soft/blurry                             | `pxPerMetre` 256 = 4 mm per texel; fine for 10 cm cells, don't paint 1 cm details  |
 
 ## 8. Gotchas and verification

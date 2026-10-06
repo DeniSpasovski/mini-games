@@ -146,7 +146,12 @@ function gameEnvironment(m: GameManifest): EnvironmentConfig {
   };
 }
 
-export default defineConfig({
+/**
+ * `npm run dev:noreload` (`--env-mode noreload`): the dev server without HMR / live reload, so a page being debugged,
+ * benchmarked or baking stage cards is never reloaded by file edits (other sessions, tools writing into src/).
+ * Reload by hand to pick up changes.
+ */
+export default defineConfig(({ envMode }) => ({
   environments: {
     portal: portalEnvironment,
     ...Object.fromEntries(manifests.map((m) => [m.id, gameEnvironment(m)])),
@@ -164,6 +169,8 @@ export default defineConfig({
     assetPrefix: 'auto',
   },
   dev: {
+    hmr: envMode !== 'noreload',
+    liveReload: envMode !== 'noreload',
     // Page-relative URLs in dev too: every environment emits unhashed names like
     // static/js/index.js / three.js, so root "/static/..." URLs would clash between games.
     assetPrefix: 'auto',
@@ -255,4 +262,4 @@ export default defineConfig({
       });
     },
   },
-});
+}));

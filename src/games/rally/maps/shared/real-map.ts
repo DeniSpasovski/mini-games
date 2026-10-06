@@ -205,3 +205,124 @@ export function fitBridgesToStreets(
   });
   return out;
 }
+
+/** A baked path as the channel-crossing helpers need it. */
+interface CrossPath {
+  kind: string;
+  surface: string;
+  width: number;
+  bridge?: boolean;
+  layer?: number;
+  pts: number[];
+}
+
+/** Waterways a road needs a bridge over (ditches / drains are crossed on culverts: the road fills them). */
+const BRIDGED_WATER = new Set(['river', 'stream', 'canal']);
+/** Bank beyond a channel's own width (terrain-gen CHANNEL_BANK) + a margin for the abutments (m). */
+const CROSSING_REACH = 2.5 + 1.5;
+
+/** Where polyline a (flat x, z) crosses polyline b: [distance along a, |sin| of the crossing angle] per crossing. */
+function crossingsOf(a: number[], b: number[]): [number, number][] {
+  const out: [number, number][] = [];
+  let along = 0;
+  for (let i = 0; i + 3 < a.length; i += 2) {
+    const [x1, z1, x2, z2] = [a[i], a[i + 1], a[i + 2], a[i + 3]];
+    const len = Math.hypot(x2 - x1, z2 - z1);
+    for (let j = 0; j + 3 < b.length; j += 2) {
+      const [x3, z3, x4, z4] = [b[j], b[j + 1], b[j + 2], b[j + 3]];
+      const d = (x1 - x2) * (z3 - z4) - (z1 - z2) * (x3 - x4);
+      if (Math.abs(d) < 1e-9) continue;
+      const t = ((x1 - x3) * (z3 - z4) - (z1 - z3) * (x3 - x4)) / d;
+      const u = -((x1 - x2) * (z1 - z3) - (z1 - z2) * (x1 - x3)) / d;
+      if (t < 0 || t > 1 || u < 0 || u > 1) continue;
+      const lb = Math.hypot(x4 - x3, z4 - z3) || 1;
+      const sin = Math.abs(
+        ((x2 - x1) * (z4 - z3) - (z2 - z1) * (x4 - x3)) / ((len || 1) * lb),
+      );
+      out.push([along + t * len, Math.max(0.35, sin)]);
+    }
+    along += len;
+  }
+  return out;
+}
+
+/** Merged [from, to] intervals along a line of length `len`, each `[at, half]` widened to at +- half. */
+function intervals(hits: [number, number][], len: number): [number, number][] {
+  const iv = hits
+    .map(([at, half]) => [Math.max(0, at - half), Math.min(len, at + half)])
+    .sort((p, q) => p[0] - q[0]) as [number, number][];
+  const out: [number, number][] = [];
+  for (const v of iv)
+    if (out.length && v[0] <= out[out.length - 1][1] + 2)
+      out[out.length - 1][1] = Math.max(out[out.length - 1][1], v[1]);
+    else out.push([...v]);
+  return out;
+}
+
+/** Points of a flat polyline between distances `from` and `to` (both ends interpolated). */
+function slice(pts: number[], from: number, to: number): number[] {
+  const out: number[] = [];
+  let along = 0;
+  const at = (i: number, t: number) => [
+    pts[i] + (pts[i + 2] - pts[i]) * t,
+    pts[i + 1] + (pts[i + 3] - pts[i + 1]) * t,
+  ];
+  for (let i = 0; i + 3 < pts.length; i += 2) {
+    const len = Math.hypot(pts[i + 2] - pts[i], pts[i + 3] - pts[i + 1]);
+    const a = along;
+    const b = along + len;
+    if (b >= from && a <= to) {
+      if (!out.length)
+        out.push(...at(i, len ? (Math.max(from, a) - a) / len : 0));
+      if (b <= to) out.push(pts[i + 2], pts[i + 3]);
+      else {
+        out.push(...at(i, len ? (to - a) / len : 1));
+        break;
+      }
+    }
+    along = b;
+  }
+  return out;
+}
+
+/**
+ * Other roads over rivers / streams: OSM often has no bridge way there, and the carved channel left the road ribbon
+ * spanning open water with bare banks under it. Each road crossing a bridged waterway is split into ground pieces and
+ * a short deck (`bridge`, layer 1: the bridge mesh, railings, parapet colliders and the ground under decks are the
+ * OSM-bridge ones) reaching the channel's width + banks + abutments past the crossing, longer on a skew.
+ */
+export function bridgeChannelCrossings<T extends CrossPath>(paths: T[]): T[] {
+  const water = paths.filter(
+    (p) => p.surface === 'water' && BRIDGED_WATER.has(p.kind),
+  );
+  const out: T[] = [];
+  for (const p of paths) {
+    if (p.surface === 'water' || p.bridge || p.kind === 'rail') {
+      out.push(p);
+      continue;
+    }
+    const len = p.pts.reduce(
+      (s, _, i) =>
+        i >= 2 && i % 2 === 0
+          ? s + Math.hypot(p.pts[i] - p.pts[i - 2], p.pts[i + 1] - p.pts[i - 1])
+          : s,
+      0,
+    );
+    const hits: [number, number][] = [];
+    for (const w of water)
+      for (const [at, sin] of crossingsOf(p.pts, w.pts))
+        hits.push([at, Math.min(25, (w.width / 2 + CROSSING_REACH) / sin)]);
+    if (!hits.length) {
+      out.push(p);
+      continue;
+    }
+    let cur = 0;
+    for (const [from, to] of intervals(hits, len)) {
+      if (from - cur > 1) out.push({ ...p, pts: slice(p.pts, cur, from) });
+      out.push({ ...p, pts: slice(p.pts, from, to), bridge: true, layer: 1 });
+      cur = to;
+    }
+    if (len - cur > 1) out.push({ ...p, pts: slice(p.pts, cur, len) });
+  }
+  return out;
+}

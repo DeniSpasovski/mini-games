@@ -22,6 +22,8 @@ export class CameraRig {
   private yaw = 0;
   private pos = new Vector3();
   private focus = new Vector3();
+  /** Low-passed horizontal car velocity: carries `focus` / `pos` along between frames. */
+  private vel = new Vector3();
   private ground = 0;
   private initialized = false;
   private shake = 0;
@@ -72,6 +74,7 @@ export class CameraRig {
         1 - Math.exp(-dt * 3),
       );
       cam.updateProjectionMatrix();
+      this.initialized = false; // back in a chase view: start from the car, not a stale spot
       return;
     }
 
@@ -86,10 +89,22 @@ export class CameraRig {
     const height = (far ? 2.6 : 1.75) + Math.min(speed, 40) * 0.008;
     // Low-pass the car position the camera works from: on a rough road edge the
     // body bounces / sways every frame and a rigid follow turns that into jitter.
+    // The filtered points are first carried along at the (smoothed) car velocity, so
+    // they only filter the deviation from that path: a plain lag would trail the car
+    // by about v/rate - v*dt/2, and every frame-time change would jerk the car on
+    // screen (worst at top speed).
     const target = _t.copy(carPos);
     target.y += 0.9;
-    if (!this.initialized) this.focus.copy(target);
-    const kf = 1 - Math.exp(-dt * (16 + speed * 0.8));
+    if (!this.initialized) {
+      this.focus.copy(target);
+      this.vel.set(v.velocity.x, 0, v.velocity.z);
+    }
+    const kvel = 1 - Math.exp(-dt * 8);
+    this.vel.x += (v.velocity.x - this.vel.x) * kvel;
+    this.vel.z += (v.velocity.z - this.vel.z) * kvel;
+    const kf = 1 - Math.exp(-dt * 16);
+    this.focus.x += this.vel.x * dt;
+    this.focus.z += this.vel.z * dt;
     this.focus.x += (target.x - this.focus.x) * kf;
     this.focus.z += (target.z - this.focus.z) * kf;
     this.focus.y += (target.y - this.focus.y) * (1 - Math.exp(-dt * 7));
@@ -104,8 +119,10 @@ export class CameraRig {
       this.initialized = true;
     }
     // Stiff horizontally, softer vertically (soaks up bumps and jumps).
-    const kh = 1 - Math.exp(-dt * (10 + speed * 0.6));
+    const kh = 1 - Math.exp(-dt * 14);
     const kv = 1 - Math.exp(-dt * 6);
+    this.pos.x += this.vel.x * dt;
+    this.pos.z += this.vel.z * dt;
     this.pos.x += (desired.x - this.pos.x) * kh;
     this.pos.z += (desired.z - this.pos.z) * kh;
     this.pos.y += (desired.y - this.pos.y) * kv;

@@ -233,6 +233,12 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
 - **Borders on smooth panels are `region` outlines, never `box` / `inside` / seeds**: the outline clips straddling triangles exactly
   (clean edges); boxes take whole big skin triangles by their centre (ragged patches, spikes). `region.any: true` also cuts triangles
   an earlier segment pick labelled; cut pieces keep their label. Segment picks run BEFORE region cuts.
+- **Pipes / bars fused into the body** (merged with the floor pan into one segment): a `segment-stl.py` `tube` pick per pipe
+  (`path` read off exact z cross-sections, `radius` just over the pipe's, `over: ["trim"]`). Facing-filtered boxes trade pipe and
+  skin triangles near the tips.
+- **Underside boxes**: only for surfaces hidden from normal views; a face visible from behind (bumper ledges, slanted lower faces)
+  stays livery. A `"|x|"` facing takes both sides' outward skin too - for inward faces use one `mirror: false` pick per side.
+- **After each rebuild, re-open every camera link the user sent this session**: per-triangle fixes often regress an earlier view.
 - **Modelled wheels**: label them with a `region` circle as a material listed in `parts.drop` (exact opening, no saw teeth on arch lips);
   keep underbody / axle `inside` boxes out of the wheel area; add `wheels.liner` (+ `floorY`) so the wells are not see-through, and make
   the car's atlas black + `matteRect` at the matte texel the liner uses.
@@ -245,6 +251,28 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   a wheel-size question (`wheelRadius`, tyre sizes).
 - A new tyre fitment changes the car's character: `car-setup.test.ts` ("Bimmer wins on tarmac") needed `front.grip` 1.06 once 300-wide
   race tyres were replaced by street 245s.
+
+## Lamps on a print model (Bimmer tail lamps, 2026-10-06) - worked example `cars/bimmer-m3/` + `TAIL` in `part-materials.ts`
+
+- **Trace lamp edges on the SOURCE STL, not the GLB** (the GLB is simplified, its groove walls are patchy): rasterise the outermost
+  surface per 1 mm cell in the view (exact per-triangle barycentric fill - point sampling leaves holes that read as fake grooves),
+  high-pass it (minus a gaussian, sigma ~6 cells), take the weighted centre of the dip per row / column, fit a smooth curve,
+  and draw the result over the depth image BEFORE writing picks. The lamp ends on the groove's lamp-side wall.
+- **A dark seal in the groove** = its own part material (`seal`), the groove centre +- half its width, picked AFTER the lamp
+  picks. Ends must meet the next dark line (top rim, divider) or they read as "not connected".
+- **A region's `depth` decides what it can take**: a side-view lamp outline with depth from |x| 0.55 grabbed the rear face above a
+  lower neighbouring piece (a red wedge). Start each pick's depth at the piece boundary.
+- **Every outline vertex and every crossing of a dense source mesh is a kept border**: a 100-vertex seal on the groove took 3k
+  triangles from glass / lamps under the fixed `targetTriangles`. Resample outlines to ~1 cm (check the chord error), raise the
+  budget, and compare the per-part counts in the converter's `output:` line before / after.
+- **`corner`-wrap UVs** (u = |x| - |z|, v = y, fitted 0..1 to the part's extreme vertices): moving any outline end rescales the
+  texture - re-measure the `end` table / constants from the GLB after a rebuild. A mesh edge at constant |x| is a SLANTED line in
+  u (the lamp face leans): measure u per v and draw dividers along it. u / v texture px are not square: size round things in
+  metres via px-per-metre (`PXU` / `PXV`) or they come out as tall ovals.
+- **Lamp light layers** (one emissive map scaled idle -> brake): tail-light parts full in it, brake-only areas ~20 % (the map is
+  sRGB: `#78` is ~19 % linear; brighter washes red to salmon); `reverseGlow` = the reversing section only; indicators never lit.
+- **Graphics that wrap a corner look flat** without depth: keep LED rings etc. on the faces that look at the viewer (mean normal
+  per u band from the GLB).
 
 ## Tools added 2026-10-04 (Fabia + Bimmer round 2)
 
@@ -261,8 +289,13 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   rear-screen frame welded into the body primitive, without nibbling the panel next to it); `islandTris: [min, max]` (islands of
   that size, e.g. the A-pillar end of a roof-rail island). Find islands first: weld + union-find over one material, print bbox /
   size / mean normal, render them in random colours - then write the boxes.
-- `parts.maxTriangles` (`stl-to-glb.mjs`): `{"interior": 16000}` pre-simplifies one part on its own before the global budget (Fabia:
-  interior 67.9k -> 15.9k, total 90k -> 70k with a finer body).
+- **Roll cage** in the same primitive as seats / door cards: the `tube` rule (`{"tube": {"r": [0.012, 0.024], "score": 0.15,
+"length": 0.3}, "material": "cage"}`) picks whole tube-shaped islands; send steering column / gear rod to `interior` with
+  earlier `whole` boxes, flat gusset plates to `cage` by box. `cage` = light grey part material (worked example `cars/skoda-rally/`).
+- `parts.maxTriangles` (`stl-to-glb.mjs`): `{"interior": 24000}` pre-simplifies one part on its own before the global budget; raise
+  `targetTriangles` by the same amount, or the body loses detail. At 6k the Fabia's seats, dash and wheel became shards.
+- **See-through glass**: set `model.glass` (tint + opacity) on a car whose model has a cockpit; without it the `glass` part is
+  opaque (right for a model with an empty shell).
 - **Every material name in `parts.materials` must exist in `part-materials.ts`** (or be the body): an unknown name silently gets the
   LIVERY material - the Fabia's whole cockpit was painted that way (`interior` was missing; its lining showed as a white ring round
   the rear screen). Raycast the pixel in the viewer and read the hit mesh's material name before blaming a box rule.
@@ -289,6 +322,11 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
 - **Blank / white viewer page, `__carViewer` undefined**: the dev build is failing, usually because ANOTHER session's file is
   broken or half-written (a map `data.json` truncated while a bake writes it, an import of a file not created yet). `preview_logs`
   (`level: error`, grep the "File:" lines), wait until the file is valid (`python -c "json.load(...)"`), reload. Not yours to fix.
+- **README screenshots as files** (1280 x 720): the pane screenshot is not saved, so read the canvas: `shell.renderer.setSize(1280, 720)`,
+  set the camera, `shell.env.update(controls.target); shell.env.follow(camera.position)` (else no shadow - the loop is paused while
+  the pane is hidden), render twice, `toDataURL('image/jpeg', 0.88)` and POST it to a throwaway node http receiver in the
+  scratchpad that writes the file. Bimmer cameras (look 0, 0.55, 0): front 3/4 `4.2,1.5,5.2` fov 32, rear 3/4 `-4.6,1.5,-5` fov 32,
+  side `6.8,0.9,0` fov 38.
 - **Screenshot timeouts ("pane is not displayed")**: `tabs_select` the tab; if the pane was hidden or closed, `preview_start`
   with a `url` reopens it (new tab id - pass it explicitly). A hung `navigate` means the same; do not retry in a loop.
 - **Converter changes (`stl-to-glb.mjs`, `chartBoxes`) must not move geometry**: after a rebuild compare the sorted vertex
@@ -296,7 +334,8 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
 - **Check order after any livery change**: `npx tsc --noEmit`, `npm run lint`, `npm run test`, then the views. Lint / tsc errors
   in other sessions' files are reported, not fixed.
 - Writing helper scripts: a Bash heredoc with an apostrophe in the body ("don't") fails with "unexpected EOF" - write the script
-  with the Write tool and run the file. Python patches of long files: slice by unique anchors and `assert` they exist.
+  with the Write tool and run the file. Python patches of long files: slice by unique anchors and `assert` they exist. On
+  Windows write with `open(p, 'w', newline='\n')` - text mode silently turns the file CRLF (prettier then fails on every line).
 
 ## 7. Done
 

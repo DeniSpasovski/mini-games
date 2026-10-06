@@ -20,6 +20,33 @@ export interface CarDef {
   sources?: SourceLink[];
   physics: CarPhysicsDef;
   model: CarModelDef;
+  sound: CarSoundDef;
+}
+
+/** Cylinder layout = firing pattern (game/engine-sound.ts). `v8` is cross-plane; `flat4` has unequal headers. */
+export type EngineLayout = 'i4' | 'i5' | 'i6' | 'v8' | 'flat4';
+
+/** How the car sounds; game/audio.ts synthesises it from these (no samples). Levels are 0..1. */
+export interface CarSoundDef {
+  layout: EngineLayout;
+  /** Litres: bigger = deeper, heavier, louder. */
+  displacement: number;
+  /** 0 = road silencer (soft, dull) .. 1 = open race exhaust (loud, raspy). */
+  exhaust: number;
+  /** Induction roar on throttle (carburettors, individual throttle bodies, an airbox under the bonnet). */
+  intake: number;
+  /** Turbo whistle + spool; `antiLag` = rally anti-lag bangs off throttle (else the wastegate flutters on a lift). */
+  turbo?: { antiLag: boolean };
+  /** Overrun crackle and pops on a lift from high rpm. */
+  pops: number;
+  /** Straight-cut gear whine (rises with road speed). */
+  gearWhine: number;
+  /** Sequential = a clunk and an ignition cut on every shift; manual = a soft clutch shift. */
+  gearbox: 'sequential' | 'manual';
+  /** Lumpy idle of a race camshaft. */
+  cam: number;
+  /** Cylinder-to-cylinder variation (default 0.05): a tired engine is rougher. */
+  roughness?: number;
 }
 
 /**
@@ -72,7 +99,10 @@ export interface CarModelDef {
   };
   /** Body styling + rally parts. Everything optional; see car-parts.ts. */
   parts: CarParts;
-  /** Window glass tint override (default: dark, 45% opaque). */
+  /**
+   * Window glass tint override (default: dark, 45% opaque). On an imported body it also replaces the opaque `glass`
+   * part, so set it only when the model has a cockpit to see through the windows.
+   */
   glass?: { color: number; opacity: number };
   /** Paint finish: 'satin' = old weathered paint (rough, thin clearcoat). Default 'gloss'. */
   paintFinish?: 'gloss' | 'satin';

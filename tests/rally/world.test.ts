@@ -1,7 +1,7 @@
 import { describe, expect, test } from '@rstest/core';
 import { Vector3 } from 'three';
 import { ALL_CARS } from '../../src/games/rally/cars';
-import { ALL_MAPS } from '../../src/games/rally/maps';
+import { ALL_MAPS } from '../../src/games/rally/maps/all';
 import { newRoadQuery } from '../../src/games/rally/world/road';
 import { PHYSICS_HZ, Vehicle } from '../../src/games/rally/physics/vehicle';
 import { World } from '../../src/games/rally/world/world';

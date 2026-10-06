@@ -1,11 +1,11 @@
 import { describe, expect, test } from '@rstest/core';
 import { Matrix4, Quaternion, Vector3 } from 'three';
-import { getMap } from '../../src/games/rally/maps';
+import { testMap } from '../../src/games/rally/maps/test/map';
 import { Breakables } from '../../src/games/rally/world/breakables';
 import { World } from '../../src/games/rally/world/world';
 
 describe('breakable marker posts (test map)', () => {
-  const world = new World(getMap('test'));
+  const world = new World(testMap);
   const posts = [...world.scatter.fixedInstances()].filter(
     (i) => i.asset === 'marker_post',
   );

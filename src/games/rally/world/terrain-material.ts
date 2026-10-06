@@ -1,7 +1,14 @@
-import { Color, MeshStandardMaterial } from 'three';
+import {
+  Color,
+  DataTexture,
+  MeshStandardMaterial,
+  RedFormat,
+  Vector4,
+} from 'three';
 import type { EnvironmentDef } from '../maps/shared/types';
 import { getTexture } from '../engine/textures';
 import { addWorldUniforms } from '../engine/world-shading';
+import type { GroundMoisture } from './ground-moisture';
 
 /**
  * Terrain splat material: MeshStandardMaterial (so it gets sun, shadows, fog
@@ -11,6 +18,8 @@ import { addWorldUniforms } from '../engine/world-shading';
  * Relief: the blended textures' brightness doubles as a height map (bump from screen-space derivatives, rock and
  * gravel strongest, faded out by ~90 m) so a low sun picks out stones and ruts.
  * Weight the four channels leave unused (sum < 1) is drawn as ripe crop (wheat fields).
+ * Grass moisture: lusher green in hollows / by water, straw on ridges and steep slopes (`setGroundMoisture`, a
+ * baked map texture + the vertex normal + slow macro noise so flat land is not one colour either).
  *
  * One instance is shared by every terrain chunk.
  */
@@ -18,6 +27,14 @@ let shared: MeshStandardMaterial | undefined;
 
 /** Ripe wheat. */
 const DEFAULT_CROP = '#c2a552';
+/** 1 x 1 neutral moisture (0.5) for pages without a baked map: only slope + macro noise vary the grass. */
+const NEUTRAL_MOISTURE = new DataTexture(
+  new Uint8Array([128]),
+  1,
+  1,
+  RedFormat,
+);
+NEUTRAL_MOISTURE.needsUpdate = true;
 
 export function getTerrainMaterial(): MeshStandardMaterial {
   if (shared) return shared;
@@ -36,6 +53,11 @@ export function getTerrainMaterial(): MeshStandardMaterial {
     uTintGrass: { value: new Color(1, 1, 1) },
     uTintAmount: { value: 0 },
     uTintCrop: { value: new Color(DEFAULT_CROP) },
+    tMoist: { value: NEUTRAL_MOISTURE },
+    /** Moisture texture on the ground: x0, z0, 1 / width, 1 / depth. */
+    uMoistMap: { value: new Vector4(0, 0, 1, 1) },
+    /** Moisture tint strength (0 = off, `groundTint.moisture`). */
+    uMoist: { value: 1 },
     /** Bump strength (0 = flat, `setTerrainRelief`). */
     uRelief: { value: 1 },
   };
@@ -51,12 +73,14 @@ export function getTerrainMaterial(): MeshStandardMaterial {
         `#include <common>
         attribute vec4 splat;
         varying vec4 vSplat;
-        varying vec3 vWPos;`,
+        varying vec3 vWPos;
+        varying float vUpY;`,
       )
       .replace(
         '#include <fog_vertex>',
         `#include <fog_vertex>
         vSplat = splat;
+        vUpY = normal.y; // terrain meshes are only translated: object normal = world normal
         vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
       );
     shader.fragmentShader = shader.fragmentShader
@@ -69,8 +93,12 @@ export function getTerrainMaterial(): MeshStandardMaterial {
         uniform float uTintAmount;
         uniform vec3 uTintCrop;
         uniform float uRelief;
+        uniform sampler2D tMoist;
+        uniform vec4 uMoistMap;
+        uniform float uMoist;
         varying vec4 vSplat;
         varying vec3 vWPos;
+        varying float vUpY;
         // Bump from a screen-space height gradient (three's perturbNormalArb, Mikkelsen).
         vec3 terrainPerturb( vec3 surf_pos, vec3 surf_norm, vec2 dHdxy, float faceDirection ) {
           vec3 vSigmaX = normalize( dFdx( surf_pos.xyz ) );
@@ -102,6 +130,16 @@ export function getTerrainMaterial(): MeshStandardMaterial {
         // Recolour (0.09 = mean linear luminance of the grass texture).
         float grassLum = dot(cGrass, vec3(0.2126, 0.7152, 0.0722)) / 0.09;
         cGrass = mix(cGrass, uTintGrass * grassLum, uTintAmount);
+        // Moisture -1 (dry) .. 1 (wet): baked hollows / banks, minus steepness, plus slow noise.
+        float wet = texture2D(tMoist, (wp - uMoistMap.xy) * uMoistMap.zw).r * 2.0 - 1.0;
+        wet -= smoothstep(0.04, 0.25, 1.0 - vUpY) * 0.7;
+        wet += (texture2D(tMacro, wp * 0.0017 + 0.61).r - 0.5) * 0.7;
+        wet = clamp(wet * uMoist, -1.0, 1.0);
+        float gLum = dot(cGrass, vec3(0.2126, 0.7152, 0.0722));
+        // Wet: deeper, more saturated green. Dry: pale golden straw (brighter, or it reads as bare dirt).
+        vec3 cLush = cGrass * vec3(0.62, 1.0, 0.5);
+        vec3 cStraw = gLum * vec3(1.9, 1.45, 0.62);
+        cGrass = mix(cGrass, wet > 0.0 ? cLush : cStraw, wet > 0.0 ? min(1.0, wet * 1.15) : -wet * 0.55);
         // Ripe crop (wheat): the weight the 4 splat channels leave unused (0.02 = 8-bit rounding slack).
         float crop = max(0.0, 0.98 - (vSplat.x + vSplat.y + vSplat.z + vSplat.w)) / 0.98;
         vec3 cCrop = uTintCrop * mix(0.8, 1.15, grassLum) * (0.85 + macro2 * 0.3);
@@ -129,7 +167,7 @@ export function getTerrainMaterial(): MeshStandardMaterial {
         `,
       );
   };
-  mat.customProgramCacheKey = () => 'rally-terrain-v3';
+  mat.customProgramCacheKey = () => 'rally-terrain-v4';
   shared = mat;
   return mat;
 }
@@ -145,4 +183,13 @@ export function setGroundTint(tint: EnvironmentDef['groundTint']): void {
   u.uTintGrass.value.set(tint?.grass ?? '#ffffff');
   u.uTintAmount.value = tint ? (tint.amount ?? 0.85) : 0;
   u.uTintCrop.value.set(tint?.crop ?? DEFAULT_CROP);
+  u.uMoist.value = tint?.moisture ?? 1;
+}
+
+/** Map-wide ground moisture (world/ground-moisture.ts, `World.moisture`); null = neutral (slope + noise only). */
+export function setGroundMoisture(m: GroundMoisture | null): void {
+  const u = getTerrainMaterial().userData.uniforms;
+  u.tMoist.value = m?.texture ?? NEUTRAL_MOISTURE;
+  if (m) u.uMoistMap.value.set(m.map.x0, m.map.z0, m.map.invW, m.map.invD);
+  else u.uMoistMap.value.set(0, 0, 1, 1);
 }

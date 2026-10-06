@@ -2,120 +2,115 @@
 
 ## Commands
 
-- `npm run dev` - Start the dev server (http://localhost:3000)
-- `npm run build` - Build the app for production (one self-contained `dist/games/<id>/` per game, see `DETAILS.md` -> Deploying)
-- `npm run build -- --environment <id>` - Rebuild only one game's folder (`portal` = only the portal files)
-- `npm run preview` - Preview the production build locally
-- `npm run test` - Run tests (rstest) · `npm run test:watch`
-- `npm run lint` - Lint (rslint) · `npm run format` - Prettier
-- `npx tsc --noEmit -p tsconfig.json` - Type check (the build does not type check)
+- `npm run dev` - dev server (http://localhost:3000)
+- `npm run dev:noreload` - same without HMR (file edits by other sessions / tools never reload the page): debugging, benchmarks,
+  stage-card bakes. Reload by hand. Browser pane: `portal-dev-noreload`.
+- `npm run build` - production build, one self-contained `dist/games/<id>/` per game (`DETAILS.md` -> Deploying);
+  `npm run build -- --environment <id>` rebuilds one game (`portal` = portal files only)
+- `npm run preview` - preview the build
+- `npm run test` (rstest) · `npm run test:watch` · `npm run lint` (rslint) · `npm run format` (Prettier)
+- `npx tsc --noEmit -p tsconfig.json` - type check (the build does not)
 
 ## Public repo and licences - read before adding anything
 
-This is a **public, source-available repository** (educational three.js project, not commercial). Everything committed is
-visible and redistributable by anyone, so treat every file as published.
+**Public, source-available repo** (educational three.js project, not commercial): treat every committed file as published.
 
-- **Project licence:** code, procedural assets, docs and screenshots = [PolyForm Noncommercial 1.0.0](LICENSE) (noncommercial use,
-  modification and sharing allowed; commercial use not). Baked map data (`maps/*/data.json`, `buildings.csv`, `preview/stage-card.json` + its `.jpg` render) is derived from
-  OpenStreetMap and stays **ODbL** (attribution + share-alike). Third-party models / data keep their own licences.
-- **Never commit a third-party file** (3D model, texture, font, sound, image, dataset) unless its licence explicitly allows
-  redistribution of the file AND of derivatives (CC0, CC BY, CC BY-SA, MIT ...). "Personal use only", "Standard Digital File
-  License" (MakerWorld / Printables defaults), "no derivatives" and "non-commercial" files must stay out of git and out of
-  `public/`. Converted models count as derivatives. When the licence is unknown, treat it as NOT allowed and ask the user.
-- **Every external source gets a row** in the matching `DETAILS.md` (link, author, licence, what it was used for)
-  and, if it ships, in `THIRD-PARTY.md` + `public/models/CREDITS.md`. CC BY / ODbL need attribution: keep the `credit` /
-  `data.meta.sources` strings in the code and the in-game About screen up to date. Never write "TODO" licences into shipped files.
-- **Reference material** (Google Maps / Street View screenshots, photos, blueprints, press images) is local-only in `sources/`
-  (git-ignored). Do not copy, trace or ship it. Prefer OpenStreetMap-compatible imagery for tracing and record how it was used.
-- **No trademarks or real branding:** no manufacturer, sponsor, series or agency logos and wordmarks in liveries, signs or
-  decals; use generic names. Car makes / models appear only to identify the car (see the trademark note in `THIRD-PARTY.md`).
-- **No secrets or personal data** in code, docs or commit history (keys, tokens, private paths, e-mails). The repo is published
-  from this folder only - never from the parent monorepo, whose history holds unrelated projects.
-- Docs / README text must stay accurate about licences: if a source or licence changes, update `DETAILS.md`, the short README,
-  `THIRD-PARTY.md`, `public/models/CREDITS.md` and the in-game credits in the same change.
+- **Licences:** code, procedural assets, docs, screenshots = [PolyForm Noncommercial 1.0.0](LICENSE). Baked real-map data
+  (`maps/<id>/` `data.json`, `route.json`, `horizon.json`, `junction*.json`, `buildings.csv`, `preview/stage-card.json` + `.jpg`)
+  is OpenStreetMap-derived = **ODbL**; a new baked file joins this list (README, `THIRD-PARTY.md`). Third-party models / data keep
+  their own licences.
+- **Never commit a third-party file** (model, texture, font, sound, image, dataset) unless its licence allows redistribution of
+  the file AND of derivatives (CC0, CC BY, CC BY-SA, MIT ...). "Personal use only", "Standard Digital File License" (MakerWorld /
+  Printables default), no-derivatives and non-commercial files stay out of git and `public/`. Converted models are derivatives.
+  Unknown licence = NOT allowed; ask the user.
+- **Every external source gets a row** in the car / map README credits table (public) and its `DETAILS.md` (local,
+  git-ignored) and, if it ships, in `THIRD-PARTY.md` + `public/models/CREDITS.md`. Keep CC BY / ODbL attribution current in
+  the `credit` / `meta.sources` strings and the About links (`info.ts`).
+- **Reference material** (Maps / Street View screenshots, photos, blueprints, press images): local-only in `sources/`
+  (git-ignored); never copy or ship it. Trace only from OpenStreetMap-compatible imagery (`trace_route.py` on a route
+  screenshot = waypoints only) and disclose any tracing in the map README + `THIRD-PARTY.md`.
+- **No trademarks:** no manufacturer, sponsor, series or agency logos / wordmarks in liveries, signs or decals; generic names.
+  Car makes / models only identify the car (trademark note in `THIRD-PARTY.md`).
+- **No secrets or personal data** in code, docs or history. Publish from this folder only, never the parent monorepo.
+- A source or licence change updates `DETAILS.md`, the README, `THIRD-PARTY.md`, `public/models/CREDITS.md` and the in-game
+  credits in the same change.
 
-## Documentation structure
+## Documentation
 
-Every level has a short **`README.md`** (rendered by GitHub: what it is, 1-4 in-game screenshots, how to run, credits and
-licence summary, links to deeper docs) and a sibling **`DETAILS.md`** (optional for a small car whose README covers it) with everything else (architecture, flows, URLs, short build
-notes, source links). Keep READMEs high level - move detail into `DETAILS.md`, never the other way round.
+Each level has a short **`README.md`** (what it is, 1-4 in-game screenshots, how to run, credits + licence, links) and a
+**`DETAILS.md`** with the rest (architecture, flows, URLs, build notes, sources; optional for a small car). Detail moves down
+into `DETAILS.md`, never up.
 
-| Level                         | `README.md` (high level)                                 | `DETAILS.md` / other docs                                                                                                      |
-| ----------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| root                          | purpose (learning three.js), games, quick start, licence | portal layout, domain lock, analytics, PWA, deploying; `THIRD-PARTY.md` (all third-party sources + licence status)             |
-| `src/games/<id>/`             | game overview, screenshots, stages / cars tables         | rules, flows, architecture, debug tools; `TASKS.md` (open work); rally: `PHYSICS.md`; hole: `TOY-STORE.md`, `ANIMAL-ISLAND.md` |
-| `src/games/rally/maps/<id>/`  | route, screenshots, data credits + licences              | every source link, bake notes, reference images; `TODO.md` (open work)                                                         |
-| `src/games/rally/cars/<car>/` | description, screenshots, credits + licence              | build notes, rebuild commands, every source; `TODO.md` where present                                                           |
+| Level                         | `README.md`                                 | `DETAILS.md` / other docs                                                                                        |
+| ----------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| root                          | purpose, games, quick start, licence        | portal layout, domain lock, analytics, PWA, deploying; `THIRD-PARTY.md`                                          |
+| `src/games/<id>/`             | overview, screenshots, stages / cars tables | rules, flows, architecture, debug tools; `TASKS.md`; rally `PHYSICS.md`; hole `TOY-STORE.md`, `ANIMAL-ISLAND.md` |
+| `src/games/rally/maps/<id>/`  | route, screenshots, data credits + licences | every source link, bake notes, references; `TODO.md`                                                             |
+| `src/games/rally/cars/<car>/` | description, screenshots, credits + licence | build notes, rebuild commands, every source; `TODO.md` where present                                             |
 
-**Write short.** Docs describe how things work NOW, for someone who has not seen the session; they are not a diary.
+**Write short** - how things work NOW, for someone who has not seen the session; not a diary.
 
-- **Size:** a README fits one screen or two (about 60 lines max). A `DETAILS.md` is a reference, not a log: when it grows past a
-  few hundred lines, condense it instead of appending.
-- **Say it once:** one fact lives in one place; link to it, do not copy it. Name the code (file, function, setting) instead of
-  retelling what the code does.
-- **Keep:** what it is, how to use it, how it is wired, the rules that must not be broken, and the reason behind a non-obvious
-  decision (one sentence).
-- **Leave out:** history ("was X before", "round 4", dated passes - git has it), tuning trial-and-error, bench logs, numbers that
-  rot (frame times, triangle counts, per-map tweaks), trivia, and anything the code or a test already states.
-- **Shape:** lead with the point, use bullets and tables, short sentences, no filler or hedging; 1-2 lines per bullet.
-- **Open work** goes in `TASKS.md` / `TODO.md` as short checkboxes; when finished, delete the item and, only if it changed how
-  things work, add a line to the matching doc.
-- When you touch a doc, also trim what you pass: stale, repeated or diary-style text goes.
-
-- **Screenshots** live in a `screenshots/` folder next to the README that shows them: taken in game (car / map viewer or the game
-  page), 16:9 jpg, about 1280-1536 px wide, no debug panels. Retake them when a car, map or the look changes visibly.
-- Finished work is documented in `DETAILS.md` (and the README if it changes the overview); `TASKS.md` / `TODO.md` hold only open
-  work. Update the docs in the same change as the behaviour.
-- Skills (`.claude/skills/`) and this file point at `DETAILS.md` for detail; keep those links valid when moving or renaming docs.
+- README about 60 lines max; a `DETAILS.md` past a few hundred lines gets condensed, not appended to.
+- Say each fact once and link to it; name the code (file, function, setting) instead of retelling it.
+- Keep: what it is, how to use it, how it is wired, rules that must not break, the reason for a non-obvious decision (one sentence).
+- Leave out: history ("was X", rounds, dates - git has it), trial-and-error, bench logs, numbers that rot, trivia, what code /
+  tests already state.
+- Bullets and tables, lead with the point, 1-2 lines per bullet. When you touch a doc, trim stale or repeated text.
+- Open work = short checkboxes in `TASKS.md` / `TODO.md` (local, git-ignored); when done, delete it and document only what changed how things work.
+- Update docs (README / DETAILS / skill) in the same change as the behaviour; keep skill links to `DETAILS.md` valid.
+- **Screenshots**: `screenshots/` next to the README, taken in game (car / map viewer or game page), 16:9 jpg, 1280-1536 px wide,
+  no debug panels; retake when the look changes.
 
 ## Project map
 
-- `README.md` / `DETAILS.md` - portal overview / folder layout, domain lock, analytics, PWA, deploying; `THIRD-PARTY.md` - every third-party source, licence and status (keep current)
-- `src/games/rally/DETAILS.md` - rally architecture, URLs, keys, menus (setup screen), roadmap
-- `src/games/rally/PHYSICS.md` - rally physics: model, tuning guide, tyre compounds / sizes, suspension set-ups, reference numbers, open physics work
-- `src/games/hole/DETAILS.md` - Hole Island (Gravity hole style game, touch-first, three.js): rules, 15 hole levels / 25 size tiers, item catalog, map generator, debug tools, architecture; open work in `src/games/hole/TASKS.md`; second map Toy Emporium (toy store) design, asset roster and open tasks in `src/games/hole/TOY-STORE.md`; third map Animal Island (moving animals, edible hills, rivers, 37 giants, secret zoo + lab) design, roster and open tasks in `src/games/hole/ANIMAL-ISLAND.md`
-- Games live in `src/games/<id>/` and are registered only by their `game.json` (build + portal auto-discover).
-- Default engine for games: three.js.
-- `src/site.config.ts` - allowed hosts (domain lock, runs before every page), owner, portal tagline.
-- `src/games/rally/TASKS.md` - open rally tasks + index of every map / car task list; finished work moves into the DETAILS.md files (game / car / map), not this file.
-- `src/games/rally/maps/<id>/` - one folder per map (`map.ts`, baked `data.json`, `TODO.md` task list, `README.md` = overview + screenshots + data credits, `DETAILS.md` = every source link / licence / reference used - keep updated); `maps/shared/` = map format + shared helpers.
-- `src/games/rally/cars/<car>/` - one folder per car (`<car>.ts` + `README.md` = description + screenshots + credits / licence, `DETAILS.md` = build notes + every source / licence); `cars/shared/` = car code used by every car.
-- `sources/cars/<car>/`, `sources/maps/<map>/` - original files the user shared (models, reference photos, data downloads). Git-ignored + never served; models, data and licence-relevant files are listed in the matching code folder's `DETAILS.md`; reference photos / screenshots are only listed in the local `NOTES.md` next to them (use the car's `NOTES.md` for cars). When the user shares a file for a car / map, copy it here and add the DETAILS row.
-- `scripts/car-model/scan-mesh.py` - run on every new car model BEFORE importing (gate in `rally-car-import` step 1, after the **licence gate** - no licence check, no import): already split / real panel edges / blob = abandon.
-- `scripts/car-model/assemble-kit.py` - assembles a car printed as a model KIT (parts on a sprue frame) into one oriented body STL (`kit` block of `model.source.json`).
-- `scripts/car-model/chart-probe.py` - which atlas chart each body triangle of a car GLB uses (per box / seam / height profile): livery debugging, see `rally-livery`.
-- `scripts/car-model/stl-wheel-extract.py` - cuts a print model's own rim out of its source STL (`wheelRim` block: spoke face + lathed lip / barrel) for `wheel-stl-to-glb.mjs` (worked example `cars/bimmer-m3/`).
-- `scripts/car-model/stl-to-glb.mjs` - converts an STL body (from `sources/`) into a game GLB with livery-atlas UVs.
-- `scripts/realmap/overpass.py` (OSM for dense cities), `scripts/realmap/buildings.py` (footprints, classes, heights) - used by `bake.py`.
-- `scripts/realmap/bake.py` - bakes real-world maps (OSM roads, ESA WorldCover, elevation tiles or a local GeoTIFF, building footprints) into `maps/<id>/data.json`; `scripts/realmap/trace_route.py` traces road parts OSM lacks from a route screenshot.
+- `README.md` / `DETAILS.md` - portal; `THIRD-PARTY.md` - every third-party source + licence status (keep current)
+- `src/site.config.ts` - allowed hosts (domain lock), owner, portal tagline
+- Games live in `src/games/<id>/`, registered only by `game.json` (auto-discovered). Default engine: three.js.
+- Rally: `DETAILS.md` (architecture, URLs, keys, menus, roadmap), `PHYSICS.md` (model, tuning, tyres, suspension), `TASKS.md`
+  (open work, local)
+- Rally maps: `maps/<id>/` = `info.ts` (menus, credits), `map.ts`, baked data, README; local-only DETAILS (every source) +
+  `TODO.md`; `maps/shared/` = format + helpers
+- Rally cars: `cars/<car>/` = `<car>.ts`, README, local-only DETAILS (build notes + sources); `cars/shared/` = code for every car
+- Hole Island: `src/games/hole/DETAILS.md` (rules, levels, tiers, catalog, generator, debug, architecture), `TASKS.md`,
+  `TOY-STORE.md`, `ANIMAL-ISLAND.md` (map design, roster, open tasks)
+- `sources/cars/<car>/`, `sources/maps/<map>/` - files the user shared, git-ignored, never served. Models / data / licence files
+  get a row in that folder's `DETAILS.md`; reference photos only in the local `NOTES.md`.
+- `scripts/car-model/`: `scan-mesh.py` (run on every new model after the licence gate: split / panel edges / blob),
+  `assemble-kit.py` (model kit on a sprue -> one body STL), `segment-stl.py` (labels body parts: seeds, regions, boxes, tubes),
+  `stl-to-glb.mjs` (STL -> game GLB with livery-atlas UVs), `stl-wheel-extract.py` + `wheel-stl-to-glb.mjs` (a print model's own
+  rim), `chart-probe.py` (atlas chart per triangle, livery debugging)
+- `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
+  `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `plaza_islands.py` (city junction
+  `junction.json`), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from
+  the DEM)
 
-## Skills (workflows) - read before doing these tasks
+## Skills - read before these tasks (`.claude/skills/<name>/SKILL.md`)
 
-- `.claude/skills/new-minigame/SKILL.md` - add a new game to the portal
-- `.claude/skills/hole-content/SKILL.md` - Hole Island: add an item (catalog row + builder + tests) or a new map (bounds, zones, budget, registry, scores version)
-- `.claude/skills/rally-maps/SKILL.md` - create / edit rally maps, verify in the map viewer (bridges / underpasses of city maps: its "Bridges and underpasses" section)
-- `.claude/skills/rally-content/SKILL.md` - add / iterate assets and cars (procedural builders, LODs, liveries)
-- `.claude/skills/rally-car-import/SKILL.md` - import a 3D car model as a new car (starts with the LICENCE GATE): orient, split parts, convert, materials, livery, verify (checklist + gotchas; worked example `cars/skoda-rally/`)
-- `.claude/skills/rally-livery/SKILL.md` - create / change / debug a car's livery (atlas painter, chart seams, panel-line edges, checker grids; camera links, chart tinting, debug grid, `chart-probe.py`, `chartBoxes`, symptom table; worked example `cars/bimmer-m3/`)
-- `.claude/skills/rally-physics-tuning/SKILL.md` - change handling, run the regression + autopilot tests
-- `.claude/skills/source-files/SKILL.md` - the user shares models / photos / data / links for a car or map: copy to `sources/` (git-ignored), document in that folder's DETAILS.md
+- `new-minigame` - add a game to the portal
+- `hole-content` - Hole Island item or map
+- `rally-maps` - create / edit rally maps, map viewer (bridges / underpasses: its own section)
+- `rally-content` - rally assets and cars (procedural builders, LODs, liveries)
+- `rally-car-import` - import a 3D car model (LICENCE GATE first; worked examples `cars/skoda-rally/`, `cars/bimmer-m3/`)
+- `rally-livery` - paint / debug a car livery (worked example `cars/bimmer-m3/`)
+- `rally-physics-tuning` - handling changes + regression / autopilot tests
+- `source-files` - user shares models / photos / data / links: copy to `sources/`, document in DETAILS
 
 ## Conventions
 
-- Determinism: all procedural content uses `src/shared/rng.ts` / `noise.ts` with explicit seeds.
-- Rendering: never clone geometry/materials per instance; use the asset library + InstancedMesh.
-- Physics code (`src/games/rally/physics`, `world/` logic) must stay DOM-free so tests run in node.
-- Tool pages mirror their state in the URL (`src/shared/url-state.ts`) so views are shareable.
-- Sound while testing: games are silent under `?mute=1` (`src/shared/mute-param.ts`, `isMutedByUrl()`). Whenever a bot opens a game in the browser pane to create / edit / verify something, add `mute=1` to the URL (`/games/rally/?map=x&mute=1`). Leave it off only when the task IS a sound fix (then use `mute=0` / no param, and keep the volume low). Every game's audio class must honour the param; players never see it.
-- When behaviour changes, update the relevant README / DETAILS.md / skill in the same change.
-- Rally release flags: `src/games/rally/release.ts` tracks every car / map id - `AVAILABLE_CARS` / `AVAILABLE_MAPS` ship in the published build, `TEST_CARS` / `TEST_MAPS` are dev server only (TEST badge). A new car / map goes into `TEST_*` first.
-- Game versions: `version` in `src/games/<id>/game.json` (semver, every game stays at `0.x.y`), shown on the game's main menu and About screen. Minor = a new feature, patch = a small fix. Do NOT bump it on your own - only when the user says we are making a build; then bump per feature / fix since the last build.
-- Rally: NEVER bump `TIMES_VERSION` in `src/games/rally/game/stage.ts` on your own - saved times are the owner's way to compare changes and players do not care. When physics / handling / time penalties / a map's road change enough that times are no longer comparable, only mention it; bump (which erases saved times) only when the user explicitly says so.
-- Hole Island: when scoring logic changes (item points / tiers, clear bonus, difficulty times, map content), bump that map's number in `MAP_SCORING_VERSIONS` (`src/games/hole/game/scores.ts`; shared rules in `sim/` = every map) so its saved high scores are erased. Each map is wiped on its own.
+- Determinism: procedural content uses `src/shared/rng.ts` / `noise.ts` with explicit seeds.
+- Rendering: never clone geometry / materials per instance; asset library + InstancedMesh.
+- Physics (`src/games/rally/physics`, `world/` logic) stays DOM-free so tests run in node.
+- Tool pages mirror their state in the URL (`src/shared/url-state.ts`).
+- Testing in the browser pane: add `mute=1` to game URLs (`isMutedByUrl()`, every audio class honours it); leave it off only for
+  sound fixes (low volume).
+- Rally release flags (`src/games/rally/release.ts`): new cars / maps go into `TEST_*` (dev only) first; `AVAILABLE_*` ship.
+- Game `version` (`game.json`, `0.x.y`, minor = feature, patch = fix): bump only when the user says we are making a build.
+- Rally `TIMES_VERSION` (`game/stage.ts`): never bump on your own - mention when times stop being comparable; bump (erases saved
+  times) only when the user says so.
+- Hole Island: scoring changes (points, tiers, bonus, times, map content) bump that map's `MAP_SCORING_VERSIONS` entry
+  (`game/scores.ts`; `sim/` changes = every map).
 
 ## Docs
 
-- Rsbuild: https://rsbuild.rs/llms.txt
-- Rspack: https://rspack.rs/llms.txt
-- Rstest: https://rstest.rs/llms.txt
-- Rslint: https://rslint.rs/llms.txt
+- Rsbuild https://rsbuild.rs/llms.txt · Rspack https://rspack.rs/llms.txt · Rstest https://rstest.rs/llms.txt ·
+  Rslint https://rslint.rs/llms.txt

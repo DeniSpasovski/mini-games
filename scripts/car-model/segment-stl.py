@@ -41,6 +41,10 @@ through simplification and writes one GLB primitive per material.
                 unpicked triangle inside the outline; triangles straddling the outline are CUT
                 along it (half-plane of the nearest outline edge), so the part border lies exactly
                 on the outline instead of a triangle saw-tooth
+        tube    per TRIANGLE: { path: [[x, y, z], ...], radius, over?: [material, ...] (also re-label these, e.g. trim
+                an earlier segment pick took) } - every triangle whose centre lies
+                within `radius` of the polyline (x on |x| when mirrored): a pipe / bar fused into one shell with
+                the body and merged with it into one crease segment, picked as its own part by its centreline
         box     per TRIANGLE: { x?, y?, z?: [min, max], facing?: { axis: min | [min, max] } } by
                 triangle centre (x on |x| when mirrored); `facing` = normal component range, an
                 axis written "|x|" tests the absolute component
@@ -327,7 +331,7 @@ def cut_along(sel_cond, view, poly, hit):
     the outline whatever the triangle size. Returns `hit` | the inside mask, re-indexed to the new
     triangle list; T / N / AREA / CEN / part grow.
     """
-    global T, N, AREA, CEN, part, n
+    global T, N, AREA, CEN, part, n, tri_seg
     (h, _), (v, _), _ = VIEWS[view]
     P = np.array(poly, float)
     V = T[:, :, [h, v]]
@@ -339,7 +343,7 @@ def cut_along(sel_cond, view, poly, hit):
     if not len(cand):
         return inside
     pieces = convex_pieces(P)
-    new_tris, new_in, new_part = [], [], []
+    new_tris, new_in, new_part, new_seg = [], [], [], []
     for ti in cand:
         outs = [list(T[ti])]
         ins_all = []
@@ -359,6 +363,7 @@ def cut_along(sel_cond, view, poly, hit):
                     new_tris.append([pts[0], pts[k], pts[k + 1]])
                     new_in.append(flag)
                     new_part.append(part[ti])  # pieces keep the label of the triangle they were cut from
+                    new_seg.append(tri_seg[ti])
         inside[ti] = False
         cand_mask_drop.append(ti)
     if not new_tris:
@@ -369,6 +374,7 @@ def cut_along(sel_cond, view, poly, hit):
     new_tris = np.array(new_tris)
     T = np.concatenate([T[keep], new_tris])
     part = np.concatenate([part[keep], np.array(new_part, int)])
+    tri_seg = np.concatenate([tri_seg[keep], np.array(new_seg, int)])
     N, AREA = normals(T)
     CEN = T.mean(1)
     n = len(T)
@@ -377,12 +383,13 @@ def cut_along(sel_cond, view, poly, hit):
 
 
 cand_mask_drop = []
+tri_seg = seg.copy()  # segment of every triangle, kept in step with the cuts (preview --by segment)
 
 MIRROR_VIEW = {'left': 'right', 'right': 'left'}
 cuts = 0
 for p in PC['picks']:
-    reg, box = p.get('region'), p.get('box')
-    if not reg and not box:
+    reg, box, tube = p.get('region'), p.get('box'), p.get('tube')
+    if not reg and not box and not tube:
         continue
     m = MATERIALS.index(p['material'])
     mirror = p.get('mirror', True)
@@ -420,6 +427,18 @@ for p in PC['picks']:
                 comp = np.abs(comp)
             sel &= (comp >= lo_) & (comp <= hi_)
         hit |= sel
+    if tube:
+        Q = CEN.copy()
+        if mirror:
+            Q[:, 0] = np.abs(Q[:, 0])
+        path = np.array(tube['path'], float)
+        d2 = np.full(n, np.inf)
+        for a_, b_ in zip(path[:-1], path[1:]):
+            ab = b_ - a_
+            t_ = np.clip(((Q - a_) @ ab) / (ab @ ab), 0, 1)
+            d2 = np.minimum(d2, (((a_ + t_[:, None] * ab) - Q) ** 2).sum(1))
+        free = (part == 0) | np.isin(part, [MATERIALS.index(o) for o in tube.get('over', [])])
+        hit |= (d2 <= tube['radius'] ** 2) & free
     part[hit] = m
     print(f'  {p["name"]:<22} {p["material"]:<10} (triangles) {int(hit.sum()):6d} triangles '
           f'{AREA[hit].sum() * 1e4:8.0f} cm2')
@@ -470,7 +489,7 @@ print('wrote', dst)
 if '--preview' in opts:
     if opts.get('--by', 'part') == 'segment':
         pal = np.random.default_rng(3).integers(60, 255, (nseg, 3)).astype(float)
-        col = pal[seg]
+        col = pal[tri_seg]
     else:
         prev = PC.get('preview', {})
         pal = np.array([hex_rgb(prev.get(m, '#c8ccd0')) for m in MATERIALS], float)

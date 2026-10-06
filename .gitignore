@@ -20,6 +20,7 @@ dist/
 
 # Real-world map baker download cache
 scripts/realmap/.cache/
+__pycache__/
 
 # Original source files (models, reference photos, data downloads) - local only, see the source-files skill
 sources/

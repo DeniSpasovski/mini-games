@@ -2,7 +2,7 @@ import { hash3, Rng } from '../../../shared/rng';
 import type { StreetDressing } from '../maps/shared/types';
 import type { Junction } from './junctions';
 import { newPathQuery, type PathNetwork } from './real-data';
-import type { Road } from './road';
+import { newRoadQuery, type Road } from './road';
 import { nearestRoadPoint } from './road-distance';
 import type { ScatterInstance } from './scatter';
 import { KERB_H, KERB_W, type StreetDetail } from './street-detail';
@@ -32,8 +32,14 @@ export interface DressingContext {
   underpass?: (pi: number, along: number) => boolean;
   /** Sidewalk runs of the city streets (lamps stand on them), sidewalk width, lamp spacing (0 = none). */
   streetDetail?: StreetDetail;
-  /** On a junction plaza (plazas.ts): no crowd there. */
+  /** On a junction plaza (plazas.ts): no crowd / parked car there. */
   paved?: (x: number, z: number) => boolean;
+  /** Raised islands / sidewalks on the plazas (MapDef.plazaIslands, painted ones left out) + their top height. */
+  islands?: readonly { kind: string; pts: number[] }[];
+  islandTop?: (x: number, z: number) => number;
+  /** Traffic signals / street trees of the junction areas (MapDef.plazaSignals / plazaTrees). */
+  signals?: readonly number[];
+  trees?: readonly number[];
   sidewalk?: number;
   lampEvery?: number;
 }
@@ -45,6 +51,11 @@ const ROAD_STEP = 12;
 /** Wheel base / track half sizes a parked car is fitted to the street with (m). */
 const CAR_HALF_L = 1.9;
 const CAR_HALF_W = 0.8;
+const sq2 = newPathQuery();
+/** Shortest raised island that gets lamps down its middle (m). */
+const ISLAND_LAMP_MIN = 20;
+/** Spacing of the spectator places along a headwall parapet (m). */
+const PARAPET_SPACING = 1.6;
 /** Streets with a mainline role never get parked cars / crowds. */
 const MAINLINE = new Set(['motorway', 'motorway_link', 'trunk', 'trunk_link']);
 
@@ -160,7 +171,7 @@ export function streetDressingInstances(
             (qi) => qi !== pi && !net.paths[qi].bridge,
           );
           if (pq.found && pq.distance <= pq.halfWidth + 2.4) continue;
-          if (ctx.blocked(x, z, 1.4)) continue;
+          if (ctx.blocked(x, z, 1.4) || ctx.paved?.(x, z)) continue;
           const dh = Math.abs(
             ctx.height(x + tx * 2.2, z + tz * 2.2) -
               ctx.height(x - tx * 2.2, z - tz * 2.2),
@@ -281,6 +292,191 @@ export function streetDressingInstances(
           yawToward(-ox, -oz),
           ctx.height(x, z) + KERB_H,
         );
+      }
+    }
+  }
+
+  // --- plaza islands: lamps along the long ones, spectators at the headwall parapets --------------
+  if (ctx.islands && ctx.islandTop) {
+    const top = ctx.islandTop;
+    const islandRq = newRoadQuery();
+    ctx.islands.forEach((il, ii) => {
+      if (il.kind === 'painted') return;
+      const n = il.pts.length / 2;
+      let cx = 0;
+      let cz = 0;
+      for (let i = 0; i < n; i++) {
+        cx += il.pts[2 * i] / n;
+        cz += il.pts[2 * i + 1] / n;
+      }
+      // Principal axis of the outline (the long direction of a median / sidewalk strip).
+      let sxx = 0;
+      let sxz = 0;
+      let szz = 0;
+      for (let i = 0; i < n; i++) {
+        const dx = il.pts[2 * i] - cx;
+        const dz = il.pts[2 * i + 1] - cz;
+        sxx += dx * dx;
+        sxz += dx * dz;
+        szz += dz * dz;
+      }
+      const ang = 0.5 * Math.atan2(2 * sxz, sxx - szz);
+      const ax = Math.cos(ang);
+      const az = Math.sin(ang);
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let i = 0; i < n; i++) {
+        const t = (il.pts[2 * i] - cx) * ax + (il.pts[2 * i + 1] - cz) * az;
+        lo = Math.min(lo, t);
+        hi = Math.max(hi, t);
+      }
+      if (il.kind === 'island' && ctx.lampEvery && hi - lo >= ISLAND_LAMP_MIN) {
+        // Lamps down the middle of a long median, the arm across it.
+        const count = Math.max(
+          1,
+          Math.floor((hi - lo - 8) / ctx.lampEvery) + 1,
+        );
+        for (let k = 0; k < count; k++) {
+          const t = (lo + hi) / 2 + (k - (count - 1) / 2) * ctx.lampEvery;
+          const x = cx + ax * t;
+          const z = cz + az * t;
+          // Not over the stage road down in the tunnel (its collider would stand in the bore).
+          road.query(x, z, islandRq);
+          if (islandRq.found && islandRq.distance < islandRq.halfWidth + 2)
+            continue;
+          place('street_lamp', 0, x, z, yawToward(-az, ax), top(x, z));
+        }
+      }
+      if (il.kind === 'sidewalk' && rule.spectators) {
+        // The edge facing the stage road (the headwall parapet over the trench): a row of spectators looking down.
+        const rng = new Rng(hash3(ii, 97, 13, ctx.seed));
+        const samples: { x: number; z: number; d: number }[] = [];
+        for (let i = 0; i < n; i++) {
+          const x0 = il.pts[2 * i];
+          const z0 = il.pts[2 * i + 1];
+          const x1 = il.pts[(2 * i + 2) % il.pts.length];
+          const z1 = il.pts[(2 * i + 3) % il.pts.length];
+          const l = Math.hypot(x1 - x0, z1 - z0);
+          for (let s = 0; s < l; s += PARAPET_SPACING) {
+            const x = x0 + ((x1 - x0) * s) / l;
+            const z = z0 + ((z1 - z0) * s) / l;
+            samples.push({ x, z, d: nearRoad(x, z).d });
+          }
+        }
+        const near = Math.min(...samples.map((s) => s.d));
+        for (const s of samples) {
+          if (s.d > near + 2 || !rng.chance(0.6)) continue;
+          // 0.7 m in from the edge, towards the middle of the strip.
+          const l = Math.hypot(cx - s.x, cz - s.z) || 1;
+          const x = s.x + ((cx - s.x) / l) * 0.7;
+          const z = s.z + ((cz - s.z) / l) * 0.7;
+          const r = nearRoad(x, z);
+          place(
+            'spectator',
+            rng.int(0, 5),
+            x,
+            z,
+            yawToward(r.x - x, r.z - z) + rng.range(-0.4, 0.4),
+            top(x, z) + 0.03,
+          );
+        }
+      }
+    });
+  }
+
+  // --- junction areas: signal poles over the nearest street, census street trees, sidewalk lamps ---
+  if (ctx.islandTop && net) {
+    const top = ctx.islandTop;
+    const sq = newPathQuery();
+    const sp = { x: 0, z: 0 };
+    const sig = ctx.signals ?? [];
+    for (let i = 0; i + 1 < sig.length; i += 2) {
+      const x = sig[i];
+      const z = sig[i + 1];
+      net.query(x, z, sq, 'tarmac', (qi) => !MAINLINE.has(net.paths[qi].kind));
+      if (!sq.found) continue;
+      net.pointAt(sq.path, sq.along, sp);
+      // The node lies on the street centre in OSM: the pole stands at the kerb, the arm (+Z) over the street.
+      const dx = sp.x - x;
+      const dz = sp.z - z;
+      const d = Math.hypot(dx, dz);
+      let px = x;
+      let pz = z;
+      let yaw: number;
+      if (d < 1) {
+        const q = { x: 0, z: 0 };
+        net.pointAt(sq.path, Math.min(net.lengths[sq.path], sq.along + 1), q);
+        const tl = Math.hypot(q.x - sp.x, q.z - sp.z) || 1;
+        const ox = (q.z - sp.z) / tl;
+        const oz = -(q.x - sp.x) / tl;
+        const off = sq.halfWidth + 0.6;
+        px = sp.x + ox * off;
+        pz = sp.z + oz * off;
+        yaw = yawToward(-ox, -oz);
+      } else yaw = yawToward(dx, dz);
+      if (ctx.blocked(px, pz, 0.4)) continue;
+      place('traffic_signal', 0, px, pz, yaw, top(px, pz));
+    }
+    const tr = ctx.trees ?? [];
+    for (let i = 0; i + 2 < tr.length; i += 3) {
+      const x = tr[i];
+      const z = tr[i + 1];
+      // Trunk diameter (inch) -> size: a 4" sapling is small, a 30" plane tree full grown.
+      const s = Math.min(1.2, Math.max(0.45, 0.35 + tr[i + 2] / 30));
+      const rng = new Rng(
+        hash3(Math.round(x * 10), Math.round(z * 10), 5, ctx.seed),
+      );
+      out.push({
+        asset: 'oak_tree',
+        variant: rng.int(0, 3),
+        x,
+        y: top(x, z),
+        z,
+        rotY: rng.range(0, Math.PI * 2),
+        scale: s,
+        tiltX: 0,
+        tiltZ: 0,
+      });
+    }
+  }
+  if (ctx.islands && ctx.islandTop && ctx.lampEvery && net) {
+    // Lamps along the street side of the area's sidewalks, 0.6 m in from the kerb.
+    const top = ctx.islandTop;
+    const lq = newRoadQuery();
+    for (const il of ctx.islands) {
+      if (il.kind !== 'sidewalk') continue;
+      const n = il.pts.length / 2;
+      let next = 0;
+      for (let i = 0; i < n; i++) {
+        const x0 = il.pts[2 * i];
+        const z0 = il.pts[2 * i + 1];
+        const x1 = il.pts[(2 * i + 2) % il.pts.length];
+        const z1 = il.pts[(2 * i + 3) % il.pts.length];
+        const l = Math.hypot(x1 - x0, z1 - z0);
+        for (let s = next; s < l; s += ctx.lampEvery) {
+          next = s + ctx.lampEvery - l;
+          const tx = (x1 - x0) / l;
+          const tz = (z1 - z0) / l;
+          // Inward normal (the ring may run either way): towards the island's inside.
+          let nx = -tz;
+          let nz = tx;
+          const mx = x0 + tx * s;
+          const mz = z0 + tz * s;
+          const probe = (k: number) =>
+            ctx.islandTop!(mx + nx * k, mz + nz * k) -
+            ctx.islandTop!(mx - nx * k, mz - nz * k);
+          if (probe(0.5) < 0) [nx, nz] = [-nx, -nz];
+          const x = mx + nx * 0.6;
+          const z = mz + nz * 0.6;
+          // Only on a street edge (a street ribbon beside it), never over the stage road below.
+          net.query(mx - nx * 2, mz - nz * 2, sq2, 'tarmac');
+          if (!sq2.found || sq2.distance > sq2.halfWidth + 1.5) continue;
+          road.query(x, z, lq);
+          if (lq.found && lq.distance < lq.halfWidth + 2) continue;
+          if (ctx.blocked(x, z, 0.5)) continue;
+          place('street_lamp', 0, x, z, yawToward(-nx, -nz), top(x, z));
+        }
+        if (next < 0) next = 0;
       }
     }
   }

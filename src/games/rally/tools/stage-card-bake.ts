@@ -12,18 +12,17 @@ import { getAssetMeta } from '../assets/catalog';
 import { Environment } from '../engine/environment';
 import type { QualitySettings } from '../engine/quality';
 import { worldUniforms } from '../engine/world-shading';
-import { ALL_MAPS } from '../maps';
+import { getMap, loadMap } from '../maps';
 import { AerialTerrain } from '../world/aerial-terrain';
 import { AerialTrees } from '../world/aerial-trees';
 import { InstanceStreamer } from '../world/instance-streamer';
 import { roadMeshJob } from '../world/road-mesh';
-import { setGroundTint } from '../world/terrain-material';
+import { setGroundMoisture, setGroundTint } from '../world/terrain-material';
 import { TerrainGrid } from '../world/terrain-renderer';
 import { RENDER_MARGIN, World } from '../world/world';
 import {
   CARD_MARGIN,
   encodeHeights,
-  isLargeMap,
   mapHash,
   STAGE_CARD_VERSION,
   type StageCardData,
@@ -52,9 +51,8 @@ export async function bakeStageCard(
   mapId: string,
   log: (s: string) => void = console.info,
 ): Promise<string> {
-  const map = ALL_MAPS.find((m) => m.id === mapId);
-  if (!map) throw new Error(`unknown map ${mapId}`);
-  if (!isLargeMap(map)) return `${mapId}: small map, built live - no card`;
+  if (getMap(mapId).id !== mapId) throw new Error(`unknown map ${mapId}`);
+  const map = await loadMap(mapId);
   const t0 = performance.now();
   log(`${mapId}: world`);
   await breathe();
@@ -113,6 +111,7 @@ export async function bakeStageCard(
   scene.fog = null;
   env.sky.visible = false;
   setGroundTint(map.environment.groundTint);
+  setGroundMoisture(world.moisture);
 
   const content = new Group();
   scene.add(content);

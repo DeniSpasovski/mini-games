@@ -8,3 +8,7 @@ skills-lock.json
 
 # Generated real-world map data (scripts/realmap/bake.py)
 src/games/rally/maps/*/data.json
+src/games/rally/maps/*/route.json
+src/games/rally/maps/*/horizon.json
+# Baked stage cards (tools/stage-card-bake.ts)
+src/games/rally/maps/*/preview/stage-card.json

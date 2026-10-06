@@ -4,7 +4,7 @@ import {
   Autopilot,
   finishStopControls,
 } from '../../src/games/rally/game/autopilot';
-import { ALL_MAPS } from '../../src/games/rally/maps';
+import { ALL_MAPS } from '../../src/games/rally/maps/all';
 import { PHYSICS_HZ, Vehicle } from '../../src/games/rally/physics/vehicle';
 import { newRoadQuery } from '../../src/games/rally/world/road';
 import { World } from '../../src/games/rally/world/world';

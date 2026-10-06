@@ -1,5 +1,5 @@
 import { describe, expect, test } from '@rstest/core';
-import { ALL_MAPS } from '../../src/games/rally/maps';
+import { ALL_MAPS } from '../../src/games/rally/maps/all';
 import { newPathQuery } from '../../src/games/rally/world/real-data';
 import { newRoadQuery } from '../../src/games/rally/world/road';
 import { signedDistance } from '../../src/games/rally/world/lakes';
@@ -23,6 +23,10 @@ describe.each(
     const fails: string[] = [];
     net.paths.forEach((p, ci) => {
       const L = net.lengths[ci];
+      // Shallower than a ditch (a 0.2 m brook): depth / freeboard limits scale with the channel, and roads cross it on a
+      // culvert whose embankment reaches further over it.
+      const s = Math.min(1, gen.channelDepth(ci) / 0.7);
+      const skip = s < 1 ? 16 : 8;
       let wet = 0;
       let n = 0;
       let minDepth = Infinity;
@@ -38,7 +42,7 @@ describe.each(
         )
           continue;
         const sq = gen.paths?.query(pt.x, pt.z, pq);
-        if (sq?.found && sq.distance < sq.halfWidth + 8) continue;
+        if (sq?.found && sq.distance < sq.halfWidth + skip) continue;
         n++;
         const w = gen.waterLevelAt(pt.x, pt.z);
         if (Number.isNaN(w)) continue;
@@ -58,6 +62,13 @@ describe.each(
           const z = pt.z - ((rqPt.x - pt.x) / tl) * hw * s;
           // Inside of a sharp bend the probe lands back in the channel: skip it.
           if (net.query(x, z, cq).distance < hw - 0.5) continue;
+          // At a confluence the probe lands in the other channel (its water / bank slope): not this one's bank.
+          const oq = net.query(x, z, cq, undefined, (qi) => qi !== ci);
+          if (
+            oq.found &&
+            oq.distance < gen.channelWaterHalfWidth(oq.path) / 0.675
+          )
+            continue;
           const fb = gen.height(x, z) - w;
           if (fb < minFreeboard)
             [minFreeboard, low] = [fb, `${x.toFixed(0)},${z.toFixed(0)}`];
@@ -66,7 +77,7 @@ describe.each(
       console.info(
         `[${map.id}] ${p.kind} #${ci} ${L.toFixed(0)} m: water on ${((wet / n) * 100).toFixed(0)}% (depth >= ${minDepth.toFixed(2)} m at ${shallow}, banks >= ${minFreeboard.toFixed(2)} m above at ${low})`,
       );
-      if (wet / n < 0.9 || minDepth < 0.3 || minFreeboard < 0.2)
+      if (wet / n < 0.9 || minDepth < 0.3 * s || minFreeboard < 0.2 * s)
         fails.push(`${p.kind} #${ci}`);
     });
     expect(fails).toEqual([]);

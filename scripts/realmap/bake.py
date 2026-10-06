@@ -16,10 +16,14 @@ that a MapDef imports (see src/games/rally/maps/ajvatovci/map.ts):
   - stage road  shortest drivable OSM path through the config waypoints (+ config "extraWays" for roads
                 OSM doesn't have, see trace_route.py)
                 -> smoothed Catmull-Rom control points
-  - paths       other OSM roads / tracks / canals (ribbons, splat paint, canal carving)
+  - paths       other OSM roads / tracks / canals (ribbons, splat paint, canal carving); config "waterways"
+                [{kind, note, pts: [[lat, lon], ...]}] adds streams OSM lacks (see dem_stream.py)
                 Side roads are cut a few metres short of the stage road; the game joins them to it and
                 closes the mouth with barriers (world/junctions.ts). Ways that only pass over / under the
                 stage road (no shared OSM node, e.g. a motorway under a bridge) get "junction": false.
+                Config "msRoads" {country, clearance, minLength, stageClearance?}: + roads OSM lacks from Microsoft
+                ML Road Detections (ODbL, see msroads.py), as dirt tracks; kept off OSM roads and railways, and
+                `stageClearance` m from the stage road (no new junctions on a finished stage).
   - buildings   OSM + Microsoft ML footprints as oriented boxes, typed house / flat, numbered along the
                 route (stable ids) -> also <map folder>/buildings.csv (see buildings.py)
   - power       OSM pylons + lines
@@ -50,12 +54,15 @@ from scipy.ndimage import gaussian_filter, map_coordinates
 from scipy.spatial import cKDTree
 
 import buildings as bld
+import msroads
 import overpass as ovp
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 CACHE = os.path.join(HERE, '.cache')
 UA = {'User-Agent': 'MiniGamePortal-rally-mapbaker/1.0'}
+# A way turning more than this at one node (deg) is split there (see add_way).
+HAIRPIN = 120
 
 
 # --- projection -------------------------------------------------------------------
@@ -134,6 +141,14 @@ def terrarium_sampler(lat0, lat1, lon0, lon1, z):
 def geotiff_sampler(path, member=None):
     """Local north-up WGS84 GeoTIFF (or a .tar.gz holding one) -> (f(lat[], lon[]) -> metres, bilinear;
     w(lat[], lon[]) -> 0..1 coverage weight, 0 outside, 1 more than `feather` px inside; label)."""
+    a, lon0, lat1, sx, sy = read_geotiff(path, member)
+    print(f'  local DEM {os.path.basename(path)}')
+    return raster_sampler(a, lon0, lat1, sx, sy)
+
+
+def read_geotiff(path, member=None):
+    """North-up WGS84 GeoTIFF (or a .tar.gz holding one) -> (float32 array, lon0, lat1, sx, sy): outer corner of
+    pixel (0, 0) and the pixel size in degrees."""
     if path.endswith(('.tar.gz', '.tgz', '.tar')):
         tf = tarfile.open(path)
         names = [m.name for m in tf.getmembers() if m.name.lower().endswith(('.tif', '.tiff'))]
@@ -144,9 +159,7 @@ def geotiff_sampler(path, member=None):
     sx, sy = im.tag_v2[33550][:2]  # ModelPixelScale (deg / px)
     tie = im.tag_v2[33922]  # ModelTiepoint: raster (i, j) -> (lon, lat)
     lon0, lat1 = tie[3] - tie[0] * sx, tie[4] + tie[1] * sy  # outer corner of pixel (0, 0)
-    a = np.asarray(im).astype(np.float32)
-    print(f'  local DEM {os.path.basename(path)}')
-    return raster_sampler(a, lon0, lat1, sx, sy)
+    return np.asarray(im).astype(np.float32), lon0, lat1, sx, sy
 
 
 def usgs3dep_sampler(lat0, lat1, lon0, lon1, cell_m):
@@ -323,6 +336,27 @@ def load_osm(lat0, lat1, lon0, lon1):
         t = {k.get('k'): k.get('v') for k in rel.iter('tag')}
         mem = [(m.get('type'), m.get('ref'), m.get('role')) for m in rel.iter('member')]
         rels.append({'tags': t, 'members': mem})
+    return nodes, ntags, ways, rels
+
+
+def merge_osm(parts):
+    """Merge OSM downloads (nodes, ntags, ways, rels) of several boxes: the first one that has an element wins."""
+    if len(parts) == 1:
+        return parts[0]
+    nodes, ntags, ways, rels = {}, {}, {}, []
+    seen = set()
+    for n, nt, w, r in parts:
+        for k, v in n.items():
+            nodes.setdefault(k, v)
+        for k, v in nt.items():
+            ntags.setdefault(k, v)
+        for k, v in w.items():
+            ways.setdefault(k, v)  # the API returns whole ways (all their nodes): any box's copy is complete
+        for rel in r:
+            key = json.dumps(rel, sort_keys=True)
+            if key not in seen:
+                seen.add(key)
+                rels.append(rel)
     return nodes, ntags, ways, rels
 
 
@@ -613,7 +647,7 @@ def rle_b64(a):
 # --- land cover ---------------------------------------------------------------------------
 
 # Cover classes. Zones 0..len-1 are these; orchard zones with their own row angle follow.
-COVERS = ['grass', 'crop', 'shrub', 'pine', 'trees', 'orchard', 'urban', 'industrial', 'bare', 'water', 'vineyard', 'cemetery']  # fmt: skip
+COVERS = ['grass', 'crop', 'shrub', 'pine', 'trees', 'orchard', 'urban', 'industrial', 'bare', 'water', 'vineyard', 'cemetery', 'hazelnut']  # fmt: skip
 C = {c: i for i, c in enumerate(COVERS)}
 WC_MAP = {10: 'trees', 20: 'shrub', 30: 'grass', 40: 'crop', 50: 'urban', 60: 'bare', 80: 'water', 90: 'grass', 95: 'trees', 100: 'grass'}  # fmt: skip
 OSM_COVER = {
@@ -700,22 +734,25 @@ def landcover(cfg, proj, nodes, ways, rels, wc_sample, raw_dem):
             # Hill woods: conifer plantations by default; config landcover.highTrees = "trees" keeps broadleaf.
             cover[sel] = C[lc.get('highTrees', 'pine')]
         elif lc.get('plainOrchards', True) and area > 12000 and elev[sel].mean() < plain + 30:
-            # Large lowland tree patch = orchard (farmland maps); config landcover.plainOrchards = false keeps real woods.
-            cover[sel] = C['orchard']
+            # Large lowland tree patch = orchard (farmland maps); config landcover.plainOrchards = false keeps real woods,
+            # landcover.plainTreesAs = "shrub" makes them scrub (a valley of bushes with lone tall trees).
+            cover[sel] = C[lc.get('plainTreesAs', 'orchard')]
 
-    # Orchard zones with a row direction (long side of the min-area rectangle).
+    # Orchard zones (fruit + hazelnut, `hazelnut` only from manualCover) with a row direction (long side of the
+    # min-area rectangle).
     zones = [{'cover': c} for c in COVERS]
     zid = cover.astype(np.int32)
-    orch = (cover == C['orchard']).astype(np.uint8)
-    n, lab, stats, _ = cv2.connectedComponentsWithStats(orch, connectivity=8)
-    for i in range(1, n):
-        if stats[i, cv2.CC_STAT_AREA] < 20 or len(zones) >= 255:
-            continue
-        ys, xs = np.nonzero(lab == i)
-        (cx, cy), (w, h), ang = cv2.minAreaRect(np.stack([xs, ys], 1).astype(np.float32))
-        a = math.radians(ang if w >= h else ang + 90)
-        zones.append({'cover': 'orchard', 'angle': round(a % math.pi, 3)})
-        zid[lab == i] = len(zones) - 1
+    for kind in ('orchard', 'hazelnut'):
+        orch = (cover == C[kind]).astype(np.uint8)
+        n, lab, stats, _ = cv2.connectedComponentsWithStats(orch, connectivity=8)
+        for i in range(1, n):
+            if stats[i, cv2.CC_STAT_AREA] < 20 or len(zones) >= 255:
+                continue
+            ys, xs = np.nonzero(lab == i)
+            (cx, cy), (w, h), ang = cv2.minAreaRect(np.stack([xs, ys], 1).astype(np.float32))
+            a = math.radians(ang if w >= h else ang + 90)
+            zones.append({'cover': kind, 'angle': round(a % math.pi, 3)})
+            zid[lab == i] = len(zones) - 1
     return zid.astype(np.uint8), zones, cover, wc
 
 
@@ -823,6 +860,10 @@ def main():
         return min(la0, la1), max(la0, la1), lo0, lo1
 
     det, out_g, lcc = cfg['detail'], cfg['outer'], cfg['landcover']
+    # OSM download boxes: config "osmBoxes" (default: the land cover box). Each box is downloaded / cached on its
+    # own and merged, the first box winning: a map grows by ADDING a box for the new strip, so the cached data of the
+    # old area (route, roads, buildings) stays exactly as it was. Everything is then clipped to the land cover box.
+    osm_boxes = cfg.get('osmBoxes', [lcc['extent']])
     print('elevation...')
     dem_cfg = cfg.get('dem')
     elev_credit = 'Elevation: AWS Terrain Tiles (Terrarium; SRTM / EU-DEM derived)'
@@ -856,11 +897,11 @@ def main():
     print('osm...')
     use_overpass = cfg.get('osm', {}).get('source') == 'overpass'
     if use_overpass:
-        osm = ovp.load_base(ll_box(lcc['extent'], 150), CACHE)
+        osm = merge_osm([ovp.load_base(ll_box(b, 150), CACHE) for b in osm_boxes])
         nodes, ntags, ways, rels = osm
         print(f'  base: {len(nodes)} nodes, {len(ways)} ways, {len(rels)} relations')
     else:
-        nodes, ntags, ways, rels = load_osm(*ll_box(lcc['extent'], 150))
+        nodes, ntags, ways, rels = merge_osm([load_osm(*ll_box(b, 150)) for b in osm_boxes])
     print('worldcover...')
     wc_sample = worldcover_sampler(*ll_box(lcc['extent'], 60))
 
@@ -922,6 +963,8 @@ def main():
     # over / under (bridge, no shared node) don't. Traced parts of the route (extraWays) have no OSM nodes,
     # so there any road reaching the line counts.
     route_nodes = set(route_ids)
+    # Segments of the stage route (both directions): a way the route follows for a stretch keeps the rest.
+    route_segs = {(a, b) for a, b in zip(route_ids, route_ids[1:])} | {(b, a) for a, b in zip(route_ids, route_ids[1:])}
     traced = np.array([proj.fwd(la, lo) for w in cfg.get('extraWays', ()) for la, lo in w['pts']]).reshape(-1, 2)
     traced_kd = cKDTree(resample(traced, 5.0)) if len(traced) > 1 else None
     no_junction = 0
@@ -930,12 +973,31 @@ def main():
     corridor = pcfg.get('corridor')  # keep other roads only this close to the stage road (m); None = all
     hw_corridor = pcfg.get('highwayCorridor', corridor)  # same for motorway / trunk (+ links)
     big_kinds = ('motorway', 'motorway_link', 'trunk', 'trunk_link')
-    for w in ways.values():
-        t = w['tags']
+    def add_way(t, refs, pts=None, detected=False, branch=False):
+        """One road / water way -> runs of `paths` (cut short of the stage road unless grade-separated)."""
+        # A way folding back on itself (a V drawn as one way, > HAIRPIN deg at a node) or coming back to one of its own
+        # nodes (a "P": a street looping round a block back onto itself): split there into ways meeting at that node,
+        # each with its own surface - one ribbon passing a spot twice is two heights in one place.
+        if pts is None and len(refs) > 2:
+            xy = np.array([proj.fwd(*nodes[r]) for r in refs])
+            a, b = xy[1:-1] - xy[:-2], xy[2:] - xy[1:-1]
+            na, nb = np.linalg.norm(a, axis=1), np.linalg.norm(b, axis=1)
+            cos = (a * b).sum(1) / np.maximum(na * nb, 1e-9)
+            folds = {int(k) + 1 for k in np.nonzero((cos < math.cos(math.radians(HAIRPIN))) & (na > 1e-6) & (nb > 1e-6))[0]}
+            seen = {}
+            for k, r in enumerate(refs):
+                if r in seen and not (seen[r] == 0 and k == len(refs) - 1):  # a closed ring is fine
+                    folds |= {seen[r], k}
+                seen.setdefault(r, k)
+            folds = sorted(k for k in folds if 0 < k < len(refs) - 1)
+            if folds:
+                for s, e in zip([0] + folds, folds + [len(refs) - 1]):
+                    add_way(t, refs[s : e + 1], detected=detected, branch=branch)
+                return
         hw, ww = t.get('highway'), t.get('waterway')
         is_tunnel = t.get('tunnel') in ('yes', 'building_passage', 'culvert') and ww is None
         if is_tunnel and hw not in big_kinds + ('primary', 'secondary'):
-            continue  # underground: nothing to draw on the surface
+            return  # underground: nothing to draw on the surface
         if hw in widths:
             kind = hw
             width = float(t.get('width', widths[hw]).split()[0]) if t.get('width', '').replace('.', '').isdigit() else widths[hw]  # fmt: skip
@@ -945,17 +1007,39 @@ def main():
             surf = t.get('surface')
             asphalt = surf in paved if surf else hw not in ('track', 'path', 'footway')
             surface = 'tarmac' if asphalt else 'dirt'
-        elif ww in ('canal', 'drain', 'ditch', 'stream', 'river'):
+        elif ww in ('canal', 'drain', 'ditch', 'stream', 'river', 'brook'):
             kind = ww
-            width = {'canal': 7, 'drain': 5, 'ditch': 2.5, 'stream': 3, 'river': 12}[ww]
+            width = {'canal': 7, 'drain': 5, 'ditch': 2.5, 'stream': 3, 'river': 12, 'brook': 1}[ww]
             surface = 'water'
         else:
-            continue
-        pts = np.array([proj.fwd(*nodes[r]) for r in w['refs']])
+            return
+        if pts is None:
+            pts = np.array([proj.fwd(*nodes[r]) for r in refs])
         if len(pts) < 2:
-            continue
-        if surface != 'water' and sum(r in route_nodes for r in w['refs']) >= 2:
-            continue  # a piece of the stage road itself (the route follows it)
+            return
+        if surface != 'water' and not branch and sum(r in route_nodes for r in refs) >= 2:
+            # The route follows this way for a stretch: only that stretch is the stage road. The parts before / after
+            # it are kept as roads of their own ("branches"), ending short of the stage road WITHOUT a junction (no
+            # mouth / barrier added to a finished stage) - except near the start / finish (start row, hilltop).
+            if any((a, b) in route_segs for a, b in zip(refs, refs[1:])):
+                run = [refs[0]]
+                runs = []
+                for a, b in zip(refs, refs[1:]):
+                    if (a, b) in route_segs:
+                        if len(run) > 1:
+                            runs.append(run)
+                        run = [b]
+                    else:
+                        run.append(b)
+                if len(run) > 1:
+                    runs.append(run)
+                for r in runs:
+                    rp = np.array([proj.fwd(*nodes[x]) for x in r])
+                    dd, ii = route_kd.query(rp)
+                    at = float(acc[ii[dd.argmin()]])
+                    if min(at, acc[-1] - at) > 60:
+                        add_way(t, r, branch=True)
+            return  # a piece of the stage road itself (the route follows it)
         pts = resample(pts, 4.0)
         d, ri = route_kd.query(pts)
         # Beside the stage road and parallel to it all along (the sunken service lanes of a parkway, e.g. the inner
@@ -967,7 +1051,7 @@ def main():
             cos = np.abs((rt * wt).sum(1)) / (np.linalg.norm(rt, axis=1) * np.linalg.norm(wt, axis=1) + 1e-9)
             beside = float(np.mean(cos > 0.95)) > 0.8 and float(np.percentile(d, 10)) > stage_hw + 0.5
         if is_tunnel and (np.percentile(d, 10) > 40 or (hw not in big_kinds and not beside)):
-            continue  # a tunnel away from the stage road (or a street crossing under it)
+            return  # a tunnel away from the stage road (or a street crossing under it)
         # The stage road runs through its own tunnels as an `under` span (portal structure); the other carriageway
         # of the divided highway beside it is kept as an ordinary path in that trench, else it ends at the portal.
         is_deck = t.get('bridge') not in (None, 'no')
@@ -980,10 +1064,13 @@ def main():
             room = 2 * (float(np.percentile(d, 10)) - stage_hw - 0.9)
             width = min(width, max(6.0, room))
         # Cut by the stage road without being connected to it: grade-separated, not a junction.
-        joins = any(r in route_nodes for r in w['refs']) or (
+        # A detected road (msRoads) has no OSM nodes: reaching the stage road is a junction, like a traced part.
+        # A branch (rest of a way the route follows) is never a junction: it stays clear of the finished stage.
+        joins = not branch and (detected or any(r in route_nodes for r in refs) or (
             traced_kd is not None and traced_kd.query(pts[near])[0].min(initial=1e9) < 30
-        )
+        ))
         flag = surface != 'water' and near.any() and not joins
+        nonlocal no_junction
         no_junction += flag
         # Every other road is cut short of the stage road (the game joins it to it) - except bridge decks
         # (an overpass spans the stage road) and streets under a stage-road bridge: they run across it.
@@ -1022,6 +1109,41 @@ def main():
                 run = []
         if len(run) > 1:
             paths.append((kind, width, surface, np.array(run), flag, extra))
+    for w in ways.values():
+        add_way(w['tags'], w['refs'])
+    # Roads OSM lacks (Microsoft ML Road Detections): untagged, so treated as dirt tracks.
+    ms_cfg = cfg.get('msRoads')
+    ms_runs = []
+    if ms_cfg:
+        lines = [np.array([proj.fwd(la, lo) for lo, la in c]) for c in msroads.load(ms_cfg['country'], CACHE, fetch, ll_box(ext, 300))]
+        # Railways count as known too: the imagery detections often trace a track bed as a "road".
+        rails_known = [np.array(r['pts']).reshape(-1, 2) for r in railway_lines(ways, nodes, proj, ext)]
+        known = [p for _, _, s, p, _, _ in paths if s != 'water'] + [smooth] + rails_known
+        ms_runs = msroads.missing_roads(lines, known, resample, ms_cfg.get('clearance', 15.0), ms_cfg.get('minLength', 40.0))
+        # Optional "stageClearance" (m): cut detections back from the stage road - no new junctions on a finished stage.
+        if ms_cfg.get('stageClearance'):
+            keep_d, trimmed = ms_cfg['stageClearance'], []
+            for run in ms_runs:
+                far = route_kd.query(run)[0] > keep_d
+                i = 0
+                while i < len(run):
+                    if not far[i]:
+                        i += 1
+                        continue
+                    j = i
+                    while j + 1 < len(run) and far[j + 1]:
+                        j += 1
+                    piece = run[i : j + 1]
+                    if len(piece) > 1 and np.linalg.norm(np.diff(piece, axis=0), axis=1).sum() >= ms_cfg.get('minLength', 40.0):
+                        trimmed.append(piece)
+                    i = j + 1
+            ms_runs = trimmed
+        for run in ms_runs:
+            add_way({'highway': 'track'}, (), run, detected=True)
+        print(f'  msRoads: {len(lines)} detections, {len(ms_runs)} roads OSM lacks ({sum(float(np.linalg.norm(np.diff(r, axis=0), axis=1).sum()) for r in ms_runs) / 1000:.1f} km)')
+    # Water ways OSM lacks (config "waterways", e.g. from dem_stream.py): added last, so the other paths keep their index.
+    for w in cfg.get('waterways', ()):
+        add_way({'waterway': w.get('kind', 'stream')}, (), np.array([proj.fwd(la, lo) for la, lo in w['pts']]))
     print(f'  {no_junction} way(s) pass the stage road without a junction (bridge / not connected)')
 
     def simplify(p, tol=0.4):
@@ -1078,6 +1200,14 @@ def main():
         if w['tags'].get('power') in ('line', 'minor_line'):
             lines.append(np.array([proj.fwd(*nodes[r]) for r in w['refs']]).round(1).ravel().tolist())
     railways = railway_lines(ways, nodes, proj, ext)
+    # Config "railways.drop": [{"service": [...], "box": [x0, x1, z0, z1]}] - leave out tracks of those services lying
+    # wholly inside the box (e.g. the spur fan of a freight yard: the track bed cannot level a yard of parallel tracks).
+    for rule in cfg.get('railways', {}).get('drop', []):
+        x0, x1, z0, z1 = rule['box']
+        inside = lambda r: all(x0 <= x <= x1 and z0 <= z <= z1 for x, z in zip(r['pts'][0::2], r['pts'][1::2]))  # noqa: E731
+        before = len(railways)
+        railways = [r for r in railways if not (r.get('service', 'main') in rule['service'] and inside(r))]
+        print(f'  railways.drop {rule["service"]} in {rule["box"]}: {before - len(railways)} left out')
     print(f'  {len(railways)} railway way(s), {sum(1 for r in railways if r.get("electrified"))} electrified')
 
     data = {
@@ -1090,7 +1220,8 @@ def main():
                 'Land cover: ESA WorldCover 10 m 2021 v200 (CC BY 4.0)',
                 'Roads, railways, land use, buildings, power: (c) OpenStreetMap contributors (ODbL)',
             ]
-            + ms_credit,
+            + ms_credit
+            + ([msroads.CREDIT] if ms_runs else []),
             'axes': '+X east, +Z south (north = -Z), metres from origin',
             'routeLength': round(length, 1),
         },
@@ -1120,6 +1251,10 @@ def main():
     out = os.path.join(ROOT, cfg['out'])
     with open(out, 'w') as f:
         json.dump(data, f, separators=(',', ':'))
+    # route.json (next to data.json): the small part that is loaded eagerly (meta, route, railways) - menus' route outline
+    # (maps/<id>/info.ts) and the hand-modelled landmarks (world/landmarks.ts); data.json is a lazy chunk
+    with open(os.path.join(os.path.dirname(out), 'route.json'), 'w') as f:
+        json.dump({k: data[k] for k in ('meta', 'route', 'railways') if k in data}, f, separators=(',', ':'))
     print(f'wrote {os.path.relpath(out, ROOT) if os.path.splitdrive(out)[0] == os.path.splitdrive(ROOT)[0] else out} ({os.path.getsize(out) / 1024:.0f} KB) in {time.time() - t0:.1f} s')
     print(f'  {len(path_json)} paths, {len(buildings["rows"])} buildings, {len(pylons)} pylons, {len(zones)} zones')
 

@@ -1,11 +1,14 @@
 import { buildingsFromData, routePoints, routeSpans } from '../shared/real-map';
 import type {
   HeightmapDef,
+  HorizonDef,
   LandcoverDef,
   MapDef,
   PathDef,
 } from '../shared/types';
 import data from './data.json';
+import horizon from './horizon.json';
+import { ajvatovciInfo as info } from './info';
 import { HILLTOP_FLATS } from './hilltop';
 import { STATION_FLAT } from './station';
 import { startRowPads } from './start-row';
@@ -45,44 +48,7 @@ const WILD = [
 ];
 
 export const ajvatovciMap: MapDef = {
-  id: 'ajvatovci',
-  name: 'Ajvatovci Hill',
-  year: 2026,
-  /** Recommended tyre (pre-selected on the car screen; see ../../PHYSICS.md). */
-  tyre: 'mixed',
-  description:
-    'Real-world stage near Ilinden, North Macedonia: from the A2 industrial zone across the plain and Ajvatovci village up the hill. Narrow dusty tarmac.',
-  seed: 4207,
-  geo: { lat: data.meta.origin[0], lon: data.meta.origin[1] },
-  credits: data.meta.sources,
-  sources: [
-    {
-      label: 'Google Maps route (start -> Ajvatovci Hill)',
-      url: 'https://www.google.com/maps/dir/42.0001365,21.5777226/42.0085904,21.6141518',
-      note: 'stage waypoints',
-    },
-    {
-      label: 'OpenStreetMap',
-      url: 'https://www.openstreetmap.org/copyright',
-      note: 'route, roads, railways, canals, land use, buildings, power lines - (c) OpenStreetMap contributors, ODbL',
-    },
-    {
-      label: 'AWS Terrain Tiles (Terrarium)',
-      url: 'https://registry.opendata.aws/terrain-tiles/',
-      note: 'elevation - SRTM / EU-DEM derived',
-    },
-    {
-      label: 'ESA WorldCover 10 m 2021 v200',
-      url: 'https://esa-worldcover.org/',
-      note: 'land cover - contains modified Copernicus Sentinel data (2021), CC BY 4.0',
-    },
-    {
-      label: 'Microsoft Global ML Building Footprints',
-      url: 'https://github.com/microsoft/GlobalMLBuildingFootprints',
-      note: 'building footprints where OSM has none, ODbL',
-    },
-  ],
-  stageNumber: 1,
+  ...info,
   // Plain instanced boxes (house / flat): the baked `kind` (mesh buildings with facades) is left out so
   // the ~6 500 buildings of the Ilinden / Marino background stay cheap and the stage keeps its look.
   buildings: buildingsFromData({ ...data.buildings, kinds: undefined }),
@@ -95,9 +61,8 @@ export const ajvatovciMap: MapDef = {
   // The hilltop: the church of St. Peter and St. Paul + bell tower at the finish, the playground court.
   // Ilinden railway station west of the start: building, platforms, crossing.
   landmarks: ['ajvatovci-start-row', 'ajvatovci-hilltop', 'ajvatovci-station'],
-  // Stage + free-drive background: Ilinden town / A2 (west, south-west) and Marino (south). The baked
-  // detail heights / land cover / roads / buildings cover this box (scripts/realmap/ajvatovci.json).
-  bounds: { minX: -4300, maxX: 2600, minZ: -1450, maxZ: 3500 },
+  // Far land around the map (terrain + land cover) as a backdrop: scripts/realmap/horizon.py.
+  horizon: horizon as HorizonDef,
   terrain: {
     baseHeight: 0,
     // Shift so the start (232 m above sea level) sits near y = 0.
@@ -166,7 +131,6 @@ export const ajvatovciMap: MapDef = {
     // The Aracinovo canal bridge (OSM bridge=yes): a deck over the lowered channel, abutments + parapets.
     spans: routeSpans(data.routeSpans),
   },
-  stage: { start: 40, finishFromEnd: 150, splits: 3 },
   scatter: [
     // Black pine plantations on the hills.
     {
@@ -453,6 +417,7 @@ export const ajvatovciMap: MapDef = {
   // Marshals / onlookers behind the closed junction mouths.
   streetDressing: { spectators: { perJunction: 4, reach: 400 } },
   // Every side road / track meeting the stage road is closed with barriers (as on a real stage).
+  cornerFans: {},
   junctionBarriers: { asset: 'road_barrier', length: 2.2, setback: 4 },
   // Start / finish gantries, lines and split boards come from `stage` (world/stage-signs.ts).
   // Village name boards where the road enters / leaves Ajvatovci (facing the driver coming in).
@@ -468,18 +433,4 @@ export const ajvatovciMap: MapDef = {
       rotY: 180,
     })),
   ],
-  environment: {
-    sunElevation: 40,
-    // Afternoon sun from the south-west (azimuth from +Z towards +X; +Z = south).
-    sunAzimuth: 315,
-    // Spring morning: low sun in the east (~22 deg) - the stage drives towards it up to the hill. ?tod=<hours> to try.
-    timeOfDay: 7.5,
-    turbidity: 6,
-    rayleigh: 1.5,
-    fogColor: '#c3c9cf',
-    fogDensity: 0.00042,
-    exposure: 0.88,
-    // Spring: fresh green meadows and young crops, golden wheat parcels.
-    groundTint: { grass: '#65952f', amount: 0.8, crop: '#c49c36' },
-  },
 };

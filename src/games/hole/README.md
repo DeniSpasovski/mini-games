@@ -46,6 +46,5 @@ Pick a difficulty and a hole colour, then drag to steer. Add `?map=toy` for the 
 | ------------------------------ | ------------------------------------------------------------------------------------------- |
 | [`DETAILS.md`](DETAILS.md)     | rules, level / size tables, scoring, item catalog, map generator, debug tools, architecture |
 | [`TOY-STORE.md`](TOY-STORE.md) | second map: design, asset roster, open tasks                                                |
-| [`TASKS.md`](TASKS.md)         | open tasks                                                                                  |
 
 Educational, non-commercial project; see the repository root for credits.

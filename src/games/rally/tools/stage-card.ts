@@ -56,11 +56,6 @@ export interface StageCardData {
   floor: string;
 }
 
-export function isLargeMap(map: MapDef): boolean {
-  const b = map.bounds;
-  return (b.maxX - b.minX) * (b.maxZ - b.minZ) > LARGE_MAP_AREA;
-}
-
 /**
  * The stage (start -> finish along the road) for the map view's orbit: centre (x, z) of its bounding box and size =
  * the diameter of its bounding sphere (box diagonal incl. the climb) plus a margin on both sides.
@@ -116,14 +111,27 @@ export function stagePoints(world: World, step = 4): Vector3[] {
 }
 
 /**
- * Hash of everything in a map definition (JSON; functions and `previewRelief` are skipped) - FNV-1a 32 bit, hex. Data-only: a change in
+ * Hash of everything in a map definition (JSON, sorted keys; functions and `previewRelief` are skipped) - FNV-1a 32 bit, hex. Data-only: a change in
  * the generators / renderers needs a `STAGE_CARD_VERSION` bump instead.
  */
 export function mapHash(map: MapDef): string {
   // `previewRelief` is applied at load time: changing it needs no re-bake.
-  const s = JSON.stringify(map, (k, v) =>
-    k === 'previewRelief' ? undefined : v,
-  );
+  // Keys are sorted (moving a property in a map file is no data change); `route` / `surfaces` come from the map's
+  // `MapInfo` and are derived from `road`. `horizon` (the far backdrop) is not on the card.
+  const s = JSON.stringify(map, (k, v) => {
+    if (
+      k === 'previewRelief' ||
+      k === 'route' ||
+      k === 'surfaces' ||
+      k === 'horizon'
+    )
+      return undefined;
+    if (v && typeof v === 'object' && !Array.isArray(v))
+      return Object.fromEntries(
+        Object.entries(v).sort(([a], [b]) => (a < b ? -1 : 1)),
+      );
+    return v;
+  });
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i);

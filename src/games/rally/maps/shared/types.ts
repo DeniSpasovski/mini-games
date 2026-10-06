@@ -18,6 +18,11 @@ export interface SourceLink {
   note?: string;
 }
 
+export interface PlazaIsland {
+  kind: 'island' | 'painted' | 'sidewalk';
+  pts: number[];
+}
+
 export interface MapDef {
   id: string;
   name: string;
@@ -40,12 +45,16 @@ export interface MapDef {
    */
   previewRelief?: number;
   terrain: TerrainDef;
+  /** Far land around a real map (terrain + land cover, no roads / buildings), drawn as a backdrop: world/horizon.ts. */
+  horizon?: HorizonDef;
   road: RoadDef;
   stage: StageDef;
   /** Procedural vegetation / rocks per terrain chunk. */
   scatter: ScatterRule[];
   /** Props placed along the road (posts, signs, bales, crowds...). */
   roadside: RoadsideRule[];
+  /** Fan groups (tape, spectators, flags) on the inside of tight corners along the whole stage: world/corner-fans.ts. */
+  cornerFans?: CornerFansRule;
   /** Continuous barriers along the road (Jersey wall, guard rail): one swept mesh, not separate props. */
   barriers?: BarrierRule[];
   /** City dressing (parked cars, spectators, police / fire vehicles) placed from the road network: world/street-dressing.ts. */
@@ -93,6 +102,31 @@ export interface MapDef {
    * ribbons / decks / parapets crossing each other (world/plazas.ts). Keep it off the open trench beyond the span.
    */
   junctionPlazas?: number[][];
+  /**
+   * Junction areas: outlines of the whole street space around a big junction (the slab top and ~40 m of each arm, from
+   * open street-surface data). Plazas whose surface is a height field (slab top on the slab, street heights where the
+   * streets leave, smooth between); they never cover the open cut of the highway (world/plazas.ts).
+   */
+  junctionAreas?: number[][];
+  /**
+   * Junction areas that keep the street ribbons (the road texture with its painted lines) over their paving: no generated
+   * lane markings there, the streets look like the ones leading to them. Same form as `junctionAreas`.
+   */
+  ribbonAreas?: number[][];
+  /**
+   * Islands on the junction plazas (world polygons `[x0, z0, x1, z1, ...]`): `island` = a raised kerbed traffic island /
+   * median, `sidewalk` = a raised paved strip, `painted` = a flat painted median (world/plazas.ts, plaza-mesh.ts).
+   */
+  plazaIslands?: PlazaIsland[];
+  /**
+   * Zebra crosswalks on and around the junction plazas (centre lines along the pedestrian path, `[x0, z0, x1, z1, ...]`,
+   * world m). When set, the plazas get no automatic crosswalk per street mouth (street-detail.ts).
+   */
+  plazaCrosswalks?: number[][];
+  /** Traffic signal poles on the junction areas (`[x0, z0, x1, z1, ...]`, world m): the mast arm turns over the nearest street. */
+  plazaSignals?: number[];
+  /** Street trees on the junction areas' sidewalks (`[x, z, trunk diameter in inches, ...]`, world m). */
+  plazaTrees?: number[];
   /** Hand-placed props. */
   props: PropPlacement[];
   /**
@@ -131,6 +165,35 @@ export interface MapDef {
    */
   landmarks?: string[];
 }
+
+/**
+ * The light part of a `MapDef`, always loaded: what the menus, stage select and URL defaults need. The full `MapDef`
+ * (baked terrain, buildings, roads) is loaded on demand by `loadMap` (maps/index.ts), so every extra map costs
+ * nothing until it is picked.
+ */
+export type MapInfo = Pick<
+  MapDef,
+  | 'id'
+  | 'name'
+  | 'year'
+  | 'description'
+  | 'tyre'
+  | 'gearing'
+  | 'seed'
+  | 'bounds'
+  | 'previewRelief'
+  | 'stage'
+  | 'environment'
+  | 'credits'
+  | 'sources'
+  | 'geo'
+  | 'stageNumber'
+> & {
+  /** Stage road control points [x, z] (menu route outline and length). */
+  route: number[][];
+  /** Surfaces along the road, in order (menu tags): `RoadDef.surface` then each `sections[].surface`. */
+  surfaces: SurfaceId[];
+};
 
 /**
  * A graded pad (a lot / yard): the terrain is levelled inside `polygon` and blends back to the land
@@ -203,6 +266,23 @@ export interface HeightGridDef {
  * Real elevation. Grids are listed fine -> coarse; the first grid containing a
  * point wins (blended near its edge). Noise layers are added on top as detail.
  */
+/** `scripts/realmap/horizon.py` output (the map folder's horizon.json). */
+export interface HorizonDef {
+  grids: {
+    originX: number;
+    originZ: number;
+    cell: number;
+    cols: number;
+    rows: number;
+    /** Absolute metres = base + value * step (int16 LE, base64); the map's heightmap offset is subtracted. */
+    base: number;
+    step: number;
+    heights: string;
+    /** Per cell 4 x 4 bit shares (uint16 LE, base64): trees, crops, built / bare, water; grass = the rest. */
+    cover: string;
+  }[];
+}
+
 export interface HeightmapDef {
   base: number;
   step: number;
@@ -322,6 +402,11 @@ export interface RoadSpan {
   from: number;
   to: number;
   layer?: number;
+  /**
+   * `under` only: skewed slab ends following the street on top - metres along the road per metre lateral (+ = left) of
+   * the headwall line at the start / end. The slab is only shortened: the end line passes through the corner it keeps.
+   */
+  skew?: [number, number];
 }
 
 export interface NoiseLayer {
@@ -617,6 +702,24 @@ export interface RoadsideRule {
   onBridge?: boolean;
 }
 
+export interface CornerFansRule {
+  /** Window length along the road (m, default 70): at most one group each, at the window's tightest point. */
+  every?: number;
+  /** Only corners tighter than this radius (m, default 60). */
+  maxRadius?: number;
+  /** Share of the windows that get a group if they hold a corner (0..1, default 0.5). */
+  chance?: number;
+  /** Spectators per group [min, max] (default [3, 8]). */
+  fans?: [number, number];
+  /** Share of the groups with 1-3 flags (default 0.6). */
+  flagChance?: number;
+  /** Tape line distance from the road edge (m, default 3.5); the fans stand 1.5-5.5 m behind it. */
+  tapeOffset?: number;
+  /** Stretch of road with groups (m along; default 150 m after the start to 150 m before the end). */
+  from?: number;
+  to?: number;
+}
+
 export interface PropPlacement {
   asset: string;
   /** Either world x/z ... */
@@ -676,7 +779,13 @@ export interface EnvironmentDef {
   /**
    * Recolour the terrain grass (keeps the texture's light/dark detail), e.g. golden dry
    * summer grass: { grass: '#c9b47a', amount: 0.85 }. `crop` = colour of ripe crop
-   * parcels (see `LandcoverDef.fields.palette`), default wheat gold.
+   * parcels (see `LandcoverDef.fields.palette`), default wheat gold. `moisture` = strength of the wet / dry grass
+   * variation (greener hollows and banks, straw ridges and slopes; world/ground-moisture.ts), default 1, 0 = off.
    */
-  groundTint?: { grass: string; amount?: number; crop?: string };
+  groundTint?: {
+    grass: string;
+    amount?: number;
+    crop?: string;
+    moisture?: number;
+  };
 }

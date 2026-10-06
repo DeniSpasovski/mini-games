@@ -74,6 +74,18 @@ export const skodaRally: CarDef = {
       note: 'press photos + dimensions used as shape reference (no model, no logos)',
     },
   ],
+  // 1.6 turbo four, open rally exhaust, anti-lag, straight-cut sequential box.
+  sound: {
+    layout: 'i4',
+    displacement: 1.6,
+    exhaust: 0.85,
+    intake: 0.4,
+    turbo: { antiLag: true },
+    pops: 0.5,
+    gearWhine: 0.9,
+    gearbox: 'sequential',
+    cam: 0.3,
+  },
   physics: {
     mass: 1230, // R5 minimum weight
     ...BODY,

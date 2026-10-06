@@ -1,5 +1,5 @@
 import { CatmullRomCurve3, Vector2, Vector3 } from 'three';
-import data from '../data.json';
+import data from '../route.json';
 
 /**
  * Coordinate frame of the start row. The lots are laid out in "site" metres around the Mileks

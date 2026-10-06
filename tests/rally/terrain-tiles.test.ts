@@ -1,6 +1,6 @@
 import { describe, expect, rs, test } from '@rstest/core';
 import { MeshBasicMaterial, Vector3 } from 'three';
-import { ALL_MAPS } from '../../src/games/rally/maps';
+import { ALL_MAPS } from '../../src/games/rally/maps/all';
 import { TerrainRenderer } from '../../src/games/rally/world/terrain-renderer';
 import { RENDER_MARGIN, World } from '../../src/games/rally/world/world';
 
@@ -8,6 +8,7 @@ import { RENDER_MARGIN, World } from '../../src/games/rally/world/world';
 rs.mock('../../src/games/rally/world/terrain-material', () => ({
   getTerrainMaterial: () => new MeshBasicMaterial(),
   setGroundTint: () => {},
+  setGroundMoisture: () => {},
 }));
 
 interface Tile {

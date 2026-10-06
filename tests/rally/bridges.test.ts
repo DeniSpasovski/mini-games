@@ -1,6 +1,6 @@
 import { describe, expect, test } from '@rstest/core';
 import { Vector3 } from 'three';
-import { ALL_MAPS } from '../../src/games/rally/maps';
+import { ALL_MAPS } from '../../src/games/rally/maps/all';
 import { newRoadQuery } from '../../src/games/rally/world/road';
 import { World } from '../../src/games/rally/world/world';
 import type { GroundSample } from '../../src/games/rally/physics/types';

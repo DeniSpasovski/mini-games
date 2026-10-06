@@ -90,7 +90,9 @@ const glassMat = new MeshStandardMaterial({
   envMapIntensity: 1.8,
   transparent: true,
   opacity: 0.45,
-  depthWrite: false,
+  // Writes depth: the glass draws before the dust (game/dust.ts renderOrder 2), so dust behind a window or
+  // drifting into the cabin is hidden instead of blending over the glass.
+  depthWrite: true,
   ...decal,
 });
 const interiorMat = new MeshStandardMaterial({
@@ -398,7 +400,7 @@ export class CarModel {
           envMapIntensity: 1.8,
           transparent: true,
           opacity: def.model.glass.opacity,
-          depthWrite: false,
+          depthWrite: true, // see glassMat
           ...decal,
         })
       : glassMat;
@@ -497,9 +499,14 @@ export class CarModel {
                 if (!mesh.isMesh) return;
                 const name = (mesh.material as Material).name;
                 const part = partMaterial(name);
-                mesh.material = part ?? mat;
+                // A car with its own glass tint (and a modelled cockpit) gets see-through windows.
+                mesh.material =
+                  name === 'glass' && def.model.glass
+                    ? carGlass
+                    : (part ?? mat);
                 // The cockpit sits inside the body's shadow: casting it only costs shadow-pass triangles.
-                if (name === 'interior') mesh.castShadow = false;
+                if (name === 'interior' || name === 'cage')
+                  mesh.castShadow = false;
                 if (!part && mesh.visible) painted.push(mesh);
               });
             } else {

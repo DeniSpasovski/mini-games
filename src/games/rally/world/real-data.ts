@@ -12,7 +12,7 @@ import type {
  * Pure TS (no DOM / three.js scene) so physics tests can use them.
  */
 
-function base64Bytes(b64: string): Uint8Array {
+export function base64Bytes(b64: string): Uint8Array {
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);

@@ -47,6 +47,13 @@ generated deterministically from it. There is no map editor on purpose — edit 
   -> forests/clearings), `scale`, `tilt`, `alignToGround`, `sink`, `detail` (grass: only near camera).
 - `roadside` rules: `every` m or `at: [metres]`, `side` (`outside` = outside of the bend), `offset` from edge,
   `maxRadius` (only in tight bends), `count/spread/depth` (crowds), `faceRoad`.
+- Real maps: grow the area by widening `detail` / `landcover` / `outer` extents and ADDING the new strips to
+  `osmBoxes` (each box is downloaded / cached on its own, the first wins: the old area's route, roads and building ids
+  stay identical - diff the old and new `data.json` to prove it). `railways.drop` leaves out tracks of given services
+  inside a box (a freight yard the track bed cannot level). Far backdrop: `python scripts/realmap/horizon.py <config>`.
+- `cornerFans: {}`: tape + spectators + flags on the inside of tight corners over the whole stage (`every`, `maxRadius`,
+  `chance`, `fans`, `flagChance`, `tapeOffset`; `world/corner-fans.ts`). Use it on rural stages; hand-placed crowds
+  (`roadside` `at`) stay for the big spots.
 - `props`: explicit, either `x/z` or `along` (+`lateral`, negative `along` = from the end).
 - Asset ids must exist in `assets/catalog.ts` (see the rally-content skill).
 
@@ -60,9 +67,10 @@ generated deterministically from it. There is no map editor on purpose — edit 
    click terrain -> "Drive from here").
 4. Drive: `/games/rally/?map=<id>&spawn=<metres>&mute=1` to test a section directly.
 5. **No sound while testing**: add `mute=1` to every game URL you open (see AGENTS.md "Sound while testing").
-6. **Stage card** (large maps, stage select): NEVER re-bake on your own - only when the user asks. Then
-   `/games/rally/?bakecard=<id>&mute=1` on the dev server (or `?bakecards=1`), wait for "saved", and the changed
-   `maps/<id>/preview/stage-card.{json,jpg}` go in the commit. An out-of-date card only warns in the dev console -
+6. **Stage card** (every map, stage select; a map without one is built live in the menu, dev warning): NEVER re-bake on your own - only when the user asks. Then
+   `/games/rally/?bakecard=<id>&mute=1` (or `?bakecards=1`) on `npm run dev:noreload` (launch config `portal-dev-noreload`;
+   on the normal server each saved card - or another session's edit - reloads the page and restarts / cuts off the bake),
+   wait for "saved", and the changed `maps/<id>/preview/stage-card.{json,jpg}` go in the commit. An out-of-date card only warns in the dev console -
    mention it to the user. Flat map: `previewRelief` (e.g. 1.8) needs no re-bake. Code: `tools/stage-card*.ts`.
 
 ## Real-world maps (OSM + elevation + land cover)
@@ -75,9 +83,11 @@ Example: `maps/ajvatovci/` (`map.ts`, baked `data.json`, task list `TODO.md`, so
    grids and the `landcover` (5 m) raster, `canopy` heights subtracted from the surface model, `minCornerRadius`.
    Optional: `dem` (`file` = local GeoTIFF or the OpenTopography `.tar.gz` in `sources/maps/<id>/`, `credit`) instead
    of Terrarium tiles - the detail grid must lie inside the file, the horizon grid falls back to Terrarium beyond it;
-   `landcover.highTrees` / `osmWood` = `"trees"` where the woods are broadleaf (default: pine plantations); `landcover.plainOrchards = false` keeps big lowland tree patches as woods (default: they become `orchard`, which only suits farmland maps - a city forest turns empty); `landcover.manualCover` = hand-traced lat / lon rings painted over the cover (orchards WorldCover reads as crops: fit the screenshot to the baked route line by ICP, see ajvatovci DETAILS.md "Traced land cover");
+   `landcover.highTrees` / `osmWood` = `"trees"` where the woods are broadleaf (default: pine plantations); `landcover.plainOrchards = false` keeps big lowland tree patches as woods (default: they become `orchard`, which only suits farmland maps - a city forest turns empty), `landcover.plainTreesAs = "shrub"` makes them scrub (a valley of bushes); `landcover.manualCover` = hand-traced lat / lon rings painted over the cover (orchards WorldCover reads as crops: fit the screenshot to the baked route line by ICP, see ajvatovci DETAILS.md "Traced land cover");
    `buildings.worldcover: true` generates houses on WorldCover built-up ground where no footprint data set covers
-   the area (source `wc` - say so in the map DETAILS.md); `buildings.manual` = known buildings by lat / lon.
+   the area (source `wc` - say so in the map DETAILS.md); `buildings.manual` = known buildings by lat / lon;
+   `msRoads: { country, clearance, minLength }` adds roads OSM lacks from Microsoft ML Road Detections (ODbL,
+   `msroads.py`, dirt tracks, needs pyarrow >= 21) - it finds side roads, not forest tracks under trees.
    **Check the route against the user's link** (overlay it on their screenshot): the shortest OSM path can take
    another road, and OSM may not have the road at all. Missing parts: `python scripts/realmap/trace_route.py
 scripts/realmap/<id>.json` (config `trace`: screenshot, start / end marker pixels, line colour) prints
@@ -93,16 +103,22 @@ scripts/realmap/<id>.json` (config `trace`: screenshot, start / end marker pixel
    `minPathDist` keeps trees off other roads / canals (default 1.5 m solid, 0.4 m grass). Other roads are carved
    flat on their own smoothed height line (`PATH_PROFILE` per OSM kind in `world/terrain-gen.ts`); a new road kind
    that should be smoother / steeper gets a row there. `tests/rally/side-roads.test.ts` checks them. Water ways
-   (canal / drain / river / stream / ditch, depth per kind in `CHANNEL_DEPTH`) are carved and filled with water
+   (canal / drain / river / stream / ditch / brook, depth per kind in `CHANNEL_DEPTH`; a `brook` - 1 m, 0.2 m deep, bake
+   config `waterways` kind - is crossed on culverts: roads fill over it) are carved and filled with water
    automatically (`world/water-mesh.ts`); `tests/rally/water.test.ts` checks every channel holds water. A street along a drain bank
    stops its embankment at the water (only its own surface crosses a channel, as a culvert); a drain ending in another
-   drops to that channel's level over its last 60 m. Lakes /
+   drops until its water meets that channel's over its last 60 m. A stream OSM lacks (a lowered valley with no water):
+   `python scripts/realmap/dem_stream.py <config> --at=<x>,<z>` traces the DEM flow line through that point down to the
+   next baked water way and prints a config `waterways` entry (lat / lon); the baker appends it as a `stream` path. To add
+   it without the other drift of a full re-bake, bake to a temp `out` and copy only the new path (+ the buildings it drops);
+   worked example `maps/petralica/DETAILS.md` "Valley creek". Lakes /
    ponds / reservoirs come from the baker (`data.lakes`): set `lakes: data.lakes` in `map.ts`. To add them to an
    already baked map without renumbering its buildings, bake to a temp `out` and copy only `lakes` into its data.json. Roadside `minRadius` keeps solid props out of hairpins.
    Junctions: side roads are joined to the stage road automatically (`world/junctions.ts`); add
    `junctionBarriers: { asset: 'road_barrier', length: 2.2, setback: 4 }` to close their mouths like a real stage.
    Check them in game (`/games/rally/?map=<id>&spawn=<along>`; `__rally.world.gen.junctions` lists every one).
-   Season look: `environment.groundTint` (`grass` + `amount`, `crop` = ripe crop colour); a `fields.palette` entry
+   Season look: `environment.groundTint` (`grass` + `amount`, `crop` = ripe crop colour, `moisture` = wet hollows / dry
+   ridges strength, default 1); a `fields.palette` entry
    whose weights sum to < 1 leaves the rest as ripe crop (`[0, 0, 0, 0]` = wheat field, drives like grass). Match the
    detail grass cards to the ground: `spring_grass` (bright green), `dry_grass` (golden), `grass_tuft` (olive,
    untinted ground). Example: `ajvatovci` is spring (mostly green palette, a few ploughed / wheat parcels).
@@ -142,7 +158,7 @@ City maps (example `maps/jackie/`, config `scripts/realmap/jackie.json`) - extra
   with `bridge` / `layer` / `lanes` / `oneway` / `name`.
 - Bridges: the baker writes `routeSpans` (route on `bridge=yes` / `layer<0`) -> `routeSpans(data.routeSpans)` in
   `RoadDef.spans`; the stage road is then a deck over lowered ground (street / rail beneath). OSM `bridge=yes` paths are
-  elevated decks (lifted over what crosses them, piers, parapets; `bridgeStyle`: `stone` parkway look by default,
+  elevated decks (lifted over what crosses them, piers, parapets; `bridgeStyle`: `stone` parkway look by default (arch soffit on street overpasses, on stage-road spans >= 12 m and their twin carriageway decks),
   `concrete` = modern overpass with an open railing - use it for anything that is not an old stone bridge; concrete decks
   keep parallel railings end to end unless the map sets `bridgeCorners: true`, and their wing walls splay outward - the
   ends open up, never close in) - see the rally DETAILS.md "City maps". Check with
@@ -150,12 +166,14 @@ City maps (example `maps/jackie/`, config `scripts/realmap/jackie.json`) - extra
 - Buildings with `kind` (baker `classify_kind`: house, row, apartment, commercial, industrial, garage, church, tomb) are mesh
   buildings (`world/building-mesh.ts`: real outline, OSM `height`, facade textures in `engine/facade-textures.ts`).
 - More city options (see the rally DETAILS.md "City maps"): `pathBarriers` (Jersey / guard rail along the opposite carriageway),
-  `road.cutWalls` (sheer cuts with a stone retaining wall; `concreteFrom` = concrete + chain-link), `goreAreas` (hatched wedge between the road and a shallow ramp), `junctionPlazas` (outline of a big junction on a portal slab: one plain asphalt box, no crossing ribbons), `parkwayLanes` (streets OSM draws beside the carriageways that really run down in the cut: treated as carriageways), `cityStreets` (city asphalt, kerbs, sidewalks, crosswalks, lamps),
+  `road.cutWalls` (sheer cuts with a stone retaining wall; `concreteFrom` = concrete + chain-link), `goreAreas` (hatched wedge between the road and a shallow ramp), `junctionPlazas` (outline of a big junction on a portal slab: one plain asphalt box, no crossing ribbons), `junctionAreas` +
+  `plazaIslands` / `plazaCrosswalks` / `plazaSignals` / `plazaTrees` (the whole street space around a junction from open
+  surface data: height field, islands, markings, furniture; worked example `maps/jackie/DETAILS.md` "Kew Gardens junction"), `parkwayLanes` (streets OSM draws beside the carriageways that really run down in the cut: treated as carriageways), `cityStreets` (city asphalt, kerbs, sidewalks, crosswalks, lamps),
   `streetDressing` (parked cars, crowds, police / ambulance / fire vehicles), `overheadSigns` (green "EXIT n" gantries from the
   ramps + hand-placed boards), `road.trenchFills` (pad the land where the lidar has a void beside a sunken stretch). Streets
   crossing over a tunnelled parkway (`under` spans) become bridge decks automatically (`world/under-bridges.ts`) and the span
   becomes a portal structure (`world/portals.ts`: slab, headwalls with name / clearance plates, railings, median piers; the
-  street grid on top is padded to the slab top). Overpass decks are drivable in free roam. Bridges / underpasses: see "Bridges and underpasses (city maps)" below.
+  street grid on top is padded to the slab top). Overpass decks and junction plazas are drivable in free roam. Bridges / underpasses: see "Bridges and underpasses (city maps)" below.
 - Looking at a map in the preview pane (it renders one frame every few seconds): `window.__mapViewer.look(cx, cy, cz, lx, ly, lz, fov)`
   parks the camera and streams all terrain + instances around it; wait ~10-30 s, then screenshot. Helpers to build camera
   positions along the road: `world.road.at(d)` (x, y, z, tx, tz), lateral `x + tz * l, z - tx * l`.
@@ -172,6 +190,9 @@ City maps (example `maps/jackie/`, config `scripts/realmap/jackie.json`) - extra
 - Browser checks: the preview pane throttles rendering hard; stream terrain by hand from the console
   (`__rally.terrain.update(pos, 300)` in a loop, `__rally.streamer.updateNow(pos)`) and park the camera with
   `__rally.rig.update = () => {}` + `__rally.camera.position.set(...)`.
+- README shots in game (`?map=<id>&car=<car>&spawn=<along>&mute=1`, no HUD): step the game by hand (`__rally.frame(1 / 60)` x 90,
+  what `benchmark` uses) and read `__rally.renderer.domElement` in the same task - `renderer.render` outside the loop draws
+  sky only (the frame sets up the camera-relative scene). A hidden pane stalls loading: `tabs_select` the tab first.
 
 Gotchas: +Z is SOUTH (the baker handles it); uneven control-point spacing makes Catmull-Rom loop (the baker evens
 it out, `world.test.ts` "no loops or kinks" catches it); the elevation is a surface model (trees / roofs) - tune
@@ -198,7 +219,13 @@ terrain in `terrain-gen.ts` (`dipUnderBridges`, `pathCutWeight`, `capUnderDecks`
 (`GroundTerrain` / `gen.height`). No terrain through streets: a street ribbon holds its own height line where the land under it
 falls away (cut beside it, trench under a portal slab; not on / under the stage road, `pathMeshesJob`), the ground under a deck
 end is not pitted inside a junction plaza (`capUnderDecks`), a sidewalk is lifted clear of a bank, and decks on a portal slab
-carry sidewalks (`street-detail.ts` `deck`).
+carry sidewalks (`street-detail.ts` `deck`). Motorway / trunk ways are carriageways, never dipped - except a not-connected one
+crossing beneath a stage-road span on a country map (`TerrainGen.highwayUnder`, worked example `maps/petralica/`, E-871).
+
+Approaches (`TerrainGen.raiseApproaches`): the ways a street deck continues into climb to the deck end at `DECK_GRADE`, relative to
+their own land line (a hillside street keeps following the hill), smoothed over 24 m; motorway / trunk and portal decks are left
+out. Two raised approach streets within 10 m share one fill (no notch in the gore). A road that only passes beside a deck end (no
+node there) is never anchored to it (`meetsEnd`).
 
 Most bugs come from **OSM way joints**: one street is several ways, and every per-way step (2 m sampling, square ends, a profile
 smoothed alone, "another road here" checks) breaks at the joint - sample to the exact end, mitre to the mean direction, treat the next way
@@ -231,7 +258,7 @@ OSM ways reprojected with the baker's `Proj`, one `Local` frame per structure (`
 
 ## New map checklist
 
-Copy `maps/test/` to `maps/<id>/` (fill in its `DETAILS.md` sources), change `id`, `name`, `seed`, `bounds`, `road.points`; add to `ALL_MAPS` in `maps/index.ts`;
+Copy `maps/test/` to `maps/<id>/` (fill in its `DETAILS.md` sources), change `id`, `name`, `seed`, `bounds`, `road.points`; add to `ENTRIES` in `maps/index.ts` (a real map with baked data: put the menu fields in `<id>/info.ts`, load `map.ts` with a dynamic import, see rally DETAILS.md "Lazy loading");
 the stage test picks it up automatically. **Add its id to `TEST_MAPS`** in
 `src/games/rally/release.ts` (one file tracks all maps + cars; `tests/rally/release.test.ts` fails for an unlisted
 map): it is then dev server only (`npm run dev` uses `ALL_MAPS`, TEST badge) and out of the published build, so other

@@ -26,7 +26,7 @@ import {
   TouchControls,
 } from '../game/touch-controls';
 import { formatDelta, formatTime, purgeStaleTimes } from '../game/stage';
-import { DEFAULT_MAP, getMap } from '../maps';
+import { DEFAULT_MAP, getMap, loadMap } from '../maps';
 import { SETUP_FOR_TYRE, SETUP_IDS } from '../physics/car-setup';
 import { isGearingId } from '../physics/gearing';
 import { parseTyre } from '../physics/tyres';
@@ -67,14 +67,14 @@ const portalButton = portalUrl()
 
 purgeStaleTimes(); // physics changed -> old stage times are erased before any menu reads them
 
-if (deepLink) play(readUrlState(DEFAULTS));
+if (deepLink) void play(readUrlState(DEFAULTS));
 else
   void runMenu(root).then((r) => {
     // Mirror the choice in the URL: reload = same stage, link is shareable.
     const { setup, gearing, ...rest } = r;
     const params = { ...DEFAULTS, ...rest, susp: setup, gear: gearing };
     writeUrlState(params, KEEP);
-    play(params);
+    void play(params);
   });
 
 /** Back to the main menu (fresh page: the stage isn't torn down in place). */
@@ -82,7 +82,7 @@ function mainMenu(): void {
   location.href = location.pathname;
 }
 
-function play(params: typeof DEFAULTS): void {
+async function play(params: typeof DEFAULTS): Promise<void> {
   const loading = overlay(`
     <div class="box">
       <h2>Loading stage…</h2>
@@ -90,14 +90,17 @@ function play(params: typeof DEFAULTS): void {
       <div class="status">Preparing</div>
     </div>`);
 
-  const tyre = parseTyre(params.tyre, getMap(params.map).tyre);
+  const info = getMap(params.map);
+  const tyre = parseTyre(params.tyre, info.tyre);
   const setup =
     SETUP_IDS.find((s) => s === params.susp) ?? SETUP_FOR_TYRE[tyre];
   const gearing = isGearingId(params.gear)
     ? params.gear
-    : (getMap(params.map).gearing ?? 'medium');
+    : (info.gearing ?? 'medium');
+  // The map's baked data is its own chunk: fetched here, behind the loading overlay.
+  const map = await loadMap(params.map);
   const game = new RallyGame(root, {
-    mapId: params.map,
+    map,
     carId: params.car,
     livery: params.livery,
     tyre,

@@ -8,7 +8,7 @@ wheel, a brick castle and a store-sized teddy bear.
 > and pass the size / paint / budget / clip tests, layouts A / B / C generate exact 25 000-point stores, the bot paces
 > them. How it works now is documented in [`DETAILS.md`](DETAILS.md) ("Map: Toy Emporium"); this file keeps the design, the
 > asset roster (section 4) and the **open** tasks (section 6). The rules of the game (size ladder, eat rule, scoring) are
-> in the DETAILS.md and are not changed by this map. Open work for the whole game stays in [`TASKS.md`](TASKS.md).
+> in the DETAILS.md and are not changed by this map.
 
 Status marks: `[ ]` todo · `[~]` in progress · `[x]` done (done items are deleted from section 6 after the DETAILS.md covers
 them).

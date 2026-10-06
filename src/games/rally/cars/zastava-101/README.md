@@ -65,4 +65,3 @@ home tyre + set-up, 2026-10-04): `straight()` in `tests/rally/handling-harness.t
 - No traction control (`physics.noTractionControl`: the assist is always off, the Options row is hidden). Brake light is red
   only (no reversing lamp).
 - Tyres, suspension, gearing: [`PHYSICS.md`](../../PHYSICS.md).
-  Open work: [`../../TASKS.md`](../../TASKS.md).

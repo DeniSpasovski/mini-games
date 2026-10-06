@@ -1,5 +1,5 @@
 import { describe, expect, test } from '@rstest/core';
-import { ALL_MAPS } from '../../src/games/rally/maps';
+import { ALL_MAPS } from '../../src/games/rally/maps/all';
 import { newPathQuery } from '../../src/games/rally/world/real-data';
 import { newRoadQuery } from '../../src/games/rally/world/road';
 import { World } from '../../src/games/rally/world/world';
@@ -77,6 +77,8 @@ describe.each(
     const t1 = { x: 0, z: 0 };
     along(5, (pi, a) => {
       const hw = net.paths[pi].width / 2 - 0.3;
+      // On a junction plaza / area the street is its surface (no ribbon of its own): crossfall is allowed there.
+      if (gen.plazas.inside(pt.x, pt.z, 2)) return;
       const c = gen.height(pt.x, pt.z);
       // Probe both sides, perpendicular to the road (straight parts: in tight corners the
       // inside edge belongs to another point along the road and may be a little higher).

@@ -18,7 +18,6 @@ import type { QualitySettings } from '../engine/quality';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
 import { setClockTime } from '../engine/stage-sign-textures';
 import { setTextureAnisotropy } from '../engine/textures';
-import { getMap } from '../maps';
 import { SURFACES, type SurfaceId } from '../physics/surfaces';
 import { applySetup } from '../physics/car-setup';
 import { applyGearing, hasGearings } from '../physics/gearing';
@@ -34,6 +33,7 @@ import { buildRoadMesh } from '../world/road-mesh';
 import { TerrainRenderer } from '../world/terrain-renderer';
 import { setTerrainRelief } from '../world/terrain-material';
 import { CanopyShadows } from '../world/canopy-shadows';
+import { Horizon } from '../world/horizon';
 import { setCanopyShadows } from '../engine/world-shading';
 import { World } from '../world/world';
 import { CarAudio } from './audio';
@@ -58,10 +58,12 @@ import {
   type StageEvent,
   TIMES_VERSION,
 } from './stage';
+import type { MapDef } from '../maps/shared/types';
 import { ForceLines, Telemetry } from './telemetry';
 
 export interface GameOptions {
-  mapId: string;
+  /** The full map (`loadMap`, maps/index.ts: the baked data is loaded on demand). */
+  map: MapDef;
   carId: string;
   /** Livery seed. */
   livery: number;
@@ -121,7 +123,7 @@ export class RallyGame {
   /** Far tree shadows, filled in as the streamer generates scatter (world/canopy-shadows.ts). */
   private canopy!: CanopyShadows;
   private hazeAcc = 0;
-  audio = new CarAudio(4);
+  audio: CarAudio;
   telemetry!: Telemetry;
   forceLines = new ForceLines();
   stats: StatsOverlay;
@@ -163,8 +165,9 @@ export class RallyGame {
       Math.min(8, this.renderer.capabilities.getMaxAnisotropy()),
     );
     bindCameraAspect(this.renderer, this.camera);
-    this.world = new World(getMap(opts.mapId));
+    this.world = new World(opts.map);
     this.car = getCar(opts.carId);
+    this.audio = new CarAudio(this.car);
     // Any spawn other than the stage start (pad, ?spawn=<metres>) is free drive: no clock, no splits.
     this.freeDrive = opts.spawn !== 'start';
     this.stats = new StatsOverlay(this.renderer, container, false);
@@ -208,6 +211,12 @@ export class RallyGame {
       ],
     });
     this.scene.add(this.terrain.group);
+    // Far land beyond the streamed terrain (real maps): a backdrop drawn behind everything, ~2 draws.
+    if (map.horizon) {
+      const horizon = new Horizon(this.world, map.horizon);
+      horizon.setCutoff(q.viewDistance);
+      this.scene.add(horizon.group);
+    }
     // Terrain bump relief: medium / high only (derivative noise + cost on weak GPUs).
     setTerrainRelief(q.name === 'low' ? 0 : 1);
     progress(0.3, 'Terrain');
@@ -398,7 +407,8 @@ export class RallyGame {
     const loop = (now: number) => {
       if (!this.running) return;
       requestAnimationFrame(loop);
-      const dt = Math.min(0.1, (now - this.last) / 1000);
+      // rAF's timestamp can precede the performance.now() taken in start(): never step backwards.
+      const dt = Math.min(0.1, Math.max(0, (now - this.last) / 1000));
       this.last = now;
       this.frame(dt);
     };
@@ -726,7 +736,9 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.renderPos.copy(this.model.root.position);
     this.renderFwd.set(0, 0, 1).applyQuaternion(this.model.root.quaternion);
     this.renderUp.set(0, 1, 0).applyQuaternion(this.model.root.quaternion);
-    this.rig.update(dt, v, this.renderPos, this.renderFwd, this.renderUp);
+    // Paused: the camera freezes where it is (the rig would keep carrying it at the car's frozen velocity).
+    if (!this.paused)
+      this.rig.update(dt, v, this.renderPos, this.renderFwd, this.renderUp);
     if (Math.abs(this.camera.fov - this.lastFov) > 0.5)
       this.updateParticleScale();
 
@@ -777,15 +789,23 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     for (const w of v.wheels)
       if (w.contact)
         surfaces[w.surface.id] = (surfaces[w.surface.id] ?? 0) + 0.25;
-    this.audio.update(
-      v.drivetrain.rpm,
-      v.drivetrain.effectiveThrottle,
-      Math.abs(v.speed),
+    this.audio.setListener(this.rig.mode);
+    this.audio.update({
+      rpm: v.drivetrain.rpm,
+      throttle: v.drivetrain.effectiveThrottle,
+      pedal: v.controls.throttle,
+      gear: v.drivetrain.gear,
+      speed: gs,
+      wheelHz: gs / (2 * Math.PI * v.wheels[0].radius),
       slide,
       loose,
-      v.impact,
+      impact: v.impact,
       surfaces,
       lock,
+    });
+    this.audio.setEnclosure(
+      this.world.tunnelAt(v.position.x, v.position.y, v.position.z),
+      gs,
     );
     // Gantry clocks run from GO whether or not the car has moved (a forgotten start shows); the
     // finish clock stops on the stage time (penalties included) once the car crosses the line.

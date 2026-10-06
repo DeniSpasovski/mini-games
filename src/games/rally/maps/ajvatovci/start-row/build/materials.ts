@@ -272,11 +272,15 @@ let array: DataArrayTexture | undefined;
 const lotArray = (): DataArrayTexture =>
   (array ??= textureArray(layerIds(), LAYER));
 
-const groupCache = new Map<MatGroup, Material>();
+const groupCache = new Map<string, Material>();
 
-/** The shared material of a group (vertex colours x array layer; PBR values per vertex). */
-export function groupMaterial(group: MatGroup): Material {
-  const m = groupCache.get(group);
+/**
+ * The shared material of a group (vertex colours x array layer; PBR values per vertex). `plain`: vertex colours only,
+ * no texture array - for landmarks that use only untextured keys (building the array renders every lot texture).
+ */
+export function groupMaterial(group: MatGroup, plain = false): Material {
+  const cacheKey = plain ? `${group}-plain` : group;
+  const m = groupCache.get(cacheKey);
   if (m) return m;
   const decal = GROUP_DECAL[group];
   const mat = new MeshStandardMaterial({
@@ -285,10 +289,10 @@ export function groupMaterial(group: MatGroup): Material {
     polygonOffsetFactor: -2 * decal,
     polygonOffsetUnits: -4 * decal,
   });
-  const maps = { value: lotArray() };
+  const maps = plain ? undefined : { value: lotArray() };
   mat.onBeforeCompile = (shader) => {
     addWorldUniforms(shader);
-    shader.uniforms.lotMaps = maps;
+    if (maps) shader.uniforms.lotMaps = maps;
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -301,13 +305,17 @@ export function groupMaterial(group: MatGroup): Material {
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        '#include <common>\nuniform mediump sampler2DArray lotMaps;\nvarying vec4 vLotMat;\nvarying vec2 vLotUv;',
+        plain
+          ? '#include <common>\nvarying vec4 vLotMat;\nvarying vec2 vLotUv;'
+          : '#include <common>\nuniform mediump sampler2DArray lotMaps;\nvarying vec4 vLotMat;\nvarying vec2 vLotUv;',
       )
       .replace(
         '#include <map_fragment>',
-        // Sampled outside any branch (a layer change across a pixel quad keeps its derivatives).
-        'vec4 lotTex = texture( lotMaps, vec3( vLotUv, max( floor( vLotMat.x + 0.5 ), 0.0 ) ) );\n' +
-          'diffuseColor *= vLotMat.x < -0.5 ? vec4( 1.0 ) : lotTex;',
+        plain
+          ? ''
+          : // Sampled outside any branch (a layer change across a pixel quad keeps its derivatives).
+            'vec4 lotTex = texture( lotMaps, vec3( vLotUv, max( floor( vLotMat.x + 0.5 ), 0.0 ) ) );\n' +
+              'diffuseColor *= vLotMat.x < -0.5 ? vec4( 1.0 ) : lotTex;',
       )
       .replace(
         '#include <roughnessmap_fragment>',
@@ -325,9 +333,9 @@ export function groupMaterial(group: MatGroup): Material {
           .join('( envMapIntensity * vLotMat.w )'),
       );
   };
-  mat.customProgramCacheKey = () => 'lot-array-v2';
-  mat.name = `lot_${group}`;
-  groupCache.set(group, mat);
+  mat.customProgramCacheKey = () => (plain ? 'lot-plain-v1' : 'lot-array-v2');
+  mat.name = `lot_${cacheKey}`;
+  groupCache.set(cacheKey, mat);
   return mat;
 }
 

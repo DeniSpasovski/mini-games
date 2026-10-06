@@ -27,6 +27,9 @@ Rules (performance — late-2000s look must not lag):
 - Budget guide: tree LOD0 < 1k tris, LOD1 < 250, LOD2 < 50. Far LODs must not cast shadows. Far tree LODs set
   `oneVariant` (all variants share one bucket = one draw call) and the last one `impostor` (a 2-triangle camera-facing
   diamond built from the previous LOD, `assets/impostor.ts`) - use the catalog's `tree()` / `farTree()` helpers.
+- Variants are cheap in draw calls: other LODs are drawn as variant sets (one draw per asset / LOD / material, see
+  DETAILS.md "Draw calls"). Every variant's parts must share the same attributes (position, normal, color, uv) or the
+  asset falls back to one draw per variant; keep LOD0 tree crowns small - sets over the cap are not merged.
 - Front of props faces +Z, origin at ground level.
 - Alpha grass cards: `foliage_card` (olive green) / `foliage_card_spring` (bright green) / `foliage_card_dry`
   (golden) - the card TEXTURE carries the colour,
@@ -35,8 +38,10 @@ Rules (performance — late-2000s look must not lag):
   instance with `ScatterInstance.sx / sy / sz` (width / height / depth) and a `box` collider; keep details
   relative. `house_pitched` walls end at `HOUSE_WALL_FRACTION` of the height (roof above), `building_flat` styles
   0/1 hall, 2 brick block, 3 rendered block; variants 4-7 = two floors of windows.
-- Vegetation palette so far: `pine_tree`, `birch_tree`, `oak_tree`, `poplar_tree`, `fruit_tree` (orchard rows),
-  `bush` (green), `scrub_bush` (dark olive hill scrub), `grass_tuft`, `spring_grass`, `dry_grass`; props incl. `street_lamp`, `road_barrier` (red-white police / marshal barrier, solid, closes side-road junctions).
+- Vegetation palette so far: `pine_tree`, `birch_tree`, `oak_tree`, `poplar_tree`, `fruit_tree` (orchard rows), `hazelnut_tree`
+  (plantation rows), `pale_tree` (tall plane / ash), `young_tree` (sapling), `thicket_shrub` (autumn roadside brush, drive-through),
+  `bush` (green), `scrub_bush` (dark olive hill scrub), `grass_tuft`, `spring_grass`, `dry_grass`; props incl. `street_lamp`, `road_barrier` (red-white police / marshal barrier, solid, closes side-road junctions),
+  `tape_post` (5.2 m of red / white tape along local X), `fan_flag` (generic designs, no national / club flags).
 
 Iterate at `/games/rally/asset-debug.html?asset=<id>&seed=<n>&lod=<n>&grid=20&bounds=1&collider=1`
 (`seed=-1` shows the in-world variant). `grid` is an instancing stress test; watch F3 stats.
@@ -51,6 +56,8 @@ One folder per car: `src/games/rally/cars/<car>/<car>.ts` exporting a `CarDef`, 
 Car-specific extras (e.g. a custom part builder) go in the car's folder; code used by every car (types, body,
 model, parts, livery, glTF import) lives in `cars/shared/`.
 
+- `sound`: engine layout, displacement, exhaust / intake, turbo + anti-lag, pops, gearbox, whine, cam - match the real engine
+  (rally `DETAILS.md` "Sound"; `tests/rally/engine-sound.test.ts` checks the ranges).
 - `model.stations`: lower-body cross sections rear -> front (`z`, `floor`, `belt`, `hw`, `hwBelt`), smooth-splined.
   Wheel arches are cut automatically from the physics axle positions.
 - `model.cabin`: glasshouse (`zFront/zRear` at the beltline, `roofFront/roofRear`, `roofY`, `roofHw`, optional
@@ -173,7 +180,7 @@ below are the tool reference.
    chart (arch flares that share end-chart texels, shoulders next to a painted edge, sill ledges); `chart: 'rear'` / `'front'`
    sends up-facing ones to the end chart (a low bumper lip among colour rows). Example + reasons: `atlas.chartBoxes` `$comment`s in `cars/bimmer-m3/model.source.json` (summary: DETAILS.md "Livery chart boxes");
    how to find the faces: `rally-livery`.
-4. Wheel arches: `wheels.arch` (`faceRadius`, `radius`, `maxNormalX`, `minAbsX`) sends arch triangles to the atlas' matte texel; livery painters call `atlasKit(...).matteRect` (black fill) and export it as `CarAtlas.matteRect`. `wheels.liner` adds a dark wheel-well cup if the arch is see-through. `model.suspension: true` draws uprights + wishbones + damper behind the wheels.
+4. Wheel arches: `wheels.arch` (`faceRadius`, `radius`, `maxNormalX`, `minAbsX`) sends arch triangles to the atlas' matte texel; livery painters call `atlasKit(...).matteRect` (black fill) and export it as `CarAtlas.matteRect`. `wheels.liner` adds a dark wheel-well cup if the arch is see-through (`lip: true` also seals the slit between the cup rim and a cut edge further out; the rings are raycast to stay behind the skin). `model.suspension: true` draws uprights + wishbones + damper behind the wheels.
 5. Accent parts (glass, lamps, grille, vents, wing, trim): **never paint them on the atlas** - projection charts
    overlap (a wing over the rear window) and triangle-by-triangle colouring gives saw-tooth edges. Split them off
    as real parts instead (example: `cars/bimmer-m3/`, `parts` block of its `model.source.json`):

@@ -11,8 +11,12 @@ import type {
   LandcoverDef,
   MapDef,
   PathDef,
+  PlazaIsland,
 } from '../shared/types';
 import data from './data.json';
+import junction from './junction.json';
+import laneStart from './junction-lane-start.json';
+import { jackieInfo as info } from './info';
 
 /**
  * "Jackie Robinson Parkway" - real-world city stage in New York: from Vermont Street (East New York,
@@ -176,7 +180,69 @@ const moveNodes = (list: PathDef[]): PathDef[] =>
         }
     return pts ? { ...p, pts } : p;
   });
-const paths = [...parkLane(moveNodes(data.paths as PathDef[])), START_RAMP];
+/**
+ * East of the Queens Blvd portal the land is at the parkway's level: the westbound Union Tpke runs on into the inner
+ * lane's bore. OSM ends it on the junction node at the slab corner, so it climbed 6 m in its last 40 m onto the junction
+ * box and cut across the trench corner. Split at this node, its last 80 m become a parkway lane (stage-road level, into
+ * the bore); the service road beside it keeps clear of it (parkway-lanes.ts).
+ */
+const UNION_TPKE_EAST_LANE: [number, number] = [2817.0, -1862.5];
+/** Split the way with an inner node at (x, z) into two ways sharing that node. */
+const splitAt = (list: PathDef[], [x, z]: [number, number]): PathDef[] =>
+  list.flatMap((p) => {
+    for (let k = 2; k + 2 < p.pts.length; k += 2)
+      if (Math.hypot(p.pts[k] - x, p.pts[k + 1] - z) < 0.2)
+        return [
+          { ...p, pts: p.pts.slice(0, k + 2) },
+          { ...p, pts: p.pts.slice(k) },
+        ];
+    return [p];
+  });
+/**
+ * The eastbound mirror: the inner lane ended at the east headwall (OSM leaves a 20 m gap to the Union Tpke beyond it, where
+ * the at-grade service road from the junction box meets it). A lane piece (`UNION_TPKE_EB_LANE`) continues the bore to a
+ * node 47 m along that street; the service road runs on beside it (outside the cut wall) and joins there.
+ */
+const UNION_TPKE_EB_JOIN: [number, number] = [2814.2, -1830.1];
+const UNION_TPKE_EB_LANE: PathDef = {
+  kind: 'primary',
+  name: 'Union Turnpike',
+  width: 8,
+  surface: 'tarmac',
+  oneway: true,
+  lanes: 2,
+  junction: false,
+  pts: [2746.7, -1817.4, ...UNION_TPKE_EB_JOIN],
+};
+const unionTpkeEast = (list: PathDef[]): PathDef[] =>
+  list.map((p) => {
+    const [x0, z0] = [p.pts[0], p.pts[1]];
+    const [x1, z1] = [p.pts[p.pts.length - 2], p.pts[p.pts.length - 1]];
+    // The street beyond: starts at the join node.
+    if (Math.hypot(x0 - 2766.7, z0 + 1814.6) < 0.2 && p.kind === 'secondary')
+      return { ...p, pts: [...UNION_TPKE_EB_JOIN, ...p.pts.slice(2)] };
+    // The service road from the junction box: beside the lane, then into the join node.
+    if (Math.hypot(x1 - 2766.7, z1 + 1814.6) < 0.2)
+      return {
+        ...p,
+        pts: [
+          ...p.pts.slice(0, -2),
+          2768.9,
+          -1812.3,
+          2792.9,
+          -1816.8,
+          ...UNION_TPKE_EB_JOIN,
+        ],
+      };
+    return p;
+  });
+const paths = [
+  ...unionTpkeEast(
+    splitAt(parkLane(moveNodes(data.paths as PathDef[])), UNION_TPKE_EAST_LANE),
+  ),
+  START_RAMP,
+  UNION_TPKE_EB_LANE,
+];
 
 // The Union Tpke overlook slab (OSM tunnel 6 708-6 733 m) is as wide as Park Lane on top: 13 m street + kerbs and
 // 1.5 m sidewalks, centred on the crossing (6 719.75 m, nearly square to the road).
@@ -211,50 +277,12 @@ const bridgeSpans = lengthenBridges(
   36,
 );
 
+/** Headwall skew of the Queens Blvd portal (m along / m lateral at its start / end): parallel to Queens Blvd. */
+const QUEENS_BLVD_SKEW: [number, number] = [-0.26, -0.46];
+
 export const jackieMap: MapDef = {
-  id: 'jackie',
-  name: 'The Jackie',
-  year: 2026,
-  /** Recommended tyre (pre-selected on the car screen; see ../../PHYSICS.md). */
-  tyre: 'tarmac',
-  // Fast parkway: the race cars' long final drive (Skoda Rally ~205 km/h instead of 165).
-  gearing: 'long',
-  description:
-    'Real-world city stage in New York: the narrow, winding 1930s Jackie Robinson Parkway from East New York through three cemeteries and Forest Park to the Grand Central Parkway interchange in Queens. 7.3 km of tree-lined tarmac.',
-  seed: 4040,
-  geo: { lat: data.meta.origin[0], lon: data.meta.origin[1] },
-  credits: data.meta.sources,
-  sources: [
-    {
-      label:
-        'Google Maps route (Vermont St -> Jackie Robinson Pkwy -> Kew Gardens)',
-      url: 'https://www.google.com/maps/dir/40.6808527,-73.8963462/Jackie+Robinson+Pkwy,+New+York,+NY/40.714605,-73.8298097',
-      note: 'stage waypoints',
-    },
-    {
-      label: 'OpenStreetMap',
-      url: 'https://www.openstreetmap.org/copyright',
-      note: 'route, parkway carriageways + ramps, streets, bridges, land use, buildings with NYC roof heights - (c) OpenStreetMap contributors, ODbL',
-    },
-    {
-      label: 'USGS 3D Elevation Program (3DEP)',
-      url: 'https://www.usgs.gov/3d-elevation-program',
-      note: 'bare-earth lidar elevation - US public domain',
-    },
-    {
-      label: 'AWS Terrain Tiles (Terrarium)',
-      url: 'https://registry.opendata.aws/terrain-tiles/',
-      note: 'far horizon elevation',
-    },
-    {
-      label: 'ESA WorldCover 10 m 2021 v200',
-      url: 'https://esa-worldcover.org/',
-      note: 'land cover - contains modified Copernicus Sentinel data (2021), CC BY 4.0',
-    },
-  ],
-  stageNumber: 3,
+  ...info,
   buildings: buildingsFromData(data.buildings),
-  bounds: { minX: -3150, maxX: 3550, minZ: -2300, maxZ: 2300 },
   terrain: {
     baseHeight: 0,
     // Shift so the start (16.5 m above sea level) sits near y = 0.
@@ -302,7 +330,12 @@ export const jackieMap: MapDef = {
     // Short bridges (under 36 m) grow to hold the whole street crossing beneath them (skewed: the footprint along the
     // parkway is longer than the street is wide) + room for the abutment returns and the underpass walls, and are at
     // least 36 m long. The long ones are left as they are.
-    spans: bridgeSpans,
+    // The Queens Blvd portal's ends follow Queens Blvd on top (skewed headwalls, the slab shortened at the corners).
+    spans: bridgeSpans.map((s) =>
+      s.kind === 'under' && s.from > 7100
+        ? { ...s, skew: QUEENS_BLVD_SKEW }
+        : s,
+    ),
     // Cuts deeper than 2.5 m are sheer, held back by a stone retaining wall (the parkway runs sunken there).
     // Stone walls + picket railing on the old parkway; concrete + chain-link from the Kew Gardens approach on.
     cutWalls: { minHeight: 2.5, offset: 1.6, concreteFrom: 6900 },
@@ -318,14 +351,8 @@ export const jackieMap: MapDef = {
     // The baked route ends at the Union Turnpike (7 345 m); the finish is past the Queens Blvd portal, so the stage
     // road runs on along the turnpike (OSM primary, same direction) for ~90 m: the run-out to stop in. Not baked
     // (moving the end waypoint makes the baker take another route).
-    points: routePoints(
-      [...data.route, [2835, -1847], [2866, -1858.6], [2896, -1870.9]],
-      () => 7.4,
-    ),
+    points: routePoints(info.route, () => 7.4),
   },
-  // Finish at 7 298 m: past the Queens Blvd portal (7 186-7 273 m), 2 m before the last green gantry (7 300 m; the two
-  // gantries clipped when they stood on the same spot).
-  stage: { start: 40, finishFromEnd: 47, splits: 4 },
   scatter: [
     // Forest Park / cemetery woodland: oaks, birches and a few pines.
     {
@@ -517,20 +544,26 @@ export const jackieMap: MapDef = {
   // Green guide signs on steel gantries: "EXIT n" before every ramp leaving the parkway, and the real sequence of
   // boards at the Kew Gardens end (plain road names, no route shields).
   goreAreas: true,
-  // Queens Blvd x Union Tpke on top of the finish portal: one paved junction box (x / z: the OSM junction nodes of
-  // the carriageways; the west / east edges run along the portal headwalls through the slab corners).
   junctionPlazas: [
-    [
-      2650.8, -1815.9, 2668, -1840, 2690, -1846, 2712, -1848, 2736.3, -1848.5,
-      2750.8, -1806.3, 2742, -1796, 2728, -1784, 2712, -1784, 2695, -1780,
-      2672.5, -1776.9,
-    ],
     // Park Lane x Union Tpke at both ends of the overlook slab (6 720 m): between the headwalls (never on the trench
     // rim beyond them, its fence stays), from inside the trench wall line (no slab edge parapet across Park Lane) to
     // past the Park Lane deck ends (no deck parapets / abutments across the Union Tpke mouths).
     [2279.4, -1514.1, 2293.0, -1525.1, 2301.2, -1515.0, 2287.6, -1504.0],
     [2269.6, -1526.3, 2283.2, -1537.3, 2275.3, -1547.0, 2261.7, -1536.0],
   ],
+  // Medians, traffic islands and sidewalks on the Kew Gardens junction box: NYC Planimetric Database (NYC Open Data),
+  // clipped to the box by scripts/realmap/plaza_islands.py.
+  // The Kew Gardens junction: the street space within 40 m of the box (NYC Planimetric Database roadbed + sidewalks +
+  // medians, NYC Open Data), see scripts/realmap/plaza_islands.py.
+  // ... and the street space where the inner Union Tpke lanes start (~6 960 m): the service roads, the lane mouths.
+  // Both keep the street ribbons: the same road look and painted lines as the streets leading to them.
+  ribbonAreas: [junction.area, laneStart.area],
+  plazaIslands: [...junction.islands, ...laneStart.islands] as PlazaIsland[],
+  // The signalled zebra crossings around it: OSM ways tagged crossing:markings=zebra (same script).
+  plazaCrosswalks: [...junction.crosswalks, ...laneStart.crosswalks],
+  // Signals: OSM traffic_signals nodes; trees: NYC Street Tree Census 2015 (same script).
+  plazaSignals: [...junction.signals, ...laneStart.signals],
+  plazaTrees: [...junction.trees, ...laneStart.trees],
   overheadSigns: {
     exits: true,
     signs: [
@@ -562,16 +595,4 @@ export const jackieMap: MapDef = {
   },
   // Start / finish gantries, lines and split boards come from `stage` (world/stage-signs.ts).
   props: [],
-  environment: {
-    sunElevation: 42,
-    sunAzimuth: 330,
-    // Hazy morning on the parkway: low sun from the east (~29 deg). ?tod=<hours> to try others.
-    timeOfDay: 8,
-    turbidity: 6,
-    rayleigh: 1.4,
-    fogColor: '#bfc8d0',
-    fogDensity: 0.00042,
-    exposure: 0.84,
-    groundTint: { grass: '#7d8f4c', amount: 0.55 },
-  },
 };

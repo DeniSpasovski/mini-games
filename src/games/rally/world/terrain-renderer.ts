@@ -7,7 +7,11 @@ import {
 } from 'three';
 import { CHUNK_CELLS } from './heightfield';
 import type { TerrainGenerator } from './terrain-gen';
-import { getTerrainMaterial, setGroundTint } from './terrain-material';
+import {
+  getTerrainMaterial,
+  setGroundMoisture,
+  setGroundTint,
+} from './terrain-material';
 import { RENDER_MARGIN, type World } from './world';
 
 /**
@@ -77,6 +81,7 @@ export class TerrainRenderer {
     this.lodDistances = opts.lodDistances ?? [150, 320, 640];
     this.cs = world.heightfield.chunkSize;
     setGroundTint(world.map.environment.groundTint);
+    setGroundMoisture(world.moisture);
   }
 
   /** Terrain meshes (one draw call each). */
@@ -453,6 +458,8 @@ export class TerrainGrid {
           rd[k],
           rh[k],
           sp,
+          // Dirt tracks at least ~a vertex step wide, so they stay lines on coarse tiles (not dots).
+          d * 0.75,
         );
         for (let q = 0; q < 4; q++) spl[v * 4 + q] = Math.round(sp[q] * 255);
       }

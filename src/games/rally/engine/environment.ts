@@ -1,8 +1,10 @@
 import {
   ACESFilmicToneMapping,
   AgXToneMapping,
+  BackSide,
   CircleGeometry,
   Color,
+  DoubleSide,
   DirectionalLight,
   FogExp2,
   HemisphereLight,
@@ -11,8 +13,10 @@ import {
   MeshBasicMaterial,
   NeutralToneMapping,
   Object3D,
+  PlaneGeometry,
   PMREMGenerator,
   Scene,
+  SphereGeometry,
   type ToneMapping,
   Vector3,
   type Texture,
@@ -36,6 +40,11 @@ export const TONE_MAPPINGS: Record<string, ToneMapping> = {
   agx: AgXToneMapping,
   neutral: NeutralToneMapping,
 };
+
+/** Radiance of the studio strip lights (x white; the env map is drawn at `envIntensity`, ~0.3). */
+const STUDIO_POWER = 60;
+/** Radiance of the studio room around them (linear grey). */
+const STUDIO_ROOM = 0.5;
 
 /** Highest sun of the day (deg): late spring at ~42 deg N (all maps are at 40-42 deg N). */
 const NOON_ELEVATION = 58;
@@ -88,13 +97,17 @@ export class Environment {
   private lightUp = new Vector3();
   private center = new Vector3();
   private t0 = performance.now();
+  /** Studio softboxes in the env map (menu car screens): crisp panel highlights on paint and glass. */
+  studio: boolean;
 
   constructor(
     private scene: Scene,
     private renderer: WebGLRenderer,
     public def: EnvironmentDef,
     quality: QualitySettings,
+    opts: { studio?: boolean } = {},
   ) {
+    this.studio = opts.studio ?? false;
     // Box half-size 1500 m: keep camera.far >= ~2700 (corner distance). Drawn first, never writes depth.
     this.sky.scale.setScalar(3000);
     this.sky.renderOrder = -1;
@@ -121,9 +134,10 @@ export class Environment {
     this.apply(def);
   }
 
-  /** Re-apply settings (sun angle, fog, exposure) and rebuild the env map. */
-  apply(def: EnvironmentDef): void {
+  /** Re-apply settings (sun angle, fog, exposure) and rebuild the env map; `studio` = with softboxes (or keep). */
+  apply(def: EnvironmentDef, studio = this.studio): void {
     this.def = def;
+    this.studio = studio;
     const u = this.sky.material.uniforms;
     u.turbidity.value = def.turbidity;
     u.rayleigh.value = def.rayleigh;
@@ -208,7 +222,8 @@ export class Environment {
     ] as const)
       dst[k].value = src[k].value;
     dst.sunPosition.value.copy(src.sunPosition.value);
-    envScene.add(sky);
+    // Studio: a dim grey room instead of the sky, so the strip lights below dominate the reflections.
+    if (!this.studio) envScene.add(sky);
     // Ground under the sky: paint, glass and water reflect earth below the horizon, not more sky. Its radiance
     // ~ albedo x (sun + sky), in the map's ground colour, a little warm.
     const groundCol = new Color(this.def.groundTint?.grass ?? '#7a6a48')
@@ -222,6 +237,50 @@ export class Environment {
     );
     ground.position.y = -12;
     envScene.add(ground);
+    const panels: Mesh[] = [];
+    if (this.studio) {
+      // Strip lights: two long ones overhead, a tall one either side, a low one behind each end - the long
+      // clean highlights of a car photo shoot. Thin and very bright: crisp in the clearcoat, little extra diffuse.
+      const panel = (
+        w: number,
+        h: number,
+        x: number,
+        y: number,
+        z: number,
+        rx: number,
+        ry: number,
+        power: number,
+      ) => {
+        const m = new Mesh(
+          new PlaneGeometry(w, h).rotateX(rx).rotateY(ry),
+          new MeshBasicMaterial({
+            color: new Color(1, 0.98, 0.95).multiplyScalar(power),
+            side: DoubleSide,
+            fog: false,
+          }),
+        );
+        m.position.set(x, y, z);
+        envScene.add(m);
+        panels.push(m);
+      };
+      const room = new Mesh(
+        new SphereGeometry(400, 24, 12),
+        new MeshBasicMaterial({
+          color: new Color(STUDIO_ROOM, STUDIO_ROOM, STUDIO_ROOM * 1.04),
+          side: BackSide,
+          fog: false,
+        }),
+      );
+      envScene.add(room);
+      panels.push(room);
+      const P = STUDIO_POWER;
+      panel(14, 0.7, 0, 9, 2.5, Math.PI / 2, 0, P);
+      panel(14, 0.7, 0, 9, -2.5, Math.PI / 2, 0, P);
+      panel(0.7, 8, 11, 3.5, 0, 0, Math.PI / 2, P * 0.75);
+      panel(0.7, 8, -11, 3.5, 0, 0, Math.PI / 2, P * 0.75);
+      panel(16, 0.5, 0, 2, 12, 0, 0, P * 0.6);
+      panel(16, 0.5, 0, 2, -12, 0, 0, P * 0.6);
+    }
     this.envMap?.dispose();
     this.envMap = this.pmrem.fromScene(envScene, 0, 0.1, 2000).texture;
     this.scene.environment = this.envMap;
@@ -229,8 +288,10 @@ export class Environment {
     this.scene.environmentIntensity = this.def.envIntensity ?? 0.3;
     sky.material.dispose();
     sky.geometry.dispose();
-    ground.geometry.dispose();
-    (ground.material as MeshBasicMaterial).dispose();
+    for (const m of [ground, ...panels]) {
+      m.geometry.dispose();
+      (m.material as MeshBasicMaterial).dispose();
+    }
   }
 
   /**

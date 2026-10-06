@@ -35,8 +35,10 @@ export type PartName =
   | 'amber'
   | 'tail'
   | 'tailc'
+  | 'seal'
   | 'reflector'
-  | 'interior';
+  | 'interior'
+  | 'cage';
 
 const cache = new Map<string, Material>();
 
@@ -236,22 +238,53 @@ function headlightMaps(): { map: CanvasTexture; glow: CanvasTexture } {
 
 /**
  * E46 coupe tail lamp in lamp space ('corner' wrap, fitted to the Bimmer M3's lamp: u 0 = its inner end on the boot
- * lid at |x| 0.465, u 0.75 - 1 = the rounded corner onto the side; v 0 = the boot-lid gap at y 0.841, v 1 = the lid's
- * lower edge at y 0.662 - cars/bimmer-m3/DETAILS.md "Tail lamps"): a dark red lens with fine horizontal ribs, the
- * clear reversing section in the inner top corner and two bright red light bars (tail / brake) - the upper one from
- * the reversing section out round the corner, the lower one across the whole lamp.
+ * lid at |x| 0.465, u 0.6 - 1 = the rounded corner onto the side; v 0 = the lamp's top edge at y 0.841, v 1 = its
+ * lower edge on the groove under the lamp at y 0.658 - cars/bimmer-m3/DETAILS.md "Tail lamps"). The lamp is 0.511 x
+ * 0.183 m in u / v (`span`), so texture px are not square: round things are drawn as ellipses (`PXU` / `PXV`). Layout of the facelift / M3 clear-top lamps (shapes
+ * only, from reference photos): two pieces split at the boot lid's edge (`split`). Fender piece: a clear top section
+ * (indicator: frosted, LED grid behind) over a bright red lens with a ring of LED dots (tail light: glows at idle).
+ * Lid piece: lower than the fender piece, rounded at the trunk end, red with a slim clear reversing strip near its top.
+ * Which part lights: tail / brake = the red lens only (both pieces, `glow`); reverse = the lid piece's white strip only
+ * (`reverseGlow`); the clear top is the indicator, which the game does not use - never lit.
  */
 const TAIL = {
-  W: 512,
-  H: 128,
-  /** Clear reversing lens: u 0 .. reverseU, v reverseV[0] .. reverseV[1]. */
-  reverseU: 0.3,
-  reverseV: [0.1, 0.52],
-  /** Light bars: [u0, u1, v0, v1]. */
-  bars: [
-    [0.33, 0.985, 0.16, 0.4],
-    [0.02, 0.985, 0.62, 0.86],
+  W: 768,
+  H: 192,
+  /** Outer end of the lamp, u per v (0 .. 1 in 0.1 steps): the corner piece is shorter at the top (measured on the GLB). */
+  end: [
+    0.751, 0.788, 0.831, 0.867, 0.901, 0.926, 0.949, 0.969, 0.986, 0.997, 1,
   ],
+  /**
+   * Dark housing rim (v) at the top / bottom of the fender piece, and half the lid piece's outline stroke: 2.7 mm all
+   * round; under both pieces the 4 mm seal in the groove adds to it, so the bottoms line up left to right.
+   */
+  rim: [0.015, 0.015],
+  /** Lamp size in u / v (m). */
+  span: [0.511, 0.183],
+  /**
+   * Gap between the lid piece and the fender piece = the mesh's |x| 0.6 edge, u at v 0 and v 1: u mixes |x| and |z|
+   * and the lamp face leans, so the edge slants in u (measured on the GLB; the lid piece is ~40 % of the lamp from behind).
+   */
+  split: [0.3235, 0.3075],
+  /** Fender piece: the clear section runs from the top down to this v (y 0.773). */
+  clear: 0.372,
+  /**
+   * LED ring in the fender piece's red part, a horizontal egg: centre (u, v), u radius towards the lid piece (`ruIn`) and
+   * towards the corner (`ruOut`, 1 cm longer - the user's egg shape), v radius, dots. 11 x 8 cm, on the rear face: wrapped
+   * round the corner it looked flat and bad.
+   */
+  ring: { u: 0.445, v: 0.69, ruIn: 0.098, ruOut: 0.117, rv: 0.219, n: 20 },
+  /**
+   * Lid piece outline (the mesh's `tail` region, model.source.json): its top at y 0.773 = the fender piece's clear /
+   * red line (`clear`), so both red parts are the same height; the trunk-side end rounded with r 4.5 cm = 0.088 u x
+   * 0.246 v. Above it is body.
+   */
+  lid: { top: 0.372, ru: 0.088, rv: 0.246 },
+  /**
+   * Clear reversing strip on the lid piece: [u0, u1, v0, v1] - 11.5 x 3.3 cm, centred across the piece (|x| 0.465 -
+   * 0.6 = u 0 - ~0.315), y 0.753 - 0.720 (2 cm below the piece's top).
+   */
+  reverse: [0.0475, 0.2725, 0.48, 0.66],
 };
 
 function tailMaps(): {
@@ -259,47 +292,213 @@ function tailMaps(): {
   glow: CanvasTexture;
   reverseGlow: CanvasTexture;
 } {
-  const { W, H } = TAIL;
-  const bars = (g: CanvasRenderingContext2D, fill: string) => {
-    g.fillStyle = fill;
-    for (const [u0, u1, v0, v1] of TAIL.bars)
-      g.fillRect(u0 * W, v0 * H, (u1 - u0) * W, (v1 - v0) * H);
+  const { W, H, split, clear, ring, lid, rim } = TAIL;
+  const [r0, r1, rv0, rv1] = TAIL.reverse;
+  /** Texture px per metre across / down the lamp. */
+  const PXU = W / TAIL.span[0];
+  const PXV = H / TAIL.span[1];
+  /** x (px) of the lid / fender gap at height v. */
+  const splitX = (v: number) => (split[0] + (split[1] - split[0]) * v) * W;
+  /** A round dot of radius r (m) at (x, y) px. */
+  const dot = (
+    g: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    r: number,
+  ) => {
+    g.beginPath();
+    g.ellipse(x, y, r * PXU, r * PXV, 0, 0, Math.PI * 2);
+    g.fill();
   };
+  /** The lamp outline (inner end, top, slanted outer end, bottom). */
+  const outline = (g: CanvasRenderingContext2D) => {
+    g.beginPath();
+    g.moveTo(0, 0);
+    for (let i = 0; i <= 10; i++) g.lineTo(TAIL.end[i] * W, (i / 10) * H);
+    g.lineTo(0, H);
+    g.closePath();
+  };
+  /** Red lens areas: the lid piece and the fender piece below its clear section. */
+  const red = (g: CanvasRenderingContext2D) => {
+    g.beginPath();
+    g.moveTo(0, 0);
+    g.lineTo(splitX(0), 0);
+    g.lineTo(splitX(1), H);
+    g.lineTo(0, H);
+    g.closePath();
+    g.moveTo(splitX(clear), clear * H);
+    g.lineTo(W, clear * H);
+    g.lineTo(W, H);
+    g.lineTo(splitX(1), H);
+    g.closePath();
+  };
+  /** The dark gap between the two pieces, 6 px wide. */
+  const gap = (g: CanvasRenderingContext2D) => {
+    // Below the lid piece's top it straddles the split (half on each piece); above it the lid side is body, so
+    // there it lies wholly on the fender piece - the same width all the way up.
+    const t = lid.top;
+    g.beginPath();
+    g.moveTo(splitX(0), 0);
+    g.lineTo(splitX(0) + 6, 0);
+    g.lineTo(splitX(t) + 6, t * H);
+    g.lineTo(splitX(t) + 3, t * H);
+    g.lineTo(splitX(1) + 3, H);
+    g.lineTo(splitX(1) - 3, H);
+    g.lineTo(splitX(t) - 3, t * H);
+    g.lineTo(splitX(t), t * H);
+    g.closePath();
+    g.fill();
+  };
+  /** LED ring dot centres (px). */
+  const ringDots: [number, number][] = [];
+  for (let i = 0; i < ring.n; i++) {
+    const a = (i / ring.n) * Math.PI * 2;
+    ringDots.push([
+      (ring.u + (Math.cos(a) > 0 ? ring.ruOut : ring.ruIn) * Math.cos(a)) * W,
+      (ring.v + ring.rv * Math.sin(a)) * H,
+    ]);
+  }
+  /** LED dot radius (m). */
+  const dotR = 0.0045;
+  /** Lid piece outline: straight at the split, rounded at the trunk-side end. */
+  const lidPath = (g: CanvasRenderingContext2D) => {
+    const [rx, ry] = [lid.ru * W, lid.rv * H];
+    const [t, b] = [lid.top * H, H];
+    g.beginPath();
+    g.moveTo(splitX(lid.top), t);
+    g.lineTo(rx, t);
+    g.ellipse(rx, t + ry, rx, ry, 0, -Math.PI / 2, Math.PI, true);
+    g.lineTo(0, b - ry);
+    g.ellipse(rx, b - ry, rx, ry, 0, Math.PI, Math.PI / 2, true);
+    g.lineTo(splitX(1), b);
+  };
+  const reverseRect = (g: CanvasRenderingContext2D) => {
+    g.beginPath();
+    // Corners r 8 mm on the car (px are not square): softly rounded ends, not a pill (the strip is only 3.3 cm tall).
+    g.roundRect(r0 * W, rv0 * H, (r1 - r0) * W, (rv1 - rv0) * H, {
+      x: 0.008 * PXU,
+      y: 0.008 * PXV,
+    });
+  };
+
   const map = canvas(W, H, (g) => {
-    const bg = g.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, '#a3121b');
-    bg.addColorStop(1, '#6e0a10');
-    g.fillStyle = bg;
+    g.fillStyle = '#1a0a0c'; // housing rim
     g.fillRect(0, 0, W, H);
-    bars(g, '#ff3b30');
-    // Clear reversing lens over a chrome reflector.
-    const [r0, r1] = TAIL.reverseV;
-    const rev = g.createLinearGradient(0, r0 * H, 0, r1 * H);
-    rev.addColorStop(0, '#f2f4f6');
-    rev.addColorStop(1, '#b9c0c8');
-    g.fillStyle = rev;
-    g.fillRect(0, r0 * H, TAIL.reverseU * W, (r1 - r0) * H);
-    // Horizontal optic ribs across the whole lens.
-    g.strokeStyle = 'rgba(0, 0, 0, 0.22)';
+    g.save();
+    outline(g);
+    g.clip();
+    // Bright red lens, a little inside the rim.
+    const lens = g.createLinearGradient(0, 0, 0, H);
+    lens.addColorStop(0, '#d81c25');
+    lens.addColorStop(1, '#a8121a');
+    g.fillStyle = lens;
+    g.fillRect(0.01 * W, rim[0] * H, W, (1 - rim[0] - rim[1]) * H);
+    // Fine vertical optics in the red.
+    g.save();
+    red(g);
+    g.clip();
+    g.strokeStyle = 'rgba(80, 0, 6, 0.12)';
     g.lineWidth = 1;
-    for (let y = 3; y < H; y += 5) {
+    for (let x = 2; x < W; x += 4) {
       g.beginPath();
-      g.moveTo(0, y);
-      g.lineTo(W, y);
+      g.moveTo(x, 0);
+      g.lineTo(x, H);
       g.stroke();
     }
+    g.restore();
+    // Fender piece's clear top: frosted glass over a grid of LEDs.
+    const cl = g.createLinearGradient(0, rim[0] * H, 0, clear * H);
+    cl.addColorStop(0, '#f1f3f5');
+    cl.addColorStop(1, '#c4c9cf');
+    g.fillStyle = cl;
+    g.beginPath();
+    g.moveTo(splitX(rim[0]), rim[0] * H);
+    g.lineTo(W, rim[0] * H);
+    g.lineTo(W, clear * H);
+    g.lineTo(splitX(clear), clear * H);
+    g.closePath();
+    g.fill();
+    // LED grid behind the clear section: round dots on a 14 mm pitch.
+    const pitch = 0.014;
+    for (
+      let y = rim[0] * H + pitch * PXV * 0.7;
+      y < clear * H - pitch * PXV * 0.4;
+      y += pitch * PXV
+    )
+      for (let x = splitX(y / H) + pitch * PXU * 0.8; x < W; x += pitch * PXU) {
+        g.fillStyle = '#9aa1aa';
+        dot(g, x, y, pitch * 0.3);
+        g.fillStyle = '#e6e9ec';
+        dot(g, x - pitch * 0.07 * PXU, y - pitch * 0.07 * PXV, pitch * 0.12);
+      }
+    // LED ring: darker red dots with a highlight.
+    for (const [x, y] of ringDots) {
+      g.fillStyle = '#7a0a10';
+      dot(g, x, y, dotR);
+      g.fillStyle = 'rgba(255, 150, 150, 0.6)';
+      dot(g, x - dotR * 0.3 * PXU, y - dotR * 0.3 * PXV, dotR * 0.35);
+    }
+    // Lid piece: clear reversing strip with chrome slats.
+    reverseRect(g);
+    g.fillStyle = '#c9ced4';
+    g.fill();
+    g.save();
+    reverseRect(g);
+    g.clip();
+    for (let y = rv0 * H + 2; y < rv1 * H; y += 6) {
+      const s = g.createLinearGradient(0, y, 0, y + 4);
+      s.addColorStop(0, '#f4f6f8');
+      s.addColorStop(1, '#7b838c');
+      g.fillStyle = s;
+      g.fillRect(r0 * W, y, (r1 - r0) * W, 4);
+    }
+    g.restore();
+    // Gap between the lid piece and the fender piece, and the lid piece's own rim (its top + rounded end).
+    g.fillStyle = '#1a0a0c';
+    gap(g);
+    lidPath(g);
+    g.strokeStyle = '#1a0a0c';
+    g.lineWidth = 2 * rim[1] * H;
+    g.stroke();
+    // Glass highlight along the top of each piece.
+    for (const [u0, u1, v0] of [
+      [split[0], 1, rim[0]],
+      [0, split[0], lid.top + 0.035],
+    ]) {
+      const hl = g.createLinearGradient(0, v0 * H, 0, (v0 + 0.16) * H);
+      hl.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+      hl.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      g.fillStyle = hl;
+      g.fillRect(u0 * W, v0 * H, (u1 - u0) * W, 0.16 * H);
+    }
+    g.restore();
   });
+  // Emissive (x idle 0.5 / brake 5.5; the map is sRGB, so '#78' is ~19 % linear): the LED ring at full = the tail light,
+  // the red lens areas at ~19 % only really light up with the brake (more washes the red out to salmon). The clear indicator section stays dark.
   const glow = canvas(W, H, (g) => {
-    g.fillStyle = '#1a0203';
+    g.fillStyle = '#000000';
     g.fillRect(0, 0, W, H);
-    bars(g, '#ff2a1c');
+    g.save();
+    outline(g);
+    g.clip();
+    red(g);
+    g.fillStyle = '#780400';
+    g.fill();
+    reverseRect(g);
+    g.fillStyle = '#000000';
+    g.fill();
+    g.fillStyle = '#ff1a0e';
+    for (const [x, y] of ringDots) dot(g, x, y, dotR);
+    g.fillStyle = '#000000';
+    gap(g);
+    g.restore();
   });
   const reverseGlow = canvas(W, H, (g) => {
     g.fillStyle = '#000';
     g.fillRect(0, 0, W, H);
-    const [r0, r1] = TAIL.reverseV;
+    reverseRect(g);
     g.fillStyle = '#ffffff';
-    g.fillRect(0, r0 * H, TAIL.reverseU * W, (r1 - r0) * H);
+    g.fill();
   });
   return { map, glow, reverseGlow };
 }
@@ -775,8 +974,27 @@ const BUILDERS: Record<PartName, () => Material> = {
       reverseGlow,
     );
   },
-  /** Modelled cockpit of an imported body (seats, cage, dash, door cards): dark, matte - without it the cockpit got the livery. */
+  /**
+   * Rubber seal in the groove round a tail lamp: the lamp texture's dark housing-rim colour (TAIL) with the lamp's own
+   * gloss, so it reads like the lamp's bottom rim ("light black") instead of flat black.
+   */
+  seal: () =>
+    new MeshPhysicalMaterial({
+      color: 0x1a0a0c,
+      roughness: 0.16,
+      metalness: 0.1,
+      clearcoat: 1,
+      clearcoatRoughness: 0.05,
+    }),
+  /** Modelled cockpit of an imported body (seats, dash, door cards): dark, matte - without it the cockpit got the livery. */
   interior: () => new MeshStandardMaterial({ color: 0x2a2c30, roughness: 0.9 }),
+  /** Roll cage of an imported cockpit: light grey like the procedural cars' cage (car-model.ts cageMat). */
+  cage: () =>
+    new MeshStandardMaterial({
+      color: 0xd6d8db,
+      roughness: 0.45,
+      metalness: 0.2,
+    }),
   /** Fabia R5 tail lamp: even red lens + white reversing square, see tailCMaps - needs `parts.wrap` 'corner'. */
   tailc: () => {
     const { map, glow, reverseGlow } = tailCMaps();

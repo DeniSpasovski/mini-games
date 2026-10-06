@@ -33,6 +33,7 @@ export type TextureId =
   | 'sidewalk'
   | 'crosswalk'
   | 'gore'
+  | 'hatch'
   | 'barrier_jersey'
   | 'bridge_stone'
   | 'bridge_concrete'
@@ -689,6 +690,35 @@ const DEFS: Record<TextureId, TexDef> = {
           rng.range(1, 3),
         );
       }
+    },
+  },
+  hatch: {
+    name: 'Painted median hatching (alpha: white 45 deg stripes, tileable both ways, 4 m per tile)',
+    size: [256, 256],
+    color: true,
+    draw(ctx, w, h) {
+      ctx.clearRect(0, 0, w, h);
+      ctx.strokeStyle = 'rgba(228,228,222,0.95)';
+      ctx.lineWidth = 14;
+      // Period 128 px (2 m) along both axes: the stripes continue across the tile edges.
+      for (let k = -w; k < 2 * w; k += 128) {
+        ctx.beginPath();
+        ctx.moveTo(k, 0);
+        ctx.lineTo(k + h, h);
+        ctx.stroke();
+      }
+      const rng = new Rng(137);
+      ctx.globalCompositeOperation = 'destination-out';
+      for (let i = 0; i < 600; i++) {
+        ctx.fillStyle = `rgba(0,0,0,${rng.range(0.2, 0.6)})`;
+        ctx.fillRect(
+          rng.next() * w,
+          rng.next() * h,
+          rng.range(1, 3),
+          rng.range(1, 3),
+        );
+      }
+      ctx.globalCompositeOperation = 'source-over';
     },
   },
   gore: {

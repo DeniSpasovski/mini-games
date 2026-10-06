@@ -6,7 +6,7 @@
   "scale": 0.0332,
   "offset": [-3.961, -0.005, 3.818],
   "groundAtMin": true,
-  "targetTriangles": 60000,
+  "targetTriangles": 65500,
   "creaseDeg": 40,
   "wheels": {
     "$comment": "the modelled wheels are removed by the `wheel cut` region picks in `parts` (an exact circular clip, no saw teeth) - nothing left for the radius cut; centres kept for the hub rule / arch options",
@@ -17,11 +17,12 @@
       [-1.361, 0.34]
     ],
     "liner": {
-      "$comment": "the cut-out leaves the arch see-through (the tyre was unioned with the liner - removing it left tyre-shaped holes in the well): a dark cup from |x| 0.45 out to 0.9, r 0.40 just inside the arch opening (r ~0.415 at the top), ends 0.3 rad below the hub (kept like this: a longer cup / wider outerX read as extended fenders on this non-GTR body). Its inner wall (hidden behind the tyre) is closed down to floorY 0.145 so the well is not an open window into the hollow body from underneath",
+      "$comment": "the cut-out leaves the arch see-through (the tyre was unioned with the liner - removing it left tyre-shaped holes in the well): a dark cup from |x| 0.45 out to 0.9, r 0.40 just inside the arch opening (r ~0.415 at the top), ends 0.3 rad below the hub (kept like this: a longer cup / wider outerX read as extended fenders on this non-GTR body). Its inner wall (hidden behind the tyre) is closed down to floorY 0.145 so the well is not an open window into the hollow body from underneath. `lip` closes the ring between the cup's rim and the body's cut edge (r 0.372, |x| ~0.93 - further out than the rim): without it a grazing view behind the wheel saw through the slit into the body",
       "radius": 0.4,
       "outerX": 0.9,
       "below": 0.3,
-      "floorY": 0.07
+      "floorY": 0.07,
+      "lip": true
     }
   },
   "wheelRim": {
@@ -67,6 +68,15 @@
       "bottom": [0, 6.65]
     },
     "chartBoxes": [
+      {
+        "$comment": "groove in front of the tail lamp (between the body and the lamp seal: z -2.09 / |x| 0.75 at the bottom, curving in to z -2.17 / |x| 0.72 at the top): its walls and floor were scattered over the front, rear, top and bottom charts (white there) - white slivers between the seal and the light / dark blue cells (user view 2026-10-06) -> side chart of their own side, which holds those cells. First box so the rear-bumper boxes do not take its lower end; stops at y 0.841 (crest row above)",
+        "chart": "side",
+        "maxNy": 1.01,
+        "minNy": -1.01,
+        "x": [0.7, 1.1],
+        "y": [0.65, 0.841],
+        "z": [-2.2, -2.05]
+      },
       {
         "$comment": "rear bumper's side, from the arch to the corner (|x| > 0.6, z -2.1 .. -1.65, y 0.12 - 0.7): its top ledge (y 0.54 - 0.61) was on the top chart (crest-row cells: a blue band with a white streak across the checkers), a strip on the rear chart and the groove undersides on the bottom chart (light / dark lines through the red row, user view 2026-10-04) -> side chart, which holds the checker rows. Before the rear boxes; it reaches z -2.25 so the side / rear switch on the corner falls INSIDE the last side column (k = 6, z <= -2.08, the same colours as the rear's outer column) - ending at -2.1 put the switch on column k = 5 and the chart tint showed rear faces spiking into it (teeth, next user view)",
         "chart": "side",
@@ -159,7 +169,9 @@
       "mirror",
       "cut",
       "amber",
-      "tail"
+      "tail",
+      "seal",
+      "chrome"
     ],
     "preview": {
       "body": "#c8ccd0",
@@ -174,7 +186,9 @@
       "mirror": "#e0e8f0",
       "cut": "#ff00ff",
       "amber": "#ff9a1a",
-      "tail": "#e0242c"
+      "tail": "#e0242c",
+      "seal": "#1a0a0c",
+      "chrome": "#30c0a0"
     },
     "picks": [
       {
@@ -371,7 +385,7 @@
         "adjacent": { "to": "glass", "maxArea": 0.006, "y": [0.78, 1.4] }
       },
       {
-        "name": "window surround: rear quarter window + B pillar = the black plastic frame of the real car (user 2026-10-04, reference photo of a silver E46 coupe): the recessed band round the quarter glass, traced on a side-view depth map of the mesh (outermost |x| per 2.5 mm; walking out from the glass until the surface steps back up 5 mm: ~5.5 cm along the top up to the drip rail, out to z -1.30 at the rear corner where a 2 cm step ends it, 2 - 3 cm along the belt) plus the flat B-pillar panel (|x| 0.718) between the quarter glass and the door glass rear edge, belt to roof. Replaced the pane outline grown 2 cm, which left the recess and the B pillar livery-coloured",
+        "name": "window surround: rear quarter window + B pillar = the black plastic frame of the real car (user 2026-10-04, reference photo of a silver E46 coupe): the recessed band round the quarter glass, traced on a side-view depth map of the mesh (outermost |x| per 2.5 mm; walking out from the glass until the surface steps back up 5 mm: ~5.5 cm along the top up to the drip rail, out to z -1.30 at the rear corner where a 2 cm step ends it, 2 - 3 cm along the belt) plus the flat B-pillar panel (|x| 0.718) between the quarter glass and the door glass rear edge, belt to roof. Bottom edge = 1 mm under the lower edge of the belt moulding lip (|x| 0.80 -> 0.76, y 0.912 at the B pillar rising to 0.939 at the rear corner; lowest steep face per 2.5 cm z slice of the GLB) - the cut along the outline gives a straight seal edge (lower, it took a widening wedge of the tapering shoulder, user 2026-10-06), so the seal ledge and the pillar foot are black and in line with the door seal (user 2026-10-06: the pillar's lowest 3 cm were livery); depth to |x| 0.804 (the lip / shoulder crease) keeps the body shoulder outside the lip painted. Replaced the pane outline grown 2 cm, which left the recess and the B pillar livery-coloured",
         "material": "trim",
         "region": {
           "view": "left",
@@ -394,23 +408,24 @@
             [-1.303, 1.045],
             [-1.301, 1.012],
             [-1.279, 0.985],
-            [-1.233, 0.972],
-            [-1.185, 0.966],
-            [-1.111, 0.964],
-            [-1.024, 0.962],
-            [-0.939, 0.956],
-            [-0.83, 0.953],
-            [-0.713, 0.951],
-            [-0.505, 0.953],
+            [-1.26, 0.938],
+            [-1.2, 0.936],
+            [-1.1, 0.932],
+            [-1.0, 0.927],
+            [-0.9, 0.925],
+            [-0.8, 0.921],
+            [-0.7, 0.916],
+            [-0.6, 0.912],
+            [-0.505, 0.911],
             [-0.512, 0.987],
             [-0.597, 1.304]
           ],
-          "depth": [0.3, 1.2],
+          "depth": [0.3, 0.804],
           "facing": -0.2
         }
       },
       {
-        "name": "window surround: door window (pane outline from the glass segments, grown 2 cm; first pick wins so the glass stays glass)",
+        "name": "window surround: door window (pane outline from the glass segments, grown 2 cm; first pick wins so the glass stays glass). facing -0.2 takes the flat seal ledge between the belt moulding lip (|x| ~0.80) and the glass, which faces straight up (default facing left it body: livery between glass and seal, user 2026-10-06); depth to |x| 0.804 (the lip / shoulder crease) keeps the black on the moulding, not the door shoulder",
         "material": "trim",
         "region": {
           "view": "left",
@@ -426,8 +441,9 @@
             [-0.487, 0.918],
             [-0.512, 0.987]
           ],
-          "depth": [0.3, 1.2],
-          "grow": 0.02
+          "depth": [0.3, 0.804],
+          "grow": 0.02,
+          "facing": -0.2
         }
       },
       {
@@ -762,11 +778,11 @@
         }
       },
       {
-        "name": "door handles",
+        "name": "door handles (box y max 0.875: the handle ends at y 0.85, at 0.895 a shoulder sliver at y 0.88 above it fitted the box - a black dart under the B-pillar seal, user 2026-10-06)",
         "material": "trim",
         "inside": {
           "x": [0.84, 1.02],
-          "y": [0.735, 0.895],
+          "y": [0.735, 0.875],
           "z": [-0.62, -0.26]
         }
       },
@@ -783,13 +799,13 @@
         }
       },
       {
-        "name": "mirror housings + stalks black (user 2026-10-04: not livery-coloured): front-view outline round the mirror + stalk (|x| 0.86 - 1.04, y 0.87 - 1.08, z 0.29 - 0.60) that follows the door skin narrowing with height (max |x| 0.81 at y 0.875, 0.79 at 0.9, 0.755 at 0.95, 0.74 at 1.0 - a single |x| > 0.858 box left the stalk root white); after the mirror glass pick so the glass stays glass",
+        "name": "mirror housings + stalks black (user 2026-10-04: not livery-coloured): front-view outline round the mirror + stalk (|x| 0.86 - 1.04, y 0.87 - 1.08, z 0.29 - 0.60) that follows the door skin narrowing with height (max |x| 0.81 at y 0.875, 0.79 at 0.9, 0.755 at 0.95, 0.74 at 1.0 - a single |x| > 0.858 box left the stalk root white); after the mirror glass pick so the glass stays glass. Bottom at y 0.866: the stalk starts at y 0.870, at 0.855 the outline took a strip of the door shoulder under it (black lines on the mirror holder, user 2026-10-06)",
         "material": "trim",
         "region": {
           "view": "front",
           "poly": [
-            [0.835, 0.855],
-            [1.07, 0.855],
+            [0.835, 0.866],
+            [1.07, 0.866],
             [1.07, 1.095],
             [0.775, 1.095],
             [0.77, 0.95],
@@ -801,35 +817,204 @@
         }
       },
       {
-        "name": "tail lamps - rear face",
+        "name": "tail lamps - rear face, fender piece (|x| 0.6 - 0.9, from the groove under the lamp, y 0.658, to the top)",
         "material": "tail",
         "region": {
           "view": "rear",
           "poly": [
-            [0.465, 0.662],
-            [0.465, 0.841],
+            [0.6, 0.658],
+            [0.6, 0.841],
             [0.9, 0.841],
-            [0.9, 0.662]
+            [0.9, 0.658]
           ],
           "depth": [-2.5, -2.17]
         }
       },
       {
-        "name": "tail lamps - side (wraps the corner, curved front edge)",
+        "name": "tail lamps - rear face, lid piece (|x| 0.465 - 0.6, bottom on the groove under the lamp, y 0.658): only up to y 0.773 = the top of the fender piece's red part (user 2026-10-06; was 0.792), the trunk-side end rounded (r 4.5 cm) like the real lamp (user 2026-10-06, ref-08 - ref-10) - the area above it is body. Own pick: one non-convex outline left a sliver above the piece",
+        "material": "tail",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [0.6, 0.658],
+            [0.51, 0.658],
+            [0.5012, 0.6589],
+            [0.4928, 0.6614],
+            [0.485, 0.6656],
+            [0.4782, 0.6712],
+            [0.4726, 0.678],
+            [0.4684, 0.6858],
+            [0.4659, 0.6942],
+            [0.465, 0.703],
+            [0.465, 0.728],
+            [0.4659, 0.7368],
+            [0.4684, 0.7452],
+            [0.4726, 0.753],
+            [0.4782, 0.7598],
+            [0.485, 0.7654],
+            [0.4928, 0.7696],
+            [0.5012, 0.7721],
+            [0.51, 0.773],
+            [0.6, 0.773]
+          ],
+          "depth": [-2.5, -2.17]
+        }
+      },
+      {
+        "name": "tail lamps - side (wraps the corner): front edge = the lamp-side wall of the engraved groove between lamp and body (groove centre - 2 mm), traced on a 1 mm side-view depth map of the source STL (high-pass; per-row weighted groove centre, quartic fit within 1.4 mm; user 2026-10-06); depth from |x| 0.6 = the lid / fender split (from 0.55 it took a sliver of the rear face above the lower lid piece)",
         "material": "tail",
         "region": {
           "view": "left",
           "poly": [
-            [-2.075, 0.662],
-            [-2.09, 0.715],
-            [-2.105, 0.755],
-            [-2.13, 0.795],
-            [-2.15, 0.825],
-            [-2.16, 0.841],
+            [-2.0897, 0.658],
+            [-2.0891, 0.658],
+            [-2.0879, 0.659],
+            [-2.0875, 0.664],
+            [-2.0881, 0.6758],
+            [-2.09, 0.6876],
+            [-2.0928, 0.6995],
+            [-2.0965, 0.7114],
+            [-2.1007, 0.7233],
+            [-2.1053, 0.7353],
+            [-2.1101, 0.7472],
+            [-2.1155, 0.7592],
+            [-2.1213, 0.7711],
+            [-2.1276, 0.783],
+            [-2.1347, 0.7949],
+            [-2.1429, 0.8068],
+            [-2.1525, 0.8187],
+            [-2.1641, 0.8317],
+            [-2.1717, 0.841],
             [-2.5, 0.841],
-            [-2.5, 0.662]
+            [-2.5, 0.658]
           ],
-          "depth": [0.55, 1.1]
+          "depth": [0.6, 1.1]
+        }
+      },
+      {
+        "name": "tail lamps - rubber seal in the groove round the lamp (user 2026-10-06: the real car has dark rubber there): the groove centre line +- 2 mm (the groove is ~4 mm wide), traced on a 1 mm side-view depth map of the source STL - up the front edge to the lamp's top corner (y 0.841, meets the top rim) and along the groove under the lamp (y 0.656) back to the rear corner. After the tail picks so the lamp keeps its faces",
+        "material": "seal",
+        "region": {
+          "view": "left",
+          "poly": [
+            [-2.5, 0.658],
+            [-2.0899, 0.658],
+            [-2.0891, 0.658],
+            [-2.0887, 0.6582],
+            [-2.0882, 0.6586],
+            [-2.0879, 0.659],
+            [-2.0877, 0.6595],
+            [-2.0877, 0.66],
+            [-2.0877, 0.6719],
+            [-2.0892, 0.6835],
+            [-2.0917, 0.6951],
+            [-2.095, 0.7066],
+            [-2.0987, 0.7179],
+            [-2.1028, 0.7291],
+            [-2.1072, 0.7402],
+            [-2.1119, 0.7512],
+            [-2.1168, 0.7621],
+            [-2.1221, 0.7728],
+            [-2.1278, 0.7833],
+            [-2.1338, 0.7935],
+            [-2.1404, 0.8034],
+            [-2.1476, 0.8128],
+            [-2.1554, 0.8219],
+            [-2.1634, 0.8308],
+            [-2.1713, 0.8398],
+            [-2.1717, 0.8402],
+            [-2.1687, 0.8428],
+            [-2.1684, 0.8425],
+            [-2.1604, 0.8335],
+            [-2.1524, 0.8245],
+            [-2.1445, 0.8154],
+            [-2.1372, 0.8057],
+            [-2.1304, 0.7957],
+            [-2.1243, 0.7852],
+            [-2.1186, 0.7746],
+            [-2.1132, 0.7638],
+            [-2.1083, 0.7528],
+            [-2.1035, 0.7417],
+            [-2.0991, 0.7305],
+            [-2.0949, 0.7192],
+            [-2.0911, 0.7077],
+            [-2.0879, 0.6961],
+            [-2.0853, 0.6842],
+            [-2.0837, 0.6721],
+            [-2.0837, 0.66],
+            [-2.0839, 0.6585],
+            [-2.0845, 0.657],
+            [-2.0854, 0.6558],
+            [-2.0867, 0.6548],
+            [-2.0881, 0.6542],
+            [-2.0895, 0.654],
+            [-2.5, 0.654]
+          ],
+          "depth": [0.6, 1.1]
+        }
+      },
+      {
+        "name": "tail lamps - rubber seal under the fender piece on the rear face: the groove under the lamp (rear-view depth map: centre y 0.6565 +- 2 mm over |x| 0.44 - 0.76), from the corner to the lid / fender split at |x| 0.6 - under the lid piece the groove is the boot lid's own shut line (body)",
+        "material": "seal",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [0.6, 0.654],
+            [0.6, 0.658],
+            [0.9, 0.658],
+            [0.9, 0.654]
+          ],
+          "depth": [-2.5, -2.17]
+        }
+      },
+      {
+        "name": "tail lamps - rubber seal round the lid piece: a 4 mm band just outside its outline - in the groove under it (y 0.654 - 0.658), round both rounded trunk-side corners (concentric, r 4.5 - 4.9 cm), up the inner end and along the top to the split (user 2026-10-06: same seal as the bottom all round)",
+        "material": "seal",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [0.6, 0.654],
+            [0.51, 0.654],
+            [0.5004, 0.6549],
+            [0.4912, 0.6577],
+            [0.4828, 0.6623],
+            [0.4754, 0.6684],
+            [0.4693, 0.6758],
+            [0.4647, 0.6842],
+            [0.4619, 0.6934],
+            [0.461, 0.703],
+            [0.461, 0.728],
+            [0.4619, 0.7376],
+            [0.4647, 0.7468],
+            [0.4693, 0.7552],
+            [0.4754, 0.7626],
+            [0.4828, 0.7687],
+            [0.4912, 0.7733],
+            [0.5004, 0.7761],
+            [0.51, 0.777],
+            [0.6, 0.777],
+            [0.6, 0.773],
+            [0.51, 0.773],
+            [0.5012, 0.7721],
+            [0.4928, 0.7696],
+            [0.485, 0.7654],
+            [0.4782, 0.7598],
+            [0.4726, 0.753],
+            [0.4684, 0.7452],
+            [0.4659, 0.7368],
+            [0.465, 0.728],
+            [0.465, 0.703],
+            [0.4659, 0.6942],
+            [0.4684, 0.6858],
+            [0.4726, 0.678],
+            [0.4782, 0.6712],
+            [0.485, 0.6656],
+            [0.4928, 0.6614],
+            [0.5012, 0.6589],
+            [0.51, 0.658],
+            [0.6, 0.658]
+          ],
+          "depth": [-2.5, -2.17]
         }
       },
       {
@@ -856,6 +1041,103 @@
           "x": [-0.95, 0.95],
           "y": [-0.005, 0.195],
           "z": [-2.5, 2.5]
+        }
+      },
+      {
+        "name": "exhaust pipe, outer (into the outer tip) - its own part by centreline: the print model is one fused shell and the pipe merges with the floor pan into one crease segment, so seeds / boxes kept trading pipe and bumper triangles. Centreline from cross-sections every 10 cm (pipe r ~0.035, the bumper skin round the tips is > 0.05 from the axis); over trim: re-labels what the underbody / recess picks took (not the lens tips)",
+        "material": "chrome",
+        "tube": {
+          "path": [
+            [0.41, 0.178, -1.65],
+            [0.405, 0.185, -1.8],
+            [0.405, 0.21, -2.0],
+            [0.405, 0.235, -2.3],
+            [0.405, 0.255, -2.42]
+          ],
+          "radius": 0.042,
+          "over": ["trim"]
+        }
+      },
+      {
+        "name": "exhaust pipe, inner (into the inner tip)",
+        "material": "chrome",
+        "tube": {
+          "path": [
+            [0.31, 0.178, -1.65],
+            [0.315, 0.195, -1.8],
+            [0.33, 0.215, -2.0],
+            [0.31, 0.235, -2.2],
+            [0.31, 0.26, -2.42]
+          ],
+          "radius": 0.042,
+          "over": ["trim"]
+        }
+      },
+      {
+        "name": "rear axle cross-member - stays dark (runs before the exhaust box, which would take it)",
+        "material": "trim",
+        "box": { "x": [0, 0.6], "y": [-0.005, 0.3], "z": [-1.62, -1.38] }
+      },
+      {
+        "name": "exhaust pipes + silencers under the floor (user: silver, not livery) - per triangle: the pipes are long smooth segments that run up into the tail, so the `inside` boxes above never hold a whole one; front of z 1.1 (headers, subframe) stays painted / dark",
+        "material": "chrome",
+        "box": { "x": [0, 0.45], "y": [-0.005, 0.2], "z": [-2.2, 1.1] }
+      },
+      {
+        "name": "rear floor pan between / over the pipes (y 0.2 - 0.34, ahead of the bumper skin at z < -2.3): dark underside, after the pipe tubes and the floor exhaust box",
+        "material": "trim",
+        "box": { "x": [0, 0.5], "y": [-0.005, 0.34], "z": [-2.2, -1.62] }
+      },
+      {
+        "name": "rear bumper underside + the recess round the tips (user: black, not livery) - downward-facing triangles only, after the exhaust boxes so the pipes stay chrome",
+        "material": "trim",
+        "box": {
+          "x": [0, 1.0],
+          "y": [-0.005, 0.32],
+          "z": [-2.6, -1.6],
+          "facing": { "y": [-1, -0.75] }
+        }
+      },
+      {
+        "name": "back wall of the recess under the bumper's middle (z -2.12, |x| < 0.1, facing back - big white slab seen from under the car)",
+        "material": "trim",
+        "box": {
+          "x": [0, 0.2],
+          "y": [-0.005, 0.3],
+          "z": [-2.2, -2.0],
+          "facing": { "z": [-1, -0.5] }
+        }
+      },
+      {
+        "name": "rear bumper lower lip inner wall, car's left (x 0.55 - 0.8, facing the car's centre = -x - red / white strip seen from under the car). One pick per side with mirror false: a \"|x|\" facing also took the bumper's OUTWARD side skin",
+        "material": "trim",
+        "mirror": false,
+        "box": {
+          "x": [0.55, 0.8],
+          "y": [-0.005, 0.26],
+          "z": [-2.25, -1.75],
+          "facing": { "x": [-1, -0.6] }
+        }
+      },
+      {
+        "name": "rear bumper lower lip inner wall, car's right (x -0.8 .. -0.55, facing +x)",
+        "material": "trim",
+        "mirror": false,
+        "box": {
+          "x": [-0.8, -0.55],
+          "y": [-0.005, 0.26],
+          "z": [-2.25, -1.75],
+          "facing": { "x": [0.6, 1] }
+        }
+      },
+      {
+        "name": "recess walls round each tip pair (between / below / beside the tips: red seen past the tips from low behind) - a box that skips rear-facing faces: the bumper skin round the tips is as deep as these walls (z -2.33 .. -2.36), so depth-limited outlines blackened skin beside and above the tips; the rear-facing back wall beside them stays painted; upward faces (the ledge over the tips, visible from behind) stay painted too",
+        "material": "trim",
+        "box": {
+          "x": [0.24, 0.5],
+          "y": [0.2, 0.35],
+          "z": [-2.37, -2.2],
+          "facing": { "z": [-0.6, 1], "y": [-1, 0.15] }
         }
       },
       {

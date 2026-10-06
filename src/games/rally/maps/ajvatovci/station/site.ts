@@ -1,6 +1,6 @@
 import type { FlatArea } from '../../shared/types';
 import { RAIL_H } from '../../../world/railways';
-import data from '../data.json';
+import data from '../route.json';
 import { toLocal, toWorld, type Site } from '../hilltop/site';
 
 /**

@@ -182,6 +182,7 @@ export const testMap: MapDef = {
       spread: 16,
     },
   ],
+  cornerFans: { every: 40, chance: 0.6, from: 60 },
   // Start / finish gantries, lines and split boards come from `stage` (world/stage-signs.ts).
   props: [],
   environment: {

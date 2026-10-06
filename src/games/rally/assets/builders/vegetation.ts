@@ -328,6 +328,83 @@ export const fruitTree: AssetBuilder = ({ seed, lod }) => {
   return { parts: [{ geometry, material: getMaterial('vegetation') }] };
 };
 
+/**
+ * Hazelnut bush (plantation): multi-stemmed, no clear trunk - the low trunk top makes the broadleaf branches splay from
+ * the ground as stems - under a wide rounded crown of fresh green leaves reaching down to knee height, 2.4-3.4 m tall.
+ */
+export const hazelnutTree: AssetBuilder = ({ seed, lod }) => {
+  const rng = new Rng(seed);
+  const H = rng.range(2.4, 3.4);
+  const geometry = broadleaf(rng, lod, {
+    height: H,
+    trunkTop: rng.range(0.2, 0.3),
+    trunkR: 0.07,
+    crownR: rng.range(1.6, 2),
+    flatten: 1.05,
+    // Plantations are dense (hundreds in view): 4 clumps keep LOD0 at ~370 triangles.
+    clumps: 4,
+    colors: ['#6a8a34', '#73923a', '#5f7f30', '#7c9a40'],
+    bark: '#6b5a48',
+    lod1Clumps: 1,
+  });
+  return { parts: [{ geometry, material: getMaterial('vegetation') }] };
+};
+
+/** Tall pale-barked lane tree (plane / ash): long grey-white trunk, open airy crown of yellow-green leaves. */
+export const paleTree: AssetBuilder = ({ seed, lod }) => {
+  const rng = new Rng(seed);
+  const H = rng.range(13, 18);
+  const geometry = broadleaf(rng, lod, {
+    height: H,
+    trunkTop: H * rng.range(0.28, 0.36),
+    trunkR: 0.24,
+    crownR: rng.range(3.8, 4.8),
+    flatten: 1.35,
+    clumps: 9,
+    colors: ['#8a9a3c', '#97a443', '#7c9036', '#a5a04a'],
+    bark: '#cfcbbf',
+    lean: rng.range(-0.6, 0.6),
+  });
+  return { parts: [{ geometry, material: getMaterial('vegetation') }] };
+};
+
+/** Young lane tree (elm / ash sapling): slender trunk, crown taller than wide, starting to yellow. */
+export const youngTree: AssetBuilder = ({ seed, lod }) => {
+  const rng = new Rng(seed);
+  const H = rng.range(5, 8);
+  const geometry = broadleaf(rng, lod, {
+    height: H,
+    trunkTop: H * rng.range(0.35, 0.45),
+    trunkR: 0.1,
+    crownR: rng.range(1.5, 2.1),
+    flatten: 1.25,
+    clumps: 4,
+    colors: ['#7e9a3a', '#8ea644', '#6f8c34', '#ac9f48'],
+    bark: '#6f6458',
+    lean: rng.range(-0.3, 0.3),
+    lod1Clumps: 2,
+  });
+  return { parts: [{ geometry, material: getMaterial('vegetation') }] };
+};
+
+/** Dense roadside thicket (hawthorn / blackthorn / elm suckers) in autumn: low, wide, green going orange. */
+export const thicketShrub: AssetBuilder = ({ seed, lod }) => {
+  const rng = new Rng(seed);
+  const H = rng.range(2.5, 4.5);
+  const geometry = broadleaf(rng, lod, {
+    height: H,
+    trunkTop: rng.range(0.15, 0.3),
+    trunkR: 0.06,
+    crownR: rng.range(1.8, 2.6),
+    flatten: 0.85,
+    clumps: 6,
+    colors: ['#8f973c', '#a39a3e', '#7d8d36', '#b98a3a'],
+    bark: '#5e5246',
+    lod1Clumps: 2,
+  });
+  return { parts: [{ geometry, material: getMaterial('vegetation') }] };
+};
+
 /** Field / gully oak: broad irregular crown, the common broadleaf on Macedonian hills. */
 export const oakTree: AssetBuilder = ({ seed, lod }) => {
   const rng = new Rng(seed);

@@ -651,7 +651,19 @@ class TileParts {
   }
 }
 
-/** Stage-road bridge spans: girders, beams, abutments and wing walls (the jersey barriers are barrier runs). */
+const spanQ = newRoadQuery();
+/** A deck row beside an arched stage-road span (the opposite carriageway's twin bridge). */
+function besideStageSpan(world: World, r: Row): boolean {
+  const q = world.road.query(r.x, r.z, spanQ);
+  const sp =
+    q.found && q.distance < 40 ? world.road.bridgeAt(q.along) : undefined;
+  return !!sp && sp.to - sp.from >= STAGE_ARCH_MIN;
+}
+
+/** Shortest stage-road span with an arch soffit (m): a culvert-sized span keeps the flat girders. */
+const STAGE_ARCH_MIN = 12;
+
+/** Stage-road bridge spans: arch soffit (or girders + beams), abutments and wing walls (the jersey barriers are barrier runs). */
 function stageSpans(world: World, tiles: TileParts): void {
   for (const sp of world.road.bridges) {
     const rows: Row[] = [];
@@ -673,7 +685,10 @@ function stageSpans(world: World, tiles: TileParts): void {
     if (rows.length < 2) continue;
     const mid = rows[rows.length >> 1];
     const parts = tiles.of(mid.x, mid.z);
-    deckBody(parts, rows, false);
+    // The old stone-bridge look (as the street bridges over the parkway) unless the map's bridges are modern.
+    const arch =
+      world.map.bridgeStyle !== 'concrete' && sp.to - sp.from >= STAGE_ARCH_MIN;
+    deckBody(parts, rows, false, undefined, arch);
     abutment(world, parts, rows[0], 1, (s) => world.road.at(sp.from - s).y);
     abutment(
       world,
@@ -820,7 +835,8 @@ function pathDecks(world: World, group: Group, tiles: TileParts): void {
       for (const side of cols) {
         pos.push(
           r.x + r.tz * r.hw * side,
-          r.y + 0.03 + stagger * 0.012,
+          // (on an area that keeps its ribbons the deck surface lies just over the paving)
+          r.y + (plazas.keepsRibbons(r.x, r.z) ? 0.05 : 0.03) + stagger * 0.012,
           r.z - r.tx * r.hw * side,
         );
         nor.push(0, 1, 0);
@@ -830,7 +846,9 @@ function pathDecks(world: World, group: Group, tiles: TileParts): void {
       if (
         k < rows.length - 1 &&
         !(
-          plazas.inside(r.x, r.z) && plazas.inside(rows[k + 1].x, rows[k + 1].z)
+          plazas.inside(r.x, r.z) &&
+          plazas.inside(rows[k + 1].x, rows[k + 1].z) &&
+          !plazas.keepsRibbons(r.x, r.z)
         )
       ) {
         for (let c = 0; c + 1 < nc; c++) {
@@ -853,11 +871,15 @@ function pathDecks(world: World, group: Group, tiles: TileParts): void {
     group.add(top);
     const mid = rows[rows.length >> 1];
     const parts = tiles.of(mid.x, mid.z);
-    // Streets over the parkway: the old stone arch look (ramps and the motorway decks keep the beam soffit).
+    // Streets over the parkway and the opposite carriageway's deck beside a stage-road span (both arched, stageSpans):
+    // the old stone arch look; ramps and the other motorway decks keep the beam soffit.
     // A modern overpass (bridgeStyle 'concrete'): beam soffit, edge beam + open railing, concrete abutments.
     const modern = world.map.bridgeStyle === 'concrete';
     const arch =
-      !modern && STREET_KINDS.has(p.kind) && L >= 12 && !gen.isPortalDeck(pi);
+      !modern &&
+      L >= 12 &&
+      ((STREET_KINDS.has(p.kind) && !gen.isPortalDeck(pi)) ||
+        (gen.isCarriagewayDeck(pi) && besideStageSpan(world, mid)));
     deckBody(parts, rows, true, cov, arch, modern);
     // Wing walls retain the approach: their top follows the approach road's height going AWAY from the span
     // (the deck's own profile rises the other way - walls taken from it stand up beside the approach).
@@ -1050,9 +1072,34 @@ function portalStructures(
         }
       }
     }
-    // Side parapets along the long edges, open where a street deck crosses the edge.
+    // Side parapets along the long edges, open where a street deck crosses the edge. Where a skewed end trims the slab
+    // the edge stands over the open cut: a stone face down to the lintel and always a parapet.
+    const trimmed = (i: number, side: 1 | -1) =>
+      side > 0
+        ? src[i].latL0 - src[i].latL > 0.3
+        : src[i].latR - src[i].latR0 > 0.3;
     for (const side of [1, -1] as const) {
-      const flags = rows.map((r) => {
+      let run: Row[] = [];
+      const face = () => {
+        if (run.length > 1) {
+          const edge = (bot: number, top: number) =>
+            run.map((r) => ({
+              x: r.x + r.tz * r.hw * side,
+              z: r.z - r.tx * r.hw * side,
+              bot: r.y + bot,
+              top: r.y + top,
+            }));
+          stone.wall(edge(-GIRDER + LINTEL, 0), STONE);
+          conc.wall(edge(-GIRDER, -GIRDER + LINTEL), CONC);
+        }
+        run = [];
+      };
+      rows.forEach((r, i) => (trimmed(i, side) ? run.push(r) : face()));
+      face();
+    }
+    for (const side of [1, -1] as const) {
+      const flags = rows.map((r, i) => {
+        if (trimmed(i, side)) return false;
         const x = r.x + r.tz * r.hw * side;
         const z = r.z - r.tx * r.hw * side;
         if (!net) return false;

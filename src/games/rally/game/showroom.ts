@@ -18,24 +18,24 @@ import { getAssetMeta } from '../assets/catalog';
 import { getCar } from '../cars';
 import { CarModel } from '../cars/shared/car-model';
 import type { RallyBadge } from '../cars/shared/rally-badge';
+import { DepthOfField } from '../engine/depth-of-field';
 import { Environment } from '../engine/environment';
 import type { TyreId } from '../physics/tyres';
 import { SetupBench } from './setup-bench';
 import type { QualitySettings } from '../engine/quality';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
 import { getTexture, setTextureAnisotropy } from '../engine/textures';
-import { getMap, MAPS } from '../maps';
+import { getMap, loadMap, MAPS } from '../maps';
 import type { MapDef } from '../maps/shared/types';
 import { testMap } from '../maps/test/map';
 import { AerialTerrain } from '../world/aerial-terrain';
 import { AerialTrees } from '../world/aerial-trees';
 import { InstanceStreamer } from '../world/instance-streamer';
 import { roadMeshJob } from '../world/road-mesh';
-import { setGroundTint } from '../world/terrain-material';
+import { setGroundMoisture, setGroundTint } from '../world/terrain-material';
 import { RENDER_MARGIN, World } from '../world/world';
 import {
   cardMesh,
-  isLargeMap,
   LARGE_MAP_AREA,
   loadStageCard,
   mapHash,
@@ -152,6 +152,8 @@ export class Showroom {
    */
   private fixedShift: number | null = CAR_SHIFT;
   private env: Environment;
+  /** Car screens: shallow depth of field on the turntable car (off on low quality). */
+  private dof?: DepthOfField;
   private ground: Mesh;
   private model?: CarModel;
   /** Setup screen: the car's tyres and coil-overs, one little studio per picker box (setup-bench.ts). */
@@ -190,16 +192,29 @@ export class Showroom {
       Math.min(8, this.renderer.capabilities.getMaxAnisotropy()),
     );
     bindCameraAspect(this.renderer, this.camera);
-    this.env = new Environment(this.scene, this.renderer, CAR_ENV, {
-      ...quality,
-      shadowExtent: 6,
-    });
+    // Car screens: studio softboxes in the env map (paint highlights) and a shallow depth of field.
+    this.env = new Environment(
+      this.scene,
+      this.renderer,
+      CAR_ENV,
+      { ...quality, shadowExtent: 6 },
+      { studio: true },
+    );
+    if (quality.name !== 'low')
+      this.dof = new DepthOfField(this.renderer, quality.antialias);
+    if (import.meta.env.DEV)
+      (globalThis as { __showroom?: Showroom }).__showroom = this;
     const tex = getTexture('gravel').clone();
     tex.repeat.set(40, 40);
     tex.needsUpdate = true;
     this.ground = new Mesh(
       new CircleGeometry(120, 48),
-      new MeshStandardMaterial({ map: tex, roughness: 1 }),
+      // Little IBL: the studio softboxes are for the car's paint, not the gravel.
+      new MeshStandardMaterial({
+        map: tex,
+        roughness: 1,
+        envMapIntensity: 0.35,
+      }),
     );
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.receiveShadow = true;
@@ -291,9 +306,7 @@ export class Showroom {
   private getMap(mapId: string): MapView {
     let view = this.maps.get(mapId);
     if (!view) {
-      view = isLargeMap(getMap(mapId))
-        ? cardView(mapId)
-        : buildMapView(mapId, this.quality);
+      view = cardView(mapId);
       this.addView(view);
     }
     return view;
@@ -305,23 +318,35 @@ export class Showroom {
     this.scene.add(view.group);
   }
 
+  private liveMaps = new Map<string, MapDef>();
+  private liveLoading = new Set<string>();
+
   /** A large map without a baked card: replace its (empty) card view with a live build. */
   private buildLive(old: MapView): MapView {
     console.warn(
       `[stage card] ${old.id}: no baked card - building the view live (bake it: /games/rally/?bakecard=${old.id})`,
     );
+    const map = this.liveMaps.get(old.id);
+    if (!map) {
+      // The full map (baked data) is its own chunk: fetch it, keep the empty card view until it is here.
+      if (!this.liveLoading.has(old.id)) {
+        this.liveLoading.add(old.id);
+        void loadMap(old.id).then((m) => this.liveMaps.set(old.id, m));
+      }
+      return old;
+    }
     this.scene.remove(old.group);
-    const view = buildMapView(old.id, this.quality);
+    const view = buildMapView(map, this.quality);
     this.addView(view);
     if (this.wanted === old) this.wanted = view;
     return view;
   }
 
-  /** Start loading every large map's baked card (cheap: two small files each, no map build). */
+  /** Start loading every map's baked card (cheap: two small files each, no map build). */
   private preloadCards(): void {
     if (this.preloaded) return;
     this.preloaded = true;
-    for (const m of MAPS) if (isLargeMap(m)) this.getMap(m.id);
+    for (const m of MAPS) this.getMap(m.id);
   }
 
   /**
@@ -345,13 +370,14 @@ export class Showroom {
       view.group.visible = true;
       // The terrain material is shared: re-apply this map's grass tint (another map may have set it).
       setGroundTint(getMap(view.id).environment.groundTint);
-      this.env.apply({
-        ...getMap(view.id).environment,
-        fogDensity: 0.25 / view.size,
-      });
+      setGroundMoisture(null);
+      this.env.apply(
+        { ...getMap(view.id).environment, fogDensity: 0.25 / view.size },
+        false,
+      );
       this.env.update(view.center);
     } else {
-      this.env.apply(CAR_ENV);
+      this.env.apply(CAR_ENV, true);
       this.env.update(this.target);
     }
   }
@@ -499,8 +525,10 @@ export class Showroom {
     const env = getMap(v.id).environment;
     const shown = v === this.mapView;
     const prevEnv = this.env.def;
-    if (!shown) this.env.apply({ ...env, fogDensity: 0 });
+    const prevStudio = this.env.studio;
+    if (!shown) this.env.apply({ ...env, fogDensity: 0 }, false);
     setGroundTint(env.groundTint);
+    setGroundMoisture(null);
     const fog = this.scene.fog;
     this.scene.fog = null;
     // Only v's detail: hide the car pad, sky, other maps and v's overlay.
@@ -537,7 +565,7 @@ export class Showroom {
     this.pad.visible = !this.mapView;
     this.env.sky.visible = true;
     this.scene.fog = fog;
-    if (!shown) this.env.apply(prevEnv);
+    if (!shown) this.env.apply(prevEnv, prevStudio);
     if (this.mapView)
       setGroundTint(getMap(this.mapView.id).environment.groundTint);
   }
@@ -605,7 +633,9 @@ export class Showroom {
     const lift = this.mapView ? h * MAP_LIFT : 0;
     cam.setViewOffset(w, h, -w * shift, lift, w, h);
     this.env.follow(cam.position);
-    this.renderer.render(this.scene, cam);
+    if (this.dof && !this.mapView)
+      this.dof.render(this.scene, cam, cam.position.distanceTo(this.target));
+    else this.renderer.render(this.scene, cam);
   }
 
   dispose(): void {
@@ -617,6 +647,7 @@ export class Showroom {
     (this.ground.material as MeshStandardMaterial).map?.dispose();
     (this.ground.material as MeshStandardMaterial).dispose();
     this.env.dispose();
+    this.dof?.dispose();
     this.uploadTarget.dispose();
     this.renderer.dispose();
     this.renderer.forceContextLoss();
@@ -680,13 +711,18 @@ function cardView(mapId: string): MapView {
   loadStageCard(mapId).then(
     (card) => {
       const d = card.data;
-      if (
-        import.meta.env.DEV &&
-        (d.version !== STAGE_CARD_VERSION || d.hash !== mapHash(map))
-      )
+      if (import.meta.env.DEV && d.version !== STAGE_CARD_VERSION)
         console.warn(
-          `[stage card] ${mapId}: out of date (map or baker changed) - re-bake: /games/rally/?bakecard=${mapId}`,
+          `[stage card] ${mapId}: out of date (baker changed) - re-bake: /games/rally/?bakecard=${mapId}`,
         );
+      // Dev only: the data hash needs the full map (its own chunk), so check it after the card is shown.
+      if (import.meta.env.DEV)
+        void loadMap(mapId).then((full) => {
+          if (d.hash !== mapHash(full))
+            console.warn(
+              `[stage card] ${mapId}: out of date (map changed) - re-bake: /games/rally/?bakecard=${mapId}`,
+            );
+        });
       // Relief exaggeration around the card's lowest point (flat maps read better with some).
       const relief = map.previewRelief ?? 1;
       const base = d.grid.min;
@@ -722,8 +758,8 @@ function cardView(mapId: string): MapView {
   return view;
 }
 
-function buildMapView(mapId: string, quality: QualitySettings): MapView {
-  const map = getMap(mapId);
+function buildMapView(map: MapDef, quality: QualitySettings): MapView {
+  const mapId = map.id;
   const b = map.bounds;
   const large = (b.maxX - b.minX) * (b.maxZ - b.minZ) > LARGE_MAP_AREA;
   const preview = large ? previewMap(map) : undefined;
