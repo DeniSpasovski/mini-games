@@ -40,7 +40,7 @@ home tyre + set-up, 2026-10-04): `straight()` in `tests/rally/handling-harness.t
 | What                        | Source                                                                                                                                               | Licence                  |
 | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
 | Shape and styling reference | ["Zastava 101 (Stojadin)" by Tomislav Tomljenovic, Sketchfab](https://sketchfab.com/3d-models/zastava-101-stojadin-52c885cfc52a4ac1acb14f84a3feacfa) | CC BY 4.0 (no mesh used) |
-| Outlines and dimensions     | a 4-view factory blueprint (outlines traced, dimensions measured); **blueprint source and licence still to be recorded**                             | -                        |
+| Outlines and dimensions     | a 4-view factory blueprint (outlines traced, dimensions measured);                                                                                   | public domain            |
 | Body, paint, physics        | own work                                                                                                                                             | project licence          |
 
 No brand wordmarks are modelled (plain grille bar, blank plate). Zastava is a trademark of its owner.

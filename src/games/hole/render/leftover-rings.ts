@@ -18,7 +18,7 @@ import { applyHoleCut } from './materials';
 export const LEFTOVER_POINTS = 100;
 const MAX = 256;
 /** Ring radius (m) never drops below `camera distance x` this, so leftovers stay visible from a giant hole. */
-const MIN_SCREEN_K = 0.05;
+const MIN_SCREEN_K = 0.01;
 const PULSE_HZ = 1.4;
 
 const FLAT = new Quaternion().setFromAxisAngle(
@@ -81,7 +81,7 @@ export class LeftoverRings {
       // each ring breathes on its own phase so a cluster does not blink as one
       const t = seconds * PULSE_HZ + (w.seed[i] % 997) / 997;
       const pulse = 0.5 + 0.5 * Math.sin(t * Math.PI * 2);
-      const r = Math.max(w.size[i] * 0.75 + 0.3, minR) * (0.85 + 0.3 * pulse);
+      const r = Math.max(w.size[i] * 0.6 + 0.15, minR) * (0.9 + 0.2 * pulse);
       this.p.set(w.x[i], 0.04, w.z[i]);
       this.s.set(r, r, 1);
       this.mesh.setMatrixAt(n++, this.m.compose(this.p, FLAT, this.s));

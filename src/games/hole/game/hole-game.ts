@@ -310,7 +310,7 @@ export class HoleGame {
     this.rig.snap();
     this.updateRig(0);
     this.state = 'countdown';
-    if (this.ranked()) track('level_start', this.runParams());
+    if (this.ranked()) track('hole', 'level_start', this.runParams());
     this.countT = 0;
     this.lastCount = -1;
     this.acc = 0;
@@ -357,27 +357,28 @@ export class HoleGame {
   private runParams(): EventParams {
     const map = this.mapDef.id;
     return {
-      game: 'hole',
-      level_name: map,
-      difficulty: this.difficulty.id,
-      seed: this.mapDef.seeded ? this.settings.seed : undefined,
-      layout: this.mapDef.layouts?.length ? this.settings.layout : undefined,
+      game_level_name: map,
       game_version: gameManifest.version,
-      scoring_version: MAP_SCORING_VERSIONS[map],
+      game_hole_difficulty: this.difficulty.id,
+      game_hole_seed: this.mapDef.seeded ? this.settings.seed : undefined,
+      game_hole_layout: this.mapDef.layouts?.length
+        ? this.settings.layout
+        : undefined,
+      game_hole_scoring_version: MAP_SCORING_VERSIONS[map],
     };
   }
 
-  /** GA `level_end` with success=false when a run is left from the pause menu. */
+  /** GA `level_end` with game_success=false when a run is left from the pause menu. */
   private trackQuit(reason: string): void {
     if (!this.ranked() || this.sim.over) return;
     if (this.state !== 'paused' && this.state !== 'playing') return;
-    track('level_end', {
+    track('hole', 'level_end', {
       ...this.runParams(),
-      success: false,
-      reason,
-      time_s: seconds(this.sim.time),
-      score: this.sim.score,
-      hole_level: this.sim.hole.level,
+      game_success: false,
+      game_reason: reason,
+      game_time_s: seconds(this.sim.time),
+      game_score: this.sim.score,
+      game_hole_level: this.sim.hole.level,
     });
   }
 
@@ -397,20 +398,20 @@ export class HoleGame {
     const ranked = this.ranked();
     if (ranked) {
       const params = this.runParams();
-      track('level_end', {
+      track('hole', 'level_end', {
         ...params,
-        success: true,
-        cleared: sim.cleared,
-        score: entry.score,
-        hole_level: entry.level,
-        items_eaten: entry.eaten,
-        pct_eaten: Math.round(entry.pct * 100),
+        game_success: true,
+        game_score: entry.score,
+        game_hole_level: entry.level,
+        game_hole_cleared: sim.cleared,
+        game_hole_items_eaten: entry.eaten,
+        game_hole_pct_eaten: Math.round(entry.pct * 100),
       });
-      track('post_score', {
+      track('hole', 'post_score', {
         ...params,
-        score: entry.score,
-        level: entry.level,
-        character: this.settings.color,
+        game_score: entry.score,
+        game_hole_level: entry.level,
+        game_character: this.settings.color,
       });
     }
     const res = ranked

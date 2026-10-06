@@ -75,7 +75,12 @@ function chequer(
   for (let j = 0; j * s < h; j++)
     for (let i = 0; i * s < w; i++) {
       ctx.fillStyle = (i + j) % 2 ? a : b;
-      ctx.fillRect(x + i * s, y + j * s, Math.min(s, w - i * s), Math.min(s, h - j * s));
+      ctx.fillRect(
+        x + i * s,
+        y + j * s,
+        Math.min(s, w - i * s),
+        Math.min(s, h - j * s),
+      );
     }
 }
 
@@ -118,8 +123,18 @@ function speedStripes(
 }
 
 const THEME = {
-  start: { top: '#2a6ee0', bottom: '#0a2766', accent: '#f5c518', word: 'START' },
-  finish: { top: '#e23a2c', bottom: '#7a1109', accent: '#ffffff', word: 'FINISH' },
+  start: {
+    top: '#2a6ee0',
+    bottom: '#0a2766',
+    accent: '#f5c518',
+    word: 'START',
+  },
+  finish: {
+    top: '#e23a2c',
+    bottom: '#7a1109',
+    accent: '#ffffff',
+    word: 'FINISH',
+  },
 } as const;
 
 /**
@@ -275,7 +290,13 @@ export function setClockTime(kind: GantryKind, seconds: number): void {
   if (!tex) return;
   clockShown.set(kind, digits);
   const canvas = tex.image as HTMLCanvasElement;
-  drawClock(canvas.getContext('2d')!, canvas.width, canvas.height, kind, digits);
+  drawClock(
+    canvas.getContext('2d')!,
+    canvas.width,
+    canvas.height,
+    kind,
+    digits,
+  );
   tex.needsUpdate = true;
 }
 

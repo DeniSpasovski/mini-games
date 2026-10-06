@@ -162,6 +162,18 @@ export function* cutWallMeshJob(
     return y;
   };
 
+  // A paved road (street, ramp, carriageway) at height `y` under (x, z): no fence there.
+  const fq = newPathQuery();
+  const onStreet = (x: number, z: number, y: number): boolean => {
+    if (!net) return false;
+    net.query(x, z, fq, 'tarmac');
+    return (
+      fq.found &&
+      fq.distance < net.halfWidthAt(fq.path, fq.along) &&
+      Math.abs(gen.pathHeight(fq.path, fq.along) - y) < 1
+    );
+  };
+
   const build = (rows: WallRow[]): void => {
     if (rows.length < 2) return;
     const stone = new Builder(2);
@@ -537,10 +549,16 @@ export function* cutWallMeshJob(
           back,
           top,
           concrete,
-          // (not where a junction plaza paves over the wall top: the street continues at grade there)
+          // (not where a junction plaza paves over the wall top: the street continues at grade there; never on a street
+          // at the wall top's level - a fence keeps a street off the drop, it never stands on one)
           fence:
             !line.noFence &&
-            !gen.plazas.inside(s.x + s.tz * lat, s.z - s.tx * lat, 1),
+            !gen.plazas.inside(s.x + s.tz * lat, s.z - s.tx * lat, 1) &&
+            !onStreet(
+              s.x + s.tz * (lat + Math.sign(lat) * 0.3),
+              s.z - s.tx * (lat + Math.sign(lat) * 0.3),
+              top,
+            ),
         });
         if (Math.round(d + ext) % 100 === 0) yield;
       }

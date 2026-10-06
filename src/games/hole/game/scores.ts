@@ -21,9 +21,9 @@ import type { KV } from './storage';
  *   2 = clear bonus 10 points per second; 3 = panda_big + tiger_big.
  */
 export const MAP_SCORING_VERSIONS: Record<string, number> = {
-  city: 8,
-  toy: 5,
-  animal: 3,
+  city: 9,
+  toy: 6,
+  animal: 4,
 };
 /** City Island keeps the original (pre-multi-map) storage key, so its old lists stay valid. */
 const versionKey = (map: string) =>

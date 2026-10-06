@@ -55,7 +55,8 @@ not.
 - **Pick a map** (Play -> map picker, remembered in `hole.settings`): City Island, Toy Emporium or Animal Island. Each map has its own
   top 10 and its own scoring version (`MAP_SCORING_VERSIONS` in `game/scores.ts`).
 - **Pick difficulty**: above the time buttons sits the **map variant**: City Island has an island seed stepper
-  (`‹  Island #7  ›` and `🎲 Random`, seeds 1-999, saved as `settings.seed`), the Toy Emporium has its three floor plans as
+  (`‹  Island #7  ›` and `🎲 Random`, seeds 1-999, saved as `settings.seed`; entering the screen from Play / the map
+  picker always rolls a random seed), the Toy Emporium has its three floor plans as
   tabs (Grand Hall / Ring Walk / Warehouse Sale, saved as `settings.layout`); the menu background shows the pick. Every
   seed holds the same points, so one top 10 per map and difficulty covers all islands (the toy layouts share one list
   too; layout B is a fast run and C a slow one, see TOY-STORE.md). `?seed=` / `?layout=` in the URL win over the saved
@@ -63,9 +64,9 @@ not.
 
   | Difficulty | Time  | Notes                                                          |
   | ---------- | ----- | -------------------------------------------------------------- |
-  | Easy       | 500 s | enough time to eat the whole island and collect the time bonus |
-  | Medium     | 250 s | a good run reaches skyscrapers around 2/3 of the way           |
-  | Hard       | 100 s | fast scoring; the highest levels are a stretch goal            |
+  | Easy       | 480 s | enough time to eat the whole island and collect the time bonus |
+  | Medium     | 240 s | a good run reaches skyscrapers around 2/3 of the way           |
+  | Hard       | 120 s | fast scoring; the highest levels are a stretch goal            |
 
   Each card shows your best score for that difficulty.
 
@@ -204,9 +205,9 @@ Each item has a small state machine in `sim/fall.ts`, deterministic (seeded per 
   size (exponential approach, time constant 0.18 s), so items at the rim fall in as the hole grows. Level 25 is the cap;
   after that XP only adds score.
 - **Island cleared bonus** (100 % of the island eaten before time runs out): **+10 points per remaining second**. The run
-  ends immediately with the bonus. Easy (500 s) is the difficulty where this normally happens.
-- **Leftover rings:** once fewer than 100 points are left, every remaining item gets a pulsing white ground ring (at least
-  5 % of the camera distance wide) and tiny items are drawn regardless of size, so stragglers are easy to find from a big hole
+  ends immediately with the bonus. Easy (480 s) is the difficulty where this normally happens.
+- **Leftover rings:** once fewer than 100 points are left, every remaining item gets a pulsing white ground ring (hugging the item, at least
+  1 % of the camera distance wide, `MIN_SCREEN_K`) and tiny items are drawn regardless of size, so stragglers are easy to find from a big hole
   (`render/leftover-rings.ts`, `LEFTOVER_POINTS`).
 - Results also show **% eaten**, by points: points eaten ÷ total island points (City Island 30 000, Toy Emporium 25 000). The HUD shows the same percentage live.
 - Combos and multipliers are not in v0 (see iterations).
@@ -271,9 +272,9 @@ Measured with the headless bot (`sim/bot.ts`, 4 map seeds, 30 steps/s):
 
 | Difficulty   | casual bot              | good bot                                |
 | ------------ | ----------------------- | --------------------------------------- |
-| Hard 100 s   | level ~9 of 15          | level ~13 of 15                         |
-| Medium 250 s | level 15 at ~160 s      | level 15 at ~120 s, ~99 % of the island |
-| Easy 500 s   | island cleared (~400 s) | island cleared (~310 s)                 |
+| Hard 120 s   | level ~9 of 15          | level ~13 of 15                         |
+| Medium 240 s | level 15 at ~160 s      | level 15 at ~120 s, ~99 % of the island |
+| Easy 480 s   | island cleared (~400 s) | island cleared (~310 s)                 |
 
 Humans on touch will be slower than the bot. Medium and Easy are close in feel (both reach the top level and clear most
 of the island); the clear bonus (+10 / s left) is what ranks fast Easy runs. Tune with real players (TASKS).

@@ -100,12 +100,7 @@ export function stageSigns(
     const p = roadLocal(s, lat);
     return s.y - ground.height(p.x, p.z);
   };
-  const cyl = (
-    x: number,
-    z: number,
-    r: number,
-    h: number,
-  ): StaticCollider => ({
+  const cyl = (x: number, z: number, r: number, h: number): StaticCollider => ({
     kind: 'cylinder',
     x,
     y: ground.height(x, z) - 0.2,

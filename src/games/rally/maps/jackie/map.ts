@@ -154,13 +154,15 @@ function parkLane(list: PathDef[]): PathDef[] {
   return out;
 }
 /**
- * OSM nodes moved (from -> to, m): the north Union Tpke service road west of the overlook slab hugs the cut so closely
- * that its inner lane lay up to 1.8 m over the open trench (the ribbon edge curled down into it). 2 m away from the
- * parkway; nothing else uses these nodes.
+ * OSM nodes moved (from -> to, m): the Union Tpke service roads beside the overlook slab hug the cut so closely that
+ * their inner lanes lay over the open trench (the ribbon edge curled down into it) or on the wall's fence line. 1.5-2 m
+ * away from the parkway; nothing else uses these nodes.
  */
 const MOVED_NODES: [number, number, number, number][] = [
   [2264.0, -1526.7, 2262.7, -1528.3],
   [2239.6, -1505.9, 2238.3, -1507.5],
+  // South service road east of the slab: its inner lane lay on the wall top / fence line.
+  [2298.7, -1524.0, 2299.6, -1522.8],
 ];
 const moveNodes = (list: PathDef[]): PathDef[] =>
   list.map((p) => {
@@ -523,11 +525,11 @@ export const jackieMap: MapDef = {
       2750.8, -1806.3, 2742, -1796, 2728, -1784, 2712, -1784, 2695, -1780,
       2672.5, -1776.9,
     ],
-    // Park Lane x Union Tpke at both ends of the overlook slab (6 720 m): from inside the trench wall line (no slab
-    // edge parapet across Park Lane) to past the Park Lane deck ends (no deck parapets / abutments across the Union
-    // Tpke mouths).
-    [2278.2, -1513.2, 2294.2, -1526.1, 2302.3, -1516.0, 2286.4, -1503.1],
-    [2268.4, -1525.3, 2284.3, -1538.2, 2276.5, -1547.9, 2260.5, -1535.0],
+    // Park Lane x Union Tpke at both ends of the overlook slab (6 720 m): between the headwalls (never on the trench
+    // rim beyond them, its fence stays), from inside the trench wall line (no slab edge parapet across Park Lane) to
+    // past the Park Lane deck ends (no deck parapets / abutments across the Union Tpke mouths).
+    [2279.4, -1514.1, 2293.0, -1525.1, 2301.2, -1515.0, 2287.6, -1504.0],
+    [2269.6, -1526.3, 2283.2, -1537.3, 2275.3, -1547.0, 2261.7, -1536.0],
   ],
   overheadSigns: {
     exits: true,

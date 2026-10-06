@@ -150,7 +150,7 @@ export class Menu {
         '▶  PLAY',
         '',
         this.click(() =>
-          this.api.maps.length > 1 ? this.mapScreen() : this.difficulty(),
+          this.api.maps.length > 1 ? this.mapScreen() : this.difficulty(true),
         ),
       ),
       this.row(
@@ -278,7 +278,7 @@ export class Menu {
         'click',
         this.click(() => {
           this.api.onMap(m.id);
-          this.difficulty();
+          this.difficulty(true);
         }),
       );
       list.append(b);
@@ -288,9 +288,13 @@ export class Menu {
   }
 
   // ------------------------------------------------------------------ difficulty
-  difficulty(): void {
+  /** `fresh` (coming from Play / the map picker) rolls a random island seed. */
+  difficulty(fresh = false): void {
+    const mc = this.api.maps.find((m) => m.id === this.api.mapId());
+    if (fresh && mc?.seeded)
+      this.api.onVariant({ seed: 1 + Math.floor(Math.random() * 999) });
     const card = el('div', 'hg-card');
-    const row = el('div', 'hg-row');
+    const row = el('div', 'hg-diffs');
     const mapId = this.api.mapId();
     const noun = this.api.maps.find((m) => m.id === mapId)?.noun ?? 'island';
     for (const d of DIFFICULTIES) {
@@ -332,25 +336,43 @@ export class Menu {
         this.api.onVariant({ seed: Math.min(999, Math.max(1, seed)) });
         this.difficulty();
       };
-      const step = (label: string, to: () => number, title: string) => {
+      const step = (
+        label: string,
+        cls: string,
+        to: () => number,
+        title: string,
+      ) => {
         const b = button(
           label,
-          'gray small',
+          cls,
           this.click(() => again(to())),
         );
         b.title = title;
         return b;
       };
-      return [
+      const stepper = el('div', 'hg-seed');
+      stepper.append(
+        step(
+          '‹',
+          'gray hg-arrow',
+          () => (s.seed <= 1 ? 999 : s.seed - 1),
+          'Previous island',
+        ),
         el('p', 'hg-variant', `Island #${s.seed}`),
-        this.row(
-          step('‹', () => (s.seed <= 1 ? 999 : s.seed - 1), 'Previous island'),
-          step(
-            '🎲 Random',
-            () => 1 + Math.floor(Math.random() * 999),
-            'Random island',
-          ),
-          step('›', () => (s.seed >= 999 ? 1 : s.seed + 1), 'Next island'),
+        step(
+          '›',
+          'gray hg-arrow',
+          () => (s.seed >= 999 ? 1 : s.seed + 1),
+          'Next island',
+        ),
+      );
+      return [
+        stepper,
+        step(
+          '🎲 Random',
+          'gray small hg-random',
+          () => 1 + Math.floor(Math.random() * 999),
+          'Random island',
         ),
       ];
     }

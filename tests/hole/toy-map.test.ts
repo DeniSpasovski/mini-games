@@ -85,15 +85,15 @@ test('start is on the floor with small items nearby, and the departments tile th
 
 test('balance bands: good bot on the toy store, hard / medium / easy', () => {
   const m = generateToyStore({ seed: 1 });
-  const hard = runBot(new Sim(m, { seconds: 100 }), BOT_SKILLS.good, {
+  const hard = runBot(new Sim(m, { seconds: 120 }), BOT_SKILLS.good, {
     dt: 1 / 30,
   });
   expect(hard.level).toBeGreaterThanOrEqual(10);
-  const medium = runBot(new Sim(m, { seconds: 250 }), BOT_SKILLS.good, {
+  const medium = runBot(new Sim(m, { seconds: 240 }), BOT_SKILLS.good, {
     dt: 1 / 30,
   });
   expect(medium.level).toBeGreaterThanOrEqual(15);
-  const easy = runBot(new Sim(m, { seconds: 500 }), BOT_SKILLS.good, {
+  const easy = runBot(new Sim(m, { seconds: 480 }), BOT_SKILLS.good, {
     dt: 1 / 30,
   });
   expect(easy.level).toBeGreaterThanOrEqual(15);

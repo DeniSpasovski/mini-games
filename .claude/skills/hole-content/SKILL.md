@@ -58,8 +58,8 @@ so bump that map's scoring version (below).
 2. **Exact point total** per map (City Island 30 000, Toy Emporium 25 000): fill, then trim small items / top up with 1-point fillers
    (`balancePoints` in `map/generate.ts` and `map/toy/generate.ts`). Every tier 1-25 and level 1-15 has >= 2 types placed,
    every type up to tier 20 is placed, the start has > 15 tier 1-3 items within 25 m, total >= 2 x `cumulativeXp(15)`.
-3. **Pace it with the bot** (`sim/bot.ts`, `balance.html?map=<id>`): good bot, Hard 100 s reaches level >= 10, Medium
-   250 s level 15, Easy 500 s clears > 95 %. Density (points per m2) decides the pace: the toy store needed a 600 x 400 m
+3. **Pace it with the bot** (`sim/bot.ts`, `balance.html?map=<id>`): good bot, Hard 120 s reaches level >= 10, Medium
+   240 s level 15, Easy 480 s clears > 95 %. Density (points per m2) decides the pace: the toy store needed a 600 x 400 m
    floor. Tune floor size and clustering, **not** the XP curve.
 4. **Ground + mood.** A ground builder in `render/` (use the stencil-cut `createGroundMaterial()` for everything the hole
    cuts) and wire it in `render/map-ground.ts`; walls use `getItemMaterials().prop` so the building fade dithers them.

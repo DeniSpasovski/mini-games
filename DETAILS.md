@@ -64,21 +64,25 @@ details" is the privacy notice - set `SITE.privacyContact` to show a contact e-m
 GA only loads in production builds on a non-local host, so `npm run dev` / `npm run preview` never send hits (the banner
 still shows, for testing). Empty / unset `PUBLIC_GA_MEASUREMENT_ID` (a fresh clone, or any fork) removes both the banner and analytics.
 
-**Game events** (`track()` in `src/shared/analytics.ts`, GA4's recommended game events; sent only when gtag.js is loaded,
-so never without consent or in dev). `?analytics=log` prints each event to the console, also in dev.
+**Game events** (`track(game, event, params)` in `src/shared/analytics.ts`; sent only when gtag.js is loaded, so never
+without consent or in dev). Event names are `game_<game id>_<event>` (e.g. `game_rally_level_end`), `<event>` = GA4's
+recommended game events. Param names are `game_<name>` when every game sends them and `game_<game id>_<name>` when only one
+does; `game_id` is added to every event. `?analytics=log` prints each event to the console, also in dev.
 
-| Event            | Sent when                                                                    | Params                                                                                                                                                           |
-| ---------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `level_start`    | rally: stage clock starts (GO); hole: run starts (countdown)                 | `game`, `level_name` (map id), `game_version`; rally `car`, `tyre`, `setup`, `gearing`, `times_version`; hole `difficulty`, `seed` / `layout`, `scoring_version` |
-| `level_end`      | run finished (`success: true`) or left mid-run (`success: false` + `reason`) | start params + rally `time_s`, `penalty_s`, `new_best` (quit: `time_s`, `progress_pct`); hole `score`, `hole_level`, `items_eaten`, `pct_eaten`, `cleared`       |
-| `post_score`     | run finished                                                                 | start params + `score` (rally: stage time in ms, lower is better; hole: points + `level`), `character` (car / hole colour)                                       |
-| `select_content` | a viewer page opens (car viewer: also on car change)                         | `content_type` (`rally_map_viewer`, `rally_car_viewer`, `hole_map_viewer`), `content_id` (map / car id)                                                          |
+| `<event>`        | Sent when                                                                                   | Params                                                                                                                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `level_start`    | rally: stage clock starts (GO); hole: run starts (countdown)                                | `game_id`, `game_level_name` (map id), `game_version`; rally `_car`, `_tyre`, `_setup`, `_gearing`, `_times_version`; hole `_difficulty`, `_seed`, `_layout`, `_scoring_version` |
+| `level_end`      | run finished (`game_success: true`) or left mid-run (`game_success: false` + `game_reason`) | start params + `game_time_s`; rally `_penalty_s`, `_new_best` (quit: `_progress_pct`); hole `game_score`, `_level`, `_cleared`, `_items_eaten`, `_pct_eaten`                     |
+| `post_score`     | run finished                                                                                | start params + `game_score` (rally: stage time in ms, lower is better; hole: points), `game_character` (car / hole colour); hole `_level`                                        |
+| `select_content` | a viewer page opens (car viewer: also on car change)                                        | `game_content_type` (`map_viewer`, `car_viewer`), `game_content_id` (map / car id)                                                                                               |
+
+`_x` = `game_rally_x` / `game_hole_x`.
 
 - Only ranked runs are tracked: no rally free drive / test pad, no Hole dev runs (`?time=`, `?level=`, `?bot=1`).
 - Quits are tracked from the pause menu (restart, main menu, portal, rally spawn change); closing the tab is not.
-- `times_version` / `scoring_version` keep times / scores from before a physics or scoring change apart in reports.
-- GA admin setup: register each param above as an event-scoped custom dimension (`time_s`, `score`, `pct_eaten`... as
-  custom metrics) or it only shows in Realtime / DebugView; registration is not retroactive. Turn **off** Enhanced
+- `game_rally_times_version` / `game_hole_scoring_version` keep times / scores from before a physics or scoring change apart in reports.
+- GA admin setup: register each param above as an event-scoped custom dimension (`game_time_s`, `game_score`, `game_hole_pct_eaten`...
+  as custom metrics) or it only shows in Realtime / DebugView; registration is not retroactive. Turn **off** Enhanced
   measurement -> "Page changes based on browser history events": viewers rewrite the URL (camera links) on every
   change, which would otherwise count as page views. Page views of the viewer pages themselves are recorded anyway.
 

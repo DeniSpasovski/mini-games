@@ -46,7 +46,7 @@ need to be certain of the imagery provider's terms.
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- | --------------------------------------------------------- |
 | `bimmer_m3.glb`, `bimmer_m3_wheel.glb` | "BMW E46 Coupe - Tuning - Model" by Doomas3D (MakerWorld) | CC BY 4.0 |
 | `skoda_rally.glb`, `skoda_rally_wheel.glb` | "Skoda Fabia R5 Rally Car" by SenturyUK (Sketchfab) | CC BY 4.0 |
-| none (Zastava 101) | hand-built in code; shape reference "Zastava 101 (Stojadin)" by Tomislav Tomljenovic (Sketchfab) | CC BY 4.0 |
+| none (Zastava 101) | hand-built in code from a public-domain factory blueprint; shape reference "Zastava 101 (Stojadin)" by Tomislav Tomljenovic (Sketchfab) | CC BY 4.0 |
 
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 

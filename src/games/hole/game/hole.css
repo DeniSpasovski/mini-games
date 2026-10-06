@@ -441,12 +441,20 @@ body {
   flex-direction: column;
   gap: 12px;
 }
-.hg-diff {
+/* the three time buttons as wide bars like PLAY: name on the left, time + best on the right */
+.hg-diffs {
   display: flex;
   flex-direction: column;
+  gap: 12px;
+}
+.hg-diff {
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 4px;
-  padding: 16px 10px;
+  column-gap: 12px;
+  row-gap: 2px;
+  min-height: 64px;
+  padding: 10px 22px;
   border-radius: 20px;
   border: 0;
   color: #fff;
@@ -457,9 +465,12 @@ body {
   cursor: pointer;
 }
 .hg-diff b {
+  grid-row: 1 / span 2;
+  justify-self: start;
   font-size: 26px;
 }
 .hg-diff span {
+  justify-self: end;
   font-size: 15px;
   opacity: 0.92;
 }
@@ -797,6 +808,28 @@ body {
   font-size: 22px;
   font-weight: 900;
   color: var(--hg-ink);
+}
+.hg-seed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin: 4px 0 8px;
+}
+.hg-seed .hg-variant {
+  margin: 0;
+  min-width: 7.5em;
+}
+.hg-btn.hg-arrow {
+  width: 48px;
+  min-height: 48px;
+  padding: 0;
+  font-size: 28px;
+  line-height: 1;
+}
+.hg-btn.hg-random {
+  display: block;
+  margin: 0 auto 14px;
 }
 .hg-card .hg-tabs {
   margin: 4px 0 12px;

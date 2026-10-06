@@ -375,7 +375,36 @@
         "material": "trim",
         "region": {
           "view": "left",
-          "poly": [[-0.6, 1.31], [-0.716, 1.297], [-0.756, 1.291], [-0.791, 1.285], [-0.841, 1.278], [-0.88, 1.271], [-0.925, 1.258], [-0.963, 1.249], [-1.009, 1.23], [-1.046, 1.217], [-1.088, 1.195], [-1.129, 1.178], [-1.18, 1.151], [-1.256, 1.109], [-1.3, 1.077], [-1.303, 1.045], [-1.301, 1.012], [-1.279, 0.985], [-1.233, 0.972], [-1.185, 0.966], [-1.111, 0.964], [-1.024, 0.962], [-0.939, 0.956], [-0.83, 0.953], [-0.713, 0.951], [-0.505, 0.953], [-0.512, 0.987], [-0.597, 1.304]],
+          "poly": [
+            [-0.6, 1.31],
+            [-0.716, 1.297],
+            [-0.756, 1.291],
+            [-0.791, 1.285],
+            [-0.841, 1.278],
+            [-0.88, 1.271],
+            [-0.925, 1.258],
+            [-0.963, 1.249],
+            [-1.009, 1.23],
+            [-1.046, 1.217],
+            [-1.088, 1.195],
+            [-1.129, 1.178],
+            [-1.18, 1.151],
+            [-1.256, 1.109],
+            [-1.3, 1.077],
+            [-1.303, 1.045],
+            [-1.301, 1.012],
+            [-1.279, 0.985],
+            [-1.233, 0.972],
+            [-1.185, 0.966],
+            [-1.111, 0.964],
+            [-1.024, 0.962],
+            [-0.939, 0.956],
+            [-0.83, 0.953],
+            [-0.713, 0.951],
+            [-0.505, 0.953],
+            [-0.512, 0.987],
+            [-0.597, 1.304]
+          ],
           "depth": [0.3, 1.2],
           "facing": -0.2
         }
@@ -505,12 +534,65 @@
       {
         "name": "headlights - lamp (projector bowls): the engraved lamp outline traced on a front-view relief map of the mesh (2000 px/m, groove centre lines): top edge y 0.666 sweeping down to the inner tip at (0.376, 0.558) by the kidney, bottom y 0.545 with a hump to 0.56 under the inner bowl; ends at the amber divider |x| 0.74 (a groove at 0.73 - 0.75). `any`: also takes what earlier segment picks labelled; `facing` -0.5: the lamp wraps round the corner, sideways faces count, only the shell's inside (facing back) does not; depth from z 1.75 (12 hidden faces of an inner wall at z 1.6 - 1.7 behind the outer bowl would stretch the lamp UVs; only the amber below reaches back to z 1.6); depth from z 1.75 (12 hidden faces of an inner wall at z 1.6 - 1.7 behind the outer bowl would stretch the lamp UVs; only the amber below reaches back to z 1.6)",
         "material": "twinlamp",
-        "region": { "view": "front", "poly": [[0.376, 0.5577], [0.38, 0.5695], [0.385, 0.577], [0.39, 0.5855], [0.4, 0.6008], [0.41, 0.6135], [0.43, 0.634], [0.45, 0.6472], [0.48, 0.6558], [0.52, 0.6607], [0.56, 0.6633], [0.6, 0.664], [0.64, 0.666], [0.68, 0.6667], [0.74, 0.666], [0.74, 0.546], [0.72, 0.546], [0.64, 0.5443], [0.6, 0.5457], [0.58, 0.5517], [0.56, 0.562], [0.52, 0.5607], [0.48, 0.5537], [0.45, 0.555], [0.41, 0.557], [0.38, 0.5577]], "depth": [1.75, 2.3], "facing": -0.5, "any": true }
+        "region": {
+          "view": "front",
+          "poly": [
+            [0.376, 0.5577],
+            [0.38, 0.5695],
+            [0.385, 0.577],
+            [0.39, 0.5855],
+            [0.4, 0.6008],
+            [0.41, 0.6135],
+            [0.43, 0.634],
+            [0.45, 0.6472],
+            [0.48, 0.6558],
+            [0.52, 0.6607],
+            [0.56, 0.6633],
+            [0.6, 0.664],
+            [0.64, 0.666],
+            [0.68, 0.6667],
+            [0.74, 0.666],
+            [0.74, 0.546],
+            [0.72, 0.546],
+            [0.64, 0.5443],
+            [0.6, 0.5457],
+            [0.58, 0.5517],
+            [0.56, 0.562],
+            [0.52, 0.5607],
+            [0.48, 0.5537],
+            [0.45, 0.555],
+            [0.41, 0.557],
+            [0.38, 0.5577]
+          ],
+          "depth": [1.75, 2.3],
+          "facing": -0.5,
+          "any": true
+        }
       },
       {
         "name": "headlights - amber indicator: the lamp outline's outer end (|x| 0.74 -> the rounded end at 0.84), same relief map; own glowing part instead of a texture block (the old wrap texture drew it with a zig-zag edge)",
         "material": "amber",
-        "region": { "view": "front", "poly": [[0.74, 0.666], [0.76, 0.6663], [0.78, 0.663], [0.8, 0.6545], [0.8125, 0.64], [0.825, 0.62], [0.8335, 0.6], [0.8385, 0.58], [0.8395, 0.565], [0.838, 0.553], [0.83, 0.5465], [0.8, 0.5455], [0.74, 0.546]], "depth": [1.6, 2.3], "facing": -0.5, "any": true }
+        "region": {
+          "view": "front",
+          "poly": [
+            [0.74, 0.666],
+            [0.76, 0.6663],
+            [0.78, 0.663],
+            [0.8, 0.6545],
+            [0.8125, 0.64],
+            [0.825, 0.62],
+            [0.8335, 0.6],
+            [0.8385, 0.58],
+            [0.8395, 0.565],
+            [0.838, 0.553],
+            [0.83, 0.5465],
+            [0.8, 0.5455],
+            [0.74, 0.546]
+          ],
+          "depth": [1.6, 2.3],
+          "facing": -0.5,
+          "any": true
+        }
       },
       {
         "name": "kidney slats + frames",
@@ -540,7 +622,40 @@
       {
         "name": "bumper side intakes (recess round the fog lamps): exact outline of the recess opening, read row by row off a front-view depth map of the raw mesh (surface more than 6 mm behind the bumper face: slanted inner tip from |x| 0.467, top y 0.333, rounded outer end round the lamp to |x| 0.79, bottom y 0.23), grown 3 mm so the recess walls are included. Replaced an `inside` box that only took the recess segments on the car's right - on the left they are merged into a segment that pokes out of the box, so that recess stayed body colour (user 2026-10-04)",
         "material": "trim",
-        "region": { "view": "front", "poly": [[0.467, 0.229], [0.467, 0.235], [0.47, 0.25], [0.477, 0.26], [0.484, 0.27], [0.491, 0.28], [0.498, 0.29], [0.5037, 0.3], [0.5123, 0.31], [0.5243, 0.32], [0.5343, 0.325], [0.5537, 0.33], [0.57, 0.334], [0.74, 0.334], [0.7543, 0.33], [0.7663, 0.325], [0.7783, 0.315], [0.785, 0.305], [0.789, 0.295], [0.791, 0.285], [0.789, 0.275], [0.7863, 0.265], [0.779, 0.255], [0.7683, 0.245], [0.7463, 0.235], [0.6203, 0.23]], "depth": [1.9, 2.4], "facing": -0.5, "grow": 0.003 }
+        "region": {
+          "view": "front",
+          "poly": [
+            [0.467, 0.229],
+            [0.467, 0.235],
+            [0.47, 0.25],
+            [0.477, 0.26],
+            [0.484, 0.27],
+            [0.491, 0.28],
+            [0.498, 0.29],
+            [0.5037, 0.3],
+            [0.5123, 0.31],
+            [0.5243, 0.32],
+            [0.5343, 0.325],
+            [0.5537, 0.33],
+            [0.57, 0.334],
+            [0.74, 0.334],
+            [0.7543, 0.33],
+            [0.7663, 0.325],
+            [0.7783, 0.315],
+            [0.785, 0.305],
+            [0.789, 0.295],
+            [0.791, 0.285],
+            [0.789, 0.275],
+            [0.7863, 0.265],
+            [0.779, 0.255],
+            [0.7683, 0.245],
+            [0.7463, 0.235],
+            [0.6203, 0.23]
+          ],
+          "depth": [1.9, 2.4],
+          "facing": -0.5,
+          "grow": 0.003
+        }
       },
       {
         "name": "central intake grill",
@@ -670,7 +785,20 @@
       {
         "name": "mirror housings + stalks black (user 2026-10-04: not livery-coloured): front-view outline round the mirror + stalk (|x| 0.86 - 1.04, y 0.87 - 1.08, z 0.29 - 0.60) that follows the door skin narrowing with height (max |x| 0.81 at y 0.875, 0.79 at 0.9, 0.755 at 0.95, 0.74 at 1.0 - a single |x| > 0.858 box left the stalk root white); after the mirror glass pick so the glass stays glass",
         "material": "trim",
-        "region": { "view": "front", "poly": [[0.835, 0.855], [1.07, 0.855], [1.07, 1.095], [0.775, 1.095], [0.77, 0.95], [0.8, 0.9], [0.83, 0.875]], "depth": [0.25, 0.65], "facing": -1 }
+        "region": {
+          "view": "front",
+          "poly": [
+            [0.835, 0.855],
+            [1.07, 0.855],
+            [1.07, 1.095],
+            [0.775, 1.095],
+            [0.77, 0.95],
+            [0.8, 0.9],
+            [0.83, 0.875]
+          ],
+          "depth": [0.25, 0.65],
+          "facing": -1
+        }
       },
       {
         "name": "tail lamps - rear face",

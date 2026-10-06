@@ -60,7 +60,9 @@ const solid = (g: BufferGeometry, color: Color | string): BufferGeometry =>
   planarUV(paint(g, color), 1.3);
 
 const frameOf = (s: RoadSample): Matrix4 =>
-  new Matrix4().makeRotationY(Math.atan2(s.tx, s.tz)).setPosition(s.x, s.y, s.z);
+  new Matrix4()
+    .makeRotationY(Math.atan2(s.tx, s.tz))
+    .setPosition(s.x, s.y, s.z);
 
 const box = (
   w: number,
@@ -81,9 +83,7 @@ function plane(
   z: number,
   yaw = 0,
 ): BufferGeometry {
-  return nonIndexed(
-    new PlaneGeometry(w, h).rotateY(yaw).translate(x, y, z),
-  );
+  return nonIndexed(new PlaneGeometry(w, h).rotateY(yaw).translate(x, y, z));
 }
 
 /** A plane readable from both sides: [seen by the approaching driver (-Z side), seen after passing]. */
@@ -112,7 +112,10 @@ function pillar(
     for (let k = 1; k <= 5; k++) {
       const f = k / 5;
       pts.push(
-        new Vector2(R * 0.92 + 0.14 * Math.sin(Math.PI * f), y0 + (i + f) * len),
+        new Vector2(
+          R * 0.92 + 0.14 * Math.sin(Math.PI * f),
+          y0 + (i + f) * len,
+        ),
       );
     }
   for (let k = 1; k <= 6; k++) {
@@ -132,7 +135,12 @@ function pillar(
 }
 
 /** Round tube along X from -half to +half with rounded ends. */
-function tube(half: number, y: number, r: number, color: Color): BufferGeometry[] {
+function tube(
+  half: number,
+  y: number,
+  r: number,
+  color: Color,
+): BufferGeometry[] {
   const t = new CylinderGeometry(r, r, half * 2, 14, 1)
     .rotateZ(Math.PI / 2)
     .translate(0, y, 0);
@@ -191,7 +199,11 @@ function gantry(
     const poleTop = top + 0.42;
     solids.push(
       solid(
-        new CylinderGeometry(0.025, 0.03, 1.6, 6).translate(x, poleTop + 0.7, 0),
+        new CylinderGeometry(0.025, 0.03, 1.6, 6).translate(
+          x,
+          poleTop + 0.7,
+          0,
+        ),
         '#c8ccd0',
       ),
     );
@@ -202,13 +214,22 @@ function gantry(
       for (const face of [-1, 1])
         solids.push(
           solid(
-            plane(0.9, 0.27, x + out * 0.5, fy, face * 0.004, face < 0 ? Math.PI : 0),
+            plane(
+              0.9,
+              0.27,
+              x + out * 0.5,
+              fy,
+              face * 0.004,
+              face < 0 ? Math.PI : 0,
+            ),
             c,
           ),
         );
     });
     // Vertical banner sleeve on the pillar with the name / year, readable from both directions.
-    solids.push(box(0.9, 3.3, 1.1, x, 2.9, 0, col.main.clone().multiplyScalar(0.55)));
+    solids.push(
+      box(0.9, 3.3, 1.1, x, 2.9, 0, col.main.clone().multiplyScalar(0.55)),
+    );
     add(sideTexture(g.kind, title), ...bothSides(0.8, 3.2, x, 2.9, 0.555));
   });
 
@@ -217,7 +238,10 @@ function gantry(
   solids.push(...tube(g.half, upperTubeY, 0.3, col.main));
   const panelY = panelBottom + panelH / 2;
   solids.push(box(panelW + 0.3, panelH + 0.26, 0.3, 0, panelY, 0, DARK));
-  add(headerTexture(g.kind, title), ...bothSides(panelW, panelH, 0, panelY, 0.155));
+  add(
+    headerTexture(g.kind, title),
+    ...bothSides(panelW, panelH, 0, panelY, 0.155),
+  );
 
   // Clock hung under the header on two straps.
   const clockY = lowerTubeY - 0.27 - 0.1 - 0.33;
@@ -258,9 +282,7 @@ function board(b: BoardPlan): {
       );
   for (const turn of [0, Math.PI]) {
     const at = (g: BufferGeometry): BufferGeometry =>
-      g
-        .rotateY(turn + yaw)
-        .translate(b.side * b.lateral, base, 0);
+      g.rotateY(turn + yaw).translate(b.side * b.lateral, base, 0);
     solids.push(
       at(
         solid(

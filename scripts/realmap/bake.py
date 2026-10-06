@@ -1056,8 +1056,15 @@ def main():
         os.path.dirname(os.path.join(ROOT, cfg['out'])),
         built=((wc_raw == 50)[::2, ::2], lc_ext[0], lc_ext[2], lcc['cell'] * 2),
     )  # fmt: skip
+    # ODbL attribution for the Microsoft footprints, only when the map actually uses some.
+    src_col, ms_src = bld.FIELDS.index('src'), bld.SOURCES.index('ms')
+    ms_credit = (
+        ['Building footprints where OSM has none: Microsoft Global ML Building Footprints (ODbL)']
+        if any(r[src_col] == ms_src for r in buildings['rows'])
+        else []
+    )
 
-    lakes = lake_polygons(ways, rels, nodes, proj, ext)
+    lakes =lake_polygons(ways, rels, nodes, proj, ext)
     print(f'  {len(lakes)} lake(s) / pond(s) / reservoir(s)')
 
     pylons = [
@@ -1082,7 +1089,8 @@ def main():
                 elev_credit,
                 'Land cover: ESA WorldCover 10 m 2021 v200 (CC BY 4.0)',
                 'Roads, railways, land use, buildings, power: (c) OpenStreetMap contributors (ODbL)',
-            ],
+            ]
+            + ms_credit,
             'axes': '+X east, +Z south (north = -Z), metres from origin',
             'routeLength': round(length, 1),
         },

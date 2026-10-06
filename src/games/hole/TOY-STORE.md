@@ -432,7 +432,7 @@ Entrance south, start at the south-west corner of the ring.
 
 ### Layout C - "Warehouse Sale" (drawn 280 x 100 m, built x2.9): a speed run
 
-Five vertical bands, small -> huge, west -> east, like a conveyor. Best for the Hard (100 s) run and the balance
+Five vertical bands, small -> huge, west -> east, like a conveyor. Best for the Hard (120 s) run and the balance
 bot (a straight line of travel). Entrance and start at the west end.
 
 ```
@@ -489,7 +489,7 @@ wheel / carousel pairs (toy score version 3), the menu floor-plan picker.
 ### Product
 
 - [ ] **Per-map difficulty times** if real play shows the store is easier / harder than the island (today both use
-      Easy 500 / Medium 250 / Hard 100 s; the bot clears the store in ~320 s on layout A). Pace target: level 15 at
+      Easy 480 / Medium 240 / Hard 120 s; the bot clears the store in ~320 s on layout A). Pace target: level 15 at
       120-160 s (now ~90 s).
 - [ ] **Real-device pass** on iPad / phone for the toy store: 600 x 400 m floor, 9 600 items, camera framing at level 15
       near the walls, adaptive resolution (see TASKS.md real-device pass).

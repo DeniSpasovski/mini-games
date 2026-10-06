@@ -67,9 +67,9 @@ test('eat rule, tiers and levels', () => {
 
 test('difficulty times and clear bonus', () => {
   expect(DIFFICULTIES.map((d) => [d.id, d.seconds])).toEqual([
-    ['easy', 500],
-    ['medium', 250],
-    ['hard', 100],
+    ['easy', 480],
+    ['medium', 240],
+    ['hard', 120],
   ]);
   expect(CLEAR_BONUS_PER_SECOND).toBe(10);
 });

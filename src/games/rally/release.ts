@@ -27,10 +27,11 @@ export const AVAILABLE_MAPS: readonly string[] = [
   'test',
   'ajvatovci',
   'petralica',
+  'jackie',
 ];
 
 /** Maps on the dev server only. */
-export const TEST_MAPS: readonly string[] = ['jackie'];
+export const TEST_MAPS: readonly string[] = [];
 
 /** true on the dev server (everything available), false in the published build. */
 export const SHOW_TEST_CONTENT: boolean = import.meta.env.DEV;

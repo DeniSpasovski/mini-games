@@ -4,22 +4,13 @@
     {
       "name": "portal-dev",
       "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "dev"
-      ],
+      "runtimeArgs": ["run", "dev"],
       "port": 3000
     },
     {
       "name": "portal-dev-3010",
       "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run",
-        "dev",
-        "--",
-        "--port",
-        "3010"
-      ],
+      "runtimeArgs": ["run", "dev", "--", "--port", "3010"],
       "port": 3010
     },
     {

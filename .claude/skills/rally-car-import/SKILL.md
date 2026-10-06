@@ -20,7 +20,7 @@ our first car (a Printables STL: "no modifying, sharing, hosting") and the Bimme
    "no redistribution", "ask before use", "membership for commercial use"). Printables blocks bots (Cloudflare challenge: do not
    try to bypass it) - ask the user to paste the licence text. Also check every extra file you will use (wheels, tyres, interior,
    textures): each can have its own licence.
-2. **Quote it.** Put the licence name, the verbatim restriction sentence, the author, title, URL and the date checked in the car
+2. **Quote it.** Put the licence name, the verbatim restriction sentence, the author, title and URL in the car
    `DETAILS.md` links table (create the folder + file now; **never write "TODO" for a licence and carry on**).
 3. **Give a verdict** and report it to the user before step 0:
 

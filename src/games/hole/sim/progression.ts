@@ -175,9 +175,9 @@ export interface Difficulty {
 }
 
 export const DIFFICULTIES: Difficulty[] = [
-  { id: 'easy', label: 'Easy', seconds: 500 },
-  { id: 'medium', label: 'Medium', seconds: 250 },
-  { id: 'hard', label: 'Hard', seconds: 100 },
+  { id: 'easy', label: 'Easy', seconds: 480 },
+  { id: 'medium', label: 'Medium', seconds: 240 },
+  { id: 'hard', label: 'Hard', seconds: 120 },
 ];
 
 export function difficultyById(id: string): Difficulty {

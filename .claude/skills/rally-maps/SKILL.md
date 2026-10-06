@@ -184,6 +184,10 @@ Owner rules - a review fails on any of these:
 - The street under a bridge is flat and unbroken (no ground through it); sidewalks continue under bridges; lamps under a deck go on the
   wall (`wall_lamp`), never a pole; nothing scattered in a trench; no barrier / wall / sign post on another road; streets never overlap
   a carriageway.
+- Fences / railings never cross a road: a rim fence keeps a street off the drop to the parkway, it never stands on a street, plaza or
+  bridge deck, and never bridges a gap (one railing per run of fenced wall rows, `cut-wall-mesh.ts`). Where OSM puts a street's lane on
+  the wall line, move the street off the cut (`MOVED_NODES` in `maps/jackie/map.ts`); a junction plaza stays between the headwalls.
+  Check every new wall / plaza / street change at the bridge start and end for a railing across the road.
 
 Where it lives: path pipeline in `TerrainGen` (`world/under-bridges.ts`: `separateStreets`, `alignParallelDecks`, ...), trench and deck
 terrain in `terrain-gen.ts` (`dipUnderBridges`, `pathCutWeight`, `capUnderDecks`), walls in `cut-wall-mesh.ts`, span fitting in

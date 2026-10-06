@@ -104,9 +104,9 @@ test('compliance per car: rally car spans the range, road car soft, race car sti
   // Fabia: full range, gravel-soft to tarmac-stiff.
   expect(c('skoda_rally', 'soft')).toBeGreaterThan(0.9);
   expect(c('skoda_rally', 'stiff')).toBeLessThan(0.1);
-  expect(
-    c('skoda_rally', 'soft') - c('skoda_rally', 'stiff'),
-  ).toBeGreaterThan(0.8);
+  expect(c('skoda_rally', 'soft') - c('skoda_rally', 'stiff')).toBeGreaterThan(
+    0.8,
+  );
   // Zastava: only the soft half. Bimmer: only the stiff half. Narrow bands.
   expect(c('zastava_101', 'soft') - c('zastava_101', 'stiff')).toBeLessThan(
     0.5,

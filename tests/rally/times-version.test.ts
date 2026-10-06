@@ -1,5 +1,8 @@
 import { describe, expect, test } from '@rstest/core';
-import { TIMES_VERSION, purgeStaleTimes } from '../../src/games/rally/game/stage';
+import {
+  TIMES_VERSION,
+  purgeStaleTimes,
+} from '../../src/games/rally/game/stage';
 
 /** Minimal in-memory Storage (node has no localStorage). */
 function memoryStorage(initial: Record<string, string> = {}): Storage {

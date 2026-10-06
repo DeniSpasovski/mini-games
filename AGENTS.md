@@ -22,7 +22,7 @@ visible and redistributable by anyone, so treat every file as published.
   redistribution of the file AND of derivatives (CC0, CC BY, CC BY-SA, MIT ...). "Personal use only", "Standard Digital File
   License" (MakerWorld / Printables defaults), "no derivatives" and "non-commercial" files must stay out of git and out of
   `public/`. Converted models count as derivatives. When the licence is unknown, treat it as NOT allowed and ask the user.
-- **Every external source gets a row** in the matching `DETAILS.md` (link, author, licence, date checked, what it was used for)
+- **Every external source gets a row** in the matching `DETAILS.md` (link, author, licence, what it was used for)
   and, if it ships, in `THIRD-PARTY.md` + `public/models/CREDITS.md`. CC BY / ODbL need attribution: keep the `credit` /
   `data.meta.sources` strings in the code and the in-game About screen up to date. Never write "TODO" licences into shipped files.
 - **Reference material** (Google Maps / Street View screenshots, photos, blueprints, press images) is local-only in `sources/`

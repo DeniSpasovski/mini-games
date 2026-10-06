@@ -11,15 +11,15 @@ export const SITE = {
   /** Where to send people who load a copy from another domain. */
   canonicalUrl: 'https://deni.io',
   owner: 'Deni S.',
-  tagline:
-    'This site was made using AI agents under direction of Deni S.',
+  tagline: 'This site was made using AI agents under direction of Deni S.',
   /**
    * Google Analytics 4 measurement ID, read from the untracked env file
    * (`PUBLIC_GA_MEASUREMENT_ID` in `.env.local`, template: `.env.example`). Loaded only after
    * the visitor accepts the cookie banner, only in production builds on a non-local host
    * (src/shared/consent.ts). Empty / not set = no analytics and no banner.
    */
-  gaMeasurementId: (import.meta.env.PUBLIC_GA_MEASUREMENT_ID as string | undefined) ?? '',
+  gaMeasurementId:
+    (import.meta.env.PUBLIC_GA_MEASUREMENT_ID as string | undefined) ?? '',
   /**
    * Privacy / cookie banner and its footer link:
    *  - 'production' = shown in the production build only, hidden on `npm run dev`

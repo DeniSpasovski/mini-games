@@ -7,9 +7,9 @@ yet**: the source file is stored and the licence checked; the import (simplify, 
 
 ## Credits and licence
 
-| What        | Source                                                                                                                     | Licence                            |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| Model (GLB) | ["E92 Barnfind" by Tushar Singh, Sketchfab](https://sketchfab.com/3d-models/e92-barnfind-550c4113c2a34b0693e9ee6e7773d840) | **CC BY 4.0** (checked 2026-10-04) |
+| What        | Source                                                                                                                     | Licence       |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| Model (GLB) | ["E92 Barnfind" by Tushar Singh, Sketchfab](https://sketchfab.com/3d-models/e92-barnfind-550c4113c2a34b0693e9ee6e7773d840) | **CC BY 4.0** |
 
 BMW and M3 are trademarks of BMW AG and only identify the car. The model's roundel logos, plate and Gulf-style rust paint are not
 used; the game paints its own livery.

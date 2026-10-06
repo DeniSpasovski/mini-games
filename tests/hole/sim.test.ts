@@ -123,16 +123,16 @@ test('same seed + same inputs give identical runs', () => {
 
 test('balance bands: good bot, hard / medium / easy', () => {
   const map = generateCity({ seed: 1 });
-  const hard = runBot(new Sim(map, { seconds: 100 }), BOT_SKILLS.good, {
+  const hard = runBot(new Sim(map, { seconds: 120 }), BOT_SKILLS.good, {
     dt: 1 / 30,
   });
   expect(hard.level).toBeGreaterThanOrEqual(10);
   expect(hard.level).toBeLessThanOrEqual(25);
-  const medium = runBot(new Sim(map, { seconds: 250 }), BOT_SKILLS.good, {
+  const medium = runBot(new Sim(map, { seconds: 240 }), BOT_SKILLS.good, {
     dt: 1 / 30,
   });
   expect(medium.level).toBeGreaterThanOrEqual(15);
-  const easy = runBot(new Sim(map, { seconds: 500 }), BOT_SKILLS.good, {
+  const easy = runBot(new Sim(map, { seconds: 480 }), BOT_SKILLS.good, {
     dt: 1 / 30,
   });
   expect(easy.level).toBeGreaterThanOrEqual(15);

@@ -109,7 +109,9 @@ describe('ajvatovci hilltop', () => {
     expect(world.sampleGround(1522, -580, g).surface).toBe(SURFACES.gravel);
     // The stage road keeps its own surface up to the apron (only the traced car park is gravel).
     const p = world.road.at(world.road.length - 30);
-    expect(world.sampleGround(p.x, p.z, g).surface).toBe(SURFACES.tarmac_gravel);
+    expect(world.sampleGround(p.x, p.z, g).surface).toBe(
+      SURFACES.tarmac_gravel,
+    );
   });
 
   test('the wall: 0.3 m above the ground (the front fence base 0.9 m), closed but for the gates', () => {

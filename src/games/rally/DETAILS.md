@@ -87,12 +87,12 @@ Per-map settings live in `MapDef.environment`; everything below has a sensible d
 
 ## Maps
 
-| id          | name                 | notes                                                                        |
-| ----------- | -------------------- | ---------------------------------------------------------------------------- |
-| `test`      | Test Map             | procedural 1.7 km forest gravel stage, hairpin, crest jump, test pad         |
-| `ajvatovci` | Ajvatovci Hill       | real world (Ilinden, North Macedonia), 4.5 km old tarmac                     |
-| `petralica` | Petralica            | real world (North Macedonia), 9.6 km mountain stage, 560 m of climb          |
-| `jackie`    | Jackie Robinson Pkwy | **test map**: real world (New York), 7.3 km parkway with bridges and portals |
+| id          | name                 | notes                                                                |
+| ----------- | -------------------- | -------------------------------------------------------------------- |
+| `test`      | Test Map             | procedural 1.7 km forest gravel stage, hairpin, crest jump, test pad |
+| `ajvatovci` | Ajvatovci Hill       | real world (Ilinden, North Macedonia), 4.5 km old tarmac             |
+| `petralica` | Petralica            | real world (North Macedonia), 9.6 km mountain stage, 560 m of climb  |
+| `jackie`    | The Jackie           | real world (New York), 7.3 km parkway with bridges and portals       |
 
 Real-world maps are baked by `scripts/realmap/bake.py` from OpenStreetMap, ESA WorldCover and elevation data (see the
 rally-maps skill and each map's README). World axes: +X east, **+Z south**. A map is `maps/<id>/map.ts` (gameplay and look) plus

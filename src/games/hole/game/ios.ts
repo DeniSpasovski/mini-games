@@ -9,11 +9,12 @@ export function installMobileGuards(): void {
     document.addEventListener(type, stop);
   document.addEventListener('dblclick', stop);
   document.addEventListener('contextmenu', stop);
-  // block page scroll / rubber banding, but let menu lists scroll
+  // block page scroll / rubber banding, but let menu lists and cards taller
+  // than the screen (overflow-y: auto in hole.css) scroll
   document.addEventListener(
     'touchmove',
     (e) => {
-      if (!(e.target as HTMLElement | null)?.closest('.hg-scroll'))
+      if (!(e.target as HTMLElement | null)?.closest('.hg-scroll, .hg-card'))
         e.preventDefault();
     },
     { passive: false },

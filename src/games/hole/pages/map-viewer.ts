@@ -51,9 +51,9 @@ const DEFAULTS = {
 };
 const state = readUrlState(DEFAULTS);
 const sync = () => writeUrlState(state, DEFAULTS);
-track('select_content', {
-  content_type: 'hole_map_viewer',
-  content_id: state.map,
+track('hole', 'select_content', {
+  game_content_type: 'map_viewer',
+  game_content_id: state.map,
 });
 
 const shell = new ViewerShell('Map viewer');

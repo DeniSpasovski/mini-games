@@ -1,6 +1,6 @@
 # Jackie Robinson Parkway
 
-**Test map** (dev server only). Real-world stage on the Jackie Robinson Parkway in New York City: from East New York
+Real-world stage on the Jackie Robinson Parkway in New York City: from East New York
 (Brooklyn) north-east past Cypress Hills, Forest Park and the cemeteries to the Kew Gardens interchange in Queens.
 7.3 km of narrow, winding, tree-lined 1930s parkway, driven on the eastbound carriageway, with the opposite
 carriageway, ramps and interchange as ordinary side roads. Map id `jackie`, stage 3.
