@@ -182,10 +182,10 @@ export const DIFFICULTIES: Difficulty[] = [
 
 /**
  * Per-map time limits (s), where a map's pace differs from City Island's. The toy store's floor takes the good bot
- * ~15-20 % longer to clear (~175 s vs ~155 s), so it keeps City Island's timer / clear-time ratios.
+ * ~20 % longer to clear (~190 s vs ~155 s), so it keeps City Island's timer / clear-time ratios.
  */
 const MAP_SECONDS: Record<string, Record<Difficulty['id'], number>> = {
-  toy: { easy: 560, medium: 280, hard: 140 },
+  toy: { easy: 600, medium: 300, hard: 150 },
 };
 
 /** The three difficulties with the time limits of `mapId` (City Island's when the map has no override). */

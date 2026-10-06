@@ -17,7 +17,7 @@ import type { KV } from './storage';
  * Toy history: 1 = first release (25000 points, 600 x 400 m Grand Hall); 2 = 25 hole levels;
  *   3 = Layout A atrium as a hall with Ferris wheel / carousel pairs; 4 = Plush Meadow thinned, whale and
  *   penguin plush in the Splash Zone, random start; 5 = clear bonus 10 points per second;
- *   7 = own time limits (Easy 560 / Medium 280 / Hard 140 s).
+ *   7 = own time limits and 21 000 points (Easy 600 / Medium 300 / Hard 150 s).
  * Animal history: 1 = first release (21000 points, moving animals, 37 giants, secret zoo + lab);
  *   2 = clear bonus 10 points per second; 3 = panda_big + tiger_big.
  */
