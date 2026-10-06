@@ -21,6 +21,8 @@ export class CameraRig {
   mode: CameraMode = 'chase';
   private yaw = 0;
   private pos = new Vector3();
+  private focus = new Vector3();
+  private ground = 0;
   private initialized = false;
   private shake = 0;
 
@@ -82,25 +84,38 @@ export class CameraRig {
 
     const dist = (far ? 7.8 : 5.4) + Math.min(speed, 40) * 0.025;
     const height = (far ? 2.6 : 1.75) + Math.min(speed, 40) * 0.008;
+    // Low-pass the car position the camera works from: on a rough road edge the
+    // body bounces / sways every frame and a rigid follow turns that into jitter.
     const target = _t.copy(carPos);
     target.y += 0.9;
+    if (!this.initialized) this.focus.copy(target);
+    const kf = 1 - Math.exp(-dt * (16 + speed * 0.8));
+    this.focus.x += (target.x - this.focus.x) * kf;
+    this.focus.z += (target.z - this.focus.z) * kf;
+    this.focus.y += (target.y - this.focus.y) * (1 - Math.exp(-dt * 7));
     const desired = _v.set(
-      target.x - Math.sin(this.yaw) * dist,
-      target.y + height,
-      target.z - Math.cos(this.yaw) * dist,
+      this.focus.x - Math.sin(this.yaw) * dist,
+      this.focus.y + height,
+      this.focus.z - Math.cos(this.yaw) * dist,
     );
     if (!this.initialized) {
       this.pos.copy(desired);
+      this.ground = this.groundHeight(this.pos.x, this.pos.z);
       this.initialized = true;
     }
     // Stiff horizontally, softer vertically (soaks up bumps and jumps).
-    const kh = 1 - Math.exp(-dt * 14);
+    const kh = 1 - Math.exp(-dt * (10 + speed * 0.6));
     const kv = 1 - Math.exp(-dt * 6);
     this.pos.x += (desired.x - this.pos.x) * kh;
     this.pos.z += (desired.z - this.pos.z) * kh;
     this.pos.y += (desired.y - this.pos.y) * kv;
-    const g = this.groundHeight(this.pos.x, this.pos.z) + 0.6;
-    if (this.pos.y < g) this.pos.y = g;
+    // Filtered terrain height: verges, ditches and berms must not snap the camera up and down.
+    this.ground +=
+      (this.groundHeight(this.pos.x, this.pos.z) - this.ground) *
+      (1 - Math.exp(-dt * 8));
+    const g = this.ground + 0.6;
+    if (this.pos.y < g)
+      this.pos.y += (g - this.pos.y) * (1 - Math.exp(-dt * 20));
 
     cam.position.copy(this.pos);
     if (this.shake > 0.01) {
@@ -109,7 +124,14 @@ export class CameraRig {
       cam.position.y += (Math.random() - 0.5) * s;
     }
     cam.up.set(0, 1, 0);
-    cam.lookAt(target.addScaledVector(forward, 2.5));
+    // Aim along the smoothed heading, not the body's raw pitch / roll.
+    cam.lookAt(
+      target.set(
+        this.focus.x + Math.sin(this.yaw) * 2.5,
+        this.focus.y,
+        this.focus.z + Math.cos(this.yaw) * 2.5,
+      ),
+    );
     cam.fov = MathUtils.lerp(
       cam.fov,
       60 + Math.min(speed, 45) * 0.22,
