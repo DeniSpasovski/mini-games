@@ -133,6 +133,7 @@ async function play(params: typeof DEFAULTS): Promise<void> {
       <h2>Paused</h2>
       <div class="menu">
         <button data-a="resume">Resume</button>
+        <button data-a="reset">Reset to road</button>
         <button data-a="restart">Restart stage</button>
         <button data-a="${freeDrive ? 'stage' : 'pad'}">${freeDrive ? 'Back to the stage start' : 'Free drive on the test pad'}</button>
         <button data-a="options">Options</button>
@@ -162,6 +163,10 @@ async function play(params: typeof DEFAULTS): Promise<void> {
   pause.addEventListener('click', (e) => {
     const a = (e.target as HTMLElement).dataset.a;
     if (a === 'resume') game.setPaused(false);
+    if (a === 'reset') {
+      game.setPaused(false);
+      game.resetToRoad();
+    }
     if (a === 'restart') game.restart();
     if (a === 'pad') nav({ spawn: 'pad' });
     if (a === 'stage') nav({ spawn: 'start' });
@@ -276,8 +281,11 @@ async function play(params: typeof DEFAULTS): Promise<void> {
     .then(() => {
       loading.remove();
       if (touch)
-        touchControls = new TouchControls(root, game.input, () =>
-          game.setPaused(true),
+        touchControls = new TouchControls(
+          root,
+          game.input,
+          () => game.setPaused(true),
+          () => game.resetToRoad(),
         );
       game.start();
     })
