@@ -6,7 +6,7 @@
   "scale": 1.0,
   "offset": [0, 0.06, 1.2668],
   "groundAtMin": false,
-  "targetTriangles": 95000,
+  "targetTriangles": 50000,
   "creaseDeg": 40,
   "wheels": {
     "$comment": "the wheels are separate meshes (dropped below) - nothing to cut",
