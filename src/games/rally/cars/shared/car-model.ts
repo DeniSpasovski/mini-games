@@ -313,6 +313,20 @@ function getMeshMaterial(): MeshStandardMaterial {
   return meshMat;
 }
 
+/** Imported-model parts that never cast a shadow (hidden by the body's own shadow or too small to show). */
+const NO_SHADOW_PARTS = new Set([
+  'interior',
+  'cage',
+  'glass',
+  'lamphousing',
+  'headled',
+  'tailled',
+  'lenscover',
+  'redcover',
+  'headlight',
+  'tailc',
+]);
+
 export class CarModel {
   readonly root = new Group();
   readonly body = new Group();
@@ -508,9 +522,9 @@ export class CarModel {
                   name === 'glass' && def.model.glass
                     ? carGlass
                     : (part ?? mat);
-                // The cockpit sits inside the body's shadow: casting it only costs shadow-pass triangles.
-                if (name === 'interior' || name === 'cage')
-                  mesh.castShadow = false;
+                // The cockpit sits inside the body's shadow and glass / lamps are far below one shadow texel:
+                // casting them only costs shadow-pass triangles.
+                if (NO_SHADOW_PARTS.has(name)) mesh.castShadow = false;
                 if (!part && mesh.visible) painted.push(mesh);
               });
             } else {
