@@ -892,6 +892,10 @@ ratio capped at 2 (1.5 on `low`). What is in place:
 - **Paint**: per-instance colours are the batch colour texture; the `paint` mask patch covers both `instanceColor` and
   `getBatchingColor` (`render/materials.ts`). `tests/hole/item-instances.test.ts` checks the culling and fails if a
   three.js upgrade renames the internals / shader line it relies on.
+- **Partial matrix upload** (`ItemBatch.setMatrix` / `flushMatrixRows`): three re-sends a batch's whole matrix texture
+  after any `setMatrixAt`. After the first render only the changed texture rows are sent (full upload again when over
+  half the rows changed): 0.2-0.5 MB per frame on City / Animal at level 15 down to 10-130 KB, pixel-identical.
+- **One layout read per frame** for the "+N" popups (`handleEvents`): `getBoundingClientRect` once, not per eat.
 - **Adaptive resolution** (`adaptResolution` in `game/hole-game.ts`): during a run, a smoothed frame time above 24 ms
   steps the render scale down (x0.88 every 1.5 s, floor 70 %); below 18 ms for 6 s it steps back up.
 - **Idle frame cap**: menus, pause and results render at ~30 fps (the sim of the menu demo still steps in real time).
