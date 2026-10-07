@@ -6,9 +6,9 @@ import source from './model.source.json';
 /**
  * Runtime paint for the Fiesta WRC BODY (imported GLB, atlas layout in model.source.json). Glass, lamps, interior, wing... are
  * separate parts with their own materials (`parts` in model.source.json -> cars/shared/part-materials.ts), so nothing painted
- * here can reach them. Shapes only, no logos or lettering, after a white / navy / light-blue / green rally scheme: navy lower
- * body rising towards the tail, a green wedge and light-blue ribbon on its edge, navy bonnet flanks, white roof (identical left /
- * right). All coordinates are model space (metres).
+ * here can reach them. Shapes only, no logos or lettering: navy mountains over light-blue ones along the lower body (peaks rise
+ * towards the middle of the car), navy bonnet flanks, white roof (identical left / right). The rear-wing blades are parts
+ * (`wingblue` / `winggreen`). All coordinates are model space (metres).
  */
 const A = source.atlas;
 const { K, B, CH, sidePx, topPx, frontPx, rearPx } = atlasKit(A);
@@ -79,25 +79,46 @@ const sides = (ctx: CanvasRenderingContext2D, pts: Pt[], style: Fill) => {
   fill(ctx, 'right', pts, style);
 };
 
-// Front arch starts at z ~0.9, rear arch ends at z ~ -0.95. The navy lower body runs the whole car (arch flares included, as on
-// the real car), so its top edge `yNavy(z)` is one smooth curve that every chart reads at the same z.
+// The navy lower body runs the whole car (arch flares included): a mountain range whose peaks rise towards the middle of the car
+// and sink towards both ends. Valleys at the nose / tail sit at the end charts' bumper bands (`END_NAVY` / `TAIL_NAVY`).
 const Z_NOSE = 2.1;
 const Z_TAIL = -2.1;
-/** Navy / white boundary on the sides: low at the nose, rising towards the tail. */
-const yNavy = (z: number) => {
-  const t = (Z_NOSE - z) / (Z_NOSE - Z_TAIL);
-  return 0.52 + 0.33 * (t * t * (3 - 2 * t) * 0.6 + t * 0.4);
-};
-/** Points of the curve between two z values (a shape that follows the boundary). */
-const along = (z0: number, z1: number, dy = 0, n = 14): Pt[] =>
-  Array.from({ length: n + 1 }, (_, i) => {
-    const z = z0 + ((z1 - z0) * i) / n;
-    return [z, yNavy(z) + dy] as Pt;
-  });
+const END_NAVY = 0.52;
+const TAIL_NAVY = 0.55;
+/** Navy ridge, nose to tail: [z, y] valleys and peaks. */
+const NAVY_RIDGE: Pt[] = [
+  [Z_NOSE, END_NAVY],
+  [1.55, 0.5],
+  [1.15, 0.74],
+  [0.75, 0.52],
+  [0.2, 1.0],
+  [-0.4, 0.55],
+  [-0.9, 0.86],
+  [-1.4, 0.56],
+  [-1.8, 0.7],
+  [Z_TAIL, TAIL_NAVY],
+];
+/** Light-blue range behind it: taller peaks shifted towards the middle, same ends. */
+const SKY_RIDGE: Pt[] = [
+  [Z_NOSE, END_NAVY],
+  [1.7, 0.56],
+  [1.3, 0.62],
+  [0.95, 0.84],
+  [0.5, 0.58],
+  [-0.15, 1.08],
+  [-0.7, 0.6],
+  [-1.15, 0.92],
+  [-1.6, 0.6],
+  [-1.95, 0.78],
+  [Z_TAIL, TAIL_NAVY],
+];
 /** Black sill strip between the arches (same y on the side charts only: the skirt has no end faces). */
 const SILL: [number, number] = [0.1, 0.34];
-const END_NAVY = yNavy(Z_NOSE);
-const TAIL_NAVY = yNavy(Z_TAIL);
+const range = (ridge: Pt[]): Pt[] => [
+  [Z_NOSE, 0],
+  [Z_TAIL, 0],
+  ...ridge.slice().reverse(),
+];
 
 function paint(
   ctx: CanvasRenderingContext2D,
@@ -107,7 +128,6 @@ function paint(
   const white = '#f3f4f6';
   const navy = seed === 0 ? '#0c2a6e' : info.accent;
   const sky = seed === 0 ? '#3fb6ea' : info.accent2;
-  const green = seed === 0 ? '#2eaa4a' : info.accent2;
 
   ctx.fillStyle = white;
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -124,44 +144,9 @@ function paint(
     '#2a2c2f',
   );
 
-  // --- sides: navy lower body, green wedge and a light-blue ribbon on its edge, black sill ---
-  sides(ctx, [[Z_NOSE, 0], [Z_TAIL, 0], ...along(Z_TAIL, Z_NOSE)], {
-    from: [Z_NOSE, 0.5],
-    to: [Z_TAIL, 0.9],
-    stops: [
-      [0, navy],
-      [1, '#12408f'],
-    ],
-  });
-  // green wedge on the white above the edge, between the door and the rear arch
-  sides(ctx, [...along(0.5, -1.2, 0.0, 8), [-1.2, yNavy(-1.2) + 0.3]], green);
-  // light-blue ribbon: thin over the door, a blade round the rear quarter, a second blade over the front arch
-  sides(
-    ctx,
-    [...along(1.5, -0.2, 0.0, 10), ...along(-0.2, 1.5, 0.045, 10)],
-    sky,
-  );
-  sides(
-    ctx,
-    [
-      ...along(-0.2, -1.95, 0.0, 10),
-      [-1.95, yNavy(-1.95) + 0.17],
-      [-1.2, yNavy(-1.2) + 0.1],
-      [-0.2, yNavy(-0.2) + 0.045],
-    ],
-    sky,
-  );
-  // front fender shard
-  sides(
-    ctx,
-    [
-      [1.9, 0.5],
-      [1.15, 0.64],
-      [0.95, yNavy(0.95) + 0.14],
-      [1.4, yNavy(1.4) + 0.02],
-    ],
-    sky,
-  );
+  // --- sides: light-blue mountains behind, navy mountains in front, black sill ---
+  sides(ctx, range(SKY_RIDGE), sky);
+  sides(ctx, range(NAVY_RIDGE), navy);
   sides(
     ctx,
     [

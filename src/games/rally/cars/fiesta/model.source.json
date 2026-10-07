@@ -112,6 +112,22 @@
         "material": "interior"
       },
       {
+        "$comment": "rear wing: upper blade (560 triangles) blue, lower blade (408) green; the end plates stay body paint",
+        "node": "fiesta17_rwing_SUB0_WCCARBODY_0",
+        "whole": true,
+        "islandTris": [500, 620],
+        "y": [1.09, 1.28],
+        "material": "wingblue"
+      },
+      {
+        "node": "fiesta17_rwing_SUB0_WCCARBODY_0",
+        "whole": true,
+        "islandTris": [380, 440],
+        "x": [-0.62, 0.63],
+        "y": [0.93, 1.08],
+        "material": "winggreen"
+      },
+      {
         "node": "exhaust_WCCARBODY_0",
         "material": "trim"
       },
@@ -215,6 +231,8 @@
       "interior",
       "logo",
       "carbon",
+      "wingblue",
+      "winggreen",
       "mirror",
       "cage"
     ],

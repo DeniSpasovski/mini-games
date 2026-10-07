@@ -1,8 +1,8 @@
 # Fiesta WRC (`fiesta`)
 
 A 2017-spec World Rally Car from a **CC BY Sketchfab model**: the model's body, its **cockpit (seats, dash, roll cage) kept and visible
-through the see-through glass**, its own 14-spoke rim **de-cambered and centred on the hub**, and our own livery (white body, navy lower
-body, light-blue ribbon, green wedge; shapes only, no logos). The manufacturer badge, plate, spare wheel and dash screens are dropped.
+through the see-through glass**, its own 14-spoke rim **de-cambered and centred on the hub**, and our own livery (white body, navy and light-blue
+mountain triangles on the sides, blue upper / green lower rear-wing blade; shapes only, no logos). The manufacturer badge, plate, spare wheel and dash screens are dropped.
 In game it is **Fiesta WRC**; the id stays `fiesta`. AWD, 1190 kg, 1.6 turbo. Test car (`TEST_CARS`, dev server only).
 
 ![Front three-quarter](screenshots/front-34.jpg)
