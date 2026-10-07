@@ -60,8 +60,8 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 - **Sectors:** one bar segment per sector, amber while running, green / red against your best run.
 - **Cutting** (`StageTimer.updateCut`): up to `CUT_WARN` (20 m off the road edge) is allowed. Past it the HUD shows `OFF STAGE`
   and a grace timer runs; when it ends, or past `CUT_MAX`, or on a later part of the road, the car is put back where it left.
-- **Penalties:** manual reset +2 s (+10 s when flipped), forced reset +5 s. Knocked-over marker posts (`breakable` assets, `world/breakables.ts`)
-  are free: the car drives over them and they tip over until the stage restarts.
+- **Penalties:** manual reset +2 s (+10 s when flipped), forced reset +5 s. Knocked-over marker posts are free, chevron signs only slow the car a bit
+  (`breakable` assets, `slow` in the catalog, `world/breakables.ts`): the car drives over them and they tip over until the stage restarts.
 - **Finish:** the car brakes itself to a stop on the run-off (`finishStopControls()`), so every map needs a run-off. The
   autopilot (`F8`, finish stop) runs per 240 Hz physics step, exactly as in the tests.
 - **Results:** time, delta to the best run, sector chips, then the stage top 10 (all cars / this car) with each run's set-up.
@@ -264,7 +264,6 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 
 ## Known limitations
 
-- Chevrons are drive-through, not solid.
 - Generation runs on the main thread (time-sliced); very large maps would need a Web Worker for heightfield and scatter.
 - Real-world map data is not lazy-loaded; a bare-earth DEM would help where the elevation model includes trees.
 - Not done: tyre relaxation length, co-driver pace notes, car damage.
