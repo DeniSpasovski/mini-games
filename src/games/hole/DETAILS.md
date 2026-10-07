@@ -37,7 +37,7 @@ All tool-page values are kept in the URL (`src/shared/url-state.ts`). Press `H` 
 
 ### Dev params (play page)
 
-`map=city|toy|animal` · `layout=a|b|c` (toy store floor plan) · `difficulty=easy|medium|hard` (skip the menu) · `time=<seconds>` · `level=<start level>` · `seed=<map seed>` ·
+`map=city|toy|animal|construction` · `layout=a|b|c` (toy store floor plan) · `difficulty=easy|medium|hard` (skip the menu) · `time=<seconds>` · `level=<start level>` · `seed=<map seed>` ·
 `color=<ocean|lime|pink|orange|violet|cyan|red|gold>` · `x=&z=` (start position) · `bot=1` (autopilot) · `debug=1`
 (debug HUD) · `quality=low|high`. Runs with `time`, `level` or `bot` are **not** saved to the top 10.
 
@@ -226,7 +226,7 @@ to: item points or size tiers (`sim/progression.ts`, item dimensions in `items/c
 difficulty times, how a run is scored (`sim/sim.ts`) or how much content the map holds (`map/generate.ts`, e.g. `tiles` or `pointsPerTile`). Pure
 rebalancing of the XP curve, speed or camera does not change what a score means and needs no bump.
 
-### Moving items (Animal Island and City Island)
+### Moving items (Animal Island, City Island and Construction Site)
 
 Items can move. A placement with a `move` spec (`MoveSpec` in `map/types.ts`: kind, home, leash, speed, optional path
 end and start delay, `flee`) becomes a **mover**: `sim/world.ts` keeps its state in struct-of-arrays (`isMover`,
@@ -489,6 +489,30 @@ biome cells (two greens per biome), sand ring, flat rects, river ribbons with mu
 
 **Performance**: since the items are batched (see "Performance" under Architecture) the map draws in 23-26 calls and
 24k / 108k / 321k triangles at level 1 / 8 / 15 (shadows on); **not yet measured on a device** (open task AI-01).
+
+## Map: Construction Site
+
+The fourth map (`map=construction`, **test map**: dev server and `npm run build:test` only, see `release.ts`): a fenced
+540 x 420 m building site. Bricks, cones and hard hats first, then wheelbarrows, mini diggers, skips and containers, then
+excavators, dump trucks and half-built houses, and last haul trucks, tower cranes and the high-rises they build.
+Design, roster (117 types), decisions and open tasks: [`CONSTRUCTION-SITE.md`](CONSTRUCTION-SITE.md). Registered in
+`map/registry.ts` (id `construction`, noun "site", 21 000 points, seeded, `puffs: 'rubble'`).
+
+| Part      | How it is built                                                                                                                                                                                                                      |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Plan      | `map/construction/layout.ts`: 12 m gravel haul roads (x = -180..180 / z = -126..126), 6 x 5 plots in 9 districts (`District` in `items/catalog-construction.ts`), the mine is one road-free area                                     |
+| Generator | `map/construction/generate.ts`: per-tier point budget (`TIER_FRACTION`) shared by the types of each tier, biggest first, small items gather round work spots, then `ensureAllTypes`, start scatter, `balancePoints` (exactly 21 000) |
+| Movers    | workers `wander`; site vans, pickups, dump and mixer trucks `drive` the road graph (`MapData.roads`, at most 44, right-hand lane); haul trucks and forklifts `patrol` a reserved straight path                                       |
+| Ground    | `render/construction-ground.ts`: dirt base + checker, the map's rects (districts, roads, mine terraces), skirt, outside plane, hoarding (item material, low on the gate side) and district names painted on the floor                |
+| Start     | the Site Gate plot; runs start at a random busy spot (`pickStart`)                                                                                                                                                                   |
+
+**Catalog:** `items/catalog-construction.ts` (data: size, groups, districts, motion), builders `build-site.ts`
+(materials, tools, crew, site furniture, heaps) and `build-machines.ts` (plant, trucks, cranes, mining, buildings), shared
+helpers in `kit-site.ts`. Machines run along X (front +X), workers face +Z. Builders run with `Mesher.decoplanar`.
+Triangle budgets (`tests/hole/construction-items.test.ts`): material 300, tools 400, crew 140, site 600, heaps 300,
+plant 900, trucks 1 200, structures 1 600, cranes 1 200, mining 1 600.
+
+Sounds: clack (material, tools, crew, site), clank (plant, trucks, cranes, mining, structures), thud (heaps).
 
 ## Art style
 

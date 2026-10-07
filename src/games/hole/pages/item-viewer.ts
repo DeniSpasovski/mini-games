@@ -22,6 +22,7 @@ import {
 } from '../items/catalog';
 import { buildItemGeometry, triCount } from '../items/builders';
 import { minimalMap } from '../map/minimal';
+import { MAPS } from '../map/registry';
 import { CameraRig } from '../render/camera-rig';
 import { HOLE_COLORS, HoleMesh, holeColorById } from '../render/hole-mesh';
 import { ItemInstances } from '../render/item-instances';
@@ -158,12 +159,17 @@ const buildList = () => {
 let list = buildList();
 
 const vals = panel.section('Values');
-vals.select('Map', state.map, ['city', 'toy', 'animal'], (v) => {
-  state.map = v;
-  state.item = '';
-  sync();
-  location.reload();
-});
+vals.select(
+  'Map',
+  state.map,
+  MAPS.map((m) => m.id),
+  (v) => {
+    state.map = v;
+    state.item = '';
+    sync();
+    location.reload();
+  },
+);
 const modeSel = vals.select(
   'Mode',
   state.mode,

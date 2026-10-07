@@ -4,13 +4,19 @@ import {
   animalTargetPoints,
   generateAnimalIsland,
 } from './animal/generate';
+import {
+  DEFAULT_CONSTRUCTION,
+  constructionTargetPoints,
+  generateConstructionCity,
+} from './construction/generate';
 import { generateCity, targetPoints } from './generate';
+import { AVAILABLE_MAPS, SHOW_TEST_CONTENT } from '../release';
 import { DEFAULT_TOY, generateToyStore, toyTargetPoints } from './toy/generate';
 import { LAYOUTS } from './toy/layouts';
 import type { MapData } from './types';
 
 /** Everything the game needs to know about a playable map. DOM-free (tests and the bot use it too). */
-export type MapId = 'city' | 'toy' | 'animal';
+export type MapId = 'city' | 'toy' | 'animal' | 'construction';
 
 export interface MapMood {
   /** Sky / fog / background colour (the horizon colour when `skyTop` is set). */
@@ -35,8 +41,8 @@ export interface MapDef {
   generate(seed: number, opts?: { layout?: string }): MapData;
   /** The menu offers a seed stepper ("Island #7"): every seed holds the same points, so one score list covers them all. */
   seeded?: boolean;
-  /** Swallow puff colours: dust outdoors, confetti in the store. */
-  puffs: 'dust' | 'confetti' | 'fur';
+  /** Swallow puff colours: dust outdoors, confetti in the store, rubble on the building site. */
+  puffs: 'dust' | 'confetti' | 'fur' | 'rubble';
   /** Floor plans the menu offers as buttons (the toy store). */
   layouts?: { id: string; name: string }[];
   mood: MapMood;
@@ -44,7 +50,8 @@ export interface MapDef {
   aerial: { radius: number; pitchDeg: number };
 }
 
-export const MAPS: MapDef[] = [
+/** Every map, released or not (`release.ts` decides which ones this build offers). */
+export const ALL_MAPS: MapDef[] = [
   {
     id: 'city',
     name: 'City Island',
@@ -104,7 +111,31 @@ export const MAPS: MapDef[] = [
     },
     aerial: { radius: 300, pitchDeg: 36 },
   },
+  {
+    id: 'construction',
+    name: 'Construction Site',
+    blurb: 'Bricks first, mining trucks and tower cranes last.',
+    noun: 'site',
+    itemMap: 'construction',
+    points: constructionTargetPoints(DEFAULT_CONSTRUCTION),
+    generate: (seed) => generateConstructionCity({ seed }),
+    seeded: true,
+    puffs: 'rubble',
+    mood: {
+      sky: 0xe6dcc6,
+      skyTop: 0x86b6de,
+      hemiSky: 0xf3ead6,
+      hemiGround: 0xb08a62,
+      sun: 0xfff0d2,
+    },
+    aerial: { radius: 420, pitchDeg: 38 },
+  },
 ];
+
+/** The maps this build offers: all of them on the dev server and in test builds, else the released ones. */
+export const MAPS: MapDef[] = SHOW_TEST_CONTENT
+  ? ALL_MAPS
+  : ALL_MAPS.filter((m) => AVAILABLE_MAPS.includes(m.id));
 
 export function getMapDef(id: string | null | undefined): MapDef {
   return MAPS.find((m) => m.id === id) ?? MAPS[0];
