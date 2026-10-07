@@ -2,6 +2,7 @@ import { defineConfig, type EnvironmentConfig } from '@rsbuild/core';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { meshoptGlb } from './scripts/car-model/glb-meshopt.mjs';
 import { resolveGamePage, type GameManifest } from './src/portal/manifest';
 
 /**
@@ -46,9 +47,22 @@ const carModelFiles = fs.existsSync(carModelDir)
 /**
  * Game-only files that live in the root public/ folder: copied into that game's
  * folder only (dist/games/<id>/<to>), never into the portal or other games.
+ * Car GLBs are meshopt-compressed on the way (dev server too; scripts/car-model/glb-meshopt.mjs):
+ * about half the download, git keeps the plain files the model scripts and tests read.
  */
-const gamePublicFiles: Record<string, { from: string; to: string }[]> = {
-  rally: [{ from: 'public/models', to: 'models' }],
+type CopyTransform = (input: Buffer, file: string) => Buffer | Promise<Buffer>;
+const gamePublicFiles: Record<
+  string,
+  { from: string; to: string; transform?: CopyTransform }[]
+> = {
+  rally: [
+    {
+      from: 'public/models',
+      to: 'models',
+      transform: (input, file) =>
+        file.endsWith('.glb') ? meshoptGlb(input) : input,
+    },
+  ],
 };
 
 const NO_ZOOM_VIEWPORT =
