@@ -41,6 +41,8 @@ export type PartName =
   | 'headled'
   | 'tailled'
   | 'redcover'
+  | 'headlight22'
+  | 'tail22'
   | 'interior'
   | 'cage';
 
@@ -93,6 +95,144 @@ function tiling(t: CanvasTexture, tile: number): CanvasTexture {
   t.wrapS = t.wrapT = RepeatWrapping;
   t.repeat.set(1 / tile, 1 / tile);
   return t;
+}
+
+/**
+ * Subaru 22B headlight in lamp space (corner wrap, u from the car's centre outwards, v top down; the lens is a box whose top
+ * edge slants up outwards): dark housing, two big chrome reflector bowls (low / high beam) with faceted fans and a bulb each.
+ */
+function headlight22Maps(): { map: CanvasTexture; glow: CanvasTexture } {
+  const W = 816;
+  const H = 300;
+  const bowls: [number, number, number][] = [
+    [0.32, 0.6, 0.42],
+    [0.74, 0.6, 0.42],
+  ];
+  const FACETS = [
+    '#ffffff',
+    '#aab4bf',
+    '#eef2f6',
+    '#7c8691',
+    '#d6dde5',
+    '#98a2ad',
+  ];
+  const map = canvas(W, H, (g) => {
+    g.fillStyle = '#0d0e10';
+    g.fillRect(0, 0, W, H);
+    // Clear lens base: a faint cool reflection along the top.
+    const sheen = g.createLinearGradient(0, 0, 0, H);
+    sheen.addColorStop(0, '#2c3238');
+    sheen.addColorStop(0.5, '#15181b');
+    sheen.addColorStop(1, '#0d0e10');
+    g.fillStyle = sheen;
+    g.fillRect(0, 0, W, H);
+    bowls.forEach(([u, v, r], k) => {
+      const cx = u * W;
+      const cy = v * H;
+      const R = r * H;
+      g.save();
+      g.beginPath();
+      g.arc(cx, cy, R, 0, Math.PI * 2);
+      g.clip();
+      const n = 14;
+      for (let i = 0; i < n; i++) {
+        const a0 = (i / n) * Math.PI * 2 + k * 0.5;
+        const a1 = ((i + 1) / n) * Math.PI * 2 + k * 0.5;
+        g.fillStyle = FACETS[(i * 5 + k * 2) % FACETS.length];
+        g.beginPath();
+        g.moveTo(cx, cy);
+        g.lineTo(cx + Math.cos(a0) * R, cy + Math.sin(a0) * R);
+        g.lineTo(cx + Math.cos(a1) * R, cy + Math.sin(a1) * R);
+        g.closePath();
+        g.fill();
+      }
+      const rim = g.createRadialGradient(cx, cy, R * 0.55, cx, cy, R);
+      rim.addColorStop(0, 'rgba(0,0,0,0)');
+      rim.addColorStop(1, 'rgba(0,0,0,0.55)');
+      g.fillStyle = rim;
+      g.fillRect(cx - R, cy - R, R * 2, R * 2);
+      g.restore();
+      g.strokeStyle = '#2a2d31';
+      g.lineWidth = 6;
+      g.beginPath();
+      g.arc(cx, cy, R, 0, Math.PI * 2);
+      g.stroke();
+      // Bulb shield.
+      g.fillStyle = '#5b6068';
+      g.beginPath();
+      g.arc(cx, cy, R * 0.22, 0, Math.PI * 2);
+      g.fill();
+      g.fillStyle = '#f6f8fa';
+      g.beginPath();
+      g.arc(cx, cy, R * 0.12, 0, Math.PI * 2);
+      g.fill();
+    });
+  });
+  const glow = canvas(W, H, (g) => {
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, W, H);
+    bowls.forEach(([u, v, r]) => {
+      const R = r * H;
+      const gr = g.createRadialGradient(u * W, v * H, 0, u * W, v * H, R);
+      gr.addColorStop(0, '#ffffff');
+      gr.addColorStop(0.35, '#8a8a80');
+      gr.addColorStop(1, '#000');
+      g.fillStyle = gr;
+      g.fillRect(u * W - R, v * H - R, R * 2, R * 2);
+    });
+  });
+  return { map, glow };
+}
+
+/**
+ * Subaru 22B tail lamp in lamp space (corner wrap): red lens with fine vertical ribs, an amber indicator band along the top
+ * and a white reversing section at the inner end. `reverseGlow` lights only the reversing section.
+ */
+function tail22Maps(): {
+  map: CanvasTexture;
+  glow: CanvasTexture;
+  reverseGlow: CanvasTexture;
+} {
+  const W = 1024;
+  const H = 240;
+  const REV = { u0: 0.07, u1: 0.3, v0: 0.5, v1: 0.88 };
+  const AMBER = { u0: 0.07, u1: 0.78, v0: 0.12, v1: 0.4 };
+  const box = (
+    g: CanvasRenderingContext2D,
+    b: { u0: number; u1: number; v0: number; v1: number },
+  ) => g.fillRect(b.u0 * W, b.v0 * H, (b.u1 - b.u0) * W, (b.v1 - b.v0) * H);
+  const map = canvas(W, H, (g) => {
+    const red = g.createLinearGradient(0, 0, 0, H);
+    red.addColorStop(0, '#d8121e');
+    red.addColorStop(1, '#a30c16');
+    g.fillStyle = red;
+    g.fillRect(0, 0, W, H);
+    g.fillStyle = '#e9890d';
+    box(g, AMBER);
+    g.fillStyle = '#eef1f4';
+    box(g, REV);
+    g.fillStyle = 'rgba(40,0,4,0.28)';
+    for (let x = 0; x < W; x += 22) g.fillRect(x, 0, 3, H);
+    g.strokeStyle = '#2a0a0e';
+    g.lineWidth = 5;
+    for (const b of [AMBER, REV])
+      g.strokeRect(b.u0 * W, b.v0 * H, (b.u1 - b.u0) * W, (b.v1 - b.v0) * H);
+  });
+  const glow = canvas(W, H, (g) => {
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, W, H);
+    g.fillStyle = '#ff3a2a';
+    g.fillRect(0, 0.42 * H, W, 0.58 * H);
+    g.fillStyle = '#000';
+    box(g, REV);
+  });
+  const reverseGlow = canvas(W, H, (g) => {
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, W, H);
+    g.fillStyle = '#ffffff';
+    box(g, REV);
+  });
+  return { map, glow, reverseGlow };
 }
 
 /**
@@ -961,6 +1101,38 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoat: 1,
       clearcoatRoughness: 0.05,
     }),
+  /** Subaru 22B headlight: twin chrome bowls, see headlight22Maps - needs `parts.wrap` 'corner'. */
+  headlight22: () => {
+    const { map, glow } = headlight22Maps();
+    return new MeshPhysicalMaterial({
+      map,
+      emissive: 0xffffff,
+      emissiveMap: glow,
+      emissiveIntensity: 0.6,
+      roughness: 0.16,
+      metalness: 0.15,
+      clearcoat: 1,
+      clearcoatRoughness: 0.04,
+    });
+  },
+  /** Subaru 22B tail lamp: ribbed red lens, amber band, white reversing section - needs `parts.wrap` 'corner'. */
+  tail22: () => {
+    const { map, glow, reverseGlow } = tail22Maps();
+    return lamp(
+      new MeshPhysicalMaterial({
+        map,
+        emissive: 0xffffff,
+        emissiveMap: glow,
+        emissiveIntensity: 0.5,
+        roughness: 0.16,
+        metalness: 0.05,
+        clearcoat: 1,
+        clearcoatRoughness: 0.05,
+      }),
+      5,
+      reverseGlow,
+    );
+  },
   tail: () => {
     const { map, glow, reverseGlow } = tailMaps();
     return lamp(

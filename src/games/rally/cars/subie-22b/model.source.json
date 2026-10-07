@@ -64,16 +64,40 @@
         "material": "mirror"
       },
       {
-        "mat": "headlights",
-        "material": "headled"
-      },
-      {
-        "mat": "taillight",
-        "material": "tailled"
-      },
-      {
         "mat": "grill",
         "material": "mesh"
+      },
+      {
+        "node": "headlight_headlights_0",
+        "material": "headlight22"
+      },
+      {
+        "node": "headlight.001_headlights_0",
+        "material": "headlight22"
+      },
+      {
+        "node": "blinker.001_headlights_0",
+        "material": "amber"
+      },
+      {
+        "node": "blinker.002_headlights_0",
+        "material": "amber"
+      },
+      {
+        "node": "blinker.003_headlights_0",
+        "material": "lens"
+      },
+      {
+        "node": "blinker.004_headlights_0",
+        "material": "lens"
+      },
+      {
+        "node": "tail light_taillight_0",
+        "material": "tail22"
+      },
+      {
+        "node": "tail light.001_taillight_0",
+        "material": "tail22"
       }
     ],
     "default": "trim"
@@ -87,10 +111,15 @@
       "mesh",
       "chrome",
       "interior",
-      "headled",
-      "tailled"
+      "headlight22",
+      "amber",
+      "lens",
+      "tail22"
     ],
-    "wrap": {},
+    "wrap": {
+      "headlight22": "corner",
+      "tail22": "corner"
+    },
     "preview": {
       "body": "#c8ccd0",
       "trim": "#2a2c30",
@@ -99,8 +128,10 @@
       "mesh": "#d08a2a",
       "chrome": "#30c0a0",
       "interior": "#6a4a8a",
-      "headled": "#fff4d6",
-      "tailled": "#e0242c"
+      "headlight22": "#fff4d6",
+      "amber": "#ff9a1a",
+      "lens": "#d5dae0",
+      "tail22": "#e0242c"
     },
     "maxTriangles": {
       "interior": 6000,

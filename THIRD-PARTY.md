@@ -47,7 +47,7 @@ repository.
 | `bimmer_m3.glb`, `bimmer_m3_wheel.glb`     | "BMW E46 Coupe - Tuning - Model" by Doomas3D (MakerWorld)                                                                                                                                      | CC BY 4.0                    |
 | `bimmer_gt2.glb`, `bimmer_gt2_wheel.glb`   | "E92 Barnfind" by Tushar Singh (Sketchfab; split by material and converted, roundel logos + plate removed)                                                                                     | CC BY 4.0                    |
 | `skoda_rally.glb`, `skoda_rally_wheel.glb` | "Skoda Fabia R5 Rally Car" by SenturyUK (Sketchfab)                                                                                                                                            | CC BY 4.0                    |
-| `subie_22b.glb`                            | "Subaru Impreza" by Mateusz Woliński (Sketchfab; split by material and converted, wheels, mud flaps and plate removed; star livery drawn at runtime from generic shapes, no logo or lettering) | CC BY-NC 4.0 (noncommercial) |
+| `subie_22b.glb`, `subie_22b_wheel.glb`     | "Subaru Impreza" by Mateusz Woliński (Sketchfab; split by material and converted, wheels, mud flaps and plate removed; star livery drawn at runtime from generic shapes, no logo or lettering) | CC BY-NC 4.0 (noncommercial) |
 | none (Zastava 101)                         | hand-built in code from a public-domain factory blueprint; shape reference "Zastava 101 (Stojadin)" by Tomislav Tomljenovic (Sketchfab)                                                        | CC BY 4.0                    |
 
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.

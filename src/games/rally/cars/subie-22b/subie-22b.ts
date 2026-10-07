@@ -4,19 +4,20 @@ import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
 import { subie22bLivery } from './livery';
 
-/** Body dimensions (also what the hull is fitted from); wheel radius = tyre overall radius (235/45 R17). */
+/** Body dimensions (also what the hull is fitted from); wheel radius = tyre overall radius (235/45 R18: the model's wheel position / arch size). */
 const BODY = {
   length: 4.27,
-  width: 1.8,
+  width: 1.86,
   height: 1.39,
   comHeight: 0.5,
-  wheelRadius: 0.322,
+  wheelRadius: 0.335,
 };
 
-// Wheelbase 2.52 m (the reference model's), COM ~57 % over the front axle.
+// Wheelbase 2.52 m (the real car's and the model's), COM ~57 % over the front axle. The track follows the model's wheels (1.59 / 1.61 m;
+// the real car runs 1.48 / 1.50 m with 235/40 R17, its arches here are the model's wider ones).
 const FRONT: AxleDef = {
   z: 1.08,
-  track: 1.47,
+  track: 1.59,
   spring: 38000,
   bump: 2600,
   rebound: 3700,
@@ -31,7 +32,7 @@ const FRONT: AxleDef = {
 
 const REAR: AxleDef = {
   z: -1.44,
-  track: 1.475,
+  track: 1.61,
   spring: 33000,
   bump: 2300,
   rebound: 3300,
@@ -85,7 +86,7 @@ export const subie22b: CarDef = {
     inertiaScale: 0.9,
     wheelWidth: 0.235,
     tyres: {
-      size: { width: 0.235, aspect: 45, rim: 17 },
+      size: { width: 0.235, aspect: 45, rim: 18 },
       byCompound: { gravel: { width: 0.215, aspect: 60, rim: 16 } },
     },
     wheelInertia: 1.5,
@@ -185,6 +186,8 @@ export const subie22b: CarDef = {
     paint: '#1c44b8',
     flare: 0.04,
     rim: { color: '#d8b24a', spokes: 6, style: 'spoke', caliper: '#c8102e' },
+    // The model's own gold alloy (subie_22b_wheel.glb), scaled to each compound's tyre.
+    wheelModel: 'subie_22b_wheel.glb',
     suspensionStyle: 'wrc',
     parts: {
       arches: 'round',
