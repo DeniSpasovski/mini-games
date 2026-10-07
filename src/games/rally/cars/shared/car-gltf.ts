@@ -1,5 +1,6 @@
 import { Box3, Mesh, Vector3, type Group, type Object3D } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import type { CarDef } from './types';
 
 /**
@@ -11,8 +12,9 @@ import type { CarDef } from './types';
  * shared). It is auto-fitted to the car's physics: length matched, centred on
  * the body stations, wheels hidden (physics-driven procedural wheels are used) -
  * unless `autoFit: false` (file already in model space, e.g. from stl-to-glb.mjs).
+ * The build serves them meshopt-compressed (scripts/car-model/glb-meshopt.mjs); plain files load too.
  */
-const loader = new GLTFLoader();
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const cache = new Map<string, Promise<Group>>();
 
 export function hasImportedModel(def: CarDef): boolean {
