@@ -91,6 +91,8 @@ const portalEnvironment: EnvironmentConfig = {
     copy: [
       { from: 'public/icons', to: 'icons' },
       { from: 'public/manifest.webmanifest' },
+      // Service worker at the root so its scope covers the games too (src/shared/offline.ts).
+      { from: 'public/sw.js' },
     ],
   },
   html: {
