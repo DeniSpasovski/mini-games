@@ -32,6 +32,13 @@ export class CameraRig {
   pitchDeg = 52;
   private goal = new Vector3();
   private initialised = false;
+  private shakeAmp = 0;
+  private shakeT = 0;
+
+  /** Add a decaying camera shake (world metres at the target, capped); stacks to the cap. */
+  shake(amp: number): void {
+    this.shakeAmp = Math.min(this.shakeAmp + amp, amp * 1.5);
+  }
 
   /** Aim at (x, z) with the hole at `diameter` / `level`. */
   update(
@@ -70,6 +77,13 @@ export class CameraRig {
     this.camera.far = this.distance * 14 + 600;
     this.camera.updateProjectionMatrix();
     this.camera.lookAt(this.target);
+    if (this.shakeAmp > 0.001) {
+      this.shakeT += dt;
+      const a = this.shakeAmp * this.distance * 0.02;
+      this.camera.position.x += Math.sin(this.shakeT * 53) * a;
+      this.camera.position.y += Math.sin(this.shakeT * 67 + 1.3) * a;
+      this.shakeAmp *= Math.exp(-dt / 0.18);
+    }
   }
 
   /** Jump (no smoothing) on the next update. */
