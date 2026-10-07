@@ -2,6 +2,7 @@ import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
+import { profile } from './profile';
 import { bimmerGt2Livery } from './livery';
 
 // RWD V8 GT2 racer: the wheelbase, body size and tyres follow this mesh; engine and mass follow the E92 M3 GT2 (ALMS) race car:
@@ -176,20 +177,8 @@ export const bimmerGt2: CarDef = {
       gravel: { rimColor: '#16171a' },
     },
     suspensionStyle: 'gt',
-    // Fallback body if the GLB can't load: the side outline extruded to the body width (side-profile.mjs
-    // public/models/cars/bimmer_gt2.glb --axles 1.368,-1.368 --wheel 0.334).
-    profile: {
-      width: 1.966,
-      outline: [
-        -2.379, 0.255, -1.749, 0.135, -1.729, 0.435, -1.649, 0.585, -1.509,
-        0.685, -1.299, 0.705, -1.129, 0.625, -1.029, 0.495, -0.989, 0.085,
-        0.991, 0.085, 1.001, 0.405, 1.071, 0.565, 1.231, 0.685, 1.441, 0.705,
-        1.581, 0.645, 1.691, 0.525, 1.751, 0.085, 2.241, 0.095, 2.191, 0.485,
-        1.971, 0.725, 1.401, 0.875, 0.781, 0.925, 0.191, 1.255, -0.169, 1.315,
-        -1.179, 1.275, -1.849, 1.005, -2.099, 0.995, -2.269, 1.055, -2.339,
-        0.945, -2.349, 0.595, -2.399, 0.495,
-      ],
-    },
+    // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
+    profile,
     // Rally plate on the door (door shut lines z ~ -0.4 .. 0.9, front = +z), above the side moulding.
     doorBadge: { z: 0.25, y: 0.6 },
     // No `suspension`: the wheel wells are closed by the liner (model.source.json `wheels`).

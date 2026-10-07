@@ -148,9 +148,13 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
 
 - A car is `cars/<car>/<car>.ts` (a `CarDef`: physics + model + sound) with its README. A GLB in `public/models/cars/` replaces the
   car's own body (`cars/shared/car-gltf.ts`; credits in `public/models/CREDITS.md`). Imports: rally-car-import skill.
-- Every car has a body without its GLB: hand-built `model.custom` (Zastava) or `model.profile`, the boxy side
-  outline extruded to the body width (`cars/shared/profile-body.ts`, baked by `scripts/car-model/side-profile.mjs`), shown
-  only if the GLB fails to load. It wears the car's livery: box-projected onto the atlas (`CarAtlas.layout`). Car viewer `fallback=1` shows it.
+- Every car has a body without its GLB: hand-built `model.custom` (Zastava) or `model.profile` (`cars/<car>/profile.ts`,
+  baked by `scripts/car-model/side-profile.mjs`): the boxy side outline extruded to the body width with its glass and lamps
+  tagged (`cars/shared/profile-body.ts`), shown only if the GLB fails to load. It wears the car's livery, box-projected
+  onto the atlas (`CarAtlas.layout`). Car viewer `fallback=1` shows it.
+- The same profiles are the city maps' parked cars (`street_car`, `taxi`, `police_car`; `assets/builders/vehicles.ts`):
+  one paint, simple wheels, one draw call per LOD (variant sets); the far LOD simplifies the outlines and drops rims and
+  lamps (`tests/rally/street-car.test.ts` holds the triangle budget).
 - Car GLBs are committed plain (the model scripts and `hull-fit.test.ts` read them); the build copies them meshopt-compressed
   (`scripts/car-model/glb-meshopt.mjs`, about half the size, same meshes; `car-glb-meshopt.test.ts` checks every file).
 - **Door plates** (`cars/shared/rally-badge.ts`): our own event plate (emblem, car number, map name) projected onto both front

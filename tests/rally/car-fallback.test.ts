@@ -50,6 +50,27 @@ describe.each(ALL_CARS.map((c) => c.id))('%s', (id) => {
     expect(inside(profile.outline, 0, 0.8)).toBe(true);
   });
 
+  test.runIf(!!m.profile)(
+    'profile matches the car and tags glass + lamps',
+    () => {
+      const profile = m.profile!;
+      expect(profile.axles[0]).toBeCloseTo(p.front.z, 2);
+      expect(profile.axles[1]).toBeCloseTo(p.rear.z, 2);
+      expect(profile.wheel).toBeCloseTo(p.wheelRadius, 2);
+      // The greenhouse sits over the beltline, across the cabin.
+      expect(inside(profile.glass, 0, 1.1)).toBe(true);
+      expect(inside(profile.glass, 0, 0.6)).toBe(false);
+      for (const [x0, x1, y0, y1] of [
+        profile.lamps.front,
+        profile.lamps.rear,
+      ]) {
+        expect(x0).toBeLessThan(x1);
+        expect(y0).toBeLessThan(y1);
+        expect(x1).toBeLessThanOrEqual(profile.width / 2);
+      }
+    },
+  );
+
   test.runIf(!!m.profile)('extrusion wears the livery atlas', () => {
     const layout = m.gltf?.atlas?.layout;
     expect(layout).toBeDefined();

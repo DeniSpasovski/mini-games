@@ -1,28 +1,32 @@
 import {
   BoxGeometry,
   CylinderGeometry,
-  ExtrudeGeometry,
   PlaneGeometry,
-  Shape,
-  Vector2,
   type BufferGeometry,
 } from 'three';
 import { Rng } from '../../../../shared/rng';
+import { profile as m3 } from '../../cars/bimmer-m3/profile';
+import { profile as gt2 } from '../../cars/bimmer-gt2/profile';
+import { profile as fiesta } from '../../cars/fiesta/profile';
+import {
+  buildProfileParts,
+  buildProfileWheel,
+} from '../../cars/shared/profile-body';
+import type { CarProfile } from '../../cars/shared/types';
+import { profile as skoda } from '../../cars/skoda-rally/profile';
 import { merge, paint } from '../../engine/geo';
 import { getMaterial } from '../../engine/materials';
 import type { AssetBuilder } from '../types';
 
 /**
- * Street vehicles for city maps: parked cars (`street_car`: sedan / hatch / SUV in a few paints), the
+ * Street vehicles for city maps: parked cars (`street_car`: the boxy rally cars in a few paints), the
  * yellow `taxi`, the `police_car` (white, navy band, light bar, "POLICE" on the doors) and the
  * `fire_truck` (red engine with a roof ladder, "FIRE DEPT" on the side) and the `ambulance` (white box van, red
  * stripe, "FIRE DEPT" + "AMBULANCE" on the box). The lettering is generic words on
  * purpose (no real agency names, badges or exact liveries). Every vehicle is one
  * draw call (shared `vehicle` material: vertex colour paint + the decals atlas), models face +X with
- * the origin on the ground under their middle. Cars are ~250 triangles, the truck ~450.
+ * the origin on the ground under their middle. Cars are ~500 triangles (~300 at LOD 1), the truck ~450.
  */
-
-type Pt = [number, number];
 
 /** u / v of the plain-white corner of the decals atlas (every painted face samples it). */
 const PLAIN: [number, number] = [0.03, 0.5];
@@ -50,15 +54,6 @@ const box = (
   color: string,
 ): BufferGeometry => solid(new BoxGeometry(w, h, d).translate(x, y, z), color);
 
-/** Side profile (x forward, y up, counter-clockwise) extruded across `width`. */
-function slab(profile: Pt[], width: number, color: string): BufferGeometry {
-  const g = new ExtrudeGeometry(
-    new Shape(profile.map(([x, y]) => new Vector2(x, y))),
-    { depth: width, bevelEnabled: false },
-  ).translate(0, 0, -width / 2);
-  return solid(g, color);
-}
-
 /** Lettering plate on both sides (z = +/-`z`), showing atlas region `reg`; the text reads left to right from outside. */
 function decal(
   reg: [number, number],
@@ -84,93 +79,6 @@ const wheel = (r: number, w: number, x: number, z: number): BufferGeometry =>
     '#1b1b1d',
   );
 
-interface CarShape {
-  body: Pt[];
-  glass: Pt[];
-  length: number;
-  width: number;
-  wheel: number;
-  /** Wheel x offset from the middle. */
-  axle: number;
-  /** Roof height (m). */
-  roof: number;
-}
-
-const SEDAN: CarShape = {
-  body: [
-    [-2.3, 0.32],
-    [2.3, 0.32],
-    [2.34, 0.62],
-    [2.1, 0.8],
-    [1.15, 0.9],
-    [0.45, 1.42],
-    [-0.95, 1.44],
-    [-1.65, 0.98],
-    [-2.3, 0.95],
-    [-2.34, 0.62],
-  ],
-  glass: [
-    [1.05, 0.93],
-    [0.5, 1.36],
-    [-0.9, 1.38],
-    [-1.55, 1.0],
-  ],
-  length: 4.6,
-  width: 1.82,
-  wheel: 0.32,
-  axle: 1.4,
-  roof: 1.44,
-};
-const HATCH: CarShape = {
-  body: [
-    [-2.0, 0.32],
-    [2.0, 0.32],
-    [2.04, 0.62],
-    [1.85, 0.78],
-    [1.05, 0.88],
-    [0.4, 1.42],
-    [-1.5, 1.46],
-    [-2.0, 1.0],
-    [-2.04, 0.62],
-  ],
-  glass: [
-    [0.95, 0.92],
-    [0.45, 1.36],
-    [-1.45, 1.4],
-    [-1.88, 1.0],
-  ],
-  length: 4.08,
-  width: 1.74,
-  wheel: 0.3,
-  axle: 1.2,
-  roof: 1.46,
-};
-const SUV: CarShape = {
-  body: [
-    [-2.35, 0.4],
-    [2.35, 0.4],
-    [2.4, 0.8],
-    [2.15, 1.0],
-    [1.2, 1.08],
-    [0.55, 1.78],
-    [-2.1, 1.8],
-    [-2.35, 1.3],
-    [-2.4, 0.8],
-  ],
-  glass: [
-    [1.1, 1.12],
-    [0.62, 1.7],
-    [-2.0, 1.72],
-    [-2.25, 1.32],
-  ],
-  length: 4.8,
-  width: 1.9,
-  wheel: 0.38,
-  axle: 1.45,
-  roof: 1.8,
-};
-const SHAPES = [SEDAN, HATCH, SUV];
-
 const PAINTS = [
   '#16171a',
   '#e9eaec',
@@ -186,31 +94,47 @@ const PAINTS = [
   '#3a3d42',
 ];
 
-/** Parts every car shares: body, glass, wheels, lamps. */
+/**
+ * The boxy rally cars as street cars (profiles baked from their GLBs, cars/<car>/profile.ts): 0 Bimmer M3 (saloon),
+ * 1 Skoda Rally (hatch), 2 Fiesta (hatch), 3 Bimmer GT2 (coupe).
+ */
+const SHAPES: CarProfile[] = [m3, skoda, fiesta, gt2];
+
+/** Bimmer M3 half width / roof height (m): the taxi and the police car are M3s. */
+const M3_HW = m3.width / 2;
+const M3_ROOF = Math.max(...m3.outline.filter((_, i) => i % 2));
+
+/** Tyre width (m); the outer face sits 1 cm inside the body side. */
+const TYRE_W = 0.22;
+
+/**
+ * A boxy car (cars/shared/profile-body.ts) in one paint: body, greenhouse, head / tail lamps, wheels with a flat rim
+ * (LOD 1: coarser outlines and wheels, no rims or lamps). Turned to face +X.
+ */
 function carParts(
-  s: CarShape,
+  s: CarProfile,
   paintColor: string,
   lod: number,
 ): BufferGeometry[] {
-  const parts: BufferGeometry[] = [slab(s.body, s.width, paintColor)];
-  if (lod > 0) {
-    // Far: body + a dark band for the glass, no wheels.
-    parts.push(slab(s.glass, s.width + 0.02, '#1b232b'));
-    return parts;
-  }
-  parts.push(slab(s.glass, s.width + 0.03, '#1b232b'));
-  const w = s.width / 2;
-  for (const x of [s.axle, -s.axle])
-    for (const z of [w - 0.06, -(w - 0.06)])
-      parts.push(wheel(s.wheel, 0.24, x, z));
-  // Lamps and bumpers.
-  const f = s.length / 2;
-  for (const z of [-0.62, 0.62]) {
-    parts.push(box(0.06, 0.12, 0.3, f + 0.01, 0.72, z, '#f4f0d8'));
-    parts.push(box(0.06, 0.12, 0.3, -f - 0.01, 0.76, z, '#a31a1a'));
-  }
-  parts.push(box(0.12, 0.16, s.width - 0.1, f, 0.42, 0, '#2a2b2e'));
-  parts.push(box(0.12, 0.16, s.width - 0.1, -f, 0.42, 0, '#2a2b2e'));
+  // Far: outlines simplified to 12 cm, 5-sided wheels without rims, no lamps.
+  const p = buildProfileParts(s, undefined, lod ? 0.12 : 0);
+  const parts = [solid(p.body, paintColor), solid(p.glass, '#1b232b')];
+  if (lod === 0) parts.push(solid(p.head, '#f4f0d8'), solid(p.tail, '#a31a1a'));
+  const { tyre, rim } = buildProfileWheel(s.wheel, TYRE_W, lod ? 5 : 12);
+  const x = s.width / 2 - 0.01 - TYRE_W / 2;
+  for (const z of s.axles)
+    for (const side of [1, -1]) {
+      const at = (g: BufferGeometry) =>
+        g
+          .clone()
+          .rotateY(side > 0 ? 0 : Math.PI)
+          .translate(side * x, s.wheel, z);
+      parts.push(solid(at(tyre), '#1b1b1d'));
+      if (lod === 0) parts.push(solid(at(rim), '#bfc3c9'));
+    }
+  tyre.dispose();
+  rim.dispose();
+  for (const g of parts) g.rotateY(Math.PI / 2);
   return parts;
 }
 
@@ -218,10 +142,9 @@ const finish = (parts: BufferGeometry[]) => ({
   parts: [{ geometry: merge(parts), material: getMaterial('vehicle') }],
 });
 
-/** A parked car: variant picks the shape (sedan / hatch / SUV) and the paint. */
 /**
- * Variants 0-11: shape `variant % 3`, a seeded paint (street dressing picks among these). From 12 on: fixed
- * [shape, paint] for cars a map places on purpose (`props`, e.g. the white hatch at a Petralica house).
+ * A parked car. Variants 0-11: shape `variant % 4`, a seeded paint (street dressing picks among these). From 12 on:
+ * fixed [shape, paint] for cars a map places on purpose (`props`, e.g. the white hatch at a Petralica house).
  */
 const FIXED_CARS: [number, string][] = [[1, '#e9eaec']];
 
@@ -236,27 +159,32 @@ export const streetCar: AssetBuilder = ({ seed, variant, lod }) => {
 
 /** New York style yellow cab (sedan with a roof sign). */
 export const taxi: AssetBuilder = ({ lod }) => {
-  const parts = carParts(SEDAN, '#f1b516', lod);
+  const parts = carParts(m3, '#f1b516', lod);
   if (lod === 0) {
-    parts.push(box(0.5, 0.17, 0.26, -0.2, 1.54, 0, '#f6e7b0'));
-    // Black checker stripe along the doors.
+    parts.push(box(0.5, 0.17, 0.26, -0.3, M3_ROOF + 0.08, 0, '#f6e7b0'));
+    // Black checker stripe along the doors, over the wheel arches.
     for (const side of [1, -1])
-      parts.push(box(2.6, 0.07, 0.01, -0.1, 0.74, side * 0.915, '#1a1a1a'));
+      parts.push(
+        box(2.6, 0.07, 0.01, -0.1, 0.76, side * (M3_HW + 0.005), '#1a1a1a'),
+      );
   }
   return finish(parts);
 };
 
 /** Patrol car: white sedan, navy band, roof light bar and "POLICE" on both front doors. */
 export const policeCar: AssetBuilder = ({ lod }) => {
-  const parts = carParts(SEDAN, '#f1f2f2', lod);
+  const parts = carParts(m3, '#f1f2f2', lod);
   if (lod === 0) {
+    // Navy band over the wheel arches, "POLICE" on the doors under it, light bar on the roof.
     for (const side of [1, -1])
-      parts.push(box(3.9, 0.22, 0.012, -0.05, 0.62, side * 0.918, '#14306b'));
-    parts.push(box(0.9, 0.09, 0.34, 0.1, 1.5, 0, '#222428'));
-    parts.push(box(0.4, 0.1, 0.32, 0.1, 1.55, 0.14, '#d3202a'));
-    parts.push(box(0.4, 0.1, 0.32, 0.1, 1.55, -0.14, '#2a5fd6'));
-    parts.push(...decal(PD, 1.5, 0.37, 0.15, 0.62, 0.926));
-  } else parts.push(box(2.6, 0.2, 1.84, 0, 0.64, 0, '#14306b'));
+      parts.push(
+        box(3.9, 0.16, 0.012, -0.1, 0.78, side * (M3_HW + 0.006), '#14306b'),
+      );
+    parts.push(box(0.9, 0.09, 0.34, -0.3, M3_ROOF + 0.045, 0, '#222428'));
+    parts.push(box(0.4, 0.1, 0.32, -0.3, M3_ROOF + 0.095, 0.14, '#d3202a'));
+    parts.push(box(0.4, 0.1, 0.32, -0.3, M3_ROOF + 0.095, -0.14, '#2a5fd6'));
+    parts.push(...decal(PD, 1.5, 0.37, 0.15, 0.48, M3_HW + 0.012));
+  } else parts.push(box(3.9, 0.16, M3_HW * 2 + 0.02, -0.1, 0.78, 0, '#14306b'));
   return finish(parts);
 };
 

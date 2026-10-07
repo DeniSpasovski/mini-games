@@ -51,12 +51,23 @@ export interface CarSoundDef {
   roughness?: number;
 }
 
-/** Side outline of an imported car, extruded to `width` as its fallback body (cars/shared/profile-body.ts). */
+/**
+ * Boxy profile of an imported car (`cars/<car>/profile.ts`, baked by scripts/car-model/side-profile.mjs): its side
+ * outline extruded to `width` with the glass and lamps tagged (cars/shared/profile-body.ts). The car's fallback body
+ * and a city-map street car (assets/builders/vehicles.ts).
+ */
 export interface CarProfile {
   /** Body width (m), the extrusion depth. */
   width: number;
-  /** Closed outline in model (z, y), flat [z0, y0, z1, y1, ...], counter-clockwise; scripts/car-model/side-profile.mjs. */
+  /** Front / rear axle z and the wheel radius (m) the arches are cut for. */
+  axles: [number, number];
+  wheel: number;
+  /** Closed outline in model (z, y), flat [z0, y0, z1, y1, ...], counter-clockwise. */
   outline: number[];
+  /** Greenhouse outline (z, y), same format: extruded a little wider than the body, 2 cm proud of the screens. */
+  glass: number[];
+  /** Left head / tail lamp box [x0, x1, y0, y1] seen from the front / rear (mirrored to the right side). */
+  lamps: { front: number[]; rear: number[] };
 }
 
 export interface CarModelDef {

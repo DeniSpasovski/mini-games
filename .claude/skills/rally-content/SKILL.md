@@ -59,10 +59,11 @@ model, parts, livery, glTF import) lives in `cars/shared/`.
 - `sound`: engine layout, displacement, exhaust / intake, turbo + anti-lag, pops, gearbox, whine, cam - match the real engine
   (rally `DETAILS.md` "Sound"; `tests/rally/engine-sound.test.ts` checks the ranges).
 - Every car needs a body for when it has no GLB or the GLB fails: `model.custom` (hand-built, below) or `model.profile`
-  (an imported car's boxy stand-in: its side outline extruded to the body width, `cars/shared/profile-body.ts`; it wears the
-  livery when the car's `CarAtlas` sets `layout` = its model.source.json `atlas` block).
-  Bake the profile from the plain GLB and paste the printed block:
-  `node scripts/car-model/side-profile.mjs public/models/cars/<file>.glb --axles <front z>,<rear z> --wheel <radius>`.
+  (an imported car's boxy stand-in: its side outline extruded to the body width with glass + lamps,
+  `cars/shared/profile-body.ts`; it wears the livery when the car's `CarAtlas` sets `layout` = its model.source.json `atlas`
+  block). Bake it from the plain GLB into the car folder:
+  `node scripts/car-model/side-profile.mjs public/models/cars/<file>.glb --axles <front z>,<rear z> --wheel <radius> > src/games/rally/cars/<car>/profile.ts`.
+  The city maps' parked cars use these profiles too (`assets/builders/vehicles.ts` `SHAPES`).
   `tests/rally/car-fallback.test.ts` checks it; see it with `car-viewer.html?car=<id>&fallback=1`.
 - `model.wheels(radius, width)` = car-specific tyre + rim geometry (a tyre with a `color` attribute is drawn with vertex colours);
   `model.glass` = window tint; `model.paintFinish: 'satin'` = old paint; `rim.style: 'steel'` = holed steel wheel, no caliper.

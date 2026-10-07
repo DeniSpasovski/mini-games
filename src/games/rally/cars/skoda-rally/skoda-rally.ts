@@ -2,6 +2,7 @@ import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
+import { profile } from './profile';
 import { skodaRallyLivery } from './livery';
 
 /** Fabia R5 (2015-19): wheelbase 2.47 m (the model's 2.475), hubs at the tyre radius. */
@@ -168,21 +169,8 @@ export const skodaRally: CarDef = {
     wheelModel: 'skoda_rally_wheel.glb',
     suspensionStyle: 'rally',
     glass: { color: 0x2a3a46, opacity: 0.4 },
-    // Fallback body if the GLB can't load: the side outline extruded to the body width (side-profile.mjs
-    // public/models/cars/skoda_rally.glb --axles 1.15,-1.325 --wheel 0.321).
-    profile: {
-      width: 1.825,
-      outline: [
-        -1.964, 0.255, -1.794, 0.195, -1.694, 0.195, -1.674, 0.415, -1.564,
-        0.595, -1.294, 0.685, -1.124, 0.625, -1.024, 0.525, -0.954, 0.155,
-        0.696, 0.165, 0.706, 0.125, 0.786, 0.125, 0.796, 0.395, 0.856, 0.535,
-        1.026, 0.665, 1.186, 0.685, 1.336, 0.635, 1.456, 0.515, 1.506, 0.385,
-        1.516, 0.115, 1.986, 0.125, 1.966, 0.585, 1.866, 0.725, 1.556, 0.855,
-        0.936, 0.985, 0.336, 1.315, 0.326, 1.375, 0.126, 1.425, -1.474, 1.365,
-        -1.484, 1.295, -1.604, 1.195, -1.614, 1.395, -1.764, 1.395, -1.774,
-        1.065, -1.924, 0.965, -1.934, 0.585, -1.984, 0.565,
-      ],
-    },
+    // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
+    profile,
     doorBadge: { z: 0.27, y: 0.59 },
     // No procedural suspension: the imported model carries its own springs, dampers and arms (trim).
     // Imported body:

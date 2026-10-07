@@ -32,7 +32,7 @@ import { autoHull, type Vehicle } from '../../physics/vehicle';
 import type { CarPartGeometry } from './car-parts';
 import { hasImportedModel, loadImportedCar } from './car-gltf';
 import { liveryInfo, type LiveryInfo } from './livery';
-import { buildProfileBody } from './profile-body';
+import { buildProfileParts } from './profile-body';
 import { tyreSizeFor } from '../../physics/car-tyres';
 import type { TyreId } from '../../physics/tyres';
 import {
@@ -59,7 +59,7 @@ import type { CarAtlas, CarDef } from './types';
  *  root (physics body frame: origin = centre of mass)
  *   ├─ body   (model space: y = 0 ground at static ride height), offset -comHeight
  *   │    the imported GLB (`gltf`) once loaded; until then / if it fails the hand-built body (`custom`: atlas paint +
- *   │    parts per material) or the boxy side-outline extrusion (`profile`, profile-body.ts, livery via the atlas layout)
+ *   │    parts per material) or the boxy side-outline extrusion (`profile`, profile-body.ts: livery via the atlas layout, glass, lamps)
  *   └─ wheels: 3 InstancedMeshes x 4 instances (tyre, rim+disc, caliper); STL wheels
  *      (model.wheelModel, stl-wheel.ts) add a 4th for the brake disc
  *
@@ -97,6 +97,13 @@ const glassMat = new MeshStandardMaterial({
   // drifting into the cabin is hidden instead of blending over the glass.
   depthWrite: true,
   ...decal,
+});
+/** Opaque glass: the boxy fallback's greenhouse lies over the painted body, so see-through glass would show paint. */
+const solidGlassMat = new MeshStandardMaterial({
+  color: 0x1c2630,
+  metalness: 0.3,
+  roughness: 0.04,
+  envMapIntensity: 1.8,
 });
 const interiorMat = new MeshStandardMaterial({
   color: 0x2a2c30,
@@ -458,9 +465,10 @@ export class CarModel {
       if (!profile)
         throw new Error(`[car] ${def.id}: needs model.custom or model.profile`);
       const atlas = def.model.gltf?.atlas;
+      const parts = buildProfileParts(profile, atlas?.layout);
       procedural = [
         this.addMesh(
-          buildProfileBody(profile, atlas?.layout),
+          parts.body,
           atlas?.layout
             ? this.atlasMaterial(
                 atlas,
@@ -470,8 +478,11 @@ export class CarModel {
               )
             : plainMat,
         ),
+        this.addMesh(parts.glass, solidGlassMat),
+        this.addMesh(parts.head, lightMat),
+        this.addMesh(parts.tail, tailMat),
       ];
-      proceduralPaint = procedural;
+      proceduralPaint = procedural.slice(0, 1);
     }
     const meshTargets = (meshes: Mesh[]): BadgeTarget[] =>
       meshes.map((m) => ({ geometry: m.geometry, matrix: m.matrix.clone() }));

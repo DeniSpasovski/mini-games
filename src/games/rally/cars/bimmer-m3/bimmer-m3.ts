@@ -2,6 +2,7 @@ import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
+import { profile } from './profile';
 import { bimmerM3Atlas } from './livery';
 
 // RWD V8 coupe: drivetrain and suspension numbers are the car's own; the wheelbase, body size and tyres follow this mesh.
@@ -178,19 +179,8 @@ export const bimmerM3: CarDef = {
     // rescaled per tyre size (stl-wheel.ts); `rim` above is the procedural fallback.
     wheelModel: 'bimmer_m3_wheel.glb',
     suspensionStyle: 'race',
-    // Fallback body if the GLB can't load: the side outline extruded to the body width (side-profile.mjs
-    // public/models/cars/bimmer_m3.glb --axles 1.361,-1.361 --wheel 0.33).
-    profile: {
-      width: 1.882,
-      outline: [
-        -2.39, 0.205, -1.74, 0.145, -1.72, 0.415, -1.65, 0.565, -1.48, 0.685,
-        -1.28, 0.695, -1.12, 0.615, -1.02, 0.475, -0.99, 0.075, 0.99, 0.065, 1,
-        0.405, 1.08, 0.575, 1.22, 0.675, 1.44, 0.695, 1.59, 0.625, 1.69, 0.505,
-        1.74, 0.085, 2.15, 0.085, 2.17, 0.475, 2.12, 0.485, 2.09, 0.655, 2.01,
-        0.735, 1.64, 0.845, 0.82, 0.955, 0.18, 1.335, 0.01, 1.375, -1.11, 1.365,
-        -1.87, 1.045, -2.33, 1.015, -2.34, 0.605, -2.4, 0.585,
-      ],
-    },
+    // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
+    profile,
     // Rally plate on the door (door shut lines z -0.33 .. 0.83, front = +z), above the side moulding.
     doorBadge: { z: 0.2, y: 0.635 },
     // No `suspension`: the mesh models its own arms / hubs inside closed wheel wells.

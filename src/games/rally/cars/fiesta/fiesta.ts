@@ -2,6 +2,7 @@ import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
+import { profile } from './profile';
 import { fiestaLivery } from './livery';
 
 /** WRC Fiesta (2017-): wheelbase 2.48 m between the model's hubs; the front axle sits at z = 1.2 (centre of mass behind it). */
@@ -171,20 +172,8 @@ export const fiesta: CarDef = {
     suspensionStyle: 'wrc',
     // The model carries its own cockpit: see-through glass shows it.
     glass: { color: 0x2a3a46, opacity: 0.35 },
-    // Fallback body if the GLB can't load: the side outline extruded to the body width (side-profile.mjs
-    // public/models/cars/fiesta.glb --axles 1.2,-1.28 --wheel 0.325).
-    profile: {
-      width: 1.934,
-      outline: [
-        -2.005, 0.135, -1.655, 0.135, -1.635, 0.415, -1.575, 0.545, -1.425,
-        0.665, -1.205, 0.685, -1.055, 0.615, -0.955, 0.495, -0.915, 0.095,
-        0.795, 0.085, 0.905, 0.545, 1.055, 0.665, 1.275, 0.685, 1.425, 0.615,
-        1.525, 0.495, 1.565, 0.095, 2.045, 0.075, 2.045, 0.165, 1.975, 0.175,
-        1.955, 0.605, 1.885, 0.675, 1.465, 0.845, 0.995, 0.915, 0.025, 1.365,
-        -1.075, 1.335, -1.525, 1.235, -1.695, 1.335, -1.895, 1.335, -1.905,
-        0.595, -1.965, 0.545, -2.015, 0.335,
-      ],
-    },
+    // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
+    profile,
     doorBadge: { z: 0.2, y: 0.6 },
     // No procedural suspension: the model carries its own arms and dampers (trim).
     gltf: {
