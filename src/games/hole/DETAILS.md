@@ -269,7 +269,7 @@ end and start delay, `flee`) becomes a **mover**: `sim/world.ts` keeps its state
     now and then and turning back at 25 % of the corners. Pedestrians in a park or on the beach `wander` in a circle that stays
     in the park / on the sand; plaza and lot pedestrians stand. `map/city-movers.ts` assigns them after generation with its own
     Rng, so the layout and the 30 000 points never change. People face +Z (`Movers.face`), animals and cars +X.
-  - `tests/hole/city-movers.test.ts`: cars stay on the asphalt, make progress and do not stack; strollers stay on the ring;
+  - `integration-tests/hole/city-movers.test.ts`: cars stay on the asphalt, make progress and do not stack; strollers stay on the ring;
     deterministic; cheap. Overlays: map viewer "Road network", "Trail / patrol / stroll paths".
 - Not done: no leg animation (animals bob / hop as a whole), herd followers, see [`ANIMAL-ISLAND.md`](ANIMAL-ISLAND.md) section 7.
 

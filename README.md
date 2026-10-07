@@ -33,7 +33,7 @@ played and modified locally.
 ```bash
 npm install
 npm run dev        # http://localhost:3000
-npm run test       # physics / world / full-stage regression tests
+npm run test       # unit + data tests (fast); `npm run test:integration` = playtests (slow), see `integration-tests/README.md`
 npm run lint
 npm run build      # dist/ (portal + one self-contained folder per game)
 npm run build -- --environment rally   # rebuild only dist/games/rally/

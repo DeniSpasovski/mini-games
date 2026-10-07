@@ -30,8 +30,8 @@ limit (`keyboardSteerLimit` in `game/input.ts`, close to the steering that gives
 Everything is in `cars/<car>/<car>.ts` (`physics`), `physics/surfaces.ts`, `physics/tyres.ts`, `physics/car-tyres.ts`
 and `physics/car-setup.ts`. Workflow:
 
-1. `npm run test` - `tests/rally/vehicle.test.ts` prints 0-100, 100-0, top speed, lateral g (no tyre fitted = raw
-   surfaces); `tests/rally/stage.test.ts` drives every car through every map with the autopilot. Every car has its own
+1. `npm run test` + `npm run test:integration:rally` - `tests/rally/vehicle.test.ts` prints 0-100, 100-0, top speed, lateral g (no tyre fitted = raw
+   surfaces); `integration-tests/rally/stage.test.ts` drives every car through every map with the autopilot. Every car has its own
    expected ranges (`BANDS` in `vehicle.test.ts`) - add one for a new car. Tyre / set-up tests: see "Tests" below.
 2. Drive it: `/games/rally/?car=<id>&spawn=pad&tyre=<tyre>&susp=<preset>`, press `F2` (per-wheel load, slip, forces,
    tyre, set-up, effective `mu`) and `F4` (force vectors + hull).
@@ -245,7 +245,7 @@ matching set-up), 2026-10-04 - tarmac / dusty tarmac / gravel / loose gravel, ho
 The home tyre is the best on all four surfaces for every car. `tyres.test.ts` prints the same for the Skoda Rally with the
 older steady-state method (v x yaw rate, lower numbers, same ranking): tarmac 0.89 / 0.78 / 0.67, dusty 0.63 / 0.75 / 0.70,
 gravel 0.44 / 0.67 / 0.83 (tarmac / mixed / gravel tyre). Whole-car handling per car (balance, braking, keyboard, ride):
-`tests/rally/handling.test.ts` (`HANDLING_OUT=out.json` writes every number).
+`integration-tests/rally/handling.test.ts` (`HANDLING_OUT=out.json` writes every number).
 
 ### Stage times
 
@@ -282,16 +282,16 @@ everywhere (power, not grip).
 | File                                  | What it holds                                                                                                                                                                                                                            |
 | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tests/rally/vehicle.test.ts`         | per-car bands (0-100, braking, top speed), lateral g ranks per surface - no tyre fitted (raw surfaces)                                                                                                                                   |
-| `tests/rally/stage.test.ts`           | every car finishes every map with the autopilot, upright (raw surfaces)                                                                                                                                                                  |
-| `tests/rally/tyres.test.ts`           | compound data complete; right tyre best on its home surface, mixed never best / worst; careful + limit driver per stage                                                                                                                  |
+| `integration-tests/rally/stage.test.ts`           | every car finishes every map with the autopilot, upright (raw surfaces)                                                                                                                                                                  |
+| `integration-tests/rally/tyres.test.ts`           | compound data complete; right tyre best on its home surface, mixed never best / worst; careful + limit driver per stage                                                                                                                  |
 | `tests/rally/car-setup.test.ts`       | sizes match `wheelRadius`; presets: damping, ride height per preset (body + wheels), compliance ranges per car; width effects; car vs car lateral g; straight-line launch on loose ground (every car reaches 100 km/h pointing straight) |
-| `tests/rally/car-matrix.test.ts`      | every car x stage on the recommended and the worst pick finishes upright; cars rank by character; set-up alone is worth time                                                                                                             |
+| `integration-tests/rally/car-matrix.test.ts`      | every car x stage on the recommended and the worst pick finishes upright; cars rank by character; set-up alone is worth time                                                                                                             |
 | `tests/rally/tyre-mesh.test.ts`       | tyre geometry: budget, size, tread depth order, rim switch (rendering, but sized from the physics data)                                                                                                                                  |
 | `tests/rally/suspension-mesh.test.ts` | coil-over geometry: length by travel, coils / wire by rate, one style per car                                                                                                                                                            |
 | `tests/rally/water-physics.test.ts`   | dry / shallow / deep acceleration per car                                                                                                                                                                                                |
 | `tests/rally/hull-fit.test.ts`        | every car's collision hull follows its model: underside per zone (front overhang, between axles, rear overhang) and the nose / tail ends; prints the profile                                                                             |
-| `tests/rally/gearing.test.ts`         | gearing presets: race cars only, medium = own final drive, short < medium < long top speed, setup-screen top speed = sim, Skoda Rally on long reaches 200 km/h on Jackie                                                                 |
-| `tests/rally/handling.test.ts`        | whole-car handling per car x tyre x set-up x surface (`handling-harness.ts`): ramp / step steer, lift / power / brake mid-corner, handbrake, slalom, keyboard lock, braking, drops, jump landing, ruts                                   |
+| `integration-tests/rally/gearing.test.ts`         | gearing presets: race cars only, medium = own final drive, short < medium < long top speed, setup-screen top speed = sim, Skoda Rally on long reaches 200 km/h on Jackie                                                                 |
+| `integration-tests/rally/handling.test.ts`        | whole-car handling per car x tyre x set-up x surface (`handling-harness.ts`): ramp / step steer, lift / power / brake mid-corner, handbrake, slalom, keyboard lock, braking, drops, jump landing, ruts                                   |
 
 `tyres.test.ts` and `car-matrix.test.ts` import the four stages directly (`test`, `petralica`, `jackie`, `ajvatovci`) - add a
 new map there. The "worst pick" in `car-matrix.test.ts` is tarmac tyres on a gravel stage, gravel tyres on a tarmac or

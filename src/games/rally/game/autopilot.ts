@@ -11,7 +11,7 @@ import { newRoadQuery, type Road } from '../world/road';
  *  - lifts off when the car is sliding too much
  *  - corner speed follows the grip of the fitted tyre on the road surface ahead (never above the
  *    gravel-grade baseline, so the right tyre drives like before and a wrong one slows down)
- * Used by tests/rally/stage.test.ts (stage is completable, no flips) and
+ * Used by integration-tests/rally/stage.test.ts (stage is completable, no flips) and
  * in-game with F8 (soak / perf testing, screenshots).
  */
 /** Surface mu the cornering plan (0.7 g) was tuned for (gravel); more grip only speeds it up with `useExtraGrip`. */
@@ -23,7 +23,7 @@ export class Autopilot {
   /**
    * Corner (and braking) speed also rises with grip above the gravel baseline, so a tyre that grips more
    * is actually driven faster. Off by default: stage.test.ts and the F8 autopilot keep the tuned pace.
-   * tests/rally/tyres.test.ts turns it on to measure what a tyre is worth over a whole stage.
+   * integration-tests/rally/tyres.test.ts turns it on to measure what a tyre is worth over a whole stage.
    */
   useExtraGrip = false;
   /** Fastest it ever goes (m/s; 42 = 151 km/h keeps the stage tests' pace). Tests raise it to measure top speed. */

@@ -5,7 +5,7 @@ import type { CarPhysicsDef, GearingId } from './types';
  * Gearing presets (setup screen): Short / Medium / Long final drive - the gearbox ratios stay, like a rally team
  * swapping the final drive for a fast or a twisty stage. Short = harder pull, lower top speed; Long = the other way.
  * Only cars with `CarPhysicsDef.gearings` can change it (the race cars); the others show their fixed gearing.
- * Medium is always the car's own `gearbox.finalDrive` (tests/rally/gearing.test.ts). Design: ../PHYSICS.md "Gearing".
+ * Medium is always the car's own `gearbox.finalDrive` (integration-tests/rally/gearing.test.ts). Design: ../PHYSICS.md "Gearing".
  */
 export const GEARING_IDS: readonly GearingId[] = ['short', 'medium', 'long'];
 

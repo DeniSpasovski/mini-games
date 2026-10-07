@@ -26,7 +26,7 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
   `Autopilot.maxSpeed` lifts the 151 km/h cap to measure top speed). Tests: `gearing.test.ts`.
 - Tyre compounds: `physics/tyres.ts` (per-tyre multipliers on the surfaces; `Vehicle.setTyre`, `null` = raw surfaces so
   `vehicle.test.ts` bands stay put). Grip / feel of a tyre = edit its table there; ranks are checked by
-  `tests/rally/tyres.test.ts`. A new surface needs an entry in every `TyreDef.grip`.
+  `integration-tests/rally/tyres.test.ts`. A new surface needs an entry in every `TyreDef.grip`.
 - Tyre model: `physics/tire.ts`. Rigid body / suspension / contacts: `physics/vehicle.ts`.
 - Driver aids: `Vehicle.tractionControl` (wheelspin + combined-slip stability, `T` in game),
   `autoReverse`, keyboard steering ramp / speed limit / counter-steer allowance in `game/input.ts`.
@@ -35,7 +35,7 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
 
 1. Reproduce with numbers, not vibes:
    - `npm run test -- tests/rally/vehicle.test.ts` prints 0-100, 100-0, top speed, lateral g per surface.
-   - `tests/rally/handling.test.ts` = whole-car handling (ramp / step steer, lift / power / brake mid-corner, handbrake,
+   - `integration-tests/rally/handling.test.ts` = whole-car handling (ramp / step steer, lift / power / brake mid-corner, handbrake,
      slalom, keyboard lock, braking, drops, ruts) per car x tyre x set-up x surface; `HANDLING_FULL=1` all set-ups,
      `HANDLING_OUT=x.json` dumps every number. To try a change without editing a car, pass a modified def
      (`Cfg.def`) or a Vehicle patch (`Cfg.patch`) to the manoeuvres in `handling-harness.ts`. Last review notes
@@ -44,11 +44,11 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
      Fx/Fy, surface), `F4` force vectors + hull.
    - For a specific stage spot: `?spawn=<metres along road>`.
 2. For behaviour over a whole stage write a throwaway trace test (see git history / the pattern in
-   `tests/rally/stage.test.ts`): run `Autopilot` + `Vehicle` headless and log speed, sideslip
+   `integration-tests/rally/stage.test.ts`): run `Autopilot` + `Vehicle` headless and log speed, sideslip
    (`atan2(v·right, v·forward)`), `up.y`, wheel loads every 0.05 s around the event. Delete it afterwards.
 3. Change one knob at a time (table in the rally DETAILS.md). Keep surface `bump` wavelengths long - short bumps
    become damper spikes because wheels are single rays with no unsprung mass.
-4. Validate: `npm run test` — all of `vehicle.test.ts` bands and `stage.test.ts` (every car finishes every map,
+4. Validate: `npm run test` (`vehicle.test.ts` bands) and `npm run test:integration:rally` (`stage.test.ts`: every car finishes every map,
    `up.y` stays > 0.5). If you intentionally change a band, update the test and say why.
 5. Feel-check on keyboard AND (if available) gamepad.
 
