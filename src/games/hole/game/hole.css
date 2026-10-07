@@ -508,8 +508,18 @@ body {
   box-shadow: 0 6px 0 rgba(0, 0, 0, 0.25);
   touch-action: manipulation;
 }
-.hg-map:nth-child(2) {
+/* one colour per map, themed; dark enough for white text */
+.hg-map-city {
+  background: #2f7fd6;
+}
+.hg-map-toy {
   background: var(--hg-red);
+}
+.hg-map-animal {
+  background: #2e9e5b;
+}
+.hg-map-construction {
+  background: #d98a00;
 }
 /* a card with a picture: picture on the left, text on the right */
 .hg-map.pic {

@@ -251,7 +251,7 @@ export class Menu {
     for (const m of this.api.maps) {
       const b = el(
         'button',
-        'hg-map' + (m.id === this.api.mapId() ? ' on' : ''),
+        `hg-map hg-map-${m.id}` + (m.id === this.api.mapId() ? ' on' : ''),
         '',
         { type: 'button' },
       );
