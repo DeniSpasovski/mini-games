@@ -14,14 +14,14 @@ const A = source.atlas;
 const { K, B, CH, Painter, sidePx, frontPx, rearPx } = atlasKit(A);
 
 const YELLOW = '#e8f03a';
-/** Vertical extent on the body side (m): 10 cm above the body's lower edge up to 10 cm below the window sills. */
-const Y_BOTTOM = 0.23;
-const Y_TOP = 0.8;
+/** Vertical extent on the body side (m): 18 cm above the body's lower edge up to 2 cm below the window sills. */
+const Y_BOTTOM = 0.31;
+const Y_TOP = 0.88;
 /** Reference picture rows spanned by the graphic (crescent tip to lower end). */
 const REF_Y = [121, 222];
 const PX = (Y_TOP - Y_BOTTOM) / (REF_Y[1] - REF_Y[0]);
-/** Rear end of the graphic (z, m), just in front of the rear wheel arch; it grows forward from there. */
-const REAR_Z = -0.957;
+/** Rear end of the graphic (z, m), over the rear wheel arch; it grows forward from there. */
+const REAR_Z = -1.457;
 /** Reference picture columns spanned by the graphic (crescent bulge to tip). */
 const REF_X = [168, 422];
 
