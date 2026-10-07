@@ -147,7 +147,10 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
 | `fiesta`      | Fiesta WRC  | AWD   | World Rally Car from a CC BY model with its cockpit, own rim and livery, test car    |
 
 - A car is `cars/<car>/<car>.ts` (a `CarDef`: physics + model + sound) with its README. A GLB in `public/models/cars/` replaces the
-  procedural body (`cars/shared/car-gltf.ts`; credits in `public/models/CREDITS.md`). Imports: rally-car-import skill.
+  car's own body (`cars/shared/car-gltf.ts`; credits in `public/models/CREDITS.md`). Imports: rally-car-import skill.
+- Every car has a body without its GLB: hand-built `model.custom` (Zastava, Skoda) or `model.profile`, the boxy side
+  outline extruded to the body width (`cars/shared/profile-body.ts`, baked by `scripts/car-model/side-profile.mjs`), shown
+  only if the GLB fails to load. Car viewer `fallback=1` shows it.
 - Car GLBs are committed plain (the model scripts and `hull-fit.test.ts` read them); the build copies them meshopt-compressed
   (`scripts/car-model/glb-meshopt.mjs`, about half the size, same meshes; `car-glb-meshopt.test.ts` checks every file).
 - **Door plates** (`cars/shared/rally-badge.ts`): our own event plate (emblem, car number, map name) projected onto both front

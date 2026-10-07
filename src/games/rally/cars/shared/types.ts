@@ -50,46 +50,17 @@ export interface CarSoundDef {
   roughness?: number;
 }
 
-/**
- * One cross-section of the lower body. Stations are listed rear -> front and
- * interpolated with a smooth spline, so 6-10 stations give a convincing shape.
- */
-export interface BodyStation {
-  z: number;
-  /** Underside height. */
-  floor: number;
-  /** Top of the lower body (bonnet / boot lid / beltline) at this station. */
-  belt: number;
-  /** Half width at the widest point of the side. */
-  hw: number;
-  /** Half width at the beltline (tumblehome). */
-  hwBelt: number;
-}
-
-/** Glass house: from beltline up to the roof. */
-export interface CabinDef {
-  /** Z where the windscreen meets the bonnet / where the rear glass meets the boot. */
-  zFront: number;
-  zRear: number;
-  /** Z of roof front / rear edges (windscreen + rear screen rake). */
-  roofFront: number;
-  roofRear: number;
-  roofY: number;
-  /** Roof half width. */
-  roofHw: number;
-  /** Rear side window: length (m) over which its lower edge kicks up into the C pillar (0 = square end). */
-  kick?: number;
-  /** Z of the B pillar (default: middle of the roof + 5 cm). */
-  bPillar?: number;
+/** Side outline of an imported car, extruded to `width` as its fallback body (cars/shared/profile-body.ts). */
+export interface CarProfile {
+  /** Body width (m), the extrusion depth. */
+  width: number;
+  /** Closed outline in model (z, y), flat [z0, y0, z1, y1, ...], counter-clockwise; scripts/car-model/side-profile.mjs. */
+  outline: number[];
 }
 
 export interface CarModelDef {
-  stations: BodyStation[];
-  cabin: CabinDef;
   /** Default paint (sRGB hex string). Liveries derive accents from the seed. */
   paint: string;
-  /** How far the wheel-arch flares stick out from the body side (m). */
-  flare: number;
   rim: {
     color: string;
     spokes: number;
@@ -98,8 +69,6 @@ export interface CarModelDef {
     /** Brake caliper colour (default red). */
     caliper?: string;
   };
-  /** Body styling + rally parts. Everything optional; see car-parts.ts. */
-  parts: CarParts;
   /**
    * Window glass tint override (default: dark, 45% opaque). On an imported body it also replaces the opaque `glass`
    * part, so set it only when the model has a cockpit to see through the windows.
@@ -132,20 +101,20 @@ export interface CarModelDef {
   tyreDust?: boolean;
   /** Look of this car's coil-overs / struts on the setup screen (cars/shared/suspension-mesh.ts). */
   suspensionStyle: SuspensionStyle;
-  livery: 'stripes' | 'swoosh' | 'classic' | 'rally1';
   /**
    * Rally door plate (car number + rally name, cars/shared/rally-badge.ts) - centre on the front door in
-   * model space (m); the plate size is the same on every car (0.6 m wide). Default: middle of the front door,
-   * just under the beltline.
+   * model space (m); the plate size is the same on every car (0.6 m wide).
    */
-  doorBadge?: { z?: number; y?: number };
+  doorBadge: { z: number; y: number };
   /**
-   * Hand-built body (see cars/zastava-101/body.ts): replaces the generic station loft + parts.
-   * `stations` / `cabin` are then only used for the bolt-on kit of an imported model.
+   * Hand-built body (see cars/zastava-101/body.ts). A car needs this or `profile`: it is the body when there is
+   * no `gltf`, and the stand-in while / if the GLB fails.
    */
   custom?: CarCustomBody;
+  /** Boxy side-outline extrusion: the fallback body of an imported car without a hand-built one. */
+  profile?: CarProfile;
   /**
-   * Optional imported model. Used instead of the procedural body when the file
+   * Optional imported model. Used instead of the `custom` / `profile` body when the file
    * exists in public/models/cars/ (see .claude/skills/rally-content "Imported models").
    * The procedural wheels are kept (they're driven by physics); GLB wheels are hidden.
    */
@@ -162,7 +131,7 @@ export interface CarGltfDef {
   credit: string;
   /** Extra yaw (rad) if the model's front isn't +Z. */
   rotationY?: number;
-  /** Uniform scale; default = fit model length to physics.length. */
+  /** Uniform scale; default = fit model length to physics.length (auto-fit only). */
   scale?: number;
   /** Fine offset after auto-fit (m, model space). */
   offset?: [number, number, number];
@@ -177,32 +146,9 @@ export interface CarGltfDef {
   atlas?: CarAtlas;
   /** Satin paint instead of glossy clearcoat (atlas models only). */
   matte?: boolean;
-  /** Procedural rally add-ons layered on the imported body (pod lights, mudflaps, roof vent, wing). */
-  addOns?: Pick<CarParts, 'lightPod' | 'mudflaps' | 'roofVent' | 'rearWing'>;
 }
 
-export interface CarParts {
-  /** Arch shape: 'round' = thin lip, 'box' = wide Rally1-style fender boxes. */
-  arches?: 'round' | 'box';
-  /** Number of auxiliary lights on a bonnet pod (0 = none). */
-  lightPod?: number;
-  /** 'lip' = small roof spoiler, 'rally1' = big swan-neck wing with endplates. */
-  rearWing?: 'none' | 'lip' | 'rally1';
-  mudflaps?: boolean;
-  roofVent?: boolean;
-  headlights?: 'slim' | 'rect' | 'round';
-  grille?: 'mouth' | 'slats' | 'small';
-  splitter?: boolean;
-  canards?: boolean;
-  sideSkirts?: boolean;
-  hoodVents?: boolean;
-  diffuser?: boolean;
-  bumpers?: 'body' | 'black';
-  /** 2 or 4 doors (panel seams + handles). */
-  doors?: number;
-}
-
-/** A body built by car-specific code (cars/shared/mesh-kit.ts) instead of the generic loft. */
+/** A body built by car-specific code (cars/shared/mesh-kit.ts). */
 export interface CarCustomBody {
   /** Paint texture, drawn at runtime onto the `paint` geometry's UVs (px / atlas size, v down). */
   atlas: CarAtlas;

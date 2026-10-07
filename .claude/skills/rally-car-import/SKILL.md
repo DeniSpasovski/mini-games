@@ -35,7 +35,7 @@ our first car (a Printables STL: "no modifying, sharing, hosting") and the Bimme
 
 4. **If NOT OK: stop and tell the user the options** - ask the author / owner for written permission (keep the mail in the DETAILS),
    model the car from scratch from photos and blueprints without touching the file (the Zastava route), or use the file purely locally as "bring your own" (git-ignored GLB, car only in
-   `TEST_CARS`, procedural fallback body, docs say where to download it; the live site still cannot host it). Do not add the GLB
+   `TEST_CARS`, side-outline fallback body (`model.profile`), docs say where to download it; the live site still cannot host it). Do not add the GLB
    to `public/`, git, tests or the release lists without a green verdict.
 5. **Other things to rule out:** brand logos / badges / wordmarks baked into the mesh or textures (remove them, no manufacturer
    or sponsor logos in liveries), real number plates, and reference photos (never shipped, never traced from the mesh).
