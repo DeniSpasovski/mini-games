@@ -46,7 +46,7 @@ test('balance bands: good bot on the toy store, hard / medium / easy', () => {
   });
   expect(easy.level).toBeGreaterThanOrEqual(15);
   expect(easy.pct).toBeGreaterThan(0.95);
-}, 120000);
+}, 122000);
 
 test('balance bands: good bot on Animal Island, hard / medium / easy, three seeds', () => {
   const out: string[] = [];

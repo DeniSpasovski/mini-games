@@ -32,6 +32,9 @@ export interface StageEvent {
 const COUNTDOWN = 3;
 /** Time penalties (s) added to the stage time. */
 export const PENALTY_RESET = 2;
+/** Reset while flipped (on the roof or side: `vehicle.up.y` below FLIPPED_UP_Y). */
+export const PENALTY_RESET_FLIPPED = 10;
+export const FLIPPED_UP_Y = 0.3;
 export const PENALTY_CUT = 5;
 /** Progress only follows the road within this many metres of the current progress. */
 const WINDOW = 40;
