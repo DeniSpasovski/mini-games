@@ -6,6 +6,7 @@ front bumper lip and side skirts (carbon, cut along the original texture's borde
 Specs follow the M3 GT2 (ALMS) race car (357 kW / 485 hp, 1,150 kg; [BMW M](https://www.bmw-m.com/en/topics/magazine-article-pool/bmw-m3-e92-e90-and-e93.html)),
 RWD V8, faster than the Bimmer M3 on every surface. Wheels: tarmac tyres (300/30 R19) wear the model's own BBS mesh wheel
 (`bimmer_gt2_wheel.glb`); mixed (245/45 R18) and gravel (235/50 R17) wear the Bimmer M3 rim painted black. Livery: diagonal white / blue / red pixel blocks (our own artwork), pearl white behind the plate.
+Body: 50k triangles (`targetTriangles`), simplified error under 1 mm; glass and lamps do not cast shadows.
 **Test only** (`TEST_CARS` in `release.ts`).
 
 ![Front three-quarter](screenshots/front-34.jpg)
