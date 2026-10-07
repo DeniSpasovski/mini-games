@@ -34,17 +34,17 @@ export const CELL = 0.14;
  */
 export const PALETTE_SIZES = [6, 6, 5] as const;
 const BLUE_EDGE = { c: 0.5, k: 0.55 };
-/** Red starts at the side vent (z = RED_VENT_Z at |p| = RED_VENT_P): vertical below it, sloping rearward above it. */
-const RED_VENT_Z = -0.55;
-const RED_VENT_P = 1.1;
-const RED_SLOPE = 1.3;
+/**
+ * Red is a triangle on the side: its apex sits at the top rear corner of the quarter window (z = RED_APEX_Z at
+ * |p| = RED_APEX_P) and its long edge runs down and forward (about the vent) to the sill; RED_SLOPE = z gained per |p|.
+ */
+const RED_APEX_Z = -1.23;
+const RED_APEX_P = 0.67;
+const RED_SLOPE = 1.0;
 /** The boot lid is red from here back, at any |p|. */
 const RED_LID_Z = -1.6;
 const redEdge = (ap: number) =>
-  Math.max(
-    RED_LID_Z,
-    RED_VENT_Z - RED_SLOPE * (RED_VENT_P - Math.min(ap, RED_VENT_P)),
-  );
+  Math.max(RED_LID_Z, RED_APEX_Z + RED_SLOPE * (ap - RED_APEX_P));
 
 /** Slow wobble so the band edges wander instead of running ruler-straight. */
 const wobble = (z: number, p: number) =>
@@ -109,7 +109,11 @@ export function blocks(): Block[] {
       if (rng.next() < 0.4) {
         const L = rng.range(2.5, 6) * (z0 - z1);
         const dz = -L;
-        if (z1 + dz >= PEARL_Z && z1 + dz > RED_LID_Z + 0.2) {
+        if (
+          z1 + dz >= PEARL_Z &&
+          z1 + dz > RED_LID_Z + 0.2 &&
+          bandAt(z1 + dz, p1 + L * 0.2) === band
+        ) {
           tip = face.map(([z, p]): Pt => [z + dz, p + L * 0.2]);
           trail = hull([...face, ...tip]);
           trailF = rng.pick([0.7, 0.82, 1.18]);
