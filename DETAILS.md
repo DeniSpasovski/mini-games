@@ -141,6 +141,13 @@ npm run build -- --environment rally     # rewrites only dist/games/rally/ -> up
 npm run build -- --environment portal    # only the portal files in dist/ (keeps dist/games/)
 ```
 
+### GitHub Pages test builds
+
+`.github/workflows/pages.yml` (**Actions > Deploy to GitHub Pages > Run workflow**, pick any branch) builds that branch and
+publishes `dist/` to `https://<owner>.github.io/<repo>/`. One-time: Settings > Pages > Source = **GitHub Actions**. Each run
+replaces the previous deploy, so the site shows whichever branch ran last. The domain lock does not list the `github.io`
+host, so the pages show the "only available at" notice until that host is added to `allowedHosts`.
+
 Upload the game folder as a whole (replace the old one): file names are content-hashed, so stale files can be deleted.
 The portal lists every game folder in `src/games/`, so rebuild / upload the portal only when its game list should change.
 Game-only files from the root `public/` are copied into that game's folder only (`gamePublicFiles` in the config, e.g.
