@@ -340,7 +340,10 @@ export function loadBest(
 ): { total: number; splits: number[] } | null {
   try {
     const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : null;
+    const b = raw ? JSON.parse(raw) : null;
+    if (!b || !Number.isFinite(b.total) || !Array.isArray(b.splits))
+      return null;
+    return b;
   } catch {
     return null;
   }
@@ -383,7 +386,16 @@ export function loadTimes(mapId: string, carIds: string[]): RunRecord[] {
   let runs: RunRecord[] | null;
   try {
     const raw = localStorage.getItem(timesKey(mapId));
-    runs = raw ? JSON.parse(raw) : null;
+    const parsed = raw ? JSON.parse(raw) : null;
+    runs = Array.isArray(parsed)
+      ? parsed.filter(
+          (r) =>
+            r &&
+            Number.isFinite(r.time) &&
+            typeof r.car === 'string' &&
+            Number.isFinite(r.date),
+        )
+      : null;
   } catch {
     runs = null;
   }
