@@ -19,8 +19,8 @@ npm run dev     # /games/rally/car-viewer.html?car=fiesta
 
 | Stat       | Value                                                            |
 | ---------- | ---------------------------------------------------------------- |
-| Drivetrain | AWD, 5-speed sequential, final drive 4.6 (short / medium / long) |
-| Engine     | 1.6 turbo four, ~430 Nm at 5000 rpm, redline 6900 rpm            |
+| Drivetrain | AWD, 6-speed sequential, final drive 4.6 (short / medium / long) |
+| Engine     | 1.6 turbo four, 450 Nm / 380 hp, redline 6900 rpm                |
 | Mass       | 1190 kg, wheelbase 2.48 m, track 1.67 / 1.65 m                   |
 | Wheels     | radius 0.325 m; tarmac 235/40 R18, gravel 215/65 R15             |
 
