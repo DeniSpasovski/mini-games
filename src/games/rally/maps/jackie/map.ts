@@ -758,7 +758,7 @@ export const jackieMap: MapDef = {
       asset: 'spectator',
       at: [
         30, 62, 95, 1470, 1495, 2910, 2935, 4350, 4375, 5790, 5815, 7120, 7160,
-        7205, 7298,
+        7205, 7288,
       ].map(along),
       side: 'both',
       offset: 3.4,

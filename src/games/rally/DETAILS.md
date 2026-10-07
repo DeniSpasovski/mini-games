@@ -145,8 +145,9 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   Tests: `tests/rally/jackie-survey.test.ts`, `deck-fit.test.ts`.
 - **Junction cores** (`junctionAreas`, `world/plazas.ts` `insideCore`): one source (the survey's street surface), no ribbons or paint
   inside; the streets leading in get a crosswalk at the core edge (`street-detail.ts`). `ribbonAreas` keep the ribbons.
-- **Network rules** (all maps): a side road is never joined to the stage road across another carriageway / parkway lane
-  (`connectPaths`); lane paint stops where another street crosses or meets at its level (`road-mesh.ts` `crossed`); the barrier
+- **Network rules** (all maps): a side road is never joined to the stage road across another carriageway / parkway lane or a
+  street running alongside it (`connectPaths`); on a city map a street alongside never breaks the stage road's barrier (only
+  ramps / parkway lanes merge in); lane paint stops where another street crosses or meets at its level (`road-mesh.ts` `crossed`); the barrier
   breaks over a gore wedge and starts behind its crash cushion (`gore.ts` `inGore`); a twin deck end that continues into another deck
   is not grown (`alignTwinDeckEnds`).
 

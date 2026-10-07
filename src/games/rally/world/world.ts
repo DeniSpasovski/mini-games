@@ -322,6 +322,11 @@ export class World implements GroundProvider {
               ) >= 1.5
             )
               return false;
+            // On a city map a street alongside is a separate roadway (a service road hugging the parkway): the rail
+            // stands between them; only ramps / parkway lanes merge in.
+            const bp = net.paths[bq.path];
+            if (map.cityStreets && !bp.parkwayLane && !/_link$/.test(bp.kind))
+              return false;
             // Only a road running alongside (a merge lane); a street crossing the line (a junction stub) does not.
             const L = net.lengths[bq.path];
             net.pointAt(bq.path, Math.max(0, bq.along - 2), ba);
