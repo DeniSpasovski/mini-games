@@ -26,6 +26,7 @@ import { TYRES, type TyreId } from '../physics/tyres';
 import type { GearingId, SetupId } from '../physics/types';
 import { PHYSICS_HZ, Vehicle } from '../physics/vehicle';
 import { isTestCar, isTestMap, TEST_NOTE } from '../release';
+import { getAssetMeta } from '../assets/catalog';
 import { Breakables } from '../world/breakables';
 import { DistanceCull } from '../world/distance-cull';
 import { InstanceStreamer } from '../world/instance-streamer';
@@ -861,16 +862,25 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.stats.end();
   }
 
-  /** Marker posts under the car fall over (no time penalty). */
+  /** Breakables under the car fall over; those with a `penalty` (chevrons) cost time while the stage runs. */
   private knockPosts(dt: number): void {
     const v = this.vehicle;
-    this.breakables.hit({
+    const hits = this.breakables.hit({
       position: v.position,
       quaternion: v.quaternion,
       velocity: v.velocity,
       length: v.def.length,
       width: v.def.width,
     });
+    if (this.stage.phase === 'running') {
+      let penalty = 0;
+      for (const inst of hits)
+        penalty += getAssetMeta(inst.asset).breakable?.penalty ?? 0;
+      if (penalty) {
+        this.stage.addPenalty(penalty);
+        this.hud.message(`SIGN +${penalty}s`, 1.5, 'small bad');
+      }
+    }
     this.breakables.update(dt, (inst, m) => this.streamer.setMatrix(inst, m));
   }
 
