@@ -177,6 +177,8 @@ export interface CarGltfDef {
   atlas?: CarAtlas;
   /** Satin paint instead of glossy clearcoat (atlas models only). */
   matte?: boolean;
+  /** Metallic paint (pearl / mica): more metal, glossier clearcoat, so the sky and ground show in the panels (atlas models only). */
+  metallic?: boolean;
   /** Procedural add-ons layered on the imported body (pod lights, mudflaps, roof vent, wing, cockpit). */
   addOns?: Pick<
     CarParts,

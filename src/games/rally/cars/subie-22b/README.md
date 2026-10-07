@@ -8,7 +8,7 @@ with their art cut out of its texture (`subie_22b_lamps.png`). The model has no 
 dash, wheel, headliner) shows through the tinted windows. Specs follow the 22B: 2.2 l turbo flat-four (~280 PS, 363 Nm),
 five-speed box, permanent AWD with a rear bias, 1,270 kg ([STI](https://www.sti.jp/en/roadcars/1998/impreza-22b.html)).
 Tyres 235/40 R17 (the real size; the model's wheel is cut out and centred on the hub axis), 215/55 R16 on gravel. The body is
-lifted 5 cm for clearance. **Test only** (`TEST_CARS` in `release.ts`).
+lifted 5 cm for clearance. The paint is a metallic mica blue (`gltf.metallic`) with dust and road spray towards the sills. **Test only** (`TEST_CARS` in `release.ts`).
 
 ![Front three-quarter](screenshots/front-34.jpg)
 

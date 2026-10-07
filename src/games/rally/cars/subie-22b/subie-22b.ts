@@ -211,6 +211,7 @@ export const subie22b: CarDef = {
         'Body: "1999 Subaru MPREZA WRX STi GC8 Minotaurus" by SIU Car Garage (Sketchfab, CC BY-NC 4.0), converted + repainted',
       autoFit: false,
       atlas: subie22bLivery,
+      metallic: true,
       addOns: { cockpit: 'road' },
     },
   },
