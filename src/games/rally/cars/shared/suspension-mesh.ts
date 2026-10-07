@@ -23,7 +23,7 @@ import type { SetupPreset } from '../../physics/types';
  * The spring gets fewer, thicker coils the stiffer the rate; the whole unit is longer the more travel the preset
  * has (soft = long).
  */
-export type SuspensionStyle = 'rally' | 'road' | 'race' | 'gt';
+export type SuspensionStyle = 'rally' | 'road' | 'race' | 'gt' | 'wrc';
 
 export const SUSPENSION_STYLE_COLORS: Record<
   SuspensionStyle,
@@ -33,6 +33,7 @@ export const SUSPENSION_STYLE_COLORS: Record<
   road: { body: 0x1b1b1d, chrome: 0x9a9da0 },
   race: { body: 0xb9bdc3, chrome: 0xd2d5d9 },
   gt: { body: 0x2a56a8, chrome: 0xc4c8cc },
+  wrc: { body: 0xf0c020, chrome: 0xc8ccd0 },
 };
 
 /** Installed length (m) of a unit for a preset's travel. */
