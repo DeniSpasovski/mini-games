@@ -57,11 +57,15 @@ const NO_ZOOM_VIEWPORT =
 /**
  * Per-game meta overrides, by page (entry name inside the game folder: "index" = play page).
  * Rally on a phone / iPad: on-screen pedals, so no double-tap / pinch zoom.
- * Touch games (hole) get a fixed viewport on every page and their own theme colour.
+ * Hole: fixed viewport on the play page only, own theme colour on every page.
  */
 const gameMeta: Record<string, (page: string) => Record<string, string>> = {
   rally: (page) => (page === 'index' ? { viewport: NO_ZOOM_VIEWPORT } : {}),
-  hole: () => ({ viewport: NO_ZOOM_VIEWPORT, 'theme-color': '#7cc66a' }),
+  // Only the play page locks zoom; the item / map viewer and balance pages are tools that need pinch zoom.
+  hole: (page) => ({
+    ...(page === 'index' ? { viewport: NO_ZOOM_VIEWPORT } : {}),
+    'theme-color': '#7cc66a',
+  }),
 };
 
 // Every page can be added to the iPad / phone home screen as a full-screen app.

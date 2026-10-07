@@ -98,7 +98,7 @@ The joystick works in **screen space** and is turned into a world direction (`st
 is fixed north-up in v0), so "drag up" always means "away from the camera". It is the same in portrait and landscape.
 
 Mobile web setup (done): viewport meta `width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no,
-viewport-fit=cover` (set per page in `rsbuild.config.ts`, hole pages only), `touch-action: none`, `user-select: none`,
+viewport-fit=cover` (play page only, set in `rsbuild.config.ts`; the tool pages keep the default viewport so pinch zoom works), `touch-action: none`, `user-select: none`,
 `-webkit-touch-callout: none`, `overscroll-behavior: none`, `gesturestart` / double-tap / context-menu blocked
 (`game/ios.ts`), HUD uses `env(safe-area-inset-*)`, targets are at least 44 px, WebAudio is resumed on the first
 touch, `apple-mobile-web-app-capable` so "Add to Home Screen" runs full screen. `navigator.vibrate` doesn't exist on
