@@ -4,20 +4,20 @@ import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
 import { subie22bLivery } from './livery';
 
-/** Body dimensions (also what the hull is fitted from); wheel radius = tyre overall radius (235/45 R18: the model's wheel position / arch size). */
+/** Body dimensions (also what the hull is fitted from); wheel radius = tyre overall radius (235/40 R17, the real size). */
 const BODY = {
-  length: 4.27,
-  width: 1.86,
+  length: 4.35,
+  width: 1.87,
   height: 1.39,
   comHeight: 0.5,
-  wheelRadius: 0.335,
+  wheelRadius: 0.31,
 };
 
-// Wheelbase 2.52 m (the real car's and the model's), COM ~57 % over the front axle. The track follows the model's wheels (1.59 / 1.61 m;
-// the real car runs 1.48 / 1.50 m with 235/40 R17, its arches here are the model's wider ones).
+// Wheelbase 2.54 m (the real car's 2.52 m, the model scaled to it), COM ~57 % over the front axle. Track 1.52 m = the model's wheel
+// centres (the real car runs 1.48 / 1.50 m).
 const FRONT: AxleDef = {
   z: 1.08,
-  track: 1.59,
+  track: 1.52,
   spring: 38000,
   bump: 2600,
   rebound: 3700,
@@ -31,8 +31,8 @@ const FRONT: AxleDef = {
 };
 
 const REAR: AxleDef = {
-  z: -1.44,
-  track: 1.61,
+  z: -1.46,
+  track: 1.52,
   spring: 33000,
   bump: 2300,
   rebound: 3300,
@@ -58,9 +58,10 @@ export const subie22b: CarDef = {
     'Blue 90s turbo coupe with the works star livery: flat-four boxer rumble, grippy AWD, a little heavy on the nose.',
   sources: [
     {
-      label: '"Subaru Impreza" by Mateusz Woliński (Sketchfab)',
-      url: 'https://sketchfab.com/3d-models/subaru-impreza-7fb4298d5d8f4185b25bb2c43d7f3787',
-      note: 'body + lamps + glass, converted to the in-game model; CC BY-NC 4.0 (noncommercial)',
+      label:
+        '"1999 Subaru MPREZA WRX STi GC8 Minotaurus" by SIU Car Garage (Sketchfab)',
+      url: 'https://sketchfab.com/3d-models/1999-subaru-mpreza-wrx-sti-gc8-minotaurus-6117b4accfb748e2af4641c1d45bf0cc',
+      note: 'body + glass + wheel, converted to the in-game model; CC BY-NC 4.0 (noncommercial)',
     },
     {
       label: 'STI - Impreza 22B',
@@ -86,8 +87,8 @@ export const subie22b: CarDef = {
     inertiaScale: 0.9,
     wheelWidth: 0.235,
     tyres: {
-      size: { width: 0.235, aspect: 45, rim: 18 },
-      byCompound: { gravel: { width: 0.215, aspect: 60, rim: 16 } },
+      size: { width: 0.235, aspect: 40, rim: 17 },
+      byCompound: { gravel: { width: 0.215, aspect: 55, rim: 16 } },
     },
     wheelInertia: 1.5,
     maxSteerDeg: 32,
@@ -144,15 +145,16 @@ export const subie22b: CarDef = {
     },
     dragArea: 0.78,
     downforceArea: 0.08,
-    // Fitted to subie_22b.glb (tests/rally/hull-fit.test.ts prints the model's underside): floor 0.2 m, rear valance 0.26 m.
+    // Fitted to subie_22b.glb (tests/rally/hull-fit.test.ts prints the model's underside): skirts / floor 0.13 m, splitter and diffuser 0.145 m
+    // (body lifted 5 cm: model.source.json `offset`).
     hull: bodyHull(BODY, -0.175, [
-      { x: [0, 0.55], z: 1.8, r: 0.16, bottom: 0.2 },
-      { x: [0], z: 1.2, r: 0.22, bottom: 0.2 },
-      { x: [0.5], z: 0.6, r: 0.25, bottom: 0.2 },
-      { x: [0.5], z: 0, r: 0.25, bottom: 0.2 },
-      { x: [0.5], z: -0.8, r: 0.25, bottom: 0.2 },
-      { x: [0], z: -1.4, r: 0.22, bottom: 0.2 },
-      { x: [0, 0.5], z: -2.1, r: 0.2, bottom: 0.26 },
+      { x: [0, 0.55], z: 1.8, r: 0.16, bottom: 0.145 },
+      { x: [0], z: 1.2, r: 0.22, bottom: 0.13 },
+      { x: [0.5], z: 0.6, r: 0.25, bottom: 0.13 },
+      { x: [0.5], z: 0, r: 0.25, bottom: 0.13 },
+      { x: [0.5], z: -0.8, r: 0.25, bottom: 0.13 },
+      { x: [0], z: -1.4, r: 0.22, bottom: 0.13 },
+      { x: [0, 0.5], z: -2.1, r: 0.2, bottom: 0.145 },
     ]),
   },
   model: {
@@ -163,7 +165,7 @@ export const subie22b: CarDef = {
       { z: -2.0, floor: 0.28, belt: 1.03, hw: 0.88, hwBelt: 0.85 },
       { z: -1.85, floor: 0.28, belt: 1.03, hw: 0.9, hwBelt: 0.89 },
       { z: -1.7, floor: 0.22, belt: 0.97, hw: 0.9, hwBelt: 0.89 },
-      { z: -1.44, floor: 0.2, belt: 0.88, hw: 0.88, hwBelt: 0.85 },
+      { z: -1.46, floor: 0.2, belt: 0.88, hw: 0.88, hwBelt: 0.85 },
       { z: -0.9, floor: 0.2, belt: 0.88, hw: 0.86, hwBelt: 0.83 },
       { z: -0.3, floor: 0.2, belt: 0.88, hw: 0.87, hwBelt: 0.84 },
       { z: 0.3, floor: 0.2, belt: 0.9, hw: 0.88, hwBelt: 0.86 },
@@ -204,7 +206,7 @@ export const subie22b: CarDef = {
     gltf: {
       file: 'subie_22b.glb',
       credit:
-        'Body: "Subaru Impreza" by Mateusz Woliński (Sketchfab, CC BY-NC 4.0), converted + repainted',
+        'Body: "1999 Subaru MPREZA WRX STi GC8 Minotaurus" by SIU Car Garage (Sketchfab, CC BY-NC 4.0), converted + repainted',
       autoFit: false,
       atlas: subie22bLivery,
     },

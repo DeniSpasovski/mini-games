@@ -1,12 +1,12 @@
 {
-  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/subie-22b/01-subaru-impreza.glb (CC BY-NC 4.0, Mateusz Wolinski), local only. Source units are ~0.00763 m (wheelbase 330.4 units = 2.52 m); front axle at source z 188.5, ground at source y -8.04, body centreline at x -4.2. The offset puts the front hub at physics front.z 1.08 on the ground. The atlas block is also read by livery.ts at runtime - edit only here.",
-  "source": "sources/cars/subie-22b/01-subaru-impreza.glb -> glb-to-parts-stl.py -> sources/cars/subie-22b/subie-22b-parts.stl",
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/subie-22b/02-gc8-minotaurus.glb (CC BY-NC 4.0, SIU Car Garage), local only. The GLB is in metres, +z nose, ground at y -0.004, hubs at z 1.324 / -1.269 (wheelbase 2.593, scaled 0.98 to the real 2.52-2.54 m). The offset puts the front hub at physics front.z 1.08 on the ground. The atlas block is also read by livery.ts at runtime - edit only here. The body is lifted 5 cm (offset y) for rally clearance: skirts / splitter were 8-10 cm above the ground.",
+  "source": "sources/cars/subie-22b/02-gc8-minotaurus.glb -> glb-to-parts-stl.py -> sources/cars/subie-22b/subie-22b-parts.stl",
   "output": "public/models/cars/subie_22b.glb",
   "axes": ["x", "y", "z"],
-  "scale": 0.00763,
-  "offset": [0.032, 0.0614, -0.358],
+  "scale": 0.98,
+  "offset": [0, 0.0535, -0.2175],
   "groundAtMin": false,
-  "targetTriangles": 70000,
+  "targetTriangles": 60000,
   "creaseDeg": 40,
   "wheels": {
     "$comment": "the wheels are separate meshes (dropped below) - nothing to cut",
@@ -33,71 +33,88 @@
     }
   },
   "gltf": {
-    "$comment": "primitive -> material by the GLB's material / node names. Wheels, brakes, axles, springs and shocks (material 'wheel') and the plate are dropped: the game builds its own wheels. The four mud flaps (splasher) hang below the floor and are dropped.",
+    "$comment": "primitive -> material by the GLB's material names. Wheels (tyre + rim, material 'WH' / 'wheel'), the licence plates and the reflector quads are dropped: the game builds its own wheels. The headlight lens is the front part of the glass material; the tail lamps are cut out of the body skin by an exact outline (region).",
     "drop": [
+      "WH",
       "wheel",
-      "licence_plate",
-      "splasher",
-      "splasher.001",
-      "splasher.002",
-      "splasher.003"
+      "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_punch_ef_e6da172",
+      "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_punch_ef_df312bd"
     ],
     "parts": [
       {
-        "node": "Exhaust_bottom_0",
-        "material": "chrome"
+        "mat": "glass_window",
+        "z": [1.6, 3],
+        "material": "headlight22"
       },
       {
-        "mat": "livery",
-        "material": "body"
+        "mat": "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_body_n_r_31db5e9",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [0.375, 0.605],
+            [0.395, 0.76],
+            [0.43, 0.795],
+            [0.66, 0.795],
+            [0.73, 0.775],
+            [0.775, 0.7],
+            [0.8, 0.63],
+            [0.79, 0.605]
+          ],
+          "depth": [-3, -1.9],
+          "mirror": true
+        },
+        "material": "tail22"
       },
       {
-        "mat": "interior",
-        "material": "interior"
+        "mat": "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_body_n",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [0.375, 0.605],
+            [0.395, 0.76],
+            [0.43, 0.795],
+            [0.66, 0.795],
+            [0.73, 0.775],
+            [0.775, 0.7],
+            [0.8, 0.63],
+            [0.79, 0.605]
+          ],
+          "depth": [-3, -1.9],
+          "mirror": true
+        },
+        "material": "tail22"
       },
       {
-        "mat": "glass",
+        "mat": "glass_window",
         "material": "glass"
       },
       {
-        "mat": "mirror",
-        "material": "mirror"
+        "mat": "glass_window_1.001",
+        "material": "glass"
       },
       {
-        "mat": "grill",
-        "material": "mesh"
+        "mat": "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_punch_ef_38ece0e",
+        "material": "interior"
       },
       {
-        "node": "headlight_headlights_0",
-        "material": "headlight22"
+        "mat": "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_bonnet_n",
+        "material": "trim"
       },
       {
-        "node": "headlight.001_headlights_0",
-        "material": "headlight22"
+        "mat": "gc8_HighSpec_body_n",
+        "material": "trim"
       },
       {
-        "node": "blinker.001_headlights_0",
-        "material": "amber"
+        "mat": "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_bonnet_n_ref",
+        "material": "body"
       },
       {
-        "node": "blinker.002_headlights_0",
-        "material": "amber"
+        "mat": "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_body_n_r_31db5e9",
+        "material": "body"
       },
       {
-        "node": "blinker.003_headlights_0",
-        "material": "lens"
-      },
-      {
-        "node": "blinker.004_headlights_0",
-        "material": "lens"
-      },
-      {
-        "node": "tail light_taillight_0",
-        "material": "tail22"
-      },
-      {
-        "node": "tail light.001_taillight_0",
-        "material": "tail22"
+        "mat": "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_body_n",
+        "material": "body"
       }
     ],
     "default": "trim"
@@ -107,13 +124,9 @@
       "body",
       "trim",
       "glass",
-      "mirror",
-      "mesh",
-      "chrome",
       "interior",
-      "headlight22",
-      "amber",
       "lens",
+      "headlight22",
       "tail22"
     ],
     "wrap": {
@@ -124,18 +137,13 @@
       "body": "#c8ccd0",
       "trim": "#2a2c30",
       "glass": "#1d3140",
-      "mirror": "#e0e8f0",
-      "mesh": "#d08a2a",
-      "chrome": "#30c0a0",
       "interior": "#6a4a8a",
-      "headlight22": "#fff4d6",
-      "amber": "#ff9a1a",
       "lens": "#d5dae0",
+      "headlight22": "#fff4d6",
       "tail22": "#e0242c"
     },
     "maxTriangles": {
-      "interior": 6000,
-      "chrome": 6000
+      "interior": 2000
     }
   }
 }
