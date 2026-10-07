@@ -42,7 +42,8 @@ export class Autopilot {
   /** Cornering-speed scale (0.45..1, up to 1.5 with `useExtraGrip`) for the tyre on the road surface `d` m ahead. */
   private gripAhead(v: Vehicle, d: number): number {
     const id = roadSurfaceAt(this.road.def, this.progress + d).surface;
-    const mu = v.surfaceFor(id).mu;
+    // Cold / overheated tyres (physics/tyre-temp.ts) slow it down too.
+    const mu = v.surfaceFor(id).mu * v.tempGripFor(id);
     return Math.min(this.useExtraGrip ? 1.5 : 1, Math.max(0.45, mu / REF_MU));
   }
 

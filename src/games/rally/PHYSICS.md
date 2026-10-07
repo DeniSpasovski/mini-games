@@ -6,7 +6,8 @@ and the open physics work. Code: `src/games/rally/physics/` (DOM-free, runs in n
 ("Physics", "Setup screen").
 
 Rule for everything here: **arcade, not a sim**. Differences must be big enough to feel, explainable in one line in the
-menu, and a "wrong" choice must still finish every stage. No tyre wear, temperature or pressure.
+menu, and a "wrong" choice must still finish every stage. No tyre wear or pressure; tyre temperature is one number per
+tyre ("Tyre temperature").
 
 "Reference numbers" were measured on 2026-10-04 with the shipped cars (Skoda Rally at the R5 torque of 402 Nm, Bimmer M3
 on street tyres).
@@ -235,6 +236,37 @@ the stage tests and `F8` keep their pace and a wrong tyre only slows it down ("c
 what a grippier tyre is worth. Low grip also caps straight-line speed (a wrong tyre brakes for the next surface change -
 without it the Tarmac tyre arrived at Petralica's gravel at 116 km/h and slid 30 m off the road).
 
+### Tyre temperature (`physics/tyre-temp.ts`)
+
+Cold tyres grip less, tyres overheated by sliding grip less, in between they are at full grip. One temperature per tyre
+(`WheelState.temp`), only with a climate (`Vehicle.setClimate`; the game sets it from the map, `null` = off, so tool
+pages and the reference tests above are unchanged).
+
+- **Climate:** `EnvironmentDef.airTemp` (°C, default 20; Ajvatovci 11, Jackie 17, test 20, Petralica 28, `?air=` to try)
+  and the sun (`stageClimate`: sun height after `?tod=`, clouds). Track temperature = air + sun x `SurfaceDef.heat`
+  (tarmac 1 ... grass 0.3, snow 0).
+- **Heat:** sliding work (`|F| x slide speed / static load`, the stones take 60 % of it on loose ground) + carcass flex
+  (speed x load). **Cooling:** air (more with speed), the ground (towards the track temperature), water. Capped at 150 °C.
+  Tyres start a stage at air + 15 (`resetTyreTemps` on start / restart; reset to road keeps them).
+- **Grip:** `TyreDef.temp` window per compound; below it grip falls to `cold` over 45 °C, above it to `hot` over 35 °C
+  (smoothstep), and loose ground halves the loss (tread bites, rubber matters less). The factor multiplies the wheel's
+  grip input (`tire.ts` and the cached surface tables are untouched); the autopilot's corner plan includes it
+  (`tempGripFor`).
+
+| Compound | Window    | Cold grip | Overheated grip |
+| -------- | --------- | --------- | --------------- |
+| Tarmac   | 65-100 °C | 0.80      | 0.82            |
+| Mixed    | 55-95 °C  | 0.86      | 0.85            |
+| Gravel   | 40-85 °C  | 0.92      | 0.86            |
+
+Feel targets (`tests/rally/tyre-temp.test.ts`, Skoda Rally, tarmac tyre, 20 °C): a 60 km/h circle reaches the window in
+~14 s, a donut overheats it in ~6.5 s and 60 km/h straight cools it back in ~10 s; cold vs warm lateral g 0.81 vs 0.95.
+On a stage the careful autopilot warms its home tyre into the window in ~30 s. Gravel runs cool and tarmac hot, so a
+tarmac tyre on gravel also stays cold, and a gravel tyre on tarmac overheats sooner.
+
+HUD: four tyres in the dash, white (cold) -> green (window) -> yellow -> red (`game/tyre-gauge.ts`), air / track
+temperature under them; `F2` shows temperature and grip factor per wheel.
+
 ## Reference numbers
 
 Full brake, ABS on / off (`handling.test.ts` straight line, home tyre, medium set-up), 2026-10-08 - 100-0 km/h on tarmac /
@@ -310,6 +342,8 @@ everywhere (power, not grip).
 | `tests/rally/abs.test.ts`                    | ABS keeps the front wheels unlocked and steering under full brake (tarmac, gravel); a car without ABS ignores the setting                                                                                                                |
 | `tests/rally/hull-fit.test.ts`               | every car's collision hull follows its model: underside per zone (front overhang, between axles, rear overhang) and the nose / tail ends; prints the profile                                                                             |
 | `integration-tests/rally/gearing.test.ts`    | gearing presets: race cars only, medium = own final drive, short < medium < long top speed, setup-screen top speed = sim, Skoda Rally on long reaches 200 km/h on Jackie                                                                 |
+| `tests/rally/tyre-temp.test.ts`              | tyre temperature: grip curves per compound, HUD colours, climate per stage, cold vs warm grip, warm-up, a donut overheats and cools down, gravel heats less, reset keeps temperatures                                                    |
+| `integration-tests/rally/tyre-temp.test.ts`  | every car x stage with the stage climate, recommended and worst pick: finishes upright (one reset if stuck), tyres under 150 °C, home tyre warm at the finish                                                                            |
 | `integration-tests/rally/handling.test.ts`   | whole-car handling per car x tyre x set-up x surface (`handling-harness.ts`): ramp / step steer, lift / power / brake mid-corner, handbrake, slalom, keyboard lock, braking, drops, jump landing, ruts                                   |
 
 `tyres.test.ts` and `car-matrix.test.ts` import the four stages directly (`test`, `petralica`, `jackie`, `ajvatovci`) - add a
