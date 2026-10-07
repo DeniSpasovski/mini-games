@@ -61,7 +61,10 @@ import {
   type StageEvent,
   TIMES_VERSION,
 } from './stage';
+import { stageClimate } from '../maps/shared/climate';
 import type { MapDef } from '../maps/shared/types';
+import { trackTemp } from '../physics/tyre-temp';
+import type { TyreGaugeState } from './tyre-gauge';
 import { ForceLines, Telemetry } from './telemetry';
 
 export interface GameOptions {
@@ -264,6 +267,15 @@ export class RallyGame {
       this.world,
     );
     this.vehicle.setTyre(this.opts.tyre);
+    // Tyre temperatures: the map's air temperature (`?air=<°C>` to try others) and the sun as drawn (after `?tod=`).
+    const air = new URLSearchParams(location.search).get('air');
+    this.vehicle.setClimate(
+      stageClimate(
+        map.environment,
+        this.env.sunElevation,
+        air && Number.isFinite(Number(air)) ? Number(air) : undefined,
+      ),
+    );
     this.model = new CarModel(this.car, {
       seed: this.opts.livery,
       tyre: this.opts.tyre,
@@ -389,6 +401,7 @@ export class RallyGame {
   placeAtSpawn(): void {
     const spawn = this.world.spawn(this.opts.spawn);
     this.vehicle.reset(spawn.position, spawn.heading);
+    this.vehicle.resetTyreTemps();
     this.tyreMarks?.breakStrips();
     this.rig.snap();
     this.breakables.reset((inst) => this.streamer.setMatrix(inst, null));
@@ -436,6 +449,28 @@ export class RallyGame {
     this.opts.spawn = this.freeDrive ? this.opts.spawn : 'start';
     this.placeAtSpawn();
     this.setPaused(false);
+  }
+
+  private gaugeState: TyreGaugeState = {
+    temps: [0, 0, 0, 0],
+    window: TYRES.mixed.temp,
+    steer: 0,
+    air: 0,
+    track: 0,
+  };
+
+  /** HUD tyre temperatures (none without a climate / tyre). */
+  private tyreGaugeState(): TyreGaugeState | undefined {
+    const v = this.vehicle;
+    if (!v.climate || !v.tyre) return undefined;
+    const g = this.gaugeState;
+    const temps = g.temps as number[];
+    v.wheels.forEach((w, i) => (temps[i] = w.temp));
+    g.window = TYRES[v.tyre].temp;
+    g.steer = v.wheels[0].steerAngle;
+    g.air = v.climate.air;
+    g.track = trackTemp(v.climate, v.wheels[0].surface);
+    return g;
   }
 
   /** Put the car back on the road (R / B button / touch + pause-menu button); costs a penalty while the stage runs. */
@@ -836,6 +871,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         tc: v.tractionControl && !this.car.physics.noTractionControl,
         tcActive: v.tcFactor < 0.95,
         hold: v.parked || v.holding,
+        tyres: this.tyreGaugeState(),
       },
       this.stage,
     );
