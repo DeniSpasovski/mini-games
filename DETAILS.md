@@ -102,10 +102,17 @@ sub-folder; game pages link the portal's copy two folders up, so the installed a
 `apple-touch-icon` (`public/icons/`, built from `public/favicon.png` on the portal background colour; each game folder
 gets its own copy).
 The links + home-screen meta tags are added to every page in `rsbuild.config.ts` (`html.meta` / `html.tags`).
-On iPad: open the site in Safari -> Share -> **Add to Home Screen**. There is no service worker (no offline mode).
+On iPad: open the site in Safari -> Share -> **Add to Home Screen**.
 Standalone mode has no back button, so each game's main menu, pause and results screens show **All games** when the
 page runs inside the portal (`games/<id>/`, detected by `src/shared/portal-link.ts`); a game hosted on its own hides it.
 Home-screen app name = `apple-mobile-web-app-title` ("Mini Games"). Replace the icons in `public/icons/` to change the artwork.
+
+## Offline play
+
+`public/sw.js` (copied to the portal root, registered by `src/shared/offline.ts` from every page, production build only):
+pages are network-first, everything else stale-while-revalidate, same-origin GET only. Nothing is precached: a game works
+offline after one online visit (its car GLBs are cached when first requested; ~7 MB). Relative URLs, so it works under a
+sub-folder such as `/mini-games/`. The cache keeps the newest `MAX_ENTRIES` files (oldest dropped, so stale hashed builds go first). Changing the caching rules: bump `CACHE` in `sw.js`.
 
 ## Portal footer
 
