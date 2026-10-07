@@ -374,6 +374,26 @@ export const trafficSignal: AssetBuilder = ({ lod }) => {
   };
 };
 
+/**
+ * Street tree pit: a 1.3 m square of dark soil with a low granite edging, centred on the tree (lies flat on the
+ * sidewalk, y = 0 = the sidewalk top). The sides run along X / Z (turned with the street).
+ */
+export const treePit: AssetBuilder = ({ seed }) => {
+  const rng = new Rng(seed);
+  const s = 1.3;
+  const e = 0.1;
+  const parts: BufferGeometry[] = [
+    box(s - 2 * e, 0.02, s - 2 * e, 0, 0.0, 0, '#3b2f24', rng),
+    box(s, 0.05, e, 0, 0.015, (s - e) / 2, '#9a9893'),
+    box(s, 0.05, e, 0, 0.015, -(s - e) / 2, '#9a9893'),
+    box(e, 0.05, s - 2 * e, (s - e) / 2, 0.015, 0, '#9a9893'),
+    box(e, 0.05, s - 2 * e, -(s - e) / 2, 0.015, 0, '#9a9893'),
+  ];
+  return {
+    parts: [{ geometry: merge(parts), material: getMaterial('props') }],
+  };
+};
+
 /** Underpass wall light: back plate on the retaining wall face (z = 0), short bracket, box luminaire over the sidewalk (+Z). */
 export const wallLamp: AssetBuilder = ({ lod }) => {
   const parts: BufferGeometry[] = [

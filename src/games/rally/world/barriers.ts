@@ -165,12 +165,23 @@ export function pathBarrierRuns(
   const rq = newRoadQuery();
   const pq = newPathQuery();
   const ctx: BarrierContext = { road, net };
+  const midX = (qi: number): number => {
+    const pts = net.paths[qi].pts;
+    let s = 0;
+    for (let k = 0; k < pts.length; k += 2) s += pts[k];
+    return s / (pts.length / 2);
+  };
   const mainline = (qi: number): boolean => {
     const q = net.paths[qi];
+    const x = rule.extra;
     return (
       !isDeck(qi) &&
       ((rule.kinds.includes(q.kind) && q.width >= (rule.minWidth ?? 0)) ||
-        !!isLane?.(qi))
+        !!isLane?.(qi) ||
+        (!!x &&
+          x.kinds.includes(q.kind) &&
+          q.width >= (x.minWidth ?? 0) &&
+          midX(qi) >= x.minX))
     );
   };
   // Paths that continue path `pi` end to end (one carriageway split into several OSM ways).
@@ -186,6 +197,31 @@ export function pathBarrierRuns(
         if (Math.hypot(a[i] - b[j], a[i + 1] - b[j + 1]) < 2.5) return true;
     return false;
   };
+  /** Path `qi` continues path `pi` in a line (one carriageway split into OSM ways), not a fork leaving at an angle. */
+  const straightOn = (pi: number, qi: number): boolean => {
+    const a = net.paths[pi].pts;
+    const b = net.paths[qi].pts;
+    for (const aEnd of [false, true])
+      for (const bEnd of [false, true]) {
+        const ax = aEnd ? a[a.length - 2] : a[0];
+        const az = aEnd ? a[a.length - 1] : a[1];
+        const bx = bEnd ? b[b.length - 2] : b[0];
+        const bz = bEnd ? b[b.length - 1] : b[1];
+        if (Math.hypot(ax - bx, az - bz) >= 2.5) continue;
+        // Directions leaving the shared end along each path: a straight continuation heads opposite ways.
+        const ad = [
+          (aEnd ? a[a.length - 4] : a[2]) - ax,
+          (aEnd ? a[a.length - 3] : a[3]) - az,
+        ];
+        const bd = [
+          (bEnd ? b[b.length - 4] : b[2]) - bx,
+          (bEnd ? b[b.length - 3] : b[3]) - bz,
+        ];
+        const l = Math.hypot(ad[0], ad[1]) * Math.hypot(bd[0], bd[1]) || 1;
+        if ((ad[0] * bd[0] + ad[1] * bd[1]) / l < -0.9) return true;
+      }
+    return false;
+  };
   const probe = (pi: number, qx: number, qz: number) => {
     // Another road under the barrier (ramp, street, merge) - only the part that really covers it.
     net.query(
@@ -198,7 +234,7 @@ export function pathBarrierRuns(
         !isDeck(qi) &&
         // Only the same carriageway split into OSM ways is exempt: an exit ramp / entrance forking off at the shared
         // node lies beside the carriageway (the wall belongs between them), not on it.
-        (!continues(pi, qi) || net.paths[qi].kind !== net.paths[pi].kind),
+        (!straightOn(pi, qi) || net.paths[qi].kind !== net.paths[pi].kind),
     );
     return pq.found && pq.distance <= pq.halfWidth + 0.3;
   };

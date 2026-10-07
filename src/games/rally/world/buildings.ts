@@ -88,6 +88,23 @@ export class BuildingIndex {
     return best;
   }
 
+  /** Distance from (x, z) to the nearest footprint (0 inside), Infinity beyond `maxDist` (m, at most CELL). */
+  distance(x: number, z: number, maxDist = 16): number {
+    let bd = Infinity;
+    const cx0 = Math.floor((x - maxDist) / CELL);
+    const cx1 = Math.floor((x + maxDist) / CELL);
+    const cz0 = Math.floor((z - maxDist) / CELL);
+    const cz1 = Math.floor((z + maxDist) / CELL);
+    for (let cz = cz0; cz <= cz1; cz++)
+      for (let cx = cx0; cx <= cx1; cx++)
+        for (const b of this.grid.get((cx + 32768) * 65536 + (cz + 32768)) ??
+          []) {
+          const d = footprintDistance(b, x, z);
+          if (d < bd) bd = d;
+        }
+    return bd <= maxDist ? bd : Infinity;
+  }
+
   byId(id: number): BuildingDef | undefined {
     return this.buildings.find((b) => b.id === id);
   }

@@ -670,11 +670,31 @@ void loadMap(state.map).then((map) => {
     return n;
   }
 
+  /**
+   * Test hook: run the load (terrain around the camera, road / street meshes, ground tint) for up to `ms` ms in one call
+   * (a hidden preview pane renders one frame a second, the frame budget would take minutes). True when all is loaded;
+   * call again until it is, then `look()` is quick.
+   */
+  function pump(ms = 4000): boolean {
+    const focus = new Vector3(camera.position.x, 0, camera.position.z).lerp(
+      controls.target,
+      0.3,
+    );
+    if (near) widen();
+    if (!scatterLoaded) loaded();
+    const end = performance.now() + ms;
+    while (terrain.pending > 0 && performance.now() < end)
+      terrain.update(focus, 100, 0);
+    const done = loadJobs(focus, Math.max(1, end - performance.now()));
+    return done && terrain.pending === 0;
+  }
+
   (window as unknown as Record<string, unknown>).__mapViewer = {
     world,
     terrain,
     streamer,
     shell,
     look,
+    pump,
   };
 });

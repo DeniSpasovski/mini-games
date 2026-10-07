@@ -21,6 +21,10 @@ import { newPathQuery } from './real-data';
 import { newRoadQuery } from './road';
 import { getRoadMaterial, pathTexture, texLength } from './road-mesh';
 import { STREET_KINDS } from './street-detail';
+import { baseTexture, hasMarkings, straightJoint } from './street-markings';
+import { MarkingBuilder } from './street-markings-mesh';
+import { mergePaint } from './merge-paint';
+import type { RoadTexture } from '../maps/shared/types';
 import { DECK_DEPTH, UNDERPASS_WALL } from './terrain-gen';
 import { TWIN_OVERLAP, twinAt } from './twin-decks';
 import type { World } from './world';
@@ -75,8 +79,11 @@ export function bridgeMaterials() {
       metalness: 0.55,
       side: DoubleSide,
     }),
+    // (relief from the texture itself: mortar joints and form-board lines catch a low sun)
     stone: new MeshStandardMaterial({
       map: getTexture('bridge_stone'),
+      bumpMap: getTexture('bridge_stone'),
+      bumpScale: 2.4,
       vertexColors: true,
       roughness: 0.95,
       metalness: 0,
@@ -84,6 +91,8 @@ export function bridgeMaterials() {
     }),
     concrete: new MeshStandardMaterial({
       map: getTexture('bridge_concrete'),
+      bumpMap: getTexture('bridge_concrete'),
+      bumpScale: 1.2,
       vertexColors: true,
       roughness: 0.95,
       metalness: 0,
@@ -136,7 +145,10 @@ export class Builder {
     }
   }
 
-  /** A vertical wall along a polyline: per point (x, z, bottom, top); uv = (length, height). */
+  /**
+   * A vertical wall along a polyline: per point (x, z, bottom, top); uv = (length, height). A tall wall is darker at its
+   * foot (road spray, grime), fading up over its height.
+   */
   wall(
     pts: { x: number; z: number; bot: number; top: number }[],
     color: RGB,
@@ -146,9 +158,12 @@ export class Builder {
     let len = 0;
     pts.forEach((p, i) => {
       if (i) len += Math.hypot(p.x - pts[i - 1].x, p.z - pts[i - 1].z);
+      const grime =
+        1 - 0.22 * Math.min(1, Math.max(0, (p.top - p.bot - 1) / 2));
       for (const y of [p.bot, p.top]) {
         this.pos.push(p.x, y, p.z);
-        this.col.push(...color);
+        const f = y === p.bot ? grime : 1;
+        this.col.push(color[0] * f, color[1] * f, color[2] * f);
         this.uv.push(len / this.ts, y / this.ts);
       }
     });
@@ -742,7 +757,8 @@ function pathDecks(world: World, group: Group, tiles: TileParts): void {
     !!net.paths[q].bridge &&
     !gen.isPortalDeck(q) &&
     net.paths[q].surface === 'tarmac' &&
-    !/^(motorway|trunk)/.test(net.paths[q].kind);
+    // (ramp decks count: the on-ramp beside Highland Blvd at the start is one structure with it)
+    !/^(motorway|trunk)$/.test(net.paths[q].kind);
   const widen = decks.map(({ pi, rows }) =>
     isStreetDeck(pi)
       ? rows.map((r) => {
@@ -777,12 +793,20 @@ function pathDecks(world: World, group: Group, tiles: TileParts): void {
     }
     return -1;
   };
+  const deckMarks = new MarkingBuilder();
   // Pass 2: surface, body, abutments.
   for (const { pi, rows } of decks) {
     const p = net.paths[pi];
     const L = net.lengths[pi];
-    const tex = pathTexture(p.kind, p.width, !!world.map.cityStreets);
-    const roadMat = getRoadMaterial(tex, tex === 'road_parkway' ? 2 : 1);
+    // Decks of modelled streets: base asphalt at true scale, the paint from the marking layer (street-markings.ts).
+    const marked = !!world.map.cityStreets && hasMarkings(p, true);
+    const tex: RoadTexture = marked
+      ? baseTexture(p)
+      : pathTexture(p.kind, p.width, !!world.map.cityStreets);
+    const roadMat = getRoadMaterial(
+      tex,
+      tex === 'road_parkway' || tex === 'asphalt_highway' ? 2 : 1,
+    );
     const edge = (r: Row, side: number) => ({
       x: r.x + r.tz * (r.hw + 0.2) * side,
       z: r.z - r.tx * (r.hw + 0.2) * side,
@@ -790,8 +814,11 @@ function pathDecks(world: World, group: Group, tiles: TileParts): void {
     // Inside another deck, or on a portal slab / junction plaza (the slab is the structure there): no body of its own.
     const portals = gen.portals;
     const plazas = gen.plazas;
+    // (a measured structure, MapDef.deckStructures: one slab drawn by structureDecks)
     const onSlab = (x: number, z: number) =>
-      portals.inside(x, z) || plazas.inside(x, z, 1);
+      portals.inside(x, z) ||
+      plazas.inside(x, z, 1) ||
+      gen.inDeckStructure(x, z);
     const last = rows[rows.length - 1];
     const cov: Coverage = {
       left: rows.map((r) => {
@@ -840,7 +867,10 @@ function pathDecks(world: World, group: Group, tiles: TileParts): void {
           r.z - r.tx * r.hw * side,
         );
         nor.push(0, 1, 0);
-        uv.push((1 - side) / 2, r.d / texLength(tex));
+        uv.push(
+          marked ? (side * r.hw) / 8 : (1 - side) / 2,
+          r.d / texLength(tex),
+        );
       }
       // Inside a junction plaza the plaza is the street surface.
       if (
@@ -869,6 +899,29 @@ function pathDecks(world: World, group: Group, tiles: TileParts): void {
     top.receiveShadow = true;
     top.matrixAutoUpdate = false;
     group.add(top);
+    if (marked) {
+      const keeps = (r: Row) => plazas.keepsRibbons(r.x, r.z);
+      deckMarks.addPath(
+        p,
+        rows.map((r) => {
+          const y = r.y + (keeps(r) ? 0.05 : 0.03) + stagger * 0.012;
+          return {
+            x: r.x,
+            z: r.z,
+            tx: r.tx,
+            tz: r.tz,
+            hw: r.hw,
+            d: r.d,
+            y: [y, y, y, y, y],
+            skip: plazas.inside(r.x, r.z) && !keeps(r),
+          };
+        }),
+        L,
+        straightJoint(net.paths, p, false),
+        straightJoint(net.paths, p, true),
+        mergePaint(net.paths, p),
+      );
+    }
     const mid = rows[rows.length >> 1];
     const parts = tiles.of(mid.x, mid.z);
     // Streets over the parkway and the opposite carriageway's deck beside a stage-road span (both arched, stageSpans):
@@ -880,7 +933,9 @@ function pathDecks(world: World, group: Group, tiles: TileParts): void {
       L >= 12 &&
       ((STREET_KINDS.has(p.kind) && !gen.isPortalDeck(pi)) ||
         (gen.isCarriagewayDeck(pi) && besideStageSpan(world, mid)));
-    deckBody(parts, rows, true, cov, arch, modern);
+    // Inside a measured structure the structure's own body carries it (one soffit, parapets on its outline only).
+    const inStructure = rows.every((r) => gen.inDeckStructure(r.x, r.z, 3.5));
+    if (!inStructure) deckBody(parts, rows, true, cov, arch, modern);
     // Wing walls retain the approach: their top follows the approach road's height going AWAY from the span
     // (the deck's own profile rises the other way - walls taken from it stand up beside the approach).
     const approach = (end: Row, inward: 1 | -1) => (s: number) =>
@@ -907,6 +962,148 @@ function pathDecks(world: World, group: Group, tiles: TileParts): void {
         !gen.hasApproach(pi, true),
       );
   }
+  const paint = deckMarks.build();
+  if (paint) group.add(paint);
+}
+
+/**
+ * Measured bridge structures (MapDef.deckStructures, e.g. the start's Highland Blvd bridge): ONE slab over the outline on the
+ * survey plane - paved top just under the road decks on it, soffit, fascia + parapets along its two long sides (the ends are
+ * where the roads go on: their decks keep their own abutments). The road decks inside have no body of their own (pathDecks).
+ * A four-corner outline: the end edges are the two opposite ones the roads cross most.
+ */
+function structureDecks(world: World, group: Group, tiles: TileParts): void {
+  const gen = world.gen;
+  const net = gen.paths;
+  if (!net) return;
+  const pt = { x: 0, z: 0 };
+  for (const st of gen.structures) {
+    const o = st.outline;
+    if (o.length !== 8) continue;
+    const c = [0, 1, 2, 3].map((i) => [o[i * 2], o[i * 2 + 1]]);
+    const crossings = (a: number[], b: number[]) => {
+      let n = 0;
+      net.paths.forEach((p, pi) => {
+        if (!p.bridge || p.surface !== 'tarmac') return;
+        const L = net.lengths[pi];
+        let prev: number[] | undefined;
+        for (let d = 0; d <= L; d += 1) {
+          net.pointAt(pi, d, pt);
+          const q = [pt.x, pt.z];
+          if (prev && segmentsCross(prev, q, a, b)) n++;
+          prev = q;
+        }
+      });
+      return n;
+    };
+    // ends: edges (c1, c2) + (c3, c0), or (c0, c1) + (c2, c3)
+    const endsB = crossings(c[1], c[2]) + crossings(c[3], c[0]);
+    const endsA = crossings(c[0], c[1]) + crossings(c[2], c[3]);
+    // the two long sides, both running from one end edge to the other
+    const [a0, a1, b0, b1] =
+      endsB >= endsA ? [c[0], c[1], c[3], c[2]] : [c[1], c[2], c[0], c[3]];
+    const y = (x: number, z: number) =>
+      st.plane[0] + st.plane[1] * x + st.plane[2] * z;
+    const len = Math.max(
+      Math.hypot(a1[0] - a0[0], a1[1] - a0[1]),
+      Math.hypot(b1[0] - b0[0], b1[1] - b0[1]),
+    );
+    const n = Math.max(2, Math.ceil(len / STEP) + 1);
+    const rows: Row[] = [];
+    let flip = 0;
+    for (let i = 0; i < n; i++) {
+      const u = i / (n - 1);
+      const A = [a0[0] + (a1[0] - a0[0]) * u, a0[1] + (a1[1] - a0[1]) * u];
+      const B = [b0[0] + (b1[0] - b0[0]) * u, b0[1] + (b1[1] - b0[1]) * u];
+      const cx = (A[0] + B[0]) / 2;
+      const cz = (A[1] + B[1]) / 2;
+      const w = Math.hypot(A[0] - B[0], A[1] - B[1]) || 1;
+      // left of the row (tz, -tx) points to side A
+      const nx = (A[0] - B[0]) / w;
+      const nz = (A[1] - B[1]) / w;
+      rows.push({
+        x: cx,
+        y: y(cx, cz),
+        z: cz,
+        tx: -nz,
+        tz: nx,
+        d: 0,
+        hw: w / 2,
+      });
+    }
+    for (let i = 1; i < n; i++) {
+      const r = rows[i];
+      const q = rows[i - 1];
+      r.d = q.d + Math.hypot(r.x - q.x, r.z - q.z);
+      flip += (r.x - q.x) * r.tx + (r.z - q.z) * r.tz;
+    }
+    // the tangent must point along the rows: else swap the sides (left = B)
+    if (flip < 0)
+      for (const r of rows) {
+        r.tx = -r.tx;
+        r.tz = -r.tz;
+      }
+    const mid = rows[rows.length >> 1];
+    const parts = tiles.of(mid.x, mid.z);
+    // Paved top just under the road decks on it (+0.03 there).
+    const tex: RoadTexture = 'asphalt_street';
+    const pos: number[] = [];
+    const uv: number[] = [];
+    const nor: number[] = [];
+    const idx: number[] = [];
+    rows.forEach((r, k) => {
+      for (const side of [-1, 1]) {
+        pos.push(
+          r.x + r.tz * r.hw * side,
+          r.y + 0.015,
+          r.z - r.tx * r.hw * side,
+        );
+        nor.push(0, 1, 0);
+        uv.push((side * r.hw) / 8, r.d / texLength(tex));
+      }
+      if (k < rows.length - 1) {
+        const q = k * 2;
+        idx.push(q, q + 2, q + 3, q, q + 3, q + 1);
+      }
+    });
+    const g = new BufferGeometry();
+    g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+    g.setAttribute('normal', new BufferAttribute(new Float32Array(nor), 3));
+    g.setAttribute('uv', new BufferAttribute(new Float32Array(uv), 2));
+    g.setIndex(idx);
+    g.computeBoundingSphere();
+    const top = new Mesh(g, getRoadMaterial(tex, 1));
+    top.receiveShadow = true;
+    top.matrixAutoUpdate = false;
+    group.add(top);
+    deckBody(
+      parts,
+      rows,
+      true,
+      {
+        left: rows.map(() => false),
+        right: rows.map(() => false),
+        end0: true,
+        end1: true,
+      },
+      false,
+      world.map.bridgeStyle === 'concrete',
+    );
+  }
+}
+
+/** Segments p-q and a-b cross. */
+function segmentsCross(
+  p: number[],
+  q: number[],
+  a: number[],
+  b: number[],
+): boolean {
+  const d = (q[0] - p[0]) * (b[1] - a[1]) - (q[1] - p[1]) * (b[0] - a[0]);
+  if (Math.abs(d) < 1e-9) return false;
+  const t = ((a[0] - p[0]) * (b[1] - a[1]) - (a[1] - p[1]) * (b[0] - a[0])) / d;
+  const u = ((a[0] - p[0]) * (q[1] - p[1]) - (a[1] - p[1]) * (q[0] - p[0])) / d;
+  return t >= 0 && t <= 1 && u >= 0 && u <= 1;
 }
 
 /** Piers: column + cap beam (the collider is the column box, World.pierColliders). */
@@ -1312,6 +1509,7 @@ export function* bridgeMeshJob(
   stageSpans(world, tiles);
   yield;
   pathDecks(world, group, tiles);
+  structureDecks(world, group, tiles);
   yield;
   piers(world, tiles);
   yield;

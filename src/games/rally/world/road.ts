@@ -48,6 +48,10 @@ export function newRoadQuery(): RoadQuery {
 }
 
 const CELL = 16;
+/** Survey heights (RoadDef.heights) closer than this along the road (m) are joined: the correction is interpolated. */
+const HEIGHTS_GAP = 200;
+/** ... past a lone one it fades out over this distance (m). */
+const HEIGHTS_FADE = 60;
 
 export class Road {
   readonly samples: RoadSample[] = [];
@@ -104,6 +108,7 @@ export class Road {
       });
       maxHw = Math.max(maxHw, width / 2);
     }
+    if (def.heights?.length) this.applyHeights(def.heights);
     this.smoothHeights(def.smoothing);
     if (def.maxGrade) {
       this.limitGrade(def.maxGrade);
@@ -117,6 +122,52 @@ export class Road {
     this.computeCurvature();
     this.influence = maxHw + def.shoulder + 30;
     this.buildGrid();
+  }
+
+  /**
+   * Survey heights on the carriageway (RoadDef.heights) -> a correction of the terrain heights: interpolated between
+   * points up to HEIGHTS_GAP apart, faded out over HEIGHTS_FADE past the others (several at one place: their mean).
+   */
+  private applyHeights(points: [number, number, number][]): void {
+    const s = this.samples;
+    const hits: { i: number; c: number }[] = [];
+    for (const [x, z, y] of points) {
+      let best = 0;
+      let bd = Infinity;
+      for (let i = 0; i < s.length; i++) {
+        const d = (s[i].x - x) ** 2 + (s[i].z - z) ** 2;
+        if (d < bd) [bd, best] = [d, i];
+      }
+      if (Math.sqrt(bd) <= s[best].halfWidth + 1)
+        hits.push({ i: best, c: y - s[best].y });
+    }
+    hits.sort((a, b) => a.i - b.i);
+    const at: { i: number; c: number }[] = [];
+    for (let h = 0; h < hits.length;) {
+      let e = h;
+      let sum = 0;
+      while (e < hits.length && hits[e].i - hits[h].i <= 3) sum += hits[e++].c;
+      at.push({ i: hits[h].i, c: sum / (e - h) });
+      h = e;
+    }
+    if (!at.length) return;
+    const step = this.length / (s.length - 1);
+    const gap = HEIGHTS_GAP / step;
+    const fade = HEIGHTS_FADE / step;
+    let k = 0;
+    for (let i = 0; i < s.length; i++) {
+      while (k < at.length && at[k].i <= i) k++;
+      const p = at[k - 1];
+      const n = at[k];
+      let c = 0;
+      if (p && n && n.i - p.i <= gap)
+        c = p.c + ((n.c - p.c) * (i - p.i)) / (n.i - p.i);
+      else {
+        if (p) c += p.c * (1 - smoothstep(0, fade, i - p.i));
+        if (n) c += n.c * (1 - smoothstep(0, fade, n.i - i));
+      }
+      s[i].y += c;
+    }
   }
 
   private smoothHeights(window: number): void {

@@ -82,7 +82,10 @@ into `DETAILS.md`, never up.
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
   `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `extend.py` (terrain + water ring around a baked map), `plaza_islands.py` (city junction
   `junction.json`), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from
-  the DEM)
+  the DEM), `nyc_pull.py` + `streets.py` + `endbox.py` (NYC open data -> real street widths / lanes / sidewalks of the Jackie
+  end box + `corridor.py` the west corridor, `maps/jackie/DETAILS.md` "Street model"), `east.py` (grows a baked map east with the full bake's roads / land cover / terrain), `west.py` (grows it west: streets,
+  buildings, land cover), `regrid.py` (re-samples a baked map's heightmap grids from its DEM), `route_offset.py` (parkway shift profile), `carriageway_offset.py` (opposite carriageway at its real distance), `parkway_width.py` (parkway width profile),
+  `spot_heights.py` (NYC spot elevations -> road / street heights), `retaining_walls.py` (NYC retaining walls) + `street_trees.py` (census trees)
 
 ## Skills - read before these tasks (`.claude/skills/<name>/SKILL.md`)
 

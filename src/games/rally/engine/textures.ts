@@ -29,6 +29,8 @@ export type TextureId =
   | 'road_street'
   | 'road_street4'
   | 'road_city'
+  | 'asphalt_street'
+  | 'asphalt_highway'
   | 'junction_asphalt'
   | 'sidewalk'
   | 'crosswalk'
@@ -270,6 +272,120 @@ function grassBlades(
   }
 }
 
+/** A wandering polyline (random walk from (x, y) heading `ang`), drawn at every wrap offset so the tile stays seamless. */
+function wanderStroke(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  rng: Rng,
+  x: number,
+  y: number,
+  ang: number,
+  len: number,
+  stepPx: number,
+  turn: number,
+): [number, number][] {
+  const pts: [number, number][] = [[x, y]];
+  for (let s = 0; s < len; s += stepPx) {
+    ang += rng.range(-turn, turn);
+    x += Math.cos(ang) * stepPx;
+    y += Math.sin(ang) * stepPx;
+    pts.push([x, y]);
+  }
+  for (const ox of [-w, 0, w])
+    for (const oy of [-h, 0, h]) {
+      ctx.beginPath();
+      pts.forEach(([px, py], j) =>
+        j ? ctx.lineTo(px + ox, py + oy) : ctx.moveTo(px + ox, py + oy),
+      );
+      ctx.stroke();
+    }
+  return pts;
+}
+
+/**
+ * NYC street wear: crack sealant ("tar snakes", glossy black bands that wander along old cracks, mostly across the
+ * lane) and hairline cracks. `k` = pixels per 1/512 of the tile (the details keep their size in metres at any resolution).
+ * `across`: share of transverse cracks (u = across the street, v = along it); 0.5 = no direction (junction boxes).
+ */
+function streetCracks(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  seed: number,
+  o: { snakes: number; cracks: number; across: number },
+): void {
+  const k = w / 512;
+  const rng = new Rng(seed);
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  for (let i = 0; i < o.snakes; i++) {
+    const across = rng.chance(o.across);
+    const ang = across
+      ? rng.range(-0.25, 0.25) + (rng.chance(0.5) ? 0 : Math.PI)
+      : Math.PI / 2 + rng.range(-0.25, 0.25);
+    const x = rng.next() * w;
+    const y = rng.next() * h;
+    const len = rng.range(70, 300) * k;
+    const bw = rng.range(2, 4.2) * k;
+    ctx.strokeStyle = `rgba(16,16,18,${rng.range(0.32, 0.52)})`;
+    ctx.lineWidth = bw;
+    const r2 = new Rng(seed * 31 + i);
+    const pts = wanderStroke(ctx, w, h, r2, x, y, ang, len, 5 * k, 0.32);
+    // the sheen along the band's upper edge (fresh sealant is glossy)
+    ctx.strokeStyle = 'rgba(150,150,160,0.07)';
+    ctx.lineWidth = bw * 0.35;
+    for (const ox of [-w, 0, w])
+      for (const oy of [-h, 0, h]) {
+        ctx.beginPath();
+        pts.forEach(([px, py], j) =>
+          j
+            ? ctx.lineTo(px + ox - bw * 0.2, py + oy - bw * 0.2)
+            : ctx.moveTo(px + ox - bw * 0.2, py + oy - bw * 0.2),
+        );
+        ctx.stroke();
+      }
+    // a branch now and then
+    if (rng.chance(0.4)) {
+      const [bx, by] = pts[Math.floor(pts.length / 2)];
+      ctx.strokeStyle = `rgba(16,16,18,${rng.range(0.28, 0.45)})`;
+      ctx.lineWidth = bw * 0.8;
+      wanderStroke(
+        ctx,
+        w,
+        h,
+        r2,
+        bx,
+        by,
+        ang + rng.range(0.8, 1.4) * (rng.chance(0.5) ? 1 : -1),
+        len * 0.4,
+        5 * k,
+        0.35,
+      );
+    }
+  }
+  for (let i = 0; i < o.cracks; i++) {
+    const across = rng.chance(o.across);
+    const ang = across
+      ? rng.range(-0.4, 0.4)
+      : Math.PI / 2 + rng.range(-0.4, 0.4);
+    ctx.strokeStyle = `rgba(24,24,26,${rng.range(0.22, 0.4)})`;
+    ctx.lineWidth = rng.range(0.8, 1.5) * k;
+    wanderStroke(
+      ctx,
+      w,
+      h,
+      new Rng(seed * 17 + i),
+      rng.next() * w,
+      rng.next() * h,
+      ang,
+      rng.range(25, 110) * k,
+      3 * k,
+      0.6,
+    );
+  }
+}
+
 /** Smooth dark city asphalt: wheel paths, patches, tar seams, aggregate (shared by the street textures). */
 function drawCityAsphalt(
   ctx: CanvasRenderingContext2D,
@@ -292,6 +408,7 @@ function drawCityAsphalt(
     16,
     seed,
   );
+  const k = w / 512;
   const rng = new Rng(seed + 1);
   // Utility-cut patches (darker, straight edged) and tar seams.
   for (let i = 0; i < 6; i++) {
@@ -300,21 +417,76 @@ function drawCityAsphalt(
       rng.range(0.03, 0.6) * w,
       rng.next() * h,
       rng.range(0.15, 0.45) * w,
-      rng.range(12, 60),
+      rng.range(12, 60) * k,
     );
   }
   ctx.strokeStyle = 'rgba(20,20,22,0.55)';
   for (let i = 0; i < 7; i++) {
     const y = rng.next() * h;
-    ctx.lineWidth = rng.range(1, 2.2);
+    ctx.lineWidth = rng.range(1, 2.2) * k;
     ctx.beginPath();
     ctx.moveTo(0, y);
-    for (let x = 0; x <= w; x += 32) ctx.lineTo(x, y + rng.range(-3, 3));
+    for (let x = 0; x <= w; x += 32 * k)
+      ctx.lineTo(x, y + rng.range(-3, 3) * k);
     ctx.stroke();
   }
-  stones(ctx, w, h, 5200, [0.5, 1.1], seed + 2, [
+  streetCracks(ctx, w, h, seed + 3, { snakes: 4, cracks: 8, across: 0.7 });
+  stones(ctx, w, h, Math.round(5200 * k * k), [0.5 * k, 1.1 * k], seed + 2, [
     [60, 60, 62],
     [130, 128, 122],
+  ]);
+}
+
+/**
+ * Asphalt with no paint and no wheel tracks: the same picture at any street width (the texture coordinates are metres).
+ * `dark` 1 = parkway / ramp surface (darker, smoother).
+ */
+function baseAsphalt(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  seed: number,
+  o: { dark: 0 | 1; patches: number; seams: number; snakes?: number },
+): void {
+  const k = w / 512;
+  const lo: RGB = o.dark ? [58, 58, 60] : [66, 66, 68];
+  const hi: RGB = o.dark ? [92, 91, 90] : [102, 101, 99];
+  fillNoise(ctx, w, h, (n, n2) => mix(lo, hi, n * 0.55 + n2 * 0.45), 16, seed);
+  const rng = new Rng(seed + 1);
+  // Utility-cut patches (darker, straight edged, a tar seam round them) and tar seams.
+  for (let i = 0; i < o.patches; i++) {
+    const x = rng.range(0.02, 0.6) * w;
+    const y = rng.next() * h;
+    const pw = rng.range(0.15, 0.4) * w;
+    const ph = rng.range(12, 56) * k;
+    ctx.fillStyle = `rgba(28,28,30,${rng.range(0.05, 0.12)})`;
+    ctx.fillRect(x, y, pw, ph);
+    ctx.strokeStyle = 'rgba(16,16,18,0.35)';
+    ctx.lineWidth = 1.5 * k;
+    ctx.strokeRect(x, y, pw, ph);
+  }
+  ctx.strokeStyle = 'rgba(20,20,22,0.5)';
+  for (let i = 0; i < o.seams; i++) {
+    const y = rng.next() * h;
+    ctx.lineWidth = rng.range(1, 2) * k;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    for (let x = 0; x <= w; x += 32 * k)
+      ctx.lineTo(x, y + rng.range(-3, 3) * k);
+    ctx.stroke();
+  }
+  streetCracks(ctx, w, h, seed + 3, {
+    snakes: o.snakes ?? (o.dark ? 2 : 5),
+    cracks: o.dark ? 5 : 10,
+    across: 0.7,
+  });
+  stones(ctx, w, h, Math.round(5200 * k * k), [0.5 * k, 1.1 * k], seed + 2, [
+    [60, 60, 62],
+    [130, 128, 122],
+  ]);
+  // polished aggregate: a few bright specks
+  stones(ctx, w, h, Math.round(380 * k * k), [0.3 * k, 0.6 * k], seed + 4, [
+    [168, 166, 160],
   ]);
 }
 
@@ -327,14 +499,15 @@ function wearOver(
   seed: number,
 ): void {
   const rng = new Rng(seed);
-  for (let i = 0; i < 1800; i++) {
+  const k = w / 512;
+  for (let i = 0; i < 1800 * k * k; i++) {
     const u = rng.pick(us);
     ctx.fillStyle = `rgba(${70 + rng.int(0, 30)},${70 + rng.int(0, 30)},${72 + rng.int(0, 30)},${rng.range(0.3, 0.8)})`;
     ctx.fillRect(
-      u * w + rng.range(-12, 12),
+      u * w + rng.range(-12, 12) * k,
       rng.next() * h,
-      rng.range(1, 3),
-      rng.range(1, 4),
+      rng.range(1, 3) * k,
+      rng.range(1, 4) * k,
     );
   }
 }
@@ -564,42 +737,69 @@ const DEFS: Record<TextureId, TexDef> = {
   },
   road_street: {
     name: 'City street asphalt with a double yellow centre line (8 m per repeat)',
-    size: [512, 512],
+    size: [1024, 1024],
     color: true,
     draw(ctx, w, h) {
       drawCityAsphalt(ctx, w, h, 101);
       // Double yellow centre line.
+      const k = w / 512;
       ctx.fillStyle = '#d2a82a';
-      ctx.fillRect(w * 0.5 - 9, 0, 5, h);
-      ctx.fillRect(w * 0.5 + 4, 0, 5, h);
+      ctx.fillRect(w * 0.5 - 9 * k, 0, 5 * k, h);
+      ctx.fillRect(w * 0.5 + 4 * k, 0, 5 * k, h);
       wearOver(ctx, w, h, [0.5], 102);
     },
   },
   road_street4: {
     name: 'Four-lane city street: double yellow centre line, white dashed lane lines (3 m dash, 9 m gap; 12 m per repeat)',
-    size: [512, 512],
+    size: [1024, 1024],
     color: true,
     draw(ctx, w, h) {
       drawCityAsphalt(ctx, w, h, 106);
+      const k = w / 512;
       ctx.fillStyle = '#d2a82a';
-      ctx.fillRect(w * 0.5 - 6, 0, 3, h);
-      ctx.fillRect(w * 0.5 + 3, 0, 3, h);
+      ctx.fillRect(w * 0.5 - 6 * k, 0, 3 * k, h);
+      ctx.fillRect(w * 0.5 + 3 * k, 0, 3 * k, h);
       ctx.fillStyle = '#d8d8d2';
-      for (const u of [0.26, 0.74]) ctx.fillRect(w * u - 2, 0, 4, h / 4);
+      for (const u of [0.26, 0.74])
+        ctx.fillRect(w * u - 2 * k, 0, 4 * k, h / 4);
       wearOver(ctx, w, h, [0.26, 0.5, 0.74], 107);
     },
   },
   road_city: {
     name: 'City side street asphalt, no markings (8 m per repeat)',
-    size: [512, 512],
+    size: [1024, 1024],
     color: true,
     draw(ctx, w, h) {
       drawCityAsphalt(ctx, w, h, 111);
     },
   },
+  asphalt_street: {
+    name: 'City street asphalt, no paint and no wheel tracks (8 x 8 m per repeat): tiles at true scale on any street width, the marking layer draws the lines',
+    size: [1024, 1024],
+    color: true,
+    draw(ctx, w, h) {
+      baseAsphalt(ctx, w, h, 151, { dark: 0, patches: 4, seams: 6 });
+    },
+  },
+  asphalt_highway: {
+    name: 'Parkway / ramp asphalt, no paint and no wheel tracks (8 x 8 m per repeat): darker and smoother than a street, transverse expansion joints',
+    size: [1024, 1024],
+    color: true,
+    draw(ctx, w, h) {
+      baseAsphalt(ctx, w, h, 161, { dark: 1, patches: 2, seams: 3 });
+      // transverse joints every 4 m (twice per tile), a dark line with a light edge
+      const k = w / 512;
+      for (const y of [0, h / 2]) {
+        ctx.fillStyle = 'rgba(18,18,20,0.55)';
+        ctx.fillRect(0, y - k, w, 2 * k);
+        ctx.fillStyle = 'rgba(120,118,112,0.16)';
+        ctx.fillRect(0, y + k, w, k);
+      }
+    },
+  },
   junction_asphalt: {
     name: 'Junction box asphalt: city asphalt without wheel tracks or seams, any direction (8 x 8 m per repeat)',
-    size: [512, 512],
+    size: [1024, 1024],
     color: true,
     draw(ctx, w, h) {
       fillNoise(
@@ -611,6 +811,7 @@ const DEFS: Record<TextureId, TexDef> = {
         141,
       );
       // A few patches and oil stains (round: no direction; off the edges: the tile wraps).
+      const k = w / 512;
       const rng = new Rng(142);
       for (let i = 0; i < 14; i++) {
         ctx.fillStyle = `rgba(28,28,30,${rng.range(0.06, 0.16)})`;
@@ -618,19 +819,24 @@ const DEFS: Record<TextureId, TexDef> = {
         ctx.ellipse(
           rng.range(0.1, 0.9) * w,
           rng.range(0.1, 0.9) * h,
-          rng.range(8, 40),
-          rng.range(8, 40),
+          rng.range(8, 40) * k,
+          rng.range(8, 40) * k,
           rng.next() * Math.PI,
           0,
           Math.PI * 2,
         );
         ctx.fill();
       }
+      streetCracks(ctx, w, h, 143, { snakes: 5, cracks: 10, across: 0.5 });
+      stones(ctx, w, h, Math.round(5200 * k * k), [0.5 * k, 1.1 * k], 144, [
+        [60, 60, 62],
+        [130, 128, 122],
+      ]);
     },
   },
   sidewalk: {
     name: 'Concrete sidewalk slabs (3 x 3 m per repeat, 2 x 2 slabs)',
-    size: [256, 256],
+    size: [512, 512],
     color: true,
     draw(ctx, w, h) {
       fillNoise(
@@ -641,29 +847,75 @@ const DEFS: Record<TextureId, TexDef> = {
         6,
         121,
       );
+      const k = w / 256;
       const rng = new Rng(122);
-      // Expansion joints between the slabs (wraps).
+      // Each slab a slightly different tone (poured on different days).
+      for (const [sx, sy] of [
+        [0, 0],
+        [0.5, 0],
+        [0, 0.5],
+        [0.5, 0.5],
+      ]) {
+        const t = rng.range(-0.06, 0.06);
+        ctx.fillStyle = `rgba(${t > 0 ? '255,252,245' : '40,38,34'},${Math.abs(t)})`;
+        ctx.fillRect(sx * w, sy * h, w / 2, h / 2);
+      }
+      // Expansion joints between the slabs (wraps), a lit edge beside each.
       ctx.fillStyle = 'rgba(60,58,54,0.8)';
       for (const f of [0, 0.5]) {
-        ctx.fillRect(0, f * h - 1.5, w, 3);
-        ctx.fillRect(f * w - 1.5, 0, 3, h);
+        ctx.fillRect(0, f * h - 1.5 * k, w, 3 * k);
+        ctx.fillRect(f * w - 1.5 * k, 0, 3 * k, h);
       }
-      // Stains and chips.
+      ctx.fillStyle = 'rgba(230,226,216,0.25)';
+      for (const f of [0, 0.5]) {
+        ctx.fillRect(0, f * h + 1.5 * k, w, k);
+        ctx.fillRect(f * w + 1.5 * k, 0, k, h);
+      }
+      // Hairline cracks across a slab now and then, gum spots, stains and chips.
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 5; i++) {
+        ctx.strokeStyle = `rgba(50,48,44,${rng.range(0.3, 0.5)})`;
+        ctx.lineWidth = rng.range(0.6, 1.1) * k;
+        wanderStroke(
+          ctx,
+          w,
+          h,
+          new Rng(124 + i),
+          rng.next() * w,
+          rng.next() * h,
+          rng.next() * Math.PI * 2,
+          rng.range(20, 70) * k,
+          3 * k,
+          0.5,
+        );
+      }
+      for (let i = 0; i < 60; i++) {
+        ctx.fillStyle = `rgba(40,38,36,${rng.range(0.15, 0.35)})`;
+        ctx.beginPath();
+        ctx.arc(
+          rng.next() * w,
+          rng.next() * h,
+          rng.range(0.6, 1.4) * k,
+          0,
+          Math.PI * 2,
+        );
+        ctx.fill();
+      }
       for (let i = 0; i < 40; i++) {
         ctx.fillStyle = `rgba(70,66,60,${rng.range(0.05, 0.18)})`;
         ctx.beginPath();
         ctx.ellipse(
           rng.next() * w,
           rng.next() * h,
-          rng.range(2, 9),
-          rng.range(2, 9),
+          rng.range(2, 9) * k,
+          rng.range(2, 9) * k,
           0,
           0,
           Math.PI * 2,
         );
         ctx.fill();
       }
-      stones(ctx, w, h, 400, [0.5, 1.2], 123, [
+      stones(ctx, w, h, Math.round(400 * k * k), [0.5 * k, 1.2 * k], 123, [
         [110, 108, 102],
         [205, 203, 196],
       ]);
@@ -1106,7 +1358,7 @@ const DEFS: Record<TextureId, TexDef> = {
   },
   bridge_stone: {
     name: 'Bridge ashlar (stone-faced abutments / parapets, 2 x 2 m per repeat)',
-    size: [512, 512],
+    size: [1024, 1024],
     color: true,
     draw(ctx, w, h) {
       // u (x) along the wall, v (y) up it; four 0.5 m courses per tile, running bond, dark mortar.
@@ -1118,6 +1370,7 @@ const DEFS: Record<TextureId, TexDef> = {
         6,
         141,
       );
+      const k = w / 512;
       const rng = new Rng(142);
       const courses = 4;
       const ch = h / courses;
@@ -1130,35 +1383,51 @@ const DEFS: Record<TextureId, TexDef> = {
           const tone = rng.range(-0.12, 0.1);
           ctx.fillStyle = `rgba(${tone > 0 ? '255,250,240' : '30,28,24'},${Math.abs(tone)})`;
           ctx.fillRect(x, y0, bw, ch);
+          // Rock-faced block: a darker band round the edge, the face lit from above.
+          const g = ctx.createLinearGradient(0, y0, 0, y0 + ch);
+          g.addColorStop(0, 'rgba(255,250,240,0.10)');
+          g.addColorStop(0.5, 'rgba(255,250,240,0)');
+          g.addColorStop(1, 'rgba(30,28,24,0.14)');
+          ctx.fillStyle = g;
+          ctx.fillRect(x, y0, bw, ch);
           // Joints: dark mortar on the left and the bottom edge, a lit top edge.
           ctx.fillStyle = 'rgba(40,38,34,0.75)';
-          ctx.fillRect(x - 1.5, y0, 3, ch);
-          ctx.fillRect(x + w, y0, 3, ch);
-          ctx.fillRect(x, y0, bw, 3);
+          ctx.fillRect(x - 1.5 * k, y0, 3 * k, ch);
+          ctx.fillRect(x + w, y0, 3 * k, ch);
+          ctx.fillRect(x, y0, bw, 3 * k);
           ctx.fillStyle = 'rgba(235,228,214,0.25)';
-          ctx.fillRect(x, y0 + 3, bw, 2);
+          ctx.fillRect(x, y0 + 3 * k, bw, 2 * k);
           x += bw;
         }
       }
-      // Weathering: soot streaks and pits.
+      // Weathering: soot streaks, white lime runs out of the joints, pits.
       for (let i = 0; i < 70; i++) {
         ctx.fillStyle = `rgba(55,52,48,${rng.range(0.04, 0.12)})`;
         ctx.fillRect(
           rng.next() * w,
           rng.next() * h * 0.6,
-          rng.range(1, 4),
-          rng.range(40, 200),
+          rng.range(1, 4) * k,
+          rng.range(40, 200) * k,
         );
       }
-      stones(ctx, w, h, 500, [0.5, 1.3], 143, [
+      for (let i = 0; i < 25; i++) {
+        ctx.fillStyle = `rgba(236,232,222,${rng.range(0.05, 0.12)})`;
+        ctx.fillRect(
+          rng.next() * w,
+          Math.floor(rng.next() * courses) * ch,
+          rng.range(2, 6) * k,
+          rng.range(20, 90) * k,
+        );
+      }
+      stones(ctx, w, h, Math.round(500 * k * k), [0.5 * k, 1.3 * k], 143, [
         [96, 92, 86],
         [196, 190, 178],
       ]);
     },
   },
   bridge_concrete: {
-    name: 'Bridge concrete (form boards, stains; 4 x 4 m per repeat)',
-    size: [512, 512],
+    name: 'Bridge concrete (form boards, tie holes, rust and lime runs, stains; 4 x 4 m per repeat)',
+    size: [1024, 1024],
     color: true,
     draw(ctx, w, h) {
       fillNoise(
@@ -1169,28 +1438,72 @@ const DEFS: Record<TextureId, TexDef> = {
         8,
         151,
       );
+      const k = w / 512;
       const rng = new Rng(152);
-      // Horizontal form-board lines every 0.5 m + a tie-hole grid.
+      // Form boards: 0.25 m planks, each pour a slightly different tone, a faint wood grain.
+      const boards = 16;
+      for (let b = 0; b < boards; b++) {
+        const t = rng.range(-0.05, 0.05);
+        ctx.fillStyle = `rgba(${t > 0 ? '255,252,245' : '40,38,34'},${Math.abs(t)})`;
+        ctx.fillRect(0, (b * h) / boards, w, h / boards);
+        for (let g = 0; g < 6; g++) {
+          ctx.fillStyle = `rgba(70,66,60,${rng.range(0.03, 0.07)})`;
+          ctx.fillRect(
+            0,
+            ((b + rng.next()) * h) / boards,
+            w,
+            rng.range(0.6, 1.4) * k,
+          );
+        }
+      }
+      // Board joints every 0.5 m (darker), panel joints every 2 m (a sharp groove with a lit lower lip).
       ctx.fillStyle = 'rgba(60,58,54,0.35)';
-      for (let y = 0; y < h; y += h / 8) ctx.fillRect(0, y, w, 2);
+      for (let y = 0; y < h; y += h / 8) ctx.fillRect(0, y, w, 2 * k);
+      for (const x of [0, w / 2]) {
+        ctx.fillStyle = 'rgba(40,38,34,0.55)';
+        ctx.fillRect(x - 1.5 * k, 0, 3 * k, h);
+        ctx.fillStyle = 'rgba(230,226,216,0.18)';
+        ctx.fillRect(x + 1.5 * k, 0, k, h);
+      }
+      // Tie holes (a grid of plugged cones), some weeping rust.
       for (let y = h / 16; y < h; y += h / 4)
         for (let x = w / 16; x < w; x += w / 4) {
           ctx.fillStyle = 'rgba(50,48,45,0.6)';
           ctx.beginPath();
-          ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+          ctx.arc(x, y, 2.5 * k, 0, Math.PI * 2);
           ctx.fill();
+          if (rng.chance(0.3)) {
+            const g = ctx.createLinearGradient(
+              0,
+              y,
+              0,
+              y + rng.range(30, 110) * k,
+            );
+            g.addColorStop(0, `rgba(122,74,38,${rng.range(0.18, 0.32)})`);
+            g.addColorStop(1, 'rgba(122,74,38,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(x - 1.5 * k, y, rng.range(2, 4) * k, 110 * k);
+          }
         }
-      // Water stains running down from the top, efflorescence.
+      // Water stains running down from the top, white lime (efflorescence) out of the board joints.
       for (let i = 0; i < 90; i++) {
         ctx.fillStyle = `rgba(48,46,42,${rng.range(0.05, 0.16)})`;
         ctx.fillRect(
           rng.next() * w,
           rng.next() * h * 0.5,
-          rng.range(1, 5),
-          rng.range(40, 260),
+          rng.range(1, 5) * k,
+          rng.range(40, 260) * k,
         );
       }
-      stones(ctx, w, h, 700, [0.5, 1.3], 153, [
+      for (let i = 0; i < 30; i++) {
+        const y = Math.floor(rng.next() * 8) * (h / 8);
+        const g = ctx.createLinearGradient(0, y, 0, y + rng.range(20, 80) * k);
+        g.addColorStop(0, `rgba(238,236,228,${rng.range(0.1, 0.22)})`);
+        g.addColorStop(1, 'rgba(238,236,228,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(rng.next() * w, y, rng.range(3, 10) * k, 80 * k);
+      }
+      stones(ctx, w, h, Math.round(700 * k * k), [0.5 * k, 1.3 * k], 153, [
         [92, 90, 86],
         [200, 198, 190],
       ]);

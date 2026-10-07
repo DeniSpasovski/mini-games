@@ -19,6 +19,8 @@ import type { Road } from './road';
 
 export interface GantryPlan {
   along: number;
+  /** A gantry over another road (an interchange split): its own frame instead of the stage road at `along`. */
+  frame?: { x: number; y: number; z: number; tx: number; tz: number };
   /** 'cantilever' = one post on the right, the arm over the right lane; 'portal' = posts both sides, a beam across. */
   span: 'cantilever' | 'portal';
   /** Posts: lateral distance from the road centre (+ = left) and how far the ground there is below the road centre. */
@@ -114,6 +116,7 @@ export function overheadSigns(
     along: number;
     span: 'cantilever' | 'portal';
     boards: SignBoardDef[];
+    frame?: SplitFrame;
   }[] = [];
 
   if (def.exits && net) {
@@ -160,10 +163,15 @@ export function overheadSigns(
   }
   for (const s of def.signs ?? [])
     plans.push({ along: s.along, span: s.span ?? 'portal', boards: s.boards });
+  if (def.splits && net)
+    for (const sp of splitSigns(net, ground, def.splits))
+      plans.push({ along: 0, span: 'portal', ...sp });
 
   const postQ = newPathQuery();
   for (const p of plans) {
-    const s = road.at(p.along);
+    const s = p.frame
+      ? { ...p.frame, halfWidth: p.frame.hw }
+      : road.at(p.along);
     const drop = (lat: number): number => {
       const x = s.x + s.tz * lat;
       const z = s.z - s.tx * lat;
@@ -200,7 +208,13 @@ export function overheadSigns(
           : -s.halfWidth * 0.5 - i * 3.9;
       return { lateral, def: def2 };
     });
-    out.gantries.push({ along: p.along, span: p.span, posts, boards });
+    out.gantries.push({
+      along: p.along,
+      span: p.span,
+      posts,
+      boards,
+      ...(p.frame ? { frame: p.frame } : {}),
+    });
     for (const post of posts) {
       const x = s.x + s.tz * post.lateral;
       const z = s.z - s.tx * post.lateral;
@@ -215,6 +229,162 @@ export function overheadSigns(
     }
   }
   out.gantries.sort((a, b) => a.along - b.along);
+  return out;
+}
+
+const CARRIAGEWAY = /^(motorway|trunk)(_link)?$/;
+
+/** A one-way carriageway / ramp way and its end points. */
+interface Way {
+  pi: number;
+  sx: number;
+  sz: number;
+  ex: number;
+  ez: number;
+}
+
+/**
+ * The motorway a way leads to: its own name if it is a named mainline, else the first named mainline reached going on
+ * (the straightest way at each node, up to 3 km), else the street at the end of the ramp.
+ */
+function destination(
+  net: PathNetwork,
+  ways: Way[],
+  start: number,
+): string | undefined {
+  let cur = start;
+  const seen = new Set<number>();
+  let dist = 0;
+  while (dist < 3000 && !seen.has(cur)) {
+    seen.add(cur);
+    const p = net.paths[cur];
+    if (p.name && /^(motorway|trunk)$/.test(p.kind)) return p.name;
+    dist += net.lengths[cur];
+    const w = ways.find((x) => x.pi === cur)!;
+    const pts = p.pts;
+    const n = pts.length;
+    const dx = pts[n - 2] - pts[n - 4];
+    const dz = pts[n - 1] - pts[n - 3];
+    const dl = Math.hypot(dx, dz) || 1;
+    let best = -2;
+    let next = -1;
+    for (const o of ways) {
+      if (seen.has(o.pi) || Math.hypot(o.sx - w.ex, o.sz - w.ez) > 2.5)
+        continue;
+      const q = net.paths[o.pi].pts;
+      const ox = q[2] - q[0];
+      const oz = q[3] - q[1];
+      const dot = (ox * dx + oz * dz) / ((Math.hypot(ox, oz) || 1) * dl);
+      if (dot > best) {
+        best = dot;
+        next = o.pi;
+      }
+    }
+    if (next < 0) return streetNameNear(net, w.ex, w.ez, 60);
+    cur = next;
+  }
+  return undefined;
+}
+
+/** Short road names for a sign board ("Grand Central Parkway" -> "Grand Central Pkwy"). */
+const signName = (n: string): string =>
+  n
+    .replace(/\bParkway\b/, 'Pkwy')
+    .replace(/\bExpressway\b/, 'Expwy')
+    .replace(/\bBoulevard\b/, 'Blvd')
+    .replace(/\bAvenue\b/, 'Ave');
+
+type SplitFrame = NonNullable<GantryPlan['frame']> & { hw: number };
+
+/**
+ * Guide signs before the diverges of the carriageways / ramps east of `minX` (MapDef.overheadSigns.splits): a way whose
+ * end splits into two one-way ways (both leaving the node, nothing else arriving) gets a portal gantry `ahead` m before
+ * the node, a board per direction (straight on pointing down, the branch to its side).
+ */
+function splitSigns(
+  net: PathNetwork,
+  ground: TerrainSampler,
+  o: { minX?: number; ahead?: number },
+): { boards: SignBoardDef[]; frame: SplitFrame }[] {
+  const minX = o.minX ?? -Infinity;
+  const ahead = o.ahead ?? 110;
+  const ways: Way[] = [];
+  net.paths.forEach((p, pi) => {
+    if (
+      !CARRIAGEWAY.test(p.kind) ||
+      p.surface !== 'tarmac' ||
+      !p.oneway ||
+      p.pts.length < 4
+    )
+      return;
+    const n = p.pts.length;
+    ways.push({
+      pi,
+      sx: p.pts[0],
+      sz: p.pts[1],
+      ex: p.pts[n - 2],
+      ez: p.pts[n - 1],
+    });
+  });
+  const out: { boards: SignBoardDef[]; frame: SplitFrame }[] = [];
+  const pt = { x: 0, z: 0 };
+  const nx = { x: 0, z: 0 };
+  const dirOf = (w: Way): [number, number] => {
+    const q = net.paths[w.pi].pts;
+    const l = Math.hypot(q[2] - q[0], q[3] - q[1]) || 1;
+    return [(q[2] - q[0]) / l, (q[3] - q[1]) / l];
+  };
+  for (const w of ways) {
+    if (w.ex < minX) continue;
+    const p = net.paths[w.pi];
+    if (p.bridge) continue;
+    const leave = ways.filter(
+      (q) => q.pi !== w.pi && Math.hypot(q.sx - w.ex, q.sz - w.ez) <= 2.5,
+    );
+    const arrive = ways.filter(
+      (q) => q.pi !== w.pi && Math.hypot(q.ex - w.ex, q.ez - w.ez) <= 2.5,
+    );
+    if (leave.length !== 2 || arrive.length) continue;
+    const L = net.lengths[w.pi];
+    if (L < 40) continue;
+    const at = Math.max(10, L - ahead);
+    net.pointAt(w.pi, at, pt);
+    net.pointAt(w.pi, Math.min(L, at + 2), nx);
+    const tl = Math.hypot(nx.x - pt.x, nx.z - pt.z) || 1;
+    const n = p.pts.length;
+    const ix = p.pts[n - 2] - p.pts[n - 4];
+    const iz = p.pts[n - 1] - p.pts[n - 3];
+    const il = Math.hypot(ix, iz) || 1;
+    const dots = leave.map((q) => {
+      const [dx, dz] = dirOf(q);
+      return (dx * ix + dz * iz) / il;
+    });
+    const thru = dots[0] >= dots[1] ? 0 : 1;
+    const br = 1 - thru;
+    const [bx, bz] = dirOf(leave[br]);
+    // left of travel = (tz, -tx)
+    const side: 'left' | 'right' =
+      bx * (iz / il) - bz * (ix / il) > 0 ? 'left' : 'right';
+    const names = [thru, br].map((k) => destination(net, ways, leave[k].pi));
+    if (!names[0] || !names[1] || names[0] === names[1]) continue;
+    const thruBoard: SignBoardDef = {
+      lines: [signName(names[0])],
+      arrow: 'down',
+    };
+    const brBoard: SignBoardDef = { lines: [signName(names[1])], arrow: side };
+    out.push({
+      // boards left to right across the road
+      boards: side === 'left' ? [brBoard, thruBoard] : [thruBoard, brBoard],
+      frame: {
+        x: pt.x,
+        y: ground.height(pt.x, pt.z),
+        z: pt.z,
+        tx: (nx.x - pt.x) / tl,
+        tz: (nx.z - pt.z) / tl,
+        hw: p.width / 2,
+      },
+    });
+  }
   return out;
 }
 

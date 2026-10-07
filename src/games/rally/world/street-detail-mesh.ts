@@ -7,6 +7,7 @@ import {
 } from 'three';
 import { getTexture } from '../engine/textures';
 import { CROSS_LEN, KERB_H, KERB_W } from './street-detail';
+import { hasMarkings } from './street-markings';
 import type { World } from './world';
 import { GroundTerrain } from './heightfield';
 
@@ -18,6 +19,9 @@ import { GroundTerrain } from './heightfield';
 
 const TILE = 256;
 const STEP = 4;
+/** Driveway kerb cut: the kerb drops to this height (m) across the driveway, over a ramp this long each side (m). */
+const CUT_H = 0.025;
+const CUT_RAMP = 1;
 
 class Acc {
   pos: number[] = [];
@@ -30,6 +34,8 @@ class Acc {
 const KERB: [number, number, number] = [0.82, 0.8, 0.77];
 const WALK: [number, number, number] = [0.9, 0.89, 0.86];
 const EARTH: [number, number, number] = [0.32, 0.29, 0.25];
+/** Tree lawn between the kerb and the sidewalk (tints the sidewalk texture). */
+const LAWN: [number, number, number] = [0.42, 0.54, 0.27];
 
 export function* streetDetailMeshJob(
   world: World,
@@ -38,7 +44,6 @@ export function* streetDetailMeshJob(
   const net = world.gen.paths;
   const detail = world.streetDetail;
   if (!cfg || !net || !detail) return undefined;
-  const W = cfg.sidewalk ?? 1.5;
   // The ground, not the top surface: a street under a stage-road bridge stays down in its underpass.
   const hf = new GroundTerrain(world.gen);
   const tiles = new Map<string, Acc>();
@@ -80,6 +85,75 @@ export function* streetDetailMeshJob(
     });
     return count === 1 ? hit : undefined;
   };
+  interface Row {
+    x: number;
+    z: number;
+    y: number;
+    /** Sidewalk top above `y`: the kerb height, more where the land beside the street rises over it. */
+    top: number;
+    tx: number;
+    tz: number;
+    d: number;
+  }
+  /**
+   * Kerb face, kerb top, (tree lawn,) sidewalk and a buried outer face swept along `rows` (outward = left of travel when
+   * side is +1). `lawn` m of grass between the kerb and the paving (PathDef.lawn).
+   */
+  const sweep = (rows: Row[], side: number, W: number, lawn = 0) => {
+    const acc = tileOf(rows[0].x, rows[0].z);
+    // Profile: (outward offset from the street edge, height above it); outward = away from the street centre.
+    const L = lawn > 0.2 ? lawn : 0;
+    const prof: [number, number][] = [
+      [0, 0],
+      [0, KERB_H],
+      [KERB_W, KERB_H],
+      ...(L ? [[KERB_W + L, KERB_H] as [number, number]] : []),
+      [KERB_W + L + W, KERB_H],
+      [KERB_W + L + W, -0.3],
+    ];
+    const cols = L
+      ? [KERB, KERB, LAWN, WALK, EARTH]
+      : [KERB, KERB, WALK, EARTH];
+    const nors: [number, number][] = [
+      [-1, 0],
+      [0, 1],
+      ...(L ? [[0, 1] as [number, number]] : []),
+      [0, 1],
+      [1, 0],
+    ];
+    for (let s = 0; s < prof.length - 1; s++) {
+      const v0 = acc.pos.length / 3;
+      const [o0, y0] = prof[s];
+      const [o1, y1] = prof[s + 1];
+      for (const r of rows) {
+        // left = (tz, -tx); outward for the left side is +left.
+        const ox = r.tz * side;
+        const oz = -r.tx * side;
+        for (const [o, dy] of [
+          [o0, y0],
+          [o1, y1],
+        ]) {
+          acc.pos.push(
+            r.x + ox * o,
+            r.y + (dy === KERB_H ? r.top : dy),
+            r.z + oz * o,
+          );
+          // The kerb face looks at the street (-outward), the tops up, the buried face outward.
+          const [no, ny] = nors[s];
+          acc.nor.push(ox * no, ny, oz * no);
+          acc.col.push(...cols[s]);
+          acc.uv.push(r.d / 3, o / 3);
+        }
+      }
+      // Front faces up / outward on both sides (the material is double sided: a back face gets its normal flipped
+      // and the right-hand sidewalk of every street rendered black).
+      for (let i = 0; i < rows.length - 1; i++) {
+        const q = v0 + i * 2;
+        if (side > 0) acc.idx.push(q, q + 2, q + 3, q, q + 3, q + 1);
+        else acc.idx.push(q, q + 3, q + 2, q, q + 1, q + 3);
+      }
+    }
+  };
   let n = 0;
   for (const run of detail.runs) {
     const PL = net.lengths[run.path];
@@ -95,8 +169,25 @@ export function* streetDetailMeshJob(
       tz: number;
       d: number;
     }[] = [];
-    for (let a = run.from; ; a += STEP) {
-      const d = Math.min(a, run.to);
+    // the samples: every STEP m, plus the edges of the driveway cuts and their ramps
+    const at: number[] = [];
+    for (let a = run.from; a < run.to; a += STEP) at.push(a);
+    at.push(run.to);
+    for (const [c0, c1] of run.cuts ?? [])
+      for (const a of [c0 - CUT_RAMP, c0, c1, c1 + CUT_RAMP])
+        if (a > run.from && a < run.to) at.push(a);
+    at.sort((u, v) => u - v);
+    /** Kerb drop at `d`: 1 = full kerb, 0 = flush (a driveway). */
+    const kerbAt = (d: number): number => {
+      let f = 1;
+      for (const [c0, c1] of run.cuts ?? []) {
+        const out = Math.max(c0 - d, d - c1, 0);
+        f = Math.min(f, Math.min(1, out / CUT_RAMP));
+      }
+      return f;
+    };
+    for (const a of at) {
+      const d = a;
       net.pointAt(run.path, Math.max(0, d - 1.5), pt);
       net.pointAt(run.path, Math.min(net.lengths[run.path], d + 1.5), nx);
       const tl = Math.hypot(nx.x - pt.x, nx.z - pt.z) || 1;
@@ -120,70 +211,84 @@ export function* streetDetailMeshJob(
       // A bank beside the street (the land blends back up from the edge) buried the flat sidewalk: lift it clear.
       let land = -Infinity;
       if (!onDeck(run.path))
-        for (const o of [KERB_W + W * 0.5, KERB_W + W])
+        for (const o of [KERB_W + run.width * 0.5, KERB_W + run.width])
           land = Math.max(
             land,
             hf.height(x + tz * run.side * o, z - tx * run.side * o),
           );
-      const top = KERB_H + Math.min(0.6, Math.max(0, land + 0.02 - y - KERB_H));
+      const f = kerbAt(d);
+      const top =
+        f < 1
+          ? CUT_H + (KERB_H - CUT_H) * f
+          : KERB_H + Math.min(0.6, Math.max(0, land + 0.02 - y - KERB_H));
+      if (rows.length && d - rows[rows.length - 1].d < 0.05) continue;
       rows.push({ x, z, y, top, tx, tz, d });
-      if (d >= run.to) break;
     }
     if (rows.length < 2) continue;
-    const acc = tileOf(rows[0].x, rows[0].z);
-    // Profile: (outward offset from the street edge, height above it); outward = away from the street centre.
-    const prof: [number, number][] = [
-      [0, 0],
-      [0, KERB_H],
-      [KERB_W, KERB_H],
-      [KERB_W + W, KERB_H],
-      [KERB_W + W, -0.3],
-    ];
-    const cols = [KERB, KERB, WALK, EARTH];
-    const nors: [number, number][] = [
-      [-1, 0],
-      [0, 1],
-      [0, 1],
-      [1, 0],
-    ];
-    for (let s = 0; s < prof.length - 1; s++) {
-      const v0 = acc.pos.length / 3;
-      const [o0, y0] = prof[s];
-      const [o1, y1] = prof[s + 1];
-      for (const r of rows) {
-        // left = (tz, -tx); outward for the left side is +left.
-        const ox = r.tz * run.side;
-        const oz = -r.tx * run.side;
-        for (const [o, dy] of [
-          [o0, y0],
-          [o1, y1],
-        ]) {
-          acc.pos.push(
-            r.x + ox * o,
-            r.y + (dy === KERB_H ? r.top : dy),
-            r.z + oz * o,
-          );
-          // The kerb face looks at the street (-outward), the tops up, the buried face outward.
-          const [no, ny] = nors[s];
-          acc.nor.push(ox * no, ny, oz * no);
-          acc.col.push(...cols[s]);
-          acc.uv.push(r.d / 3, o / 3);
-        }
-      }
-      // Front faces up / outward on both sides (the material is double sided: a back face gets its normal flipped
-      // and the right-hand sidewalk of every street rendered black).
-      for (let i = 0; i < rows.length - 1; i++) {
-        const q = v0 + i * 2;
-        if (run.side > 0) acc.idx.push(q, q + 2, q + 3, q, q + 3, q + 1);
-        else acc.idx.push(q, q + 3, q + 2, q, q + 1, q + 3);
-      }
-    }
+    const lawn = net.paths[run.path].lawn?.[run.side > 0 ? 0 : 1] ?? 0;
+    sweep(rows, run.side, run.width, lawn);
     if (++n % 40 === 0) yield;
+  }
+  // Rounded kerb corners (street-detail.ts `Corner`): the kerb + sidewalk swept round the fillet arc, and the sliver between
+  // the arc and the corner point of the two kerb lines paved (the corner of the block was cut off).
+  const fills = new Map<string, Acc>();
+  for (const c of detail.corners) {
+    const N = Math.max(4, Math.ceil((Math.abs(c.sweep) * c.radius) / 0.8));
+    const sgn = Math.sign(c.sweep) || 1;
+    const rows: Row[] = [];
+    let side = 1;
+    for (let k = 0; k <= N; k++) {
+      const al = c.a0 + (c.sweep * k) / N;
+      const x = c.cx + Math.cos(al) * c.radius;
+      const z = c.cz + Math.sin(al) * c.radius;
+      const tx = -Math.sin(al) * sgn;
+      const tz = Math.cos(al) * sgn;
+      // outward (away from the street) is towards the arc's centre: the sidewalk lies inside the block corner
+      const ox = (c.cx - x) / c.radius;
+      const oz = (c.cz - z) / c.radius;
+      if (k === 0) side = tz * ox - tx * oz > 0 ? 1 : -1;
+      const y = hf.height(x, z) + 0.03;
+      let land = -Infinity;
+      for (const o of [KERB_W + c.width * 0.5, KERB_W + c.width])
+        land = Math.max(land, hf.height(x + ox * o, z + oz * o));
+      const top = KERB_H + Math.min(0.6, Math.max(0, land + 0.02 - y - KERB_H));
+      rows.push({ x, z, y, top, tx, tz, d: k });
+    }
+    sweep(rows, side, c.width);
+    // the paved sliver: a fan from the corner point over the arc
+    const acc =
+      fills.get(`${Math.floor(c.px / TILE)},${Math.floor(c.pz / TILE)}`) ??
+      new Acc();
+    fills.set(`${Math.floor(c.px / TILE)},${Math.floor(c.pz / TILE)}`, acc);
+    const v0 = acc.pos.length / 3;
+    const pts: [number, number][] = [[c.px, c.pz]];
+    for (let k = 0; k <= N; k++) {
+      const al = c.a0 + (c.sweep * k) / N;
+      pts.push([
+        c.cx + Math.cos(al) * c.radius,
+        c.cz + Math.sin(al) * c.radius,
+      ]);
+    }
+    for (const [x, z] of pts) {
+      acc.pos.push(x, hf.height(x, z) + 0.03, z);
+      acc.nor.push(0, 1, 0);
+      acc.col.push(1, 1, 1);
+      acc.uv.push(x / 8, z / 8);
+    }
+    for (let k = 1; k < pts.length - 1; k++) {
+      const cross =
+        (pts[k][0] - c.px) * (pts[k + 1][1] - c.pz) -
+        (pts[k][1] - c.pz) * (pts[k + 1][0] - c.px);
+      if (cross < 0) acc.idx.push(v0, v0 + k, v0 + k + 1);
+      else acc.idx.push(v0, v0 + k + 1, v0 + k);
+    }
   }
   const group = new Group();
   group.name = 'street-detail';
   const mat = new MeshStandardMaterial({
     map: getTexture('sidewalk'),
+    bumpMap: getTexture('sidewalk'),
+    bumpScale: 1,
     vertexColors: true,
     roughness: 0.95,
     metalness: 0,
@@ -204,6 +309,38 @@ export function* streetDetailMeshJob(
     m.receiveShadow = true;
     m.matrixAutoUpdate = false;
     group.add(m);
+    yield;
+  }
+  if (fills.size) {
+    const asphalt = new MeshStandardMaterial({
+      map: getTexture('junction_asphalt'),
+      bumpMap: getTexture('junction_asphalt'),
+      bumpScale: 1.2,
+      roughness: 0.86,
+      metalness: 0,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -2,
+      side: 2,
+    });
+    for (const acc of fills.values()) {
+      const g = new BufferGeometry();
+      g.setAttribute(
+        'position',
+        new BufferAttribute(new Float32Array(acc.pos), 3),
+      );
+      g.setAttribute(
+        'normal',
+        new BufferAttribute(new Float32Array(acc.nor), 3),
+      );
+      g.setAttribute('uv', new BufferAttribute(new Float32Array(acc.uv), 2));
+      g.setIndex(acc.idx);
+      g.computeBoundingSphere();
+      const m = new Mesh(g, asphalt);
+      m.receiveShadow = true;
+      m.matrixAutoUpdate = false;
+      group.add(m);
+    }
     yield;
   }
   // Crosswalks: an alpha-tested zebra quad over the street surface; stop lines across the arriving half of the street.
@@ -236,8 +373,9 @@ export function* streetDetailMeshJob(
     // Wound to face up (a back face gets its normal flipped: the zebras were lit from below, dark green-grey).
     cw.idx.push(v0, v0 + 2, v0 + 1, v0, v0 + 3, v0 + 2);
     // Stop line 0.9 m short of the crosswalk, 0.45 m deep, on the right-hand half of the arriving traffic: that is the
-    // +left half of a street whose junction is at its start, the -left half at its end.
-    if (!p.oneway) {
+    // +left half of a street whose junction is at its start, the -left half at its end. (A modelled street gets its
+    // stop bar from the marking layer, street-glyphs.ts, laid out on its lanes.)
+    if (!p.oneway && !hasMarkings(p)) {
       const half = c.atEnd ? -1 : 1;
       const out = c.atEnd ? -1 : 1;
       const s0 = CROSS_LEN / 2 + 0.9;

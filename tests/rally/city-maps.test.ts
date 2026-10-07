@@ -3,8 +3,13 @@ import { describe, expect, test } from '@rstest/core';
 import { jackieMap } from '../../src/games/rally/maps/jackie/map';
 import type { GroundSample } from '../../src/games/rally/physics/types';
 import { barrierPoint } from '../../src/games/rally/world/barriers';
-import { goreCushions, goreWedges } from '../../src/games/rally/world/gore';
+import {
+  goreCushions,
+  goreWedges,
+  inGore,
+} from '../../src/games/rally/world/gore';
 import { newPathQuery } from '../../src/games/rally/world/real-data';
+import { newWallQuery } from '../../src/games/rally/world/retaining-walls';
 import { newRoadQuery } from '../../src/games/rally/world/road';
 import { STREET_KINDS } from '../../src/games/rally/world/street-detail';
 import {
@@ -148,8 +153,9 @@ describe('jackie: decks', () => {
               close++;
           }
         }
-        // More than a quarter of one deck sits on the other within 2 m of its height: they fight for the same pixels.
-        if (samples > 3 && close / samples > 0.25) overlaps++;
+        // Most of one deck sits on the other within 2 m of its height: a duplicate that fights for the same pixels. A ramp
+        // merging into a carriageway lies over it for its last 20-30 m (bridge-mesh staggers the narrower one by a hair).
+        if (samples > 3 && close / samples > 0.6) overlaps++;
         void inside;
       }
     expect(overlaps).toBe(0);
@@ -199,9 +205,9 @@ describe('jackie: portals (under spans)', () => {
     expect(portals.list.length).toBe(spans.length);
     for (const p of portals.list) {
       for (const r of p.rows) expect(r.top - r.y).toBeGreaterThanOrEqual(5.5);
-      // The cut's wall lines (a skewed end trims the slab itself at its corners).
-      expect(p.rows[0].latL0).toBeGreaterThan(5);
-      expect(p.rows[0].latR0).toBeLessThan(-5);
+      // The cut's wall lines (a skewed end trims the slab itself at its corners): beyond the narrow road + shoulder.
+      expect(p.rows[0].latL0).toBeGreaterThan(4.5);
+      expect(p.rows[0].latR0).toBeLessThan(-4.5);
     }
     const finish = portals.list.find((p) => p.from > 7000)!;
     expect(finish.name).toMatch(/Queens Boulevard/);
@@ -491,7 +497,7 @@ describe('jackie: junction plaza on the finish portal', () => {
       }
   });
 
-  test('no sidewalks inside it; its crosswalks are the OSM zebra crossings', () => {
+  test('no sidewalks inside it; crosswalks at the core mouths, OSM zebras at the lane start', () => {
     const net = world.gen.paths!;
     const d = world.streetDetail!;
     // On the kerb line of each run (the street's centre may cut a plaza corner while its sidewalk is outside).
@@ -509,20 +515,27 @@ describe('jackie: junction plaza on the finish portal', () => {
         expect(plazas.inside(pt.x + tz * lat, pt.z - tx * lat)).toBe(false);
       }
     }
-    const edge = d.crossings.filter((c) => {
+    // The NYC core (one source, no ribbons inside): one automatic crosswalk per street mouth at its edge. The lane-start
+    // area keeps its ribbons and the OSM zebra crossings: no automatic one at its edge.
+    let core = 0;
+    for (const c of d.crossings) {
       net.pointAt(c.path, c.at, pt);
-      return plazas.inside(pt.x, pt.z, 4);
-    });
-    // The OSM zebra crossings replace the automatic one per street mouth: none of those at the edge.
-    expect(edge.length).toBe(0);
+      if (!plazas.inside(pt.x, pt.z, 4)) continue;
+      if (plazas.insideCore(pt.x, pt.z, 4)) core++;
+      else expect(plazas.insideCore(pt.x, pt.z, 4)).toBe(true);
+    }
+    console.info(`[jackie] core mouth crosswalks: ${core}`);
+    expect(core).toBeGreaterThanOrEqual(6);
     const cw = jackieMap.plazaCrosswalks!;
-    console.info(`[jackie] plaza crosswalks (OSM): ${cw.length}`);
-    expect(cw.length).toBeGreaterThanOrEqual(8);
-    // Each one touches the plaza's surroundings (some cross the streets just outside it).
+    expect(cw.length).toBeGreaterThanOrEqual(4);
+    // Each OSM zebra touches the lane-start area's surroundings (some cross the streets just outside it).
     for (const line of cw)
       expect(
         line.some(
-          (_, i) => i % 2 === 0 && plazas.inside(line[i], line[i + 1], 13),
+          (_, i) =>
+            i % 2 === 0 &&
+            plazas.inside(line[i], line[i + 1], 13) &&
+            !plazas.insideCore(line[i], line[i + 1]),
         ),
       ).toBe(true);
   });
@@ -577,8 +590,9 @@ describe('jackie: structures', () => {
 
   test('sheer cuts: level road verge, a retaining wall line, gentle at side roads', () => {
     const cw = jackieMap.road.cutWalls!;
+    const wq = newWallQuery();
     let sheer = 0;
-    for (let d = 0; d < world.road.length; d += 25) {
+    for (let d = 0; d < world.road.length; d += 10) {
       const s = world.road.at(d);
       for (const side of [1, -1]) {
         const lat = side * (s.halfWidth + jackieMap.road.shoulder + cw.offset);
@@ -586,7 +600,10 @@ describe('jackie: structures', () => {
         const z = s.z - s.tx * lat;
         const rise = world.gen.naturalHeight(x, z, false) - s.y;
         const w = world.gen.cutWeightAt(x, z, rise);
-        if (w > 0.99) {
+        // ... or a surveyed retaining wall (MapDef.retainingWalls) just beyond the verge, its top a cut deep above the road
+        const q = world.gen.walls?.query(x, z, 3, wq);
+        const wall = !!q?.found && q.side > -1 && q.high - s.y > cw.minHeight;
+        if (w > 0.99 || wall) {
           sheer++;
           // On the wall line the ground is still road level.
           expect(world.gen.height(x, z)).toBeLessThan(s.y + 0.6);
@@ -657,7 +674,7 @@ describe('jackie: street detail and dressing', () => {
 });
 
 describe('jackie: gore areas', () => {
-  test('ramps get a hatched wedge with a crash cushion at its wide nose, off the stage road', () => {
+  test('ramps get a hatched wedge with a crash cushion at its wide nose, by the road edge; no barrier on the hatching', () => {
     const net = world.gen.paths!;
     const wedges = goreWedges(road, net);
     console.info(`[jackie] gore wedges: ${wedges.length}`);
@@ -679,10 +696,24 @@ describe('jackie: gore areas', () => {
     const cushions = goreCushions(wedges, () => 0);
     expect(cushions.length).toBe(wedges.filter((w) => w.wide).length);
     expect(cushions.length).toBeGreaterThan(3);
+    // Off the lanes, in front of the barrier that starts at the nose (on its line by the road edge, not mid-gore).
+    let byStage = 0;
     for (const c of cushions) {
       road.query(c.x, c.z, q);
-      expect(q.distance).toBeGreaterThan(q.halfWidth + 1.5);
+      expect(q.distance).toBeGreaterThan(q.halfWidth + 0.6);
+      if (q.distance < q.halfWidth + 3) byStage++;
     }
+    expect(byStage).toBeGreaterThan(3);
+    // The stage road's barriers stop where the hatched wedge begins and start again at its nose.
+    const ctx = { road, net };
+    let onHatch = 0;
+    for (const r of world.barrierRuns.filter((b) => b.path === undefined))
+      // (a run ends AT the first sample that no longer holds: its end point touches the wedge)
+      for (let a = r.from + 1; a <= r.to - 1; a += 1) {
+        const b = barrierPoint(ctx, world.analytic, r, a);
+        if (inGore(wedges, b.x, b.z)) onHatch++;
+      }
+    expect(onHatch).toBe(0);
   });
 });
 
@@ -706,7 +737,8 @@ describe('jackie: overpass at 1 855 m (B4)', () => {
             world.gen.pathHeight(pi, a) -
               world.gen.pathHeight(t.other, t.along),
           ),
-        ).toBeLessThan(0.3);
+          // (0.3 on level decks; at a deck end on its 7 % approach the nearest point of the twin is up to ~6 m off: < 0.5 m)
+        ).toBeLessThan(0.5);
       }
     });
     console.info(`[jackie] twin deck samples: ${checked}`);
@@ -986,8 +1018,72 @@ describe('jackie: twin deck ends', () => {
   });
 });
 
+describe('jackie: narrow parkway, B9, interchange signs', () => {
+  test('the stage road has the real carriageway width: 5.6-7.0 m, narrowest at the Kew Gardens end', () => {
+    let lo = Infinity;
+    let hi = 0;
+    for (let a = 0; a <= road.length; a += 25) {
+      const w = 2 * road.at(a).halfWidth;
+      lo = Math.min(lo, w);
+      hi = Math.max(hi, w);
+    }
+    expect(lo).toBeGreaterThanOrEqual(5.55);
+    expect(hi).toBeLessThanOrEqual(7.05);
+    expect(2 * road.at(7100).halfWidth).toBeLessThan(6);
+  });
+
+  test('Woodhaven Blvd runs under the B9 span on every way (no lane left at deck level)', () => {
+    const net = world.gen.paths!;
+    const pt = { x: 0, z: 0 };
+    const q = newRoadQuery();
+    const under = new Set<number>();
+    net.paths.forEach((p, pi) => {
+      if (p.name !== 'Woodhaven Boulevard' || p.bridge) return;
+      for (let a = 0; a <= net.lengths[pi]; a += 2) {
+        net.pointAt(pi, a, pt);
+        road.query(pt.x, pt.z, q);
+        if (!q.found || q.distance > q.halfWidth || !road.bridgeAt(q.along))
+          continue;
+        under.add(pi);
+        expect(world.gen.pathHeight(pi, a)).toBeLessThan(q.height - 5);
+      }
+    });
+    // both directions of the main lanes (the OSM tunnel pieces added in map.ts; the service roads beside them are unnamed)
+    expect(under.size).toBeGreaterThanOrEqual(2);
+  });
+
+  test('the interchange gets guide signs at its splits, naming where each branch leads', () => {
+    const splits = world.overheadSigns.gantries.filter((g) => g.frame);
+    expect(splits.length).toBeGreaterThanOrEqual(3);
+    for (const g of splits) {
+      expect(g.boards.length).toBe(2);
+      expect(g.frame!.x).toBeGreaterThan(2900);
+      const arrows = g.boards.map((b) => b.def.arrow);
+      expect(arrows).toContain('down');
+    }
+    const names = splits.flatMap((g) => g.boards.flatMap((b) => b.def.lines));
+    expect(names.some((n) => /Grand Central/.test(n))).toBe(true);
+    expect(names.some((n) => /Van Wyck/.test(n))).toBe(true);
+  });
+
+  test('driveways cross the sidewalks with a kerb cut; street trees on a sidewalk stand in a pit', () => {
+    const runs = world.streetDetail!.runs;
+    const cuts = runs.reduce((n, r) => n + (r.cuts?.length ?? 0), 0);
+    expect(cuts).toBeGreaterThan(20);
+    for (const r of runs)
+      for (const [c0, c1] of r.cuts ?? []) {
+        expect(c1).toBeGreaterThanOrEqual(c0);
+        expect(c1 - c0).toBeLessThan(14);
+      }
+    const pits = [...world.scatter.fixedInstances()].filter(
+      (i) => i.asset === 'tree_pit',
+    ).length;
+    expect(pits).toBeGreaterThan(200);
+  });
+});
+
 describe('jackie: opposite carriageway width (B2a)', () => {
-  test('two-lane carriageways beside the stage road are as wide as the stage road where the median allows', () => {
+  test('two-lane carriageways beside the stage road are as wide as the stage road there where the median allows', () => {
     const net = world.gen.paths!;
     const pt = { x: 0, z: 0 };
     const q = newRoadQuery();
@@ -1000,8 +1096,10 @@ describe('jackie: opposite carriageway width (B2a)', () => {
       road.query(pt.x, pt.z, q);
       if (!q.found || q.distance > 12 || net.lengths[pi] < 20) return;
       beside++;
-      if (Math.abs(p.width - road.def.width) < 0.05) same++;
-      expect(p.width).toBeGreaterThanOrEqual(5.99);
+      // the stage road's width varies (the real carriageway): compare with it beside the way
+      const local = 2 * q.halfWidth;
+      if (Math.abs(p.width - local) < 0.3) same++;
+      expect(p.width).toBeGreaterThanOrEqual(Math.min(5.99, local - 0.5));
       expect(p.width).toBeLessThanOrEqual(road.def.width + 0.05);
     });
     expect(beside).toBeGreaterThan(10);
@@ -1131,7 +1229,8 @@ describe('jackie: underpass street surface', () => {
         }
       }
     });
-    expect(samples).toBeGreaterThan(100);
+    // (the street dips ~4 m under the bridge to its real 5.7 m clearance: the deep stretch is short)
+    expect(samples).toBeGreaterThan(20);
     expect(bad / samples).toBeLessThan(0.01);
   });
 });

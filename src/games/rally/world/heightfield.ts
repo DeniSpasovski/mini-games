@@ -13,6 +13,48 @@ import type { TerrainGenerator } from './terrain-gen';
  */
 export const CHUNK_CELLS = 64;
 
+/** A sample this far above both its neighbours along an axis is a one-cell crest (m). */
+const RIDGE = 0.5;
+
+/** Crest filter along one axis: samples `a2 a h b b2` (a2 / b2 NaN where the grid has no sample there). */
+function ridgeAxis(
+  h: number,
+  a2: number,
+  a: number,
+  b: number,
+  b2: number,
+): number {
+  // one cell wide
+  if (h > Math.max(a, b) + RIDGE) return Math.max(a, b) + 0.15;
+  // two cells wide (this sample and one neighbour stand above the samples either side of the pair)
+  if (!Number.isNaN(b2) && h > a + RIDGE && b > b2 + RIDGE && h > b2 + RIDGE)
+    return Math.max(a, b2) + 0.15;
+  if (!Number.isNaN(a2) && h > b + RIDGE && a > a2 + RIDGE && h > a2 + RIDGE)
+    return Math.max(b, a2) + 0.15;
+  return h;
+}
+
+/**
+ * Crests one or two cells wide out of a height grid: where two carves meet (a cut wall's sheer rise beside a street
+ * pulled down on the other side) the generator leaves a strip a metre wide at the higher level, and a grid samples it
+ * as a row of spikes. Such a sample is lowered to just above the land either side. `h` = the sample, then its x
+ * neighbours (2 left, 1 left, 1 right, 2 right) and z neighbours likewise; all raw, so neighbouring chunks agree on a
+ * shared sample (NaN where a grid has no sample 2 cells out: the two-cell test is skipped there, in both chunks).
+ */
+export function deRidge(
+  h: number,
+  l2: number,
+  l: number,
+  r: number,
+  r2: number,
+  u2: number,
+  u: number,
+  d: number,
+  d2: number,
+): number {
+  return Math.min(ridgeAxis(h, l2, l, r, r2), ridgeAxis(h, u2, u, d, d2));
+}
+
 /** Anything that can answer height / normal queries (cached heightfield or analytic generator). */
 export interface TerrainSampler {
   readonly chunkSize: number;
@@ -188,6 +230,40 @@ export class Heightfield implements TerrainSampler {
       }
       yield;
     }
+    // Thin crests out (a 3 x 3 morphological opening: the min, then the max of the mins): whatever stands more than RIDGE
+    // above what is left of it after the opening is a crest under 3 cells wide - a strip / blob left between two terrain
+    // carves, sampled as a row of spikes - and is lowered onto it. From the raw samples plus a second ring (computed here)
+    // so two chunks agree on the vertices they share. The stage road's own vertices are left alone.
+    const W = n + 3;
+    const W2 = n + 5;
+    const raw2 = new Float32Array(W2 * W2);
+    for (let j = -2; j <= n + 2; j++)
+      for (let i = -2; i <= n + 2; i++)
+        raw2[(j + 2) * W2 + (i + 2)] =
+          i >= -1 && i <= n + 1 && j >= -1 && j <= n + 1
+            ? c.heights[(j + 1) * W + (i + 1)]
+            : gen.height(x0 + i * cell, z0 + j * cell);
+    yield;
+    const ero = new Float32Array(W * W);
+    for (let j = -1; j <= n + 1; j++)
+      for (let i = -1; i <= n + 1; i++) {
+        let m = Infinity;
+        for (let dj = -1; dj <= 1; dj++)
+          for (let di = -1; di <= 1; di++)
+            m = Math.min(m, raw2[(j + 2 + dj) * W2 + (i + 2 + di)]);
+        ero[(j + 1) * W + (i + 1)] = m;
+      }
+    for (let j = 0; j <= n; j++)
+      for (let i = 0; i <= n; i++) {
+        const v = j * (n + 1) + i;
+        if (roadDist[v] <= roadHw[v] + 1) continue;
+        let open = -Infinity;
+        for (let dj = -1; dj <= 1; dj++)
+          for (let di = -1; di <= 1; di++)
+            open = Math.max(open, ero[(j + 1 + dj) * W + (i + 1 + di)]);
+        const k = (j + 1) * W + (i + 1);
+        if (c.heights[k] > open + RIDGE) c.heights[k] = open + 0.15;
+      }
     const sp = this.tmpSplat;
     let ni = 0;
     let si = 0;

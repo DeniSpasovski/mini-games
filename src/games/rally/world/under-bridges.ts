@@ -646,6 +646,23 @@ const TWIN_SEP: [number, number] = [3, 14];
 /** Largest end correction of a twin deck (m). */
 const TWIN_MAX_GROW = 10;
 
+/** Another deck than `skip` has an end at (ox, oz). */
+function deckEndAt(
+  paths: PathDef[],
+  skip: number,
+  ox: number,
+  oz: number,
+): boolean {
+  return paths.some((q, qi) => {
+    if (qi === skip || !q.bridge || q.surface !== 'tarmac') return false;
+    const n = q.pts.length;
+    return (
+      Math.hypot(q.pts[0] - ox, q.pts[1] - oz) < 1 ||
+      Math.hypot(q.pts[n - 2] - ox, q.pts[n - 1] - oz) < 1
+    );
+  });
+}
+
 /** Ground ways with an end at (ox, oz) lose `grow` metres there (they now meet the grown deck end). */
 function trimNeighbours(
   paths: PathDef[],
@@ -676,7 +693,9 @@ function trimNeighbours(
  */
 export function alignTwinDeckEnds(paths: PathDef[]): PathDef[] {
   const isStreetDeck = (p: PathDef) =>
-    !!p.bridge && p.surface === 'tarmac' && STREET_KINDS.has(p.kind);
+    !!p.bridge &&
+    p.surface === 'tarmac' &&
+    (STREET_KINDS.has(p.kind) || p.kind === 'motorway_link');
   const out = paths.slice();
   const trimmed = new Map<number, number[]>();
   const ends = (p: PathDef) => {
@@ -724,6 +743,8 @@ export function alignTwinDeckEnds(paths: PathDef[]): PathDef[] {
         const [ox, oz, tx, tz] = atEnd
           ? [e.ex, e.ez, e.edx, e.edz]
           : [e.sx, e.sz, -e.sdx, -e.sdz]; // outward tangent
+        // A deck that continues into another deck there (one structure in several ways) has no free end to grow.
+        if (deckEndAt(out, k, ox, oz)) return;
         const nxp = [ox + tx * grow, oz + tz * grow];
         out[k] = { ...p, pts: atEnd ? [...p.pts, ...nxp] : [...nxp, ...p.pts] };
         trimNeighbours(paths, trimmed, k, ox, oz, grow);
@@ -747,20 +768,21 @@ const MIN_MEDIAN = 0.5;
 const CARRIAGEWAY_REACH = 16;
 
 /**
- * The opposite carriageway of the divided highway looks like the stage road: same width (OSM lane counts and the
- * baker's room limit gave it 6.0 - 8.3 m against the stage road's 7.4, so its lane markings, edge lines and barriers
- * did not match), as far as the median allows (a median of at least MIN_MEDIAN). Only two-lane mainline ways that
- * run parallel beside the stage road; wider / narrower ways (lane gains, ramps) keep their width.
+ * The opposite carriageway of the divided highway looks like the stage road: the stage road's width beside it (OSM lane
+ * counts and the baker's room limit gave it other widths, so its lane markings, edge lines and barriers did not match),
+ * as far as the median allows (a median of at least MIN_MEDIAN). Only two-lane mainline ways that run parallel beside the
+ * stage road; wider / narrower ways (lane gains, ramps) keep their width.
  */
 export function matchCarriagewayWidth(paths: PathDef[], road: Road): PathDef[] {
   const rq = newRoadQuery();
-  const target = road.def.width;
   return paths.map((p) => {
     if (p.kind !== 'motorway' || p.surface !== 'tarmac') return p;
     if (p.lanes !== undefined && p.lanes > 2) return p;
     const L = polyLength(p.pts);
     if (L < 6) return p;
+    // gap to the stage road's edge, and the stage road's width, at each sample beside it
     const d: number[] = [];
+    let wSum = 0;
     let near = 0;
     let total = 0;
     for (let a = 0; a <= L; a += 2) {
@@ -771,13 +793,14 @@ export function matchCarriagewayWidth(paths: PathDef[], road: Road): PathDef[] {
       const s = road.samples[rq.index];
       if (Math.abs(dx * s.tx + dz * s.tz) < 0.9) continue;
       near++;
-      d.push(rq.distance);
+      d.push(rq.distance - rq.halfWidth);
+      wSum += 2 * rq.halfWidth;
     }
     if (near < total * 0.8) return p;
     d.sort((u, v) => u - v);
-    const room =
-      2 * (d[Math.floor(d.length * 0.1)] - road.def.width / 2 - MIN_MEDIAN);
-    const width = Math.min(target, Math.max(6, room));
+    const target = Math.round((wSum / near) * 20) / 20;
+    const room = 2 * (d[Math.floor(d.length * 0.1)] - MIN_MEDIAN);
+    const width = Math.min(target, Math.max(Math.min(6, target), room));
     return Math.abs(width - p.width) < 0.05 ? p : { ...p, width };
   });
 }

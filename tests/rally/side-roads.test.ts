@@ -97,7 +97,13 @@ describe.each(
       for (const side of [-1, 1]) {
         const x = pt.x + nx * hw * side;
         const z = pt.z + nz * hw * side;
-        if (net.query(x, z, pq).path !== pi || pq.distance > hw + 0.1) continue;
+        // (another road there, or another pass of this one: a driveway that loops back beside / over itself)
+        if (
+          net.query(x, z, pq).path !== pi ||
+          pq.distance > hw + 0.1 ||
+          Math.abs(pq.along - a) > 10
+        )
+          continue;
         if (!gen.isCarriageway(pi) && inVerge(x, z)) continue;
         const d = Math.abs(gen.height(x, z) - c);
         if (d > worst) {
@@ -114,13 +120,17 @@ describe.each(
 
   test('smooth along (no elevation-model bumps)', () => {
     const d2: number[] = [];
+    let worst = 0;
+    let at = '';
     net.paths.forEach((p, pi) => {
       if (p.width < 3 || p.bridge || stub(pi)) return;
       let h1 = NaN;
       let h2 = NaN;
       for (let a = 0; a <= net.lengths[pi]; a += 1) {
         net.pointAt(pi, a, pt);
-        const own = net.query(pt.x, pt.z, pq).path === pi;
+        // (not where another pass of the same way runs over / beside it)
+        const own =
+          net.query(pt.x, pt.z, pq).path === pi && Math.abs(pq.along - a) <= 10;
         const near =
           (gen.road.query(pt.x, pt.z, rq).found &&
             rq.distance < rq.halfWidth + 30) ||
@@ -130,7 +140,14 @@ describe.each(
           continue;
         }
         const h = gen.height(pt.x, pt.z);
-        if (!isNaN(h2)) d2.push(Math.abs(h - 2 * h1 + h2));
+        if (!isNaN(h2)) {
+          const v = Math.abs(h - 2 * h1 + h2);
+          d2.push(v);
+          if (v > worst) {
+            worst = v;
+            at = `${p.kind} @${a} m (${pt.x.toFixed(0)}, ${pt.z.toFixed(0)})`;
+          }
+        }
         h2 = h1;
         h1 = h;
       }
@@ -138,7 +155,7 @@ describe.each(
     d2.sort((a, b) => a - b);
     const p99 = d2[Math.floor(d2.length * 0.99)];
     console.info(
-      `[${map.id}] side roads: 1 m curvature p99 ${p99.toFixed(3)} m, max ${d2[d2.length - 1].toFixed(3)} m`,
+      `[${map.id}] side roads: 1 m curvature p99 ${p99.toFixed(3)} m, max ${d2[d2.length - 1].toFixed(3)} m at ${at}`,
     );
     expect(p99).toBeLessThan(0.02);
     expect(d2[d2.length - 1]).toBeLessThan(maxBump);

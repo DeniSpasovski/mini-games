@@ -57,7 +57,7 @@ const box = (
   color = STEEL,
 ): BufferGeometry => solid(new BoxGeometry(w, h, d).translate(x, y, z), color);
 
-const frameOf = (s: RoadSample): Matrix4 =>
+const frameOf = (s: Pick<RoadSample, 'x' | 'y' | 'z' | 'tx' | 'tz'>): Matrix4 =>
   new Matrix4()
     .makeRotationY(Math.atan2(s.tx, s.tz))
     .setPosition(s.x, s.y, s.z);
@@ -136,7 +136,7 @@ export function* gantryMeshJob(
   const solids: BufferGeometry[] = [];
   const maps = new Map<Texture, BufferGeometry[]>();
   for (const g of plans) {
-    const s = world.road.at(g.along);
+    const s = g.frame ?? world.road.at(g.along);
     const built = gantry(g);
     const f = frameOf(s);
     for (const geo of built.solid) solids.push(geo.applyMatrix4(f));

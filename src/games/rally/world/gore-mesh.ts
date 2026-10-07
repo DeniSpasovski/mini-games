@@ -13,7 +13,7 @@ import type { World } from './world';
 export function* goreMeshJob(world: World): Generator<void, Group | undefined> {
   const net = world.gen.paths;
   if (!net || !world.map.goreAreas) return undefined;
-  const wedges = goreWedges(world.road, net);
+  const wedges = goreWedges(world.road, net, world.map.gorePathsFromX);
   if (!wedges.length) return undefined;
   const hf = world.analytic;
   const pos: number[] = [];

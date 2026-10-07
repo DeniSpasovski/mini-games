@@ -419,6 +419,15 @@ export const ASSET_CATALOG: AssetMeta[] = [
     colliders: [{ kind: 'cylinder', r: 0.12, h: 8 }],
   },
   {
+    id: 'tree_pit',
+    name: 'Street tree pit',
+    category: 'props',
+    description:
+      'Square soil pit with a granite edging round a street tree, flat on the sidewalk. No collider.',
+    variants: 1,
+    lods: [{ maxDistance: 90, castShadow: false }],
+  },
+  {
     id: 'traffic_signal',
     name: 'Traffic signal',
     category: 'props',

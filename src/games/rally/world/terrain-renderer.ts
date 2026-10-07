@@ -5,7 +5,7 @@ import {
   Mesh,
   type Vector3,
 } from 'three';
-import { CHUNK_CELLS } from './heightfield';
+import { CHUNK_CELLS, deRidge } from './heightfield';
 import type { TerrainGenerator } from './terrain-gen';
 import {
   getTerrainMaterial,
@@ -445,7 +445,20 @@ export class TerrainGrid {
         const v = j * nx + i;
         const k = (j + 1) * m + (i + 1);
         pos[v * 3] = i * d;
-        pos[v * 3 + 1] = hs[k];
+        // (the same one-cell crest filter as the 1 m heightfield, at this LOD's spacing)
+        // (the two-cell test along x only: the rows two out may not be sampled yet; none at a chunk's side edges)
+        const ex = i === 0 || i === nx - 1;
+        pos[v * 3 + 1] = deRidge(
+          hs[k],
+          ex ? NaN : hs[k - 2],
+          hs[k - 1],
+          hs[k + 1],
+          ex ? NaN : hs[k + 2],
+          NaN,
+          hs[k - m],
+          hs[k + m],
+          NaN,
+        );
         pos[v * 3 + 2] = j * d;
         const dx = hs[k - 1] - hs[k + 1];
         const dz = hs[k - m] - hs[k + m];

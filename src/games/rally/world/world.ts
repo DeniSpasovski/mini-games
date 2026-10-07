@@ -38,7 +38,7 @@ import {
   type CatenaryMast,
 } from './railways';
 import { streetDetail, type StreetDetail } from './street-detail';
-import { goreCushions, goreWedges } from './gore';
+import { goreCushions, goreWedges, inGore } from './gore';
 import { streetDressingInstances } from './street-dressing';
 import {
   DECK_OVERHANG,
@@ -57,6 +57,9 @@ import {
 } from './ground-moisture';
 import { cornerFanInstances } from './corner-fans';
 import { newLakeQuery } from './lakes';
+
+/** A stage-road bridge this far above a street (m) spans it: the street's sidewalks run on beneath. */
+const BENEATH_CLEARANCE = 3;
 
 /**
  * Everything about a map that is not rendering: terrain, road, scatter,
@@ -171,6 +174,9 @@ export class World implements GroundProvider {
           !(rails.length && this.onTrackBed(b)),
       ),
     );
+    // City maps: the built-up cover read lot by lot (TerrainGenerator.yardSplat).
+    if (map.terrain.lotYards)
+      this.gen.buildingDistance = (x, z) => this.buildings.distance(x, z, 16);
     const b = map.bounds;
     const m = RENDER_MARGIN * 0.6;
     this.scatter = new ScatterField(
@@ -261,6 +267,12 @@ export class World implements GroundProvider {
           laneWalls(p, lanesNet, (pi) => this.gen.isParkwayLane(pi)),
         )
       : [];
+    // Gore wedges between the stage road and a ramp leaving / joining it (hatched paint): no barrier on them - it
+    // starts at the wedge's nose, behind the crash cushion.
+    const wedges =
+      map.goreAreas && this.gen.paths
+        ? goreWedges(this.road, this.gen.paths, map.gorePathsFromX)
+        : [];
     // A barrier on a tunnel wall's line: the wall is the barrier there.
     const onLaneWall = (x: number, z: number): boolean =>
       this.laneWalls.some((run) =>
@@ -291,7 +303,7 @@ export class World implements GroundProvider {
       mouths,
       net
         ? (x, z, along) => {
-            if (onLaneWall(x, z)) return true;
+            if (onLaneWall(x, z) || inGore(wedges, x, z)) return true;
             // The opposite carriageway is what the median barrier separates: only ramps / streets break a run.
             net.query(
               x,
@@ -376,14 +388,16 @@ export class World implements GroundProvider {
         net: this.gen.paths,
         roadDistance: (x, z) => near(x, z).d,
         blocked: (x, z, r) => this.buildings.contains(x, z, r),
-        underpass: (pi, a) =>
-          this.gen.isUnderpass(pi) && this.gen.underpassDipAt(pi, a) > 1,
+        underpass: (pi, a) => this.beneathStage(pi, a),
         skip: (pi) => this.gen.isParkwayLane(pi),
         deck: (pi) => this.gen.isPortalDeck(pi),
         plaza: this.gen.plazas.empty
           ? undefined
           : (x, z, pad) => this.gen.plazas.inside(x, z, pad),
         plazaCrosswalks: !!map.plazaCrosswalks?.length,
+        core: this.gen.plazas.empty
+          ? undefined
+          : (x, z, pad) => this.gen.plazas.insideCore(x, z, pad),
       });
     }
     if (map.streetDressing)
@@ -397,25 +411,23 @@ export class World implements GroundProvider {
         pathHeight: (pi, a) => this.gen.pathHeight(pi, a),
         blocked: (x, z, r) =>
           this.buildings.contains(x, z, r) || this.keptClear(x, z),
-        underpass: (pi, a) =>
-          this.gen.isUnderpass(pi) && this.gen.underpassDipAt(pi, a) > 1,
+        underpass: (pi, a) => this.beneathStage(pi, a),
         streetDetail: this.streetDetail,
         paved: (x, z) => this.gen.plazas.inside(x, z, 1),
         islands: this.gen.plazas.islands,
         signals: map.plazaSignals,
         trees: map.plazaTrees,
+        streetTrees: map.streetTrees,
         islandTop: (x, z) =>
           this.gen.plazas.surface(x, z) ?? this.gen.height(x, z),
         sidewalk: map.cityStreets?.sidewalk ?? 1.5,
         lampEvery: map.cityStreets?.lampEvery ?? 0,
       }))
         this.scatter.addFixed(inst);
-    if (map.goreAreas && this.gen.paths)
-      for (const inst of goreCushions(
-        goreWedges(this.road, this.gen.paths),
-        (x, z) => this.analytic.height(x, z),
-      ))
-        this.scatter.addFixed(inst);
+    for (const inst of goreCushions(wedges, (x, z) =>
+      this.analytic.height(x, z),
+    ))
+      this.scatter.addFixed(inst);
     this.hasDecks = this.gen.hasDecks;
     this.piers = this.deckPiers();
     for (const c of this.pierColliders(this.piers))
@@ -497,6 +509,25 @@ export class World implements GroundProvider {
       return true;
     return this.buildings.contains(x, z, 1);
   }
+
+  /**
+   * Street `pi` at `a` m passes beneath the stage road: dipped under a deck, or at grade under a stage-road bridge that
+   * stands well above it (its sidewalks run on under the deck).
+   */
+  private beneathStage(pi: number, a: number): boolean {
+    if (!this.gen.isUnderpass(pi)) return false;
+    if (this.gen.underpassDipAt(pi, a) > 1) return true;
+    const pt = this.beneathPt;
+    this.gen.paths!.pointAt(pi, a, pt);
+    const q = this.road.query(pt.x, pt.z, this.beneathRq);
+    return (
+      q.found &&
+      !!this.road.bridgeAt(q.along) &&
+      q.height - this.gen.pathHeight(pi, a) > BENEATH_CLEARANCE
+    );
+  }
+  private beneathPt = { x: 0, z: 0 };
+  private beneathRq = newRoadQuery();
 
   /** A landmark keeps junction dressing off (x, z) (Landmark.keepsClear). */
   private keptClear(x: number, z: number): boolean {

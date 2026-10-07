@@ -132,7 +132,23 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   `groundOverride` (`world/landmarks.ts`, `pads.ts`; `maps/ajvatovci/start-row`, `hilltop`, `station`).
 - **City maps** (`jackie`): one-way carriageways, bridges and decks, portals, junction plazas, parkway lanes, continuous
   barriers, retaining walls, gores, overhead signs, kerbs / crosswalks / lamps, parked vehicles (`world/bridge-mesh.ts`,
-  `portals.ts`, `plazas.ts`, `parkway-lanes.ts`, `barriers.ts`, `cut-wall-mesh.ts`, `street-detail.ts`).
+  `portals.ts`, `plazas.ts`, `parkway-lanes.ts`, `barriers.ts`, `cut-wall-mesh.ts`, `street-detail.ts`). Streets with the
+  street model (`PathDef.layout`) get a paint layer (`street-markings.ts` lines, `street-glyphs.ts` stop bars / arrows / bike
+  symbols, `merge-paint.ts` at carriageway splits), measured sidewalks, tree lawns and driveway kerb cuts; `terrain.lotYards`
+  greens the yards; `overheadSigns.splits` puts guide gantries over an interchange. The height grids drop one- and two-cell
+  crests (`deRidge`, `world/heightfield.ts`): a row of spikes where two terrain carves leave a thin strip between them.
+- **Surveyed heights and walls** (`jackie`, worked example in its DETAILS "Survey heights and retaining walls"): `road.heights`
+  (spot elevations on the stage road, `Road.applyHeights`), `streetHeights` (`TerrainGenerator.spotCorrections`),
+  `road.bridgeClearance` and a span's `clearance` / `ramp` / `open`, `retainingWalls` (terrain step `applyWalls` + the wall in
+  `cut-wall-mesh.ts`, `world/retaining-walls.ts`), measured bridge outlines (`decksInOutline` in `maps/shared/deck-fit.ts` +
+  `deckStructures`: every street inside is deck, on one plane through the spots, `TerrainGenerator.onDeckStructures`).
+  Tests: `tests/rally/jackie-survey.test.ts`, `deck-fit.test.ts`.
+- **Junction cores** (`junctionAreas`, `world/plazas.ts` `insideCore`): one source (the survey's street surface), no ribbons or paint
+  inside; the streets leading in get a crosswalk at the core edge (`street-detail.ts`). `ribbonAreas` keep the ribbons.
+- **Network rules** (all maps): a side road is never joined to the stage road across another carriageway / parkway lane
+  (`connectPaths`); lane paint stops where another street crosses or meets at its level (`road-mesh.ts` `crossed`); the barrier
+  breaks over a gore wedge and starts behind its crash cushion (`gore.ts` `inGore`); a twin deck end that continues into another deck
+  is not grown (`alignTwinDeckEnds`).
 
 City-map rules (streets keep their own height line, no terrain through decks, bug-fix workflow): rally-maps skill "Bridges and
 underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-roads`, `water`, `railways`, `stage-signs`.

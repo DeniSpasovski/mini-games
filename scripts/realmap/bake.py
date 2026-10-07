@@ -165,10 +165,10 @@ def read_geotiff(path, member=None):
 def usgs3dep_sampler(lat0, lat1, lon0, lon1, cell_m):
     """USGS 3DEP bare-earth DEM (lidar where available, public domain) for a lat / lon box, from the
     3DEPElevation ImageServer: the box is fetched in <= 2000 px tiles of ~cell_m metres (cached as .npy)
-    and mosaicked -> same (sample, weight) pair as geotiff_sampler. US only."""
-    lat_m = (lat0 + lat1) / 2
-    sy = cell_m / 111132.0
-    sx = cell_m / (111320.0 * math.cos(math.radians(lat_m)))
+    and mosaicked -> same (sample, weight) pair as geotiff_sampler. US only.
+    The server keeps the requested image size but makes the pixels square in degrees, widening the box's narrow side
+    about its centre: the tiles ask for square pixels (cell_m north-south, finer east-west), so they come back as asked."""
+    sx = sy = cell_m / 111132.0
     cols = int(math.ceil((lon1 - lon0) / sx))
     rows = int(math.ceil((lat1 - lat0) / sy))
     a = np.zeros((rows, cols), np.float32)
@@ -1155,6 +1155,10 @@ def main():
         for k, w, s, p, nj, ex in paths
     ]
     print(f'  {len(path_json)} paths ({sum(1 for q in path_json if q.get("bridge"))} on bridges)')
+    if 'streets' in cfg:  # city street model of the END BOX (real widths, lanes, sidewalks, paving): streets.py
+        import streets
+
+        streets.apply(path_json, proj, (nodes, ntags, ways), cfg['streets'])
     paths = [q[:4] for q in paths]
 
     print('buildings...')

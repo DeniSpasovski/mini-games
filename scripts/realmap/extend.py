@@ -68,6 +68,9 @@ def main():
     data = json.load(open(out))
     meta = data['meta']
     prev = meta.get('extend')
+    # east.py's additions (grid tagged "east", paths appended after this ring's) come after this script: dropped, re-run it
+    meta.pop('east', None)
+    data['heightmap']['grids'][:] = [g for g in data['heightmap']['grids'] if g.get('tag') != 'east']
     if prev:  # drop what the previous run added
         data['heightmap']['grids'].pop(1)
         data['paths'] = data['paths'][: prev['paths']]

@@ -10,6 +10,7 @@ import {
 import { SLAB_T } from './portals';
 import { newRoadQuery } from './road';
 import { newPathQuery } from './real-data';
+import { newWallQuery } from './retaining-walls';
 import {
   APPROACH_WALL,
   CUT_RISE,
@@ -39,6 +40,8 @@ const STREETS = new Set([
 ]);
 /** Walls lower than this are not built (the terrain slope reads fine) (m). */
 const MIN_H = 0.9;
+/** A carriageway's cut wall row with a surveyed wall this close behind its face is left to the survey (m). */
+const SURVEY_NEAR = 3;
 /** Underpass wall lines run this far past the ends of their way (m): a small overlap at the mitred joints. */
 const WALL_EXT = 0.3;
 /** Longest piece of one mesh (m of road). */
@@ -141,6 +144,7 @@ export function* cutWallMeshJob(
   // Beside the parkway (the stage road or a carriageway, within its verge + cut-wall zone) an underpass wall never
   // stands above that road: the land higher up behind is the parkway's own cut, not the trench's.
   const wq = newRoadQuery();
+  const sq = newWallQuery();
   const cq = newPathQuery();
   const zone = def.shoulder + cw.offset + CUT_SETBACK + 2;
   const parkwayCap = (x: number, z: number): number => {
@@ -313,6 +317,20 @@ export function* cutWallMeshJob(
       [0.9, 0.88, 0.84],
       false,
     );
+    // Square ends: the wall stops with a flat end face 0.4 m deep (a one-sided strip showed its open back as a slanted sliver
+    // where the approach street meets the land).
+    for (const r of [rows[0], rows[rows.length - 1]]) {
+      const f = at(r, r.lat);
+      const b = at(r, r.lat - sgn * 0.4);
+      const top = r.y + 0.14;
+      conc.wall(
+        [
+          { ...f, bot: r.bot, top },
+          { ...b, bot: r.bot, top },
+        ],
+        CONC,
+      );
+    }
     group.add(conc.build(mats.concrete));
   };
 
@@ -427,7 +445,16 @@ export function* cutWallMeshJob(
         let top = NaN;
         let lat = side * (s.hw + line.offset - 0.05);
         let back = lat + side * (CUT_SETBACK + CUT_RISE + 0.35);
-        if (!line.skip(d)) {
+        // A carriageway's cut wall gives way to a surveyed wall standing there (one wall, the real line).
+        const surveyed =
+          line.path !== undefined &&
+          !!gen.walls?.query(
+            s.x + s.tz * (lat + side * 1.5),
+            s.z - s.tx * (lat + side * 1.5),
+            SURVEY_NEAR,
+            sq,
+          ).found;
+        if (!line.skip(d) && !surveyed) {
           const lq = lat + side * (CUT_SETBACK + CUT_RISE + 0.45);
           const qx = s.x + s.tz * lq;
           const qz = s.z - s.tx * lq;
@@ -561,6 +588,87 @@ export function* cutWallMeshJob(
             ),
         });
         if (Math.round(d + ext) % 100 === 0) yield;
+      }
+      build(rows);
+      yield;
+    }
+  }
+  // Surveyed retaining walls (MapDef.retainingWalls): the face on the line, from the foot to the top of the terrain's
+  // step (TerrainGenerator.applyWalls), the coping walk over the step behind it; the parkway's style where they stand.
+  const walls = gen.walls;
+  if (walls) {
+    const p = { x: 0, z: 0, tx: 0, tz: 0 };
+    const sideAt = (w: number, a: number): number => {
+      const acc = walls.acc[w];
+      let i = 0;
+      while (i < acc.length - 2 && acc[i + 1] < a) i++;
+      return walls.sides[w][i] || walls.sides[w][i + 1];
+    };
+    for (let w = 0; w < walls.length; w++) {
+      const acc = walls.acc[w];
+      const L = acc[acc.length - 1];
+      let rows: WallRow[] = [];
+      for (let a0 = 0; a0 < L + STEP - 1e-6; a0 += STEP) {
+        const a = Math.min(a0, L);
+        walls.pointAt(w, a, p);
+        const side = sideAt(w, a);
+        const low = walls.valueAt(walls.lows[w], w, a);
+        let top = walls.valueAt(walls.highs[w], w, a);
+        const back = side * (CUT_SETBACK + CUT_RISE + 0.35);
+        if (side) {
+          const bx = p.x + p.tz * back;
+          const bz = p.z - p.tx * back;
+          top = Math.min(top, soffitAt(p.x, p.z), soffitAt(bx, bz));
+          road.query(p.x, p.z, wq);
+          // Not across a road (the line reaches a junction / the parkway's edge), nor where the stage road's own cut
+          // wall already stands (a trench fill at the overlook): one wall, not two half a metre apart.
+          const zone = def.shoulder + cw.offset + CUT_SETBACK + 2;
+          if (
+            (wq.found && wq.distance <= wq.halfWidth + def.shoulder) ||
+            (wq.found &&
+              wq.distance <= wq.halfWidth + zone &&
+              gen.cutWeightAt(
+                p.x,
+                p.z,
+                gen.naturalHeight(p.x, p.z, false) - wq.height,
+                wq.along,
+                wq.height,
+              ) > 0.6) ||
+            (net &&
+              net.query(p.x, p.z, oq, 'tarmac', (qi) => !net.paths[qi].bridge)
+                .found &&
+              oq.distance <= oq.halfWidth + 0.3)
+          )
+            top = NaN;
+        }
+        if (!side || !(top - low > MIN_H)) {
+          build(rows);
+          rows = [];
+          continue;
+        }
+        road.query(p.x, p.z, rq);
+        rows.push({
+          x: p.x,
+          z: p.z,
+          y: low,
+          tx: p.tx,
+          tz: p.tz,
+          d: a,
+          lat: side * 0.001,
+          back,
+          top,
+          concrete: rq.found && rq.distance < 120 && rq.along >= concreteFrom,
+          fence: !onStreet(
+            p.x + p.tz * side * 0.3,
+            p.z - p.tx * side * 0.3,
+            top,
+          ),
+        });
+        if (rows.length >= PIECE / STEP) {
+          const last = rows[rows.length - 1];
+          build(rows);
+          rows = [last];
+        }
       }
       build(rows);
       yield;

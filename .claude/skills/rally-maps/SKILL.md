@@ -155,8 +155,16 @@ City maps (example `maps/jackie/`, config `scripts/realmap/jackie.json`) - extra
 
 - `osm: { source: "overpass" }` (`scripts/realmap/overpass.py`): the plain OSM API refuses a city-sized box. Base query for the
   whole box, then buildings only within `buildings.corridor` m of the route (default 220: a wide map must not model
-  every building). Needs `curl` (TLS). `paths: { corridor, highwayCorridor }` limit the other roads the same way.
+  every building). Needs `curl` (TLS). `paths: { corridor, highwayCorridor }` limit the other roads the same way. To grow a
+  baked map without moving anything already there: `scripts/realmap/east.py` / `west.py` (a scratch bake with a second OSM box,
+  only the missing paths / buildings / land cover appended; `maps/jackie/DETAILS.md` "East / West extension").
 - `dem: { source: "3dep", cell: 5 }`: USGS 3DEP lidar bare earth (US only, public domain) - no `canopy` to subtract.
+  `scripts/realmap/regrid.py <config>` re-samples a baked map's heightmap grids from it in place (no re-bake). Check a new
+  map's grid against independent heights (USGS point service, city spot elevations) before tuning structures on it.
+- Surveyed data (worked example `maps/jackie/DETAILS.md` "Survey heights and retaining walls"): `road.heights` (spot elevations on
+  the stage road: decks / fills a bare-earth DEM drops), `streetHeights` (on the streets), `road.bridgeClearance` / a span's
+  `clearance`, `ramp`, `open` (measured structures), `retainingWalls` (wall lines: terrain step + wall mesh), a measured bridge
+  outline: `decksInOutline` (`maps/shared/deck-fit.ts`, every street inside is deck) + `deckStructures` (one plane through its spots).
 - `route: { highways: true, offHighwayCost: 5 }`: the stage may follow motorway / parkway carriageways (one-way respected);
   the bake prints the OSM roads the route follows. The other carriageway, ramps and cross streets become `paths`
   with `bridge` / `layer` / `lanes` / `oneway` / `name`.
@@ -171,16 +179,22 @@ City maps (example `maps/jackie/`, config `scripts/realmap/jackie.json`) - extra
   buildings (`world/building-mesh.ts`: real outline, OSM `height`, facade textures in `engine/facade-textures.ts`).
 - More city options (see the rally DETAILS.md "City maps"): `pathBarriers` (Jersey / guard rail along the opposite carriageway),
   `road.cutWalls` (sheer cuts with a stone retaining wall; `concreteFrom` = concrete + chain-link), `goreAreas` (hatched wedge between the road and a shallow ramp), `junctionPlazas` (outline of a big junction on a portal slab: one plain asphalt box, no crossing ribbons), `junctionAreas` +
-  `plazaIslands` / `plazaCrosswalks` / `plazaSignals` / `plazaTrees` (the whole street space around a junction from open
-  surface data: height field, islands, markings, furniture; worked example `maps/jackie/DETAILS.md` "Kew Gardens junction"), `parkwayLanes` (streets OSM draws beside the carriageways that really run down in the cut: treated as carriageways), `cityStreets` (city asphalt, kerbs, sidewalks, crosswalks, lamps),
+  `plazaIslands` / `plazaSignals` / `plazaTrees` (a junction core from ONE source, the survey's street surface: no ribbons or paint
+  inside, height field, islands, furniture, crosswalks at its mouths; `ribbonAreas` keep the street ribbons + `plazaCrosswalks`;
+  never mix OSM ribbons and survey islands in one box; NYC intersection polygons -> cores: `plaza_islands.py --cores`; worked
+  example `maps/jackie/DETAILS.md` "Kew Gardens junction"), an opposite carriageway placed at its real distance from the stage road
+  (`carriageway_offset.py`, `maps/shared/carriageway-shift.ts`), `parkwayLanes` (streets OSM draws beside the carriageways that really run down in the cut: treated as carriageways), `cityStreets` (city asphalt, kerbs, sidewalks, crosswalks, lamps),
   `streetDressing` (parked cars, crowds, police / ambulance / fire vehicles), `overheadSigns` (green "EXIT n" gantries from the
   ramps + hand-placed boards), `road.trenchFills` (pad the land where the lidar has a void beside a sunken stretch). Streets
   crossing over a tunnelled parkway (`under` spans) become bridge decks automatically (`world/under-bridges.ts`) and the span
   becomes a portal structure (`world/portals.ts`: slab, headwalls with name / clearance plates, railings, median piers; the
   street grid on top is padded to the slab top). Overpass decks and junction plazas are drivable in free roam. Bridges / underpasses: see "Bridges and underpasses (city maps)" below.
 - Looking at a map in the preview pane (it renders one frame every few seconds): `window.__mapViewer.look(cx, cy, cz, lx, ly, lz, fov)`
-  parks the camera and streams all terrain + instances around it; wait ~10-30 s, then screenshot. Helpers to build camera
-  positions along the road: `world.road.at(d)` (x, y, z, tx, tz), lateral `x + tz * l, z - tx * l`.
+  parks the camera and streams all terrain + instances around it; wait ~10-30 s, then screenshot. Right after a page load
+  call `window.__mapViewer.pump(5000)` in a loop until it returns true first (a single long `look()` gets cut off by the
+  tool's timeout and leaves the road job stuck: "Generator is already running"). `clean=1&road=0&labels=0` in the URL
+  hides the panel and debug layers for review shots. Helpers to build camera positions along the road: `world.road.at(d)`
+  (x, y, z, tx, tz), lateral `x + tz * l, z - tx * l`.
 - Power lines: `MapDef.pylons` / `powerLines` (baked from OSM, `data.pylons` / `data.powerLines`) become `power_pylon` / `power_pole` instances + cables
   (`world/power-lines.ts`). Scatter option `channelDist: [min, max]` = only within that distance of a canal / drain edge (willows, reeds).
 - Railways: `MapDef.railways` = `data.railways` (baker `railway_lines`: OSM `railway=rail`, electrified flag). Tracks become

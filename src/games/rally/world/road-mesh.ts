@@ -19,10 +19,15 @@ import { powerLineMeshJob } from './power-line-mesh';
 import { railMeshJob } from './rail-mesh';
 import { streetDetailMeshJob } from './street-detail-mesh';
 import { newRoadQuery } from './road';
+import { newPathQuery } from './real-data';
 import { gantryMeshJob } from './gantry-mesh';
 import { goreMeshJob } from './gore-mesh';
 import { junctionFillets } from './junctions';
 import { plazaMeshJob } from './plaza-mesh';
+import { mergePaint } from './merge-paint';
+import { junctionGlyphs } from './street-glyphs';
+import { baseTexture, hasMarkings, straightJoint } from './street-markings';
+import { type MarkRow, MarkingBuilder } from './street-markings-mesh';
 import { stageSignMeshJob } from './stage-sign-mesh';
 import { buildingMeshJob } from './building-mesh';
 import { waterMeshJob } from './water-mesh';
@@ -41,7 +46,10 @@ const ACROSS = [-1.04, -0.66, -0.33, 0, 0.33, 0.66, 1.04];
 export const texLength = (t: RoadTexture): number =>
   t === 'road_parkway' || t === 'road_street4'
     ? 12
-    : t === 'road_street' || t === 'road_city'
+    : t === 'road_street' ||
+        t === 'road_city' ||
+        t === 'asphalt_street' ||
+        t === 'asphalt_highway'
       ? 8
       : 7;
 /** City streets (OSM kinds) that get city asphalt on maps with `cityStreets`. */
@@ -70,7 +78,12 @@ export const pathTexture = (
         : width >= 6.4
           ? 'road_street'
           : 'road_city'
-      : 'road_tarmac';
+      : city
+        ? // a city map has no village tarmac: ramps / narrow carriageways get highway asphalt, service roads city asphalt
+          /^(motorway|trunk)/.test(kind) || kind.endsWith('_link')
+          ? 'asphalt_highway'
+          : 'road_city'
+        : 'road_tarmac';
 const SEGMENT = 64; // samples per mesh
 
 const roadMaterials = new Map<string, MeshStandardMaterial>();
@@ -282,6 +295,23 @@ function* stageRoadJob(
 const PATH_ACROSS = [-1, -0.5, 0, 0.5, 1];
 const PATH_STEP = 3; // m between ribbon rows
 const PATH_TILE = 256; // m, one merged mesh per tile
+/** A street's end lies inside the street it meets for at most this long (m). */
+const MEET_REACH = 30;
+
+/**
+ * Where the paint of a street starts (`atEnd` false) / ends: past the rows at that end that lie inside another street
+ * (`MarkRow.skip`), m along. A stop bar stands before them, not in the cross street.
+ */
+function freeFrom(rows: readonly MarkRow[], atEnd: boolean): number {
+  const n = rows.length;
+  const L = rows[n - 1].d;
+  for (let k = 0; k < n; k++) {
+    const r = rows[atEnd ? n - 1 - k : k];
+    if (!r.skip) return r.d;
+    if ((atEnd ? L - r.d : r.d) > MEET_REACH) break;
+  }
+  return atEnd ? L : 0;
+}
 
 /**
  * Paved non-stage roads (village streets, motorway, ...) as terrain-hugging ribbons,
@@ -408,9 +438,13 @@ function* pathMeshesJob(
     if (pts.length < 2) continue;
     const mid = pts[pts.length >> 1];
     // A lane in the highway's cut (MapDef.parkwayLanes) is a carriageway: lane markings, no centre line.
-    const tex = world.gen.isParkwayLane(world.gen.paths!.paths.indexOf(p))
+    const isLane = world.gen.isParkwayLane(world.gen.paths!.paths.indexOf(p));
+    // Streets that carry the street model: base asphalt at true scale, the lines come from the marking layer.
+    const tex: RoadTexture = isLane
       ? 'road_parkway'
-      : pathTexture(p.kind, p.width, !!world.map.cityStreets);
+      : world.map.cityStreets && hasMarkings(p)
+        ? baseTexture(p)
+        : pathTexture(p.kind, p.width, !!world.map.cityStreets);
     const key = `${tex}:${Math.floor(mid[0] / PATH_TILE)},${Math.floor(mid[1] / PATH_TILE)}`;
     let list = byTile.get(key);
     if (!list) {
@@ -437,6 +471,51 @@ function* pathMeshesJob(
   const group = new Group();
   group.name = 'paths';
   parent.add(group);
+  const markings = new MarkingBuilder();
+  // Lane lines stop where another street's carriageway crosses or meets this one (at its level, not along it): NYC paints
+  // no lines inside an intersection, and the ways' paint crossed in a mesh of lines. Driveways / service ways do not
+  // break a street's lines (except in a junction box that keeps its ribbons, MapDef.ribbonAreas).
+  const xq = newPathQuery();
+  const xa = { x: 0, z: 0 };
+  const xb = { x: 0, z: 0 };
+  const crossed = (
+    pi: number,
+    x: number,
+    z: number,
+    tx: number,
+    tz: number,
+    y: number,
+  ): boolean => {
+    const net = world.gen.paths!;
+    const plazas = world.gen.plazas;
+    const box = !plazas.empty && plazas.keepsRibbons(x, z);
+    net.query(
+      x,
+      z,
+      xq,
+      'tarmac',
+      (qi) =>
+        qi !== pi &&
+        !net.paths[qi].bridge &&
+        (box || net.paths[qi].kind !== 'service'),
+    );
+    if (!xq.found || xq.distance > net.halfWidthAt(xq.path, xq.along))
+      return false;
+    if (Math.abs(world.gen.pathHeight(xq.path, xq.along) - y) > 1.5)
+      return false;
+    const L = net.lengths[xq.path];
+    net.pointAt(xq.path, Math.max(0, xq.along - 2), xa);
+    net.pointAt(xq.path, Math.min(L, xq.along + 2), xb);
+    const l = Math.hypot(xb.x - xa.x, xb.z - xa.z) || 1;
+    return Math.abs(((xb.x - xa.x) * tx + (xb.z - xa.z) * tz) / l) < 0.9;
+  };
+  // the crosswalks per street (street-detail.ts): stop bars stand before them
+  const crossingsOf = new Map<number, { at: number; atEnd: boolean }[]>();
+  for (const c of world.streetDetail?.crossings ?? []) {
+    const list = crossingsOf.get(c.path) ?? [];
+    list.push(c);
+    crossingsOf.set(c.path, list);
+  }
   for (const key of keys) {
     const tile = tiles.get(key)!;
     for (const { p, pts } of byTile.get(key) ?? []) {
@@ -448,7 +527,13 @@ function* pathMeshesJob(
       const pi = net.paths.indexOf(p);
       // (the carriageways / parkway lanes run down in the trench under a plaza: drawn)
       const onTop = !world.gen.isCarriageway(pi);
+      const marked =
+        !!world.map.cityStreets &&
+        hasMarkings(p) &&
+        !world.gen.isParkwayLane(pi);
+      const markRows: MarkRow[] = [];
       for (let r = 0; r < pts.length; r++) {
+        const rowTops: number[] = [];
         // Lane drops / gains taper (the width meets the continuing way's), see PathNetwork.halfWidthAt.
         const hw = net.halfWidthAt(pi, pts[r][2]);
         let a: number[] = pts[Math.max(0, r - 1)];
@@ -502,13 +587,31 @@ function* pathMeshesJob(
                 : Math.min(top, ph + 0.01);
           }
           tile.pos.push(x, top, z);
+          rowTops.push(top);
           // One normal per row (taken at the centre): the ribbons are flat roads, and this saves four height samples per vertex.
           tile.nor.push(nTmp.x, nTmp.y, nTmp.z);
+          // (modelled streets: metres across, so the same asphalt at any width)
           tile.uv.push(
-            1 - (PATH_ACROSS[c] + 1) / 2,
+            marked ? lat / 8 : 1 - (PATH_ACROSS[c] + 1) / 2,
             pts[r][2] / texLength(tile.tex),
           );
         }
+        if (marked)
+          markRows.push({
+            x: pts[r][0],
+            z: pts[r][1],
+            tx,
+            tz,
+            hw,
+            d: pts[r][2],
+            y: rowTops,
+            skip:
+              (onTop &&
+                !plazas.empty &&
+                plazas.inside(pts[r][0], pts[r][1]) &&
+                !plazas.keepsRibbons(pts[r][0], pts[r][1])) ||
+              crossed(pi, pts[r][0], pts[r][1], tx, tz, prof),
+          });
         if (r % 256 === 255) yield;
       }
       for (let r = 0; r < pts.length - 1; r++) {
@@ -527,9 +630,31 @@ function* pathMeshesJob(
           tile.idx.push(a, d, d + 1, a, d + 1, a + 1);
         }
       }
+      if (marked) {
+        const len = pts[pts.length - 1][2];
+        markings.addPath(
+          p,
+          markRows,
+          len,
+          straightJoint(paths, p, false),
+          straightJoint(paths, p, true),
+          mergePaint(paths, p),
+        );
+        markings.addGlyphs(
+          p,
+          markRows,
+          junctionGlyphs(p, len, crossingsOf.get(pi) ?? [], p.width, [
+            freeFrom(markRows, false),
+            freeFrom(markRows, true),
+          ]),
+        );
+      }
       yield;
     }
-    const mat = getRoadMaterial(tile.tex, tile.tex === 'road_parkway' ? 2 : 1);
+    const mat = getRoadMaterial(
+      tile.tex,
+      tile.tex === 'road_parkway' || tile.tex === 'asphalt_highway' ? 2 : 1,
+    );
     const g = new BufferGeometry();
     g.setAttribute(
       'position',
@@ -548,4 +673,7 @@ function* pathMeshesJob(
     group.add(mesh);
     yield;
   }
+  // The paint of the modelled streets.
+  const paint = markings.build();
+  if (paint) parent.add(paint);
 }

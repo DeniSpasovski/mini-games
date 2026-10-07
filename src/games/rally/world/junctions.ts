@@ -84,6 +84,54 @@ export function connectPaths(
         }
     return false;
   };
+  // The other carriageways of the highway (and the lanes beside them in the cut): a street end never reaches the stage
+  // road across them (a dead end at the rim of the cut was extended over the opposite lanes, 2.5 m above them).
+  const lanes: number[] = [];
+  for (const p of paths)
+    if (
+      !p.bridge &&
+      p.surface === 'tarmac' &&
+      (/^(motorway|trunk)$/.test(p.kind) || p.parkwayLane)
+    )
+      for (let k = 0; k + 3 < p.pts.length; k += 2)
+        lanes.push(
+          p.pts[k],
+          p.pts[k + 1],
+          p.pts[k + 2],
+          p.pts[k + 3],
+          p.width / 2,
+        );
+  const LCELL = 16;
+  const laneGrid = new Map<number, number[]>();
+  for (let s = 0; s < lanes.length; s += 5) {
+    const r = lanes[s + 4];
+    const x0 = Math.floor((Math.min(lanes[s], lanes[s + 2]) - r) / LCELL);
+    const x1 = Math.floor((Math.max(lanes[s], lanes[s + 2]) + r) / LCELL);
+    const z0 = Math.floor((Math.min(lanes[s + 1], lanes[s + 3]) - r) / LCELL);
+    const z1 = Math.floor((Math.max(lanes[s + 1], lanes[s + 3]) + r) / LCELL);
+    for (let cx = x0; cx <= x1; cx++)
+      for (let cz = z0; cz <= z1; cz++) {
+        const key = cellKey(cx, cz);
+        const list = laneGrid.get(key);
+        if (list) list.push(s);
+        else laneGrid.set(key, [s]);
+      }
+  }
+  const onLane = (x: number, z: number): boolean => {
+    for (const s of laneGrid.get(
+      cellKey(Math.floor(x / LCELL), Math.floor(z / LCELL)),
+    ) ?? []) {
+      const ax = lanes[s];
+      const az = lanes[s + 1];
+      const ex = lanes[s + 2] - ax;
+      const ez = lanes[s + 3] - az;
+      const l2 = ex * ex + ez * ez || 1e-9;
+      const t = Math.max(0, Math.min(1, ((x - ax) * ex + (z - az) * ez) / l2));
+      if (Math.hypot(ax + ex * t - x, az + ez * t - z) <= lanes[s + 4])
+        return true;
+    }
+    return false;
+  };
   const out = paths.map((p, pi) => {
     // Water, roads the baker marked as passing over / under the stage road (no junction), bridge decks.
     if (p.surface === 'water' || p.junction === false || p.bridge) return p;
@@ -119,6 +167,8 @@ export function connectPaths(
           hit = t;
           break;
         }
+        // Across another carriageway: not a junction of the stage road.
+        if (onLane(ex + dx * t, ez + dz * t)) break;
       }
       if (hit < 0) continue;
       // No junction where the stage road is on a bridge or under a structure (a street cannot join a deck or a

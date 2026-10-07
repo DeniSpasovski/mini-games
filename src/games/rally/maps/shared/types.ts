@@ -96,6 +96,8 @@ export interface MapDef {
    * (the gore area of a highway exit). City maps with a divided highway.
    */
   goreAreas?: boolean;
+  /** Gore wedges also where a ramp leaves / joins a `motorway` carriageway of the road network, on ramps east of this x (the Jackie interchange). */
+  gorePathsFromX?: number;
   /**
    * Junction plazas: outlines (`[x0, z0, x1, z1, ...]`, world m) of big city intersections on top of a portal slab
    * (`RoadSpan` kind `under`). Inside one the junction is a single plain asphalt surface at the slab top: no street
@@ -127,6 +129,8 @@ export interface MapDef {
   plazaSignals?: number[];
   /** Street trees on the junction areas' sidewalks (`[x, z, trunk diameter in inches, ...]`, world m). */
   plazaTrees?: number[];
+  /** Street trees of a city map: flat [x, z, trunk diameter (inch), ...] (NYC Street Tree Census), placed off roads / buildings / plazas. */
+  streetTrees?: number[];
   /** Hand-placed props. */
   props: PropPlacement[];
   /**
@@ -153,6 +157,22 @@ export interface MapDef {
   landcover?: LandcoverDef;
   /** Other roads, tracks and canals (not the stage road): ribbons, splat paint, canal carving. */
   paths?: PathDef[];
+  /**
+   * Surveyed heights on the streets [x, z, y] (world m, y after the heightmap offset): each ground street's profile is
+   * corrected to the ones on its carriageway before it is smoothed (spots standing above the land, on decks, are not used).
+   */
+  streetHeights?: [number, number, number][];
+  /**
+   * Surveyed retaining walls (polylines `[x0, z0, x1, z1, ...]`, world m): the terrain steps at each line - the land
+   * held at its top on the high side, at its foot on the other - and a wall stands on it (world/retaining-walls.ts).
+   */
+  retainingWalls?: number[][];
+  /**
+   * Measured bridge structures: a survey outline (`[x0, z0, x1, z1, ...]`, world m) and the spot elevations on it ([x, z, y],
+   * y after the heightmap offset). Every deck inside lies on the plane through those spots - one surface for the street
+   * and its ramps (`maps/shared/deck-fit.ts` `decksInOutline` turns the streets inside into decks).
+   */
+  deckStructures?: { outline: number[]; heights: [number, number, number][] }[];
   /** Lakes / ponds / reservoirs (OSM natural=water): carved basin + flat water surface. */
   lakes?: LakeDef[];
   /** Placeholder buildings from real footprints (house_pitched / building_flat assets). */
@@ -355,6 +375,37 @@ export interface PathDef {
   lanes?: number;
   /** Road name (motorways / main roads). */
   name?: string;
+  /**
+   * Street model of a city map (`scripts/realmap/streets.py`, Jackie END BOX): measured from the NYC planimetric roadbed +
+   * centreline data. `lanes` stays the baked value; `width` = `curbWidth` for streets and ramps.
+   */
+  /** Curb to curb width (m) measured from the roadbed outline (else the centreline data's street width). */
+  curbWidth?: number;
+  /** Travel lanes with (`fwd`) / against (`back`) the path direction, parking / bike lanes left / right of it, shoulder m per side. */
+  layout?: {
+    fwd: number;
+    back: number;
+    parkL: number;
+    parkR: number;
+    bikeL: number;
+    bikeR: number;
+    shoulder: number;
+  };
+  /** Sidewalk width left / right of the path direction (m, 0 = none). */
+  sidewalk?: [number, number];
+  /** Tree lawn (grass strip) between the kerb and the sidewalk, left / right (m; absent = none). */
+  lawn?: [number, number];
+  /** Pavement material (OSM `surface`). */
+  pave?: 'asphalt' | 'concrete';
+  /** Paint: centre line, stop bar at the start / end of the path, `turn:lanes` strings (forward / backward). */
+  marks?: {
+    centre: 'double_yellow' | 'none';
+    stop: [number, number];
+    turn?: string;
+    turnBack?: string;
+  };
+  /** Posted speed (mph). */
+  speed?: number;
 }
 
 /** One railway track (one OSM way: a single track). */
@@ -382,6 +433,11 @@ export interface OverheadSignDef {
   exits?: boolean;
   /** Number of the first exit (default 1). */
   firstExit?: number;
+  /**
+   * Guide signs at the splits of the other carriageways / ramps (an interchange beyond the stage road): a portal gantry
+   * `ahead` m (default 110) before every split east of `minX`, one board per direction naming the motorway it leads to.
+   */
+  splits?: { minX?: number; ahead?: number };
   /** Hand-placed gantries: distance along, boards left to right, cantilever (right side) or portal (both sides, default). */
   signs?: {
     along: number;
@@ -409,6 +465,18 @@ export interface RoadSpan {
    * the headwall line at the start / end. The slab is only shortened: the end line passes through the corner it keeps.
    */
   skew?: [number, number];
+  /** `bridge` only: deck surface above the street beneath (m), instead of `RoadDef.bridgeClearance`. */
+  clearance?: number;
+  /**
+   * `bridge` only: length of the fill ramp from each abutment down to the lowered ground (m; default 14, at most 30 %
+   * of the span). Short where the real abutment is a wall standing right behind the street's sidewalk.
+   */
+  ramp?: number;
+  /**
+   * `bridge` only: the ground under the whole deck is lowered to clear it (a wide street, its medians and ramps
+   * beneath), not only beside the streets that pass under.
+   */
+  open?: boolean;
 }
 
 export interface NoiseLayer {
@@ -449,6 +517,11 @@ export interface TerrainDef {
   flatAreas: FlatArea[];
   /** Graded lots / yards (real-world maps with landmarks), applied after the flat areas. */
   pads?: PadDef[];
+  /**
+   * Built-up land cover read lot by lot (city maps): paved round each building (walks, patios, driveways), green in the
+   * yards a few metres out (TerrainGenerator.yardSplat, from the building footprints).
+   */
+  lotYards?: boolean;
 }
 
 /**
@@ -472,7 +545,9 @@ export type RoadTexture =
   | 'road_parkway'
   | 'road_street'
   | 'road_street4'
-  | 'road_city';
+  | 'road_city'
+  | 'asphalt_street'
+  | 'asphalt_highway';
 
 export interface RoadDef {
   points: RoadPoint[];
@@ -499,6 +574,15 @@ export interface RoadDef {
    * structure: nothing is changed, informational / used for props).
    */
   spans?: RoadSpan[];
+  /**
+   * Surveyed road-surface heights [x, z, y] (world m, y after the heightmap offset) where the elevation model misses
+   * the road (a bare-earth DEM drops bridge decks): the terrain-following height is corrected to them before the
+   * smoothing - interpolated between points up to 200 m apart, faded out over 60 m past a lone one. Points off the
+   * carriageway are ignored.
+   */
+  heights?: [number, number, number][];
+  /** Height of a bridge deck's surface above the street beneath it (m, default 7.5). */
+  bridgeClearance?: number;
   /**
    * Cuts deeper than `minHeight` (m: the land beside the road is that much higher than the road) become sheer:
    * the road stays level out to `offset` m beyond the verge, then a stone retaining wall (cut-wall-mesh.ts) holds
@@ -621,6 +705,17 @@ export interface CityStreets {
  * Everything stays out of buildings and off other roads.
  */
 export interface StreetDressing {
+  /**
+   * Marker posts and bend chevrons along the ramps (`*_link` paths) whose middle lies east of `fromX` (the Jackie
+   * interchange): a post every `postEvery` m on the right-hand edge, a chevron board every `chevronEvery` m on the outside
+   * of every bend tighter than `maxRadius` m.
+   */
+  rampMarkers?: {
+    fromX: number;
+    postEvery: number;
+    chevronEvery: number;
+    maxRadius: number;
+  };
   /** Parked cars along the kerbs of streets near the stage road. */
   parked?: {
     /** OSM kinds of the streets. */
@@ -671,6 +766,11 @@ export interface PathBarrierRule {
   outer: { kind: 'jersey' | 'guardrail'; offset: number };
   /** How far across the median another carriageway may be to count as the median side (m). */
   medianReach?: number;
+  /**
+   * More kinds that get the same barriers, only on paths whose middle lies east of `minX` (a later import, the Jackie
+   * interchange: the ramps further west keep their approved look).
+   */
+  extra?: { kinds: string[]; minX: number; minWidth?: number };
 }
 
 export interface RoadsideRule {

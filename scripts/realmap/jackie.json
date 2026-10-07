@@ -49,6 +49,22 @@
   "routeTolerance": 0.8,
   "minCornerRadius": 25,
   "stage": 3,
+  "east": {
+    "landcoverX1": 4500,
+    "grid": [3500, 4700, -2700, -500],
+    "pathsBox": [3300, 4500, -2500, -700],
+    "highwayCorridor": 2200,
+    "corridor": 1700,
+    "streetsNearHighway": 350,
+    "grassAlongHighways": { "fromX": 2950, "reach": 26 }
+  },
+  "west": {
+    "landcoverX0": -3500,
+    "box": [-3420, -2600, 1300, 2500],
+    "corridor": 560,
+    "buildingsCorridor": 700
+  },
+  "streets": { "applyWidth": true },
   "paths": {
     "corridor": 350,
     "highwayCorridor": 900
