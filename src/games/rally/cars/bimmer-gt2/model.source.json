@@ -1,0 +1,107 @@
+{
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/bimmer-gt2/1-e92-barnfind.glb (CC BY 4.0, Tushar Singh). The GLB is already model-aligned (+x left, +y up, +z nose) at true scale (wheelbase 2.737 m between the hubs: front z 0.1015, rear z -2.635; the E92's 2.76 m). The offset puts the axle mid-point at z = 0 (front hub -> physics front.z) and lifts the body for ground clearance. The atlas block is also read by livery.ts at runtime - keep them in sync by editing only here.",
+  "source": "sources/cars/bimmer-gt2/1-e92-barnfind.glb -> glb-to-parts-stl.py -> sources/cars/bimmer-gt2/bimmer-gt2-parts.stl",
+  "output": "public/models/cars/bimmer_gt2.glb",
+  "axes": ["x", "y", "z"],
+  "scale": 1.0,
+  "offset": [0, 0.06, 1.2668],
+  "groundAtMin": false,
+  "targetTriangles": 70000,
+  "creaseDeg": 40,
+  "wheels": {
+    "$comment": "the wheels are separate meshes (dropped below) - nothing to cut",
+    "radius": 0,
+    "minAbsX": 9,
+    "centres": []
+  },
+  "atlas": {
+    "pxPerMetre": 256,
+    "width": 4.85,
+    "height": 8.6,
+    "bounds": {
+      "x": [-1.07, 1.07],
+      "y": [0, 1.35],
+      "z": [-2.4, 2.4]
+    },
+    "charts": {
+      "left": [0, 0],
+      "right": [0, 1.4],
+      "top": [0, 2.8],
+      "front": [0, 4.99],
+      "rear": [2.2, 4.99],
+      "bottom": [0, 6.4]
+    }
+  },
+  "gltf": {
+    "$comment": "primitive -> material (first matching rule wins), by the GLB's material names. Wheels (tyre, rim, spokes, nuts, nut covers), brake discs and calipers are replaced by the game's own wheels; Logo = BMW roundels, material_30 = rear plate, Glass_Smoked = a second glass layer inside Material_806.",
+    "drop": [
+      "Tires",
+      "material",
+      "Wheel_spokes",
+      "Disc_spokes",
+      "Wheel_nut_smol",
+      "Nut_cover",
+      "Caliperz",
+      "discs",
+      "Logo",
+      "material_30",
+      "Glass_Smoked"
+    ],
+    "parts": [
+      { "mat": "Body", "material": "body" },
+      { "mat": "Carbon_wing", "material": "carbon" },
+      { "mat": "corbons", "material": "carbon" },
+      { "mat": "reardiff", "material": "carbon" },
+      { "mat": "Material_806", "material": "glass" },
+      { "mat": "mirrir", "material": "mirror" },
+      { "mat": "kidney", "material": "mesh" },
+      { "mat": "last_shit", "material": "mesh" },
+      { "mat": "grilez", "material": "trim" },
+      { "mat": "backboard", "material": "trim" },
+      { "mat": "Rubber_Rough_Dirty", "material": "trim" },
+      { "mat": "Exhausto", "material": "chrome" },
+      { "mat": "metttttal", "material": "chrome" },
+      { "mat": "FL_casing", "material": "trim" },
+      { "mat": "LED_casing", "material": "chrome" },
+      { "mat": "Material_782", "material": "lenscover" },
+      { "mat": "F_light_LED", "material": "lens" },
+      { "mat": "F_Light_accent", "material": "lens" },
+      { "mat": "Smol_casing", "material": "trim" },
+      { "mat": "Material_795", "material": "lenscover" },
+      { "mat": "smol_LED", "material": "lens" },
+      { "mat": "Rear_casing", "material": "trim" },
+      { "mat": "rear_LED", "material": "tailc" },
+      { "mat": "rearglass", "material": "lenscover" }
+    ],
+    "default": "trim"
+  },
+  "parts": {
+    "materials": [
+      "body",
+      "trim",
+      "glass",
+      "carbon",
+      "mirror",
+      "mesh",
+      "chrome",
+      "lenscover",
+      "lens",
+      "tailc"
+    ],
+    "wrap": {
+      "tailc": "corner"
+    },
+    "preview": {
+      "body": "#c8ccd0",
+      "trim": "#2a2c30",
+      "glass": "#1d3140",
+      "carbon": "#6a4a8a",
+      "mirror": "#e0e8f0",
+      "mesh": "#d08a2a",
+      "chrome": "#30c0a0",
+      "lenscover": "#9fc4e0",
+      "lens": "#f2ecd8",
+      "tailc": "#e0242c"
+    }
+  }
+}

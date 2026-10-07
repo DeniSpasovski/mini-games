@@ -142,6 +142,7 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
 | ------------- | ----------- | ----- | ------------------------------------------------------------------------------------ |
 | `skoda_rally` | Skoda Rally | AWD   | Rally2-class hatch from a CC BY Fabia R5 model, own livery, hand-built fallback body |
 | `bimmer_m3`   | Bimmer M3   | RWD   | lowered E46 coupe from a CC BY print model, own livery                               |
+| `bimmer_gt2`  | Bimmer GT2  | RWD   | wide-body E92 GT2 racer from a CC BY Sketchfab model, clean livery (test only)       |
 | `zastava_101` | Zastava 101 | FWD   | stock "Stojadin", body hand-built from dimensions and a blueprint                    |
 
 - A car is `cars/<car>/<car>.ts` (a `CarDef`: physics + model + sound) with its README. A GLB in `public/models/cars/` replaces the

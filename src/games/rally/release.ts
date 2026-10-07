@@ -20,7 +20,7 @@ export const AVAILABLE_CARS: readonly string[] = [
 ];
 
 /** Cars on the dev server only. */
-export const TEST_CARS: readonly string[] = [];
+export const TEST_CARS: readonly string[] = ['bimmer_gt2'];
 
 /** Maps in the published build. */
 export const AVAILABLE_MAPS: readonly string[] = [

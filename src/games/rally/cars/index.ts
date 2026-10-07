@@ -1,11 +1,12 @@
 import { AVAILABLE_CARS, released } from '../release';
+import { bimmerGt2 } from './bimmer-gt2/bimmer-gt2';
 import { bimmerM3 } from './bimmer-m3/bimmer-m3';
 import type { CarDef } from './shared/types';
 import { skodaRally } from './skoda-rally/skoda-rally';
 import { zastava101 } from './zastava-101/zastava-101';
 
 /** Car registry - every car, test-only ones included. Add new cars here + their id to TEST_CARS in release.ts (see .claude/skills/rally-content). */
-export const ALL_CARS: CarDef[] = [skodaRally, zastava101, bimmerM3];
+export const ALL_CARS: CarDef[] = [skodaRally, zastava101, bimmerM3, bimmerGt2];
 
 /** Cars this build offers: ALL_CARS on the dev server, AVAILABLE_CARS in the published build (release.ts). */
 export const CARS: CarDef[] = released(ALL_CARS, AVAILABLE_CARS);
