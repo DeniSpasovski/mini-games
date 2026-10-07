@@ -45,7 +45,7 @@ repository.
 | File (`public/models/cars/`)               | Source                                                                                                                                  | Licence   |
 | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | --------- |
 | `bimmer_m3.glb`, `bimmer_m3_wheel.glb`     | "BMW E46 Coupe - Tuning - Model" by Doomas3D (MakerWorld)                                                                               | CC BY 4.0 |
-| `bimmer_gt2.glb`                           | "E92 Barnfind" by Tushar Singh (Sketchfab; split by material and converted, roundel logos + plate removed)                              | CC BY 4.0 |
+| `bimmer_gt2.glb`, `bimmer_gt2_wheel.glb`   | "E92 Barnfind" by Tushar Singh (Sketchfab; split by material and converted, roundel logos + plate removed)                              | CC BY 4.0 |
 | `skoda_rally.glb`, `skoda_rally_wheel.glb` | "Skoda Fabia R5 Rally Car" by SenturyUK (Sketchfab)                                                                                     | CC BY 4.0 |
 | none (Zastava 101)                         | hand-built in code from a public-domain factory blueprint; shape reference "Zastava 101 (Stojadin)" by Tomislav Tomljenovic (Sketchfab) | CC BY 4.0 |
 
