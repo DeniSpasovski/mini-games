@@ -26,7 +26,7 @@ no company logos on hoardings or cabins.
    from the start gate and teeter under them until the end.
 4. **A living site.** Workers wander and run from a hole that can eat them; trucks drive the haul-road grid like the
    City Island cars; haul trucks shuttle between the shovel and the crusher in the mine.
-5. **Pace and score stay comparable.** 20 000 points per seed, the shared three difficulties, own top 10 and own
+5. **Pace and score stay comparable.** 21 000 points per seed, the shared three difficulties, own top 10 and own
    scoring version.
 
 ## 2. Decisions (defaults picked; change any of them by saying so)
@@ -36,9 +36,9 @@ no company logos on hoardings or cabins.
 | D1  | Id / name        | `construction` / "Construction Site", noun "site" (HUD: "SITE CLEARED!"), blurb "Bricks first, mining trucks and tower cranes last."                                                       |
 | D2  | Shape            | a **fenced rectangle** (`MapData.bounds`, like the toy store) under an open sky: 540 x 420 m, hoarding on all four sides, low on the camera side with the site gate                        |
 | D3  | Release          | **test map**: a hole `release.ts` (same idea as rally) lists it in `TEST_MAPS`, so it shows on the dev server and in `npm run build:test`, not in the release build, until you say ship it |
-| D4  | Point total      | **20 000** (more than 2 x `cumulativeXp(15)` = 17 110 so Easy can clear it, lowered from 24 000 to ease the pace); tuned by the bot through floor size and clustering, not the XP curve    |
+| D4  | Point total      | **21 000** (more than 2 x `cumulativeXp(15)` = 17 110 so Easy can clear it, lowered from 24 000 to ease the pace); tuned by the bot through floor size and clustering, not the XP curve    |
 | D5  | Scale            | real 1:1 scale (a brick is 24 cm, a haul truck 15.6 m); **one fantasy piece**: the 25 m "titan" haul truck, a prototype twice the real size, the boss of the mine                          |
-| D6  | Seeded           | yes: the menu seed stepper ("Site #7"), every seed holds exactly 20 000 points                                                                                                             |
+| D6  | Seeded           | yes: the menu seed stepper ("Site #7"), every seed holds exactly 21 000 points                                                                                                             |
 | D7  | Movers           | workers `wander` (flee when eatable); road trucks `drive` the haul-road grid; mine haul trucks `patrol` cleared haul lanes. Cranes, plant and buildings are static                         |
 | D8  | Item build style | box-built like City Island, recipes in **fractions** of the catalog size (`kit-toy.ts` `F()`), run with `Mesher.decoplanar` so coplanar box faces never z-fight                            |
 | D9  | Swallow puffs    | new `rubble` palette (concrete grey, brick red, sand, hi-vis yellow)                                                                                                                       |
@@ -78,7 +78,7 @@ mining shovel, crusher and conveyor, haul lanes kept clear) -> **per-tier point 
 Island) shared by the types of each tier by weight -> placement of every copy in a district of the item's homes, small
 items (tier <= 12) gathered around **work spots** (pallet piles, spills, crews) with empty ground between -> road
 trucks (`drive`) on road arms -> workers get `wander` -> `ensureAllTypes` -> start scatter -> `balancePoints` (trim
-small items away from the start, top up with 1-point bricks / blocks / bags until exactly 20 000).
+small items away from the start, top up with 1-point bricks / blocks / bags until exactly 21 000).
 
 Rules that must hold (tested): exact points per seed; every tier 1-25 and level 1-15 has >= 2 types placed; every type
 up to tier 20 placed; only `drive` vehicles stand on a road; items inside the fence and reachable; busy start;
@@ -152,7 +152,7 @@ Every tier has 3+ types (tier 21 is the thinnest with 3). Heaps (`heap_*`, `spoi
 
 ## 8. Open tasks
 
-- [ ] Pace: with 20 000 points the good bot reaches level 11-12 on Hard (band 10-22), level 24 on Medium and clears Easy in ~250 s; retune `TIER_FRACTION` if feel on a device differs.
+- [ ] Pace: with 21 000 points the good bot reaches level 10-13 on Hard (band 10-22), level 25 on Medium and clears Easy in ~230 s; retune `TIER_FRACTION` if feel on a device differs.
 - [ ] Real-device check (draw calls and triangles at levels 1 / 8 / 15; the cranes and high-rises are the heaviest items).
 - [ ] Ship decision: move `construction` from `TEST_MAPS` to `AVAILABLE_MAPS` (`release.ts`).
 - [ ] Ideas for later: crane hooks that swing, a conveyor that moves rocks, night shift with site lights, blasting in the

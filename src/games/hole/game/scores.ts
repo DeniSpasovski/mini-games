@@ -20,7 +20,7 @@ import type { KV } from './storage';
  *   7 = 22 000 points.
  * Animal history: 1 = first release (21000 points, moving animals, 37 giants, secret zoo + lab);
  *   2 = clear bonus 10 points per second; 3 = panda_big + tiger_big.
- * Construction history: 1 = first version (20000 points, 540 x 420 m site, 117 types).
+ * Construction history: 1 = first version (21000 points, 540 x 420 m site, 117 types).
  */
 export const MAP_SCORING_VERSIONS: Record<string, number> = {
   city: 10,

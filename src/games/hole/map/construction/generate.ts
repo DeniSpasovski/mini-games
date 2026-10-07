@@ -40,7 +40,7 @@ export interface ConstructionParams {
 
 export const DEFAULT_CONSTRUCTION: ConstructionParams = {
   seed: 1,
-  points: 20000,
+  points: 21000,
 };
 
 export function constructionTargetPoints(

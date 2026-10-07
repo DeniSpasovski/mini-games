@@ -51,7 +51,7 @@ test('every item is inside the fence and only construction items are used', () =
   }
 });
 
-test('every seed holds exactly 20000 points', () => {
+test('every seed holds exactly 21000 points', () => {
   for (const seed of [1, 2, 3, 7, 42])
     expect(stats(generateConstructionCity({ seed })).points).toBe(
       DEFAULT_CONSTRUCTION.points,
