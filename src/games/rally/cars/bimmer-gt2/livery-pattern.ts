@@ -24,17 +24,27 @@ export interface Block {
 export const Z_NOSE = 2.4;
 export const Z_TAIL = -2.4;
 /** Rear deck behind this z stays clear pearl white (plate area). */
-export const PEARL_Z = -1.85;
+export const PEARL_Z = -2.4;
 export const P_MAX = 2.3;
 const CELL = 0.2;
-const ANG = (32 * Math.PI) / 180;
-const EDGES = [1.15, -0.45];
-const PALETTE_SIZES = [5, 6, 5] as const;
+/**
+ * Band edges as lines z = c + k * |p| (|p| grows down the body, so each edge leans rearward as it climbs): blue starts at
+ * the front wheel arch and climbs the A pillar, red starts at the side vent and covers the whole boot lid.
+ */
+export const PALETTE_SIZES = [6, 6, 5] as const;
+const BLUE_EDGE = { c: 0.5, k: 0.55 };
+const RED_EDGE = { c: -1.2, k: 0.5 };
 
-const u = (z: number, p: number) => z * Math.cos(ANG) + p * Math.sin(ANG);
 /** Slow wobble so the band edges wander instead of running ruler-straight. */
 const wobble = (z: number, p: number) =>
-  0.12 * Math.sin(z * 3.1 + p * 2.3) + 0.08 * Math.sin(z * 7.7 - p * 5.1);
+  0.1 * Math.sin(z * 3.1 + p * 2.3) + 0.06 * Math.sin(z * 7.7 - p * 5.1);
+
+/** 0 = white (nose, hood), 1 = blue, 2 = red; `jit` shifts the edges. */
+export const bandAt = (z: number, p: number, jit = 0): 0 | 1 | 2 => {
+  const ap = Math.abs(p);
+  if (z + jit > BLUE_EDGE.c + BLUE_EDGE.k * ap) return 0;
+  return z + jit > RED_EDGE.c + RED_EDGE.k * ap ? 1 : 2;
+};
 
 function hull(pts: Pt[]): Pt[] {
   const cross = (o: Pt, a: Pt, b: Pt) =>
@@ -74,8 +84,7 @@ export function blocks(): Block[] {
       const cz = (z0 + z1) / 2,
         cp = (p0 + p1) / 2;
       if (cz < PEARL_Z) continue;
-      const v = u(cz, cp) + wobble(cz, cp) + rng.range(-0.05, 0.05);
-      const band = (v > EDGES[0] ? 0 : v > EDGES[1] ? 1 : 2) as 0 | 1 | 2;
+      const band = bandAt(cz, cp, wobble(cz, cp) + rng.range(-0.05, 0.05));
       const shade = Math.floor(rng.next() * PALETTE_SIZES[band]);
       const face: Pt[] = [
         [z0, p0],

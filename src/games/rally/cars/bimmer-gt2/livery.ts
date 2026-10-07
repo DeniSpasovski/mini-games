@@ -1,6 +1,7 @@
 import { atlasKit, type Pt } from '../shared/atlas-painter';
 import type { LiveryInfo } from '../shared/livery';
 import type { CarAtlas } from '../shared/types';
+import { Rng } from '../../../../shared/rng';
 import { blocks } from './livery-pattern';
 import source from './model.source.json';
 
@@ -19,8 +20,19 @@ const Y_CREST = 1.15;
 /** Side height of pattern coordinate p (the side charts show the pattern running down the body). */
 const sideY = (p: number) => Y_CREST - (Math.abs(p) - X_CREST);
 
-const PEARL = '#f7f7f2';
-const WHITES = ['#f6f8fb', '#f6f8fb', '#eaf0f6', '#d9e3ee', '#c4d3e4'];
+/** |x| where the red blocks start on the rear end (half-way across a tail light). */
+const REAR_X = 0.58;
+/** y of the boot lid's lower edge on the rear end. */
+const REAR_LID_Y = 0.95;
+const PEARL = '#ece4d8';
+const WHITES = [
+  '#ece4d8',
+  '#ece4d8',
+  '#f4eee4',
+  '#e2dad0',
+  '#dcdbdd',
+  '#cdd2da',
+];
 const BLUES = [
   '#0b3a8f',
   '#1252b8',
@@ -101,17 +113,21 @@ function paint(
       draw(b.tip, base);
     }
   }
-  // rear / front ends: pearl white behind the plate, white at the nose
-  P.end(
-    'front',
-    [
-      [-1.2, 0],
-      [1.2, 0],
-      [1.2, 1.4],
-      [-1.2, 1.4],
-    ],
-    seed === 0 ? WHITES[0] : PEARL,
-  );
+  // front end: white / silver-white squares (same block size); rear end: pearl white behind the plate
+  const front = new Rng(5);
+  for (let x = -1.2; x < 1.2; x += 0.2)
+    for (let y = 0; y < 1.4; y += 0.2)
+      P.end(
+        'front',
+        [
+          [x, y],
+          [x + 0.2, y],
+          [x + 0.2, y + 0.2],
+          [x, y + 0.2],
+        ],
+        seed === 0 ? front.pick(WHITES) : PEARL,
+        false,
+      );
   P.end(
     'rear',
     [
@@ -122,6 +138,22 @@ function paint(
     ],
     PEARL,
   );
+  // rear end: the boot lid (above the plate, y > REAR_LID_Y) is red across, below it the middle stays pearl and red
+  // blocks cover the outer part up to half of each tail light
+  if (seed === 0) {
+    const rear = new Rng(9);
+    const block = (x: number, y: number): Pt[] => [
+      [x, y],
+      [x + 0.2, y],
+      [x + 0.2, y + 0.2],
+      [x, y + 0.2],
+    ];
+    for (let y = 0; y < 1.4; y += 0.2) {
+      const full = y + 0.2 > REAR_LID_Y;
+      for (let x = full ? -1.2 : REAR_X; x < 1.2; x += 0.2)
+        P.end('rear', block(x, y), rear.pick(REDS), !full);
+    }
+  }
   underside(ctx);
 }
 
