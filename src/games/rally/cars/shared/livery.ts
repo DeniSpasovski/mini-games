@@ -153,68 +153,6 @@ function drawSide(
       ctx.fillRect(0, Y(0.94), W, H * 0.025);
       break;
     }
-    case 'star': {
-      // Works-style side graphic: a yellow crescent under the door sill line that sweeps up at the front, three streaks
-      // rising to the rear quarter and a cluster of four-point stars. Generic shapes, no lettering or logo.
-      const yellow = '#f4c20d';
-      const edge = '#2aa7d8';
-      const crescent: [number, number][] = [
-        [0.1, 0.62],
-        [0.12, 0.42],
-        [0.2, 0.25],
-        [0.34, 0.13],
-        [0.52, 0.09],
-        [0.68, 0.13],
-        [0.8, 0.3],
-        [0.74, 0.2],
-        [0.62, 0.17],
-        [0.5, 0.18],
-        [0.38, 0.24],
-        [0.27, 0.36],
-        [0.2, 0.52],
-        [0.17, 0.66],
-      ];
-      poly(crescent, edge);
-      ctx.save();
-      ctx.translate(X(0.005), 0);
-      poly(crescent, yellow);
-      ctx.restore();
-      for (const [t, w] of [
-        [0.1, 0.05],
-        [0.17, 0.045],
-        [0.235, 0.04],
-      ] as const) {
-        poly(
-          [
-            [t, 0.66],
-            [t + w, 0.66],
-            [t + w * 1.9, 0.99],
-            [t + w * 0.9, 0.99],
-          ],
-          yellow,
-        );
-      }
-      const star = (t: number, s: number, r: number) => {
-        ctx.fillStyle = yellow;
-        ctx.beginPath();
-        for (let i = 0; i < 8; i++) {
-          const a = (i * Math.PI) / 4;
-          const rr = i % 2 ? r * 0.28 : r;
-          const px = X(t) + Math.cos(a) * rr;
-          const py = Y(s) - Math.sin(a) * rr;
-          if (i) ctx.lineTo(px, py);
-          else ctx.moveTo(px, py);
-        }
-        ctx.closePath();
-        ctx.fill();
-      };
-      star(0.3, 0.3, 20);
-      star(0.38, 0.4, 13);
-      star(0.255, 0.43, 11);
-      star(0.32, 0.5, 10);
-      star(0.4, 0.28, 9);
-      break;
-    }
     case 'rally1': {
       // Modern works livery: deep blue broken up by lighter / darker shards,
       // a gold panel over the front door, magenta flashes, dark sill.
@@ -277,8 +215,6 @@ function drawSide(
       break;
     }
   }
-
-  if (def.model.livery === 'star') return;
 
   if (def.model.livery === 'rally1') {
     dirt(ctx, Y, W, H);

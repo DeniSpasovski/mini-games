@@ -2,6 +2,7 @@ import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
+import { subie22bLivery } from './livery';
 
 /** Body dimensions (also what the hull is fitted from); wheel radius = tyre overall radius (235/45 R17). */
 const BODY = {
@@ -44,9 +45,9 @@ const REAR: AxleDef = {
 };
 
 /**
- * Subaru WRX STI 22B (`subie_22b`) - a 1998 Group A-style blue coupe with the works star livery: 2.2 l turbo flat-four, five-speed
- * box, permanent AWD, 1,270 kg. The body is built by the generic loft from stations measured on a CC BY-NC Sketchfab
- * model (reference only, never shipped; see README). Test only (release.ts).
+ * Subaru WRX STI 22B (`subie_22b`) - a 1998 blue coupe with the side star livery: 2.2 l turbo flat-four, five-speed box,
+ * permanent AWD, 1,270 kg. Body: a CC BY-NC Sketchfab model, split by material and converted by stl-to-glb.mjs (settings:
+ * model.source.json); the raw download stays out of git. Test only (release.ts).
  */
 export const subie22b: CarDef = {
   id: 'subie_22b',
@@ -58,7 +59,7 @@ export const subie22b: CarDef = {
     {
       label: '"Subaru Impreza" by Mateusz Woliński (Sketchfab)',
       url: 'https://sketchfab.com/3d-models/subaru-impreza-7fb4298d5d8f4185b25bb2c43d7f3787',
-      note: 'size / section reference only (no mesh shipped), CC BY-NC 4.0',
+      note: 'body + lamps + glass, converted to the in-game model; CC BY-NC 4.0 (noncommercial)',
     },
     {
       label: 'STI - Impreza 22B',
@@ -142,7 +143,7 @@ export const subie22b: CarDef = {
     },
     dragArea: 0.78,
     downforceArea: 0.08,
-    // The body spans z -2.31 .. 1.96 (centre -0.175); underside 0.2 m above the ground (the stations' floor), rear valance 0.28.
+    // Fitted to subie_22b.glb (tests/rally/hull-fit.test.ts prints the model's underside): floor 0.2 m, rear valance 0.26 m.
     hull: bodyHull(BODY, -0.175, [
       { x: [0, 0.55], z: 1.8, r: 0.16, bottom: 0.2 },
       { x: [0], z: 1.2, r: 0.22, bottom: 0.2 },
@@ -150,11 +151,11 @@ export const subie22b: CarDef = {
       { x: [0.5], z: 0, r: 0.25, bottom: 0.2 },
       { x: [0.5], z: -0.8, r: 0.25, bottom: 0.2 },
       { x: [0], z: -1.4, r: 0.22, bottom: 0.2 },
-      { x: [0, 0.5], z: -2.1, r: 0.2, bottom: 0.28 },
+      { x: [0, 0.5], z: -2.1, r: 0.2, bottom: 0.26 },
     ]),
   },
   model: {
-    // Rear -> front, z in physics coordinates (front axle at 1.08), measured on the reference model.
+    // Fallback body (used only until / unless public/models/cars/subie_22b.glb loads). Rear -> front, z in physics coordinates.
     stations: [
       { z: -2.31, floor: 0.38, belt: 0.99, hw: 0.62, hwBelt: 0.58 },
       { z: -2.16, floor: 0.3, belt: 1.03, hw: 0.8, hwBelt: 0.76 },
@@ -195,7 +196,14 @@ export const subie22b: CarDef = {
       grille: 'small',
       doors: 2,
     },
-    livery: 'star',
-    doorBadge: { z: 0.2, y: 0.62 },
+    livery: 'rally1',
+    doorBadge: { z: 0.3, y: 0.68 },
+    gltf: {
+      file: 'subie_22b.glb',
+      credit:
+        'Body: "Subaru Impreza" by Mateusz Woliński (Sketchfab, CC BY-NC 4.0), converted + repainted',
+      autoFit: false,
+      atlas: subie22bLivery,
+    },
   },
 };

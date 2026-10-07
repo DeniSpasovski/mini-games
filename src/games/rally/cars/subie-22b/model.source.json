@@ -1,0 +1,110 @@
+{
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/subie-22b/01-subaru-impreza.glb (CC BY-NC 4.0, Mateusz Wolinski), local only. Source units are ~0.00763 m (wheelbase 330.4 units = 2.52 m); front axle at source z 188.5, ground at source y -8.04, body centreline at x -4.2. The offset puts the front hub at physics front.z 1.08 on the ground. The atlas block is also read by livery.ts at runtime - edit only here.",
+  "source": "sources/cars/subie-22b/01-subaru-impreza.glb -> glb-to-parts-stl.py -> sources/cars/subie-22b/subie-22b-parts.stl",
+  "output": "public/models/cars/subie_22b.glb",
+  "axes": ["x", "y", "z"],
+  "scale": 0.00763,
+  "offset": [0.032, 0.0614, -0.358],
+  "groundAtMin": false,
+  "targetTriangles": 70000,
+  "creaseDeg": 40,
+  "wheels": {
+    "$comment": "the wheels are separate meshes (dropped below) - nothing to cut",
+    "radius": 0,
+    "minAbsX": 9,
+    "centres": []
+  },
+  "atlas": {
+    "pxPerMetre": 256,
+    "width": 4.85,
+    "height": 8.9,
+    "bounds": {
+      "x": [-1.07, 1.07],
+      "y": [0, 1.45],
+      "z": [-2.4, 2.4]
+    },
+    "charts": {
+      "left": [0, 0],
+      "right": [0, 1.5],
+      "top": [0, 3.0],
+      "front": [0, 5.15],
+      "rear": [2.2, 5.15],
+      "bottom": [0, 6.7]
+    }
+  },
+  "gltf": {
+    "$comment": "primitive -> material by the GLB's material / node names. Wheels, brakes, axles, springs and shocks (material 'wheel') and the plate are dropped: the game builds its own wheels. The four mud flaps (splasher) hang below the floor and are dropped.",
+    "drop": [
+      "wheel",
+      "licence_plate",
+      "splasher",
+      "splasher.001",
+      "splasher.002",
+      "splasher.003"
+    ],
+    "parts": [
+      {
+        "node": "Exhaust_bottom_0",
+        "material": "chrome"
+      },
+      {
+        "mat": "livery",
+        "material": "body"
+      },
+      {
+        "mat": "interior",
+        "material": "interior"
+      },
+      {
+        "mat": "glass",
+        "material": "glass"
+      },
+      {
+        "mat": "mirror",
+        "material": "mirror"
+      },
+      {
+        "mat": "headlights",
+        "material": "headled"
+      },
+      {
+        "mat": "taillight",
+        "material": "tailled"
+      },
+      {
+        "mat": "grill",
+        "material": "mesh"
+      }
+    ],
+    "default": "trim"
+  },
+  "parts": {
+    "materials": [
+      "body",
+      "trim",
+      "glass",
+      "mirror",
+      "mesh",
+      "chrome",
+      "interior",
+      "headled",
+      "tailled"
+    ],
+    "wrap": {},
+    "preview": {
+      "body": "#c8ccd0",
+      "trim": "#2a2c30",
+      "glass": "#1d3140",
+      "mirror": "#e0e8f0",
+      "mesh": "#d08a2a",
+      "chrome": "#30c0a0",
+      "interior": "#6a4a8a",
+      "headled": "#fff4d6",
+      "tailled": "#e0242c"
+    },
+    "maxTriangles": {
+      "interior": 6000,
+      "chrome": 6000
+    }
+  }
+}

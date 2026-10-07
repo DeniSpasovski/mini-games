@@ -132,7 +132,7 @@ export interface CarModelDef {
   tyreDust?: boolean;
   /** Look of this car's coil-overs / struts on the setup screen (cars/shared/suspension-mesh.ts). */
   suspensionStyle: SuspensionStyle;
-  livery: 'stripes' | 'swoosh' | 'classic' | 'rally1' | 'star';
+  livery: 'stripes' | 'swoosh' | 'classic' | 'rally1';
   /**
    * Rally door plate (car number + rally name, cars/shared/rally-badge.ts) - centre on the front door in
    * model space (m); the plate size is the same on every car (0.6 m wide). Default: middle of the front door,

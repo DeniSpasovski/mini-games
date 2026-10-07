@@ -28,10 +28,8 @@ function bodyPoints(car: CarDef): P[] | null {
     }
     return pts;
   }
-  // A generic-loft body (no GLB, no custom builder): its underside is the stations' floor line.
-  if (!m.gltf) return m.stations.map((st): P => [st.hw, st.floor, st.z]);
-  const file = `public/models/cars/${m.gltf.file}`;
-  if (!existsSync(file)) return null;
+  const file = `public/models/cars/${m.gltf?.file}`;
+  if (!m.gltf || !existsSync(file)) return null;
   const buf = readFileSync(file);
   const jsonLen = buf.readUInt32LE(12);
   const gltf = JSON.parse(buf.subarray(20, 20 + jsonLen).toString());
