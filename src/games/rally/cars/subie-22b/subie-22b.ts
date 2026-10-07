@@ -204,7 +204,7 @@ export const subie22b: CarDef = {
     // The source model has no cockpit: seats, dash, wheel and cage are the shared procedural ones, seen through tinted windows.
     glass: { color: 0x2a3a46, opacity: 0.4 },
     livery: 'rally1',
-    doorBadge: { z: 0.3, y: 0.68 },
+    doorBadge: { z: 0.22, y: 0.64 },
     gltf: {
       file: 'subie_22b.glb',
       credit:

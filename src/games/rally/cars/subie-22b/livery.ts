@@ -7,16 +7,21 @@ import source from './model.source.json';
  * Runtime paint for the Subaru WRX STI 22B BODY (converted GLB, atlas layout in model.source.json). Glass, lamps, mirrors and
  * trim are separate parts with their own materials, so only body panels get paint: blue base, dark undercoat, and the side
  * graphic - a crescent swoosh with a cluster of four-point stars, redrawn as shapes after the owner's reference picture
- * (no lettering). It is drawn the right way round on both sides (side charts are viewer-oriented, see atlas-painter.ts).
+ * (no lettering), always pointing forward.
  */
 const A = source.atlas;
 const { K, B, CH, Painter } = atlasKit(A);
 
 const YELLOW = '#e8f03a';
-/** Graphic centre on the body side (m): door / rear door, below the belt, behind the door number plate. */
-const AT = { z: -0.5, y: 0.56 };
-/** Metres per reference pixel (the reference crescent is 254 px wide). */
-const PX = 0.0036;
+/** Vertical extent on the body side (m): 10 cm above the body's lower edge up to 10 cm below the window sills. */
+const Y_BOTTOM = 0.23;
+const Y_TOP = 0.8;
+/** Reference picture rows spanned by the graphic (crescent tip to lower end). */
+const REF_Y = [121, 222];
+const PX = (Y_TOP - Y_BOTTOM) / (REF_Y[1] - REF_Y[0]);
+/** The crescent's lower-left end ("tail") sits over the rear wheel arch (z, m); the graphic grows forward from there. */
+const TAIL_Z = -0.957;
+const AT_Z = TAIL_Z + (295 - 168) * PX;
 
 /** Reference picture coordinates (px, y down): the crescent outline, sweeping from the lower end round the left bulge to the upper tip. */
 const CRESCENT: Pt[] = [
@@ -87,13 +92,14 @@ function star(cx: number, cy: number, rh: number, rv: number): Pt[] {
   return pts;
 }
 
-/** Reference px -> body side (z, y); `flip` for the left chart, where the front is on the viewer's left. */
-const place =
-  (flip: boolean) =>
-  ([x, y]: Pt): Pt => [
-    AT.z + (flip ? -1 : 1) * (x - 295) * PX,
-    AT.y - (y - 172) * PX,
-  ];
+/**
+ * Reference px -> body side (z, y). The same z on both sides: the graphic always points forward (stars towards the nose),
+ * so it is mirrored on one side - the side charts are viewer-oriented, the painter flips z for the left one itself.
+ */
+const at = ([x, y]: Pt): Pt => [
+  AT_Z + (x - 295) * PX,
+  Y_BOTTOM + (REF_Y[1] - y) * PX,
+];
 
 function paint(ctx: CanvasRenderingContext2D, info: LiveryInfo): void {
   ctx.fillStyle = info.base;
@@ -104,12 +110,9 @@ function paint(ctx: CanvasRenderingContext2D, info: LiveryInfo): void {
   ctx.fillRect(bx * K, by * K, (B.z[1] - B.z[0]) * K, (B.x[1] - B.x[0]) * K);
 
   const p = new Painter(ctx);
-  for (const side of ['left', 'right'] as const) {
-    const at = place(side === 'left');
-    p.side(smooth(CRESCENT).map(at), YELLOW, side);
-    for (const [cx, cy, rh, rv] of STARS)
-      p.side(star(cx, cy, rh, rv).map(at), YELLOW, side);
-  }
+  p.side(smooth(CRESCENT).map(at), YELLOW);
+  for (const [cx, cy, rh, rv] of STARS)
+    p.side(star(cx, cy, rh, rv).map(at), YELLOW);
 }
 
 export const subie22bLivery: CarAtlas = {
