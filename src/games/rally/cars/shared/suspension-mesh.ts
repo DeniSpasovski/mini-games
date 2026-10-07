@@ -20,10 +20,12 @@ import type { SetupPreset } from '../../physics/types';
  *   rally - long gold coil-over, remote reservoir on a hose, long soft spring
  *   road  - plain black MacPherson strut with a ribbed rubber boot and a thin spring
  *   race  - short stubby silver coil-over, piggyback reservoir with an adjuster knob and a helper spring
+ *   wrc   - blue medium coil-over, reservoir tube beside the housing, rubber bump-stop boot
+ *   sti   - yellow short coil-over (race geometry), piggyback reservoir
  * The spring gets fewer, thicker coils the stiffer the rate; the whole unit is longer the more travel the preset
  * has (soft = long).
  */
-export type SuspensionStyle = 'rally' | 'road' | 'race' | 'gt' | 'wrc';
+export type SuspensionStyle = 'rally' | 'road' | 'race' | 'gt' | 'wrc' | 'sti';
 
 export const SUSPENSION_STYLE_COLORS: Record<
   SuspensionStyle,
@@ -33,7 +35,8 @@ export const SUSPENSION_STYLE_COLORS: Record<
   road: { body: 0x1b1b1d, chrome: 0x9a9da0 },
   race: { body: 0xb9bdc3, chrome: 0xd2d5d9 },
   gt: { body: 0x2a56a8, chrome: 0xc4c8cc },
-  wrc: { body: 0xf0c020, chrome: 0xc8ccd0 },
+  wrc: { body: 0x2a62c9, chrome: 0xc8ccd0 },
+  sti: { body: 0xf0c020, chrome: 0xc8ccd0 },
 };
 
 /** Installed length (m) of a unit for a preset's travel. */
@@ -141,6 +144,18 @@ export function buildCoilover(
     }
     chrome.push(rod(0.05, L * 0.4, L * 0.4 + 0.007, 0, 0, 14)); // lower perch
     spring.push(helix(0.04, wire * 0.85, L * 0.4 + 0.007, L * 0.92, coils));
+  } else if (style === 'wrc') {
+    // World Rally Car: medium housing with a reservoir tube beside it (clamped at both ends), bump-stop boot on the shaft.
+    body.push(rod(0.032, 0, L * 0.5));
+    body.push(rod(0.019, L * 0.1, L * 0.45, 0.07, 0, 12));
+    chrome.push(rod(0.024, L * 0.1, L * 0.1 + 0.012, 0.07, 0, 12));
+    chrome.push(rod(0.024, L * 0.45 - 0.012, L * 0.45, 0.07, 0, 12));
+    chrome.push(rod(0.012, L * 0.5, L * 0.97, 0, 0, 10));
+    chrome.push(rod(0.034, L * 0.97, L, 0, 0, 12));
+    chrome.push(rod(0.05, L * 0.5, L * 0.5 + 0.008, 0, 0, 16));
+    chrome.push(rod(0.05, L * 0.9, L * 0.9 + 0.008, 0, 0, 16));
+    body.push(rod(0.02, L * 0.78, L * 0.9, 0, 0, 10)); // bump-stop boot
+    spring.push(helix(0.044, wire, L * 0.5 + 0.008, L * 0.9, coils));
   } else {
     // Race: short fat housing, piggyback reservoir with an adjuster knob, a small helper spring on top.
     body.push(rod(0.036, 0, L * 0.46));

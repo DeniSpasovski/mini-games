@@ -24,6 +24,8 @@ export type PartName =
   | 'gloss'
   | 'mesh'
   | 'carbon'
+  | 'wingblue'
+  | 'winggreen'
   | 'glass'
   | 'ventglass'
   | 'headlight'
@@ -972,6 +974,23 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoat: 0.6,
       clearcoatRoughness: 0.12,
       envMapIntensity: 0.55,
+    }),
+  /** Painted rear-wing blades (Fiesta WRC): the livery's navy and green. */
+  wingblue: () =>
+    new MeshPhysicalMaterial({
+      color: 0x0c2a6e,
+      roughness: 0.4,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.15,
+      envMapIntensity: 0.6,
+    }),
+  winggreen: () =>
+    new MeshPhysicalMaterial({
+      color: 0x2eaa4a,
+      roughness: 0.4,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.15,
+      envMapIntensity: 0.6,
     }),
   /** Wire mesh over an intake: dark diamonds in a lighter wire grid, ~12 mm cells. */
   mesh: () =>

@@ -5,7 +5,7 @@ Sketchfab model. The GLB came split by material, so glass, kidneys, intakes, car
 front bumper lip and side skirts (carbon, cut along the original texture's border), intake mesh panels, headlights (housing, projectors, LED rings) and tail lamps (3D slats, red LED strip, covers) keep their modelled geometry.
 Specs follow the M3 GT2 (ALMS) race car (357 kW / 485 hp, 1,150 kg; [BMW M](https://www.bmw-m.com/en/topics/magazine-article-pool/bmw-m3-e92-e90-and-e93.html)),
 RWD V8, faster than the Bimmer M3 on every surface. Wheels: tarmac tyres (300/30 R19) wear the model's own BBS mesh wheel
-(`bimmer_gt2_wheel.glb`); mixed (245/45 R18) and gravel (235/50 R17) wear the Bimmer M3 rim painted black. Clean base livery for now.
+(`bimmer_gt2_wheel.glb`); mixed (245/45 R18) and gravel (235/50 R17) wear the Bimmer M3 rim painted black. Livery: diagonal white / blue / red pixel blocks (our own artwork), pearl white behind the plate.
 **Test only** (`TEST_CARS` in `release.ts`).
 
 ![Front three-quarter](screenshots/front-34.jpg)
@@ -23,7 +23,8 @@ npm run dev     # /games/rally/car-viewer.html?car=bimmer_gt2
 | File                | What                                                                         |
 | ------------------- | ---------------------------------------------------------------------------- |
 | `bimmer-gt2.ts`     | `CarDef`: drivetrain, tyres, set-ups, body-fitted hull, fallback body, glTF  |
-| `livery.ts`         | body atlas painter: base colour + dark undercoat                             |
+| `livery.ts`         | body atlas painter: pixel-block scheme + pearl rear + dark undercoat         |
+| `livery-pattern.ts` | the block pattern (pure data, seeded): bands, block sizes, rearward trails   |
 | `model.source.json` | GLB material -> part mapping, scale / offset, atlas layout (read at runtime) |
 
 The models live in `public/models/cars/bimmer_gt2.glb` (+ `bimmer_gt2_wheel.glb`, cut from the same model by `scripts/car-model/glb-wheel-extract.py`); the raw download stays out of git (`sources/`, local only).

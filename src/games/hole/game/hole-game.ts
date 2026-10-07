@@ -59,6 +59,7 @@ const FAST_MS = 18;
 const MIN_SCALE = 0.7;
 /** Menus, pause and results are static: render them at ~30 fps to save battery. */
 const IDLE_FRAME_MS = 30;
+const _projected = new Vector3();
 
 /**
  * The play page: menu <-> run loop. Fixed-step sim (60 Hz) + render
@@ -744,18 +745,31 @@ export class HoleGame {
   private handleEvents(): void {
     const sim = this.sim;
     const w = sim.world;
+    // one layout read for all eats of this frame (each popup dirties the layout again)
+    let rect: DOMRect | undefined;
     for (const e of sim.drainEvents()) {
       if (e.type === 'eat') {
         const tier = w.tier[e.item];
         this.sfx.gulp(tier, w.types[w.type[e.item]].group);
         this.holeMesh.kick(0.3 + tier * 0.025);
+        if (w.types[w.type[e.item]].group === 'giants') {
+          this.sfx.roar();
+          this.rig.shake(1);
+          this.holeMesh.kick(1);
+        }
         this.puffs.spawn(
           e.x,
           e.z,
           w.size[e.item],
           w.types[w.type[e.item]].group === 'plush',
         );
-        const p = this.project(e.x, Math.min(2, w.height[e.item] * 0.5), e.z);
+        rect ??= this.stage.getBoundingClientRect();
+        const p = this.project(
+          e.x,
+          Math.min(2, w.height[e.item] * 0.5),
+          e.z,
+          rect,
+        );
         if (p) this.hud.popup(p.x, p.y, `+${e.points}`, tierColor(tier));
       } else if (e.type === 'levelup') {
         this.hud.banner(`LEVEL ${e.level}`);
@@ -774,10 +788,10 @@ export class HoleGame {
     x: number,
     y: number,
     z: number,
+    r: DOMRect = this.stage.getBoundingClientRect(),
   ): { x: number; y: number } | null {
-    const v = new Vector3(x, y, z).project(this.rig.camera);
+    const v = _projected.set(x, y, z).project(this.rig.camera);
     if (v.z > 1 || Math.abs(v.x) > 1.2 || Math.abs(v.y) > 1.2) return null;
-    const r = this.stage.getBoundingClientRect();
     return {
       x: r.left + ((v.x + 1) / 2) * r.width,
       y: r.top + ((1 - v.y) / 2) * r.height,

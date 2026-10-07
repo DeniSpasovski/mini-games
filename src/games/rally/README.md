@@ -50,6 +50,7 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 | [Bimmer M3](cars/bimmer-m3/)          | RWD   | E46 coupe from a CC BY print STL                                                                        |
 | [Bimmer GT2](cars/bimmer-gt2/)        | RWD   | E92 GT2 racer from a CC BY Sketchfab GLB (test)                                                         |
 | [Subaru WRX STI 22B](cars/subie-22b/) | AWD   | widebody GC8 / 22B from a CC BY-NC Sketchfab GLB, real lamps + cockpit, crescent / stars graphic (test) |
+| [Fiesta WRC](cars/fiesta/)            | AWD   | WRC Fiesta with a visible cockpit (test car)                                                            |
 | [Zastava 101](cars/zastava-101/)      | FWD   | hand-built from a blueprint                                                                             |
 
 [![Skoda Rally](cars/skoda-rally/screenshots/front-34.jpg)](cars/skoda-rally/) [![Zastava](cars/zastava-101/screenshots/front-34.jpg)](cars/zastava-101/)

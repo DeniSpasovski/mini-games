@@ -21,7 +21,11 @@ export const AVAILABLE_CARS: readonly string[] = [
 ];
 
 /** Cars on the dev server and in test builds only. */
-export const TEST_CARS: readonly string[] = ['bimmer_gt2', 'subie_22b'];
+export const TEST_CARS: readonly string[] = [
+  'bimmer_gt2',
+  'fiesta',
+  'subie_22b',
+];
 
 /** Maps in the published build. */
 export const AVAILABLE_MAPS: readonly string[] = [

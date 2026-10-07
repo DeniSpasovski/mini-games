@@ -26,6 +26,7 @@ import { TYRES, type TyreId } from '../physics/tyres';
 import type { GearingId, SetupId } from '../physics/types';
 import { PHYSICS_HZ, Vehicle } from '../physics/vehicle';
 import { isTestCar, isTestMap, TEST_NOTE } from '../release';
+import { getAssetMeta } from '../assets/catalog';
 import { Breakables } from '../world/breakables';
 import { DistanceCull } from '../world/distance-cull';
 import { InstanceStreamer } from '../world/instance-streamer';
@@ -861,16 +862,21 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.stats.end();
   }
 
-  /** Marker posts under the car fall over (no time penalty). */
+  /** Breakables under the car fall over; those with `slow` (chevrons) also slow the car. */
   private knockPosts(dt: number): void {
     const v = this.vehicle;
-    this.breakables.hit({
+    const hits = this.breakables.hit({
       position: v.position,
       quaternion: v.quaternion,
       velocity: v.velocity,
       length: v.def.length,
       width: v.def.width,
     });
+    // Sturdy breakables (chevrons) take a bit of speed off the car.
+    for (const inst of hits) {
+      const slow = getAssetMeta(inst.asset).breakable?.slow;
+      if (slow) v.velocity.multiplyScalar(slow);
+    }
     this.breakables.update(dt, (inst, m) => this.streamer.setMatrix(inst, m));
   }
 

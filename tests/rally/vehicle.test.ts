@@ -74,6 +74,7 @@ const BANDS: Record<
   bimmer_m3: { zeroTo100: [3, 10], brake100: [25, 75], top: [150, 290] },
   bimmer_gt2: { zeroTo100: [3, 10], brake100: [25, 75], top: [150, 290] },
   subie_22b: { zeroTo100: [3, 10], brake100: [25, 75], top: [150, 260] },
+  fiesta: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
 };
 
 describe.each(ALL_CARS.map((c) => c.id))('%s', (carId) => {

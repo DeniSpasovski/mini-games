@@ -18,11 +18,11 @@ import type { MapData, ZoneInfo } from '../map/types';
  * - chevron trails: up the central aisle from the entrance, and a branch to every department,
  * - department banners hung on the side walls.
  */
-const SIGN_Y = 0.07;
+export const SIGN_Y = 0.07;
 const TRAIL_Y = 0.05;
 
 /** Darken a colour (0..1 = keep that much of each channel). */
-function shade(hex: number, k: number): number {
+export function shade(hex: number, k: number): number {
   const c = new Color(hex);
   c.multiplyScalar(k);
   return c.getHex();
@@ -31,7 +31,7 @@ function shade(hex: number, k: number): number {
 const textures = new Map<string, CanvasTexture>();
 
 /** Cached canvas texture of one line of text; `bg` null = transparent (a floor decal). */
-function textTexture(
+export function textTexture(
   text: string,
   fg: string,
   bg: string | null,
@@ -79,7 +79,10 @@ function textTexture(
 
 const css = (hex: number) => '#' + hex.toString(16).padStart(6, '0');
 
-function signMaterial(tex: CanvasTexture, floor: boolean): MeshBasicMaterial {
+export function signMaterial(
+  tex: CanvasTexture,
+  floor: boolean,
+): MeshBasicMaterial {
   const m = new MeshBasicMaterial({
     map: tex,
     transparent: true,

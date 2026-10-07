@@ -26,7 +26,7 @@ import { RING_CORNERS } from '../map/city-movers';
 import { DEFAULT_CITY, generateCity, targetPoints } from '../map/generate';
 import type { DistrictId, MapData, MoveKind } from '../map/types';
 import { buildMapGround } from '../render/map-ground';
-import { getMapDef } from '../map/registry';
+import { MAPS, getMapDef } from '../map/registry';
 import { ItemInstances } from '../render/item-instances';
 import { CameraRig } from '../render/camera-rig';
 import { World } from '../sim/world';
@@ -139,15 +139,18 @@ const mapDef = getMapDef(state.map);
 /** Every map except City Island is generated from its seed alone (no island sliders). */
 const isToy = mapDef.id !== 'city';
 shell.env.setMood(mapDef.mood); // the map's own sky, fog and light colours, as in the game
-panel
-  .section('Map')
-  .select('Map', state.map, ['city', 'toy', 'animal'], (v) => {
+panel.section('Map').select(
+  'Map',
+  state.map,
+  MAPS.map((m) => m.id),
+  (v) => {
     state.map = v;
     state.x = 0;
     state.z = 0;
     sync();
     location.reload();
-  });
+  },
+);
 const vals = panel.section(mapDef.id === 'toy' ? 'Store' : 'Island');
 vals.seed('Seed', state.seed, (v) => {
   state.seed = v;

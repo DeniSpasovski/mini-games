@@ -10,6 +10,8 @@ import { NATURE_BUILDERS } from './build-nature';
 import { ZOO_BUILDERS } from './build-zoo';
 import { TOY_BUILDERS } from './build-toys';
 import { TOYVEH_BUILDERS } from './build-toyveh';
+import { SITE_BUILDERS } from './build-site';
+import { MACHINE_BUILDERS } from './build-machines';
 import { Mesher } from './kit';
 
 const BUILDERS: Record<string, Builder> = {
@@ -22,6 +24,8 @@ const BUILDERS: Record<string, Builder> = {
   ...PLUSH_BUILDERS,
   ...NATURE_BUILDERS,
   ...ZOO_BUILDERS,
+  ...SITE_BUILDERS,
+  ...MACHINE_BUILDERS,
 };
 
 /** plush_<family>_<size> ids share one parametric rig. */
@@ -60,7 +64,7 @@ export function buildItemGeometry(id: string, variant = 0): BufferGeometry {
   if (!b) throw new Error(`no builder for item "${id}"`);
   const m = new Mesher();
   const prev = Mesher.decoplanar;
-  Mesher.decoplanar = info.map === 'toy';
+  Mesher.decoplanar = info.map === 'toy' || info.map === 'construction';
   try {
     b(m, variant % info.variants, info.w, info.d, info.h);
   } finally {

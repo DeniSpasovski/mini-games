@@ -208,7 +208,7 @@ drive for a fast or a twisty stage). Only the race cars carry presets (`CarPhysi
 fixed (setup screen: one "Standard" box, "no configuration available"). Medium is always the car's own
 `gearbox.finalDrive`. `applyGearing(def, id)` after `applySetup`; `topSpeed(def)` (wheel force vs drag + rolling, capped by
 the redline) is the setup screen's number and matches the sim within 2 km/h; the box chart shows each gear's redline speed
-capped at that top speed. A map can recommend a gearing (`MapDef.gearing`, missing = medium): Jackie recommends `long`.
+capped at that top speed. A map can recommend a gearing (`MapDef.gearing`, missing = medium): Jackie and Ajvatovci recommend `long`.
 
 | Car         | Short          | Medium (own)           | Long           |
 | ----------- | -------------- | ---------------------- | -------------- |

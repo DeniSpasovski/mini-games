@@ -49,12 +49,13 @@ repository.
 | `skoda_rally.glb`, `skoda_rally_wheel.glb`                    | "Skoda Fabia R5 Rally Car" by SenturyUK (Sketchfab)                                                                                                                                                                         | CC BY 4.0                    |
 | `subie_22b.glb`, `subie_22b_wheel.glb`, `subie_22b_lamps.png` | "1999 Subaru MPREZA WRX STi GC8 Minotaurus" by SIU Car Garage (Sketchfab; split by material and converted, wheels / plates dropped; lamp art cut from its texture; side graphic redrawn at runtime as shapes, no lettering) | CC BY-NC 4.0 (noncommercial) |
 | none (Zastava 101)                                            | hand-built in code from a public-domain factory blueprint; shape reference "Zastava 101 (Stojadin)" by Tomislav Tomljenovic (Sketchfab)                                                                                     | CC BY 4.0                    |
+| `fiesta.glb`, `fiesta_wheel.glb`                              | "Ford Fiesta WRC" by kevin (Sketchfab)                                                                                                                                                                                      | CC BY 4.0                    |
 
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 
 ## Trademarks and likenesses
 
-Skoda, Fabia, BMW, M3, Zastava and other make or model names are trademarks of their owners and appear only to
+Skoda, Fabia, BMW, M3, Ford, Fiesta, Subaru, Impreza, WRX, STI, Zastava and other make or model names are trademarks of their owners and appear only to
 identify the car that inspired a model. The liveries use no manufacturer, sponsor or series logos. Emergency vehicles
 in the Jackie map carry only generic lettering ("POLICE", "FIRE DEPT", "AMBULANCE") and no agency names, logos or badges.
 The Subaru WRX STI 22B (test car) carries a crescent-and-stars side graphic redrawn as shapes after a reference picture of
