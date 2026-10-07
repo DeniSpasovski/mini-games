@@ -6,7 +6,7 @@
   "scale": 1.0,
   "offset": [0, 0.06, 1.2668],
   "groundAtMin": false,
-  "targetTriangles": 70000,
+  "targetTriangles": 95000,
   "creaseDeg": 40,
   "wheels": {
     "$comment": "the wheels are separate meshes (dropped below) - nothing to cut",
@@ -33,7 +33,7 @@
     }
   },
   "gltf": {
-    "$comment": "primitive -> material (first matching rule wins), by the GLB's material names. Wheels (tyre, rim, spokes, nuts, nut covers), brake discs and calipers are replaced by the game's own wheels; Logo = BMW roundels, material_30 = rear plate, Glass_Smoked = a second glass layer inside Material_806.",
+    "$comment": "primitive -> material (first matching rule wins), by the GLB's material names. Wheels (tyre, rim, spokes, nuts, nut covers), brake discs and calipers are replaced by the game's own wheels; Logo = BMW roundels, material_30 = rear plate, Glass_Smoked = a second glass layer inside Material_806. Lamps keep their 3D geometry (housing, projector bodies, LED rings, red tail strip, covers) with shared lamp materials.",
     "drop": [
       "Tires",
       "material",
@@ -48,30 +48,102 @@
       "Glass_Smoked"
     ],
     "parts": [
-      { "mat": "Body", "material": "body" },
-      { "mat": "Carbon_wing", "material": "carbon" },
-      { "mat": "corbons", "material": "carbon" },
-      { "mat": "reardiff", "material": "carbon" },
-      { "mat": "Material_806", "material": "glass" },
-      { "mat": "mirrir", "material": "mirror" },
-      { "mat": "kidney", "material": "mesh" },
-      { "mat": "last_shit", "material": "mesh" },
-      { "mat": "grilez", "material": "trim" },
-      { "mat": "backboard", "material": "trim" },
-      { "mat": "Rubber_Rough_Dirty", "material": "trim" },
-      { "mat": "Exhausto", "material": "chrome" },
-      { "mat": "metttttal", "material": "chrome" },
-      { "mat": "FL_casing", "material": "trim" },
-      { "mat": "LED_casing", "material": "chrome" },
-      { "mat": "Material_782", "material": "lenscover" },
-      { "mat": "F_light_LED", "material": "lens" },
-      { "mat": "F_Light_accent", "material": "lens" },
-      { "mat": "Smol_casing", "material": "trim" },
-      { "mat": "Material_795", "material": "lenscover" },
-      { "mat": "smol_LED", "material": "lens" },
-      { "mat": "Rear_casing", "material": "trim" },
-      { "mat": "rear_LED", "material": "tailc" },
-      { "mat": "rearglass", "material": "lenscover" }
+      {
+        "mat": "Body",
+        "material": "body"
+      },
+      {
+        "mat": "Carbon_wing",
+        "material": "carbon"
+      },
+      {
+        "mat": "corbons",
+        "material": "carbon"
+      },
+      {
+        "mat": "reardiff",
+        "material": "carbon"
+      },
+      {
+        "mat": "Material_806",
+        "material": "glass"
+      },
+      {
+        "mat": "mirrir",
+        "material": "mirror"
+      },
+      {
+        "mat": "kidney",
+        "material": "mesh"
+      },
+      {
+        "mat": "last_shit",
+        "material": "mesh"
+      },
+      {
+        "mat": "grilez",
+        "material": "trim"
+      },
+      {
+        "mat": "backboard",
+        "material": "trim"
+      },
+      {
+        "mat": "Rubber_Rough_Dirty",
+        "material": "trim"
+      },
+      {
+        "mat": "Exhausto",
+        "material": "chrome"
+      },
+      {
+        "mat": "metttttal",
+        "material": "chrome"
+      },
+      {
+        "mat": "FL_casing",
+        "material": "lamphousing"
+      },
+      {
+        "mat": "LED_casing",
+        "material": "chrome"
+      },
+      {
+        "mat": "Material_782",
+        "material": "lenscover"
+      },
+      {
+        "mat": "F_light_LED",
+        "material": "headled"
+      },
+      {
+        "mat": "F_Light_accent",
+        "material": "lamphousing"
+      },
+      {
+        "mat": "Smol_casing",
+        "material": "lamphousing"
+      },
+      {
+        "mat": "Material_795",
+        "material": "lenscover"
+      },
+      {
+        "mat": "smol_LED",
+        "material": "headled"
+      },
+      {
+        "mat": "Rear_casing",
+        "material": "lamphousing"
+      },
+      {
+        "mat": "rear_LED",
+        "material": "tailled"
+      },
+      {
+        "mat": "rearglass",
+        "material": "redcover"
+      }
     ],
     "default": "trim"
   },
@@ -85,12 +157,12 @@
       "mesh",
       "chrome",
       "lenscover",
-      "lens",
-      "tailc"
+      "lamphousing",
+      "headled",
+      "tailled",
+      "redcover"
     ],
-    "wrap": {
-      "tailc": "corner"
-    },
+    "wrap": {},
     "preview": {
       "body": "#c8ccd0",
       "trim": "#2a2c30",
@@ -100,8 +172,18 @@
       "mesh": "#d08a2a",
       "chrome": "#30c0a0",
       "lenscover": "#9fc4e0",
-      "lens": "#f2ecd8",
-      "tailc": "#e0242c"
+      "lamphousing": "#3a3b3e",
+      "headled": "#fff4d6",
+      "tailled": "#e0242c",
+      "redcover": "#b3151c"
+    },
+    "maxTriangles": {
+      "lamphousing": 8000,
+      "chrome": 12000,
+      "headled": 7000,
+      "tailled": 3000,
+      "lenscover": 3500,
+      "redcover": 1500
     }
   }
 }

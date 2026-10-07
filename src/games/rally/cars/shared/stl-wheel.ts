@@ -5,7 +5,9 @@ import {
   type BufferGeometry,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import type { TyreId } from '../../physics/tyres';
 import { loadCarModelFile } from './car-gltf';
+import type { CarDef } from './types';
 
 /**
  * Wheels converted from 3D-print STLs (`model.wheelModel`, e.g. the Skoda Rally rim + tyre):
@@ -19,6 +21,45 @@ import { loadCarModelFile } from './car-gltf';
  */
 export function hasWheelModel(file: string | undefined): file is string {
   return !!file && __CAR_MODEL_FILES__.includes(file);
+}
+
+/** The wheel GLB fitted on a compound (`model.wheelByCompound` over `model.wheelModel`; null tyre = the default). */
+export function wheelModelFor(
+  model: CarDef['model'],
+  tyre: TyreId | null,
+): string | undefined {
+  return (tyre && model.wheelByCompound?.[tyre]?.model) || model.wheelModel;
+}
+
+/** Rim colour on a compound (`model.wheelByCompound` over `model.rim.color`). */
+export function rimColorFor(
+  model: CarDef['model'],
+  tyre: TyreId | null,
+): string {
+  return (tyre && model.wheelByCompound?.[tyre]?.rimColor) || model.rim.color;
+}
+
+/** Every distinct wheel GLB of a car that exists in this build, loaded as unit rims by file name. */
+export async function loadRimUnits(
+  model: CarDef['model'],
+): Promise<Map<string, BufferGeometry>> {
+  const files = new Set(
+    [
+      model.wheelModel,
+      ...Object.values(model.wheelByCompound ?? {}).map((c) => c?.model),
+    ].filter(hasWheelModel),
+  );
+  const out = new Map<string, BufferGeometry>();
+  await Promise.all(
+    [...files].map(async (f) => {
+      try {
+        out.set(f, await loadRimUnit(f));
+      } catch (e) {
+        console.warn(`[car] wheel model ${f} failed, procedural`, e);
+      }
+    }),
+  );
+  return out;
 }
 
 /**

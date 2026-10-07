@@ -4,14 +4,15 @@ import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
 import { bimmerGt2Livery } from './livery';
 
-// RWD V8 GT2 racer: the wheelbase, body size and tyres follow this mesh; drivetrain numbers are a tuned E92 M3 race car's.
+// RWD V8 GT2 racer: the wheelbase, body size and tyres follow this mesh; engine and mass follow the E92 M3 GT2 (ALMS) race car:
+// 357 kW (485 hp), 1,150 kg (BMW M, see README) - the torque curve peaks at 485 hp at ~7600 rpm.
 /** Body dimensions (also what the hull is fitted from); wheel radius = tyre overall radius. */
 const BODY = {
   length: 4.67,
   width: 1.98,
   height: 1.26,
   comHeight: 0.46,
-  // 300 / 35 R18 race tyres.
+  // 300 / 30 R19 tarmac tyres.
   wheelRadius: 0.334,
 };
 
@@ -41,7 +42,7 @@ const REAR: AxleDef = {
   brakeTorque: 1250,
   handbrakeTorque: 3000,
   steer: 0,
-  grip: 1.3,
+  grip: 1.6,
   forceHeight: 0.3,
 };
 
@@ -62,6 +63,11 @@ export const bimmerGt2: CarDef = {
       url: 'https://sketchfab.com/3d-models/e92-barnfind-550c4113c2a34b0693e9ee6e7773d840',
       note: 'body + lamps, converted to the in-game model; CC BY 4.0',
     },
+    {
+      label: 'BMW M - BMW M3 E92, E90 and E93',
+      url: 'https://www.bmw-m.com/en/topics/magazine-article-pool/bmw-m3-e92-e90-and-e93.html',
+      note: 'specs reference (M3 GT2: 485 hp, 1,150 kg; road V8 8,300 rpm redline)',
+    },
   ],
   // Race V8 (~4 l), open race exhaust, sequential race box.
   sound: {
@@ -75,13 +81,16 @@ export const bimmerGt2: CarDef = {
     cam: 0.7,
   },
   physics: {
-    mass: 1250,
+    mass: 1150,
     ...BODY,
     inertiaScale: 0.9,
-    wheelWidth: 0.3,
+    wheelWidth: 0.28,
     tyres: {
-      size: { width: 0.3, aspect: 35, rim: 18 },
-      byCompound: { gravel: { width: 0.265, aspect: 45, rim: 17 } },
+      size: { width: 0.3, aspect: 30, rim: 19 },
+      byCompound: {
+        mixed: { width: 0.245, aspect: 45, rim: 18 },
+        gravel: { width: 0.235, aspect: 50, rim: 17 },
+      },
     },
     wheelInertia: 1.8,
     maxSteerDeg: 30,
@@ -98,18 +107,19 @@ export const bimmerGt2: CarDef = {
     ),
     engine: {
       torqueCurve: [
-        [1000, 240],
-        [2000, 320],
-        [3000, 390],
-        [4000, 440],
-        [5000, 475],
-        [6000, 470],
-        [7000, 445],
-        [7600, 420],
-        [8200, 360],
+        [1000, 275],
+        [2000, 365],
+        [3000, 445],
+        [4000, 500],
+        [5000, 540],
+        [6000, 535],
+        [7000, 510],
+        [7600, 480],
+        [8300, 420],
       ],
+
       idleRpm: 1000,
-      redlineRpm: 8000,
+      redlineRpm: 8300,
       inertia: 0.2,
       engineBrake: 80,
       launchRpm: 4500,
@@ -120,7 +130,7 @@ export const bimmerGt2: CarDef = {
       finalDrive: 4.2,
       shiftTime: 0.1,
       efficiency: 0.9,
-      upshiftRpm: 7700,
+      upshiftRpm: 8000,
       downshiftRpm: 4800,
     },
     gearings: {
@@ -175,6 +185,13 @@ export const bimmerGt2: CarDef = {
     paint: '#e9e6dd',
     flare: 0.06,
     rim: { color: '#b8bcc2', spokes: 10, style: 'spoke', caliper: '#c8a040' },
+    // Tarmac: the body model's own BBS alloy (bimmer_gt2_wheel.glb); mixed / gravel: the Bimmer M3 rim, painted black.
+    wheelModel: 'bimmer_m3_wheel.glb',
+    wheelByCompound: {
+      tarmac: { model: 'bimmer_gt2_wheel.glb' },
+      mixed: { rimColor: '#16171a' },
+      gravel: { rimColor: '#16171a' },
+    },
     suspensionStyle: 'race',
     parts: {
       arches: 'round',

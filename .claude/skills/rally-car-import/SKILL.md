@@ -362,3 +362,11 @@ of the body's z extent, `low` = sphere rows along splitter, sills / floor, rear 
 worked examples `cars/bimmer-m3/bimmer-m3.ts`, `cars/skoda-rally/`). The test then guards it; check it in the car
 viewer with `hull=1`. `tests/rally/car-setup.test.ts`, `car-matrix.test.ts` and `tyre-mesh.test.ts` run every
 registered car; see `src/games/rally/PHYSICS.md`.
+
+## Per-compound wheels and a GLB's own wheel (Bimmer GT2)
+
+- A GLB's modelled wheel becomes a game wheel with `scripts/car-model/glb-wheel-extract.py` (rim + tyre STLs of one wheel group, axle = STL z,
+  outer face at z max) then `wheel-stl-to-glb.mjs --keep --barrel <bore radius it prints>`. A wrong outer-face sign shows as spokes
+  sunk behind the barrel.
+- `model.wheelByCompound` gives a compound its own wheel GLB and / or rim colour (`rimColorFor`, `wheelModelFor` in `stl-wheel.ts`).
+- Wide gravel tyres lose grip on loose ground (`sizeFactors`): keep a rally tyre near 235 mm, and raise `rear.grip` for more than the M3's power.
