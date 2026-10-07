@@ -20,11 +20,13 @@ import type { KV } from './storage';
  *   7 = 22 000 points.
  * Animal history: 1 = first release (21000 points, moving animals, 37 giants, secret zoo + lab);
  *   2 = clear bonus 10 points per second; 3 = panda_big + tiger_big.
+ * Construction history: 1 = first version (24000 points, 540 x 420 m site, 117 types).
  */
 export const MAP_SCORING_VERSIONS: Record<string, number> = {
   city: 10,
   toy: 7,
   animal: 4,
+  construction: 1,
 };
 /** City Island keeps the original (pre-multi-map) storage key, so its old lists stay valid. */
 const versionKey = (map: string) =>

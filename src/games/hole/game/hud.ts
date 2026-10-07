@@ -120,7 +120,10 @@ export class Hud {
   banner(text: string, kind = ''): void {
     const b = el(
       'div',
-      'hg-banner' + (kind === 'toy' || kind === 'animal' ? ` ${kind}` : ''),
+      'hg-banner' +
+        (kind === 'toy' || kind === 'animal' || kind === 'construction'
+          ? ` ${kind}`
+          : ''),
       text,
     );
     this.el.append(b);

@@ -1,6 +1,7 @@
 import { expect, test } from '@rstest/core';
 import { Rng } from '../../src/shared/rng';
 import { getItem } from '../../src/games/hole/items/catalog';
+import { generateConstructionCity } from '../../src/games/hole/map/construction/generate';
 import { generateCity } from '../../src/games/hole/map/generate';
 import { pickStart } from '../../src/games/hole/map/start';
 import { CANAL_Y } from '../../src/games/hole/map/spawn';
@@ -45,4 +46,9 @@ test('random start: City Island seeds', () => {
 test('random start: Toy Emporium layouts', () => {
   for (const layout of ['a', 'b', 'c'])
     check(generateToyStore({ seed: 1, layout }), `toy ${layout}`);
+});
+
+test('random start: Construction City seeds', () => {
+  for (const seed of [1, 2, 3])
+    check(generateConstructionCity({ seed }), `construction ${seed}`);
 });

@@ -1,4 +1,5 @@
 import { ANIMAL_DEFS, SHARED_CITY_IDS } from './catalog-animal';
+import { CONSTRUCTION_DEFS } from './catalog-construction';
 import { TOY_DEFS } from './catalog-toy';
 import {
   itemSize,
@@ -49,10 +50,21 @@ export type ItemGroup =
   | 'farm'
   | 'lab'
   | 'labveh'
-  | 'staff';
+  | 'staff'
+  // Construction City
+  | 'material'
+  | 'tools'
+  | 'crew'
+  | 'site'
+  | 'heaps'
+  | 'plant'
+  | 'trucks'
+  | 'structures'
+  | 'cranes'
+  | 'mining';
 
 /** Which map an item belongs to. City items are the default. */
-export type ItemMap = 'city' | 'toy' | 'animal';
+export type ItemMap = 'city' | 'toy' | 'animal' | 'construction';
 
 /** Which shared material an item is drawn with. `prop` = vertex colours only; others tile windows on walls. */
 export type ItemStyle = 'prop' | 'punched' | 'ribbon' | 'glass';
@@ -561,6 +573,7 @@ function derive(
 for (const d of ITEM_DEFS) BY_ID.set(d.id, derive(d));
 for (const d of TOY_DEFS) BY_ID.set(d.id, derive(d));
 for (const d of ANIMAL_DEFS) BY_ID.set(d.id, derive(d));
+for (const d of CONSTRUCTION_DEFS) BY_ID.set(d.id, derive(d));
 
 /**
  * Re-derive size / tier / level / points of every item **in place** (the `ItemInfo` objects stay the
@@ -571,7 +584,12 @@ for (const d of ANIMAL_DEFS) BY_ID.set(d.id, derive(d));
 export function rederiveCatalog(
   over: Record<string, { size?: number; points?: number }> = {},
 ): void {
-  for (const d of [...ITEM_DEFS, ...TOY_DEFS, ...ANIMAL_DEFS])
+  for (const d of [
+    ...ITEM_DEFS,
+    ...TOY_DEFS,
+    ...ANIMAL_DEFS,
+    ...CONSTRUCTION_DEFS,
+  ])
     Object.assign(BY_ID.get(d.id)!, derive(d, over[d.id]));
 }
 
@@ -587,8 +605,14 @@ export const ANIMAL_ITEMS: ItemInfo[] = [
   ...SHARED_CITY_IDS.map((id) => BY_ID.get(id)!),
 ].sort((a, b) => a.size - b.size || a.id.localeCompare(b.id));
 
+/** Construction City catalog, ascending size. */
+export const CONSTRUCTION_ITEMS: ItemInfo[] = CONSTRUCTION_DEFS.map((d) =>
+  BY_ID.get(d.id)!,
+).sort((a, b) => a.size - b.size || a.id.localeCompare(b.id));
+
 /** Items of one map. */
 export function itemsForMap(map: ItemMap): ItemInfo[] {
+  if (map === 'construction') return CONSTRUCTION_ITEMS;
   return map === 'toy' ? TOY_ITEMS : map === 'animal' ? ANIMAL_ITEMS : ITEMS;
 }
 

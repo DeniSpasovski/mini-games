@@ -15,7 +15,7 @@ All art is original, procedural and made from boxes, and the name is a placehold
 npm run dev     # then open http://localhost:3000/games/hole/
 ```
 
-Pick a difficulty and a hole colour, then drag to steer. Add `?map=toy` for the toy store or `?map=animal` for Animal Island.
+Pick a difficulty and a hole colour, then drag to steer. Add `?map=toy` for the toy store, `?map=animal` for Animal Island or `?map=construction` for the Construction City test map (dev server only).
 
 ## Maps
 
@@ -31,6 +31,11 @@ Pick a difficulty and a hole colour, then drag to steer. Add `?map=toy` for the 
 | ![Animal Island, early game](screenshots/animal-early.jpg)                      | ![Animal Island, late game](screenshots/animal-late.jpg) |
 | **Animal Island** - ants, rabbits and zebras first; 37 giant animals, 192 types | The secret zoo and laboratory, where the giants are made |
 
+|                                                                                    |                                                                    |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| ![Construction City, early game](screenshots/construction-early.jpg)               | ![Construction City, late game](screenshots/construction-late.jpg) |
+| **Construction City** (test map) - bricks and cones first, then diggers, 117 types | Haul trucks, cranes and high-rises in the open-pit mine            |
+
 ## Features
 
 - Seeded map generators (districts, roads, parks, beach; Animal Island with biomes, rivers, hills and a secret zoo + lab) and hand-placed toy-store floor plans.
@@ -42,9 +47,10 @@ Pick a difficulty and a hole colour, then drag to steer. Add `?map=toy` for the 
 
 ## Documentation
 
-| Doc                            | Content                                                                                     |
-| ------------------------------ | ------------------------------------------------------------------------------------------- |
-| [`DETAILS.md`](DETAILS.md)     | rules, level / size tables, scoring, item catalog, map generator, debug tools, architecture |
-| [`TOY-STORE.md`](TOY-STORE.md) | second map: design, asset roster, open tasks                                                |
+| Doc                                            | Content                                                                                     |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| [`DETAILS.md`](DETAILS.md)                     | rules, level / size tables, scoring, item catalog, map generator, debug tools, architecture |
+| [`TOY-STORE.md`](TOY-STORE.md)                 | second map: design, asset roster, open tasks                                                |
+| [`CONSTRUCTION-CITY.md`](CONSTRUCTION-CITY.md) | fourth map (test): design, roster, open tasks                                               |
 
 Educational, non-commercial project; see the repository root for credits.

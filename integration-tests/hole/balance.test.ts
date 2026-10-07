@@ -1,6 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { expect, test } from '@rstest/core';
 import { generateAnimalIsland } from '../../src/games/hole/map/animal/generate';
+import { generateConstructionCity } from '../../src/games/hole/map/construction/generate';
 import { generateCity } from '../../src/games/hole/map/generate';
 import { generateToyStore } from '../../src/games/hole/map/toy/generate';
 import { Sim } from '../../src/games/hole/sim/sim';
@@ -71,3 +72,16 @@ test('balance bands: good bot on Animal Island, hard / medium / easy, three seed
   if (process.env.LIST_BALANCE)
     writeFileSync(process.env.LIST_BALANCE, out.join('\n'));
 }, 600000);
+
+test('balance bands: good bot on Construction City, hard / medium / easy', () => {
+  const m = generateConstructionCity({ seed: 1 });
+  const run = (seconds: number) =>
+    runBot(new Sim(m, { seconds }), BOT_SKILLS.good, { dt: 1 / 30 });
+  const hard = run(120);
+  expect(hard.level).toBeGreaterThanOrEqual(10);
+  expect(hard.level).toBeLessThanOrEqual(22);
+  expect(run(240).level).toBeGreaterThanOrEqual(15);
+  const easy = run(480);
+  expect(easy.level).toBeGreaterThanOrEqual(15);
+  expect(easy.pct).toBeGreaterThan(0.95);
+}, 300000);
