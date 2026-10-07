@@ -34,7 +34,7 @@ npm run dev     # /games/rally/car-viewer.html?car=bimmer_m3
 | 100-0 km/h, full brake  | 32 m           | 42 m           | 42 m          | 48 m          |
 
 Measured by the physics sim on flat ground (full throttle from standstill, traction control on, each surface on its
-home tyre + set-up, 2026-10-04): `straight()` in `tests/rally/handling-harness.ts`. Top speed is the setup screen's number
+home tyre + set-up, 2026-10-04): `straight()` in `integration-tests/rally/handling-harness.ts`. Top speed is the setup screen's number
 (`topSpeed()` in `physics/gearing.ts`). Retune a car and these move - rerun and update.
 
 ## Files

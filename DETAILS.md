@@ -16,7 +16,7 @@ Games are built with **three.js** unless stated otherwise, bundled with **Rsbuil
 npm install
 npm run dev        # http://localhost:3000
 npm run dev:noreload  # same, no HMR / live reload (debugging, benchmarks, stage-card bakes)
-npm run test       # physics / world / full-stage regression tests
+npm run test       # unit + data tests (fast); `npm run test:integration` = playtests (slow), see `integration-tests/README.md`
 npm run lint
 npm run build      # dist/
 ```

@@ -144,7 +144,7 @@ export const skodaRally: CarDef = {
     },
     drivetrain: {
       // Mechanical diffs. A stiffer fixed-split centre (lock 220, split 0.45) was tried and made the
-      // autopilot fail the Jackie stage (tests/rally/stage.test.ts) - kept the proven numbers.
+      // autopilot fail the Jackie stage (integration-tests/rally/stage.test.ts) - kept the proven numbers.
       frontSplit: 0.42,
       centerLock: 120,
       frontDiffLock: 80,

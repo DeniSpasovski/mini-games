@@ -5,7 +5,7 @@ description: Create or edit Gravel Rally maps (road layout, terrain, jumps, scat
 
 # Rally maps
 
-Every map needs `tyre` (required `TyreId`: the recommended compound for its road surfaces - `tarmac`, `mixed` or `gravel`, see `physics/tyres.ts` / `src/games/rally/PHYSICS.md`; the recommended suspension follows from it); `tests/rally/tyres.test.ts` lists the maps it drives (add the new id).
+Every map needs `tyre` (required `TyreId`: the recommended compound for its road surfaces - `tarmac`, `mixed` or `gravel`, see `physics/tyres.ts` / `src/games/rally/PHYSICS.md`; the recommended suspension follows from it); `integration-tests/rally/tyres.test.ts` lists the maps it drives (add the new id).
 
 A map is pure data: one folder per map, `src/games/rally/maps/<id>/map.ts` exporting a `MapDef`
 (format in `maps/shared/types.ts`; helpers shared by maps in `maps/shared/`), registered in `maps/index.ts`.
@@ -61,7 +61,7 @@ generated deterministically from it. There is no map editor on purpose — edit 
 
 1. `npm run test -- tests/rally/world.test.ts` — prints road length, max grade, control-point distances (use
    these to place `at:` props), checks the road is flat/gravel and no solid scatter is on the road.
-2. `npm run test -- tests/rally/stage.test.ts` — the autopilot must finish the stage with every car without rolling.
+2. `npm run test:integration -- integration-tests/rally/stage.test.ts` — the autopilot must finish the stage with every car without rolling.
    If it fails, trace the failing distance (lower `maxGrade`, widen a hairpin, move a crest out of a corner).
 3. Look: `/games/rally/map-viewer.html?map=<id>` (oblique overview, `grid=1` chunk grid, `splat=1` surfaces,
    click terrain -> "Drive from here").

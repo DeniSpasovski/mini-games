@@ -211,7 +211,7 @@ To replace with real images later, return a loaded texture for the same id.
 
 ## Done checklist
 
-`npx tsc --noEmit -p tsconfig.json`, `npm run lint`, `npm run test` (stage test catches colliders on the road),
+`npx tsc --noEmit -p tsconfig.json`, `npm run lint`, `npm run test` + `npm run test:integration:rally` (stage test catches colliders on the road),
 check F3 stats in game (`__rally.benchmark(240)` in the console). Open game URLs with `mute=1` (AGENTS.md "Sound while testing").
 
 ## Source files

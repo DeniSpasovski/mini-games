@@ -8,7 +8,7 @@
 - `npm run build` - production build, one self-contained `dist/games/<id>/` per game (`DETAILS.md` -> Deploying);
   `npm run build -- --environment <id>` rebuilds one game (`portal` = portal files only)
 - `npm run preview` - preview the build
-- `npm run test` (rstest) · `npm run test:watch` · `npm run lint` (rslint) · `npm run format` (Prettier)
+- `npm run test` (rstest, fast `tests/` only) · `npm run test:integration` (slow playtests in `integration-tests/<game>/`) · `npm run test:watch` · `npm run lint` (rslint) · `npm run format` (Prettier)
 - `npx tsc --noEmit -p tsconfig.json` - type check (the build does not)
 
 ## Public repo and licences - read before adding anything
@@ -93,6 +93,7 @@ into `DETAILS.md`, never up.
 - `rally-car-import` - import a 3D car model (LICENCE GATE first; worked examples `cars/skoda-rally/`, `cars/bimmer-m3/`)
 - `rally-livery` - paint / debug a car livery (worked example `cars/bimmer-m3/`)
 - `rally-physics-tuning` - handling changes + regression / autopilot tests
+- `testing` - add / move / run tests: `tests/` vs `integration-tests/<game>/`, scripts, the CI jobs
 - `source-files` - user shares models / photos / data / links: copy to `sources/`, document in DETAILS
 
 ## Conventions

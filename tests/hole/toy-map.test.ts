@@ -5,8 +5,6 @@ import {
 } from '../../src/games/hole/map/toy/generate';
 import { TOY_ITEMS, getItem } from '../../src/games/hole/items/catalog';
 import { insideMap } from '../../src/games/hole/map/types';
-import { Sim } from '../../src/games/hole/sim/sim';
-import { BOT_SKILLS, runBot } from '../../src/games/hole/sim/bot';
 import {
   holeDiameter,
   ITEM_LEVELS,
@@ -82,23 +80,6 @@ test('start is on the floor with small items nearby, and the departments tile th
   expect(near.length).toBeGreaterThan(15);
   expect(map.zones!.length).toBe(11);
 });
-
-test('balance bands: good bot on the toy store, hard / medium / easy', () => {
-  const m = generateToyStore({ seed: 1 });
-  const hard = runBot(new Sim(m, { seconds: 120 }), BOT_SKILLS.good, {
-    dt: 1 / 30,
-  });
-  expect(hard.level).toBeGreaterThanOrEqual(10);
-  const medium = runBot(new Sim(m, { seconds: 240 }), BOT_SKILLS.good, {
-    dt: 1 / 30,
-  });
-  expect(medium.level).toBeGreaterThanOrEqual(15);
-  const easy = runBot(new Sim(m, { seconds: 480 }), BOT_SKILLS.good, {
-    dt: 1 / 30,
-  });
-  expect(easy.level).toBeGreaterThanOrEqual(15);
-  expect(easy.pct).toBeGreaterThan(0.95);
-}, 122000);
 
 test('every item can be reached by a hole of its first level', () => {
   // the hole centre may go to `inset x diameter` from the wall; the item must be inside the commit radius from there
