@@ -647,9 +647,10 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Chevron sign',
     category: 'markers',
     description:
-      'Corner chevron board. Variant 0 points left, 1 points right. Drive-through (not solid).',
+      'Corner chevron board. Variant 0 points left, 1 points right. Breakable: the car knocks it over (no penalty).',
     variants: 2,
     lods: [{ maxDistance: 500, castShadow: true }],
+    breakable: { r: 0.65, h: 1.6 },
   },
 ];
 
