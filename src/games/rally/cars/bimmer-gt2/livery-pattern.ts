@@ -38,7 +38,7 @@ const BLUE_EDGE = { c: 0.5, k: 0.55 };
  * Red is a triangle on the side: its apex sits at the top rear corner of the quarter window (z = RED_APEX_Z at
  * |p| = RED_APEX_P) and its long edge runs down and forward (about the vent) to the sill; RED_SLOPE = z gained per |p|.
  */
-const RED_APEX_Z = -1.23;
+const RED_APEX_Z = -1.12;
 const RED_APEX_P = 0.67;
 const RED_SLOPE = 1.0;
 /** The boot lid is red from here back, at any |p|. */
@@ -54,7 +54,7 @@ const wobble = (z: number, p: number) =>
 export const bandAt = (z: number, p: number, jit = 0): 0 | 1 | 2 => {
   const ap = Math.abs(p);
   if (z + jit > BLUE_EDGE.c + BLUE_EDGE.k * ap) return 0;
-  return z + jit > redEdge(ap) ? 1 : 2;
+  return z + jit * 0.25 > redEdge(ap) ? 1 : 2;
 };
 
 function hull(pts: Pt[]): Pt[] {
