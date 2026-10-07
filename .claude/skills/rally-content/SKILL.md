@@ -142,7 +142,8 @@ Procedural bodies are the fallback; a real model replaces the body when its file
    physics-driven procedural wheels are used. `addOns` bolts procedural rally kit (pod, mudflaps, vent, wing) on.
 4. The file list is baked in at startup (`rsbuild.config.ts` -> `__CAR_MODEL_FILES__`); the dev server restarts by
    itself when a file is added / removed in `public/models/cars/` (`dev.watchFiles`). Production builds list what
-   exists at build time. If the car viewer still says `procedural`, reload the page.
+   exists at build time. If the car viewer still says `procedural`, reload the page. Commit the GLB plain: the build
+   serves it meshopt-compressed (`scripts/car-model/glb-meshopt.mjs`, dev server too; already-compressed files pass through).
 5. Car viewer "model" row must say `imported glTF`; fix orientation with `rotationY` (front must be +Z),
    position with `offset`. Add a row to `public/models/CREDITS.md`.
    Files are served page-relative (`<base>/models/cars/…`), so subfolder hosting works.

@@ -6,7 +6,7 @@
   "scale": 1.0,
   "offset": [0, 0.06, 1.2668],
   "groundAtMin": false,
-  "targetTriangles": 95000,
+  "targetTriangles": 50000,
   "creaseDeg": 40,
   "wheels": {
     "$comment": "the wheels are separate meshes (dropped below) - nothing to cut",
@@ -30,7 +30,25 @@
       "front": [0, 4.99],
       "rear": [2.2, 4.99],
       "bottom": [0, 6.4]
-    }
+    },
+    "chartBoxes": [
+      {
+        "$comment": "belt-crease ledge under the quarter window (|x| 0.78 - 1.1, y 0.78 - 1.02, z -1.45 .. -0.1): its sloped triangles were on the side chart, where the ledge's tiny height range made the cell edge saw-tooth (red teeth in a light blue block, user view 2026-10-07) -> top chart, which holds the shoulder strip",
+        "chart": "top",
+        "minNy": 0.1,
+        "x": [0.78, 1.1],
+        "y": [0.78, 1.02],
+        "z": [-1.45, -0.1]
+      },
+      {
+        "$comment": "same ledge along the front wing / A pillar foot (|x| 0.7 - 1.1, y 0.74 - 1.0, z 0.5 .. 1.6): white / blue teeth where the wing's sloped triangles sat on the side chart -> top chart",
+        "chart": "top",
+        "minNy": 0.1,
+        "x": [0.7, 1.1],
+        "y": [0.74, 1.0],
+        "z": [0.5, 1.6]
+      }
+    ]
   },
   "gltf": {
     "$comment": "primitive -> material (first matching rule wins), by the GLB's material names. Wheels (tyre, rim, spokes, nuts, nut covers), brake discs and calipers are replaced by the game's own wheels; Logo = BMW roundels, material_30 = rear plate, Glass_Smoked = a second glass layer inside Material_806. Lamps keep their 3D geometry (housing, projector bodies, LED rings, red tail strip, covers) with shared lamp materials.",
