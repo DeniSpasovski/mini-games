@@ -177,8 +177,11 @@ export interface CarGltfDef {
   atlas?: CarAtlas;
   /** Satin paint instead of glossy clearcoat (atlas models only). */
   matte?: boolean;
-  /** Procedural rally add-ons layered on the imported body (pod lights, mudflaps, roof vent, wing). */
-  addOns?: Pick<CarParts, 'lightPod' | 'mudflaps' | 'roofVent' | 'rearWing'>;
+  /** Procedural add-ons layered on the imported body (pod lights, mudflaps, roof vent, wing, cockpit). */
+  addOns?: Pick<
+    CarParts,
+    'lightPod' | 'mudflaps' | 'roofVent' | 'rearWing' | 'cockpit'
+  >;
 }
 
 export interface CarParts {
@@ -200,6 +203,11 @@ export interface CarParts {
   bumpers?: 'body' | 'black';
   /** 2 or 4 doors (panel seams + handles). */
   doors?: number;
+  /**
+   * Cockpit for an imported body that has none (set `model.glass` too, so the windows are see-through): 'road' = dark
+   * seats, dash, wheel and headliner; 'rally' = the same with light bucket seats and a roll cage.
+   */
+  cockpit?: 'road' | 'rally';
 }
 
 /** A body built by car-specific code (cars/shared/mesh-kit.ts) instead of the generic loft. */

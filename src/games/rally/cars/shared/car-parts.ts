@@ -195,7 +195,7 @@ export function mergeAll(g: BufferGeometry[]): BufferGeometry {
 const capX = (pts: Profile, y: number) => pointAt(pts, idxAtY(pts, y, 1))[0];
 
 /**
- * @param addOnsOnly only the bolt-on rally kit (pod, mudflaps, roof vent, wing) -
+ * @param addOnsOnly only the bolt-on rally kit (pod, mudflaps, roof vent, wing, cockpit) -
  *        used on top of imported glTF bodies.
  */
 export function buildCarParts(
@@ -300,9 +300,9 @@ export function buildCarParts(
         );
   }
 
+  if (!addOnsOnly || parts.cockpit) buildInterior();
   if (!addOnsOnly) {
     buildWindows();
-    buildInterior();
     buildDoors();
     if (wide) buildRally1Body();
     else buildClassicBody();
@@ -354,8 +354,10 @@ export function buildCarParts(
   }
 
   function buildInterior(): void {
-    // Dark headliner: the greenhouse inset a little, drawn back-face only, so
-    // through a window you see the far side's lining, not the sky.
+    // Dark headliner: the greenhouse inset a little (more on an imported body, whose roof is not the generic loft),
+    // drawn back-face only, so through a window you see the far side's lining, not the sky.
+    const inset = addOnsOnly ? 0.07 : 0.015;
+    const rally = !addOnsOnly || parts.cockpit === 'rally';
     // Coarse is fine: chords of a convex shell stay inside it.
     const keep = [0, CABIN_RAIL / 2, CABIN_RAIL];
     for (let i = CABIN_RAIL + 4; i < C.slices[0].pts.length; i += 4)
@@ -368,7 +370,7 @@ export function buildCarParts(
             ...sl,
             pts: keep.map((i) => {
               const [x, y, nx, ny] = pointAt(sl.pts, i);
-              return [Math.max(0, x - nx * 0.015), y - ny * 0.015];
+              return [Math.max(0, x - nx * inset), y - ny * inset];
             }),
           })),
         () => 0,
@@ -410,17 +412,19 @@ export function buildCarParts(
     const zA = c.zFront - 0.1;
     const zRF = c.roofFront - 0.03;
     const zRR = Math.max(c.zRear + 0.12, c.roofRear - 0.25);
-    tube(rail(zh, 1), rail(zh, -1));
-    tube(rail(zRF, 1), rail(zRF, -1));
-    tube(rail(zRF, 1), rail(zh, -1));
-    tube(belt(zA, 1), belt(zA, -1), 0.018);
-    tube(rail(zh, 1), belt(zh, -1));
-    for (const side of [1, -1]) {
-      tube(belt(zh, side), rail(zh, side));
-      tube(belt(zA, side), rail(zRF, side));
-      tube(rail(zRF, side), rail(zh, side));
-      tube(rail(zh, side), belt(zRR, side));
-      tube(belt(zA, side, 0.1), belt(zh, side, 0.22), 0.018);
+    if (rally) {
+      tube(rail(zh, 1), rail(zh, -1));
+      tube(rail(zRF, 1), rail(zRF, -1));
+      tube(rail(zRF, 1), rail(zh, -1));
+      tube(belt(zA, 1), belt(zA, -1), 0.018);
+      tube(rail(zh, 1), belt(zh, -1));
+      for (const side of [1, -1]) {
+        tube(belt(zh, side), rail(zh, side));
+        tube(belt(zA, side), rail(zRF, side));
+        tube(rail(zRF, side), rail(zh, side));
+        tube(rail(zh, side), belt(zRR, side));
+        tube(belt(zA, side, 0.1), belt(zh, side, 0.22), 0.018);
+      }
     }
     // Bucket seats (light shells) + dash + steering wheel (left-hand drive).
     const hw = C.profile(zh)[0][0];
@@ -428,26 +432,34 @@ export function buildCarParts(
     for (const side of [1, -1]) {
       const x = side * Math.min(0.34, hw * 0.48);
       const zs = zh - 0.32;
-      cage.push(rbox(0.44, 0.52, 0.1, 0.035, x, sb + 0.0, zs, -0.22));
+      const seat = rally ? cage : interior;
+      seat.push(rbox(0.44, 0.52, 0.1, 0.035, x, sb + 0.0, zs, -0.22));
       for (const s2 of [1, -1])
-        cage.push(
+        seat.push(
           box(0.07, 0.16, 0.17, x + s2 * 0.19, sb + 0.15, zs + 0.03, -0.22),
         );
     }
     const sd = station(c.zFront - 0.25).belt;
+    // Imported body: the generic loft is wider and higher than its real cowl, so the dash stays low and narrow.
     interior.push(
-      box(
-        C.profile(c.zFront - 0.25)[0][0] * 1.8,
-        0.1,
-        0.3,
-        0,
-        sd + 0.07,
-        c.zFront - 0.27,
-      ),
+      addOnsOnly
+        ? box(1.2, 0.07, 0.3, 0, sd - 0.03, c.zFront - 0.3)
+        : box(
+            C.profile(c.zFront - 0.25)[0][0] * 1.8,
+            0.1,
+            0.3,
+            0,
+            sd + 0.07,
+            c.zFront - 0.27,
+          ),
     );
     const wheel = new TorusGeometry(0.15, 0.016, 6, 20);
     wheel.rotateX(-0.45);
-    wheel.translate(Math.min(0.34, hw * 0.48), sd + 0.17, c.zFront - 0.5);
+    wheel.translate(
+      Math.min(0.34, hw * 0.48),
+      sd + (addOnsOnly ? 0.08 : 0.17),
+      c.zFront - 0.5,
+    );
     interior.push(nonIndexed(wheel));
   }
 

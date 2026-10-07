@@ -281,6 +281,10 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   big triangles crossing the line leave small spikes.
 - **`region` rule** in `glb-to-parts-stl.py` (`gltf.parts`): `{"mat": "Car_body", "region": {"view": "front", "poly": [[x, y], ...], "depth": [zmin, zmax], "mirror": true}, "material": "trim"}`
   = exact outline cut (model coordinates, convex polygon): triangles are clipped along the outline, no saw teeth (bumper intakes).
+- **`uv` rule** in `glb-to-parts-stl.py` (`gltf.parts`): `{"mat": "Car_body", "uv": [u0, u1, v0, v1], "x": [0.28, 1], "material": "headlight22"}` = triangles whose
+  TEXCOORD_0 centroid lies in that texture rectangle (v down). For models that paint lamps into the body texture: each lamp is its own UV island, so
+  this is exact, and the lamp's art can be cut out of the texture rectangle into a lamp sheet (check orientation: correlate UV u / v with
+  |x|-|z| / y of the triangles; the `corner` wrap fits the part bbox, u from the centre outwards, v top down). Needs to come before any `region` of the same primitive.
 - **`adjacent` pick** in `segment-stl.py`: small segments touching an earlier-picked material; and for frames that are NOT own segments
   (smooth skins) use a `region` with the glass outline (shapely union of the glass triangles in the view) + `grow`.
 - More `gltf.parts` options (2026-10-04 evening): `facing` (normal component ranges, `"|x|": [0, 0.6]`) on a rule or inside `near`

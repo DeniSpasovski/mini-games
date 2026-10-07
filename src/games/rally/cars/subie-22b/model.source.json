@@ -33,56 +33,57 @@
     }
   },
   "gltf": {
-    "$comment": "primitive -> material by the GLB's material names. Wheels (tyre + rim, material 'WH' / 'wheel'), the licence plates and the reflector quads are dropped: the game builds its own wheels. The headlight lens is the front part of the glass material; the tail lamps are cut out of the body skin by an exact outline (region).",
+    "$comment": "primitive -> material by the GLB's material names. Wheels (tyre + rim, material 'WH' / 'wheel'), the licence plates and the reflector quads are dropped: the game builds its own wheels. The lamps (headlight housing, tail lamps, corner lens, indicators) are the model's own lamp triangles, picked by their UV island in the body texture (`uv`); the headlight cover is the front part of the glass material.",
     "drop": [
-      "WH",
+      "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_WH",
       "wheel",
       "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_punch_ef_e6da172",
       "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_punch_ef_df312bd"
     ],
     "parts": [
       {
-        "mat": "glass_window",
-        "z": [1.6, 3],
-        "material": "headlight22"
+        "mat": "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_body_n_r_31db5e9",
+        "uv": [0.005, 0.205, 0.84, 1.0],
+        "material": "tail22",
+        "$comment": "lamps are painted into the body texture (texture 0): each lamp is its own UV island, `uv` = that texture rectangle. Tail lamp art = public/models/cars/subie_22b_lamps.png"
       },
       {
         "mat": "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_body_n_r_31db5e9",
-        "region": {
-          "view": "rear",
-          "poly": [
-            [0.375, 0.605],
-            [0.395, 0.76],
-            [0.43, 0.795],
-            [0.66, 0.795],
-            [0.73, 0.775],
-            [0.775, 0.7],
-            [0.8, 0.63],
-            [0.79, 0.605]
-          ],
-          "depth": [-3, -1.9],
-          "mirror": true
-        },
-        "material": "tail22"
+        "uv": [0.12, 0.216, 0.742, 0.84],
+        "material": "corner22"
+      },
+      {
+        "mat": "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_body_n_r_31db5e9",
+        "uv": [0.003, 0.116, 0.74, 0.835],
+        "material": "indic22"
+      },
+      {
+        "mat": "gc8_HighSpec_body_n",
+        "uv": [0.205, 0.378, 0.85, 0.985],
+        "material": "headlight22",
+        "x": [0.28, 1],
+        "$comment": "x box: a stray speck of the same texture region sits at the middle of the bumper"
+      },
+      {
+        "mat": "gc8_HighSpec_body_n",
+        "uv": [0.205, 0.378, 0.85, 0.985],
+        "material": "headlight22",
+        "x": [-1, -0.28]
+      },
+      {
+        "mat": "gc8_HighSpec_body_n",
+        "uv": [0.222, 0.325, 0.783, 0.826],
+        "material": "amber"
       },
       {
         "mat": "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_body_n",
-        "region": {
-          "view": "rear",
-          "poly": [
-            [0.375, 0.605],
-            [0.395, 0.76],
-            [0.43, 0.795],
-            [0.66, 0.795],
-            [0.73, 0.775],
-            [0.775, 0.7],
-            [0.8, 0.63],
-            [0.79, 0.605]
-          ],
-          "depth": [-3, -1.9],
-          "mirror": true
-        },
+        "uv": [0.005, 0.205, 0.84, 1.0],
         "material": "tail22"
+      },
+      {
+        "mat": "glass_window",
+        "z": [1.6, 3],
+        "material": "cover"
       },
       {
         "mat": "glass_window",
@@ -125,25 +126,34 @@
       "trim",
       "glass",
       "interior",
-      "lens",
+      "cover",
+      "amber",
       "headlight22",
-      "tail22"
+      "tail22",
+      "corner22",
+      "indic22"
     ],
     "wrap": {
       "headlight22": "corner",
-      "tail22": "corner"
+      "tail22": "corner",
+      "corner22": "corner",
+      "indic22": "corner"
     },
     "preview": {
       "body": "#c8ccd0",
       "trim": "#2a2c30",
       "glass": "#1d3140",
       "interior": "#6a4a8a",
-      "lens": "#d5dae0",
+      "cover": "#7d8fa4",
+      "amber": "#ff9a1a",
       "headlight22": "#fff4d6",
-      "tail22": "#e0242c"
+      "tail22": "#e0242c",
+      "corner22": "#d5dae0",
+      "indic22": "#ff9a1a"
     },
     "maxTriangles": {
       "interior": 2000
-    }
+    },
+    "drop": ["cover"]
   }
 }

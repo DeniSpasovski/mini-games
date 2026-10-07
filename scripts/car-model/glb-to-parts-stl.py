@@ -26,6 +26,10 @@ MODEL coordinates (after the config's offset), convex polygon: the primitive's t
 pieces inside (and inside `depth` along the view axis) get the material, the rest keep looking - clean part borders on big
 skin triangles (a centre-based box leaves saw teeth). Views: front / rear (x, y), left / right (z, y), top (z, x).
 
+A rule can also take `"uv": [u0, u1, v0, v1]` (glTF TEXCOORD_0 of the source primitive, v down): it matches triangles whose UV
+centroid lies in the box - lamps that the model paints into its body texture (the lamp crop of that texture is the lamp's
+own map: `uv` box = the texture rectangle to cut out). Put it before any `region` rule of the same primitive (a cut drops the UVs).
+
 A rule can also take `"near": {"mat": "mat_25", "z": [0.8, 1.5], "d": 0.05}`: it then only matches triangles whose
 centroid lies within `d` metres of the triangles of that source material (optionally cut to an x / y / z box) - used
 for the black border round a windscreen without hand-placed boxes.
@@ -405,7 +409,7 @@ def main():
     cfg = json.load(open(args[0], encoding='utf-8'))
     g, bins = load_glb(args[1])
     prims = primitives(g, bins)
-    uvs = primitive_uvs(g, bins) if any('texture' in r for r in cfg.get('gltf', {}).get('parts', [])) else None
+    uvs = primitive_uvs(g, bins) if any('texture' in r or 'uv' in r for r in cfg.get('gltf', {}).get('parts', [])) else None
     if '--list' in sys.argv or len(args) < 3:
         for name, mat, path, T in prims:
             lo, hi = T.reshape(-1, 3).min(0), T.reshape(-1, 3).max(0)
@@ -431,7 +435,7 @@ def main():
                 continue
             if 'mat' in r and r['mat'] != mat:
                 continue
-            if 'texture' in r and uvt is None:
+            if ('texture' in r or 'uv' in r) and uvt is None:
                 continue
             if 'region' in r:
                 ins, rest = region_cut(T, r['region'], np.array(cfg['offset'], float))
@@ -464,6 +468,10 @@ def main():
             for ax, k in (('x', 0), ('y', 1), ('z', 2)):
                 if ax in r and not r.get('whole'):
                     keep &= (c[:, k] >= r[ax][0]) & (c[:, k] <= r[ax][1])
+            if 'uv' in r:
+                uc = uvt.mean(1)
+                u0, u1, v0, v1 = r['uv']
+                keep &= (uc[:, 0] >= u0) & (uc[:, 0] <= u1) & (uc[:, 1] >= v0) & (uc[:, 1] <= v1)
             if 'texture' in r:
                 tx = r['texture']
                 if im is None:

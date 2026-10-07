@@ -43,6 +43,8 @@ export type PartName =
   | 'redcover'
   | 'headlight22'
   | 'tail22'
+  | 'corner22'
+  | 'indic22'
   | 'interior'
   | 'cage';
 
@@ -98,140 +100,152 @@ function tiling(t: CanvasTexture, tile: number): CanvasTexture {
 }
 
 /**
- * Subaru 22B headlight in lamp space (corner wrap, u from the car's centre outwards, v top down; the lens is a box whose top
- * edge slants up outwards): dark housing, two big chrome reflector bowls (low / high beam) with faceted fans and a bulb each.
+ * Lamp art of the Subaru 22B (GC8 source model): its headlight and tail lamp, cut out of the model's own texture and turned
+ * into lamp space (`parts.wrap` 'corner': u from the car's centre outwards, v top down). One sheet, four rectangles.
  */
+const LAMPS22 = {
+  file: 'subie_22b_lamps.png',
+  head: { x: 0, y: 0, w: 166, h: 132 },
+  tail: { x: 166, y: 0, w: 194, h: 151 },
+  corner: { x: 360, y: 0, w: 87, h: 94 },
+  indic: { x: 447, y: 0, w: 110, h: 88 },
+  /** Reversing section of the tail lamp (fractions of the lamp): the inner end of the clear band. */
+  rev: { u0: 0, u1: 0.25, v0: 0.6, v1: 1 },
+};
+type Rect = { x: number; y: number; w: number; h: number };
+
+let lampSheet: Promise<HTMLImageElement> | undefined;
+function loadLampSheet(): Promise<HTMLImageElement> {
+  lampSheet ??= new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = new URL(`models/cars/${LAMPS22.file}`, location.href).href;
+  });
+  return lampSheet;
+}
+
+/** Fill `map` with a rectangle of the lamp sheet once it has loaded; `glow(rgba, u, v)` makes the emissive maps from it. */
+function paintLamp22(
+  rect: Rect,
+  maps: {
+    tex: CanvasTexture;
+    glow: (
+      px: Uint8ClampedArray,
+      i: number,
+      u: number,
+      v: number,
+    ) => [number, number, number];
+  }[],
+): void {
+  loadLampSheet()
+    .then((img) => {
+      for (const { tex, glow } of maps) {
+        const c = tex.image as HTMLCanvasElement;
+        const g = c.getContext('2d')!;
+        g.drawImage(
+          img,
+          rect.x,
+          rect.y,
+          rect.w,
+          rect.h,
+          0,
+          0,
+          c.width,
+          c.height,
+        );
+        const d = g.getImageData(0, 0, c.width, c.height);
+        const src = d.data.slice();
+        for (let y = 0; y < c.height; y++)
+          for (let x = 0; x < c.width; x++) {
+            const i = (y * c.width + x) * 4;
+            const [r, gr, b] = glow(src, i, x / c.width, y / c.height);
+            d.data[i] = r;
+            d.data[i + 1] = gr;
+            d.data[i + 2] = b;
+          }
+        g.putImageData(d, 0, 0);
+        tex.needsUpdate = true;
+      }
+    })
+    .catch(() => {}); // no sheet: the dark placeholder stays
+}
+
+/** A small lamp of the sheet as a plain colour map (corner lens, front indicator). */
+function lampMap22(rect: Rect): CanvasTexture {
+  const map = canvas(rect.w * 4, rect.h * 4, (g) => {
+    g.fillStyle = '#1a1a1c';
+    g.fillRect(0, 0, rect.w * 4, rect.h * 4);
+  });
+  paintLamp22(rect, [{ tex: map, glow: (p, i) => [p[i], p[i + 1], p[i + 2]] }]);
+  return map;
+}
+
 function headlight22Maps(): { map: CanvasTexture; glow: CanvasTexture } {
-  const W = 816;
-  const H = 300;
-  const bowls: [number, number, number][] = [
-    [0.32, 0.6, 0.42],
-    [0.74, 0.6, 0.42],
-  ];
-  const FACETS = [
-    '#ffffff',
-    '#aab4bf',
-    '#eef2f6',
-    '#7c8691',
-    '#d6dde5',
-    '#98a2ad',
-  ];
+  const W = 664;
+  const H = 528;
   const map = canvas(W, H, (g) => {
     g.fillStyle = '#0d0e10';
     g.fillRect(0, 0, W, H);
-    // Clear lens base: a faint cool reflection along the top.
-    const sheen = g.createLinearGradient(0, 0, 0, H);
-    sheen.addColorStop(0, '#2c3238');
-    sheen.addColorStop(0.5, '#15181b');
-    sheen.addColorStop(1, '#0d0e10');
-    g.fillStyle = sheen;
-    g.fillRect(0, 0, W, H);
-    bowls.forEach(([u, v, r], k) => {
-      const cx = u * W;
-      const cy = v * H;
-      const R = r * H;
-      g.save();
-      g.beginPath();
-      g.arc(cx, cy, R, 0, Math.PI * 2);
-      g.clip();
-      const n = 14;
-      for (let i = 0; i < n; i++) {
-        const a0 = (i / n) * Math.PI * 2 + k * 0.5;
-        const a1 = ((i + 1) / n) * Math.PI * 2 + k * 0.5;
-        g.fillStyle = FACETS[(i * 5 + k * 2) % FACETS.length];
-        g.beginPath();
-        g.moveTo(cx, cy);
-        g.lineTo(cx + Math.cos(a0) * R, cy + Math.sin(a0) * R);
-        g.lineTo(cx + Math.cos(a1) * R, cy + Math.sin(a1) * R);
-        g.closePath();
-        g.fill();
-      }
-      const rim = g.createRadialGradient(cx, cy, R * 0.55, cx, cy, R);
-      rim.addColorStop(0, 'rgba(0,0,0,0)');
-      rim.addColorStop(1, 'rgba(0,0,0,0.55)');
-      g.fillStyle = rim;
-      g.fillRect(cx - R, cy - R, R * 2, R * 2);
-      g.restore();
-      g.strokeStyle = '#2a2d31';
-      g.lineWidth = 6;
-      g.beginPath();
-      g.arc(cx, cy, R, 0, Math.PI * 2);
-      g.stroke();
-      // Bulb shield.
-      g.fillStyle = '#5b6068';
-      g.beginPath();
-      g.arc(cx, cy, R * 0.22, 0, Math.PI * 2);
-      g.fill();
-      g.fillStyle = '#f6f8fa';
-      g.beginPath();
-      g.arc(cx, cy, R * 0.12, 0, Math.PI * 2);
-      g.fill();
-    });
   });
   const glow = canvas(W, H, (g) => {
     g.fillStyle = '#000';
     g.fillRect(0, 0, W, H);
-    bowls.forEach(([u, v, r]) => {
-      const R = r * H;
-      const gr = g.createRadialGradient(u * W, v * H, 0, u * W, v * H, R);
-      gr.addColorStop(0, '#ffffff');
-      gr.addColorStop(0.35, '#8a8a80');
-      gr.addColorStop(1, '#000');
-      g.fillStyle = gr;
-      g.fillRect(u * W - R, v * H - R, R * 2, R * 2);
-    });
   });
+  // The map is the sheet as it is; the glow lights the bright reflector facets (squared brightness).
+  paintLamp22(LAMPS22.head, [
+    { tex: map, glow: (p, i) => [p[i], p[i + 1], p[i + 2]] },
+    {
+      tex: glow,
+      glow: (p, i) => {
+        const l = (p[i] + p[i + 1] + p[i + 2]) / 765;
+        const v = l * l * 255;
+        return [v, v, v * 0.92];
+      },
+    },
+  ]);
   return { map, glow };
 }
 
 /**
- * Subaru 22B tail lamp in lamp space (corner wrap): red lens with fine vertical ribs, an amber indicator band along the top
- * and a white reversing section at the inner end. `reverseGlow` lights only the reversing section.
+ * Subaru 22B tail lamp: the model's own lamp - red lens round the corner with a clear band underneath; the inner end of the
+ * band is the reversing lamp (`reverseGlow` lights only that). Brake / tail glow = the red pixels.
  */
 function tail22Maps(): {
   map: CanvasTexture;
   glow: CanvasTexture;
   reverseGlow: CanvasTexture;
 } {
-  const W = 1024;
-  const H = 240;
-  const REV = { u0: 0.07, u1: 0.3, v0: 0.5, v1: 0.88 };
-  const AMBER = { u0: 0.07, u1: 0.78, v0: 0.12, v1: 0.4 };
-  const box = (
-    g: CanvasRenderingContext2D,
-    b: { u0: number; u1: number; v0: number; v1: number },
-  ) => g.fillRect(b.u0 * W, b.v0 * H, (b.u1 - b.u0) * W, (b.v1 - b.v0) * H);
-  const map = canvas(W, H, (g) => {
-    const red = g.createLinearGradient(0, 0, 0, H);
-    red.addColorStop(0, '#d8121e');
-    red.addColorStop(1, '#a30c16');
-    g.fillStyle = red;
+  const W = 776;
+  const H = 604;
+  const fill = (c: string) => (g: CanvasRenderingContext2D) => {
+    g.fillStyle = c;
     g.fillRect(0, 0, W, H);
-    g.fillStyle = '#e9890d';
-    box(g, AMBER);
-    g.fillStyle = '#eef1f4';
-    box(g, REV);
-    g.fillStyle = 'rgba(40,0,4,0.28)';
-    for (let x = 0; x < W; x += 22) g.fillRect(x, 0, 3, H);
-    g.strokeStyle = '#2a0a0e';
-    g.lineWidth = 5;
-    for (const b of [AMBER, REV])
-      g.strokeRect(b.u0 * W, b.v0 * H, (b.u1 - b.u0) * W, (b.v1 - b.v0) * H);
-  });
-  const glow = canvas(W, H, (g) => {
-    g.fillStyle = '#000';
-    g.fillRect(0, 0, W, H);
-    g.fillStyle = '#ff3a2a';
-    g.fillRect(0, 0.42 * H, W, 0.58 * H);
-    g.fillStyle = '#000';
-    box(g, REV);
-  });
-  const reverseGlow = canvas(W, H, (g) => {
-    g.fillStyle = '#000';
-    g.fillRect(0, 0, W, H);
-    g.fillStyle = '#ffffff';
-    box(g, REV);
-  });
+  };
+  const map = canvas(W, H, fill('#7a0a12'));
+  const glow = canvas(W, H, fill('#000'));
+  const reverseGlow = canvas(W, H, fill('#000'));
+  const R = LAMPS22.rev;
+  paintLamp22(LAMPS22.tail, [
+    { tex: map, glow: (p, i) => [p[i], p[i + 1], p[i + 2]] },
+    {
+      tex: glow,
+      glow: (p, i) => {
+        const red = p[i] > 2 * p[i + 1] + 40 ? p[i] / 255 : 0;
+        return [Math.min(255, red * 330), red * 70, red * 55];
+      },
+    },
+    {
+      tex: reverseGlow,
+      glow: (p, i, u, v) => {
+        const inside = u >= R.u0 && u <= R.u1 && v >= R.v0 && v <= R.v1;
+        const l = (p[i] + p[i + 1] + p[i + 2]) / 765;
+        const v2 =
+          inside && p[i] < 2 * p[i + 1] + 40 ? Math.min(255, l * l * 700) : 0;
+        return [v2, v2, v2];
+      },
+    },
+  ]);
   return { map, glow, reverseGlow };
 }
 
@@ -1101,7 +1115,7 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoat: 1,
       clearcoatRoughness: 0.05,
     }),
-  /** Subaru 22B headlight: twin chrome bowls, see headlight22Maps - needs `parts.wrap` 'corner'. */
+  /** Subaru 22B headlight: the model's own multi-reflector lamp, see headlight22Maps - needs `parts.wrap` 'corner'. */
   headlight22: () => {
     const { map, glow } = headlight22Maps();
     return new MeshPhysicalMaterial({
@@ -1115,7 +1129,7 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoatRoughness: 0.04,
     });
   },
-  /** Subaru 22B tail lamp: ribbed red lens, amber band, white reversing section - needs `parts.wrap` 'corner'. */
+  /** Subaru 22B tail lamp: the model's own red lens with a clear band, see tail22Maps - needs `parts.wrap` 'corner'. */
   tail22: () => {
     const { map, glow, reverseGlow } = tail22Maps();
     return lamp(
@@ -1132,6 +1146,27 @@ const BUILDERS: Record<PartName, () => Material> = {
       5,
       reverseGlow,
     );
+  },
+  /** Subaru 22B clear corner lens (front fender), the model's own art - needs `parts.wrap` 'corner'. */
+  corner22: () =>
+    new MeshPhysicalMaterial({
+      map: lampMap22(LAMPS22.corner),
+      roughness: 0.16,
+      clearcoat: 1,
+      clearcoatRoughness: 0.05,
+    }),
+  /** Subaru 22B front indicator, the model's own art, lit - needs `parts.wrap` 'corner'. */
+  indic22: () => {
+    const map = lampMap22(LAMPS22.indic);
+    return new MeshPhysicalMaterial({
+      map,
+      emissive: 0xffffff,
+      emissiveMap: map,
+      emissiveIntensity: 0.35,
+      roughness: 0.2,
+      clearcoat: 1,
+      clearcoatRoughness: 0.05,
+    });
   },
   tail: () => {
     const { map, glow, reverseGlow } = tailMaps();
