@@ -10,5 +10,15 @@ skills-lock.json
 src/games/rally/maps/*/data.json
 src/games/rally/maps/*/route.json
 src/games/rally/maps/*/horizon.json
+# Generated from NYC open data (scripts/realmap/: carriageway_offset, plaza_islands --cores, retaining_walls,
+# route_offset, parkway_width, spot_heights, streets, street_trees)
+src/games/rally/maps/jackie/carriageway-shift.json
+src/games/rally/maps/jackie/junction-cores.json
+src/games/rally/maps/jackie/retaining-walls.json
+src/games/rally/maps/jackie/route-shift.json
+src/games/rally/maps/jackie/route-width.json
+src/games/rally/maps/jackie/spot-heights.json
+src/games/rally/maps/jackie/street-shifts.json
+src/games/rally/maps/jackie/street-trees.json
 # Baked stage cards (tools/stage-card-bake.ts)
 src/games/rally/maps/*/preview/stage-card.json
