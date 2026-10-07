@@ -2,6 +2,8 @@
  * Nothing is precached, so a game works offline after it was opened once online (incl. its car models, which are
  * cached when first requested). Paths are relative to this file, so it works from the site root or a sub-folder. */
 const CACHE = 'mini-games-v1';
+// A full build is ~80 files; old hashed files from earlier deploys pile up beyond that.
+const MAX_ENTRIES = 300;
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -18,11 +20,27 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// cache.keys() is in insertion order and put() re-appends an updated URL, so the oldest keys are the files no
+// current page has refreshed for the longest time (stale hashed builds first).
+async function prune(cache) {
+  const keys = await cache.keys();
+  await Promise.all(
+    keys
+      .slice(0, Math.max(0, keys.length - MAX_ENTRIES))
+      .map((k) => cache.delete(k)),
+  );
+}
+
+async function store(cache, request, res) {
+  await cache.put(request, res);
+  await prune(cache);
+}
+
 async function networkFirst(request) {
   const cache = await caches.open(CACHE);
   try {
     const res = await fetch(request);
-    if (res.ok) cache.put(request, res.clone());
+    if (res.ok) store(cache, request, res.clone()).catch(() => {});
     return res;
   } catch (err) {
     // ?mute=1, ?seed= ... must not break the offline lookup.
@@ -37,7 +55,7 @@ async function staleWhileRevalidate(request) {
   const hit = await cache.match(request);
   const update = fetch(request)
     .then((res) => {
-      if (res.ok) cache.put(request, res.clone());
+      if (res.ok) store(cache, request, res.clone()).catch(() => {});
       return res;
     })
     .catch(() => undefined);

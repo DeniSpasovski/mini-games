@@ -112,7 +112,7 @@ Home-screen app name = `apple-mobile-web-app-title` ("Mini Games"). Replace the 
 `public/sw.js` (copied to the portal root, registered by `src/shared/offline.ts` from every page, production build only):
 pages are network-first, everything else stale-while-revalidate, same-origin GET only. Nothing is precached: a game works
 offline after one online visit (its car GLBs are cached when first requested; ~7 MB). Relative URLs, so it works under a
-sub-folder such as `/mini-games/`. Changing the caching rules: bump `CACHE` in `sw.js`.
+sub-folder such as `/mini-games/`. The cache keeps the newest `MAX_ENTRIES` files (oldest dropped, so stale hashed builds go first). Changing the caching rules: bump `CACHE` in `sw.js`.
 
 ## Portal footer
 
