@@ -180,7 +180,6 @@ export class HoleGame {
         blurb: m.blurb,
         noun: m.noun,
         seeded: !!m.seeded,
-        layouts: m.layouts ?? [],
       })),
       mapId: () => this.mapDef.id,
       onMap: (id) => {
@@ -192,7 +191,6 @@ export class HoleGame {
       },
       onVariant: (v) => {
         if (v.seed !== undefined) this.settings.seed = v.seed;
-        if (v.layout !== undefined) this.settings.layout = v.layout;
         saveSettings(this.store, this.settings);
         this.setMap(this.mapDef.id);
         this.startDemo();
@@ -228,10 +226,9 @@ export class HoleGame {
   private setMap(id: string): void {
     const def = getMapDef(id);
     this.mapDef = def;
-    // ?seed= / ?layout= (dev links) win over the menu choice
+    // ?seed= (dev links) wins over the menu choice
     this.map = def.generate(
       Number(this.params.get('seed') ?? (def.seeded ? this.settings.seed : 1)),
-      { layout: this.params.get('layout') ?? undefined },
     );
     if (this.ground) {
       this.scene.remove(this.ground);
@@ -361,9 +358,6 @@ export class HoleGame {
       game_version: gameManifest.version,
       game_hole_difficulty: this.difficulty.id,
       game_hole_seed: this.mapDef.seeded ? this.settings.seed : undefined,
-      game_hole_layout: this.mapDef.layouts?.length
-        ? this.settings.layout
-        : undefined,
       game_hole_scoring_version: MAP_SCORING_VERSIONS[map],
     };
   }

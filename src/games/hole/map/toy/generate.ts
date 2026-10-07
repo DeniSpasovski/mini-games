@@ -2,10 +2,10 @@ import { Rng } from '../../../../shared/rng';
 import { TOY_ITEMS, getItem, type ItemInfo } from '../../items/catalog';
 import { Occupancy } from '../generate';
 import type { GroundRect, MapData, Placement, ZoneInfo } from '../types';
-import { LAYOUTS, type ToyLayout, type ZoneDef } from './layouts';
+import { shuffledLayout, type ToyLayout, type ZoneDef } from './layouts';
 
 /**
- * Toy Emporium generator: seed + floor plan -> department floor mats, every item
+ * Toy Emporium generator: seed (department positions, items) -> department floor mats, every item
  * placement, a start next to the checkout. Pure data (no three.js, no DOM),
  * deterministic per seed. Like City Island, every seed holds exactly
  * `points` points (D6 in TOY-STORE.md): the layout is filled zone by zone, then
@@ -13,12 +13,11 @@ import { LAYOUTS, type ToyLayout, type ZoneDef } from './layouts';
  */
 export interface ToyParams {
   seed: number;
-  layout: string;
   /** Total points on the map (before the clear bonus). */
   points: number;
 }
 
-export const DEFAULT_TOY: ToyParams = { seed: 1, layout: 'a', points: 25000 };
+export const DEFAULT_TOY: ToyParams = { seed: 1, points: 25000 };
 
 export const TOY_COLORS = {
   tileA: 0xf6efe0,
@@ -505,8 +504,8 @@ function balancePoints(c: Ctx, target: number): void {
 
 export function generateToyStore(params: Partial<ToyParams> = {}): MapData {
   const p: ToyParams = { ...DEFAULT_TOY, ...params };
-  const layout = LAYOUTS[p.layout] ?? LAYOUTS.a;
   const rng = new Rng(p.seed * 104729 + 77);
+  const layout = shuffledLayout(() => rng.next());
   const c: Ctx = {
     rng,
     layout,
