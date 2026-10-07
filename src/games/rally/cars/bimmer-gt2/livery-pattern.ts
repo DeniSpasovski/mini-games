@@ -38,8 +38,8 @@ const BLUE_EDGE = { c: 0.5, k: 0.55 };
  * Red is a triangle on the side: its apex sits at the top rear corner of the quarter window (z = RED_APEX_Z at
  * |p| = RED_APEX_P) and its long edge runs down and forward (about the vent) to the sill; RED_SLOPE = z gained per |p|.
  */
-const RED_APEX_Z = -1.12;
-const RED_APEX_P = 0.67;
+const RED_APEX_Z = -0.98;
+const RED_APEX_P = 0.75;
 const RED_SLOPE = 1.0;
 /** The boot lid is red from here back, at any |p|. */
 const RED_LID_Z = -1.6;
@@ -51,8 +51,22 @@ const wobble = (z: number, p: number) =>
   0.1 * Math.sin(z * 3.1 + p * 2.3) + 0.06 * Math.sin(z * 7.7 - p * 5.1);
 
 /** 0 = white (nose, hood), 1 = blue, 2 = red; `jit` shifts the edges. */
+/**
+ * The roof and the side are separate textures that meet at the shoulder (|p| about SHOULDER_LO..SHOULDER_HI); where they
+ * disagree about the exact |p| the two would paint different bands (red teeth in a blue square). So the band edges ignore
+ * |p| across that strip.
+ */
+const SHOULDER_LO = 0.75;
+const SHOULDER_HI = 0.95;
+const flat = (ap: number) =>
+  ap < SHOULDER_LO
+    ? ap
+    : ap < SHOULDER_HI
+      ? SHOULDER_LO
+      : ap - (SHOULDER_HI - SHOULDER_LO);
+
 export const bandAt = (z: number, p: number, jit = 0): 0 | 1 | 2 => {
-  const ap = Math.abs(p);
+  const ap = flat(Math.abs(p));
   if (z + jit > BLUE_EDGE.c + BLUE_EDGE.k * ap) return 0;
   return z + jit * 0.25 > redEdge(ap) ? 1 : 2;
 };
