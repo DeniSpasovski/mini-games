@@ -192,7 +192,7 @@ export const bimmerGt2: CarDef = {
       mixed: { rimColor: '#16171a' },
       gravel: { rimColor: '#16171a' },
     },
-    suspensionStyle: 'race',
+    suspensionStyle: 'gt',
     parts: {
       arches: 'round',
       rearWing: 'lip',
