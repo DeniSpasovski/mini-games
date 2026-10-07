@@ -49,9 +49,6 @@ Pages only run on the hosts listed in `src/site.config.ts` (`allowedHosts`, defa
 localhost on any port). The check (`src/shared/host-guard.ts`) is injected before every page by Rsbuild
 `source.preEntry`. It's a deterrent against casual re-hosting, not DRM.
 
-Test builds on another host: `PUBLIC_EXTRA_ALLOWED_HOSTS` (comma separated, build time) adds hosts; the GitHub Pages
-workflow uses it (see Deploying > GitHub Pages test builds). Leave it empty for real builds.
-
 `npm run dev -- --host` also lets phones / tablets on the same network open the dev server: the guard accepts private
 addresses (`192.168.x.x`, `10.x.x.x`, `172.16-31.x.x`, `*.local`, see `isDevLanHost`) **only in the dev server**, never in
 production builds.
@@ -148,8 +145,8 @@ npm run build -- --environment portal    # only the portal files in dist/ (keeps
 
 `.github/workflows/pages.yml` (**Actions > Deploy to GitHub Pages > Run workflow**, pick any branch) builds that branch and
 publishes `dist/` to `https://<owner>.github.io/<repo>/`. One-time: Settings > Pages > Source = **GitHub Actions**. Each run
-replaces the previous deploy, so the site shows whichever branch ran last. The build sets `PUBLIC_EXTRA_ALLOWED_HOSTS` to the
-`github.io` host so the domain lock lets it run.
+replaces the previous deploy, so the site shows whichever branch ran last. The domain lock does not list the `github.io`
+host, so the pages show the "only available at" notice until that host is added to `allowedHosts`.
 
 Upload the game folder as a whole (replace the old one): file names are content-hashed, so stale files can be deleted.
 The portal lists every game folder in `src/games/`, so rebuild / upload the portal only when its game list should change.
