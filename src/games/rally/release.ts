@@ -17,6 +17,7 @@ export const AVAILABLE_CARS: readonly string[] = [
   'skoda_rally',
   'zastava_101',
   'bimmer_m3',
+  'bimmer_gt2'
 ];
 
 /** Cars on the dev server only. */
