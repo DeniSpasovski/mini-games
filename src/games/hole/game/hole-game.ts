@@ -749,6 +749,11 @@ export class HoleGame {
         const tier = w.tier[e.item];
         this.sfx.gulp(tier, w.types[w.type[e.item]].group);
         this.holeMesh.kick(0.3 + tier * 0.025);
+        if (w.types[w.type[e.item]].group === 'giants') {
+          this.sfx.roar();
+          this.rig.shake(1);
+          this.holeMesh.kick(1);
+        }
         this.puffs.spawn(
           e.x,
           e.z,

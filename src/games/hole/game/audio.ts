@@ -94,6 +94,14 @@ export class Sfx {
     if (tier > 12) this.tone(f * 0.5, 0.35, 'triangle', 0.22, f * 0.2);
   }
 
+  /** A giant was swallowed: low roar with a falling growl and two thumps. */
+  roar(): void {
+    this.tone(150, 0.7, 'sawtooth', 0.2, 55);
+    this.tone(110, 0.8, 'square', 0.1, 45, 0.04);
+    this.tone(70, 0.25, 'sine', 0.4, 35, 0.05); // thump
+    this.tone(60, 0.3, 'sine', 0.35, 30, 0.3);
+  }
+
   levelUp(): void {
     [523, 659, 784, 1047].forEach((f, i) =>
       this.tone(f, 0.22, 'triangle', 0.22, undefined, i * 0.07),

@@ -638,8 +638,8 @@ AI-51 / AI-52 (ground, rivers and ponds, mood), AI-60 (item viewer, map viewer a
 - [ ] **Ground polish**: flowing ripples along the rivers and foam at the mouths, coast rocks and a jetty at the
       compound, a visible loop road, helipad marking (the compound is flat rects + biome colours today).
 - [ ] **AI-63 (P2) Escapes**: eating every `cage_bars` piece of the paddock widens the leash of the giants inside.
-- [ ] **AI-64 (P2) Giant feel**: footstep thumps, a small camera shake and dust puffs when a giant walks near the hole;
-      a roar when one is eaten. Feathers for the bird puffs.
+- [ ] **AI-64 (P2) Giant feel** (eat roar, thump and camera shake done: `Sfx.roar`, `CameraRig.shake`): footstep thumps,
+      shake and dust puffs when a giant walks near the hole. Feathers for the bird puffs.
 
 ## 8. Risks and things to watch
 
