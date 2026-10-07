@@ -2,7 +2,7 @@ import { atlasKit, type Pt } from '../shared/atlas-painter';
 import type { LiveryInfo } from '../shared/livery';
 import type { CarAtlas } from '../shared/types';
 import { Rng } from '../../../../shared/rng';
-import { CELL, blocks } from './livery-pattern';
+import { CELL, Z_TAIL, blocks } from './livery-pattern';
 import source from './model.source.json';
 
 /**
@@ -36,6 +36,8 @@ const REAR_LID_Y = 0.84;
 /** Extra height of the arch at the middle. */
 /** y where the pearl edge steps in from REAR_X to REAR_LID_X. */
 const REAR_LID_SIDE_Y = 0.7;
+/** The top chart is pearl behind this z (the lid's bottom lip). */
+const Z_LIP = -2.28;
 const REAR_LID_ARCH = 0.05;
 const PEARL = '#ece4d8';
 const WHITES = [
@@ -118,14 +120,16 @@ function paint(
       P.side(sidePoly(-1), fill, 'right');
   };
 
-  // all block faces first, then the trails on top (a later face must not paint over an earlier block's trail)
-  for (const b of blocks()) draw(b.face, colour(b.band, b.shade));
-  for (const b of blocks()) {
-    if (!b.trail || !b.tip) continue;
+  // a chessboard grown in 3D: every square keeps its full face, and the lines grow back from the faces that start one.
+  // Faces first, then the shaded trails over the neighbours, then the faces that own a trail on top again.
+  const all = blocks();
+  for (const b of all) draw(b.face, colour(b.band, b.shade));
+  for (const b of all) {
+    if (!b.trail) continue;
     const base = colour(b.band, b.shade);
     draw(b.trail, seed === 0 ? shaded(base, b.trailF, b.band === 0) : base);
-    draw(b.tip, base);
   }
+  for (const b of all) if (b.trail) draw(b.face, colour(b.band, b.shade));
   // front end: white / silver-white squares (same block size); rear end: pearl white behind the plate
   const front = new Rng(5);
   for (let x = -1.2; x < 1.2; x += CELL)
@@ -188,6 +192,17 @@ function paint(
       false,
     );
   }
+  // the boot lid's bottom lip (a ledge at the very back of the top chart) stays plain pearl, not patterned
+  P.top(
+    [
+      [Z_TAIL, -REAR_X],
+      [Z_TAIL, REAR_X],
+      [Z_LIP, REAR_X],
+      [Z_LIP, -REAR_X],
+    ],
+    PEARL,
+    false,
+  );
   underside(ctx);
 }
 

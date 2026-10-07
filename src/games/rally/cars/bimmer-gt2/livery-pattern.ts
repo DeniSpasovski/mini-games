@@ -106,11 +106,11 @@ export function blocks(): Block[] {
       let trail: Pt[] | null = null;
       let tip: Pt[] | null = null;
       let trailF = 1;
-      if (rng.next() < 0.26) {
-        const L = rng.range(4, 10) * (z0 - z1);
+      if (rng.next() < 0.4) {
+        const L = rng.range(2.5, 6) * (z0 - z1);
         const dz = -L;
-        if (z1 + dz >= PEARL_Z) {
-          tip = face.map(([z, p]): Pt => [z + dz, p + L * 0.28]);
+        if (z1 + dz >= PEARL_Z && z1 + dz > RED_LID_Z + 0.2) {
+          tip = face.map(([z, p]): Pt => [z + dz, p + L * 0.2]);
           trail = hull([...face, ...tip]);
           trailF = rng.pick([0.7, 0.82, 1.18]);
         }
