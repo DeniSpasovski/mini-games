@@ -862,7 +862,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.stats.end();
   }
 
-  /** Breakables under the car fall over; those with a `penalty` (chevrons) cost time while the stage runs. */
+  /** Breakables under the car fall over; those with `slow` (chevrons) also slow the car. */
   private knockPosts(dt: number): void {
     const v = this.vehicle;
     const hits = this.breakables.hit({
@@ -872,14 +872,10 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       length: v.def.length,
       width: v.def.width,
     });
-    if (this.stage.phase === 'running') {
-      let penalty = 0;
-      for (const inst of hits)
-        penalty += getAssetMeta(inst.asset).breakable?.penalty ?? 0;
-      if (penalty) {
-        this.stage.addPenalty(penalty);
-        this.hud.message(`SIGN +${penalty}s`, 1.5, 'small bad');
-      }
+    // Sturdy breakables (chevrons) take a bit of speed off the car.
+    for (const inst of hits) {
+      const slow = getAssetMeta(inst.asset).breakable?.slow;
+      if (slow) v.velocity.multiplyScalar(slow);
     }
     this.breakables.update(dt, (inst, m) => this.streamer.setMatrix(inst, m));
   }

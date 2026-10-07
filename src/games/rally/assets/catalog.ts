@@ -58,7 +58,7 @@ export interface AssetMeta {
    * Knocked over when the car drives through it (no collider, the car is not slowed): falls down and costs a time
    * penalty (world/breakables.ts). `r` = radius and `h` = height (m, unscaled) of the hit test.
    */
-  breakable?: { r: number; h: number; penalty?: number };
+  breakable?: { r: number; h: number; slow?: number };
 }
 
 /**
@@ -647,10 +647,10 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Chevron sign',
     category: 'markers',
     description:
-      'Corner chevron board. Variant 0 points left, 1 points right. Breakable: the car knocks it over (+1 s).',
+      'Corner chevron board. Variant 0 points left, 1 points right. Breakable: the car knocks it over and loses a little speed.',
     variants: 2,
     lods: [{ maxDistance: 500, castShadow: true }],
-    breakable: { r: 0.65, h: 1.6, penalty: 1 },
+    breakable: { r: 0.65, h: 1.6, slow: 0.93 },
   },
 ];
 
