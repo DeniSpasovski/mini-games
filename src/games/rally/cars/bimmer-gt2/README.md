@@ -34,6 +34,7 @@ The models live in `public/models/cars/bimmer_gt2.glb` (+ `bimmer_gt2_wheel.glb`
 | ----------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------- |
 | Model (GLB) | ["E92 Barnfind" by Tushar Singh, Sketchfab](https://sketchfab.com/3d-models/e92-barnfind-550c4113c2a34b0693e9ee6e7773d840)          | **CC BY 4.0** |
 | Specs       | [BMW M - BMW M3 E92, E90 and E93](https://www.bmw-m.com/en/topics/magazine-article-pool/bmw-m3-e92-e90-and-e93.html) (numbers only) | reference     |
+| GT2 car     | [Racecar Engineering - BMW M3 GT2](https://www.racecar-engineering.com/cars/bmw-m3-gt2/) (article, looked at only)                  | reference     |
 
 The converted model is a derivative (split, simplified, repainted). BMW and M3 are trademarks of BMW AG and only identify the car. The
 model's roundel logos and number plate are removed, its Gulf-style rust paint is not used; the game paints its own livery. Code and

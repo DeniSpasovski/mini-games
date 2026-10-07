@@ -17,11 +17,12 @@ export const AVAILABLE_CARS: readonly string[] = [
   'skoda_rally',
   'zastava_101',
   'bimmer_m3',
-  'bimmer_gt2'
+  // TEMP: shown in the Pages test build, move back to TEST_CARS before a real release
+  'bimmer_gt2',
 ];
 
 /** Cars on the dev server only. */
-export const TEST_CARS: readonly string[] = ['bimmer_gt2'];
+export const TEST_CARS: readonly string[] = [];
 
 /** Maps in the published build. */
 export const AVAILABLE_MAPS: readonly string[] = [

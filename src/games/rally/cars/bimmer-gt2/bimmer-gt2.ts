@@ -68,6 +68,11 @@ export const bimmerGt2: CarDef = {
       url: 'https://www.bmw-m.com/en/topics/magazine-article-pool/bmw-m3-e92-e90-and-e93.html',
       note: 'specs reference (M3 GT2: 485 hp, 1,150 kg; road V8 8,300 rpm redline)',
     },
+    {
+      label: 'Racecar Engineering - BMW M3 GT2',
+      url: 'https://www.racecar-engineering.com/cars/bmw-m3-gt2/',
+      note: 'GT2 race car reference (article, looked at only)',
+    },
   ],
   // Race V8 (~4 l), open race exhaust, sequential race box.
   sound: {

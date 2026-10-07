@@ -45,8 +45,8 @@ tests/                 rstest tests (per game sub-folder)
 
 ## Domain lock
 
-Pages only run on the hosts listed in `src/site.config.ts` (`allowedHosts`, default `deni.io`, `*.deni.io` and
-localhost on any port). The check (`src/shared/host-guard.ts`) is injected before every page by Rsbuild
+Pages only run on the hosts listed in `src/site.config.ts` (`allowedHosts`, default `deni.io`, `*.deni.io`, the GitHub Pages test
+host `denispasovski.github.io` and localhost on any port). The check (`src/shared/host-guard.ts`) is injected before every page by Rsbuild
 `source.preEntry`. It's a deterrent against casual re-hosting, not DRM.
 
 `npm run dev -- --host` also lets phones / tablets on the same network open the dev server: the guard accepts private
