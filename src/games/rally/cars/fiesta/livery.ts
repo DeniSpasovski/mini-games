@@ -89,13 +89,13 @@ const TAIL_NAVY = 0.55;
 const NAVY_RIDGE: Pt[] = [
   [Z_NOSE, END_NAVY],
   [1.55, 0.5],
-  [1.15, 0.74],
+  [1.15, 0.67],
   [0.75, 0.52],
-  [0.2, 1.0],
+  [0.2, 0.86],
   [-0.4, 0.55],
-  [-0.9, 0.86],
+  [-0.9, 0.76],
   [-1.4, 0.56],
-  [-1.8, 0.7],
+  [-1.8, 0.64],
   [Z_TAIL, TAIL_NAVY],
 ];
 /** Light-blue range behind it: taller peaks shifted towards the middle, same ends. */
@@ -103,13 +103,13 @@ const SKY_RIDGE: Pt[] = [
   [Z_NOSE, END_NAVY],
   [1.7, 0.56],
   [1.3, 0.62],
-  [0.95, 0.84],
+  [0.95, 0.74],
   [0.5, 0.58],
-  [-0.15, 1.08],
+  [-0.15, 0.92],
   [-0.7, 0.6],
-  [-1.15, 0.92],
+  [-1.15, 0.8],
   [-1.6, 0.6],
-  [-1.95, 0.78],
+  [-1.95, 0.7],
   [Z_TAIL, TAIL_NAVY],
 ];
 /** Black sill strip between the arches (same y on the side charts only: the skirt has no end faces). */
