@@ -3,9 +3,10 @@ import type { VehicleControls } from '../physics/types';
 /**
  * Keyboard + gamepad + touch buttons -> smoothed VehicleControls.
  *
- * Keyboard steering is digital, so it is ramped and speed-limited (less lock
- * at speed) - except when counter-steering into a slide, where full lock is
- * allowed. That one rule is what makes keyboard drifting feel good.
+ * Keyboard steering is digital, so it is ramped and limited to the lock that
+ * gives peak front grip (less at speed and on grippy ground) - except when
+ * counter-steering into a slide, where full lock is allowed. That one rule is
+ * what makes keyboard drifting feel good.
  */
 export type InputAction =
   | 'reset'
@@ -47,12 +48,19 @@ const PAD_ACTIONS: Record<number, InputAction> = {
 };
 
 /**
- * Keyboard steer limit (fraction of full lock) at a forward speed (m/s): ~0.76 at 30 km/h (hairpins), 0.53 at 60,
- * 0.34 at 100, 0.24 at 140. Close to the steering that gives peak grip (+30-50 %) - the old `1 / (1 + v / 26)` was 2-3x
- * it at speed, so a held key slid the front tyres, scrubbed speed and made traction control cut the power.
+ * Keyboard steer limit (fraction of full lock). With `peakSteer` (the wheel angle that puts the front tyres at their
+ * peak grip right now, `Vehicle.peakSteer`) a held key aims there: more lock in hairpins, less at speed and on tarmac,
+ * where a fixed limit slid the front tyres 2-2.5x past their peak (the car pushed wide and traction control cut the
+ * power). Without it (tool pages): the speed-only curve ~0.76 at 30 km/h, 0.53 at 60, 0.34 at 100, 0.24 at 140.
  * Counter-steering into a slide still gets more (see update()).
  */
-export function keyboardSteerLimit(speed: number): number {
+export function keyboardSteerLimit(
+  speed: number,
+  peakSteer?: number,
+  maxSteer?: number,
+): number {
+  if (peakSteer !== undefined && maxSteer)
+    return Math.min(1, Math.max(0.08, peakSteer / maxSteer));
   return 1 / (1 + (Math.max(0, speed) / 18) ** 1.5);
 }
 
@@ -63,6 +71,8 @@ export interface DriveState {
   slipAngle: number;
   /** Max wheel steer angle (rad) - used to scale the counter-steer allowance. */
   maxSteer: number;
+  /** Wheel steer angle (rad) for peak front grip now (`Vehicle.peakSteer`); missing = speed-only limit. */
+  peakSteer?: number;
 }
 
 export class InputController {
@@ -171,8 +181,8 @@ export class InputController {
     const target =
       (this.down('KeyD', 'ArrowRight', 'TouchRight') ? 1 : 0) -
       (this.down('KeyA', 'ArrowLeft', 'TouchLeft') ? 1 : 0);
-    // Speed-sensitive limit...
-    let limit = keyboardSteerLimit(s.speed);
+    // Grip-aware limit...
+    let limit = keyboardSteerLimit(s.speed, s.peakSteer, s.maxSteer);
     // ...lifted when steering into a slide (counter-steer).
     // Sliding left (slip > 0) -> counter-steer is steering left (target < 0).
     const counter =

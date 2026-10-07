@@ -29,7 +29,8 @@ const FRONT: AxleDef = {
   brakeTorque: 1750,
   handbrakeTorque: 0,
   steer: 1,
-  grip: 1,
+  // A touch above the raw surface on both axles: more turn, and the rear stays planted at speed on loose gravel.
+  grip: 1.05,
   forceHeight: 0.3,
 };
 
@@ -44,7 +45,7 @@ const REAR: AxleDef = {
   brakeTorque: 750,
   handbrakeTorque: 2800,
   steer: 0,
-  grip: 1,
+  grip: 1.05,
   forceHeight: 0.3,
 };
 
@@ -58,7 +59,7 @@ export const fiesta: CarDef = {
   name: 'Fiesta WRC',
   className: 'WRC · AWD turbo',
   description:
-    'World Rally Car of the 2017 rules: 1.6 turbo, 5-speed sequential, active diffs, wide arches, big wing. Short and wide, it turns in like nothing else.',
+    'World Rally Car of the 2017 rules: 1.6 turbo, 6-speed sequential, active diffs, wide arches, big wing. Short and wide, it turns in like nothing else.',
   sources: [
     {
       label: '"Ford Fiesta WRC" by kevin (Sketchfab)',
@@ -111,16 +112,16 @@ export const fiesta: CarDef = {
       },
     ),
     engine: {
-      // WRC level (1.6 turbo, 36 mm restrictor: ~380 hp, ~430 Nm at 5000 rpm): a notch above the R5.
+      // WRC level (1.6 turbo, 36 mm restrictor): 450 Nm at 5000, 283 kW (380 hp) at 6000 - a notch above the R5.
       torqueCurve: [
-        [1000, 190],
-        [2000, 290],
-        [3000, 385],
-        [4000, 425],
-        [5000, 430],
-        [6000, 390],
-        [6500, 340],
-        [7000, 280],
+        [1000, 200],
+        [2000, 320],
+        [3000, 420],
+        [4000, 450],
+        [5000, 455],
+        [6000, 450],
+        [6500, 415],
+        [7000, 345],
       ],
       idleRpm: 950,
       redlineRpm: 6900,
@@ -129,7 +130,8 @@ export const fiesta: CarDef = {
       launchRpm: 4400,
     },
     gearbox: {
-      ratios: [3.2, 2.2, 1.65, 1.3, 1.05],
+      // 6-speed sequential (the R5 has 5): same 1st and top gear, closer steps.
+      ratios: [3.2, 2.35, 1.82, 1.47, 1.22, 1.05],
       reverse: 3.3,
       finalDrive: 4.6,
       shiftTime: 0.1,
@@ -145,8 +147,8 @@ export const fiesta: CarDef = {
     drivetrain: {
       frontSplit: 0.42,
       centerLock: 120,
-      frontDiffLock: 80,
-      rearDiffLock: 200,
+      frontDiffLock: 30, // 80 / 200 fought every turn-in (speed-sensing locks)
+      rearDiffLock: 100,
     },
     dragArea: 0.8,
     downforceArea: 0.2,

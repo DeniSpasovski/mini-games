@@ -393,7 +393,7 @@ export function slalom(cfg: Cfg, surface: SurfaceId) {
   };
 }
 
-/** What a keyboard player gets: steer ramps (3.2/s) to the in-game speed limit (`keyboardSteerLimit`), held 4 s. */
+/** What a keyboard player gets: steer ramps (3.2/s) to the in-game limit (`keyboardSteerLimit` at `Vehicle.peakSteer`), held 4 s. */
 export function keyboardLock(
   cfg: Cfg,
   surface: SurfaceId,
@@ -404,11 +404,15 @@ export function keyboardLock(
   v.tractionControl = tc;
   launch(v, kmh);
   run(v, 1.5, () => cruise(v, kmh));
-  const limit = keyboardSteerLimit(kmh / 3.6);
   let maxBo = 0;
   let minUp = 1;
   const g: number[] = [];
   run(v, 4, (t) => {
+    const limit = keyboardSteerLimit(
+      v.speed,
+      v.peakSteer(),
+      v.def.maxSteerDeg * DEG,
+    );
     v.controls.steer = Math.min(limit, 3.2 * t);
     cruise(v, kmh);
     const r = yawRate(v);

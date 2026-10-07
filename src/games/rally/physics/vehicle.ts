@@ -41,6 +41,8 @@ const BODY_WATER_CD = 1.05;
 /** Traction control stability term: combined slip (1 = peak) above which a driven wheel trims throttle. */
 const TC_REAR_SLIP = 1.15;
 const TC_FRONT_SLIP = 2.0;
+/** `peakSteer`: share of the front tyres' peak slip angle added to the path curvature (the rear runs below its peak). */
+const PEAK_STEER_SLIP = 0.6;
 
 export interface WheelState {
   id: WheelId;
@@ -273,6 +275,33 @@ export class Vehicle {
       mk('RL', d.rear, false, true),
       mk('RR', d.rear, false, false),
     ];
+  }
+
+  /**
+   * Wheel steer angle (rad) that puts the front tyres at about their peak cornering grip at this speed on the ground
+   * under them: the path curvature at full grip (atan(wheelbase x mu x g / v^2), downforce included) plus 0.6 of the
+   * front tyres' peak slip angle. Keyboard / touch steering aim here (`keyboardSteerLimit` in game/input.ts).
+   */
+  peakSteer(): number {
+    const d = this.def;
+    let mu = 0;
+    let angle = 0;
+    for (const w of this.wheels)
+      if (w.isFront) {
+        mu += w.surface.mu * w.axle.grip * 0.5;
+        angle += w.surface.peakAngle * 0.5;
+      }
+    const v = Math.max(3, Math.abs(this.speed));
+    const weight = this.mass * GRAVITY;
+    const down = 0.5 * AIR_DENSITY * d.downforceArea * v * v;
+    const acc = (mu * GRAVITY * (weight + down)) / weight;
+    const L = d.front.z - d.rear.z;
+    const max = d.maxSteerDeg * (Math.PI / 180);
+    return Math.min(
+      max,
+      Math.atan((L * acc) / (v * v)) +
+        PEAK_STEER_SLIP * angle * (Math.PI / 180),
+    );
   }
 
   /** Forward speed (m/s, negative when reversing). */

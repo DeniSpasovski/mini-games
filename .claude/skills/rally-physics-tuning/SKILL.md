@@ -29,7 +29,7 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
   `integration-tests/rally/tyres.test.ts`. A new surface needs an entry in every `TyreDef.grip`.
 - Tyre model: `physics/tire.ts`. Rigid body / suspension / contacts: `physics/vehicle.ts`.
 - Driver aids: `Vehicle.tractionControl` (wheelspin + combined-slip stability, `T` in game),
-  `autoReverse`, keyboard steering ramp / speed limit / counter-steer allowance in `game/input.ts`.
+  `autoReverse`, keyboard steering ramp / grip-aware limit (`Vehicle.peakSteer`) / counter-steer allowance in `game/input.ts`.
 
 ## Workflow
 
@@ -59,6 +59,9 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
 - Flimsy props must not be solid colliders (a 6 cm post stopped the car dead at 95 km/h).
 - Rear-biased AWD at full throttle mid-corner power-oversteers; the stability part of TC handles keyboard play.
 - TC stability on driven FRONT tyres uses a high threshold (2.0 vs 1.15 rear): past their peak they understeer, and
-  cutting power there bogged the Skoda Rally / Zastava mid-corner; keyboard lock (`keyboardSteerLimit`) stays near the
-  peak-grip steering - check both with `handling.test.ts` (keyboard lock rows) when touching either.
+  cutting power there bogged the Skoda Rally / Zastava mid-corner; keyboard lock (`keyboardSteerLimit` at
+  `Vehicle.peakSteer`) aims at the peak-grip steering - check both with `handling.test.ts` (keyboard lock rows).
+- "Can't turn": every car is front-limited - look at `utilRear` at the limit (`rampSteer`) and keyboard `frontSlip`
+  before touching springs. Speed-sensing diff locks resist turn-in; anti-roll bars barely matter. RWD rear bias can't go
+  below M3 1.3 / GT2 1.5 (straight-line launch test).
 - Crests in corners unload the tyres (loads can drop to ~40%) - a real hazard; place jumps on straights.

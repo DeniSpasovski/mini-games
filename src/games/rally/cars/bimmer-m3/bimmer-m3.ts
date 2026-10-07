@@ -27,7 +27,8 @@ const FRONT: AxleDef = {
   brakeTorque: 1700,
   handbrakeTorque: 0,
   steer: 1,
-  grip: 1.06, // street tyres (245 / 40 R18) need a little front grip so the tarmac specialist stays ahead of the Skoda (car-setup.test.ts)
+  // Front grip turns the car (it pushed wide with every tyre at 1.06); also keeps the tarmac specialist ahead of the Skoda.
+  grip: 1.12,
   forceHeight: 0.3,
 };
 
@@ -151,7 +152,7 @@ export const bimmerM3: CarDef = {
       frontSplit: 0,
       centerLock: 0,
       frontDiffLock: 0,
-      rearDiffLock: 260,
+      rearDiffLock: 150, // a stiffer lock (260) fought every turn-in
     },
     dragArea: 0.8,
     downforceArea: 0.22,

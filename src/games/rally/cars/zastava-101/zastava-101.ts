@@ -16,7 +16,7 @@ const FRONT: AxleDef = {
   brakeTorque: 1200,
   handbrakeTorque: 0,
   steer: 1,
-  grip: 1,
+  grip: 1.04, // a little front bite for the FWD push
   forceHeight: 0.35,
 };
 
