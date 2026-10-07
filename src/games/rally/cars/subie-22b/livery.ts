@@ -8,7 +8,7 @@ import source from './model.source.json';
  * Runtime paint for the Subaru WRX STI 22B BODY (converted GLB, atlas layout in model.source.json). Glass, lamps, mirrors and
  * trim are separate parts with their own materials, so only body panels get paint: blue base, dark undercoat, and the side
  * graphic - a crescent swoosh with a cluster of four-point stars, redrawn as shapes after the owner's reference picture
- * (no lettering), always pointing forward.
+ * (no lettering), bulge and stars at the front, tip trailing back.
  */
 const A = source.atlas;
 const { K, B, CH, Painter, sidePx, frontPx, rearPx } = atlasKit(A);
@@ -20,9 +20,10 @@ const Y_TOP = 0.8;
 /** Reference picture rows spanned by the graphic (crescent tip to lower end). */
 const REF_Y = [121, 222];
 const PX = (Y_TOP - Y_BOTTOM) / (REF_Y[1] - REF_Y[0]);
-/** The crescent's lower-left end ("tail") sits over the rear wheel arch (z, m); the graphic grows forward from there. */
-const TAIL_Z = -0.957;
-const AT_Z = TAIL_Z + (295 - 168) * PX;
+/** Rear end of the graphic (z, m), just in front of the rear wheel arch; it grows forward from there. */
+const REAR_Z = -0.957;
+/** Reference picture columns spanned by the graphic (crescent bulge to tip). */
+const REF_X = [168, 422];
 
 /** Reference picture coordinates (px, y down): the crescent outline, sweeping from the lower end round the left bulge to the upper tip. */
 const CRESCENT: Pt[] = [
@@ -94,11 +95,12 @@ function star(cx: number, cy: number, rh: number, rv: number): Pt[] {
 }
 
 /**
- * Reference px -> body side (z, y). The same z on both sides: the graphic always points forward (stars towards the nose),
- * so it is mirrored on one side - the side charts are viewer-oriented, the painter flips z for the left one itself.
+ * Reference px -> body side (z, y). The same z on both sides, and the picture is mirrored along the car: the bulge and
+ * stars lead at the front, the tip trails back like a comet's tail. Seen from the left it reads like the picture (the
+ * painter flips z for the left chart itself), from the right it is reversed.
  */
 const at = ([x, y]: Pt): Pt => [
-  AT_Z + (x - 295) * PX,
+  REAR_Z + (REF_X[1] - x) * PX,
   Y_BOTTOM + (REF_Y[1] - y) * PX,
 ];
 
