@@ -9,6 +9,8 @@ import { DEFAULT_TOY, generateToyStore, toyTargetPoints } from './toy/generate';
 import { LAYOUTS } from './toy/layouts';
 import type { MapData } from './types';
 
+const TOY_LAYOUT_IDS = Object.keys(LAYOUTS);
+
 /** Everything the game needs to know about a playable map. DOM-free (tests and the bot use it too). */
 export type MapId = 'city' | 'toy' | 'animal';
 
@@ -72,9 +74,14 @@ export const MAPS: MapDef[] = [
     noun: 'store',
     itemMap: 'toy',
     points: toyTargetPoints(DEFAULT_TOY),
+    // the seed also picks the floor plan (a, b, c in turn); ?layout= overrides it
     generate: (seed, opts) =>
-      generateToyStore({ seed, layout: opts?.layout ?? DEFAULT_TOY.layout }),
-    layouts: Object.values(LAYOUTS).map((l) => ({ id: l.id, name: l.name })),
+      generateToyStore({
+        seed,
+        layout:
+          opts?.layout ?? TOY_LAYOUT_IDS[(seed - 1) % TOY_LAYOUT_IDS.length],
+      }),
+    seeded: true,
     puffs: 'confetti',
     mood: {
       sky: 0xf7e9d2,

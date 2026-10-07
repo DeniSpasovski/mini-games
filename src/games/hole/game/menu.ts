@@ -358,7 +358,11 @@ export class Menu {
           () => (s.seed <= 1 ? 999 : s.seed - 1),
           'Previous island',
         ),
-        el('p', 'hg-variant', `Island #${s.seed}`),
+        el(
+          'p',
+          'hg-variant',
+          `${mc.noun === 'store' ? 'Store' : 'Island'} #${s.seed}`,
+        ),
         step(
           '›',
           'gray hg-arrow',

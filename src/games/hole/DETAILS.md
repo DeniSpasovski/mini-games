@@ -56,11 +56,10 @@ not.
   top 10 and its own scoring version (`MAP_SCORING_VERSIONS` in `game/scores.ts`).
 - **Pick difficulty**: above the time buttons sits the **map variant**: City Island has an island seed stepper
   (`‹  Island #7  ›` and `🎲 Random`, seeds 1-999, saved as `settings.seed`; entering the screen from Play / the map
-  picker always rolls a random seed), the Toy Emporium has its three floor plans as
-  tabs (Grand Hall / Ring Walk / Warehouse Sale, saved as `settings.layout`); the menu background shows the pick. Every
-  seed holds the same points, so one top 10 per map and difficulty covers all islands (the toy layouts share one list
-  too; layout B is a fast run and C a slow one, see TOY-STORE.md). `?seed=` / `?layout=` in the URL win over the saved
-  choice (dev links). The setting is the time limit (same three times on every map):
+  picker always rolls a random seed); the Toy Emporium and Animal Island use the same stepper. The toy seed also picks the
+  floor plan (a, b, c in turn: Grand Hall / Ring Walk / Warehouse Sale); the menu background shows the pick. Every
+  seed holds the same points, so one top 10 per map and difficulty covers all seeds (layout B is a fast run and C a slow
+  one, see TOY-STORE.md). `?seed=` / `?layout=` in the URL win over the saved choice (dev links). The setting is the time limit (same three times on every map):
 
   | Difficulty | Time  | Notes                                                          |
   | ---------- | ----- | -------------------------------------------------------------- |
@@ -79,7 +78,7 @@ not.
   tier and the **top 10 for that difficulty** with your run highlighted. A run outside the top 10 shows under a gap.
   Buttons: Play again (same difficulty) and Main menu.
 - **Persistence** (localStorage; every access is wrapped in try/catch and falls back to memory, so private mode works):
-  - `hole.settings`: colour, volume, quality, last difficulty, last map, island seed, toy floor plan
+  - `hole.settings`: colour, volume, quality, last difficulty, last map, seed
   - `hole.scores.<map>.easy|medium|hard` (`city`, `toy`, `animal`): top 10 `{ score, level, eaten, pct, color, date }`, sorted by
     score. Ties go to the higher level, then the earlier date.
   - No player names in v0 (one device = one player). Initials are listed under iterations.

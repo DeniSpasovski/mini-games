@@ -231,7 +231,7 @@ export class HoleGame {
     // ?seed= / ?layout= (dev links) win over the menu choice
     this.map = def.generate(
       Number(this.params.get('seed') ?? (def.seeded ? this.settings.seed : 1)),
-      { layout: this.params.get('layout') ?? this.settings.layout },
+      { layout: this.params.get('layout') ?? undefined },
     );
     if (this.ground) {
       this.scene.remove(this.ground);
