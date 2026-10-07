@@ -48,7 +48,7 @@ test('random start: Toy Emporium layouts', () => {
     check(generateToyStore({ seed: 1, layout }), `toy ${layout}`);
 });
 
-test('random start: Construction City seeds', () => {
+test('random start: Construction Site seeds', () => {
   for (const seed of [1, 2, 3])
     check(generateConstructionCity({ seed }), `construction ${seed}`);
 });

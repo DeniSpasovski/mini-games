@@ -25,7 +25,7 @@ import {
 } from './layout';
 
 /**
- * Construction City generator (CONSTRUCTION-CITY.md section 4): seed -> ground rects, every placement and
+ * Construction Site generator (CONSTRUCTION-SITE.md section 4): seed -> ground rects, every placement and
  * the truck road graph. Pure data (no three.js, no DOM), deterministic per seed, exactly `points` points:
  * a per-tier point budget is shared by the types of each tier, the biggest are placed first, small items
  * gather round work spots, then small items are trimmed or 1-point bricks added until the total is exact.

@@ -2,7 +2,7 @@ import type { District } from '../../items/catalog-construction';
 import type { RoadNet } from '../types';
 
 /**
- * Construction City floor plan (CONSTRUCTION-CITY.md section 3): a fenced 540 x 420 m site, a grid of
+ * Construction Site floor plan (CONSTRUCTION-SITE.md section 3): a fenced 540 x 420 m site, a grid of
  * 12 m gravel haul roads, 6 x 5 plots grouped into 9 districts, and the open-pit mine (no roads) in the
  * north-east. Pure data; +X east, +Z south, the gate is in the south fence at x = 0.
  */

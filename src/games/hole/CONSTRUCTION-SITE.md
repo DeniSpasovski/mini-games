@@ -1,4 +1,4 @@
-# Hole Island - Construction City map (design, roster, open tasks)
+# Hole Island - Construction Site map (design, roster, open tasks)
 
 Fourth map for Hole Island: a whole city that is one giant construction site. You start as a hole the size of a hard
 hat and eat bricks, cones, cement bags and workers' toolboxes, then wheelbarrows and cement mixers, then mini diggers,
@@ -6,7 +6,7 @@ skips and containers, then excavators, dump trucks and half-built houses, and yo
 bucket-wheel excavator, tower cranes and the skyscrapers they are building**.
 
 > **Status: built as a test map** (`?map=construction`, dev server and `npm run build:test` only, see `release.ts`).
-> How the built parts work is in [`DETAILS.md`](DETAILS.md) ("Map: Construction City"); this file keeps the design,
+> How the built parts work is in [`DETAILS.md`](DETAILS.md) ("Map: Construction Site"); this file keeps the design,
 > the roster and the open tasks. The game rules (size ladder, eat rule, scoring) are not changed by this map.
 > Workflow: [`.claude/skills/hole-content/SKILL.md`](../../../.claude/skills/hole-content/SKILL.md).
 
@@ -33,7 +33,7 @@ no company logos on hoardings or cabins.
 
 | #   | Question         | Default                                                                                                                                                                                    |
 | --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| D1  | Id / name        | `construction` / "Construction City", noun "site" (HUD: "SITE CLEARED!"), blurb "Bricks first, mining trucks and tower cranes last."                                                       |
+| D1  | Id / name        | `construction` / "Construction Site", noun "site" (HUD: "SITE CLEARED!"), blurb "Bricks first, mining trucks and tower cranes last."                                                       |
 | D2  | Shape            | a **fenced rectangle** (`MapData.bounds`, like the toy store) under an open sky: 540 x 420 m, hoarding on all four sides, low on the camera side with the site gate                        |
 | D3  | Release          | **test map**: a hole `release.ts` (same idea as rally) lists it in `TEST_MAPS`, so it shows on the dev server and in `npm run build:test`, not in the release build, until you say ship it |
 | D4  | Point total      | **24 000** (more than 2 x `cumulativeXp(15)` = 17 110 so Easy can clear it, more than the 20 155 XP to level 25); tuned by the bot through floor size and clustering, not the XP curve     |
@@ -86,7 +86,7 @@ deterministic per seed.
 
 ## 5. Size ladder in site terms
 
-| Hole level | Eats up to | Construction City feel                                                                                      |
+| Hole level | Eats up to | Construction Site feel                                                                                      |
 | ---------- | ---------- | ----------------------------------------------------------------------------------------------------------- |
 | 1          | 0.9 m      | bricks, blocks, hard hats, buckets, cones, toolboxes, bags, jerrycans, workers, drums, signs, tiny heaps    |
 | 2          | 1.43 m     | shovels, rebar bundles, compactors, barricades, cement mixers, generators, pallets, portaloos, wheelbarrows |

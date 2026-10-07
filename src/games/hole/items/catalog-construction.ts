@@ -2,9 +2,9 @@ import type { ItemDef } from './catalog';
 import type { MoveKind } from '../map/types';
 
 /**
- * Construction City edible catalog (the fourth map). Data only: size, tier, level and points are derived from
+ * Construction Site edible catalog (the fourth map). Data only: size, tier, level and points are derived from
  * the dimensions in catalog.ts like every other item. `homes` = the districts the generator may place it in
- * (CONSTRUCTION-CITY.md section 3), `motion` = how it moves ('-' = static). Builders: build-site.ts (materials,
+ * (CONSTRUCTION-SITE.md section 3), `motion` = how it moves ('-' = static). Builders: build-site.ts (materials,
  * tools, crew, site furniture, heaps) and build-machines.ts (plant, trucks, cranes, mining, structures).
  * Vehicles and machines run along X, workers and signs face +Z.
  */

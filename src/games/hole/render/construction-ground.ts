@@ -63,7 +63,7 @@ function buildHoarding(hx: number, hz: number): Mesher {
 }
 
 /**
- * Ground for Construction City: the map's flat rects over a dirt base with a 10 m checker, a skirt under
+ * Ground for Construction Site: the map's flat rects over a dirt base with a 10 m checker, a skirt under
  * the fence, the plane outside, the hoarding (non-edible, item material) and painted district names.
  * All ground uses the stencil-cut material, so the hole opens through it.
  */

@@ -51,7 +51,7 @@ export type ItemGroup =
   | 'lab'
   | 'labveh'
   | 'staff'
-  // Construction City
+  // Construction Site
   | 'material'
   | 'tools'
   | 'crew'
@@ -605,7 +605,7 @@ export const ANIMAL_ITEMS: ItemInfo[] = [
   ...SHARED_CITY_IDS.map((id) => BY_ID.get(id)!),
 ].sort((a, b) => a.size - b.size || a.id.localeCompare(b.id));
 
-/** Construction City catalog, ascending size. */
+/** Construction Site catalog, ascending size. */
 export const CONSTRUCTION_ITEMS: ItemInfo[] = CONSTRUCTION_DEFS.map((d) =>
   BY_ID.get(d.id)!,
 ).sort((a, b) => a.size - b.size || a.id.localeCompare(b.id));

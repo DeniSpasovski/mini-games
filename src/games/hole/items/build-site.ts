@@ -15,7 +15,7 @@ import {
 } from './kit-site';
 
 /**
- * Construction City: materials, hand tools, crew, site furniture and heaps (mostly tiers 1-14).
+ * Construction Site: materials, hand tools, crew, site furniture and heaps (mostly tiers 1-14).
  * Metres at the catalog size, pivot at the ground centre; machines run along X, workers and signs face +Z.
  */
 

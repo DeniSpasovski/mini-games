@@ -73,7 +73,7 @@ test('balance bands: good bot on Animal Island, hard / medium / easy, three seed
     writeFileSync(process.env.LIST_BALANCE, out.join('\n'));
 }, 600000);
 
-test('balance bands: good bot on Construction City, hard / medium / easy', () => {
+test('balance bands: good bot on Construction Site, hard / medium / easy', () => {
   const m = generateConstructionCity({ seed: 1 });
   const run = (seconds: number) =>
     runBot(new Sim(m, { seconds }), BOT_SKILLS.good, { dt: 1 / 30 });

@@ -113,7 +113,7 @@ export const ALL_MAPS: MapDef[] = [
   },
   {
     id: 'construction',
-    name: 'Construction City',
+    name: 'Construction Site',
     blurb: 'Bricks first, mining trucks and tower cranes last.',
     noun: 'site',
     itemMap: 'construction',

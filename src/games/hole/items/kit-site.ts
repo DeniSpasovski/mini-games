@@ -1,7 +1,7 @@
 import { PAL, type Mesher } from './kit';
 
 /**
- * Construction City building helpers. The builders run with `Mesher.decoplanar` (builders.ts), so an
+ * Construction Site building helpers. The builders run with `Mesher.decoplanar` (builders.ts), so an
  * axis-aligned box face that lies in the plane of an earlier box's face is pulled in a few mm; cylinders,
  * balls and rotated boxes are not handled, keep them off other faces by hand (1-3 cm).
  *

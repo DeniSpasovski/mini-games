@@ -6,7 +6,7 @@ description: Add content to Hole Island - a new edible item (catalog row + proce
 # Hole Island content workflow
 
 Read first: `src/games/hole/DETAILS.md` (rules, level / tier tables, catalog, art style) and, for the toy store,
-`src/games/hole/TOY-STORE.md`, for Animal Island `src/games/hole/ANIMAL-ISLAND.md`, for Construction City `src/games/hole/CONSTRUCTION-CITY.md`. Points, tier and unlock level are **derived from the item size**
+`src/games/hole/TOY-STORE.md`, for Animal Island `src/games/hole/ANIMAL-ISLAND.md`, for Construction Site `src/games/hole/CONSTRUCTION-SITE.md`. Points, tier and unlock level are **derived from the item size**
 (`size = max(w, d, h x 0.25)`, see `sim/progression.ts`): never hand-pick them. Changing an item size changes its points,
 so bump that map's scoring version (below).
 

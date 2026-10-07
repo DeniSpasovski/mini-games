@@ -15,7 +15,7 @@ import {
 } from './kit-site';
 
 /**
- * Construction City: plant, trucks, cranes, mining machines and buildings under construction (tiers 13-25).
+ * Construction Site: plant, trucks, cranes, mining machines and buildings under construction (tiers 13-25).
  * Metres at the catalog size, pivot at the ground centre, machines run along X with the front at +X.
  * Shared recipes take scale factors (kx along X, ky up, kz across) so one design serves two sizes.
  */

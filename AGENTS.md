@@ -45,7 +45,7 @@ into `DETAILS.md`, never up.
 | Level                         | `README.md`                                 | `DETAILS.md` / other docs                                                                                                                |
 | ----------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | root                          | purpose, games, quick start, licence        | portal layout, domain lock, analytics, PWA, deploying; `THIRD-PARTY.md`                                                                  |
-| `src/games/<id>/`             | overview, screenshots, stages / cars tables | rules, flows, architecture, debug tools; `TASKS.md`; rally `PHYSICS.md`; hole `TOY-STORE.md`, `ANIMAL-ISLAND.md`, `CONSTRUCTION-CITY.md` |
+| `src/games/<id>/`             | overview, screenshots, stages / cars tables | rules, flows, architecture, debug tools; `TASKS.md`; rally `PHYSICS.md`; hole `TOY-STORE.md`, `ANIMAL-ISLAND.md`, `CONSTRUCTION-SITE.md` |
 | `src/games/rally/maps/<id>/`  | route, screenshots, data credits + licences | every source link, bake notes, references; `TODO.md`                                                                                     |
 | `src/games/rally/cars/<car>/` | description, screenshots, credits + licence | build notes, rebuild commands, every source; `TODO.md` where present                                                                     |
 
@@ -73,7 +73,7 @@ into `DETAILS.md`, never up.
   `TODO.md`; `maps/shared/` = format + helpers
 - Rally cars: `cars/<car>/` = `<car>.ts`, README, local-only DETAILS (build notes + sources); `cars/shared/` = code for every car
 - Hole Island: `src/games/hole/DETAILS.md` (rules, levels, tiers, catalog, generator, debug, architecture), `TASKS.md`,
-  `TOY-STORE.md`, `ANIMAL-ISLAND.md`, `CONSTRUCTION-CITY.md` (map design, roster, open tasks)
+  `TOY-STORE.md`, `ANIMAL-ISLAND.md`, `CONSTRUCTION-SITE.md` (map design, roster, open tasks)
 - `sources/cars/<car>/`, `sources/maps/<map>/` - files the user shared, git-ignored, never served. Models / data / licence files
   get a row in that folder's `DETAILS.md`; reference photos only in the local `NOTES.md`.
 - `scripts/car-model/`: `scan-mesh.py` (run on every new model after the licence gate: split / panel edges / blob),
