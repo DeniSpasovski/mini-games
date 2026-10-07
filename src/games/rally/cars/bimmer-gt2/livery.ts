@@ -2,7 +2,7 @@ import { atlasKit, type Pt } from '../shared/atlas-painter';
 import type { LiveryInfo } from '../shared/livery';
 import type { CarAtlas } from '../shared/types';
 import { Rng } from '../../../../shared/rng';
-import { blocks } from './livery-pattern';
+import { CELL, blocks } from './livery-pattern';
 import source from './model.source.json';
 
 /**
@@ -17,13 +17,22 @@ const { K, B, CH, Painter } = atlasKit(A);
 /** Where the pattern's across-car coordinate p turns from the roof into the side: p = X_CREST is y = Y_CREST. */
 const X_CREST = 0.8;
 const Y_CREST = 1.15;
+/** The crest is lower over the front wing / hood (z > Z_HOOD), blended over 0.7 m so the pattern stays continuous. */
+const Y_CREST_HOOD = 0.98;
+const Z_HOOD = 0.5;
 /** Side height of pattern coordinate p (the side charts show the pattern running down the body). */
-const sideY = (p: number) => Y_CREST - (Math.abs(p) - X_CREST);
+const sideY = (z: number, p: number) => {
+  const t = Math.min(1, Math.max(0, (z - Z_HOOD) / 0.7));
+  const crest = Y_CREST + (Y_CREST_HOOD - Y_CREST) * t;
+  return crest - (Math.abs(p) - X_CREST);
+};
 
 /** |x| where the red blocks start on the rear end (half-way across a tail light). */
 const REAR_X = 0.58;
 /** y of the boot lid's lower edge on the rear end. */
-const REAR_LID_Y = 0.95;
+const REAR_LID_Y = 0.96;
+/** Extra height of the arch at the middle. */
+const REAR_LID_ARCH = 0.06;
 const PEARL = '#ece4d8';
 const WHITES = [
   '#ece4d8',
@@ -98,7 +107,7 @@ function paint(
     );
     // sides: the left side shows p > 0, the right side p < 0 (both read y = sideY(p))
     const sidePoly = (sign: 1 | -1) =>
-      poly.map(([z, p]): Pt => [z, sideY(sign * p)]);
+      poly.map(([z, p]): Pt => [z, sideY(z, sign * p)]);
     if (poly.some(([, p]) => p > X_CREST - 0.05))
       P.side(sidePoly(1), fill, 'left');
     if (poly.some(([, p]) => p < -(X_CREST - 0.05)))
@@ -115,15 +124,15 @@ function paint(
   }
   // front end: white / silver-white squares (same block size); rear end: pearl white behind the plate
   const front = new Rng(5);
-  for (let x = -1.2; x < 1.2; x += 0.2)
-    for (let y = 0; y < 1.4; y += 0.2)
+  for (let x = -1.2; x < 1.2; x += CELL)
+    for (let y = 0; y < 1.4; y += CELL)
       P.end(
         'front',
         [
           [x, y],
-          [x + 0.2, y],
-          [x + 0.2, y + 0.2],
-          [x, y + 0.2],
+          [x + CELL, y],
+          [x + CELL, y + CELL],
+          [x, y + CELL],
         ],
         seed === 0 ? front.pick(WHITES) : PEARL,
         false,
@@ -138,21 +147,29 @@ function paint(
     ],
     PEARL,
   );
-  // rear end: the boot lid (above the plate, y > REAR_LID_Y) is red across, below it the middle stays pearl and red
-  // blocks cover the outer part up to half of each tail light
+  // rear end: red blocks on the boot lid and the outer corners; the middle (plate area) stays pearl below an arched edge
+  // that follows the lid's curve, and the vertical edges at +-REAR_X run straight down to the bumper
   if (seed === 0) {
     const rear = new Rng(9);
-    const block = (x: number, y: number): Pt[] => [
-      [x, y],
-      [x + 0.2, y],
-      [x + 0.2, y + 0.2],
-      [x, y + 0.2],
-    ];
-    for (let y = 0; y < 1.4; y += 0.2) {
-      const full = y + 0.2 > REAR_LID_Y;
-      for (let x = full ? -1.2 : REAR_X; x < 1.2; x += 0.2)
-        P.end('rear', block(x, y), rear.pick(REDS), !full);
+    for (let y = 0; y < 1.4; y += CELL)
+      for (let x = -1.2; x < 1.2; x += CELL)
+        P.end(
+          'rear',
+          [
+            [x, y],
+            [x + CELL, y],
+            [x + CELL, y + CELL],
+            [x, y + CELL],
+          ],
+          rear.pick(REDS),
+          false,
+        );
+    const arch: Pt[] = [];
+    for (let i = 0; i <= 16; i++) {
+      const x = -REAR_X + (2 * REAR_X * i) / 16;
+      arch.push([x, REAR_LID_Y + REAR_LID_ARCH * (1 - (x / REAR_X) ** 2)]);
     }
+    P.end('rear', [[-REAR_X, 0], [REAR_X, 0], ...arch.reverse()], PEARL, false);
   }
   underside(ctx);
 }

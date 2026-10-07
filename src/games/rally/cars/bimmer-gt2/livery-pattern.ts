@@ -26,14 +26,15 @@ export const Z_TAIL = -2.4;
 /** Rear deck behind this z stays clear pearl white (plate area). */
 export const PEARL_Z = -2.4;
 export const P_MAX = 2.3;
-const CELL = 0.2;
+/** Default block size in metres (the end faces use the same). */
+export const CELL = 0.14;
 /**
  * Band edges as lines z = c + k * |p| (|p| grows down the body, so each edge leans rearward as it climbs): blue starts at
  * the front wheel arch and climbs the A pillar, red starts at the side vent and covers the whole boot lid.
  */
 export const PALETTE_SIZES = [6, 6, 5] as const;
 const BLUE_EDGE = { c: 0.5, k: 0.55 };
-const RED_EDGE = { c: -1.2, k: 0.5 };
+const RED_EDGE = { c: -1.7, k: 1.0 };
 
 /** Slow wobble so the band edges wander instead of running ruler-straight. */
 const wobble = (z: number, p: number) =>
@@ -95,13 +96,13 @@ export function blocks(): Block[] {
       let trail: Pt[] | null = null;
       let tip: Pt[] | null = null;
       let trailF = 1;
-      if (rng.next() < 0.34) {
+      if (rng.next() < 0.5) {
         const L = rng.range(2, 8) * (z0 - z1);
         const dz = -L;
         if (z1 + dz >= PEARL_Z) {
-          tip = face.map(([z, p]): Pt => [z + dz, p + L * 0.55]);
+          tip = face.map(([z, p]): Pt => [z + dz, p + L * 0.9]);
           trail = hull([...face, ...tip]);
-          trailF = rng.pick([0.78, 0.86, 1.12]);
+          trailF = rng.pick([0.7, 0.82, 1.18]);
         }
       }
       out.push({ face, trail, tip, band, shade, trailF });
