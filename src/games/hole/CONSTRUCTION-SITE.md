@@ -31,18 +31,18 @@ no company logos on hoardings or cabins.
 
 ## 2. Decisions (defaults picked; change any of them by saying so)
 
-| #   | Question         | Default                                                                                                                                                                                    |
-| --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| D1  | Id / name        | `construction` / "Construction Site", noun "site" (HUD: "SITE CLEARED!"), blurb "Bricks first, mining trucks and tower cranes last."                                                       |
-| D2  | Shape            | a **fenced rectangle** (`MapData.bounds`, like the toy store) under an open sky: 540 x 420 m, hoarding on all four sides, low on the camera side with the site gate                        |
-| D3  | Release          | **test map**: a hole `release.ts` (same idea as rally) lists it in `TEST_MAPS`, so it shows on the dev server and in `npm run build:test`, not in the release build, until you say ship it |
-| D4  | Point total      | **21 000** (more than 2 x `cumulativeXp(15)` = 17 110 so Easy can clear it, lowered from 24 000 to ease the pace); tuned by the bot through floor size and clustering, not the XP curve    |
-| D5  | Scale            | real 1:1 scale (a brick is 24 cm, a haul truck 15.6 m); **one fantasy piece**: the 25 m "titan" haul truck, a prototype twice the real size, the boss of the mine                          |
-| D6  | Seeded           | yes: the menu seed stepper ("Site #7"), every seed holds exactly 21 000 points                                                                                                             |
-| D7  | Movers           | workers `wander` (flee when eatable); road trucks `drive` the haul-road grid; mine haul trucks `patrol` cleared haul lanes. Cranes, plant and buildings are static                         |
-| D8  | Item build style | box-built like City Island, recipes in **fractions** of the catalog size (`kit-toy.ts` `F()`), run with `Mesher.decoplanar` so coplanar box faces never z-fight                            |
-| D9  | Swallow puffs    | new `rubble` palette (concrete grey, brick red, sand, hi-vis yellow)                                                                                                                       |
-| D10 | Sounds           | materials / tools clack, plant / trucks / cranes / mining clank, heaps thud (`Sfx.gulp(tier, group)`)                                                                                      |
+| #   | Question         | Default                                                                                                                                                                                                |
+| --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| D1  | Id / name        | `construction` / "Construction Site", noun "site" (HUD: "SITE CLEARED!"), blurb "Bricks first, mining trucks and tower cranes last."                                                                   |
+| D2  | Shape            | a **fenced rectangle** (`MapData.bounds`, like the toy store) under an open sky: 540 x 420 m, hoarding on all four sides, low on the camera side with the site gate                                    |
+| D3  | Release          | **test map**: a hole `release.ts` (same idea as rally) lists it in `TEST_MAPS`, so it shows on the dev server and in `npm run build:test`, not in the release build, until you say ship it             |
+| D4  | Point total      | **21 000** (more than 2 x `cumulativeXp(15)` = 17 110 so Easy can clear it; level 25 needs ~96 % of the map, like Animal Island); tuned by the bot through floor size and clustering, not the XP curve |
+| D5  | Scale            | real 1:1 scale (a brick is 24 cm, a haul truck 15.6 m); **one fantasy piece**: the 25 m "titan" haul truck, a prototype twice the real size, the boss of the mine                                      |
+| D6  | Seeded           | yes: the menu seed stepper ("Site #7"), every seed holds exactly 21 000 points                                                                                                                         |
+| D7  | Movers           | workers `wander` (flee when eatable); road trucks `drive` the haul-road grid; mine haul trucks `patrol` cleared haul lanes. Cranes, plant and buildings are static                                     |
+| D8  | Item build style | box-built like City Island, recipes in **fractions** of the catalog size (`kit-toy.ts` `F()`), run with `Mesher.decoplanar` so coplanar box faces never z-fight                                        |
+| D9  | Swallow puffs    | new `rubble` palette (concrete grey, brick red, sand, hi-vis yellow)                                                                                                                                   |
+| D10 | Sounds           | materials / tools clack, plant / trucks / cranes / mining clank, heaps thud (`Sfx.gulp(tier, group)`)                                                                                                  |
 
 ## 3. Site layout (`map/construction/layout.ts`)
 
