@@ -49,6 +49,19 @@
     ],
     "parts": [
       {
+        "$comment": "the model's own bumper-lip / skirt carbon: body triangles whose (blurred) texture is dark and unsaturated, split along the texture border (refine, 2 cm). Front lip + skirts only (z): the rear corners of the original are painted, their dark texels are grime",
+        "mat": "Body",
+        "texture": {
+          "maxLum": 0.42,
+          "maxSat": 0.06,
+          "refine": 0.02,
+          "blur": 9
+        },
+        "y": [0, 0.3],
+        "material": "carbon",
+        "z": [-2.45, 1.1]
+      },
+      {
         "mat": "Body",
         "material": "body"
       },
@@ -82,7 +95,7 @@
       },
       {
         "mat": "grilez",
-        "material": "trim"
+        "material": "mesh"
       },
       {
         "mat": "backboard",
