@@ -496,12 +496,12 @@ The fourth map (`map=construction`, **test map**: dev server and `npm run build:
 540 x 420 m building site. Bricks, cones and hard hats first, then wheelbarrows, mini diggers, skips and containers, then
 excavators, dump trucks and half-built houses, and last haul trucks, tower cranes and the high-rises they build.
 Design, roster (117 types), decisions and open tasks: [`CONSTRUCTION-SITE.md`](CONSTRUCTION-SITE.md). Registered in
-`map/registry.ts` (id `construction`, noun "site", 24 000 points, seeded, `puffs: 'rubble'`).
+`map/registry.ts` (id `construction`, noun "site", 20 000 points, seeded, `puffs: 'rubble'`).
 
 | Part      | How it is built                                                                                                                                                                                                                      |
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Plan      | `map/construction/layout.ts`: 12 m gravel haul roads (x = -180..180 / z = -126..126), 6 x 5 plots in 9 districts (`District` in `items/catalog-construction.ts`), the mine is one road-free area                                     |
-| Generator | `map/construction/generate.ts`: per-tier point budget (`TIER_FRACTION`) shared by the types of each tier, biggest first, small items gather round work spots, then `ensureAllTypes`, start scatter, `balancePoints` (exactly 24 000) |
+| Generator | `map/construction/generate.ts`: per-tier point budget (`TIER_FRACTION`) shared by the types of each tier, biggest first, small items gather round work spots, then `ensureAllTypes`, start scatter, `balancePoints` (exactly 20 000) |
 | Movers    | workers `wander`; site vans, pickups, dump and mixer trucks `drive` the road graph (`MapData.roads`, at most 44, right-hand lane); haul trucks and forklifts `patrol` a reserved straight path                                       |
 | Ground    | `render/construction-ground.ts`: dirt base + checker, the map's rects (districts, roads, mine terraces), skirt, outside plane, hoarding (item material, low on the gate side) and district names painted on the floor                |
 | Start     | the Site Gate plot; runs start at a random busy spot (`pickStart`)                                                                                                                                                                   |

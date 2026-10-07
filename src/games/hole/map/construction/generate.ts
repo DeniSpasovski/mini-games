@@ -40,7 +40,7 @@ export interface ConstructionParams {
 
 export const DEFAULT_CONSTRUCTION: ConstructionParams = {
   seed: 1,
-  points: 24000,
+  points: 20000,
 };
 
 export function constructionTargetPoints(
@@ -51,7 +51,7 @@ export function constructionTargetPoints(
 
 /** Share of the points of each size tier 1..25 (normalised): a long middle, lighter at the very top. */
 const TIER_FRACTION = [
-  0.075, 0.05, 0.05, 0.055, 0.055, 0.055, 0.055, 0.05, 0.05, 0.05, 0.045, 0.04,
+  0.095, 0.065, 0.06, 0.055, 0.055, 0.055, 0.055, 0.05, 0.05, 0.05, 0.045, 0.04,
   0.04, 0.04, 0.04, 0.04, 0.035, 0.035, 0.035, 0.04, 0.035, 0.03, 0.03, 0.025,
   0.025,
 ];
