@@ -2,8 +2,8 @@
 
 The Fabia R5 (2015-19), the Rally2 class before it was called Rally2. The body is the CC BY "Skoda Fabia R5 Rally Car" model by SenturyUK, converted to the game
 (`scripts/car-model/glb-to-parts-stl.py` + `stl-to-glb.mjs`, wheels and badges dropped, parts mapped to our materials) and
-painted at runtime with our own white + green speed-stripe livery. A hand-built body (`blueprint.ts` / `body.ts`, traced from
-Skoda's press dimensions) is the fallback when the GLB is missing. R5 package: 2.47 m wheelbase, 1.6 turbo with the restrictor, 5-speed sequential, mechanical diffs.
+painted at runtime with our own white + green speed-stripe livery. If the GLB can't load, a boxy
+extrusion of its side outline (`profile`) stands in, wearing the same livery. R5 package: 2.47 m wheelbase, 1.6 turbo with the restrictor, 5-speed sequential, mechanical diffs.
 
 ![Front three-quarter](screenshots/front-34.jpg)
 
@@ -40,7 +40,6 @@ home tyre + set-up, 2026-10-04): `straight()` in `integration-tests/rally/handli
 | What                                                           | Source                                                                                                                                           | Licence                          |
 | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
 | Body model                                                     | ["Skoda Fabia R5 Rally Car" by SenturyUK (Sketchfab)](https://sketchfab.com/3d-models/skoda-fabia-r5-rally-car-fe062f0fd05e43a6a32a88a1aa39ef14) | CC BY 4.0 (converted, repainted) |
-| Fallback body dimensions                                       | Skoda Auto press dimensions graphic (road Fabia); Skoda Motorsport press photos (rally car)                                                      | reference only, nothing shipped  |
 | Car facts, press photos, wing / splitter / vents / scoop shape | [Skoda Motorsport - Fabia R5](https://www.skoda-motorsport.com/en/skoda-fabia-r5/)                                                               | press material, reference only   |
 | Livery, parts, physics, code                                   | own work                                                                                                                                         | project licence                  |
 

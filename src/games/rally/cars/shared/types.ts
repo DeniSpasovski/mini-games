@@ -1,6 +1,7 @@
 import type { SuspensionStyle } from './suspension-mesh';
 import type { CarPhysicsDef } from '../../physics/types';
 import type { SourceLink } from '../../maps/shared/types';
+import type { AtlasLayout } from './atlas-painter';
 import type { LiveryInfo } from './livery';
 import type { BufferGeometry } from 'three';
 import type { TyreId } from '../../physics/tyres';
@@ -165,4 +166,6 @@ export interface CarAtlas {
   paint(ctx: CanvasRenderingContext2D, info: LiveryInfo, seed: number): void;
   /** Atlas px rect [x, y, w, h] painted black that renders matte (no clearcoat) - wheel arches. */
   matteRect?: [number, number, number, number];
+  /** Box-projection layout of an STL car's atlas (model.source.json): lets the `profile` fallback wear the livery. */
+  layout?: AtlasLayout;
 }

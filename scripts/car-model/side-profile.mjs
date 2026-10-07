@@ -1,6 +1,6 @@
 /**
  * Side outline of a car GLB for its fallback body (`model.profile`, cars/shared/profile-body.ts): what the game shows
- * when the GLB can't load - the outline extruded to the body width, one flat colour.
+ * when the GLB can't load - the outline extruded to the body width, in the car's livery.
  *
  *   node scripts/car-model/side-profile.mjs <car.glb> --axles <front z>,<rear z> --wheel <radius> [--tol 0.03]
  *

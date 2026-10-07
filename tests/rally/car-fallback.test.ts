@@ -49,4 +49,16 @@ describe.each(ALL_CARS.map((c) => c.id))('%s', (id) => {
     // ...and the cabin is solid.
     expect(inside(profile.outline, 0, 0.8)).toBe(true);
   });
+
+  test.runIf(!!m.profile)('extrusion wears the livery atlas', () => {
+    const layout = m.gltf?.atlas?.layout;
+    expect(layout).toBeDefined();
+    const uv = buildProfileBody(m.profile!, layout).getAttribute('uv');
+    for (let i = 0; i < uv.count; i++) {
+      expect(uv.getX(i)).toBeGreaterThanOrEqual(0);
+      expect(uv.getX(i)).toBeLessThanOrEqual(1);
+      expect(uv.getY(i)).toBeGreaterThanOrEqual(0);
+      expect(uv.getY(i)).toBeLessThanOrEqual(1);
+    }
+  });
 });

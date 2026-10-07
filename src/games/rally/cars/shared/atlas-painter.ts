@@ -35,6 +35,31 @@ export const rect = (a0: number, b0: number, a1: number, b1: number): Pt[] => [
   [a0, b1],
 ];
 
+export type AtlasChart = 'left' | 'right' | 'top' | 'front' | 'rear' | 'bottom';
+
+/** UV (0..1, v down) of model-space point (x, y, z) on a chart: chartUv() in stl-to-glb.mjs. */
+export function atlasUv(
+  A: AtlasLayout,
+  chart: AtlasChart,
+  x: number,
+  y: number,
+  z: number,
+): [number, number] {
+  const B = A.bounds;
+  const [cx, cy] = A.charts[chart];
+  const m: [number, number] =
+    chart === 'left'
+      ? [cx + B.z[1] - z, cy + B.y[1] - y]
+      : chart === 'right'
+        ? [cx + z - B.z[0], cy + B.y[1] - y]
+        : chart === 'front'
+          ? [cx + x - B.x[0], cy + B.y[1] - y]
+          : chart === 'rear'
+            ? [cx + B.x[1] - x, cy + B.y[1] - y]
+            : [cx + B.z[1] - z, cy + x - B.x[0]]; // top / bottom
+  return [m[0] / A.width, m[1] / A.height];
+}
+
 export function atlasKit(A: AtlasLayout) {
   const K = A.pxPerMetre;
   const B = A.bounds;

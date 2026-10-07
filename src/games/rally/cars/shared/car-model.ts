@@ -59,7 +59,7 @@ import type { CarAtlas, CarDef } from './types';
  *  root (physics body frame: origin = centre of mass)
  *   ├─ body   (model space: y = 0 ground at static ride height), offset -comHeight
  *   │    the imported GLB (`gltf`) once loaded; until then / if it fails the hand-built body (`custom`: atlas paint +
- *   │    parts per material) or the boxy side-outline extrusion (`profile`, profile-body.ts, one flat paint)
+ *   │    parts per material) or the boxy side-outline extrusion (`profile`, profile-body.ts, livery via the atlas layout)
  *   └─ wheels: 3 InstancedMeshes x 4 instances (tyre, rim+disc, caliper); STL wheels
  *      (model.wheelModel, stl-wheel.ts) add a 4th for the brake disc
  *
@@ -452,11 +452,25 @@ export class CarModel {
       ];
       proceduralPaint = procedural.slice(0, 1);
     } else {
-      // Side outline extruded to the body width, one flat paint (the GLB's stand-in if it fails to load).
+      // Side outline extruded to the body width (the GLB's stand-in if it fails to load), in the GLB's livery when
+      // the atlas has a layout, else flat paint.
       const profile = def.model.profile;
       if (!profile)
         throw new Error(`[car] ${def.id}: needs model.custom or model.profile`);
-      procedural = [this.addMesh(buildProfileBody(profile), plainMat)];
+      const atlas = def.model.gltf?.atlas;
+      procedural = [
+        this.addMesh(
+          buildProfileBody(profile, atlas?.layout),
+          atlas?.layout
+            ? this.atlasMaterial(
+                atlas,
+                info,
+                opts.seed ?? 0,
+                def.model.gltf?.matte ? 'matte' : 'gloss',
+              )
+            : plainMat,
+        ),
+      ];
       proceduralPaint = procedural;
     }
     const meshTargets = (meshes: Mesh[]): BadgeTarget[] =>

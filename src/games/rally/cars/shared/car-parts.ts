@@ -8,7 +8,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 /**
- * Geometry helpers for hand-built bodies (cars/skoda-rally/body.ts, cars/zastava-101/body.ts): one merged geometry
+ * Geometry helpers for hand-built bodies (cars/zastava-101/body.ts): one merged geometry
  * per shared material (`CarPartGeometry`), so a whole car stays at a handful of draw calls.
  *   plain  = body-coloured add-ons      trim = black plastic        carbon = glossy carbon aero
  *   mesh   = grille mesh (UVs in m)     glass = window glass        lights / tail / amber = emissive lamps
