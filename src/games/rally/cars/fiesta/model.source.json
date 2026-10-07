@@ -6,7 +6,7 @@
   "scale": 1.0,
   "offset": [0, 0.131, -0.062],
   "groundAtMin": false,
-  "targetTriangles": 105000,
+  "targetTriangles": 75000,
   "creaseDeg": 40,
   "wheels": {
     "$comment": "the wheels are separate nodes (dropped below) - nothing to cut",
@@ -251,7 +251,7 @@
     },
     "drop": ["logo"],
     "maxTriangles": {
-      "interior": 26000
+      "interior": 18000
     }
   }
 }
