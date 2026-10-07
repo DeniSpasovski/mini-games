@@ -11,7 +11,7 @@ import {
   type Material,
 } from 'three';
 import { buildWheelSet, wheelMaterials } from '../cars/shared/car-model';
-import { hasWheelModel, loadRimUnit } from '../cars/shared/stl-wheel';
+import { loadRimUnits, rimColorFor } from '../cars/shared/stl-wheel';
 import {
   buildCoilover,
   SUSPENSION_STYLE_COLORS,
@@ -64,16 +64,13 @@ export class SetupBench {
       key.target,
       new HemisphereLight(0xdfe8ff, 0x303846, 1.6),
     );
-    const rimUnit = hasWheelModel(def.model.wheelModel)
-      ? loadRimUnit(def.model.wheelModel).catch(() => null)
-      : Promise.resolve(null);
-    void rimUnit.then((rim) => {
+    void loadRimUnits(def.model).then((rims) => {
       if (this.disposed) {
-        rim?.dispose();
+        for (const r of rims.values()) r.dispose();
         return;
       }
-      if (rim) this.geometries.push(rim);
-      this.build(rim);
+      this.geometries.push(...rims.values());
+      this.build(rims);
     });
   }
 
@@ -110,18 +107,18 @@ export class SetupBench {
     this.cards.set(key, { key, cam, spin, axis, speed });
   }
 
-  private build(rimUnit: BufferGeometry | null): void {
+  private build(rimUnits: ReadonlyMap<string, BufferGeometry>): void {
     const def = this.def;
-    const rimMat = this.mat(
-      new MeshStandardMaterial({
-        color: def.model.rim.color,
-        metalness: 0.75,
-        roughness: 0.32,
-      }),
-    );
     // Tyres on their rims: a real tyre + rim + brakes per compound, rolling on the axle.
     TYRE_IDS.forEach((id, i) => {
-      const w = buildWheelSet(def, id, rimUnit);
+      const w = buildWheelSet(def, id, rimUnits);
+      const rimMat = this.mat(
+        new MeshStandardMaterial({
+          color: rimColorFor(def.model, id),
+          metalness: 0.75,
+          roughness: 0.32,
+        }),
+      );
       this.geometries.push(w.tire, w.rim, w.caliper);
       if (w.disc) this.geometries.push(w.disc);
       const spin = new Group();

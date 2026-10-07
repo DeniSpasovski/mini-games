@@ -3,6 +3,7 @@ import type { CarPhysicsDef } from '../../physics/types';
 import type { SourceLink } from '../../maps/shared/types';
 import type { LiveryInfo } from './livery';
 import type { BufferGeometry } from 'three';
+import type { TyreId } from '../../physics/tyres';
 import type { CarPartGeometry } from './car-parts';
 
 /**
@@ -120,6 +121,13 @@ export interface CarModelDef {
    * size; replaces the procedural tyre + rim once loaded and adds a brake disc behind the open spokes.
    */
   wheelModel?: string;
+  /**
+   * Per-compound wheel: another wheel GLB (`model`) and / or rim colour for a tyre compound (the rest falls back to
+   * `wheelModel` / `rim.color`) - e.g. the body's own alloy on tarmac, a black rim on gravel.
+   */
+  wheelByCompound?: Partial<
+    Record<TyreId, { model?: string; rimColor?: string }>
+  >;
   /** Road dust on the tyres' sidewalls and in the grooves (old road cars, see cars/shared/tyre-mesh.ts). */
   tyreDust?: boolean;
   /** Look of this car's coil-overs / struts on the setup screen (cars/shared/suspension-mesh.ts). */

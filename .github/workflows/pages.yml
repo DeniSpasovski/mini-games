@@ -3,6 +3,11 @@ name: Deploy to GitHub Pages
 # Manual test deploy: Actions > Deploy to GitHub Pages > Run workflow, choose the branch.
 on:
   workflow_dispatch:
+    inputs:
+      test_build:
+        description: 'Test build: also offer the TEST cars / maps (npm run build:test)'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -27,7 +32,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run build
+      - run: npm run ${{ inputs.test_build && 'build:test' || 'build' }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -142,13 +142,14 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
 | ------------- | ----------- | ----- | ------------------------------------------------------------------------------------ |
 | `skoda_rally` | Skoda Rally | AWD   | Rally2-class hatch from a CC BY Fabia R5 model, own livery, hand-built fallback body |
 | `bimmer_m3`   | Bimmer M3   | RWD   | lowered E46 coupe from a CC BY print model, own livery                               |
+| `bimmer_gt2`  | Bimmer GT2  | RWD   | wide-body E92 GT2 racer from a CC BY Sketchfab model, clean livery (test only)       |
 | `zastava_101` | Zastava 101 | FWD   | stock "Stojadin", body hand-built from dimensions and a blueprint                    |
 
 - A car is `cars/<car>/<car>.ts` (a `CarDef`: physics + model + sound) with its README. A GLB in `public/models/cars/` replaces the
   procedural body (`cars/shared/car-gltf.ts`; credits in `public/models/CREDITS.md`). Imports: rally-car-import skill.
 - **Door plates** (`cars/shared/rally-badge.ts`): our own event plate (emblem, car number, map name) projected onto both front
   doors. Liveries carry no numbers or lettering.
-- **Release flags** (`release.ts`): every car / map id is in `AVAILABLE_*` (published) or `TEST_*` (dev only, TEST badge).
+- **Release flags** (`release.ts`): every car / map id is in `AVAILABLE_*` (published) or `TEST_*` (dev server + `npm run build:test`, TEST badge).
   Unknown ids fall back to the defaults; `tests/rally/release.test.ts` guards the lists. The flag only hides - code still ships.
 
 ## Sound (`game/audio.ts`, `game/engine-sound.ts`)

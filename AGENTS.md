@@ -7,6 +7,7 @@
   stage-card bakes. Reload by hand. Browser pane: `portal-dev-noreload`.
 - `npm run build` - production build, one self-contained `dist/games/<id>/` per game (`DETAILS.md` -> Deploying);
   `npm run build -- --environment <id>` rebuilds one game (`portal` = portal files only)
+- `npm run build:test` - same, but the TEST cars / maps (`release.ts`) ship too (the Pages workflow's default)
 - `npm run preview` - preview the build
 - `npm run test` (rstest, fast `tests/` only) · `npm run test:integration` (slow playtests in `integration-tests/<game>/`) · `npm run test:watch` · `npm run lint` (rslint) · `npm run format` (Prettier)
 - `npx tsc --noEmit -p tsconfig.json` - type check (the build does not)

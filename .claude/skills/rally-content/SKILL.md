@@ -50,8 +50,8 @@ Iterate at `/games/rally/asset-debug.html?asset=<id>&seed=<n>&lod=<n>&grid=20&bo
 
 One folder per car: `src/games/rally/cars/<car>/<car>.ts` exporting a `CarDef`, registered in `ALL_CARS` in `cars/index.ts`.
 **Release flags** (`src/games/rally/release.ts` - one file tracks all cars + maps): add a new car's id to `TEST_CARS`
-(required - `tests/rally/release.test.ts` fails for an unlisted car). It is then dev server only (`npm run dev` uses
-`ALL_CARS`), marked TEST in the menus / HUD / tool pages, and left out of `npm run build`. Move the id to
+(required - `tests/rally/release.test.ts` fails for an unlisted car). It is then dev server + test build only (`npm run dev` / `npm run build:test`
+use `ALL_CARS`), marked TEST in the menus / HUD / tool pages, and left out of `npm run build`. Move the id to
 `AVAILABLE_CARS` to ship it (or back to `TEST_CARS` to pull it from the published build).
 Car-specific extras (e.g. a custom part builder) go in the car's folder; code used by every car (types, body,
 model, parts, livery, glTF import) lives in `cars/shared/`.

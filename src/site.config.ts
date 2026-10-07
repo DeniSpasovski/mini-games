@@ -7,7 +7,14 @@ export const SITE = {
    * "*.example.com" also matches subdomains. Checked by src/shared/host-guard.ts,
    * which Rsbuild runs before every page (source.preEntry).
    */
-  allowedHosts: ['deni.io', '*.deni.io', 'localhost', '127.0.0.1', '[::1]'],
+  allowedHosts: [
+    'deni.io',
+    '*.deni.io',
+    'denispasovski.github.io',
+    'localhost',
+    '127.0.0.1',
+    '[::1]',
+  ],
   /** Where to send people who load a copy from another domain. */
   canonicalUrl: 'https://deni.io',
   owner: 'Deni S.',
