@@ -330,6 +330,8 @@ export interface LakeDef {
   name?: string;
   /** Area (m²). */
   area?: number;
+  /** Water surface (m above sea level, from the DEM inside the outline); default: the median shore height. */
+  level?: number;
   /** Flat [x0, z0, x1, z1, ...]. */
   pts: number[];
 }

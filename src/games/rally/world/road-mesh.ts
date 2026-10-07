@@ -127,20 +127,80 @@ export function buildRoadMesh(world: World): Group {
   return r.value;
 }
 
+export interface RoadMeshOptions {
+  /** Build what is near this point first (stage road segments, street tiles): the map viewer opened on a camera link. */
+  focus?: { x: number; z: number };
+  /** Group to fill (added to the scene up front, so the meshes show up as they are built). */
+  group?: Group;
+}
+
 /** buildRoadMesh as a time-sliced job: yields after every road segment / side road. */
-export function* roadMeshJob(world: World): Generator<void, Group> {
-  const group = new Group();
+export function* roadMeshJob(
+  world: World,
+  opts: RoadMeshOptions = {},
+): Generator<void, Group> {
+  const group = opts.group ?? new Group();
   group.name = 'road';
+  // Side by side, both nearest `focus` first: the streets around a viewer camera link do not wait for the whole stage road.
+  yield* interleave(
+    timed('stageRoad', stageRoadJob(world, group, opts.focus)),
+    timed('paths', pathMeshesJob(world, group, opts.focus)),
+  );
+  const barriers = yield* timed('barriers', barrierMeshJob(world));
+  if (barriers) group.add(barriers);
+  const streets = yield* timed('streetDetail', streetDetailMeshJob(world));
+  if (streets) group.add(streets);
+  const gore = yield* timed('gore', goreMeshJob(world));
+  if (gore) group.add(gore);
+  const plazas = yield* timed('plazas', plazaMeshJob(world));
+  if (plazas) group.add(plazas);
+  const power = yield* timed('powerLines', powerLineMeshJob(world));
+  if (power) group.add(power);
+  const rail = yield* timed('railways', railMeshJob(world));
+  if (rail) group.add(rail);
+  const cutWalls = yield* timed('cutWalls', cutWallMeshJob(world));
+  if (cutWalls) group.add(cutWalls);
+  const signs = yield* timed('stageSigns', stageSignMeshJob(world));
+  if (signs) group.add(signs);
+  const gantries = yield* timed('gantries', gantryMeshJob(world));
+  if (gantries) group.add(gantries);
+  const bridges = yield* timed('bridges', bridgeMeshJob(world));
+  if (bridges) group.add(bridges);
+  const buildings = yield* timed('buildings', buildingMeshJob(world));
+  if (buildings) group.add(buildings);
+  for (const landmark of world.landmarks) {
+    const built = yield* timed('landmarks', landmark.build(world));
+    if (built) group.add(built);
+  }
+  const water = yield* timed('water', waterMeshJob(world));
+  if (water) group.add(water);
+  return group;
+}
+
+/** Runs jobs in turns (one step each per yield) until all are done. */
+function* interleave(...jobs: Generator<void, unknown>[]): Generator<void> {
+  let live = jobs;
+  while (live.length) {
+    live = live.filter((j) => !j.next().done);
+    yield;
+  }
+}
+
+/** The stage road ribbon, one mesh per segment (nearest `focus` first when given). */
+function* stageRoadJob(
+  world: World,
+  group: Group,
+  focus?: { x: number; z: number },
+): Generator<void> {
   const samples = world.road.samples;
   // Analytic sampling: same values as the heightfield at grid points, without
   // generating the 1 m cache along the whole road at load.
   const hf = world.analytic;
   const nTmp = new Vector3();
   const cols = ACROSS.length;
-  // Segment starts: every SEGMENT samples, plus a break where the road surface changes.
-  const starts: number[] = [];
+  // Segments [start, end]: every SEGMENT samples, plus a break where the road surface changes.
+  const segs: [number, number][] = [];
   for (let i = 0; i < samples.length - 1;) {
-    starts.push(i);
     const tex = roadSurfaceAt(world.map.road, samples[i].dist).texture;
     let end = Math.min(samples.length - 1, i + SEGMENT);
     for (let j = i + 1; j <= end; j++)
@@ -148,10 +208,17 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
         end = j;
         break;
       }
+    segs.push([i, end]);
     i = end;
   }
-  for (const [si, start] of starts.entries()) {
-    const end = starts[si + 1] ?? samples.length - 1;
+  if (focus) {
+    const d = ([a, b]: [number, number]) => {
+      const m = samples[(a + b) >> 1];
+      return Math.hypot(m.x - focus.x, m.z - focus.z);
+    };
+    segs.sort((p, q) => d(p) - d(q));
+  }
+  for (const [start, end] of segs) {
     const rows = end - start + 1;
     const segTex = roadSurfaceAt(world.map.road, samples[start].dist).texture;
     const pos = new Float32Array(rows * cols * 3);
@@ -210,37 +277,6 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
     group.add(mesh);
     yield;
   }
-  const paths = yield* timed('paths', pathMeshesJob(world));
-  if (paths) group.add(paths);
-  const barriers = yield* timed('barriers', barrierMeshJob(world));
-  if (barriers) group.add(barriers);
-  const streets = yield* timed('streetDetail', streetDetailMeshJob(world));
-  if (streets) group.add(streets);
-  const gore = yield* timed('gore', goreMeshJob(world));
-  if (gore) group.add(gore);
-  const plazas = yield* timed('plazas', plazaMeshJob(world));
-  if (plazas) group.add(plazas);
-  const power = yield* timed('powerLines', powerLineMeshJob(world));
-  if (power) group.add(power);
-  const rail = yield* timed('railways', railMeshJob(world));
-  if (rail) group.add(rail);
-  const cutWalls = yield* timed('cutWalls', cutWallMeshJob(world));
-  if (cutWalls) group.add(cutWalls);
-  const signs = yield* timed('stageSigns', stageSignMeshJob(world));
-  if (signs) group.add(signs);
-  const gantries = yield* timed('gantries', gantryMeshJob(world));
-  if (gantries) group.add(gantries);
-  const bridges = yield* timed('bridges', bridgeMeshJob(world));
-  if (bridges) group.add(bridges);
-  const buildings = yield* timed('buildings', buildingMeshJob(world));
-  if (buildings) group.add(buildings);
-  for (const landmark of world.landmarks) {
-    const built = yield* timed('landmarks', landmark.build(world));
-    if (built) group.add(built);
-  }
-  const water = yield* timed('water', waterMeshJob(world));
-  if (water) group.add(water);
-  return group;
 }
 
 const PATH_ACROSS = [-1, -0.5, 0, 0.5, 1];
@@ -251,12 +287,16 @@ const PATH_TILE = 256; // m, one merged mesh per tile
  * Paved non-stage roads (village streets, motorway, ...) as terrain-hugging ribbons,
  * merged per 256 m tile. Unpaved tracks are only painted into the terrain splat.
  */
-function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
+function* pathMeshesJob(
+  world: World,
+  parent: Group,
+  focus?: { x: number; z: number },
+): Generator<void> {
   // Bridge decks are drawn by bridge-mesh at their own height.
   const paths = world.gen.paths?.paths.filter(
     (p) => p.surface === 'tarmac' && !p.bridge,
   );
-  if (!paths?.length) return undefined;
+  if (!paths?.length) return;
   // The ground, not the top surface: a street under a stage-road bridge stays down in its underpass.
   const hf = new GroundTerrain(world.gen);
   const nTmp = new Vector3();
@@ -294,120 +334,6 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
     }
     return count === 1 ? hit : undefined;
   };
-  for (const p of paths) {
-    // Resample the polyline every PATH_STEP metres.
-    const pts: [number, number, number][] = [];
-    let dist = 0;
-    for (let k = 0; k + 3 < p.pts.length; k += 2) {
-      const ax = p.pts[k];
-      const az = p.pts[k + 1];
-      const L = Math.hypot(p.pts[k + 2] - ax, p.pts[k + 3] - az);
-      const n = Math.max(1, Math.ceil(L / PATH_STEP));
-      for (let i = 0; i < n; i++) {
-        const t = i / n;
-        pts.push([
-          ax + (p.pts[k + 2] - ax) * t,
-          az + (p.pts[k + 3] - az) * t,
-          dist + L * t,
-        ]);
-      }
-      dist += L;
-    }
-    const e = p.pts.length;
-    pts.push([p.pts[e - 2], p.pts[e - 1], dist]);
-    if (pts.length < 2) continue;
-    const mid = pts[pts.length >> 1];
-    // A lane in the highway's cut (MapDef.parkwayLanes) is a carriageway: lane markings, no centre line.
-    const tex = world.gen.isParkwayLane(world.gen.paths!.paths.indexOf(p))
-      ? 'road_parkway'
-      : pathTexture(p.kind, p.width, !!world.map.cityStreets);
-    const key = `${tex}:${Math.floor(mid[0] / PATH_TILE)},${Math.floor(mid[1] / PATH_TILE)}`;
-    let tile = tiles.get(key);
-    if (!tile)
-      tiles.set(key, (tile = { tex, pos: [], nor: [], uv: [], idx: [] }));
-    const v0 = tile.pos.length / 3;
-    const plazas = world.gen.plazas;
-    const before = beyond(p, false);
-    const after = beyond(p, true);
-    const net = world.gen.paths!;
-    const pi = net.paths.indexOf(p);
-    // (the carriageways / parkway lanes run down in the trench under a plaza: drawn)
-    const onTop = !world.gen.isCarriageway(pi);
-    for (let r = 0; r < pts.length; r++) {
-      // Lane drops / gains taper (the width meets the continuing way's), see PathNetwork.halfWidthAt.
-      const hw = net.halfWidthAt(pi, pts[r][2]);
-      let a: number[] = pts[Math.max(0, r - 1)];
-      let b: number[] = pts[Math.min(pts.length - 1, r + 1)];
-      if (r === 0) a = before ?? a;
-      if (r === pts.length - 1) b = after ?? b;
-      const tl = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-      const tx = (b[0] - a[0]) / tl;
-      const tz = (b[1] - a[1]) / tl;
-      hf.normal(pts[r][0], pts[r][1], nTmp);
-      // The street's own height line: where the land under an edge falls away (the parkway cut beside a service road,
-      // a pit at a deck end, the trench under a portal slab) the ribbon stays on it - sagging with the land let the
-      // terrain show through the lanes.
-      const prof = world.gen.pathHeight(pi, pts[r][2]);
-      for (let c = 0; c < cols; c++) {
-        const lat = PATH_ACROSS[c] * hw;
-        const x = pts[r][0] + tz * lat;
-        const z = pts[r][1] - tx * lat;
-        // Same 3 cm lift as the stage ribbon (polygon offset decides who is on top) - but sunk under the
-        // stage road where they overlap, so a ramp / side street never paints over its lane markings. Not a street
-        // passing under a stage-road bridge (it sank into the trench floor: gravel through the street).
-        world.road.query(x, z, rq);
-        const ground = hf.height(x, z);
-        // (Not on / under the stage road: a ramp sinks under its lanes, an underpass street stays on its floor.)
-        const free =
-          !rq.found ||
-          (rq.distance > rq.halfWidth + 1 &&
-            !(world.road.bridges.length && world.road.bridgeAt(rq.along)));
-        const y =
-          free &&
-          ground < prof - 0.15 &&
-          (ground > prof - 3 || world.gen.portals.inside(x, z))
-            ? prof
-            : ground;
-        const sink =
-          rq.found && Math.abs(world.road.at(rq.along).y - y) < 1
-            ? 1 -
-              Math.min(1, Math.max(0, (rq.distance - rq.halfWidth + 0.2) / 1.0))
-            : 0;
-        // Inside a junction plaza the plaza is the surface: a ribbon along its edge stays just under it.
-        let top = y + 0.03 - 0.08 * sink;
-        if (onTop && !plazas.empty && plazas.inside(x, z)) {
-          const ph = plazas.height(x, z);
-          // (an area that keeps its ribbons: they lie on the paving)
-          if (ph !== undefined)
-            top = plazas.keepsRibbons(x, z)
-              ? ph + 0.02
-              : Math.min(top, ph + 0.01);
-        }
-        tile.pos.push(x, top, z);
-        // One normal per row (taken at the centre): the ribbons are flat roads, and this saves four height samples per vertex.
-        tile.nor.push(nTmp.x, nTmp.y, nTmp.z);
-        tile.uv.push(1 - (PATH_ACROSS[c] + 1) / 2, pts[r][2] / texLength(tex));
-      }
-      if (r % 256 === 255) yield;
-    }
-    for (let r = 0; r < pts.length - 1; r++) {
-      // Inside a junction plaza the plaza is the street (no lane lines, no ribbons crossing each other).
-      if (
-        onTop &&
-        !plazas.empty &&
-        plazas.inside(pts[r][0], pts[r][1]) &&
-        plazas.inside(pts[r + 1][0], pts[r + 1][1]) &&
-        !plazas.keepsRibbons(pts[r][0], pts[r][1])
-      )
-        continue;
-      for (let c = 0; c < cols - 1; c++) {
-        const a = v0 + r * cols + c;
-        const d = a + cols;
-        tile.idx.push(a, d, d + 1, a, d + 1, a + 1);
-      }
-    }
-    yield;
-  }
   // Rounded corners at the junction mouths of plain tarmac side roads (junctions.ts `junctionFillets`): the same
   // tiles / material as the ribbons (no extra draws) and the ribbon's height rule (sunk under the stage road's edge).
   // Textured with the dusty edge band of `road_tarmac`. City maps (kerbs, sidewalks, plazas, markings) are left out.
@@ -453,16 +379,168 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
         else tile.idx.push(v0, v0 + k + 1, v0 + k);
     }
   }
-  yield;
+  // Resampled ways by tile, the tiles nearest `focus` first: each tile's mesh is added as soon as its ways are built.
+  const byTile = new Map<
+    string,
+    { p: PathDef; pts: [number, number, number][] }[]
+  >();
+  for (const p of paths) {
+    // Resample the polyline every PATH_STEP metres.
+    const pts: [number, number, number][] = [];
+    let dist = 0;
+    for (let k = 0; k + 3 < p.pts.length; k += 2) {
+      const ax = p.pts[k];
+      const az = p.pts[k + 1];
+      const L = Math.hypot(p.pts[k + 2] - ax, p.pts[k + 3] - az);
+      const n = Math.max(1, Math.ceil(L / PATH_STEP));
+      for (let i = 0; i < n; i++) {
+        const t = i / n;
+        pts.push([
+          ax + (p.pts[k + 2] - ax) * t,
+          az + (p.pts[k + 3] - az) * t,
+          dist + L * t,
+        ]);
+      }
+      dist += L;
+    }
+    const e = p.pts.length;
+    pts.push([p.pts[e - 2], p.pts[e - 1], dist]);
+    if (pts.length < 2) continue;
+    const mid = pts[pts.length >> 1];
+    // A lane in the highway's cut (MapDef.parkwayLanes) is a carriageway: lane markings, no centre line.
+    const tex = world.gen.isParkwayLane(world.gen.paths!.paths.indexOf(p))
+      ? 'road_parkway'
+      : pathTexture(p.kind, p.width, !!world.map.cityStreets);
+    const key = `${tex}:${Math.floor(mid[0] / PATH_TILE)},${Math.floor(mid[1] / PATH_TILE)}`;
+    let list = byTile.get(key);
+    if (!list) {
+      byTile.set(key, (list = []));
+      if (!tiles.has(key))
+        tiles.set(key, { tex, pos: [], nor: [], uv: [], idx: [] });
+    }
+    list.push({ p, pts });
+  }
+  const keys = [...tiles.keys()];
+  if (focus) {
+    const d = (k: string) => {
+      const [i, j] = k
+        .slice(k.indexOf(':') + 1)
+        .split(',')
+        .map(Number);
+      return Math.hypot(
+        (i + 0.5) * PATH_TILE - focus.x,
+        (j + 0.5) * PATH_TILE - focus.z,
+      );
+    };
+    keys.sort((a, b) => d(a) - d(b));
+  }
   const group = new Group();
   group.name = 'paths';
-  for (const t of tiles.values()) {
-    const mat = getRoadMaterial(t.tex, t.tex === 'road_parkway' ? 2 : 1);
+  parent.add(group);
+  for (const key of keys) {
+    const tile = tiles.get(key)!;
+    for (const { p, pts } of byTile.get(key) ?? []) {
+      const v0 = tile.pos.length / 3;
+      const plazas = world.gen.plazas;
+      const before = beyond(p, false);
+      const after = beyond(p, true);
+      const net = world.gen.paths!;
+      const pi = net.paths.indexOf(p);
+      // (the carriageways / parkway lanes run down in the trench under a plaza: drawn)
+      const onTop = !world.gen.isCarriageway(pi);
+      for (let r = 0; r < pts.length; r++) {
+        // Lane drops / gains taper (the width meets the continuing way's), see PathNetwork.halfWidthAt.
+        const hw = net.halfWidthAt(pi, pts[r][2]);
+        let a: number[] = pts[Math.max(0, r - 1)];
+        let b: number[] = pts[Math.min(pts.length - 1, r + 1)];
+        if (r === 0) a = before ?? a;
+        if (r === pts.length - 1) b = after ?? b;
+        const tl = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+        const tx = (b[0] - a[0]) / tl;
+        const tz = (b[1] - a[1]) / tl;
+        hf.normal(pts[r][0], pts[r][1], nTmp);
+        // The street's own height line: where the land under an edge falls away (the parkway cut beside a service road,
+        // a pit at a deck end, the trench under a portal slab) the ribbon stays on it - sagging with the land let the
+        // terrain show through the lanes.
+        const prof = world.gen.pathHeight(pi, pts[r][2]);
+        for (let c = 0; c < cols; c++) {
+          const lat = PATH_ACROSS[c] * hw;
+          const x = pts[r][0] + tz * lat;
+          const z = pts[r][1] - tx * lat;
+          // Same 3 cm lift as the stage ribbon (polygon offset decides who is on top) - but sunk under the
+          // stage road where they overlap, so a ramp / side street never paints over its lane markings. Not a street
+          // passing under a stage-road bridge (it sank into the trench floor: gravel through the street).
+          world.road.query(x, z, rq);
+          const ground = hf.height(x, z);
+          // (Not on / under the stage road: a ramp sinks under its lanes, an underpass street stays on its floor.)
+          const free =
+            !rq.found ||
+            (rq.distance > rq.halfWidth + 1 &&
+              !(world.road.bridges.length && world.road.bridgeAt(rq.along)));
+          const y =
+            free &&
+            ground < prof - 0.15 &&
+            (ground > prof - 3 || world.gen.portals.inside(x, z))
+              ? prof
+              : ground;
+          const sink =
+            rq.found && Math.abs(world.road.at(rq.along).y - y) < 1
+              ? 1 -
+                Math.min(
+                  1,
+                  Math.max(0, (rq.distance - rq.halfWidth + 0.2) / 1.0),
+                )
+              : 0;
+          // Inside a junction plaza the plaza is the surface: a ribbon along its edge stays just under it.
+          let top = y + 0.03 - 0.08 * sink;
+          if (onTop && !plazas.empty && plazas.inside(x, z)) {
+            const ph = plazas.height(x, z);
+            // (an area that keeps its ribbons: they lie on the paving)
+            if (ph !== undefined)
+              top = plazas.keepsRibbons(x, z)
+                ? ph + 0.02
+                : Math.min(top, ph + 0.01);
+          }
+          tile.pos.push(x, top, z);
+          // One normal per row (taken at the centre): the ribbons are flat roads, and this saves four height samples per vertex.
+          tile.nor.push(nTmp.x, nTmp.y, nTmp.z);
+          tile.uv.push(
+            1 - (PATH_ACROSS[c] + 1) / 2,
+            pts[r][2] / texLength(tile.tex),
+          );
+        }
+        if (r % 256 === 255) yield;
+      }
+      for (let r = 0; r < pts.length - 1; r++) {
+        // Inside a junction plaza the plaza is the street (no lane lines, no ribbons crossing each other).
+        if (
+          onTop &&
+          !plazas.empty &&
+          plazas.inside(pts[r][0], pts[r][1]) &&
+          plazas.inside(pts[r + 1][0], pts[r + 1][1]) &&
+          !plazas.keepsRibbons(pts[r][0], pts[r][1])
+        )
+          continue;
+        for (let c = 0; c < cols - 1; c++) {
+          const a = v0 + r * cols + c;
+          const d = a + cols;
+          tile.idx.push(a, d, d + 1, a, d + 1, a + 1);
+        }
+      }
+      yield;
+    }
+    const mat = getRoadMaterial(tile.tex, tile.tex === 'road_parkway' ? 2 : 1);
     const g = new BufferGeometry();
-    g.setAttribute('position', new BufferAttribute(new Float32Array(t.pos), 3));
-    g.setAttribute('normal', new BufferAttribute(new Float32Array(t.nor), 3));
-    g.setAttribute('uv', new BufferAttribute(new Float32Array(t.uv), 2));
-    g.setIndex(t.idx);
+    g.setAttribute(
+      'position',
+      new BufferAttribute(new Float32Array(tile.pos), 3),
+    );
+    g.setAttribute(
+      'normal',
+      new BufferAttribute(new Float32Array(tile.nor), 3),
+    );
+    g.setAttribute('uv', new BufferAttribute(new Float32Array(tile.uv), 2));
+    g.setIndex(tile.idx);
     g.computeBoundingSphere();
     const mesh = new Mesh(g, mat);
     mesh.receiveShadow = true;
@@ -470,5 +548,4 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
     group.add(mesh);
     yield;
   }
-  return group;
 }

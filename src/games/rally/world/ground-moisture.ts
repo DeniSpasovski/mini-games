@@ -34,6 +34,17 @@ export function bakeGroundMoisture(
   gen: TerrainGenerator,
   map: MapDef,
 ): GroundMoisture {
+  const job = groundMoistureJob(gen, map);
+  let r = job.next();
+  while (!r.done) r = job.next();
+  return r.value;
+}
+
+/** bakeGroundMoisture as a time-sliced job: yields every few rows of the height grid (the map viewer bakes it after its first frames). */
+export function* groundMoistureJob(
+  gen: TerrainGenerator,
+  map: MapDef,
+): Generator<void, GroundMoisture> {
   const b = map.bounds;
   const x0 = b.minX - PAD;
   const z0 = b.minZ - PAD;
@@ -62,6 +73,7 @@ export function bakeGroundMoisture(
       if (!wet && gen.lakes?.query(x, z, lq)) wet = lq.sd < half;
       water[k] = wet ? 1 : 0;
     }
+    if (j % 8 === 7) yield;
   }
 
   const near = boxBlur(h, nx, nz, Math.max(1, Math.round(NEAR_R / res)));

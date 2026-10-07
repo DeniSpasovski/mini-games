@@ -26,9 +26,16 @@
     "cell": 10,
     "extent": [-3800, 3800, -2700, 2700]
   },
+  "extend": {
+    "cell": 20,
+    "extent": [-5800, 5800, -4700, 4700]
+  },
   "outer": {
     "cell": 50,
     "extent": [-8000, 8000, -6000, 6000]
+  },
+  "horizon": {
+    "cover": ["built", "water"]
   },
   "landcover": {
     "cell": 5,

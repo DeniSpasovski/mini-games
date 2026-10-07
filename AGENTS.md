@@ -80,7 +80,7 @@ into `DETAILS.md`, never up.
   `stl-to-glb.mjs` (STL -> game GLB with livery-atlas UVs), `stl-wheel-extract.py` + `wheel-stl-to-glb.mjs` (a print model's own
   rim), `chart-probe.py` (atlas chart per triangle, livery debugging)
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
-  `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `plaza_islands.py` (city junction
+  `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `extend.py` (terrain + water ring around a baked map), `plaza_islands.py` (city junction
   `junction.json`), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from
   the DEM)
 

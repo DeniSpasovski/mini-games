@@ -95,6 +95,12 @@ export interface StreamerOptions {
    * distance, so no tree / house stands past the streamed ground. Unset = the longest LOD distance.
    */
   maxDistance?: number;
+  /**
+   * Visit the chunks nearest the focus first and commit what is staged every this many ms of a rebuild: the drawn
+   * set grows outward chunk by chunk (map viewer loading). Only for a first load - after a move it would drop the
+   * far instances until the rebuild is done.
+   */
+  partialCommitMs?: number;
 }
 
 /** Longest last-LOD distance of any asset (power pylons, buildings): the widest chunk sweep needed. */
@@ -122,6 +128,8 @@ export class InstanceStreamer {
   private reach = new WeakMap<ScatterInstance[], number>();
   /** Instances drawn after the last commit (stats). */
   drawn = 0;
+  /** Metres around the focus the running rebuild has covered (nearest-first rebuilds), Infinity when idle. */
+  covered = Infinity;
   /** Completed rebuilds (stats / tests). */
   commits = 0;
   /** Disable categories / single assets from debug UIs. */
@@ -161,9 +169,11 @@ export class InstanceStreamer {
     return this.opts.lodScale;
   }
 
+  /** Changing what is drawn (LOD scale, detail density, max distance) starts a rebuild; budget / commit pacing do not. */
   setOptions(o: Partial<StreamerOptions>): void {
     Object.assign(this.opts, o);
-    this.invalidate();
+    if ('lodScale' in o || 'detailDensity' in o || 'maxDistance' in o)
+      this.invalidate();
   }
 
   invalidate(): void {
@@ -264,25 +274,41 @@ export class InstanceStreamer {
     ];
     const [x0, x1] = span(range, b.minX - 300, b.maxX + 300, focus.x);
     const [z0, z1] = span(range, b.minZ - 300, b.maxZ + 300, focus.z);
-    for (let cz = z0; cz <= z1; cz++) {
+    const cells: { cx: number; cz: number; near: number }[] = [];
+    for (let cz = z0; cz <= z1; cz++)
       for (let cx = x0; cx <= x1; cx++) {
         const near =
           Math.hypot((cx + 0.5) * cs - focus.x, (cz + 0.5) * cs - focus.z) -
           cs * 0.71;
-        if (near > range) continue;
-        const list = scatter.chunk(cx, cz).instances;
-        // A far chunk of short-range assets (bushes, orchards, rocks) has nothing to draw: skip its instances.
-        if (near <= this.reachOf(list) * lodScale) visit(list, false);
-        // Grass needs the 1 m heightfield; skip until terrain streaming has built it.
-        if (
-          dRange > 0 &&
-          this.opts.detailDensity > 0 &&
-          near < dRange &&
-          this.world.heightfield.hasChunk(cx, cz)
-        )
-          visit(scatter.detail(cx, cz), true);
-        yield;
+        if (near <= range) cells.push({ cx, cz, near });
       }
+    const partial = this.opts.partialCommitMs;
+    if (partial !== undefined) cells.sort((p, q) => p.near - q.near);
+    this.covered = 0;
+    let lastCommit = performance.now();
+    for (const { cx, cz, near } of cells) {
+      const list = scatter.chunk(cx, cz).instances;
+      // A far chunk of short-range assets (bushes, orchards, rocks) has nothing to draw: skip its instances.
+      if (near <= this.reachOf(list) * lodScale) visit(list, false);
+      // Grass needs the 1 m heightfield; skip until terrain streaming has built it.
+      if (
+        dRange > 0 &&
+        this.opts.detailDensity > 0 &&
+        near < dRange &&
+        this.world.heightfield.hasChunk(cx, cz)
+      )
+        visit(scatter.detail(cx, cz), true);
+      if (partial !== undefined) {
+        this.covered = Math.max(0, near);
+        if (performance.now() - lastCommit > partial) {
+          this.sortX = focus.x;
+          this.sortZ = focus.z;
+          this.commit();
+          this.drawn = drawn;
+          lastCommit = performance.now();
+        }
+      }
+      yield;
     }
     if (dRange > 0) scatter.pruneDetail(focus.x, focus.z, dRange * 2 + cs);
     this.sortX = focus.x;
@@ -290,6 +316,7 @@ export class InstanceStreamer {
     this.commit();
     this.drawn = drawn;
     this.commits++;
+    this.covered = Infinity;
   }
 
   /**

@@ -55,6 +55,8 @@ export interface TerrainOptions {
   viewDistance: number;
   /** Distance thresholds between LODs (m). */
   lodDistances?: [number, number, number];
+  /** Leave the ground moisture neutral: the caller bakes it later (`World.moistureJob`) and sets it. */
+  deferMoisture?: boolean;
 }
 
 export class TerrainRenderer {
@@ -81,7 +83,7 @@ export class TerrainRenderer {
     this.lodDistances = opts.lodDistances ?? [150, 320, 640];
     this.cs = world.heightfield.chunkSize;
     setGroundTint(world.map.environment.groundTint);
-    setGroundMoisture(world.moisture);
+    setGroundMoisture(opts.deferMoisture ? null : world.moisture);
   }
 
   /** Terrain meshes (one draw call each). */

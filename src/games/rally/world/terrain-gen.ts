@@ -432,7 +432,15 @@ export class TerrainGenerator {
     }
     if (map.lakes?.length) {
       const lakes = (this.lakes = new Lakes(map.lakes));
-      lakes.levels = lakes.polys.map((p) => this.lakeLevel(p));
+      // A baked `level` (the lake surface in the DEM, scripts/realmap/extend.py) wins over the shore median: a lake
+      // between highway embankments would otherwise stand at the embankment height.
+      const t = map.terrain;
+      lakes.levels = lakes.polys.map((p, i) => {
+        const level = map.lakes![i].level;
+        return level === undefined
+          ? this.lakeLevel(p)
+          : t.baseHeight + level - (t.heightmap?.offset ?? 0);
+      });
     }
     if (map.terrain.pads?.length)
       this.pads = new PadField(map.terrain.pads, this.road);

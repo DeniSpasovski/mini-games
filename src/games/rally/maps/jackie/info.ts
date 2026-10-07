@@ -57,7 +57,8 @@ export const jackieInfo: MapInfo = {
     },
   ],
   stageNumber: 3,
-  bounds: { minX: -3150, maxX: 3550, minZ: -2300, maxZ: 2300 },
+  // The stage area + a 2 km ring of terrain and water only (scripts/realmap/extend.py: no roads, buildings or scatter there).
+  bounds: { minX: -5150, maxX: 5550, minZ: -4300, maxZ: 4300 },
   // Finish at 7 298 m: past the Queens Blvd portal (7 186-7 273 m), 2 m before the last green gantry (7 300 m; the two
   // gantries clipped when they stood on the same spot).
   stage: { start: 40, finishFromEnd: 47, splits: 4 },

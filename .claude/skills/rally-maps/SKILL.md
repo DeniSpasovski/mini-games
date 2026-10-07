@@ -64,7 +64,8 @@ generated deterministically from it. There is no map editor on purpose — edit 
 2. `npm run test -- tests/rally/stage.test.ts` — the autopilot must finish the stage with every car without rolling.
    If it fails, trace the failing distance (lower `maxGrade`, widen a hairpin, move a crest out of a corner).
 3. Look: `/games/rally/map-viewer.html?map=<id>` (oblique overview, `grid=1` chunk grid, `splat=1` surfaces,
-   click terrain -> "Drive from here").
+   click terrain -> "Drive from here"). It loads progressively, nearest the camera first (Map panel `loading` = `done`
+   when the whole map is in; `__mapViewer.look(...)` waits for everything).
 4. Drive: `/games/rally/?map=<id>&spawn=<metres>&mute=1` to test a section directly.
 5. **No sound while testing**: add `mute=1` to every game URL you open (see AGENTS.md "Sound while testing").
 6. **Stage card** (every map, stage select; a map without one is built live in the menu, dev warning): NEVER re-bake on your own - only when the user asks. Then
@@ -132,6 +133,9 @@ temp `out` dir holding a copy of the current `data.json` (stable building ids) a
 `route`, unchanged heights near the road, old building rows unchanged. A newer bake also carries building `kind`s - strip
 them (`kinds: undefined`) to keep box buildings. Then run the water / side-road / junction tests: towns bring streets along
 drain banks and small bridges that rural stages never had.
+Terrain-only ring (no roads / buildings / scatter, the baked stage data untouched): config `extend: { cell, extent }` +
+`python scripts/realmap/extend.py <config>` adds a height grid, OSM water ways + lakes (with their lidar `level`) and a
+`paved` / `open` land cover ring (give both a `splat`); then widen `bounds`. Worked example `maps/jackie/` (DETAILS "Terrain ring").
 
 Buildings (real maps): the baker merges OSM + Microsoft ML footprints (`scripts/realmap/buildings.py`) into
 `data.buildings` (oriented boxes, type house / flat, wall height, floors) + `<map>/buildings.csv`; `World` places

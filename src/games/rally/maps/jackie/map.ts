@@ -7,6 +7,7 @@ import {
 } from '../shared/real-map';
 import type {
   HeightmapDef,
+  HorizonDef,
   LakeDef,
   LandcoverDef,
   MapDef,
@@ -14,6 +15,7 @@ import type {
   PlazaIsland,
 } from '../shared/types';
 import data from './data.json';
+import horizon from './horizon.json';
 import junction from './junction.json';
 import laneStart from './junction-lane-start.json';
 import { jackieInfo as info } from './info';
@@ -283,6 +285,9 @@ const QUEENS_BLVD_SKEW: [number, number] = [-0.26, -0.46];
 export const jackieMap: MapDef = {
   ...info,
   buildings: buildingsFromData(data.buildings),
+  // Far land around the map as a backdrop (scripts/realmap/horizon.py): terrain + water only (bays, rivers), no
+  // roads / buildings / trees - the config's `horizon.cover` keeps just the water channel.
+  horizon: horizon as HorizonDef,
   terrain: {
     baseHeight: 0,
     // Shift so the start (16.5 m above sea level) sits near y = 0.
@@ -309,6 +314,9 @@ export const jackieMap: MapDef = {
       vineyard: [0.3, 0.7, 0, 0],
       cemetery: [0.88, 0.1, 0.02, 0],
       crop: [0.9, 0.1, 0, 0],
+      // The 2 km ring (scripts/realmap/extend.py): built-up ground grey like `urban`, the rest grass; no scatter.
+      paved: [0.12, 0.08, 0.5, 0.3],
+      open: [0.92, 0.06, 0.02, 0],
     },
   },
   paths,

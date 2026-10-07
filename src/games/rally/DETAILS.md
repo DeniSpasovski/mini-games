@@ -111,7 +111,8 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   `groundTint.moisture` sets the strength (0 = off).
 - **Horizon backdrop** (`horizon`, real maps): the land ~25 km around the map (terrain + land cover from Terrarium /
   WorldCover, no roads or buildings), baked by `scripts/realmap/horizon.py` into `<map>/horizon.json`, drawn behind
-  everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain).
+  everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain). Heights are
+  clamped to sea level (Terrarium has sea-floor depths); config `horizon.cover` keeps only some cover channels (Jackie: water).
 - **Corner fans** (`cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
   spectators, flags (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`).
 - **Other roads** (`paths`): tarmac ribbons, dirt paint or canals with their own surface; side roads carved with grade limits

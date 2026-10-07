@@ -25,8 +25,11 @@ import { loadQuality } from '../engine/quality';
 import { InstanceStreamer } from '../world/instance-streamer';
 import { worldToGeo } from '../world/real-data';
 import { newRoadQuery } from '../world/road';
-import { buildRoadMesh } from '../world/road-mesh';
-import { getTerrainMaterial } from '../world/terrain-material';
+import { roadMeshJob } from '../world/road-mesh';
+import {
+  getTerrainMaterial,
+  setGroundMoisture,
+} from '../world/terrain-material';
 import { Horizon } from '../world/horizon';
 import { TerrainRenderer } from '../world/terrain-renderer';
 import { RENDER_MARGIN, World } from '../world/world';
@@ -38,7 +41,13 @@ import { SURFACES } from '../physics/surfaces';
  *   map-viewer.html?map=test&scatter=1&road=1&grid=0&splat=0&fog=0&labels=1&along=1100&zoom=0.5
  * Click the terrain to inspect a point; "Drive from here" opens the game at
  * that distance along the road. "Copy camera link" (Camera section) shares the exact view (`cam`, `look`, `fov`, `clean`).
+ * Loading is progressive: the first frame shows right after the World is built; terrain, trees and buildings within
+ * NEAR_VIEW of the opening camera come first (road / street meshes nearest first, `loadJobs`), then the rest of the map;
+ * terrain tiles and scatter chunks show as they are built, nearest first (`partialCommitMs` on the first rebuild).
  */
+/** Metres around the opening camera loaded before the rest of the map (terrain, scatter, buildings). */
+const NEAR_VIEW = 600;
+
 const DEFAULTS = {
   map: DEFAULT_MAP,
   scatter: true,
@@ -84,9 +93,14 @@ void loadMap(state.map).then((map) => {
   center.y = world.analytic.height(center.x, center.z);
 
   // --- world rendering -----------------------------------------------------------------
+  // Opening phase (`near`): terrain, scatter and buildings only within NEAR_VIEW of the camera, so the view of a
+  // camera link is complete before the background chunks of the rest of the map (widened in `widen`).
+  const fullView = size + RENDER_MARGIN * 2;
   const terrain = new TerrainRenderer(world, {
-    viewDistance: size + RENDER_MARGIN * 2,
+    viewDistance: Math.min(fullView, NEAR_VIEW),
     lodDistances: [120, 260, 520],
+    // Baked after the roads (loadJobs): the first frame comes up without waiting for the whole map.
+    deferMoisture: true,
   });
   scene.add(terrain.group);
   if (map.horizon) {
@@ -94,14 +108,17 @@ void loadMap(state.map).then((map) => {
     horizon.setCutoff(size + RENDER_MARGIN * 2);
     scene.add(horizon.group);
   }
-  const road = buildRoadMesh(world);
+  // Roads, streets, bridges, buildings: filled in over the first frames, nearest the camera first (loadJobs).
+  const road = new Group();
   scene.add(road);
   const quality = loadQuality();
   const streamer = new InstanceStreamer(world, {
     lodScale: Math.max(2.5, quality.lodScale * 3),
     detailDensity: 0,
     rebuildDistance: 25,
-    budgetMs: 8,
+    // First load: a bigger slice, the drawn set grows outward chunk by chunk (`loaded` sets the usual pacing).
+    budgetMs: 16,
+    partialCommitMs: 150,
   });
   streamer.group.visible = state.scatter;
   scene.add(streamer.group);
@@ -111,11 +128,16 @@ void loadMap(state.map).then((map) => {
   scene.add(overlays);
   const roadLine = buildRoadLine();
   const markers = buildMarkers();
-  const chunkGrid = buildChunkGrid();
-  overlays.add(roadLine, markers, chunkGrid);
+  // (built when first shown: it samples the height along every chunk edge of the map)
+  let chunkGrid: LineSegments | undefined;
+  const showChunkGrid = (v: boolean) => {
+    if (v && !chunkGrid) overlays.add((chunkGrid = buildChunkGrid()));
+    if (chunkGrid) chunkGrid.visible = v;
+  };
+  overlays.add(roadLine, markers);
   roadLine.visible = state.road;
   markers.visible = state.labels;
-  chunkGrid.visible = state.grid;
+  showChunkGrid(state.grid);
   getTerrainMaterial().userData.uniforms.uDebugSplat.value = state.splat
     ? 1
     : 0;
@@ -286,7 +308,7 @@ void loadMap(state.map).then((map) => {
   });
   layers.checkbox('Chunk grid (64 m)', state.grid, (v) => {
     state.grid = v;
-    chunkGrid.visible = v;
+    showChunkGrid(v);
     sync();
   });
   layers.checkbox('Surface splat colours', state.splat, (v) => {
@@ -502,6 +524,47 @@ void loadMap(state.map).then((map) => {
   }
   controls.addEventListener('start', groundTarget);
 
+  // --- loading -------------------------------------------------------------------------------------
+  /**
+   * Everything that is not terrain or scatter, time-sliced so the first frame does not wait for the whole map: the
+   * road / street meshes nearest the camera first (the view of a shared camera link fills in before the rest of the
+   * map), then the map-wide ground moisture tint. Started on the first frame, once the camera link is applied.
+   */
+  let roadJob: Generator<void, unknown> | undefined;
+  let roadsDone = false;
+  let moistureJob: ReturnType<World['moistureJob']> | undefined =
+    world.moistureJob();
+  /** Runs the load jobs for `budgetMs` (at least one step); true when all are done. */
+  function loadJobs(focus: Vector3, budgetMs: number): boolean {
+    roadJob ??= roadMeshJob(world, { focus, group: road });
+    const end = performance.now() + budgetMs;
+    while (!roadsDone || moistureJob) {
+      if (!roadsDone) roadsDone = !!roadJob.next().done;
+      else {
+        const r = moistureJob!.next();
+        if (r.done) {
+          setGroundMoisture(r.value);
+          moistureJob = undefined;
+        }
+      }
+      if (performance.now() >= end) break;
+    }
+    return roadsDone && !moistureJob;
+  }
+
+  let near = true;
+  /** End of the opening phase: stream the whole map. */
+  function widen(): void {
+    near = false;
+    terrain.setViewDistance(fullView);
+  }
+  let scatterLoaded = false;
+  /** First scatter rebuild done: later ones (after camera moves) commit once, at the usual budget. */
+  function loaded(): void {
+    scatterLoaded = true;
+    streamer.setOptions({ budgetMs: 8, partialCommitMs: undefined });
+  }
+
   // --- loop ----------------------------------------------------------------------------------------
   shell.onFrame(() => {
     const t = controls.target;
@@ -515,8 +578,31 @@ void loadMap(state.map).then((map) => {
     );
     // Big budget while catching up (tool page: a few long frames are fine).
     terrain.update(focus, terrain.pending > 20 ? 30 : 8, above * 0.8);
-    streamer.update(t);
+    if (near) {
+      // Near ground, trees and buildings; the road job (nearest first) gets a small share.
+      streamer.update(t);
+      loadJobs(focus, 6);
+      if (terrain.pending === 0 && streamer.covered >= NEAR_VIEW) widen();
+    } else {
+      loadJobs(focus, 10);
+      streamer.update(t);
+    }
+    if (!scatterLoaded) {
+      if (streamer.commits > 0) loaded();
+      // The rest of the load done: the frame is the scatter's.
+      else if (!near && !terrain.pending && roadsDone && !moistureJob)
+        streamer.setOptions({ budgetMs: 40 });
+    }
     statInfo({
+      loading: near
+        ? `near the camera (${NEAR_VIEW} m)`
+        : !roadsDone
+          ? 'roads (nearest first)'
+          : moistureJob
+            ? 'ground tint'
+            : terrain.pending || streamer.busy
+              ? 'rest of the map'
+              : 'done',
       road: `${world.road.length.toFixed(0)} m`,
       'stage (start→finish)': `${(world.stage.finish - world.stage.start).toFixed(0)} m`,
       'road height': `${Math.min(...roadYs).toFixed(0)} … ${Math.max(...roadYs).toFixed(0)} m`,
@@ -570,14 +656,17 @@ void loadMap(state.map).then((map) => {
     controls.update();
     const above = cy - world.gen.height(cx, cz);
     const focus = new Vector3(cx, 0, cz).lerp(controls.target, 0.3);
+    if (near) widen();
+    if (!scatterLoaded) loaded();
     const t0 = performance.now();
     let n = 0;
     while ((terrain.pending > 0 || n < 3) && performance.now() - t0 < 90000) {
       terrain.update(focus, 200, Math.max(0, above) * 0.8);
       n++;
     }
-    // The instance streamer builds its chunks over several updates.
-    for (let i = 0; i < 80; i++) streamer.update(controls.target);
+    while (!loadJobs(focus, 1000));
+    // Every instance in range at once (replaces a rebuild still running).
+    streamer.updateNow(controls.target);
     return n;
   }
 

@@ -50,7 +50,11 @@ import {
   type LaneWallRow,
 } from './portals';
 import { DECK_DEPTH, TerrainGenerator } from './terrain-gen';
-import { bakeGroundMoisture, type GroundMoisture } from './ground-moisture';
+import {
+  bakeGroundMoisture,
+  groundMoistureJob,
+  type GroundMoisture,
+} from './ground-moisture';
 import { cornerFanInstances } from './corner-fans';
 import { newLakeQuery } from './lakes';
 
@@ -146,6 +150,11 @@ export class World implements GroundProvider {
   /** Ground moisture texture for the grass tint (baked on first use, world/ground-moisture.ts). */
   get moisture(): GroundMoisture {
     return (this.moistureMap ??= bakeGroundMoisture(this.gen, this.map));
+  }
+
+  /** `moisture` as a time-sliced job (same result, cached the same way). */
+  *moistureJob(): Generator<void, GroundMoisture> {
+    return (this.moistureMap ??= yield* groundMoistureJob(this.gen, this.map));
   }
 
   constructor(readonly map: MapDef) {

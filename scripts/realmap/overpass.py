@@ -6,6 +6,7 @@ refused (it allows at most 50 000 nodes per request). Used by bake.py when the c
 Two queries, merged into one (nodes, ntags, ways, rels) tuple like `bake.load_osm`:
 
   base       roads, rail, land use / natural / leisure polygons, waterways, power - the whole bbox
+  water      waterways + standing water only (extend.py: the terrain-only ring around a baked map)
   buildings  `way[building]` within `radius` m of the stage route polyline - AFTER the route is known
              (a city has ~90 000 buildings in a 7 x 5 km box; the game only models a corridor)
 
@@ -117,6 +118,23 @@ def load_base(box, cache_dir):
 (._;>;);
 out;"""
     return parse(run(q, cache_dir, 'base'))
+
+
+def load_water(box, cache_dir):
+    """box = (lat0, lat1, lon0, lon1). Water ways and standing water (lakes, ponds, reservoirs) only."""
+    s, n, w, e = box
+    bb = f'{s:.5f},{w:.5f},{n:.5f},{e:.5f}'
+    q = f"""[out:xml][timeout:600];
+(
+  way["waterway"]({bb});
+  way["natural"="water"]({bb});
+  way["landuse"~"^(reservoir|basin)$"]({bb});
+  rel["natural"="water"]({bb});
+  rel["landuse"~"^(reservoir|basin)$"]({bb});
+);
+(._;>;);
+out;"""
+    return parse(run(q, cache_dir, 'water'))
 
 
 def load_buildings(route_ll, radius, cache_dir, chunk=1500.0):
