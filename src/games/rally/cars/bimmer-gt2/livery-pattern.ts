@@ -34,7 +34,17 @@ export const CELL = 0.14;
  */
 export const PALETTE_SIZES = [6, 6, 5] as const;
 const BLUE_EDGE = { c: 0.5, k: 0.55 };
-const RED_EDGE = { c: -1.7, k: 1.0 };
+/** Red starts at the side vent (z = RED_VENT_Z at |p| = RED_VENT_P): vertical below it, sloping rearward above it. */
+const RED_VENT_Z = -0.55;
+const RED_VENT_P = 1.1;
+const RED_SLOPE = 1.3;
+/** The boot lid is red from here back, at any |p|. */
+const RED_LID_Z = -1.6;
+const redEdge = (ap: number) =>
+  Math.max(
+    RED_LID_Z,
+    RED_VENT_Z - RED_SLOPE * (RED_VENT_P - Math.min(ap, RED_VENT_P)),
+  );
 
 /** Slow wobble so the band edges wander instead of running ruler-straight. */
 const wobble = (z: number, p: number) =>
@@ -44,7 +54,7 @@ const wobble = (z: number, p: number) =>
 export const bandAt = (z: number, p: number, jit = 0): 0 | 1 | 2 => {
   const ap = Math.abs(p);
   if (z + jit > BLUE_EDGE.c + BLUE_EDGE.k * ap) return 0;
-  return z + jit > RED_EDGE.c + RED_EDGE.k * ap ? 1 : 2;
+  return z + jit > redEdge(ap) ? 1 : 2;
 };
 
 function hull(pts: Pt[]): Pt[] {
@@ -96,11 +106,11 @@ export function blocks(): Block[] {
       let trail: Pt[] | null = null;
       let tip: Pt[] | null = null;
       let trailF = 1;
-      if (rng.next() < 0.5) {
-        const L = rng.range(2, 8) * (z0 - z1);
+      if (rng.next() < 0.26) {
+        const L = rng.range(4, 10) * (z0 - z1);
         const dz = -L;
         if (z1 + dz >= PEARL_Z) {
-          tip = face.map(([z, p]): Pt => [z + dz, p + L * 0.9]);
+          tip = face.map(([z, p]): Pt => [z + dz, p + L * 0.28]);
           trail = hull([...face, ...tip]);
           trailF = rng.pick([0.7, 0.82, 1.18]);
         }

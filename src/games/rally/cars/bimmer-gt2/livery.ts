@@ -28,11 +28,15 @@ const sideY = (z: number, p: number) => {
 };
 
 /** |x| where the red blocks start on the rear end (half-way across a tail light). */
-const REAR_X = 0.58;
+const REAR_X = 0.5;
+/** The pearl edge is slightly narrower up on the boot lid. */
+const REAR_LID_X = 0.44;
 /** y of the boot lid's lower edge on the rear end. */
-const REAR_LID_Y = 0.96;
+const REAR_LID_Y = 0.84;
 /** Extra height of the arch at the middle. */
-const REAR_LID_ARCH = 0.06;
+/** y where the pearl edge steps in from REAR_X to REAR_LID_X. */
+const REAR_LID_SIDE_Y = 0.7;
+const REAR_LID_ARCH = 0.05;
 const PEARL = '#ece4d8';
 const WHITES = [
   '#ece4d8',
@@ -50,7 +54,7 @@ const BLUES = [
   '#6cc3fb',
   '#082a6b',
 ];
-const REDS = ['#b81d2a', '#d92b34', '#ee4b45', '#f27a6e', '#8e1626'];
+const REDS = ['#d71f26', '#ee2f33', '#ff3d3a', '#f2594f', '#b0141f'];
 const PALETTES = [WHITES, BLUES, REDS];
 
 const hex = (c: string): [number, number, number] => [
@@ -114,13 +118,13 @@ function paint(
       P.side(sidePoly(-1), fill, 'right');
   };
 
+  // all block faces first, then the trails on top (a later face must not paint over an earlier block's trail)
+  for (const b of blocks()) draw(b.face, colour(b.band, b.shade));
   for (const b of blocks()) {
+    if (!b.trail || !b.tip) continue;
     const base = colour(b.band, b.shade);
-    draw(b.face, base);
-    if (b.trail && b.tip) {
-      draw(b.trail, seed === 0 ? shaded(base, b.trailF, b.band === 0) : base);
-      draw(b.tip, base);
-    }
+    draw(b.trail, seed === 0 ? shaded(base, b.trailF, b.band === 0) : base);
+    draw(b.tip, base);
   }
   // front end: white / silver-white squares (same block size); rear end: pearl white behind the plate
   const front = new Rng(5);
@@ -166,10 +170,23 @@ function paint(
         );
     const arch: Pt[] = [];
     for (let i = 0; i <= 16; i++) {
-      const x = -REAR_X + (2 * REAR_X * i) / 16;
-      arch.push([x, REAR_LID_Y + REAR_LID_ARCH * (1 - (x / REAR_X) ** 2)]);
+      const x = -REAR_LID_X + (2 * REAR_LID_X * i) / 16;
+      arch.push([x, REAR_LID_Y + REAR_LID_ARCH * (1 - (x / REAR_LID_X) ** 2)]);
     }
-    P.end('rear', [[-REAR_X, 0], [REAR_X, 0], ...arch.reverse()], PEARL, false);
+    P.end(
+      'rear',
+      [
+        [-REAR_X, 0],
+        [REAR_X, 0],
+        [REAR_X, REAR_LID_SIDE_Y],
+        [REAR_LID_X, REAR_LID_SIDE_Y],
+        ...arch.reverse(),
+        [-REAR_LID_X, REAR_LID_SIDE_Y],
+        [-REAR_X, REAR_LID_SIDE_Y],
+      ],
+      PEARL,
+      false,
+    );
   }
   underside(ctx);
 }
