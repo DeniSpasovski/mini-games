@@ -2,9 +2,10 @@
  * Release flags: which cars / maps ship in the published build - the ONLY place to change this.
  *
  * Every car / map registered in `cars/index.ts` / `maps/index.ts` is listed here exactly once:
- * - `TEST_*`      work in progress - a NEW car / map goes here first. Dev server only (`npm run dev`
- *                 uses ALL_CARS / ALL_MAPS), marked TEST in the menus, tool pages and in-game HUD.
- * - `AVAILABLE_*` released - in the published build (`npm run build` / `npm run preview`).
+ * - `TEST_*`      work in progress - a NEW car / map goes here first. Dev server and test builds only
+ *                 (`npm run dev`, `npm run build:test`: ALL_CARS / ALL_MAPS), marked TEST in the menus, tool pages and
+ *                 in-game HUD.
+ * - `AVAILABLE_*` released - in the release build (`npm run build` / `npm run preview`).
  * Moving an id from TEST_* to AVAILABLE_* releases it, so small fixes can ship while a big new map or
  * car is still unfinished.
  *
@@ -17,12 +18,10 @@ export const AVAILABLE_CARS: readonly string[] = [
   'skoda_rally',
   'zastava_101',
   'bimmer_m3',
-  // TEMP: shown in the Pages test build, move back to TEST_CARS before a real release
-  'bimmer_gt2',
 ];
 
-/** Cars on the dev server only. */
-export const TEST_CARS: readonly string[] = [];
+/** Cars on the dev server and in test builds only. */
+export const TEST_CARS: readonly string[] = ['bimmer_gt2'];
 
 /** Maps in the published build. */
 export const AVAILABLE_MAPS: readonly string[] = [
@@ -32,11 +31,11 @@ export const AVAILABLE_MAPS: readonly string[] = [
   'jackie',
 ];
 
-/** Maps on the dev server only. */
+/** Maps on the dev server and in test builds only. */
 export const TEST_MAPS: readonly string[] = [];
 
-/** true on the dev server (everything available), false in the published build. */
-export const SHOW_TEST_CONTENT: boolean = import.meta.env.DEV;
+/** true on the dev server and in a test build (`npm run build:test`): everything available; false in the release build. */
+export const SHOW_TEST_CONTENT: boolean = import.meta.env.DEV || __TEST_BUILD__;
 
 /** Not released (in TEST_* or, by mistake, in no list) - shown with a TEST badge on the dev server. */
 export const isTestCar = (id: string): boolean => !AVAILABLE_CARS.includes(id);
@@ -52,7 +51,7 @@ export function released<T extends { id: string }>(
 }
 
 /** Tooltip / note shown on test-only cars / maps (dev server only). */
-export const TEST_NOTE = 'Test model - hidden in the published build';
+export const TEST_NOTE = 'Test content - hidden in the release build';
 
 /** Name for tool-page lists: "<name> · TEST" for test-only entries. */
 export function listLabel(name: string, test: boolean): string {

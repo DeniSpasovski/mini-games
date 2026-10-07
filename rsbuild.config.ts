@@ -160,7 +160,11 @@ export default defineConfig(({ envMode }) => ({
     // Domain lock (allowed hosts in src/site.config.ts) runs before every page,
     // then the cookie banner / Google Analytics loader (src/shared/consent.ts).
     preEntry: ['./src/shared/host-guard.ts', './src/shared/consent-boot.ts'],
-    define: { __CAR_MODEL_FILES__: JSON.stringify(carModelFiles) },
+    define: {
+      __CAR_MODEL_FILES__: JSON.stringify(carModelFiles),
+      // `npm run build:test` (`--env-mode test`): the published build also offers the TEST cars / maps (release.ts).
+      __TEST_BUILD__: JSON.stringify(envMode === 'test'),
+    },
   },
   output: {
     // Relative asset URLs so the build works from any sub-folder
