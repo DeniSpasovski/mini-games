@@ -31,7 +31,8 @@ const FRONT: AxleDef = {
   brakeTorque: 1750,
   handbrakeTorque: 0,
   steer: 1,
-  grip: 1,
+  // A touch above the raw surface on both axles: more turn, and the rear stays planted at speed on loose gravel.
+  grip: 1.04,
   forceHeight: 0.3,
 };
 
@@ -46,7 +47,7 @@ const REAR: AxleDef = {
   brakeTorque: 750,
   handbrakeTorque: 2800,
   steer: 0,
-  grip: 1,
+  grip: 1.05,
   forceHeight: 0.3,
 };
 
@@ -147,8 +148,8 @@ export const skodaRally: CarDef = {
       // autopilot fail the Jackie stage (integration-tests/rally/stage.test.ts) - kept the proven numbers.
       frontSplit: 0.42,
       centerLock: 120,
-      frontDiffLock: 80,
-      rearDiffLock: 200,
+      frontDiffLock: 30, // 80 / 200 fought every turn-in (speed-sensing locks)
+      rearDiffLock: 100,
     },
     dragArea: 0.75,
     downforceArea: 0.1,

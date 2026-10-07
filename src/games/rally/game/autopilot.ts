@@ -1,6 +1,6 @@
 import { roadSurfaceAt } from '../maps/shared/types';
 import type { VehicleControls } from '../physics/types';
-import type { Vehicle } from '../physics/vehicle';
+import { PHYSICS_HZ, type Vehicle } from '../physics/vehicle';
 import { newRoadQuery, type Road } from '../world/road';
 
 /**
@@ -124,13 +124,14 @@ export class Autopilot {
 /**
  * Controls for the automatic stop after the finish line: keep following the
  * road, no throttle, progressive braking (firm at speed, gentle near 0 so the
- * wheels don't lock and spin the car). Vehicle auto-hold takes over at rest.
+ * wheels don't lock and spin the car) with ABS. Vehicle auto-hold takes over at rest.
  */
 export function finishStopControls(
   pilot: Autopilot,
   v: Vehicle,
   out: VehicleControls,
 ): VehicleControls {
+  const prevBrake = out.brake;
   pilot.drive(v, out);
   const sp = Math.abs(v.speed);
   // Pull back towards the centreline while slowing down (+lateral = left -> steer right).
@@ -139,6 +140,15 @@ export function finishStopControls(
   out.handbrake = 0;
   // Below 0.3 m/s release so Vehicle auto-hold (engages < 0.5 m/s, no pedals) parks it.
   // (A floor of 0.45: a weak-braked car creeping on a slight downhill must still stop.)
-  out.brake = sp > 0.3 ? Math.min(0.7, 0.45 + sp / 40) : 0;
+  let brake = sp > 0.3 ? Math.min(0.7, 0.45 + sp / 40) : 0;
+  // ABS (called once per physics step): locked wheels can't steer - from 150 km/h on gravel 0.7 locked all four and
+  // slid the car off a bend. Eased, not switched every step (that bounced the car on its springs).
+  if (sp > 3) {
+    const locking = v.wheels.some((w) => w.contact && w.slipRatio < -0.2);
+    brake = locking
+      ? prevBrake - 3 / PHYSICS_HZ
+      : Math.min(brake, prevBrake + 1.5 / PHYSICS_HZ);
+  }
+  out.brake = Math.max(0, brake);
   return out;
 }

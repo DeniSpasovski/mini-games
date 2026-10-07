@@ -27,7 +27,8 @@ const FRONT: AxleDef = {
   brakeTorque: 2000,
   handbrakeTorque: 0,
   steer: 1,
-  grip: 1.08,
+  // Splitter + wide front tyres: 1.08 pushed wide everywhere (the rear had 40 % grip to spare at the limit).
+  grip: 1.15,
   forceHeight: 0.3,
 };
 
@@ -42,7 +43,8 @@ const REAR: AxleDef = {
   brakeTorque: 1250,
   handbrakeTorque: 3000,
   steer: 0,
-  grip: 1.6,
+  // Rear bias for 485 hp through the rear on gravel: 1.45 or less spins at launch (car-setup.test.ts "straight-line launch").
+  grip: 1.5,
   forceHeight: 0.3,
 };
 
@@ -112,17 +114,17 @@ export const bimmerGt2: CarDef = {
     ),
     engine: {
       torqueCurve: [
-        [1000, 275],
-        [2000, 365],
-        [3000, 445],
-        [4000, 500],
-        [5000, 540],
-        [6000, 535],
-        [7000, 510],
-        [7600, 480],
-        [8300, 420],
+        // 525 Nm at 5000, 357 kW (485 hp) at 7600 (was 382 kW / 512 hp).
+        [1000, 270],
+        [2000, 360],
+        [3000, 440],
+        [4000, 495],
+        [5000, 525],
+        [6000, 515],
+        [7000, 480],
+        [7600, 449],
+        [8300, 395],
       ],
-
       idleRpm: 1000,
       redlineRpm: 8300,
       inertia: 0.2,
@@ -147,7 +149,7 @@ export const bimmerGt2: CarDef = {
       frontSplit: 0,
       centerLock: 0,
       frontDiffLock: 0,
-      rearDiffLock: 280,
+      rearDiffLock: 160, // 280 fought every turn-in (handbrake turn 73 deg)
     },
     dragArea: 0.85,
     downforceArea: 0.4,

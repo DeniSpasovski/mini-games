@@ -696,6 +696,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         speed: lon,
         slipAngle: slip,
         maxSteer: (v.def.maxSteerDeg * Math.PI) / 180,
+        peakSteer: v.peakSteer(),
       });
       v.controls.throttle = c.throttle;
       v.controls.brake = c.brake;
