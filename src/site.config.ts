@@ -7,7 +7,20 @@ export const SITE = {
    * "*.example.com" also matches subdomains. Checked by src/shared/host-guard.ts,
    * which Rsbuild runs before every page (source.preEntry).
    */
-  allowedHosts: ['deni.io', '*.deni.io', 'localhost', '127.0.0.1', '[::1]'],
+  allowedHosts: [
+    'deni.io',
+    '*.deni.io',
+    'localhost',
+    '127.0.0.1',
+    '[::1]',
+    // Test builds only (GitHub Pages workflow sets this at build time; empty in normal builds).
+    ...(
+      (import.meta.env.PUBLIC_EXTRA_ALLOWED_HOSTS as string | undefined) ?? ''
+    )
+      .split(',')
+      .map((h) => h.trim())
+      .filter(Boolean),
+  ],
   /** Where to send people who load a copy from another domain. */
   canonicalUrl: 'https://deni.io',
   owner: 'Deni S.',
