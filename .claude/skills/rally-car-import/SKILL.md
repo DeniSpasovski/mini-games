@@ -302,6 +302,22 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
 - New shared part names `chrome`, `amber`, `lenscover` (smoked see-through cover, 45 % opaque) in `part-materials.ts`: a modelled lamp keeps its
   bowls (`chrome`), indicator (`amber`) and gets a clear cover instead of a textured wrap.
 
+## Lessons from `cars/fiesta/` (CC BY Sketchfab GLB with a cockpit, 2026-10-07)
+
+- **Sketchfab FBX exports can carry a 0.01 root node scale on a model already in metres** (everything lists as 4 cm long): fix the node
+  with `glb-set-root-scale.py <in> <out> <node> 100` before writing `gltf` boxes, so rules read in metres.
+- **The GLB's `asset.extras` holds author / licence / source** (Sketchfab): read it first, then still quote the page's text in DETAILS.
+- **A model's wheel can sit low in its body** (hub y 0.2 for a 0.32 m tyre): `offset` y lifts the body until the hubs are at the
+  physics tyre radius; the car's floor clearance is then what the real car has.
+- **Own rim, centred**: `glb-rim-extract.py` takes the tyre's centroid as the hub and its smallest principal axis as the axle,
+  de-cambers the wheel and centres the rim's lip-to-lip span on the tyre's mid-plane (`wheel-stl-to-glb.mjs --keep --barrel <tyre bore>`
+  flushes the tyre stub to the lip, so any offset there shows as an off-centre rim). Check with `wheels=1&wcam=FL&body=0`.
+- **A modelled cockpit** (seats, dash, cage) is `interior` (+ `parts.maxTriangles`) under `model.glass` (tint + opacity): it shows through
+  the windows. A model without one is an empty shell - do not promise an interior; `rawview`-style cut views tell (half the car, view from the cut).
+- **Grille openings with no own island** are `region` cuts (front view, convex outline, `depth` behind the bumper face) on the body material;
+  grille bars / badge islands are `whole` + `islandTris` boxes. Badges go to `logo` (dropped).
+- `tests/rally/hull-fit.test.ts` spread a whole vertex array into `Math.min`: a 100k-triangle model with a cockpit overflowed the stack (now `reduce`).
+
 ## Viewer and tooling gotchas (cost real time this session)
 
 - **Mute the game**: any URL you open that can start the game (`/games/rally/?car=...`) gets `&mute=1` (AGENTS.md "Sound while testing"). The car viewer has no audio.
@@ -362,3 +378,14 @@ of the body's z extent, `low` = sphere rows along splitter, sills / floor, rear 
 worked examples `cars/bimmer-m3/bimmer-m3.ts`, `cars/skoda-rally/`). The test then guards it; check it in the car
 viewer with `hull=1`. `tests/rally/car-setup.test.ts`, `car-matrix.test.ts` and `tyre-mesh.test.ts` run every
 registered car; see `src/games/rally/PHYSICS.md`.
+
+## Per-compound wheels and a GLB's own wheel (Bimmer GT2)
+
+- A GLB's modelled wheel becomes a game wheel with `scripts/car-model/glb-wheel-extract.py` (rim + tyre STLs of one wheel group, axle = STL z,
+  outer face at z max) then `wheel-stl-to-glb.mjs --keep --barrel <bore radius it prints>`. A wrong outer-face sign shows as spokes
+  sunk behind the barrel.
+- `model.wheelByCompound` gives a compound its own wheel GLB and / or rim colour (`rimColorFor`, `wheelModelFor` in `stl-wheel.ts`).
+- Wide gravel tyres lose grip on loose ground (`sizeFactors`): keep a rally tyre near 235 mm, and raise `rear.grip` for more than the M3's power.
+- A GLB body whose paint / carbon split lives only in its texture: `glb-to-parts-stl.py` rule `{"mat": "Body", "texture": {"maxLum": 0.42, "maxSat": 0.06, "blur": 9, "refine": 0.02}, "y": [..], "z": [..], "material": "carbon"}`
+  labels body triangles by the (blurred) texture and splits them along its border. Put it first in `gltf.parts`, box it tight (dirt looks like carbon), keep `blur` (raw texels speckle: 140k triangles).
+- A new car needs its own `suspensionStyle` (`suspension-mesh.test.ts`): add one to `SUSPENSION_STYLE_COLORS`.

@@ -71,6 +71,7 @@ export const zastava101: CarDef = {
   },
   physics: {
     noTractionControl: true,
+    noAbs: true,
     mass: 870,
     length: 3.84,
     width: 1.59,

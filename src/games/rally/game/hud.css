@@ -468,7 +468,8 @@ body {
   background: rgba(240, 160, 32, 0.55);
   transform: scale(0.94);
 }
-.touch-pause {
+.touch-pause,
+.touch-reset {
   position: absolute;
   top: max(12px, env(safe-area-inset-top));
   right: max(14px, env(safe-area-inset-right));
@@ -481,6 +482,11 @@ body {
   font-size: 15px;
   pointer-events: auto;
   touch-action: manipulation;
+}
+
+.touch-reset {
+  right: calc(max(14px, env(safe-area-inset-right)) + 58px);
+  font-size: 22px;
 }
 
 /* Touch layout: the dash moves to the bottom centre (between the thumbs),

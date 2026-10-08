@@ -13,6 +13,8 @@ export interface RallySettings {
   automatic: boolean;
   /** Traction / stability assist at the start of a stage (T toggles in game). */
   traction: boolean;
+  /** Anti-lock brakes at the start of a stage (B toggles in game). */
+  abs: boolean;
   /** Start number on the rally door plates (1..99; the rally name comes from the map). */
   carNumber: number;
   /** Starting camera (C cycles in game). */
@@ -29,6 +31,7 @@ export const DEFAULT_SETTINGS: RallySettings = {
   volume: 0.5,
   automatic: true,
   traction: true,
+  abs: true,
   carNumber: 7,
   camera: 'chase',
   objectDistance: 'normal',
@@ -48,15 +51,50 @@ export const OBJECT_DISTANCE: Record<ObjectDistance, number> = {
 
 const KEY = 'rally.settings';
 
+const CAMERAS: readonly CameraMode[] = ['chase', 'chase_far', 'hood', 'bumper'];
+const DISTANCES = Object.keys(OBJECT_DISTANCE) as ObjectDistance[];
+
+function oneOf<T extends string>(v: unknown, allowed: readonly T[], def: T): T {
+  return allowed.includes(v as T) ? (v as T) : def;
+}
+
+/** Stored JSON -> settings: each field falls back to its default when missing or invalid. */
+export function sanitizeSettings(raw: unknown): RallySettings {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<
+    string,
+    unknown
+  >;
+  const d = DEFAULT_SETTINGS;
+  const bool = (v: unknown, def: boolean) => (typeof v === 'boolean' ? v : def);
+  return {
+    volume:
+      typeof o.volume === 'number' && Number.isFinite(o.volume)
+        ? Math.min(1, Math.max(0, o.volume))
+        : d.volume,
+    automatic: bool(o.automatic, d.automatic),
+    traction: bool(o.traction, d.traction),
+    abs: bool(o.abs, d.abs),
+    carNumber:
+      typeof o.carNumber === 'number'
+        ? clampCarNumber(o.carNumber)
+        : d.carNumber,
+    camera: oneOf(o.camera, CAMERAS, d.camera),
+    objectDistance: oneOf(o.objectDistance, DISTANCES, d.objectDistance),
+    map: typeof o.map === 'string' ? o.map : d.map,
+    car: typeof o.car === 'string' ? o.car : d.car,
+    livery:
+      typeof o.livery === 'number' &&
+      Number.isSafeInteger(o.livery) &&
+      o.livery >= 0
+        ? o.livery
+        : d.livery,
+  };
+}
+
 export function loadSettings(): RallySettings {
   try {
     const raw = localStorage.getItem(KEY);
-    const s: RallySettings = {
-      ...DEFAULT_SETTINGS,
-      ...(raw ? JSON.parse(raw) : {}),
-    };
-    s.carNumber = clampCarNumber(s.carNumber);
-    return s;
+    return sanitizeSettings(raw ? JSON.parse(raw) : null);
   } catch {
     return { ...DEFAULT_SETTINGS };
   }

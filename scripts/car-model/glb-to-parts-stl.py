@@ -139,6 +139,93 @@ def primitives(g, bins):
     return out
 
 
+def primitive_uvs(g, bins):
+    """TEXCOORD_0 triangles (n, 3, 2) per primitive, in the same order as primitives() (None without UVs)."""
+    out = []
+
+    def walk(i):
+        n = g['nodes'][i]
+        if 'mesh' in n:
+            for p in g['meshes'][n['mesh']]['primitives']:
+                if p.get('mode', 4) != 4:
+                    continue
+                if 'TEXCOORD_0' not in p['attributes']:
+                    out.append(None)
+                    continue
+                UV = accessor(g, bins, p['attributes']['TEXCOORD_0'])
+                I = accessor(g, bins, p['indices']).astype(np.int64).ravel() if 'indices' in p else np.arange(len(UV))
+                out.append(UV[I].reshape(-1, 3, 2))
+        for c in n.get('children', []):
+            walk(c)
+
+    for s in g['scenes'][g.get('scene', 0)]['nodes']:
+        walk(s)
+    return out
+
+
+def texture_image(g, bins, mat_name):
+    """A material's base-colour texture as float RGB (h, w, 3) in 0..1 (sRGB bytes / 255)."""
+    import io
+
+    from PIL import Image
+
+    mat = next(m for m in g['materials'] if m.get('name') == mat_name)
+    ti = mat['pbrMetallicRoughness']['baseColorTexture']['index']
+    img = g['images'][g['textures'][ti]['source']]
+    bv = g['bufferViews'][img['bufferView']]
+    raw = bins[bv.get('buffer', 0)][bv.get('byteOffset', 0):bv.get('byteOffset', 0) + bv['byteLength']]
+    return np.asarray(Image.open(io.BytesIO(raw)).convert('RGB'), float) / 255.0
+
+
+BARY = np.array([[1/3, 1/3, 1/3], [.7, .15, .15], [.15, .7, .15], [.15, .15, .7],
+                 [.45, .45, .1], [.1, .45, .45], [.45, .1, .45]])
+
+
+def texture_samples(im, uv):
+    """Texels (n, 7[, 3]) at 7 barycentric points of each UV triangle (n, 3, 2)."""
+    h, w = im.shape[:2]
+    pts = np.einsum('sk,nkc->nsc', BARY, uv)
+    px = (np.mod(pts[..., 0], 1.0) * (w - 1)).astype(int)
+    py = (np.mod(pts[..., 1], 1.0) * (h - 1)).astype(int)
+    return im[py, px]
+
+
+def dark_mask(im, tx):
+    """Texture -> 0..1 "is this texel of the picked kind" (luminance / saturation window), box-blurred (`blur` px,
+    default 9) so scratches and dirt in the texture do not speckle the cut border."""
+    lum = im @ np.array([0.2126, 0.7152, 0.0722])
+    sat = im.max(-1) - im.min(-1)
+    m = ((lum <= tx.get('maxLum', 1)) & (lum >= tx.get('minLum', 0)) & (sat <= tx.get('maxSat', 1))).astype(float)
+    k = int(tx.get('blur', 9))
+    if k > 1:
+        ker = np.ones(k) / k
+        for ax in (0, 1):
+            for _ in range(2):
+                m = np.apply_along_axis(lambda v: np.convolve(np.pad(v, k // 2, mode='wrap'), ker, 'valid')[:len(v)], ax, m)
+    return m
+
+
+def refine_by_texture(T, uv, mask, tx, min_edge):
+    """Split triangles whose texture crosses the dark / light classification (1 -> 4, repeatedly) until edges are
+    shorter than min_edge: the carbon / paint border of the original texture becomes a triangle border."""
+    while True:
+        cls = texture_samples(mask, uv) >= 0.5
+        mixed = cls.any(1) & ~cls.all(1)
+        edge = np.max([np.linalg.norm(T[:, i] - T[:, (i + 1) % 3], axis=1) for i in range(3)], axis=0)
+        split = mixed & (edge > min_edge)
+        if not split.any():
+            return T, uv
+        Ts, Us = T[split], uv[split]
+        out_T, out_U = [T[~split]], [uv[~split]]
+        m01, m12, m20 = (Ts[:, 0] + Ts[:, 1]) / 2, (Ts[:, 1] + Ts[:, 2]) / 2, (Ts[:, 2] + Ts[:, 0]) / 2
+        u01, u12, u20 = (Us[:, 0] + Us[:, 1]) / 2, (Us[:, 1] + Us[:, 2]) / 2, (Us[:, 2] + Us[:, 0]) / 2
+        for ta, ua in (((Ts[:, 0], m01, m20), (Us[:, 0], u01, u20)), ((m01, Ts[:, 1], m12), (u01, Us[:, 1], u12)),
+                       ((m20, m12, Ts[:, 2]), (u20, u12, Us[:, 2])), ((m01, m12, m20), (u01, u12, u20))):
+            out_T.append(np.stack(ta, 1))
+            out_U.append(np.stack(ua, 1))
+        T, uv = np.concatenate(out_T), np.concatenate(out_U)
+
+
 def facing_mask(T, facing):
     """True for triangles T (n, 3, 3) whose unit normal components lie in the `facing` ranges."""
     N = np.cross(T[:, 1] - T[:, 0], T[:, 2] - T[:, 0])
@@ -318,6 +405,7 @@ def main():
     cfg = json.load(open(args[0], encoding='utf-8'))
     g, bins = load_glb(args[1])
     prims = primitives(g, bins)
+    uvs = primitive_uvs(g, bins) if any('texture' in r for r in cfg.get('gltf', {}).get('parts', [])) else None
     if '--list' in sys.argv or len(args) < 3:
         for name, mat, path, T in prims:
             lo, hi = T.reshape(-1, 3).min(0), T.reshape(-1, 3).max(0)
@@ -330,16 +418,20 @@ def main():
     default = rules.get('default')
     tris, labels, used = [], [], {}
     defaulted = []
-    for name, mat, path, T in prims:
+    for pi, (name, mat, path, T) in enumerate(prims):
         if drop & set(path) or mat in drop:
             continue
         label = None
         c = T.mean(1)
+        uvt = uvs[pi] if uvs is not None and uvs[pi] is not None and len(uvs[pi]) == len(T) else None  # UVs aligned with T (None after a region cut)
+        im = None
         isl = None  # (island id per triangle, island bbox lo / hi, island size) - computed on first use
         for r in rules['parts']:
             if 'node' in r and r['node'] != name:
                 continue
             if 'mat' in r and r['mat'] != mat:
+                continue
+            if 'texture' in r and uvt is None:
                 continue
             if 'region' in r:
                 ins, rest = region_cut(T, r['region'], np.array(cfg['offset'], float))
@@ -350,6 +442,7 @@ def main():
                 T = rest
                 c = T.mean(1)
                 isl = None
+                uvt = None
                 continue
             keep = np.ones(len(T), bool)
             if r.get('whole') or 'islandTris' in r or 'tube' in r:
@@ -371,6 +464,21 @@ def main():
             for ax, k in (('x', 0), ('y', 1), ('z', 2)):
                 if ax in r and not r.get('whole'):
                     keep &= (c[:, k] >= r[ax][0]) & (c[:, k] <= r[ax][1])
+            if 'texture' in r:
+                tx = r['texture']
+                if im is None:
+                    im = dark_mask(texture_image(g, bins, mat), tx)
+                if tx.get('refine'):
+                    # split the box's triangles along the texture border first (T / UVs re-built, other rules see the new list)
+                    box = keep.copy()
+                    if box.any():
+                        Tn, Un = refine_by_texture(T[box], uvt[box], im, tx, tx['refine'])
+                        T, uvt = np.concatenate([T[~box], Tn]), np.concatenate([uvt[~box], Un])
+                        c = T.mean(1)
+                        keep = np.concatenate([np.zeros((~box).sum(), bool), np.ones(len(Tn), bool)])
+                        isl = None
+                cls = texture_samples(im, uvt) >= 0.5
+                keep &= cls.mean(1) >= 0.5
             if 'facing' in r:
                 keep &= facing_mask(T, r['facing'])
             if 'near' in r:
@@ -385,6 +493,8 @@ def main():
             labels.append(np.full(keep.sum(), mats.index(r['material']), np.uint16))
             used[r['material']] = used.get(r['material'], 0) + int(keep.sum())
             T, c = T[~keep], c[~keep]
+            if uvt is not None:
+                uvt = uvt[~keep]
             if isl is not None:
                 isl = (isl[0][~keep],) + isl[1:]
         if label is None:

@@ -192,6 +192,8 @@ export interface CarPhysicsDef {
   rideHeight?: number;
   /** No traction control fitted (a 1970s road car): the assist is always off and its option / key do nothing. */
   noTractionControl?: boolean;
+  /** No ABS fitted: the brakes always lock when pushed hard, and its option / key do nothing. */
+  noAbs?: boolean;
   /** Scales the box inertia (real cars are ~0.8-1.0 of a solid box). */
   inertiaScale: number;
   wheelRadius: number;

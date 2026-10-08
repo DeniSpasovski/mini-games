@@ -57,11 +57,15 @@ const NO_ZOOM_VIEWPORT =
 /**
  * Per-game meta overrides, by page (entry name inside the game folder: "index" = play page).
  * Rally on a phone / iPad: on-screen pedals, so no double-tap / pinch zoom.
- * Touch games (hole) get a fixed viewport on every page and their own theme colour.
+ * Hole: fixed viewport on the play page only, own theme colour on every page.
  */
 const gameMeta: Record<string, (page: string) => Record<string, string>> = {
   rally: (page) => (page === 'index' ? { viewport: NO_ZOOM_VIEWPORT } : {}),
-  hole: () => ({ viewport: NO_ZOOM_VIEWPORT, 'theme-color': '#7cc66a' }),
+  // Only the play page locks zoom; the item / map viewer and balance pages are tools that need pinch zoom.
+  hole: (page) => ({
+    ...(page === 'index' ? { viewport: NO_ZOOM_VIEWPORT } : {}),
+    'theme-color': '#7cc66a',
+  }),
 };
 
 // Every page can be added to the iPad / phone home screen as a full-screen app.
@@ -91,6 +95,8 @@ const portalEnvironment: EnvironmentConfig = {
     copy: [
       { from: 'public/icons', to: 'icons' },
       { from: 'public/manifest.webmanifest' },
+      // Service worker at the root so its scope covers the games too (src/shared/offline.ts).
+      { from: 'public/sw.js' },
     ],
   },
   html: {
@@ -160,7 +166,11 @@ export default defineConfig(({ envMode }) => ({
     // Domain lock (allowed hosts in src/site.config.ts) runs before every page,
     // then the cookie banner / Google Analytics loader (src/shared/consent.ts).
     preEntry: ['./src/shared/host-guard.ts', './src/shared/consent-boot.ts'],
-    define: { __CAR_MODEL_FILES__: JSON.stringify(carModelFiles) },
+    define: {
+      __CAR_MODEL_FILES__: JSON.stringify(carModelFiles),
+      // `npm run build:test` (`--env-mode test`): the published build also offers the TEST cars / maps (release.ts).
+      __TEST_BUILD__: JSON.stringify(envMode === 'test'),
+    },
   },
   output: {
     // Relative asset URLs so the build works from any sub-folder

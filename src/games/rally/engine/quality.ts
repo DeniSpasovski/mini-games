@@ -70,7 +70,11 @@ export function loadQuality(): QualitySettings {
       name = null;
     }
   }
-  return QUALITY[name && name in QUALITY ? name : 'medium'];
+  return QUALITY[
+    name && Object.prototype.hasOwnProperty.call(QUALITY, name)
+      ? name
+      : 'medium'
+  ];
 }
 
 export function saveQuality(name: QualityName): void {

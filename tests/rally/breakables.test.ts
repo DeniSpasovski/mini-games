@@ -61,6 +61,15 @@ describe('breakable marker posts (test map)', () => {
     expect(b.count).toBe(0);
   });
 
+  test('chevron signs are breakable too', () => {
+    const chevrons = [...world.scatter.fixedInstances()].filter(
+      (i) => i.asset === 'chevron_sign',
+    );
+    expect(chevrons.length).toBeGreaterThan(0);
+    const c = chevrons[0];
+    expect(make().hit(car(c.x, c.z, 0.3))).toEqual([c]);
+  });
+
   test('jumping high over a post misses it', () => {
     const b = make();
     const p = posts[0];

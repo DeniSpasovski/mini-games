@@ -7,8 +7,9 @@
   stage-card bakes. Reload by hand. Browser pane: `portal-dev-noreload`.
 - `npm run build` - production build, one self-contained `dist/games/<id>/` per game (`DETAILS.md` -> Deploying);
   `npm run build -- --environment <id>` rebuilds one game (`portal` = portal files only)
+- `npm run build:test` - same, but the TEST cars / maps (`release.ts`) ship too (the Pages workflow's default)
 - `npm run preview` - preview the build
-- `npm run test` (rstest) · `npm run test:watch` · `npm run lint` (rslint) · `npm run format` (Prettier)
+- `npm run test` (rstest, fast `tests/` only) · `npm run test:integration` (slow playtests in `integration-tests/<game>/`) · `npm run test:watch` · `npm run lint` (rslint) · `npm run format` (Prettier)
 - `npx tsc --noEmit -p tsconfig.json` - type check (the build does not)
 
 ## Public repo and licences - read before adding anything
@@ -41,12 +42,12 @@ Each level has a short **`README.md`** (what it is, 1-4 in-game screenshots, how
 **`DETAILS.md`** with the rest (architecture, flows, URLs, build notes, sources; optional for a small car). Detail moves down
 into `DETAILS.md`, never up.
 
-| Level                         | `README.md`                                 | `DETAILS.md` / other docs                                                                                        |
-| ----------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| root                          | purpose, games, quick start, licence        | portal layout, domain lock, analytics, PWA, deploying; `THIRD-PARTY.md`                                          |
-| `src/games/<id>/`             | overview, screenshots, stages / cars tables | rules, flows, architecture, debug tools; `TASKS.md`; rally `PHYSICS.md`; hole `TOY-STORE.md`, `ANIMAL-ISLAND.md` |
-| `src/games/rally/maps/<id>/`  | route, screenshots, data credits + licences | every source link, bake notes, references; `TODO.md`                                                             |
-| `src/games/rally/cars/<car>/` | description, screenshots, credits + licence | build notes, rebuild commands, every source; `TODO.md` where present                                             |
+| Level                         | `README.md`                                 | `DETAILS.md` / other docs                                                                                                                |
+| ----------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| root                          | purpose, games, quick start, licence        | portal layout, domain lock, analytics, PWA, deploying; `THIRD-PARTY.md`                                                                  |
+| `src/games/<id>/`             | overview, screenshots, stages / cars tables | rules, flows, architecture, debug tools; `TASKS.md`; rally `PHYSICS.md`; hole `TOY-STORE.md`, `ANIMAL-ISLAND.md`, `CONSTRUCTION-SITE.md` |
+| `src/games/rally/maps/<id>/`  | route, screenshots, data credits + licences | every source link, bake notes, references; `TODO.md`                                                                                     |
+| `src/games/rally/cars/<car>/` | description, screenshots, credits + licence | build notes, rebuild commands, every source; `TODO.md` where present                                                                     |
 
 **Write short** - how things work NOW, for someone who has not seen the session; not a diary.
 
@@ -72,7 +73,7 @@ into `DETAILS.md`, never up.
   `TODO.md`; `maps/shared/` = format + helpers
 - Rally cars: `cars/<car>/` = `<car>.ts`, README, local-only DETAILS (build notes + sources); `cars/shared/` = code for every car
 - Hole Island: `src/games/hole/DETAILS.md` (rules, levels, tiers, catalog, generator, debug, architecture), `TASKS.md`,
-  `TOY-STORE.md`, `ANIMAL-ISLAND.md` (map design, roster, open tasks)
+  `TOY-STORE.md`, `ANIMAL-ISLAND.md`, `CONSTRUCTION-SITE.md` (map design, roster, open tasks)
 - `sources/cars/<car>/`, `sources/maps/<map>/` - files the user shared, git-ignored, never served. Models / data / licence files
   get a row in that folder's `DETAILS.md`; reference photos only in the local `NOTES.md`.
 - `scripts/car-model/`: `scan-mesh.py` (run on every new model after the licence gate: split / panel edges / blob),
@@ -93,6 +94,7 @@ into `DETAILS.md`, never up.
 - `rally-car-import` - import a 3D car model (LICENCE GATE first; worked examples `cars/skoda-rally/`, `cars/bimmer-m3/`)
 - `rally-livery` - paint / debug a car livery (worked example `cars/bimmer-m3/`)
 - `rally-physics-tuning` - handling changes + regression / autopilot tests
+- `testing` - add / move / run tests: `tests/` vs `integration-tests/<game>/`, scripts, the CI jobs
 - `source-files` - user shares models / photos / data / links: copy to `sources/`, document in DETAILS
 
 ## Conventions

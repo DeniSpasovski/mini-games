@@ -72,6 +72,8 @@ const BANDS: Record<
   skoda_rally: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
   zastava_101: { zeroTo100: [6, 16], brake100: [25, 80], top: [130, 200] },
   bimmer_m3: { zeroTo100: [3, 10], brake100: [25, 75], top: [150, 290] },
+  bimmer_gt2: { zeroTo100: [3, 10], brake100: [25, 75], top: [150, 290] },
+  fiesta: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
 };
 
 describe.each(ALL_CARS.map((c) => c.id))('%s', (carId) => {

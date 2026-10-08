@@ -24,6 +24,8 @@ export type PartName =
   | 'gloss'
   | 'mesh'
   | 'carbon'
+  | 'wingblue'
+  | 'winggreen'
   | 'glass'
   | 'ventglass'
   | 'headlight'
@@ -37,6 +39,10 @@ export type PartName =
   | 'tailc'
   | 'seal'
   | 'reflector'
+  | 'lamphousing'
+  | 'headled'
+  | 'tailled'
+  | 'redcover'
   | 'interior'
   | 'cage';
 
@@ -815,6 +821,23 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoatRoughness: 0.12,
       envMapIntensity: 0.55,
     }),
+  /** Painted rear-wing blades (Fiesta WRC): the livery's navy and green. */
+  wingblue: () =>
+    new MeshPhysicalMaterial({
+      color: 0x0c2a6e,
+      roughness: 0.4,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.15,
+      envMapIntensity: 0.6,
+    }),
+  winggreen: () =>
+    new MeshPhysicalMaterial({
+      color: 0x2eaa4a,
+      roughness: 0.4,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.15,
+      envMapIntensity: 0.6,
+    }),
   /** Wire mesh over an intake: dark diamonds in a lighter wire grid, ~12 mm cells. */
   mesh: () =>
     new MeshStandardMaterial({
@@ -1015,6 +1038,52 @@ const BUILDERS: Record<PartName, () => Material> = {
       reverseGlow,
     );
   },
+  /** Dark metal lamp housing / bezel of a modelled (3D) lamp. */
+  lamphousing: () =>
+    new MeshPhysicalMaterial({
+      color: 0x3a3b3e,
+      roughness: 0.35,
+      metalness: 0.6,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.1,
+      envMapIntensity: 0.8,
+    }),
+  /** Modelled headlight LED ring / DRL: warm white, always glowing. */
+  headled: () =>
+    new MeshPhysicalMaterial({
+      color: 0xfff4d6,
+      emissive: 0xffe9b0,
+      emissiveIntensity: 1.2,
+      roughness: 0.3,
+      metalness: 0,
+    }),
+  /** Modelled tail-lamp LED strip: red, idle glow, bright with the brake pedal (setBrake). */
+  tailled: () =>
+    lamp(
+      new MeshPhysicalMaterial({
+        color: 0xd01418,
+        emissive: 0xff2010,
+        emissiveIntensity: 0.35,
+        roughness: 0.2,
+        metalness: 0.1,
+        clearcoat: 1,
+        clearcoatRoughness: 0.05,
+      }),
+      3.2,
+    ),
+  /** Red see-through cover over a modelled tail lamp. */
+  redcover: () =>
+    new MeshPhysicalMaterial({
+      color: 0xb3151c,
+      roughness: 0.03,
+      metalness: 0,
+      transparent: true,
+      opacity: 0.5,
+      depthWrite: false,
+      clearcoat: 1,
+      clearcoatRoughness: 0.02,
+      envMapIntensity: 1.5,
+    }),
   reflector: () =>
     new MeshPhysicalMaterial({
       color: 0xa30f17,

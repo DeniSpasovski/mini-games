@@ -1,0 +1,257 @@
+{
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/fiesta/02-fiesta-wrc-metres.glb = 'Ford Fiesta WRC' by kevin (CC BY 4.0) with the FBX 0.01 root scale undone (scripts/car-model/glb-set-root-scale.py <glb> <out> 1 100): +x left, +y up, +z nose, metres. The offset puts the front hub (model z 1.262) on physics front.z = 1.2 and lifts the body 0.131 m so the hubs (model y 0.204 front / 0.184 rear) sit at the tyre radius 0.325 (the source car's wheels sit low in the body). The atlas block is also read by livery.ts at runtime - edit it only here.",
+  "source": "sources/cars/fiesta/02-fiesta-wrc-metres.glb -> glb-to-parts-stl.py -> sources/cars/fiesta/fiesta-parts.stl",
+  "output": "public/models/cars/fiesta.glb",
+  "axes": ["x", "y", "z"],
+  "scale": 1.0,
+  "offset": [0, 0.131, -0.062],
+  "groundAtMin": false,
+  "targetTriangles": 75000,
+  "creaseDeg": 40,
+  "wheels": {
+    "$comment": "the wheels are separate nodes (dropped below) - nothing to cut",
+    "radius": 0,
+    "minAbsX": 9,
+    "centres": []
+  },
+  "atlas": {
+    "pxPerMetre": 256,
+    "width": 4.35,
+    "height": 9.6,
+    "bounds": {
+      "x": [-1.05, 1.05],
+      "y": [0, 1.7],
+      "z": [-2.15, 2.15]
+    },
+    "charts": {
+      "left": [0, 0],
+      "right": [0, 1.75],
+      "top": [0, 3.5],
+      "front": [0, 5.65],
+      "rear": [2.2, 5.65],
+      "bottom": [0, 7.45]
+    }
+  },
+  "gltf": {
+    "$comment": "material / node -> part; first matching rule wins. Wheels, discs, calipers, light-glow polygons, plate, spare wheel and dash display bits are dropped (the game builds its own wheels / brakes).",
+    "drop": [
+      "EXT_PLATE",
+      "FIESTA17_DYNAMIC",
+      "FIESTA17_LCD",
+      "FIESTA17_SPARETRAP",
+      "FIESTA17_SPAREWHEEL",
+      "ac3dmat115",
+      "ac3dmat123",
+      "ac3dmat124",
+      "ac3dmat126",
+      "ac3dmat14",
+      "external_dynamics",
+      "motec",
+      "symbols",
+      "mozzo_lf_ac3dmat12_0",
+      "mozzo_rf_ac3dmat12_0",
+      "mozzo_lr_ac3dmat12_0",
+      "mozzo_rr_ac3dmat12_0",
+      "e_lightglass_rb_WCWINDOW_0",
+      "fiesta17_cockpit_SUB16_ADL2_TACH30_0",
+      "fiesta17_cockpit_SUB15_ADL2_TACH28_0",
+      "fiesta17_cockpit_SUB14_ADL2_TACH27_0",
+      "fiesta17_cockpit_SUB13_ADL2_TACH26_0",
+      "fiesta17_cockpit_SUB12_ADL2_TACH25_0",
+      "fiesta17_cockpit_SUB11_FIESTA17_TEMPBKG_0",
+      "fiesta17_cockpit_SUB10_FIESTA17_SPEEDBKG_0",
+      "fiesta17_cockpit_SUB9_FIESTA17_LAPSBKG_0",
+      "fiesta17_cockpit_SUB8_FIESTA17_FUELBK_0",
+      "fiesta17_cockpit_SUB7_FIESTA17_PLACEBKG_0",
+      "e_lightglass_lb_SUB0_WCWINDOW_0",
+      "e_lightglass_lb_SUB1_WCWINDOW_0"
+    ],
+    "parts": [
+      {
+        "node": "e_lightglass_lf_WCWINDOW_0",
+        "material": "lenscover"
+      },
+      {
+        "node": "e_lightglass_rf_SUB0_WCWINDOW_0",
+        "material": "lenscover"
+      },
+      {
+        "node": "e_lightglass_rf_SUB1_WCWINDOW_0",
+        "material": "lenscover"
+      },
+      {
+        "mat": "WCWINDOW",
+        "material": "glass"
+      },
+      {
+        "mat": "EXT_mirror-material",
+        "material": "mirror"
+      },
+      {
+        "mat": "FIESTA17_HLIGHTS",
+        "material": "headlight"
+      },
+      {
+        "mat": "FIESTA17_BLIGHTS",
+        "material": "tailc"
+      },
+      {
+        "mat": "carbonfiber_001",
+        "material": "carbon"
+      },
+      {
+        "mat": "carpet_001",
+        "material": "interior"
+      },
+      {
+        "mat": "FIESTA17_INT",
+        "material": "interior"
+      },
+      {
+        "mat": "FIESTA17_CPIT",
+        "material": "interior"
+      },
+      {
+        "$comment": "rear wing: upper blade (560 triangles) blue, lower blade (408) green; end plates follow below",
+        "node": "fiesta17_rwing_SUB0_WCCARBODY_0",
+        "whole": true,
+        "islandTris": [500, 620],
+        "y": [1.09, 1.28],
+        "material": "wingblue"
+      },
+      {
+        "node": "fiesta17_rwing_SUB0_WCCARBODY_0",
+        "whole": true,
+        "$comment": "lower blade (408) and the two outer low end plates (364 / 401): green",
+        "islandTris": [340, 440],
+        "x": [-0.75, 0.75],
+        "y": [0.9, 1.08],
+        "material": "winggreen"
+      },
+      {
+        "$comment": "the two tall inner end plates (158 each) beside the upper blade: blue",
+        "node": "fiesta17_rwing_SUB0_WCCARBODY_0",
+        "whole": true,
+        "islandTris": [140, 180],
+        "y": [0.9, 1.22],
+        "material": "wingblue"
+      },
+      {
+        "node": "exhaust_WCCARBODY_0",
+        "material": "trim"
+      },
+      {
+        "node": "pipe_WCCARBODY_0",
+        "material": "trim"
+      },
+      {
+        "node": "bumperlight_WCCARBODY_0",
+        "material": "trim"
+      },
+      {
+        "node": "tappi_WCCARBODY_0",
+        "material": "trim"
+      },
+      {
+        "$comment": "manufacturer badge: the oval on the grille top (no logos, AGENTS.md); dropped via the `logo` part",
+        "node": "bumper_fr_WCCARBODY_0",
+        "whole": true,
+        "islandTris": [60, 80],
+        "x": [-0.06, 0.07],
+        "y": [0.49, 0.53],
+        "z": [1.95, 1.995],
+        "material": "logo"
+      },
+      {
+        "$comment": "grille slats (6 bars, 84-96 triangles each): black",
+        "node": "bumper_fr_WCCARBODY_0",
+        "whole": true,
+        "islandTris": [80, 100],
+        "x": [-0.46, 0.47],
+        "y": [0.25, 0.43],
+        "z": [1.9, 2.1],
+        "material": "trim"
+      },
+      {
+        "$comment": "black behind the main grille opening (hexagon, exact outline cut, front view, model coords): the engine bay shows through it",
+        "mat": "WCCARBODY",
+        "region": {
+          "view": "front",
+          "poly": [
+            [-0.46, 0.381],
+            [0.46, 0.381],
+            [0.46, 0.561],
+            [0.3, 0.631],
+            [-0.3, 0.631],
+            [-0.46, 0.561]
+          ],
+          "depth": [1.2, 1.87]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "black behind the lower intake",
+        "mat": "WCCARBODY",
+        "region": {
+          "view": "front",
+          "poly": [
+            [-0.4, 0.176],
+            [0.4, 0.176],
+            [0.34, 0.296],
+            [-0.34, 0.296]
+          ],
+          "depth": [1.2, 1.87]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "rear valance (diffuser fins + bumper below y 0.28): black like the real car's diffuser",
+        "mat": "WCCARBODY",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [-0.95, 0.0],
+            [0.95, 0.0],
+            [0.95, 0.281],
+            [-0.95, 0.281]
+          ],
+          "depth": [-2.1, -1.5]
+        },
+        "material": "trim"
+      },
+      {
+        "mat": "WCCARBODY",
+        "material": "body"
+      }
+    ],
+    "default": "trim"
+  },
+  "parts": {
+    "materials": [
+      "body",
+      "trim",
+      "glass",
+      "headlight",
+      "tailc",
+      "lenscover",
+      "chrome",
+      "amber",
+      "mesh",
+      "interior",
+      "logo",
+      "carbon",
+      "wingblue",
+      "winggreen",
+      "mirror",
+      "cage"
+    ],
+    "wrap": {
+      "headlight": "corner",
+      "tailc": "corner"
+    },
+    "drop": ["logo"],
+    "maxTriangles": {
+      "interior": 18000
+    }
+  }
+}

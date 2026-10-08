@@ -38,8 +38,10 @@ import type { TyreId } from '../../physics/tyres';
 import {
   buildBrakeGeometries,
   hasWheelModel,
-  loadRimUnit,
+  loadRimUnits,
+  rimColorFor,
   RIM_UNIT_BARREL,
+  wheelModelFor,
 } from './stl-wheel';
 import { buildTyre, rimRadius } from './tyre-mesh';
 import { partMaterial } from './part-materials';
@@ -311,6 +313,20 @@ function getMeshMaterial(): MeshStandardMaterial {
   return meshMat;
 }
 
+/** Imported-model parts that never cast a shadow (hidden by the body's own shadow or too small to show). */
+const NO_SHADOW_PARTS = new Set([
+  'interior',
+  'cage',
+  'glass',
+  'lamphousing',
+  'headled',
+  'tailled',
+  'lenscover',
+  'redcover',
+  'headlight',
+  'tailc',
+]);
+
 export class CarModel {
   readonly root = new Group();
   readonly body = new Group();
@@ -336,8 +352,9 @@ export class CarModel {
   private tyre: TyreId | null;
   /** The wheel geometries currently on the instanced meshes (owned here, replaced by `refreshWheels`). */
   private wheelGeoms: BufferGeometry[];
-  /** Rim of the wheel GLB in unit space once loaded (STL wheels). */
-  private stlRim: BufferGeometry | null = null;
+  /** Rims of the car's wheel GLBs in unit space once loaded (STL wheels), by file. */
+  private stlRims = new Map<string, BufferGeometry>();
+  private rimMat: MeshStandardMaterial;
   private calMat: MeshStandardMaterial;
   private tires: InstancedMesh;
   private rims: InstancedMesh;
@@ -411,6 +428,7 @@ export class CarModel {
       roughness: 0.32,
     });
     this.owned.push(texture, paintMat, plainMat, rimMat);
+    this.rimMat = rimMat;
 
     this.shape = new BodyShape(def);
     const addParts = (g: CarPartGeometry) => [
@@ -504,9 +522,9 @@ export class CarModel {
                   name === 'glass' && def.model.glass
                     ? carGlass
                     : (part ?? mat);
-                // The cockpit sits inside the body's shadow: casting it only costs shadow-pass triangles.
-                if (name === 'interior' || name === 'cage')
-                  mesh.castShadow = false;
+                // The cockpit sits inside the body's shadow and glass / lamps are far below one shadow texel:
+                // casting them only costs shadow-pass triangles.
+                if (NO_SHADOW_PARTS.has(name)) mesh.castShadow = false;
                 if (!part && mesh.visible) painted.push(mesh);
               });
             } else {
@@ -546,9 +564,10 @@ export class CarModel {
     // Wheels: tyre (size + tread per compound) + rim + brakes, see buildWheelSet. A converted STL rim
     // (model.wheelModel) swaps in once loaded; its brake discs are built right away.
     this.tyre = opts.tyre ?? null;
-    const wheel = buildWheelSet(def, this.tyre, null);
+    const wheel = buildWheelSet(def, this.tyre, new Map());
+    rimMat.color.set(rimColorFor(def.model, this.tyre));
     this.wheelGeoms = [wheel.tire, wheel.rim, wheel.caliper];
-    const wheelModel = def.model.wheelModel;
+    const wheelModel = wheelModelFor(def.model, this.tyre);
     let wheelsLoaded: Promise<unknown> = Promise.resolve();
     this.tires = this.instanced(wheel.tire, tireVertexMat);
     this.rims = this.instanced(wheel.rim, rimMat);
@@ -562,19 +581,15 @@ export class CarModel {
     if (hasWheelModel(wheelModel) && wheel.disc) {
       this.wheelGeoms.push(wheel.disc);
       this.discs = this.instanced(wheel.disc, discMat);
-      wheelsLoaded = loadRimUnit(wheelModel)
-        .then((unit) => {
-          if (this.disposed) {
-            unit.dispose();
-            return;
-          }
-          this.owned.push(unit);
-          this.stlRim = unit;
-          this.refreshWheels();
-        })
-        .catch((e) =>
-          console.warn(`[car] ${def.id}: wheel model failed, procedural`, e),
-        );
+      wheelsLoaded = loadRimUnits(def.model).then((units) => {
+        if (this.disposed) {
+          for (const u of units.values()) u.dispose();
+          return;
+        }
+        this.owned.push(...units.values());
+        this.stlRims = units;
+        this.refreshWheels();
+      });
     }
     if (def.model.suspension) {
       const up = buildSuspensionGeometries(p.wheelRadius, p.wheelWidth);
@@ -879,7 +894,8 @@ export class CarModel {
 
   /** Rebuild tyre / rim / brake geometry for the fitted compound and swap it in (old ones are disposed). */
   private refreshWheels(): void {
-    const w = buildWheelSet(this.def, this.tyre, this.stlRim);
+    const w = buildWheelSet(this.def, this.tyre, this.stlRims);
+    this.rimMat.color.set(rimColorFor(this.def.model, this.tyre));
     for (const g of this.wheelGeoms) g.dispose();
     this.wheelGeoms = [w.tire, w.rim, w.caliper];
     this.tires.geometry = w.tire;
@@ -971,13 +987,13 @@ export interface WheelSet {
 /**
  * Tyre + rim + brakes for a car on a compound (wheel space: axis X, outer face +X). The overall radius is always the
  * physics wheel radius; the tyre SIZE sets width, rim diameter and sidewall height (so the rim visibly switches
- * between compounds on cars with a `tyres.byCompound`). Rims: the wheel GLB's rim scaled to the size (`stlRim`, unit
- * space, null while it loads), a car's own `model.wheels` rim (Zastava), else the procedural rim.
+ * between compounds on cars with a `tyres.byCompound`). Rims: the compound's wheel GLB rim scaled to the size (`stlRims`,
+ * unit space by file, empty while they load), a car's own `model.wheels` rim (Zastava), else the procedural rim.
  */
 export function buildWheelSet(
   def: CarDef,
   tyre: TyreId | null,
-  stlRim: BufferGeometry | null,
+  stlRims: ReadonlyMap<string, BufferGeometry>,
 ): WheelSet {
   const p = def.physics;
   const size = tyre ? tyreSizeFor(p, tyre) : p.tyres.size;
@@ -998,13 +1014,15 @@ export function buildWheelSet(
         barrel,
       );
   base.tire.dispose();
-  if (!hasWheelModel(def.model.wheelModel))
+  const file = wheelModelFor(def.model, tyre);
+  if (!hasWheelModel(file))
     return { tire, rim: base.rim, caliper: base.caliper };
   // Converted STL rim: its barrel (0.62 of the unit radius) = the size's rim radius; brakes follow the rim.
   const scale = barrel / RIM_UNIT_BARREL;
   const brakes = buildBrakeGeometries(scale, size.width);
   base.caliper.dispose();
   let rim = base.rim;
+  const stlRim = stlRims.get(file);
   if (stlRim) {
     base.rim.dispose();
     rim = stlRim.clone();

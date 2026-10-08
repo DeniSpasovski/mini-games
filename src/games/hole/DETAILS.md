@@ -37,7 +37,7 @@ All tool-page values are kept in the URL (`src/shared/url-state.ts`). Press `H` 
 
 ### Dev params (play page)
 
-`map=city|toy|animal` · `difficulty=easy|medium|hard` (skip the menu) · `time=<seconds>` · `level=<start level>` · `seed=<map seed>` ·
+`map=city|toy|animal|construction` · `difficulty=easy|medium|hard` (skip the menu) · `time=<seconds>` · `level=<start level>` · `seed=<map seed>` ·
 `color=<ocean|lime|pink|orange|violet|cyan|red|gold>` · `x=&z=` (start position) · `bot=1` (autopilot) · `debug=1`
 (debug HUD) · `quality=low|high`. Runs with `time`, `level` or `bot` are **not** saved to the top 10.
 
@@ -96,7 +96,7 @@ The joystick works in **screen space** and is turned into a world direction (`st
 is fixed north-up in v0), so "drag up" always means "away from the camera". It is the same in portrait and landscape.
 
 Mobile web setup (done): viewport meta `width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no,
-viewport-fit=cover` (set per page in `rsbuild.config.ts`, hole pages only), `touch-action: none`, `user-select: none`,
+viewport-fit=cover` (play page only, set in `rsbuild.config.ts`; the tool pages keep the default viewport so pinch zoom works), `touch-action: none`, `user-select: none`,
 `-webkit-touch-callout: none`, `overscroll-behavior: none`, `gesturestart` / double-tap / context-menu blocked
 (`game/ios.ts`), HUD uses `env(safe-area-inset-*)`, targets are at least 44 px, WebAudio is resumed on the first
 touch, `apple-mobile-web-app-capable` so "Add to Home Screen" runs full screen. `navigator.vibrate` doesn't exist on
@@ -207,7 +207,7 @@ Each item has a small state machine in `sim/fall.ts`, deterministic (seeded per 
 - **Leftover rings:** once fewer than 100 points are left, every remaining item gets a pulsing white ground ring (hugging the item, at least
   1 % of the camera distance wide, `MIN_SCREEN_K`) and tiny items are drawn regardless of size, so stragglers are easy to find from a big hole
   (`render/leftover-rings.ts`, `LEFTOVER_POINTS`).
-- Results also show **% eaten**, by points: points eaten ÷ total island points (City Island 30 000, Toy Emporium 25 000). The HUD shows the same percentage live.
+- Results also show **% eaten**, by points: points eaten ÷ total island points (City Island 30 000, Toy Emporium 22 000). The HUD shows the same percentage live.
 - Combos and multipliers are not in v0 (see iterations).
 
 #### High scores and the scoring version
@@ -224,7 +224,7 @@ to: item points or size tiers (`sim/progression.ts`, item dimensions in `items/c
 difficulty times, how a run is scored (`sim/sim.ts`) or how much content the map holds (`map/generate.ts`, e.g. `tiles` or `pointsPerTile`). Pure
 rebalancing of the XP curve, speed or camera does not change what a score means and needs no bump.
 
-### Moving items (Animal Island and City Island)
+### Moving items (Animal Island, City Island and Construction Site)
 
 Items can move. A placement with a `move` spec (`MoveSpec` in `map/types.ts`: kind, home, leash, speed, optional path
 end and start delay, `flee`) becomes a **mover**: `sim/world.ts` keeps its state in struct-of-arrays (`isMover`,
@@ -267,7 +267,7 @@ end and start delay, `flee`) becomes a **mover**: `sim/world.ts` keeps its state
     now and then and turning back at 25 % of the corners. Pedestrians in a park or on the beach `wander` in a circle that stays
     in the park / on the sand; plaza and lot pedestrians stand. `map/city-movers.ts` assigns them after generation with its own
     Rng, so the layout and the 30 000 points never change. People face +Z (`Movers.face`), animals and cars +X.
-  - `tests/hole/city-movers.test.ts`: cars stay on the asphalt, make progress and do not stack; strollers stay on the ring;
+  - `integration-tests/hole/city-movers.test.ts`: cars stay on the asphalt, make progress and do not stack; strollers stay on the ring;
     deterministic; cheap. Overlays: map viewer "Road network", "Trail / patrol / stroll paths".
 - Not done: no leg animation (animals bob / hop as a whole), herd followers, see [`ANIMAL-ISLAND.md`](ANIMAL-ISLAND.md) section 7.
 
@@ -420,7 +420,7 @@ noun for the HUD).
 | Plush density | the Plush Meadow is the densest zone but not a pile-up: share 18 % (was 20 %) in the floor plan, and the whale / penguin plush are stocked in the Splash Zone (`PLUSH_ELSEWHERE` in `map/toy/generate.ts`); the freed points go to the atrium, checkout, dolls and splash                                                                                                                                                                       |
 | Start         | the checkout between Brick Alley and Figure Falls ringed by ~36 tier 1-3 pieces (only the default / test start, see "Random start")                                                                                                                                                                                                                                                                                                             |
 
-**Total points are exactly 25 000 for every seed**, like City Island: after the zones are filled, `balancePoints` trims
+**Total points are exactly 22 000 for every seed**: after the zones are filled, `balancePoints` trims
 small items (never near the start) or tops up with 1-point fillers (`puzzle_piece`, `brick_2x2`, ...). Pacing: the
 store has to be big for the same reason City Island is (points per m2), so the floor is 600 x 400 m. Points by tier
 (floor plan): tier 1 is ~5 % of the points, tiers 4-10 hold ~52 % (a third of the map is 8-point shelf units), tiers 20-25
@@ -464,7 +464,7 @@ stepper), deterministic, DOM-free; registered in `map/registry.ts` (id `animal`,
 | Fill     | a per-tier point budget (`TIER_FRACTION`) shared by the types of the tier by priority and group weight (`planCounts`), placed biggest first; 80 % of the tier 1-12 items gather around **hotspots**; herds, ant trails from anthills, patrols; then `ensureTypes` and `balancePoints`                                                                                                                                                                                      |
 | Start    | a clear meadow spot with the most tier 1-3 items within 22 m, plus a ring of 26 tiny things (`startPoint`); runs start at a random busy spot (`pickStart`: avoids water and hills and, on this map, needs >= 40 tier 1 items within 22 m because a level 1 hole eats tier 1 only; the tests check >= 30)                                                                                                                                                                   |
 
-**Total points are exactly 21 000 for every seed**: the fill plans less than the target, `balancePoints` trims small
+**Total points are exactly 22 000 for every seed**: the fill plans less than the target, `balancePoints` trims small
 items (never within 28 m of the start) or adds mid-tier items and 1-point fillers (`grass_tuft`, `flower`, `clover`,
 `pebble`) until the total is exact. About 4 900 items, ~2 500 of them movers. At most 50 terrain hills (per-type caps), the tiny mounds are small items. Items keep `3 + 0.15 x size` m from the coast (the biggest hole must reach them). Pacing is in `ANIMAL-ISLAND.md` 5.7.
 
@@ -486,6 +486,30 @@ biome cells (two greens per biome), sand ring, flat rects, river ribbons with mu
 
 **Performance**: since the items are batched (see "Performance" under Architecture) the map draws in 23-26 calls and
 24k / 108k / 321k triangles at level 1 / 8 / 15 (shadows on); **not yet measured on a device** (open task AI-01).
+
+## Map: Construction Site
+
+The fourth map (`map=construction`, **test map**: dev server and `npm run build:test` only, see `release.ts`): a fenced
+540 x 420 m building site. Bricks, cones and hard hats first, then wheelbarrows, mini diggers, skips and containers, then
+excavators, dump trucks and half-built houses, and last haul trucks, tower cranes and the high-rises they build.
+Design, roster (117 types), decisions and open tasks: [`CONSTRUCTION-SITE.md`](CONSTRUCTION-SITE.md). Registered in
+`map/registry.ts` (id `construction`, noun "site", 21 000 points, seeded, `puffs: 'rubble'`).
+
+| Part      | How it is built                                                                                                                                                                                                                      |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Plan      | `map/construction/layout.ts`: 12 m gravel haul roads (x = -180..180 / z = -126..126), 6 x 5 plots in 9 districts (`District` in `items/catalog-construction.ts`), the mine is one road-free area                                     |
+| Generator | `map/construction/generate.ts`: per-tier point budget (`TIER_FRACTION`) shared by the types of each tier, biggest first, small items gather round work spots, then `ensureAllTypes`, start scatter, `balancePoints` (exactly 21 000) |
+| Movers    | workers `wander`; site vans, pickups, dump and mixer trucks `drive` the road graph (`MapData.roads`, at most 44, right-hand lane); haul trucks and forklifts `patrol` a reserved straight path                                       |
+| Ground    | `render/construction-ground.ts`: dirt base + checker, the map's rects (districts, roads, mine terraces), skirt, outside plane, hoarding (item material, low on the gate side) and district names painted on the floor                |
+| Start     | the Site Gate plot; runs start at a random busy spot (`pickStart`)                                                                                                                                                                   |
+
+**Catalog:** `items/catalog-construction.ts` (data: size, groups, districts, motion), builders `build-site.ts`
+(materials, tools, crew, site furniture, heaps) and `build-machines.ts` (plant, trucks, cranes, mining, buildings), shared
+helpers in `kit-site.ts`. Machines run along X (front +X), workers face +Z. Builders run with `Mesher.decoplanar`.
+Triangle budgets (`tests/hole/construction-items.test.ts`): material 300, tools 400, crew 140, site 600, heaps 300,
+plant 900, trucks 1 200, structures 1 600, cranes 1 200, mining 1 600.
+
+Sounds: clack (material, tools, crew, site), clank (plant, trucks, cranes, mining, structures), thud (heaps).
 
 ## Art style
 
@@ -731,7 +755,7 @@ are City Island only.
 - Overlays: district colours, "show only tier N" filter. Click an item to inspect it (name, level, points, size,
   position). Click the ground to move the red marker (drawn at the hole size of the chosen level).
 - `map=animal` adds an **Animals** section (URL keys `biomes`, `walkgrid`, `leash`, `paths`): biome grid colours, walk grid (green land, blue water, red blocked), leash circles (one per home / radius / behaviour, colour = behaviour) and the ant / patrol path lines; the content box also counts movers per behaviour.
-- **Content budget box:** item count, total points against the exact target (30 000 City Island, 25 000 Toy Emporium), tiers with fewer than 2 item types, items
+- **Content budget box:** item count, total points against the exact target (30 000 City Island, 22 000 Toy Emporium), tiers with fewer than 2 item types, items
   and points per tier, skyscraper count, start position; draw calls and triangles in the F3 box.
 - **Game camera** at the marker for level L (checks framing over the real map); **Play from the red marker** opens
   `./?seed=&x=&z=&level=&difficulty=medium`.
@@ -786,7 +810,7 @@ are City Island only.
   cut-off).
 - `toy-items`: every toy tier / level has >= 2 types, the three required plush families exist at six sizes, builders
   match the catalog size, stay on the ground, keep their paint lists and triangle budgets. `toy-clip`: no z-fighting, no
-  mostly-buried item (same checker as `clip`). `toy-map`: deterministic, exactly 25 000 points, every type placed, tiers /
+  mostly-buried item (same checker as `clip`). `toy-map`: deterministic, exactly 22 000 points, every type placed, tiers /
   levels covered, start busy, random department slots, balance bands for the good bot, every item reachable by a hole of its level.
 
 - `kit-ball`: the round primitive (radii, triangle count, domes, eggs, seeded jitter, outward faces, clip checker coverage).
@@ -865,6 +889,10 @@ ratio capped at 2 (1.5 on `low`). What is in place:
 - **Paint**: per-instance colours are the batch colour texture; the `paint` mask patch covers both `instanceColor` and
   `getBatchingColor` (`render/materials.ts`). `tests/hole/item-instances.test.ts` checks the culling and fails if a
   three.js upgrade renames the internals / shader line it relies on.
+- **Partial matrix upload** (`ItemBatch.setMatrix` / `flushMatrixRows`): three re-sends a batch's whole matrix texture
+  after any `setMatrixAt`. After the first render only the changed texture rows are sent (full upload again when over
+  half the rows changed): 0.2-0.5 MB per frame on City / Animal at level 15 down to 10-130 KB, pixel-identical.
+- **One layout read per frame** for the "+N" popups (`handleEvents`): `getBoundingClientRect` once, not per eat.
 - **Adaptive resolution** (`adaptResolution` in `game/hole-game.ts`): during a run, a smoothed frame time above 24 ms
   steps the render scale down (x0.88 every 1.5 s, floor 70 %); below 18 ms for 6 s it steps back up.
 - **Idle frame cap**: menus, pause and results render at ~30 fps (the sim of the menu demo still steps in real time).

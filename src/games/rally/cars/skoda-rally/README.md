@@ -32,7 +32,7 @@ npm run dev     # /games/rally/car-viewer.html?car=skoda_rally
 | 100-0 km/h, full brake  | 32 m           | 50 m           | 46 m          | 52 m          |
 
 Measured by the physics sim on flat ground (full throttle from standstill, traction control on, each surface on its
-home tyre + set-up, 2026-10-04): `straight()` in `tests/rally/handling-harness.ts`. Top speed is the setup screen's number
+home tyre + set-up, 2026-10-04): `straight()` in `integration-tests/rally/handling-harness.ts`. Top speed is the setup screen's number
 (`topSpeed()` in `physics/gearing.ts`). Retune a car and these move - rerun and update.
 
 ## Credits and licence

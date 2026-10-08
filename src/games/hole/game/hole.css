@@ -266,6 +266,10 @@ body {
 .hg-banner.animal {
   background: linear-gradient(#a6dc8c, #4fae67);
 }
+/* the building site's is safety orange */
+.hg-banner.construction {
+  background: linear-gradient(#ffb347, #e8590c);
+}
 @keyframes hg-banner {
   from {
     opacity: 0;

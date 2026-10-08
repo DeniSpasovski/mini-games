@@ -22,16 +22,18 @@ semi-implicitly, and the combined-slip tyre curve (`tire.ts`, Pacejka-like with 
 slip angle into forces using the **surface the wheel stands on** (`surfaces.ts`: `mu`, `slide`, `peakSlip`, `peakAngle`,
 `rolling`, `bump`, `rough`). Hull spheres collide with the ground and static colliders; `waterPass` adds water drag.
 Driver aids: traction / stability control (`T`; stability trims throttle above combined slip 1.15 on driven rear
-tyres, 2.0 on driven front tyres - `TC_REAR_SLIP` / `TC_FRONT_SLIP`), auto reverse, keyboard steering ramp + speed
-limit (`keyboardSteerLimit` in `game/input.ts`, close to the steering that gives peak grip).
+tyres, 2.0 on driven front tyres - `TC_REAR_SLIP` / `TC_FRONT_SLIP`), ABS (`B`, `Vehicle.absPass`: per wheel, eases the
+foot brake off past 1.3x the surface's peak slip ratio above ~11 km/h, so the fronts keep steering; the handbrake is
+untouched; `physics.noAbs` = not fitted, the Zastava), auto reverse, keyboard steering ramp + speed limit
+(`keyboardSteerLimit` in `game/input.ts`, close to the steering that gives peak grip).
 
 ## Tuning guide
 
 Everything is in `cars/<car>/<car>.ts` (`physics`), `physics/surfaces.ts`, `physics/tyres.ts`, `physics/car-tyres.ts`
 and `physics/car-setup.ts`. Workflow:
 
-1. `npm run test` - `tests/rally/vehicle.test.ts` prints 0-100, 100-0, top speed, lateral g (no tyre fitted = raw
-   surfaces); `tests/rally/stage.test.ts` drives every car through every map with the autopilot. Every car has its own
+1. `npm run test` + `npm run test:integration:rally` - `tests/rally/vehicle.test.ts` prints 0-100, 100-0, top speed, lateral g (no tyre fitted = raw
+   surfaces); `integration-tests/rally/stage.test.ts` drives every car through every map with the autopilot. Every car has its own
    expected ranges (`BANDS` in `vehicle.test.ts`) - add one for a new car. Tyre / set-up tests: see "Tests" below.
 2. Drive it: `/games/rally/?car=<id>&spawn=pad&tyre=<tyre>&susp=<preset>`, press `F2` (per-wheel load, slip, forces,
    tyre, set-up, effective `mu`) and `F4` (force vectors + hull).
@@ -40,6 +42,7 @@ and `physics/car-setup.ts`. Workflow:
 | Symptom                        | Knobs                                                                                            |
 | ------------------------------ | ------------------------------------------------------------------------------------------------ |
 | Spins under power              | raise `rear.grip` relative to `front.grip`, lower `rearDiffLock`, more `frontSplit`, less torque |
+| Won't turn when braking        | ABS on (`B`); without it the fronts lock and the car goes straight on whatever the steering does |
 | Won't turn in / understeer     | `front.grip`, `maxSteerDeg`, softer `front.antiRoll`, stiffer `rear.antiRoll`                    |
 | Rolls over too easily          | raise `forceHeight` (0.3 -> 0.45), lower `comHeight`, stiffer `antiRoll`                         |
 | Floaty / bouncy                | raise `bump` / `rebound` dampers (critical ≈ 2·sqrt(k·m_corner))                                 |
@@ -51,11 +54,12 @@ and `physics/car-setup.ts`. Workflow:
 | Set-up makes too little change | set-up match factors in `carSurfaces` (`0.12` rough / `0.06` smooth), or the preset points       |
 | Too slow / fast in water       | `WHEEL_WATER_CD`, `BODY_WATER_CD`, intake height (`waterPass` in `physics/vehicle.ts`)           |
 
-Lessons already learned (also in the skill): auto gearbox decisions use ground speed, not wheel speed; the handbrake
-declutches the rear; flimsy props must not be solid colliders; rear-biased AWD at full throttle mid-corner
-power-oversteers (the stability part of TC handles keyboard play); crests in corners unload the tyres (loads drop to
-~40 %) - place jumps on straights; short surface bumps become damper spikes (wheels are single rays with no unsprung
-mass) - keep `bump` wavelengths long.
+Lessons already learned (also in the skill): "can't turn into corners" was the fronts locking under braking (ABS fixed
+it; a grip-aware steering limit and a grip / diff retune were tried first and dropped); auto gearbox decisions use ground
+speed, not wheel speed; the handbrake declutches the rear; flimsy props must not be solid colliders; rear-biased AWD at
+full throttle mid-corner power-oversteers (the stability part of TC handles keyboard play); crests in corners unload the
+tyres (loads drop to ~40 %) - place jumps on straights; short surface bumps become damper spikes (wheels are single rays
+with no unsprung mass) - keep `bump` wavelengths long.
 
 **Water** (canals / rivers, `GroundProvider.waterLevel` -> `World.waterLevel` -> `gen.waterSurfaceAt`): `Vehicle.waterPass`
 adds hydrodynamic drag `0.5 * rho * Cd * A * v^2` per tyre (A = tyre width x depth) and on the submerged body (width /
@@ -208,7 +212,7 @@ drive for a fast or a twisty stage). Only the race cars carry presets (`CarPhysi
 fixed (setup screen: one "Standard" box, "no configuration available"). Medium is always the car's own
 `gearbox.finalDrive`. `applyGearing(def, id)` after `applySetup`; `topSpeed(def)` (wheel force vs drag + rolling, capped by
 the redline) is the setup screen's number and matches the sim within 2 km/h; the box chart shows each gear's redline speed
-capped at that top speed. A map can recommend a gearing (`MapDef.gearing`, missing = medium): Jackie recommends `long`.
+capped at that top speed. A map can recommend a gearing (`MapDef.gearing`, missing = medium): Jackie and Ajvatovci recommend `long`.
 
 | Car         | Short          | Medium (own)           | Long           |
 | ----------- | -------------- | ---------------------- | -------------- |
@@ -233,6 +237,20 @@ without it the Tarmac tyre arrived at Petralica's gravel at 116 km/h and slid 30
 
 ## Reference numbers
 
+Full brake, ABS on / off (`handling.test.ts` straight line, home tyre, medium set-up), 2026-10-08 - 100-0 km/h on tarmac /
+gravel, and the heading turned under full brake + half steer from 80 km/h on gravel (`tests/rally/abs.test.ts` is the guard):
+
+| Car         | 100-0 tarmac  | 100-0 gravel  | Brake + steer from 80 |
+| ----------- | ------------- | ------------- | --------------------- |
+| Skoda Rally | 33 / 41 m     | 45 / 48 m     | 64° / 22°             |
+| Bimmer M3   | 29 / 34 m     | 40 / 42 m     | 46° / 0°              |
+| Bimmer GT2  | 25 / 29 m     | 38 / 40 m     | 39° / 0°              |
+| Fiesta WRC  | 33 / 42 m     | 45 / 48 m     | 65° / 17°             |
+| Zastava 101 | 45 m (no ABS) | 46 m (no ABS) | 1°                    |
+
+At part pedal (60 %) no wheel locks and the distances match. Compare with ABS off in the harness via
+`Cfg.patch: (v) => { v.abs = false; }` (`straight().full.firstLock` is `-` with ABS on).
+
 Max lateral g at 60 km/h on flat ground (`handling.test.ts` ramp steer, true lateral acceleration; each tyre with its
 matching set-up), 2026-10-04 - tarmac / dusty tarmac / gravel / loose gravel, home tyre in bold:
 
@@ -245,7 +263,7 @@ matching set-up), 2026-10-04 - tarmac / dusty tarmac / gravel / loose gravel, ho
 The home tyre is the best on all four surfaces for every car. `tyres.test.ts` prints the same for the Skoda Rally with the
 older steady-state method (v x yaw rate, lower numbers, same ranking): tarmac 0.89 / 0.78 / 0.67, dusty 0.63 / 0.75 / 0.70,
 gravel 0.44 / 0.67 / 0.83 (tarmac / mixed / gravel tyre). Whole-car handling per car (balance, braking, keyboard, ride):
-`tests/rally/handling.test.ts` (`HANDLING_OUT=out.json` writes every number).
+`integration-tests/rally/handling.test.ts` (`HANDLING_OUT=out.json` writes every number).
 
 ### Stage times
 
@@ -279,19 +297,20 @@ everywhere (power, not grip).
 
 ## Tests
 
-| File                                  | What it holds                                                                                                                                                                                                                            |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tests/rally/vehicle.test.ts`         | per-car bands (0-100, braking, top speed), lateral g ranks per surface - no tyre fitted (raw surfaces)                                                                                                                                   |
-| `tests/rally/stage.test.ts`           | every car finishes every map with the autopilot, upright (raw surfaces)                                                                                                                                                                  |
-| `tests/rally/tyres.test.ts`           | compound data complete; right tyre best on its home surface, mixed never best / worst; careful + limit driver per stage                                                                                                                  |
-| `tests/rally/car-setup.test.ts`       | sizes match `wheelRadius`; presets: damping, ride height per preset (body + wheels), compliance ranges per car; width effects; car vs car lateral g; straight-line launch on loose ground (every car reaches 100 km/h pointing straight) |
-| `tests/rally/car-matrix.test.ts`      | every car x stage on the recommended and the worst pick finishes upright; cars rank by character; set-up alone is worth time                                                                                                             |
-| `tests/rally/tyre-mesh.test.ts`       | tyre geometry: budget, size, tread depth order, rim switch (rendering, but sized from the physics data)                                                                                                                                  |
-| `tests/rally/suspension-mesh.test.ts` | coil-over geometry: length by travel, coils / wire by rate, one style per car                                                                                                                                                            |
-| `tests/rally/water-physics.test.ts`   | dry / shallow / deep acceleration per car                                                                                                                                                                                                |
-| `tests/rally/hull-fit.test.ts`        | every car's collision hull follows its model: underside per zone (front overhang, between axles, rear overhang) and the nose / tail ends; prints the profile                                                                             |
-| `tests/rally/gearing.test.ts`         | gearing presets: race cars only, medium = own final drive, short < medium < long top speed, setup-screen top speed = sim, Skoda Rally on long reaches 200 km/h on Jackie                                                                 |
-| `tests/rally/handling.test.ts`        | whole-car handling per car x tyre x set-up x surface (`handling-harness.ts`): ramp / step steer, lift / power / brake mid-corner, handbrake, slalom, keyboard lock, braking, drops, jump landing, ruts                                   |
+| File                                         | What it holds                                                                                                                                                                                                                            |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/rally/vehicle.test.ts`                | per-car bands (0-100, braking, top speed), lateral g ranks per surface - no tyre fitted (raw surfaces)                                                                                                                                   |
+| `integration-tests/rally/stage.test.ts`      | every car finishes every map with the autopilot, upright (raw surfaces)                                                                                                                                                                  |
+| `integration-tests/rally/tyres.test.ts`      | compound data complete; right tyre best on its home surface, mixed never best / worst; careful + limit driver per stage                                                                                                                  |
+| `tests/rally/car-setup.test.ts`              | sizes match `wheelRadius`; presets: damping, ride height per preset (body + wheels), compliance ranges per car; width effects; car vs car lateral g; straight-line launch on loose ground (every car reaches 100 km/h pointing straight) |
+| `integration-tests/rally/car-matrix.test.ts` | every car x stage on the recommended and the worst pick finishes upright; cars rank by character; set-up alone is worth time                                                                                                             |
+| `tests/rally/tyre-mesh.test.ts`              | tyre geometry: budget, size, tread depth order, rim switch (rendering, but sized from the physics data)                                                                                                                                  |
+| `tests/rally/suspension-mesh.test.ts`        | coil-over geometry: length by travel, coils / wire by rate, one style per car                                                                                                                                                            |
+| `tests/rally/water-physics.test.ts`          | dry / shallow / deep acceleration per car                                                                                                                                                                                                |
+| `tests/rally/abs.test.ts`                    | ABS keeps the front wheels unlocked and steering under full brake (tarmac, gravel); a car without ABS ignores the setting                                                                                                                |
+| `tests/rally/hull-fit.test.ts`               | every car's collision hull follows its model: underside per zone (front overhang, between axles, rear overhang) and the nose / tail ends; prints the profile                                                                             |
+| `integration-tests/rally/gearing.test.ts`    | gearing presets: race cars only, medium = own final drive, short < medium < long top speed, setup-screen top speed = sim, Skoda Rally on long reaches 200 km/h on Jackie                                                                 |
+| `integration-tests/rally/handling.test.ts`   | whole-car handling per car x tyre x set-up x surface (`handling-harness.ts`): ramp / step steer, lift / power / brake mid-corner, handbrake, slalom, keyboard lock, braking, drops, jump landing, ruts                                   |
 
 `tyres.test.ts` and `car-matrix.test.ts` import the four stages directly (`test`, `petralica`, `jackie`, `ajvatovci`) - add a
 new map there. The "worst pick" in `car-matrix.test.ts` is tarmac tyres on a gravel stage, gravel tyres on a tarmac or

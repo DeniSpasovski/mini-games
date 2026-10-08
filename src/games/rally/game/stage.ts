@@ -32,6 +32,9 @@ export interface StageEvent {
 const COUNTDOWN = 3;
 /** Time penalties (s) added to the stage time. */
 export const PENALTY_RESET = 2;
+/** Reset while flipped (on the roof or side: `vehicle.up.y` below FLIPPED_UP_Y). */
+export const PENALTY_RESET_FLIPPED = 10;
+export const FLIPPED_UP_Y = 0.3;
 export const PENALTY_CUT = 5;
 /** Progress only follows the road within this many metres of the current progress. */
 const WINDOW = 40;
@@ -337,7 +340,10 @@ export function loadBest(
 ): { total: number; splits: number[] } | null {
   try {
     const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : null;
+    const b = raw ? JSON.parse(raw) : null;
+    if (!b || !Number.isFinite(b.total) || !Array.isArray(b.splits))
+      return null;
+    return b;
   } catch {
     return null;
   }
@@ -380,7 +386,16 @@ export function loadTimes(mapId: string, carIds: string[]): RunRecord[] {
   let runs: RunRecord[] | null;
   try {
     const raw = localStorage.getItem(timesKey(mapId));
-    runs = raw ? JSON.parse(raw) : null;
+    const parsed = raw ? JSON.parse(raw) : null;
+    runs = Array.isArray(parsed)
+      ? parsed.filter(
+          (r) =>
+            r &&
+            Number.isFinite(r.time) &&
+            typeof r.car === 'string' &&
+            Number.isFinite(r.date),
+        )
+      : null;
   } catch {
     runs = null;
   }

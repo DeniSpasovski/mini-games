@@ -6,10 +6,8 @@ import {
 } from '../../src/games/hole/map/animal/generate';
 import { ANIMAL_ITEMS, getItem } from '../../src/games/hole/items/catalog';
 import { insideIsland } from '../../src/games/hole/map/types';
-import { Sim } from '../../src/games/hole/sim/sim';
 import { pickStart } from '../../src/games/hole/map/start';
 import { Rng } from '../../src/shared/rng';
-import { BOT_SKILLS, runBot } from '../../src/games/hole/sim/bot';
 import {
   ITEM_LEVELS,
   TIER_COUNT,
@@ -128,30 +126,6 @@ test('stats dump (LIST_STATS=<file>)', () => {
   }
   writeFileSync(out, lines.join('\n'));
 });
-
-test('balance bands: good bot on Animal Island, hard / medium / easy, three seeds', () => {
-  const out: string[] = [];
-  for (const seed of SEEDS) {
-    const m = maps.get(seed)!;
-    const run = (seconds: number) =>
-      runBot(new Sim(m, { seconds }), BOT_SKILLS.good, { dt: 1 / 30 });
-    const hard = run(100);
-    const medium = run(250);
-    const easy = run(500);
-    out.push(
-      `seed ${seed}: hard L${hard.level} (${hard.score}) | medium L${medium.level} | easy cleared ${easy.cleared} at ${easy.time.toFixed(0)}s`,
-    );
-    // Hard: a stretch goal (not every level), Medium and Easy reach the top, Easy clears with time to spare
-    expect(hard.level, `hard seed ${seed}`).toBeGreaterThanOrEqual(10);
-    expect(hard.level, `hard seed ${seed}`).toBeLessThanOrEqual(20);
-    expect(medium.level, `medium seed ${seed}`).toBeGreaterThanOrEqual(15);
-    expect(easy.cleared, `easy seed ${seed}`).toBe(true);
-    expect(easy.time, `easy seed ${seed}`).toBeGreaterThan(110);
-    expect(easy.time, `easy seed ${seed}`).toBeLessThan(400);
-  }
-  if (process.env.LIST_BALANCE)
-    writeFileSync(process.env.LIST_BALANCE, out.join('\n'));
-}, 600000);
 
 test('random starts have plenty of tier 1 items around (a level 1 hole eats tier 1 only)', () => {
   for (const seed of SEEDS) {

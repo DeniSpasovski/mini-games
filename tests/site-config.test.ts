@@ -1,17 +1,25 @@
 import { expect, test } from '@rstest/core';
 import { isAllowedHost, isDevLanHost } from '../src/site.config';
 
-test('host guard allows deni.io + localhost only', () => {
+test('host guard allows deni.io, the GitHub Pages host + localhost only', () => {
   for (const h of [
     'deni.io',
     'www.deni.io',
     'games.deni.io',
+    'denispasovski.github.io',
     'localhost',
     '127.0.0.1',
     'LOCALHOST',
   ])
     expect(isAllowedHost(h)).toBe(true);
-  for (const h of ['evil.com', 'deni.io.evil.com', 'notdeni.io', 'example.org'])
+  for (const h of [
+    'evil.com',
+    'deni.io.evil.com',
+    'notdeni.io',
+    'example.org',
+    'github.io',
+    'other.github.io',
+  ])
     expect(isAllowedHost(h)).toBe(false);
 });
 

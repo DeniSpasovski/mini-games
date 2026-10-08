@@ -86,12 +86,39 @@ export class Sfx {
     } else if (group === 'lab' || group === 'zoo' || group === 'labveh') {
       this.tone(f * 0.9, 0.06, 'square', 0.1);
       this.tone(f * 0.6, 0.1, 'square', 0.08, undefined, 0.05); // clank
+    } else if (
+      group === 'material' ||
+      group === 'tools' ||
+      group === 'crew' ||
+      group === 'site'
+    ) {
+      this.tone(f * 1.2, 0.05, 'square', 0.1);
+      this.tone(f * 0.8, 0.07, 'triangle', 0.12, undefined, 0.04); // clack
+    } else if (
+      group === 'plant' ||
+      group === 'trucks' ||
+      group === 'cranes' ||
+      group === 'mining' ||
+      group === 'structures'
+    ) {
+      this.tone(f * 0.7, 0.1, 'square', 0.1);
+      this.tone(f * 0.45, 0.16, 'sawtooth', 0.1, f * 0.3, 0.06); // clank
+    } else if (group === 'heaps') {
+      this.tone(f * 0.5, 0.2, 'triangle', 0.3, f * 0.22); // thud
     } else if (group === 'outdoor') {
       this.tone(f * 0.6, 0.22, 'sine', 0.24, f * 1.5); // boing
     } else {
       this.tone(f, 0.16, 'sine', 0.25, f * 0.45);
     }
     if (tier > 12) this.tone(f * 0.5, 0.35, 'triangle', 0.22, f * 0.2);
+  }
+
+  /** A giant was swallowed: low roar with a falling growl and two thumps. */
+  roar(): void {
+    this.tone(150, 0.7, 'sawtooth', 0.2, 55);
+    this.tone(110, 0.8, 'square', 0.1, 45, 0.04);
+    this.tone(70, 0.25, 'sine', 0.4, 35, 0.05); // thump
+    this.tone(60, 0.3, 'sine', 0.35, 30, 0.3);
   }
 
   levelUp(): void {

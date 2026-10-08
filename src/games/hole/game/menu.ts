@@ -20,6 +20,8 @@ const MAP_THUMBS: Record<string, string> = {
   city: new URL('../screenshots/menu-city.jpg', import.meta.url).href,
   toy: new URL('../screenshots/menu-toy.jpg', import.meta.url).href,
   animal: new URL('../screenshots/menu-animal.jpg', import.meta.url).href,
+  construction: new URL('../screenshots/menu-construction.jpg', import.meta.url)
+    .href,
 };
 
 export interface MapChoice {

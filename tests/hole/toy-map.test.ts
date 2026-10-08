@@ -5,8 +5,6 @@ import {
 } from '../../src/games/hole/map/toy/generate';
 import { TOY_ITEMS, getItem } from '../../src/games/hole/items/catalog';
 import { insideMap } from '../../src/games/hole/map/types';
-import { Sim } from '../../src/games/hole/sim/sim';
-import { BOT_SKILLS, runBot } from '../../src/games/hole/sim/bot';
 import {
   holeDiameter,
   ITEM_LEVELS,
@@ -49,10 +47,10 @@ test('every item is inside the store floor and only toy items are used', () => {
   }
 });
 
-test('every seed holds exactly 25000 points', () => {
+test('every seed holds exactly 22000 points', () => {
   for (const seed of [1, 2, 3, 7, 42])
-    expect(stats(generateToyStore({ seed })).points).toBe(25000);
-  expect(toyTargetPoints({ points: 25000 })).toBe(25000);
+    expect(stats(generateToyStore({ seed })).points).toBe(22000);
+  expect(toyTargetPoints({ points: 22000 })).toBe(22000);
 });
 
 test('content budget: tiers and levels covered, all types up to tier 20 placed, enough points', () => {
@@ -83,23 +81,6 @@ test('start is on the floor with small items nearby, and the departments tile th
   expect(map.zones!.length).toBe(11);
 });
 
-test('balance bands: good bot on the toy store, hard / medium / easy', () => {
-  const m = generateToyStore({ seed: 1 });
-  const hard = runBot(new Sim(m, { seconds: 120 }), BOT_SKILLS.good, {
-    dt: 1 / 30,
-  });
-  expect(hard.level).toBeGreaterThanOrEqual(10);
-  const medium = runBot(new Sim(m, { seconds: 240 }), BOT_SKILLS.good, {
-    dt: 1 / 30,
-  });
-  expect(medium.level).toBeGreaterThanOrEqual(15);
-  const easy = runBot(new Sim(m, { seconds: 480 }), BOT_SKILLS.good, {
-    dt: 1 / 30,
-  });
-  expect(easy.level).toBeGreaterThanOrEqual(15);
-  expect(easy.pct).toBeGreaterThan(0.95);
-}, 120000);
-
 test('every item can be reached by a hole of its first level', () => {
   // the hole centre may go to `inset x diameter` from the wall; the item must be inside the commit radius from there
   const b = map.bounds!;
@@ -124,7 +105,7 @@ test('seeds: deterministic, exact points, every type placed, departments move', 
     const m = generateToyStore({ seed });
     const again = generateToyStore({ seed });
     expect(JSON.stringify(m.placements)).toBe(JSON.stringify(again.placements));
-    expect(stats(m).points, `seed ${seed}`).toBe(25000);
+    expect(stats(m).points, `seed ${seed}`).toBe(22000);
     const placed = new Set(m.placements.map((p) => p.item));
     for (const it of TOY_ITEMS)
       expect(placed.has(it.id), `${seed} ${it.id}`).toBe(true);

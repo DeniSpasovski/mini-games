@@ -21,6 +21,7 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 | `Space`             | handbrake                                          |
 | `R`, `C`, `Esc`     | reset to road, camera, pause menu                  |
 | `Q` / `E`, `G`, `T` | shift, manual gearbox, traction assist             |
+| `B`                 | ABS (on by default; not on the Zastava)            |
 
 ## Features
 
@@ -48,7 +49,9 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 | -------------------------------- | ----- | ------------------------------------------------- |
 | [Skoda Rally](cars/skoda-rally/) | AWD   | Fabia R5 from a CC BY Sketchfab model, own livery |
 | [Bimmer M3](cars/bimmer-m3/)     | RWD   | E46 coupe from a CC BY print STL                  |
+| [Bimmer GT2](cars/bimmer-gt2/)   | RWD   | E92 GT2 racer from a CC BY Sketchfab GLB (test)   |
 | [Zastava 101](cars/zastava-101/) | FWD   | hand-built from a blueprint                       |
+| [Fiesta WRC](cars/fiesta/)       | AWD   | WRC Fiesta with a visible cockpit (test car)      |
 
 [![Skoda Rally](cars/skoda-rally/screenshots/front-34.jpg)](cars/skoda-rally/) [![Zastava](cars/zastava-101/screenshots/front-34.jpg)](cars/zastava-101/)
 
