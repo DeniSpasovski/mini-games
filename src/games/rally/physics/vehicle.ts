@@ -2,10 +2,17 @@ import { Quaternion, Vector3 } from 'three';
 import { Drivetrain } from './drivetrain';
 import { SURFACES, type SurfaceDef, type SurfaceId } from './surfaces';
 import { computeTire, type TireInput, type TireOutput } from './tire';
+import {
+  startTemp,
+  stepTemp,
+  tempGrip,
+  type Climate,
+  type TyreHeatInput,
+} from './tyre-temp';
 import { carSurfaces } from './car-tyres';
 import { staticComHeight } from './car-setup';
 import { autoHull } from './hull';
-import type { TyreId } from './tyres';
+import { TYRES, type TyreId } from './tyres';
 import type {
   AxleDef,
   CarPhysicsDef,
@@ -85,6 +92,9 @@ export interface WheelState {
   /** ABS share of the foot brake on this wheel (1 = full pressure). */
   absFactor: number;
   surface: SurfaceDef;
+  /** Tyre temperature (°C) and the grip factor it gives on the current surface (1 without a climate). */
+  temp: number;
+  tempGrip: number;
   contactPoint: Vector3;
   contactNormal: Vector3;
   driveTorque: number;
@@ -162,6 +172,19 @@ export class Vehicle {
   /** Fitted tyre (see tyres.ts); null = raw ground surfaces (tests, viewers). Set via `setTyre`. */
   tyre: TyreId | null = null;
   private tyreSurfaces: Record<SurfaceId, SurfaceDef> | null = null;
+  /** Air + sun of the stage: tyre temperatures run only with a climate AND a tyre (`setClimate`). */
+  climate: Climate | null = null;
+  private heatIn: TyreHeatInput = {
+    temp: 0,
+    contact: false,
+    force: 0,
+    slideSpeed: 0,
+    speed: 0,
+    load: 0,
+    nominalLoad: 1,
+    surface: SURFACES.gravel,
+    water: 0,
+  };
 
   private ground: GroundProvider;
   private sample: GroundSample = {
@@ -221,6 +244,39 @@ export class Vehicle {
     this.tyreSurfaces = tyre ? carSurfaces(this.def, tyre) : null;
   }
 
+  /**
+   * Stage climate for tyre temperatures (physics/tyre-temp.ts); null = none (every tyre at full grip). Also sets the
+   * start temperature (`resetTyreTemps`).
+   */
+  setClimate(c: Climate | null): void {
+    this.climate = c;
+    this.resetTyreTemps();
+  }
+
+  /** Tyres back to the start temperature (stage start / restart; reset-to-road keeps them). */
+  resetTyreTemps(): void {
+    const t = this.climate ? startTemp(this.climate) : 20;
+    for (const w of this.wheels) {
+      w.temp = t;
+      w.tempGrip = this.tempGripOf(w, w.surface);
+    }
+  }
+
+  private tempGripOf(w: WheelState, s: SurfaceDef): number {
+    return this.climate && this.tyre
+      ? tempGrip(w.temp, TYRES[this.tyre].temp, s.loose)
+      : 1;
+  }
+
+  /** Average temperature grip factor of the four tyres on a surface (the autopilot plans with it). */
+  tempGripFor(id: SurfaceId): number {
+    if (!this.climate || !this.tyre) return 1;
+    const s = SURFACES[id];
+    let f = 0;
+    for (const w of this.wheels) f += this.tempGripOf(w, s) / 4;
+    return f;
+  }
+
   /** The surface as the wheels see it (fitted tyre + set-up applied; raw without a tyre). */
   surfaceFor(id: SurfaceId): SurfaceDef {
     return this.tyreSurfaces ? this.tyreSurfaces[id] : SURFACES[id];
@@ -274,6 +330,8 @@ export class Vehicle {
         slideSpeed: 0,
         absFactor: 1,
         surface: SURFACES.gravel,
+        temp: 20,
+        tempGrip: 1,
         contactPoint: new Vector3(),
         contactNormal: new Vector3(0, 1, 0),
         driveTorque: 0,
@@ -383,6 +441,7 @@ export class Vehicle {
     this.airTime = anyContact ? 0 : this.airTime + dt;
 
     this.waterPass();
+    this.tyreTempPass(dt);
 
     // --- aero ---------------------------------------------------------------------
     const v2 = this.velocity.lengthSq();
@@ -661,7 +720,8 @@ export class Vehicle {
     ti.vy = vy;
     ti.load = Math.min(w.load, w.nominalLoad * 3.5);
     ti.nominalLoad = w.nominalLoad;
-    ti.grip = w.axle.grip;
+    w.tempGrip = this.tempGripOf(w, w.surface);
+    ti.grip = w.axle.grip * w.tempGrip;
     ti.surface = w.surface;
 
     // Semi-implicit wheel spin: linearise Fx around the current omega so stiff
@@ -701,6 +761,25 @@ export class Vehicle {
     app.addScaledVector(this.up, h * w.axle.forceHeight);
     const f = fwd.multiplyScalar(to.fx).addScaledVector(side, to.fy);
     this.applyForce(f, app);
+  }
+
+  /** Tyre temperatures (physics/tyre-temp.ts): sliding + rolling heat, air / ground / water cooling. */
+  private tyreTempPass(dt: number): void {
+    const c = this.climate;
+    if (!c || !this.tyre) return;
+    const h = this.heatIn;
+    for (const w of this.wheels) {
+      h.temp = w.temp;
+      h.contact = w.contact;
+      h.force = Math.hypot(w.fx, w.fy);
+      h.slideSpeed = w.slideSpeed;
+      h.speed = w.contactSpeed;
+      h.load = Math.min(w.load, w.nominalLoad * 3.5);
+      h.nominalLoad = w.nominalLoad;
+      h.surface = w.surface;
+      h.water = this.waterDepth;
+      w.temp = stepTemp(h, c, dt);
+    }
   }
 
   /**

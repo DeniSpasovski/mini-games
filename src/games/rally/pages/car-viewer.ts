@@ -35,8 +35,8 @@ const DEFAULTS = {
   car: DEFAULT_CAR,
   seed: 0,
   paint: '',
-  /** Fitted tyre compound: none | tarmac | mixed | gravel (tread, rim size, compound ring). */
-  tyre: 'none',
+  /** Fitted tyre compound: tarmac | mixed | gravel (tread, rim size, compound ring). */
+  tyre: 'mixed',
   num: 7,
   rally: MAPS[0].id,
   steer: 0,
@@ -160,7 +160,7 @@ const numCtl = vars.seed('Door plate number (0 = none)', state.num, (v) => {
   sync();
   applyBadge();
 });
-vars.select('Tyre', state.tyre, ['none', ...TYRE_IDS], (v) => {
+vars.select('Tyre', state.tyre, [...TYRE_IDS], (v) => {
   state.tyre = v;
   sync();
   model?.setTyre(parseTyre(v, null));
@@ -300,8 +300,7 @@ let wheelDebug: WheelDebug | undefined;
 
 function tyreSize() {
   const def = getCar(state.car);
-  const t = parseTyre(state.tyre, null);
-  return t ? tyreSizeFor(def.physics, t) : def.physics.tyres.size;
+  return tyreSizeFor(def.physics, parseTyre(state.tyre, 'mixed'));
 }
 
 function applyWheelDebug(): void {
@@ -348,7 +347,7 @@ function rebuild(): void {
   model = new CarModel(def, {
     seed: state.seed,
     paint: state.paint || undefined,
-    tyre: parseTyre(state.tyre, null),
+    tyre: parseTyre(state.tyre, 'mixed'),
     fallback: state.fallback,
   });
   // Put the car on the ground (model root is the centre of mass).
