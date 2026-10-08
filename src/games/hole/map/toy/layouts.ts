@@ -271,8 +271,8 @@ const LAYOUT_BASE: ToyLayout = {
   ],
 };
 
-/** Floor scale: 240 x 160 m drawn, FLOOR_SCALE x that built (pacing needs a big floor, see TOY-STORE.md). */
-export const FLOOR_SCALE = 2.5;
+/** Floor scale: 240 x 160 m drawn, FLOOR_SCALE x that built (1.75 = 420 x 280 m, 70 % of the original 2.5). */
+export const FLOOR_SCALE = 1.75;
 export const LAYOUT = scaled(LAYOUT_BASE, FLOOR_SCALE);
 
 /** Zones that never move: the stockroom (the outdoor dock) and the atrium. */

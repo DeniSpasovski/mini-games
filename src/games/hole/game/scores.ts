@@ -18,14 +18,14 @@ import type { KV } from './storage';
  * Toy history: 1 = first release (25000 points, 600 x 400 m Grand Hall); 2 = 25 hole levels;
  *   3 = Layout A atrium as a hall with Ferris wheel / carousel pairs; 4 = Plush Meadow thinned, whale and
  *   penguin plush in the Splash Zone, random start; 5 = clear bonus 10 points per second;
- *   7 = 22 000 points.
+ *   7 = 22 000 points; 8 = smaller floor (420 x 280 m), 18 000 points, one copy per very big type.
  * Animal history: 1 = first release (21000 points, moving animals, 37 giants, secret zoo + lab);
  *   2 = clear bonus 10 points per second; 3 = panda_big + tiger_big.
  * Construction history: 1 = first version (21000 points, 540 x 420 m site, 117 types).
  */
 export const MAP_SCORING_VERSIONS: Record<string, number> = {
   city: 10,
-  toy: 7,
+  toy: 8,
   animal: 4,
   construction: 1,
 };

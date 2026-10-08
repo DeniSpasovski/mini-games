@@ -17,7 +17,7 @@ export interface ToyParams {
   points: number;
 }
 
-export const DEFAULT_TOY: ToyParams = { seed: 1, points: 22000 };
+export const DEFAULT_TOY: ToyParams = { seed: 1, points: 18000 };
 
 export const TOY_COLORS = {
   tileA: 0xf6efe0,
@@ -38,7 +38,14 @@ interface Ctx {
   placements: Placement[];
   rects: GroundRect[];
   occ: Occupancy;
+  /** Copies placed per item id (for the very-big cap). */
+  count: Map<string, number>;
 }
+
+/** Items from this size tier up are "very big" (tier 18 = 11 m and more). */
+export const VERY_BIG_TIER = 18;
+/** Most copies of each very big item type on the map. */
+export const MAX_VERY_BIG_COPIES = 1;
 
 /** Floor area (m2) per scatter cluster and the cluster spread (m). */
 const CLUSTER_AREA = 700;
@@ -76,6 +83,7 @@ function put(
     paint: it.paints?.length ? c.rng.int(0, it.paints.length - 1) : -1,
   });
   if (o.occ !== false) c.occ.add(x, z, radius(it));
+  c.count.set(id, (c.count.get(id) ?? 0) + 1);
 }
 
 function tryPut(
@@ -90,6 +98,8 @@ function tryPut(
   const { hx, hz } = c.layout;
   if (Math.abs(x) > hx - inset || Math.abs(z) > hz - inset) return false;
   if (!c.occ.free(x, z, radius(it))) return false;
+  if (it.tier >= VERY_BIG_TIER && (c.count.get(id) ?? 0) >= MAX_VERY_BIG_COPIES)
+    return false;
   put(c, id, x, z, rot);
   return true;
 }
@@ -512,6 +522,7 @@ export function generateToyStore(params: Partial<ToyParams> = {}): MapData {
     placements: [],
     rects: [],
     occ: new Occupancy(),
+    count: new Map(),
   };
   buildFloor(c);
   const target = toyTargetPoints(p);
