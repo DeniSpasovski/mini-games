@@ -23,7 +23,8 @@
 - **Never commit a third-party file** (model, texture, font, sound, image, dataset) unless its licence allows redistribution of
   the file AND of derivatives (CC0, CC BY, CC BY-SA, MIT ...). "Personal use only", "Standard Digital File License" (MakerWorld /
   Printables default), no-derivatives and non-commercial files stay out of git and `public/`. Converted models are derivatives.
-  Unknown licence = NOT allowed; ask the user.
+  Unknown licence = NOT allowed; ask the user. Exception: a CC BY-NC model may ship with the owner's explicit OK, marked NC in
+  every credit (only `subie_22b` so far).
 - **Every external source gets a row** in the car / map README credits table (public) and its `DETAILS.md` (local,
   git-ignored) and, if it ships, in `THIRD-PARTY.md` + `public/models/CREDITS.md`. Keep CC BY / ODbL attribution current in
   the `credit` / `meta.sources` strings and the About links (`info.ts`).
