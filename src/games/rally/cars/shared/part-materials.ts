@@ -104,14 +104,22 @@ function tiling(t: CanvasTexture, tile: number): CanvasTexture {
 /**
  * Lamp art of the Subaru 22B (rally car source model): its own headlight, tail lamp, corner lens and lower indicator, baked from
  * the model's lamp textures into lamp space (`parts.wrap` 'corner': u from the car's centre outwards, v top down) by
- * scripts/car-model/bake-lamp-sheet.py. One sheet, four rectangles (the script prints them).
+ * scripts/car-model/bake-lamp-sheet.py. One sheet, four rectangles (the script prints them) in three rows: base colour, emissive,
+ * normal map.
  */
 const LAMPS22 = {
   file: 'subie_22b_lamps.png',
+  /** Pitch of the sheet's rows (base colour, emissive, normal map). */
+  row: 114,
   head: { x: 0, y: 0, w: 293, h: 107 },
   tail: { x: 293, y: 0, w: 457, h: 105 },
   corner: { x: 750, y: 0, w: 188, h: 114 },
   indic: { x: 938, y: 0, w: 227, h: 35 },
+  /** The tail lamp's two round lamps (centre u, v, radius u, v; the rings of its emissive map), recessed by lampDepth. */
+  tailBowls: [
+    [0.19, 0.33, 0.069, 0.26],
+    [0.361, 0.33, 0.08, 0.27],
+  ],
   /** Reversing section of the tail lamp (fractions of the lamp): the clear block at the inner end of the amber band. */
   rev: { u0: 0.01, u1: 0.18, v0: 0.6, v1: 0.92 },
 };
@@ -128,44 +136,58 @@ function loadLampSheet(): Promise<HTMLImageElement> {
   return lampSheet;
 }
 
-/** Fill `map` with a rectangle of the lamp sheet once it has loaded; `glow(rgba, u, v)` makes the emissive maps from it. */
+/** Rows of the lamp sheet (one under the other, `LAMPS22.row` px apart): base colour, emissive, normal map. */
+type LampPx = (
+  px: Uint8ClampedArray,
+  i: number,
+  u: number,
+  v: number,
+  rows: Uint8ClampedArray[],
+) => [number, number, number];
+
+/**
+ * Fill each map with a rectangle of the lamp sheet once it has loaded; `glow(base, i, u, v, rows)` makes the map's pixel from
+ * the base-colour row (`base`) or any sheet row (`rows[0..2]`, same pixel index).
+ */
 function paintLamp22(
   rect: Rect,
-  maps: {
-    tex: CanvasTexture;
-    glow: (
-      px: Uint8ClampedArray,
-      i: number,
-      u: number,
-      v: number,
-    ) => [number, number, number];
-  }[],
+  maps: { tex: CanvasTexture; glow: LampPx }[],
 ): void {
   loadLampSheet()
     .then((img) => {
       for (const { tex, glow } of maps) {
         const c = tex.image as HTMLCanvasElement;
         const g = c.getContext('2d')!;
-        g.drawImage(
-          img,
-          rect.x,
-          rect.y,
-          rect.w,
-          rect.h,
-          0,
-          0,
-          c.width,
-          c.height,
-        );
+        const rows = [0, 1, 2].map((r) => {
+          g.clearRect(0, 0, c.width, c.height);
+          g.drawImage(
+            img,
+            rect.x,
+            rect.y + r * LAMPS22.row,
+            rect.w,
+            rect.h,
+            0,
+            0,
+            c.width,
+            c.height,
+          );
+          return g.getImageData(0, 0, c.width, c.height).data;
+        });
         const d = g.getImageData(0, 0, c.width, c.height);
-        const src = d.data.slice();
         for (let y = 0; y < c.height; y++)
           for (let x = 0; x < c.width; x++) {
             const i = (y * c.width + x) * 4;
-            const [r, gr, b] = glow(src, i, x / c.width, y / c.height);
+            const [r, gr, b] = glow(
+              rows[0],
+              i,
+              x / c.width,
+              y / c.height,
+              rows,
+            );
             d.data[i] = r;
             d.data[i + 1] = gr;
             d.data[i + 2] = b;
+            d.data[i + 3] = 255;
           }
         g.putImageData(d, 0, 0);
         tex.needsUpdate = true;
@@ -173,6 +195,24 @@ function paintLamp22(
     })
     .catch(() => {}); // no sheet: the dark placeholder stays
 }
+
+/** A flat normal map placeholder (filled from the sheet's normal row by paintLamp22). */
+function lampNormal22(rect: Rect, scale = 2): CanvasTexture {
+  return canvas(
+    rect.w * scale,
+    rect.h * scale,
+    (g) => {
+      g.fillStyle = '#8080ff';
+      g.fillRect(0, 0, rect.w * scale, rect.h * scale);
+    },
+    false,
+  );
+}
+const NORMAL_ROW: LampPx = (_p, i, _u, _v, rows) => [
+  rows[2][i],
+  rows[2][i + 1],
+  rows[2][i + 2],
+];
 
 /** A small lamp of the sheet as a plain colour map (corner lens, front indicator). */
 function lampMap22(rect: Rect): CanvasTexture {
@@ -184,9 +224,14 @@ function lampMap22(rect: Rect): CanvasTexture {
   return map;
 }
 
-function headlight22Maps(): { map: CanvasTexture; glow: CanvasTexture } {
+function headlight22Maps(): {
+  map: CanvasTexture;
+  glow: CanvasTexture;
+  normal: CanvasTexture;
+} {
   const W = LAMPS22.head.w * 2;
   const H = LAMPS22.head.h * 2;
+  const normal = lampNormal22(LAMPS22.head);
   const map = canvas(W, H, (g) => {
     g.fillStyle = '#0d0e10';
     g.fillRect(0, 0, W, H);
@@ -206,8 +251,9 @@ function headlight22Maps(): { map: CanvasTexture; glow: CanvasTexture } {
         return [v, v, v * 0.92];
       },
     },
+    { tex: normal, glow: NORMAL_ROW },
   ]);
-  return { map, glow };
+  return { map, glow, normal };
 }
 
 /**
@@ -218,6 +264,7 @@ function tail22Maps(): {
   map: CanvasTexture;
   glow: CanvasTexture;
   reverseGlow: CanvasTexture;
+  normal: CanvasTexture;
 } {
   const W = LAMPS22.tail.w * 2;
   const H = LAMPS22.tail.h * 2;
@@ -229,14 +276,24 @@ function tail22Maps(): {
   const glow = canvas(W, H, fill('#000'));
   const reverseGlow = canvas(W, H, fill('#000'));
   const R = LAMPS22.rev;
+  const normal = lampNormal22(LAMPS22.tail);
   paintLamp22(LAMPS22.tail, [
-    { tex: map, glow: (p, i) => [p[i], p[i + 1], p[i + 2]] },
+    {
+      // The lens over the two round lamp bowls: lighter where the bowls glow, darker between them (depth in daylight).
+      tex: map,
+      glow: (p, i, _u, _v, rows) => {
+        const k = 0.72 + 0.45 * (rows[1][i] / 255);
+        return [p[i] * k, p[i + 1] * k, p[i + 2] * k];
+      },
+    },
+    // Tail / brake glow: the model's own emissive map (two ringed round lamps and the outer cells), kept red at brake strength.
     {
       tex: glow,
-      glow: (p, i) => {
-        const red = p[i] > 2 * p[i + 1] + 40 ? p[i] / 255 : 0;
-        return [Math.min(255, red * 330), red * 70, red * 55];
-      },
+      glow: (_p, i, _u, _v, rows) => [
+        Math.min(255, rows[1][i] * 1.15),
+        rows[1][i + 1] * 0.35,
+        rows[1][i + 2] * 0.3,
+      ],
     },
     {
       tex: reverseGlow,
@@ -248,8 +305,9 @@ function tail22Maps(): {
         return [v2, v2, v2];
       },
     },
+    { tex: normal, glow: NORMAL_ROW },
   ]);
-  return { map, glow, reverseGlow };
+  return { map, glow, reverseGlow, normal };
 }
 
 /**
@@ -787,7 +845,7 @@ const TWIN = {
  * after the BMW E46: smoked chrome housing, two round projector bowls (chrome reflector, dark
  * lens, bright ring light) and a chrome divider between the two sections (the amber indicator is its own
  * part: `amber`). Layout: TWIN. The bowls are
- * the floors of the recessed barrels drawn by twinLampDepth.
+ * the floors of the recessed barrels drawn by lampDepth.
  */
 function twinLampMaps(): { map: CanvasTexture; glow: CanvasTexture } {
   const { W, H } = TWIN;
@@ -871,22 +929,43 @@ function twinLampMaps(): { map: CanvasTexture; glow: CanvasTexture } {
   return { map, glow };
 }
 
+/** Recessed round lamps for lampDepth: bowls (centre u, v, radius u, v in lamp space), depth (m), wall colour dark -> lit, wall glow. */
+type LampBowls = {
+  bowls: number[][];
+  depth: number;
+  wallDark: number[];
+  wallLit: number[];
+  /** How much of the emissive map still shows on the walls (0 = dark walls). */
+  wallGlow: number;
+  /** The car's forward axis seen from the lamp: 1 for a front lamp (barrels run back), -1 for a rear one. */
+  facing: number;
+};
+
+const TWIN_BOWLS: LampBowls = {
+  bowls: TWIN.bowls.map(([u, ru]) => [u, TWIN.bowlV, ru, TWIN.radius]),
+  depth: TWIN.depth,
+  wallDark: [0.012, 0.012, 0.012],
+  wallLit: [0.3, 0.3, 0.3],
+  wallGlow: 0,
+  facing: 1,
+};
+
 /**
- * Sets the twin lamp's round lamps back inside the housing (parallax, no extra geometry): the
- * lamp surface is the clear cover, each bowl is a barrel TWIN.depth deep behind it, running along the car's forward axis (+z model). A view ray
+ * Sets a lamp's round lamps back inside the housing (parallax, no extra geometry): the
+ * lamp surface is the clear cover, each bowl is a barrel `depth` deep behind it, running along the car's forward axis (+z model). A view ray
  * through a bowl opening either reaches the floor (the bowl art, sampled where the ray lands) or
- * hits the barrel wall (dark chrome, lit from below, darker towards the back), so the housing lip
+ * hits the barrel wall (`wallDark` -> `wallLit` from below, darker towards the back), so the housing lip
  * covers part of the lamp from any angle but straight on. The ray is turned into lamp-space
  * steps with the surface gradients of u / v from screen derivatives (the GLB has no tangents).
  */
-function twinLampDepth(m: MeshPhysicalMaterial): void {
+function lampDepth(m: MeshPhysicalMaterial, cfg: LampBowls): void {
   const f = (x: number) => x.toFixed(5);
-  const bowls = TWIN.bowls
-    .map(
-      ([u, ru]) =>
-        `vec4(${f(u)}, ${f(TWIN.bowlV)}, ${f(ru)}, ${f(TWIN.radius)})`,
-    )
-    .join(', ');
+  const v3 = (c: number[]) => `vec3(${c.map(f).join(', ')})`;
+  const n = cfg.bowls.length;
+  const bowls = cfg.bowls.map((b) => `vec4(${b.map(f).join(', ')})`).join(', ');
+  // One program per bowl layout (the default key is the hook's source text, the same for every lamp).
+  const key = `lampDepth ${JSON.stringify(cfg)}`;
+  m.customProgramCacheKey = () => key;
   m.onBeforeCompile = (shader) => {
     addWorldUniforms(shader);
     shader.vertexShader = shader.vertexShader
@@ -896,7 +975,7 @@ function twinLampDepth(m: MeshPhysicalMaterial): void {
       )
       .replace(
         '#include <project_vertex>',
-        '#include <project_vertex>\nvLampAxis = (modelViewMatrix * vec4(0.0, 0.0, 1.0, 0.0)).xyz;',
+        `#include <project_vertex>\nvLampAxis = (modelViewMatrix * vec4(0.0, 0.0, ${f(cfg.facing)}, 0.0)).xyz;`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(
@@ -929,9 +1008,9 @@ function twinLampDepth(m: MeshPhysicalMaterial): void {
             float ra = max(-dot(ray, axis), 0.3);
             vec3 o = ray / ra + axis;
             vec2 duv = vec2(dot(o, gu), dot(o, gv));
-            const float DEPTH = ${f(TWIN.depth)};
-            vec4 BOWLS[2] = vec4[2](${bowls}); // centre uv, radius uv
-            for (int i = 0; i < 2; i++) {
+            const float DEPTH = ${f(cfg.depth)};
+            vec4 BOWLS[${n}] = vec4[${n}](${bowls}); // centre uv, radius uv
+            for (int i = 0; i < ${n}; i++) {
               vec2 RAD = BOWLS[i].zw;
               vec2 p0 = (vMapUv - BOWLS[i].xy) / RAD;
               float c = dot(p0, p0) - 1.0;
@@ -946,7 +1025,7 @@ function twinLampDepth(m: MeshPhysicalMaterial): void {
                 vec2 w = p0 + d * z;
                 float lit = smoothstep(-0.7, 0.9, w.y);
                 lampWall = 1.0;
-                diffuseColor.rgb *= mix(0.012, 0.3, lit) * mix(1.0, 0.4, z / DEPTH);
+                diffuseColor.rgb *= mix(${v3(cfg.wallDark)}, ${v3(cfg.wallLit)}, lit) * mix(1.0, 0.4, z / DEPTH);
               }
             }
           }
@@ -958,7 +1037,7 @@ function twinLampDepth(m: MeshPhysicalMaterial): void {
       .replace(
         '#include <emissivemap_fragment>',
         `#ifdef USE_EMISSIVEMAP
-          totalEmissiveRadiance *= textureGrad(emissiveMap, lampUv, dFdx(vMapUv), dFdy(vMapUv)).rgb * (1.0 - lampWall);
+          totalEmissiveRadiance *= textureGrad(emissiveMap, lampUv, dFdx(vMapUv), dFdy(vMapUv)).rgb * (1.0 - lampWall * ${f(1 - cfg.wallGlow)});
         #endif`,
       );
   };
@@ -1070,7 +1149,7 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoatRoughness: 0.04,
     });
   },
-  /** Twin round headlight (E46 style), see twinLampMaps / twinLampDepth - needs `parts.wrap` 'corner'. */
+  /** Twin round headlight (E46 style), see twinLampMaps / lampDepth - needs `parts.wrap` 'corner'. */
   twinlamp: () => {
     const { map, glow } = twinLampMaps();
     const m = new MeshPhysicalMaterial({
@@ -1083,7 +1162,7 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoat: 1,
       clearcoatRoughness: 0.03,
     });
-    twinLampDepth(m);
+    lampDepth(m, TWIN_BOWLS);
     return m;
   },
   /** Mirror glass. */
@@ -1137,9 +1216,10 @@ const BUILDERS: Record<PartName, () => Material> = {
     }),
   /** Subaru 22B headlight: the model's own multi-reflector lamp, see headlight22Maps - needs `parts.wrap` 'corner'. */
   headlight22: () => {
-    const { map, glow } = headlight22Maps();
+    const { map, glow, normal } = headlight22Maps();
     return new MeshPhysicalMaterial({
       map,
+      normalMap: normal,
       emissive: 0xffffff,
       emissiveMap: glow,
       emissiveIntensity: 0.6,
@@ -1151,10 +1231,11 @@ const BUILDERS: Record<PartName, () => Material> = {
   },
   /** Subaru 22B tail lamp: the model's own red lens with a clear band, see tail22Maps - needs `parts.wrap` 'corner'. */
   tail22: () => {
-    const { map, glow, reverseGlow } = tail22Maps();
-    return lamp(
+    const { map, glow, reverseGlow, normal } = tail22Maps();
+    const m = lamp(
       new MeshPhysicalMaterial({
         map,
+        normalMap: normal,
         emissive: 0xffffff,
         emissiveMap: glow,
         emissiveIntensity: 0.5,
@@ -1166,6 +1247,15 @@ const BUILDERS: Record<PartName, () => Material> = {
       5,
       reverseGlow,
     );
+    lampDepth(m, {
+      bowls: LAMPS22.tailBowls,
+      depth: 0.025,
+      wallDark: [0.06, 0.004, 0.004],
+      wallLit: [0.75, 0.07, 0.06],
+      wallGlow: 0.5,
+      facing: -1,
+    });
+    return m;
   },
   /** Subaru 22B clear corner lens (front fender), the model's own art - needs `parts.wrap` 'corner'. */
   corner22: () =>

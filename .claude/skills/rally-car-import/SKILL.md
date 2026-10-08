@@ -144,7 +144,7 @@ Picking workflow (`parts.picks`, first pick wins):
    Fit the art to the part's **own outline**: draw the lamp shell's triangles in its wrap UV space (u = |x| - |z|, v =
    y, fitted 0..1) and put the round lamps in the lobes / cut-outs of the housing - that alignment is what makes the car
    recognisable from the front (Bimmer). Lamps that should sit back in the housing: a parallax barrel in the material
-   (`twinLampDepth` in `part-materials.ts`, barrels along the car's forward axis), not new geometry. A print model's
+   (`lampDepth` in `part-materials.ts`, barrels along the car's forward axis; `facing: -1` for rear lamps), not new geometry. A print model's
    domed lamp glass (a bulge over each bowl) gets `parts.flatten` (one smooth cover through the lamp outline, `stl-to-glb.mjs`).
 7. Materials by name in `cars/shared/part-materials.ts`; add names there, never per-car material code. Clearcoat on
    dark parts (grille, wing) reflects the sky and reads grey - keep `clearcoat` <= 0.6 and `envMapIntensity` ~0.5
@@ -287,7 +287,9 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   |x|-|z| / y of the triangles; the `corner` wrap fits the part bbox, u from the centre outwards, v top down). Needs to come before any `region` of the same primitive.
 - **Modelled lamps with their own (photo) texture** (`cars/subie-22b/`): send each lamp node to a `corner`-wrap lamp part, list both sides'
   nodes in `lampSheet` (`model.source.json`) and run `bake-lamp-sheet.py <model.source.json>`: it paints the source triangles into the wrap
-  space (lens over housing) and prints the sheet rectangles for the `part-materials.ts` table (`LAMPS22`).
+  space (lens over housing) and prints the sheet rectangles for the `part-materials.ts` table (`LAMPS22`). The sheet has three rows:
+  base colour, emissive, normal map. A low-poly lamp gets its depth from those two maps - use them (the 22B tail lamp's round lamps
+  are its emissive rings, recessed with `lampDepth`), or it reads flat.
 - **`adjacent` pick** in `segment-stl.py`: small segments touching an earlier-picked material; and for frames that are NOT own segments
   (smooth skins) use a `region` with the glass outline (shapely union of the glass triangles in the view) + `grow`.
 - More `gltf.parts` options (2026-10-04 evening): `facing` (normal component ranges, `"|x|": [0, 0.6]`) on a rule or inside `near`

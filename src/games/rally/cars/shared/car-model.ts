@@ -941,6 +941,9 @@ export class CarModel {
         let c = own.get(m);
         if (!c) {
           c = m.clone();
+          // clone() drops per-material shader hooks (lampDepth's recessed lamps).
+          c.onBeforeCompile = m.onBeforeCompile;
+          c.customProgramCacheKey = m.customProgramCacheKey;
           c.userData = { ...m.userData, brakeOwner: this };
           own.set(m, c);
           this.owned.push(c);
