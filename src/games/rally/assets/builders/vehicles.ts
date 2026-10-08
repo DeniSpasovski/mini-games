@@ -144,7 +144,7 @@ const finish = (parts: BufferGeometry[]) => ({
 });
 
 /**
- * A parked car. Variants 0-11: shape `variant % 4`, a seeded paint (street dressing picks among these). From 12 on:
+ * A parked car. Variants 0-11: shape `variant % SHAPES.length`, a seeded paint (street dressing picks among these). From 12 on:
  * fixed [shape, paint] for cars a map places on purpose (`props`, e.g. the white hatch at a Petralica house).
  */
 const FIXED_CARS: [number, string][] = [[1, '#e9eaec']];
