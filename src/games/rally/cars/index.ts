@@ -2,6 +2,7 @@ import { AVAILABLE_CARS, released } from '../release';
 import { bimmerGt2 } from './bimmer-gt2/bimmer-gt2';
 import { bimmerM3 } from './bimmer-m3/bimmer-m3';
 import { fiesta } from './fiesta/fiesta';
+import { lancerEvo6 } from './lancer-evo-6/lancer-evo-6';
 import type { CarDef } from './shared/types';
 import { skodaRally } from './skoda-rally/skoda-rally';
 import { zastava101 } from './zastava-101/zastava-101';
@@ -13,6 +14,7 @@ export const ALL_CARS: CarDef[] = [
   bimmerM3,
   bimmerGt2,
   fiesta,
+  lancerEvo6,
 ];
 
 /** Cars this build offers: ALL_CARS on the dev server, AVAILABLE_CARS in the published build (release.ts). */
