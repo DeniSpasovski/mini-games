@@ -1,16 +1,21 @@
-import { explode, type BlastSink } from './blast';
+import { hash3, Rng } from '../../../shared/rng';
+import { MAX_BENDS, explode, type BlastSink } from './blast';
 import { movePlayer, overlapsCell, updateTntPass } from './movement';
 import {
   COUNTDOWN_S,
-  FUSE_S,
+  FUSE_BY_DIFFICULTY,
   MAX_PLAYERS,
   MAX_TNT,
   FALL_INTERVAL_S,
+  MAX_POWER_LEVEL,
   ROUND_S,
+  START_RANGE,
+  START_TNT,
   SUDDEN_S,
   STEP,
 } from './rules';
-import { SimState, type Tnt } from './state';
+import { PowerUp, assignPowerUps } from './powerups';
+import { SimState, type Player, type Tnt } from './state';
 import {
   Terrain,
   type KaboomSim,
@@ -34,10 +39,25 @@ type ExplodedEvent = {
   y: number;
   owner: number;
   arms: [number, number, number, number];
+  bends: number[];
+  bendCount: number;
   chainDepth: number;
 };
 type BrokenEvent = { type: 'blockBroken'; x: number; y: number };
 type FellEvent = { type: 'blockFell'; x: number; y: number };
+type AppearedEvent = {
+  type: 'itemAppeared';
+  x: number;
+  y: number;
+  kind: number;
+};
+type TakenEvent = {
+  type: 'itemTaken';
+  x: number;
+  y: number;
+  kind: number;
+  id: number;
+};
 type KoEvent = { type: 'playerKo'; id: number; byOwner: number };
 type RoundEvent = { type: 'roundOver'; winner: number | null };
 type MatchEvent = { type: 'matchOver'; winner: number | null };
@@ -78,9 +98,24 @@ export class Sim implements KaboomSim {
     y: 0,
     owner: 0,
     arms: [0, 0, 0, 0],
+    bends: new Array<number>(MAX_BENDS * 4).fill(0),
+    bendCount: 0,
     chainDepth: 0,
   }));
   private broken: Pool<BrokenEvent>;
+  private readonly appeared = new Pool<AppearedEvent>(32, () => ({
+    type: 'itemAppeared',
+    x: 0,
+    y: 0,
+    kind: 0,
+  }));
+  private readonly taken = new Pool<TakenEvent>(MAX_PLAYERS, () => ({
+    type: 'itemTaken',
+    x: 0,
+    y: 0,
+    kind: 0,
+    id: 0,
+  }));
   private readonly fell = new Pool<FellEvent>(8, () => ({
     type: 'blockFell',
     x: 0,
@@ -118,9 +153,10 @@ export class Sim implements KaboomSim {
     this.config = config;
     this.countdownS = options.countdown ?? COUNTDOWN_S;
     this.countdown = this.countdownS;
-    this.s = new SimState(1 + config.bots, config.critter);
+    this.s = new SimState(1 + config.bots, config.critter, config.color ?? 0);
     this.s.load(makeMap(0));
     this.buildSpiral();
+    this.assignItems();
     this.broken = new Pool<BrokenEvent>(this.s.w * this.s.h, () => ({
       type: 'blockBroken',
       x: 0,
@@ -132,8 +168,21 @@ export class Sim implements KaboomSim {
         e.x = x;
         e.y = y;
         this.events.push(e);
+        // a power-up hidden in the crate drops where it stood
+        const s = this.s;
+        const i = y * s.w + x;
+        const kind = s.hidden[i];
+        if (kind >= 0) {
+          s.hidden[i] = -1;
+          s.items[i] = kind;
+          const a = this.appeared.next();
+          a.x = x;
+          a.y = y;
+          a.kind = kind;
+          this.events.push(a);
+        }
       },
-      tntExploded: (t, arms) => {
+      tntExploded: (t, arms, bends, bendCount) => {
         const e = this.exploded.next();
         e.x = t.x;
         e.y = t.y;
@@ -142,6 +191,8 @@ export class Sim implements KaboomSim {
         e.arms[1] = arms[1];
         e.arms[2] = arms[2];
         e.arms[3] = arms[3];
+        for (let k = 0; k < bendCount * 4; k++) e.bends[k] = bends[k];
+        e.bendCount = bendCount;
         e.chainDepth = t.depth;
         this.events.push(e);
       },
@@ -160,8 +211,43 @@ export class Sim implements KaboomSim {
   get terrain(): Uint8Array {
     return this.s.terrain;
   }
+  /** Power-up on each cell (`PowerUp` kind or -1). */
+  get fuseS(): number {
+    return FUSE_BY_DIFFICULTY[this.config.difficulty];
+  }
+
+  get items(): Int8Array {
+    return this.s.items;
+  }
+  /** Power-ups still inside their crates (tests, the map viewer, never the UI: players must not see them). */
+  get hiddenItems(): Int8Array {
+    return this.s.hidden;
+  }
+
   get flame(): Float32Array {
     return this.s.flame;
+  }
+
+  /** Recolour the teams live (the setup's colour picker over the menu's background match). */
+  setTeamColor(color: number): void {
+    this.s.setTeamColor(color);
+  }
+
+  /**
+   * Bench a player or bring them back (the setup's bot count over the menu's background match). Benched = `out` at
+   * once, no KO, not counted for the round; back = alive on their spawn. Stays that way across rounds.
+   */
+  setPresent(id: number, present: boolean): void {
+    const p = this.s.players[id];
+    if (!p || p.present === present) return;
+    p.present = present;
+    if (!present) {
+      p.state = 'out';
+      p.moving = false;
+      return;
+    }
+    const sp = this.s.map.spawns[id];
+    if (sp) p.resetForRound(sp.x, sp.y);
   }
 
   /** Start the next round on a fresh map; no-op once the match is over. */
@@ -170,6 +256,7 @@ export class Sim implements KaboomSim {
     this.round++;
     this.s.load(this.makeMap(this.round));
     this.buildSpiral();
+    this.assignItems();
     this.time = 0;
     this.countdown = this.countdownS;
     this.over = false;
@@ -183,6 +270,8 @@ export class Sim implements KaboomSim {
     this.exploded.reset();
     this.broken.reset();
     this.fell.reset();
+    this.appeared.reset();
+    this.taken.reset();
     this.ko.reset();
 
     for (const p of s.players) {
@@ -208,6 +297,8 @@ export class Sim implements KaboomSim {
       if (input.place) this.place(p.id);
     }
     updateTntPass(s);
+    if (running)
+      for (const p of s.players) if (p.state === 'alive') this.collect(p);
 
     const flame = s.flame;
     for (let i = 0; i < flame.length; i++)
@@ -259,7 +350,7 @@ export class Sim implements KaboomSim {
     y: number,
     owner: number,
     range = this.s.players[owner].range,
-    fuse = FUSE_S,
+    fuse = this.fuseS,
   ): boolean {
     const s = this.s;
     const p = s.players[owner];
@@ -291,6 +382,38 @@ export class Sim implements KaboomSim {
 
   get suddenDeath(): boolean {
     return this.time >= ROUND_S - SUDDEN_S;
+  }
+
+  /** Decide which crates hide a power-up this round (seeded: same match = same drops). */
+  private assignItems(): void {
+    const s = this.s;
+    const rng = new Rng(hash3(this.config.seed, this.round, 0x9a, 0x50));
+    s.hidden.set(assignPowerUps(s.map, s.players.length, rng));
+  }
+
+  /** Pick up the power-up under the player, unless that kind is already at its top level (it stays for others). */
+  private collect(p: Player): void {
+    const s = this.s;
+    const x = Math.floor(p.x);
+    const y = Math.floor(p.y);
+    const i = y * s.w + x;
+    const kind = s.items[i];
+    if (kind < 0) return;
+    if (kind === PowerUp.Dynamites) {
+      if (p.maxTnt - START_TNT >= MAX_POWER_LEVEL) return;
+      p.maxTnt++;
+      p.tntLeft++;
+    } else {
+      if (p.range - START_RANGE >= MAX_POWER_LEVEL) return;
+      p.range++;
+    }
+    s.items[i] = -1;
+    const e = this.taken.next();
+    e.x = x;
+    e.y = y;
+    e.kind = kind;
+    e.id = p.id;
+    this.events.push(e);
   }
 
   /** Interior cells ring by ring from the outside (clockwise from the top-left), skipping what is already a hard block. */
@@ -354,12 +477,14 @@ export class Sim implements KaboomSim {
       if (s.terrain[i] === Terrain.Hard) continue;
       s.terrain[i] = Terrain.Hard;
       s.flame[i] = 0;
+      s.items[i] = -1;
+      s.hidden[i] = -1;
       const j = s.tntAt[i];
       if (j >= 0) {
         s.tnts[j].active = false;
         s.tntAt[i] = -1;
         const owner = s.players[s.tnts[j].owner];
-        if (owner) owner.tntLeft++;
+        if (owner) owner.tntLeft = Math.min(owner.maxTnt, owner.tntLeft + 1);
       }
       const x = i % s.w;
       const y = (i - x) / s.w;
@@ -387,14 +512,16 @@ export class Sim implements KaboomSim {
   private checkRoundEnd(): void {
     const players = this.s.players;
     let alive = 0;
+    let present = 0;
     let last = -1;
-    for (const p of players)
+    for (const p of players) {
+      if (p.present) present++;
       if (p.state === 'alive') {
         alive++;
         last = p.id;
       }
-    if (players.length > 1 && alive <= 1)
-      this.endRound(alive === 1 ? last : null);
+    }
+    if (present > 1 && alive <= 1) this.endRound(alive === 1 ? last : null);
     else if (this.time >= ROUND_S) this.endRound(null);
   }
 

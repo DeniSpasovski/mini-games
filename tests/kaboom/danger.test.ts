@@ -42,7 +42,7 @@ test('danger: burning cells are dangerous now; a hypothetical TNT adds its own c
   const d = new DangerMap();
   d.compute(sim, { x: 7, y: 1, range: 2 });
   expect(d.start[at(4)]).toBe(0);
-  expect(d.start[at(6)]).toBeCloseTo(FUSE_S);
+  expect(d.start[at(6)]).toBeCloseTo(sim.fuseS);
   expect(d.start[at(1)]).toBe(NEVER);
 });
 

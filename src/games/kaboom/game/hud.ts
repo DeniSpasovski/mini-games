@@ -1,7 +1,19 @@
 import { TEAM_COLORS } from '../render/characters';
-import { ROUND_S, START_TNT } from '../sim/rules';
-import type { CritterId, KaboomSim } from '../sim/types';
+import type { PortraitFn } from '../render/portraits';
+import {
+  CORNER_FROM_RANGE,
+  MAX_POWER_LEVEL,
+  ROUND_S,
+  START_RANGE,
+  START_TNT,
+} from '../sim/rules';
+import type { KaboomSim } from '../sim/types';
 import { el, fmtTime, title } from './dom';
+import { bundleIcon, stickIcon } from './icons';
+
+/** Blast levels as players see them: range 2 = level 1 ... (levels 4 and 5 turn corners). */
+const MAX_BLAST_LEVEL = MAX_POWER_LEVEL + 1;
+const CORNER_LEVEL = CORNER_FROM_RANGE - START_RANGE + 1;
 
 /**
  * In-run HUD: a chip per player (portrait, team colour, round wins, knocked-out state), the round timer, round counter,
@@ -13,7 +25,9 @@ export class Hud {
   private readonly chips = el('div', 'kb-chips');
   private readonly timer = el('div', 'kb-pill kb-timer', '2:00');
   private readonly round = el('div', 'kb-pill kb-round');
+  private readonly stock = el('div', 'kb-stock');
   private readonly tnt = el('div', 'kb-pill kb-tntleft');
+  private readonly blast = el('div', 'kb-pill kb-blast');
   private readonly banner = el('div', 'kb-banner');
   private readonly sub = el('div', 'kb-sub');
   private readonly hint = el('div', 'kb-hint');
@@ -22,6 +36,7 @@ export class Hud {
     timer: '',
     round: '',
     tnt: '',
+    blast: '',
     banner: '',
     sub: '',
     chips: '',
@@ -31,7 +46,7 @@ export class Hud {
   constructor(
     root: HTMLElement,
     onPause: () => void,
-    private readonly portraits: Record<CritterId, string>,
+    private readonly portrait: PortraitFn,
   ) {
     const pause = el('button', 'kb-pause', 'II', {
       type: 'button',
@@ -40,10 +55,11 @@ export class Hud {
     pause.addEventListener('click', onPause);
     const top = el('div', 'kb-topcenter');
     top.append(this.timer, this.round);
+    this.stock.append(this.tnt, this.blast);
     this.el.append(
       this.chips,
       top,
-      this.tnt,
+      this.stock,
       pause,
       this.banner,
       this.sub,
@@ -68,10 +84,10 @@ export class Hud {
       const root = el('div', 'kb-chip');
       root.style.setProperty(
         '--team',
-        `#${TEAM_COLORS[p.id % TEAM_COLORS.length].toString(16).padStart(6, '0')}`,
+        `#${TEAM_COLORS[p.color % TEAM_COLORS.length].toString(16).padStart(6, '0')}`,
       );
       const img = el('img', 'kb-chip-img', '', {
-        src: this.portraits[p.critter],
+        src: this.portrait(p.critter, p.color),
         alt: title(p.critter),
       });
       const wins = el('div', 'kb-chip-wins');
@@ -106,11 +122,27 @@ export class Hud {
       this.round.style.display = round ? '' : 'none';
     }
     const me = sim.players[0];
-    const tnt = me ? `TNT ${me.tntLeft}` : '';
+    const tnt = me ? `${me.tntLeft}/${me.maxTnt}` : '';
     if (tnt !== this.last.tnt) {
+      this.bump(
+        this.tnt,
+        this.last.tnt !== '' && me !== undefined && me.maxTnt > this.maxSeen,
+      );
+      if (me) this.maxSeen = me.maxTnt;
       this.last.tnt = tnt;
-      this.tnt.textContent = tnt;
+      if (me) this.showTnt(me.tntLeft, me.maxTnt);
       this.tnt.classList.toggle('empty', !!me && me.tntLeft <= 0);
+    }
+    const level = me ? me.range - START_RANGE + 1 : 0;
+    const blast = me ? String(level) : '';
+    if (blast !== this.last.blast) {
+      this.bump(
+        this.blast,
+        this.last.blast !== '' && me !== undefined && me.range > this.rangeSeen,
+      );
+      if (me) this.rangeSeen = me.range;
+      this.last.blast = blast;
+      if (me) this.showBlast(level);
     }
     const state = sim.players.map((p) => `${p.state}${p.wins}`).join(',');
     if (state !== this.last.chips) {
@@ -149,9 +181,42 @@ export class Hud {
     }
   }
 
-  /** Reset the "you have this many TNT" pill for the default stock (round start). */
+  private maxSeen = 1;
+  private rangeSeen = 2;
+
+  /** Pop a pill when a power-up made it grow. */
+  private bump(pill: HTMLElement, grew: boolean): void {
+    if (!grew) return;
+    pill.classList.remove('bump');
+    void pill.offsetWidth;
+    pill.classList.add('bump');
+  }
+
+  /** TNT stock: one stick per TNT you can hold, the ready ones lit. */
+  private showTnt(left: number, max: number): void {
+    let html = '';
+    for (let i = 0; i < max; i++) html += stickIcon(i < left);
+    this.tnt.innerHTML = html;
+    const label = `TNT: ${left} of ${max} ready`;
+    this.tnt.setAttribute('aria-label', label);
+    this.tnt.title = label;
+  }
+
+  /** Blast level 1-5 as a bundle of that many sticks. */
+  private showBlast(level: number): void {
+    this.blast.innerHTML = bundleIcon(level);
+    const label = `Blast level ${level} of ${MAX_BLAST_LEVEL}${level >= CORNER_LEVEL ? ': turns corners' : ''}`;
+    this.blast.setAttribute('aria-label', label);
+    this.blast.title = label;
+  }
+
+  /** Reset the TNT stock and the blast level for the default stock (round start). */
   resetTnt(): void {
     this.last.tnt = '';
-    this.tnt.textContent = `TNT ${START_TNT}`;
+    this.showTnt(START_TNT, START_TNT);
+    this.showBlast(1);
+    this.last.blast = '';
+    this.maxSeen = START_TNT;
+    this.rangeSeen = START_RANGE;
   }
 }

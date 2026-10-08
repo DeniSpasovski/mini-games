@@ -1,6 +1,6 @@
 import {
   NoToneMapping,
-  PCFSoftShadowMap,
+  PCFShadowMap,
   PerspectiveCamera,
   SRGBColorSpace,
   WebGLRenderer,
@@ -59,7 +59,7 @@ export function createRenderer(
   renderer.outputColorSpace = SRGBColorSpace;
   renderer.toneMapping = NoToneMapping;
   renderer.shadowMap.enabled = quality.shadows;
-  renderer.shadowMap.type = PCFSoftShadowMap;
+  renderer.shadowMap.type = PCFShadowMap;
   // The arena shadow map is static: the game sets `needsUpdate` when a crate breaks (Arena.consumeShadowDirty).
   renderer.shadowMap.autoUpdate = false;
   renderer.domElement.style.display = 'block';

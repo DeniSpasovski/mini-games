@@ -1,10 +1,11 @@
 import { Vector2 } from 'three';
+import { CritterPreview } from '../render/critter-preview';
 import { track } from '../../../shared/analytics';
 import { StatsOverlay } from '../../../shared/stats-overlay';
 import { matchMapFactory } from '../map/generate';
-import { isMapSizeId } from '../map/sizes';
+import { MAP_SIZES, isMapSizeId } from '../map/sizes';
 import { CameraRig } from '../render/camera-rig';
-import { renderPortraits } from '../render/portraits';
+import { PortraitStudio } from '../render/portraits';
 import {
   QUALITY,
   bindCameraAspect,
@@ -16,6 +17,7 @@ import { WorldView } from '../render/world-view';
 import { BotController } from '../sim/bot';
 import { COUNTDOWN_S, STEP } from '../sim/rules';
 import { Sim } from '../sim/sim';
+import { CRITTERS } from '../sim/types';
 import type {
   CritterId,
   Difficulty,
@@ -114,7 +116,11 @@ export class KaboomGame {
     root.classList.add('kb-root');
     this.renderer = createRenderer(root, this.quality);
     bindCameraAspect(this.renderer, this.rig.camera, () => this.view?.fit());
-    this.portraits = renderPortraits(this.renderer);
+    // a restored WebGL context starts with an empty shadow map, and the arena only redraws it when a crate breaks
+    this.renderer.domElement.addEventListener('webglcontextrestored', () =>
+      this.view?.arena.markShadowDirty(),
+    );
+    this.portraits = new PortraitStudio(this.renderer);
     this.stats = new StatsOverlay(
       this.renderer,
       root,
@@ -126,19 +132,30 @@ export class KaboomGame {
       if (this.phase === 'play' && this.mode === 'match') this.pause();
       else if (this.phase === 'paused') this.resume();
     };
-    this.hud = new Hud(root, () => this.pause(), this.portraits);
+    this.hud = new Hud(root, () => this.pause(), this.portraits.get);
     this.menu = new Menu(root, {
       settings: this.settings,
-      portraits: this.portraits,
+      portrait: this.portraits.get,
       stats: () => loadStats(this.store),
       onPlay: (s) => void this.startMatch(s),
       onSettings: () => saveSettings(this.store, this.settings),
+      onArena: () => {
+        if (this.mode === 'attract') this.startAttract();
+      },
+      onLineup: () => this.syncAttract(),
       onVolume: (v) => this.sfx.setVolume(v),
       onQuality: (q) => this.changeQuality(q),
       onResume: () => this.resume(),
       onRestart: () => void this.startMatch(this.setup ?? this.currentSetup()),
       onMainMenu: () => this.toMenu(),
       onClick: () => this.sfx.click(),
+      makeStage: () => {
+        try {
+          return new CritterPreview();
+        } catch {
+          return null; // no second GL context: the portrait stands in
+        }
+      },
     });
     this.sfx.volume = this.settings.volume;
 
@@ -172,6 +189,7 @@ export class KaboomGame {
     const s = this.settings;
     return {
       critter: s.critter,
+      color: s.color,
       bots: s.bots,
       difficulty: s.difficulty,
       size: s.size,
@@ -197,9 +215,10 @@ export class KaboomGame {
       rounds: ROUND_COUNTS.includes(rounds as RoundCount)
         ? (rounds as RoundCount)
         : base.rounds,
-      critter: (this.portraits[critter as CritterId]
-        ? critter
-        : base.critter) as CritterId,
+      critter: (CRITTERS as readonly string[]).includes(critter)
+        ? (critter as CritterId)
+        : base.critter,
+      color: base.color,
     };
   }
 
@@ -218,13 +237,18 @@ export class KaboomGame {
     this.bots = null;
   }
 
-  /** Bots only, behind the menu. */
+  /**
+   * Bots only, behind the menu, on the arena size picked in the setup. Every spawn is filled; the ones beyond the
+   * picked bot count sit benched (`syncAttract`), so changing the count or the colour never rebuilds the scene.
+   */
   private startAttract(): void {
     this.disposeView();
+    const size = this.settings.size;
     const cfg: MatchConfig = {
       seed: rand(),
-      size: 'm',
-      bots: 3,
+      size,
+      bots: MAP_SIZES[size].maxPlayers - 1,
+      color: this.settings.color,
       difficulty: 'normal',
       rounds: 5,
       critter: this.settings.critter,
@@ -243,6 +267,9 @@ export class KaboomGame {
       follow: false,
     });
     this.view.followId = -1;
+    // benched before the first frame: the crew starts without them (no launch)
+    const bots = clampBots(size, this.settings.bots);
+    for (const p of sim.players) sim.setPresent(p.id, p.id <= bots);
     this.mode = 'attract';
     this.phase = 'menu';
     this.roundEndedAt = -1;
@@ -250,6 +277,16 @@ export class KaboomGame {
     this.acc = 0;
     this.hud.hide();
     this.controls.setEnabled(false);
+  }
+
+  /** Setup changes over the background match: bots fly in / out to match the count, the teams recolour. */
+  private syncAttract(): void {
+    const sim = this.sim;
+    if (this.mode !== 'attract' || !sim) return;
+    if (sim.map.sizeId !== this.settings.size) return this.startAttract();
+    const bots = clampBots(this.settings.size, this.settings.bots);
+    for (const p of sim.players) sim.setPresent(p.id, p.id <= bots);
+    sim.setTeamColor(this.settings.color);
   }
 
   /** Build a match, warm everything up behind a loading card, then start the countdown. */
@@ -269,6 +306,7 @@ export class KaboomGame {
       difficulty: setup.difficulty,
       rounds: setup.rounds,
       critter: setup.critter,
+      color: setup.color,
     };
     const sim = new Sim(cfg, matchMapFactory(cfg), { countdown: COUNTDOWN_S });
     const autopilot = this.params.get('bot') === '1';
@@ -475,6 +513,7 @@ export class KaboomGame {
       rounds: sim.config.rounds,
       standings: sim.players.map((p) => ({
         critter: p.critter,
+        color: p.color,
         wins: p.wins,
         you: p.id === 0,
         slot: p.id,

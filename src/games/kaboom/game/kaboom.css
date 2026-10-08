@@ -213,35 +213,90 @@ body {
 }
 
 /* setup */
-.kb-critters {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-}
-.kb-critter {
+/* critter picker: one live critter on a turntable, arrows either side */
+.kb-picker {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 4px 2px 6px;
-  font: 700 12px var(--kb-font);
-  color: var(--kb-ink);
+  justify-content: center;
+  gap: 10px;
+}
+.kb-stage {
+  width: min(220px, 52vw);
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  /* the backdrop fills the whole round stage; the critter is framed to stay inside it */
+  background: radial-gradient(
+    circle closest-side at 50% 50%,
+    color-mix(in srgb, var(--kb-team, #ffd8a8) 18%, #fff6e8) 0 62%,
+    color-mix(in srgb, var(--kb-team, #ffd8a8) 34%, #f3dcb8) 100%
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.kb-stage canvas,
+.kb-stage-img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+/* the game canvas rule (.kb-root canvas) must not pin the preview to the corner */
+.kb-root .kb-stage canvas {
+  position: static;
+  inset: auto;
+}
+.kb-stage-img {
+  object-fit: cover;
+  border-radius: 50%;
+}
+.kb-btn.kb-arrow {
+  width: 46px;
+  height: 46px;
+  min-height: 0;
+  padding: 0;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 3px solid var(--kb-team, var(--kb-accent));
   background: var(--kb-card-2);
-  border: 3px solid transparent;
-  border-radius: 14px;
+  color: var(--kb-ink);
+}
+.kb-arrow svg {
+  display: block;
+}
+.kb-critter-name {
+  text-align: center;
+  font: 800 18px var(--kb-font);
+  margin: 4px 0 8px;
+}
+/* team colour swatches */
+.kb-swatches {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.kb-swatch {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--sw);
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.12);
   cursor: pointer;
   touch-action: manipulation;
+  transition: transform 0.12s;
 }
-.kb-critter img {
-  width: 100%;
-  aspect-ratio: 1;
-  border-radius: 10px;
-  object-fit: cover;
-}
-.kb-critter.on {
-  border-color: var(--kb-accent);
-  background: #ffe3b8;
-  transform: translateY(-2px);
+.kb-swatch.on {
+  transform: scale(1.18);
+  box-shadow:
+    0 0 0 2px var(--sw),
+    0 3px 8px rgba(0, 0, 0, 0.25);
 }
 .kb-seg {
   display: flex;
@@ -483,11 +538,39 @@ body {
     color: var(--kb-ink);
   }
 }
-.kb-tntleft {
+.kb-stock {
   position: absolute;
   left: calc(var(--kb-left) + 12px);
   bottom: calc(var(--kb-bottom) + 12px);
-  font-size: 16px;
+  display: flex;
+  gap: 6px;
+}
+.kb-stock .kb-pill {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 2px 10px;
+  min-height: 42px;
+}
+.kb-blast {
+  background: #ffe9a8;
+}
+.kb-ico {
+  display: block;
+}
+/* a TNT out on the field: its stick faded until it goes off */
+.kb-ico.spent {
+  opacity: 0.3;
+  filter: grayscale(0.7);
+}
+.kb-pill.bump {
+  animation: kb-bump 0.6s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+@keyframes kb-bump {
+  40% {
+    transform: scale(1.35);
+    background: #ffd23f;
+  }
 }
 .kb-tntleft.empty {
   opacity: 0.55;
@@ -644,11 +727,8 @@ body {
   }
 }
 
-/* on touch devices the big TNT button already shows the stock; lift the hint above it */
+/* on touch devices lift the hint above the big TNT button */
 @media (pointer: coarse) {
-  .kb-tntleft {
-    display: none;
-  }
   .kb-hint {
     bottom: calc(var(--kb-bottom) + 150px);
   }

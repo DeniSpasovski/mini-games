@@ -1,6 +1,7 @@
 import { Rng } from '../../../shared/rng';
 import { DangerMap, NEVER } from './danger';
-import { STEP } from './rules';
+import { PowerUp } from './powerups';
+import { FUSE_S, MAX_POWER_LEVEL, START_RANGE, START_TNT, STEP } from './rules';
 import {
   Terrain,
   type Difficulty,
@@ -20,6 +21,8 @@ export interface BotParams {
   botWeight: number;
   /** How much crates matter when picking a spot (hunters care less and go for the human sooner). */
   crateWeight: number;
+  /** Fetch a power-up it can still use when it lies within this many steps. */
+  itemRange: number;
   /** Walk towards the human only when they are within this many cells (Manhattan); farther away the bot roams and farms. */
   chaseRange: number;
   /** Drop TNT this close (cells) to the human even when they are not in the cross yet: it cuts their escape routes. */
@@ -42,6 +45,7 @@ export const BOT_PARAMS: Record<Difficulty, BotParams> = {
     botWeight: 0.3,
     crateWeight: 1,
     chaseRange: 7,
+    itemRange: 4,
     pressure: 0,
     trap: false,
     lead: false,
@@ -55,6 +59,7 @@ export const BOT_PARAMS: Record<Difficulty, BotParams> = {
     botWeight: 1,
     crateWeight: 0.8,
     chaseRange: 16,
+    itemRange: 8,
     pressure: 1,
     trap: true,
     lead: false,
@@ -68,6 +73,7 @@ export const BOT_PARAMS: Record<Difficulty, BotParams> = {
     botWeight: 1.2,
     crateWeight: 0.4,
     chaseRange: 99,
+    itemRange: 12,
     pressure: 3,
     trap: true,
     lead: true,
@@ -84,6 +90,8 @@ const N4: readonly (readonly [number, number])[] = [
 ];
 /** How far (in cells) a bot looks for a place to blast from or to run to. */
 const MAX_STEPS = 14;
+/** Extra placement margin (s) per second the fuse is shorter than Easy's. */
+const SLACK_PER_S = 0.3;
 const PATH_MAX = MAX_STEPS + 2;
 
 /**
@@ -373,6 +381,14 @@ class BotBrain {
       }
     }
 
+    // a power-up within reach that I can still use: go and get it
+    const item = this.findItem(sim, world, p);
+    if (item >= 0) {
+      this.target = -1;
+      this.setPath(world, item);
+      return;
+    }
+
     // best place to drop a TNT from, near enough to walk to
     let best = -1;
     let bestScore = 0;
@@ -426,6 +442,30 @@ class BotBrain {
     this.approachEnemy(sim, world, ci, now, focus);
   }
 
+  /** The nearest power-up (not in a blast) within `itemRange` steps that this bot is not yet maxed out on, or -1. */
+  private findItem(
+    sim: KaboomSim,
+    world: BotWorld,
+    p: { maxTnt: number; range: number },
+  ): number {
+    const { dist, danger } = world;
+    let best = -1;
+    let bestD = this.params.itemRange + 1;
+    for (let i = 0; i < dist.length; i++) {
+      if (dist[i] <= 0 || dist[i] >= bestD) continue;
+      const kind = sim.items[i];
+      if (kind < 0 || danger.start[i] < NEVER) continue;
+      const room =
+        kind === PowerUp.Dynamites
+          ? p.maxTnt - START_TNT < MAX_POWER_LEVEL
+          : p.range - START_RANGE < MAX_POWER_LEVEL;
+      if (!room) continue;
+      best = i;
+      bestD = dist[i];
+    }
+    return best;
+  }
+
   /** Would a TNT of mine on `ci` leave me a way out in time? (danger map with it added) */
   private canGetAway(
     sim: KaboomSim,
@@ -437,12 +477,14 @@ class BotBrain {
     const x = ci % w;
     const y = (ci - x) / w;
     world.danger2.compute(sim, { x, y, range: p.range });
-    world.bfs(sim, world.danger2, ci, p.speed, this.params.margin);
+    // a short fuse leaves less slack for a second TNT while others burn: ask for more room
+    const margin = this.params.margin + (FUSE_S - sim.fuseS) * SLACK_PER_S;
+    world.bfs(sim, world.danger2, ci, p.speed, margin);
     const { dist } = world;
     for (let i = 0; i < dist.length; i++)
       if (
         dist[i] > 0 &&
-        world.safeAfter(world.danger2, i, dist[i] / p.speed, this.params.margin)
+        world.safeAfter(world.danger2, i, dist[i] / p.speed, margin)
       )
         return true;
     return false;

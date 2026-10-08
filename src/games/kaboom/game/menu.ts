@@ -1,7 +1,8 @@
 import { goToPortal, portalUrl } from '../../../shared/portal-link';
 import manifest from '../game.json';
 import { MAP_SIZES, MAP_SIZE_IDS } from '../map/sizes';
-import { TEAM_COLORS } from '../render/characters';
+import { TEAM_COLORS, TEAM_COLOR_NAMES } from '../render/characters';
+import type { PortraitFn } from '../render/portraits';
 import {
   CRITTERS,
   type CritterId,
@@ -25,6 +26,8 @@ const VERSION = manifest.version;
 /** What the setup screen asks for. */
 export interface MatchSetup {
   critter: CritterId;
+  /** Team colour (palette index); the bots take the others. */
+  color: number;
   bots: number;
   difficulty: Difficulty;
   size: MapSizeId;
@@ -36,17 +39,28 @@ export interface MatchSummary {
   /** The human's slot won the match / lost it / it was a tie. */
   outcome: 'win' | 'lose' | 'tie';
   headline: string;
-  standings: { critter: CritterId; wins: number; you: boolean; slot: number }[];
+  standings: {
+    critter: CritterId;
+    color: number;
+    wins: number;
+    you: boolean;
+    slot: number;
+  }[];
   rounds: number;
 }
 
 export interface MenuApi {
   settings: KaboomSettings;
-  portraits: Record<CritterId, string>;
+  /** A critter's portrait in a team colour (render/portraits.ts). */
+  portrait: PortraitFn;
   stats(): KaboomStats;
   onPlay(setup: MatchSetup): void;
   /** Settings changed in the menu (the game saves them). */
   onSettings(): void;
+  /** The arena size changed in the setup: build that arena behind the menu. */
+  onArena(): void;
+  /** The bot count or the team colour changed: fly bots in / out and recolour the match behind the menu (no rebuild). */
+  onLineup(): void;
   onVolume(v: number): void;
   /** The quality tier changed: it needs a new renderer, so the game reloads the page. */
   onQuality(q: QualitySetting): void;
@@ -54,6 +68,15 @@ export interface MenuApi {
   onRestart(): void;
   onMainMenu(): void;
   onClick(): void;
+  /** The live 3D critter for the setup's picker; null (or missing) = show the portrait instead (no WebGL, tests). */
+  makeStage?(): CritterStage | null;
+}
+
+/** A live critter on a little turntable (`render/critter-preview.ts`). */
+export interface CritterStage {
+  readonly canvas: HTMLCanvasElement;
+  show(critter: CritterId, color: number): void;
+  dispose(): void;
 }
 
 const SIZE_BLURB: Record<MapSizeId, string> = {
@@ -80,6 +103,7 @@ export class Menu {
   }
 
   hide(): void {
+    this.dropStage();
     this.layer.replaceChildren();
     this.layer.style.display = 'none';
   }
@@ -88,7 +112,17 @@ export class Menu {
     this.loadingEl.style.display = on ? '' : 'none';
   }
 
+  /** The setup's live critter, while the setup card is up. */
+  private stage: CritterStage | null = null;
+
+  private dropStage(): void {
+    this.stage?.dispose();
+    this.stage = null;
+  }
+
   private show(...children: HTMLElement[]): HTMLElement {
+    if (this.stage && !children.some((c) => c.contains(this.stage!.canvas)))
+      this.dropStage();
     this.layer.replaceChildren(...children);
     this.layer.style.display = '';
     const card = children[0];
@@ -162,34 +196,78 @@ export class Menu {
     const card = el('div', 'kb-card kb-setup');
     card.append(el('h2', '', 'New match'));
 
-    // critter
+    // critter: one at a time, live in 3D on a turntable (a portrait without WebGL), arrows to flip through
     card.append(el('h3', '', 'Your critter'));
-    const grid = el('div', 'kb-critters');
-    const cards = new Map<CritterId, HTMLElement>();
-    for (const id of CRITTERS) {
-      const c = el('button', 'kb-critter', '', {
+    this.dropStage();
+    this.stage = this.api.makeStage?.() ?? null;
+    const view = el('div', 'kb-stage');
+    const portrait = el('img', 'kb-stage-img', '', { alt: '' });
+    view.append(this.stage ? this.stage.canvas : portrait);
+    const name = el('div', 'kb-critter-name');
+    const step = (d: number) => {
+      const i = CRITTERS.indexOf(s.critter);
+      s.critter = CRITTERS[(i + d + CRITTERS.length) % CRITTERS.length];
+      this.api.onSettings();
+      showCritter();
+    };
+    const chevron = (d: string) =>
+      `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="${d}" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    const prev = this.btn('', 'kb-arrow', () => step(-1));
+    const next = this.btn('', 'kb-arrow', () => step(1));
+    prev.innerHTML = chevron('M15 5 8 12l7 7');
+    next.innerHTML = chevron('M9 5l7 7-7 7');
+    prev.setAttribute('aria-label', 'Previous critter');
+    next.setAttribute('aria-label', 'Next critter');
+    const picker = el('div', 'kb-picker');
+    picker.append(prev, view, next);
+    card.append(picker, name);
+    const showCritter = () => {
+      name.textContent = title(s.critter);
+      portrait.src = this.api.portrait(s.critter, s.color);
+      this.stage?.show(s.critter, s.color);
+    };
+    showCritter();
+
+    // team colour: hard hat + vest
+    const swatches = el('div', 'kb-swatches', '', {
+      role: 'radiogroup',
+      'aria-label': 'Team colour',
+    });
+    const hexOf = (i: number) =>
+      `#${TEAM_COLORS[i].toString(16).padStart(6, '0')}`;
+    const swatchBtns = TEAM_COLORS.map((_, i) => {
+      const b = el('button', 'kb-swatch', '', {
         type: 'button',
-        'aria-label': title(id),
+        role: 'radio',
+        'aria-label': TEAM_COLOR_NAMES[i],
+        title: TEAM_COLOR_NAMES[i],
       });
-      c.append(
-        el('img', '', '', { src: this.api.portraits[id], alt: '' }),
-        el('span', '', title(id)),
-      );
-      c.addEventListener(
+      b.style.setProperty('--sw', hexOf(i));
+      b.addEventListener(
         'click',
         this.click(() => {
-          s.critter = id;
+          if (s.color === i) return;
+          s.color = i;
           this.api.onSettings();
-          mark();
+          paint();
+          showCritter();
+          this.api.onLineup();
         }),
       );
-      cards.set(id, c);
-      grid.append(c);
-    }
-    const mark = () =>
-      cards.forEach((c, id) => c.classList.toggle('on', id === s.critter));
-    mark();
-    card.append(grid);
+      swatches.append(b);
+      return b;
+    });
+    const paint = () => {
+      swatchBtns.forEach((b, i) => {
+        b.classList.toggle('on', i === s.color);
+        b.setAttribute('aria-checked', String(i === s.color));
+      });
+      card.style.setProperty('--kb-team', hexOf(s.color));
+    };
+    paint();
+    const colorRow = el('div', 'kb-row');
+    colorRow.append(el('span', 'kb-rowlabel', 'Team colour'), swatches);
+    card.append(colorRow);
 
     // arena size + bots
     card.append(el('h3', '', 'Arena'));
@@ -202,10 +280,12 @@ export class Menu {
       b.addEventListener(
         'click',
         this.click(() => {
+          const changed = s.size !== id;
           s.size = id;
           s.bots = clampBots(id, s.bots);
           this.api.onSettings();
           refresh();
+          if (changed) this.api.onArena();
         }),
       );
       sizeBtns.set(id, b);
@@ -225,9 +305,11 @@ export class Menu {
     );
     card.append(botsRow);
     const bump = (d: number) => {
+      const before = s.bots;
       s.bots = clampBots(s.size, s.bots + d);
       this.api.onSettings();
       refresh();
+      if (s.bots !== before) this.api.onLineup();
     };
 
     card.append(
@@ -268,6 +350,7 @@ export class Menu {
       this.btn('Start!', 'primary big', () =>
         this.api.onPlay({
           critter: s.critter,
+          color: s.color,
           bots: s.bots,
           difficulty: s.difficulty,
           size: s.size,
@@ -385,7 +468,10 @@ export class Menu {
     )) {
       const li = el('li', row.you ? 'you' : '');
       li.append(
-        el('img', '', '', { src: this.api.portraits[row.critter], alt: '' }),
+        el('img', '', '', {
+          src: this.api.portrait(row.critter, row.color),
+          alt: '',
+        }),
         el(
           'span',
           'name',

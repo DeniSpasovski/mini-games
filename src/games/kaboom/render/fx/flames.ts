@@ -1,11 +1,19 @@
 import {
-  IcosahedronGeometry,
+  AddEquation,
+  BufferGeometry,
+  CustomBlending,
+  Float32BufferAttribute,
   InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
+  OneFactor,
+  OneMinusSrcAlphaFactor,
+  PlaneGeometry,
   ShaderMaterial,
 } from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { FLAME_S } from '../../sim/rules';
+import { PUFF_GLSL, puffAtlas } from './puff-atlas';
 import type { TimeUniform } from './particles';
 
 /** What a flame tile is part of: the blast's heart, the middle of an arm (along x or z) or an arm's rounded tip. */
@@ -19,12 +27,19 @@ export const FlameType = {
   TipNegZ: 6,
 } as const;
 
+/** Fire puffs per burning tile: they overlap their neighbours, so an arm reads as one roaring jet. */
+const LAYERS = 3;
+
 const VERT = /* glsl */ `
   uniform float uTime;
   uniform float uLife;
   attribute vec4 aCell; // x, z = world position of the tile centre, y = spawn time, w = type
-  varying float vRadial;
+  attribute float aLayer;
+  varying vec2 vUv;
   varying float vK;
+  varying float vSeed;
+
+  float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 
   void main() {
     float age = uTime - aCell.y;
@@ -33,53 +48,82 @@ const VERT = /* glsl */ `
       gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
       return;
     }
-    float grow = smoothstep(0.0, 0.14, k);
-    float shrink = 1.0 - smoothstep(0.6, 1.0, k);
-    float s = grow * shrink;
+    float seed = hash(aCell.xz + aLayer * 7.13 + aCell.y);
     float type = aCell.w;
-    vec3 scale = vec3(0.6, 0.78, 0.6);          // centre
-    vec3 shift = vec3(0.0);
-    if (type > 0.5 && type < 1.5) scale = vec3(0.62, 0.5, 0.4);     // arm along x
-    else if (type > 1.5 && type < 2.5) scale = vec3(0.4, 0.5, 0.62); // arm along z
-    else if (type > 2.5) {                                           // tips: shorter, pulled back
-      scale = vec3(0.46, 0.44, 0.46);
-      if (type < 3.5) shift.x = -0.1;
-      else if (type < 4.5) shift.x = 0.1;
-      else if (type < 5.5) shift.z = -0.1;
-      else shift.z = 0.1;
+    float l = aLayer - 1.0; // -1, 0, 1
+    vec3 c = vec3(aCell.x, 0.0, aCell.z);
+    float size = 0.62;
+    if (type < 0.5) {
+      // the heart: three big puffs in a triangle, billowing up
+      float a = aLayer * 2.094 + seed;
+      c.xz += vec2(cos(a), sin(a)) * 0.16;
+      size = 0.8;
+    } else if (type < 2.5) {
+      // an arm: puffs spread along it, filling the gap to the next tile
+      vec2 axis = type < 1.5 ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+      c.xz += axis * l * 0.3 + vec2(axis.y, axis.x) * (seed - 0.5) * 0.14;
+    } else {
+      // a tip: smaller and pulled back towards the blast
+      vec2 back = type < 3.5 ? vec2(-1.0, 0.0) : type < 4.5 ? vec2(1.0, 0.0) : type < 5.5 ? vec2(0.0, -1.0) : vec2(0.0, 1.0);
+      c.xz += back * (0.12 + l * 0.12);
+      size = 0.5;
     }
-    vec3 p = position;
-    vRadial = length(vec3(p.x * 0.85, p.y * 0.55, p.z * 0.85));
-    // licking flicker: the upper half wobbles and stretches
-    float up = max(p.y, 0.0);
-    p.x += sin(uTime * 17.0 + aCell.x * 2.3 + p.z * 5.0) * 0.07 * up;
-    p.z += cos(uTime * 15.0 + aCell.x * 1.7 + p.x * 5.0) * 0.07 * up;
-    p.y *= 1.0 + 0.18 * sin(uTime * 23.0 + aCell.x * 3.1 + aCell.z * 2.1);
-    vec3 world = vec3(aCell.x, 0.34 * s, aCell.z) + shift * s + p * scale * s;
+    float grow = mix(0.35, 1.0, smoothstep(0.0, 0.16, k));
+    float flicker = 1.0 + 0.08 * sin(uTime * 31.0 + seed * 40.0);
+    size *= grow * flicker * (0.9 + 0.25 * seed);
+    // rises a little as it burns; the top layer rides higher
+    c.y = size * 0.55 + 0.08 * (l + 1.0) + k * 0.3;
+    vec4 mv = viewMatrix * vec4(c, 1.0);
+    float r = seed * 6.2832 + uTime * (seed - 0.5) * 3.0;
+    mv.xy += mat2(cos(r), -sin(r), sin(r), cos(r)) * position.xy * size * 2.0;
+    vUv = position.xy + 0.5;
     vK = k;
-    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(world, 1.0);
+    vSeed = seed;
+    gl_Position = projectionMatrix * mv;
   }
 `;
 
 const FRAG = /* glsl */ `
-  varying float vRadial;
+  varying vec2 vUv;
   varying float vK;
+  varying float vSeed;
+  ${PUFF_GLSL}
+
   void main() {
-    // concentric toon bands, hot in the middle, red at the rim; cooler as the flame ages
-    float u = clamp(vRadial + vK * 0.45, 0.0, 0.999);
-    float q = floor(u * 4.0);
-    vec3 c = q < 1.0 ? vec3(1.0, 0.97, 0.7)
-           : q < 2.0 ? vec3(1.0, 0.8, 0.25)
-           : q < 3.0 ? vec3(1.0, 0.5, 0.1)
-           : vec3(0.85, 0.2, 0.08);
-    gl_FragColor = vec4(c, 1.0);
+    float k = vK;
+    // stays a solid tongue of fire while it can still hurt, breaks up only at the very end
+    float d = puffAt(vUv, k * k * 0.7 + vSeed * 0.12).r;
+    float heat = clamp(d * (1.0 - k * 0.7), 0.0, 1.0);
+    vec3 c = fireRamp(heat) * 0.95;
+    float a = d * (1.0 - smoothstep(0.75, 1.0, k));
+    gl_FragColor = vec4(c * a, a * 0.8);
   }
 `;
 
+function tileGeometry(): BufferGeometry {
+  const quads = [];
+  for (let i = 0; i < LAYERS; i++) {
+    const q = new PlaneGeometry(1, 1);
+    q.setAttribute(
+      'aLayer',
+      new Float32BufferAttribute(
+        new Array(q.getAttribute('position').count).fill(i),
+        1,
+      ),
+    );
+    quads.push(q);
+  }
+  const g = mergeGeometries(quads, false);
+  if (!g) throw new Error('kaboom: could not merge flame quads');
+  for (const q of quads) q.dispose();
+  return g;
+}
+
 /**
- * Every burning tile of every blast as one instanced mesh of toon-stepped fireballs: centre, arm segments and rounded tips.
- * A tile is a ring-buffer slot written once when the blast goes off; the shader grows, flickers and shrinks it over
- * `FLAME_S` from the shared clock. No per-frame CPU work, one draw call.
+ * Every burning tile of every blast as one instanced mesh: per tile a few soft fire puffs from the shared flipbook
+ * (`puff-atlas.ts`) that grow, swirl, rise and cool from white-hot to deep red over `FLAME_S`, blended mostly additive
+ * so they glow. A tile is a ring-buffer slot written once when the blast goes off; the shader does the rest from the
+ * shared clock. No per-frame CPU work, one draw call.
  */
 export class FlameField {
   readonly mesh: InstancedMesh;
@@ -94,14 +138,24 @@ export class FlameField {
     readonly capacity: number,
     time: TimeUniform,
   ) {
-    const geo = new IcosahedronGeometry(1, 1).toNonIndexed();
+    const geo = tileGeometry();
     this.cell = new InstancedBufferAttribute(new Float32Array(capacity * 4), 4);
     for (let i = 0; i < capacity; i++) this.cell.setY(i, 1e9);
     geo.setAttribute('aCell', this.cell);
     this.material = new ShaderMaterial({
-      uniforms: { uTime: time, uLife: { value: FLAME_S } },
+      uniforms: {
+        uTime: time,
+        uLife: { value: FLAME_S },
+        uPuff: { value: puffAtlas() },
+      },
       vertexShader: VERT,
       fragmentShader: FRAG,
+      transparent: true,
+      depthWrite: false,
+      blending: CustomBlending,
+      blendEquation: AddEquation,
+      blendSrc: OneFactor,
+      blendDst: OneMinusSrcAlphaFactor,
     });
     this.mesh = new InstancedMesh(geo, this.material, capacity);
     this.mesh.frustumCulled = false;

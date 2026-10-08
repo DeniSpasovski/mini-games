@@ -2,10 +2,14 @@ import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { ViewerShell } from '../debug/viewer-shell';
 import { Arena } from '../render/arena';
 import { Crew } from '../render/characters';
+import { Fx } from '../render/fx/fx';
 import { GlowGrid } from '../render/fx/glow-grid';
+import { ItemRenderer } from '../render/items';
 import { BlobShadows } from '../render/shadows';
 import { TntRenderer } from '../render/tnt';
-import { FUSE_S } from '../sim/rules';
+import { PowerUp } from '../sim/powerups';
+import { walkBlast } from '../sim/blast';
+import { FLAME_S, FUSE_S, START_RANGE } from '../sim/rules';
 import {
   CRITTERS,
   Terrain,
@@ -16,9 +20,10 @@ import {
 } from '../sim/types';
 
 /**
- * Crew viewer: every Boom Crew critter, its animations and the TNT, on a small open stage.
- *   crew-viewer.html?critter=lineup&anim=walk&speed=1&tnt=1&fuse=2
+ * Crew viewer: every Boom Crew critter, its animations, the TNT and a blast, on a small open stage.
+ *   crew-viewer.html?critter=lineup&anim=walk&speed=1&tnt=1&fuse=2&blast=1&blastAt=0.2
  * `critter` = `lineup` (all eight) or one critter id. Orbit with the mouse; `turntable` spins the camera.
+ * `blast` loops an explosion behind the crew; `blastAt` >= 0 freezes it that many seconds in (FX tuning, screenshots).
  */
 const ANIMS = ['idle', 'walk', 'place', 'ko', 'cheer'] as const;
 type Anim = (typeof ANIMS)[number];
@@ -29,6 +34,12 @@ const DEFAULTS = {
   turntable: false,
   tnt: true,
   fuse: -1,
+  blast: false,
+  blastAt: -1,
+  /** Blast level 1-5 of the demo blast (range = level + 1; corners from 4). */
+  blastLevel: 3,
+  /** `tnt` = a close-up of the TNT row and the pickups (texture work). */
+  view: 'crew' as string,
 };
 const state = readUrlState(DEFAULTS);
 
@@ -45,6 +56,7 @@ class MockPlayer implements PlayerView {
   facing = Math.PI / 2;
   moving = false;
   tntLeft = 1;
+  maxTnt = 1;
   range = 2;
   speed = 4;
   wins = 0;
@@ -55,6 +67,9 @@ class MockPlayer implements PlayerView {
     readonly critter: CritterId,
   ) {}
   readonly isBot = false;
+  get color(): number {
+    return this.id;
+  }
 }
 
 const stageMap: MapData = {
@@ -79,14 +94,71 @@ shell.orbit.update();
 let players: MockPlayer[] = [];
 let crew: Crew | null = null;
 let tntRenderer: TntRenderer | null = null;
-const tnts: TntView[] = [0, 1, 2].map((i) => ({
+// the two power-ups on the stage floor: more dynamites (left), more sticks (right)
+const itemRenderer = new ItemRenderer(STAGE_W, STAGE_H);
+shell.scene.add(itemRenderer.group);
+const stageItems = new Int8Array(STAGE_W * STAGE_H).fill(-1);
+stageItems[(STAGE_H - 2) * STAGE_W + 2] = PowerUp.Dynamites;
+stageItems[(STAGE_H - 2) * STAGE_W + STAGE_W - 3] = PowerUp.Sticks;
+// one TNT per blast level, 1 to 5 sticks
+const tnts: TntView[] = [0, 1, 2, 3, 4].map((i) => ({
   active: true,
-  x: Math.floor(STAGE_W / 2) - 1 + i,
+  x: Math.floor(STAGE_W / 2) - 2 + i,
   y: 5,
   owner: 0,
-  fuse: 3 - i,
-  range: 2,
+  fuse: 3 - (i % 3),
+  range: 2 + i,
 }));
+// the blast: one TNT in front of the crew, arms reaching across the stage
+const fx = new Fx(STAGE_W, STAGE_H);
+shell.scene.add(fx.group);
+const BLAST = { x: 5, y: 5 };
+const BLAST_EVERY = 2.4;
+const flame = new Float32Array(STAGE_W * STAGE_H);
+/** The cells the demo blast burns (the real rule, `walkBlast`: corners from level 4). */
+let blastCells: number[] = [];
+let blastT = -99;
+function fireBlast(): void {
+  blastT = fx.time.value;
+  fx.clear();
+  const arms: [number, number, number, number] = [0, 0, 0, 0];
+  const bends: number[] = [];
+  blastCells = [];
+  walkBlast(
+    stageMap.terrain,
+    STAGE_W,
+    STAGE_H,
+    BLAST.x,
+    BLAST.y,
+    START_RANGE + state.blastLevel - 1,
+    {
+      burn: (i) => {
+        blastCells.push(i);
+        return false;
+      },
+      arm: (d, len) => (arms[d] = len),
+      bend: (x, y, d, len) => bends.push(x, y, d, len),
+    },
+  );
+  fx.onEvent({
+    type: 'tntExploded',
+    x: BLAST.x,
+    y: BLAST.y,
+    owner: 0,
+    arms,
+    bends,
+    bendCount: bends.length / 4,
+    chainDepth: 0,
+  });
+}
+/** The heat the floor glow reads: the blast's cross while its flames burn. */
+function blastFlame(): Float32Array {
+  flame.fill(0);
+  const left = FLAME_S - (fx.time.value - blastT);
+  if (!state.blast || left <= 0) return flame;
+  for (const i of blastCells) flame[i] = left;
+  return flame;
+}
 const shadows = new BlobShadows(16);
 shell.scene.add(shadows.mesh);
 let clock = 0;
@@ -112,6 +184,10 @@ function rebuild(): void {
   const single = ids.length === 1;
   shell.rig.camera.position.set(0, single ? 1.9 : 5.5, single ? 3.6 : 13);
   shell.orbit.target.set(0, single ? 0.5 : 0.6, single ? -0.4 : 0.5);
+  if (state.view === 'tnt') {
+    shell.rig.camera.position.set(0, 2.1, 5.9);
+    shell.orbit.target.set(0, 0.3, 2);
+  }
   shell.orbit.update();
   shell.scene.add(crew.group);
   lastEvent = -99;
@@ -177,6 +253,29 @@ t.slider(
   },
 );
 
+const b = shell.panel.section('Blast');
+b.checkbox('Loop a blast', state.blast, (v) => {
+  state.blast = v;
+  if (!v) fx.clear();
+  blastT = -99;
+  writeUrlState({ ...state }, DEFAULTS);
+});
+b.slider(
+  'Freeze at (s), -1 = loop',
+  state.blastAt,
+  { min: -1, max: 3, step: 0.02 },
+  (v) => {
+    state.blastAt = v;
+    writeUrlState({ ...state }, DEFAULTS);
+  },
+);
+
+b.slider('Blast level', state.blastLevel, { min: 1, max: 5, step: 1 }, (v) => {
+  state.blastLevel = v;
+  blastT = -99;
+  writeUrlState({ ...state }, DEFAULTS);
+});
+
 shell.orbit.autoRotate = state.turntable;
 shell.orbit.autoRotateSpeed = 2.5;
 
@@ -233,6 +332,18 @@ function frame(dt: number): void {
     });
     tntRenderer.update(tnts, dt * state.speed);
   }
+  itemRenderer.update(stageItems, dt * state.speed);
+  if (state.blast) {
+    if (state.blastAt >= 0) {
+      if (blastT < 0) fireBlast();
+      fx.update(0);
+      fx.time.value = blastT + state.blastAt;
+    } else {
+      fx.update(dt * state.speed);
+      if (fx.time.value - blastT > BLAST_EVERY) fireBlast();
+    }
+  }
+  glow.update(blastFlame());
   shadows.begin();
   if (crew) {
     const pos = { x: 0, z: 0 };

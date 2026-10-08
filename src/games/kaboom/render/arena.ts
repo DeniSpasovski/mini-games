@@ -438,6 +438,11 @@ export class Arena {
     );
   }
 
+  /** Draw the static shadow map again at the next frame (after a lost WebGL context the map is empty). */
+  markShadowDirty(): void {
+    this.shadowDirty = true;
+  }
+
   /** Casters changed since the last shadow draw (peek; `consumeShadowDirty` clears it). */
   isShadowDirty(): boolean {
     return this.shadowDirty;

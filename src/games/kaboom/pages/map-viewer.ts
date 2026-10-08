@@ -17,10 +17,11 @@ import {
 import { MAP_SIZES, MAP_SIZE_IDS, isMapSizeId } from '../map/sizes';
 import { Arena } from '../render/arena';
 import { GlowGrid } from '../render/fx/glow-grid';
-import { BASE_SPEED, FUSE_S, START_RANGE } from '../sim/rules';
+import { BASE_SPEED, FUSE_S, MIN_FUSE_S, START_RANGE } from '../sim/rules';
 import { DangerMap, NEVER } from '../sim/danger';
 import { crossCells } from '../sim/blast';
 import { gridToWorldX, gridToWorldZ } from '../sim/grid';
+import { PowerUp } from '../sim/powerups';
 import { Sim } from '../sim/sim';
 import { Terrain, type MapData } from '../sim/types';
 
@@ -30,7 +31,7 @@ import { Terrain, type MapData } from '../sim/types';
  * Overlays: spawn zones (cells within 3 steps of each spawn), escape (a TNT dropped on a spawn: burning cells, and how
  * long each reachable safe cell takes to reach), danger (the same TNT through the bots' danger map: when each cell burns).
  */
-const OVERLAYS = ['none', 'spawns', 'escape', 'danger'] as const;
+const OVERLAYS = ['none', 'spawns', 'escape', 'danger', 'powerups'] as const;
 type Overlay = (typeof OVERLAYS)[number];
 const DEFAULTS = {
   size: 'm',
@@ -55,6 +56,7 @@ const RED = new Color(0xff4d3a);
 const GREEN = new Color(0x3ddc6a);
 const CYAN = new Color(0x38d6ff);
 const GREY = new Color(0x777777);
+const GOLD = new Color(0xffc22e);
 
 function buildOverlay(): void {
   if (overlayMesh) {
@@ -99,7 +101,7 @@ function paintOverlay(): void {
       crossCells(map.terrain, w, h, spawn.x, spawn.y, START_RANGE),
     );
     const steps = stepsFrom(map.terrain, w, h, spawn.x, spawn.y);
-    const limit = (FUSE_S - REACTION_S) * BASE_SPEED;
+    const limit = (MIN_FUSE_S - REACTION_S) * BASE_SPEED;
     for (let i = 0; i < steps.length; i++) {
       if (burning.has(i)) colors[i] = RED;
       else if (steps[i] > 0)
@@ -109,6 +111,24 @@ function paintOverlay(): void {
             : GREY;
     }
     colors[spawn.y * w + spawn.x] = CYAN;
+  } else if (overlay === 'powerups') {
+    // the crates that hide a power-up (cyan = more dynamites, gold = more sticks), and the spawns
+    const sim = new Sim(
+      {
+        seed: map.seed,
+        size: map.sizeId,
+        bots: map.spawns.length - 1,
+        difficulty: 'normal',
+        rounds: 1,
+        critter: 'mole',
+      },
+      () => map,
+      { countdown: 0 },
+    );
+    sim.hiddenItems.forEach((k, i) => {
+      if (k >= 0) colors[i] = k === PowerUp.Dynamites ? CYAN : GOLD;
+    });
+    for (const s of map.spawns) colors[s.y * w + s.x] = GREEN;
   } else if (overlay === 'danger') {
     const sim = new Sim(
       {
@@ -162,7 +182,27 @@ function updateInfo(): void {
     }
   const checks = checkAllSpawns(map);
   const spawn = map.spawns[Math.min(state.spawn, map.spawns.length - 1)];
+  const hiddenCount = (() => {
+    try {
+      const sim = new Sim(
+        {
+          seed: map.seed,
+          size: map.sizeId,
+          bots: Math.max(1, map.spawns.length - 1),
+          difficulty: 'normal',
+          rounds: 1,
+          critter: 'mole',
+        },
+        () => map,
+        { countdown: 0 },
+      );
+      return sim.hiddenItems.reduce((a, k) => a + (k >= 0 ? 1 : 0), 0);
+    } catch {
+      return 0;
+    }
+  })();
   setInfo({
+    'power-ups (all spawns)': hiddenCount,
     size: `${w} x ${h}`,
     crates: `${crates} / ${free} (${Math.round((crates / free) * 100)} %)`,
     spawns: `${map.spawns.length}, all safe: ${checks.every((c) => c.ok)}`,

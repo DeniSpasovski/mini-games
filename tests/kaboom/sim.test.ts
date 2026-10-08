@@ -70,7 +70,7 @@ test('cornering: a diagonal press into a wall keeps going along the free axis', 
 });
 
 test('TNT: placed on the player cell, goes off after the fuse, owner can walk off but not back', () => {
-  const sim = simOn(CORRIDOR);
+  const sim = simOn(CORRIDOR, { difficulty: 'easy' });
   const first = sim.tick(inputs(2, { 0: { place: true } }));
   expect(types(first, 'tntPlaced')).toEqual([
     { type: 'tntPlaced', x: 1, y: 1, owner: 0 },
@@ -90,7 +90,7 @@ test('TNT: placed on the player cell, goes off after the fuse, owner can walk of
   const boom = log.find((l) => l.event.includes('tntExploded'))!;
   expect(boom).toBeDefined();
   const total = 2 + 40 + 60 + boom.tick; // ticks since placing (+1 for the first)
-  expect(Math.abs(total - FUSE_S * TICK_HZ)).toBeLessThanOrEqual(3);
+  expect(Math.abs(total - sim.fuseS * TICK_HZ)).toBeLessThanOrEqual(3);
   expect(sim.players[0].state).toBe('alive');
   expect(sim.players[0].tntLeft).toBe(1); // got the TNT back
 });
@@ -347,4 +347,91 @@ test('sudden death: a wall removes TNT and a crate on its cell; upcomingFalls an
   for (let t = 0; t < 2 * TICK_HZ; t++) sim.tick(inputs(2));
   expect(sim.tnts.some((x) => x.active)).toBe(false); // the wall on (2, 1) took the TNT
   expect(sim.terrain[1 * 9 + 3]).toBe(Terrain.Hard); // and flattened the crate on (3, 1)
+});
+
+test('fuse: Easy burns 3 s, Normal and Hard 2 s; a planted TNT uses it', () => {
+  const secs = (d: 'easy' | 'normal' | 'hard') => {
+    const sim = simOn(CORRIDOR, { difficulty: d });
+    sim.tick(inputs(2, { 0: { place: true } }));
+    expect(sim.tnts.find((t) => t.active)!.fuse).toBeCloseTo(sim.fuseS, 1);
+    return sim.fuseS;
+  };
+  expect([secs('easy'), secs('normal'), secs('hard')]).toEqual([3, 2, 2]);
+});
+
+test('team colours: the human picks one, the bots take the others in order, never two alike; recolour live', () => {
+  const sim = simOn(['#########', '#0..1..2#', '#3......#', '#########'], {
+    bots: 3,
+    color: 2,
+  });
+  expect(sim.players.map((p) => p.color)).toEqual([2, 0, 1, 3]);
+  sim.setTeamColor(0);
+  expect(sim.players.map((p) => p.color)).toEqual([0, 1, 2, 3]);
+  sim.setTeamColor(7);
+  const colors = sim.players.map((p) => p.color);
+  expect(colors[0]).toBe(7);
+  expect(new Set(colors).size).toBe(colors.length);
+});
+
+test('benching: an out player never plays or counts, stays out next round, and comes back on its spawn', () => {
+  const sim = simOn(['#########', '#0..1..2#', '#########'], { bots: 2 });
+  sim.setPresent(2, false);
+  expect(sim.players[2].state).toBe('out');
+  // a KO of player 1 leaves only player 0 among the present ones: the round ends with a winner
+  (sim.players[1] as { state: string }).state = 'ko';
+  const ev = sim.tick(inputs(3));
+  expect(ev.find((e) => e.type === 'roundOver')).toEqual({
+    type: 'roundOver',
+    winner: 0,
+  });
+  sim.nextRound();
+  expect(sim.players[2].state).toBe('out');
+  sim.setPresent(2, true);
+  expect(sim.players[2].state).toBe('alive');
+  expect(sim.players[2].x).toBeCloseTo(7.5);
+  expect(sim.players[2].y).toBeCloseTo(1.5);
+});
+
+test('chains: any TNT inside a blast goes off next - round corners, across owners; out of reach, behind a block or a crate it waits', () => {
+  // players boxed in at the top corners, safe from every blast
+  const sim = simOn([
+    '###############',
+    '#0#.........#1#',
+    '###.........###',
+    '#.............#',
+    '#.............#',
+    '#.............#',
+    '#....#...x....#',
+    '#.............#',
+    '###############',
+  ]);
+  const W = 15;
+  sim.plantTnt(4, 4, 0, 2, 0.05); // a: lit
+  sim.plantTnt(6, 4, 1, 2); // b: in a's +x arm (another owner)
+  sim.plantTnt(6, 6, 0, 4); // c: in b's +y arm - the chain turns a corner
+  sim.plantTnt(9, 4, 1, 2); // d: one cell past b's reach
+  sim.plantTnt(3, 6, 0, 2); // e: behind the hard block west of c
+  sim.plantTnt(10, 6, 1, 2); // f: behind the crate east of c
+  sim.plantTnt(6, 2, 1, 2, 0.15); // g: in b's -y arm, already about to go off
+  const at = (ev: { x: number; y: number }) => `${ev.x},${ev.y}`;
+  const booms = run(sim, 60, () => inputs(2))
+    .filter((e) => e.event.includes('tntExploded'))
+    .map((e) => ({ tick: e.tick, ev: JSON.parse(e.event) }));
+  const depth = Object.fromEntries(
+    booms.map((b) => [at(b.ev), b.ev.chainDepth]),
+  );
+  expect(depth).toEqual({ '4,4': 0, '6,4': 1, '6,2': 0, '6,6': 2 });
+  // g kept its own (shorter) fuse: the chain never makes a TNT wait longer
+  expect(booms.find((b) => at(b.ev) === '6,2')!.tick).toBeLessThanOrEqual(
+    Math.ceil(0.15 / STEP),
+  );
+  // c's long arm broke the crate and stopped there
+  expect(sim.terrain[6 * W + 9]).toBe(Terrain.Empty);
+  // the ones that were not connected go off later, each on its own fuse
+  const later = run(sim, Math.ceil(sim.fuseS / STEP) + 10, () => inputs(2))
+    .filter((e) => e.event.includes('tntExploded'))
+    .map((e) => JSON.parse(e.event));
+  expect(later.map(at).sort()).toEqual(['10,6', '3,6', '9,4']);
+  expect(later.every((e) => e.chainDepth === 0)).toBe(true);
+  expect(sim.players.every((p) => p.state === 'alive')).toBe(true);
 });

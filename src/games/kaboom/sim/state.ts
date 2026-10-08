@@ -1,4 +1,10 @@
-import { BASE_SPEED, MAX_TNT, START_RANGE, START_TNT } from './rules';
+import {
+  BASE_SPEED,
+  MAX_TNT,
+  START_RANGE,
+  START_TNT,
+  TEAM_COUNT,
+} from './rules';
 import {
   CRITTERS,
   type CritterId,
@@ -18,26 +24,31 @@ export class Player implements PlayerView {
   facing = 0;
   moving = false;
   tntLeft = START_TNT;
+  maxTnt = START_TNT;
   range = START_RANGE;
   speed = BASE_SPEED;
   wins = 0;
   /** Axis of the last move (0 = x, 1 = y): breaks ties on diagonal input. */
   axis: 0 | 1 = 0;
+  /** In the match (false = benched: `state` stays `out`). */
+  present = true;
 
   constructor(
     readonly id: number,
     readonly critter: CritterId,
     readonly isBot: boolean,
+    public color = id,
   ) {}
 
   /** Back to the start of a round on a spawn cell (wins are kept). */
   resetForRound(sx: number, sy: number): void {
-    this.state = 'alive';
+    this.state = this.present ? 'alive' : 'out';
     this.x = this.px = sx + 0.5;
     this.y = this.py = sy + 0.5;
     this.facing = Math.PI / 2;
     this.moving = false;
     this.tntLeft = START_TNT;
+    this.maxTnt = START_TNT;
     this.range = START_RANGE;
     this.speed = BASE_SPEED;
     this.axis = 0;
@@ -67,18 +78,36 @@ export class SimState {
   flame = new Float32Array(0);
   /** Player whose TNT lit the flame (for the KO credit), -1 = none. */
   flameOwner = new Int8Array(0);
+  /** Power-up on each cell (`PowerUp` kind), -1 = none; `hidden` = the ones still inside a crate. */
+  items = new Int8Array(0);
+  hidden = new Int8Array(0);
   /** TNT pool slot per cell, -1 = none. */
   tntAt = new Int16Array(0);
   readonly tnts: Tnt[] = Array.from({ length: MAX_TNT }, () => new Tnt());
   readonly players: Player[];
 
-  constructor(playerCount: number, humanCritter: CritterId) {
+  constructor(playerCount: number, humanCritter: CritterId, humanColor = 0) {
     const others = CRITTERS.filter((c) => c !== humanCritter);
     this.players = Array.from({ length: playerCount }, (_, i) =>
       i === 0
         ? new Player(0, humanCritter, false)
         : new Player(i, others[(i - 1) % others.length], true),
     );
+    this.setTeamColor(humanColor);
+  }
+
+  /** The human takes palette colour `color`, the bots the others in order: never two teams alike. */
+  setTeamColor(color: number): void {
+    const human = ((Math.round(color) % TEAM_COUNT) + TEAM_COUNT) % TEAM_COUNT;
+    let next = 0;
+    for (const p of this.players) {
+      if (p.id === 0) {
+        p.color = human;
+        continue;
+      }
+      if (next === human) next++;
+      p.color = next++ % TEAM_COUNT;
+    }
   }
 
   /** Load a round's map: copy the terrain, clear flames and TNT, put the players on their spawns. */
@@ -88,6 +117,8 @@ export class SimState {
       this.flame = new Float32Array(n);
       this.flameOwner = new Int8Array(n);
       this.tntAt = new Int16Array(n);
+      this.items = new Int8Array(n);
+      this.hidden = new Int8Array(n);
       this.terrain = new Uint8Array(n);
     }
     this.map = map;
@@ -97,6 +128,8 @@ export class SimState {
     this.flame.fill(0);
     this.flameOwner.fill(-1);
     this.tntAt.fill(-1);
+    this.items.fill(-1);
+    this.hidden.fill(-1);
     for (const t of this.tnts) {
       t.active = false;
       t.pass = 0;

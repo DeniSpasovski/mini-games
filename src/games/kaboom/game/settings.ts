@@ -6,6 +6,7 @@ import {
   type MapSizeId,
   type RoundCount,
 } from '../sim/types';
+import { TEAM_COUNT } from '../sim/rules';
 import type { KV } from './storage';
 
 export const DIFFICULTIES: readonly Difficulty[] = ['easy', 'normal', 'hard'];
@@ -16,6 +17,8 @@ export type QualitySetting = (typeof QUALITIES)[number];
 /** What the menu remembers between visits. */
 export interface KaboomSettings {
   critter: CritterId;
+  /** Team colour: index into the team palette (`TEAM_COLORS`). */
+  color: number;
   bots: number;
   difficulty: Difficulty;
   size: MapSizeId;
@@ -26,6 +29,7 @@ export interface KaboomSettings {
 
 export const DEFAULT_SETTINGS: KaboomSettings = {
   critter: 'mole',
+  color: 0,
   bots: 3,
   difficulty: 'normal',
   size: 'm',
@@ -59,6 +63,13 @@ export function sanitizeSettings(raw: unknown): KaboomSettings {
   const size = oneOf(o.size, MAP_SIZE_IDS, d.size);
   return {
     critter: oneOf(o.critter, CRITTERS, d.critter),
+    color:
+      typeof o.color === 'number' &&
+      Number.isInteger(o.color) &&
+      o.color >= 0 &&
+      o.color < TEAM_COUNT
+        ? o.color
+        : d.color,
     bots: clampBots(
       size,
       typeof o.bots === 'number' && Number.isFinite(o.bots) ? o.bots : d.bots,

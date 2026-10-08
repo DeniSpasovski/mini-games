@@ -71,6 +71,8 @@ export interface MatchConfig {
   rounds: RoundCount;
   /** The human's critter; the bots get the others in `CRITTERS` order. */
   critter: CritterId;
+  /** The human's team colour (index into the team palette, 0..7); the bots get the others in order. Default 0. */
+  color?: number;
 }
 
 // ------------------------------------------------------------------ sim in / out
@@ -84,12 +86,15 @@ export interface PlayerInput {
   place: boolean;
 }
 
-export type PlayerState = 'alive' | 'ko';
+/** `out` = not in the match right now (a benched bot in the menu's background match): never drawn, never counted. */
+export type PlayerState = 'alive' | 'ko' | 'out';
 
 /** Read-only view of a player for rendering, HUD, bots. The sim owns and mutates the real data. */
 export interface PlayerView {
   readonly id: number;
   readonly critter: CritterId;
+  /** Team colour: index into the team palette (hat, vest, HUD chip). */
+  readonly color: number;
   readonly isBot: boolean;
   readonly state: PlayerState;
   /** Position in cell units. */
@@ -104,6 +109,9 @@ export interface PlayerView {
   readonly moving: boolean;
   /** TNT the player can still place / the number placed and not yet gone off. */
   readonly tntLeft: number;
+  /** Most TNT the player can have out at once (1, up to 5 with the dynamites power-up). */
+  readonly maxTnt: number;
+  /** Blast range in cells (2, up to 6 with the sticks power-up). */
   readonly range: number;
   readonly speed: number;
   /** Rounds won in this match. */
@@ -132,11 +140,21 @@ export type SimEvent =
       owner: number;
       /** Arm length in cells (not counting the centre) for +x, -x, +y, -y. */
       arms: readonly [number, number, number, number];
+      /**
+       * Corner branches (blast level 4+), `bendCount` of them as flat (x, y, dir, len) quads: from corner cell (x, y) of
+       * an arm, `len` cells in direction `dir` (index into +x, -x, +y, -y).
+       */
+      bends: readonly number[];
+      bendCount: number;
       /** 0 = lit by its fuse, n = n links down a chain (the renderer may fade extra FX with it). */
       chainDepth: number;
     }
   | { type: 'blockBroken'; x: number; y: number }
   | { type: 'blockFell'; x: number; y: number }
+  /** A broken crate revealed a power-up (`kind`: see `PowerUp`). */
+  | { type: 'itemAppeared'; x: number; y: number; kind: number }
+  /** Player `id` picked the power-up up. */
+  | { type: 'itemTaken'; x: number; y: number; kind: number; id: number }
   | { type: 'playerKo'; id: number; byOwner: number }
   | { type: 'roundOver'; winner: number | null }
   | { type: 'matchOver'; winner: number | null };
@@ -153,6 +171,10 @@ export interface KaboomSim {
   readonly terrain: Uint8Array;
   /** Seconds of flame left per cell (0 = no flame). The renderer turns it into flame meshes + the glow grid. */
   readonly flame: Float32Array;
+  /** Power-up lying on each cell (`PowerUp` kind), -1 = none. Hidden ones are still in their crates. */
+  readonly items: Int8Array;
+  /** Seconds a TNT burns in this match (depends on the difficulty). The band counts 3 / 2 / 1 across it. */
+  readonly fuseS: number;
   /** Seconds since GO (0 during the countdown). */
   readonly time: number;
   /** Seconds left of the 3-2-1 countdown (players are frozen until 0). */

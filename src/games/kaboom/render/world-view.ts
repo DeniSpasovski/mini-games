@@ -1,3 +1,4 @@
+import { FUR_SHELLS } from './fur';
 import { Group, Scene, Vector3, type Texture, type WebGLRenderer } from 'three';
 import { MAX_PLAYERS, MAX_TNT } from '../sim/rules';
 import type { KaboomSim, SimEvent } from '../sim/types';
@@ -5,6 +6,7 @@ import { Arena } from './arena';
 import { CameraRig } from './camera-rig';
 import { Crew } from './characters';
 import { Fx } from './fx/fx';
+import { ItemRenderer } from './items';
 import { GlowGrid } from './fx/glow-grid';
 import { makeSkyTexture } from './materials';
 import type { Quality } from './renderer';
@@ -42,6 +44,7 @@ export class WorldView {
   glow!: GlowGrid;
   readonly crew: Crew;
   readonly tnt: TntRenderer;
+  readonly items: ItemRenderer;
   readonly fx: Fx;
   readonly shadows = new BlobShadows(MAX_PLAYERS + MAX_TNT);
   private readonly pos = { x: 0, z: 0 };
@@ -67,13 +70,20 @@ export class WorldView {
     if (bg) this.scene.background = bg;
     this.mapRef = sim.map;
     const { w, h } = sim.map;
-    this.crew = new Crew(sim.players, w, h);
+    this.crew = new Crew(sim.players, w, h, {
+      shells: FUR_SHELLS[quality.name],
+      smooth: quality.antialias,
+    });
+    this.crew.onLaunch = (x, z) => this.fx.launch(x, z);
+    this.crew.onLand = (x, z) => this.fx.land(x, z);
     this.tnt = new TntRenderer(w, h, opts.digitAtlas);
+    this.items = new ItemRenderer(w, h);
     this.fx = new Fx(w, h, opts.wordAtlas);
     this.buildArena();
     this.root.add(
       this.crew.group,
       this.tnt.group,
+      this.items.group,
       this.shadows.mesh,
       this.fx.group,
     );
@@ -127,7 +137,8 @@ export class WorldView {
     if (this.sim.map !== this.mapRef) this.newRound();
     this.shadowAge += dt;
     this.crew.update(alpha, dt);
-    this.tnt.update(this.sim.tnts, dt);
+    this.tnt.update(this.sim.tnts, dt, this.sim.fuseS);
+    this.items.update(this.sim.items, dt);
 
     const sh = this.shadows;
     sh.begin();
@@ -201,6 +212,7 @@ export class WorldView {
     this.glow.dispose();
     this.crew.dispose();
     this.tnt.dispose();
+    this.items.dispose();
     this.fx.dispose();
     this.shadows.dispose();
   }

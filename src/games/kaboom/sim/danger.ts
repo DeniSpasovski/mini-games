@@ -1,5 +1,5 @@
-import { DIRS } from './blast';
-import { CHAIN_DELAY_S, FLAME_S, FUSE_S, MAX_TNT } from './rules';
+import { walkBlast, type BlastVisitor } from './blast';
+import { CHAIN_DELAY_S, FLAME_S, MAX_TNT } from './rules';
 import { Terrain, type KaboomSim } from './types';
 
 export const NEVER = 1e9;
@@ -60,7 +60,7 @@ export class DangerMap {
       if (!t.active) continue;
       this.add(count++, t.x, t.y, t.range, t.fuse, w);
     }
-    if (extra) this.add(count++, extra.x, extra.y, extra.range, FUSE_S, w);
+    if (extra) this.add(count++, extra.x, extra.y, extra.range, sim.fuseS, w);
 
     for (let pass = 0; pass < count; pass++) {
       let pick = -1;
@@ -94,31 +94,39 @@ export class DangerMap {
     if (t + FLAME_S > this.end[i]) this.end[i] = t + FLAME_S;
   }
 
-  private burn(slot: number, w: number, h: number): void {
-    const t = this.fuse[slot];
-    const x = this.tx[slot];
-    const y = this.ty[slot];
-    this.mark(y * w + x, t);
-    for (const [dx, dy] of DIRS) {
-      for (let k = 1; k <= this.tr[slot]; k++) {
-        const cx = x + dx * k;
-        const cy = y + dy * k;
-        if (cx < 0 || cy < 0 || cx >= w || cy >= h) break;
-        const i = cy * w + cx;
-        if (this.terrain[i] === Terrain.Hard) break;
-        this.mark(i, t);
-        if (this.terrain[i] === Terrain.Crate) {
-          this.terrain[i] = Terrain.Empty;
-          break;
-        }
-        const j = this.cellTnt[i];
-        if (j >= 0) {
-          if (!this.done[j] && this.fuse[j] > t + CHAIN_DELAY_S)
-            this.fuse[j] = t + CHAIN_DELAY_S;
-          break;
-        }
+  /** The TNT burning in `burn` (slot and its time), for the visitor. */
+  private slot = 0;
+  private at = 0;
+  /** The same walk as the real blast (`walkBlast`): corners from level 4 included, so bots see what really burns. */
+  private readonly visitor: BlastVisitor = {
+    burn: (i) => {
+      this.mark(i, this.at);
+      if (this.terrain[i] === Terrain.Crate) {
+        this.terrain[i] = Terrain.Empty;
+        return true;
       }
-    }
+      const j = this.cellTnt[i];
+      if (j >= 0 && j !== this.slot) {
+        if (!this.done[j] && this.fuse[j] > this.at + CHAIN_DELAY_S)
+          this.fuse[j] = this.at + CHAIN_DELAY_S;
+        return true;
+      }
+      return false;
+    },
+  };
+
+  private burn(slot: number, w: number, h: number): void {
+    this.slot = slot;
+    this.at = this.fuse[slot];
+    walkBlast(
+      this.terrain,
+      w,
+      h,
+      this.tx[slot],
+      this.ty[slot],
+      this.tr[slot],
+      this.visitor,
+    );
   }
 
   /** Would standing on cell `i` at time `at` (seconds from now) hurt? Includes a `margin` of seconds either side. */

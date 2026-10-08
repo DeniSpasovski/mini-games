@@ -1,8 +1,8 @@
 import { crossCells } from '../sim/blast';
-import { BASE_SPEED, FUSE_S, START_RANGE } from '../sim/rules';
+import { BASE_SPEED, MIN_FUSE_S, START_RANGE } from '../sim/rules';
 import { Terrain, type MapData } from '../sim/types';
 
-/** Seconds a human needs to react after dropping the first TNT; the escape must fit in `FUSE_S - REACTION_S`. */
+/** Seconds a human needs to react after dropping the first TNT; the escape must fit in `MIN_FUSE_S - REACTION_S`. */
 export const REACTION_S = 0.5;
 /** How many steps from the spawn the "first TNT hits a crate" search looks. */
 const NEAR_STEPS = 4;
@@ -78,7 +78,7 @@ export function checkSpawn(
 ): SpawnCheck {
   const { w, h } = map;
   const s = map.spawns[index];
-  const limit = FUSE_S - REACTION_S;
+  const limit = MIN_FUSE_S - REACTION_S;
   const escapes = escapeSeconds(terrain, w, h, s.x, s.y) <= limit;
 
   let hitsCrate = false;

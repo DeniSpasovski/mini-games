@@ -50,7 +50,16 @@ test('particles: a ring buffer - the pool wraps, only used slots are drawn, clea
 
 test('particles: every kind builds its own shader variant', () => {
   const t = time();
-  for (const kind of ['fire', 'dust', 'splinter', 'spark'] as const) {
+  for (const kind of [
+    'fire',
+    'dust',
+    'splinter',
+    'spark',
+    'smoke',
+    'flash',
+    'ring',
+    'scorch',
+  ] as const) {
     const p = new ParticleSystem(kind, 4, t);
     const m = p.mesh.material as { defines: Record<string, number> };
     expect(typeof m.defines.KIND).toBe('number');
@@ -77,7 +86,7 @@ test('word burst: throttled, so a long chain shows a few words, not one per blas
   expect(w.maybeSpawn(1.31, 0, 1, 0, 0, 0.4)).toBe(true);
 });
 
-test('fx: a blast lights its cross, kicks up embers, dust and a word; a broken crate throws splinters', () => {
+test('fx: a blast lights its cross with fire, a flash, a shockwave, smoke, sparks, a scorch mark and a word; a broken crate throws splinters', () => {
   const fx = new Fx(13, 11, atlas());
   fx.onEvent({
     type: 'tntExploded',
@@ -89,8 +98,15 @@ test('fx: a blast lights its cross, kicks up embers, dust and a word; a broken c
   });
   fx.update(0);
   expect(fx.flames.mesh.count).toBe(1 + 2 + 1 + 0 + 3); // centre + arm tiles of each direction
-  expect(fx.fire.mesh.count).toBeGreaterThanOrEqual(8);
-  expect(fx.dust.mesh.count).toBe(5);
+  expect(fx.fire.mesh.count).toBeGreaterThanOrEqual(6);
+  expect(fx.smoke.mesh.count).toBeGreaterThanOrEqual(5);
+  expect(fx.dust.mesh.count).toBe(6);
+  expect(fx.sparks.mesh.count).toBe(10);
+  expect([
+    fx.flash.mesh.count,
+    fx.ring.mesh.count,
+    fx.scorch.mesh.count,
+  ]).toEqual([1, 1, 1]);
   expect(fx.shake.trauma).toBeGreaterThan(0);
 
   fx.onEvent({ type: 'blockBroken', x: 3, y: 3 });
@@ -99,7 +115,7 @@ test('fx: a blast lights its cross, kicks up embers, dust and a word; a broken c
 
   fx.onKo(4.5, 4.5);
   fx.update(0);
-  expect(fx.sparks.mesh.count).toBe(7);
+  expect(fx.sparks.mesh.count).toBe(10 + 7);
 
   fx.update(1);
   expect(fx.time.value).toBeCloseTo(1);
@@ -126,6 +142,9 @@ test('fx: a 64-TNT blast cannot overflow the pools', () => {
   expect(fx.fire.mesh.count).toBeLessThanOrEqual(FX_CAPACITY.fire);
   expect(fx.splinters.mesh.count).toBeLessThanOrEqual(FX_CAPACITY.splinter);
   expect(fx.dust.mesh.count).toBeLessThanOrEqual(FX_CAPACITY.dust);
+  expect(fx.smoke.mesh.count).toBeLessThanOrEqual(FX_CAPACITY.smoke);
+  expect(fx.sparks.mesh.count).toBeLessThanOrEqual(FX_CAPACITY.spark);
+  expect(fx.scorch.mesh.count).toBeLessThanOrEqual(FX_CAPACITY.scorch);
   expect(fx.shake.trauma).toBeLessThanOrEqual(0.6 + 1e-9);
 });
 

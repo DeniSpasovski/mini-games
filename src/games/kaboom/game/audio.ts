@@ -155,6 +155,18 @@ export class Sfx {
       this.tone(i % 2 ? 520 : 780, 0.16, 'square', 0.1, undefined, i * 0.17);
   }
 
+  /** A power-up pops out of a crate. */
+  blip(): void {
+    this.tone(1175, 0.1, 'triangle', 0.14);
+  }
+
+  /** Somebody grabbed a power-up: a quick rising arpeggio. */
+  pickup(): void {
+    [660, 880, 1320].forEach((f, i) =>
+      this.tone(f, 0.12, 'triangle', 0.2, undefined, i * 0.06),
+    );
+  }
+
   win(): void {
     [523, 659, 784, 1047].forEach((f, i) =>
       this.tone(f, 0.24, 'triangle', 0.22, undefined, i * 0.08),
@@ -189,6 +201,12 @@ export class Sfx {
           break;
         case 'blockFell':
           this.thud(0.3);
+          break;
+        case 'itemAppeared':
+          this.blip();
+          break;
+        case 'itemTaken':
+          this.pickup();
           break;
         default:
           break;
