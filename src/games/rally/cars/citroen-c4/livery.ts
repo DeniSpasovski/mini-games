@@ -126,12 +126,13 @@ const LAMP_INNER: Pt[] = [
   [0.725, 0.416],
   [0.75, 0.433],
   [0.775, 0.442],
-  [0.81, 0.473],
 ];
+/** Above the headlamps the red narrows to the hood crest's width at the nose (wider leaked onto the hood's side faces). */
+const HOOD_HALF = 0.38;
+const HOOD_TOP_Y = 0.8;
 /** The red nose stays this far inside the headlamps. */
 const NOSE_GAP = 0.03;
-/** The model's grille bars: half width and the rearmost top face (top chart). */
-const GRILLE_X = 0.395;
+/** The model's grille bars: their rearmost top face (top chart). */
 const GRILLE_TOP_Z = 1.98;
 /** Roof edge (the door line) |x| by z, measured on the model's top-facing faces; the white panel keeps ROOF_RED inside it. */
 const ROOF_EDGE: Pt[] = [
@@ -221,14 +222,16 @@ function paint(
       [-nose[0][0], 0],
       [nose[0][0], 0],
       ...nose,
-      [nose[nose.length - 1][0], 1.7],
-      [-nose[nose.length - 1][0], 1.7],
+      [HOOD_HALF, HOOD_TOP_Y],
+      [HOOD_HALF, 1.7],
+      [-HOOD_HALF, 1.7],
+      [-HOOD_HALF, HOOD_TOP_Y],
       ...nose.map(([x, y]): Pt => [-x, y]).reverse(),
     ],
     red,
   );
   // The grille bars' top faces (top chart).
-  fill(ctx, 'top', rect(GRILLE_TOP_Z, Z_NOSE, -GRILLE_X, GRILLE_X), red);
+  fill(ctx, 'top', rect(GRILLE_TOP_Z, Z_NOSE, -HOOD_HALF, HOOD_HALF), red);
   const lineHalf = HOOD_CREST[0][1];
   fill(
     ctx,
