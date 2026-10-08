@@ -516,7 +516,11 @@ export class CarModel {
                 atlas,
                 info,
                 opts.seed ?? 0,
-                matte ? 'matte' : 'gloss',
+                matte
+                  ? 'matte'
+                  : def.model.gltf?.metallic
+                    ? 'metallic'
+                    : 'gloss',
               );
               // The livery goes on the body; named parts (glass, trim, lamps...) keep
               // their own materials, so the paint can never bleed onto them.
@@ -693,10 +697,11 @@ export class CarModel {
     atlas: CarAtlas,
     info: LiveryInfo,
     seed: number,
-    finish: 'gloss' | 'satin' | 'matte',
+    finish: 'gloss' | 'satin' | 'matte' | 'metallic',
   ): MeshPhysicalMaterial {
     const matte = finish === 'matte';
     const satin = finish === 'satin';
+    const metallic = finish === 'metallic';
     const canvas = document.createElement('canvas');
     canvas.width = atlas.width;
     canvas.height = atlas.height;
@@ -707,10 +712,11 @@ export class CarModel {
     map.anisotropy = 8;
     const mat = new MeshPhysicalMaterial({
       map,
-      metalness: matte ? 0 : satin ? 0.1 : 0.2,
-      roughness: matte ? 0.88 : satin ? 0.58 : 0.45,
-      clearcoat: matte ? 0 : satin ? 0.35 : 1,
-      clearcoatRoughness: satin ? 0.4 : 0.12,
+      metalness: matte ? 0 : satin ? 0.1 : metallic ? 0.35 : 0.2,
+      roughness: matte ? 0.88 : satin ? 0.58 : metallic ? 0.34 : 0.45,
+      clearcoat: matte ? 0 : satin ? 0.35 : metallic ? 0.65 : 1,
+      clearcoatRoughness: satin ? 0.4 : metallic ? 0.04 : 0.12,
+      envMapIntensity: 1,
     });
     if (atlas.matteRect && !matte) {
       // Matte patch (wheel arches): rough + no clearcoat where the atlas says so.
@@ -728,8 +734,9 @@ export class CarModel {
         t.flipY = false;
         return t;
       };
+      const bodyRoughness = mat.roughness;
       mat.roughness = 1;
-      mat.roughnessMap = maskTex(Math.round(0.45 * 255), 255);
+      mat.roughnessMap = maskTex(Math.round(bodyRoughness * 255), 255);
       mat.clearcoatMap = maskTex(255, 0);
       this.owned.push(mat.roughnessMap, mat.clearcoatMap);
     }
@@ -938,6 +945,9 @@ export class CarModel {
         let c = own.get(m);
         if (!c) {
           c = m.clone();
+          // clone() drops per-material shader hooks (lampDepth's recessed lamps).
+          c.onBeforeCompile = m.onBeforeCompile;
+          c.customProgramCacheKey = m.customProgramCacheKey;
           c.userData = { ...m.userData, brakeOwner: this };
           own.set(m, c);
           this.owned.push(c);

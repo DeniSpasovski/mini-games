@@ -6,6 +6,7 @@ import { fiesta } from './fiesta/fiesta';
 import { lancerEvo6 } from './lancer-evo-6/lancer-evo-6';
 import type { CarDef } from './shared/types';
 import { skodaRally } from './skoda-rally/skoda-rally';
+import { subie22b } from './subie-22b/subie-22b';
 import { zastava101 } from './zastava-101/zastava-101';
 
 /** Car registry - every car, test-only ones included. Add new cars here + their id to TEST_CARS in release.ts (see .claude/skills/rally-content). */
@@ -14,6 +15,7 @@ export const ALL_CARS: CarDef[] = [
   zastava101,
   bimmerM3,
   bimmerGt2,
+  subie22b,
   fiesta,
   citroenC4,
   lancerEvo6,

@@ -162,6 +162,8 @@ export interface CarGltfDef {
   atlas?: CarAtlas;
   /** Satin paint instead of glossy clearcoat (atlas models only). */
   matte?: boolean;
+  /** Metallic paint (pearl / mica): more metal, glossier clearcoat, so the sky and ground show in the panels (atlas models only). */
+  metallic?: boolean;
 }
 
 /** A body built by car-specific code (cars/shared/mesh-kit.ts). */

@@ -323,6 +323,7 @@ export const CAR_TIMES_VERSIONS: Record<string, number> = {
   bimmer_m3: 2,
   bimmer_gt2: 2,
   fiesta: 2,
+  subie_22b: 2,
   citroen_c4: 2,
   lancer_evo_6: 2,
 };

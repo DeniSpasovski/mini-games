@@ -23,11 +23,12 @@ import type { SetupPreset } from '../../physics/types';
  *   wrc   - blue medium coil-over, reservoir tube beside the housing, rubber bump-stop boot
  *   evo   - slim red coil-over, short piggyback reservoir high on the housing, threaded spring seat
  *   wrcgold - the same unit in gold (Citroen C4 WRC)
+ *   sti   - yellow short coil-over (race geometry), piggyback reservoir
  * The spring gets fewer, thicker coils the stiffer the rate; the whole unit is longer the more travel the preset
  * has (soft = long).
  */
 export type SuspensionStyle =
-  'rally' | 'road' | 'race' | 'gt' | 'wrc' | 'wrcgold' | 'evo';
+  'rally' | 'road' | 'race' | 'gt' | 'wrc' | 'wrcgold' | 'sti' | 'evo';
 
 export const SUSPENSION_STYLE_COLORS: Record<
   SuspensionStyle,
@@ -40,6 +41,7 @@ export const SUSPENSION_STYLE_COLORS: Record<
   wrc: { body: 0x2a62c9, chrome: 0xc8ccd0 },
   evo: { body: 0xc8281e, chrome: 0xc8ccd0 },
   wrcgold: { body: 0xd9a21b, chrome: 0xc8ccd0 },
+  sti: { body: 0xf0c020, chrome: 0xc8ccd0 },
 };
 
 /** Installed length (m) of a unit for a preset's travel. */
