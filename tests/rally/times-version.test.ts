@@ -29,26 +29,32 @@ const OTHER = Object.keys(MAP_TIMES_VERSIONS)[1];
 const CUR = timesVersion(MAP);
 
 describe('saved times version (per map)', () => {
-  test('unversioned times are kept, tagged v0; that map bests are erased', () => {
+  test('unversioned times and bests are kept as v0 runs', () => {
     const s = memoryStorage({
       [`rally.times.${MAP}`]: '[{"time":100}]',
       [`rally.best.${MAP}.bimmer_m3`]: '{"total":100,"splits":[]}',
       'rally.quality': 'high',
     });
     expect(migrateTimes(s)).toBe(true);
-    expect(JSON.parse(s.getItem(`rally.times.${MAP}`)!)[0].ver).toBe(0);
+    const runs = JSON.parse(s.getItem(`rally.times.${MAP}`)!);
+    expect(runs.map((r: { ver: number }) => r.ver)).toEqual([0, 0]);
+    // the per-car best moved into the leaderboard (no separate reference key left)
+    expect(runs.some((r: { car: string }) => r.car === 'bimmer_m3')).toBe(true);
     expect(s.getItem(`rally.best.${MAP}.bimmer_m3`)).toBeNull();
     expect(s.getItem(`rally.timesVersion.${MAP}`)).toBe(String(CUR));
     expect(s.getItem('rally.quality')).toBe('high'); // other settings stay
   });
 
-  test('the old single version key seeds every map', () => {
+  test('times saved before car versions are old (car version unknown)', () => {
     const s = memoryStorage({
       'rally.timesVersion': String(CUR),
-      [`rally.times.${MAP}`]: '[{"time":90}]',
+      [`rally.times.${MAP}`]: '[{"time":90,"car":"skoda_rally","date":1}]',
     });
-    expect(migrateTimes(s)).toBe(false);
-    expect(s.getItem(`rally.times.${MAP}`)).toBe('[{"time":90}]');
+    expect(migrateTimes(s)).toBe(true);
+    const [run] = JSON.parse(s.getItem(`rally.times.${MAP}`)!);
+    expect(run.ver).toBeUndefined(); // the map version still matches
+    expect(run.carVer).toBe(carTimesVersion('skoda_rally') - 1);
+    expect(isOldRun(run, CUR)).toBe(true);
   });
 
   test('a bump touches only its map', () => {
@@ -113,8 +119,10 @@ describe('saved times version (per map)', () => {
     expect(runs[1].carVer).toBeUndefined();
     expect(isOldRun(runs[0], CUR)).toBe(true);
     expect(isOldRun(runs[1], CUR)).toBe(false);
+    // the Bimmer's best moved into the leaderboard as an old run; the Skoda's stays the live reference
     expect(s.getItem(`rally.best.${MAP}.bimmer_m3`)).toBeNull();
     expect(s.getItem(`rally.best.${MAP}.skoda_rally`)).not.toBeNull();
+    expect(runs).toHaveLength(2); // the best was already in the list (same car + time): not duplicated
   });
 
   test('every released car and map has a version', async () => {

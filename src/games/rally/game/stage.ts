@@ -306,10 +306,11 @@ export class StageTimer {
  * (`rally.timesVersion.<map>`, `rally.carVersion.<car>`): runs from an older version are KEPT, tagged with the
  * version they were set on and listed below every current run, dimmed. Bumping the Bimmer dims only Bimmer
  * runs, other cars' times stay valid. Per-car bests (`rally.best.<map>.<car>`, the split reference) of the
- * bumped map / car are erased.
+ * bumped map / car move into the leaderboard as old runs.
  *
- * History (all maps and cars): 1 = first versioned release, after the tyre compounds / suspension set-ups /
- * gearing / hull physics rework.
+ * History: maps 1 = first versioned release (tyre compounds / suspension set-ups / gearing / hull physics rework).
+ * Cars 2 = ABS and the engine spec recalculation; every time saved before per-car versions (car version unknown) is
+ * kept as an old `car v1` run.
  */
 export const MAP_TIMES_VERSIONS: Record<string, number> = {
   test: 1,
@@ -318,11 +319,11 @@ export const MAP_TIMES_VERSIONS: Record<string, number> = {
   jackie: 1,
 };
 export const CAR_TIMES_VERSIONS: Record<string, number> = {
-  skoda_rally: 1,
-  zastava_101: 1,
-  bimmer_m3: 1,
-  bimmer_gt2: 1,
-  fiesta: 1,
+  skoda_rally: 2,
+  zastava_101: 2,
+  bimmer_m3: 2,
+  bimmer_gt2: 2,
+  fiesta: 2,
 };
 /** Current version of a map / car (unknown ids count as 1). */
 export const timesVersion = (mapId: string): number =>
@@ -333,8 +334,6 @@ export const carTimesVersion = (carId: string): number =>
 const LEGACY_VERSION_KEY = 'rally.timesVersion';
 const versionKey = (mapId: string) => `rally.timesVersion.${mapId}`;
 const carVersionKey = (carId: string) => `rally.carVersion.${carId}`;
-
-type Run = Record<string, unknown>;
 
 /** The stored version of a map / car, falling back to the legacy shared key (null = nothing saved yet). */
 function storedVersion(store: Storage, key: string): number | null {
@@ -351,88 +350,90 @@ function storedKeys(store: Storage): string[] {
   return keys;
 }
 
-/** Rewrite every saved leaderboard with `fix` applied to each run (unreadable lists are left alone). */
-function rewriteLists(
-  store: Storage,
-  keys: string[],
-  only: (k: string) => boolean,
-  fix: (r: Run) => void,
-): boolean {
-  let any = false;
-  for (const k of keys) {
-    if (!k.startsWith(TIMES_PREFIX) || !only(k)) continue;
-    try {
-      const runs = JSON.parse(store.getItem(k) ?? 'null');
-      if (!Array.isArray(runs)) continue;
-      for (const r of runs) if (r && typeof r === 'object') fix(r);
-      store.setItem(k, JSON.stringify(runs));
-      any = any || runs.length > 0;
-    } catch {
-      /* unreadable list: leave it */
-    }
-  }
-  return any;
-}
-
 /**
- * Per map and per car: when the saved version differs from the code, tag every untagged run with the
- * stored version (0 = before versions existed) and erase the matching per-car bests. Everything else is
- * untouched. Returns true when anything changed. Call once when the game opens, before any menu reads times.
+ * Per map and per car: when the saved version differs from the code, keep everything and tag it with the
+ * stored version (0 = before versions existed): every untagged run of that map / car gets `ver` / `carVer`,
+ * and the matching per-car bests (`rally.best.*`, the live split reference) move into the leaderboard as
+ * old runs, so they follow the same rules. Returns true when anything changed. Call once when the game
+ * opens, before any menu reads times.
  */
 export function migrateTimes(store: Storage = localStorage): boolean {
   let changed = false;
   try {
-    const keys = storedKeys(store);
+    // Stored version of every map / car that differs from the code (a fresh player has nothing to migrate).
+    const mapOld = new Map<string, number>();
+    const carOld = new Map<string, number>();
     for (const mapId of Object.keys(MAP_TIMES_VERSIONS)) {
-      const cur = timesVersion(mapId);
       const prev = storedVersion(store, versionKey(mapId));
-      if (prev !== cur) {
-        const old = prev ?? 0;
-        if (
-          rewriteLists(
-            store,
-            keys,
-            (k) => k === timesKey(mapId),
-            (r) => (r.ver ??= old),
-          )
-        )
-          changed = true;
-        for (const k of keys)
-          if (k.startsWith(`${BEST_PREFIX}${mapId}.`)) {
-            store.removeItem(k);
-            changed = true;
-          }
-      }
-      store.setItem(versionKey(mapId), String(cur));
+      if (prev !== timesVersion(mapId)) mapOld.set(mapId, prev ?? 0);
     }
     for (const carId of Object.keys(CAR_TIMES_VERSIONS)) {
-      const cur = carTimesVersion(carId);
       const prev = storedVersion(store, carVersionKey(carId));
-      if (prev !== cur) {
-        const old = prev ?? 0;
+      if (prev !== carTimesVersion(carId)) carOld.set(carId, prev ?? 0);
+    }
+    if (mapOld.size || carOld.size) {
+      const keys = storedKeys(store);
+      // Per-car bests of a bumped map / car -> old runs in the leaderboard.
+      for (const k of keys) {
+        if (!k.startsWith(BEST_PREFIX)) continue;
+        const [mapId, carId] = k.slice(BEST_PREFIX.length).split('.');
+        if (!mapOld.has(mapId) && !carOld.has(carId)) continue;
+        const best = loadBest(k, store);
+        store.removeItem(k);
+        changed = true;
+        if (!best) continue;
+        const list = readRuns(store, timesKey(mapId));
         if (
-          rewriteLists(
-            store,
-            keys,
-            () => true,
-            (r) => {
-              if (r.car === carId) r.carVer ??= old;
-            },
+          list.some(
+            (r) => r.car === carId && Math.abs(r.time - best.total) < 1e-6,
           )
         )
-          changed = true;
-        for (const k of keys)
-          if (k.startsWith(BEST_PREFIX) && k.endsWith(`.${carId}`)) {
-            store.removeItem(k);
-            changed = true;
-          }
+          continue;
+        list.push({
+          time: best.total,
+          car: carId,
+          livery: 0,
+          splits: best.splits,
+          date: 0,
+        });
+        store.setItem(timesKey(mapId), JSON.stringify(list));
       }
-      store.setItem(carVersionKey(carId), String(cur));
+      // Tag every untagged run with the version it was set on.
+      for (const k of storedKeys(store)) {
+        if (!k.startsWith(TIMES_PREFIX)) continue;
+        const mapId = k.slice(TIMES_PREFIX.length);
+        try {
+          const runs = JSON.parse(store.getItem(k) ?? 'null');
+          if (!Array.isArray(runs)) continue;
+          for (const r of runs) {
+            if (!r || typeof r !== 'object') continue;
+            if (mapOld.has(mapId)) r.ver ??= mapOld.get(mapId);
+            if (carOld.has(r.car)) r.carVer ??= carOld.get(r.car);
+          }
+          store.setItem(k, JSON.stringify(runs));
+          if (runs.length) changed = true;
+        } catch {
+          /* unreadable list: leave it */
+        }
+      }
     }
+    for (const mapId of Object.keys(MAP_TIMES_VERSIONS))
+      store.setItem(versionKey(mapId), String(timesVersion(mapId)));
+    for (const carId of Object.keys(CAR_TIMES_VERSIONS))
+      store.setItem(carVersionKey(carId), String(carTimesVersion(carId)));
   } catch {
     /* storage blocked: nothing saved, nothing to migrate */
   }
   return changed;
+}
+
+function readRuns(store: Storage, key: string): RunRecord[] {
+  try {
+    const parsed = JSON.parse(store.getItem(key) ?? 'null');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 /** True for a run set under an older version of its map (`mapVer` = the current one) or of its car. */
@@ -474,9 +475,10 @@ export function bestKey(mapId: string, carId: string): string {
 
 export function loadBest(
   key: string,
+  store: Pick<Storage, 'getItem'> = localStorage,
 ): { total: number; splits: number[] } | null {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = store.getItem(key);
     const b = raw ? JSON.parse(raw) : null;
     if (!b || !Number.isFinite(b.total) || !Array.isArray(b.splits))
       return null;
