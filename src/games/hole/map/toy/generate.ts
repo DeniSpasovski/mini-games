@@ -469,8 +469,14 @@ function balancePoints(c: Ctx, target: number): void {
       [idx[i], idx[j]] = [idx[j], idx[i]];
     }
     const drop = new Set<number>();
+    // never trim the last copy of a type: every type stays on the map
+    const left = new Map<string, number>();
+    for (const p of c.placements) left.set(p.item, (left.get(p.item) ?? 0) + 1);
     for (const i of idx) {
       if (sum <= target) break;
+      const id = c.placements[i].item;
+      if ((left.get(id) ?? 0) <= 1) continue;
+      left.set(id, (left.get(id) ?? 0) - 1);
       drop.add(i);
       sum -= pts(c.placements[i].item);
     }
