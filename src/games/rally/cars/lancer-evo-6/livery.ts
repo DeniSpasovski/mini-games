@@ -146,5 +146,6 @@ function paint(
 export const lancerEvo6Livery: CarAtlas = {
   width: Math.ceil(A.width * K),
   height: Math.ceil(A.height * K),
+  layout: A,
   paint,
 };

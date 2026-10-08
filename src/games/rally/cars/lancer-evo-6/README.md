@@ -28,11 +28,12 @@ npm run dev     # /games/rally/car-viewer.html?car=lancer_evo_6
 
 ## Files
 
-| File                | What                                                                                        |
-| ------------------- | ------------------------------------------------------------------------------------------- |
-| `lancer-evo-6.ts`   | `CarDef`: physics, hull fitted to the model, rim, glass tint, glTF                          |
-| `livery.ts`         | body atlas painter: the livery                                                              |
-| `model.source.json` | converter settings (offset, atlas) and `gltf` rules (material / node -> part, island picks) |
+| File                | What                                                                                         |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| `lancer-evo-6.ts`   | `CarDef`: physics, hull fitted to the model, rim, glass tint, glTF                           |
+| `profile.ts`        | boxy side profile baked from the GLB: fallback body and city street car (`side-profile.mjs`) |
+| `livery.ts`         | body atlas painter: the livery                                                               |
+| `model.source.json` | converter settings (offset, atlas) and `gltf` rules (material / node -> part, island picks)  |
 
 ## Credits and licence
 

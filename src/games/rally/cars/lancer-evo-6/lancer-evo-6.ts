@@ -3,6 +3,7 @@ import { bodyHull } from '../../physics/hull';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
 import { lancerEvo6Livery } from './livery';
+import { profile } from './profile';
 
 /** Lancer Evolution VI: wheelbase 2.49 m between the model's hubs; the front axle sits at z = 1.2 (centre of mass behind it). */
 const AXLE_F = 1.2;
@@ -11,7 +12,7 @@ const AXLE_R = AXLE_F - 2.493;
 /** Body dimensions (also what the hull is fitted from); wheel radius = tyre overall radius. */
 const BODY = {
   length: 4.32,
-  width: 1.77,
+  width: 1.84, // body 1.76 + the mirrors (the boxy profile is baked from the whole GLB)
   height: 1.44,
   comHeight: 0.5,
   wheelRadius: 0.316,
@@ -165,46 +166,16 @@ export const lancerEvo6: CarDef = {
     ]),
   },
   model: {
-    // Rough match of the imported body, used only by the generic bolt-on kit. Rear -> front.
-    stations: [
-      { z: -2.2, floor: 0.3, belt: 0.88, hw: 0.7, hwBelt: 0.6 },
-      { z: -2.05, floor: 0.2, belt: 0.95, hw: 0.86, hwBelt: 0.74 },
-      { z: -1.29, floor: 0.16, belt: 0.95, hw: 0.88, hwBelt: 0.74 },
-      { z: -0.4, floor: 0.14, belt: 0.93, hw: 0.88, hwBelt: 0.74 },
-      { z: 0.5, floor: 0.14, belt: 0.9, hw: 0.88, hwBelt: 0.74 },
-      { z: 1.2, floor: 0.14, belt: 0.82, hw: 0.9, hwBelt: 0.74 },
-      { z: 1.85, floor: 0.14, belt: 0.74, hw: 0.84, hwBelt: 0.7 },
-      { z: 2.08, floor: 0.14, belt: 0.64, hw: 0.7, hwBelt: 0.6 },
-    ],
-    cabin: {
-      zFront: 0.95,
-      zRear: -1.7,
-      roofFront: 0.2,
-      roofRear: -1.1,
-      roofY: 1.43,
-      roofHw: 0.56,
-      kick: 0.2,
-      bPillar: -0.39,
-    },
     paint: '#d11a20',
-    flare: 0.04,
     rim: { color: '#c9ccd1', spokes: 10, style: 'spoke', caliper: '#d63a2f' },
     // The model's own rim, de-cambered and centred on the hub (scripts/car-model/glb-rim-extract.py), rescaled per tyre
     // size (stl-wheel.ts).
     wheelModel: 'lancer_evo_6_wheel.glb',
     suspensionStyle: 'evo',
-    parts: {
-      arches: 'round',
-      rearWing: 'rally1',
-      splitter: true,
-      sideSkirts: true,
-      headlights: 'slim',
-      grille: 'mouth',
-      doors: 4,
-    },
-    livery: 'rally1',
     // The model carries its own cockpit: see-through glass shows it.
     glass: { color: 0x2a3a46, opacity: 0.35 },
+    // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
+    profile,
     // Front door, just under the beltline.
     doorBadge: { z: 0.15, y: 0.62 },
     // No procedural suspension: the chassis keeps its own parts (trim).

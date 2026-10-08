@@ -8,6 +8,7 @@ import { Rng } from '../../../../shared/rng';
 import { profile as m3 } from '../../cars/bimmer-m3/profile';
 import { profile as gt2 } from '../../cars/bimmer-gt2/profile';
 import { profile as fiesta } from '../../cars/fiesta/profile';
+import { profile as lancerEvo6 } from '../../cars/lancer-evo-6/profile';
 import {
   buildProfileParts,
   buildProfileWheel,
@@ -96,9 +97,9 @@ const PAINTS = [
 
 /**
  * The boxy rally cars as street cars (profiles baked from their GLBs, cars/<car>/profile.ts): 0 Bimmer M3 (saloon),
- * 1 Skoda Rally (hatch), 2 Fiesta (hatch), 3 Bimmer GT2 (coupe).
+ * 1 Skoda Rally (hatch), 2 Fiesta (hatch), 3 Bimmer GT2 (coupe), 4 Lancer EVO VI (saloon).
  */
-const SHAPES: CarProfile[] = [m3, skoda, fiesta, gt2];
+const SHAPES: CarProfile[] = [m3, skoda, fiesta, gt2, lancerEvo6];
 
 /** Bimmer M3 half width / roof height (m): the taxi and the police car are M3s. */
 const M3_HW = m3.width / 2;
@@ -143,7 +144,7 @@ const finish = (parts: BufferGeometry[]) => ({
 });
 
 /**
- * A parked car. Variants 0-11: shape `variant % 4`, a seeded paint (street dressing picks among these). From 12 on:
+ * A parked car. Variants 0-11: shape `variant % 5`, a seeded paint (street dressing picks among these). From 12 on:
  * fixed [shape, paint] for cars a map places on purpose (`props`, e.g. the white hatch at a Petralica house).
  */
 const FIXED_CARS: [number, string][] = [[1, '#e9eaec']];
