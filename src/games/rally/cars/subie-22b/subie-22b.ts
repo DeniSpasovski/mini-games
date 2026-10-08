@@ -26,7 +26,7 @@ const FRONT: AxleDef = {
   brakeTorque: 1700,
   handbrakeTorque: 0,
   steer: 1,
-  grip: 1.04,
+  grip: 1,
   forceHeight: 0.3,
 };
 
@@ -41,7 +41,7 @@ const REAR: AxleDef = {
   brakeTorque: 800,
   handbrakeTorque: 2600,
   steer: 0,
-  grip: 1.04,
+  grip: 1.02,
   forceHeight: 0.3,
 };
 
@@ -108,8 +108,9 @@ export const subie22b: CarDef = {
       torqueCurve: [
         [1000, 130],
         [2000, 235],
-        [3000, 355],
-        [3500, 363],
+        [3000, 360],
+        [3200, 363],
+        [4000, 358],
         [4500, 350],
         [5500, 335],
         [6000, 328],
@@ -140,8 +141,8 @@ export const subie22b: CarDef = {
       // Viscous centre diff with a rear bias (35 / 65), limited-slip rear.
       frontSplit: 0.38,
       centerLock: 130,
-      frontDiffLock: 25,
-      rearDiffLock: 90,
+      frontDiffLock: 50,
+      rearDiffLock: 160,
     },
     dragArea: 0.78,
     downforceArea: 0.08,
