@@ -285,11 +285,12 @@ gravel, and the heading turned under full brake + half steer from 80 km/h on gra
 
 | Car         | 100-0 tarmac  | 100-0 gravel  | Brake + steer from 80 |
 | ----------- | ------------- | ------------- | --------------------- |
-| Skoda Rally | 33 / 41 m     | 45 / 48 m     | 64° / 22°             |
-| Bimmer M3   | 29 / 34 m     | 40 / 42 m     | 46° / 0°              |
-| Bimmer GT2  | 25 / 29 m     | 38 / 40 m     | 39° / 0°              |
-| Fiesta WRC  | 33 / 42 m     | 45 / 48 m     | 65° / 17°             |
-| Zastava 101 | 45 m (no ABS) | 46 m (no ABS) | 1°                    |
+| Skoda Rally | 33 / 41 m     | 45 / 48 m     | 70° / 6°              |
+| Bimmer M3   | 29 / 34 m     | 40 / 42 m     | 50° / 0°              |
+| Bimmer GT2  | 25 / 29 m     | 38 / 40 m     | 42° / 0°              |
+| Fiesta WRC  | 33 / 42 m     | 45 / 48 m     | 70° / 7°              |
+| Citroen C4  | 33 / 34 m     | 45 / 48 m     | 70° / 7°              |
+| Zastava 101 | 45 m (no ABS) | 46 m (no ABS) | 2°                    |
 
 At part pedal (60 %) no wheel locks and the distances match. Compare with ABS off in the harness via
 `Cfg.patch: (v) => { v.abs = false; }` (`straight().full.firstLock` is `-` with ABS on).

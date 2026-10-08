@@ -80,6 +80,11 @@
         "material": "lenscover"
       },
       {
+        "$comment": "the hood vents' mesh (WCWINDOW in the source, so it rendered as glass): black grille mesh",
+        "node": "fiesta17_hood_SUB1_WCWINDOW_0",
+        "material": "mesh"
+      },
+      {
         "mat": "WCWINDOW",
         "material": "glass"
       },
@@ -135,6 +140,210 @@
         "islandTris": [140, 180],
         "y": [0.9, 1.22],
         "material": "wingblue"
+      },
+      {
+        "$comment": "wiper arms + blades and the plastic cowl in front of the windscreen (whole islands inside the box): black",
+        "node": "fiesta17_body_SUB0-mesh-mesh_WCCARBODY_0",
+        "whole": true,
+        "x": [-0.75, 0.75],
+        "y": [0.6, 0.8],
+        "z": [0.85, 1.33],
+        "material": "trim"
+      },
+      {
+        "$comment": "rear hatch pins (ring + pin, both sides): silver",
+        "node": "fiesta17_body_SUB0-mesh-mesh_WCCARBODY_0",
+        "whole": true,
+        "x": [-0.49, 0.49],
+        "y": [0.49, 0.57],
+        "z": [-1.81, -1.75],
+        "material": "chrome"
+      },
+      {
+        "$comment": "black rubber round the front door window (left side): the glass outline grown by 3 cm (side view, model coords); the glass covers the inside",
+        "mat": "WCCARBODY",
+        "region": {
+          "view": "left",
+          "poly": [
+            [-0.389, 1.284],
+            [-0.539, 1.282],
+            [-0.569, 1.252],
+            [-0.496, 0.933],
+            [-0.466, 0.903],
+            [0.574, 0.805],
+            [0.604, 0.835],
+            [0.565, 1.035],
+            [0.461, 1.104],
+            [0.364, 1.146],
+            [0.255, 1.189],
+            [0.166, 1.217],
+            [0.087, 1.237],
+            [0.001, 1.255],
+            [-0.167, 1.275]
+          ],
+          "depth": [0.5, 0.8]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "black rubber round the front door window (right side): the glass outline grown by 3 cm (side view, model coords); the glass covers the inside",
+        "mat": "WCCARBODY",
+        "region": {
+          "view": "left",
+          "poly": [
+            [-0.389, 1.284],
+            [-0.539, 1.282],
+            [-0.569, 1.252],
+            [-0.496, 0.933],
+            [-0.466, 0.903],
+            [0.574, 0.805],
+            [0.604, 0.835],
+            [0.565, 1.035],
+            [0.461, 1.104],
+            [0.364, 1.146],
+            [0.255, 1.189],
+            [0.166, 1.217],
+            [0.087, 1.237],
+            [0.001, 1.255],
+            [-0.167, 1.275]
+          ],
+          "depth": [-0.8, -0.5]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "black rubber round the front quarter window (left side): the glass outline grown by 3 cm (side view, model coords); the glass covers the inside",
+        "mat": "WCCARBODY",
+        "region": {
+          "view": "left",
+          "poly": [
+            [0.933, 0.794],
+            [0.933, 0.836],
+            [0.857, 0.892],
+            [0.784, 0.936],
+            [0.717, 0.973],
+            [0.65, 1.008],
+            [0.61, 1.026],
+            [0.568, 1.026],
+            [0.58, 0.909],
+            [0.597, 0.845],
+            [0.627, 0.815],
+            [0.912, 0.785]
+          ],
+          "depth": [0.5, 0.8]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "black rubber round the front quarter window (right side): the glass outline grown by 3 cm (side view, model coords); the glass covers the inside",
+        "mat": "WCCARBODY",
+        "region": {
+          "view": "left",
+          "poly": [
+            [0.933, 0.794],
+            [0.933, 0.836],
+            [0.857, 0.892],
+            [0.784, 0.936],
+            [0.717, 0.973],
+            [0.65, 1.008],
+            [0.61, 1.026],
+            [0.568, 1.026],
+            [0.58, 0.909],
+            [0.597, 0.845],
+            [0.627, 0.815],
+            [0.912, 0.785]
+          ],
+          "depth": [-0.8, -0.5]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "black rubber round the rear quarter window (left side): the glass outline grown by 3 cm (side view, model coords); the glass covers the inside",
+        "mat": "WCCARBODY",
+        "region": {
+          "view": "left",
+          "poly": [
+            [-0.512, 0.912],
+            [-0.57, 1.276],
+            [-0.6, 1.306],
+            [-0.749, 1.296],
+            [-0.92, 1.279],
+            [-1.09, 1.254],
+            [-1.219, 1.227],
+            [-1.294, 1.207],
+            [-1.348, 1.188],
+            [-1.387, 1.151],
+            [-1.378, 1.11],
+            [-1.335, 1.073],
+            [-1.273, 1.031],
+            [-1.226, 1.005],
+            [-1.178, 0.98],
+            [-1.103, 0.956],
+            [-0.727, 0.902],
+            [-0.542, 0.882]
+          ],
+          "depth": [0.5, 0.8]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "black rubber round the rear quarter window (right side): the glass outline grown by 3 cm (side view, model coords); the glass covers the inside",
+        "mat": "WCCARBODY",
+        "region": {
+          "view": "left",
+          "poly": [
+            [-0.512, 0.912],
+            [-0.57, 1.276],
+            [-0.6, 1.306],
+            [-0.749, 1.296],
+            [-0.92, 1.279],
+            [-1.09, 1.254],
+            [-1.219, 1.227],
+            [-1.294, 1.207],
+            [-1.348, 1.188],
+            [-1.387, 1.151],
+            [-1.378, 1.11],
+            [-1.335, 1.073],
+            [-1.273, 1.031],
+            [-1.226, 1.005],
+            [-1.178, 0.98],
+            [-1.103, 0.956],
+            [-0.727, 0.902],
+            [-0.542, 0.882]
+          ],
+          "depth": [-0.8, -0.5]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "side skirt below the doors, between the arches (left side; side view, model coords): black",
+        "mat": "WCCARBODY",
+        "region": {
+          "view": "left",
+          "poly": [
+            [-1.0, -0.1],
+            [0.88, -0.1],
+            [0.88, 0.18],
+            [-1.0, 0.18]
+          ],
+          "depth": [0.7, 1.0]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "side skirt: right side (a side-view `mirror` flips z, not x)",
+        "mat": "WCCARBODY",
+        "region": {
+          "view": "left",
+          "poly": [
+            [-1.0, -0.1],
+            [0.88, -0.1],
+            [0.88, 0.18],
+            [-1.0, 0.18]
+          ],
+          "depth": [-1.0, -0.7]
+        },
+        "material": "trim"
       },
       {
         "node": "exhaust_WCCARBODY_0",

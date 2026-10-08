@@ -47,6 +47,14 @@
         "x": [0.7, 1.1],
         "y": [0.74, 1.0],
         "z": [0.5, 1.6]
+      },
+      {
+        "$comment": "plate pocket walls and the small faces under the tail lamps (|x| < REAR_X): rear chart (pearl), not the side charts' red blocks",
+        "chart": "rear",
+        "any": true,
+        "x": [0, 0.5],
+        "y": [0.55, 0.84],
+        "z": [-2.45, -2.2]
       }
     ]
   },
@@ -78,6 +86,22 @@
         "y": [0, 0.3],
         "material": "carbon",
         "z": [-2.45, 1.1]
+      },
+      {
+        "$comment": "the vent slot in each rear bumper corner (behind the rear wheel, opening backwards): its inside walls black, not livery",
+        "mat": "Body",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [0.765, 0.29],
+            [0.835, 0.29],
+            [0.835, 0.517],
+            [0.765, 0.517]
+          ],
+          "depth": [-2.26, -2.05],
+          "mirror": true
+        },
+        "material": "trim"
       },
       {
         "mat": "Body",

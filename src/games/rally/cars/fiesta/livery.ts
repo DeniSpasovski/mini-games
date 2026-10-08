@@ -112,8 +112,6 @@ const SKY_RIDGE: Pt[] = [
   [-1.95, 0.7],
   [Z_TAIL, TAIL_NAVY],
 ];
-/** Black sill strip between the arches (same y on the side charts only: the skirt has no end faces). */
-const SILL: [number, number] = [0.1, 0.34];
 const range = (ridge: Pt[]): Pt[] => [
   [Z_NOSE, 0],
   [Z_TAIL, 0],
@@ -144,19 +142,9 @@ function paint(
     '#2a2c2f',
   );
 
-  // --- sides: light-blue mountains behind, navy mountains in front, black sill ---
+  // --- sides: light-blue mountains behind, navy mountains in front (the skirt below the doors is a black part) ---
   sides(ctx, range(SKY_RIDGE), sky);
   sides(ctx, range(NAVY_RIDGE), navy);
-  sides(
-    ctx,
-    [
-      [Z_NOSE, SILL[0]],
-      [Z_TAIL, SILL[0]],
-      [Z_TAIL, SILL[1]],
-      [Z_NOSE, SILL[1]],
-    ],
-    '#141516',
-  );
 
   // --- ends: navy bumpers with a light-blue line on the same height as the side edge ---
   for (const [chart, y] of [

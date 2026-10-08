@@ -8,7 +8,7 @@ import source from './model.source.json';
  * roof scoop... are separate parts with their own materials (`parts` in model.source.json -> cars/shared/part-materials.ts), so
  * nothing painted here can reach them. Big straight-edged strokes only, shapes without logos or lettering: purple-blue nose,
  * fenders and hood up to a line through the middle of the doors (leaning back 75 deg); red body behind it; a red piece at the
- * front end of the hood under a 1 cm white line; a dark-blue rear bumper under the bumper line, bounded by diagonals with a
+ * front end of the hood under a 1 cm white line, running straight down the nose 3 cm inside the headlamps; a dark-blue rear bumper under the bumper line, bounded by diagonals with a
  * white line (seen from behind only); white roof with a red square and a red edge that follows the door line.
  * All coordinates are model space (metres), measured on the model (see the constants).
  */
@@ -119,8 +119,20 @@ const HOOD_LINE = 0.01;
 /** Yellow disc on the side: the fender's rear top / the door's front (centre z, y, radius); cut flat at `top`, the window's lower edge (0.98 m on the model), so it never reaches the pillar. */
 const DISC = { z: 0.89, y: 0.76, r: 0.3504, top: 0.98 };
 const YELLOW = '#f6c91c';
-/** The hood's front lip, seen from the front, starts at this height (just above the grille). */
-const HOOD_LIP_Y = 0.72;
+/** Headlamps' inner edge seen from the front: [y, |x|] from their bottom up (measured on the model). */
+const LAMP_INNER: Pt[] = [
+  [0.66, 0.398],
+  [0.7, 0.408],
+  [0.725, 0.416],
+  [0.75, 0.433],
+  [0.775, 0.442],
+  [0.81, 0.473],
+];
+/** The red nose stays this far inside the headlamps. */
+const NOSE_GAP = 0.03;
+/** The model's grille bars: half width and the rearmost top face (top chart). */
+const GRILLE_X = 0.395;
+const GRILLE_TOP_Z = 1.98;
 /** Roof edge (the door line) |x| by z, measured on the model's top-facing faces; the white panel keeps ROOF_RED inside it. */
 const ROOF_EDGE: Pt[] = [
   [-1.5, 0.54],
@@ -200,8 +212,23 @@ function paint(
   ];
   fill(ctx, 'top', hood, red);
   // ... and over the hood's front lip, which faces forward (front chart).
-  const lipHalf = HOOD_CREST[HOOD_CREST.length - 1][1];
-  fill(ctx, 'front', rect(-lipHalf, lipHalf, HOOD_LIP_Y, 1.7), red);
+  // The red runs straight down the nose to the bottom (grille bars included), NOSE_GAP inside the headlamps.
+  const nose: Pt[] = LAMP_INNER.map(([y, x]): Pt => [x - NOSE_GAP, y]);
+  fill(
+    ctx,
+    'front',
+    [
+      [-nose[0][0], 0],
+      [nose[0][0], 0],
+      ...nose,
+      [nose[nose.length - 1][0], 1.7],
+      [-nose[nose.length - 1][0], 1.7],
+      ...nose.map(([x, y]): Pt => [-x, y]).reverse(),
+    ],
+    red,
+  );
+  // The grille bars' top faces (top chart).
+  fill(ctx, 'top', rect(GRILLE_TOP_Z, Z_NOSE, -GRILLE_X, GRILLE_X), red);
   const lineHalf = HOOD_CREST[0][1];
   fill(
     ctx,
