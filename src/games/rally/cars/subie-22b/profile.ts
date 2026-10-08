@@ -6,7 +6,7 @@ import type { CarProfile } from '../shared/types';
  *   node scripts/car-model/side-profile.mjs public/models/cars/subie_22b.glb --axles 1.08,-1.46 --wheel 0.31
  */
 export const profile: CarProfile = {
-  width: 1.879,
+  width: 1.77,
   axles: [1.08, -1.46],
   wheel: 0.31,
   outline: [

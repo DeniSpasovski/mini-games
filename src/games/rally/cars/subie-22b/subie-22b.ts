@@ -8,7 +8,7 @@ import { profile } from './profile';
 /** Body dimensions (also what the hull is fitted from); wheel radius = tyre overall radius (235/40 R17, the real size). */
 const BODY = {
   length: 4.35,
-  width: 1.87,
+  width: 1.77,
   height: 1.39,
   comHeight: 0.5,
   wheelRadius: 0.31,

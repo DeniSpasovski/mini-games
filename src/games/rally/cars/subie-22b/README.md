@@ -27,7 +27,7 @@ npm run dev     # /games/rally/car-viewer.html?car=subie_22b
 | `livery.ts`         | body atlas painter: blue base, dark undercoat, side crescent + stars graphic |
 | `model.source.json` | GLB node -> part mapping, scale / offset, atlas layout (read at runtime)     |
 
-`public/models/cars/subie_22b.glb` (+ `subie_22b_wheel.glb`, `subie_22b_lamps.png`) are the converted models; the raw download stays out of git
+`public/models/cars/subie_22b.glb` (+ `subie_22b_wheel.glb`, `subie_22b_lamps.png`) are the converted models, narrowed to the real 1.77 m body width with `scripts/car-model/scale-x.mjs` (rerun after a rebuild); the raw download stays out of git
 (`sources/`, local only).
 
 ## Credits and licence
