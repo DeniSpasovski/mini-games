@@ -5,10 +5,10 @@
 Run after stl-to-glb.mjs (it rewrites `output`). The STL route has no UVs, so parts whose look IS their texture - a lamp
 whose reflectors, bulbs and lens pattern are painted into the model's lamp sheet - would come out as one flat colour. This
 copies those primitives from the source GLB as they are (node transforms + the config's `scale` / `offset`, source
-normals and TEXCOORD_0) and writes the source image they use next to the GLB. Config block:
+normals and TEXCOORD_0) and writes the source images they use next to the GLB. Config block:
 
     "srcParts": {
-      "texture": {"material": "lights", "out": "public/models/cars/<car>_lamps.png"},   # source material whose base colour image ships
+      "textures": [{"material": "lights", "out": "public/models/cars/<car>_lamps.png"}],  # source materials whose base colour images ship
       "parts": [                                                                      # in draw order: what sits behind first
         {"node": "<primitive name>", "material": "src:lamp:<car>_lamps.png"},
         {"node": "<primitive name>", "z": [-3, 0], "material": "src:tail:<car>_lamps.png"}   # optional x / y / z box on triangle centres
@@ -16,7 +16,7 @@ normals and TEXCOORD_0) and writes the source image they use next to the GLB. Co
     }
 
 Each `material` becomes one primitive; the game builds it from the name (cars/shared/part-materials.ts `srcPart`: `lamp` = the
-sheet with a glow from its bright pixels, `tail` = brake lamp, red pixels glow). List the same primitives in `gltf.drop` so the
+sheet with a glow from its bright pixels, `tail` = brake lamp, red pixels glow, `int` = plain matt sheet: seats, cockpit). List the same primitives in `gltf.drop` so the
 STL route does not take them too. The GLB keeps one buffer and no images (meshopt compression and side-profile.mjs read it).
 """
 import importlib.util
@@ -144,13 +144,13 @@ glb += struct.pack('<I4s', len(bin0), b'BIN\0') + bytes(bin0)
 open(out, 'wb').write(glb)
 print(f'wrote {out} ({len(glb) / 1e6:.2f} MB)')
 
-# --- the texture ---------------------------------------------------------------------------------------------------------
-tx = sp['texture']
-mat = next(m for m in g['materials'] if m.get('name') == tx['material'])
-img = g['images'][g['textures'][mat['pbrMetallicRoughness']['baseColorTexture']['index']]['source']]
-bv = g['bufferViews'][img['bufferView']]
-png = bins[bv.get('buffer', 0)][bv.get('byteOffset', 0):bv.get('byteOffset', 0) + bv['byteLength']]
-if img.get('mimeType') != 'image/png':
-    raise SystemExit(f'texture is {img.get("mimeType")}, expected image/png')
-open(tx['out'], 'wb').write(png)
-print(f'wrote {tx["out"]} ({len(png) / 1e3:.0f} kB)')
+# --- the textures ----------------------------------------------------------------------------------------------------
+for tx in sp['textures']:
+    mat = next(m for m in g['materials'] if m.get('name') == tx['material'])
+    img = g['images'][g['textures'][mat['pbrMetallicRoughness']['baseColorTexture']['index']]['source']]
+    bv = g['bufferViews'][img['bufferView']]
+    png = bins[bv.get('buffer', 0)][bv.get('byteOffset', 0):bv.get('byteOffset', 0) + bv['byteLength']]
+    if img.get('mimeType') != 'image/png':
+        raise SystemExit(f'texture is {img.get("mimeType")}, expected image/png')
+    open(tx['out'], 'wb').write(png)
+    print(f'wrote {tx["out"]} ({len(png) / 1e3:.0f} kB)')

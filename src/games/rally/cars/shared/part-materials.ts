@@ -63,10 +63,20 @@ function lamp(
 }
 
 export function partMaterial(name: string): Material | undefined {
-  const build = name.startsWith('src:')
-    ? () => srcPart(name)
-    : BUILDERS[name as PartName];
-  if (!build) return undefined;
+  // `<part>:2s` = that part drawn double-sided (source models whose cockpit / trim shells are single-faced).
+  const twoSided = name.endsWith(':2s');
+  const base = twoSided ? name.slice(0, -3) : name;
+  const one = base.startsWith('src:')
+    ? () => srcPart(base)
+    : BUILDERS[base as PartName];
+  if (!one) return undefined;
+  const build = twoSided
+    ? () => {
+        const m = one();
+        m.side = DoubleSide;
+        return m;
+      }
+    : one;
   let m = cache.get(name);
   if (!m) {
     m = build();
@@ -97,10 +107,24 @@ function canvas(
 const SRC_SIZE = 512;
 const srcSheets = new Map<string, Promise<HTMLImageElement>>();
 
+function sheetFor(file: string): Promise<HTMLImageElement> {
+  let sheet = srcSheets.get(file);
+  if (!sheet) {
+    sheet = new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = new URL(`models/cars/${file}`, location.href).href;
+    });
+    srcSheets.set(file, sheet);
+  }
+  return sheet;
+}
+
 /**
  * A part that keeps the source model's own texture and UVs (scripts/car-model/glb-src-parts.py): material name
- * `src:<kind>:<file in public/models/cars/>`. `lamp` = the sheet as it is, its bright pixels glow (head lamps,
- * indicators); `tail` = brake lamp (setBrake): the red pixels glow, the bright neutral ones light in reverse. The maps
+ * `src:<kind>:<file in public/models/cars/>`. `int` = the sheet as it is (seat fabric, cockpit), matt;
+ * `lamp` = the sheet, its bright pixels glow (head lamps, indicators); `tail` = brake lamp (setBrake): the red pixels glow, the bright neutral ones light in reverse. The maps
  * stay dark until the sheet has loaded. Alpha comes from the sheet (clear lens areas show the reflector behind them).
  */
 function srcPart(name: string): Material {
@@ -114,19 +138,19 @@ function srcPart(name: string): Material {
       1,
     );
   const map = blank('#1a1a1c');
+  if (kind === 'int') {
+    sheetFor(file)
+      .then((img) => {
+        const g = (map.image as HTMLCanvasElement).getContext('2d')!;
+        g.drawImage(img, 0, 0, SRC_SIZE, SRC_SIZE);
+        map.needsUpdate = true;
+      })
+      .catch(() => {});
+    return new MeshStandardMaterial({ map, roughness: 0.9, side: DoubleSide });
+  }
   const glow = blank('#000');
   const reverseGlow = kind === 'tail' ? blank('#000') : undefined;
-  let sheet = srcSheets.get(file);
-  if (!sheet) {
-    sheet = new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = new URL(`models/cars/${file}`, location.href).href;
-    });
-    srcSheets.set(file, sheet);
-  }
-  sheet
+  sheetFor(file)
     .then((img) => {
       const g = (map.image as HTMLCanvasElement).getContext('2d')!;
       g.clearRect(0, 0, SRC_SIZE, SRC_SIZE);

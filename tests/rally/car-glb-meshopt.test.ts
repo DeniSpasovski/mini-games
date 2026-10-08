@@ -8,7 +8,7 @@ import { MAX_ERROR, meshoptGlb } from '../../scripts/car-model/glb-meshopt.mjs';
 /**
  * The build serves every car GLB meshopt-compressed (rsbuild.config.ts -> scripts/car-model/glb-meshopt.mjs).
  * The game's loader must read it back as the same car: same meshes, materials, vertex / triangle counts, and
- * no vertex, normal or livery UV moved more than a hair.
+ * no vertex, normal or livery UV moved more than a hair (relative to the value past 1).
  */
 const DIR = 'public/models/cars';
 const files = readdirSync(DIR).filter((f) => f.endsWith('.glb'));
@@ -54,9 +54,13 @@ describe.each(files)('%s', (file) => {
         const x = (attr as BufferAttribute).array;
         const y = (n.getAttribute(key) as BufferAttribute).array;
         expect(y.length).toBe(x.length);
+        // Relative past 1 (the exponent filter's precision): tiling UVs of source-textured parts reach +-9.
         let err = 0;
         for (let j = 0; j < x.length; j++)
-          err = Math.max(err, Math.abs(x[j] - y[j]));
+          err = Math.max(
+            err,
+            Math.abs(x[j] - y[j]) / Math.max(1, Math.abs(x[j])),
+          );
         expect(err).toBeLessThanOrEqual(MAX[key]);
       }
     });

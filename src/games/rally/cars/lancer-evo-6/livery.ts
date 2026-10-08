@@ -6,7 +6,7 @@ import source from './model.source.json';
 /**
  * Runtime paint for the Lancer EVO VI BODY (imported GLB, atlas layout in model.source.json). Glass, lamps, interior, wing... are
  * separate parts with their own materials (`parts` in model.source.json -> cars/shared/part-materials.ts), so nothing painted
- * here can reach them. Shapes only, no logos or lettering: a red car with a white roof, two white bonnet stripes and a black sill (identical left / right). All coordinates are model space (metres, after `offset`).
+ * here can reach them. Shapes only, no logos or lettering: a red car with a white square in the middle of the roof, two white bonnet stripes, a black skirt, front diffuser lip and rear bumper lip (identical left / right). All coordinates are model space (metres, after `offset`).
  */
 const A = source.atlas;
 const { K, B, CH, sidePx, topPx, frontPx, rearPx } = atlasKit(A);
@@ -79,8 +79,29 @@ const sides = (ctx: CanvasRenderingContext2D, pts: Pt[], style: Fill) => {
 
 const Z_NOSE = 2.1;
 const Z_TAIL = -2.25;
-/** Black sill strip between the arches (side charts only: the skirt has no end faces). */
-const SILL: [number, number] = [0.1, 0.33];
+/** Arch edges on the side charts: the skirt runs between them, the bumpers outside them. */
+const Z_ARCH_F = 1.62;
+const Z_ARCH_R = -1.72;
+/** Black sill: the whole skirt between the arches (its up-facing bevel joins the side chart, `chartBoxes`). */
+const SILL: [number, number] = [0.1, 0.355];
+/** Front diffuser lip top. */
+const LIP_F = 0.255;
+/** Rear bumper bottom lip: up to the groove that runs under the vent slot and round the corners ([|x|, y] rear, [z, y] sides). */
+const LIP_R: Pt[] = [
+  [0, 0.459],
+  [1.05, 0.459],
+];
+const LIP_R_SIDE: Pt[] = [
+  [Z_TAIL, 0.459],
+  [-2.05, 0.457],
+  [-1.95, 0.449],
+  [-1.85, 0.44],
+  [-1.75, 0.433],
+  [-1.65, 0.424],
+  [-1.55, 0.42],
+];
+/** White roof square: the middle half of the roof panel (z -1.16..0.2, |x| <= 0.6) both ways. */
+const ROOF = { z: [-0.82, -0.14], x: 0.3 };
 
 function paint(
   ctx: CanvasRenderingContext2D,
@@ -105,27 +126,49 @@ function paint(
     '#2a2c2f',
   );
 
-  // --- sides: black sill ---
-  sides(
+  // --- black: skirt between the arches, front diffuser lip, rear bumper bottom lip ---
+  const black = '#141516';
+  const band = (z0: number, z1: number, y0: number, y1: number): Pt[] => [
+    [z1, y0],
+    [z0, y0],
+    [z0, y1],
+    [z1, y1],
+  ];
+  sides(ctx, band(Z_ARCH_R, Z_ARCH_F, SILL[0], SILL[1]), black);
+  sides(ctx, band(Z_ARCH_F, Z_NOSE, 0, LIP_F - 0.02), black);
+  sides(ctx, [[-1.55, 0], [Z_TAIL, 0], ...LIP_R_SIDE], black);
+  fill(
     ctx,
+    'front',
     [
-      [Z_NOSE, SILL[0]],
-      [Z_TAIL, SILL[0]],
-      [Z_TAIL, SILL[1]],
-      [Z_NOSE, SILL[1]],
+      [-1.05, 0],
+      [1.05, 0],
+      [1.05, LIP_F],
+      [-1.05, LIP_F],
     ],
-    '#141516',
+    black,
+  );
+  fill(
+    ctx,
+    'rear',
+    [
+      [-1.05, 0],
+      [1.05, 0],
+      ...LIP_R.slice().reverse(),
+      ...LIP_R.slice(1).map(([x, y]): Pt => [-x, y]),
+    ],
+    black,
   );
 
-  // --- top: white roof, two white bonnet stripes outboard of the vents ---
+  // --- top: white roof square, two white bonnet stripes outboard of the vents ---
   fill(
     ctx,
     'top',
     [
-      [0.3, -0.66],
-      [0.3, 0.66],
-      [-1.2, 0.66],
-      [-1.2, -0.66],
+      [ROOF.z[1], -ROOF.x],
+      [ROOF.z[1], ROOF.x],
+      [ROOF.z[0], ROOF.x],
+      [ROOF.z[0], -ROOF.x],
     ],
     white,
   );

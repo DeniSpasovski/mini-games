@@ -215,7 +215,8 @@ function verify(json, bin, plans, out) {
       const B = new Float32Array(got.buffer);
       const max = MAX_ERROR[plans[vi].semantic];
       for (let i = 0; i < A.length; i++)
-        if (!(Math.abs(A[i] - B[i]) <= max))
+        // The exponent filter keeps relative precision: tiling UVs far outside 0..1 may move by `max` x |value|.
+        if (!(Math.abs(A[i] - B[i]) <= max * Math.max(1, Math.abs(A[i]))))
           fail(`${plans[vi].semantic} moved ${Math.abs(A[i] - B[i])}`);
     } else if (Buffer.compare(Buffer.from(got), Buffer.from(want)) !== 0) {
       fail('does not round-trip');
