@@ -52,6 +52,7 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 | [Bimmer GT2](cars/bimmer-gt2/)      | RWD   | E92 GT2 racer from a CC BY Sketchfab GLB (test)     |
 | [Zastava 101](cars/zastava-101/)    | FWD   | hand-built from a blueprint                         |
 | [Fiesta WRC](cars/fiesta/)          | AWD   | WRC Fiesta with a visible cockpit (test car)        |
+| [Citroen C4 WRC](cars/citroen-c4/)  | AWD   | 2007 WRC C4 with a visible cockpit (test car)       |
 | [Lancer EVO VI](cars/lancer-evo-6/) | AWD   | 1999-style Lancer with a visible cockpit (test car) |
 
 [![Skoda Rally](cars/skoda-rally/screenshots/front-34.jpg)](cars/skoda-rally/) [![Zastava](cars/zastava-101/screenshots/front-34.jpg)](cars/zastava-101/)

@@ -303,7 +303,8 @@ const isArch = (t) => {
  *   side chart, whose texels there belong to the opposite side's body: unpainted lines.
  * - `chart: 'rear'` / `'front'`: up-facing triangles (normal y > minNy) -> the end chart, for a low ledge that
  *   would otherwise take the top chart's colour at its z / x instead of the rows' colour at its height (a bumper
- *   lip among red rows turned blue).
+ *   lip among red rows turned blue). With `any: true`, every triangle in the box (recess walls inside a bumper,
+ *   whose sideways faces would land on the side charts' red flank).
  * - `chart: 'side'`: triangles facing along the car (front / rear) -> the side chart of their
  *   own side. For wheel-arch flares: on the end charts the front and rear arches share texels
  *   with each other (and the bumper corners), so they could not take the paint around them.
@@ -327,7 +328,10 @@ const boxChart = (t) => {
     if (ax < b.x[0] || ax > b.x[1] || c[1] < b.y[0] || c[1] > b.y[1]) continue;
     if (c[2] < b.z[0] || c[2] > b.z[1]) continue;
     if (b.chart === 'top' && ny > (b.minNy ?? 0)) return 'top';
-    if ((b.chart === 'rear' || b.chart === 'front') && ny > (b.minNy ?? 0))
+    if (
+      (b.chart === 'rear' || b.chart === 'front') &&
+      (b.any || ny > (b.minNy ?? 0))
+    )
       return b.chart;
     if (
       b.chart === 'side' &&
@@ -462,6 +466,161 @@ for (const f of cfg.parts?.fills ?? []) {
         : [base, base + i, base + i + 1]),
     );
   console.log(`fill added to ${f.material}: ${f.poly.length - 2} triangles`);
+}
+// parts.solids: [{ material, frame?: { origin: [x, y, z], tilt }, poly: [[u, v], ...], w: [w0, w1], bevel? }] - small
+// convex prisms (grille bars, badge shapes, back plates) built in code and added to a material's primitive. `poly` is
+// convex and counter-clockwise seen from outside, in the frame's (u, v) plane: u = +x, v = up the plane, w = out of it
+// (frame: origin + tilt in degrees, the plane leaning back at the top; no frame = u/v/w are x/y/z). The prism runs from
+// w0 to w1; `bevel` insets the front face by that much (a chamfer round the front edge). No back cap (never seen).
+for (const sd of cfg.parts?.solids ?? []) {
+  const out = prims[MATERIALS.indexOf(sd.material)];
+  if (!out) throw new Error(`parts.solids: unknown material ${sd.material}`);
+  const [ox, oy, oz] = sd.frame?.origin ?? [0, 0, 0];
+  const th = ((sd.frame?.tilt ?? 0) * Math.PI) / 180;
+  const [c, sn] = [Math.cos(th), Math.sin(th)];
+  const to = ([u, v, w]) => [ox + u, oy + v * c + w * sn, oz - v * sn + w * c];
+  const poly = sd.poly;
+  const n = poly.length;
+  const [w0, w1] = sd.w;
+  const b = sd.bevel ?? 0;
+  // Inset polygon: each edge moved inwards by b, neighbours intersected (convex, so no self crossings).
+  const lines = poly.map(([u0, v0], i) => {
+    const [u1, v1] = poly[(i + 1) % n];
+    const l = Math.hypot(u1 - u0, v1 - v0);
+    const nu = (v1 - v0) / l; // outward normal of a CCW edge
+    const nv = -(u1 - u0) / l;
+    return { nu, nv, d: nu * u0 + nv * v0 - b };
+  });
+  const inset = lines.map((a, i) => {
+    const k = lines[(i + n - 1) % n];
+    const det = k.nu * a.nv - k.nv * a.nu;
+    return [(k.d * a.nv - k.nv * a.d) / det, (k.nu * a.d - k.d * a.nu) / det];
+  });
+  let tris = 0;
+  const tri = (a, bb, cc) => {
+    const A = to(a);
+    const B = to(bb);
+    const C = to(cc);
+    const e1 = B.map((q, i) => q - A[i]);
+    const e2 = C.map((q, i) => q - A[i]);
+    let nn = [
+      e1[1] * e2[2] - e1[2] * e2[1],
+      e1[2] * e2[0] - e1[0] * e2[2],
+      e1[0] * e2[1] - e1[1] * e2[0],
+    ];
+    const nl = Math.hypot(...nn) || 1;
+    nn = nn.map((q) => q / nl);
+    const base = out.pos.length / 3;
+    for (const p of [A, B, C]) {
+      out.pos.push(...p);
+      out.nrm.push(...nn);
+      out.uv.push(p[0], p[1] + p[2]);
+    }
+    out.idx.push(base, base + 1, base + 2);
+    tris++;
+  };
+  const wf = w1 - b;
+  const quad = (p0, p1, p2, p3) => {
+    tri(p0, p1, p2);
+    tri(p0, p2, p3);
+  };
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const [a, bb] = [poly[i], poly[j]];
+    quad([...a, w0], [...bb, w0], [...bb, wf], [...a, wf]);
+    if (b > 0) {
+      const [ia, ib] = [inset[i], inset[j]];
+      quad([...a, wf], [...bb, wf], [...ib, w1], [...ia, w1]);
+    }
+  }
+  const front = b > 0 ? inset : poly;
+  for (let i = 1; i < n - 1; i++)
+    tri(
+      [...front[0], b > 0 ? w1 : wf],
+      [...front[i], b > 0 ? w1 : wf],
+      [...front[i + 1], b > 0 ? w1 : wf],
+    );
+  console.log(`solid added to ${sd.material}: ${tris} triangles`);
+}
+// parts.shells: [{ from, cover, wall, offset, centre? }] - a thin open sheet (a modelled lamp that is one surface) gets
+// depth: a copy of it `offset` metres outwards (away from `centre`, default the car's middle) goes into the `cover`
+// material (a see-through lens over the sheet) and a strip joins the two along every free edge (`wall` material: the
+// housing's rim), so it reads as a lens set into a bezel, not a texture on the body.
+for (const sh of cfg.parts?.shells ?? []) {
+  const src = prims[MATERIALS.indexOf(sh.from)];
+  const cover = prims[MATERIALS.indexOf(sh.cover)];
+  const wall = prims[MATERIALS.indexOf(sh.wall)];
+  if (!src || !cover || !wall)
+    throw new Error('parts.shells: unknown material');
+  const centre = sh.centre ?? [0, 0.9, -0.2];
+  const nv = src.pos.length / 3;
+  const key = (i) =>
+    [0, 1, 2].map((k) => Math.round(src.pos[i * 3 + k] * 1e4)).join(',');
+  // Smoothed normal per welded position, turned away from the centre.
+  const acc = new Map();
+  for (let i = 0; i < nv; i++) {
+    const a = acc.get(key(i)) ?? [0, 0, 0];
+    for (let k = 0; k < 3; k++) a[k] += src.nrm[i * 3 + k];
+    acc.set(key(i), a);
+  }
+  const off = [];
+  for (let i = 0; i < nv; i++) {
+    const a = acc.get(key(i));
+    const l = Math.hypot(...a) || 1;
+    let n = a.map((c) => c / l);
+    const away = [0, 1, 2].reduce(
+      (t, k) => t + n[k] * (src.pos[i * 3 + k] - centre[k]),
+      0,
+    );
+    if (away < 0) n = n.map((c) => -c);
+    off.push(...[0, 1, 2].map((k) => src.pos[i * 3 + k] + n[k] * sh.offset));
+  }
+  const cBase = cover.pos.length / 3;
+  for (let i = 0; i < nv; i++) {
+    cover.pos.push(off[i * 3], off[i * 3 + 1], off[i * 3 + 2]);
+    cover.nrm.push(src.nrm[i * 3], src.nrm[i * 3 + 1], src.nrm[i * 3 + 2]);
+    cover.uv.push(0, 0);
+  }
+  for (const i of src.idx) cover.idx.push(cBase + i);
+  // Free edges: used by one triangle (positions welded).
+  const edges = new Map();
+  for (let t = 0; t < src.idx.length; t += 3)
+    for (let e = 0; e < 3; e++) {
+      const [a, b] = [src.idx[t + e], src.idx[t + ((e + 1) % 3)]];
+      const [ka, kb] = [key(a), key(b)];
+      const id = ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`;
+      const rec = edges.get(id) ?? { a, b, n: 0 };
+      rec.n++;
+      edges.set(id, rec);
+    }
+  let strips = 0;
+  for (const { a, b, n } of edges.values()) {
+    if (n !== 1) continue;
+    const P = (i, shifted) =>
+      [0, 1, 2].map((k) => (shifted ? off : src.pos)[i * 3 + k]);
+    const [A0, B0, A1, B1] = [P(a, 0), P(b, 0), P(a, 1), P(b, 1)];
+    const e1 = B0.map((q, i) => q - A0[i]);
+    const e2 = A1.map((q, i) => q - A0[i]);
+    let nn = [
+      e1[1] * e2[2] - e1[2] * e2[1],
+      e1[2] * e2[0] - e1[0] * e2[2],
+      e1[0] * e2[1] - e1[1] * e2[0],
+    ];
+    const nl = Math.hypot(...nn) || 1;
+    nn = nn.map((q) => q / nl);
+    const base = wall.pos.length / 3;
+    for (const p of [A0, B0, B1, A1]) {
+      wall.pos.push(...p);
+      wall.nrm.push(...nn);
+      wall.uv.push(0, 0);
+    }
+    wall.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    wall.idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+    strips++;
+  }
+  console.log(
+    `shell ${sh.from}: cover ${src.idx.length / 3} triangles, ${strips} rim strips`,
+  );
 }
 const { pos: outPos, nrm: outNrm, uv: outUv, idx: outIdx } = prims[0];
 // Optional wheel-well liner: the cut-out leaves the arch open (see-through behind the

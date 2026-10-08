@@ -18,6 +18,8 @@ README files carry the same information in more detail. Keep this file current w
 | [three.js](https://threejs.org/)                                                | MIT              | rendering (runtime)               |
 | Rsbuild, Rspack, Rstest, Rslint, TypeScript, Prettier, happy-dom, meshoptimizer | MIT / Apache-2.0 | build and test tooling (dev only) |
 
+3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party: its critters, arenas, effects and sounds are original and procedural.
+
 No fonts, textures, sounds or music files are bundled: textures are painted on canvases at runtime, audio is
 synthesised with WebAudio, and text uses system fonts.
 
@@ -48,6 +50,7 @@ repository.
 | `bimmer_gt2.glb`, `bimmer_gt2_wheel.glb`                                                 | "E92 Barnfind" by Tushar Singh (Sketchfab; split by material and converted, roundel logos + plate removed)                              | CC BY 4.0 |
 | `skoda_rally.glb`, `skoda_rally_wheel.glb`                                               | "Skoda Fabia R5 Rally Car" by SenturyUK (Sketchfab)                                                                                     | CC BY 4.0 |
 | `fiesta.glb`, `fiesta_wheel.glb`                                                         | "Ford Fiesta WRC" by kevin (Sketchfab)                                                                                                  | CC BY 4.0 |
+| `citroen_c4.glb`, `citroen_c4_wheel.glb`                                                 | "Citroen C4 WRC Red Bull 2007" by Max (Sketchfab; sponsor livery, boot-lid emblem and plate removed, repainted)                         | CC BY 4.0 |
 | `lancer_evo_6.glb`, `lancer_evo_6_wheel.glb`, `lancer_evo_6_{lamps,seat,fabric,cab}.png` | "Mitsubishi Lancer Evolution 6" by vecarz (Sketchfab; converted and repainted, badges + plate removed; lamp and seat textures kept)     | CC BY 4.0 |
 | none (Zastava 101)                                                                       | hand-built in code from a public-domain factory blueprint; shape reference "Zastava 101 (Stojadin)" by Tomislav Tomljenovic (Sketchfab) | CC BY 4.0 |
 
@@ -66,7 +69,7 @@ Papers and articles read to tune the rally tyre temperature model; linked in the
 
 ## Trademarks and likenesses
 
-Skoda, Fabia, BMW, M3, Ford, Fiesta, Mitsubishi, Lancer Evolution, Zastava and other make or model names are trademarks of their owners and appear only to
+Skoda, Fabia, BMW, M3, Ford, Fiesta, Citroen, C4, Mitsubishi, Lancer Evolution, Zastava and other make or model names are trademarks of their owners and appear only to
 identify the car that inspired a model. The liveries use no manufacturer, sponsor or series logos. Emergency vehicles
 in the Jackie map carry only generic lettering ("POLICE", "FIRE DEPT", "AMBULANCE") and no agency names, logos or badges.
 The signs on the Ajvatovci are approved to be used by owners.

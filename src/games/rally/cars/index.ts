@@ -1,6 +1,7 @@
 import { AVAILABLE_CARS, released } from '../release';
 import { bimmerGt2 } from './bimmer-gt2/bimmer-gt2';
 import { bimmerM3 } from './bimmer-m3/bimmer-m3';
+import { citroenC4 } from './citroen-c4/citroen-c4';
 import { fiesta } from './fiesta/fiesta';
 import { lancerEvo6 } from './lancer-evo-6/lancer-evo-6';
 import type { CarDef } from './shared/types';
@@ -14,6 +15,7 @@ export const ALL_CARS: CarDef[] = [
   bimmerM3,
   bimmerGt2,
   fiesta,
+  citroenC4,
   lancerEvo6,
 ];
 

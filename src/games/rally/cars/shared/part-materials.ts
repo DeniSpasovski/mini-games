@@ -43,7 +43,11 @@ export type PartName =
   | 'lamphousing'
   | 'headled'
   | 'tailled'
+  | 'tailc4'
   | 'redcover'
+  | 'flagblue'
+  | 'flagwhite'
+  | 'flagred'
   | 'interior'
   | 'cage';
 
@@ -682,6 +686,121 @@ function tailCMaps(): {
 }
 
 /**
+ * Citroen C4 WRC tail lamp ('corner' wrap fitted over the lamp mesh: u = |x| - |z| from its inner end, v from the top
+ * edge down; a tall wedge that is wide at the bottom: the rear-facing lower pad is v 0.72 - 1, the sweep up the pillar
+ * is the narrow upper part, the mesh's two grooves sit at v 0.435 and 0.705). Top band: LED light-guide stripes; middle:
+ * a dot matrix; lower pad: reflector ribs on the inner side and the white reversing lens on the outer side.
+ */
+function tailC4Maps(): {
+  map: CanvasTexture;
+  glow: CanvasTexture;
+  reverseGlow: CanvasTexture;
+} {
+  const W = 512;
+  const H = 256;
+  const REV = { u0: 0.58, u1: 0.93, v0: 0.76, v1: 0.93 };
+  const draw = (
+    g: CanvasRenderingContext2D,
+    c: {
+      base: string;
+      dark: string;
+      stripe: [string, string];
+      dot: string;
+      rib: [string, string];
+      white: string;
+    },
+  ) => {
+    g.fillStyle = c.base;
+    g.fillRect(0, 0, W, H);
+    // Top band: light-guide stripes.
+    for (let x = 0; x < W; x += 12) {
+      g.fillStyle = c.stripe[(x / 12) % 2];
+      g.fillRect(x, 0.04 * H, 6, 0.4 * H);
+    }
+    // Middle band: dot matrix.
+    g.fillStyle = c.dot;
+    for (let row = 0; row < 4; row++)
+      for (let x = 10; x < W; x += 14) {
+        g.beginPath();
+        g.arc(x + (row % 2) * 7, (0.47 + row * 0.058) * H, 3.2, 0, 7);
+        g.fill();
+      }
+    // Lower pad: slanted reflector ribs.
+    g.save();
+    g.beginPath();
+    g.rect(0, 0.72 * H, W, 0.28 * H);
+    g.clip();
+    for (let x = -H; x < W; x += 26) {
+      g.fillStyle = c.rib[0];
+      g.beginPath();
+      g.moveTo(x, H);
+      g.lineTo(x + 13, H);
+      g.lineTo(x + 13 + 0.28 * H * 0.7, 0.72 * H);
+      g.lineTo(x + 0.28 * H * 0.7, 0.72 * H);
+      g.fill();
+    }
+    g.restore();
+    // Dark grooves between the sections and the rim of the reversing lens.
+    g.fillStyle = c.dark;
+    g.fillRect(0, 0.425 * H, W, 0.022 * H);
+    g.fillRect(0, 0.695 * H, W, 0.022 * H);
+    g.fillRect(
+      REV.u0 * W - 7,
+      REV.v0 * H - 7,
+      (REV.u1 - REV.u0) * W + 14,
+      (REV.v1 - REV.v0) * H + 14,
+    );
+    g.fillStyle = c.white;
+    g.fillRect(
+      REV.u0 * W,
+      REV.v0 * H,
+      (REV.u1 - REV.u0) * W,
+      (REV.v1 - REV.v0) * H,
+    );
+    g.fillStyle = c.dark;
+    for (let k = 1; k < 4; k++)
+      g.fillRect(
+        (REV.u0 + ((REV.u1 - REV.u0) * k) / 4) * W - 1,
+        REV.v0 * H,
+        3,
+        (REV.v1 - REV.v0) * H,
+      );
+  };
+  const map = canvas(W, H, (g) =>
+    draw(g, {
+      base: '#b9141b',
+      dark: '#1b0507',
+      stripe: ['#d92830', '#8e0e14'],
+      dot: '#ff7566',
+      rib: ['#8a0d13', ''],
+      white: '#f2f2ef',
+    }),
+  );
+  const glow = canvas(W, H, (g) =>
+    draw(g, {
+      base: '#2c0406',
+      dark: '#000',
+      stripe: ['#ff2a1c', '#4a0608'],
+      dot: '#ff5a44',
+      rib: ['#3a0508', ''],
+      white: '#2c0406',
+    }),
+  );
+  const reverseGlow = canvas(W, H, (g) => {
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, W, H);
+    g.fillStyle = '#fff';
+    g.fillRect(
+      REV.u0 * W,
+      REV.v0 * H,
+      (REV.u1 - REV.u0) * W,
+      (REV.v1 - REV.v0) * H,
+    );
+  });
+  return { map, glow, reverseGlow };
+}
+
+/**
  * Rear side windows (rear door glass u 0.35 - 1 + quarter glass u 0 - 0.33) with the rally
  * car's black plastic panel along the top and its row of rounded vent openings.
  * `finish` = R clearcoat, G roughness: glossy glass, matt plastic.
@@ -1135,6 +1254,11 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoat: 1,
       clearcoatRoughness: 0.05,
     }),
+  /** Roof scoop stripes (French flag, Citroen C4 WRC). */
+  flagblue: () => new MeshStandardMaterial({ color: 0x1d3a9e, roughness: 0.4 }),
+  flagwhite: () =>
+    new MeshStandardMaterial({ color: 0xf1f1f1, roughness: 0.4 }),
+  flagred: () => new MeshStandardMaterial({ color: 0xd3202c, roughness: 0.4 }),
   /** Modelled cockpit of an imported body (seats, dash, door cards): dark, matte - without it the cockpit got the livery. */
   interior: () => new MeshStandardMaterial({ color: 0x2a2c30, roughness: 0.9 }),
   /** Roll cage of an imported cockpit: light grey like the procedural cars' cage (car-model.ts cageMat). */
@@ -1183,6 +1307,24 @@ const BUILDERS: Record<PartName, () => Material> = {
       roughness: 0.3,
       metalness: 0,
     }),
+  /** Citroen C4 WRC tail lamp, see tailC4Maps - needs `parts.wrap` 'corner'. */
+  tailc4: () => {
+    const { map, glow, reverseGlow } = tailC4Maps();
+    return lamp(
+      new MeshPhysicalMaterial({
+        map,
+        emissive: 0xffffff,
+        emissiveMap: glow,
+        emissiveIntensity: 0.4,
+        roughness: 0.16,
+        metalness: 0,
+        clearcoat: 1,
+        clearcoatRoughness: 0.05,
+      }),
+      4,
+      reverseGlow,
+    );
+  },
   /** Modelled tail-lamp LED strip: red, idle glow, bright with the brake pedal (setBrake). */
   tailled: () =>
     lamp(

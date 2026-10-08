@@ -24,6 +24,7 @@ export const AVAILABLE_CARS: readonly string[] = [
 export const TEST_CARS: readonly string[] = [
   'bimmer_gt2',
   'fiesta',
+  'citroen_c4',
   'lancer_evo_6',
 ];
 

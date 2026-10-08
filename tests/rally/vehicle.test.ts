@@ -73,6 +73,7 @@ const BANDS: Record<
   zastava_101: { zeroTo100: [6, 16], brake100: [25, 80], top: [130, 200] },
   bimmer_m3: { zeroTo100: [3, 10], brake100: [25, 75], top: [150, 290] },
   bimmer_gt2: { zeroTo100: [3, 10], brake100: [25, 75], top: [150, 290] },
+  citroen_c4: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
   fiesta: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
   lancer_evo_6: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
 };
