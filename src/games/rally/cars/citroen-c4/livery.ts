@@ -117,10 +117,8 @@ const HOOD_CREST: Pt[] = [
 ];
 const HOOD_LINE = 0.01;
 /** Yellow disc on the side: the fender's rear top / the door's front (centre z, y, radius); cut flat at `top`, the window's lower edge (0.98 m on the model), so it never reaches the pillar. */
-const DISC = { z: 0.74, y: 0.86, r: 0.3185, top: 0.98 };
+const DISC = { z: 0.89, y: 0.76, r: 0.3504, top: 0.98 };
 const YELLOW = '#f6c91c';
-/** Footprint of the wing mirror's stalk on the door (z, y): not painted yellow. */
-const MIRROR = { z0: 0.415, z1: 0.565, y0: 0.865 };
 /** The hood's front lip, seen from the front, starts at this height (just above the grille). */
 const HOOD_LIP_Y = 0.72;
 /** Roof edge (the door line) |x| by z, measured on the model's top-facing faces; the white panel keeps ROOF_RED inside it. */
@@ -174,8 +172,6 @@ function paint(
     ];
   });
   sides(ctx, disc, yellow);
-  // The wing mirror's stalk lies on the door inside the disc's front edge: keep its footprint blue.
-  sides(ctx, rect(MIRROR.z0, MIRROR.z1, MIRROR.y0, DISC.top + 0.01), blue);
   sides(ctx, rect(Z_NOSE, Z_TAIL, 0.1, 0.3), '#141516');
 
   // --- ends: blue nose; red tail with a navy bumper: trapezoid under the bumper line, white line on its diagonals ---
