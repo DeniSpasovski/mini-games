@@ -70,16 +70,16 @@ without consent or in dev). Event names are `game_<game id>_<event>` (e.g. `game
 recommended game events. Param names are `game_<name>` when every game sends them and `game_<game id>_<name>` when only one
 does; `game_id` is added to every event. `?analytics=log` prints each event to the console, also in dev.
 
-| `<event>`        | Sent when                                                                                   | Params                                                                                                                                                                           |
-| ---------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `level_start`    | rally: stage clock starts (GO); hole: run starts (countdown)                                | `game_id`, `game_level_name` (map id), `game_version`; rally `_car`, `_tyre`, `_setup`, `_gearing`, `_times_version`; hole `_difficulty`, `_seed`, `_layout`, `_scoring_version` |
-| `level_end`      | run finished (`game_success: true`) or left mid-run (`game_success: false` + `game_reason`) | start params + `game_time_s`; rally `_penalty_s`, `_new_best` (quit: `_progress_pct`); hole `game_score`, `_level`, `_cleared`, `_items_eaten`, `_pct_eaten`                     |
-| `post_score`     | run finished                                                                                | start params + `game_score` (rally: stage time in ms, lower is better; hole: points), `game_character` (car / hole colour); hole `_level`                                        |
-| `select_content` | a viewer page opens (car viewer: also on car change)                                        | `game_content_type` (`map_viewer`, `car_viewer`), `game_content_id` (map / car id)                                                                                               |
+| `<event>`        | Sent when                                                                                   | Params                                                                                                                                                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `level_start`    | rally: stage clock starts (GO); hole: run starts (countdown); kaboom: match starts          | `game_id`, `game_level_name` (map id), `game_version`; rally `_car`, `_tyre`, `_setup`, `_gearing`, `_times_version`; hole `_difficulty`, `_seed`, `_layout`, `_scoring_version`; kaboom `_difficulty`, `_bots`, `_rounds`, `game_character` (critter) |
+| `level_end`      | run finished (`game_success: true`) or left mid-run (`game_success: false` + `game_reason`) | start params + `game_time_s`; rally `_penalty_s`, `_new_best` (quit: `_progress_pct`); hole `game_score`, `_level`, `_cleared`, `_items_eaten`, `_pct_eaten`; kaboom `_round`, `_round_wins` (success = won the match)                                 |
+| `post_score`     | run finished                                                                                | start params + `game_score` (rally: stage time in ms, lower is better; hole: points), `game_character` (car / hole colour); hole `_level`                                                                                                              |
+| `select_content` | a viewer page opens (car viewer: also on car change)                                        | `game_content_type` (`map_viewer`, `car_viewer`), `game_content_id` (map / car id)                                                                                                                                                                     |
 
-`_x` = `game_rally_x` / `game_hole_x`.
+`_x` = `game_rally_x` / `game_hole_x` / `game_kaboom_x`.
 
-- Only ranked runs are tracked: no rally free drive / test pad, no Hole dev runs (`?time=`, `?level=`, `?bot=1`).
+- Only ranked runs are tracked: no rally free drive / test pad, no Hole dev runs (`?time=`, `?level=`, `?bot=1`), no Kaboom autopilot or fixed-seed runs (`?bot=1`, `?seed=`).
 - Quits are tracked from the pause menu (restart, main menu, portal, rally spawn change); closing the tab is not.
 - `game_rally_times_version` / `game_hole_scoring_version` keep times / scores from before a physics or scoring change apart in reports.
 - GA property settings (Admin; not in code, redo them for a new property):
@@ -123,7 +123,8 @@ The portal page shows `SITE.tagline` ("This site was made using AI agents under 
 
 1. Create `src/games/<id>/game.json` (copy `src/games/rally/game.json`) and the entry files it lists.
 2. `npm run dev` — pages are discovered automatically: `play` -> `/games/<id>/`, others -> `/games/<id>/<page>.html`.
-3. Press **F9** in-game (dev server only) to save `thumbnail.jpg` for the portal card (call `installThumbnailCapture` once in your play page).
+3. A game under construction sets `"hideInProd": true` in its `game.json`: the release build (`npm run build`) gives it no portal card but still builds it, so the direct link `games/<id>/` works; the dev server and `npm run build:test` (the Pages workflow's default) list it. Remove the flag to release it (and add its `thumbnail.jpg`).
+4. Press **F9** in-game (dev server only) to save `thumbnail.jpg` for the portal card (call `installThumbnailCapture` once in your play page).
 
 See `.claude/skills/new-minigame/SKILL.md` for the full checklist.
 

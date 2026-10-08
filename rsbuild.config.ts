@@ -61,6 +61,10 @@ const NO_ZOOM_VIEWPORT =
  */
 const gameMeta: Record<string, (page: string) => Record<string, string>> = {
   rally: (page) => (page === 'index' ? { viewport: NO_ZOOM_VIEWPORT } : {}),
+  kaboom: (page) => ({
+    ...(page === 'index' ? { viewport: NO_ZOOM_VIEWPORT } : {}),
+    'theme-color': '#bfdcea',
+  }),
   // Only the play page locks zoom; the item / map viewer and balance pages are tools that need pinch zoom.
   hole: (page) => ({
     ...(page === 'index' ? { viewport: NO_ZOOM_VIEWPORT } : {}),
@@ -232,6 +236,37 @@ export default defineConfig(({ envMode }) => ({
           const body = Buffer.concat(chunks).toString('utf8');
           const b64 = body.replace(/^data:image\/\w+;base64,/, '');
           const out = path.join(gamesDir, game, 'thumbnail.jpg');
+          fs.writeFileSync(out, Buffer.from(b64, 'base64'));
+          res.end(`saved ${path.relative(root, out)}`);
+        });
+      });
+      // Dev-only helper: POST a JPEG data URL to save an in-game screenshot as
+      // src/games/<game>/screenshots/<name>.jpg (see saveScreenshot in src/shared/thumbnail.ts).
+      server.middlewares.use('/__dev/screenshot', (req, res) => {
+        const url = new URL(req.url ?? '', 'http://x');
+        const clean = (v: string | null) =>
+          (v ?? '').replace(/[^a-z0-9_-]/gi, '');
+        const game = clean(url.searchParams.get('game'));
+        const name = clean(url.searchParams.get('name'));
+        if (
+          req.method !== 'POST' ||
+          !game ||
+          !name ||
+          !fs.existsSync(path.join(gamesDir, game))
+        ) {
+          res.statusCode = 400;
+          res.end('unknown game / name');
+          return;
+        }
+        const chunks: Buffer[] = [];
+        req.on('data', (c: Buffer) => chunks.push(c));
+        req.on('end', () => {
+          const b64 = Buffer.concat(chunks)
+            .toString('utf8')
+            .replace(/^data:image\/\w+;base64,/, '');
+          const dir = path.join(gamesDir, game, 'screenshots');
+          fs.mkdirSync(dir, { recursive: true });
+          const out = path.join(dir, `${name}.jpg`);
           fs.writeFileSync(out, Buffer.from(b64, 'base64'));
           res.end(`saved ${path.relative(root, out)}`);
         });

@@ -1,7 +1,7 @@
 import './portal.css';
 import { SITE } from '../site.config';
 import { consentEnabled, openConsentBanner } from '../shared/consent';
-import { resolveGamePage, type GameManifest } from './manifest';
+import { isGameListed, resolveGamePage, type GameManifest } from './manifest';
 
 /**
  * The portal is intentionally tiny: it lists every src/games/<id>/game.json
@@ -17,6 +17,9 @@ const thumbCtx = import.meta.webpackContext('../games', {
   recursive: true,
   regExp: /[\\/]thumbnail\.(jpg|png)$/,
 });
+
+/** The published build: games with `hideInProd` get no card (their pages are still built and reachable by link). */
+const RELEASE_BUILD = import.meta.env.PROD && !__TEST_BUILD__;
 
 interface GameEntry {
   manifest: GameManifest;
@@ -37,6 +40,7 @@ function loadGames(): GameEntry[] {
       const manifest = manifestCtx(k) as GameManifest;
       return { manifest, thumbnail: thumbs.get(manifest.id) };
     })
+    .filter(({ manifest }) => isGameListed(manifest, RELEASE_BUILD))
     .sort((a, b) => a.manifest.title.localeCompare(b.manifest.title));
 }
 
