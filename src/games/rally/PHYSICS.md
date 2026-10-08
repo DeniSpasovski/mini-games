@@ -247,7 +247,7 @@ pages and the reference tests above are unchanged).
   (tarmac 1 ... grass 0.3, snow 0).
 - **Heat:** sliding work (`|F| x slide speed / static load`, the stones take 60 % of it on loose ground) + carcass flex
   (speed x load). **Cooling:** air (more with speed), the ground (towards the track temperature), water. Capped at 150 °C.
-  Tyres start a stage at air + 15 (`resetTyreTemps` on start / restart; reset to road keeps them).
+  Tyres start a stage at the air temperature (`resetTyreTemps` on start / restart; reset to road keeps them).
 - **Grip:** `TyreDef.temp` window per compound; below it grip falls to `cold` over 45 °C, above it to `hot` over 35 °C
   (smoothstep), and loose ground halves the loss (tread bites, rubber matters less). The factor multiplies the wheel's
   grip input (`tire.ts` and the cached surface tables are untouched); the autopilot's corner plan includes it

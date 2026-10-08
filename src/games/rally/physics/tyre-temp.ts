@@ -30,8 +30,6 @@ export const COLD_SPAN = 45;
 export const HOT_SPAN = 35;
 /** Sun heat on a dark surface with the sun high and no clouds (°C above the air). */
 const SUN_HEAT = 24;
-/** Tyres arrive at the start this much above the air (the road section from the service park). */
-const START_ABOVE_AIR = 15;
 
 // Heat in (°C/s): sliding friction work per unit of nominal load, and carcass flex per m/s of speed.
 const SLIDE_HEAT = 0.65;
@@ -65,9 +63,9 @@ export function trackTemp(c: Climate, s: SurfaceDef): number {
   return c.air + c.sun * s.heat;
 }
 
-/** Tyre temperature at the start of a stage (°C). */
+/** Tyre temperature at the start of a stage (°C): the air temperature. */
 export function startTemp(c: Climate): number {
-  return c.air + START_ABOVE_AIR;
+  return c.air;
 }
 
 const smooth = (x: number) => {
