@@ -243,6 +243,9 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   keep underbody / axle `inside` boxes out of the wheel area; add `wheels.liner` (+ `floorY`) so the wells are not see-through, and make
   the car's atlas black + `matteRect` at the matte texel the liner uses.
 - **Gaps in the source mesh** (glass that stops short under the wipers): `parts.fills` patches.
+- **A part to rebuild** (a grille whose thin bars look weak): drop the source shapes with a `region` rule -> `logo`, build the new bars / badge from `parts.solids` (convex prisms in a tilted frame, optional bevel; worked example `cars/citroen-c4/`).
+- **Textured lamps** (`'corner'` wrap): draw the lamp in `part-materials.ts` (`tailC4Maps`: stripes, dot matrix, ribs, reverse lens) and map the lamp's `Phares` rule to it.
+- **Recess walls in a bumper** take the side charts' flank colour: `atlas.chartBoxes` `{ chart: 'rear', any: true }` puts every face in the box on the rear chart.
 - **Look from below** (hide the viewer's ground plane; a z-buffer of the GLB from below finds faces looking up = holes).
 - **Livery edges from geometry**: a top-down curvature map (d2y/dx2 of the highest-surface heightmap) shows crests (convex) and seams
   (grooves) - read their x per 5 cm of z and use them as the shape outline (`cars/bimmer-m3/livery.ts` hood).
