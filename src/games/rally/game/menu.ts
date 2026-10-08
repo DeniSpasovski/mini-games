@@ -96,6 +96,35 @@ const BUILT_WITH: SourceLink[] = [
   { label: 'Rsbuild', url: 'https://rsbuild.rs/', note: 'build tooling, MIT' },
 ];
 
+/** Research behind the tyre temperature model (PHYSICS.md "Tyre temperature"). Read only, nothing copied. */
+const TYRE_RESEARCH: SourceLink[] = [
+  {
+    label: 'Tyre friction vs temperature (rig test, PMC)',
+    url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC9459800/',
+    note: 'grip curve, warm-up under sliding',
+  },
+  {
+    label: 'Izze Racing: tyre temperature white paper',
+    url: 'https://www.izzeracing.com/ewExternalFiles/Izze_Racing_White_Paper_Tire_Temperature.pdf',
+    note: 'grip vs temperature shape',
+  },
+  {
+    label: 'Rubber friction and temperature (arXiv 2602.22078)',
+    url: 'https://arxiv.org/pdf/2602.22078',
+    note: 'glass transition, peak grip temperature',
+  },
+  {
+    label: 'Pirelli press: tarmac rally tyres on wet and dry asphalt',
+    url: 'https://press.pirelli.com/p-zero-ra-wrc-shows-reliability-on-wet-and-dry-asphalt/',
+    note: 'tarmac tyre temperatures',
+  },
+  {
+    label: 'Pirelli press: gravel rally tyres in Finland',
+    url: 'https://press.pirelli.com/scorpion-kx-soft-stars-on-opening-day-of-rally-finland/',
+    note: 'gravel tyre temperatures',
+  },
+];
+
 /**
  * Main menu flow:  welcome -> (options) / map select -> car select -> start; the car screen has an optional
  * "Setup car" screen (tyres + suspension + gearing, defaults = the stage recommendation, see PHYSICS.md / README
@@ -367,6 +396,9 @@ class MainMenu {
       ${MAPS.map((m) => `<h3>${m.name}</h3>${links(m.sources, 'Fully procedural - no external data.')}`).join('')}
       <h2>Cars</h2>
       ${CARS.map((c) => `<h3>${c.name}</h3>${links(c.sources, 'Procedural model - no external sources.')}`).join('')}
+      <h2>Physics</h2>
+      <h3>Tyres</h3>
+      ${links(TYRE_RESEARCH, '')}
       <h2>Built with</h2>
       ${links(BUILT_WITH, '')}`;
     this.panel.append(

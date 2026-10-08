@@ -1,10 +1,14 @@
 # Lancer EVO VI (`lancer_evo_6`)
 
-A 1999-style rally Lancer from a **CC BY Sketchfab model**: the model's body, its **cockpit (seats with their own fabric, dash, wheel) kept and visible through
-the see-through glass**, its own 10-spoke rim **de-cambered and centred on the hub**, its own 3D head / tail lamps **with their original lamp texture** (brake and reversing sections light up), and our own
-livery (red with a white square in the middle of the roof, two white bonnet stripes, black skirts and bumper lips; shapes only, no logos or lettering). The manufacturer badges, plate, wheels,
-tyres and brake parts of the source are dropped (the game draws its own). In game it is **Lancer EVO VI**. AWD, 1230 kg, 2.0 turbo,
-300 hp. Test car (`TEST_CARS`, dev server only).
+A 1999-style rally Lancer from a **CC BY Sketchfab model**. In game it is **Lancer EVO VI**: AWD, 1230 kg, 2.0 turbo, 300 hp.
+Test car (`TEST_CARS`, dev server only).
+
+- **Kept from the model:** the body, the cockpit (seats, fabric, dash, steering wheel on the left) behind see-through glass, the
+  3D head / tail lamps with their own lamp texture (brake and reversing sections light up), and the 10-spoke rim (de-cambered,
+  centred on the hub, with a lip added so the game tyre meets it).
+- **Dropped:** badges, plate, tyres and brake parts (the game draws its own).
+- **Livery (ours):** red, a white square in the middle of the roof, two white bonnet stripes, black skirts and bumper lips; shapes
+  only, no logos or lettering.
 
 ![Front three-quarter](screenshots/front-34.jpg)
 

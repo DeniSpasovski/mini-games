@@ -1,4 +1,5 @@
 import { SURFACES, type SurfaceDef, type SurfaceId } from './surfaces';
+import type { TempWindow } from './tyre-temp';
 
 /**
  * Tyre compounds. A tyre does not change the tyre model (`tire.ts`): it re-tunes every surface
@@ -6,7 +7,7 @@ import { SURFACES, type SurfaceDef, type SurfaceId } from './surfaces';
  * (same id / dust / bump / loose, different mu / slide / peak slip / peak angle), precomputed
  * once so the physics step allocates nothing. Design + numbers: ../PHYSICS.md.
  *
- * Arcade rules: big readable differences, no wear / temperature. The right tyre is a modest
+ * Arcade rules: big readable differences, no wear. Temperature: `temp` window (tyre-temp.ts). The right tyre is a modest
  * bonus over `mixed`, the wrong one is a clear penalty that a careful driver can still finish on.
  */
 export type TyreId = 'tarmac' | 'mixed' | 'gravel';
@@ -27,6 +28,8 @@ export interface TyreDef {
   slide: readonly [hard: number, loose: number];
   /** Multiplier on peakSlip / peakAngle: < 1 = sharp and direct, > 1 = lazy, squirmy, drifty. */
   response: number;
+  /** Temperature window (°C) and the grip left when cold / overheated (physics/tyre-temp.ts). */
+  temp: TempWindow;
 }
 
 export const TYRES: Record<TyreId, TyreDef> = {
@@ -48,6 +51,7 @@ export const TYRES: Record<TyreId, TyreDef> = {
     },
     slide: [0.95, 0.9],
     response: 0.8,
+    temp: { lo: 65, hi: 100, cold: 0.8, hot: 0.82 },
   },
   mixed: {
     id: 'mixed',
@@ -67,6 +71,7 @@ export const TYRES: Record<TyreId, TyreDef> = {
     },
     slide: [1, 1],
     response: 1,
+    temp: { lo: 55, hi: 95, cold: 0.86, hot: 0.85 },
   },
   gravel: {
     id: 'gravel',
@@ -86,6 +91,7 @@ export const TYRES: Record<TyreId, TyreDef> = {
     },
     slide: [1.08, 1.03],
     response: 1.25,
+    temp: { lo: 40, hi: 85, cold: 0.92, hot: 0.86 },
   },
 };
 
