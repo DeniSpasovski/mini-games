@@ -49,10 +49,11 @@ No central registry needs editing.
    `installThumbnailCapture('<id>', () => { renderer.render(scene, camera); return renderer.domElement; })`,
    run `npm run dev`, open the game, press **F9** -> writes `src/games/<id>/thumbnail.jpg`.
    - Audio: the game's audio class (WebAudio / `Audio`) must start silent when `isMutedByUrl()` (`src/shared/mute-param.ts`, `?mute=1`) is true. **When you open the game in the browser pane to test, always add `mute=1` to the URL** - no sound while creating / editing, unless the task is a sound fix (then no param, low volume).
-5. Restart `npm run dev` after adding a new game folder / page (entries are read at startup).
-6. Tests in `tests/<id>/`; keep game logic DOM-free where possible so it is testable in node.
-7. Write the docs short (`AGENTS.md` "Write short"). Add `src/games/<id>/README.md` (high level: what it is, screenshot, how to play, feature list, links) and `src/games/<id>/DETAILS.md` (pages, keys, rules, architecture), and a row in the root `README.md` table.
-8. Verify: `npx tsc --noEmit -p tsconfig.json`, `npm run lint`, `npm run test`, `npm run build`.
+5. Work in progress? Add `"hideInProd": true` to `game.json`: the release build gives the game no portal card but still builds it, so people with the link (`games/<id>/`) can play it. The dev server and `build:test` list it. Remove the flag to release.
+6. Restart `npm run dev` after adding a new game folder / page (entries are read at startup).
+7. Tests in `tests/<id>/`, a `test:<id>` npm script and a CI job (`testing` skill); keep game logic DOM-free so it is testable in node.
+8. Write the docs short (`AGENTS.md` "Write short"). Add `src/games/<id>/README.md` (high level: what it is, screenshot, how to play, feature list, links) and `src/games/<id>/DETAILS.md` (pages, keys, rules, architecture), and a row in the root `README.md` table.
+9. Verify: `npx tsc --noEmit -p tsconfig.json`, `npm run lint`, `npm run test`, `npm run build`.
 
 ## Patterns worth copying from rally
 
