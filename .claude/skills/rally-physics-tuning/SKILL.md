@@ -27,6 +27,9 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
 - Tyre compounds: `physics/tyres.ts` (per-tyre multipliers on the surfaces; `Vehicle.setTyre`, `null` = raw surfaces so
   `vehicle.test.ts` bands stay put). Grip / feel of a tyre = edit its table there; ranks are checked by
   `integration-tests/rally/tyres.test.ts`. A new surface needs an entry in every `TyreDef.grip`.
+- Tyre temperature: `physics/tyre-temp.ts` (heat / cooling constants, grip curve), windows in `TyreDef.temp`, air per map
+  (`EnvironmentDef.airTemp`). Only runs with `Vehicle.setClimate` (game); tests without it keep the reference numbers.
+  Tests: `tests/rally/tyre-temp.test.ts` (feel targets), `integration-tests/rally/tyre-temp.test.ts`.
 - Tyre model: `physics/tire.ts`. Rigid body / suspension / contacts: `physics/vehicle.ts`.
 - Driver aids: `Vehicle.tractionControl` (wheelspin + combined-slip stability, `T` in game), `Vehicle.abs` (per-wheel
   anti-lock on the foot brake, `B`; `physics.noAbs` = not fitted), `autoReverse`, keyboard steering ramp / speed limit /

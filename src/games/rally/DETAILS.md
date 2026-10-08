@@ -28,6 +28,7 @@ gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
 | `mute=1`                   | play  | silent (bots and tests)                                                                                 |
 | `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                      |
 | `tod=<hours>`, `tonemap=`  | all   | look experiments: time of day (maps with `environment.timeOfDay`), `aces / agx / neutral`               |
+| `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the map's `environment.airTemp`)                    |
 
 Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab hidden), `__rally.loadTimings`,
 `__rally.vehicle`, `__rallyProbe()` (what the camera draws), `__worldShading`, `__mapViewer`, `__carViewer`.
@@ -197,7 +198,8 @@ open it.
   carry them.
 - Each box is a transparent DOM element; `renderBoxes` draws the showroom, then each part's studio camera into its box. Call
   `showSetup(carId, boxes)` again after the menu re-renders. Styles: `game/menu.css` "setup screen".
-- In game: no set-up HUD; a "hold on!" line at GO for a poor tyre pick; `F2` shows tyre, set-up and per-wheel grip.
+- In game: no set-up HUD; a "hold on!" line at GO for a poor tyre pick; the dash shows the four tyre temperatures
+  (PHYSICS.md "Tyre temperature"); `F2` shows tyre, set-up, per-wheel grip and temperature.
 
 Rendering: `cars/shared/tyre-mesh.ts` (tread per compound, compound ring), `suspension-mesh.ts` (per
 `model.suspensionStyle`), `buildWheelSet` in `car-model.ts`.
