@@ -45,37 +45,7 @@
     ],
     "parts": [
       {
-        "$comment": "manufacturer double chevron on the grille (no logos, AGENTS.md): dropped via the `logo` part",
-        "mat": "ensemble_cr",
-        "region": {
-          "view": "front",
-          "poly": [
-            [-0.2, 0.62],
-            [0.2, 0.62],
-            [0.2, 0.84],
-            [-0.2, 0.84]
-          ],
-          "depth": [1.5, 2.2]
-        },
-        "material": "logo"
-      },
-      {
-        "$comment": "manufacturer double chevron on the grille (no logos, AGENTS.md): dropped via the `logo` part",
-        "mat": "Autres",
-        "region": {
-          "view": "front",
-          "poly": [
-            [-0.2, 0.62],
-            [0.2, 0.62],
-            [0.2, 0.84],
-            [-0.2, 0.84]
-          ],
-          "depth": [1.5, 2.2]
-        },
-        "material": "logo"
-      },
-      {
-        "$comment": "the chevron badge is also a raised body shape on the grille (z > 2.0, in front of the grille bars): dropped",
+        "$comment": "the raised badge shape on the grille (z > 1.95, in front of the bars): kept as black trim, so the grille reads as one dark piece (cutting it out left a hole)",
         "mat": "Carrosserie",
         "region": {
           "view": "front",
@@ -85,9 +55,9 @@
             [0.17, 0.8],
             [-0.17, 0.8]
           ],
-          "depth": [2.0, 2.2]
+          "depth": [1.95, 2.2]
         },
-        "material": "logo"
+        "material": "trim"
       },
       {
         "$comment": "the rear chevron emblem on the boot lid: dropped",
@@ -248,17 +218,6 @@
     "maxTriangles": {
       "interior": 18000
     },
-    "fills": [
-      {
-        "$comment": "black plate behind the grille where the chevron badge was cut out (front view hole showed the cage); faces +z",
-        "material": "trim",
-        "poly": [
-          [-0.17, 0.66, 1.99],
-          [0.17, 0.66, 1.99],
-          [0.17, 0.8, 1.99],
-          [-0.17, 0.8, 1.99]
-        ]
-      }
-    ]
+    "fills": []
   }
 }

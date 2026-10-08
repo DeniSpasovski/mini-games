@@ -6,10 +6,11 @@ import source from './model.source.json';
 /**
  * Runtime paint for the Citroen C4 WRC BODY (imported GLB, atlas layout in model.source.json). Glass, lamps, interior, wing,
  * roof scoop... are separate parts with their own materials (`parts` in model.source.json -> cars/shared/part-materials.ts), so
- * nothing painted here can reach them. Big straight-edged strokes only, shapes without logos or lettering: purple-blue nose, hood
- * sides and front fenders; red body behind a straight diagonal; a red centre piece on the hood framed by a 1 cm white line;
- * dark-blue rear bumper under the bumper line, its sides cut by a diagonal with a white line; white roof with a red diamond.
- * All coordinates are model space (metres).
+ * nothing painted here can reach them. Big straight-edged strokes only, shapes without logos or lettering: purple-blue nose,
+ * fenders and hood up to a line through the middle of the doors (leaning back 75 deg); red body behind it; a red piece at the
+ * front end of the hood under a 1 cm white line; a dark-blue rear bumper under the bumper line, bounded by diagonals with a
+ * white line (seen from behind only); white roof with a red square and a red edge that follows the door line.
+ * All coordinates are model space (metres), measured on the model (see the constants).
  */
 const A = source.atlas;
 const { K, B, CH, sidePx, topPx, frontPx, rearPx } = atlasKit(A);
@@ -80,27 +81,38 @@ const sides = (ctx: CanvasRenderingContext2D, pts: Pt[], style: Fill) => {
   fill(ctx, 'right', pts, style);
 };
 
-const Z_NOSE = 2.1;
-const Z_TAIL = -2.1;
+const Z_NOSE = 2.2;
+const Z_TAIL = -2.2;
 const RED = '#d1121f';
 const BLUE = '#2c2f93';
 const NAVY = '#111a55';
 const WHITE = '#f1f2f4';
-/** Front blue ends on a straight diagonal: [z at the roof line, z at the sill]. */
-const FRONT_SEAM: [number, number] = [1.0, 0.88];
-/** Rear bumper line (the crease across the tail), the same height on the side and rear charts. */
-const BUMPER_Y = 0.69;
-/** The rear bumper's diagonal: [z at the bumper line, z at the sill]; the white line sits 3 cm in front of it. */
-const BUMPER_CUT: [number, number] = [-1.82, -1.55];
+/** Blue / red split on the sides: through the middle of the door (z at y = SPLIT_Y), leaning back 75 deg from horizontal. */
+const SPLIT_Z = 0.12;
+const SPLIT_Y = 0.75;
+const SPLIT_LEAN = Math.tan((15 * Math.PI) / 180);
+const splitZ = (y: number): number => SPLIT_Z - (y - SPLIT_Y) * SPLIT_LEAN;
+/** Rear bumper line (the crease across the tail, 0.725 m on the model), the same height on the side and rear charts. */
+const BUMPER_Y = 0.725;
+/** The bumper's diagonals on the rear chart: |x| at the bumper line (the tail lamp's lower inner corner) and at y = BUMPER_FOOT_Y (the bumper's outer bottom corner). */
+const BUMPER_X: [number, number] = [0.55, 0.8];
+const BUMPER_FOOT_Y = 0.2;
 const WHITE_LINE = 0.03;
-/** Hood centre piece: [z, half width] rear edge, front edge; 1 cm white frame. */
-const HOOD_REAR: [number, number] = [1.25, 0.62];
-const HOOD_FRONT: [number, number] = [1.8, 0.42];
-const HOOD_FRAME = 0.01;
-/** Roof: white between these z, half width; the red diamond's centre and half diagonal. */
-const ROOF_Z: [number, number] = [-1.5, 0.3];
-const ROOF_HALF = 0.6;
-const DIAMOND = { z: -0.6, r: 0.42 };
+/** Hood: the red piece starts at the nose end, rear edge z / half width, front edge half width; 1 cm white line on the rear edge only. */
+const HOOD_REAR: [number, number] = [1.6, 0.5];
+const HOOD_FRONT_HALF = 0.4;
+const HOOD_LINE = 0.01;
+/** The hood's front lip, seen from the front, starts at this height (just above the grille). */
+const HOOD_LIP_Y = 0.72;
+/** Roof edge (the door line) |x| by z, measured on the model's top-facing faces; the white panel keeps ROOF_RED inside it. */
+const ROOF_EDGE: Pt[] = [
+  [-1.5, 0.54],
+  [-0.4, 0.54],
+  [0.3, 0.622],
+];
+const ROOF_RED = 0.05;
+/** Red square on the roof, parallel to the doors: centre z, half side. */
+const SQUARE = { z: -0.6, h: 0.3 };
 
 const rect = (z0: number, z1: number, y0: number, y1: number): Pt[] => [
   [z0, y0],
@@ -123,72 +135,79 @@ function paint(
   // Underside: dark undercoat wherever the body faces down.
   fill(ctx, 'bottom', rect(B.z[0], B.z[1], B.x[0], B.x[1]), '#2a2c2f');
 
-  // --- sides: blue front behind a straight diagonal, navy tail under the bumper line, black sill ---
+  // --- sides: blue in front of the door split, red behind it (the rear stays red down to the sill), black sill ---
   sides(
     ctx,
     [
       [Z_NOSE, 0],
       [Z_NOSE, 1.7],
-      [FRONT_SEAM[0], 1.7],
-      [FRONT_SEAM[1], 0],
+      [splitZ(1.7), 1.7],
+      [splitZ(0), 0],
     ],
     blue,
   );
-  sides(
-    ctx,
-    [
-      [Z_TAIL, 0],
-      [Z_TAIL, BUMPER_Y],
-      [BUMPER_CUT[0] + WHITE_LINE, BUMPER_Y],
-      [BUMPER_CUT[1] + WHITE_LINE, 0],
-    ],
-    WHITE,
-  );
-  sides(
-    ctx,
-    [
-      [Z_TAIL, 0],
-      [Z_TAIL, BUMPER_Y],
-      [BUMPER_CUT[0], BUMPER_Y],
-      [BUMPER_CUT[1], 0],
-    ],
-    navy,
-  );
   sides(ctx, rect(Z_NOSE, Z_TAIL, 0.1, 0.3), '#141516');
 
-  // --- ends: blue nose, red tail with the navy bumper under the same line as on the sides ---
+  // --- ends: blue nose; red tail with a navy bumper: trapezoid under the bumper line, white line on its diagonals ---
   fill(ctx, 'front', rect(-1.05, 1.05, 0, 1.7), blue);
-  fill(ctx, 'rear', rect(-1.05, 1.05, 0, BUMPER_Y), navy);
+  const bumper = (grow: number): Pt[] => {
+    const foot = BUMPER_X[1] + grow;
+    const head = BUMPER_X[0] + grow;
+    return [
+      [-foot, 0],
+      [foot, 0],
+      [foot, BUMPER_FOOT_Y],
+      [head, BUMPER_Y],
+      [-head, BUMPER_Y],
+      [-foot, BUMPER_FOOT_Y],
+    ];
+  };
+  fill(ctx, 'rear', bumper(WHITE_LINE), WHITE);
+  fill(ctx, 'rear', bumper(0), navy);
+  // The licence plate pocket's walls face sideways: they use the side charts, which are red there otherwise.
+  sides(ctx, rect(Z_TAIL, -2.06, 0.29, BUMPER_Y), navy);
+  // The bumper's rear-facing lip is on the top chart: same navy, between the lamps.
+  fill(ctx, 'top', rect(Z_TAIL, -2.03, -BUMPER_X[0], BUMPER_X[0]), navy);
 
-  // --- top: blue from the windscreen forward, red hood piece in a white frame, white roof with a red diamond ---
-  fill(ctx, 'top', rect(FRONT_SEAM[0], Z_NOSE, -1.05, 1.05), blue);
-  const hood = (grow: number): Pt[] => [
-    [HOOD_REAR[0] - grow, -(HOOD_REAR[1] + grow)],
-    [HOOD_REAR[0] - grow, HOOD_REAR[1] + grow],
-    [HOOD_FRONT[0] + grow, HOOD_FRONT[1] + grow],
-    [HOOD_FRONT[0] + grow, -(HOOD_FRONT[1] + grow)],
+  // --- top: blue forward of the door split (windscreen pillars, cowl, hood), red piece at the nose end of the hood,
+  // white roof with a red edge following the door line and a red square ---
+  fill(ctx, 'top', rect(splitZ(1.45), Z_NOSE, -1.05, 1.05), blue);
+  const hood: Pt[] = [
+    [HOOD_REAR[0], -HOOD_REAR[1]],
+    [HOOD_REAR[0], HOOD_REAR[1]],
+    [Z_NOSE, HOOD_FRONT_HALF],
+    [Z_NOSE, -HOOD_FRONT_HALF],
   ];
-  fill(ctx, 'top', hood(HOOD_FRAME), WHITE);
-  fill(ctx, 'top', hood(0), red);
+  fill(ctx, 'top', hood, red);
+  // ... and over the hood's front lip, which faces forward (front chart).
   fill(
     ctx,
-    'top',
-    [
-      [ROOF_Z[0], -ROOF_HALF],
-      [ROOF_Z[0], ROOF_HALF],
-      [ROOF_Z[1], ROOF_HALF],
-      [ROOF_Z[1], -ROOF_HALF],
-    ],
-    WHITE,
+    'front',
+    rect(-HOOD_FRONT_HALF, HOOD_FRONT_HALF, HOOD_LIP_Y, 1.7),
+    red,
   );
   fill(
     ctx,
     'top',
     [
-      [DIAMOND.z + DIAMOND.r, 0],
-      [DIAMOND.z, DIAMOND.r],
-      [DIAMOND.z - DIAMOND.r, 0],
-      [DIAMOND.z, -DIAMOND.r],
+      [HOOD_REAR[0] - HOOD_LINE, -HOOD_REAR[1]],
+      [HOOD_REAR[0] - HOOD_LINE, HOOD_REAR[1]],
+      [HOOD_REAR[0], HOOD_REAR[1]],
+      [HOOD_REAR[0], -HOOD_REAR[1]],
+    ],
+    WHITE,
+  );
+  const edge = (side: 1 | -1): Pt[] =>
+    ROOF_EDGE.map(([z, x]): Pt => [z, side * (x - ROOF_RED)]);
+  fill(ctx, 'top', [...edge(-1), ...edge(1).reverse()], WHITE);
+  fill(
+    ctx,
+    'top',
+    [
+      [SQUARE.z - SQUARE.h, -SQUARE.h],
+      [SQUARE.z + SQUARE.h, -SQUARE.h],
+      [SQUARE.z + SQUARE.h, SQUARE.h],
+      [SQUARE.z - SQUARE.h, SQUARE.h],
     ],
     red,
   );
