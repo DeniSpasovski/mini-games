@@ -1,6 +1,8 @@
 import { describe, expect, test } from '@rstest/core';
 import {
+  CAR_TIMES_VERSIONS,
   MAP_TIMES_VERSIONS,
+  carTimesVersion,
   isOldRun,
   migrateTimes,
   recordTime,
@@ -91,6 +93,35 @@ describe('saved times version (per map)', () => {
     } finally {
       mem.localStorage = prev;
     }
+  });
+
+  test('a car bump dims only that car, in every map', () => {
+    const s = memoryStorage({
+      [`rally.timesVersion.${MAP}`]: String(CUR),
+      'rally.carVersion.bimmer_m3': String(carTimesVersion('bimmer_m3') - 1),
+      'rally.carVersion.skoda_rally': String(carTimesVersion('skoda_rally')),
+      [`rally.times.${MAP}`]: JSON.stringify([
+        { time: 10, car: 'bimmer_m3', date: 1 },
+        { time: 12, car: 'skoda_rally', date: 2 },
+      ]),
+      [`rally.best.${MAP}.bimmer_m3`]: '{"total":10,"splits":[]}',
+      [`rally.best.${MAP}.skoda_rally`]: '{"total":12,"splits":[]}',
+    });
+    expect(migrateTimes(s)).toBe(true);
+    const runs = JSON.parse(s.getItem(`rally.times.${MAP}`)!);
+    expect(runs[0].carVer).toBe(carTimesVersion('bimmer_m3') - 1);
+    expect(runs[1].carVer).toBeUndefined();
+    expect(isOldRun(runs[0], CUR)).toBe(true);
+    expect(isOldRun(runs[1], CUR)).toBe(false);
+    expect(s.getItem(`rally.best.${MAP}.bimmer_m3`)).toBeNull();
+    expect(s.getItem(`rally.best.${MAP}.skoda_rally`)).not.toBeNull();
+  });
+
+  test('every released car and map has a version', async () => {
+    const { ALL_CARS } = await import('../../src/games/rally/cars');
+    for (const c of ALL_CARS) expect(CAR_TIMES_VERSIONS[c.id]).toBeDefined();
+    const { ALL_MAPS } = await import('../../src/games/rally/maps');
+    for (const m of ALL_MAPS) expect(MAP_TIMES_VERSIONS[m.id]).toBeDefined();
   });
 
   test('a fresh player gets every map stamped', () => {

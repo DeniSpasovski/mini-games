@@ -73,6 +73,7 @@ import {
   formatTime,
   isOldRun,
   loadTimes,
+  oldRunLabel,
   sectorTimes,
   timesVersion,
   type RunRecord,
@@ -397,7 +398,7 @@ class MainMenu {
             <span>${m.stage.splits} splits</span>
             <span>${[...new Set(m.surfaces)].map((s) => s.replace(/_/g, ' + ')).join(' → ')}</span>
           </div>
-          <div class="menu-best">${best ? `Best ${formatTime(best.time)} · ${carName(best.car)}` : oldBest ? `<span class="old">Older best ${formatTime(oldBest.time)} · v${oldBest.ver}</span>` : 'No time set yet'}</div>
+          <div class="menu-best">${best ? `Best ${formatTime(best.time)} · ${carName(best.car)}` : oldBest ? `<span class="old">Older best ${formatTime(oldBest.time)} · ${oldRunLabel(oldBest, cur)}</span>` : 'No time set yet'}</div>
         </div>`;
       b.addEventListener('click', () => {
         if (this.mapIndex === i) return this.show('car');
@@ -961,7 +962,11 @@ export function buildSectors(
   const mine = sectorTimes(run);
   el.setScope = (carOnly) => {
     const ref = board.find(
-      (r) => r !== run && (!carOnly || r.car === run.car) && r.splits?.length,
+      (r) =>
+        r !== run &&
+        !isOldRun(r, run.ver ?? 1) &&
+        (!carOnly || r.car === run.car) &&
+        r.splits?.length,
     );
     const refSec = ref ? sectorTimes(ref) : [];
     el.innerHTML = mine
@@ -1008,7 +1013,7 @@ export function buildLeaderboard(
       const old = isOldRun(r, cur);
       const cls = r === run ? ' class="me"' : old ? ' class="old"' : '';
       return (
-        `<tr${cls}><td rowspan="2">${old ? `v${r.ver}` : i + 1}</td><td>${formatTime(r.time)}${r.penalty ? ` <span class="pen">(+${r.penalty}s)</span>` : ''}</td>` +
+        `<tr${cls}><td rowspan="2">${old ? oldRunLabel(r, cur) : i + 1}</td><td>${formatTime(r.time)}${r.penalty ? ` <span class="pen">(+${r.penalty}s)</span>` : ''}</td>` +
         `<td>${r === run ? '<b>YOU</b> ' : ''}${carName(r.car)}${r.date ? ` <small>#${r.livery + 1}</small>` : ''}</td>` +
         `<td class="set">${tyreCol(r)}</td><td class="set">${suspCol(r)}</td><td class="set">${gearCol(r)}</td>` +
         `<td>${i && !old ? `+${(r.time - lead).toFixed(2)}` : ''}</td></tr>` +

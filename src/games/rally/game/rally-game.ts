@@ -59,6 +59,7 @@ import {
   FLIPPED_UP_Y,
   StageTimer,
   type StageEvent,
+  carTimesVersion,
   timesVersion,
 } from './stage';
 import type { MapDef } from '../maps/shared/types';
@@ -631,6 +632,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         splits: [...this.stage.splitTimes],
         ...(e.penalty ? { penalty: e.penalty } : {}),
         ver: timesVersion(this.world.map.id),
+        carVer: carTimesVersion(this.car.id),
         date: Date.now(),
       };
       // Free drive runs don't count.
