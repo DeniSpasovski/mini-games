@@ -285,6 +285,9 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   TEXCOORD_0 centroid lies in that texture rectangle (v down). For models that paint lamps into the body texture: each lamp is its own UV island, so
   this is exact, and the lamp's art can be cut out of the texture rectangle into a lamp sheet (check orientation: correlate UV u / v with
   |x|-|z| / y of the triangles; the `corner` wrap fits the part bbox, u from the centre outwards, v top down). Needs to come before any `region` of the same primitive.
+- **Modelled lamps with their own (photo) texture** (`cars/subie-22b/`): send each lamp node to a `corner`-wrap lamp part, list both sides'
+  nodes in `lampSheet` (`model.source.json`) and run `bake-lamp-sheet.py <model.source.json>`: it paints the source triangles into the wrap
+  space (lens over housing) and prints the sheet rectangles for the `part-materials.ts` table (`LAMPS22`).
 - **`adjacent` pick** in `segment-stl.py`: small segments touching an earlier-picked material; and for frames that are NOT own segments
   (smooth skins) use a `region` with the glass outline (shapely union of the glass triangles in the view) + `grow`.
 - More `gltf.parts` options (2026-10-04 evening): `facing` (normal component ranges, `"|x|": [0, 0.6]`) on a rule or inside `near`
@@ -319,6 +322,7 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
 - **Own rim, centred**: `glb-rim-extract.py` takes the tyre's centroid as the hub and its smallest principal axis as the axle,
   de-cambers the wheel and centres the rim's lip-to-lip span on the tyre's mid-plane (`wheel-stl-to-glb.mjs --keep --barrel <tyre bore>`
   flushes the tyre stub to the lip, so any offset there shows as an off-centre rim). Check with `wheels=1&wcam=FL&body=0`.
+  Rim and tyre in ONE primitive: `--wheel <node-prefix>` splits it by islands (outer islands = tyre).
 - **A modelled cockpit** (seats, dash, cage) is `interior` (+ `parts.maxTriangles`) under `model.glass` (tint + opacity): it shows through
   the windows. A model without one is an empty shell - do not promise an interior; `rawview`-style cut views tell (half the car, view from the cut).
 - **Grille openings with no own island** are `region` cuts (front view, convex outline, `depth` behind the bumper face) on the body material;

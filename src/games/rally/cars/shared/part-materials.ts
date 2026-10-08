@@ -102,17 +102,18 @@ function tiling(t: CanvasTexture, tile: number): CanvasTexture {
 }
 
 /**
- * Lamp art of the Subaru 22B (GC8 source model): its headlight and tail lamp, cut out of the model's own texture and turned
- * into lamp space (`parts.wrap` 'corner': u from the car's centre outwards, v top down). One sheet, four rectangles.
+ * Lamp art of the Subaru 22B (rally car source model): its own headlight, tail lamp, corner lens and lower indicator, baked from
+ * the model's lamp textures into lamp space (`parts.wrap` 'corner': u from the car's centre outwards, v top down) by
+ * scripts/car-model/bake-lamp-sheet.py. One sheet, four rectangles (the script prints them).
  */
 const LAMPS22 = {
   file: 'subie_22b_lamps.png',
-  head: { x: 0, y: 0, w: 166, h: 132 },
-  tail: { x: 166, y: 0, w: 194, h: 151 },
-  corner: { x: 360, y: 0, w: 87, h: 94 },
-  indic: { x: 447, y: 0, w: 110, h: 88 },
-  /** Reversing section of the tail lamp (fractions of the lamp): the inner end of the clear band. */
-  rev: { u0: 0, u1: 0.25, v0: 0.6, v1: 1 },
+  head: { x: 0, y: 0, w: 293, h: 107 },
+  tail: { x: 293, y: 0, w: 457, h: 105 },
+  corner: { x: 750, y: 0, w: 188, h: 114 },
+  indic: { x: 938, y: 0, w: 227, h: 35 },
+  /** Reversing section of the tail lamp (fractions of the lamp): the clear block at the inner end of the amber band. */
+  rev: { u0: 0.01, u1: 0.18, v0: 0.6, v1: 0.92 },
 };
 type Rect = { x: number; y: number; w: number; h: number };
 
@@ -184,8 +185,8 @@ function lampMap22(rect: Rect): CanvasTexture {
 }
 
 function headlight22Maps(): { map: CanvasTexture; glow: CanvasTexture } {
-  const W = 664;
-  const H = 528;
+  const W = LAMPS22.head.w * 2;
+  const H = LAMPS22.head.h * 2;
   const map = canvas(W, H, (g) => {
     g.fillStyle = '#0d0e10';
     g.fillRect(0, 0, W, H);
@@ -218,8 +219,8 @@ function tail22Maps(): {
   glow: CanvasTexture;
   reverseGlow: CanvasTexture;
 } {
-  const W = 776;
-  const H = 604;
+  const W = LAMPS22.tail.w * 2;
+  const H = LAMPS22.tail.h * 2;
   const fill = (c: string) => (g: CanvasRenderingContext2D) => {
     g.fillStyle = c;
     g.fillRect(0, 0, W, H);

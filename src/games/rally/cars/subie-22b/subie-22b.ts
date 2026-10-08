@@ -48,7 +48,7 @@ const REAR: AxleDef = {
 
 /**
  * Subaru WRX STI 22B (`subie_22b`) - a 1998 blue coupe with the side star livery: 2.2 l turbo flat-four, five-speed box,
- * permanent AWD, 1,270 kg. Body: a CC BY-NC Sketchfab model, split by material and converted by stl-to-glb.mjs (settings:
+ * permanent AWD, 1,270 kg. Body: a CC BY-NC Sketchfab rally GC8, split by node and converted by stl-to-glb.mjs (settings:
  * model.source.json); the raw download stays out of git. Test only (release.ts).
  */
 export const subie22b: CarDef = {
@@ -59,10 +59,9 @@ export const subie22b: CarDef = {
     'Blue 90s turbo coupe with the works star livery: flat-four boxer rumble, grippy AWD, a little heavy on the nose.',
   sources: [
     {
-      label:
-        '"1999 Subaru MPREZA WRX STi GC8 Minotaurus" by SIU Car Garage (Sketchfab)',
-      url: 'https://sketchfab.com/3d-models/1999-subaru-mpreza-wrx-sti-gc8-minotaurus-6117b4accfb748e2af4641c1d45bf0cc',
-      note: 'body + glass + wheel, converted to the in-game model; CC BY-NC 4.0 (noncommercial)',
+      label: '"Rally Car" by SpatialNeglect (Sketchfab)',
+      url: 'https://sketchfab.com/3d-models/rally-car-e0dfd3b6d19947df85002fd8de0a3a02',
+      note: 'body, glass, cockpit, lamps + wheel, converted to the in-game model; CC BY-NC 4.0 (noncommercial)',
     },
     {
       label: 'STI - Impreza 22B',
@@ -147,10 +146,10 @@ export const subie22b: CarDef = {
     },
     dragArea: 0.78,
     downforceArea: 0.08,
-    // Fitted to subie_22b.glb (tests/rally/hull-fit.test.ts prints the model's underside): skirts / floor 0.13 m, splitter and diffuser 0.145 m
-    // (body lifted 5 cm: model.source.json `offset`).
+    // Fitted to subie_22b.glb (tests/rally/hull-fit.test.ts prints the model's underside): mudflaps 0.11 - 0.12 m, sills 0.22 m,
+    // front bumper 0.2 m (body lifted 3 cm: model.source.json `offset`).
     hull: bodyHull(BODY, -0.175, [
-      { x: [0, 0.55], z: 1.8, r: 0.16, bottom: 0.145 },
+      { x: [0, 0.55], z: 1.8, r: 0.16, bottom: 0.2 },
       { x: [0], z: 1.2, r: 0.22, bottom: 0.13 },
       { x: [0.5], z: 0.6, r: 0.25, bottom: 0.13 },
       { x: [0.5], z: 0, r: 0.25, bottom: 0.13 },
@@ -165,7 +164,7 @@ export const subie22b: CarDef = {
     // The model's own gold alloy (subie_22b_wheel.glb), scaled to each compound's tyre.
     wheelModel: 'subie_22b_wheel.glb',
     suspensionStyle: 'sti',
-    // The model's own cockpit (right-hand drive) shows through lightly tinted windows.
+    // The model's own cockpit (left-hand drive, seats, roll cage) shows through lightly tinted windows.
     glass: { color: 0x2a3a46, opacity: 0.4 },
     // Fallback body if the GLB can't load: profile.ts. Not a city street car while the 22B is a test car.
     profile,
@@ -174,7 +173,7 @@ export const subie22b: CarDef = {
     gltf: {
       file: 'subie_22b.glb',
       credit:
-        'Body: "1999 Subaru MPREZA WRX STi GC8 Minotaurus" by SIU Car Garage (Sketchfab, CC BY-NC 4.0), converted + repainted',
+        'Body: "Rally Car" by SpatialNeglect (Sketchfab, CC BY-NC 4.0), converted + repainted',
       autoFit: false,
       atlas: subie22bLivery,
       metallic: true,
