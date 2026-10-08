@@ -17,7 +17,7 @@ export interface ToyParams {
   points: number;
 }
 
-export const DEFAULT_TOY: ToyParams = { seed: 1, points: 8000 };
+export const DEFAULT_TOY: ToyParams = { seed: 1, points: 9000 };
 
 export const TOY_COLORS = {
   tileA: 0xf6efe0,

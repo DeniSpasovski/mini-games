@@ -62,6 +62,8 @@ export interface ResultData {
   /** Name of the map that was played and what its cleared state is called. */
   mapName: string;
   noun: string;
+  /** Highest level this map allows (shown as `level/maxLevel`). */
+  maxLevel: number;
   score: number;
   level: number;
   eaten: number;
@@ -597,7 +599,7 @@ export class Menu {
     );
     const stats = el('div', 'hg-stats');
     for (const [v, l] of [
-      [`${r.level}/${MAX_LEVEL}`, 'LEVEL'],
+      [`${r.level}/${r.maxLevel}`, 'LEVEL'],
       [String(r.eaten), 'ITEMS EATEN'],
       [`${Math.round(r.pct * 100)}%`, `OF THE ${r.noun.toUpperCase()}`],
     ]) {

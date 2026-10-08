@@ -49,12 +49,7 @@ import { loadSettings, saveSettings, type HoleSettings } from './settings';
 import { defaultStorage } from './storage';
 
 export type GameState =
-  | 'menu'
-  | 'countdown'
-  | 'playing'
-  | 'paused'
-  | 'ending'
-  | 'results';
+  'menu' | 'countdown' | 'playing' | 'paused' | 'ending' | 'results';
 
 const STEP = 1 / 60;
 const COUNTDOWN = 2.4;
@@ -253,6 +248,7 @@ export class HoleGame {
     const sim = new Sim(this.map, {
       seconds,
       startLevel: this.startLevel,
+      maxLevel: this.mapDef.maxLevel,
       start:
         this.startPos() ??
         (randomStart ? pickStart(this.map, Math.random) : undefined),
@@ -425,6 +421,7 @@ export class HoleGame {
       difficulty: this.difficulty,
       mapName: this.mapDef.name,
       noun: this.mapDef.noun,
+      maxLevel: sim.maxLevel,
       score: entry.score,
       level: entry.level,
       eaten: entry.eaten,

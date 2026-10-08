@@ -207,7 +207,7 @@ Each item has a small state machine in `sim/fall.ts`, deterministic (seeded per 
 - **Leftover rings:** once fewer than 100 points are left, every remaining item gets a pulsing white ground ring (hugging the item, at least
   1 % of the camera distance wide, `MIN_SCREEN_K`) and tiny items are drawn regardless of size, so stragglers are easy to find from a big hole
   (`render/leftover-rings.ts`, `LEFTOVER_POINTS`).
-- Results also show **% eaten**, by points: points eaten ÷ total island points (City Island 30 000, Toy Emporium 8 000). The HUD shows the same percentage live.
+- Results also show **% eaten**, by points: points eaten ÷ total island points (City Island 30 000, Toy Emporium 9 000). The HUD shows the same percentage live.
 - Combos and multipliers are not in v0 (see iterations).
 
 #### High scores and the scoring version
@@ -413,7 +413,7 @@ noun for the HUD).
 | Walls         | non-edible, drawn with the item material so the building fade dithers them: tall on three sides (the north = stockroom wall carries **racks of cartons**, the side walls a window band + bunting), **low on the camera side** with a gap and two pillars for the entrance (south), a header with a transom band over it and a "TOY EMPORIUM" sign facing the camera                                                                             |
 | Wayfinding    | render-only (`render/toy-signs.ts`, from the zones + the door): the department **name painted on the floor** at the south edge of each zone (transparent canvas decal, stencil-cut), **chevron trails** (yellow up the central aisle from the door, a branch in the zone colour to every department that is not on the aisle) and a **name banner** on the side wall behind every zone that touches it                                          |
 | Hole bounds   | the hole centre may go to `0.15 x diameter` from the wall (`bounds.inset`; City Island uses 0.5) so it may bulge over the walls and corner items stay reachable; `tests/hole/toy-map.test.ts` checks it                                                                                                                                                                                                                                         |
-| Layouts       | **"Grand Hall"**: 11 zones around a big atrium, drawn 240 x 160 m, built x`FLOOR_SCALE` 0.75 = 180 x 120 m; the seed deals the departments, checkout and door onto the slots (`shuffledLayout`)                                                                                                                                                                                                                                                  |
+| Layouts       | **"Grand Hall"**: 11 zones around a big atrium, drawn 240 x 160 m, built x`FLOOR_SCALE` 0.75 = 180 x 120 m; the seed deals the departments, checkout and door onto the slots (`shuffledLayout`)                                                                                                                                                                                                                                                 |
 | Zones         | Stockroom, Robot Factory, Game Room, Plush Meadow, Vroom Row, Splash Zone, Doll House Lane, Brick Alley, Figure Falls, Checkout, Atrium. Each has a points share (A: 4 / 11 / 6 / 20 / 9 / 9 / 7 / 12 / 9 / 5 / 8 %)                                                                                                                                                                                                                            |
 | Fill          | per zone: fixed anchors (showpieces), one of every big item, department shelf rows, then **type quotas** (points per type ~ points^0.8, big types first) placed in **clusters** (loose items gather in displays and spills with empty floor between)                                                                                                                                                                                            |
 | Atrium (A)    | a hall: Big Ted at the back of the central aisle (visible from the door), the two robots and the railway behind, rocket and titan on the sides, **two Ferris wheels and two carousels as pairs** either side of the aisle, a brick tower in each front corner                                                                                                                                                                                   |
@@ -421,9 +421,9 @@ noun for the HUD).
 | Plush density | the Plush Meadow is the densest zone but not a pile-up: share 18 % (was 20 %) in the floor plan, and the whale / penguin plush are stocked in the Splash Zone (`PLUSH_ELSEWHERE` in `map/toy/generate.ts`); the freed points go to the atrium, checkout, dolls and splash                                                                                                                                                                       |
 | Start         | the checkout between Brick Alley and Figure Falls ringed by ~36 tier 1-3 pieces (only the default / test start, see "Random start")                                                                                                                                                                                                                                                                                                             |
 
-**Total points are exactly 8 000 for every seed**: after the zones are filled, `balancePoints` trims
+**Total points are exactly 9 000 for every seed**: after the zones are filled, `balancePoints` trims
 small items (never near the start) or tops up with 1-point fillers (`puzzle_piece`, `brick_2x2`, ...). Pacing: the
-floor is 180 x 120 m (`FLOOR_SCALE`), the type quotas weigh points^1 (`beta`, fewer copies of the cheap types) and a very big type (tier >= `VERY_BIG_TIER` 18, 11 m+) is placed at most `MAX_VERY_BIG_COPIES` (1) times and each seed drops about half of them (`VERY_BIG_KEEP`, at least 2 per tier); more points than 8 000 make a bot clear it faster (8 000 points are not enough for hole level 15, so a good bot tops out at level 14 and eats ~99 %). Points by tier
+floor is 180 x 120 m (`FLOOR_SCALE`), the type quotas weigh points^1 (`beta`, fewer copies of the cheap types) and a very big type (tier >= `VERY_BIG_TIER` 18, 11 m+) is placed at most `MAX_VERY_BIG_COPIES` (1) times and each seed drops about half of them (`VERY_BIG_KEEP`, at least 2 per tier); more points than 9 000 make a bot clear it faster (hole level is capped at 15 on this map, `maxLevel` in `map/registry.ts` / `SimOptions`; 9 000 points just cover the XP to level 15). Points by tier
 (floor plan): tier 1 is ~5 % of the points, tiers 4-10 hold ~52 % (a third of the map is 8-point shelf units), tiers 20-25
 ~5 %: the early game is not a dust vacuum. Good bot:
 level 15 at ~90 s, store cleared at ~320 s (City Island: level 15 at 120-160 s, cleared ~310-400 s).
@@ -756,7 +756,7 @@ are City Island only.
 - Overlays: district colours, "show only tier N" filter. Click an item to inspect it (name, level, points, size,
   position). Click the ground to move the red marker (drawn at the hole size of the chosen level).
 - `map=animal` adds an **Animals** section (URL keys `biomes`, `walkgrid`, `leash`, `paths`): biome grid colours, walk grid (green land, blue water, red blocked), leash circles (one per home / radius / behaviour, colour = behaviour) and the ant / patrol path lines; the content box also counts movers per behaviour.
-- **Content budget box:** item count, total points against the exact target (30 000 City Island, 8 000 Toy Emporium), tiers with fewer than 2 item types, items
+- **Content budget box:** item count, total points against the exact target (30 000 City Island, 9 000 Toy Emporium), tiers with fewer than 2 item types, items
   and points per tier, skyscraper count, start position; draw calls and triangles in the F3 box.
 - **Game camera** at the marker for level L (checks framing over the real map); **Play from the red marker** opens
   `./?seed=&x=&z=&level=&difficulty=medium`.
@@ -811,7 +811,7 @@ are City Island only.
   cut-off).
 - `toy-items`: every toy tier / level has >= 2 types, the three required plush families exist at six sizes, builders
   match the catalog size, stay on the ground, keep their paint lists and triangle budgets. `toy-clip`: no z-fighting, no
-  mostly-buried item (same checker as `clip`). `toy-map`: deterministic, exactly 8 000 points, every type placed, tiers /
+  mostly-buried item (same checker as `clip`). `toy-map`: deterministic, exactly 9 000 points, every type placed, tiers /
   levels covered, start busy, random department slots, balance bands for the good bot, every item reachable by a hole of its level.
 
 - `kit-ball`: the round primitive (radii, triangle count, domes, eggs, seeded jitter, outward faces, clip checker coverage).
