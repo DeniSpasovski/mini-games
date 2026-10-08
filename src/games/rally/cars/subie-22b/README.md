@@ -2,9 +2,9 @@
 
 A blue 22B-style widebody rally coupe (bonnet scoop, big wing, mudflaps, roll cage) with the works side graphic: a crescent
 swoosh and a cluster of four-point stars, redrawn as shapes after the owner's reference picture (no lettering; see the
-trademark note below). Body, glass, cockpit (left-hand drive, bucket seats, cage), 5-spoke alloy and lamps are converted from
-SpatialNeglect's **CC BY-NC** "Rally Car" Sketchfab model; the lamp art is its own texture baked into lamp space
-(`subie_22b_lamps.png`, `scripts/car-model/bake-lamp-sheet.py`). The crew figures, plates and badge are dropped. Specs follow
+trademark note below). Body, glass, cockpit (left-hand drive, bucket seats, cage), springs and dampers, 5-spoke alloy and lamp
+art are converted from SpatialNeglect's **CC BY-NC** "Rally Car" Sketchfab model; the round tail lamps get our own 3D reflector
+cups behind a see-through lens. The crew figures, plates and badge are dropped. Specs follow
 the 22B: 2.2 l turbo flat-four (~280 PS / 206 kW at 6000 rpm, 363 Nm at 3200 rpm), five-speed box, permanent AWD with a rear
 bias, 1,270 kg ([STI](https://www.sti.jp/en/roadcars/1998/impreza-22b.html)). Tyres 235/40 R17 (the real size), 215/55 R16 on
 gravel. The paint is a metallic mica blue (`gltf.metallic`) with dust and road spray towards the sills. **Test only** (`TEST_CARS` in `release.ts`).
