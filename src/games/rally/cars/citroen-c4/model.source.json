@@ -2,9 +2,17 @@
   "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/citroen-c4/02-citroen-c4-wrc-metres.glb = 'Citroen C4 WRC Red Bull 2007' by Max (CC BY 4.0), root node scaled x0.7542 (glb-set-root-scale.py <glb> <out> 0 0.7542: the FBX export is 1.33x too big, wheelbase 3.467 -> the real 2.615 m): +x left, +y up, +z nose, metres. The offset puts the front hub (model z 1.1895) on physics front.z = 1.2 and lifts the body 0.87 m so the hubs (model y -0.534) sit at the tyre radius 0.336. The atlas block is also read by livery.ts at runtime - edit it only here.",
   "source": "sources/cars/citroen-c4/02-citroen-c4-wrc-metres.glb -> glb-to-parts-stl.py -> sources/cars/citroen-c4/citroen-c4-parts.stl",
   "output": "public/models/cars/citroen_c4.glb",
-  "axes": ["x", "y", "z"],
+  "axes": [
+    "x",
+    "y",
+    "z"
+  ],
   "scale": 1.0,
-  "offset": [0, 0.87, 0.0105],
+  "offset": [
+    0,
+    0.87,
+    0.0105
+  ],
   "groundAtMin": false,
   "targetTriangles": 75000,
   "creaseDeg": 40,
@@ -19,17 +27,44 @@
     "width": 4.35,
     "height": 9.6,
     "bounds": {
-      "x": [-1.05, 1.05],
-      "y": [0, 1.7],
-      "z": [-2.15, 2.15]
+      "x": [
+        -1.05,
+        1.05
+      ],
+      "y": [
+        0,
+        1.7
+      ],
+      "z": [
+        -2.15,
+        2.15
+      ]
     },
     "charts": {
-      "left": [0, 0],
-      "right": [0, 1.75],
-      "top": [0, 3.5],
-      "front": [0, 5.65],
-      "rear": [2.2, 5.65],
-      "bottom": [0, 7.45]
+      "left": [
+        0,
+        0
+      ],
+      "right": [
+        0,
+        1.75
+      ],
+      "top": [
+        0,
+        3.5
+      ],
+      "front": [
+        0,
+        5.65
+      ],
+      "rear": [
+        2.2,
+        5.65
+      ],
+      "bottom": [
+        0,
+        7.45
+      ]
     }
   },
   "gltf": {
@@ -50,12 +85,27 @@
         "region": {
           "view": "front",
           "poly": [
-            [-0.2, 0.62],
-            [0.2, 0.62],
-            [0.2, 0.84],
-            [-0.2, 0.84]
+            [
+              -0.2,
+              0.62
+            ],
+            [
+              0.2,
+              0.62
+            ],
+            [
+              0.2,
+              0.84
+            ],
+            [
+              -0.2,
+              0.84
+            ]
           ],
-          "depth": [1.5, 2.2]
+          "depth": [
+            1.5,
+            2.2
+          ]
         },
         "material": "logo"
       },
@@ -65,12 +115,27 @@
         "region": {
           "view": "front",
           "poly": [
-            [-0.2, 0.62],
-            [0.2, 0.62],
-            [0.2, 0.84],
-            [-0.2, 0.84]
+            [
+              -0.2,
+              0.62
+            ],
+            [
+              0.2,
+              0.62
+            ],
+            [
+              0.2,
+              0.84
+            ],
+            [
+              -0.2,
+              0.84
+            ]
           ],
-          "depth": [1.5, 2.2]
+          "depth": [
+            1.5,
+            2.2
+          ]
         },
         "material": "logo"
       },
@@ -80,19 +145,148 @@
         "region": {
           "view": "front",
           "poly": [
-            [-0.17, 0.66],
-            [0.17, 0.66],
-            [0.17, 0.8],
-            [-0.17, 0.8]
+            [
+              -0.17,
+              0.66
+            ],
+            [
+              0.17,
+              0.66
+            ],
+            [
+              0.17,
+              0.8
+            ],
+            [
+              -0.17,
+              0.8
+            ]
           ],
-          "depth": [2.0, 2.2]
+          "depth": [
+            2.0,
+            2.2
+          ]
         },
         "material": "logo"
       },
       {
+        "$comment": "the rear chevron emblem on the boot lid: dropped",
+        "mat": "Autres",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [
+              -0.08,
+              0.76
+            ],
+            [
+              0.08,
+              0.76
+            ],
+            [
+              0.08,
+              0.89
+            ],
+            [
+              -0.08,
+              0.89
+            ]
+          ],
+          "depth": [
+            -2.2,
+            -2.0
+          ]
+        },
+        "material": "logo"
+      },
+      {
+        "$comment": "the rear chevron emblem on the boot lid: dropped",
+        "mat": "ensemble_cr",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [
+              -0.08,
+              0.76
+            ],
+            [
+              0.08,
+              0.76
+            ],
+            [
+              0.08,
+              0.89
+            ],
+            [
+              -0.08,
+              0.89
+            ]
+          ],
+          "depth": [
+            -2.2,
+            -2.0
+          ]
+        },
+        "material": "logo"
+      },
+      {
+        "$comment": "roof scoop: French flag colours, three stripes across the car (blue on the left side) (y in the source's coordinates, before the offset)",
+        "mat": "Autres",
+        "x": [
+          -0.2,
+          -0.038
+        ],
+        "y": [
+          0.53,
+          0.65
+        ],
+        "z": [
+          -0.2,
+          0.2
+        ],
+        "material": "flagred"
+      },
+      {
+        "$comment": "roof scoop: French flag colours, three stripes across the car (blue on the left side) (y in the source's coordinates, before the offset)",
+        "mat": "Autres",
+        "x": [
+          -0.038,
+          0.038
+        ],
+        "y": [
+          0.53,
+          0.65
+        ],
+        "z": [
+          -0.2,
+          0.2
+        ],
+        "material": "flagwhite"
+      },
+      {
+        "$comment": "roof scoop: French flag colours, three stripes across the car (blue on the left side) (y in the source's coordinates, before the offset)",
+        "mat": "Autres",
+        "x": [
+          0.038,
+          0.2
+        ],
+        "y": [
+          0.53,
+          0.65
+        ],
+        "z": [
+          -0.2,
+          0.2
+        ],
+        "material": "flagblue"
+      },
+      {
         "node": "Vitre_Vitre_0",
         "whole": true,
-        "islandTris": [29, 29],
+        "islandTris": [
+          29,
+          29
+        ],
         "material": "lenscover"
       },
       {
@@ -101,7 +295,10 @@
       },
       {
         "mat": "Phares",
-        "z": [0, 3],
+        "z": [
+          0,
+          3
+        ],
         "material": "chrome"
       },
       {
@@ -184,12 +381,45 @@
       "tailled",
       "headled",
       "redcover",
-      "lamphousing"
+      "lamphousing",
+      "flagblue",
+      "flagwhite",
+      "flagred"
     ],
     "wrap": {},
-    "drop": ["logo"],
+    "drop": [
+      "logo"
+    ],
     "maxTriangles": {
       "interior": 18000
-    }
+    },
+    "fills": [
+      {
+        "$comment": "black plate behind the grille where the chevron badge was cut out (front view hole showed the cage); faces +z",
+        "material": "trim",
+        "poly": [
+          [
+            -0.17,
+            0.66,
+            1.99
+          ],
+          [
+            0.17,
+            0.66,
+            1.99
+          ],
+          [
+            0.17,
+            0.8,
+            1.99
+          ],
+          [
+            -0.17,
+            0.8,
+            1.99
+          ]
+        ]
+      }
+    ]
   }
 }

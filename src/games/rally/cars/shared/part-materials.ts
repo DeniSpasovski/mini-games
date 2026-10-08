@@ -43,6 +43,9 @@ export type PartName =
   | 'headled'
   | 'tailled'
   | 'redcover'
+  | 'flagblue'
+  | 'flagwhite'
+  | 'flagred'
   | 'interior'
   | 'cage';
 
@@ -1009,6 +1012,11 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoat: 1,
       clearcoatRoughness: 0.05,
     }),
+  /** Roof scoop stripes (French flag, Citroen C4 WRC). */
+  flagblue: () => new MeshStandardMaterial({ color: 0x1d3a9e, roughness: 0.4 }),
+  flagwhite: () =>
+    new MeshStandardMaterial({ color: 0xf1f1f1, roughness: 0.4 }),
+  flagred: () => new MeshStandardMaterial({ color: 0xd3202c, roughness: 0.4 }),
   /** Modelled cockpit of an imported body (seats, dash, door cards): dark, matte - without it the cockpit got the livery. */
   interior: () => new MeshStandardMaterial({ color: 0x2a2c30, roughness: 0.9 }),
   /** Roll cage of an imported cockpit: light grey like the procedural cars' cage (car-model.ts cageMat). */
