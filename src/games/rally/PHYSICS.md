@@ -267,6 +267,17 @@ tarmac tyre on gravel also stays cold, and a gravel tyre on tarmac overheats soo
 HUD: four tyres in the dash, white (cold) -> green (window) -> yellow -> red (`game/tyre-gauge.ts`), air / track
 temperature under them; `F2` shows temperature and grip factor per wheel.
 
+Research behind the model (also in the game's About screen under Physics > Tyres, `TYRE_RESEARCH` in `game/menu.ts`):
+
+- [Tyre friction vs temperature, rig test](https://pmc.ncbi.nlm.nih.gov/articles/PMC9459800/): grip curve, warm-up
+  under sliding
+- [Izze Racing tyre temperature white paper](https://www.izzeracing.com/ewExternalFiles/Izze_Racing_White_Paper_Tire_Temperature.pdf):
+  grip vs temperature shape
+- [arXiv 2602.22078](https://arxiv.org/pdf/2602.22078): glass transition, peak grip temperature
+- Pirelli press, [tarmac (Rally Spain)](https://press.pirelli.com/p-zero-ra-wrc-shows-reliability-on-wet-and-dry-asphalt/)
+  and [gravel (Rally Finland)](https://press.pirelli.com/scorpion-kx-soft-stars-on-opening-day-of-rally-finland/): real
+  rally tyre temperatures
+
 ## Reference numbers
 
 Full brake, ABS on / off (`handling.test.ts` straight line, home tyre, medium set-up), 2026-10-08 - 100-0 km/h on tarmac /

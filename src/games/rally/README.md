@@ -69,3 +69,5 @@ Map data: © OpenStreetMap contributors (ODbL), ESA WorldCover 2021 (CC BY 4.0),
 Microsoft building footprints. Car models and their licences: see each car's README and
 [`THIRD-PARTY.md`](../../../THIRD-PARTY.md). Car makes and models are trademarks of their owners; this is a
 non-commercial, educational fan project.
+
+Tyre temperature research (links only): see [`PHYSICS.md`](PHYSICS.md) "Tyre temperature" and About > Physics in the game.
