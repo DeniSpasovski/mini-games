@@ -53,6 +53,17 @@ repository.
 
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 
+## Research references
+
+Papers and articles read to tune the rally tyre temperature model; linked in the game's About screen and
+`src/games/rally/PHYSICS.md`. Nothing from them is copied or bundled.
+
+- https://pmc.ncbi.nlm.nih.gov/articles/PMC9459800/
+- https://www.izzeracing.com/ewExternalFiles/Izze_Racing_White_Paper_Tire_Temperature.pdf
+- https://arxiv.org/pdf/2602.22078
+- https://press.pirelli.com/p-zero-ra-wrc-shows-reliability-on-wet-and-dry-asphalt/
+- https://press.pirelli.com/scorpion-kx-soft-stars-on-opening-day-of-rally-finland/
+
 ## Trademarks and likenesses
 
 Skoda, Fabia, BMW, M3, Ford, Fiesta, Citroen, C4, Zastava and other make or model names are trademarks of their owners and appear only to
