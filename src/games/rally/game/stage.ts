@@ -308,9 +308,8 @@ export class StageTimer {
  * runs, other cars' times stay valid. Per-car bests (`rally.best.<map>.<car>`, the split reference) of the
  * bumped map / car move into the leaderboard as old runs.
  *
- * History: maps 1 = first versioned release (tyre compounds / suspension set-ups / gearing / hull physics rework).
- * Cars 2 = ABS and the engine spec recalculation; every time saved before per-car versions (car version unknown) is
- * kept as an old `car v1` run.
+ * History: 1 = first per-map / per-car versions. Every time saved before them (map and car version unknown) is kept
+ * as an old `v0` run.
  */
 export const MAP_TIMES_VERSIONS: Record<string, number> = {
   test: 1,
@@ -319,25 +318,23 @@ export const MAP_TIMES_VERSIONS: Record<string, number> = {
   jackie: 1,
 };
 export const CAR_TIMES_VERSIONS: Record<string, number> = {
-  skoda_rally: 2,
-  zastava_101: 2,
-  bimmer_m3: 2,
-  bimmer_gt2: 2,
-  fiesta: 2,
+  skoda_rally: 1,
+  zastava_101: 1,
+  bimmer_m3: 1,
+  bimmer_gt2: 1,
+  fiesta: 1,
 };
 /** Current version of a map / car (unknown ids count as 1). */
 export const timesVersion = (mapId: string): number =>
   MAP_TIMES_VERSIONS[mapId] ?? 1;
 export const carTimesVersion = (carId: string): number =>
   CAR_TIMES_VERSIONS[carId] ?? 1;
-/** Before per-map versions one key held the version of every map (and car). */
-const LEGACY_VERSION_KEY = 'rally.timesVersion';
 const versionKey = (mapId: string) => `rally.timesVersion.${mapId}`;
 const carVersionKey = (carId: string) => `rally.carVersion.${carId}`;
 
-/** The stored version of a map / car, falling back to the legacy shared key (null = nothing saved yet). */
+/** The stored version of a map / car (null = nothing saved yet). */
 function storedVersion(store: Storage, key: string): number | null {
-  const raw = store.getItem(key) ?? store.getItem(LEGACY_VERSION_KEY);
+  const raw = store.getItem(key);
   return raw === null ? null : Number(raw) || 0;
 }
 

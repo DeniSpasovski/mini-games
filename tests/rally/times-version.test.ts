@@ -45,15 +45,15 @@ describe('saved times version (per map)', () => {
     expect(s.getItem('rally.quality')).toBe('high'); // other settings stay
   });
 
-  test('times saved before car versions are old (car version unknown)', () => {
+  test('the old single version key is ignored: those times are v0 too', () => {
     const s = memoryStorage({
-      'rally.timesVersion': String(CUR),
+      'rally.timesVersion': '1',
       [`rally.times.${MAP}`]: '[{"time":90,"car":"skoda_rally","date":1}]',
     });
     expect(migrateTimes(s)).toBe(true);
     const [run] = JSON.parse(s.getItem(`rally.times.${MAP}`)!);
-    expect(run.ver).toBeUndefined(); // the map version still matches
-    expect(run.carVer).toBe(carTimesVersion('skoda_rally') - 1);
+    expect(run.ver).toBe(0);
+    expect(run.carVer).toBe(0);
     expect(isOldRun(run, CUR)).toBe(true);
   });
 
