@@ -4,7 +4,7 @@ A 2007 World Rally Car from a **CC BY Sketchfab model**: the model's body, its *
 through the see-through glass**, its own 15-spoke rim **de-cambered and centred on the hub**, its own 3D headlamps and tail lamps,
 and our own livery: purple-blue nose, fenders and front half of the doors (a straight split leaning back, from the sill to just in
 front of the B pillar) with a yellow disc on the rear of the fender / front of the door (flat-cut under the window), a red piece at the
-front end of the hood under a thin white line, red body behind the split, dark-blue rear bumper with white-lined diagonals (seen from
+front end of the hood under a thin white line, running straight down the nose 3 cm inside the headlamps, red body behind the split, dark-blue rear bumper with white-lined diagonals (seen from
 behind only), white roof with a red square, a red edge along the door line and a French-flag roof scoop (shapes only, no logos or
 lettering). The sponsor livery, boot-lid emblem, plate, brake discs and wheels of the source are dropped; the grille is the model's own
 (chevron bars painted in the hood's livery colour instead of chrome, a radiator core behind the lower opening), and the tail lamps
