@@ -288,8 +288,9 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
 - **Modelled lamps with their own (photo) texture** (`cars/subie-22b/`): send each lamp node to a `corner`-wrap lamp part, list both sides'
   nodes in `lampSheet` (`model.source.json`) and run `bake-lamp-sheet.py <model.source.json>`: it paints the source triangles into the wrap
   space (lens over housing) and prints the sheet rectangles for the `part-materials.ts` table (`LAMPS22`). The sheet has three rows:
-  base colour, emissive, normal map. A low-poly lamp gets its depth from those two maps - use them (the 22B tail lamp's round lamps
-  are its emissive rings, recessed with `lampDepth`), or it reads flat.
+  base colour, emissive, normal map. A low-poly lamp gets its depth from those two maps - use them, or it reads flat. For real 3D
+  round lamps, `gltf.lampCups` (`glb-to-parts-stl.py`) builds reflector cups + bulbs behind the shell and the lens material gets
+  see-through windows over them (22B tail lamp: `tail22Windows`).
 - **`adjacent` pick** in `segment-stl.py`: small segments touching an earlier-picked material; and for frames that are NOT own segments
   (smooth skins) use a `region` with the glass outline (shapely union of the glass triangles in the view) + `grow`.
 - More `gltf.parts` options (2026-10-04 evening): `facing` (normal component ranges, `"|x|": [0, 0.6]`) on a rule or inside `near`

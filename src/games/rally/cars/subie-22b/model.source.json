@@ -153,7 +153,21 @@
         "material": "lens"
       }
     ],
-    "default": "interior"
+    "default": "interior",
+    "lampCups": {
+      "$comment": "real round tail lamps: cups [u, v, ru, rv] in the tail shell's corner-wrap space = LAMPS22.tailBowls (part-materials.ts); the lens is see-through over them",
+      "lens": ["tail light_taillight_0", "tail light.001_taillight_0"],
+      "cups": [
+        [0.19, 0.33, 0.069, 0.26],
+        [0.361, 0.33, 0.08, 0.27]
+      ],
+      "depth": 0.045,
+      "back": 0.35,
+      "axis": [0, 0, 1],
+      "material": "lampcup",
+      "bulbMaterial": "lampbulb",
+      "bulb": 0.008
+    }
   },
   "parts": {
     "materials": [
@@ -171,7 +185,9 @@
       "indic22",
       "logo",
       "coilover",
-      "chrome"
+      "chrome",
+      "lampcup",
+      "lampbulb"
     ],
     "wrap": {
       "headlight22": "corner",
@@ -193,7 +209,9 @@
       "corner22": "#ff9a1a",
       "indic22": "#ff9a1a",
       "coilover": "#f0c020",
-      "chrome": "#c8ccd0"
+      "chrome": "#c8ccd0",
+      "lampcup": "#d0303a",
+      "lampbulb": "#ffe0d0"
     },
     "maxTriangles": {
       "interior": 16000,

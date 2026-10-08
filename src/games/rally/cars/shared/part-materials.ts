@@ -1,5 +1,6 @@
 import {
   CanvasTexture,
+  DoubleSide,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   RepeatWrapping,
@@ -49,7 +50,9 @@ export type PartName =
   | 'indic22'
   | 'interior'
   | 'cage'
-  | 'coilover';
+  | 'coilover'
+  | 'lampcup'
+  | 'lampbulb';
 
 const cache = new Map<string, Material>();
 
@@ -116,7 +119,7 @@ const LAMPS22 = {
   tail: { x: 293, y: 0, w: 457, h: 105 },
   corner: { x: 750, y: 0, w: 188, h: 114 },
   indic: { x: 938, y: 0, w: 227, h: 35 },
-  /** The tail lamp's two round lamps (centre u, v, radius u, v; the rings of its emissive map), recessed by lampDepth. */
+  /** The tail lamp's two round lamps (centre u, v, radius u, v; the rings of its emissive map) = model.source.json `lampCups`. */
   tailBowls: [
     [0.19, 0.33, 0.069, 0.26],
     [0.361, 0.33, 0.08, 0.27],
@@ -255,6 +258,34 @@ function headlight22Maps(): {
     { tex: normal, glow: NORMAL_ROW },
   ]);
   return { map, glow, normal };
+}
+
+/** Tail lamp alpha: opaque lens, see-through windows over the round lamps (LAMPS22.tailBowls) with a soft edge. */
+function tail22Windows(): CanvasTexture {
+  const W = LAMPS22.tail.w * 2;
+  const H = LAMPS22.tail.h * 2;
+  return canvas(
+    W,
+    H,
+    (g) => {
+      g.fillStyle = '#fff';
+      g.fillRect(0, 0, W, H);
+      for (const [u, v, ru, rv] of LAMPS22.tailBowls) {
+        g.save();
+        g.translate(u * W, v * H);
+        g.scale(ru * W, rv * H);
+        const r = g.createRadialGradient(0, 0, 0.8, 0, 0, 1);
+        r.addColorStop(0, '#4d4d4d');
+        r.addColorStop(1, '#ffffff');
+        g.fillStyle = r;
+        g.beginPath();
+        g.arc(0, 0, 1, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+      }
+    },
+    false,
+  );
 }
 
 /**
@@ -1240,10 +1271,13 @@ const BUILDERS: Record<PartName, () => Material> = {
   /** Subaru 22B tail lamp: the model's own red lens with a clear band, see tail22Maps - needs `parts.wrap` 'corner'. */
   tail22: () => {
     const { map, glow, reverseGlow, normal } = tail22Maps();
-    const m = lamp(
+    return lamp(
       new MeshPhysicalMaterial({
         map,
         normalMap: normal,
+        // See-through over the two round lamps: the real cups behind it (`lampcup`, model.source.json `lampCups`).
+        alphaMap: tail22Windows(),
+        transparent: true,
         emissive: 0xffffff,
         emissiveMap: glow,
         emissiveIntensity: 0.5,
@@ -1255,16 +1289,32 @@ const BUILDERS: Record<PartName, () => Material> = {
       5,
       reverseGlow,
     );
-    lampDepth(m, {
-      bowls: LAMPS22.tailBowls,
-      depth: 0.025,
-      wallDark: [0.06, 0.004, 0.004],
-      wallLit: [0.75, 0.07, 0.06],
-      wallGlow: 0.5,
-      facing: -1,
-    });
-    return m;
   },
+  /** Round lamp cup behind a see-through lens (chrome reflector seen through red), glows with the tail / brake light. */
+  lampcup: () =>
+    lamp(
+      new MeshPhysicalMaterial({
+        color: 0xc8303a,
+        roughness: 0.22,
+        metalness: 0.85,
+        emissive: 0xff1810,
+        emissiveIntensity: 0.25,
+        side: DoubleSide,
+      }),
+      2.2,
+    ),
+  /** Bulb in a `lampcup`. */
+  lampbulb: () =>
+    lamp(
+      new MeshPhysicalMaterial({
+        color: 0xffc8b8,
+        roughness: 0.1,
+        emissive: 0xff3020,
+        emissiveIntensity: 0.4,
+        side: DoubleSide,
+      }),
+      6,
+    ),
   /** Subaru 22B clear corner lens (front fender), the model's own art - needs `parts.wrap` 'corner'. */
   corner22: () =>
     new MeshPhysicalMaterial({

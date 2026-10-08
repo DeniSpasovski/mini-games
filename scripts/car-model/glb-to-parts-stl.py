@@ -21,6 +21,7 @@ Which primitive becomes which material is the `gltf` block of model.source.json:
       "default": "trim"                                   # unmatched primitives (omit = error)
     }
 
+`lampCups` adds real round lamp cups + bulbs behind a lamp shell whose depth is only texture (see lamp_cups, cars/subie-22b/).
 `node` can also be a list of node names. `move: [dx, dy, dz]` (source units) shifts the rule's triangles - e.g. the model's own
 springs / dampers pulled in to the game's wheel track when the physics track is narrower than the model's (cars/subie-22b/).
 
@@ -430,6 +431,81 @@ def near_mask(prims, near, C):
     return d <= near['d']
 
 
+def lamp_cups(cfg, prims):
+    """`gltf.lampCups`: real round lamp cups behind a textured lamp shell (a model whose lamp depth is only texture). Each cup is
+    placed in the shell's 'corner'-wrap space (u = |x| - |z|, v = y top down, fitted 0..1 over both sides, as stl-to-glb.mjs):
+    `cups` = [[u, v, ru, rv], ...] (the material's bowl table). The rim follows the shell's inside, the reflector narrows to
+    `back` x the rim over `depth` m along `axis` (into the car), a bulb sits in it; both sides (x mirrored). Model metres in,
+    source triangles out: (triangles, material per triangle)."""
+    lc = cfg['gltf']['lampCups']
+    s, off = cfg['scale'], np.array(cfg['offset'], float)
+    T = np.concatenate([Tp for name, _m, _p, Tp in prims if name in lc['lens']]) * s + off
+    cw = np.stack([np.abs(T[..., 0]) - np.abs(T[..., 2]), T[..., 1]], -1)  # (n, 3, 2)
+    lo, hi = cw.reshape(-1, 2).min(0), cw.reshape(-1, 2).max(0)
+    left = T[..., 0].mean(1) > 0
+    TL, CL = T[left], cw[left]
+    axis = np.array(lc.get('axis', [0, 0, 1]), float)
+    D, back, gap = lc.get('depth', 0.045), lc.get('back', 0.35), lc.get('gap', 0.003)
+
+    def on_lens(cu, y):
+        """3D point of the left shell at corner coords (cu, y)."""
+        a, b, c = CL[:, 0], CL[:, 1], CL[:, 2]
+        d = (b[:, 1] - c[:, 1]) * (a[:, 0] - c[:, 0]) + (c[:, 0] - b[:, 0]) * (a[:, 1] - c[:, 1])
+        d = np.where(np.abs(d) < 1e-12, 1e-12, d)
+        l0 = ((b[:, 1] - c[:, 1]) * (cu - c[:, 0]) + (c[:, 0] - b[:, 0]) * (y - c[:, 1])) / d
+        l1 = ((c[:, 1] - a[:, 1]) * (cu - c[:, 0]) + (a[:, 0] - c[:, 0]) * (y - c[:, 1])) / d
+        l2 = 1 - l0 - l1
+        worst = np.minimum(np.minimum(l0, l1), l2)
+        i = int(np.argmax(worst))  # the containing triangle (or the nearest miss)
+        return l0[i] * TL[i, 0] + l1[i] * TL[i, 1] + l2[i] * TL[i, 2]
+
+    out, lab = [], []
+    seg, rings = lc.get('segments', 24), 5
+    for u, v, ru, rv in lc['cups']:
+        cu0, y0 = lo[0] + u * (hi[0] - lo[0]), hi[1] - v * (hi[1] - lo[1])
+        centre = on_lens(cu0, y0) + axis * gap
+        rim = []
+        for k in range(seg):
+            t = 2 * np.pi * k / seg
+            rim.append(on_lens(cu0 + np.cos(t) * ru * (hi[0] - lo[0]), y0 - np.sin(t) * rv * (hi[1] - lo[1])) + axis * gap)
+        rim = np.array(rim)
+        rel = rim - centre
+        perp = rel - np.outer(rel @ axis, axis)
+        grid = []
+        for r in range(rings + 1):
+            f = r / rings
+            grid.append(rim + axis * D * f - perp * (1 - back) * f * f)  # parabolic reflector
+        tris = []
+        for r in range(rings):
+            for k in range(seg):
+                a, b = grid[r][k], grid[r][(k + 1) % seg]
+                c, d = grid[r + 1][k], grid[r + 1][(k + 1) % seg]
+                tris += [[a, c, b], [b, c, d]]
+        bc = grid[-1].mean(0)
+        tris += [[grid[-1][k], bc, grid[-1][(k + 1) % seg]] for k in range(seg)]
+        out.append(np.array(tris))
+        lab.append(np.full(len(tris), lc['material']))
+        # bulb: a small octahedron-ish sphere on the axis
+        bcen = centre + axis * D * 0.6
+        br = lc.get('bulb', 0.012)
+        sph = []
+        for i in range(6):
+            for j in range(8):
+                th0, th1 = np.pi * i / 6, np.pi * (i + 1) / 6
+                ph0, ph1 = 2 * np.pi * j / 8, 2 * np.pi * (j + 1) / 8
+                q = lambda th, ph: bcen + br * np.array([np.sin(th) * np.cos(ph), np.cos(th), np.sin(th) * np.sin(ph)])
+                sph += [[q(th0, ph0), q(th1, ph0), q(th1, ph1)], [q(th0, ph0), q(th1, ph1), q(th0, ph1)]]
+        out.append(np.array(sph))
+        lab.append(np.full(len(sph), lc['bulbMaterial']))
+    T = np.concatenate(out)
+    L = np.concatenate(lab)
+    M = T.copy()
+    M[..., 0] *= -1
+    M = M[:, ::-1]  # mirrored side: flip the winding back
+    T, L = np.concatenate([T, M]), np.concatenate([L, L])
+    return (T - off) / s, L
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     if len(args) < 2:
@@ -551,6 +627,15 @@ def main():
         tris.append(T if move is None else T + np.array(move, float))
         labels.append(np.full(len(T), mats.index(label), np.uint16))
         used[label] = used.get(label, 0) + len(T)
+    if 'lampCups' in rules:
+        CT, CL = lamp_cups(cfg, prims)
+        for m in dict.fromkeys(CL):
+            if m not in mats:
+                raise SystemExit(f'material {m!r} is not in parts.materials')
+            k = CL == m
+            tris.append(CT[k])
+            labels.append(np.full(k.sum(), mats.index(m), np.uint16))
+            used[m] = used.get(m, 0) + int(k.sum())
     T = np.vstack(tris).astype(np.float32)
     L = np.concatenate(labels)
     N = np.cross(T[:, 1] - T[:, 0], T[:, 2] - T[:, 0])
