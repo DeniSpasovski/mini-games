@@ -117,7 +117,11 @@ export interface CarModelDef {
    * Rally door plate (car number + rally name, cars/shared/rally-badge.ts) - centre on the front door in
    * model space (m); the plate size is the same on every car (0.6 m wide).
    */
-  doorBadge: { z: number; y: number };
+  doorBadge: {
+    z: number;
+    y: number;
+    /** Roll in the door plane, degrees, + = front edge down (a car whose lines slope). */ tilt?: number;
+  };
   /**
    * Hand-built body (see cars/zastava-101/body.ts). A car needs this or `profile`: it is the body when there is
    * no `gltf`, and the stand-in while / if the GLB fails.
