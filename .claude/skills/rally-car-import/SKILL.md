@@ -366,7 +366,9 @@ whenever the GLB is regenerated.
 4. Append the profile to `SHAPES` in `assets/builders/vehicles.ts` (append: `FIXED_CARS` and placed props use the
    indices) and name it in the `street_car` description in `assets/catalog.ts`, so the car also parks on the city maps
    (variants 0-11 cycle the shapes, nothing else changes).
-5. Check: `tests/rally/car-fallback.test.ts` (size, arches, glass, lamps, UVs) and `tests/rally/street-car.test.ts`
+5. A GLB without its own interior gets a procedural one: `gltf.addOns: { cockpit: 'road' | 'rally' }` (seats, dash,
+   wheel, + cage for 'rally'; `cars/shared/cockpit.ts`, placed from the profile) and `model.glass` so the windows show it.
+6. Check: `tests/rally/car-fallback.test.ts` (size, arches, glass, lamps, UVs, cockpit inside the greenhouse) and `tests/rally/street-car.test.ts`
    (triangle budget) pass; look at `car-viewer.html?car=<id>&fallback=1` (glass over the windows, lamps on the nose and
    tail, livery) and `asset-debug.html?asset=street_car&variant=<n>`. Tweak `--tol` only if the outline looks wrong.
 

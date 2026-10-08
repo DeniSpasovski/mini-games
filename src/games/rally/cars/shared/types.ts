@@ -66,6 +66,8 @@ export interface CarProfile {
   outline: number[];
   /** Greenhouse outline (z, y), same format: extruded a little wider than the body, 2 cm proud of the screens. */
   glass: number[];
+  /** Greenhouse width (m) at the beltline and at the roof (tumblehome): cockpit.ts fits the cage and cabin to it. */
+  glassWidth: [number, number];
   /** Left head / tail lamp box [x0, x1, y0, y1] seen from the front / rear (mirrored to the right side). */
   lamps: { front: number[]; rear: number[] };
 }
@@ -158,6 +160,12 @@ export interface CarGltfDef {
   atlas?: CarAtlas;
   /** Satin paint instead of glossy clearcoat (atlas models only). */
   matte?: boolean;
+  /**
+   * Procedural add-ons layered on the imported body. `cockpit`: seats, dash and wheel ('road', + roll cage 'rally')
+   * for a GLB without its own interior, placed from `model.profile` (cars/shared/cockpit.ts); set `model.glass` so the
+   * windows show it.
+   */
+  addOns?: { cockpit?: 'road' | 'rally' };
 }
 
 /** A body built by car-specific code (cars/shared/mesh-kit.ts). */

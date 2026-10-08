@@ -152,6 +152,8 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   baked by `scripts/car-model/side-profile.mjs`): the boxy side outline extruded to the body width with its glass and lamps
   tagged (`cars/shared/profile-body.ts`), shown only if the GLB fails to load. It wears the car's livery, box-projected
   onto the atlas (`CarAtlas.layout`). Car viewer `fallback=1` shows it.
+- A GLB without an interior can get a procedural cockpit (`gltf.addOns.cockpit`, `cars/shared/cockpit.ts`): seats,
+  dash, wheel (+ cage), and a back-face tub below the windows, all fitted to the profile's greenhouse.
 - The same profiles are the city maps' parked cars (`street_car`, `taxi`, `police_car`; `assets/builders/vehicles.ts`):
   one paint, simple wheels, one draw call per LOD (variant sets); the far LOD simplifies the outlines and drops rims and
   lamps (`tests/rally/street-car.test.ts` holds the triangle budget).

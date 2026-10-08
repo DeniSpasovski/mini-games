@@ -19,7 +19,7 @@ import type { CarProfile } from './types';
  */
 
 /** Side outline (z, y) extruded across `width`, centred on x = 0. */
-function slab(o: number[], width: number): BufferGeometry {
+export function slab(o: number[], width: number): BufferGeometry {
   const shape = new Shape();
   shape.moveTo(o[0], o[1]);
   for (let i = 2; i < o.length; i += 2) shape.lineTo(o[i], o[i + 1]);

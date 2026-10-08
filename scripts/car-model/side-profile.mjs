@@ -8,7 +8,8 @@
  * grid, opens it (drops antennae / wipers thinner than ~6 cm), cuts a round arch over each axle (wheel radius + 4 cm,
  * hub at y = radius), takes the top + bottom edge per column and simplifies that outline to `--tol` metres (boxy).
  * Width = the x extent of the painted `body` material (no mirrors / trim). Tags: `glass` = the side projection of the
- * glass grown 2 cm (so it stands proud of the windscreen / rear window), `lamps` = the box (x0, x1, y0, y1) of the
+ * glass grown 2 cm (so it stands proud of the windscreen / rear window), `glassWidth` = its width at the beltline and
+ * at the roof, `lamps` = the box (x0, x1, y0, y1) of the
  * left head / tail lamps seen from the front / back. Prints `profile.ts` for the car folder.
  */
 import fs from 'node:fs';
@@ -65,6 +66,7 @@ const LAMPS = new Set([
 ]);
 const tris = []; // [z0, y0, z1, y1, z2, y2]
 const glassTris = [];
+const glassPts = []; // [|x|, y] of every glass vertex
 const lampTris = []; // [x0, y0, x1, y1, x2, y2, centre z] of every left (x > 0) lamp triangle
 let minZ = Infinity;
 let maxZ = -Infinity;
@@ -83,6 +85,7 @@ for (const mesh of gltf.meshes)
       maxZ = Math.max(maxZ, pos[i + 2]);
       maxY = Math.max(maxY, pos[i + 1]);
       if (mat === 'body') halfWidth = Math.max(halfWidth, Math.abs(pos[i]));
+      if (GLASS.has(mat)) glassPts.push([Math.abs(pos[i]), pos[i + 1]]);
     }
     for (let t = 0; t < idx.length; t += 3) {
       const tri = [];
@@ -323,6 +326,13 @@ function lampBox(front) {
   return best?.box ?? null;
 }
 
+/** Greenhouse width (m) at the beltline (lowest 15 cm of glass) and at the roof (top 8 cm): its tumblehome. */
+const gy = glassPts.map((p) => p[1]);
+const [gy0, gy1] = [Math.min(...gy), Math.max(...gy)];
+const widthIn = (a, b) =>
+  2 *
+  Math.max(...glassPts.filter(([, y]) => y >= a && y <= b).map((p) => p[0]));
+
 const r3 = (v) => Math.round(v * 1000) / 1000;
 const flat = (pts) => pts.map(([z, y]) => `${r3(z)}, ${r3(y)}`).join(', ');
 const box = (b) => `[${b.map(r3).join(', ')}]`;
@@ -340,5 +350,6 @@ export const profile: CarProfile = {
   wheel: ${wheel},
   outline: [${flat(outline)}],
   glass: [${flat(glass)}],
+  glassWidth: [${r3(widthIn(gy0, gy0 + 0.15))}, ${r3(widthIn(gy1 - 0.08, gy1))}],
   lamps: { front: ${box(front)}, rear: ${box(rear)} },
 };`);
