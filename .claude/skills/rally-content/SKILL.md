@@ -77,7 +77,7 @@ model, parts, livery, glTF import) lives in `cars/shared/`.
   (`liveryInfo`: base + 2 accents; seed 0 = `model.paint`; no real brand logos).
   Liveries carry **no numbers / lettering**: the car number + rally name are the door plate
   (`cars/shared/rally-badge.ts`, a decal projected onto the paint). Place it per car with `model.doorBadge`
-  (`z`, `y`; check both sides in the car viewer with `&num=7&rally=<map>` - clear of handles / seams).
+  (`z`, `y`, optional `tilt` in degrees to follow a sloping body line; check both sides in the car viewer with `&num=7&rally=<map>` - clear of handles / seams).
 - Model space: y = 0 ground at ride height, z = 0 centre of mass. For wide-arch cars set physics `track` so the
   tyre's outer face sits just inside the arch.
 - Per-car performance bands live in `tests/rally/vehicle.test.ts` (`BANDS`) - add one for every new car.

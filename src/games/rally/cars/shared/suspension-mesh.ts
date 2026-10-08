@@ -21,13 +21,14 @@ import type { SetupPreset } from '../../physics/types';
  *   road  - plain black MacPherson strut with a ribbed rubber boot and a thin spring
  *   race  - short stubby silver coil-over, piggyback reservoir with an adjuster knob and a helper spring
  *   wrc   - blue medium coil-over, reservoir tube beside the housing, rubber bump-stop boot
+ *   evo   - slim red coil-over, short piggyback reservoir high on the housing, threaded spring seat
  *   wrcgold - the same unit in gold (Citroen C4 WRC)
  *   sti   - yellow short coil-over (race geometry), piggyback reservoir
  * The spring gets fewer, thicker coils the stiffer the rate; the whole unit is longer the more travel the preset
  * has (soft = long).
  */
 export type SuspensionStyle =
-  'rally' | 'road' | 'race' | 'gt' | 'wrc' | 'wrcgold' | 'sti';
+  'rally' | 'road' | 'race' | 'gt' | 'wrc' | 'wrcgold' | 'sti' | 'evo';
 
 export const SUSPENSION_STYLE_COLORS: Record<
   SuspensionStyle,
@@ -38,6 +39,7 @@ export const SUSPENSION_STYLE_COLORS: Record<
   race: { body: 0xb9bdc3, chrome: 0xd2d5d9 },
   gt: { body: 0x2a56a8, chrome: 0xc4c8cc },
   wrc: { body: 0x2a62c9, chrome: 0xc8ccd0 },
+  evo: { body: 0xc8281e, chrome: 0xc8ccd0 },
   wrcgold: { body: 0xd9a21b, chrome: 0xc8ccd0 },
   sti: { body: 0xf0c020, chrome: 0xc8ccd0 },
 };
@@ -147,6 +149,16 @@ export function buildCoilover(
     }
     chrome.push(rod(0.05, L * 0.4, L * 0.4 + 0.007, 0, 0, 14)); // lower perch
     spring.push(helix(0.04, wire * 0.85, L * 0.4 + 0.007, L * 0.92, coils));
+  } else if (style === 'evo') {
+    // Slim red housing, short piggyback reservoir high on the body, a threaded spring seat that rides on the housing.
+    body.push(rod(0.028, 0, L * 0.52));
+    body.push(rod(0.02, L * 0.3, L * 0.3 + 0.1, 0.06, 0, 12));
+    chrome.push(rod(0.012, L * 0.3 + 0.1, L * 0.3 + 0.115, 0.06, 0, 8)); // adjuster
+    chrome.push(rod(0.012, L * 0.52, L * 0.97, 0, 0, 10));
+    chrome.push(rod(0.034, L * 0.97, L, 0, 0, 12));
+    chrome.push(rod(0.048, L * 0.5, L * 0.5 + 0.008, 0, 0, 16));
+    chrome.push(rod(0.048, L * 0.92, L * 0.92 + 0.008, 0, 0, 16));
+    spring.push(helix(0.042, wire, L * 0.5 + 0.008, L * 0.92, coils));
   } else if (style === 'wrc' || style === 'wrcgold') {
     // World Rally Car: medium housing with a reservoir tube beside it (clamped at both ends), bump-stop boot on the shaft.
     body.push(rod(0.032, 0, L * 0.5));

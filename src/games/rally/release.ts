@@ -26,6 +26,7 @@ export const TEST_CARS: readonly string[] = [
   'fiesta',
   'subie_22b',
   'citroen_c4',
+  'lancer_evo_6',
 ];
 
 /** Maps in the published build. */

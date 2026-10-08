@@ -334,6 +334,17 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   Rim and tyre in ONE primitive: `--wheel <node-prefix>` splits it by islands (outer islands = tyre).
 - **A modelled cockpit** (seats, dash, cage) is `interior` (+ `parts.maxTriangles`) under `model.glass` (tint + opacity): it shows through
   the windows. A model without one is an empty shell - do not promise an interior; `rawview`-style cut views tell (half the car, view from the cut).
+- **Lamps whose look is their texture** (reflectors, bulbs, lens ribs painted into one lamp sheet, `cars/lancer-evo-6/`): the STL route
+  has no UVs and turns them into flat colour. Drop those primitives in `gltf.drop`, list them in `srcParts` and run
+  `python3 -I scripts/car-model/glb-src-parts.py <model.source.json> <source.glb>` after every `stl-to-glb.mjs`: it appends them with
+  their own UVs as `src:lamp:<png>` / `src:tail:<png>` primitives and writes the sheet next to the GLB (`srcPart` in
+  `part-materials.ts`: the sheet's bright pixels glow; `tail` = brake lamp, red pixels for the brake, neutral white for reversing).
+  `src:int:<png>` keeps a cockpit part's own texture (seat fabric; matt, double-sided, back faces dark). Check each sheet for logos
+  before shipping it (a dash sheet with wordmarks stays out), and credit it like the GLB. Seats that are one open sheet (no back
+  panel: look at them from the rear seats) get a closed back from `srcParts.shells` (dark hull, `cars/lancer-evo-6/`).
+- **Holes where the source is double-sided**: Sketchfab exports mark materials `doubleSided`; our part materials are single-sided,
+  so a cockpit / cowl shell seen from behind shows the ground through it. Name the part `<part>:2s` (`trim:2s`, `interior:2s`)
+  in `parts.materials` / the rules: `partMaterial` draws it double-sided.
 - **Grille openings with no own island** are `region` cuts (front view, convex outline, `depth` behind the bumper face) on the body material;
   grille bars / badge islands are `whole` + `islandTris` boxes. Badges go to `logo` (dropped).
 - `tests/rally/hull-fit.test.ts` spread a whole vertex array into `Math.min`: a 100k-triangle model with a cockpit overflowed the stack (now `reduce`).
@@ -423,7 +434,8 @@ registered car; see `src/games/rally/PHYSICS.md`.
 
 - A GLB's modelled wheel becomes a game wheel with `scripts/car-model/glb-wheel-extract.py` (rim + tyre STLs of one wheel group, axle = STL z,
   outer face at z max) then `wheel-stl-to-glb.mjs --keep --barrel <bore radius it prints>`. A wrong outer-face sign shows as spokes
-  sunk behind the barrel.
+  sunk behind the barrel. A rim that ends at its bead seat (no lip above the tyre bore: max rim radius ~0.62 in the GLB) shows a
+  groove between rim and tyre (the game tyre flares out from its bead): add `--flange 0.68` (a lathed lip, `cars/lancer-evo-6/`).
 - `model.wheelByCompound` gives a compound its own wheel GLB and / or rim colour (`rimColorFor`, `wheelModelFor` in `stl-wheel.ts`).
 - Wide gravel tyres lose grip on loose ground (`sizeFactors`): keep a rally tyre near 235 mm, and raise `rear.grip` for more than the M3's power.
 - A GLB body whose paint / carbon split lives only in its texture: `glb-to-parts-stl.py` rule `{"mat": "Body", "texture": {"maxLum": 0.42, "maxSat": 0.06, "blur": 9, "refine": 0.02}, "y": [..], "z": [..], "material": "carbon"}`

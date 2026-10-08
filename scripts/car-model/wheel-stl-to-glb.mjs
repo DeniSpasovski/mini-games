@@ -9,6 +9,8 @@
  * `--barrel <r>` = the rim's bead-seat radius in STL units: the game (cars/shared/stl-wheel.ts) scales the rim so
  * that 0.62 of the unit radius lands on the tyre's bead, so the radial unit is barrel / 0.62 instead of the tyre
  * radius (the Printables rim happens to have its barrel at 0.62 of its tyre radius; others do not).
+ * `--flange <r>` = add a rim lip on the outer face up to unit radius r (> 0.62), for a rim that ends at its bead seat
+ * (cars/lancer-evo-6/): the game tyre's sidewall flares out from the bead, so without a lip a groove shows between them.
  *
  * Written for print wheel / tyre parts whose axis is STL z with the spoke face at z max. Steps:
  *   1. load + weld both parts, centre them on the axis; the tyre slides onto the rim barrel with its
@@ -38,6 +40,7 @@ const opt = (name, def) => {
 const CREASE_DEG = 38;
 const KEEP_ALL = rest.includes('--keep');
 const BARREL = opt('barrel', 0);
+const FLANGE = opt('flange', 0);
 
 // --- 1. load ----------------------------------------------------------------------------------
 const rim = loadStl(rimPath);
@@ -99,12 +102,66 @@ const parts = {
     opt('tyre', 7000) < 2000 ? 1 : 0.02,
   ),
 };
+if (FLANGE > 0.62) parts.rim = addFlange(parts.rim, FLANGE);
 writeGlb(outPath, parts);
 console.log(
   `wrote ${outPath} (${(fs.statSync(outPath).size / 1e3).toFixed(0)} kB)`,
 );
 
 // --- helpers ------------------------------------------------------------------------------------
+
+/** A lathed rim lip (unit wheel space) on the outer face: from under the bead seat (0.62) up to `top`, rolled inwards. */
+function addFlange(part, top, segments = 96) {
+  const d = top - 0.62;
+  // [x, r] from the hidden root to the rolled edge (it tucks under the tyre sidewall).
+  const prof = [
+    [0.47, 0.6],
+    [0.497, 0.618],
+    [0.5, 0.62 + 0.55 * d],
+    [0.494, 0.62 + 0.9 * d],
+    [0.478, top],
+    [0.46, top - 0.15 * d],
+  ];
+  // Profile normals (outward = away from the rim's inside), averaged over the two neighbouring segments.
+  const segN = prof.slice(1).map(([x, r], i) => {
+    const [dx, dr] = [x - prof[i][0], r - prof[i][1]];
+    const l = Math.hypot(dx, dr);
+    return [dr / l, -dx / l];
+  });
+  const nrm = prof.map((_, i) => {
+    const a = segN[Math.max(0, i - 1)];
+    const b = segN[Math.min(segN.length - 1, i)];
+    const l = Math.hypot(a[0] + b[0], a[1] + b[1]);
+    return [(a[0] + b[0]) / l, (a[1] + b[1]) / l];
+  });
+  const pos = [...part.position];
+  const nor = [...part.normal];
+  const idx = [...part.index];
+  const base = pos.length / 3;
+  for (let s = 0; s <= segments; s++) {
+    const t = (s / segments) * Math.PI * 2;
+    const [c, si] = [Math.cos(t), Math.sin(t)];
+    prof.forEach(([x, r], i) => {
+      pos.push(x, r * c, r * si);
+      nor.push(nrm[i][0], nrm[i][1] * c, nrm[i][1] * si);
+    });
+  }
+  const n = prof.length;
+  for (let s = 0; s < segments; s++)
+    for (let i = 0; i < n - 1; i++) {
+      const a = base + s * n + i;
+      const b = a + n;
+      idx.push(a, a + 1, b, b, a + 1, b + 1);
+    }
+  console.log(
+    `rim: + flange to r ${top} (${segments * (n - 1) * 2} triangles)`,
+  );
+  return {
+    position: new Float32Array(pos),
+    normal: new Float32Array(nor),
+    index: pos.length / 3 < 65536 ? new Uint16Array(idx) : new Uint32Array(idx),
+  };
+}
 
 function buildPart(name, soup, keep, targetTris, maxError = 0.02) {
   const { positions, indices } = weld(soup, 1e-4);

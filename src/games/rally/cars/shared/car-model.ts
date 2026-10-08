@@ -536,7 +536,11 @@ export class CarModel {
                     : (part ?? mat);
                 // The cockpit sits inside the body's shadow and glass / lamps are far below one shadow texel:
                 // casting them only costs shadow-pass triangles.
-                if (NO_SHADOW_PARTS.has(name)) mesh.castShadow = false;
+                if (
+                  NO_SHADOW_PARTS.has(name.replace(/:2s$/, '')) ||
+                  name.startsWith('src:int:')
+                )
+                  mesh.castShadow = false;
                 if (!part && mesh.visible) painted.push(mesh);
               });
             } else {

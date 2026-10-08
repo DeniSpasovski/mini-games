@@ -57,13 +57,15 @@ export function clampCarNumber(n: number): number {
 export function badgePlacement(def: CarDef): {
   z: number;
   y: number;
+  tilt: number;
   width: number;
   height: number;
 } {
-  const { z, y } = def.model.doorBadge;
+  const { z, y, tilt = 0 } = def.model.doorBadge;
   return {
     z,
     y,
+    tilt: (tilt * Math.PI) / 180,
     width: BADGE_WIDTH,
     height: (BADGE_WIDTH * CANVAS_H) / CANVAS_W,
   };
@@ -252,7 +254,7 @@ export function buildBadgeGeometry(
   def: CarDef,
   side: 1 | -1,
 ): BufferGeometry {
-  const { z, y, width, height } = badgePlacement(def);
+  const { z, y, tilt, width, height } = badgePlacement(def);
   const margin = 0.08;
   const pos: number[] = [];
   const nrm: number[] = [];
@@ -318,7 +320,7 @@ export function buildBadgeGeometry(
   const decal = new DecalGeometry(
     new Mesh(near),
     new Vector3(side * (surfX + 0.05 - depth / 2), y, z),
-    new Euler(0, (side * Math.PI) / 2, 0),
+    new Euler(0, (side * Math.PI) / 2, side * tilt),
     new Vector3(width, height, depth),
   );
   near.dispose();

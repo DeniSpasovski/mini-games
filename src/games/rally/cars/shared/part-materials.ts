@@ -74,8 +74,20 @@ function lamp(
 }
 
 export function partMaterial(name: string): Material | undefined {
-  const build = BUILDERS[name as PartName];
-  if (!build) return undefined;
+  // `<part>:2s` = that part drawn double-sided (source models whose cockpit / trim shells are single-faced).
+  const twoSided = name.endsWith(':2s');
+  const base = twoSided ? name.slice(0, -3) : name;
+  const one = base.startsWith('src:')
+    ? () => srcPart(base)
+    : BUILDERS[base as PartName];
+  if (!one) return undefined;
+  const build = twoSided
+    ? () => {
+        const m = one();
+        m.side = DoubleSide;
+        return m;
+      }
+    : one;
   let m = cache.get(name);
   if (!m) {
     m = build();
@@ -100,6 +112,119 @@ function canvas(
   t.flipY = false; // glTF UV convention: v down
   t.anisotropy = 8;
   return t;
+}
+
+/** Sheet size of a source part's texture (maps are drawn at this size, whatever the file's). */
+const SRC_SIZE = 512;
+const srcSheets = new Map<string, Promise<HTMLImageElement>>();
+
+function sheetFor(file: string): Promise<HTMLImageElement> {
+  let sheet = srcSheets.get(file);
+  if (!sheet) {
+    sheet = new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = new URL(`models/cars/${file}`, location.href).href;
+    });
+    srcSheets.set(file, sheet);
+  }
+  return sheet;
+}
+
+/**
+ * A part that keeps the source model's own texture and UVs (scripts/car-model/glb-src-parts.py): material name
+ * `src:<kind>:<file in public/models/cars/>`. `int` = the sheet as it is (seat fabric, cockpit), matt, back faces dark; `shell` (no file) = dark plastic;
+ * `lamp` = the sheet, its bright pixels glow (head lamps, indicators); `tail` = brake lamp (setBrake): the red pixels glow, the bright neutral ones light in reverse. The maps
+ * stay dark until the sheet has loaded. Alpha comes from the sheet (clear lens areas show the reflector behind them).
+ */
+function srcPart(name: string): Material {
+  const [, kind, file] = name.split(':');
+  // Closed back of an open source shell (glb-src-parts.py `shells`): dark plastic.
+  if (kind === 'shell')
+    return new MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.6 });
+  const blank = (fill: string) =>
+    tiling(
+      canvas(SRC_SIZE, SRC_SIZE, (g) => {
+        g.fillStyle = fill;
+        g.fillRect(0, 0, SRC_SIZE, SRC_SIZE);
+      }),
+      1,
+    );
+  const map = blank('#1a1a1c');
+  if (kind === 'int') {
+    sheetFor(file)
+      .then((img) => {
+        const g = (map.image as HTMLCanvasElement).getContext('2d')!;
+        g.drawImage(img, 0, 0, SRC_SIZE, SRC_SIZE);
+        map.needsUpdate = true;
+      })
+      .catch(() => {});
+    const mat = new MeshStandardMaterial({
+      map,
+      roughness: 0.9,
+      side: DoubleSide,
+    });
+    // Source cockpits are single sheets seen from the front: their back faces (an open seat back seen from the rear seats)
+    // draw as a dark plastic shell instead of the fabric's inside.
+    mat.onBeforeCompile = (s) => {
+      addWorldUniforms(s);
+      s.fragmentShader = s.fragmentShader.replace(
+        '#include <color_fragment>',
+        '#include <color_fragment>\nif (!gl_FrontFacing) diffuseColor.rgb = vec3(0.03);',
+      );
+    };
+    return mat;
+  }
+  const glow = blank('#000');
+  const reverseGlow = kind === 'tail' ? blank('#000') : undefined;
+  sheetFor(file)
+    .then((img) => {
+      const g = (map.image as HTMLCanvasElement).getContext('2d')!;
+      g.clearRect(0, 0, SRC_SIZE, SRC_SIZE);
+      g.drawImage(img, 0, 0, SRC_SIZE, SRC_SIZE);
+      const px = g.getImageData(0, 0, SRC_SIZE, SRC_SIZE).data;
+      const paint = (
+        t: CanvasTexture,
+        f: (r: number, gr: number, b: number) => number,
+      ) => {
+        const c = (t.image as HTMLCanvasElement).getContext('2d')!;
+        const d = c.createImageData(SRC_SIZE, SRC_SIZE);
+        for (let i = 0; i < px.length; i += 4) {
+          const v = f(px[i], px[i + 1], px[i + 2]) * (px[i + 3] / 255);
+          d.data[i] = px[i] * v;
+          d.data[i + 1] = px[i + 1] * v;
+          d.data[i + 2] = px[i + 2] * v;
+          d.data[i + 3] = 255;
+        }
+        c.putImageData(d, 0, 0);
+        t.needsUpdate = true;
+      };
+      const lum = (r: number, gr: number, b: number) => (r + gr + b) / 765;
+      if (kind === 'tail') {
+        paint(glow, (r, gr) => (r > 2 * gr + 40 ? 1 : 0));
+        paint(reverseGlow!, (r, gr, b) =>
+          Math.max(r, gr, b) - Math.min(r, gr, b) < 40 && lum(r, gr, b) > 0.6
+            ? 1
+            : 0,
+        );
+      } else paint(glow, (r, gr, b) => lum(r, gr, b) ** 2);
+      map.needsUpdate = true;
+    })
+    .catch(() => {}); // no sheet: the dark placeholder stays
+  const m = new MeshPhysicalMaterial({
+    map,
+    emissive: 0xffffff,
+    emissiveMap: glow,
+    emissiveIntensity: kind === 'tail' ? 0.35 : 0.5,
+    transparent: true,
+    side: DoubleSide,
+    roughness: 0.16,
+    metalness: 0.1,
+    clearcoat: 1,
+    clearcoatRoughness: 0.05,
+  });
+  return kind === 'tail' ? lamp(m, 4, reverseGlow) : m;
 }
 
 /** Tiling texture for metre UVs: `tile` = size of one canvas repeat in metres. */
