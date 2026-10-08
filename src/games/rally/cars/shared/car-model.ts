@@ -702,10 +702,11 @@ export class CarModel {
     map.anisotropy = 8;
     const mat = new MeshPhysicalMaterial({
       map,
-      metalness: matte ? 0 : satin ? 0.1 : metallic ? 0.55 : 0.2,
+      metalness: matte ? 0 : satin ? 0.1 : metallic ? 0.35 : 0.2,
       roughness: matte ? 0.88 : satin ? 0.58 : metallic ? 0.34 : 0.45,
-      clearcoat: matte ? 0 : satin ? 0.35 : 1,
+      clearcoat: matte ? 0 : satin ? 0.35 : metallic ? 0.65 : 1,
       clearcoatRoughness: satin ? 0.4 : metallic ? 0.04 : 0.12,
+      envMapIntensity: 1,
     });
     if (atlas.matteRect && !matte) {
       // Matte patch (wheel arches): rough + no clearcoat where the atlas says so.

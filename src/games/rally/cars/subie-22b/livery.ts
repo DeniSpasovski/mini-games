@@ -137,7 +137,7 @@ function weather(ctx: CanvasRenderingContext2D, seed: number): void {
       px(chart, 0, yLow)[1],
     );
     g.addColorStop(0, 'rgba(112,92,64,0)');
-    g.addColorStop(1, 'rgba(112,92,64,0.5)');
+    g.addColorStop(1, 'rgba(112,92,64,0.3)');
     ctx.fillStyle = g;
     ctx.fillRect(cx * K, cy * K, w * K, h * K);
     // Speckle: spray thrown up by the wheels, densest low down and round the arches (z of the axles).

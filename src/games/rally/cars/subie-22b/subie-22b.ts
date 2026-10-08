@@ -186,7 +186,7 @@ export const subie22b: CarDef = {
       bPillar: -0.61,
       kick: 0.3,
     },
-    paint: '#1c44b8',
+    paint: '#1d67d8',
     flare: 0.04,
     rim: { color: '#d8b24a', spokes: 6, style: 'spoke', caliper: '#c8102e' },
     // The model's own gold alloy (subie_22b_wheel.glb), scaled to each compound's tyre.
