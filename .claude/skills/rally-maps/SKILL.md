@@ -15,8 +15,6 @@ licences / citations, downloaded files, reference screenshots) - add one short r
 sources (data sets, route links) also go in `MapDef.sources` (label / url / note) - listed on the main menu About screen. Everything (heightfield, road carving, trees, colliders) is
 generated deterministically from it. There is no map editor on purpose — edit the data.
 
-**Times versions:** a new map adds its id to `MAP_TIMES_VERSIONS` (`game/stage.ts`, start at 1); changing a map's road, layout, length or surfaces bumps its entry. Old times stay below the new ones. Mention the bump in the PR.
-
 ## Coordinate system
 
 +X east, +Z **south** (north = -Z), +Y up, metres (three.js is right-handed: +Z north would mirror real maps).
@@ -270,3 +268,7 @@ fixes can ship meanwhile. Move the id to `AVAILABLE_MAPS` to release it (or back
 
 Files / links the user provides (models, reference photos, data downloads) go to `sources/` (git-ignored) and are
 listed in the car / map folder `DETAILS.md` - follow `.claude/skills/source-files/SKILL.md`.
+
+## Bump the times version (last step)
+
+A new map adds its id to `MAP_TIMES_VERSIONS` in `game/stage.ts` (start at 1). Changing an existing map's road, layout, length or surfaces bumps its entry. Old times stay below the new ones. Mention the bump in the PR.
