@@ -36,9 +36,10 @@ npm run dev     # /games/rally/car-viewer.html?car=citroen_c4
 
 ## Credits and licence
 
-| What                  | Source                                                                                                                                            | Licence       |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| Body, cockpit and rim | ["Citroen C4 WRC Red Bull 2007" by Max, Sketchfab](https://sketchfab.com/3d-models/citroen-c4-wrc-red-bull-2007-97d128fb4b2a4558a02d65af542486dc) | **CC BY 4.0** |
+| What                  | Source                                                                                                                                            | Licence        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| Body, cockpit and rim | ["Citroen C4 WRC Red Bull 2007" by Max, Sketchfab](https://sketchfab.com/3d-models/citroen-c4-wrc-red-bull-2007-97d128fb4b2a4558a02d65af542486dc) | **CC BY 4.0**  |
+| Specification         | [WRC.com](https://www.wrc.com/en/misc/citroen-c4-wrc), [Racecar Engineering](https://www.racecar-engineering.com/articles/citroen-c4-wrc-4/)      | reference only |
 
 Converted and repainted by us (attribution in `CarDef.credit`, `THIRD-PARTY.md`, `public/models/CREDITS.md`). The downloaded GLB
 itself is not in the repository (`sources/` is git-ignored); only the converted `citroen_c4.glb` / `citroen_c4_wheel.glb` ship.

@@ -66,6 +66,16 @@ export const citroenC4: CarDef = {
       url: 'https://sketchfab.com/3d-models/citroen-c4-wrc-red-bull-2007-97d128fb4b2a4558a02d65af542486dc',
       note: 'imported body, cockpit and rim (converted + repainted, sponsor and manufacturer marks removed), CC BY 4.0',
     },
+    {
+      label: 'WRC.com - Citroen C4 WRC',
+      url: 'https://www.wrc.com/en/misc/citroen-c4-wrc',
+      note: 'specification reference',
+    },
+    {
+      label: 'Racecar Engineering - Citroen C4 WRC',
+      url: 'https://www.racecar-engineering.com/articles/citroen-c4-wrc-4/',
+      note: 'specification reference',
+    },
   ],
   // 2.0 turbo four, open rally exhaust, anti-lag, sequential box.
   sound: {
