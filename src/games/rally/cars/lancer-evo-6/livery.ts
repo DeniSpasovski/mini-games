@@ -79,13 +79,30 @@ const sides = (ctx: CanvasRenderingContext2D, pts: Pt[], style: Fill) => {
 
 const Z_NOSE = 2.1;
 const Z_TAIL = -2.25;
-/** Arch edges on the side charts: the skirt runs between them, the bumpers outside them. */
-const Z_ARCH_F = 1.62;
-const Z_ARCH_R = -1.72;
-/** Black sill: the whole skirt between the arches (its up-facing bevel joins the side chart, `chartBoxes`). */
-const SILL: [number, number] = [0.1, 0.355];
-/** Front diffuser lip top. */
-const LIP_F = 0.255;
+/** Where the bumpers start behind / in front of the arches (on the side charts). */
+const Z_BUMPER_F = 1.5;
+/** Black sill: the whole skirt between the arches (z -0.95..0.84), up to its top ledge where the door starts ([z, y]; the up-facing bevel joins the side chart, `chartBoxes`). */
+const SILL: Pt[] = [
+  [-1.0, 0.337],
+  [-0.9, 0.337],
+  [-0.6, 0.332],
+  [-0.3, 0.323],
+  [0, 0.317],
+  [0.3, 0.311],
+  [0.6, 0.304],
+  [0.9, 0.302],
+];
+/** Front diffuser lip top ([|x|, y] front: dips under the side intakes, back up at the corners, which stop at the same ledge on the sides). */
+const LIP_F: Pt[] = [
+  [0, 0.236],
+  [0.3, 0.234],
+  [0.45, 0.221],
+  [0.6, 0.205],
+  [0.7, 0.193],
+  [0.74, 0.238],
+  [1.05, 0.238],
+];
+const LIP_F_SIDE = 0.238;
 /** Rear bumper bottom lip: up to the groove that runs under the vent slot and round the corners ([|x|, y] rear, [z, y] sides). */
 const LIP_R: Pt[] = [
   [0, 0.459],
@@ -134,8 +151,8 @@ function paint(
     [z0, y1],
     [z1, y1],
   ];
-  sides(ctx, band(Z_ARCH_R, Z_ARCH_F, SILL[0], SILL[1]), black);
-  sides(ctx, band(Z_ARCH_F, Z_NOSE, 0, LIP_F - 0.02), black);
+  sides(ctx, [[0.9, 0.1], [-1.0, 0.1], ...SILL], black);
+  sides(ctx, band(Z_BUMPER_F, Z_NOSE, 0, LIP_F_SIDE), black);
   sides(ctx, [[-1.55, 0], [Z_TAIL, 0], ...LIP_R_SIDE], black);
   fill(
     ctx,
@@ -143,8 +160,8 @@ function paint(
     [
       [-1.05, 0],
       [1.05, 0],
-      [1.05, LIP_F],
-      [-1.05, LIP_F],
+      ...LIP_F.slice().reverse(),
+      ...LIP_F.slice(1).map(([x, y]): Pt => [-x, y]),
     ],
     black,
   );
