@@ -10,10 +10,10 @@
  */
 
 /** Maps in the published build. */
-export const AVAILABLE_MAPS: readonly string[] = ['city', 'toy', 'animal'];
+export const AVAILABLE_MAPS: readonly string[] = ['city', 'toy', 'animal', 'construction'];
 
 /** Maps on the dev server and in test builds only. */
-export const TEST_MAPS: readonly string[] = ['construction'];
+export const TEST_MAPS: readonly string[] = [];
 
 /** true on the dev server and in a test build: every map; false in the release build. */
 export const SHOW_TEST_CONTENT: boolean = import.meta.env.DEV || __TEST_BUILD__;

@@ -15,7 +15,7 @@ All art is original, procedural and made from boxes, and the name is a placehold
 npm run dev     # then open http://localhost:3000/games/hole/
 ```
 
-Pick a difficulty and a hole colour, then drag to steer. Add `?map=toy` for the toy store, `?map=animal` for Animal Island or `?map=construction` for the Construction Site test map (dev server only).
+Pick a difficulty and a hole colour, then drag to steer. Add `?map=toy` for the toy store, `?map=animal` for Animal Island or `?map=construction` for the Construction Site.
 
 ## Maps
 
@@ -34,7 +34,7 @@ Pick a difficulty and a hole colour, then drag to steer. Add `?map=toy` for the 
 |                                                                                    |                                                                    |
 | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | ![Construction Site, early game](screenshots/construction-early.jpg)               | ![Construction Site, late game](screenshots/construction-late.jpg) |
-| **Construction Site** (test map) - bricks and cones first, then diggers, 117 types | Haul trucks, cranes and high-rises in the open-pit mine            |
+| **Construction Site** - bricks and cones first, then diggers, 117 types | Haul trucks, cranes and high-rises in the open-pit mine            |
 
 ## Features
 
