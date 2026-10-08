@@ -327,6 +327,31 @@ export function shuffledLayout(next: () => number): ToyLayout {
   };
   place(checkout, doorSlot);
   others.forEach((z, i) => place(z, free[i]));
+  // the fixed zones vary in place: the dock's two trucks swap sides, shift and may face the other way,
+  // and the atrium showpieces mirror left to right
+  const stockroom = LAYOUT.zones.find((z) => z.id === 'stockroom')!;
+  const atrium = LAYOUT.zones.find((z) => z.id === 'atrium')!;
+  const swapTrucks = next() < 0.5;
+  const trucks = (stockroom.anchors ?? []).map(
+    ([id, x, zz, r], i) =>
+      [
+        id,
+        (swapTrucks ? -x : x) +
+          (next() - 0.5) * 30 * FLOOR_SCALE +
+          (i ? -20 : 20),
+        zz,
+        next() < 0.5 ? r : r + Math.PI,
+      ] as [string, number, number, number],
+  );
+  moved.set(stockroom.id, { ...stockroom, anchors: trucks });
+  const mirror = next() < 0.5;
+  if (mirror)
+    moved.set(atrium.id, {
+      ...atrium,
+      anchors: (atrium.anchors ?? []).map(
+        ([id, x, zz, r]) => [id, -x, zz, r] as [string, number, number, number],
+      ),
+    });
   const doorX = centre(doorSlot).x;
   return {
     ...LAYOUT,
