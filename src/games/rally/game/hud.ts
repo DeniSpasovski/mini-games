@@ -13,6 +13,8 @@ export interface HudState {
   automatic: boolean;
   tc: boolean;
   tcActive: boolean;
+  abs: boolean;
+  absActive: boolean;
   /** Auto handbrake / start-line hold engaged. */
   hold: boolean;
 }
@@ -48,12 +50,12 @@ export class Hud {
           <div class="hud-gear" data-ref="gear">1</div>
           <div class="hud-speed"><span data-ref="speed">0</span><small>km/h</small></div>
         </div>
-        <div class="hud-flags"><span data-ref="hold">HOLD</span><span data-ref="tc">TC</span><span data-ref="box">AUTO</span></div>
+        <div class="hud-flags"><span data-ref="hold">HOLD</span><span data-ref="tc">TC</span><span data-ref="abs">ABS</span><span data-ref="box">AUTO</span></div>
       </div>
       <div class="hud-hints" data-ref="hints">
         <b>W/S</b> throttle / brake·reverse &nbsp; <b>A/D</b> steer &nbsp; <b>Space</b> handbrake<br/>
         <b>R</b> reset &nbsp; <b>C</b> camera &nbsp; <b>Esc</b> menu &nbsp; <b>Q/E</b> shift (<b>G</b> manual) &nbsp;
-        <b>T</b> traction ctrl &nbsp; <b>M</b> mute &nbsp; <b>F2</b> telemetry &nbsp; <b>F3</b> stats &nbsp; <b>F4</b> physics &nbsp; <b>F8</b> autopilot
+        <b>T</b> traction ctrl &nbsp; <b>B</b> ABS &nbsp; <b>M</b> mute &nbsp; <b>F2</b> telemetry &nbsp; <b>F3</b> stats &nbsp; <b>F4</b> physics &nbsp; <b>F8</b> autopilot
       </div>`;
     parent.append(this.el);
     this.el
@@ -86,6 +88,7 @@ export class Hud {
     this.set('box', s.automatic ? 'AUTO' : 'MAN');
     this.refs.hold.className = s.hold ? 'on active' : '';
     this.refs.tc.className = s.tc ? (s.tcActive ? 'on active' : 'on') : '';
+    this.refs.abs.className = s.abs ? (s.absActive ? 'on active' : 'on') : '';
     const lit = Math.round((s.rpm / (s.redline * 1.05)) * this.rpmBars.length);
     const key = `rpm${lit}`;
     if (this.cache.rpmBars !== key) {

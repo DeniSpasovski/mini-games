@@ -37,7 +37,7 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 | Input    | Keys                                                                                                                       |
 | -------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Keyboard | `W` / `S` throttle / brake (hold `S` when stopped = reverse), `A` / `D` steer, `Space` handbrake                           |
-|          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist           |
+|          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS  |
 |          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F8` autopilot, `F9` save the portal thumbnail (dev)      |
 | Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B |
 | Touch    | on-screen steer arrows, BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                    |
@@ -49,8 +49,8 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
   **Start stage** with the recommended set-up, or **Setup car**. The car stands in a 3D showroom (`game/showroom.ts`): car
   screens add studio strip lights to the env map (`Environment` `studio`) and a shallow depth of field
   (`engine/depth-of-field.ts`, off on low quality); the stage view keeps the map's sky env, no blur. Console (dev): `__showroom`.
-- **Options** (main and pause menu): quality, object distance, volume, gearbox, traction assist (hidden for cars with
-  `physics.noTractionControl`), car number (door plates), start camera. Saved in localStorage (`game/settings.ts`).
+- **Options** (main and pause menu): quality, object distance, volume, gearbox, traction assist and ABS (each hidden for
+  cars with `physics.noTractionControl` / `noAbs`), car number (door plates), start camera. Saved in localStorage (`game/settings.ts`).
 - **Pause** (`Esc`): resume, restart, free-drive pad <-> stage, options, main menu.
 - **About:** every external source per map (`MapDef.sources`) and car (`CarDef.sources`), plus `version` from `game.json`.
 

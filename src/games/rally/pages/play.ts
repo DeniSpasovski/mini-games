@@ -148,6 +148,7 @@ async function play(params: typeof DEFAULTS): Promise<void> {
     pauseBox.append(
       buildOptions({
         tractionControl: !getCar(params.car).physics.noTractionControl,
+        abs: !getCar(params.car).physics.noAbs,
         onBack: showPauseMenu,
         onChange: (s) => game.applySettings(s),
         // The renderer is built for one quality: reload into the same stage.

@@ -19,6 +19,7 @@ export type InputAction =
   | 'physicsDebug'
   | 'mute'
   | 'traction'
+  | 'abs'
   | 'autopilot';
 
 const KEY_ACTIONS: Record<string, InputAction> = {
@@ -34,6 +35,7 @@ const KEY_ACTIONS: Record<string, InputAction> = {
   F4: 'physicsDebug',
   KeyM: 'mute',
   KeyT: 'traction',
+  KeyB: 'abs',
   F8: 'autopilot',
 };
 

@@ -334,6 +334,7 @@ export class RallyGame {
     this.audio.setVolume(s.volume);
     this.vehicle.drivetrain.automatic = s.automatic;
     this.vehicle.tractionControl = s.traction;
+    this.vehicle.abs = s.abs;
     this.rig.mode = s.camera;
     // Object draw distance (options): the streamer re-buckets on its next update.
     const lodScale =
@@ -508,6 +509,15 @@ export class RallyGame {
           1.2,
           'small',
         );
+        break;
+      case 'abs':
+        if (this.car.physics.noAbs) {
+          this.hud.message('NO ABS', 1.2, 'small');
+          break;
+        }
+        v.abs = !v.abs;
+        saveSettings({ abs: v.abs });
+        this.hud.message(`ABS ${v.abs ? 'ON' : 'OFF'}`, 1.2, 'small');
         break;
       case 'telemetry':
         this.telemetry.toggle();
@@ -834,6 +844,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         automatic: v.drivetrain.automatic,
         tc: v.tractionControl && !this.car.physics.noTractionControl,
         tcActive: v.tcFactor < 0.95,
+        abs: v.abs && !this.car.physics.noAbs,
+        absActive: v.absActive,
         hold: v.parked || v.holding,
       },
       this.stage,
