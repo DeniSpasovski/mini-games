@@ -121,7 +121,12 @@ export interface WheelState {
   surface: SurfaceDef;
   /** Puddle water under the tyre (m, puddles.ts; 0 = none): drag, and aquaplaning on asphalt at speed. */
   puddle: number;
-  /** Tyre temperature (°C) and the grip factor it gives on the current surface (1 without a climate). */
+  /**
+   * Tyre temperatures (°C): tread surface (fast), core (slow) and the blend grip follows (`gripTemp`, what the HUD
+   * shows), and the grip factor it gives on the current surface (1 without a climate).
+   */
+  surfaceTemp: number;
+  coreTemp: number;
   temp: number;
   tempGrip: number;
   /** The fitted brake (`setTyre` picks the kit), its torque at full pad friction (N m) and its thermal numbers. */
@@ -223,7 +228,8 @@ export class Vehicle {
   private climateAir = 0;
   private climateRef: number | null = null;
   private heatIn: TyreHeatInput = {
-    temp: 0,
+    surfaceTemp: 0,
+    coreTemp: 0,
     contact: false,
     force: 0,
     slideSpeed: 0,
@@ -343,7 +349,7 @@ export class Vehicle {
     this.climatePass();
     const t = this.climate ? startTemp(this.climate) : 20;
     for (const w of this.wheels) {
-      w.temp = t;
+      w.surfaceTemp = w.coreTemp = w.temp = t;
       w.brakeTemp = this.climate ? brakeStartTemp(this.climate) : 20;
       w.brakeFactor = this.climate ? padFactor(w.brakeTemp, w.brake) : 1;
       w.tempGrip = this.tempGripOf(w, w.surface);
@@ -438,6 +444,8 @@ export class Vehicle {
         slideSpeed: 0,
         absFactor: 1,
         surface: SURFACES.gravel,
+        surfaceTemp: 20,
+        coreTemp: 20,
         temp: 20,
         tempGrip: 1,
         puddle: 0,
@@ -904,13 +912,14 @@ export class Vehicle {
     this.applyForce(f, app);
   }
 
-  /** Tyre temperatures (physics/tyre-temp.ts): sliding + rolling heat, air / ground / water cooling. */
+  /** Tyre temperatures (physics/tyre-temp.ts): surface + core per tyre, sliding / rolling heat, air / ground / water cooling. */
   private tyreTempPass(dt: number): void {
     const c = this.climate;
     if (!c || !this.tyre) return;
     const h = this.heatIn;
     for (const w of this.wheels) {
-      h.temp = w.temp;
+      h.surfaceTemp = w.surfaceTemp;
+      h.coreTemp = w.coreTemp;
       h.contact = w.contact;
       h.force = Math.hypot(w.fx, w.fy);
       h.slideSpeed = w.slideSpeed;
@@ -921,6 +930,8 @@ export class Vehicle {
       // A wet road's film (a few mm) cools like shallow water.
       h.water = Math.max(this.waterDepth, this.wet * 0.03);
       w.temp = stepTemp(h, c, dt);
+      w.surfaceTemp = h.surfaceTemp;
+      w.coreTemp = h.coreTemp;
     }
   }
 
