@@ -1,9 +1,10 @@
 import { describe, expect, test } from '@rstest/core';
 import {
-  TIMES_VERSION,
+  MAP_TIMES_VERSIONS,
   isOldRun,
-  recordTime,
   migrateTimes,
+  recordTime,
+  timesVersion,
 } from '../../src/games/rally/game/stage';
 
 /** Minimal in-memory Storage (node has no localStorage). */
@@ -21,59 +22,80 @@ function memoryStorage(initial: Record<string, string> = {}): Storage {
   };
 }
 
-describe('saved times version', () => {
-  test('unversioned times are kept, tagged v0; per-car bests are erased', () => {
+const MAP = Object.keys(MAP_TIMES_VERSIONS)[0];
+const OTHER = Object.keys(MAP_TIMES_VERSIONS)[1];
+const CUR = timesVersion(MAP);
+
+describe('saved times version (per map)', () => {
+  test('unversioned times are kept, tagged v0; that map bests are erased', () => {
     const s = memoryStorage({
-      'rally.times.petralica': '[{"time":100}]',
-      'rally.best.petralica.bimmer_m3': '{"total":100,"splits":[]}',
+      [`rally.times.${MAP}`]: '[{"time":100}]',
+      [`rally.best.${MAP}.bimmer_m3`]: '{"total":100,"splits":[]}',
       'rally.quality': 'high',
     });
     expect(migrateTimes(s)).toBe(true);
-    expect(JSON.parse(s.getItem('rally.times.petralica')!)[0].ver).toBe(0);
-    expect(s.getItem('rally.best.petralica.bimmer_m3')).toBeNull();
-    expect(s.getItem('rally.timesVersion')).toBe(String(TIMES_VERSION));
+    expect(JSON.parse(s.getItem(`rally.times.${MAP}`)!)[0].ver).toBe(0);
+    expect(s.getItem(`rally.best.${MAP}.bimmer_m3`)).toBeNull();
+    expect(s.getItem(`rally.timesVersion.${MAP}`)).toBe(String(CUR));
     expect(s.getItem('rally.quality')).toBe('high'); // other settings stay
   });
 
-  test('times saved under the current version are kept', () => {
+  test('the old single version key seeds every map', () => {
     const s = memoryStorage({
-      'rally.timesVersion': String(TIMES_VERSION),
-      'rally.times.jackie': '[{"time":90}]',
+      'rally.timesVersion': String(CUR),
+      [`rally.times.${MAP}`]: '[{"time":90}]',
     });
     expect(migrateTimes(s)).toBe(false);
-    expect(s.getItem('rally.times.jackie')).toBe('[{"time":90}]');
+    expect(s.getItem(`rally.times.${MAP}`)).toBe('[{"time":90}]');
   });
 
-  test('a bump keeps old runs below the current ones', () => {
+  test('a bump touches only its map', () => {
     const s = memoryStorage({
-      'rally.timesVersion': String(TIMES_VERSION - 1),
-      'rally.times.m': JSON.stringify([
-        { time: 10, car: 'c', date: 1 },
-        { time: 20, car: 'c', date: 2, ver: TIMES_VERSION - 2 },
-      ]),
+      [`rally.timesVersion.${MAP}`]: String(CUR - 1),
+      [`rally.timesVersion.${OTHER}`]: String(timesVersion(OTHER)),
+      [`rally.times.${MAP}`]: '[{"time":10,"car":"c","date":1}]',
+      [`rally.times.${OTHER}`]: '[{"time":10,"car":"c","date":1}]',
+      [`rally.best.${OTHER}.c`]: '{"total":10,"splits":[]}',
     });
     expect(migrateTimes(s)).toBe(true);
+    expect(JSON.parse(s.getItem(`rally.times.${MAP}`)!)[0].ver).toBe(CUR - 1);
+    expect(JSON.parse(s.getItem(`rally.times.${OTHER}`)!)[0].ver).toBe(
+      undefined,
+    );
+    expect(s.getItem(`rally.best.${OTHER}.c`)).not.toBeNull();
+  });
+
+  test('old runs list below the current ones, even when faster', () => {
+    const s = memoryStorage({
+      [`rally.timesVersion.${MAP}`]: String(CUR - 1),
+      [`rally.times.${MAP}`]: JSON.stringify([
+        { time: 10, car: 'c', date: 1 },
+        { time: 20, car: 'c', date: 2, ver: CUR - 2 },
+      ]),
+    });
+    migrateTimes(s);
     const mem = globalThis as { localStorage?: Storage };
     const prev = mem.localStorage;
     mem.localStorage = s;
     try {
-      const board = recordTime('m', [], {
+      const board = recordTime(MAP, [], {
         time: 99,
         car: 'c',
         livery: 0,
+        ver: CUR,
         date: 3,
       });
       expect(board.map((r) => r.time)).toEqual([99, 10, 20]);
-      expect(board.map((r) => isOldRun(r))).toEqual([false, true, true]);
-      expect(board[1].ver).toBe(TIMES_VERSION - 1);
+      expect(board.map((r) => isOldRun(r, CUR))).toEqual([false, true, true]);
+      expect(board[1].ver).toBe(CUR - 1);
     } finally {
       mem.localStorage = prev;
     }
   });
 
-  test('a fresh player has nothing to erase but gets the version stamped', () => {
+  test('a fresh player gets every map stamped', () => {
     const s = memoryStorage();
     expect(migrateTimes(s)).toBe(false);
-    expect(s.getItem('rally.timesVersion')).toBe(String(TIMES_VERSION));
+    expect(s.getItem(`rally.timesVersion.${MAP}`)).toBe(String(CUR));
   });
 });

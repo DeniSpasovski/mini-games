@@ -74,6 +74,7 @@ import {
   isOldRun,
   loadTimes,
   sectorTimes,
+  timesVersion,
   type RunRecord,
 } from './stage';
 
@@ -382,8 +383,10 @@ class MainMenu {
       b.className = 'menu-card';
       b.classList.toggle('selected', i === this.mapIndex);
       const times = loadTimes(m.id, CAR_IDS);
-      const best = times.find((r) => !isOldRun(r));
-      const oldBest = times[0] && isOldRun(times[0]) ? times[0] : undefined;
+      const cur = timesVersion(m.id);
+      const best = times.find((r) => !isOldRun(r, cur));
+      const oldBest =
+        times[0] && isOldRun(times[0], cur) ? times[0] : undefined;
       b.innerHTML = `
         ${routeSvg(m)}
         <div class="menu-card-body">
@@ -423,7 +426,7 @@ class MainMenu {
       b.className = 'menu-btn menu-car';
       b.classList.toggle('selected', i === this.carIndex);
       const best = times.find((r) => r.car === c.id);
-      const stale = best && isOldRun(best);
+      const stale = best && isOldRun(best, timesVersion(this.map.id));
       b.innerHTML = `<span><b>${c.name}${testBadge(isTestCar(c.id))}</b><small>${c.className}</small></span>
         <span class="menu-car-best${stale ? ' old' : ''}">${best ? formatTime(best.time) : ''}</span>`;
       b.addEventListener('click', () => this.selectCar(i));
@@ -987,8 +990,9 @@ export function buildLeaderboard(
   let carOnly = false;
   const render = () => {
     const all = carOnly ? board.filter((r) => r.car === run.car) : board;
-    const rows = all.filter((r) => !isOldRun(r));
-    const older = all.filter(isOldRun);
+    const cur = run.ver ?? 1;
+    const rows = all.filter((r) => !isOldRun(r, cur));
+    const older = all.filter((r) => isOldRun(r, cur));
     const rank = rows.indexOf(run);
     const lead = rows[0]?.time ?? 0;
     // Set-up columns: what the run was driven with ("–" = not recorded: older runs, or fixed gearing on the road car).
@@ -1001,7 +1005,7 @@ export function buildLeaderboard(
       isGearingId(r.gear) ? GEARING_NAMES[r.gear] : dash;
     const row = (r: RunRecord, i: number) => {
       const sec = sectorTimes(r);
-      const old = isOldRun(r);
+      const old = isOldRun(r, cur);
       const cls = r === run ? ' class="me"' : old ? ' class="old"' : '';
       return (
         `<tr${cls}><td rowspan="2">${old ? `v${r.ver}` : i + 1}</td><td>${formatTime(r.time)}${r.penalty ? ` <span class="pen">(+${r.penalty}s)</span>` : ''}</td>` +

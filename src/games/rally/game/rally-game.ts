@@ -59,7 +59,7 @@ import {
   FLIPPED_UP_Y,
   StageTimer,
   type StageEvent,
-  TIMES_VERSION,
+  timesVersion,
 } from './stage';
 import type { MapDef } from '../maps/shared/types';
 import { ForceLines, Telemetry } from './telemetry';
@@ -568,7 +568,7 @@ export class RallyGame {
       game_rally_gearing: hasGearings(this.car.physics)
         ? this.opts.gearing
         : undefined,
-      game_rally_times_version: TIMES_VERSION,
+      game_rally_times_version: timesVersion(this.world.map.id),
     };
   }
 
@@ -630,7 +630,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         ...(hasGearings(this.car.physics) ? { gear: this.opts.gearing } : {}),
         splits: [...this.stage.splitTimes],
         ...(e.penalty ? { penalty: e.penalty } : {}),
-        ver: TIMES_VERSION,
+        ver: timesVersion(this.world.map.id),
         date: Date.now(),
       };
       // Free drive runs don't count.
