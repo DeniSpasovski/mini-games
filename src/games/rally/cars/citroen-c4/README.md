@@ -2,11 +2,13 @@
 
 A 2007 World Rally Car from a **CC BY Sketchfab model**: the model's body, its **cockpit (seats, dash, roll cage) kept and visible
 through the see-through glass**, its own 15-spoke rim **de-cambered and centred on the hub**, its own 3D headlamps and tail lamps,
-and our own livery: purple-blue nose, fenders and front half of the doors (the split runs through the middle of the door, leaning back
-75 deg), a red piece at the front end of the hood under a thin white line, red body behind the split, dark-blue rear bumper with white-lined
-diagonals (seen from behind only), white roof with a red square, a red edge along the door line and a French-flag roof scoop (shapes only,
-no logos or lettering). The sponsor livery, boot-lid emblem, plate, brake discs and wheels of the source are dropped; the grille keeps
-the model's own badge shape as black trim.
+and our own livery: purple-blue nose, fenders and front half of the doors (a straight split leaning back, from the sill to just in
+front of the B pillar) with a yellow disc on the rear of the fender / front of the door (flat-cut under the window), a red piece at the
+front end of the hood under a thin white line, red body behind the split, dark-blue rear bumper with white-lined diagonals (seen from
+behind only), white roof with a red square, a red edge along the door line and a French-flag roof scoop (shapes only, no logos or
+lettering). The sponsor livery, boot-lid emblem, plate, brake discs and wheels of the source are dropped; the grille is rebuilt from
+code (thick bars with the chevrons built into them, backed by a radiator core), and the tail lamps are a lens with a rim and a drawn
+texture (stripes, dot matrix, reverse lens).
 In game it is **Citroen C4 WRC**; the id stays `citroen_c4`. AWD, 1230 kg, 2.0 turbo. Test car (`TEST_CARS`, dev server only).
 
 ![Front three-quarter](screenshots/front-34.jpg)

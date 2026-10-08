@@ -30,7 +30,33 @@
       "front": [0, 5.65],
       "rear": [2.2, 5.65],
       "bottom": [0, 7.45]
-    }
+    },
+    "chartBoxes": [
+      {
+        "$comment": "rear-facing faces of the front half (fender / door gap, arch lips, hood vents): side chart (blue there), not the rear chart (red tail)",
+        "chart": "side",
+        "x": [0.55, 1.05],
+        "y": [0.25, 1.2],
+        "z": [0.3, 1.95]
+      },
+      {
+        "$comment": "rear bumper recesses (plate pocket, fog pockets): every face on the rear chart, so their sideways walls take the navy bumper, not the red flank of the side charts",
+        "chart": "rear",
+        "any": true,
+        "x": [0, 0.76],
+        "y": [0.2, 0.75],
+        "z": [-2.12, -1.9]
+      },
+      {
+        "$comment": "upper front fender and door front: the sloping shoulder stays on the side chart, so the yellow disc is not cut by the normal threshold between the side and top charts",
+        "chart": "side",
+        "maxNy": 0.95,
+        "minNy": -0.2,
+        "x": [0.7, 1.05],
+        "y": [0.55, 1.1],
+        "z": [0.45, 1.05]
+      }
+    ]
   },
   "gltf": {
     "$comment": "material / node -> part; first matching rule wins. Wheels, discs, plate, buttons, cables and gearbox bits are dropped (the game builds its own wheels / brakes).",
@@ -45,19 +71,64 @@
     ],
     "parts": [
       {
-        "$comment": "the raised badge shape on the grille (z > 1.95, in front of the bars): kept as black trim, so the grille reads as one dark piece (cutting it out left a hole)",
+        "mat": "ensemble_cr",
+        "region": {
+          "view": "front",
+          "poly": [
+            [-0.42, 0.5],
+            [0.42, 0.5],
+            [0.42, 0.83],
+            [-0.42, 0.83]
+          ],
+          "depth": [1.95, 2.2]
+        },
+        "material": "logo",
+        "$comment": "the old grille (thin bars, the raised badge block) is dropped; the grille is rebuilt from `parts.solids` below"
+      },
+      {
+        "mat": "Autres",
+        "region": {
+          "view": "front",
+          "poly": [
+            [-0.42, 0.5],
+            [0.42, 0.5],
+            [0.42, 0.83],
+            [-0.42, 0.83]
+          ],
+          "depth": [1.95, 2.2]
+        },
+        "material": "logo",
+        "$comment": "the old grille (thin bars, the raised badge block) is dropped; the grille is rebuilt from `parts.solids` below"
+      },
+      {
+        "$comment": "the body's own louvres in the grille opening: dropped, the grille is rebuilt from `parts.solids`",
         "mat": "Carrosserie",
         "region": {
           "view": "front",
           "poly": [
-            [-0.17, 0.66],
-            [0.17, 0.66],
-            [0.17, 0.8],
-            [-0.17, 0.8]
+            [-0.4, 0.655],
+            [0.4, 0.655],
+            [0.4, 0.738],
+            [-0.4, 0.738]
+          ],
+          "depth": [2.0, 2.2]
+        },
+        "material": "logo"
+      },
+      {
+        "$comment": "the old grille (thin bars, the raised badge block) is dropped; the grille is rebuilt from `parts.solids` below",
+        "mat": "Carrosserie",
+        "region": {
+          "view": "front",
+          "poly": [
+            [-0.2, 0.66],
+            [0.2, 0.66],
+            [0.2, 0.775],
+            [-0.2, 0.775]
           ],
           "depth": [1.95, 2.2]
         },
-        "material": "trim"
+        "material": "logo"
       },
       {
         "$comment": "the rear chevron emblem on the boot lid: dropped",
@@ -130,7 +201,7 @@
       },
       {
         "mat": "Phares",
-        "material": "tailled"
+        "material": "tailc4"
       },
       {
         "mat": "ensemble_cr",
@@ -211,13 +282,225 @@
       "lamphousing",
       "flagblue",
       "flagwhite",
-      "flagred"
+      "flagred",
+      "tailc4"
     ],
-    "wrap": {},
+    "wrap": {
+      "tailc4": "corner"
+    },
     "drop": ["logo"],
     "maxTriangles": {
       "interior": 18000
     },
-    "fills": []
+    "fills": [],
+    "solids": [
+      {
+        "$comment": "grille housing: one dark trapezoid behind the bars, up to the hood nose",
+        "material": "trim",
+        "frame": {
+          "origin": [0, 0.66, 2.085],
+          "tilt": 31
+        },
+        "poly": [
+          [-0.36, -0.016],
+          [0.36, -0.016],
+          [0.372, 0.134],
+          [-0.372, 0.134]
+        ],
+        "w": [-0.06, 0.004]
+      },
+      {
+        "$comment": "lower bar: chevron arm",
+        "material": "trim",
+        "frame": {
+          "origin": [0, 0.66, 2.085],
+          "tilt": 31
+        },
+        "poly": [
+          [0, 0.038000000000000006],
+          [0.15, -0.012],
+          [0.15, 0.016],
+          [0, 0.066]
+        ],
+        "w": [-0.03, 0.014],
+        "bevel": 0.004
+      },
+      {
+        "$comment": "lower bar: wing",
+        "material": "trim",
+        "frame": {
+          "origin": [0, 0.66, 2.085],
+          "tilt": 31
+        },
+        "poly": [
+          [0.13799999999999998, -0.012],
+          [0.355, -0.012],
+          [0.355, 0.016],
+          [0.13799999999999998, 0.016]
+        ],
+        "w": [-0.03, 0.014],
+        "bevel": 0.004
+      },
+      {
+        "$comment": "lower bar: chevron arm",
+        "material": "trim",
+        "frame": {
+          "origin": [0, 0.66, 2.085],
+          "tilt": 31
+        },
+        "poly": [
+          [0, 0.066],
+          [-0.15, 0.016],
+          [-0.15, -0.012],
+          [0, 0.038000000000000006]
+        ],
+        "w": [-0.03, 0.014],
+        "bevel": 0.004
+      },
+      {
+        "$comment": "lower bar: wing",
+        "material": "trim",
+        "frame": {
+          "origin": [0, 0.66, 2.085],
+          "tilt": 31
+        },
+        "poly": [
+          [-0.13799999999999998, -0.012],
+          [-0.13799999999999998, 0.016],
+          [-0.355, 0.016],
+          [-0.355, -0.012]
+        ],
+        "w": [-0.03, 0.014],
+        "bevel": 0.004
+      },
+      {
+        "$comment": "upper bar: chevron arm",
+        "material": "trim",
+        "frame": {
+          "origin": [0, 0.66, 2.085],
+          "tilt": 31
+        },
+        "poly": [
+          [0, 0.082],
+          [0.15, 0.032],
+          [0.15, 0.06],
+          [0, 0.11]
+        ],
+        "w": [-0.03, 0.014],
+        "bevel": 0.004
+      },
+      {
+        "$comment": "upper bar: wing",
+        "material": "trim",
+        "frame": {
+          "origin": [0, 0.66, 2.085],
+          "tilt": 31
+        },
+        "poly": [
+          [0.13799999999999998, 0.032],
+          [0.355, 0.032],
+          [0.355, 0.06],
+          [0.13799999999999998, 0.06]
+        ],
+        "w": [-0.03, 0.014],
+        "bevel": 0.004
+      },
+      {
+        "$comment": "upper bar: chevron arm",
+        "material": "trim",
+        "frame": {
+          "origin": [0, 0.66, 2.085],
+          "tilt": 31
+        },
+        "poly": [
+          [0, 0.11],
+          [-0.15, 0.06],
+          [-0.15, 0.032],
+          [0, 0.082]
+        ],
+        "w": [-0.03, 0.014],
+        "bevel": 0.004
+      },
+      {
+        "$comment": "upper bar: wing",
+        "material": "trim",
+        "frame": {
+          "origin": [0, 0.66, 2.085],
+          "tilt": 31
+        },
+        "poly": [
+          [-0.13799999999999998, 0.032],
+          [-0.13799999999999998, 0.06],
+          [-0.355, 0.06],
+          [-0.355, 0.032]
+        ],
+        "w": [-0.03, 0.014],
+        "bevel": 0.004
+      },
+      {
+        "$comment": "top bar (sides only)",
+        "material": "trim",
+        "frame": {
+          "origin": [0, 0.66, 2.085],
+          "tilt": 31
+        },
+        "poly": [
+          [0.16999999999999998, 0.082],
+          [0.355, 0.082],
+          [0.355, 0.10400000000000001],
+          [0.16999999999999998, 0.10400000000000001]
+        ],
+        "w": [-0.03, 0.014],
+        "bevel": 0.004
+      },
+      {
+        "$comment": "top bar (sides only)",
+        "material": "trim",
+        "frame": {
+          "origin": [0, 0.66, 2.085],
+          "tilt": 31
+        },
+        "poly": [
+          [-0.16999999999999998, 0.082],
+          [-0.16999999999999998, 0.10400000000000001],
+          [-0.355, 0.10400000000000001],
+          [-0.355, 0.082]
+        ],
+        "w": [-0.03, 0.014],
+        "bevel": 0.004
+      },
+      {
+        "$comment": "black backing plate behind the lower opening: nothing of the cabin shows through",
+        "material": "trim",
+        "poly": [
+          [-0.66, 0.26],
+          [0.66, 0.26],
+          [0.66, 0.64],
+          [-0.66, 0.64]
+        ],
+        "w": [1.88, 1.9]
+      },
+      {
+        "$comment": "radiator: wire-mesh core filling the lower opening",
+        "material": "mesh",
+        "poly": [
+          [-0.52, 0.27],
+          [0.52, 0.27],
+          [0.5, 0.57],
+          [-0.5, 0.57]
+        ],
+        "w": [1.9, 1.99],
+        "bevel": 0.01
+      }
+    ],
+    "shells": [
+      {
+        "$comment": "the tail lamp is one thin sheet in the source: a see-through lens 6 mm above it plus a dark rim strip along its free edges",
+        "from": "tailc4",
+        "cover": "redcover",
+        "wall": "lamphousing",
+        "offset": 0.006
+      }
+    ]
   }
 }

@@ -87,21 +87,40 @@ const RED = '#d1121f';
 const BLUE = '#2c2f93';
 const NAVY = '#111a55';
 const WHITE = '#f1f2f4';
-/** Blue / red split on the sides: through the middle of the door (z at y = SPLIT_Y), leaning back 75 deg from horizontal. */
-const SPLIT_Z = 0.12;
-const SPLIT_Y = 0.75;
-const SPLIT_LEAN = Math.tan((15 * Math.PI) / 180);
-const splitZ = (y: number): number => SPLIT_Z - (y - SPLIT_Y) * SPLIT_LEAN;
-/** Rear bumper line (the crease across the tail, 0.725 m on the model), the same height on the side and rear charts. */
-const BUMPER_Y = 0.725;
-/** The bumper's diagonals on the rear chart: |x| at the bumper line (the tail lamp's lower inner corner) and at y = BUMPER_FOOT_Y (the bumper's outer bottom corner). */
-const BUMPER_X: [number, number] = [0.55, 0.8];
+/**
+ * Blue / red split on the sides: a straight line leaning back (about 52 deg from horizontal), from z 0.67 at the sill to
+ * z -0.48 at the roof line (y 1.45), which ends 15 cm in front of the B pillar (z -0.63).
+ */
+const SPLIT: [number, number] = [0.67, -0.48];
+const SPLIT_ROOF_Y = 1.45;
+const splitZ = (y: number): number =>
+  SPLIT[0] + ((SPLIT[1] - SPLIT[0]) * y) / SPLIT_ROOF_Y;
+/** Rear bumper line: 6.5 cm under the bumper's crest (the ledge across the tail, 0.725 m on the model). */
+const BUMPER_Y = 0.66;
+/** The bumper's diagonals on the rear chart: |x| at the bumper line (3 cm outside the tail lamp's lower inner corner) and at y = BUMPER_FOOT_Y (the bumper's outer bottom corner). */
+const BUMPER_X: [number, number] = [0.58, 0.78];
 const BUMPER_FOOT_Y = 0.2;
 const WHITE_LINE = 0.03;
-/** Hood: the red piece starts at the nose end, rear edge z / half width, front edge half width; 1 cm white line on the rear edge only. */
-const HOOD_REAR: [number, number] = [1.6, 0.5];
-const HOOD_FRONT_HALF = 0.4;
+/**
+ * Hood: the red piece starts at the nose end of the hood with a 1 cm white line on its rear edge; its sides follow the
+ * hood's crest (where the flat middle bends down into the wings; [z, |x|] measured on the model's face normals).
+ */
+const HOOD_REAR_Z = 1.6;
+const HOOD_CREST: Pt[] = [
+  [1.6, 0.495],
+  [1.7, 0.484],
+  [1.8, 0.456],
+  [1.9, 0.415],
+  [2.0, 0.398],
+  [2.1, 0.385],
+  [Z_NOSE, 0.38],
+];
 const HOOD_LINE = 0.01;
+/** Yellow disc on the side: the fender's rear top / the door's front (centre z, y, radius); cut flat at `top`, the window's lower edge (0.98 m on the model), so it never reaches the pillar. */
+const DISC = { z: 0.74, y: 0.86, r: 0.3185, top: 0.98 };
+const YELLOW = '#f6c91c';
+/** Footprint of the wing mirror's stalk on the door (z, y): not painted yellow. */
+const MIRROR = { z0: 0.415, z1: 0.565, y0: 0.865 };
 /** The hood's front lip, seen from the front, starts at this height (just above the grille). */
 const HOOD_LIP_Y = 0.72;
 /** Roof edge (the door line) |x| by z, measured on the model's top-facing faces; the white panel keeps ROOF_RED inside it. */
@@ -146,6 +165,17 @@ function paint(
     ],
     blue,
   );
+  const yellow = seed === 0 ? YELLOW : info.accent;
+  const disc: Pt[] = Array.from({ length: 48 }, (_, i): Pt => {
+    const a = (i / 48) * Math.PI * 2;
+    return [
+      DISC.z + Math.cos(a) * DISC.r,
+      Math.min(DISC.top, DISC.y + Math.sin(a) * DISC.r),
+    ];
+  });
+  sides(ctx, disc, yellow);
+  // The wing mirror's stalk lies on the door inside the disc's front edge: keep its footprint blue.
+  sides(ctx, rect(MIRROR.z0, MIRROR.z1, MIRROR.y0, DISC.top + 0.01), blue);
   sides(ctx, rect(Z_NOSE, Z_TAIL, 0.1, 0.3), '#141516');
 
   // --- ends: blue nose; red tail with a navy bumper: trapezoid under the bumper line, white line on its diagonals ---
@@ -164,36 +194,27 @@ function paint(
   };
   fill(ctx, 'rear', bumper(WHITE_LINE), WHITE);
   fill(ctx, 'rear', bumper(0), navy);
-  // The licence plate pocket's walls face sideways: they use the side charts, which are red there otherwise.
-  sides(ctx, rect(Z_TAIL, -2.06, 0.29, BUMPER_Y), navy);
-  // The bumper's rear-facing lip is on the top chart: same navy, between the lamps.
-  fill(ctx, 'top', rect(Z_TAIL, -2.03, -BUMPER_X[0], BUMPER_X[0]), navy);
 
   // --- top: blue forward of the door split (windscreen pillars, cowl, hood), red piece at the nose end of the hood,
   // white roof with a red edge following the door line and a red square ---
   fill(ctx, 'top', rect(splitZ(1.45), Z_NOSE, -1.05, 1.05), blue);
   const hood: Pt[] = [
-    [HOOD_REAR[0], -HOOD_REAR[1]],
-    [HOOD_REAR[0], HOOD_REAR[1]],
-    [Z_NOSE, HOOD_FRONT_HALF],
-    [Z_NOSE, -HOOD_FRONT_HALF],
+    ...HOOD_CREST.map(([z, x]): Pt => [z, -x]),
+    ...HOOD_CREST.map(([z, x]): Pt => [z, x]).reverse(),
   ];
   fill(ctx, 'top', hood, red);
   // ... and over the hood's front lip, which faces forward (front chart).
-  fill(
-    ctx,
-    'front',
-    rect(-HOOD_FRONT_HALF, HOOD_FRONT_HALF, HOOD_LIP_Y, 1.7),
-    red,
-  );
+  const lipHalf = HOOD_CREST[HOOD_CREST.length - 1][1];
+  fill(ctx, 'front', rect(-lipHalf, lipHalf, HOOD_LIP_Y, 1.7), red);
+  const lineHalf = HOOD_CREST[0][1];
   fill(
     ctx,
     'top',
     [
-      [HOOD_REAR[0] - HOOD_LINE, -HOOD_REAR[1]],
-      [HOOD_REAR[0] - HOOD_LINE, HOOD_REAR[1]],
-      [HOOD_REAR[0], HOOD_REAR[1]],
-      [HOOD_REAR[0], -HOOD_REAR[1]],
+      [HOOD_REAR_Z - HOOD_LINE, -lineHalf],
+      [HOOD_REAR_Z - HOOD_LINE, lineHalf],
+      [HOOD_REAR_Z, lineHalf],
+      [HOOD_REAR_Z, -lineHalf],
     ],
     WHITE,
   );
