@@ -15,6 +15,9 @@ laboratory** where the giants are made.
 
 Status marks: `[ ]` todo · `[~]` in progress · `[x]` done (done items move into the DETAILS.md and are deleted here).
 
+> **Half-size trial:** the island is now 150 m radius, 10 500 points and 18 giants (the sections below still describe the
+> original 210 m / 21 000 / 37 design; with 10 500 points Easy no longer needs the 2 x XP(15) margin).
+
 > Working title: **Animal Island**. Original art only, generic names. No trademarks, film or brand references in ids,
 > names or UI (no "Jurassic", no "Kong", no real zoo or lab names or logos). Say "giant ape", "growth lab", "secret zoo".
 

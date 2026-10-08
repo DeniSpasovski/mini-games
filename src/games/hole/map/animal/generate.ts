@@ -39,8 +39,8 @@ export interface AnimalParams {
 
 export const DEFAULT_ANIMAL: AnimalParams = {
   seed: 1,
-  points: 21000,
-  radius: 210,
+  points: 10500,
+  radius: 150,
 };
 
 export function animalTargetPoints(p: Pick<AnimalParams, 'points'>): number {
@@ -153,21 +153,21 @@ const CAP: Record<string, number> = {
 
 // giants: id, in the zoo paddock, in the wild, wild biomes
 const GIANTS: [string, number, number, Biome[]][] = [
-  ['rabbit_giant', 1, 2, ['meadow']],
-  ['frog_giant', 1, 2, ['wetland']],
-  ['mouse_giant', 2, 0, []],
-  ['giraffe_giant', 1, 2, ['savanna']],
-  ['ant_giant', 1, 2, ['jungle', 'meadow']],
-  ['beetle_giant', 1, 1, ['forest']],
-  ['snail_giant', 1, 1, ['wetland']],
-  ['chicken_giant', 1, 1, ['farm', 'meadow']],
-  ['bear_giant', 1, 2, ['forest']],
-  ['lion_giant', 0, 2, ['savanna']],
-  ['tortoise_giant', 0, 2, ['meadow', 'highlands']],
-  ['hippo_giant', 1, 1, ['wetland']],
-  ['rhino_giant', 0, 2, ['savanna']],
-  ['crocodile_giant', 0, 2, []],
-  ['gorilla_giant', 2, 0, []],
+  ['rabbit_giant', 0, 1, ['meadow']],
+  ['frog_giant', 0, 1, ['wetland']],
+  ['mouse_giant', 1, 0, []],
+  ['giraffe_giant', 1, 1, ['savanna']],
+  ['ant_giant', 0, 1, ['jungle', 'meadow']],
+  ['beetle_giant', 0, 1, ['forest']],
+  ['snail_giant', 0, 1, ['wetland']],
+  ['chicken_giant', 0, 1, ['farm', 'meadow']],
+  ['bear_giant', 0, 1, ['forest']],
+  ['lion_giant', 0, 1, ['savanna']],
+  ['tortoise_giant', 0, 1, ['meadow', 'highlands']],
+  ['hippo_giant', 1, 0, ['wetland']],
+  ['rhino_giant', 0, 1, ['savanna']],
+  ['crocodile_giant', 0, 1, []],
+  ['gorilla_giant', 1, 0, []],
   ['elephant_giant', 1, 1, ['savanna']],
 ];
 
@@ -225,7 +225,7 @@ interface Ctx {
 const COMP_HW = 100;
 const COMP_HH = 70;
 /** Layout scale (item sizes do not scale): the smaller island needs a tighter compound. */
-const COMP_K = 0.9;
+const COMP_K = 0.65;
 const PADDOCK_Z = -24;
 
 // ------------------------------------------------------------------------------------------ coast

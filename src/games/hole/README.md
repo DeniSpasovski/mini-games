@@ -29,7 +29,7 @@ Pick a difficulty and a hole colour, then drag to steer. Add `?map=toy` for the 
 |                                                                                 |                                                          |
 | ------------------------------------------------------------------------------- | -------------------------------------------------------- |
 | ![Animal Island, early game](screenshots/animal-early.jpg)                      | ![Animal Island, late game](screenshots/animal-late.jpg) |
-| **Animal Island** - ants, rabbits and zebras first; 37 giant animals, 192 types | The secret zoo and laboratory, where the giants are made |
+| **Animal Island** - ants, rabbits and zebras first; 18 giant animals, 192 types | The secret zoo and laboratory, where the giants are made |
 
 |                                                                                    |                                                                    |
 | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
@@ -39,7 +39,7 @@ Pick a difficulty and a hole colour, then drag to steer. Add `?map=toy` for the 
 ## Features
 
 - Seeded map generators (districts, roads, parks, beach; Animal Island with biomes, rivers, hills and a secret zoo + lab) and hand-placed toy-store floor plans.
-- **Animal Island** (third map, 190 item types): animals walk, hop, swim and flee, hills are edible, 37 giant animals made in a secret laboratory. Details in [`ANIMAL-ISLAND.md`](ANIMAL-ISLAND.md).
+- **Animal Island** (third map, 190 item types): animals walk, hop, swim and flee, hills are edible, 18 giant animals made in a secret laboratory. Details in [`ANIMAL-ISLAND.md`](ANIMAL-ISLAND.md).
 - Scripted falling / tipping (no physics engine), growth levels with a pulse and a camera that pulls back.
 - Every item is built once as procedural geometry; all items of a material are one `BatchedMesh` (a few draw calls per frame for thousands of items).
 - Menus, countdown, results and a top-10 list per difficulty, all usable by touch.

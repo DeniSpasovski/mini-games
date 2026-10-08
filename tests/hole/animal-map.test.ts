@@ -11,7 +11,6 @@ import { Rng } from '../../src/shared/rng';
 import {
   ITEM_LEVELS,
   TIER_COUNT,
-  cumulativeXp,
 } from '../../src/games/hole/sim/progression';
 
 const SEEDS = [1, 2, 3];
@@ -27,10 +26,9 @@ test('Animal Island is deterministic per seed', () => {
   expect(again.start).toEqual(m.start);
 });
 
-test('every seed holds exactly 21 000 points and is at least twice the XP to level 15', () => {
+test('every seed holds exactly the points of the map', () => {
   for (const s of SEEDS) {
     expect(total(s)).toBe(DEFAULT_ANIMAL.points);
-    expect(total(s)).toBeGreaterThan(2 * cumulativeXp(15));
   }
 });
 
@@ -57,16 +55,16 @@ test('every item is on the island, every type is placed, tiers / levels are cove
   }
 });
 
-test('37 giants of 16 types, at least 14 of them in the zoo paddock', () => {
+test('18 giants of 16 types, at least 4 of them in the zoo paddock', () => {
   const m = maps.get(1)!;
   const giants = m.placements.filter((p) => getItem(p.item).group === 'giants');
-  expect(giants.length).toBe(37);
+  expect(giants.length).toBe(18);
   expect(new Set(giants.map((g) => g.item)).size).toBe(16);
   const t = m.terrain!.compound;
   const inPaddock = giants.filter(
     (g) => g.x > t.x0 && g.x < t.x1 && g.z > t.z0 && g.z < t.z1,
   ).length;
-  expect(inPaddock).toBeGreaterThanOrEqual(12);
+  expect(inPaddock).toBeGreaterThanOrEqual(4);
 });
 
 test('movers: a bounded number, all with a leash, walkers on land and swimmers in water', () => {
