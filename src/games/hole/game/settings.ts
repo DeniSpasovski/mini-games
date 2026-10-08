@@ -7,9 +7,8 @@ export interface HoleSettings {
   difficulty: 'easy' | 'medium' | 'hard';
   /** Last played map id. */
   map: string;
-  /** City Island seed (the menu stepper) and the toy store floor plan ('a' | 'b' | 'c'). */
+  /** Island / store seed (the menu stepper). */
   seed: number;
-  layout: string;
 }
 
 export const DEFAULT_SETTINGS: HoleSettings = {
@@ -19,7 +18,6 @@ export const DEFAULT_SETTINGS: HoleSettings = {
   difficulty: 'medium',
   map: 'city',
   seed: 1,
-  layout: 'a',
 };
 
 const KEY = 'hole.settings';
@@ -59,7 +57,6 @@ export function sanitizeSettings(raw: unknown): HoleSettings {
       typeof o.seed === 'number' && Number.isSafeInteger(o.seed)
         ? o.seed
         : d.seed,
-    layout: str(o.layout, d.layout),
   };
 }
 

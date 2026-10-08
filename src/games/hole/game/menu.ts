@@ -29,10 +29,8 @@ export interface MapChoice {
   name: string;
   blurb: string;
   noun: string;
-  /** Show the seed stepper (City Island). */
+  /** Show the seed stepper. */
   seeded: boolean;
-  /** Floor plans to pick from (toy store), empty when the map has one layout. */
-  layouts: { id: string; name: string }[];
 }
 
 export interface MenuApi {
@@ -43,8 +41,8 @@ export interface MenuApi {
   mapId(): string;
   /** Switch the map (the menu background follows). */
   onMap(id: string): void;
-  /** Pick another island seed / floor plan of the current map (the menu background follows). */
-  onVariant(v: { seed?: number; layout?: string }): void;
+  /** Pick another island / store seed of the current map (the menu background follows). */
+  onVariant(v: { seed?: number }): void;
   best(map: string, difficulty: Difficulty['id']): number;
   scores(map: string, difficulty: Difficulty['id']): ScoreEntry[];
   onPlay(d: Difficulty): void;
@@ -253,7 +251,7 @@ export class Menu {
     for (const m of this.api.maps) {
       const b = el(
         'button',
-        'hg-map' + (m.id === this.api.mapId() ? ' on' : ''),
+        `hg-map hg-map-${m.id}` + (m.id === this.api.mapId() ? ' on' : ''),
         '',
         { type: 'button' },
       );
@@ -329,7 +327,7 @@ export class Menu {
     this.mount(card);
   }
 
-  /** Island seed stepper (City Island) or floor plan buttons (toy store) above the time buttons. */
+  /** Seed stepper above the time buttons. */
   private variantPicker(): HTMLElement[] {
     const mc = this.api.maps.find((m) => m.id === this.api.mapId());
     const s = this.api.settings;
@@ -360,7 +358,11 @@ export class Menu {
           () => (s.seed <= 1 ? 999 : s.seed - 1),
           'Previous island',
         ),
-        el('p', 'hg-variant', `Island #${s.seed}`),
+        el(
+          'p',
+          'hg-variant',
+          `${mc.noun === 'store' ? 'Store' : 'Island'} #${s.seed}`,
+        ),
         step(
           '›',
           'gray hg-arrow',
@@ -377,26 +379,6 @@ export class Menu {
           'Random island',
         ),
       ];
-    }
-    if (mc && mc.layouts.length > 1) {
-      const tabs = el('div', 'hg-tabs');
-      for (const l of mc.layouts) {
-        const t = el(
-          'button',
-          'hg-tab' + (l.id === s.layout ? ' on' : ''),
-          l.name,
-          { type: 'button' },
-        );
-        t.addEventListener(
-          'click',
-          this.click(() => {
-            this.api.onVariant({ layout: l.id });
-            this.difficulty();
-          }),
-        );
-        tabs.append(t);
-      }
-      return [tabs];
     }
     return [];
   }

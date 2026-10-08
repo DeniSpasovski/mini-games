@@ -97,17 +97,36 @@ test('every item can be reached by a hole of its first level', () => {
   expect(bad).toEqual([]);
 });
 
-test('layouts B and C: deterministic, exact points, every type placed, items on the floor', () => {
-  for (const layout of ['b', 'c']) {
-    const m = generateToyStore({ seed: 2, layout });
-    const again = generateToyStore({ seed: 2, layout });
+test('seeds: deterministic, exact points, every type placed, departments move', () => {
+  const zoneKey = (m: ReturnType<typeof generateToyStore>) =>
+    m.zones!.map((z) => `${z.id}:${z.x0},${z.z0}`).join('|');
+  const keys = new Set<string>();
+  for (const seed of [2, 3, 4, 5]) {
+    const m = generateToyStore({ seed });
+    const again = generateToyStore({ seed });
     expect(JSON.stringify(m.placements)).toBe(JSON.stringify(again.placements));
-    expect(stats(m).points, layout).toBe(22000);
+    expect(stats(m).points, `seed ${seed}`).toBe(22000);
     const placed = new Set(m.placements.map((p) => p.item));
     for (const it of TOY_ITEMS)
-      expect(placed.has(it.id), `${layout} ${it.id}`).toBe(true);
+      expect(placed.has(it.id), `${seed} ${it.id}`).toBe(true);
     for (const p of m.placements)
-      expect(insideMap(m, p.x, p.z, 0), `${layout} ${p.item}`).toBe(true);
+      expect(insideMap(m, p.x, p.z, 0), `${seed} ${p.item}`).toBe(true);
     expect(insideMap(m, m.start.x, m.start.z, 5)).toBe(true);
+    keys.add(zoneKey(m));
   }
+  expect(keys.size).toBeGreaterThan(1);
+  // the entrance moves along the south wall with the checkout, and the start stays inside the checkout
+  const doors = new Set<number>();
+  for (let seed = 1; seed <= 12; seed++) {
+    const m = generateToyStore({ seed });
+    const door = m.bounds!.door!;
+    doors.add(door);
+    const checkout = m.zones!.find((z) => z.id === 'checkout')!;
+    expect(door).toBeGreaterThanOrEqual(checkout.x0);
+    expect(door).toBeLessThanOrEqual(checkout.x1);
+    expect(m.start.x).toBeGreaterThan(checkout.x0);
+    expect(m.start.x).toBeLessThan(checkout.x1);
+    expect(m.start.z).toBeGreaterThan(checkout.z0);
+  }
+  expect(doors.size).toBe(3);
 });

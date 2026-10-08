@@ -24,8 +24,6 @@ export interface ZoneDef {
 }
 
 export interface ToyLayout {
-  id: 'a' | 'b' | 'c';
-  name: string;
   /** Half extents of the floor (m). */
   hx: number;
   hz: number;
@@ -85,10 +83,8 @@ function scaled(l: ToyLayout, k: number): ToyLayout {
   };
 }
 
-/** Layout A - "Grand Hall" (default), drawn at 240 x 160 m, built at 300 x 200 m. */
-const LAYOUT_A_BASE: ToyLayout = {
-  id: 'a',
-  name: 'Grand Hall',
+/** The floor plan, drawn at 240 x 160 m: stockroom on the north wall, checkout on the south, the atrium in the middle, eight department slots either side. */
+const LAYOUT_BASE: ToyLayout = {
   hx: 120,
   hz: 80,
   doorX: 0,
@@ -275,285 +271,99 @@ const LAYOUT_A_BASE: ToyLayout = {
   ],
 };
 
-/** Floor scale of Layout A: 240 x 160 m drawn, FLOOR_SCALE x that built (pacing needs a big floor, see TOY-STORE.md). */
+/** Floor scale: 240 x 160 m drawn, FLOOR_SCALE x that built (pacing needs a big floor, see TOY-STORE.md). */
 export const FLOOR_SCALE = 2.5;
-export const LAYOUT_A = scaled(LAYOUT_A_BASE, FLOOR_SCALE);
+export const LAYOUT = scaled(LAYOUT_BASE, FLOOR_SCALE);
+
+/** Zones that never move: the stockroom (the outdoor dock) and the atrium. */
+const FIXED = new Set(['stockroom', 'atrium']);
 
 /**
- * Layout B - "Ring Walk" (260 x 170 drawn): departments hug the walls, the hero atrium fills the middle
- * and a floor ring path runs around it. Start in the south-west corner.
+ * The floor plan with the eight departments and the checkout dealt onto their nine slots at random
+ * (`next` is a unit random source). The checkout, with the entrance door and the start, takes one of the
+ * three slots on the south wall (left corner, centre, right corner); the departments fill the rest. A
+ * department keeps its mat, shelves, showpieces and points, shifted to its new slot (mirrored when it
+ * crosses the central aisle), so every seed holds the same points.
  */
-const LAYOUT_B_BASE: ToyLayout = {
-  id: 'b',
-  name: 'Ring Walk',
-  hx: 130,
-  hz: 85,
-  doorX: -20,
-  start: { x: -100, z: 72 },
-  zones: [
-    Z(
-      'stockroom',
-      'Stockroom',
-      'Stockroom',
-      -130,
-      -85,
-      130,
-      -65,
-      0xb9b6ad,
-      0.04,
-      0,
-      [],
+export function shuffledLayout(next: () => number): ToyLayout {
+  const slots = LAYOUT.zones.filter((z) => !FIXED.has(z.id));
+  const south = slots.filter((z) => z.z1 >= LAYOUT.hz - 0.01);
+  const checkout = LAYOUT.zones.find((z) => z.id === 'checkout')!;
+  const doorSlot = south[Math.floor(next() * south.length)];
+  const others = slots.filter((z) => z !== checkout);
+  const free = slots.filter((z) => z !== doorSlot);
+  for (let i = free.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [free[i], free[j]] = [free[j], free[i]];
+  }
+  const centre = (z: ZoneDef) => ({
+    x: (z.x0 + z.x1) / 2,
+    z: (z.z0 + z.z1) / 2,
+  });
+  const moved = new Map<string, ZoneDef>();
+  const place = (z: ZoneDef, slot: ZoneDef) => {
+    const from = centre(z);
+    const to = centre(slot);
+    const flip =
+      from.x === 0 || to.x === 0 || Math.sign(from.x) === Math.sign(to.x)
+        ? 1
+        : -1;
+    moved.set(z.id, {
+      ...z,
+      x0: slot.x0,
+      z0: slot.z0,
+      x1: slot.x1,
+      z1: slot.z1,
+      anchors: (z.anchors ?? []).map(
+        ([id, x, zz, r]) =>
+          [id, to.x + (x - from.x) * flip, to.z + (zz - from.z), r] as [
+            string,
+            number,
+            number,
+            number,
+          ],
+      ),
+    });
+  };
+  place(checkout, doorSlot);
+  others.forEach((z, i) => place(z, free[i]));
+  // the fixed zones vary in place: the dock's two trucks swap sides, shift and may face the other way,
+  // and the atrium showpieces mirror left to right
+  const stockroom = LAYOUT.zones.find((z) => z.id === 'stockroom')!;
+  const atrium = LAYOUT.zones.find((z) => z.id === 'atrium')!;
+  const swapTrucks = next() < 0.5;
+  const trucks = (stockroom.anchors ?? []).map(
+    ([id, x, zz, r], i) =>
       [
-        ['semi_trailer', -80, -76, 0],
-        ['delivery_truck_box', 60, -76, 0],
-      ],
-    ),
-    Z(
-      'robots',
-      'Robot Factory',
-      'Robot Factory',
-      -130,
-      -65,
-      -85,
-      -20,
-      0x8fc9c4,
-      0.11,
-      0,
-      [],
-      [['rocket_big', -108, -42, 0]],
-    ),
-    Z(
-      'plush',
-      'Plush Meadow',
-      'Plush Meadow',
-      -130,
-      -20,
-      -85,
-      40,
-      0xf7b6cf,
-      0.18,
-      2,
-      ['plush_wall_shelf'],
-      [['plush_throne', -108, 10, 0]],
-    ),
-    Z(
-      'dolls',
-      'Doll House Lane',
-      'Doll House Lane',
-      -130,
-      40,
-      -85,
-      65,
-      0xd1b8ee,
-      0.075,
-      4,
-      [],
-      [['dollhouse_mansion', -108, 52, 0]],
-    ),
-    Z(
-      'games',
-      'Game Room',
-      'Game Room',
-      85,
-      -65,
-      130,
-      -20,
-      0xb69be0,
-      0.06,
-      3,
-      ['game_shelf'],
-      [['ball_pit', 108, -42, 0]],
-    ),
-    Z(
-      'vroom',
-      'Vroom Row',
-      'Vroom Row',
-      85,
-      -20,
-      130,
-      25,
-      0xe9867a,
-      0.09,
-      0,
-      [],
-      [['race_track_set', 108, 2, 0]],
-    ),
-    Z(
-      'splash',
-      'Splash Zone',
-      'Splash Zone',
-      85,
-      25,
-      130,
-      65,
-      0x8fd0f0,
-      0.095,
-      0,
-      [],
-      [['bounce_house', 108, 45, 0]],
-    ),
-    Z(
-      'bricks',
-      'Brick Alley',
-      'Brick Alley',
-      -130,
-      65,
-      -45,
-      85,
-      0xf4d35e,
-      0.115,
-      0,
-      [],
-      [['brick_car_big', -90, 76, 0]],
-    ),
-    Z(
-      'checkout',
-      'Checkout',
-      'Checkout',
-      -45,
-      65,
-      45,
-      85,
-      0xf3e7c9,
-      0.055,
-      0,
-      [],
-      [
-        ['checkout_counter', -10, 78, 0],
-        ['checkout_counter', 10, 78, 0],
-      ],
-    ),
-    Z(
-      'figures',
-      'Figure Falls',
-      'Figure Falls',
-      45,
-      65,
-      130,
-      85,
-      0x9bd89b,
-      0.09,
-      1,
-      ['figure_gondola'],
-      [['figure_pyramid', 95, 76, 0]],
-    ),
-    Z(
-      'atrium',
-      'Atrium',
-      'Atrium',
-      -85,
-      -65,
-      85,
-      65,
-      0xfbeeda,
-      0.09,
-      0,
-      [],
-      [
-        ['landmark_big_ted', 0, -35, 0],
-        ['robot_overlord', -50, -30, 0],
-        ['railway_world', 50, -30, 0],
-        ['rocket_giant', -55, 10, 0],
-        ['ferris_wheel_giant', 0, 15, 0],
-        ['robot_titan', 55, 12, 0],
-      ],
-    ),
-  ],
-};
-
-/**
- * Layout C - "Warehouse Sale" (280 x 100 drawn): five bands, a conveyor from the entrance at the west end
- * to the landmark row at the east end. A speed run: the way is a straight line.
- */
-const LAYOUT_C_BASE: ToyLayout = {
-  id: 'c',
-  name: 'Warehouse Sale',
-  hx: 140,
-  hz: 50,
-  doorX: -112,
-  start: { x: -118, z: 38 },
-  zones: [
-    Z(
-      'band1',
-      'Bricks, Figures, Checkout',
-      ['Brick Alley', 'Figure Falls', 'Checkout'],
-      -140,
-      -50,
-      -84,
-      50,
-      0xf4d35e,
-      0.26,
-      0,
-      ['gondola_shelf', 'figure_gondola'],
-    ),
-    Z(
-      'band2',
-      'Dolls and Games',
-      ['Doll House Lane', 'Game Room'],
-      -84,
-      -50,
-      -28,
-      50,
-      0xd1b8ee,
-      0.13,
-      4,
-      ['game_shelf'],
-    ),
-    Z(
-      'band3',
-      'Plush and Splash',
-      ['Plush Meadow', 'Splash Zone'],
-      -28,
-      -50,
-      28,
-      50,
-      0xf7b6cf,
-      0.29,
-      2,
-      ['plush_wall_shelf'],
-    ),
-    Z(
-      'band4',
-      'Robots and Vroom',
-      ['Robot Factory', 'Vroom Row'],
-      28,
-      -50,
-      84,
-      50,
-      0x8fc9c4,
-      0.2,
-      0,
-    ),
-    Z(
-      'band5',
-      'Landmark Row',
-      ['Atrium', 'Stockroom'],
-      84,
-      -50,
-      140,
-      50,
-      0xfbeeda,
-      0.12,
-      0,
-      [],
-      [
-        ['landmark_big_ted', 112, -34, 0],
-        ['robot_overlord', 112, -10, 0],
-        ['railway_world', 112, 12, 0],
-        ['rocket_giant', 100, 36, 0],
-        ['ferris_wheel_giant', 124, 36, 0],
-        ['robot_titan', 112, 0, 0],
-      ],
-    ),
-  ],
-};
-
-/** Floor scales (see FLOOR_SCALE): B and C are drawn at a different size, scaled to about the same area as A. */
-export const LAYOUT_B = scaled(LAYOUT_B_BASE, 2.3);
-export const LAYOUT_C = scaled(LAYOUT_C_BASE, 2.9);
-
-export const LAYOUTS: Record<string, ToyLayout> = {
-  a: LAYOUT_A,
-  b: LAYOUT_B,
-  c: LAYOUT_C,
-};
+        id,
+        (swapTrucks ? -x : x) +
+          (next() - 0.5) * 30 * FLOOR_SCALE +
+          (i ? -20 : 20),
+        zz,
+        next() < 0.5 ? r : r + Math.PI,
+      ] as [string, number, number, number],
+  );
+  moved.set(stockroom.id, { ...stockroom, anchors: trucks });
+  const mirror = next() < 0.5;
+  if (mirror)
+    moved.set(atrium.id, {
+      ...atrium,
+      anchors: (atrium.anchors ?? []).map(
+        ([id, x, zz, r]) => [id, -x, zz, r] as [string, number, number, number],
+      ),
+    });
+  const doorX = centre(doorSlot).x;
+  return {
+    ...LAYOUT,
+    doorX,
+    // a corner entrance starts a little towards the middle, the centre one keeps its start
+    start:
+      doorX === 0
+        ? LAYOUT.start
+        : {
+            x: doorX + (doorX < 0 ? 1 : -1) * 22 * FLOOR_SCALE,
+            z: LAYOUT.start.z,
+          },
+    zones: LAYOUT.zones.map((z) => moved.get(z.id) ?? z),
+  };
+}
