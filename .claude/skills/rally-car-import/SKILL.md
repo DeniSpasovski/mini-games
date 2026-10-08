@@ -1,6 +1,6 @@
 ---
 name: rally-car-import
-description: LICENCE GATE first, then an end-to-end checklist for importing a 3D car model (STL / print model / GLB) into Gravel Rally as a new car - orient and measure the mesh, split off glass / lamps / trim as real parts, convert, assign materials, paint the livery, verify in the car viewer and document. Use when the user shares a car model to add, or when an imported car shows texture bleed, jagged part edges, wrong proportions, lean, white undersides or glare.
+description: LICENCE GATE first, then an end-to-end checklist for importing a 3D car model (STL / print model / GLB) into Gravel Rally as a new car - orient and measure the mesh, split off glass / lamps / trim as real parts, convert, assign materials, paint the livery, bake the boxy profile (fallback body + street car), verify in the car viewer and document. Use when the user shares a car model to add, or when an imported car shows texture bleed, jagged part edges, wrong proportions, lean, white undersides or glare.
 ---
 
 # Importing a car model (worked examples: `cars/skoda-rally/` GLB import, `cars/bimmer-m3/` single-shell print STL)
@@ -35,7 +35,7 @@ our first car (a Printables STL: "no modifying, sharing, hosting") and the Bimme
 
 4. **If NOT OK: stop and tell the user the options** - ask the author / owner for written permission (keep the mail in the DETAILS),
    model the car from scratch from photos and blueprints without touching the file (the Zastava route), or use the file purely locally as "bring your own" (git-ignored GLB, car only in
-   `TEST_CARS`, procedural fallback body, docs say where to download it; the live site still cannot host it). Do not add the GLB
+   `TEST_CARS`, boxy fallback body (`model.profile`, step 6c), docs say where to download it; the live site still cannot host it). Do not add the GLB
    to `public/`, git, tests or the release lists without a green verdict.
 5. **Other things to rule out:** brand logos / badges / wordmarks baked into the mesh or textures (remove them, no manufacturer
    or sponsor logos in liveries), real number plates, and reference photos (never shipped, never traced from the mesh).
@@ -353,12 +353,32 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   with the Write tool and run the file. Python patches of long files: slice by unique anchors and `assert` they exist. On
   Windows write with `open(p, 'w', newline='\n')` - text mode silently turns the file CRLF (prettier then fails on every line).
 
+## 6c. Boxy profile - required for every imported car
+
+Every GLB car needs a baked `profile.ts`: it is the car's body when the GLB fails to load (never a blob) and a parked
+car on the city maps (`assets/builders/vehicles.ts` `SHAPES`). Do it as soon as the plain GLB is final, and re-run it
+whenever the GLB is regenerated.
+
+1. Bake it from the plain GLB (axle z and wheel radius from the car's physics):
+   `node scripts/car-model/side-profile.mjs public/models/cars/<file>.glb --axles <front z>,<rear z> --wheel <radius> > src/games/rally/cars/<car>/profile.ts`
+2. `<car>.ts`: `import { profile } from './profile';` and `model.profile: profile`; an explicit `model.doorBadge`.
+3. `<car>/livery.ts`: `layout: A` (the `model.source.json` atlas block) on the `CarAtlas`, so the box wears the livery.
+4. Append the profile to `SHAPES` in `assets/builders/vehicles.ts` (append: `FIXED_CARS` and placed props use the
+   indices) and name it in the `street_car` description in `assets/catalog.ts`, so the car also parks on the city maps
+   (variants 0-11 cycle the shapes, nothing else changes).
+5. A GLB without its own interior keeps tinted glass (no `model.glass`, the default dark tint): no procedural cockpit,
+   the user rejected those.
+6. Check: `tests/rally/car-fallback.test.ts` (size, arches, glass, lamps, UVs) and `tests/rally/street-car.test.ts`
+   (triangle budget) pass; look at `car-viewer.html?car=<id>&fallback=1` (glass over the windows, lamps on the nose and
+   tail, livery) and `asset-debug.html?asset=street_car&variant=<n>`. Tweak `--tol` only if the outline looks wrong.
+
 ## 7. Done
 
 - **Hub check in the viewer**: `car-viewer.html?car=<id>&tyres=0&rims=0&clean=1&mute=1` (body + brakes only), cameras at each
   wheel (`wcam=FL|FR|RL|RR`). Only the game's disc (dark, with a hat) and a caliper may show. Any other flat plate, floating
   piece or black disc is a source part that was not dropped or recoloured: find its island (`glb-to-parts-stl.py` warning, or
   bbox of the part around the hub) and drop it.
+- Boxy profile baked and wired (step 6c): fallback body and street car checked.
 - `npx tsc --noEmit -p tsconfig.json`, `npm run lint`, `npm run test`.
 - Car `README.md` (high level: description, 3 screenshots, credits + licence) and a **short** `DETAILS.md` (sources + links tables, the few
   measured numbers the code does not show, rebuild commands (orient -> segment -> convert -> view-glb), one line per non-obvious

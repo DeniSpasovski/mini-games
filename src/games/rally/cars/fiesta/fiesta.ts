@@ -2,6 +2,7 @@ import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
+import { profile } from './profile';
 import { fiestaLivery } from './livery';
 
 /** WRC Fiesta (2017-): wheelbase 2.48 m between the model's hubs; the front axle sits at z = 1.2 (centre of mass behind it). */
@@ -164,46 +165,16 @@ export const fiesta: CarDef = {
     ]),
   },
   model: {
-    // Rough match of the imported body, used only by the generic bolt-on kit. Rear -> front.
-    stations: [
-      { z: -2.03, floor: 0.3, belt: 0.82, hw: 0.7, hwBelt: 0.6 },
-      { z: -1.9, floor: 0.2, belt: 0.92, hw: 0.88, hwBelt: 0.76 },
-      { z: -1.28, floor: 0.16, belt: 0.95, hw: 0.9, hwBelt: 0.76 },
-      { z: -0.4, floor: 0.14, belt: 0.95, hw: 0.88, hwBelt: 0.76 },
-      { z: 0.5, floor: 0.14, belt: 0.93, hw: 0.88, hwBelt: 0.76 },
-      { z: 1.2, floor: 0.14, belt: 0.9, hw: 0.92, hwBelt: 0.76 },
-      { z: 1.75, floor: 0.12, belt: 0.78, hw: 0.84, hwBelt: 0.7 },
-      { z: 2.05, floor: 0.12, belt: 0.7, hw: 0.7, hwBelt: 0.6 },
-    ],
-    cabin: {
-      zFront: 0.75,
-      zRear: -1.85,
-      roofFront: 0.1,
-      roofRear: -1.45,
-      roofY: 1.35,
-      roofHw: 0.6,
-      kick: 0.25,
-      bPillar: -0.5,
-    },
     paint: '#1d5fb4',
-    flare: 0.06,
     rim: { color: '#c9ccd1', spokes: 10, style: 'spoke', caliper: '#d63a2f' },
     // The model's own rim, de-cambered and centred on the hub (scripts/car-model/glb-rim-extract.py), rescaled per tyre
     // size (stl-wheel.ts).
     wheelModel: 'fiesta_wheel.glb',
     suspensionStyle: 'wrc',
-    parts: {
-      arches: 'box',
-      rearWing: 'rally1',
-      splitter: true,
-      sideSkirts: true,
-      headlights: 'slim',
-      grille: 'mouth',
-      doors: 2,
-    },
-    livery: 'rally1',
     // The model carries its own cockpit: see-through glass shows it.
     glass: { color: 0x2a3a46, opacity: 0.35 },
+    // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
+    profile,
     doorBadge: { z: 0.2, y: 0.6 },
     // No procedural suspension: the model carries its own arms and dampers (trim).
     gltf: {

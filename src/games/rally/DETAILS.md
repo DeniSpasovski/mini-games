@@ -138,16 +138,25 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
 
 ## Cars
 
-| id            | name        | drive | notes                                                                                |
-| ------------- | ----------- | ----- | ------------------------------------------------------------------------------------ |
-| `skoda_rally` | Skoda Rally | AWD   | Rally2-class hatch from a CC BY Fabia R5 model, own livery, hand-built fallback body |
-| `bimmer_m3`   | Bimmer M3   | RWD   | lowered E46 coupe from a CC BY print model, own livery                               |
-| `bimmer_gt2`  | Bimmer GT2  | RWD   | wide-body E92 GT2 racer from a CC BY Sketchfab model, clean livery (test only)       |
-| `zastava_101` | Zastava 101 | FWD   | stock "Stojadin", body hand-built from dimensions and a blueprint                    |
-| `fiesta`      | Fiesta WRC  | AWD   | World Rally Car from a CC BY model with its cockpit, own rim and livery, test car    |
+| id            | name        | drive | notes                                                                             |
+| ------------- | ----------- | ----- | --------------------------------------------------------------------------------- |
+| `skoda_rally` | Skoda Rally | AWD   | Rally2-class hatch from a CC BY Fabia R5 model, own livery                        |
+| `bimmer_m3`   | Bimmer M3   | RWD   | lowered E46 coupe from a CC BY print model, own livery                            |
+| `bimmer_gt2`  | Bimmer GT2  | RWD   | wide-body E92 GT2 racer from a CC BY Sketchfab model, clean livery (test only)    |
+| `zastava_101` | Zastava 101 | FWD   | stock "Stojadin", body hand-built from dimensions and a blueprint                 |
+| `fiesta`      | Fiesta WRC  | AWD   | World Rally Car from a CC BY model with its cockpit, own rim and livery, test car |
 
 - A car is `cars/<car>/<car>.ts` (a `CarDef`: physics + model + sound) with its README. A GLB in `public/models/cars/` replaces the
-  procedural body (`cars/shared/car-gltf.ts`; credits in `public/models/CREDITS.md`). Imports: rally-car-import skill.
+  car's own body (`cars/shared/car-gltf.ts`; credits in `public/models/CREDITS.md`). Imports: rally-car-import skill.
+- Every car has a body without its GLB: hand-built `model.custom` (Zastava) or `model.profile` (`cars/<car>/profile.ts`,
+  baked by `scripts/car-model/side-profile.mjs`): the boxy side outline extruded to the body width with its glass and lamps
+  tagged (`cars/shared/profile-body.ts`), shown only if the GLB fails to load. It wears the car's livery, box-projected
+  onto the atlas (`CarAtlas.layout`). Car viewer `fallback=1` shows it.
+- The same profiles are the city maps' parked cars (`street_car`, `taxi`, `police_car`; `assets/builders/vehicles.ts`):
+  one paint, simple wheels, one draw call per LOD (variant sets); the far LOD simplifies the outlines and drops rims and
+  lamps (`tests/rally/street-car.test.ts` holds the triangle budget).
+- Car GLBs are committed plain (the model scripts and `hull-fit.test.ts` read them); the build copies them meshopt-compressed
+  (`scripts/car-model/glb-meshopt.mjs`, about half the size, same meshes; `car-glb-meshopt.test.ts` checks every file).
 - **Door plates** (`cars/shared/rally-badge.ts`): our own event plate (emblem, car number, map name) projected onto both front
   doors. Liveries carry no numbers or lettering.
 - **Release flags** (`release.ts`): every car / map id is in `AVAILABLE_*` (published) or `TEST_*` (dev server + `npm run build:test`, TEST badge).

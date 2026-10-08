@@ -58,36 +58,28 @@ model, parts, livery, glTF import) lives in `cars/shared/`.
 
 - `sound`: engine layout, displacement, exhaust / intake, turbo + anti-lag, pops, gearbox, whine, cam - match the real engine
   (rally `DETAILS.md` "Sound"; `tests/rally/engine-sound.test.ts` checks the ranges).
-- `model.stations`: lower-body cross sections rear -> front (`z`, `floor`, `belt`, `hw`, `hwBelt`), smooth-splined.
-  Wheel arches are cut automatically from the physics axle positions.
-- `model.cabin`: glasshouse (`zFront/zRear` at the beltline, `roofFront/roofRear`, `roofY`, `roofHw`, optional
-  `bPillar` z and `kick` = length of the rear side window's upswept lower edge). Windows are real cut-outs with
-  glass + black frame rings; a cockpit (cage, seats, dash, wheel, headliner) shows through.
-- Matching a reference car: take a side render, measure heights / z positions in metres (scale from the wheelbase
-  or wheel diameter) and type them into `stations` / `cabin`, then compare in the car viewer. A near-orthographic
-  view helps: `__carViewer.shell.camera` with fov ~4 from ~60 m (set `near` ~20 to avoid decal z-fighting).
-- Body geometry lives in `cars/shared/car-body.ts` (`BodyShape`). `arches: 'box'` = Rally1 wide body: the flares are part
-  of the loft (fender boxes + a flared sill whose top line sweeps up to the rear arch). Details are **skin
-  patches**: `body.lower.patch(z0, z1, range)` / `body.cabin.patch(...)` lay a decal exactly on the surface;
-  `range(z, profile)` returns fractional profile indices (helpers `idxAtY`, `idxAtX`, `arcIdx`). Decal materials
-  have a depth bias (`polygonOffset`); stack decals 3 / 5.5 mm above the body. Keep a car under ~35k triangles.
-- `model.parts` (`CarParts` in `cars/shared/types.ts`, built in `cars/shared/car-parts.ts`; modern kit in `buildRally1Body`,
-  older cars in `buildClassicBody`): `arches` round|box, `flare` (m),
-  `lightPod` (count), `rearWing` none|lip|rally1, `splitter`, `canards`, `sideSkirts`, `hoodVents`, `diffuser`,
-  `headlights` slim|rect|round, `grille` mouth|slats|small, `bumpers` body|black, `doors` 2|4, `mudflaps`, `roofVent`.
+- Every car needs a body for when it has no GLB or the GLB fails: `model.custom` (hand-built, below) or `model.profile`
+  (an imported car's boxy stand-in: its side outline extruded to the body width with glass + lamps,
+  `cars/shared/profile-body.ts`; it wears the livery when the car's `CarAtlas` sets `layout` = its model.source.json `atlas`
+  block). Bake it from the plain GLB into the car folder:
+  `node scripts/car-model/side-profile.mjs public/models/cars/<file>.glb --axles <front z>,<rear z> --wheel <radius> > src/games/rally/cars/<car>/profile.ts`.
+  The city maps' parked cars use these profiles too (`assets/builders/vehicles.ts` `SHAPES`). Required for every imported
+  car: rally-car-import step 6c.
+  `tests/rally/car-fallback.test.ts` checks it; see it with `car-viewer.html?car=<id>&fallback=1`.
 - `model.wheels(radius, width)` = car-specific tyre + rim geometry (a tyre with a `color` attribute is drawn with vertex colours);
   `model.glass` = window tint; `model.paintFinish: 'satin'` = old paint; `rim.style: 'steel'` = holed steel wheel, no caliper.
 - `model.wheelModel` = a wheel GLB made from rim + tyre STLs (`scripts/car-model/wheel-stl-to-glb.mjs`, unit wheel
   space, scaled per car by `cars/shared/stl-wheel.ts`; adds a brake disc + hat + caliper behind the open spokes).
   `skoda_rally_wheel.glb` (the imported model's own rim, `--keep`) is on the Skoda Rally. For another wheel STL, re-measure
   the rim with cross-sections and adjust the strip rules in the script (print-only tubes / plates hide the brakes).
-- `model.rim`: `color`, `spokes`, `style` spoke|steel. `livery`: swoosh|stripes|classic|rally1 (no real brand logos).
-- Livery = seeded canvas atlas (`cars/shared/livery.ts`; layout documented there). Seed 0 = default paint.
+- `model.rim`: `color`, `spokes`, `style` spoke|steel (the procedural wheel, until / unless a wheel GLB loads).
+- Livery = the car's atlas painter (`CarAtlas.paint`, rally-livery skill) with seeded colours from `cars/shared/livery.ts`
+  (`liveryInfo`: base + 2 accents; seed 0 = `model.paint`; no real brand logos).
   Liveries carry **no numbers / lettering**: the car number + rally name are the door plate
   (`cars/shared/rally-badge.ts`, a decal projected onto the paint). Place it per car with `model.doorBadge`
-  (`z`, `y`, `width`; check both sides in the car viewer with `&num=7&rally=<map>` - clear of handles / seams).
-- Model space: y = 0 ground at ride height, z = 0 centre of mass. Keep `stations` z range ≈ physics `length`.
-  For wide-arch cars set physics `track` so the tyre's outer face sits just inside `hw + flare`.
+  (`z`, `y`; check both sides in the car viewer with `&num=7&rally=<map>` - clear of handles / seams).
+- Model space: y = 0 ground at ride height, z = 0 centre of mass. For wide-arch cars set physics `track` so the
+  tyre's outer face sits just inside the arch.
 - Per-car performance bands live in `tests/rally/vehicle.test.ts` (`BANDS`) - add one for every new car.
 
 Free camera for close-ups / screenshots: add `&cam=x,y,z&look=x,y,z&fov=10&clean=1` (model space, +z nose, +x car's left; `clean=1` hides the panel; the panel's "Copy camera link" button copies the current view). Liveries (create / fix / debug): the `rally-livery` skill + `scripts/car-model/chart-probe.py`.
@@ -98,7 +90,7 @@ Console: `__carViewer.model`.
 
 ### Hand-built bodies (`model.custom`) - example: `cars/zastava-101/`
 
-When there is no mesh but there is a blueprint, build the body in code instead of bending the generic loft
+When there is no mesh but there is a blueprint, build the body in code
 (which cannot do crisp creases, leaning noses or clean window openings):
 
 1. Measure: crop + upscale each blueprint view with a pixel grid, find the scale from the wheelbase (hub centres),
@@ -127,7 +119,7 @@ imported at all - a blob verdict (image-to-3D) means the model is abandoned, not
 
 ### Imported models (glTF / GLB, e.g. Sketchfab)
 
-Procedural bodies are the fallback; a real model replaces the body when its file exists.
+A real model replaces the car's `custom` / `profile` body when its file exists; that body is the fallback.
 
 1. **Licence gate first** (`.claude/skills/rally-car-import/SKILL.md`): the model must allow redistribution of derivatives (CC0 / CC BY; no ND, no
    "personal use" / Standard Digital File licences). Then download it as **glTF/GLB** (Sketchfab: needs your login; CC BY needs credit).
@@ -136,13 +128,14 @@ Procedural bodies are the fallback; a real model replaces the body when its file
    npx @gltf-transform/cli inspect model.glb
    npx @gltf-transform/cli optimize model.glb public/models/cars/<file>.glb --texture-compress webp --texture-size 2048 --simplify-ratio 0.25
    ```
-3. Reference it in the car: `model.gltf = { file, credit, rotationY?, scale?, offset?, hideNodes?, addOns? }`
-   (`cars/shared/types.ts` `CarGltfDef`). Auto-fit: scaled to physics `length`, centred on the stations, ground = lowest
+3. Reference it in the car: `model.gltf = { file, credit, rotationY?, scale?, offset?, hideNodes? }`
+   (`cars/shared/types.ts` `CarGltfDef`) and bake its `model.profile` (above). Auto-fit: scaled to physics `length`, centred between the axles, ground = lowest
    mesh (tyres). Node names matching `hideNodes` (default wheel|tire|tyre|rim|brake|caliper|disc) are hidden -
-   physics-driven procedural wheels are used. `addOns` bolts procedural rally kit (pod, mudflaps, vent, wing) on.
+   physics-driven procedural wheels are used.
 4. The file list is baked in at startup (`rsbuild.config.ts` -> `__CAR_MODEL_FILES__`); the dev server restarts by
    itself when a file is added / removed in `public/models/cars/` (`dev.watchFiles`). Production builds list what
-   exists at build time. If the car viewer still says `procedural`, reload the page.
+   exists at build time. If the car viewer still says `procedural`, reload the page. Commit the GLB plain: the build
+   serves it meshopt-compressed (`scripts/car-model/glb-meshopt.mjs`, dev server too; already-compressed files pass through).
 5. Car viewer "model" row must say `imported glTF`; fix orientation with `rotationY` (front must be +Z),
    position with `offset`. Add a row to `public/models/CREDITS.md`.
    Files are served page-relative (`<base>/models/cars/…`), so subfolder hosting works.

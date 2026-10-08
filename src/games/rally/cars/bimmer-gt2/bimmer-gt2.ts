@@ -2,6 +2,7 @@ import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
+import { profile } from './profile';
 import { bimmerGt2Livery } from './livery';
 
 // RWD V8 GT2 racer: the wheelbase, body size and tyres follow this mesh; engine and mass follow the E92 M3 GT2 (ALMS) race car:
@@ -167,29 +168,7 @@ export const bimmerGt2: CarDef = {
     ]),
   },
   model: {
-    // Fallback body (used only until / unless public/models/cars/bimmer_gt2.glb exists). Rear -> front.
-    stations: [
-      { z: -2.35, floor: 0.3, belt: 0.88, hw: 0.84, hwBelt: 0.78 },
-      { z: -2.1, floor: 0.2, belt: 0.95, hw: 0.9, hwBelt: 0.82 },
-      { z: -1.368, floor: 0.12, belt: 0.95, hw: 0.95, hwBelt: 0.84 },
-      { z: -0.5, floor: 0.1, belt: 0.92, hw: 0.93, hwBelt: 0.82 },
-      { z: 0.5, floor: 0.1, belt: 0.9, hw: 0.93, hwBelt: 0.82 },
-      { z: 1.368, floor: 0.12, belt: 0.86, hw: 0.95, hwBelt: 0.84 },
-      { z: 2.0, floor: 0.12, belt: 0.78, hw: 0.9, hwBelt: 0.78 },
-      { z: 2.28, floor: 0.12, belt: 0.72, hw: 0.84, hwBelt: 0.7 },
-    ],
-    cabin: {
-      zFront: 0.9,
-      zRear: -1.5,
-      roofFront: 0.3,
-      roofRear: -1.0,
-      roofY: 1.3,
-      roofHw: 0.62,
-      kick: 0.2,
-      bPillar: -0.5,
-    },
     paint: '#e9e6dd',
-    flare: 0.06,
     rim: { color: '#b8bcc2', spokes: 10, style: 'spoke', caliper: '#c8a040' },
     // Tarmac: the body model's own BBS alloy (bimmer_gt2_wheel.glb); mixed / gravel: the Bimmer M3 rim, painted black.
     wheelModel: 'bimmer_m3_wheel.glb',
@@ -199,17 +178,8 @@ export const bimmerGt2: CarDef = {
       gravel: { rimColor: '#16171a' },
     },
     suspensionStyle: 'gt',
-    parts: {
-      arches: 'round',
-      rearWing: 'lip',
-      splitter: true,
-      sideSkirts: true,
-      diffuser: true,
-      headlights: 'rect',
-      grille: 'slats',
-      doors: 2,
-    },
-    livery: 'rally1',
+    // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
+    profile,
     // Rally plate on the door (door shut lines z ~ -0.4 .. 0.9, front = +z), above the side moulding.
     doorBadge: { z: 0.25, y: 0.6 },
     // No `suspension`: the wheel wells are closed by the liner (model.source.json `wheels`).
