@@ -286,6 +286,7 @@ class MainMenu {
         header('Options'),
         buildOptions({
           tractionControl: !this.car.physics.noTractionControl,
+          abs: !this.car.physics.noAbs,
           onBack: () => this.show('welcome'),
           // Car number -> door plates on the showroom car.
           onChange: () =>
@@ -776,6 +777,8 @@ class MainMenu {
 export function buildOptions(opts: {
   /** false = the selected car has no traction control: the option is hidden. */
   tractionControl?: boolean;
+  /** false = the selected car has no ABS: the option is hidden. */
+  abs?: boolean;
   onBack: () => void;
   onChange?: (s: RallySettings) => void;
   onQuality?: (q: QualityName) => void;
@@ -882,6 +885,19 @@ export function buildOptions(opts: {
         (v) => set({ traction: v }),
       ),
       'T in game',
+    );
+  if (opts.abs !== false)
+    row(
+      'ABS',
+      choice(
+        [
+          [true, 'On'],
+          [false, 'Off'],
+        ],
+        s.abs,
+        (v) => set({ abs: v }),
+      ),
+      'B in game',
     );
   const num = div('menu-number');
   const numLabel = document.createElement('b');

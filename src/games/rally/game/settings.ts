@@ -13,6 +13,8 @@ export interface RallySettings {
   automatic: boolean;
   /** Traction / stability assist at the start of a stage (T toggles in game). */
   traction: boolean;
+  /** Anti-lock brakes at the start of a stage (B toggles in game). */
+  abs: boolean;
   /** Start number on the rally door plates (1..99; the rally name comes from the map). */
   carNumber: number;
   /** Starting camera (C cycles in game). */
@@ -29,6 +31,7 @@ export const DEFAULT_SETTINGS: RallySettings = {
   volume: 0.5,
   automatic: true,
   traction: true,
+  abs: true,
   carNumber: 7,
   camera: 'chase',
   objectDistance: 'normal',
@@ -70,6 +73,7 @@ export function sanitizeSettings(raw: unknown): RallySettings {
         : d.volume,
     automatic: bool(o.automatic, d.automatic),
     traction: bool(o.traction, d.traction),
+    abs: bool(o.abs, d.abs),
     carNumber:
       typeof o.carNumber === 'number'
         ? clampCarNumber(o.carNumber)

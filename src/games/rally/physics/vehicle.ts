@@ -41,6 +41,13 @@ const BODY_WATER_CD = 1.05;
 /** Traction control stability term: combined slip (1 = peak) above which a driven wheel trims throttle. */
 const TC_REAR_SLIP = 1.15;
 const TC_FRONT_SLIP = 2.0;
+/**
+ * ABS: release a wheel's foot brake past this multiple of the surface's peak slip ratio and `ABS_SLIDE` m/s of
+ * sliding (slip ratios blow up near rest), above `ABS_MIN_SPEED` m/s (~11 km/h, like real systems).
+ */
+const ABS_SLIP = 1.3;
+const ABS_SLIDE = 1;
+const ABS_MIN_SPEED = 3;
 
 export interface WheelState {
   id: WheelId;
@@ -75,6 +82,8 @@ export interface WheelState {
   contactSpeed: number;
   /** Speed at which the tyre is sliding over the ground (m/s). */
   slideSpeed: number;
+  /** ABS share of the foot brake on this wheel (1 = full pressure). */
+  absFactor: number;
   surface: SurfaceDef;
   contactPoint: Vector3;
   contactNormal: Vector3;
@@ -134,6 +143,8 @@ export class Vehicle {
   tractionControl = true;
   /** Current traction-control throttle multiplier (1 = not intervening). */
   tcFactor = 1;
+  /** Driver aid: anti-lock brakes - eases a wheel's foot brake off while it locks (B in game; `def.noAbs` = not fitted). */
+  abs = true;
 
   // Derived each step (world-space basis).
   readonly right = new Vector3();
@@ -261,6 +272,7 @@ export class Vehicle {
         fy: 0,
         contactSpeed: 0,
         slideSpeed: 0,
+        absFactor: 1,
         surface: SURFACES.gravel,
         contactPoint: new Vector3(),
         contactNormal: new Vector3(0, 1, 0),
@@ -363,7 +375,8 @@ export class Vehicle {
       w.steerAngle = steerAngle * w.axle.steer;
       const inertia = d.wheelInertia + (coupled.includes(w) ? reflected : 0);
       const brakeT =
-        brake * w.axle.brakeTorque + handbrake * w.axle.handbrakeTorque;
+        brake * w.axle.brakeTorque * this.absPass(w, brake, dt) +
+        handbrake * w.axle.handbrakeTorque;
       if (w.contact) anyContact = true;
       this.wheelPass(w, dt, inertia, brakeT);
     }
@@ -456,6 +469,33 @@ export class Vehicle {
     const target = excess > 0 ? Math.max(0.25, 1 - excess * 1.2) : 1;
     this.tcFactor += (target - this.tcFactor) * Math.min(1, dt * 15);
     return this.tcFactor;
+  }
+
+  /**
+   * ABS on one wheel (foot brake only, so the handbrake still locks the rear): while the wheel is past its peak slip
+   * ratio under braking the pressure drops fast, then builds back up - the tyre stays near peak grip and keeps steering.
+   */
+  private absPass(w: WheelState, brake: number, dt: number): number {
+    if (
+      !this.abs ||
+      this.def.noAbs ||
+      brake < 0.05 ||
+      !w.contact ||
+      Math.abs(this.speed) < ABS_MIN_SPEED
+    )
+      return (w.absFactor = 1);
+    const locking =
+      w.slipRatio < -w.surface.peakSlip * ABS_SLIP &&
+      -w.slipRatio * Math.abs(this.speed) > ABS_SLIDE;
+    w.absFactor = locking
+      ? Math.max(0.1, w.absFactor - 20 * dt)
+      : Math.min(1, w.absFactor + 6 * dt);
+    return w.absFactor;
+  }
+
+  /** True while ABS is easing any wheel's brake. */
+  get absActive(): boolean {
+    return this.wheels.some((w) => w.absFactor < 0.95);
   }
 
   /** Map raw pedals to throttle/brake, handling automatic reverse. */
