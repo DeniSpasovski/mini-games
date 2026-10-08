@@ -107,9 +107,9 @@ into `DETAILS.md`, never up.
   sound fixes (low volume).
 - Rally release flags (`src/games/rally/release.ts`): new cars / maps go into `TEST_*` (dev only) first; `AVAILABLE_*` ship.
 - Game `version` (`game.json`, `0.x.y`, minor = feature, patch = fix): bump only when the user says we are making a build.
-- Rally `MAP_TIMES_VERSIONS` / `CAR_TIMES_VERSIONS` (`game/stage.ts`): a map change bumps that map, a car's handling change bumps
-  that car, a shared physics change bumps every car (livery / model fixes never); never bump on your own - mention when times stop
-  being comparable; old times stay, listed below the new ones.
+- Rally times versions (`game/stage.ts`): bump `MAP_TIMES_VERSIONS[map]` when a map's road / layout / length / surfaces change, `CAR_TIMES_VERSIONS[car]`
+  when that car's handling changes, every car for a shared physics change (livery / model fixes never); a new car / map adds its
+  entry (a test checks). Old times stay, listed below the new ones. Say in the PR which versions you bumped.
 - Hole Island: scoring changes (points, tiers, bonus, times, map content) bump that map's `MAP_SCORING_VERSIONS` entry
   (`game/scores.ts`; `sim/` changes = every map).
 

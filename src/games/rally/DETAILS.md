@@ -68,8 +68,8 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
   Stored per map in localStorage (`rally.times.<map>`). `MAP_TIMES_VERSIONS` + `CAR_TIMES_VERSIONS` (`game/stage.ts`): each run stores its map and car version. On a bump
   `migrateTimes` keeps the runs, tags them with the version they were set on (`RunRecord.ver` / `carVer`) and lists them below all
   current runs, dimmed, behind a divider; the bumped map's / car's per-car bests move into the leaderboard as old runs. Times saved before per-map / per-car versions show as `v0`. Map change = bump that map; a car's
-  handling change = bump that car; a shared physics change = bump every car. Livery / model fixes never bump. Bump only when the
-  owner asks (AGENTS.md).
+  handling change = bump that car; a shared physics change = bump every car. Livery / model fixes never bump. Agents bump
+  them as part of the change (AGENTS.md).
 
 ## Look (`engine/environment.ts`, `engine/world-shading.ts`)
 

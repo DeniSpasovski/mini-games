@@ -355,6 +355,8 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
 
 ## 7. Done
 
+- Add the car's id to `CAR_TIMES_VERSIONS` (`game/stage.ts`, start at 1); a test fails without it. Later handling changes bump it; livery / model fixes never do.
+
 - **Hub check in the viewer**: `car-viewer.html?car=<id>&tyres=0&rims=0&clean=1&mute=1` (body + brakes only), cameras at each
   wheel (`wcam=FL|FR|RL|RR`). Only the game's disc (dark, with a hat) and a caliper may show. Any other flat plate, floating
   piece or black disc is a source part that was not dropped or recoloured: find its island (`glb-to-parts-stl.py` warning, or
