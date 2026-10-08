@@ -105,7 +105,7 @@ describe('grip curves', () => {
     expect(TYRES.gravel.temp.lo).toBeLessThan(TYRES.tarmac.temp.lo);
   });
 
-  test('HUD colours: white cold, green in the window, yellow, then red', () => {
+  test('HUD colours: white cold, mint / green / lime in the window, yellow, then red', () => {
     const w = TYRES.tarmac.temp;
     const rgb = (t: number) => tyreColor(tempLevel(t, w));
     const [r0, g0, b0] = rgb(w.lo - 60);
@@ -113,6 +113,9 @@ describe('grip curves', () => {
     const [r1, g1, b1] = rgb((w.lo + w.hi) / 2);
     expect(g1).toBeGreaterThan(r1 + 100); // green
     expect(g1).toBeGreaterThan(b1 + 80);
+    // Inside the window the shade still moves: bluer just in, redder at the top.
+    expect(rgb(w.lo + 1)[2]).toBeGreaterThan(b1 + 40);
+    expect(rgb(w.hi - 1)[0]).toBeGreaterThan(r1 + 60);
     const [r2, g2, b2] = rgb(w.hi + 15);
     expect(r2).toBeGreaterThan(240); // yellow
     expect(g2).toBeGreaterThan(190);
@@ -161,7 +164,7 @@ describe('vehicle', () => {
       });
       let g = 0;
       run(v, 3, () => {
-        for (const w of v.wheels) w.temp = temp; // hold the temperature
+        for (const w of v.wheels) w.surfaceTemp = w.coreTemp = temp; // hold the temperature
         v.controls.steer = 1;
         v.controls.throttle = 0.4;
         g = Math.max(g, Math.abs(v.angularVelocity.y * v.speed) / 9.81);
@@ -176,7 +179,7 @@ describe('vehicle', () => {
     expect(cold).toBeLessThan(warm * 0.92);
   });
 
-  test('gentle cornering warms the tarmac tyre into its window', () => {
+  test('gentle cornering warms the tarmac tyre into its window, but not straight away', () => {
     const v = car('tarmac', 'tarmac');
     const lo = TYRES.tarmac.temp.lo;
     let t = 0;
@@ -187,8 +190,8 @@ describe('vehicle', () => {
     console.info(
       `tarmac tyre reaches ${lo}°C after ${t} s of a 60 km/h circle`,
     );
-    expect(t).toBeGreaterThan(5);
-    expect(t).toBeLessThan(40);
+    expect(t).toBeGreaterThan(20);
+    expect(t).toBeLessThan(60);
   });
 
   test('a donut overheats the tyres, clean driving cools them again', () => {
@@ -218,6 +221,24 @@ describe('vehicle', () => {
     }
     console.info(`back under ${hi}°C after ${cool} s at 60 km/h`);
     expect(cool).toBeLessThan(30);
+  });
+
+  test('a slide spikes the surface, the core follows slowly and keeps its heat', () => {
+    const v = car('tarmac', 'tarmac');
+    const core0 = v.wheels[0].coreTemp;
+    run(v, 3, donut(v));
+    const hot = v.wheels.reduce((a, b) =>
+      a.surfaceTemp > b.surfaceTemp ? a : b,
+    );
+    expect(hot.surfaceTemp).toBeGreaterThan(hot.coreTemp + 30);
+    // Ten seconds of straight: the surface drops back towards the core, the core stays warmer than at the start.
+    v.reset(new Vector3(), 0);
+    run(v, 10, () => {
+      v.controls.steer = 0;
+      v.controls.throttle = v.speed < 16.7 ? 0.6 : 0;
+    });
+    expect(hot.surfaceTemp - hot.coreTemp).toBeLessThan(15);
+    expect(hot.coreTemp).toBeGreaterThan(core0 + 5);
   });
 
   test('the same slide heats tyres much less on gravel than on tarmac', () => {

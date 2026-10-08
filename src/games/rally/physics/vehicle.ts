@@ -92,7 +92,12 @@ export interface WheelState {
   /** ABS share of the foot brake on this wheel (1 = full pressure). */
   absFactor: number;
   surface: SurfaceDef;
-  /** Tyre temperature (°C) and the grip factor it gives on the current surface (1 without a climate). */
+  /**
+   * Tyre temperatures (°C): tread surface (fast), core (slow) and the blend grip follows (`gripTemp`, what the HUD
+   * shows), and the grip factor it gives on the current surface (1 without a climate).
+   */
+  surfaceTemp: number;
+  coreTemp: number;
   temp: number;
   tempGrip: number;
   contactPoint: Vector3;
@@ -175,7 +180,8 @@ export class Vehicle {
   /** Air + sun of the stage: tyre temperatures run only with a climate AND a tyre (`setClimate`). */
   climate: Climate | null = null;
   private heatIn: TyreHeatInput = {
-    temp: 0,
+    surfaceTemp: 0,
+    coreTemp: 0,
     contact: false,
     force: 0,
     slideSpeed: 0,
@@ -257,7 +263,7 @@ export class Vehicle {
   resetTyreTemps(): void {
     const t = this.climate ? startTemp(this.climate) : 20;
     for (const w of this.wheels) {
-      w.temp = t;
+      w.surfaceTemp = w.coreTemp = w.temp = t;
       w.tempGrip = this.tempGripOf(w, w.surface);
     }
   }
@@ -330,6 +336,8 @@ export class Vehicle {
         slideSpeed: 0,
         absFactor: 1,
         surface: SURFACES.gravel,
+        surfaceTemp: 20,
+        coreTemp: 20,
         temp: 20,
         tempGrip: 1,
         contactPoint: new Vector3(),
@@ -763,13 +771,14 @@ export class Vehicle {
     this.applyForce(f, app);
   }
 
-  /** Tyre temperatures (physics/tyre-temp.ts): sliding + rolling heat, air / ground / water cooling. */
+  /** Tyre temperatures (physics/tyre-temp.ts): surface + core per tyre, sliding / rolling heat, air / ground / water cooling. */
   private tyreTempPass(dt: number): void {
     const c = this.climate;
     if (!c || !this.tyre) return;
     const h = this.heatIn;
     for (const w of this.wheels) {
-      h.temp = w.temp;
+      h.surfaceTemp = w.surfaceTemp;
+      h.coreTemp = w.coreTemp;
       h.contact = w.contact;
       h.force = Math.hypot(w.fx, w.fy);
       h.slideSpeed = w.slideSpeed;
@@ -779,6 +788,8 @@ export class Vehicle {
       h.surface = w.surface;
       h.water = this.waterDepth;
       w.temp = stepTemp(h, c, dt);
+      w.surfaceTemp = h.surfaceTemp;
+      w.coreTemp = h.coreTemp;
     }
   }
 

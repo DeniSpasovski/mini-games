@@ -1,9 +1,11 @@
 import type { SurfaceDef } from './surfaces';
 
 /**
- * Tyre temperature (arcade): one temperature per tyre, heated by sliding and rolling, cooled by the air and the
- * ground. Grip is a multiplier on the tyre's grip input (`TireInput.grip`), so `tire.ts` and the cached surface
- * tables stay untouched. Design + numbers: ../PHYSICS.md ("Tyre temperature").
+ * Tyre temperature (arcade): two temperatures per tyre. The SURFACE (tread face) heats in seconds while sliding and
+ * cools in seconds on a straight; the CORE (carcass) follows slowly, warmed by the surface and by flexing, so a cold
+ * tyre takes a km or two to come in and a cooked one stays slow for a while. Grip follows a blend of the two
+ * (`gripTemp`), as a multiplier on the tyre's grip input (`TireInput.grip`), so `tire.ts` and the cached surface tables
+ * stay untouched. Design + numbers: ../PHYSICS.md ("Tyre temperature").
  */
 
 /** Air and sun of a stage. `Vehicle.setClimate`; null = no temperature (tool pages, reference tests). */
@@ -31,20 +33,30 @@ export const HOT_SPAN = 35;
 /** Sun heat on a dark surface with the sun high and no clouds (°C above the air). */
 const SUN_HEAT = 24;
 /** Tyres arrive at the start this much above the air (the road section from the service park). */
-const START_ABOVE_AIR = 15;
+const START_ABOVE_AIR = 8;
+/** Share of the surface temperature in the grip temperature (the rest is the core). */
+const SURFACE_SHARE = 0.4;
 
-// Heat in (°C/s): sliding friction work per unit of nominal load, and carcass flex per m/s of speed.
-const SLIDE_HEAT = 0.65;
-const ROLL_HEAT = 0.08;
+// Surface (°C/s): sliding friction work per unit of nominal load in, heat out to the core, the air (more with
+// speed) and the ground under the tyre.
+const SLIDE_HEAT = 3;
+const SURFACE_TO_CORE = 0.12;
+const SURFACE_AIR = 0.012;
+const SURFACE_AIR_V = 0.0015;
+const SURFACE_ROAD = 0.03;
+// Core (°C/s): carcass flex per m/s of speed, heat from the surface (the core is much heavier, so it moves
+// CORE_MASS times slower) and air cooling (more with speed).
+const ROLL_HEAT = 0.03;
+const CORE_MASS = 12;
+const CORE_AIR = 0.006;
+const CORE_AIR_V = 0.0002;
 /** Share of the sliding work the stones take on loose ground (gravel runs cool, tarmac hot). */
 const LOOSE_SLIDE_SHARE = 0.6;
-// Cooling (1/s): air (rises with speed), the ground under the tyre, water.
-const AIR_COOL = 0.01;
-const AIR_COOL_V = 0.001;
-const ROAD_COOL = 0.016;
+/** Water cooling (1/s, both layers) at 0.2 m depth or more. */
 const WATER_COOL = 0.25;
-/** Hottest a tyre gets (°C): keeps the cool-down after a long burnout short. */
-const MAX_TEMP = 150;
+/** Hottest a surface / core gets (°C): keeps the cool-down after a long burnout short. */
+const MAX_SURFACE = 220;
+const MAX_CORE = 150;
 
 /** Climate of a stage: air temperature, sun height (deg) and cloud cover (0..1). */
 export function climateFor(
@@ -65,9 +77,14 @@ export function trackTemp(c: Climate, s: SurfaceDef): number {
   return c.air + c.sun * s.heat;
 }
 
-/** Tyre temperature at the start of a stage (°C). */
+/** Tyre temperature at the start of a stage (°C, surface and core). */
 export function startTemp(c: Climate): number {
   return c.air + START_ABOVE_AIR;
+}
+
+/** The temperature grip follows (°C): mostly the core, plus a share of the surface. */
+export function gripTemp(surface: number, core: number): number {
+  return core + SURFACE_SHARE * (surface - core);
 }
 
 const smooth = (x: number) => {
@@ -93,9 +110,10 @@ export function tempLevel(t: number, w: TempWindow): number {
   return Math.min(3, 2 + (t - w.hi) / HOT_SPAN);
 }
 
-/** What a tyre needs for one temperature step. */
+/** What a tyre needs for one temperature step; `stepTemp` updates `surfaceTemp` / `coreTemp` in place. */
 export interface TyreHeatInput {
-  temp: number;
+  surfaceTemp: number;
+  coreTemp: number;
   contact: boolean;
   /** Tyre force magnitude (N) and sliding speed of the contact patch (m/s). */
   force: number;
@@ -109,19 +127,31 @@ export interface TyreHeatInput {
   water: number;
 }
 
-/** New tyre temperature after `dt` seconds. */
+/** Steps the surface and core temperatures by `dt` seconds; returns the new grip temperature (`gripTemp`). */
 export function stepTemp(i: TyreHeatInput, c: Climate, dt: number): number {
-  const t = i.temp;
-  let rate = -(AIR_COOL + AIR_COOL_V * i.speed) * (t - c.air);
+  const ts = i.surfaceTemp;
+  const tc = i.coreTemp;
+  const toCore = SURFACE_TO_CORE * (ts - tc);
+  let rs = -toCore - (SURFACE_AIR + SURFACE_AIR_V * i.speed) * (ts - c.air);
+  let rc =
+    toCore / CORE_MASS - (CORE_AIR + CORE_AIR_V * i.speed) * (tc - c.air);
   if (i.contact) {
     const s = i.surface;
-    rate +=
-      (SLIDE_HEAT * i.force * i.slideSpeed * (1 - LOOSE_SLIDE_SHARE * s.loose) +
-        ROLL_HEAT * i.speed * i.load) /
+    rs +=
+      (SLIDE_HEAT *
+        i.force *
+        i.slideSpeed *
+        (1 - LOOSE_SLIDE_SHARE * s.loose)) /
         i.nominalLoad -
-      ROAD_COOL * (t - trackTemp(c, s));
+      SURFACE_ROAD * (ts - trackTemp(c, s));
+    rc += (ROLL_HEAT * i.speed * i.load) / i.nominalLoad;
   }
-  if (i.water > 0)
-    rate -= WATER_COOL * Math.min(1, i.water / 0.2) * (t - c.air);
-  return Math.min(MAX_TEMP, t + rate * dt);
+  if (i.water > 0) {
+    const w = WATER_COOL * Math.min(1, i.water / 0.2);
+    rs -= w * (ts - c.air);
+    rc -= w * (tc - c.air);
+  }
+  i.surfaceTemp = Math.min(MAX_SURFACE, ts + rs * dt);
+  i.coreTemp = Math.min(MAX_CORE, tc + rc * dt);
+  return gripTemp(i.surfaceTemp, i.coreTemp);
 }

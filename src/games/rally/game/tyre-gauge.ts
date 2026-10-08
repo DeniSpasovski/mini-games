@@ -2,13 +2,16 @@ import { tempLevel, type TempWindow } from '../physics/tyre-temp';
 
 /**
  * HUD tyre temperatures: four translucent tyres in a top-down car (left of the gear / speed in the dash), white
- * (cold) -> green (in the window) -> yellow -> red (overheated), plus the air / track temperature. Styles in hud.css
+ * (cold) -> mint / green / lime (in the window) -> yellow -> red (overheated), plus the air / track temperature. Styles in hud.css
  * (`.hud-tyres`). Only touches the DOM when a colour bucket, the steering or a number changes.
  */
 
 type Rgb = readonly [number, number, number];
 const WHITE: Rgb = [238, 240, 242];
+/** The window runs mint (just in) -> green (middle) -> lime (top), so a straight cooling the tyres shows. */
+const MINT: Rgb = [70, 205, 165];
 const GREEN: Rgb = [61, 220, 106];
+const LIME: Rgb = [150, 226, 70];
 const YELLOW: Rgb = [255, 208, 64];
 const RED: Rgb = [255, 58, 42];
 
@@ -21,9 +24,10 @@ const mix = (a: Rgb, b: Rgb, t: number): Rgb => [
 /** Colour for a `tempLevel` (0 stone cold, 1-2 the window, 3 cooked). */
 export function tyreColor(level: number): Rgb {
   // Eased: tyres stay white while clearly cold, then turn green as they reach the window.
-  if (level <= 1) return mix(WHITE, GREEN, Math.max(0, level) ** 2);
-  if (level <= 2) return GREEN;
-  if (level <= 2.4) return mix(GREEN, YELLOW, (level - 2) / 0.4);
+  if (level <= 1) return mix(WHITE, MINT, Math.max(0, level) ** 2);
+  if (level <= 1.5) return mix(MINT, GREEN, (level - 1) / 0.5);
+  if (level <= 2) return mix(GREEN, LIME, (level - 1.5) / 0.5);
+  if (level <= 2.4) return mix(LIME, YELLOW, (level - 2) / 0.4);
   return mix(YELLOW, RED, Math.min(1, (level - 2.4) / 0.6));
 }
 
