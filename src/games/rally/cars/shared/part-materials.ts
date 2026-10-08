@@ -123,7 +123,7 @@ function sheetFor(file: string): Promise<HTMLImageElement> {
 
 /**
  * A part that keeps the source model's own texture and UVs (scripts/car-model/glb-src-parts.py): material name
- * `src:<kind>:<file in public/models/cars/>`. `int` = the sheet as it is (seat fabric, cockpit), matt;
+ * `src:<kind>:<file in public/models/cars/>`. `int` = the sheet as it is (seat fabric, cockpit), matt, back faces dark;
  * `lamp` = the sheet, its bright pixels glow (head lamps, indicators); `tail` = brake lamp (setBrake): the red pixels glow, the bright neutral ones light in reverse. The maps
  * stay dark until the sheet has loaded. Alpha comes from the sheet (clear lens areas show the reflector behind them).
  */
@@ -146,7 +146,21 @@ function srcPart(name: string): Material {
         map.needsUpdate = true;
       })
       .catch(() => {});
-    return new MeshStandardMaterial({ map, roughness: 0.9, side: DoubleSide });
+    const mat = new MeshStandardMaterial({
+      map,
+      roughness: 0.9,
+      side: DoubleSide,
+    });
+    // Source cockpits are single sheets seen from the front: their back faces (an open seat back seen from the rear seats)
+    // draw as a dark plastic shell instead of the fabric's inside.
+    mat.onBeforeCompile = (s) => {
+      addWorldUniforms(s);
+      s.fragmentShader = s.fragmentShader.replace(
+        '#include <color_fragment>',
+        '#include <color_fragment>\nif (!gl_FrontFacing) diffuseColor.rgb = vec3(0.03);',
+      );
+    };
+    return mat;
   }
   const glow = blank('#000');
   const reverseGlow = kind === 'tail' ? blank('#000') : undefined;
