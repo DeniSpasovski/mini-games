@@ -21,6 +21,7 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 | `Space`             | handbrake                                          |
 | `R`, `C`, `Esc`     | reset to road, camera, pause menu                  |
 | `Q` / `E`, `G`, `T` | shift, manual gearbox, traction assist             |
+| `B`                 | ABS (on by default; not on the Zastava)            |
 
 ## Features
 

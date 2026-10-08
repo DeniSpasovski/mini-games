@@ -28,8 +28,9 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
   `vehicle.test.ts` bands stay put). Grip / feel of a tyre = edit its table there; ranks are checked by
   `integration-tests/rally/tyres.test.ts`. A new surface needs an entry in every `TyreDef.grip`.
 - Tyre model: `physics/tire.ts`. Rigid body / suspension / contacts: `physics/vehicle.ts`.
-- Driver aids: `Vehicle.tractionControl` (wheelspin + combined-slip stability, `T` in game),
-  `autoReverse`, keyboard steering ramp / speed limit / counter-steer allowance in `game/input.ts`.
+- Driver aids: `Vehicle.tractionControl` (wheelspin + combined-slip stability, `T` in game), `Vehicle.abs` (per-wheel
+  anti-lock on the foot brake, `B`; `physics.noAbs` = not fitted), `autoReverse`, keyboard steering ramp / speed limit /
+  counter-steer allowance in `game/input.ts`. Each aid has a `RallySettings` flag + an Options row hidden when not fitted.
 
 ## Workflow
 
@@ -54,6 +55,9 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
 
 ## Lessons already learned
 
+- "The car can't turn into corners" was the front wheels locking under braking - ABS (`Vehicle.absPass`, `B`) fixed it.
+  A grip-aware keyboard / pad steering limit and a front-grip / softer-diff retune were tried first, felt wrong to the
+  player and were dropped: check braking (`straight`, ABS off via `Cfg.patch`) before touching steering or grip.
 - Auto gearbox decisions use ground speed, not wheel speed (wheelspin caused gear hunting).
 - Handbrake declutches the rear (otherwise reflected engine inertia stops the wheels locking).
 - Flimsy props must not be solid colliders (a 6 cm post stopped the car dead at 95 km/h).
