@@ -21,6 +21,9 @@ Which primitive becomes which material is the `gltf` block of model.source.json:
       "default": "trim"                                   # unmatched primitives (omit = error)
     }
 
+`node` can also be a list of node names. `move: [dx, dy, dz]` (source units) shifts the rule's triangles - e.g. the model's own
+springs / dampers pulled in to the game's wheel track when the physics track is narrower than the model's (cars/subie-22b/).
+
 A rule can also be an exact outline cut - `"region": {"view": "front", "poly": [[x, y], ...], "depth": [zmin, zmax], "mirror": true}` in
 MODEL coordinates (after the config's offset), convex polygon: the primitive's triangles are CLIPPED along the outline and the
 pieces inside (and inside `depth` along the view axis) get the material, the rest keep looking - clean part borders on big
@@ -452,12 +455,13 @@ def main():
         if drop & set(path) or mat in drop:
             continue
         label = None
+        move = None
         c = T.mean(1)
         uvt = uvs[pi] if uvs is not None and uvs[pi] is not None and len(uvs[pi]) == len(T) else None  # UVs aligned with T (None after a region cut)
         im = None
         isl = None  # (island id per triangle, island bbox lo / hi, island size) - computed on first use
         for r in rules['parts']:
-            if 'node' in r and r['node'] != name:
+            if 'node' in r and name not in ([r['node']] if isinstance(r['node'], str) else r['node']):
                 continue
             if 'mat' in r and r['mat'] != mat:
                 continue
@@ -526,9 +530,10 @@ def main():
                 continue
             if keep.all():
                 label = r['material']
+                move = r.get('move')
                 break
             # box rule: split the primitive - matching triangles now, the rest keep looking
-            tris.append(T[keep])
+            tris.append(T[keep] + np.array(r.get('move', [0, 0, 0]), float))
             labels.append(np.full(keep.sum(), mats.index(r['material']), np.uint16))
             used[r['material']] = used.get(r['material'], 0) + int(keep.sum())
             T, c = T[~keep], c[~keep]
@@ -543,7 +548,7 @@ def main():
             defaulted.append((name, mat, T))
         if label not in mats:
             raise SystemExit(f'material {label!r} is not in parts.materials')
-        tris.append(T)
+        tris.append(T if move is None else T + np.array(move, float))
         labels.append(np.full(len(T), mats.index(label), np.uint16))
         used[label] = used.get(label, 0) + len(T)
     T = np.vstack(tris).astype(np.float32)

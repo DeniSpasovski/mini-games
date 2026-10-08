@@ -15,9 +15,69 @@
     "centres": []
   },
   "gltf": {
-    "$comment": "primitive -> part by the GLB's material names. Wheels, brakes, axles, dampers, springs and the spare wheel (material 'wheel'), the two crew figures ('driver') and the number plate are dropped: the game builds its own wheels and suspension.",
-    "drop": ["wheel", "driver", "licence_plate"],
+    "$comment": "primitive -> part by node / material name. Wheels, brake discs and calipers (the game builds its own) and the spare wheel, the two crew figures ('driver') and the number plate are dropped. The model's own springs, dampers and axle stubs stay, moved in by `move` (source cm) so each corner sits on the game's 1.52 m track (the model's is ~1.62 m).",
+    "drop": [
+      "Wheel.001",
+      "Wheel.002",
+      "Wheel.003",
+      "Wheel.004",
+      "Wheel.005",
+      "Brake Caliper",
+      "Brake Caliper.001",
+      "Brake Caliper.002",
+      "Brake Caliper.003",
+      "Brake Disc",
+      "Brake Disc.001",
+      "Brake Disc.002",
+      "Brake Disc.003",
+      "driver",
+      "licence_plate"
+    ],
     "parts": [
+      {
+        "node": ["spring.001_wheel_0"],
+        "material": "coilover",
+        "move": [-6.54, 0, 0],
+        "$comment": "front left"
+      },
+      {
+        "node": ["shock absorber.001_wheel_0", "axle_wheel_0"],
+        "material": "chrome",
+        "move": [-6.54, 0, 0]
+      },
+      {
+        "node": ["spring.002_wheel_0"],
+        "material": "coilover",
+        "move": [-7.84, 0, 0],
+        "$comment": "rear left"
+      },
+      {
+        "node": ["shock absorber.002_wheel_0", "axle.001_wheel_0"],
+        "material": "chrome",
+        "move": [-7.84, 0, 0]
+      },
+      {
+        "node": ["spring.003_wheel_0"],
+        "material": "coilover",
+        "move": [8.34, 0, 0],
+        "$comment": "rear right"
+      },
+      {
+        "node": ["shock absorber.003_wheel_0", "axle.002_wheel_0"],
+        "material": "chrome",
+        "move": [8.34, 0, 0]
+      },
+      {
+        "node": ["spring.004_wheel_0"],
+        "material": "coilover",
+        "move": [6.54, 0, 0],
+        "$comment": "front right"
+      },
+      {
+        "node": ["shock absorber.004_wheel_0", "axle.003_wheel_0"],
+        "material": "chrome",
+        "move": [6.54, 0, 0]
+      },
       {
         "node": "Body_livery_0",
         "whole": true,
@@ -109,7 +169,9 @@
       "tail22",
       "corner22",
       "indic22",
-      "logo"
+      "logo",
+      "coilover",
+      "chrome"
     ],
     "wrap": {
       "headlight22": "corner",
@@ -129,10 +191,14 @@
       "headlight22": "#fff4d6",
       "tail22": "#e0242c",
       "corner22": "#ff9a1a",
-      "indic22": "#ff9a1a"
+      "indic22": "#ff9a1a",
+      "coilover": "#f0c020",
+      "chrome": "#c8ccd0"
     },
     "maxTriangles": {
-      "interior": 16000
+      "interior": 16000,
+      "coilover": 3000,
+      "chrome": 1200
     },
     "drop": ["logo"]
   },

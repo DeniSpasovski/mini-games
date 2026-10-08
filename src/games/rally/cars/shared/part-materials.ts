@@ -48,7 +48,8 @@ export type PartName =
   | 'corner22'
   | 'indic22'
   | 'interior'
-  | 'cage';
+  | 'cage'
+  | 'coilover';
 
 const cache = new Map<string, Material>();
 
@@ -1165,6 +1166,13 @@ const BUILDERS: Record<PartName, () => Material> = {
     lampDepth(m, TWIN_BOWLS);
     return m;
   },
+  /** Painted coil-over spring (a model's own suspension in the wheel well), the 'sti' yellow of the setup screen. */
+  coilover: () =>
+    new MeshStandardMaterial({
+      color: 0xf0c020,
+      roughness: 0.45,
+      metalness: 0.3,
+    }),
   /** Mirror glass. */
   mirror: () =>
     new MeshPhysicalMaterial({

@@ -301,6 +301,9 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
 - **`arch` rule** (`{"arch": {"axles": [z, ...], "y": hub y, "r": [0.28, 0.5], "toward": 0.3, "|x|": [0.45, 1], "dy": -0.25}, "material": "trim"}`,
   source coordinates): body triangles round each hub whose normal points at it = wheel-arch liners and inner flare faces modelled
   into the body primitive, so the arches are black, not painted (worked example `cars/subie-22b/`).
+- **A model's own springs / dampers**: keep them (node rules; `node` takes a list) instead of dropping the whole wheel material - an
+  empty wheel well reads as missing suspension. If the physics track is narrower than the model's, `move: [dx, 0, 0]` (source units,
+  per side) puts each corner on the game's hub (worked example `cars/subie-22b/`).
 - **Roll cage** in the same primitive as seats / door cards: the `tube` rule (`{"tube": {"r": [0.012, 0.024], "score": 0.15,
 "length": 0.3}, "material": "cage"}`) picks whole tube-shaped islands; send steering column / gear rod to `interior` with
   earlier `whole` boxes, flat gusset plates to `cage` by box. `cage` = light grey part material (worked example `cars/skoda-rally/`).
