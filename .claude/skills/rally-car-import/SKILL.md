@@ -409,3 +409,7 @@ registered car; see `src/games/rally/PHYSICS.md`.
 - A GLB body whose paint / carbon split lives only in its texture: `glb-to-parts-stl.py` rule `{"mat": "Body", "texture": {"maxLum": 0.42, "maxSat": 0.06, "blur": 9, "refine": 0.02}, "y": [..], "z": [..], "material": "carbon"}`
   labels body triangles by the (blurred) texture and splits them along its border. Put it first in `gltf.parts`, box it tight (dirt looks like carbon), keep `blur` (raw texels speckle: 140k triangles).
 - A new car needs its own `suspensionStyle` (`suspension-mesh.test.ts`): add one to `SUSPENSION_STYLE_COLORS`.
+
+## Bump the times version (last step)
+
+Add the car's id to `CAR_TIMES_VERSIONS` in `game/stage.ts` (start at 1; a test fails without it). Later handling changes bump it; livery / model fixes never do. Old times stay below the new ones. Mention the version in the PR.

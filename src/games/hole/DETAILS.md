@@ -215,8 +215,9 @@ Each item has a small state machine in `sim/fall.ts`, deterministic (seeded per 
 High scores are only comparable while the scoring rules stay the same. The version is **per map**
 (`MAP_SCORING_VERSIONS` in `game/scores.ts`) and saved next to the lists
 (`hole.scores.version` for the city, `hole.scores.version.<map>` for the others); **when the game opens and a saved version differs from
-the code, that map's top-10 lists are erased** (`purgeStaleScores`, also true for lists saved before versions existed).
-Bumping one map never erases another map's scores; a shared rule (`sim/`, clear bonus) means bumping every map.
+the code, that map's entries are kept and tagged with the version they were set on** (`migrateScores`, `ScoreEntry.ver`; lists
+saved before versions existed get 0). The scores screen lists current entries first (any score beats any older one), then a
+divider and the older ones, dimmed; menu "best" counts the current version only. Bumping one map never touches another map's scores; a shared rule (`sim/`, clear bonus) means bumping every map.
 
 **Whenever scoring logic changes, bump the version of the map it affects** (and add a line to the history comment). A
 change to shared rules (tier table, clear bonus, difficulty times, `sim/sim.ts`) bumps every map. That means any change

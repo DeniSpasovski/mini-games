@@ -25,7 +25,7 @@ import {
   isTouchDevice,
   TouchControls,
 } from '../game/touch-controls';
-import { formatDelta, formatTime, purgeStaleTimes } from '../game/stage';
+import { formatDelta, formatTime, migrateTimes } from '../game/stage';
 import { DEFAULT_MAP, getMap, loadMap } from '../maps';
 import { SETUP_FOR_TYRE, SETUP_IDS } from '../physics/car-setup';
 import { isGearingId } from '../physics/gearing';
@@ -65,7 +65,7 @@ const portalButton = portalUrl()
   ? `<button data-a="portal">All games</button>`
   : '';
 
-purgeStaleTimes(); // physics changed -> old stage times are erased before any menu reads them
+migrateTimes(); // physics changed -> old stage times are tagged with their version before any menu reads them
 
 if (deepLink) void play(readUrlState(DEFAULTS));
 else

@@ -66,3 +66,7 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
   cutting power there bogged the Skoda Rally / Zastava mid-corner; keyboard lock (`keyboardSteerLimit`) stays near the
   peak-grip steering - check both with `handling.test.ts` (keyboard lock rows) when touching either.
 - Crests in corners unload the tyres (loads can drop to ~40%) - a real hazard; place jumps on straights.
+
+## Bump the times version (last step)
+
+A handling change to one car bumps its `CAR_TIMES_VERSIONS` entry in `game/stage.ts`; a shared physics change (tyres, surfaces, drivetrain model, assists) bumps every car. Old times stay below the new ones. Mention the bump in the PR.

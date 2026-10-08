@@ -268,3 +268,7 @@ fixes can ship meanwhile. Move the id to `AVAILABLE_MAPS` to release it (or back
 
 Files / links the user provides (models, reference photos, data downloads) go to `sources/` (git-ignored) and are
 listed in the car / map folder `DETAILS.md` - follow `.claude/skills/source-files/SKILL.md`.
+
+## Bump the times version (last step)
+
+A new map adds its id to `MAP_TIMES_VERSIONS` in `game/stage.ts` (start at 1). Changing an existing map's road, layout, length or surfaces bumps its entry. Old times stay below the new ones. Mention the bump in the PR.
