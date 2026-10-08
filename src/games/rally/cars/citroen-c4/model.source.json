@@ -1,0 +1,283 @@
+{
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/citroen-c4/02-citroen-c4-wrc-metres.glb = 'Citroen C4 WRC Red Bull 2007' by Max (CC BY 4.0), root node scaled x0.7542 (glb-set-root-scale.py <glb> <out> 0 0.7542: the FBX export is 1.33x too big, wheelbase 3.467 -> the real 2.615 m): +x left, +y up, +z nose, metres. The offset puts the front hub (model z 1.1895) on physics front.z = 1.2 and lifts the body 0.87 m so the hubs (model y -0.534) sit at the tyre radius 0.336. The atlas block is also read by livery.ts at runtime - edit it only here.",
+  "source": "sources/cars/citroen-c4/02-citroen-c4-wrc-metres.glb -> glb-to-parts-stl.py -> sources/cars/citroen-c4/citroen-c4-parts.stl",
+  "output": "public/models/cars/citroen_c4.glb",
+  "axes": [
+    "x",
+    "y",
+    "z"
+  ],
+  "scale": 1.0,
+  "offset": [
+    0,
+    0.87,
+    0.0105
+  ],
+  "groundAtMin": false,
+  "targetTriangles": 75000,
+  "creaseDeg": 40,
+  "wheels": {
+    "$comment": "the wheels are separate nodes (dropped below) - nothing to cut",
+    "radius": 0,
+    "minAbsX": 9,
+    "centres": []
+  },
+  "atlas": {
+    "pxPerMetre": 256,
+    "width": 4.35,
+    "height": 9.6,
+    "bounds": {
+      "x": [
+        -1.05,
+        1.05
+      ],
+      "y": [
+        0,
+        1.7
+      ],
+      "z": [
+        -2.15,
+        2.15
+      ]
+    },
+    "charts": {
+      "left": [
+        0,
+        0
+      ],
+      "right": [
+        0,
+        1.75
+      ],
+      "top": [
+        0,
+        3.5
+      ],
+      "front": [
+        0,
+        5.65
+      ],
+      "rear": [
+        2.2,
+        5.65
+      ],
+      "bottom": [
+        0,
+        7.45
+      ]
+    }
+  },
+  "gltf": {
+    "$comment": "material / node -> part; first matching rule wins. Wheels, discs, plate, buttons, cables and gearbox bits are dropped (the game builds its own wheels / brakes).",
+    "drop": [
+      "Frein",
+      "Jante",
+      "Pneu",
+      "Bouton",
+      "Cables",
+      "Distribution",
+      "Plaque"
+    ],
+    "parts": [
+      {
+        "$comment": "manufacturer double chevron on the grille (no logos, AGENTS.md): dropped via the `logo` part",
+        "mat": "ensemble_cr",
+        "region": {
+          "view": "front",
+          "poly": [
+            [
+              -0.2,
+              0.62
+            ],
+            [
+              0.2,
+              0.62
+            ],
+            [
+              0.2,
+              0.84
+            ],
+            [
+              -0.2,
+              0.84
+            ]
+          ],
+          "depth": [
+            1.5,
+            2.2
+          ]
+        },
+        "material": "logo"
+      },
+      {
+        "$comment": "manufacturer double chevron on the grille (no logos, AGENTS.md): dropped via the `logo` part",
+        "mat": "Autres",
+        "region": {
+          "view": "front",
+          "poly": [
+            [
+              -0.2,
+              0.62
+            ],
+            [
+              0.2,
+              0.62
+            ],
+            [
+              0.2,
+              0.84
+            ],
+            [
+              -0.2,
+              0.84
+            ]
+          ],
+          "depth": [
+            1.5,
+            2.2
+          ]
+        },
+        "material": "logo"
+      },
+      {
+        "$comment": "the chevron badge is also a raised body shape on the grille (z > 2.0, in front of the grille bars): dropped",
+        "mat": "Carrosserie",
+        "region": {
+          "view": "front",
+          "poly": [
+            [
+              -0.17,
+              0.66
+            ],
+            [
+              0.17,
+              0.66
+            ],
+            [
+              0.17,
+              0.8
+            ],
+            [
+              -0.17,
+              0.8
+            ]
+          ],
+          "depth": [
+            2.0,
+            2.2
+          ]
+        },
+        "material": "logo"
+      },
+      {
+        "node": "Vitre_Vitre_0",
+        "whole": true,
+        "islandTris": [
+          29,
+          29
+        ],
+        "material": "lenscover"
+      },
+      {
+        "mat": "Vitre",
+        "material": "glass"
+      },
+      {
+        "mat": "Phares",
+        "z": [
+          0,
+          3
+        ],
+        "material": "chrome"
+      },
+      {
+        "mat": "Phares",
+        "material": "tailled"
+      },
+      {
+        "mat": "ensemble_cr",
+        "material": "trim"
+      },
+      {
+        "mat": "Autres",
+        "material": "trim"
+      },
+      {
+        "mat": "Essuie_glace",
+        "material": "trim"
+      },
+      {
+        "mat": "Arceau_metallique",
+        "material": "cage"
+      },
+      {
+        "mat": "Cr_Interieur_Portiere",
+        "material": "interior"
+      },
+      {
+        "mat": "Cr_Interieur",
+        "material": "interior"
+      },
+      {
+        "mat": "Tableau_de_bord",
+        "material": "interior"
+      },
+      {
+        "mat": "Interieur_2",
+        "material": "interior"
+      },
+      {
+        "mat": "Interieur",
+        "material": "interior"
+      },
+      {
+        "mat": "Autre_interieur",
+        "material": "interior"
+      },
+      {
+        "mat": "Volant",
+        "material": "interior"
+      },
+      {
+        "mat": "Sige",
+        "material": "interior"
+      },
+      {
+        "mat": "Carrosserie",
+        "material": "body"
+      }
+    ],
+    "default": "trim"
+  },
+  "parts": {
+    "materials": [
+      "body",
+      "trim",
+      "glass",
+      "headlight",
+      "tailc",
+      "lenscover",
+      "chrome",
+      "amber",
+      "mesh",
+      "interior",
+      "logo",
+      "carbon",
+      "wingblue",
+      "winggreen",
+      "mirror",
+      "cage",
+      "tailled",
+      "headled",
+      "redcover",
+      "lamphousing"
+    ],
+    "wrap": {},
+    "drop": [
+      "logo"
+    ],
+    "maxTriangles": {
+      "interior": 18000
+    }
+  }
+}
