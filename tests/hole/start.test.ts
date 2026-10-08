@@ -43,9 +43,9 @@ test('random start: City Island seeds', () => {
   for (const seed of [1, 2, 3]) check(generateCity({ seed }), `city ${seed}`);
 });
 
-test('random start: Toy Emporium layouts', () => {
-  for (const layout of ['a', 'b', 'c'])
-    check(generateToyStore({ seed: 1, layout }), `toy ${layout}`);
+test('random start: Toy Emporium seeds', () => {
+  for (const seed of [1, 2, 3])
+    check(generateToyStore({ seed }), `toy ${seed}`);
 });
 
 test('random start: Construction Site seeds', () => {

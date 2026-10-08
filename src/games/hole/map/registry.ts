@@ -12,7 +12,6 @@ import {
 import { generateCity, targetPoints } from './generate';
 import { AVAILABLE_MAPS, SHOW_TEST_CONTENT } from '../release';
 import { DEFAULT_TOY, generateToyStore, toyTargetPoints } from './toy/generate';
-import { LAYOUTS } from './toy/layouts';
 import type { MapData } from './types';
 
 /** Everything the game needs to know about a playable map. DOM-free (tests and the bot use it too). */
@@ -38,13 +37,11 @@ export interface MapDef {
   itemMap: ItemMap;
   /** Total points of every seed (before the clear bonus). */
   points: number;
-  generate(seed: number, opts?: { layout?: string }): MapData;
+  generate(seed: number): MapData;
   /** The menu offers a seed stepper ("Island #7"): every seed holds the same points, so one score list covers them all. */
   seeded?: boolean;
   /** Swallow puff colours: dust outdoors, confetti in the store, rubble on the building site. */
   puffs: 'dust' | 'confetti' | 'fur' | 'rubble';
-  /** Floor plans the menu offers as buttons (the toy store). */
-  layouts?: { id: string; name: string }[];
   mood: MapMood;
   /** Menu fly-around camera. */
   aerial: { radius: number; pitchDeg: number };
@@ -79,9 +76,8 @@ export const ALL_MAPS: MapDef[] = [
     noun: 'store',
     itemMap: 'toy',
     points: toyTargetPoints(DEFAULT_TOY),
-    generate: (seed, opts) =>
-      generateToyStore({ seed, layout: opts?.layout ?? DEFAULT_TOY.layout }),
-    layouts: Object.values(LAYOUTS).map((l) => ({ id: l.id, name: l.name })),
+    generate: (seed) => generateToyStore({ seed }),
+    seeded: true,
     puffs: 'confetti',
     mood: {
       sky: 0xf7e9d2,

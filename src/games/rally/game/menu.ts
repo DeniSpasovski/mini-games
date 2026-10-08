@@ -69,7 +69,15 @@ import {
   type RallySettings,
 } from './settings';
 import { Showroom } from './showroom';
-import { formatTime, loadTimes, sectorTimes, type RunRecord } from './stage';
+import {
+  formatTime,
+  isOldRun,
+  loadTimes,
+  oldRunLabel,
+  sectorTimes,
+  timesVersion,
+  type RunRecord,
+} from './stage';
 
 /** Game version (game.json, semver 0.x.y), shown in the menu + About. */
 const VERSION = gameManifest.version;
@@ -375,7 +383,11 @@ class MainMenu {
       const b = document.createElement('button');
       b.className = 'menu-card';
       b.classList.toggle('selected', i === this.mapIndex);
-      const best = loadTimes(m.id, CAR_IDS)[0];
+      const times = loadTimes(m.id, CAR_IDS);
+      const cur = timesVersion(m.id);
+      const best = times.find((r) => !isOldRun(r, cur));
+      const oldBest =
+        times[0] && isOldRun(times[0], cur) ? times[0] : undefined;
       b.innerHTML = `
         ${routeSvg(m)}
         <div class="menu-card-body">
@@ -386,7 +398,7 @@ class MainMenu {
             <span>${m.stage.splits} splits</span>
             <span>${[...new Set(m.surfaces)].map((s) => s.replace(/_/g, ' + ')).join(' → ')}</span>
           </div>
-          <div class="menu-best">${best ? `Best ${formatTime(best.time)} · ${carName(best.car)}` : 'No time set yet'}</div>
+          <div class="menu-best">${best ? `Best ${formatTime(best.time)} · ${carName(best.car)}` : oldBest ? `<span class="old">Older best ${formatTime(oldBest.time)} · ${oldRunLabel(oldBest, cur)}</span>` : 'No time set yet'}</div>
         </div>`;
       b.addEventListener('click', () => {
         if (this.mapIndex === i) return this.show('car');
@@ -415,8 +427,9 @@ class MainMenu {
       b.className = 'menu-btn menu-car';
       b.classList.toggle('selected', i === this.carIndex);
       const best = times.find((r) => r.car === c.id);
+      const stale = best && isOldRun(best, timesVersion(this.map.id));
       b.innerHTML = `<span><b>${c.name}${testBadge(isTestCar(c.id))}</b><small>${c.className}</small></span>
-        <span class="menu-car-best">${best ? formatTime(best.time) : ''}</span>`;
+        <span class="menu-car-best${stale ? ' old' : ''}">${best ? formatTime(best.time) : ''}</span>`;
       b.addEventListener('click', () => this.selectCar(i));
       list.append(b);
     });
@@ -949,7 +962,11 @@ export function buildSectors(
   const mine = sectorTimes(run);
   el.setScope = (carOnly) => {
     const ref = board.find(
-      (r) => r !== run && (!carOnly || r.car === run.car) && r.splits?.length,
+      (r) =>
+        r !== run &&
+        !isOldRun(r, run.ver ?? 1) &&
+        (!carOnly || r.car === run.car) &&
+        r.splits?.length,
     );
     const refSec = ref ? sectorTimes(ref) : [];
     el.innerHTML = mine
@@ -977,7 +994,10 @@ export function buildLeaderboard(
   const el = div('menu-board');
   let carOnly = false;
   const render = () => {
-    const rows = carOnly ? board.filter((r) => r.car === run.car) : board;
+    const all = carOnly ? board.filter((r) => r.car === run.car) : board;
+    const cur = run.ver ?? 1;
+    const rows = all.filter((r) => !isOldRun(r, cur));
+    const older = all.filter((r) => isOldRun(r, cur));
     const rank = rows.indexOf(run);
     const lead = rows[0]?.time ?? 0;
     // Set-up columns: what the run was driven with ("–" = not recorded: older runs, or fixed gearing on the road car).
@@ -990,13 +1010,14 @@ export function buildLeaderboard(
       isGearingId(r.gear) ? GEARING_NAMES[r.gear] : dash;
     const row = (r: RunRecord, i: number) => {
       const sec = sectorTimes(r);
-      const cls = r === run ? ' class="me"' : '';
+      const old = isOldRun(r, cur);
+      const cls = r === run ? ' class="me"' : old ? ' class="old"' : '';
       return (
-        `<tr${cls}><td rowspan="2">${i + 1}</td><td>${formatTime(r.time)}${r.penalty ? ` <span class="pen">(+${r.penalty}s)</span>` : ''}</td>` +
+        `<tr${cls}><td rowspan="2">${old ? oldRunLabel(r, cur) : i + 1}</td><td>${formatTime(r.time)}${r.penalty ? ` <span class="pen">(+${r.penalty}s)</span>` : ''}</td>` +
         `<td>${r === run ? '<b>YOU</b> ' : ''}${carName(r.car)}${r.date ? ` <small>#${r.livery + 1}</small>` : ''}</td>` +
         `<td class="set">${tyreCol(r)}</td><td class="set">${suspCol(r)}</td><td class="set">${gearCol(r)}</td>` +
-        `<td>${i ? `+${(r.time - lead).toFixed(2)}` : ''}</td></tr>` +
-        `<tr${cls ? ' class="me sec"' : ' class="sec"'}><td colspan="6">${
+        `<td>${i && !old ? `+${(r.time - lead).toFixed(2)}` : ''}</td></tr>` +
+        `<tr class="${r === run ? 'me ' : old ? 'old ' : ''}sec"><td colspan="6">${
           sec.length
             ? sec.map((t, k) => `S${k + 1} ${t.toFixed(2)}`).join(' · ')
             : 'no sector times'
@@ -1013,7 +1034,14 @@ export function buildLeaderboard(
         .map(row)
         .join(
           '',
-        )}${rank >= 10 ? `<tr class="gap"><td colspan="7">…</td></tr>${row(run, rank)}` : ''}</table>
+        )}${rank >= 10 ? `<tr class="gap"><td colspan="7">…</td></tr>${row(run, rank)}` : ''}${
+        older.length
+          ? `<tr class="divider"><td colspan="7">Older versions · set before a physics update</td></tr>${older
+              .slice(0, 10)
+              .map(row)
+              .join('')}`
+          : ''
+      }</table>
       ${rank < 0 ? '<p class="menu-none">Practice run - not ranked.</p>' : ''}`;
   };
   el.addEventListener('click', (e) => {

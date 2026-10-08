@@ -9,7 +9,7 @@ import {
   type Difficulty,
 } from '../sim/progression';
 import { button, el, fmtTime } from './dom';
-import type { ScoreEntry } from './scores';
+import { MAP_SCORING_VERSIONS, type ScoreEntry } from './scores';
 import type { HoleSettings } from './settings';
 
 /** Game version (game.json, semver 0.x.y), shown in the menu + About. */
@@ -29,10 +29,8 @@ export interface MapChoice {
   name: string;
   blurb: string;
   noun: string;
-  /** Show the seed stepper (City Island). */
+  /** Show the seed stepper. */
   seeded: boolean;
-  /** Floor plans to pick from (toy store), empty when the map has one layout. */
-  layouts: { id: string; name: string }[];
 }
 
 export interface MenuApi {
@@ -43,8 +41,8 @@ export interface MenuApi {
   mapId(): string;
   /** Switch the map (the menu background follows). */
   onMap(id: string): void;
-  /** Pick another island seed / floor plan of the current map (the menu background follows). */
-  onVariant(v: { seed?: number; layout?: string }): void;
+  /** Pick another island / store seed of the current map (the menu background follows). */
+  onVariant(v: { seed?: number }): void;
   best(map: string, difficulty: Difficulty['id']): number;
   scores(map: string, difficulty: Difficulty['id']): ScoreEntry[];
   onPlay(d: Difficulty): void;
@@ -253,7 +251,7 @@ export class Menu {
     for (const m of this.api.maps) {
       const b = el(
         'button',
-        'hg-map' + (m.id === this.api.mapId() ? ' on' : ''),
+        `hg-map hg-map-${m.id}` + (m.id === this.api.mapId() ? ' on' : ''),
         '',
         { type: 'button' },
       );
@@ -329,7 +327,7 @@ export class Menu {
     this.mount(card);
   }
 
-  /** Island seed stepper (City Island) or floor plan buttons (toy store) above the time buttons. */
+  /** Seed stepper above the time buttons. */
   private variantPicker(): HTMLElement[] {
     const mc = this.api.maps.find((m) => m.id === this.api.mapId());
     const s = this.api.settings;
@@ -360,7 +358,11 @@ export class Menu {
           () => (s.seed <= 1 ? 999 : s.seed - 1),
           'Previous island',
         ),
-        el('p', 'hg-variant', `Island #${s.seed}`),
+        el(
+          'p',
+          'hg-variant',
+          `${mc.noun === 'store' ? 'Store' : 'Island'} #${s.seed}`,
+        ),
         step(
           '›',
           'gray hg-arrow',
@@ -377,26 +379,6 @@ export class Menu {
           'Random island',
         ),
       ];
-    }
-    if (mc && mc.layouts.length > 1) {
-      const tabs = el('div', 'hg-tabs');
-      for (const l of mc.layouts) {
-        const t = el(
-          'button',
-          'hg-tab' + (l.id === s.layout ? ' on' : ''),
-          l.name,
-          { type: 'button' },
-        );
-        t.addEventListener(
-          'click',
-          this.click(() => {
-            this.api.onVariant({ layout: l.id });
-            this.difficulty();
-          }),
-        );
-        tabs.append(t);
-      }
-      return [tabs];
     }
     return [];
   }
@@ -439,7 +421,13 @@ export class Menu {
       tabs.append(t);
     }
     const wrap = el('div', 'hg-scroll');
-    wrap.append(this.scoreTable(this.api.scores(mapId, selected), -1));
+    wrap.append(
+      this.scoreTable(
+        this.api.scores(mapId, selected),
+        -1,
+        MAP_SCORING_VERSIONS[mapId],
+      ),
+    );
     card.append(
       el('h2', 'hg-h2', 'Top 10'),
       ...(mapTabs.childElementCount ? [mapTabs] : []),
@@ -453,6 +441,7 @@ export class Menu {
   private scoreTable(
     list: ScoreEntry[],
     highlight: number,
+    currentVer: number | undefined,
     extra?: ScoreEntry,
   ): HTMLElement {
     const table = el('table', 'hg-table');
@@ -460,8 +449,10 @@ export class Menu {
     for (const h of ['#', 'SCORE', 'LEVEL', 'EATEN', 'DONE'])
       head.append(el('th', '', h));
     table.append(head);
+    const isOld = (e: ScoreEntry) =>
+      e.ver !== undefined && e.ver !== currentVer;
     const row = (e: ScoreEntry, rank: string, me: boolean) => {
-      const tr = el('tr', me ? 'me' : '');
+      const tr = el('tr', me ? 'me' : isOld(e) ? 'old' : '');
       tr.append(
         el('td', '', rank),
         el('td', '', String(e.score)),
@@ -471,8 +462,10 @@ export class Menu {
       );
       table.append(tr);
     };
-    list.forEach((e, i) => row(e, String(i + 1), i + 1 === highlight));
-    if (!list.length) {
+    const current = list.filter((e) => !isOld(e));
+    const older = list.filter(isOld);
+    current.forEach((e, i) => row(e, String(i + 1), i + 1 === highlight));
+    if (!current.length) {
       const tr = el('tr');
       const td = el('td', '', 'No runs yet. Go eat something!', {
         colspan: '5',
@@ -481,11 +474,21 @@ export class Menu {
       tr.append(td);
       table.append(tr);
     }
-    if (extra) {
+    if (extra && current.length) {
       const gap = el('tr', 'gap');
       gap.append(el('td', '', '⋮', { colspan: '5' }));
       table.append(gap);
       row(extra, 'you', true);
+    } else if (extra) row(extra, 'you', true);
+    if (older.length) {
+      const div = el('tr', 'divider');
+      div.append(
+        el('td', '', 'Older versions · set before a scoring update', {
+          colspan: '5',
+        }),
+      );
+      table.append(div);
+      for (const e of older) row(e, `v${e.ver}`, false);
     }
     return table;
   }
@@ -625,7 +628,12 @@ export class Menu {
     card.append(el('p', 'hg-sub', 'Items eaten by size tier'), bars, axis);
     card.append(
       el('h2', 'hg-h2', `${r.mapName} · ${r.difficulty.label} · Top 10`),
-      this.scoreTable(r.list, r.rank, r.rank === 0 ? r.entry : undefined),
+      this.scoreTable(
+        r.list,
+        r.rank,
+        r.entry.ver,
+        r.rank === 0 ? r.entry : undefined,
+      ),
       this.row(
         button(
           'Play again',

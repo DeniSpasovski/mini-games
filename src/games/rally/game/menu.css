@@ -837,3 +837,28 @@
   cursor: default;
   opacity: 0.85;
 }
+
+/* Runs from an older physics version: below every current run, dimmer, behind a divider. */
+.menu-board tr.divider td {
+  padding: 10px 6px 4px;
+  border-top: 2px solid #4b5562;
+  border-bottom: none;
+  font:
+    700 11px system-ui,
+    sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8b95a3;
+  text-align: center;
+}
+.menu-board tr.old td,
+.menu-board tr.old td small,
+.menu-board tr.old td.set,
+.menu-board tr.old td:first-child,
+.menu-board tr.old td:last-child {
+  color: #5d6672;
+}
+.menu-best .old,
+.menu-car-best.old {
+  color: #6f7986;
+}

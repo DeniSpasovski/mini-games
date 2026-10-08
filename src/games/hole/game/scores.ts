@@ -4,8 +4,9 @@ import type { KV } from './storage';
 /**
  * Scoring version per map: the rules its saved high scores were earned under.
  *
- * On every game start `purgeStaleScores` compares each map's number with the one stored next to its
- * lists and erases ONLY that map's top-10 lists when they differ. Bump a map when ITS scoring changes:
+ * On every game start `migrateScores` compares each map's number with the one stored next to its
+ * lists; when they differ, ONLY that map's entries are tagged with the version they were set on
+ * (`ScoreEntry.ver`) and kept: they list below every current entry, dimmed. Bump a map when ITS scoring changes:
  * item points / sizes, point total, map content (its generator), difficulty times or the clear bonus.
  * A shared rule (`sim/progression.ts`, `sim/sim.ts`, the clear bonus) changes every map: bump them all.
  *
@@ -42,6 +43,8 @@ export interface ScoreEntry {
   pct: number;
   color: string;
   date: number;
+  /** Scoring version the run was set under; missing = the map's current one (see `migrateScores`). */
+  ver?: number;
 }
 
 export const TOP_N = 10;
@@ -50,31 +53,54 @@ export function scoreKey(map: string, difficulty: string): string {
   return `hole.scores.${map}.${difficulty}`;
 }
 
-/** Best first: score, then level, then the earlier run. */
-export function compareScores(a: ScoreEntry, b: ScoreEntry): number {
-  return b.score - a.score || b.level - a.level || a.date - b.date;
+/** True for an entry set under an older scoring version of `map` (listed below the current ones). */
+export function isOldScore(map: string, e: Pick<ScoreEntry, 'ver'>): boolean {
+  return e.ver !== undefined && e.ver !== MAP_SCORING_VERSIONS[map];
 }
 
-export function loadScores(
-  store: KV,
-  map: string,
-  difficulty: string,
-): ScoreEntry[] {
+/** Current entries best first, then older versions (newest version first), each best first. */
+export function compareScores(a: ScoreEntry, b: ScoreEntry): number {
+  return (
+    (b.ver ?? Infinity) - (a.ver ?? Infinity) ||
+    b.score - a.score ||
+    b.level - a.level ||
+    a.date - b.date
+  );
+}
+
+function readList(store: KV, map: string, difficulty: string): ScoreEntry[] {
   try {
     const raw = store.getItem(scoreKey(map, difficulty));
     const list = raw ? (JSON.parse(raw) as ScoreEntry[]) : [];
-    return list
-      .filter((e) => typeof e?.score === 'number')
-      .sort(compareScores)
-      .slice(0, TOP_N);
+    return list.filter((e) => typeof e?.score === 'number');
   } catch {
     return [];
   }
 }
 
+/** Keep the top 10 current entries plus the top 10 of each older version. */
+function trim(map: string, sorted: ScoreEntry[]): ScoreEntry[] {
+  const seen = new Map<number, number>();
+  return sorted.filter((e) => {
+    const k = isOldScore(map, e) ? e.ver! : -1;
+    const n = (seen.get(k) ?? 0) + 1;
+    seen.set(k, n);
+    return n <= TOP_N;
+  });
+}
+
+/** All saved entries of a map + difficulty: current first, then older versions. */
+export function loadScores(
+  store: KV,
+  map: string,
+  difficulty: string,
+): ScoreEntry[] {
+  return trim(map, readList(store, map, difficulty).sort(compareScores));
+}
+
 export interface RecordResult {
   list: ScoreEntry[];
-  /** 1-based rank of the new entry, or 0 when it did not make the top 10. */
+  /** 1-based rank of the new entry among the current ones, or 0 when it did not make the top 10. */
   rank: number;
 }
 
@@ -85,39 +111,49 @@ export function recordScore(
   difficulty: string,
   entry: ScoreEntry,
 ): RecordResult {
-  const list = loadScores(store, map, difficulty);
-  const all = [...list, entry].sort(compareScores);
-  const top = all.slice(0, TOP_N);
-  const rank = top.indexOf(entry) + 1;
+  const all = [...readList(store, map, difficulty), entry].sort(compareScores);
+  const kept = trim(map, all);
+  const rank = kept.filter((e) => !isOldScore(map, e)).indexOf(entry) + 1;
   try {
-    store.setItem(scoreKey(map, difficulty), JSON.stringify(top));
+    store.setItem(scoreKey(map, difficulty), JSON.stringify(kept));
   } catch {
     /* storage full / blocked: the run still shows on the results screen */
   }
-  return { list: top, rank };
+  return { list: kept, rank };
 }
 
+/** Best score of the map's CURRENT version (older versions don't count for the menu cards). */
 export function bestScore(store: KV, map: string, difficulty: string): number {
-  return loadScores(store, map, difficulty)[0]?.score ?? 0;
+  return (
+    loadScores(store, map, difficulty).find((e) => !isOldScore(map, e))
+      ?.score ?? 0
+  );
 }
 
 /**
- * Per map: erase that map's top-10 lists when they were saved under another
- * `MAP_SCORING_VERSIONS` number (or before versions existed). Other maps are
- * untouched. Returns true when anything was wiped. Call once when the game opens.
+ * Per map: when its lists were saved under another `MAP_SCORING_VERSIONS` number (or before versions
+ * existed, tagged 0), tag every untagged entry with the stored version and keep them. Other maps are
+ * untouched. Returns true when any map changed. Call once when the game opens.
  */
-export function purgeStaleScores(store: KV): boolean {
-  let wiped = false;
+export function migrateScores(store: KV): boolean {
+  let changed = false;
   for (const map of MAPS) {
     try {
       const v = String(MAP_SCORING_VERSIONS[map]);
-      if (store.getItem(versionKey(map)) === v) continue;
-      for (const d of DIFFICULTIES) store.removeItem(scoreKey(map, d.id));
+      const prev = store.getItem(versionKey(map));
+      if (prev === v) continue;
+      const oldVer = prev === null ? 0 : Number(prev) || 0;
+      for (const d of DIFFICULTIES) {
+        const list = readList(store, map, d.id);
+        if (!list.length) continue;
+        for (const e of list) e.ver ??= oldVer;
+        store.setItem(scoreKey(map, d.id), JSON.stringify(list));
+      }
       store.setItem(versionKey(map), v);
-      wiped = true;
+      changed = true;
     } catch {
-      /* storage blocked: nothing to purge */
+      /* storage blocked: nothing to migrate */
     }
   }
-  return wiped;
+  return changed;
 }

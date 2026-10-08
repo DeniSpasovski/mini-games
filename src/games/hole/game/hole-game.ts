@@ -40,7 +40,7 @@ import { Menu, type MenuApi } from './menu';
 import {
   bestScore,
   loadScores,
-  purgeStaleScores,
+  migrateScores,
   recordScore,
   type ScoreEntry,
   MAP_SCORING_VERSIONS,
@@ -49,7 +49,12 @@ import { loadSettings, saveSettings, type HoleSettings } from './settings';
 import { defaultStorage } from './storage';
 
 export type GameState =
-  'menu' | 'countdown' | 'playing' | 'paused' | 'ending' | 'results';
+  | 'menu'
+  | 'countdown'
+  | 'playing'
+  | 'paused'
+  | 'ending'
+  | 'results';
 
 const STEP = 1 / 60;
 const COUNTDOWN = 2.4;
@@ -117,7 +122,7 @@ export class HoleGame {
 
   constructor(root: HTMLElement) {
     this.params = new URLSearchParams(location.search);
-    purgeStaleScores(this.store); // scoring rules changed -> old high scores are erased
+    migrateScores(this.store); // scoring rules changed -> old high scores are tagged with their version and kept
     this.settings = loadSettings(this.store);
     const colorParam = this.params.get('color');
     if (colorParam) this.settings.color = colorParam;
@@ -181,7 +186,6 @@ export class HoleGame {
         blurb: m.blurb,
         noun: m.noun,
         seeded: !!m.seeded,
-        layouts: m.layouts ?? [],
       })),
       mapId: () => this.mapDef.id,
       onMap: (id) => {
@@ -193,7 +197,6 @@ export class HoleGame {
       },
       onVariant: (v) => {
         if (v.seed !== undefined) this.settings.seed = v.seed;
-        if (v.layout !== undefined) this.settings.layout = v.layout;
         saveSettings(this.store, this.settings);
         this.setMap(this.mapDef.id);
         this.startDemo();
@@ -229,10 +232,9 @@ export class HoleGame {
   private setMap(id: string): void {
     const def = getMapDef(id);
     this.mapDef = def;
-    // ?seed= / ?layout= (dev links) win over the menu choice
+    // ?seed= (dev links) wins over the menu choice
     this.map = def.generate(
       Number(this.params.get('seed') ?? (def.seeded ? this.settings.seed : 1)),
-      { layout: this.params.get('layout') ?? this.settings.layout },
     );
     if (this.ground) {
       this.scene.remove(this.ground);
@@ -362,9 +364,6 @@ export class HoleGame {
       game_version: gameManifest.version,
       game_hole_difficulty: this.difficulty.id,
       game_hole_seed: this.mapDef.seeded ? this.settings.seed : undefined,
-      game_hole_layout: this.mapDef.layouts?.length
-        ? this.settings.layout
-        : undefined,
       game_hole_scoring_version: MAP_SCORING_VERSIONS[map],
     };
   }
@@ -395,6 +394,7 @@ export class HoleGame {
       pct: sim.pointsEaten / sim.world.totalPoints,
       color: this.settings.color,
       date: Date.now(),
+      ver: MAP_SCORING_VERSIONS[this.mapDef.id],
     };
     const ranked = this.ranked();
     if (ranked) {
