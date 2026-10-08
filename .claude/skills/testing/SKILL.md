@@ -1,19 +1,21 @@
 ---
 name: testing
-description: Where a test goes (tests/ vs integration-tests/<game>), which npm script runs it and how the five GitHub Actions jobs map to them. Use when adding, moving or running tests, or editing .github/workflows/ci.yml.
+description: Where a test goes (tests/ vs integration-tests/<game>), which npm script runs it and how the seven GitHub Actions jobs map to them. Use when adding, moving or running tests, or editing .github/workflows/ci.yml.
 ---
 
 # Testing layout
 
 Regular tests are fast (the whole `tests/` folder runs in about a minute); integration tests are slow playtests.
 
-| Kind                                                       | Folder                     | Script                           |
-| ---------------------------------------------------------- | -------------------------- | -------------------------------- |
-| Unit / data / content checks for rally                     | `tests/rally/`             | `npm run test:rally`             |
-| Unit / data / content checks for hole                      | `tests/hole/`              | `npm run test:hole`              |
-| Portal / shared (analytics, consent, dom, site config ...) | `tests/*.test.ts`          | `npm run test:shared`            |
-| Rally playtests                                            | `integration-tests/rally/` | `npm run test:integration:rally` |
-| Hole playtests                                             | `integration-tests/hole/`  | `npm run test:integration:hole`  |
+| Kind                                                       | Folder                      | Script                            |
+| ---------------------------------------------------------- | --------------------------- | --------------------------------- |
+| Unit / data / content checks for rally                     | `tests/rally/`              | `npm run test:rally`              |
+| Unit / data / content checks for hole                      | `tests/hole/`               | `npm run test:hole`               |
+| Unit / data / content checks for kaboom                    | `tests/kaboom/`             | `npm run test:kaboom`             |
+| Portal / shared (analytics, consent, dom, site config ...) | `tests/*.test.ts`           | `npm run test:shared`             |
+| Rally playtests                                            | `integration-tests/rally/`  | `npm run test:integration:rally`  |
+| Hole playtests                                             | `integration-tests/hole/`   | `npm run test:integration:hole`   |
+| Kaboom bot playtests                                       | `integration-tests/kaboom/` | `npm run test:integration:kaboom` |
 
 `npm run test` = every regular test (no integration); `npm run test:integration` = every playtest.
 
@@ -28,7 +30,7 @@ stay next to the tests that use them. A new game gets its own `tests/<id>/`, `in
 
 ## CI (`.github/workflows/ci.yml`)
 
-Runs on pull requests and on pushes to `main`, five parallel jobs: rally tests, rally integration tests, hole tests,
+Runs on pull requests and on pushes to `main`, seven parallel jobs: rally tests, rally integration tests, hole tests, kaboom tests, kaboom integration tests,
 hole integration tests, and a shared job (type check + lint + `test:shared`). A new script or folder needs a CI step in the
 same change, otherwise it silently never runs. Run the matching script before pushing; after touching physics or a map also
 run `npm run test:integration:rally`.

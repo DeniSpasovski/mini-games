@@ -21,11 +21,13 @@ import type { SetupPreset } from '../../physics/types';
  *   road  - plain black MacPherson strut with a ribbed rubber boot and a thin spring
  *   race  - short stubby silver coil-over, piggyback reservoir with an adjuster knob and a helper spring
  *   wrc   - blue medium coil-over, reservoir tube beside the housing, rubber bump-stop boot
+ *   wrcgold - the same unit in gold (Citroen C4 WRC)
  *   sti   - yellow short coil-over (race geometry), piggyback reservoir
  * The spring gets fewer, thicker coils the stiffer the rate; the whole unit is longer the more travel the preset
  * has (soft = long).
  */
-export type SuspensionStyle = 'rally' | 'road' | 'race' | 'gt' | 'wrc' | 'sti';
+export type SuspensionStyle =
+  'rally' | 'road' | 'race' | 'gt' | 'wrc' | 'wrcgold' | 'sti';
 
 export const SUSPENSION_STYLE_COLORS: Record<
   SuspensionStyle,
@@ -36,6 +38,7 @@ export const SUSPENSION_STYLE_COLORS: Record<
   race: { body: 0xb9bdc3, chrome: 0xd2d5d9 },
   gt: { body: 0x2a56a8, chrome: 0xc4c8cc },
   wrc: { body: 0x2a62c9, chrome: 0xc8ccd0 },
+  wrcgold: { body: 0xd9a21b, chrome: 0xc8ccd0 },
   sti: { body: 0xf0c020, chrome: 0xc8ccd0 },
 };
 
@@ -144,7 +147,7 @@ export function buildCoilover(
     }
     chrome.push(rod(0.05, L * 0.4, L * 0.4 + 0.007, 0, 0, 14)); // lower perch
     spring.push(helix(0.04, wire * 0.85, L * 0.4 + 0.007, L * 0.92, coils));
-  } else if (style === 'wrc') {
+  } else if (style === 'wrc' || style === 'wrcgold') {
     // World Rally Car: medium housing with a reservoir tube beside it (clamped at both ends), bump-stop boot on the shaft.
     body.push(rod(0.032, 0, L * 0.5));
     body.push(rod(0.019, L * 0.1, L * 0.45, 0.07, 0, 12));

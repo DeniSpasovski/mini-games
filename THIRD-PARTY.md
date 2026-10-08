@@ -18,6 +18,8 @@ README files carry the same information in more detail. Keep this file current w
 | [three.js](https://threejs.org/)                                                | MIT              | rendering (runtime)               |
 | Rsbuild, Rspack, Rstest, Rslint, TypeScript, Prettier, happy-dom, meshoptimizer | MIT / Apache-2.0 | build and test tooling (dev only) |
 
+3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party: its critters, arenas, effects and sounds are original and procedural.
+
 No fonts, textures, sounds or music files are bundled: textures are painted on canvases at runtime, audio is
 synthesised with WebAudio, and text uses system fonts.
 
@@ -50,6 +52,7 @@ repository.
 | `subie_22b.glb`, `subie_22b_wheel.glb`, `subie_22b_lamps.png` | "Rally Car" by SpatialNeglect (Sketchfab, https://sketchfab.com/3d-models/rally-car-e0dfd3b6d19947df85002fd8de0a3a02; split by node and converted, crew / plates / badge dropped; wheel extracted; lamp art baked from its textures; side graphic redrawn at runtime as shapes, no lettering) | CC BY-NC 4.0 (noncommercial) |
 | none (Zastava 101)                                            | hand-built in code from a public-domain factory blueprint; shape reference "Zastava 101 (Stojadin)" by Tomislav Tomljenovic (Sketchfab)                                                                                                                                                       | CC BY 4.0                    |
 | `fiesta.glb`, `fiesta_wheel.glb`                              | "Ford Fiesta WRC" by kevin (Sketchfab)                                                                                                                                                                                                                                                        | CC BY 4.0                    |
+| `citroen_c4.glb`, `citroen_c4_wheel.glb`                      | "Citroen C4 WRC Red Bull 2007" by Max (Sketchfab; sponsor livery, boot-lid emblem and plate removed, repainted)                                                                                                                                                                               | CC BY 4.0                    |
 
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 
@@ -66,7 +69,7 @@ Papers and articles read to tune the rally tyre temperature model; linked in the
 
 ## Trademarks and likenesses
 
-Skoda, Fabia, BMW, M3, Ford, Fiesta, Subaru, Impreza, WRX, STI, Zastava and other make or model names are trademarks of their owners and appear only to
+Skoda, Fabia, BMW, M3, Ford, Fiesta, Subaru, Impreza, WRX, STI, Citroen, C4, Zastava and other make or model names are trademarks of their owners and appear only to
 identify the car that inspired a model. The liveries use no manufacturer, sponsor or series logos. Emergency vehicles
 in the Jackie map carry only generic lettering ("POLICE", "FIRE DEPT", "AMBULANCE") and no agency names, logos or badges.
 The Subaru WRX STI 22B (test car) carries a crescent-and-stars side graphic redrawn as shapes after a reference picture of

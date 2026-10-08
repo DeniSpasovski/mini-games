@@ -9,6 +9,8 @@ smallest principal axis of the tyre's vertices; the wheel is rotated about the h
 (the game's wheels are upright). Output frame: STL z = axle (outer face at z max), STL y = up, a proper rotation of the model's.
 `--wheel`: the primitive is split by connected islands - an island that keeps clear of the centre (no vertex within 70 % of
 the largest radius from the wheel's centroid, in the plane across the axle) is tyre, the rest (rim, nuts) is rim.
+`--side +x` keeps only the triangles whose centre has x > 0 (a primitive that holds both left wheels of an axle, e.g. a mirrored
+FBX symmetry); add `--z front` / `rear` / a number to pick one axle by the sign of z (`front` z > 0, `rear` z < 0).
 Writes <out-prefix>-rim.stl / -tyre.stl and prints the numbers wheel-stl-to-glb.mjs needs: `--barrel` (the tyre's bore radius
 = the rim's bead seat) and the tyre width / radius.
 """
@@ -50,6 +52,19 @@ if '--wheel' in opts:
     tyre, rim = W[is_tyre], W[~is_tyre]
 else:
     tyre, rim = pick(opts['--tyre']), pick(opts['--rim'])
+
+
+def one_wheel(T):
+    c = T.mean(1)
+    keep = np.ones(len(T), bool)
+    if '--side' in opts:
+        keep &= c[:, 0] * (1 if opts['--side'] == '+x' else -1) > 0
+    if '--z' in opts:
+        keep &= (c[:, 2] > 0) if opts['--z'] == 'front' else (c[:, 2] < 0) if opts['--z'] == 'rear' else c[:, 2] > float(opts['--z'])
+    return T[keep]
+
+
+tyre, rim = one_wheel(tyre), one_wheel(rim)
 V = tyre.reshape(-1, 3)
 hub = V.mean(0)
 axis = np.linalg.svd(V - hub, full_matrices=False)[2][2]
