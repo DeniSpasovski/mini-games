@@ -40,7 +40,7 @@ import { Menu, type MenuApi } from './menu';
 import {
   bestScore,
   loadScores,
-  purgeStaleScores,
+  migrateScores,
   recordScore,
   type ScoreEntry,
   MAP_SCORING_VERSIONS,
@@ -49,7 +49,12 @@ import { loadSettings, saveSettings, type HoleSettings } from './settings';
 import { defaultStorage } from './storage';
 
 export type GameState =
-  'menu' | 'countdown' | 'playing' | 'paused' | 'ending' | 'results';
+  | 'menu'
+  | 'countdown'
+  | 'playing'
+  | 'paused'
+  | 'ending'
+  | 'results';
 
 const STEP = 1 / 60;
 const COUNTDOWN = 2.4;
@@ -117,7 +122,7 @@ export class HoleGame {
 
   constructor(root: HTMLElement) {
     this.params = new URLSearchParams(location.search);
-    purgeStaleScores(this.store); // scoring rules changed -> old high scores are erased
+    migrateScores(this.store); // scoring rules changed -> old high scores are tagged with their version and kept
     this.settings = loadSettings(this.store);
     const colorParam = this.params.get('color');
     if (colorParam) this.settings.color = colorParam;
@@ -395,6 +400,7 @@ export class HoleGame {
       pct: sim.pointsEaten / sim.world.totalPoints,
       color: this.settings.color,
       date: Date.now(),
+      ver: MAP_SCORING_VERSIONS[this.mapDef.id],
     };
     const ranked = this.ranked();
     if (ranked) {

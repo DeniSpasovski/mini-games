@@ -299,35 +299,70 @@ export class StageTimer {
  *
  * BUMP THIS whenever a change makes old times incomparable: handling / tyre / suspension / gearing
  * physics, car stats, track-limit penalties, or a map's road / length. On every game start
- * `purgeStaleTimes` compares it with the version stored in `rally.timesVersion` and wipes every
- * leaderboard (`rally.times.*`) and per-car best (`rally.best.*`) when they differ.
+ * `migrateTimes` compares it with the version stored in `rally.timesVersion`: the leaderboards
+ * (`rally.times.*`) KEEP their runs, each tagged with the version it was set on (`RunRecord.ver`) and
+ * listed below every current run, dimmed. Per-car bests (`rally.best.*`, the split reference) are erased.
  *
  * History: 1 = first versioned release, after the tyre compounds / suspension set-ups / gearing / hull
- * physics rework (every time saved before it is erased).
+ * physics rework.
  */
 export const TIMES_VERSION = 1;
 const TIMES_VERSION_KEY = 'rally.timesVersion';
-const TIMES_PREFIXES = ['rally.times.', 'rally.best.'];
+const BEST_PREFIX = 'rally.best.';
+const TIMES_PREFIX = 'rally.times.';
 
 /**
- * Erase every saved time when they were saved under another `TIMES_VERSION` (or before versions
- * existed). Returns true when it wiped. Call once when the game opens, before any menu reads times.
+ * Tag the saved runs with the version they were set on when `TIMES_VERSION` changed (runs from before
+ * versions existed get 0) and erase the per-car bests. Returns true when it migrated something.
+ * Call once when the game opens, before any menu reads times.
  */
-export function purgeStaleTimes(store: Storage = localStorage): boolean {
+export function migrateTimes(store: Storage = localStorage): boolean {
   try {
     const v = String(TIMES_VERSION);
-    if (store.getItem(TIMES_VERSION_KEY) === v) return false;
-    const stale: string[] = [];
+    const prev = store.getItem(TIMES_VERSION_KEY);
+    if (prev === v) return false;
+    const oldVer = prev === null ? 0 : Number(prev) || 0;
+    const keys: string[] = [];
     for (let i = 0; i < store.length; i++) {
       const k = store.key(i);
-      if (k && TIMES_PREFIXES.some((p) => k.startsWith(p))) stale.push(k);
+      if (k) keys.push(k);
     }
-    for (const k of stale) store.removeItem(k);
+    let changed = false;
+    for (const k of keys) {
+      if (k.startsWith(BEST_PREFIX)) {
+        store.removeItem(k);
+        changed = true;
+      } else if (k.startsWith(TIMES_PREFIX)) {
+        try {
+          const runs = JSON.parse(store.getItem(k) ?? 'null');
+          if (!Array.isArray(runs)) continue;
+          for (const r of runs)
+            if (r && typeof r === 'object' && r.ver === undefined)
+              r.ver = oldVer;
+          store.setItem(k, JSON.stringify(runs));
+          changed = true;
+        } catch {
+          /* unreadable list: leave it */
+        }
+      }
+    }
     store.setItem(TIMES_VERSION_KEY, v);
-    return stale.length > 0;
+    return changed;
   } catch {
-    return false; // storage blocked: nothing saved, nothing to purge
+    return false; // storage blocked: nothing saved, nothing to migrate
   }
+}
+
+/** True for a run set under an older `TIMES_VERSION` (listed below the current ones). */
+export function isOldRun(r: Pick<RunRecord, 'ver'>): boolean {
+  return r.ver !== undefined && r.ver !== TIMES_VERSION;
+}
+
+/** Current runs fastest first, then older versions (newest version first), each fastest first. */
+export function compareRuns(a: RunRecord, b: RunRecord): number {
+  const va = isOldRun(a) ? a.ver! : Infinity;
+  const vb = isOldRun(b) ? b.ver! : Infinity;
+  return vb - va || a.time - b.time;
 }
 
 /** localStorage key of the best run per map + car. */
@@ -372,6 +407,8 @@ export interface RunRecord {
   splits?: number[];
   /** Penalty seconds included in `time` (reset / track limits); missing = none. */
   penalty?: number;
+  /** `TIMES_VERSION` the run was set under; missing = the current one (see `migrateTimes`). */
+  ver?: number;
   /** ms since epoch (also the run's id); 0 = imported best from before the leaderboard existed. */
   date: number;
 }
@@ -381,7 +418,7 @@ const RUNS_PER_CAR = 10;
 
 const timesKey = (mapId: string) => `rally.times.${mapId}`;
 
-/** Leaderboard of a map, fastest first. Older per-car bests are folded in once. */
+/** Leaderboard of a map, current runs fastest first, then older versions. Older per-car bests are folded in once. */
 export function loadTimes(mapId: string, carIds: string[]): RunRecord[] {
   let runs: RunRecord[] | null;
   try {
@@ -413,10 +450,10 @@ export function loadTimes(mapId: string, carIds: string[]): RunRecord[] {
         });
     }
   }
-  return runs.sort((a, b) => a.time - b.time);
+  return runs.sort(compareRuns);
 }
 
-/** Add a run to the map leaderboard (keeps the fastest RUNS_PER_CAR per car). */
+/** Add a run to the map leaderboard (keeps the fastest RUNS_PER_CAR per car and version). */
 export function recordTime(
   mapId: string,
   carIds: string[],
@@ -427,11 +464,12 @@ export function recordTime(
   const old = loadTimes(mapId, carIds).filter(
     (r) => !(r.date === 0 && r.car === run.car && r.time === run.time),
   );
-  const all = [...old, run].sort((a, b) => a.time - b.time);
+  const all = [...old, run].sort(compareRuns);
   const perCar = new Map<string, number>();
   const kept = all.filter((r) => {
-    const n = (perCar.get(r.car) ?? 0) + 1;
-    perCar.set(r.car, n);
+    const key = `${r.ver ?? ''}|${r.car}`;
+    const n = (perCar.get(key) ?? 0) + 1;
+    perCar.set(key, n);
     return n <= RUNS_PER_CAR;
   });
   try {

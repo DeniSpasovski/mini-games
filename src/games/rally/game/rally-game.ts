@@ -630,6 +630,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         ...(hasGearings(this.car.physics) ? { gear: this.opts.gearing } : {}),
         splits: [...this.stage.splitTimes],
         ...(e.penalty ? { penalty: e.penalty } : {}),
+        ver: TIMES_VERSION,
         date: Date.now(),
       };
       // Free drive runs don't count.

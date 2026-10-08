@@ -634,6 +634,18 @@ body {
   opacity: 0.5;
   padding: 0;
 }
+.hg-table tr.old td {
+  opacity: 0.45;
+}
+.hg-table tr.divider td {
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  padding: 12px 4px 4px;
+  border-top: 2px solid currentColor;
+}
 .hg-table th {
   font-size: 12px;
   opacity: 0.55;

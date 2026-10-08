@@ -65,8 +65,9 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 - **Finish:** the car brakes itself to a stop on the run-off (`finishStopControls()`), so every map needs a run-off. The
   autopilot (`F8`, finish stop) runs per 240 Hz physics step, exactly as in the tests.
 - **Results:** time, delta to the best run, sector chips, then the stage top 10 (all cars / this car) with each run's set-up.
-  Stored per map in localStorage (`rally.times.<map>`). `TIMES_VERSION` (`game/stage.ts`) erases saved times - bump it only when
-  the owner asks (AGENTS.md).
+  Stored per map in localStorage (`rally.times.<map>`). `TIMES_VERSION` (`game/stage.ts`): on a bump `migrateTimes` keeps every run, tags it
+  with the version it was set on (`RunRecord.ver`) and lists it below all current runs, dimmed, behind a divider; per-car bests
+  (split reference) are erased. Bump only when the owner asks (AGENTS.md).
 
 ## Look (`engine/environment.ts`, `engine/world-shading.ts`)
 

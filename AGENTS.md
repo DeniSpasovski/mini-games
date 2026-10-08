@@ -107,8 +107,7 @@ into `DETAILS.md`, never up.
   sound fixes (low volume).
 - Rally release flags (`src/games/rally/release.ts`): new cars / maps go into `TEST_*` (dev only) first; `AVAILABLE_*` ship.
 - Game `version` (`game.json`, `0.x.y`, minor = feature, patch = fix): bump only when the user says we are making a build.
-- Rally `TIMES_VERSION` (`game/stage.ts`): never bump on your own - mention when times stop being comparable; bump (erases saved
-  times) only when the user says so.
+- Rally `TIMES_VERSION` (`game/stage.ts`): never bump on your own - mention when times stop being comparable; bump (old times stay, listed below the new ones) only when the user says so.
 - Hole Island: scoring changes (points, tiers, bonus, times, map content) bump that map's `MAP_SCORING_VERSIONS` entry
   (`game/scores.ts`; `sim/` changes = every map).
 
