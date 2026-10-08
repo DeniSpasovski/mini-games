@@ -98,6 +98,14 @@
         "material": "interior"
       },
       {
+        "mat": "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_body_n",
+        "x": [-0.6, 0.6],
+        "y": [0.35, 1.08],
+        "z": [-1.4, 0.68],
+        "material": "interior",
+        "$comment": "the model's own low-poly cockpit (right-hand-drive dash and wheel, seats, rear bench), modelled into the body_n primitive: everything inside the cabin box below the roof"
+      },
+      {
         "arch": {
           "axles": [1.324, -1.269],
           "y": 0.31,
