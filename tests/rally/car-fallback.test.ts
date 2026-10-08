@@ -1,7 +1,6 @@
 import { describe, expect, test } from '@rstest/core';
 import { Box3 } from 'three';
 import { ALL_CARS } from '../../src/games/rally/cars';
-import { buildCockpit } from '../../src/games/rally/cars/shared/cockpit';
 import { buildProfileBody } from '../../src/games/rally/cars/shared/profile-body';
 
 /**
@@ -68,27 +67,6 @@ describe.each(ALL_CARS.map((c) => c.id))('%s', (id) => {
         expect(x0).toBeLessThan(x1);
         expect(y0).toBeLessThan(y1);
         expect(x1).toBeLessThanOrEqual(profile.width / 2);
-      }
-    },
-  );
-
-  test.runIf(!!m.profile)(
-    'procedural cockpit stays inside the greenhouse',
-    () => {
-      const profile = m.profile!;
-      const ys = profile.outline.filter((_, i) => i % 2);
-      const zs = profile.outline.filter((_, i) => i % 2 === 0);
-      const c = buildCockpit(profile, 'rally');
-      for (const g of [c.interior, c.cage, c.lining]) {
-        const box = new Box3().setFromBufferAttribute(
-          g.getAttribute('position') as never,
-        );
-        expect(box.isEmpty()).toBe(false);
-        expect(box.max.x).toBeLessThanOrEqual(profile.glassWidth[0] / 2);
-        expect(box.min.y).toBeGreaterThanOrEqual(0.25);
-        expect(box.max.y).toBeLessThan(Math.max(...ys));
-        expect(box.min.z).toBeGreaterThan(Math.min(...zs));
-        expect(box.max.z).toBeLessThan(Math.max(...zs));
       }
     },
   );

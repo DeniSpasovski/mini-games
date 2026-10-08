@@ -32,7 +32,6 @@ import { autoHull, type Vehicle } from '../../physics/vehicle';
 import type { CarPartGeometry } from './car-parts';
 import { hasImportedModel, loadImportedCar } from './car-gltf';
 import { liveryInfo, type LiveryInfo } from './livery';
-import { buildCockpit } from './cockpit';
 import { buildProfileParts } from './profile-body';
 import { tyreSizeFor } from '../../physics/car-tyres';
 import type { TyreId } from '../../physics/tyres';
@@ -537,14 +536,6 @@ export class CarModel {
             this.brakeLamps = undefined;
             this.setBrake(Math.max(0, this.brakeLevel), this.reversing); // keep the lamp state set before the import landed
             for (const m of procedural) m.visible = false;
-            const cockpit = def.model.gltf?.addOns?.cockpit;
-            if (cockpit && def.model.profile) {
-              // The GLB has no interior: a procedural one behind its tinted glass.
-              const c = buildCockpit(def.model.profile, cockpit);
-              this.addMesh(c.interior, interiorMat, false);
-              this.addMesh(c.cage, cageMat, false);
-              this.addMesh(c.lining, liningMat, false);
-            }
             return true;
           })
           .catch((e) => {
