@@ -47,6 +47,16 @@
       "evo_6:LOD_A_BRAKE_CALIPER_FRONT_RIGHT_mm_misc",
       "evo_6:LOD_A_BRAKE_CALIPER_REAR_LEFT_mm_misc",
       "evo_6:LOD_A_BRAKE_CALIPER_REAR_RIGHT_mm_misc",
+      "evo_6:LOD_A_BODY_mm_lights_lights_0",
+      "evo_6:LOD_A_HEADLIGHT_LENS_LEFT_mm_lights_lights_0",
+      "evo_6:LOD_A_HEADLIGHT_LENS_RIGHT_mm_lights_lights_0",
+      "evo_6:LOD_A_CHASSIS_mm_lights_lights_0",
+      "evo_6:LOD_A_BOOT_mm_lights_lights_0",
+      "evo_6:LOD_A_TAILLIGHT_LENS_LEFT_mm_lights_lights_0",
+      "evo_6:LOD_A_TAILLIGHT_LENS_RIGHT_mm_lights_lights_0",
+      "evo_6:LOD_A_BRAKES_LEFT_mm_lights_lights_0",
+      "evo_6:LOD_A_BRAKES_RIGHT_mm_lights_lights_0",
+      "evo_6:LOD_A_BRAKES_BOOT_mm_lights_lights_0",
       "evo_6_int:LOD_A_INT_DOOR_LEFT_LED_EMISSIVE_mm_int",
       "evo_6_int:LOD_A_INT_LED_EMISSIVE_mm_int",
       "evo_6_int:LOD_A_INT_NEEDLE_RPM_EMISSIVE_mm_int",
@@ -82,58 +92,6 @@
         "material": "logo"
       },
       {
-        "node": "evo_6:LOD_A_BRAKES_LEFT_mm_lights_lights_0",
-        "material": "drop"
-      },
-      {
-        "node": "evo_6:LOD_A_BRAKES_RIGHT_mm_lights_lights_0",
-        "material": "drop"
-      },
-      {
-        "node": "evo_6:LOD_A_BRAKES_BOOT_mm_lights_lights_0",
-        "material": "drop"
-      },
-      {
-        "node": "evo_6:LOD_A_BOOT_mm_lights_lights_0",
-        "islandTris": [34, 38],
-        "material": "tailled"
-      },
-      {
-        "node": "evo_6:LOD_A_BOOT_mm_lights_lights_0",
-        "islandTris": [90, 110],
-        "material": "tailled"
-      },
-      {
-        "node": "evo_6:LOD_A_CHASSIS_mm_lights_lights_0",
-        "islandTris": [330, 350],
-        "material": "tailled"
-      },
-      {
-        "node": "evo_6:LOD_A_CHASSIS_mm_lights_lights_0",
-        "islandTris": [110, 130],
-        "material": "amber"
-      },
-      {
-        "node": "evo_6:LOD_A_BODY_mm_lights_lights_0",
-        "islandTris": [200, 220],
-        "material": "chrome"
-      },
-      {
-        "node": "evo_6:LOD_A_BODY_mm_lights_lights_0",
-        "islandTris": [130, 150],
-        "material": "lamphousing"
-      },
-      {
-        "node": "evo_6:LOD_A_BODY_mm_lights_lights_0",
-        "islandTris": [33, 35],
-        "material": "amber"
-      },
-      {
-        "node": "evo_6:LOD_A_BODY_mm_lights_lights_0",
-        "islandTris": [28, 31],
-        "material": "headled"
-      },
-      {
         "mat": "windows",
         "node": "evo_6:LOD_A_HEADLIGHT_LENS_LEFT_mm_windows_windows_0",
         "material": "lenscover"
@@ -146,12 +104,12 @@
       {
         "mat": "windows",
         "node": "evo_6:LOD_A_TAILLIGHT_LENS_LEFT_mm_windows_windows_0",
-        "material": "redcover"
+        "material": "lenscover"
       },
       {
         "mat": "windows",
         "node": "evo_6:LOD_A_TAILLIGHT_LENS_RIGHT_mm_windows_windows_0",
-        "material": "redcover"
+        "material": "lenscover"
       },
       {
         "mat": "windows",
@@ -159,48 +117,6 @@
       },
       {
         "mat": "glass_surr",
-        "material": "trim"
-      },
-      {
-        "node": "evo_6:LOD_A_HEADLIGHT_LENS_LEFT_mm_lights_lights_0",
-        "material": "lenscover"
-      },
-      {
-        "node": "evo_6:LOD_A_HEADLIGHT_LENS_RIGHT_mm_lights_lights_0",
-        "material": "lenscover"
-      },
-      {
-        "node": "evo_6:LOD_A_TAILLIGHT_LENS_LEFT_mm_lights_lights_0",
-        "islandTris": [38, 40],
-        "material": "amber"
-      },
-      {
-        "node": "evo_6:LOD_A_TAILLIGHT_LENS_RIGHT_mm_lights_lights_0",
-        "islandTris": [38, 40],
-        "material": "amber"
-      },
-      {
-        "node": "evo_6:LOD_A_TAILLIGHT_LENS_LEFT_mm_lights_lights_0",
-        "islandTris": [30, 32],
-        "material": "tailled"
-      },
-      {
-        "node": "evo_6:LOD_A_TAILLIGHT_LENS_RIGHT_mm_lights_lights_0",
-        "islandTris": [30, 32],
-        "material": "tailled"
-      },
-      {
-        "node": "evo_6:LOD_A_TAILLIGHT_LENS_LEFT_mm_lights_lights_0",
-        "islandTris": [23, 25],
-        "material": "lens"
-      },
-      {
-        "node": "evo_6:LOD_A_TAILLIGHT_LENS_RIGHT_mm_lights_lights_0",
-        "islandTris": [23, 25],
-        "material": "lens"
-      },
-      {
-        "mat": "lights",
         "material": "trim"
       },
       {
@@ -218,22 +134,57 @@
     ],
     "default": "interior"
   },
+  "srcParts": {
+    "texture": {
+      "material": "lights",
+      "out": "public/models/cars/lancer_evo_6_lamps.png"
+    },
+    "parts": [
+      {
+        "node": "evo_6:LOD_A_BODY_mm_lights_lights_0",
+        "material": "src:lamp:lancer_evo_6_lamps.png"
+      },
+      {
+        "node": "evo_6:LOD_A_CHASSIS_mm_lights_lights_0",
+        "z": [0, 3],
+        "material": "src:lamp:lancer_evo_6_lamps.png"
+      },
+      {
+        "node": "evo_6:LOD_A_HEADLIGHT_LENS_LEFT_mm_lights_lights_0",
+        "material": "src:lamp:lancer_evo_6_lamps.png"
+      },
+      {
+        "node": "evo_6:LOD_A_HEADLIGHT_LENS_RIGHT_mm_lights_lights_0",
+        "material": "src:lamp:lancer_evo_6_lamps.png"
+      },
+      {
+        "node": "evo_6:LOD_A_CHASSIS_mm_lights_lights_0",
+        "z": [-3, 0],
+        "material": "src:tail:lancer_evo_6_lamps.png"
+      },
+      {
+        "node": "evo_6:LOD_A_BOOT_mm_lights_lights_0",
+        "material": "src:tail:lancer_evo_6_lamps.png"
+      },
+      {
+        "node": "evo_6:LOD_A_TAILLIGHT_LENS_LEFT_mm_lights_lights_0",
+        "material": "src:tail:lancer_evo_6_lamps.png"
+      },
+      {
+        "node": "evo_6:LOD_A_TAILLIGHT_LENS_RIGHT_mm_lights_lights_0",
+        "material": "src:tail:lancer_evo_6_lamps.png"
+      }
+    ]
+  },
   "parts": {
     "materials": [
       "body",
       "trim",
       "glass",
       "lenscover",
-      "redcover",
-      "headled",
-      "tailled",
-      "lamphousing",
       "mirror",
       "interior",
       "logo",
-      "chrome",
-      "amber",
-      "lens",
       "drop"
     ],
     "drop": ["logo", "drop"],

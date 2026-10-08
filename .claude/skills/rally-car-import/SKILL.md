@@ -314,6 +314,12 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   flushes the tyre stub to the lip, so any offset there shows as an off-centre rim). Check with `wheels=1&wcam=FL&body=0`.
 - **A modelled cockpit** (seats, dash, cage) is `interior` (+ `parts.maxTriangles`) under `model.glass` (tint + opacity): it shows through
   the windows. A model without one is an empty shell - do not promise an interior; `rawview`-style cut views tell (half the car, view from the cut).
+- **Lamps whose look is their texture** (reflectors, bulbs, lens ribs painted into one lamp sheet, `cars/lancer-evo-6/`): the STL route
+  has no UVs and turns them into flat colour. Drop those primitives in `gltf.drop`, list them in `srcParts` and run
+  `python3 -I scripts/car-model/glb-src-parts.py <model.source.json> <source.glb>` after every `stl-to-glb.mjs`: it appends them with
+  their own UVs as `src:lamp:<png>` / `src:tail:<png>` primitives and writes the sheet next to the GLB (`srcPart` in
+  `part-materials.ts`: the sheet's bright pixels glow; `tail` = brake lamp, red pixels for the brake, neutral white for reversing).
+  Check the sheet for logos before shipping it, and credit it like the GLB.
 - **Grille openings with no own island** are `region` cuts (front view, convex outline, `depth` behind the bumper face) on the body material;
   grille bars / badge islands are `whole` + `islandTris` boxes. Badges go to `logo` (dropped).
 - `tests/rally/hull-fit.test.ts` spread a whole vertex array into `Math.min`: a 100k-triangle model with a cockpit overflowed the stack (now `reduce`).
