@@ -12,8 +12,12 @@ normals and TEXCOORD_0) and writes the source images they use next to the GLB. C
       "parts": [                                                                      # in draw order: what sits behind first
         {"node": "<primitive name>", "material": "src:lamp:<car>_lamps.png"},
         {"node": "<primitive name>", "z": [-3, 0], "material": "src:tail:<car>_lamps.png"}   # optional x / y / z box on triangle centres
-      ]
+      ],
+      "shells": [{"nodes": [...], "x": [..], "y": [..], "z": [..], "mirror": true, "material": "src:shell"}]  # optional
     }
+
+`shells`: a closed back for open source shells (a seat that is one sheet seen from the front): the rear-facing faces of the
+convex hull of those nodes' vertices in the box (`mirror` = also the box mirrored in x), drawn as dark plastic (`src:shell`).
 
 Each `material` becomes one primitive; the game builds it from the name (cars/shared/part-materials.ts `srcPart`: `lamp` = the
 sheet with a glow from its bright pixels, `tail` = brake lamp, red pixels glow, `int` = plain matt sheet: seats, cockpit). List the same primitives in `gltf.drop` so the
@@ -82,6 +86,42 @@ for r in sp['parts']:
     remap = np.full(len(P), -1)
     remap[used] = np.arange(len(used))
     groups.setdefault(r['material'], []).append((P[used], N[used], UV[used], remap[T]))
+
+# --- closed backs: rear-facing faces of a convex hull round open shells (a source seat is one sheet seen from the front) ---
+for sh in sp.get('shells', []):
+    from scipy.spatial import ConvexHull
+
+    for side in (1, -1) if sh.get('mirror') else (1,):
+        V = []
+        for nm in sh['nodes']:
+            P, _, _, T, _ = prims[nm]
+            q = P[np.unique(T)]
+            m = np.ones(len(q), bool)
+            for ax, k in (('x', 0), ('y', 1), ('z', 2)):
+                if ax in sh:
+                    lo, hi = sh[ax]
+                    if k == 0 and side < 0:
+                        lo, hi = -hi, -lo
+                    m &= (q[:, k] >= lo) & (q[:, k] <= hi)
+            V.append(q[m])
+        V = np.concatenate(V)
+        hull = ConvexHull(V)
+        F = []
+        for f, eq in zip(hull.simplices, hull.equations):
+            if eq[2] < -sh.get('minBack', 0.3):  # outward normal towards the rear
+                a, b, c = V[f]
+                F.append(f if np.dot(np.cross(b - a, c - a), eq[:3]) > 0 else f[[0, 2, 1]])
+        F = np.array(F)
+        used = np.unique(F)
+        remap = np.full(len(V), -1)
+        remap[used] = np.arange(len(used))
+        Pv = V[used]
+        # vertex normals: area-weighted face normals; pulled 3 mm in so the shell sits just under the source's own back
+        Nv = np.zeros_like(Pv)
+        for f in remap[F]:
+            Nv[f] += np.cross(Pv[f[1]] - Pv[f[0]], Pv[f[2]] - Pv[f[0]])
+        Nv /= np.linalg.norm(Nv, axis=1)[:, None] + 1e-20
+        groups.setdefault(sh['material'], []).append((Pv - Nv * 0.003, Nv, np.zeros((len(Pv), 2)), remap[F]))
 
 # --- append to the converted GLB ---------------------------------------------------------------------------------------
 out = cfg['output']

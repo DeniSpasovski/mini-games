@@ -238,6 +238,19 @@
         "node": "evo_6:LOD_A_TAILLIGHT_LENS_RIGHT_mm_lights_lights_0",
         "material": "src:tail:lancer_evo_6_lamps.png"
       }
+    ],
+    "shells": [
+      {
+        "nodes": [
+          "evo_6_int:LOD_A_INT_INTERIOR_mm_mat00_mat00_0",
+          "evo_6_int:LOD_A_INT_INTERIOR_mm_mat04_mat04_0"
+        ],
+        "x": [0.1, 0.62],
+        "y": [0.42, 1.25],
+        "z": [-0.55, 0.12],
+        "mirror": true,
+        "material": "src:shell"
+      }
     ]
   },
   "parts": {

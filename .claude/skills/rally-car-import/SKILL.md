@@ -319,8 +319,9 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   `python3 -I scripts/car-model/glb-src-parts.py <model.source.json> <source.glb>` after every `stl-to-glb.mjs`: it appends them with
   their own UVs as `src:lamp:<png>` / `src:tail:<png>` primitives and writes the sheet next to the GLB (`srcPart` in
   `part-materials.ts`: the sheet's bright pixels glow; `tail` = brake lamp, red pixels for the brake, neutral white for reversing).
-  `src:int:<png>` keeps a cockpit part's own texture (seat fabric; matt, double-sided). Check each sheet for logos before shipping
-  it (a dash sheet with wordmarks stays out), and credit it like the GLB.
+  `src:int:<png>` keeps a cockpit part's own texture (seat fabric; matt, double-sided, back faces dark). Check each sheet for logos
+  before shipping it (a dash sheet with wordmarks stays out), and credit it like the GLB. Seats that are one open sheet (no back
+  panel: look at them from the rear seats) get a closed back from `srcParts.shells` (dark hull, `cars/lancer-evo-6/`).
 - **Holes where the source is double-sided**: Sketchfab exports mark materials `doubleSided`; our part materials are single-sided,
   so a cockpit / cowl shell seen from behind shows the ground through it. Name the part `<part>:2s` (`trim:2s`, `interior:2s`)
   in `parts.materials` / the rules: `partMaterial` draws it double-sided.
