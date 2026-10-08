@@ -91,7 +91,8 @@ into `DETAILS.md`, never up.
 - `hole-content` - Hole Island item or map
 - `rally-maps` - create / edit rally maps, map viewer (bridges / underpasses: its own section)
 - `rally-content` - rally assets and cars (procedural builders, LODs, liveries)
-- `rally-car-import` - import a 3D car model (LICENCE GATE first; worked examples `cars/skoda-rally/`, `cars/bimmer-m3/`)
+- `rally-car-import` - import a 3D car model (LICENCE GATE first; every car gets its boxy `profile.ts`, step 6c; worked
+  examples `cars/skoda-rally/`, `cars/bimmer-m3/`)
 - `rally-livery` - paint / debug a car livery (worked example `cars/bimmer-m3/`)
 - `rally-physics-tuning` - handling changes + regression / autopilot tests
 - `testing` - add / move / run tests: `tests/` vs `integration-tests/<game>/`, scripts, the CI jobs
