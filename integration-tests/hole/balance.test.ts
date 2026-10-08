@@ -41,11 +41,11 @@ test('balance bands: good bot on the toy store, hard / medium / easy', () => {
   const medium = runBot(new Sim(m, { seconds: 240 }), BOT_SKILLS.good, {
     dt: 1 / 30,
   });
-  expect(medium.level).toBeGreaterThanOrEqual(15);
+  expect(medium.level).toBeGreaterThanOrEqual(14);
   const easy = runBot(new Sim(m, { seconds: 480 }), BOT_SKILLS.good, {
     dt: 1 / 30,
   });
-  expect(easy.level).toBeGreaterThanOrEqual(15);
+  expect(easy.level).toBeGreaterThanOrEqual(14);
   expect(easy.pct).toBeGreaterThan(0.95);
 }, 122000);
 

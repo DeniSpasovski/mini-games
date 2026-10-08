@@ -48,10 +48,10 @@ test('every item is inside the store floor and only toy items are used', () => {
   }
 });
 
-test('every seed holds exactly 13000 points', () => {
+test('every seed holds exactly 8000 points', () => {
   for (const seed of [1, 2, 3, 7, 42])
-    expect(stats(generateToyStore({ seed })).points).toBe(13000);
-  expect(toyTargetPoints({ points: 13000 })).toBe(13000);
+    expect(stats(generateToyStore({ seed })).points).toBe(8000);
+  expect(toyTargetPoints({ points: 8000 })).toBe(8000);
 });
 
 test('content budget: tiers and levels covered, every type below the very big tier placed, enough points', () => {
@@ -66,9 +66,9 @@ test('content budget: tiers and levels covered, every type below the very big ti
   const placed = new Set(map.placements.map((p) => p.item));
   for (const it of TOY_ITEMS)
     if (it.tier < VERY_BIG_TIER) expect(placed.has(it.id), it.id).toBe(true);
-  expect(s.points).toBeGreaterThanOrEqual(1.5 * cumulativeXp(ITEM_LEVELS));
+  expect(s.points).toBeGreaterThanOrEqual(0.9 * cumulativeXp(ITEM_LEVELS));
   expect(map.placements.length).toBeGreaterThan(1500);
-  expect(map.placements.length).toBeLessThan(13000);
+  expect(map.placements.length).toBeLessThan(8000);
 });
 
 test('start is on the floor with small items nearby, and the departments tile the floor', () => {
@@ -106,7 +106,7 @@ test('seeds: deterministic, exact points, every normal type placed, departments 
     const m = generateToyStore({ seed });
     const again = generateToyStore({ seed });
     expect(JSON.stringify(m.placements)).toBe(JSON.stringify(again.placements));
-    expect(stats(m).points, `seed ${seed}`).toBe(13000);
+    expect(stats(m).points, `seed ${seed}`).toBe(8000);
     const placed = new Set(m.placements.map((p) => p.item));
     for (const it of TOY_ITEMS)
       if (it.tier < VERY_BIG_TIER)

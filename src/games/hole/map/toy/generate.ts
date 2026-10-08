@@ -17,7 +17,7 @@ export interface ToyParams {
   points: number;
 }
 
-export const DEFAULT_TOY: ToyParams = { seed: 1, points: 13000 };
+export const DEFAULT_TOY: ToyParams = { seed: 1, points: 8000 };
 
 export const TOY_COLORS = {
   tileA: 0xf6efe0,
@@ -337,7 +337,7 @@ function fillZone(
     return false;
   };
   // type quotas: points per type ~ points^0.8, so bigger types get more points but fewer copies; big first
-  const beta = 0.8;
+  const beta = 1;
   const sumW = pool.reduce((a, q) => a + Math.pow(q.it.points, beta) * q.w, 0);
   const sorted = [...pool].sort((a, b) => b.it.size - a.it.size);
   const left = Math.max(0, budget - points);
