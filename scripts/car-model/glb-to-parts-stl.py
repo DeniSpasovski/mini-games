@@ -42,6 +42,11 @@ triangles (windscreen + rear screen glass without the side windows of the same m
 coordinates) matches the wheel-arch liners and the inner faces of the flares: triangles within `r` of a hub line whose normal
 points at it (`arch_mask`) - send them to `trim` so the arches are black, not painted.
 
+`"texture": {"maxLum": 0.22, "maxSat": 0.1, "blur": 9, "refine": 0.015, "exclude": [[u0, u1, v0, v1], ...]}` matches
+triangles whose base-colour texels are dark and unsaturated (`dark_mask`, blurred so thin streaks drop out), after splitting them
+along that texture border down to `refine` metres - black rubbers, vents and carbon painted into the body texture. `exclude`
+blanks UV rectangles (v down) first: emblems drawn in the same ink.
+
 `"whole": true` makes the x / y / z box test whole connected islands (triangles sharing vertices, computed on the full
 primitive) instead of triangle centres: an island matches only when its bounding box lies inside the box - picks a wing,
 scoop or mirror glass that is welded into a bigger primitive without nibbling the panel next to it. `"islandTris": [min, max]`
@@ -497,6 +502,9 @@ def main():
                 tx = r['texture']
                 if im is None:
                     im = dark_mask(texture_image(g, bins, mat), tx)
+                    h, w = im.shape[:2]
+                    for u0, u1, v0, v1 in tx.get('exclude', []):  # logos / emblems drawn in the same dark ink
+                        im[int(v0 * h):int(v1 * h), int(u0 * w):int(u1 * w)] = 0
                 if tx.get('refine'):
                     # split the box's triangles along the texture border first (T / UVs re-built, other rules see the new list)
                     box = keep.copy()

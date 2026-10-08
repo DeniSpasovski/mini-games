@@ -110,6 +110,52 @@
         "$comment": "wheel-arch liners + inner faces of the flares (body triangles round the hubs facing them): black, not painted"
       },
       {
+        "mat": "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_body_n_r_31db5e9",
+        "texture": {
+          "maxLum": 0.22,
+          "maxSat": 0.1,
+          "blur": 9,
+          "refine": 0.015,
+          "exclude": [
+            [0.27, 0.42, 0.02, 0.14],
+            [0.27, 0.42, 0.57, 0.69],
+            [0.8, 0.89, 0.28, 0.41]
+          ]
+        },
+        "material": "trim",
+        "$comment": "the model's black window rubbers, pillars, vent slats, grille and intakes: body texels that are dark and unsaturated (blurred, so the thin livery streaks drop out), split along the texture border. `exclude` = the source livery's emblems (door bull, boot badge), drawn in the same ink"
+      },
+      {
+        "mat": "gc8_HighSpec_body_n",
+        "texture": {
+          "maxLum": 0.22,
+          "maxSat": 0.1,
+          "blur": 9,
+          "refine": 0.015,
+          "exclude": [
+            [0.27, 0.42, 0.02, 0.14],
+            [0.27, 0.42, 0.57, 0.69],
+            [0.8, 0.89, 0.28, 0.41]
+          ]
+        },
+        "material": "trim"
+      },
+      {
+        "mat": "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_body_n",
+        "texture": {
+          "maxLum": 0.22,
+          "maxSat": 0.1,
+          "blur": 9,
+          "refine": 0.015,
+          "exclude": [
+            [0.27, 0.42, 0.02, 0.14],
+            [0.27, 0.42, 0.57, 0.69],
+            [0.8, 0.89, 0.28, 0.41]
+          ]
+        },
+        "material": "trim"
+      },
+      {
         "mat": "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_bonnet_n",
         "material": "trim"
       },

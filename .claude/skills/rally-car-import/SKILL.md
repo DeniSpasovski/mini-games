@@ -414,7 +414,8 @@ registered car; see `src/games/rally/PHYSICS.md`.
 - `model.wheelByCompound` gives a compound its own wheel GLB and / or rim colour (`rimColorFor`, `wheelModelFor` in `stl-wheel.ts`).
 - Wide gravel tyres lose grip on loose ground (`sizeFactors`): keep a rally tyre near 235 mm, and raise `rear.grip` for more than the M3's power.
 - A GLB body whose paint / carbon split lives only in its texture: `glb-to-parts-stl.py` rule `{"mat": "Body", "texture": {"maxLum": 0.42, "maxSat": 0.06, "blur": 9, "refine": 0.02}, "y": [..], "z": [..], "material": "carbon"}`
-  labels body triangles by the (blurred) texture and splits them along its border. Put it first in `gltf.parts`, box it tight (dirt looks like carbon), keep `blur` (raw texels speckle: 140k triangles).
+  labels body triangles by the (blurred) texture and splits them along its border. Put it first in `gltf.parts`, box it tight (dirt looks like carbon), keep `blur` (raw texels speckle: 140k triangles). `exclude` UV boxes keep emblems out. The 22B sends its
+  black rubbers, mirrors, lip and diffuser to `trim` this way (without it the body is one flat paint colour).
 - A new car needs its own `suspensionStyle` (`suspension-mesh.test.ts`): add one to `SUSPENSION_STYLE_COLORS`.
 
 ## Bump the times version (last step)
