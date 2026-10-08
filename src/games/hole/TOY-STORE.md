@@ -368,9 +368,10 @@ All use world axes +X east, +Z south, the camera looks north-up from the south, 
 
 ### Grand Hall (drawn 240 x 160 m, built 600 x 400 m)
 
-One floor plan. The stockroom (north), checkout (south) and atrium (middle) are fixed; the **eight side departments are dealt
-onto the eight side slots at random per seed** (`shuffledLayout` in `map/toy/layouts.ts`). A department keeps its mat,
-shelves, showpieces and points, shifted to its new slot (mirrored across the aisle), so every seed totals 25 000 points.
+One floor plan. The stockroom (north, the outdoor dock) and the atrium (middle) are fixed; the **eight departments and the
+checkout are dealt onto their nine slots at random per seed** (`shuffledLayout` in `map/toy/layouts.ts`). The checkout, the
+entrance door and the start take one of the three south-wall slots (left corner, centre, right corner). A department keeps
+its mat, shelves, showpieces and points, shifted to its new slot (mirrored across the aisle), so every seed totals 25 000 points.
 The table and route below are the seed-less drawing.
 
 Departments around a big atrium. The start (S) sits between the two small-item corners, so level 1-3 can go either way.
