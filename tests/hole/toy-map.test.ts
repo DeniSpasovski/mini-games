@@ -134,4 +134,18 @@ test('seeds: deterministic, exact points, every type placed, departments move', 
     keys.add(zoneKey(m));
   }
   expect(keys.size).toBeGreaterThan(1);
+  // the entrance moves along the south wall with the checkout, and the start stays inside the checkout
+  const doors = new Set<number>();
+  for (let seed = 1; seed <= 12; seed++) {
+    const m = generateToyStore({ seed });
+    const door = m.bounds!.door!;
+    doors.add(door);
+    const checkout = m.zones!.find((z) => z.id === 'checkout')!;
+    expect(door).toBeGreaterThanOrEqual(checkout.x0);
+    expect(door).toBeLessThanOrEqual(checkout.x1);
+    expect(m.start.x).toBeGreaterThan(checkout.x0);
+    expect(m.start.x).toBeLessThan(checkout.x1);
+    expect(m.start.z).toBeGreaterThan(checkout.z0);
+  }
+  expect(doors.size).toBe(3);
 });

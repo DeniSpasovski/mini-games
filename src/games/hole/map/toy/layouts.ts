@@ -275,31 +275,39 @@ const LAYOUT_BASE: ToyLayout = {
 export const FLOOR_SCALE = 2.5;
 export const LAYOUT = scaled(LAYOUT_BASE, FLOOR_SCALE);
 
-/** Departments that move between the side slots; the stockroom, checkout and atrium stay put. */
-const FIXED = new Set(['stockroom', 'checkout', 'atrium']);
+/** Zones that never move: the stockroom (the outdoor dock) and the atrium. */
+const FIXED = new Set(['stockroom', 'atrium']);
 
 /**
- * The floor plan with the eight side departments dealt onto the eight side slots at random (Fisher-Yates
- * with `next`, a unit random source). A department keeps its mat, shelves and showpieces, shifted to the
- * slot's centre (mirrored when it crosses the central aisle), so the points per department never change.
+ * The floor plan with the eight departments and the checkout dealt onto their nine slots at random
+ * (`next` is a unit random source). The checkout, with the entrance door and the start, takes one of the
+ * three slots on the south wall (left corner, centre, right corner); the departments fill the rest. A
+ * department keeps its mat, shelves, showpieces and points, shifted to its new slot (mirrored when it
+ * crosses the central aisle), so every seed holds the same points.
  */
 export function shuffledLayout(next: () => number): ToyLayout {
   const slots = LAYOUT.zones.filter((z) => !FIXED.has(z.id));
-  const order = slots.map((_, i) => i);
-  for (let i = order.length - 1; i > 0; i--) {
+  const south = slots.filter((z) => z.z1 >= LAYOUT.hz - 0.01);
+  const checkout = LAYOUT.zones.find((z) => z.id === 'checkout')!;
+  const doorSlot = south[Math.floor(next() * south.length)];
+  const others = slots.filter((z) => z !== checkout);
+  const free = slots.filter((z) => z !== doorSlot);
+  for (let i = free.length - 1; i > 0; i--) {
     const j = Math.floor(next() * (i + 1));
-    [order[i], order[j]] = [order[j], order[i]];
+    [free[i], free[j]] = [free[j], free[i]];
   }
   const centre = (z: ZoneDef) => ({
     x: (z.x0 + z.x1) / 2,
     z: (z.z0 + z.z1) / 2,
   });
   const moved = new Map<string, ZoneDef>();
-  slots.forEach((z, i) => {
-    const slot = slots[order[i]];
+  const place = (z: ZoneDef, slot: ZoneDef) => {
     const from = centre(z);
     const to = centre(slot);
-    const flip = Math.sign(from.x) === Math.sign(to.x) ? 1 : -1;
+    const flip =
+      from.x === 0 || to.x === 0 || Math.sign(from.x) === Math.sign(to.x)
+        ? 1
+        : -1;
     moved.set(z.id, {
       ...z,
       x0: slot.x0,
@@ -316,6 +324,21 @@ export function shuffledLayout(next: () => number): ToyLayout {
           ],
       ),
     });
-  });
-  return { ...LAYOUT, zones: LAYOUT.zones.map((z) => moved.get(z.id) ?? z) };
+  };
+  place(checkout, doorSlot);
+  others.forEach((z, i) => place(z, free[i]));
+  const doorX = centre(doorSlot).x;
+  return {
+    ...LAYOUT,
+    doorX,
+    // a corner entrance starts a little towards the middle, the centre one keeps its start
+    start:
+      doorX === 0
+        ? LAYOUT.start
+        : {
+            x: doorX + (doorX < 0 ? 1 : -1) * 22 * FLOOR_SCALE,
+            z: LAYOUT.start.z,
+          },
+    zones: LAYOUT.zones.map((z) => moved.get(z.id) ?? z),
+  };
 }
