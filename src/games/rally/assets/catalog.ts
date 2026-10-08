@@ -478,39 +478,39 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Street car',
     category: 'props',
     description:
-      'Parked car, low poly: variants 0-11 pick the shape (0 sedan, 1 hatch, 2 SUV; variant % 3) and a paint; 12 = white hatch (placed on purpose). Faces +X. Solid.',
+      'Parked car: a boxy rally car (side outline extruded, glass, lamps, simple wheels; cars/<car>/profile.ts). Variants 0-11 pick the shape (variant % 4: 0 M3 saloon, 1 Skoda hatch, 2 Fiesta hatch, 3 GT2 coupe) and a paint; 12 = white Skoda hatch (placed on purpose). Faces +X. Solid.',
     variants: 13,
     lods: [
       { maxDistance: 90, castShadow: true },
       { maxDistance: 420, castShadow: false },
     ],
-    colliders: [{ kind: 'box', hx: 2.3, hz: 0.92, h: 1.4, r: 2.5 }],
+    colliders: [{ kind: 'box', hx: 2.3, hz: 0.96, h: 1.4, r: 2.5 }],
   },
   {
     id: 'taxi',
     name: 'Taxi',
     category: 'props',
     description:
-      'Yellow cab with a roof sign and a black stripe (a sedan, faces +X). Solid.',
+      'Yellow cab with a roof sign and a black stripe (the boxy M3 saloon, faces +X). Solid.',
     variants: 1,
     lods: [
       { maxDistance: 90, castShadow: true },
       { maxDistance: 420, castShadow: false },
     ],
-    colliders: [{ kind: 'box', hx: 2.3, hz: 0.92, h: 1.5, r: 2.5 }],
+    colliders: [{ kind: 'box', hx: 2.3, hz: 0.96, h: 1.5, r: 2.5 }],
   },
   {
     id: 'police_car',
     name: 'Police car',
     category: 'props',
     description:
-      'White patrol sedan, navy band, red / blue roof light bar, "POLICE" (generic, no real agency name) on the doors. Faces +X. Solid.',
+      'White patrol car (the boxy M3 saloon), navy band, red / blue roof light bar, "POLICE" (generic, no real agency name) on the doors. Faces +X. Solid.',
     variants: 1,
     lods: [
       { maxDistance: 110, castShadow: true },
       { maxDistance: 480, castShadow: false },
     ],
-    colliders: [{ kind: 'box', hx: 2.3, hz: 0.92, h: 1.6, r: 2.5 }],
+    colliders: [{ kind: 'box', hx: 2.3, hz: 0.96, h: 1.6, r: 2.5 }],
   },
   {
     id: 'fire_truck',

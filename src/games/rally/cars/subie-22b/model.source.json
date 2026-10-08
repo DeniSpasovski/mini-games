@@ -98,6 +98,18 @@
         "material": "interior"
       },
       {
+        "arch": {
+          "axles": [1.324, -1.269],
+          "y": 0.31,
+          "r": [0.28, 0.5],
+          "toward": 0.3,
+          "|x|": [0.45, 1],
+          "dy": -0.25
+        },
+        "material": "trim",
+        "$comment": "wheel-arch liners + inner faces of the flares (body triangles round the hubs facing them): black, not painted"
+      },
+      {
         "mat": "SUBARU_GC8_1999_IMPREZA_WRX_STi_VerVI_HighSpec_bonnet_n",
         "material": "trim"
       },

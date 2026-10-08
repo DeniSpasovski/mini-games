@@ -4,8 +4,8 @@ A blue 22B-style widebody coupe (big wing, splitter, diffuser) with the works si
 of four-point stars, redrawn as shapes after the owner's reference picture (no lettering; see the trademark note below). The
 body, glass and 5-spoke alloy are converted from SIU Car Garage's **CC BY-NC** "1999 Subaru MPREZA WRX STi GC8 'Minotaurus'"
 Sketchfab model, and so is the lamp art: headlight, tail lamps, corner lens and indicators are the model's own lamp triangles
-with their art cut out of its texture (`subie_22b_lamps.png`). The model has no cockpit, so the shared procedural one (seats,
-dash, wheel, headliner) shows through the tinted windows. Specs follow the 22B: 2.2 l turbo flat-four (~280 PS / 206 kW at 6000 rpm,
+with their art cut out of its texture (`subie_22b_lamps.png`). The model has no real cockpit, so the windows are dark tinted
+and the wheel arches black. Specs follow the 22B: 2.2 l turbo flat-four (~280 PS / 206 kW at 6000 rpm,
 363 Nm at 3200 rpm), five-speed box, permanent AWD with a rear bias, 1,270 kg ([STI](https://www.sti.jp/en/roadcars/1998/impreza-22b.html)).
 Tyres 235/40 R17 (the real size; the model's wheel is cut out and centred on the hub axis), 215/55 R16 on gravel. The body is
 lifted 5 cm for clearance. The paint is a metallic mica blue (`gltf.metallic`) with dust and road spray towards the sills. **Test only** (`TEST_CARS` in `release.ts`).

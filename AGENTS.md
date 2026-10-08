@@ -79,7 +79,7 @@ into `DETAILS.md`, never up.
 - `scripts/car-model/`: `scan-mesh.py` (run on every new model after the licence gate: split / panel edges / blob),
   `assemble-kit.py` (model kit on a sprue -> one body STL), `segment-stl.py` (labels body parts: seeds, regions, boxes, tubes),
   `stl-to-glb.mjs` (STL -> game GLB with livery-atlas UVs), `stl-wheel-extract.py` + `wheel-stl-to-glb.mjs` (a print model's own
-  rim), `chart-probe.py` (atlas chart per triangle, livery debugging)
+  rim), `chart-probe.py` (atlas chart per triangle, livery debugging), `glb-meshopt.mjs` (the build's GLB compression), `side-profile.mjs` (boxy profile from a GLB: fallback body + street cars)
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
   `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `plaza_islands.py` (city junction
   `junction.json`), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from
@@ -91,7 +91,8 @@ into `DETAILS.md`, never up.
 - `hole-content` - Hole Island item or map
 - `rally-maps` - create / edit rally maps, map viewer (bridges / underpasses: its own section)
 - `rally-content` - rally assets and cars (procedural builders, LODs, liveries)
-- `rally-car-import` - import a 3D car model (LICENCE GATE first; worked examples `cars/skoda-rally/`, `cars/bimmer-m3/`)
+- `rally-car-import` - import a 3D car model (LICENCE GATE first; every car gets its boxy `profile.ts`, step 6c; worked
+  examples `cars/skoda-rally/`, `cars/bimmer-m3/`)
 - `rally-livery` - paint / debug a car livery (worked example `cars/bimmer-m3/`)
 - `rally-physics-tuning` - handling changes + regression / autopilot tests
 - `testing` - add / move / run tests: `tests/` vs `integration-tests/<game>/`, scripts, the CI jobs

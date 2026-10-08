@@ -20,7 +20,7 @@ import type { CarDef } from './types';
  *
  * The plate is a decal projected onto the painted body (any body: procedural
  * loft, hand-built shell or imported GLB), so it follows the door's curvature.
- * Placement: `CarModelDef.doorBadge` (model space, metres), default from the cabin.
+ * Placement: `CarModelDef.doorBadge` (model space, metres).
  */
 export interface RallyBadge {
   /** Car (start) number, 1..99 - player option. */
@@ -53,32 +53,20 @@ export function clampCarNumber(n: number): number {
   );
 }
 
-/** Where the plate sits: centre (z, y) on the door, size in metres. */
+/** Where the plate sits: centre (z, y) on the door (`model.doorBadge`), size in metres. */
 export function badgePlacement(def: CarDef): {
   z: number;
   y: number;
   width: number;
   height: number;
 } {
-  const m = def.model;
-  const c = m.cabin;
-  const bPillar = c.bPillar ?? (c.roofFront + c.roofRear) / 2 + 0.05;
-  const z = m.doorBadge?.z ?? (c.zFront + bPillar) / 2;
-  const width = BADGE_WIDTH;
-  const height = (width * CANVAS_H) / CANVAS_W;
-  const belt = beltAt(def, z);
-  return { z, y: m.doorBadge?.y ?? belt - height / 2 - 0.06, width, height };
-}
-
-function beltAt(def: CarDef, z: number): number {
-  const st = def.model.stations;
-  if (z <= st[0].z) return st[0].belt;
-  for (let i = 1; i < st.length; i++)
-    if (z <= st[i].z) {
-      const t = (z - st[i - 1].z) / (st[i].z - st[i - 1].z);
-      return st[i - 1].belt + (st[i].belt - st[i - 1].belt) * t;
-    }
-  return st[st.length - 1].belt;
+  const { z, y } = def.model.doorBadge;
+  return {
+    z,
+    y,
+    width: BADGE_WIDTH,
+    height: (BADGE_WIDTH * CANVAS_H) / CANVAS_W,
+  };
 }
 
 // --- texture ------------------------------------------------------------------------------

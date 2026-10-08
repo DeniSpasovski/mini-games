@@ -29,10 +29,10 @@ import {
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { autoHull, type Vehicle } from '../../physics/vehicle';
-import { BodyShape, endCaps, loft } from './car-body';
-import { buildCarParts, type CarPartGeometry } from './car-parts';
+import type { CarPartGeometry } from './car-parts';
 import { hasImportedModel, loadImportedCar } from './car-gltf';
-import { paintLivery, type LiveryInfo } from './livery';
+import { liveryInfo, type LiveryInfo } from './livery';
+import { buildProfileParts } from './profile-body';
 import { tyreSizeFor } from '../../physics/car-tyres';
 import type { TyreId } from '../../physics/tyres';
 import {
@@ -54,18 +54,17 @@ import {
 import type { CarAtlas, CarDef } from './types';
 
 /**
- * Procedural car model built from CarDef.model.
+ * Car model built from CarDef.model.
  *
  *  root (physics body frame: origin = centre of mass)
  *   ├─ body   (model space: y = 0 ground at static ride height), offset -comHeight
- *   │    lofted lower body + greenhouse (livery), end caps (base paint),
- *   │    parts (car-parts.ts): plain paint, trim, carbon, mesh, glass, lights, tail,
- *   │    cockpit (interior, cage, headliner) seen through cut-out windows
+ *   │    the imported GLB (`gltf`) once loaded; until then / if it fails the hand-built body (`custom`: atlas paint +
+ *   │    parts per material) or the boxy side-outline extrusion (`profile`, profile-body.ts: livery via the atlas layout, glass, lamps)
  *   └─ wheels: 3 InstancedMeshes x 4 instances (tyre, rim+disc, caliper); STL wheels
  *      (model.wheelModel, stl-wheel.ts) add a 4th for the brake disc
  *
  * ~16 draw calls per car. Materials marked "shared" are module-level and
- * reused by every car; only paint + livery texture are per car.
+ * reused by every car; only the paint is per car.
  */
 export interface CarModelOptions {
   /** Livery seed (0 = the car's default paint). */
@@ -76,6 +75,8 @@ export interface CarModelOptions {
   badge?: RallyBadge;
   /** Fitted tyre compound (tread, rim size, compound ring); none = plain default-size tyre (tool pages). */
   tyre?: TyreId | null;
+  /** Skip the GLB and show the fallback body (car viewer `fallback=1`). */
+  fallback?: boolean;
 }
 
 // --- shared materials ------------------------------------------------------------
@@ -96,6 +97,13 @@ const glassMat = new MeshStandardMaterial({
   // drifting into the cabin is hidden instead of blending over the glass.
   depthWrite: true,
   ...decal,
+});
+/** Opaque glass: the boxy fallback's greenhouse lies over the painted body, so see-through glass would show paint. */
+const solidGlassMat = new MeshStandardMaterial({
+  color: 0x1c2630,
+  metalness: 0.3,
+  roughness: 0.04,
+  envMapIntensity: 1.8,
 });
 const interiorMat = new MeshStandardMaterial({
   color: 0x2a2c30,
@@ -332,7 +340,6 @@ export class CarModel {
   readonly body = new Group();
   readonly livery: LiveryInfo;
   readonly debug = new Group();
-  readonly shape: BodyShape;
   /** Resolves true when an imported glTF body replaced the procedural one. */
   readonly imported: Promise<boolean>;
   /** Resolves once the imported body / wheel model (if any) are in and the car is shown. */
@@ -392,16 +399,9 @@ export class CarModel {
     this.body.position.y = -p.comHeight;
     this.root.add(this.body);
 
-    const { texture, info } = paintLivery(def, opts.seed ?? 0, opts.paint);
+    const info = liveryInfo(def, opts.seed ?? 0, opts.paint);
     this.livery = info;
     const satin = def.model.paintFinish === 'satin';
-    const paintMat = new MeshPhysicalMaterial({
-      map: texture,
-      metalness: satin ? 0.1 : 0.25,
-      roughness: satin ? 0.62 : 0.42,
-      clearcoat: satin ? 0.25 : 1,
-      clearcoatRoughness: satin ? 0.45 : 0.1,
-    });
     const plainMat = new MeshPhysicalMaterial({
       color: new Color(info.base),
       metalness: satin ? 0.1 : 0.25,
@@ -427,10 +427,9 @@ export class CarModel {
       metalness: 0.75,
       roughness: 0.32,
     });
-    this.owned.push(texture, paintMat, plainMat, rimMat);
+    this.owned.push(plainMat, rimMat);
     this.rimMat = rimMat;
 
-    this.shape = new BodyShape(def);
     const addParts = (g: CarPartGeometry) => [
       this.addMesh(g.plain, plainMat),
       this.addMesh(g.trim, trimMat),
@@ -474,27 +473,36 @@ export class CarModel {
       ];
       proceduralPaint = procedural.slice(0, 1);
     } else {
-      const lower = this.shape.lower.slices;
+      // Side outline extruded to the body width (the GLB's stand-in if it fails to load), in the GLB's livery when
+      // the atlas has a layout, else flat paint.
+      const profile = def.model.profile;
+      if (!profile)
+        throw new Error(`[car] ${def.id}: needs model.custom or model.profile`);
+      const atlas = def.model.gltf?.atlas;
+      const parts = buildProfileParts(profile, atlas?.layout);
       procedural = [
         this.addMesh(
-          loft(lower, () => 0, 1),
-          paintMat,
+          parts.body,
+          atlas?.layout
+            ? this.atlasMaterial(
+                atlas,
+                info,
+                opts.seed ?? 0,
+                def.model.gltf?.matte ? 'matte' : 'gloss',
+              )
+            : plainMat,
         ),
-        // End caps (nose / tail panels) use the solid base paint, not the livery atlas.
-        this.addMesh(endCaps(lower), plainMat),
-        this.addMesh(
-          loft(this.shape.cabin.slices, this.shape.cabinQuad, 1),
-          paintMat,
-        ),
-        ...addParts(buildCarParts(def, this.shape)),
+        this.addMesh(parts.glass, solidGlassMat),
+        this.addMesh(parts.head, lightMat),
+        this.addMesh(parts.tail, tailMat),
       ];
-      proceduralPaint = [procedural[0], procedural[2]];
+      proceduralPaint = procedural.slice(0, 1);
     }
     const meshTargets = (meshes: Mesh[]): BadgeTarget[] =>
       meshes.map((m) => ({ geometry: m.geometry, matrix: m.matrix.clone() }));
     // Imported model (if present) replaces the procedural body once loaded. The procedural body is
     // only a fallback for a failed load: never show it while the real model is downloading.
-    const willImport = hasImportedModel(def);
+    const willImport = hasImportedModel(def) && !opts.fallback;
     if (willImport) for (const m of procedural) m.visible = false;
     this.imported = willImport
       ? loadImportedCar(def)
@@ -546,13 +554,11 @@ export class CarModel {
             this.brakeLamps = undefined;
             this.setBrake(Math.max(0, this.brakeLevel), this.reversing); // keep the lamp state set before the import landed
             for (const m of procedural) m.visible = false;
-            if (def.model.gltf?.addOns)
-              addParts(buildCarParts(def, this.shape, true));
             return true;
           })
           .catch((e) => {
             console.warn(
-              `[car] ${def.id}: imported model failed, using procedural`,
+              `[car] ${def.id}: imported model failed, using the fallback body`,
               e,
             );
             for (const m of procedural)

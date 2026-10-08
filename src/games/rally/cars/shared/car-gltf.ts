@@ -1,5 +1,6 @@
 import { Box3, Mesh, Vector3, type Group, type Object3D } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import type { CarDef } from './types';
 
 /**
@@ -8,11 +9,12 @@ import type { CarDef } from './types';
  * (__CAR_MODEL_FILES__), so we never request missing files.
  *
  * The GLB is loaded once per file and cloned per car (geometry/materials are
- * shared). It is auto-fitted to the car's physics: length matched, centred on
- * the body stations, wheels hidden (physics-driven procedural wheels are used) -
+ * shared). It is auto-fitted to the car's physics: length matched, centred between
+ * the axles (fine-tune with `offset`), wheels hidden (physics-driven procedural wheels are used) -
  * unless `autoFit: false` (file already in model space, e.g. from stl-to-glb.mjs).
+ * The build serves them meshopt-compressed (scripts/car-model/glb-meshopt.mjs); plain files load too.
  */
-const loader = new GLTFLoader();
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const cache = new Map<string, Promise<Group>>();
 
 export function hasImportedModel(def: CarDef): boolean {
@@ -71,8 +73,7 @@ export async function loadImportedCar(def: CarDef): Promise<Object3D> {
   const size = box.getSize(new Vector3());
   const scale = g.scale ?? def.physics.length / Math.max(size.z, 1e-3);
   obj.scale.multiplyScalar(scale);
-  const st = def.model.stations;
-  const centreZ = (st[0].z + st[st.length - 1].z) / 2;
+  const centreZ = (def.physics.front.z + def.physics.rear.z) / 2;
   const c = box.getCenter(new Vector3()).multiplyScalar(scale);
   const o = g.offset ?? [0, 0, 0];
   obj.position.set(

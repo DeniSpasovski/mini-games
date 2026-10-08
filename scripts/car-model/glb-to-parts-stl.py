@@ -38,6 +38,10 @@ Rules and `near` blocks can also take `"facing": {"y": [0.3, 1], "|x|": [0, 0.7]
 must lie in the range (a scalar = minimum; "|x|" tests the absolute value). In a `near` block it filters the sampled
 triangles (windscreen + rear screen glass without the side windows of the same material).
 
+`"arch": {"axles": [1.32, -1.27], "y": 0.31, "r": [0.28, 0.48], "toward": 0.3, "|x|": [0.45, 1], "dy": -0.06}` (source
+coordinates) matches the wheel-arch liners and the inner faces of the flares: triangles within `r` of a hub line whose normal
+points at it (`arch_mask`) - send them to `trim` so the arches are black, not painted.
+
 `"whole": true` makes the x / y / z box test whole connected islands (triangles sharing vertices, computed on the full
 primitive) instead of triangle centres: an island matches only when its bounding box lies inside the box - picks a wing,
 scoop or mirror glass that is welded into a bigger primitive without nibbling the panel next to it. `"islandTris": [min, max]`
@@ -376,6 +380,23 @@ def region_cut(T, r, off):
     return ins, out
 
 
+def arch_mask(T, a):
+    """Wheel-arch liner: triangles round an axle (hub line along x at y, one per `axles` z) within `r` of it, at
+    least `dy` above the hub, with |x| in `|x|` and the normal pointing at the hub line (radial share >= `toward`)."""
+    c = T.mean(1)
+    n = np.cross(T[:, 1] - T[:, 0], T[:, 2] - T[:, 0])
+    n /= np.linalg.norm(n, axis=1)[:, None] + 1e-20
+    ax = np.abs(c[:, 0])
+    out = np.zeros(len(T), bool)
+    for z in a['axles']:
+        dy, dz = c[:, 1] - a['y'], c[:, 2] - z
+        r = np.hypot(dy, dz)
+        toward = -(n[:, 1] * dy + n[:, 2] * dz) / (r + 1e-9)
+        out |= (r >= a['r'][0]) & (r <= a['r'][1]) & (toward >= a.get('toward', 0.3)) & (dy >= a.get('dy', -0.05))
+    lo, hi = a.get('|x|', [0, 9])
+    return out & (ax >= lo) & (ax <= hi)
+
+
 def near_mask(prims, near, C):
     """True for centroids C (n, 3) within near['d'] of the triangles of near['mat'] (inside the optional x / y / z box)."""
     from scipy.spatial import cKDTree
@@ -491,6 +512,8 @@ def main():
                 keep &= facing_mask(T, r['facing'])
             if 'near' in r:
                 keep &= near_mask(prims, r['near'], c)
+            if 'arch' in r:
+                keep &= arch_mask(T, r['arch'])
             if not keep.any():
                 continue
             if keep.all():

@@ -2,6 +2,7 @@ import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
+import { profile } from './profile';
 import { bimmerM3Atlas } from './livery';
 
 // RWD V8 coupe: drivetrain and suspension numbers are the car's own; the wheelbase, body size and tyres follow this mesh.
@@ -172,46 +173,14 @@ export const bimmerM3: CarDef = {
     ]),
   },
   model: {
-    // Fallback body (used only until / unless public/models/cars/bimmer_m3.glb exists). Rear -> front (axles at
-    // z = +-1.361).
-    stations: [
-      { z: -2.35, floor: 0.3, belt: 0.88, hw: 0.84, hwBelt: 0.78 },
-      { z: -2.1, floor: 0.2, belt: 0.95, hw: 0.9, hwBelt: 0.82 },
-      { z: -1.361, floor: 0.12, belt: 0.95, hw: 0.92, hwBelt: 0.82 },
-      { z: -0.5, floor: 0.1, belt: 0.92, hw: 0.9, hwBelt: 0.8 },
-      { z: 0.5, floor: 0.1, belt: 0.9, hw: 0.9, hwBelt: 0.8 },
-      { z: 1.361, floor: 0.12, belt: 0.86, hw: 0.92, hwBelt: 0.82 },
-      { z: 2.0, floor: 0.12, belt: 0.78, hw: 0.9, hwBelt: 0.78 },
-      { z: 2.18, floor: 0.12, belt: 0.72, hw: 0.84, hwBelt: 0.7 },
-    ],
-    cabin: {
-      zFront: 0.9,
-      zRear: -1.5,
-      roofFront: 0.3,
-      roofRear: -1.0,
-      roofY: 1.38,
-      roofHw: 0.62,
-      kick: 0.2,
-      bPillar: -0.5,
-    },
     paint: '#e9e6dd',
-    flare: 0.05,
     rim: { color: '#b8bcc2', spokes: 16, style: 'spoke', caliper: '#c8a040' },
     // The model's own 8-spoke rim with a lathed lip + barrel (stl-wheel-extract.py, `wheelRim` in model.source.json),
     // rescaled per tyre size (stl-wheel.ts); `rim` above is the procedural fallback.
     wheelModel: 'bimmer_m3_wheel.glb',
     suspensionStyle: 'race',
-    parts: {
-      arches: 'round',
-      rearWing: 'lip',
-      splitter: true,
-      sideSkirts: true,
-      diffuser: true,
-      headlights: 'rect',
-      grille: 'slats',
-      doors: 2,
-    },
-    livery: 'rally1',
+    // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
+    profile,
     // Rally plate on the door (door shut lines z -0.33 .. 0.83, front = +z), above the side moulding.
     doorBadge: { z: 0.2, y: 0.635 },
     // No `suspension`: the mesh models its own arms / hubs inside closed wheel wells.

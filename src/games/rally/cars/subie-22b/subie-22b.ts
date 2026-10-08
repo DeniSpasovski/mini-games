@@ -3,6 +3,7 @@ import { bodyHull } from '../../physics/hull';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
 import { subie22bLivery } from './livery';
+import { profile } from './profile';
 
 /** Body dimensions (also what the hull is fitted from); wheel radius = tyre overall radius (235/40 R17, the real size). */
 const BODY = {
@@ -159,52 +160,14 @@ export const subie22b: CarDef = {
     ]),
   },
   model: {
-    // Fallback body (used only until / unless public/models/cars/subie_22b.glb loads). Rear -> front, z in physics coordinates.
-    stations: [
-      { z: -2.31, floor: 0.38, belt: 0.99, hw: 0.62, hwBelt: 0.58 },
-      { z: -2.16, floor: 0.3, belt: 1.03, hw: 0.8, hwBelt: 0.76 },
-      { z: -2.0, floor: 0.28, belt: 1.03, hw: 0.88, hwBelt: 0.85 },
-      { z: -1.85, floor: 0.28, belt: 1.03, hw: 0.9, hwBelt: 0.89 },
-      { z: -1.7, floor: 0.22, belt: 0.97, hw: 0.9, hwBelt: 0.89 },
-      { z: -1.46, floor: 0.2, belt: 0.88, hw: 0.88, hwBelt: 0.85 },
-      { z: -0.9, floor: 0.2, belt: 0.88, hw: 0.86, hwBelt: 0.83 },
-      { z: -0.3, floor: 0.2, belt: 0.88, hw: 0.87, hwBelt: 0.84 },
-      { z: 0.3, floor: 0.2, belt: 0.9, hw: 0.88, hwBelt: 0.86 },
-      { z: 0.75, floor: 0.2, belt: 0.88, hw: 0.88, hwBelt: 0.85 },
-      { z: 1.08, floor: 0.2, belt: 0.86, hw: 0.88, hwBelt: 0.85 },
-      { z: 1.5, floor: 0.2, belt: 0.82, hw: 0.86, hwBelt: 0.82 },
-      { z: 1.8, floor: 0.22, belt: 0.74, hw: 0.75, hwBelt: 0.68 },
-      { z: 1.96, floor: 0.28, belt: 0.58, hw: 0.6, hwBelt: 0.54 },
-    ],
-    cabin: {
-      zFront: 0.75,
-      zRear: -1.71,
-      roofFront: -0.09,
-      roofRear: -1.13,
-      roofY: 1.39,
-      roofHw: 0.6,
-      bPillar: -0.61,
-      kick: 0.3,
-    },
     paint: '#1a56c0',
-    flare: 0.04,
     rim: { color: '#d8b24a', spokes: 6, style: 'spoke', caliper: '#c8102e' },
     // The model's own gold alloy (subie_22b_wheel.glb), scaled to each compound's tyre.
     wheelModel: 'subie_22b_wheel.glb',
     suspensionStyle: 'sti',
-    parts: {
-      arches: 'round',
-      rearWing: 'lip',
-      splitter: false,
-      sideSkirts: true,
-      hoodVents: true,
-      headlights: 'round',
-      grille: 'small',
-      doors: 2,
-    },
-    // The source model has no cockpit: seats, dash, wheel and cage are the shared procedural ones, seen through tinted windows.
-    glass: { color: 0x2a3a46, opacity: 0.4 },
-    livery: 'rally1',
+    // Fallback body if the GLB can't load: profile.ts. Not a city street car while the 22B is a test car.
+    profile,
+    // Rally plate on the front door (front = +z), over the crescent graphic.
     doorBadge: { z: 0.22, y: 0.64 },
     gltf: {
       file: 'subie_22b.glb',
@@ -213,7 +176,6 @@ export const subie22b: CarDef = {
       autoFit: false,
       atlas: subie22bLivery,
       metallic: true,
-      addOns: { cockpit: 'road' },
     },
   },
 };
