@@ -17,7 +17,7 @@ export interface ToyParams {
   points: number;
 }
 
-export const DEFAULT_TOY: ToyParams = { seed: 1, points: 18000 };
+export const DEFAULT_TOY: ToyParams = { seed: 1, points: 13000 };
 
 export const TOY_COLORS = {
   tileA: 0xf6efe0,
@@ -40,12 +40,17 @@ interface Ctx {
   occ: Occupancy;
   /** Copies placed per item id (for the very-big cap). */
   count: Map<string, number>;
+  /** Very big types left out of this seed's store. */
+  skip: Set<string>;
 }
 
 /** Items from this size tier up are "very big" (tier 18 = 11 m and more). */
 export const VERY_BIG_TIER = 18;
 /** Most copies of each very big item type on the map. */
 export const MAX_VERY_BIG_COPIES = 1;
+
+/** Share of the very big types of each tier that a seed stocks (at least 2 per tier, the ladder needs them). */
+export const VERY_BIG_KEEP = 0.5;
 
 /** Floor area (m2) per scatter cluster and the cluster spread (m). */
 const CLUSTER_AREA = 700;
@@ -98,6 +103,7 @@ function tryPut(
   const { hx, hz } = c.layout;
   if (Math.abs(x) > hx - inset || Math.abs(z) > hz - inset) return false;
   if (!c.occ.free(x, z, radius(it))) return false;
+  if (c.skip.has(id)) return false;
   if (it.tier >= VERY_BIG_TIER && (c.count.get(id) ?? 0) >= MAX_VERY_BIG_COPIES)
     return false;
   put(c, id, x, z, rot);
@@ -260,6 +266,12 @@ function fillZone(
   const budget = z.share * target;
   let points = 0;
   for (const [id, x, zz, rot] of z.anchors ?? []) {
+    const a = getItem(id);
+    if (
+      c.skip.has(id) ||
+      (a.tier >= VERY_BIG_TIER && (c.count.get(id) ?? 0) >= MAX_VERY_BIG_COPIES)
+    )
+      continue;
     put(c, id, x, zz, rot);
     points += pts(id);
   }
@@ -359,7 +371,7 @@ function ensureAllTypes(c: Ctx): void {
   const have = new Set(c.placements.map((p) => p.item));
   const zones = c.layout.zones;
   for (const it of TOY_ITEMS) {
-    if (have.has(it.id)) continue;
+    if (have.has(it.id) || c.skip.has(it.id)) continue;
     const home =
       zones.find((z) => z.depts.includes(homeOf(it))) ??
       zones[zones.length - 1];
@@ -512,6 +524,25 @@ function balancePoints(c: Ctx, target: number): void {
   }
 }
 
+/** Per seed, drop about half of the very big types of every tier (keeps >= 2 per tier). */
+function pickSkipped(rng: Rng): Set<string> {
+  const skip = new Set<string>();
+  const byTier = new Map<number, ItemInfo[]>();
+  for (const it of TOY_ITEMS)
+    if (it.tier >= VERY_BIG_TIER)
+      byTier.set(it.tier, [...(byTier.get(it.tier) ?? []), it]);
+  for (const items of byTier.values()) {
+    const keep = Math.max(2, Math.ceil(items.length * VERY_BIG_KEEP));
+    const order = [...items];
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(rng.next() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    for (const it of order.slice(keep)) skip.add(it.id);
+  }
+  return skip;
+}
+
 export function generateToyStore(params: Partial<ToyParams> = {}): MapData {
   const p: ToyParams = { ...DEFAULT_TOY, ...params };
   const rng = new Rng(p.seed * 104729 + 77);
@@ -523,6 +554,7 @@ export function generateToyStore(params: Partial<ToyParams> = {}): MapData {
     rects: [],
     occ: new Occupancy(),
     count: new Map(),
+    skip: pickSkipped(rng),
   };
   buildFloor(c);
   const target = toyTargetPoints(p);

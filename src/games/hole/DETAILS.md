@@ -207,7 +207,7 @@ Each item has a small state machine in `sim/fall.ts`, deterministic (seeded per 
 - **Leftover rings:** once fewer than 100 points are left, every remaining item gets a pulsing white ground ring (hugging the item, at least
   1 % of the camera distance wide, `MIN_SCREEN_K`) and tiny items are drawn regardless of size, so stragglers are easy to find from a big hole
   (`render/leftover-rings.ts`, `LEFTOVER_POINTS`).
-- Results also show **% eaten**, by points: points eaten ÷ total island points (City Island 30 000, Toy Emporium 18 000). The HUD shows the same percentage live.
+- Results also show **% eaten**, by points: points eaten ÷ total island points (City Island 30 000, Toy Emporium 13 000). The HUD shows the same percentage live.
 - Combos and multipliers are not in v0 (see iterations).
 
 #### High scores and the scoring version
@@ -421,9 +421,9 @@ noun for the HUD).
 | Plush density | the Plush Meadow is the densest zone but not a pile-up: share 18 % (was 20 %) in the floor plan, and the whale / penguin plush are stocked in the Splash Zone (`PLUSH_ELSEWHERE` in `map/toy/generate.ts`); the freed points go to the atrium, checkout, dolls and splash                                                                                                                                                                       |
 | Start         | the checkout between Brick Alley and Figure Falls ringed by ~36 tier 1-3 pieces (only the default / test start, see "Random start")                                                                                                                                                                                                                                                                                                             |
 
-**Total points are exactly 18 000 for every seed**: after the zones are filled, `balancePoints` trims
+**Total points are exactly 13 000 for every seed**: after the zones are filled, `balancePoints` trims
 small items (never near the start) or tops up with 1-point fillers (`puzzle_piece`, `brick_2x2`, ...). Pacing: the
-floor is 180 x 120 m (`FLOOR_SCALE`) and a very big type (tier >= `VERY_BIG_TIER` 18, 11 m+) is placed at most `MAX_VERY_BIG_COPIES` (1) times; more points than 18 000 make a bot clear it faster (a good bot clears this floor in ~30 s). Points by tier
+floor is 180 x 120 m (`FLOOR_SCALE`) and a very big type (tier >= `VERY_BIG_TIER` 18, 11 m+) is placed at most `MAX_VERY_BIG_COPIES` (1) times and each seed drops about half of them (`VERY_BIG_KEEP`, at least 2 per tier); more points than 13 000 make a bot clear it faster (a good bot clears this floor in ~45 s). Points by tier
 (floor plan): tier 1 is ~5 % of the points, tiers 4-10 hold ~52 % (a third of the map is 8-point shelf units), tiers 20-25
 ~5 %: the early game is not a dust vacuum. Good bot:
 level 15 at ~90 s, store cleared at ~320 s (City Island: level 15 at 120-160 s, cleared ~310-400 s).
@@ -756,7 +756,7 @@ are City Island only.
 - Overlays: district colours, "show only tier N" filter. Click an item to inspect it (name, level, points, size,
   position). Click the ground to move the red marker (drawn at the hole size of the chosen level).
 - `map=animal` adds an **Animals** section (URL keys `biomes`, `walkgrid`, `leash`, `paths`): biome grid colours, walk grid (green land, blue water, red blocked), leash circles (one per home / radius / behaviour, colour = behaviour) and the ant / patrol path lines; the content box also counts movers per behaviour.
-- **Content budget box:** item count, total points against the exact target (30 000 City Island, 18 000 Toy Emporium), tiers with fewer than 2 item types, items
+- **Content budget box:** item count, total points against the exact target (30 000 City Island, 13 000 Toy Emporium), tiers with fewer than 2 item types, items
   and points per tier, skyscraper count, start position; draw calls and triangles in the F3 box.
 - **Game camera** at the marker for level L (checks framing over the real map); **Play from the red marker** opens
   `./?seed=&x=&z=&level=&difficulty=medium`.
@@ -811,7 +811,7 @@ are City Island only.
   cut-off).
 - `toy-items`: every toy tier / level has >= 2 types, the three required plush families exist at six sizes, builders
   match the catalog size, stay on the ground, keep their paint lists and triangle budgets. `toy-clip`: no z-fighting, no
-  mostly-buried item (same checker as `clip`). `toy-map`: deterministic, exactly 18 000 points, every type placed, tiers /
+  mostly-buried item (same checker as `clip`). `toy-map`: deterministic, exactly 13 000 points, every type placed, tiers /
   levels covered, start busy, random department slots, balance bands for the good bot, every item reachable by a hole of its level.
 
 - `kit-ball`: the round primitive (radii, triangle count, domes, eggs, seeded jitter, outward faces, clip checker coverage).
