@@ -347,17 +347,19 @@ Research behind it (About > Physics > Brakes, `BRAKE_RESEARCH` in `game/menu.ts`
 ## Reference numbers
 
 Full brake, ABS on / off (`handling.test.ts` straight line, home tyre, medium set-up), 2026-10-09 - 100-0 km/h on tarmac /
-gravel, and the heading turned under full brake + half steer from 80 km/h on gravel (`tests/rally/abs.test.ts` is the guard):
+gravel, and the heading turned under full brake + half steer from 80 km/h on gravel (`tests/rally/abs.test.ts` is the guard).
+The Zastava, M3 and 22B are brake-limited on tarmac (`clamp` in "Brakes"), so ABS changes nothing there:
 
 | Car           | 100-0 tarmac  | 100-0 gravel  | Brake + steer from 80 |
 | ------------- | ------------- | ------------- | --------------------- |
-| Skoda Rally   | 33 / 41 m     | 45 / 48 m     | 70° / 6°              |
-| Bimmer M3     | 29 / 34 m     | 40 / 42 m     | 51° / 0°              |
-| Bimmer GT2    | 25 / 29 m     | 38 / 40 m     | 42° / 0°              |
-| Fiesta WRC    | 33 / 42 m     | 45 / 48 m     | 70° / 6°              |
-| Citroen C4    | 33 / 34 m     | 45 / 48 m     | 70° / 6°              |
-| Lancer EVO VI | 33 / 42 m     | 44 / 48 m     | 71° / 6°              |
-| Zastava 101   | 45 m (no ABS) | 46 m (no ABS) | 2°                    |
+| Skoda Rally   | 34 / 44 m     | 45 / 48 m     | 70° / 5°              |
+| Bimmer M3     | 35 / 35 m     | 44 / 45 m     | 47° / 1°              |
+| Bimmer GT2    | 25 / 30 m     | 39 / 40 m     | 43° / 0°              |
+| Subaru 22B    | 38 / 38 m     | 44 / 47 m     | 67° / 8°              |
+| Fiesta WRC    | 34 / 44 m     | 45 / 48 m     | 69° / 6°              |
+| Citroen C4    | 34 / 44 m     | 45 / 48 m     | 69° / 5°              |
+| Lancer EVO VI | 34 / 43 m     | 45 / 48 m     | 71° / 6°              |
+| Zastava 101   | 52 m (no ABS) | 52 m (no ABS) | 3°                    |
 
 At part pedal (60 %) no wheel locks and the distances match. Compare with ABS off in the harness via
 `Cfg.patch: (v) => { v.abs = false; }` (`straight().full.firstLock` is `-` with ABS on).
@@ -422,7 +424,8 @@ everywhere (power, not grip).
 | `tests/rally/hull-fit.test.ts`               | every car's collision hull follows its model: underside per zone (front overhang, between axles, rear overhang) and the nose / tail ends; prints the profile                                                                             |
 | `integration-tests/rally/gearing.test.ts`    | gearing presets: race cars only, medium = own final drive, short < medium < long top speed, setup-screen top speed = sim, Skoda Rally on long reaches 200 km/h on Jackie                                                                 |
 | `tests/rally/tyre-temp.test.ts`              | tyre temperature: grip curves per compound, HUD colours, climate per stage, cold vs warm grip, warm-up, a donut overheats and cools down, gravel heats less, reset keeps temperatures                                                    |
-| `integration-tests/rally/tyre-temp.test.ts`  | every car x stage with the stage climate, recommended and worst pick: finishes upright (one reset if stuck), tyres under 150 °C, home tyre warm at the finish                                                                            |
+| `tests/rally/brakes.test.ts`                 | brakes: torque from size + clamp, disc mass, pad windows per class, heat per stop, ten-stop fade (road yes, rally no), cooling, water, torque = force x radius, cold / faded brakes pull less                                            |
+| `integration-tests/rally/tyre-temp.test.ts`  | every car x stage with the stage climate, recommended and worst pick: finishes upright (one reset if stuck), tyres under 150 °C, discs under 1300 °C, home tyre warm at the finish                                                       |
 | `integration-tests/rally/handling.test.ts`   | whole-car handling per car x tyre x set-up x surface (`handling-harness.ts`): ramp / step steer, lift / power / brake mid-corner, handbrake, slalom, keyboard lock, braking, drops, jump landing, ruts                                   |
 
 `tyres.test.ts` and `car-matrix.test.ts` import the four stages directly (`test`, `petralica`, `jackie`, `ajvatovci`) - add a
