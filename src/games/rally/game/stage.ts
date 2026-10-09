@@ -300,7 +300,8 @@ export class StageTimer {
  *
  * - Map (`MAP_TIMES_VERSIONS`): bump a map when its road / length, track-limit penalties or a surface change.
  * - Car (`CAR_TIMES_VERSIONS`): bump a car when ITS handling changes (stats, grip, setups, gearing). A new
- *   shared physics change bumps EVERY car. Livery / model / visual fixes never bump anything.
+ *   shared physics change bumps EVERY released car (test cars stay at 1). Livery / model / visual fixes never bump
+ *   anything. Bump only in a prod build (AGENTS.md "Rally times versions"): unshipped changes keep prod's numbers.
  *
  * On every game start `migrateTimes` compares each number with the one stored next to the lists
  * (`rally.timesVersion.<map>`, `rally.carVersion.<car>`): runs from an older version are KEPT, tagged with the
