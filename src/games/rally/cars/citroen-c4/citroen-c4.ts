@@ -166,7 +166,7 @@ export const citroenC4: CarDef = {
     ]),
   },
   model: {
-    paint: '#c4162c',
+    paint: '#a90810',
     rim: { color: '#c9ccd1', spokes: 15, style: 'spoke', caliper: '#d63a2f' },
     // The model's own rim, de-cambered and centred on the hub (scripts/car-model/glb-rim-extract.py --side +x), rescaled per tyre
     // size (stl-wheel.ts).

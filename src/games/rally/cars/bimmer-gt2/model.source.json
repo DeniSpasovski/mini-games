@@ -47,6 +47,23 @@
         "x": [0.7, 1.1],
         "y": [0.74, 1.0],
         "z": [0.5, 1.6]
+      },
+      {
+        "$comment": "plate pocket walls and the small faces under the tail lamps (|x| < REAR_X): rear chart (pearl), not the side charts' red blocks",
+        "chart": "rear",
+        "any": true,
+        "x": [0, 0.5],
+        "y": [0.55, 0.84],
+        "z": [-2.45, -2.2]
+      },
+      {
+        "$comment": "grooves along the rear-quarter flare, from the door to the arch vents (|x| 0.8 - 0.96, y 0.4 - 0.78, z -0.92 .. -0.25): their down-facing ledges sat on the bottom chart's dark undercoat and read as an open slot -> side chart, the livery around them",
+        "chart": "side",
+        "minNy": -1.01,
+        "maxNy": 1.01,
+        "x": [0.8, 0.96],
+        "y": [0.4, 0.78],
+        "z": [-0.92, -0.25]
       }
     ]
   },
@@ -78,6 +95,44 @@
         "y": [0, 0.3],
         "material": "carbon",
         "z": [-2.45, 1.1]
+      },
+      {
+        "$comment": "the vent slot in each rear bumper corner (behind the rear wheel, opening backwards): its inside walls black, not livery",
+        "mat": "Body",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [0.765, 0.29],
+            [0.835, 0.29],
+            [0.835, 0.517],
+            [0.765, 0.517]
+          ],
+          "depth": [-2.26, -2.05],
+          "mirror": true
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "inside of the open rear fender flare beside each tail lamp (its flat ledge, y and z in the source's coordinates): plain white, not the livery's blocks / undercoat",
+        "mat": "Body",
+        "x": [0.72, 0.99],
+        "y": [0.54, 0.68],
+        "z": [-3.5, -2.67],
+        "facing": {
+          "|y": 0.9
+        },
+        "material": "flagwhite"
+      },
+      {
+        "$comment": "same, right side",
+        "mat": "Body",
+        "x": [-0.99, -0.72],
+        "y": [0.54, 0.68],
+        "z": [-3.5, -2.67],
+        "facing": {
+          "|y": 0.9
+        },
+        "material": "flagwhite"
       },
       {
         "mat": "Body",
@@ -191,7 +246,8 @@
       "lamphousing",
       "headled",
       "tailled",
-      "redcover"
+      "redcover",
+      "flagwhite"
     ],
     "wrap": {},
     "preview": {
@@ -215,6 +271,44 @@
       "tailled": 3000,
       "lenscover": 3500,
       "redcover": 1500
-    }
+    },
+    "solids": [
+      {
+        "$comment": "white back wall inside the open rear fender flare (left; its outline follows the flare skin 8 mm inside, so no corner pokes through): the gap beside the tail lamp no longer shows through. Frame turned 180 deg so its face looks backwards (v = -y, w = -z)",
+        "material": "flagwhite",
+        "frame": {
+          "origin": [0, 0, -1.94],
+          "tilt": 180
+        },
+        "poly": [
+          [0.78, -0.83],
+          [0.825, -0.82],
+          [0.84, -0.8],
+          [0.855, -0.74],
+          [0.87, -0.66],
+          [0.88, -0.6],
+          [0.78, -0.6]
+        ],
+        "w": [0, 0.02]
+      },
+      {
+        "$comment": "white back wall inside the open rear fender flare (right; its outline follows the flare skin 8 mm inside, so no corner pokes through): the gap beside the tail lamp no longer shows through. Frame turned 180 deg so its face looks backwards (v = -y, w = -z)",
+        "material": "flagwhite",
+        "frame": {
+          "origin": [0, 0, -1.94],
+          "tilt": 180
+        },
+        "poly": [
+          [-0.78, -0.6],
+          [-0.88, -0.6],
+          [-0.87, -0.66],
+          [-0.855, -0.74],
+          [-0.84, -0.8],
+          [-0.825, -0.82],
+          [-0.78, -0.83]
+        ],
+        "w": [0, 0.02]
+      }
+    ]
   }
 }

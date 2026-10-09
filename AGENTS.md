@@ -115,6 +115,8 @@ into `DETAILS.md`, never up.
   when that car's handling changes, every car for a shared physics change (livery / model fixes never); a new car / map adds its
   entry (a test checks). Old times stay, listed below the new ones. Only changes shipped to prod count: bump when the user says
   we are making a build; until then leave the numbers and say in the PR which cars / maps changed.
+  **Test cars / maps (`TEST_*` in `release.ts`) stay at 1 and are never bumped** (unreleased: no official times yet); bumps start
+  once they move to `AVAILABLE_*` (a test checks).
 - Hole Island: scoring changes (points, tiers, bonus, times, map content) bump that map's `MAP_SCORING_VERSIONS` entry
   (`game/scores.ts`; `sim/` changes = every map).
 

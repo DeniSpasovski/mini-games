@@ -71,64 +71,19 @@
     ],
     "parts": [
       {
-        "mat": "ensemble_cr",
-        "region": {
-          "view": "front",
-          "poly": [
-            [-0.42, 0.5],
-            [0.42, 0.5],
-            [0.42, 0.83],
-            [-0.42, 0.83]
-          ],
-          "depth": [1.95, 2.2]
-        },
-        "material": "logo",
-        "$comment": "the old grille (thin bars, the raised badge block) is dropped; the grille is rebuilt from `parts.solids` below"
-      },
-      {
+        "$comment": "the model's own grille bars (silver in the source): painted in the livery (body atlas); the dark bars between them stay trim",
         "mat": "Autres",
         "region": {
           "view": "front",
           "poly": [
-            [-0.42, 0.5],
-            [0.42, 0.5],
+            [-0.42, 0.65],
+            [0.42, 0.65],
             [0.42, 0.83],
             [-0.42, 0.83]
           ],
           "depth": [1.95, 2.2]
         },
-        "material": "logo",
-        "$comment": "the old grille (thin bars, the raised badge block) is dropped; the grille is rebuilt from `parts.solids` below"
-      },
-      {
-        "$comment": "the body's own louvres in the grille opening: dropped, the grille is rebuilt from `parts.solids`",
-        "mat": "Carrosserie",
-        "region": {
-          "view": "front",
-          "poly": [
-            [-0.4, 0.655],
-            [0.4, 0.655],
-            [0.4, 0.738],
-            [-0.4, 0.738]
-          ],
-          "depth": [2.0, 2.2]
-        },
-        "material": "logo"
-      },
-      {
-        "$comment": "the old grille (thin bars, the raised badge block) is dropped; the grille is rebuilt from `parts.solids` below",
-        "mat": "Carrosserie",
-        "region": {
-          "view": "front",
-          "poly": [
-            [-0.2, 0.66],
-            [0.2, 0.66],
-            [0.2, 0.775],
-            [-0.2, 0.775]
-          ],
-          "depth": [1.95, 2.2]
-        },
-        "material": "logo"
+        "material": "body"
       },
       {
         "$comment": "the rear chevron emblem on the boot lid: dropped",
@@ -294,181 +249,6 @@
     },
     "fills": [],
     "solids": [
-      {
-        "$comment": "grille housing: one dark trapezoid behind the bars, up to the hood nose",
-        "material": "trim",
-        "frame": {
-          "origin": [0, 0.66, 2.085],
-          "tilt": 31
-        },
-        "poly": [
-          [-0.36, -0.016],
-          [0.36, -0.016],
-          [0.372, 0.134],
-          [-0.372, 0.134]
-        ],
-        "w": [-0.06, 0.004]
-      },
-      {
-        "$comment": "lower bar: chevron arm",
-        "material": "trim",
-        "frame": {
-          "origin": [0, 0.66, 2.085],
-          "tilt": 31
-        },
-        "poly": [
-          [0, 0.038000000000000006],
-          [0.15, -0.012],
-          [0.15, 0.016],
-          [0, 0.066]
-        ],
-        "w": [-0.03, 0.014],
-        "bevel": 0.004
-      },
-      {
-        "$comment": "lower bar: wing",
-        "material": "trim",
-        "frame": {
-          "origin": [0, 0.66, 2.085],
-          "tilt": 31
-        },
-        "poly": [
-          [0.13799999999999998, -0.012],
-          [0.355, -0.012],
-          [0.355, 0.016],
-          [0.13799999999999998, 0.016]
-        ],
-        "w": [-0.03, 0.014],
-        "bevel": 0.004
-      },
-      {
-        "$comment": "lower bar: chevron arm",
-        "material": "trim",
-        "frame": {
-          "origin": [0, 0.66, 2.085],
-          "tilt": 31
-        },
-        "poly": [
-          [0, 0.066],
-          [-0.15, 0.016],
-          [-0.15, -0.012],
-          [0, 0.038000000000000006]
-        ],
-        "w": [-0.03, 0.014],
-        "bevel": 0.004
-      },
-      {
-        "$comment": "lower bar: wing",
-        "material": "trim",
-        "frame": {
-          "origin": [0, 0.66, 2.085],
-          "tilt": 31
-        },
-        "poly": [
-          [-0.13799999999999998, -0.012],
-          [-0.13799999999999998, 0.016],
-          [-0.355, 0.016],
-          [-0.355, -0.012]
-        ],
-        "w": [-0.03, 0.014],
-        "bevel": 0.004
-      },
-      {
-        "$comment": "upper bar: chevron arm",
-        "material": "trim",
-        "frame": {
-          "origin": [0, 0.66, 2.085],
-          "tilt": 31
-        },
-        "poly": [
-          [0, 0.082],
-          [0.15, 0.032],
-          [0.15, 0.06],
-          [0, 0.11]
-        ],
-        "w": [-0.03, 0.014],
-        "bevel": 0.004
-      },
-      {
-        "$comment": "upper bar: wing",
-        "material": "trim",
-        "frame": {
-          "origin": [0, 0.66, 2.085],
-          "tilt": 31
-        },
-        "poly": [
-          [0.13799999999999998, 0.032],
-          [0.355, 0.032],
-          [0.355, 0.06],
-          [0.13799999999999998, 0.06]
-        ],
-        "w": [-0.03, 0.014],
-        "bevel": 0.004
-      },
-      {
-        "$comment": "upper bar: chevron arm",
-        "material": "trim",
-        "frame": {
-          "origin": [0, 0.66, 2.085],
-          "tilt": 31
-        },
-        "poly": [
-          [0, 0.11],
-          [-0.15, 0.06],
-          [-0.15, 0.032],
-          [0, 0.082]
-        ],
-        "w": [-0.03, 0.014],
-        "bevel": 0.004
-      },
-      {
-        "$comment": "upper bar: wing",
-        "material": "trim",
-        "frame": {
-          "origin": [0, 0.66, 2.085],
-          "tilt": 31
-        },
-        "poly": [
-          [-0.13799999999999998, 0.032],
-          [-0.13799999999999998, 0.06],
-          [-0.355, 0.06],
-          [-0.355, 0.032]
-        ],
-        "w": [-0.03, 0.014],
-        "bevel": 0.004
-      },
-      {
-        "$comment": "top bar (sides only)",
-        "material": "trim",
-        "frame": {
-          "origin": [0, 0.66, 2.085],
-          "tilt": 31
-        },
-        "poly": [
-          [0.16999999999999998, 0.082],
-          [0.355, 0.082],
-          [0.355, 0.10400000000000001],
-          [0.16999999999999998, 0.10400000000000001]
-        ],
-        "w": [-0.03, 0.014],
-        "bevel": 0.004
-      },
-      {
-        "$comment": "top bar (sides only)",
-        "material": "trim",
-        "frame": {
-          "origin": [0, 0.66, 2.085],
-          "tilt": 31
-        },
-        "poly": [
-          [-0.16999999999999998, 0.082],
-          [-0.16999999999999998, 0.10400000000000001],
-          [-0.355, 0.10400000000000001],
-          [-0.355, 0.082]
-        ],
-        "w": [-0.03, 0.014],
-        "bevel": 0.004
-      },
       {
         "$comment": "black backing plate behind the lower opening: nothing of the cabin shows through",
         "material": "trim",

@@ -316,16 +316,18 @@ Research behind the model (also in the game's About screen under Physics > Tyres
 
 ## Reference numbers
 
-Full brake, ABS on / off (`handling.test.ts` straight line, home tyre, medium set-up), 2026-10-08 - 100-0 km/h on tarmac /
+Full brake, ABS on / off (`handling.test.ts` straight line, home tyre, medium set-up), 2026-10-09 - 100-0 km/h on tarmac /
 gravel, and the heading turned under full brake + half steer from 80 km/h on gravel (`tests/rally/abs.test.ts` is the guard):
 
-| Car         | 100-0 tarmac  | 100-0 gravel  | Brake + steer from 80 |
-| ----------- | ------------- | ------------- | --------------------- |
-| Skoda Rally | 33 / 41 m     | 45 / 48 m     | 64° / 22°             |
-| Bimmer M3   | 29 / 34 m     | 40 / 42 m     | 46° / 0°              |
-| Bimmer GT2  | 25 / 29 m     | 38 / 40 m     | 39° / 0°              |
-| Fiesta WRC  | 33 / 42 m     | 45 / 48 m     | 65° / 17°             |
-| Zastava 101 | 45 m (no ABS) | 46 m (no ABS) | 1°                    |
+| Car           | 100-0 tarmac  | 100-0 gravel  | Brake + steer from 80 |
+| ------------- | ------------- | ------------- | --------------------- |
+| Skoda Rally   | 33 / 41 m     | 45 / 48 m     | 70° / 6°              |
+| Bimmer M3     | 29 / 34 m     | 40 / 42 m     | 51° / 0°              |
+| Bimmer GT2    | 25 / 29 m     | 38 / 40 m     | 42° / 0°              |
+| Fiesta WRC    | 33 / 42 m     | 45 / 48 m     | 70° / 6°              |
+| Citroen C4    | 33 / 34 m     | 45 / 48 m     | 70° / 6°              |
+| Lancer EVO VI | 33 / 42 m     | 44 / 48 m     | 71° / 6°              |
+| Zastava 101   | 45 m (no ABS) | 46 m (no ABS) | 2°                    |
 
 At part pedal (60 %) no wheel locks and the distances match. Compare with ABS off in the harness via
 `Cfg.patch: (v) => { v.abs = false; }` (`straight().full.firstLock` is `-` with ABS on).
