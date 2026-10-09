@@ -17,7 +17,7 @@ import {
   GamepadMenuNav,
   moveFocus,
   type NavAction,
-} from '../game/pad-nav';
+} from '../../../shared/pad-nav';
 import { RallyGame } from '../game/rally-game';
 import { loadSettings } from '../game/settings';
 import {

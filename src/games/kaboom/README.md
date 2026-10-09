@@ -17,7 +17,7 @@ npm run dev      # then open http://localhost:3000/games/kaboom/
 Pick your critter (it turns on a little stage in your team colour) and team colour, the arena, how many bots (1-7),
 their skill and the number of rounds, then:
 
-- **Move** with WASD / arrows (or drag a finger, or a gamepad stick); **drop TNT** with Space (or the TNT button).
+- **Move** with WASD / arrows (or drag a finger, or a gamepad stick); **drop TNT** with Space (or the TNT button / pad A). Menus work with the pad too: d-pad / stick, A = select, B = back, Start = resume.
 - The band counts 3, 2, 1, then flames shoot out in a cross. Hard blocks stop them, crates break, other TNT goes off.
   At blast level 4 the flames also turn the first corner, at level 5 the second.
 - Crates hide **power-ups**: walk onto them for more dynamites at once or a longer blast (up to level 5 each).
