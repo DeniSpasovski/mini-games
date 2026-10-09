@@ -22,7 +22,7 @@ const FRONT: AxleDef = {
   track: 1.6,
   spring: 92000,
   bump: 4200,
-  rebound: 5900,
+  rebound: 7560,
   travel: 0.13,
   antiRoll: 26000,
   brakeTorque: 2000,
@@ -37,7 +37,7 @@ const REAR: AxleDef = {
   track: 1.66,
   spring: 84000,
   bump: 3900,
-  rebound: 5500,
+  rebound: 7020,
   travel: 0.13,
   antiRoll: 17000,
   // x 1.076 with the taller rear slick (same brake force at the road, same balance).
@@ -91,6 +91,7 @@ export const bimmerGt2: CarDef = {
     mass: 1150,
     ...BODY,
     inertiaScale: 0.9,
+    hardBumpStop: true,
     wheelWidth: 0.28,
     // Staggered like the race car: slicks 30/66-18 front / 31/71-18 rear (width cm / overall diameter cm - rim) =
     // 300/34 R18 / 310/41 R18. Rally compounds keep the taller rear; gravel runs one width (a wide tyre ploughs).

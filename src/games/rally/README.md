@@ -73,4 +73,4 @@ Microsoft building footprints. Car models and their licences: see each car's REA
 [`THIRD-PARTY.md`](../../../THIRD-PARTY.md). Car makes and models are trademarks of their owners; this is a
 non-commercial, educational fan project.
 
-Tyre temperature research (links only): see [`PHYSICS.md`](PHYSICS.md) "Tyre temperature" and About > Physics in the game.
+Tyre and suspension research (links only): see [`PHYSICS.md`](PHYSICS.md) "Tyre temperature" / "Dampers and bump stop" and About > Physics in the game.

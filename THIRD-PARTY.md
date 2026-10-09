@@ -59,7 +59,7 @@ The car liveries, parts, physics, door plates and every other asset are original
 
 ## Research references
 
-Papers and articles read to tune the rally tyre temperature model; linked in the game's About screen and
+Papers and articles read to tune the rally tyre temperature and suspension models; linked in the game's About screen and
 `src/games/rally/PHYSICS.md`. Nothing from them is copied or bundled.
 
 - https://pmc.ncbi.nlm.nih.gov/articles/PMC9459800/
@@ -67,6 +67,9 @@ Papers and articles read to tune the rally tyre temperature model; linked in the
 - https://arxiv.org/pdf/2602.22078
 - https://press.pirelli.com/p-zero-ra-wrc-shows-reliability-on-wet-and-dry-asphalt/
 - https://press.pirelli.com/scorpion-kx-soft-stars-on-opening-day-of-rally-finland/
+- https://www.gamedeveloper.com/design/implementing-racing-games-an-intro-to-different-approaches-and-their-game-design-trade-offs
+- https://www.gamedeveloper.com/programming/rendering-and-simulation-in-offroad-driving-game
+- https://arxiv.org/abs/2605.05235
 
 ## Trademarks and likenesses
 

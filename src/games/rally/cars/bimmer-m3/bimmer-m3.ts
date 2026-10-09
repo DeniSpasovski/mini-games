@@ -22,7 +22,7 @@ const FRONT: AxleDef = {
   track: 1.66,
   spring: 78000,
   bump: 3680,
-  rebound: 5152,
+  rebound: 6620,
   travel: 0.14,
   antiRoll: 23833,
   brakeTorque: 1700,
@@ -37,7 +37,7 @@ const REAR: AxleDef = {
   track: 1.66,
   spring: 70000,
   bump: 3402,
-  rebound: 4733,
+  rebound: 6120,
   travel: 0.14,
   antiRoll: 15312,
   brakeTorque: 1050,
@@ -98,6 +98,7 @@ export const bimmerM3: CarDef = {
     mass: 1180,
     ...BODY,
     inertiaScale: 0.9,
+    hardBumpStop: true,
     wheelWidth: 0.235,
     // Staggered like the V8 road M3 whose engine it has (E92: 245/40 R18 on 8.5J front, 265/40 R18 on 9.5J rear);
     // gravel runs one size.

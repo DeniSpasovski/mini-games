@@ -200,6 +200,8 @@ export interface CarPhysicsDef {
   noTractionControl?: boolean;
   /** No ABS fitted: the brakes always lock when pushed hard, and its option / key do nothing. */
   noAbs?: boolean;
+  /** Only the stiff bump stop past full travel, no progressive one (short-travel cars that rarely bottom out). */
+  hardBumpStop?: boolean;
   /** Scales the box inertia (real cars are ~0.8-1.0 of a solid box). */
   inertiaScale: number;
   /**
