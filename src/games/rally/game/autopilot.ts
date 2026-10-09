@@ -17,6 +17,10 @@ import { newRoadQuery, type Road } from '../world/road';
 /** Surface mu the cornering plan (0.7 g) was tuned for (gravel); more grip only speeds it up with `useExtraGrip`. */
 const REF_MU = 0.86;
 
+/** Pedal per m/s of speed over the plan, for brakes pulling `BRAKE_REF_DECEL` m/s² (a rally car's, 1.37 g). */
+const BRAKE_GAIN = 0.15;
+const BRAKE_REF_DECEL = 13.4;
+
 export class Autopilot {
   /** 0..1, scales cornering speed (1 = brave). */
   aggression = 0.6;
@@ -113,7 +117,12 @@ export class Autopilot {
     // Lift off while sliding (|beta| > 3 deg) so the tyres can recover.
     const slideCut = Math.max(0, 1 - Math.max(0, Math.abs(beta) - 0.05) / 0.12);
     out.throttle = e > 0 ? Math.min(1, e * 0.4 + 0.3) * slideCut : 0;
-    out.brake = e < -1.5 ? Math.min(1, -e * 0.15) : 0;
+    // Pedal in proportion to the speed to shed, scaled to what the brakes pull now (the same time constant for a
+    // strong, a weak or a faded brake).
+    out.brake =
+      e < -1.5
+        ? Math.min(1, (-e * BRAKE_GAIN * BRAKE_REF_DECEL) / v.brakeDecel)
+        : 0;
     out.handbrake = 0;
     return out;
   }

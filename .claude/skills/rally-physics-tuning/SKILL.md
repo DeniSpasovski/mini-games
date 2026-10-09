@@ -10,8 +10,8 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
 
 ## Where things live
 
-- Per-car numbers: `cars/<id>/<id>.ts` -> `physics` (mass, COM height, axles: spring/damper/travel/antiRoll/brakes/
-  grip/forceHeight, engine torque curve, gearbox, drivetrain split + diff locks, aero).
+- Per-car numbers: `cars/<id>/<id>.ts` -> `physics` (mass, COM height, axles: spring/damper/travel/antiRoll/
+  grip/forceHeight, `brakes`, engine torque curve, gearbox, drivetrain split + diff locks, aero).
   Ride height is preserved automatically when springs change (mount computed from static load).
 - Surfaces: `physics/surfaces.ts` (`mu`, `slide`, `peakSlip`, `peakAngle`, `rolling`, `bump`, `rough`).
 - Water: `Vehicle.waterPass` (tyre + body drag, flooded intake), fed by `GroundProvider.waterLevel`;
@@ -30,6 +30,9 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
 - Tyre temperature: `physics/tyre-temp.ts` (heat / cooling constants, grip curve), windows in `TyreDef.temp`, air per map
   (`EnvironmentDef.airTemp`). Only runs with `Vehicle.setClimate` (game); tests without it keep the reference numbers.
   Tests: `tests/rally/tyre-temp.test.ts` (feel targets), `integration-tests/rally/tyre-temp.test.ts`.
+- Brakes: `CarPhysicsDef.brakes` / `gravelBrakes` (type, size, pad class, `clamp` force; `physics/brakes.ts`), torque acts on the
+  wheel's effective inertia, disc temperature + pad fade only with a climate. Tune `clamp` until the torque limit sits ~10 %
+  over the tyre's best decel (`integration-tests/rally/brake-sweep.test.ts` is local; `tests/rally/brakes.test.ts`).
 - Tyre model: `physics/tire.ts`. Rigid body / suspension / contacts: `physics/vehicle.ts`.
 - Driver aids: `Vehicle.tractionControl` (wheelspin + combined-slip stability, `T` in game), `Vehicle.abs` (per-wheel
   anti-lock on the foot brake, `B`; `physics.noAbs` = not fitted), `autoReverse`, keyboard steering ramp / speed limit /

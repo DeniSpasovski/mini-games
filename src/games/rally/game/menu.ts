@@ -119,6 +119,25 @@ const SUSPENSION_RESEARCH: SourceLink[] = [
   },
 ];
 
+/** Research behind the brake model (PHYSICS.md "Brakes"). Read only, nothing copied. */
+const BRAKE_RESEARCH: SourceLink[] = [
+  {
+    label: 'High temperature fade of brake friction materials',
+    url: 'https://koreascience.or.kr/article/CFKO200111921184854.page',
+    note: 'friction loss at extreme braking temperatures',
+  },
+  {
+    label: 'Wikipedia: Brake fade',
+    url: 'https://en.wikipedia.org/wiki/Brake_fade',
+    note: 'why hot pads lose bite',
+  },
+  {
+    label: 'Counterman: drum brakes',
+    url: 'https://www.counterman.com/drum-brakes-the-beat-goes-on/',
+    note: 'how drum brakes work and where they are used',
+  },
+];
+
 /** Research behind the tyre temperature model (PHYSICS.md "Tyre temperature"). Read only, nothing copied. */
 const TYRE_RESEARCH: SourceLink[] = [
   {
@@ -435,6 +454,9 @@ class MainMenu {
       <p>Each wheel has a spring, a damper that is firmer on rebound than on bump, an anti-roll bar and a progressive
       bump stop, with Soft / Medium / Stiff set-ups per car.</p>
       ${links(SUSPENSION_RESEARCH, '')}
+      <h3>Brakes</h3>
+      <p>Every wheel has a disc or drum of its real size; the pads lose bite when cold and fade when the disc gets too hot.</p>
+      ${links(BRAKE_RESEARCH, '')}
       ${MUSIC_CREDITS.length ? `<h2>Music</h2>${links(MUSIC_CREDITS, '')}` : ''}`;
     this.panel.append(
       header('About'),
