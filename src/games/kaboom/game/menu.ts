@@ -148,6 +148,7 @@ export class Menu {
     if (a === 'back') this.onBack?.();
     else if (a === 'start') {
       if (this.layer.querySelector('.kb-pause-card')) this.api.onResume();
+      else this.layer.querySelector<HTMLElement>('[data-start]')?.click();
     } else if (a === 'confirm') {
       activateFocused(this.layer);
       ensureFocus(this.layer); // the next screen's primary button
@@ -372,17 +373,21 @@ export class Menu {
     refresh();
 
     const actions = el('div', 'kb-actions');
+    const startBtn = this.btn('Start!', 'primary big', () =>
+      this.api.onPlay({
+        critter: s.critter,
+        color: s.color,
+        bots: s.bots,
+        difficulty: s.difficulty,
+        size: s.size,
+        rounds: s.rounds,
+      }),
+    );
+    // The pad starts on the critter picker, not on Start! (Start button = go).
+    startBtn.removeAttribute('data-primary');
+    startBtn.setAttribute('data-start', '');
     actions.append(
-      this.btn('Start!', 'primary big', () =>
-        this.api.onPlay({
-          critter: s.critter,
-          color: s.color,
-          bots: s.bots,
-          difficulty: s.difficulty,
-          size: s.size,
-          rounds: s.rounds,
-        }),
-      ),
+      startBtn,
       this.btn('Back', 'ghost', () => this.welcome()),
     );
     card.append(actions);
