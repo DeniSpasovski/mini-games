@@ -62,7 +62,9 @@ it; a grip-aware steering limit and a grip / diff retune were tried first and dr
 speed, not wheel speed; the handbrake declutches the rear; flimsy props must not be solid colliders; rear-biased AWD at
 full throttle mid-corner power-oversteers (the stability part of TC handles keyboard play); crests in corners unload the
 tyres (loads drop to ~40 %) - place jumps on straights; short surface bumps become damper spikes (wheels are single rays
-with no unsprung mass) - keep `bump` wavelengths long.
+with no unsprung mass) - keep `bump` wavelengths long; the centre / axle lock torque is a stiff spring on a speed
+difference, applied implicitly (`distributeTorque`): as a plain explicit torque it swung light wheels (clutch slipping,
+traction control at its floor) past each other every step.
 
 **Water** (canals / rivers, `GroundProvider.waterLevel` -> `World.waterLevel` -> `gen.waterSurfaceAt`): `Vehicle.waterPass`
 adds hydrodynamic drag `0.5 * rho * Cd * A * v^2` per tyre (A = tyre width x depth) and on the submerged body (width /
@@ -317,7 +319,10 @@ surface **ahead** (`Vehicle.surfaceFor`). By default it never corners above the 
 the stage tests and `F8` keep their pace and a wrong tyre only slows it down ("careful driver"). With
 `autopilot.useExtraGrip = true` corner / braking speed also rises with grip ("limit driver") - the tests use it to measure
 what a grippier tyre is worth. Low grip also caps straight-line speed (a wrong tyre brakes for the next surface change -
-without it the Tarmac tyre arrived at Petralica's gravel at 116 km/h and slid 30 m off the road).
+without it the Tarmac tyre arrived at Petralica's gravel at 116 km/h and slid 30 m off the road). It steers like a driver
+who knows the car swings: the lock shrinks above 9 m/s (past the front tyres' peak slip angle the lock only washes the
+front out), a yaw-rate term damps the swing about the pursuit curve (a rear-drive car with equal axle grip on loose ground
+has a lightly damped yaw mode), and in the air it lifts and holds the wheels near straight.
 
 ### Tyre temperature (`physics/tyre-temp.ts`)
 
@@ -390,8 +395,8 @@ with the mixed and gravel families (`Vehicle.setTyre`, `brakeKit`). The brake ac
 (`wheelPass`), so the tyre force settles at torque / radius.
 
 - **`clamp` is the one tuned number** per axle and kit: the rally cars (tarmac kit 1.37 g, gravel kit 1.20 g of total torque
-  limit, 75 / 72 % front) and the GT2 (1.95 g, 52 % front: 55 % of its weight and the wider slick are at the rear) keep
-  headroom over their tyre; the M3 (1.35 g, 64 % front) is limited by its road tyre, the Zastava and the 22B by their brakes
+  limit, 75 / 72 % front) and the GT2 (1.83 g, 61 % front: more than its 45 % static front weight, so the fronts lock first and it stays stable under
+  braking) keep headroom over their tyre; the M3 (1.35 g, 64 % front) is limited by its road tyre, the Zastava and the 22B by their brakes
   (period or road-car brakes: 100-0 on tarmac 52 / 38 m against ~53 / 36-39 m in road tests).
 - **Pads** (`PADS`): friction factor against the disc's bulk temperature, rising from the cold factor at 20 °C to 1 at `full`,
   flat to `fade`, then falling to a floor: road 100 / 330 / 600 C, sport 150 / 450 / 700, rally 250 / 650 / 850, race 300 /
@@ -423,7 +428,7 @@ Full brake, ABS on (`brake-sweep` style probe, flat ground, warm tyres, medium s
 | ------------- | --------------------- | --------------------- | ------------------------------- |
 | Skoda Rally   | 31.4                  | 45.5                  | 75 % (gravel kit 72 %)          |
 | Bimmer M3     | 36.6                  | 48.0                  | 64 %                            |
-| Bimmer GT2    | 26.8                  | 50.1                  | 52 %                            |
+| Bimmer GT2    | 25.9                  | 49.9                  | 61 %                            |
 | Subaru 22B    | 38.5                  | 44.9                  | 75 %                            |
 | Fiesta WRC    | 31.6                  | 46.0                  | 75 % (72 %)                     |
 | Citroen C4    | 31.1                  | 46.0                  | 75 % (72 %)                     |

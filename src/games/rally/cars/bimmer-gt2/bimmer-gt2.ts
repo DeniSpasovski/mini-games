@@ -58,7 +58,7 @@ const BRAKES: BrakeSet = {
     diameter: 0.38,
     thickness: 0.032,
     pad: 'race',
-    clamp: 11850,
+    clamp: 13000,
     ducted: true,
   },
   rear: {
@@ -66,7 +66,7 @@ const BRAKES: BrakeSet = {
     diameter: 0.332,
     thickness: 0.028,
     pad: 'race',
-    clamp: 12500,
+    clamp: 9600,
     ducted: true,
   },
 };

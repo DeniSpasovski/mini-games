@@ -79,6 +79,8 @@ const TC_FRONT_SLIP = 2.0;
 const TC_WHEELSPIN = 0.6;
 const TC_GAIN = 4;
 const TC_FLOOR = 0.08;
+/** Share of its static load below which a driven wheel no longer counts as spinning (it has no grip to lose). */
+const TC_MIN_LOAD = 0.2;
 /** Stability term (combined slip): its own, gentler trim. */
 const TC_STABILITY_GAIN = 1.2;
 const TC_STABILITY_FLOOR = 0.25;
@@ -87,6 +89,8 @@ const TC_STABILITY_FLOOR = 0.25;
  * sliding (slip ratios blow up near rest), above `ABS_MIN_SPEED` m/s (~11 km/h, like real systems).
  */
 const ABS_SLIP = 1.3;
+/** Weight of the implicit step in the diff / centre lock torque (`distributeTorque`): 2 keeps even three stiff locks in series damped. */
+const LOCK_IMPLICIT = 2;
 const ABS_SLIDE = 1;
 const ABS_MIN_SPEED = 3;
 /** Share of the pad friction lost while the brakes are wet (water at the wheels). */
@@ -516,13 +520,13 @@ export class Vehicle {
       this.speed / this.drivenR,
       handbrakeOn && rwd,
     );
-    this.distributeTorque(handbrakeOn);
     const coupled = this.wheels.filter(
       (w) => w.driven && !(handbrakeOn && !w.isFront),
     );
     const reflected = coupled.length
       ? this.drivetrain.reflectedInertia() / coupled.length
       : 0;
+    this.distributeTorque(handbrakeOn, dt, d.wheelInertia + reflected);
 
     // --- wheels: tyre forces + spin ---------------------------------------------
     let anyContact = false;
@@ -613,10 +617,13 @@ export class Vehicle {
       // Only wheelspin counts (the wheel faster than the ground in the driving direction): a driven wheel held back by
       // engine braking at a closed throttle is not spinning, and cutting the throttle more would only lock the trim.
       const driveSlip = this.drivetrain.gear < 0 ? -w.slipRatio : w.slipRatio;
-      spin = Math.max(
-        spin,
-        driveSlip / (w.surface.peakSlip * TC_WHEELSPIN) - 1,
-      );
+      // A wheel carrying next to no load (the inner wheel of a steep hairpin) spins whatever the throttle: no traction is
+      // lost there, and cutting the power for it left the loaded wheel too little to climb.
+      if (w.load > TC_MIN_LOAD * w.nominalLoad)
+        spin = Math.max(
+          spin,
+          driveSlip / (w.surface.peakSlip * TC_WHEELSPIN) - 1,
+        );
       // Stability: also back off when cornering + traction exceed peak combined grip
       // (stops power-oversteer spins when the throttle is held flat mid-corner). Driven FRONT tyres get a much
       // higher threshold: past their peak they are understeering (too much lock), and cutting power there only bogged
@@ -700,24 +707,38 @@ export class Vehicle {
     return { throttle: c.throttle, brake: c.brake };
   }
 
-  private distributeTorque(handbrakeOn: boolean): void {
+  /**
+   * Splits the drivetrain torque over the wheels: front / rear by `frontSplit`, the centre and axle locks pull the speeds
+   * together. A lock is a stiff spring on the speed difference; applied as a plain explicit torque at the physics rate it
+   * overshoots when the wheels are light (clutch slipping, `inertia` ~ the bare wheel) and the pair swings every step.
+   * `LOCK_IMPLICIT` / (1 + lock x dt / inertia) is the backward-Euler version: the same torque for a stiff drivetrain,
+   * never past equal speeds.
+   */
+  private distributeTorque(
+    handbrakeOn: boolean,
+    dt: number,
+    inertia: number,
+  ): void {
     const d = this.def.drivetrain;
     const T = this.drivetrain.wheelTorque;
     const [fl, fr, rl, rr] = this.wheels;
     let tf = T * d.frontSplit;
     let tr = T * (1 - d.frontSplit);
+    const soften = (lock: number) =>
+      lock / (1 + (LOCK_IMPLICIT * lock * dt) / inertia);
     // Hydraulic handbrake disconnects the rear axle (like a real rally car).
     if (handbrakeOn) {
       tf = d.frontSplit > 0 ? T : 0;
       tr = 0;
     } else if (d.frontSplit > 0 && d.frontSplit < 1) {
       const tc =
-        d.centerLock * ((fl.omega + fr.omega) / 2 - (rl.omega + rr.omega) / 2);
+        soften(d.centerLock) *
+        ((fl.omega + fr.omega) / 2 - (rl.omega + rr.omega) / 2);
       tf -= tc;
       tr += tc;
     }
     const axle = (l: WheelState, r: WheelState, t: number, lock: number) => {
-      const tl = lock * (l.omega - r.omega) * 0.5;
+      const tl = soften(lock) * (l.omega - r.omega) * 0.5;
       l.driveTorque = l.driven ? t / 2 - tl : 0;
       r.driveTorque = r.driven ? t / 2 + tl : 0;
     };

@@ -21,6 +21,9 @@ const REF_MU = 0.86;
 const BRAKE_GAIN = 0.15;
 const BRAKE_REF_DECEL = 13.4;
 
+/** Wheel angle (rad) per rad/s of yaw rate over the rate the pursuit curve asks for. */
+const YAW_DAMP = 0.15;
+
 export class Autopilot {
   /** 0..1, scales cornering speed (1 = brave). */
   aggression = 0.6;
@@ -87,7 +90,11 @@ export class Autopilot {
     // Wheel angle (+ = left): proportional on the pursuit angle (the tyres need
     // slip angle, not just the kinematic angle, to bend the path) + partial
     // sideslip compensation (= counter-steer when the rear steps out).
-    const delta = alpha * 1.6 + beta * 1.0;
+    // + yaw damping: the car should turn at the pursuit curve's rate (v x 2 sin(alpha) / look); a rear-drive car on loose
+    // ground swings about it with a lightly damped yaw mode, and the pursuit alone is too late to stop the swing.
+    const yawWanted = (Math.max(0, speed) * 2 * Math.sin(alpha)) / look;
+    const delta =
+      alpha * 1.6 + beta * 1.0 - YAW_DAMP * (v.angularVelocity.y - yawWanted);
     // Steer input + = right.
     out.steer = Math.max(-1, Math.min(1, -delta / maxSteer));
 

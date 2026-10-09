@@ -84,13 +84,21 @@ describe.each(ALL_CARS.map((c) => c.id))('%s', (carId) => {
 
 // No "Fabia wins the gravel test map" check: the AWD car should feel better on gravel, but a car with more power may be
 // quicker over the stage (by design, src/games/rally/PHYSICS.md "Stage times").
-test('cars rank by character: Bimmer wins on tarmac, Zastava is slowest', () => {
+test('cars rank by character: the GT2 (slicks) wins on tarmac, the road-tyre M3 and the rally car are close, Zastava is slowest', () => {
   const t = (car: string, map: string) => best.get(`${car}/${map}`)!;
-  const [fabia, bimmer, zastava] = ['skoda_rally', 'bimmer_m3', 'zastava_101'];
-  expect(t(bimmer, 'jackie')).toBeLessThan(t(fabia, 'jackie'));
+  const [fabia, m3, gt2, zastava] = [
+    'skoda_rally',
+    'bimmer_m3',
+    'bimmer_gt2',
+    'zastava_101',
+  ];
+  expect(t(gt2, 'jackie')).toBeLessThan(t(fabia, 'jackie'));
+  expect(t(gt2, 'jackie')).toBeLessThan(t(m3, 'jackie'));
+  // A road tyre (grade 0.82) on 1,680 kg against a rally tyre on 1,230 kg, AWD: within 3 % either way.
+  expect(Math.abs(t(m3, 'jackie') / t(fabia, 'jackie') - 1)).toBeLessThan(0.03);
   for (const map of ['test', 'petralica', 'jackie']) {
     expect(t(zastava, map)).toBeGreaterThan(t(fabia, map));
-    expect(t(zastava, map)).toBeGreaterThan(t(bimmer, map));
+    expect(t(zastava, map)).toBeGreaterThan(t(m3, map));
   }
 });
 

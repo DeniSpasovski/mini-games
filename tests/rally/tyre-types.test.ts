@@ -203,4 +203,60 @@ describe('traction control (traction term)', () => {
     for (let i = 0; i < 60; i++) f = assist(DT);
     expect(f).toBeLessThan(0.3);
   });
+
+  test('a driven wheel with next to no load (inner wheel of a steep hairpin) does not cut the throttle', () => {
+    const v = new Vehicle(
+      applySetup(car('bimmer_m3'), 'stiff'),
+      flat('gravel'),
+    );
+    v.reset(new Vector3(), 0);
+    for (let i = 0; i < 2 * PHYSICS_HZ; i++) v.step(DT);
+    const assist = (dt: number): number =>
+      (v as unknown as { tractionAssist(dt: number): number }).tractionAssist(
+        dt,
+      );
+    const [, , rl, rr] = v.wheels;
+    rl.slipRatio = 0.03;
+    rr.slipRatio = 0.9;
+    rr.load = 0;
+    let f = 1;
+    for (let i = 0; i < 60; i++) f = assist(DT);
+    expect(f).toBeGreaterThan(0.9);
+    rr.load = rr.nominalLoad; // the same slip with the wheel loaded is wheelspin
+    for (let i = 0; i < 60; i++) f = assist(DT);
+    expect(f).toBeLessThan(0.3);
+  });
+});
+
+describe('drivetrain locks', () => {
+  test('the centre and axle locks never swing the wheels past equal speed in one step, even with light wheels', () => {
+    // Explicit lock torque on a bare wheel (clutch slipping, traction control at its floor) overshot every step: the
+    // diagonal wheels swapped 4.5 and 1.6 rad/s at 120 Hz and the Fabia sat at 3 km/h on the test map's start.
+    const v = new Vehicle(car('skoda_rally'), flat('gravel'));
+    const dist = (
+      v as unknown as {
+        distributeTorque(handbrake: boolean, dt: number, inertia: number): void;
+      }
+    ).distributeTorque.bind(v);
+    const inertia = 0.4;
+    for (const om of [
+      [2.8, 4.5, 1.6, 2.8],
+      [0, 5, 0, 5],
+      [10, 1, 1, 10],
+    ]) {
+      v.wheels.forEach((w, i) => (w.omega = om[i]));
+      (v.drivetrain as unknown as { wheelTorque: number }).wheelTorque = 200;
+      dist(false, DT, inertia);
+      const next = v.wheels.map(
+        (w) => w.omega + (w.driveTorque / inertia) * DT,
+      );
+      const axle = (a: number, b: number, n: number[]) => n[a] - n[b];
+      const kept = (before: number, after: number) => before * after >= -1e-9; // the order of the two speeds is kept (or they meet)
+      expect(kept(axle(0, 1, om), axle(0, 1, next))).toBe(true);
+      expect(kept(axle(2, 3, om), axle(2, 3, next))).toBe(true);
+      const front = (n: number[]) => (n[0] + n[1]) / 2;
+      const rear = (n: number[]) => (n[2] + n[3]) / 2;
+      expect(kept(front(om) - rear(om), front(next) - rear(next))).toBe(true);
+    }
+  });
 });
