@@ -318,9 +318,9 @@ export const MAP_TIMES_VERSIONS: Record<string, number> = {
   jackie: 1,
 };
 export const CAR_TIMES_VERSIONS: Record<string, number> = {
-  skoda_rally: 3,
-  zastava_101: 3,
-  bimmer_m3: 3,
+  skoda_rally: 4,
+  zastava_101: 4,
+  bimmer_m3: 4,
   bimmer_gt2: 2,
   fiesta: 2,
   subie_22b: 3,
