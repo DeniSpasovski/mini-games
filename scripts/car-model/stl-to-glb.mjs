@@ -379,10 +379,55 @@ const partUv = (name, [x, y, z], t) => {
   if (ay >= az) return [x, z];
   return [x, y];
 };
+const triCentre = (t) =>
+  [0, 1, 2].map(
+    (k) =>
+      (P(simple[t * 3], k) +
+        P(simple[t * 3 + 1], k) +
+        P(simple[t * 3 + 2], k)) /
+      3,
+  );
+const boxHas = (b, c) =>
+  Math.abs(c[0]) >= b.x[0] &&
+  Math.abs(c[0]) <= b.x[1] &&
+  c[1] >= b.y[0] &&
+  c[1] <= b.y[1] &&
+  c[2] >= b.z[0] &&
+  c[2] <= b.z[1];
+/**
+ * `at` of the first box holding triangle t's centre (|x|), x mirrored to t's side. `minNy` / `maxNx`: only faces whose normal y
+ * is above / whose outward normal x (mirrored) is below it.
+ */
+const boxAt = (boxes, t) => {
+  if (!boxes.length) return null;
+  const c = triCentre(t);
+  const b = boxes.find(
+    (f) =>
+      boxHas(f, c) &&
+      fn[t * 3 + 1] > (f.minNy ?? -2) &&
+      Math.sign(c[0]) * fn[t * 3] < (f.maxNx ?? 2),
+  );
+  return b ? [Math.sign(c[0]) * b.at[0], b.at[1], b.at[2]] : null;
+};
+/**
+ * `atlas.flatBoxes`: [{ x, y, z, minNy?, maxNx?, at: [x, y, z] }] body triangles in the box take the side chart's paint at the
+ * point `at`: one flat colour, e.g. the inside of a fender slot instead of whatever blocks the charts have there.
+ * `atlas.backBoxes`: [{ x, y, z, at }] body triangles in the box also get a reversed copy (normals flipped, flat paint at
+ * `at`), so a recess seen from inside is not culled away (the ground showed through a fender slot's back faces).
+ */
+const FLAT_BOXES = A.flatBoxes ?? [];
+const BACK_BOXES = A.backBoxes ?? [];
 for (let t = 0; t < nTri; t++) {
   const part = vertPart[simple[t * 3]];
   const out = prims[part];
-  const chart = part === 0 ? chartOf(t) : `p${part}`;
+  const flat = part === 0 ? boxAt(FLAT_BOXES, t) : null;
+  const chart = flat
+    ? flat[0] > 0
+      ? 'left'
+      : 'right'
+    : part === 0
+      ? chartOf(t)
+      : `p${part}`;
   for (let k = 0; k < 3; k++) {
     const v = simple[t * 3 + k];
     const n = [0, 0, 0];
@@ -399,11 +444,13 @@ for (let t = 0; t < nTri; t++) {
     const p = [P(v, 0), P(v, 1), P(v, 2)];
     const uv =
       part === 0
-        ? chartUv(chart, p).map((c, i) => c / (i ? A.height : A.width))
+        ? chartUv(chart, flat ?? p).map((c, i) => c / (i ? A.height : A.width))
         : partUv(out.name, p, t);
     // Box-projected parts split vertices where the projection axis changes.
     const uvKey =
-      part === 0 ? chart : uv.map((c) => Math.round(c * 2000)).join(',');
+      part === 0
+        ? `${chart}${flat ? ':flat' : ''}`
+        : uv.map((c) => Math.round(c * 2000)).join(',');
     const key = `${v}|${uvKey}|${nn.map((c) => Math.round(c * 50)).join(',')}`;
     let o = out.keys.get(key);
     if (o === undefined) {
@@ -414,6 +461,21 @@ for (let t = 0; t < nTri; t++) {
       out.uv.push(...uv);
     }
     out.idx.push(o);
+  }
+  const back = part === 0 ? boxAt(BACK_BOXES, t) : null;
+  if (back) {
+    const [i0, i1, i2] = [0, 1, 2].map((k) => simple[t * 3 + k]);
+    const uv = chartUv(back[0] > 0 ? 'left' : 'right', back).map(
+      (c, i) => c / (i ? A.height : A.width),
+    );
+    const ids = [i0, i2, i1].map((v) => {
+      const o = out.pos.length / 3;
+      out.pos.push(P(v, 0), P(v, 1), P(v, 2));
+      out.nrm.push(-fn[t * 3], -fn[t * 3 + 1], -fn[t * 3 + 2]);
+      out.uv.push(...uv);
+      return o;
+    });
+    out.idx.push(...ids);
   }
 }
 // Wrap parts: fit the UVs to 0..1 over the part, v from the top down, so a texture covers the
@@ -471,7 +533,9 @@ for (const f of cfg.parts?.fills ?? []) {
 // convex prisms (grille bars, badge shapes, back plates) built in code and added to a material's primitive. `poly` is
 // convex and counter-clockwise seen from outside, in the frame's (u, v) plane: u = +x, v = up the plane, w = out of it
 // (frame: origin + tilt in degrees, the plane leaning back at the top; no frame = u/v/w are x/y/z). The prism runs from
-// w0 to w1; `bevel` insets the front face by that much (a chamfer round the front edge). No back cap (never seen).
+// w0 to w1; `bevel` insets the front face by that much (a chamfer round the front edge); `chart` ('left' | 'right' | ...)
+// gives a solid in the body material that chart's livery atlas UVs (`at`: [x, y, z] = every vertex takes the paint at
+// that point: a flat colour). No back cap (never seen).
 for (const sd of cfg.parts?.solids ?? []) {
   const out = prims[MATERIALS.indexOf(sd.material)];
   if (!out) throw new Error(`parts.solids: unknown material ${sd.material}`);
@@ -514,7 +578,13 @@ for (const sd of cfg.parts?.solids ?? []) {
     for (const p of [A, B, C]) {
       out.pos.push(...p);
       out.nrm.push(...nn);
-      out.uv.push(p[0], p[1] + p[2]);
+      out.uv.push(
+        ...(sd.chart
+          ? chartUv(sd.chart, sd.at ?? p).map(
+              (c, i) => c / (i ? cfg.atlas.height : cfg.atlas.width),
+            )
+          : [p[0], p[1] + p[2]]),
+      );
     }
     out.idx.push(base, base + 1, base + 2);
     tris++;

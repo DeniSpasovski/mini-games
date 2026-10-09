@@ -65,6 +65,33 @@
         "y": [0.4, 0.78],
         "z": [-0.92, -0.25]
       }
+    ],
+    "backBoxes": [
+      {
+        "$comment": "the open rear fender flare beside each tail lamp (|x| 0.7 - 1.0): seen from inside the slot its skin was back-face culled, so the ground showed through -> reversed copies in the slot's flat red",
+        "x": [0.7, 1.0],
+        "y": [0.45, 0.9],
+        "z": [-2.35, -1.85],
+        "at": [0.9, 0.72, -1.6]
+      }
+    ],
+    "flatBoxes": [
+      {
+        "$comment": "inside walls of the open rear fender flare beside each tail lamp (faces turned away from the outside, maxNx; the outer skin keeps its livery blocks): one flat livery red, not the pattern's white / blue blocks. at = a red block on the quarter (z -1.6 is ahead of the white tail)",
+        "x": [0.7, 0.93],
+        "y": [0.5, 0.86],
+        "z": [-2.3, -1.85],
+        "maxNx": 0.3,
+        "at": [0.9, 0.72, -1.6]
+      },
+      {
+        "$comment": "the slot's floor (up-facing ledge), out to the skin: same red",
+        "x": [0.7, 0.93],
+        "y": [0.6, 0.7],
+        "z": [-2.3, -1.85],
+        "minNy": 0.6,
+        "at": [0.9, 0.72, -1.6]
+      }
     ]
   },
   "gltf": {
@@ -111,28 +138,6 @@
           "mirror": true
         },
         "material": "trim"
-      },
-      {
-        "$comment": "inside of the open rear fender flare beside each tail lamp (its flat ledge, y and z in the source's coordinates): plain white, not the livery's blocks / undercoat",
-        "mat": "Body",
-        "x": [0.72, 0.99],
-        "y": [0.54, 0.68],
-        "z": [-3.5, -2.67],
-        "facing": {
-          "|y": 0.9
-        },
-        "material": "flagwhite"
-      },
-      {
-        "$comment": "same, right side",
-        "mat": "Body",
-        "x": [-0.99, -0.72],
-        "y": [0.54, 0.68],
-        "z": [-3.5, -2.67],
-        "facing": {
-          "|y": 0.9
-        },
-        "material": "flagwhite"
       },
       {
         "mat": "Body",
@@ -246,8 +251,7 @@
       "lamphousing",
       "headled",
       "tailled",
-      "redcover",
-      "flagwhite"
+      "redcover"
     ],
     "wrap": {},
     "preview": {
@@ -274,40 +278,52 @@
     },
     "solids": [
       {
-        "$comment": "white back wall inside the open rear fender flare (left; its outline follows the flare skin 8 mm inside, so no corner pokes through): the gap beside the tail lamp no longer shows through. Frame turned 180 deg so its face looks backwards (v = -y, w = -z)",
-        "material": "flagwhite",
+        "$comment": "back wall inside the open rear fender flare (left; its outline follows the flare skin 2 - 5 mm inside, widened inwards behind the tail lamp so nothing shows past it): closes the slot beside the tail lamp. Body material, `at` = one flat livery red (a red block on the quarter). Frame turned 180 deg so its face looks backwards (v = -y, w = -z)",
+        "material": "body",
         "frame": {
           "origin": [0, 0, -1.94],
           "tilt": 180
         },
         "poly": [
-          [0.78, -0.83],
-          [0.825, -0.82],
-          [0.84, -0.8],
-          [0.855, -0.74],
-          [0.87, -0.66],
-          [0.88, -0.6],
-          [0.78, -0.6]
+          [0.7, -0.86],
+          [0.8, -0.84],
+          [0.835, -0.82],
+          [0.846, -0.8],
+          [0.855, -0.76],
+          [0.864, -0.72],
+          [0.874, -0.66],
+          [0.884, -0.6],
+          [0.896, -0.5],
+          [0.55, -0.5],
+          [0.55, -0.72]
         ],
-        "w": [0, 0.02]
+        "w": [0, 0.02],
+        "chart": "left",
+        "at": [0.9, 0.72, -1.6]
       },
       {
-        "$comment": "white back wall inside the open rear fender flare (right; its outline follows the flare skin 8 mm inside, so no corner pokes through): the gap beside the tail lamp no longer shows through. Frame turned 180 deg so its face looks backwards (v = -y, w = -z)",
-        "material": "flagwhite",
+        "$comment": "back wall inside the open rear fender flare (right; its outline follows the flare skin 2 - 5 mm inside, widened inwards behind the tail lamp so nothing shows past it): closes the slot beside the tail lamp. Body material, `at` = one flat livery red (a red block on the quarter). Frame turned 180 deg so its face looks backwards (v = -y, w = -z)",
+        "material": "body",
         "frame": {
           "origin": [0, 0, -1.94],
           "tilt": 180
         },
         "poly": [
-          [-0.78, -0.6],
-          [-0.88, -0.6],
-          [-0.87, -0.66],
-          [-0.855, -0.74],
-          [-0.84, -0.8],
-          [-0.825, -0.82],
-          [-0.78, -0.83]
+          [-0.55, -0.72],
+          [-0.55, -0.5],
+          [-0.896, -0.5],
+          [-0.884, -0.6],
+          [-0.874, -0.66],
+          [-0.864, -0.72],
+          [-0.855, -0.76],
+          [-0.846, -0.8],
+          [-0.835, -0.82],
+          [-0.8, -0.84],
+          [-0.7, -0.86]
         ],
-        "w": [0, 0.02]
+        "w": [0, 0.02],
+        "chart": "right",
+        "at": [-0.9, 0.72, -1.6]
       }
     ]
   }
