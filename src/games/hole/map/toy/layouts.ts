@@ -61,23 +61,23 @@ const Z = (
   anchors,
 });
 
-/** Scale a layout's footprint (the zone plan is drawn at 240 x 160 m; see FLOOR_SCALE). */
-function scaled(l: ToyLayout, k: number): ToyLayout {
+/** Scale a layout's footprint (the zone plan is drawn at 240 x 160 m; see FLOOR_X / FLOOR_Z). */
+function scaled(l: ToyLayout, kx: number, kz: number): ToyLayout {
   return {
     ...l,
-    hx: l.hx * k,
-    hz: l.hz * k,
-    doorX: l.doorX * k,
-    start: { x: l.start.x * k, z: l.start.z * k },
+    hx: l.hx * kx,
+    hz: l.hz * kz,
+    doorX: l.doorX * kx,
+    start: { x: l.start.x * kx, z: l.start.z * kz },
     zones: l.zones.map((z) => ({
       ...z,
-      x0: z.x0 * k,
-      z0: z.z0 * k,
-      x1: z.x1 * k,
-      z1: z.z1 * k,
+      x0: z.x0 * kx,
+      z0: z.z0 * kz,
+      x1: z.x1 * kx,
+      z1: z.z1 * kz,
       anchors: (z.anchors ?? []).map(
         ([id, x, zz, r]) =>
-          [id, x * k, zz * k, r] as [string, number, number, number],
+          [id, x * kx, zz * kz, r] as [string, number, number, number],
       ),
     })),
   };
@@ -271,9 +271,11 @@ const LAYOUT_BASE: ToyLayout = {
   ],
 };
 
-/** Floor scale: 240 x 160 m drawn, FLOOR_SCALE x that built (pacing needs a big floor, see TOY-STORE.md). */
-export const FLOOR_SCALE = 2.5;
-export const LAYOUT = scaled(LAYOUT_BASE, FLOOR_SCALE);
+/** Floor size: the plan is drawn at 240 x 160 m, built FLOOR_X x FLOOR_Z m (220 x 160, the original was 600 x 400). */
+export const FLOOR_X = 220;
+export const FLOOR_Z = 160;
+const SCALE_X = FLOOR_X / 240;
+export const LAYOUT = scaled(LAYOUT_BASE, SCALE_X, FLOOR_Z / 160);
 
 /** Zones that never move: the stockroom (the outdoor dock) and the atrium. */
 const FIXED = new Set(['stockroom', 'atrium']);
@@ -336,9 +338,7 @@ export function shuffledLayout(next: () => number): ToyLayout {
     ([id, x, zz, r], i) =>
       [
         id,
-        (swapTrucks ? -x : x) +
-          (next() - 0.5) * 30 * FLOOR_SCALE +
-          (i ? -20 : 20),
+        (swapTrucks ? -x : x) + (next() - 0.5) * 30 * SCALE_X + (i ? -20 : 20),
         zz,
         next() < 0.5 ? r : r + Math.PI,
       ] as [string, number, number, number],
@@ -361,7 +361,7 @@ export function shuffledLayout(next: () => number): ToyLayout {
       doorX === 0
         ? LAYOUT.start
         : {
-            x: doorX + (doorX < 0 ? 1 : -1) * 22 * FLOOR_SCALE,
+            x: doorX + (doorX < 0 ? 1 : -1) * 22 * SCALE_X,
             z: LAYOUT.start.z,
           },
     zones: LAYOUT.zones.map((z) => moved.get(z.id) ?? z),

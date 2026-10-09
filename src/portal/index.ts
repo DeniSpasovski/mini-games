@@ -21,6 +21,14 @@ const thumbCtx = import.meta.webpackContext('../games', {
 /** The published build: games with `hideInProd` get no card (their pages are still built and reachable by link). */
 const RELEASE_BUILD = import.meta.env.PROD && !__TEST_BUILD__;
 
+/** Card order on the portal; games not listed come after, alphabetically. */
+const GAME_ORDER = ['rally', 'hole', 'kaboom'];
+
+function orderRank(id: string): number {
+  const i = GAME_ORDER.indexOf(id);
+  return i === -1 ? GAME_ORDER.length : i;
+}
+
 interface GameEntry {
   manifest: GameManifest;
   thumbnail?: string;
@@ -41,7 +49,11 @@ function loadGames(): GameEntry[] {
       return { manifest, thumbnail: thumbs.get(manifest.id) };
     })
     .filter(({ manifest }) => isGameListed(manifest, RELEASE_BUILD))
-    .sort((a, b) => a.manifest.title.localeCompare(b.manifest.title));
+    .sort(
+      (a, b) =>
+        orderRank(a.manifest.id) - orderRank(b.manifest.id) ||
+        a.manifest.title.localeCompare(b.manifest.title),
+    );
 }
 
 function escapeHtml(s: string): string {

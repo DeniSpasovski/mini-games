@@ -57,13 +57,15 @@ export function clampCarNumber(n: number): number {
 export function badgePlacement(def: CarDef): {
   z: number;
   y: number;
+  tilt: number;
   width: number;
   height: number;
 } {
-  const { z, y } = def.model.doorBadge;
+  const { z, y, tilt = 0 } = def.model.doorBadge;
   return {
     z,
     y,
+    tilt: (tilt * Math.PI) / 180,
     width: BADGE_WIDTH,
     height: (BADGE_WIDTH * CANVAS_H) / CANVAS_W,
   };
@@ -214,6 +216,31 @@ export interface BadgeTarget {
   matrix: Matrix4;
 }
 
+/** Plate sample points (fractions of its size from the centre). */
+const PLATE_SAMPLES = [
+  [0, 0],
+  [-0.4, -0.4],
+  [0.4, -0.4],
+  [-0.4, 0.4],
+  [0.4, 0.4],
+] as const;
+
+/** x of triangle (a, b, c) at (z, y) if the triangle covers that point seen from the side, else undefined. */
+function surfaceX(
+  a: Vector3,
+  b: Vector3,
+  c: Vector3,
+  z: number,
+  y: number,
+): number | undefined {
+  const d = (b.z - a.z) * (c.y - a.y) - (c.z - a.z) * (b.y - a.y);
+  if (Math.abs(d) < 1e-9) return undefined;
+  const u = ((z - a.z) * (c.y - a.y) - (c.z - a.z) * (y - a.y)) / d;
+  const v = ((b.z - a.z) * (y - a.y) - (z - a.z) * (b.y - a.y)) / d;
+  if (u < 0 || v < 0 || u + v > 1) return undefined;
+  return a.x + (b.x - a.x) * u + (c.x - a.x) * v;
+}
+
 /** How far the plate floats above the paint (m). */
 const LIFT = 0.004;
 
@@ -227,7 +254,7 @@ export function buildBadgeGeometry(
   def: CarDef,
   side: 1 | -1,
 ): BufferGeometry {
-  const { z, y, width, height } = badgePlacement(def);
+  const { z, y, tilt, width, height } = badgePlacement(def);
   const margin = 0.08;
   const pos: number[] = [];
   const nrm: number[] = [];
@@ -262,6 +289,11 @@ export function buildBadgeGeometry(
         continue;
       n.crossVectors(e1.subVectors(b, a), e2.subVectors(c, a)).normalize();
       if (n.x * side < 0.02) continue;
+      // Big skin triangles can cover the plate with no vertex under it: sample the surface at the plate's corners / centre.
+      for (const [dz, dy] of PLATE_SAMPLES) {
+        const x = surfaceX(a, b, c, z + dz * width, y + dy * height);
+        if (x !== undefined) surfX = Math.max(surfX, x * side);
+      }
       for (const [v, k] of [
         [a, i],
         [b, i + 1],
@@ -288,7 +320,7 @@ export function buildBadgeGeometry(
   const decal = new DecalGeometry(
     new Mesh(near),
     new Vector3(side * (surfX + 0.05 - depth / 2), y, z),
-    new Euler(0, (side * Math.PI) / 2, 0),
+    new Euler(0, (side * Math.PI) / 2, side * tilt),
     new Vector3(width, height, depth),
   );
   near.dispose();

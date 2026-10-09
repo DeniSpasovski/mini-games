@@ -50,7 +50,7 @@ const view = (acc) => {
   return new Uint16Array(bin.buffer.slice(off, off + n * 2));
 };
 const GLASS = new Set(['glass', 'ventglass']);
-/** Lamp lenses / covers (part-materials.ts); indicators ('amber') left out. */
+/** Lamp lenses / covers (part-materials.ts; plus textured `src:lamp:` / `src:tail:` parts); indicators ('amber') left out. */
 const LAMPS = new Set([
   'headlight',
   'twinlamp',
@@ -62,6 +62,8 @@ const LAMPS = new Set([
   'tailc',
   'tailled',
   'redcover',
+  'headlight22',
+  'tail22',
 ]);
 const tris = []; // [z0, y0, z1, y1, z2, y2]
 const glassTris = [];
@@ -90,7 +92,7 @@ for (const mesh of gltf.meshes)
         tri.push(pos[idx[t + k] * 3 + 2], pos[idx[t + k] * 3 + 1]);
       tris.push(tri);
       if (GLASS.has(mat)) glassTris.push(tri);
-      if (LAMPS.has(mat)) {
+      if (LAMPS.has(mat) || /^src:(lamp|tail):/.test(mat)) {
         const v = [0, 1, 2].map((k) => idx[t + k] * 3);
         if (v.every((o) => pos[o] > 0.02))
           lampTris.push([

@@ -144,7 +144,7 @@ Picking workflow (`parts.picks`, first pick wins):
    Fit the art to the part's **own outline**: draw the lamp shell's triangles in its wrap UV space (u = |x| - |z|, v =
    y, fitted 0..1) and put the round lamps in the lobes / cut-outs of the housing - that alignment is what makes the car
    recognisable from the front (Bimmer). Lamps that should sit back in the housing: a parallax barrel in the material
-   (`twinLampDepth` in `part-materials.ts`, barrels along the car's forward axis), not new geometry. A print model's
+   (`lampDepth` in `part-materials.ts`, barrels along the car's forward axis; `facing: -1` for rear lamps), not new geometry. A print model's
    domed lamp glass (a bulge over each bowl) gets `parts.flatten` (one smooth cover through the lamp outline, `stl-to-glb.mjs`).
 7. Materials by name in `cars/shared/part-materials.ts`; add names there, never per-car material code. Clearcoat on
    dark parts (grille, wing) reflects the sky and reads grey - keep `clearcoat` <= 0.6 and `envMapIntensity` ~0.5
@@ -284,6 +284,16 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   big triangles crossing the line leave small spikes.
 - **`region` rule** in `glb-to-parts-stl.py` (`gltf.parts`): `{"mat": "Car_body", "region": {"view": "front", "poly": [[x, y], ...], "depth": [zmin, zmax], "mirror": true}, "material": "trim"}`
   = exact outline cut (model coordinates, convex polygon): triangles are clipped along the outline, no saw teeth (bumper intakes).
+- **`uv` rule** in `glb-to-parts-stl.py` (`gltf.parts`): `{"mat": "Car_body", "uv": [u0, u1, v0, v1], "x": [0.28, 1], "material": "headlight22"}` = triangles whose
+  TEXCOORD_0 centroid lies in that texture rectangle (v down). For models that paint lamps into the body texture: each lamp is its own UV island, so
+  this is exact, and the lamp's art can be cut out of the texture rectangle into a lamp sheet (check orientation: correlate UV u / v with
+  |x|-|z| / y of the triangles; the `corner` wrap fits the part bbox, u from the centre outwards, v top down). Needs to come before any `region` of the same primitive.
+- **Modelled lamps with their own (photo) texture** (`cars/subie-22b/`): send each lamp node to a `corner`-wrap lamp part, list both sides'
+  nodes in `lampSheet` (`model.source.json`) and run `bake-lamp-sheet.py <model.source.json>`: it paints the source triangles into the wrap
+  space (lens over housing) and prints the sheet rectangles for the `part-materials.ts` table (`LAMPS22`). The sheet has three rows:
+  base colour, emissive, normal map. A low-poly lamp gets its depth from those two maps - use them, or it reads flat. For real 3D
+  round lamps, `gltf.lampCups` (`glb-to-parts-stl.py`) builds reflector cups + bulbs behind the shell and the lens material gets
+  see-through windows over them (22B tail lamp: `tail22Windows`).
 - **`adjacent` pick** in `segment-stl.py`: small segments touching an earlier-picked material; and for frames that are NOT own segments
   (smooth skins) use a `region` with the glass outline (shapely union of the glass triangles in the view) + `grow`.
 - More `gltf.parts` options (2026-10-04 evening): `facing` (normal component ranges, `"|x|": [0, 0.6]`) on a rule or inside `near`
@@ -292,6 +302,12 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   rear-screen frame welded into the body primitive, without nibbling the panel next to it); `islandTris: [min, max]` (islands of
   that size, e.g. the A-pillar end of a roof-rail island). Find islands first: weld + union-find over one material, print bbox /
   size / mean normal, render them in random colours - then write the boxes.
+- **`arch` rule** (`{"arch": {"axles": [z, ...], "y": hub y, "r": [0.28, 0.5], "toward": 0.3, "|x|": [0.45, 1], "dy": -0.25}, "material": "trim"}`,
+  source coordinates): body triangles round each hub whose normal points at it = wheel-arch liners and inner flare faces modelled
+  into the body primitive, so the arches are black, not painted (worked example `cars/subie-22b/`).
+- **A model's own springs / dampers**: keep them (node rules; `node` takes a list) instead of dropping the whole wheel material - an
+  empty wheel well reads as missing suspension. If the physics track is narrower than the model's, `move: [dx, 0, 0]` (source units,
+  per side) puts each corner on the game's hub (worked example `cars/subie-22b/`).
 - **Roll cage** in the same primitive as seats / door cards: the `tube` rule (`{"tube": {"r": [0.012, 0.024], "score": 0.15,
 "length": 0.3}, "material": "cage"}`) picks whole tube-shaped islands; send steering column / gear rod to `interior` with
   earlier `whole` boxes, flat gusset plates to `cage` by box. `cage` = light grey part material (worked example `cars/skoda-rally/`).
@@ -315,8 +331,20 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
 - **Own rim, centred**: `glb-rim-extract.py` takes the tyre's centroid as the hub and its smallest principal axis as the axle,
   de-cambers the wheel and centres the rim's lip-to-lip span on the tyre's mid-plane (`wheel-stl-to-glb.mjs --keep --barrel <tyre bore>`
   flushes the tyre stub to the lip, so any offset there shows as an off-centre rim). Check with `wheels=1&wcam=FL&body=0`.
+  Rim and tyre in ONE primitive: `--wheel <node-prefix>` splits it by islands (outer islands = tyre).
 - **A modelled cockpit** (seats, dash, cage) is `interior` (+ `parts.maxTriangles`) under `model.glass` (tint + opacity): it shows through
   the windows. A model without one is an empty shell - do not promise an interior; `rawview`-style cut views tell (half the car, view from the cut).
+- **Lamps whose look is their texture** (reflectors, bulbs, lens ribs painted into one lamp sheet, `cars/lancer-evo-6/`): the STL route
+  has no UVs and turns them into flat colour. Drop those primitives in `gltf.drop`, list them in `srcParts` and run
+  `python3 -I scripts/car-model/glb-src-parts.py <model.source.json> <source.glb>` after every `stl-to-glb.mjs`: it appends them with
+  their own UVs as `src:lamp:<png>` / `src:tail:<png>` primitives and writes the sheet next to the GLB (`srcPart` in
+  `part-materials.ts`: the sheet's bright pixels glow; `tail` = brake lamp, red pixels for the brake, neutral white for reversing).
+  `src:int:<png>` keeps a cockpit part's own texture (seat fabric; matt, double-sided, back faces dark). Check each sheet for logos
+  before shipping it (a dash sheet with wordmarks stays out), and credit it like the GLB. Seats that are one open sheet (no back
+  panel: look at them from the rear seats) get a closed back from `srcParts.shells` (dark hull, `cars/lancer-evo-6/`).
+- **Holes where the source is double-sided**: Sketchfab exports mark materials `doubleSided`; our part materials are single-sided,
+  so a cockpit / cowl shell seen from behind shows the ground through it. Name the part `<part>:2s` (`trim:2s`, `interior:2s`)
+  in `parts.materials` / the rules: `partMaterial` draws it double-sided.
 - **Grille openings with no own island** are `region` cuts (front view, convex outline, `depth` behind the bumper face) on the body material;
   grille bars / badge islands are `whole` + `islandTris` boxes. Badges go to `logo` (dropped).
 - `tests/rally/hull-fit.test.ts` spread a whole vertex array into `Math.min`: a 100k-triangle model with a cockpit overflowed the stack (now `reduce`).
@@ -406,11 +434,13 @@ registered car; see `src/games/rally/PHYSICS.md`.
 
 - A GLB's modelled wheel becomes a game wheel with `scripts/car-model/glb-wheel-extract.py` (rim + tyre STLs of one wheel group, axle = STL z,
   outer face at z max) then `wheel-stl-to-glb.mjs --keep --barrel <bore radius it prints>`. A wrong outer-face sign shows as spokes
-  sunk behind the barrel.
+  sunk behind the barrel. A rim that ends at its bead seat (no lip above the tyre bore: max rim radius ~0.62 in the GLB) shows a
+  groove between rim and tyre (the game tyre flares out from its bead): add `--flange 0.68` (a lathed lip, `cars/lancer-evo-6/`).
 - `model.wheelByCompound` gives a compound its own wheel GLB and / or rim colour (`rimColorFor`, `wheelModelFor` in `stl-wheel.ts`).
 - Wide gravel tyres lose grip on loose ground (`sizeFactors`): keep a rally tyre near 235 mm, and raise `rear.grip` for more than the M3's power.
 - A GLB body whose paint / carbon split lives only in its texture: `glb-to-parts-stl.py` rule `{"mat": "Body", "texture": {"maxLum": 0.42, "maxSat": 0.06, "blur": 9, "refine": 0.02}, "y": [..], "z": [..], "material": "carbon"}`
-  labels body triangles by the (blurred) texture and splits them along its border. Put it first in `gltf.parts`, box it tight (dirt looks like carbon), keep `blur` (raw texels speckle: 140k triangles).
+  labels body triangles by the (blurred) texture and splits them along its border. Put it first in `gltf.parts`, box it tight (dirt looks like carbon), keep `blur` (raw texels speckle: 140k triangles). `exclude` UV boxes keep emblems out. The 22B sends its
+  black rubbers, mirrors, lip and diffuser to `trim` this way (without it the body is one flat paint colour).
 - A new car needs its own `suspensionStyle` (`suspension-mesh.test.ts`): add one to `SUSPENSION_STYLE_COLORS`.
 
 ## Bump the times version (last step)

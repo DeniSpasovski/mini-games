@@ -1,3 +1,4 @@
+import { CornerSuspension } from './corner-suspension';
 import {
   AxesHelper,
   BackSide,
@@ -371,6 +372,13 @@ export class CarModel {
   /** Optional suspension detail (model.suspension): hub uprights follow the wheel, links join them to the body. */
   private uprights?: InstancedMesh;
   private links?: InstancedMesh;
+  private corners?: CornerSuspension;
+  private hubQ = [
+    new Quaternion(),
+    new Quaternion(),
+    new Quaternion(),
+    new Quaternion(),
+  ];
   private tmpA = new Vector3();
   private tmpB = new Vector3();
   private tmpC = new Vector3();
@@ -516,7 +524,11 @@ export class CarModel {
                 atlas,
                 info,
                 opts.seed ?? 0,
-                matte ? 'matte' : 'gloss',
+                matte
+                  ? 'matte'
+                  : def.model.gltf?.metallic
+                    ? 'metallic'
+                    : 'gloss',
               );
               // The livery goes on the body; named parts (glass, trim, lamps...) keep
               // their own materials, so the paint can never bleed onto them.
@@ -532,7 +544,11 @@ export class CarModel {
                     : (part ?? mat);
                 // The cockpit sits inside the body's shadow and glass / lamps are far below one shadow texel:
                 // casting them only costs shadow-pass triangles.
-                if (NO_SHADOW_PARTS.has(name)) mesh.castShadow = false;
+                if (
+                  NO_SHADOW_PARTS.has(name.replace(/:2s$/, '')) ||
+                  name.startsWith('src:int:')
+                )
+                  mesh.castShadow = false;
                 if (!part && mesh.visible) painted.push(mesh);
               });
             } else {
@@ -613,6 +629,15 @@ export class CarModel {
         this.links.setColorAt(i, c.set(i % LINKS === 4 ? damper : 0x303338));
       this.root.add(this.links);
     }
+    if (def.model.cornerSuspension) {
+      const preset = p.setups![p.setup!];
+      this.corners = new CornerSuspension(
+        def.model.cornerSuspension,
+        p,
+        preset,
+      );
+      this.root.add(this.corners.group);
+    }
     const restY = p.wheelRadius - p.comHeight;
     this.wheelPos = [
       new Vector3(p.front.track / 2, restY, p.front.z),
@@ -689,10 +714,11 @@ export class CarModel {
     atlas: CarAtlas,
     info: LiveryInfo,
     seed: number,
-    finish: 'gloss' | 'satin' | 'matte',
+    finish: 'gloss' | 'satin' | 'matte' | 'metallic',
   ): MeshPhysicalMaterial {
     const matte = finish === 'matte';
     const satin = finish === 'satin';
+    const metallic = finish === 'metallic';
     const canvas = document.createElement('canvas');
     canvas.width = atlas.width;
     canvas.height = atlas.height;
@@ -703,10 +729,11 @@ export class CarModel {
     map.anisotropy = 8;
     const mat = new MeshPhysicalMaterial({
       map,
-      metalness: matte ? 0 : satin ? 0.1 : 0.2,
-      roughness: matte ? 0.88 : satin ? 0.58 : 0.45,
-      clearcoat: matte ? 0 : satin ? 0.35 : 1,
-      clearcoatRoughness: satin ? 0.4 : 0.12,
+      metalness: matte ? 0 : satin ? 0.1 : metallic ? 0.35 : 0.2,
+      roughness: matte ? 0.88 : satin ? 0.58 : metallic ? 0.34 : 0.45,
+      clearcoat: matte ? 0 : satin ? 0.35 : metallic ? 0.65 : 1,
+      clearcoatRoughness: satin ? 0.4 : metallic ? 0.04 : 0.12,
+      envMapIntensity: 1,
     });
     if (atlas.matteRect && !matte) {
       // Matte patch (wheel arches): rough + no clearcoat where the atlas says so.
@@ -724,8 +751,9 @@ export class CarModel {
         t.flipY = false;
         return t;
       };
+      const bodyRoughness = mat.roughness;
       mat.roughness = 1;
-      mat.roughnessMap = maskTex(Math.round(0.45 * 255), 255);
+      mat.roughnessMap = maskTex(Math.round(bodyRoughness * 255), 255);
       mat.clearcoatMap = maskTex(255, 0);
       this.owned.push(mat.roughnessMap, mat.clearcoatMap);
     }
@@ -781,6 +809,7 @@ export class CarModel {
       this.calipers.setMatrixAt(i, this.m);
       this.discs?.setMatrixAt(i, this.m);
       this.uprights?.setMatrixAt(i, this.m);
+      this.hubQ[i].copy(this.q);
       if (this.links) this.syncLinks(i);
       this.tmpQ.setFromAxisAngle(
         X_AXIS,
@@ -797,6 +826,7 @@ export class CarModel {
     if (this.discs) this.discs.instanceMatrix.needsUpdate = true;
     if (this.uprights) this.uprights.instanceMatrix.needsUpdate = true;
     if (this.links) this.links.instanceMatrix.needsUpdate = true;
+    this.corners?.sync(this.wheelPos, this.hubQ);
   }
 
   /** Wishbones + damper from fixed body points to the (steered, bouncing) upright of wheel i. */
@@ -934,6 +964,9 @@ export class CarModel {
         let c = own.get(m);
         if (!c) {
           c = m.clone();
+          // clone() drops per-material shader hooks (lampDepth's recessed lamps).
+          c.onBeforeCompile = m.onBeforeCompile;
+          c.customProgramCacheKey = m.customProgramCacheKey;
           c.userData = { ...m.userData, brakeOwner: this };
           own.set(m, c);
           this.owned.push(c);
@@ -979,6 +1012,7 @@ export class CarModel {
     this.discs?.dispose();
     this.uprights?.dispose();
     this.links?.dispose();
+    this.corners?.dispose();
   }
 }
 

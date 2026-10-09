@@ -8,12 +8,13 @@ import { CANAL_Y } from '../../src/games/hole/map/spawn';
 import { generateToyStore } from '../../src/games/hole/map/toy/generate';
 import { insideMap, type MapData } from '../../src/games/hole/map/types';
 
-function check(map: MapData, label: string) {
+/** `cell` = size (m) of the grid squares that count as different places (smaller for a small floor). */
+function check(map: MapData, label: string, cell = 20) {
   const rng = new Rng(7);
   const seen = new Set<string>();
   for (let n = 0; n < 40; n++) {
     const s = pickStart(map, () => rng.next());
-    seen.add(`${Math.round(s.x / 20)},${Math.round(s.z / 20)}`);
+    seen.add(`${Math.round(s.x / cell)},${Math.round(s.z / cell)}`);
     expect(insideMap(map, s.x, s.z, 8), `${label}: inside the playfield`).toBe(
       true,
     );
@@ -45,7 +46,7 @@ test('random start: City Island seeds', () => {
 
 test('random start: Toy Emporium seeds', () => {
   for (const seed of [1, 2, 3])
-    check(generateToyStore({ seed }), `toy ${seed}`);
+    check(generateToyStore({ seed }), `toy ${seed}`, 8);
 });
 
 test('random start: Construction Site seeds', () => {

@@ -34,8 +34,34 @@ for _, mat, path, T in g2s.primitives(g, bins):
     if group not in path or mat in drop:
         continue
     (tyre if mat == tyre_mat else rim).append(T)
-rim = np.concatenate(rim)
-tyre = np.concatenate(tyre)
+if tyre_mat == 'auto':
+    # Tyre and rim share one material: weld, take connected pieces; the piece reaching the largest radius is the tyre.
+    allt = np.concatenate(rim)
+    p = allt.reshape(-1, 3)
+    c0 = (p.min(0) + p.max(0)) / 2
+    _, inv = np.unique(np.round(p, 3), axis=0, return_inverse=True)
+    inv = inv.reshape(-1, 3)
+    parent = list(range(inv.max() + 1))
+
+    def find(a):
+        while parent[a] != a:
+            parent[a] = parent[parent[a]]
+            a = parent[a]
+        return a
+
+    for a, b, c in inv:
+        for u, v in ((a, b), (b, c)):
+            ru, rv = find(u), find(v)
+            if ru != rv:
+                parent[ru] = rv
+    comp = np.array([find(a) for a in inv[:, 0]])
+    radius = {k: np.hypot(*(allt[comp == k].reshape(-1, 3)[:, 1:] - c0[1:]).T).max() for k in np.unique(comp)}
+    big = max(radius, key=radius.get)
+    tyre = allt[comp == big]
+    rim = allt[comp != big]
+else:
+    rim = np.concatenate(rim)
+    tyre = np.concatenate(tyre)
 
 pts = tyre.reshape(-1, 3)
 ctr = (pts.min(0) + pts.max(0)) / 2  # axle centre (x is the axle, y / z radial)

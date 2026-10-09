@@ -24,7 +24,9 @@ export const AVAILABLE_CARS: readonly string[] = [
 export const TEST_CARS: readonly string[] = [
   'bimmer_gt2',
   'fiesta',
+  'subie_22b',
   'citroen_c4',
+  'lancer_evo_6',
 ];
 
 /** Maps in the published build. */

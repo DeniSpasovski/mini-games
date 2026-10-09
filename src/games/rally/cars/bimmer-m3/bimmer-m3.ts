@@ -179,6 +179,14 @@ export const bimmerM3: CarDef = {
     // rescaled per tyre size (stl-wheel.ts); `rim` above is the procedural fallback.
     wheelModel: 'bimmer_m3_wheel.glb',
     suspensionStyle: 'race',
+    cornerSuspension: {
+      style: 'race',
+      front: 'strut',
+      rear: 'wishbone',
+      topY: { front: 0.4, rear: 0.36 },
+      topIn: { front: 0.2, rear: 0.22 },
+      driven: ['rear'],
+    },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Rally plate on the door (door shut lines z -0.33 .. 0.83, front = +z), above the side moulding.

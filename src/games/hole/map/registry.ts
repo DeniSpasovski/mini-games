@@ -12,6 +12,7 @@ import {
 import { generateCity, targetPoints } from './generate';
 import { AVAILABLE_MAPS, SHOW_TEST_CONTENT } from '../release';
 import { DEFAULT_TOY, generateToyStore, toyTargetPoints } from './toy/generate';
+import { ITEM_LEVELS } from '../sim/progression';
 import type { MapData } from './types';
 
 /** Everything the game needs to know about a playable map. DOM-free (tests and the bot use it too). */
@@ -37,6 +38,8 @@ export interface MapDef {
   itemMap: ItemMap;
   /** Total points of every seed (before the clear bonus). */
   points: number;
+  /** Highest hole level on this map (default: all levels, `MAX_LEVEL`). */
+  maxLevel?: number;
   generate(seed: number): MapData;
   /** The menu offers a seed stepper ("Island #7"): every seed holds the same points, so one score list covers them all. */
   seeded?: boolean;
@@ -76,6 +79,7 @@ export const ALL_MAPS: MapDef[] = [
     noun: 'store',
     itemMap: 'toy',
     points: toyTargetPoints(DEFAULT_TOY),
+    maxLevel: ITEM_LEVELS,
     generate: (seed) => generateToyStore({ seed }),
     seeded: true,
     puffs: 'confetti',
