@@ -14,8 +14,15 @@ import {
   type SurfaceId,
 } from '../../src/games/rally/physics/surfaces';
 import {
+  gasPressure,
+  pressureDp,
+  pressureGrip,
+  pressureHeat,
+  pressureResponse,
+  targetPressure,
   tempGrip,
   tempLevel,
+  tempResponse,
   trackTemp,
 } from '../../src/games/rally/physics/tyre-temp';
 import {
@@ -238,5 +245,90 @@ describe('vehicle', () => {
     expect(minTemp(v)).toBe(hot);
     v.resetTyreTemps();
     expect(maxTemp(v)).toBeLessThan(hot);
+  });
+});
+
+describe('tyre pressure', () => {
+  test('a fixed fill rises with the tyre temperature and follows the air', () => {
+    expect(gasPressure(1.8, 20, 20)).toBeCloseTo(1.8, 6);
+    expect(gasPressure(1.8, 90, 20)).toBeGreaterThan(gasPressure(1.8, 50, 20));
+    // Cold day: the same tyre temperature leaves the gas cooler; a hot day the other way round.
+    expect(gasPressure(1.8, 20, 0)).toBeLessThan(1.8);
+    expect(gasPressure(1.8, 20, 40)).toBeGreaterThan(1.8);
+  });
+
+  test.each(TYRE_IDS)(
+    '%s: the hot target sits in the rally range, cold start is under it',
+    (id) => {
+      const t = TYRES[id];
+      const target = targetPressure(t.pressure, t.temp);
+      expect(target).toBeGreaterThan(1.95);
+      expect(target).toBeLessThan(2.3);
+      const dp = pressureDp(t.pressure.cold, target);
+      expect(dp).toBeLessThan(-0.1);
+      expect(dp).toBeGreaterThan(-0.22);
+    },
+  );
+
+  test('grip is quiet at the target and falls on both sides, more when under-inflated', () => {
+    expect(pressureGrip(0)).toBe(1);
+    expect(pressureGrip(-0.3)).toBeLessThan(pressureGrip(-0.1));
+    expect(pressureGrip(0.3)).toBeLessThan(pressureGrip(0.1));
+    expect(pressureGrip(-0.2)).toBeLessThan(pressureGrip(0.2));
+    expect(pressureGrip(-0.16)).toBeGreaterThan(0.97);
+  });
+
+  test('a firm tyre responds quicker, an under-inflated one heats more', () => {
+    expect(pressureResponse(0.2)).toBeLessThan(1);
+    expect(pressureResponse(-0.2)).toBeGreaterThan(1);
+    expect(pressureHeat(-0.2)).toBeGreaterThan(1);
+    expect(pressureHeat(0)).toBe(1);
+  });
+
+  test('a stage starts at the cold pressure and gains pressure as the tyres heat up', () => {
+    const v = car('tarmac', 'tarmac');
+    const t = TYRES.tarmac;
+    expect(v.wheels[0].pressure).toBeCloseTo(
+      gasPressure(t.pressure.cold, v.wheels[0].temp, CLIMATE.air),
+      6,
+    );
+    const start = v.wheels[0].pressure;
+    run(v, 12, donut(v));
+    expect(maxTemp(v)).toBeGreaterThan(60);
+    expect(Math.max(...v.wheels.map((w) => w.pressure))).toBeGreaterThan(
+      start + 0.1,
+    );
+  });
+
+  test('no climate: no pressure model', () => {
+    const def = ALL_CARS.find((c) => c.id === 'skoda_rally')!.physics;
+    const v = new Vehicle(def, flat('tarmac'));
+    v.setTyre('tarmac');
+    v.reset(new Vector3(), 0);
+    expect(v.wheels.every((w) => w.pressure === 0 && w.pressureDp === 0)).toBe(
+      true,
+    );
+  });
+});
+
+describe('temperature response and compounds', () => {
+  test.each(TYRE_IDS)(
+    '%s: cold tyres are sharper, cooked ones lazier, loose ground halves it',
+    (id) => {
+      const w = TYRES[id].temp;
+      expect(tempResponse((w.lo + w.hi) / 2, w, 0)).toBe(1);
+      expect(tempResponse(w.lo - 100, w, 0)).toBeLessThan(1);
+      expect(tempResponse(w.hi + 100, w, 0)).toBeGreaterThan(1);
+      expect(1 - tempResponse(w.lo - 100, w, 1)).toBeCloseTo(
+        (1 - tempResponse(w.lo - 100, w, 0)) / 2,
+        6,
+      );
+    },
+  );
+
+  test('softer rubber loses more grip with load and warms faster', () => {
+    expect(TYRES.tarmac.loadSens).toBeGreaterThan(TYRES.mixed.loadSens);
+    expect(TYRES.mixed.loadSens).toBeGreaterThan(TYRES.gravel.loadSens);
+    expect(TYRES.tarmac.heat).toBeGreaterThanOrEqual(TYRES.gravel.heat);
   });
 });

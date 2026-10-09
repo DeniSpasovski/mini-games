@@ -1,5 +1,5 @@
 import { SURFACES, type SurfaceDef, type SurfaceId } from './surfaces';
-import type { TempWindow } from './tyre-temp';
+import type { PressureDef, TempWindow } from './tyre-temp';
 
 /**
  * Tyre compounds. A tyre does not change the tyre model (`tire.ts`): it re-tunes every surface
@@ -30,7 +30,19 @@ export interface TyreDef {
   response: number;
   /** Temperature window (°C) and the grip left when cold / overheated (physics/tyre-temp.ts). */
   temp: TempWindow;
+  /** Heat-up scale (1 = tarmac rubber): harder compounds warm slower (`SLIDE_HEAT` / `ROLL_HEAT` x this). */
+  heat: number;
+  /**
+   * Grip loss per unit of load above the static corner load on hard ground (softer rubber loses more); loose ground
+   * keeps 60 % of it (`LOOSE_LOAD_SENS`).
+   */
+  loadSens: number;
+  /** Cold set pressure (bar) - the hot target follows from the window (`targetPressure`). */
+  pressure: PressureDef;
 }
+
+/** Share of `loadSens` left on fully loose ground. */
+export const LOOSE_LOAD_SENS = 0.6;
 
 export const TYRES: Record<TyreId, TyreDef> = {
   tarmac: {
@@ -51,7 +63,10 @@ export const TYRES: Record<TyreId, TyreDef> = {
     },
     slide: [0.95, 0.9],
     response: 0.8,
-    temp: { lo: 65, hi: 100, cold: 0.8, hot: 0.82 },
+    temp: { lo: 70, hi: 110, cold: 0.74, hot: 0.8 },
+    heat: 1,
+    loadSens: 0.14,
+    pressure: { cold: 1.85 },
   },
   mixed: {
     id: 'mixed',
@@ -71,7 +86,10 @@ export const TYRES: Record<TyreId, TyreDef> = {
     },
     slide: [1, 1],
     response: 1,
-    temp: { lo: 55, hi: 95, cold: 0.86, hot: 0.85 },
+    temp: { lo: 60, hi: 100, cold: 0.8, hot: 0.84 },
+    heat: 1,
+    loadSens: 0.12,
+    pressure: { cold: 1.8 },
   },
   gravel: {
     id: 'gravel',
@@ -91,7 +109,10 @@ export const TYRES: Record<TyreId, TyreDef> = {
     },
     slide: [1.08, 1.03],
     response: 1.25,
-    temp: { lo: 40, hi: 85, cold: 0.92, hot: 0.86 },
+    temp: { lo: 50, hi: 90, cold: 0.88, hot: 0.86 },
+    heat: 0.8,
+    loadSens: 0.1,
+    pressure: { cold: 1.75 },
   },
 };
 

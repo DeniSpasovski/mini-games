@@ -1,18 +1,30 @@
 import { Quaternion, Vector3 } from 'three';
 import { Drivetrain } from './drivetrain';
 import { SURFACES, type SurfaceDef, type SurfaceId } from './surfaces';
-import { computeTire, type TireInput, type TireOutput } from './tire';
 import {
+  computeTire,
+  LOAD_SENSITIVITY,
+  type TireInput,
+  type TireOutput,
+} from './tire';
+import {
+  gasPressure,
+  pressureDp,
+  pressureGrip,
+  pressureHeat,
+  pressureResponse,
   startTemp,
   stepTemp,
+  targetPressure,
   tempGrip,
+  tempResponse,
   type Climate,
   type TyreHeatInput,
 } from './tyre-temp';
 import { axleRadius, carSurfaces, drivenRadius } from './car-tyres';
 import { staticComHeight } from './car-setup';
 import { autoHull } from './hull';
-import { TYRES, type TyreId } from './tyres';
+import { LOOSE_LOAD_SENS, TYRES, type TyreId } from './tyres';
 import type {
   AxleDef,
   CarPhysicsDef,
@@ -97,6 +109,9 @@ export interface WheelState {
   /** Tyre temperature (°C) and the grip factor it gives on the current surface (1 without a climate). */
   temp: number;
   tempGrip: number;
+  /** Tyre pressure (bar, gauge) and its distance from the compound's hot target (0 without a climate). */
+  pressure: number;
+  pressureDp: number;
   contactPoint: Vector3;
   contactNormal: Vector3;
   driveTorque: number;
@@ -191,6 +206,7 @@ export class Vehicle {
     nominalLoad: 1,
     surface: SURFACES.gravel,
     water: 0,
+    heat: 1,
   };
 
   private ground: GroundProvider;
@@ -208,6 +224,8 @@ export class Vehicle {
     nominalLoad: 1,
     grip: 1,
     surface: SURFACES.gravel,
+    loadSens: LOAD_SENSITIVITY,
+    response: 1,
   };
   private tireOut: TireOutput = {
     fx: 0,
@@ -259,6 +277,7 @@ export class Vehicle {
     for (const w of this.wheels)
       w.radius = axleRadius(this.def, tyre, w.isFront ? 'front' : 'rear');
     this.drivenR = drivenRadius(this.def, tyre);
+    for (const w of this.wheels) this.updatePressure(w);
   }
 
   /**
@@ -275,13 +294,27 @@ export class Vehicle {
     const t = this.climate ? startTemp(this.climate) : 20;
     for (const w of this.wheels) {
       w.temp = t;
+      this.updatePressure(w);
       w.tempGrip = this.tempGripOf(w, w.surface);
     }
   }
 
+  /** Pressure of a tyre at its temperature (physics/tyre-temp.ts); nothing without a climate and a tyre. */
+  private updatePressure(w: WheelState): void {
+    if (!this.climate || !this.tyre) {
+      w.pressure = 0;
+      w.pressureDp = 0;
+      return;
+    }
+    const t = TYRES[this.tyre];
+    w.pressure = gasPressure(t.pressure.cold, w.temp, this.climate.air);
+    w.pressureDp = pressureDp(w.pressure, targetPressure(t.pressure, t.temp));
+  }
+
   private tempGripOf(w: WheelState, s: SurfaceDef): number {
     return this.climate && this.tyre
-      ? tempGrip(w.temp, TYRES[this.tyre].temp, s.loose)
+      ? tempGrip(w.temp, TYRES[this.tyre].temp, s.loose) *
+          pressureGrip(w.pressureDp)
       : 1;
   }
 
@@ -352,6 +385,8 @@ export class Vehicle {
         surface: SURFACES.gravel,
         temp: 20,
         tempGrip: 1,
+        pressure: 0,
+        pressureDp: 0,
         contactPoint: new Vector3(),
         contactNormal: new Vector3(0, 1, 0),
         driveTorque: 0,
@@ -749,6 +784,17 @@ export class Vehicle {
     w.tempGrip = this.tempGripOf(w, w.surface);
     ti.grip = w.axle.grip * w.tempGrip;
     ti.surface = w.surface;
+    if (this.tyre) {
+      const t = TYRES[this.tyre];
+      ti.loadSens = t.loadSens * (1 - (1 - LOOSE_LOAD_SENS) * w.surface.loose);
+      ti.response = this.climate
+        ? tempResponse(w.temp, t.temp, w.surface.loose) *
+          pressureResponse(w.pressureDp)
+        : 1;
+    } else {
+      ti.loadSens = LOAD_SENSITIVITY;
+      ti.response = 1;
+    }
 
     // Semi-implicit wheel spin: linearise Fx around the current omega so stiff
     // tyres stay stable at the physics rate.
@@ -804,7 +850,9 @@ export class Vehicle {
       h.nominalLoad = w.nominalLoad;
       h.surface = w.surface;
       h.water = this.waterDepth;
+      h.heat = TYRES[this.tyre].heat * pressureHeat(w.pressureDp);
       w.temp = stepTemp(h, c, dt);
+      this.updatePressure(w);
     }
   }
 

@@ -40,21 +40,21 @@ and `physics/car-setup.ts`. Workflow:
    tyre, set-up, effective `mu`) and `F4` (force vectors + hull).
 3. Inspect geometry / hull in the car viewer (`hull=1`, `tyre=`).
 
-| Symptom                        | Knobs                                                                                            |
-| ------------------------------ | ------------------------------------------------------------------------------------------------ |
-| Spins under power              | raise `rear.grip` relative to `front.grip`, lower `rearDiffLock`, more `frontSplit`, less torque |
-| Won't turn when braking        | ABS on (`B`); without it the fronts lock and the car goes straight on whatever the steering does |
-| Won't turn in / understeer     | `front.grip`, `maxSteerDeg`, softer `front.antiRoll`, stiffer `rear.antiRoll`                    |
-| Rolls over too easily          | raise `forceHeight` (0.15 -> 0.3), lower `comHeight`, stiffer `antiRoll`                         |
+| Symptom                        | Knobs                                                                                                    |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| Spins under power              | raise `rear.grip` relative to `front.grip`, lower `rearDiffLock`, more `frontSplit`, less torque         |
+| Won't turn when braking        | ABS on (`B`); without it the fronts lock and the car goes straight on whatever the steering does         |
+| Won't turn in / understeer     | `front.grip`, `maxSteerDeg`, softer `front.antiRoll`, stiffer `rear.antiRoll`                            |
+| Rolls over too easily          | raise `forceHeight` (0.15 -> 0.3), lower `comHeight`, stiffer `antiRoll`                                 |
 | Leans / dives too little       | lower `forceHeight` (tyre forces reach the body higher up), softer `antiRoll` (dive: `forceHeight` only) |
-| Floaty / bouncy                | raise `bump` / `rebound` dampers (critical ≈ 2·sqrt(k·m_corner))                                 |
-| Bottoms out on jumps           | more `travel`, stiffer `spring`, the preset's `ride` (ride height is kept automatically)         |
-| Surface too grippy / too icy   | `mu`, `slide` (grip left when sliding), `peakAngle` in `surfaces.ts`                             |
-| Twitchy at speed on gravel     | lower surface `bump` (it's an excitation, long wavelengths only)                                 |
-| A tyre too strong / too weak   | its row in `TYRES` (`physics/tyres.ts`): `grip[surface]`, `slide`, `response`                    |
-| Wide / thin tyres off          | `sizeFactors` exponents in `physics/car-tyres.ts`, or the car's `tyres` sizes                    |
-| Set-up makes too little change | set-up match factors in `carSurfaces` (`0.12` rough / `0.06` smooth), or the preset points       |
-| Too slow / fast in water       | `WHEEL_WATER_CD`, `BODY_WATER_CD`, intake height (`waterPass` in `physics/vehicle.ts`)           |
+| Floaty / bouncy                | raise `bump` / `rebound` dampers (critical ≈ 2·sqrt(k·m_corner))                                         |
+| Bottoms out on jumps           | more `travel`, stiffer `spring`, the preset's `ride` (ride height is kept automatically)                 |
+| Surface too grippy / too icy   | `mu`, `slide` (grip left when sliding), `peakAngle` in `surfaces.ts`                                     |
+| Twitchy at speed on gravel     | lower surface `bump` (it's an excitation, long wavelengths only)                                         |
+| A tyre too strong / too weak   | its row in `TYRES` (`physics/tyres.ts`): `grip[surface]`, `slide`, `response`                            |
+| Wide / thin tyres off          | `sizeFactors` exponents in `physics/car-tyres.ts`, or the car's `tyres` sizes                            |
+| Set-up makes too little change | set-up match factors in `carSurfaces` (`0.12` rough / `0.06` smooth), or the preset points               |
+| Too slow / fast in water       | `WHEEL_WATER_CD`, `BODY_WATER_CD`, intake height (`waterPass` in `physics/vehicle.ts`)                   |
 
 Lessons already learned (also in the skill): "can't turn into corners" was the fronts locking under braking (ABS fixed
 it; a grip-aware steering limit and a grip / diff retune were tried first and dropped); auto gearbox decisions use ground
@@ -295,11 +295,25 @@ pages and the reference tests above are unchanged).
   grip input (`tire.ts` and the cached surface tables are untouched); the autopilot's corner plan includes it
   (`tempGripFor`).
 
-| Compound | Window    | Cold grip | Overheated grip |
-| -------- | --------- | --------- | --------------- |
-| Tarmac   | 65-100 °C | 0.80      | 0.82            |
-| Mixed    | 55-95 °C  | 0.86      | 0.85            |
-| Gravel   | 40-85 °C  | 0.92      | 0.86            |
+| Compound | Window    | Cold grip | Overheated grip | Heat-up | Load sensitivity | Cold pressure |
+| -------- | --------- | --------- | --------------- | ------- | ---------------- | ------------- |
+| Tarmac   | 70-110 °C | 0.74      | 0.80            | 1.0     | 0.14             | 1.85 bar      |
+| Mixed    | 60-100 °C | 0.80      | 0.84            | 1.0     | 0.12             | 1.80 bar      |
+| Gravel   | 50-90 °C  | 0.88      | 0.86            | 0.8     | 0.10             | 1.75 bar      |
+
+Beyond the grip level (`TyreDef.heat`, `loadSens`, `pressure`; numbers scaled from road / FSAE / rally press data, not
+measured on rally tyres):
+
+- **Response:** a cold tyre peaks at a smaller slip angle (x0.85 at the cold floor), a cooked one is lazier (x1.15):
+  `tempResponse` scales `peakSlip` / `peakAngle` in `tire.ts` (`TireInput.response`); loose ground halves it.
+- **Load sensitivity:** grip lost per unit of load above the static corner load, per compound (softer rubber loses more),
+  x0.6 on fully loose ground; it is what makes the load transfer of a leaning car cost grip.
+- **Pressure:** a fixed fill at 20 °C (`FILL_TEMP`) follows the gas law with the gas at half the tread's rise over the air
+  (`gasPressure`), so a stage starts ~15 % under the hot target (`targetPressure`: the window's middle) and a cold /
+  hot day moves it a few %. Off target: grip x`1 - 0.7 dp²` under, `1 - 0.4 dp²` over, response x`1/(1 + 0.5 dp)`, heat
+  x`1 + 0.8 (under) / 0.3 (over)` (`WheelState.pressure`; `F2` shows it). Pressure effects stay under ~2 % near target.
+- **Not modelled:** a direct track-temperature term (research bound: < 1.5 % on the shipped stages, the tyre's own
+  temperature dominates), tyre wear, wet.
 
 Feel targets (`tests/rally/tyre-temp.test.ts`, Skoda Rally, tarmac tyre, 20 °C): a 60 km/h circle reaches the window in
 ~14 s, a donut overheats it in ~6.5 s and 60 km/h straight cools it back in ~10 s; cold vs warm lateral g 0.81 vs 0.95.

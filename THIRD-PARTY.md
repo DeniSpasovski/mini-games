@@ -65,6 +65,8 @@ Papers and articles read to tune the rally tyre temperature and suspension model
 - https://pmc.ncbi.nlm.nih.gov/articles/PMC9459800/
 - https://www.izzeracing.com/ewExternalFiles/Izze_Racing_White_Paper_Tire_Temperature.pdf
 - https://arxiv.org/pdf/2602.22078
+- https://trackdaytire.com/wp-content/uploads/2024/08/2024-Michelin-Motorsports-Pressure-Recommendations.pdf
+- https://www.tirerack.com/tires/tests/confirming-optimal-track-tire-pressures-14-extreme-performance-competition-tires-tested-on-a-bmw-m2?ttid=357
 - https://press.pirelli.com/p-zero-ra-wrc-shows-reliability-on-wet-and-dry-asphalt/
 - https://press.pirelli.com/scorpion-kx-soft-stars-on-opening-day-of-rally-finland/
 - https://www.gamedeveloper.com/design/implementing-racing-games-an-intro-to-different-approaches-and-their-game-design-trade-offs

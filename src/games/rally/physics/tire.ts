@@ -50,6 +50,10 @@ export interface TireInput {
   nominalLoad: number;
   grip: number;
   surface: SurfaceDef;
+  /** Grip loss per unit of load above nominal (the compound's, `LOAD_SENSITIVITY` without a tyre). */
+  loadSens: number;
+  /** Scales the surface's peak slip / peak angle: < 1 = sharper (cold, over-inflated), > 1 = lazier (hot, soft). */
+  response: number;
 }
 
 export interface TireOutput {
@@ -64,8 +68,8 @@ export interface TireOutput {
 /** Below these speeds slip uses a fixed denominator, keeping low speed stable. */
 export const LOW_SPEED_LONG = 2.5;
 export const LOW_SPEED_LAT = 3.0;
-/** Grip loss per unit of load above nominal (real tyres lose μ with load). */
-const LOAD_SENSITIVITY = 0.08;
+/** Grip loss per unit of load above nominal (real tyres lose μ with load); a compound brings its own (`TyreDef.loadSens`). */
+export const LOAD_SENSITIVITY = 0.08;
 const DEG = Math.PI / 180;
 
 export function computeTire(i: TireInput, out: TireOutput): TireOutput {
@@ -81,8 +85,8 @@ export function computeTire(i: TireInput, out: TireOutput): TireOutput {
     return out;
   }
   const surf = i.surface;
-  const sx = sr / surf.peakSlip;
-  const sy = sa / (surf.peakAngle * DEG);
+  const sx = sr / (surf.peakSlip * i.response);
+  const sy = sa / (surf.peakAngle * i.response * DEG);
   const s = Math.hypot(sx, sy);
   out.slip = s;
   if (s < 1e-6) {
@@ -94,7 +98,7 @@ export function computeTire(i: TireInput, out: TireOutput): TireOutput {
   const mu =
     surf.mu *
     i.grip *
-    Math.min(1.15, Math.max(0.6, 1 - LOAD_SENSITIVITY * (loadRatio - 1)));
+    Math.min(1.15, Math.max(0.6, 1 - i.loadSens * (loadRatio - 1)));
   const f = mu * i.load * gripCurve(s, tireShape(surf.slide));
   out.fx = (f * sx) / s;
   out.fy = (-f * sy) / s;

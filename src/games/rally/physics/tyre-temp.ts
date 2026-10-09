@@ -24,6 +24,15 @@ export interface TempWindow {
   hot: number;
 }
 
+/** Cold set pressure of a compound (bar, gauge, filled at `FILL_TEMP` with the tyre at air temperature). */
+export interface PressureDef {
+  cold: number;
+}
+
+/** Sharpness (< 1) / laziness (> 1) of the tyre at the cold floor / cooked: `tire.ts` scales peak slip + angle by it. */
+export const COLD_RESPONSE = 0.85;
+export const HOT_RESPONSE = 1.15;
+
 /** °C below the window over which a tyre goes from `cold` to full grip. */
 export const COLD_SPAN = 45;
 /** °C above the window over which a tyre goes from full grip to `hot`. */
@@ -91,6 +100,57 @@ export function tempLevel(t: number, w: TempWindow): number {
   return Math.min(3, 2 + (t - w.hi) / HOT_SPAN);
 }
 
+/**
+ * Peak slip / angle multiplier from the tyre temperature (`TireInput.response`): a cold tyre is stiff and peaks at a
+ * smaller slip angle, a cooked one is soft and lazy. Same shape as `tempGrip`; loose ground halves it.
+ */
+export function tempResponse(t: number, w: TempWindow, loose: number): number {
+  let r = 1;
+  if (t < w.lo)
+    r = 1 + (COLD_RESPONSE - 1) * (1 - smooth(1 - (w.lo - t) / COLD_SPAN));
+  else if (t > w.hi) r = 1 + (HOT_RESPONSE - 1) * smooth((t - w.hi) / HOT_SPAN);
+  return 1 + (r - 1) * (1 - 0.5 * loose);
+}
+
+// Tyre pressure: gas law on a fixed fill. The gas runs cooler than the tread (`GAS_SHARE` of the way up from the air).
+/** Air the tyres are filled at (°C) and atmospheric pressure (bar). */
+export const FILL_TEMP = 20;
+const ATM = 1.013;
+const GAS_SHARE = 0.5;
+
+/** Gauge pressure (bar) of a tyre at `tyreTemp` in `air` (both °C), from its cold set pressure. */
+export function gasPressure(
+  cold: number,
+  tyreTemp: number,
+  air: number,
+): number {
+  const gas = air + GAS_SHARE * (tyreTemp - air);
+  return ((cold + ATM) * (gas + 273)) / (FILL_TEMP + 273) - ATM;
+}
+
+/** Pressure the tyre wants hot: what it reaches at the middle of its window on a `FILL_TEMP` day. */
+export function targetPressure(p: PressureDef, w: TempWindow): number {
+  return gasPressure(p.cold, (w.lo + w.hi) / 2, FILL_TEMP);
+}
+
+/** Relative distance of the pressure from its target (-0.16 = 16 % under). */
+export const pressureDp = (p: number, target: number) => (p - target) / target;
+
+/** Grip factor of a pressure off its target: quiet near it, a little more to lose when under-inflated. */
+export function pressureGrip(dp: number): number {
+  return 1 - (dp < 0 ? 0.7 : 0.4) * dp * dp;
+}
+
+/** Peak slip / angle multiplier: a firm tyre (+ dp) is stiffer and quicker, a soft one vaguer. */
+export function pressureResponse(dp: number): number {
+  return 1 / (1 + 0.5 * dp);
+}
+
+/** Heat build-up multiplier: an under-inflated carcass flexes and heats more. */
+export function pressureHeat(dp: number): number {
+  return 1 + 0.8 * Math.max(0, -dp) + 0.3 * Math.max(0, dp);
+}
+
 /** What a tyre needs for one temperature step. */
 export interface TyreHeatInput {
   temp: number;
@@ -105,6 +165,8 @@ export interface TyreHeatInput {
   surface: SurfaceDef;
   /** Water depth at the wheel (m), 0 when dry. */
   water: number;
+  /** Heat-up scale of the compound (`TyreDef.heat`) times the pressure's (`pressureHeat`). */
+  heat: number;
 }
 
 /** New tyre temperature after `dt` seconds. */
@@ -114,8 +176,12 @@ export function stepTemp(i: TyreHeatInput, c: Climate, dt: number): number {
   if (i.contact) {
     const s = i.surface;
     rate +=
-      (SLIDE_HEAT * i.force * i.slideSpeed * (1 - LOOSE_SLIDE_SHARE * s.loose) +
-        ROLL_HEAT * i.speed * i.load) /
+      (i.heat *
+        (SLIDE_HEAT *
+          i.force *
+          i.slideSpeed *
+          (1 - LOOSE_SLIDE_SHARE * s.loose) +
+          ROLL_HEAT * i.speed * i.load)) /
         i.nominalLoad -
       ROAD_COOL * (t - trackTemp(c, s));
   }

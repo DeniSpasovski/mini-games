@@ -143,6 +143,16 @@ const TYRE_RESEARCH: SourceLink[] = [
     url: 'https://press.pirelli.com/scorpion-kx-soft-stars-on-opening-day-of-rally-finland/',
     note: 'gravel tyre temperatures',
   },
+  {
+    label: 'Michelin Motorsport: rally tyre pressures',
+    url: 'https://trackdaytire.com/wp-content/uploads/2024/08/2024-Michelin-Motorsports-Pressure-Recommendations.pdf',
+    note: 'cold start and hot pressures, effects of over / under-inflation',
+  },
+  {
+    label: 'Tire Rack: optimal track tyre pressures',
+    url: 'https://www.tirerack.com/tires/tests/confirming-optimal-track-tire-pressures-14-extreme-performance-competition-tires-tested-on-a-bmw-m2?ttid=357',
+    note: 'grip vs pressure on the skidpad',
+  },
 ];
 
 /**
