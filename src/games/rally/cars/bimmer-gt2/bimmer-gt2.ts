@@ -13,7 +13,7 @@ const BODY = {
   width: 1.98,
   height: 1.26,
   comHeight: 0.46,
-  // 300 / 30 R19 tarmac tyres.
+  // Reference radius (the model's hubs); the slicks are 30/66-18 front, 31/71-18 rear (rear 2.5 cm taller).
   wheelRadius: 0.334,
 };
 
@@ -40,7 +40,8 @@ const REAR: AxleDef = {
   rebound: 7020,
   travel: 0.13,
   antiRoll: 17000,
-  brakeTorque: 1250,
+  // x 1.076 with the taller rear slick (same brake force at the road, same balance).
+  brakeTorque: 1345,
   handbrakeTorque: 3000,
   steer: 0,
   grip: 1.6,
@@ -92,11 +93,20 @@ export const bimmerGt2: CarDef = {
     inertiaScale: 0.9,
     hardBumpStop: true,
     wheelWidth: 0.28,
+    // Staggered like the race car: slicks 30/66-18 front / 31/71-18 rear (width cm / overall diameter cm - rim) =
+    // 300/34 R18 / 310/41 R18. Rally compounds keep the taller rear; gravel runs one width (a wide tyre ploughs).
     tyres: {
-      size: { width: 0.3, aspect: 30, rim: 19 },
+      size: { width: 0.3, aspect: 34, rim: 18 },
       byCompound: {
-        mixed: { width: 0.245, aspect: 45, rim: 18 },
+        mixed: { width: 0.245, aspect: 42, rim: 18 },
         gravel: { width: 0.235, aspect: 50, rim: 17 },
+      },
+      rear: {
+        size: { width: 0.31, aspect: 41, rim: 18 },
+        byCompound: {
+          mixed: { width: 0.265, aspect: 48, rim: 18 },
+          gravel: { width: 0.235, aspect: 60, rim: 17 },
+        },
       },
     },
     wheelInertia: 1.8,
@@ -135,16 +145,17 @@ export const bimmerGt2: CarDef = {
     gearbox: {
       ratios: [2.9, 2.05, 1.6, 1.3, 1.1, 0.95],
       reverse: 3.2,
-      finalDrive: 4.2,
+      // x 1.076 with the taller rear slicks: the gear speeds stay (no published GT2 ratios to match).
+      finalDrive: 4.52,
       shiftTime: 0.1,
       efficiency: 0.9,
       upshiftRpm: 8000,
       downshiftRpm: 4800,
     },
     gearings: {
-      short: { finalDrive: 4.8 },
-      medium: { finalDrive: 4.2 },
-      long: { finalDrive: 3.8 },
+      short: { finalDrive: 5.16 },
+      medium: { finalDrive: 4.52 },
+      long: { finalDrive: 4.09 },
     },
     drivetrain: {
       frontSplit: 0,

@@ -145,6 +145,12 @@ export interface TyreSize {
   rim: number;
 }
 
+/** One axle's tyre sizes: `size` = default, `byCompound` = per compound overrides. */
+export interface AxleTyres {
+  size: TyreSize;
+  byCompound?: Partial<Record<TyreId, TyreSize>>;
+}
+
 /** Suspension set-up preset names; the menu shows them as spring colours yellow / orange / red. */
 export type SetupId = 'soft' | 'medium' | 'stiff';
 
@@ -198,18 +204,20 @@ export interface CarPhysicsDef {
   hardBumpStop?: boolean;
   /** Scales the box inertia (real cars are ~0.8-1.0 of a solid box). */
   inertiaScale: number;
+  /**
+   * Wheel radius (m) on the default front size (`tyres.size`): the model's hubs, arches, hull and boxy profile. Other
+   * sizes roll on this scaled by their marking (`axleRadius`, physics/car-tyres.ts), within 4 % (tests/rally/car-setup.test.ts).
+   */
   wheelRadius: number;
-  /** Default tyre width (m): water drag + hull. The drawn / graded width is `tyres` (within 4 cm of this). */
+  /** Default tyre width (m): water drag + hull. The drawn / graded width is `tyres` (within 5 cm of this). */
   wheelWidth: number;
   /**
-   * Tyre sizes (see physics/car-tyres.ts for what width / sidewall do to grip). `size` is the default for every
-   * compound, `byCompound` overrides it (rally cars change rim size with the compound). The overall radius of every
-   * size must match `wheelRadius` (tests/rally/tyre-size.test.ts) - gearing and ride height never change.
+   * Tyre sizes per compound (see physics/car-tyres.ts for what width / sidewall do to grip): `size` is the default,
+   * `byCompound` overrides it (rally cars change rim size with the compound). A taller size than the default rolls on a
+   * bigger radius, lifting its end of the car (the hubs stay put) and lengthening the gearing. `rear` = the rear axle's
+   * sizes when they differ (staggered RWD cars; missing = the front's).
    */
-  tyres: {
-    size: TyreSize;
-    byCompound?: Partial<Record<TyreId, TyreSize>>;
-  };
+  tyres: AxleTyres & { rear?: AxleTyres };
   /** Per-wheel spin inertia (kg·m²), engine inertia is added for driven wheels. */
   wheelInertia: number;
   /** Max steering angle of the front wheels (deg). */

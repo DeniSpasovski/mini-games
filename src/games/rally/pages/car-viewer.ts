@@ -9,7 +9,7 @@ import { MAPS } from '../maps';
 import { isTestCar, listLabel, TEST_NOTE } from '../release';
 import { parseVec3, ViewerShell } from '../debug/viewer-shell';
 import { peakPower, sampleTorque } from '../physics/drivetrain';
-import { tyreSizeFor } from '../physics/car-tyres';
+import { axleRadius, tyreSizeFor } from '../physics/car-tyres';
 import { WheelDebug } from '../debug/wheel-debug';
 import { rimRadius } from '../cars/shared/tyre-mesh';
 
@@ -164,7 +164,7 @@ vars.select('Tyre', state.tyre, [...TYRE_IDS], (v) => {
   state.tyre = v;
   sync();
   model?.setTyre(parseTyre(v, null));
-  wheelDebug?.setTyre(tyreSize());
+  wheelDebug?.setTyre(fittedTyre());
   updateWheelInfo();
 });
 vars.select(
@@ -298,10 +298,7 @@ function applyBadge(): void {
 
 let wheelDebug: WheelDebug | undefined;
 
-function tyreSize() {
-  const def = getCar(state.car);
-  return tyreSizeFor(def.physics, parseTyre(state.tyre, 'mixed'));
-}
+const fittedTyre = () => parseTyre(state.tyre, 'mixed');
 
 function applyWheelDebug(): void {
   wheelDebug?.dispose();
@@ -310,7 +307,7 @@ function applyWheelDebug(): void {
     wheelInfo({});
     return;
   }
-  wheelDebug = new WheelDebug(model, tyreSize(), updateWheelInfo);
+  wheelDebug = new WheelDebug(model, fittedTyre(), updateWheelInfo);
   updateWheelInfo();
 }
 
@@ -318,7 +315,13 @@ function updateWheelInfo(): void {
   if (!wheelDebug) return;
   const cm = (v: number) => `${(v * 100).toFixed(1)}`;
   const rows: Record<string, string> = {
-    tyre: `R ${cm(getCar(state.car).physics.wheelRadius)} cm, bead ${cm(rimRadius(tyreSize()))} cm`,
+    tyre: (['front', 'rear'] as const)
+      .map((a) => {
+        const p = getCar(state.car).physics;
+        const r = axleRadius(p, fittedTyre(), a);
+        return `${a} R ${cm(r)} cm, bead ${cm(rimRadius(tyreSizeFor(p, fittedTyre(), a)))} cm`;
+      })
+      .join(' · '),
   };
   for (const r of wheelDebug.report())
     rows[`arch ${r.wheel}`] = r.arch
@@ -335,8 +338,8 @@ function applyParts(force = false): void {
     if (!on) o.visible = false;
     else if (force) o.visible = true;
   };
-  set(w.tyres, state.tyres);
-  set(w.rims, state.rims);
+  for (const t of w.tyres) set(t, state.tyres);
+  for (const r of w.rims) set(r, state.rims);
   for (const b of w.brakes) set(b, state.brakes);
   set(model.body, state.body);
 }
@@ -350,8 +353,8 @@ function rebuild(): void {
     tyre: parseTyre(state.tyre, 'mixed'),
     fallback: state.fallback,
   });
-  // Put the car on the ground (model root is the centre of mass).
-  model.root.position.y = def.physics.comHeight;
+  // Put the car on the ground (model root is the centre of mass; taller tyres lift it).
+  model.root.position.y = def.physics.comHeight + model.tyreLift;
   model.debug.visible = state.hull;
   scene.add(model.root);
   if (!state.paint) paintCtl.set(model.livery.base);
@@ -474,7 +477,7 @@ shell.onFrame((dt) => {
     model.wheelSpin[i] = spin;
   }
   // Body moves opposite to the wheels when compressing.
-  model.root.position.y = p.comHeight;
+  model.root.position.y = p.comHeight + model.tyreLift;
   model.syncWheels();
   wheelDebug?.update();
   applyParts();

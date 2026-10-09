@@ -12,7 +12,7 @@ const BODY = {
   width: 1.98,
   height: 1.4,
   comHeight: 0.48,
-  // Street E46 wheels: 245/40 R18 tarmac, 205/65 R16 gravel.
+  // Reference radius (the model's hubs). Road tyres 245/40 R18 front, 265/40 R18 rear; 205/65 R16 gravel.
   wheelRadius: 0.33,
 };
 
@@ -100,9 +100,15 @@ export const bimmerM3: CarDef = {
     inertiaScale: 0.9,
     hardBumpStop: true,
     wheelWidth: 0.235,
+    // Staggered like the V8 road M3 whose engine it has (E92: 245/40 R18 on 8.5J front, 265/40 R18 on 9.5J rear);
+    // gravel runs one size.
     tyres: {
       size: { width: 0.245, aspect: 40, rim: 18 },
       byCompound: { gravel: { width: 0.205, aspect: 65, rim: 16 } },
+      rear: {
+        size: { width: 0.265, aspect: 40, rim: 18 },
+        byCompound: { gravel: { width: 0.205, aspect: 65, rim: 16 } },
+      },
     },
     wheelInertia: 1.6,
     maxSteerDeg: 30,
@@ -136,9 +142,11 @@ export const bimmerM3: CarDef = {
       launchRpm: 4500,
     },
     gearbox: {
+      // Closer than the E92's 6-speed (4.055 ... 0.872, 3.846 final): with its short 1st and wide steps the RWD V8
+      // spins up on loose gravel at full throttle even with TC (car-setup.test.ts "straight-line launch").
       ratios: [2.9, 2.05, 1.6, 1.3, 1.1, 0.95],
       reverse: 3.2,
-      finalDrive: 4.2, // 6th gear tops out at the redline: 249 km/h (setup screen)
+      finalDrive: 4.2, // 6th gear tops out at the redline: ~256 km/h (setup screen)
       shiftTime: 0.1,
       efficiency: 0.9,
       upshiftRpm: 7700,
