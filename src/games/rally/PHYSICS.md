@@ -165,6 +165,16 @@ names the preset the base axle numbers equal, `applySetup(def, id)` returns the 
 the presets from spring rates + travel (dampers scale with `sqrt(spring)` so the damping ratio stays put, anti-roll bars
 with the spring rate).
 
+**Dampers and bump stop** (`suspensionPass`): rebound is ~1.8x bump (Zastava 1.6x: softer road dampers keep it
+climbing steep, twisted ramps), so the body settles after a jump instead of bouncing. The bump stop is progressive: it
+starts over the last 35 % of the travel (`STOP_ZONE`) with a rate rising from zero, which softens hard landings on cars
+that bottom out. Short-travel cars that rarely bottom out (Bimmer M3, Bimmer GT2, Subaru 22B) keep only the stiff stop
+past full travel (`hardBumpStop`). Next step if small ruts feel harsh: two-stage (speed-dependent) damping. Research,
+also in the game's About screen (`SUSPENSION_RESEARCH` in `game/menu.ts`):
+[racing game approaches](https://www.gamedeveloper.com/design/implementing-racing-games-an-intro-to-different-approaches-and-their-game-design-trade-offs),
+[offroad driving simulation](https://www.gamedeveloper.com/programming/rendering-and-simulation-in-offroad-driving-game),
+[asymmetric damping, arXiv 2605.05235](https://arxiv.org/abs/2605.05235).
+
 **Compliance** (no hand-set label - retuning springs changes the behaviour by itself):
 
 ```
@@ -201,7 +211,7 @@ lower. **Hull** = the real body: `bodyHull` (`physics/hull.ts`) puts low spheres
 rear bumper at the model's heights (Bimmer M3 floor + sills 0.14 m, Skoda Rally splitter 0.12 / floor 0.14 m, Zastava floor 0.24 m), so a
 low car scrapes on crests and landings; `tests/rally/hull-fit.test.ts` checks it against the model for every car.
 
-Damping ratio stays 0.25-0.8 on every axle of every preset (tested; ~0.35 bump / ~0.5 rebound). The **recommended
+Damping ratio stays 0.25-0.8 on every axle of every preset (tested; ~0.35 bump / ~0.65 rebound). The **recommended
 set-up follows the recommended tyre** (`SETUP_FOR_TYRE`: gravel -> soft, mixed -> medium, tarmac -> stiff), using the
 car's own preset of that name. So the Skoda Rally can be set up properly for any stage, the Zastava is always soft-ish (rides
 bumps, rolls on tarmac), the Bimmer M3 always stiff-ish (sharp on tarmac, skips on gravel even on its softest).
