@@ -116,6 +116,40 @@ const SUSPENSION_RESEARCH: SourceLink[] = [
   },
 ];
 
+/** Research behind the brake model (PHYSICS.md "Brakes"). Read only, nothing copied. */
+const BRAKE_RESEARCH: SourceLink[] = [
+  {
+    label: 'Brembo: World Rally Championship brakes',
+    url: 'https://www.brembo.com/en/motorsport/wrc',
+    note: 'rally disc sizes, temperatures',
+  },
+  {
+    label: 'Skoda Motorsport: Fabia R5 brakes',
+    url: 'https://www.skoda-motorsport.com/en/6-interesting-facts-about-fabia-r5-brakes-rally-technology/',
+    note: 'tarmac and gravel kits',
+  },
+  {
+    label: 'AP Racing: brake disc temperatures',
+    url: 'https://apracing.com/race-car/brake-discs/disc-temperatures',
+    note: 'working range of a disc',
+  },
+  {
+    label: 'DBA: motorsport rotor temperature bulletin',
+    url: 'https://dba.com.au/wp-content/uploads/2022/10/Technical_Bulletin_DBA_MotorSport_Important_Information.pdf',
+    note: 'disc and pad temperatures',
+  },
+  {
+    label: 'Autospeed: brake pad friction table',
+    url: 'https://autospeed.com.au/cms/A_0351/printArticle.html',
+    note: 'pad windows, cold and hot friction',
+  },
+  {
+    label: 'Cooling of a brake disc (Adamowicz and Grzes)',
+    url: 'https://yadda.icm.edu.pl/baztech/element/bwmeta1.element.baztech-article-BPB2-0068-0006/c/httpwww_actawm_pb_edu_plvolumevol6no2adamowiczgrzesen2012015.pdf',
+    note: 'air cooling vs speed, heat into the disc',
+  },
+];
+
 /** Research behind the tyre temperature model (PHYSICS.md "Tyre temperature"). Read only, nothing copied. */
 const TYRE_RESEARCH: SourceLink[] = [
   {
@@ -433,6 +467,9 @@ class MainMenu {
       <p>Each wheel has a spring, a damper that is firmer on rebound than on bump, an anti-roll bar and a progressive
       bump stop, with Soft / Medium / Stiff set-ups per car.</p>
       ${links(SUSPENSION_RESEARCH, '')}
+      <h3>Brakes</h3>
+      <p>Every wheel has a disc or drum of its real size; the pads lose bite when cold and fade when the disc gets too hot.</p>
+      ${links(BRAKE_RESEARCH, '')}
       <h2>Built with</h2>
       ${links(BUILT_WITH, '')}`;
     this.panel.append(

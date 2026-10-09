@@ -59,8 +59,8 @@ The car liveries, parts, physics, door plates and every other asset are original
 
 ## Research references
 
-Papers and articles read to tune the rally tyre temperature, suspension, weight distribution and inertia models; the tyre and
-suspension ones are linked in the game's About screen and `src/games/rally/PHYSICS.md`. Nothing from them is copied or bundled.
+Papers and articles read to tune the rally tyre temperature, suspension, brake, weight distribution and inertia models; the tyre,
+suspension and brake ones are linked in the game's About screen and `src/games/rally/PHYSICS.md`. Nothing from them is copied or bundled.
 
 - https://pmc.ncbi.nlm.nih.gov/articles/PMC9459800/
 - https://www.izzeracing.com/ewExternalFiles/Izze_Racing_White_Paper_Tire_Temperature.pdf
@@ -72,6 +72,16 @@ suspension ones are linked in the game's About screen and `src/games/rally/PHYSI
 - https://www.gamedeveloper.com/design/implementing-racing-games-an-intro-to-different-approaches-and-their-game-design-trade-offs
 - https://www.gamedeveloper.com/programming/rendering-and-simulation-in-offroad-driving-game
 - https://arxiv.org/abs/2605.05235
+- https://www.brembo.com/en/motorsport/wrc
+- https://www.skoda-motorsport.com/en/6-interesting-facts-about-fabia-r5-brakes-rally-technology/
+- https://apracing.com/race-car/brake-discs/disc-temperatures
+- https://dba.com.au/wp-content/uploads/2022/10/Technical_Bulletin_DBA_MotorSport_Important_Information.pdf
+- https://autospeed.com.au/cms/A_0351/printArticle.html
+- https://yadda.icm.edu.pl/baztech/element/bwmeta1.element.baztech-article-BPB2-0068-0006/c/httpwww_actawm_pb_edu_plvolumevol6no2adamowiczgrzesen2012015.pdf
+- https://www.racetechmag.com/2017/02/insight-brembo-wrc-2017/
+- https://www.diariomotor.com/competicion/noticia/radiografia-de-un-campeon-redescubre-con-nosotros-las-verguenzas-del-skoda-fabia-r5/
+- https://www.bremboparts.com/europe/en/catalogue/zastava-101-1-3/000014249-1
+- https://motorweek.org/road_tests/2008_bmw_m3
 - https://www.motor1.com/features/712432/bmw-e92-m3-road-and-race-car-review/
 - https://www.speedhunters.com/2009/09/car_feature_gt_gt_ultimate_bimmer_the_m3_gt2/
 - https://www.press.bmwgroup.com/usa/article/attachment/T0018130EN_US/56936

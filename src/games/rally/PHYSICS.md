@@ -163,7 +163,7 @@ coupling compares wheel spin; tested).
 The Zastava gets the period 13" steel sizes (wider 165/70 on tarmac, taller 155/80 on gravel); the M3 the V8 (E92) road
 M3's staggered 18s; the GT2 its slicks (30/66-18 front, 31/71-18 rear = width cm / overall diameter cm - rim), keeping the
 taller rear on the rally compounds but one width on gravel (a wide tyre ploughs on loose ground). The GT2's final drive
-went up x 1.076 with the taller rear (no published ratios: its gear speeds stay) and its rear brake torque with it. The M3
+went up x 1.076 with the taller rear (no published ratios: its gear speeds stay). The M3
 keeps the game's close-ratio box: the E92's 6-speed (4.055 ... 0.872, 3.846 final) spun it on loose gravel at full
 throttle even with TC.
 
@@ -343,6 +343,39 @@ Research behind the model (also in the game's About screen under Physics > Tyres
 - Pirelli press, [tarmac (Rally Spain)](https://press.pirelli.com/p-zero-ra-wrc-shows-reliability-on-wet-and-dry-asphalt/)
   and [gravel (Rally Finland)](https://press.pirelli.com/scorpion-kx-soft-stars-on-opening-day-of-rally-finland/): real
   rally tyre temperatures
+
+### Brakes (`physics/brakes.ts`)
+
+A wheel's brake is its real hardware: `CarPhysicsDef.brakes` = front / rear `BrakeDef` (vented / solid disc or drum,
+diameter, thickness, pad class, `clamp` force at full pedal). Torque = 2 x clamp x pad mu x 0.425 D (a drum: clamp x mu
+x D x 1.5, self-energising). The Skoda, Fiesta, C4 and Lancer add `gravelBrakes`, the 300 mm kit of the 15 in wheels, fitted
+with the mixed and gravel compounds (`Vehicle.setTyre`, `brakeKit`). The brake acts on the wheel's effective inertia
+(`wheelPass`), so the tyre force settles at torque / radius.
+
+- **`clamp` is the one tuned number** per axle and kit: the rally cars (tarmac kit 1.37 g, gravel kit 1.20 g of total torque
+  limit, 75 / 72 % front) and the GT2 keep ~10 % headroom over their tyre; the Zastava, M3 and 22B are brake-limited on
+  purpose (period or road-car brakes: 100-0 on tarmac 52 / 36 / 38 m against ~53 / 33-36 / 36-39 m in road tests). The GT2
+  puts only 52 % on the front: its staggered rear (axle `grip` 1.6) holds more, and the fronts still lock first with ABS off.
+- **Pads** (`PADS`): friction factor against the disc's bulk temperature, rising from the cold factor at 20 °C to 1 at `full`,
+  flat to `fade`, then falling to a floor: road 100 / 330 / 600 C, sport 150 / 450 / 700, rally 250 / 650 / 850, race 300 /
+  750 / 950; floors 0.45-0.55, cold 0.65-0.9. A drum uses a lower window (80 / 250 / 450) and torque = factor^1.4.
+- **Heat** (only with a climate, `Vehicle.brakeTempPass`): the braking work (torque x wheel speed) x 0.94 goes into the
+  disc, c(T) of cast iron; it loses heat to the air (`h = 8 + k v^0.8` on the faces and vanes: vented x2, ducted GT2 x5, drum
+  x0.38), radiation and water. Discs start 80 K over the air (the liaison to the start line); wet pads give 30 % less.
+  One 100-0 stop warms a Skoda front disc ~50 K (gravel kit ~75), a Zastava front ~130; ten 150-60 km/h stops 30 s
+  apart take the Skoda to ~470 C, the Zastava past 950 C (pads at the floor); a 600 C disc is under 300 C after ~4 min at 100 km/h.
+- **Autopilot:** plans its braking with `Vehicle.brakeDecel` (the brakes' pull now, so fade slows it down early).
+- **Not modelled:** brake fluid / caliper limits, pad wear, disc glow (an optional visual), a brake-bias control.
+
+HUD: a thin disc mark beside each tyre in the dash (white cold, green biting, yellow fading, red at the floor,
+`game/tyre-gauge.ts`); `F2` lists the disc temperatures and the pull left.
+
+Research behind it (About > Physics > Brakes, `BRAKE_RESEARCH` in `game/menu.ts`): [Brembo WRC](https://www.brembo.com/en/motorsport/wrc),
+[Skoda Motorsport R5 brakes](https://www.skoda-motorsport.com/en/6-interesting-facts-about-fabia-r5-brakes-rally-technology/),
+[AP Racing disc temperatures](https://apracing.com/race-car/brake-discs/disc-temperatures),
+[DBA rotor bulletin](https://dba.com.au/wp-content/uploads/2022/10/Technical_Bulletin_DBA_MotorSport_Important_Information.pdf),
+[Autospeed pad table](https://autospeed.com.au/cms/A_0351/printArticle.html),
+[Adamowicz and Grzes](https://yadda.icm.edu.pl/baztech/element/bwmeta1.element.baztech-article-BPB2-0068-0006/c/httpwww_actawm_pb_edu_plvolumevol6no2adamowiczgrzesen2012015.pdf).
 
 ## Reference numbers
 

@@ -22,6 +22,7 @@ import { SURFACES, type SurfaceId } from '../physics/surfaces';
 import { applySetup } from '../physics/car-setup';
 import { applyGearing, hasGearings } from '../physics/gearing';
 import { carGripRating } from '../physics/car-tyres';
+import { brakeLevel } from '../physics/brakes';
 import { TYRES, type TyreId } from '../physics/tyres';
 import type { GearingId, SetupId } from '../physics/types';
 import { PHYSICS_HZ, Vehicle } from '../physics/vehicle';
@@ -456,6 +457,8 @@ export class RallyGame {
   private gaugeState: TyreGaugeState = {
     temps: [0, 0, 0, 0],
     window: TYRES.mixed.temp,
+    brakes: [0, 0, 0, 0],
+    discs: [0, 0, 0, 0],
     steer: 0,
     air: 0,
     track: 0,
@@ -467,7 +470,11 @@ export class RallyGame {
     if (!v.climate || !v.tyre) return undefined;
     const g = this.gaugeState;
     const temps = g.temps as number[];
-    v.wheels.forEach((w, i) => (temps[i] = w.temp));
+    v.wheels.forEach((w, i) => {
+      temps[i] = w.temp;
+      (g.brakes as number[])[i] = brakeLevel(w.brakeTemp, w.brake);
+      (g.discs as number[])[i] = w.brakeTemp;
+    });
     g.window = TYRES[v.tyre].temp;
     g.steer = v.wheels[0].steerAngle;
     g.air = v.climate.air;
