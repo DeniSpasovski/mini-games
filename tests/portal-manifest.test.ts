@@ -3,10 +3,11 @@ import path from 'node:path';
 import { expect, test } from '@rstest/core';
 import {
   gamePagesFromManifests,
-  isGameListed,
   resolveGamePage,
   type GameManifest,
 } from '../src/portal/manifest';
+import { GAME_LIST } from '../src/portal/release';
+import { isReleased } from '../src/shared/release';
 
 const root = path.resolve(__dirname, '..');
 const gamesDir = path.join(root, 'src/games');
@@ -75,16 +76,8 @@ test('gamePagesFromManifests: flattens all games in order', () => {
   expect(gamePagesFromManifests([])).toEqual([]);
 });
 
-test('isGameListed: hideInProd games are only unlisted in the release build', () => {
-  const base: GameManifest = {
-    id: 'a',
-    title: 'a',
-    description: '',
-    pages: [],
-  };
-  expect(isGameListed(base, true)).toBe(true);
-  expect(isGameListed({ ...base, hideInProd: true }, true)).toBe(false);
-  expect(isGameListed({ ...base, hideInProd: true }, false)).toBe(true);
+test('every game folder is listed once in GAME_LIST', () => {
+  expect(GAME_LIST.map((g) => g.id).sort()).toEqual([...gameIds].sort());
 });
 
 test('every game folder is discovered', () => {
@@ -114,9 +107,9 @@ for (const id of gameIds) {
     expect(play.hideInProd).toBeFalsy();
   });
 
-  // An unlisted game (hideInProd) gets its thumbnail (F9 on the dev server) when it is released.
+  // A game with `hideInProd` in GAME_LIST gets its thumbnail (F9 on the dev server) when it is released.
   test(`game (${id}) has a portal thumbnail`, () => {
-    if (readManifest(id).hideInProd) return;
+    if (!isReleased(GAME_LIST, id)) return;
     const has = ['jpg', 'png'].some((e) =>
       fs.existsSync(path.join(gamesDir, id, `thumbnail.${e}`)),
     );

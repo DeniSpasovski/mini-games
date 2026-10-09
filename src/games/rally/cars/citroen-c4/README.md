@@ -9,7 +9,7 @@ behind only), white roof with a red square, a red edge along the door line and a
 lettering). The sponsor livery, boot-lid emblem, plate, brake discs and wheels of the source are dropped; the grille is rebuilt from
 code (thick bars with the chevrons built into them, backed by a radiator core), and the tail lamps are a lens with a rim and a drawn
 texture (stripes, dot matrix, reverse lens).
-In game it is **Citroen C4 WRC**; the id stays `citroen_c4`. AWD, 1230 kg, 2.0 turbo. Test car (`TEST_CARS`, dev server only).
+In game it is **Citroen C4 WRC**; the id stays `citroen_c4`. AWD, 1230 kg, 2.0 turbo. Test car (`hideInProd` in `CARS_LIST`, dev server only).
 
 ![Front three-quarter](screenshots/front-34.jpg)
 

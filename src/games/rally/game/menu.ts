@@ -1014,9 +1014,12 @@ export function buildSectors(
   return el;
 }
 
+const MAX_ROWS = 10;
+
 /**
- * Stage results top 10, toggle "All cars" / "<this car>". `run` is highlighted;
- * if it's outside the top 10 its row is appended under a gap.
+ * Stage results, 10 rows at most (current runs first, older versions fill the rest), toggle
+ * "All cars" / "<this car>". `run` is highlighted; if it's outside the top 10 its row is
+ * appended under a gap.
  */
 export function buildLeaderboard(
   board: RunRecord[],
@@ -1032,6 +1035,12 @@ export function buildLeaderboard(
     const older = all.filter((r) => isOldRun(r, cur));
     const rank = rows.indexOf(run);
     const lead = rows[0]?.time ?? 0;
+    // At most MAX_ROWS rows in all (a pinned out-of-range run counts); older versions only fill what is left.
+    const shown = rows.slice(0, rank >= MAX_ROWS ? MAX_ROWS - 1 : MAX_ROWS);
+    const olderShown = older.slice(
+      0,
+      MAX_ROWS - shown.length - (rank >= MAX_ROWS ? 1 : 0),
+    );
     // Set-up columns: what the run was driven with ("–" = not recorded: older runs, or fixed gearing on the road car).
     const dash = '<span class="na">–</span>';
     const tyreCol = (r: RunRecord) =>
@@ -1061,15 +1070,13 @@ export function buildLeaderboard(
         <button data-f="all" class="${carOnly ? '' : 'on'}">All cars</button>
         <button data-f="car" class="${carOnly ? 'on' : ''}">${carName(run.car)}</button>
       </div>
-      <table><thead><tr><th>#</th><th>Time</th><th>Car</th><th>Tyres</th><th>Suspension</th><th>Gearing</th><th>Gap</th></tr></thead>${rows
-        .slice(0, 10)
+      <table><thead><tr><th>#</th><th>Time</th><th>Car</th><th>Tyres</th><th>Suspension</th><th>Gearing</th><th>Gap</th></tr></thead>${shown
         .map(row)
         .join(
           '',
-        )}${rank >= 10 ? `<tr class="gap"><td colspan="7">…</td></tr>${row(run, rank)}` : ''}${
-        older.length
-          ? `<tr class="divider"><td colspan="7">Older versions · set before a physics update</td></tr>${older
-              .slice(0, 10)
+        )}${rank >= MAX_ROWS ? `<tr class="gap"><td colspan="7">…</td></tr>${row(run, rank)}` : ''}${
+        olderShown.length
+          ? `<tr class="divider"><td colspan="7">Older versions · set before a physics update</td></tr>${olderShown
               .map(row)
               .join('')}`
           : ''

@@ -1,4 +1,4 @@
-import { AVAILABLE_CARS, released } from '../release';
+import { CARS_LIST, released } from '../release';
 import { bimmerGt2 } from './bimmer-gt2/bimmer-gt2';
 import { bimmerM3 } from './bimmer-m3/bimmer-m3';
 import { citroenC4 } from './citroen-c4/citroen-c4';
@@ -9,7 +9,7 @@ import { skodaRally } from './skoda-rally/skoda-rally';
 import { subie22b } from './subie-22b/subie-22b';
 import { zastava101 } from './zastava-101/zastava-101';
 
-/** Car registry - every car, test-only ones included. Add new cars here + their id to TEST_CARS in release.ts (see .claude/skills/rally-content). */
+/** Car registry - every car, test-only ones included. Add new cars here + a `hideInProd` row to CARS_LIST in release.ts (see .claude/skills/rally-content). */
 export const ALL_CARS: CarDef[] = [
   skodaRally,
   zastava101,
@@ -21,8 +21,8 @@ export const ALL_CARS: CarDef[] = [
   lancerEvo6,
 ];
 
-/** Cars this build offers: ALL_CARS on the dev server, AVAILABLE_CARS in the published build (release.ts). */
-export const CARS: CarDef[] = released(ALL_CARS, AVAILABLE_CARS);
+/** Cars this build offers: ALL_CARS on the dev server, those without `hideInProd` in the published build (release.ts). */
+export const CARS: CarDef[] = released(ALL_CARS, CARS_LIST);
 
 /** Must be a released car (it's the fallback for hidden / unknown ids). */
 export const DEFAULT_CAR = skodaRally.id;

@@ -3,7 +3,8 @@ import path from 'node:path';
 import { describe, expect, test } from '@rstest/core';
 import { type StageCardData } from '../../src/games/rally/tools/stage-card';
 import { ALL_MAPS } from '../../src/games/rally/maps/all';
-import { AVAILABLE_MAPS } from '../../src/games/rally/release';
+import { isReleased } from '../../src/shared/release';
+import { MAPS_LIST } from '../../src/games/rally/release';
 
 /**
  * Released maps need a baked stage card for the stage select (tools/stage-card.ts). Only existence + format are
@@ -12,7 +13,7 @@ import { AVAILABLE_MAPS } from '../../src/games/rally/release';
 const mapsDir = path.resolve(__dirname, '../../src/games/rally/maps');
 
 describe('stage cards', () => {
-  const released = ALL_MAPS.filter((m) => AVAILABLE_MAPS.includes(m.id));
+  const released = ALL_MAPS.filter((m) => isReleased(MAPS_LIST, m.id));
   test.each(released.map((m) => [m.id] as const))(
     '%s has a baked card',
     (id) => {

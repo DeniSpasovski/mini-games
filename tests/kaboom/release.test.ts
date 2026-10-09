@@ -1,18 +1,12 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { expect, test } from '@rstest/core';
-import { isGameListed, type GameManifest } from '../../src/portal/manifest';
-
-const manifest = JSON.parse(
-  fs.readFileSync(
-    path.resolve(__dirname, '../../src/games/kaboom/game.json'),
-    'utf8',
-  ),
-) as GameManifest;
+import { GAME_LIST } from '../../src/portal/release';
+import { isReleased, released } from '../../src/shared/release';
 
 test('kaboom: unlisted on the portal (but still built) while in development', () => {
-  expect(manifest.hideInProd).toBe(true);
-  expect(isGameListed(manifest, true)).toBe(false);
-  // dev server and `npm run build:test` still get it
-  expect(isGameListed(manifest, false)).toBe(true);
+  const entry = GAME_LIST.find((g) => g.id === 'kaboom');
+  expect(entry?.hideInProd).toBe(true);
+  expect(isReleased(GAME_LIST, 'kaboom')).toBe(false);
+  // the release build drops it, the dev server and `npm run build:test` keep it
+  expect(released([{ id: 'kaboom' }], GAME_LIST, true)).toEqual([]);
+  expect(released([{ id: 'kaboom' }], GAME_LIST, false)).toHaveLength(1);
 });

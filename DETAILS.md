@@ -123,7 +123,7 @@ The portal page shows `SITE.tagline` ("This site was made using AI agents under 
 
 1. Create `src/games/<id>/game.json` (copy `src/games/rally/game.json`) and the entry files it lists.
 2. `npm run dev` — pages are discovered automatically: `play` -> `/games/<id>/`, others -> `/games/<id>/<page>.html`.
-3. A game under construction sets `"hideInProd": true` in its `game.json`: the release build (`npm run build`) gives it no portal card but still builds it, so the direct link `games/<id>/` works; the dev server and `npm run build:test` (the Pages workflow's default) list it. Remove the flag to release it (and add its `thumbnail.jpg`).
+3. Add the game to `GAME_LIST` in `src/portal/release.ts` (card order). A game under construction gets `hideInProd: true` there: the release build (`npm run build`) gives it no portal card but still builds it, so the direct link `games/<id>/` works; the dev server and `npm run build:test` (the Pages workflow's default) list it. Remove the flag to release it (and add its `thumbnail.jpg`). `hideInProd` is the one release flag everywhere: on a game in `GAME_LIST`, on a car / map row in a game's `release.ts` (`CARS_LIST` / `MAPS_LIST`), on a tool page in `game.json`; the shared check is `RELEASE_BUILD` in `src/shared/release.ts`.
 4. Press **F9** in-game (dev server only) to save `thumbnail.jpg` for the portal card (call `installThumbnailCapture` once in your play page).
 
 See `.claude/skills/new-minigame/SKILL.md` for the full checklist.
@@ -155,7 +155,7 @@ npm run build -- --environment portal    # only the portal files in dist/ (keeps
 publishes `dist/` to `https://<owner>.github.io/<repo>/`. One-time: Settings > Pages > Source = **GitHub Actions**. Each run
 replaces the previous deploy, so the site shows whichever branch ran last. The `github.io` host is in `allowedHosts`.
 The run's **test_build** input (default on) runs `npm run build:test` (= `rsbuild build --env-mode test`, `__TEST_BUILD__`):
-the TEST cars / maps of `src/games/rally/release.ts` ship too, with their TEST badge. `npm run build` stays the release build.
+the `hideInProd` cars / maps of `src/games/rally/release.ts` ship too, with their TEST badge. `npm run build` stays the release build.
 
 Upload the game folder as a whole (replace the old one): file names are content-hashed, so stale files can be deleted.
 The portal lists every game folder in `src/games/`, so rebuild / upload the portal only when its game list should change.

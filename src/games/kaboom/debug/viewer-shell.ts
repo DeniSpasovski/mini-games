@@ -1,6 +1,7 @@
 import { Scene } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DebugPanel } from '../../../shared/debug-panel';
+import { RELEASE_BUILD } from '../../../shared/release';
 import { StatsOverlay } from '../../../shared/stats-overlay';
 import { CameraRig } from '../render/camera-rig';
 import { makeSkyTexture } from '../render/materials';
@@ -15,7 +16,7 @@ export const TOOL_LINKS = [
   { label: 'Play', href: './' },
   { label: 'Map viewer', href: 'map-viewer.html' },
   { label: 'Crew viewer', href: 'crew-viewer.html' },
-  { label: 'Bench', href: 'bench.html' },
+  ...(RELEASE_BUILD ? [] : [{ label: 'Bench', href: 'bench.html' }]),
 ];
 
 /**

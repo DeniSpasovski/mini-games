@@ -14,7 +14,7 @@ export interface GamePageManifest {
   label: string;
   /** Dev / debug tool page (shown in the "tools" row of the card). */
   dev?: boolean;
-  /** Hide this tool's link on the portal card in the production build (page still builds; dev server shows it). */
+  /** Hide this tool's link in the release build (page still builds; the dev server and `build:test` show it). */
   hideInProd?: boolean;
 }
 
@@ -26,11 +26,6 @@ export interface GameManifest {
   description: string;
   /** Free-form tags shown on the card, e.g. ["three.js", "racing"]. */
   tags?: string[];
-  /**
-   * Unlisted: no portal card in the release build (`npm run build`), but the game is still built and playable by its
-   * link (`games/<id>/`). The dev server and `npm run build:test` list it. For games under construction.
-   */
-  hideInProd?: boolean;
   pages: GamePageManifest[];
 }
 
@@ -50,11 +45,6 @@ export function resolveGamePage(
   const entryName = `games/${gameId}/${isMain ? 'index' : page.id}`;
   const href = isMain ? `games/${gameId}/` : `${entryName}.html`;
   return { ...page, gameId, entryName, href };
-}
-
-/** Does the portal list the game? `release` = the published build (not the dev server, not `build:test`). */
-export function isGameListed(m: GameManifest, release: boolean): boolean {
-  return !(release && m.hideInProd);
 }
 
 export function gamePagesFromManifests(

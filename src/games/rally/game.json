@@ -1,7 +1,7 @@
 {
   "id": "rally",
   "title": "Gravel Rally",
-  "version": "0.15.2",
+  "version": "0.17.3",
   "description": "Point-to-point gravel rally stages. Custom raycast vehicle physics, streamed terrain, procedural assets.",
   "tags": ["three.js", "racing", "physics"],
   "pages": [

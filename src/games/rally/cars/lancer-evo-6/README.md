@@ -1,7 +1,7 @@
 # Lancer EVO VI (`lancer_evo_6`)
 
 A 1999-style rally Lancer from a **CC BY Sketchfab model**. In game it is **Lancer EVO VI**: AWD, 1230 kg, 2.0 turbo, 300 hp.
-Test car (`TEST_CARS`, dev server only).
+Test car (`hideInProd` in `CARS_LIST`, dev server only).
 
 - **Kept from the model:** the body, the cockpit (seats, fabric, dash, steering wheel on the left) behind see-through glass, the
   3D head / tail lamps with their own lamp texture (brake and reversing sections light up), and the 10-spoke rim (de-cambered,

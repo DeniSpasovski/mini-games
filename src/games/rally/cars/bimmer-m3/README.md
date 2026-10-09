@@ -4,7 +4,7 @@ A lowered E46 coupe (tuning / street version) converted from a **CC BY 1:33 prin
 kidneys, intakes, mirrors, exhaust, underbody, arch wells), the model's own 8-spoke rim under the game's tyres, and its lowered
 street stance (floor 6.7 cm). In game it is **Bimmer M3**; the id stays `bimmer_m3`. RWD V8, 1180 kg, street wheels (245/40 R18,
 gravel 205/65 R16). Wears the **M3 ALMS livery**, fitted to this body.
-Released (`AVAILABLE_CARS`).
+Released (no `hideInProd` in `CARS_LIST`).
 
 ![Front three-quarter](screenshots/front-34.jpg)
 
