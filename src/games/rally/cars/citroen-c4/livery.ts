@@ -6,7 +6,7 @@ import source from './model.source.json';
 /**
  * Runtime paint for the Citroen C4 WRC BODY (imported GLB, atlas layout in model.source.json). Glass, lamps, interior, wing,
  * roof scoop... are separate parts with their own materials (`parts` in model.source.json -> cars/shared/part-materials.ts), so
- * nothing painted here can reach them. Big straight-edged strokes only, shapes without logos or lettering: purple-blue nose,
+ * nothing painted here can reach them. Big straight-edged strokes only, shapes without logos or lettering: dark-blue nose,
  * fenders and hood up to a line through the middle of the doors (leaning back 75 deg); red body behind it; a red piece at the
  * front end of the hood under a 1 cm white line, running straight down the nose 3 cm inside the headlamps; a dark-blue rear bumper under the bumper line, bounded by diagonals with a
  * white line (seen from behind only); white roof with a red square and a red edge that follows the door line.
@@ -83,9 +83,9 @@ const sides = (ctx: CanvasRenderingContext2D, pts: Pt[], style: Fill) => {
 
 const Z_NOSE = 2.2;
 const Z_TAIL = -2.2;
-const RED = '#d1121f';
-const BLUE = '#2c2f93';
-const NAVY = '#111a55';
+/** Shades sampled from the source model's own livery texture (the real car's dark crimson, navy and gold). */
+const RED = '#a90810';
+const BLUE = '#001f60';
 const WHITE = '#f1f2f4';
 /**
  * Blue / red split on the sides: a straight line leaning back (about 52 deg from horizontal), from z 0.67 at the sill to
@@ -118,7 +118,7 @@ const HOOD_CREST: Pt[] = [
 const HOOD_LINE = 0.01;
 /** Yellow disc on the side: the fender's rear top / the door's front (centre z, y, radius); cut flat at `top`, the window's lower edge (0.98 m on the model), so it never reaches the pillar. */
 const DISC = { z: 0.89, y: 0.76, r: 0.3504, top: 0.98 };
-const YELLOW = '#f6c91c';
+const YELLOW = '#d0ae32';
 /** Headlamps' inner edge seen from the front: [y, |x|] from their bottom up (measured on the model). */
 const LAMP_INNER: Pt[] = [
   [0.66, 0.398],
@@ -158,7 +158,6 @@ function paint(
 ): void {
   const red = seed === 0 ? RED : info.accent;
   const blue = seed === 0 ? BLUE : info.accent2;
-  const navy = seed === 0 ? NAVY : info.accent2;
 
   ctx.fillStyle = red;
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -187,7 +186,7 @@ function paint(
   sides(ctx, disc, yellow);
   sides(ctx, rect(Z_NOSE, Z_TAIL, 0.1, 0.3), '#141516');
 
-  // --- ends: blue nose; red tail with a navy bumper: trapezoid under the bumper line, white line on its diagonals ---
+  // --- ends: blue nose; red tail with a blue bumper: trapezoid under the bumper line, white line on its diagonals ---
   fill(ctx, 'front', rect(-1.05, 1.05, 0, 1.7), blue);
   const bumper = (grow: number): Pt[] => {
     const foot = BUMPER_X[1] + grow;
@@ -202,7 +201,7 @@ function paint(
     ];
   };
   fill(ctx, 'rear', bumper(WHITE_LINE), WHITE);
-  fill(ctx, 'rear', bumper(0), navy);
+  fill(ctx, 'rear', bumper(0), blue);
 
   // --- top: blue forward of the door split (windscreen pillars, cowl, hood), red piece at the nose end of the hood,
   // white roof with a red edge following the door line and a red square ---
