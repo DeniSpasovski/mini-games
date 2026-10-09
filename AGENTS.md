@@ -73,7 +73,7 @@ into `DETAILS.md`, never up.
 - Rally maps: `maps/<id>/` = `info.ts` (menus, credits), `map.ts`, baked data, README; local-only DETAILS (every source) +
   `TODO.md`; `maps/shared/` = format + helpers
 - Rally cars: `cars/<car>/` = `<car>.ts`, README, local-only DETAILS (build notes + sources); `cars/shared/` = code for every car
-- 3, 2, 1 Kabooom (`src/games/kaboom/`, unlisted via `hideInProd` until released): `DETAILS.md` (rules, bots, architecture, performance, contract in `sim/types.ts`), `TASKS.md` (open work, local)
+- 3, 2, 1 Kabooom (`src/games/kaboom/`, unlisted via `hideInProd` in `src/portal/release.ts` until released): `DETAILS.md` (rules, bots, architecture, performance, contract in `sim/types.ts`), `TASKS.md` (open work, local)
 - Hole Island: `src/games/hole/DETAILS.md` (rules, levels, tiers, catalog, generator, debug, architecture), `TASKS.md`,
   `TOY-STORE.md`, `ANIMAL-ISLAND.md`, `CONSTRUCTION-SITE.md` (map design, roster, open tasks)
 - `sources/cars/<car>/`, `sources/maps/<map>/` - files the user shared, git-ignored, never served. Models / data / licence files
@@ -109,14 +109,14 @@ into `DETAILS.md`, never up.
 - Tool pages mirror their state in the URL (`src/shared/url-state.ts`).
 - Testing in the browser pane: add `mute=1` to game URLs (`isMutedByUrl()`, every audio class honours it); leave it off only for
   sound fixes (low volume).
-- Rally release flags (`src/games/rally/release.ts`): new cars / maps go into `TEST_*` (dev only) first; `AVAILABLE_*` ship.
+- Rally release flags (`src/games/rally/release.ts`): `CARS_LIST` / `MAPS_LIST` list every car / map; a new one gets `hideInProd: true` (dev only) first, remove it to ship (same flag as `GAME_LIST` and `game.json`, `src/shared/release.ts`).
 - Game `version` (`game.json`, `0.x.y`, minor = feature, patch = fix): bump only when the user says we are making a build.
 - Rally times versions (`game/stage.ts`): bump `MAP_TIMES_VERSIONS[map]` when a map's road / layout / length / surfaces change, `CAR_TIMES_VERSIONS[car]`
   when that car's handling changes, every car for a shared physics change (livery / model fixes never); a new car / map adds its
   entry (a test checks). Old times stay, listed below the new ones. Only changes shipped to prod count: bump when the user says
   we are making a build; until then leave the numbers and say in the PR which cars / maps changed.
-  **Test cars / maps (`TEST_*` in `release.ts`) stay at 1 and are never bumped** (unreleased: no official times yet); bumps start
-  once they move to `AVAILABLE_*` (a test checks).
+  **Cars / maps with `hideInProd` in `CARS_LIST` / `MAPS_LIST` stay at 1 and are never bumped** (unreleased: no official times yet);
+  bumps start once the flag is removed (a test checks).
 - Hole Island: scoring changes (points, tiers, bonus, times, map content) bump that map's `MAP_SCORING_VERSIONS` entry
   (`game/scores.ts`; `sim/` changes = every map).
 

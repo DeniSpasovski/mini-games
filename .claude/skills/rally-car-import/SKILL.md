@@ -34,8 +34,8 @@ our first car (a Printables STL: "no modifying, sharing, hosting") and the Bimme
    | no licence, unreadable page, "all rights reserved", licence cannot be confirmed                                                                                                                                                                                       | **NOT OK until confirmed** - ask the user to paste it; unknown is treated as forbidden                                           |
 
 4. **If NOT OK: stop and tell the user the options** - ask the author / owner for written permission (keep the mail in the DETAILS),
-   model the car from scratch from photos and blueprints without touching the file (the Zastava route), or use the file purely locally as "bring your own" (git-ignored GLB, car only in
-   `TEST_CARS`, boxy fallback body (`model.profile`, step 6c), docs say where to download it; the live site still cannot host it). Do not add the GLB
+   model the car from scratch from photos and blueprints without touching the file (the Zastava route), or use the file purely locally as "bring your own" (git-ignored GLB, car only
+   `hideInProd` in `CARS_LIST`, boxy fallback body (`model.profile`, step 6c), docs say where to download it; the live site still cannot host it). Do not add the GLB
    to `public/`, git, tests or the release lists without a green verdict.
 5. **Other things to rule out:** brand logos / badges / wordmarks baked into the mesh or textures (remove them, no manufacturer
    or sponsor logos in liveries), real number plates, and reference photos (never shipped, never traced from the mesh).
@@ -451,5 +451,5 @@ registered car; see `src/games/rally/PHYSICS.md`.
 
 ## Bump the times version (last step)
 
-Add the car's id to `CAR_TIMES_VERSIONS` in `game/stage.ts` (start at 1; a test fails without it). It stays at 1 while the car is in `TEST_CARS` (a test checks); once released, handling changes bump it when the user says we are making a build (livery / model fixes
+Add the car's id to `CAR_TIMES_VERSIONS` in `game/stage.ts` (start at 1; a test fails without it). It stays at 1 while the car has `hideInProd` in `CARS_LIST` (a test checks); once released, handling changes bump it when the user says we are making a build (livery / model fixes
 never). Old times stay below the new ones.

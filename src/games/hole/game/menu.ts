@@ -1,3 +1,11 @@
+import {
+  activateFocused,
+  ensureFocus,
+  focusables,
+  GamepadMenuNav,
+  moveFocus,
+  type NavAction,
+} from '../../../shared/pad-nav';
 import { portalUrl } from '../../../shared/portal-link';
 import { SITE } from '../../../site.config';
 import gameManifest from '../game.json';
@@ -9,7 +17,7 @@ import {
   type Difficulty,
 } from '../sim/progression';
 import { button, el, fmtTime } from './dom';
-import { MAP_SCORING_VERSIONS, type ScoreEntry } from './scores';
+import { MAP_SCORING_VERSIONS, TOP_N, type ScoreEntry } from './scores';
 import type { HoleSettings } from './settings';
 
 /** Game version (game.json, semver 0.x.y), shown in the menu + About. */
@@ -53,6 +61,8 @@ export interface MenuApi {
   onMainMenu(): void;
   onAgain(): void;
   onClick(): void;
+  /** Controller Start while no menu is up (pauses a run). */
+  onPadStart(): void;
   /** The colour screen shows the live 3D hole behind a bottom card: the game frames the demo hole close up. */
   onPreview(on: boolean): void;
 }
@@ -79,6 +89,15 @@ export interface ResultData {
 
 const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
 
+/** Mark a button: `primary` = focused first by the controller, `back` = the B button, `start` = the Start button. */
+function mark<T extends HTMLElement>(
+  b: T,
+  ...roles: ('primary' | 'back' | 'start')[]
+): T {
+  for (const r of roles) b.setAttribute(`data-${r}`, '');
+  return b;
+}
+
 /** All menu screens (welcome, colour, difficulty, scores, options, pause, results). */
 export class Menu {
   readonly el = el('div', 'hg-screen');
@@ -88,6 +107,25 @@ export class Menu {
     private api: MenuApi,
   ) {
     root.append(this.el);
+    new GamepadMenuNav(
+      (a) => this.padNav(a),
+      () => this.el.querySelector<HTMLElement>('.hg-scroll'),
+    );
+  }
+
+  /** Controller (shared/pad-nav.ts): d-pad / stick move focus, A clicks, B = `[data-back]`, Start = `[data-start]`. */
+  private padNav(a: NavAction): void {
+    if (!this.el.classList.contains('on')) {
+      if (a === 'start') this.api.onPadStart();
+      return;
+    }
+    if (a === 'back')
+      this.el.querySelector<HTMLElement>('[data-back]')?.click();
+    else if (a === 'start')
+      this.el.querySelector<HTMLElement>('[data-start]')?.click();
+    else if (a === 'confirm') activateFocused(this.el);
+    else moveFocus(this.el, a);
+    if (this.el.classList.contains('on')) ensureFocus(this.el); // the next screen's primary control
   }
 
   hide(): void {
@@ -102,6 +140,7 @@ export class Menu {
     this.el.classList.toggle('dim', dim);
     this.el.classList.toggle('bottom', preview);
     this.api.onPreview(preview);
+    if (document.documentElement.dataset.input === 'pad') ensureFocus(this.el);
   }
 
   private click(fn: () => void): () => void {
@@ -109,6 +148,17 @@ export class Menu {
       this.api.onClick();
       fn();
     };
+  }
+
+  /** Rebuild the same screen (tab, seed step) and keep the controller focus on the same control. */
+  private refresh(fn: () => void): () => void {
+    return this.click(() => {
+      const i = focusables(this.el).findIndex(
+        (n) => n === document.activeElement,
+      );
+      fn();
+      if (i >= 0) focusables(this.el)[i]?.focus({ preventScroll: true });
+    });
   }
 
   private row(...kids: HTMLElement[]): HTMLElement {
@@ -131,10 +181,13 @@ export class Menu {
   }
 
   private back(label = '‹ Back'): HTMLButtonElement {
-    return button(
-      label,
-      'gray small',
-      this.click(() => this.welcome()),
+    return mark(
+      button(
+        label,
+        'gray small',
+        this.click(() => this.welcome()),
+      ),
+      'back',
     );
   }
 
@@ -148,12 +201,16 @@ export class Menu {
         'hg-sub',
         'Swallow the world. Start tiny, finish with the biggest thing in sight.',
       ),
-      button(
-        '▶  PLAY',
-        '',
-        this.click(() =>
-          this.api.maps.length > 1 ? this.mapScreen() : this.difficulty(true),
+      mark(
+        button(
+          '▶  PLAY',
+          '',
+          this.click(() =>
+            this.api.maps.length > 1 ? this.mapScreen() : this.difficulty(true),
+          ),
         ),
+        'primary',
+        'start',
       ),
       this.row(
         button(
@@ -198,11 +255,11 @@ export class Menu {
     card.append(
       el('h2', 'hg-h2', 'How to play'),
       list([
-        'Touch and drag anywhere to steer the hole (arrow keys / WASD on a keyboard).',
+        'Touch and drag anywhere to steer the hole (arrow keys / WASD on a keyboard, left stick or d-pad on a controller).',
         'Swallow anything smaller than the hole. Bigger things lean over the edge but stay put.',
         `Eat enough to level up: the hole grows, up to level ${MAX_LEVEL}, and can swallow bigger things.`,
         'Eat the whole island before the time runs out for a bonus on the seconds you have left.',
-        'Pause with the II button, Esc or P.',
+        'Pause with the II button, Esc, P or Start.',
       ]),
       el('h2', 'hg-h2', 'Credits'),
       list([
@@ -231,6 +288,7 @@ export class Menu {
         { type: 'button', 'aria-label': c.name },
       );
       s.style.background = hex(c.hex);
+      if (c.id === cur().id) mark(s, 'primary');
       s.addEventListener('click', () => {
         this.api.onClick();
         this.api.settings.color = c.id;
@@ -257,6 +315,7 @@ export class Menu {
         '',
         { type: 'button' },
       );
+      if (m.id === this.api.mapId()) mark(b, 'primary');
       const best = Math.max(
         ...DIFFICULTIES.map((d) => this.api.best(m.id, d.id)),
       );
@@ -301,6 +360,7 @@ export class Menu {
     const noun = this.api.maps.find((m) => m.id === mapId)?.noun ?? 'island';
     for (const d of DIFFICULTIES) {
       const b = el('button', `hg-diff ${d.id}`, '', { type: 'button' });
+      if (d.id === this.api.settings.difficulty) mark(b, 'primary', 'start');
       const best = this.api.best(mapId, d.id);
       b.append(
         el('b', '', d.label),
@@ -319,10 +379,13 @@ export class Menu {
       ...this.variantPicker(),
       row,
       this.api.maps.length > 1
-        ? button(
-            '‹ Back',
-            'gray small',
-            this.click(() => this.mapScreen()),
+        ? mark(
+            button(
+              '‹ Back',
+              'gray small',
+              this.click(() => this.mapScreen()),
+            ),
+            'back',
           )
         : this.back(),
     );
@@ -347,7 +410,7 @@ export class Menu {
         const b = button(
           label,
           cls,
-          this.click(() => again(to())),
+          this.refresh(() => again(to())),
         );
         b.title = title;
         return b;
@@ -402,7 +465,7 @@ export class Menu {
         );
         t.addEventListener(
           'click',
-          this.click(() => this.scoresScreen(selected, m.id)),
+          this.refresh(() => this.scoresScreen(selected, m.id)),
         );
         mapTabs.append(t);
       }
@@ -418,7 +481,7 @@ export class Menu {
       );
       t.addEventListener(
         'click',
-        this.click(() => this.scoresScreen(d.id, mapId)),
+        this.refresh(() => this.scoresScreen(d.id, mapId)),
       );
       tabs.append(t);
     }
@@ -490,7 +553,10 @@ export class Menu {
         }),
       );
       table.append(div);
-      for (const e of older) row(e, `v${e.ver}`, false);
+      // 10 rows in all (a pinned run counts): older versions only fill what is left.
+      const room = TOP_N - Math.min(current.length, TOP_N) - (extra ? 1 : 0);
+      for (const e of older.slice(0, Math.max(room, 0)))
+        row(e, `v${e.ver}`, false);
     }
     return table;
   }
@@ -532,10 +598,13 @@ export class Menu {
       q,
       el('p', 'hg-sub', 'Graphics changes apply on the next run.'),
       fromPause
-        ? button(
-            '‹ Back',
-            'gray small',
-            this.click(() => this.pause()),
+        ? mark(
+            button(
+              '‹ Back',
+              'gray small',
+              this.click(() => this.pause()),
+            ),
+            'back',
           )
         : this.back(),
     );
@@ -547,10 +616,15 @@ export class Menu {
     const card = el('div', 'hg-card');
     card.append(
       el('h2', 'hg-h2', 'Paused'),
-      button(
-        '▶  Resume',
-        '',
-        this.click(() => this.api.onResume()),
+      mark(
+        button(
+          '▶  Resume',
+          '',
+          this.click(() => this.api.onResume()),
+        ),
+        'primary',
+        'back',
+        'start',
       ),
       this.row(
         button(
@@ -637,10 +711,14 @@ export class Menu {
         r.rank === 0 ? r.entry : undefined,
       ),
       this.row(
-        button(
-          'Play again',
-          '',
-          this.click(() => this.api.onAgain()),
+        mark(
+          button(
+            'Play again',
+            '',
+            this.click(() => this.api.onAgain()),
+          ),
+          'primary',
+          'start',
         ),
         button(
           'Main menu',

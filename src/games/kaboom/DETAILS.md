@@ -2,7 +2,7 @@
 
 > **Status:** playable end to end (menus, bots, HUD, touch / keyboard / gamepad, audio, sudden death); polish and a real-device
 > pass remain (`TASKS.md`, local).
-> **Unlisted on the portal** (`hideInProd` in `game.json`): the release build still builds it, so `games/kaboom/` plays
+> **Unlisted on the portal** (`hideInProd` in `GAME_LIST`, `src/portal/release.ts`): the release build still builds it, so `games/kaboom/` plays
 > for anyone with the link; the portal card shows on the dev server and in `npm run build:test` only. Remove the flag to release.
 
 An arena game in a tilted 3D view: you and up to 7 bots walk a grid, place TNT, blow up crates and each other. The last
@@ -228,7 +228,7 @@ src/games/kaboom/
 | Play        | `/games/kaboom/`                                                     | menus; URL params above                                                                                                                                                          |
 | Map viewer  | `/games/kaboom/map-viewer.html?size=m&seed=1&overlay=escape&spawn=2` | regenerate; overlays: spawn zones, escape (TNT on a spawn), danger map, power-ups (the crates hiding them); safety result                                                        |
 | Crew viewer | `/games/kaboom/crew-viewer.html?critter=mole&anim=walk&blast=1`      | one critter or all eight; idle / walk / place / ko / cheer; TNT (`view=tnt` = close-up); both power-ups; a looping blast of any level (`blastLevel=5`; `blastAt=0.2` freezes it) |
-| Bench       | `/games/kaboom/bench.html?scene=chain40`                             | `chain40`, `grid-all`, `8bots`; live or `__kaboomBench.run`; dev, link hidden in prod                                                                                            |
+| Bench       | `/games/kaboom/bench.html?scene=chain40`                             | `chain40`, `grid-all`, `8bots`; live or `__kaboomBench.run`; link hidden in the release build (`hideInProd`)                                                                     |
 
 Debug hooks (the browser pane throttles frames, so these step the scene): `__kaboom.advance(s)` / `.benchmark()` /
 `.screenshot(name)` (play; the last saves `screenshots/<name>.jpg` through the dev server), `__crew.advance(s)` (crew viewer),

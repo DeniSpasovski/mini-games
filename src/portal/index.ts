@@ -1,7 +1,9 @@
 import './portal.css';
 import { SITE } from '../site.config';
 import { consentEnabled, openConsentBanner } from '../shared/consent';
-import { isGameListed, resolveGamePage, type GameManifest } from './manifest';
+import { isReleased, RELEASE_BUILD } from '../shared/release';
+import { resolveGamePage, type GameManifest } from './manifest';
+import { GAME_LIST } from './release';
 
 /**
  * The portal is intentionally tiny: it lists every src/games/<id>/game.json
@@ -18,15 +20,10 @@ const thumbCtx = import.meta.webpackContext('../games', {
   regExp: /[\\/]thumbnail\.(jpg|png)$/,
 });
 
-/** The published build: games with `hideInProd` get no card (their pages are still built and reachable by link). */
-const RELEASE_BUILD = import.meta.env.PROD && !__TEST_BUILD__;
-
-/** Card order on the portal; games not listed come after, alphabetically. */
-const GAME_ORDER = ['rally', 'hole', 'kaboom'];
-
+/** Card order = `GAME_LIST` (release.ts); a game missing from it comes last, alphabetically. */
 function orderRank(id: string): number {
-  const i = GAME_ORDER.indexOf(id);
-  return i === -1 ? GAME_ORDER.length : i;
+  const i = GAME_LIST.findIndex((g) => g.id === id);
+  return i === -1 ? GAME_LIST.length : i;
 }
 
 interface GameEntry {
@@ -48,7 +45,9 @@ function loadGames(): GameEntry[] {
       const manifest = manifestCtx(k) as GameManifest;
       return { manifest, thumbnail: thumbs.get(manifest.id) };
     })
-    .filter(({ manifest }) => isGameListed(manifest, RELEASE_BUILD))
+    .filter(
+      ({ manifest }) => !RELEASE_BUILD || isReleased(GAME_LIST, manifest.id),
+    )
     .sort(
       (a, b) =>
         orderRank(a.manifest.id) - orderRank(b.manifest.id) ||
@@ -63,9 +62,7 @@ function escapeHtml(s: string): string {
 function renderCard({ manifest, thumbnail }: GameEntry): string {
   const pages = manifest.pages.map((p) => resolveGamePage(manifest.id, p));
   const play = pages.find((p) => p.id === 'play') ?? pages[0];
-  const tools = pages.filter(
-    (p) => p.dev && !(p.hideInProd && import.meta.env.PROD),
-  );
+  const tools = pages.filter((p) => p.dev && !(p.hideInProd && RELEASE_BUILD));
   const tags = (manifest.tags ?? [])
     .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
     .join('');

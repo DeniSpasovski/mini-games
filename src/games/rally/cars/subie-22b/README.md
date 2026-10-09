@@ -7,7 +7,7 @@ art are converted from SpatialNeglect's **CC BY-NC** "Rally Car" Sketchfab model
 cups behind a see-through lens. The crew figures, plates and badge are dropped. Specs follow
 the 22B: 2.2 l turbo flat-four (~280 PS / 206 kW at 6000 rpm, 363 Nm at 3200 rpm), five-speed box, permanent AWD with a rear
 bias, 1,270 kg ([STI](https://www.sti.jp/en/roadcars/1998/impreza-22b.html)). Tyres 235/40 R17 (the real size), 215/55 R16 on
-gravel. The paint is a metallic mica blue (`gltf.metallic`) with dust and road spray towards the sills. **Test only** (`TEST_CARS` in `release.ts`).
+gravel. The paint is a metallic mica blue (`gltf.metallic`) with dust and road spray towards the sills. **Test only** (`hideInProd` in `CARS_LIST`, `release.ts`).
 
 ![Front three-quarter](screenshots/front-34.jpg)
 

@@ -32,7 +32,11 @@ stay next to the tests that use them. A new game gets its own `tests/<id>/`, `in
 
 Runs on pull requests and on pushes to `main`, seven parallel jobs: rally tests, rally integration tests, hole tests, kaboom tests, kaboom integration tests,
 hole integration tests, and a shared job (type check + lint + `test:shared`). A new script or folder needs a CI step in the
-same change, otherwise it silently never runs. Run the matching script before pushing; after touching physics or a map also
+same change, otherwise it silently never runs.
+
+Integration jobs are selective: `scripts/ci-affected.mjs` (job `changes`) runs only the test files whose import closure contains a
+changed file; a game with none is skipped. Changes to `src/shared/`, package / test / ts config, workflows or that script run all;
+pushes to `main` run all; docs and assets run none. Run the matching script before pushing; after touching physics or a map also
 run `npm run test:integration:rally`.
 
 ## Gotchas

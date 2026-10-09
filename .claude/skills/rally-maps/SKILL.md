@@ -259,10 +259,10 @@ OSM ways reprojected with the baker's `Proj`, one `Local` frame per structure (`
 ## New map checklist
 
 Copy `maps/test/` to `maps/<id>/` (fill in its `DETAILS.md` sources), change `id`, `name`, `seed`, `bounds`, `road.points`; add to `ENTRIES` in `maps/index.ts` (a real map with baked data: put the menu fields in `<id>/info.ts`, load `map.ts` with a dynamic import, see rally DETAILS.md "Lazy loading");
-the stage test picks it up automatically. **Add its id to `TEST_MAPS`** in
+the stage test picks it up automatically. **Add it to `MAPS_LIST` with `hideInProd: true`** in
 `src/games/rally/release.ts` (one file tracks all maps + cars; `tests/rally/release.test.ts` fails for an unlisted
 map): it is then dev server only (`npm run dev` uses `ALL_MAPS`, TEST badge) and out of the published build, so other
-fixes can ship meanwhile. Move the id to `AVAILABLE_MAPS` to release it (or back to `TEST_MAPS` to pull it).
+fixes can ship meanwhile. Remove the flag to release it (or set it again to pull it).
 
 ## Source files
 
@@ -272,4 +272,4 @@ listed in the car / map folder `DETAILS.md` - follow `.claude/skills/source-file
 ## Bump the times version (last step)
 
 A new map adds its id to `MAP_TIMES_VERSIONS` in `game/stage.ts` (start at 1). Changing a released map's road, layout, length or surfaces bumps its entry, but only when the user says we are making a build;
-until then say in the PR which map changed (AGENTS.md "Rally times versions"). A test map (`TEST_MAPS`) stays at 1 until released (a test checks). Old times stay below the new ones.
+until then say in the PR which map changed (AGENTS.md "Rally times versions"). A `hideInProd` map stays at 1 until released (a test checks). Old times stay below the new ones.

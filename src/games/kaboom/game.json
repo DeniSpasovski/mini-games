@@ -4,7 +4,6 @@
   "version": "0.1.0",
   "description": "Chubby animal demolition workers on a floating clay diorama: light the fuse, blast the crates and be the last critter standing.",
   "tags": ["three.js", "arena", "bots"],
-  "hideInProd": true,
   "pages": [
     {
       "id": "play",
