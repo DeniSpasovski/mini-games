@@ -9,7 +9,16 @@ import { dirname, join, relative, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 const GAMES = ['rally', 'hole', 'kaboom'];
-const EXT = ['', '.ts', '.tsx', '.js', '.mjs', '.json', '/index.ts', '/index.js'];
+const EXT = [
+  '',
+  '.ts',
+  '.tsx',
+  '.js',
+  '.mjs',
+  '.json',
+  '/index.ts',
+  '/index.js',
+];
 const RUN_ALL = [
   /^package(-lock)?\.json$/,
   /^rstest\.config\./,
@@ -29,7 +38,12 @@ const walk = (dir) =>
   });
 
 const tests = Object.fromEntries(
-  GAMES.map((g) => [g, walk(join(root, 'integration-tests', g)).filter((f) => f.endsWith('.test.ts'))]),
+  GAMES.map((g) => [
+    g,
+    walk(join(root, 'integration-tests', g)).filter((f) =>
+      f.endsWith('.test.ts'),
+    ),
+  ]),
 );
 
 const resolveImport = (from, spec) => {
@@ -50,7 +64,9 @@ const closure = (entry) => {
     seen.add(f);
     if (!/\.(ts|tsx|js|mjs)$/.test(f)) continue;
     const src = readFileSync(f, 'utf8');
-    for (const m of src.matchAll(/(?:from\s+|import\s*\(\s*|import\s+|require\s*\(\s*)['"](\.{1,2}\/[^'"]+)['"]/g)) {
+    for (const m of src.matchAll(
+      /(?:from\s+|import\s*\(\s*|import\s+|require\s*\(\s*)['"](\.{1,2}\/[^'"]+)['"]/g,
+    )) {
       const r = resolveImport(f, m[1]);
       if (r) stack.push(r);
     }
@@ -62,7 +78,10 @@ const base = process.argv[2];
 let changed = null;
 if (base) {
   try {
-    changed = execSync(`git diff --name-only ${base}...HEAD`, { cwd: root, encoding: 'utf8' })
+    changed = execSync(`git diff --name-only ${base}...HEAD`, {
+      cwd: root,
+      encoding: 'utf8',
+    })
       .split('\n')
       .filter(Boolean);
   } catch {
@@ -73,6 +92,8 @@ if (base) {
 const all = !changed || changed.some((f) => RUN_ALL.some((re) => re.test(f)));
 const changedAbs = new Set((changed ?? []).map((f) => join(root, f)));
 for (const g of GAMES) {
-  const hit = tests[g].filter((t) => all || [...closure(t)].some((f) => changedAbs.has(f)));
+  const hit = tests[g].filter(
+    (t) => all || [...closure(t)].some((f) => changedAbs.has(f)),
+  );
   console.log(`${g}=${hit.map((t) => relative(root, t)).join(' ')}`);
 }
