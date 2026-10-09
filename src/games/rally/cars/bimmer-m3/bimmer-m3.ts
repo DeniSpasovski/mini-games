@@ -97,7 +97,7 @@ export const bimmerM3: CarDef = {
   physics: {
     mass: 1180,
     ...BODY,
-    inertiaScale: 0.9,
+    inertia: { pitch: 2130, yaw: 2300, roll: 490 },
     hardBumpStop: true,
     wheelWidth: 0.235,
     // Staggered like the V8 road M3 whose engine it has (E92: 245/40 R18 on 8.5J front, 265/40 R18 on 9.5J rear);

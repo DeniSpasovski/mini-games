@@ -243,13 +243,7 @@ export class Vehicle {
     this.def = def;
     this.ground = ground;
     this.mass = def.mass;
-    const { length: l, width: w, height: h, inertiaScale: s } = def;
-    const m = def.mass / 12;
-    this.inertia.set(
-      m * (h * h + l * l) * s,
-      m * (w * w + l * l) * s,
-      m * (w * w + h * h) * s,
-    );
+    this.inertia.set(def.inertia.pitch, def.inertia.yaw, def.inertia.roll);
     this.invInertia.set(
       1 / this.inertia.x,
       1 / this.inertia.y,

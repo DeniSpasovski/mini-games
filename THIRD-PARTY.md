@@ -59,8 +59,8 @@ The car liveries, parts, physics, door plates and every other asset are original
 
 ## Research references
 
-Papers and articles read to tune the rally tyre temperature and suspension models; linked in the game's About screen and
-`src/games/rally/PHYSICS.md`. Nothing from them is copied or bundled.
+Papers and articles read to tune the rally tyre temperature, suspension, weight distribution and inertia models; the tyre and
+suspension ones are linked in the game's About screen and `src/games/rally/PHYSICS.md`. Nothing from them is copied or bundled.
 
 - https://pmc.ncbi.nlm.nih.gov/articles/PMC9459800/
 - https://www.izzeracing.com/ewExternalFiles/Izze_Racing_White_Paper_Tire_Temperature.pdf
@@ -72,6 +72,14 @@ Papers and articles read to tune the rally tyre temperature and suspension model
 - https://www.gamedeveloper.com/design/implementing-racing-games-an-intro-to-different-approaches-and-their-game-design-trade-offs
 - https://www.gamedeveloper.com/programming/rendering-and-simulation-in-offroad-driving-game
 - https://arxiv.org/abs/2605.05235
+- https://www.motor1.com/features/712432/bmw-e92-m3-road-and-race-car-review/
+- https://www.speedhunters.com/2009/09/car_feature_gt_gt_ultimate_bimmer_the_m3_gt2/
+- https://www.press.bmwgroup.com/usa/article/attachment/T0018130EN_US/56936
+- https://grassrootsmotorsports.com/project-cars/2002-subaru-impreza-wrx/autocross-fun-and-curb-weight
+- https://en.wikipedia.org/wiki/Mitsubishi_Lancer_WRC
+- https://www.nhtsa.gov/DOT/NHTSA/NRD/Multimedia/PDFs/VRTC/ca/nhtsa_inertia_database_metric.pdf
+- https://eng.auburn.edu/~dmbevly/mech4420/vehicle_params.pdf
+- https://www.me.psu.edu/sommer/me481/notes_07_04.pdf
 
 ## Trademarks and likenesses
 

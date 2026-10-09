@@ -197,6 +197,16 @@ with the spring rate).
 nothing for dive). A real car puts the whole moment into the body, so this stays above zero to keep rally cars from
 flipping on a sideways trip; `integration-tests/rally/rollover.test.ts` guards that margin.
 
+**Weight distribution and inertia**: the centre of mass is the body origin, so the front share of the weight is where the
+axles sit against it (`buildWheels`). A car keeps the split its model came with unless the real car is more than 3 points
+away: the GT2 is 45 / 55 and the Lancer 55 / 45, set with `shiftCom` (`cars/shared/com-shift.ts`: axles, hull, boxy profile
+and door plate move together, the wheelbase and the model on its wheels stay); `tests/rally/weight-split.test.ts` holds
+every car to its target. Each car has its own `inertia` (pitch / yaw / roll, kg m²): radius of gyration x mass from where
+the mass sits, estimated (about +-15 %, no rally car publishes one); a solid box of the car's size was 10-25 % high on roll.
+At the limit every car understeers (the fronts reach their peak first); the M3 and GT2 most, because their rear axle `grip`
+(1.3 / 1.6) buys traction under power - lowering it to ~1.1 balances them but costs launch and power-on stability. The
+front / rear anti-roll split moves the balance by only a couple of per cent.
+
 **Dampers and bump stop** (`suspensionPass`): rebound is ~1.8x bump (Zastava 1.6x: softer road dampers keep it
 climbing steep, twisted ramps), so the body settles after a jump instead of bouncing. The bump stop is progressive: it
 starts over the last 35 % of the travel (`STOP_ZONE`) with a rate rising from zero, which softens hard landings on cars

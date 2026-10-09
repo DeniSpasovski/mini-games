@@ -13,6 +13,9 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
 - Per-car numbers: `cars/<id>/<id>.ts` -> `physics` (mass, COM height, axles: spring/damper/travel/antiRoll/brakes/
   grip/forceHeight, engine torque curve, gearbox, drivetrain split + diff locks, aero).
   Ride height is preserved automatically when springs change (mount computed from static load).
+- Weight split + inertia: the centre of mass is the body origin, so the front share is where the axles sit (`shiftCom` in
+  `cars/shared/com-shift.ts` moves axles, hull, boxy profile and door plate together; `tests/rally/weight-split.test.ts`
+  holds each car to its real split); `CarPhysicsDef.inertia` = pitch / yaw / roll in kg m² (`tests/rally/inertia.test.ts`).
 - Surfaces: `physics/surfaces.ts` (`mu`, `slide`, `peakSlip`, `peakAngle`, `rolling`, `bump`, `rough`).
 - Water: `Vehicle.waterPass` (tyre + body drag, flooded intake), fed by `GroundProvider.waterLevel`;
   `tests/rally/water-physics.test.ts` prints dry / shallow / deep acceleration per car.

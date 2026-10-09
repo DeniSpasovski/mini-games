@@ -202,8 +202,11 @@ export interface CarPhysicsDef {
   noAbs?: boolean;
   /** Only the stiff bump stop past full travel, no progressive one (short-travel cars that rarely bottom out). */
   hardBumpStop?: boolean;
-  /** Scales the box inertia (real cars are ~0.8-1.0 of a solid box). */
-  inertiaScale: number;
+  /**
+   * Moments of inertia about the centre of mass (kg m²): pitch (nose up / down), yaw (turning), roll (leaning). Radius of
+   * gyration x mass, estimated from where the mass sits (PHYSICS.md "Inertia"); a solid box of the car's size is ~10 % high.
+   */
+  inertia: { pitch: number; yaw: number; roll: number };
   /**
    * Wheel radius (m) on the default front size (`tyres.size`): the model's hubs, arches, hull and boxy profile. Other
    * sizes roll on this scaled by their marking (`axleRadius`, physics/car-tyres.ts), within 4 % (tests/rally/car-setup.test.ts).

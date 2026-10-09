@@ -77,7 +77,7 @@ export const zastava101: CarDef = {
     width: 1.59,
     height: 1.4,
     comHeight: 0.5,
-    inertiaScale: 0.9,
+    inertia: { pitch: 1280, yaw: 1330, roll: 280 },
     wheelRadius: 0.285,
     wheelWidth: 0.165,
     // 13" steel wheels on every compound, the tyre changes: stock 145/80 R13 (mixed), a wider 165/70 R13 on tarmac,

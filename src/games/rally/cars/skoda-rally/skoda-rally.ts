@@ -87,7 +87,7 @@ export const skodaRally: CarDef = {
   physics: {
     mass: 1230, // R5 minimum weight
     ...BODY,
-    inertiaScale: 0.9,
+    inertia: { pitch: 1600, yaw: 1770, roll: 440 },
     wheelWidth: 0.23,
     tyres: {
       size: { width: 0.205, aspect: 65, rim: 15 },

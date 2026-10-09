@@ -84,7 +84,7 @@ export const subie22b: CarDef = {
   physics: {
     mass: 1270,
     ...BODY,
-    inertiaScale: 0.9,
+    inertia: { pitch: 2120, yaw: 2240, roll: 440 },
     hardBumpStop: true,
     wheelWidth: 0.235,
     tyres: {

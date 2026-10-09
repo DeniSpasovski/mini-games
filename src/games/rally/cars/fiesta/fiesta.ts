@@ -92,7 +92,7 @@ export const fiesta: CarDef = {
   physics: {
     mass: 1190, // WRC minimum weight (2017 rules)
     ...BODY,
-    inertiaScale: 0.9,
+    inertia: { pitch: 1560, yaw: 1750, roll: 440 },
     wheelWidth: 0.235,
     tyres: {
       size: { width: 0.235, aspect: 40, rim: 18 },

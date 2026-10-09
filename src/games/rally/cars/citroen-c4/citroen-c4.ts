@@ -92,7 +92,7 @@ export const citroenC4: CarDef = {
   physics: {
     mass: 1230, // WRC minimum weight (2007 rules)
     ...BODY,
-    inertiaScale: 1,
+    inertia: { pitch: 1760, yaw: 1930, roll: 460 },
     wheelWidth: 0.235,
     tyres: {
       size: { width: 0.235, aspect: 45, rim: 18 },
