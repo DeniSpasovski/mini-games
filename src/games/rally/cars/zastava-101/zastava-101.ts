@@ -10,7 +10,7 @@ const FRONT: AxleDef = {
   track: 1.3,
   spring: 23000,
   bump: 1700,
-  rebound: 2400,
+  rebound: 2720,
   travel: 0.22,
   antiRoll: 6000,
   brakeTorque: 1200,
@@ -25,7 +25,7 @@ const REAR: AxleDef = {
   track: 1.3,
   spring: 17000,
   bump: 1400,
-  rebound: 2000,
+  rebound: 2240,
   travel: 0.22,
   antiRoll: 4000,
   // 23 % rear (front 1200): the light rear (40 % static, less under braking) must not lock before the front - at
@@ -80,9 +80,14 @@ export const zastava101: CarDef = {
     inertiaScale: 0.9,
     wheelRadius: 0.285,
     wheelWidth: 0.165,
+    // 13" steel wheels on every compound, the tyre changes: stock 145/80 R13 (mixed), a wider 165/70 R13 on tarmac,
+    // a taller 155/80 R13 on gravel.
     tyres: {
-      // Stock 145/80 R13: thin, tall sidewall, one rim for every compound.
       size: { width: 0.145, aspect: 80, rim: 13 },
+      byCompound: {
+        tarmac: { width: 0.165, aspect: 70, rim: 13 },
+        gravel: { width: 0.155, aspect: 80, rim: 13 },
+      },
     },
     wheelInertia: 0.9,
     maxSteerDeg: 32,

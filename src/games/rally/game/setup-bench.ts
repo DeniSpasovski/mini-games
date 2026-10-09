@@ -109,9 +109,10 @@ export class SetupBench {
 
   private build(rimUnits: ReadonlyMap<string, BufferGeometry>): void {
     const def = this.def;
-    // Tyres on their rims: a real tyre + rim + brakes per compound, rolling on the axle.
+    // Tyres on their rims: a real tyre + rim + brakes per compound, rolling on the axle (the rear one: the bigger
+    // tyre on staggered cars).
     TYRE_IDS.forEach((id, i) => {
-      const w = buildWheelSet(def, id, rimUnits);
+      const w = buildWheelSet(def, id, rimUnits, 'rear');
       const rimMat = this.mat(
         new MeshStandardMaterial({
           color: rimColorFor(def.model, id),

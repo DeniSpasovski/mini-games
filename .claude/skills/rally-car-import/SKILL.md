@@ -418,7 +418,8 @@ whenever the GLB is regenerated.
 
 ## Tyres and set-ups (every new car)
 
-A car needs `physics.tyres` (sizes; overall radius within 4 % of `wheelRadius`, `byCompound` for a rim switch), `physics.setups` +
+A car needs `physics.tyres` (the real sizes: the default rolls on `wheelRadius`, every other size scaled by its marking and within
+4 % of it; `byCompound` per compound, `rear` for a staggered car; PHYSICS.md "Tyre sizes"), `physics.setups` +
 `physics.setup` (three presets from `deriveSetups` with the car's own limits: rally car wide range, road car soft half, race car
 stiff half) and `model.suspensionStyle`. Give every preset a `ride` offset (softer = higher, a few cm).
 
@@ -445,4 +446,5 @@ registered car; see `src/games/rally/PHYSICS.md`.
 
 ## Bump the times version (last step)
 
-Add the car's id to `CAR_TIMES_VERSIONS` in `game/stage.ts` (start at 1; a test fails without it). Later handling changes bump it; livery / model fixes never do. Old times stay below the new ones. Mention the version in the PR.
+Add the car's id to `CAR_TIMES_VERSIONS` in `game/stage.ts` (start at 1; a test fails without it). A test car stays at 1; once released, handling changes bump it when the user says we are making a build (livery / model fixes
+never). Old times stay below the new ones.

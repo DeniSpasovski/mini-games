@@ -271,4 +271,5 @@ listed in the car / map folder `DETAILS.md` - follow `.claude/skills/source-file
 
 ## Bump the times version (last step)
 
-A new map adds its id to `MAP_TIMES_VERSIONS` in `game/stage.ts` (start at 1). Changing an existing map's road, layout, length or surfaces bumps its entry. Old times stay below the new ones. Mention the bump in the PR.
+A new map adds its id to `MAP_TIMES_VERSIONS` in `game/stage.ts` (start at 1). Changing an existing map's road, layout, length or surfaces bumps its entry, but only when the user says we are making a build;
+until then say in the PR which map changed (AGENTS.md "Rally times versions"). Old times stay below the new ones.

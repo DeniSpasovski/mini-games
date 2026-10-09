@@ -2,8 +2,8 @@
 
 A lowered E46 coupe (tuning / street version) converted from a **CC BY 1:33 print model**: one shell split into parts (glass, lamps,
 kidneys, intakes, mirrors, exhaust, underbody, arch wells), the model's own 8-spoke rim under the game's tyres, and its lowered
-street stance (floor 6.7 cm). In game it is **Bimmer M3**; the id stays `bimmer_m3`. RWD V8, 1180 kg, street wheels (245/40 R18,
-gravel 205/65 R16). Wears the **M3 ALMS livery**, fitted to this body.
+street stance (floor 6.7 cm). In game it is **Bimmer M3**; the id stays `bimmer_m3`. RWD V8, 1180 kg, staggered street wheels
+(245/40 R18 front, 265/40 R18 rear like the V8 M3; gravel 205/65 R16). Wears the **M3 ALMS livery**, fitted to this body.
 Released (no `hideInProd` in `CARS_LIST`).
 
 ![Front three-quarter](screenshots/front-34.jpg)
@@ -23,8 +23,8 @@ npm run dev     # /games/rally/car-viewer.html?car=bimmer_m3
 | Drivetrain | RWD, 6-speed, final drive 4.2 (short / medium / long set-ups on the setup screen)      |
 | Engine     | V8, ~420 hp at 7600 rpm, 450 Nm peak, redline 8000 rpm                                 |
 | Mass       | 1180 kg                                                                                |
-| Wheels     | radius 0.33 m; tarmac / dusty tarmac 245/40 R18, gravel 205/65 R16                     |
-| Top speed  | 249 km/h (6th at the redline)                                                          |
+| Wheels     | tarmac / dusty tarmac 245/40 R18 front, 265/40 R18 rear; gravel 205/65 R16             |
+| Top speed  | 256 km/h (6th at the redline)                                                          |
 | 0-200 km/h | 10.6 s tarmac, 11.8 s dusty tarmac, 12.8 s gravel (does not reach 200 on loose gravel) |
 
 | 0-100 km/h / 100-0 km/h | Tarmac         | Dusty tarmac   | Gravel        | Loose gravel  |

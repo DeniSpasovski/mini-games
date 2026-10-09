@@ -11,11 +11,12 @@ import {
 } from 'three';
 import type { CarModel } from '../cars/shared/car-model';
 import { rimRadius } from '../cars/shared/tyre-mesh';
-import type { TyreSize } from '../physics/types';
+import { axleRadius, tyreSizeFor } from '../physics/car-tyres';
+import type { TyreId } from '../physics/tyres';
 
 /**
  * Wheel debugger overlay for the car viewer (`wheels=1`): per wheel, drawn on top of everything at the tyre's outer face -
- *  - fixed (steers, does not spin) at the physics hub: crosshair, tyre radius (cyan), rim bead radius (yellow), 2 cm hub
+ *  - fixed (steers, does not spin) at the physics hub: crosshair, the axle's tyre radius (cyan), rim bead radius (yellow), 2 cm hub
  *    ring - a rim that is off its axle wobbles against these while the wheels spin / the angle slider turns;
  *  - a red pointer that turns with the wheel (spin angle);
  *  - the body's arch opening (magenta), fitted once the imported body has loaded: the body vertices on the car's flank
@@ -51,10 +52,13 @@ export class WheelDebug {
   );
   private spinQ = new Quaternion();
   private disposed = false;
+  /** Tyre radius per wheel (the fitted size of its axle). */
+  private radii = [0, 0, 0, 0];
 
   constructor(
     private model: CarModel,
-    size: TyreSize,
+    /** Fitted compound (its size and radius per axle). */
+    tyre: TyreId | null,
     onArch?: () => void,
   ) {
     this.group.name = 'wheel debug';
@@ -68,7 +72,7 @@ export class WheelDebug {
       this.group.add(fixed);
       this.wheels.push({ fixed, spin });
     }
-    this.setTyre(size);
+    this.setTyre(tyre);
     this.reports = NAMES.map((wheel, i) => ({
       wheel,
       hub: this.restHub(i).toArray() as [number, number, number],
@@ -91,11 +95,17 @@ export class WheelDebug {
     );
   }
 
-  /** Rebuild the fixed circles for a tyre size (radius = physics wheel radius, bead = the size's rim). */
-  setTyre(size: TyreSize): void {
-    const R = this.model.def.physics.wheelRadius;
-    const x = size.width / 2 + 0.012;
-    for (const w of this.wheels) {
+  /** Rebuild the fixed circles for a compound (per axle: radius = its rolling radius, bead = its rim). */
+  setTyre(tyre: TyreId | null): void {
+    const p = this.model.def.physics;
+    this.wheels.forEach((w, i) => {
+      const axle = i < 2 ? 'front' : 'rear';
+      const size = tyreSizeFor(p, tyre, axle);
+      const R = axleRadius(p, tyre, axle);
+      this.radii[i] = R;
+      const arch = this.reports[i]?.arch;
+      if (arch) arch.gap = arch.dy + arch.radius - R;
+      const x = size.width / 2 + 0.012;
       for (const c of [...w.fixed.children, ...w.spin.children])
         if (c instanceof LineSegments) {
           c.geometry.dispose();
@@ -116,7 +126,7 @@ export class WheelDebug {
         this.mats.cross,
       );
       add(w.spin, [x, 0, 0, x, R * 0.9, 0], this.mats.spin);
-    }
+    });
   }
 
   /** Follow the model's wheel pose (call after model.syncWheels()). */
@@ -200,7 +210,7 @@ export class WheelDebug {
         dy: fit.cy,
         radius: fit.r,
         rms,
-        gap: fit.cy + fit.r - R,
+        gap: fit.cy + fit.r - this.radii[i],
       };
       const g = new BufferGeometry();
       const c = circle(0, fit.r);

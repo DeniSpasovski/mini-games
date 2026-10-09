@@ -9,7 +9,7 @@ import {
   type Climate,
   type TyreHeatInput,
 } from './tyre-temp';
-import { carSurfaces } from './car-tyres';
+import { axleRadius, carSurfaces, drivenRadius } from './car-tyres';
 import { staticComHeight } from './car-setup';
 import { autoHull } from './hull';
 import { TYRES, type TyreId } from './tyres';
@@ -55,6 +55,8 @@ const TC_FRONT_SLIP = 2.0;
 const ABS_SLIP = 1.3;
 const ABS_SLIDE = 1;
 const ABS_MIN_SPEED = 3;
+/** Progressive bump stop length (fraction of the suspension travel). */
+const STOP_ZONE = 0.35;
 
 export interface WheelState {
   id: WheelId;
@@ -171,7 +173,12 @@ export class Vehicle {
 
   /** Fitted tyre (see tyres.ts); null = raw ground surfaces (tests, viewers). Set via `setTyre`. */
   tyre: TyreId | null = null;
-  private tyreSurfaces: Record<SurfaceId, SurfaceDef> | null = null;
+  /** Effective surfaces per axle [front, rear] for the fitted tyre (the same table when both axles run one size). */
+  private tyreSurfaces:
+    [Record<SurfaceId, SurfaceDef>, Record<SurfaceId, SurfaceDef>] | null =
+    null;
+  /** Rolling radius the gearbox sees (driven axle, fitted tyre): ground speed -> wheel speed for the drivetrain. */
+  private drivenR = 0;
   /** Air + sun of the stage: tyre temperatures run only with a climate AND a tyre (`setClimate`). */
   climate: Climate | null = null;
   private heatIn: TyreHeatInput = {
@@ -232,6 +239,7 @@ export class Vehicle {
     );
     this.drivetrain = new Drivetrain(def);
     this.wheels = this.buildWheels();
+    this.drivenR = drivenRadius(def, null);
     this.hull = def.hull ?? autoHull(def);
   }
 
@@ -241,7 +249,16 @@ export class Vehicle {
    */
   setTyre(tyre: TyreId | null): void {
     this.tyre = tyre;
-    this.tyreSurfaces = tyre ? carSurfaces(this.def, tyre) : null;
+    this.tyreSurfaces = tyre
+      ? [
+          carSurfaces(this.def, tyre, 'front'),
+          carSurfaces(this.def, tyre, 'rear'),
+        ]
+      : null;
+    // Each size rolls on its own radius: the hubs stay put in the body, so a taller tyre lifts its end of the car.
+    for (const w of this.wheels)
+      w.radius = axleRadius(this.def, tyre, w.isFront ? 'front' : 'rear');
+    this.drivenR = drivenRadius(this.def, tyre);
   }
 
   /**
@@ -277,15 +294,18 @@ export class Vehicle {
     return f;
   }
 
-  /** The surface as the wheels see it (fitted tyre + set-up applied; raw without a tyre). */
+  /** The surface as the wheels see it (fitted tyre + set-up applied; raw without a tyre) - the lower-grip axle's. */
   surfaceFor(id: SurfaceId): SurfaceDef {
-    return this.tyreSurfaces ? this.tyreSurfaces[id] : SURFACES[id];
+    if (!this.tyreSurfaces) return SURFACES[id];
+    const [f, r] = this.tyreSurfaces;
+    return r[id].mu < f[id].mu ? r[id] : f[id];
   }
 
   private buildWheels(): WheelState[] {
     const d = this.def;
     const wheelbase = d.front.z - d.rear.z;
-    // The set-up's ride height lifts the body (and its hull) over the wheels: the wheels hang that much lower.
+    // The set-up's ride height lifts the body (and its hull) over the wheels: the wheels hang that much lower. The hubs
+    // sit at the reference `wheelRadius` (the model's hubs); a taller tyre than that lifts its end of the car.
     const restY = d.wheelRadius - staticComHeight(d);
     const mk = (
       id: WheelId,
@@ -310,7 +330,7 @@ export class Vehicle {
           mountY,
           axle.z,
         ),
-        radius: d.wheelRadius,
+        radius: axleRadius(d, this.tyre, isFront ? 'front' : 'rear'),
         nominalLoad,
         steerAngle: 0,
         ext: axle.travel - staticComp,
@@ -416,7 +436,7 @@ export class Vehicle {
       dt,
       throttle,
       drivenOmega,
-      this.speed / d.wheelRadius,
+      this.speed / this.drivenR,
       handbrakeOn && rwd,
     );
     this.distributeTorque(handbrakeOn);
@@ -650,7 +670,7 @@ export class Vehicle {
       w.ext = Math.max(0, t - w.radius);
       w.compression = w.axle.travel - w.ext;
       w.surface = this.tyreSurfaces
-        ? this.tyreSurfaces[s.surface.id]
+        ? this.tyreSurfaces[w.isFront ? 0 : 1][s.surface.id]
         : s.surface;
       w.contactNormal.copy(s.normal);
       w.contactPoint.set(
@@ -674,7 +694,13 @@ export class Vehicle {
       let f =
         a.spring * w.compression + (compVel > 0 ? a.bump : a.rebound) * compVel;
       f += a.antiRoll * (w.compression - other.compression);
-      f += a.spring * 12 * w.bumpStop;
+      if (this.def.hardBumpStop) f += a.spring * 12 * w.bumpStop;
+      else {
+        // Progressive bump stop over the last part of the travel: rate 0 -> 2 x spring at full bump, rising on.
+        const zone = STOP_ZONE * a.travel;
+        const d = Math.max(0, w.compression - a.travel + zone) + w.bumpStop;
+        f += (a.spring * d * d) / zone;
+      }
       f = Math.max(0, f);
       w.load = f;
       const mountW = _v1
