@@ -1,5 +1,6 @@
 import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
+import type { BrakeSet } from '../../physics/brakes';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
 import { profile } from './profile';
@@ -25,7 +26,6 @@ const FRONT: AxleDef = {
   rebound: 6620,
   travel: 0.14,
   antiRoll: 23833,
-  brakeTorque: 1700,
   handbrakeTorque: 0,
   steer: 1,
   grip: 1.06, // street tyres (245 / 40 R18) need a little front grip so the tarmac specialist stays ahead of the Skoda (car-setup.test.ts)
@@ -40,13 +40,30 @@ const REAR: AxleDef = {
   rebound: 6120,
   travel: 0.14,
   antiRoll: 15312,
-  brakeTorque: 1050,
   handbrakeTorque: 3000,
   steer: 0,
   // Rear bias: at 1.05 the RWD V8 spun on gravel under full throttle; 1.15 still did (tests/rally/car-setup.test.ts
   // "straight-line launch"). The tyre size factors act on both axles, so they do not replace this bias.
   grip: 1.3,
   forceHeight: 0.3,
+};
+
+/** E92 M3 brakes: 360 x 30 / 350 x 24 mm vented discs (PHYSICS.md "Brakes"). */
+const BRAKES: BrakeSet = {
+  front: {
+    type: 'vented',
+    diameter: 0.36,
+    thickness: 0.03,
+    pad: 'sport',
+    clamp: 12800,
+  },
+  rear: {
+    type: 'vented',
+    diameter: 0.35,
+    thickness: 0.024,
+    pad: 'sport',
+    clamp: 5900,
+  },
 };
 
 /**
@@ -163,6 +180,7 @@ export const bimmerM3: CarDef = {
       frontDiffLock: 0,
       rearDiffLock: 260,
     },
+    brakes: BRAKES,
     dragArea: 0.8,
     downforceArea: 0.22,
     // Fitted to bimmer_m3.glb (tests/rally/hull-fit.test.ts prints the model's underside per zone): splitter / front

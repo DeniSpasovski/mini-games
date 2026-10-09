@@ -1,5 +1,6 @@
 import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
+import type { BrakeSet } from '../../physics/brakes';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
 import { profile } from './profile';
@@ -27,7 +28,6 @@ const FRONT: AxleDef = {
   rebound: 4320,
   travel: 0.26,
   antiRoll: 9000,
-  brakeTorque: 1750,
   handbrakeTorque: 0,
   steer: 1,
   grip: 1,
@@ -42,11 +42,45 @@ const REAR: AxleDef = {
   rebound: 3780,
   travel: 0.26,
   antiRoll: 6000,
-  brakeTorque: 750,
   handbrakeTorque: 2800,
   steer: 0,
   grip: 1,
   forceHeight: 0.3,
+};
+
+/** C4 WRC brakes: 355 / 300 mm vented discs on tarmac, the 300 mm kit with the gravel wheels (est. from same-era WRC cars; PHYSICS.md "Brakes"). */
+const BRAKES: BrakeSet = {
+  front: {
+    type: 'vented',
+    diameter: 0.355,
+    thickness: 0.032,
+    pad: 'rally',
+    clamp: 12650,
+  },
+  rear: {
+    type: 'vented',
+    diameter: 0.3,
+    thickness: 0.028,
+    pad: 'rally',
+    clamp: 5000,
+  },
+};
+
+const GRAVEL_BRAKES: BrakeSet = {
+  front: {
+    type: 'vented',
+    diameter: 0.3,
+    thickness: 0.028,
+    pad: 'rally',
+    clamp: 12500,
+  },
+  rear: {
+    type: 'vented',
+    diameter: 0.3,
+    thickness: 0.028,
+    pad: 'rally',
+    clamp: 4850,
+  },
 };
 
 /**
@@ -151,6 +185,8 @@ export const citroenC4: CarDef = {
       frontDiffLock: 80,
       rearDiffLock: 200,
     },
+    brakes: BRAKES,
+    gravelBrakes: GRAVEL_BRAKES,
     dragArea: 0.8,
     downforceArea: 0.2,
     // Fitted to the imported body (tests/rally/hull-fit.test.ts, which measures the GLB): front bumper 0.227, sills and floor

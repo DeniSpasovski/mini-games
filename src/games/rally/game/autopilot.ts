@@ -80,7 +80,8 @@ export class Autopilot {
     // Speed plan: for each point ahead, the speed we could still brake down
     // to its cornering limit (v^2 = v_corner^2 + 2 a d); take the minimum.
     const grip = 0.7 * 9.81 * (0.55 + this.aggression * 0.45);
-    const decel = 4.2 * this.gripAhead(v, 0); // conservative: gravel + downhill
+    // Conservative: gravel + downhill; faded or cold brakes (physics/brakes.ts) cap it at what they pull now.
+    const decel = Math.min(4.2 * this.gripAhead(v, 0), 0.85 * v.brakeDecel);
     let target = this.maxSpeed;
     const horizon = 30 + Math.max(0, speed) * 3;
     // Over a crest that launches the car (v^2 * vertical curvature > g) there is

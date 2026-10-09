@@ -1,5 +1,6 @@
 import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
+import type { BrakeSet } from '../../physics/brakes';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
 import { profile } from './profile';
@@ -25,7 +26,6 @@ const FRONT: AxleDef = {
   rebound: 7560,
   travel: 0.13,
   antiRoll: 26000,
-  brakeTorque: 2000,
   handbrakeTorque: 0,
   steer: 1,
   grip: 1.08,
@@ -41,11 +41,30 @@ const REAR: AxleDef = {
   travel: 0.13,
   antiRoll: 17000,
   // x 1.076 with the taller rear slick (same brake force at the road, same balance).
-  brakeTorque: 1345,
   handbrakeTorque: 3000,
   steer: 0,
   grip: 1.6,
   forceHeight: 0.3,
+};
+
+/** GT2 brakes: 380 / 332 mm ducted iron discs, race pads (PHYSICS.md "Brakes"). */
+const BRAKES: BrakeSet = {
+  front: {
+    type: 'vented',
+    diameter: 0.38,
+    thickness: 0.032,
+    pad: 'race',
+    clamp: 11850,
+    ducted: true,
+  },
+  rear: {
+    type: 'vented',
+    diameter: 0.332,
+    thickness: 0.028,
+    pad: 'race',
+    clamp: 12500,
+    ducted: true,
+  },
 };
 
 /**
@@ -163,6 +182,7 @@ export const bimmerGt2: CarDef = {
       frontDiffLock: 0,
       rearDiffLock: 280,
     },
+    brakes: BRAKES,
     dragArea: 0.85,
     downforceArea: 0.4,
     // Fitted to bimmer_gt2.glb (tests/rally/hull-fit.test.ts prints the model's underside per zone): splitter / floor 9 cm, rear 13 cm
