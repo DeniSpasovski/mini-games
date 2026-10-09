@@ -160,6 +160,14 @@ export const zastava101: CarDef = {
     wheels: buildZastavaWheel,
     tyreDust: true,
     suspensionStyle: 'road',
+    cornerSuspension: {
+      style: 'road',
+      front: 'strut',
+      rear: 'axle',
+      topY: { front: 0.38, rear: 0.34 },
+      topIn: { front: 0.2, rear: 0.2 },
+      driven: [],
+    },
     gltf: {
       file: 'zastava_101.glb',
       credit:

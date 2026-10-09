@@ -1,3 +1,4 @@
+import type { CornerSuspensionDef } from './corner-suspension';
 import type { SuspensionStyle } from './suspension-mesh';
 import type { CarPhysicsDef } from '../../physics/types';
 import type { SourceLink } from '../../maps/shared/types';
@@ -138,6 +139,8 @@ export interface CarModelDef {
   /** Draw hub uprights + wishbones + dampers behind the wheels (useful with open-arch imported bodies). */
   suspension?:
     boolean | { /** Damper colour (default gold). */ damper: string };
+  /** Visible coil-overs + arms in empty wheel wells (cars/shared/corner-suspension.ts), sized per car. */
+  cornerSuspension?: CornerSuspensionDef;
 }
 
 export interface CarGltfDef {

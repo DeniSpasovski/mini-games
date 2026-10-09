@@ -1,3 +1,4 @@
+import { CornerSuspension } from './corner-suspension';
 import {
   AxesHelper,
   BackSide,
@@ -371,6 +372,13 @@ export class CarModel {
   /** Optional suspension detail (model.suspension): hub uprights follow the wheel, links join them to the body. */
   private uprights?: InstancedMesh;
   private links?: InstancedMesh;
+  private corners?: CornerSuspension;
+  private hubQ = [
+    new Quaternion(),
+    new Quaternion(),
+    new Quaternion(),
+    new Quaternion(),
+  ];
   private tmpA = new Vector3();
   private tmpB = new Vector3();
   private tmpC = new Vector3();
@@ -621,6 +629,15 @@ export class CarModel {
         this.links.setColorAt(i, c.set(i % LINKS === 4 ? damper : 0x303338));
       this.root.add(this.links);
     }
+    if (def.model.cornerSuspension) {
+      const preset = p.setups![p.setup!];
+      this.corners = new CornerSuspension(
+        def.model.cornerSuspension,
+        p,
+        preset,
+      );
+      this.root.add(this.corners.group);
+    }
     const restY = p.wheelRadius - p.comHeight;
     this.wheelPos = [
       new Vector3(p.front.track / 2, restY, p.front.z),
@@ -792,6 +809,7 @@ export class CarModel {
       this.calipers.setMatrixAt(i, this.m);
       this.discs?.setMatrixAt(i, this.m);
       this.uprights?.setMatrixAt(i, this.m);
+      this.hubQ[i].copy(this.q);
       if (this.links) this.syncLinks(i);
       this.tmpQ.setFromAxisAngle(
         X_AXIS,
@@ -808,6 +826,7 @@ export class CarModel {
     if (this.discs) this.discs.instanceMatrix.needsUpdate = true;
     if (this.uprights) this.uprights.instanceMatrix.needsUpdate = true;
     if (this.links) this.links.instanceMatrix.needsUpdate = true;
+    this.corners?.sync(this.wheelPos, this.hubQ);
   }
 
   /** Wishbones + damper from fixed body points to the (steered, bouncing) upright of wheel i. */
@@ -993,6 +1012,7 @@ export class CarModel {
     this.discs?.dispose();
     this.uprights?.dispose();
     this.links?.dispose();
+    this.corners?.dispose();
   }
 }
 

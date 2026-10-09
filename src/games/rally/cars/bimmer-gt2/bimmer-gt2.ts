@@ -178,6 +178,14 @@ export const bimmerGt2: CarDef = {
       gravel: { rimColor: '#16171a' },
     },
     suspensionStyle: 'gt',
+    cornerSuspension: {
+      style: 'gt',
+      front: 'wishbone',
+      rear: 'wishbone',
+      topY: { front: 0.36, rear: 0.34 },
+      topIn: { front: 0.22, rear: 0.22 },
+      driven: ['rear'],
+    },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Rally plate on the door (door shut lines z ~ -0.4 .. 0.9, front = +z), above the side moulding.
