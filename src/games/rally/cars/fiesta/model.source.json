@@ -160,46 +160,52 @@
         "material": "chrome"
       },
       {
-        "$comment": "black rubber round the front door window (left side): the glass outline grown by 12 mm (side view, model coords); the glass covers the inside",
+        "$comment": "black rubber round the front door window (left side): the glass outline grown by 25 mm (its glass sits deeper in the frame than the quarter windows) (side view, model coords); the glass covers the inside",
         "mat": "WCCARBODY",
         "region": {
           "view": "left",
           "poly": [
-            [-0.389, 1.266],
-            [-0.539, 1.264],
-            [-0.478, 0.933],
-            [0.574, 0.823],
-            [0.547, 1.035],
-            [0.446, 1.093],
-            [0.349, 1.135],
-            [0.261, 1.169],
-            [0.172, 1.197],
-            [0.087, 1.219],
-            [0.001, 1.237],
-            [-0.167, 1.257]
+            [-0.389, 1.279],
+            [-0.539, 1.277],
+            [-0.563, 1.258],
+            [-0.49, 0.927],
+            [-0.466, 0.908],
+            [0.574, 0.81],
+            [0.599, 0.829],
+            [0.559, 1.042],
+            [0.452, 1.105],
+            [0.356, 1.146],
+            [0.262, 1.183],
+            [0.173, 1.211],
+            [0.093, 1.231],
+            [0.007, 1.249],
+            [-0.167, 1.27]
           ],
           "depth": [0.5, 0.8]
         },
         "material": "trim"
       },
       {
-        "$comment": "black rubber round the front door window (right side): the glass outline grown by 12 mm (side view, model coords); the glass covers the inside",
+        "$comment": "black rubber round the front door window (right side): the glass outline grown by 25 mm (its glass sits deeper in the frame than the quarter windows) (side view, model coords); the glass covers the inside",
         "mat": "WCCARBODY",
         "region": {
           "view": "left",
           "poly": [
-            [-0.389, 1.266],
-            [-0.539, 1.264],
-            [-0.478, 0.933],
-            [0.574, 0.823],
-            [0.547, 1.035],
-            [0.446, 1.093],
-            [0.349, 1.135],
-            [0.261, 1.169],
-            [0.172, 1.197],
-            [0.087, 1.219],
-            [0.001, 1.237],
-            [-0.167, 1.257]
+            [-0.389, 1.279],
+            [-0.539, 1.277],
+            [-0.563, 1.258],
+            [-0.49, 0.927],
+            [-0.466, 0.908],
+            [0.574, 0.81],
+            [0.599, 0.829],
+            [0.559, 1.042],
+            [0.452, 1.105],
+            [0.356, 1.146],
+            [0.262, 1.183],
+            [0.173, 1.211],
+            [0.093, 1.231],
+            [0.007, 1.249],
+            [-0.167, 1.27]
           ],
           "depth": [-0.8, -0.5]
         },

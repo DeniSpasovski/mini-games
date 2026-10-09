@@ -176,19 +176,6 @@ function paint(
   }
 
   // --- top: navy flanks on the bonnet, light-blue shards, white roof with a light-blue chevron at the back ---
-  // front fender tops, outside the windscreen corners
-  for (const side of [1, -1])
-    fill(
-      ctx,
-      'top',
-      [
-        [0.5, side * 0.75],
-        [0.95, side * 0.75],
-        [0.95, side * 1.05],
-        [0.5, side * 1.05],
-      ],
-      navy,
-    );
   for (const side of [1, -1])
     fill(
       ctx,
