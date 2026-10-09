@@ -45,6 +45,8 @@ export interface SetupPoint {
   travel: number;
   /** Ride height vs the car's standard one (m, + = higher); default 0. */
   ride?: number;
+  /** Multiplier on the spring-scaled anti-roll bars (default 1): a stiff tarmac set-up keeps the full bars. */
+  bar?: number;
 }
 
 /**
@@ -56,18 +58,18 @@ export function deriveSetups(
   base: { front: AxleDef; rear: AxleDef },
   points: Record<SetupId, SetupPoint>,
 ): Record<SetupId, SetupPreset> {
-  const axle = (b: AxleDef, spring: number): SetupAxle => ({
+  const axle = (b: AxleDef, spring: number, bar: number): SetupAxle => ({
     spring,
     bump: Math.round(b.bump * Math.sqrt(spring / b.spring)),
     rebound: Math.round(b.rebound * Math.sqrt(spring / b.spring)),
-    antiRoll: Math.round((b.antiRoll * spring) / b.spring),
+    antiRoll: Math.round((b.antiRoll * spring * bar) / b.spring),
   });
   const out = {} as Record<SetupId, SetupPreset>;
   for (const id of SETUP_IDS) {
     const p = points[id];
     out[id] = {
-      front: axle(base.front, p.front),
-      rear: axle(base.rear, p.rear),
+      front: axle(base.front, p.front, p.bar ?? 1),
+      rear: axle(base.rear, p.rear, p.bar ?? 1),
       travel: p.travel,
       ride: p.ride ?? 0,
     };

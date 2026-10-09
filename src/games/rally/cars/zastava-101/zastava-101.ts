@@ -12,12 +12,12 @@ const FRONT: AxleDef = {
   bump: 1700,
   rebound: 2720,
   travel: 0.22,
-  antiRoll: 6000,
+  antiRoll: 3000,
   brakeTorque: 1200,
   handbrakeTorque: 0,
   steer: 1,
   grip: 1,
-  forceHeight: 0.35,
+  forceHeight: 0.2,
 };
 
 const REAR: AxleDef = {
@@ -27,14 +27,14 @@ const REAR: AxleDef = {
   bump: 1400,
   rebound: 2240,
   travel: 0.22,
-  antiRoll: 4000,
+  antiRoll: 2000,
   // 23 % rear (front 1200): the light rear (40 % static, less under braking) must not lock before the front - at
   // 35 % braking mid-corner spun the car. Total torque kept so part-pedal stops stay the same.
   brakeTorque: 350,
   handbrakeTorque: 1800,
   steer: 0,
   grip: 1.05,
-  forceHeight: 0.35,
+  forceHeight: 0.2,
 };
 
 /**
@@ -101,7 +101,7 @@ export const zastava101: CarDef = {
         // Ride height: road car, a narrow band (+15 / 0 / -10 mm around the stock 0.24 m floor).
         soft: { front: 23000, rear: 17000, travel: 0.22, ride: 0.015 },
         medium: { front: 32000, rear: 21000, travel: 0.2, ride: 0 },
-        stiff: { front: 39000, rear: 26000, travel: 0.18, ride: -0.01 },
+        stiff: { front: 39000, rear: 26000, travel: 0.18, ride: -0.01, bar: 2 },
       },
     ),
     engine: {

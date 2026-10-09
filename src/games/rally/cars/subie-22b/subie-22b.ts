@@ -23,12 +23,12 @@ const FRONT: AxleDef = {
   bump: 2600,
   rebound: 4680,
   travel: 0.22,
-  antiRoll: 9000,
+  antiRoll: 4500,
   brakeTorque: 1700,
   handbrakeTorque: 0,
   steer: 1,
   grip: 1,
-  forceHeight: 0.3,
+  forceHeight: 0.15,
 };
 
 const REAR: AxleDef = {
@@ -38,12 +38,12 @@ const REAR: AxleDef = {
   bump: 2300,
   rebound: 4140,
   travel: 0.22,
-  antiRoll: 6500,
+  antiRoll: 3200,
   brakeTorque: 800,
   handbrakeTorque: 2600,
   steer: 0,
   grip: 1.02,
-  forceHeight: 0.3,
+  forceHeight: 0.15,
 };
 
 /**
@@ -101,7 +101,7 @@ export const subie22b: CarDef = {
       {
         soft: { front: 30000, rear: 26000, travel: 0.24, ride: 0.03 },
         medium: { front: 38000, rear: 33000, travel: 0.22, ride: 0.01 },
-        stiff: { front: 56000, rear: 48000, travel: 0.18, ride: -0.01 },
+        stiff: { front: 56000, rear: 48000, travel: 0.18, ride: -0.01, bar: 2 },
       },
     ),
     engine: {

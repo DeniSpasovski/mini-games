@@ -26,12 +26,12 @@ const FRONT: AxleDef = {
   bump: 2400,
   rebound: 4320,
   travel: 0.26,
-  antiRoll: 9000,
+  antiRoll: 4500,
   brakeTorque: 1750,
   handbrakeTorque: 0,
   steer: 1,
   grip: 1,
-  forceHeight: 0.3,
+  forceHeight: 0.15,
 };
 
 const REAR: AxleDef = {
@@ -41,12 +41,12 @@ const REAR: AxleDef = {
   bump: 2100,
   rebound: 3780,
   travel: 0.26,
-  antiRoll: 6000,
+  antiRoll: 3000,
   brakeTorque: 750,
   handbrakeTorque: 2800,
   steer: 0,
   grip: 1,
-  forceHeight: 0.3,
+  forceHeight: 0.15,
 };
 
 /**
@@ -108,7 +108,7 @@ export const fiesta: CarDef = {
       {
         soft: { front: 34000, rear: 29000, travel: 0.26, ride: 0.03 },
         medium: { front: 59000, rear: 48000, travel: 0.2, ride: 0 },
-        stiff: { front: 98000, rear: 79000, travel: 0.15, ride: -0.02 },
+        stiff: { front: 98000, rear: 79000, travel: 0.15, ride: -0.02, bar: 2 },
       },
     ),
     engine: {

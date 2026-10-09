@@ -45,7 +45,8 @@ and `physics/car-setup.ts`. Workflow:
 | Spins under power              | raise `rear.grip` relative to `front.grip`, lower `rearDiffLock`, more `frontSplit`, less torque |
 | Won't turn when braking        | ABS on (`B`); without it the fronts lock and the car goes straight on whatever the steering does |
 | Won't turn in / understeer     | `front.grip`, `maxSteerDeg`, softer `front.antiRoll`, stiffer `rear.antiRoll`                    |
-| Rolls over too easily          | raise `forceHeight` (0.3 -> 0.45), lower `comHeight`, stiffer `antiRoll`                         |
+| Rolls over too easily          | raise `forceHeight` (0.15 -> 0.3), lower `comHeight`, stiffer `antiRoll`                         |
+| Leans / dives too little       | lower `forceHeight` (tyre forces reach the body higher up), softer `antiRoll` (dive: `forceHeight` only) |
 | Floaty / bouncy                | raise `bump` / `rebound` dampers (critical ≈ 2·sqrt(k·m_corner))                                 |
 | Bottoms out on jumps           | more `travel`, stiffer `spring`, the preset's `ride` (ride height is kept automatically)         |
 | Surface too grippy / too icy   | `mu`, `slide` (grip left when sliding), `peakAngle` in `surfaces.ts`                             |
@@ -190,6 +191,11 @@ defines its own values - that is where its **limits** live. `CarPhysicsDef.setup
 names the preset the base axle numbers equal, `applySetup(def, id)` returns the car with a preset, `deriveSetups` builds
 the presets from spring rates + travel (dampers scale with `sqrt(spring)` so the damping ratio stays put, anti-roll bars
 with the spring rate).
+
+**Roll and dive**: tyre forces act `forceHeight` of the way up from the contact patch to the centre of mass (0.15, Zastava
+0.2), so 85 % of the real moment leans the body; the anti-roll bars add roll stiffness on top of the springs (they do
+nothing for dive). A real car puts the whole moment into the body, so this stays above zero to keep rally cars from
+flipping on a sideways trip; `integration-tests/rally/rollover.test.ts` guards that margin.
 
 **Dampers and bump stop** (`suspensionPass`): rebound is ~1.8x bump (Zastava 1.6x: softer road dampers keep it
 climbing steep, twisted ramps), so the body settles after a jump instead of bouncing. The bump stop is progressive: it

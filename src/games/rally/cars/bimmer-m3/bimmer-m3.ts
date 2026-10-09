@@ -24,12 +24,12 @@ const FRONT: AxleDef = {
   bump: 3680,
   rebound: 6620,
   travel: 0.14,
-  antiRoll: 23833,
+  antiRoll: 11900,
   brakeTorque: 1700,
   handbrakeTorque: 0,
   steer: 1,
   grip: 1.06, // street tyres (245 / 40 R18) need a little front grip so the tarmac specialist stays ahead of the Skoda (car-setup.test.ts)
-  forceHeight: 0.3,
+  forceHeight: 0.15,
 };
 
 const REAR: AxleDef = {
@@ -39,14 +39,14 @@ const REAR: AxleDef = {
   bump: 3402,
   rebound: 6120,
   travel: 0.14,
-  antiRoll: 15312,
+  antiRoll: 7700,
   brakeTorque: 1050,
   handbrakeTorque: 3000,
   steer: 0,
   // Rear bias: at 1.05 the RWD V8 spun on gravel under full throttle; 1.15 still did (tests/rally/car-setup.test.ts
   // "straight-line launch"). The tyre size factors act on both axles, so they do not replace this bias.
   grip: 1.3,
-  forceHeight: 0.3,
+  forceHeight: 0.15,
 };
 
 /**

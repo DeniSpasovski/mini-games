@@ -24,12 +24,12 @@ const FRONT: AxleDef = {
   bump: 4200,
   rebound: 7560,
   travel: 0.13,
-  antiRoll: 26000,
+  antiRoll: 13000,
   brakeTorque: 2000,
   handbrakeTorque: 0,
   steer: 1,
   grip: 1.08,
-  forceHeight: 0.3,
+  forceHeight: 0.15,
 };
 
 const REAR: AxleDef = {
@@ -39,13 +39,13 @@ const REAR: AxleDef = {
   bump: 3900,
   rebound: 7020,
   travel: 0.13,
-  antiRoll: 17000,
+  antiRoll: 8500,
   // x 1.076 with the taller rear slick (same brake force at the road, same balance).
   brakeTorque: 1345,
   handbrakeTorque: 3000,
   steer: 0,
   grip: 1.6,
-  forceHeight: 0.3,
+  forceHeight: 0.15,
 };
 
 /**
