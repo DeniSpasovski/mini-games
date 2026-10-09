@@ -1,8 +1,5 @@
 import { afterEach, expect, test } from '@rstest/core';
-import {
-  GamepadMenuNav,
-  type NavAction,
-} from '../../src/games/rally/game/pad-nav';
+import { GamepadMenuNav, type NavAction } from '../src/shared/pad-nav';
 
 type FakePad = { axes: number[]; mapping?: string; id?: string };
 let pads: FakePad[] = [];

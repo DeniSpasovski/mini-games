@@ -55,6 +55,8 @@ const TC_FRONT_SLIP = 2.0;
 const ABS_SLIP = 1.3;
 const ABS_SLIDE = 1;
 const ABS_MIN_SPEED = 3;
+/** Progressive bump stop length (fraction of the suspension travel). */
+const STOP_ZONE = 0.35;
 
 export interface WheelState {
   id: WheelId;
@@ -674,7 +676,13 @@ export class Vehicle {
       let f =
         a.spring * w.compression + (compVel > 0 ? a.bump : a.rebound) * compVel;
       f += a.antiRoll * (w.compression - other.compression);
-      f += a.spring * 12 * w.bumpStop;
+      if (this.def.hardBumpStop) f += a.spring * 12 * w.bumpStop;
+      else {
+        // Progressive bump stop over the last part of the travel: rate 0 -> 2 x spring at full bump, rising on.
+        const zone = STOP_ZONE * a.travel;
+        const d = Math.max(0, w.compression - a.travel + zone) + w.bumpStop;
+        f += (a.spring * d * d) / zone;
+      }
       f = Math.max(0, f);
       w.load = f;
       const mountW = _v1

@@ -17,7 +17,7 @@ npm run dev      # then open http://localhost:3000/games/kaboom/
 Pick your critter (it turns on a little stage in your team colour) and team colour, the arena, how many bots (1-7),
 their skill and the number of rounds, then:
 
-- **Move** with WASD / arrows (or drag a finger, or a gamepad stick); **drop TNT** with Space (or the TNT button).
+- **Move** with WASD / arrows (or drag a finger, or a gamepad stick); **drop TNT** with Space (or the TNT button / pad A). Menus work with the pad too: d-pad / stick, A = select, B = back, Start = resume.
 - The band counts 3, 2, 1, then flames shoot out in a cross. Hard blocks stop them, crates break, other TNT goes off.
   At blast level 4 the flames also turn the first corner, at level 5 the second.
 - Crates hide **power-ups**: walk onto them for more dynamites at once or a longer blast (up to level 5 each).
@@ -40,7 +40,7 @@ The Large arena (up to 8 players) is bigger than the screen: the camera follows 
   (tall and slim to low and broad), real shell-rendered fur, hard hats and hi-vis vests in their team colour, animated
   by code.
 - **Power-ups** hidden in crates, two kinds up to level 5: more dynamites to place at once, more sticks for a longer
-  blast. Five drops per player, one always close to you; to max out you have to win some from the others.
+  blast. Drops scale with the player count (6 + 2 per player), one always close to you; to max out you have to win some from the others.
 - **Arenas**: Small / Medium / Large from a seed, mirrored so every spawn is fair, with a proven safe start (room to drop
   the first TNT and hide).
 - **Bots that come for you**: Easy ones mostly farm crates and only attack when you are close, Normal ones chase and

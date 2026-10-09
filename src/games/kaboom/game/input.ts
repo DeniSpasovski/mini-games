@@ -121,6 +121,7 @@ export class Controls {
 
   /** Turn the controls on (a round is running) or off (menus). Off also drops the touch and held keys. */
   setEnabled(on: boolean): void {
+    if (on && !this.enabled) this.syncPad();
     this.enabled = on;
     if (!on) this.release();
     this.tnt.style.display = this.touchUi && on ? '' : 'none';
@@ -171,6 +172,13 @@ export class Controls {
       this.placeQueued = false;
     }
     return out;
+  }
+
+  /** Take the current pad buttons as already held, so the A / Start that closed a menu doesn't act in the game. */
+  private syncPad(): void {
+    const g = [...(navigator.getGamepads?.() ?? [])].find((p) => p);
+    this.padA = [0, 1, 2, 3].some((i) => !!g?.buttons[i]?.pressed);
+    this.padStart = !!g?.buttons[9]?.pressed;
   }
 
   private pollPad(): { dx: number; dy: number } {

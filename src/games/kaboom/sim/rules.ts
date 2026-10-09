@@ -48,10 +48,21 @@ export const MAX_PLAYERS = 8;
 /** Team colours in the palette (`TEAM_COLORS` in `render/characters.ts`): one per player slot. */
 export const TEAM_COUNT = MAX_PLAYERS;
 /**
- * Power-ups: how many drop per player (hidden in crates), and how many times each kind can be taken (level 1 -> 5:
- * TNT 1 -> 5, blast 2 -> 6). Maxing both takes 8, so a player who wants it all must win 3 of somebody else's.
+ * Power-ups: how many drop in a round (hidden in crates), and how many times each kind can be taken (level 1 -> 5:
+ * TNT 1 -> 5, blast 2 -> 6). Maxing both takes 8, so a player who wants it all must win some of the others'. The
+ * total grows by `POWERUPS_PER_PLAYER` per player on top of `POWERUPS_BASE`, but never covers more than
+ * `POWERUPS_MAX_CRATE_SHARE` of the arena's crates (a full small arena would otherwise hide one in every other crate).
  */
-export const POWERUPS_PER_PLAYER = 5;
+export const POWERUPS_BASE = 6;
+export const POWERUPS_PER_PLAYER = 2;
+export const POWERUPS_MAX_CRATE_SHARE = 0.4;
+/** Power-ups hidden this round for `players` players in an arena with `crates` crates. */
+export const powerUpTotal = (players: number, crates: number): number =>
+  Math.min(
+    crates,
+    POWERUPS_BASE + players * POWERUPS_PER_PLAYER,
+    Math.floor(crates * POWERUPS_MAX_CRATE_SHARE),
+  );
 export const MAX_POWER_LEVEL = 4;
 /** Per-player TNT cap with power-ups. */
 export const MAX_TNT_PER_PLAYER = 8;
