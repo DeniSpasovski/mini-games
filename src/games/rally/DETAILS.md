@@ -206,6 +206,8 @@ open it.
 
 Rendering: `cars/shared/tyre-mesh.ts` (tread per compound, compound ring), `suspension-mesh.ts` (per
 `model.suspensionStyle`), `buildWheelSet` in `car-model.ts`.
+Cars whose model has empty wheel wells set `model.cornerSuspension` (`cars/shared/corner-suspension.ts`): a coil-over in the car's
+style plus arms / drive shafts, following the live wheel travel (Zastava, M3, GT2, C4, Lancer; Skoda, Fiesta, 22B show the model's own).
 
 ## Architecture
 

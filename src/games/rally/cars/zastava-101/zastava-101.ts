@@ -156,10 +156,18 @@ export const zastava101: CarDef = {
     // Rally plate: middle of the front door, just under the beltline.
     doorBadge: { z: 0.1, y: 0.606 },
     paintFinish: 'satin',
-    glass: { color: 0x39464f, opacity: 0.3 },
+    glass: { color: 0x2a343c, opacity: 0.45 },
     wheels: buildZastavaWheel,
     tyreDust: true,
     suspensionStyle: 'road',
+    cornerSuspension: {
+      style: 'road',
+      front: 'strut',
+      rear: 'axle',
+      topY: { front: 0.38, rear: 0.34 },
+      topIn: { front: 0.2, rear: 0.2 },
+      driven: [],
+    },
     gltf: {
       file: 'zastava_101.glb',
       credit:

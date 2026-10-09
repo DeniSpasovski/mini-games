@@ -168,7 +168,7 @@ export const skodaRally: CarDef = {
     // The model's own rim (front-left, exported by the recipe in DETAILS.md), rescaled per tyre size (stl-wheel.ts).
     wheelModel: 'skoda_rally_wheel.glb',
     suspensionStyle: 'rally',
-    glass: { color: 0x2a3a46, opacity: 0.4 },
+    glass: { color: 0x141c24, opacity: 0.6 },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     doorBadge: { z: 0.27, y: 0.59 },

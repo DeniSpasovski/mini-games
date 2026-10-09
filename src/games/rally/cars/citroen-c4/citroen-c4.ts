@@ -172,8 +172,16 @@ export const citroenC4: CarDef = {
     // size (stl-wheel.ts).
     wheelModel: 'citroen_c4_wheel.glb',
     suspensionStyle: 'wrcgold',
+    cornerSuspension: {
+      style: 'wrcgold',
+      front: 'strut',
+      rear: 'strut',
+      topY: { front: 0.46, rear: 0.44 },
+      topIn: { front: 0.2, rear: 0.2 },
+      driven: ['front', 'rear'],
+    },
     // The model carries its own cockpit: see-through glass shows it.
-    glass: { color: 0x2a3a46, opacity: 0.35 },
+    glass: { color: 0x141c24, opacity: 0.6 },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     doorBadge: { z: 0.2, y: 0.6 },
