@@ -16,7 +16,7 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
 - Surfaces: `physics/surfaces.ts` (`mu`, `slide`, `peakSlip`, `peakAngle`, `rolling`, `bump`, `rough`).
 - Water: `Vehicle.waterPass` (tyre + body drag, flooded intake), fed by `GroundProvider.waterLevel`;
   `tests/rally/water-physics.test.ts` prints dry / shallow / deep acceleration per car.
-- Tyre size + suspension set-ups: `CarPhysicsDef.tyres` (sizes, overall radius must match `wheelRadius`) and `setups` / `setup`
+- Tyre size + suspension set-ups: `CarPhysicsDef.tyres` (sizes per compound + axle; each rolls on `axleRadius`, gearing on `drivenRadius`) and `setups` / `setup`
   (`deriveSetups`, `applySetup`, `compliance` in `physics/car-setup.ts`); the per-car grip layers live in `physics/car-tyres.ts`
   (`carSurfaces`). Build the `Vehicle` from `applySetup(def, id)` + `setTyre(id)`; tests: `car-setup.test.ts`, `car-matrix.test.ts`.
   Retuning springs changes the compliance (and so the grip match) by itself - keep damping ratios 0.25-0.8 and a car's range

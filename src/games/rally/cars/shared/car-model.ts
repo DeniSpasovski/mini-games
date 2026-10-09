@@ -34,7 +34,7 @@ import type { CarPartGeometry } from './car-parts';
 import { hasImportedModel, loadImportedCar } from './car-gltf';
 import { liveryInfo, type LiveryInfo } from './livery';
 import { buildProfileParts } from './profile-body';
-import { tyreSizeFor } from '../../physics/car-tyres';
+import { axleRadius, tyreSizeFor, type Axle } from '../../physics/car-tyres';
 import type { TyreId } from '../../physics/tyres';
 import {
   buildBrakeGeometries,
@@ -358,17 +358,17 @@ export class CarModel {
   private reversing = false;
   /** Fitted compound (null = plain tyre). */
   private tyre: TyreId | null;
-  /** The wheel geometries currently on the instanced meshes (owned here, replaced by `refreshWheels`). */
-  private wheelGeoms: BufferGeometry[];
+  /**
+   * Instanced wheel meshes: one group for all four wheels, or one per axle on cars with their own rear sizes
+   * (`physics.tyres.rear`). Geometries are owned here and replaced by `refreshWheels`.
+   */
+  private wheelGroups: WheelGroup[];
   /** Rims of the car's wheel GLBs in unit space once loaded (STL wheels), by file. */
   private stlRims = new Map<string, BufferGeometry>();
   private rimMat: MeshStandardMaterial;
   private calMat: MeshStandardMaterial;
-  private tires: InstancedMesh;
-  private rims: InstancedMesh;
-  private calipers: InstancedMesh;
-  /** Brake discs of STL wheels (static like the calipers: they are round). */
-  private discs?: InstancedMesh;
+  /** Ride height last set by `setRideHeight` (showroom pose; null = the vehicle drives the wheels). */
+  private ride: number | null = null;
   /** Optional suspension detail (model.suspension): hub uprights follow the wheel, links join them to the body. */
   private uprights?: InstancedMesh;
   private links?: InstancedMesh;
@@ -586,23 +586,34 @@ export class CarModel {
     // Wheels: tyre (size + tread per compound) + rim + brakes, see buildWheelSet. A converted STL rim
     // (model.wheelModel) swaps in once loaded; its brake discs are built right away.
     this.tyre = opts.tyre ?? null;
-    const wheel = buildWheelSet(def, this.tyre, new Map());
     rimMat.color.set(rimColorFor(def.model, this.tyre));
-    this.wheelGeoms = [wheel.tire, wheel.rim, wheel.caliper];
     const wheelModel = wheelModelFor(def.model, this.tyre);
     let wheelsLoaded: Promise<unknown> = Promise.resolve();
-    this.tires = this.instanced(wheel.tire, tireVertexMat);
-    this.rims = this.instanced(wheel.rim, rimMat);
     this.calMat = caliperMat;
     if (def.model.rim.caliper) {
       this.calMat = caliperMat.clone();
       this.calMat.color.set(def.model.rim.caliper);
       this.owned.push(this.calMat);
     }
-    this.calipers = this.instanced(wheel.caliper, this.calMat);
-    if (hasWheelModel(wheelModel) && wheel.disc) {
-      this.wheelGeoms.push(wheel.disc);
-      this.discs = this.instanced(wheel.disc, discMat);
+    const axles: Axle[] = p.tyres.rear ? ['front', 'rear'] : ['front'];
+    this.wheelGroups = axles.map((axle) => {
+      const wheel = buildWheelSet(def, this.tyre, new Map(), axle);
+      const n = 4 / axles.length;
+      return {
+        axle,
+        geoms: wheel.disc
+          ? [wheel.tire, wheel.rim, wheel.caliper, wheel.disc]
+          : [wheel.tire, wheel.rim, wheel.caliper],
+        tire: this.instanced(wheel.tire, tireVertexMat, n),
+        rim: this.instanced(wheel.rim, rimMat, n),
+        caliper: this.instanced(wheel.caliper, this.calMat, n),
+        disc:
+          hasWheelModel(wheelModel) && wheel.disc
+            ? this.instanced(wheel.disc, discMat, n)
+            : undefined,
+      };
+    });
+    if (hasWheelModel(wheelModel) && this.wheelGroups[0].disc) {
       wheelsLoaded = loadRimUnits(def.model).then((units) => {
         if (this.disposed) {
           for (const u of units.values()) u.dispose();
@@ -775,8 +786,12 @@ export class CarModel {
     return mesh;
   }
 
-  private instanced(g: BufferGeometry, mat: Material): InstancedMesh {
-    const im = new InstancedMesh(g, mat, 4);
+  private instanced(
+    g: BufferGeometry,
+    mat: Material,
+    count = 4,
+  ): InstancedMesh {
+    const im = new InstancedMesh(g, mat, count);
     im.castShadow = true;
     im.receiveShadow = true;
     im.frustumCulled = false;
@@ -805,9 +820,15 @@ export class CarModel {
       const right = i % 2 === 1;
       this.q.setFromAxisAngle(Y_AXIS, this.wheelSteer[i]);
       if (right) this.q.multiply(this.flip);
+      // Wheel i in its group: all four in one, or two per axle (front 0-1, rear 2-3).
+      const g =
+        this.wheelGroups.length > 1 && i >= 2
+          ? this.wheelGroups[1]
+          : this.wheelGroups[0];
+      const k = this.wheelGroups.length > 1 ? i % 2 : i;
       this.m.compose(this.wheelPos[i], this.q, this.one);
-      this.calipers.setMatrixAt(i, this.m);
-      this.discs?.setMatrixAt(i, this.m);
+      g.caliper.setMatrixAt(k, this.m);
+      g.disc?.setMatrixAt(k, this.m);
       this.uprights?.setMatrixAt(i, this.m);
       this.hubQ[i].copy(this.q);
       if (this.links) this.syncLinks(i);
@@ -817,13 +838,12 @@ export class CarModel {
       );
       this.tmpQ2.copy(this.q).multiply(this.tmpQ);
       this.m.compose(this.wheelPos[i], this.tmpQ2, this.one);
-      this.tires.setMatrixAt(i, this.m);
-      this.rims.setMatrixAt(i, this.m);
+      g.tire.setMatrixAt(k, this.m);
+      g.rim.setMatrixAt(k, this.m);
     }
-    this.tires.instanceMatrix.needsUpdate = true;
-    this.rims.instanceMatrix.needsUpdate = true;
-    this.calipers.instanceMatrix.needsUpdate = true;
-    if (this.discs) this.discs.instanceMatrix.needsUpdate = true;
+    for (const g of this.wheelGroups)
+      for (const im of [g.tire, g.rim, g.caliper, g.disc])
+        if (im) im.instanceMatrix.needsUpdate = true;
     if (this.uprights) this.uprights.instanceMatrix.needsUpdate = true;
     if (this.links) this.links.instanceMatrix.needsUpdate = true;
     this.corners?.sync(this.wheelPos, this.hubQ);
@@ -903,43 +923,66 @@ export class CarModel {
    */
   setRideHeight(ride: number): void {
     const p = this.def.physics;
-    this.root.position.y = p.comHeight + ride;
-    for (const w of this.wheelPos) w.y = p.wheelRadius - p.comHeight - ride;
+    this.ride = ride;
+    const r = (['front', 'rear'] as const).map((a) =>
+      axleRadius(p, this.tyre, a),
+    );
+    this.root.position.y = p.comHeight + ride + this.tyreLift;
+    this.wheelPos.forEach(
+      (w, i) => (w.y = r[i < 2 ? 0 : 1] - this.root.position.y),
+    );
     this.syncWheels();
   }
 
-  /** Fit another compound: new tread, ring colour and (when the size differs) rim size on the same instanced meshes. */
+  /**
+   * How much the fitted tyres lift the car at rest over the reference `wheelRadius` (m, mean of the axles: the small
+   * pitch of a staggered car is left out) - poses without physics (showroom, car viewer) add it to the root height.
+   */
+  get tyreLift(): number {
+    const p = this.def.physics;
+    return (
+      (axleRadius(p, this.tyre, 'front') + axleRadius(p, this.tyre, 'rear')) /
+        2 -
+      p.wheelRadius
+    );
+  }
+
+  /** Fit another compound: new tread, ring colour and (when the size differs) rim and tyre size on the same meshes. */
   setTyre(tyre: TyreId | null): void {
     if (tyre === this.tyre) return;
     this.tyre = tyre;
     this.refreshWheels();
+    if (this.ride !== null) this.setRideHeight(this.ride);
   }
 
   /** The instanced wheel meshes by part (debug tools: the car viewer's "Wheels" section toggles them). */
   get wheelParts(): {
-    tyres: InstancedMesh;
-    rims: InstancedMesh;
+    tyres: InstancedMesh[];
+    rims: InstancedMesh[];
     brakes: InstancedMesh[];
   } {
+    const g = this.wheelGroups;
     return {
-      tyres: this.tires,
-      rims: this.rims,
-      brakes: this.discs ? [this.calipers, this.discs] : [this.calipers],
+      tyres: g.map((w) => w.tire),
+      rims: g.map((w) => w.rim),
+      brakes: g.flatMap((w) => (w.disc ? [w.caliper, w.disc] : [w.caliper])),
     };
   }
 
   /** Rebuild tyre / rim / brake geometry for the fitted compound and swap it in (old ones are disposed). */
   private refreshWheels(): void {
-    const w = buildWheelSet(this.def, this.tyre, this.stlRims);
     this.rimMat.color.set(rimColorFor(this.def.model, this.tyre));
-    for (const g of this.wheelGeoms) g.dispose();
-    this.wheelGeoms = [w.tire, w.rim, w.caliper];
-    this.tires.geometry = w.tire;
-    this.rims.geometry = w.rim;
-    this.calipers.geometry = w.caliper;
-    if (this.discs && w.disc) {
-      this.discs.geometry = w.disc;
-      this.wheelGeoms.push(w.disc);
+    for (const g of this.wheelGroups) {
+      const w = buildWheelSet(this.def, this.tyre, this.stlRims, g.axle);
+      for (const old of g.geoms) old.dispose();
+      g.geoms = [w.tire, w.rim, w.caliper];
+      g.tire.geometry = w.tire;
+      g.rim.geometry = w.rim;
+      g.caliper.geometry = w.caliper;
+      if (g.disc && w.disc) {
+        g.disc.geometry = w.disc;
+        g.geoms.push(w.disc);
+      } else w.disc?.dispose();
     }
   }
 
@@ -1002,18 +1045,27 @@ export class CarModel {
 
   dispose(): void {
     this.disposed = true;
-    for (const g of this.wheelGeoms) g.dispose();
+    for (const g of this.wheelGroups) for (const geo of g.geoms) geo.dispose();
     this.clearBadge();
     this.root.removeFromParent();
     for (const o of this.owned) o.dispose();
-    this.tires.dispose();
-    this.rims.dispose();
-    this.calipers.dispose();
-    this.discs?.dispose();
+    for (const g of this.wheelGroups)
+      for (const im of [g.tire, g.rim, g.caliper, g.disc]) im?.dispose();
     this.uprights?.dispose();
     this.links?.dispose();
     this.corners?.dispose();
   }
+}
+
+/** Instanced wheel meshes for one axle (or all four wheels) and the geometries on them. */
+interface WheelGroup {
+  axle: Axle;
+  geoms: BufferGeometry[];
+  tire: InstancedMesh;
+  rim: InstancedMesh;
+  caliper: InstancedMesh;
+  /** Brake discs of STL wheels (static like the calipers: they are round). */
+  disc?: InstancedMesh;
 }
 
 export interface WheelSet {
@@ -1025,29 +1077,31 @@ export interface WheelSet {
 }
 
 /**
- * Tyre + rim + brakes for a car on a compound (wheel space: axis X, outer face +X). The overall radius is always the
- * physics wheel radius; the tyre SIZE sets width, rim diameter and sidewall height (so the rim visibly switches
- * between compounds on cars with a `tyres.byCompound`). Rims: the compound's wheel GLB rim scaled to the size (`stlRims`,
+ * Tyre + rim + brakes for one axle of a car on a compound (wheel space: axis X, outer face +X). The tyre SIZE sets the
+ * overall radius, width, rim diameter and sidewall height (so the rim visibly switches between compounds on cars with
+ * a `tyres.byCompound`, and the rear differs on cars with `tyres.rear`). Rims: the compound's wheel GLB rim scaled to the size (`stlRims`,
  * unit space by file, empty while they load), a car's own `model.wheels` rim (Zastava), else the procedural rim.
  */
 export function buildWheelSet(
   def: CarDef,
   tyre: TyreId | null,
   stlRims: ReadonlyMap<string, BufferGeometry>,
+  axle: Axle = 'front',
 ): WheelSet {
   const p = def.physics;
-  const size = tyre ? tyreSizeFor(p, tyre) : p.tyres.size;
+  const size = tyreSizeFor(p, tyre, axle);
+  const radius = axleRadius(p, tyre, axle);
   const tire = buildTyre({
-    radius: p.wheelRadius,
+    radius,
     size,
     compound: tyre,
     dust: def.model.tyreDust,
   });
   const barrel = rimRadius(size);
   const base = def.model.wheels
-    ? def.model.wheels(p.wheelRadius, size.width)
+    ? def.model.wheels(radius, size.width)
     : buildWheelGeometries(
-        p.wheelRadius,
+        radius,
         size.width,
         def.model.rim.spokes,
         def.model.rim.style,

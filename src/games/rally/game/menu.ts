@@ -26,7 +26,7 @@ import {
   SETUP_NAMES,
   setupCharacter,
 } from '../physics/car-setup';
-import { carGripRating, tyreLabel, tyreSizeFor } from '../physics/car-tyres';
+import { carGripRating, carTyreLabel } from '../physics/car-tyres';
 import {
   applyGearing,
   GEARING_IDS,
@@ -513,7 +513,7 @@ class MainMenu {
   /** One line on the car screen: what the stage will run with (recommended unless the setup screen changed it). */
   private setupSummary(): string {
     const custom = this.custom;
-    const size = tyreLabel(tyreSizeFor(this.car.physics, this.tyre));
+    const size = carTyreLabel(this.car.physics, this.tyre);
     const gear = hasGearings(this.car.physics)
       ? ` · ${GEARING_NAMES[this.gearing]} gearing`
       : '';
@@ -579,7 +579,7 @@ class MainMenu {
           `tyre:${id}`,
           id === this.tyre,
           `<div class="setup-name"><i class="menu-tyre-dot" style="background:${hex(t.color)}"></i><b>${t.name}</b>${id === this.recTyre ? reco : ''}</div>
-           <small>${tyreLabel(tyreSizeFor(car.physics, id))} · ${t.blurb}</small>
+           <small>${carTyreLabel(car.physics, id)} · ${t.blurb}</small>
            <div class="setup-chips">${chips}</div>`,
           () => this.setSetup({ tyre: id }, 0),
         ),
@@ -633,7 +633,7 @@ class MainMenu {
     // One speed scale for the row: the longest preset's top-gear redline speed.
     const scale = Math.max(
       ...GEARING_IDS.map((id) =>
-        Math.max(...gearTopSpeeds(applyGearing(car.physics, id))),
+        Math.max(...gearTopSpeeds(applyGearing(car.physics, id), this.tyre)),
       ),
     );
     const gearIds: GearingId[] = fixed ? ['medium'] : [...GEARING_IDS];
@@ -649,7 +649,7 @@ class MainMenu {
       const label = `<div class="setup-name"><b>${name}</b>${!fixed && id === this.recGearing ? reco : ''}</div>
            <small>${fixed ? 'No configuration available - road car gearbox' : id === 'short' ? 'Harder pull, lower top speed' : id === 'long' ? 'Higher top speed, softer pull' : 'Standard final drive'}</small>
            <div class="setup-chips data">
-             <span>Top speed<b>${Math.round(topSpeed(d) * 3.6)} km/h</b></span>
+             <span>Top speed<b>${Math.round(topSpeed(d, this.tyre) * 3.6)} km/h</b></span>
              <span>Final drive<b>${d.gearbox.finalDrive.toFixed(2)}</b></span>
              <span>Pull<b class="bars">${'●'.repeat(pull)}<i>${'●'.repeat(5 - pull)}</i></b></span>
            </div>`;
@@ -657,7 +657,7 @@ class MainMenu {
       b.className = 'setup-card gear-card';
       b.classList.toggle('selected', !fixed && id === this.gearing);
       b.classList.toggle('fixed', fixed);
-      b.innerHTML = `<div class="setup-view gear-view">${gearChart(d, scale)}</div><div class="setup-label">${label}</div>`;
+      b.innerHTML = `<div class="setup-view gear-view">${gearChart(d, scale, this.tyre)}</div><div class="setup-label">${label}</div>`;
       if (!fixed)
         b.addEventListener('click', () => this.setSetup({ gearing: id }, 2));
       gear.grid.append(b);
@@ -1217,9 +1217,9 @@ function routeSvg(m: MapInfo): string {
  * top speed (drag can stop it before the redline - the Zastava tops out at 160 km/h, not 5th gear's 199), shared scale
  * `scale` m/s across the row so short / medium / long compare at a glance; the top speed printed on the last bar.
  */
-function gearChart(def: CarPhysicsDef, scale: number): string {
-  const top = topSpeed(def);
-  const speeds = gearTopSpeeds(def).map((v) => Math.min(v, top));
+function gearChart(def: CarPhysicsDef, scale: number, tyre: TyreId): string {
+  const top = topSpeed(def, tyre);
+  const speeds = gearTopSpeeds(def, tyre).map((v) => Math.min(v, top));
   const n = speeds.length;
   const w = 220;
   const h = 100;
