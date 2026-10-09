@@ -11,7 +11,7 @@ import {
 import {
   FUSE_S,
   MAX_POWER_LEVEL,
-  POWERUPS_PER_PLAYER,
+  powerUpTotal,
   START_RANGE,
   START_TNT,
   TICK_HZ,
@@ -47,7 +47,7 @@ function steps(map: ReturnType<typeof generateMap>, sx: number, sy: number) {
   return dist;
 }
 
-test('drops: about two per player, only in crates, one of them near each player', () => {
+test('drops: scaled with players, only in crates, one of them near each player', () => {
   for (const id of MAP_SIZE_IDS) {
     const players = MAP_SIZES[id].maxPlayers;
     for (let seed = 1; seed <= 150; seed++) {
@@ -55,8 +55,8 @@ test('drops: about two per player, only in crates, one of them near each player'
       const hidden = assignPowerUps(map, players, new Rng(seed));
       const at = [...hidden.keys()].filter((i) => hidden[i] >= 0);
       expect(at.length).toBe(
-        Math.min(
-          players * POWERUPS_PER_PLAYER,
+        powerUpTotal(
+          players,
           [...map.terrain].filter((t) => t === Terrain.Crate).length,
         ),
       );

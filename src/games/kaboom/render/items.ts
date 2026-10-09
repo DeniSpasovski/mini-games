@@ -12,8 +12,8 @@ import { dynamitesItemGeometry, sticksItemGeometry } from './crew-parts';
 import { stickPaperTexture } from './tnt';
 
 const UP = new Vector3(0, 1, 0);
-/** Most power-ups that can lie around at once (`POWERUPS_PER_PLAYER` x 8 players, never all uncovered at once). */
-const CAPACITY = 40;
+/** Most power-ups that can lie around at once (`powerUpTotal` for 8 players is 22, never all uncovered at once). */
+const CAPACITY = 24;
 /** Power-ups are drawn bigger than their cell content suggests: they are small on a whole-arena view. */
 const ITEM_SCALE = 1.55;
 
