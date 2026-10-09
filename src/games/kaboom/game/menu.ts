@@ -1,3 +1,10 @@
+import {
+  activateFocused,
+  ensureFocus,
+  GamepadMenuNav,
+  moveFocus,
+  type NavAction,
+} from '../../../shared/pad-nav';
 import { goToPortal, portalUrl } from '../../../shared/portal-link';
 import manifest from '../game.json';
 import { MAP_SIZES, MAP_SIZE_IDS } from '../map/sizes';
@@ -90,10 +97,14 @@ export class Menu {
   private readonly layer = el('div', 'kb-menu');
   private readonly loadingEl = el('div', 'kb-loading');
 
+  /** What the controller's B button does on the screen that is up (null = nothing). */
+  private onBack: (() => void) | null = null;
+
   constructor(
     root: HTMLElement,
     private readonly api: MenuApi,
   ) {
+    new GamepadMenuNav((a) => this.padNav(a));
     this.loadingEl.append(
       el('div', 'kb-spinner'),
       el('div', '', 'Packing the TNT...'),
@@ -125,9 +136,23 @@ export class Menu {
       this.dropStage();
     this.layer.replaceChildren(...children);
     this.layer.style.display = '';
+    this.onBack = null;
     const card = children[0];
     card?.classList.add('kb-in');
     return card;
+  }
+
+  /** Controller navigation (shared/pad-nav.ts): d-pad / stick move focus, A clicks, B goes back, Start resumes a paused match. */
+  private padNav(a: NavAction): void {
+    if (this.layer.style.display === 'none' || !this.layer.firstChild) return;
+    if (a === 'back') this.onBack?.();
+    else if (a === 'start') {
+      if (this.layer.querySelector('.kb-pause-card')) this.api.onResume();
+      else this.layer.querySelector<HTMLElement>('[data-start]')?.click();
+    } else if (a === 'confirm') {
+      activateFocused(this.layer);
+      ensureFocus(this.layer); // the next screen's primary button
+    } else moveFocus(this.layer, a);
   }
 
   private click(fn: () => void): () => void {
@@ -138,7 +163,9 @@ export class Menu {
   }
 
   private btn(label: string, cls: string, fn: () => void): HTMLButtonElement {
-    return button(label, cls, this.click(fn));
+    const b = button(label, cls, this.click(fn));
+    if (cls.includes('primary')) b.setAttribute('data-primary', '');
+    return b;
   }
 
   private allGames(card: HTMLElement): void {
@@ -346,21 +373,26 @@ export class Menu {
     refresh();
 
     const actions = el('div', 'kb-actions');
+    const startBtn = this.btn('Start!', 'primary big', () =>
+      this.api.onPlay({
+        critter: s.critter,
+        color: s.color,
+        bots: s.bots,
+        difficulty: s.difficulty,
+        size: s.size,
+        rounds: s.rounds,
+      }),
+    );
+    // The pad starts on the critter picker, not on Start! (Start button = go).
+    startBtn.removeAttribute('data-primary');
+    startBtn.setAttribute('data-start', '');
     actions.append(
-      this.btn('Start!', 'primary big', () =>
-        this.api.onPlay({
-          critter: s.critter,
-          color: s.color,
-          bots: s.bots,
-          difficulty: s.difficulty,
-          size: s.size,
-          rounds: s.rounds,
-        }),
-      ),
+      startBtn,
       this.btn('Back', 'ghost', () => this.welcome()),
     );
     card.append(actions);
     this.show(card);
+    this.onBack = () => this.click(() => this.welcome())();
   }
 
   /** A labelled row of exclusive buttons. */
@@ -407,6 +439,7 @@ export class Menu {
       this.btn('Got it', 'primary', () => this.welcome()),
     );
     this.show(card);
+    this.onBack = () => this.click(() => this.welcome())();
   }
 
   options(back: () => void): void {
@@ -444,6 +477,7 @@ export class Menu {
       this.btn('Back', 'primary', back),
     );
     this.show(card);
+    this.onBack = () => this.click(back)();
   }
 
   pause(): void {

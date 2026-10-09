@@ -46,6 +46,12 @@ body {
 
 /* ------------------------------------------------------------------ buttons */
 
+/* Controller navigation (shared/pad-nav.ts): programmatic focus doesn't always match :focus-visible. */
+[data-input='pad'] .kb-menu :focus {
+  outline: 4px solid var(--kb-accent);
+  outline-offset: 3px;
+}
+
 .kb-btn {
   font: 700 18px/1 var(--kb-font);
   color: var(--kb-ink);

@@ -61,7 +61,7 @@ import {
   moveFocus,
   type NavAction,
   type NavDir,
-} from './pad-nav';
+} from '../../../shared/pad-nav';
 import {
   loadSettings,
   saveSettings,
