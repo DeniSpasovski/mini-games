@@ -17,11 +17,11 @@ export const CARS_LIST: readonly ReleaseEntry[] = [
   { id: 'skoda_rally' },
   { id: 'zastava_101' },
   { id: 'bimmer_m3' },
-  { id: 'bimmer_gt2', hideInProd: true },
-  { id: 'fiesta', hideInProd: true },
+  { id: 'bimmer_gt2' },
+  { id: 'fiesta' },
   { id: 'subie_22b', hideInProd: true },
-  { id: 'citroen_c4', hideInProd: true },
-  { id: 'lancer_evo_6', hideInProd: true },
+  { id: 'citroen_c4' },
+  { id: 'lancer_evo_6' },
 ];
 
 export const MAPS_LIST: readonly ReleaseEntry[] = [

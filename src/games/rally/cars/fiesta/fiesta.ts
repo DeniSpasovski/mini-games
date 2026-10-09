@@ -52,7 +52,7 @@ const REAR: AxleDef = {
 /**
  * Fiesta WRC (`fiesta`) - a 2017-spec World Rally Car: the imported CC BY "Ford Fiesta WRC" body with its own cockpit
  * (seats, dash, cage - visible through the glass), converted by glb-to-parts-stl.py + stl-to-glb.mjs (model.source.json)
- * and painted at runtime (livery.ts). Its own rim, centred on the hub (glb-rim-extract.py). Test car (release.ts).
+ * and painted at runtime (livery.ts). Its own rim, centred on the hub (glb-rim-extract.py). Released (release.ts).
  */
 export const fiesta: CarDef = {
   id: 'fiesta',

@@ -8,7 +8,7 @@ RWD V8, faster than the Bimmer M3 on every surface. Wheels, staggered like the r
 310/41 R18 rear = 30/66-18 / 31/71-18) wear the model's own BBS mesh wheel (`bimmer_gt2_wheel.glb`); mixed (245/42 / 265/48 R18)
 and gravel (235/50 / 235/60 R17) wear the Bimmer M3 rim painted black. Livery: diagonal white / blue / red pixel blocks (our own artwork), pearl white behind the plate.
 Body: 50k triangles (`targetTriangles`), simplified error under 1 mm; glass and lamps do not cast shadows.
-**Test only** (`hideInProd` in `CARS_LIST`, `release.ts`).
+Released (no `hideInProd` in `CARS_LIST`).
 
 ![Front three-quarter](screenshots/front-34.jpg)
 

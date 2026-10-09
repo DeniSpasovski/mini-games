@@ -52,7 +52,7 @@ const REAR: AxleDef = {
 /**
  * Citroen C4 WRC (`citroen_c4`) - a 2007 World Rally Car: the imported CC BY "Citroen C4 WRC Red Bull 2007" body with its own
  * cockpit (seats, dash, cage - visible through the glass) and own rim, converted by glb-to-parts-stl.py + stl-to-glb.mjs
- * (model.source.json) and painted at runtime (livery.ts). Test car (release.ts).
+ * (model.source.json) and painted at runtime (livery.ts). Released (release.ts).
  */
 export const citroenC4: CarDef = {
   id: 'citroen_c4',
