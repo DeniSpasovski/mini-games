@@ -68,29 +68,32 @@
     ],
     "backBoxes": [
       {
-        "$comment": "the open rear fender flare beside each tail lamp (|x| 0.7 - 1.0): seen from inside the slot its skin was back-face culled, so the ground showed through -> reversed copies in the slot's flat red",
+        "$comment": "the open rear fender flare beside each tail lamp (|x| 0.7 - 1.0): seen from inside the slot its skin was back-face culled, so the ground showed through -> reversed copies in the slot's dark red (recess)",
         "x": [0.7, 1.0],
         "y": [0.45, 0.9],
         "z": [-2.35, -1.85],
-        "at": [0.9, 0.72, -1.6]
+        "at": [0.9, 0.72, -1.6],
+        "material": "recess"
       }
     ],
     "flatBoxes": [
       {
-        "$comment": "inside walls of the open rear fender flare beside each tail lamp (faces turned away from the outside, maxNx; the outer skin keeps its livery blocks): one flat livery red, not the pattern's white / blue blocks. at = a red block on the quarter (z -1.6 is ahead of the white tail)",
+        "$comment": "inside walls of the open rear fender flare beside each tail lamp (faces turned away from the outside, maxNx; the outer skin keeps its livery blocks): one flat livery red, not the pattern's white / blue blocks, in the recess material (the livery in shadow: reads as a dark tunnel). at = a red block on the quarter (z -1.6 is ahead of the white tail)",
         "x": [0.7, 0.93],
         "y": [0.5, 0.86],
         "z": [-2.3, -1.85],
         "maxNx": 0.3,
-        "at": [0.9, 0.72, -1.6]
+        "at": [0.9, 0.72, -1.6],
+        "material": "recess"
       },
       {
-        "$comment": "the slot's floor (up-facing ledge), out to the skin: same red",
+        "$comment": "the slot's floor (up-facing ledge), out to the skin: same dark red",
         "x": [0.7, 0.93],
         "y": [0.6, 0.7],
         "z": [-2.3, -1.85],
         "minNy": 0.6,
-        "at": [0.9, 0.72, -1.6]
+        "at": [0.9, 0.72, -1.6],
+        "material": "recess"
       }
     ]
   },
@@ -251,7 +254,8 @@
       "lamphousing",
       "headled",
       "tailled",
-      "redcover"
+      "redcover",
+      "recess"
     ],
     "wrap": {},
     "preview": {
@@ -266,7 +270,8 @@
       "lamphousing": "#3a3b3e",
       "headled": "#fff4d6",
       "tailled": "#e0242c",
-      "redcover": "#b3151c"
+      "redcover": "#b3151c",
+      "recess": "#5a1010"
     },
     "maxTriangles": {
       "lamphousing": 8000,
@@ -278,8 +283,8 @@
     },
     "solids": [
       {
-        "$comment": "back wall inside the open rear fender flare (left; its outline follows the flare skin 2 - 5 mm inside, widened inwards behind the tail lamp so nothing shows past it): closes the slot beside the tail lamp. Body material, `at` = one flat livery red (a red block on the quarter). Frame turned 180 deg so its face looks backwards (v = -y, w = -z)",
-        "material": "body",
+        "$comment": "back wall inside the open rear fender flare (left; its outline follows the flare skin 2 - 5 mm inside, widened inwards behind the tail lamp so nothing shows past it): closes the slot beside the tail lamp. Recess material (the livery in shadow), `at` = one flat livery red (a red block on the quarter). Frame turned 180 deg so its face looks backwards (v = -y, w = -z)",
+        "material": "recess",
         "frame": {
           "origin": [0, 0, -1.94],
           "tilt": 180
@@ -302,8 +307,8 @@
         "at": [0.9, 0.72, -1.6]
       },
       {
-        "$comment": "back wall inside the open rear fender flare (right; its outline follows the flare skin 2 - 5 mm inside, widened inwards behind the tail lamp so nothing shows past it): closes the slot beside the tail lamp. Body material, `at` = one flat livery red (a red block on the quarter). Frame turned 180 deg so its face looks backwards (v = -y, w = -z)",
-        "material": "body",
+        "$comment": "back wall inside the open rear fender flare (right; its outline follows the flare skin 2 - 5 mm inside, widened inwards behind the tail lamp so nothing shows past it): closes the slot beside the tail lamp. Recess material (the livery in shadow), `at` = one flat livery red (a red block on the quarter). Frame turned 180 deg so its face looks backwards (v = -y, w = -z)",
+        "material": "recess",
         "frame": {
           "origin": [0, 0, -1.94],
           "tilt": 180

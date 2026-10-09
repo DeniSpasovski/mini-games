@@ -395,8 +395,8 @@ const boxHas = (b, c) =>
   c[2] >= b.z[0] &&
   c[2] <= b.z[1];
 /**
- * `at` of the first box holding triangle t's centre (|x|), x mirrored to t's side. `minNy` / `maxNx`: only faces whose normal y
- * is above / whose outward normal x (mirrored) is below it.
+ * The first box holding triangle t's centre (|x|): { at (x mirrored to t's side), out (its primitive) }. `minNy` / `maxNx`:
+ * only faces whose normal y is above / whose outward normal x (mirrored) is below it.
  */
 const boxAt = (boxes, t) => {
   if (!boxes.length) return null;
@@ -407,20 +407,25 @@ const boxAt = (boxes, t) => {
       fn[t * 3 + 1] > (f.minNy ?? -2) &&
       Math.sign(c[0]) * fn[t * 3] < (f.maxNx ?? 2),
   );
-  return b ? [Math.sign(c[0]) * b.at[0], b.at[1], b.at[2]] : null;
+  if (!b) return null;
+  const out = prims[MATERIALS.indexOf(b.material ?? MATERIALS[0])];
+  if (!out) throw new Error(`atlas box: unknown material ${b.material}`);
+  return { at: [Math.sign(c[0]) * b.at[0], b.at[1], b.at[2]], out };
 };
 /**
- * `atlas.flatBoxes`: [{ x, y, z, minNy?, maxNx?, at: [x, y, z] }] body triangles in the box take the side chart's paint at the
- * point `at`: one flat colour, e.g. the inside of a fender slot instead of whatever blocks the charts have there.
- * `atlas.backBoxes`: [{ x, y, z, at }] body triangles in the box also get a reversed copy (normals flipped, flat paint at
- * `at`), so a recess seen from inside is not culled away (the ground showed through a fender slot's back faces).
+ * `atlas.flatBoxes`: [{ x, y, z, minNy?, maxNx?, at: [x, y, z], material? }] body triangles in the box take the side chart's
+ * paint at the point `at`: one flat colour, e.g. the inside of a fender slot instead of whatever blocks the charts have there.
+ * `atlas.backBoxes`: [{ x, y, z, at, material? }] body triangles in the box also get a reversed copy (normals flipped, flat
+ * paint at `at`), so a recess seen from inside is not culled away (the ground showed through a fender slot's back faces).
+ * `material` moves those faces into another atlas-painted primitive ('recess': the livery in shadow, CarModel).
  */
 const FLAT_BOXES = A.flatBoxes ?? [];
 const BACK_BOXES = A.backBoxes ?? [];
 for (let t = 0; t < nTri; t++) {
   const part = vertPart[simple[t * 3]];
-  const out = prims[part];
-  const flat = part === 0 ? boxAt(FLAT_BOXES, t) : null;
+  const box = part === 0 ? boxAt(FLAT_BOXES, t) : null;
+  const flat = box?.at;
+  const out = box?.out ?? prims[part];
   const chart = flat
     ? flat[0] > 0
       ? 'left'
@@ -465,17 +470,18 @@ for (let t = 0; t < nTri; t++) {
   const back = part === 0 ? boxAt(BACK_BOXES, t) : null;
   if (back) {
     const [i0, i1, i2] = [0, 1, 2].map((k) => simple[t * 3 + k]);
-    const uv = chartUv(back[0] > 0 ? 'left' : 'right', back).map(
+    const uv = chartUv(back.at[0] > 0 ? 'left' : 'right', back.at).map(
       (c, i) => c / (i ? A.height : A.width),
     );
+    const bo = back.out;
     const ids = [i0, i2, i1].map((v) => {
-      const o = out.pos.length / 3;
-      out.pos.push(P(v, 0), P(v, 1), P(v, 2));
-      out.nrm.push(-fn[t * 3], -fn[t * 3 + 1], -fn[t * 3 + 2]);
-      out.uv.push(...uv);
+      const o = bo.pos.length / 3;
+      bo.pos.push(P(v, 0), P(v, 1), P(v, 2));
+      bo.nrm.push(-fn[t * 3], -fn[t * 3 + 1], -fn[t * 3 + 2]);
+      bo.uv.push(...uv);
       return o;
     });
-    out.idx.push(...ids);
+    bo.idx.push(...ids);
   }
 }
 // Wrap parts: fit the UVs to 0..1 over the part, v from the top down, so a texture covers the

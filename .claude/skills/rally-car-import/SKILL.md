@@ -247,9 +247,10 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
 - **Textured lamps** (`'corner'` wrap): draw the lamp in `part-materials.ts` (`tailC4Maps`: stripes, dot matrix, ribs, reverse lens) and map the lamp's `Phares` rule to it.
 - **Recess walls in a bumper** take the side charts' flank colour: `atlas.chartBoxes` `{ chart: 'rear', any: true }` puts every face in the box on the rear chart.
 - **An open slot / tunnel in the body** (the GT2's fender slot beside each tail lamp, `cars/bimmer-gt2/`): close it with a `parts.solids`
-  wall in the `body` material (`chart` + `at` = one flat livery colour; without `chart` a body solid has no atlas UVs), paint the slot's own
-  inner faces one colour with `atlas.flatBoxes` (`maxNx` keeps the outer skin's livery), and add `atlas.backBoxes` (reversed copies) where
-  its skin is seen from inside and culled. Glossy floors at a grazing angle mirror the sky: tint the box to tell paint from a hole.
+  wall (`chart` + `at` = one flat livery colour; without `chart` a solid has no atlas UVs), paint the slot's own inner faces one colour
+  with `atlas.flatBoxes` (`maxNx` keeps the outer skin's livery), and add `atlas.backBoxes` (reversed copies) where its skin is seen from
+  inside and culled. Put all three in the `recess` material (add it to `parts.materials`; boxes take `material`): the livery in shadow
+  (`CarModel.recessMaterial`), since the lighting has no ambient occlusion and the plain livery lights a tunnel like the outer skin.
 - **Look from below** (hide the viewer's ground plane; a z-buffer of the GLB from below finds faces looking up = holes).
 - **Livery edges from geometry**: a top-down curvature map (d2y/dx2 of the highest-surface heightmap) shows crests (convex) and seams
   (grooves) - read their x per 5 cm of z and use them as the shape outline (`cars/bimmer-m3/livery.ts` hood).
