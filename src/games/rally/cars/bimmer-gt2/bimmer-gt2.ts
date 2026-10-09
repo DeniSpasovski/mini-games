@@ -182,7 +182,7 @@ export const bimmerGt2: CarDef = {
       style: 'gt',
       front: 'wishbone',
       rear: 'wishbone',
-      topY: { front: 0.36, rear: 0.34 },
+      topY: { front: 0.36, rear: 0.45 },
       topIn: { front: 0.22, rear: 0.22 },
       driven: ['rear'],
     },
