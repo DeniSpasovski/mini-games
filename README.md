@@ -11,7 +11,7 @@ played and modified locally.
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | [Gravel Rally](src/games/rally/)   | Point-to-point rally on real-world roads (OpenStreetMap + elevation data), custom raycast-vehicle physics |
 | [Hole Island](src/games/hole/)     | Touch-first "swallow everything" game on a blocky toy city and a giant toy store                          |
-| [3, 2, 1 Kabooom](src/games/kaboom/) | Tilted-3D arena game: animal demolition crew, TNT chain reactions, bots (in development, unlisted)        |
+| [3, 2, 1 Kabooom](src/games/kabooom/) | Tilted-3D arena game: animal demolition crew, TNT chain reactions, bots (in development, unlisted)        |
 
 [![Gravel Rally - Zastava at the Ajvatovci start](src/games/rally/screenshots/start.jpg)](src/games/rally/)
 

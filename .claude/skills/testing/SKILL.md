@@ -11,11 +11,11 @@ Regular tests are fast (the whole `tests/` folder runs in about a minute); integ
 | ---------------------------------------------------------- | --------------------------- | --------------------------------- |
 | Unit / data / content checks for rally                     | `tests/rally/`              | `npm run test:rally`              |
 | Unit / data / content checks for hole                      | `tests/hole/`               | `npm run test:hole`               |
-| Unit / data / content checks for kaboom                    | `tests/kaboom/`             | `npm run test:kaboom`             |
+| Unit / data / content checks for kabooom                    | `tests/kabooom/`             | `npm run test:kabooom`             |
 | Portal / shared (analytics, consent, dom, site config ...) | `tests/*.test.ts`           | `npm run test:shared`             |
 | Rally playtests                                            | `integration-tests/rally/`  | `npm run test:integration:rally`  |
 | Hole playtests                                             | `integration-tests/hole/`   | `npm run test:integration:hole`   |
-| Kaboom bot playtests                                       | `integration-tests/kaboom/` | `npm run test:integration:kaboom` |
+| Kabooom bot playtests                                       | `integration-tests/kabooom/` | `npm run test:integration:kabooom` |
 
 `npm run test` = every regular test (no integration); `npm run test:integration` = every playtest.
 
@@ -30,7 +30,7 @@ stay next to the tests that use them. A new game gets its own `tests/<id>/`, `in
 
 ## CI (`.github/workflows/ci.yml`)
 
-Runs on pull requests and on pushes to `main`, seven parallel jobs: rally tests, rally integration tests, hole tests, kaboom tests, kaboom integration tests,
+Runs on pull requests and on pushes to `main`, seven parallel jobs: rally tests, rally integration tests, hole tests, kabooom tests, kabooom integration tests,
 hole integration tests, and a shared job (type check + lint + `test:shared`). A new script or folder needs a CI step in the
 same change, otherwise it silently never runs. Run the matching script before pushing; after touching physics or a map also
 run `npm run test:integration:rally`.

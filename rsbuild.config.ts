@@ -75,7 +75,7 @@ const NO_ZOOM_VIEWPORT =
  */
 const gameMeta: Record<string, (page: string) => Record<string, string>> = {
   rally: (page) => (page === 'index' ? { viewport: NO_ZOOM_VIEWPORT } : {}),
-  kaboom: (page) => ({
+  kabooom: (page) => ({
     ...(page === 'index' ? { viewport: NO_ZOOM_VIEWPORT } : {}),
     'theme-color': '#bfdcea',
   }),
@@ -115,6 +115,8 @@ const portalEnvironment: EnvironmentConfig = {
       { from: 'public/manifest.webmanifest' },
       // Service worker at the root so its scope covers the games too (src/shared/offline.ts).
       { from: 'public/sw.js' },
+      // Old game addresses forward to the current ones (public/legacy/<old-id>/).
+      { from: 'public/legacy', to: 'games' },
     ],
   },
   html: {

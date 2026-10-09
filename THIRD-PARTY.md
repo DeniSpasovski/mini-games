@@ -18,7 +18,7 @@ README files carry the same information in more detail. Keep this file current w
 | [three.js](https://threejs.org/)                                                | MIT              | rendering (runtime)               |
 | Rsbuild, Rspack, Rstest, Rslint, TypeScript, Prettier, happy-dom, meshoptimizer | MIT / Apache-2.0 | build and test tooling (dev only) |
 
-3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party: its critters, arenas, effects and sounds are original and procedural.
+3, 2, 1 Kabooom (`src/games/kabooom/`) uses nothing third-party: its critters, arenas, effects and sounds are original and procedural.
 
 No fonts, textures, sounds or music files are bundled: textures are painted on canvases at runtime, audio is
 synthesised with WebAudio, and text uses system fonts.

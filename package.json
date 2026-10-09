@@ -16,12 +16,12 @@
     "test": "rstest --exclude 'integration-tests/**'",
     "test:rally": "rstest --exclude 'integration-tests/**' tests/rally",
     "test:hole": "rstest --exclude 'integration-tests/**' tests/hole",
-    "test:kaboom": "rstest --exclude 'integration-tests/**' tests/kaboom",
-    "test:shared": "rstest --exclude 'integration-tests/**' --exclude 'tests/rally/**' --exclude 'tests/hole/**' --exclude 'tests/kaboom/**'",
+    "test:kabooom": "rstest --exclude 'integration-tests/**' tests/kabooom",
+    "test:shared": "rstest --exclude 'integration-tests/**' --exclude 'tests/rally/**' --exclude 'tests/hole/**' --exclude 'tests/kabooom/**'",
     "test:integration": "rstest integration-tests",
     "test:integration:rally": "rstest integration-tests/rally",
     "test:integration:hole": "rstest integration-tests/hole",
-    "test:integration:kaboom": "rstest integration-tests/kaboom",
+    "test:integration:kabooom": "rstest integration-tests/kabooom",
     "test:watch": "rstest --watch"
   },
   "devDependencies": {

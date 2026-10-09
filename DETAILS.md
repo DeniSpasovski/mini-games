@@ -72,14 +72,14 @@ does; `game_id` is added to every event. `?analytics=log` prints each event to t
 
 | `<event>`        | Sent when                                                                                   | Params                                                                                                                                                                                                                                                 |
 | ---------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `level_start`    | rally: stage clock starts (GO); hole: run starts (countdown); kaboom: match starts          | `game_id`, `game_level_name` (map id), `game_version`; rally `_car`, `_tyre`, `_setup`, `_gearing`, `_times_version`; hole `_difficulty`, `_seed`, `_layout`, `_scoring_version`; kaboom `_difficulty`, `_bots`, `_rounds`, `game_character` (critter) |
-| `level_end`      | run finished (`game_success: true`) or left mid-run (`game_success: false` + `game_reason`) | start params + `game_time_s`; rally `_penalty_s`, `_new_best` (quit: `_progress_pct`); hole `game_score`, `_level`, `_cleared`, `_items_eaten`, `_pct_eaten`; kaboom `_round`, `_round_wins` (success = won the match)                                 |
+| `level_start`    | rally: stage clock starts (GO); hole: run starts (countdown); kabooom: match starts          | `game_id`, `game_level_name` (map id), `game_version`; rally `_car`, `_tyre`, `_setup`, `_gearing`, `_times_version`; hole `_difficulty`, `_seed`, `_layout`, `_scoring_version`; kabooom `_difficulty`, `_bots`, `_rounds`, `game_character` (critter) |
+| `level_end`      | run finished (`game_success: true`) or left mid-run (`game_success: false` + `game_reason`) | start params + `game_time_s`; rally `_penalty_s`, `_new_best` (quit: `_progress_pct`); hole `game_score`, `_level`, `_cleared`, `_items_eaten`, `_pct_eaten`; kabooom `_round`, `_round_wins` (success = won the match)                                 |
 | `post_score`     | run finished                                                                                | start params + `game_score` (rally: stage time in ms, lower is better; hole: points), `game_character` (car / hole colour); hole `_level`                                                                                                              |
 | `select_content` | a viewer page opens (car viewer: also on car change)                                        | `game_content_type` (`map_viewer`, `car_viewer`), `game_content_id` (map / car id)                                                                                                                                                                     |
 
-`_x` = `game_rally_x` / `game_hole_x` / `game_kaboom_x`.
+`_x` = `game_rally_x` / `game_hole_x` / `game_kabooom_x`.
 
-- Only ranked runs are tracked: no rally free drive / test pad, no Hole dev runs (`?time=`, `?level=`, `?bot=1`), no Kaboom autopilot or fixed-seed runs (`?bot=1`, `?seed=`).
+- Only ranked runs are tracked: no rally free drive / test pad, no Hole dev runs (`?time=`, `?level=`, `?bot=1`), no Kabooom autopilot or fixed-seed runs (`?bot=1`, `?seed=`).
 - Quits are tracked from the pause menu (restart, main menu, portal, rally spawn change); closing the tab is not.
 - `game_rally_times_version` / `game_hole_scoring_version` keep times / scores from before a physics or scoring change apart in reports.
 - GA property settings (Admin; not in code, redo them for a new property):
@@ -129,6 +129,8 @@ The portal page shows `SITE.tagline` ("This site was made using AI agents under 
 See `.claude/skills/new-minigame/SKILL.md` for the full checklist.
 
 ## Deploying
+
+- **Renamed games keep their old URLs**: `public/legacy/<old-id>/*.html` is copied to `dist/games/<old-id>/` by the portal build and forwards to the new folder (query + hash kept). Currently `kaboom` -> `kabooom`.
 
 `npm run build` writes `dist/`, which can be uploaded to the domain root or any sub-folder (e.g. `https://example.com/games/`): asset URLs are relative (`output.assetPrefix: 'auto'`, in dev too), and so are all in-app links. Keep it that way - never start an href with `/`. From a game page the portal is `../../`; sibling pages of the same game are just `<page>.html` / `./`.
 

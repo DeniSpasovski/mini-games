@@ -22,7 +22,7 @@ const thumbCtx = import.meta.webpackContext('../games', {
 const RELEASE_BUILD = import.meta.env.PROD && !__TEST_BUILD__;
 
 /** Card order on the portal; games not listed come after, alphabetically. */
-const GAME_ORDER = ['rally', 'hole', 'kaboom'];
+const GAME_ORDER = ['rally', 'hole', 'kabooom'];
 
 function orderRank(id: string): number {
   const i = GAME_ORDER.indexOf(id);
