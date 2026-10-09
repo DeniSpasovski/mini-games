@@ -113,11 +113,19 @@ into `DETAILS.md`, never up.
 - Game `version` (`game.json`, `0.x.y`, minor = feature, patch = fix): bump only when the user says we are making a build.
 - Rally times versions (`game/stage.ts`): bump `MAP_TIMES_VERSIONS[map]` when a map's road / layout / length / surfaces change, `CAR_TIMES_VERSIONS[car]`
   when that car's handling changes, every car for a shared physics change (livery / model fixes never); a new car / map adds its
-  entry (a test checks). Old times stay, listed below the new ones. Say in the PR which versions you bumped.
+  entry (a test checks). Old times stay, listed below the new ones. Only changes shipped to prod count: bump when the user says
+  we are making a build; until then leave the numbers and say in the PR which cars / maps changed.
   **Test cars / maps (`TEST_*` in `release.ts`) stay at 1 and are never bumped** (unreleased: no official times yet); bumps start
   once they move to `AVAILABLE_*` (a test checks).
 - Hole Island: scoring changes (points, tiers, bonus, times, map content) bump that map's `MAP_SCORING_VERSIONS` entry
   (`game/scores.ts`; `sim/` changes = every map).
+
+## Pull requests and commits
+
+- **PR description: short.** One or two plain sentences on what changes for the player, then a few bullets, then which times /
+  scoring versions changed. No tables, file-by-file "How", test logs or investigation story (the diff and the thread have it).
+- No "Requested by ..." line and no links to claude.ai project threads or sessions (public repo, private links).
+- Commit messages: one short subject, a few bullets when several things changed; no `Claude-Session:` trailer.
 
 ## Docs
 

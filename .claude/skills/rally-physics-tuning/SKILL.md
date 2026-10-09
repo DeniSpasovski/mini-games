@@ -16,7 +16,7 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
 - Surfaces: `physics/surfaces.ts` (`mu`, `slide`, `peakSlip`, `peakAngle`, `rolling`, `bump`, `rough`).
 - Water: `Vehicle.waterPass` (tyre + body drag, flooded intake), fed by `GroundProvider.waterLevel`;
   `tests/rally/water-physics.test.ts` prints dry / shallow / deep acceleration per car.
-- Tyre size + suspension set-ups: `CarPhysicsDef.tyres` (sizes, overall radius must match `wheelRadius`) and `setups` / `setup`
+- Tyre size + suspension set-ups: `CarPhysicsDef.tyres` (sizes per compound + axle; each rolls on `axleRadius`, gearing on `drivenRadius`) and `setups` / `setup`
   (`deriveSetups`, `applySetup`, `compliance` in `physics/car-setup.ts`); the per-car grip layers live in `physics/car-tyres.ts`
   (`carSurfaces`). Build the `Vehicle` from `applySetup(def, id)` + `setTyre(id)`; tests: `car-setup.test.ts`, `car-matrix.test.ts`.
   Retuning springs changes the compliance (and so the grip match) by itself - keep damping ratios 0.25-0.8 and a car's range
@@ -72,4 +72,5 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
 
 ## Bump the times version (last step)
 
-A handling change to one car bumps its `CAR_TIMES_VERSIONS` entry in `game/stage.ts`; a shared physics change (tyres, surfaces, drivetrain model, assists) bumps every released car; test cars (`TEST_CARS`) stay at 1 until released (a test checks). Old times stay below the new ones. Mention the bump in the PR.
+A handling change to one car bumps its `CAR_TIMES_VERSIONS` entry in `game/stage.ts`; a shared physics change (tyres, surfaces, drivetrain model, assists) bumps every released car (test cars in `TEST_CARS` stay at 1, a test checks). Bump only when the user says we are making a build; until then say in the PR
+which cars changed (AGENTS.md "Rally times versions"). Old times stay below the new ones.

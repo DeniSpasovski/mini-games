@@ -300,8 +300,9 @@ export class StageTimer {
  *
  * - Map (`MAP_TIMES_VERSIONS`): bump a map when its road / length, track-limit penalties or a surface change.
  * - Car (`CAR_TIMES_VERSIONS`): bump a car when ITS handling changes (stats, grip, setups, gearing). A new
- *   shared physics change bumps EVERY car. Livery / model / visual fixes never bump anything. Test cars / maps
- *   (`release.ts` TEST_*) stay at 1 until they are released: nobody has official times on them yet.
+ *   shared physics change bumps EVERY released car. Livery / model / visual fixes never bump anything. Test cars / maps
+ *   (`release.ts` TEST_*) stay at 1 until they are released: nobody has official times on them yet. Bump only in a prod
+ *   build (AGENTS.md "Rally times versions"): unshipped changes keep prod's numbers.
  *
  * On every game start `migrateTimes` compares each number with the one stored next to the lists
  * (`rally.timesVersion.<map>`, `rally.carVersion.<car>`): runs from an older version are KEPT, tagged with the
@@ -319,9 +320,9 @@ export const MAP_TIMES_VERSIONS: Record<string, number> = {
   jackie: 1,
 };
 export const CAR_TIMES_VERSIONS: Record<string, number> = {
-  skoda_rally: 3,
-  zastava_101: 3,
-  bimmer_m3: 3,
+  skoda_rally: 2,
+  zastava_101: 2,
+  bimmer_m3: 2,
   bimmer_gt2: 1,
   fiesta: 1,
   subie_22b: 1,
