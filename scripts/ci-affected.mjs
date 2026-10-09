@@ -24,6 +24,7 @@ const RUN_ALL = [
   /^rstest\.config\./,
   /^tsconfig.*\.json$/,
   /^rsbuild\.config\./,
+  /^\.(npmrc|nvmrc|node-version)$/,
   /^\.github\//,
   /^scripts\/ci-affected\.mjs$/,
   /^tests\/rstest\.setup\.ts$/,
