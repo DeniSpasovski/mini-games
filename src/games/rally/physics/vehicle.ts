@@ -1,4 +1,15 @@
 import { Quaternion, Vector3 } from 'three';
+import {
+  brakeKit,
+  brakeStartTemp,
+  brakeTorque,
+  brakeThermal,
+  padFactor,
+  stepBrakeTemp,
+  type BrakeDef,
+  type BrakeHeatInput,
+  type BrakeThermal,
+} from './brakes';
 import { Drivetrain } from './drivetrain';
 import { SURFACES, type SurfaceDef, type SurfaceId } from './surfaces';
 import {
@@ -67,6 +78,8 @@ const TC_FRONT_SLIP = 2.0;
 const ABS_SLIP = 1.3;
 const ABS_SLIDE = 1;
 const ABS_MIN_SPEED = 3;
+/** Share of the pad friction lost while the brakes are wet (water at the wheels). */
+const WET_PADS = 0.3;
 /** Progressive bump stop length (fraction of the suspension travel). */
 const STOP_ZONE = 0.35;
 
@@ -109,6 +122,15 @@ export interface WheelState {
   /** Tyre temperature (°C) and the grip factor it gives on the current surface (1 without a climate). */
   temp: number;
   tempGrip: number;
+  /** The fitted brake (`setTyre` picks the kit), its torque at full pad friction (N m) and its thermal numbers. */
+  brake: BrakeDef;
+  brakeFull: number;
+  brakeHeat: BrakeThermal;
+  /** Disc / drum temperature (°C) and the share of full torque the pads give at it (1 without a climate). */
+  brakeTemp: number;
+  brakeFactor: number;
+  /** Power the brake took in the last step (W): the heat in. */
+  brakePower: number;
   /** Tyre pressure (bar, gauge) and its distance from the compound's hot target (0 without a climate). */
   pressure: number;
   pressureDp: number;
@@ -234,6 +256,7 @@ export class Vehicle {
     slipAngle: 0,
     slip: 0,
   };
+  private brakeIn: BrakeHeatInput = { temp: 0, power: 0, speed: 0, water: 0 };
   private force = new Vector3();
   private torque = new Vector3();
   private colliders: StaticCollider[] = [];
@@ -272,6 +295,10 @@ export class Vehicle {
       w.radius = axleRadius(this.def, tyre, w.isFront ? 'front' : 'rear');
     this.drivenR = drivenRadius(this.def, tyre);
     for (const w of this.wheels) this.updatePressure(w);
+    // The 15 in gravel wheels carry the smaller brake kit.
+    const kit = brakeKit(this.def.brakes, this.def.gravelBrakes, tyre);
+    for (const w of this.wheels)
+      Object.assign(w, brakeFields(kit[w.isFront ? 'front' : 'rear']));
   }
 
   /**
@@ -283,11 +310,13 @@ export class Vehicle {
     this.resetTyreTemps();
   }
 
-  /** Tyres back to the start temperature (stage start / restart; reset-to-road keeps them). */
+  /** Tyres and brakes back to the start temperature (stage start / restart; reset-to-road keeps them). */
   resetTyreTemps(): void {
     const t = this.climate ? startTemp(this.climate) : 20;
     for (const w of this.wheels) {
       w.temp = t;
+      w.brakeTemp = this.climate ? brakeStartTemp(this.climate) : 20;
+      w.brakeFactor = this.climate ? padFactor(w.brakeTemp, w.brake) : 1;
       this.updatePressure(w);
       w.tempGrip = this.tempGripOf(w, w.surface);
     }
@@ -379,6 +408,14 @@ export class Vehicle {
         surface: SURFACES.gravel,
         temp: 20,
         tempGrip: 1,
+        ...brakeFields(
+          brakeKit(d.brakes, d.gravelBrakes, this.tyre)[
+            isFront ? 'front' : 'rear'
+          ],
+        ),
+        brakeTemp: 20,
+        brakeFactor: 1,
+        brakePower: 0,
         pressure: 0,
         pressureDp: 0,
         contactPoint: new Vector3(),
@@ -482,7 +519,7 @@ export class Vehicle {
       w.steerAngle = steerAngle * w.axle.steer;
       const inertia = d.wheelInertia + (coupled.includes(w) ? reflected : 0);
       const brakeT =
-        brake * w.axle.brakeTorque * this.absPass(w, brake, dt) +
+        brake * w.brakeFull * w.brakeFactor * this.absPass(w, brake, dt) +
         handbrake * w.axle.handbrakeTorque;
       if (w.contact) anyContact = true;
       this.wheelPass(w, dt, inertia, brakeT);
@@ -491,6 +528,7 @@ export class Vehicle {
 
     this.waterPass();
     this.tyreTempPass(dt);
+    this.brakeTempPass(dt);
 
     // --- aero ---------------------------------------------------------------------
     const v2 = this.velocity.lengthSq();
@@ -599,6 +637,13 @@ export class Vehicle {
       ? Math.max(0.1, w.absFactor - 20 * dt)
       : Math.min(1, w.absFactor + 6 * dt);
     return w.absFactor;
+  }
+
+  /** What the brakes can pull the car down at right now (m/s², pads at their current friction): hot discs fade. */
+  get brakeDecel(): number {
+    let t = 0;
+    for (const w of this.wheels) t += (w.brakeFull * w.brakeFactor) / w.radius;
+    return t / this.mass;
   }
 
   /** True while ABS is easing any wheel's brake. */
@@ -748,7 +793,7 @@ export class Vehicle {
   ): void {
     if (!w.contact) {
       w.omega += (w.driveTorque / inertia) * dt;
-      w.omega = applyBrake(w.omega, brakeT, inertia, dt);
+      w.omega = this.brakeWheel(w, w.omega, brakeT, inertia, dt);
       w.omega *= 1 - 0.5 * dt;
       w.spin += w.omega * dt;
       w.fx = w.fy = w.slip = w.slipAngle = 0;
@@ -803,11 +848,11 @@ export class Vehicle {
       ti.load *
       Math.tanh(w.omega * w.radius * 2) *
       w.radius;
+    // The brake acts on the same effective inertia as the tyre torque, so the tyre force settles at brakeT / radius.
+    const effInertia = inertia + dt * w.radius * dFdw;
     let omega =
-      w.omega +
-      (dt * (w.driveTorque - f0 * w.radius - rolling)) /
-        (inertia + dt * w.radius * dFdw);
-    omega = applyBrake(omega, brakeT, inertia, dt);
+      w.omega + (dt * (w.driveTorque - f0 * w.radius - rolling)) / effInertia;
+    omega = this.brakeWheel(w, omega, brakeT, effInertia, dt);
     w.omega = omega;
     w.spin += omega * dt;
 
@@ -847,6 +892,38 @@ export class Vehicle {
       h.heat = TYRES[this.tyre].heat * pressureHeat(w.pressureDp);
       w.temp = stepTemp(h, c, dt);
       this.updatePressure(w);
+    }
+  }
+
+  /** The brake slows the wheel; the work it does (torque x wheel speed) is the heat going into the disc. */
+  private brakeWheel(
+    w: WheelState,
+    omega: number,
+    torque: number,
+    inertia: number,
+    dt: number,
+  ): number {
+    const after = applyBrake(omega, torque, inertia, dt);
+    const applied = Math.min(torque, (inertia * Math.abs(omega)) / dt);
+    w.brakePower =
+      Math.max(0, applied) * 0.5 * (Math.abs(omega) + Math.abs(after));
+    return after;
+  }
+
+  /** Brake temperatures (physics/brakes.ts): braking work in, air / radiation / water out, pad friction from it. */
+  private brakeTempPass(dt: number): void {
+    const c = this.climate;
+    if (!c) return;
+    const h = this.brakeIn;
+    h.speed = Math.abs(this.speed);
+    h.water = this.waterDepth;
+    // Wet pads grip less, dry again at once.
+    const wet = 1 - WET_PADS * Math.min(1, this.waterDepth / 0.2);
+    for (const w of this.wheels) {
+      h.temp = w.brakeTemp;
+      h.power = w.brakePower;
+      w.brakeTemp = stepBrakeTemp(h, w.brakeHeat, c, dt);
+      w.brakeFactor = padFactor(w.brakeTemp, w.brake) * wet;
     }
   }
 
@@ -1058,6 +1135,11 @@ export class Vehicle {
   wheelLocalPosition(w: WheelState, out: Vector3): Vector3 {
     return out.set(w.mount.x, w.mount.y - w.ext, w.mount.z);
   }
+}
+
+/** The wheel state a fitted brake gives. */
+function brakeFields(b: BrakeDef) {
+  return { brake: b, brakeFull: brakeTorque(b), brakeHeat: brakeThermal(b) };
 }
 
 function applyBrake(

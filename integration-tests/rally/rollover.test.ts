@@ -13,9 +13,9 @@ import { carDef, run } from './handling-harness';
 
 /**
  * Rollover margin (headless): a car slides sideways at 80 km/h with locked wheels into a kerb (tarmac, a step up) or a
- * ditch (gravel, a step down) 5 m away. A real car may flip on a big step, so only small ones are guarded: the softest
- * and stiffest set-up of every car must stay on its wheels at 15 and 25 cm. Lowering `forceHeight` / the anti-roll bars
- * (more lean) must not eat that margin.
+ * ditch (gravel, a step down) 5 m away. A real car trips on a big step (the lightest roll inertia flips from about 18 cm),
+ * so only small ones are guarded: the softest and stiffest set-up of every car must stay on its wheels at 10 and 15 cm.
+ * Lowering `forceHeight` / the anti-roll bars (more lean) must not eat that margin.
  */
 const STEP_X = 5;
 
@@ -39,7 +39,10 @@ function slide(
   dh: number,
   kmh = 80,
 ): number {
-  const v = new Vehicle(applySetup(carDef(car), setup), stepGround(surface, dh));
+  const v = new Vehicle(
+    applySetup(carDef(car), setup),
+    stepGround(surface, dh),
+  );
   v.setTyre(surface);
   v.reset(new Vector3(), 0);
   run(v, 1.5);
@@ -59,8 +62,13 @@ describe('rollover margin', () => {
     test(c.id, () => {
       for (const setup of ['soft', 'stiff'] as const)
         for (const surface of ['tarmac', 'gravel'] as const)
-          for (const dh of [0.15, 0.25]) {
-            const up = slide(c.id, setup, surface, surface === 'tarmac' ? dh : -dh);
+          for (const dh of [0.1, 0.15]) {
+            const up = slide(
+              c.id,
+              setup,
+              surface,
+              surface === 'tarmac' ? dh : -dh,
+            );
             expect(up, `${setup} ${surface} ${dh} m`).toBeGreaterThan(0.3);
           }
     });

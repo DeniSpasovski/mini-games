@@ -1,5 +1,6 @@
 import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
+import type { BrakeSet } from '../../physics/brakes';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
 import { profile } from './profile';
@@ -26,7 +27,6 @@ const FRONT: AxleDef = {
   rebound: 4320,
   travel: 0.26,
   antiRoll: 4500,
-  brakeTorque: 1750,
   handbrakeTorque: 0,
   steer: 1,
   grip: 1,
@@ -41,11 +41,45 @@ const REAR: AxleDef = {
   rebound: 3780,
   travel: 0.26,
   antiRoll: 3000,
-  brakeTorque: 750,
   handbrakeTorque: 2800,
   steer: 0,
   grip: 1,
   forceHeight: 0.15,
+};
+
+/** Fabia R5 brakes: 355 / 300 mm vented discs on tarmac, the 300 mm kit on the 15 in gravel wheels (PHYSICS.md "Brakes"). */
+const BRAKES: BrakeSet = {
+  front: {
+    type: 'vented',
+    diameter: 0.355,
+    thickness: 0.032,
+    pad: 'rally',
+    clamp: 12000,
+  },
+  rear: {
+    type: 'vented',
+    diameter: 0.3,
+    thickness: 0.028,
+    pad: 'rally',
+    clamp: 4750,
+  },
+};
+
+const GRAVEL_BRAKES: BrakeSet = {
+  front: {
+    type: 'vented',
+    diameter: 0.3,
+    thickness: 0.028,
+    pad: 'rally',
+    clamp: 11950,
+  },
+  rear: {
+    type: 'vented',
+    diameter: 0.3,
+    thickness: 0.028,
+    pad: 'rally',
+    clamp: 4650,
+  },
 };
 
 /**
@@ -148,6 +182,8 @@ export const skodaRally: CarDef = {
       frontDiffLock: 80,
       rearDiffLock: 200,
     },
+    brakes: BRAKES,
+    gravelBrakes: GRAVEL_BRAKES,
     dragArea: 0.75,
     downforceArea: 0.1,
     // Fitted to the imported body (tests/rally/hull-fit.test.ts, which measures the GLB): splitter 0.12, flat floor 0.13 -
