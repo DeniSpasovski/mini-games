@@ -1,5 +1,5 @@
 import type { Rng } from '../../../shared/rng';
-import { POWERUPS_PER_PLAYER } from './rules';
+import { powerUpTotal } from './rules';
 import { Terrain, type MapData } from './types';
 
 /** The two power-ups. Each can be taken `MAX_POWER_LEVEL` times: more dynamites at once, longer blast. */
@@ -39,7 +39,7 @@ function stepsThroughCrates(map: MapData, sx: number, sy: number): Int16Array {
 }
 
 /**
- * Which crate hides which power-up this round: `POWERUPS_PER_PLAYER` per player (kinds at random; maxing both kinds
+ * Which crate hides which power-up this round: `powerUpTotal` of them (kinds at random; maxing both kinds
  * takes more than one player's share, so the rest has to be won from the others' crates). One of them is in a crate close to each player's spawn (picked
  * at random among the nearest few), the rest in random crates. Returns a per-cell array: the kind, or -1 for no item.
  */
@@ -81,7 +81,7 @@ export function assignPowerUps(
     const j = rng.int(0, i);
     [rest[i], rest[j]] = [rest[j], rest[i]];
   }
-  const total = Math.min(crates.length, players * POWERUPS_PER_PLAYER);
+  const total = powerUpTotal(players, crates.length);
   for (const c of rest.slice(0, Math.max(0, total - placed)))
     hidden[c] = kind();
   return hidden;
