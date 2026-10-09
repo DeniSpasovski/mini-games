@@ -2,6 +2,8 @@ import { expect, test } from '@rstest/core';
 import {
   dragToStick,
   followOrigin,
+  padToStick,
+  PAD_DEAD_ZONE,
   stickToWorld,
 } from '../../src/games/hole/game/stick';
 import { memoryStorage } from '../../src/games/hole/game/storage';
@@ -33,6 +35,21 @@ test('joystick: dead zone, clamp, direction', () => {
   expect(
     Math.hypot(dragToStick(300, 300).x, dragToStick(300, 300).y),
   ).toBeCloseTo(1);
+});
+
+test('gamepad: stick dead zone + analogue speed, d-pad full speed and wins', () => {
+  const none = { up: false, down: false, left: false, right: false };
+  expect(padToStick([0.1, -0.1], none)).toEqual({ x: 0, y: 0 });
+  // stick up (axis 1 negative) = stick y up
+  const up = padToStick([0, -1], none);
+  expect(up.x).toBeCloseTo(0);
+  expect(up.y).toBeCloseTo(1);
+  const half = padToStick([(1 + PAD_DEAD_ZONE) / 2, 0], none);
+  expect(half.x).toBeCloseTo(0.5);
+  const diag = padToStick([0.3, 0.3], { ...none, up: true, right: true });
+  expect(diag.x).toBeCloseTo(Math.SQRT1_2);
+  expect(diag.y).toBeCloseTo(Math.SQRT1_2);
+  expect(padToStick([], none)).toEqual({ x: 0, y: 0 });
 });
 
 test('stick up = away from the camera (-Z), right = +X', () => {

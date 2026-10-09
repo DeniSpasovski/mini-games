@@ -5,7 +5,7 @@ hat and eat bricks, cones, cement bags and workers' toolboxes, then wheelbarrows
 skips and containers, then excavators, dump trucks and half-built houses, and you finish on **mining haul trucks, a
 bucket-wheel excavator, tower cranes and the skyscrapers they are building**.
 
-> **Status: released** (`?map=construction`, listed in `AVAILABLE_MAPS` in `release.ts`).
+> **Status: released** (`?map=construction`, listed in `MAPS_LIST` in `release.ts` without `hideInProd`).
 > How the built parts work is in [`DETAILS.md`](DETAILS.md) ("Map: Construction Site"); this file keeps the design,
 > the roster and the open tasks. The game rules (size ladder, eat rule, scoring) are not changed by this map.
 > Workflow: [`.claude/skills/hole-content/SKILL.md`](../../../.claude/skills/hole-content/SKILL.md).
@@ -35,7 +35,7 @@ no company logos on hoardings or cabins.
 | --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | D1  | Id / name        | `construction` / "Construction Site", noun "site" (HUD: "SITE CLEARED!"), blurb "Bricks first, mining trucks and tower cranes last."                                                                   |
 | D2  | Shape            | a **fenced rectangle** (`MapData.bounds`, like the toy store) under an open sky: 540 x 420 m, hoarding on all four sides, low on the camera side with the site gate                                    |
-| D3  | Release          | **released**: `release.ts` lists it in `AVAILABLE_MAPS` (it was a `TEST_MAPS` entry while in progress) |
+| D3  | Release          | **released**: `release.ts` lists it in `MAPS_LIST` without `hideInProd` |
 | D4  | Point total      | **21 000** (more than 2 x `cumulativeXp(15)` = 17 110 so Easy can clear it; level 25 needs ~96 % of the map, like Animal Island); tuned by the bot through floor size and clustering, not the XP curve |
 | D5  | Scale            | real 1:1 scale (a brick is 24 cm, a haul truck 15.6 m); **one fantasy piece**: the 25 m "titan" haul truck, a prototype twice the real size, the boss of the mine                                      |
 | D6  | Seeded           | yes: the menu seed stepper ("Site #7"), every seed holds exactly 21 000 points                                                                                                                         |

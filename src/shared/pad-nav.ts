@@ -12,6 +12,8 @@
  * navigates), and uses hysteresis (press past STICK_ON, release below
  * STICK_OFF). Pads with the standard mapping are preferred over other devices.
  *
+ * The right stick scrolls the element `scrollable()` returns (long cards: results, how to play).
+ *
  * While a pad drives the menus, `<html data-input="pad">` makes the focused
  * control visible (programmatic focus doesn't always get :focus-visible);
  * the mouse clears it again.
@@ -37,12 +39,15 @@ const STICK_OFF = 0.4;
 const STICK_REST = 0.25;
 const REPEAT_DELAY = 0.4;
 const REPEAT_EVERY = 0.13;
+/** Right stick: dead zone and full-tilt scroll speed (px / s). */
+const SCROLL_DEAD = 0.2;
+const SCROLL_SPEED = 900;
 
 export class GamepadMenuNav {
   private prev: boolean[] = [];
   private padId = '';
-  /** Per stick axis: seen near centre since the pad connected. */
-  private armed = [false, false];
+  /** Per stick axis (left x, left y, right y): seen near centre since the pad connected. */
+  private armed = [false, false, false];
   private stickDir: NavDir | null = null;
   private dir: NavDir | null = null;
   private dirTime = 0;
@@ -51,8 +56,11 @@ export class GamepadMenuNav {
   private last = 0;
   private clearPadMode = () => delete document.documentElement.dataset.input;
 
-  /** `handler` receives every action; ignore the ones that don't apply. */
-  constructor(private handler: (a: NavAction) => void) {
+  /** `handler` receives every action; ignore the ones that don't apply. `scrollable` = what the right stick scrolls. */
+  constructor(
+    private handler: (a: NavAction) => void,
+    private scrollable?: () => HTMLElement | null,
+  ) {
     window.addEventListener('mousemove', this.clearPadMode);
     window.addEventListener('mousedown', this.clearPadMode);
     const loop = (now: number) => {
@@ -69,9 +77,10 @@ export class GamepadMenuNav {
     if (!pad) return;
     if (pad.id + pad.index !== this.padId) {
       this.padId = pad.id + pad.index;
-      this.armed = [false, false];
+      this.armed = [false, false, false];
       this.stickDir = null;
     }
+    this.scroll(pad, dt);
     const pressed = (i: number) => pad.buttons[i]?.pressed ?? false;
     for (const [i, a] of BUTTONS) {
       if (pressed(i) && !this.prev[i]) this.fire(a);
@@ -96,6 +105,18 @@ export class GamepadMenuNav {
         this.fire(dir);
       }
     }
+  }
+
+  private scroll(pad: Gamepad, dt: number): void {
+    if (!this.scrollable || pad.mapping !== 'standard') return;
+    const v = pad.axes[3] ?? 0;
+    if (Math.abs(v) < STICK_REST) this.armed[2] = true;
+    if (!this.armed[2] || Math.abs(v) < SCROLL_DEAD) return;
+    const el = this.scrollable();
+    if (!el) return;
+    const m = (Math.abs(v) - SCROLL_DEAD) / (1 - SCROLL_DEAD);
+    el.scrollTop += Math.sign(v) * m * SCROLL_SPEED * dt;
+    document.documentElement.dataset.input = 'pad';
   }
 
   /** Left stick direction with rest-arming + hysteresis (see the header). */
@@ -141,7 +162,8 @@ function menuPad(): Gamepad | undefined {
 
 // --- focus helpers (shared by gamepad and keyboard menu navigation) ---------------------
 
-const FOCUSABLE = 'button:not([disabled]), a[href], input:not([disabled])';
+const FOCUSABLE =
+  'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled])';
 
 /** Visible focusable controls inside `container`. */
 export function focusables(container: HTMLElement): HTMLElement[] {
@@ -169,7 +191,7 @@ export function ensureFocus(container: HTMLElement): HTMLElement | undefined {
  * Spatial focus move: the nearest control in `dir` (favouring ones in line with
  * the current control; left / right only within its row). Falls back to
  * wrapping around for up / down. A focused
- * range slider takes left / right as value steps instead.
+ * range slider or drop-down takes left / right as value steps instead.
  */
 export function moveFocus(container: HTMLElement, dir: NavDir): void {
   const items = focusables(container);
@@ -186,6 +208,10 @@ export function moveFocus(container: HTMLElement, dir: NavDir): void {
     stepRange(cur, dir === 'right' ? 1 : -1);
     return;
   }
+  if (cur instanceof HTMLSelectElement && (dir === 'left' || dir === 'right')) {
+    stepSelect(cur, dir === 'right' ? 1 : -1);
+    return;
+  }
   const [dx, dy] = {
     up: [0, -1],
     down: [0, 1],
@@ -193,8 +219,9 @@ export function moveFocus(container: HTMLElement, dir: NavDir): void {
     right: [1, 0],
   }[dir];
   const c = centre(cur);
+  const cr = cur.getBoundingClientRect();
   // Left / right stay on the current row (option segments, button rows).
-  const rowHalf = cur.getBoundingClientRect().height / 2;
+  const rowHalf = cr.height / 2;
   let best: HTMLElement | undefined;
   let bestScore = Infinity;
   let wrap: HTMLElement | undefined;
@@ -206,7 +233,10 @@ export function moveFocus(container: HTMLElement, dir: NavDir): void {
     const along = (p.x - c.x) * dx + (p.y - c.y) * dy;
     const across = Math.abs((p.x - c.x) * dy - (p.y - c.y) * dx);
     if (along > 4) {
-      const score = along + across * 2;
+      // Sideways = the gap between the two controls' edges (0 when they overlap), so a half-width button right
+      // below beats a full-width one further down.
+      const score =
+        along + edgeGap(cr, el.getBoundingClientRect(), dy !== 0) * 2;
       if (score < bestScore) {
         bestScore = score;
         best = el;
@@ -227,13 +257,29 @@ export function moveFocus(container: HTMLElement, dir: NavDir): void {
 /** Click the focused control (or focus the primary one if nothing is focused yet). */
 export function activateFocused(container: HTMLElement): void {
   const cur = ensureFocus(container);
-  if (cur && !(cur instanceof HTMLInputElement)) cur.click();
+  if (cur instanceof HTMLSelectElement) stepSelect(cur, 1);
+  else if (cur && !(cur instanceof HTMLInputElement)) cur.click();
+}
+
+/** Next / previous option (wrapping): a native drop-down can't be opened from a pad. */
+function stepSelect(el: HTMLSelectElement, sign: number): void {
+  const n = el.options.length;
+  if (!n) return;
+  el.selectedIndex = (el.selectedIndex + sign + n) % n;
+  el.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
 function stepRange(el: HTMLInputElement, sign: number): void {
   const step = (Number(el.max) - Number(el.min)) / 20 || 1;
   el.value = String(Number(el.value) + sign * step);
   el.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+/** Gap between two rects across the move: horizontal for up / down moves, vertical for left / right. */
+function edgeGap(a: DOMRect, b: DOMRect, vertical: boolean): number {
+  return vertical
+    ? Math.max(0, b.left - a.right, a.left - b.right)
+    : Math.max(0, b.top - a.bottom, a.top - b.bottom);
 }
 
 function centre(el: HTMLElement): { x: number; y: number } {

@@ -51,7 +51,7 @@ const REAR: AxleDef = {
 /**
  * Bimmer GT2 (`bimmer_gt2`) - a wide-body E92 M3 racing prototype (splitter, big wing, diffuser) from a CC BY Sketchfab
  * model, split by material and converted by stl-to-glb.mjs (settings: model.source.json). Clean base livery (livery.ts).
- * Test only (release.ts).
+ * Released (release.ts).
  */
 export const bimmerGt2: CarDef = {
   id: 'bimmer_gt2',

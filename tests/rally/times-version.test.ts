@@ -132,6 +132,15 @@ describe('saved times version (per map)', () => {
     for (const m of ALL_MAPS) expect(MAP_TIMES_VERSIONS[m.id]).toBeDefined();
   });
 
+  test('test cars and maps stay at version 1 until released', async () => {
+    const { CARS_LIST, MAPS_LIST } =
+      await import('../../src/games/rally/release');
+    for (const e of CARS_LIST)
+      if (e.hideInProd) expect(CAR_TIMES_VERSIONS[e.id]).toBe(1);
+    for (const e of MAPS_LIST)
+      if (e.hideInProd) expect(MAP_TIMES_VERSIONS[e.id]).toBe(1);
+  });
+
   test('a fresh player gets every map stamped', () => {
     const s = memoryStorage();
     expect(migrateTimes(s)).toBe(false);

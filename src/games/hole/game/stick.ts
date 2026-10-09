@@ -49,3 +49,28 @@ export function followOrigin(
   const k = (len - maxDragPx) / len;
   return { x: ox + dx * k, y: oy + dy * k };
 }
+
+/** Gamepad left-stick radius ignored around the centre (worn sticks rest a little off it). */
+export const PAD_DEAD_ZONE = 0.18;
+
+/**
+ * Gamepad -> stick vector (x right, y up, magnitude 0..1). The d-pad steers at full speed and wins over the stick;
+ * the stick is radial with a dead zone, rescaled so speed starts at 0 just past it.
+ */
+export function padToStick(
+  axes: readonly number[],
+  dpad: { up: boolean; down: boolean; left: boolean; right: boolean },
+): { x: number; y: number } {
+  const dx = (dpad.right ? 1 : 0) - (dpad.left ? 1 : 0);
+  const dy = (dpad.up ? 1 : 0) - (dpad.down ? 1 : 0);
+  if (dx || dy) {
+    const l = Math.hypot(dx, dy);
+    return { x: dx / l, y: dy / l };
+  }
+  const ax = axes[0] ?? 0;
+  const ay = axes[1] ?? 0;
+  const len = Math.hypot(ax, ay);
+  if (len <= PAD_DEAD_ZONE) return { x: 0, y: 0 };
+  const m = Math.min(1, (len - PAD_DEAD_ZONE) / (1 - PAD_DEAD_ZONE));
+  return { x: (ax / len) * m, y: (-ay / len) * m };
+}

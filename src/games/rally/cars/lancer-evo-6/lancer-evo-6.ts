@@ -52,7 +52,7 @@ const REAR: AxleDef = {
 /**
  * Lancer EVO VI (`lancer_evo_6`) - the 1999 World Rally Car's road-car base: the imported CC BY "Mitsubishi Lancer Evolution 6"
  * body with its own cockpit (visible through the glass) and its own rim, converted by glb-to-parts-stl.py + stl-to-glb.mjs
- * (model.source.json) and painted at runtime (livery.ts). Test car (release.ts).
+ * (model.source.json) and painted at runtime (livery.ts). Released (release.ts).
  */
 export const lancerEvo6: CarDef = {
   id: 'lancer_evo_6',
