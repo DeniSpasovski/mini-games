@@ -1,6 +1,7 @@
 import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
 import type { AxleDef } from '../../physics/types';
+import { shiftCom } from '../shared/com-shift';
 import type { CarDef } from '../shared/types';
 import { lancerEvo6Livery } from './livery';
 import { profile } from './profile';
@@ -54,7 +55,7 @@ const REAR: AxleDef = {
  * body with its own cockpit (visible through the glass) and its own rim, converted by glb-to-parts-stl.py + stl-to-glb.mjs
  * (model.source.json) and painted at runtime (livery.ts). Released (release.ts).
  */
-export const lancerEvo6: CarDef = {
+const lancer: CarDef = {
   id: 'lancer_evo_6',
   name: 'Lancer EVO VI',
   className: 'WRC · AWD turbo',
@@ -92,7 +93,7 @@ export const lancerEvo6: CarDef = {
   physics: {
     mass: 1230, // WRC minimum weight (1999 rules)
     ...BODY,
-    inertiaScale: 0.9,
+    inertia: { pitch: 1700, yaw: 1860, roll: 430 },
     wheelWidth: 0.235,
     tyres: {
       size: { width: 0.235, aspect: 40, rim: 18 },
@@ -197,3 +198,7 @@ export const lancerEvo6: CarDef = {
     },
   },
 };
+
+/** Weight 55 / 45 front / rear (WRC build, estimate): the centre of mass sits 0.078 m further forward (cars/shared/com-shift.ts). */
+const COM_SHIFT = -0.078;
+export const lancerEvo6 = shiftCom(lancer, COM_SHIFT);

@@ -35,6 +35,8 @@ function bodyPoints(car: CarDef): P[] | null {
   const gltf = JSON.parse(buf.subarray(20, 20 + jsonLen).toString());
   const bin = buf.subarray(20 + jsonLen + 8);
   const pts: P[] = [];
+  // The model's runtime offset (a car whose centre of mass is not at the model's axle midpoint, cars/shared/com-shift.ts).
+  const dz = m.gltf.offset?.[2] ?? 0;
   for (const mesh of gltf.meshes)
     for (const prim of mesh.primitives) {
       const a = gltf.accessors[prim.attributes.POSITION];
@@ -46,7 +48,7 @@ function bodyPoints(car: CarDef): P[] | null {
         pts.push([
           bin.readFloatLE(o),
           bin.readFloatLE(o + 4),
-          bin.readFloatLE(o + 8),
+          bin.readFloatLE(o + 8) + dz,
         ]);
       }
     }

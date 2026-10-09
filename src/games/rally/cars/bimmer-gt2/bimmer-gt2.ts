@@ -1,6 +1,7 @@
 import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
 import type { AxleDef } from '../../physics/types';
+import { shiftCom } from '../shared/com-shift';
 import type { CarDef } from '../shared/types';
 import { profile } from './profile';
 import { bimmerGt2Livery } from './livery';
@@ -53,7 +54,7 @@ const REAR: AxleDef = {
  * model, split by material and converted by stl-to-glb.mjs (settings: model.source.json). Clean base livery (livery.ts).
  * Released (release.ts).
  */
-export const bimmerGt2: CarDef = {
+const gt2: CarDef = {
   id: 'bimmer_gt2',
   name: 'Bimmer GT2',
   className: 'GT2 · RWD V8',
@@ -90,7 +91,7 @@ export const bimmerGt2: CarDef = {
   physics: {
     mass: 1150,
     ...BODY,
-    inertiaScale: 0.9,
+    inertia: { pitch: 1860, yaw: 2060, roll: 430 },
     hardBumpStop: true,
     wheelWidth: 0.28,
     // Staggered like the race car: slicks 30/66-18 front / 31/71-18 rear (width cm / overall diameter cm - rim) =
@@ -212,3 +213,10 @@ export const bimmerGt2: CarDef = {
     },
   },
 };
+
+/**
+ * Weight 45 / 55 front / rear (Motor1; engine far back, steel ballast up front): the axles sit 0.137 m further forward
+ * than the model's centre, so the centre of mass is further back (cars/shared/com-shift.ts).
+ */
+const COM_SHIFT = 0.137;
+export const bimmerGt2 = shiftCom(gt2, COM_SHIFT);
