@@ -72,5 +72,5 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
 
 ## Bump the times version (last step)
 
-A handling change to one car bumps its `CAR_TIMES_VERSIONS` entry in `game/stage.ts`; a shared physics change (tyres, surfaces, drivetrain model, assists) bumps every released car (test cars stay at 1). Bump only when the user says we are making a build; until then say in the PR
+A handling change to one car bumps its `CAR_TIMES_VERSIONS` entry in `game/stage.ts`; a shared physics change (tyres, surfaces, drivetrain model, assists) bumps every released car (`hideInProd` cars stay at 1, a test checks). Bump only when the user says we are making a build; until then say in the PR
 which cars changed (AGENTS.md "Rally times versions"). Old times stay below the new ones.

@@ -27,6 +27,7 @@ npm run dev     # /games/rally/car-viewer.html?car=bimmer_gt2
 | `bimmer-gt2.ts`     | `CarDef`: drivetrain, tyres, set-ups, body-fitted hull, fallback body, glTF  |
 | `livery.ts`         | body atlas painter: pixel-block scheme + pearl rear + dark undercoat         |
 | `livery-pattern.ts` | the block pattern (pure data, seeded): bands, block sizes, rearward trails   |
+| `profile.ts`        | baked boxy side profile: fallback body and street car of the city maps       |
 | `model.source.json` | GLB material -> part mapping, scale / offset, atlas layout (read at runtime) |
 
 The models live in `public/models/cars/bimmer_gt2.glb` (+ `bimmer_gt2_wheel.glb`, cut from the same model by `scripts/car-model/glb-wheel-extract.py`); the raw download stays out of git (`sources/`, local only).

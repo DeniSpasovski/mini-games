@@ -446,5 +446,5 @@ registered car; see `src/games/rally/PHYSICS.md`.
 
 ## Bump the times version (last step)
 
-Add the car's id to `CAR_TIMES_VERSIONS` in `game/stage.ts` (start at 1; a test fails without it). A test car stays at 1; once released, handling changes bump it when the user says we are making a build (livery / model fixes
+Add the car's id to `CAR_TIMES_VERSIONS` in `game/stage.ts` (start at 1; a test fails without it). It stays at 1 while the car has `hideInProd` in `CARS_LIST` (a test checks); once released, handling changes bump it when the user says we are making a build (livery / model fixes
 never). Old times stay below the new ones.

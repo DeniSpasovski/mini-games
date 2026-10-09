@@ -2,7 +2,7 @@ import { atlasKit, type Pt } from '../shared/atlas-painter';
 import type { LiveryInfo } from '../shared/livery';
 import type { CarAtlas } from '../shared/types';
 import { Rng } from '../../../../shared/rng';
-import { CELL, Z_TAIL, blocks } from './livery-pattern';
+import { CELL, blocks } from './livery-pattern';
 import source from './model.source.json';
 
 /**
@@ -36,8 +36,6 @@ const REAR_LID_Y = 0.84;
 /** Extra height of the arch at the middle. */
 /** y where the pearl edge steps in from REAR_X to REAR_LID_X. */
 const REAR_LID_SIDE_Y = 0.7;
-/** The top chart is pearl behind this z (the lid's bottom lip). */
-const Z_LIP = -2.28;
 const REAR_LID_ARCH = 0.05;
 const PEARL = '#ece4d8';
 const WHITES = [
@@ -192,17 +190,6 @@ function paint(
       false,
     );
   }
-  // the boot lid's bottom lip (a ledge at the very back of the top chart) stays plain pearl, not patterned
-  P.top(
-    [
-      [Z_TAIL, -REAR_X],
-      [Z_TAIL, REAR_X],
-      [Z_LIP, REAR_X],
-      [Z_LIP, -REAR_X],
-    ],
-    PEARL,
-    false,
-  );
   underside(ctx);
 }
 
