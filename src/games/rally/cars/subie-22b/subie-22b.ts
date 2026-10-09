@@ -165,7 +165,7 @@ export const subie22b: CarDef = {
     wheelModel: 'subie_22b_wheel.glb',
     suspensionStyle: 'sti',
     // The model's own cockpit (left-hand drive, seats, roll cage) shows through lightly tinted windows.
-    glass: { color: 0x2a3a46, opacity: 0.4 },
+    glass: { color: 0x141c24, opacity: 0.6 },
     // Fallback body if the GLB can't load: profile.ts. Not a city street car while the 22B is a test car.
     profile,
     // Rally plate on the front door (front = +z), over the crescent graphic.

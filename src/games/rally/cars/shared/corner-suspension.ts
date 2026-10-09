@@ -5,6 +5,7 @@ import {
   Matrix4,
   MeshStandardMaterial,
   BoxGeometry,
+  SphereGeometry,
   Object3D,
   Quaternion,
   Vector3,
@@ -34,7 +35,7 @@ export interface CornerSuspensionDef {
 }
 
 const Y = new Vector3(0, 1, 0);
-const RODS_PER_CORNER = 6;
+const RODS_PER_CORNER = 9;
 /** Coil-over thickness vs the setup screen's unit (a car-sized unit is stouter than a bench model). */
 const GIRTH = 1.35;
 
@@ -58,6 +59,8 @@ export class CornerSuspension {
   readonly group = new Object3D();
   private rods: InstancedMesh;
   private uprights: InstancedMesh;
+  private joints: InstancedMesh;
+  private jointCount = 0;
   private front: InstancedMesh[];
   private rear: InstancedMesh[];
   private springs: MeshStandardMaterial[] = [];
@@ -114,8 +117,11 @@ export class CornerSuspension {
     this.front = f.meshes;
     this.rear = r.meshes;
     this.unitLength = [f.length, r.length];
-    this.rods = this.mesh(rod, armMat, 4 * RODS_PER_CORNER + 1);
+    this.rods = this.mesh(rod, armMat, 4 * RODS_PER_CORNER + 12);
     this.uprights = this.mesh(knuckle, armMat, 4);
+    const ball = new SphereGeometry(1, 8, 6);
+    this.geoms.push(ball);
+    this.joints = this.mesh(ball, chromeMat, 48);
   }
 
   private mesh(
@@ -147,6 +153,12 @@ export class CornerSuspension {
     this.rods.setMatrixAt(this.rodCount++, this.m);
   }
 
+  /** Ball joint / bushing / strut-top dome: a small sphere. */
+  private joint(at: Vector3, r: number): void {
+    this.m.compose(at, this.q.identity(), this.scale.set(r, r, r));
+    this.joints.setMatrixAt(this.jointCount++, this.m);
+  }
+
   /** One coil-over from `low` (hub / arm) to `top` (body); the spring squashes and stretches with the travel. */
   private damper(idx: number, low: Vector3, top: Vector3, rear: boolean): void {
     const len = low.distanceTo(top) || 1e-4;
@@ -167,6 +179,7 @@ export class CornerSuspension {
   /** Move everything to the current hub positions (root frame) and wheel orientations. */
   sync(hub: Vector3[], hubQuat: Quaternion[]): void {
     this.rodCount = 0;
+    this.jointCount = 0;
     const p = this.p;
     const restY = p.wheelRadius - p.comHeight;
     const { topY, topIn } = this.def;
@@ -198,15 +211,27 @@ export class CornerSuspension {
       }
       if (layout === 'strut') {
         this.damper(i, upper, top, isRear);
-        for (const dz of [0.22, -0.22])
+        for (const dz of [0.22, -0.22]) {
           this.rod(lower, chassis.set(cx, restY - 0.11, h.z + dz), 0.02);
+          this.joint(chassis, 0.03); // rubber bushing
+        }
+        this.joint(lower, 0.032); // ball joint
+        this.joint(top, 0.055); // strut top mount
         tmp.set(inner, 0, -0.12).applyQuaternion(q).add(h);
         this.rod(tmp, chassis.set(cx, restY + 0.02, h.z - 0.2), 0.014);
+        this.swayBar(i, h.z, cx, restY);
       } else if (layout === 'wishbone') {
-        for (const dz of [0.2, -0.2])
+        for (const dz of [0.2, -0.2]) {
           this.rod(lower, chassis.set(cx, restY - 0.1, h.z + dz), 0.02);
-        for (const dz of [0.16, -0.16])
+          this.joint(chassis, 0.03);
+        }
+        for (const dz of [0.16, -0.16]) {
           this.rod(upper, chassis.set(cx, restY + 0.2, h.z + dz), 0.016);
+          this.joint(chassis, 0.026);
+        }
+        this.joint(lower, 0.032);
+        this.joint(upper, 0.028);
+        this.swayBar(i, h.z, cx, restY);
         chassis.set(cx, restY - 0.1, h.z);
         this.damper(i, tmp.copy(lower).lerp(chassis, 0.35), top, isRear);
       } else {
@@ -230,11 +255,42 @@ export class CornerSuspension {
     }
     if (this.def.rear === 'axle') this.rod(hub[2], hub[3], 0.04);
     this.rods.count = this.rodCount;
-    for (const im of [this.rods, this.uprights, ...this.front, ...this.rear])
+    this.joints.count = this.jointCount;
+    for (const im of [
+      this.rods,
+      this.uprights,
+      this.joints,
+      ...this.front,
+      ...this.rear,
+    ])
       im.instanceMatrix.needsUpdate = true;
   }
 
   private one = new Vector3(1, 1, 1);
+  private bar = new Vector3();
+
+  /**
+   * Axle crossmember (subframe tube, drawn once per axle) and anti-roll bar with a drop link to this wheel's lower
+   * arm. The bar sits at fixed body points; only the link follows the wheel.
+   */
+  private swayBar(i: number, z: number, cx: number, restY: number): void {
+    const { bar, chassis, lower } = this;
+    bar.set(cx * 1.1, restY - 0.04, z + 0.36);
+    if (i % 2 === 1) {
+      chassis.set(-cx * 1.1, restY - 0.04, z + 0.36);
+      this.rod(bar, chassis, 0.011); // the bar itself
+      this.joint(bar, 0.018);
+      this.joint(chassis, 0.018);
+      bar.set(cx, restY - 0.11, z + 0.22);
+      chassis.set(-cx, restY - 0.11, z + 0.22);
+      this.rod(bar, chassis, 0.032); // crossmember
+      bar.set(cx, restY - 0.11, z - 0.22);
+      chassis.set(-cx, restY - 0.11, z - 0.22);
+      this.rod(bar, chassis, 0.032);
+    }
+    bar.set(cx * 1.1, restY - 0.04, z + 0.36);
+    this.rod(bar, chassis.copy(lower).setZ(z + 0.3), 0.008); // drop link
+  }
 
   dispose(): void {
     for (const g of this.geoms) g.dispose();

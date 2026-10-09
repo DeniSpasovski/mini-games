@@ -181,7 +181,7 @@ export const citroenC4: CarDef = {
       driven: ['front', 'rear'],
     },
     // The model carries its own cockpit: see-through glass shows it.
-    glass: { color: 0x2a3a46, opacity: 0.35 },
+    glass: { color: 0x141c24, opacity: 0.6 },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     doorBadge: { z: 0.2, y: 0.6 },
