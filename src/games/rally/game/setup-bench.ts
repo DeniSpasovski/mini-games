@@ -184,7 +184,7 @@ export class SetupBench {
       part.add(spin);
       this.studio(
         `susp:${id}`,
-        3 + i,
+        TYRE_IDS.length + i,
         part,
         spin,
         'y',

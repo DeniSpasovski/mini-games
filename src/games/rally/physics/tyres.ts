@@ -10,10 +10,17 @@ import type { PressureDef, TempWindow } from './tyre-temp';
  * Arcade rules: big readable differences, no wear. Temperature: `temp` window (tyre-temp.ts). The right tyre is a modest
  * bonus over `mixed`, the wrong one is a clear penalty that a careful driver can still finish on.
  */
-export type TyreId = 'tarmac' | 'mixed' | 'gravel';
+export type TyreId =
+  'tarmac' | 'tarmac_hard' | 'mixed' | 'gravel_hard' | 'gravel';
+/**
+ * The tyre's kind: sizes (`CarPhysicsDef.tyres.byCompound`), brake kit, wheel models and the tread look follow it, not the
+ * compound. The ids `tarmac` and `gravel` are the soft compounds (the names the saved set-ups already use).
+ */
+export type TyreFamily = 'tarmac' | 'mixed' | 'gravel';
 
 export interface TyreDef {
   id: TyreId;
+  family: TyreFamily;
   name: string;
   /** One-line description for the menu. */
   blurb: string;
@@ -47,15 +54,17 @@ export const LOOSE_LOAD_SENS = 0.6;
 export const TYRES: Record<TyreId, TyreDef> = {
   tarmac: {
     id: 'tarmac',
-    name: 'Tarmac',
-    blurb: 'Sharp and sticky on clean asphalt. Skates on anything loose.',
+    family: 'tarmac',
+    name: 'Tarmac Soft',
+    blurb:
+      'Sharp and sticky on clean asphalt, warms fast. Skates on anything loose.',
     color: 0xe0413a,
     grip: {
-      tarmac: 1.12,
-      tarmac_gravel: 0.95,
+      tarmac: 1.26,
+      tarmac_gravel: 1.07,
       rock: 1,
       gravel: 0.72,
-      gravel_loose: 0.65,
+      gravel_loose: 0.64,
       dirt: 0.68,
       grass: 0.62,
       mud: 0.55,
@@ -63,19 +72,44 @@ export const TYRES: Record<TyreId, TyreDef> = {
     },
     slide: [0.95, 0.9],
     response: 0.8,
-    temp: { lo: 70, hi: 110, cold: 0.74, hot: 0.8 },
+    temp: { lo: 66, hi: 104, cold: 0.72, hot: 0.78 },
     heat: 1,
     loadSens: 0.14,
     pressure: { cold: 1.85 },
   },
+  tarmac_hard: {
+    id: 'tarmac_hard',
+    family: 'tarmac',
+    name: 'Tarmac Hard',
+    blurb: 'Less peak grip, but keeps it on a hot day. Slow to warm up.',
+    color: 0xf08a24,
+    grip: {
+      tarmac: 1.19,
+      tarmac_gravel: 1.05,
+      rock: 1,
+      gravel: 0.72,
+      gravel_loose: 0.64,
+      dirt: 0.68,
+      grass: 0.62,
+      mud: 0.55,
+      snow: 0.6,
+    },
+    slide: [1, 0.92],
+    response: 0.85,
+    temp: { lo: 78, hi: 120, cold: 0.7, hot: 0.86 },
+    heat: 0.9,
+    loadSens: 0.12,
+    pressure: { cold: 1.85 },
+  },
   mixed: {
     id: 'mixed',
+    family: 'mixed',
     name: 'Mixed',
     blurb: 'The all-rounder. Best on dusty asphalt, never bad anywhere.',
     color: 0xf2c230,
     grip: {
-      tarmac: 0.98,
-      tarmac_gravel: 1.06,
+      tarmac: 1.1,
+      tarmac_gravel: 1.19,
       rock: 1,
       gravel: 0.93,
       gravel_loose: 0.9,
@@ -91,33 +125,69 @@ export const TYRES: Record<TyreId, TyreDef> = {
     loadSens: 0.12,
     pressure: { cold: 1.8 },
   },
+  gravel_hard: {
+    id: 'gravel_hard',
+    family: 'gravel',
+    name: 'Gravel Hard',
+    blurb:
+      'Tough tread for hard-packed, abrasive gravel. Less bite in mud and loose stuff.',
+    color: 0x5ab0e0,
+    grip: {
+      tarmac: 0.96,
+      tarmac_gravel: 1.03,
+      rock: 0.96,
+      gravel: 1.03,
+      gravel_loose: 1,
+      dirt: 1.02,
+      grass: 1,
+      mud: 0.9,
+      snow: 0.92,
+    },
+    slide: [1.06, 1],
+    response: 1.15,
+    temp: { lo: 58, hi: 98, cold: 0.86, hot: 0.88 },
+    heat: 0.75,
+    loadSens: 0.09,
+    pressure: { cold: 1.8 },
+  },
   gravel: {
     id: 'gravel',
-    name: 'Gravel',
-    blurb: 'Deep tread. Bites into loose ground, floaty and lazy on asphalt.',
+    family: 'gravel',
+    name: 'Gravel Soft',
+    blurb:
+      'Deep tread. Bites into loose ground and mud, floaty and lazy on asphalt.',
     color: 0xf2f2f2,
     grip: {
-      tarmac: 0.84,
-      tarmac_gravel: 0.94,
-      rock: 0.95,
-      gravel: 1.05,
-      gravel_loose: 1.06,
-      dirt: 1.05,
-      grass: 1.04,
-      mud: 1,
-      snow: 0.95,
+      tarmac: 0.92,
+      tarmac_gravel: 1.03,
+      rock: 0.94,
+      gravel: 1.04,
+      gravel_loose: 1.08,
+      dirt: 1.06,
+      grass: 1.06,
+      mud: 1.04,
+      snow: 0.98,
     },
     slide: [1.08, 1.03],
     response: 1.25,
-    temp: { lo: 50, hi: 90, cold: 0.88, hot: 0.86 },
-    heat: 0.8,
+    temp: { lo: 46, hi: 86, cold: 0.9, hot: 0.83 },
+    heat: 0.85,
     loadSens: 0.1,
     pressure: { cold: 1.75 },
   },
 };
 
 /** Menu order. */
-export const TYRE_IDS: readonly TyreId[] = ['tarmac', 'mixed', 'gravel'];
+export const TYRE_IDS: readonly TyreId[] = [
+  'tarmac',
+  'tarmac_hard',
+  'mixed',
+  'gravel_hard',
+  'gravel',
+];
+
+/** The tyre's kind (sizes, brake kit, wheels, tread follow it). */
+export const familyOf = (tyre: TyreId): TyreFamily => TYRES[tyre].family;
 
 export function isTyreId(v: unknown): v is TyreId {
   return typeof v === 'string' && v in TYRES;
@@ -151,11 +221,9 @@ const build = (t: TyreDef) =>
   ) as Record<SurfaceId, SurfaceDef>;
 
 /** Effective surface per tyre: `TYRE_SURFACES[tyre][surfaceId]`. */
-export const TYRE_SURFACES: Record<TyreId, Record<SurfaceId, SurfaceDef>> = {
-  tarmac: build(TYRES.tarmac),
-  mixed: build(TYRES.mixed),
-  gravel: build(TYRES.gravel),
-};
+export const TYRE_SURFACES = Object.fromEntries(
+  TYRE_IDS.map((id) => [id, build(TYRES[id])]),
+) as Record<TyreId, Record<SurfaceId, SurfaceDef>>;
 
 /** How a tyre does on a surface compared with the best tyre there: 3 best, 2 good, 1 poor, 0 bad. */
 export type GripRating = 0 | 1 | 2 | 3;

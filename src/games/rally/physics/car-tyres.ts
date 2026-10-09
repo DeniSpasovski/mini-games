@@ -1,6 +1,12 @@
 import { compliance } from './car-setup';
 import { SURFACES, type SurfaceDef, type SurfaceId } from './surfaces';
-import { TYRE_IDS, TYRE_SURFACES, type GripRating, type TyreId } from './tyres';
+import {
+  familyOf,
+  TYRE_IDS,
+  TYRE_SURFACES,
+  type GripRating,
+  type TyreId,
+} from './tyres';
 import type { CarPhysicsDef, TyreSize } from './types';
 
 /**
@@ -36,7 +42,7 @@ export function tyreSizeFor(
   axle: Axle = 'front',
 ): TyreSize {
   const set = (axle === 'rear' && def.tyres.rear) || def.tyres;
-  return (tyre && set.byCompound?.[tyre]) || set.size;
+  return (tyre && set.byCompound?.[familyOf(tyre)]) || set.size;
 }
 
 /** Whether the rear axle runs another size than the front on a compound. */
@@ -90,12 +96,18 @@ export interface SizeFactors {
   plough: number;
 }
 
+/** Share of a road tyre's (or slick's) grip difference that survives on fully loose ground: the soil limits the grip there. */
+const GRADE_LOOSE = 0.4;
+
 export function sizeFactors(s: TyreSize): SizeFactors {
   const w = s.width / REF_WIDTH;
   const h = (s.width * (s.aspect / 100)) / REF_SIDEWALL;
+  const grade = s.grade ?? 1;
   return {
-    hard: w ** 0.3,
-    loose: w < 1 ? w ** 0.12 : 1 - 0.22 * (w - 1),
+    hard: w ** 0.3 * grade,
+    loose:
+      (w < 1 ? w ** 0.12 : 1 - 0.22 * (w - 1)) *
+      (1 + (grade - 1) * GRADE_LOOSE),
     response: h ** 0.3,
     slide: h ** 0.1,
     plough: 1 + 0.3 * Math.max(0, w - 1),
@@ -115,7 +127,7 @@ export function carSurfaces(
 ): Record<SurfaceId, SurfaceDef> {
   const size = tyreSizeFor(def, tyre, axle);
   const c = compliance(def);
-  const key = `${tyre}|${size.width}|${size.aspect}|${c.toFixed(3)}`;
+  const key = `${tyre}|${size.width}|${size.aspect}|${size.grade ?? 1}|${c.toFixed(3)}`;
   let table = cache.get(key);
   if (!table) {
     const f = sizeFactors(size);

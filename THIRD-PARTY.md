@@ -59,7 +59,7 @@ The car liveries, parts, physics, door plates and every other asset are original
 
 ## Research references
 
-Papers and articles read to tune the rally tyre temperature, suspension, brake, weight distribution and inertia models; the tyre,
+Papers and articles read to tune the rally tyre types, tyre temperature, suspension, brake, weight distribution and inertia models; the tyre,
 suspension and brake ones are linked in the game's About screen and `src/games/rally/PHYSICS.md`. Nothing from them is copied or bundled.
 
 - https://pmc.ncbi.nlm.nih.gov/articles/PMC9459800/
@@ -69,6 +69,9 @@ suspension and brake ones are linked in the game's About screen and `src/games/r
 - https://www.tirerack.com/tires/tests/confirming-optimal-track-tire-pressures-14-extreme-performance-competition-tires-tested-on-a-bmw-m2?ttid=357
 - https://press.pirelli.com/p-zero-ra-wrc-shows-reliability-on-wet-and-dry-asphalt/
 - https://press.pirelli.com/scorpion-kx-soft-stars-on-opening-day-of-rally-finland/
+- https://press.pirelli.com/pirelli-returns-to-the-wrc-with-a-renewed-tire-range/
+- https://blog.demon-tweeks.com/motorsport/how-to-choose-rally-track-tyre/
+- https://edmunds.com/bmw/m3/2008/review
 - https://www.gamedeveloper.com/design/implementing-racing-games-an-intro-to-different-approaches-and-their-game-design-trade-offs
 - https://www.gamedeveloper.com/programming/rendering-and-simulation-in-offroad-driving-game
 - https://arxiv.org/abs/2605.05235

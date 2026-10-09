@@ -6,6 +6,9 @@ import { buildZastavaBody } from './body';
 import { zastavaAtlas } from './paint';
 import { buildZastavaWheel } from './wheels';
 
+/** 1970s road tyre against a rally competition tyre (PHYSICS.md "Tyre types"). */
+const OLD_ROAD_TYRE = 0.72;
+
 const FRONT: AxleDef = {
   z: 0.98,
   track: 1.3,
@@ -100,10 +103,10 @@ export const zastava101: CarDef = {
     // 13" steel wheels on every compound, the tyre changes: stock 145/80 R13 (mixed), a wider 165/70 R13 on tarmac,
     // a taller 155/80 R13 on gravel.
     tyres: {
-      size: { width: 0.145, aspect: 80, rim: 13 },
+      size: { width: 0.145, aspect: 80, rim: 13, grade: OLD_ROAD_TYRE },
       byCompound: {
-        tarmac: { width: 0.165, aspect: 70, rim: 13 },
-        gravel: { width: 0.155, aspect: 80, rim: 13 },
+        tarmac: { width: 0.165, aspect: 70, rim: 13, grade: OLD_ROAD_TYRE },
+        gravel: { width: 0.155, aspect: 80, rim: 13, grade: OLD_ROAD_TYRE },
       },
     },
     wheelInertia: 0.9,

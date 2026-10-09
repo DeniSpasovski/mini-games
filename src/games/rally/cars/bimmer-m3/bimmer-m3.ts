@@ -17,34 +17,40 @@ const BODY = {
   wheelRadius: 0.33,
 };
 
+/** Summer road tyre against a rally competition tyre (PHYSICS.md "Tyre types"). */
+const ROAD_TYRE = 0.82;
+/** Mass of the car these suspension numbers were tuned on (kg); the E92 M3 weighs 1,680 kg. */
+const TUNED_MASS = 1180;
+const MASS = 1680;
+/** Springs, dampers and bars x the mass ratio: the same ride frequency, damping ratio and roll angle at the real weight. */
+const scale = (n: number): number => Math.round((n * MASS) / TUNED_MASS);
+
 // Track 1.66 (Bimmer 1.64): the old wheel assembly is cut out of the mesh, so the 0.235 m tyre sits inside the flares (centre 0.83).
 const FRONT: AxleDef = {
   z: 1.361,
   track: 1.66,
-  spring: 78000,
-  bump: 3680,
-  rebound: 6620,
+  spring: scale(78000),
+  bump: scale(3680),
+  rebound: scale(6620),
   travel: 0.14,
-  antiRoll: 11900,
+  antiRoll: scale(11900),
   handbrakeTorque: 0,
   steer: 1,
-  grip: 1.06, // street tyres (245 / 40 R18) need a little front grip so the tarmac specialist stays ahead of the Skoda (car-setup.test.ts)
+  grip: 1,
   forceHeight: 0.15,
 };
 
 const REAR: AxleDef = {
   z: -1.361,
   track: 1.66,
-  spring: 70000,
-  bump: 3402,
-  rebound: 6120,
+  spring: scale(70000),
+  bump: scale(3402),
+  rebound: scale(6120),
   travel: 0.14,
-  antiRoll: 7700,
+  antiRoll: scale(7700),
   handbrakeTorque: 3000,
   steer: 0,
-  // Rear bias: at 1.05 the RWD V8 spun on gravel under full throttle; 1.15 still did (tests/rally/car-setup.test.ts
-  // "straight-line launch"). The tyre size factors act on both axles, so they do not replace this bias.
-  grip: 1.3,
+  grip: 1, // the tyre sizes (stagger) and the weight split set the balance; traction control keeps the loose-ground launch straight
   forceHeight: 0.15,
 };
 
@@ -55,14 +61,14 @@ const BRAKES: BrakeSet = {
     diameter: 0.36,
     thickness: 0.03,
     pad: 'sport',
-    clamp: 12800,
+    clamp: scale(12800), // pedal force tuned for ~36 m from 100 km/h on road tyres at 1,680 kg, ~64 % of it on the front axle
   },
   rear: {
     type: 'vented',
     diameter: 0.35,
     thickness: 0.024,
     pad: 'sport',
-    clamp: 5900,
+    clamp: scale(7500),
   },
 };
 
@@ -112,18 +118,18 @@ export const bimmerM3: CarDef = {
     cam: 0.6,
   },
   physics: {
-    mass: 1180,
+    mass: MASS, // E92 M3 coupe curb weight (BMW USA)
     ...BODY,
-    inertia: { pitch: 2130, yaw: 2300, roll: 490 },
+    inertia: { pitch: 3020, yaw: 3290, roll: 690 },
     hardBumpStop: true,
     wheelWidth: 0.235,
     // Staggered like the V8 road M3 whose engine it has (E92: 245/40 R18 on 8.5J front, 265/40 R18 on 9.5J rear);
     // gravel runs one size.
     tyres: {
-      size: { width: 0.245, aspect: 40, rim: 18 },
+      size: { width: 0.245, aspect: 40, rim: 18, grade: ROAD_TYRE },
       byCompound: { gravel: { width: 0.205, aspect: 65, rim: 16 } },
       rear: {
-        size: { width: 0.265, aspect: 40, rim: 18 },
+        size: { width: 0.265, aspect: 40, rim: 18, grade: ROAD_TYRE },
         byCompound: { gravel: { width: 0.205, aspect: 65, rim: 16 } },
       },
     },
@@ -135,9 +141,24 @@ export const bimmerM3: CarDef = {
     setups: deriveSetups(
       { front: FRONT, rear: REAR },
       {
-        soft: { front: 47000, rear: 42000, travel: 0.17, ride: 0.035 },
-        medium: { front: 62000, rear: 55000, travel: 0.16, ride: 0.015 },
-        stiff: { front: 78000, rear: 70000, travel: 0.14, ride: 0 },
+        soft: {
+          front: scale(47000),
+          rear: scale(42000),
+          travel: 0.17,
+          ride: 0.035,
+        },
+        medium: {
+          front: scale(62000),
+          rear: scale(55000),
+          travel: 0.16,
+          ride: 0.015,
+        },
+        stiff: {
+          front: scale(78000),
+          rear: scale(70000),
+          travel: 0.14,
+          ride: 0,
+        },
       },
     ),
     engine: {

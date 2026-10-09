@@ -9,6 +9,7 @@ import {
 import { ajvatovciMap } from '../../src/games/rally/maps/ajvatovci/map';
 import { jackieMap } from '../../src/games/rally/maps/jackie/map';
 import { petralicaMap } from '../../src/games/rally/maps/petralica/map';
+import { stageClimate } from '../../src/games/rally/maps/shared/climate';
 import type { MapDef } from '../../src/games/rally/maps/shared/types';
 import { testMap } from '../../src/games/rally/maps/test/map';
 import {
@@ -89,11 +90,12 @@ describe('tyre data', () => {
   });
 });
 
-test('the right tyre grips best on its home surface; mixed is never best nor worst there', () => {
-  const home: [SurfaceId, TyreId][] = [
-    ['tarmac', 'tarmac'],
-    ['tarmac_gravel', 'mixed'],
-    ['gravel', 'gravel'],
+test('the right kind of tyre grips best on its home surface; mixed is never best nor worst there', () => {
+  // Soft or hard of the home family: they sit within a few percent of each other (temperature tells them apart).
+  const home: [SurfaceId, TyreId[]][] = [
+    ['tarmac', ['tarmac', 'tarmac_hard']],
+    ['tarmac_gravel', ['mixed']],
+    ['gravel', ['gravel', 'gravel_hard']],
   ];
   const rows: string[] = [];
   for (const [surface, best] of home) {
@@ -103,8 +105,9 @@ test('the right tyre grips best on its home surface; mixed is never best nor wor
     rows.push(
       `${surface}: ${TYRE_IDS.map((t) => `${t} ${g[t].toFixed(2)}g`).join('  ')}`,
     );
+    const bestG = Math.max(...best.map((t) => g[t]));
     for (const t of TYRE_IDS)
-      if (t !== best) expect(g[best]).toBeGreaterThan(g[t]);
+      if (!best.includes(t)) expect(bestG).toBeGreaterThan(g[t]);
   }
   // Mixed: never the best on clean tarmac / gravel, never the worst on any of them.
   for (const surface of ['tarmac', 'gravel', 'gravel_loose'] as SurfaceId[]) {
@@ -132,10 +135,14 @@ test('the wrong tyre is a clear penalty, the right one a modest bonus', () => {
   expect(gravelOnTarmac).toBeLessThan(0.92);
 });
 
-/** Autopilot, Fabia on one tyre with its matching set-up (gravel soft ... tarmac stiff), one stage: time, how far it got and the worst tilt. */
+/**
+ * Autopilot, Fabia on one tyre with its matching set-up (gravel soft ... tarmac stiff), one stage, tyre temperatures on
+ * (the stage's climate, as in game): time, how far it got and the worst tilt.
+ */
 function driveStage(world: World, tyre: TyreId, extraGrip = false) {
   const v = new Vehicle(applySetup(fabia.physics, SETUP_FOR_TYRE[tyre]), world);
   v.setTyre(tyre);
+  v.setClimate(stageClimate(world.map.environment));
   const spawn = world.roadSpawn();
   v.reset(spawn.position, spawn.heading);
   const ap = new Autopilot(world.road);

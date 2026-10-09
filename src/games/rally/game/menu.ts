@@ -150,7 +150,7 @@ const BRAKE_RESEARCH: SourceLink[] = [
   },
 ];
 
-/** Research behind the tyre temperature model (PHYSICS.md "Tyre temperature"). Read only, nothing copied. */
+/** Research behind the tyre types and the tyre temperature model (PHYSICS.md "Tyre types", "Tyre temperature"). Read only, nothing copied. */
 const TYRE_RESEARCH: SourceLink[] = [
   {
     label: 'Tyre friction vs temperature (rig test, PMC)',
@@ -176,6 +176,21 @@ const TYRE_RESEARCH: SourceLink[] = [
     label: 'Pirelli press: gravel rally tyres in Finland',
     url: 'https://press.pirelli.com/scorpion-kx-soft-stars-on-opening-day-of-rally-finland/',
     note: 'gravel tyre temperatures',
+  },
+  {
+    label: 'Pirelli press: the WRC tyre range',
+    url: 'https://press.pirelli.com/pirelli-returns-to-the-wrc-with-a-renewed-tire-range/',
+    note: 'tarmac hard / soft, gravel hard / soft: sizes and when each is used',
+  },
+  {
+    label: 'Demon Tweeks: how to choose rally tyres',
+    url: 'https://blog.demon-tweeks.com/motorsport/how-to-choose-rally-track-tyre/',
+    note: 'soft = more grip, gravel treads for loose or hard-packed ground',
+  },
+  {
+    label: 'Edmunds: 2008 BMW M3 review',
+    url: 'https://edmunds.com/bmw/m3/2008/review',
+    note: 'road-tyre braking and acceleration of the real M3 (60-0 mph in 100 ft)',
   },
   {
     label: 'Michelin Motorsport: rally tyre pressures',

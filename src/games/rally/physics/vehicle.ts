@@ -72,6 +72,17 @@ const BODY_WATER_CD = 1.05;
 const TC_REAR_SLIP = 1.15;
 const TC_FRONT_SLIP = 2.0;
 /**
+ * Traction term: a driven wheel spinning past `TC_WHEELSPIN` x the surface's peak slip ratio trims the throttle by `TC_GAIN`
+ * x the excess (down to `TC_FLOOR` of it). Like a real system (10-15 % slip) it holds the slip well below the peak, where
+ * the tyre still has its sideways grip; a weak trim let a rear-drive car spin on past the peak and fishtail on loose ground.
+ */
+const TC_WHEELSPIN = 0.6;
+const TC_GAIN = 4;
+const TC_FLOOR = 0.08;
+/** Stability term (combined slip): its own, gentler trim. */
+const TC_STABILITY_GAIN = 1.2;
+const TC_STABILITY_FLOOR = 0.25;
+/**
  * ABS: release a wheel's foot brake past this multiple of the surface's peak slip ratio and `ABS_SLIDE` m/s of
  * sliding (slip ratios blow up near rest), above `ABS_MIN_SPEED` m/s (~11 km/h, like real systems).
  */
@@ -595,24 +606,33 @@ export class Vehicle {
   private tractionAssist(dt: number): number {
     if (!this.tractionControl || this.def.noTractionControl)
       return (this.tcFactor = 1);
-    let excess = 0;
+    let spin = 0;
+    let stability = 0;
     for (const w of this.wheels) {
       if (!w.driven || !w.contact) continue;
-      excess = Math.max(
-        excess,
-        Math.abs(w.slipRatio) / (w.surface.peakSlip * 1.2) - 1,
+      // Only wheelspin counts (the wheel faster than the ground in the driving direction): a driven wheel held back by
+      // engine braking at a closed throttle is not spinning, and cutting the throttle more would only lock the trim.
+      const driveSlip = this.drivetrain.gear < 0 ? -w.slipRatio : w.slipRatio;
+      spin = Math.max(
+        spin,
+        driveSlip / (w.surface.peakSlip * TC_WHEELSPIN) - 1,
       );
       // Stability: also back off when cornering + traction exceed peak combined grip
       // (stops power-oversteer spins when the throttle is held flat mid-corner). Driven FRONT tyres get a much
       // higher threshold: past their peak they are understeering (too much lock), and cutting power there only bogged
       // the AWD / FWD cars down mid-corner; it still catches them at high speed on loose ground.
       if (this.speed > 5)
-        excess = Math.max(
-          excess,
+        stability = Math.max(
+          stability,
           (w.slip - (w.isFront ? TC_FRONT_SLIP : TC_REAR_SLIP)) * 0.9,
         );
     }
-    const target = excess > 0 ? Math.max(0.25, 1 - excess * 1.2) : 1;
+    const target = Math.min(
+      spin > 0 ? Math.max(TC_FLOOR, 1 - spin * TC_GAIN) : 1,
+      stability > 0
+        ? Math.max(TC_STABILITY_FLOOR, 1 - stability * TC_STABILITY_GAIN)
+        : 1,
+    );
     this.tcFactor += (target - this.tcFactor) * Math.min(1, dt * 15);
     return this.tcFactor;
   }
