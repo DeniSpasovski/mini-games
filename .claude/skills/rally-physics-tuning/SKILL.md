@@ -72,4 +72,4 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
 
 ## Bump the times version (last step)
 
-A handling change to one car bumps its `CAR_TIMES_VERSIONS` entry in `game/stage.ts`; a shared physics change (tyres, surfaces, drivetrain model, assists) bumps every car. Old times stay below the new ones. Mention the bump in the PR.
+A handling change to one car bumps its `CAR_TIMES_VERSIONS` entry in `game/stage.ts`; a shared physics change (tyres, surfaces, drivetrain model, assists) bumps every released car; test cars (`TEST_CARS`) stay at 1 until released (a test checks). Old times stay below the new ones. Mention the bump in the PR.

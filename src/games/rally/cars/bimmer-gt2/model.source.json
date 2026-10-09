@@ -55,6 +55,15 @@
         "x": [0, 0.5],
         "y": [0.55, 0.84],
         "z": [-2.45, -2.2]
+      },
+      {
+        "$comment": "grooves along the rear-quarter flare, from the door to the arch vents (|x| 0.8 - 0.96, y 0.4 - 0.78, z -0.92 .. -0.25): their down-facing ledges sat on the bottom chart's dark undercoat and read as an open slot -> side chart, the livery around them",
+        "chart": "side",
+        "minNy": -1.01,
+        "maxNy": 1.01,
+        "x": [0.8, 0.96],
+        "y": [0.4, 0.78],
+        "z": [-0.92, -0.25]
       }
     ]
   },

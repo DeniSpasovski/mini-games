@@ -445,4 +445,4 @@ registered car; see `src/games/rally/PHYSICS.md`.
 
 ## Bump the times version (last step)
 
-Add the car's id to `CAR_TIMES_VERSIONS` in `game/stage.ts` (start at 1; a test fails without it). Later handling changes bump it; livery / model fixes never do. Old times stay below the new ones. Mention the version in the PR.
+Add the car's id to `CAR_TIMES_VERSIONS` in `game/stage.ts` (start at 1; a test fails without it). It stays at 1 while the car is in `TEST_CARS` (a test checks); after release, handling changes bump it; livery / model fixes never do. Old times stay below the new ones. Mention the version in the PR.

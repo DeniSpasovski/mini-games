@@ -2,7 +2,7 @@
 
 A 2017-spec World Rally Car from a **CC BY Sketchfab model**: the model's body, its **cockpit (seats, dash, roll cage) kept and visible
 through the see-through glass**, its own 14-spoke rim **de-cambered and centred on the hub**, and our own livery (white body, navy and light-blue
-mountain triangles on the sides, blue upper / green lower rear wing with matching end plates; shapes only, no logos). Wipers, scuttle panel, window rubbers and side skirts are black, the hood vents get a black mesh and the rear hatch pins are silver. The manufacturer badge, plate, spare wheel and dash screens are dropped.
+mountain triangles on the sides, blue upper / green lower rear wing with matching end plates; shapes only, no logos). Wipers, scuttle panel, side skirts and the side window frames (rubbers traced to the frame's own crease lines, divider bar included) are black, the hood vents get a black mesh and the rear hatch pins are silver. The manufacturer badge, plate, spare wheel and dash screens are dropped.
 In game it is **Fiesta WRC**; the id stays `fiesta`. AWD, 1190 kg, 1.6 turbo. Test car (`TEST_CARS`, dev server only).
 
 ![Front three-quarter](screenshots/front-34.jpg)
