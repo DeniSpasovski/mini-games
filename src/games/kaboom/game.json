@@ -2,7 +2,7 @@
   "id": "kaboom",
   "title": "3, 2, 1 Kabooom",
   "version": "0.1.0",
-  "description": "A crew of chubby animal demolition workers on a floating clay diorama: light the fuse, blast the crates, outwit the bots and be the last critter standing. Tilted 3D arena, three sizes, chain reactions that stay smooth.",
+  "description": "Chubby animal demolition workers on a floating clay diorama: light the fuse, blast the crates and be the last critter standing.",
   "tags": ["three.js", "arena", "bots"],
   "hideInProd": true,
   "pages": [
