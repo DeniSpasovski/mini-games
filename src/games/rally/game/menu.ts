@@ -96,6 +96,26 @@ const BUILT_WITH: SourceLink[] = [
   { label: 'Rsbuild', url: 'https://rsbuild.rs/', note: 'build tooling, MIT' },
 ];
 
+/** Research behind the suspension model (PHYSICS.md "Dampers and bump stop"). Read only, nothing copied. */
+const SUSPENSION_RESEARCH: SourceLink[] = [
+  {
+    label: 'Implementing racing games (Game Developer)',
+    url: 'https://www.gamedeveloper.com/design/implementing-racing-games-an-intro-to-different-approaches-and-their-game-design-trade-offs',
+    note: 'arcade vs simulation suspension',
+  },
+  {
+    label:
+      'Rendering and simulation in an offroad driving game (Game Developer)',
+    url: 'https://www.gamedeveloper.com/programming/rendering-and-simulation-in-offroad-driving-game',
+    note: 'raycast wheels on rough ground',
+  },
+  {
+    label: 'Passive suspension and asymmetric damping (arXiv 2605.05235)',
+    url: 'https://arxiv.org/abs/2605.05235',
+    note: 'rebound vs bump damping',
+  },
+];
+
 /** Research behind the tyre temperature model (PHYSICS.md "Tyre temperature"). Read only, nothing copied. */
 const TYRE_RESEARCH: SourceLink[] = [
   {
@@ -399,6 +419,10 @@ class MainMenu {
       <h2>Physics</h2>
       <h3>Tyres</h3>
       ${links(TYRE_RESEARCH, '')}
+      <h3>Suspension</h3>
+      <p>Each wheel has a spring, a damper that is firmer on rebound than on bump, an anti-roll bar and a progressive
+      bump stop, with Soft / Medium / Stiff set-ups per car.</p>
+      ${links(SUSPENSION_RESEARCH, '')}
       <h2>Built with</h2>
       ${links(BUILT_WITH, '')}`;
     this.panel.append(
