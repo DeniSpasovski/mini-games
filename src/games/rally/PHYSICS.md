@@ -459,33 +459,34 @@ braking, keyboard, ride): `integration-tests/rally/handling.test.ts` (`HANDLING_
 
 ### Stage times
 
-Skoda Rally, every tyre with its matching set-up, both drivers (`tyres.test.ts`, 2026-10-04); s, tarmac / mixed / gravel
-tyre, recommended in bold:
+Skoda Rally, every tyre with its matching set-up, both drivers (`tyres.test.ts`, 2026-10-09); s, in the order tarmac soft /
+tarmac hard / mixed / gravel hard / gravel soft, recommended in bold:
 
-| Map (recommended)    | Careful driver            | Limit driver (`useExtraGrip`) |
-| -------------------- | ------------------------- | ----------------------------- |
-| `test` (gravel)      | 81.5 / 70.0 / **67.9**    | 81.5 / 70.0 / **66.8**        |
-| `petralica` (gravel) | 461.6 / 416.0 / **410.4** | 439.8 / 405.1 / **401.5**     |
-| `jackie` (tarmac)    | **196.0** / 196.0 / 197.9 | **187.6** / 189.6 / 197.9     |
-| `ajvatovci` (mixed)  | 162.1 / **161.0** / 162.7 | 161.2 / **156.4** / 162.7     |
+| Map (recommended)    | Careful driver                            | Limit driver (`useExtraGrip`)             |
+| -------------------- | ----------------------------------------- | ----------------------------------------- |
+| `test` (gravel)      | 84.3 / 87.5 / 70.7 / 68.2 / **68.1**      | 84.3 / 87.5 / 70.7 / 67.6 / **67.1**      |
+| `petralica` (gravel) | 461.9 / 469.3 / 414.6 / 406.5 / **406.2** | 439.1 / 447.1 / 397.1 / **394.2** / 395.5 |
+| `jackie` (tarmac)    | **201.6** / 201.7 / 201.8 / 202.2 / 202.2 | **188.8** / 189.0 / 191.4 / 198.3 / 199.9 |
+| `ajvatovci` (mixed)  | 162.1 / 165.0 / **160.5** / 160.9 / 160.7 | 157.4 / 164.7 / **151.5** / 159.3 / 158.0 |
 
-Every car, careful driver, recommended pick / worst pick (`car-matrix.test.ts`, 2026-10-04; worst = tarmac tyres on a gravel
-stage, gravel tyres on a tarmac or dusty one):
+Every car, careful driver, recommended pick / worst pick (`car-matrix.test.ts`, 2026-10-09; worst = tarmac tyres on a gravel
+stage, gravel tyres on a tarmac or dusty one). The other rally cars (22B, Fiesta, C4, Lancer) sit within 1-2 % of the Skoda:
 
-| Map (recommended)    | Skoda Rally     | Zastava 101   | Bimmer M3         |
-| -------------------- | --------------- | ------------- | ----------------- |
-| `test` (gravel)      | **67.9** / 81.5 | 75.2 / 87.1   | 68.0 / 84.2       |
-| `petralica` (gravel) | 410.4 / 461.6   | 477.8 / 530.4 | **407.6** / 471.2 |
-| `jackie` (tarmac)    | 196.0 / 197.9   | 217.5 / 223.5 | **193.6** / 195.0 |
-| `ajvatovci` (mixed)  | 161.0 / 162.7   | 189.1 / 194.8 | **159.5** / 161.9 |
+| Map (recommended)    | Skoda Rally       | Zastava 101   | Bimmer M3     | Bimmer GT2        |
+| -------------------- | ----------------- | ------------- | ------------- | ----------------- |
+| `test` (gravel)      | **68.0** / 82.0   | 77.5 / 101.2  | 70.1 / 91.5   | 69.8 / 87.6       |
+| `petralica` (gravel) | **406.2** / 461.1 | 498.6 / 548.4 | 417.2 / 516.8 | 413.1 / 481.9     |
+| `jackie` (tarmac)    | 201.4 / 202.1     | 224.3 / 262.2 | 201.5 / 202.7 | **198.1** / 200.3 |
+| `ajvatovci` (mixed)  | 160.3 / 160.5     | 194.6 / 203.1 | 165.6 / 165.1 | **159.1** / 161.2 |
 
-Reading it: the recommended tyre is the fastest with the limit driver on every stage, and the wrong tyre on gravel costs the
-most (tarmac tyres +20 % on the test map, +10-12 % on Petralica). On tarmac the careful driver can't show the gain - it never
-corners above the gravel baseline and is capped at 151 km/h, so it ties or loses only 1-2 % on the wrong tyre - the limit
-driver does (gravel tyres +5 % on Jackie, Mixed ahead by 3 % on Ajvatovci). Car character: the Skoda Rally feels better on
-gravel (AWD) but is not guaranteed the fastest - the more powerful M3 ties it on the test map and is ~1 % ahead on Petralica
-and Ajvatovci (by design: the AWD car should feel better on gravel, a more powerful car may still be quicker over a stage); M3 fastest on tarmac; Zastava slowest
-everywhere (power, not grip).
+Reading it: the recommended tyre is the fastest (or within 0.5 %) with the limit driver on every stage, and the wrong tyre on
+gravel costs the most (tarmac tyres +26 % on the test map, +11 % on Petralica; a hard tarmac tyre is worse still). On tarmac
+the careful driver can't show the gain - it never corners above the gravel baseline and is capped at 151 km/h, so every tyre
+ties within 0.5 % - the limit driver does (gravel tyres +6 % on Jackie, Mixed ahead by 4 % on Ajvatovci). A hard compound
+never beats the soft one by more than 0.3 % (Petralica): the four stages run at 11-28 °C, so the soft tyre is warm enough and
+the hard one only gives up peak grip. Car character: the AWD rally cars lead on gravel; the M3 (road tyres, 1,680 kg) is
+~3 % behind them on gravel and mixed and level on Jackie; the GT2 (slicks) beats the Skoda on tarmac and mixed but is 2-3 %
+behind on gravel; Zastava is slowest everywhere (power and old road tyres). Rank checks: `car-matrix.test.ts`.
 
 ## Tests
 
