@@ -6,7 +6,7 @@ import { newRoadQuery, type Road } from '../world/road';
 /**
  * Simple road-following driver. No DOM, so it runs in tests too:
  *  - pure pursuit on the VELOCITY direction (not the nose), so it counter-steers
- *    naturally when the car slides
+ *    naturally when the car slides; the look-ahead shortens in hairpins (a long one cuts the corner)
  *  - speed plan from curvature ahead + braking distance
  *  - lifts off when the car is sliding too much
  *  - corner speed follows the grip of the fitted tyre on the road surface ahead (never above the
@@ -63,7 +63,17 @@ export class Autopilot {
     const beta = moving ? Math.atan2(vLat, Math.max(0.5, vLong)) : 0;
 
     // Pure pursuit relative to the direction of travel.
-    const look = 8 + Math.max(0, speed) * 0.5;
+    // A look-ahead longer than a tight bend's radius cuts the corner: shorten it in hairpins.
+    let bend = 0;
+    for (let d = 0; d <= 12; d += 3)
+      bend = Math.max(
+        bend,
+        Math.abs(this.road.at(this.progress + d).curvature),
+      );
+    const look = Math.min(
+      8 + Math.max(0, speed) * 0.5,
+      Math.max(5, 0.9 / Math.max(bend, 1e-3)),
+    );
     const t = this.road.at(this.progress + look);
     const travel = moving
       ? Math.atan2(v.velocity.x, v.velocity.z)
