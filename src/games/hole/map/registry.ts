@@ -10,7 +10,7 @@ import {
   generateConstructionCity,
 } from './construction/generate';
 import { generateCity, targetPoints } from './generate';
-import { AVAILABLE_MAPS, SHOW_TEST_CONTENT } from '../release';
+import { MAPS_LIST, released } from '../release';
 import { DEFAULT_TOY, generateToyStore, toyTargetPoints } from './toy/generate';
 import { ITEM_LEVELS } from '../sim/progression';
 import type { MapData } from './types';
@@ -132,10 +132,8 @@ export const ALL_MAPS: MapDef[] = [
   },
 ];
 
-/** The maps this build offers: all of them on the dev server and in test builds, else the released ones. */
-export const MAPS: MapDef[] = SHOW_TEST_CONTENT
-  ? ALL_MAPS
-  : ALL_MAPS.filter((m) => AVAILABLE_MAPS.includes(m.id));
+/** The maps this build offers: all of them on the dev server and in test builds, else those without `hideInProd`. */
+export const MAPS: MapDef[] = released(ALL_MAPS, MAPS_LIST);
 
 export function getMapDef(id: string | null | undefined): MapDef {
   return MAPS.find((m) => m.id === id) ?? MAPS[0];

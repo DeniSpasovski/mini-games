@@ -218,6 +218,7 @@ export class HoleGame {
       },
       onAgain: () => this.startRun(this.difficulty),
       onClick: () => this.sfx.click(),
+      onPadStart: () => this.pause(),
       onPreview: (on) => (this.previewHole = on),
     };
   }
