@@ -20,12 +20,12 @@ one standing wins the round. three.js, procedural art only (no model / texture /
 ## Style
 
 **Look: "clay diorama".** Each arena sits on the floor of a rocky bowl, a gladiator arena: a low wall, four sandstone
-terraces for the crowd, then a cliff up to a flat rim with boulders (`render/bowl.ts`, rings are the floor grown by an
-offset, so the stands curve round the corners). Rounded blocks, matte grain over Lambert shading, warm key light + cool
+terraces for the crowd, then a cliff up to a flat rim with boulders (`render/bowl.ts`: rings are the floor grown by an
+offset, bent by slow noise so the stands wander like carved rock, one tile of sand margin round the battle zone). Rounded blocks, matte grain over Lambert shading, warm key light + cool
 fill, one soft static sun shadow. Deliberately different from Hole Island's sharp blocky toys.
 
 **Crowd** (`render/crowd.ts`): about 250-450 spectators on the terraces, the same eight animals as the crew in far fewer
-triangles (the crew model snapped to a coarse grid, flat shaded, no fur or hats), one InstancedMesh per animal. Each wears a
+triangles (the crew model snapped to a coarse grid, flat shaded, no fur or hats), one InstancedMesh per animal, all drawn the same height. Each wears a
 shirt in a team colour, and only in the colours of the players in the match (benched bots do not count): `setPlayers`
 re-deals the shirts when that set changes. Still until something blows up or a player is KO, then they jump (`excite`,
 decays in about a second). Low quality drops the top terrace and thins the rest.

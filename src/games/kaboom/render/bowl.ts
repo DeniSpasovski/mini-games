@@ -104,6 +104,48 @@ export const RIM_D = WALL_D + TREAD_D * TIERS + 2.7;
 
 const noise = new Noise2D(515);
 
+/** Unit vector pointing away from the floor rectangle at ring point `(x, z)`. */
+function outward(
+  hx: number,
+  hz: number,
+  x: number,
+  z: number,
+): [number, number] {
+  const ox = x - Math.max(-hx, Math.min(hx, x));
+  const oz = z - Math.max(-hz, Math.min(hz, z));
+  const len = Math.hypot(ox, oz) || 1;
+  return [ox / len, oz / len];
+}
+
+/**
+ * How far the bowl is pushed in or out at world position `(x, z)` on a ring at offset `d`: slow noise, nothing at the
+ * arena wall and more and more towards the cliff, so the stands wander and the terraces change width like carved rock.
+ * A function of the position, never of the ring index, so the crowd and the geometry always agree.
+ */
+function warp(x: number, z: number, d: number): number {
+  const n =
+    noise.fbm(x * 0.2 + 3, z * 0.2 - 5, 3) +
+    0.3 * noise.noise2(x * 0.65, z * 0.65);
+  return Math.max(0, d - 0.4) * 0.3 * n;
+}
+
+/** [`ringPoints`](#) bent by `warp`: `[x0, z0, x1, z1, ...]`. */
+export function warpedRing(hx: number, hz: number, d: number): number[] {
+  const pts = ringPoints(hx, hz, d);
+  for (let i = 0; i < pts.length; i += 2) {
+    const [ox, oz] = outward(hx, hz, pts[i], pts[i + 1]);
+    const k = warp(pts[i], pts[i + 1], d);
+    pts[i] += ox * k;
+    pts[i + 1] += oz * k;
+  }
+  return pts;
+}
+
+/** Height of terrace `i` at `(x, z)`: its step plus a slow swell, so the stands are not a flat staircase. */
+export function treadHeight(i: number, x: number, z: number): number {
+  return treadY(i) + 0.14 * noise.noise2(x * 0.3 + 7, z * 0.3 - 2);
+}
+
 const WALL_COL = new Color(0xb4875a);
 // carved rock, darker than the floor tiles so the arena reads apart from the stands
 const TREAD_COLS = [0xc2a47c, 0xb99b73, 0xb09169].map((c) => new Color(c));
@@ -117,28 +159,29 @@ export function bowlGeometry(hx: number, hz: number): BufferGeometry {
   const n = ringSize(hx, hz);
   // rock noise only on the cliff and the far rim; the stands stay clean so the crowd stands level
   const rings = prof.map(([d, y, kind]) => {
-    const pts = ringPoints(hx, hz, d);
+    const pts = warpedRing(hx, hz, d);
     const cliff = kind === 'cliff' || kind === 'rim';
     const out: number[][] = [];
     for (let i = 0; i < n; i++) {
       let x = pts[i * 2];
       let z = pts[i * 2 + 1];
       let h = y;
+      if (y > WALL_H - 0.01 && d < RIM_D + 8) {
+        // swell of the stands, growing from the wall outwards
+        const k = Math.min(1, (d - WALL_D) / 1.2);
+        h += (treadHeight(0, x, z) - treadY(0)) * k;
+      }
       if (cliff && d < RIM_D + 8) {
-        const amp = Math.min(1, (d - (WALL_D + TREAD_D * TIERS)) / 2) * 0.6;
-        const k = noise.fbm(i * 0.9, y * 0.35, 2) * amp;
-        const k2 = noise.noise2(i * 1.7 + 9, y * 0.5) * amp * 0.6;
-        // push the vertex along the ring's outward direction (away from the floor rectangle)
-        const cx = Math.max(-hx, Math.min(hx, x));
-        const cz = Math.max(-hz, Math.min(hz, z));
-        let ox = x - cx;
-        let oz = z - cz;
-        const len = Math.hypot(ox, oz) || 1;
-        ox /= len;
-        oz /= len;
+        const amp = Math.min(1, (d - (WALL_D + TREAD_D * TIERS)) / 2) * 0.9;
+        const k = noise.fbm(x * 0.9, z * 0.9 + y * 0.4, 2) * amp;
+        const k2 = noise.noise2(x * 1.3 + 9, z * 1.3 + y * 0.6) * amp * 0.9;
+        const [ox, oz] = outward(hx, hz, x, z);
         x += ox * k;
         z += oz * k;
         h += k2;
+        // the rim itself rises and falls
+        if (kind === 'cliff' && y > RIM_H - 0.5)
+          h += 1.1 * noise.noise2(x * 0.18, z * 0.18);
       }
       out.push([x, h, z]);
     }
@@ -159,11 +202,16 @@ export function bowlGeometry(hx: number, hz: number): BufferGeometry {
     for (let i = 0; i < n; i++) {
       const j = (i + 1) % n;
       const mid = (a[i][1] + b[j][1]) / 2;
-      const r = noise.noise2(i * 3.3, s * 5.1);
+      // colour patches follow the ground, not the ring index
+      const r =
+        noise.noise2((a[i][0] + b[j][0]) * 0.5, (a[i][2] + b[j][2]) * 0.5) *
+          0.9 +
+        0.1 * noise.noise2(i * 3.3, s * 5.1);
       if (kind === 'wall') c.copy(WALL_COL).multiplyScalar(0.94 + r * 0.08);
       else if (kind === 'tread')
-        c.copy(TREAD_COLS[(i + s) % TREAD_COLS.length]).multiplyScalar(
-          0.96 + r * 0.06,
+        c.copy(TREAD_COLS[1]).lerp(
+          TREAD_COLS[r > 0 ? 0 : 2],
+          Math.abs(r) * 1.4,
         );
       else if (kind === 'riser')
         c.copy(RISER_COL).multiplyScalar(0.93 + r * 0.1);

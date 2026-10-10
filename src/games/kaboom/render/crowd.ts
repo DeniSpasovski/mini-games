@@ -11,7 +11,7 @@ import {
 } from 'three';
 import { hash3, Rng } from '../../../shared/rng';
 import { CRITTERS, type CritterId, type PlayerView } from '../sim/types';
-import { ringPoints, treadMidD, treadY, TIERS } from './bowl';
+import { treadHeight, treadMidD, TIERS, warpedRing } from './bowl';
 import { TEAM_COLORS } from './characters';
 import { buildCritter, VEST_R, VEST_CY, type VestFit } from './critters';
 import type { Quality } from './renderer';
@@ -25,6 +25,8 @@ import { Color } from 'three';
  */
 
 /** Cluster size of the decimation, critter units: bigger = fewer triangles. */
+/** Height of every spectator before the instance scale (critter units, the crew is 0.75-1.05). */
+const SEAT_HEIGHT = 0.9;
 const CELL = 0.19;
 
 interface LowPoly {
@@ -85,6 +87,10 @@ function decimate(src: BufferGeometry, cell: number, fit: VestFit): LowPoly {
     cs[k] =
       Math.hypot(xc, zc) < VEST_R + 0.04 && yc > 0.17 && yc < 0.62 ? 1 : 0;
   }
+  // every animal the same height in the stands, whatever its build
+  let top = 0;
+  for (let k = 0; k < count; k++) top = Math.max(top, cx[k * 3 + 1]);
+  for (let k = 0; k < count * 3; k++) cx[k] *= SEAT_HEIGHT / top;
   const p: number[] = [];
   const c: number[] = [];
   const s: number[] = [];
@@ -183,7 +189,7 @@ export class Crowd {
     const counts = new Array<number>(CRITTERS.length).fill(0);
 
     for (let t = 0; t < tiers; t++) {
-      const pts = ringPoints(hx, hz, treadMidD(t));
+      const pts = warpedRing(hx, hz, treadMidD(t));
       const n = pts.length / 2;
       let carry = rng.range(0, spacing);
       for (let i = 0; i < n; i++) {
@@ -214,10 +220,10 @@ export class Crowd {
             species,
             slot: counts[species]++,
             x,
-            y: treadY(t),
+            y: treadHeight(t, x, z),
             z,
             yaw: Math.atan2(dx, dz) + rng.range(-0.3, 0.3),
-            scale: rng.range(0.62, 0.76),
+            scale: rng.range(0.68, 0.74),
             phase: rng.range(0, 6.28),
             fav: rng.next(),
             shade: rng.range(0.92, 1.06),

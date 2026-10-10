@@ -20,7 +20,7 @@ import { SLAB_PAD } from './camera-rig';
 import { GlowGrid } from './fx/glow-grid';
 import { PALETTE, clayMaterial, makeGrainTexture } from './materials';
 import type { DataTexture } from 'three';
-import { bowlGeometry, ringPoints, RIM_D, RIM_H } from './bowl';
+import { bowlGeometry, warpedRing, RIM_D, RIM_H } from './bowl';
 import {
   boulderGeometry,
   decorGeometry,
@@ -295,7 +295,7 @@ export class Arena {
     const scl = new Vector3();
     const spots: [number, number, number][] = [];
     for (const d of [RIM_D + 1.2, RIM_D + 3.6, RIM_D + 7]) {
-      const pts = ringPoints(hx, hz, d);
+      const pts = warpedRing(hx, hz, d);
       for (let i = 0; i < pts.length; i += 2)
         if (rng.chance(0.45)) spots.push([pts[i], pts[i + 1], d]);
     }

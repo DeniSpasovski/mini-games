@@ -5,7 +5,7 @@ export const CAM_FOV = 30;
 export const CAM_PITCH_DEG = 58;
 
 /** What must stay on screen: the slab (half-extent padding, depth under the floor) and the tallest thing on it. */
-export const SLAB_PAD = 0.9;
+export const SLAB_PAD = 1.9;
 export const SLAB_DEPTH = 1.8;
 export const TOP_HEIGHT = 1.6;
 
