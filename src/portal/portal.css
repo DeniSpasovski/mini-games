@@ -31,9 +31,16 @@ body {
   padding: 24px 32px 8px;
 }
 .portal-header h1 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin: 0;
   font-size: 22px;
   letter-spacing: 0.5px;
+}
+.portal-logo {
+  width: 40px;
+  height: 40px;
 }
 .portal-header span {
   color: var(--muted);
