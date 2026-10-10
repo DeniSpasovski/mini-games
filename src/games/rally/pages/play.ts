@@ -5,6 +5,7 @@ import { goToPortal, portalUrl } from '../../../shared/portal-link';
 import { installThumbnailCapture } from '../../../shared/thumbnail';
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { DEFAULT_CAR, getCar } from '../cars';
+import { preloadCarModel } from '../cars/shared/car-gltf';
 import { loadQuality } from '../engine/quality';
 import {
   buildLeaderboard,
@@ -98,7 +99,18 @@ async function play(params: typeof DEFAULTS): Promise<void> {
     ? params.gear
     : (info.gearing ?? 'medium');
   // The map's baked data is its own chunk: fetched here, behind the loading overlay.
+  // The car's GLB downloads while the map's data loads / the world builds (both block the main thread a while).
+  preloadCarModel(getCar(params.car));
+  const setLoading = (f: number, text: string) => {
+    loading.querySelector<HTMLElement>('.bar div')!.style.width = `${f * 100}%`;
+    loading.querySelector('.status')!.textContent = text;
+  };
+  setLoading(0.01, 'Loading map data');
+  await paintNow();
   const map = await loadMap(params.map);
+  // Building the world is one synchronous step: show its label first.
+  setLoading(0.03, 'Building world');
+  await paintNow();
   const game = new RallyGame(root, {
     map,
     carId: params.car,
@@ -274,11 +286,7 @@ async function play(params: typeof DEFAULTS): Promise<void> {
   });
 
   game
-    .init((f, text) => {
-      loading.querySelector<HTMLElement>('.bar div')!.style.width =
-        `${f * 100}%`;
-      loading.querySelector('.status')!.textContent = text;
-    })
+    .init(setLoading)
     .then(() => {
       loading.remove();
       if (touch)
@@ -294,6 +302,11 @@ async function play(params: typeof DEFAULTS): Promise<void> {
       loading.querySelector('.status')!.textContent = `Failed: ${err}`;
       console.error(err);
     });
+}
+
+/** Resolves once the browser has painted the last DOM change. */
+function paintNow(): Promise<void> {
+  return new Promise((r) => requestAnimationFrame(() => setTimeout(r)));
 }
 
 function overlay(html: string): HTMLDivElement {
