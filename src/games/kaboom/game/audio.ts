@@ -183,6 +183,11 @@ export class Sfx {
     this.tone(700, 0.05, 'square', 0.08);
   }
 
+  /** Menu highlight moved: a short quiet tick. */
+  tick(): void {
+    this.tone(520, 0.04, 'square', 0.04);
+  }
+
   /** Play the sounds of one tick's events. */
   onEvents(events: readonly SimEvent[]): void {
     for (const e of events) {
