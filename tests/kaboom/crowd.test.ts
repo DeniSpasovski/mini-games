@@ -49,7 +49,7 @@ test('crowd: shirts only in the colours of the players in the match', () => {
   expect(shirtColors(crowd)).toEqual(new Set([3]));
 });
 
-test('crowd: still at rest, jumps after an explosion and settles again', () => {
+test('crowd: always a little alive, jumps after an explosion and settles again', () => {
   const crowd = new Crowd(13, 11, SLAB_PAD, QUALITY.high);
   const mesh = crowd.group.children[0] as InstancedMesh;
   const m = new Matrix4();
@@ -62,13 +62,18 @@ test('crowd: still at rest, jumps after an explosion and settles again', () => {
     }
     return top;
   };
-  crowd.update(1, 0.016);
-  const rest = y();
+  crowd.update(5, 0.016);
+  const calm = y();
+  // never frozen: some other moment looks different, but not by much
+  crowd.update(6.3, 0.016);
+  expect(y()).not.toBe(calm);
+  crowd.update(5, 0.016);
+  expect(y()).toBe(calm);
   crowd.excite(1);
-  crowd.update(1.1, 0.016);
-  expect(y()).toBeGreaterThan(rest);
-  for (let t = 0; t < 400; t++) crowd.update(2 + t * 0.016, 0.016);
-  expect(y()).toBe(rest);
+  crowd.update(5, 0.016);
+  expect(y()).toBeGreaterThan(calm + 0.05);
+  for (let t = 0; t < 400; t++) crowd.update(5, 0.016);
+  expect(y()).toBe(calm);
 });
 
 test('crowd: fans sit in same-colour groups of up to 8, and some wave flags', () => {

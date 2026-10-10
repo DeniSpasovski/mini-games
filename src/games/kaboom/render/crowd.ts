@@ -55,6 +55,10 @@ const GROUP_MAX = 8;
 const FLAG_GROUPS = 0.45;
 const FLAG_FANS = 0.45;
 /** Flag layer: the quad's size in world units and where the shoulder sits in the sprite (above the feet). */
+/** The stadium wave: a hop runs once round each terrace ring every `WAVE_EVERY` s, taking `WAVE_RUN` s. */
+const WAVE_EVERY = 34;
+const WAVE_RUN = 11;
+const WAVE_WIDTH = 0.1;
 const FLAG_W = 1.8;
 const FLAG_H = 2.4;
 const FLAG_MID = 0.7;
@@ -80,6 +84,10 @@ interface Spectator {
   /** Slot in the flag layer when this fan waves a flag, else -1; -1 / +1 = which hand. */
   flag: number;
   side: number;
+  /** Place along its terrace ring, 0..1 (the stadium wave runs round it). */
+  u: number;
+  /** The block's own rhythm: when it cheers and how it jumps (shared by the group). */
+  cheer: number;
 }
 
 const AXIS_X = new Vector3(1, 0, 0);
@@ -109,7 +117,6 @@ export class Crowd {
   private readonly wanted: number[] = [];
   private excitement = 0;
   private colorMask = -1;
-  private atRest = false;
   private readonly quat = new Quaternion().setFromAxisAngle(
     AXIS_X,
     -(CAM_PITCH_DEG * Math.PI) / 180,
@@ -140,6 +147,8 @@ export class Crowd {
       const pts = warpedRing(hx, hz, treadMidD(t));
       const n = pts.length / 2;
       let carry = rng.range(0, spacing);
+      let acc = 0;
+      const first = this.spectators.length;
       let left = 0;
       let fav = 0;
       let flagGroup = false;
@@ -188,10 +197,15 @@ export class Crowd {
             group,
             flag: flag ? this.holders.push(this.spectators.length) - 1 : -1,
             side: rng.next() < 0.5 ? -1 : 1,
+            u: acc + s,
+            cheer: (hash3(group, w, h, 0xcee5) % 1000) / 1000,
           });
         }
         carry = s - len;
+        acc += len;
       }
+      for (let k = first; k < this.spectators.length; k++)
+        this.spectators[k].u /= acc;
     }
 
     const n = Math.max(1, this.spectators.length);
@@ -508,23 +522,42 @@ export class Crowd {
 
   update(t: number, dt: number): void {
     this.flagMaterial.uniforms.uTime.value = t;
-    if (this.excitement <= 0.01) {
-      this.excitement = 0;
-      if (!this.atRest) this.place(t, 0);
-      return;
-    }
-    this.excitement *= Math.exp(-dt * 1.6);
+    if (this.excitement <= 0.01) this.excitement = 0;
+    else this.excitement *= Math.exp(-dt * 1.6);
     this.place(t, this.excitement);
   }
 
-  /** Matrices for every sprite: a fixed billboard facing the camera, hopping when excited. */
+  /**
+   * Matrices for every sprite: a fixed billboard facing the camera that is never quite still. Everyone breathes and sways;
+   * each block of fans cheers now and then (jumping together); a stadium wave runs round the bowl every `WAVE_EVERY`
+   * seconds; a blast or a KO makes everyone jump (`excite`). Deterministic in `t`.
+   */
   private place(t: number, excite: number): void {
-    this.atRest = excite === 0;
     const { m4, quat, pos, scl } = this;
+    const wavePos = (t % WAVE_EVERY) / WAVE_RUN;
     this.spectators.forEach((sp, k) => {
-      const hop = excite * 0.28 * Math.abs(Math.sin(t * 9 + sp.phase));
+      const idle = 0.012 * (1 + Math.sin(t * 2.3 + sp.phase));
+      // a block cheers when its own slow rhythm is high: members jump almost in step
+      const g = Math.min(
+        1,
+        Math.max(0, (Math.sin(t * 0.42 + sp.cheer * 6.283) - 0.3) * 3),
+      );
+      const cheer =
+        g *
+        0.2 *
+        Math.abs(Math.sin(t * 6.4 + sp.cheer * 6.283 + sp.phase * 0.12));
+      // the wave front passes this seat: one smooth hop
+      const d = wavePos - sp.u;
+      const wave =
+        d > 0 && d < WAVE_WIDTH ? Math.sin((Math.PI * d) / WAVE_WIDTH) : 0;
+      const hop =
+        idle +
+        cheer +
+        wave * 0.32 +
+        excite * 0.28 * Math.abs(Math.sin(t * 9 + sp.phase));
+      const sway = 1 + 0.025 * Math.sin(t * 3.1 + sp.phase);
       const s = SPRITE * sp.scale;
-      scl.set(s, s, 1);
+      scl.set(s / sway, s * sway, 1);
       // the sprite's centre is its look-at point: a little above the feet, along the world up
       pos.set(sp.x, sp.y + SPRITE_MID * sp.scale + hop, sp.z);
       m4.compose(pos, quat, scl);

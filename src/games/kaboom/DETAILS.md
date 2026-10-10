@@ -32,8 +32,9 @@ spectator is one instanced billboard picking its tile: the sprites are one draw 
 picker) one colour = 32 tiles per frame. Shirts only come in the colours of the players in the match (benched
 bots do not count): `setPlayers` re-deals them when that set changes. Fans sit in blocks of 3-8 neighbours on one terrace
 that share a colour; about half the blocks wave flags (second instanced mesh, one shader draws arm, pole and flag in the
-shirt colour, moving with the game clock). Otherwise still until something blows up or a player is KO,
-then they jump (`excite`, decays in about a second). Low quality drops the top terrace and thins the rest.
+shirt colour, moving with the game clock). Never frozen: everyone breathes and sways, each block cheers on its own slow rhythm (jumping in step), a stadium wave
+runs round every terrace every ~34 s, and a blast or a KO makes everyone jump (`excite`, decays in about a second); all
+of it is a pure function of the clock in `Crowd.place`. Low quality drops the top terrace and thins the rest.
 
 **Blasts** (`render/fx/`): soft camera-facing fire puffs from one generated noise flipbook (`fx/puff-atlas.ts`) that grow,
 swirl, rise and cool from white-hot to deep red, overlapping into a roaring jet along each arm (`fx/flames.ts`); a white
