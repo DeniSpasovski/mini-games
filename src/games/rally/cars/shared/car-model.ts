@@ -322,6 +322,8 @@ function getMeshMaterial(): MeshStandardMaterial {
   return meshMat;
 }
 
+/** Livery brightness (linear) inside a recess (CarModel.recessMaterial). */
+const RECESS_SHADE = 0.12;
 /** Imported-model parts that never cast a shadow (hidden by the body's own shadow or too small to show). */
 const NO_SHADOW_PARTS = new Set([
   'interior',
@@ -532,11 +534,15 @@ export class CarModel {
               );
               // The livery goes on the body; named parts (glass, trim, lamps...) keep
               // their own materials, so the paint can never bleed onto them.
+              let recess: MeshStandardMaterial | undefined;
               obj.traverse((o) => {
                 const mesh = o as Mesh;
                 if (!mesh.isMesh) return;
                 const name = (mesh.material as Material).name;
-                const part = partMaterial(name);
+                const part =
+                  name === 'recess'
+                    ? (recess ??= this.recessMaterial(mat))
+                    : partMaterial(name);
                 // A car with its own glass tint (and a modelled cockpit) gets see-through windows.
                 mesh.material =
                   name === 'glass' && def.model.glass
@@ -770,6 +776,24 @@ export class CarModel {
     }
     this.owned.push(map, mat);
     return mat;
+  }
+
+  /**
+   * GLB material 'recess': the livery in shadow, for a deep slot / tunnel in the body (GT2 rear fender slot). The
+   * lighting has no ambient occlusion, so a recess in the plain livery is lit like the outer skin; this one is darker,
+   * matt and barely reflects the sky.
+   */
+  private recessMaterial(livery: MeshPhysicalMaterial): MeshStandardMaterial {
+    const m = new MeshStandardMaterial({
+      map: livery.map,
+      metalness: 0,
+      roughness: 0.85,
+      envMapIntensity: 0.3,
+    });
+    m.color.setScalar(RECESS_SHADE);
+    m.name = 'recess';
+    this.owned.push(m);
+    return m;
   }
 
   private addMesh(
