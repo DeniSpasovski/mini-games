@@ -19,9 +19,16 @@ one standing wins the round. three.js, procedural art only (no model / texture /
 
 ## Style
 
-**Look: "clay diorama".** Each arena is a stepped slab floating in a sky gradient with drifting clouds; the sides show
-sand / ochre / rock layers and stalactites. Rounded blocks, matte grain over Lambert shading, warm key light + cool fill,
-one soft static sun shadow. Deliberately different from Hole Island's sharp blocky toys.
+**Look: "clay diorama".** Each arena sits on the floor of a rocky bowl, a gladiator arena: a low wall, four sandstone
+terraces for the crowd, then a cliff up to a flat rim with boulders (`render/bowl.ts`, rings are the floor grown by an
+offset, so the stands curve round the corners). Rounded blocks, matte grain over Lambert shading, warm key light + cool
+fill, one soft static sun shadow. Deliberately different from Hole Island's sharp blocky toys.
+
+**Crowd** (`render/crowd.ts`): about 250-450 spectators on the terraces, the same eight animals as the crew in far fewer
+triangles (the crew model snapped to a coarse grid, flat shaded, no fur or hats), one InstancedMesh per animal. Each wears a
+shirt in a team colour, and only in the colours of the players in the match (benched bots do not count): `setPlayers`
+re-deals the shirts when that set changes. Still until something blows up or a player is KO, then they jump (`excite`,
+decays in about a second). Low quality drops the top terrace and thins the rest.
 
 **Blasts** (`render/fx/`): soft camera-facing fire puffs from one generated noise flipbook (`fx/puff-atlas.ts`) that grow,
 swirl, rise and cool from white-hot to deep red, overlapping into a roaring jet along each arm (`fx/flames.ts`); a white
@@ -61,8 +68,7 @@ hazard-stripe borders showing **3 -> 2 -> 1** (digit atlas, picked per instance 
 A comic **KABOOOM!** / **BOOM!** / **KA-POW!** word pops over blasts (throttled).
 
 **Readability**: slate-blue pillars, grey-brown boulders, warm wood crates and brown dirt mounds are four distinct
-families; critters are drawn 14 % bigger than their hitbox; a bobbing arrow in the team colour marks the human; self-lit
-clouds.
+families; critters are drawn 14 % bigger than their hitbox; a bobbing arrow in the team colour marks the human.
 
 **Map 1: Quarry.** Sandstone tiles; hard blocks = granite boulders / timber-propped pillars; breakables = wooden crates and
 dirt mounds; decor on the slab margin: mine-cart rails with a cart, barrels, rocks, lantern posts.
@@ -168,7 +174,7 @@ What usually kills FPS in these games, and our rule for each:
 | Chain resolved in one frame           | The sim spreads a chain over the 0.08 s chain delay; blasts only set fuses, never explode each other inside one tick.                                                                                                      |
 | Block removal rebuilding geometry     | One InstancedMesh per crate variant; removal swaps with the last instance and shrinks `count`.                                                                                                                             |
 | Hitch at a round change               | A new round builds a new `Arena`, but its merged geometry, the grain texture and the sun (with its 2048 shadow map) are shared module-level, so it costs well under a millisecond.                                         |
-| Draw calls                            | Arena ~11, crew bodies + fur + 3 shared (hats / vests / feet) + the you-arrow, TNT 3, blob shadows 1, FX 10 (budget below).                                                                                                |
+| Draw calls                            | Arena ~11, crowd 8 (about 50-80k triangles), crew bodies + fur + 3 shared (hats / vests / feet) + the you-arrow, TNT 3, blob shadows 1, FX 10 (budget below).                                                              |
 | Garbage collection                    | Sim state in preallocated typed arrays; events are pooled objects in a reused array; render code allocates nothing per frame.                                                                                              |
 | Audio                                 | Max 4 blast voices; blasts within 50 ms merge; procedural WebAudio.                                                                                                                                                        |
 
@@ -188,7 +194,7 @@ src/games/kaboom/
   sim/     types.ts rules.ts grid.ts (the contract)  state.ts movement.ts blast.ts sim.ts danger.ts bot.ts powerups.ts
   map/     sizes.ts blank.ts generate.ts spawns.ts safety.ts styles.ts
   render/  renderer.ts camera-rig.ts materials.ts parts.ts arena.ts critters.ts fur.ts crew-parts.ts characters.ts tnt.ts
-           shadows.ts portraits.ts critter-preview.ts items.ts world-view.ts
+           bowl.ts crowd.ts shadows.ts portraits.ts critter-preview.ts items.ts world-view.ts
            fx/ glow-grid.ts puff-atlas.ts particles.ts flames.ts word-burst.ts shake.ts fx.ts
   game/    kaboom-game.ts menu.ts hud.ts icons.ts input.ts input-map.ts audio.ts settings.ts storage.ts dom.ts ios.ts
            kaboom.css

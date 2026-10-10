@@ -56,8 +56,8 @@ export interface VestFit {
 }
 
 /** The vest geometry's own torso (`vestGeometry` in `crew-parts.ts`): centre y and shell radius. */
-const VEST_CY = 0.36;
-const VEST_R = 0.352;
+export const VEST_CY = 0.36;
+export const VEST_R = 0.352;
 
 type V3 = [number, number, number];
 

@@ -177,41 +177,18 @@ export function moundGeometry(): BufferGeometry {
   return merge(p);
 }
 
-/** The floating slab under the arena: stepped layers of sand, ochre and rock, `w x h` cells plus `pad` all round. */
-export function slabGeometry(
+/** The plate the tiles lie on: `w x h` cells plus `pad` all round, its top just under the tiles. */
+export function floorGeometry(
   w: number,
   h: number,
   pad: number,
 ): BufferGeometry {
-  const layers: [number, number, number][] = [
-    [0, 0.5, 0],
-    [0.12, 0.55, 1],
-    [0.45, 0.7, 2],
-    [1.0, 0.8, 3],
-  ];
-  const p: BufferGeometry[] = [];
-  let top = -0.1;
-  for (const [inset, th, ci] of layers) {
-    const lw = Math.max(2, w + pad * 2 - inset * 2);
-    const lh = Math.max(2, h + pad * 2 - inset * 2);
-    p.push(
-      part(rbox(lw, th, lh, 0.18), PALETTE.slab[ci], {
-        y: top - th / 2,
-        tint: 0.18,
-      }),
-    );
-    top -= th - 0.04;
-  }
-  return merge(p);
-}
-
-/** One stalactite hanging under the slab (instanced with random scale). */
-export function stalactiteGeometry(): BufferGeometry {
-  return part(new ConeGeometry(0.5, 1.4, 6).rotateX(Math.PI), PALETTE.slab[3], {
-    y: -0.7,
-    tint: 0.2,
-    lumpy: 0.06,
-  });
+  return merge([
+    part(rbox(w + pad * 2, 0.5, h + pad * 2, 0.18), PALETTE.slab[0], {
+      y: -0.1 - 0.25,
+      tint: 0.18,
+    }),
+  ]);
 }
 
 export interface DecorParts {
@@ -325,23 +302,4 @@ export function decorGeometry(w: number, h: number, pad: number): DecorParts {
       );
     }
   return { body: merge(p), bulbs: merge(bulbs) };
-}
-
-/** A fluffy cloud puff (instanced, scaled). */
-export function cloudGeometry(): BufferGeometry {
-  return merge([
-    part(rock(1, 1), PALETTE.cloud, { tint: 0.03, sy: 0.55 }),
-    part(rock(0.75, 1), PALETTE.cloud, {
-      x: 0.9,
-      y: -0.05,
-      tint: 0.03,
-      sy: 0.5,
-    }),
-    part(rock(0.7, 1), PALETTE.cloud, {
-      x: -0.85,
-      y: -0.08,
-      tint: 0.03,
-      sy: 0.5,
-    }),
-  ]);
 }

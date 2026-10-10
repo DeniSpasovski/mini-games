@@ -3,7 +3,8 @@ import { Group, Scene, Vector3, type Texture, type WebGLRenderer } from 'three';
 import { MAX_PLAYERS, MAX_TNT } from '../sim/rules';
 import type { KaboomSim, SimEvent } from '../sim/types';
 import { Arena } from './arena';
-import { CameraRig } from './camera-rig';
+import { CameraRig, SLAB_PAD } from './camera-rig';
+import { Crowd } from './crowd';
 import { Crew } from './characters';
 import { Fx } from './fx/fx';
 import { ItemRenderer } from './items';
@@ -43,6 +44,7 @@ export class WorldView {
   arena!: Arena;
   glow!: GlowGrid;
   readonly crew: Crew;
+  readonly crowd: Crowd;
   readonly tnt: TntRenderer;
   readonly items: ItemRenderer;
   readonly fx: Fx;
@@ -79,8 +81,10 @@ export class WorldView {
     this.tnt = new TntRenderer(w, h, opts.digitAtlas);
     this.items = new ItemRenderer(w, h);
     this.fx = new Fx(w, h, opts.wordAtlas);
+    this.crowd = new Crowd(w, h, SLAB_PAD, quality);
     this.buildArena();
     this.root.add(
+      this.crowd.group,
       this.crew.group,
       this.tnt.group,
       this.items.group,
@@ -127,6 +131,9 @@ export class WorldView {
         const p = this.sim.players[e.id];
         if (p) this.fx.onKo(p.x, p.y);
       }
+      if (e.type === 'tntExploded')
+        this.crowd.excite(0.35 + 0.1 * e.chainDepth);
+      else if (e.type === 'playerKo') this.crowd.excite(0.6);
       this.crew.onEvent(e);
       this.fx.onEvent(e);
     }
@@ -156,6 +163,8 @@ export class WorldView {
     this.glow.update(this.sim.flame);
     this.fx.update(dt);
     this.arena.update(this.fx.time.value);
+    this.crowd.setPlayers(players);
+    this.crowd.update(this.fx.time.value, dt);
     const falls = this.sim.upcomingFalls(WARN_S, this.fallCells, this.fallSecs);
     this.arena.setWarnings(this.fallCells, falls, this.fx.time.value);
 
@@ -211,6 +220,7 @@ export class WorldView {
     this.arena.dispose();
     this.glow.dispose();
     this.crew.dispose();
+    this.crowd.dispose();
     this.tnt.dispose();
     this.items.dispose();
     this.fx.dispose();

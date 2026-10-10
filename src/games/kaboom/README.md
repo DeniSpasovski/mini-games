@@ -1,7 +1,7 @@
 # 3, 2, 1 Kabooom
 
-A party game for you and up to seven bots. A crew of chubby animal demolition workers is dropped onto a floating clay
-diorama: light the fuse, watch the band count **3, 2, 1**, blast the crates and be the last critter standing. A tilted 3D
+A party game for you and up to seven bots. A crew of chubby animal demolition workers is dropped into a rocky arena
+with a cheering crowd: light the fuse, watch the band count **3, 2, 1**, blast the crates and be the last critter standing. A tilted 3D
 arena, three arena sizes, bots in three skill levels, and chain reactions that stay smooth.
 
 > **In development.** Not listed on the portal in the release build (playable by its link); listed on the dev server and in test builds.
@@ -39,6 +39,8 @@ The Large arena (up to 8 players) is bigger than the screen: the camera follows 
 - **The Boom Crew**: Mole, Badger, Beaver, Hedgehog, Armadillo, Raccoon, Capybara and Otter, each with its own build
   (tall and slim to low and broad), real shell-rendered fur, hard hats and hi-vis vests in their team colour, animated
   by code.
+- **A gladiator-style bowl**: the arena sits at the bottom of a rocky pit; the stands are full of low-poly animals in
+  shirts, in the colours of the players in the match, who jump when things blow up.
 - **Power-ups** hidden in crates, two kinds up to level 5: more dynamites to place at once, more sticks for a longer
   blast. Drops scale with the player count (6 + 2 per player), one always close to you; to max out you have to win some from the others.
 - **Arenas**: Small / Medium / Large from a seed, mirrored so every spawn is fair, with a proven safe start (room to drop

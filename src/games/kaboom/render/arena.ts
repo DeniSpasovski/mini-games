@@ -20,14 +20,13 @@ import { SLAB_PAD } from './camera-rig';
 import { GlowGrid } from './fx/glow-grid';
 import { PALETTE, clayMaterial, makeGrainTexture } from './materials';
 import type { DataTexture } from 'three';
+import { bowlGeometry, ringPoints, RIM_D, RIM_H } from './bowl';
 import {
   boulderGeometry,
-  cloudGeometry,
   decorGeometry,
+  floorGeometry,
   moundGeometry,
   postGeometry,
-  slabGeometry,
-  stalactiteGeometry,
   tileGeometry,
   woodCrateGeometry,
 } from './parts';
@@ -76,15 +75,14 @@ function sharedGrain(): DataTexture {
 }
 
 /**
- * The Quarry diorama (DETAILS.md "Style"): a stepped clay slab floating in the sky, sandstone tiles, granite boulders and
- * timber-propped pillars, crates and dirt mounds, decor on the margin, drifting clouds. Every kind is one InstancedMesh or
+ * The Quarry diorama (DETAILS.md "Style"): a clay floor at the bottom of a rocky bowl, sandstone tiles, granite boulders and
+ * timber-propped pillars, crates and dirt mounds, decor on the margin. Every kind is one InstancedMesh or
  * one merged mesh (about ten draw calls); the sun's shadow map is static and redrawn only when a crate breaks.
  */
 export class Arena {
   readonly group = new Group();
   /** One sun for the page: a new round reuses it and its shadow map (allocating a 2048 x 2048 map is a visible hitch). */
   readonly sun = (sharedSun ??= new DirectionalLight(0xfff0d8, 2.5));
-  private readonly clouds = new Group();
   private readonly crates: (Removable | null)[] = [null, null];
   private readonly hardMeshes: InstancedMesh[];
   /** Walls in the air (sudden death): mesh, instance slot, world x / z, landing time, yaw. */
@@ -125,33 +123,23 @@ export class Arena {
     );
     const tileMat = mat(clayMaterial(this.grain, { glow: glow.uniforms }));
 
-    // --- the slab and what hangs under it
-    const slab = new Mesh(
-      shared(`slab${w}x${h}`, () => slabGeometry(w, h, SLAB_PAD)),
+    // --- the floor plate and the rocky bowl round it (the crowd stands on its terraces: `Crowd`)
+    const floor = new Mesh(
+      shared(`floor${w}x${h}`, () => floorGeometry(w, h, SLAB_PAD)),
       flat,
     );
-    slab.receiveShadow = true;
-    this.group.add(slab);
+    floor.receiveShadow = true;
+    this.group.add(floor);
     const rng = new Rng(hash3(map.seed, w, h, 0x51ab));
-    const nSpikes = Math.round((w * h) / 9);
-    const spikes = new InstancedMesh(
-      shared('stalactite', stalactiteGeometry),
-      flat,
-      nSpikes,
+    const hx = w / 2 + SLAB_PAD;
+    const hz = h / 2 + SLAB_PAD;
+    this.group.add(
+      new Mesh(
+        shared(`bowl${w}x${h}`, () => bowlGeometry(hx, hz)),
+        flat,
+      ),
     );
-    for (let i = 0; i < nSpikes; i++) {
-      const sc = rng.range(0.5, 1.3);
-      // under the lowest layers, inside the shrinking footprint
-      const ax = rng.range(-0.5, 0.5) * (w + SLAB_PAD * 2 - 2.4);
-      const az = rng.range(-0.5, 0.5) * (h + SLAB_PAD * 2 - 2.4);
-      m4.compose(
-        pos.set(ax, -2.4, az),
-        quat.setFromAxisAngle(UP, rng.range(0, 6.28)),
-        scl.set(sc, sc * rng.range(0.8, 1.5), sc),
-      );
-      spikes.setMatrixAt(i, m4);
-    }
-    this.group.add(spikes);
+    this.addRimRocks(hx, hz, rng, flat);
 
     // --- floor tiles
     const tiles = new InstancedMesh(
@@ -259,31 +247,6 @@ export class Arena {
     );
     this.group.add(decorMesh, new Mesh(decor.bulbs, bulbMat));
 
-    // --- clouds drifting under and around the slab
-    const nClouds = 16;
-    // self-lit so they read as bright puffs of cloud, not grey rocks
-    const cloudMat = mat(clayMaterial(this.grain, { vertexColors: true }));
-    cloudMat.emissive.setHex(0x909090);
-    const clouds = new InstancedMesh(
-      shared('cloud', cloudGeometry),
-      cloudMat,
-      nClouds,
-    );
-    const ring = Math.hypot(w, h) / 2 + 9;
-    for (let i = 0; i < nClouds; i++) {
-      const a = rng.range(0, 6.283);
-      const rad = ring + rng.range(0, 18);
-      const sc = rng.range(1.1, 2.4);
-      m4.compose(
-        pos.set(Math.cos(a) * rad, -5 - rng.range(0, 6), Math.sin(a) * rad),
-        quat.setFromAxisAngle(UP, rng.range(0, 3)),
-        scl.set(sc * 1.4, sc, sc),
-      );
-      clouds.setMatrixAt(i, m4);
-    }
-    this.clouds.add(clouds);
-    this.group.add(this.clouds);
-
     // --- warning squares on the floor where the next walls will land
     const warnGeo = shared('warn', () =>
       new PlaneGeometry(0.92, 0.92).rotateX(-Math.PI / 2),
@@ -324,9 +287,37 @@ export class Arena {
     this.group.add(this.sun, new HemisphereLight(0xcfe6ff, 0x9a7a55, 1.25));
   }
 
-  /** Animate the drifting clouds and the walls in the air (`t` = the FX clock in seconds). */
+  /** Boulders on the rim above the cliff: one instanced mesh, seeded. */
+  private addRimRocks(hx: number, hz: number, rng: Rng, mat: Material): void {
+    const m4 = new Matrix4();
+    const quat = new Quaternion();
+    const pos = new Vector3();
+    const scl = new Vector3();
+    const spots: [number, number, number][] = [];
+    for (const d of [RIM_D + 1.2, RIM_D + 3.6, RIM_D + 7]) {
+      const pts = ringPoints(hx, hz, d);
+      for (let i = 0; i < pts.length; i += 2)
+        if (rng.chance(0.45)) spots.push([pts[i], pts[i + 1], d]);
+    }
+    const mesh = new InstancedMesh(
+      shared('boulder', boulderGeometry),
+      mat,
+      Math.max(1, spots.length),
+    );
+    spots.forEach(([x, z], k) => {
+      const sc = rng.range(1.2, 2.8);
+      m4.compose(
+        pos.set(x, RIM_H - 0.2, z),
+        quat.setFromAxisAngle(UP, rng.range(0, 6.28)),
+        scl.set(sc * rng.range(0.9, 1.4), sc * rng.range(0.8, 1.6), sc),
+      );
+      mesh.setMatrixAt(k, m4);
+    });
+    this.group.add(mesh);
+  }
+
+  /** Animate the walls in the air (`t` = the FX clock in seconds). */
   update(t: number): void {
-    this.clouds.rotation.y = t * 0.012;
     if (this.falling.length === 0) return;
     const m = new Matrix4();
     const q = new Quaternion();
