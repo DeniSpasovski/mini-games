@@ -40,20 +40,20 @@ and `physics/car-setup.ts`. Workflow:
    tyre, set-up, effective `mu`) and `F4` (force vectors + hull).
 3. Inspect geometry / hull in the car viewer (`hull=1`, `tyre=`).
 
-| Symptom                        | Knobs                                                                                            |
-| ------------------------------ | ------------------------------------------------------------------------------------------------ |
-| Spins under power              | raise `rear.grip` relative to `front.grip`, lower `rearDiffLock`, more `frontSplit`, less torque |
-| Won't turn when braking        | ABS on (`B`); without it the fronts lock and the car goes straight on whatever the steering does |
-| Won't turn in / understeer     | `front.grip`, `maxSteerDeg`, softer `front.antiRoll`, stiffer `rear.antiRoll`                    |
-| Rolls over too easily          | raise `forceHeight` (0.3 -> 0.45), lower `comHeight`, stiffer `antiRoll`                         |
-| Floaty / bouncy                | raise `bump` / `rebound` dampers (critical ≈ 2·sqrt(k·m_corner))                                 |
-| Bottoms out on jumps           | more `travel`, stiffer `spring`, the preset's `ride` (ride height is kept automatically)         |
-| Surface too grippy / too icy   | `mu`, `slide` (grip left when sliding), `peakAngle` in `surfaces.ts`                             |
-| Twitchy at speed on gravel     | lower surface `bump` (it's an excitation, long wavelengths only)                                 |
+| Symptom                        | Knobs                                                                                                        |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Spins under power              | raise `rear.grip` relative to `front.grip`, lower `rearDiffLock`, more `frontSplit`, less torque             |
+| Won't turn when braking        | ABS on (`B`); without it the fronts lock and the car goes straight on whatever the steering does             |
+| Won't turn in / understeer     | `front.grip`, `maxSteerDeg`, softer `front.antiRoll`, stiffer `rear.antiRoll`                                |
+| Rolls over too easily          | raise `forceHeight` (0.3 -> 0.45), lower `comHeight`, stiffer `antiRoll`                                     |
+| Floaty / bouncy                | raise `bump` / `rebound` dampers (critical ≈ 2·sqrt(k·m_corner))                                             |
+| Bottoms out on jumps           | more `travel`, stiffer `spring`, the preset's `ride` (ride height is kept automatically)                     |
+| Surface too grippy / too icy   | `mu`, `slide` (grip left when sliding), `peakAngle` in `surfaces.ts`                                         |
+| Twitchy at speed on gravel     | lower surface `bump` (it's an excitation, long wavelengths only)                                             |
 | A tyre too strong / too weak   | its row in `TYRES` (`physics/tyres.ts`): `grip[surface]`, `slide`, `response`; a car class: `TyreSize.grade` |
-| Wide / thin tyres off          | `sizeFactors` exponents in `physics/car-tyres.ts`, or the car's `tyres` sizes                    |
-| Set-up makes too little change | set-up match factors in `carSurfaces` (`0.12` rough / `0.06` smooth), or the preset points       |
-| Too slow / fast in water       | `WHEEL_WATER_CD`, `BODY_WATER_CD`, intake height (`waterPass` in `physics/vehicle.ts`)           |
+| Wide / thin tyres off          | `sizeFactors` exponents in `physics/car-tyres.ts`, or the car's `tyres` sizes                                |
+| Set-up makes too little change | set-up match factors in `carSurfaces` (`0.12` rough / `0.06` smooth), or the preset points                   |
+| Too slow / fast in water       | `WHEEL_WATER_CD`, `BODY_WATER_CD`, intake height (`waterPass` in `physics/vehicle.ts`)                       |
 
 Lessons already learned (also in the skill): "can't turn into corners" was the fronts locking under braking (ABS fixed
 it; a grip-aware steering limit and a grip / diff retune were tried first and dropped); auto gearbox decisions use ground
@@ -109,8 +109,8 @@ its recommended one.
 
 `mu` multipliers per surface (`TyreDef.grip`, on a rally competition tyre, see "Tyre grade"):
 
-| Tyre        | tarmac   | tarmac_gravel | rock | gravel   | gravel_loose | dirt | grass | mud  | snow |
-| ----------- | -------- | ------------- | ---- | -------- | ------------ | ---- | ----- | ---- | ---- |
+| Tyre        | tarmac   | tarmac_gravel | rock | gravel   | gravel_loose | dirt | grass | mud | snow |
+| ----------- | -------- | ------------- | ---- | -------- | ------------ | ---- | ----- | --- | ---- |
 | Tarmac Soft | **1.26** | 1.07          | 1.0  | 0.72     | 0.64         | 0.68 | 0.62  |
 | Tarmac Hard | 1.19     | 1.05          | 1.0  | 0.72     | 0.64         | 0.68 | 0.62  |
 | Mixed       | 1.10     | **1.19**      | 1.0  | 0.93     | 0.90         | 0.92 | 0.90  |
@@ -130,10 +130,8 @@ run in a warmer window (see "Tyre temperature"):
 | Gravel Soft | 1.08 / 1.03        | 1.25     |
 
 **Soft vs hard** is a temperature trade, not a grip lottery: at its ideal temperature the soft compound grips as much or more
-on every surface; the hard one keeps its grip when the soft one overheats and wants a hotter tyre to work. The stages are
-cool (Ajvatovci 11 °C, Jackie 17, test 20, Petralica 28), so the soft compound is the recommended one everywhere and a hard
-one is a slightly slower pick (Gravel Hard is level with Soft on Petralica). Hard compounds only win once a stage is hot
-(open work). The wrong **family** is still the big penalty: tarmac tyres on gravel +10-25 % stage time, gravel tyres on
+on every surface; the hard one keeps its grip when the soft one overheats and wants a hotter tyre to work. The stages run from
+17 °C (Jackie, Petralica) to 30 °C (Ajvatovci), and the soft compound is the recommended one everywhere (see "Stage times"). The wrong **family** is still the big penalty: tarmac tyres on gravel +10-25 % stage time, gravel tyres on
 tarmac +5 %.
 
 **Tyre grade** (`TyreSize.grade`): what class of rubber a car runs, as grip against a rally competition tyre (1, the default).
@@ -304,7 +302,7 @@ Cold tyres grip less, tyres overheated by sliding grip less, in between they are
 (`WheelState.temp`), only with a climate (`Vehicle.setClimate`; the game sets it from the map, `null` = off, so tool
 pages and the reference tests above are unchanged).
 
-- **Climate:** `EnvironmentDef.airTemp` (°C, default 20; Ajvatovci 11, Jackie 17, test 20, Petralica 28, `?air=` to try)
+- **Climate:** `EnvironmentDef.airTemp` (°C, default 20; Ajvatovci 30, Jackie 17, test 20, Petralica 17, `?air=` to try)
   and the sun (`stageClimate`: sun height after `?tod=`, clouds). Track temperature = air + sun x `SurfaceDef.heat`
   (tarmac 1 ... grass 0.3, snow 0).
 - **Heat:** sliding work (`|F| x slide speed / static load`, the stones take 60 % of it on loose ground) + carcass flex
