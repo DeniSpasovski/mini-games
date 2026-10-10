@@ -135,7 +135,7 @@ heat slower (`heat`), lose less grip with load (`loadSens`) and run in a warmer 
 
 **Soft vs hard** is a temperature trade, not a grip lottery: at its ideal temperature the soft compound grips as much or more
 on every surface; the hard one keeps its grip when the soft one overheats and wants a hotter tyre to work. The stages are
-mild to hot (test 20 °C, Jackie 24 at dusk, Petralica 24, Ajvatovci 30 on a clear morning), and the soft tyres still peak inside their
+mild to hot (test 20 °C, Jackie 22 at dusk, Petralica 17, Ajvatovci 30 on a clear morning), and the soft tyres still peak inside their
 windows (the Skoda on Ajvatovci peaks at ~88 °C against a 100 °C limit), so the soft compound is the recommended one
 everywhere and a hard one is a slightly slower pick (Gravel Hard is level with Soft on Petralica). Hard compounds only win
 on a stage hotter or harder on the tyres than these (open work). The wrong **family** is still the big penalty: tarmac tyres on gravel +10-25 % stage time, gravel tyres on
@@ -331,7 +331,7 @@ Cold tyres grip less, tyres overheated by sliding grip less, in between they are
 (`WheelState.temp`), only with a climate (`Vehicle.setClimate`; the game sets it from the map, `null` = off, so tool
 pages and the reference tests above are unchanged).
 
-- **Climate:** `EnvironmentDef.airTemp` (°C, default 20; Ajvatovci 30, Jackie 24, test 20, Petralica 24, `?air=` to try)
+- **Climate:** `EnvironmentDef.airTemp` (°C, default 20; Ajvatovci 30, Jackie 22, test 20, Petralica 17, `?air=` to try)
   and the sun (`stageClimate`: sun height after `?tod=`, `cloudCoverage`, default 0.4; Ajvatovci 0.1). Track temperature = air + sun x `SurfaceDef.heat`
   (tarmac 1 ... grass 0.3, snow 0).
 - **Heat:** sliding work (`|F| x slide speed / static load`, the stones take 60 % of it on loose ground) + carcass flex
@@ -463,12 +463,12 @@ braking, keyboard, ride): `integration-tests/rally/handling.test.ts` (`HANDLING_
 Skoda Rally, every tyre with its matching set-up, both drivers (`tyres.test.ts`, 2026-10-09); s, in the order tarmac soft /
 tarmac hard / mixed / gravel hard / gravel soft, recommended in bold:
 
-| Map (recommended)    | Careful driver                            | Limit driver (`useExtraGrip`)             |
-| -------------------- | ----------------------------------------- | ----------------------------------------- |
-| `test` (gravel)      | 84.3 / 87.5 / 70.7 / 68.2 / **68.1**      | 84.3 / 87.5 / 70.7 / 67.6 / **67.1**      |
-| `petralica` (gravel) | 462.9 / 472.7 / 414.7 / 406.6 / **406.2** | 440.1 / 450.8 / 397.3 / **394.6** / 395.6 |
-| `jackie` (tarmac)    | **201.6** / 201.7 / 201.8 / 202.2 / 202.2 | **188.8** / 189.0 / 191.3 / 198.1 / 199.9 |
-| `ajvatovci` (mixed)  | 161.4 / 161.8 / **160.4** / 160.7 / 160.6 | 155.5 / 157.2 / **150.8** / 157.9 / 157.7 |
+| Map (recommended)    | Careful driver                            | Limit driver (`useExtraGrip`)                 |
+| -------------------- | ----------------------------------------- | --------------------------------------------- |
+| `test` (gravel)      | 84.3 / 87.5 / 70.7 / 68.2 / **68.1**      | 84.3 / 87.5 / 70.7 / 67.6 / **67.1**          |
+| `petralica` (gravel) | 466.3 / 479.4 / 415.1 / 406.8 / **406.3** | 443.5 / 458.8 / 398.2 / **395.8** / **395.8** |
+| `jackie` (tarmac)    | **201.6** / 201.7 / 201.8 / 202.2 / 202.2 | **188.8** / 189.0 / 191.4 / 198.2 / 199.9     |
+| `ajvatovci` (mixed)  | 161.4 / 161.8 / **160.4** / 160.7 / 160.6 | 155.5 / 157.2 / **150.8** / 157.9 / 157.7     |
 
 Every car, careful driver, recommended pick / worst pick (`car-matrix.test.ts`, 2026-10-09; worst = tarmac tyres on a gravel
 stage, gravel tyres on a tarmac or dusty one). The other rally cars (22B, Fiesta, C4, Lancer) sit within 1-2 % of the Skoda:
@@ -481,10 +481,10 @@ stage, gravel tyres on a tarmac or dusty one). The other rally cars (22B, Fiesta
 | `ajvatovci` (mixed)  | 160.3 / 160.5     | 194.6 / 203.1 | 165.6 / 165.1 | **159.1** / 161.2 |
 
 Reading it: the recommended tyre is the fastest (or within 0.5 %) with the limit driver on every stage, and the wrong tyre on
-gravel costs the most (tarmac tyres +26 % on the test map, +11 % on Petralica; a hard tarmac tyre is worse still). On tarmac
+gravel costs the most (tarmac tyres +26 % on the test map, +12 % on Petralica; a hard tarmac tyre is worse still). On tarmac
 the careful driver can't show the gain - it never corners above the gravel baseline and is capped at 151 km/h, so every tyre
 ties within 0.5 % - the limit driver does (gravel tyres +6 % on Jackie, Mixed ahead by 3-5 % on Ajvatovci). A hard compound
-never beats the soft one by more than 0.3 % (Petralica): the four stages run at 20-30 °C, so the soft tyre stays inside its
+never beats the soft one by more than 0.3 % (Petralica): the four stages run at 17-30 °C, so the soft tyre stays inside its
 window and the hard one only gives up peak grip. Car character: the AWD rally cars lead on gravel; the M3 (road tyres, 1,680 kg) is
 ~3 % behind them on gravel and mixed and level on Jackie; the GT2 (slicks) beats the Skoda on tarmac and mixed but is 2-3 %
 behind on gravel; Zastava is slowest everywhere (power and old road tyres). Rank checks: `car-matrix.test.ts`.
@@ -507,7 +507,7 @@ behind on gravel; Zastava is slowest everywhere (power and old road tyres). Rank
 | `integration-tests/rally/gearing.test.ts`    | gearing presets: race cars only, medium = own final drive, short < medium < long top speed, setup-screen top speed = sim, Skoda Rally on long reaches 200 km/h on Jackie                                                                 |
 | `tests/rally/tyre-temp.test.ts`              | tyre temperature: grip curves per compound, HUD colours, climate per stage, cold vs warm grip, warm-up, a donut overheats and cools down, gravel heats less, reset keeps temperatures                                                    |
 | `tests/rally/brakes.test.ts`                 | brakes: torque from size + clamp, disc mass, pad windows per class, heat per stop, ten-stop fade (road yes, rally no), cooling, water, torque = force x radius, cold / faded brakes pull less                                            |
-| `integration-tests/rally/tyre-temp.test.ts`  | every car x stage with the stage climate, recommended and worst pick: finishes upright (one reset if stuck), tyres under 150 °C, discs under 1300 °C, home tyre warm at the finish                                                       |
+| `integration-tests/rally/tyre-temp.test.ts`  | every car x stage with the stage climate, recommended and worst pick: finishes upright (up to two resets if stuck, the recommended pick at most one), tyres under 150 °C, discs under 1300 °C, home tyre warm at the finish              |
 | `integration-tests/rally/handling.test.ts`   | whole-car handling per car x tyre x set-up x surface (`handling-harness.ts`): ramp / step steer, lift / power / brake mid-corner, handbrake, slalom, keyboard lock, braking, drops, jump landing, ruts                                   |
 
 `tyres.test.ts` and `car-matrix.test.ts` import the four stages directly (`test`, `petralica`, `jackie`, `ajvatovci`) - add a

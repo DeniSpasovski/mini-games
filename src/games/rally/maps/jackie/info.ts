@@ -67,9 +67,9 @@ export const jackieInfo: MapInfo = {
     // Spring evening at 20:00 (sunset in New York in May): the sun at the horizon, as low as the sky model goes (the sun path
     // ends at 18). ?tod=<hours> to try others.
     timeOfDay: 18,
-    // Warm, muggy May evening (New York May normals: 13 / 22 deg low / high, 63 % humidity; ~24 deg at 20:00 after a warm day).
+    // Warm May evening (New York May normals: 13 / 22 deg low / high, 63 % humidity; 22 deg at 20:00 is a warm one).
     // Humidity is not simulated.
-    airTemp: 24,
+    airTemp: 22,
     turbidity: 6,
     rayleigh: 1.4,
     fogColor: '#bfc8d0',
