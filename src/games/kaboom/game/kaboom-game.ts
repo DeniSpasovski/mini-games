@@ -149,6 +149,7 @@ export class KaboomGame {
       onRestart: () => void this.startMatch(this.setup ?? this.currentSetup()),
       onMainMenu: () => this.toMenu(),
       onClick: () => this.sfx.click(),
+      onTick: () => this.sfx.tick(),
       makeStage: () => {
         try {
           return new CritterPreview();

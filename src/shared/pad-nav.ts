@@ -19,7 +19,13 @@
  * the mouse clears it again.
  */
 export type NavAction =
-  'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'start';
+  | 'up'
+  | 'down'
+  | 'left'
+  | 'right'
+  | 'confirm'
+  | 'back'
+  | 'start';
 export type NavDir = 'up' | 'down' | 'left' | 'right';
 
 const BUTTONS: [index: number, action: NavAction][] = [
@@ -285,4 +291,75 @@ function edgeGap(a: DOMRect, b: DOMRect, vertical: boolean): number {
 function centre(el: HTMLElement): { x: number; y: number } {
   const r = el.getBoundingClientRect();
   return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}
+
+// --- keyboard + hover helpers ----------------------------------------------------------
+
+const KEY_DIRS: Record<string, NavDir> = {
+  ArrowUp: 'up',
+  ArrowDown: 'down',
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+};
+
+/**
+ * Keyboard menu navigation: arrows = direction, Backspace = back, Enter = confirm when no button / link has focus (a focused
+ * one activates natively). `handler` runs only while `active()` is true. Escape is left to the game (it pauses / resumes).
+ */
+export function attachKeyNav(
+  active: () => boolean,
+  handler: (a: NavAction) => void,
+): void {
+  window.addEventListener('keydown', (e) => {
+    if (e.altKey || e.ctrlKey || e.metaKey || !active()) return;
+    const dir = KEY_DIRS[e.code];
+    let action: NavAction | null = dir ?? null;
+    if (e.code === 'Backspace') action = 'back';
+    else if (
+      e.code === 'Enter' &&
+      !(
+        document.activeElement instanceof HTMLButtonElement ||
+        document.activeElement instanceof HTMLAnchorElement
+      )
+    )
+      action = 'confirm';
+    if (!action) return;
+    // Text fields keep their own caret keys.
+    const t = document.activeElement;
+    if (t instanceof HTMLInputElement && t.type === 'text') return;
+    e.preventDefault();
+    document.documentElement.dataset.input = 'pad';
+    handler(action);
+  });
+}
+
+/**
+ * "Highlight changed" feedback: calls `tick` when the focus moves to another control inside `root` (keyboard, controller)
+ * or the mouse enters one. Touch taps and the focus a click itself causes stay silent.
+ */
+export function watchMenuTick(root: HTMLElement, tick: () => void): void {
+  let lastDown = -1e9;
+  let last: EventTarget | null = null;
+  const ctl = (t: EventTarget | null) =>
+    t instanceof Element ? t.closest<HTMLElement>(FOCUSABLE) : null;
+  document.addEventListener(
+    'pointerdown',
+    () => (lastDown = performance.now()),
+    true,
+  );
+  root.addEventListener('focusin', (e) => {
+    const c = ctl(e.target);
+    if (!c || c === last || performance.now() - lastDown < 400) return;
+    last = c;
+    tick();
+  });
+  root.addEventListener('focusout', () => (last = null));
+  root.addEventListener('pointerover', (e) => {
+    if ((e as PointerEvent).pointerType !== 'mouse') return;
+    const c = ctl(e.target);
+    if (!c || c === last) return;
+    last = c;
+    tick();
+  });
+  root.addEventListener('pointerleave', () => (last = null));
 }

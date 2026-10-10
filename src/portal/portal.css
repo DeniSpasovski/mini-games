@@ -164,3 +164,9 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* Keyboard / controller navigation (shared/pad-nav.ts): programmatic focus doesn't always match :focus-visible. */
+[data-input='pad'] :focus {
+  outline: 3px solid currentColor;
+  outline-offset: 3px;
+}
