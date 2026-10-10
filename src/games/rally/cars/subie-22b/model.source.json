@@ -2,6 +2,15 @@
   "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/subie-22b/03-rally-car.glb (CC BY-NC 4.0, SpatialNeglect), local only. The GLB is in centimetres, +z nose, ground at y -8.04, hubs at z 188.5 / -141.9 (wheelbase 330.4 cm), track 208 cm, centred on x -4.2. `scale` = physics wheelbase 2.54 m / 330.4 cm; `offset` puts the front hub on physics front.z 1.08 and the body on its wheels. After conversion `scripts/car-model/scale-x.mjs ... 0.942 --keep coilover,chrome` narrows the body to the real 1.77 m (springs / dampers stay on the hubs); rerun it after a rebuild from the source. The atlas block is also read by livery.ts at runtime - edit only here.",
   "source": "sources/cars/subie-22b/03-rally-car.glb -> glb-to-parts-stl.py -> sources/cars/subie-22b/subie-22b-parts.stl",
   "output": "public/models/cars/subie_22b.glb",
+  "ao": {
+    "$comment": "bake-ao.mjs: tyres as occluders (the GLB has no wheels); physics axles / track / wheelRadius",
+    "wheels": {
+      "radius": 0.31,
+      "width": 0.235,
+      "z": [1.08, -1.46],
+      "track": [1.52, 1.52]
+    }
+  },
   "axes": ["x", "y", "z"],
   "scale": 0.0076877,
   "offset": [0.0323, 0.064, -0.3691],

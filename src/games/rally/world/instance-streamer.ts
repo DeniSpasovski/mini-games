@@ -72,6 +72,8 @@ interface InstanceData {
   m: Float32Array;
   /** Brightness multiplier (per-instance tint). */
   t: number;
+  /** Warm / cool shift in -1..1 (per-instance hue variation, scaled by the asset's `tint`). */
+  h: number;
   meta: AssetMeta;
   variant: number;
   /** Bucket key per LOD, built once (no per-rebuild string garbage). */
@@ -352,6 +354,11 @@ export class InstanceStreamer {
           2 -
           1) *
           tint;
+      const h =
+        (hash3(Math.floor(inst.x * 7), Math.floor(inst.z * 7), 2) /
+          4294967296) *
+          2 -
+        1;
       // Far LODs flagged `oneVariant` share one bucket (getAsset draws variant 0 for them), variant sets too ('v').
       const keys = meta.lods.map(
         (l, lod) =>
@@ -360,6 +367,7 @@ export class InstanceStreamer {
       d = {
         m: placedMatrix(inst, new Float32Array(16)),
         t,
+        h,
         meta,
         variant: inst.variant,
         keys,
@@ -398,9 +406,11 @@ export class InstanceStreamer {
     if (bucket.variants) bucket.sVar[i] = d.variant;
     if (bucket.tinted) {
       const t = d.t;
-      bucket.sCol[i * 3] = t;
+      // Warm / cool shift: red up and blue down (or the other way) so a stand of one species is not one hue.
+      const warm = d.h * (d.meta.tint ?? 0) * 0.9;
+      bucket.sCol[i * 3] = t * (1 + warm);
       bucket.sCol[i * 3 + 1] = t * (1 + (d.meta.tint ?? 0) * 0.15);
-      bucket.sCol[i * 3 + 2] = t;
+      bucket.sCol[i * 3 + 2] = t * (1 - warm);
     }
   }
 

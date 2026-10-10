@@ -410,6 +410,9 @@ whenever the GLB is regenerated.
   piece or black disc is a source part that was not dropped or recoloured: find its island (`glb-to-parts-stl.py` warning, or
   bbox of the part around the hub) and drop it.
 - Boxy profile baked and wired (step 6c): fallback body and street car checked.
+- **Baked AO**: add an `ao.wheels` block to `model.source.json` (copy a car's; physics radius / axle z / track / tyre width), then
+  `node scripts/car-model/bake-ao.mjs <car folder>` (~20 s, writes `_DARK` into the GLB; re-run after every re-convert). Check
+  with `car-viewer.html?car=<id>` against `&ao=0` (`tests/rally/car-ao.test.ts` fails without it).
 - `npx tsc --noEmit -p tsconfig.json`, `npm run lint`, `npm run test`.
 - Car `README.md` (high level: description, 3 screenshots, credits + licence) and a **short** `DETAILS.md` (sources + links tables, the few
   measured numbers the code does not show, rebuild commands (orient -> segment -> convert -> view-glb), one line per non-obvious

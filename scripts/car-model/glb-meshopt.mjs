@@ -25,7 +25,7 @@ const SIZE = { 5120: 1, 5121: 1, 5122: 2, 5123: 2, 5125: 4, 5126: 4 };
 const COMPONENTS = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
 const align4 = (n) => (n + 3) & ~3;
 
-function readGlb(buf) {
+export function readGlb(buf) {
   if (buf.length < 28 || buf.readUInt32LE(0) !== 0x46546c67) return null; // 'glTF'
   const jsonLen = buf.readUInt32LE(12);
   const json = JSON.parse(buf.subarray(20, 20 + jsonLen).toString('utf8'));
@@ -37,7 +37,7 @@ function readGlb(buf) {
   return { json, bin };
 }
 
-function writeGlb(json, bin) {
+export function writeGlb(json, bin) {
   const js = Buffer.from(JSON.stringify(json));
   const pad = (b, fill) =>
     Buffer.concat([b, Buffer.alloc(align4(b.length) - b.length, fill)]);

@@ -46,6 +46,7 @@ import {
 } from './stl-wheel';
 import { buildTyre, rimRadius } from './tyre-mesh';
 import { partMaterial } from './part-materials';
+import { applyVertexAo } from './vertex-ao';
 import {
   badgeMaterial,
   buildBadgeGeometry,
@@ -556,6 +557,8 @@ export class CarModel {
                 if ((o as Mesh).isMesh && o.visible) painted.push(o as Mesh);
               });
             }
+            // Baked AO (`_dark` attribute): the livery material is this car's own, the part materials are shared.
+            applyVertexAo(obj, new Set(this.owned), this.owned);
             // Plate targets in body space (obj has no parent yet, so matrixWorld = obj -> body).
             obj.updateMatrixWorld(true);
             this.importedPaint = painted.map((m) => ({

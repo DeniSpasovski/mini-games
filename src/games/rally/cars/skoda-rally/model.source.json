@@ -2,6 +2,15 @@
   "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/skoda-rally/skoda-fabia-r5-rally-car-senturyuk.glb (CC BY 4.0, SenturyUK). The GLB is already model-aligned (+x left, +y up, +z nose, ground y 0) at true scale (its 2.475 m wheelbase is the Fabia R5's 2,470 mm) but sits at x ~ -6.86; the offset centres it and puts the front hub on physics front.z = 1.15. The atlas block is also read by livery.ts at runtime - keep them in sync by editing only here.",
   "source": "sources/cars/skoda-rally/skoda-fabia-r5-rally-car-senturyuk.glb -> glb-to-parts-stl.py -> sources/cars/skoda-rally/skoda-rally-parts.stl",
   "output": "public/models/cars/skoda_rally.glb",
+  "ao": {
+    "$comment": "bake-ao.mjs: tyres as occluders (the GLB has no wheels); physics axles / track / wheelRadius",
+    "wheels": {
+      "radius": 0.321,
+      "width": 0.23,
+      "z": [1.15, -1.325],
+      "track": [1.58, 1.58]
+    }
+  },
   "axes": ["x", "y", "z"],
   "scale": 1.0,
   "offset": [6.861, 0, -0.395],

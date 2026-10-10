@@ -34,6 +34,7 @@ const MAX: Record<string, number> = {
   position: MAX_ERROR.POSITION,
   normal: MAX_ERROR.NORMAL,
   uv: MAX_ERROR.TEXCOORD_0,
+  _dark: 0, // baked AO: lossless
 };
 
 describe.each(files)('%s', (file) => {

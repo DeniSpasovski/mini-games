@@ -2,6 +2,15 @@
   "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/lancer-evo-6/02-lancer-evo-6-metres.glb = 'Mitsubishi Lancer Evolution 6' by vecarz (CC BY 4.0) with the FBX 0.01 root scale undone (scripts/car-model/glb-set-root-scale.py <glb> <out> 1 100): +x left, +y up, +z nose, metres. The offset lifts the body so the hubs (model y 0.294) sit at the tyre radius 0.316 and puts the front hub (model z 1.265) on physics front.z. The atlas block is also read by livery.ts at runtime - edit it only here.",
   "source": "sources/cars/lancer-evo-6/02-lancer-evo-6-metres.glb -> glb-to-parts-stl.py -> sources/cars/lancer-evo-6/lancer-evo-6-parts.stl",
   "output": "public/models/cars/lancer_evo_6.glb",
+  "ao": {
+    "$comment": "bake-ao.mjs: tyres as occluders (the GLB has no wheels); physics axles / track / wheelRadius",
+    "wheels": {
+      "radius": 0.316,
+      "width": 0.235,
+      "z": [1.2, -1.293],
+      "track": [1.559, 1.559]
+    }
+  },
   "axes": ["x", "y", "z"],
   "scale": 1.0,
   "offset": [0, 0.022, -0.065],

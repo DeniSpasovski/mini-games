@@ -84,6 +84,8 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   shadow box (`world/canopy-shadows.ts`), height fog warming towards the sun, wind, leaf translucency. Custom shaders must call
   `addWorldUniforms(shader)`.
 - **Surfaces:** bump relief on roads, rocks and terrain (off on low); grass cards use alpha-to-coverage with MSAA.
+- **Baked AO:** car GLBs carry per-vertex occlusion (`_DARK`, `scripts/car-model/bake-ao.mjs`); `cars/shared/vertex-ao.ts` dims
+  ambient, sky and reflected light there (not the sun). `?ao=0` turns it off. Rocks and trees get a dark foot / per-instance hue.
 - **Effects:** dust, gravel spray and haze (`game/dust.ts`), tyre marks (`game/tyre-marks.ts`), a contact shadow under the car,
   brake and reversing lamps (`CarModel.setBrake(level, reversing)`; a lamp's `userData.brakeLamp.reverseGlow` map lights its
   white section in gear R, in R the throttle key is the brake pedal; car viewer `lamps=brake|reverse`).

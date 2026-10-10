@@ -2,6 +2,15 @@
   "$comment": "Input for scripts/car-model/segment-stl.py (parts) and stl-to-glb.mjs (everything else). Single-shell 1:33 print model (no kit assembly): raw x = width, raw y = length (nose at -y), raw z = up -> axes below is a proper rotation (a swap alone mirrors the mesh and inverts every normal). Scale from the wheelbase (82.0 mm between the contact patches = 2.722 m), offset from the mid-point between the axles and the body's centre line (raw x 119.3). Wheels + tyres are modelled in: cut out (`wheels`), the game draws its own. Ride: the mesh is a lowered street car (floor 7 cm) - offset y lifts the whole body (now -0.5 cm: the 7 cm lift was taken back, the user wanted the wheels low in the arches) vs the tyre-bottom pose (floor 0.142 m; 4 cm for the test map's crests, 3 more so the wheels sit lower in the arches, hubs stay at 0.345: rally stance; the autopilot beached on the test map's crests at 7 cm). Every y in `parts` / `wheels` below is in that raised model space.",
   "source": "sources/cars/bimmer-m3/bmw-e46-coupe-tuning.stl",
   "output": "public/models/cars/bimmer_m3.glb",
+  "ao": {
+    "$comment": "bake-ao.mjs: tyres as occluders (the GLB has no wheels); physics axles / track / wheelRadius",
+    "wheels": {
+      "radius": 0.33,
+      "width": 0.235,
+      "z": [1.361, -1.361],
+      "track": [1.66, 1.66]
+    }
+  },
   "axes": ["x", "z", "-y"],
   "scale": 0.0332,
   "offset": [-3.961, -0.005, 3.818],
