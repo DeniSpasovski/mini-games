@@ -25,12 +25,14 @@ offset, bent by slow noise and carved by finer noise (crumbling step edges, lump
 fill, one soft static sun shadow. Deliberately different from Hole Island's sharp blocky toys.
 
 **Crowd** (`render/crowd.ts`): about 250-400 spectators on the terraces, the same eight animals as the crew, drawn as
-**sprites**. The camera never turns, so each animal is rendered once with the crew renderer (fur, face, vest, no hard hat)
+**sprites**. The camera never turns, so each animal is rendered once with the crew renderer (fur, face, a plain sleeved fan shirt from `fanShirtGeometry`, no hard hat)
 from the game camera's pitch into an atlas (8 animals x 4 facings x 8 team colours, 112 px tiles, 72 on low), and a
-spectator is one instanced billboard picking its tile: the whole crowd is one draw call. Tiles are drawn on demand
+spectator is one instanced billboard picking its tile: the sprites are one draw call. Tiles are drawn on demand
 (`prepare`, from `WorldView.warmUp` / `render`): every colour of the match at load, a new colour later (the colour
-picker) one colour = 32 tiles per frame. Shirts (the vest) only come in the colours of the players in the match (benched
-bots do not count): `setPlayers` re-deals them when that set changes. Still until something blows up or a player is KO,
+picker) one colour = 32 tiles per frame. Shirts only come in the colours of the players in the match (benched
+bots do not count): `setPlayers` re-deals them when that set changes. Fans sit in blocks of 3-8 neighbours on one terrace
+that share a colour; about half the blocks wave flags (second instanced mesh, one shader draws arm, pole and flag in the
+shirt colour, moving with the game clock). Otherwise still until something blows up or a player is KO,
 then they jump (`excite`, decays in about a second). Low quality drops the top terrace and thins the rest.
 
 **Blasts** (`render/fx/`): soft camera-facing fire puffs from one generated noise flipbook (`fx/puff-atlas.ts`) that grow,
@@ -179,7 +181,7 @@ What usually kills FPS in these games, and our rule for each:
 | Chain resolved in one frame           | The sim spreads a chain over the 0.08 s chain delay; blasts only set fuses, never explode each other inside one tick.                                                                                                      |
 | Block removal rebuilding geometry     | One InstancedMesh per crate variant; removal swaps with the last instance and shrinks `count`.                                                                                                                             |
 | Hitch at a round change               | A new round builds a new `Arena`, but its merged geometry, the grain texture and the sun (with its 2048 shadow map) are shared module-level, so it costs well under a millisecond.                                         |
-| Draw calls                            | Arena ~11, crowd 1 (sprites), crew bodies + fur + 3 shared (hats / vests / feet) + the you-arrow, TNT 3, blob shadows 1, FX 10 (budget below).                                                                             |
+| Draw calls                            | Arena ~11, crowd 2 (sprites + flags), crew bodies + fur + 3 shared (hats / vests / feet) + the you-arrow, TNT 3, blob shadows 1, FX 10 (budget below).                                                                     |
 | Garbage collection                    | Sim state in preallocated typed arrays; events are pooled objects in a reused array; render code allocates nothing per frame.                                                                                              |
 | Audio                                 | Max 4 blast voices; blasts within 50 ms merge; procedural WebAudio.                                                                                                                                                        |
 

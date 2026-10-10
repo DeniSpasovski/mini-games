@@ -70,3 +70,21 @@ test('crowd: still at rest, jumps after an explosion and settles again', () => {
   for (let t = 0; t < 400; t++) crowd.update(2 + t * 0.016, 0.016);
   expect(y()).toBe(rest);
 });
+
+test('crowd: fans sit in same-colour groups of up to 8, and some wave flags', () => {
+  const crowd = new Crowd(13, 11, SLAB_PAD, QUALITY.high);
+  crowd.setPlayers([player(0, 0), player(1, 1), player(2, 2), player(3, 5)]);
+  const sizes = new Map<number, number>();
+  const colours = new Map<number, number>();
+  for (let k = 0; k < crowd.count; k++) {
+    const g = crowd.groupOf(k);
+    sizes.set(g, (sizes.get(g) ?? 0) + 1);
+    // one colour per group
+    expect(colours.get(g) ?? crowd.colorOf(k)).toBe(crowd.colorOf(k));
+    colours.set(g, crowd.colorOf(k));
+  }
+  expect(Math.max(...sizes.values())).toBeLessThanOrEqual(8);
+  expect(sizes.size).toBeGreaterThan(20);
+  expect(crowd.flagCount).toBeGreaterThan(10);
+  expect(crowd.flagCount).toBeLessThan(crowd.count / 2);
+});

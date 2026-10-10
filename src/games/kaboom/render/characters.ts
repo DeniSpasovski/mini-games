@@ -23,6 +23,7 @@ import {
   buildCritter,
   footGeometry,
   hatGeometry,
+  fanShirtGeometry,
   vestGeometry,
   type CritterModel,
 } from './crew-parts';
@@ -243,7 +244,7 @@ export class Crew {
     private readonly players: readonly PlayerView[],
     private readonly w: number,
     private readonly h: number,
-    fur: { shells: number; smooth: boolean } = {
+    fur: { shells: number; smooth: boolean; fan?: boolean } = {
       shells: FUR_SHELLS.high,
       smooth: true,
     },
@@ -295,7 +296,7 @@ export class Crew {
     this.group.add(this.arrow);
 
     const hatGeo = hatGeometry();
-    const vestGeo = vestGeometry();
+    const vestGeo = fur.fan ? fanShirtGeometry() : vestGeometry();
     const footGeo = footGeometry();
     this.geos.push(hatGeo, vestGeo, footGeo);
     const teamMat = gearMaterial(

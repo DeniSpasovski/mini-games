@@ -48,6 +48,19 @@ const TILE_PX = { high: 112, low: 72 } as const;
 /** Crew facing angle (grid radians) of the four sprite facings: toward the camera, right, away, left. */
 const FACING_ANGLE = [Math.PI / 2, 0, -Math.PI / 2, Math.PI] as const;
 const FOV = 6;
+/** Fans sit in groups of this many neighbours (3..GROUP_MAX) in one colour, like a fan block. */
+const GROUP_MIN = 3;
+const GROUP_MAX = 8;
+/** Share of the groups that bring flags, and of the fans in such a group who hold one. */
+const FLAG_GROUPS = 0.45;
+const FLAG_FANS = 0.45;
+/** Flag layer: the quad's size in world units and where the shoulder sits in the sprite (above the feet). */
+const FLAG_W = 1.8;
+const FLAG_H = 2.4;
+const FLAG_MID = 0.7;
+const SHOULDER_Y = 0.6;
+/** The flag layer is drawn this far towards the camera so it never sinks into its fan's sprite. */
+const FLAG_LIFT = 0.25;
 
 const tileIndex = (species: number, facing: number, color: number): number =>
   (species * FACINGS + facing) * COLORS + color;
@@ -60,11 +73,23 @@ interface Spectator {
   z: number;
   scale: number;
   phase: number;
-  /** Favourite colour: a fixed draw in 0..1 that picks one of the colours on screen. */
+  /** Favourite colour: a fixed draw in 0..1 that picks one of the colours on screen (shared by the whole group). */
   fav: number;
+  /** Seat group (up to `GROUP_MAX` neighbours on one terrace cheering for the same colour). */
+  group: number;
+  /** Slot in the flag layer when this fan waves a flag, else -1; -1 / +1 = which hand. */
+  flag: number;
+  side: number;
 }
 
 const AXIS_X = new Vector3(1, 0, 0);
+const tint = new Color();
+/** Towards the camera, in world space. */
+const LIFT = new Vector3(
+  0,
+  Math.sin((CAM_PITCH_DEG * Math.PI) / 180),
+  Math.cos((CAM_PITCH_DEG * Math.PI) / 180),
+).multiplyScalar(FLAG_LIFT);
 
 export class Crowd {
   readonly group = new Group();
@@ -72,6 +97,10 @@ export class Crowd {
   private readonly tileAttr: InstancedBufferAttribute;
   private readonly spectators: Spectator[] = [];
   private readonly material: ShaderMaterial;
+  private readonly flags: InstancedMesh;
+  private readonly flagColor: InstancedBufferAttribute;
+  private readonly flagMaterial: ShaderMaterial;
+  private readonly holders: number[] = [];
   private readonly tilePx: number;
   private readonly cols: number;
   private atlas: WebGLRenderTarget | null = null;
@@ -103,6 +132,7 @@ export class Crowd {
     const spacing = low ? 1.3 : 1.0;
     const fill = [0.94, 0.9, 0.82, 0.72];
     const rng = new Rng(hash3(w, h, 0xc0de, 5));
+    let groups = 0;
     this.tilePx = TILE_PX[quality.name];
     this.cols = Math.floor(this.sideFor(quality) / this.tilePx);
 
@@ -110,6 +140,10 @@ export class Crowd {
       const pts = warpedRing(hx, hz, treadMidD(t));
       const n = pts.length / 2;
       let carry = rng.range(0, spacing);
+      let left = 0;
+      let fav = 0;
+      let flagGroup = false;
+      let group = groups;
       for (let i = 0; i < n; i++) {
         const ax = pts[i * 2];
         const az = pts[i * 2 + 1];
@@ -134,6 +168,14 @@ export class Crowd {
           z -= dz * rng.range(-0.22, 0.22);
           const facing =
             Math.abs(dz) >= Math.abs(dx) ? (dz > 0 ? 0 : 2) : dx > 0 ? 1 : 3;
+          if (left === 0) {
+            left = rng.int(GROUP_MIN, GROUP_MAX);
+            fav = rng.next();
+            flagGroup = rng.next() < FLAG_GROUPS * (low ? 0.6 : 1);
+            group = ++groups;
+          }
+          left--;
+          const flag = flagGroup && rng.next() < FLAG_FANS;
           this.spectators.push({
             species: rng.int(0, CRITTERS.length - 1),
             facing,
@@ -142,7 +184,10 @@ export class Crowd {
             z,
             scale: rng.range(0.97, 1.03),
             phase: rng.range(0, 6.28),
-            fav: rng.next(),
+            fav,
+            group,
+            flag: flag ? this.holders.push(this.spectators.length) - 1 : -1,
+            side: rng.next() < 0.5 ? -1 : 1,
           });
         }
         carry = s - len;
@@ -159,6 +204,25 @@ export class Crowd {
     this.mesh.frustumCulled = false;
     this.mesh.visible = false; // until the atlas is drawn (`prepare`)
     this.group.add(this.mesh);
+
+    const f = Math.max(1, this.holders.length);
+    const flagGeo = new PlaneGeometry(1, 1);
+    this.flagColor = new InstancedBufferAttribute(new Float32Array(f * 3), 3);
+    flagGeo.setAttribute('aColor', this.flagColor);
+    const side = new Float32Array(f);
+    const phase = new Float32Array(f);
+    this.holders.forEach((k, j) => {
+      side[j] = this.spectators[k].side;
+      phase[j] = this.spectators[k].phase;
+    });
+    flagGeo.setAttribute('aSide', new InstancedBufferAttribute(side, 1));
+    flagGeo.setAttribute('aPhase', new InstancedBufferAttribute(phase, 1));
+    this.flagMaterial = this.makeFlagMaterial();
+    this.flags = new InstancedMesh(flagGeo, this.flagMaterial, f);
+    this.flags.count = this.holders.length;
+    this.flags.frustumCulled = false;
+    this.flags.visible = false;
+    this.group.add(this.flags);
     this.place(0, 0);
   }
 
@@ -201,13 +265,74 @@ export class Crowd {
     });
   }
 
+  /** The waving flags: arm (shirt sleeve, then paw), pole and flag drawn in one billboard, moving with the shader's clock. */
+  private makeFlagMaterial(): ShaderMaterial {
+    return new ShaderMaterial({
+      uniforms: { uTime: { value: 0 } },
+      vertexShader: /* glsl */ `
+        attribute vec3 aColor;
+        attribute float aSide;
+        attribute float aPhase;
+        varying vec2 vUv;
+        varying vec3 vColor;
+        varying float vSide;
+        varying float vPhase;
+        void main() {
+          vUv = uv;
+          vColor = aColor;
+          vSide = aSide;
+          vPhase = aPhase;
+          gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4( position, 1.0 );
+        }`,
+      fragmentShader: /* glsl */ `
+        uniform float uTime;
+        varying vec2 vUv;
+        varying vec3 vColor;
+        varying float vSide;
+        varying float vPhase;
+        float seg( vec2 p, vec2 a, vec2 b, out float t ) {
+          vec2 pa = p - a;
+          vec2 ba = b - a;
+          t = clamp( dot( pa, ba ) / dot( ba, ba ), 0.0, 1.0 );
+          return length( pa - ba * t );
+        }
+        void main() {
+          // world units relative to the fan's shoulder
+          vec2 q = ( vUv - 0.5 ) * vec2( ${FLAG_W.toFixed(2)}, ${FLAG_H.toFixed(2)} ) + vec2( 0.0, ${FLAG_MID.toFixed(2)} );
+          float w = sin( uTime * 5.5 + vPhase );
+          vec2 shoulder = vec2( vSide * 0.2, 0.0 );
+          vec2 hand = vec2( vSide * 0.27, 0.2 + 0.17 * w );
+          vec2 top = hand + vec2( 0.0, 0.72 );
+          vec3 col = vec3( 0.0 );
+          bool hit = false;
+          float t;
+          if ( seg( q, shoulder, hand, t ) < 0.075 ) {
+            col = t > 0.7 ? vec3( 0.26, 0.13, 0.06 ) : vColor;
+            hit = true;
+          }
+          if ( length( q - hand ) < 0.095 ) { col = vec3( 0.26, 0.13, 0.06 ); hit = true; }
+          if ( seg( q, hand, top, t ) < 0.022 ) { col = vec3( 0.15, 0.07, 0.03 ); hit = true; }
+          // the flag, rippling along its length
+          float fx = ( q.x - top.x ) * vSide;
+          float fy = q.y - top.y + 0.035 * sin( fx * 11.0 - uTime * 9.0 + vPhase ) * fx / 0.5;
+          if ( fx > 0.0 && fx < 0.5 && fy < 0.0 && fy > -0.34 ) {
+            col = ( fy < -0.13 && fy > -0.21 ) ? vec3( 1.0 ) : vColor;
+            hit = true;
+          }
+          if ( !hit ) discard;
+          gl_FragColor = vec4( col, 1.0 );
+          #include <colorspace_fragment>
+        }`,
+    });
+  }
+
   get count(): number {
     return this.spectators.length;
   }
 
   /** Draw calls for the whole crowd. */
   get drawCalls(): number {
-    return 1;
+    return 2; // the sprites + the flags
   }
 
   /**
@@ -230,7 +355,12 @@ export class Crowd {
           Math.min(palette.length - 1, Math.floor(sp.fav * palette.length))
         ];
       this.tileAttr.setX(k, tileIndex(sp.species, sp.facing, color));
+      if (sp.flag >= 0) {
+        tint.setHex(TEAM_COLORS[color]);
+        this.flagColor.setXYZ(sp.flag, tint.r, tint.g, tint.b);
+      }
     });
+    this.flagColor.needsUpdate = true;
     this.tileAttr.needsUpdate = true;
     for (const c of palette)
       if (!this.rendered.has(c) && !this.wanted.includes(c))
@@ -240,6 +370,16 @@ export class Crowd {
   /** The colours the shirts can take right now (bit per team colour; for tests). */
   get shirtMask(): number {
     return this.colorMask;
+  }
+
+  /** Fans waving a flag (for tests). */
+  get flagCount(): number {
+    return this.holders.length;
+  }
+
+  /** Seat group of spectator `k` (for tests): neighbours sharing it cheer in one colour. */
+  groupOf(k: number): number {
+    return this.spectators[k].group;
   }
 
   /** Team colour index of spectator `k`'s sprite (for tests). */
@@ -311,6 +451,7 @@ export class Crowd {
     renderer.autoClear = prevAuto;
     this.material.uniforms.uMap.value = atlas.texture;
     this.mesh.visible = true;
+    this.flags.visible = this.holders.length > 0;
   }
 
   /** The first call draws every colour wanted; later ones one colour at a time. */
@@ -339,6 +480,7 @@ export class Crowd {
       const crew = new Crew([player], 0, 0, {
         shells: FUR_SHELLS[this.quality.name],
         smooth: false,
+        fan: true,
       });
       crew.setHatsVisible(false);
       return { crew, player };
@@ -356,6 +498,7 @@ export class Crowd {
     for (let i = 0; i < COLORS; i++)
       if (mask & (1 << i) || mask < 0) this.wanted.push(i);
     this.mesh.visible = false;
+    this.flags.visible = false;
   }
 
   /** Something blew up: the crowd jumps (`amount` 0..1, adds up to 1). */
@@ -364,6 +507,7 @@ export class Crowd {
   }
 
   update(t: number, dt: number): void {
+    this.flagMaterial.uniforms.uTime.value = t;
     if (this.excitement <= 0.01) {
       this.excitement = 0;
       if (!this.atRest) this.place(t, 0);
@@ -385,7 +529,15 @@ export class Crowd {
       pos.set(sp.x, sp.y + SPRITE_MID * sp.scale + hop, sp.z);
       m4.compose(pos, quat, scl);
       this.mesh.setMatrixAt(k, m4);
+      if (sp.flag >= 0) {
+        pos.set(sp.x, sp.y + (SHOULDER_Y * sp.scale + hop), sp.z).add(LIFT);
+        pos.y += FLAG_MID * sp.scale;
+        scl.set(FLAG_W * sp.scale, FLAG_H * sp.scale, 1);
+        m4.compose(pos, quat, scl);
+        this.flags.setMatrixAt(sp.flag, m4);
+      }
     });
+    this.flags.instanceMatrix.needsUpdate = true;
     this.mesh.instanceMatrix.needsUpdate = true;
   }
 
@@ -393,6 +545,9 @@ export class Crowd {
     this.mesh.geometry.dispose();
     this.mesh.dispose();
     this.material.dispose();
+    this.flags.geometry.dispose();
+    this.flags.dispose();
+    this.flagMaterial.dispose();
     this.atlas?.dispose();
     this.crews?.forEach(({ crew }) => crew.dispose());
   }
