@@ -15,6 +15,7 @@ import { rallyName } from '../cars/shared/rally-badge';
 import type { CarDef } from '../cars/shared/types';
 import { Environment } from '../engine/environment';
 import type { QualitySettings } from '../engine/quality';
+import { PostFx, postEnabled } from '../engine/post-fx';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
 import { setClockTime } from '../engine/stage-sign-textures';
 import { setTextureAnisotropy } from '../engine/textures';
@@ -162,12 +163,16 @@ export class RallyGame {
   private finishPilot?: Autopilot;
   private lastFov = 0;
   private freeDrive: boolean;
+  /** AO + bloom + grade (engine/post-fx.ts), medium / high quality; undefined = straight render. */
+  private post?: PostFx;
 
   constructor(
     private container: HTMLElement,
     readonly opts: GameOptions,
   ) {
-    this.renderer = createRenderer(container, opts.quality);
+    const post = postEnabled(opts.quality);
+    this.renderer = createRenderer(container, opts.quality, { post });
+    if (post) this.post = new PostFx(this.renderer, opts.quality.antialias);
     setTextureAnisotropy(
       Math.min(8, this.renderer.capabilities.getMaxAnisotropy()),
     );
@@ -897,7 +902,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     );
     this.telemetry.update(dt, v);
 
-    this.renderer.render(this.scene, this.camera);
+    if (this.post) this.post.render(this.scene, this.camera);
+    else this.renderer.render(this.scene, this.camera);
     this.stats.set(
       'chunk',
       `${this.terrain.chunkCount} (+${this.terrain.pending})  hf ${this.world.heightfield.cachedChunks}`,

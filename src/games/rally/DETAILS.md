@@ -86,6 +86,9 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 - **Surfaces:** bump relief on roads, rocks and terrain (off on low); grass cards use alpha-to-coverage with MSAA.
 - **Baked AO:** car GLBs carry per-vertex occlusion (`_DARK`, `scripts/car-model/bake-ao.mjs`); `cars/shared/vertex-ao.ts` dims
   ambient, sky and reflected light there (not the sun). `?ao=0` turns it off. Rocks and trees get a dark foot / per-instance hue.
+- **Post pass** (`engine/post-fx.ts`, medium / high; `?post=0` off): screen-space AO from the depth buffer at half res, bloom
+  (geometry only, not the sky), a light grade and vignette in one composite before tone mapping. No extra scene render.
+  Tune with `?postao=`, `?postbloom=`, `?postgrade=` (1 default, 0 off). MSAA moves into the scene target.
 - **Effects:** dust, gravel spray and haze (`game/dust.ts`), tyre marks (`game/tyre-marks.ts`), a contact shadow under the car,
   brake and reversing lamps (`CarModel.setBrake(level, reversing)`; a lamp's `userData.brakeLamp.reverseGlow` map lights its
   white section in gear R, in R the throttle key is the brake pedal; car viewer `lamps=brake|reverse`).

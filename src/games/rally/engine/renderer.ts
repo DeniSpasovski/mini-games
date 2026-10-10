@@ -11,9 +11,11 @@ import type { QualitySettings } from './quality';
 export function createRenderer(
   container: HTMLElement,
   quality: QualitySettings,
+  /** `post`: the scene is drawn into the post pass's own (MSAA) target, so the canvas itself needs no MSAA. */
+  opts: { post?: boolean } = {},
 ): WebGLRenderer {
   const renderer = new WebGLRenderer({
-    antialias: quality.antialias,
+    antialias: quality.antialias && !opts.post,
     powerPreference: 'high-performance',
   });
   renderer.setPixelRatio(

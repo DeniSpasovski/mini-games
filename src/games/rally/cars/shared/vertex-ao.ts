@@ -9,7 +9,7 @@ import type { Material, Mesh, MeshStandardMaterial, Object3D } from 'three';
 export const VERTEX_AO_ATTRIBUTE = '_dark';
 
 /** How strongly the baked value dims the light, and the darkest it may get. */
-const GAIN = 1.4;
+const GAIN = 2.0;
 const FLOOR = 0.12;
 
 const enabled = () =>
