@@ -117,7 +117,17 @@ export const ajvatovciMap: MapDef = {
       ],
     },
   },
-  paths: data.paths as PathDef[],
+  paths: [
+    ...(data.paths as PathDef[]),
+    // The road behind the start line: links the stage road to the A2 slip-road junction (the baked route starts at the line).
+    {
+      kind: 'tertiary',
+      width: 7,
+      surface: 'tarmac',
+      junction: false,
+      pts: [-1582, 414, -1560, 419, -1537, 425.5, -1513, 432.2, -1501.8, 436.3],
+    },
+  ],
   road: {
     width: 6,
     shoulder: 1.1,
