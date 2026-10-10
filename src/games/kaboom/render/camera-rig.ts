@@ -36,10 +36,10 @@ export class CameraRig {
   private arenaH = 0;
 
   /** Frame the whole `cols x rows` slab (centred on the origin) for the camera's current aspect. */
-  fitArena(cols: number, rows: number, margin = 1.06): void {
+  fitArena(cols: number, rows: number, margin = 1.06, pad = SLAB_PAD): void {
     this.following = false;
     this.target.set(0, 0, 0);
-    this.distance = fitDistance(this.camera, this.dir, cols, rows, margin);
+    this.distance = fitDistance(this.camera, this.dir, cols, rows, margin, pad);
     this.update();
   }
 

@@ -4,6 +4,7 @@ import { MAX_PLAYERS, MAX_TNT } from '../sim/rules';
 import type { KaboomSim, SimEvent } from '../sim/types';
 import { Arena } from './arena';
 import { CameraRig, SLAB_PAD } from './camera-rig';
+import { treadMidD, TIERS } from './bowl';
 import { Crowd } from './crowd';
 import { Crew } from './characters';
 import { Fx } from './fx/fx';
@@ -109,7 +110,14 @@ export class WorldView {
   fit(): void {
     this.snapCamera = true;
     if (this.followCamera) this.rig.fitView(this.sim.map.w, this.sim.map.h);
-    else this.rig.fitArena(this.sim.map.w, this.sim.map.h);
+    // behind the menu (attract): pull back so the stands show too, not just the floor
+    else
+      this.rig.fitArena(
+        this.sim.map.w,
+        this.sim.map.h,
+        1.02,
+        SLAB_PAD + treadMidD(TIERS - 1) + 0.8,
+      );
   }
 
   /** The sim started a new round (new map): rebuild the arena, clean the crew and FX. */

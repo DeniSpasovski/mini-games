@@ -453,6 +453,7 @@ export class KaboomGame {
     if (this.mode === 'match' && this.phase !== 'loading') this.updateHud(sim);
     if (draw) {
       if (view.takeShadowUpdate()) this.renderer.shadowMap.needsUpdate = true;
+      view.crowd.prepare(this.renderer); // sprite tiles for new shirt colours (the menu's bot match too)
       this.renderer.render(view.scene, this.rig.camera);
     }
   }

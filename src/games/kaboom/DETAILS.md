@@ -124,7 +124,8 @@ Perspective, FOV 30 deg, pitch 58 deg, fixed yaw (looking north, grid +y = scree
 about 14 x 11 cells (9 x 12 in portrait) that `followTo` moves with the human; **full** is the framing below.
 In full, `CameraRig.fitView` frames the whole slab (bisecting the distance on the real projection of its corners) for Small and
 Medium arenas on a landscape screen; for Large arenas and portrait phones it frames a window of about 14 x 11 cells (9 x 13 in
-portrait) that `followTo` moves with the human, clamped at the slab edge. `Shake` (one capped trauma accumulator) is added on top.
+portrait) that `followTo` moves with the human, clamped at the slab edge. The bot match behind the home menu pulls back
+further (`WorldView.fit`) so the whole crowd shows. `Shake` (one capped trauma accumulator) is added on top.
 
 ## Game flow (`game/kaboom-game.ts`)
 
