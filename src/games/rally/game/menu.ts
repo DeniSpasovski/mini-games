@@ -63,6 +63,7 @@ import {
   type NavAction,
   type NavDir,
 } from '../../../shared/pad-nav';
+import { MenuMusic, MUSIC_CREDITS } from './menu-music';
 import { MenuTick } from '../../../shared/menu-tick';
 import {
   loadSettings,
@@ -197,6 +198,7 @@ class MainMenu {
    * right change the choice.
    */
   private setupRow = 0;
+  private music: MenuMusic;
   private onKey = (e: KeyboardEvent) => this.key(e);
   private pad = new GamepadMenuNav((a) => this.nav(a));
   private tick = new MenuTick(760, 'triangle', () => this.settings.volume);
@@ -224,6 +226,7 @@ class MainMenu {
       <div class="menu-panel"></div>
       <div class="menu-version">v${VERSION}</div>`;
     container.append(this.root);
+    this.music = new MenuMusic(this.root, this.settings.musicVolume);
     this.panel = this.root.querySelector('.menu-panel')!;
     const bg = this.root.querySelector<HTMLElement>('.menu-bg')!;
     // The 3D subject (car / stage) is centred in the screen area right of the panel.
@@ -348,10 +351,13 @@ class MainMenu {
         buildOptions({
           tractionControl: !this.car.physics.noTractionControl,
           abs: !this.car.physics.noAbs,
+          menuMusic: true,
           onBack: () => this.show('welcome'),
-          // Car number -> door plates on the showroom car.
-          onChange: () =>
-            this.showroom.setCar(this.car.id, this.livery, this.badge),
+          // Car number -> door plates on the showroom car; the music volume applies live.
+          onChange: (s) => {
+            this.music.setVolume(s.musicVolume);
+            this.showroom.setCar(this.car.id, this.livery, this.badge);
+          },
         }),
       );
     if (screen === 'about') this.about();
@@ -416,6 +422,8 @@ class MainMenu {
       forests, props, cars and liveries - and real-world stages baked from open map data.</p>
       <p class="menu-keys"><b>W/S</b> throttle / brake · <b>A/D</b> steer · <b>Space</b> handbrake ·
       <b>R</b> reset · <b>C</b> camera · <b>Esc</b> pause</p>
+      <h2>Built with</h2>
+      ${links(BUILT_WITH, '')}
       <h2>Maps</h2>
       ${MAPS.map((m) => `<h3>${m.name}</h3>${links(m.sources, 'Fully procedural - no external data.')}`).join('')}
       <h2>Cars</h2>
@@ -427,8 +435,7 @@ class MainMenu {
       <p>Each wheel has a spring, a damper that is firmer on rebound than on bump, an anti-roll bar and a progressive
       bump stop, with Soft / Medium / Stiff set-ups per car.</p>
       ${links(SUSPENSION_RESEARCH, '')}
-      <h2>Built with</h2>
-      ${links(BUILT_WITH, '')}`;
+      ${MUSIC_CREDITS.length ? `<h2>Music</h2>${links(MUSIC_CREDITS, '')}` : ''}`;
     this.panel.append(
       header('About'),
       body,
@@ -838,6 +845,7 @@ class MainMenu {
   dispose(): void {
     window.removeEventListener('keydown', this.onKey);
     this.pad.dispose();
+    this.music.dispose();
     this.showroom.dispose();
     this.root.remove();
   }
@@ -853,6 +861,8 @@ export function buildOptions(opts: {
   tractionControl?: boolean;
   /** false = the selected car has no ABS: the option is hidden. */
   abs?: boolean;
+  /** true = show the menu music slider (main menu only, the race has no music). */
+  menuMusic?: boolean;
   onBack: () => void;
   onChange?: (s: RallySettings) => void;
   onQuality?: (q: QualityName) => void;
@@ -935,6 +945,17 @@ export function buildOptions(opts: {
   vol.value = String(Math.round(s.volume * 100));
   vol.addEventListener('input', () => set({ volume: Number(vol.value) / 100 }));
   row('Volume', vol, 'M mutes in game');
+  if (opts.menuMusic) {
+    const music = document.createElement('input');
+    music.type = 'range';
+    music.min = '0';
+    music.max = '100';
+    music.value = String(Math.round(s.musicVolume * 100));
+    music.addEventListener('input', () =>
+      set({ musicVolume: Number(music.value) / 100 }),
+    );
+    row('Menu music', music, 'main menu only · 0 = off');
+  }
   row(
     'Gearbox',
     choice(
