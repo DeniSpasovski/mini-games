@@ -252,7 +252,6 @@ export class Showroom {
       seed: livery,
       badge,
       tyre: this.tyre,
-      placeholder: true,
     });
     // Root = centre of mass; wheels at the set-up's static ride height (a new car starts on its set-up, no easing).
     this.ride = this.rideTarget;
