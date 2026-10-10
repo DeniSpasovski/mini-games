@@ -3,6 +3,7 @@ import { Vector3 } from 'three';
 import { ALL_CARS } from '../../src/games/rally/cars';
 import { tyreColor } from '../../src/games/rally/game/tyre-gauge';
 import { ajvatovciMap } from '../../src/games/rally/maps/ajvatovci/map';
+import { jackieMap } from '../../src/games/rally/maps/jackie/map';
 import { petralicaMap } from '../../src/games/rally/maps/petralica/map';
 import { stageClimate } from '../../src/games/rally/maps/shared/climate';
 import {
@@ -139,12 +140,13 @@ describe('climate', () => {
     expect(t('gravel')).toBeGreaterThan(t('grass'));
   });
 
-  test('a summer afternoon is hotter than a spring morning', () => {
-    const hot = stageClimate(petralicaMap.environment);
-    const cool = stageClimate(ajvatovciMap.environment);
+  test('a hot clear morning heats the road far more than a dusk evening (the low sun adds nothing)', () => {
+    const hot = stageClimate(ajvatovciMap.environment);
+    const dusk = stageClimate(jackieMap.environment);
     expect(trackTemp(hot, SURFACES.tarmac)).toBeGreaterThan(
-      trackTemp(cool, SURFACES.tarmac) + 10,
+      trackTemp(dusk, SURFACES.tarmac) + 10,
     );
+    expect(trackTemp(dusk, SURFACES.tarmac)).toBeLessThan(dusk.air + 3);
   });
 });
 

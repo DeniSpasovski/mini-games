@@ -135,7 +135,7 @@ heat slower (`heat`), lose less grip with load (`loadSens`) and run in a warmer 
 
 **Soft vs hard** is a temperature trade, not a grip lottery: at its ideal temperature the soft compound grips as much or more
 on every surface; the hard one keeps its grip when the soft one overheats and wants a hotter tyre to work. The stages are
-mild to hot (Jackie 17 °C, test 20, Petralica 28, Ajvatovci 30 on a clear morning), and the soft tyres still peak inside their
+mild to hot (test 20 °C, Jackie 24 at dusk, Petralica 24, Ajvatovci 30 on a clear morning), and the soft tyres still peak inside their
 windows (the Skoda on Ajvatovci peaks at ~88 °C against a 100 °C limit), so the soft compound is the recommended one
 everywhere and a hard one is a slightly slower pick (Gravel Hard is level with Soft on Petralica). Hard compounds only win
 on a stage hotter or harder on the tyres than these (open work). The wrong **family** is still the big penalty: tarmac tyres on gravel +10-25 % stage time, gravel tyres on
@@ -331,7 +331,7 @@ Cold tyres grip less, tyres overheated by sliding grip less, in between they are
 (`WheelState.temp`), only with a climate (`Vehicle.setClimate`; the game sets it from the map, `null` = off, so tool
 pages and the reference tests above are unchanged).
 
-- **Climate:** `EnvironmentDef.airTemp` (°C, default 20; Ajvatovci 30, Jackie 17, test 20, Petralica 28, `?air=` to try)
+- **Climate:** `EnvironmentDef.airTemp` (°C, default 20; Ajvatovci 30, Jackie 24, test 20, Petralica 24, `?air=` to try)
   and the sun (`stageClimate`: sun height after `?tod=`, `cloudCoverage`, default 0.4; Ajvatovci 0.1). Track temperature = air + sun x `SurfaceDef.heat`
   (tarmac 1 ... grass 0.3, snow 0).
 - **Heat:** sliding work (`|F| x slide speed / static load`, the stones take 60 % of it on loose ground) + carcass flex
@@ -466,8 +466,8 @@ tarmac hard / mixed / gravel hard / gravel soft, recommended in bold:
 | Map (recommended)    | Careful driver                            | Limit driver (`useExtraGrip`)             |
 | -------------------- | ----------------------------------------- | ----------------------------------------- |
 | `test` (gravel)      | 84.3 / 87.5 / 70.7 / 68.2 / **68.1**      | 84.3 / 87.5 / 70.7 / 67.6 / **67.1**      |
-| `petralica` (gravel) | 461.9 / 469.3 / 414.6 / 406.5 / **406.2** | 439.1 / 447.1 / 397.1 / **394.2** / 395.5 |
-| `jackie` (tarmac)    | **201.6** / 201.7 / 201.8 / 202.2 / 202.2 | **188.8** / 189.0 / 191.4 / 198.3 / 199.9 |
+| `petralica` (gravel) | 462.9 / 472.7 / 414.7 / 406.6 / **406.2** | 440.1 / 450.8 / 397.3 / **394.6** / 395.6 |
+| `jackie` (tarmac)    | **201.6** / 201.7 / 201.8 / 202.2 / 202.2 | **188.8** / 189.0 / 191.3 / 198.1 / 199.9 |
 | `ajvatovci` (mixed)  | 161.4 / 161.8 / **160.4** / 160.7 / 160.6 | 155.5 / 157.2 / **150.8** / 157.9 / 157.7 |
 
 Every car, careful driver, recommended pick / worst pick (`car-matrix.test.ts`, 2026-10-09; worst = tarmac tyres on a gravel
@@ -484,7 +484,7 @@ Reading it: the recommended tyre is the fastest (or within 0.5 %) with the limit
 gravel costs the most (tarmac tyres +26 % on the test map, +11 % on Petralica; a hard tarmac tyre is worse still). On tarmac
 the careful driver can't show the gain - it never corners above the gravel baseline and is capped at 151 km/h, so every tyre
 ties within 0.5 % - the limit driver does (gravel tyres +6 % on Jackie, Mixed ahead by 3-5 % on Ajvatovci). A hard compound
-never beats the soft one by more than 0.3 % (Petralica): the four stages run at 17-30 °C, so the soft tyre stays inside its
+never beats the soft one by more than 0.3 % (Petralica): the four stages run at 20-30 °C, so the soft tyre stays inside its
 window and the hard one only gives up peak grip. Car character: the AWD rally cars lead on gravel; the M3 (road tyres, 1,680 kg) is
 ~3 % behind them on gravel and mixed and level on Jackie; the GT2 (slicks) beats the Skoda on tarmac and mixed but is 2-3 %
 behind on gravel; Zastava is slowest everywhere (power and old road tyres). Rank checks: `car-matrix.test.ts`.
