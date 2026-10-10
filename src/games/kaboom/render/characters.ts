@@ -351,6 +351,11 @@ export class Crew {
     return (m.hatY + 0.19 * m.hatScale) * CRITTER_SCALE;
   }
 
+  /** Show or hide the shared hard hats (the crowd's sprites are drawn without them). */
+  setHatsVisible(on: boolean): void {
+    this.hats.visible = on;
+  }
+
   /** Mark player `id` (the human) with a bobbing arrow in their team colour; -1 removes it. */
   setYou(id: number): void {
     this.youId = id;

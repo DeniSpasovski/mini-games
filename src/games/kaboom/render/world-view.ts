@@ -84,6 +84,7 @@ export class WorldView {
     this.items = new ItemRenderer(w, h);
     this.fx = new Fx(w, h, opts.wordAtlas);
     this.crowd = new Crowd(w, h, SLAB_PAD, quality);
+    this.crowd.setPlayers(sim.players);
     this.buildArena();
     this.root.add(
       this.crowd.group,
@@ -202,6 +203,7 @@ export class WorldView {
   }
 
   render(renderer: WebGLRenderer, scene: Scene = this.scene): void {
+    this.crowd.prepare(renderer);
     if (this.takeShadowUpdate()) renderer.shadowMap.needsUpdate = true;
     renderer.render(scene, this.rig.camera);
   }
@@ -214,6 +216,7 @@ export class WorldView {
     renderer: WebGLRenderer,
     scene: Scene = this.scene,
   ): Promise<void> {
+    this.crowd.prepare(renderer, true);
     await renderer.compileAsync(scene, this.rig.camera);
     this.shadowAge = SHADOW_REDRAW_S; // the first shadow draw belongs here, not to the first frame of play
     this.fx.prime();

@@ -1,184 +1,101 @@
 import {
-  BufferGeometry,
-  Float32BufferAttribute,
+  AmbientLight,
+  Color,
+  DirectionalLight,
   Group,
+  HemisphereLight,
   InstancedBufferAttribute,
   InstancedMesh,
-  MeshLambertMaterial,
+  LinearFilter,
+  LinearMipmapLinearFilter,
   Matrix4,
+  PerspectiveCamera,
+  PlaneGeometry,
   Quaternion,
+  Scene,
+  ShaderMaterial,
+  SRGBColorSpace,
   Vector3,
+  WebGLRenderTarget,
+  type WebGLRenderer,
 } from 'three';
 import { hash3, Rng } from '../../../shared/rng';
-import { CRITTERS, type CritterId, type PlayerView } from '../sim/types';
+import { CRITTERS, type PlayerView } from '../sim/types';
 import { treadHeight, treadMidD, TIERS, warpedRing } from './bowl';
-import { CRITTER_SCALE, TEAM_COLORS } from './characters';
-import { buildCritter, VEST_R, VEST_CY, type VestFit } from './critters';
+import { CAM_PITCH_DEG } from './camera-rig';
+import { Crew, TEAM_COLORS } from './characters';
+import { FUR_SHELLS } from './fur';
 import type { Quality } from './renderer';
-import { Color } from 'three';
+import { Player } from '../sim/state';
 
 /**
- * The spectators in the stands (DETAILS.md "Style"): the same eight animals as the crew, redrawn with a few hundred
- * triangles each (vertex clustering of the crew model, flat shaded) and wearing a shirt in a team colour. Shirts only come
- * in the colours of the players in the match (`setPlayers`). One InstancedMesh per animal, no fur, no hats; the crowd is
- * still until something explodes, then it jumps for a moment (`excite`).
+ * The spectators in the stands (DETAILS.md "Style"): the same eight animals as the crew, drawn as SPRITES. The camera never
+ * turns, so each animal is rendered once, with the game's own crew renderer (fur, face, vest, no hard hat), from the game
+ * camera's pitch into an atlas: 8 animals x 4 facings x 8 team colours. A spectator is then one instanced billboard that
+ * picks its tile: a few hundred spectators cost one draw call and a handful of vertices each, and look as good as the crew.
+ * Tiles are drawn on demand (`prepare`): only the colours of the players in the match, and a new colour later costs 32 tiles.
+ * Shirts only come in colours that are on screen (`setPlayers`). The crowd is still until something blows up, then it jumps.
  */
 
-/** Cluster size of the decimation, critter units: bigger = fewer triangles. */
-/** Height of every spectator before the instance scale (critter units, the crew is 0.75-1.05). */
-const SEAT_HEIGHT = 0.9;
-const CELL = 0.19;
+/** World size of a sprite (square) at scale 1, and the height its look-at point sits above the animal's feet. */
+const SPRITE = 1.5;
+const SPRITE_MID = 0.45;
+const FACINGS = 4;
+const COLORS = TEAM_COLORS.length;
+const SLOTS = CRITTERS.length * FACINGS * COLORS;
+/** Tile size in pixels and atlas size, per quality. */
+const TILE_PX = { high: 112, low: 72 } as const;
+/** Crew facing angle (grid radians) of the four sprite facings: toward the camera, right, away, left. */
+const FACING_ANGLE = [Math.PI / 2, 0, -Math.PI / 2, Math.PI] as const;
+const FOV = 6;
 
-interface LowPoly {
-  position: Float32Array;
-  color: Float32Array;
-  normal: Float32Array;
-  /** 1 on the vertices of the shirt (torso and sleeves), 0 elsewhere. */
-  shirt: Float32Array;
-}
-
-const lowPolyCache = new Map<CritterId, LowPoly>();
-
-/** The crew model redrawn in few triangles: vertices snapped to a grid of `cell`, merged, collapsed triangles dropped. */
-function decimate(src: BufferGeometry, cell: number, fit: VestFit): LowPoly {
-  const pos = src.getAttribute('position');
-  const col = src.getAttribute('color');
-  const ids = new Map<number, number>();
-  const sum: number[] = []; // x y z r g b n per cluster
-  const cluster = new Int32Array(pos.count);
-  for (let i = 0; i < pos.count; i++) {
-    const kx = Math.round(pos.getX(i) / cell) + 64;
-    const ky = Math.round(pos.getY(i) / cell) + 64;
-    const kz = Math.round(pos.getZ(i) / cell) + 64;
-    const key = (kx * 256 + ky) * 256 + kz;
-    let id = ids.get(key);
-    if (id === undefined) {
-      id = sum.length / 7;
-      ids.set(key, id);
-      sum.push(0, 0, 0, 0, 0, 0, 0);
-    }
-    const o = id * 7;
-    sum[o] += pos.getX(i);
-    sum[o + 1] += pos.getY(i);
-    sum[o + 2] += pos.getZ(i);
-    sum[o + 3] += col.getX(i);
-    sum[o + 4] += col.getY(i);
-    sum[o + 5] += col.getZ(i);
-    sum[o + 6]++;
-    cluster[i] = id;
-  }
-  const count = sum.length / 7;
-  const cx = new Float32Array(count * 3);
-  const cc = new Float32Array(count * 3);
-  const cs = new Float32Array(count);
-  for (let k = 0; k < count; k++) {
-    const n = sum[k * 7 + 6];
-    for (let a = 0; a < 3; a++) {
-      cx[k * 3 + a] = sum[k * 7 + a] / n;
-      cc[k * 3 + a] = sum[k * 7 + 3 + a] / n;
-    }
-    const x = cx[k * 3];
-    const y = cx[k * 3 + 1];
-    const z = cx[k * 3 + 2];
-    // inside the vest's shell and between its hem and shoulders: shirt (the vest fit moves/scales the shared vest)
-    const xc = x / fit.sx;
-    const zc = z / fit.sz;
-    const yc = (y - fit.cy) / fit.sy + VEST_CY;
-    cs[k] =
-      Math.hypot(xc, zc) < VEST_R + 0.04 && yc > 0.17 && yc < 0.62 ? 1 : 0;
-  }
-  // every animal the same height in the stands, whatever its build
-  let top = 0;
-  for (let k = 0; k < count; k++) top = Math.max(top, cx[k * 3 + 1]);
-  for (let k = 0; k < count * 3; k++) cx[k] *= SEAT_HEIGHT / top;
-  const p: number[] = [];
-  const c: number[] = [];
-  const s: number[] = [];
-  for (let t = 0; t < pos.count; t += 3) {
-    const a = cluster[t];
-    const b = cluster[t + 1];
-    const d = cluster[t + 2];
-    if (a === b || b === d || a === d) continue;
-    for (const k of [a, b, d]) {
-      p.push(cx[k * 3], cx[k * 3 + 1], cx[k * 3 + 2]);
-      c.push(cc[k * 3], cc[k * 3 + 1], cc[k * 3 + 2]);
-      s.push(cs[k]);
-    }
-  }
-  const g = new BufferGeometry();
-  g.setAttribute('position', new Float32BufferAttribute(p, 3));
-  g.computeVertexNormals(); // non-indexed: one normal per face = flat shading
-  return {
-    position: new Float32Array(p),
-    color: new Float32Array(c),
-    normal: new Float32Array(g.getAttribute('normal').array),
-    shirt: new Float32Array(s),
-  };
-}
-
-function lowPoly(id: CritterId): LowPoly {
-  let lp = lowPolyCache.get(id);
-  if (!lp) {
-    const m = buildCritter(id);
-    lp = decimate(m.geometry, CELL, m.vest);
-    m.geometry.dispose();
-    m.furGeometry.dispose();
-    lowPolyCache.set(id, lp);
-  }
-  return lp;
-}
-
-/** Lambert + vertex colours; on the shirt vertices the colour comes from the instance (`aShirtCol`). */
-function shirtMaterial(): MeshLambertMaterial {
-  const m = new MeshLambertMaterial({ vertexColors: true });
-  m.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader
-      .replace(
-        '#include <common>',
-        '#include <common>\nattribute float aShirt;\nattribute vec3 aShirtCol;',
-      )
-      .replace(
-        '#include <color_vertex>',
-        '#include <color_vertex>\nvColor.rgb = mix( vColor.rgb, aShirtCol, aShirt );',
-      );
-  };
-  m.customProgramCacheKey = () => 'kaboom-crowd-shirt';
-  return m;
-}
+const tileIndex = (species: number, facing: number, color: number): number =>
+  (species * FACINGS + facing) * COLORS + color;
 
 interface Spectator {
   species: number;
-  slot: number;
+  facing: number;
   x: number;
   y: number;
   z: number;
-  yaw: number;
   scale: number;
   phase: number;
   /** Favourite colour: a fixed draw in 0..1 that picks one of the colours on screen. */
   fav: number;
-  shade: number;
 }
 
-const UP = new Vector3(0, 1, 0);
+const AXIS_X = new Vector3(1, 0, 0);
 
 export class Crowd {
   readonly group = new Group();
-  private readonly meshes: InstancedMesh[] = [];
-  private readonly shirtAttr: InstancedBufferAttribute[] = [];
+  private readonly mesh: InstancedMesh;
+  private readonly tileAttr: InstancedBufferAttribute;
   private readonly spectators: Spectator[] = [];
-  private readonly material = shirtMaterial();
+  private readonly material: ShaderMaterial;
+  private readonly tilePx: number;
+  private readonly cols: number;
+  private atlas: WebGLRenderTarget | null = null;
+  private crews: { crew: Crew; player: Player }[] | null = null;
+  private readonly rendered = new Set<number>();
+  private readonly wanted: number[] = [];
   private excitement = 0;
   private colorMask = -1;
   private atRest = false;
+  private readonly quat = new Quaternion().setFromAxisAngle(
+    AXIS_X,
+    -(CAM_PITCH_DEG * Math.PI) / 180,
+  );
   private readonly m4 = new Matrix4();
-  private readonly quat = new Quaternion();
   private readonly pos = new Vector3();
   private readonly scl = new Vector3();
-  private readonly tint = new Color();
 
   /** Spectators seat themselves round a floor of `w x h` cells grown by `pad`. */
-  constructor(w: number, h: number, pad: number, quality: Quality) {
+  constructor(
+    w: number,
+    h: number,
+    pad: number,
+    private readonly quality: Quality,
+  ) {
     const hx = w / 2 + pad;
     const hz = h / 2 + pad;
     const low = quality.name === 'low';
@@ -186,7 +103,8 @@ export class Crowd {
     const spacing = low ? 1.3 : 1.0;
     const fill = [0.94, 0.9, 0.82, 0.72];
     const rng = new Rng(hash3(w, h, 0xc0de, 5));
-    const counts = new Array<number>(CRITTERS.length).fill(0);
+    this.tilePx = TILE_PX[quality.name];
+    this.cols = Math.floor(this.sideFor(quality) / this.tilePx);
 
     for (let t = 0; t < tiers; t++) {
       const pts = warpedRing(hx, hz, treadMidD(t));
@@ -204,7 +122,7 @@ export class Crowd {
           const k = s / len;
           let x = ax + (bx - ax) * k;
           let z = az + (bz - az) * k;
-          // look at the nearest point of the floor
+          // look at the nearest point of the floor: the facing is the screen direction it is closest to
           const fx = Math.max(-hx, Math.min(hx, x));
           const fz = Math.max(-hz, Math.min(hz, z));
           let dx = fx - x;
@@ -212,95 +130,232 @@ export class Crowd {
           const dl = Math.hypot(dx, dz) || 1;
           dx /= dl;
           dz /= dl;
-          const back = rng.range(-0.22, 0.22);
-          x -= dx * back;
-          z -= dz * back;
-          const species = rng.int(0, CRITTERS.length - 1);
+          x -= dx * rng.range(-0.22, 0.22);
+          z -= dz * rng.range(-0.22, 0.22);
+          const facing =
+            Math.abs(dz) >= Math.abs(dx) ? (dz > 0 ? 0 : 2) : dx > 0 ? 1 : 3;
           this.spectators.push({
-            species,
-            slot: counts[species]++,
+            species: rng.int(0, CRITTERS.length - 1),
+            facing,
             x,
-            y: treadHeight(t, x, z),
+            y: treadHeight(t, x, z) + 0.03,
             z,
-            yaw: Math.atan2(dx, dz) + rng.range(-0.3, 0.3),
-            scale: CRITTER_SCALE * rng.range(0.98, 1.02),
+            scale: rng.range(0.97, 1.03),
             phase: rng.range(0, 6.28),
             fav: rng.next(),
-            shade: rng.range(0.92, 1.06),
           });
         }
         carry = s - len;
       }
     }
 
-    CRITTERS.forEach((id, sp) => {
-      const lp = lowPoly(id);
-      const geo = new BufferGeometry();
-      geo.setAttribute('position', new Float32BufferAttribute(lp.position, 3));
-      geo.setAttribute('color', new Float32BufferAttribute(lp.color, 3));
-      geo.setAttribute('normal', new Float32BufferAttribute(lp.normal, 3));
-      geo.setAttribute('aShirt', new Float32BufferAttribute(lp.shirt, 1));
-      const shirt = new InstancedBufferAttribute(
-        new Float32Array(Math.max(1, counts[sp]) * 3),
-        3,
-      );
-      geo.setAttribute('aShirtCol', shirt);
-      const mesh = new InstancedMesh(
-        geo,
-        this.material,
-        Math.max(1, counts[sp]),
-      );
-      mesh.count = counts[sp];
-      mesh.frustumCulled = false;
-      this.meshes.push(mesh);
-      this.shirtAttr.push(shirt);
-      this.group.add(mesh);
-    });
+    const n = Math.max(1, this.spectators.length);
+    const geo = new PlaneGeometry(1, 1);
+    this.tileAttr = new InstancedBufferAttribute(new Float32Array(n), 1);
+    geo.setAttribute('aTile', this.tileAttr);
+    this.material = this.makeMaterial();
+    this.mesh = new InstancedMesh(geo, this.material, n);
+    this.mesh.count = this.spectators.length;
+    this.mesh.frustumCulled = false;
+    this.mesh.visible = false; // until the atlas is drawn (`prepare`)
+    this.group.add(this.mesh);
     this.place(0, 0);
+  }
+
+  /** Atlas side in pixels: the most tiles (`SLOTS`) must fit in a square, power of two not required. */
+  private sideFor(q: Quality): number {
+    const per = Math.ceil(Math.sqrt(SLOTS));
+    return per * TILE_PX[q.name];
+  }
+
+  private makeMaterial(): ShaderMaterial {
+    const side = this.cols * this.tilePx;
+    return new ShaderMaterial({
+      uniforms: {
+        uMap: { value: null },
+        uCols: { value: this.cols },
+        uCell: { value: this.tilePx / side },
+        uPad: { value: 1.5 / this.tilePx },
+      },
+      vertexShader: /* glsl */ `
+        attribute float aTile;
+        uniform float uCols;
+        uniform float uCell;
+        uniform float uPad;
+        varying vec2 vUv;
+        void main() {
+          float col = mod( aTile, uCols );
+          float row = floor( aTile / uCols );
+          vUv = ( vec2( col, row ) + mix( vec2( uPad ), vec2( 1.0 - uPad ), uv ) ) * uCell;
+          gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4( position, 1.0 );
+        }`,
+      fragmentShader: /* glsl */ `
+        uniform sampler2D uMap;
+        varying vec2 vUv;
+        void main() {
+          vec4 t = texture2D( uMap, vUv );
+          if ( t.a < 0.45 ) discard;
+          gl_FragColor = vec4( t.rgb, 1.0 );
+          #include <colorspace_fragment>
+        }`,
+    });
   }
 
   get count(): number {
     return this.spectators.length;
   }
 
-  /** Triangles drawn for the whole crowd. */
-  get triangles(): number {
-    let t = 0;
-    for (const m of this.meshes)
-      t += (m.geometry.getAttribute('position').count / 3) * m.count;
-    return t;
+  /** Draw calls for the whole crowd. */
+  get drawCalls(): number {
+    return 1;
   }
 
   /**
    * Shirts take the colours of the players in the match (benched bots do not count), so a colour only shows in the stands
-   * when it is on screen. Cheap to call every frame: it only works when the set of colours changes.
+   * when it is on screen. Cheap to call every frame: it only works when the set of colours changes. Colours whose
+   * tiles are not drawn yet queue up for `prepare`.
    */
   setPlayers(players: readonly PlayerView[]): void {
     let mask = 0;
     for (const p of players)
-      if (p.state !== 'out') mask |= 1 << (p.color % TEAM_COLORS.length);
+      if (p.state !== 'out') mask |= 1 << (p.color % COLORS);
     if (mask === this.colorMask) return;
     this.colorMask = mask;
     const palette: number[] = [];
-    TEAM_COLORS.forEach((c, i) => {
-      if (mask & (1 << i)) palette.push(c);
-    });
-    if (palette.length === 0) palette.push(...TEAM_COLORS);
-    for (const sp of this.spectators) {
-      const hex =
+    for (let i = 0; i < COLORS; i++) if (mask & (1 << i)) palette.push(i);
+    if (palette.length === 0) for (let i = 0; i < COLORS; i++) palette.push(i);
+    this.spectators.forEach((sp, k) => {
+      const color =
         palette[
           Math.min(palette.length - 1, Math.floor(sp.fav * palette.length))
         ];
-      this.tint.setHex(hex).multiplyScalar(sp.shade);
-      const a = this.shirtAttr[sp.species];
-      a.setXYZ(sp.slot, this.tint.r, this.tint.g, this.tint.b);
-    }
-    for (const a of this.shirtAttr) a.needsUpdate = true;
+      this.tileAttr.setX(k, tileIndex(sp.species, sp.facing, color));
+    });
+    this.tileAttr.needsUpdate = true;
+    for (const c of palette)
+      if (!this.rendered.has(c) && !this.wanted.includes(c))
+        this.wanted.push(c);
   }
 
-  /** The colours the shirts can take right now (for tests and the debug page). */
+  /** The colours the shirts can take right now (bit per team colour; for tests). */
   get shirtMask(): number {
     return this.colorMask;
+  }
+
+  /** Team colour index of spectator `k`'s sprite (for tests). */
+  colorOf(k: number): number {
+    return this.tileAttr.getX(k) % COLORS;
+  }
+
+  /**
+   * Draw the tiles that are wanted but missing (one colour = 32 tiles per call after the first, which draws every colour
+   * of the match so there is no pop-in); needs a WebGL renderer, so the tool pages and tests never call it. Call it before
+   * the frame is drawn; it restores the renderer's state.
+   */
+  prepare(renderer: WebGLRenderer, all = false): void {
+    if (this.wanted.length === 0) return;
+    const atlas = (this.atlas ??= this.makeAtlas());
+    const crews = (this.crews ??= this.makeCrews());
+    const prevTarget = renderer.getRenderTarget();
+    const prevClear = new Color();
+    renderer.getClearColor(prevClear);
+    const prevAlpha = renderer.getClearAlpha();
+    const prevAuto = renderer.autoClear;
+    renderer.autoClear = false;
+    renderer.setClearColor(0x000000, 0);
+
+    const scene = new Scene();
+    const sun = new DirectionalLight(0xfff0d8, 2.5);
+    sun.position.set(-0.5, 1, 0.7).normalize().multiplyScalar(40);
+    scene.add(
+      sun,
+      new HemisphereLight(0xcfe6ff, 0x9a7a55, 1.25),
+      new AmbientLight(0xffffff, 0),
+    );
+    const camera = new PerspectiveCamera(FOV, 1, 1, 60);
+    const dist = SPRITE / 2 / Math.tan((FOV * Math.PI) / 360);
+    const pitch = (CAM_PITCH_DEG * Math.PI) / 180;
+    camera.position.set(
+      0,
+      SPRITE_MID + Math.sin(pitch) * dist,
+      Math.cos(pitch) * dist,
+    );
+    camera.lookAt(0, SPRITE_MID, 0);
+    camera.updateMatrixWorld();
+
+    const colors = all ? this.wanted.splice(0) : this.firstBatch();
+    const px = this.tilePx;
+    for (const color of colors) {
+      this.rendered.add(color);
+      crews.forEach(({ crew, player }, species) => {
+        player.color = color;
+        scene.add(crew.group);
+        for (let f = 0; f < FACINGS; f++) {
+          player.facing = FACING_ANGLE[f];
+          crew.update(1, 1); // dt 1 snaps the turn
+          const tile = tileIndex(species, f, color);
+          const col = tile % this.cols;
+          const row = Math.floor(tile / this.cols);
+          atlas.viewport.set(col * px, row * px, px, px);
+          atlas.scissor.set(col * px, row * px, px, px);
+          atlas.scissorTest = true;
+          renderer.setRenderTarget(atlas);
+          renderer.clear();
+          renderer.render(scene, camera);
+        }
+        scene.remove(crew.group);
+      });
+    }
+    renderer.setRenderTarget(prevTarget);
+    renderer.setClearColor(prevClear, prevAlpha);
+    renderer.autoClear = prevAuto;
+    this.material.uniforms.uMap.value = atlas.texture;
+    this.mesh.visible = true;
+  }
+
+  /** The first call draws every colour wanted; later ones one colour at a time. */
+  private firstBatch(): number[] {
+    return this.rendered.size === 0
+      ? this.wanted.splice(0)
+      : this.wanted.splice(0, 1);
+  }
+
+  private makeAtlas(): WebGLRenderTarget {
+    const side = this.cols * this.tilePx;
+    const rt = new WebGLRenderTarget(side, side, {
+      depthBuffer: true,
+      generateMipmaps: true,
+    });
+    rt.texture.colorSpace = SRGBColorSpace;
+    rt.texture.minFilter = LinearMipmapLinearFilter;
+    rt.texture.magFilter = LinearFilter;
+    return rt;
+  }
+
+  private makeCrews(): { crew: Crew; player: Player }[] {
+    return CRITTERS.map((id) => {
+      const player = new Player(0, id, false, 0);
+      player.x = player.px = player.y = player.py = 0;
+      const crew = new Crew([player], 0, 0, {
+        shells: FUR_SHELLS[this.quality.name],
+        smooth: false,
+      });
+      crew.setHatsVisible(false);
+      return { crew, player };
+    });
+  }
+
+  /** After a lost WebGL context the atlas is empty: draw every tile again at the next `prepare`. */
+  invalidate(): void {
+    this.rendered.clear();
+    this.wanted.length = 0;
+    const mask = this.colorMask;
+    this.colorMask = -1;
+    this.atlas?.dispose();
+    this.atlas = null;
+    for (let i = 0; i < COLORS; i++)
+      if (mask & (1 << i) || mask < 0) this.wanted.push(i);
+    this.mesh.visible = false;
   }
 
   /** Something blew up: the crowd jumps (`amount` 0..1, adds up to 1). */
@@ -318,25 +373,27 @@ export class Crowd {
     this.place(t, this.excitement);
   }
 
+  /** Matrices for every sprite: a fixed billboard facing the camera, hopping when excited. */
   private place(t: number, excite: number): void {
     this.atRest = excite === 0;
     const { m4, quat, pos, scl } = this;
-    for (const sp of this.spectators) {
+    this.spectators.forEach((sp, k) => {
       const hop = excite * 0.28 * Math.abs(Math.sin(t * 9 + sp.phase));
-      quat.setFromAxisAngle(UP, sp.yaw);
-      scl.set(sp.scale, sp.scale * (1 + hop * 0.15), sp.scale);
-      pos.set(sp.x, sp.y + hop, sp.z);
+      const s = SPRITE * sp.scale;
+      scl.set(s, s, 1);
+      // the sprite's centre is its look-at point: a little above the feet, along the world up
+      pos.set(sp.x, sp.y + SPRITE_MID * sp.scale + hop, sp.z);
       m4.compose(pos, quat, scl);
-      this.meshes[sp.species].setMatrixAt(sp.slot, m4);
-    }
-    for (const m of this.meshes) m.instanceMatrix.needsUpdate = true;
+      this.mesh.setMatrixAt(k, m4);
+    });
+    this.mesh.instanceMatrix.needsUpdate = true;
   }
 
   dispose(): void {
-    for (const m of this.meshes) {
-      m.geometry.dispose();
-      m.dispose();
-    }
+    this.mesh.geometry.dispose();
+    this.mesh.dispose();
     this.material.dispose();
+    this.atlas?.dispose();
+    this.crews?.forEach(({ crew }) => crew.dispose());
   }
 }

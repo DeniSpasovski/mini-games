@@ -123,9 +123,10 @@ export class KaboomGame {
     this.renderer = createRenderer(root, this.quality);
     bindCameraAspect(this.renderer, this.rig.camera, () => this.view?.fit());
     // a restored WebGL context starts with an empty shadow map, and the arena only redraws it when a crate breaks
-    this.renderer.domElement.addEventListener('webglcontextrestored', () =>
-      this.view?.arena.markShadowDirty(),
-    );
+    this.renderer.domElement.addEventListener('webglcontextrestored', () => {
+      this.view?.arena.markShadowDirty();
+      this.view?.crowd.invalidate();
+    });
     this.portraits = new PortraitStudio(this.renderer);
     this.stats = new StatsOverlay(
       this.renderer,
