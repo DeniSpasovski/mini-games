@@ -59,8 +59,12 @@ export class CameraRig {
     this.arenaW = w;
     this.arenaH = h;
     const close = this.view === 'follow';
-    this.viewCols = Math.min(w, portrait ? (close ? 8 : 9) : close ? 13 : 14);
-    this.viewRows = Math.min(h, portrait ? (close ? 11 : 13) : close ? 10 : 11);
+    this.viewCols = Math.min(w, portrait ? 9 : 14);
+    // the close window keeps its old shape (13 x 10, 8 x 11) one column wider: the rows grow in proportion
+    this.viewRows = Math.min(
+      h,
+      portrait ? (close ? 12.4 : 13) : close ? 10.8 : 11,
+    );
     // only the ground window matters when following: no slab underside, no margin
     this.distance = fitDistance(
       this.camera,

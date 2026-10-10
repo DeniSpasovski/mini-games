@@ -74,9 +74,9 @@ test('camera view: the follow window snaps onto the player when asked, and stays
   rig.camera.updateProjectionMatrix();
   rig.fitView(17, 13);
   expect(rig.following).toBe(true);
-  rig.followTo(2, 1, 0.016, true);
-  expect(rig.target.x).toBeCloseTo(2);
-  expect(rig.target.z).toBeCloseTo(1);
+  rig.followTo(1, 0.5, 0.016, true);
+  expect(rig.target.x).toBeCloseTo(1);
+  expect(rig.target.z).toBeCloseTo(0.5);
   rig.followTo(99, 99, 0.016, true);
   expect(Math.abs(rig.target.x)).toBeLessThan(17 / 2);
   expect(Math.abs(rig.target.z)).toBeLessThan(13 / 2);

@@ -121,7 +121,7 @@ dirt mounds; decor on the slab margin: mine-cart rails with a cart, barrels, roc
 
 Perspective, FOV 30 deg, pitch 58 deg, fixed yaw (looking north, grid +y = screen down): a tilted diorama. Two views
 (`CameraRig.view`, the Camera option, `C` in a match, `?camera=follow|full`): **follow** (default) always frames a window of
-about 13 x 10 cells (8 x 11 in portrait) that `followTo` moves with the human; **full** is the framing below.
+about 14 x 11 cells (9 x 12 in portrait) that `followTo` moves with the human; **full** is the framing below.
 In full, `CameraRig.fitView` frames the whole slab (bisecting the distance on the real projection of its corners) for Small and
 Medium arenas on a landscape screen; for Large arenas and portrait phones it frames a window of about 14 x 11 cells (9 x 13 in
 portrait) that `followTo` moves with the human, clamped at the slab edge. `Shake` (one capped trauma accumulator) is added on top.
