@@ -61,10 +61,12 @@ export const ajvatovciInfo: MapInfo = {
     sunElevation: 40,
     // Afternoon sun from the south-west (azimuth from +Z towards +X; +Z = south).
     sunAzimuth: 315,
-    // Spring morning: low sun in the east (~22 deg) - the stage drives towards it up to the hill. ?tod=<hours> to try.
-    timeOfDay: 7.5,
-    // Cool spring morning.
-    airTemp: 11,
+    // Hot June morning, 09:00: sun ~41 deg up in the south-east (Skopje: ~42 deg at 09:00 CEST in mid June). ?tod=<hours> to try.
+    timeOfDay: 9,
+    // Hot dry June morning near Skopje (June normals: 14 / 29 deg low / high, 61 % humidity; a day that is 30 deg by 09:00 is a
+    // heatwave day, dry air and a clear sky). Humidity itself is not simulated: the clear sky is the part that counts.
+    airTemp: 30,
+    cloudCoverage: 0.1,
     turbidity: 6,
     rayleigh: 1.5,
     fogColor: '#c3c9cf',
