@@ -198,6 +198,36 @@ export function vestGeometry(): BufferGeometry {
   return mergeGear(parts);
 }
 
+/**
+ * Fan shirt (the crowd's sprites): a closed single-colour T-shirt with short sleeves, built on the vest's torso (`VEST_CY`
+ * 0.36, radius 0.352) so the same per-critter fit applies. No stripes, hems or straps.
+ */
+export function fanShirtGeometry(): BufferGeometry {
+  const R = 0.352;
+  const top = 0.9;
+  const bottom = 2.0;
+  const parts: BufferGeometry[] = [
+    part(
+      new SphereGeometry(R, 30, 5, 0, Math.PI * 2, top, bottom - top),
+      0xffffff,
+      { y: 0.36, sy: 1.05, sz: 0.97, tint: 0 },
+    ),
+  ];
+  // sleeves: short tapered tubes from the shoulder out and down, capped by a rounded shoulder
+  for (const s of [-1, 1]) {
+    const tilt = s * 0.95;
+    const sleeve = new CylinderGeometry(0.1, 0.125, 0.2, 14, 1, true).rotateZ(
+      tilt,
+    );
+    const cap = new SphereGeometry(0.1, 12, 8)
+      .translate(0, 0.1, 0)
+      .rotateZ(tilt);
+    for (const g of [sleeve, cap])
+      parts.push(part(g, 0xffffff, { x: s * 0.31, y: 0.46, tint: 0 }));
+  }
+  return mergeGear(parts);
+}
+
 /** One foot (instanced twice per player, coloured per critter): a rounded paw with three toes. */
 export function footGeometry(): BufferGeometry {
   const p = [

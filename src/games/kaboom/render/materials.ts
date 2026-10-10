@@ -31,7 +31,6 @@ export const PALETTE = {
   slab: [0xdab47e, 0xb98550, 0x8f7862, 0x6f5d50],
   rail: 0x6c6a68,
   lantern: 0xffd27a,
-  cloud: 0xfaf4ec,
   skyTop: '#7db4e3',
   skyMid: '#cfe5f4',
   skyLow: '#ffe8cc',

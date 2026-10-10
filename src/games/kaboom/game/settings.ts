@@ -13,6 +13,8 @@ export const DIFFICULTIES: readonly Difficulty[] = ['easy', 'normal', 'hard'];
 export const ROUND_COUNTS: readonly RoundCount[] = [1, 3, 5];
 export const QUALITIES = ['auto', 'low', 'high'] as const;
 export type QualitySetting = (typeof QUALITIES)[number];
+export const CAMERAS = ['follow', 'full'] as const;
+export type CameraSetting = (typeof CAMERAS)[number];
 
 /** What the menu remembers between visits. */
 export interface KaboomSettings {
@@ -25,6 +27,8 @@ export interface KaboomSettings {
   rounds: RoundCount;
   volume: number;
   quality: QualitySetting;
+  /** `follow` = a closer view that follows you (default), `full` = the whole arena when it fits. */
+  camera: CameraSetting;
 }
 
 export const DEFAULT_SETTINGS: KaboomSettings = {
@@ -36,6 +40,7 @@ export const DEFAULT_SETTINGS: KaboomSettings = {
   rounds: 3,
   volume: 0.7,
   quality: 'auto',
+  camera: 'follow',
 };
 
 const SETTINGS_KEY = 'kaboom.settings';
@@ -82,6 +87,7 @@ export function sanitizeSettings(raw: unknown): KaboomSettings {
         ? Math.min(1, Math.max(0, o.volume))
         : d.volume,
     quality: oneOf(o.quality, QUALITIES, d.quality),
+    camera: oneOf(o.camera, CAMERAS, d.camera),
   };
 }
 

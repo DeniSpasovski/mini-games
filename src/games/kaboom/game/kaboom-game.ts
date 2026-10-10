@@ -42,6 +42,7 @@ import {
   recordMatch,
   saveSettings,
   type KaboomSettings,
+  type CameraSetting,
   type QualitySetting,
 } from './settings';
 import { defaultStorage } from './storage';
@@ -107,6 +108,11 @@ export class KaboomGame {
 
   constructor(root: HTMLElement) {
     this.settings = loadSettings(this.store);
+    const camParam = this.params.get('camera');
+    this.rig.view =
+      camParam === 'full' || camParam === 'follow'
+        ? camParam
+        : this.settings.camera;
     const qParam = this.params.get('quality');
     const qSetting = this.settings.quality;
     const qName = isQualityName(qParam)
@@ -119,9 +125,10 @@ export class KaboomGame {
     this.renderer = createRenderer(root, this.quality);
     bindCameraAspect(this.renderer, this.rig.camera, () => this.view?.fit());
     // a restored WebGL context starts with an empty shadow map, and the arena only redraws it when a crate breaks
-    this.renderer.domElement.addEventListener('webglcontextrestored', () =>
-      this.view?.arena.markShadowDirty(),
-    );
+    this.renderer.domElement.addEventListener('webglcontextrestored', () => {
+      this.view?.arena.markShadowDirty();
+      this.view?.crowd.invalidate();
+    });
     this.portraits = new PortraitStudio(this.renderer);
     this.stats = new StatsOverlay(
       this.renderer,
@@ -133,6 +140,10 @@ export class KaboomGame {
     this.controls.onPause = () => {
       if (this.phase === 'play' && this.mode === 'match') this.pause();
       else if (this.phase === 'paused') this.resume();
+    };
+    this.controls.onCamera = () => {
+      if (this.phase === 'play' && this.mode === 'match')
+        this.setCamera(this.settings.camera === 'follow' ? 'full' : 'follow');
     };
     this.hud = new Hud(root, () => this.pause(), this.portraits.get);
     this.menu = new Menu(root, {
@@ -147,6 +158,7 @@ export class KaboomGame {
       onLineup: () => this.syncAttract(),
       onVolume: (v) => this.sfx.setVolume(v),
       onQuality: (q) => this.changeQuality(q),
+      onCamera: (c) => this.setCamera(c),
       onResume: () => this.resume(),
       onRestart: () => void this.startMatch(this.setup ?? this.currentSetup()),
       onMainMenu: () => this.toMenu(),
@@ -223,6 +235,14 @@ export class KaboomGame {
         : base.critter,
       color: base.color,
     };
+  }
+
+  /** Switch the camera view (options, or C in a match) and keep the choice. */
+  private setCamera(c: CameraSetting): void {
+    this.settings.camera = c;
+    saveSettings(this.store, this.settings);
+    this.rig.view = c;
+    this.view?.fit();
   }
 
   private changeQuality(q: QualitySetting): void {
@@ -433,6 +453,7 @@ export class KaboomGame {
     if (this.mode === 'match' && this.phase !== 'loading') this.updateHud(sim);
     if (draw) {
       if (view.takeShadowUpdate()) this.renderer.shadowMap.needsUpdate = true;
+      view.crowd.prepare(this.renderer); // sprite tiles for new shirt colours (the menu's bot match too)
       this.renderer.render(view.scene, this.rig.camera);
     }
   }

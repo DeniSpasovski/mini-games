@@ -19,9 +19,22 @@ one standing wins the round. three.js, procedural art only (no model / texture /
 
 ## Style
 
-**Look: "clay diorama".** Each arena is a stepped slab floating in a sky gradient with drifting clouds; the sides show
-sand / ochre / rock layers and stalactites. Rounded blocks, matte grain over Lambert shading, warm key light + cool fill,
-one soft static sun shadow. Deliberately different from Hole Island's sharp blocky toys.
+**Look: "clay diorama".** Each arena sits on the floor of a rocky bowl, a gladiator arena: a low wall, four sandstone
+terraces for the crowd, then a cliff up to a flat rim with boulders (`render/bowl.ts`: rings are the floor grown by an
+offset, bent by slow noise and carved by finer noise (crumbling step edges, lumpy treads, a rough cliff) so it reads as 3D rock, one tile of sand margin round the battle zone). Rounded blocks, matte grain over Lambert shading, warm key light + cool
+fill, one soft static sun shadow. Deliberately different from Hole Island's sharp blocky toys.
+
+**Crowd** (`render/crowd.ts`): about 250-400 spectators on the terraces, the same eight animals as the crew, drawn as
+**sprites**. The camera never turns, so each animal is rendered once with the crew renderer (fur, face, a plain sleeved fan shirt from `fanShirtGeometry`, no hard hat)
+from the game camera's pitch into an atlas (8 animals x 4 facings x 8 team colours, 112 px tiles, 72 on low), and a
+spectator is one instanced billboard picking its tile: the sprites are one draw call. Tiles are drawn on demand
+(`prepare`, from `WorldView.warmUp` / `render`): every colour of the match at load, a new colour later (the colour
+picker) one colour = 32 tiles per frame. Shirts only come in the colours of the players in the match (benched
+bots do not count): `setPlayers` re-deals them when that set changes. Fans sit in blocks of 3-8 neighbours on one terrace
+that share a colour; about half the blocks wave flags (second instanced mesh, one shader draws arm, pole and flag in the
+shirt colour, moving with the game clock). Never frozen: everyone breathes and sways, each block cheers on its own slow rhythm (jumping in step), a stadium wave
+runs round every terrace every ~34 s, and a blast or a KO makes everyone jump (`excite`, decays in about a second); all
+of it is a pure function of the clock in `Crowd.place`. Low quality drops the top terrace and thins the rest.
 
 **Blasts** (`render/fx/`): soft camera-facing fire puffs from one generated noise flipbook (`fx/puff-atlas.ts`) that grow,
 swirl, rise and cool from white-hot to deep red, overlapping into a roaring jet along each arm (`fx/flames.ts`); a white
@@ -61,8 +74,7 @@ hazard-stripe borders showing **3 -> 2 -> 1** (digit atlas, picked per instance 
 A comic **KABOOOM!** / **BOOM!** / **KA-POW!** word pops over blasts (throttled).
 
 **Readability**: slate-blue pillars, grey-brown boulders, warm wood crates and brown dirt mounds are four distinct
-families; critters are drawn 14 % bigger than their hitbox; a bobbing arrow in the team colour marks the human; self-lit
-clouds.
+families; critters are drawn 14 % bigger than their hitbox; a bobbing arrow in the team colour marks the human.
 
 **Map 1: Quarry.** Sandstone tiles; hard blocks = granite boulders / timber-propped pillars; breakables = wooden crates and
 dirt mounds; decor on the slab margin: mine-cart rails with a cart, barrels, rocks, lantern posts.
@@ -107,10 +119,13 @@ dirt mounds; decor on the slab margin: mine-cart rails with a cart, barrels, roc
 
 ## Camera
 
-Perspective, FOV 30 deg, pitch 58 deg, fixed yaw (looking north, grid +y = screen down): a tilted diorama.
-`CameraRig.fitView` frames the whole slab (bisecting the distance on the real projection of its corners) for Small and
+Perspective, FOV 30 deg, pitch 58 deg, fixed yaw (looking north, grid +y = screen down): a tilted diorama. Two views
+(`CameraRig.view`, the Camera option, `C` in a match, `?camera=follow|full`): **follow** (default) always frames a window of
+about 14 x 11 cells (9 x 12 in portrait) that `followTo` moves with the human; **full** is the framing below.
+In full, `CameraRig.fitView` frames the whole slab (bisecting the distance on the real projection of its corners) for Small and
 Medium arenas on a landscape screen; for Large arenas and portrait phones it frames a window of about 14 x 11 cells (9 x 13 in
-portrait) that `followTo` moves with the human, clamped at the slab edge. `Shake` (one capped trauma accumulator) is added on top.
+portrait) that `followTo` moves with the human, clamped at the slab edge. The bot match behind the home menu pulls back
+further (`WorldView.fit`) so the whole crowd shows. `Shake` (one capped trauma accumulator) is added on top.
 
 ## Game flow (`game/kaboom-game.ts`)
 
@@ -134,7 +149,7 @@ the background. While the human is out and the round is still on, the sim runs a
   (`kaboom.settings`, `kaboom.stats`), every access in try / catch with an in-memory fallback.
 - **Analytics**: `level_start` / `level_end` (see the root `DETAILS.md`); none for autopilot (`bot=1`) or fixed-seed (`seed=`) runs.
 - **URL params** (play): any of `play=1`, `size=s|m|l`, `bots=1-7`, `difficulty=easy|normal|hard`, `rounds=1|3|5`, `critter=<id>`
-  skips the menu; also `seed=<n>`, `bot=1` (autopilot), `debug=1` (stats), `quality=low|high`, `mute=1`.
+  skips the menu; also `seed=<n>`, `bot=1` (autopilot), `debug=1` (stats), `quality=low|high`, `camera=follow|full`, `mute=1`.
 
 ## Bots (`sim/bot.ts`)
 
@@ -168,7 +183,7 @@ What usually kills FPS in these games, and our rule for each:
 | Chain resolved in one frame           | The sim spreads a chain over the 0.08 s chain delay; blasts only set fuses, never explode each other inside one tick.                                                                                                      |
 | Block removal rebuilding geometry     | One InstancedMesh per crate variant; removal swaps with the last instance and shrinks `count`.                                                                                                                             |
 | Hitch at a round change               | A new round builds a new `Arena`, but its merged geometry, the grain texture and the sun (with its 2048 shadow map) are shared module-level, so it costs well under a millisecond.                                         |
-| Draw calls                            | Arena ~11, crew bodies + fur + 3 shared (hats / vests / feet) + the you-arrow, TNT 3, blob shadows 1, FX 10 (budget below).                                                                                                |
+| Draw calls                            | Arena ~11, crowd 2 (sprites + flags), crew bodies + fur + 3 shared (hats / vests / feet) + the you-arrow, TNT 3, blob shadows 1, FX 10 (budget below).                                                                     |
 | Garbage collection                    | Sim state in preallocated typed arrays; events are pooled objects in a reused array; render code allocates nothing per frame.                                                                                              |
 | Audio                                 | Max 4 blast voices; blasts within 50 ms merge; procedural WebAudio.                                                                                                                                                        |
 
@@ -188,7 +203,7 @@ src/games/kaboom/
   sim/     types.ts rules.ts grid.ts (the contract)  state.ts movement.ts blast.ts sim.ts danger.ts bot.ts powerups.ts
   map/     sizes.ts blank.ts generate.ts spawns.ts safety.ts styles.ts
   render/  renderer.ts camera-rig.ts materials.ts parts.ts arena.ts critters.ts fur.ts crew-parts.ts characters.ts tnt.ts
-           shadows.ts portraits.ts critter-preview.ts items.ts world-view.ts
+           bowl.ts crowd.ts shadows.ts portraits.ts critter-preview.ts items.ts world-view.ts
            fx/ glow-grid.ts puff-atlas.ts particles.ts flames.ts word-burst.ts shake.ts fx.ts
   game/    kaboom-game.ts menu.ts hud.ts icons.ts input.ts input-map.ts audio.ts settings.ts storage.ts dom.ts ios.ts
            kaboom.css

@@ -5,7 +5,7 @@ export const CAM_FOV = 30;
 export const CAM_PITCH_DEG = 58;
 
 /** What must stay on screen: the slab (half-extent padding, depth under the floor) and the tallest thing on it. */
-export const SLAB_PAD = 0.9;
+export const SLAB_PAD = 1.9;
 export const SLAB_DEPTH = 1.8;
 export const TOP_HEIGHT = 1.6;
 
@@ -14,7 +14,11 @@ export const FOLLOW_ABOVE_CELLS = 17 * 13;
 const DIST_MIN = 6;
 const DIST_MAX = 160;
 
+/** `follow`: a close window that follows the player on every arena. `full`: the whole slab when it fits (else the wide window). */
+export type CameraView = 'follow' | 'full';
+
 export class CameraRig {
+  view: CameraView = 'follow';
   readonly camera = new PerspectiveCamera(CAM_FOV, 1, 0.5, 400);
   readonly target = new Vector3();
   distance = 30;
@@ -32,10 +36,10 @@ export class CameraRig {
   private arenaH = 0;
 
   /** Frame the whole `cols x rows` slab (centred on the origin) for the camera's current aspect. */
-  fitArena(cols: number, rows: number, margin = 1.06): void {
+  fitArena(cols: number, rows: number, margin = 1.06, pad = SLAB_PAD): void {
     this.following = false;
     this.target.set(0, 0, 0);
-    this.distance = fitDistance(this.camera, this.dir, cols, rows, margin);
+    this.distance = fitDistance(this.camera, this.dir, cols, rows, margin, pad);
     this.update();
   }
 
@@ -46,7 +50,7 @@ export class CameraRig {
    */
   fitView(w: number, h: number): void {
     const aspect = this.camera.aspect;
-    if (aspect >= 1 && w * h <= FOLLOW_ABOVE_CELLS) {
+    if (this.view === 'full' && aspect >= 1 && w * h <= FOLLOW_ABOVE_CELLS) {
       this.fitArena(w, h);
       return;
     }
@@ -54,8 +58,13 @@ export class CameraRig {
     this.following = true;
     this.arenaW = w;
     this.arenaH = h;
+    const close = this.view === 'follow';
     this.viewCols = Math.min(w, portrait ? 9 : 14);
-    this.viewRows = Math.min(h, portrait ? 13 : 11);
+    // the close window keeps its old shape (13 x 10, 8 x 11) one column wider: the rows grow in proportion
+    this.viewRows = Math.min(
+      h,
+      portrait ? (close ? 12.4 : 13) : close ? 10.8 : 11,
+    );
     // only the ground window matters when following: no slab underside, no margin
     this.distance = fitDistance(
       this.camera,
@@ -70,13 +79,13 @@ export class CameraRig {
   }
 
   /** Move the followed window towards world `(x, z)`, never past the slab edge. No-op when showing the whole slab. */
-  followTo(x: number, z: number, dt: number): void {
+  followTo(x: number, z: number, dt: number, snap = false): void {
     if (!this.following) return;
     const maxX = Math.max(0, this.arenaW / 2 - this.viewCols / 2 + 0.3);
     const maxZ = Math.max(0, this.arenaH / 2 - this.viewRows / 2 + 0.3);
     const tx = Math.min(maxX, Math.max(-maxX, x));
     const tz = Math.min(maxZ, Math.max(-maxZ, z));
-    const k = 1 - Math.exp(-dt * 5);
+    const k = snap ? 1 : 1 - Math.exp(-dt * 5);
     this.target.x += (tx - this.target.x) * k;
     this.target.z += (tz - this.target.z) * k;
   }

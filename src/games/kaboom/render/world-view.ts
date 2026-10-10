@@ -3,7 +3,9 @@ import { Group, Scene, Vector3, type Texture, type WebGLRenderer } from 'three';
 import { MAX_PLAYERS, MAX_TNT } from '../sim/rules';
 import type { KaboomSim, SimEvent } from '../sim/types';
 import { Arena } from './arena';
-import { CameraRig } from './camera-rig';
+import { CameraRig, SLAB_PAD } from './camera-rig';
+import { treadMidD, TIERS } from './bowl';
+import { Crowd } from './crowd';
 import { Crew } from './characters';
 import { Fx } from './fx/fx';
 import { ItemRenderer } from './items';
@@ -43,6 +45,7 @@ export class WorldView {
   arena!: Arena;
   glow!: GlowGrid;
   readonly crew: Crew;
+  readonly crowd: Crowd;
   readonly tnt: TntRenderer;
   readonly items: ItemRenderer;
   readonly fx: Fx;
@@ -56,6 +59,8 @@ export class WorldView {
   /** Player the camera follows on big arenas / portrait (-1 = none, e.g. the menu background). */
   followId = 0;
   private readonly followCamera: boolean;
+  /** Jump the follow camera onto the player at the next update (a new round, a camera change) instead of gliding. */
+  private snapCamera = true;
   private mapRef;
 
   constructor(
@@ -79,8 +84,11 @@ export class WorldView {
     this.tnt = new TntRenderer(w, h, opts.digitAtlas);
     this.items = new ItemRenderer(w, h);
     this.fx = new Fx(w, h, opts.wordAtlas);
+    this.crowd = new Crowd(w, h, SLAB_PAD, quality);
+    this.crowd.setPlayers(sim.players);
     this.buildArena();
     this.root.add(
+      this.crowd.group,
       this.crew.group,
       this.tnt.group,
       this.items.group,
@@ -100,8 +108,16 @@ export class WorldView {
 
   /** Frame the whole arena for the camera's current aspect (call when the canvas is resized). */
   fit(): void {
+    this.snapCamera = true;
     if (this.followCamera) this.rig.fitView(this.sim.map.w, this.sim.map.h);
-    else this.rig.fitArena(this.sim.map.w, this.sim.map.h);
+    // behind the menu (attract): pull back so the stands show too, not just the floor
+    else
+      this.rig.fitArena(
+        this.sim.map.w,
+        this.sim.map.h,
+        1.02,
+        SLAB_PAD + treadMidD(TIERS - 1) + 0.8,
+      );
   }
 
   /** The sim started a new round (new map): rebuild the arena, clean the crew and FX. */
@@ -127,6 +143,9 @@ export class WorldView {
         const p = this.sim.players[e.id];
         if (p) this.fx.onKo(p.x, p.y);
       }
+      if (e.type === 'tntExploded')
+        this.crowd.excite(0.35 + 0.1 * e.chainDepth);
+      else if (e.type === 'playerKo') this.crowd.excite(0.6);
       this.crew.onEvent(e);
       this.fx.onEvent(e);
     }
@@ -156,6 +175,8 @@ export class WorldView {
     this.glow.update(this.sim.flame);
     this.fx.update(dt);
     this.arena.update(this.fx.time.value);
+    this.crowd.setPlayers(players);
+    this.crowd.update(this.fx.time.value, dt);
     const falls = this.sim.upcomingFalls(WARN_S, this.fallCells, this.fallSecs);
     this.arena.setWarnings(this.fallCells, falls, this.fx.time.value);
 
@@ -166,7 +187,8 @@ export class WorldView {
         this.followId < players.length
       ) {
         this.crew.worldPos(this.followId, alpha, this.pos);
-        this.rig.followTo(this.pos.x, this.pos.z, dt);
+        this.rig.followTo(this.pos.x, this.pos.z, dt, this.snapCamera);
+        this.snapCamera = false;
       }
       this.rig.update();
       this.rig.camera.position.add(
@@ -189,6 +211,7 @@ export class WorldView {
   }
 
   render(renderer: WebGLRenderer, scene: Scene = this.scene): void {
+    this.crowd.prepare(renderer);
     if (this.takeShadowUpdate()) renderer.shadowMap.needsUpdate = true;
     renderer.render(scene, this.rig.camera);
   }
@@ -201,6 +224,7 @@ export class WorldView {
     renderer: WebGLRenderer,
     scene: Scene = this.scene,
   ): Promise<void> {
+    this.crowd.prepare(renderer, true);
     await renderer.compileAsync(scene, this.rig.camera);
     this.shadowAge = SHADOW_REDRAW_S; // the first shadow draw belongs here, not to the first frame of play
     this.fx.prime();
@@ -211,6 +235,7 @@ export class WorldView {
     this.arena.dispose();
     this.glow.dispose();
     this.crew.dispose();
+    this.crowd.dispose();
     this.tnt.dispose();
     this.items.dispose();
     this.fx.dispose();
