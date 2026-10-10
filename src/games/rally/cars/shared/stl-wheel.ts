@@ -5,7 +5,7 @@ import {
   type BufferGeometry,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { TyreId } from '../../physics/tyres';
+import { familyOf, type TyreId } from '../../physics/tyres';
 import { loadCarModelFile } from './car-gltf';
 import type { CarDef } from './types';
 
@@ -28,7 +28,9 @@ export function wheelModelFor(
   model: CarDef['model'],
   tyre: TyreId | null,
 ): string | undefined {
-  return (tyre && model.wheelByCompound?.[tyre]?.model) || model.wheelModel;
+  return (
+    (tyre && model.wheelByCompound?.[familyOf(tyre)]?.model) || model.wheelModel
+  );
 }
 
 /** Rim colour on a compound (`model.wheelByCompound` over `model.rim.color`). */
@@ -36,7 +38,10 @@ export function rimColorFor(
   model: CarDef['model'],
   tyre: TyreId | null,
 ): string {
-  return (tyre && model.wheelByCompound?.[tyre]?.rimColor) || model.rim.color;
+  return (
+    (tyre && model.wheelByCompound?.[familyOf(tyre)]?.rimColor) ||
+    model.rim.color
+  );
 }
 
 /** Every distinct wheel GLB of a car that exists in this build, loaded as unit rims by file name. */

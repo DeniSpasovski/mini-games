@@ -5,7 +5,7 @@ import type { SourceLink } from '../../maps/shared/types';
 import type { AtlasLayout } from './atlas-painter';
 import type { LiveryInfo } from './livery';
 import type { BufferGeometry } from 'three';
-import type { TyreId } from '../../physics/tyres';
+import type { TyreFamily } from '../../physics/tyres';
 import type { CarPartGeometry } from './car-parts';
 
 /**
@@ -108,7 +108,7 @@ export interface CarModelDef {
    * `wheelModel` / `rim.color`) - e.g. the body's own alloy on tarmac, a black rim on gravel.
    */
   wheelByCompound?: Partial<
-    Record<TyreId, { model?: string; rimColor?: string }>
+    Record<TyreFamily, { model?: string; rimColor?: string }>
   >;
   /** Road dust on the tyres' sidewalls and in the grooves (old road cars, see cars/shared/tyre-mesh.ts). */
   tyreDust?: boolean;

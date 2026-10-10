@@ -19,16 +19,16 @@ gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
 
 **URL parameters** (any of the play ones skips the menu):
 
-| Parameter                  | Pages | Effect                                                                                                  |
-| -------------------------- | ----- | ------------------------------------------------------------------------------------------------------- |
-| `map`, `car`, `livery`     | play  | stage, car, livery seed                                                                                 |
-| `tyre`, `susp`, `gear`     | play  | `tarmac / mixed / gravel`, `soft / medium / stiff`, `short / medium / long` (default: the stage's pick) |
-| `spawn`                    | play  | `start`, a flat-area name (`pad`) or metres along the road = free drive (no clock, never ranked)        |
-| `quality`                  | play  | `low / medium / high`                                                                                   |
-| `mute=1`                   | play  | silent (bots and tests)                                                                                 |
-| `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                      |
-| `tod=<hours>`, `tonemap=`  | all   | look experiments: time of day (maps with `environment.timeOfDay`), `aces / agx / neutral`               |
-| `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the map's `environment.airTemp`)                    |
+| Parameter                  | Pages | Effect                                                                                                                              |
+| -------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `map`, `car`, `livery`     | play  | stage, car, livery seed                                                                                                             |
+| `tyre`, `susp`, `gear`     | play  | `tarmac / tarmac_hard / mixed / gravel_hard / gravel`, `soft / medium / stiff`, `short / medium / long` (default: the stage's pick) |
+| `spawn`                    | play  | `start`, a flat-area name (`pad`) or metres along the road = free drive (no clock, never ranked)                                    |
+| `quality`                  | play  | `low / medium / high`                                                                                                               |
+| `mute=1`                   | play  | silent (bots and tests)                                                                                                             |
+| `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                                                  |
+| `tod=<hours>`, `tonemap=`  | all   | look experiments: time of day (maps with `environment.timeOfDay`), `aces / agx / neutral`                                           |
+| `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the map's `environment.airTemp`)                                                |
 
 Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab hidden), `__rally.loadTimings`,
 `__rally.vehicle`, `__rallyProbe()` (what the camera draws), `__worldShading`, `__mapViewer`, `__carViewer`.
@@ -192,13 +192,14 @@ All synthesised (Web Audio, no samples), tuned per car by `CarDef.sound` (`CarSo
 ## Physics and set-up
 
 Each stage recommends a tyre (`MapDef.tyre`) and with it a suspension preset (gravel soft, mixed medium, tarmac stiff). Each car
-has its own tyre sizes (`physics.tyres`), suspension presets (`physics.setups`) and gearings (`physics.gearings`). Grip =
-surface x compound x tyre size x set-up. Details and tuning workflow: [PHYSICS.md](PHYSICS.md), rally-physics-tuning skill.
+has its own tyre sizes per tyre family and a tyre grade (road / rally / slick) (`physics.tyres`), suspension presets (`physics.setups`) and gearings (`physics.gearings`). Grip =
+surface x compound x tyre size / grade x set-up. Details and tuning workflow: [PHYSICS.md](PHYSICS.md), rally-physics-tuning skill.
 
 **Setup screen** (`game/menu.ts` `setupSelect`, `game/setup-bench.ts`, `Showroom.renderBoxes`): optional; most players never
 open it.
 
-- Rows of three boxes: **Tyres** (on the car's own rim, grip chip per surface of the stage), **Suspension** (the car's coil-over,
+- Rows of boxes: **Tyres** (five: soft and hard tarmac, mixed, hard and soft gravel; on the car's own rim, grip chip per surface
+  of the stage; the boxes shrink to fit), **Suspension** (the car's coil-over,
   travel, ride height, spring, rebound), **Gearing** (speed-per-gear chart, race cars only). `RECOMMENDED` marks the pick.
 - Click, or arrows + Enter, Esc / B back. Choices are not saved (they reset with the stage or car); the URL and the leaderboard
   carry them.

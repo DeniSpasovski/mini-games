@@ -27,7 +27,7 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 
 - Real-world stages with bridges, junctions, buildings, power lines and city streets (see maps below).
 - Seeded procedural vegetation, rocks and props through one instanced asset library, streamed terrain with LODs.
-- Tyre compounds, tyre sizes, suspension and gearing set-ups per car, with a live 3D set-up screen.
+- Five tyres (tarmac and gravel in soft and hard, plus mixed), tyre sizes and class per car, suspension and gearing set-ups, with a live 3D set-up screen.
 - Stage timer with sectors, time penalties for cutting and knocking over marker posts, top-10 times per stage (stored
   locally).
 - Tool pages: map viewer, car viewer, asset debugger (dev server).

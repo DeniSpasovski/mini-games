@@ -1,5 +1,5 @@
 import type { Climate } from './tyre-temp';
-import type { TyreId } from './tyres';
+import { familyOf, type TyreId } from './tyres';
 
 /**
  * Brakes from their hardware: the torque one wheel's brake gives, the friction its pads keep at a disc temperature
@@ -43,7 +43,7 @@ export function brakeKit(
   gravel: BrakeSet | undefined,
   tyre: TyreId | null,
 ): BrakeSet {
-  return gravel && (tyre === 'mixed' || tyre === 'gravel') ? gravel : main;
+  return gravel && tyre && familyOf(tyre) !== 'tarmac' ? gravel : main;
 }
 
 /** Friction of a pad class against disc temperature (bulk, °C): see `padFactor`. */

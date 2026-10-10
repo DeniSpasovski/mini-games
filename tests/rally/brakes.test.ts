@@ -96,6 +96,11 @@ describe('brake hardware', () => {
     expect(brakeKit(d.brakes, d.gravelBrakes, 'tarmac')).toBe(d.brakes);
     expect(brakeKit(d.brakes, d.gravelBrakes, 'mixed')).toBe(d.gravelBrakes);
     expect(brakeKit(d.brakes, d.gravelBrakes, 'gravel')).toBe(d.gravelBrakes);
+    // The kit follows the tyre's family, not its compound.
+    expect(brakeKit(d.brakes, d.gravelBrakes, 'tarmac_hard')).toBe(d.brakes);
+    expect(brakeKit(d.brakes, d.gravelBrakes, 'gravel_hard')).toBe(
+      d.gravelBrakes,
+    );
     expect(brakeKit(d.brakes, d.gravelBrakes, null)).toBe(d.brakes);
     expect(d.gravelBrakes!.front.diameter).toBeLessThan(
       d.brakes.front.diameter,

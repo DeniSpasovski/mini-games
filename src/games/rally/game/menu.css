@@ -354,8 +354,9 @@
 .setup-card {
   display: flex;
   flex-direction: column;
-  flex: none;
-  width: 270px;
+  /* 270 px when the row fits, narrower (five tyres) when it does not */
+  flex: 0 1 270px;
+  min-width: 0;
   min-height: 0;
   padding: 0;
   overflow: hidden;
@@ -395,8 +396,9 @@
 }
 .setup-name {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 2px 8px;
   font-size: 16px;
 }
 .setup-label small {

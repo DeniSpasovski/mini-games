@@ -138,7 +138,7 @@ const BRAKE_RESEARCH: SourceLink[] = [
   },
 ];
 
-/** Research behind the tyre temperature model (PHYSICS.md "Tyre temperature"). Read only, nothing copied. */
+/** Research behind the tyre types and the tyre temperature model (PHYSICS.md "Tyre types", "Tyre temperature"). Read only, nothing copied. */
 const TYRE_RESEARCH: SourceLink[] = [
   {
     label: 'Tyre friction vs temperature (rig test, PMC)',

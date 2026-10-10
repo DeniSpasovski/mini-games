@@ -68,7 +68,7 @@ Not committed: the file stays local in `sources/music/` and is copied into the b
 
 ## Research references
 
-Papers and articles read to tune the rally tyre temperature, suspension and brake models; linked in the game's About screen and
+Papers and articles read to tune the rally tyre types, tyre temperature, suspension and brake models; linked in the game's About screen and
 `src/games/rally/PHYSICS.md`. Nothing from them is copied or bundled.
 
 - https://pmc.ncbi.nlm.nih.gov/articles/PMC9459800/

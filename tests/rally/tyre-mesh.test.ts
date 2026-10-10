@@ -57,15 +57,22 @@ test('tread relief is deeper from tarmac to mixed to gravel (and the plain carca
     g.dispose();
     return s.maxR - s.minTreadR;
   };
-  const [slick, tarmac, mixed, gravel] = [null, ...TYRE_IDS].map(relief);
-  expect(slick).toBeLessThan(0.001);
-  expect(treadDepth('tarmac')).toBeLessThan(treadDepth('mixed'));
-  expect(treadDepth('mixed')).toBeLessThan(treadDepth('gravel'));
-  // The measured relief follows the pattern depths (tarmac / mixed / gravel in TYRE_IDS order).
-  expect(tarmac).toBeGreaterThan(0.002);
-  expect(mixed).toBeGreaterThan(tarmac);
-  expect(gravel).toBeGreaterThan(mixed);
-  expect(gravel).toBeGreaterThan(0.009);
+  const r = Object.fromEntries(
+    TYRE_IDS.map((id) => [id, relief(id)]),
+  ) as Record<TyreId, number>;
+  expect(relief(null)).toBeLessThan(0.001);
+  // The pattern depths follow the family order, hard compounds sit between their soft sibling and the next family.
+  expect(treadDepth('tarmac')).toBeLessThan(treadDepth('tarmac_hard'));
+  expect(treadDepth('tarmac_hard')).toBeLessThan(treadDepth('mixed'));
+  expect(treadDepth('mixed')).toBeLessThan(treadDepth('gravel_hard'));
+  expect(treadDepth('gravel_hard')).toBeLessThan(treadDepth('gravel'));
+  // The measured relief follows them.
+  expect(r.tarmac).toBeGreaterThan(0.002);
+  expect(r.tarmac_hard).toBeGreaterThan(r.tarmac);
+  expect(r.mixed).toBeGreaterThan(r.tarmac_hard);
+  expect(r.gravel_hard).toBeGreaterThan(r.mixed);
+  expect(r.gravel).toBeGreaterThan(r.gravel_hard);
+  expect(r.gravel).toBeGreaterThan(0.009);
 });
 
 test('rim switch: a gravel tyre sits on a smaller rim than a tarmac tyre (Fabia 15 / 18", Bimmer 16 / 18")', () => {

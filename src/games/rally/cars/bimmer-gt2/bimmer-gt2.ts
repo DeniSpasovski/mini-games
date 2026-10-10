@@ -9,6 +9,9 @@ import { bimmerGt2Livery } from './livery';
 // RWD V8 GT2 racer: the wheelbase, body size and tyres follow this mesh; engine and mass follow the E92 M3 GT2 (ALMS) race car:
 // 357 kW (485 hp), 1,150 kg (BMW M, see README) - the torque curve peaks at 485 hp at ~7600 rpm.
 /** Body dimensions (also what the hull is fitted from); wheel radius = tyre overall radius. */
+/** Track slick against a rally competition tyre (PHYSICS.md "Tyre types"). */
+const SLICK = 1.12;
+
 const BODY = {
   length: 4.67,
   width: 1.98,
@@ -115,13 +118,13 @@ export const bimmerGt2: CarDef = {
     // Staggered like the race car: slicks 30/66-18 front / 31/71-18 rear (width cm / overall diameter cm - rim) =
     // 300/34 R18 / 310/41 R18. Rally compounds keep the taller rear; gravel runs one width (a wide tyre ploughs).
     tyres: {
-      size: { width: 0.3, aspect: 34, rim: 18 },
+      size: { width: 0.3, aspect: 34, rim: 18, grade: SLICK },
       byCompound: {
         mixed: { width: 0.245, aspect: 42, rim: 18 },
         gravel: { width: 0.235, aspect: 50, rim: 17 },
       },
       rear: {
-        size: { width: 0.31, aspect: 41, rim: 18 },
+        size: { width: 0.31, aspect: 41, rim: 18, grade: SLICK },
         byCompound: {
           mixed: { width: 0.265, aspect: 48, rim: 18 },
           gravel: { width: 0.235, aspect: 60, rim: 17 },
