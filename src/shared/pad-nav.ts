@@ -19,13 +19,7 @@
  * the mouse clears it again.
  */
 export type NavAction =
-  | 'up'
-  | 'down'
-  | 'left'
-  | 'right'
-  | 'confirm'
-  | 'back'
-  | 'start';
+  'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'start';
 export type NavDir = 'up' | 'down' | 'left' | 'right';
 
 const BUTTONS: [index: number, action: NavAction][] = [
