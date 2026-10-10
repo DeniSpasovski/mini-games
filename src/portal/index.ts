@@ -100,7 +100,6 @@ if (root) {
   root.innerHTML = `
     <header class="portal-header">
       <h1><img class="portal-logo" src="icons/icon-192.png" alt="" width="40" height="40" />Mini Game Portal</h1>
-      <span>${games.length} game${games.length === 1 ? '' : 's'}</span>
     </header>
     <main class="grid">${games.map(renderCard).join('')}</main>
     <footer class="portal-footer">
