@@ -878,3 +878,34 @@
 .menu-car-best.old {
   color: #c4ccd6;
 }
+
+/* Car select: shown while a car's model downloads (the grey placeholder is on the turntable). */
+.car-loading {
+  position: absolute;
+  bottom: 14%;
+  transform: translateX(-50%);
+  display: none;
+  align-items: center;
+  gap: 10px;
+  color: #ddd;
+  font: 600 13px 'Segoe UI', system-ui, sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.car-loading.on:not(.map) {
+  display: flex;
+}
+.car-loading i {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: car-loading-spin 0.8s linear infinite;
+}
+@keyframes car-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

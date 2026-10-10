@@ -52,7 +52,7 @@ import {
   type BadgeTarget,
   type RallyBadge,
 } from './rally-badge';
-import type { CarAtlas, CarDef } from './types';
+import type { CarAtlas, CarDef, CarProfile } from './types';
 
 /**
  * Car model built from CarDef.model.
@@ -78,6 +78,8 @@ export interface CarModelOptions {
   tyre?: TyreId | null;
   /** Skip the GLB and show the fallback body (car viewer `fallback=1`). */
   fallback?: boolean;
+  /** While the GLB downloads show the boxy profile body in plain grey with the wheels (car select), not an empty stage. */
+  placeholder?: boolean;
 }
 
 // --- shared materials ------------------------------------------------------------
@@ -584,6 +586,11 @@ export class CarModel {
             return false;
           })
       : Promise.resolve(false);
+    const removePlaceholder =
+      willImport && opts.placeholder && def.model.profile
+        ? this.addPlaceholder(def.model.profile)
+        : undefined;
+    if (removePlaceholder) void this.imported.then(removePlaceholder);
     this.paintTargets = this.imported.then((ok) =>
       ok ? this.importedPaint : meshTargets(proceduralPaint),
     );
@@ -666,7 +673,7 @@ export class CarModel {
 
     // Show the car in one piece: while the imported body / wheel model download, hide the
     // wheels, brakes and suspension too, so they never float on their own in the scene.
-    if (willImport || hasWheelModel(wheelModel)) {
+    if (!removePlaceholder && (willImport || hasWheelModel(wheelModel))) {
       const parts = [...this.root.children];
       for (const o of parts) o.visible = false;
       this.ready = Promise.allSettled([this.imported, wheelsLoaded]).then(
@@ -675,6 +682,12 @@ export class CarModel {
         },
       );
     }
+
+    // The placeholder keeps the wheels showing, so `ready` still waits for the GLB.
+    if (removePlaceholder)
+      this.ready = Promise.allSettled([this.imported, wheelsLoaded]).then(
+        () => undefined,
+      );
 
     this.debug.visible = false;
     this.root.add(this.debug);
@@ -794,6 +807,29 @@ export class CarModel {
     m.name = 'recess';
     this.owned.push(m);
     return m;
+  }
+
+  /** Plain grey boxy body (profile outline + darker glass) until the GLB lands; returns the remover. */
+  private addPlaceholder(profile: CarProfile): () => void {
+    const parts = buildProfileParts(profile);
+    const grey = new MeshStandardMaterial({
+      color: 0x8a8d92,
+      roughness: 0.6,
+      metalness: 0.1,
+    });
+    const glass = new MeshStandardMaterial({ color: 0x4a4d52, roughness: 0.4 });
+    const meshes = [new Mesh(parts.body, grey), new Mesh(parts.glass, glass)];
+    for (const m of meshes) {
+      m.castShadow = true;
+      this.body.add(m);
+    }
+    return () => {
+      for (const m of meshes) this.body.remove(m);
+      for (const g of [parts.body, parts.glass, parts.head, parts.tail])
+        g.dispose();
+      grey.dispose();
+      glass.dispose();
+    };
   }
 
   private addMesh(

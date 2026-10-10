@@ -284,6 +284,10 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 - Loading ends with a warm-up (`RallyGame.init`): wait for the imported car, compile, render one frame with culling off - so
   shaders (incl. the shadow pass) and buffer uploads happen behind the loading screen. A material first used mid-stage
   compiles then (a hitch): add it to the scene at load.
+- Long synchronous steps (world build, road, props, shader compile) set their label and `paint()` first, so the bar never
+  sits unlabelled at 0%. The car's GLB starts downloading before the map data (`preloadCarModel`).
+- Car select: while a car's GLB downloads, `CarModel` shows its boxy `profile` body in grey with the wheels
+  (`placeholder` option) plus a "Loading model" cue (`Showroom.loadCue`).
 
 ## Known limitations
 

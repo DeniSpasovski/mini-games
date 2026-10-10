@@ -202,6 +202,7 @@ export class RallyGame {
     await frame();
 
     progress(0.15, 'Road');
+    await paint();
     const road = buildRoadMesh(this.world);
     this.scene.add(road);
     // Whole-map meshes: nothing past the streamed terrain (no ground under them there).
@@ -239,6 +240,7 @@ export class RallyGame {
     }
 
     progress(0.8, 'Vegetation & props');
+    await paint();
     this.streamer = new InstanceStreamer(this.world, {
       lodScale: q.lodScale * OBJECT_DISTANCE[this.opts.settings.objectDistance],
       detailDensity: q.detailDensity,
@@ -260,6 +262,7 @@ export class RallyGame {
     await frame();
 
     progress(0.9, 'Car');
+    await paint();
     this.vehicle = new Vehicle(
       applyGearing(
         applySetup(this.car.physics, this.opts.setup),
@@ -322,7 +325,9 @@ export class RallyGame {
     // Warm up so the first frames don't hitch: wait for the imported car (hidden until then, so compile()
     // would skip it), then render one frame with culling off - compile() covers neither the shadow pass nor
     // the buffer uploads, and a culled render uploads only what the spawn camera sees.
+    progress(0.95, 'Compiling shaders');
     await this.model.ready;
+    await paint();
     this.model.updateFromVehicle(this.vehicle, 1);
     this.env.update(
       this.model.root.position,
@@ -1043,6 +1048,12 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       }
     }
   }
+}
+
+/** Yield until the browser has painted (so a loading label shows before a long synchronous step). */
+async function paint(): Promise<void> {
+  await frame();
+  await new Promise<void>((r) => setTimeout(r));
 }
 
 /** Yield to the browser (next frame, or a timer when the tab is hidden and rAF is paused). */
