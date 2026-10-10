@@ -16,7 +16,7 @@ Games are built with **three.js** unless stated otherwise, bundled with **Rsbuil
 npm install
 npm run dev        # http://localhost:3000
 npm run dev:noreload  # same, no HMR / live reload (debugging, benchmarks, stage-card bakes)
-npm run test       # physics / world / full-stage regression tests
+npm run test       # unit + data tests (fast); `npm run test:integration` = playtests (slow), see `integration-tests/README.md`
 npm run lint
 npm run build      # dist/
 ```
@@ -45,8 +45,8 @@ tests/                 rstest tests (per game sub-folder)
 
 ## Domain lock
 
-Pages only run on the hosts listed in `src/site.config.ts` (`allowedHosts`, default `deni.io`, `*.deni.io` and
-localhost on any port). The check (`src/shared/host-guard.ts`) is injected before every page by Rsbuild
+Pages only run on the hosts listed in `src/site.config.ts` (`allowedHosts`, default `deni.io`, `*.deni.io`, the GitHub Pages test
+host `denispasovski.github.io` and localhost on any port). The check (`src/shared/host-guard.ts`) is injected before every page by Rsbuild
 `source.preEntry`. It's a deterrent against casual re-hosting, not DRM.
 
 `npm run dev -- --host` also lets phones / tablets on the same network open the dev server: the guard accepts private
@@ -70,16 +70,16 @@ without consent or in dev). Event names are `game_<game id>_<event>` (e.g. `game
 recommended game events. Param names are `game_<name>` when every game sends them and `game_<game id>_<name>` when only one
 does; `game_id` is added to every event. `?analytics=log` prints each event to the console, also in dev.
 
-| `<event>`        | Sent when                                                                                   | Params                                                                                                                                                                           |
-| ---------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `level_start`    | rally: stage clock starts (GO); hole: run starts (countdown)                                | `game_id`, `game_level_name` (map id), `game_version`; rally `_car`, `_tyre`, `_setup`, `_gearing`, `_times_version`; hole `_difficulty`, `_seed`, `_layout`, `_scoring_version` |
-| `level_end`      | run finished (`game_success: true`) or left mid-run (`game_success: false` + `game_reason`) | start params + `game_time_s`; rally `_penalty_s`, `_new_best` (quit: `_progress_pct`); hole `game_score`, `_level`, `_cleared`, `_items_eaten`, `_pct_eaten`                     |
-| `post_score`     | run finished                                                                                | start params + `game_score` (rally: stage time in ms, lower is better; hole: points), `game_character` (car / hole colour); hole `_level`                                        |
-| `select_content` | a viewer page opens (car viewer: also on car change)                                        | `game_content_type` (`map_viewer`, `car_viewer`), `game_content_id` (map / car id)                                                                                               |
+| `<event>`        | Sent when                                                                                   | Params                                                                                                                                                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `level_start`    | rally: stage clock starts (GO); hole: run starts (countdown); kaboom: match starts          | `game_id`, `game_level_name` (map id), `game_version`; rally `_car`, `_tyre`, `_setup`, `_gearing`, `_times_version`; hole `_difficulty`, `_seed`, `_layout`, `_scoring_version`; kaboom `_difficulty`, `_bots`, `_rounds`, `game_character` (critter) |
+| `level_end`      | run finished (`game_success: true`) or left mid-run (`game_success: false` + `game_reason`) | start params + `game_time_s`; rally `_penalty_s`, `_new_best` (quit: `_progress_pct`); hole `game_score`, `_level`, `_cleared`, `_items_eaten`, `_pct_eaten`; kaboom `_round`, `_round_wins` (success = won the match)                                 |
+| `post_score`     | run finished                                                                                | start params + `game_score` (rally: stage time in ms, lower is better; hole: points), `game_character` (car / hole colour); hole `_level`                                                                                                              |
+| `select_content` | a viewer page opens (car viewer: also on car change)                                        | `game_content_type` (`map_viewer`, `car_viewer`), `game_content_id` (map / car id)                                                                                                                                                                     |
 
-`_x` = `game_rally_x` / `game_hole_x`.
+`_x` = `game_rally_x` / `game_hole_x` / `game_kaboom_x`.
 
-- Only ranked runs are tracked: no rally free drive / test pad, no Hole dev runs (`?time=`, `?level=`, `?bot=1`).
+- Only ranked runs are tracked: no rally free drive / test pad, no Hole dev runs (`?time=`, `?level=`, `?bot=1`), no Kaboom autopilot or fixed-seed runs (`?bot=1`, `?seed=`).
 - Quits are tracked from the pause menu (restart, main menu, portal, rally spawn change); closing the tab is not.
 - `game_rally_times_version` / `game_hole_scoring_version` keep times / scores from before a physics or scoring change apart in reports.
 - GA property settings (Admin; not in code, redo them for a new property):
@@ -102,10 +102,17 @@ sub-folder; game pages link the portal's copy two folders up, so the installed a
 `apple-touch-icon` (`public/icons/`, built from `public/favicon.png` on the portal background colour; each game folder
 gets its own copy).
 The links + home-screen meta tags are added to every page in `rsbuild.config.ts` (`html.meta` / `html.tags`).
-On iPad: open the site in Safari -> Share -> **Add to Home Screen**. There is no service worker (no offline mode).
+On iPad: open the site in Safari -> Share -> **Add to Home Screen**.
 Standalone mode has no back button, so each game's main menu, pause and results screens show **All games** when the
 page runs inside the portal (`games/<id>/`, detected by `src/shared/portal-link.ts`); a game hosted on its own hides it.
 Home-screen app name = `apple-mobile-web-app-title` ("Mini Games"). Replace the icons in `public/icons/` to change the artwork.
+
+## Offline play
+
+`public/sw.js` (copied to the portal root, registered by `src/shared/offline.ts` from every page, production build only):
+pages are network-first, everything else stale-while-revalidate, same-origin GET only. Nothing is precached: a game works
+offline after one online visit (its car GLBs, meshopt-compressed by the build, are cached when first requested). Relative URLs, so it works under a
+sub-folder such as `/mini-games/`. The cache keeps the newest `MAX_ENTRIES` files (oldest dropped, so stale hashed builds go first). Changing the caching rules: bump `CACHE` in `sw.js`.
 
 ## Portal footer
 
@@ -116,7 +123,8 @@ The portal page shows `SITE.tagline` ("This site was made using AI agents under 
 
 1. Create `src/games/<id>/game.json` (copy `src/games/rally/game.json`) and the entry files it lists.
 2. `npm run dev` — pages are discovered automatically: `play` -> `/games/<id>/`, others -> `/games/<id>/<page>.html`.
-3. Press **F9** in-game (dev server only) to save `thumbnail.jpg` for the portal card (call `installThumbnailCapture` once in your play page).
+3. Add the game to `GAME_LIST` in `src/portal/release.ts` (card order). A game under construction gets `hideInProd: true` there: the release build (`npm run build`) gives it no portal card but still builds it, so the direct link `games/<id>/` works; the dev server and `npm run build:test` (the Pages workflow's default) list it. Remove the flag to release it (and add its `thumbnail.jpg`). `hideInProd` is the one release flag everywhere: on a game in `GAME_LIST`, on a car / map row in a game's `release.ts` (`CARS_LIST` / `MAPS_LIST`), on a tool page in `game.json`; the shared check is `RELEASE_BUILD` in `src/shared/release.ts`.
+4. Press **F9** in-game (dev server only) to save `thumbnail.jpg` for the portal card (call `installThumbnailCapture` once in your play page).
 
 See `.claude/skills/new-minigame/SKILL.md` for the full checklist.
 
@@ -141,9 +149,21 @@ npm run build -- --environment rally     # rewrites only dist/games/rally/ -> up
 npm run build -- --environment portal    # only the portal files in dist/ (keeps dist/games/)
 ```
 
+### GitHub Pages test builds
+
+`.github/workflows/pages.yml` (**Actions > Deploy to GitHub Pages > Run workflow**, pick any branch) builds that branch and
+publishes `dist/` to `https://<owner>.github.io/<repo>/`. One-time: Settings > Pages > Source = **GitHub Actions**. Each run
+replaces the previous deploy, so the site shows whichever branch ran last. The `github.io` host is in `allowedHosts`.
+The run's **test_build** input (default on) runs `npm run build:test` (= `rsbuild build --env-mode test`, `__TEST_BUILD__`):
+the `hideInProd` cars / maps of `src/games/rally/release.ts` ship too, with their TEST badge. `npm run build` stays the release build.
+
 Upload the game folder as a whole (replace the old one): file names are content-hashed, so stale files can be deleted.
 The portal lists every game folder in `src/games/`, so rebuild / upload the portal only when its game list should change.
 Game-only files from the root `public/` are copied into that game's folder only (`gamePublicFiles` in the config, e.g.
 `public/models/` -> `dist/games/rally/models/`); the root `public/` is not copied as a whole. The only links from a game to
 the portal are the **All games** button and the PWA manifest (`../../manifest.webmanifest`), both of which the portal
 always provides.
+
+## Menu navigation
+
+Portal, Rally, Hole Island and Kaboom menus share `src/shared/pad-nav.ts`: arrows / d-pad / stick move focus, Enter / A select, Backspace / B back. `watchMenuTick` plays a quiet tick when the highlight moves (keyboard, controller, mouse hover; not touch): each game's `Sfx.tick()`, Rally and the portal use `shared/menu-tick.ts`. Both respect `?mute=1` and the game's volume.

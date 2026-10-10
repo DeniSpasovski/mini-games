@@ -13,6 +13,8 @@ export const ajvatovciInfo: MapInfo = {
   year: 2026,
   /** Recommended tyre (pre-selected on the car screen; see ../../PHYSICS.md). */
   tyre: 'mixed',
+  /** Long gearing on the long straights (cars that cannot change it ignore this). */
+  gearing: 'long',
   description:
     'Real-world stage near Ilinden, North Macedonia: from the A2 industrial zone across the plain and Ajvatovci village up the hill. Narrow dusty tarmac.',
   seed: 4207,
@@ -61,6 +63,8 @@ export const ajvatovciInfo: MapInfo = {
     sunAzimuth: 315,
     // Spring morning: low sun in the east (~22 deg) - the stage drives towards it up to the hill. ?tod=<hours> to try.
     timeOfDay: 7.5,
+    // Cool spring morning.
+    airTemp: 11,
     turbidity: 6,
     rayleigh: 1.5,
     fogColor: '#c3c9cf',

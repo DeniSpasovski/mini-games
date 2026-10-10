@@ -58,7 +58,7 @@ export interface AssetMeta {
    * Knocked over when the car drives through it (no collider, the car is not slowed): falls down and costs a time
    * penalty (world/breakables.ts). `r` = radius and `h` = height (m, unscaled) of the hit test.
    */
-  breakable?: { r: number; h: number };
+  breakable?: { r: number; h: number; slow?: number };
 }
 
 /**
@@ -487,39 +487,39 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Street car',
     category: 'props',
     description:
-      'Parked car, low poly: variants 0-11 pick the shape (0 sedan, 1 hatch, 2 SUV; variant % 3) and a paint; 12 = white hatch (placed on purpose). Faces +X. Solid.',
+      'Parked car: a boxy rally car (side outline extruded, glass, lamps, simple wheels; cars/<car>/profile.ts). Variants 0-11 pick the shape (variant % 6: 0 M3 saloon, 1 Skoda hatch, 2 Fiesta hatch, 3 GT2 coupe, 4 C4 hatch, 5 Lancer saloon) and a paint; 12 = white Skoda hatch (placed on purpose). Faces +X. Solid.',
     variants: 13,
     lods: [
       { maxDistance: 90, castShadow: true },
       { maxDistance: 420, castShadow: false },
     ],
-    colliders: [{ kind: 'box', hx: 2.3, hz: 0.92, h: 1.4, r: 2.5 }],
+    colliders: [{ kind: 'box', hx: 2.3, hz: 0.96, h: 1.4, r: 2.5 }],
   },
   {
     id: 'taxi',
     name: 'Taxi',
     category: 'props',
     description:
-      'Yellow cab with a roof sign and a black stripe (a sedan, faces +X). Solid.',
+      'Yellow cab with a roof sign and a black stripe (the boxy M3 saloon, faces +X). Solid.',
     variants: 1,
     lods: [
       { maxDistance: 90, castShadow: true },
       { maxDistance: 420, castShadow: false },
     ],
-    colliders: [{ kind: 'box', hx: 2.3, hz: 0.92, h: 1.5, r: 2.5 }],
+    colliders: [{ kind: 'box', hx: 2.3, hz: 0.96, h: 1.5, r: 2.5 }],
   },
   {
     id: 'police_car',
     name: 'Police car',
     category: 'props',
     description:
-      'White patrol sedan, navy band, red / blue roof light bar, "POLICE" (generic, no real agency name) on the doors. Faces +X. Solid.',
+      'White patrol car (the boxy M3 saloon), navy band, red / blue roof light bar, "POLICE" (generic, no real agency name) on the doors. Faces +X. Solid.',
     variants: 1,
     lods: [
       { maxDistance: 110, castShadow: true },
       { maxDistance: 480, castShadow: false },
     ],
-    colliders: [{ kind: 'box', hx: 2.3, hz: 0.92, h: 1.6, r: 2.5 }],
+    colliders: [{ kind: 'box', hx: 2.3, hz: 0.96, h: 1.6, r: 2.5 }],
   },
   {
     id: 'fire_truck',
@@ -656,9 +656,10 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Chevron sign',
     category: 'markers',
     description:
-      'Corner chevron board. Variant 0 points left, 1 points right. Drive-through (not solid).',
+      'Corner chevron board. Variant 0 points left, 1 points right. Breakable: the car knocks it over and loses a little speed.',
     variants: 2,
     lods: [{ maxDistance: 500, castShadow: true }],
+    breakable: { r: 0.65, h: 1.6, slow: 0.93 },
   },
 ];
 

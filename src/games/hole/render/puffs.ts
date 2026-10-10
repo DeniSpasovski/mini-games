@@ -11,11 +11,12 @@ import {
 import { Rng } from '../../../shared/rng';
 
 const MAX = 256;
-/** Puff colour sets: dust (outdoors), confetti (the toy store), stuffing (plush, any map). */
+/** Puff colour sets: dust (outdoors), confetti (the toy store), stuffing (plush, any map), rubble (the building site). */
 export const PUFF_PALETTES = {
   dust: [0xf2e8cf, 0xd9c8a0, 0xbfae8a, 0xffffff],
   confetti: [0xff5a7a, 0xffd23f, 0x4fa84a, 0x3b82d6, 0xb06cf5, 0xff8a3d],
   stuffing: [0xffffff, 0xf7f2e8, 0xfde7ef, 0xeef4fb],
+  rubble: [0xb4b2ab, 0xb4573c, 0xe0c27a, 0xf2c230, 0x8e8c86],
   fur: [0x8a6a4a, 0xc8a878, 0xf4f1ea, 0x9a9a9a, 0x6a9a3a, 0x58b04c],
 } as const;
 export type PuffKind = keyof typeof PUFF_PALETTES;

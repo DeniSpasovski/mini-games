@@ -1,0 +1,506 @@
+{
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/fiesta/02-fiesta-wrc-metres.glb = 'Ford Fiesta WRC' by kevin (CC BY 4.0) with the FBX 0.01 root scale undone (scripts/car-model/glb-set-root-scale.py <glb> <out> 1 100): +x left, +y up, +z nose, metres. The offset puts the front hub (model z 1.262) on physics front.z = 1.2 and lifts the body 0.131 m so the hubs (model y 0.204 front / 0.184 rear) sit at the tyre radius 0.325 (the source car's wheels sit low in the body). The atlas block is also read by livery.ts at runtime - edit it only here.",
+  "source": "sources/cars/fiesta/02-fiesta-wrc-metres.glb -> glb-to-parts-stl.py -> sources/cars/fiesta/fiesta-parts.stl",
+  "output": "public/models/cars/fiesta.glb",
+  "axes": ["x", "y", "z"],
+  "scale": 1.0,
+  "offset": [0, 0.131, -0.062],
+  "groundAtMin": false,
+  "targetTriangles": 75000,
+  "creaseDeg": 40,
+  "wheels": {
+    "$comment": "the wheels are separate nodes (dropped below) - nothing to cut",
+    "radius": 0,
+    "minAbsX": 9,
+    "centres": []
+  },
+  "atlas": {
+    "pxPerMetre": 256,
+    "width": 4.35,
+    "height": 9.6,
+    "bounds": {
+      "x": [-1.05, 1.05],
+      "y": [0, 1.7],
+      "z": [-2.15, 2.15]
+    },
+    "charts": {
+      "left": [0, 0],
+      "right": [0, 1.75],
+      "top": [0, 3.5],
+      "front": [0, 5.65],
+      "rear": [2.2, 5.65],
+      "bottom": [0, 7.45]
+    }
+  },
+  "gltf": {
+    "$comment": "material / node -> part; first matching rule wins. Wheels, discs, calipers, light-glow polygons, plate, spare wheel and dash display bits are dropped (the game builds its own wheels / brakes).",
+    "drop": [
+      "EXT_PLATE",
+      "FIESTA17_DYNAMIC",
+      "FIESTA17_LCD",
+      "FIESTA17_SPARETRAP",
+      "FIESTA17_SPAREWHEEL",
+      "ac3dmat115",
+      "ac3dmat123",
+      "ac3dmat124",
+      "ac3dmat126",
+      "ac3dmat14",
+      "external_dynamics",
+      "motec",
+      "symbols",
+      "mozzo_lf_ac3dmat12_0",
+      "mozzo_rf_ac3dmat12_0",
+      "mozzo_lr_ac3dmat12_0",
+      "mozzo_rr_ac3dmat12_0",
+      "e_lightglass_rb_WCWINDOW_0",
+      "fiesta17_cockpit_SUB16_ADL2_TACH30_0",
+      "fiesta17_cockpit_SUB15_ADL2_TACH28_0",
+      "fiesta17_cockpit_SUB14_ADL2_TACH27_0",
+      "fiesta17_cockpit_SUB13_ADL2_TACH26_0",
+      "fiesta17_cockpit_SUB12_ADL2_TACH25_0",
+      "fiesta17_cockpit_SUB11_FIESTA17_TEMPBKG_0",
+      "fiesta17_cockpit_SUB10_FIESTA17_SPEEDBKG_0",
+      "fiesta17_cockpit_SUB9_FIESTA17_LAPSBKG_0",
+      "fiesta17_cockpit_SUB8_FIESTA17_FUELBK_0",
+      "fiesta17_cockpit_SUB7_FIESTA17_PLACEBKG_0",
+      "e_lightglass_lb_SUB0_WCWINDOW_0",
+      "e_lightglass_lb_SUB1_WCWINDOW_0"
+    ],
+    "parts": [
+      {
+        "node": "e_lightglass_lf_WCWINDOW_0",
+        "material": "lenscover"
+      },
+      {
+        "node": "e_lightglass_rf_SUB0_WCWINDOW_0",
+        "material": "lenscover"
+      },
+      {
+        "node": "e_lightglass_rf_SUB1_WCWINDOW_0",
+        "material": "lenscover"
+      },
+      {
+        "$comment": "the hood vents' mesh (WCWINDOW in the source, so it rendered as glass): black grille mesh",
+        "node": "fiesta17_hood_SUB1_WCWINDOW_0",
+        "material": "mesh"
+      },
+      {
+        "mat": "WCWINDOW",
+        "material": "glass"
+      },
+      {
+        "mat": "EXT_mirror-material",
+        "material": "mirror"
+      },
+      {
+        "mat": "FIESTA17_HLIGHTS",
+        "material": "headlight"
+      },
+      {
+        "mat": "FIESTA17_BLIGHTS",
+        "material": "tailc"
+      },
+      {
+        "mat": "carbonfiber_001",
+        "material": "carbon"
+      },
+      {
+        "mat": "carpet_001",
+        "material": "interior"
+      },
+      {
+        "mat": "FIESTA17_INT",
+        "material": "interior"
+      },
+      {
+        "mat": "FIESTA17_CPIT",
+        "material": "interior"
+      },
+      {
+        "$comment": "rear wing: upper blade (560 triangles) blue, lower blade (408) green; end plates follow below",
+        "node": "fiesta17_rwing_SUB0_WCCARBODY_0",
+        "whole": true,
+        "islandTris": [500, 620],
+        "y": [1.09, 1.28],
+        "material": "wingblue"
+      },
+      {
+        "node": "fiesta17_rwing_SUB0_WCCARBODY_0",
+        "whole": true,
+        "$comment": "lower blade (408) and the two outer low end plates (364 / 401): green",
+        "islandTris": [340, 440],
+        "x": [-0.75, 0.75],
+        "y": [0.9, 1.08],
+        "material": "winggreen"
+      },
+      {
+        "$comment": "the two tall inner end plates (158 each) beside the upper blade: blue",
+        "node": "fiesta17_rwing_SUB0_WCCARBODY_0",
+        "whole": true,
+        "islandTris": [140, 180],
+        "y": [0.9, 1.22],
+        "material": "wingblue"
+      },
+      {
+        "$comment": "wiper arms + blades and the plastic cowl in front of the windscreen (whole islands inside the box): black",
+        "node": "fiesta17_body_SUB0-mesh-mesh_WCCARBODY_0",
+        "whole": true,
+        "x": [-0.75, 0.75],
+        "y": [0.6, 0.8],
+        "z": [0.85, 1.33],
+        "material": "trim"
+      },
+      {
+        "$comment": "rear hatch pins (ring + pin, both sides): silver",
+        "node": "fiesta17_body_SUB0-mesh-mesh_WCCARBODY_0",
+        "whole": true,
+        "x": [-0.49, 0.49],
+        "y": [0.49, 0.57],
+        "z": [-1.81, -1.75],
+        "material": "chrome"
+      },
+      {
+        "$comment": "black rubber + window frame round the front door window (left side): the glass outline pushed out to the frame's own crease line on every edge (traced on a side-view depth map of the source: roof rail 2.7 cm, A pillar 1.7 - 2.6 cm, divider bar 2.5 - 3 cm, belt 3.5 -> 1 cm) and 12 mm on the flat B pillar like the rear window; model coords. Body node only, so the mirror keeps its paint",
+        "node": "fiesta17_body_SUB0-mesh-mesh_WCCARBODY_0",
+        "region": {
+          "view": "left",
+          "poly": [
+            [-0.539, 1.279],
+            [-0.551, 1.249],
+            [-0.477, 0.931],
+            [-0.469, 0.898],
+            [0.569, 0.825],
+            [0.573, 0.825],
+            [0.604, 0.841],
+            [0.56, 1.036],
+            [0.559, 1.04],
+            [0.546, 1.059],
+            [0.455, 1.1],
+            [0.35, 1.142],
+            [0.265, 1.173],
+            [0.172, 1.204],
+            [0.092, 1.227],
+            [0.006, 1.251],
+            [-0.164, 1.273],
+            [-0.39, 1.282]
+          ],
+          "depth": [0.5, 0.8]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "black rubber + window frame round the front door window (right side): the glass outline pushed out to the frame's own crease line on every edge (traced on a side-view depth map of the source: roof rail 2.7 cm, A pillar 1.7 - 2.6 cm, divider bar 2.5 - 3 cm, belt 3.5 -> 1 cm) and 12 mm on the flat B pillar like the rear window; model coords. Body node only, so the mirror keeps its paint The source's right-side windows sit about 9 mm higher than the left ones, so each side has its own outline.",
+        "node": "fiesta17_body_SUB0-mesh-mesh_WCCARBODY_0",
+        "region": {
+          "view": "left",
+          "poly": [
+            [-0.39, 1.29],
+            [-0.54, 1.287],
+            [-0.551, 1.256],
+            [-0.477, 0.94],
+            [-0.469, 0.908],
+            [0.569, 0.836],
+            [0.574, 0.836],
+            [0.604, 0.85],
+            [0.563, 1.046],
+            [0.563, 1.05],
+            [0.545, 1.065],
+            [0.455, 1.109],
+            [0.45, 1.111],
+            [0.35, 1.15],
+            [0.261, 1.184],
+            [0.171, 1.213],
+            [0.092, 1.235],
+            [0.004, 1.259],
+            [-0.164, 1.28]
+          ],
+          "depth": [-0.8, -0.5]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "divider bar between the front door window and the front quarter window (left side), glass edge to glass edge, from the belt crease up to where the door and quarter frames meet on the A pillar (traced on the source's depth map): black, no livery sliver along the door's shut-line groove",
+        "node": "fiesta17_body_SUB0-mesh-mesh_WCCARBODY_0",
+        "region": {
+          "view": "left",
+          "poly": [
+            [0.566, 0.829],
+            [0.63, 0.829],
+            [0.601, 1.03],
+            [0.56, 1.04],
+            [0.539, 1.002]
+          ],
+          "depth": [0.5, 0.8]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "divider bar between the front door window and the front quarter window (right side), glass edge to glass edge, from the belt crease up to where the door and quarter frames meet on the A pillar (traced on the source's depth map): black, no livery sliver along the door's shut-line groove The source's right-side windows sit about 9 mm higher than the left ones, so each side has its own outline.",
+        "node": "fiesta17_body_SUB0-mesh-mesh_WCCARBODY_0",
+        "region": {
+          "view": "left",
+          "poly": [
+            [0.566, 0.838],
+            [0.63, 0.838],
+            [0.601, 1.039],
+            [0.56, 1.049],
+            [0.539, 1.011]
+          ],
+          "depth": [-0.8, -0.5]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "black rubber round the front quarter window (left side): the glass outline pushed out to the frame's crease line (traced on the source's depth map: A pillar 2 - 2.5 cm, belt 1.2 -> 0.5 cm, divider bar 1.5 cm); model coords",
+        "node": "fiesta17_body_SUB0-mesh-mesh_WCCARBODY_0",
+        "region": {
+          "view": "left",
+          "poly": [
+            [0.599, 1.028],
+            [0.573, 1.002],
+            [0.594, 0.906],
+            [0.611, 0.848],
+            [0.613, 0.842],
+            [0.626, 0.833],
+            [0.905, 0.81],
+            [0.912, 0.81],
+            [0.916, 0.819],
+            [0.913, 0.846],
+            [0.85, 0.891],
+            [0.707, 0.971],
+            [0.639, 1.008]
+          ],
+          "depth": [0.5, 0.8]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "black rubber round the front quarter window (right side): the glass outline pushed out to the frame's crease line (traced on the source's depth map: A pillar 2 - 2.5 cm, belt 1.2 -> 0.5 cm, divider bar 1.5 cm); model coords The source's right-side windows sit about 9 mm higher than the left ones, so each side has its own outline.",
+        "node": "fiesta17_body_SUB0-mesh-mesh_WCCARBODY_0",
+        "region": {
+          "view": "left",
+          "poly": [
+            [0.599, 1.037],
+            [0.573, 1.011],
+            [0.593, 0.923],
+            [0.594, 0.915],
+            [0.613, 0.851],
+            [0.626, 0.844],
+            [0.905, 0.819],
+            [0.912, 0.819],
+            [0.916, 0.829],
+            [0.915, 0.858],
+            [0.848, 0.901],
+            [0.639, 1.017]
+          ],
+          "depth": [-0.8, -0.5]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "black rubber round the rear quarter window (left side): the glass outline grown by 12 mm (side view, model coords); the glass covers the inside",
+        "mat": "WCCARBODY",
+        "region": {
+          "view": "left",
+          "poly": [
+            [-0.53, 0.912],
+            [-0.588, 1.276],
+            [-0.749, 1.278],
+            [-0.92, 1.261],
+            [-1.09, 1.236],
+            [-1.219, 1.209],
+            [-1.294, 1.189],
+            [-1.333, 1.177],
+            [-1.363, 1.161],
+            [-1.367, 1.125],
+            [-1.32, 1.084],
+            [-1.292, 1.064],
+            [-1.258, 1.042],
+            [-1.211, 1.016],
+            [-1.163, 0.991],
+            [-1.109, 0.976],
+            [-0.727, 0.92],
+            [-0.542, 0.9]
+          ],
+          "depth": [0.5, 0.8]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "black rubber round the rear quarter window (right side): the glass outline grown by 12 mm (traced on the right glass) (side view, model coords); the glass covers the inside The source's right-side windows sit about 9 mm higher than the left ones, so each side has its own outline.",
+        "mat": "WCCARBODY",
+        "region": {
+          "view": "left",
+          "poly": [
+            [-0.53, 0.921],
+            [-0.588, 1.286],
+            [-0.749, 1.285],
+            [-0.92, 1.268],
+            [-1.093, 1.243],
+            [-1.222, 1.216],
+            [-1.297, 1.196],
+            [-1.33, 1.186],
+            [-1.366, 1.167],
+            [-1.368, 1.136],
+            [-1.323, 1.094],
+            [-1.292, 1.072],
+            [-1.258, 1.05],
+            [-1.211, 1.024],
+            [-1.163, 0.999],
+            [-1.106, 0.983],
+            [-0.911, 0.955],
+            [-0.731, 0.929]
+          ],
+          "depth": [-0.8, -0.5]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "side skirt below the doors, between the arches (left side; side view, model coords): black",
+        "mat": "WCCARBODY",
+        "region": {
+          "view": "left",
+          "poly": [
+            [-1.0, -0.1],
+            [0.88, -0.1],
+            [0.88, 0.18],
+            [-1.0, 0.18]
+          ],
+          "depth": [0.7, 1.0]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "side skirt: right side (a side-view `mirror` flips z, not x)",
+        "mat": "WCCARBODY",
+        "region": {
+          "view": "left",
+          "poly": [
+            [-1.0, -0.1],
+            [0.88, -0.1],
+            [0.88, 0.18],
+            [-1.0, 0.18]
+          ],
+          "depth": [-1.0, -0.7]
+        },
+        "material": "trim"
+      },
+      {
+        "node": "exhaust_WCCARBODY_0",
+        "material": "trim"
+      },
+      {
+        "node": "pipe_WCCARBODY_0",
+        "material": "trim"
+      },
+      {
+        "node": "bumperlight_WCCARBODY_0",
+        "material": "trim"
+      },
+      {
+        "node": "tappi_WCCARBODY_0",
+        "material": "trim"
+      },
+      {
+        "$comment": "manufacturer badge: the oval on the grille top (no logos, AGENTS.md); dropped via the `logo` part",
+        "node": "bumper_fr_WCCARBODY_0",
+        "whole": true,
+        "islandTris": [60, 80],
+        "x": [-0.06, 0.07],
+        "y": [0.49, 0.53],
+        "z": [1.95, 1.995],
+        "material": "logo"
+      },
+      {
+        "$comment": "grille slats (6 bars, 84-96 triangles each): black",
+        "node": "bumper_fr_WCCARBODY_0",
+        "whole": true,
+        "islandTris": [80, 100],
+        "x": [-0.46, 0.47],
+        "y": [0.25, 0.43],
+        "z": [1.9, 2.1],
+        "material": "trim"
+      },
+      {
+        "$comment": "black behind the main grille opening (hexagon, exact outline cut, front view, model coords): the engine bay shows through it",
+        "mat": "WCCARBODY",
+        "region": {
+          "view": "front",
+          "poly": [
+            [-0.46, 0.381],
+            [0.46, 0.381],
+            [0.46, 0.561],
+            [0.3, 0.631],
+            [-0.3, 0.631],
+            [-0.46, 0.561]
+          ],
+          "depth": [1.2, 1.87]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "black behind the lower intake",
+        "mat": "WCCARBODY",
+        "region": {
+          "view": "front",
+          "poly": [
+            [-0.4, 0.176],
+            [0.4, 0.176],
+            [0.34, 0.296],
+            [-0.34, 0.296]
+          ],
+          "depth": [1.2, 1.87]
+        },
+        "material": "trim"
+      },
+      {
+        "$comment": "rear valance (diffuser fins + bumper below y 0.28): black like the real car's diffuser",
+        "mat": "WCCARBODY",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [-0.95, 0.0],
+            [0.95, 0.0],
+            [0.95, 0.281],
+            [-0.95, 0.281]
+          ],
+          "depth": [-2.1, -1.5]
+        },
+        "material": "trim"
+      },
+      {
+        "mat": "WCCARBODY",
+        "material": "body"
+      }
+    ],
+    "default": "trim"
+  },
+  "parts": {
+    "materials": [
+      "body",
+      "trim",
+      "glass",
+      "headlight",
+      "tailc",
+      "lenscover",
+      "chrome",
+      "amber",
+      "mesh",
+      "interior",
+      "logo",
+      "carbon",
+      "wingblue",
+      "winggreen",
+      "mirror",
+      "cage"
+    ],
+    "wrap": {
+      "headlight": "corner",
+      "tailc": "corner"
+    },
+    "drop": ["logo"],
+    "maxTriangles": {
+      "interior": 18000
+    }
+  }
+}

@@ -70,8 +70,9 @@ describe.each(ALL_CARS.map((c) => c.id))('%s', (carId) => {
       return y + p.comHeight;
     };
     const zs = pts!.map(([, , z]) => z);
-    const zMin = Math.min(...zs);
-    const zMax = Math.max(...zs);
+    // reduce, not spread: a model with a cockpit has more vertices than an argument list can hold
+    const zMin = zs.reduce((a, b) => Math.min(a, b), Infinity);
+    const zMax = zs.reduce((a, b) => Math.max(a, b), -Infinity);
     const r = p.wheelRadius + 0.05;
     const zones: [string, number, number][] = [
       ['front overhang', p.front.z + r, zMax - 0.04],

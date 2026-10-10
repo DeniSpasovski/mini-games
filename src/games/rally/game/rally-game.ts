@@ -26,6 +26,7 @@ import { TYRES, type TyreId } from '../physics/tyres';
 import type { GearingId, SetupId } from '../physics/types';
 import { PHYSICS_HZ, Vehicle } from '../physics/vehicle';
 import { isTestCar, isTestMap, TEST_NOTE } from '../release';
+import { getAssetMeta } from '../assets/catalog';
 import { Breakables } from '../world/breakables';
 import { DistanceCull } from '../world/distance-cull';
 import { InstanceStreamer } from '../world/instance-streamer';
@@ -54,11 +55,17 @@ import {
   formatTime,
   PENALTY_CUT,
   PENALTY_RESET,
+  PENALTY_RESET_FLIPPED,
+  FLIPPED_UP_Y,
   StageTimer,
   type StageEvent,
-  TIMES_VERSION,
+  carTimesVersion,
+  timesVersion,
 } from './stage';
+import { stageClimate } from '../maps/shared/climate';
 import type { MapDef } from '../maps/shared/types';
+import { trackTemp } from '../physics/tyre-temp';
+import type { TyreGaugeState } from './tyre-gauge';
 import { ForceLines, Telemetry } from './telemetry';
 
 export interface GameOptions {
@@ -261,6 +268,15 @@ export class RallyGame {
       this.world,
     );
     this.vehicle.setTyre(this.opts.tyre);
+    // Tyre temperatures: the map's air temperature (`?air=<°C>` to try others) and the sun as drawn (after `?tod=`).
+    const air = new URLSearchParams(location.search).get('air');
+    this.vehicle.setClimate(
+      stageClimate(
+        map.environment,
+        this.env.sunElevation,
+        air && Number.isFinite(Number(air)) ? Number(air) : undefined,
+      ),
+    );
     this.model = new CarModel(this.car, {
       seed: this.opts.livery,
       tyre: this.opts.tyre,
@@ -331,6 +347,7 @@ export class RallyGame {
     this.audio.setVolume(s.volume);
     this.vehicle.drivetrain.automatic = s.automatic;
     this.vehicle.tractionControl = s.traction;
+    this.vehicle.abs = s.abs;
     this.rig.mode = s.camera;
     // Object draw distance (options): the streamer re-buckets on its next update.
     const lodScale =
@@ -386,6 +403,7 @@ export class RallyGame {
   placeAtSpawn(): void {
     const spawn = this.world.spawn(this.opts.spawn);
     this.vehicle.reset(spawn.position, spawn.heading);
+    this.vehicle.resetTyreTemps();
     this.tyreMarks?.breakStrips();
     this.rig.snap();
     this.breakables.reset((inst) => this.streamer.setMatrix(inst, null));
@@ -435,6 +453,53 @@ export class RallyGame {
     this.setPaused(false);
   }
 
+  private gaugeState: TyreGaugeState = {
+    temps: [0, 0, 0, 0],
+    window: TYRES.mixed.temp,
+    steer: 0,
+    air: 0,
+    track: 0,
+  };
+
+  /** HUD tyre temperatures (none without a climate / tyre). */
+  private tyreGaugeState(): TyreGaugeState | undefined {
+    const v = this.vehicle;
+    if (!v.climate || !v.tyre) return undefined;
+    const g = this.gaugeState;
+    const temps = g.temps as number[];
+    v.wheels.forEach((w, i) => (temps[i] = w.temp));
+    g.window = TYRES[v.tyre].temp;
+    g.steer = v.wheels[0].steerAngle;
+    g.air = v.climate.air;
+    g.track = trackTemp(v.climate, v.wheels[0].surface);
+    return g;
+  }
+
+  /** Put the car back on the road (R / B button / touch + pause-menu button); costs a penalty while the stage runs. */
+  resetToRoad(): void {
+    const v = this.vehicle;
+    if (this.paused || this.stage.phase === 'countdown') return;
+    if (this.stage.phase === 'running') {
+      // Back onto the stretch of stage around the progress (never a later leg).
+      const along = this.stage.resetAlong(v.position.x, v.position.z);
+      this.placeOnRoad(along);
+      this.stage.rejoin(along);
+      const penalty =
+        v.up.y < FLIPPED_UP_Y ? PENALTY_RESET_FLIPPED : PENALTY_RESET;
+      this.stage.addPenalty(penalty);
+      this.hud.message(`RESET +${penalty}s`, 1.5, 'small bad');
+    } else {
+      const s = this.world.resetSpawn(
+        v.position.x,
+        v.position.z,
+        this.stage.progress,
+      );
+      v.reset(s.position, s.heading);
+      this.tyreMarks.breakStrips();
+      this.rig.snap();
+    }
+  }
+
   private onAction(a: InputAction): void {
     const v = this.vehicle;
     switch (a) {
@@ -442,24 +507,7 @@ export class RallyGame {
         this.setPaused(!this.paused);
         break;
       case 'reset':
-        if (this.paused || this.stage.phase === 'countdown') return;
-        if (this.stage.phase === 'running') {
-          // Back onto the stretch of stage around the progress (never a later leg).
-          const along = this.stage.resetAlong(v.position.x, v.position.z);
-          this.placeOnRoad(along);
-          this.stage.rejoin(along);
-          this.stage.addPenalty(PENALTY_RESET);
-          this.hud.message(`RESET +${PENALTY_RESET}s`, 1.5, 'small bad');
-        } else {
-          const s = this.world.resetSpawn(
-            v.position.x,
-            v.position.z,
-            this.stage.progress,
-          );
-          v.reset(s.position, s.heading);
-          this.tyreMarks.breakStrips();
-          this.rig.snap();
-        }
+        this.resetToRoad();
         break;
       case 'camera':
         this.rig.next();
@@ -497,6 +545,15 @@ export class RallyGame {
           1.2,
           'small',
         );
+        break;
+      case 'abs':
+        if (this.car.physics.noAbs) {
+          this.hud.message('NO ABS', 1.2, 'small');
+          break;
+        }
+        v.abs = !v.abs;
+        saveSettings({ abs: v.abs });
+        this.hud.message(`ABS ${v.abs ? 'ON' : 'OFF'}`, 1.2, 'small');
         break;
       case 'telemetry':
         this.telemetry.toggle();
@@ -547,7 +604,7 @@ export class RallyGame {
       game_rally_gearing: hasGearings(this.car.physics)
         ? this.opts.gearing
         : undefined,
-      game_rally_times_version: TIMES_VERSION,
+      game_rally_times_version: timesVersion(this.world.map.id),
     };
   }
 
@@ -609,6 +666,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         ...(hasGearings(this.car.physics) ? { gear: this.opts.gearing } : {}),
         splits: [...this.stage.splitTimes],
         ...(e.penalty ? { penalty: e.penalty } : {}),
+        ver: timesVersion(this.world.map.id),
+        carVer: carTimesVersion(this.car.id),
         date: Date.now(),
       };
       // Free drive runs don't count.
@@ -823,7 +882,10 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         automatic: v.drivetrain.automatic,
         tc: v.tractionControl && !this.car.physics.noTractionControl,
         tcActive: v.tcFactor < 0.95,
+        abs: v.abs && !this.car.physics.noAbs,
+        absActive: v.absActive,
         hold: v.parked || v.holding,
+        tyres: this.tyreGaugeState(),
       },
       this.stage,
     );
@@ -851,16 +913,21 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.stats.end();
   }
 
-  /** Marker posts under the car fall over (no time penalty). */
+  /** Breakables under the car fall over; those with `slow` (chevrons) also slow the car. */
   private knockPosts(dt: number): void {
     const v = this.vehicle;
-    this.breakables.hit({
+    const hits = this.breakables.hit({
       position: v.position,
       quaternion: v.quaternion,
       velocity: v.velocity,
       length: v.def.length,
       width: v.def.width,
     });
+    // Sturdy breakables (chevrons) take a bit of speed off the car.
+    for (const inst of hits) {
+      const slow = getAssetMeta(inst.asset).breakable?.slow;
+      if (slow) v.velocity.multiplyScalar(slow);
+    }
     this.breakables.update(dt, (inst, m) => this.streamer.setMatrix(inst, m));
   }
 

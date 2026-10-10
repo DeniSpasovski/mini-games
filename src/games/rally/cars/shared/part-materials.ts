@@ -1,5 +1,6 @@
 import {
   CanvasTexture,
+  DoubleSide,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   RepeatWrapping,
@@ -12,7 +13,8 @@ import { addWorldUniforms } from '../../engine/world-shading';
  * Materials for the named parts of an imported body (scripts/car-model/segment-stl.py
  * labels them, stl-to-glb.mjs writes one primitive per material name). Shared by every
  * car - never cloned per instance. Unknown names (the body: 'livery' / 'body') return
- * undefined and get the car's painted livery material instead.
+ * undefined and get the car's painted livery material instead ('recess': a darker copy,
+ * CarModel.recessMaterial).
  *
  * UVs: plain parts are box-projected in metres (tiling textures: mesh, carbon); fitted
  * parts are 0..1 over the part, v from the top down, and their textures below are drawn in
@@ -24,6 +26,8 @@ export type PartName =
   | 'gloss'
   | 'mesh'
   | 'carbon'
+  | 'wingblue'
+  | 'winggreen'
   | 'glass'
   | 'ventglass'
   | 'headlight'
@@ -37,8 +41,23 @@ export type PartName =
   | 'tailc'
   | 'seal'
   | 'reflector'
+  | 'lamphousing'
+  | 'headled'
+  | 'tailled'
+  | 'tailc4'
+  | 'redcover'
+  | 'headlight22'
+  | 'tail22'
+  | 'corner22'
+  | 'indic22'
+  | 'flagblue'
+  | 'flagwhite'
+  | 'flagred'
   | 'interior'
-  | 'cage';
+  | 'cage'
+  | 'coilover'
+  | 'lampcup'
+  | 'lampbulb';
 
 const cache = new Map<string, Material>();
 
@@ -56,8 +75,20 @@ function lamp(
 }
 
 export function partMaterial(name: string): Material | undefined {
-  const build = BUILDERS[name as PartName];
-  if (!build) return undefined;
+  // `<part>:2s` = that part drawn double-sided (source models whose cockpit / trim shells are single-faced).
+  const twoSided = name.endsWith(':2s');
+  const base = twoSided ? name.slice(0, -3) : name;
+  const one = base.startsWith('src:')
+    ? () => srcPart(base)
+    : BUILDERS[base as PartName];
+  if (!one) return undefined;
+  const build = twoSided
+    ? () => {
+        const m = one();
+        m.side = DoubleSide;
+        return m;
+      }
+    : one;
   let m = cache.get(name);
   if (!m) {
     m = build();
@@ -84,11 +115,361 @@ function canvas(
   return t;
 }
 
+/** Sheet size of a source part's texture (maps are drawn at this size, whatever the file's). */
+const SRC_SIZE = 512;
+const srcSheets = new Map<string, Promise<HTMLImageElement>>();
+
+function sheetFor(file: string): Promise<HTMLImageElement> {
+  let sheet = srcSheets.get(file);
+  if (!sheet) {
+    sheet = new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = new URL(`models/cars/${file}`, location.href).href;
+    });
+    srcSheets.set(file, sheet);
+  }
+  return sheet;
+}
+
+/**
+ * A part that keeps the source model's own texture and UVs (scripts/car-model/glb-src-parts.py): material name
+ * `src:<kind>:<file in public/models/cars/>`. `int` = the sheet as it is (seat fabric, cockpit), matt, back faces dark; `shell` (no file) = dark plastic;
+ * `lamp` = the sheet, its bright pixels glow (head lamps, indicators); `tail` = brake lamp (setBrake): the red pixels glow, the bright neutral ones light in reverse. The maps
+ * stay dark until the sheet has loaded. Alpha comes from the sheet (clear lens areas show the reflector behind them).
+ */
+function srcPart(name: string): Material {
+  const [, kind, file] = name.split(':');
+  // Closed back of an open source shell (glb-src-parts.py `shells`): dark plastic.
+  if (kind === 'shell')
+    return new MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.6 });
+  const blank = (fill: string) =>
+    tiling(
+      canvas(SRC_SIZE, SRC_SIZE, (g) => {
+        g.fillStyle = fill;
+        g.fillRect(0, 0, SRC_SIZE, SRC_SIZE);
+      }),
+      1,
+    );
+  const map = blank('#1a1a1c');
+  if (kind === 'int') {
+    sheetFor(file)
+      .then((img) => {
+        const g = (map.image as HTMLCanvasElement).getContext('2d')!;
+        g.drawImage(img, 0, 0, SRC_SIZE, SRC_SIZE);
+        map.needsUpdate = true;
+      })
+      .catch(() => {});
+    const mat = new MeshStandardMaterial({
+      map,
+      roughness: 0.9,
+      side: DoubleSide,
+    });
+    // Source cockpits are single sheets seen from the front: their back faces (an open seat back seen from the rear seats)
+    // draw as a dark plastic shell instead of the fabric's inside.
+    mat.onBeforeCompile = (s) => {
+      addWorldUniforms(s);
+      s.fragmentShader = s.fragmentShader.replace(
+        '#include <color_fragment>',
+        '#include <color_fragment>\nif (!gl_FrontFacing) diffuseColor.rgb = vec3(0.03);',
+      );
+    };
+    return mat;
+  }
+  const glow = blank('#000');
+  const reverseGlow = kind === 'tail' ? blank('#000') : undefined;
+  sheetFor(file)
+    .then((img) => {
+      const g = (map.image as HTMLCanvasElement).getContext('2d')!;
+      g.clearRect(0, 0, SRC_SIZE, SRC_SIZE);
+      g.drawImage(img, 0, 0, SRC_SIZE, SRC_SIZE);
+      const px = g.getImageData(0, 0, SRC_SIZE, SRC_SIZE).data;
+      const paint = (
+        t: CanvasTexture,
+        f: (r: number, gr: number, b: number) => number,
+      ) => {
+        const c = (t.image as HTMLCanvasElement).getContext('2d')!;
+        const d = c.createImageData(SRC_SIZE, SRC_SIZE);
+        for (let i = 0; i < px.length; i += 4) {
+          const v = f(px[i], px[i + 1], px[i + 2]) * (px[i + 3] / 255);
+          d.data[i] = px[i] * v;
+          d.data[i + 1] = px[i + 1] * v;
+          d.data[i + 2] = px[i + 2] * v;
+          d.data[i + 3] = 255;
+        }
+        c.putImageData(d, 0, 0);
+        t.needsUpdate = true;
+      };
+      const lum = (r: number, gr: number, b: number) => (r + gr + b) / 765;
+      if (kind === 'tail') {
+        paint(glow, (r, gr) => (r > 2 * gr + 40 ? 1 : 0));
+        paint(reverseGlow!, (r, gr, b) =>
+          Math.max(r, gr, b) - Math.min(r, gr, b) < 40 && lum(r, gr, b) > 0.6
+            ? 1
+            : 0,
+        );
+      } else paint(glow, (r, gr, b) => lum(r, gr, b) ** 2);
+      map.needsUpdate = true;
+    })
+    .catch(() => {}); // no sheet: the dark placeholder stays
+  const m = new MeshPhysicalMaterial({
+    map,
+    emissive: 0xffffff,
+    emissiveMap: glow,
+    emissiveIntensity: kind === 'tail' ? 0.35 : 0.5,
+    transparent: true,
+    side: DoubleSide,
+    roughness: 0.16,
+    metalness: 0.1,
+    clearcoat: 1,
+    clearcoatRoughness: 0.05,
+  });
+  return kind === 'tail' ? lamp(m, 4, reverseGlow) : m;
+}
+
 /** Tiling texture for metre UVs: `tile` = size of one canvas repeat in metres. */
 function tiling(t: CanvasTexture, tile: number): CanvasTexture {
   t.wrapS = t.wrapT = RepeatWrapping;
   t.repeat.set(1 / tile, 1 / tile);
   return t;
+}
+
+/**
+ * Lamp art of the Subaru 22B (rally car source model): its own headlight, tail lamp, corner lens and lower indicator, baked from
+ * the model's lamp textures into lamp space (`parts.wrap` 'corner': u from the car's centre outwards, v top down) by
+ * scripts/car-model/bake-lamp-sheet.py. One sheet, four rectangles (the script prints them) in three rows: base colour, emissive,
+ * normal map.
+ */
+const LAMPS22 = {
+  file: 'subie_22b_lamps.png',
+  /** Pitch of the sheet's rows (base colour, emissive, normal map). */
+  row: 114,
+  head: { x: 0, y: 0, w: 293, h: 107 },
+  tail: { x: 293, y: 0, w: 457, h: 105 },
+  corner: { x: 750, y: 0, w: 188, h: 114 },
+  indic: { x: 938, y: 0, w: 227, h: 35 },
+  /** The tail lamp's two round lamps (centre u, v, radius u, v; the rings of its emissive map) = model.source.json `lampCups`. */
+  tailBowls: [
+    [0.19, 0.33, 0.069, 0.26],
+    [0.361, 0.33, 0.08, 0.27],
+  ],
+  /** Reversing section of the tail lamp (fractions of the lamp): the clear block at the inner end of the amber band. */
+  rev: { u0: 0.01, u1: 0.18, v0: 0.6, v1: 0.92 },
+};
+type Rect = { x: number; y: number; w: number; h: number };
+
+let lampSheet: Promise<HTMLImageElement> | undefined;
+function loadLampSheet(): Promise<HTMLImageElement> {
+  lampSheet ??= new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = new URL(`models/cars/${LAMPS22.file}`, location.href).href;
+  });
+  return lampSheet;
+}
+
+/** Rows of the lamp sheet (one under the other, `LAMPS22.row` px apart): base colour, emissive, normal map. */
+type LampPx = (
+  px: Uint8ClampedArray,
+  i: number,
+  u: number,
+  v: number,
+  rows: Uint8ClampedArray[],
+) => [number, number, number];
+
+/**
+ * Fill each map with a rectangle of the lamp sheet once it has loaded; `glow(base, i, u, v, rows)` makes the map's pixel from
+ * the base-colour row (`base`) or any sheet row (`rows[0..2]`, same pixel index).
+ */
+function paintLamp22(
+  rect: Rect,
+  maps: { tex: CanvasTexture; glow: LampPx }[],
+): void {
+  loadLampSheet()
+    .then((img) => {
+      for (const { tex, glow } of maps) {
+        const c = tex.image as HTMLCanvasElement;
+        const g = c.getContext('2d')!;
+        const rows = [0, 1, 2].map((r) => {
+          g.clearRect(0, 0, c.width, c.height);
+          g.drawImage(
+            img,
+            rect.x,
+            rect.y + r * LAMPS22.row,
+            rect.w,
+            rect.h,
+            0,
+            0,
+            c.width,
+            c.height,
+          );
+          return g.getImageData(0, 0, c.width, c.height).data;
+        });
+        const d = g.getImageData(0, 0, c.width, c.height);
+        for (let y = 0; y < c.height; y++)
+          for (let x = 0; x < c.width; x++) {
+            const i = (y * c.width + x) * 4;
+            const [r, gr, b] = glow(
+              rows[0],
+              i,
+              x / c.width,
+              y / c.height,
+              rows,
+            );
+            d.data[i] = r;
+            d.data[i + 1] = gr;
+            d.data[i + 2] = b;
+            d.data[i + 3] = 255;
+          }
+        g.putImageData(d, 0, 0);
+        tex.needsUpdate = true;
+      }
+    })
+    .catch(() => {}); // no sheet: the dark placeholder stays
+}
+
+/** A flat normal map placeholder (filled from the sheet's normal row by paintLamp22). */
+function lampNormal22(rect: Rect, scale = 2): CanvasTexture {
+  return canvas(
+    rect.w * scale,
+    rect.h * scale,
+    (g) => {
+      g.fillStyle = '#8080ff';
+      g.fillRect(0, 0, rect.w * scale, rect.h * scale);
+    },
+    false,
+  );
+}
+const NORMAL_ROW: LampPx = (_p, i, _u, _v, rows) => [
+  rows[2][i],
+  rows[2][i + 1],
+  rows[2][i + 2],
+];
+
+/** A small lamp of the sheet as a plain colour map (corner lens, front indicator). */
+function lampMap22(rect: Rect): CanvasTexture {
+  const map = canvas(rect.w * 4, rect.h * 4, (g) => {
+    g.fillStyle = '#1a1a1c';
+    g.fillRect(0, 0, rect.w * 4, rect.h * 4);
+  });
+  paintLamp22(rect, [{ tex: map, glow: (p, i) => [p[i], p[i + 1], p[i + 2]] }]);
+  return map;
+}
+
+function headlight22Maps(): {
+  map: CanvasTexture;
+  glow: CanvasTexture;
+  normal: CanvasTexture;
+} {
+  const W = LAMPS22.head.w * 2;
+  const H = LAMPS22.head.h * 2;
+  const normal = lampNormal22(LAMPS22.head);
+  const map = canvas(W, H, (g) => {
+    g.fillStyle = '#0d0e10';
+    g.fillRect(0, 0, W, H);
+  });
+  const glow = canvas(W, H, (g) => {
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, W, H);
+  });
+  // The map is the sheet as it is; the glow lights the bright reflector facets (squared brightness).
+  paintLamp22(LAMPS22.head, [
+    { tex: map, glow: (p, i) => [p[i], p[i + 1], p[i + 2]] },
+    {
+      tex: glow,
+      glow: (p, i) => {
+        const l = (p[i] + p[i + 1] + p[i + 2]) / 765;
+        const v = l * l * 255;
+        return [v, v, v * 0.92];
+      },
+    },
+    { tex: normal, glow: NORMAL_ROW },
+  ]);
+  return { map, glow, normal };
+}
+
+/** Tail lamp alpha: opaque lens, see-through windows over the round lamps (LAMPS22.tailBowls) with a soft edge. */
+function tail22Windows(): CanvasTexture {
+  const W = LAMPS22.tail.w * 2;
+  const H = LAMPS22.tail.h * 2;
+  return canvas(
+    W,
+    H,
+    (g) => {
+      g.fillStyle = '#fff';
+      g.fillRect(0, 0, W, H);
+      for (const [u, v, ru, rv] of LAMPS22.tailBowls) {
+        g.save();
+        g.translate(u * W, v * H);
+        g.scale(ru * W, rv * H);
+        const r = g.createRadialGradient(0, 0, 0.8, 0, 0, 1);
+        r.addColorStop(0, '#4d4d4d');
+        r.addColorStop(1, '#ffffff');
+        g.fillStyle = r;
+        g.beginPath();
+        g.arc(0, 0, 1, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+      }
+    },
+    false,
+  );
+}
+
+/**
+ * Subaru 22B tail lamp: the model's own lamp - red lens round the corner with a clear band underneath; the inner end of the
+ * band is the reversing lamp (`reverseGlow` lights only that). Brake / tail glow = the red pixels.
+ */
+function tail22Maps(): {
+  map: CanvasTexture;
+  glow: CanvasTexture;
+  reverseGlow: CanvasTexture;
+  normal: CanvasTexture;
+} {
+  const W = LAMPS22.tail.w * 2;
+  const H = LAMPS22.tail.h * 2;
+  const fill = (c: string) => (g: CanvasRenderingContext2D) => {
+    g.fillStyle = c;
+    g.fillRect(0, 0, W, H);
+  };
+  const map = canvas(W, H, fill('#7a0a12'));
+  const glow = canvas(W, H, fill('#000'));
+  const reverseGlow = canvas(W, H, fill('#000'));
+  const R = LAMPS22.rev;
+  const normal = lampNormal22(LAMPS22.tail);
+  paintLamp22(LAMPS22.tail, [
+    {
+      // The lens over the two round lamp bowls: lighter where the bowls glow, darker between them (depth in daylight).
+      tex: map,
+      glow: (p, i, _u, _v, rows) => {
+        const k = 0.72 + 0.45 * (rows[1][i] / 255);
+        return [p[i] * k, p[i + 1] * k, p[i + 2] * k];
+      },
+    },
+    // Tail / brake glow: the model's own emissive map (two ringed round lamps and the outer cells), kept red at brake strength.
+    {
+      tex: glow,
+      glow: (_p, i, _u, _v, rows) => [
+        Math.min(255, rows[1][i] * 1.15),
+        rows[1][i + 1] * 0.35,
+        rows[1][i + 2] * 0.3,
+      ],
+    },
+    {
+      tex: reverseGlow,
+      glow: (p, i, u, v) => {
+        const inside = u >= R.u0 && u <= R.u1 && v >= R.v0 && v <= R.v1;
+        const l = (p[i] + p[i + 1] + p[i + 2]) / 765;
+        const v2 =
+          inside && p[i] < 2 * p[i + 1] + 40 ? Math.min(255, l * l * 700) : 0;
+        return [v2, v2, v2];
+      },
+    },
+    { tex: normal, glow: NORMAL_ROW },
+  ]);
+  return { map, glow, reverseGlow, normal };
 }
 
 /**
@@ -550,6 +931,121 @@ function tailCMaps(): {
 }
 
 /**
+ * Citroen C4 WRC tail lamp ('corner' wrap fitted over the lamp mesh: u = |x| - |z| from its inner end, v from the top
+ * edge down; a tall wedge that is wide at the bottom: the rear-facing lower pad is v 0.72 - 1, the sweep up the pillar
+ * is the narrow upper part, the mesh's two grooves sit at v 0.435 and 0.705). Top band: LED light-guide stripes; middle:
+ * a dot matrix; lower pad: reflector ribs on the inner side and the white reversing lens on the outer side.
+ */
+function tailC4Maps(): {
+  map: CanvasTexture;
+  glow: CanvasTexture;
+  reverseGlow: CanvasTexture;
+} {
+  const W = 512;
+  const H = 256;
+  const REV = { u0: 0.58, u1: 0.93, v0: 0.76, v1: 0.93 };
+  const draw = (
+    g: CanvasRenderingContext2D,
+    c: {
+      base: string;
+      dark: string;
+      stripe: [string, string];
+      dot: string;
+      rib: [string, string];
+      white: string;
+    },
+  ) => {
+    g.fillStyle = c.base;
+    g.fillRect(0, 0, W, H);
+    // Top band: light-guide stripes.
+    for (let x = 0; x < W; x += 12) {
+      g.fillStyle = c.stripe[(x / 12) % 2];
+      g.fillRect(x, 0.04 * H, 6, 0.4 * H);
+    }
+    // Middle band: dot matrix.
+    g.fillStyle = c.dot;
+    for (let row = 0; row < 4; row++)
+      for (let x = 10; x < W; x += 14) {
+        g.beginPath();
+        g.arc(x + (row % 2) * 7, (0.47 + row * 0.058) * H, 3.2, 0, 7);
+        g.fill();
+      }
+    // Lower pad: slanted reflector ribs.
+    g.save();
+    g.beginPath();
+    g.rect(0, 0.72 * H, W, 0.28 * H);
+    g.clip();
+    for (let x = -H; x < W; x += 26) {
+      g.fillStyle = c.rib[0];
+      g.beginPath();
+      g.moveTo(x, H);
+      g.lineTo(x + 13, H);
+      g.lineTo(x + 13 + 0.28 * H * 0.7, 0.72 * H);
+      g.lineTo(x + 0.28 * H * 0.7, 0.72 * H);
+      g.fill();
+    }
+    g.restore();
+    // Dark grooves between the sections and the rim of the reversing lens.
+    g.fillStyle = c.dark;
+    g.fillRect(0, 0.425 * H, W, 0.022 * H);
+    g.fillRect(0, 0.695 * H, W, 0.022 * H);
+    g.fillRect(
+      REV.u0 * W - 7,
+      REV.v0 * H - 7,
+      (REV.u1 - REV.u0) * W + 14,
+      (REV.v1 - REV.v0) * H + 14,
+    );
+    g.fillStyle = c.white;
+    g.fillRect(
+      REV.u0 * W,
+      REV.v0 * H,
+      (REV.u1 - REV.u0) * W,
+      (REV.v1 - REV.v0) * H,
+    );
+    g.fillStyle = c.dark;
+    for (let k = 1; k < 4; k++)
+      g.fillRect(
+        (REV.u0 + ((REV.u1 - REV.u0) * k) / 4) * W - 1,
+        REV.v0 * H,
+        3,
+        (REV.v1 - REV.v0) * H,
+      );
+  };
+  const map = canvas(W, H, (g) =>
+    draw(g, {
+      base: '#b9141b',
+      dark: '#1b0507',
+      stripe: ['#d92830', '#8e0e14'],
+      dot: '#ff7566',
+      rib: ['#8a0d13', ''],
+      white: '#f2f2ef',
+    }),
+  );
+  const glow = canvas(W, H, (g) =>
+    draw(g, {
+      base: '#2c0406',
+      dark: '#000',
+      stripe: ['#ff2a1c', '#4a0608'],
+      dot: '#ff5a44',
+      rib: ['#3a0508', ''],
+      white: '#2c0406',
+    }),
+  );
+  const reverseGlow = canvas(W, H, (g) => {
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, W, H);
+    g.fillStyle = '#fff';
+    g.fillRect(
+      REV.u0 * W,
+      REV.v0 * H,
+      (REV.u1 - REV.u0) * W,
+      (REV.v1 - REV.v0) * H,
+    );
+  });
+  return { map, glow, reverseGlow };
+}
+
+/**
  * Rear side windows (rear door glass u 0.35 - 1 + quarter glass u 0 - 0.33) with the rally
  * car's black plastic panel along the top and its row of rounded vent openings.
  * `finish` = R clearcoat, G roughness: glossy glass, matt plastic.
@@ -626,7 +1122,7 @@ const TWIN = {
  * after the BMW E46: smoked chrome housing, two round projector bowls (chrome reflector, dark
  * lens, bright ring light) and a chrome divider between the two sections (the amber indicator is its own
  * part: `amber`). Layout: TWIN. The bowls are
- * the floors of the recessed barrels drawn by twinLampDepth.
+ * the floors of the recessed barrels drawn by lampDepth.
  */
 function twinLampMaps(): { map: CanvasTexture; glow: CanvasTexture } {
   const { W, H } = TWIN;
@@ -710,22 +1206,43 @@ function twinLampMaps(): { map: CanvasTexture; glow: CanvasTexture } {
   return { map, glow };
 }
 
+/** Recessed round lamps for lampDepth: bowls (centre u, v, radius u, v in lamp space), depth (m), wall colour dark -> lit, wall glow. */
+type LampBowls = {
+  bowls: number[][];
+  depth: number;
+  wallDark: number[];
+  wallLit: number[];
+  /** How much of the emissive map still shows on the walls (0 = dark walls). */
+  wallGlow: number;
+  /** The car's forward axis seen from the lamp: 1 for a front lamp (barrels run back), -1 for a rear one. */
+  facing: number;
+};
+
+const TWIN_BOWLS: LampBowls = {
+  bowls: TWIN.bowls.map(([u, ru]) => [u, TWIN.bowlV, ru, TWIN.radius]),
+  depth: TWIN.depth,
+  wallDark: [0.012, 0.012, 0.012],
+  wallLit: [0.3, 0.3, 0.3],
+  wallGlow: 0,
+  facing: 1,
+};
+
 /**
- * Sets the twin lamp's round lamps back inside the housing (parallax, no extra geometry): the
- * lamp surface is the clear cover, each bowl is a barrel TWIN.depth deep behind it, running along the car's forward axis (+z model). A view ray
+ * Sets a lamp's round lamps back inside the housing (parallax, no extra geometry): the
+ * lamp surface is the clear cover, each bowl is a barrel `depth` deep behind it, running along the car's forward axis (+z model). A view ray
  * through a bowl opening either reaches the floor (the bowl art, sampled where the ray lands) or
- * hits the barrel wall (dark chrome, lit from below, darker towards the back), so the housing lip
+ * hits the barrel wall (`wallDark` -> `wallLit` from below, darker towards the back), so the housing lip
  * covers part of the lamp from any angle but straight on. The ray is turned into lamp-space
  * steps with the surface gradients of u / v from screen derivatives (the GLB has no tangents).
  */
-function twinLampDepth(m: MeshPhysicalMaterial): void {
+function lampDepth(m: MeshPhysicalMaterial, cfg: LampBowls): void {
   const f = (x: number) => x.toFixed(5);
-  const bowls = TWIN.bowls
-    .map(
-      ([u, ru]) =>
-        `vec4(${f(u)}, ${f(TWIN.bowlV)}, ${f(ru)}, ${f(TWIN.radius)})`,
-    )
-    .join(', ');
+  const v3 = (c: number[]) => `vec3(${c.map(f).join(', ')})`;
+  const n = cfg.bowls.length;
+  const bowls = cfg.bowls.map((b) => `vec4(${b.map(f).join(', ')})`).join(', ');
+  // One program per bowl layout (the default key is the hook's source text, the same for every lamp).
+  const key = `lampDepth ${JSON.stringify(cfg)}`;
+  m.customProgramCacheKey = () => key;
   m.onBeforeCompile = (shader) => {
     addWorldUniforms(shader);
     shader.vertexShader = shader.vertexShader
@@ -735,7 +1252,7 @@ function twinLampDepth(m: MeshPhysicalMaterial): void {
       )
       .replace(
         '#include <project_vertex>',
-        '#include <project_vertex>\nvLampAxis = (modelViewMatrix * vec4(0.0, 0.0, 1.0, 0.0)).xyz;',
+        `#include <project_vertex>\nvLampAxis = (modelViewMatrix * vec4(0.0, 0.0, ${f(cfg.facing)}, 0.0)).xyz;`,
       );
     shader.fragmentShader = shader.fragmentShader
       .replace(
@@ -768,9 +1285,9 @@ function twinLampDepth(m: MeshPhysicalMaterial): void {
             float ra = max(-dot(ray, axis), 0.3);
             vec3 o = ray / ra + axis;
             vec2 duv = vec2(dot(o, gu), dot(o, gv));
-            const float DEPTH = ${f(TWIN.depth)};
-            vec4 BOWLS[2] = vec4[2](${bowls}); // centre uv, radius uv
-            for (int i = 0; i < 2; i++) {
+            const float DEPTH = ${f(cfg.depth)};
+            vec4 BOWLS[${n}] = vec4[${n}](${bowls}); // centre uv, radius uv
+            for (int i = 0; i < ${n}; i++) {
               vec2 RAD = BOWLS[i].zw;
               vec2 p0 = (vMapUv - BOWLS[i].xy) / RAD;
               float c = dot(p0, p0) - 1.0;
@@ -785,7 +1302,7 @@ function twinLampDepth(m: MeshPhysicalMaterial): void {
                 vec2 w = p0 + d * z;
                 float lit = smoothstep(-0.7, 0.9, w.y);
                 lampWall = 1.0;
-                diffuseColor.rgb *= mix(0.012, 0.3, lit) * mix(1.0, 0.4, z / DEPTH);
+                diffuseColor.rgb *= mix(${v3(cfg.wallDark)}, ${v3(cfg.wallLit)}, lit) * mix(1.0, 0.4, z / DEPTH);
               }
             }
           }
@@ -797,7 +1314,7 @@ function twinLampDepth(m: MeshPhysicalMaterial): void {
       .replace(
         '#include <emissivemap_fragment>',
         `#ifdef USE_EMISSIVEMAP
-          totalEmissiveRadiance *= textureGrad(emissiveMap, lampUv, dFdx(vMapUv), dFdy(vMapUv)).rgb * (1.0 - lampWall);
+          totalEmissiveRadiance *= textureGrad(emissiveMap, lampUv, dFdx(vMapUv), dFdy(vMapUv)).rgb * (1.0 - lampWall * ${f(1 - cfg.wallGlow)});
         #endif`,
       );
   };
@@ -814,6 +1331,23 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoat: 0.6,
       clearcoatRoughness: 0.12,
       envMapIntensity: 0.55,
+    }),
+  /** Painted rear-wing blades (Fiesta WRC): the livery's navy and green. */
+  wingblue: () =>
+    new MeshPhysicalMaterial({
+      color: 0x0c2a6e,
+      roughness: 0.4,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.15,
+      envMapIntensity: 0.6,
+    }),
+  winggreen: () =>
+    new MeshPhysicalMaterial({
+      color: 0x2eaa4a,
+      roughness: 0.4,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.15,
+      envMapIntensity: 0.6,
     }),
   /** Wire mesh over an intake: dark diamonds in a lighter wire grid, ~12 mm cells. */
   mesh: () =>
@@ -892,7 +1426,7 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoatRoughness: 0.04,
     });
   },
-  /** Twin round headlight (E46 style), see twinLampMaps / twinLampDepth - needs `parts.wrap` 'corner'. */
+  /** Twin round headlight (E46 style), see twinLampMaps / lampDepth - needs `parts.wrap` 'corner'. */
   twinlamp: () => {
     const { map, glow } = twinLampMaps();
     const m = new MeshPhysicalMaterial({
@@ -905,9 +1439,16 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoat: 1,
       clearcoatRoughness: 0.03,
     });
-    twinLampDepth(m);
+    lampDepth(m, TWIN_BOWLS);
     return m;
   },
+  /** Painted coil-over spring (a model's own suspension in the wheel well), the 'sti' yellow of the setup screen. */
+  coilover: () =>
+    new MeshStandardMaterial({
+      color: 0xf0c020,
+      roughness: 0.45,
+      metalness: 0.3,
+    }),
   /** Mirror glass. */
   mirror: () =>
     new MeshPhysicalMaterial({
@@ -957,6 +1498,89 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoat: 1,
       clearcoatRoughness: 0.05,
     }),
+  /** Subaru 22B headlight: the model's own multi-reflector lamp, see headlight22Maps - needs `parts.wrap` 'corner'. */
+  headlight22: () => {
+    const { map, glow, normal } = headlight22Maps();
+    return new MeshPhysicalMaterial({
+      map,
+      normalMap: normal,
+      emissive: 0xffffff,
+      emissiveMap: glow,
+      emissiveIntensity: 0.6,
+      roughness: 0.16,
+      metalness: 0.15,
+      clearcoat: 1,
+      clearcoatRoughness: 0.04,
+    });
+  },
+  /** Subaru 22B tail lamp: the model's own red lens with a clear band, see tail22Maps - needs `parts.wrap` 'corner'. */
+  tail22: () => {
+    const { map, glow, reverseGlow, normal } = tail22Maps();
+    return lamp(
+      new MeshPhysicalMaterial({
+        map,
+        normalMap: normal,
+        // See-through over the two round lamps: the real cups behind it (`lampcup`, model.source.json `lampCups`).
+        alphaMap: tail22Windows(),
+        transparent: true,
+        emissive: 0xffffff,
+        emissiveMap: glow,
+        emissiveIntensity: 0.5,
+        roughness: 0.16,
+        metalness: 0.05,
+        clearcoat: 1,
+        clearcoatRoughness: 0.05,
+      }),
+      5,
+      reverseGlow,
+    );
+  },
+  /** Round lamp cup behind a see-through lens (chrome reflector seen through red), glows with the tail / brake light. */
+  lampcup: () =>
+    lamp(
+      new MeshPhysicalMaterial({
+        color: 0xc8303a,
+        roughness: 0.22,
+        metalness: 0.85,
+        emissive: 0xff1810,
+        emissiveIntensity: 0.25,
+        side: DoubleSide,
+      }),
+      2.2,
+    ),
+  /** Bulb in a `lampcup`. */
+  lampbulb: () =>
+    lamp(
+      new MeshPhysicalMaterial({
+        color: 0xffc8b8,
+        roughness: 0.1,
+        emissive: 0xff3020,
+        emissiveIntensity: 0.4,
+        side: DoubleSide,
+      }),
+      6,
+    ),
+  /** Subaru 22B clear corner lens (front fender), the model's own art - needs `parts.wrap` 'corner'. */
+  corner22: () =>
+    new MeshPhysicalMaterial({
+      map: lampMap22(LAMPS22.corner),
+      roughness: 0.16,
+      clearcoat: 1,
+      clearcoatRoughness: 0.05,
+    }),
+  /** Subaru 22B front indicator, the model's own art, lit - needs `parts.wrap` 'corner'. */
+  indic22: () => {
+    const map = lampMap22(LAMPS22.indic);
+    return new MeshPhysicalMaterial({
+      map,
+      emissive: 0xffffff,
+      emissiveMap: map,
+      emissiveIntensity: 0.35,
+      roughness: 0.2,
+      clearcoat: 1,
+      clearcoatRoughness: 0.05,
+    });
+  },
   tail: () => {
     const { map, glow, reverseGlow } = tailMaps();
     return lamp(
@@ -986,6 +1610,11 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoat: 1,
       clearcoatRoughness: 0.05,
     }),
+  /** Roof scoop stripes (French flag, Citroen C4 WRC). */
+  flagblue: () => new MeshStandardMaterial({ color: 0x1d3a9e, roughness: 0.4 }),
+  flagwhite: () =>
+    new MeshStandardMaterial({ color: 0xf1f1f1, roughness: 0.4 }),
+  flagred: () => new MeshStandardMaterial({ color: 0xd3202c, roughness: 0.4 }),
   /** Modelled cockpit of an imported body (seats, dash, door cards): dark, matte - without it the cockpit got the livery. */
   interior: () => new MeshStandardMaterial({ color: 0x2a2c30, roughness: 0.9 }),
   /** Roll cage of an imported cockpit: light grey like the procedural cars' cage (car-model.ts cageMat). */
@@ -1015,6 +1644,70 @@ const BUILDERS: Record<PartName, () => Material> = {
       reverseGlow,
     );
   },
+  /** Dark metal lamp housing / bezel of a modelled (3D) lamp. */
+  lamphousing: () =>
+    new MeshPhysicalMaterial({
+      color: 0x3a3b3e,
+      roughness: 0.35,
+      metalness: 0.6,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.1,
+      envMapIntensity: 0.8,
+    }),
+  /** Modelled headlight LED ring / DRL: warm white, always glowing. */
+  headled: () =>
+    new MeshPhysicalMaterial({
+      color: 0xfff4d6,
+      emissive: 0xffe9b0,
+      emissiveIntensity: 1.2,
+      roughness: 0.3,
+      metalness: 0,
+    }),
+  /** Citroen C4 WRC tail lamp, see tailC4Maps - needs `parts.wrap` 'corner'. */
+  tailc4: () => {
+    const { map, glow, reverseGlow } = tailC4Maps();
+    return lamp(
+      new MeshPhysicalMaterial({
+        map,
+        emissive: 0xffffff,
+        emissiveMap: glow,
+        emissiveIntensity: 0.4,
+        roughness: 0.16,
+        metalness: 0,
+        clearcoat: 1,
+        clearcoatRoughness: 0.05,
+      }),
+      4,
+      reverseGlow,
+    );
+  },
+  /** Modelled tail-lamp LED strip: red, idle glow, bright with the brake pedal (setBrake). */
+  tailled: () =>
+    lamp(
+      new MeshPhysicalMaterial({
+        color: 0xd01418,
+        emissive: 0xff2010,
+        emissiveIntensity: 0.35,
+        roughness: 0.2,
+        metalness: 0.1,
+        clearcoat: 1,
+        clearcoatRoughness: 0.05,
+      }),
+      3.2,
+    ),
+  /** Red see-through cover over a modelled tail lamp. */
+  redcover: () =>
+    new MeshPhysicalMaterial({
+      color: 0xb3151c,
+      roughness: 0.03,
+      metalness: 0,
+      transparent: true,
+      opacity: 0.5,
+      depthWrite: false,
+      clearcoat: 1,
+      clearcoatRoughness: 0.02,
+      envMapIntensity: 1.5,
+    }),
   reflector: () =>
     new MeshPhysicalMaterial({
       color: 0xa30f17,

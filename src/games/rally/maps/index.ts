@@ -1,4 +1,4 @@
-import { AVAILABLE_MAPS, released } from '../release';
+import { MAPS_LIST, released } from '../release';
 import { ajvatovciInfo } from './ajvatovci/info';
 import { jackieInfo } from './jackie/info';
 import { petralicaInfo } from './petralica/info';
@@ -27,7 +27,7 @@ interface MapEntry {
 /**
  * Map registry - every map, test-only ones included. A map = its `MapInfo` (eager, small) + a loader for the full
  * `MapDef` (a dynamic import: the baked data of a real map is its own chunk, fetched when the map is picked).
- * Add new maps here + their id to TEST_MAPS in release.ts (see .claude/skills/rally-maps).
+ * Add new maps here + a `hideInProd` row to MAPS_LIST in release.ts (see .claude/skills/rally-maps).
  */
 const ENTRIES: MapEntry[] = [
   { info: infoOf(testMap), load: async () => testMap },
@@ -48,8 +48,8 @@ const ENTRIES: MapEntry[] = [
 /** Every map's info, test-only ones included. */
 export const ALL_MAPS: MapInfo[] = ENTRIES.map((e) => e.info);
 
-/** Maps this build offers: ALL_MAPS on the dev server, AVAILABLE_MAPS in the published build (release.ts). */
-export const MAPS: MapInfo[] = released(ALL_MAPS, AVAILABLE_MAPS);
+/** Maps this build offers: ALL_MAPS on the dev server, those without `hideInProd` in the published build (release.ts). */
+export const MAPS: MapInfo[] = released(ALL_MAPS, MAPS_LIST);
 
 /** Must be a released map (it's the fallback for hidden / unknown ids). */
 export const DEFAULT_MAP = testMap.id;

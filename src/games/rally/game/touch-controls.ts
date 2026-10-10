@@ -36,6 +36,7 @@ export class TouchControls {
     parent: HTMLElement,
     private input: InputController,
     onPause: () => void,
+    onReset: () => void,
   ) {
     this.el.className = 'touch-controls';
     this.el.innerHTML = `
@@ -47,11 +48,15 @@ export class TouchControls {
         <div class="touch-btn brake" data-touch="brake" aria-label="Brake / reverse">BRAKE</div>
         <div class="touch-btn gas" data-touch="gas" aria-label="Gas">GAS</div>
       </div>
+      <button class="touch-reset" aria-label="Reset to road">↺</button>
       <button class="touch-pause" aria-label="Pause">❚❚</button>`;
     parent.append(this.el);
     this.el
       .querySelector('.touch-pause')!
       .addEventListener('click', () => onPause());
+    this.el
+      .querySelector('.touch-reset')!
+      .addEventListener('click', () => onReset());
 
     const track = (e: PointerEvent) => {
       if (!this.fingers.has(e.pointerId) && e.type !== 'pointerdown') return;
@@ -82,6 +87,9 @@ export class TouchControls {
     }
     // App switch / notification: never leave a pedal stuck down.
     window.addEventListener('blur', () => this.reset());
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this.reset();
+    });
     // No long-press menu / magnifier on the buttons.
     this.el.addEventListener('contextmenu', (e) => e.preventDefault());
   }

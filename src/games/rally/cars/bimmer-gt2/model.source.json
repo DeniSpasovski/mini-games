@@ -1,0 +1,335 @@
+{
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/bimmer-gt2/1-e92-barnfind.glb (CC BY 4.0, Tushar Singh). The GLB is already model-aligned (+x left, +y up, +z nose) at true scale (wheelbase 2.737 m between the hubs: front z 0.1015, rear z -2.635; the E92's 2.76 m). The offset puts the axle mid-point at z = 0 (front hub -> physics front.z) and lifts the body for ground clearance. The atlas block is also read by livery.ts at runtime - keep them in sync by editing only here.",
+  "source": "sources/cars/bimmer-gt2/1-e92-barnfind.glb -> glb-to-parts-stl.py -> sources/cars/bimmer-gt2/bimmer-gt2-parts.stl",
+  "output": "public/models/cars/bimmer_gt2.glb",
+  "axes": ["x", "y", "z"],
+  "scale": 1.0,
+  "offset": [0, 0.06, 1.2668],
+  "groundAtMin": false,
+  "targetTriangles": 50000,
+  "creaseDeg": 40,
+  "wheels": {
+    "$comment": "the wheels are separate meshes (dropped below) - nothing to cut",
+    "radius": 0,
+    "minAbsX": 9,
+    "centres": []
+  },
+  "atlas": {
+    "pxPerMetre": 256,
+    "width": 4.85,
+    "height": 8.6,
+    "bounds": {
+      "x": [-1.07, 1.07],
+      "y": [0, 1.35],
+      "z": [-2.4, 2.4]
+    },
+    "charts": {
+      "left": [0, 0],
+      "right": [0, 1.4],
+      "top": [0, 2.8],
+      "front": [0, 4.99],
+      "rear": [2.2, 4.99],
+      "bottom": [0, 6.4]
+    },
+    "chartBoxes": [
+      {
+        "$comment": "belt-crease ledge under the quarter window (|x| 0.78 - 1.1, y 0.78 - 1.02, z -1.45 .. -0.1): its sloped triangles were on the side chart, where the ledge's tiny height range made the cell edge saw-tooth (red teeth in a light blue block, user view 2026-10-07) -> top chart, which holds the shoulder strip",
+        "chart": "top",
+        "minNy": 0.1,
+        "x": [0.78, 1.1],
+        "y": [0.78, 1.02],
+        "z": [-1.45, -0.1]
+      },
+      {
+        "$comment": "same ledge along the front wing / A pillar foot (|x| 0.7 - 1.1, y 0.74 - 1.0, z 0.5 .. 1.6): white / blue teeth where the wing's sloped triangles sat on the side chart -> top chart",
+        "chart": "top",
+        "minNy": 0.1,
+        "x": [0.7, 1.1],
+        "y": [0.74, 1.0],
+        "z": [0.5, 1.6]
+      },
+      {
+        "$comment": "plate pocket walls and the small faces under the tail lamps (|x| < REAR_X): rear chart (pearl), not the side charts' red blocks",
+        "chart": "rear",
+        "any": true,
+        "x": [0, 0.5],
+        "y": [0.55, 0.84],
+        "z": [-2.45, -2.2]
+      },
+      {
+        "$comment": "grooves along the rear-quarter flare, from the door to the arch vents (|x| 0.8 - 0.96, y 0.4 - 0.78, z -0.92 .. -0.25): their down-facing ledges sat on the bottom chart's dark undercoat and read as an open slot -> side chart, the livery around them",
+        "chart": "side",
+        "minNy": -1.01,
+        "maxNy": 1.01,
+        "x": [0.8, 0.96],
+        "y": [0.4, 0.78],
+        "z": [-0.92, -0.25]
+      }
+    ],
+    "backBoxes": [
+      {
+        "$comment": "the open rear fender flare beside each tail lamp (|x| 0.7 - 1.0): seen from inside the slot its skin was back-face culled, so the ground showed through -> reversed copies in the slot's dark red (recess)",
+        "x": [0.7, 1.0],
+        "y": [0.45, 0.9],
+        "z": [-2.35, -1.85],
+        "at": [0.9, 0.72, -1.6],
+        "material": "recess"
+      }
+    ],
+    "flatBoxes": [
+      {
+        "$comment": "inside walls of the open rear fender flare beside each tail lamp (faces turned away from the outside, maxNx; the outer skin keeps its livery blocks): one flat livery red, not the pattern's white / blue blocks, in the recess material (the livery in shadow: reads as a dark tunnel). at = a red block on the quarter (z -1.6 is ahead of the white tail)",
+        "x": [0.7, 0.93],
+        "y": [0.5, 0.86],
+        "z": [-2.3, -1.85],
+        "maxNx": 0.3,
+        "at": [0.9, 0.72, -1.6],
+        "material": "recess"
+      },
+      {
+        "$comment": "the slot's floor (up-facing ledge), out to the skin: same dark red",
+        "x": [0.7, 0.93],
+        "y": [0.6, 0.7],
+        "z": [-2.3, -1.85],
+        "minNy": 0.6,
+        "at": [0.9, 0.72, -1.6],
+        "material": "recess"
+      }
+    ]
+  },
+  "gltf": {
+    "$comment": "primitive -> material (first matching rule wins), by the GLB's material names. Wheels (tyre, rim, spokes, nuts, nut covers), brake discs and calipers are replaced by the game's own wheels; Logo = BMW roundels, material_30 = rear plate, Glass_Smoked = a second glass layer inside Material_806. Lamps keep their 3D geometry (housing, projector bodies, LED rings, red tail strip, covers) with shared lamp materials.",
+    "drop": [
+      "Tires",
+      "material",
+      "Wheel_spokes",
+      "Disc_spokes",
+      "Wheel_nut_smol",
+      "Nut_cover",
+      "Caliperz",
+      "discs",
+      "Logo",
+      "material_30",
+      "Glass_Smoked"
+    ],
+    "parts": [
+      {
+        "$comment": "the model's own bumper-lip / skirt carbon: body triangles whose (blurred) texture is dark and unsaturated, split along the texture border (refine, 2 cm). Front lip + skirts only (z): the rear corners of the original are painted, their dark texels are grime",
+        "mat": "Body",
+        "texture": {
+          "maxLum": 0.42,
+          "maxSat": 0.06,
+          "refine": 0.02,
+          "blur": 9
+        },
+        "y": [0, 0.3],
+        "material": "carbon",
+        "z": [-2.45, 1.1]
+      },
+      {
+        "$comment": "the vent slot in each rear bumper corner (behind the rear wheel, opening backwards): its inside walls black, not livery",
+        "mat": "Body",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [0.765, 0.29],
+            [0.835, 0.29],
+            [0.835, 0.517],
+            [0.765, 0.517]
+          ],
+          "depth": [-2.26, -2.05],
+          "mirror": true
+        },
+        "material": "trim"
+      },
+      {
+        "mat": "Body",
+        "material": "body"
+      },
+      {
+        "mat": "Carbon_wing",
+        "material": "carbon"
+      },
+      {
+        "mat": "corbons",
+        "material": "carbon"
+      },
+      {
+        "mat": "reardiff",
+        "material": "carbon"
+      },
+      {
+        "mat": "Material_806",
+        "material": "glass"
+      },
+      {
+        "mat": "mirrir",
+        "material": "mirror"
+      },
+      {
+        "mat": "kidney",
+        "material": "mesh"
+      },
+      {
+        "mat": "last_shit",
+        "material": "mesh"
+      },
+      {
+        "mat": "grilez",
+        "material": "mesh"
+      },
+      {
+        "mat": "backboard",
+        "material": "trim"
+      },
+      {
+        "mat": "Rubber_Rough_Dirty",
+        "material": "trim"
+      },
+      {
+        "mat": "Exhausto",
+        "material": "chrome"
+      },
+      {
+        "mat": "metttttal",
+        "material": "chrome"
+      },
+      {
+        "mat": "FL_casing",
+        "material": "lamphousing"
+      },
+      {
+        "mat": "LED_casing",
+        "material": "chrome"
+      },
+      {
+        "mat": "Material_782",
+        "material": "lenscover"
+      },
+      {
+        "mat": "F_light_LED",
+        "material": "headled"
+      },
+      {
+        "mat": "F_Light_accent",
+        "material": "lamphousing"
+      },
+      {
+        "mat": "Smol_casing",
+        "material": "lamphousing"
+      },
+      {
+        "mat": "Material_795",
+        "material": "lenscover"
+      },
+      {
+        "mat": "smol_LED",
+        "material": "headled"
+      },
+      {
+        "mat": "Rear_casing",
+        "material": "lamphousing"
+      },
+      {
+        "mat": "rear_LED",
+        "material": "tailled"
+      },
+      {
+        "mat": "rearglass",
+        "material": "redcover"
+      }
+    ],
+    "default": "trim"
+  },
+  "parts": {
+    "materials": [
+      "body",
+      "trim",
+      "glass",
+      "carbon",
+      "mirror",
+      "mesh",
+      "chrome",
+      "lenscover",
+      "lamphousing",
+      "headled",
+      "tailled",
+      "redcover",
+      "recess"
+    ],
+    "wrap": {},
+    "preview": {
+      "body": "#c8ccd0",
+      "trim": "#2a2c30",
+      "glass": "#1d3140",
+      "carbon": "#6a4a8a",
+      "mirror": "#e0e8f0",
+      "mesh": "#d08a2a",
+      "chrome": "#30c0a0",
+      "lenscover": "#9fc4e0",
+      "lamphousing": "#3a3b3e",
+      "headled": "#fff4d6",
+      "tailled": "#e0242c",
+      "redcover": "#b3151c",
+      "recess": "#5a1010"
+    },
+    "maxTriangles": {
+      "lamphousing": 8000,
+      "chrome": 12000,
+      "headled": 7000,
+      "tailled": 3000,
+      "lenscover": 3500,
+      "redcover": 1500
+    },
+    "solids": [
+      {
+        "$comment": "back wall inside the open rear fender flare (left; its outline follows the flare skin 2 - 5 mm inside, widened inwards behind the tail lamp so nothing shows past it): closes the slot beside the tail lamp. Recess material (the livery in shadow), `at` = one flat livery red (a red block on the quarter). Frame turned 180 deg so its face looks backwards (v = -y, w = -z)",
+        "material": "recess",
+        "frame": {
+          "origin": [0, 0, -1.94],
+          "tilt": 180
+        },
+        "poly": [
+          [0.7, -0.86],
+          [0.8, -0.84],
+          [0.835, -0.82],
+          [0.846, -0.8],
+          [0.855, -0.76],
+          [0.864, -0.72],
+          [0.874, -0.66],
+          [0.884, -0.6],
+          [0.896, -0.5],
+          [0.55, -0.5],
+          [0.55, -0.72]
+        ],
+        "w": [0, 0.02],
+        "chart": "left",
+        "at": [0.9, 0.72, -1.6]
+      },
+      {
+        "$comment": "back wall inside the open rear fender flare (right; its outline follows the flare skin 2 - 5 mm inside, widened inwards behind the tail lamp so nothing shows past it): closes the slot beside the tail lamp. Recess material (the livery in shadow), `at` = one flat livery red (a red block on the quarter). Frame turned 180 deg so its face looks backwards (v = -y, w = -z)",
+        "material": "recess",
+        "frame": {
+          "origin": [0, 0, -1.94],
+          "tilt": 180
+        },
+        "poly": [
+          [-0.55, -0.72],
+          [-0.55, -0.5],
+          [-0.896, -0.5],
+          [-0.884, -0.6],
+          [-0.874, -0.66],
+          [-0.864, -0.72],
+          [-0.855, -0.76],
+          [-0.846, -0.8],
+          [-0.835, -0.82],
+          [-0.8, -0.84],
+          [-0.7, -0.86]
+        ],
+        "w": [0, 0.02],
+        "chart": "right",
+        "at": [-0.9, 0.72, -1.6]
+      }
+    ]
+  }
+}

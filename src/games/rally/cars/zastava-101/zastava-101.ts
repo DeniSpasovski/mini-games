@@ -10,7 +10,7 @@ const FRONT: AxleDef = {
   track: 1.3,
   spring: 23000,
   bump: 1700,
-  rebound: 2400,
+  rebound: 2720,
   travel: 0.22,
   antiRoll: 6000,
   brakeTorque: 1200,
@@ -25,7 +25,7 @@ const REAR: AxleDef = {
   track: 1.3,
   spring: 17000,
   bump: 1400,
-  rebound: 2000,
+  rebound: 2240,
   travel: 0.22,
   antiRoll: 4000,
   // 23 % rear (front 1200): the light rear (40 % static, less under braking) must not lock before the front - at
@@ -71,6 +71,7 @@ export const zastava101: CarDef = {
   },
   physics: {
     noTractionControl: true,
+    noAbs: true,
     mass: 870,
     length: 3.84,
     width: 1.59,
@@ -79,9 +80,14 @@ export const zastava101: CarDef = {
     inertiaScale: 0.9,
     wheelRadius: 0.285,
     wheelWidth: 0.165,
+    // 13" steel wheels on every compound, the tyre changes: stock 145/80 R13 (mixed), a wider 165/70 R13 on tarmac,
+    // a taller 155/80 R13 on gravel.
     tyres: {
-      // Stock 145/80 R13: thin, tall sidewall, one rim for every compound.
       size: { width: 0.145, aspect: 80, rim: 13 },
+      byCompound: {
+        tarmac: { width: 0.165, aspect: 70, rim: 13 },
+        gravel: { width: 0.155, aspect: 80, rim: 13 },
+      },
     },
     wheelInertia: 0.9,
     maxSteerDeg: 32,
@@ -149,44 +155,24 @@ export const zastava101: CarDef = {
     downforceArea: 0,
   },
   model: {
-    // The body is hand-built (`custom`, below). stations / cabin / parts are a rough match of it,
-    // used only by the generic bolt-on kit of an imported model. Rear -> front.
-    stations: [
-      { z: -2.246, floor: 0.31, belt: 0.75, hw: 0.66, hwBelt: 0.6 },
-      { z: -2.18, floor: 0.27, belt: 0.77, hw: 0.74, hwBelt: 0.68 },
-      { z: -2.0, floor: 0.24, belt: 0.81, hw: 0.78, hwBelt: 0.72 },
-      { z: -1.8, floor: 0.23, belt: 0.87, hw: 0.79, hwBelt: 0.74 },
-      { z: -1.55, floor: 0.23, belt: 0.92, hw: 0.79, hwBelt: 0.74 },
-      { z: -1.0, floor: 0.23, belt: 0.84, hw: 0.78, hwBelt: 0.73 },
-      { z: -0.4, floor: 0.23, belt: 0.82, hw: 0.78, hwBelt: 0.73 },
-      { z: 0.2, floor: 0.23, belt: 0.83, hw: 0.78, hwBelt: 0.73 },
-      { z: 0.61, floor: 0.23, belt: 0.88, hw: 0.79, hwBelt: 0.74 },
-      { z: 1.2, floor: 0.26, belt: 0.89, hw: 0.8, hwBelt: 0.74 },
-      { z: 1.41, floor: 0.29, belt: 0.83, hw: 0.79, hwBelt: 0.72 },
-      { z: 1.55, floor: 0.32, belt: 0.74, hw: 0.76, hwBelt: 0.68 },
-      { z: 1.591, floor: 0.34, belt: 0.72, hw: 0.7, hwBelt: 0.62 },
-    ],
-    cabin: {
-      zFront: 0.61,
-      zRear: -1.58,
-      roofFront: 0.19,
-      roofRear: -1.06,
-      roofY: 1.39,
-      roofHw: 0.56,
-      bPillar: -0.41,
-      kick: 0.25,
-    },
     paint: '#004225', // British racing green
-    flare: 0.02,
     rim: { color: '#7c8084', spokes: 10, style: 'steel' },
-    parts: { arches: 'round', bumpers: 'black', doors: 4 },
-    livery: 'classic',
     custom: { atlas: zastavaAtlas, build: buildZastavaBody },
+    // Rally plate: middle of the front door, just under the beltline.
+    doorBadge: { z: 0.1, y: 0.606 },
     paintFinish: 'satin',
-    glass: { color: 0x39464f, opacity: 0.3 },
+    glass: { color: 0x2a343c, opacity: 0.45 },
     wheels: buildZastavaWheel,
     tyreDust: true,
     suspensionStyle: 'road',
+    cornerSuspension: {
+      style: 'road',
+      front: 'strut',
+      rear: 'axle',
+      topY: { front: 0.38, rear: 0.34 },
+      topIn: { front: 0.2, rear: 0.2 },
+      driven: [],
+    },
     gltf: {
       file: 'zastava_101.glb',
       credit:

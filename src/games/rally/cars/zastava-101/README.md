@@ -23,7 +23,7 @@ npm run dev     # /games/rally/car-viewer.html?car=zastava_101
 | Drivetrain | FWD, 5-speed, final drive 4.4, fixed gearing                     |
 | Engine     | ~84 hp at 6500 rpm, 100 Nm peak, redline 7000 rpm                |
 | Mass       | 870 kg                                                           |
-| Wheels     | radius 0.285 m; 145/80 R13 on every surface                      |
+| Wheels     | 13" steel; tarmac 165/70, mixed 145/80, gravel 155/80 R13        |
 | Top speed  | 160 km/h (drag-limited; 5th would reach 199 km/h at the redline) |
 
 | 0-100 km/h / 100-0 km/h | Tarmac | Dusty tarmac | Gravel | Loose gravel |
@@ -32,7 +32,7 @@ npm run dev     # /games/rally/car-viewer.html?car=zastava_101
 | 100-0 km/h, full brake  | 44 m   | 50 m         | 46 m   | 52 m         |
 
 Measured by the physics sim on flat ground (full throttle from standstill, traction control on, each surface on its
-home tyre + set-up, 2026-10-04): `straight()` in `tests/rally/handling-harness.ts`. Top speed is the setup screen's number
+home tyre + set-up, 2026-10-04): `straight()` in `integration-tests/rally/handling-harness.ts`. Top speed is the setup screen's number
 (`topSpeed()` in `physics/gearing.ts`). Retune a car and these move - rerun and update.
 
 ## Credits and licence
@@ -52,7 +52,7 @@ home tyre + set-up, 2026-10-04): `straight()` in `tests/rally/handling-harness.t
 | `body.ts`        | mesh builder (`cars/shared/mesh-kit.ts`): painted shell + glass, trim, lamps, cabin       |
 | `lamps.ts`       | 3D lamp building blocks: bezel frames, reflector dishes, ribbed lenses, wrap-round lenses |
 | `paint.ts`       | atlas layout + UV functions + the paint texture painter                                   |
-| `wheels.ts`      | 145/80 R13 tyre (grooved tread, road dust) on a holed steel rim                           |
+| `wheels.ts`      | holed 13" steel rim (the tyre per compound: `cars/shared/tyre-mesh.ts`)                   |
 
 ## Build notes
 

@@ -147,10 +147,65 @@ body {
   position: absolute;
   right: 22px;
   bottom: 20px;
-  width: 230px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   background: rgba(0, 0, 0, 0.35);
   border-radius: 8px;
   padding: 10px 12px;
+}
+.hud-dash-main {
+  width: 230px;
+}
+/* Tyre temperatures (tyre-gauge.ts): a top-down car, front up, colours set inline. */
+.hud-tyres[hidden] {
+  display: none;
+}
+.hud-tyres .car {
+  position: relative;
+  width: 44px;
+  height: 68px;
+  margin: 0 auto 4px;
+}
+.hud-tyres .car b {
+  position: absolute;
+  inset: 4px 9px;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border-radius: 9px 9px 6px 6px;
+}
+.hud-tyres .car i {
+  position: absolute;
+  width: 11px;
+  height: 19px;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 4px;
+  background: rgba(238, 240, 242, 0.6);
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.35);
+  transition: background-color 0.3s;
+}
+.hud-tyres .car i:nth-of-type(1) {
+  left: 0;
+  top: 6px;
+}
+.hud-tyres .car i:nth-of-type(2) {
+  right: 0;
+  top: 6px;
+}
+.hud-tyres .car i:nth-of-type(3) {
+  left: 0;
+  bottom: 6px;
+}
+.hud-tyres .car i:nth-of-type(4) {
+  right: 0;
+  bottom: 6px;
+}
+.hud-tyres .t {
+  font:
+    10px/1.3 ui-monospace,
+    Consolas,
+    monospace;
+  opacity: 0.8;
+  white-space: nowrap;
 }
 .hud-rpm {
   display: flex;
@@ -468,7 +523,8 @@ body {
   background: rgba(240, 160, 32, 0.55);
   transform: scale(0.94);
 }
-.touch-pause {
+.touch-pause,
+.touch-reset {
   position: absolute;
   top: max(12px, env(safe-area-inset-top));
   right: max(14px, env(safe-area-inset-right));
@@ -481,6 +537,11 @@ body {
   font-size: 15px;
   pointer-events: auto;
   touch-action: manipulation;
+}
+
+.touch-reset {
+  right: calc(max(14px, env(safe-area-inset-right)) + 58px);
+  font-size: 22px;
 }
 
 /* Touch layout: the dash moves to the bottom centre (between the thumbs),

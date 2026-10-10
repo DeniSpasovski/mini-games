@@ -14,7 +14,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 
 /**
  * Zastava 101 wheels: the pressed-steel 13" rim with a ring of ventilation holes, domed hub cap and wheel
- * nuts. (The 145/80 R13 tyre - tall sidewall, tread per compound, road dust - is cars/shared/tyre-mesh.ts.)
+ * nuts. (The tyre - 13", tall sidewall, size and tread per compound, road dust - is cars/shared/tyre-mesh.ts.)
  * Wheel space: axis X, outer face towards +X (same as `buildWheelGeometries`).
  */
 
@@ -125,7 +125,7 @@ export function buildZastavaWheel(
   width: number,
 ): { tire: BufferGeometry; rim: BufferGeometry; caliper: BufferGeometry } {
   return {
-    // The tyre is built by cars/shared/tyre-mesh.ts (145/80 R13, dusty) - only the rim + caliper live here.
+    // The tyre is built by cars/shared/tyre-mesh.ts (the compound's 13" size, dusty) - only the rim + caliper live here.
     tire: new BufferGeometry(),
     rim: buildRim(width),
     caliper: new BoxGeometry(0.001, 0.001, 0.001),

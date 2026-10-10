@@ -27,9 +27,55 @@ export function tyreLabel(s: TyreSize): string {
   return `${Math.round(s.width * 1000)}/${s.aspect} R${s.rim}`;
 }
 
-/** The size a car runs with a compound. */
-export function tyreSizeFor(def: CarPhysicsDef, tyre: TyreId): TyreSize {
-  return def.tyres.byCompound?.[tyre] ?? def.tyres.size;
+export type Axle = 'front' | 'rear';
+
+/** The size a car runs on an axle with a compound (null = the default size). */
+export function tyreSizeFor(
+  def: CarPhysicsDef,
+  tyre: TyreId | null,
+  axle: Axle = 'front',
+): TyreSize {
+  const set = (axle === 'rear' && def.tyres.rear) || def.tyres;
+  return (tyre && set.byCompound?.[tyre]) || set.size;
+}
+
+/** Whether the rear axle runs another size than the front on a compound. */
+export function isStaggered(def: CarPhysicsDef, tyre: TyreId | null): boolean {
+  const f = tyreSizeFor(def, tyre, 'front');
+  const r = tyreSizeFor(def, tyre, 'rear');
+  return f.width !== r.width || f.aspect !== r.aspect || f.rim !== r.rim;
+}
+
+/**
+ * Rolling radius of an axle's wheels on a compound (null = the default size): the car's `wheelRadius` for its default
+ * front size, any other size scaled by its marking (`tyreRadius`) - a taller tyre is a taller wheel, and a car's own
+ * radius (and with it its default handling) stays as measured.
+ */
+export function axleRadius(
+  def: CarPhysicsDef,
+  tyre: TyreId | null,
+  axle: Axle,
+): number {
+  const size = tyreSizeFor(def, tyre, axle);
+  return size === def.tyres.size
+    ? def.wheelRadius
+    : (def.wheelRadius * tyreRadius(size)) / tyreRadius(def.tyres.size);
+}
+
+/** Radius the gearbox sees: the driven axle's (torque-split average for 4WD - its axles run one radius). */
+export function drivenRadius(def: CarPhysicsDef, tyre: TyreId | null): number {
+  const s = def.drivetrain.frontSplit;
+  return (
+    s * axleRadius(def, tyre, 'front') + (1 - s) * axleRadius(def, tyre, 'rear')
+  );
+}
+
+/** Label for both axles: "245/40 R18" or "245/40 R18 · rear 265/40 R18" when staggered. */
+export function carTyreLabel(def: CarPhysicsDef, tyre: TyreId | null): string {
+  const f = tyreLabel(tyreSizeFor(def, tyre, 'front'));
+  return isStaggered(def, tyre)
+    ? `${f} · rear ${tyreLabel(tyreSizeFor(def, tyre, 'rear'))}`
+    : f;
 }
 
 export interface SizeFactors {
@@ -58,12 +104,16 @@ export function sizeFactors(s: TyreSize): SizeFactors {
 
 const cache = new Map<string, Record<SurfaceId, SurfaceDef>>();
 
-/** Effective surfaces for a car (as currently set up) on a tyre compound: `table[surfaceId]`. */
+/**
+ * Effective surfaces for one axle of a car (as currently set up) on a tyre compound: `table[surfaceId]`. Axles on the
+ * same size share one cached table.
+ */
 export function carSurfaces(
   def: CarPhysicsDef,
   tyre: TyreId,
+  axle: Axle = 'front',
 ): Record<SurfaceId, SurfaceDef> {
-  const size = tyreSizeFor(def, tyre);
+  const size = tyreSizeFor(def, tyre, axle);
   const c = compliance(def);
   const key = `${tyre}|${size.width}|${size.aspect}|${c.toFixed(3)}`;
   let table = cache.get(key);
@@ -103,9 +153,11 @@ export function carGripRating(
   tyre: TyreId,
   surface: SurfaceId,
 ): GripRating {
-  const best = Math.max(
-    ...TYRE_IDS.map((t) => carSurfaces(def, t)[surface].mu),
-  );
-  const r = carSurfaces(def, tyre)[surface].mu / best;
+  const mu = (t: TyreId) =>
+    (carSurfaces(def, t, 'front')[surface].mu +
+      carSurfaces(def, t, 'rear')[surface].mu) /
+    2;
+  const best = Math.max(...TYRE_IDS.map(mu));
+  const r = mu(tyre) / best;
   return r >= 0.97 ? 3 : r >= 0.82 ? 2 : r >= 0.65 ? 1 : 0;
 }

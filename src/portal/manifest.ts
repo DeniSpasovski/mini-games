@@ -14,7 +14,7 @@ export interface GamePageManifest {
   label: string;
   /** Dev / debug tool page (shown in the "tools" row of the card). */
   dev?: boolean;
-  /** Hide this tool's link on the portal card in the production build (page still builds; dev server shows it). */
+  /** Hide this tool's link in the release build (page still builds; the dev server and `build:test` show it). */
   hideInProd?: boolean;
 }
 

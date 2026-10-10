@@ -1,7 +1,19 @@
 import './portal.css';
 import { SITE } from '../site.config';
+import {
+  activateFocused,
+  attachKeyNav,
+  ensureFocus,
+  GamepadMenuNav,
+  moveFocus,
+  type NavAction,
+  watchMenuTick,
+} from '../shared/pad-nav';
+import { MenuTick } from '../shared/menu-tick';
 import { consentEnabled, openConsentBanner } from '../shared/consent';
+import { isReleased, RELEASE_BUILD } from '../shared/release';
 import { resolveGamePage, type GameManifest } from './manifest';
+import { GAME_LIST } from './release';
 
 /**
  * The portal is intentionally tiny: it lists every src/games/<id>/game.json
@@ -17,6 +29,12 @@ const thumbCtx = import.meta.webpackContext('../games', {
   recursive: true,
   regExp: /[\\/]thumbnail\.(jpg|png)$/,
 });
+
+/** Card order = `GAME_LIST` (release.ts); a game missing from it comes last, alphabetically. */
+function orderRank(id: string): number {
+  const i = GAME_LIST.findIndex((g) => g.id === id);
+  return i === -1 ? GAME_LIST.length : i;
+}
 
 interface GameEntry {
   manifest: GameManifest;
@@ -37,7 +55,14 @@ function loadGames(): GameEntry[] {
       const manifest = manifestCtx(k) as GameManifest;
       return { manifest, thumbnail: thumbs.get(manifest.id) };
     })
-    .sort((a, b) => a.manifest.title.localeCompare(b.manifest.title));
+    .filter(
+      ({ manifest }) => !RELEASE_BUILD || isReleased(GAME_LIST, manifest.id),
+    )
+    .sort(
+      (a, b) =>
+        orderRank(a.manifest.id) - orderRank(b.manifest.id) ||
+        a.manifest.title.localeCompare(b.manifest.title),
+    );
 }
 
 function escapeHtml(s: string): string {
@@ -47,9 +72,7 @@ function escapeHtml(s: string): string {
 function renderCard({ manifest, thumbnail }: GameEntry): string {
   const pages = manifest.pages.map((p) => resolveGamePage(manifest.id, p));
   const play = pages.find((p) => p.id === 'play') ?? pages[0];
-  const tools = pages.filter(
-    (p) => p.dev && !(p.hideInProd && import.meta.env.PROD),
-  );
+  const tools = pages.filter((p) => p.dev && !(p.hideInProd && RELEASE_BUILD));
   const tags = (manifest.tags ?? [])
     .map((t) => `<span class="tag">${escapeHtml(t)}</span>`)
     .join('');
@@ -58,7 +81,7 @@ function renderCard({ manifest, thumbnail }: GameEntry): string {
     : `<div class="no-shot">${escapeHtml(manifest.title)}</div>`;
   return `
     <article class="card">
-      <a class="shot" href="${play.href}">${shot}</a>
+      <a class="shot" href="${play.href}" tabindex="-1" aria-hidden="true">${shot}</a>
       <div class="body">
         <h2><a href="${play.href}">${escapeHtml(manifest.title)}</a></h2>
         <p>${escapeHtml(manifest.description)}</p>
@@ -91,4 +114,17 @@ if (root) {
   root
     .querySelector('[data-privacy]')
     ?.addEventListener('click', openConsentBanner);
+
+  // Keyboard (arrows), controller (d-pad / stick, A) and hover: same navigation + tick as the games' menus.
+  const page = root as HTMLElement;
+  const tick = new MenuTick(660, 'sine');
+  watchMenuTick(page, () => tick.play());
+  const nav = (a: NavAction) => {
+    if (a === 'confirm') activateFocused(page);
+    else if (a === 'up' || a === 'down' || a === 'left' || a === 'right')
+      moveFocus(page, a);
+    if (a === 'start') ensureFocus(page);
+  };
+  attachKeyNav(() => true, nav);
+  new GamepadMenuNav(nav, () => document.scrollingElement as HTMLElement);
 }

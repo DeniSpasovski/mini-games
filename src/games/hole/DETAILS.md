@@ -14,8 +14,8 @@ each difficulty.
 
 ## Pillars
 
-1. **Fits in your hand.** Made for iPad and phones first. One finger steers, and every menu works by touch. Keyboard
-   and mouse are only for desktop testing.
+1. **Fits in your hand.** Made for iPad and phones first. One finger steers, and every menu works by touch. Keyboard,
+   mouse and gamepad work too (gamepad drives the menus as well).
 2. **Blocky but polished.** Simple box-built models, a small colour palette, soft sun shadows and good motion (falling,
    tipping, a pulse on level-up). Detail stays low, but it should feel finished.
 3. **Readable growth.** You can always see what you can eat next. The camera pulls back as the hole grows, so steering
@@ -28,7 +28,7 @@ each difficulty.
 | ----------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | Play        | `/games/hole/`                                                   | menu -> difficulty -> countdown -> play -> results                                      |
 | Play (dev)  | `/games/hole/?difficulty=hard&level=12&seed=1&color=pink`        | any `difficulty` skips the menu. Other params: see "Dev params"                         |
-| Play (toy)  | `/games/hole/?map=toy&layout=a&difficulty=medium`                | Toy Emporium; `layout=a\|b\|c` picks the floor plan                                     |
+| Play (toy)  | `/games/hole/?map=toy&seed=7&difficulty=medium`                  | Toy Emporium; the seed also moves the departments, checkout and door                    |
 | Item viewer | `/games/hole/item-viewer.html?item=bench&mode=compare&slow=0.25` | every edible item **and** the hole (see "Debug tools"). `map=toy`, `family=plush_panda` |
 | Map viewer  | `/games/hole/map-viewer.html?seed=1&overlay=1&tier=0&level=8`    | regenerate the island, districts, content budget, click to inspect, "Play from here"    |
 | Balance     | `/games/hole/balance.html?difficulty=all&runs=8&skill=good`      | headless bot runs, level / score vs time charts, level table                            |
@@ -37,7 +37,7 @@ All tool-page values are kept in the URL (`src/shared/url-state.ts`). Press `H` 
 
 ### Dev params (play page)
 
-`map=city|toy|animal` · `layout=a|b|c` (toy store floor plan) · `difficulty=easy|medium|hard` (skip the menu) · `time=<seconds>` · `level=<start level>` · `seed=<map seed>` ·
+`map=city|toy|animal|construction` · `difficulty=easy|medium|hard` (skip the menu) · `time=<seconds>` · `level=<start level>` · `seed=<map seed>` ·
 `color=<ocean|lime|pink|orange|violet|cyan|red|gold>` · `x=&z=` (start position) · `bot=1` (autopilot) · `debug=1`
 (debug HUD) · `quality=low|high`. Runs with `time`, `level` or `bot` are **not** saved to the top 10.
 
@@ -56,11 +56,9 @@ not.
   top 10 and its own scoring version (`MAP_SCORING_VERSIONS` in `game/scores.ts`).
 - **Pick difficulty**: above the time buttons sits the **map variant**: City Island has an island seed stepper
   (`‹  Island #7  ›` and `🎲 Random`, seeds 1-999, saved as `settings.seed`; entering the screen from Play / the map
-  picker always rolls a random seed), the Toy Emporium has its three floor plans as
-  tabs (Grand Hall / Ring Walk / Warehouse Sale, saved as `settings.layout`); the menu background shows the pick. Every
-  seed holds the same points, so one top 10 per map and difficulty covers all islands (the toy layouts share one list
-  too; layout B is a fast run and C a slow one, see TOY-STORE.md). `?seed=` / `?layout=` in the URL win over the saved
-  choice (dev links). The setting is the time limit (same three times on every map):
+  picker always rolls a random seed); the Toy Emporium (`Store #7`) and Animal Island use the same stepper; the toy seed also deals
+  the departments, checkout and entrance onto the floor slots (stockroom and atrium stay). The menu background shows the pick. Every seed holds the same points, so one top 10
+  per map and difficulty covers all seeds. `?seed=` in the URL wins over the saved choice (dev links). The setting is the time limit (same three times on every map):
 
   | Difficulty | Time  | Notes                                                          |
   | ---------- | ----- | -------------------------------------------------------------- |
@@ -79,7 +77,7 @@ not.
   tier and the **top 10 for that difficulty** with your run highlighted. A run outside the top 10 shows under a gap.
   Buttons: Play again (same difficulty) and Main menu.
 - **Persistence** (localStorage; every access is wrapped in try/catch and falls back to memory, so private mode works):
-  - `hole.settings`: colour, volume, quality, last difficulty, last map, island seed, toy floor plan
+  - `hole.settings`: colour, volume, quality, last difficulty, last map, seed
   - `hole.scores.<map>.easy|medium|hard` (`city`, `toy`, `animal`): top 10 `{ score, level, eaten, pct, color, date }`, sorted by
     score. Ties go to the higher level, then the earlier date.
   - No player names in v0 (one device = one player). Initials are listed under iterations.
@@ -91,6 +89,7 @@ not.
 | Touch (main) | **Floating joystick**: touch anywhere to set the origin, drag to steer. Direction sets heading; drag length up to `maxDragPx` (70 CSS px) sets speed. A 6 px dead zone stops jitter. Dragging further than `maxDragPx` drags the origin along, so reversing is instant. Lifting the finger stops the hole quickly (0.08 s, no drift). A ring and dot show the origin and the drag. |
 | Mouse        | Same as touch (click and drag), for desktop testing                                                                                                                                                                                                                                                                                                                                |
 | Keyboard     | `WASD` / arrows steer at full speed · `Esc` / `P` pause                                                                                                                                                                                                                                                                                                                            |
+| Gamepad      | Left stick steers (analogue speed, `PAD_DEAD_ZONE` in `game/stick.ts`) · d-pad full speed · Start pause / resume. Menus: d-pad / stick move focus, A select, B back, Start = play / resume / play again, right stick scrolls long cards, left / right step sliders and drop-downs (`shared/pad-nav.ts`, `Menu.padNav`)                                                             |
 | Debug (play) | `F2` debug HUD (needed for the keys below) · `F8` bot · `+` / `-` level · `T` freeze timer · `F9` save portal thumbnail (dev server) · `F3` stats is not on the play page, use `__hole.benchmark()`                                                                                                                                                                                |
 | Dev touch    | **3-finger tap** toggles the debug HUD (iPad has no F keys)                                                                                                                                                                                                                                                                                                                        |
 
@@ -98,7 +97,7 @@ The joystick works in **screen space** and is turned into a world direction (`st
 is fixed north-up in v0), so "drag up" always means "away from the camera". It is the same in portrait and landscape.
 
 Mobile web setup (done): viewport meta `width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no,
-viewport-fit=cover` (set per page in `rsbuild.config.ts`, hole pages only), `touch-action: none`, `user-select: none`,
+viewport-fit=cover` (play page only, set in `rsbuild.config.ts`; the tool pages keep the default viewport so pinch zoom works), `touch-action: none`, `user-select: none`,
 `-webkit-touch-callout: none`, `overscroll-behavior: none`, `gesturestart` / double-tap / context-menu blocked
 (`game/ios.ts`), HUD uses `env(safe-area-inset-*)`, targets are at least 44 px, WebAudio is resumed on the first
 touch, `apple-mobile-web-app-capable` so "Add to Home Screen" runs full screen. `navigator.vibrate` doesn't exist on
@@ -209,7 +208,7 @@ Each item has a small state machine in `sim/fall.ts`, deterministic (seeded per 
 - **Leftover rings:** once fewer than 100 points are left, every remaining item gets a pulsing white ground ring (hugging the item, at least
   1 % of the camera distance wide, `MIN_SCREEN_K`) and tiny items are drawn regardless of size, so stragglers are easy to find from a big hole
   (`render/leftover-rings.ts`, `LEFTOVER_POINTS`).
-- Results also show **% eaten**, by points: points eaten ÷ total island points (City Island 30 000, Toy Emporium 25 000). The HUD shows the same percentage live.
+- Results also show **% eaten**, by points: points eaten ÷ total island points (City Island 30 000, Toy Emporium 9 000). The HUD shows the same percentage live.
 - Combos and multipliers are not in v0 (see iterations).
 
 #### High scores and the scoring version
@@ -217,8 +216,9 @@ Each item has a small state machine in `sim/fall.ts`, deterministic (seeded per 
 High scores are only comparable while the scoring rules stay the same. The version is **per map**
 (`MAP_SCORING_VERSIONS` in `game/scores.ts`) and saved next to the lists
 (`hole.scores.version` for the city, `hole.scores.version.<map>` for the others); **when the game opens and a saved version differs from
-the code, that map's top-10 lists are erased** (`purgeStaleScores`, also true for lists saved before versions existed).
-Bumping one map never erases another map's scores; a shared rule (`sim/`, clear bonus) means bumping every map.
+the code, that map's entries are kept and tagged with the version they were set on** (`migrateScores`, `ScoreEntry.ver`; lists
+saved before versions existed get 0). The scores screen lists current entries first (any score beats any older one), then a
+divider and the older ones, dimmed; menu "best" counts the current version only. Bumping one map never touches another map's scores; a shared rule (`sim/`, clear bonus) means bumping every map.
 
 **Whenever scoring logic changes, bump the version of the map it affects** (and add a line to the history comment). A
 change to shared rules (tier table, clear bonus, difficulty times, `sim/sim.ts`) bumps every map. That means any change
@@ -226,7 +226,7 @@ to: item points or size tiers (`sim/progression.ts`, item dimensions in `items/c
 difficulty times, how a run is scored (`sim/sim.ts`) or how much content the map holds (`map/generate.ts`, e.g. `tiles` or `pointsPerTile`). Pure
 rebalancing of the XP curve, speed or camera does not change what a score means and needs no bump.
 
-### Moving items (Animal Island and City Island)
+### Moving items (Animal Island, City Island and Construction Site)
 
 Items can move. A placement with a `move` spec (`MoveSpec` in `map/types.ts`: kind, home, leash, speed, optional path
 end and start delay, `flee`) becomes a **mover**: `sim/world.ts` keeps its state in struct-of-arrays (`isMover`,
@@ -269,7 +269,7 @@ end and start delay, `flee`) becomes a **mover**: `sim/world.ts` keeps its state
     now and then and turning back at 25 % of the corners. Pedestrians in a park or on the beach `wander` in a circle that stays
     in the park / on the sand; plaza and lot pedestrians stand. `map/city-movers.ts` assigns them after generation with its own
     Rng, so the layout and the 30 000 points never change. People face +Z (`Movers.face`), animals and cars +X.
-  - `tests/hole/city-movers.test.ts`: cars stay on the asphalt, make progress and do not stack; strollers stay on the ring;
+  - `integration-tests/hole/city-movers.test.ts`: cars stay on the asphalt, make progress and do not stack; strollers stay on the ring;
     deterministic; cheap. Overlays: map viewer "Road network", "Trail / patrol / stroll paths".
 - Not done: no leg animation (animals bob / hop as a whole), herd followers, see [`ANIMAL-ISLAND.md`](ANIMAL-ISLAND.md) section 7.
 
@@ -404,7 +404,7 @@ the menu demo, the bot, the balance page and the tests keep `map.start`. `tests/
 The second map: a giant toy store (working title). One closed rectangular floor with walls, no water. World scale is
 about 5x a real store: a toy brick is 16 cm, a small panda 1.1 m, a ride-on car 3.2 m, a robot 14 m, so the hole sizes and
 the camera are the same as on City Island. Design notes, the full asset roster and the open tasks are in
-[`TOY-STORE.md`](TOY-STORE.md). Generated by `map/toy/generate.ts` from a seed + a floor plan (`map/toy/layouts.ts`),
+[`TOY-STORE.md`](TOY-STORE.md). Generated by `map/toy/generate.ts` from a seed (`map/toy/layouts.ts` deals the departments, checkout and door onto the floor slots),
 deterministic per seed. Registered in `map/registry.ts` (`MapDef`: generator, point total, sky / light mood, menu camera,
 noun for the HUD).
 
@@ -414,21 +414,20 @@ noun for the HUD).
 | Walls         | non-edible, drawn with the item material so the building fade dithers them: tall on three sides (the north = stockroom wall carries **racks of cartons**, the side walls a window band + bunting), **low on the camera side** with a gap and two pillars for the entrance (south), a header with a transom band over it and a "TOY EMPORIUM" sign facing the camera                                                                             |
 | Wayfinding    | render-only (`render/toy-signs.ts`, from the zones + the door): the department **name painted on the floor** at the south edge of each zone (transparent canvas decal, stencil-cut), **chevron trails** (yellow up the central aisle from the door, a branch in the zone colour to every department that is not on the aisle) and a **name banner** on the side wall behind every zone that touches it                                          |
 | Hole bounds   | the hole centre may go to `0.15 x diameter` from the wall (`bounds.inset`; City Island uses 0.5) so it may bulge over the walls and corner items stay reachable; `tests/hole/toy-map.test.ts` checks it                                                                                                                                                                                                                                         |
-| Layouts       | **A "Grand Hall"** (default, 11 departments around a big atrium, drawn 240 x 160 m, built x`FLOOR_SCALE` 2.5 = 600 x 400 m), **B "Ring Walk"** (departments hug the walls, atrium in the middle), **C "Warehouse Sale"** (5 bands from the entrance to the landmark row; slow start, a speed run)                                                                                                                                               |
+| Layouts       | **"Grand Hall"**: 11 zones around a big atrium, drawn 240 x 160 m, built to `FLOOR_X` x `FLOOR_Z` = 220 x 160 m; the seed deals the departments, checkout and door onto the slots (`shuffledLayout`)                                                                                                                                                                                                                                            |
 | Zones         | Stockroom, Robot Factory, Game Room, Plush Meadow, Vroom Row, Splash Zone, Doll House Lane, Brick Alley, Figure Falls, Checkout, Atrium. Each has a points share (A: 4 / 11 / 6 / 20 / 9 / 9 / 7 / 12 / 9 / 5 / 8 %)                                                                                                                                                                                                                            |
 | Fill          | per zone: fixed anchors (showpieces), one of every big item, department shelf rows, then **type quotas** (points per type ~ points^0.8, big types first) placed in **clusters** (loose items gather in displays and spills with empty floor between)                                                                                                                                                                                            |
 | Atrium (A)    | a hall: Big Ted at the back of the central aisle (visible from the door), the two robots and the railway behind, rocket and titan on the sides, **two Ferris wheels and two carousels as pairs** either side of the aisle, a brick tower in each front corner                                                                                                                                                                                   |
 | Floor         | textured in layers (`render/toy-floor.ts`, greyscale canvas tiles that multiply the mat colour, UVs from x / z): terrazzo base, **carpet** (Plush Meadow), **polka dots** (Doll House Lane), **brick base plate studs** (Brick Alley), **waves** (Splash Zone), **concrete** (Stockroom), glossy **tiles** (Robot Factory, Checkout, Atrium), **foam mat tiles** (Game Room, Vroom Row, Figure Falls); tape, door mat and guide line stay plain |
-| Plush density | the Plush Meadow is the densest zone but not a pile-up: share 18 % (was 20 %) in layouts A / B, and the whale / penguin plush are stocked in the Splash Zone (`PLUSH_ELSEWHERE` in `map/toy/generate.ts`); the freed points go to the atrium, checkout, dolls and splash                                                                                                                                                                        |
-| Start         | the checkout between Brick Alley and Figure Falls (layout A), ringed by ~36 tier 1-3 pieces (only the default / test start, see "Random start")                                                                                                                                                                                                                                                                                                 |
+| Plush density | the Plush Meadow is the densest zone but not a pile-up: share 18 % (was 20 %) in the floor plan, and the whale / penguin plush are stocked in the Splash Zone (`PLUSH_ELSEWHERE` in `map/toy/generate.ts`); the freed points go to the atrium, checkout, dolls and splash                                                                                                                                                                       |
+| Start         | the checkout between Brick Alley and Figure Falls ringed by ~36 tier 1-3 pieces (only the default / test start, see "Random start")                                                                                                                                                                                                                                                                                                             |
 
-**Total points are exactly 25 000 for every seed**, like City Island: after the zones are filled, `balancePoints` trims
+**Total points are exactly 9 000 for every seed**: after the zones are filled, `balancePoints` trims
 small items (never near the start) or tops up with 1-point fillers (`puzzle_piece`, `brick_2x2`, ...). Pacing: the
-store has to be big for the same reason City Island is (points per m2), so the floor is 600 x 400 m. Points by tier
-(layout A): tier 1 is ~5 % of the points, tiers 4-10 hold ~52 % (a third of the map is 8-point shelf units), tiers 20-25
-~5 %: the early game is not a dust vacuum. Good bot, layout A:
-level 15 at ~90 s, store cleared at ~320 s (City Island: level 15 at 120-160 s, cleared ~310-400 s). Layout B is faster
-(level 15 at 70 s, cleared 265 s), layout C slower (level 15 at 160 s, cleared 380 s).
+floor is 220 x 160 m (`FLOOR_X` / `FLOOR_Z`), the type quotas weigh points^1 (`beta`, fewer copies of the cheap types) and a very big type (tier >= `VERY_BIG_TIER` 18, 11 m+) is placed at most `MAX_VERY_BIG_COPIES` (1) times and each seed drops about half of them (`VERY_BIG_KEEP`, at least 2 per tier); more points than 9 000 make a bot clear it faster (hole level is capped at 15 on this map, `maxLevel` in `map/registry.ts` / `SimOptions`; 9 000 points just cover the XP to level 15). Points by tier
+(floor plan): tier 1 is ~5 % of the points, tiers 4-10 hold ~52 % (a third of the map is 8-point shelf units), tiers 20-25
+~5 %: the early game is not a dust vacuum. Good bot:
+level 15 at ~90 s, store cleared at ~320 s (City Island: level 15 at 120-160 s, cleared ~310-400 s).
 
 **Catalog:** 210 types in `items/catalog-toy.ts` (data) with builders in `build-plush.ts`, `build-toys.ts`,
 `build-toyveh.ts`, `build-landmarks.ts` (all recipes in fractions of w x d x h, helpers in `kit-toy.ts`). Groups: bricks,
@@ -467,7 +466,7 @@ stepper), deterministic, DOM-free; registered in `map/registry.ts` (id `animal`,
 | Fill     | a per-tier point budget (`TIER_FRACTION`) shared by the types of the tier by priority and group weight (`planCounts`), placed biggest first; 80 % of the tier 1-12 items gather around **hotspots**; herds, ant trails from anthills, patrols; then `ensureTypes` and `balancePoints`                                                                                                                                                                                      |
 | Start    | a clear meadow spot with the most tier 1-3 items within 22 m, plus a ring of 26 tiny things (`startPoint`); runs start at a random busy spot (`pickStart`: avoids water and hills and, on this map, needs >= 40 tier 1 items within 22 m because a level 1 hole eats tier 1 only; the tests check >= 30)                                                                                                                                                                   |
 
-**Total points are exactly 21 000 for every seed**: the fill plans less than the target, `balancePoints` trims small
+**Total points are exactly 22 000 for every seed**: the fill plans less than the target, `balancePoints` trims small
 items (never within 28 m of the start) or adds mid-tier items and 1-point fillers (`grass_tuft`, `flower`, `clover`,
 `pebble`) until the total is exact. About 4 900 items, ~2 500 of them movers. At most 50 terrain hills (per-type caps), the tiny mounds are small items. Items keep `3 + 0.15 x size` m from the coast (the biggest hole must reach them). Pacing is in `ANIMAL-ISLAND.md` 5.7.
 
@@ -489,6 +488,30 @@ biome cells (two greens per biome), sand ring, flat rects, river ribbons with mu
 
 **Performance**: since the items are batched (see "Performance" under Architecture) the map draws in 23-26 calls and
 24k / 108k / 321k triangles at level 1 / 8 / 15 (shadows on); **not yet measured on a device** (open task AI-01).
+
+## Map: Construction Site
+
+The fourth map (`map=construction`, **test map**: dev server and `npm run build:test` only, see `release.ts`): a fenced
+540 x 420 m building site. Bricks, cones and hard hats first, then wheelbarrows, mini diggers, skips and containers, then
+excavators, dump trucks and half-built houses, and last haul trucks, tower cranes and the high-rises they build.
+Design, roster (117 types), decisions and open tasks: [`CONSTRUCTION-SITE.md`](CONSTRUCTION-SITE.md). Registered in
+`map/registry.ts` (id `construction`, noun "site", 21 000 points, seeded, `puffs: 'rubble'`).
+
+| Part      | How it is built                                                                                                                                                                                                                      |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Plan      | `map/construction/layout.ts`: 12 m gravel haul roads (x = -180..180 / z = -126..126), 6 x 5 plots in 9 districts (`District` in `items/catalog-construction.ts`), the mine is one road-free area                                     |
+| Generator | `map/construction/generate.ts`: per-tier point budget (`TIER_FRACTION`) shared by the types of each tier, biggest first, small items gather round work spots, then `ensureAllTypes`, start scatter, `balancePoints` (exactly 21 000) |
+| Movers    | workers `wander`; site vans, pickups, dump and mixer trucks `drive` the road graph (`MapData.roads`, at most 44, right-hand lane); haul trucks and forklifts `patrol` a reserved straight path                                       |
+| Ground    | `render/construction-ground.ts`: dirt base + checker, the map's rects (districts, roads, mine terraces), skirt, outside plane, hoarding (item material, low on the gate side) and district names painted on the floor                |
+| Start     | the Site Gate plot; runs start at a random busy spot (`pickStart`)                                                                                                                                                                   |
+
+**Catalog:** `items/catalog-construction.ts` (data: size, groups, districts, motion), builders `build-site.ts`
+(materials, tools, crew, site furniture, heaps) and `build-machines.ts` (plant, trucks, cranes, mining, buildings), shared
+helpers in `kit-site.ts`. Machines run along X (front +X), workers face +Z. Builders run with `Mesher.decoplanar`.
+Triangle budgets (`tests/hole/construction-items.test.ts`): material 300, tools 400, crew 140, site 600, heaps 300,
+plant 900, trucks 1 200, structures 1 600, cranes 1 200, mining 1 600.
+
+Sounds: clack (material, tools, crew, site), clank (plant, trucks, cranes, mining, structures), thud (heaps).
 
 ## Art style
 
@@ -734,7 +757,7 @@ are City Island only.
 - Overlays: district colours, "show only tier N" filter. Click an item to inspect it (name, level, points, size,
   position). Click the ground to move the red marker (drawn at the hole size of the chosen level).
 - `map=animal` adds an **Animals** section (URL keys `biomes`, `walkgrid`, `leash`, `paths`): biome grid colours, walk grid (green land, blue water, red blocked), leash circles (one per home / radius / behaviour, colour = behaviour) and the ant / patrol path lines; the content box also counts movers per behaviour.
-- **Content budget box:** item count, total points against the exact target (30 000 City Island, 25 000 Toy Emporium), tiers with fewer than 2 item types, items
+- **Content budget box:** item count, total points against the exact target (30 000 City Island, 9 000 Toy Emporium), tiers with fewer than 2 item types, items
   and points per tier, skyscraper count, start position; draw calls and triangles in the F3 box.
 - **Game camera** at the marker for level L (checks framing over the real map); **Play from the red marker** opens
   `./?seed=&x=&z=&level=&difficulty=medium`.
@@ -789,8 +812,8 @@ are City Island only.
   cut-off).
 - `toy-items`: every toy tier / level has >= 2 types, the three required plush families exist at six sizes, builders
   match the catalog size, stay on the ground, keep their paint lists and triangle budgets. `toy-clip`: no z-fighting, no
-  mostly-buried item (same checker as `clip`). `toy-map`: deterministic, exactly 25 000 points, every type placed, tiers /
-  levels covered, start busy, layouts B and C, balance bands for the good bot, every item reachable by a hole of its level.
+  mostly-buried item (same checker as `clip`). `toy-map`: deterministic, exactly 9 000 points, every type placed, tiers /
+  levels covered, start busy, random department slots, balance bands for the good bot, every item reachable by a hole of its level.
 
 - `kit-ball`: the round primitive (radii, triangle count, domes, eggs, seeded jitter, outward faces, clip checker coverage).
 - `movers`: moving items (leash, ground rules, determinism, the spatial hash follows them, flee, speed cap, 2 500-mover tick).
@@ -827,7 +850,7 @@ src/games/hole/
     spawn.ts             City spawn zones (road / sidewalk / lot / park / beach / lawn), SPAWN table, zone map
     minimal.ts           tiny map for viewers / tests
     registry.ts          MapDef per playable map (generator, points, mood, menu camera)
-    toy/                 Toy Emporium: layouts.ts (floor plans), generate.ts
+    toy/                 Toy Emporium: layouts.ts (floor plan + department shuffle), generate.ts
     animal/              Animal Island: biomes.ts, generate.ts (coast, biomes, rivers, compound, hills, fill)
   render/
     renderer.ts          renderer (stencil on), quality tiers, sun + sky light + fog, shadow box follow
@@ -868,6 +891,10 @@ ratio capped at 2 (1.5 on `low`). What is in place:
 - **Paint**: per-instance colours are the batch colour texture; the `paint` mask patch covers both `instanceColor` and
   `getBatchingColor` (`render/materials.ts`). `tests/hole/item-instances.test.ts` checks the culling and fails if a
   three.js upgrade renames the internals / shader line it relies on.
+- **Partial matrix upload** (`ItemBatch.setMatrix` / `flushMatrixRows`): three re-sends a batch's whole matrix texture
+  after any `setMatrixAt`. After the first render only the changed texture rows are sent (full upload again when over
+  half the rows changed): 0.2-0.5 MB per frame on City / Animal at level 15 down to 10-130 KB, pixel-identical.
+- **One layout read per frame** for the "+N" popups (`handleEvents`): `getBoundingClientRect` once, not per eat.
 - **Adaptive resolution** (`adaptResolution` in `game/hole-game.ts`): during a run, a smoothed frame time above 24 ms
   steps the render scale down (x0.88 every 1.5 s, floor 70 %); below 18 ms for 6 s it steps back up.
 - **Idle frame cap**: menus, pause and results render at ~30 fps (the sim of the menu demo still steps in real time).

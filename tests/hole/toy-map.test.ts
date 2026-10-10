@@ -2,11 +2,10 @@ import { expect, test } from '@rstest/core';
 import {
   generateToyStore,
   toyTargetPoints,
+  VERY_BIG_TIER,
 } from '../../src/games/hole/map/toy/generate';
 import { TOY_ITEMS, getItem } from '../../src/games/hole/items/catalog';
 import { insideMap } from '../../src/games/hole/map/types';
-import { Sim } from '../../src/games/hole/sim/sim';
-import { BOT_SKILLS, runBot } from '../../src/games/hole/sim/bot';
 import {
   holeDiameter,
   ITEM_LEVELS,
@@ -49,13 +48,13 @@ test('every item is inside the store floor and only toy items are used', () => {
   }
 });
 
-test('every seed holds exactly 25000 points', () => {
+test('every seed holds exactly 9000 points', () => {
   for (const seed of [1, 2, 3, 7, 42])
-    expect(stats(generateToyStore({ seed })).points).toBe(25000);
-  expect(toyTargetPoints({ points: 25000 })).toBe(25000);
+    expect(stats(generateToyStore({ seed })).points).toBe(9000);
+  expect(toyTargetPoints({ points: 9000 })).toBe(9000);
 });
 
-test('content budget: tiers and levels covered, all types up to tier 20 placed, enough points', () => {
+test('content budget: tiers and levels covered, every type below the very big tier placed, enough points', () => {
   const s = stats();
   for (let t = 1; t <= TIER_COUNT; t++)
     expect(
@@ -66,10 +65,10 @@ test('content budget: tiers and levels covered, all types up to tier 20 placed, 
     expect(s.levelTypes[l].size, `level ${l}`).toBeGreaterThanOrEqual(2);
   const placed = new Set(map.placements.map((p) => p.item));
   for (const it of TOY_ITEMS)
-    if (it.tier <= 20) expect(placed.has(it.id), it.id).toBe(true);
-  expect(s.points).toBeGreaterThanOrEqual(2 * cumulativeXp(ITEM_LEVELS));
+    if (it.tier < VERY_BIG_TIER) expect(placed.has(it.id), it.id).toBe(true);
+  expect(s.points).toBeGreaterThanOrEqual(cumulativeXp(ITEM_LEVELS));
   expect(map.placements.length).toBeGreaterThan(1500);
-  expect(map.placements.length).toBeLessThan(13000);
+  expect(map.placements.length).toBeLessThan(9000);
 });
 
 test('start is on the floor with small items nearby, and the departments tile the floor', () => {
@@ -82,23 +81,6 @@ test('start is on the floor with small items nearby, and the departments tile th
   expect(near.length).toBeGreaterThan(15);
   expect(map.zones!.length).toBe(11);
 });
-
-test('balance bands: good bot on the toy store, hard / medium / easy', () => {
-  const m = generateToyStore({ seed: 1 });
-  const hard = runBot(new Sim(m, { seconds: 120 }), BOT_SKILLS.good, {
-    dt: 1 / 30,
-  });
-  expect(hard.level).toBeGreaterThanOrEqual(10);
-  const medium = runBot(new Sim(m, { seconds: 240 }), BOT_SKILLS.good, {
-    dt: 1 / 30,
-  });
-  expect(medium.level).toBeGreaterThanOrEqual(15);
-  const easy = runBot(new Sim(m, { seconds: 480 }), BOT_SKILLS.good, {
-    dt: 1 / 30,
-  });
-  expect(easy.level).toBeGreaterThanOrEqual(15);
-  expect(easy.pct).toBeGreaterThan(0.95);
-}, 120000);
 
 test('every item can be reached by a hole of its first level', () => {
   // the hole centre may go to `inset x diameter` from the wall; the item must be inside the commit radius from there
@@ -116,17 +98,37 @@ test('every item can be reached by a hole of its first level', () => {
   expect(bad).toEqual([]);
 });
 
-test('layouts B and C: deterministic, exact points, every type placed, items on the floor', () => {
-  for (const layout of ['b', 'c']) {
-    const m = generateToyStore({ seed: 2, layout });
-    const again = generateToyStore({ seed: 2, layout });
+test('seeds: deterministic, exact points, every normal type placed, departments move', () => {
+  const zoneKey = (m: ReturnType<typeof generateToyStore>) =>
+    m.zones!.map((z) => `${z.id}:${z.x0},${z.z0}`).join('|');
+  const keys = new Set<string>();
+  for (const seed of [2, 3, 4, 5]) {
+    const m = generateToyStore({ seed });
+    const again = generateToyStore({ seed });
     expect(JSON.stringify(m.placements)).toBe(JSON.stringify(again.placements));
-    expect(stats(m).points, layout).toBe(25000);
+    expect(stats(m).points, `seed ${seed}`).toBe(9000);
     const placed = new Set(m.placements.map((p) => p.item));
     for (const it of TOY_ITEMS)
-      expect(placed.has(it.id), `${layout} ${it.id}`).toBe(true);
+      if (it.tier < VERY_BIG_TIER)
+        expect(placed.has(it.id), `${seed} ${it.id}`).toBe(true);
     for (const p of m.placements)
-      expect(insideMap(m, p.x, p.z, 0), `${layout} ${p.item}`).toBe(true);
+      expect(insideMap(m, p.x, p.z, 0), `${seed} ${p.item}`).toBe(true);
     expect(insideMap(m, m.start.x, m.start.z, 5)).toBe(true);
+    keys.add(zoneKey(m));
   }
+  expect(keys.size).toBeGreaterThan(1);
+  // the entrance moves along the south wall with the checkout, and the start stays inside the checkout
+  const doors = new Set<number>();
+  for (let seed = 1; seed <= 12; seed++) {
+    const m = generateToyStore({ seed });
+    const door = m.bounds!.door!;
+    doors.add(door);
+    const checkout = m.zones!.find((z) => z.id === 'checkout')!;
+    expect(door).toBeGreaterThanOrEqual(checkout.x0);
+    expect(door).toBeLessThanOrEqual(checkout.x1);
+    expect(m.start.x).toBeGreaterThan(checkout.x0);
+    expect(m.start.x).toBeLessThan(checkout.x1);
+    expect(m.start.z).toBeGreaterThan(checkout.z0);
+  }
+  expect(doors.size).toBe(3);
 });

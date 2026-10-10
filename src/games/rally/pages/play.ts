@@ -17,7 +17,7 @@ import {
   GamepadMenuNav,
   moveFocus,
   type NavAction,
-} from '../game/pad-nav';
+} from '../../../shared/pad-nav';
 import { RallyGame } from '../game/rally-game';
 import { loadSettings } from '../game/settings';
 import {
@@ -25,7 +25,7 @@ import {
   isTouchDevice,
   TouchControls,
 } from '../game/touch-controls';
-import { formatDelta, formatTime, purgeStaleTimes } from '../game/stage';
+import { formatDelta, formatTime, migrateTimes } from '../game/stage';
 import { DEFAULT_MAP, getMap, loadMap } from '../maps';
 import { SETUP_FOR_TYRE, SETUP_IDS } from '../physics/car-setup';
 import { isGearingId } from '../physics/gearing';
@@ -65,7 +65,7 @@ const portalButton = portalUrl()
   ? `<button data-a="portal">All games</button>`
   : '';
 
-purgeStaleTimes(); // physics changed -> old stage times are erased before any menu reads them
+migrateTimes(); // physics changed -> old stage times are tagged with their version before any menu reads them
 
 if (deepLink) void play(readUrlState(DEFAULTS));
 else
@@ -133,6 +133,7 @@ async function play(params: typeof DEFAULTS): Promise<void> {
       <h2>Paused</h2>
       <div class="menu">
         <button data-a="resume">Resume</button>
+        <button data-a="reset">Reset to road</button>
         <button data-a="restart">Restart stage</button>
         <button data-a="${freeDrive ? 'stage' : 'pad'}">${freeDrive ? 'Back to the stage start' : 'Free drive on the test pad'}</button>
         <button data-a="options">Options</button>
@@ -147,6 +148,7 @@ async function play(params: typeof DEFAULTS): Promise<void> {
     pauseBox.append(
       buildOptions({
         tractionControl: !getCar(params.car).physics.noTractionControl,
+        abs: !getCar(params.car).physics.noAbs,
         onBack: showPauseMenu,
         onChange: (s) => game.applySettings(s),
         // The renderer is built for one quality: reload into the same stage.
@@ -162,6 +164,10 @@ async function play(params: typeof DEFAULTS): Promise<void> {
   pause.addEventListener('click', (e) => {
     const a = (e.target as HTMLElement).dataset.a;
     if (a === 'resume') game.setPaused(false);
+    if (a === 'reset') {
+      game.setPaused(false);
+      game.resetToRoad();
+    }
     if (a === 'restart') game.restart();
     if (a === 'pad') nav({ spawn: 'pad' });
     if (a === 'stage') nav({ spawn: 'start' });
@@ -276,8 +282,11 @@ async function play(params: typeof DEFAULTS): Promise<void> {
     .then(() => {
       loading.remove();
       if (touch)
-        touchControls = new TouchControls(root, game.input, () =>
-          game.setPaused(true),
+        touchControls = new TouchControls(
+          root,
+          game.input,
+          () => game.setPaused(true),
+          () => game.resetToRoad(),
         );
       game.start();
     })

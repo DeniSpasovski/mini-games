@@ -1,11 +1,13 @@
+import { drivenRadius } from './car-tyres';
 import { sampleTorque } from './drivetrain';
+import type { TyreId } from './tyres';
 import type { CarPhysicsDef, GearingId } from './types';
 
 /**
  * Gearing presets (setup screen): Short / Medium / Long final drive - the gearbox ratios stay, like a rally team
  * swapping the final drive for a fast or a twisty stage. Short = harder pull, lower top speed; Long = the other way.
  * Only cars with `CarPhysicsDef.gearings` can change it (the race cars); the others show their fixed gearing.
- * Medium is always the car's own `gearbox.finalDrive` (tests/rally/gearing.test.ts). Design: ../PHYSICS.md "Gearing".
+ * Medium is always the car's own `gearbox.finalDrive` (integration-tests/rally/gearing.test.ts). Design: ../PHYSICS.md "Gearing".
  */
 export const GEARING_IDS: readonly GearingId[] = ['short', 'medium', 'long'];
 
@@ -41,16 +43,17 @@ const RPM_TO_RADS = (2 * Math.PI) / 60;
 const AIR_DENSITY = 1.2;
 const G = 9.81;
 
-/** Road speed (m/s) at `rpm` in a gear (1-based). */
+/** Road speed (m/s) at `rpm` in a gear (1-based) on a tyre compound (the driven wheels' radius; null = default size). */
 export function gearSpeed(
   def: CarPhysicsDef,
   gear: number,
   rpm: number,
+  tyre: TyreId | null = null,
 ): number {
   const gb = def.gearbox;
   return (
     ((rpm * RPM_TO_RADS) / (gb.ratios[gear - 1] * gb.finalDrive)) *
-    def.wheelRadius
+    drivenRadius(def, tyre)
   );
 }
 
@@ -58,16 +61,20 @@ export function gearSpeed(
  * Flat-ground top speed (m/s) on tarmac: the fastest speed in any gear where the wheel force still beats drag +
  * rolling resistance, capped by the redline (the setup screen's number; the sim agrees within a few km/h).
  */
-export function topSpeed(def: CarPhysicsDef, rolling = 0.013): number {
+export function topSpeed(
+  def: CarPhysicsDef,
+  tyre: TyreId | null = null,
+  rolling = 0.013,
+): number {
   const gb = def.gearbox;
   const eng = def.engine;
+  const r = drivenRadius(def, tyre);
   let best = 0;
   for (let gear = 1; gear <= gb.ratios.length; gear++) {
     const ratio = gb.ratios[gear - 1] * gb.finalDrive;
     for (let rpm = eng.idleRpm; rpm <= eng.redlineRpm; rpm += 25) {
-      const v = gearSpeed(def, gear, rpm);
-      const drive =
-        (sampleTorque(eng, rpm) * ratio * gb.efficiency) / def.wheelRadius;
+      const v = gearSpeed(def, gear, rpm, tyre);
+      const drive = (sampleTorque(eng, rpm) * ratio * gb.efficiency) / r;
       const resist =
         0.5 * AIR_DENSITY * def.dragArea * v * v + rolling * def.mass * G;
       if (drive >= resist) best = Math.max(best, v);
@@ -77,8 +84,11 @@ export function topSpeed(def: CarPhysicsDef, rolling = 0.013): number {
 }
 
 /** Top speed (m/s) at the redline in every gear - the setup screen's gear chart. */
-export function gearTopSpeeds(def: CarPhysicsDef): number[] {
+export function gearTopSpeeds(
+  def: CarPhysicsDef,
+  tyre: TyreId | null = null,
+): number[] {
   return def.gearbox.ratios.map((_, i) =>
-    gearSpeed(def, i + 1, def.engine.redlineRpm),
+    gearSpeed(def, i + 1, def.engine.redlineRpm, tyre),
   );
 }

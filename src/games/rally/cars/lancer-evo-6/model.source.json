@@ -1,0 +1,289 @@
+{
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/lancer-evo-6/02-lancer-evo-6-metres.glb = 'Mitsubishi Lancer Evolution 6' by vecarz (CC BY 4.0) with the FBX 0.01 root scale undone (scripts/car-model/glb-set-root-scale.py <glb> <out> 1 100): +x left, +y up, +z nose, metres. The offset lifts the body so the hubs (model y 0.294) sit at the tyre radius 0.316 and puts the front hub (model z 1.265) on physics front.z. The atlas block is also read by livery.ts at runtime - edit it only here.",
+  "source": "sources/cars/lancer-evo-6/02-lancer-evo-6-metres.glb -> glb-to-parts-stl.py -> sources/cars/lancer-evo-6/lancer-evo-6-parts.stl",
+  "output": "public/models/cars/lancer_evo_6.glb",
+  "axes": ["x", "y", "z"],
+  "scale": 1.0,
+  "offset": [0, 0.022, -0.065],
+  "groundAtMin": false,
+  "targetTriangles": 75000,
+  "creaseDeg": 40,
+  "wheels": {
+    "$comment": "the wheels are separate nodes (dropped below) - nothing to cut",
+    "radius": 0,
+    "minAbsX": 9,
+    "centres": []
+  },
+  "atlas": {
+    "pxPerMetre": 256,
+    "width": 4.55,
+    "height": 8.8,
+    "bounds": {
+      "x": [-1.0, 1.0],
+      "y": [0, 1.5],
+      "z": [-2.3, 2.2]
+    },
+    "charts": {
+      "left": [0, 0],
+      "right": [0, 1.55],
+      "top": [0, 3.1],
+      "front": [0, 5.15],
+      "rear": [2.2, 5.15],
+      "bottom": [0, 6.7]
+    },
+    "chartBoxes": [
+      {
+        "$comment": "side skirt between the arches: its up-facing bevel and end faces join the side chart (black sill)",
+        "chart": "side",
+        "x": [0.72, 0.95],
+        "y": [0.12, 0.36],
+        "z": [-0.97, 0.85],
+        "maxNy": 1.01,
+        "minNy": -1.01
+      },
+      {
+        "$comment": "front diffuser lip: its top ledge joins the front chart (black lip)",
+        "chart": "front",
+        "x": [0, 0.95],
+        "y": [0.12, 0.29],
+        "z": [1.55, 2.2],
+        "minNy": 0.3
+      },
+      {
+        "$comment": "rear bumper lip: the groove ledge on its top joins the rear chart (black lip)",
+        "chart": "rear",
+        "x": [0, 0.95],
+        "y": [0.36, 0.47],
+        "z": [-2.3, -1.55],
+        "minNy": 0.3
+      }
+    ]
+  },
+  "gltf": {
+    "drop": [
+      "wheel",
+      "tire",
+      "disk",
+      "mat00",
+      "mat04",
+      "material_7",
+      "evo_6:LOD_A_BONNETCAM_BODY_mm_ext",
+      "evo_6:LOD_A_BONNETCAM_BODY_mm_lights",
+      "evo_6:LOD_A_BONNETCAM_BODY_mm_misc",
+      "evo_6:LOD_A_BONNETCAM_HOOD_mm_badges",
+      "evo_6:LOD_A_BONNETCAM_HOOD_mm_ext",
+      "evo_6:LOD_A_BONNETCAM_HOOD_mm_misc",
+      "evo_6:LOD_A_BRAKE_CALIPER_FRONT_LEFT_mm_misc",
+      "evo_6:LOD_A_BRAKE_CALIPER_FRONT_RIGHT_mm_misc",
+      "evo_6:LOD_A_BRAKE_CALIPER_REAR_LEFT_mm_misc",
+      "evo_6:LOD_A_BRAKE_CALIPER_REAR_RIGHT_mm_misc",
+      "evo_6:LOD_A_BODY_mm_lights_lights_0",
+      "evo_6:LOD_A_HEADLIGHT_LENS_LEFT_mm_lights_lights_0",
+      "evo_6:LOD_A_HEADLIGHT_LENS_RIGHT_mm_lights_lights_0",
+      "evo_6:LOD_A_CHASSIS_mm_lights_lights_0",
+      "evo_6:LOD_A_BOOT_mm_lights_lights_0",
+      "evo_6:LOD_A_TAILLIGHT_LENS_LEFT_mm_lights_lights_0",
+      "evo_6:LOD_A_TAILLIGHT_LENS_RIGHT_mm_lights_lights_0",
+      "evo_6:LOD_A_BRAKES_LEFT_mm_lights_lights_0",
+      "evo_6:LOD_A_BRAKES_RIGHT_mm_lights_lights_0",
+      "evo_6:LOD_A_BRAKES_BOOT_mm_lights_lights_0",
+      "evo_6_int:LOD_A_INT_DOOR_LEFT_LED_EMISSIVE_mm_int",
+      "evo_6_int:LOD_A_INT_LED_EMISSIVE_mm_int",
+      "evo_6_int:LOD_A_INT_NEEDLE_RPM_EMISSIVE_mm_int",
+      "evo_6_int:LOD_A_INT_NEEDLE_SPEED_EMISSIVE_mm_int",
+      "evo_6_int:LOD_A_INT_MIRROR_GLASS_LEFT_mm_int",
+      "evo_6_int:LOD_A_INT_MIRROR_GLASS_RIGHT_mm_int"
+    ],
+    "parts": [
+      {
+        "node": "evo_6:LOD_A_MIRROR_GLASS_LEFT_mm_misc_misc_0",
+        "material": "mirror"
+      },
+      {
+        "node": "evo_6:LOD_A_MIRROR_GLASS_RIGHT_mm_misc_misc_0",
+        "material": "mirror"
+      },
+      {
+        "node": "evo_6_int:LOD_A_INT_MIRROR_GLASS_mm_int_int1_0",
+        "material": "mirror"
+      },
+      {
+        "node": "evo_6:LOD_A_FRONTBUMPER_mm_ext_ext_0",
+        "islandTris": [70, 90],
+        "material": "logo"
+      },
+      {
+        "mat": "phong1",
+        "z": [0, 3],
+        "material": "trim:2s"
+      },
+      {
+        "mat": "phong1",
+        "material": "logo"
+      },
+      {
+        "mat": "windows",
+        "node": "evo_6:LOD_A_HEADLIGHT_LENS_LEFT_mm_windows_windows_0",
+        "material": "lenscover"
+      },
+      {
+        "mat": "windows",
+        "node": "evo_6:LOD_A_HEADLIGHT_LENS_RIGHT_mm_windows_windows_0",
+        "material": "lenscover"
+      },
+      {
+        "mat": "windows",
+        "node": "evo_6:LOD_A_TAILLIGHT_LENS_LEFT_mm_windows_windows_0",
+        "material": "lenscover"
+      },
+      {
+        "mat": "windows",
+        "node": "evo_6:LOD_A_TAILLIGHT_LENS_RIGHT_mm_windows_windows_0",
+        "material": "lenscover"
+      },
+      {
+        "mat": "windows",
+        "material": "glass"
+      },
+      {
+        "mat": "glass_surr",
+        "material": "trim:2s"
+      },
+      {
+        "mat": "misc",
+        "material": "trim:2s"
+      },
+      {
+        "mat": "standardSurface1",
+        "material": "trim:2s"
+      },
+      {
+        "mat": "material",
+        "material": "body"
+      }
+    ],
+    "default": "interior:2s"
+  },
+  "srcParts": {
+    "textures": [
+      {
+        "material": "lights",
+        "out": "public/models/cars/lancer_evo_6_lamps.png"
+      },
+      {
+        "material": "mat00",
+        "out": "public/models/cars/lancer_evo_6_seat.png"
+      },
+      {
+        "material": "mat04",
+        "out": "public/models/cars/lancer_evo_6_fabric.png"
+      },
+      {
+        "material": "material_7",
+        "out": "public/models/cars/lancer_evo_6_cab.png"
+      }
+    ],
+    "parts": [
+      {
+        "node": "evo_6:LOD_A_INTERIOR_mm_cab_cab_0",
+        "material": "src:int:lancer_evo_6_cab.png"
+      },
+      {
+        "node": "evo_6_int:LOD_A_INT_INTERIOR_mm_mat04_mat04_0",
+        "material": "src:int:lancer_evo_6_fabric.png"
+      },
+      {
+        "node": "evo_6_int:LOD_A_INT_DOOR_LEFT_mm_mat04_mat04_0",
+        "material": "src:int:lancer_evo_6_fabric.png"
+      },
+      {
+        "node": "evo_6_int:LOD_A_INT_DOOR_RIGHT_mm_mat04_mat04_0",
+        "material": "src:int:lancer_evo_6_fabric.png"
+      },
+      {
+        "node": "evo_6_int:LOD_A_INT_INTERIOR_mm_mat00_mat00_0",
+        "material": "src:int:lancer_evo_6_seat.png"
+      },
+      {
+        "node": "evo_6:LOD_A_BODY_mm_lights_lights_0",
+        "material": "src:lamp:lancer_evo_6_lamps.png"
+      },
+      {
+        "node": "evo_6:LOD_A_CHASSIS_mm_lights_lights_0",
+        "z": [0, 3],
+        "material": "src:lamp:lancer_evo_6_lamps.png"
+      },
+      {
+        "node": "evo_6:LOD_A_HEADLIGHT_LENS_LEFT_mm_lights_lights_0",
+        "material": "src:lamp:lancer_evo_6_lamps.png"
+      },
+      {
+        "node": "evo_6:LOD_A_HEADLIGHT_LENS_RIGHT_mm_lights_lights_0",
+        "material": "src:lamp:lancer_evo_6_lamps.png"
+      },
+      {
+        "node": "evo_6:LOD_A_CHASSIS_mm_lights_lights_0",
+        "z": [-3, 0],
+        "material": "src:tail:lancer_evo_6_lamps.png"
+      },
+      {
+        "node": "evo_6:LOD_A_BOOT_mm_lights_lights_0",
+        "material": "src:tail:lancer_evo_6_lamps.png"
+      },
+      {
+        "node": "evo_6:LOD_A_TAILLIGHT_LENS_LEFT_mm_lights_lights_0",
+        "material": "src:tail:lancer_evo_6_lamps.png"
+      },
+      {
+        "node": "evo_6:LOD_A_TAILLIGHT_LENS_RIGHT_mm_lights_lights_0",
+        "material": "src:tail:lancer_evo_6_lamps.png"
+      }
+    ],
+    "shells": [
+      {
+        "nodes": [
+          "evo_6_int:LOD_A_INT_INTERIOR_mm_mat00_mat00_0",
+          "evo_6_int:LOD_A_INT_INTERIOR_mm_mat04_mat04_0"
+        ],
+        "x": [0.1, 0.62],
+        "y": [0.42, 1.25],
+        "z": [-0.55, 0.12],
+        "mirror": true,
+        "material": "src:shell"
+      }
+    ]
+  },
+  "parts": {
+    "materials": [
+      "body",
+      "trim:2s",
+      "glass",
+      "lenscover",
+      "mirror",
+      "interior:2s",
+      "logo",
+      "drop"
+    ],
+    "drop": ["logo", "drop"],
+    "maxTriangles": {
+      "interior:2s": 16000
+    },
+    "preview": {
+      "body": "#c8ccd0",
+      "trim:2s": "#222",
+      "glass": "#4a6a8a",
+      "lenscover": "#9fc",
+      "redcover": "#e33",
+      "headled": "#ff6",
+      "tailled": "#f33",
+      "lamphousing": "#f80",
+      "mirror": "#0ff",
+      "interior:2s": "#a62",
+      "logo": "#f0f",
+      "chrome": "#bcd",
+      "amber": "#fa0",
+      "lens": "#fff",
+      "drop": "#000"
+    }
+  }
+}

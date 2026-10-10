@@ -2,10 +2,8 @@ import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
-import * as B from './blueprint';
-import { buildSkodaRallyBody } from './body';
+import { profile } from './profile';
 import { skodaRallyLivery } from './livery';
-import { skodaRallyAtlas } from './paint';
 
 /** Fabia R5 (2015-19): wheelbase 2.47 m (the model's 2.475), hubs at the tyre radius. */
 const AXLE_F = 1.15;
@@ -17,7 +15,7 @@ const BODY = {
   width: 1.82,
   height: 1.46,
   comHeight: 0.52,
-  wheelRadius: B.WHEEL_R,
+  wheelRadius: 0.321,
 };
 
 const FRONT: AxleDef = {
@@ -25,7 +23,7 @@ const FRONT: AxleDef = {
   track: 1.58,
   spring: 34000,
   bump: 2400,
-  rebound: 3400,
+  rebound: 4320,
   travel: 0.26,
   antiRoll: 9000,
   brakeTorque: 1750,
@@ -40,7 +38,7 @@ const REAR: AxleDef = {
   track: 1.58,
   spring: 29000,
   bump: 2100,
-  rebound: 3000,
+  rebound: 3780,
   travel: 0.26,
   antiRoll: 6000,
   brakeTorque: 750,
@@ -144,7 +142,7 @@ export const skodaRally: CarDef = {
     },
     drivetrain: {
       // Mechanical diffs. A stiffer fixed-split centre (lock 220, split 0.45) was tried and made the
-      // autopilot fail the Jackie stage (tests/rally/stage.test.ts) - kept the proven numbers.
+      // autopilot fail the Jackie stage (integration-tests/rally/stage.test.ts) - kept the proven numbers.
       frontSplit: 0.42,
       centerLock: 120,
       frontDiffLock: 80,
@@ -165,53 +163,17 @@ export const skodaRally: CarDef = {
     ]),
   },
   model: {
-    // The body is hand-built (`custom`). stations / cabin / parts are a rough match of it, used only
-    // by the generic kit. Rear -> front.
-    stations: [
-      { z: -2.2, floor: 0.42, belt: 0.75, hw: 0.3, hwBelt: 0.25 },
-      { z: -2.0, floor: 0.42, belt: 0.96, hw: 0.75, hwBelt: 0.68 },
-      { z: -1.414, floor: 0.24, belt: 1.02, hw: 0.86, hwBelt: 0.79 },
-      { z: -0.6, floor: 0.21, belt: 0.96, hw: 0.87, hwBelt: 0.79 },
-      { z: 0.4, floor: 0.19, belt: 0.89, hw: 0.87, hwBelt: 0.79 },
-      { z: 1.15, floor: 0.16, belt: 0.88, hw: 0.87, hwBelt: 0.79 },
-      { z: 1.7, floor: 0.14, belt: 0.72, hw: 0.8, hwBelt: 0.7 },
-      { z: 1.9, floor: 0.14, belt: 0.66, hw: 0.58, hwBelt: 0.5 },
-      { z: 1.98, floor: 0.16, belt: 0.6, hw: 0.3, hwBelt: 0.25 },
-    ],
-    cabin: {
-      zFront: 0.75,
-      zRear: -1.85,
-      roofFront: 0.12,
-      roofRear: -1.2,
-      roofY: B.ROOF_Y,
-      roofHw: B.RAIL_HW,
-      kick: 0.3,
-      bPillar: -0.45,
-    },
     paint: '#e9e6dd',
-    flare: B.FLARE_OUT,
     rim: { color: '#e9e6dd', spokes: 16, style: 'spoke', caliper: '#a07a3c' },
     // The model's own rim (front-left, exported by the recipe in DETAILS.md), rescaled per tyre size (stl-wheel.ts).
     wheelModel: 'skoda_rally_wheel.glb',
     suspensionStyle: 'rally',
-    parts: {
-      arches: 'box',
-      rearWing: 'rally1',
-      splitter: true,
-      sideSkirts: true,
-      hoodVents: true,
-      diffuser: true,
-      roofVent: true,
-      headlights: 'slim',
-      grille: 'mouth',
-      doors: 4,
-    },
-    livery: 'rally1',
-    custom: { atlas: skodaRallyAtlas, build: buildSkodaRallyBody },
-    glass: { color: 0x2a3a46, opacity: 0.4 },
+    glass: { color: 0x141c24, opacity: 0.6 },
+    // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
+    profile,
     doorBadge: { z: 0.27, y: 0.59 },
     // No procedural suspension: the imported model carries its own springs, dampers and arms (trim).
-    // Imported body (replaces the hand-built one while public/models/cars/skoda_rally.glb exists):
+    // Imported body:
     // "Skoda Fabia R5 Rally Car" by SenturyUK, CC BY 4.0, converted by glb-to-parts-stl.py + stl-to-glb.mjs
     // (model.source.json) and painted at runtime (livery.ts).
     gltf: {

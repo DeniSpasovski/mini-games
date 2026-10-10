@@ -9,8 +9,11 @@ import {
   SETUP_IDS,
 } from '../../src/games/rally/physics/car-setup';
 import {
+  axleRadius,
   carGripRating,
   carSurfaces,
+  drivenRadius,
+  isStaggered,
   tyreRadius,
   tyreSizeFor,
 } from '../../src/games/rally/physics/car-tyres';
@@ -34,13 +37,57 @@ const car = (id: string) => ALL_CARS.find((c) => c.id === id)!.physics;
 describe.each(ALL_CARS.map((c) => c.id))('%s', (carId) => {
   const def = car(carId);
 
-  test('every tyre size matches the physics wheel radius and width', () => {
+  test('every tyre size fits the reference wheel radius and width', () => {
+    for (const t of TYRE_IDS)
+      for (const axle of ['front', 'rear'] as const) {
+        const size = tyreSizeFor(def, t, axle);
+        // A staggered rear runs taller by design (the GT2's 31/71-18 slick: +7.6 %), checked against the arch.
+        const tol = axle === 'rear' && def.tyres.rear ? 0.08 : 0.04;
+        const r = axleRadius(def, t, axle);
+        expect(Math.abs(r / def.wheelRadius - 1)).toBeLessThan(tol);
+        // The rolling radius follows the marking (scaled to the car's own radius for its default size).
+        expect(r / def.wheelRadius).toBeCloseTo(
+          tyreRadius(size) / tyreRadius(def.tyres.size),
+          9,
+        );
+        expect(Math.abs(size.width - def.wheelWidth)).toBeLessThan(0.05);
+      }
+  });
+
+  test('without rear sizes both axles share the size, radius and grip table', () => {
+    if (def.tyres.rear) return;
     for (const t of TYRE_IDS) {
-      const size = tyreSizeFor(def, t);
-      expect(Math.abs(tyreRadius(size) / def.wheelRadius - 1)).toBeLessThan(
-        0.04,
+      expect(isStaggered(def, t)).toBe(false);
+      expect(carSurfaces(def, t, 'rear')).toBe(carSurfaces(def, t, 'front'));
+      expect(axleRadius(def, t, 'rear')).toBe(axleRadius(def, t, 'front'));
+    }
+  });
+
+  test('the default size rolls on the car own wheelRadius (its default handling stays as measured)', () => {
+    const v = new Vehicle(def, flat('tarmac'));
+    for (const w of v.wheels)
+      if (w.isFront || !def.tyres.rear) expect(w.radius).toBe(def.wheelRadius);
+  });
+
+  test('4WD cars run one radius on both axles (the centre coupling compares wheel spin)', () => {
+    const split = def.drivetrain.frontSplit;
+    if (split === 0 || split === 1) return;
+    for (const t of TYRE_IDS)
+      expect(axleRadius(def, t, 'rear')).toBeCloseTo(
+        axleRadius(def, t, 'front'),
+        6,
       );
-      expect(Math.abs(size.width - def.wheelWidth)).toBeLessThan(0.05);
+  });
+
+  test('the wheels roll on their size, the gearbox sees the driven axle', () => {
+    for (const t of TYRE_IDS) {
+      const v = new Vehicle(def, flat('tarmac'));
+      v.setTyre(t);
+      for (const w of v.wheels)
+        expect(w.radius).toBe(axleRadius(def, t, w.isFront ? 'front' : 'rear'));
+      const split = def.drivetrain.frontSplit;
+      const driven = split === 0 ? 'rear' : split === 1 ? 'front' : null;
+      if (driven) expect(drivenRadius(def, t)).toBe(axleRadius(def, t, driven));
     }
   });
 
@@ -154,6 +201,26 @@ test('a soft set-up gains on rough ground, a stiff one on tarmac', () => {
   expect(mu(soft, 'gravel')).toBeGreaterThan(mu(stiff, 'gravel'));
   expect(mu(soft, 'rock')).toBeGreaterThan(mu(stiff, 'rock'));
   expect(mu(stiff, 'tarmac')).toBeGreaterThan(mu(soft, 'tarmac'));
+});
+
+test('the BMWs run their own staggered sizes: a wider (GT2: taller) rear with its own grip table', () => {
+  for (const id of ['bimmer_m3', 'bimmer_gt2']) {
+    const def = car(id);
+    expect(isStaggered(def, 'tarmac')).toBe(true);
+    expect(tyreSizeFor(def, 'tarmac', 'rear').width).toBeGreaterThan(
+      tyreSizeFor(def, 'tarmac', 'front').width,
+    );
+    expect(carSurfaces(def, 'tarmac', 'rear')).not.toBe(
+      carSurfaces(def, 'tarmac', 'front'),
+    );
+    expect(carSurfaces(def, 'tarmac', 'rear').tarmac.mu).toBeGreaterThan(
+      carSurfaces(def, 'tarmac', 'front').tarmac.mu,
+    );
+  }
+  const gt2 = car('bimmer_gt2');
+  expect(
+    axleRadius(gt2, 'tarmac', 'rear') - axleRadius(gt2, 'tarmac', 'front'),
+  ).toBeGreaterThan(0.02);
 });
 
 function flat(surface: SurfaceId): GroundProvider {

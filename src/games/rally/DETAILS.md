@@ -28,6 +28,7 @@ gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
 | `mute=1`                   | play  | silent (bots and tests)                                                                                 |
 | `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                      |
 | `tod=<hours>`, `tonemap=`  | all   | look experiments: time of day (maps with `environment.timeOfDay`), `aces / agx / neutral`               |
+| `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the map's `environment.airTemp`)                    |
 
 Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab hidden), `__rally.loadTimings`,
 `__rally.vehicle`, `__rallyProbe()` (what the camera draws), `__worldShading`, `__mapViewer`, `__carViewer`.
@@ -37,10 +38,10 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 | Input    | Keys                                                                                                                       |
 | -------- | -------------------------------------------------------------------------------------------------------------------------- |
 | Keyboard | `W` / `S` throttle / brake (hold `S` when stopped = reverse), `A` / `D` steer, `Space` handbrake                           |
-|          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist           |
+|          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS  |
 |          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F8` autopilot, `F9` save the portal thumbnail (dev)      |
 | Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B |
-| Touch    | on-screen steer arrows, BRAKE / GAS and pause, landscape only (`game/touch-controls.ts`)                                   |
+| Touch    | on-screen steer arrows, BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                    |
 
 ## Game flow
 
@@ -49,10 +50,13 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
   **Start stage** with the recommended set-up, or **Setup car**. The car stands in a 3D showroom (`game/showroom.ts`): car
   screens add studio strip lights to the env map (`Environment` `studio`) and a shallow depth of field
   (`engine/depth-of-field.ts`, off on low quality); the stage view keeps the map's sky env, no blur. Console (dev): `__showroom`.
-- **Options** (main and pause menu): quality, object distance, volume, gearbox, traction assist (hidden for cars with
-  `physics.noTractionControl`), car number (door plates), start camera. Saved in localStorage (`game/settings.ts`).
+- **Options** (main and pause menu): quality, object distance, volume, gearbox, traction assist and ABS (each hidden for
+  cars with `physics.noTractionControl` / `noAbs`), car number (door plates), start camera. Saved in localStorage (`game/settings.ts`).
+- **Menu music** (main menu only, none in the race): `game/menu-music.ts` loops `sources/music/*.mp3` (git-ignored, copied on build; only files present at build time play and are credited, so a CI checkout / Pages deploy is silent, no errors) (tracks + credits listed
+  there), starts on the first click / key (autoplay rule), shows "now playing" bottom right, pauses with the tab. Main-menu
+  Options slider `musicVolume` (0 = off, 100% plays at half of full volume); `?mute=1` silences it. Add a track = file + `MENU_TRACKS` row (+ `THIRD-PARTY.md`).
 - **Pause** (`Esc`): resume, restart, free-drive pad <-> stage, options, main menu.
-- **About:** every external source per map (`MapDef.sources`) and car (`CarDef.sources`), plus `version` from `game.json`.
+- **About:** every external source per map (`MapDef.sources`) and car (`CarDef.sources`), menu music credits, plus `version` from `game.json`.
 
 **On a stage** (`game/stage.ts`):
 
@@ -60,13 +64,16 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 - **Sectors:** one bar segment per sector, amber while running, green / red against your best run.
 - **Cutting** (`StageTimer.updateCut`): up to `CUT_WARN` (20 m off the road edge) is allowed. Past it the HUD shows `OFF STAGE`
   and a grace timer runs; when it ends, or past `CUT_MAX`, or on a later part of the road, the car is put back where it left.
-- **Penalties:** manual reset +2 s, forced reset +5 s. Knocked-over marker posts (`breakable` assets, `world/breakables.ts`)
-  are free: the car drives over them and they tip over until the stage restarts.
+- **Penalties:** manual reset +2 s (+10 s when flipped), forced reset +5 s. Knocked-over marker posts are free, chevron signs only slow the car a bit
+  (`breakable` assets, `slow` in the catalog, `world/breakables.ts`): the car drives over them and they tip over until the stage restarts.
 - **Finish:** the car brakes itself to a stop on the run-off (`finishStopControls()`), so every map needs a run-off. The
   autopilot (`F8`, finish stop) runs per 240 Hz physics step, exactly as in the tests.
 - **Results:** time, delta to the best run, sector chips, then the stage top 10 (all cars / this car) with each run's set-up.
-  Stored per map in localStorage (`rally.times.<map>`). `TIMES_VERSION` (`game/stage.ts`) erases saved times - bump it only when
-  the owner asks (AGENTS.md).
+  Stored per map in localStorage (`rally.times.<map>`). `MAP_TIMES_VERSIONS` + `CAR_TIMES_VERSIONS` (`game/stage.ts`): each run stores its map and car version. On a bump
+  `migrateTimes` keeps the runs, tags them with the version they were set on (`RunRecord.ver` / `carVer`) and lists them below all
+  current runs, dimmed, behind a divider; the bumped map's / car's per-car bests move into the leaderboard as old runs. Times saved before per-map / per-car versions show as `v0`. Map change = bump that map; a car's
+  handling change = bump that car; a shared physics change = bump every car. Livery / model fixes never bump. Agents bump
+  them as part of the change (AGENTS.md).
 
 ## Look (`engine/environment.ts`, `engine/world-shading.ts`)
 
@@ -156,17 +163,31 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
 
 ## Cars
 
-| id            | name        | drive | notes                                                                                |
-| ------------- | ----------- | ----- | ------------------------------------------------------------------------------------ |
-| `skoda_rally` | Skoda Rally | AWD   | Rally2-class hatch from a CC BY Fabia R5 model, own livery, hand-built fallback body |
-| `bimmer_m3`   | Bimmer M3   | RWD   | lowered E46 coupe from a CC BY print model, own livery                               |
-| `zastava_101` | Zastava 101 | FWD   | stock "Stojadin", body hand-built from dimensions and a blueprint                    |
+| id             | name               | drive | notes                                                                                    |
+| -------------- | ------------------ | ----- | ---------------------------------------------------------------------------------------- |
+| `skoda_rally`  | Skoda Rally        | AWD   | Rally2-class hatch from a CC BY Fabia R5 model, own livery                               |
+| `bimmer_m3`    | Bimmer M3          | RWD   | lowered E46 coupe from a CC BY print model, own livery                                   |
+| `bimmer_gt2`   | Bimmer GT2         | RWD   | wide-body E92 GT2 racer from a CC BY Sketchfab model, clean livery (test only)           |
+| `subie_22b`    | Subaru WRX STI 22B | AWD   | widebody GC8 / 22B from a CC BY-NC Sketchfab model, crescent / stars graphic (test only) |
+| `zastava_101`  | Zastava 101        | FWD   | stock "Stojadin", body hand-built from dimensions and a blueprint                        |
+| `fiesta`       | Fiesta WRC         | AWD   | World Rally Car from a CC BY model with its cockpit, own rim and livery, test car        |
+| `citroen_c4`   | Citroen C4 WRC     | AWD   | 2007 World Rally Car from a CC BY model with its cockpit, own rim and livery, test car   |
+| `lancer_evo_6` | Lancer EVO VI      | AWD   | 1999-style Lancer from a CC BY model with its cockpit, own rim and livery, test car      |
 
 - A car is `cars/<car>/<car>.ts` (a `CarDef`: physics + model + sound) with its README. A GLB in `public/models/cars/` replaces the
-  procedural body (`cars/shared/car-gltf.ts`; credits in `public/models/CREDITS.md`). Imports: rally-car-import skill.
+  car's own body (`cars/shared/car-gltf.ts`; credits in `public/models/CREDITS.md`). Imports: rally-car-import skill.
+- Every car has a body without its GLB: hand-built `model.custom` (Zastava) or `model.profile` (`cars/<car>/profile.ts`,
+  baked by `scripts/car-model/side-profile.mjs`): the boxy side outline extruded to the body width with its glass and lamps
+  tagged (`cars/shared/profile-body.ts`), shown only if the GLB fails to load. It wears the car's livery, box-projected
+  onto the atlas (`CarAtlas.layout`). Car viewer `fallback=1` shows it.
+- The same profiles are the city maps' parked cars (`street_car`, `taxi`, `police_car`; `assets/builders/vehicles.ts`):
+  one paint, simple wheels, one draw call per LOD (variant sets); the far LOD simplifies the outlines and drops rims and
+  lamps (`tests/rally/street-car.test.ts` holds the triangle budget).
+- Car GLBs are committed plain (the model scripts and `hull-fit.test.ts` read them); the build copies them meshopt-compressed
+  (`scripts/car-model/glb-meshopt.mjs`, about half the size, same meshes; `car-glb-meshopt.test.ts` checks every file).
 - **Door plates** (`cars/shared/rally-badge.ts`): our own event plate (emblem, car number, map name) projected onto both front
   doors. Liveries carry no numbers or lettering.
-- **Release flags** (`release.ts`): every car / map id is in `AVAILABLE_*` (published) or `TEST_*` (dev only, TEST badge).
+- **Release flags** (`release.ts`): `CARS_LIST` / `MAPS_LIST` list every car / map id; `hideInProd: true` = dev server + `npm run build:test` only (TEST badge). Same flag and `RELEASE_BUILD` check (`src/shared/release.ts`) as `game.json`.
   Unknown ids fall back to the defaults; `tests/rally/release.test.ts` guards the lists. The flag only hides - code still ships.
 
 ## Sound (`game/audio.ts`, `game/engine-sound.ts`)
@@ -201,10 +222,13 @@ open it.
   carry them.
 - Each box is a transparent DOM element; `renderBoxes` draws the showroom, then each part's studio camera into its box. Call
   `showSetup(carId, boxes)` again after the menu re-renders. Styles: `game/menu.css` "setup screen".
-- In game: no set-up HUD; a "hold on!" line at GO for a poor tyre pick; `F2` shows tyre, set-up and per-wheel grip.
+- In game: no set-up HUD; a "hold on!" line at GO for a poor tyre pick; the dash shows the four tyre temperatures
+  (PHYSICS.md "Tyre temperature"); `F2` shows tyre, set-up, per-wheel grip and temperature.
 
 Rendering: `cars/shared/tyre-mesh.ts` (tread per compound, compound ring), `suspension-mesh.ts` (per
 `model.suspensionStyle`), `buildWheelSet` in `car-model.ts`.
+Cars whose model has empty wheel wells set `model.cornerSuspension` (`cars/shared/corner-suspension.ts`): a coil-over in the car's
+style plus arms / drive shafts, following the live wheel travel (Zastava, M3, GT2, C4, Lancer; Skoda, Fiesta, 22B show the model's own).
 
 ## Architecture
 
@@ -281,7 +305,6 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 
 ## Known limitations
 
-- Chevrons are drive-through, not solid.
 - Generation runs on the main thread (time-sliced); very large maps would need a Web Worker for heightfield and scatter.
 - Real-world map data is not lazy-loaded; a bare-earth DEM would help where the elevation model includes trees.
 - Not done: tyre relaxation length, co-driver pace notes, car damage.

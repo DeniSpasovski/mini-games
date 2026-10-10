@@ -5,7 +5,7 @@ description: Create or edit Gravel Rally maps (road layout, terrain, jumps, scat
 
 # Rally maps
 
-Every map needs `tyre` (required `TyreId`: the recommended compound for its road surfaces - `tarmac`, `mixed` or `gravel`, see `physics/tyres.ts` / `src/games/rally/PHYSICS.md`; the recommended suspension follows from it); `tests/rally/tyres.test.ts` lists the maps it drives (add the new id).
+Every map needs `tyre` (required `TyreId`: the recommended compound for its road surfaces - `tarmac`, `mixed` or `gravel`, see `physics/tyres.ts` / `src/games/rally/PHYSICS.md`; the recommended suspension follows from it); `integration-tests/rally/tyres.test.ts` lists the maps it drives (add the new id).
 
 A map is pure data: one folder per map, `src/games/rally/maps/<id>/map.ts` exporting a `MapDef`
 (format in `maps/shared/types.ts`; helpers shared by maps in `maps/shared/`), registered in `maps/index.ts`.
@@ -61,7 +61,7 @@ generated deterministically from it. There is no map editor on purpose — edit 
 
 1. `npm run test -- tests/rally/world.test.ts` — prints road length, max grade, control-point distances (use
    these to place `at:` props), checks the road is flat/gravel and no solid scatter is on the road.
-2. `npm run test -- tests/rally/stage.test.ts` — the autopilot must finish the stage with every car without rolling.
+2. `npm run test:integration -- integration-tests/rally/stage.test.ts` — the autopilot must finish the stage with every car without rolling.
    If it fails, trace the failing distance (lower `maxGrade`, widen a hairpin, move a crest out of a corner).
 3. Look: `/games/rally/map-viewer.html?map=<id>` (oblique overview, `grid=1` chunk grid, `splat=1` surfaces,
    click terrain -> "Drive from here"). It loads progressively, nearest the camera first (Map panel `loading` = `done`
@@ -277,12 +277,17 @@ OSM ways reprojected with the baker's `Proj`, one `Local` frame per structure (`
 ## New map checklist
 
 Copy `maps/test/` to `maps/<id>/` (fill in its `DETAILS.md` sources), change `id`, `name`, `seed`, `bounds`, `road.points`; add to `ENTRIES` in `maps/index.ts` (a real map with baked data: put the menu fields in `<id>/info.ts`, load `map.ts` with a dynamic import, see rally DETAILS.md "Lazy loading");
-the stage test picks it up automatically. **Add its id to `TEST_MAPS`** in
+the stage test picks it up automatically. **Add it to `MAPS_LIST` with `hideInProd: true`** in
 `src/games/rally/release.ts` (one file tracks all maps + cars; `tests/rally/release.test.ts` fails for an unlisted
 map): it is then dev server only (`npm run dev` uses `ALL_MAPS`, TEST badge) and out of the published build, so other
-fixes can ship meanwhile. Move the id to `AVAILABLE_MAPS` to release it (or back to `TEST_MAPS` to pull it).
+fixes can ship meanwhile. Remove the flag to release it (or set it again to pull it).
 
 ## Source files
 
 Files / links the user provides (models, reference photos, data downloads) go to `sources/` (git-ignored) and are
 listed in the car / map folder `DETAILS.md` - follow `.claude/skills/source-files/SKILL.md`.
+
+## Bump the times version (last step)
+
+A new map adds its id to `MAP_TIMES_VERSIONS` in `game/stage.ts` (start at 1). Changing a released map's road, layout, length or surfaces bumps its entry, but only when the user says we are making a build;
+until then say in the PR which map changed (AGENTS.md "Rally times versions"). A `hideInProd` map stays at 1 until released (a test checks). Old times stay below the new ones.

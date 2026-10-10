@@ -7,10 +7,11 @@ played and modified locally.
 
 **Play it in the browser: [games.deni.io](https://games.deni.io)**
 
-| Game                             | What it is                                                                                                |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| [Gravel Rally](src/games/rally/) | Point-to-point rally on real-world roads (OpenStreetMap + elevation data), custom raycast-vehicle physics |
-| [Hole Island](src/games/hole/)   | Touch-first "swallow everything" game on a blocky toy city and a giant toy store                          |
+| Game                                 | What it is                                                                                                |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| [Gravel Rally](src/games/rally/)     | Point-to-point rally on real-world roads (OpenStreetMap + elevation data), custom raycast-vehicle physics |
+| [Hole Island](src/games/hole/)       | Touch-first "swallow everything" game on a blocky toy city and a giant toy store                          |
+| [3, 2, 1 Kabooom](src/games/kaboom/) | Tilted-3D arena game: animal demolition crew, TNT chain reactions, bots (in development, unlisted)        |
 
 [![Gravel Rally - Zastava at the Ajvatovci start](src/games/rally/screenshots/start.jpg)](src/games/rally/)
 
@@ -21,19 +22,24 @@ played and modified locally.
 
 ## What is in here
 
-- **three.js** scenes, instancing / LOD / streaming terrain, procedural assets, seeded generators.
-- A hand-written **vehicle physics** model (raycast suspension, combined-slip tyres, drivetrain) that runs in plain
-  node, so it is covered by regression tests.
+- **three.js** scenes, instancing / LOD / streaming terrain, procedural assets, seeded generators, pooled GPU particles.
+- A **vehicle physics** model (raycast suspension, combined-slip tyres with temperature, drivetrain, ABS), generated
+  by an AI coding agent under my supervision and then fine-tuned against public data and research papers. It runs in
+  plain node, so it is covered by regression and autopilot tests.
 - A **real-world map baker** (Python) that turns open data into playable stages.
-- Small tool pages (map viewer, car viewer, asset / item viewers, balance charts) used while building the games.
-- Bundled with [Rsbuild](https://rsbuild.rs/), tested with Rstest, written in TypeScript.
+- A **car import pipeline** (Python + node scripts) that turns shared 3D models into compressed game cars with livery
+  atlases and a boxy fallback body.
+- **Bots** in Hole Island and Kabooom; touch, keyboard and gamepad controls (menus included) in every game.
+- Small tool pages (map, car, crew and item viewers, asset debugger, balance charts, bench) used while building the games.
+- An installable, offline-capable portal (PWA), one self-contained build per game.
+- Bundled with [Rsbuild](https://rsbuild.rs/), tested with Rstest on GitHub Actions, written in TypeScript.
 
 ## Quick start
 
 ```bash
 npm install
 npm run dev        # http://localhost:3000
-npm run test       # physics / world / full-stage regression tests
+npm run test       # unit + data tests (fast); `npm run test:integration` = playtests (slow), see `integration-tests/README.md`
 npm run lint
 npm run build      # dist/ (portal + one self-contained folder per game)
 npm run build -- --environment rally   # rebuild only dist/games/rally/

@@ -21,10 +21,18 @@ Which primitive becomes which material is the `gltf` block of model.source.json:
       "default": "trim"                                   # unmatched primitives (omit = error)
     }
 
+`lampCups` adds real round lamp cups + bulbs behind a lamp shell whose depth is only texture (see lamp_cups, cars/subie-22b/).
+`node` can also be a list of node names. `move: [dx, dy, dz]` (source units) shifts the rule's triangles - e.g. the model's own
+springs / dampers pulled in to the game's wheel track when the physics track is narrower than the model's (cars/subie-22b/).
+
 A rule can also be an exact outline cut - `"region": {"view": "front", "poly": [[x, y], ...], "depth": [zmin, zmax], "mirror": true}` in
 MODEL coordinates (after the config's offset), convex polygon: the primitive's triangles are CLIPPED along the outline and the
 pieces inside (and inside `depth` along the view axis) get the material, the rest keep looking - clean part borders on big
 skin triangles (a centre-based box leaves saw teeth). Views: front / rear (x, y), left / right (z, y), top (z, x).
+
+A rule can also take `"uv": [u0, u1, v0, v1]` (glTF TEXCOORD_0 of the source primitive, v down): it matches triangles whose UV
+centroid lies in the box - lamps that the model paints into its body texture (the lamp crop of that texture is the lamp's
+own map: `uv` box = the texture rectangle to cut out). Put it before any `region` rule of the same primitive (a cut drops the UVs).
 
 A rule can also take `"near": {"mat": "mat_25", "z": [0.8, 1.5], "d": 0.05}`: it then only matches triangles whose
 centroid lies within `d` metres of the triangles of that source material (optionally cut to an x / y / z box) - used
@@ -33,6 +41,15 @@ for the black border round a windscreen without hand-placed boxes.
 Rules and `near` blocks can also take `"facing": {"y": [0.3, 1], "|x|": [0, 0.7]}`: the triangle's unit normal component
 must lie in the range (a scalar = minimum; "|x|" tests the absolute value). In a `near` block it filters the sampled
 triangles (windscreen + rear screen glass without the side windows of the same material).
+
+`"arch": {"axles": [1.32, -1.27], "y": 0.31, "r": [0.28, 0.48], "toward": 0.3, "|x|": [0.45, 1], "dy": -0.06}` (source
+coordinates) matches the wheel-arch liners and the inner faces of the flares: triangles within `r` of a hub line whose normal
+points at it (`arch_mask`) - send them to `trim` so the arches are black, not painted.
+
+`"texture": {"maxLum": 0.22, "maxSat": 0.1, "blur": 9, "refine": 0.015, "exclude": [[u0, u1, v0, v1], ...]}` matches
+triangles whose base-colour texels are dark and unsaturated (`dark_mask`, blurred so thin streaks drop out), after splitting them
+along that texture border down to `refine` metres - black rubbers, vents and carbon painted into the body texture. `exclude`
+blanks UV rectangles (v down) first: emblems drawn in the same ink.
 
 `"whole": true` makes the x / y / z box test whole connected islands (triangles sharing vertices, computed on the full
 primitive) instead of triangle centres: an island matches only when its bounding box lies inside the box - picks a wing,
@@ -137,6 +154,93 @@ def primitives(g, bins):
     for s in g['scenes'][g.get('scene', 0)]['nodes']:
         walk(s, np.eye(4), [])
     return out
+
+
+def primitive_uvs(g, bins):
+    """TEXCOORD_0 triangles (n, 3, 2) per primitive, in the same order as primitives() (None without UVs)."""
+    out = []
+
+    def walk(i):
+        n = g['nodes'][i]
+        if 'mesh' in n:
+            for p in g['meshes'][n['mesh']]['primitives']:
+                if p.get('mode', 4) != 4:
+                    continue
+                if 'TEXCOORD_0' not in p['attributes']:
+                    out.append(None)
+                    continue
+                UV = accessor(g, bins, p['attributes']['TEXCOORD_0'])
+                I = accessor(g, bins, p['indices']).astype(np.int64).ravel() if 'indices' in p else np.arange(len(UV))
+                out.append(UV[I].reshape(-1, 3, 2))
+        for c in n.get('children', []):
+            walk(c)
+
+    for s in g['scenes'][g.get('scene', 0)]['nodes']:
+        walk(s)
+    return out
+
+
+def texture_image(g, bins, mat_name):
+    """A material's base-colour texture as float RGB (h, w, 3) in 0..1 (sRGB bytes / 255)."""
+    import io
+
+    from PIL import Image
+
+    mat = next(m for m in g['materials'] if m.get('name') == mat_name)
+    ti = mat['pbrMetallicRoughness']['baseColorTexture']['index']
+    img = g['images'][g['textures'][ti]['source']]
+    bv = g['bufferViews'][img['bufferView']]
+    raw = bins[bv.get('buffer', 0)][bv.get('byteOffset', 0):bv.get('byteOffset', 0) + bv['byteLength']]
+    return np.asarray(Image.open(io.BytesIO(raw)).convert('RGB'), float) / 255.0
+
+
+BARY = np.array([[1/3, 1/3, 1/3], [.7, .15, .15], [.15, .7, .15], [.15, .15, .7],
+                 [.45, .45, .1], [.1, .45, .45], [.45, .1, .45]])
+
+
+def texture_samples(im, uv):
+    """Texels (n, 7[, 3]) at 7 barycentric points of each UV triangle (n, 3, 2)."""
+    h, w = im.shape[:2]
+    pts = np.einsum('sk,nkc->nsc', BARY, uv)
+    px = (np.mod(pts[..., 0], 1.0) * (w - 1)).astype(int)
+    py = (np.mod(pts[..., 1], 1.0) * (h - 1)).astype(int)
+    return im[py, px]
+
+
+def dark_mask(im, tx):
+    """Texture -> 0..1 "is this texel of the picked kind" (luminance / saturation window), box-blurred (`blur` px,
+    default 9) so scratches and dirt in the texture do not speckle the cut border."""
+    lum = im @ np.array([0.2126, 0.7152, 0.0722])
+    sat = im.max(-1) - im.min(-1)
+    m = ((lum <= tx.get('maxLum', 1)) & (lum >= tx.get('minLum', 0)) & (sat <= tx.get('maxSat', 1))).astype(float)
+    k = int(tx.get('blur', 9))
+    if k > 1:
+        ker = np.ones(k) / k
+        for ax in (0, 1):
+            for _ in range(2):
+                m = np.apply_along_axis(lambda v: np.convolve(np.pad(v, k // 2, mode='wrap'), ker, 'valid')[:len(v)], ax, m)
+    return m
+
+
+def refine_by_texture(T, uv, mask, tx, min_edge):
+    """Split triangles whose texture crosses the dark / light classification (1 -> 4, repeatedly) until edges are
+    shorter than min_edge: the carbon / paint border of the original texture becomes a triangle border."""
+    while True:
+        cls = texture_samples(mask, uv) >= 0.5
+        mixed = cls.any(1) & ~cls.all(1)
+        edge = np.max([np.linalg.norm(T[:, i] - T[:, (i + 1) % 3], axis=1) for i in range(3)], axis=0)
+        split = mixed & (edge > min_edge)
+        if not split.any():
+            return T, uv
+        Ts, Us = T[split], uv[split]
+        out_T, out_U = [T[~split]], [uv[~split]]
+        m01, m12, m20 = (Ts[:, 0] + Ts[:, 1]) / 2, (Ts[:, 1] + Ts[:, 2]) / 2, (Ts[:, 2] + Ts[:, 0]) / 2
+        u01, u12, u20 = (Us[:, 0] + Us[:, 1]) / 2, (Us[:, 1] + Us[:, 2]) / 2, (Us[:, 2] + Us[:, 0]) / 2
+        for ta, ua in (((Ts[:, 0], m01, m20), (Us[:, 0], u01, u20)), ((m01, Ts[:, 1], m12), (u01, Us[:, 1], u12)),
+                       ((m20, m12, Ts[:, 2]), (u20, u12, Us[:, 2])), ((m01, m12, m20), (u01, u12, u20))):
+            out_T.append(np.stack(ta, 1))
+            out_U.append(np.stack(ua, 1))
+        T, uv = np.concatenate(out_T), np.concatenate(out_U)
 
 
 def facing_mask(T, facing):
@@ -285,6 +389,23 @@ def region_cut(T, r, off):
     return ins, out
 
 
+def arch_mask(T, a):
+    """Wheel-arch liner: triangles round an axle (hub line along x at y, one per `axles` z) within `r` of it, at
+    least `dy` above the hub, with |x| in `|x|` and the normal pointing at the hub line (radial share >= `toward`)."""
+    c = T.mean(1)
+    n = np.cross(T[:, 1] - T[:, 0], T[:, 2] - T[:, 0])
+    n /= np.linalg.norm(n, axis=1)[:, None] + 1e-20
+    ax = np.abs(c[:, 0])
+    out = np.zeros(len(T), bool)
+    for z in a['axles']:
+        dy, dz = c[:, 1] - a['y'], c[:, 2] - z
+        r = np.hypot(dy, dz)
+        toward = -(n[:, 1] * dy + n[:, 2] * dz) / (r + 1e-9)
+        out |= (r >= a['r'][0]) & (r <= a['r'][1]) & (toward >= a.get('toward', 0.3)) & (dy >= a.get('dy', -0.05))
+    lo, hi = a.get('|x|', [0, 9])
+    return out & (ax >= lo) & (ax <= hi)
+
+
 def near_mask(prims, near, C):
     """True for centroids C (n, 3) within near['d'] of the triangles of near['mat'] (inside the optional x / y / z box)."""
     from scipy.spatial import cKDTree
@@ -310,6 +431,81 @@ def near_mask(prims, near, C):
     return d <= near['d']
 
 
+def lamp_cups(cfg, prims):
+    """`gltf.lampCups`: real round lamp cups behind a textured lamp shell (a model whose lamp depth is only texture). Each cup is
+    placed in the shell's 'corner'-wrap space (u = |x| - |z|, v = y top down, fitted 0..1 over both sides, as stl-to-glb.mjs):
+    `cups` = [[u, v, ru, rv], ...] (the material's bowl table). The rim follows the shell's inside, the reflector narrows to
+    `back` x the rim over `depth` m along `axis` (into the car), a bulb sits in it; both sides (x mirrored). Model metres in,
+    source triangles out: (triangles, material per triangle)."""
+    lc = cfg['gltf']['lampCups']
+    s, off = cfg['scale'], np.array(cfg['offset'], float)
+    T = np.concatenate([Tp for name, _m, _p, Tp in prims if name in lc['lens']]) * s + off
+    cw = np.stack([np.abs(T[..., 0]) - np.abs(T[..., 2]), T[..., 1]], -1)  # (n, 3, 2)
+    lo, hi = cw.reshape(-1, 2).min(0), cw.reshape(-1, 2).max(0)
+    left = T[..., 0].mean(1) > 0
+    TL, CL = T[left], cw[left]
+    axis = np.array(lc.get('axis', [0, 0, 1]), float)
+    D, back, gap = lc.get('depth', 0.045), lc.get('back', 0.35), lc.get('gap', 0.003)
+
+    def on_lens(cu, y):
+        """3D point of the left shell at corner coords (cu, y)."""
+        a, b, c = CL[:, 0], CL[:, 1], CL[:, 2]
+        d = (b[:, 1] - c[:, 1]) * (a[:, 0] - c[:, 0]) + (c[:, 0] - b[:, 0]) * (a[:, 1] - c[:, 1])
+        d = np.where(np.abs(d) < 1e-12, 1e-12, d)
+        l0 = ((b[:, 1] - c[:, 1]) * (cu - c[:, 0]) + (c[:, 0] - b[:, 0]) * (y - c[:, 1])) / d
+        l1 = ((c[:, 1] - a[:, 1]) * (cu - c[:, 0]) + (a[:, 0] - c[:, 0]) * (y - c[:, 1])) / d
+        l2 = 1 - l0 - l1
+        worst = np.minimum(np.minimum(l0, l1), l2)
+        i = int(np.argmax(worst))  # the containing triangle (or the nearest miss)
+        return l0[i] * TL[i, 0] + l1[i] * TL[i, 1] + l2[i] * TL[i, 2]
+
+    out, lab = [], []
+    seg, rings = lc.get('segments', 24), 5
+    for u, v, ru, rv in lc['cups']:
+        cu0, y0 = lo[0] + u * (hi[0] - lo[0]), hi[1] - v * (hi[1] - lo[1])
+        centre = on_lens(cu0, y0) + axis * gap
+        rim = []
+        for k in range(seg):
+            t = 2 * np.pi * k / seg
+            rim.append(on_lens(cu0 + np.cos(t) * ru * (hi[0] - lo[0]), y0 - np.sin(t) * rv * (hi[1] - lo[1])) + axis * gap)
+        rim = np.array(rim)
+        rel = rim - centre
+        perp = rel - np.outer(rel @ axis, axis)
+        grid = []
+        for r in range(rings + 1):
+            f = r / rings
+            grid.append(rim + axis * D * f - perp * (1 - back) * f * f)  # parabolic reflector
+        tris = []
+        for r in range(rings):
+            for k in range(seg):
+                a, b = grid[r][k], grid[r][(k + 1) % seg]
+                c, d = grid[r + 1][k], grid[r + 1][(k + 1) % seg]
+                tris += [[a, c, b], [b, c, d]]
+        bc = grid[-1].mean(0)
+        tris += [[grid[-1][k], bc, grid[-1][(k + 1) % seg]] for k in range(seg)]
+        out.append(np.array(tris))
+        lab.append(np.full(len(tris), lc['material']))
+        # bulb: a small octahedron-ish sphere on the axis
+        bcen = centre + axis * D * 0.6
+        br = lc.get('bulb', 0.012)
+        sph = []
+        for i in range(6):
+            for j in range(8):
+                th0, th1 = np.pi * i / 6, np.pi * (i + 1) / 6
+                ph0, ph1 = 2 * np.pi * j / 8, 2 * np.pi * (j + 1) / 8
+                q = lambda th, ph: bcen + br * np.array([np.sin(th) * np.cos(ph), np.cos(th), np.sin(th) * np.sin(ph)])
+                sph += [[q(th0, ph0), q(th1, ph0), q(th1, ph1)], [q(th0, ph0), q(th1, ph1), q(th0, ph1)]]
+        out.append(np.array(sph))
+        lab.append(np.full(len(sph), lc['bulbMaterial']))
+    T = np.concatenate(out)
+    L = np.concatenate(lab)
+    M = T.copy()
+    M[..., 0] *= -1
+    M = M[:, ::-1]  # mirrored side: flip the winding back
+    T, L = np.concatenate([T, M]), np.concatenate([L, L])
+    return (T - off) / s, L
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     if len(args) < 2:
@@ -318,6 +514,7 @@ def main():
     cfg = json.load(open(args[0], encoding='utf-8'))
     g, bins = load_glb(args[1])
     prims = primitives(g, bins)
+    uvs = primitive_uvs(g, bins) if any('texture' in r or 'uv' in r for r in cfg.get('gltf', {}).get('parts', [])) else None
     if '--list' in sys.argv or len(args) < 3:
         for name, mat, path, T in prims:
             lo, hi = T.reshape(-1, 3).min(0), T.reshape(-1, 3).max(0)
@@ -330,16 +527,21 @@ def main():
     default = rules.get('default')
     tris, labels, used = [], [], {}
     defaulted = []
-    for name, mat, path, T in prims:
+    for pi, (name, mat, path, T) in enumerate(prims):
         if drop & set(path) or mat in drop:
             continue
         label = None
+        move = None
         c = T.mean(1)
+        uvt = uvs[pi] if uvs is not None and uvs[pi] is not None and len(uvs[pi]) == len(T) else None  # UVs aligned with T (None after a region cut)
+        im = None
         isl = None  # (island id per triangle, island bbox lo / hi, island size) - computed on first use
         for r in rules['parts']:
-            if 'node' in r and r['node'] != name:
+            if 'node' in r and name not in ([r['node']] if isinstance(r['node'], str) else r['node']):
                 continue
             if 'mat' in r and r['mat'] != mat:
+                continue
+            if ('texture' in r or 'uv' in r) and uvt is None:
                 continue
             if 'region' in r:
                 ins, rest = region_cut(T, r['region'], np.array(cfg['offset'], float))
@@ -350,6 +552,7 @@ def main():
                 T = rest
                 c = T.mean(1)
                 isl = None
+                uvt = None
                 continue
             keep = np.ones(len(T), bool)
             if r.get('whole') or 'islandTris' in r or 'tube' in r:
@@ -371,20 +574,47 @@ def main():
             for ax, k in (('x', 0), ('y', 1), ('z', 2)):
                 if ax in r and not r.get('whole'):
                     keep &= (c[:, k] >= r[ax][0]) & (c[:, k] <= r[ax][1])
+            if 'uv' in r:
+                uc = uvt.mean(1)
+                u0, u1, v0, v1 = r['uv']
+                keep &= (uc[:, 0] >= u0) & (uc[:, 0] <= u1) & (uc[:, 1] >= v0) & (uc[:, 1] <= v1)
+            if 'texture' in r:
+                tx = r['texture']
+                if im is None:
+                    im = dark_mask(texture_image(g, bins, mat), tx)
+                    h, w = im.shape[:2]
+                    for u0, u1, v0, v1 in tx.get('exclude', []):  # logos / emblems drawn in the same dark ink
+                        im[int(v0 * h):int(v1 * h), int(u0 * w):int(u1 * w)] = 0
+                if tx.get('refine'):
+                    # split the box's triangles along the texture border first (T / UVs re-built, other rules see the new list)
+                    box = keep.copy()
+                    if box.any():
+                        Tn, Un = refine_by_texture(T[box], uvt[box], im, tx, tx['refine'])
+                        T, uvt = np.concatenate([T[~box], Tn]), np.concatenate([uvt[~box], Un])
+                        c = T.mean(1)
+                        keep = np.concatenate([np.zeros((~box).sum(), bool), np.ones(len(Tn), bool)])
+                        isl = None
+                cls = texture_samples(im, uvt) >= 0.5
+                keep &= cls.mean(1) >= 0.5
             if 'facing' in r:
                 keep &= facing_mask(T, r['facing'])
             if 'near' in r:
                 keep &= near_mask(prims, r['near'], c)
+            if 'arch' in r:
+                keep &= arch_mask(T, r['arch'])
             if not keep.any():
                 continue
             if keep.all():
                 label = r['material']
+                move = r.get('move')
                 break
             # box rule: split the primitive - matching triangles now, the rest keep looking
-            tris.append(T[keep])
+            tris.append(T[keep] + np.array(r.get('move', [0, 0, 0]), float))
             labels.append(np.full(keep.sum(), mats.index(r['material']), np.uint16))
             used[r['material']] = used.get(r['material'], 0) + int(keep.sum())
             T, c = T[~keep], c[~keep]
+            if uvt is not None:
+                uvt = uvt[~keep]
             if isl is not None:
                 isl = (isl[0][~keep],) + isl[1:]
         if label is None:
@@ -394,9 +624,18 @@ def main():
             defaulted.append((name, mat, T))
         if label not in mats:
             raise SystemExit(f'material {label!r} is not in parts.materials')
-        tris.append(T)
+        tris.append(T if move is None else T + np.array(move, float))
         labels.append(np.full(len(T), mats.index(label), np.uint16))
         used[label] = used.get(label, 0) + len(T)
+    if 'lampCups' in rules:
+        CT, CL = lamp_cups(cfg, prims)
+        for m in dict.fromkeys(CL):
+            if m not in mats:
+                raise SystemExit(f'material {m!r} is not in parts.materials')
+            k = CL == m
+            tris.append(CT[k])
+            labels.append(np.full(k.sum(), mats.index(m), np.uint16))
+            used[m] = used.get(m, 0) + int(k.sum())
     T = np.vstack(tris).astype(np.float32)
     L = np.concatenate(labels)
     N = np.cross(T[:, 1] - T[:, 0], T[:, 2] - T[:, 0])

@@ -9,7 +9,7 @@ import { MAPS } from '../maps';
 import { isTestCar, listLabel, TEST_NOTE } from '../release';
 import { parseVec3, ViewerShell } from '../debug/viewer-shell';
 import { peakPower, sampleTorque } from '../physics/drivetrain';
-import { tyreSizeFor } from '../physics/car-tyres';
+import { axleRadius, tyreSizeFor } from '../physics/car-tyres';
 import { WheelDebug } from '../debug/wheel-debug';
 import { rimRadius } from '../cars/shared/tyre-mesh';
 
@@ -24,7 +24,8 @@ import { rimRadius } from '../cars/shared/tyre-mesh';
  *   car-viewer.html?car=bimmer_m3&cam=-1.2,4,-1.6&look=-0.5,0.7,-1.8&fov=14&clean=1
  * `cam` overrides `view`; choosing a view in the panel clears the free camera.
  * "Copy camera link" (Pose section) writes the current orbit (position, target, fov) into these params and copies the URL.
- * `lamps=brake|reverse|reverse+brake` lights the rear lamps (brake pedal down / gear R).
+ * `lamps=brake|reverse|reverse+brake` lights the rear lamps (brake pedal down / gear R). `fallback=1` shows the body a car
+ * falls back to when its GLB can't load (hand-built `custom` or the boxy side-outline `profile`).
  * Wheels section (debug/wheel-debug.ts): `wheels=1` overlay (fixed hub crosshair + tyre / bead circles, spin pointer, fitted
  * arch circle + offsets), `wangle=<deg>` wheel angle while not spinning, `tyres=0` / `rims=0` / `brakes=0` / `body=0` hide
  * parts, `wcam=FL|FR|RL|RR` near-orthographic camera straight along that wheel's axle, e.g.
@@ -34,8 +35,8 @@ const DEFAULTS = {
   car: DEFAULT_CAR,
   seed: 0,
   paint: '',
-  /** Fitted tyre compound: none | tarmac | mixed | gravel (tread, rim size, compound ring). */
-  tyre: 'none',
+  /** Fitted tyre compound: tarmac | mixed | gravel (tread, rim size, compound ring). */
+  tyre: 'mixed',
   num: 7,
   rally: MAPS[0].id,
   steer: 0,
@@ -52,6 +53,8 @@ const DEFAULTS = {
   /** off | FL | FR | RL | RR: camera along that wheel's axle (fov ~3 deg from 20 m = near-orthographic). */
   wcam: 'off',
   hull: false,
+  /** Show the fallback body (`custom` / `profile`) instead of the GLB. */
+  fallback: false,
   wire: false,
   turntable: false,
   /** off | brake | reverse | reverse+brake: rear lamps lit (CarModel.setBrake). */
@@ -157,11 +160,11 @@ const numCtl = vars.seed('Door plate number (0 = none)', state.num, (v) => {
   sync();
   applyBadge();
 });
-vars.select('Tyre', state.tyre, ['none', ...TYRE_IDS], (v) => {
+vars.select('Tyre', state.tyre, [...TYRE_IDS], (v) => {
   state.tyre = v;
   sync();
   model?.setTyre(parseTyre(v, null));
-  wheelDebug?.setTyre(tyreSize());
+  wheelDebug?.setTyre(fittedTyre());
   updateWheelInfo();
 });
 vars.select(
@@ -183,6 +186,11 @@ vars.checkbox('Physics hull + COM', state.hull, (v) => {
   state.hull = v;
   sync();
   if (model) model.debug.visible = v;
+});
+vars.checkbox('Fallback body (no GLB)', state.fallback, (v) => {
+  state.fallback = v;
+  sync();
+  rebuild();
 });
 
 const pose = shell.panel.section('Pose');
@@ -290,11 +298,7 @@ function applyBadge(): void {
 
 let wheelDebug: WheelDebug | undefined;
 
-function tyreSize() {
-  const def = getCar(state.car);
-  const t = parseTyre(state.tyre, null);
-  return t ? tyreSizeFor(def.physics, t) : def.physics.tyres.size;
-}
+const fittedTyre = () => parseTyre(state.tyre, 'mixed');
 
 function applyWheelDebug(): void {
   wheelDebug?.dispose();
@@ -303,7 +307,7 @@ function applyWheelDebug(): void {
     wheelInfo({});
     return;
   }
-  wheelDebug = new WheelDebug(model, tyreSize(), updateWheelInfo);
+  wheelDebug = new WheelDebug(model, fittedTyre(), updateWheelInfo);
   updateWheelInfo();
 }
 
@@ -311,7 +315,13 @@ function updateWheelInfo(): void {
   if (!wheelDebug) return;
   const cm = (v: number) => `${(v * 100).toFixed(1)}`;
   const rows: Record<string, string> = {
-    tyre: `R ${cm(getCar(state.car).physics.wheelRadius)} cm, bead ${cm(rimRadius(tyreSize()))} cm`,
+    tyre: (['front', 'rear'] as const)
+      .map((a) => {
+        const p = getCar(state.car).physics;
+        const r = axleRadius(p, fittedTyre(), a);
+        return `${a} R ${cm(r)} cm, bead ${cm(rimRadius(tyreSizeFor(p, fittedTyre(), a)))} cm`;
+      })
+      .join(' · '),
   };
   for (const r of wheelDebug.report())
     rows[`arch ${r.wheel}`] = r.arch
@@ -328,8 +338,8 @@ function applyParts(force = false): void {
     if (!on) o.visible = false;
     else if (force) o.visible = true;
   };
-  set(w.tyres, state.tyres);
-  set(w.rims, state.rims);
+  for (const t of w.tyres) set(t, state.tyres);
+  for (const r of w.rims) set(r, state.rims);
   for (const b of w.brakes) set(b, state.brakes);
   set(model.body, state.body);
 }
@@ -340,10 +350,11 @@ function rebuild(): void {
   model = new CarModel(def, {
     seed: state.seed,
     paint: state.paint || undefined,
-    tyre: parseTyre(state.tyre, null),
+    tyre: parseTyre(state.tyre, 'mixed'),
+    fallback: state.fallback,
   });
-  // Put the car on the ground (model root is the centre of mass).
-  model.root.position.y = def.physics.comHeight;
+  // Put the car on the ground (model root is the centre of mass; taller tyres lift it).
+  model.root.position.y = def.physics.comHeight + model.tyreLift;
   model.debug.visible = state.hull;
   scene.add(model.root);
   if (!state.paint) paintCtl.set(model.livery.base);
@@ -394,15 +405,14 @@ function updateSpecs(): void {
     final: String(p.gearbox.finalDrive),
     triangles: model ? model.triangleCount().toLocaleString() : '-',
     'livery #': String(state.seed),
-    model: def.model.gltf
-      ? hasImportedModel(def)
+    model:
+      def.model.gltf && hasImportedModel(def) && !state.fallback
         ? 'imported glTF'
-        : `procedural (drop ${def.model.gltf.file} in public/models/cars)`
-      : 'procedural',
+        : `${def.model.custom ? 'hand-built' : 'side-outline fallback'}${def.model.gltf && !hasImportedModel(def) ? ` (drop ${def.model.gltf.file} in public/models/cars)` : ''}`,
   });
   drawCurve(def.physics.engine);
   const credit =
-    def.model.gltf && hasImportedModel(def)
+    def.model.gltf && hasImportedModel(def) && !state.fallback
       ? `<div style="margin-top:6px;font-size:10px">Model: ${def.model.gltf.credit}</div>`
       : '';
   testDrive.innerHTML = `<a href="./?car=${def.id}&livery=${state.seed}&spawn=pad" style="color:#f0a020">▶ Test drive on the pad</a> · <a href="./?car=${def.id}&livery=${state.seed}" style="color:#f0a020">stage</a>${credit}`;
@@ -467,7 +477,7 @@ shell.onFrame((dt) => {
     model.wheelSpin[i] = spin;
   }
   // Body moves opposite to the wheels when compressing.
-  model.root.position.y = p.comHeight;
+  model.root.position.y = p.comHeight + model.tyreLift;
   model.syncWheels();
   wheelDebug?.update();
   applyParts();

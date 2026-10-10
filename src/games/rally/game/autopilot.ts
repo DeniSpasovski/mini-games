@@ -1,6 +1,6 @@
 import { roadSurfaceAt } from '../maps/shared/types';
 import type { VehicleControls } from '../physics/types';
-import type { Vehicle } from '../physics/vehicle';
+import { PHYSICS_HZ, type Vehicle } from '../physics/vehicle';
 import { newRoadQuery, type Road } from '../world/road';
 
 /**
@@ -11,7 +11,7 @@ import { newRoadQuery, type Road } from '../world/road';
  *  - lifts off when the car is sliding too much
  *  - corner speed follows the grip of the fitted tyre on the road surface ahead (never above the
  *    gravel-grade baseline, so the right tyre drives like before and a wrong one slows down)
- * Used by tests/rally/stage.test.ts (stage is completable, no flips) and
+ * Used by integration-tests/rally/stage.test.ts (stage is completable, no flips) and
  * in-game with F8 (soak / perf testing, screenshots).
  */
 /** Surface mu the cornering plan (0.7 g) was tuned for (gravel); more grip only speeds it up with `useExtraGrip`. */
@@ -23,7 +23,7 @@ export class Autopilot {
   /**
    * Corner (and braking) speed also rises with grip above the gravel baseline, so a tyre that grips more
    * is actually driven faster. Off by default: stage.test.ts and the F8 autopilot keep the tuned pace.
-   * tests/rally/tyres.test.ts turns it on to measure what a tyre is worth over a whole stage.
+   * integration-tests/rally/tyres.test.ts turns it on to measure what a tyre is worth over a whole stage.
    */
   useExtraGrip = false;
   /** Fastest it ever goes (m/s; 42 = 151 km/h keeps the stage tests' pace). Tests raise it to measure top speed. */
@@ -42,7 +42,8 @@ export class Autopilot {
   /** Cornering-speed scale (0.45..1, up to 1.5 with `useExtraGrip`) for the tyre on the road surface `d` m ahead. */
   private gripAhead(v: Vehicle, d: number): number {
     const id = roadSurfaceAt(this.road.def, this.progress + d).surface;
-    const mu = v.surfaceFor(id).mu;
+    // Cold / overheated tyres (physics/tyre-temp.ts) slow it down too.
+    const mu = v.surfaceFor(id).mu * v.tempGripFor(id);
     return Math.min(this.useExtraGrip ? 1.5 : 1, Math.max(0.45, mu / REF_MU));
   }
 
@@ -124,13 +125,14 @@ export class Autopilot {
 /**
  * Controls for the automatic stop after the finish line: keep following the
  * road, no throttle, progressive braking (firm at speed, gentle near 0 so the
- * wheels don't lock and spin the car). Vehicle auto-hold takes over at rest.
+ * wheels don't lock and spin the car) with ABS. Vehicle auto-hold takes over at rest.
  */
 export function finishStopControls(
   pilot: Autopilot,
   v: Vehicle,
   out: VehicleControls,
 ): VehicleControls {
+  const prevBrake = out.brake;
   pilot.drive(v, out);
   const sp = Math.abs(v.speed);
   // Pull back towards the centreline while slowing down (+lateral = left -> steer right).
@@ -139,6 +141,15 @@ export function finishStopControls(
   out.handbrake = 0;
   // Below 0.3 m/s release so Vehicle auto-hold (engages < 0.5 m/s, no pedals) parks it.
   // (A floor of 0.45: a weak-braked car creeping on a slight downhill must still stop.)
-  out.brake = sp > 0.3 ? Math.min(0.7, 0.45 + sp / 40) : 0;
+  let brake = sp > 0.3 ? Math.min(0.7, 0.45 + sp / 40) : 0;
+  // ABS (called once per physics step): locked wheels can't steer - from 150 km/h on gravel 0.7 locked all four and
+  // slid the car off a bend. Eased, not switched every step (that bounced the car on its springs).
+  if (sp > 3) {
+    const locking = v.wheels.some((w) => w.contact && w.slipRatio < -0.2);
+    brake = locking
+      ? prevBrake - 3 / PHYSICS_HZ
+      : Math.min(brake, prevBrake + 1.5 / PHYSICS_HZ);
+  }
+  out.brake = Math.max(0, brake);
   return out;
 }
