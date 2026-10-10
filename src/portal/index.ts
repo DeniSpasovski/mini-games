@@ -1,5 +1,15 @@
 import './portal.css';
 import { SITE } from '../site.config';
+import {
+  activateFocused,
+  attachKeyNav,
+  ensureFocus,
+  GamepadMenuNav,
+  moveFocus,
+  type NavAction,
+  watchMenuTick,
+} from '../shared/pad-nav';
+import { MenuTick } from '../shared/menu-tick';
 import { consentEnabled, openConsentBanner } from '../shared/consent';
 import { isReleased, RELEASE_BUILD } from '../shared/release';
 import { resolveGamePage, type GameManifest } from './manifest';
@@ -71,7 +81,7 @@ function renderCard({ manifest, thumbnail }: GameEntry): string {
     : `<div class="no-shot">${escapeHtml(manifest.title)}</div>`;
   return `
     <article class="card">
-      <a class="shot" href="${play.href}">${shot}</a>
+      <a class="shot" href="${play.href}" tabindex="-1" aria-hidden="true">${shot}</a>
       <div class="body">
         <h2><a href="${play.href}">${escapeHtml(manifest.title)}</a></h2>
         <p>${escapeHtml(manifest.description)}</p>
@@ -104,4 +114,17 @@ if (root) {
   root
     .querySelector('[data-privacy]')
     ?.addEventListener('click', openConsentBanner);
+
+  // Keyboard (arrows), controller (d-pad / stick, A) and hover: same navigation + tick as the games' menus.
+  const page = root as HTMLElement;
+  const tick = new MenuTick(660, 'sine');
+  watchMenuTick(page, () => tick.play());
+  const nav = (a: NavAction) => {
+    if (a === 'confirm') activateFocused(page);
+    else if (a === 'up' || a === 'down' || a === 'left' || a === 'right')
+      moveFocus(page, a);
+    if (a === 'start') ensureFocus(page);
+  };
+  attachKeyNav(() => true, nav);
+  new GamepadMenuNav(nav, () => document.scrollingElement as HTMLElement);
 }

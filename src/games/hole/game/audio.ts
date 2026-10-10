@@ -139,4 +139,9 @@ export class Sfx {
   click(): void {
     this.tone(700, 0.05, 'square', 0.08);
   }
+
+  /** Menu highlight moved: a short quiet tick. */
+  tick(): void {
+    this.tone(880, 0.04, 'triangle', 0.06);
+  }
 }

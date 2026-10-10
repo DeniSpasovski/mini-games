@@ -93,6 +93,8 @@ export class KaboomGame {
   private clock = 0;
   /** Real-time clock when the round ended (-1 = running). */
   private roundEndedAt = -1;
+  /** Booms per player slot this match: knock-outs of another player by their TNT (self booms don't count). */
+  private booms: number[] = [];
   private roundBanner: {
     text: string;
     sub: string;
@@ -161,6 +163,7 @@ export class KaboomGame {
       onRestart: () => void this.startMatch(this.setup ?? this.currentSetup()),
       onMainMenu: () => this.toMenu(),
       onClick: () => this.sfx.click(),
+      onTick: () => this.sfx.tick(),
       makeStage: () => {
         try {
           return new CritterPreview();
@@ -342,6 +345,7 @@ export class KaboomGame {
     await view.warmUp(this.renderer, view.scene);
 
     this.sim = sim;
+    this.booms = sim.players.map(() => 0);
     this.cfg = cfg;
     this.bots = bots;
     this.view = view;
@@ -465,6 +469,13 @@ export class KaboomGame {
   }
 
   private onEvent(sim: Sim, e: SimEvent): void {
+    if (
+      e.type === 'playerKo' &&
+      this.mode === 'match' &&
+      e.byOwner >= 0 &&
+      e.byOwner !== e.id
+    )
+      this.booms[e.byOwner]++;
     if (e.type === 'roundOver') {
       this.roundEndedAt = this.clock;
       if (this.mode === 'match') {
@@ -535,6 +546,7 @@ export class KaboomGame {
         critter: p.critter,
         color: p.color,
         wins: p.wins,
+        booms: this.booms[p.id] ?? 0,
         you: p.id === 0,
         slot: p.id,
       })),

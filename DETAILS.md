@@ -163,3 +163,7 @@ Game-only files from the root `public/` are copied into that game's folder only 
 `public/models/` -> `dist/games/rally/models/`); the root `public/` is not copied as a whole. The only links from a game to
 the portal are the **All games** button and the PWA manifest (`../../manifest.webmanifest`), both of which the portal
 always provides.
+
+## Menu navigation
+
+Portal, Rally, Hole Island and Kaboom menus share `src/shared/pad-nav.ts`: arrows / d-pad / stick move focus, Enter / A select, Backspace / B back. `watchMenuTick` plays a quiet tick when the highlight moves (keyboard, controller, mouse hover; not touch): each game's `Sfx.tick()`, Rally and the portal use `shared/menu-tick.ts`. Both respect `?mute=1` and the game's volume.
