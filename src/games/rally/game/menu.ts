@@ -58,11 +58,13 @@ import { CAMERA_MODES, type CameraMode } from './camera-rig';
 import {
   activateFocused,
   GamepadMenuNav,
+  watchMenuTick,
   moveFocus,
   type NavAction,
   type NavDir,
 } from '../../../shared/pad-nav';
 import { MenuMusic, MUSIC_CREDITS } from './menu-music';
+import { MenuTick } from '../../../shared/menu-tick';
 import {
   loadSettings,
   saveSettings,
@@ -199,6 +201,7 @@ class MainMenu {
   private music: MenuMusic;
   private onKey = (e: KeyboardEvent) => this.key(e);
   private pad = new GamepadMenuNav((a) => this.nav(a));
+  private tick = new MenuTick(760, 'triangle', () => this.settings.volume);
 
   constructor(
     container: HTMLElement,
@@ -238,6 +241,7 @@ class MainMenu {
     window.addEventListener('keydown', this.onKey);
     // Console handle: __rallyMenu.showroom
     (window as unknown as { __rallyMenu: MainMenu }).__rallyMenu = this;
+    watchMenuTick(this.root, () => this.tick.play());
     this.show('welcome');
     if (import.meta.env.DEV) this.bakeCardsFromUrl();
   }
@@ -799,6 +803,7 @@ class MainMenu {
       return;
     }
     const up = a === 'up';
+    if (a !== 'confirm' && a !== 'start') this.tick.play();
     if (s === 'map' && (up || a === 'down')) {
       this.mapIndex =
         (this.mapIndex + (up ? -1 : 1) + MAPS.length) % MAPS.length;

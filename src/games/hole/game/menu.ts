@@ -2,7 +2,9 @@ import {
   activateFocused,
   ensureFocus,
   focusables,
+  attachKeyNav,
   GamepadMenuNav,
+  watchMenuTick,
   moveFocus,
   type NavAction,
 } from '../../../shared/pad-nav';
@@ -43,6 +45,8 @@ export interface MapChoice {
 
 export interface MenuApi {
   settings: HoleSettings;
+  /** Menu highlight moved (keyboard, controller, mouse hover): play the tick. */
+  onTick: () => void;
   /** Playable maps; with more than one, Play asks for the map first. */
   maps: MapChoice[];
   /** The map the game is set to right now. */
@@ -107,6 +111,11 @@ export class Menu {
     private api: MenuApi,
   ) {
     root.append(this.el);
+    watchMenuTick(this.el, () => this.api.onTick());
+    attachKeyNav(
+      () => this.el.classList.contains('on'),
+      (a) => this.padNav(a),
+    );
     new GamepadMenuNav(
       (a) => this.padNav(a),
       () => this.el.querySelector<HTMLElement>('.hg-scroll'),

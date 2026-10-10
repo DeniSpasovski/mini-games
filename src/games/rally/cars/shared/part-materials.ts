@@ -13,7 +13,8 @@ import { addWorldUniforms } from '../../engine/world-shading';
  * Materials for the named parts of an imported body (scripts/car-model/segment-stl.py
  * labels them, stl-to-glb.mjs writes one primitive per material name). Shared by every
  * car - never cloned per instance. Unknown names (the body: 'livery' / 'body') return
- * undefined and get the car's painted livery material instead.
+ * undefined and get the car's painted livery material instead ('recess': a darker copy,
+ * CarModel.recessMaterial).
  *
  * UVs: plain parts are box-projected in metres (tiling textures: mesh, carbon); fitted
  * parts are 0..1 over the part, v from the top down, and their textures below are drawn in

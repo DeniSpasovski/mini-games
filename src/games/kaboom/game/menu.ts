@@ -1,7 +1,9 @@
 import {
   activateFocused,
   ensureFocus,
+  attachKeyNav,
   GamepadMenuNav,
+  watchMenuTick,
   moveFocus,
   type NavAction,
 } from '../../../shared/pad-nav';
@@ -50,6 +52,8 @@ export interface MatchSummary {
     critter: CritterId;
     color: number;
     wins: number;
+    /** Other players this one knocked out (self booms not counted). */
+    booms: number;
     you: boolean;
     slot: number;
   }[];
@@ -75,6 +79,8 @@ export interface MenuApi {
   onRestart(): void;
   onMainMenu(): void;
   onClick(): void;
+  /** Menu highlight moved (keyboard, controller, mouse hover): play the tick. */
+  onTick(): void;
   /** The live 3D critter for the setup's picker; null (or missing) = show the portrait instead (no WebGL, tests). */
   makeStage?(): CritterStage | null;
 }
@@ -105,6 +111,11 @@ export class Menu {
     private readonly api: MenuApi,
   ) {
     new GamepadMenuNav((a) => this.padNav(a));
+    attachKeyNav(
+      () => this.layer.style.display !== 'none' && !!this.layer.firstChild,
+      (a) => this.padNav(a),
+    );
+    watchMenuTick(this.layer, () => this.api.onTick());
     this.loadingEl.append(
       el('div', 'kb-spinner'),
       el('div', '', 'Packing the TNT...'),
@@ -516,6 +527,7 @@ export class Menu {
           'stars',
           row.wins > 0 ? '★'.repeat(Math.min(5, row.wins)) : '–',
         ),
+        el('span', 'booms', `💥 ${row.booms}`),
       );
       list.append(li);
     }
