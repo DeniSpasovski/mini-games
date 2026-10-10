@@ -4,6 +4,7 @@ import { ALL_CARS } from '../../src/games/rally/cars';
 import { applySetup } from '../../src/games/rally/physics/car-setup';
 import {
   carSurfaces,
+  drivenRadius,
   sizeFactors,
   tyreSizeFor,
 } from '../../src/games/rally/physics/car-tyres';
@@ -120,10 +121,11 @@ describe('weight and axle grip', () => {
     expect(car('bimmer_m3').mass).toBeLessThan(1710);
   });
 
-  test('the M3 and GT2 balance comes from weight, tyre stagger and set-up, not from an axle grip multiplier', () => {
+  test('the M3 and GT2 balance comes from weight, tyre stagger and set-up; only a small rear traction bonus is left', () => {
     for (const id of ['bimmer_m3', 'bimmer_gt2']) {
       expect(car(id).front.grip, id).toBe(1);
-      expect(car(id).rear.grip, id).toBe(1);
+      expect(car(id).rear.grip, id).toBeGreaterThan(1);
+      expect(car(id).rear.grip, id).toBeLessThanOrEqual(1.15);
     }
   });
 });
@@ -259,4 +261,53 @@ describe('drivetrain locks', () => {
       expect(kept(front(om) - rear(om), front(next) - rear(next))).toBe(true);
     }
   });
+});
+
+describe('floored throttle without traction control', () => {
+  // Rolling at 70 km/h on a dusty road (loose film on tarmac), full throttle, TC off: the V8s used to spin without a small
+  // rear traction bonus (axle grip 1); a floored corner exit is the most common thing a player does.
+  test.each(['bimmer_m3', 'bimmer_gt2'])(
+    '%s pulls away straight on a floored roll-on with TC off',
+    (id) => {
+      const v = new Vehicle(
+        applySetup(car(id), 'medium'),
+        flat('tarmac_gravel'),
+      );
+      v.setTyre('tarmac_hard');
+      v.tractionControl = false;
+      v.reset(new Vector3(), 0);
+      for (let i = 0; i < PHYSICS_HZ; i++) v.step(DT);
+      const V = 70 / 3.6;
+      v.velocity.copy(v.forward).multiplyScalar(V);
+      for (const w of v.wheels) w.omega = V / w.radius;
+      const dt = v.drivetrain;
+      const rpmIn = (g: number) =>
+        ((V / drivenRadius(v.def, v.tyre)) * dt.ratio(g) * 60) / (2 * Math.PI);
+      let gear = 1;
+      const gb = v.def.gearbox;
+      for (let g = 1; g <= gb.ratios.length; g++)
+        if (rpmIn(g) < gb.upshiftRpm * 0.92) {
+          gear = g;
+          if (rpmIn(g) < (gb.downshiftRpm + gb.upshiftRpm) / 2) break;
+        }
+      dt.setGear(gear);
+      dt.shiftTimer = 0;
+      dt.rpm = rpmIn(gear);
+      v.holding = false;
+      v.controls.throttle = 1;
+      let maxBeta = 0;
+      for (let i = 0; i < 4 * PHYSICS_HZ; i++) {
+        v.step(DT);
+        if (v.speed > 3)
+          maxBeta = Math.max(
+            maxBeta,
+            Math.abs(
+              Math.atan2(v.velocity.dot(v.right), v.velocity.dot(v.forward)),
+            ),
+          );
+      }
+      expect(maxBeta * (180 / Math.PI)).toBeLessThan(15);
+      expect(v.speed * 3.6).toBeGreaterThan(100);
+    },
+  );
 });

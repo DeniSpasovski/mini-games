@@ -50,7 +50,7 @@ const REAR: AxleDef = {
   antiRoll: scale(7700),
   handbrakeTorque: 3000,
   steer: 0,
-  grip: 1, // the tyre sizes (stagger) and the weight split set the balance; traction control keeps the loose-ground launch straight
+  grip: 1.15, // a small rear traction bonus: at 1 the V8 spins on a floored roll-on without traction control (PHYSICS.md "Tyre types"); the stagger and weight split do the rest
   forceHeight: 0.15,
 };
 

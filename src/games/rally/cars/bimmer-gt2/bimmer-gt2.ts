@@ -47,7 +47,7 @@ const REAR: AxleDef = {
   // x 1.076 with the taller rear slick (same brake force at the road, same balance).
   handbrakeTorque: 3000,
   steer: 0,
-  grip: 1,
+  grip: 1.1, // a small rear traction bonus: at 1 the V8 spins on a floored roll-on without traction control
   forceHeight: 0.15,
 };
 

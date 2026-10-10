@@ -153,8 +153,9 @@ Tarmac tyres on tarmac, medium set-up, 80 km/h ramp steer:
 | road, sport       | 0.82  | Bimmer M3 (245 / 265 40 R18)         | 1.05      | summer road tyre ~1.0-1.1 g     |
 | old road          | 0.72  | Zastava 101 (165/70 R13)             | 0.8       | period road tyre ~0.8 g         |
 
-No per-car grip multiplier hides a balance problem: M3 and GT2 run `axle.grip` 1 on both axles; the balance comes from the
-weight split, the tyre stagger and the set-up (see "Weight distribution and inertia"). Rally tyre families: tarmac - wide,
+No per-car grip multiplier hides a balance problem: the balance comes from the weight split, the tyre stagger and the set-up
+(see "Weight distribution and inertia"). The one bonus left is a small rear traction bonus on the two V8s (`axle.grip` M3 1.15, GT2 1.1 at the
+rear): at 1 they spin on a floored roll-on without traction control (rear grip use at the front limit 87 -> 76 % on the M3). Rally tyre families: tarmac - wide,
 shallow tread, stiff sidewall; gravel - deep blocky tread, tall sidewall; mixed - medium blocks. Off its surface a tarmac tyre
 skates and lets go suddenly, a gravel tyre on tarmac squirms but is easy to catch.
 
