@@ -39,6 +39,9 @@ export const MUSIC_CREDITS: SourceLink[] = MENU_TRACKS.map((t) => ({
 
 const FADE_MS = 400;
 
+/** Slider 100% plays at this fraction of full volume (menu music was too loud). */
+const MAX_LEVEL = 0.5;
+
 /**
  * Loops the menu tracks in order and shows the current one bottom right. Browsers block audio before the first
  * click / key, so it starts on that gesture. No file at build time = no tracks: no request, no label, no About credit. A blocked play() stays silent.
@@ -109,7 +112,7 @@ export class MenuMusic {
   }
 
   private get level(): number {
-    return Math.min(1, Math.max(0, this.volume));
+    return Math.min(1, Math.max(0, this.volume)) * MAX_LEVEL;
   }
 
   private load(): void {
