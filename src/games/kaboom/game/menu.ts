@@ -50,6 +50,8 @@ export interface MatchSummary {
     critter: CritterId;
     color: number;
     wins: number;
+    /** Other players this one knocked out (self booms not counted). */
+    booms: number;
     you: boolean;
     slot: number;
   }[];
@@ -516,6 +518,7 @@ export class Menu {
           'stars',
           row.wins > 0 ? '★'.repeat(Math.min(5, row.wins)) : '–',
         ),
+        el('span', 'booms', `💥 ${row.booms}`),
       );
       list.append(li);
     }
