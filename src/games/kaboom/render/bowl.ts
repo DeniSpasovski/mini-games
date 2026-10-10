@@ -23,8 +23,8 @@ export const treadMidD = (i: number): number => WALL_D + TREAD_D * (i + 0.5);
 export const treadY = (i: number): number => WALL_H + TREAD_RISE * i;
 
 /** Straight-side spacing and arc resolution of a ring: the point count depends on `hx`, `hz` only, never on `d`. */
-const SIDE_STEP = 1.5;
-const CORNER_SEGS = 7;
+const SIDE_STEP = 0.7;
+const CORNER_SEGS = 10;
 
 /** Points per ring for a floor of half extents `hx`, `hz`. */
 export function ringSize(hx: number, hz: number): number {
@@ -72,6 +72,30 @@ export function ringPoints(hx: number, hz: number, d: number): number[] {
 type Kind = 'wall' | 'tread' | 'riser' | 'cliff' | 'rim';
 /** Profile point: offset `d`, height `y`, and what the segment ENDING here is. */
 type ProfilePoint = [number, number, Kind];
+
+/** Finest step of the profile: long faces are cut into pieces so the noise can carve them. */
+const PROFILE_STEP = 0.4;
+
+/** `prof` with every segment cut into pieces of at most `PROFILE_STEP`; also returns each point's position along its face (0..1). */
+function subdivide(prof: ProfilePoint[]): { pts: ProfilePoint[]; t: number[] } {
+  const pts: ProfilePoint[] = [prof[0]];
+  const t = [1];
+  for (let i = 1; i < prof.length; i++) {
+    const [d0, y0] = prof[i - 1];
+    const [d1, y1, kind] = prof[i];
+    const len = Math.hypot(d1 - d0, y1 - y0);
+    const n =
+      kind === 'rim' && len > 20
+        ? 6
+        : Math.max(1, Math.ceil(len / PROFILE_STEP));
+    for (let k = 1; k <= n; k++) {
+      const f = k / n;
+      pts.push([d0 + (d1 - d0) * f, y0 + (y1 - y0) * f, kind]);
+      t.push(f);
+    }
+  }
+  return { pts, t };
+}
 
 function profile(): ProfilePoint[] {
   const p: ProfilePoint[] = [
@@ -143,7 +167,11 @@ export function warpedRing(hx: number, hz: number, d: number): number[] {
 
 /** Height of terrace `i` at `(x, z)`: its step plus a slow swell, so the stands are not a flat staircase. */
 export function treadHeight(i: number, x: number, z: number): number {
-  return treadY(i) + 0.14 * noise.noise2(x * 0.3 + 7, z * 0.3 - 2);
+  return (
+    treadY(i) +
+    0.14 * noise.noise2(x * 0.3 + 7, z * 0.3 - 2) +
+    0.07 * noise.noise2(x * 1.3, z * 1.3 + 4)
+  );
 }
 
 const WALL_COL = new Color(0xb4875a);
@@ -155,33 +183,39 @@ const RIM_COL = new Color(0xcaa670);
 
 /** The bowl for a floor of half extents `hx`, `hz` (world units, centred on the origin). */
 export function bowlGeometry(hx: number, hz: number): BufferGeometry {
-  const prof = profile();
+  const { pts: prof, t: along } = subdivide(profile());
   const n = ringSize(hx, hz);
   // rock noise only on the cliff and the far rim; the stands stay clean so the crowd stands level
   const rings = prof.map(([d, y, kind]) => {
     const pts = warpedRing(hx, hz, d);
     const cliff = kind === 'cliff' || kind === 'rim';
+    const grow = Math.min(1, (d - WALL_D) / 1.2); // nothing at the arena wall
     const out: number[][] = [];
     for (let i = 0; i < n; i++) {
       let x = pts[i * 2];
       let z = pts[i * 2 + 1];
       let h = y;
+      const [ox, oz] = outward(hx, hz, x, z);
       if (y > WALL_H - 0.01 && d < RIM_D + 8) {
-        // swell of the stands, growing from the wall outwards
-        const k = Math.min(1, (d - WALL_D) / 1.2);
-        h += (treadHeight(0, x, z) - treadY(0)) * k;
+        // swell of the stands plus fine bumps
+        h += (treadHeight(0, x, z) - treadY(0)) * grow;
+      }
+      if (kind === 'riser' || kind === 'tread') {
+        // carved faces: the step edge crumbles in and out, the tread is lumpy
+        const k = noise.fbm(x * 1.1 + y, z * 1.1, 2) * 0.3 * grow;
+        x += ox * k;
+        z += oz * k;
       }
       if (cliff && d < RIM_D + 8) {
-        const amp = Math.min(1, (d - (WALL_D + TREAD_D * TIERS)) / 2) * 0.9;
-        const k = noise.fbm(x * 0.9, z * 0.9 + y * 0.4, 2) * amp;
-        const k2 = noise.noise2(x * 1.3 + 9, z * 1.3 + y * 0.6) * amp * 0.9;
-        const [ox, oz] = outward(hx, hz, x, z);
+        const amp = Math.min(1, (d - (WALL_D + TREAD_D * TIERS)) / 2) * 1.1;
+        const k = noise.fbm(x * 0.8, z * 0.8 + y * 0.5, 3) * amp;
+        const k2 = noise.noise2(x * 1.2 + 9, z * 1.2 + y * 0.7) * amp * 0.9;
         x += ox * k;
         z += oz * k;
         h += k2;
         // the rim itself rises and falls
         if (kind === 'cliff' && y > RIM_H - 0.5)
-          h += 1.1 * noise.noise2(x * 0.18, z * 0.18);
+          h += 1.2 * noise.noise2(x * 0.18, z * 0.18);
       }
       out.push([x, h, z]);
     }
@@ -222,6 +256,9 @@ export function bowlGeometry(hx: number, hz: number): BufferGeometry {
         );
         c.copy(STRATA[STRATA.length - 1 - band]).multiplyScalar(0.9 + r * 0.14);
       } else c.copy(RIM_COL).multiplyScalar(0.96 + r * 0.06);
+      // crevices: the foot of a riser or cliff is darker, its top edge catches the light
+      if (kind === 'riser' || kind === 'cliff' || kind === 'wall')
+        c.multiplyScalar(0.8 + 0.28 * along[s]);
       // two triangles per quad; wound so the face looks outward (up for treads, towards the arena for walls)
       push(a[i], b[j], b[i], c);
       push(a[i], a[j], b[j], c);

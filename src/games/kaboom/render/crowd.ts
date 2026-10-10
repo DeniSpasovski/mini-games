@@ -12,7 +12,7 @@ import {
 import { hash3, Rng } from '../../../shared/rng';
 import { CRITTERS, type CritterId, type PlayerView } from '../sim/types';
 import { treadHeight, treadMidD, TIERS, warpedRing } from './bowl';
-import { TEAM_COLORS } from './characters';
+import { CRITTER_SCALE, TEAM_COLORS } from './characters';
 import { buildCritter, VEST_R, VEST_CY, type VestFit } from './critters';
 import type { Quality } from './renderer';
 import { Color } from 'three';
@@ -183,7 +183,7 @@ export class Crowd {
     const hz = h / 2 + pad;
     const low = quality.name === 'low';
     const tiers = low ? TIERS - 1 : TIERS;
-    const spacing = low ? 1.0 : 0.74;
+    const spacing = low ? 1.3 : 1.0;
     const fill = [0.94, 0.9, 0.82, 0.72];
     const rng = new Rng(hash3(w, h, 0xc0de, 5));
     const counts = new Array<number>(CRITTERS.length).fill(0);
@@ -198,8 +198,8 @@ export class Crowd {
         const bx = pts[((i + 1) % n) * 2];
         const bz = pts[((i + 1) % n) * 2 + 1];
         const len = Math.hypot(bx - ax, bz - az);
-        for (let s = carry; s < len; s += spacing) {
-          carry = s + spacing - len;
+        let s = carry;
+        for (; s < len; s += spacing) {
           if (rng.next() > fill[t]) continue;
           const k = s / len;
           let x = ax + (bx - ax) * k;
@@ -223,12 +223,13 @@ export class Crowd {
             y: treadHeight(t, x, z),
             z,
             yaw: Math.atan2(dx, dz) + rng.range(-0.3, 0.3),
-            scale: rng.range(0.68, 0.74),
+            scale: CRITTER_SCALE * rng.range(0.98, 1.02),
             phase: rng.range(0, 6.28),
             fav: rng.next(),
             shade: rng.range(0.92, 1.06),
           });
         }
+        carry = s - len;
       }
     }
 
