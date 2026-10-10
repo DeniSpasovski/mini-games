@@ -35,6 +35,12 @@ export function loadCarModelFile(file: string): Promise<Group> {
   return p;
 }
 
+/** Start downloading a car's GLB (no-op without one): the stage loader calls it while the map data loads. */
+export function preloadCarModel(def: CarDef): void {
+  if (hasImportedModel(def))
+    void loadCarModelFile(def.model.gltf!.file).catch(() => {});
+}
+
 const DEFAULT_HIDE = 'wheel|tire|tyre|rim|brake|caliper|disc';
 
 /** Load + clone + fit. Resolves to an object in car model space (y = 0 ground, z = 0 COM). */

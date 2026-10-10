@@ -167,6 +167,8 @@ export class Showroom {
   private ride = 0;
   private rideTarget = 0;
   private key = '';
+  /** "Loading model" spinner over the car area while a car's GLB downloads (styles: menu.css `.car-loading`). */
+  private loadCue: HTMLElement;
   private angle = 0.7;
   private running = true;
   private target = new Vector3(0, 0.75, 0);
@@ -188,6 +190,10 @@ export class Showroom {
     private panelRight: () => number = () => 0,
   ) {
     this.renderer = createRenderer(container, quality);
+    this.loadCue = document.createElement('div');
+    this.loadCue.className = 'car-loading';
+    this.loadCue.innerHTML = '<i></i><span>Loading model</span>';
+    container.appendChild(this.loadCue);
     setTextureAnisotropy(
       Math.min(8, this.renderer.capabilities.getMaxAnisotropy()),
     );
@@ -242,12 +248,21 @@ export class Showroom {
     this.key = key;
     this.model?.dispose();
     const def = getCar(carId);
-    const m = new CarModel(def, { seed: livery, badge, tyre: this.tyre });
+    const m = new CarModel(def, {
+      seed: livery,
+      badge,
+      tyre: this.tyre,
+    });
     // Root = centre of mass; wheels at the set-up's static ride height (a new car starts on its set-up, no easing).
     this.ride = this.rideTarget;
     m.setRideHeight(this.ride);
     this.pad.add(m.root);
     this.model = m;
+    // Loading cue until the real model replaces the grey placeholder.
+    this.loadCue.classList.add('on');
+    void m.ready.then(() => {
+      if (this.model === m) this.loadCue.classList.remove('on');
+    });
   }
 
   /** Fit a tyre compound on the turntable car (tread, rim size, compound ring); applies to later cars too. */
@@ -396,6 +411,7 @@ export class Showroom {
     }
     if (wanted?.ready()) this.display(wanted);
 
+    this.loadCue.classList.toggle('map', !!this.mapView);
     if (this.mapView) {
       this.mapFrame(dt, this.mapView, w, h);
       return;
@@ -410,6 +426,8 @@ export class Showroom {
           : this.ride + d * Math.min(1, dt * 10);
       this.model.setRideHeight(this.ride);
     }
+    const cw = this.renderer.domElement.clientWidth;
+    this.loadCue.style.left = `${(0.5 + (w > h ? this.shift() : 0)) * cw}px`;
     this.angle += dt * 0.18;
     // Back off on narrow windows so the car still fits beside the panel.
     const dist = 8.2 * Math.max(1, 1.7 / (w / h));
