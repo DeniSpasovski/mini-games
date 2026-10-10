@@ -28,6 +28,8 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 - Real-world stages with bridges, junctions, buildings, power lines and city streets (see maps below).
 - Seeded procedural vegetation, rocks and props through one instanced asset library, streamed terrain with LODs.
 - Five tyres (tarmac and gravel in soft and hard, plus mixed), tyre sizes and class per car, suspension and gearing set-ups, with a live 3D set-up screen.
+- Tyre and brake temperature per stage weather (Ajvatovci a hot June morning, Petralica a cool September afternoon): cold tyres and pads
+  grip less, hot discs fade; HUD marks for both.
 - Stage timer with sectors, time penalties for cutting and knocking over marker posts, top-10 times per stage (stored
   locally).
 - Tool pages: map viewer, car viewer, asset debugger (dev server).

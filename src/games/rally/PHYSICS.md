@@ -9,8 +9,9 @@ Rule for everything here: **arcade, not a sim**. Differences must be big enough 
 menu, and a "wrong" choice must still finish every stage. No tyre wear or pressure; tyre temperature is one number per
 tyre ("Tyre temperature").
 
-"Reference numbers" were measured on 2026-10-04 with the shipped cars (Skoda Rally at the R5 torque of 402 Nm, Bimmer M3
-on street tyres).
+"Reference numbers" were first measured on 2026-10-04 with the shipped cars (Skoda Rally at the R5 torque of 402 Nm, Bimmer M3
+on street tyres); the brake, handling and stage-time tables below were redone on 2026-10-10 with real brakes, tyre grades
+and the stage climates.
 
 Conventions: body frame +Z forward, +Y up, **+X left**; steer input +1 = right; positive wheel steer angle = left;
 240 Hz fixed step (`PHYSICS_HZ`).
@@ -377,66 +378,66 @@ Full brake, ABS on (`brake-sweep` style probe, flat ground, warm tyres, medium s
 
 | Car           | Tarmac tyre on tarmac | Gravel tyre on gravel | Front share of the brake torque |
 | ------------- | --------------------- | --------------------- | ------------------------------- |
-| Skoda Rally   | 31.4                  | 45.5                  | 75 % (gravel kit 72 %)          |
-| Bimmer M3     | 36.6                  | 48.0                  | 64 %                            |
-| Bimmer GT2    | 26.8                  | 50.1                  | 52 %                            |
-| Subaru 22B    | 38.5                  | 44.9                  | 75 %                            |
-| Fiesta WRC    | 31.6                  | 46.0                  | 75 % (72 %)                     |
-| Citroen C4    | 31.1                  | 46.0                  | 75 % (72 %)                     |
-| Lancer EVO VI | 31.9                  | 45.4                  | 75 % (72 %)                     |
-| Zastava 101   | 52.4 (no ABS)         | 54.3 (no ABS)         | 75 %                            |
+| Skoda Rally   | 31.1                  | 43.6                  | 75 % (gravel kit 72 %)          |
+| Bimmer M3     | 33.1                  | 41.1                  | 64 %                            |
+| Bimmer GT2    | 24.0                  | 38.1                  | 52 %                            |
+| Subaru 22B    | 38.0                  | 44.1                  | 75 %                            |
+| Fiesta WRC    | 31.1                  | 43.9                  | 75 % (72 %)                     |
+| Citroen C4    | 30.5                  | 43.8                  | 75 % (72 %)                     |
+| Lancer EVO VI | 31.5                  | 43.4                  | 75 % (72 %)                     |
+| Zastava 101   | 51.7 (no ABS)         | 54.1 (no ABS)         | 75 %                            |
 
 At part pedal (60 %) no wheel locks and the distances match. Compare with ABS off in the harness via
 `Cfg.patch: (v) => { v.abs = false; }` (`straight().full.firstLock` is `-` with ABS on). First stop of a stage (cold tyres, discs
-80 K over the air, 20 °C): Skoda 46.8 m, M3 47.5, GT2 35.8, Zastava 61.5 - mostly the cold tyre, not the pads.
+80 K over the air): longer than these warm numbers, mostly the cold tyre, not the pads.
 
-Peak lateral g at 80 km/h on flat ground (ramp steer, medium set-up; `integration-tests/rally/handling.test.ts` has the full
-set), and the balance: the rear axle's grip use when the front is at its limit (100 % = neutral), tarmac tyre on tarmac /
-gravel tyre on gravel:
+Peak lateral g at 60 km/h on flat ground (ramp steer, matching set-up; `integration-tests/rally/handling.test.ts` has the full
+set), and the balance: the rear axle's grip use when the front is at its limit (100 % = neutral), Tarmac Soft on tarmac /
+Gravel Soft on gravel:
 
 | Car         | Tarmac Soft on tarmac | Mixed on tarmac | Gravel Soft on gravel | Balance tarmac / gravel |
 | ----------- | --------------------- | --------------- | --------------------- | ----------------------- |
-| Skoda Rally | **1.17**              | 1.02            | **0.85**              | 87 % / 92 %             |
-| Zastava 101 | **0.78**              | 0.67            | **0.73**              | 91 % / 93 %             |
-| Bimmer M3   | **1.05**              | 0.93            | **0.83**              | 90 % / 99 %             |
-| Bimmer GT2  | **1.44**              | 1.12            | **0.81**              | 85 % / 100 %            |
-| Subaru 22B  | **1.14**              | 1.02            | **0.85**              | 94 % / 93 %             |
-| Fiesta WRC  | **1.17**              | 1.05            | **0.84**              | 84 % / 90 %             |
-| Citroen C4  | **1.19**              | 1.07            | **0.85**              | 89 % / 93 %             |
-| Lancer EVO  | **1.18**              | 1.06            | **0.86**              | 89 % / 93 %             |
+| Skoda Rally | **1.25**              | 1.00            | **0.83**              | 80 % / 89 %             |
+| Zastava 101 | **0.81**              | 0.67            | **0.72**              | 85 % / 90 %             |
+| Bimmer M3   | **1.13**              | 0.96            | **0.83**              | 71 % / 73 %             |
+| Bimmer GT2  | **1.61**              | 1.19            | **0.81**              | 64 % / 60 %             |
+| Subaru 22B  | **1.23**              | 1.03            | **0.82**              | 89 % / 91 %             |
+| Fiesta WRC  | **1.24**              | 1.03            | **0.82**              | 80 % / 87 %             |
+| Citroen C4  | **1.27**              | 1.05            | **0.83**              | 85 % / 89 %             |
+| Lancer EVO  | **1.24**              | 1.03            | **0.82**              | 82 % / 88 %             |
 
 The home tyre family is the best on every surface for every car (`tyres.test.ts`). Whole-car handling per car (balance,
 braking, keyboard, ride): `integration-tests/rally/handling.test.ts` (`HANDLING_OUT=out.json` writes every number).
 
 ### Stage times
 
-Skoda Rally, every tyre with its matching set-up, both drivers (`tyres.test.ts`, 2026-10-04); s, tarmac / mixed / gravel
-tyre, recommended in bold:
+Autopilot with the stage climate on (`tyre-temp.test.ts` runs the same drive), 2026-10-10. Skoda Rally, every tyre with its matching
+set-up, careful / limit driver (`useExtraGrip`); s, recommended in bold:
 
-| Map (recommended)    | Careful driver            | Limit driver (`useExtraGrip`) |
-| -------------------- | ------------------------- | ----------------------------- |
-| `test` (gravel)      | 81.5 / 70.0 / **67.9**    | 81.5 / 70.0 / **66.8**        |
-| `petralica` (gravel) | 461.6 / 416.0 / **410.4** | 439.8 / 405.1 / **401.5**     |
-| `jackie` (tarmac)    | **196.0** / 196.0 / 197.9 | **187.6** / 189.6 / 197.9     |
-| `ajvatovci` (mixed)  | 162.1 / **161.0** / 162.7 | 161.2 / **156.4** / 162.7     |
+| Map (recommended)    | Tarmac Soft       | Tarmac Hard   | Mixed             | Gravel Hard   | Gravel Soft       |
+| -------------------- | ----------------- | ------------- | ----------------- | ------------- | ----------------- |
+| `test` (gravel)      | 83.6 / 83.6       | 86.1 / 86.1   | 70.1 / 70.1       | 67.9 / 66.9   | **67.8 / 66.5**   |
+| `petralica` (gravel) | 465.5 / 443.5     | 476.0 / 455.4 | 415.1 / 397.9     | 407.4 / 394.4 | **407.1 / 395.8** |
+| `jackie` (tarmac)    | **201.6 / 188.9** | 201.6 / 189.0 | 201.6 / 191.2     | 202.0 / 197.9 | 202.0 / 199.6     |
+| `ajvatovci` (mixed)  | 161.2 / 155.2     | 161.4 / 156.7 | **160.3 / 150.4** | 160.5 / 157.6 | 160.5 / 157.6     |
 
-Every car, careful driver, recommended pick / worst pick (`car-matrix.test.ts`, 2026-10-04; worst = tarmac tyres on a gravel
-stage, gravel tyres on a tarmac or dusty one):
+Every car, careful driver, recommended pick / worst pick (`car-matrix.test.ts`; worst = tarmac tyres on a gravel stage, gravel
+tyres on a tarmac or dusty one):
 
-| Map (recommended)    | Skoda Rally     | Zastava 101   | Bimmer M3         |
-| -------------------- | --------------- | ------------- | ----------------- |
-| `test` (gravel)      | **67.9** / 81.5 | 75.2 / 87.1   | 68.0 / 84.2       |
-| `petralica` (gravel) | 410.4 / 461.6   | 477.8 / 530.4 | **407.6** / 471.2 |
-| `jackie` (tarmac)    | 196.0 / 197.9   | 217.5 / 223.5 | **193.6** / 195.0 |
-| `ajvatovci` (mixed)  | 161.0 / 162.7   | 189.1 / 194.8 | **159.5** / 161.9 |
+| Map (recommended)    | Skoda Rally   | Bimmer M3     | Bimmer GT2    | Subaru 22B    | Fiesta WRC    | Citroen C4    | Lancer EVO    | Zastava 101   |
+| -------------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- |
+| `test` (gravel)      | 67.8 / 83.6   | 68.2 / 90.9   | 66.9 / 85.8   | 68.4 / 81.8   | 66.8 / 83.4   | 67.2 / 83.4   | 67.4 / 83.5   | 77.4 / 96.2   |
+| `petralica` (gravel) | 407.1 / 465.5 | 409.5 / 575.8 | 398.2 / 464.2 | 410.6 / 461.6 | 399.7 / 467.5 | 402.3 / 461.1 | 404.0 / 463.5 | 503.2 / 620.4 |
+| `jackie` (tarmac)    | 201.6 / 202.0 | 201.3 / 201.4 | 198.0 / 198.6 | 202.2 / 202.5 | 199.8 / 200.2 | 200.3 / 200.7 | 200.9 / 201.4 | 225.3 / 262.2 |
+| `ajvatovci` (mixed)  | 160.3 / 160.5 | 161.1 / 160.8 | 154.2 / 155.1 | 162.0 / 162.1 | 156.8 / 157.0 | 158.1 / 158.3 | 158.9 / 159.2 | 195.6 / 203.9 |
 
-Reading it: the recommended tyre is the fastest with the limit driver on every stage, and the wrong tyre on gravel costs the
-most (tarmac tyres +20 % on the test map, +10-12 % on Petralica). On tarmac the careful driver can't show the gain - it never
-corners above the gravel baseline and is capped at 151 km/h, so it ties or loses only 1-2 % on the wrong tyre - the limit
-driver does (gravel tyres +5 % on Jackie, Mixed ahead by 3 % on Ajvatovci). Car character: the Skoda Rally feels better on
-gravel (AWD) but is not guaranteed the fastest - the more powerful M3 ties it on the test map and is ~1 % ahead on Petralica
-and Ajvatovci (by design: the AWD car should feel better on gravel, a more powerful car may still be quicker over a stage); M3 fastest on tarmac; Zastava slowest
-everywhere (power, not grip).
+Reading it: the recommended tyre is the fastest, or within about 0.5 %, for every car on every stage; the soft and hard
+compound of a family are within 1 % (Gravel Hard ties Soft on Petralica). The wrong tyre on gravel costs the most (tarmac
+tyres +20-25 % on the test map and Petralica, the road-tyre M3 +40 % on Petralica); on tarmac the careful driver barely
+sees it (it is capped at 151 km/h), the limit driver does (gravel tyres +5 % on Jackie, Mixed ahead by 3 % on Ajvatovci),
+and the Zastava loses most (+16 % on gravel tyres on Jackie). Ajvatovci's 30 °C does not make a hard compound win. Car
+character: the GT2 (slicks) is quickest on tarmac, the M3 and the rally cars are close, the Zastava is slowest everywhere
+(power, not grip).
 
 ## Tests
 
