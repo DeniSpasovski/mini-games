@@ -44,6 +44,9 @@ const carModelFiles = fs.existsSync(carModelDir)
   ? fs.readdirSync(carModelDir).filter((f) => /.(glb|gltf)$/i.test(f))
   : [];
 
+const musicDir = path.resolve(root, 'sources/music');
+const musicFiles = fs.existsSync(musicDir) ? fs.readdirSync(musicDir) : [];
+
 /**
  * Game-only files that live in the root public/ folder: copied into that game's
  * folder only (dist/games/<id>/<to>), never into the portal or other games.
@@ -62,6 +65,9 @@ const gamePublicFiles: Record<
       transform: (input, file) =>
         file.endsWith('.glb') ? meshoptGlb(input) : input,
     },
+    // Menu music (src/games/rally/game/menu-music.ts): git-ignored (Pixabay licence: no standalone redistribution),
+    // so the folder is optional (missing or empty) and a CI checkout builds without it.
+    ...(musicFiles.length ? [{ from: musicDir, to: 'music' }] : []),
   ],
 };
 
@@ -186,6 +192,7 @@ export default defineConfig(({ envMode }) => ({
     preEntry: ['./src/shared/host-guard.ts', './src/shared/consent-boot.ts'],
     define: {
       __CAR_MODEL_FILES__: JSON.stringify(carModelFiles),
+      __MUSIC_FILES__: JSON.stringify(musicFiles),
       // `npm run build:test` (`--env-mode test`): the published build also offers the TEST cars / maps (release.ts).
       __TEST_BUILD__: JSON.stringify(envMode === 'test'),
     },
@@ -202,9 +209,9 @@ export default defineConfig(({ envMode }) => ({
     // Page-relative URLs in dev too: every environment emits unhashed names like
     // static/js/index.js / three.js, so root "/static/..." URLs would clash between games.
     assetPrefix: 'auto',
-    // The car model list above is baked in at startup - restart when it changes.
+    // The car model + music lists above are baked in at startup - restart when they change.
     watchFiles: {
-      paths: carModelDir,
+      paths: [carModelDir, musicDir],
       events: ['add', 'unlink'],
       type: 'restart',
     },
@@ -228,6 +235,16 @@ export default defineConfig(({ envMode }) => ({
     // Used by the in-game "F9" capture (see src/shared/thumbnail.ts).
     setup: ({ action, server }) => {
       if (action !== 'dev') return;
+      // Dev: serve the git-ignored menu music like the build copies it (dist/games/rally/music).
+      server.middlewares.use('/games/rally/music', (req, res, next) => {
+        const file = path.join(
+          musicDir,
+          path.basename(decodeURIComponent((req.url ?? '').split('?')[0])),
+        );
+        if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return next();
+        res.setHeader('Content-Type', 'audio/mpeg');
+        fs.createReadStream(file).pipe(res);
+      });
       server.middlewares.use('/__dev/thumbnail', (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405;

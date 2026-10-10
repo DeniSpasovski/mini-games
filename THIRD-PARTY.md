@@ -57,6 +57,15 @@ repository.
 
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 
+## Music
+
+Not committed: the file stays local in `sources/music/` and is copied into the build.
+
+| File (`sources/music/`)    | Source                                                                                                                                             |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `darkside-rally-house.mp3` | "darkside - rally house" by kawaiiwork (https://pixabay.com/music/upbeat-darkside-rally-house-410400/), Pixabay Content License, credited in About |
+| `sunset-house.mp3`         | "Sunset House" by Aurec (https://pixabay.com/music/electronic-sunset-house-598438/), Pixabay Content License, credited in About                    |
+
 ## Research references
 
 Papers and articles read to tune the rally tyre temperature and suspension models; linked in the game's About screen and
