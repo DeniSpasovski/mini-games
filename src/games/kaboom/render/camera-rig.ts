@@ -14,7 +14,11 @@ export const FOLLOW_ABOVE_CELLS = 17 * 13;
 const DIST_MIN = 6;
 const DIST_MAX = 160;
 
+/** `follow`: a close window that follows the player on every arena. `full`: the whole slab when it fits (else the wide window). */
+export type CameraView = 'follow' | 'full';
+
 export class CameraRig {
+  view: CameraView = 'follow';
   readonly camera = new PerspectiveCamera(CAM_FOV, 1, 0.5, 400);
   readonly target = new Vector3();
   distance = 30;
@@ -46,7 +50,7 @@ export class CameraRig {
    */
   fitView(w: number, h: number): void {
     const aspect = this.camera.aspect;
-    if (aspect >= 1 && w * h <= FOLLOW_ABOVE_CELLS) {
+    if (this.view === 'full' && aspect >= 1 && w * h <= FOLLOW_ABOVE_CELLS) {
       this.fitArena(w, h);
       return;
     }
@@ -54,8 +58,9 @@ export class CameraRig {
     this.following = true;
     this.arenaW = w;
     this.arenaH = h;
-    this.viewCols = Math.min(w, portrait ? 9 : 14);
-    this.viewRows = Math.min(h, portrait ? 13 : 11);
+    const close = this.view === 'follow';
+    this.viewCols = Math.min(w, portrait ? (close ? 8 : 9) : close ? 13 : 14);
+    this.viewRows = Math.min(h, portrait ? (close ? 11 : 13) : close ? 10 : 11);
     // only the ground window matters when following: no slab underside, no margin
     this.distance = fitDistance(
       this.camera,
@@ -70,13 +75,13 @@ export class CameraRig {
   }
 
   /** Move the followed window towards world `(x, z)`, never past the slab edge. No-op when showing the whole slab. */
-  followTo(x: number, z: number, dt: number): void {
+  followTo(x: number, z: number, dt: number, snap = false): void {
     if (!this.following) return;
     const maxX = Math.max(0, this.arenaW / 2 - this.viewCols / 2 + 0.3);
     const maxZ = Math.max(0, this.arenaH / 2 - this.viewRows / 2 + 0.3);
     const tx = Math.min(maxX, Math.max(-maxX, x));
     const tz = Math.min(maxZ, Math.max(-maxZ, z));
-    const k = 1 - Math.exp(-dt * 5);
+    const k = snap ? 1 : 1 - Math.exp(-dt * 5);
     this.target.x += (tx - this.target.x) * k;
     this.target.z += (tz - this.target.z) * k;
   }

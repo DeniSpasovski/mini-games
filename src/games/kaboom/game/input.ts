@@ -20,6 +20,7 @@ export class Controls {
   /** Show the touch UI (set when the device has touch, or after the first touch). */
   touchUi = false;
   onPause: (() => void) | null = null;
+  onCamera: (() => void) | null = null;
   private pointerId = -1;
   private ox = 0;
   private oy = 0;
@@ -109,6 +110,7 @@ export class Controls {
         this.placeQueued = true;
       if (this.enabled && (e.code === 'Escape' || e.code === 'KeyP'))
         this.onPause?.();
+      if (this.enabled && e.code === 'KeyC') this.onCamera?.();
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());

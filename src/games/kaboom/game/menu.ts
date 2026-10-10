@@ -20,11 +20,13 @@ import {
 import { button, el, title } from './dom';
 import {
   DIFFICULTIES,
+  CAMERAS,
   QUALITIES,
   ROUND_COUNTS,
   clampBots,
   type KaboomSettings,
   type KaboomStats,
+  type CameraSetting,
   type QualitySetting,
 } from './settings';
 
@@ -71,6 +73,8 @@ export interface MenuApi {
   onVolume(v: number): void;
   /** The quality tier changed: it needs a new renderer, so the game reloads the page. */
   onQuality(q: QualitySetting): void;
+  /** The camera view changed in the options (the game applies it right away). */
+  onCamera(c: CameraSetting): void;
   onResume(): void;
   onRestart(): void;
   onMainMenu(): void;
@@ -461,6 +465,16 @@ export class Menu {
     const volRow = el('div', 'kb-row');
     volRow.append(el('span', 'kb-rowlabel', 'Volume'), vol);
     card.append(volRow);
+    card.append(
+      this.segRow(
+        'Camera',
+        [...CAMERAS],
+        s.camera,
+        (v) => this.api.onCamera(v as CameraSetting),
+        (v) => (v === 'follow' ? 'Close' : 'Whole arena'),
+      ),
+      el('p', 'kb-small', 'Close follows you. Press C in a match to switch.'),
+    );
     card.append(
       this.segRow(
         'Graphics',

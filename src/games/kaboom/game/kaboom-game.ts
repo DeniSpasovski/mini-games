@@ -42,6 +42,7 @@ import {
   recordMatch,
   saveSettings,
   type KaboomSettings,
+  type CameraSetting,
   type QualitySetting,
 } from './settings';
 import { defaultStorage } from './storage';
@@ -105,6 +106,11 @@ export class KaboomGame {
 
   constructor(root: HTMLElement) {
     this.settings = loadSettings(this.store);
+    const camParam = this.params.get('camera');
+    this.rig.view =
+      camParam === 'full' || camParam === 'follow'
+        ? camParam
+        : this.settings.camera;
     const qParam = this.params.get('quality');
     const qSetting = this.settings.quality;
     const qName = isQualityName(qParam)
@@ -132,6 +138,10 @@ export class KaboomGame {
       if (this.phase === 'play' && this.mode === 'match') this.pause();
       else if (this.phase === 'paused') this.resume();
     };
+    this.controls.onCamera = () => {
+      if (this.phase === 'play' && this.mode === 'match')
+        this.setCamera(this.settings.camera === 'follow' ? 'full' : 'follow');
+    };
     this.hud = new Hud(root, () => this.pause(), this.portraits.get);
     this.menu = new Menu(root, {
       settings: this.settings,
@@ -145,6 +155,7 @@ export class KaboomGame {
       onLineup: () => this.syncAttract(),
       onVolume: (v) => this.sfx.setVolume(v),
       onQuality: (q) => this.changeQuality(q),
+      onCamera: (c) => this.setCamera(c),
       onResume: () => this.resume(),
       onRestart: () => void this.startMatch(this.setup ?? this.currentSetup()),
       onMainMenu: () => this.toMenu(),
@@ -220,6 +231,14 @@ export class KaboomGame {
         : base.critter,
       color: base.color,
     };
+  }
+
+  /** Switch the camera view (options, or C in a match) and keep the choice. */
+  private setCamera(c: CameraSetting): void {
+    this.settings.camera = c;
+    saveSettings(this.store, this.settings);
+    this.rig.view = c;
+    this.view?.fit();
   }
 
   private changeQuality(q: QualitySetting): void {

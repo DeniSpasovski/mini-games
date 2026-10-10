@@ -23,7 +23,7 @@ their skill and the number of rounds, then:
 - Crates hide **power-ups**: walk onto them for more dynamites at once or a longer blast (up to level 5 each).
 - Touch a flame and you are out. Last critter standing wins the round; late in a round the walls fall in from the edge.
 
-Dev links: `?size=l&bots=5&difficulty=hard&rounds=3&critter=otter&seed=7`, `bot=1` (autopilot), `debug=1`, `mute=1`.
+Dev links: `?size=l&bots=5&difficulty=hard&rounds=3&critter=otter&seed=7`, `bot=1` (autopilot), `debug=1`, `camera=full`, `mute=1`.
 
 |                                                                    |                                                                   |
 | ------------------------------------------------------------------ | ----------------------------------------------------------------- |
@@ -49,6 +49,7 @@ The Large arena (up to 8 players) is bigger than the screen: the camera follows 
   corner you, Hard ones cut off your escape routes and aim where you are heading.
 - **Explosions**: roaring soft fire, a flash, a shockwave, spark streaks, smoke and scorch marks, all pooled GPU
   particles with a heat texture instead of lights - a 40-TNT chain costs about as much as one blast.
+- **Camera**: a close view that follows you by default; switch to the whole arena in Options or with `C`.
 - Touch, keyboard and gamepad; phone-friendly with a follow camera on big arenas.
 - Tool pages: map viewer, crew viewer, bench.
 

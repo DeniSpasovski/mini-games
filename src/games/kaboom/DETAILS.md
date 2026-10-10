@@ -113,8 +113,10 @@ dirt mounds; decor on the slab margin: mine-cart rails with a cart, barrels, roc
 
 ## Camera
 
-Perspective, FOV 30 deg, pitch 58 deg, fixed yaw (looking north, grid +y = screen down): a tilted diorama.
-`CameraRig.fitView` frames the whole slab (bisecting the distance on the real projection of its corners) for Small and
+Perspective, FOV 30 deg, pitch 58 deg, fixed yaw (looking north, grid +y = screen down): a tilted diorama. Two views
+(`CameraRig.view`, the Camera option, `C` in a match, `?camera=follow|full`): **follow** (default) always frames a window of
+about 13 x 10 cells (8 x 11 in portrait) that `followTo` moves with the human; **full** is the framing below.
+In full, `CameraRig.fitView` frames the whole slab (bisecting the distance on the real projection of its corners) for Small and
 Medium arenas on a landscape screen; for Large arenas and portrait phones it frames a window of about 14 x 11 cells (9 x 13 in
 portrait) that `followTo` moves with the human, clamped at the slab edge. `Shake` (one capped trauma accumulator) is added on top.
 
@@ -140,7 +142,7 @@ the background. While the human is out and the round is still on, the sim runs a
   (`kaboom.settings`, `kaboom.stats`), every access in try / catch with an in-memory fallback.
 - **Analytics**: `level_start` / `level_end` (see the root `DETAILS.md`); none for autopilot (`bot=1`) or fixed-seed (`seed=`) runs.
 - **URL params** (play): any of `play=1`, `size=s|m|l`, `bots=1-7`, `difficulty=easy|normal|hard`, `rounds=1|3|5`, `critter=<id>`
-  skips the menu; also `seed=<n>`, `bot=1` (autopilot), `debug=1` (stats), `quality=low|high`, `mute=1`.
+  skips the menu; also `seed=<n>`, `bot=1` (autopilot), `debug=1` (stats), `quality=low|high`, `camera=follow|full`, `mute=1`.
 
 ## Bots (`sim/bot.ts`)
 

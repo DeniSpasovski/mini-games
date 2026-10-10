@@ -37,6 +37,9 @@ const portrait = (c: CritterId, color: number) => `data:,${c}-${color}`;
 
 test('settings: invalid or missing fields fall back to defaults, bots follow the arena size', () => {
   expect(sanitizeSettings(null)).toEqual(DEFAULT_SETTINGS);
+  expect(DEFAULT_SETTINGS.camera).toBe('follow');
+  expect(sanitizeSettings({ camera: 'nope' }).camera).toBe('follow');
+  expect(sanitizeSettings({ camera: 'full' }).camera).toBe('full');
   expect(
     sanitizeSettings({
       critter: 'dragon',
@@ -157,8 +160,9 @@ test('controls: keyboard moves, one press places one TNT, Escape pauses, disable
 
 // ------------------------------------------------------------------ camera
 
-test('camera: small / medium arenas are fitted whole, big ones and tall screens follow the player inside the slab', () => {
+test('camera: in the whole-arena view small / medium arenas are fitted whole, big ones and tall screens follow the player inside the slab', () => {
   const rig = new CameraRig();
+  rig.view = 'full';
   rig.camera.aspect = 16 / 9;
   rig.camera.updateProjectionMatrix();
   rig.fitView(MAP_SIZES.m.w, MAP_SIZES.m.h);
@@ -237,6 +241,7 @@ function menuApi(over: Partial<MenuApi> = {}): MenuApi & { calls: string[] } {
     onLineup: () => calls.push('lineup'),
     onVolume: (v) => calls.push(`volume ${v}`),
     onQuality: (q) => calls.push(`quality ${q}`),
+    onCamera: (c) => calls.push(`camera ${c}`),
     onResume: () => calls.push('resume'),
     onRestart: () => calls.push('restart'),
     onMainMenu: () => calls.push('menu'),

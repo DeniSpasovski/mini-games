@@ -58,6 +58,8 @@ export class WorldView {
   /** Player the camera follows on big arenas / portrait (-1 = none, e.g. the menu background). */
   followId = 0;
   private readonly followCamera: boolean;
+  /** Jump the follow camera onto the player at the next update (a new round, a camera change) instead of gliding. */
+  private snapCamera = true;
   private mapRef;
 
   constructor(
@@ -104,6 +106,7 @@ export class WorldView {
 
   /** Frame the whole arena for the camera's current aspect (call when the canvas is resized). */
   fit(): void {
+    this.snapCamera = true;
     if (this.followCamera) this.rig.fitView(this.sim.map.w, this.sim.map.h);
     else this.rig.fitArena(this.sim.map.w, this.sim.map.h);
   }
@@ -175,7 +178,8 @@ export class WorldView {
         this.followId < players.length
       ) {
         this.crew.worldPos(this.followId, alpha, this.pos);
-        this.rig.followTo(this.pos.x, this.pos.z, dt);
+        this.rig.followTo(this.pos.x, this.pos.z, dt, this.snapCamera);
+        this.snapCamera = false;
       }
       this.rig.update();
       this.rig.camera.position.add(
