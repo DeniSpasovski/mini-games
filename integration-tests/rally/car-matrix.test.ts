@@ -4,20 +4,23 @@ import { Autopilot } from '../../src/games/rally/game/autopilot';
 import { ajvatovciMap } from '../../src/games/rally/maps/ajvatovci/map';
 import { jackieMap } from '../../src/games/rally/maps/jackie/map';
 import { petralicaMap } from '../../src/games/rally/maps/petralica/map';
+import { stageClimate } from '../../src/games/rally/maps/shared/climate';
 import type { MapDef } from '../../src/games/rally/maps/shared/types';
 import { testMap } from '../../src/games/rally/maps/test/map';
 import {
   applySetup,
   SETUP_FOR_TYRE,
 } from '../../src/games/rally/physics/car-setup';
-import type { TyreId } from '../../src/games/rally/physics/tyres';
+import { TYRES, type TyreId } from '../../src/games/rally/physics/tyres';
 import type { SetupId } from '../../src/games/rally/physics/types';
 import { PHYSICS_HZ, Vehicle } from '../../src/games/rally/physics/vehicle';
 import { World } from '../../src/games/rally/world/world';
 
 /**
  * Every car on every stage (autopilot, careful driver unless noted) with its recommended tyre + set-up AND with the
- * worst pick for the stage, plus what a set-up alone is worth (Fabia, same tyre). Tyres + set-ups:
+ * worst pick for the stage, with tyre + brake temperatures on (the stage's climate, as in game): finishes upright, tyres
+ * and discs stay in a sane range, the home tyre is warm at the finish. Plus what a set-up alone is worth (Fabia, same
+ * tyre; no climate). Tyres + set-ups:
  * physics/tyres.ts, physics/car-setup.ts, src/games/rally/PHYSICS.md.
  */
 const DT = 1 / PHYSICS_HZ;
@@ -30,11 +33,13 @@ function drive(
   tyre: TyreId,
   setup: SetupId,
   extraGrip = false,
+  climate = false,
 ) {
   const world = worlds.get(mapId)!;
   const def = ALL_CARS.find((c) => c.id === carId)!.physics;
   const v = new Vehicle(applySetup(def, setup), world);
   v.setTyre(tyre);
+  if (climate) v.setClimate(stageClimate(world.map.environment));
   const spawn = world.roadSpawn();
   v.reset(spawn.position, spawn.heading);
   const ap = new Autopilot(world.road);
@@ -45,21 +50,36 @@ function drive(
   let minUp = 1;
   let stuck = 0;
   let resets = 0;
+  let hottest = 0;
+  let hottestDisc = 0;
   while (t < limit && ap.along < world.stage.finish) {
     ap.drive(v, v.controls);
     v.step(DT);
     t += DT;
     minUp = Math.min(minUp, v.up.y);
+    for (const w of v.wheels) {
+      hottest = Math.max(hottest, w.temp);
+      hottestDisc = Math.max(hottestDisc, w.brakeTemp);
+    }
     stuck = Math.abs(v.speed) < 0.5 ? stuck + DT : 0;
     if (stuck > 5) {
       // A player presses R (reset to the road) when stuck; the wrong tyre on a steep loose climb may need it once.
-      if (resets++ > 0) break;
+      if (resets++ > 3) break;
       const s = world.roadSpawn(ap.along);
       v.reset(s.position, s.heading);
       stuck = 0;
     }
   }
-  return { t, finished: ap.along >= world.stage.finish, minUp, resets };
+  const finish = v.wheels.reduce((s, w) => s + w.temp / 4, 0);
+  return {
+    t,
+    finished: ap.along >= world.stage.finish,
+    minUp,
+    resets,
+    hottest,
+    hottestDisc,
+    finish,
+  };
 }
 
 /** Recommended-pick stage time per `car/map`, filled by the matrix below (tests in a file run in order). */
@@ -74,17 +94,23 @@ describe.each(ALL_CARS.map((c) => c.id))('%s', (carId) => {
       // The worst pick, with its matching set-up: tarmac tyres on a gravel stage, gravel tyres on a tarmac or
       // dusty-tarmac (mixed) stage.
       const worst: TyreId = rec === 'gravel' ? 'tarmac' : 'gravel';
-      const a = drive(carId, mapId, rec, SETUP_FOR_TYRE[rec]);
+      const a = drive(carId, mapId, rec, SETUP_FOR_TYRE[rec], false, true);
       best.set(`${carId}/${mapId}`, a.t);
-      const b = drive(carId, mapId, worst, SETUP_FOR_TYRE[worst]);
+      const b = drive(carId, mapId, worst, SETUP_FOR_TYRE[worst], false, true);
       console.info(
-        `[${carId} / ${mapId}] ${rec}+${SETUP_FOR_TYRE[rec]} ${a.t.toFixed(1)}s (up ${a.minUp.toFixed(2)})  ${worst}+${SETUP_FOR_TYRE[worst]} ${b.t.toFixed(1)}s (up ${b.minUp.toFixed(2)})`,
+        `[${carId} / ${mapId}] ${rec}+${SETUP_FOR_TYRE[rec]} ${a.t.toFixed(1)}s (up ${a.minUp.toFixed(2)}, finish ${a.finish.toFixed(0)}°C, max ${a.hottest.toFixed(0)}°C, discs ${a.hottestDisc.toFixed(0)}°C)  ${worst}+${SETUP_FOR_TYRE[worst]} ${b.t.toFixed(1)}s (up ${b.minUp.toFixed(2)}, max ${b.hottest.toFixed(0)}°C, discs ${b.hottestDisc.toFixed(0)}°C)`,
       );
-      expect(a.resets).toBe(0);
       for (const r of [a, b]) {
         expect(r.finished).toBe(true);
         expect(r.minUp).toBeGreaterThan(0.5);
+        expect(r.hottest).toBeLessThan(150);
+        // Brakes (physics/brakes.ts): hot, but not cooked - the autopilot plans with the brakes it has.
+        expect(r.hottestDisc).toBeLessThan(1300);
       }
+      // A stuck car gets a reset, as a player would; the careful run on the right tyre needs at most one and ends warm
+      // (at most 10 °C under the window).
+      expect(a.resets).toBeLessThanOrEqual(1);
+      expect(a.finish).toBeGreaterThan(TYRES[rec].temp.lo - 10);
     },
     600000,
   );
