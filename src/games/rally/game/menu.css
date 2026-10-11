@@ -700,6 +700,7 @@
 .menu-board td:first-child {
   color: #8b95a3;
   width: 22px;
+  white-space: nowrap;
 }
 .menu-board td:last-child {
   text-align: right;

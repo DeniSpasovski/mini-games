@@ -199,7 +199,14 @@ export interface MenuResult {
   gearing: GearingId;
 }
 
-type Screen = 'welcome' | 'options' | 'about' | 'map' | 'car' | 'setup';
+type Screen =
+  | 'welcome'
+  | 'options'
+  | 'about'
+  | 'times'
+  | 'map'
+  | 'car'
+  | 'setup';
 
 export function runMenu(container: HTMLElement): Promise<MenuResult> {
   return new Promise((resolve) => {
@@ -217,6 +224,7 @@ class MainMenu {
   private screen: Screen = 'welcome';
   private settings: RallySettings;
   private mapIndex: number;
+  private timesMap = 0;
   private carIndex: number;
   private livery: number;
   /** Setup screen choices for one map + car (anything else resets to the stage recommendation, nothing is saved). */
@@ -395,6 +403,7 @@ class MainMenu {
         }),
       );
     if (screen === 'about') this.about();
+    if (screen === 'times') this.timesScreen();
     if (screen === 'map') this.mapSelect();
     if (screen === 'car') this.carSelect();
     if (screen === 'setup') this.setupSelect();
@@ -421,6 +430,7 @@ class MainMenu {
       </div>
       <div class="menu-list">
         <button class="menu-btn big" data-primary data-a="start">Start rally</button>
+        <button class="menu-btn" data-a="times">Times</button>
         <button class="menu-btn" data-a="options">Options</button>
         <button class="menu-btn" data-a="about">About</button>
         ${portal ? `<a class="menu-btn" href="${portal}">‹ All games</a>` : ''}
@@ -429,6 +439,9 @@ class MainMenu {
     this.panel
       .querySelector('[data-a="start"]')!
       .addEventListener('click', () => this.show('map'));
+    this.panel
+      .querySelector('[data-a="times"]')!
+      .addEventListener('click', () => this.show('times'));
     this.panel
       .querySelector('[data-a="options"]')!
       .addEventListener('click', () => this.show('options'));
@@ -475,6 +488,50 @@ class MainMenu {
       ${MUSIC_CREDITS.length ? `<h2>Music</h2>${links(MUSIC_CREDITS, '')}` : ''}`;
     this.panel.append(
       header('About'),
+      body,
+      buttons(['Back', () => this.show('welcome'), true]),
+    );
+  }
+
+  /** Main-menu "Times": every saved run of one stage, current versions first, older ones dimmed below. */
+  private timesScreen(): void {
+    const m = MAPS[this.timesMap];
+    const cur = timesVersion(m.id);
+    const times = loadTimes(m.id, CAR_IDS);
+    const rows = times.filter((r) => !isOldRun(r, cur));
+    const older = times.filter((r) => isOldRun(r, cur));
+    const row = (r: RunRecord, i: number) => {
+      const old = isOldRun(r, cur);
+      return `<tr${old ? ' class="old"' : ''}><td>${old ? oldRunLabel(r, cur) : i + 1}</td><td>${formatTime(r.time)}${r.penalty ? ` <span class="pen">(+${r.penalty}s)</span>` : ''}</td><td>${carName(r.car)}</td><td class="set">${isTyreId(r.tyre) ? TYRES[r.tyre].name : '–'}</td><td>${!old && i ? `+${(r.time - rows[0].time).toFixed(2)}` : ''}</td></tr>`;
+    };
+    const body = div('menu-board');
+    body.innerHTML = times.length
+      ? `<table><thead><tr><th>#</th><th>Time</th><th>Car</th><th>Tyres</th><th>Gap</th></tr></thead>${rows
+          .slice(0, 10)
+          .map(row)
+          .join('')}${
+          older.length
+            ? `<tr class="divider"><td colspan="5">Older versions · set before a physics update</td></tr>${older
+                .slice(0, Math.max(3, 10 - rows.length))
+                .map(row)
+                .join('')}`
+            : ''
+        }</table>`
+      : '<p class="menu-none">No time set yet - drive this stage!</p>';
+    const tabs = div('menu-seg');
+    MAPS.forEach((x, i) => {
+      const b = document.createElement('button');
+      b.className = i === this.timesMap ? 'on' : '';
+      b.textContent = x.name;
+      b.addEventListener('click', () => {
+        this.timesMap = i;
+        this.show('times');
+      });
+      tabs.append(b);
+    });
+    this.panel.append(
+      header('Times', `${m.name} · ← → switch stage`),
+      tabs,
       body,
       buttons(['Back', () => this.show('welcome'), true]),
     );
@@ -834,7 +891,8 @@ class MainMenu {
   private nav(a: NavAction): void {
     const s = this.screen;
     if (a === 'back') {
-      if (s === 'options' || s === 'about' || s === 'map') this.show('welcome');
+      if (s === 'options' || s === 'about' || s === 'map' || s === 'times')
+        this.show('welcome');
       if (s === 'car') this.show('map');
       if (s === 'setup') this.show('car');
       return;
@@ -870,6 +928,10 @@ class MainMenu {
         const k = (SETUP_IDS.indexOf(this.setup) + d + n) % n;
         this.setSetup({ setup: SETUP_IDS[k] }, 1);
       }
+    } else if (s === 'times' && (a === 'left' || a === 'right')) {
+      this.timesMap =
+        (this.timesMap + (a === 'left' ? -1 : 1) + MAPS.length) % MAPS.length;
+      this.show('times');
     } else if (s === 'car' && (a === 'left' || a === 'right')) {
       this.setLivery(this.livery + (a === 'left' ? -1 : 1));
     } else if (a === 'confirm' || a === 'start') {
