@@ -1,5 +1,6 @@
 import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
+import type { BrakeSet } from '../../physics/brakes';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
 import { lancerEvo6Livery } from './livery';
@@ -27,7 +28,6 @@ const FRONT: AxleDef = {
   rebound: 4320,
   travel: 0.26,
   antiRoll: 9000,
-  brakeTorque: 1750,
   handbrakeTorque: 0,
   steer: 1,
   grip: 1,
@@ -42,11 +42,45 @@ const REAR: AxleDef = {
   rebound: 3780,
   travel: 0.26,
   antiRoll: 6000,
-  brakeTorque: 750,
   handbrakeTorque: 2800,
   steer: 0,
   grip: 1,
   forceHeight: 0.3,
+};
+
+/** WRC-style brakes: 355 / 300 mm vented discs on tarmac, the 300 mm kit with the gravel wheels (PHYSICS.md "Brakes"). */
+const BRAKES: BrakeSet = {
+  front: {
+    type: 'vented',
+    diameter: 0.355,
+    thickness: 0.032,
+    pad: 'rally',
+    clamp: 11700,
+  },
+  rear: {
+    type: 'vented',
+    diameter: 0.3,
+    thickness: 0.028,
+    pad: 'rally',
+    clamp: 4600,
+  },
+};
+
+const GRAVEL_BRAKES: BrakeSet = {
+  front: {
+    type: 'vented',
+    diameter: 0.3,
+    thickness: 0.028,
+    pad: 'rally',
+    clamp: 11750,
+  },
+  rear: {
+    type: 'vented',
+    diameter: 0.3,
+    thickness: 0.028,
+    pad: 'rally',
+    clamp: 4550,
+  },
 };
 
 /**
@@ -152,6 +186,8 @@ export const lancerEvo6: CarDef = {
       frontDiffLock: 80,
       rearDiffLock: 240,
     },
+    brakes: BRAKES,
+    gravelBrakes: GRAVEL_BRAKES,
     dragArea: 0.8,
     downforceArea: 0.18,
     // Fitted to the imported body (tests/rally/hull-fit.test.ts measures the GLB): body underside 0.17 m (nose), 0.18 - 0.2 between the axles, 0.26 m at the tail.

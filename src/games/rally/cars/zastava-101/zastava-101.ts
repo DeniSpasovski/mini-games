@@ -1,9 +1,13 @@
 import { deriveSetups } from '../../physics/car-setup';
+import type { BrakeSet } from '../../physics/brakes';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
 import { buildZastavaBody } from './body';
 import { zastavaAtlas } from './paint';
 import { buildZastavaWheel } from './wheels';
+
+/** 1970s road tyre against a rally competition tyre (PHYSICS.md "Tyre types"). */
+const OLD_ROAD_TYRE = 0.72;
 
 const FRONT: AxleDef = {
   z: 0.98,
@@ -13,7 +17,6 @@ const FRONT: AxleDef = {
   rebound: 2720,
   travel: 0.22,
   antiRoll: 6000,
-  brakeTorque: 1200,
   handbrakeTorque: 0,
   steer: 1,
   grip: 1,
@@ -30,11 +33,28 @@ const REAR: AxleDef = {
   antiRoll: 4000,
   // 23 % rear (front 1200): the light rear (40 % static, less under braking) must not lock before the front - at
   // 35 % braking mid-corner spun the car. Total torque kept so part-pedal stops stay the same.
-  brakeTorque: 350,
   handbrakeTorque: 1800,
   steer: 0,
   grip: 1.05,
   forceHeight: 0.35,
+};
+
+/** Zastava 101: 227 mm solid front discs, 185 mm rear drums (PHYSICS.md "Brakes"). */
+const BRAKES: BrakeSet = {
+  front: {
+    type: 'solid',
+    diameter: 0.227,
+    thickness: 0.0108,
+    pad: 'road',
+    clamp: 9700,
+  },
+  rear: {
+    type: 'drum',
+    diameter: 0.185,
+    thickness: 0.0357,
+    pad: 'road',
+    clamp: 2250,
+  },
 };
 
 /**
@@ -83,10 +103,10 @@ export const zastava101: CarDef = {
     // 13" steel wheels on every compound, the tyre changes: stock 145/80 R13 (mixed), a wider 165/70 R13 on tarmac,
     // a taller 155/80 R13 on gravel.
     tyres: {
-      size: { width: 0.145, aspect: 80, rim: 13 },
+      size: { width: 0.145, aspect: 80, rim: 13, grade: OLD_ROAD_TYRE },
       byCompound: {
-        tarmac: { width: 0.165, aspect: 70, rim: 13 },
-        gravel: { width: 0.155, aspect: 80, rim: 13 },
+        tarmac: { width: 0.165, aspect: 70, rim: 13, grade: OLD_ROAD_TYRE },
+        gravel: { width: 0.155, aspect: 80, rim: 13, grade: OLD_ROAD_TYRE },
       },
     },
     wheelInertia: 0.9,
@@ -151,6 +171,7 @@ export const zastava101: CarDef = {
       [0, 0.042, -1.95, 0.3],
     ],
     // Boxy 70s hatch (Cd ~0.47 x 1.9 m²): with the engine this caps it at ~160 km/h.
+    brakes: BRAKES,
     dragArea: 0.9,
     downforceArea: 0,
   },

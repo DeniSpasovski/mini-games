@@ -59,8 +59,8 @@ export const petralicaInfo: MapInfo = {
     sunAzimuth: 320,
     // Late afternoon: low warm sun from the WSW (~22 deg), long shadows. Try others with ?tod=<hours>.
     timeOfDay: 16.5,
-    // Hot late-summer afternoon (dry golden grass).
-    airTemp: 28,
+    // September afternoon (dry golden grass), a cool autumn day.
+    airTemp: 17,
     turbidity: 5,
     rayleigh: 1.6,
     fogColor: '#c2cbd2',

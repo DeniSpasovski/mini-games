@@ -199,6 +199,30 @@ body {
   right: 0;
   bottom: 6px;
 }
+.hud-tyres .car s {
+  position: absolute;
+  width: 3px;
+  height: 13px;
+  border-radius: 1px;
+  background: rgba(238, 240, 242, 0.6);
+  transition: background-color 0.3s;
+}
+.hud-tyres .car s:nth-of-type(1) {
+  left: 13px;
+  top: 9px;
+}
+.hud-tyres .car s:nth-of-type(2) {
+  right: 13px;
+  top: 9px;
+}
+.hud-tyres .car s:nth-of-type(3) {
+  left: 13px;
+  bottom: 9px;
+}
+.hud-tyres .car s:nth-of-type(4) {
+  right: 13px;
+  bottom: 9px;
+}
 .hud-tyres .t {
   font:
     10px/1.3 ui-monospace,

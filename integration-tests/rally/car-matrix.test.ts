@@ -44,15 +44,22 @@ function drive(
   let t = 0;
   let minUp = 1;
   let stuck = 0;
+  let resets = 0;
   while (t < limit && ap.along < world.stage.finish) {
     ap.drive(v, v.controls);
     v.step(DT);
     t += DT;
     minUp = Math.min(minUp, v.up.y);
     stuck = Math.abs(v.speed) < 0.5 ? stuck + DT : 0;
-    if (stuck > 5) break;
+    if (stuck > 5) {
+      // A player presses R (reset to the road) when stuck; the wrong tyre on a steep loose climb may need it once.
+      if (resets++ > 0) break;
+      const s = world.roadSpawn(ap.along);
+      v.reset(s.position, s.heading);
+      stuck = 0;
+    }
   }
-  return { t, finished: ap.along >= world.stage.finish, minUp };
+  return { t, finished: ap.along >= world.stage.finish, minUp, resets };
 }
 
 /** Recommended-pick stage time per `car/map`, filled by the matrix below (tests in a file run in order). */
@@ -73,6 +80,7 @@ describe.each(ALL_CARS.map((c) => c.id))('%s', (carId) => {
       console.info(
         `[${carId} / ${mapId}] ${rec}+${SETUP_FOR_TYRE[rec]} ${a.t.toFixed(1)}s (up ${a.minUp.toFixed(2)})  ${worst}+${SETUP_FOR_TYRE[worst]} ${b.t.toFixed(1)}s (up ${b.minUp.toFixed(2)})`,
       );
+      expect(a.resets).toBe(0);
       for (const r of [a, b]) {
         expect(r.finished).toBe(true);
         expect(r.minUp).toBeGreaterThan(0.5);

@@ -72,7 +72,8 @@ const BANDS: Record<
   skoda_rally: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
   zastava_101: { zeroTo100: [6, 16], brake100: [25, 80], top: [130, 200] },
   bimmer_m3: { zeroTo100: [3, 10], brake100: [25, 75], top: [150, 290] },
-  bimmer_gt2: { zeroTo100: [3, 10], brake100: [25, 75], top: [150, 290] },
+  // GT2: slicks on raw gravel with no steering: the rear axle (grip 1, like the front) fishtails past ~130 km/h.
+  bimmer_gt2: { zeroTo100: [3, 10], brake100: [25, 75], top: [120, 290] },
   subie_22b: { zeroTo100: [3, 10], brake100: [25, 75], top: [150, 260] },
   citroen_c4: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
   fiesta: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },

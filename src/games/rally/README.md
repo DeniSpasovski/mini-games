@@ -27,7 +27,9 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 
 - Real-world stages with bridges, junctions, buildings, power lines and city streets (see maps below).
 - Seeded procedural vegetation, rocks and props through one instanced asset library, streamed terrain with LODs.
-- Tyre compounds, tyre sizes, suspension and gearing set-ups per car, with a live 3D set-up screen.
+- Five tyres (tarmac and gravel in soft and hard, plus mixed), tyre sizes and class per car, suspension and gearing set-ups, with a live 3D set-up screen.
+- Tyre and brake temperature per stage weather (Ajvatovci a hot June morning, Petralica a cool September afternoon): cold tyres and pads
+  grip less, hot discs fade; HUD marks for both.
 - Stage timer with sectors, time penalties for cutting and knocking over marker posts, top-10 times per stage (stored
   locally).
 - Tool pages: map viewer, car viewer, asset debugger (dev server).
@@ -73,4 +75,4 @@ Microsoft building footprints. Car models and their licences: see each car's REA
 [`THIRD-PARTY.md`](../../../THIRD-PARTY.md). Car makes and models are trademarks of their owners; this is a
 non-commercial, educational fan project.
 
-Tyre and suspension research (links only): see [`PHYSICS.md`](PHYSICS.md) "Tyre temperature" / "Dampers and bump stop" and About > Physics in the game.
+Tyre, suspension and brake research (links only): see [`PHYSICS.md`](PHYSICS.md) "Tyre temperature" / "Dampers and bump stop" / "Brakes" and About > Physics in the game.
