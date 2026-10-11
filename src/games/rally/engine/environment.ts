@@ -22,6 +22,7 @@ import {
   type Texture,
   type WebGLRenderer,
 } from 'three';
+import { ownValue, paramNumber } from '../../../shared/url-params';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import type { EnvironmentDef } from '../maps/shared/types';
 import { getTexture } from './textures';
@@ -65,9 +66,7 @@ export function sunAt(hour: number): { elevation: number; azimuth: number } {
 function urlNumber(name: string): number | undefined {
   if (typeof location === 'undefined') return undefined;
   const v = new URLSearchParams(location.search).get(name);
-  return v !== null && v !== '' && Number.isFinite(Number(v))
-    ? Number(v)
-    : undefined;
+  return paramNumber(v, -1e6, 1e6, undefined);
 }
 function urlString(name: string): string | undefined {
   if (typeof location === 'undefined') return undefined;
@@ -179,8 +178,10 @@ export class Environment {
     this.hemi.intensity = def.fillIntensity ?? 0.26;
 
     this.renderer.toneMapping =
-      TONE_MAPPINGS[urlString('tonemap') ?? def.toneMapping ?? 'aces'] ??
-      ACESFilmicToneMapping;
+      ownValue(
+        TONE_MAPPINGS,
+        urlString('tonemap') ?? def.toneMapping ?? 'aces',
+      ) ?? ACESFilmicToneMapping;
 
     this.scene.fog = new FogExp2(new Color(def.fogColor), def.fogDensity);
     // Cloud shadows, height fog + sun glow, foliage wind (engine/world-shading.ts).

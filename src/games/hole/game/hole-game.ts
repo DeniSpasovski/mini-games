@@ -1,5 +1,11 @@
 import { MathUtils, Scene, Vector2, Vector3, type Object3D } from 'three';
 import { seconds, track, type EventParams } from '../../../shared/analytics';
+import {
+  ownValue,
+  paramInt,
+  paramNumber,
+  paramOneOf,
+} from '../../../shared/url-params';
 import gameManifest from '../game.json';
 import { MAPS, getMapDef, type MapDef } from '../map/registry';
 import { pickStart } from '../map/start';
@@ -7,7 +13,7 @@ import type { MapData } from '../map/types';
 import { EatRings } from '../debug/eat-rings';
 import { CameraRig } from '../render/camera-rig';
 import { buildMapGround, disposeGround } from '../render/map-ground';
-import { HoleMesh, holeColorById } from '../render/hole-mesh';
+import { HOLE_COLORS, HoleMesh, holeColorById } from '../render/hole-mesh';
 import { clearHoleFade, updateHoleFade } from '../render/hole-fade';
 import { ItemInstances } from '../render/item-instances';
 import { LeftoverRings } from '../render/leftover-rings';
@@ -120,12 +126,17 @@ export class HoleGame {
     migrateScores(this.store); // scoring rules changed -> old high scores are tagged with their version and kept
     this.settings = loadSettings(this.store);
     const colorParam = this.params.get('color');
-    if (colorParam) this.settings.color = colorParam;
-    const qName = (this.params.get('quality') ??
+    if (colorParam && HOLE_COLORS.some((c) => c.id === colorParam))
+      this.settings.color = colorParam;
+    const qName = (paramOneOf(
+      this.params.get('quality'),
+      Object.keys(QUALITY) as QualityName[],
+      null,
+    ) ??
       (this.settings.quality === 'auto'
         ? defaultQuality()
         : this.settings.quality)) as QualityName;
-    const quality = QUALITY[qName] ?? QUALITY.high;
+    const quality = ownValue(QUALITY, qName) ?? QUALITY.high;
 
     root.classList.add('hg-root');
     root.append(this.stage);
@@ -231,7 +242,8 @@ export class HoleGame {
     this.mapDef = def;
     // ?seed= (dev links) wins over the menu choice
     this.map = def.generate(
-      Number(this.params.get('seed') ?? (def.seeded ? this.settings.seed : 1)),
+      paramInt(this.params.get('seed'), -1e9, 1e9, null) ??
+        (def.seeded ? this.settings.seed : 1),
     );
     if (this.ground) {
       this.scene.remove(this.ground);
@@ -270,9 +282,9 @@ export class HoleGame {
   private startPos(): { x: number; z: number } | undefined {
     const x = this.params.get('x');
     const z = this.params.get('z');
-    return x !== null && z !== null
-      ? { x: Number(x), z: Number(z) }
-      : undefined;
+    const px = paramNumber(x, -1e5, 1e5, null);
+    const pz = paramNumber(z, -1e5, 1e5, null);
+    return px !== null && pz !== null ? { x: px, z: pz } : undefined;
   }
 
   private disposeInstances(): void {
@@ -290,8 +302,8 @@ export class HoleGame {
 
   private startRun(d: Difficulty): void {
     this.difficulty = d;
-    this.startLevel = Math.max(1, Number(this.params.get('level') ?? 1));
-    this.seconds = Number(this.params.get('time') ?? d.seconds);
+    this.startLevel = paramInt(this.params.get('level'), 1, 999, 1);
+    this.seconds = paramNumber(this.params.get('time'), 1, 36000, d.seconds);
     this.menu.hide();
     this.sfx.unlock();
     this.controls.release();

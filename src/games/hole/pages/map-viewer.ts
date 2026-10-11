@@ -234,7 +234,7 @@ moverToggle('Trail / patrol / stroll paths', 'paths');
 if (mapDef.id === 'city') moverToggle('Road network (car lanes)', 'roads');
 const play = panel.section('Play');
 play.button('Play from the red marker', () => {
-  location.href = `./?map=${state.map}&seed=${state.seed}&x=${state.x.toFixed(1)}&z=${state.z.toFixed(1)}&level=${state.level}&difficulty=medium`;
+  location.href = `./?map=${encodeURIComponent(state.map)}&seed=${state.seed}&x=${state.x.toFixed(1)}&z=${state.z.toFixed(1)}&level=${state.level}&difficulty=medium`;
 });
 const budgetSection = panel.section('Content budget');
 const setBudget = budgetSection.info();
