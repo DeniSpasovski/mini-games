@@ -200,13 +200,7 @@ export interface MenuResult {
 }
 
 type Screen =
-  | 'welcome'
-  | 'options'
-  | 'about'
-  | 'times'
-  | 'map'
-  | 'car'
-  | 'setup';
+  'welcome' | 'options' | 'about' | 'times' | 'map' | 'car' | 'setup';
 
 export function runMenu(container: HTMLElement): Promise<MenuResult> {
   return new Promise((resolve) => {
@@ -430,7 +424,7 @@ class MainMenu {
       </div>
       <div class="menu-list">
         <button class="menu-btn big" data-primary data-a="start">Start rally</button>
-        <button class="menu-btn" data-a="times">Times</button>
+        <button class="menu-btn" data-a="times">Stage times</button>
         <button class="menu-btn" data-a="options">Options</button>
         <button class="menu-btn" data-a="about">About</button>
         ${portal ? `<a class="menu-btn" href="${portal}">‹ All games</a>` : ''}
@@ -530,7 +524,7 @@ class MainMenu {
       tabs.append(b);
     });
     this.panel.append(
-      header('Times', `${m.name} · ← → switch stage`),
+      header('Stage times', `${m.name} · ← → switch stage`),
       tabs,
       body,
       buttons(['Back', () => this.show('welcome'), true]),

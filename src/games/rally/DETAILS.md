@@ -56,7 +56,7 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
   there), starts on the first click / key (autoplay rule), shows "now playing" bottom right, pauses with the tab. Main-menu
   Options slider `musicVolume` (0 = off, 100% plays at half of full volume); `?mute=1` silences it. Add a track = file + `MENU_TRACKS` row (+ `THIRD-PARTY.md`).
 - **Pause** (`Esc`): resume, restart, free-drive pad <-> stage, options, main menu.
-- **Times** (welcome menu): every saved run of one stage, ← → switches stage; current versions first, older ones dimmed below.
+- **Stage times** (welcome menu): every saved run of one stage, ← → switches stage; current versions first, older ones dimmed below.
 - **About:** every external source per map (`MapDef.sources`) and car (`CarDef.sources`), menu music credits, plus `version` from `game.json`.
 
 **On a stage** (`game/stage.ts`):
