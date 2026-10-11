@@ -81,7 +81,7 @@ effective surface = surface (surfaces.ts)
                   x compound      (tyres.ts)       grip per surface, slide, response
                   x tyre size     (car-tyres.ts)   width + sidewall of the car's size for that family, and its grade
                   x set-up match  (car-tyres.ts)   suspension compliance vs surface roughness
-then x axle.grip (1 on M3 and GT2; a small per-axle trim on the Zastava and the 22B, in tire.ts)
+then x axle.grip (a per-axle trim: the Bimmers' front / rear bias, a little on the Zastava and the 22B)
 ```
 
 - The effective surface keeps `id`, `dust`, `dustColor`, `loose`, `bump`, so dust, audio, skid effects and water keep
@@ -382,7 +382,7 @@ Full brake, ABS on (`brake-sweep` style probe, flat ground, warm tyres, medium s
 | Car           | Tarmac tyre on tarmac | Gravel tyre on gravel | Front share of the brake torque |
 | ------------- | --------------------- | --------------------- | ------------------------------- |
 | Skoda Rally   | 31.1                  | 43.6                  | 75 % (gravel kit 72 %)          |
-| Bimmer M3     | 31.9                  | 37.2                  | 64 %                            |
+| Bimmer M3     | 32.1                  | 39.6                  | 64 %                            |
 | Bimmer GT2    | 24.0                  | 35.4                  | 52 %                            |
 | Subaru 22B    | 38.0                  | 44.1                  | 75 %                            |
 | Fiesta WRC    | 31.1                  | 43.9                  | 75 % (72 %)                     |
@@ -402,7 +402,7 @@ Gravel Soft on gravel:
 | ----------- | --------------------- | --------------- | --------------------- | ----------------------- |
 | Skoda Rally | **1.25**              | 1.00            | **0.83**              | 80 % / 89 %             |
 | Zastava 101 | **0.81**              | 0.67            | **0.72**              | 85 % / 90 %             |
-| Bimmer M3   | **1.29**              | 1.11            | **0.96**              | 77 % / 84 %             |
+| Bimmer M3   | **1.19**              | 1.02            | **0.88**              | 71 % / 79 %             |
 | Bimmer GT2  | **1.84**              | 1.37            | **0.93**              | 74 % / 70 %             |
 | Subaru 22B  | **1.23**              | 1.03            | **0.82**              | 89 % / 91 %             |
 | Fiesta WRC  | **1.24**              | 1.03            | **0.82**              | 80 % / 87 %             |
@@ -429,14 +429,14 @@ tyres on a tarmac or dusty one):
 
 | Map (recommended)    | Skoda Rally   | Bimmer M3     | Bimmer GT2    | Subaru 22B    | Fiesta WRC    | Citroen C4    | Lancer EVO    | Zastava 101   |
 | -------------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- |
-| `test` (gravel)      | 67.8 / 83.6   | 68.2 / 90.9   | 66.9 / 85.8   | 68.4 / 81.8   | 66.8 / 83.4   | 67.2 / 83.4   | 67.4 / 83.5   | 77.4 / 96.2   |
-| `petralica` (gravel) | 407.1 / 465.5 | 410.1 / 505.7 | 398.6 / 464.6 | 410.6 / 461.6 | 399.7 / 467.5 | 402.3 / 461.1 | 404.0 / 463.5 | 503.2 / 620.4 |
-| `jackie` (tarmac)    | 201.6 / 202.0 | 201.4 / 201.4 | 197.9 / 198.5 | 202.2 / 202.5 | 199.8 / 200.2 | 200.3 / 200.7 | 200.9 / 201.4 | 225.3 / 262.2 |
-| `ajvatovci` (mixed)  | 160.6 / 160.8 | 161.5 / 161.3 | 154.4 / 155.2 | 162.0 / 162.1 | 156.9 / 157.2 | 158.6 / 158.7 | 159.2 / 159.4 | 195.7 / 204.0 |
+| `test` (gravel)      | 67.8 / 83.6   | 68.1 / 88.1   | 66.9 / 85.8   | 68.4 / 81.8   | 66.8 / 83.4   | 67.2 / 83.4   | 67.4 / 83.5   | 77.4 / 96.2   |
+| `petralica` (gravel) | 407.1 / 465.5 | 409.5 / 499.3 | 398.6 / 464.6 | 410.6 / 461.6 | 399.7 / 467.5 | 402.3 / 461.1 | 404.0 / 463.5 | 503.2 / 620.4 |
+| `jackie` (tarmac)    | 201.6 / 202.0 | 200.9 / 201.3 | 197.9 / 198.5 | 202.2 / 202.5 | 199.8 / 200.2 | 200.3 / 200.7 | 200.9 / 201.4 | 225.3 / 262.2 |
+| `ajvatovci` (mixed)  | 160.6 / 160.8 | 161.2 / 161.1 | 154.4 / 155.2 | 162.0 / 162.1 | 156.9 / 157.2 | 158.6 / 158.7 | 159.2 / 159.4 | 195.7 / 204.0 |
 
 Reading it: the recommended tyre is the fastest, or within about 0.5 %, for every car on every stage; the soft and hard
 compound of a family are within 2 % (Gravel Hard ties Soft on Petralica). The wrong tyre on gravel costs the most (tarmac
-tyres +20-25 % on the test map and Petralica, the road-tyre M3 +23 % on Petralica); on tarmac the careful driver barely
+tyres +20-25 % on the test map and Petralica, the road-tyre M3 +22 % on Petralica); on tarmac the careful driver barely
 sees it (it is capped at 151 km/h), the limit driver does (gravel tyres +5 % on Jackie, Mixed ahead by 3 % on Ajvatovci),
 and the Zastava loses most (+16 % on gravel tyres on Jackie). Ajvatovci's 27 °C does not make a hard compound win. Car
 character: the GT2 (slicks) is quickest on tarmac, the M3 and the rally cars are close, the Zastava is slowest everywhere
