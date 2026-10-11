@@ -517,60 +517,69 @@ class MainMenu {
           : '<p class="menu-none">No time set yet - drive this stage!</p>'
       }</div>`;
     this.root.append(card);
-    const list = div('menu-list compact');
-    MAPS.forEach((x, i) => {
-      const b = document.createElement('button');
-      b.className = 'menu-btn';
-      b.classList.toggle('selected', i === this.timesMap);
-      b.textContent = x.name;
-      b.addEventListener('click', () => {
-        this.timesMap = i;
-        this.show('times');
-        this.panel
-          .querySelectorAll<HTMLElement>('.menu-list .menu-btn')
-          .item(i)
-          ?.focus({ preventScroll: true });
-      });
-      list.append(b);
+    const list = this.stageList(this.timesMap, false, (i) => {
+      this.timesMap = i;
+      this.show('times');
+      this.panel
+        .querySelectorAll<HTMLElement>('.menu-card')
+        .item(i)
+        ?.focus({ preventScroll: true });
     });
     this.panel.append(
       header('Stage times'),
       list,
       buttons(['Back', () => this.show('welcome'), true]),
     );
+    // The results start level with the first stage card.
+    card.style.top = `${list.getBoundingClientRect().top - this.root.getBoundingClientRect().top}px`;
     this.showroom.showMap(m.id);
+  }
+
+  /** One stage card (route, description, tags, best time) of the stage list; `showBest` off on the Stage times screen. */
+  private stageCard(m: MapInfo, selected: boolean, showBest: boolean) {
+    const b = document.createElement('button');
+    b.className = 'menu-card';
+    b.classList.toggle('selected', selected);
+    const times = loadTimes(m.id, CAR_IDS);
+    const cur = timesVersion(m.id);
+    const best = times.find((r) => !isOldRun(r, cur));
+    const oldBest = times[0] && isOldRun(times[0], cur) ? times[0] : undefined;
+    b.innerHTML = `
+      ${routeSvg(m)}
+      <div class="menu-card-body">
+        <div class="menu-card-title">${m.name}${testBadge(isTestMap(m.id))}</div>
+        <div class="menu-card-desc">${m.description}</div>
+        <div class="menu-tags">
+          <span>${(stageLength(m) / 1000).toFixed(1)} km</span>
+          <span>${m.stage.splits} splits</span>
+          <span>${[...new Set(m.surfaces)].map((s) => s.replace(/_/g, ' + ')).join(' → ')}</span>
+        </div>
+        ${showBest ? `<div class="menu-best">${best ? `Best ${formatTime(best.time)} · ${carName(best.car)}` : oldBest ? `<span class="old">Older best ${formatTime(oldBest.time)} · ${oldRunLabel(oldBest, cur)}</span>` : 'No time set yet'}</div>` : ''}
+      </div>`;
+    return b;
+  }
+
+  /** The stage cards of Select stage and Stage times; `onPick` gets the clicked stage's index. */
+  private stageList(
+    selected: number,
+    showBest: boolean,
+    onPick: (i: number) => void,
+  ): HTMLElement {
+    const list = div('menu-cards');
+    MAPS.forEach((m, i) => {
+      const b = this.stageCard(m, i === selected, showBest);
+      b.addEventListener('click', () => onPick(i));
+      list.append(b);
+    });
+    return list;
   }
 
   private mapSelect(): void {
     this.panel.append(header('Select stage', 'Step 1 / 3'));
-    const list = div('menu-cards');
-    MAPS.forEach((m, i) => {
-      const b = document.createElement('button');
-      b.className = 'menu-card';
-      b.classList.toggle('selected', i === this.mapIndex);
-      const times = loadTimes(m.id, CAR_IDS);
-      const cur = timesVersion(m.id);
-      const best = times.find((r) => !isOldRun(r, cur));
-      const oldBest =
-        times[0] && isOldRun(times[0], cur) ? times[0] : undefined;
-      b.innerHTML = `
-        ${routeSvg(m)}
-        <div class="menu-card-body">
-          <div class="menu-card-title">${m.name}${testBadge(isTestMap(m.id))}</div>
-          <div class="menu-card-desc">${m.description}</div>
-          <div class="menu-tags">
-            <span>${(stageLength(m) / 1000).toFixed(1)} km</span>
-            <span>${m.stage.splits} splits</span>
-            <span>${[...new Set(m.surfaces)].map((s) => s.replace(/_/g, ' + ')).join(' → ')}</span>
-          </div>
-          <div class="menu-best">${best ? `Best ${formatTime(best.time)} · ${carName(best.car)}` : oldBest ? `<span class="old">Older best ${formatTime(oldBest.time)} · ${oldRunLabel(oldBest, cur)}</span>` : 'No time set yet'}</div>
-        </div>`;
-      b.addEventListener('click', () => {
-        if (this.mapIndex === i) return this.show('car');
-        this.mapIndex = i;
-        this.show('map');
-      });
-      list.append(b);
+    const list = this.stageList(this.mapIndex, true, (i) => {
+      if (this.mapIndex === i) return this.show('car');
+      this.mapIndex = i;
+      this.show('map');
     });
     this.panel.append(
       list,

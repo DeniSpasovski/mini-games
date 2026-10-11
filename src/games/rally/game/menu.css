@@ -179,6 +179,7 @@
 }
 .menu-card {
   display: flex;
+  gap: 16px;
   padding: 12px;
   align-items: flex-start;
 }
@@ -917,7 +918,7 @@
 .menu-times-card {
   position: absolute;
   top: 40px;
-  right: 32px;
+  left: 472px;
   max-height: calc(100% - 64px);
   width: min(520px, calc(100% - 504px));
   box-sizing: border-box;
@@ -933,11 +934,15 @@
 }
 @media (max-width: 760px) {
   .menu-times-card {
-    top: auto;
+    top: auto !important;
     left: 16px;
     right: 16px;
     bottom: 80px;
     width: auto;
     max-height: 45%;
   }
+}
+/* Stage times: Back as wide as on Select stage (half the row), left aligned. */
+.menu-panel[data-screen='times'] .menu-buttons .menu-btn {
+  flex: 0 0 calc(50% - 5px);
 }
