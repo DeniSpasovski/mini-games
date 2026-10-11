@@ -12,6 +12,7 @@ import {
   Vector3,
 } from 'three';
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
+import { paramOneOf } from '../../../shared/url-params';
 import { ViewerShell } from '../debug/viewer-shell';
 import { Station } from '../debug/station';
 import {
@@ -73,6 +74,22 @@ const DEFAULTS = {
   pts: 0,
 };
 const state = readUrlState(DEFAULTS);
+state.map = paramOneOf(state.map, ['city', 'toy', 'animal'], DEFAULTS.map);
+state.mode = paramOneOf(
+  state.mode,
+  ['single', 'compare', 'lineup', 'hole'],
+  DEFAULTS.mode,
+);
+state.frame = paramOneOf(
+  state.frame,
+  ['ipad-landscape', 'ipad-portrait', 'phone-portrait', 'fit'],
+  DEFAULTS.frame,
+);
+state.color = paramOneOf(
+  state.color,
+  HOLE_COLORS.map((c) => c.id),
+  DEFAULTS.color,
+);
 const sync = (push = false) => writeUrlState(state, DEFAULTS, push);
 const ITEMS = itemsForMap(state.map as ItemMap);
 // the default item belongs to City Island: start the toy catalog on its first plush, the animal one on the rabbit

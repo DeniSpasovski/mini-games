@@ -1,4 +1,5 @@
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
+import { paramOneOf } from '../../../shared/url-params';
 import { DebugPanel } from '../../../shared/debug-panel';
 import { TOOL_LINKS } from '../debug/viewer-shell';
 import { MAPS, getMapDef } from '../map/registry';
@@ -40,6 +41,17 @@ const DEFAULTS = {
   ...tuningUrl,
 };
 const state = readUrlState(DEFAULTS);
+state.map = paramOneOf(
+  state.map,
+  MAPS.map((m) => m.id),
+  DEFAULTS.map,
+);
+state.difficulty = paramOneOf(
+  state.difficulty,
+  ['all', ...DIFFICULTIES.map((d) => d.id)],
+  DEFAULTS.difficulty,
+);
+state.skill = paramOneOf(state.skill, Object.keys(BOT_SKILLS), DEFAULTS.skill);
 const sync = () => writeUrlState(state, DEFAULTS);
 for (const k of Object.keys(TUNING) as TuningKey[]) TUNING[k] = state[`t_${k}`];
 

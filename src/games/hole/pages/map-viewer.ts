@@ -18,6 +18,7 @@ import {
   Vector3,
 } from 'three';
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
+import { paramOneOf } from '../../../shared/url-params';
 import { track } from '../../../shared/analytics';
 import { ViewerShell } from '../debug/viewer-shell';
 import { getItem } from '../items/catalog';
@@ -67,6 +68,11 @@ const DEFAULTS = {
   z: 0,
 };
 const state = readUrlState(DEFAULTS);
+state.map = paramOneOf(
+  state.map,
+  MAPS.map((m) => m.id),
+  DEFAULTS.map,
+);
 const sync = () => writeUrlState(state, DEFAULTS);
 track('hole', 'select_content', {
   game_content_type: 'map_viewer',
