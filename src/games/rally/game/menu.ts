@@ -526,7 +526,7 @@ class MainMenu {
         ?.focus({ preventScroll: true });
     });
     this.panel.append(
-      header('Stage times'),
+      header('Stage times', 'Your own best times, saved on this device'),
       list,
       buttons(['Back', () => this.show('welcome'), true]),
     );
