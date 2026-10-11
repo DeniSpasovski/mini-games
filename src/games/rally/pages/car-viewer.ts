@@ -1,5 +1,6 @@
 import { parseTyre, TYRE_IDS } from '../physics/tyres';
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
+import { paramOneOf } from '../../../shared/url-params';
 import { track } from '../../../shared/analytics';
 import { CarModel } from '../cars/shared/car-model';
 import { hasImportedModel } from '../cars/shared/car-gltf';
@@ -66,6 +67,18 @@ const DEFAULTS = {
   clean: false,
 };
 const state = readUrlState(DEFAULTS);
+state.car = getCar(state.car).id;
+state.tyre = paramOneOf(state.tyre, TYRE_IDS, DEFAULTS.tyre);
+state.rally = paramOneOf(
+  state.rally,
+  MAPS.map((m) => m.id),
+  DEFAULTS.rally,
+);
+state.lamps = paramOneOf(
+  state.lamps,
+  ['off', 'brake', 'reverse', 'reverse+brake'],
+  DEFAULTS.lamps,
+);
 const sync = (push = false) => writeUrlState(state, DEFAULTS, push);
 const trackCar = () =>
   track('rally', 'select_content', {
@@ -88,6 +101,8 @@ const VIEWS: Record<string, [number, number, number]> = {
 };
 
 const WHEEL_CAMS = ['off', 'FL', 'FR', 'RL', 'RR'];
+state.view = paramOneOf(state.view, Object.keys(VIEWS), DEFAULTS.view);
+state.wcam = paramOneOf(state.wcam, WHEEL_CAMS, DEFAULTS.wcam);
 
 /** Near-orthographic view straight along a wheel's axle (from 20 m outside, ~1 m tall frame). */
 function setWheelCam(name: string): void {

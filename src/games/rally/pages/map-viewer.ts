@@ -17,6 +17,7 @@ import {
   Vector3,
 } from 'three';
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
+import { paramOneOf } from '../../../shared/url-params';
 import { track } from '../../../shared/analytics';
 import { CAMERA_LINK_DEFAULTS, ViewerShell } from '../debug/viewer-shell';
 import { DEFAULT_MAP, loadMap, MAPS } from '../maps';
@@ -57,6 +58,11 @@ const DEFAULTS = {
   ...CAMERA_LINK_DEFAULTS,
 };
 const state = readUrlState(DEFAULTS);
+state.map = paramOneOf(
+  state.map,
+  MAPS.map((m) => m.id),
+  DEFAULTS.map,
+);
 const sync = (push = false) => writeUrlState(state, DEFAULTS, push);
 track('rally', 'select_content', {
   game_content_type: 'map_viewer',

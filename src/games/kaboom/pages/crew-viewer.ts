@@ -1,4 +1,5 @@
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
+import { paramOneOf } from '../../../shared/url-params';
 import { ViewerShell } from '../debug/viewer-shell';
 import { Arena } from '../render/arena';
 import { Crew } from '../render/characters';
@@ -42,6 +43,13 @@ const DEFAULTS = {
   view: 'crew' as string,
 };
 const state = readUrlState(DEFAULTS);
+state.critter = paramOneOf(
+  state.critter,
+  ['lineup', ...CRITTERS],
+  DEFAULTS.critter,
+);
+state.anim = paramOneOf(state.anim, ANIMS, DEFAULTS.anim);
+state.view = paramOneOf(state.view, ['crew', 'tnt'], DEFAULTS.view);
 
 const STAGE_W = 11;
 const STAGE_H = 7;
