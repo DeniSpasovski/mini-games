@@ -4,7 +4,12 @@
  *
  * The type of each default value decides how the param is parsed.
  */
+import { cleanParam } from './url-params';
+
 export type UrlValue = string | number | boolean;
+
+/** Numbers beyond this are ignored (default kept). */
+const MAX_URL_NUMBER = 1e9;
 
 export function readUrlState<T extends Record<string, UrlValue>>(
   defaults: T,
@@ -17,11 +22,11 @@ export function readUrlState<T extends Record<string, UrlValue>>(
     const def = defaults[key];
     if (typeof def === 'number') {
       const n = Number(raw);
-      if (Number.isFinite(n)) out[key] = n;
+      if (Number.isFinite(n) && Math.abs(n) <= MAX_URL_NUMBER) out[key] = n;
     } else if (typeof def === 'boolean') {
       out[key] = raw === '1' || raw === 'true';
     } else {
-      out[key] = raw;
+      out[key] = cleanParam(raw);
     }
   }
   return out as T;

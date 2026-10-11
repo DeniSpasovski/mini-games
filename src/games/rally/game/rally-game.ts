@@ -68,6 +68,7 @@ import type { MapDef } from '../maps/shared/types';
 import { trackTemp } from '../physics/tyre-temp';
 import type { TyreGaugeState } from './tyre-gauge';
 import { ForceLines, Telemetry } from './telemetry';
+import { paramNumber } from '../../../shared/url-params';
 
 export interface GameOptions {
   /** The full map (`loadMap`, maps/index.ts: the baked data is loaded on demand). */
@@ -278,7 +279,7 @@ export class RallyGame {
       stageClimate(
         map.environment,
         this.env.sunElevation,
-        air && Number.isFinite(Number(air)) ? Number(air) : undefined,
+        paramNumber(air, -60, 70, undefined),
       ),
     );
     this.model = new CarModel(this.car, {
