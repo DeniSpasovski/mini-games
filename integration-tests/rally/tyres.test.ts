@@ -168,6 +168,17 @@ const runAll = (world: World, extraGrip: boolean): StageRun =>
   Object.fromEntries(
     TYRE_IDS.map((t) => [t, driveStage(world, t, extraGrip)]),
   ) as StageRun;
+/** One careful + one limit run per stage, shared by the stage describe and the margin tests below. */
+const stageRuns = new Map<string, { careful: StageRun; limit: StageRun }>();
+function runsFor(map: MapDef) {
+  let r = stageRuns.get(map.id);
+  if (!r) {
+    const world = new World(map);
+    r = { careful: runAll(world, false), limit: runAll(world, true) };
+    stageRuns.set(map.id, r);
+  }
+  return r;
+}
 const report = (mapId: string, label: string, r: StageRun) =>
   console.info(
     `[${mapId}] ${label}: ${TYRE_IDS.map((t) => `${t} ${r[t].t.toFixed(1)}s`).join('  ')}`,
@@ -187,8 +198,7 @@ describe.each(STAGES.map((m) => m.id))(
   (mapId) => {
     const map = STAGES.find((m) => m.id === mapId)!;
     const world = new World(map);
-    const careful = runAll(world, false);
-    const limit = runAll(world, true);
+    const { careful, limit } = runsFor(map);
     report(mapId, `recommended ${map.tyre}, careful`, careful);
     report(mapId, `recommended ${map.tyre}, limit`, limit);
 
@@ -213,7 +223,7 @@ describe.each(STAGES.map((m) => m.id))(
 );
 
 test('jackie: tarmac tyres are worth it - tarmac < mixed < gravel by a margin', () => {
-  const r = runAll(new World(jackieMap), true);
+  const r = runsFor(jackieMap).limit;
   expect(r.tarmac.t).toBeLessThan(r.mixed.t);
   expect(r.mixed.t).toBeLessThan(r.gravel.t);
   // 5 % today; the margin guards "a human feels it", not an exact number.
@@ -221,13 +231,13 @@ test('jackie: tarmac tyres are worth it - tarmac < mixed < gravel by a margin', 
 }, 600000);
 
 test('ajvatovci: mixed tyres win on the dusty village tarmac - ahead of tarmac and gravel tyres by a margin', () => {
-  const r = runAll(new World(ajvatovciMap), true);
+  const r = runsFor(ajvatovciMap).limit;
   // 2.8 % / 4.2 % today; the margin guards "the recommendation is right", not an exact number.
   expect(r.tarmac.t / r.mixed.t).toBeGreaterThan(1.015);
   expect(r.gravel.t / r.mixed.t).toBeGreaterThan(1.015);
 }, 600000);
 
 test('test map: tarmac tyres on the gravel hill cost a lot of time', () => {
-  const r = runAll(new World(testMap), true);
+  const r = runsFor(testMap).limit;
   expect(r.tarmac.t / r.gravel.t).toBeGreaterThan(1.1);
 }, 600000);
