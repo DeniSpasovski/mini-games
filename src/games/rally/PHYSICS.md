@@ -132,7 +132,7 @@ run in a warmer window (see "Tyre temperature"):
 
 **Soft vs hard** is a temperature trade, not a grip lottery: at its ideal temperature the soft compound grips as much or more
 on every surface; the hard one keeps its grip when the soft one overheats and wants a hotter tyre to work. The stages run from
-17 °C (Jackie, Petralica) to 30 °C (Ajvatovci), and the soft compound is the recommended one everywhere (see "Stage times"). The wrong **family** is still the big penalty: tarmac tyres on gravel +10-25 % stage time, gravel tyres on
+17 °C (Jackie, Petralica) to 27 °C (Ajvatovci), and the soft compound is the recommended one everywhere (see "Stage times"). The wrong **family** is still the big penalty: tarmac tyres on gravel +10-25 % stage time, gravel tyres on
 tarmac +5 %.
 
 **Tyre grade** (`TyreSize.grade`): what class of rubber a car runs, as grip against a rally competition tyre (1, the default).
@@ -303,7 +303,7 @@ Cold tyres grip less, tyres overheated by sliding grip less, in between they are
 (`WheelState.temp`), only with a climate (`Vehicle.setClimate`; the game sets it from the map, `null` = off, so tool
 pages and the reference tests above are unchanged).
 
-- **Climate:** `EnvironmentDef.airTemp` (°C, default 20; Ajvatovci 30, Jackie 17, test 20, Petralica 17, `?air=` to try)
+- **Climate:** `EnvironmentDef.airTemp` (°C, default 20; Ajvatovci 27, Jackie 17, test 20, Petralica 17, `?air=` to try)
   and the sun (`stageClimate`: sun height after `?tod=`, clouds). Track temperature = air + sun x `SurfaceDef.heat`
   (tarmac 1 ... grass 0.3, snow 0).
 - **Heat:** sliding work (`|F| x slide speed / static load`, the stones take 60 % of it on loose ground) + carcass flex
@@ -435,7 +435,7 @@ Reading it: the recommended tyre is the fastest, or within about 0.5 %, for ever
 compound of a family are within 1 % (Gravel Hard ties Soft on Petralica). The wrong tyre on gravel costs the most (tarmac
 tyres +20-25 % on the test map and Petralica, the road-tyre M3 +40 % on Petralica); on tarmac the careful driver barely
 sees it (it is capped at 151 km/h), the limit driver does (gravel tyres +5 % on Jackie, Mixed ahead by 3 % on Ajvatovci),
-and the Zastava loses most (+16 % on gravel tyres on Jackie). Ajvatovci's 30 °C does not make a hard compound win. Car
+and the Zastava loses most (+16 % on gravel tyres on Jackie). Ajvatovci's 27 °C does not make a hard compound win. Car
 character: the GT2 (slicks) is quickest on tarmac, the M3 and the rally cars are close, the Zastava is slowest everywhere
 (power, not grip).
 
