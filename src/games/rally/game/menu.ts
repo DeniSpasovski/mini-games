@@ -199,7 +199,8 @@ export interface MenuResult {
   gearing: GearingId;
 }
 
-type Screen = 'welcome' | 'options' | 'about' | 'map' | 'car' | 'setup';
+type Screen =
+  'welcome' | 'options' | 'about' | 'times' | 'map' | 'car' | 'setup';
 
 export function runMenu(container: HTMLElement): Promise<MenuResult> {
   return new Promise((resolve) => {
@@ -217,6 +218,7 @@ class MainMenu {
   private screen: Screen = 'welcome';
   private settings: RallySettings;
   private mapIndex: number;
+  private timesMap = 0;
   private carIndex: number;
   private livery: number;
   /** Setup screen choices for one map + car (anything else resets to the stage recommendation, nothing is saved). */
@@ -378,6 +380,7 @@ class MainMenu {
     this.screen = screen;
     this.panel.dataset.screen = screen;
     this.panel.replaceChildren();
+    this.root.querySelector('.menu-times-card')?.remove();
     if (screen === 'welcome') this.welcome();
     if (screen === 'options')
       this.panel.append(
@@ -395,13 +398,14 @@ class MainMenu {
         }),
       );
     if (screen === 'about') this.about();
+    if (screen === 'times') this.timesScreen();
     if (screen === 'map') this.mapSelect();
     if (screen === 'car') this.carSelect();
     if (screen === 'setup') this.setupSelect();
     // Stage select shows the map from the air, everything else the car.
     // The setup screen drives the showroom itself (parts bench, see setupSelect).
     if (screen === 'map') this.showroom.showMap(this.map.id);
-    else if (screen !== 'setup') this.showroom.showCar();
+    else if (screen !== 'setup' && screen !== 'times') this.showroom.showCar();
     // Options start on the first setting, every other screen on its primary button.
     this.panel
       .querySelector<HTMLElement>(
@@ -421,6 +425,7 @@ class MainMenu {
       </div>
       <div class="menu-list">
         <button class="menu-btn big" data-primary data-a="start">Start rally</button>
+        <button class="menu-btn" data-a="times">Stage times</button>
         <button class="menu-btn" data-a="options">Options</button>
         <button class="menu-btn" data-a="about">About</button>
         ${portal ? `<a class="menu-btn" href="${portal}">‹ All games</a>` : ''}
@@ -429,6 +434,9 @@ class MainMenu {
     this.panel
       .querySelector('[data-a="start"]')!
       .addEventListener('click', () => this.show('map'));
+    this.panel
+      .querySelector('[data-a="times"]')!
+      .addEventListener('click', () => this.show('times'));
     this.panel
       .querySelector('[data-a="options"]')!
       .addEventListener('click', () => this.show('options'));
@@ -480,36 +488,98 @@ class MainMenu {
     );
   }
 
-  private mapSelect(): void {
-    this.panel.append(header('Select stage', 'Step 1 / 3'));
+  /** Main-menu "Stage times": stage list on the left, the saved runs of the selected stage over its map on the right (current versions first, older ones dimmed below). */
+  private timesScreen(): void {
+    const m = MAPS[this.timesMap];
+    const cur = timesVersion(m.id);
+    const times = loadTimes(m.id, CAR_IDS);
+    const rows = times.filter((r) => !isOldRun(r, cur));
+    const older = times.filter((r) => isOldRun(r, cur));
+    const row = (r: RunRecord, i: number) => {
+      const old = isOldRun(r, cur);
+      return `<tr${old ? ' class="old"' : ''}><td>${old ? oldRunLabel(r, cur) : i + 1}</td><td>${formatTime(r.time)}${r.penalty ? ` <span class="pen">(+${r.penalty}s)</span>` : ''}</td><td>${carName(r.car)}</td><td class="set">${isTyreId(r.tyre) ? TYRES[r.tyre].name : '–'}</td><td>${!old && i ? `+${(r.time - rows[0].time).toFixed(2)}` : ''}</td></tr>`;
+    };
+    const card = div('menu-times-card');
+    card.innerHTML = `<h2>${m.name}</h2>
+      <div class="menu-board">${
+        times.length
+          ? `<table><thead><tr><th>#</th><th>Time</th><th>Car</th><th>Tyres</th><th>Gap</th></tr></thead>${rows
+              .slice(0, 10)
+              .map(row)
+              .join('')}${
+              older.length
+                ? `<tr class="divider"><td colspan="5">Older versions · set before a physics update</td></tr>${older
+                    .slice(0, Math.max(3, 10 - rows.length))
+                    .map(row)
+                    .join('')}`
+                : ''
+            }</table>`
+          : '<p class="menu-none">No time set yet - drive this stage!</p>'
+      }</div>`;
+    this.root.append(card);
+    const list = this.stageList(this.timesMap, false, (i) => {
+      this.timesMap = i;
+      this.show('times');
+      this.panel
+        .querySelectorAll<HTMLElement>('.menu-card')
+        .item(i)
+        ?.focus({ preventScroll: true });
+    });
+    this.panel.append(
+      header('Stage times'),
+      list,
+      buttons(['Back', () => this.show('welcome'), true]),
+    );
+    // The results start level with the first stage card.
+    card.style.top = `${list.getBoundingClientRect().top - this.root.getBoundingClientRect().top}px`;
+    this.showroom.showMap(m.id);
+  }
+
+  /** One stage card (route, description, tags, best time) of the stage list; `showBest` off on the Stage times screen. */
+  private stageCard(m: MapInfo, selected: boolean, showBest: boolean) {
+    const b = document.createElement('button');
+    b.className = 'menu-card';
+    b.classList.toggle('selected', selected);
+    const times = loadTimes(m.id, CAR_IDS);
+    const cur = timesVersion(m.id);
+    const best = times.find((r) => !isOldRun(r, cur));
+    const oldBest = times[0] && isOldRun(times[0], cur) ? times[0] : undefined;
+    b.innerHTML = `
+      ${routeSvg(m)}
+      <div class="menu-card-body">
+        <div class="menu-card-title">${m.name}${testBadge(isTestMap(m.id))}</div>
+        <div class="menu-card-desc">${m.description}</div>
+        <div class="menu-tags">
+          <span>${(stageLength(m) / 1000).toFixed(1)} km</span>
+          <span>${m.stage.splits} splits</span>
+          <span>${[...new Set(m.surfaces)].map((s) => s.replace(/_/g, ' + ')).join(' → ')}</span>
+        </div>
+        ${showBest ? `<div class="menu-best">${best ? `Best ${formatTime(best.time)} · ${carName(best.car)}` : oldBest ? `<span class="old">Older best ${formatTime(oldBest.time)} · ${oldRunLabel(oldBest, cur)}</span>` : 'No time set yet'}</div>` : ''}
+      </div>`;
+    return b;
+  }
+
+  /** The stage cards of Select stage and Stage times; `onPick` gets the clicked stage's index. */
+  private stageList(
+    selected: number,
+    showBest: boolean,
+    onPick: (i: number) => void,
+  ): HTMLElement {
     const list = div('menu-cards');
     MAPS.forEach((m, i) => {
-      const b = document.createElement('button');
-      b.className = 'menu-card';
-      b.classList.toggle('selected', i === this.mapIndex);
-      const times = loadTimes(m.id, CAR_IDS);
-      const cur = timesVersion(m.id);
-      const best = times.find((r) => !isOldRun(r, cur));
-      const oldBest =
-        times[0] && isOldRun(times[0], cur) ? times[0] : undefined;
-      b.innerHTML = `
-        ${routeSvg(m)}
-        <div class="menu-card-body">
-          <div class="menu-card-title">${m.name}${testBadge(isTestMap(m.id))}</div>
-          <div class="menu-card-desc">${m.description}</div>
-          <div class="menu-tags">
-            <span>${(stageLength(m) / 1000).toFixed(1)} km</span>
-            <span>${m.stage.splits} splits</span>
-            <span>${[...new Set(m.surfaces)].map((s) => s.replace(/_/g, ' + ')).join(' → ')}</span>
-          </div>
-          <div class="menu-best">${best ? `Best ${formatTime(best.time)} · ${carName(best.car)}` : oldBest ? `<span class="old">Older best ${formatTime(oldBest.time)} · ${oldRunLabel(oldBest, cur)}</span>` : 'No time set yet'}</div>
-        </div>`;
-      b.addEventListener('click', () => {
-        if (this.mapIndex === i) return this.show('car');
-        this.mapIndex = i;
-        this.show('map');
-      });
+      const b = this.stageCard(m, i === selected, showBest);
+      b.addEventListener('click', () => onPick(i));
       list.append(b);
+    });
+    return list;
+  }
+
+  private mapSelect(): void {
+    this.panel.append(header('Select stage', 'Step 1 / 3'));
+    const list = this.stageList(this.mapIndex, true, (i) => {
+      if (this.mapIndex === i) return this.show('car');
+      this.mapIndex = i;
+      this.show('map');
     });
     this.panel.append(
       list,
@@ -834,7 +904,8 @@ class MainMenu {
   private nav(a: NavAction): void {
     const s = this.screen;
     if (a === 'back') {
-      if (s === 'options' || s === 'about' || s === 'map') this.show('welcome');
+      if (s === 'options' || s === 'about' || s === 'map' || s === 'times')
+        this.show('welcome');
       if (s === 'car') this.show('map');
       if (s === 'setup') this.show('car');
       return;
@@ -870,6 +941,10 @@ class MainMenu {
         const k = (SETUP_IDS.indexOf(this.setup) + d + n) % n;
         this.setSetup({ setup: SETUP_IDS[k] }, 1);
       }
+    } else if (s === 'times' && (up || a === 'down')) {
+      this.timesMap =
+        (this.timesMap + (up ? -1 : 1) + MAPS.length) % MAPS.length;
+      this.show('times');
     } else if (s === 'car' && (a === 'left' || a === 'right')) {
       this.setLivery(this.livery + (a === 'left' ? -1 : 1));
     } else if (a === 'confirm' || a === 'start') {
