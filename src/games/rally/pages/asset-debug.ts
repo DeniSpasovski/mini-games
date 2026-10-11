@@ -348,7 +348,7 @@ function showCar(carId: string, reframe: boolean): void {
     triangles: model.triangleCount().toLocaleString(),
     livery: Math.max(0, state.seed),
   });
-  desc.innerHTML = `${def.description}<br/><a style="color:#f0a020" href="car-viewer.html?car=${carId}&seed=${Math.max(0, state.seed)}">Open in car viewer →</a>`;
+  desc.innerHTML = `${def.description}<br/><a style="color:#f0a020" href="car-viewer.html?car=${encodeURIComponent(def.id)}&seed=${Math.max(0, state.seed)}">Open in car viewer →</a>`;
   if (reframe) frame(new Vector3(2, 1.5, 4.2), new Vector3(0, 0.7, 0));
   disposeCurrent = () => model.dispose();
 }

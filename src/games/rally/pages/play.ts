@@ -31,6 +31,7 @@ import { DEFAULT_MAP, getMap, loadMap } from '../maps';
 import { SETUP_FOR_TYRE, SETUP_IDS } from '../physics/car-setup';
 import { isGearingId } from '../physics/gearing';
 import { parseTyre } from '../physics/tyres';
+import { paramInt } from '../../../shared/url-params';
 
 /**
  * /games/rally/                -> main menu (welcome -> stage -> car, options)
@@ -83,7 +84,17 @@ function mainMenu(): void {
   location.href = location.pathname;
 }
 
-async function play(params: typeof DEFAULTS): Promise<void> {
+async function play(raw: typeof DEFAULTS): Promise<void> {
+  // Only real values go on: known map / car ids (unknown -> default), a whole livery number, a spawn that is metres or a short name.
+  const params = {
+    ...raw,
+    map: getMap(raw.map).id,
+    car: getCar(raw.car).id,
+    livery: paramInt(String(raw.livery), 0, 9999, 0),
+    spawn: /^(\d{1,6}(\.\d{1,3})?|[a-z][a-z0-9_-]{0,31})$/.test(raw.spawn)
+      ? raw.spawn
+      : 'start',
+  };
   const loading = overlay(`
     <div class="box">
       <h2>Loading stage…</h2>

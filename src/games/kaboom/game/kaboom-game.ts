@@ -46,6 +46,7 @@ import {
   type QualitySetting,
 } from './settings';
 import { defaultStorage } from './storage';
+import { paramInt } from '../../../shared/url-params';
 
 /** Longest frame the loop catches up on (tab was in the background): drop the rest instead of a spiral of ticks. */
 const MAX_FRAME_S = 0.1;
@@ -323,7 +324,7 @@ export class KaboomGame {
     await new Promise((r) => setTimeout(r, 30)); // let the loading card paint
 
     const cfg: MatchConfig = {
-      seed: Number(this.params.get('seed')) || rand(),
+      seed: paramInt(this.params.get('seed'), 1, 2 ** 31 - 1, null) || rand(),
       size: setup.size,
       bots: setup.bots,
       difficulty: setup.difficulty,
