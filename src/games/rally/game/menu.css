@@ -946,3 +946,10 @@
 .menu-panel[data-screen='times'] .menu-buttons .menu-btn {
   flex: 0 0 calc(50% - 5px);
 }
+/* Stage times: roomier table than the results overlay. */
+.menu-times-card .menu-board td {
+  padding: 9px 10px;
+}
+.menu-times-card .menu-board th {
+  padding: 4px 10px 10px;
+}
