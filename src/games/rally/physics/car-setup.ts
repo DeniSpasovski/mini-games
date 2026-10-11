@@ -34,7 +34,9 @@ export const SETUP_NAMES: Record<SetupId, string> = {
 /** Recommended set-up for a tyre (and so for a stage: its recommended tyre): gravel soft ... tarmac stiff. */
 export const SETUP_FOR_TYRE: Record<TyreId, SetupId> = {
   gravel: 'soft',
+  gravel_hard: 'soft',
   mixed: 'medium',
+  tarmac_hard: 'stiff',
   tarmac: 'stiff',
 };
 

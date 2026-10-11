@@ -10,8 +10,8 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
 
 ## Where things live
 
-- Per-car numbers: `cars/<id>/<id>.ts` -> `physics` (mass, COM height, axles: spring/damper/travel/antiRoll/brakes/
-  grip/forceHeight, engine torque curve, gearbox, drivetrain split + diff locks, aero).
+- Per-car numbers: `cars/<id>/<id>.ts` -> `physics` (mass, COM height, axles: spring/damper/travel/antiRoll/
+  grip/forceHeight, `brakes`, engine torque curve, gearbox, drivetrain split + diff locks, aero).
   Ride height is preserved automatically when springs change (mount computed from static load).
 - Surfaces: `physics/surfaces.ts` (`mu`, `slide`, `peakSlip`, `peakAngle`, `rolling`, `bump`, `rough`).
 - Water: `Vehicle.waterPass` (tyre + body drag, flooded intake), fed by `GroundProvider.waterLevel`;
@@ -24,14 +24,20 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
 - Gearing presets: `physics/gearing.ts` (`CarPhysicsDef.gearings` = short / medium / long final drive, race cars only;
   `applyGearing` after `applySetup`; `topSpeed` = the setup screen number; `MapDef.gearing` = a stage's recommendation;
   `Autopilot.maxSpeed` lifts the 151 km/h cap to measure top speed). Tests: `gearing.test.ts`.
-- Tyre compounds: `physics/tyres.ts` (per-tyre multipliers on the surfaces; `Vehicle.setTyre`, `null` = raw surfaces so
-  `vehicle.test.ts` bands stay put). Grip / feel of a tyre = edit its table there; ranks are checked by
-  `integration-tests/rally/tyres.test.ts`. A new surface needs an entry in every `TyreDef.grip`.
+- Tyre types: `physics/tyres.ts` (five tyres in three families: `tarmac` / `tarmac_hard`, `mixed`, `gravel_hard` / `gravel`;
+  the ids `tarmac` and `gravel` are the soft compounds; per-tyre multipliers on the surfaces; `Vehicle.setTyre`, `null` = raw
+  surfaces so `vehicle.test.ts` bands stay put). Grip / feel of a tyre = edit its table there; ranks are checked by
+  `integration-tests/rally/tyres.test.ts`. A new surface needs an entry in every `TyreDef.grip`. Sizes, brake kit, rim and tread
+  follow the family (`TyreSize` per `byCompound[family]`); a car's class of rubber is `TyreSize.grade` (rally 1, road 0.82,
+  slick 1.12).
 - Tyre temperature: `physics/tyre-temp.ts` (heat / cooling constants, grip curve), windows in `TyreDef.temp`, air per map
   (`EnvironmentDef.airTemp`). Only runs with `Vehicle.setClimate` (game); tests without it keep the reference numbers.
   Tests: `tests/rally/tyre-temp.test.ts` (feel targets), `integration-tests/rally/tyre-temp.test.ts`.
+- Brakes: `CarPhysicsDef.brakes` / `gravelBrakes` (type, size, pad class, `clamp` force; `physics/brakes.ts`), torque acts on the
+  wheel's effective inertia, disc temperature + pad fade only with a climate. Tune `clamp` until the torque limit sits ~10 %
+  over the tyre's best decel (`integration-tests/rally/brake-sweep.test.ts` is local; `tests/rally/brakes.test.ts`).
 - Tyre model: `physics/tire.ts`. Rigid body / suspension / contacts: `physics/vehicle.ts`.
-- Driver aids: `Vehicle.tractionControl` (wheelspin + combined-slip stability, `T` in game), `Vehicle.abs` (per-wheel
+- Driver aids: `Vehicle.tractionControl` (traction term: slip ratio held at 0.6 x the surface's peak; stability term: combined slip; `T` in game), `Vehicle.abs` (per-wheel
   anti-lock on the foot brake, `B`; `physics.noAbs` = not fitted), `autoReverse`, keyboard steering ramp / speed limit /
   counter-steer allowance in `game/input.ts`. Each aid has a `RallySettings` flag + an Options row hidden when not fitted.
 

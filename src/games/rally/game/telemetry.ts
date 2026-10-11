@@ -52,6 +52,7 @@ export class Telemetry {
       `speed ${(v.speed * 3.6).toFixed(1).padStart(6)} km/h   gear ${d.gear}  rpm ${d.rpm.toFixed(0).padStart(5)}  thr ${v.controls.throttle.toFixed(2)} brk ${v.controls.brake.toFixed(2)} hb ${v.controls.handbrake.toFixed(0)}`,
       `tyre ${v.tyre ?? 'raw'}  set-up ${v.def.setup}  mu ${v.wheels.map((w) => (w.contact ? w.surface.mu.toFixed(2) : '-')).join(' ')}`,
       `temp ${v.wheels.map((w) => `${w.temp.toFixed(0)}°C x${w.tempGrip.toFixed(2)}`).join('  ')}${v.climate ? `  air ${v.climate.air.toFixed(0)}°C` : '  (no climate)'}`,
+      `brake ${v.wheels.map((w) => `${w.brakeTemp.toFixed(0)}°C x${w.brakeFactor.toFixed(2)}`).join('  ')}  ${(v.brakeDecel / 9.81).toFixed(2)}g max`,
       `steer ${v.controls.steer.toFixed(2).padStart(5)}  tc ${v.tcFactor.toFixed(2)}  clutch ${d.clutchSlipping ? 'slip' : 'lock'}  air ${v.airTime.toFixed(2)}s`,
       `G lat ${this.g.x.toFixed(2).padStart(5)}  lon ${this.g.z.toFixed(2).padStart(5)}  yaw ${deg(v.angularVelocity.y)}°/s`,
       '',

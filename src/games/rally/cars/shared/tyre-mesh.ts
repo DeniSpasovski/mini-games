@@ -15,9 +15,9 @@ import type { TyreSize } from '../../physics/types';
  * low profile one is a thin band) -> shoulder -> a tread of `TREAD_COLUMNS` columns across. The tread has real
  * relief: grid vertices (segment x column) sink into grooves, so the pattern shows in the silhouette and in the
  * flat-shaded lighting. Pattern per compound (physics/tyres.ts ids):
- *   - tarmac: near-slick, two circumferential grooves + sipes on the shoulders, ~3 mm deep
+ *   - tarmac: near-slick, two circumferential grooves + sipes on the shoulders, ~3 mm deep (hard: blockier shoulder, 3.5 mm)
  *   - mixed : centre rib + staggered blocks, ~6 mm
- *   - gravel: big chunky staggered blocks with wide gaps and notched shoulders, ~11 mm
+ *   - gravel: big chunky staggered blocks with wide gaps and notched shoulders, ~11 mm (hard: smaller, tighter blocks, 9 mm)
  *   - null  : plain carcass (tool pages without a tyre)
  * The compound shows as a coloured ring on the outer sidewall (the colour of the menu dot); no text.
  * `dust` greys the sidewall and the grooves (old road cars). Vertex colours + flat normals; ~5.2k triangles per tyre (4 per car).
@@ -39,6 +39,12 @@ const PATTERNS: Record<
     groove: (i, j) =>
       j === 2 || j === 5 || ((j === 0 || j === 7) && i % 4 === 0),
   },
+  tarmac_hard: {
+    depth: 0.0035,
+    // the same two circumferential grooves, shoulder sipes every 6th segment (a stiffer, blockier shoulder).
+    groove: (i, j) =>
+      j === 2 || j === 5 || ((j === 0 || j === 7) && i % 6 === 0),
+  },
   mixed: {
     depth: 0.006,
     // solid centre rib (columns 3, 4); staggered blocks of 3 with 1-segment gaps either side; coarser shoulders.
@@ -46,6 +52,15 @@ const PATTERNS: Record<
       if (j === 3 || j === 4) return false;
       if (j === 0 || j === 7) return (i + (j === 0 ? 0 : 3)) % 6 < 2;
       return (i + (j < 3 ? 0 : 2)) % 4 === 0;
+    },
+  },
+  gravel_hard: {
+    depth: 0.009,
+    // smaller, tighter blocks (4 of 6 segments), a centre groove: hard-pack tread.
+    groove: (i, j) => {
+      if (j === 0 || j === 7) return (i + (j === 0 ? 0 : 3)) % 6 < 2;
+      const stagger = j < 4 ? 0 : 3;
+      return (i + stagger) % 6 >= 4 || j === 3;
     },
   },
   gravel: {

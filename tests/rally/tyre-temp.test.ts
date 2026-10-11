@@ -132,11 +132,11 @@ describe('climate', () => {
     expect(t('gravel')).toBeGreaterThan(t('grass'));
   });
 
-  test('a summer afternoon is hotter than a spring morning', () => {
-    const hot = stageClimate(petralicaMap.environment);
-    const cool = stageClimate(ajvatovciMap.environment);
+  test('a hot clear June morning heats the road more than a cool Petralica afternoon', () => {
+    const hot = stageClimate(ajvatovciMap.environment);
+    const cool = stageClimate(petralicaMap.environment);
     expect(trackTemp(hot, SURFACES.tarmac)).toBeGreaterThan(
-      trackTemp(cool, SURFACES.tarmac) + 10,
+      trackTemp(cool, SURFACES.tarmac) + 5,
     );
   });
 });

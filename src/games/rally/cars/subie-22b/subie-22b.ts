@@ -1,5 +1,6 @@
 import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
+import type { BrakeSet } from '../../physics/brakes';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
 import { subie22bLivery } from './livery';
@@ -24,7 +25,6 @@ const FRONT: AxleDef = {
   rebound: 4680,
   travel: 0.22,
   antiRoll: 9000,
-  brakeTorque: 1700,
   handbrakeTorque: 0,
   steer: 1,
   grip: 1,
@@ -39,11 +39,28 @@ const REAR: AxleDef = {
   rebound: 4140,
   travel: 0.22,
   antiRoll: 6500,
-  brakeTorque: 800,
   handbrakeTorque: 2600,
   steer: 0,
   grip: 1.02,
   forceHeight: 0.3,
+};
+
+/** 22B brakes: 294 x 24 / 290 x 18 mm vented discs (PHYSICS.md "Brakes"). */
+const BRAKES: BrakeSet = {
+  front: {
+    type: 'vented',
+    diameter: 0.294,
+    thickness: 0.024,
+    pad: 'sport',
+    clamp: 15850,
+  },
+  rear: {
+    type: 'vented',
+    diameter: 0.29,
+    thickness: 0.018,
+    pad: 'sport',
+    clamp: 5350,
+  },
 };
 
 /**
@@ -145,6 +162,7 @@ export const subie22b: CarDef = {
       frontDiffLock: 50,
       rearDiffLock: 160,
     },
+    brakes: BRAKES,
     dragArea: 0.78,
     downforceArea: 0.08,
     // Fitted to subie_22b.glb (tests/rally/hull-fit.test.ts prints the model's underside): mudflaps 0.11 - 0.12 m, sills 0.22 m,

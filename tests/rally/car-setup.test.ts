@@ -259,7 +259,7 @@ function lateralG(
   return sum / PHYSICS_HZ / 9.81;
 }
 
-test('cars on their own best tyres + set-up: Bimmer wins on tarmac, Fabia on gravel; Zastava has the least grip', () => {
+test('cars on their own best tyres + set-up: GT2 slicks win on tarmac, a rally car beats the road-tyre M3 there, Fabia wins on gravel; Zastava has the least grip', () => {
   const g = (id: string, t: TyreId, s: SurfaceId) =>
     lateralG(car(id), t, SETUP_FOR_TYRE[t], s);
   const row = (id: string) => ({
@@ -268,20 +268,23 @@ test('cars on their own best tyres + set-up: Bimmer wins on tarmac, Fabia on gra
   });
   const fabia = row('skoda_rally');
   const bimmer = row('bimmer_m3');
+  const gt2 = row('bimmer_gt2');
   const zastava = row('zastava_101');
   console.info(
-    `lateral g  tarmac tyres on tarmac / gravel tyres on gravel\n  fabia ${fabia.tarmac.toFixed(2)} / ${fabia.gravel.toFixed(2)}\n  bimmer ${bimmer.tarmac.toFixed(2)} / ${bimmer.gravel.toFixed(2)}\n  zastava ${zastava.tarmac.toFixed(2)} / ${zastava.gravel.toFixed(2)}`,
+    `lateral g  tarmac tyres on tarmac / gravel tyres on gravel\n  fabia ${fabia.tarmac.toFixed(2)} / ${fabia.gravel.toFixed(2)}\n  bimmer ${bimmer.tarmac.toFixed(2)} / ${bimmer.gravel.toFixed(2)}\n  gt2 ${gt2.tarmac.toFixed(2)} / ${gt2.gravel.toFixed(2)}\n  zastava ${zastava.tarmac.toFixed(2)} / ${zastava.gravel.toFixed(2)}`,
   );
-  expect(bimmer.tarmac).toBeGreaterThan(fabia.tarmac);
+  // Slicks beat a rally tarmac tyre, which beats a road tyre on a 1.7 t coupe (PHYSICS.md "Tyre types").
+  expect(gt2.tarmac).toBeGreaterThan(fabia.tarmac);
+  expect(fabia.tarmac).toBeGreaterThan(bimmer.tarmac);
   expect(fabia.gravel).toBeGreaterThan(bimmer.gravel);
   expect(zastava.tarmac).toBeLessThan(fabia.tarmac);
   expect(zastava.gravel).toBeLessThan(fabia.gravel);
 });
 
 test('straight-line launch on loose ground: every car gets to 100 km/h pointing straight (gravel tyres, soft set-up)', () => {
-  // Full throttle, no steering, TC on (default). Catches a RWD car losing its rear bias: the Bimmer at rear.grip 1.15
-  // spun up on gravel_loose / dirt and never reached 100 km/h (the autopilot tests can't see it - the autopilot lifts
-  // off when the car slides). Above ~90 km/h on loose ground the Bimmer still starts a slow fishtail with no counter-
+  // Full throttle, no steering, TC on (default). Catches a RWD car spinning up its rear on gravel_loose / dirt and never
+  // reaching 100 km/h (the autopilot tests can't see it - the autopilot lifts off when the car slides); the traction
+  // term of TC (vehicle.ts) is what holds the rear axle's slip. Above ~90 km/h on loose ground the Bimmer still starts a slow fishtail with no counter-
   // steer - RWD V8 character, the player catches it - so the heading is checked at the moment it reaches 100 km/h.
   for (const c of ALL_CARS) {
     for (const s of ['gravel', 'gravel_loose', 'dirt'] as SurfaceId[]) {
