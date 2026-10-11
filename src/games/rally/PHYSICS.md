@@ -422,7 +422,7 @@ set-up, careful / limit driver (`useExtraGrip`); s, recommended in bold:
 | `test` (gravel)      | 83.6 / 83.6       | 86.1 / 86.1   | 70.1 / 70.1       | 67.9 / 66.9   | **67.8 / 66.5**   |
 | `petralica` (gravel) | 465.5 / 443.5     | 476.0 / 455.4 | 415.1 / 397.9     | 407.4 / 394.4 | **407.1 / 395.8** |
 | `jackie` (tarmac)    | **201.6 / 188.9** | 201.6 / 189.0 | 201.6 / 191.2     | 202.0 / 197.9 | 202.0 / 199.6     |
-| `ajvatovci` (mixed)  | 161.4 / 155.7     | 161.6 / 157.6 | **160.6 / 150.9** | 160.7 / 154.9 | 160.8 / 157.9     |
+| `ajvatovci` (mixed)  | 161.4 / 155.7     | 161.6 / 157.5 | **160.6 / 150.9** | 160.7 / 154.9 | 160.8 / 157.9     |
 
 Every car, careful driver, recommended pick / worst pick (`car-matrix.test.ts`; worst = tarmac tyres on a gravel stage, gravel
 tyres on a tarmac or dusty one):
