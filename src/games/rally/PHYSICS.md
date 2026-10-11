@@ -115,7 +115,7 @@ its recommended one.
 | Tarmac Soft | **1.26** | 1.07          | 1.0  | 0.72     | 0.64         | 0.68 | 0.62  |
 | Tarmac Hard | 1.19     | 1.05          | 1.0  | 0.72     | 0.64         | 0.68 | 0.62  |
 | Mixed       | 1.10     | **1.19**      | 1.0  | 0.93     | 0.90         | 0.92 | 0.90  |
-| Gravel Hard | 0.96     | 1.03          | 0.96 | 1.03     | 1.00         | 1.02 | 1.00  |
+| Gravel Hard | 0.96     | 1.10          | 0.96 | 1.03     | 1.00         | 1.02 | 1.00  |
 | Gravel Soft | 0.92     | 1.03          | 0.94 | **1.04** | **1.08**     | 1.06 | 1.06  |
 
 Character per compound: `slide` (grip left when fully sliding) is multiplied by `[hard, loose]` blended by `surface.loose`

@@ -36,7 +36,7 @@ const FRONT: AxleDef = {
   antiRoll: scale(23833),
   handbrakeTorque: 0,
   steer: 1,
-  grip: 1.06, // street tyres (245 / 40 R18) need a little front grip so the tarmac specialist stays ahead of the Skoda (car-setup.test.ts)
+  grip: 1.22, // street tyres (245 / 40 R18); front grip also keeps the RWD car turning at speed against its rear bias (balance 0.44 at 150 km/h; 1.06 gave 0.40)
   forceHeight: 0.3,
 };
 

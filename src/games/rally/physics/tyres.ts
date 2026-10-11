@@ -113,7 +113,7 @@ export const TYRES: Record<TyreId, TyreDef> = {
     color: 0x5ab0e0,
     grip: {
       tarmac: 0.96,
-      tarmac_gravel: 1.03,
+      tarmac_gravel: 1.1,
       rock: 0.96,
       gravel: 1.03,
       gravel_loose: 1,
