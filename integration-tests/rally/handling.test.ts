@@ -40,8 +40,8 @@ import {
  *  - ride: 0.5 / 1 m drop (bump stop, settle time), 1 m jump landing at 80 km/h (body scrapes, speed kept), rough
  *    road (wheel load variation, contact loss, grip kept)
  *
- * Default run = every car on each tyre with its matching set-up (the menu defaults). `HANDLING_FULL=1` runs every
- * tyre x set-up combination; `HANDLING_OUT=<file.json>` writes all numbers for analysis.
+ * Default run = every car on each tyre family (Tarmac Soft, Mixed, Gravel Soft) with its matching set-up (the menu
+ * defaults). `HANDLING_FULL=1` runs every tyre (hard compounds too) x set-up combination; `HANDLING_OUT=<file.json>` writes all numbers for analysis.
  * Sign convention: `bo` = sideslip towards oversteer (+ = the tail is out of the turn), degrees.
  *
  * Assertions are only the guards every combination passes today (nothing rolls, TC catches power-on, lift-off and
@@ -52,9 +52,12 @@ const FULL = !!process.env.HANDLING_FULL;
 // --- the matrix -------------------------------------------------------------------
 
 const CARS = ALL_CARS.map((c) => c.id);
+// The hard compounds share set-up and family with the soft ones and grip within a few percent, so the default run
+// skips them (`HANDLING_FULL=1` keeps every tyre).
+const TYRES = FULL ? TYRE_IDS : TYRE_IDS.filter((t) => !t.endsWith('_hard'));
 const configs: Cfg[] = [];
 for (const car of CARS)
-  for (const tyre of TYRE_IDS)
+  for (const tyre of TYRES)
     for (const setup of FULL ? SETUP_IDS : [SETUP_FOR_TYRE[tyre]])
       configs.push({ car, tyre, setup });
 
