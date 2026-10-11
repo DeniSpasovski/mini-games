@@ -367,7 +367,10 @@ with the mixed and gravel families (`Vehicle.setTyre`, `brakeKit`). The brake ac
 HUD: a thin disc mark beside each tyre in the dash (white cold, green biting, yellow fading, red at the floor,
 `game/tyre-gauge.ts`); `F2` lists the disc temperatures and the pull left.
 
-Research behind it (About > Physics > Brakes, `BRAKE_RESEARCH` in `game/menu.ts`): [high temperature fade](https://koreascience.or.kr/article/CFKO200111921184854.page),
+Research behind it (About > Physics > Brakes, `BRAKE_RESEARCH` in `game/menu.ts`): [Brembo WRC](https://www.brembo.com/en/motorsport/wrc),
+[Skoda Motorsport R5 brakes](https://www.skoda-motorsport.com/en/6-interesting-facts-about-fabia-r5-brakes-rally-technology/),
+[DBA rotor bulletin](https://dba.com.au/wp-content/uploads/2022/10/Technical_Bulletin_DBA_MotorSport_Important_Information.pdf),
+[high temperature fade](https://koreascience.or.kr/article/CFKO200111921184854.page),
 [Wikipedia: brake fade](https://en.wikipedia.org/wiki/Brake_fade),
 [Counterman: drum brakes](https://www.counterman.com/drum-brakes-the-beat-goes-on/).
 

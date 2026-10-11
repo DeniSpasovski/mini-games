@@ -122,6 +122,21 @@ const SUSPENSION_RESEARCH: SourceLink[] = [
 /** Research behind the brake model (PHYSICS.md "Brakes"). Read only, nothing copied. */
 const BRAKE_RESEARCH: SourceLink[] = [
   {
+    label: 'Brembo: World Rally Championship brakes',
+    url: 'https://www.brembo.com/en/motorsport/wrc',
+    note: 'rally disc sizes, temperatures',
+  },
+  {
+    label: 'Skoda Motorsport: Fabia R5 brakes',
+    url: 'https://www.skoda-motorsport.com/en/6-interesting-facts-about-fabia-r5-brakes-rally-technology/',
+    note: 'tarmac and gravel kits',
+  },
+  {
+    label: 'DBA: motorsport rotor temperature bulletin',
+    url: 'https://dba.com.au/wp-content/uploads/2022/10/Technical_Bulletin_DBA_MotorSport_Important_Information.pdf',
+    note: 'disc and pad temperatures',
+  },
+  {
     label: 'High temperature fade of brake friction materials',
     url: 'https://koreascience.or.kr/article/CFKO200111921184854.page',
     note: 'friction loss at extreme braking temperatures',

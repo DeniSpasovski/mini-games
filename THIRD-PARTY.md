@@ -79,6 +79,9 @@ Papers and articles read to tune the rally tyre types, tyre temperature, suspens
 - https://www.gamedeveloper.com/design/implementing-racing-games-an-intro-to-different-approaches-and-their-game-design-trade-offs
 - https://www.gamedeveloper.com/programming/rendering-and-simulation-in-offroad-driving-game
 - https://arxiv.org/abs/2605.05235
+- https://www.brembo.com/en/motorsport/wrc
+- https://www.skoda-motorsport.com/en/6-interesting-facts-about-fabia-r5-brakes-rally-technology/
+- https://dba.com.au/wp-content/uploads/2022/10/Technical_Bulletin_DBA_MotorSport_Important_Information.pdf
 - https://koreascience.or.kr/article/CFKO200111921184854.page
 - https://en.wikipedia.org/wiki/Brake_fade
 - https://www.counterman.com/drum-brakes-the-beat-goes-on/
