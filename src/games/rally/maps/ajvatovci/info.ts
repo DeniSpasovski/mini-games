@@ -61,7 +61,7 @@ export const ajvatovciInfo: MapInfo = {
     sunElevation: 40,
     // Afternoon sun from the south-west (azimuth from +Z towards +X; +Z = south).
     sunAzimuth: 315,
-    // Hot June morning, 07:00: low sun (~15 deg) in the east. ?tod=<hours> to try.
+    // Hot June morning, 07:30: low sun (~22 deg) in the east. ?tod=<hours> to try.
     timeOfDay: 7.5,
     // Hot dry June morning near Skopje (a day that is 27 deg by 07:30 is a heatwave day with a clear sky). Humidity is not simulated.
     airTemp: 27,
