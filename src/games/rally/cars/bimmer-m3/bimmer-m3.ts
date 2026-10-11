@@ -36,7 +36,7 @@ const FRONT: AxleDef = {
   antiRoll: scale(23833),
   handbrakeTorque: 0,
   steer: 1,
-  grip: 1.12, // street tyres (245 / 40 R18); front grip keeps the RWD car turning at speed against its rear bias; surface-independent, so above ~1.14 the road-tyre M3 out-corners the Fabia on gravel (car-setup.test.ts)
+  grip: 1.1, // street tyres (245 / 40 R18); front grip keeps the RWD car turning at speed against its rear bias; surface-independent, so above ~1.14 the road-tyre M3 out-corners the Fabia on gravel (car-setup.test.ts)
   forceHeight: 0.3,
 };
 
