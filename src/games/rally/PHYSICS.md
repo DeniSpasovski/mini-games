@@ -81,7 +81,7 @@ effective surface = surface (surfaces.ts)
                   x compound      (tyres.ts)       grip per surface, slide, response
                   x tyre size     (car-tyres.ts)   width + sidewall of the car's size for that family, and its grade
                   x set-up match  (car-tyres.ts)   suspension compliance vs surface roughness
-then x axle.grip (a per-axle trim: the Bimmers' front / rear bias, a little on the Zastava and the 22B)
+then x axle.grip (per car front / rear balance, in tire.ts)
 ```
 
 - The effective surface keeps `id`, `dust`, `dustColor`, `loose`, `bump`, so dust, audio, skid effects and water keep
@@ -205,8 +205,10 @@ Size factors (`sizeFactors`, reference 205/65 R15 = 1; `w` = width / 0.205, `h` 
 
 So the Zastava's thin tyres lose grip everywhere (least on loose ground); the M3's 245/40 street tyres are a little wider and
 lower than the Skoda Rally's tarmac tyre, but their road-tyre grade (0.82) puts it below the rally car on tarmac, and on gravel
-both run the reference 205/65 size. The M3's wider 265 rear gains on hard ground but loses on loose ground; with `axle.grip` 1
-the launch on loose ground is held straight by the traction term of TC (`car-setup.test.ts` "straight-line launch").
+both run the reference 205/65 size. The M3's wider 265 rear gains on hard ground but loses on loose ground, so it doesn't replace the rear bias a 450 Nm RWD car needs
+(`axle.grip` 1.3; 1.15 made it spin under full throttle on loose ground; guarded by `car-setup.test.ts` "straight-line launch"). Axle
+grip is surface-independent, so the M3's front trim (1.12) also lifts it on gravel: much above ~1.14 the road-tyre M3 out-corners
+the Fabia there (`car-setup.test.ts` "own best tyres").
 
 ### Suspension set-ups (`physics/car-setup.ts`)
 
@@ -449,7 +451,7 @@ character: the GT2 (slicks) is quickest on tarmac, the M3 and the rally cars are
 | `tests/rally/vehicle.test.ts`                | per-car bands (0-100, braking, top speed), lateral g ranks per surface - no tyre fitted (raw surfaces)                                                                                                                                   |
 | `integration-tests/rally/stage.test.ts`      | every car finishes every map with the autopilot, upright (raw surfaces)                                                                                                                                                                  |
 | `integration-tests/rally/tyres.test.ts`      | tyre data complete; the home family is best on its surface, mixed never best / worst; careful + limit driver per stage with the stage climate (the recommended tyre is within 0.5 % of the fastest)                                      |
-| `tests/rally/tyre-types.test.ts`             | five tyres in three families, hard vs soft windows, tyre grade (road < rally < slick, loose ground keeps 40 %), M3 mass, no grip multiplier on M3 / GT2, TC traction term holds the launch under the peak slip                           |
+| `tests/rally/tyre-types.test.ts`             | five tyres in three families, hard vs soft windows, tyre grade (road < rally < slick, loose ground keeps 40 %), M3 mass                                                                                                                  |
 | `tests/rally/car-setup.test.ts`              | sizes fit `wheelRadius` per axle; presets: damping, ride height per preset (body, wheels), compliance range per car; width effects; car vs car lateral g; straight launch on loose ground (every car reaches 100 km/h pointing straight) |
 | `integration-tests/rally/car-matrix.test.ts` | every car x stage on the recommended and the worst pick finishes upright; cars rank by character; set-up alone is worth time                                                                                                             |
 | `tests/rally/tyre-mesh.test.ts`              | tyre geometry: budget, size, tread depth order, rim switch (rendering, but sized from the physics data)                                                                                                                                  |

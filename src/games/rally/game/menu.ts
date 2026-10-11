@@ -593,7 +593,7 @@ class MainMenu {
   }
 
   /**
-   * Optional setup screen: horizontal pickers - tyre compounds, suspension set-ups, gearing - as rows of three boxes;
+   * Optional setup screen: horizontal pickers - tyre compounds, suspension set-ups, gearing - as rows of boxes;
    * tyres and springs are rendered live inside (the box is a transparent window onto the showroom canvas, see
    * Showroom.showSetup), gearing shows a speed-per-gear chart. Cars with fixed gearing show theirs as one box with "no
    * configuration available". Most players skip it: every row starts on the stage recommendation.
