@@ -380,6 +380,7 @@ class MainMenu {
     this.screen = screen;
     this.panel.dataset.screen = screen;
     this.panel.replaceChildren();
+    this.root.querySelector('.menu-times-card')?.remove();
     if (screen === 'welcome') this.welcome();
     if (screen === 'options')
       this.panel.append(
@@ -404,7 +405,7 @@ class MainMenu {
     // Stage select shows the map from the air, everything else the car.
     // The setup screen drives the showroom itself (parts bench, see setupSelect).
     if (screen === 'map') this.showroom.showMap(this.map.id);
-    else if (screen !== 'setup') this.showroom.showCar();
+    else if (screen !== 'setup' && screen !== 'times') this.showroom.showCar();
     // Options start on the first setting, every other screen on its primary button.
     this.panel
       .querySelector<HTMLElement>(
@@ -487,7 +488,7 @@ class MainMenu {
     );
   }
 
-  /** Main-menu "Times": every saved run of one stage, current versions first, older ones dimmed below. */
+  /** Main-menu "Stage times": stage list on the left, the saved runs of the selected stage over its map on the right (current versions first, older ones dimmed below). */
   private timesScreen(): void {
     const m = MAPS[this.timesMap];
     const cur = timesVersion(m.id);
@@ -498,37 +499,45 @@ class MainMenu {
       const old = isOldRun(r, cur);
       return `<tr${old ? ' class="old"' : ''}><td>${old ? oldRunLabel(r, cur) : i + 1}</td><td>${formatTime(r.time)}${r.penalty ? ` <span class="pen">(+${r.penalty}s)</span>` : ''}</td><td>${carName(r.car)}</td><td class="set">${isTyreId(r.tyre) ? TYRES[r.tyre].name : '–'}</td><td>${!old && i ? `+${(r.time - rows[0].time).toFixed(2)}` : ''}</td></tr>`;
     };
-    const body = div('menu-board');
-    body.innerHTML = times.length
-      ? `<table><thead><tr><th>#</th><th>Time</th><th>Car</th><th>Tyres</th><th>Gap</th></tr></thead>${rows
-          .slice(0, 10)
-          .map(row)
-          .join('')}${
-          older.length
-            ? `<tr class="divider"><td colspan="5">Older versions · set before a physics update</td></tr>${older
-                .slice(0, Math.max(3, 10 - rows.length))
-                .map(row)
-                .join('')}`
-            : ''
-        }</table>`
-      : '<p class="menu-none">No time set yet - drive this stage!</p>';
-    const tabs = div('menu-seg');
+    const card = div('menu-times-card');
+    card.innerHTML = `<h2>${m.name}</h2>
+      <div class="menu-board">${
+        times.length
+          ? `<table><thead><tr><th>#</th><th>Time</th><th>Car</th><th>Tyres</th><th>Gap</th></tr></thead>${rows
+              .slice(0, 10)
+              .map(row)
+              .join('')}${
+              older.length
+                ? `<tr class="divider"><td colspan="5">Older versions · set before a physics update</td></tr>${older
+                    .slice(0, Math.max(3, 10 - rows.length))
+                    .map(row)
+                    .join('')}`
+                : ''
+            }</table>`
+          : '<p class="menu-none">No time set yet - drive this stage!</p>'
+      }</div>`;
+    this.root.append(card);
+    const list = div('menu-list compact');
     MAPS.forEach((x, i) => {
       const b = document.createElement('button');
-      b.className = i === this.timesMap ? 'on' : '';
+      b.className = 'menu-btn';
+      b.classList.toggle('selected', i === this.timesMap);
       b.textContent = x.name;
       b.addEventListener('click', () => {
         this.timesMap = i;
         this.show('times');
+        this.panel
+          .querySelectorAll<HTMLElement>('.menu-list .menu-btn')
+          [i]?.focus({ preventScroll: true });
       });
-      tabs.append(b);
+      list.append(b);
     });
     this.panel.append(
-      header('Stage times', `${m.name} · ← → switch stage`),
-      tabs,
-      body,
+      header('Stage times'),
+      list,
       buttons(['Back', () => this.show('welcome'), true]),
     );
+    this.showroom.showMap(m.id);
   }
 
   private mapSelect(): void {
@@ -922,9 +931,9 @@ class MainMenu {
         const k = (SETUP_IDS.indexOf(this.setup) + d + n) % n;
         this.setSetup({ setup: SETUP_IDS[k] }, 1);
       }
-    } else if (s === 'times' && (a === 'left' || a === 'right')) {
+    } else if (s === 'times' && (up || a === 'down')) {
       this.timesMap =
-        (this.timesMap + (a === 'left' ? -1 : 1) + MAPS.length) % MAPS.length;
+        (this.timesMap + (up ? -1 : 1) + MAPS.length) % MAPS.length;
       this.show('times');
     } else if (s === 'car' && (a === 'left' || a === 'right')) {
       this.setLivery(this.livery + (a === 'left' ? -1 : 1));
