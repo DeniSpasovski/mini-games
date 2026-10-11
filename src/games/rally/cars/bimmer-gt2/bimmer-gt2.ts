@@ -31,7 +31,7 @@ const FRONT: AxleDef = {
   antiRoll: 26000,
   handbrakeTorque: 0,
   steer: 1,
-  grip: 1.25, // front grip also keeps the RWD car turning at speed against its rear bias (balance 0.33 at 150 km/h; 1.08 gave 0.25)
+  grip: 1.15, // front grip keeps the RWD car turning at speed against its rear bias; 1.25 was too strong in play-testing
   forceHeight: 0.3,
 };
 
