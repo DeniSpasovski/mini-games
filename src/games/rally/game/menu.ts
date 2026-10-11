@@ -528,7 +528,8 @@ class MainMenu {
         this.show('times');
         this.panel
           .querySelectorAll<HTMLElement>('.menu-list .menu-btn')
-          [i]?.focus({ preventScroll: true });
+          .item(i)
+          ?.focus({ preventScroll: true });
       });
       list.append(b);
     });
