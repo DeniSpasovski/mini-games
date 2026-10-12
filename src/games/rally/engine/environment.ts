@@ -8,6 +8,7 @@ import {
   DoubleSide,
   DirectionalLight,
   FogExp2,
+  HalfFloatType,
   HemisphereLight,
   MathUtils,
   Mesh,
@@ -18,6 +19,7 @@ import {
   PMREMGenerator,
   Scene,
   SphereGeometry,
+  type TextureDataType,
   type ToneMapping,
   Vector3,
   type Texture,
@@ -30,6 +32,7 @@ import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { setTreeSky } from '../trees/materials';
 import type { EnvironmentDef } from '../maps/shared/types';
 import { getTexture } from './textures';
+import { hdriTexture, isHdriId, loadHdri, type HdriId } from './hdri';
 import {
   setFogBase,
   setShadowBox,
@@ -77,9 +80,13 @@ function urlString(name: string): string | undefined {
   return new URLSearchParams(location.search).get(name) ?? undefined;
 }
 
+/** Luminance of a spherical-harmonics coefficient (linear RGB). */
+const shLum = (c: Vector3) => 0.2126 * c.x + 0.7152 * c.y + 0.0722 * c.z;
+
 /**
  * Sky dome, sun (with a shadow box that follows the focus point), hemisphere
- * fill, exponential fog and an image-based-lighting env map baked from the sky.
+ * fill, exponential fog and an image-based-lighting env map baked from the sky,
+ * or from the map's HDRI (engine/hdri.ts; spec rally/Lighting.md).
  * The same Environment is used by the game and all debug pages.
  */
 export class Environment {
@@ -102,6 +109,14 @@ export class Environment {
   private t0 = performance.now();
   /** Studio softboxes in the env map (menu car screens): crisp panel highlights on paint and glass. */
   studio: boolean;
+  /**
+   * Resolves once the lighting of the last `apply` is final: the map's HDRI in place, or the procedural sky kept
+   * (no HDRI, load failed or timed out). Never rejects; the stage load awaits it before its warm-up frame.
+   */
+  ready: Promise<void> = Promise.resolve();
+  /** Bumped per env rebuild: an HDRI that arrives after a newer `apply` is dropped. */
+  private envGen = 0;
+  private disposed = false;
 
   constructor(
     private scene: Scene,
@@ -292,18 +307,85 @@ export class Environment {
     // Key/fill balance: keep IBL + hemi low enough that sun shadows read clearly.
     this.scene.environmentIntensity = this.def.envIntensity ?? 0.3;
     // The same sky's diffuse light as spherical harmonics, for the tree foliage (it does not sample the env map:
-    // trees/materials.ts `setTreeSky`). A tiny cube of the environment scene, read back once.
-    const cube = new WebGLCubeRenderTarget(32);
-    new CubeCamera(0.1, 2000, cube).update(this.renderer, envScene);
+    // trees/materials.ts `setTreeSky`).
+    const gen = ++this.envGen;
     const intensity = this.scene.environmentIntensity;
-    void LightProbeGenerator.fromCubeRenderTarget(this.renderer, cube)
-      .then((probe) => setTreeSky(probe.sh.coefficients, intensity))
-      .finally(() => cube.dispose());
+    const skySh = this.probe(envScene);
     sky.material.dispose();
     sky.geometry.dispose();
     for (const m of [ground, ...panels]) {
       m.geometry.dispose();
       (m.material as MeshBasicMaterial).dispose();
+    }
+    const id = this.hdriId();
+    const sh = skySh.then((c) => {
+      // Kept until (and unless) the HDRI replaces it.
+      if (gen === this.envGen) setTreeSky(c, intensity);
+      return c;
+    });
+    this.ready =
+      id && !this.studio
+        ? this.applyHdri(gen, id, sh).catch((err: unknown) =>
+            console.warn('[hdri] lighting with the sky', err),
+          )
+        : sh.then(
+            () => {},
+            () => {},
+          );
+  }
+
+  /** The HDRI to light with: `?hdri=<id>|off`, else the map's. */
+  private hdriId(): HdriId | undefined {
+    const q = urlString('hdri');
+    if (q === 'off') return undefined;
+    return isHdriId(q) ? q : this.def.hdri;
+  }
+
+  /**
+   * Diffuse light of an environment scene as spherical harmonics: a tiny cube of it, read back. The procedural sky
+   * is read as 8-bit (how the tree sky light was tuned); an HDRI as half float, so its sky is not clipped.
+   */
+  private probe(scene: Scene, type?: TextureDataType): Promise<Vector3[]> {
+    const cube = new WebGLCubeRenderTarget(32, type ? { type } : {});
+    new CubeCamera(0.1, 2000, cube).update(this.renderer, scene);
+    return LightProbeGenerator.fromCubeRenderTarget(this.renderer, cube)
+      .then((p) => p.sh.coefficients)
+      .finally(() => cube.dispose());
+  }
+
+  /**
+   * Light with the HDRI: turned so its sun sits at this map's sun, scaled so its diffuse light (the SH DC term)
+   * matches the procedural sky's times `hdriIntensity`, baked to the env map and the tree sky light.
+   */
+  private async applyHdri(
+    gen: number,
+    id: HdriId,
+    skySh: Promise<Vector3[]>,
+  ): Promise<void> {
+    const src = await loadHdri(id);
+    if (!src || gen !== this.envGen || this.disposed) return;
+    const tex = hdriTexture(src, Math.atan2(this.sunDir.z, this.sunDir.x));
+    const envScene = new Scene();
+    envScene.background = tex;
+    try {
+      const [sky, raw] = await Promise.all([
+        skySh,
+        this.probe(envScene, HalfFloatType),
+      ]);
+      if (gen !== this.envGen || this.disposed) return;
+      const k =
+        (shLum(sky[0]) / Math.max(1e-6, shLum(raw[0]))) *
+        (this.def.hdriIntensity ?? 1);
+      envScene.backgroundIntensity = k;
+      this.envMap?.dispose();
+      this.envMap = this.pmrem.fromScene(envScene, 0, 0.1, 2000).texture;
+      this.scene.environment = this.envMap;
+      setTreeSky(
+        raw.map((c) => c.clone().multiplyScalar(k)),
+        this.scene.environmentIntensity,
+      );
+    } finally {
+      tex.dispose();
     }
   }
 
@@ -343,6 +425,7 @@ export class Environment {
   }
 
   dispose(): void {
+    this.disposed = true;
     this.offDisplay();
     this.envMap?.dispose();
     this.pmrem.dispose();

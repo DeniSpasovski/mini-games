@@ -383,6 +383,9 @@ export class RallyGame {
     // Warm up so the first frames don't hitch: wait for the imported car (hidden until then, so compile()
     // would skip it), then render one frame with culling off - compile() covers neither the shadow pass nor
     // the buffer uploads, and a culled render uploads only what the spawn camera sees.
+    progress(0.94, 'Lighting');
+    // The map's HDRI (engine/hdri.ts): never rejects, falls back to the sky light after a timeout.
+    await this.env.ready;
     progress(0.95, 'Compiling shaders');
     await this.model.ready;
     await paint();

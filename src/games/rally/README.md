@@ -71,7 +71,7 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 ## Credits
 
 Map data: © OpenStreetMap contributors (ODbL), ESA WorldCover 2021 (CC BY 4.0), Copernicus DEM GLO-30, USGS 3DEP,
-Microsoft building footprints. Car models and their licences: see each car's README and
+Microsoft building footprints. Lighting HDRIs: Poly Haven (CC0). Car models and their licences: see each car's README and
 [`THIRD-PARTY.md`](../../../THIRD-PARTY.md). Car makes and models are trademarks of their owners; this is a
 non-commercial, educational fan project.
 

@@ -1,6 +1,7 @@
 import type { GearingId } from '../../physics/types';
 import type { SurfaceId } from '../../physics/surfaces';
 import type { TyreId } from '../../physics/tyres';
+import type { HdriId } from '../../engine/hdri';
 
 /**
  * Map format. A map is pure data: the world (heightfield, road, scatter) is
@@ -757,6 +758,14 @@ export interface EnvironmentDef {
   fillIntensity?: number;
   /** Image-based light from the sky + ground env map (default 0.3). */
   envIntensity?: number;
+  /**
+   * HDRI that lights the stage instead of the procedural sky's env map (engine/hdri.ts `HDRIS`; spec rally/Lighting.md):
+   * reflections, ambient and the tree sky light. The visible sky stays procedural; the HDRI is turned so its sun sits
+   * at this map's sun, its own sun is clamped out (the sun light is the sun) and its brightness matches the procedural
+   * sky's, times `hdriIntensity` (default 1). `?hdri=<id>|off` overrides it for comparisons.
+   */
+  hdri?: HdriId;
+  hdriIntensity?: number;
   /** Tone mapping (default 'aces'); `?tonemap=aces|agx|neutral` overrides it for comparisons. */
   toneMapping?: 'aces' | 'agx' | 'neutral';
   /** Sky clouds: coverage / density 0..1 (default 0.4 / 0.4) and drift speed multiplier (default 1). */

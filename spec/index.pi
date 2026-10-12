@@ -1,2 +1,4 @@
+from ./rally/Lighting export Lighting
+from ./shape/games/rally/engine/Lighting export LightingShape
 from ./shape/trees/Trees export TreesShape
 from ./trees/ProceduralTrees export ProceduralTrees

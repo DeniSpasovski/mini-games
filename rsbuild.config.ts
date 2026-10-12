@@ -65,6 +65,8 @@ const gamePublicFiles: Record<
       transform: (input, file) =>
         file.endsWith('.glb') ? meshoptGlb(input) : input,
     },
+    // HDRI lighting (src/games/rally/engine/hdri.ts): Poly Haven, CC0.
+    { from: 'public/hdri', to: 'hdri' },
     // Menu music (src/games/rally/game/menu-music.ts): git-ignored (Pixabay licence: no standalone redistribution),
     // so the folder is optional (missing or empty) and a CI checkout builds without it.
     ...(musicFiles.length ? [{ from: musicDir, to: 'music' }] : []),

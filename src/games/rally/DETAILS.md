@@ -7,12 +7,12 @@ sim-lite physics that is still fun on a keyboard.
 
 ## Pages and URLs
 
-| Page        | URL                                                    | What it is                                                                       |
-| ----------- | ------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| Game        | `/games/rally/`                                        | welcome -> select stage -> select car -> (set-up) -> drive                       |
-| Map viewer  | `/games/rally/map-viewer.html?map=test&grid=1&splat=1` | aerial view, click terrain to inspect, "Drive from here", lat / lon on real maps |
-| Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`  | livery seed, door plate, pose, physics hull, torque chart, test drive            |
-| Asset debug | `/games/rally/asset-debug.html?asset=rock_boulder&lod=1`  | every asset / car (`car:<id>`) / texture (`tex:<id>`): seed, variant, LOD        |
+| Page        | URL                                                      | What it is                                                                       |
+| ----------- | -------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Game        | `/games/rally/`                                          | welcome -> select stage -> select car -> (set-up) -> drive                       |
+| Map viewer  | `/games/rally/map-viewer.html?map=test&grid=1&splat=1`   | aerial view, click terrain to inspect, "Drive from here", lat / lon on real maps |
+| Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`    | livery seed, door plate, pose, physics hull, torque chart, test drive            |
+| Asset debug | `/games/rally/asset-debug.html?asset=rock_boulder&lod=1` | every asset / car (`car:<id>`) / texture (`tex:<id>`): seed, variant, LOD        |
 
 Tool pages are dev-server only and keep their state in the URL; `H` hides the panel, `F3` shows stats, "Copy camera link"
 gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
@@ -82,6 +82,11 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 
 - **Light:** the sun follows `timeOfDay` (or `sunElevation` / `sunAzimuth`); a lower sun is warmer and dimmer (raise `exposure`).
   Cool sky fill + warm ground bounce; a PMREM of the sky gives paint, glass and water reflections.
+- **HDRI lighting** (`engine/hdri.ts`, spec `.claude/reference/rally/Lighting.md`): `environment.hdri` names a Poly Haven HDRI
+  in `public/hdri/` (`HDRIS`); it replaces the sky's PMREM and the tree sky SH, the visible sky stays procedural. Its sun is
+  clamped out (the sun light is the sun), it is turned to the map's sun azimuth and scaled to the sky's diffuse light
+  (`hdriIntensity`). The stage load awaits `Environment.ready` ("Lighting"); a failed or slow load keeps the sky light.
+  `?hdri=<id>|off` compares. A new HDRI: 1k `.hdr`, a `HDRIS` row, `THIRD-PARTY.md`.
 - **Shadows:** one shadow map ahead of the camera, snapped to texels so edges do not crawl.
 - **Sky / tone mapping:** drifting clouds (`cloudCoverage`, `cloudSpeed`); ACES, or `toneMapping: 'agx' | 'neutral'` per map.
 - **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark outside the

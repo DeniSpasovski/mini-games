@@ -141,6 +141,8 @@ export async function bakeStageCard(
   const treeJob = trees.job();
   while (!treeJob.next().done) if (++n % 16 === 0) await breathe();
 
+  // The map's HDRI lighting (engine/hdri.ts) before the render.
+  await env.ready;
   log(`${mapId}: props`);
   const center = new Vector3(box.x, world.heightAt(box.x, box.z), box.z);
   const streamer = new InstanceStreamer(world, {

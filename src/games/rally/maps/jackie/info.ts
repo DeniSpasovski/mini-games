@@ -1,3 +1,4 @@
+import { hdriSource } from '../../engine/hdri';
 import type { MapInfo } from '../shared/types';
 import data from './route.json';
 
@@ -24,6 +25,7 @@ export const jackieInfo: MapInfo = {
     'Kew Gardens junction surface, medians, street trees: NYC Planimetric Database + Street Tree Census (NYC Open Data)',
   ],
   sources: [
+    hdriSource('blaubeuren_hillside'),
     {
       label:
         'Google Maps route (Vermont St -> Jackie Robinson Pkwy -> Kew Gardens)',
@@ -62,6 +64,8 @@ export const jackieInfo: MapInfo = {
   // gantries clipped when they stood on the same spot).
   stage: { start: 40, finishFromEnd: 47, splits: 4 },
   environment: {
+    // Morning / afternoon countryside light (engine/hdri.ts); ?hdri=off compares with the procedural sky.
+    hdri: 'blaubeuren_hillside',
     sunElevation: 42,
     sunAzimuth: 330,
     // Hazy morning on the parkway: low sun from the east (~29 deg). ?tod=<hours> to try others.

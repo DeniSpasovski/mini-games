@@ -57,6 +57,13 @@ repository.
 
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 
+## HDRIs
+
+| File (`public/hdri/`)        | Source                                                                                                                  | Licence |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------- |
+| `noon_grass_1k.hdr`          | "Noon Grass" by Greg Zaal ([Poly Haven](https://polyhaven.com/a/noon_grass)), unmodified 1k HDR                         | CC0     |
+| `blaubeuren_hillside_1k.hdr` | "Blaubeuren Hillside" by Andreas Mischok ([Poly Haven](https://polyhaven.com/a/blaubeuren_hillside)), unmodified 1k HDR | CC0     |
+
 ## Music
 
 Not committed: the file stays local in `sources/music/` and is copied into the build.

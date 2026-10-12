@@ -1,3 +1,4 @@
+import { hdriSource } from '../../engine/hdri';
 import type { MapInfo } from '../shared/types';
 import data from './route.json';
 
@@ -21,6 +22,7 @@ export const ajvatovciInfo: MapInfo = {
   geo: { lat: data.meta.origin[0], lon: data.meta.origin[1] },
   credits: data.meta.sources,
   sources: [
+    hdriSource('blaubeuren_hillside'),
     {
       label: 'Google Maps route (start -> Ajvatovci Hill)',
       url: 'https://www.google.com/maps/dir/42.0001365,21.5777226/42.0085904,21.6141518',
@@ -58,6 +60,8 @@ export const ajvatovciInfo: MapInfo = {
   bounds: { minX: -4300, maxX: 4600, minZ: -3450, maxZ: 3500 },
   stage: { start: 40, finishFromEnd: 150, splits: 3 },
   environment: {
+    // Morning / afternoon countryside light (engine/hdri.ts); ?hdri=off compares with the procedural sky.
+    hdri: 'blaubeuren_hillside',
     sunElevation: 40,
     // Afternoon sun from the south-west (azimuth from +Z towards +X; +Z = south).
     sunAzimuth: 315,

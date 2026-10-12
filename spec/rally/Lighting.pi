@@ -1,0 +1,30 @@
+from ../trees/Foliage import Foliage
+
+export anchor Lighting:
+    description:
+        The rally stages are lit by a sun light and image-based light. A map
+        can name an HDRI, a real photographed sky and ground, and the stage's
+        ambient light and every reflection then come from it, while the sun
+        light keeps the direct light and the shadows. The visible sky stays
+        procedural, so clouds and the time of day keep working.
+
+    sources:
+        - HDRIs come from Poly Haven under CC0 and ship unmodified as 1k Radiance files with the rally game. Each has a row in the game's HDRI table, in the third-party list and in the About sources of every map that uses it.
+        - A map names at most one HDRI. A map without one is lit by its procedural sky as before.
+        - An HDRI suits its maps: daylight countryside, with a sun at a similar time of day.
+
+    image:
+        - The HDRI replaces the procedural sky as the source of the stage's environment map, so paint, glass, water and terrain reflect it and take their ambient light from it.
+        - It also replaces the sky light of the tree foliage, computed from it the same way (@{Foliage.shading}).
+        - The HDRI's own sun is clamped out before it lights anything. The sun light is the only sun, so there is never a second sun highlight or a doubled direct light.
+        - The HDRI is turned about the vertical so the place where its sun was sits at the map's sun azimuth, so its bright side, its shadows and the sun light agree. Its sun's elevation is not changed.
+        - Its brightness is scaled so its diffuse light matches the procedural sky's for the same map, times a per-map factor, so a map's exposure and light balance stay as tuned when it switches to an HDRI.
+        - The menu's car studio keeps its own studio lighting and ignores the HDRI.
+
+    loading:
+        - The HDRI loads while the stage loads, and the stage's warm-up frame waits for the lighting to be final, so the stage never starts lit by the sky and then changes.
+        - A load always finishes. If the HDRI fails or takes too long, the stage is lit by the procedural sky.
+        - Re-applying the environment while an HDRI loads drops the stale result; the latest settings win.
+        - A loaded and prepared HDRI is kept for the session, so a restart or the next stage with it does not fetch it again.
+
+    compare: A URL setting picks another HDRI or turns it off for any map, so the HDRI can be compared with the procedural sky light without editing the map.

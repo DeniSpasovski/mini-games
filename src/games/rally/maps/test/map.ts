@@ -1,3 +1,4 @@
+import { hdriSource } from '../../engine/hdri';
 import type { MapDef } from '../shared/types';
 
 /**
@@ -185,7 +186,10 @@ export const testMap: MapDef = {
   cornerFans: { every: 40, chance: 0.6, from: 60 },
   // Start / finish gantries, lines and split boards come from `stage` (world/stage-signs.ts).
   props: [],
+  sources: [hdriSource('noon_grass')],
   environment: {
+    // Midday light (engine/hdri.ts); ?hdri=off compares with the procedural sky.
+    hdri: 'noon_grass',
     sunElevation: 32,
     sunAzimuth: 215,
     airTemp: 20,

@@ -1,3 +1,4 @@
+import { hdriSource } from '../../engine/hdri';
 import type { MapInfo } from '../shared/types';
 import data from './route.json';
 
@@ -19,6 +20,7 @@ export const petralicaInfo: MapInfo = {
   geo: { lat: data.meta.origin[0], lon: data.meta.origin[1] },
   credits: data.meta.sources,
   sources: [
+    hdriSource('blaubeuren_hillside'),
     {
       label: 'Google Maps route (Ginovci -> Vila Ristovski)',
       url: 'https://www.google.com/maps/dir/42.1707824,22.1691664/42.2401682,22.2009501',
@@ -54,6 +56,8 @@ export const petralicaInfo: MapInfo = {
   bounds: { minX: -2400, maxX: 2400, minZ: -4800, maxZ: 4800 },
   stage: { start: 40, finishFromEnd: 150, splits: 4 },
   environment: {
+    // Morning / afternoon countryside light (engine/hdri.ts); ?hdri=off compares with the procedural sky.
+    hdri: 'blaubeuren_hillside',
     sunElevation: 38,
     // Afternoon sun from the south-west (azimuth from +Z towards +X; +Z = south).
     sunAzimuth: 320,

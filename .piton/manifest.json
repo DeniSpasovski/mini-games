@@ -1,5 +1,7 @@
 {
   "generated": [
+    ".claude/reference/rally/Lighting.md",
+    ".claude/reference/shape/games/rally/engine/Lighting.md",
     ".claude/reference/shape/trees/Trees.md",
     ".claude/reference/trees/Drawing.md",
     ".claude/reference/trees/Foliage.md",
@@ -9,7 +11,8 @@
     ".claude/reference/trees/Placement.md",
     ".claude/reference/trees/ProceduralTrees.md",
     ".claude/reference/trees/Species.md",
-    "src/CLAUDE.md"
+    "src/CLAUDE.md",
+    "src/games/rally/engine/CLAUDE.md"
   ],
   "targets": {
     "claude-code": "2026-09-21"
