@@ -34,17 +34,29 @@ test('balance bands: good bot on City Island, hard / medium / easy', () => {
 
 test('balance bands: good bot on the toy store, hard / medium / easy', () => {
   const m = generateToyStore({ seed: 1 });
-  const hard = runBot(new Sim(m, { seconds: 120 }), BOT_SKILLS.good, {
-    dt: 1 / 30,
-  });
+  const hard = runBot(
+    new Sim(m, { seconds: 120, maxLevel: 15 }),
+    BOT_SKILLS.good,
+    {
+      dt: 1 / 30,
+    },
+  );
   expect(hard.level).toBeGreaterThanOrEqual(10);
-  const medium = runBot(new Sim(m, { seconds: 240 }), BOT_SKILLS.good, {
-    dt: 1 / 30,
-  });
+  const medium = runBot(
+    new Sim(m, { seconds: 240, maxLevel: 15 }),
+    BOT_SKILLS.good,
+    {
+      dt: 1 / 30,
+    },
+  );
   expect(medium.level).toBeGreaterThanOrEqual(15);
-  const easy = runBot(new Sim(m, { seconds: 480 }), BOT_SKILLS.good, {
-    dt: 1 / 30,
-  });
+  const easy = runBot(
+    new Sim(m, { seconds: 480, maxLevel: 15 }),
+    BOT_SKILLS.good,
+    {
+      dt: 1 / 30,
+    },
+  );
   expect(easy.level).toBeGreaterThanOrEqual(15);
   expect(easy.pct).toBeGreaterThan(0.95);
 }, 122000);

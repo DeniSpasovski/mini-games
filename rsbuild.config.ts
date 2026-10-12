@@ -2,6 +2,7 @@ import { defineConfig, type EnvironmentConfig } from '@rsbuild/core';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { meshoptGlb } from './scripts/car-model/glb-meshopt.mjs';
 import { resolveGamePage, type GameManifest } from './src/portal/manifest';
 
 /**
@@ -43,12 +44,31 @@ const carModelFiles = fs.existsSync(carModelDir)
   ? fs.readdirSync(carModelDir).filter((f) => /.(glb|gltf)$/i.test(f))
   : [];
 
+const musicDir = path.resolve(root, 'sources/music');
+const musicFiles = fs.existsSync(musicDir) ? fs.readdirSync(musicDir) : [];
+
 /**
  * Game-only files that live in the root public/ folder: copied into that game's
  * folder only (dist/games/<id>/<to>), never into the portal or other games.
+ * Car GLBs are meshopt-compressed on the way (dev server too; scripts/car-model/glb-meshopt.mjs):
+ * about half the download, git keeps the plain files the model scripts and tests read.
  */
-const gamePublicFiles: Record<string, { from: string; to: string }[]> = {
-  rally: [{ from: 'public/models', to: 'models' }],
+type CopyTransform = (input: Buffer, file: string) => Buffer | Promise<Buffer>;
+const gamePublicFiles: Record<
+  string,
+  { from: string; to: string; transform?: CopyTransform }[]
+> = {
+  rally: [
+    {
+      from: 'public/models',
+      to: 'models',
+      transform: (input, file) =>
+        file.endsWith('.glb') ? meshoptGlb(input) : input,
+    },
+    // Menu music (src/games/rally/game/menu-music.ts): git-ignored (Pixabay licence: no standalone redistribution),
+    // so the folder is optional (missing or empty) and a CI checkout builds without it.
+    ...(musicFiles.length ? [{ from: musicDir, to: 'music' }] : []),
+  ],
 };
 
 const NO_ZOOM_VIEWPORT =
@@ -61,6 +81,10 @@ const NO_ZOOM_VIEWPORT =
  */
 const gameMeta: Record<string, (page: string) => Record<string, string>> = {
   rally: (page) => (page === 'index' ? { viewport: NO_ZOOM_VIEWPORT } : {}),
+  kaboom: (page) => ({
+    ...(page === 'index' ? { viewport: NO_ZOOM_VIEWPORT } : {}),
+    'theme-color': '#bfdcea',
+  }),
   // Only the play page locks zoom; the item / map viewer and balance pages are tools that need pinch zoom.
   hole: (page) => ({
     ...(page === 'index' ? { viewport: NO_ZOOM_VIEWPORT } : {}),
@@ -168,6 +192,7 @@ export default defineConfig(({ envMode }) => ({
     preEntry: ['./src/shared/host-guard.ts', './src/shared/consent-boot.ts'],
     define: {
       __CAR_MODEL_FILES__: JSON.stringify(carModelFiles),
+      __MUSIC_FILES__: JSON.stringify(musicFiles),
       // `npm run build:test` (`--env-mode test`): the published build also offers the TEST cars / maps (release.ts).
       __TEST_BUILD__: JSON.stringify(envMode === 'test'),
     },
@@ -184,9 +209,9 @@ export default defineConfig(({ envMode }) => ({
     // Page-relative URLs in dev too: every environment emits unhashed names like
     // static/js/index.js / three.js, so root "/static/..." URLs would clash between games.
     assetPrefix: 'auto',
-    // The car model list above is baked in at startup - restart when it changes.
+    // The car model + music lists above are baked in at startup - restart when they change.
     watchFiles: {
-      paths: carModelDir,
+      paths: [carModelDir, musicDir],
       events: ['add', 'unlink'],
       type: 'restart',
     },
@@ -210,6 +235,16 @@ export default defineConfig(({ envMode }) => ({
     // Used by the in-game "F9" capture (see src/shared/thumbnail.ts).
     setup: ({ action, server }) => {
       if (action !== 'dev') return;
+      // Dev: serve the git-ignored menu music like the build copies it (dist/games/rally/music).
+      server.middlewares.use('/games/rally/music', (req, res, next) => {
+        const file = path.join(
+          musicDir,
+          path.basename(decodeURIComponent((req.url ?? '').split('?')[0])),
+        );
+        if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return next();
+        res.setHeader('Content-Type', 'audio/mpeg');
+        fs.createReadStream(file).pipe(res);
+      });
       server.middlewares.use('/__dev/thumbnail', (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405;
@@ -232,6 +267,37 @@ export default defineConfig(({ envMode }) => ({
           const body = Buffer.concat(chunks).toString('utf8');
           const b64 = body.replace(/^data:image\/\w+;base64,/, '');
           const out = path.join(gamesDir, game, 'thumbnail.jpg');
+          fs.writeFileSync(out, Buffer.from(b64, 'base64'));
+          res.end(`saved ${path.relative(root, out)}`);
+        });
+      });
+      // Dev-only helper: POST a JPEG data URL to save an in-game screenshot as
+      // src/games/<game>/screenshots/<name>.jpg (see saveScreenshot in src/shared/thumbnail.ts).
+      server.middlewares.use('/__dev/screenshot', (req, res) => {
+        const url = new URL(req.url ?? '', 'http://x');
+        const clean = (v: string | null) =>
+          (v ?? '').replace(/[^a-z0-9_-]/gi, '');
+        const game = clean(url.searchParams.get('game'));
+        const name = clean(url.searchParams.get('name'));
+        if (
+          req.method !== 'POST' ||
+          !game ||
+          !name ||
+          !fs.existsSync(path.join(gamesDir, game))
+        ) {
+          res.statusCode = 400;
+          res.end('unknown game / name');
+          return;
+        }
+        const chunks: Buffer[] = [];
+        req.on('data', (c: Buffer) => chunks.push(c));
+        req.on('end', () => {
+          const b64 = Buffer.concat(chunks)
+            .toString('utf8')
+            .replace(/^data:image\/\w+;base64,/, '');
+          const dir = path.join(gamesDir, game, 'screenshots');
+          fs.mkdirSync(dir, { recursive: true });
+          const out = path.join(dir, `${name}.jpg`);
           fs.writeFileSync(out, Buffer.from(b64, 'base64'));
           res.end(`saved ${path.relative(root, out)}`);
         });

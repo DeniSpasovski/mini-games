@@ -1,6 +1,7 @@
 import type { Vector3 } from 'three';
+import type { BrakeSet } from './brakes';
 import type { SurfaceDef } from './surfaces';
-import type { TyreId } from './tyres';
+import type { TyreFamily } from './tyres';
 
 /**
  * Physics conventions (body frame, origin = centre of mass):
@@ -88,9 +89,7 @@ export interface AxleDef {
   travel: number;
   /** Anti-roll bar rate (N/m of compression difference). */
   antiRoll: number;
-  /** Max service-brake torque per wheel (Nm). */
-  brakeTorque: number;
-  /** Handbrake torque per wheel (Nm), usually only on the rear axle. */
+  /** Handbrake torque per wheel (Nm) on top of the service brake, usually only on the rear axle. */
   handbrakeTorque: number;
   /** Fraction of steering applied (1 = steered axle, 0 = fixed). */
   steer: number;
@@ -148,12 +147,23 @@ export interface TyreSize {
   aspect: number;
   /** Rim diameter (inches). */
   rim: number;
+  /**
+   * What kind of rubber it is, as grip against a rally competition tyre (1, the default): a road tyre is below it, a
+   * track slick above. Both axles of a car share it, so it moves the car's grip, not its balance. Design: ../PHYSICS.md.
+   */
+  grade?: number;
+}
+
+/** One axle's tyre sizes: `size` = default, `byCompound` = per compound overrides. */
+export interface AxleTyres {
+  size: TyreSize;
+  byCompound?: Partial<Record<TyreFamily, TyreSize>>;
 }
 
 /** Suspension set-up preset names; the menu shows them as spring colours yellow / orange / red. */
 export type SetupId = 'soft' | 'medium' | 'stiff';
 
-/** The axle numbers a set-up changes (the rest of `AxleDef` - brakes, steer, grip - stays). */
+/** The axle numbers a set-up changes (the rest of `AxleDef` - handbrake, steer, grip - stays). */
 export interface SetupAxle {
   /** Spring rate per wheel (N/m). */
   spring: number;
@@ -197,20 +207,26 @@ export interface CarPhysicsDef {
   rideHeight?: number;
   /** No traction control fitted (a 1970s road car): the assist is always off and its option / key do nothing. */
   noTractionControl?: boolean;
+  /** No ABS fitted: the brakes always lock when pushed hard, and its option / key do nothing. */
+  noAbs?: boolean;
+  /** Only the stiff bump stop past full travel, no progressive one (short-travel cars that rarely bottom out). */
+  hardBumpStop?: boolean;
   /** Scales the box inertia (real cars are ~0.8-1.0 of a solid box). */
   inertiaScale: number;
+  /**
+   * Wheel radius (m) on the default front size (`tyres.size`): the model's hubs, arches, hull and boxy profile. Other
+   * sizes roll on this scaled by their marking (`axleRadius`, physics/car-tyres.ts), within 4 % (tests/rally/car-setup.test.ts).
+   */
   wheelRadius: number;
-  /** Default tyre width (m): water drag + hull. The drawn / graded width is `tyres` (within 4 cm of this). */
+  /** Default tyre width (m): water drag + hull. The drawn / graded width is `tyres` (within 5 cm of this). */
   wheelWidth: number;
   /**
-   * Tyre sizes (see physics/car-tyres.ts for what width / sidewall do to grip). `size` is the default for every
-   * compound, `byCompound` overrides it (rally cars change rim size with the compound). The overall radius of every
-   * size must match `wheelRadius` (tests/rally/tyre-size.test.ts) - gearing and ride height never change.
+   * Tyre sizes per compound (see physics/car-tyres.ts for what width / sidewall do to grip): `size` is the default,
+   * `byCompound` overrides it (rally cars change rim size with the compound). A taller size than the default rolls on a
+   * bigger radius, lifting its end of the car (the hubs stay put) and lengthening the gearing. `rear` = the rear axle's
+   * sizes when they differ (staggered RWD cars; missing = the front's).
    */
-  tyres: {
-    size: TyreSize;
-    byCompound?: Partial<Record<TyreId, TyreSize>>;
-  };
+  tyres: AxleTyres & { rear?: AxleTyres };
   /** Per-wheel spin inertia (kg·m²), engine inertia is added for driven wheels. */
   wheelInertia: number;
   /** Max steering angle of the front wheels (deg). */
@@ -235,6 +251,13 @@ export interface CarPhysicsDef {
   /** The gearing preset `gearbox.finalDrive` holds (set by `applyGearing`); missing = medium. */
   gearing?: GearingId;
   drivetrain: DrivetrainDef;
+  /**
+   * Brake hardware per axle (physics/brakes.ts): type, size, pads and clamp force give the torque, the temperature
+   * (with a climate) the fade. `gravelBrakes` = the smaller kit that goes with the 15 in gravel wheels, fitted with the
+   * mixed and gravel compounds (`Vehicle.setTyre`); missing = one kit for every tyre.
+   */
+  brakes: BrakeSet;
+  gravelBrakes?: BrakeSet;
   /** Drag coefficient × frontal area (m²). */
   dragArea: number;
   /** Downforce coefficient × area (m²), 0 for most gravel cars. */

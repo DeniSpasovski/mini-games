@@ -10,9 +10,9 @@ import {
   generateConstructionCity,
 } from './construction/generate';
 import { generateCity, targetPoints } from './generate';
-import { AVAILABLE_MAPS, SHOW_TEST_CONTENT } from '../release';
+import { MAPS_LIST, released } from '../release';
 import { DEFAULT_TOY, generateToyStore, toyTargetPoints } from './toy/generate';
-import { LAYOUTS } from './toy/layouts';
+import { ITEM_LEVELS } from '../sim/progression';
 import type { MapData } from './types';
 
 /** Everything the game needs to know about a playable map. DOM-free (tests and the bot use it too). */
@@ -38,13 +38,13 @@ export interface MapDef {
   itemMap: ItemMap;
   /** Total points of every seed (before the clear bonus). */
   points: number;
-  generate(seed: number, opts?: { layout?: string }): MapData;
+  /** Highest hole level on this map (default: all levels, `MAX_LEVEL`). */
+  maxLevel?: number;
+  generate(seed: number): MapData;
   /** The menu offers a seed stepper ("Island #7"): every seed holds the same points, so one score list covers them all. */
   seeded?: boolean;
   /** Swallow puff colours: dust outdoors, confetti in the store, rubble on the building site. */
   puffs: 'dust' | 'confetti' | 'fur' | 'rubble';
-  /** Floor plans the menu offers as buttons (the toy store). */
-  layouts?: { id: string; name: string }[];
   mood: MapMood;
   /** Menu fly-around camera. */
   aerial: { radius: number; pitchDeg: number };
@@ -79,9 +79,9 @@ export const ALL_MAPS: MapDef[] = [
     noun: 'store',
     itemMap: 'toy',
     points: toyTargetPoints(DEFAULT_TOY),
-    generate: (seed, opts) =>
-      generateToyStore({ seed, layout: opts?.layout ?? DEFAULT_TOY.layout }),
-    layouts: Object.values(LAYOUTS).map((l) => ({ id: l.id, name: l.name })),
+    maxLevel: ITEM_LEVELS,
+    generate: (seed) => generateToyStore({ seed }),
+    seeded: true,
     puffs: 'confetti',
     mood: {
       sky: 0xf7e9d2,
@@ -132,10 +132,8 @@ export const ALL_MAPS: MapDef[] = [
   },
 ];
 
-/** The maps this build offers: all of them on the dev server and in test builds, else the released ones. */
-export const MAPS: MapDef[] = SHOW_TEST_CONTENT
-  ? ALL_MAPS
-  : ALL_MAPS.filter((m) => AVAILABLE_MAPS.includes(m.id));
+/** The maps this build offers: all of them on the dev server and in test builds, else those without `hideInProd`. */
+export const MAPS: MapDef[] = released(ALL_MAPS, MAPS_LIST);
 
 export function getMapDef(id: string | null | undefined): MapDef {
   return MAPS.find((m) => m.id === id) ?? MAPS[0];

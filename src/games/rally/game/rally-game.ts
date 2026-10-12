@@ -23,6 +23,7 @@ import { SURFACES, type SurfaceId } from '../physics/surfaces';
 import { applySetup } from '../physics/car-setup';
 import { applyGearing, hasGearings } from '../physics/gearing';
 import { carGripRating } from '../physics/car-tyres';
+import { brakeLevel } from '../physics/brakes';
 import { TYRES, type TyreId } from '../physics/tyres';
 import type { GearingId, SetupId } from '../physics/types';
 import { PHYSICS_HZ, Vehicle } from '../physics/vehicle';
@@ -75,10 +76,15 @@ import {
   FLIPPED_UP_Y,
   StageTimer,
   type StageEvent,
-  TIMES_VERSION,
+  carTimesVersion,
+  timesVersion,
 } from './stage';
+import { stageClimate } from '../maps/shared/climate';
 import type { MapDef } from '../maps/shared/types';
+import { trackTemp } from '../physics/tyre-temp';
+import type { TyreGaugeState } from './tyre-gauge';
 import { ForceLines, Telemetry } from './telemetry';
+import { paramNumber } from '../../../shared/url-params';
 
 export interface GameOptions {
   /** The full map (`loadMap`, maps/index.ts: the baked data is loaded on demand). */
@@ -105,6 +111,11 @@ const TERRAIN_LODS = [160, 520, 1100];
 /** Extra half-angle (rad) around the camera view for scatter view culling (`InstanceStreamer.setView`). */
 const VIEW_MARGIN = (25 * Math.PI) / 180;
 const MAX_STEPS = 10;
+/**
+ * Longest frame the game simulates (s): what MAX_STEPS physics steps cover. A slower frame (a hitch) runs in slow
+ * motion as a whole, so the camera, effects and audio never get ahead of the car (the car seemed to jump back).
+ */
+const MAX_FRAME = MAX_STEPS * STEP;
 
 /**
  * Owns everything in a play session. Frame order:
@@ -230,6 +241,7 @@ export class RallyGame {
     );
 
     progress(0.15, 'Road');
+    await paint();
     const road = buildRoadMesh(this.world);
     this.scene.add(road);
     // Whole-map meshes: nothing past the streamed terrain (no ground under them there).
@@ -267,6 +279,7 @@ export class RallyGame {
     }
 
     progress(0.8, 'Vegetation & props');
+    await paint();
     this.streamer = new InstanceStreamer(this.world, {
       lodScale: q.lodScale * OBJECT_DISTANCE[this.opts.settings.objectDistance],
       detailDensity: q.detailDensity,
@@ -307,6 +320,7 @@ export class RallyGame {
     await frame();
 
     progress(0.9, 'Car');
+    await paint();
     this.vehicle = new Vehicle(
       applyGearing(
         applySetup(this.car.physics, this.opts.setup),
@@ -315,6 +329,15 @@ export class RallyGame {
       this.world,
     );
     this.vehicle.setTyre(this.opts.tyre);
+    // Tyre temperatures: the map's air temperature (`?air=<°C>` to try others) and the sun as drawn (after `?tod=`).
+    const air = new URLSearchParams(location.search).get('air');
+    this.vehicle.setClimate(
+      stageClimate(
+        map.environment,
+        this.env.sunElevation,
+        paramNumber(air, -60, 70, undefined),
+      ),
+    );
     this.model = new CarModel(this.car, {
       seed: this.opts.livery,
       tyre: this.opts.tyre,
@@ -360,7 +383,9 @@ export class RallyGame {
     // Warm up so the first frames don't hitch: wait for the imported car (hidden until then, so compile()
     // would skip it), then render one frame with culling off - compile() covers neither the shadow pass nor
     // the buffer uploads, and a culled render uploads only what the spawn camera sees.
+    progress(0.95, 'Compiling shaders');
     await this.model.ready;
+    await paint();
     this.model.updateFromVehicle(this.vehicle, 1);
     this.env.update(
       this.model.root.position,
@@ -390,6 +415,7 @@ export class RallyGame {
     this.audio.setVolume(s.volume);
     this.vehicle.drivetrain.automatic = s.automatic;
     this.vehicle.tractionControl = s.traction;
+    this.vehicle.abs = s.abs;
     this.rig.mode = s.camera;
     // Object draw distance (options): the streamer re-buckets on its next update.
     const lodScale =
@@ -446,6 +472,7 @@ export class RallyGame {
   placeAtSpawn(): void {
     const spawn = this.world.spawn(this.opts.spawn);
     this.vehicle.reset(spawn.position, spawn.heading);
+    this.vehicle.resetTyreTemps();
     this.tyreMarks?.breakStrips();
     this.rig.snap();
     this.breakables.reset((inst) => this.streamer.setMatrix(inst, null));
@@ -468,7 +495,7 @@ export class RallyGame {
       if (!this.running) return;
       requestAnimationFrame(loop);
       // rAF's timestamp can precede the performance.now() taken in start(): never step backwards.
-      const dt = Math.min(0.1, Math.max(0, (now - this.last) / 1000));
+      const dt = Math.min(MAX_FRAME, Math.max(0, (now - this.last) / 1000));
       this.last = now;
       this.frame(dt);
     };
@@ -493,6 +520,34 @@ export class RallyGame {
     this.opts.spawn = this.freeDrive ? this.opts.spawn : 'start';
     this.placeAtSpawn();
     this.setPaused(false);
+  }
+
+  private gaugeState: TyreGaugeState = {
+    temps: [0, 0, 0, 0],
+    window: TYRES.mixed.temp,
+    brakes: [0, 0, 0, 0],
+    discs: [0, 0, 0, 0],
+    steer: 0,
+    air: 0,
+    track: 0,
+  };
+
+  /** HUD tyre temperatures (none without a climate / tyre). */
+  private tyreGaugeState(): TyreGaugeState | undefined {
+    const v = this.vehicle;
+    if (!v.climate || !v.tyre) return undefined;
+    const g = this.gaugeState;
+    const temps = g.temps as number[];
+    v.wheels.forEach((w, i) => {
+      temps[i] = w.temp;
+      (g.brakes as number[])[i] = brakeLevel(w.brakeTemp, w.brake);
+      (g.discs as number[])[i] = w.brakeTemp;
+    });
+    g.window = TYRES[v.tyre].temp;
+    g.steer = v.wheels[0].steerAngle;
+    g.air = v.climate.air;
+    g.track = trackTemp(v.climate, v.wheels[0].surface);
+    return g;
   }
 
   /** Put the car back on the road (R / B button / touch + pause-menu button); costs a penalty while the stage runs. */
@@ -566,6 +621,15 @@ export class RallyGame {
           'small',
         );
         break;
+      case 'abs':
+        if (this.car.physics.noAbs) {
+          this.hud.message('NO ABS', 1.2, 'small');
+          break;
+        }
+        v.abs = !v.abs;
+        saveSettings({ abs: v.abs });
+        this.hud.message(`ABS ${v.abs ? 'ON' : 'OFF'}`, 1.2, 'small');
+        break;
       case 'telemetry':
         this.telemetry.toggle();
         break;
@@ -615,7 +679,7 @@ export class RallyGame {
       game_rally_gearing: hasGearings(this.car.physics)
         ? this.opts.gearing
         : undefined,
-      game_rally_times_version: TIMES_VERSION,
+      game_rally_times_version: timesVersion(this.world.map.id),
     };
   }
 
@@ -677,6 +741,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         ...(hasGearings(this.car.physics) ? { gear: this.opts.gearing } : {}),
         splits: [...this.stage.splitTimes],
         ...(e.penalty ? { penalty: e.penalty } : {}),
+        ver: timesVersion(this.world.map.id),
+        carVer: carTimesVersion(this.car.id),
         date: Date.now(),
       };
       // Free drive runs don't count.
@@ -972,7 +1038,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         this.acc -= STEP;
         steps++;
       }
-      if (steps === MAX_STEPS) this.acc = 0; // slow-mo instead of a death spiral
+      // Slow-mo instead of a death spiral; keep the remainder (< 1 step) so the interpolated car never steps back.
+      if (steps === MAX_STEPS) this.acc = Math.min(this.acc, STEP);
       this.knockPosts(dt);
     } else this.input.poll();
     const alpha = this.paused ? 1 : this.acc / STEP;
@@ -1077,7 +1144,10 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         automatic: v.drivetrain.automatic,
         tc: v.tractionControl && !this.car.physics.noTractionControl,
         tcActive: v.tcFactor < 0.95,
+        abs: v.abs && !this.car.physics.noAbs,
+        absActive: v.absActive,
         hold: v.parked || v.holding,
+        tyres: this.tyreGaugeState(),
       },
       this.stage,
     );
@@ -1237,6 +1307,12 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       }
     }
   }
+}
+
+/** Yield until the browser has painted (so a loading label shows before a long synchronous step). */
+async function paint(): Promise<void> {
+  await frame();
+  await new Promise<void>((r) => setTimeout(r));
 }
 
 /** Yield to the browser (next frame, or a timer when the tab is hidden and rAF is paused). */

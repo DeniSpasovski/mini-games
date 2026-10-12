@@ -71,7 +71,7 @@ export const IMPOSTOR = 2;
 const REPACK = (8 * Math.PI) / 180;
 /**
  * Static membership is conservative over this much zoom (px ratio) before the next job, which starts once the field
- * of view moved half of it. Tiny: at the far thresholds (~1300 m) every 1% is a 13 m ring of per-frame trees, and the
+ * of view moved half of it. Tiny: at the far threshold (~370 m) every 1% is a 4 m ring of per-frame trees, and the
  * field of view only changes with a camera switch (trees/Lod.md#active-set).
  */
 const ZOOM_MARGIN = 1.004;
@@ -746,7 +746,7 @@ export class TreeRenderer {
           const hMax = (st.diameter * px * ZOOM_MARGIN) / dMin;
           const l = st.to;
           // Settled at l for every camera in the window: LOD0 stays LOD0 inside the full-detail distance and above
-          // its threshold outside it (so the 120 m line only activates trees whose level it changes); a coarser
+          // its threshold outside it (so the full-detail line only activates trees whose level it changes); a coarser
           // level needs the whole window outside that distance and inside its hysteresis band.
           const steadyLevel =
             st.from === l &&

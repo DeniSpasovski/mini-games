@@ -20,6 +20,7 @@ export class Hud {
   private lastScore = -1;
   private lastDone = -1;
   private lastTime = '';
+  private lastProgress = '';
 
   constructor(
     private root: HTMLElement,
@@ -77,7 +78,11 @@ export class Hud {
       this.doneBar.style.width = `${Math.min(100, islandDone * 100).toFixed(1)}%`;
       this.lastDone = pct;
     }
-    this.badge.style.setProperty('--p', progress.toFixed(3));
+    const p = progress.toFixed(3);
+    if (p !== this.lastProgress) {
+      this.badge.style.setProperty('--p', p);
+      this.lastProgress = p;
+    }
     if (level !== this.lastLevel) {
       this.badgeNum.textContent = String(level);
       this.eats.textContent =
@@ -99,6 +104,7 @@ export class Hud {
     this.lastScore = -1;
     this.lastDone = -1;
     this.lastTime = '';
+    this.lastProgress = '';
   }
 
   /** Floating "+N" at a screen position. */

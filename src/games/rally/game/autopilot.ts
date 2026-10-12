@@ -1,6 +1,6 @@
 import { roadSurfaceAt } from '../maps/shared/types';
 import type { VehicleControls } from '../physics/types';
-import type { Vehicle } from '../physics/vehicle';
+import { PHYSICS_HZ, type Vehicle } from '../physics/vehicle';
 import { newRoadQuery, type Road } from '../world/road';
 
 /**
@@ -16,6 +16,10 @@ import { newRoadQuery, type Road } from '../world/road';
  */
 /** Surface mu the cornering plan (0.7 g) was tuned for (gravel); more grip only speeds it up with `useExtraGrip`. */
 const REF_MU = 0.86;
+
+/** Pedal per m/s of speed over the plan, for brakes pulling `BRAKE_REF_DECEL` m/s² (a rally car's, 1.37 g). */
+const BRAKE_GAIN = 0.15;
+const BRAKE_REF_DECEL = 13.4;
 
 export class Autopilot {
   /** 0..1, scales cornering speed (1 = brave). */
@@ -42,7 +46,8 @@ export class Autopilot {
   /** Cornering-speed scale (0.45..1, up to 1.5 with `useExtraGrip`) for the tyre on the road surface `d` m ahead. */
   private gripAhead(v: Vehicle, d: number): number {
     const id = roadSurfaceAt(this.road.def, this.progress + d).surface;
-    const mu = v.surfaceFor(id).mu;
+    // Cold / overheated tyres (physics/tyre-temp.ts) slow it down too.
+    const mu = v.surfaceFor(id).mu * v.tempGripFor(id);
     return Math.min(this.useExtraGrip ? 1.5 : 1, Math.max(0.45, mu / REF_MU));
   }
 
@@ -79,7 +84,8 @@ export class Autopilot {
     // Speed plan: for each point ahead, the speed we could still brake down
     // to its cornering limit (v^2 = v_corner^2 + 2 a d); take the minimum.
     const grip = 0.7 * 9.81 * (0.55 + this.aggression * 0.45);
-    const decel = 4.2 * this.gripAhead(v, 0); // conservative: gravel + downhill
+    // Conservative: gravel + downhill; faded or cold brakes (physics/brakes.ts) cap it at what they pull now.
+    const decel = Math.min(4.2 * this.gripAhead(v, 0), 0.85 * v.brakeDecel);
     let target = this.maxSpeed;
     const horizon = 30 + Math.max(0, speed) * 3;
     // Over a crest that launches the car (v^2 * vertical curvature > g) there is
@@ -111,7 +117,12 @@ export class Autopilot {
     // Lift off while sliding (|beta| > 3 deg) so the tyres can recover.
     const slideCut = Math.max(0, 1 - Math.max(0, Math.abs(beta) - 0.05) / 0.12);
     out.throttle = e > 0 ? Math.min(1, e * 0.4 + 0.3) * slideCut : 0;
-    out.brake = e < -1.5 ? Math.min(1, -e * 0.15) : 0;
+    // Pedal in proportion to the speed to shed, scaled to what the brakes pull now (the same time constant for a
+    // strong, a weak or a faded brake).
+    out.brake =
+      e < -1.5
+        ? Math.min(1, (-e * BRAKE_GAIN * BRAKE_REF_DECEL) / v.brakeDecel)
+        : 0;
     out.handbrake = 0;
     return out;
   }
@@ -124,13 +135,14 @@ export class Autopilot {
 /**
  * Controls for the automatic stop after the finish line: keep following the
  * road, no throttle, progressive braking (firm at speed, gentle near 0 so the
- * wheels don't lock and spin the car). Vehicle auto-hold takes over at rest.
+ * wheels don't lock and spin the car) with ABS. Vehicle auto-hold takes over at rest.
  */
 export function finishStopControls(
   pilot: Autopilot,
   v: Vehicle,
   out: VehicleControls,
 ): VehicleControls {
+  const prevBrake = out.brake;
   pilot.drive(v, out);
   const sp = Math.abs(v.speed);
   // Pull back towards the centreline while slowing down (+lateral = left -> steer right).
@@ -139,6 +151,15 @@ export function finishStopControls(
   out.handbrake = 0;
   // Below 0.3 m/s release so Vehicle auto-hold (engages < 0.5 m/s, no pedals) parks it.
   // (A floor of 0.45: a weak-braked car creeping on a slight downhill must still stop.)
-  out.brake = sp > 0.3 ? Math.min(0.7, 0.45 + sp / 40) : 0;
+  let brake = sp > 0.3 ? Math.min(0.7, 0.45 + sp / 40) : 0;
+  // ABS (called once per physics step): locked wheels can't steer - from 150 km/h on gravel 0.7 locked all four and
+  // slid the car off a bend. Eased, not switched every step (that bounced the car on its springs).
+  if (sp > 3) {
+    const locking = v.wheels.some((w) => w.contact && w.slipRatio < -0.2);
+    brake = locking
+      ? prevBrake - 3 / PHYSICS_HZ
+      : Math.min(brake, prevBrake + 1.5 / PHYSICS_HZ);
+  }
+  out.brake = Math.max(0, brake);
   return out;
 }

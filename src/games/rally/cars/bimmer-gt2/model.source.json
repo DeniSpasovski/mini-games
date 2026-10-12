@@ -6,7 +6,7 @@
   "scale": 1.0,
   "offset": [0, 0.06, 1.2668],
   "groundAtMin": false,
-  "targetTriangles": 95000,
+  "targetTriangles": 50000,
   "creaseDeg": 40,
   "wheels": {
     "$comment": "the wheels are separate meshes (dropped below) - nothing to cut",
@@ -47,6 +47,53 @@
         "x": [0.7, 1.1],
         "y": [0.74, 1.0],
         "z": [0.5, 1.6]
+      },
+      {
+        "$comment": "plate pocket walls and the small faces under the tail lamps (|x| < REAR_X): rear chart (pearl), not the side charts' red blocks",
+        "chart": "rear",
+        "any": true,
+        "x": [0, 0.5],
+        "y": [0.55, 0.84],
+        "z": [-2.45, -2.2]
+      },
+      {
+        "$comment": "grooves along the rear-quarter flare, from the door to the arch vents (|x| 0.8 - 0.96, y 0.4 - 0.78, z -0.92 .. -0.25): their down-facing ledges sat on the bottom chart's dark undercoat and read as an open slot -> side chart, the livery around them",
+        "chart": "side",
+        "minNy": -1.01,
+        "maxNy": 1.01,
+        "x": [0.8, 0.96],
+        "y": [0.4, 0.78],
+        "z": [-0.92, -0.25]
+      }
+    ],
+    "backBoxes": [
+      {
+        "$comment": "the open rear fender flare beside each tail lamp (|x| 0.7 - 1.0): seen from inside the slot its skin was back-face culled, so the ground showed through -> reversed copies in the slot's dark red (recess)",
+        "x": [0.7, 1.0],
+        "y": [0.45, 0.9],
+        "z": [-2.35, -1.85],
+        "at": [0.9, 0.72, -1.6],
+        "material": "recess"
+      }
+    ],
+    "flatBoxes": [
+      {
+        "$comment": "inside walls of the open rear fender flare beside each tail lamp (faces turned away from the outside, maxNx; the outer skin keeps its livery blocks): one flat livery red, not the pattern's white / blue blocks, in the recess material (the livery in shadow: reads as a dark tunnel). at = a red block on the quarter (z -1.6 is ahead of the white tail)",
+        "x": [0.7, 0.93],
+        "y": [0.5, 0.86],
+        "z": [-2.3, -1.85],
+        "maxNx": 0.3,
+        "at": [0.9, 0.72, -1.6],
+        "material": "recess"
+      },
+      {
+        "$comment": "the slot's floor (up-facing ledge), out to the skin: same dark red",
+        "x": [0.7, 0.93],
+        "y": [0.6, 0.7],
+        "z": [-2.3, -1.85],
+        "minNy": 0.6,
+        "at": [0.9, 0.72, -1.6],
+        "material": "recess"
       }
     ]
   },
@@ -78,6 +125,22 @@
         "y": [0, 0.3],
         "material": "carbon",
         "z": [-2.45, 1.1]
+      },
+      {
+        "$comment": "the vent slot in each rear bumper corner (behind the rear wheel, opening backwards): its inside walls black, not livery",
+        "mat": "Body",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [0.765, 0.29],
+            [0.835, 0.29],
+            [0.835, 0.517],
+            [0.765, 0.517]
+          ],
+          "depth": [-2.26, -2.05],
+          "mirror": true
+        },
+        "material": "trim"
       },
       {
         "mat": "Body",
@@ -191,7 +254,8 @@
       "lamphousing",
       "headled",
       "tailled",
-      "redcover"
+      "redcover",
+      "recess"
     ],
     "wrap": {},
     "preview": {
@@ -206,7 +270,8 @@
       "lamphousing": "#3a3b3e",
       "headled": "#fff4d6",
       "tailled": "#e0242c",
-      "redcover": "#b3151c"
+      "redcover": "#b3151c",
+      "recess": "#5a1010"
     },
     "maxTriangles": {
       "lamphousing": 8000,
@@ -215,6 +280,56 @@
       "tailled": 3000,
       "lenscover": 3500,
       "redcover": 1500
-    }
+    },
+    "solids": [
+      {
+        "$comment": "back wall inside the open rear fender flare (left; its outline follows the flare skin 2 - 5 mm inside, widened inwards behind the tail lamp so nothing shows past it): closes the slot beside the tail lamp. Recess material (the livery in shadow), `at` = one flat livery red (a red block on the quarter). Frame turned 180 deg so its face looks backwards (v = -y, w = -z)",
+        "material": "recess",
+        "frame": {
+          "origin": [0, 0, -1.94],
+          "tilt": 180
+        },
+        "poly": [
+          [0.7, -0.86],
+          [0.8, -0.84],
+          [0.835, -0.82],
+          [0.846, -0.8],
+          [0.855, -0.76],
+          [0.864, -0.72],
+          [0.874, -0.66],
+          [0.884, -0.6],
+          [0.896, -0.5],
+          [0.55, -0.5],
+          [0.55, -0.72]
+        ],
+        "w": [0, 0.02],
+        "chart": "left",
+        "at": [0.9, 0.72, -1.6]
+      },
+      {
+        "$comment": "back wall inside the open rear fender flare (right; its outline follows the flare skin 2 - 5 mm inside, widened inwards behind the tail lamp so nothing shows past it): closes the slot beside the tail lamp. Recess material (the livery in shadow), `at` = one flat livery red (a red block on the quarter). Frame turned 180 deg so its face looks backwards (v = -y, w = -z)",
+        "material": "recess",
+        "frame": {
+          "origin": [0, 0, -1.94],
+          "tilt": 180
+        },
+        "poly": [
+          [-0.55, -0.72],
+          [-0.55, -0.5],
+          [-0.896, -0.5],
+          [-0.884, -0.6],
+          [-0.874, -0.66],
+          [-0.864, -0.72],
+          [-0.855, -0.76],
+          [-0.846, -0.8],
+          [-0.835, -0.82],
+          [-0.8, -0.84],
+          [-0.7, -0.86]
+        ],
+        "w": [0, 0.02],
+        "chart": "right",
+        "at": [-0.9, 0.72, -1.6]
+      }
+    ]
   }
 }

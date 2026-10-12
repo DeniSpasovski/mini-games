@@ -55,3 +55,20 @@ export async function saveThumbnail(
   });
   return r.text();
 }
+
+/**
+ * Dev helper: save the canvas as `src/games/<id>/screenshots/<name>.jpg` (README screenshots, taken in game at the canvas
+ * size, so render at 1280-1536 px wide first). Call it in the same task as the render (the WebGL canvas is cleared after).
+ */
+export async function saveScreenshot(
+  gameId: string,
+  name: string,
+  source: HTMLCanvasElement,
+): Promise<string> {
+  const data = source.toDataURL('image/jpeg', 0.9);
+  const r = await fetch(
+    `/__dev/screenshot?game=${encodeURIComponent(gameId)}&name=${encodeURIComponent(name)}`,
+    { method: 'POST', body: data },
+  );
+  return r.text();
+}

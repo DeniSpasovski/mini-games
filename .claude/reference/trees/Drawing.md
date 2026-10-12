@@ -19,6 +19,7 @@ Trees are opaque geometry and are ordered by the depth buffer alone. What is in 
 - The impostor writes a per-pixel depth from its baked depth map, so it meets the terrain and neighbouring trees where the tree would, not as a flat card. Its quad sits at the front of the tree's bounding sphere and the written depth only ever moves away from the camera, so conservative depth keeps early depth testing on.
 - Both levels in a fade ([Lod.transition](./Lod.md#transition)) write their own depth through the dither, so neither draws over the other.
 - The trunk's base is sunk below the terrain by the base radius, so the tree never shares a surface with the ground and never z-fights with it.
+- Where a branch segment overlaps into the next one to close the gap on the outside of a bend, the overlap narrows inside the next segment, so two segments never share a surface and never z-fight.
 
 ## Culling
 

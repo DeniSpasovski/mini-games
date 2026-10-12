@@ -5,6 +5,7 @@ import { goToPortal, portalUrl } from '../../../shared/portal-link';
 import { installThumbnailCapture } from '../../../shared/thumbnail';
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { DEFAULT_CAR, getCar } from '../cars';
+import { preloadCarModel } from '../cars/shared/car-gltf';
 import { loadQuality } from '../engine/quality';
 import {
   buildLeaderboard,
@@ -17,7 +18,7 @@ import {
   GamepadMenuNav,
   moveFocus,
   type NavAction,
-} from '../game/pad-nav';
+} from '../../../shared/pad-nav';
 import { RallyGame } from '../game/rally-game';
 import { loadSettings } from '../game/settings';
 import {
@@ -25,11 +26,12 @@ import {
   isTouchDevice,
   TouchControls,
 } from '../game/touch-controls';
-import { formatDelta, formatTime, purgeStaleTimes } from '../game/stage';
+import { formatDelta, formatTime, migrateTimes } from '../game/stage';
 import { DEFAULT_MAP, getMap, loadMap } from '../maps';
 import { SETUP_FOR_TYRE, SETUP_IDS } from '../physics/car-setup';
 import { isGearingId } from '../physics/gearing';
 import { parseTyre } from '../physics/tyres';
+import { paramInt } from '../../../shared/url-params';
 
 /**
  * /games/rally/                -> main menu (welcome -> stage -> car, options)
@@ -65,7 +67,7 @@ const portalButton = portalUrl()
   ? `<button data-a="portal">All games</button>`
   : '';
 
-purgeStaleTimes(); // physics changed -> old stage times are erased before any menu reads them
+migrateTimes(); // physics changed -> old stage times are tagged with their version before any menu reads them
 
 if (deepLink) void play(readUrlState(DEFAULTS));
 else
@@ -82,7 +84,17 @@ function mainMenu(): void {
   location.href = location.pathname;
 }
 
-async function play(params: typeof DEFAULTS): Promise<void> {
+async function play(raw: typeof DEFAULTS): Promise<void> {
+  // Only real values go on: known map / car ids (unknown -> default), a whole livery number, a spawn that is metres or a short name.
+  const params = {
+    ...raw,
+    map: getMap(raw.map).id,
+    car: getCar(raw.car).id,
+    livery: paramInt(String(raw.livery), 0, 9999, 0),
+    spawn: /^(\d{1,6}(\.\d{1,3})?|[a-z][a-z0-9_-]{0,31})$/.test(raw.spawn)
+      ? raw.spawn
+      : 'start',
+  };
   const loading = overlay(`
     <div class="box">
       <h2>Loading stage…</h2>
@@ -98,7 +110,18 @@ async function play(params: typeof DEFAULTS): Promise<void> {
     ? params.gear
     : (info.gearing ?? 'medium');
   // The map's baked data is its own chunk: fetched here, behind the loading overlay.
+  // The car's GLB downloads while the map's data loads / the world builds (both block the main thread a while).
+  preloadCarModel(getCar(params.car));
+  const setLoading = (f: number, text: string) => {
+    loading.querySelector<HTMLElement>('.bar div')!.style.width = `${f * 100}%`;
+    loading.querySelector('.status')!.textContent = text;
+  };
+  setLoading(0.01, 'Loading map data');
+  await paintNow();
   const map = await loadMap(params.map);
+  // Building the world is one synchronous step: show its label first.
+  setLoading(0.03, 'Building world');
+  await paintNow();
   const game = new RallyGame(root, {
     map,
     carId: params.car,
@@ -148,6 +171,7 @@ async function play(params: typeof DEFAULTS): Promise<void> {
     pauseBox.append(
       buildOptions({
         tractionControl: !getCar(params.car).physics.noTractionControl,
+        abs: !getCar(params.car).physics.noAbs,
         onBack: showPauseMenu,
         onChange: (s) => game.applySettings(s),
         // The renderer is built for one quality: reload into the same stage.
@@ -273,11 +297,7 @@ async function play(params: typeof DEFAULTS): Promise<void> {
   });
 
   game
-    .init((f, text) => {
-      loading.querySelector<HTMLElement>('.bar div')!.style.width =
-        `${f * 100}%`;
-      loading.querySelector('.status')!.textContent = text;
-    })
+    .init(setLoading)
     .then(() => {
       loading.remove();
       if (touch)
@@ -300,6 +320,11 @@ async function play(params: typeof DEFAULTS): Promise<void> {
       loading.querySelector('.status')!.textContent = `Failed: ${err}`;
       console.error(err);
     });
+}
+
+/** Resolves once the browser has painted the last DOM change. */
+function paintNow(): Promise<void> {
+  return new Promise((r) => requestAnimationFrame(() => setTimeout(r)));
 }
 
 function overlay(html: string): HTMLDivElement {

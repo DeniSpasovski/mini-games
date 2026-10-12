@@ -6,6 +6,7 @@ import {
   PerspectiveCamera,
   ShaderChunk,
   type BufferGeometry,
+  type DataTexture,
   type Material,
 } from 'three';
 import { minimalMap } from '../../src/games/hole/map/minimal';
@@ -125,6 +126,7 @@ test('three.js internals the item batches rely on are still there', () => {
     '_multiDrawCounts',
     '_multiDrawCount',
     '_indirectTexture',
+    '_matricesTexture',
     '_geometryInfo',
   ])
     expect(b[key]).toBeDefined();
@@ -133,4 +135,44 @@ test('three.js internals the item batches rely on are still there', () => {
   const info = (b._geometryInfo as { start: number; count: number }[])[g];
   expect(info.count).toBe(36);
   bm.dispose();
+});
+
+test('after the first render only the changed matrix rows are re-uploaded', () => {
+  const placements = [];
+  for (let k = 0; k < 400; k++)
+    placements.push({
+      item: 'bench',
+      x: k * 2,
+      z: 0,
+      rot: 0,
+      variant: 0,
+      paint: 0,
+    });
+  const world = new World(minimalMap(placements));
+  const inst = new ItemInstances(world, mats);
+  const batch = inst.group.children[0] as BatchedMesh;
+  const tex = (batch as unknown as { _matricesTexture: DataTexture })
+    ._matricesTexture;
+  const rows = tex.image.height;
+
+  // before the texture is on the GPU the whole thing is sent (no ranges)
+  world.moving.add(5);
+  inst.update();
+  expect(tex.updateRanges.length).toBe(0);
+
+  drawn(inst, lookDownAt(100, 0, 30)); // first render
+  world.moving.add(5);
+  world.moving.add(6);
+  inst.update();
+  // two neighbours share one row: one range of one full row
+  expect(tex.updateRanges.length).toBe(1);
+  expect(tex.updateRanges[0].count).toBe(tex.image.width * 4);
+  tex.clearUpdateRanges();
+
+  // more than half of the rows changed: full upload instead
+  for (let i = 0; i < world.n; i++) world.moving.add(i);
+  inst.update();
+  expect(tex.updateRanges.length).toBe(0);
+  expect(rows).toBeGreaterThan(2);
+  inst.dispose();
 });

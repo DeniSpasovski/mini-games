@@ -744,6 +744,11 @@ export interface EnvironmentDef {
    * angles (`engine/environment.ts` `sunAt`) and, through them, its colour. Try others with `?tod=<hours>`.
    */
   timeOfDay?: number;
+  /**
+   * Air temperature (°C, default 20): with the sun height and clouds it sets the track temperature and how the tyres
+   * warm up (physics/tyre-temp.ts, `stageClimate`). Try others with `?air=<°C>`.
+   */
+  airTemp?: number;
   /** Override the sun colour / intensity (default: warmer and dimmer the lower the sun). */
   sunColor?: string;
   sunIntensity?: number;

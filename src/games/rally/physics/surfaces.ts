@@ -13,6 +13,7 @@
  *  - bump       amplitude (m) of high-frequency surface noise felt by wheels
  *  - rough      0..1 how bumpy / rutted the surface is for suspension set-ups (soft set-ups gain on rough
  *               ground, stiff ones on smooth - physics/car-tyres.ts); not a physics force by itself
+ *  - heat       0..1 how much the sun warms it (dark asphalt 1) - track temperature for the tyres (tyre-temp.ts)
  */
 export interface SurfaceDef {
   id: SurfaceId;
@@ -24,6 +25,7 @@ export interface SurfaceDef {
   rolling: number;
   bump: number;
   rough: number;
+  heat: number;
   /** 0..1, how much dust / debris the wheels throw up. */
   dust: number;
   /** Dust / debris colour (sRGB hex). */
@@ -54,6 +56,7 @@ export const SURFACES: Record<SurfaceId, SurfaceDef> = {
     rolling: 0.022,
     bump: 0.006,
     rough: 0.6,
+    heat: 0.6,
     dust: 1,
     dustColor: 0xb7a58a,
     loose: 1,
@@ -68,6 +71,7 @@ export const SURFACES: Record<SurfaceId, SurfaceDef> = {
     rolling: 0.045,
     bump: 0.01,
     rough: 0.75,
+    heat: 0.6,
     dust: 1,
     dustColor: 0xb3a387,
     loose: 1,
@@ -82,6 +86,7 @@ export const SURFACES: Record<SurfaceId, SurfaceDef> = {
     rolling: 0.06,
     bump: 0.012,
     rough: 0.8,
+    heat: 0.3,
     dust: 0.25,
     dustColor: 0x6f7a48,
     loose: 0.6,
@@ -96,6 +101,7 @@ export const SURFACES: Record<SurfaceId, SurfaceDef> = {
     rolling: 0.04,
     bump: 0.01,
     rough: 0.7,
+    heat: 0.55,
     dust: 0.8,
     dustColor: 0x8d7457,
     loose: 0.8,
@@ -110,6 +116,7 @@ export const SURFACES: Record<SurfaceId, SurfaceDef> = {
     rolling: 0.02,
     bump: 0.015,
     rough: 0.9,
+    heat: 0.7,
     dust: 0.1,
     dustColor: 0x8a8a86,
     loose: 0.2,
@@ -124,6 +131,7 @@ export const SURFACES: Record<SurfaceId, SurfaceDef> = {
     rolling: 0.013,
     bump: 0.003,
     rough: 0,
+    heat: 1,
     dust: 0,
     dustColor: 0x555555,
     loose: 0,
@@ -140,6 +148,7 @@ export const SURFACES: Record<SurfaceId, SurfaceDef> = {
     rolling: 0.016,
     bump: 0.004,
     rough: 0.25,
+    heat: 0.85,
     dust: 0.35,
     dustColor: 0xa99f8c,
     loose: 0.35,
@@ -154,6 +163,7 @@ export const SURFACES: Record<SurfaceId, SurfaceDef> = {
     rolling: 0.09,
     bump: 0.02,
     rough: 0.9,
+    heat: 0.15,
     dust: 0.5,
     dustColor: 0x4b3a2a,
     loose: 0.9,
@@ -168,6 +178,7 @@ export const SURFACES: Record<SurfaceId, SurfaceDef> = {
     rolling: 0.05,
     bump: 0.01,
     rough: 0.5,
+    heat: 0,
     dust: 0.9,
     dustColor: 0xf2f4f8,
     loose: 0.9,

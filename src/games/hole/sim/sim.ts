@@ -36,6 +36,8 @@ export interface HoleState {
 export interface SimOptions {
   seconds: number;
   startLevel?: number;
+  /** Highest hole level this run can reach (a map may cap it below MAX_LEVEL). */
+  maxLevel?: number;
   start?: { x: number; z: number };
 }
 
@@ -68,6 +70,9 @@ export class Sim {
   cleared = false;
   clearBonus = 0;
 
+  /** Highest reachable hole level (`SimOptions.maxLevel`). */
+  readonly maxLevel: number;
+
   constructor(
     readonly map: MapData,
     opts: SimOptions,
@@ -75,6 +80,7 @@ export class Sim {
     this.world = new World(map);
     this.movers = new Movers(this.world, map);
     this.limit = opts.seconds;
+    this.maxLevel = Math.min(MAX_LEVEL, opts.maxLevel ?? MAX_LEVEL);
     const level = clampLevel(opts.startLevel ?? 1);
     const s = opts.start ?? map.start;
     this.hole = {
@@ -222,7 +228,7 @@ export class Sim {
   private addXp(pts: number): void {
     const h = this.hole;
     h.xp += pts;
-    while (h.level < MAX_LEVEL && h.xp >= xpToNext(h.level)) {
+    while (h.level < this.maxLevel && h.xp >= xpToNext(h.level)) {
       h.xp -= xpToNext(h.level);
       h.level++;
       this.events.push({ type: 'levelup', level: h.level });
@@ -279,6 +285,7 @@ export class Sim {
 
   /** XP progress 0..1 of the current level. */
   get levelProgress(): number {
+    if (this.hole.level >= this.maxLevel) return 1;
     const need = xpToNext(this.hole.level);
     return Number.isFinite(need) ? this.hole.xp / need : 1;
   }

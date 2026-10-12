@@ -2,13 +2,16 @@ import { expect, test } from '@rstest/core';
 import {
   dragToStick,
   followOrigin,
+  padToStick,
+  PAD_DEAD_ZONE,
   stickToWorld,
 } from '../../src/games/hole/game/stick';
 import { memoryStorage } from '../../src/games/hole/game/storage';
 import {
   MAP_SCORING_VERSIONS,
+  bestScore,
   loadScores,
-  purgeStaleScores,
+  migrateScores,
   recordScore,
   type ScoreEntry,
 } from '../../src/games/hole/game/scores';
@@ -32,6 +35,21 @@ test('joystick: dead zone, clamp, direction', () => {
   expect(
     Math.hypot(dragToStick(300, 300).x, dragToStick(300, 300).y),
   ).toBeCloseTo(1);
+});
+
+test('gamepad: stick dead zone + analogue speed, d-pad full speed and wins', () => {
+  const none = { up: false, down: false, left: false, right: false };
+  expect(padToStick([0.1, -0.1], none)).toEqual({ x: 0, y: 0 });
+  // stick up (axis 1 negative) = stick y up
+  const up = padToStick([0, -1], none);
+  expect(up.x).toBeCloseTo(0);
+  expect(up.y).toBeCloseTo(1);
+  const half = padToStick([(1 + PAD_DEAD_ZONE) / 2, 0], none);
+  expect(half.x).toBeCloseTo(0.5);
+  const diag = padToStick([0.3, 0.3], { ...none, up: true, right: true });
+  expect(diag.x).toBeCloseTo(Math.SQRT1_2);
+  expect(diag.y).toBeCloseTo(Math.SQRT1_2);
+  expect(padToStick([], none)).toEqual({ x: 0, y: 0 });
 });
 
 test('stick up = away from the camera (-Z), right = +X', () => {
@@ -71,43 +89,41 @@ test('top 10 per difficulty: insert, order, tie-break, cut-off', () => {
   expect(recordScore(store, 'city', 'hard', entry(1)).rank).toBe(0);
 });
 
-test('high scores are erased when the scoring version changes', () => {
+test('a scoring version bump keeps old scores below the current ones', () => {
   const store = memoryStorage();
   // legacy list saved before versions existed
   store.setItem('hole.scores.city.hard', JSON.stringify([entry(999)]));
-  expect(purgeStaleScores(store)).toBe(true);
-  expect(loadScores(store, 'city', 'hard')).toEqual([]);
-  // same version: scores survive
+  expect(migrateScores(store)).toBe(true);
+  expect(loadScores(store, 'city', 'hard').map((e) => e.ver)).toEqual([0]);
+  // same version: nothing changes
   recordScore(store, 'city', 'easy', entry(50));
-  expect(purgeStaleScores(store)).toBe(false);
-  expect(loadScores(store, 'city', 'easy').length).toBe(1);
-  // a different stored version wipes every difficulty
-  store.setItem('hole.scores.version', String(MAP_SCORING_VERSIONS.city - 1));
-  recordScore(store, 'city', 'medium', entry(70));
-  expect(purgeStaleScores(store)).toBe(true);
-  for (const d of ['easy', 'medium', 'hard'])
-    expect(loadScores(store, 'city', d)).toEqual([]);
-  expect(store.getItem('hole.scores.version')).toBe(
-    String(MAP_SCORING_VERSIONS.city),
-  );
+  expect(migrateScores(store)).toBe(false);
+  // a lower current score still ranks first, older ones follow
+  const cur = MAP_SCORING_VERSIONS.city;
+  const r = recordScore(store, 'city', 'hard', entry(10));
+  expect(r.rank).toBe(1);
+  expect(r.list.map((e) => e.score)).toEqual([10, 999]);
+  expect(bestScore(store, 'city', 'hard')).toBe(10);
+  expect(store.getItem('hole.scores.version')).toBe(String(cur));
+  // next bump: those 10 become an older version, below the new run
+  store.setItem('hole.scores.version', String(cur - 1));
+  migrateScores(store);
+  expect(loadScores(store, 'city', 'hard').map((e) => e.ver)).toEqual([
+    cur - 1,
+    0,
+  ]);
 });
 
-test('a scoring version bump erases only that map', () => {
+test('a scoring version bump only touches that map', () => {
   const store = memoryStorage();
-  purgeStaleScores(store);
+  migrateScores(store);
   for (const map of Object.keys(MAP_SCORING_VERSIONS))
     recordScore(store, map, 'hard', entry(100));
-  // city bumped: only the city lists go
   store.setItem('hole.scores.version', String(MAP_SCORING_VERSIONS.city - 1));
-  expect(purgeStaleScores(store)).toBe(true);
-  expect(loadScores(store, 'city', 'hard')).toEqual([]);
-  expect(loadScores(store, 'toy', 'hard').length).toBe(1);
-  expect(loadScores(store, 'animal', 'hard').length).toBe(1);
-  // animal bumped: city (re-recorded) and toy survive
-  recordScore(store, 'city', 'hard', entry(100));
-  store.setItem('hole.scores.version.animal', '0');
-  expect(purgeStaleScores(store)).toBe(true);
-  expect(loadScores(store, 'animal', 'hard')).toEqual([]);
-  expect(loadScores(store, 'city', 'hard').length).toBe(1);
-  expect(loadScores(store, 'toy', 'hard').length).toBe(1);
+  expect(migrateScores(store)).toBe(true);
+  const city = loadScores(store, 'city', 'hard');
+  expect(city.length).toBe(1);
+  expect(city[0].ver).toBe(MAP_SCORING_VERSIONS.city - 1);
+  expect(loadScores(store, 'toy', 'hard')[0].ver).toBeUndefined();
+  expect(bestScore(store, 'city', 'hard')).toBe(0);
 });

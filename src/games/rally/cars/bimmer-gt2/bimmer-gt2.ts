@@ -1,18 +1,23 @@
 import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
+import type { BrakeSet } from '../../physics/brakes';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
+import { profile } from './profile';
 import { bimmerGt2Livery } from './livery';
 
 // RWD V8 GT2 racer: the wheelbase, body size and tyres follow this mesh; engine and mass follow the E92 M3 GT2 (ALMS) race car:
 // 357 kW (485 hp), 1,150 kg (BMW M, see README) - the torque curve peaks at 485 hp at ~7600 rpm.
 /** Body dimensions (also what the hull is fitted from); wheel radius = tyre overall radius. */
+/** Track slick against a rally competition tyre (PHYSICS.md "Tyre types"). */
+const SLICK = 1.12;
+
 const BODY = {
   length: 4.67,
   width: 1.98,
   height: 1.26,
   comHeight: 0.46,
-  // 300 / 30 R19 tarmac tyres.
+  // Reference radius (the model's hubs); the slicks are 30/66-18 front, 31/71-18 rear (rear 2.5 cm taller).
   wheelRadius: 0.334,
 };
 
@@ -21,13 +26,12 @@ const FRONT: AxleDef = {
   track: 1.6,
   spring: 92000,
   bump: 4200,
-  rebound: 5900,
+  rebound: 7560,
   travel: 0.13,
   antiRoll: 26000,
-  brakeTorque: 2000,
   handbrakeTorque: 0,
   steer: 1,
-  grip: 1.08,
+  grip: 1.15,
   forceHeight: 0.3,
 };
 
@@ -36,20 +40,40 @@ const REAR: AxleDef = {
   track: 1.66,
   spring: 84000,
   bump: 3900,
-  rebound: 5500,
+  rebound: 7020,
   travel: 0.13,
   antiRoll: 17000,
-  brakeTorque: 1250,
+  // x 1.076 with the taller rear slick (same brake force at the road, same balance).
   handbrakeTorque: 3000,
   steer: 0,
   grip: 1.6,
   forceHeight: 0.3,
 };
 
+/** GT2 brakes: 380 / 332 mm ducted iron discs, race pads (PHYSICS.md "Brakes"). */
+const BRAKES: BrakeSet = {
+  front: {
+    type: 'vented',
+    diameter: 0.38,
+    thickness: 0.032,
+    pad: 'race',
+    clamp: 11850,
+    ducted: true,
+  },
+  rear: {
+    type: 'vented',
+    diameter: 0.332,
+    thickness: 0.028,
+    pad: 'race',
+    clamp: 12500,
+    ducted: true,
+  },
+};
+
 /**
  * Bimmer GT2 (`bimmer_gt2`) - a wide-body E92 M3 racing prototype (splitter, big wing, diffuser) from a CC BY Sketchfab
  * model, split by material and converted by stl-to-glb.mjs (settings: model.source.json). Clean base livery (livery.ts).
- * Test only (release.ts).
+ * Released (release.ts).
  */
 export const bimmerGt2: CarDef = {
   id: 'bimmer_gt2',
@@ -89,12 +113,22 @@ export const bimmerGt2: CarDef = {
     mass: 1150,
     ...BODY,
     inertiaScale: 0.9,
+    hardBumpStop: true,
     wheelWidth: 0.28,
+    // Staggered like the race car: slicks 30/66-18 front / 31/71-18 rear (width cm / overall diameter cm - rim) =
+    // 300/34 R18 / 310/41 R18. Rally compounds keep the taller rear; gravel runs one width (a wide tyre ploughs).
     tyres: {
-      size: { width: 0.3, aspect: 30, rim: 19 },
+      size: { width: 0.3, aspect: 34, rim: 18, grade: SLICK },
       byCompound: {
-        mixed: { width: 0.245, aspect: 45, rim: 18 },
+        mixed: { width: 0.245, aspect: 42, rim: 18 },
         gravel: { width: 0.235, aspect: 50, rim: 17 },
+      },
+      rear: {
+        size: { width: 0.31, aspect: 41, rim: 18, grade: SLICK },
+        byCompound: {
+          mixed: { width: 0.265, aspect: 48, rim: 18 },
+          gravel: { width: 0.235, aspect: 60, rim: 17 },
+        },
       },
     },
     wheelInertia: 1.8,
@@ -112,15 +146,16 @@ export const bimmerGt2: CarDef = {
     ),
     engine: {
       torqueCurve: [
-        [1000, 275],
-        [2000, 365],
-        [3000, 445],
-        [4000, 500],
-        [5000, 540],
-        [6000, 535],
-        [7000, 510],
-        [7600, 480],
-        [8300, 420],
+        // 525 Nm at 5000, 357 kW (485 hp) at 7600 (was 382 kW / 512 hp).
+        [1000, 270],
+        [2000, 360],
+        [3000, 440],
+        [4000, 495],
+        [5000, 525],
+        [6000, 515],
+        [7000, 480],
+        [7600, 449],
+        [8300, 395],
       ],
 
       idleRpm: 1000,
@@ -132,16 +167,17 @@ export const bimmerGt2: CarDef = {
     gearbox: {
       ratios: [2.9, 2.05, 1.6, 1.3, 1.1, 0.95],
       reverse: 3.2,
-      finalDrive: 4.2,
+      // x 1.076 with the taller rear slicks: the gear speeds stay (no published GT2 ratios to match).
+      finalDrive: 4.52,
       shiftTime: 0.1,
       efficiency: 0.9,
       upshiftRpm: 8000,
       downshiftRpm: 4800,
     },
     gearings: {
-      short: { finalDrive: 4.8 },
-      medium: { finalDrive: 4.2 },
-      long: { finalDrive: 3.8 },
+      short: { finalDrive: 5.16 },
+      medium: { finalDrive: 4.52 },
+      long: { finalDrive: 4.09 },
     },
     drivetrain: {
       frontSplit: 0,
@@ -149,6 +185,7 @@ export const bimmerGt2: CarDef = {
       frontDiffLock: 0,
       rearDiffLock: 280,
     },
+    brakes: BRAKES,
     dragArea: 0.85,
     downforceArea: 0.4,
     // Fitted to bimmer_gt2.glb (tests/rally/hull-fit.test.ts prints the model's underside per zone): splitter / floor 9 cm, rear 13 cm
@@ -166,29 +203,7 @@ export const bimmerGt2: CarDef = {
     ]),
   },
   model: {
-    // Fallback body (used only until / unless public/models/cars/bimmer_gt2.glb exists). Rear -> front.
-    stations: [
-      { z: -2.35, floor: 0.3, belt: 0.88, hw: 0.84, hwBelt: 0.78 },
-      { z: -2.1, floor: 0.2, belt: 0.95, hw: 0.9, hwBelt: 0.82 },
-      { z: -1.368, floor: 0.12, belt: 0.95, hw: 0.95, hwBelt: 0.84 },
-      { z: -0.5, floor: 0.1, belt: 0.92, hw: 0.93, hwBelt: 0.82 },
-      { z: 0.5, floor: 0.1, belt: 0.9, hw: 0.93, hwBelt: 0.82 },
-      { z: 1.368, floor: 0.12, belt: 0.86, hw: 0.95, hwBelt: 0.84 },
-      { z: 2.0, floor: 0.12, belt: 0.78, hw: 0.9, hwBelt: 0.78 },
-      { z: 2.28, floor: 0.12, belt: 0.72, hw: 0.84, hwBelt: 0.7 },
-    ],
-    cabin: {
-      zFront: 0.9,
-      zRear: -1.5,
-      roofFront: 0.3,
-      roofRear: -1.0,
-      roofY: 1.3,
-      roofHw: 0.62,
-      kick: 0.2,
-      bPillar: -0.5,
-    },
     paint: '#e9e6dd',
-    flare: 0.06,
     rim: { color: '#b8bcc2', spokes: 10, style: 'spoke', caliper: '#c8a040' },
     // Tarmac: the body model's own BBS alloy (bimmer_gt2_wheel.glb); mixed / gravel: the Bimmer M3 rim, painted black.
     wheelModel: 'bimmer_m3_wheel.glb',
@@ -198,17 +213,16 @@ export const bimmerGt2: CarDef = {
       gravel: { rimColor: '#16171a' },
     },
     suspensionStyle: 'gt',
-    parts: {
-      arches: 'round',
-      rearWing: 'lip',
-      splitter: true,
-      sideSkirts: true,
-      diffuser: true,
-      headlights: 'rect',
-      grille: 'slats',
-      doors: 2,
+    cornerSuspension: {
+      style: 'gt',
+      front: 'wishbone',
+      rear: 'wishbone',
+      topY: { front: 0.36, rear: 0.45 },
+      topIn: { front: 0.22, rear: 0.22 },
+      driven: ['rear'],
     },
-    livery: 'rally1',
+    // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
+    profile,
     // Rally plate on the door (door shut lines z ~ -0.4 .. 0.9, front = +z), above the side moulding.
     doorBadge: { z: 0.25, y: 0.6 },
     // No `suspension`: the wheel wells are closed by the liner (model.source.json `wheels`).

@@ -15,6 +15,8 @@ export interface CachedVariant {
 
 const DB = 'rally-trees';
 const STORE = 'variants';
+/** Give up on the cache (load without it) when IndexedDB does not open in time. */
+const OPEN_TIMEOUT_MS = 3000;
 let db: Promise<IDBDatabase | null> | null = null;
 
 function open(): Promise<IDBDatabase | null> {
@@ -26,6 +28,9 @@ function open(): Promise<IDBDatabase | null> {
       req.onupgradeneeded = () => req.result.createObjectStore(STORE);
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => resolve(null);
+      // Another tab holding an older version, or a stalled IndexedDB: load without the cache.
+      req.onblocked = () => resolve(null);
+      setTimeout(() => resolve(null), OPEN_TIMEOUT_MS);
     } catch {
       resolve(null);
     }
@@ -37,6 +42,7 @@ function request<T>(r: IDBRequest<T>): Promise<T | undefined> {
   return new Promise((resolve) => {
     r.onsuccess = () => resolve(r.result);
     r.onerror = () => resolve(undefined);
+    r.transaction?.addEventListener('abort', () => resolve(undefined));
   });
 }
 

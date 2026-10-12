@@ -87,6 +87,9 @@ export interface VariantMeshes {
   foliageColor: V3;
 }
 
+/** Radius of a segment's overlap tip, as a share of its end radius (`tube`). */
+const OVERLAP_TIP = 0.75;
+
 /** Tube sides per branch order (last entry for every higher order). */
 const SIDES: number[][] = [
   [8, 5, 4, 3],
@@ -222,14 +225,18 @@ function tube(
   const a = perpendicular(d);
   const c = cross(d, a);
   const length = len(sub(s.end, s.start));
-  // Overlap into the next segment: no gap on the outside of a bend.
-  const end = madd(s.end, d, Math.min(s.r1 * 0.6, length * 0.5));
+  // Overlap into the next segment: no gap on the outside of a bend. The overlap narrows to OVERLAP_TIP of the end
+  // radius, so it sits inside the next segment instead of on its surface (no z-fighting, trees/Drawing.md#depth).
+  const over = Math.min(s.r1 * 0.6, length * 0.5);
+  const rings: [V3, number, number][] = [
+    [s.start, s.r0, 0],
+    [s.end, s.r1, length],
+    [madd(s.end, d, over), s.r1 * OVERLAP_TIP, length + over],
+  ];
   const base = b.count;
-  for (let ring = 0; ring < 2; ring++) {
-    const o = ring ? end : s.start;
-    const r = ring ? s.r1 : s.r0;
-    const v = (s.dist + (ring ? length : 0)) * tiling;
-    const wd2 = wd.dist[i] + (ring ? length : 0);
+  for (const [o, r, along] of rings) {
+    const v = (s.dist + along) * tiling;
+    const wd2 = wd.dist[i] + along;
     for (let k = 0; k <= sides; k++) {
       const t = (k / sides) * Math.PI * 2;
       const n = norm(madd(scale(a, tcos(t)), c, tsin(t)));
@@ -242,11 +249,12 @@ function tube(
       ]);
     }
   }
-  for (let k = 0; k < sides; k++) {
-    const i0 = base + k;
-    const i1 = base + sides + 1 + k;
-    b.idx.push(i0, i1, i0 + 1, i0 + 1, i1, i1 + 1);
-  }
+  for (let ring = 0; ring < rings.length - 1; ring++)
+    for (let k = 0; k < sides; k++) {
+      const i0 = base + ring * (sides + 1) + k;
+      const i1 = i0 + sides + 1;
+      b.idx.push(i0, i1, i0 + 1, i0 + 1, i1, i1 + 1);
+    }
 }
 
 function leafColor(def: SpeciesDef, seed: number, l: number): V3 {

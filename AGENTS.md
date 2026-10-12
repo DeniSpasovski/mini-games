@@ -9,7 +9,7 @@
   `npm run build -- --environment <id>` rebuilds one game (`portal` = portal files only)
 - `npm run build:test` - same, but the TEST cars / maps (`release.ts`) ship too (the Pages workflow's default)
 - `npm run preview` - preview the build
-- `npm run test` (rstest, fast `tests/` only) · `npm run test:integration` (slow playtests in `integration-tests/<game>/`) · `npm run test:watch` · `npm run lint` (rslint) · `npm run format` (Prettier)
+- `npm run test` (rstest, fast `tests/` only; per game: `test:rally` / `test:hole` / `test:kaboom`) · `npm run test:integration` (slow playtests in `integration-tests/<game>/`) · `npm run test:watch` · `npm run lint` (rslint) · `npm run format` (Prettier)
 - `npx tsc --noEmit -p tsconfig.json` - type check (the build does not)
 
 ## Public repo and licences - read before adding anything
@@ -23,7 +23,8 @@
 - **Never commit a third-party file** (model, texture, font, sound, image, dataset) unless its licence allows redistribution of
   the file AND of derivatives (CC0, CC BY, CC BY-SA, MIT ...). "Personal use only", "Standard Digital File License" (MakerWorld /
   Printables default), no-derivatives and non-commercial files stay out of git and `public/`. Converted models are derivatives.
-  Unknown licence = NOT allowed; ask the user.
+  Unknown licence = NOT allowed; ask the user. Exception: a CC BY-NC model may ship with the owner's explicit OK, marked NC in
+  every credit (only `subie_22b` so far).
 - **Every external source gets a row** in the car / map README credits table (public) and its `DETAILS.md` (local,
   git-ignored) and, if it ships, in `THIRD-PARTY.md` + `public/models/CREDITS.md`. Keep CC BY / ODbL attribution current in
   the `credit` / `meta.sources` strings and the About links (`info.ts`).
@@ -72,6 +73,7 @@ into `DETAILS.md`, never up.
 - Rally maps: `maps/<id>/` = `info.ts` (menus, credits), `map.ts`, baked data, README; local-only DETAILS (every source) +
   `TODO.md`; `maps/shared/` = format + helpers
 - Rally cars: `cars/<car>/` = `<car>.ts`, README, local-only DETAILS (build notes + sources); `cars/shared/` = code for every car
+- 3, 2, 1 Kabooom (`src/games/kaboom/`, unlisted via `hideInProd` in `src/portal/release.ts` until released): `DETAILS.md` (rules, bots, architecture, performance, contract in `sim/types.ts`), `TASKS.md` (open work, local)
 - Hole Island: `src/games/hole/DETAILS.md` (rules, levels, tiers, catalog, generator, debug, architecture), `TASKS.md`,
   `TOY-STORE.md`, `ANIMAL-ISLAND.md`, `CONSTRUCTION-SITE.md` (map design, roster, open tasks)
 - `sources/cars/<car>/`, `sources/maps/<map>/` - files the user shared, git-ignored, never served. Models / data / licence files
@@ -79,7 +81,8 @@ into `DETAILS.md`, never up.
 - `scripts/car-model/`: `scan-mesh.py` (run on every new model after the licence gate: split / panel edges / blob),
   `assemble-kit.py` (model kit on a sprue -> one body STL), `segment-stl.py` (labels body parts: seeds, regions, boxes, tubes),
   `stl-to-glb.mjs` (STL -> game GLB with livery-atlas UVs), `stl-wheel-extract.py` + `wheel-stl-to-glb.mjs` (a print model's own
-  rim), `chart-probe.py` (atlas chart per triangle, livery debugging)
+  rim), `chart-probe.py` (atlas chart per triangle, livery debugging), `bake-lamp-sheet.py` (a GLB's own lamp textures -> lamp
+  sheet), `glb-meshopt.mjs` (the build's GLB compression), `side-profile.mjs` (boxy profile from a GLB: fallback body + street cars)
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
   `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `plaza_islands.py` (city junction
   `junction.json`), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from
@@ -91,7 +94,8 @@ into `DETAILS.md`, never up.
 - `hole-content` - Hole Island item or map
 - `rally-maps` - create / edit rally maps, map viewer (bridges / underpasses: its own section)
 - `rally-content` - rally assets and cars (procedural builders, LODs, liveries)
-- `rally-car-import` - import a 3D car model (LICENCE GATE first; worked examples `cars/skoda-rally/`, `cars/bimmer-m3/`)
+- `rally-car-import` - import a 3D car model (LICENCE GATE first; every car gets its boxy `profile.ts`, step 6c; worked
+  examples `cars/skoda-rally/`, `cars/bimmer-m3/`)
 - `rally-livery` - paint / debug a car livery (worked example `cars/bimmer-m3/`)
 - `rally-physics-tuning` - handling changes + regression / autopilot tests
 - `testing` - add / move / run tests: `tests/` vs `integration-tests/<game>/`, scripts, the CI jobs
@@ -105,12 +109,23 @@ into `DETAILS.md`, never up.
 - Tool pages mirror their state in the URL (`src/shared/url-state.ts`).
 - Testing in the browser pane: add `mute=1` to game URLs (`isMutedByUrl()`, every audio class honours it); leave it off only for
   sound fixes (low volume).
-- Rally release flags (`src/games/rally/release.ts`): new cars / maps go into `TEST_*` (dev only) first; `AVAILABLE_*` ship.
+- Rally release flags (`src/games/rally/release.ts`): `CARS_LIST` / `MAPS_LIST` list every car / map; a new one gets `hideInProd: true` (dev only) first, remove it to ship (same flag as `GAME_LIST` and `game.json`, `src/shared/release.ts`).
 - Game `version` (`game.json`, `0.x.y`, minor = feature, patch = fix): bump only when the user says we are making a build.
-- Rally `TIMES_VERSION` (`game/stage.ts`): never bump on your own - mention when times stop being comparable; bump (erases saved
-  times) only when the user says so.
+- Rally times versions (`game/stage.ts`): bump `MAP_TIMES_VERSIONS[map]` when a map's road / layout / length / surfaces change, `CAR_TIMES_VERSIONS[car]`
+  when that car's handling changes, every car for a shared physics change (livery / model fixes never); a new car / map adds its
+  entry (a test checks). Old times stay, listed below the new ones. Only changes shipped to prod count: bump when the user says
+  we are making a build; until then leave the numbers and say in the PR which cars / maps changed.
+  **Cars / maps with `hideInProd` in `CARS_LIST` / `MAPS_LIST` stay at 1 and are never bumped** (unreleased: no official times yet);
+  bumps start once the flag is removed (a test checks).
 - Hole Island: scoring changes (points, tiers, bonus, times, map content) bump that map's `MAP_SCORING_VERSIONS` entry
   (`game/scores.ts`; `sim/` changes = every map).
+
+## Pull requests and commits
+
+- **PR description: short.** One or two plain sentences on what changes for the player, then a few bullets, then which times /
+  scoring versions changed. No tables, file-by-file "How", test logs or investigation story (the diff and the thread have it).
+- No "Requested by ..." line and no links to claude.ai project threads or sessions (public repo, private links).
+- Commit messages: one short subject, a few bullets when several things changed; no `Claude-Session:` trailer.
 
 ## Docs
 

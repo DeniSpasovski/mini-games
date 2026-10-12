@@ -76,10 +76,21 @@ function spriteGeometry(s: SpriteData): BufferGeometry {
   return g;
 }
 
-/** Generates variants in a worker (or inline where there are no workers). */
+/**
+ * Generates variants in a worker (or inline where there are no workers). A worker that fails (script load error,
+ * a throw inside it) is dropped and its pending variants are generated inline, so the stage load never hangs.
+ */
 class Generator {
   private worker: Worker | null = null;
-  private pending = new Map<number, (g: Timed) => void>();
+  private pending = new Map<
+    number,
+    {
+      def: SpeciesDef;
+      index: number;
+      resolve: (g: Timed) => void;
+      reject: (e: unknown) => void;
+    }
+  >();
   private next = 0;
 
   constructor() {
@@ -88,11 +99,23 @@ class Generator {
       this.worker = new Worker(new URL('./worker.ts', import.meta.url), {
         type: 'module',
       });
-      this.worker.onmessage = (e: MessageEvent<Timed & { id: number }>) => {
-        const done = this.pending.get(e.data.id);
+      this.worker.onmessage = (
+        e: MessageEvent<
+          (Timed & { id: number }) | { id: number; error: string }
+        >,
+      ) => {
+        const job = this.pending.get(e.data.id);
+        if (!job) return;
         this.pending.delete(e.data.id);
-        done?.(e.data);
+        if ('error' in e.data) this.inline(job);
+        else job.resolve(e.data);
       };
+      const fail = (e: Event) => {
+        console.warn('[trees] generator worker failed, generating inline', e);
+        this.fallback();
+      };
+      this.worker.onerror = fail;
+      this.worker.onmessageerror = fail;
     } catch {
       this.worker = null;
     }
@@ -100,17 +123,38 @@ class Generator {
 
   /** A variant and the ms its derivation + meshing took. */
   generate(def: SpeciesDef, index: number): Promise<Timed> {
-    if (!this.worker) {
-      const t0 = performance.now();
-      const g = generateVariant(def, index);
-      return Promise.resolve({ ...g, ms: performance.now() - t0 });
-    }
-    const id = this.next++;
-    return new Promise((resolve) => {
-      this.pending.set(id, resolve);
+    return new Promise((resolve, reject) => {
+      const job = { def, index, resolve, reject };
+      if (!this.worker) return this.inline(job);
+      const id = this.next++;
+      this.pending.set(id, job);
       const req: GenerateRequest = { id, species: def.name, index };
-      this.worker!.postMessage(req);
+      this.worker.postMessage(req);
     });
+  }
+
+  private inline(job: {
+    def: SpeciesDef;
+    index: number;
+    resolve: (g: Timed) => void;
+    reject: (e: unknown) => void;
+  }): void {
+    try {
+      const t0 = performance.now();
+      const g = generateVariant(job.def, job.index);
+      job.resolve({ ...g, ms: performance.now() - t0 });
+    } catch (e) {
+      job.reject(e);
+    }
+  }
+
+  /** Drop the worker; everything still pending is generated inline. */
+  private fallback(): void {
+    this.worker?.terminate();
+    this.worker = null;
+    const jobs = [...this.pending.values()];
+    this.pending.clear();
+    for (const job of jobs) this.inline(job);
   }
 
   dispose(): void {

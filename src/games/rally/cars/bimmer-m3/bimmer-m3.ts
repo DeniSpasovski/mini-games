@@ -1,7 +1,9 @@
 import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
+import type { BrakeSet } from '../../physics/brakes';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
+import { profile } from './profile';
 import { bimmerM3Atlas } from './livery';
 
 // RWD V8 coupe: drivetrain and suspension numbers are the car's own; the wheelbase, body size and tyres follow this mesh.
@@ -11,41 +13,65 @@ const BODY = {
   width: 1.98,
   height: 1.4,
   comHeight: 0.48,
-  // Street E46 wheels: 245/40 R18 tarmac, 205/65 R16 gravel.
+  // Reference radius (the model's hubs). Road tyres 245/40 R18 front, 265/40 R18 rear; 205/65 R16 gravel.
   wheelRadius: 0.33,
 };
+
+/** Summer road tyre against a rally competition tyre (PHYSICS.md "Tyre types"). */
+const ROAD_TYRE = 0.82;
+/** Mass of the car these suspension numbers were tuned on (kg); the E92 M3 weighs 1,680 kg. */
+const TUNED_MASS = 1180;
+const MASS = 1680;
+/** Springs, dampers and bars x the mass ratio: the same ride frequency, damping ratio and roll angle at the real weight. */
+const scale = (n: number): number => Math.round((n * MASS) / TUNED_MASS);
 
 // Track 1.66 (Bimmer 1.64): the old wheel assembly is cut out of the mesh, so the 0.235 m tyre sits inside the flares (centre 0.83).
 const FRONT: AxleDef = {
   z: 1.361,
   track: 1.66,
-  spring: 78000,
-  bump: 3680,
-  rebound: 5152,
+  spring: scale(78000),
+  bump: scale(3680),
+  rebound: scale(6620),
   travel: 0.14,
-  antiRoll: 23833,
-  brakeTorque: 1700,
+  antiRoll: scale(23833),
   handbrakeTorque: 0,
   steer: 1,
-  grip: 1.06, // street tyres (245 / 40 R18) need a little front grip so the tarmac specialist stays ahead of the Skoda (car-setup.test.ts)
+  grip: 1.1, // street tyres (245 / 40 R18); front grip keeps the RWD car turning at speed against its rear bias; surface-independent, so above ~1.14 the road-tyre M3 out-corners the Fabia on gravel (car-setup.test.ts)
   forceHeight: 0.3,
 };
 
 const REAR: AxleDef = {
   z: -1.361,
   track: 1.66,
-  spring: 70000,
-  bump: 3402,
-  rebound: 4733,
+  spring: scale(70000),
+  bump: scale(3402),
+  rebound: scale(6120),
   travel: 0.14,
-  antiRoll: 15312,
-  brakeTorque: 1050,
+  antiRoll: scale(15312),
   handbrakeTorque: 3000,
   steer: 0,
   // Rear bias: at 1.05 the RWD V8 spun on gravel under full throttle; 1.15 still did (tests/rally/car-setup.test.ts
   // "straight-line launch"). The tyre size factors act on both axles, so they do not replace this bias.
   grip: 1.3,
   forceHeight: 0.3,
+};
+
+/** E92 M3 brakes: 360 x 30 / 350 x 24 mm vented discs (PHYSICS.md "Brakes"). */
+const BRAKES: BrakeSet = {
+  front: {
+    type: 'vented',
+    diameter: 0.36,
+    thickness: 0.03,
+    pad: 'sport',
+    clamp: scale(12800), // pedal force tuned for ~36 m from 100 km/h on road tyres at 1,680 kg, ~64 % of it on the front axle
+  },
+  rear: {
+    type: 'vented',
+    diameter: 0.35,
+    thickness: 0.024,
+    pad: 'sport',
+    clamp: scale(7500),
+  },
 };
 
 /**
@@ -94,13 +120,20 @@ export const bimmerM3: CarDef = {
     cam: 0.6,
   },
   physics: {
-    mass: 1180,
+    mass: MASS, // E92 M3 coupe curb weight (BMW USA)
     ...BODY,
     inertiaScale: 0.9,
+    hardBumpStop: true,
     wheelWidth: 0.235,
+    // Staggered like the V8 road M3 whose engine it has (E92: 245/40 R18 on 8.5J front, 265/40 R18 on 9.5J rear);
+    // gravel runs one size.
     tyres: {
-      size: { width: 0.245, aspect: 40, rim: 18 },
+      size: { width: 0.245, aspect: 40, rim: 18, grade: ROAD_TYRE },
       byCompound: { gravel: { width: 0.205, aspect: 65, rim: 16 } },
+      rear: {
+        size: { width: 0.265, aspect: 40, rim: 18, grade: ROAD_TYRE },
+        byCompound: { gravel: { width: 0.205, aspect: 65, rim: 16 } },
+      },
     },
     wheelInertia: 1.6,
     maxSteerDeg: 30,
@@ -110,9 +143,24 @@ export const bimmerM3: CarDef = {
     setups: deriveSetups(
       { front: FRONT, rear: REAR },
       {
-        soft: { front: 47000, rear: 42000, travel: 0.17, ride: 0.035 },
-        medium: { front: 62000, rear: 55000, travel: 0.16, ride: 0.015 },
-        stiff: { front: 78000, rear: 70000, travel: 0.14, ride: 0 },
+        soft: {
+          front: scale(47000),
+          rear: scale(42000),
+          travel: 0.17,
+          ride: 0.035,
+        },
+        medium: {
+          front: scale(62000),
+          rear: scale(55000),
+          travel: 0.16,
+          ride: 0.015,
+        },
+        stiff: {
+          front: scale(78000),
+          rear: scale(70000),
+          travel: 0.14,
+          ride: 0,
+        },
       },
     ),
     engine: {
@@ -134,9 +182,11 @@ export const bimmerM3: CarDef = {
       launchRpm: 4500,
     },
     gearbox: {
+      // Closer than the E92's 6-speed (4.055 ... 0.872, 3.846 final): with its short 1st and wide steps the RWD V8
+      // spins up on loose gravel at full throttle even with TC (car-setup.test.ts "straight-line launch").
       ratios: [2.9, 2.05, 1.6, 1.3, 1.1, 0.95],
       reverse: 3.2,
-      finalDrive: 4.2, // 6th gear tops out at the redline: 249 km/h (setup screen)
+      finalDrive: 4.2, // 6th gear tops out at the redline: ~256 km/h (setup screen)
       shiftTime: 0.1,
       efficiency: 0.9,
       upshiftRpm: 7700,
@@ -153,6 +203,7 @@ export const bimmerM3: CarDef = {
       frontDiffLock: 0,
       rearDiffLock: 260,
     },
+    brakes: BRAKES,
     dragArea: 0.8,
     downforceArea: 0.22,
     // Fitted to bimmer_m3.glb (tests/rally/hull-fit.test.ts prints the model's underside per zone): splitter / front
@@ -172,46 +223,22 @@ export const bimmerM3: CarDef = {
     ]),
   },
   model: {
-    // Fallback body (used only until / unless public/models/cars/bimmer_m3.glb exists). Rear -> front (axles at
-    // z = +-1.361).
-    stations: [
-      { z: -2.35, floor: 0.3, belt: 0.88, hw: 0.84, hwBelt: 0.78 },
-      { z: -2.1, floor: 0.2, belt: 0.95, hw: 0.9, hwBelt: 0.82 },
-      { z: -1.361, floor: 0.12, belt: 0.95, hw: 0.92, hwBelt: 0.82 },
-      { z: -0.5, floor: 0.1, belt: 0.92, hw: 0.9, hwBelt: 0.8 },
-      { z: 0.5, floor: 0.1, belt: 0.9, hw: 0.9, hwBelt: 0.8 },
-      { z: 1.361, floor: 0.12, belt: 0.86, hw: 0.92, hwBelt: 0.82 },
-      { z: 2.0, floor: 0.12, belt: 0.78, hw: 0.9, hwBelt: 0.78 },
-      { z: 2.18, floor: 0.12, belt: 0.72, hw: 0.84, hwBelt: 0.7 },
-    ],
-    cabin: {
-      zFront: 0.9,
-      zRear: -1.5,
-      roofFront: 0.3,
-      roofRear: -1.0,
-      roofY: 1.38,
-      roofHw: 0.62,
-      kick: 0.2,
-      bPillar: -0.5,
-    },
     paint: '#e9e6dd',
-    flare: 0.05,
     rim: { color: '#b8bcc2', spokes: 16, style: 'spoke', caliper: '#c8a040' },
     // The model's own 8-spoke rim with a lathed lip + barrel (stl-wheel-extract.py, `wheelRim` in model.source.json),
     // rescaled per tyre size (stl-wheel.ts); `rim` above is the procedural fallback.
     wheelModel: 'bimmer_m3_wheel.glb',
     suspensionStyle: 'race',
-    parts: {
-      arches: 'round',
-      rearWing: 'lip',
-      splitter: true,
-      sideSkirts: true,
-      diffuser: true,
-      headlights: 'rect',
-      grille: 'slats',
-      doors: 2,
+    cornerSuspension: {
+      style: 'race',
+      front: 'strut',
+      rear: 'wishbone',
+      topY: { front: 0.4, rear: 0.36 },
+      topIn: { front: 0.2, rear: 0.22 },
+      driven: ['rear'],
     },
-    livery: 'rally1',
+    // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
+    profile,
     // Rally plate on the door (door shut lines z -0.33 .. 0.83, front = +z), above the side moulding.
     doorBadge: { z: 0.2, y: 0.635 },
     // No `suspension`: the mesh models its own arms / hubs inside closed wheel wells.

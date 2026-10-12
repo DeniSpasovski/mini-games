@@ -1,0 +1,16 @@
+{
+  "codeRoots": [
+    "src"
+  ],
+  "specRoots": [
+    "spec"
+  ],
+  "codePatterns": [],
+  "specPatterns": [],
+  "levels": {
+    "spec": {
+      "reference": "none",
+      "rest": "read"
+    }
+  }
+}

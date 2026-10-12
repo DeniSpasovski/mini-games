@@ -19,6 +19,7 @@ export type InputAction =
   | 'physicsDebug'
   | 'mute'
   | 'traction'
+  | 'abs'
   | 'autopilot';
 
 const KEY_ACTIONS: Record<string, InputAction> = {
@@ -34,6 +35,7 @@ const KEY_ACTIONS: Record<string, InputAction> = {
   F4: 'physicsDebug',
   KeyM: 'mute',
   KeyT: 'traction',
+  KeyB: 'abs',
   F8: 'autopilot',
 };
 
@@ -196,7 +198,7 @@ export class InputController {
     const pad = [...pads].find((p) => p && p.connected);
     if (!pad) return null;
     // Edge-detect action buttons. While disabled a menu owns the pad
-    // (pad-nav.ts): only Start (pause) still reaches the game.
+    // (src/shared/pad-nav.ts): only Start (pause) still reaches the game.
     pad.buttons.forEach((b, i) => {
       const a = PAD_ACTIONS[i];
       if (

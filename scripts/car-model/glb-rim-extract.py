@@ -1,11 +1,16 @@
 """One wheel of a car GLB -> rim + tyre STLs in wheel space for wheel-stl-to-glb.mjs (rim centred on the hub, de-cambered).
 
     python scripts/car-model/glb-rim-extract.py <in.glb> <out-prefix> --tyre <node-prefix> --rim <node-prefix>[,<prefix>...]
+    python scripts/car-model/glb-rim-extract.py <in.glb> <out-prefix> --wheel <node-prefix>      # tyre + rim in one primitive
 
 Node prefixes match the primitive's node name case-insensitively ("wheel_lf_002" matches "wheel_lf_002_ac3dmat126_0"); use the
 LEFT wheel (outer face towards +x). The hub is the tyre's centroid (a tyre is symmetric about its centre plane), the axle is the
 smallest principal axis of the tyre's vertices; the wheel is rotated about the hub so the axle is exactly +x, which removes camber
 (the game's wheels are upright). Output frame: STL z = axle (outer face at z max), STL y = up, a proper rotation of the model's.
+`--wheel`: the primitive is split by connected islands - an island that keeps clear of the centre (no vertex within 70 % of
+the largest radius from the wheel's centroid, in the plane across the axle) is tyre, the rest (rim, nuts) is rim.
+`--side +x` keeps only the triangles whose centre has x > 0 (a primitive that holds both left wheels of an axle, e.g. a mirrored
+FBX symmetry); add `--z front` / `rear` / a number to pick one axle by the sign of z (`front` z > 0, `rear` z < 0).
 Writes <out-prefix>-rim.stl / -tyre.stl and prints the numbers wheel-stl-to-glb.mjs needs: `--barrel` (the tyre's bore radius
 = the rim's bead seat) and the tyre width / radius.
 """
@@ -30,7 +35,36 @@ def pick(names):
     return np.concatenate(sel)
 
 
-tyre, rim = pick(opts['--tyre']), pick(opts['--rim'])
+if '--wheel' in opts:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location('g2s', __file__.rsplit('/', 1)[0] + '/glb-to-parts-stl.py')
+    g2s = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(g2s)
+    W = pick(opts['--wheel'])
+    c = W.reshape(-1, 3).mean(0)
+    ax = np.linalg.svd(W.reshape(-1, 3) - c, full_matrices=False)[2][2]
+    d = W - c
+    rad = np.linalg.norm(d - (d @ ax)[..., None] * ax, axis=-1).min(1)  # per triangle: closest vertex to the axle
+    iid = g2s.islands(W)[0]
+    inner = np.array([rad[iid == k].min() for k in range(iid.max() + 1)])
+    is_tyre = (inner > 0.7 * rad.max())[iid]
+    tyre, rim = W[is_tyre], W[~is_tyre]
+else:
+    tyre, rim = pick(opts['--tyre']), pick(opts['--rim'])
+
+
+def one_wheel(T):
+    c = T.mean(1)
+    keep = np.ones(len(T), bool)
+    if '--side' in opts:
+        keep &= c[:, 0] * (1 if opts['--side'] == '+x' else -1) > 0
+    if '--z' in opts:
+        keep &= (c[:, 2] > 0) if opts['--z'] == 'front' else (c[:, 2] < 0) if opts['--z'] == 'rear' else c[:, 2] > float(opts['--z'])
+    return T[keep]
+
+
+tyre, rim = one_wheel(tyre), one_wheel(rim)
 V = tyre.reshape(-1, 3)
 hub = V.mean(0)
 axis = np.linalg.svd(V - hub, full_matrices=False)[2][2]

@@ -26,7 +26,7 @@ import {
   SETUP_NAMES,
   setupCharacter,
 } from '../physics/car-setup';
-import { carGripRating, tyreLabel, tyreSizeFor } from '../physics/car-tyres';
+import { carGripRating, carTyreLabel } from '../physics/car-tyres';
 import {
   applyGearing,
   GEARING_IDS,
@@ -58,10 +58,13 @@ import { CAMERA_MODES, type CameraMode } from './camera-rig';
 import {
   activateFocused,
   GamepadMenuNav,
+  watchMenuTick,
   moveFocus,
   type NavAction,
   type NavDir,
-} from './pad-nav';
+} from '../../../shared/pad-nav';
+import { MenuMusic, MUSIC_CREDITS } from './menu-music';
+import { MenuTick } from '../../../shared/menu-tick';
 import {
   loadSettings,
   saveSettings,
@@ -69,7 +72,15 @@ import {
   type RallySettings,
 } from './settings';
 import { Showroom } from './showroom';
-import { formatTime, loadTimes, sectorTimes, type RunRecord } from './stage';
+import {
+  formatTime,
+  isOldRun,
+  loadTimes,
+  oldRunLabel,
+  sectorTimes,
+  timesVersion,
+  type RunRecord,
+} from './stage';
 
 /** Game version (game.json, semver 0.x.y), shown in the menu + About. */
 const VERSION = gameManifest.version;
@@ -86,6 +97,89 @@ const KEY_DIRS: Record<string, NavDir> = {
 const BUILT_WITH: SourceLink[] = [
   { label: 'three.js', url: 'https://threejs.org/', note: 'rendering, MIT' },
   { label: 'Rsbuild', url: 'https://rsbuild.rs/', note: 'build tooling, MIT' },
+];
+
+/** Research behind the suspension model (PHYSICS.md "Dampers and bump stop"). Read only, nothing copied. */
+const SUSPENSION_RESEARCH: SourceLink[] = [
+  {
+    label: 'Implementing racing games (Game Developer)',
+    url: 'https://www.gamedeveloper.com/design/implementing-racing-games-an-intro-to-different-approaches-and-their-game-design-trade-offs',
+    note: 'arcade vs simulation suspension',
+  },
+  {
+    label:
+      'Rendering and simulation in an offroad driving game (Game Developer)',
+    url: 'https://www.gamedeveloper.com/programming/rendering-and-simulation-in-offroad-driving-game',
+    note: 'raycast wheels on rough ground',
+  },
+  {
+    label: 'Passive suspension and asymmetric damping (arXiv 2605.05235)',
+    url: 'https://arxiv.org/abs/2605.05235',
+    note: 'rebound vs bump damping',
+  },
+];
+
+/** Research behind the brake model (PHYSICS.md "Brakes"). Read only, nothing copied. */
+const BRAKE_RESEARCH: SourceLink[] = [
+  {
+    label: 'Brembo: World Rally Championship brakes',
+    url: 'https://www.brembo.com/en/motorsport/wrc',
+    note: 'rally disc sizes, temperatures',
+  },
+  {
+    label: 'Skoda Motorsport: Fabia R5 brakes',
+    url: 'https://www.skoda-motorsport.com/en/6-interesting-facts-about-fabia-r5-brakes-rally-technology/',
+    note: 'tarmac and gravel kits',
+  },
+  {
+    label: 'DBA: motorsport rotor temperature bulletin',
+    url: 'https://dba.com.au/wp-content/uploads/2022/10/Technical_Bulletin_DBA_MotorSport_Important_Information.pdf',
+    note: 'disc and pad temperatures',
+  },
+  {
+    label: 'High temperature fade of brake friction materials',
+    url: 'https://koreascience.or.kr/article/CFKO200111921184854.page',
+    note: 'friction loss at extreme braking temperatures',
+  },
+  {
+    label: 'Wikipedia: Brake fade',
+    url: 'https://en.wikipedia.org/wiki/Brake_fade',
+    note: 'why hot pads lose bite',
+  },
+  {
+    label: 'Counterman: drum brakes',
+    url: 'https://www.counterman.com/drum-brakes-the-beat-goes-on/',
+    note: 'how drum brakes work and where they are used',
+  },
+];
+
+/** Research behind the tyre types and the tyre temperature model (PHYSICS.md "Tyre types", "Tyre temperature"). Read only, nothing copied. */
+const TYRE_RESEARCH: SourceLink[] = [
+  {
+    label: 'Tyre friction vs temperature (rig test, PMC)',
+    url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC9459800/',
+    note: 'grip curve, warm-up under sliding',
+  },
+  {
+    label: 'Izze Racing: tyre temperature white paper',
+    url: 'https://www.izzeracing.com/ewExternalFiles/Izze_Racing_White_Paper_Tire_Temperature.pdf',
+    note: 'grip vs temperature shape',
+  },
+  {
+    label: 'Rubber friction and temperature (arXiv 2602.22078)',
+    url: 'https://arxiv.org/pdf/2602.22078',
+    note: 'glass transition, peak grip temperature',
+  },
+  {
+    label: 'Pirelli press: tarmac rally tyres on wet and dry asphalt',
+    url: 'https://press.pirelli.com/p-zero-ra-wrc-shows-reliability-on-wet-and-dry-asphalt/',
+    note: 'tarmac tyre temperatures',
+  },
+  {
+    label: 'Pirelli press: gravel rally tyres in Finland',
+    url: 'https://press.pirelli.com/scorpion-kx-soft-stars-on-opening-day-of-rally-finland/',
+    note: 'gravel tyre temperatures',
+  },
 ];
 
 /**
@@ -105,7 +199,8 @@ export interface MenuResult {
   gearing: GearingId;
 }
 
-type Screen = 'welcome' | 'options' | 'about' | 'map' | 'car' | 'setup';
+type Screen =
+  'welcome' | 'options' | 'about' | 'times' | 'map' | 'car' | 'setup';
 
 export function runMenu(container: HTMLElement): Promise<MenuResult> {
   return new Promise((resolve) => {
@@ -123,6 +218,7 @@ class MainMenu {
   private screen: Screen = 'welcome';
   private settings: RallySettings;
   private mapIndex: number;
+  private timesMap = 0;
   private carIndex: number;
   private livery: number;
   /** Setup screen choices for one map + car (anything else resets to the stage recommendation, nothing is saved). */
@@ -138,8 +234,10 @@ class MainMenu {
    * right change the choice.
    */
   private setupRow = 0;
+  private music: MenuMusic;
   private onKey = (e: KeyboardEvent) => this.key(e);
   private pad = new GamepadMenuNav((a) => this.nav(a));
+  private tick = new MenuTick(760, 'triangle', () => this.settings.volume);
 
   constructor(
     container: HTMLElement,
@@ -164,6 +262,7 @@ class MainMenu {
       <div class="menu-panel"></div>
       <div class="menu-version">v${VERSION}</div>`;
     container.append(this.root);
+    this.music = new MenuMusic(this.root, this.settings.musicVolume);
     this.panel = this.root.querySelector('.menu-panel')!;
     const bg = this.root.querySelector<HTMLElement>('.menu-bg')!;
     // The 3D subject (car / stage) is centred in the screen area right of the panel.
@@ -178,6 +277,7 @@ class MainMenu {
     window.addEventListener('keydown', this.onKey);
     // Console handle: __rallyMenu.showroom
     (window as unknown as { __rallyMenu: MainMenu }).__rallyMenu = this;
+    watchMenuTick(this.root, () => this.tick.play());
     this.show('welcome');
     if (import.meta.env.DEV) this.bakeCardsFromUrl();
   }
@@ -280,26 +380,32 @@ class MainMenu {
     this.screen = screen;
     this.panel.dataset.screen = screen;
     this.panel.replaceChildren();
+    this.root.querySelector('.menu-times-card')?.remove();
     if (screen === 'welcome') this.welcome();
     if (screen === 'options')
       this.panel.append(
         header('Options'),
         buildOptions({
           tractionControl: !this.car.physics.noTractionControl,
+          abs: !this.car.physics.noAbs,
+          menuMusic: true,
           onBack: () => this.show('welcome'),
-          // Car number -> door plates on the showroom car.
-          onChange: () =>
-            this.showroom.setCar(this.car.id, this.livery, this.badge),
+          // Car number -> door plates on the showroom car; the music volume applies live.
+          onChange: (s) => {
+            this.music.setVolume(s.musicVolume);
+            this.showroom.setCar(this.car.id, this.livery, this.badge);
+          },
         }),
       );
     if (screen === 'about') this.about();
+    if (screen === 'times') this.timesScreen();
     if (screen === 'map') this.mapSelect();
     if (screen === 'car') this.carSelect();
     if (screen === 'setup') this.setupSelect();
     // Stage select shows the map from the air, everything else the car.
     // The setup screen drives the showroom itself (parts bench, see setupSelect).
     if (screen === 'map') this.showroom.showMap(this.map.id);
-    else if (screen !== 'setup') this.showroom.showCar();
+    else if (screen !== 'setup' && screen !== 'times') this.showroom.showCar();
     // Options start on the first setting, every other screen on its primary button.
     this.panel
       .querySelector<HTMLElement>(
@@ -319,6 +425,7 @@ class MainMenu {
       </div>
       <div class="menu-list">
         <button class="menu-btn big" data-primary data-a="start">Start rally</button>
+        <button class="menu-btn" data-a="times">Stage times</button>
         <button class="menu-btn" data-a="options">Options</button>
         <button class="menu-btn" data-a="about">About</button>
         ${portal ? `<a class="menu-btn" href="${portal}">‹ All games</a>` : ''}
@@ -327,6 +434,9 @@ class MainMenu {
     this.panel
       .querySelector('[data-a="start"]')!
       .addEventListener('click', () => this.show('map'));
+    this.panel
+      .querySelector('[data-a="times"]')!
+      .addEventListener('click', () => this.show('times'));
     this.panel
       .querySelector('[data-a="options"]')!
       .addEventListener('click', () => this.show('options'));
@@ -354,12 +464,23 @@ class MainMenu {
       forests, props, cars and liveries - and real-world stages baked from open map data.</p>
       <p class="menu-keys"><b>W/S</b> throttle / brake · <b>A/D</b> steer · <b>Space</b> handbrake ·
       <b>R</b> reset · <b>C</b> camera · <b>Esc</b> pause</p>
+      <h2>Built with</h2>
+      ${links(BUILT_WITH, '')}
       <h2>Maps</h2>
       ${MAPS.map((m) => `<h3>${m.name}</h3>${links(m.sources, 'Fully procedural - no external data.')}`).join('')}
       <h2>Cars</h2>
       ${CARS.map((c) => `<h3>${c.name}</h3>${links(c.sources, 'Procedural model - no external sources.')}`).join('')}
-      <h2>Built with</h2>
-      ${links(BUILT_WITH, '')}`;
+      <h2>Physics</h2>
+      <h3>Tyres</h3>
+      ${links(TYRE_RESEARCH, '')}
+      <h3>Suspension</h3>
+      <p>Each wheel has a spring, a damper that is firmer on rebound than on bump, an anti-roll bar and a progressive
+      bump stop, with Soft / Medium / Stiff set-ups per car.</p>
+      ${links(SUSPENSION_RESEARCH, '')}
+      <h3>Brakes</h3>
+      <p>Every wheel has a disc or drum of its real size; the pads lose bite when cold and fade when the disc gets too hot.</p>
+      ${links(BRAKE_RESEARCH, '')}
+      ${MUSIC_CREDITS.length ? `<h2>Music</h2>${links(MUSIC_CREDITS, '')}` : ''}`;
     this.panel.append(
       header('About'),
       body,
@@ -367,32 +488,98 @@ class MainMenu {
     );
   }
 
-  private mapSelect(): void {
-    this.panel.append(header('Select stage', 'Step 1 / 3'));
+  /** Main-menu "Stage times": stage list on the left, the saved runs of the selected stage over its map on the right (current versions first, older ones dimmed below). */
+  private timesScreen(): void {
+    const m = MAPS[this.timesMap];
+    const cur = timesVersion(m.id);
+    const times = loadTimes(m.id, CAR_IDS);
+    const rows = times.filter((r) => !isOldRun(r, cur));
+    const older = times.filter((r) => isOldRun(r, cur));
+    const row = (r: RunRecord, i: number) => {
+      const old = isOldRun(r, cur);
+      return `<tr${old ? ' class="old"' : ''}><td>${old ? oldRunLabel(r, cur) : i + 1}</td><td>${formatTime(r.time)}${r.penalty ? ` <span class="pen">(+${r.penalty}s)</span>` : ''}</td><td>${carName(r.car)}</td><td class="set">${isTyreId(r.tyre) ? TYRES[r.tyre].name : '–'}</td><td>${!old && i ? `+${(r.time - rows[0].time).toFixed(2)}` : ''}</td></tr>`;
+    };
+    const card = div('menu-times-card');
+    card.innerHTML = `<h2>${m.name}</h2>
+      <div class="menu-board">${
+        times.length
+          ? `<table><thead><tr><th>#</th><th>Time</th><th>Car</th><th>Tyres</th><th>Gap</th></tr></thead>${rows
+              .slice(0, 10)
+              .map(row)
+              .join('')}${
+              older.length
+                ? `<tr class="divider"><td colspan="5">Older versions · set before a physics update</td></tr>${older
+                    .slice(0, Math.max(3, 10 - rows.length))
+                    .map(row)
+                    .join('')}`
+                : ''
+            }</table>`
+          : '<p class="menu-none">No time set yet - drive this stage!</p>'
+      }</div>`;
+    this.root.append(card);
+    const list = this.stageList(this.timesMap, false, (i) => {
+      this.timesMap = i;
+      this.show('times');
+      this.panel
+        .querySelectorAll<HTMLElement>('.menu-card')
+        .item(i)
+        ?.focus({ preventScroll: true });
+    });
+    this.panel.append(
+      header('Stage times', 'Your own best times, saved on this device'),
+      list,
+      buttons(['Back', () => this.show('welcome'), true]),
+    );
+    // The results start level with the first stage card.
+    card.style.top = `${list.getBoundingClientRect().top - this.root.getBoundingClientRect().top}px`;
+    this.showroom.showMap(m.id);
+  }
+
+  /** One stage card (route, description, tags, best time) of the stage list; `showBest` off on the Stage times screen. */
+  private stageCard(m: MapInfo, selected: boolean, showBest: boolean) {
+    const b = document.createElement('button');
+    b.className = 'menu-card';
+    b.classList.toggle('selected', selected);
+    const times = loadTimes(m.id, CAR_IDS);
+    const cur = timesVersion(m.id);
+    const best = times.find((r) => !isOldRun(r, cur));
+    const oldBest = times[0] && isOldRun(times[0], cur) ? times[0] : undefined;
+    b.innerHTML = `
+      ${routeSvg(m)}
+      <div class="menu-card-body">
+        <div class="menu-card-title">${m.name}${testBadge(isTestMap(m.id))}</div>
+        <div class="menu-card-desc">${m.description}</div>
+        <div class="menu-tags">
+          <span>${(stageLength(m) / 1000).toFixed(1)} km</span>
+          <span>${m.stage.splits} splits</span>
+          <span>${[...new Set(m.surfaces)].map((s) => s.replace(/_/g, ' + ')).join(' → ')}</span>
+        </div>
+        ${showBest ? `<div class="menu-best">${best ? `Best ${formatTime(best.time)} · ${carName(best.car)}` : oldBest ? `<span class="old">Older best ${formatTime(oldBest.time)} · ${oldRunLabel(oldBest, cur)}</span>` : 'No time set yet'}</div>` : ''}
+      </div>`;
+    return b;
+  }
+
+  /** The stage cards of Select stage and Stage times; `onPick` gets the clicked stage's index. */
+  private stageList(
+    selected: number,
+    showBest: boolean,
+    onPick: (i: number) => void,
+  ): HTMLElement {
     const list = div('menu-cards');
     MAPS.forEach((m, i) => {
-      const b = document.createElement('button');
-      b.className = 'menu-card';
-      b.classList.toggle('selected', i === this.mapIndex);
-      const best = loadTimes(m.id, CAR_IDS)[0];
-      b.innerHTML = `
-        ${routeSvg(m)}
-        <div class="menu-card-body">
-          <div class="menu-card-title">${m.name}${testBadge(isTestMap(m.id))}</div>
-          <div class="menu-card-desc">${m.description}</div>
-          <div class="menu-tags">
-            <span>${(stageLength(m) / 1000).toFixed(1)} km</span>
-            <span>${m.stage.splits} splits</span>
-            <span>${[...new Set(m.surfaces)].map((s) => s.replace(/_/g, ' + ')).join(' → ')}</span>
-          </div>
-          <div class="menu-best">${best ? `Best ${formatTime(best.time)} · ${carName(best.car)}` : 'No time set yet'}</div>
-        </div>`;
-      b.addEventListener('click', () => {
-        if (this.mapIndex === i) return this.show('car');
-        this.mapIndex = i;
-        this.show('map');
-      });
+      const b = this.stageCard(m, i === selected, showBest);
+      b.addEventListener('click', () => onPick(i));
       list.append(b);
+    });
+    return list;
+  }
+
+  private mapSelect(): void {
+    this.panel.append(header('Select stage', 'Step 1 / 3'));
+    const list = this.stageList(this.mapIndex, true, (i) => {
+      if (this.mapIndex === i) return this.show('car');
+      this.mapIndex = i;
+      this.show('map');
     });
     this.panel.append(
       list,
@@ -414,8 +601,9 @@ class MainMenu {
       b.className = 'menu-btn menu-car';
       b.classList.toggle('selected', i === this.carIndex);
       const best = times.find((r) => r.car === c.id);
+      const stale = best && isOldRun(best, timesVersion(this.map.id));
       b.innerHTML = `<span><b>${c.name}${testBadge(isTestCar(c.id))}</b><small>${c.className}</small></span>
-        <span class="menu-car-best">${best ? formatTime(best.time) : ''}</span>`;
+        <span class="menu-car-best${stale ? ' old' : ''}">${best ? formatTime(best.time) : ''}</span>`;
       b.addEventListener('click', () => this.selectCar(i));
       list.append(b);
     });
@@ -467,7 +655,7 @@ class MainMenu {
   /** One line on the car screen: what the stage will run with (recommended unless the setup screen changed it). */
   private setupSummary(): string {
     const custom = this.custom;
-    const size = tyreLabel(tyreSizeFor(this.car.physics, this.tyre));
+    const size = carTyreLabel(this.car.physics, this.tyre);
     const gear = hasGearings(this.car.physics)
       ? ` · ${GEARING_NAMES[this.gearing]} gearing`
       : '';
@@ -475,7 +663,7 @@ class MainMenu {
   }
 
   /**
-   * Optional setup screen: horizontal pickers - tyre compounds, suspension set-ups, gearing - as rows of three boxes;
+   * Optional setup screen: horizontal pickers - tyre compounds, suspension set-ups, gearing - as rows of boxes;
    * tyres and springs are rendered live inside (the box is a transparent window onto the showroom canvas, see
    * Showroom.showSetup), gearing shows a speed-per-gear chart. Cars with fixed gearing show theirs as one box with "no
    * configuration available". Most players skip it: every row starts on the stage recommendation.
@@ -533,7 +721,7 @@ class MainMenu {
           `tyre:${id}`,
           id === this.tyre,
           `<div class="setup-name"><i class="menu-tyre-dot" style="background:${hex(t.color)}"></i><b>${t.name}</b>${id === this.recTyre ? reco : ''}</div>
-           <small>${tyreLabel(tyreSizeFor(car.physics, id))} · ${t.blurb}</small>
+           <small>${carTyreLabel(car.physics, id)} · ${t.blurb}</small>
            <div class="setup-chips">${chips}</div>`,
           () => this.setSetup({ tyre: id }, 0),
         ),
@@ -587,7 +775,7 @@ class MainMenu {
     // One speed scale for the row: the longest preset's top-gear redline speed.
     const scale = Math.max(
       ...GEARING_IDS.map((id) =>
-        Math.max(...gearTopSpeeds(applyGearing(car.physics, id))),
+        Math.max(...gearTopSpeeds(applyGearing(car.physics, id), this.tyre)),
       ),
     );
     const gearIds: GearingId[] = fixed ? ['medium'] : [...GEARING_IDS];
@@ -603,7 +791,7 @@ class MainMenu {
       const label = `<div class="setup-name"><b>${name}</b>${!fixed && id === this.recGearing ? reco : ''}</div>
            <small>${fixed ? 'No configuration available - road car gearbox' : id === 'short' ? 'Harder pull, lower top speed' : id === 'long' ? 'Higher top speed, softer pull' : 'Standard final drive'}</small>
            <div class="setup-chips data">
-             <span>Top speed<b>${Math.round(topSpeed(d) * 3.6)} km/h</b></span>
+             <span>Top speed<b>${Math.round(topSpeed(d, this.tyre) * 3.6)} km/h</b></span>
              <span>Final drive<b>${d.gearbox.finalDrive.toFixed(2)}</b></span>
              <span>Pull<b class="bars">${'●'.repeat(pull)}<i>${'●'.repeat(5 - pull)}</i></b></span>
            </div>`;
@@ -611,7 +799,7 @@ class MainMenu {
       b.className = 'setup-card gear-card';
       b.classList.toggle('selected', !fixed && id === this.gearing);
       b.classList.toggle('fixed', fixed);
-      b.innerHTML = `<div class="setup-view gear-view">${gearChart(d, scale)}</div><div class="setup-label">${label}</div>`;
+      b.innerHTML = `<div class="setup-view gear-view">${gearChart(d, scale, this.tyre)}</div><div class="setup-label">${label}</div>`;
       if (!fixed)
         b.addEventListener('click', () => this.setSetup({ gearing: id }, 2));
       gear.grid.append(b);
@@ -716,12 +904,14 @@ class MainMenu {
   private nav(a: NavAction): void {
     const s = this.screen;
     if (a === 'back') {
-      if (s === 'options' || s === 'about' || s === 'map') this.show('welcome');
+      if (s === 'options' || s === 'about' || s === 'map' || s === 'times')
+        this.show('welcome');
       if (s === 'car') this.show('map');
       if (s === 'setup') this.show('car');
       return;
     }
     const up = a === 'up';
+    if (a !== 'confirm' && a !== 'start') this.tick.play();
     if (s === 'map' && (up || a === 'down')) {
       this.mapIndex =
         (this.mapIndex + (up ? -1 : 1) + MAPS.length) % MAPS.length;
@@ -751,6 +941,10 @@ class MainMenu {
         const k = (SETUP_IDS.indexOf(this.setup) + d + n) % n;
         this.setSetup({ setup: SETUP_IDS[k] }, 1);
       }
+    } else if (s === 'times' && (up || a === 'down')) {
+      this.timesMap =
+        (this.timesMap + (up ? -1 : 1) + MAPS.length) % MAPS.length;
+      this.show('times');
     } else if (s === 'car' && (a === 'left' || a === 'right')) {
       this.setLivery(this.livery + (a === 'left' ? -1 : 1));
     } else if (a === 'confirm' || a === 'start') {
@@ -763,6 +957,7 @@ class MainMenu {
   dispose(): void {
     window.removeEventListener('keydown', this.onKey);
     this.pad.dispose();
+    this.music.dispose();
     this.showroom.dispose();
     this.root.remove();
   }
@@ -776,6 +971,10 @@ class MainMenu {
 export function buildOptions(opts: {
   /** false = the selected car has no traction control: the option is hidden. */
   tractionControl?: boolean;
+  /** false = the selected car has no ABS: the option is hidden. */
+  abs?: boolean;
+  /** true = show the menu music slider (main menu only, the race has no music). */
+  menuMusic?: boolean;
   onBack: () => void;
   onChange?: (s: RallySettings) => void;
   onQuality?: (q: QualityName) => void;
@@ -858,6 +1057,17 @@ export function buildOptions(opts: {
   vol.value = String(Math.round(s.volume * 100));
   vol.addEventListener('input', () => set({ volume: Number(vol.value) / 100 }));
   row('Volume', vol, 'M mutes in game');
+  if (opts.menuMusic) {
+    const music = document.createElement('input');
+    music.type = 'range';
+    music.min = '0';
+    music.max = '100';
+    music.value = String(Math.round(s.musicVolume * 100));
+    music.addEventListener('input', () =>
+      set({ musicVolume: Number(music.value) / 100 }),
+    );
+    row('Menu music', music, 'main menu only · 0 = off');
+  }
   row(
     'Gearbox',
     choice(
@@ -882,6 +1092,19 @@ export function buildOptions(opts: {
         (v) => set({ traction: v }),
       ),
       'T in game',
+    );
+  if (opts.abs !== false)
+    row(
+      'ABS',
+      choice(
+        [
+          [true, 'On'],
+          [false, 'Off'],
+        ],
+        s.abs,
+        (v) => set({ abs: v }),
+      ),
+      'B in game',
     );
   const num = div('menu-number');
   const numLabel = document.createElement('b');
@@ -933,7 +1156,11 @@ export function buildSectors(
   const mine = sectorTimes(run);
   el.setScope = (carOnly) => {
     const ref = board.find(
-      (r) => r !== run && (!carOnly || r.car === run.car) && r.splits?.length,
+      (r) =>
+        r !== run &&
+        !isOldRun(r, run.ver ?? 1) &&
+        (!carOnly || r.car === run.car) &&
+        r.splits?.length,
     );
     const refSec = ref ? sectorTimes(ref) : [];
     el.innerHTML = mine
@@ -949,9 +1176,12 @@ export function buildSectors(
   return el;
 }
 
+const MAX_ROWS = 10;
+
 /**
- * Stage results top 10, toggle "All cars" / "<this car>". `run` is highlighted;
- * if it's outside the top 10 its row is appended under a gap.
+ * Stage results, 10 rows at most (current runs first, older versions fill the rest), toggle
+ * "All cars" / "<this car>". `run` is highlighted; if it's outside the top 10 its row is
+ * appended under a gap.
  */
 export function buildLeaderboard(
   board: RunRecord[],
@@ -961,9 +1191,18 @@ export function buildLeaderboard(
   const el = div('menu-board');
   let carOnly = false;
   const render = () => {
-    const rows = carOnly ? board.filter((r) => r.car === run.car) : board;
+    const all = carOnly ? board.filter((r) => r.car === run.car) : board;
+    const cur = run.ver ?? 1;
+    const rows = all.filter((r) => !isOldRun(r, cur));
+    const older = all.filter((r) => isOldRun(r, cur));
     const rank = rows.indexOf(run);
     const lead = rows[0]?.time ?? 0;
+    // At most MAX_ROWS rows in all (a pinned out-of-range run counts); older versions only fill what is left.
+    const shown = rows.slice(0, rank >= MAX_ROWS ? MAX_ROWS - 1 : MAX_ROWS);
+    const olderShown = older.slice(
+      0,
+      MAX_ROWS - shown.length - (rank >= MAX_ROWS ? 1 : 0),
+    );
     // Set-up columns: what the run was driven with ("–" = not recorded: older runs, or fixed gearing on the road car).
     const dash = '<span class="na">–</span>';
     const tyreCol = (r: RunRecord) =>
@@ -974,13 +1213,14 @@ export function buildLeaderboard(
       isGearingId(r.gear) ? GEARING_NAMES[r.gear] : dash;
     const row = (r: RunRecord, i: number) => {
       const sec = sectorTimes(r);
-      const cls = r === run ? ' class="me"' : '';
+      const old = isOldRun(r, cur);
+      const cls = r === run ? ' class="me"' : old ? ' class="old"' : '';
       return (
-        `<tr${cls}><td rowspan="2">${i + 1}</td><td>${formatTime(r.time)}${r.penalty ? ` <span class="pen">(+${r.penalty}s)</span>` : ''}</td>` +
+        `<tr${cls}><td rowspan="2">${old ? oldRunLabel(r, cur) : i + 1}</td><td>${formatTime(r.time)}${r.penalty ? ` <span class="pen">(+${r.penalty}s)</span>` : ''}</td>` +
         `<td>${r === run ? '<b>YOU</b> ' : ''}${carName(r.car)}${r.date ? ` <small>#${r.livery + 1}</small>` : ''}</td>` +
         `<td class="set">${tyreCol(r)}</td><td class="set">${suspCol(r)}</td><td class="set">${gearCol(r)}</td>` +
-        `<td>${i ? `+${(r.time - lead).toFixed(2)}` : ''}</td></tr>` +
-        `<tr${cls ? ' class="me sec"' : ' class="sec"'}><td colspan="6">${
+        `<td>${i && !old ? `+${(r.time - lead).toFixed(2)}` : ''}</td></tr>` +
+        `<tr class="${r === run ? 'me ' : old ? 'old ' : ''}sec"><td colspan="6">${
           sec.length
             ? sec.map((t, k) => `S${k + 1} ${t.toFixed(2)}`).join(' · ')
             : 'no sector times'
@@ -992,12 +1232,17 @@ export function buildLeaderboard(
         <button data-f="all" class="${carOnly ? '' : 'on'}">All cars</button>
         <button data-f="car" class="${carOnly ? 'on' : ''}">${carName(run.car)}</button>
       </div>
-      <table><thead><tr><th>#</th><th>Time</th><th>Car</th><th>Tyres</th><th>Suspension</th><th>Gearing</th><th>Gap</th></tr></thead>${rows
-        .slice(0, 10)
+      <table><thead><tr><th>#</th><th>Time</th><th>Car</th><th>Tyres</th><th>Suspension</th><th>Gearing</th><th>Gap</th></tr></thead>${shown
         .map(row)
         .join(
           '',
-        )}${rank >= 10 ? `<tr class="gap"><td colspan="7">…</td></tr>${row(run, rank)}` : ''}</table>
+        )}${rank >= MAX_ROWS ? `<tr class="gap"><td colspan="7">…</td></tr>${row(run, rank)}` : ''}${
+        olderShown.length
+          ? `<tr class="divider"><td colspan="7">Older versions · set before a physics update</td></tr>${olderShown
+              .map(row)
+              .join('')}`
+          : ''
+      }</table>
       ${rank < 0 ? '<p class="menu-none">Practice run - not ranked.</p>' : ''}`;
   };
   el.addEventListener('click', (e) => {
@@ -1141,9 +1386,9 @@ function routeSvg(m: MapInfo): string {
  * top speed (drag can stop it before the redline - the Zastava tops out at 160 km/h, not 5th gear's 199), shared scale
  * `scale` m/s across the row so short / medium / long compare at a glance; the top speed printed on the last bar.
  */
-function gearChart(def: CarPhysicsDef, scale: number): string {
-  const top = topSpeed(def);
-  const speeds = gearTopSpeeds(def).map((v) => Math.min(v, top));
+function gearChart(def: CarPhysicsDef, scale: number, tyre: TyreId): string {
+  const top = topSpeed(def, tyre);
+  const speeds = gearTopSpeeds(def, tyre).map((v) => Math.min(v, top));
   const n = speeds.length;
   const w = 220;
   const h = 100;

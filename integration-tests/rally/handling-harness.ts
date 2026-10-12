@@ -1,3 +1,4 @@
+import { drivenRadius } from '../../src/games/rally/physics/car-tyres';
 import { Vector3 } from 'three';
 import { ALL_CARS } from '../../src/games/rally/cars';
 import { keyboardSteerLimit } from '../../src/games/rally/game/input';
@@ -113,7 +114,7 @@ export function launch(v: Vehicle, kmh: number): void {
   const dt = v.drivetrain;
   const gb = v.def.gearbox;
   const rpmIn = (g: number) =>
-    ((V / v.def.wheelRadius) * dt.ratio(g) * 60) / (2 * Math.PI);
+    ((V / drivenRadius(v.def, v.tyre)) * dt.ratio(g) * 60) / (2 * Math.PI);
   let gear = 1;
   for (let g = 1; g <= gb.ratios.length; g++)
     if (rpmIn(g) < gb.upshiftRpm * 0.92) {

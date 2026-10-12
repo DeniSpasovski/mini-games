@@ -19,6 +19,10 @@ test('invalid fields fall back to defaults, valid ones are kept', () => {
   expect(s.objectDistance).toBe(DEFAULT_SETTINGS.objectDistance);
   expect(s.automatic).toBe(DEFAULT_SETTINGS.automatic);
   expect(s.volume).toBe(DEFAULT_SETTINGS.volume);
+  expect(sanitizeSettings({ musicVolume: 'loud' }).musicVolume).toBe(
+    DEFAULT_SETTINGS.musicVolume,
+  );
+  expect(sanitizeSettings({ musicVolume: 0 }).musicVolume).toBe(0);
   expect(s.livery).toBe(DEFAULT_SETTINGS.livery);
   expect(s.carNumber).toBeLessThanOrEqual(99);
   expect(s.car).toBe('skoda-rally');

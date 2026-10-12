@@ -64,8 +64,8 @@ so bump that map's scoring version (below).
 4. **Ground + mood.** A ground builder in `render/` (use the stencil-cut `createGroundMaterial()` for everything the hole
    cuts) and wire it in `render/map-ground.ts`; walls use `getItemMaterials().prop` so the building fade dithers them.
 5. **Register** a `MapDef` in `map/registry.ts` (name, blurb, noun for the HUD, points, mood colours, menu camera) and
-   add the id to `MAP_SCORING_VERSIONS` in `game/scores.ts` (start at 1). A new map goes into `TEST_MAPS` in
-   `src/games/hole/release.ts` first (dev server and `build:test` only); move it to `AVAILABLE_MAPS` when Deni says ship.
+   add the id to `MAP_SCORING_VERSIONS` in `game/scores.ts` (start at 1). A new map goes into `MAPS_LIST` with `hideInProd: true` in
+   `src/games/hole/release.ts` first (dev server and `build:test` only); remove the flag when Deni says ship.
    Add a menu card picture `screenshots/menu-<id>.jpg` (640 x 360) in `game/menu.ts`.
 6. Tests like `tests/hole/toy-map.test.ts` (determinism, exact points, coverage, items inside bounds, reachability from
    the clamped hole centre, balance bands). Viewers: `map-viewer.html?map=<id>`, `balance.html?map=<id>`.

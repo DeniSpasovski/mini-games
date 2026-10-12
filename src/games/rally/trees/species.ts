@@ -30,9 +30,9 @@ export interface LodSettings {
   fadeTime: number;
 }
 
-/** 6 %, 2.5 %, 1 % of the screen height: for a 15 m tree at a 60 deg field of view ~215, 520 and 1300 m. */
+/** 14 %, 7 %, 3.5 % of the screen height: for a 15 m tree at a 60 deg field of view ~90, 185 and 370 m. */
 export const DEFAULT_LOD: LodSettings = {
-  thresholds: [0.06, 0.025, 0.01],
+  thresholds: [0.14, 0.07, 0.035],
   hysteresis: 0.15,
   fadeTime: 0.3,
 };
@@ -41,7 +41,7 @@ export const DEFAULT_LOD: LodSettings = {
  * Trees closer than this (m) are always LOD0 with every sprite at full size, whatever their screen height, the field
  * of view or the quality setting (trees/Lod.md#selection): a player near a tree only ever sees it at full detail.
  */
-export const FULL_DETAIL_DISTANCE = 120;
+export const FULL_DETAIL_DISTANCE = 60;
 
 export type BarkTexture = 'furrowed' | 'smooth';
 export type FoliageKind = 'needles' | 'broadleaf';

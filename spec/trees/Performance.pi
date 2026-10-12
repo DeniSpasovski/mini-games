@@ -36,7 +36,7 @@ export anchor Performance:
 
     mitigations:
         - Every mitigation below is on by default at every graphics quality setting. Only a debug toggle may turn one off, and the benchmark records it.
-        - Foliage overdraw. Each atlas cluster image has a tight polygon of 6 to 8 vertices around its opaque part, and sprites use it instead of a full quad, so few pixels are spent on texels that fail the alpha test. Foliage sprites draw in a depth-only pass first and are then shaded only where their depth is equal, so each covered pixel is shaded once; both passes compute positions identically (@{Foliage.wind}). Sprite thinning past 120 m (@{Foliage.simplification}) cuts the sprite count of distant crowns.
+        - Foliage overdraw. Each atlas cluster image has a tight polygon of 6 to 8 vertices around its opaque part, and sprites use it instead of a full quad, so few pixels are spent on texels that fail the alpha test. Foliage sprites draw in a depth-only pass first and are then shaded only where their depth is equal, so each covered pixel is shaded once; both passes compute positions identically (@{Foliage.wind}). Sprite thinning past 60 m (@{Foliage.simplification}) cuts the sprite count of distant crowns.
         - Culling. Each frame, instances are culled against the view frustum and against a hierarchical depth buffer built from the previous frame's terrain and trees, on the GPU, and the survivors are compacted into indirect draws. A tree hidden behind a hill or a closer stand of trees costs neither vertices nor pixels.
         - Draw calls. Every impostor of every species shares one texture array and draws in a single instanced call.
         - Foliage shading. Leaf translucency is a cheap wrap-lighting term from the atlas thickness map, not a ray march or extra light lookup; ambient occlusion stays baked. No foliage shader samples more than its three atlas textures plus the shadow map.
@@ -46,7 +46,7 @@ export anchor Performance:
         - Load. The cache is generated when the game is built and shipped with it (@{Placement.caching}).
 
     hotspots:
-        - Alpha-tested foliage overdraw near the camera, made larger by the 120 m full-detail distance.
+        - Alpha-tested foliage overdraw near the camera, within the 60 m full-detail distance.
         - The two levels drawn together during a branch or impostor fade.
         - Shadow casters, drawn again for each cascade.
         - Stage load on a cold cache, when every variant and impostor is generated.

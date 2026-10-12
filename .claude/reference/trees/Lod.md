@@ -19,15 +19,15 @@ The levels are nested, so every segment in a coarser level is also in every fine
 - The level is chosen by the tree's projected height on screen, not by raw distance, so a change of camera field of view, as between the chase and the bonnet camera, picks the right level.
 - Projected height is measured from the tree's bounding sphere and the camera's position and field of view before camera shake and bounce are applied, so a shaking camera does not push trees back and forth across a threshold.
 - Each threshold has hysteresis. A tree moves to a coarser level when it drops below the threshold, and back to the finer one only when it rises above the threshold by a margin, 15% of the threshold by default.
-- The default thresholds are pushed far out, so a player near a tree only ever sees it at full detail. Sprite thinning starts below 6% of the screen height, branches move from LOD0 to LOD1 below 2.5%, and the tree moves to the impostor below 1%. For a 15 m tree at a 60 degree vertical field of view, that is roughly 215 m, 520 m and 1300 m.
-- A tree within 120 m of the camera is always drawn at LOD0 with every sprite at full size, whatever its projected height, the field of view or the graphics quality setting.
+- The default thresholds sit where each coarser level is hard to tell from the finer one at rally speed, so trees near the road are at full detail and the distant forest is cheap. Sprite thinning starts below 14% of the screen height, branches move from LOD0 to LOD1 below 7%, and the tree moves to the impostor below 3.5%. For a 15 m tree at a 60 degree vertical field of view, that is roughly 90 m, 185 m and 370 m.
+- A tree within 60 m of the camera is always drawn at LOD0 with every sprite at full size, whatever its projected height, the field of view or the graphics quality setting.
 - Selection depends only on the frame's camera, never on draw order, culling batches or which pass is drawing.
 - Selection is not re-run for every tree every frame; see activeSet.
 
 ## Active Set
 
 - Trees are grouped into cells along the stage. For each cell, the camera's distance range to the cell's trees bounds the projected height each of them can have, so whole cells can be settled at one level.
-- A tree is active, and re-selected on the CPU each frame, only while its projected height is within its hysteresis margin of a threshold, or of the 120 m full-detail distance, or while it is in a fade. Every other tree is settled and drawn from its cell's static batch for its level, with no per-frame CPU work.
+- A tree is active, and re-selected on the CPU each frame, only while its projected height is within its hysteresis margin of a threshold, or of the 60 m full-detail distance, or while it is in a fade. Every other tree is settled and drawn from its cell's static batch for its level, with no per-frame CPU work.
 - A settled cell records how far the camera can move, and how much the field of view can change, before any of its trees could reach a margin. The cell is checked again only once the camera has moved or zoomed that much, not every frame.
 - On a normal benchmark run, at most a few hundred trees are active in any frame, and the tree stats overlay reports the count.
 - Sprite thinning ([Foliage.simplification](./Foliage.md#simplification)) and wind are computed per sprite on the GPU from the camera. They never make a tree active.
@@ -54,7 +54,7 @@ The levels are nested, so every segment in a coarser level is also in every fine
 
 ## Budget
 
-The thresholds, the hysteresis margin and the fade time are per species, with defaults, and the thresholds can be scaled by the graphics quality setting. Lower quality settings may bring the thresholds closer, but never inside the 120 m full-detail distance.
+The thresholds, the hysteresis margin and the fade time are per species, with defaults, and the thresholds can be scaled by the graphics quality setting. Lower quality settings may bring the thresholds closer, but never inside the 60 m full-detail distance.
 
 ## Debug View
 

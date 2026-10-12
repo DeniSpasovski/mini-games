@@ -307,6 +307,7 @@ export const bimmerM3Atlas: CarAtlas = {
   width: Math.ceil(A.width * K),
   height: Math.ceil(A.height * K),
   matteRect,
+  layout: A,
   paint(ctx, info, seed) {
     paint(ctx, info, seed);
     // Wheel-well liner (converter `wheels.liner`) maps to this texel patch: black + matte like every car's arches.

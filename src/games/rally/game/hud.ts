@@ -1,5 +1,6 @@
 import './hud.css';
 import { CUT_GRACE, formatDelta, formatTime, type StageTimer } from './stage';
+import { TyreGauge, type TyreGaugeState } from './tyre-gauge';
 
 /**
  * DOM HUD (cheap, crisp text, no extra draw calls). Updated every frame but
@@ -13,8 +14,12 @@ export interface HudState {
   automatic: boolean;
   tc: boolean;
   tcActive: boolean;
+  abs: boolean;
+  absActive: boolean;
   /** Auto handbrake / start-line hold engaged. */
   hold: boolean;
+  /** Tyre temperatures (missing = no gauge). */
+  tyres?: TyreGaugeState;
 }
 
 export class Hud {
@@ -24,6 +29,7 @@ export class Hud {
   private messageTimer = 0;
   private rpmBars: HTMLElement[] = [];
   private sectors: { el: HTMLElement; fill: HTMLElement }[] = [];
+  private gauge = new TyreGauge();
 
   /** `testNotes`: one line per test-only map / car (dev server only, see release.ts). */
   constructor(parent: HTMLElement, title: string, testNotes: string[] = []) {
@@ -42,23 +48,27 @@ export class Hud {
       </div>
       <div class="hud-center" data-ref="message"></div>
       <div class="hud-warn" data-ref="warn"></div>
-      <div class="hud-dash">
+      <div class="hud-dash" data-ref="dash">
+        <div class="hud-dash-main">
         <div class="hud-rpm" data-ref="rpm"></div>
         <div class="hud-row">
           <div class="hud-gear" data-ref="gear">1</div>
           <div class="hud-speed"><span data-ref="speed">0</span><small>km/h</small></div>
         </div>
-        <div class="hud-flags"><span data-ref="hold">HOLD</span><span data-ref="tc">TC</span><span data-ref="box">AUTO</span></div>
+        <div class="hud-flags"><span data-ref="hold">HOLD</span><span data-ref="tc">TC</span><span data-ref="abs">ABS</span><span data-ref="box">AUTO</span></div>
+        </div>
       </div>
       <div class="hud-hints" data-ref="hints">
         <b>W/S</b> throttle / brake·reverse &nbsp; <b>A/D</b> steer &nbsp; <b>Space</b> handbrake<br/>
         <b>R</b> reset &nbsp; <b>C</b> camera &nbsp; <b>Esc</b> menu &nbsp; <b>Q/E</b> shift (<b>G</b> manual) &nbsp;
-        <b>T</b> traction ctrl &nbsp; <b>M</b> mute &nbsp; <b>F2</b> telemetry &nbsp; <b>F3</b> stats &nbsp; <b>F4</b> physics &nbsp; <b>F8</b> autopilot
+        <b>T</b> traction ctrl &nbsp; <b>B</b> ABS &nbsp; <b>M</b> mute &nbsp; <b>F2</b> telemetry &nbsp; <b>F3</b> stats &nbsp; <b>F4</b> physics &nbsp; <b>F8</b> autopilot
       </div>`;
     parent.append(this.el);
     this.el
       .querySelectorAll<HTMLElement>('[data-ref]')
       .forEach((e) => (this.refs[e.dataset.ref!] = e));
+    this.gauge.el.hidden = true;
+    this.refs.dash.prepend(this.gauge.el);
     for (let i = 0; i < 24; i++) {
       const b = document.createElement('i');
       this.refs.rpm.append(b);
@@ -86,6 +96,7 @@ export class Hud {
     this.set('box', s.automatic ? 'AUTO' : 'MAN');
     this.refs.hold.className = s.hold ? 'on active' : '';
     this.refs.tc.className = s.tc ? (s.tcActive ? 'on active' : 'on') : '';
+    this.refs.abs.className = s.abs ? (s.absActive ? 'on active' : 'on') : '';
     const lit = Math.round((s.rpm / (s.redline * 1.05)) * this.rpmBars.length);
     const key = `rpm${lit}`;
     if (this.cache.rpmBars !== key) {
@@ -95,6 +106,8 @@ export class Hud {
           i < lit ? (i >= this.rpmBars.length * 0.82 ? 'red' : 'on') : '';
       });
     }
+    if (s.tyres) this.gauge.update(s.tyres);
+    if (this.gauge.el.hidden !== !s.tyres) this.gauge.el.hidden = !s.tyres;
     this.set('time', formatTime(stage.time));
     this.updateSectors(stage);
     const splits = stage.splitTimes

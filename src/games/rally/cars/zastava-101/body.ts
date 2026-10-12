@@ -4,10 +4,10 @@ import {
   TorusGeometry,
   type BufferGeometry,
 } from 'three';
-import { emptyGeometry } from '../shared/car-body';
 import {
   box,
   cyl,
+  emptyGeometry,
   mergeAll,
   rbox,
   type CarPartGeometry,

@@ -1,7 +1,9 @@
 import { deriveSetups } from '../../physics/car-setup';
 import { bodyHull } from '../../physics/hull';
+import type { BrakeSet } from '../../physics/brakes';
 import type { AxleDef } from '../../physics/types';
 import type { CarDef } from '../shared/types';
+import { profile } from './profile';
 import { fiestaLivery } from './livery';
 
 /** WRC Fiesta (2017-): wheelbase 2.48 m between the model's hubs; the front axle sits at z = 1.2 (centre of mass behind it). */
@@ -23,10 +25,9 @@ const FRONT: AxleDef = {
   track: 1.668,
   spring: 34000,
   bump: 2400,
-  rebound: 3400,
+  rebound: 4320,
   travel: 0.26,
   antiRoll: 9000,
-  brakeTorque: 1750,
   handbrakeTorque: 0,
   steer: 1,
   grip: 1,
@@ -38,27 +39,61 @@ const REAR: AxleDef = {
   track: 1.648,
   spring: 29000,
   bump: 2100,
-  rebound: 3000,
+  rebound: 3780,
   travel: 0.26,
   antiRoll: 6000,
-  brakeTorque: 750,
   handbrakeTorque: 2800,
   steer: 0,
   grip: 1,
   forceHeight: 0.3,
 };
 
+/** Fiesta WRC brakes: 370 / 355 mm vented discs on tarmac, the 300 mm kit with the gravel wheels (PHYSICS.md "Brakes"). */
+const BRAKES: BrakeSet = {
+  front: {
+    type: 'vented',
+    diameter: 0.37,
+    thickness: 0.032,
+    pad: 'rally',
+    clamp: 11250,
+  },
+  rear: {
+    type: 'vented',
+    diameter: 0.355,
+    thickness: 0.03,
+    pad: 'rally',
+    clamp: 3900,
+  },
+};
+
+const GRAVEL_BRAKES: BrakeSet = {
+  front: {
+    type: 'vented',
+    diameter: 0.3,
+    thickness: 0.028,
+    pad: 'rally',
+    clamp: 11700,
+  },
+  rear: {
+    type: 'vented',
+    diameter: 0.3,
+    thickness: 0.028,
+    pad: 'rally',
+    clamp: 4550,
+  },
+};
+
 /**
  * Fiesta WRC (`fiesta`) - a 2017-spec World Rally Car: the imported CC BY "Ford Fiesta WRC" body with its own cockpit
  * (seats, dash, cage - visible through the glass), converted by glb-to-parts-stl.py + stl-to-glb.mjs (model.source.json)
- * and painted at runtime (livery.ts). Its own rim, centred on the hub (glb-rim-extract.py). Test car (release.ts).
+ * and painted at runtime (livery.ts). Its own rim, centred on the hub (glb-rim-extract.py). Released (release.ts).
  */
 export const fiesta: CarDef = {
   id: 'fiesta',
   name: 'Fiesta WRC',
   className: 'WRC · AWD turbo',
   description:
-    'World Rally Car of the 2017 rules: 1.6 turbo, 5-speed sequential, active diffs, wide arches, big wing. Short and wide, it turns in like nothing else.',
+    'World Rally Car of the 2017 rules: 1.6 turbo, 6-speed sequential, active diffs, wide arches, big wing. Short and wide, it turns in like nothing else.',
   sources: [
     {
       label: '"Ford Fiesta WRC" by kevin (Sketchfab)',
@@ -111,16 +146,16 @@ export const fiesta: CarDef = {
       },
     ),
     engine: {
-      // WRC level (1.6 turbo, 36 mm restrictor: ~380 hp, ~430 Nm at 5000 rpm): a notch above the R5.
+      // WRC level (1.6 turbo, 36 mm restrictor): 450 Nm at 5000, 283 kW (380 hp) at 6000 - a notch above the R5.
       torqueCurve: [
-        [1000, 190],
-        [2000, 290],
-        [3000, 385],
-        [4000, 425],
-        [5000, 430],
-        [6000, 390],
-        [6500, 340],
-        [7000, 280],
+        [1000, 200],
+        [2000, 320],
+        [3000, 420],
+        [4000, 450],
+        [5000, 455],
+        [6000, 450],
+        [6500, 415],
+        [7000, 345],
       ],
       idleRpm: 950,
       redlineRpm: 6900,
@@ -129,7 +164,8 @@ export const fiesta: CarDef = {
       launchRpm: 4400,
     },
     gearbox: {
-      ratios: [3.2, 2.2, 1.65, 1.3, 1.05],
+      // 6-speed sequential (the R5 has 5): same 1st and top gear, closer steps.
+      ratios: [3.2, 2.35, 1.82, 1.47, 1.22, 1.05],
       reverse: 3.3,
       finalDrive: 4.6,
       shiftTime: 0.1,
@@ -148,6 +184,8 @@ export const fiesta: CarDef = {
       frontDiffLock: 80,
       rearDiffLock: 200,
     },
+    brakes: BRAKES,
+    gravelBrakes: GRAVEL_BRAKES,
     dragArea: 0.8,
     downforceArea: 0.2,
     // Fitted to the imported body (tests/rally/hull-fit.test.ts, which measures the GLB): splitter / front side lips 0.076 -
@@ -163,46 +201,16 @@ export const fiesta: CarDef = {
     ]),
   },
   model: {
-    // Rough match of the imported body, used only by the generic bolt-on kit. Rear -> front.
-    stations: [
-      { z: -2.03, floor: 0.3, belt: 0.82, hw: 0.7, hwBelt: 0.6 },
-      { z: -1.9, floor: 0.2, belt: 0.92, hw: 0.88, hwBelt: 0.76 },
-      { z: -1.28, floor: 0.16, belt: 0.95, hw: 0.9, hwBelt: 0.76 },
-      { z: -0.4, floor: 0.14, belt: 0.95, hw: 0.88, hwBelt: 0.76 },
-      { z: 0.5, floor: 0.14, belt: 0.93, hw: 0.88, hwBelt: 0.76 },
-      { z: 1.2, floor: 0.14, belt: 0.9, hw: 0.92, hwBelt: 0.76 },
-      { z: 1.75, floor: 0.12, belt: 0.78, hw: 0.84, hwBelt: 0.7 },
-      { z: 2.05, floor: 0.12, belt: 0.7, hw: 0.7, hwBelt: 0.6 },
-    ],
-    cabin: {
-      zFront: 0.75,
-      zRear: -1.85,
-      roofFront: 0.1,
-      roofRear: -1.45,
-      roofY: 1.35,
-      roofHw: 0.6,
-      kick: 0.25,
-      bPillar: -0.5,
-    },
     paint: '#1d5fb4',
-    flare: 0.06,
     rim: { color: '#c9ccd1', spokes: 10, style: 'spoke', caliper: '#d63a2f' },
     // The model's own rim, de-cambered and centred on the hub (scripts/car-model/glb-rim-extract.py), rescaled per tyre
     // size (stl-wheel.ts).
     wheelModel: 'fiesta_wheel.glb',
     suspensionStyle: 'wrc',
-    parts: {
-      arches: 'box',
-      rearWing: 'rally1',
-      splitter: true,
-      sideSkirts: true,
-      headlights: 'slim',
-      grille: 'mouth',
-      doors: 2,
-    },
-    livery: 'rally1',
     // The model carries its own cockpit: see-through glass shows it.
-    glass: { color: 0x2a3a46, opacity: 0.35 },
+    glass: { color: 0x141c24, opacity: 0.6 },
+    // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
+    profile,
     doorBadge: { z: 0.2, y: 0.6 },
     // No procedural suspension: the model carries its own arms and dampers (trim).
     gltf: {

@@ -21,12 +21,15 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 | `Space`             | handbrake                                          |
 | `R`, `C`, `Esc`     | reset to road, camera, pause menu                  |
 | `Q` / `E`, `G`, `T` | shift, manual gearbox, traction assist             |
+| `B`                 | ABS (on by default; not on the Zastava)            |
 
 ## Features
 
 - Real-world stages with bridges, junctions, buildings, power lines and city streets (see maps below).
 - Seeded procedural vegetation, rocks and props through one instanced asset library, streamed terrain with LODs.
-- Tyre compounds, tyre sizes, suspension and gearing set-ups per car, with a live 3D set-up screen.
+- Five tyres (tarmac and gravel in soft and hard, plus mixed), tyre sizes and class per car, suspension and gearing set-ups, with a live 3D set-up screen.
+- Tyre and brake temperature per stage weather (Ajvatovci a hot June morning, Petralica a cool September afternoon): cold tyres and pads
+  grip less, hot discs fade; HUD marks for both.
 - Stage timer with sectors, time penalties for cutting and knocking over marker posts, top-10 times per stage (stored
   locally).
 - Tool pages: map viewer, car viewer, asset debugger (dev server).
@@ -44,13 +47,16 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 
 ## Cars
 
-| Car                              | Drive | Notes                                             |
-| -------------------------------- | ----- | ------------------------------------------------- |
-| [Skoda Rally](cars/skoda-rally/) | AWD   | Fabia R5 from a CC BY Sketchfab model, own livery |
-| [Bimmer M3](cars/bimmer-m3/)     | RWD   | E46 coupe from a CC BY print STL                  |
-| [Bimmer GT2](cars/bimmer-gt2/)   | RWD   | E92 GT2 racer from a CC BY Sketchfab GLB (test)   |
-| [Zastava 101](cars/zastava-101/) | FWD   | hand-built from a blueprint                       |
-| [Fiesta WRC](cars/fiesta/)       | AWD   | WRC Fiesta with a visible cockpit (test car)      |
+| Car                                   | Drive | Notes                                                                                                   |
+| ------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------- |
+| [Skoda Rally](cars/skoda-rally/)      | AWD   | Fabia R5 from a CC BY Sketchfab model, own livery                                                       |
+| [Bimmer M3](cars/bimmer-m3/)          | RWD   | E46 coupe from a CC BY print STL                                                                        |
+| [Bimmer GT2](cars/bimmer-gt2/)        | RWD   | E92 GT2 racer from a CC BY Sketchfab GLB                                                                |
+| [Subaru WRX STI 22B](cars/subie-22b/) | AWD   | widebody GC8 / 22B from a CC BY-NC Sketchfab GLB, real lamps + cockpit, crescent / stars graphic (test) |
+| [Zastava 101](cars/zastava-101/)      | FWD   | hand-built from a blueprint                                                                             |
+| [Fiesta WRC](cars/fiesta/)            | AWD   | WRC Fiesta with a visible cockpit                                                                       |
+| [Citroen C4 WRC](cars/citroen-c4/)    | AWD   | 2007 WRC C4 with a visible cockpit                                                                      |
+| [Lancer EVO VI](cars/lancer-evo-6/)   | AWD   | 1999-style Lancer with a visible cockpit                                                                |
 
 [![Skoda Rally](cars/skoda-rally/screenshots/front-34.jpg)](cars/skoda-rally/) [![Zastava](cars/zastava-101/screenshots/front-34.jpg)](cars/zastava-101/)
 
@@ -68,3 +74,5 @@ Map data: © OpenStreetMap contributors (ODbL), ESA WorldCover 2021 (CC BY 4.0),
 Microsoft building footprints. Car models and their licences: see each car's README and
 [`THIRD-PARTY.md`](../../../THIRD-PARTY.md). Car makes and models are trademarks of their owners; this is a
 non-commercial, educational fan project.
+
+Tyre, suspension and brake research (links only): see [`PHYSICS.md`](PHYSICS.md) "Tyre temperature" / "Dampers and bump stop" / "Brakes" and About > Physics in the game.

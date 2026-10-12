@@ -9,10 +9,14 @@ import type { CameraMode } from './camera-rig';
 export interface RallySettings {
   /** Master volume 0..1. */
   volume: number;
+  /** Main menu music volume 0..1, 0 = off (own slider; the race has no music). */
+  musicVolume: number;
   /** Gearbox at the start of a stage (G toggles in game). */
   automatic: boolean;
   /** Traction / stability assist at the start of a stage (T toggles in game). */
   traction: boolean;
+  /** Anti-lock brakes at the start of a stage (B toggles in game). */
+  abs: boolean;
   /** Start number on the rally door plates (1..99; the rally name comes from the map). */
   carNumber: number;
   /** Starting camera (C cycles in game). */
@@ -27,8 +31,10 @@ export interface RallySettings {
 
 export const DEFAULT_SETTINGS: RallySettings = {
   volume: 0.5,
+  musicVolume: 0.2,
   automatic: true,
   traction: true,
+  abs: true,
   carNumber: 7,
   camera: 'chase',
   objectDistance: 'normal',
@@ -68,8 +74,13 @@ export function sanitizeSettings(raw: unknown): RallySettings {
       typeof o.volume === 'number' && Number.isFinite(o.volume)
         ? Math.min(1, Math.max(0, o.volume))
         : d.volume,
+    musicVolume:
+      typeof o.musicVolume === 'number' && Number.isFinite(o.musicVolume)
+        ? Math.min(1, Math.max(0, o.musicVolume))
+        : d.musicVolume,
     automatic: bool(o.automatic, d.automatic),
     traction: bool(o.traction, d.traction),
+    abs: bool(o.abs, d.abs),
     carNumber:
       typeof o.carNumber === 'number'
         ? clampCarNumber(o.carNumber)

@@ -66,6 +66,8 @@ export const jackieInfo: MapInfo = {
     sunAzimuth: 330,
     // Hazy morning on the parkway: low sun from the east (~29 deg). ?tod=<hours> to try others.
     timeOfDay: 8,
+    // Mild morning.
+    airTemp: 17,
     turbidity: 6,
     rayleigh: 1.4,
     fogColor: '#bfc8d0',

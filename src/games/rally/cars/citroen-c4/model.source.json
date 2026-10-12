@@ -1,0 +1,286 @@
+{
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/citroen-c4/02-citroen-c4-wrc-metres.glb = 'Citroen C4 WRC Red Bull 2007' by Max (CC BY 4.0), root node scaled x0.7542 (glb-set-root-scale.py <glb> <out> 0 0.7542: the FBX export is 1.33x too big, wheelbase 3.467 -> the real 2.615 m): +x left, +y up, +z nose, metres. The offset puts the front hub (model z 1.1895) on physics front.z = 1.2 and lifts the body 0.87 m so the hubs (model y -0.534) sit at the tyre radius 0.336. The atlas block is also read by livery.ts at runtime - edit it only here.",
+  "source": "sources/cars/citroen-c4/02-citroen-c4-wrc-metres.glb -> glb-to-parts-stl.py -> sources/cars/citroen-c4/citroen-c4-parts.stl",
+  "output": "public/models/cars/citroen_c4.glb",
+  "axes": ["x", "y", "z"],
+  "scale": 1.0,
+  "offset": [0, 0.87, 0.0105],
+  "groundAtMin": false,
+  "targetTriangles": 75000,
+  "creaseDeg": 40,
+  "wheels": {
+    "$comment": "the wheels are separate nodes (dropped below) - nothing to cut",
+    "radius": 0,
+    "minAbsX": 9,
+    "centres": []
+  },
+  "atlas": {
+    "pxPerMetre": 256,
+    "width": 4.35,
+    "height": 9.6,
+    "bounds": {
+      "x": [-1.05, 1.05],
+      "y": [0, 1.7],
+      "z": [-2.15, 2.15]
+    },
+    "charts": {
+      "left": [0, 0],
+      "right": [0, 1.75],
+      "top": [0, 3.5],
+      "front": [0, 5.65],
+      "rear": [2.2, 5.65],
+      "bottom": [0, 7.45]
+    },
+    "chartBoxes": [
+      {
+        "$comment": "rear-facing faces of the front half (fender / door gap, arch lips, hood vents): side chart (blue there), not the rear chart (red tail)",
+        "chart": "side",
+        "x": [0.55, 1.05],
+        "y": [0.25, 1.2],
+        "z": [0.3, 1.95]
+      },
+      {
+        "$comment": "rear bumper recesses (plate pocket, fog pockets): every face on the rear chart, so their sideways walls take the navy bumper, not the red flank of the side charts",
+        "chart": "rear",
+        "any": true,
+        "x": [0, 0.76],
+        "y": [0.2, 0.75],
+        "z": [-2.12, -1.9]
+      },
+      {
+        "$comment": "upper front fender and door front: the sloping shoulder stays on the side chart, so the yellow disc is not cut by the normal threshold between the side and top charts",
+        "chart": "side",
+        "maxNy": 0.95,
+        "minNy": -0.2,
+        "x": [0.7, 1.05],
+        "y": [0.55, 1.1],
+        "z": [0.45, 1.3]
+      }
+    ]
+  },
+  "gltf": {
+    "$comment": "material / node -> part; first matching rule wins. Wheels, discs, plate, buttons, cables and gearbox bits are dropped (the game builds its own wheels / brakes).",
+    "drop": [
+      "Frein",
+      "Jante",
+      "Pneu",
+      "Bouton",
+      "Cables",
+      "Distribution",
+      "Plaque"
+    ],
+    "parts": [
+      {
+        "$comment": "the model's own grille bars (silver in the source): painted in the livery (body atlas); the dark bars between them stay trim",
+        "mat": "Autres",
+        "region": {
+          "view": "front",
+          "poly": [
+            [-0.42, 0.65],
+            [0.42, 0.65],
+            [0.42, 0.83],
+            [-0.42, 0.83]
+          ],
+          "depth": [1.95, 2.2]
+        },
+        "material": "body"
+      },
+      {
+        "$comment": "the rear chevron emblem on the boot lid: dropped",
+        "mat": "Autres",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [-0.08, 0.76],
+            [0.08, 0.76],
+            [0.08, 0.89],
+            [-0.08, 0.89]
+          ],
+          "depth": [-2.2, -2.0]
+        },
+        "material": "logo"
+      },
+      {
+        "$comment": "the rear chevron emblem on the boot lid: dropped",
+        "mat": "ensemble_cr",
+        "region": {
+          "view": "rear",
+          "poly": [
+            [-0.08, 0.76],
+            [0.08, 0.76],
+            [0.08, 0.89],
+            [-0.08, 0.89]
+          ],
+          "depth": [-2.2, -2.0]
+        },
+        "material": "logo"
+      },
+      {
+        "$comment": "roof scoop: French flag colours, three stripes across the car (blue on the left side) (y in the source's coordinates, before the offset)",
+        "mat": "Autres",
+        "x": [-0.2, -0.038],
+        "y": [0.53, 0.65],
+        "z": [-0.2, 0.2],
+        "material": "flagred"
+      },
+      {
+        "$comment": "roof scoop: French flag colours, three stripes across the car (blue on the left side) (y in the source's coordinates, before the offset)",
+        "mat": "Autres",
+        "x": [-0.038, 0.038],
+        "y": [0.53, 0.65],
+        "z": [-0.2, 0.2],
+        "material": "flagwhite"
+      },
+      {
+        "$comment": "roof scoop: French flag colours, three stripes across the car (blue on the left side) (y in the source's coordinates, before the offset)",
+        "mat": "Autres",
+        "x": [0.038, 0.2],
+        "y": [0.53, 0.65],
+        "z": [-0.2, 0.2],
+        "material": "flagblue"
+      },
+      {
+        "node": "Vitre_Vitre_0",
+        "whole": true,
+        "islandTris": [29, 29],
+        "material": "lenscover"
+      },
+      {
+        "mat": "Vitre",
+        "material": "glass"
+      },
+      {
+        "mat": "Phares",
+        "z": [0, 3],
+        "material": "chrome"
+      },
+      {
+        "mat": "Phares",
+        "material": "tailc4"
+      },
+      {
+        "mat": "ensemble_cr",
+        "material": "trim"
+      },
+      {
+        "mat": "Autres",
+        "material": "trim"
+      },
+      {
+        "mat": "Essuie_glace",
+        "material": "trim"
+      },
+      {
+        "mat": "Arceau_metallique",
+        "material": "cage"
+      },
+      {
+        "mat": "Cr_Interieur_Portiere",
+        "material": "interior"
+      },
+      {
+        "mat": "Cr_Interieur",
+        "material": "interior"
+      },
+      {
+        "mat": "Tableau_de_bord",
+        "material": "interior"
+      },
+      {
+        "mat": "Interieur_2",
+        "material": "interior"
+      },
+      {
+        "mat": "Interieur",
+        "material": "interior"
+      },
+      {
+        "mat": "Autre_interieur",
+        "material": "interior"
+      },
+      {
+        "mat": "Volant",
+        "material": "interior"
+      },
+      {
+        "mat": "Sige",
+        "material": "interior"
+      },
+      {
+        "mat": "Carrosserie",
+        "material": "body"
+      }
+    ],
+    "default": "trim"
+  },
+  "parts": {
+    "materials": [
+      "body",
+      "trim",
+      "glass",
+      "headlight",
+      "tailc",
+      "lenscover",
+      "chrome",
+      "amber",
+      "mesh",
+      "interior",
+      "logo",
+      "carbon",
+      "wingblue",
+      "winggreen",
+      "mirror",
+      "cage",
+      "tailled",
+      "headled",
+      "redcover",
+      "lamphousing",
+      "flagblue",
+      "flagwhite",
+      "flagred",
+      "tailc4"
+    ],
+    "wrap": {
+      "tailc4": "corner"
+    },
+    "drop": ["logo"],
+    "maxTriangles": {
+      "interior": 18000
+    },
+    "fills": [],
+    "solids": [
+      {
+        "$comment": "black backing plate behind the lower opening: nothing of the cabin shows through",
+        "material": "trim",
+        "poly": [
+          [-0.66, 0.26],
+          [0.66, 0.26],
+          [0.66, 0.64],
+          [-0.66, 0.64]
+        ],
+        "w": [1.88, 1.9]
+      },
+      {
+        "$comment": "radiator: wire-mesh core filling the lower opening",
+        "material": "mesh",
+        "poly": [
+          [-0.52, 0.27],
+          [0.52, 0.27],
+          [0.5, 0.57],
+          [-0.5, 0.57]
+        ],
+        "w": [1.9, 1.99],
+        "bevel": 0.01
+      }
+    ],
+    "shells": [
+      {
+        "$comment": "the tail lamp is one thin sheet in the source: a see-through lens 6 mm above it plus a dark rim strip along its free edges",
+        "from": "tailc4",
+        "cover": "redcover",
+        "wall": "lamphousing",
+        "offset": 0.006
+      }
+    ]
+  }
+}

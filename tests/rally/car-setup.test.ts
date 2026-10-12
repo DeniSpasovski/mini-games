@@ -9,8 +9,11 @@ import {
   SETUP_IDS,
 } from '../../src/games/rally/physics/car-setup';
 import {
+  axleRadius,
   carGripRating,
   carSurfaces,
+  drivenRadius,
+  isStaggered,
   tyreRadius,
   tyreSizeFor,
 } from '../../src/games/rally/physics/car-tyres';
@@ -34,13 +37,57 @@ const car = (id: string) => ALL_CARS.find((c) => c.id === id)!.physics;
 describe.each(ALL_CARS.map((c) => c.id))('%s', (carId) => {
   const def = car(carId);
 
-  test('every tyre size matches the physics wheel radius and width', () => {
+  test('every tyre size fits the reference wheel radius and width', () => {
+    for (const t of TYRE_IDS)
+      for (const axle of ['front', 'rear'] as const) {
+        const size = tyreSizeFor(def, t, axle);
+        // A staggered rear runs taller by design (the GT2's 31/71-18 slick: +7.6 %), checked against the arch.
+        const tol = axle === 'rear' && def.tyres.rear ? 0.08 : 0.04;
+        const r = axleRadius(def, t, axle);
+        expect(Math.abs(r / def.wheelRadius - 1)).toBeLessThan(tol);
+        // The rolling radius follows the marking (scaled to the car's own radius for its default size).
+        expect(r / def.wheelRadius).toBeCloseTo(
+          tyreRadius(size) / tyreRadius(def.tyres.size),
+          9,
+        );
+        expect(Math.abs(size.width - def.wheelWidth)).toBeLessThan(0.05);
+      }
+  });
+
+  test('without rear sizes both axles share the size, radius and grip table', () => {
+    if (def.tyres.rear) return;
     for (const t of TYRE_IDS) {
-      const size = tyreSizeFor(def, t);
-      expect(Math.abs(tyreRadius(size) / def.wheelRadius - 1)).toBeLessThan(
-        0.04,
+      expect(isStaggered(def, t)).toBe(false);
+      expect(carSurfaces(def, t, 'rear')).toBe(carSurfaces(def, t, 'front'));
+      expect(axleRadius(def, t, 'rear')).toBe(axleRadius(def, t, 'front'));
+    }
+  });
+
+  test('the default size rolls on the car own wheelRadius (its default handling stays as measured)', () => {
+    const v = new Vehicle(def, flat('tarmac'));
+    for (const w of v.wheels)
+      if (w.isFront || !def.tyres.rear) expect(w.radius).toBe(def.wheelRadius);
+  });
+
+  test('4WD cars run one radius on both axles (the centre coupling compares wheel spin)', () => {
+    const split = def.drivetrain.frontSplit;
+    if (split === 0 || split === 1) return;
+    for (const t of TYRE_IDS)
+      expect(axleRadius(def, t, 'rear')).toBeCloseTo(
+        axleRadius(def, t, 'front'),
+        6,
       );
-      expect(Math.abs(size.width - def.wheelWidth)).toBeLessThan(0.05);
+  });
+
+  test('the wheels roll on their size, the gearbox sees the driven axle', () => {
+    for (const t of TYRE_IDS) {
+      const v = new Vehicle(def, flat('tarmac'));
+      v.setTyre(t);
+      for (const w of v.wheels)
+        expect(w.radius).toBe(axleRadius(def, t, w.isFront ? 'front' : 'rear'));
+      const split = def.drivetrain.frontSplit;
+      const driven = split === 0 ? 'rear' : split === 1 ? 'front' : null;
+      if (driven) expect(drivenRadius(def, t)).toBe(axleRadius(def, t, driven));
     }
   });
 
@@ -156,6 +203,26 @@ test('a soft set-up gains on rough ground, a stiff one on tarmac', () => {
   expect(mu(stiff, 'tarmac')).toBeGreaterThan(mu(soft, 'tarmac'));
 });
 
+test('the BMWs run their own staggered sizes: a wider (GT2: taller) rear with its own grip table', () => {
+  for (const id of ['bimmer_m3', 'bimmer_gt2']) {
+    const def = car(id);
+    expect(isStaggered(def, 'tarmac')).toBe(true);
+    expect(tyreSizeFor(def, 'tarmac', 'rear').width).toBeGreaterThan(
+      tyreSizeFor(def, 'tarmac', 'front').width,
+    );
+    expect(carSurfaces(def, 'tarmac', 'rear')).not.toBe(
+      carSurfaces(def, 'tarmac', 'front'),
+    );
+    expect(carSurfaces(def, 'tarmac', 'rear').tarmac.mu).toBeGreaterThan(
+      carSurfaces(def, 'tarmac', 'front').tarmac.mu,
+    );
+  }
+  const gt2 = car('bimmer_gt2');
+  expect(
+    axleRadius(gt2, 'tarmac', 'rear') - axleRadius(gt2, 'tarmac', 'front'),
+  ).toBeGreaterThan(0.02);
+});
+
 function flat(surface: SurfaceId): GroundProvider {
   return {
     sampleGround(_x: number, _z: number, out: GroundSample) {
@@ -192,7 +259,7 @@ function lateralG(
   return sum / PHYSICS_HZ / 9.81;
 }
 
-test('cars on their own best tyres + set-up: Bimmer wins on tarmac, Fabia on gravel; Zastava has the least grip', () => {
+test('cars on their own best tyres + set-up: GT2 slicks win on tarmac, a rally car beats the road-tyre M3 there, Fabia wins on gravel; Zastava has the least grip', () => {
   const g = (id: string, t: TyreId, s: SurfaceId) =>
     lateralG(car(id), t, SETUP_FOR_TYRE[t], s);
   const row = (id: string) => ({
@@ -201,20 +268,23 @@ test('cars on their own best tyres + set-up: Bimmer wins on tarmac, Fabia on gra
   });
   const fabia = row('skoda_rally');
   const bimmer = row('bimmer_m3');
+  const gt2 = row('bimmer_gt2');
   const zastava = row('zastava_101');
   console.info(
-    `lateral g  tarmac tyres on tarmac / gravel tyres on gravel\n  fabia ${fabia.tarmac.toFixed(2)} / ${fabia.gravel.toFixed(2)}\n  bimmer ${bimmer.tarmac.toFixed(2)} / ${bimmer.gravel.toFixed(2)}\n  zastava ${zastava.tarmac.toFixed(2)} / ${zastava.gravel.toFixed(2)}`,
+    `lateral g  tarmac tyres on tarmac / gravel tyres on gravel\n  fabia ${fabia.tarmac.toFixed(2)} / ${fabia.gravel.toFixed(2)}\n  bimmer ${bimmer.tarmac.toFixed(2)} / ${bimmer.gravel.toFixed(2)}\n  gt2 ${gt2.tarmac.toFixed(2)} / ${gt2.gravel.toFixed(2)}\n  zastava ${zastava.tarmac.toFixed(2)} / ${zastava.gravel.toFixed(2)}`,
   );
-  expect(bimmer.tarmac).toBeGreaterThan(fabia.tarmac);
+  // Slicks beat a rally tarmac tyre, which beats a road tyre on a 1.7 t coupe (PHYSICS.md "Tyre types").
+  expect(gt2.tarmac).toBeGreaterThan(fabia.tarmac);
+  expect(fabia.tarmac).toBeGreaterThan(bimmer.tarmac);
   expect(fabia.gravel).toBeGreaterThan(bimmer.gravel);
   expect(zastava.tarmac).toBeLessThan(fabia.tarmac);
   expect(zastava.gravel).toBeLessThan(fabia.gravel);
 });
 
 test('straight-line launch on loose ground: every car gets to 100 km/h pointing straight (gravel tyres, soft set-up)', () => {
-  // Full throttle, no steering, TC on (default). Catches a RWD car losing its rear bias: the Bimmer at rear.grip 1.15
-  // spun up on gravel_loose / dirt and never reached 100 km/h (the autopilot tests can't see it - the autopilot lifts
-  // off when the car slides). Above ~90 km/h on loose ground the Bimmer still starts a slow fishtail with no counter-
+  // Full throttle, no steering, TC on (default). Catches a RWD car spinning up its rear on gravel_loose / dirt and never
+  // reaching 100 km/h (the autopilot tests can't see it - the autopilot lifts off when the car slides); the traction
+  // term of TC (vehicle.ts) is what holds the rear axle's slip. Above ~90 km/h on loose ground the Bimmer still starts a slow fishtail with no counter-
   // steer - RWD V8 character, the player catches it - so the heading is checked at the moment it reaches 100 km/h.
   for (const c of ALL_CARS) {
     for (const s of ['gravel', 'gravel_loose', 'dirt'] as SurfaceId[]) {

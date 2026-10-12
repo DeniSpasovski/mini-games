@@ -151,8 +151,8 @@ describe('trees', () => {
 });
 
 describe('tree LOD transitions', () => {
-  // Branch thresholds: LOD0 -> LOD1 at 2.5 %, LOD1 -> impostor at 1 % of the screen height.
-  const T = [0.025, 0.01];
+  // Branch thresholds: LOD0 -> LOD1 at 7 %, LOD1 -> impostor at 3.5 % of the screen height.
+  const T = [0.07, 0.035];
   const settled = (level: number): FadeState => ({
     from: level,
     to: level,
@@ -161,22 +161,22 @@ describe('tree LOD transitions', () => {
   });
 
   test('hysteresis: coarser below a threshold, finer only 15% above it', () => {
-    expect(selectLevel(0.0249, 0, T, 0.15, 300)).toBe(1);
-    expect(selectLevel(0.026, 1, T, 0.15, 300)).toBe(1);
-    expect(selectLevel(0.0287, 1, T, 0.15, 300)).toBe(1);
-    expect(selectLevel(0.0288, 1, T, 0.15, 300)).toBe(0);
-    expect(selectLevel(0.005, 0, T, 0.15, 300)).toBe(2);
+    expect(selectLevel(0.0699, 0, T, 0.15, 300)).toBe(1);
+    expect(selectLevel(0.072, 1, T, 0.15, 300)).toBe(1);
+    expect(selectLevel(0.0804, 1, T, 0.15, 300)).toBe(1);
+    expect(selectLevel(0.0806, 1, T, 0.15, 300)).toBe(0);
+    expect(selectLevel(0.02, 0, T, 0.15, 300)).toBe(2);
   });
 
-  test('default thresholds: a 15 m tree at 60 deg goes LOD1 at ~520 m and impostor at ~1300 m', () => {
+  test('default thresholds: a 15 m tree at 60 deg goes LOD1 at ~185 m and impostor at ~370 m', () => {
     const px = 1 / (2 * Math.tan(Math.PI / 6));
     const at = (d: number) => selectLevel((15 * px) / d, 0, T, 0, d);
-    expect([at(500), at(540), at(1250), at(1350)]).toEqual([0, 1, 1, 2]);
+    expect([at(180), at(190), at(365), at(375)]).toEqual([0, 1, 1, 2]);
   });
 
-  test('within 120 m always LOD0, whatever the projected height', () => {
-    expect(selectLevel(0.0001, 2, T, 0.15, 119)).toBe(0);
-    expect(selectLevel(0.0001, 2, T, 0.15, 121)).toBe(2);
+  test('within 60 m always LOD0, whatever the projected height', () => {
+    expect(selectLevel(0.0001, 2, T, 0.15, 59)).toBe(0);
+    expect(selectLevel(0.0001, 2, T, 0.15, 61)).toBe(2);
   });
 
   test('sprites stay solid between branch levels and fade only against the impostor', () => {

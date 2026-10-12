@@ -2,13 +2,16 @@ import {
   DEFAULT_STICK,
   dragToStick,
   followOrigin,
+  padToStick,
   stickToWorld,
   type StickTuning,
 } from './stick';
 
 /**
- * Floating joystick (touch / mouse / pen) + keyboard. Touch anywhere on the
- * stage to set the origin, drag to steer; lifting the finger stops the hole.
+ * Floating joystick (touch / mouse / pen) + keyboard + gamepad. Touch anywhere on the
+ * stage to set the origin, drag to steer; lifting the finger stops the hole. A pad steers
+ * with the left stick (analogue speed) or the d-pad; its Start button is handled by the
+ * menu's pad navigation (`Menu`), so it pauses and resumes from one place.
  */
 export class Controls {
   readonly tuning: StickTuning = { ...DEFAULT_STICK };
@@ -121,7 +124,9 @@ export class Controls {
       const l = Math.hypot(kx, ky);
       return stickToWorld(kx / l, ky / l);
     }
-    return stickToWorld(this.stick.x, this.stick.y);
+    if (this.pointerId >= 0) return stickToWorld(this.stick.x, this.stick.y);
+    const p = padStick();
+    return stickToWorld(p.x, p.y);
   }
 
   /** Drop the current touch (menus, pause). */
@@ -131,4 +136,21 @@ export class Controls {
     this.keys.clear();
     this.hide();
   }
+}
+
+/** The first connected pad's steering (standard mapping: d-pad buttons 12-15). */
+function padStick(): { x: number; y: number } {
+  const pads = navigator.getGamepads?.() ?? [];
+  for (const g of pads) {
+    if (!g?.connected) continue;
+    const b = (i: number) =>
+      g.mapping === 'standard' && !!g.buttons[i]?.pressed;
+    return padToStick(g.axes, {
+      up: b(12),
+      down: b(13),
+      left: b(14),
+      right: b(15),
+    });
+  }
+  return { x: 0, y: 0 };
 }

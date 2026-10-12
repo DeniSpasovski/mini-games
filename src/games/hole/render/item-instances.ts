@@ -41,6 +41,7 @@ interface BatchedInternals {
   _multiDrawCount: number;
   _multiDrawBytesPerElement: number;
   _indirectTexture: DataTexture;
+  _matricesTexture: DataTexture;
   _visibilityChanged: boolean;
   _geometryInfo: { start: number; count: number }[];
 }
@@ -119,6 +120,42 @@ class ItemBatch extends BatchedMesh {
     this.drawStart[id] = start;
     this.drawCount[id] = count;
     return id;
+  }
+
+  /** Matrix rows of the texture written since the last `flushMatrixRows` (only tracked once the texture is on the GPU). */
+  private dirtyRows: Uint8Array | null = null;
+  private dirtyRowCount = 0;
+  /** The matrix texture was uploaded at least once (a render ran). */
+  private matricesOnGpu = false;
+
+  setMatrix(id: number, m: Matrix4): void {
+    this.setMatrixAt(id, m);
+    if (!this.matricesOnGpu) return;
+    const tex = (this as unknown as BatchedInternals)._matricesTexture;
+    const rows = (this.dirtyRows ??= new Uint8Array(tex.image.height));
+    const row = Math.floor(id / (tex.image.width / 4));
+    if (!rows[row]) {
+      rows[row] = 1;
+      this.dirtyRowCount++;
+    }
+  }
+
+  /**
+   * Upload only the texture rows that changed since the last call (three re-sends the whole matrix texture
+   * after any `setMatrixAt`: 0.2-0.5 MB per frame on a map with a few awake items). Falls back to the full
+   * upload when over half of the rows changed.
+   */
+  flushMatrixRows(): void {
+    const rows = this.dirtyRows;
+    if (!rows || !this.dirtyRowCount) return;
+    const tex = (this as unknown as BatchedInternals)._matricesTexture;
+    if (this.dirtyRowCount * 2 <= rows.length) {
+      const stride = tex.image.width * 4;
+      for (let r = 0; r < rows.length; r++)
+        if (rows[r]) tex.addUpdateRange(r * stride, stride);
+    }
+    rows.fill(0);
+    this.dirtyRowCount = 0;
   }
 
   show(id: number, on: boolean): void {
@@ -237,6 +274,7 @@ class ItemBatch extends BatchedMesh {
     }
     self._indirectTexture.needsUpdate = true;
     self._multiDrawCount = n;
+    this.matricesOnGpu = true; // uploaded right after this callback
     self._multiDrawBytesPerElement =
       geometry.getIndex()?.array.BYTES_PER_ELEMENT ?? 1;
     self._visibilityChanged = false;
@@ -448,6 +486,7 @@ export class ItemInstances {
       this.fitCell(this.batches[b], key & 0xfffff);
     }
     this.dirtyCells.clear();
+    for (const b of this.batches) b.flushMatrixRows();
   }
 
   /** Re-write one item (used by viewers that edit the world). */
@@ -458,7 +497,7 @@ export class ItemInstances {
     this.applyShown(i);
     if (batch.shown[id]) {
       this.poseMatrix(i, this.m);
-      batch.setMatrixAt(id, this.m);
+      batch.setMatrix(id, this.m);
       this.placeSphere(batch, id, i);
     }
     if (this.world.isMover[i] && this.moverCells[b].has(this.cellOf[i]))

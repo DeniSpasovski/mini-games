@@ -301,9 +301,10 @@ export function barrierPoint(
   // left = (tz, -tx)
   const x = s.x + s.tz * lat;
   const z = s.z - s.tx * lat;
-  // Under a portal slab the surface sampler reads the slab top: a stage-road barrier stands on the road there.
+  // On a bridge span the sampler reads the ground under the deck (a parapet collider 1-2 m too low: cars drive over it);
+  // under a portal slab it reads the slab top. A stage-road barrier stands on the road in both.
   let y = ground.height(x, z);
-  if (run.path === undefined && y > s.y + 1) y = s.y;
+  if (run.path === undefined && (s.deck || y > s.y + 1)) y = s.y;
   return { x, z, y, tx: s.tx, tz: s.tz };
 }
 

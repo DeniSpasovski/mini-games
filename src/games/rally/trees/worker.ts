@@ -17,10 +17,15 @@ const scope = globalThis as unknown as {
 
 scope.onmessage = (e) => {
   const { id, species, index } = e.data;
-  const t0 = performance.now();
-  const g = generateVariant(getSpecies(species), index);
-  scope.postMessage({ id, ...g, ms: performance.now() - t0 }, [
-    ...meshBuffers(g.meshes),
-    g.info.capsules.buffer as ArrayBuffer,
-  ]);
+  try {
+    const t0 = performance.now();
+    const g = generateVariant(getSpecies(species), index);
+    scope.postMessage({ id, ...g, ms: performance.now() - t0 }, [
+      ...meshBuffers(g.meshes),
+      g.info.capsules.buffer as ArrayBuffer,
+    ]);
+  } catch (err) {
+    // The main thread retries inline (trees/load.ts `Generator`), where the error surfaces.
+    scope.postMessage({ id, error: String(err) }, []);
+  }
 };

@@ -1,5 +1,11 @@
 import { MathUtils, Scene, Vector2, Vector3, type Object3D } from 'three';
 import { seconds, track, type EventParams } from '../../../shared/analytics';
+import {
+  ownValue,
+  paramInt,
+  paramNumber,
+  paramOneOf,
+} from '../../../shared/url-params';
 import gameManifest from '../game.json';
 import { MAPS, getMapDef, type MapDef } from '../map/registry';
 import { pickStart } from '../map/start';
@@ -7,7 +13,7 @@ import type { MapData } from '../map/types';
 import { EatRings } from '../debug/eat-rings';
 import { CameraRig } from '../render/camera-rig';
 import { buildMapGround, disposeGround } from '../render/map-ground';
-import { HoleMesh, holeColorById } from '../render/hole-mesh';
+import { HOLE_COLORS, HoleMesh, holeColorById } from '../render/hole-mesh';
 import { clearHoleFade, updateHoleFade } from '../render/hole-fade';
 import { ItemInstances } from '../render/item-instances';
 import { LeftoverRings } from '../render/leftover-rings';
@@ -40,7 +46,7 @@ import { Menu, type MenuApi } from './menu';
 import {
   bestScore,
   loadScores,
-  purgeStaleScores,
+  migrateScores,
   recordScore,
   type ScoreEntry,
   MAP_SCORING_VERSIONS,
@@ -59,6 +65,7 @@ const FAST_MS = 18;
 const MIN_SCALE = 0.7;
 /** Menus, pause and results are static: render them at ~30 fps to save battery. */
 const IDLE_FRAME_MS = 30;
+const _projected = new Vector3();
 
 /**
  * The play page: menu <-> run loop. Fixed-step sim (60 Hz) + render
@@ -116,15 +123,20 @@ export class HoleGame {
 
   constructor(root: HTMLElement) {
     this.params = new URLSearchParams(location.search);
-    purgeStaleScores(this.store); // scoring rules changed -> old high scores are erased
+    migrateScores(this.store); // scoring rules changed -> old high scores are tagged with their version and kept
     this.settings = loadSettings(this.store);
     const colorParam = this.params.get('color');
-    if (colorParam) this.settings.color = colorParam;
-    const qName = (this.params.get('quality') ??
+    if (colorParam && HOLE_COLORS.some((c) => c.id === colorParam))
+      this.settings.color = colorParam;
+    const qName = (paramOneOf(
+      this.params.get('quality'),
+      Object.keys(QUALITY) as QualityName[],
+      null,
+    ) ??
       (this.settings.quality === 'auto'
         ? defaultQuality()
         : this.settings.quality)) as QualityName;
-    const quality = QUALITY[qName] ?? QUALITY.high;
+    const quality = ownValue(QUALITY, qName) ?? QUALITY.high;
 
     root.classList.add('hg-root');
     root.append(this.stage);
@@ -180,7 +192,6 @@ export class HoleGame {
         blurb: m.blurb,
         noun: m.noun,
         seeded: !!m.seeded,
-        layouts: m.layouts ?? [],
       })),
       mapId: () => this.mapDef.id,
       onMap: (id) => {
@@ -192,7 +203,6 @@ export class HoleGame {
       },
       onVariant: (v) => {
         if (v.seed !== undefined) this.settings.seed = v.seed;
-        if (v.layout !== undefined) this.settings.layout = v.layout;
         saveSettings(this.store, this.settings);
         this.setMap(this.mapDef.id);
         this.startDemo();
@@ -219,6 +229,8 @@ export class HoleGame {
       },
       onAgain: () => this.startRun(this.difficulty),
       onClick: () => this.sfx.click(),
+      onTick: () => this.sfx.tick(),
+      onPadStart: () => this.pause(),
       onPreview: (on) => (this.previewHole = on),
     };
   }
@@ -228,10 +240,10 @@ export class HoleGame {
   private setMap(id: string): void {
     const def = getMapDef(id);
     this.mapDef = def;
-    // ?seed= / ?layout= (dev links) win over the menu choice
+    // ?seed= (dev links) wins over the menu choice
     this.map = def.generate(
-      Number(this.params.get('seed') ?? (def.seeded ? this.settings.seed : 1)),
-      { layout: this.params.get('layout') ?? this.settings.layout },
+      paramInt(this.params.get('seed'), -1e9, 1e9, null) ??
+        (def.seeded ? this.settings.seed : 1),
     );
     if (this.ground) {
       this.scene.remove(this.ground);
@@ -250,6 +262,7 @@ export class HoleGame {
     const sim = new Sim(this.map, {
       seconds,
       startLevel: this.startLevel,
+      maxLevel: this.mapDef.maxLevel,
       start:
         this.startPos() ??
         (randomStart ? pickStart(this.map, Math.random) : undefined),
@@ -269,9 +282,9 @@ export class HoleGame {
   private startPos(): { x: number; z: number } | undefined {
     const x = this.params.get('x');
     const z = this.params.get('z');
-    return x !== null && z !== null
-      ? { x: Number(x), z: Number(z) }
-      : undefined;
+    const px = paramNumber(x, -1e5, 1e5, null);
+    const pz = paramNumber(z, -1e5, 1e5, null);
+    return px !== null && pz !== null ? { x: px, z: pz } : undefined;
   }
 
   private disposeInstances(): void {
@@ -289,8 +302,8 @@ export class HoleGame {
 
   private startRun(d: Difficulty): void {
     this.difficulty = d;
-    this.startLevel = Math.max(1, Number(this.params.get('level') ?? 1));
-    this.seconds = Number(this.params.get('time') ?? d.seconds);
+    this.startLevel = paramInt(this.params.get('level'), 1, 999, 1);
+    this.seconds = paramNumber(this.params.get('time'), 1, 36000, d.seconds);
     this.menu.hide();
     this.sfx.unlock();
     this.controls.release();
@@ -361,9 +374,6 @@ export class HoleGame {
       game_version: gameManifest.version,
       game_hole_difficulty: this.difficulty.id,
       game_hole_seed: this.mapDef.seeded ? this.settings.seed : undefined,
-      game_hole_layout: this.mapDef.layouts?.length
-        ? this.settings.layout
-        : undefined,
       game_hole_scoring_version: MAP_SCORING_VERSIONS[map],
     };
   }
@@ -394,6 +404,7 @@ export class HoleGame {
       pct: sim.pointsEaten / sim.world.totalPoints,
       color: this.settings.color,
       date: Date.now(),
+      ver: MAP_SCORING_VERSIONS[this.mapDef.id],
     };
     const ranked = this.ranked();
     if (ranked) {
@@ -424,6 +435,7 @@ export class HoleGame {
       difficulty: this.difficulty,
       mapName: this.mapDef.name,
       noun: this.mapDef.noun,
+      maxLevel: sim.maxLevel,
       score: entry.score,
       level: entry.level,
       eaten: entry.eaten,
@@ -744,6 +756,8 @@ export class HoleGame {
   private handleEvents(): void {
     const sim = this.sim;
     const w = sim.world;
+    // one layout read for all eats of this frame (each popup dirties the layout again)
+    let rect: DOMRect | undefined;
     for (const e of sim.drainEvents()) {
       if (e.type === 'eat') {
         const tier = w.tier[e.item];
@@ -760,7 +774,13 @@ export class HoleGame {
           w.size[e.item],
           w.types[w.type[e.item]].group === 'plush',
         );
-        const p = this.project(e.x, Math.min(2, w.height[e.item] * 0.5), e.z);
+        rect ??= this.stage.getBoundingClientRect();
+        const p = this.project(
+          e.x,
+          Math.min(2, w.height[e.item] * 0.5),
+          e.z,
+          rect,
+        );
         if (p) this.hud.popup(p.x, p.y, `+${e.points}`, tierColor(tier));
       } else if (e.type === 'levelup') {
         this.hud.banner(`LEVEL ${e.level}`);
@@ -779,10 +799,10 @@ export class HoleGame {
     x: number,
     y: number,
     z: number,
+    r: DOMRect = this.stage.getBoundingClientRect(),
   ): { x: number; y: number } | null {
-    const v = new Vector3(x, y, z).project(this.rig.camera);
+    const v = _projected.set(x, y, z).project(this.rig.camera);
     if (v.z > 1 || Math.abs(v.x) > 1.2 || Math.abs(v.y) > 1.2) return null;
-    const r = this.stage.getBoundingClientRect();
     return {
       x: r.left + ((v.x + 1) / 2) * r.width,
       y: r.top + ((1 - v.y) / 2) * r.height,
