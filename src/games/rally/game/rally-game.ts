@@ -3,6 +3,7 @@ import {
   type Object3D,
   PerspectiveCamera,
   Scene,
+  Vector2,
   Vector3,
   type WebGLRenderer,
 } from 'three';
@@ -30,6 +31,21 @@ import { getAssetMeta } from '../assets/catalog';
 import { Breakables } from '../world/breakables';
 import { DistanceCull } from '../world/distance-cull';
 import { InstanceStreamer } from '../world/instance-streamer';
+import { TreeRenderer } from '../trees/draw';
+import { TreeLibrary } from '../trees/load';
+import { TreeStatsOverlay } from '../trees/overlay';
+import {
+  benchPath,
+  checkBudget,
+  compareReports,
+  gpuName,
+  summarize,
+  waitForGpu,
+  writeReport,
+  type BenchRun,
+  type SpikeFrame,
+  type TreeBenchReport,
+} from './tree-bench';
 import { buildRoadMesh } from '../world/road-mesh';
 import { TerrainRenderer } from '../world/terrain-renderer';
 import { setTerrainRelief } from '../world/terrain-material';
@@ -109,6 +125,12 @@ export class RallyGame {
   roadCull!: DistanceCull;
   private contactShadow!: ContactShadow;
   streamer!: InstanceStreamer;
+  /** L-system trees (trees/): their variants and the renderer drawing them. */
+  treeLibrary!: TreeLibrary;
+  trees!: TreeRenderer;
+  private treeStats!: TreeStatsOverlay;
+  /** Stage load time (init), ms. */
+  loadMs = 0;
   /** Marker posts the car knocks over (drawn by the streamer). */
   breakables!: Breakables;
   stage!: StageTimer;
@@ -180,6 +202,7 @@ export class RallyGame {
   async init(report: (f: number, text: string) => void): Promise<void> {
     const map = this.world.map;
     const q = this.opts.quality;
+    const loadStart = performance.now();
     // Phase timings (ms) for load-time tuning: __rally.loadTimings
     let phase = '';
     let t = performance.now();
@@ -196,6 +219,15 @@ export class RallyGame {
     progress(0.05, 'Sky & lighting');
     this.env = new Environment(this.scene, this.renderer, map.environment, q);
     await frame();
+
+    // Tree variants: generated in a worker (or read from the disk cache) and their impostors baked before any
+    // scatter chunk is used (their colliders come from the same skeletons).
+    progress(0.08, 'Trees');
+    this.treeLibrary = await TreeLibrary.load(
+      TreeLibrary.speciesOf(this.world.placedAssets()),
+      this.renderer,
+      (f) => progress(0.08 + 0.06 * f, 'Trees'),
+    );
 
     progress(0.15, 'Road');
     const road = buildRoadMesh(this.world);
@@ -243,6 +275,25 @@ export class RallyGame {
     });
     this.scene.add(this.streamer.group);
     this.streamer.updateNow(spawn.position);
+    this.trees = new TreeRenderer(this.world, this.treeLibrary, {
+      lodScale: q.lodScale * OBJECT_DISTANCE[this.opts.settings.objectDistance],
+      maxDistance: q.viewDistance,
+      // The sun's shadow box sits ahead of the camera (Environment.update): twice its half size covers it.
+      shadowDistance: q.shadowExtent * 2 + 10,
+    });
+    this.scene.add(this.trees.group);
+    this.trees.attachRenderer(this.renderer);
+    this.treeStats = new TreeStatsOverlay(
+      this.container,
+      this.trees,
+      this.treeLibrary,
+    );
+    // F6: tree debug view (off -> levels -> lighting only -> normals) + tree stats (trees/Lod.md#debug-view).
+    window.addEventListener('keydown', (e) => {
+      if (e.code !== 'F6') return;
+      e.preventDefault();
+      this.trees.cycleDebug();
+    });
     this.canopy = new CanopyShadows(this.world, this.env.sunDir);
     this.canopy.update();
     setCanopyShadows(
@@ -316,6 +367,8 @@ export class RallyGame {
       this.camera.getWorldDirection(this.camDir),
     );
     this.streamer.prewarm();
+    this.trees.updateNow(this.camera);
+    this.trees.prewarm(this.camera);
     this.renderer.compile(this.scene, this.camera);
     const culled: Object3D[] = [];
     this.scene.traverse((o) => {
@@ -323,8 +376,11 @@ export class RallyGame {
       o.frustumCulled = false;
     });
     this.renderer.render(this.scene, this.camera);
+    this.trees.checkPrepass(this.renderer, this.scene, this.camera);
     for (const o of culled) o.frustumCulled = true;
     this.streamer.settle();
+    this.trees.settle();
+    this.loadMs = performance.now() - loadStart;
     progress(1, 'Ready');
   }
 
@@ -340,6 +396,7 @@ export class RallyGame {
       this.opts.quality.lodScale * OBJECT_DISTANCE[s.objectDistance];
     if (this.streamer.lodScale !== lodScale)
       this.streamer.setOptions({ lodScale });
+    if (this.trees.lodScale !== lodScale) this.trees.setOptions({ lodScale });
     this.model.setBadge({
       number: s.carNumber,
       rally: rallyName(this.world.map.name),
@@ -674,7 +731,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       this.frame(1 / 60);
       worst = Math.max(worst, performance.now() - f0);
     }
-    gl.finish();
+    waitForGpu(gl);
     const info = this.renderer.info.render;
     return {
       msPerFrame: (performance.now() - t0) / frames,
@@ -682,6 +739,191 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       calls: info.calls,
       triangles: info.triangles,
     };
+  }
+
+  /**
+   * Tree benchmark (trees/Performance.md#benchmark): the camera flies a fixed path from the stage start along the
+   * road (`step` m per frame), every frame finished on the GPU (waitForGpu, so vsync does not hide the cost), first
+   * with the trees, then (`withoutTrees`) the same path with them hidden; the difference is the trees' own cost.
+   * Each run starts after a warm-up pass over the path. Writes the report to a JSON file and returns it:
+   *   await __rally.treeBenchmark()
+   */
+  async treeBenchmark(
+    opts: {
+      frames?: number;
+      step?: number;
+      withoutTrees?: boolean;
+      download?: boolean;
+      gpuTimer?: boolean;
+      /** An earlier report to compare with (the change in every figure lands in `comparison`). */
+      compare?: TreeBenchReport;
+      machine?: string;
+    } = {},
+  ): Promise<TreeBenchReport> {
+    const frames = opts.frames ?? 1200;
+    const step = opts.step ?? 0.5;
+    const wasRunning = this.running;
+    this.stop();
+    const gl = this.renderer.getContext();
+    const path = benchPath(this.world, frames, step);
+    const yieldFrame = () => new Promise<void>((r) => setTimeout(r, 0));
+    const runs: BenchRun[] = [];
+    for (const trees of opts.withoutTrees === false ? [true] : [true, false]) {
+      this.trees.group.visible = trees;
+      // Warm-up: stream terrain, scatter and tree batches along the path.
+      for (let i = 0; i < frames; i += 8) {
+        this.benchFrame(path.poses[i], trees, 40);
+        if (i % 64 === 0) await yieldFrame();
+      }
+      // Start settled at the first pose, as after a stage load (not with the batches of the path's far end).
+      this.benchFrame(path.poses[0], trees, 40);
+      if (trees) this.trees.updateNow(this.camera);
+      waitForGpu(gl);
+      // Frame times with the GPU timer off: its queries stall the pipeline now and then (they would show as spikes).
+      this.trees.measure = false;
+      const times: number[] = [];
+      const select: number[] = [];
+      let active = 0;
+      let activePeak = 0;
+      const detail: SpikeFrame[] = [];
+      for (let i = 0; i < frames; i++) {
+        const t0 = performance.now();
+        const programs = this.renderer.info.programs?.length ?? 0;
+        this.benchFrame(path.poses[i], trees, 2.5);
+        const t1 = performance.now();
+        waitForGpu(gl);
+        times.push(performance.now() - t0);
+        const c = this.trees.current;
+        if (trees) {
+          select.push(c.selectMs);
+          active += c.active;
+          activePeak = Math.max(activePeak, c.active);
+        }
+        detail.push({
+          frame: i,
+          ms: Math.round(times[times.length - 1] * 100) / 100,
+          cpuMs: Math.round((t1 - t0) * 100) / 100,
+          steps: { ...this.benchSteps },
+          gpuWaitMs:
+            Math.round((t0 + times[times.length - 1] - t1) * 100) / 100,
+          treeCpuMs: trees ? Math.round((c.selectMs + c.jobMs) * 100) / 100 : 0,
+          programs: (this.renderer.info.programs?.length ?? 0) - programs,
+          allocs: trees ? c.allocs : 0,
+          uploadBytes: trees ? c.uploadBytes : 0,
+          repacks: trees ? c.repacks : 0,
+          commit: trees && c.commit,
+        });
+        if (i % 60 === 59) await yieldFrame();
+      }
+      // Tree GPU time: a second pass over every 4th pose with the timer on.
+      let gpu: number[] = [];
+      let pass = { main: [] as number[], shadow: [] as number[] };
+      if (trees && this.trees.timer?.available && opts.gpuTimer !== false) {
+        this.trees.measure = true;
+        this.trees.update(this.camera);
+        this.trees.timer.takeSamples();
+        for (let i = 0; i < frames; i += 4) {
+          this.benchFrame(path.poses[i], trees, 2.5);
+          waitForGpu(gl);
+          if (i % 120 === 0) await yieldFrame();
+        }
+        this.trees.update(this.camera);
+        gpu = this.trees.timer.takeSamples();
+        pass = this.trees.timer.takePassSamples();
+        this.trees.measure = false;
+      }
+      const run = summarize(trees, times, gpu, select);
+      const mean = (a: number[]) =>
+        a.length
+          ? Math.round((a.reduce((s, x) => s + x, 0) / a.length) * 100) / 100
+          : NaN;
+      run.spikes = detail.filter((d) => d.ms > run.avgMs * 3);
+      if (trees) {
+        run.active = Math.round(active / frames);
+        run.activePeak = activePeak;
+        run.treeMainGpuMs = mean(pass.main);
+        run.treeShadowGpuMs = mean(pass.shadow);
+      }
+      runs.push(run);
+    }
+    this.trees.group.visible = true;
+    this.trees.measure = false;
+    const size = this.renderer.getDrawingBufferSize(new Vector2());
+    const report: TreeBenchReport = {
+      stage: this.world.map.id,
+      quality: this.opts.quality.name,
+      resolution: `${size.x}x${size.y}`,
+      pixelRatio: this.renderer.getPixelRatio(),
+      gpu: gpuName(this.renderer),
+      date: new Date().toISOString(),
+      path: { start: path.start, metres: frames * step, step },
+      loadMs: Math.round(this.loadMs),
+      treeLoad: { ...this.treeLibrary.stats },
+      runs,
+      treeCostMs:
+        runs.length > 1
+          ? Math.round((runs[0].avgMs - runs[1].avgMs) * 100) / 100
+          : null,
+      result: checkBudget(runs, this.treeLibrary.stats.totalMs),
+      machine: [
+        opts.machine,
+        navigator.platform,
+        `${navigator.hardwareConcurrency} threads`,
+      ]
+        .filter(Boolean)
+        .join(', '),
+      mitigations: this.trees.mitigations(),
+    };
+    if (opts.compare) report.comparison = compareReports(opts.compare, report);
+    console.table(runs);
+    console.log('tree benchmark', report);
+    if (opts.download !== false) writeReport(report);
+    this.placeAtSpawn();
+    if (wasRunning) this.start();
+    return report;
+  }
+
+  /** One benchmark frame: camera on the path, world streaming, render (no car / physics / effects). */
+  /** ms per step of the last benchmark frame (where a spike frame's CPU time went). */
+  benchSteps: Record<string, number> = {};
+
+  private benchFrame(
+    pose: { pos: Vector3; look: Vector3 },
+    trees: boolean,
+    terrainBudget: number,
+  ): void {
+    const steps = this.benchSteps;
+    let t = performance.now();
+    const lap = (k: string) => {
+      const n = performance.now();
+      steps[k] = Math.round((n - t) * 10) / 10;
+      t = n;
+    };
+    const cam = this.camera;
+    cam.position.copy(pose.pos);
+    cam.up.set(0, 1, 0);
+    cam.lookAt(pose.look);
+    cam.fov = 65;
+    cam.updateProjectionMatrix();
+    this.terrain.update(cam.position, terrainBudget);
+    lap('terrain');
+    this.roadCull.update(cam.position);
+    this.streamer.update(cam.position);
+    lap('scatter');
+    if (trees) this.trees.update(cam);
+    lap('trees');
+    const dir = cam.getWorldDirection(this.camDir);
+    const halfFov = Math.atan(Math.tan((cam.fov * Math.PI) / 360) * cam.aspect);
+    this.streamer.setView({
+      yaw: Math.atan2(dir.z, dir.x),
+      half: halfFov + VIEW_MARGIN,
+    });
+    this.env.update(cam.position, dir);
+    this.env.follow(cam.position);
+    this.canopy.update();
+    lap('env');
+    this.renderer.render(this.scene, cam);
+    lap('render');
   }
 
   private frame(dt: number): void {
@@ -758,6 +1000,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.terrain.update(camPos, 2.5);
     this.roadCull.update(camPos);
     this.streamer.update(camPos);
+    this.trees.update(this.camera, this.rig.steady);
     // Far scatter: draw only the instances inside the camera's horizontal view (+ margin for the repack step
     // and the streamer's focus lagging the camera). Looking steeply down: everything.
     const dir = this.camera.getWorldDirection(this.camDir);
@@ -847,13 +1090,15 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.telemetry.update(dt, v);
 
     this.renderer.render(this.scene, this.camera);
+    this.treeStats.update();
     this.stats.set(
       'chunk',
       `${this.terrain.chunkCount} (+${this.terrain.pending})  hf ${this.world.heightfield.cachedChunks}`,
     );
     this.stats.set(
       'inst',
-      `${this.streamer.drawn} in ${this.streamer.meshCount} meshes`,
+      `${this.streamer.drawn} in ${this.streamer.meshCount} meshes, ${this.trees.drawn} trees in ${this.trees.meshCount}` +
+        (this.trees.debug ? `, ${this.trees.flickering} flickering` : ''),
     );
     this.stats.set(
       'fx',

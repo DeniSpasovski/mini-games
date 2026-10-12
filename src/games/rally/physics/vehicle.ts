@@ -811,6 +811,33 @@ export class Vehicle {
           }
           n.set(nx * cs + nz * sn, 0, -nx * sn + nz * cs);
           this.contact(c.clone().addScaledVector(n, -hr), n, pen, 0.2, 0.35);
+        } else if (o.kind === 'capsule') {
+          if (c.y < o.y - hr || c.y > o.y + o.h + hr) continue;
+          // Closest point on the axis a-b, push out along it.
+          const [ax, ay, az] = o.a!;
+          const [bx, by, bz] = o.b!;
+          const ex = bx - ax;
+          const ey = by - ay;
+          const ez = bz - az;
+          const ll = ex * ex + ey * ey + ez * ez;
+          const t =
+            ll > 1e-9
+              ? Math.max(
+                  0,
+                  Math.min(
+                    1,
+                    ((c.x - ax) * ex + (c.y - ay) * ey + (c.z - az) * ez) / ll,
+                  ),
+                )
+              : 0;
+          const dx = c.x - (ax + ex * t);
+          const dy = c.y - (ay + ey * t);
+          const dz = c.z - (az + ez * t);
+          const dist = Math.hypot(dx, dy, dz);
+          const pen = (o.rc ?? 0) + hr - dist;
+          if (pen <= 0 || dist < 1e-6) continue;
+          n.set(dx / dist, dy / dist, dz / dist);
+          this.contact(c.clone().addScaledVector(n, -hr), n, pen, 0.25, 0.3);
         } else {
           const dx = c.x - o.x;
           const dy = c.y - o.y;

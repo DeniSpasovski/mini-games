@@ -1,0 +1,45 @@
+{
+  "targets": [
+    {
+      "name": "Run",
+      "command": "npm install && npm run dev",
+      "kind": "run"
+    },
+    {
+      "name": "Run Release",
+      "command": "npm install && npm run build && npm run preview",
+      "kind": "run",
+      "release": true
+    },
+    {
+      "name": "Build",
+      "command": "npm install && npm run build",
+      "kind": "build"
+    },
+    {
+      "name": "Test",
+      "command": "npm install && npm run test",
+      "kind": "test"
+    },
+    {
+      "name": "Integration Tests",
+      "command": "npm install && npm run test:integration",
+      "kind": "test"
+    },
+    {
+      "name": "Lint",
+      "command": "npm run lint",
+      "kind": "other"
+    },
+    {
+      "name": "Type Check",
+      "command": "npx tsc --noEmit -p tsconfig.json",
+      "kind": "other"
+    },
+    {
+      "name": "Format",
+      "command": "npm run format",
+      "kind": "other"
+    }
+  ]
+}

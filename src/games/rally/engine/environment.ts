@@ -4,6 +4,7 @@ import {
   BackSide,
   CircleGeometry,
   Color,
+  CubeCamera,
   DoubleSide,
   DirectionalLight,
   FogExp2,
@@ -20,9 +21,12 @@ import {
   type ToneMapping,
   Vector3,
   type Texture,
+  WebGLCubeRenderTarget,
   type WebGLRenderer,
 } from 'three';
+import { LightProbeGenerator } from 'three/examples/jsm/lights/LightProbeGenerator.js';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
+import { setTreeSky } from '../trees/materials';
 import type { EnvironmentDef } from '../maps/shared/types';
 import { getTexture } from './textures';
 import {
@@ -286,6 +290,14 @@ export class Environment {
     this.scene.environment = this.envMap;
     // Key/fill balance: keep IBL + hemi low enough that sun shadows read clearly.
     this.scene.environmentIntensity = this.def.envIntensity ?? 0.3;
+    // The same sky's diffuse light as spherical harmonics, for the tree foliage (it does not sample the env map:
+    // trees/materials.ts `setTreeSky`). A tiny cube of the environment scene, read back once.
+    const cube = new WebGLCubeRenderTarget(32);
+    new CubeCamera(0.1, 2000, cube).update(this.renderer, envScene);
+    const intensity = this.scene.environmentIntensity;
+    void LightProbeGenerator.fromCubeRenderTarget(this.renderer, cube)
+      .then((probe) => setTreeSky(probe.sh.coefficients, intensity))
+      .finally(() => cube.dispose());
     sky.material.dispose();
     sky.geometry.dispose();
     for (const m of [ground, ...panels]) {

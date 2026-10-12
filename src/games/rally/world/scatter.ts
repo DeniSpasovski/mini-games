@@ -4,6 +4,14 @@ import { hash3, hashString, Rng } from '../../../shared/rng';
 import { getAssetMeta } from '../assets/catalog';
 import type { RoadsideRule, ScatterRule } from '../maps/shared/types';
 import type { StaticCollider } from '../physics/types';
+import {
+  isTreeType,
+  placeTree,
+  treeColliders,
+  type TreePose,
+} from '../trees/placement';
+import { speciesOfType, variantCount } from '../trees/species';
+import { variantInfo } from '../trees/variants';
 import type { TerrainSampler } from './heightfield';
 import { newLakeQuery, type Lakes } from './lakes';
 import { newPathQuery, type Landcover, type PathNetwork } from './real-data';
@@ -15,6 +23,21 @@ export interface ScatterContext {
   paths?: PathNetwork;
   channels?: PathNetwork;
   lakes?: Lakes;
+  /** Stage id: placed trees are posed by a hash of it and their placement index (trees/placement.ts). */
+  stageId?: string;
+}
+
+/** Variant count / solidity of a placed asset id: a catalog asset or a tree type (trees/species.ts). */
+function assetVariants(asset: string): number {
+  return isTreeType(asset)
+    ? variantCount(speciesOfType(asset))
+    : getAssetMeta(asset).variants;
+}
+
+function assetSolid(asset: string): boolean {
+  return isTreeType(asset)
+    ? variantInfo(speciesOfType(asset).name, 0).capsules.length > 0
+    : !!getAssetMeta(asset).colliders?.length;
 }
 
 /**
@@ -36,6 +59,8 @@ export interface ScatterInstance {
   /** Small random tilt (rad) or ground-aligned tilt. */
   tiltX: number;
   tiltZ: number;
+  /** A tree type: its species and hashed pose (variant / rotY / scale are set from the same hash). */
+  tree?: TreePose;
   /** Optional per-axis scale on top of `scale` (buildings: footprint width / height / depth). */
   sx?: number;
   sy?: number;
@@ -63,6 +88,8 @@ export class ScatterField {
   private n = new Vector3();
   /** Per rule: zone -> allowed (rules with `cover`). */
   private coverMasks = new Map<ScatterRule, Uint8Array>();
+  /** Placement index of the next hand-placed / road-side tree. */
+  private fixedTrees = 0;
 
   constructor(
     private hf: TerrainSampler,
@@ -89,6 +116,7 @@ export class ScatterField {
 
   /** Add a hand-placed / road-side instance (call before streaming starts). */
   addFixed(inst: ScatterInstance): void {
+    if (isTreeType(inst.asset)) this.poseTree(inst, 0x40000000 + this.fixedTrees++);
     const cs = this.chunkSize;
     const k = key(Math.floor(inst.x / cs), Math.floor(inst.z / cs));
     let list = this.fixed.get(k);
@@ -138,7 +166,9 @@ export class ScatterField {
           ...instances.flatMap(collidersOf),
           ...(this.fixedColliders.get(k) ?? []),
         ],
-        breakables: instances.filter((i) => getAssetMeta(i.asset).breakable),
+        breakables: instances.filter(
+          (i) => !i.tree && getAssetMeta(i.asset).breakable,
+        ),
       };
       this.chunks.set(k, c);
     }
@@ -185,7 +215,8 @@ export class ScatterField {
       const rng = new Rng(
         hash3(cx, cz, ri + salt, this.seed ^ hashString(rule.asset)),
       );
-      const meta = getAssetMeta(rule.asset);
+      const variants = assetVariants(rule.asset);
+      const tree = isTreeType(rule.asset);
       const coverMask = this.coverMasks.get(rule);
       const lc = this.ctx.landcover;
       // Rules limited to land cover classes that don't occur in this chunk: skip early.
@@ -197,7 +228,7 @@ export class ScatterField {
       const count = pts
         ? pts.length / 2
         : Math.round((rule.density * area) / 1000 + rng.gauss() * 0.5);
-      const solid = !!meta.colliders;
+      const solid = assetSolid(rule.asset);
       // Grass / plants never grow on other roads either (only up to their edge).
       const minPath = rule.minPathDist ?? (solid ? 1.5 : 0.4);
       for (let i = 0; i < count; i++) {
@@ -207,7 +238,7 @@ export class ScatterField {
           const zone = lc.zoneAt(x, z);
           if (zone < 0 || !coverMask[zone]) continue;
         }
-        const variant = Math.floor(rng.next() * meta.variants);
+        const variant = Math.floor(rng.next() * variants);
         const scale = rng.range(rule.scale[0], rule.scale[1]);
         const rotY = rng.next() * Math.PI * 2;
         const tiltA = rng.next() * Math.PI * 2;
@@ -243,7 +274,7 @@ export class ScatterField {
           tiltX += Math.atan2(n.z, n.y);
           tiltZ += -Math.atan2(n.x, n.y);
         }
-        out.push({
+        const inst: ScatterInstance = {
           asset: rule.asset,
           variant,
           x,
@@ -253,10 +284,21 @@ export class ScatterField {
           scale,
           tiltX,
           tiltZ,
-        });
+        };
+        if (tree) this.poseTree(inst, hash3(cx, cz, ri * 65536 + i, 0x7ee5));
+        out.push(inst);
       }
     }
     return out;
+  }
+
+  /** Variant, rotation, scale and tint of a placed tree from the stage id and its placement index. */
+  private poseTree(inst: ScatterInstance, index: number): void {
+    const t = placeTree(this.ctx.stageId ?? 'stage', index, inst.asset);
+    inst.variant = t.variant;
+    inst.rotY = t.rotY;
+    inst.scale = t.scale;
+    inst.tree = t.pose;
   }
 
   private lq = newLakeQuery();
@@ -382,7 +424,8 @@ export function roadsideInstances(
   };
   rules.forEach((rule, ri) => {
     const rng = new Rng(hash3(ri, 0, 0, seed ^ hashString(rule.asset)));
-    const meta = getAssetMeta(rule.asset);
+    const variants = assetVariants(rule.asset);
+    const solid = assetSolid(rule.asset);
     const positions: number[] = [];
     if (rule.at) positions.push(...rule.at);
     if (rule.every) {
@@ -434,7 +477,7 @@ export function roadsideInstances(
           // left = (tz, -tx)
           const x = p.x + p.tz * lat;
           const z = p.z - p.tx * lat;
-          if (meta.colliders?.length && onPath(x, z)) continue;
+          if (solid && onPath(x, z)) continue;
           const heading = Math.atan2(p.tx, p.tz);
           const rotY = rule.faceRoad
             ? heading + (side > 0 ? -Math.PI / 2 : Math.PI / 2)
@@ -446,7 +489,7 @@ export function roadsideInstances(
               ? p.curvature > 0
                 ? 0
                 : 1
-              : Math.floor(rng.next() * meta.variants);
+              : Math.floor(rng.next() * variants);
           out.push({
             asset: rule.asset,
             variant,
@@ -467,6 +510,7 @@ export function roadsideInstances(
 
 /** World-space colliders for an instance from its asset's collider spec. */
 export function collidersOf(inst: ScatterInstance): StaticCollider[] {
+  if (inst.tree) return treeColliders(inst);
   const meta = getAssetMeta(inst.asset);
   if (!meta.colliders) return [];
   const c = Math.cos(inst.rotY);

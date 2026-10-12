@@ -1,0 +1,69 @@
+
+export anchor IncreaseTreeLODDistance2:
+    userPrompt:
+        \\\
+        The LOD should be at a far greater distance.  it's really weird how a tree folliage suddenly changes when we get close to it.
+        \\\
+
+    mode: code
+
+    newConversation: false
+
+    systemPrompt:
+        \\\
+        We're working on the code, located in ./src. Change the code so it does what the prompt asks, as the spec describes it.
+
+        When the work is about Suspense, its modes, its prompts, or its questions, or you are to write a prompt or a question for the user, first read .suspense/suspense-fluency.md once in this conversation, unless you already have: it is how Suspense works.
+
+        The spec's Piton source is in ./spec. Don't change it, and don't read it to learn what the spec says: read the compiled reference instead, as above. If the prompt asks for something the spec doesn't describe, or describes differently, say so in your reply rather than working around it.
+
+        Before changing anything, write the constraints this task must meet to ${UNDERSTANDING_FILE}, and keep it current as you read more of the spec. It is a Markdown list and nothing else: one line per constraint, at most twelve, each a single short, specific statement of what must be true, written as a link to the compiled reference file it comes from, such as `- [The chain tab has no bottom border in combined mode](.claude/reference/scope/prompt-mode/chat-input/index.md#chain)`. Only list what the spec says; leave out anything you are deciding yourself. Replace a constraint when you learn it was wrong rather than adding another.
+
+        This prompt is the second step of a chain. Its first step changed the spec to meet it, and the spec has been built since. Now change the code so it does what the spec now says, without changing the spec. Follow the spec the prompt references, and the anchors the spec step names below. Where the spec and the prompt disagree, follow the spec, and say so in your reply.
+
+        The code is located in ./src.
+
+        The spec's source, which this step doesn't change, is in ./spec.
+
+        The prompt the chain was sent:
+
+        ${SPEC_PROMPT}
+
+        What the spec step said it changed, its final output:
+
+        ${SPEC_RESULT}
+        \\\
+
+    codeTask:
+        prompt:
+            \\\
+            The LOD should be at a far greater distance.  it's really weird how a tree folliage suddenly changes when we get close to it.
+            \\\
+        result:
+            \\\
+            I've pushed the tree detail changes much further out in the spec, so trees near the player always show full detail. `piton check` and `piton build` both pass. `src/` is still empty here, so the code step needs the game code available to apply this.
+
+            Before this, the spec only said each species had its own thresholds with defaults, and gave no numbers. The distances below are my own choices, so tune them if they feel wrong in game.
+
+            **Changes to `spec/trees/Lod.pi`:**
+            - **Default thresholds:** a tree drops a level when it takes up less of the screen height than:
+
+              | Change | Below this share of screen height | Distance for a 15 m tree at 60° field of view |
+              | --- | --- | --- |
+              | LOD0 to LOD1 | 6% | about 215 m |
+              | LOD1 to LOD2 | 2.5% | about 520 m |
+              | LOD2 to impostor | 1% | about 1300 m |
+
+            - **Full-detail distance:** any tree within 120 m of the camera is always drawn at full detail (LOD0). This holds whatever the screen height, field of view or graphics quality setting.
+            - **Quality settings:** lower settings can bring the thresholds closer, but never inside the 120 m full-detail distance.
+            - **Matching foliage:** this is the sudden foliage change you're seeing. At LOD1, the larger leaf cards that replace merged clusters must use the same leaf texture at the same texel density, the same crown-blended normals and the same colour as the clusters they replace. Then the leaves don't visibly change texture, size or shade when a tree changes level.
+
+            **Anchors the code should follow:**
+            - **`Lod.selection`** sets the default thresholds and the 120 m full-detail distance.
+            - **`Lod.budget`** says quality scaling never goes inside 120 m.
+            - **`Lod.levels`** (the LOD1 entry) requires the merged leaf cards to match LOD0.
+
+            All three are in `.claude/reference/trees/Lod.md`. The 0.3 s dithered cross-fade and the hysteresis in `Lod.transition` and `Lod.selection` still apply to these new thresholds.
+            \\\
+
+    sentFrom: IncreaseTreeLODDistance

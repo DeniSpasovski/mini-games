@@ -32,14 +32,14 @@ import {
 
 /**
  * Asset debugger: every procedural asset, car and texture in one list.
- *   asset-debug.html?asset=pine_tree&seed=42&lod=1&grid=10&wire=1&bounds=1&collider=1
+ *   asset-debug.html?asset=rock_boulder&seed=42&lod=1&grid=10&wire=1&bounds=1&collider=1
  *   asset-debug.html?asset=tex:road&repeat=3
  *   asset-debug.html?asset=car:skoda_rally&seed=5
  * `seed=-1` uses the in-world variant seed for `variant`.
  * "Copy camera link" (Camera section) shares the exact view (`cam`, `look`, `fov`, `clean=1` hides the panel).
  */
 const DEFAULTS = {
-  asset: 'pine_tree',
+  asset: 'rock_boulder',
   seed: -1,
   variant: 0,
   lod: 0,

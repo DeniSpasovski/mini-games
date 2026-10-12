@@ -6,8 +6,7 @@ import {
   UnsignedByteType,
   type Vector3,
 } from 'three';
-import { getAssetMeta } from '../assets/catalog';
-import { canopyOf } from './aerial-trees';
+import { canopyOf, isVegetation } from './aerial-trees';
 import type { ScatterInstance } from './scatter';
 import type { World } from './world';
 
@@ -137,7 +136,7 @@ export class CanopyShadows {
   }
 
   private splat(inst: ScatterInstance): void {
-    if (getAssetMeta(inst.asset).category !== 'vegetation') return;
+    if (!isVegetation(inst.asset)) return;
     const c = canopyOf(inst.asset);
     const r = c.radius * inst.scale;
     // Skip bushes / grass: small shadows are lost at 3 m texels anyway.

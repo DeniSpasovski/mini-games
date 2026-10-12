@@ -1,0 +1,17 @@
+{
+  "generated": [
+    ".claude/reference/shape/trees/Trees.md",
+    ".claude/reference/trees/Drawing.md",
+    ".claude/reference/trees/Foliage.md",
+    ".claude/reference/trees/Grammar.md",
+    ".claude/reference/trees/Lod.md",
+    ".claude/reference/trees/Performance.md",
+    ".claude/reference/trees/Placement.md",
+    ".claude/reference/trees/ProceduralTrees.md",
+    ".claude/reference/trees/Species.md",
+    "src/CLAUDE.md"
+  ],
+  "targets": {
+    "claude-code": "2026-09-21"
+  }
+}

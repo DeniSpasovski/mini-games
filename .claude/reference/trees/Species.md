@@ -1,0 +1,27 @@
+# Species
+
+## Description
+
+A species is a data definition that the tree code reads, so adding or tuning a kind of tree changes no code. Every tree type the rally game placed before maps to a species that resembles it.
+
+## Fields
+
+- name, unique.
+- axiom and rules ([Grammar.rules](./Grammar.md#rules)).
+- iterations and a segment cap.
+- branching angle, length scale, radius at the base and radius decay.
+- tropism vector and strength.
+- bark material and its texture tiling along the branch length.
+- foliage kind, conifer needles or broadleaf, with its cluster sprite atlas, sprite size, density and a colour palette ([Foliage](./Foliage.md#foliage)).
+- LOD settings that override the defaults ([Lod](./Lod.md#lod)).
+- a scale range for instances.
+
+## Initial Species
+
+- Conifer, a pine or spruce with one straight leader, whorls of near-horizontal limbs and needle clusters.
+- Broadleaf, a birch or oak-like deciduous tree with a forking trunk and an open, rounded crown.
+- Shrub, a low multi-stemmed bush with no single trunk, for verges close to the road.
+
+## Identity
+
+A species definition has a content hash; any change to it gives new variants and invalidates anything cached from the old one.

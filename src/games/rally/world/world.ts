@@ -185,6 +185,7 @@ export class World implements GroundProvider {
         paths: this.gen.paths,
         channels: this.gen.channels,
         lakes: this.gen.lakes,
+        stageId: map.id,
       },
     );
     const crowdQ = newPathQuery();
@@ -880,6 +881,17 @@ export class World implements GroundProvider {
       }
     }
     return n;
+  }
+
+  /** Every asset id the map places: its rules and every hand-placed / road-side instance (tree loading). */
+  placedAssets(): Set<string> {
+    const ids = new Set([
+      ...this.map.scatter.map((r) => r.asset),
+      ...this.map.roadside.map((r) => r.asset),
+      ...this.map.props.map((p) => p.asset),
+    ]);
+    for (const inst of this.scatter.fixedInstances()) ids.add(inst.asset);
+    return ids;
   }
 
   // --- helpers ------------------------------------------------------------------------

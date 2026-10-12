@@ -12,7 +12,7 @@ sim-lite physics that is still fun on a keyboard.
 | Game        | `/games/rally/`                                        | welcome -> select stage -> select car -> (set-up) -> drive                       |
 | Map viewer  | `/games/rally/map-viewer.html?map=test&grid=1&splat=1` | aerial view, click terrain to inspect, "Drive from here", lat / lon on real maps |
 | Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`  | livery seed, door plate, pose, physics hull, torque chart, test drive            |
-| Asset debug | `/games/rally/asset-debug.html?asset=pine_tree&lod=1`  | every asset / car (`car:<id>`) / texture (`tex:<id>`): seed, variant, LOD        |
+| Asset debug | `/games/rally/asset-debug.html?asset=rock_boulder&lod=1`  | every asset / car (`car:<id>`) / texture (`tex:<id>`): seed, variant, LOD        |
 
 Tool pages are dev-server only and keep their state in the URL; `H` hides the panel, `F3` shows stats, "Copy camera link"
 gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
@@ -202,10 +202,11 @@ world/        map data -> deterministic world
   road.ts         centreline at 1 m, height smoothing, spatial queries
   terrain-gen.ts  noise + real heightmap + pads + channels + road carving + splat
   heightfield.ts  chunked 1 m height cache = shared truth for physics and the LOD0 mesh
-  scatter.ts      per-chunk placement, road-side rules, props, colliders
+  scatter.ts      per-chunk placement, road-side rules, props, colliders (trees posed by trees/placement.ts)
   world.ts        ties it together; physics ground; spawns, stage layout
   terrain-renderer.ts, instance-streamer.ts, road-mesh.ts, building-mesh.ts, landmarks.ts, ...
 assets/       catalog.ts (variants, LODs, colliders <- add assets here), builders/, library.ts (cached geometry)
+trees/        L-system trees: species -> grammar -> skeleton -> mesh -> impostor -> placement -> draw (worker + IndexedDB cache)
 cars/         index.ts registry; <car>/ per car; shared/ = body, parts, tyres, suspension, livery, door plate
 engine/       renderer, quality, sky / sun / fog / IBL, world shading, textures, materials, texture arrays
 game/         rally-game.ts (frame loop), input, camera, stage timing, HUD, effects, audio, autopilot, menus
@@ -237,8 +238,47 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   per 128 m tile). A custom shader must scale `envMapIntensity` (it carries `scene.environmentIntensity`), never replace it.
 - Scatter view culling (`InstanceStreamer.setView`, called every frame by the game): non-shadow buckets (LOD1+) are
   angle-sorted and only the camera's view (+ 25 deg) is drawn. LOD0 shadow casters are drawn whole.
-- Far trees: variants share one bucket past ~420 m (`LodSpec.oneVariant`); past 900 m they are 2-triangle camera-facing
-  impostors (`LodSpec.impostor`, `assets/impostor.ts`).
+- Trees (`trees/`, L-system species in `trees/species.ts`; map rules keep the old tree type ids): 8 variants per species.
+  Branches are tubes at two levels (LOD0 = the skeleton without twigs, LOD1 = trunk + first-order limbs), then an
+  octahedral impostor (albedo, normal + depth, thickness: lit like everything else). Foliage = one lit, camera-facing
+  cluster sprite per leaf point from a per-kind atlas of 8 images (`trees/leaftex.ts`: albedo, normal + thickness),
+  drawn with both branch levels; past 120 m and below 6 % of the screen height the lowest-ranked sprites shrink away
+  while the rest grow (shader), down to 25 % at the impostor (1 %). Branches switch LOD0 -> LOD1 at 2.5 %. Level changes
+  are a fixed 0.3 s fade per tree (8x8 ordered dither, one fade value per tree, at most 32 at once), selected from the
+  camera before shake (`CameraRig.steady`) with 15 % hysteresis. A batching job (every 5 m of travel) puts every tree
+  that keeps its level for any camera within 9 m into static batches (shadow casters packed first); only trees near a
+  switching boundary, fading or waiting for a fade slot are re-selected per frame (a few hundred). A camera jump > 50 m
+  is a cut: every tree takes its level at once. The shadow distance is tested per instance in the shader
+  (`tlShadowD`), so it never activates a tree; the shadow pass draws only a batch's casters.
+- Tree occlusion (`trees/occlusion.ts`): the job builds a terrain horizon map from the camera (1024 rays over a lazy 8 m
+  height grid) and leaves out trees beyond 140 m that a hill hides from every camera position in its window; margins
+  cover a 9 m move, a 35 % grade, 0.5 slopes. CPU, not the spec's GPU depth pyramid (WebGL2 has no compute / indirect
+  draws). `?treeocclusion=0` = debug toggle.
+- Tree shading: sprites / impostors go through the standard lit path (sun, shadows, fog); the sky's diffuse light is
+  spherical harmonics of the environment (`setTreeSky`, engine/environment.ts) instead of the env map, so they read 2
+  atlas textures + shadow map + cloud noise. Sprite normals = crown ellipsoid bent by the atlas normal map;
+  translucency = a wrap term on the thickness map. Caps: LOD0 branches <= 6,000 triangles (shrubs 2,000), <= 600
+  sprites (shrubs 200).
+- Tree drawing (spec `trees/Drawing`): every tree mesh is opaque, depth-tested and depth-writing; the depth buffer
+  alone decides what is in front (nothing sorted). Sprites draw a depth prepass, then shade where the depth is EQUAL;
+  both use ONE program (`spriteStandard`, `tlDepthOnly` stops the prepass after the alpha test) because two programs
+  did not give bit-identical depths on ANGLE / Mesa. `checkPrepass` renders it once at load and falls back to a single
+  normal-depth pass if any pixel misses (`prepassMisses`); `?treeprepass=0` = debug toggle. The impostor quad sits at the front of the tree's bounding sphere and its
+  baked depth only pushes pixels back. Trunks are sunk by their base radius. Debug views 4 (depth) and 5 (EQUAL
+  misses, magenta) check it.
+- Tree cost (`trees/stats.ts`): `F6` (= the LOD debug view) shows the tree stats overlay (`trees/overlay.ts`): trees per
+  level / fading, re-selected / static trees, cells checked, terrain-hidden trees, draw calls, triangles and GPU ms
+  (timer queries) of the tree main and shadow passes, selection CPU ms, which mitigations are on, load time, cache
+  hits and memory. Debug view (`F6` cycles): levels (green LOD0, orange LOD1, blue impostor, magenta-white = fading, flashing
+  red = more than 2 level changes in 1 s), lighting only, normals only, depth, EQUAL misses; `?treedebug=1..5`, map
+  viewer select.
+  Benchmark: `/games/rally/?map=<id>&treebench=1` or `await __rally.treeBenchmark()` flies a fixed path (stage start,
+  600 m) with and without trees, checks the budget (`TREE_BUDGET` in `game/tree-bench.ts`: +1 ms frame and 1 %
+  low, 0.1 ms selection, 0.5 s load, no tree spike frames; `result.pass` false = failing) and downloads
+  `tree-bench-<stage>-<quality>-<res>-<date>.json` (machine, mitigations, re-selected trees, spike frames;
+  `compare: <earlier report>` adds the change in every figure). Each frame ends with `waitForGpu` (a 1-pixel
+  readback): WebGL `gl.finish()` does not wait in Chrome, so frames queued up and one in ~100 absorbed ~10 frames of GPU
+  work (the old 300-400 ms "spikes").
 - Variant sets (`getVariantSet`, `assets/library.ts`): the other LODs draw every variant with ONE `InstancedMesh` per material -
   all variants in one geometry, the instance's `instVariant` picks one, the shader clips the rest (`variantMaterial` /
   `variantDepthMaterial` for the shadow pass). Costs vertex work x variants, so sets are capped (vegetation 1200 triangles:
