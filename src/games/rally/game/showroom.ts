@@ -232,11 +232,40 @@ export class Showroom {
     const loop = (now: number) => {
       if (!this.running) return;
       requestAnimationFrame(loop);
+      this.probe?.(now - last);
       this.frame(Math.min(0.1, (now - last) / 1000));
       last = now;
     };
     requestAnimationFrame(loop);
   }
+
+  /**
+   * Measures the menu's frame time for ~2.5 s (after a 1 s warm-up for model / terrain loading) and calls `done` with the
+   * median in ms. Hidden tab = start over. Runs once; a second call is ignored while one is running.
+   */
+  measureFrameTime(done: (medianMs: number) => void): void {
+    if (this.probe) return;
+    const WARMUP = 1000;
+    const SPAN = 2500;
+    let t = 0;
+    const samples: number[] = [];
+    this.probe = (ms) => {
+      if (document.hidden || ms > 1000) {
+        t = 0;
+        samples.length = 0;
+        return;
+      }
+      t += ms;
+      if (t < WARMUP) return;
+      samples.push(ms);
+      if (t < WARMUP + SPAN) return;
+      this.probe = undefined;
+      samples.sort((a, b) => a - b);
+      done(samples[samples.length >> 1]);
+    };
+  }
+
+  private probe?: (ms: number) => void;
 
   /** Show a car (no-op if it's already shown). */
   setCar(carId: string, livery: number, badge?: RallyBadge): void {

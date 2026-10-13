@@ -9,7 +9,10 @@ import {
 import type { CarDef } from '../cars/shared/types';
 import {
   loadQuality,
+  needsAutoQuality,
+  qualityForFrameMs,
   QUALITY,
+  saveAutoQuality,
   saveQuality,
   type QualityName,
   type QualitySettings,
@@ -200,7 +203,13 @@ export interface MenuResult {
 }
 
 type Screen =
-  'welcome' | 'options' | 'about' | 'times' | 'map' | 'car' | 'setup';
+  | 'welcome'
+  | 'options'
+  | 'about'
+  | 'times'
+  | 'map'
+  | 'car'
+  | 'setup';
 
 export function runMenu(container: HTMLElement): Promise<MenuResult> {
   return new Promise((resolve) => {
@@ -406,6 +415,11 @@ class MainMenu {
     // The setup screen drives the showroom itself (parts bench, see setupSelect).
     if (screen === 'map') this.showroom.showMap(this.map.id);
     else if (screen !== 'setup' && screen !== 'times') this.showroom.showCar();
+    // First visit with no quality chosen: measure the picking screens, the stage then starts on the result.
+    if ((screen === 'map' || screen === 'car') && needsAutoQuality())
+      this.showroom.measureFrameTime((ms) =>
+        saveAutoQuality(qualityForFrameMs(ms)),
+      );
     // Options start on the first setting, every other screen on its primary button.
     this.panel
       .querySelector<HTMLElement>(
