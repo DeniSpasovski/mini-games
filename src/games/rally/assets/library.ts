@@ -126,7 +126,12 @@ export function getAsset(id: string, variant: number, lod: number): BuiltAsset {
   let a = cache.get(key);
   if (!a) {
     a = spec?.impostor
-      ? impostorOf(getAsset(id, variant, lod - 1))
+      ? impostorOf(
+          id,
+          getAssetMeta(id).variants,
+          (v) => getAsset(id, v, lod - 1),
+          () => getAsset(id, variant, lod - 1),
+        )
       : buildAsset(id, variantSeed(id, variant), variant, lod);
     cache.set(key, a);
   }

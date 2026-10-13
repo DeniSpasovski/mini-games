@@ -8,6 +8,8 @@ export interface AssetPart {
 
 export interface BuiltAsset {
   parts: AssetPart[];
+  /** One geometry for every variant, the instance's variant (`instVariant`) picks what it shows (baked impostors). */
+  perInstanceVariant?: boolean;
 }
 
 export interface BuildContext {

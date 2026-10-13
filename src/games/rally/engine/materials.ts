@@ -40,6 +40,14 @@ const FOLIAGE: MaterialId[] = [
   'foliage_card_spring',
 ];
 let foliageA2C = false;
+/** Other alpha-tested materials that follow the foliage antialias setting (baked tree impostors). */
+const extraFoliage: Material[] = [];
+
+/** `m` gets alpha-to-coverage whenever the grass cards do (`setFoliageAntialias`). */
+export function registerFoliageMaterial(m: Material): void {
+  m.alphaToCoverage = foliageA2C;
+  extraFoliage.push(m);
+}
 
 /**
  * Grass / leaf cards: alpha-to-coverage when the renderer has MSAA (smooth, non-shimmering card edges at no cost;
@@ -56,6 +64,11 @@ export function setFoliageAntialias(on: boolean): void {
         x.needsUpdate = true;
       }
   }
+  for (const x of extraFoliage)
+    if (x.alphaToCoverage !== on) {
+      x.alphaToCoverage = on;
+      x.needsUpdate = true;
+    }
 }
 
 export function getMaterial(id: MaterialId): Material {

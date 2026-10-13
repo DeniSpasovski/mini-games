@@ -64,15 +64,16 @@ export interface AssetMeta {
 /**
  * LOD 0 must cover the sun's shadow box (quality.shadowExtent <= 75 m), so
  * farther LODs never cast shadows - they'd only cost shadow-pass draws.
- * Past ~420 m the variants share one crown, past 900 m a camera-facing impostor.
+ * Past IMPOSTOR_FROM a tree is a baked camera-facing impostor (assets/impostor.ts: 2 triangles).
  */
 const tree = (maxDist: number): LodSpec[] => [
   { maxDistance: 110, castShadow: true },
-  { maxDistance: 420, castShadow: false },
   ...farTree(maxDist),
 ];
+/** Where trees turn into impostors (m, x the quality's lodScale). */
+export const IMPOSTOR_FROM = 250;
 const farTree = (maxDist: number): LodSpec[] => [
-  { maxDistance: 900, castShadow: false, oneVariant: true },
+  { maxDistance: IMPOSTOR_FROM, castShadow: false },
   { maxDistance: maxDist, castShadow: false, oneVariant: true, impostor: true },
 ];
 
@@ -107,11 +108,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'Dark conical juniper / cypress-like shrub, 2-3.5 m. No collision.',
     variants: 3,
-    lods: [
-      { maxDistance: 110, castShadow: true },
-      { maxDistance: 400, castShadow: false },
-      { maxDistance: 900, castShadow: false },
-    ],
+    lods: [{ maxDistance: 110, castShadow: true }, ...farTree(900)],
     tint: 0.12,
   },
   {
@@ -206,11 +203,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'Orchard / garden fruit tree (apple, plum): short trunk, wide round crown. Planted in rows by `rows` scatter.',
     variants: 4,
-    lods: [
-      { maxDistance: 90, castShadow: true },
-      { maxDistance: 380, castShadow: false },
-      ...farTree(1100),
-    ],
+    lods: [{ maxDistance: 90, castShadow: true }, ...farTree(1100)],
     colliders: [{ kind: 'cylinder', r: 0.14, h: 1.2, y: -0.3 }],
     tint: 0.14,
   },
@@ -221,11 +214,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'Plantation hazelnut: multi-stemmed bush with a low, wide, fresh green crown. Planted in rows on `hazelnut` cover.',
     variants: 3,
-    lods: [
-      { maxDistance: 90, castShadow: true },
-      { maxDistance: 380, castShadow: false },
-      ...farTree(1000),
-    ],
+    lods: [{ maxDistance: 90, castShadow: true }, ...farTree(1000)],
     colliders: [{ kind: 'cylinder', r: 0.12, h: 1, y: -0.3 }],
     tint: 0.14,
   },
@@ -247,11 +236,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'Slender elm / ash sapling, crown taller than wide, starting to yellow. Fills the hedges along lanes.',
     variants: 4,
-    lods: [
-      { maxDistance: 100, castShadow: true },
-      { maxDistance: 400, castShadow: false },
-      ...farTree(1100),
-    ],
+    lods: [{ maxDistance: 100, castShadow: true }, ...farTree(1100)],
     colliders: [{ kind: 'cylinder', r: 0.14, h: 2.5, y: -0.3 }],
     tint: 0.14,
   },

@@ -352,10 +352,11 @@ export class InstanceStreamer {
           2 -
           1) *
           tint;
-      // Far LODs flagged `oneVariant` share one bucket (getAsset draws variant 0 for them), variant sets too ('v').
+      // Far LODs flagged `oneVariant` share one bucket (getAsset draws variant 0 for them), variant sets and baked
+      // impostors too ('v').
       const keys = meta.lods.map(
         (l, lod) =>
-          `${inst.asset}:${getVariantSet(inst.asset, lod) ? 'v' : l.oneVariant ? 0 : inst.variant}:${lod}`,
+          `${inst.asset}:${sharedVariants(inst.asset, lod) ? 'v' : l.oneVariant ? 0 : inst.variant}:${lod}`,
       );
       d = {
         m: placedMatrix(inst, new Float32Array(16)),
@@ -550,7 +551,7 @@ export class InstanceStreamer {
     const asset = set ?? getAsset(inst.asset, inst.variant, lod);
     bucket.meshes = asset.parts.map((part, pi) => {
       let geometry = part.geometry;
-      if (set) {
+      if (bucket.variants) {
         // A wrapper sharing the cached vertex buffers, carrying this bucket's per-instance variants.
         geometry = bucket.geometries[pi] ??= shareAttributes(part.geometry);
         const iv = new InstancedBufferAttribute(new Float32Array(cap), 1);
@@ -598,7 +599,7 @@ export class InstanceStreamer {
       const meta = getAssetMeta(id);
       for (let v = 0; v < meta.variants; v++) {
         for (let lod = 0; lod < meta.lods.length; lod++) {
-          const set = !!getVariantSet(id, lod);
+          const set = sharedVariants(id, lod);
           if (v > 0 && (meta.lods[lod].oneVariant || set)) continue;
           const key = `${id}:${set ? 'v' : v}:${lod}`;
           if (!this.buckets.has(key)) {
@@ -681,11 +682,21 @@ function newBucket(key: string, meta: AssetMeta, lod: number): Bucket {
   };
 }
 
+/** Buckets that draw every variant from one geometry, the instance's variant in `instVariant`: variant sets, baked impostors. */
+function sharedVariants(id: string, lod: number): boolean {
+  if (getVariantSet(id, lod)) return true;
+  return (
+    !!getAssetMeta(id).lods[lod].impostor &&
+    !!getAsset(id, 0, lod).perInstanceVariant
+  );
+}
+
 /** A geometry drawing the same vertex buffers as `src` (shared attribute objects = shared GPU buffers). */
 function shareAttributes(src: BufferGeometry): BufferGeometry {
   const g = new BufferGeometry();
   for (const [name, attr] of Object.entries(src.attributes))
     g.setAttribute(name, attr);
+  g.setIndex(src.index);
   g.boundingSphere = src.boundingSphere;
   g.boundingBox = src.boundingBox;
   return g;
