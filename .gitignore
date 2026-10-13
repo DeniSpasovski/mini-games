@@ -36,12 +36,5 @@ src/games/rally/maps/**/TODO.md
 src/games/*/TASKS.md
 
 # Suspense
-/.suspense/harness.json
-/.suspense/fluency.md
-/.suspense/suspense-fluency.md
-/.suspense/queue/
-/.suspense/commit-notes.json
-/.suspense/conversations.json
-/.suspense/snapshot-index
-/.suspense/sessions/
+.suspense/*
 .suspense-draft.pi
