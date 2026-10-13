@@ -37,7 +37,11 @@ The cost of the tree system is measured in the running game, not guessed. The ha
 ## Mitigations
 
 - Every mitigation below is on by default at every graphics quality setting. Only a debug toggle may turn one off, and the benchmark records it.
-- Foliage overdraw. Each atlas cluster image has a tight polygon of 6 to 8 vertices around its opaque part, and sprites use it instead of a full quad, so few pixels are spent on texels that fail the alpha test. Foliage sprites draw in a depth-only pass first and are then shaded only where their depth is equal, so each covered pixel is shaded once; both passes compute positions identically ([Foliage.wind](./Foliage.md#wind)). Sprite thinning past 60 m ([Foliage.simplification](./Foliage.md#simplification)) cuts the sprite count of distant crowns.
+- Foliage overdraw. Within the full-detail distance, where crowns fill the screen, each atlas cluster image has a tight polygon of 6 to 8 vertices around its opaque part, and sprites use it instead of a full quad, so few pixels are spent on texels that fail the alpha test; these sprites draw in a depth-only pass first and are then shaded only where their depth is equal, so each covered pixel is shaded once; both passes compute positions identically ([Foliage.wind](./Foliage.md#wind)). Farther crowns are bound by draw calls and vertices, not pixels: their sprites are plain quads drawn in one lit pass, from one batch per variant holding the far share (thinner crowns shrink the rest away in the shader), so far crowns are not split over many draws of a few trees each. Sprite thinning past 60 m ([Foliage.simplification](./Foliage.md#simplification)) cuts the sprite count of distant crowns.
+- Impostor shading. Impostors are far trees: diffuse lighting, no shadow-map reads, the albedo blended from the three nearest views but the normal read from the nearest one only, and the billboard cropped to the area its baked views cover, so few empty pixels are tested.
+- Far forest. Trees are drawn up to a forest distance set by the graphics quality setting; past it the forest is painted on the ground from the baked canopy texture, so the distant woods cost nothing per tree. Trees dissolve in over the last 15% of that distance with the level fades' dither, so none appears at once.
+- Impostors. Static impostors farther than 350 m write no baked depth, which would cost them the early depth test; their quad stands through the bounding sphere's centre, and at that distance their depth is off by a few metres at most.
+- Wind. Sway fades out by 110 m, where it is under a pixel, and trees past that skip its vertex work.
 - Culling. Each frame, instances are culled against the view frustum and against a hierarchical depth buffer built from the previous frame's terrain and trees, on the GPU, and the survivors are compacted into indirect draws. A tree hidden behind a hill or a closer stand of trees costs neither vertices nor pixels.
 - Draw calls. Every impostor of every species shares one texture array and draws in a single instanced call.
 - Foliage shading. Leaf translucency is a cheap wrap-lighting term from the atlas thickness map, not a ray march or extra light lookup; ambient occlusion stays baked. No foliage shader samples more than its three atlas textures plus the shadow map.
@@ -48,7 +52,7 @@ The cost of the tree system is measured in the running game, not guessed. The ha
 
 ## Hotspots
 
-- Alpha-tested foliage overdraw near the camera, within the 60 m full-detail distance.
+- Alpha-tested foliage overdraw near the camera, within the 40 m full-detail distance.
 - The two levels drawn together during a branch or impostor fade.
 - Shadow casters, drawn again for each cascade.
 - Stage load on a cold cache, when every variant and impostor is generated.

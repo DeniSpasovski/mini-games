@@ -38,10 +38,31 @@ export const DEFAULT_LOD: LodSettings = {
 };
 
 /**
- * Trees closer than this (m) are always LOD0 with every sprite at full size, whatever their screen height, the field
- * of view or the quality setting (trees/Lod.md#selection): a player near a tree only ever sees it at full detail.
+ * Trees closer than this (m) are always LOD0 with their full-detail sprites (NEAR_SPRITES), whatever their screen
+ * height, the field of view or the quality setting (trees/Lod.md#selection): a player near a tree only ever sees it at
+ * full detail.
  */
-export const FULL_DETAIL_DISTANCE = 60;
+export const FULL_DETAIL_DISTANCE = 40;
+
+/**
+ * Share of its rank-ordered sprites a crown draws at full detail (trees/Foliage.md#simplification): the rest are left
+ * out and the kept ones are 1 / sqrt of it larger, so the crown covers the same area with half the sprites (the
+ * sprites are most of the tree cost, trees/Performance.md#hotspots). Thinning then goes on from here to 25% at the
+ * impostor threshold.
+ */
+export const NEAR_SPRITES = 0.35;
+
+/**
+ * Far crowns (trees/Foliage.md#simplification): over FAR_RAMP m past the full-detail distance the share eases from
+ * NEAR_SPRITES to FAR_SPRITES[0], then on to FAR_SPRITES[1] at the impostor threshold, each sprite grown so the crown
+ * keeps its coverage. Gradual on purpose: a crown that fills in over a few metres, or that is much sparser than the
+ * impostor it fades into, reads as popping. Far crowns are bound by vertices (trees/Performance.md#hotspots): few, large sprites. The perf
+ * panel changes both live (trees/draw.ts `setFarSprites`).
+ */
+export const FAR_SPRITES: [number, number] = [0.2, 0.15];
+export const FAR_RAMP = 60;
+/** Crowns nearer than this (m) draw their sprites' tight outlines with the depth prepass (trees/draw.ts NEAR_PART). */
+export const NEAR_SPRITE_DISTANCE = FULL_DETAIL_DISTANCE + 15;
 
 export type BarkTexture = 'furrowed' | 'smooth';
 export type FoliageKind = 'needles' | 'broadleaf';

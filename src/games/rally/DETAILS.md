@@ -7,12 +7,12 @@ sim-lite physics that is still fun on a keyboard.
 
 ## Pages and URLs
 
-| Page        | URL                                                    | What it is                                                                       |
-| ----------- | ------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| Game        | `/games/rally/`                                        | welcome -> select stage -> select car -> (set-up) -> drive                       |
-| Map viewer  | `/games/rally/map-viewer.html?map=test&grid=1&splat=1` | aerial view, click terrain to inspect, "Drive from here", lat / lon on real maps |
-| Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`  | livery seed, door plate, pose, physics hull, torque chart, test drive            |
-| Asset debug | `/games/rally/asset-debug.html?asset=rock_boulder&lod=1`  | every asset / car (`car:<id>`) / texture (`tex:<id>`): seed, variant, LOD        |
+| Page        | URL                                                      | What it is                                                                       |
+| ----------- | -------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Game        | `/games/rally/`                                          | welcome -> select stage -> select car -> (set-up) -> drive                       |
+| Map viewer  | `/games/rally/map-viewer.html?map=test&grid=1&splat=1`   | aerial view, click terrain to inspect, "Drive from here", lat / lon on real maps |
+| Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`    | livery seed, door plate, pose, physics hull, torque chart, test drive            |
+| Asset debug | `/games/rally/asset-debug.html?asset=rock_boulder&lod=1` | every asset / car (`car:<id>`) / texture (`tex:<id>`): seed, variant, LOD        |
 
 Tool pages are dev-server only and keep their state in the URL; `H` hides the panel, `F3` shows stats, "Copy camera link"
 gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
@@ -29,19 +29,25 @@ gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
 | `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                                                  |
 | `tod=<hours>`, `tonemap=`  | all   | look experiments: time of day (maps with `environment.timeOfDay`), `aces / agx / neutral`                                           |
 | `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the map's `environment.airTemp`)                                                |
+| `perf=1`                   | play  | open the perf panel (below)                                                                                                         |
+
+Perf panel (`` ` `` key in game or `perf=1`, `game/perf-panel.ts`): FPS, frame ms, CPU ms per frame step, GPU ms (timer
+queries; "Wait for GPU" measures it by a readback where they are missing), draw calls, triangles; switches for every
+costly feature (world layers, each tree part, shadows, clouds, fog, IBL, effects) and sliders (resolution, object /
+tree distance, shadow map). Remembered in localStorage, applied only while the panel exists.
 
 Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab hidden), `__rally.loadTimings`,
 `__rally.vehicle`, `__rallyProbe()` (what the camera draws), `__worldShading`, `__mapViewer`, `__carViewer`.
 
 ## Controls
 
-| Input    | Keys                                                                                                                       |
-| -------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Keyboard | `W` / `S` throttle / brake (hold `S` when stopped = reverse), `A` / `D` steer, `Space` handbrake                           |
-|          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS  |
-|          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F8` autopilot, `F9` save the portal thumbnail (dev)      |
-| Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B |
-| Touch    | on-screen steer arrows, BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                    |
+| Input    | Keys                                                                                                                                                            |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Keyboard | `W` / `S` throttle / brake (hold `S` when stopped = reverse), `A` / `D` steer, `Space` handbrake                                                                |
+|          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS                                       |
+|          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F6` tree debug view, `F8` autopilot, `` ` `` perf panel, `F9` save the portal thumbnail (dev) |
+| Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B                                      |
+| Touch    | on-screen steer arrows, BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                                                         |
 
 ## Game flow
 
@@ -269,29 +275,46 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   Branches are tubes at two levels (LOD0 = the skeleton without twigs, LOD1 = trunk + first-order limbs), then an
   octahedral impostor (albedo, normal + depth, thickness: lit like everything else). Foliage = one lit, camera-facing
   cluster sprite per leaf point from a per-kind atlas of 8 images (`trees/leaftex.ts`: albedo, normal + thickness),
-  drawn with both branch levels; past 60 m and below 14 % of the screen height the lowest-ranked sprites shrink away
-  while the rest grow (shader), down to 25 % at the impostor (3.5 %). Branches switch LOD0 -> LOD1 at 7 %. Level changes
+  drawn with both branch levels; a crown draws its highest-ranked 35 % (`NEAR_SPRITES`, the rest left out, the kept
+  ones grown to the same coverage) within the full-detail distance (`FULL_DETAIL_DISTANCE`, 40 m: the only trees with
+  LOD0 branches); over the next 60 m (`FAR_RAMP`, smooth) it eases to the far share (`FAR_SPRITES`: 20 %), then on to 15 % at
+  the impostor (3.5 % of the screen height; perf panel sliders). Defaults at high quality:
+  `QualitySettings.treeLodScale` brings every tree distance to half on medium, about a third on low. Past
+  `QualitySettings.forestDistance` (450 / 700 / 1100 m) no tree is drawn (they dissolve in over its last 15 %, `tlForest`): the ground under the canopy texture takes the
+  forest's colour (`setForest`, engine/world-shading.ts; three's physical path lights `diffuseContribution`). Level changes
   are a fixed 0.3 s fade per tree (8x8 ordered dither, one fade value per tree, at most 32 at once), selected from the
   camera before shake (`CameraRig.steady`) with 15 % hysteresis. A batching job (every 5 m of travel) puts every tree
   that keeps its level for any camera within 9 m into static batches (shadow casters packed first); only trees near a
   switching boundary, fading or waiting for a fade slot are re-selected per frame (a few hundred). A camera jump > 50 m
   is a cut: every tree takes its level at once. The shadow distance is tested per instance in the shader
-  (`tlShadowD`), so it never activates a tree; the shadow pass draws only a batch's casters.
+  (`tlShadowD`), so it never activates a tree; the shadow pass draws only a batch's casters, and a static tree is a
+  caster only when its bounding sphere can reach the sun's shadow box (`shadowExtent`, light space, re-packed with
+  the view). Sprites cast no shadow: the crown proxy does (`trees/proxy.ts` `crownProxy`, a ~100-triangle lathe
+  through the sprites' reach, drawn in the shadow pass only, leafy holes from a world-space noise); a sprite looks
+  its shadow up most of the way out of its crown's ellipsoid towards the sun (`SELF_SHADOW`). Trees cast real
+  shadows within 60 m only (`TREE_SHADOW_DISTANCE`, game/rally-game.ts); the canopy shadows fade in over its last
+  15 m (`setCanopyFade`).
 - Tree occlusion (`trees/occlusion.ts`): the job builds a terrain horizon map from the camera (1024 rays over a lazy 8 m
   height grid) and leaves out trees beyond 140 m that a hill hides from every camera position in its window; margins
   cover a 9 m move, a 35 % grade, 0.5 slopes. CPU, not the spec's GPU depth pyramid (WebGL2 has no compute / indirect
   draws). `?treeocclusion=0` = debug toggle.
-- Tree shading: sprites / impostors go through the standard lit path (sun, shadows, fog); the sky's diffuse light is
+- Tree shading: sprites (Lambert: diffuse only) / impostors go through the lit path (sun, shadows, fog); the sky's diffuse light is
   spherical harmonics of the environment (`setTreeSky`, engine/environment.ts) instead of the env map, so they read 2
   atlas textures + shadow map + cloud noise. Sprite normals = crown ellipsoid bent by the atlas normal map;
   translucency = a wrap term on the thickness map. Caps: LOD0 branches <= 6,000 triangles (shrubs 2,000), <= 600
-  sprites (shrubs 200).
+  sprites (shrubs 200). Wind fades out by 110 m (`TREE_WIND_FAR`; past it the vertex work is skipped).
 - Tree drawing (spec `trees/Drawing`): every tree mesh is opaque, depth-tested and depth-writing; the depth buffer
-  alone decides what is in front (nothing sorted). Sprites draw a depth prepass, then shade where the depth is EQUAL;
-  both use ONE program (`spriteStandard`, `tlDepthOnly` stops the prepass after the alpha test) because two programs
+  alone decides what is in front (nothing sorted). Sprite parts (`trees/draw.ts`): crowns within
+  `NEAR_SPRITE_DISTANCE` (55 m) use the tight outlines with a depth prepass, then shade where the depth is EQUAL;
+  farther crowns use plain quads (`quadSprites`) in one lit pass: a mid batch per variant over the ramp and a far one
+  past it, each holding the share at its near end (one batch per thinning step left a few crowns per draw call);
+  both use ONE program (`spriteLit`, `tlDepthOnly` stops the prepass after the alpha test) because two programs
   did not give bit-identical depths on ANGLE / Mesa. `checkPrepass` renders it once at load and falls back to a single
   normal-depth pass if any pixel misses (`prepassMisses`); `?treeprepass=0` = debug toggle. The impostor quad sits at the front of the tree's bounding sphere and its
-  baked depth only pushes pixels back. Trunks are sunk by their base radius. Debug views 4 (depth) and 5 (EQUAL
+  baked depth only pushes pixels back; static impostors past `IMPOSTOR_FLAT_FROM` (350 m) use the far program (no
+  baked depth, which costs the early depth test; the quad through the centre). Impostors are Lambert, receive no
+  shadow (beyond the shadow box), read the normal from the nearest view only and are cropped to their views' coverage
+  (`impostorBounds`). Trunks are sunk by their base radius. Debug views 4 (depth) and 5 (EQUAL
   misses, magenta) check it.
 - Tree cost (`trees/stats.ts`): `F6` (= the LOD debug view) shows the tree stats overlay (`trees/overlay.ts`): trees per
   level / fading, re-selected / static trees, cells checked, terrain-hidden trees, draw calls, triangles and GPU ms

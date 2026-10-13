@@ -14,16 +14,16 @@ Foliage is drawn as lit leaf-cluster sprites placed on the skeleton's leaf point
 
 ## Simplification
 
-- Each sprite has a rank, from its prune priority and its seed. Within the full-detail distance every sprite draws at full size.
+- Each sprite has a rank, from its prune priority and its seed. Within the full-detail distance a crown draws the highest-ranked 35% of its sprites, each grown so the crown covers the same area as with all of them; sprites are the biggest part of the trees' cost, and half of them is hard to tell from all of them.
 - Once the tree is outside the full-detail distance and below the thinning threshold ([Lod.selection](./Lod.md#selection)), as its projected height falls toward the impostor threshold, the lowest-ranked sprites shrink smoothly to nothing while the remaining sprites grow, so the area the crown covers on screen stays the same. Sprites are never added or removed at once and never dithered.
-- By the impostor threshold a crown has 25% of its sprites, each scaled to keep the crown's coverage.
+- Past the full-detail distance the share eases over 60 m to the far share, 20% of the sprites, then on to 15% by the impostor threshold, each sprite scaled to keep the crown's coverage. The change is gradual on purpose: a crown that fills in over a few metres, or that is much sparser than the impostor it fades into, reads as popping. Far crowns are bound by draw calls and vertices, not pixels, so they draw few, large sprites; both shares can be tuned live in the perf panel.
 
 ## Shading
 
-- Sprites are shaded through the game's normal lit path for opaque geometry: the same sun, sky ambient, fog and shadow maps as the terrain. They are never drawn unlit, emissive, with a constant colour or with a zero or missing normal.
+- Sprites are shaded through the game's normal lit path for opaque geometry: the same sun, sky ambient, fog and shadow maps as the terrain, with diffuse lighting only, since a leaf cluster shows next to no specular. They are never drawn unlit, emissive, with a constant colour or with a zero or missing normal.
 - The normal is the normal of the crown's fitted ellipsoid at the sprite's position, bent by the atlas normal map, so the crown shades as one soft volume with leafy detail and the individual sprites do not show.
 - Light through leaves is a wrap-lighting term weighted by the thickness map, so a crown against a low sun glows at its edges.
-- Sprites receive shadows, including the crown's own shadow, so the inside and the side away from the sun are darker.
+- Sprites receive shadows, including the crown's own shadow, so the inside and the side away from the sun are darker ([Lod.shadows](./Lod.md#shadows)).
 - Ambient occlusion is baked per sprite from how deep it sits inside the crown.
 - Each tree gets a hue and value variation from its seed, within its species palette.
 
@@ -39,3 +39,4 @@ Foliage is drawn as lit leaf-cluster sprites placed on the skeleton's leaf point
 - Each vertex carries its branch order, its phase and its distance along its branch, baked from the skeleton, and the motion is computed on the GPU from those and a global wind direction and strength.
 - Every pass that draws a sprite, the depth pass, the lit pass and the shadow pass, computes its position with the same function from the same inputs, so their depths match exactly.
 - The impostor sways as a whole with the trunk motion, so it matches the geometry at the transition.
+- Sway fades out with distance, gone by 110 m, the same on every level and pass.

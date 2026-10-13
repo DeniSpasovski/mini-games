@@ -1,0 +1,30 @@
+/* Perf panel (game/perf-panel.ts): the debug panel's sections in a floating box over the game. */
+.pp-panel {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  z-index: 40;
+  width: 300px;
+  max-height: calc(100% - 16px);
+  overflow-y: auto;
+  background: rgba(24, 28, 34, 0.94);
+  border: 1px solid #2a3038;
+  border-radius: 6px;
+  color: #dfe3e8;
+  font:
+    12px/1.4 system-ui,
+    'Segoe UI',
+    sans-serif;
+  color-scheme: dark;
+}
+
+.pp-head {
+  padding: 8px 12px;
+  font-weight: 600;
+  border-bottom: 1px solid #2a3038;
+}
+
+.pp-panel select,
+.pp-panel input {
+  font: inherit;
+}

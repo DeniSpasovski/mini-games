@@ -7,12 +7,14 @@ import {
   LessEqualDepth,
   MeshBasicMaterial,
   MeshDepthMaterial,
+  MeshLambertMaterial,
   MeshStandardMaterial,
   RepeatWrapping,
   RGBADepthPacking,
   SRGBColorSpace,
   Vector2,
   Vector3,
+  Vector4,
   type Texture,
   type WebGLProgramParametersWithUniforms,
 } from 'three';
@@ -20,14 +22,17 @@ import { addWorldUniforms } from '../engine/world-shading';
 import { ALPHA_TEST, spriteAtlas } from './leaftex';
 import { mix32, unit } from './math';
 import {
+  FAR_RAMP,
+  FAR_SPRITES,
   FULL_DETAIL_DISTANCE,
+  NEAR_SPRITES,
   type BarkTexture,
   type FoliageKind,
 } from './species';
 
 /**
  * Shared materials of the tree module (the impostor bake and the drawing stage): bark and sprite atlas textures and
- * the tree shader code injected into three's standard / depth / basic materials, so branches, foliage sprites and
+ * the tree shader code injected into three's standard / Lambert / depth / basic materials, so branches, foliage sprites and
  * impostors all go through the game's normal lit path (sun, sky, fog, shadow maps: trees/Foliage.md#shading).
  *
  * - **Level cross-fade** (trees/Lod.md#transition): the level and its fade are chosen on the CPU, once per frame per
@@ -65,6 +70,13 @@ export const treeUniforms = {
   /** Trees cast shadows within this horizontal distance of `tlCam` (m): decided per instance here, so the shadow
    * distance never makes a tree re-selected on the CPU (trees/Lod.md#active-set). */
   tlShadowD: { value: 1e9 },
+  /**
+   * Far crowns' sprite share (trees/draw.ts `spriteKeep`): x just past FAR_RAMP beyond the full-detail distance, y at
+   * the impostor threshold. Far crowns are vertex bound, so they draw few, large sprites (`setFarSprites`).
+   */
+  tlFar: { value: new Vector2(FAR_SPRITES[0], FAR_SPRITES[1]) },
+  /** Trees end here (m; 0 = no edge): they dissolve over its last 15% (trees/draw.ts `forestDistance`). */
+  tlForest: { value: 0 },
 };
 
 // Dev: inspect / tweak from the console (`__treeUniforms.tlDebug.value = 2`).
@@ -92,6 +104,11 @@ invariant gl_Position;
 uniform vec3 tlCam;
 uniform float tlPx;
 uniform float tlShadowD;
+uniform vec2 tlFar;
+uniform float tlForest;
+const float TREE_FAR_RAMP = ${FAR_RAMP.toFixed(1)};
+/** Wind fades out towards this distance (m): past it a sway is under a pixel, so its vertex maths is skipped. */
+const float TREE_WIND_FAR = 110.0;
 attribute vec4 treeInst;
 attribute vec4 treeFade;
 #ifndef TREE_IMPOSTOR
@@ -100,6 +117,9 @@ attribute vec4 treeWind;
 #ifdef TREE_SPRITE
 attribute vec4 treeSprite;
 attribute float treeRank;
+/** The crown's ellipsoid (object space): centre, horizontal radius; vertical radius. */
+attribute vec4 treeCrown;
+attribute float treeCrownY;
 attribute vec4 treeLod;
 varying vec3 vSprRight;
 varying vec3 vSprUp;
@@ -115,17 +135,17 @@ float treeTrunk( float y, float phase, float gust ) {
 }
 #ifdef TREE_SPRITE
 /**
- * Sprite thinning (trees/Foliage.md#simplification), per tree: keep share k = 1 inside FULL_DETAIL_DISTANCE and
- * above the thinning threshold (treeLod.z), falling to 0.25 at the impostor threshold (treeLod.w); a sprite of rank r
- * shrinks to nothing as k passes it, the rest grow by 1 / sqrt(k) so the crown keeps its coverage.
+ * Sprite thinning (trees/Foliage.md#simplification), per tree: keep share k = TREE_KEEP_NEAR (species.ts NEAR_SPRITES)
+ * inside FULL_DETAIL_DISTANCE and above the thinning threshold (treeLod.z), falling to 0.25 at the impostor threshold
+ * (treeLod.w); a sprite of rank r shrinks to nothing as k passes it, the rest grow by 1 / sqrt(k) so the crown keeps
+ * its coverage.
  */
 float treeSpriteScale( vec3 origin, float rank ) {
 	vec3 centre = origin + vec3( 0.0, treeLod.x, 0.0 );
 	float dist = max( distance( centre, tlCam ), 0.5 );
 	float h = treeLod.y * tlPx / dist;
-	float k = 1.0;
-	if ( dist >= TREE_FULL && h < treeLod.z )
-		k = 1.0 - 0.75 * clamp( log( treeLod.z / h ) / log( treeLod.z / treeLod.w ), 0.0, 1.0 );
+	float f = h < treeLod.z ? clamp( log( treeLod.z / h ) / log( treeLod.z / treeLod.w ), 0.0, 1.0 ) : 0.0;
+	float k = mix( TREE_KEEP_NEAR, mix( tlFar.x, tlFar.y, f ), smoothstep( TREE_FULL, TREE_FULL + TREE_FAR_RAMP, dist ) );
 	const float w = 0.08;
 	return smoothstep( rank, rank + w, k * ( 1.0 + w ) ) * inversesqrt( k );
 }
@@ -140,11 +160,15 @@ const VERTEX_MAIN = /* glsl */ `
 	vec3 tWindW = vec3( wsWind.x, 0.0, wsWind.y );
 	tWindW = dot( tWindW, tWindW ) > 1e-6 ? normalize( tWindW ) : vec3( 1.0, 0.0, 0.0 );
 	vec3 tWind = transpose( tRot ) * tWindW;
-	float tGust = wsWind.z * ( 0.65 + 0.35 * sin( wsTime * 0.31 + treeInst.z * 0.5 + dot( tOrigin.xz, vec2( 0.011, 0.007 ) ) ) );
+	float tWindK = wsWind.z * ( 1.0 - smoothstep( TREE_WIND_FAR * 0.7, TREE_WIND_FAR, distance( tOrigin, tlCam ) ) );
+	float tGust = 0.0;
+	if ( tWindK > 0.0 ) tGust = tWindK * ( 0.65 + 0.35 * sin( wsTime * 0.31 + treeInst.z * 0.5 + dot( tOrigin.xz, vec2( 0.011, 0.007 ) ) ) );
 	#ifndef TREE_IMPOSTOR
 		// Trunk bend + limb sway (phase per limb, more for higher orders and further out). Sprites: at their centre.
-		float tBranch = 0.012 * tGust * ( 1.0 + 0.35 * treeWind.x ) * treeWind.z * sin( wsTime * 1.7 + treeWind.y + treeInst.z );
-		transformed += tWind * treeTrunk( position.y, treeInst.z, tGust ) + ( tWind + vec3( 0.0, 0.3, 0.0 ) ) * tBranch;
+		if ( tGust > 0.0 ) {
+			float tBranch = 0.012 * tGust * ( 1.0 + 0.35 * treeWind.x ) * treeWind.z * sin( wsTime * 1.7 + treeWind.y + treeInst.z );
+			transformed += tWind * treeTrunk( position.y, treeInst.z, tGust ) + ( tWind + vec3( 0.0, 0.3, 0.0 ) ) * tBranch;
+		}
 	#endif
 	// Kept dither range [lo, hi): solid, outgoing (>= fade), incoming (< fade), or nothing.
 	#ifdef TREE_SHADOW_PASS
@@ -152,6 +176,11 @@ const VERTEX_MAIN = /* glsl */ `
 	#else
 		float tRole = treeFade.y;
 		vTreeKeep = tRole < 0.5 ? vec2( 0.0, 2.0 ) : tRole < 1.5 ? vec2( treeFade.x, 2.0 ) : tRole < 2.5 ? vec2( 0.0, treeFade.x ) : vec2( 1.0, 0.0 );
+		// The forest edge (trees/draw.ts forestDistance): trees dissolve in with the same dither, never pop.
+		if ( tlForest > 0.0 ) {
+			float tEdge = 1.0 - smoothstep( tlForest * 0.85, tlForest, distance( tOrigin.xz, tlCam.xz ) );
+			if ( tEdge < 1.0 ) vTreeKeep.y = min( vTreeKeep.y, tEdge );
+		}
 	#endif
 	vTreeDebug = vec2( treeFade.w, treeFade.x );
 	vTreeTint = treeInst.xy;
@@ -172,7 +201,8 @@ const SPRITE_PROJECT = /* glsl */ `
 	vec3 sprRight = cross( vec3( 0.0, 1.0, 0.0 ), sprToCam );
 	sprRight = dot( sprRight, sprRight ) > 1e-6 ? normalize( sprRight ) : vec3( 1.0, 0.0, 0.0 );
 	vec3 sprUp = cross( sprToCam, sprRight );
-	float sprTurn = treeSprite.w + 0.12 * wsWind.z * sin( wsTime * 5.3 + treeWind.y * 2.7 + treeSprite.w * 3.0 );
+	float sprTurn = treeSprite.w;
+	if ( tWindK > 0.0 ) sprTurn += 0.12 * tWindK * sin( wsTime * 5.3 + treeWind.y * 2.7 + treeSprite.w * 3.0 );
 	float sprC = cos( sprTurn );
 	float sprS = sin( sprTurn );
 	vec3 sprR = sprRight * sprC + sprUp * sprS;
@@ -186,6 +216,22 @@ const SPRITE_PROJECT = /* glsl */ `
 		vSprRight = ( viewMatrix * vec4( sprR, 0.0 ) ).xyz;
 		vSprUp = ( viewMatrix * vec4( sprU, 0.0 ) ).xyz;
 	#endif
+`;
+
+/** Share of the way out of its own crown (towards the sun) a sprite's shadow lookup moves. */
+const SELF_SHADOW = 0.8;
+
+/** Replaces worldpos_vertex for sprites: the shadow lookup point (see injectVertex). */
+const SPRITE_SHADOW_LOOKUP = /* glsl */ `
+	vec3 tcC = ( modelMatrix * instanceMatrix * vec4( treeCrown.xyz, 1.0 ) ).xyz;
+	vec3 tcR = vec3( treeCrown.w, treeCrownY, treeCrown.w ) * tScale;
+	vec3 tcQ = ( sprCentre - tcC ) / tcR;
+	vec3 tcD = wsSunDir / tcR;
+	float tcA = dot( tcD, tcD );
+	float tcB = dot( tcQ, tcD );
+	float tcDisc = tcB * tcB - tcA * ( dot( tcQ, tcQ ) - 1.0 );
+	float tcOut = tcDisc > 0.0 ? max( ( - tcB + sqrt( tcDisc ) ) / tcA, 0.0 ) : 0.0;
+	vec4 worldPosition = vec4( sprWorld + wsSunDir * max( 0.35, ${SELF_SHADOW.toFixed(2)} * tcOut ), 1.0 );
 `;
 
 const VERTEX_COLLAPSE = /* glsl */ `
@@ -296,11 +342,9 @@ function injectVertex(
         `${SPRITE_PROJECT}\n${VERTEX_COLLAPSE}`,
       )
       // Shadow lookup lifted towards the sun: a sprite (facing the camera, often edge-on to the sun) does not
-      // shadow itself, the crown still shadows its inside.
-      .replace(
-        '#include <worldpos_vertex>',
-        'vec4 worldPosition = vec4( sprWorld + wsSunDir * 0.35, 1.0 );',
-      );
+      // shadow itself, and its crown's shadow proxy (trees/proxy.ts) does not swallow it: the lift is a share of
+      // the way out of the crown's ellipsoid towards the sun, so the inside still sits in some shade.
+      .replace('#include <worldpos_vertex>', SPRITE_SHADOW_LOOKUP);
   else if (project)
     shader.vertexShader = shader.vertexShader.replace(
       '#include <project_vertex>',
@@ -314,9 +358,9 @@ function injectFragment(shader: WebGLProgramParametersWithUniforms): void {
     .replace('void main() {', `void main() {\n${FRAGMENT_DITHER}`);
 }
 
-/** The lit path of branches and sprites: three's standard material + the tree code. */
+/** The lit path of branches (standard) and sprites (Lambert): three's material + the tree code. */
 function hookStandard(
-  m: MeshStandardMaterial,
+  m: MeshStandardMaterial | MeshLambertMaterial,
   key: string,
   sprite: boolean,
   extra: Record<string, unknown> = {},
@@ -560,7 +604,10 @@ export function coverageMips(
 
 const materials = new Map<
   string,
-  MeshStandardMaterial | MeshBasicMaterial | MeshDepthMaterial
+  | MeshStandardMaterial
+  | MeshLambertMaterial
+  | MeshBasicMaterial
+  | MeshDepthMaterial
 >();
 let foliageA2C = false;
 
@@ -586,9 +633,10 @@ export function barkMaterial(kind: BarkTexture): MeshStandardMaterial {
   m.name = `tree ${key}`;
   m.defines = {
     TREE_FULL: FULL_DETAIL_DISTANCE.toFixed(1),
+    TREE_KEEP_NEAR: NEAR_SPRITES.toFixed(3),
     TREE_VIEW_Z: 'vViewPosition.z',
   };
-  hookStandard(m, 'tree-bark-v5', false);
+  hookStandard(m, 'tree-bark-v7', false);
   materials.set(key, m);
   return m;
 }
@@ -617,11 +665,11 @@ export function setSpritePrepass(on: boolean): void {
 export function spriteMaterial(
   kind: FoliageKind,
   density: number,
-): MeshStandardMaterial {
+): MeshLambertMaterial {
   const key = `sprite:lit:${kind}:${density}`;
-  let m = materials.get(key) as MeshStandardMaterial | undefined;
+  let m = materials.get(key) as MeshLambertMaterial | undefined;
   if (m) return m;
-  m = spriteStandard(kind, density, false);
+  m = spriteLit(kind, density, false);
   m.name = `tree ${key}`;
   m.depthFunc = spritePrepass ? EqualDepth : LessEqualDepth;
   m.depthWrite = !spritePrepass;
@@ -630,22 +678,54 @@ export function spriteMaterial(
 }
 
 /**
+ * Far sprites (trees/draw.ts: quads, one lit pass): the sprite program with the normal depth test, writing depth,
+ * whatever `setSpritePrepass` says (no prepass draws them).
+ */
+export function spriteFarMaterial(
+  kind: FoliageKind,
+  density: number,
+): MeshLambertMaterial {
+  const key = `sprite:far:${kind}:${density}`;
+  let m = materials.get(key) as MeshLambertMaterial | undefined;
+  if (m) return m;
+  m = spriteLit(kind, density, false);
+  m.name = `tree ${key}`;
+  materials.set(key, m);
+  return m;
+}
+
+/**
+ * Main material of the crown shadow proxies (trees/proxy.ts), which the main pass never draws (trees/draw.ts sets
+ * their count to 0 there): only its `shadowSide` matters, both faces, so the lathe's winding does not.
+ */
+export function proxyMaterial(): MeshBasicMaterial {
+  const key = 'proxy';
+  let m = materials.get(key) as MeshBasicMaterial | undefined;
+  if (m) return m;
+  m = new MeshBasicMaterial({ shadowSide: DoubleSide });
+  m.name = 'tree shadow proxy';
+  materials.set(key, m);
+  return m;
+}
+
+/**
  * A sprite material on the ONE sprite program (same source, defines and cache key for the prepass and the lit pass:
  * the same compiled vertex code, so the depths match bit for bit; two different programs did not on every driver,
  * `invariant` or not). `depthOnly` = the prepass: `tlDepthOnly` returns right after the alpha test.
+ * Lambert, not standard: a leaf cluster at roughness ~0.85 has next to no specular, and the sprites are most of the
+ * tree pixels (trees/Performance.md#hotspots); the same sun, sky ambient, shadows, fog and leaf translucency.
  */
-function spriteStandard(
+function spriteLit(
   kind: FoliageKind,
   density: number,
   depthOnly: boolean,
-): MeshStandardMaterial {
+): MeshLambertMaterial {
   const tex = spriteTextures(kind, density);
-  const m = new MeshStandardMaterial({
+  const m = new MeshLambertMaterial({
     vertexColors: true,
     map: tex.albedo,
     alphaTest: ALPHA_TEST,
     side: DoubleSide,
-    roughness: 0.85,
   });
   m.alphaToCoverage = foliageA2C;
   m.defines = {
@@ -653,11 +733,12 @@ function spriteStandard(
     TREE_SKY: 1,
     TREE_VIEW_Z: 'vViewPosition.z',
     TREE_FULL: FULL_DETAIL_DISTANCE.toFixed(1),
+    TREE_KEEP_NEAR: NEAR_SPRITES.toFixed(3),
     TREE_BEND: SPRITE_BEND.toFixed(2),
     FALLBACK_AMBIENT: FALLBACK_AMBIENT.toFixed(2),
     RALLY_FOLIAGE: 0.45,
   };
-  hookStandard(m, 'tree-sprite-v4', true, {
+  hookStandard(m, 'tree-sprite-v8', true, {
     tlSprNormal: { value: tex.normal },
     tlDepthOnly: { value: depthOnly ? 1 : 0 },
   });
@@ -672,35 +753,58 @@ export function setSpritePrepassDebug(on: boolean): void {
 }
 
 /**
- * Sprite depth prepass: the lit sprites' own program (`spriteStandard`) stopping after the alpha test, depth only.
+ * Sprite depth prepass: the lit sprites' own program (`spriteLit`) stopping after the alpha test, depth only.
  * Colour only in the equal-test debug view: magenta, so what the lit pass then fails to cover stays magenta.
  */
 export function spritePrepassMaterial(
   kind: FoliageKind,
   density: number,
-): MeshStandardMaterial {
+): MeshLambertMaterial {
   const key = `sprite:prepass:${kind}:${density}`;
-  let m = materials.get(key) as MeshStandardMaterial | undefined;
+  let m = materials.get(key) as MeshLambertMaterial | undefined;
   if (m) return m;
-  m = spriteStandard(kind, density, true);
+  m = spriteLit(kind, density, true);
   m.name = `tree ${key}`;
   m.colorWrite = false;
   materials.set(key, m);
   return m;
 }
 
+export type TreeDepthKind = 'branch' | 'sprite' | 'proxy';
+
+/**
+ * Leafy holes in a crown proxy's shadow: two octaves of value noise over the world position (about 0.6 m cells),
+ * so light falls through the crown in dapples that do not crawl with the camera.
+ */
+const PROXY_HOLES = /* glsl */ `
+	vec3 tpP = vTreeWorld * 1.7;
+	vec3 tpI = floor( tpP );
+	vec3 tpF = fract( tpP );
+	tpF = tpF * tpF * ( 3.0 - 2.0 * tpF );
+	#define TP_H( o ) fract( sin( dot( tpI + o, vec3( 127.1, 311.7, 74.7 ) ) ) * 43758.5453 )
+	float tpN = mix(
+		mix( mix( TP_H( vec3( 0, 0, 0 ) ), TP_H( vec3( 1, 0, 0 ) ), tpF.x ), mix( TP_H( vec3( 0, 1, 0 ) ), TP_H( vec3( 1, 1, 0 ) ), tpF.x ), tpF.y ),
+		mix( mix( TP_H( vec3( 0, 0, 1 ) ), TP_H( vec3( 1, 0, 1 ) ), tpF.x ), mix( TP_H( vec3( 0, 1, 1 ) ), TP_H( vec3( 1, 1, 1 ) ), tpF.x ), tpF.y ),
+		tpF.z );
+	if ( tpN > 0.72 ) discard;
+`;
+
 /**
  * Shadow-pass material: the same positions (wind, sprite facing + thinning), the caster flag (no dither) and, for
- * sprites, the material's map and ALPHA_TEST, which three copies over.
+ * sprites, the material's map and ALPHA_TEST, which three copies over. `proxy`: a crown shadow proxy (trees/proxy.ts)
+ * with leafy holes.
  */
-export function treeDepthMaterial(sprite: boolean): MeshDepthMaterial {
-  const key = `depth:${sprite}`;
+export function treeDepthMaterial(kind: TreeDepthKind): MeshDepthMaterial {
+  const key = `depth:${kind}`;
   let m = materials.get(key) as MeshDepthMaterial | undefined;
   if (m) return m;
+  const sprite = kind === 'sprite';
+  const proxy = kind === 'proxy';
   m = new MeshDepthMaterial({ depthPacking: RGBADepthPacking });
   m.defines = {
     TREE_SHADOW_PASS: 1,
     TREE_FULL: FULL_DETAIL_DISTANCE.toFixed(1),
+    TREE_KEEP_NEAR: NEAR_SPRITES.toFixed(3),
     ...(sprite ? { TREE_SPRITE: 1 } : {}),
   };
   m.onBeforeCompile = (shader) => {
@@ -708,8 +812,25 @@ export function treeDepthMaterial(sprite: boolean): MeshDepthMaterial {
     Object.assign(shader.uniforms, treeUniforms);
     injectVertex(shader, true, sprite);
     injectFragment(shader);
+    if (proxy) {
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nvarying vec3 vTreeWorld;',
+        )
+        .replace(
+          '#include <project_vertex>',
+          '#include <project_vertex>\n\tvTreeWorld = ( modelMatrix * instanceMatrix * vec4( transformed, 1.0 ) ).xyz;',
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nvarying vec3 vTreeWorld;',
+        )
+        .replace('void main() {', `void main() {\n${PROXY_HOLES}`);
+    }
   };
-  m.customProgramCacheKey = () => `tree-depth-v3-${sprite}`;
+  m.customProgramCacheKey = () => `tree-depth-v7-${kind}`;
   materials.set(key, m);
   return m;
 }
@@ -754,7 +875,16 @@ const IMPOSTOR_VERTEX = /* glsl */ `
 	float tiR = tlSphere.y * tScale;
 	// The quad sits at the FRONT of the bounding sphere: the baked depth only ever pushes a pixel away from the
 	// camera (trees/Drawing.md#depth), never in front of the quad.
-	vec3 tiWorld = tiCenter + ( tiToCam + tiRight * position.x + tiUp * position.y ) * tiR;
+	// The billboard cropped to what its baked views cover (impostor.ts impostorBounds): frame uv and quad position.
+	vec4 tiB = tlBounds[ tiVariant ];
+	vec2 tiQ = mix( tiB.xy, tiB.zw, position.xy * 0.5 + 0.5 );
+	vec2 tiCorner = tiQ * 2.0 - 1.0;
+	#ifdef TREE_IMPOSTOR_FLAT
+		// Far impostors write no baked depth (it costs the early depth test): the quad stands through the centre.
+		vec3 tiWorld = tiCenter + ( tiRight * tiCorner.x + tiUp * tiCorner.y ) * tiR;
+	#else
+		vec3 tiWorld = tiCenter + ( tiToCam + tiRight * tiCorner.x + tiUp * tiCorner.y ) * tiR;
+	#endif
 	// Trunk sway at this corner's height above the foot (object space), the same as the geometry levels.
 	tiWorld += tWindW * treeTrunk( ( tiWorld.y - tOrigin.y ) / tScale, treeInst.z, tGust ) * tScale;
 	vec4 mvPosition = viewMatrix * vec4( tiWorld, 1.0 );
@@ -768,7 +898,7 @@ const IMPOSTOR_VERTEX = /* glsl */ `
 	vec2 tiF0 = min( floor( tiGrid ), vec2( TREE_FRAMES - 2.0 ) );
 	vTiFrame = tiF0;
 	vTiWeight = tiGrid - tiF0;
-	vTiUv = position.xy * 0.5 + 0.5;
+	vTiUv = tiQ;
 	vTiRot0 = tRot[ 0 ];
 	vTiRot1 = tRot[ 1 ];
 	vTiRot2 = tRot[ 2 ];
@@ -791,11 +921,18 @@ const IMPOSTOR_FRAGMENT = /* glsl */ `
 	vec2 tiU1 = ( vTiFrame + vec2( 1.0, 0.0 ) + tiUv ) / TREE_FRAMES;
 	vec2 tiU2 = ( vTiFrame + vec2( 0.0, 1.0 ) + tiUv ) / TREE_FRAMES;
 	float tiA = floor( vTiLayer + 0.5 );
-	#define TI_SAMPLE( L ) ( texture( tlAtlas, vec3( tiU0, tiA + L ) ) * tiW.x + texture( tlAtlas, vec3( tiU1, tiA + L ) ) * tiW.y + texture( tlAtlas, vec3( tiU2, tiA + L ) ) * tiW.z )
-	vec4 tiAlbedo = TI_SAMPLE( 0.0 );
-	vec4 tiNormal = TI_SAMPLE( 1.0 );
-	vec4 tiThick = TI_SAMPLE( 2.0 );
+	// Albedo + coverage: the three views blended (no jump between views as the camera passes).
+	vec4 tiA0 = texture( tlAtlas, vec3( tiU0, tiA ) );
+	vec4 tiA1 = texture( tlAtlas, vec3( tiU1, tiA ) );
+	vec4 tiA2 = texture( tlAtlas, vec3( tiU2, tiA ) );
+	vec4 tiAlbedo = tiA0 * tiW.x + tiA1 * tiW.y + tiA2 * tiW.z;
+	// Out before the normal: most of a billboard is empty (trees/Performance.md#mitigations).
 	if ( tiAlbedo.a < TREE_ALPHA_TEST ) discard;
+	// Normal + depth from the heaviest view only (cheap: impostors are far trees), un-premultiplied by its own coverage.
+	vec2 tiUN = tiW.x >= tiW.y && tiW.x >= tiW.z ? tiU0 : tiW.y >= tiW.z ? tiU1 : tiU2;
+	float tiAN = tiW.x >= tiW.y && tiW.x >= tiW.z ? tiA0.a : tiW.y >= tiW.z ? tiA1.a : tiA2.a;
+	vec4 tiNormal = texture( tlAtlas, vec3( tiUN, tiA + 1.0 ) );
+	float tiInvN = 1.0 / max( tiAN, 1e-3 );
 	float tiInvA = 1.0 / max( tiAlbedo.a, 1e-3 );
 	diffuseColor.rgb = sRGBTransferEOTF( vec4( tiAlbedo.rgb * tiInvA, 1.0 ) ).rgb;
 	diffuseColor.a = 1.0;
@@ -810,14 +947,20 @@ const IMPOSTOR_FRAGMENT = /* glsl */ `
 export function impostorMaterial(
   atlas: Texture,
   spheres: { cy: number; r: number }[],
-): MeshStandardMaterial {
-  const m = new MeshStandardMaterial({ roughness: 0.9 });
-  m.name = 'tree impostors';
+  bounds: [number, number, number, number][],
+  flat = false,
+): MeshLambertMaterial {
+  // Lambert: impostors are far trees (diffuse only, like the sprites); their meshes receive no shadow (beyond the
+  // shadow box), so the shadow map is not read either (trees/draw.ts).
+  const m = new MeshLambertMaterial();
+  m.name = flat ? 'tree impostors far' : 'tree impostors';
   m.defines = {
+    ...(flat ? { TREE_IMPOSTOR_FLAT: 1 } : {}),
     TREE_IMPOSTOR: 1,
     TREE_SKY: 1,
     TREE_VIEW_Z: '-tiView.z',
     TREE_FULL: FULL_DETAIL_DISTANCE.toFixed(1),
+    TREE_KEEP_NEAR: NEAR_SPRITES.toFixed(3),
     TREE_FRAMES: `${IMPOSTOR_FRAMES}.0`,
     TREE_ALPHA_TEST: `${ALPHA_TEST.toFixed(3)}`,
     TREE_VARIANTS: Math.max(1, spheres.length),
@@ -828,6 +971,9 @@ export function impostorMaterial(
   const uniforms = {
     tlAtlas: { value: atlas },
     tlSpheres: { value: spheres.map((s) => new Vector2(s.cy, s.r)) },
+    tlBounds: {
+      value: bounds.map((b) => new Vector4(b[0], b[1], b[2], b[3])),
+    },
   };
   m.onBeforeCompile = (shader) => {
     addWorldUniforms(shader);
@@ -847,7 +993,7 @@ varying float vTiLayer;
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
-        `#include <common>\nuniform vec2 tlSpheres[ TREE_VARIANTS ];\n${vary}`,
+        `#include <common>\nuniform vec2 tlSpheres[ TREE_VARIANTS ];\nuniform vec4 tlBounds[ TREE_VARIANTS ];\n${vary}`,
       )
       .replace(
         '#include <project_vertex>',
@@ -882,16 +1028,20 @@ varying float vTiLayer;
       .replace(
         '#include <normal_fragment_begin>',
         `#include <normal_fragment_begin>
-	vec3 tiN = mat3( vTiRot0, vTiRot1, vTiRot2 ) * ( tiNormal.xyz * tiInvA * 2.0 - 1.0 );
+	vec3 tiN = mat3( vTiRot0, vTiRot1, vTiRot2 ) * ( tiNormal.xyz * tiInvN * 2.0 - 1.0 );
 	normal = normalize( ( viewMatrix * vec4( tiN, 0.0 ) ).xyz );
 	nonPerturbedNormal = normal;
-	float tlThickness = tiThick.r * tiInvA;
+	// A crown's average leaf thickness (the thickness layer is not read: one texture fetch less per pixel).
+	float tlThickness = 0.5;
 	// Depth: the baked surface sits this far behind the quad (baked 1 = the sphere's front = the quad, 0 = its back).
-	vec3 tiView = - vViewPosition + vTiToCamView * ( ( tiNormal.w * tiInvA ) * 2.0 - 2.0 ) * vTiDepth;
+	vec3 tiView = - vViewPosition + vTiToCamView * ( ( tiNormal.w * tiInvN ) * 2.0 - 2.0 ) * vTiDepth;
 	vec4 tiClip = projectionMatrix * vec4( tiView, 1.0 );
-	gl_FragDepth = clamp( tiClip.z / tiClip.w * 0.5 + 0.5, 0.0, 1.0 );`,
+	#ifndef TREE_IMPOSTOR_FLAT
+		gl_FragDepth = clamp( tiClip.z / tiClip.w * 0.5 + 0.5, 0.0, 1.0 );
+	#endif`,
       );
   };
-  m.customProgramCacheKey = () => `tree-impostor-v6-${spheres.length}`;
+  m.customProgramCacheKey = () =>
+    `tree-impostor-v10-${spheres.length}${flat ? '-flat' : ''}`;
   return m;
 }

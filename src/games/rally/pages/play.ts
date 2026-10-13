@@ -308,13 +308,18 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
           () => game.resetToRoad(),
         );
       game.start();
+      // `?perf=1`: open the perf panel (the ` key in game, game/perf-panel.ts).
+      if (new URLSearchParams(location.search).get('perf') === '1')
+        game.togglePerfPanel();
       // Tree benchmark (trees/Performance.md#benchmark): `?treebench=1` runs the path with and without trees and
       // downloads the report; `treebench=trees` skips the run without them.
       const bench = new URLSearchParams(location.search).get('treebench');
       if (bench)
-        void game.treeBenchmark({ withoutTrees: bench !== 'trees' }).then((r) =>
-          console.info(`tree cost ${r.treeCostMs ?? '?'} ms / frame`, r),
-        );
+        void game
+          .treeBenchmark({ withoutTrees: bench !== 'trees' })
+          .then((r) =>
+            console.info(`tree cost ${r.treeCostMs ?? '?'} ms / frame`, r),
+          );
     })
     .catch((err) => {
       loading.querySelector('.status')!.textContent = `Failed: ${err}`;

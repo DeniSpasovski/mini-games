@@ -235,6 +235,34 @@ export function bakeImpostor(
  * coverage-preserving chain (trees/Foliage.md#alpha), written into the array after three allocates it (three uploads
  * only level 0 of an array texture itself).
  */
+/**
+ * The part of an impostor's frames any baked view covers (frame coordinates 0..1: u0, v0, u1, v1, 1 texel margin):
+ * the billboard is cropped to it, so a narrow conifer does not cost the pixels of a square around its sphere.
+ */
+export function impostorBounds(
+  px: ImpostorPixels,
+): [number, number, number, number] {
+  const N = IMPOSTOR_FRAMES;
+  const F = px.size / N;
+  let x0 = F;
+  let y0 = F;
+  let x1 = -1;
+  let y1 = -1;
+  for (let y = 0; y < px.size; y++)
+    for (let x = 0; x < px.size; x++) {
+      if (px.albedo[(y * px.size + x) * 4 + 3] < 8) continue;
+      const fx = x % F;
+      const fy = y % F;
+      if (fx < x0) x0 = fx;
+      if (fx > x1) x1 = fx;
+      if (fy < y0) y0 = fy;
+      if (fy > y1) y1 = fy;
+    }
+  if (x1 < 0) return [0, 0, 1, 1];
+  const c = (t: number) => Math.min(1, Math.max(0, t / F));
+  return [c(x0 - 1), c(y0 - 1), c(x1 + 2), c(y1 + 2)];
+}
+
 export function impostorArray(
   renderer: WebGLRenderer,
   pixels: ImpostorPixels[],

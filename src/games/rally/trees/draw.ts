@@ -15,6 +15,7 @@ import {
   type PerspectiveCamera,
   type WebGLRenderer,
 } from 'three';
+import { worldUniforms } from '../engine/world-shading';
 import type { ScatterInstance } from '../world/scatter';
 import type { World } from '../world/world';
 import type { LoadedVariant, TreeLibrary } from './load';
@@ -22,13 +23,22 @@ import {
   barkMaterial,
   setSpritePrepass,
   setSpritePrepassDebug,
+  proxyMaterial,
+  spriteFarMaterial,
   spriteMaterial,
   spritePrepassMaterial,
+  type TreeDepthKind,
   treeDepthMaterial,
   treeUniforms,
 } from './materials';
 import { HeightGrid, Horizon } from './occlusion';
-import { FULL_DETAIL_DISTANCE, lodOf } from './species';
+import {
+  FAR_RAMP,
+  FULL_DETAIL_DISTANCE,
+  lodOf,
+  NEAR_SPRITE_DISTANCE,
+  NEAR_SPRITES,
+} from './species';
 import {
   emptyFrameStats,
   meshTriangles,
@@ -97,15 +107,25 @@ export const SPRITE_PREPASS =
   new URLSearchParams(location.search).get('treeprepass') !== '0';
 /** Share of the sprite pixels that may miss the EQUAL test before the load check turns the prepass off. */
 const PREPASS_MISS_LIMIT = 0.002;
-/**
- * Sprite batches per variant by the share of its rank-ordered sprites they draw (trees/Foliage.md#simplification):
- * a thinned crown is put in the smallest that still holds every sprite the shader keeps, so the sprites it shrank
- * away cost no vertices either. Part ids 3 + bucket.
- */
-const KEEP = [1, 0.8, 0.6, 0.45, 0.3];
-const SPRITE_PARTS = KEEP.map((_, i) => 3 + i);
 /** The shader's sprite fade window (trees/materials.ts `treeSpriteScale`). */
 const KEEP_WINDOW = 0.08;
+/**
+ * Sprite batches per variant (trees/Performance.md#mitigations). Crowns within FULL_DETAIL_DISTANCE + FAR_RAMP: part
+ * NEAR_PART, the sprites' tight outlines (NEAR_SPRITES of them), depth prepass + EQUAL lit pass (near crowns fill the
+ * screen: overdraw is their cost). Farther crowns: part FAR_PART, plain quads in ONE lit pass, holding the far share
+ * (`tlFar.x`; thinner crowns shrink the rest to nothing in the shader). One far batch per variant, not one per
+ * thinning step: far crowns are few triangles each, and splitting them by share left a few crowns per draw call.
+ */
+const NEAR_PART = 3;
+const MID_PART = 4;
+const FAR_PART = 5;
+const SPRITE_PARTS = [NEAR_PART, MID_PART, FAR_PART];
+/** The crown's shadow caster (trees/proxy.ts): the shadow pass draws it instead of the sprites. */
+const PROXY_PART = 6;
+/** Static impostors farther than this (m) draw without their baked depth (trees/materials.ts TREE_IMPOSTOR_FLAT). */
+const IMPOSTOR_FLAT_FROM = 350;
+/** Every batch part of a variant: branches LOD0, LOD1, the sprite parts, the shadow proxy. */
+const PARTS = [0, 1, ...SPRITE_PARTS, PROXY_PART];
 
 /** Share of a crown's sprites the shader keeps at projected height h and distance dist (same formula). */
 export function spriteKeep(
@@ -114,29 +134,86 @@ export function spriteKeep(
   thin: number,
   impostor: number,
 ): number {
-  if (dist < FULL_DETAIL_DISTANCE || h >= thin) return 1;
-  return (
-    1 -
-    0.75 *
-      Math.min(1, Math.max(0, Math.log(thin / h) / Math.log(thin / impostor)))
+  const far = treeUniforms.tlFar.value;
+  const f =
+    h < thin
+      ? Math.min(1, Math.max(0, Math.log(thin / h) / Math.log(thin / impostor)))
+      : 0;
+  const t = Math.min(1, Math.max(0, (dist - FULL_DETAIL_DISTANCE) / FAR_RAMP));
+  const w = t * t * (3 - 2 * t);
+  return NEAR_SPRITES + (far.x + (far.y - far.x) * f - NEAR_SPRITES) * w;
+}
+
+/** The perf panel's part of a tree mesh, from its name (`createMeshes`, the impostor batches). */
+function partOfMesh(name: string, proxy: boolean): TreePart {
+  if (proxy) return 'proxy';
+  if (name.endsWith('impostors far')) return 'farImpostors';
+  if (name.endsWith('impostors')) return 'impostors';
+  if (name.endsWith(' depth')) return 'prepass';
+  const part = Number(/ (\d+)$/.exec(name)?.[1] ?? -1);
+  return part === 0
+    ? 'lod0'
+    : part === 1
+      ? 'lod1'
+      : part === NEAR_PART
+        ? 'near'
+        : 'far';
+}
+
+/** Sprite part of a crown at distance `dist`: near (outlines + prepass), mid (the ramp, quads) or far (quads). */
+function spritePart(dist: number): number {
+  return dist < NEAR_SPRITE_DISTANCE
+    ? NEAR_PART
+    : dist < FULL_DETAIL_DISTANCE + FAR_RAMP
+      ? MID_PART
+      : FAR_PART;
+}
+
+/**
+ * Sprites a mid / far batch holds: every one the shader keeps in its range (the share at its near end: the mid batch
+ * starts at NEAR_SPRITE_DISTANCE, the far one past the ramp at `tlFar.x`) and its fade window.
+ */
+function bucketSprites(lv: LoadedVariant, part: number): number {
+  const share =
+    part === MID_PART
+      ? spriteKeep(Infinity, NEAR_SPRITE_DISTANCE, 1, 0.5)
+      : treeUniforms.tlFar.value.x;
+  return Math.max(
+    1,
+    Math.ceil(Math.min(1, share * (1 + KEEP_WINDOW)) * lv.spriteCount),
   );
 }
 
-/** Sprite part (3 + bucket) holding every sprite kept at share k. */
-function spritePart(k: number): number {
-  const need = Math.min(1, k * (1 + KEEP_WINDOW));
-  let b = 0;
-  while (b + 1 < KEEP.length && KEEP[b + 1] >= need) b++;
-  return 3 + b;
-}
+/** Tree mesh kinds the perf panel can hide (game/perf-panel.ts): every pass of them. */
+export type TreePart =
+  | 'lod0'
+  | 'lod1'
+  | 'near'
+  | 'prepass'
+  | 'far'
+  | 'proxy'
+  | 'impostors'
+  | 'farImpostors';
 
 export interface TreeRendererOptions {
   /** Divides every threshold (quality preset x draw distance option): higher = finer levels further away. */
   lodScale: number;
   /** Nothing is drawn further than this (m): the streamed terrain's view distance. */
   maxDistance: number;
+  /**
+   * Trees are drawn up to this distance (m; unset = maxDistance); the job still visits the scatter out to
+   * maxDistance, so the canopy texture (world/canopy-shadows.ts) fills and paints the far forest on the ground
+   * (engine/world-shading.ts `setForest`).
+   */
+  forestDistance?: number;
   /** Trees within this distance cast shadows (the sun's shadow box). */
   shadowDistance: number;
+  /**
+   * Half size of the sun's shadow box (m, engine/environment.ts: centred half a box ahead of the camera). Set: static
+   * trees cast only when their bounding sphere can reach the box in light space, not everywhere within
+   * `shadowDistance` (behind the camera, most of them throw their shadow where no shadow map is).
+   */
+  shadowExtent?: number;
   /** New job after the camera moved this far (m). */
   rebuildDistance?: number;
   /** Max ms per frame for a job. */
@@ -216,6 +293,8 @@ interface Staged {
   /** Half-angle the instance may cover around `angle` for any camera in the job's window. */
   spread: Float32Array;
   always: Float32Array;
+  /** Bounding sphere: centre (world) and radius (m). */
+  sphere: Float32Array;
   count: number;
 }
 
@@ -283,6 +362,7 @@ function staged(): Staged {
     angle: f(),
     spread: f(),
     always: f(),
+    sphere: f(),
     count: 0,
   };
 }
@@ -321,6 +401,9 @@ export function selectLevel(
   let l = current;
   while (l < IMPOSTOR && h < t[l]) l++;
   while (l > 0 && h > t[l - 1] * (1 + margin)) l--;
+  // LOD0 branches only in the full-detail zone (+ the hysteresis margin for a tree already there): past it, LOD1.
+  if (l === 0 && !(current === 0 && dist < FULL_DETAIL_DISTANCE * (1 + margin)))
+    l = 1;
   return l;
 }
 
@@ -393,6 +476,13 @@ export class TreeRenderer {
   private dynamic = new Map<string, Batch>();
   private statics = new Map<string, StaticBatch>();
   private impostors: ImpostorBatch | null = null;
+  /** Static impostors past IMPOSTOR_FLAT_FROM: the far program (no baked depth), static only. */
+  private farImpostors: Batch | null = null;
+  /** Debug: hidden tree parts (`setPartVisible`) and each mesh's part. */
+  private hiddenParts = new Set<TreePart>();
+  /** Far sprite batches' sizing (they hold the far share, `setFarSprites`). */
+  private farResize: (() => void)[] = [];
+  private partOf = new WeakMap<InstancedMesh, TreePart>();
   private dynamicOf = new WeakMap<LoadedVariant, Batch[]>();
   private states = new WeakMap<ScatterInstance, TreeState | null>();
   private active: TreeState[] = [];
@@ -447,6 +537,7 @@ export class TreeRenderer {
     this.group.name = 'trees';
     setSpritePrepass(this.prepass);
     treeUniforms.tlShadowD.value = opts.shadowDistance;
+    treeUniforms.tlForest.value = opts.forestDistance ?? 0;
     const q =
       typeof location !== 'undefined'
         ? new URLSearchParams(location.search).get('treedebug')
@@ -493,9 +584,17 @@ export class TreeRenderer {
     return this.opts.lodScale;
   }
 
+  /** Far crowns' sprite shares (perf panel; defaults trees/species.ts FAR_SPRITES): re-stages every tree. */
+  setFarSprites(start: number, end: number): void {
+    treeUniforms.tlFar.value.set(start, end);
+    for (const resize of this.farResize) resize();
+    this.lastFocus.set(Infinity, 0, 0);
+  }
+
   setOptions(o: Partial<TreeRendererOptions>): void {
     Object.assign(this.opts, o);
     treeUniforms.tlShadowD.value = this.opts.shadowDistance;
+    treeUniforms.tlForest.value = this.opts.forestDistance ?? 0;
     // Rescale the cached budgets in place (states hold them).
     for (const [name, b] of this.budgets) {
       const lv = this.library.all().find((v) => v.def.name === name);
@@ -668,6 +767,7 @@ export class TreeRenderer {
     const scatter = this.world.scatter;
     const cs = scatter.chunkSize;
     const maxD = this.opts.maxDistance;
+    const forestD = this.opts.forestDistance ?? Infinity;
     const shadowD = this.opts.shadowDistance;
     const move = (this.opts.rebuildDistance ?? 5) + 4;
     const bounds = this.world.map.bounds;
@@ -713,7 +813,8 @@ export class TreeRenderer {
           const dy = st.cy - focus.y;
           const dz = st.cz - focus.z;
           const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-          if (dist > maxD) continue;
+          // Past the forest edge (+ the job's move: the shader dissolves trees up to it).
+          if (dist > maxD || dist > forestD + move) continue;
           if (
             horizon &&
             dist > occludeFrom &&
@@ -745,16 +846,17 @@ export class TreeRenderer {
           const hMin = (st.diameter * px) / (ZOOM_MARGIN * dMax);
           const hMax = (st.diameter * px * ZOOM_MARGIN) / dMin;
           const l = st.to;
-          // Settled at l for every camera in the window: LOD0 stays LOD0 inside the full-detail distance and above
-          // its threshold outside it (so the full-detail line only activates trees whose level it changes); a coarser
-          // level needs the whole window outside that distance and inside its hysteresis band.
+          // Settled at l for every camera in the window: LOD0 only inside the full-detail distance (`selectLevel`);
+          // LOD1 the whole window outside it and above the impostor threshold; the impostor the whole window outside
+          // it and inside its hysteresis band.
           const steadyLevel =
             st.from === l &&
             (l === 0
-              ? dMax < FULL_DETAIL_DISTANCE || hMin >= t[0]
+              ? dMax < FULL_DETAIL_DISTANCE
               : dMin >= FULL_DETAIL_DISTANCE &&
-                (l === IMPOSTOR || hMin >= t[l]) &&
-                hMax <= t[l - 1] * (1 + margin));
+                (l === IMPOSTOR
+                  ? hMax <= t[l - 1] * (1 + margin)
+                  : hMin >= t[l]));
           const angle = Math.atan2(dz, dx);
           this.jobSpread = spread(st.diameter / 2 + move, dist);
           if (steadyLevel) {
@@ -767,8 +869,26 @@ export class TreeRenderer {
               this.stageStatic(st, l, SOLID, sh === l, near, angle, l);
               if (sh >= 0 && sh !== l)
                 this.stageStatic(st, sh, SHADOW_ONLY, true, true, angle, 0);
-              const k = spriteKeep(hMax, dMin, st.budget.thin, t[1]);
-              this.stageStatic(st, spritePart(k), SOLID, near, near, angle, l);
+              // Sprites cast no shadow: the crown proxy does (trees/proxy.ts).
+              this.stageStatic(
+                st,
+                spritePart(dMin),
+                SOLID,
+                false,
+                false,
+                angle,
+                l,
+              );
+              if (near && st.lv.proxy)
+                this.stageStatic(
+                  st,
+                  PROXY_PART,
+                  SHADOW_ONLY,
+                  true,
+                  true,
+                  angle,
+                  0,
+                );
             }
             st.staticJob = job;
           } else {
@@ -808,12 +928,17 @@ export class TreeRenderer {
     b.lod = grow(b.lod, (i + 1) * 4);
     b.angle = grow(b.angle, i + 1);
     b.always = grow(b.always, i + 1);
+    b.sphere = grow(b.sphere, (i + 1) * 4);
     b.mat.set(st.m, i * 16);
     b.inst.set(st.inst, i * 4);
     b.fade.set(fade, i * 4);
     this.lodOf(st, b.lod, i * 4);
     b.angle[i] = angle;
     b.always[i] = always ? 1 : 0;
+    b.sphere[i * 4] = st.cx;
+    b.sphere[i * 4 + 1] = st.cy;
+    b.sphere[i * 4 + 2] = st.cz;
+    b.sphere[i * 4 + 3] = st.diameter / 2;
   }
 
   private stageImpostor(st: TreeState, angle: number): void {
@@ -922,26 +1047,28 @@ export class TreeRenderer {
       }
       if (sh >= 0 && (!visible || (sh !== st.from && sh !== st.to)))
         this.emit(st, sh, SHADOW_ONLY, 1, true, 0);
-      // Sprites: with both branch levels; fading out against the impostor; casting while settled on branches.
-      if (role >= 0 && (visible || sh >= 0)) {
-        const part = spritePart(
-          spriteKeep((st.diameter * px) / dist, dist, lod.thin, lod.t[1]),
-        );
+      // Sprites: with both branch levels; fading out against the impostor. The crown proxy casts their shadow while
+      // the tree is settled on branches.
+      if (role >= 0 && visible) {
+        const part = spritePart(dist);
         this.emit(
           st,
           part,
-          visible ? role : SHADOW_ONLY,
+          role,
           st.fade,
-          sh >= 0,
+          false,
           (isFading ? st.from : st.to) + code,
         );
       }
+      if (role >= 0 && sh >= 0 && st.lv.proxy)
+        this.emit(st, PROXY_PART, SHADOW_ONLY, 1, true, 0);
     }
     for (const b of this.dynamic.values()) this.upload(b, b.count);
     // Impostors: the whole buffer after a re-pack, else only this frame's dynamic part.
     this.upload(ib, ib.count, ib.dirty ? 0 : ib.packed);
     ib.dirty = false;
-    let statics = ib.packed;
+    const fb = this.farImpostorBatch();
+    let statics = ib.packed + fb.count;
     let sprites = 0;
     for (const b of this.dynamic.values()) sprites += b.solid * b.sprites;
     for (const b of this.statics.values()) {
@@ -951,7 +1078,7 @@ export class TreeRenderer {
       }
       sprites += b.solid * b.sprites;
     }
-    levels[IMPOSTOR] += ib.packed;
+    levels[IMPOSTOR] += ib.packed + fb.count;
     this.current.sprites = sprites;
     this.current.statics = statics;
     this.drawn = drawn + statics;
@@ -994,7 +1121,7 @@ export class TreeRenderer {
     if (!list)
       this.dynamicOf.set(
         lv,
-        (list = [0, 1, ...SPRITE_PARTS].map((p) => this.dynamicBatch(lv, p))),
+        (list = PARTS.map((p) => this.dynamicBatch(lv, p))),
       );
     return list;
   }
@@ -1016,7 +1143,16 @@ export class TreeRenderer {
       for (const [name, a] of Object.entries(q.attributes))
         g.setAttribute(name, a);
       g.setIndex(q.index);
-      this.addMesh(b, g, material, 'tree impostors', false, false);
+      const mesh = this.addMesh(
+        b,
+        g,
+        material,
+        'tree impostors',
+        false,
+        'branch',
+      );
+      // Far trees: beyond the shadow box, no shadow map reads.
+      mesh.receiveShadow = false;
     }
     this.ensureCapacity(b, 64);
     this.impostors = b;
@@ -1090,16 +1226,26 @@ export class TreeRenderer {
   }
 
   /** Committed static instances -> GPU (from `at`): the ones in the view window, plus the always-drawn ones. */
-  private pack(b: Batch, c: Staged, at: number): number {
+  private pack(
+    b: Batch,
+    c: Staged,
+    at: number,
+    keep?: (i: number) => boolean,
+  ): number {
     this.current.repacks++;
     const v = this.packedView ?? this.view;
     this.ensureCapacity(b, at + c.count + Math.max(0, b.count - at));
     let n = at;
     let solid = 0;
+    const box = this.shadowBox(v);
+    const casts = (i: number) =>
+      c.fade[i * 4 + 2] > 0.5 && (!box || box.reaches(c.sphere, i * 4));
     // Shadow casters first (the shadow pass draws only them), then the rest in the view window.
     for (const casters of [true, false]) {
       for (let i = 0; i < c.count; i++) {
-        if (c.fade[i * 4 + 2] > 0.5 !== casters) continue;
+        if (casts(i) !== casters || (keep && !keep(i))) continue;
+        // A shadow-only level whose shadow cannot reach the box: nothing to draw.
+        if (!casters && c.fade[i * 4 + 1] === SHADOW_ONLY) continue;
         // Kept while the view turns up to REPACK from the packed one and the camera stays in the job's window.
         if (v && !c.always[i]) {
           let a = Math.abs(c.angle[i] - v.yaw) % (2 * Math.PI);
@@ -1119,17 +1265,96 @@ export class TreeRenderer {
     return n;
   }
 
+  /**
+   * The sun's shadow box in light space for a pack (opts.shadowExtent; null = unset or no view): centred half a box
+   * ahead of the camera along the view (as engine/environment.ts places it), widened by how far the camera can move
+   * and turn before the next pack (a job or a REPACK).
+   */
+  private shadowBox(
+    v: { yaw: number } | null,
+  ): { reaches(s: Float32Array, at: number): boolean } | null {
+    const ext = this.opts.shadowExtent;
+    if (!ext || !v) return null;
+    const sun = worldUniforms.wsSunDir.value;
+    // The shadow camera's axes (Matrix4.lookAt from the sun, up +y): right = y x sun, up = sun x right.
+    const rl = Math.hypot(sun.z, sun.x);
+    if (rl < 1e-3) return null;
+    const rx = sun.z / rl;
+    const rz = -sun.x / rl;
+    const ux = sun.y * rz;
+    const uy = sun.z * rx - sun.x * rz;
+    const uz = -sun.y * rx;
+    const p = this.steadyPos;
+    const bx = p.x + Math.cos(v.yaw) * ext * 0.5;
+    const bz = p.z + Math.sin(v.yaw) * ext * 0.5;
+    const by = p.y;
+    // + the chase camera's distance behind the car (the box follows the car, this the camera).
+    const margin =
+      (this.opts.rebuildDistance ?? 5) + 4 + ext * 0.5 * REPACK + 10;
+    return {
+      reaches: (s, at) => {
+        const dx = s[at] - bx;
+        const dy = s[at + 1] - by;
+        const dz = s[at + 2] - bz;
+        const lim = ext + s[at + 3] + margin;
+        return (
+          Math.abs(dx * rx + dz * rz) <= lim &&
+          Math.abs(dx * ux + dy * uy + dz * uz) <= lim
+        );
+      },
+    };
+  }
+
   private packStatic(b: StaticBatch): void {
     b.count = this.pack(b, b.c, 0);
     this.upload(b, b.count);
   }
 
   /** Static impostors -> the front of the impostor batch (the dynamic ones follow each frame). */
+  /**
+   * Static impostors -> the front of the impostor batch (the dynamic ones follow each frame), those past
+   * IMPOSTOR_FLAT_FROM of the camera into the far batch instead (its program writes no baked depth: the early depth
+   * test then rejects their hidden pixels, and at that distance the baked depth changes next to nothing).
+   */
   private packImpostors(): void {
     const b = this.impostorBatch();
-    b.packed = this.pack(b, b.c, 0);
+    const f = this.farImpostorBatch();
+    const p = this.steadyPos;
+    const m = b.c.mat;
+    const far = (i: number) =>
+      (m[i * 16 + 12] - p.x) ** 2 + (m[i * 16 + 14] - p.z) ** 2 >
+      IMPOSTOR_FLAT_FROM * IMPOSTOR_FLAT_FROM;
+    b.packed = this.pack(b, b.c, 0, (i) => !far(i));
     b.count = b.packed;
     b.dirty = true;
+    f.count = this.pack(f, b.c, 0, far);
+    this.upload(f, f.count);
+  }
+
+  private farImpostorBatch(): Batch {
+    if (this.farImpostors) return this.farImpostors;
+    const b = this.newBatch();
+    const material = this.library.impostors?.farMaterial;
+    if (material) {
+      const g = new BufferGeometry();
+      const q = impostorQuad();
+      for (const [name, a] of Object.entries(q.attributes))
+        g.setAttribute(name, a);
+      g.setIndex(q.index);
+      const mesh = this.addMesh(
+        b,
+        g,
+        material,
+        'tree impostors far',
+        false,
+        'branch',
+      );
+      // Far trees: beyond the shadow box, no shadow map reads.
+      mesh.receiveShadow = false;
+    }
+    this.ensureCapacity(b, 64);
+    this.farImpostors = b;
+    return b;
   }
 
   /** Instances [from, n) changed: upload that range, draw n. */
@@ -1142,7 +1367,7 @@ export class TreeRenderer {
     }
     for (const mesh of b.meshes) {
       mesh.count = n;
-      mesh.visible = n > 0 && (this.prepass || !this.prepassMeshes.has(mesh));
+      mesh.visible = this.shows(mesh, n);
     }
   }
 
@@ -1179,8 +1404,8 @@ export class TreeRenderer {
   }
 
   /**
-   * `part` 0 / 1: a branch level's bark (LOD1 casts shadows); 3+: a sprite bucket, a depth prepass + the lit
-   * sprites, drawing the first KEEP share of the rank-ordered sprites.
+   * The meshes of a batch: a branch level (bark), a sprite part (near: outlines, depth prepass + lit; far: quads, one
+   * lit pass; both drawing a prefix of the rank-ordered sprites) or the crown's shadow proxy.
    */
   private createMeshes(
     b: Batch,
@@ -1189,9 +1414,10 @@ export class TreeRenderer {
     tag: string,
   ): void {
     const name = `tree ${lv.info.species}#${lv.info.index} ${tag}`;
-    if (part >= 3) {
-      const { kind, density } = lv.def.foliage;
-      b.sprites = Math.max(1, Math.ceil(KEEP[part - 3] * lv.spriteCount));
+    const { kind, density } = lv.def.foliage;
+    if (part === NEAR_PART) {
+      const keep = Math.min(1, NEAR_SPRITES * (1 + KEEP_WINDOW));
+      b.sprites = Math.max(1, Math.ceil(keep * lv.spriteCount));
       const end = lv.spriteEnds[Math.min(lv.spriteCount, b.sprites) - 1] ?? 0;
       const g0 = this.wrap(lv.sprites);
       const g1 = this.wrap(lv.sprites);
@@ -1203,13 +1429,58 @@ export class TreeRenderer {
         spritePrepassMaterial(kind, density),
         `${name} depth`,
         false,
-        true,
+        'sprite',
       );
       pre.renderOrder = PREPASS_ORDER;
       this.prepassMeshes.add(pre);
       this.litSprites.add(
-        this.addMesh(b, g1, spriteMaterial(kind, density), name, true, true),
+        this.addMesh(
+          b,
+          g1,
+          spriteMaterial(kind, density),
+          name,
+          false,
+          'sprite',
+        ),
       );
+    } else if (part === MID_PART || part === FAR_PART) {
+      const g = this.wrap(lv.quads);
+      const resize = () => {
+        b.sprites = bucketSprites(lv, part);
+        g.setDrawRange(
+          0,
+          lv.quadEnds[Math.min(lv.spriteCount, b.sprites) - 1] ?? 0,
+        );
+      };
+      resize();
+      this.farResize.push(resize);
+      this.addMesh(
+        b,
+        g,
+        spriteFarMaterial(kind, density),
+        name,
+        false,
+        'sprite',
+      );
+    } else if (part === PROXY_PART) {
+      if (!lv.proxy) return;
+      const mesh = this.addMesh(
+        b,
+        this.wrap(lv.proxy),
+        proxyMaterial(),
+        `${name} shadow`,
+        true,
+        'proxy',
+      );
+      // Shadow pass only: the main pass draws none of its instances.
+      let count = 0;
+      mesh.onBeforeRender = () => {
+        count = mesh.count;
+        mesh.count = 0;
+      };
+      mesh.onAfterRender = () => {
+        mesh.count = count;
+      };
     } else
       this.addMesh(
         b,
@@ -1217,7 +1488,7 @@ export class TreeRenderer {
         barkMaterial(lv.def.bark.texture),
         name,
         part === 1,
-        false,
+        'branch',
       );
   }
 
@@ -1237,7 +1508,7 @@ export class TreeRenderer {
     material: Material,
     name: string,
     casts: boolean,
-    sprite: boolean,
+    sprite: TreeDepthKind,
   ): InstancedMesh {
     const mesh = new InstancedMesh(g, material, 1);
     mesh.count = 0;
@@ -1270,14 +1541,31 @@ export class TreeRenderer {
     b.meshes.push(mesh);
     b.geometries.push(g);
     this.group.add(mesh);
+    this.partOf.set(mesh, partOfMesh(name, sprite === 'proxy'));
     return mesh;
+  }
+
+  /** Whether a mesh with `n` instances draws: not empty, its prepass on, its part not hidden. */
+  private shows(mesh: InstancedMesh, n: number): boolean {
+    if (n <= 0 || (!this.prepass && this.prepassMeshes.has(mesh))) return false;
+    const part = this.partOf.get(mesh);
+    return !part || !this.hiddenParts.has(part);
+  }
+
+  /** Debug (game/perf-panel.ts): draw a tree part or not, in every pass. */
+  setPartVisible(part: TreePart, on: boolean): void {
+    if (on) this.hiddenParts.delete(part);
+    else this.hiddenParts.add(part);
+    for (const b of this.batches())
+      for (const mesh of b.meshes) mesh.visible = this.shows(mesh, mesh.count);
   }
 
   /** Sprite depth prepass on / off (the debug toggle; the overlay and the benchmark report it). */
   setPrepass(on: boolean): void {
     this.prepass = on;
     setSpritePrepass(on);
-    for (const mesh of this.prepassMeshes) mesh.visible = on && mesh.count > 0;
+    for (const mesh of this.prepassMeshes)
+      mesh.visible = this.shows(mesh, mesh.count);
   }
 
   get prepassOn(): boolean {
@@ -1353,11 +1641,12 @@ export class TreeRenderer {
       }
     };
     for (const lv of this.library.all())
-      for (const part of [0, 1, ...SPRITE_PARTS]) {
+      for (const part of PARTS) {
         one(this.dynamicBatch(lv, part));
         one(this.staticBatch(lv, part));
       }
     one(this.impostorBatch());
+    one(this.farImpostorBatch());
   }
 
   /** Re-apply visibility after prewarm / compile. */
@@ -1404,6 +1693,7 @@ export class TreeRenderer {
       ...this.dynamic.values(),
       ...this.statics.values(),
       ...(this.impostors ? [this.impostors] : []),
+      ...(this.farImpostors ? [this.farImpostors] : []),
     ];
   }
 }

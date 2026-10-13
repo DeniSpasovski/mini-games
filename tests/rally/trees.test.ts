@@ -222,22 +222,30 @@ describe('tree LOD transitions', () => {
   });
 
   test('hysteresis: coarser below a threshold, finer only 15% above it', () => {
-    expect(selectLevel(0.0699, 0, T, 0.15, 300)).toBe(1);
-    expect(selectLevel(0.072, 1, T, 0.15, 300)).toBe(1);
-    expect(selectLevel(0.0804, 1, T, 0.15, 300)).toBe(1);
-    expect(selectLevel(0.0806, 1, T, 0.15, 300)).toBe(0);
+    expect(selectLevel(0.0349, 1, T, 0.15, 300)).toBe(2);
+    expect(selectLevel(0.036, 2, T, 0.15, 300)).toBe(2);
+    expect(selectLevel(0.0402, 2, T, 0.15, 300)).toBe(2);
+    expect(selectLevel(0.0404, 2, T, 0.15, 300)).toBe(1);
     expect(selectLevel(0.02, 0, T, 0.15, 300)).toBe(2);
   });
 
-  test('default thresholds: a 15 m tree at 60 deg goes LOD1 at ~185 m and impostor at ~370 m', () => {
-    const px = 1 / (2 * Math.tan(Math.PI / 6));
-    const at = (d: number) => selectLevel((15 * px) / d, 0, T, 0, d);
-    expect([at(180), at(190), at(365), at(375)]).toEqual([0, 1, 1, 2]);
+  test('LOD0 branches only in the full-detail zone, with its hysteresis margin', () => {
+    // A tall tree just past 40 m: LOD0 keeps LOD0 up to 40 m x 1.15, LOD1 goes back only inside 40 m.
+    expect(selectLevel(0.5, 0, T, 0.15, 45)).toBe(0);
+    expect(selectLevel(0.5, 0, T, 0.15, 47)).toBe(1);
+    expect(selectLevel(0.5, 1, T, 0.15, 41)).toBe(1);
+    expect(selectLevel(0.5, 1, T, 0.15, 39)).toBe(0);
   });
 
-  test('within 60 m always LOD0, whatever the projected height', () => {
-    expect(selectLevel(0.0001, 2, T, 0.15, 59)).toBe(0);
-    expect(selectLevel(0.0001, 2, T, 0.15, 61)).toBe(2);
+  test('default thresholds: a 15 m tree at 60 deg is LOD1 past 40 m and an impostor at ~370 m', () => {
+    const px = 1 / (2 * Math.tan(Math.PI / 6));
+    const at = (d: number) => selectLevel((15 * px) / d, 0, T, 0, d);
+    expect([at(39), at(41), at(365), at(375)]).toEqual([0, 1, 1, 2]);
+  });
+
+  test('within 40 m always LOD0, whatever the projected height', () => {
+    expect(selectLevel(0.0001, 2, T, 0.15, 39)).toBe(0);
+    expect(selectLevel(0.0001, 2, T, 0.15, 41)).toBe(2);
   });
 
   test('sprites stay solid between branch levels and fade only against the impostor', () => {

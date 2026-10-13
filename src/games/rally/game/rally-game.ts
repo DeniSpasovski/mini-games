@@ -35,6 +35,7 @@ import { InstanceStreamer } from '../world/instance-streamer';
 import { TreeRenderer } from '../trees/draw';
 import { TreeLibrary } from '../trees/load';
 import { TreeStatsOverlay } from '../trees/overlay';
+import { PerfPanel } from './perf-panel';
 import {
   benchPath,
   checkBudget,
@@ -52,7 +53,11 @@ import { TerrainRenderer } from '../world/terrain-renderer';
 import { setTerrainRelief } from '../world/terrain-material';
 import { CanopyShadows } from '../world/canopy-shadows';
 import { Horizon } from '../world/horizon';
-import { setCanopyShadows } from '../engine/world-shading';
+import {
+  setCanopyFade,
+  setCanopyShadows,
+  setForest,
+} from '../engine/world-shading';
 import { World } from '../world/world';
 import { CarAudio } from './audio';
 import { Autopilot, finishStopControls } from './autopilot';
@@ -106,6 +111,19 @@ export interface GameOptions {
 }
 
 const STEP = 1 / PHYSICS_HZ;
+/** Trees cast real shadows within this distance (m); the baked canopy shadows fade in over its last quarter. */
+const TREE_SHADOW_DISTANCE = 60;
+
+/** The far forest's colour on the ground: the stage's foliage, darker (a canopy seen from afar is mostly shade). */
+function forestColor(lib: TreeLibrary): Color {
+  const c = new Color(0, 0, 0);
+  const all = lib.all();
+  for (const v of all) c.add(new Color(...v.info.foliageColor));
+  if (all.length) c.multiplyScalar(0.55 / all.length);
+  else c.set(0x26341c);
+  return c;
+}
+
 /** Terrain LOD bands at lodScale 1 (m): 1 m grid / 2 m / 4 m / 8 m beyond. */
 const TERRAIN_LODS = [160, 520, 1100];
 /** Extra half-angle (rad) around the camera view for scatter view culling (`InstanceStreamer.setView`). */
@@ -134,7 +152,7 @@ export class RallyGame {
   terrain!: TerrainRenderer;
   /** Hides road-group meshes beyond the terrain view distance (world/distance-cull.ts). */
   roadCull!: DistanceCull;
-  private contactShadow!: ContactShadow;
+  contactShadow!: ContactShadow;
   streamer!: InstanceStreamer;
   /** L-system trees (trees/): their variants and the renderer drawing them. */
   treeLibrary!: TreeLibrary;
@@ -168,6 +186,11 @@ export class RallyGame {
   loadTimings: Record<string, number> = {};
   /** F8: road-following AI drives (soak tests, screenshots). */
   autopilot?: Autopilot;
+  /** Debug: the perf panel (` key / `?perf=1`, game/perf-panel.ts) while it exists. */
+  perf?: PerfPanel;
+  /** Scene parts the perf panel switches. */
+  roadGroup?: Object3D;
+  horizonGroup?: Object3D;
   /** Called on pause / finish so the page can show menus. */
   onPauseChange?: (paused: boolean) => void;
   onFinish?: (
@@ -244,6 +267,7 @@ export class RallyGame {
     await paint();
     const road = buildRoadMesh(this.world);
     this.scene.add(road);
+    this.roadGroup = road;
     // Whole-map meshes: nothing past the streamed terrain (no ground under them there).
     this.roadCull = new DistanceCull(road, q.viewDistance);
     await frame();
@@ -263,6 +287,7 @@ export class RallyGame {
       const horizon = new Horizon(this.world, map.horizon);
       horizon.setCutoff(q.viewDistance);
       this.scene.add(horizon.group);
+      this.horizonGroup = horizon.group;
     }
     // Terrain bump relief: medium / high only (derivative noise + cost on weak GPUs).
     setTerrainRelief(q.name === 'low' ? 0 : 1);
@@ -289,10 +314,13 @@ export class RallyGame {
     this.scene.add(this.streamer.group);
     this.streamer.updateNow(spawn.position);
     this.trees = new TreeRenderer(this.world, this.treeLibrary, {
-      lodScale: q.lodScale * OBJECT_DISTANCE[this.opts.settings.objectDistance],
+      lodScale:
+        q.treeLodScale * OBJECT_DISTANCE[this.opts.settings.objectDistance],
       maxDistance: q.viewDistance,
-      // The sun's shadow box sits ahead of the camera (Environment.update): twice its half size covers it.
-      shadowDistance: q.shadowExtent * 2 + 10,
+      forestDistance: q.forestDistance,
+      // Real tree shadows only near the camera; the baked canopy shadows take over from there (setCanopyFade).
+      shadowDistance: TREE_SHADOW_DISTANCE,
+      shadowExtent: q.shadowExtent,
     });
     this.scene.add(this.trees.group);
     this.trees.attachRenderer(this.renderer);
@@ -303,9 +331,15 @@ export class RallyGame {
     );
     // F6: tree debug view (off -> levels -> lighting only -> normals) + tree stats (trees/Lod.md#debug-view).
     window.addEventListener('keydown', (e) => {
-      if (e.code !== 'F6') return;
-      e.preventDefault();
-      this.trees.cycleDebug();
+      if (e.code === 'F6') {
+        e.preventDefault();
+        this.trees.cycleDebug();
+      }
+      // ` (backquote): the perf panel (FPS, frame steps, feature switches: game/perf-panel.ts).
+      if (e.code === 'Backquote') {
+        e.preventDefault();
+        this.togglePerfPanel();
+      }
     });
     this.canopy = new CanopyShadows(this.world, this.env.sunDir);
     this.canopy.update();
@@ -314,6 +348,8 @@ export class RallyGame {
       this.canopy.map,
       map.environment.canopyShadow ?? 0.6,
     );
+    setCanopyFade(TREE_SHADOW_DISTANCE * 0.75, TREE_SHADOW_DISTANCE);
+    setForest(forestColor(this.treeLibrary), q.forestDistance);
     this.breakables = new Breakables(this.world.scatter, (x, z) =>
       this.world.heightAt(x, z),
     );
@@ -387,12 +423,23 @@ export class RallyGame {
     await this.model.ready;
     await paint();
     this.model.updateFromVehicle(this.vehicle, 1);
+    // The chase camera at the start line (it only moves in frame()): the trees are batched for where it looks from.
+    this.renderPos.copy(this.model.root.position);
+    this.renderFwd.set(0, 0, 1).applyQuaternion(this.model.root.quaternion);
+    this.renderUp.set(0, 1, 0).applyQuaternion(this.model.root.quaternion);
+    this.rig.update(
+      0,
+      this.vehicle,
+      this.renderPos,
+      this.renderFwd,
+      this.renderUp,
+    );
     this.env.update(
       this.model.root.position,
       this.camera.getWorldDirection(this.camDir),
     );
     this.streamer.prewarm();
-    this.trees.updateNow(this.camera);
+    this.trees.updateNow(this.camera, this.rig.steady);
     this.trees.prewarm(this.camera);
     this.renderer.compile(this.scene, this.camera);
     const culled: Object3D[] = [];
@@ -405,6 +452,9 @@ export class RallyGame {
     for (const o of culled) o.frustumCulled = true;
     this.streamer.settle();
     this.trees.settle();
+    // One real frame behind the loading screen: the settled batches' full instance buffers upload now, not in the
+    // first frame of the stage, and the canvas shows the real scene (not the warm-up render) when the screen goes.
+    this.frame(0);
     this.loadMs = performance.now() - loadStart;
     progress(1, 'Ready');
   }
@@ -422,7 +472,10 @@ export class RallyGame {
       this.opts.quality.lodScale * OBJECT_DISTANCE[s.objectDistance];
     if (this.streamer.lodScale !== lodScale)
       this.streamer.setOptions({ lodScale });
-    if (this.trees.lodScale !== lodScale) this.trees.setOptions({ lodScale });
+    const treeLodScale =
+      this.opts.quality.treeLodScale * OBJECT_DISTANCE[s.objectDistance];
+    if (this.trees.lodScale !== treeLodScale)
+      this.trees.setOptions({ lodScale: treeLodScale });
     this.model.setBadge({
       number: s.carNumber,
       rally: rallyName(this.world.map.name),
@@ -993,6 +1046,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
   }
 
   private frame(dt: number): void {
+    const t0 = performance.now();
     const v = this.vehicle;
     // --- input + physics --------------------------------------------------------
     if (!this.paused) {
@@ -1042,6 +1096,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       if (steps === MAX_STEPS) this.acc = Math.min(this.acc, STEP);
       this.knockPosts(dt);
     } else this.input.poll();
+    const tPhysics = performance.now();
     const alpha = this.paused ? 1 : this.acc / STEP;
 
     // --- car model + camera -------------------------------------------------------------
@@ -1064,10 +1119,14 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
 
     // --- streaming ----------------------------------------------------------------------------
     const camPos = this.camera.position;
+    const tCamera = performance.now();
     this.terrain.update(camPos, 2.5);
     this.roadCull.update(camPos);
+    const tTerrain = performance.now();
     this.streamer.update(camPos);
+    const tObjects = performance.now();
     this.trees.update(this.camera, this.rig.steady);
+    const tTrees = performance.now();
     // Far scatter: draw only the instances inside the camera's horizontal view (+ margin for the repack step
     // and the streamer's focus lagging the camera). Looking steeply down: everything.
     const dir = this.camera.getWorldDirection(this.camDir);
@@ -1159,7 +1218,20 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     );
     this.telemetry.update(dt, v);
 
+    const tFx = performance.now();
+    this.perf?.gpuBegin();
     this.renderer.render(this.scene, this.camera);
+    this.perf?.gpuEnd();
+    const tRender = performance.now();
+    this.perf?.frame({
+      physics: tPhysics - t0,
+      'car + camera': tCamera - tPhysics,
+      terrain: tTerrain - tCamera,
+      objects: tObjects - tTerrain,
+      trees: tTrees - tObjects,
+      'fx + hud': tFx - tTrees,
+      render: tRender - tFx,
+    });
     this.treeStats.update();
     this.stats.set(
       'chunk',
@@ -1175,6 +1247,12 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       `${this.dust.aliveCount} dust  ${this.gravel.aliveCount} gravel  ${this.haze?.aliveCount ?? 0} haze`,
     );
     this.stats.end();
+  }
+
+  /** Show / hide the perf panel (created on first use; its switches stay applied while it exists). */
+  togglePerfPanel(): void {
+    this.perf ??= new PerfPanel(this, this.container);
+    this.perf.toggle();
   }
 
   /** Breakables under the car fall over; those with `slow` (chevrons) also slow the car. */

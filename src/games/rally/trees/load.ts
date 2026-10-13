@@ -2,11 +2,16 @@ import {
   BufferAttribute,
   BufferGeometry,
   type DataArrayTexture,
-  type MeshStandardMaterial,
+  type MeshLambertMaterial,
   type WebGLRenderer,
 } from 'three';
 import { getCached, pruneCached, putCached } from './cache';
-import { bakeImpostor, impostorArray, type ImpostorPixels } from './impostor';
+import {
+  bakeImpostor,
+  impostorArray,
+  impostorBounds,
+  type ImpostorPixels,
+} from './impostor';
 import {
   barkMaterial,
   barkTexture,
@@ -14,7 +19,7 @@ import {
   spriteMaterial,
   spriteTextures,
 } from './materials';
-import type { MeshData, SpriteData, VariantMeshes } from './mesh';
+import type { Crown, MeshData, SpriteData, VariantMeshes } from './mesh';
 import { isTreeType, speciesOfType, type SpeciesDef } from './species';
 import {
   cacheKey,
@@ -27,6 +32,7 @@ import {
 } from './variants';
 import type { GenerateRequest } from './worker';
 import { meshBuffers } from './mesh';
+import { crownProxy, quadSprites } from './proxy';
 import type { TreeLoadStats } from './stats';
 
 type Timed = GeneratedVariant & { ms: number };
@@ -46,6 +52,11 @@ export interface LoadedVariant {
   /** Sprites in the crown, and the index count up to each (rank order: thinned crowns draw a prefix). */
   spriteCount: number;
   spriteEnds: Uint32Array;
+  /** The same sprites as plain quads (far crowns) and their index ends (trees/proxy.ts). */
+  quads: BufferGeometry;
+  quadEnds: Uint32Array;
+  /** The crown's shadow caster (null: no foliage). */
+  proxy: BufferGeometry | null;
   /** Slot of its impostor in the library's shared texture array (`TreeLibrary.impostors`). */
   slot: number;
 }
@@ -60,6 +71,19 @@ function geometry(m: MeshData): BufferGeometry {
   g.setIndex(new BufferAttribute(m.index, 1));
   g.computeBoundingSphere();
   return g;
+}
+
+/** Every sprite vertex carries its crown's ellipsoid (the sprites' shadow lookup, trees/materials.ts). */
+function crownAttributes(g: BufferGeometry, crown: Crown): void {
+  const n = g.getAttribute('position').count;
+  const c = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++)
+    c.set([crown.c[0], crown.c[1], crown.c[2], crown.r[0]], i * 4);
+  g.setAttribute('treeCrown', new BufferAttribute(c, 4));
+  g.setAttribute(
+    'treeCrownY',
+    new BufferAttribute(new Float32Array(n).fill(crown.r[1]), 1),
+  );
 }
 
 function spriteGeometry(s: SpriteData): BufferGeometry {
@@ -167,7 +191,9 @@ export class TreeLibrary {
   /** Every variant's impostor: one texture array, one material (one draw for all impostors, trees/draw.ts). */
   impostors: {
     atlas: DataArrayTexture;
-    material: MeshStandardMaterial;
+    material: MeshLambertMaterial;
+    /** The far impostors' material: no baked depth (trees/draw.ts IMPOSTOR_FLAT_FROM). */
+    farMaterial: MeshLambertMaterial;
   } | null = null;
   /** What loading cost (trees/Performance.md#counters). */
   stats: TreeLoadStats = {
@@ -218,6 +244,7 @@ export class TreeLibrary {
     gen.dispose();
     const allPixels: ImpostorPixels[] = [];
     const spheres: { cy: number; r: number }[] = [];
+    const bounds: [number, number, number, number][] = [];
     for (const { def, i, key, g, impostor } of results) {
       const b0 = performance.now();
       const v = lib.build(def, g.info, g.meshes, impostor, renderer);
@@ -246,11 +273,16 @@ export class TreeLibrary {
       v.loaded.slot = allPixels.length;
       allPixels.push(v.pixels);
       spheres.push(g.info.sphere);
+      bounds.push(impostorBounds(v.pixels));
       report(++done / jobs.length);
     }
     if (allPixels.length) {
       const atlas = impostorArray(renderer, allPixels);
-      lib.impostors = { atlas, material: impostorMaterial(atlas, spheres) };
+      lib.impostors = {
+        atlas,
+        material: impostorMaterial(atlas, spheres, bounds),
+        farMaterial: impostorMaterial(atlas, spheres, bounds, true),
+      };
     }
     // Shared bark / leaf textures (RGBA8 + mips).
     const textures = new Set<string>();
@@ -281,6 +313,8 @@ export class TreeLibrary {
     registerVariant(info);
     const levels = meshes.levels.map(geometry);
     const sprites = spriteGeometry(meshes.sprites);
+    const quads = quadSprites(meshes.sprites);
+    for (const g of [sprites, quads.geometry]) crownAttributes(g, info.crown);
     const tex = spriteTextures(def.foliage.kind, def.foliage.density);
     const pixels =
       cachedImpostor ??
@@ -303,6 +337,9 @@ export class TreeLibrary {
         sprites,
         spriteCount: meshes.sprites.count,
         spriteEnds: meshes.sprites.ends,
+        quads: quads.geometry,
+        quadEnds: quads.ends,
+        proxy: crownProxy(meshes.sprites),
         slot: -1,
       },
       pixels,
