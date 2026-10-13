@@ -1,0 +1,81 @@
+
+export anchor ProceduralLSystemTreesWithLOD3:
+    userPrompt:
+        \\\
+        We want to replace the trees in the rally game with procedural L-systems that can support clean LOD transitions and more realistic foliage  The spec is brand new on top of an existing codebase, so do your best.
+        \\\
+
+    mode: code
+
+    newConversation: false
+
+    systemPrompt:
+        \\\
+        We're working on the code, located in ./src. Change the code so it does what the prompt asks, as the spec describes it.
+
+        When the work is about Suspense, its modes, its prompts, or its questions, or you are to write a prompt or a question for the user, first read .suspense/suspense-fluency.md once in this conversation, unless you already have: it is how Suspense works.
+
+        The spec's Piton source is in ./spec. Don't change it, and don't read it to learn what the spec says: read the compiled reference instead, as above. If the prompt asks for something the spec doesn't describe, or describes differently, say so in your reply rather than working around it.
+
+        Before changing anything, write the constraints this task must meet to ${UNDERSTANDING_FILE}, and keep it current as you read more of the spec. It is a Markdown list and nothing else: one line per constraint, at most twelve, each a single short, specific statement of what must be true, written as a link to the compiled reference file it comes from, such as `- [The chain tab has no bottom border in combined mode](.claude/reference/scope/prompt-mode/chat-input/index.md#chain)`. Only list what the spec says; leave out anything you are deciding yourself. Replace a constraint when you learn it was wrong rather than adding another.
+
+        This prompt is the second step of a chain. Its first step changed the spec to meet it, and the spec has been built since. Now change the code so it does what the spec now says, without changing the spec. Follow the spec the prompt references, and the anchors the spec step names below. Where the spec and the prompt disagree, follow the spec, and say so in your reply.
+
+        The code is located in ./src.
+
+        The spec's source, which this step doesn't change, is in ./spec.
+
+        The prompt the chain was sent:
+
+        ${SPEC_PROMPT}
+
+        What the spec step said it changed, its final output:
+
+        ${SPEC_RESULT}
+        \\\
+
+    codeTask:
+        prompt:
+            \\\
+            We want to replace the trees in the rally game with procedural L-systems that can support clean LOD transitions and more realistic foliage  The spec is brand new on top of an existing codebase, so do your best.
+            \\\
+        result:
+            \\\
+            The spec now covers the L-system trees, and `piton check` and `piton build` both finish with no errors. The tree documents from the last step were already in place. This step adds how the tree system fits into the existing game, plus guidance placed next to the code.
+
+            `src/` (the code root) is still empty in this workspace. The spec says the trees go into the existing game, using its language, renderer, stage data, collision, camera and quality settings. If the coding step also finds no game, it should say so rather than build a new game or engine.
+
+            **What I changed in the spec:**
+            - **`spec/trees/ProceduralTrees.pi`:** added an `integration` section:
+              - Build the trees inside the existing codebase on its renderer, with no second engine.
+              - Make one module with stages in order: grammar, skeleton, meshing, impostor baking, placement, drawing.
+              - Make grammar derivation and skeleton building pure functions of species and seed, with no engine dependency, so they can be unit tested.
+              - Delete the old tree assets and the code that loaded and placed them, not leave them behind a switch.
+            - **`spec/shape/trees/Trees.pi` (new):** guidance named `TreesShape`, exported from `spec/index.pi`. It's written to `src/CLAUDE.md` for now, because `src/trees` doesn't exist yet. It points at `ProceduralTrees` and repeats three rules: derivation stays deterministic, every LOD comes from the one skeleton, and a level change never happens without the dithered cross-fade.
+
+            **Anchors the code should follow:**
+            - **`ProceduralTrees`** (`.claude/reference/trees/ProceduralTrees.md`) covers the pipeline, the integration rules and the goals.
+            - **`Grammar`** (`.claude/reference/trees/Grammar.md`):
+              - `alphabet` and `rules`: the drawing symbols and weighted random rules.
+              - `determinism`: a seeded integer random generator owned by the tree code, with identical output on every platform.
+              - `turtle`: tropism and radius tapering.
+              - `skeleton`: segment fields and prune priority.
+              - `timing`: generated at stage load, off the main thread.
+            - **`Species`** (`.claude/reference/trees/Species.md`): tree types as data with a content hash. Start with Conifer, Broadleaf and Shrub, and map each old tree type to one of them.
+            - **`Lod`** (`.claude/reference/trees/Lod.md`):
+              - `levels`: four levels, ending in an octahedral impostor.
+              - `nesting`: every branch in a coarser level is also in each finer one.
+              - `selection`: chosen by height on screen, with hysteresis.
+              - `transition`: a complementary dithered cross-fade that stays still as the camera moves.
+              - `shadows` (one level coarser) and `budget` (per-species thresholds, scaled by quality setting).
+            - **`Foliage`** (`.claude/reference/trees/Foliage.md`):
+              - `clusters`: spaced around the branch by the golden angle.
+              - `shading`: normals blended with the crown shape, two-sided translucency, baked ambient occlusion, per-tree colour variation.
+              - `wind`: trunk, branch and leaf sway on the GPU from per-vertex data, with the impostor matching the trunk.
+            - **`Placement`** (`.claude/reference/trees/Placement.md`):
+              - `variants`: 8 per species, chosen and posed by a hash of the stage and placement index, drawn in batches.
+              - `caching`: on disk, keyed by species hash, seed and generator version.
+              - `collision`: capsules on the trunk and main limbs, whichever level is showing.
+            \\\
+
+    sentFrom: ProceduralLSystemTreesWithLOD2

@@ -1,0 +1,1904 @@
+{
+  "userPrompt": "Still running ?",
+  "harness": "claude",
+  "systemPrompt": "We're working in a project whose spec is compiled to .claude/reference, which is where to read it. Each prompt starts with a <task-instructions> block saying what that prompt is for and what it may change. Follow the block at the top of the prompt you are answering; an earlier prompt's block no longer applies.\n\nIts code is located in ./src.\n\nIts spec's Piton source, in ./spec, is only where edits to the spec go.\n\nRead the spec from its compiled reference under .claude/reference, where inheritance, expressions, and links are already resolved, or, for one thing, from what `piton slice` prints for it with this harness's adapter.\n\nNever read the .pi source under ./spec to learn what the spec says; that is only where edits to the spec go.\n\nBefore executing anything, read the spec it touches. Links to .claude/reference/... in the prompt are the spec for what they name. Read each one you need before changing anything it covers. Don't re-read something you've already read.",
+  "instructions": "We're only asking a question about the project. Answer it without changing anything.\n\nWhen the work is about Suspense, its modes, its prompts, or its questions, or you are to write a prompt or a question for the user, first read .suspense/suspense-fluency.md once in this conversation, unless you already have: it is how Suspense works.\n\nThe code is located in ./src.\n\nThe spec's Piton source is in ./spec, which `piton slice` reads. Don't change it, and don't read it directly to learn what the spec says: read the compiled reference, or what `piton slice` prints, instead.\n\nWhenever the user asks you for a prompt, or your answer suggests one for them to send, give each prompt as a fenced code block whose info string is `suspense-prompt` and the mode it is for, one of `code`, `chain`, `spec`, `ask`, or `freeform`, such as ```` ```suspense-prompt chain ````, holding only the prompt's text, ready to send, never as plain text, a quote, or any other code block, since only this form lets the user send it from your answer. Pick the mode that fits the work, `chain` when it changes both the spec and the code; the user can send it to Code, Chain, or Spec all the same. When you need the user to answer something before you can go on, write the question as a fenced code block whose info string is `suspense-question`, the question on its first lines and then, if there are answers to pick from, one per line, each starting with `- `. Use these blocks only for prompts and questions meant for the user, never for code or examples.",
+  "resumed": true,
+  "resumedFrom": "02780c52-2c20-451a-a351-1e9c97027dec",
+  "output": [
+    {
+      "type": "system",
+      "subtype": "init",
+      "cwd": "/home/hyphyphyph/mini-games",
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "tools": [
+        "Task",
+        "Bash",
+        "CronCreate",
+        "CronDelete",
+        "CronList",
+        "DesignSync",
+        "Edit",
+        "EnterWorktree",
+        "ExitWorktree",
+        "ListAgents",
+        "Monitor",
+        "NotebookEdit",
+        "PushNotification",
+        "Read",
+        "RemoteTrigger",
+        "ReportFindings",
+        "ScheduleWakeup",
+        "SendMessage",
+        "Skill",
+        "TaskStop",
+        "ToolSearch",
+        "WebFetch",
+        "WebSearch",
+        "Workflow",
+        "Write"
+      ],
+      "mcp_servers": [],
+      "model": "claude-opus-5-5[1m]",
+      "permissionMode": "auto",
+      "slash_commands": [
+        "deep-research",
+        "design",
+        "design-sync",
+        "dataviz",
+        "update-config",
+        "verify",
+        "debug",
+        "code-review",
+        "simplify",
+        "batch",
+        "fewer-permission-prompts",
+        "doctor",
+        "loop",
+        "schedule",
+        "claude-api",
+        "workflow-authoring",
+        "run",
+        "run-skill-generator",
+        "advisor",
+        "agents",
+        "auto-mode-setup",
+        "autocompact",
+        "clear",
+        "color",
+        "compact",
+        "config",
+        "output-style",
+        "context",
+        "effort",
+        "fast",
+        "focus",
+        "heapdump",
+        "init",
+        "mcp",
+        "import",
+        "model",
+        "__remote-workflow",
+        "workflow-launch-exec",
+        "reload-plugins",
+        "reload-skills",
+        "rename",
+        "ultrareview",
+        "security-review",
+        "usage-credits",
+        "extra-usage",
+        "usage",
+        "insights",
+        "recap",
+        "skill-doctor",
+        "goal",
+        "design-consent",
+        "design-revoke",
+        "list-agents",
+        "team-onboarding",
+        "anthropic-skills:built-in-browser",
+        "anthropic-skills:chrome-browser",
+        "anthropic-skills:computer-use",
+        "anthropic-skills:deep-research",
+        "anthropic-skills:docs",
+        "anthropic-skills:docx",
+        "anthropic-skills:google-workspace",
+        "anthropic-skills:import-memory",
+        "anthropic-skills:morning",
+        "anthropic-skills:pdf",
+        "anthropic-skills:pptx",
+        "anthropic-skills:skill-creator",
+        "anthropic-skills:xlsx"
+      ],
+      "terminal_slash_commands": [
+        "doctor",
+        "color",
+        "focus",
+        "reload-plugins"
+      ],
+      "apiKeySource": "none",
+      "claude_code_version": "2.1.281",
+      "output_style": "default",
+      "agents": [
+        "claude",
+        "Explore",
+        "general-purpose",
+        "Plan",
+        "statusline-setup"
+      ],
+      "skills": [
+        "deep-research",
+        "design",
+        "design-sync",
+        "dataviz",
+        "update-config",
+        "verify",
+        "debug",
+        "code-review",
+        "simplify",
+        "batch",
+        "fewer-permission-prompts",
+        "doctor",
+        "loop",
+        "schedule",
+        "claude-api",
+        "workflow-authoring",
+        "run",
+        "run-skill-generator",
+        "anthropic-skills:built-in-browser",
+        "anthropic-skills:chrome-browser",
+        "anthropic-skills:computer-use",
+        "anthropic-skills:deep-research",
+        "anthropic-skills:docs",
+        "anthropic-skills:docx",
+        "anthropic-skills:google-workspace",
+        "anthropic-skills:import-memory",
+        "anthropic-skills:morning",
+        "anthropic-skills:pdf",
+        "anthropic-skills:pptx",
+        "anthropic-skills:skill-creator",
+        "anthropic-skills:xlsx"
+      ],
+      "plugins": [
+        {
+          "name": "agents-md",
+          "path": "builtin",
+          "source": "agents-md@builtin"
+        },
+        {
+          "name": "telemetry",
+          "path": "builtin",
+          "source": "telemetry@builtin"
+        }
+      ],
+      "capabilities": [
+        "interrupt_receipt_v1",
+        "interrupt_cancel_queued_v1",
+        "msg_lifecycle_v1",
+        "mcp_read_resource_v1",
+        "mcp_tool_ui_meta_v1"
+      ],
+      "analytics_disabled": false,
+      "product_feedback_disabled": false,
+      "uuid": "69dc7a42-2919-4154-8949-882d4e4d77c3",
+      "memory_paths": {
+        "auto": "/home/suspense/.claude/projects/-workspace/memory/"
+      },
+      "messaging_socket_path": "/tmp/cc-socks/1.sock",
+      "fast_mode_state": "off",
+      "fast_mode_disabled_reason": "sdk_opt_in_required",
+      "per_turn_effort_active": true,
+      "view_mode": "default"
+    },
+    {
+      "type": "system",
+      "subtype": "status",
+      "status": "requesting",
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "uuid": "f79df83c-c9dc-4941-ac67-c06e5ac8e5d4"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "model": "claude-opus-5-5",
+          "id": "msg_011Cfo7G9W8uKggm7YC3z9wH",
+          "type": "message",
+          "role": "assistant",
+          "content": [],
+          "container": null,
+          "stop_reason": null,
+          "stop_sequence": null,
+          "stop_details": null,
+          "usage": {
+            "input_tokens": 2,
+            "cache_creation_input_tokens": 646,
+            "cache_read_input_tokens": 19758,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 646
+            },
+            "output_tokens": 5,
+            "service_tier": "standard",
+            "inference_geo": "not_available"
+          },
+          "input_transformations": [],
+          "diagnostics": null,
+          "context_management": null
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "1681fba1-5c4c-4364-a03d-ec43385ffc3e",
+      "ttft_ms": 1378
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "thinking",
+          "thinking": "",
+          "signature": ""
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "3e6bfff7-84cd-4582-b3b4-d033d50beaf6"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "thinking_delta",
+          "thinking": "",
+          "estimated_tokens": null
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "073e9c1e-1880-4c50-8a85-e2f788eef0ec"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "signature_delta",
+          "signature": "CAQSqAYKEAgSGAI4AUIIdGhpbmtpbmcSDK1O3VvwNvR4gWnRdBoMNuAN6fPTSM49mCY5IjDxJyFKhtnwzaH2efKdd76dgJJ6IhMPWnBbeTmIoGBR+GnHpk5c0ZjmcDYArNa/+BEqxQVniQS2SE5yu+gjR5ONLqYfa/siKIhgkentsdEzxNrWNBTPTMJjgx0z3srtvOPJone+9XYajbHKSWqGhN/J+AjXT9RcSYYv5gDEpZKOGxgPd4A9dYnAiwP+vmiSfyCfp/9dZo2yGKSiC7NQ1F+lyu4siCg9xwD/DuTkS6GIaYRSRjIxe9AFOto68N5DET9JKwPtvUmdnVe5s36eYoMfZuxFvKKBtrSwBkljJk+mZZ8bhc9/oYLBlgNlJGbM8ERj6OJwOqWbT+YnN+tVT+fWh2LJnUnsB2LBIj4d/TNOdfGGK5SqTmtnOz1GEWzdUt8KN0OdwLpnM1h4xTL5VaAutUh3AMXHj0mfXkYMXXUe3TK2kQV7/RPXVGu0xssEcZ6MYewYA9qdPEjn4Wun8BvIG9q29xjQ6iAjWZeecba0c2fQ4rtnquCuh4xefgpz2Ryg0+mUN0Kp3ZYw9+9AJqu5gtPbD3QrLGGeovmhje1gnUhDYT/7zGbe8hAMieC7HkuZ8tjP5btNhUQk+Eq8aYbiLEDQAguF23dmpde59Ei81b3zwn45RgyQ3RAGgvbJ+a8kAw5rplDbFNb7oUATuR24BjlNSjSy20doqaMmoYwfobMZN4QB+9Nza0Hd/NMZcRHXGCW+LobaENJZjYyRBdx7rJqstRe3IbJhRML2awjL2lXt7pATL1VzdqOSX1zdBC2YMfaE09uJSMuOQFCqiW9utccVjx0HgQSBvFsPSdqEgXPm1W3XThtJnA+HzhZIrYDrisVQbl4oht0Q1vPETS1Z0Fv49mwKQoS4dEwrfoXK7WYrAyPA84J18kZUeBytS61qe8daGbiDror2ZyG/qarm5SCwx4oEcVPpis7ZGZ9piwKC4+U8LDrMMjDEqelQdY+DvJFVr1bwENbfndIQEu6rqhkDXy6qWbbZAzU7oQjno5nQlHCkFfGlGAE="
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "db6c4b0e-5d42-4c27-abc5-1f2f32a489ec"
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "claude-opus-5-5",
+        "id": "msg_011Cfo7G9W8uKggm7YC3z9wH",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "",
+            "signature": "CAQSqAYKEAgSGAI4AUIIdGhpbmtpbmcSDK1O3VvwNvR4gWnRdBoMNuAN6fPTSM49mCY5IjDxJyFKhtnwzaH2efKdd76dgJJ6IhMPWnBbeTmIoGBR+GnHpk5c0ZjmcDYArNa/+BEqxQVniQS2SE5yu+gjR5ONLqYfa/siKIhgkentsdEzxNrWNBTPTMJjgx0z3srtvOPJone+9XYajbHKSWqGhN/J+AjXT9RcSYYv5gDEpZKOGxgPd4A9dYnAiwP+vmiSfyCfp/9dZo2yGKSiC7NQ1F+lyu4siCg9xwD/DuTkS6GIaYRSRjIxe9AFOto68N5DET9JKwPtvUmdnVe5s36eYoMfZuxFvKKBtrSwBkljJk+mZZ8bhc9/oYLBlgNlJGbM8ERj6OJwOqWbT+YnN+tVT+fWh2LJnUnsB2LBIj4d/TNOdfGGK5SqTmtnOz1GEWzdUt8KN0OdwLpnM1h4xTL5VaAutUh3AMXHj0mfXkYMXXUe3TK2kQV7/RPXVGu0xssEcZ6MYewYA9qdPEjn4Wun8BvIG9q29xjQ6iAjWZeecba0c2fQ4rtnquCuh4xefgpz2Ryg0+mUN0Kp3ZYw9+9AJqu5gtPbD3QrLGGeovmhje1gnUhDYT/7zGbe8hAMieC7HkuZ8tjP5btNhUQk+Eq8aYbiLEDQAguF23dmpde59Ei81b3zwn45RgyQ3RAGgvbJ+a8kAw5rplDbFNb7oUATuR24BjlNSjSy20doqaMmoYwfobMZN4QB+9Nza0Hd/NMZcRHXGCW+LobaENJZjYyRBdx7rJqstRe3IbJhRML2awjL2lXt7pATL1VzdqOSX1zdBC2YMfaE09uJSMuOQFCqiW9utccVjx0HgQSBvFsPSdqEgXPm1W3XThtJnA+HzhZIrYDrisVQbl4oht0Q1vPETS1Z0Fv49mwKQoS4dEwrfoXK7WYrAyPA84J18kZUeBytS61qe8daGbiDror2ZyG/qarm5SCwx4oEcVPpis7ZGZ9piwKC4+U8LDrMMjDEqelQdY+DvJFVr1bwENbfndIQEu6rqhkDXy6qWbbZAzU7oQjno5nQlHCkFfGlGAE="
+          }
+        ],
+        "container": null,
+        "stop_reason": null,
+        "stop_sequence": null,
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 646,
+          "cache_read_input_tokens": 19758,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 646
+          },
+          "output_tokens": 5,
+          "service_tier": "standard",
+          "inference_geo": "not_available"
+        },
+        "input_transformations": [],
+        "diagnostics": null,
+        "context_management": null
+      },
+      "parent_tool_use_id": null,
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "uuid": "ddb782f5-b012-4224-ba85-c0621b733f08",
+      "timestamp": "2026-10-07T15:24:52.795Z",
+      "request_id": "req_011Cfo7G984ZxvedQ51bzBbi"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "52f39162-76e0-4d5e-beb9-c6b091c25313"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 1,
+        "content_block": {
+          "type": "tool_use",
+          "id": "toolu_01QFP4JSW9GtpbV4s5UJWWVh",
+          "name": "Bash",
+          "input": {},
+          "caller": {
+            "type": "direct"
+          }
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "293a76a8-e8b2-414c-978b-677a4ce26a49"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": ""
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "8fb840a8-6b33-44cd-94a7-e628904be6d0"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "{\"command\": \"ps -"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "6fe81704-ccac-40de-a88a-75dbc32cc60b"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "eo pid,et"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "1ac8890b-aed6-45ce-a2f6-e9ee192dfe23"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "ime,cmd --sort"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "216a4daa-8387-4146-8ce4-e6baaabdff92"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "="
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "48bd1069-4e30-41ed-998c-16432daf893c"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "start_time | grep -v"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "300eaaae-d540-4e37-bc16-023bd7830789"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "E "
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "3126ed56-63fa-47eb-8154-a0cd320bfcff"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "'ps -"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "22f7ae86-d808-43cf-a5b7-587853cdf539"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "eo|grep|"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "b4963eab-93bd-4845-8cb0-2b2bd80ef83f"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "bash$"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "07952f39-b34c-4290-abb5-7712e6ae5b68"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "|"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "f88b03b3-86c5-4cdb-8f6d-7e2a41276f90"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "sh$' | tail -"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "94813698-1d63-48d1-81fb-af6601d92e42"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "20"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "6e10cb14-a170-4112-93f2-edd05366cf0c"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "\", \"description\": \"List"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "f9cc3933-7bf4-421d-a220-be5db021ed39"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": " running processes on the machine"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "696edb68-7a9c-4e96-8fba-40e05a92adce"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "\"}"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "827a7c44-1580-4526-afb3-32205e6401f8"
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "claude-opus-5-5",
+        "id": "msg_011Cfo7G9W8uKggm7YC3z9wH",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "toolu_01QFP4JSW9GtpbV4s5UJWWVh",
+            "name": "Bash",
+            "input": {
+              "command": "ps -eo pid,etime,cmd --sort=start_time | grep -vE 'ps -eo|grep|bash$|sh$' | tail -20",
+              "description": "List running processes on the machine"
+            },
+            "caller": {
+              "type": "direct"
+            }
+          }
+        ],
+        "container": null,
+        "stop_reason": null,
+        "stop_sequence": null,
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 646,
+          "cache_read_input_tokens": 19758,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 646
+          },
+          "output_tokens": 5,
+          "service_tier": "standard",
+          "inference_geo": "not_available"
+        },
+        "input_transformations": [],
+        "diagnostics": null,
+        "context_management": null
+      },
+      "parent_tool_use_id": null,
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "uuid": "0c8c0ca7-cf38-4de3-8583-b00a2c3555b1",
+      "timestamp": "2026-10-07T15:24:53.589Z",
+      "request_id": "req_011Cfo7G984ZxvedQ51bzBbi",
+      "wire_tool_inputs": {
+        "toolu_01QFP4JSW9GtpbV4s5UJWWVh": {
+          "command": "ps -eo pid,etime,cmd --sort=start_time | grep -vE 'ps -eo|grep|bash$|sh$' | tail -20",
+          "description": "List running processes on the machine"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 1
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "73098ad1-3ab9-44c2-a9c2-c050266012b2"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_delta",
+        "delta": {
+          "stop_reason": "tool_use",
+          "stop_sequence": null,
+          "stop_details": null,
+          "container": null,
+          "safeguard_results": [
+            {
+              "type": "dangerous_tool_use",
+              "status": {
+                "type": "available",
+                "tool_uses": {
+                  "toolu_01QFP4JSW9GtpbV4s5UJWWVh": {
+                    "type": "evaluated",
+                    "outcome": "not_flagged"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 646,
+          "cache_read_input_tokens": 19758,
+          "output_tokens": 160,
+          "output_tokens_details": {
+            "thinking_tokens": 34
+          },
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 160,
+              "cache_read_input_tokens": 19758,
+              "cache_creation_input_tokens": 646,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 646
+              },
+              "type": "message"
+            }
+          ]
+        },
+        "context_management": {
+          "applied_edits": []
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "4dabd8f7-9c7f-403a-8d58-ec00bc712506"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_stop"
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "84811e51-80ac-4ce2-8dfd-e06135125c3d"
+    },
+    {
+      "type": "rate_limit_event",
+      "rate_limit_info": {
+        "status": "allowed",
+        "resetsAt": 1791396600,
+        "rateLimitType": "five_hour",
+        "overageStatus": "rejected",
+        "overageDisabledReason": "out_of_credits",
+        "isUsingOverage": false,
+        "unifiedWindows": {
+          "five_hour": {
+            "utilization": 0.3,
+            "resetsAt": 1791396600
+          },
+          "seven_day": {
+            "utilization": 0.12,
+            "resetsAt": 1791918000
+          }
+        }
+      },
+      "uuid": "6d02874e-2408-4a05-b893-c00db7b86fae",
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec"
+    },
+    {
+      "type": "user",
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "tool_use_id": "toolu_01QFP4JSW9GtpbV4s5UJWWVh",
+            "type": "tool_result",
+            "content": "/bin/bash: line 1: ps: command not found",
+            "is_error": false
+          }
+        ]
+      },
+      "parent_tool_use_id": null,
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "uuid": "ed69914c-8aad-44b9-aebb-6ab60bf9e29b",
+      "timestamp": "2026-10-07T15:24:54.050Z",
+      "tool_use_result": {
+        "stdout": "/bin/bash: line 1: ps: command not found",
+        "stderr": "",
+        "interrupted": false,
+        "isImage": false,
+        "noOutputExpected": false
+      }
+    },
+    {
+      "type": "system",
+      "subtype": "status",
+      "status": "requesting",
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "uuid": "63536800-9311-4066-8cc2-6200c27d09bb"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "model": "claude-opus-5-5",
+          "id": "msg_011Cfo7GLvjQyGFN9Nzo5a4B",
+          "type": "message",
+          "role": "assistant",
+          "content": [],
+          "container": null,
+          "stop_reason": null,
+          "stop_sequence": null,
+          "stop_details": null,
+          "usage": {
+            "input_tokens": 2,
+            "cache_creation_input_tokens": 206,
+            "cache_read_input_tokens": 20404,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 206
+            },
+            "output_tokens": 16,
+            "service_tier": "standard",
+            "inference_geo": "not_available"
+          },
+          "input_transformations": [],
+          "diagnostics": null,
+          "context_management": null
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "9255c6de-f9ca-4368-9b12-2a852cc2c095",
+      "ttft_ms": 1001
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "tool_use",
+          "id": "toolu_01Ks3TPL3mXWxVRcgrVwZv4B",
+          "name": "Bash",
+          "input": {},
+          "caller": {
+            "type": "direct"
+          }
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "74031ccc-b6c1-4b54-a32f-6fb1d661383d"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": ""
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "43b4756f-f434-429f-9b7c-88e4befceac0"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "{\"command\": \"for p in /pro"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "bf1b9ebd-a490-47ce-8aa3-021cb5fdf1c4"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "c/[0-9]*"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "4d7a100c-c16f-4774-86a0-ccd883e78a4e"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "; do c"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "bc3131de-e5b0-4f38-aff2-c279eec26af4"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "=$(tr '\\\\0"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "c8469eca-a4aa-4ab8-80e7-c11e0b689596"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "' ' ' < $"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "81c80329-fa29-4680-983f-fd0ab7ae6ce9"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "p/cmdline 2"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "93472e8d-43df-4131-bd0e-fd9c8b5ee531"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": ">/dev/null); ["
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "30b4f989-5cb8-4455-bdfd-7a1c41f51301"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": " -n \\\"$c\\\" "
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "3323917d-dac2-4dc9-a84d-966d34a3df06"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "] && echo \\\"${p#"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "07ce91b4-d830-4c84-8dc0-087ff9eb184d"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "/proc/} $c\\\""
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "cdc7520a-e066-4a13-9802-568bfcb914f3"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "; done"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "9095a553-9c7d-4358-8fea-5b8efb983f04"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "\", \"description\": \"List running"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "25b0e40e-806f-4219-853c-23634380198f"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": " processes via"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "46d6973a-d86f-4c23-b5d7-a4a562dc85fb"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": " /proc"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "3f8b9807-769f-44d9-9f62-0980997a1097"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "\"}"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "751d5bcf-9345-4670-915c-eecdfdd055ea"
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "claude-opus-5-5",
+        "id": "msg_011Cfo7GLvjQyGFN9Nzo5a4B",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "toolu_01Ks3TPL3mXWxVRcgrVwZv4B",
+            "name": "Bash",
+            "input": {
+              "command": "for p in /proc/[0-9]*; do c=$(tr '\\0' ' ' < $p/cmdline 2>/dev/null); [ -n \"$c\" ] && echo \"${p#/proc/} $c\"; done",
+              "description": "List running processes via /proc"
+            },
+            "caller": {
+              "type": "direct"
+            }
+          }
+        ],
+        "container": null,
+        "stop_reason": null,
+        "stop_sequence": null,
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 206,
+          "cache_read_input_tokens": 20404,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 206
+          },
+          "output_tokens": 16,
+          "service_tier": "standard",
+          "inference_geo": "not_available"
+        },
+        "input_transformations": [],
+        "diagnostics": null,
+        "context_management": null
+      },
+      "parent_tool_use_id": null,
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "uuid": "f0158b66-9da0-402f-9e60-7e0575bb2b50",
+      "timestamp": "2026-10-07T15:24:55.944Z",
+      "request_id": "req_011Cfo7GLeMgWc4Y2nCJbFCx",
+      "wire_tool_inputs": {
+        "toolu_01Ks3TPL3mXWxVRcgrVwZv4B": {
+          "command": "for p in /proc/[0-9]*; do c=$(tr '\\0' ' ' < $p/cmdline 2>/dev/null); [ -n \"$c\" ] && echo \"${p#/proc/} $c\"; done",
+          "description": "List running processes via /proc"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "23766ac6-f441-4a10-b374-ccfda49c66f7"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_delta",
+        "delta": {
+          "stop_reason": "tool_use",
+          "stop_sequence": null,
+          "stop_details": null,
+          "container": null,
+          "safeguard_results": [
+            {
+              "type": "dangerous_tool_use",
+              "status": {
+                "type": "available",
+                "tool_uses": {
+                  "toolu_01Ks3TPL3mXWxVRcgrVwZv4B": {
+                    "type": "evaluated",
+                    "outcome": "not_flagged"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 206,
+          "cache_read_input_tokens": 20404,
+          "output_tokens": 147,
+          "output_tokens_details": {
+            "thinking_tokens": 0
+          },
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 147,
+              "cache_read_input_tokens": 20404,
+              "cache_creation_input_tokens": 206,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 206
+              },
+              "type": "message"
+            }
+          ]
+        },
+        "context_management": {
+          "applied_edits": []
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "b43d8e34-0cb7-4458-a137-a1cd452878a7"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_stop"
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "99d0b4bc-79cf-4205-a189-ad4c723cd7c6"
+    },
+    {
+      "type": "user",
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "tool_use_id": "toolu_01Ks3TPL3mXWxVRcgrVwZv4B",
+            "type": "tool_result",
+            "content": "1 claude -p --permission-mode auto --output-format stream-json --verbose --include-partial-messages --system-prompt-snapshot off --resume 02780c52-2c20-451a-a351-1e9c97027dec --append-system-prompt We're working in a project whose spec is compiled to .claude/reference, which is where to read it. Each prompt starts with a <task-instructions> block saying what that prompt is for and what it may change. Follow the block at the top of the prompt you are answering; an earlier prompt's block no longer applies.\n\nIts code is located in ./src.\n\nIts spec's Piton source, in ./spec, is only where edits to the spec go.\n\nRead the spec from its compiled reference under .claude/reference, where inheritance, expressions, and links are already resolved, or, for one thing, from what `piton slice` prints for it with this harness's adapter.\n\nNever read the .pi source under ./spec to learn what the spec says; that is only where edits to the spec go.\n\nBefore executing anything, read the spec it touches. Links to .claude/reference/... in the prompt are the spec for what they name. Read each one you need before changing anything it covers. Don't re-read something you've already read. \n71 /bin/bash -c source /home/suspense/.claude/shell-snapshots/snapshot-bash-1791386694020-rvcgbc.sh 2>/dev/null || true && shopt -u extglob 2>/dev/null || true && { \\builtin unalias -- 'unsetenv'; \\builtin unset -f -- 'unsetenv'; } >/dev/null 2>&1 || true && eval 'for p in /proc/[0-9]*; do c=$(tr '\"'\"'\\0'\"'\"' '\"'\"' '\"'\"' < $p/cmdline 2>/dev/null); [ -n \"$c\" ] && echo \"${p#/proc/} $c\"; done' && pwd -P >| /tmp/claude-db02-cwd",
+            "is_error": false
+          }
+        ]
+      },
+      "parent_tool_use_id": null,
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "uuid": "98fcc425-fb15-43d8-af95-32a92ac37ac8",
+      "timestamp": "2026-10-07T15:24:56.496Z",
+      "tool_use_result": {
+        "stdout": "1 claude -p --permission-mode auto --output-format stream-json --verbose --include-partial-messages --system-prompt-snapshot off --resume 02780c52-2c20-451a-a351-1e9c97027dec --append-system-prompt We're working in a project whose spec is compiled to .claude/reference, which is where to read it. Each prompt starts with a <task-instructions> block saying what that prompt is for and what it may change. Follow the block at the top of the prompt you are answering; an earlier prompt's block no longer applies.\n\nIts code is located in ./src.\n\nIts spec's Piton source, in ./spec, is only where edits to the spec go.\n\nRead the spec from its compiled reference under .claude/reference, where inheritance, expressions, and links are already resolved, or, for one thing, from what `piton slice` prints for it with this harness's adapter.\n\nNever read the .pi source under ./spec to learn what the spec says; that is only where edits to the spec go.\n\nBefore executing anything, read the spec it touches. Links to .claude/reference/... in the prompt are the spec for what they name. Read each one you need before changing anything it covers. Don't re-read something you've already read. \n71 /bin/bash -c source /home/suspense/.claude/shell-snapshots/snapshot-bash-1791386694020-rvcgbc.sh 2>/dev/null || true && shopt -u extglob 2>/dev/null || true && { \\builtin unalias -- 'unsetenv'; \\builtin unset -f -- 'unsetenv'; } >/dev/null 2>&1 || true && eval 'for p in /proc/[0-9]*; do c=$(tr '\"'\"'\\0'\"'\"' '\"'\"' '\"'\"' < $p/cmdline 2>/dev/null); [ -n \"$c\" ] && echo \"${p#/proc/} $c\"; done' && pwd -P >| /tmp/claude-db02-cwd",
+        "stderr": "",
+        "interrupted": false,
+        "isImage": false,
+        "noOutputExpected": false
+      }
+    },
+    {
+      "type": "system",
+      "subtype": "status",
+      "status": "requesting",
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "uuid": "50f2e11c-82f3-4465-a5bf-6b5d33d540f0"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "model": "claude-opus-5-5",
+          "id": "msg_011Cfo7GXPGuEHfKb5Qwee1Z",
+          "type": "message",
+          "role": "assistant",
+          "content": [],
+          "container": null,
+          "stop_reason": null,
+          "stop_sequence": null,
+          "stop_details": null,
+          "usage": {
+            "input_tokens": 2,
+            "cache_creation_input_tokens": 813,
+            "cache_read_input_tokens": 20610,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 813
+            },
+            "output_tokens": 6,
+            "service_tier": "standard",
+            "inference_geo": "not_available"
+          },
+          "input_transformations": [],
+          "diagnostics": null,
+          "context_management": null
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "705a17bc-7488-40a6-8e9a-f40f1814abd6",
+      "ttft_ms": 933
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "thinking",
+          "thinking": "",
+          "signature": ""
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "d7266f08-e76e-47c7-9545-274ed2bf75eb"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "thinking_delta",
+          "thinking": "",
+          "estimated_tokens": null
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "0bd73525-8810-4e9d-8284-e20d9a6b385c"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "signature_delta",
+          "signature": "CAQSgQYKEAgSGAI4AUIIdGhpbmtpbmcSDM1dM4ZvNM2mBydRnBoMTBwgcZOhR0B1ZWjqIjBjkVVwUylvdEBCsP9n82psYaJbRnsYu9icxpd5AanANW97i7ZwhFkwurY/t1hevjwqngVg8tt4tqCEdjfyZumzlkdKUrop+SDmAzxVFlmEXMaXQRygT8zQFwmkjCZ7lKQki2l6Zou5Np7o21FMM02V0o3W/oZuN44+6ctQAfWX6orerCY1crTpT3DcmHpy7JMMv3crYEw76PhJyTPQ41CrClZPSlT/w72oFGoECuHEYLHWKPXdTyFgbirMAeaSMIv8i7Gov0cw8HXVAWQWtN+4QN6yfbCzIz6D1VcLUQBHoEXlxwcTtZK5oZ/NijZIBmLwnEcjEbq3ngct8asrXaG6tC+SM5G2JPfng7V3eYyXTHLr1IH6by85gfXqiBvYjEBZtSi7g/tgpkvkr5wh/Q2HXInxf15J03amcY3dLOi553PTwGqe8sWSbbWmpl0caKuz8bOAJ49macDOIXWd6OEiV1ZirPqsG0qpoOZyCypaIb2oJHAxFExJvAVcllHFoVc7mTJ70eV/vzVNkApbS51PH5F+52RThZ+FpDvnti8fWqdLmh7r+6xFtpbd9J3vG8OUqpxbIaoW+SFmrqqJOwVY+IB0zt0/kk9bwwBQxWEmtut+EdGhtdq1mUFUuiB0KlkwrC41PxB7iYLrtFGBMnZVPKd2C+tR9SSzDn3Afqj2AGO0vFZ4CGrYHSWlPn91AIAbbE1ScnfwvDXGYc9JNhnWFG/cAMgf3lylQoqmLAN8Bz/ScBhxcbpvRyAG2VEqDkVymW3H3SE4khZDLIaBqW2MdmbWw4TlgxUcbiZZNXPN/tlEx+j693S3yhcT028qTGXFK2gsYIt5zFjOTR89qu1gzvU6heDyWI0st0cy9HrjRqQRVLuJAod4ivziSSD+dSB0poKSH6hLceDhXd8Y9L+YRQNRX2aT+DFH6nTZbMIgJAGm6ArJsNUv81ibZpxptdmvGAE="
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "3bf3e702-70b8-43fa-b591-2a86251fb82a"
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "claude-opus-5-5",
+        "id": "msg_011Cfo7GXPGuEHfKb5Qwee1Z",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "",
+            "signature": "CAQSgQYKEAgSGAI4AUIIdGhpbmtpbmcSDM1dM4ZvNM2mBydRnBoMTBwgcZOhR0B1ZWjqIjBjkVVwUylvdEBCsP9n82psYaJbRnsYu9icxpd5AanANW97i7ZwhFkwurY/t1hevjwqngVg8tt4tqCEdjfyZumzlkdKUrop+SDmAzxVFlmEXMaXQRygT8zQFwmkjCZ7lKQki2l6Zou5Np7o21FMM02V0o3W/oZuN44+6ctQAfWX6orerCY1crTpT3DcmHpy7JMMv3crYEw76PhJyTPQ41CrClZPSlT/w72oFGoECuHEYLHWKPXdTyFgbirMAeaSMIv8i7Gov0cw8HXVAWQWtN+4QN6yfbCzIz6D1VcLUQBHoEXlxwcTtZK5oZ/NijZIBmLwnEcjEbq3ngct8asrXaG6tC+SM5G2JPfng7V3eYyXTHLr1IH6by85gfXqiBvYjEBZtSi7g/tgpkvkr5wh/Q2HXInxf15J03amcY3dLOi553PTwGqe8sWSbbWmpl0caKuz8bOAJ49macDOIXWd6OEiV1ZirPqsG0qpoOZyCypaIb2oJHAxFExJvAVcllHFoVc7mTJ70eV/vzVNkApbS51PH5F+52RThZ+FpDvnti8fWqdLmh7r+6xFtpbd9J3vG8OUqpxbIaoW+SFmrqqJOwVY+IB0zt0/kk9bwwBQxWEmtut+EdGhtdq1mUFUuiB0KlkwrC41PxB7iYLrtFGBMnZVPKd2C+tR9SSzDn3Afqj2AGO0vFZ4CGrYHSWlPn91AIAbbE1ScnfwvDXGYc9JNhnWFG/cAMgf3lylQoqmLAN8Bz/ScBhxcbpvRyAG2VEqDkVymW3H3SE4khZDLIaBqW2MdmbWw4TlgxUcbiZZNXPN/tlEx+j693S3yhcT028qTGXFK2gsYIt5zFjOTR89qu1gzvU6heDyWI0st0cy9HrjRqQRVLuJAod4ivziSSD+dSB0poKSH6hLceDhXd8Y9L+YRQNRX2aT+DFH6nTZbMIgJAGm6ArJsNUv81ibZpxptdmvGAE="
+          }
+        ],
+        "container": null,
+        "stop_reason": null,
+        "stop_sequence": null,
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 813,
+          "cache_read_input_tokens": 20610,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 813
+          },
+          "output_tokens": 6,
+          "service_tier": "standard",
+          "inference_geo": "not_available"
+        },
+        "input_transformations": [],
+        "diagnostics": null,
+        "context_management": null
+      },
+      "parent_tool_use_id": null,
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "uuid": "c24004e0-d6df-4e32-b7d1-9046cea5500a",
+      "timestamp": "2026-10-07T15:24:58.692Z",
+      "request_id": "req_011Cfo7GX5uisyEaqshFn2ot"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "d48fa8eb-4386-4665-b0d9-1a7cd56a5b6c"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 1,
+        "content_block": {
+          "type": "text",
+          "text": ""
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "d80caf75-1595-448a-a8b7-8502c01643e4"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": "No"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "a6dcd930-3e80-4e3f-989e-6e27120a7b91"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": ", nothing is running. I"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "fe260e3b-c9ef-4656-9105-4a6e484f8f8a"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": " checked the mach"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "f3fec867-f029-4eca-8325-f5c6c734c670"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": "ine's process list,"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "36f67b68-1065-432b-b0f5-27fa4ef6cd6f"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": " and the only things"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "b3a282b7-12b4-4a78-9253-21d29943b920"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": " there"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "e94cd878-e022-4648-b472-60ae8b6b4b6a"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": " are this Claude session and the"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "65436bbe-e7c7-43f9-96b3-b6b413db11cc"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": " command I used"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "6ca6f587-597f-4b8f-bd2d-ec91592bd5bd"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": " to check it. No buil"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "50f95936-85d2-4932-9215-4fa3eb325915"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": "ds, tests, servers or"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "64ef33c7-2f7d-49fe-bcbf-41b05be7b561"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": " other ag"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "841de5ce-744f-4740-8283-6076cb4e2d01"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": "ents are running"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "f6fe9f0b-cd8e-47c1-9282-3a85539454f4"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": ", and this conversation has"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "a0885296-27e9-41ef-9728-72fe941a3f22"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": "n't started any.\n\nIf something"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "e4e12ccf-b6db-4f22-8c1b-76ff25cfcd33"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": " you"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "8b751b4a-39a7-4220-bc44-f940e60fc0a0"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": " laun"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "b5f332e0-e9d1-4c97-a4f8-7ca0a8b461f1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": "ched earlier se"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "97548c28-a885-4eb4-a2b6-3d0e8c1bd4f9"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": "ems st"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "b4a313b8-ad64-477e-8a71-34cf88c8a1a2"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": "uck, it has"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "e7436d02-c977-494e-9c26-59031a95a57a"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": " already exited. Tell me"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "d07caddb-cc72-45fc-ae22-492a6a889f59"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": " what it"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "873a5ad2-4599-4b2b-860d-ef0341a2ed6a"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": " was and"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "e0f63a49-df7d-480a-a720-734475a0e717"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": " I can"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "007f3eb6-0192-40d7-b39e-dd334986c384"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": " check wh"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "2950d7cf-a8e0-4d95-b651-aef62beb0983"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": "ether it fin"
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "5faf906f-e8f9-4e48-b672-7e67830cc5d3"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": "ished or restart it."
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "a6954e97-53f4-4147-a712-959a74e0fa36"
+    },
+    {
+      "type": "assistant",
+      "message": {
+        "model": "claude-opus-5-5",
+        "id": "msg_011Cfo7GXPGuEHfKb5Qwee1Z",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "No, nothing is running. I checked the machine's process list, and the only things there are this Claude session and the command I used to check it. No builds, tests, servers or other agents are running, and this conversation hasn't started any.\n\nIf something you launched earlier seems stuck, it has already exited. Tell me what it was and I can check whether it finished or restart it."
+          }
+        ],
+        "container": null,
+        "stop_reason": null,
+        "stop_sequence": null,
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 813,
+          "cache_read_input_tokens": 20610,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 0,
+            "ephemeral_1h_input_tokens": 813
+          },
+          "output_tokens": 6,
+          "service_tier": "standard",
+          "inference_geo": "not_available"
+        },
+        "input_transformations": [],
+        "diagnostics": null,
+        "context_management": null
+      },
+      "parent_tool_use_id": null,
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "uuid": "2d99b525-2eb7-4634-9ad9-0da0ec5a52ef",
+      "timestamp": "2026-10-07T15:24:58.699Z",
+      "request_id": "req_011Cfo7GX5uisyEaqshFn2ot"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 1
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "625ea4fa-05d9-471f-b5ae-c1e3466d33e2"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_delta",
+        "delta": {
+          "stop_reason": "end_turn",
+          "stop_sequence": null,
+          "stop_details": null,
+          "container": null,
+          "safeguard_results": [
+            {
+              "type": "dangerous_tool_use",
+              "status": {
+                "type": "available",
+                "tool_uses": {}
+              }
+            }
+          ]
+        },
+        "usage": {
+          "input_tokens": 2,
+          "cache_creation_input_tokens": 813,
+          "cache_read_input_tokens": 20610,
+          "output_tokens": 123,
+          "output_tokens_details": {
+            "thinking_tokens": 13
+          },
+          "iterations": [
+            {
+              "input_tokens": 2,
+              "output_tokens": 123,
+              "cache_read_input_tokens": 20610,
+              "cache_creation_input_tokens": 813,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 0,
+                "ephemeral_1h_input_tokens": 813
+              },
+              "type": "message"
+            }
+          ]
+        },
+        "context_management": {
+          "applied_edits": []
+        }
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "0f1b28cc-7a0d-4c63-ac7b-5b5e3ebdfe2e"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_stop"
+      },
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "parent_tool_use_id": null,
+      "uuid": "11734bb9-9ded-4a62-bcfa-d1917f031428"
+    },
+    {
+      "duration_api_ms": 12402,
+      "stop_reason": "end_turn",
+      "session_id": "02780c52-2c20-451a-a351-1e9c97027dec",
+      "total_cost_usd": 0.121701,
+      "usage": {
+        "input_tokens": 6,
+        "cache_creation_input_tokens": 1665,
+        "cache_read_input_tokens": 60772,
+        "output_tokens": 430,
+        "output_tokens_details": {
+          "thinking_tokens": 47
+        },
+        "server_tool_use": {
+          "web_search_requests": 0,
+          "web_fetch_requests": 0
+        },
+        "service_tier": "standard",
+        "cache_creation": {
+          "ephemeral_1h_input_tokens": 1665,
+          "ephemeral_5m_input_tokens": 0
+        },
+        "inference_geo": "not_available",
+        "iterations": [
+          {
+            "input_tokens": 2,
+            "output_tokens": 123,
+            "cache_read_input_tokens": 20610,
+            "cache_creation_input_tokens": 813,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 813
+            },
+            "type": "message"
+          }
+        ],
+        "speed": "standard"
+      },
+      "modelUsage": {
+        "claude-opus-5-5[1m]": {
+          "inputTokens": 10,
+          "outputTokens": 662,
+          "thinkingTokens": 135,
+          "cacheReadInputTokens": 90425,
+          "cacheCreationInputTokens": 11292,
+          "webSearchRequests": 0,
+          "costUSD": 0.121701,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 128000,
+          "canonicalModel": "claude-opus-5-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "permission_denials": [],
+      "terminal_reason": "completed",
+      "fast_mode_state": "off",
+      "fast_mode_disabled_reason": "sdk_opt_in_required",
+      "subagent_stats": {
+        "spawned": 0,
+        "requested": {
+          "background": 0,
+          "foreground": 0,
+          "unset": 0
+        },
+        "started_in_background": 0,
+        "max_depth": 0,
+        "spawned_by_subagents": 0,
+        "completed": 0,
+        "failed": 0,
+        "killed": {
+          "parent": 0,
+          "user": 0,
+          "system": 0
+        },
+        "refused": {
+          "depth_limit": 0,
+          "concurrency_limit": 0,
+          "budget": 0
+        },
+        "by_type": {}
+      },
+      "is_error": false,
+      "num_turns": 3,
+      "subtype": "success",
+      "api_error_status": null,
+      "result": "No, nothing is running. I checked the machine's process list, and the only things there are this Claude session and the command I used to check it. No builds, tests, servers or other agents are running, and this conversation hasn't started any.\n\nIf something you launched earlier seems stuck, it has already exited. Tell me what it was and I can check whether it finished or restart it.",
+      "ttft_ms": 2045,
+      "type": "result",
+      "duration_ms": 7970,
+      "uuid": "fa2224c0-da23-4ede-b2de-92166d1b1e5f",
+      "ttft_stream_ms": 1482,
+      "time_to_request_ms": 105,
+      "first_content_frame_ms": 1482,
+      "queued_turn_count": 0,
+      "result_index": 0
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+# Lod
+
+## Description
+
+Every variant has three levels of detail built from the same skeleton. Foliage does not change level: its sprites thin out continuously ([Foliage.simplification](./Foliage.md#simplification)). Branch levels and the impostor change by a cross-fade, never a swap.
+
+## Levels
+
+- LOD0 is the full skeleton as tapered branch tubes whose radial segment count falls with branch order. Twigs below a species radius are left out; the foliage sprites cover them.
+- LOD1 keeps only the trunk and the first-order limbs. The finer branches it drops sit inside the crown, so the sprites hide the change.
+- LOD2 is an octahedral impostor baked from LOD0 with its full foliage, with albedo, normal, depth and thickness, lit by the same lit path, sun, sky, fog and shadows as the geometry. It is never drawn with albedo alone.
+
+## Nesting
+
+The levels are nested, so every segment in a coarser level is also in every finer one, in the same place and at the same radius.
+
+## Selection
+
+- The level is chosen by the tree's projected height on screen, not by raw distance, so a change of camera field of view, as between the chase and the bonnet camera, picks the right level.
+- Projected height is measured from the tree's bounding sphere and the camera's position and field of view before camera shake and bounce are applied, so a shaking camera does not push trees back and forth across a threshold.
+- Each threshold has hysteresis. A tree moves to a coarser level when it drops below the threshold, and back to the finer one only when it rises above the threshold by a margin, 15% of the threshold by default.
+- The default thresholds sit where each coarser level is hard to tell from the finer one at rally speed, so trees near the road are at full detail and the distant forest is cheap. Sprite thinning starts below 14% of the screen height, branches move from LOD0 to LOD1 below 7%, and the tree moves to the impostor below 3.5%. For a 15 m tree at a 60 degree vertical field of view, that is roughly 90 m, 185 m and 370 m.
+- A tree within 60 m of the camera is always drawn at LOD0 with every sprite at full size, whatever its projected height, the field of view or the graphics quality setting.
+- Selection depends only on the frame's camera, never on draw order, culling batches or which pass is drawing.
+- Selection is not re-run for every tree every frame; see activeSet.
+
+## Active Set
+
+- Trees are grouped into cells along the stage. For each cell, the camera's distance range to the cell's trees bounds the projected height each of them can have, so whole cells can be settled at one level.
+- A tree is active, and re-selected on the CPU each frame, only while its projected height is within its hysteresis margin of a threshold, or of the 60 m full-detail distance, or while it is in a fade. Every other tree is settled and drawn from its cell's static batch for its level, with no per-frame CPU work.
+- A settled cell records how far the camera can move, and how much the field of view can change, before any of its trees could reach a margin. The cell is checked again only once the camera has moved or zoomed that much, not every frame.
+- On a normal benchmark run, at most a few hundred trees are active in any frame, and the tree stats overlay reports the count.
+- Sprite thinning ([Foliage.simplification](./Foliage.md#simplification)) and wind are computed per sprite on the GPU from the camera. They never make a tree active.
+- A tree that becomes active or settled moves between the static batch and the active list without rebuilding the cell's batch from scratch or reallocating a buffer.
+
+## Transition
+
+- A fade starts when the selected level changes and runs over a fixed time, 0.3 seconds by default, independent of frame rate and of how far the camera moves during it. It does not depend on where the tree is inside a distance band, so a car stopping near a threshold does not leave trees half faded.
+- Each tree keeps its own fade state, the outgoing level, the incoming level and a fade value from 0 to 1, from frame to frame. A culled tree keeps its state, and a tree that comes into view takes its selected level at once with no fade.
+- The fade value is one number per tree per frame. It is never derived from a vertex or pixel position, height, depth or texture coordinate, so a level never appears as a line or edge sweeping across the tree.
+- Both levels draw with the same screen-space dither mask and the same fade value. The outgoing level keeps the pixels whose mask value is at or above the fade value and the incoming level keeps those below it, so each pixel of the tree is covered by exactly one level and the tree is never thinner or more transparent than a solid tree at any point of the fade.
+- The dither mask is a tiled blue-noise or ordered pattern, at most 8 by 8 pixels, with no gradient or direction across the screen, anchored to screen pixels. It is not animated from frame to frame, and it is not jittered with temporal anti-aliasing unless the renderer's TAA resolves that jitter, so it does not shimmer or crawl.
+- Both levels are alpha-tested and write depth. A tree is never alpha-blended or drawn with a global opacity, so it never looks see-through while fading.
+- If the selected level changes back during a fade, the fade reverses from its current value; it never restarts from 0 or snaps. A request for a third level waits until the running fade finishes.
+- Wind sway, colour variation and lighting are the same on both levels during the fade, so nothing jumps when it ends.
+- The impostor blends the three baked views nearest the view direction by their barycentric weights, so it does not jump from view to view as the camera passes the tree.
+
+## Shadows
+
+- Shadows use one level coarser than the one drawn, and never the impostor within the near shadow cascade.
+- Only the nearest shadow cascade draws trees with wind and every sprite. Farther cascades draw trees as LOD1 with thinned sprites, or the impostor, with no wind, and re-render their tree casters every fourth frame, the cascades staggered so no two re-render on the same frame.
+- Shadow casters are culled per cascade, on the GPU, like the main pass.
+- Shadow casters are never dithered. A tree's shadow level switches once, when its fade finishes, so its shadow does not flicker while the tree fades.
+
+## Budget
+
+The thresholds, the hysteresis margin and the fade time are per species, with defaults, and the thresholds can be scaled by the graphics quality setting. Lower quality settings may bring the thresholds closer, but never inside the 60 m full-detail distance.
+
+## Debug View
+
+- A debug toggle tints each tree by the level it draws, shows trees in a fade with the fade value, and marks trees that changed level more than twice in the last second, so flickering trees can be found in a running stage.
+- It can also show foliage with lighting only and with normals only, so unlit or wrongly lit sprites and impostors can be seen at once.

@@ -32,45 +32,18 @@ import {
   jerseyBarrier,
 } from './builders/structures';
 import {
-  birchTree,
-  blackPine,
-  bush,
   dryGrass,
-  fruitTree,
-  hazelnutTree,
-  paleTree,
-  youngTree,
-  thicketShrub,
   grassTuft,
-  juniper,
-  oakTree,
-  pineTree,
-  poplarTree,
   reeds,
-  scrubBush,
   springGrass,
   tallWeeds,
-  walnutTree,
-  willowTree,
 } from './builders/vegetation';
 import { getAssetMeta } from './catalog';
-import { impostorOf } from './impostor';
 import type { AssetBuilder, BuiltAsset } from './types';
 
 /** id -> geometry builder. Metadata (LODs, colliders, variants) lives in catalog.ts. */
 export const BUILDERS: Record<string, AssetBuilder> = {
-  pine_tree: pineTree,
-  birch_tree: birchTree,
-  bush,
   grass_tuft: grassTuft,
-  scrub_bush: scrubBush,
-  fruit_tree: fruitTree,
-  hazelnut_tree: hazelnutTree,
-  pale_tree: paleTree,
-  young_tree: youngTree,
-  thicket_shrub: thicketShrub,
-  oak_tree: oakTree,
-  poplar_tree: poplarTree,
   dry_grass: dryGrass,
   spring_grass: springGrass,
   street_lamp: streetLamp,
@@ -96,10 +69,6 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   police_car: policeCar,
   fire_truck: fireTruck,
   ambulance,
-  black_pine: blackPine,
-  juniper,
-  walnut_tree: walnutTree,
-  willow_tree: willowTree,
   reeds,
   tall_weeds: tallWeeds,
   power_pylon: powerPylon,
@@ -125,14 +94,7 @@ export function getAsset(id: string, variant: number, lod: number): BuiltAsset {
   const key = `${id}:${variant}:${lod}`;
   let a = cache.get(key);
   if (!a) {
-    a = spec?.impostor
-      ? impostorOf(
-          id,
-          getAssetMeta(id).variants,
-          (v) => getAsset(id, v, lod - 1),
-          () => getAsset(id, variant, lod - 1),
-        )
-      : buildAsset(id, variantSeed(id, variant), variant, lod);
+    a = buildAsset(id, variantSeed(id, variant), variant, lod);
     cache.set(key, a);
   }
   return a;
@@ -161,7 +123,7 @@ export function cachedAssetCount(): number {
 /**
  * Every variant of (id, lod) merged per material into one geometry, each vertex tagged with `variantId`
  * (engine/materials.ts `variantMaterial`): the streamer draws all variants of an asset with ONE InstancedMesh per
- * material. null when not worth it or not possible: one variant / `oneVariant` / impostor LODs, more than
+ * material. null when not worth it or not possible: one variant / `oneVariant` LODs, more than
  * VARIANT_SET_TRIS (vegetation: VEGETATION_SET_TRIS) triangles in all (every instance runs the vertex shader over all
  * of them), or parts whose
  * attributes differ (cannot be merged).
@@ -172,7 +134,7 @@ export function getVariantSet(id: string, lod: number): BuiltAsset | null {
   const meta = getAssetMeta(id);
   const spec = meta.lods[lod];
   let set: BuiltAsset | null = null;
-  if (VARIANT_SETS && meta.variants > 1 && !spec.oneVariant && !spec.impostor) {
+  if (VARIANT_SETS && meta.variants > 1 && !spec.oneVariant) {
     const groups = new Map<Material, BufferGeometry[]>();
     let tris = 0;
     for (let v = 0; v < meta.variants; v++)

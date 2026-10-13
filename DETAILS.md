@@ -113,6 +113,8 @@ Home-screen app name = `apple-mobile-web-app-title` ("Mini Games"). Replace the 
 pages are network-first, everything else stale-while-revalidate, same-origin GET only. Nothing is precached: a game works
 offline after one online visit (its car GLBs, meshopt-compressed by the build, are cached when first requested). Relative URLs, so it works under a
 sub-folder such as `/mini-games/`. The cache keeps the newest `MAX_ENTRIES` files (oldest dropped, so stale hashed builds go first). Changing the caching rules: bump `CACHE` in `sw.js`.
+The dev server unregisters any worker on its origin (a `npm run preview` on the same port leaves one that serves stale dev
+bundles) and reloads once.
 
 ## Portal footer
 

@@ -13,6 +13,7 @@ import { ASSET_CATALOG, getAssetMeta, type AssetMeta } from '../assets/catalog';
 import { getAsset, getVariantSet } from '../assets/library';
 import { variantDepthMaterial } from '../engine/materials';
 import { hash3 } from '../../../shared/rng';
+import { isTreeType } from '../trees/species';
 import { CORNER_FAN_ASSETS } from './corner-fans';
 import type { ScatterInstance } from './scatter';
 import type { World } from './world';
@@ -137,12 +138,7 @@ export class InstanceStreamer {
     private opts: StreamerOptions,
   ) {
     this.group.name = 'scatter';
-    const metas = new Set([
-      ...world.map.scatter.map((r) => r.asset),
-      ...world.map.roadside.map((r) => r.asset),
-      ...(world.map.cornerFans ? CORNER_FAN_ASSETS : []),
-      ...world.map.props.map((p) => p.asset),
-    ]);
+    const metas = assetIds(world);
     let max = 0;
     let detail = 0;
     for (const id of metas) {
@@ -231,7 +227,8 @@ export class InstanceStreamer {
 
     const visit = (list: ScatterInstance[], detail: boolean) => {
       for (const inst of list) {
-        if (!this.filter(inst.asset)) continue;
+        // Trees are drawn by trees/draw.ts (TreeRenderer).
+        if (inst.tree || !this.filter(inst.asset)) continue;
         if (
           detail &&
           hash3(Math.floor(inst.x * 10), Math.floor(inst.z * 10), 3) /
@@ -330,7 +327,7 @@ export class InstanceStreamer {
       r = 0;
       const seen = new Set<string>();
       for (const inst of list) {
-        if (seen.has(inst.asset)) continue;
+        if (inst.tree || seen.has(inst.asset)) continue;
         seen.add(inst.asset);
         const lods = getAssetMeta(inst.asset).lods;
         r = Math.max(r, lods[lods.length - 1].maxDistance);
@@ -352,11 +349,10 @@ export class InstanceStreamer {
           2 -
           1) *
           tint;
-      // Far LODs flagged `oneVariant` share one bucket (getAsset draws variant 0 for them), variant sets and baked
-      // impostors too ('v').
+      // Far LODs flagged `oneVariant` share one bucket (getAsset draws variant 0 for them), variant sets too ('v').
       const keys = meta.lods.map(
         (l, lod) =>
-          `${inst.asset}:${sharedVariants(inst.asset, lod) ? 'v' : l.oneVariant ? 0 : inst.variant}:${lod}`,
+          `${inst.asset}:${getVariantSet(inst.asset, lod) ? 'v' : l.oneVariant ? 0 : inst.variant}:${lod}`,
       );
       d = {
         m: placedMatrix(inst, new Float32Array(16)),
@@ -551,7 +547,7 @@ export class InstanceStreamer {
     const asset = set ?? getAsset(inst.asset, inst.variant, lod);
     bucket.meshes = asset.parts.map((part, pi) => {
       let geometry = part.geometry;
-      if (bucket.variants) {
+      if (set) {
         // A wrapper sharing the cached vertex buffers, carrying this bucket's per-instance variants.
         geometry = bucket.geometries[pi] ??= shareAttributes(part.geometry);
         const iv = new InstancedBufferAttribute(new Float32Array(cap), 1);
@@ -589,17 +585,11 @@ export class InstanceStreamer {
    * the next commit sets visibility correctly again.
    */
   prewarm(): void {
-    const ids = new Set([
-      ...this.world.map.scatter.map((r) => r.asset),
-      ...this.world.map.roadside.map((r) => r.asset),
-      ...(this.world.map.cornerFans ? CORNER_FAN_ASSETS : []),
-      ...this.world.map.props.map((p) => p.asset),
-    ]);
-    for (const id of ids) {
+    for (const id of assetIds(this.world)) {
       const meta = getAssetMeta(id);
       for (let v = 0; v < meta.variants; v++) {
         for (let lod = 0; lod < meta.lods.length; lod++) {
-          const set = sharedVariants(id, lod);
+          const set = !!getVariantSet(id, lod);
           if (v > 0 && (meta.lods[lod].oneVariant || set)) continue;
           const key = `${id}:${set ? 'v' : v}:${lod}`;
           if (!this.buckets.has(key)) {
@@ -654,6 +644,18 @@ export class InstanceStreamer {
   }
 }
 
+/** Every catalog asset the map places (tree types are not assets: trees/). */
+function assetIds(world: World): Set<string> {
+  const ids = new Set([
+    ...world.map.scatter.map((r) => r.asset),
+    ...world.map.roadside.map((r) => r.asset),
+    ...(world.map.cornerFans ? CORNER_FAN_ASSETS : []),
+    ...world.map.props.map((p) => p.asset),
+  ]);
+  for (const id of ids) if (isTreeType(id)) ids.delete(id);
+  return ids;
+}
+
 let _bins = new Uint16Array(4096);
 const _cursor = new Uint32Array(BINS + 1);
 
@@ -680,15 +682,6 @@ function newBucket(key: string, meta: AssetMeta, lod: number): Bucket {
     sVar: new Float32Array(variants ? 64 : 0),
     sCount: 0,
   };
-}
-
-/** Buckets that draw every variant from one geometry, the instance's variant in `instVariant`: variant sets, baked impostors. */
-function sharedVariants(id: string, lod: number): boolean {
-  if (getVariantSet(id, lod)) return true;
-  return (
-    !!getAssetMeta(id).lods[lod].impostor &&
-    !!getAsset(id, 0, lod).perInstanceVariant
-  );
 }
 
 /** A geometry drawing the same vertex buffers as `src` (shared attribute objects = shared GPU buffers). */

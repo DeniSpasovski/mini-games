@@ -257,8 +257,15 @@ const SUN_TERMS = /* glsl */ `
 /** Inserted after the directional `RE_Direct` (after the shadow map: shaded leaves stay dark). */
 const FOLIAGE_TERM = /* glsl */ `
 		#ifdef RALLY_FOLIAGE
-			float wsBack = saturate( dot( - geometryViewDir, directLight.direction ) );
-			reflectedLight.directDiffuse += directLight.color * material.diffuseColor * ( float( RALLY_FOLIAGE ) * wsBack * wsBack * wsBack );
+			#if defined( TREE_SPRITE ) || defined( TREE_IMPOSTOR )
+				// Tree foliage (trees/materials.ts): a cheap wrap term for light through the leaves, weighted by the
+				// atlas / impostor thickness map (thin leaves let light through: a crown against a low sun glows).
+				float wsWrap = saturate( ( dot( - geometryNormal, directLight.direction ) + 0.5 ) / 1.5 );
+				reflectedLight.directDiffuse += directLight.color * material.diffuseColor * ( float( RALLY_FOLIAGE ) * wsWrap * ( 1.0 - tlThickness ) );
+			#else
+				float wsBack = saturate( dot( - geometryViewDir, directLight.direction ) );
+				reflectedLight.directDiffuse += directLight.color * material.diffuseColor * ( float( RALLY_FOLIAGE ) * wsBack * wsBack * wsBack );
+			#endif
 		#endif`;
 
 let installed = false;

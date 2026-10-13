@@ -38,8 +38,6 @@ export interface LodSpec {
   castShadow: boolean;
   /** Every instance uses variant 0's geometry (one draw call per asset instead of per variant: far LODs). */
   oneVariant?: boolean;
-  /** Camera-facing 2-triangle diamond built from the previous LOD (assets/impostor.ts). */
-  impostor?: boolean;
 }
 
 export interface AssetMeta {
@@ -61,78 +59,8 @@ export interface AssetMeta {
   breakable?: { r: number; h: number; slow?: number };
 }
 
-/**
- * LOD 0 must cover the sun's shadow box (quality.shadowExtent <= 75 m), so
- * farther LODs never cast shadows - they'd only cost shadow-pass draws.
- * Past IMPOSTOR_FROM a tree is a baked camera-facing impostor (assets/impostor.ts: 2 triangles).
- */
-const tree = (maxDist: number): LodSpec[] => [
-  { maxDistance: 110, castShadow: true },
-  ...farTree(maxDist),
-];
-/** Where trees turn into impostors (m, x the quality's lodScale). */
-export const IMPOSTOR_FROM = 250;
-const farTree = (maxDist: number): LodSpec[] => [
-  { maxDistance: IMPOSTOR_FROM, castShadow: false },
-  { maxDistance: maxDist, castShadow: false, oneVariant: true, impostor: true },
-];
-
 export const ASSET_CATALOG: AssetMeta[] = [
-  // --- vegetation -----------------------------------------------------------
-  {
-    id: 'pine_tree',
-    name: 'Pine tree',
-    category: 'vegetation',
-    description:
-      'Scots / spruce style conifer, layered jagged cones. Backbone of forest stages.',
-    variants: 4,
-    lods: tree(1700),
-    colliders: [{ kind: 'cylinder', r: 0.28, h: 6, y: -0.5 }],
-    tint: 0.12,
-  },
-  {
-    id: 'black_pine',
-    name: 'Black pine',
-    category: 'vegetation',
-    description:
-      'Austrian black pine: straight trunk, flat-topped umbrella crown of dark clumps (hill plantations).',
-    variants: 4,
-    lods: tree(1700),
-    colliders: [{ kind: 'cylinder', r: 0.3, h: 6, y: -0.5 }],
-    tint: 0.12,
-  },
-  {
-    id: 'juniper',
-    name: 'Juniper',
-    category: 'vegetation',
-    description:
-      'Dark conical juniper / cypress-like shrub, 2-3.5 m. No collision.',
-    variants: 3,
-    lods: [{ maxDistance: 110, castShadow: true }, ...farTree(900)],
-    tint: 0.12,
-  },
-  {
-    id: 'walnut_tree',
-    name: 'Walnut tree',
-    category: 'vegetation',
-    description:
-      'Big round yard tree (walnut / mulberry): thick trunk, dense dark crown.',
-    variants: 3,
-    lods: tree(1100),
-    colliders: [{ kind: 'cylinder', r: 0.34, h: 5, y: -0.5 }],
-    tint: 0.1,
-  },
-  {
-    id: 'willow_tree',
-    name: 'Willow',
-    category: 'vegetation',
-    description:
-      'Weeping willow: pale crown with drooping curtains, for canals / drains.',
-    variants: 3,
-    lods: tree(1000),
-    colliders: [{ kind: 'cylinder', r: 0.3, h: 4, y: -0.5 }],
-    tint: 0.1,
-  },
+  // --- vegetation (detail layer; trees and bushes grow from L-systems: trees/species.ts) ---
   {
     id: 'reeds',
     name: 'Reeds',
@@ -152,41 +80,6 @@ export const ASSET_CATALOG: AssetMeta[] = [
     lods: [{ maxDistance: 120, castShadow: false }],
   },
   {
-    id: 'birch_tree',
-    name: 'Birch tree',
-    category: 'vegetation',
-    description: 'White-bark deciduous tree with clumped round foliage.',
-    variants: 3,
-    lods: tree(1300),
-    colliders: [{ kind: 'cylinder', r: 0.18, h: 5, y: -0.5 }],
-    tint: 0.15,
-  },
-  {
-    id: 'bush',
-    name: 'Bush',
-    category: 'vegetation',
-    description: 'Low leafy shrub, no collision (you drive through it).',
-    variants: 3,
-    lods: [
-      { maxDistance: 90, castShadow: true },
-      { maxDistance: 450, castShadow: false },
-    ],
-    tint: 0.18,
-  },
-  {
-    id: 'scrub_bush',
-    name: 'Scrub bush',
-    category: 'vegetation',
-    description:
-      'Dark olive Mediterranean hill scrub (juniper / blackthorn), low and wide. Drive-through.',
-    variants: 4,
-    lods: [
-      { maxDistance: 90, castShadow: true },
-      { maxDistance: 450, castShadow: false },
-    ],
-    tint: 0.14,
-  },
-  {
     id: 'grass_tuft',
     name: 'Grass tuft',
     category: 'vegetation',
@@ -195,85 +88,6 @@ export const ASSET_CATALOG: AssetMeta[] = [
     variants: 2,
     lods: [{ maxDistance: 110, castShadow: false }],
     tint: 0.2,
-  },
-  {
-    id: 'fruit_tree',
-    name: 'Fruit tree',
-    category: 'vegetation',
-    description:
-      'Orchard / garden fruit tree (apple, plum): short trunk, wide round crown. Planted in rows by `rows` scatter.',
-    variants: 4,
-    lods: [{ maxDistance: 90, castShadow: true }, ...farTree(1100)],
-    colliders: [{ kind: 'cylinder', r: 0.14, h: 1.2, y: -0.3 }],
-    tint: 0.14,
-  },
-  {
-    id: 'hazelnut_tree',
-    name: 'Hazelnut bush',
-    category: 'vegetation',
-    description:
-      'Plantation hazelnut: multi-stemmed bush with a low, wide, fresh green crown. Planted in rows on `hazelnut` cover.',
-    variants: 3,
-    lods: [{ maxDistance: 90, castShadow: true }, ...farTree(1000)],
-    colliders: [{ kind: 'cylinder', r: 0.12, h: 1, y: -0.3 }],
-    tint: 0.14,
-  },
-  {
-    id: 'pale_tree',
-    name: 'Pale lane tree',
-    category: 'vegetation',
-    description:
-      'Tall plane / ash with a long grey-white trunk and an open yellow-green crown, lining country lanes (Petralica).',
-    variants: 4,
-    lods: tree(1700),
-    colliders: [{ kind: 'cylinder', r: 0.3, h: 6, y: -0.5 }],
-    tint: 0.12,
-  },
-  {
-    id: 'young_tree',
-    name: 'Young lane tree',
-    category: 'vegetation',
-    description:
-      'Slender elm / ash sapling, crown taller than wide, starting to yellow. Fills the hedges along lanes.',
-    variants: 4,
-    lods: [{ maxDistance: 100, castShadow: true }, ...farTree(1100)],
-    colliders: [{ kind: 'cylinder', r: 0.14, h: 2.5, y: -0.3 }],
-    tint: 0.14,
-  },
-  {
-    id: 'thicket_shrub',
-    name: 'Roadside thicket',
-    category: 'vegetation',
-    description:
-      'Dense hawthorn / blackthorn / elm-sucker shrub in autumn colours, 2.5-4.5 m, along lane edges and field borders. Drive-through (brush).',
-    variants: 4,
-    lods: [
-      { maxDistance: 90, castShadow: true },
-      { maxDistance: 450, castShadow: false },
-    ],
-    tint: 0.16,
-  },
-  {
-    id: 'oak_tree',
-    name: 'Oak tree',
-    category: 'vegetation',
-    description:
-      'Broad irregular broadleaf (oak / field tree) for hedgerows, gullies and village edges.',
-    variants: 4,
-    lods: tree(1500),
-    colliders: [{ kind: 'cylinder', r: 0.3, h: 4, y: -0.5 }],
-    tint: 0.14,
-  },
-  {
-    id: 'poplar_tree',
-    name: 'Lombardy poplar',
-    category: 'vegetation',
-    description:
-      'Tall columnar poplar lining canals, roads and field edges in the Skopje plain.',
-    variants: 3,
-    lods: tree(1900),
-    colliders: [{ kind: 'cylinder', r: 0.3, h: 6, y: -0.5 }],
-    tint: 0.12,
   },
   {
     id: 'dry_grass',

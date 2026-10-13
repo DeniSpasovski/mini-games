@@ -1,5 +1,6 @@
 import { Vector2 } from 'three';
 import { getAssetMeta } from '../../../assets/catalog';
+import { isTreeType } from '../../../trees/species';
 import { hash3, Rng } from '../../../../../shared/rng';
 import type { ScatterInstance } from '../../../world/scatter';
 import { ORIGIN, roadZ, SIDEWALK_BACK } from './frame';
@@ -21,7 +22,8 @@ export function startRowInstances(
     const z = at.y + ORIGIN.z;
     out.push({
       asset,
-      variant: h % getAssetMeta(asset).variants,
+      // Trees: the placement stage sets variant, rotation and scale (trees/placement.ts).
+      variant: isTreeType(asset) ? 0 : h % getAssetMeta(asset).variants,
       x,
       y: ground(x, z),
       z,
