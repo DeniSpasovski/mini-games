@@ -6,7 +6,7 @@ export anchor Placement:
 
     variants:
         - Each species pre-generates a pool of variants, 8 by default, each from its own seed, with every LOD and its impostor.
-        - A placed tree picks its variant from a hash of the stage id and its placement index, and its rotation about the vertical and its scale, within the species range, from the same hash. A stage therefore grows the same forest every time.
+        - A placed tree picks its variant from a hash of the stage id and its placement index, and its rotation about the vertical and its scale, within the species range, from the same hash. The scale the map gives the tree, its scatter rule's range, a hand-placed sapling or a street tree sized by its trunk, multiplies the species scale. A stage therefore grows the same forest every time.
         - Variants are drawn with instancing, one batch per variant and level.
 
     caching:

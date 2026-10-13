@@ -67,6 +67,8 @@ interface Turtle {
   dist: number;
   branch: number;
   branchDist: number;
+  /** Tropism strength from here on (`T(e)`; starts at the species' `tropismStrength`, inherited by sub-branches). */
+  e: number;
 }
 
 export function buildSkeleton(modules: Module[], def: SpeciesDef): Skeleton {
@@ -74,7 +76,6 @@ export function buildSkeleton(modules: Module[], def: SpeciesDef): Skeleton {
   const leaves: LeafPoint[] = [];
   const leafCount = new Map<number, number>();
   const tropism = norm(def.tropism);
-  const e = def.tropismStrength;
   let branches = 0;
   let t: Turtle = {
     pos: [0, 0, 0],
@@ -87,6 +88,7 @@ export function buildSkeleton(modules: Module[], def: SpeciesDef): Skeleton {
     dist: 0,
     branch: branches++,
     branchDist: 0,
+    e: def.tropismStrength,
   };
   const stack: Turtle[] = [];
   const turn = (axis: V3, a: number) => {
@@ -123,7 +125,7 @@ export function buildSkeleton(modules: Module[], def: SpeciesDef): Skeleton {
         // Tropism: bend the heading towards the tropism vector by e * |h x T|.
         const axis = cross(t.h, tropism);
         const s = len(axis);
-        if (e > 0 && s > 1e-6) turn(scale(axis, 1 / s), e * s);
+        if (t.e > 0 && s > 1e-6) turn(scale(axis, 1 / s), t.e * s);
         break;
       }
       case '+':
@@ -149,6 +151,10 @@ export function buildSkeleton(modules: Module[], def: SpeciesDef): Skeleton {
         break;
       case '!':
         t.radius *= def.radiusDecay;
+        break;
+      case 'T':
+        // Weeping shoots hang, a columnar crown's limbs stay upright: this branch's own tropism strength.
+        t.e = m.a.length ? m.a[0] : def.tropismStrength;
         break;
       case '[':
         stack.push(t);

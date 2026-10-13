@@ -262,7 +262,10 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   per 128 m tile). A custom shader must scale `envMapIntensity` (it carries `scene.environmentIntensity`), never replace it.
 - Scatter view culling (`InstanceStreamer.setView`, called every frame by the game): non-shadow buckets (LOD1+) are
   angle-sorted and only the camera's view (+ 25 deg) is drawn. LOD0 shadow casters are drawn whole.
-- Trees (`trees/`, L-system species in `trees/species.ts`; map rules keep the old tree type ids): 8 variants per species.
+- Trees (`trees/`, L-system species in `trees/species.ts`): map rules place the old tree type ids, each grown as the species
+  its description names (`TREE_TYPES`: pine, black pine, juniper, oak, walnut, fruit tree, plane, birch, sapling, poplar,
+  willow, bush, scrub, hazel, thicket); 6 variants for pine / oak / bush / scrub, 4 for the rest. The map's `scale`
+  multiplies the species size.
   Branches are tubes at two levels (LOD0 = the skeleton without twigs, LOD1 = trunk + first-order limbs), then an
   octahedral impostor (albedo, normal + depth, thickness: lit like everything else). Foliage = one lit, camera-facing
   cluster sprite per leaf point from a per-kind atlas of 8 images (`trees/leaftex.ts`: albedo, normal + thickness),

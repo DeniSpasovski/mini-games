@@ -23,6 +23,7 @@ import {
 import { buildSkeleton } from '../../src/games/rally/trees/skeleton';
 import {
   SPECIES,
+  speciesOfType,
   TREE_TYPES,
   getSpecies,
   speciesHash,
@@ -106,7 +107,7 @@ describe('trees', () => {
   );
 
   test('a species change gives new variant seeds', () => {
-    const def = getSpecies('Conifer');
+    const def = getSpecies('Pine');
     const changed = { ...def, angle: def.angle + 1 };
     expect(speciesHash(changed)).not.toBe(speciesHash(def));
     expect(variantSeed(changed, 0)).not.toBe(variantSeed(def, 0));
@@ -121,9 +122,62 @@ describe('trees', () => {
     const a = placeTree('petralica', 42, 'pine_tree');
     expect(placeTree('petralica', 42, 'pine_tree')).toEqual(a);
     expect(placeTree('jackie', 42, 'pine_tree')).not.toEqual(a);
-    const def = getSpecies('Conifer');
+    const def = getSpecies('Pine');
     expect(a.scale).toBeGreaterThanOrEqual(def.scale[0]);
     expect(a.scale).toBeLessThanOrEqual(def.scale[1]);
+  });
+
+  test("the map's scale multiplies the species' size", () => {
+    const a = placeTree('petralica', 42, 'pine_tree');
+    const b = placeTree('petralica', 42, 'pine_tree', 0.5);
+    expect(b.scale).toBeCloseTo(a.scale * 0.5, 6);
+  });
+
+  // Each map tree type looks like the tree its map describes (spec trees/Species.md#types).
+  test('every tree type has the shape the map data describes', () => {
+    const v = (asset: string) => {
+      const def = speciesOfType(asset);
+      return { def, info: generateVariant(def, 0).info };
+    };
+    const ratio = (asset: string) => {
+      const { info } = v(asset);
+      return info.height / (2 * info.radius);
+    };
+    const lum = (hex: string) =>
+      [1, 3, 5].reduce((a, i) => a + parseInt(hex.slice(i, i + 2), 16), 0) /
+      765;
+    // Columnar poplar and juniper; spreading walnut and willow; a pine taller than wide.
+    expect(ratio('poplar_tree')).toBeGreaterThan(2.5);
+    expect(ratio('juniper')).toBeGreaterThan(1.1);
+    expect(ratio('pine_tree')).toBeGreaterThan(1.3);
+    expect(ratio('walnut_tree')).toBeLessThan(1);
+    expect(ratio('willow_tree')).toBeLessThan(0.8);
+    // Black pine: a bare trunk under an umbrella crown (its lowest crown point in the top third).
+    const bp = v('black_pine').info;
+    expect(bp.crown.c[1] - bp.crown.r[1]).toBeGreaterThan(bp.height * 0.6);
+    // Pale-barked birch and plane, white against the oak's brown.
+    for (const pale of ['birch_tree', 'pale_tree'])
+      expect(lum(v(pale).def.bark.color)).toBeGreaterThan(
+        lum(v('oak_tree').def.bark.color) + 0.3,
+      );
+    // Conifers wear needles, the rest leaves; the thicket is in autumn colours (red over green).
+    for (const c of ['pine_tree', 'black_pine', 'juniper'])
+      expect(v(c).def.foliage.kind).toBe('needles');
+    for (const c of ['oak_tree', 'poplar_tree', 'willow_tree', 'bush'])
+      expect(v(c).def.foliage.kind).toBe('broadleaf');
+    for (const hex of v('thicket_shrub').def.foliage.palette)
+      expect(parseInt(hex.slice(1, 3), 16)).toBeGreaterThan(
+        parseInt(hex.slice(3, 5), 16) - 20,
+      );
+    // Sizes: shrubs and junipers are low; the fruit tree is smaller than the oak; the poplar is the tallest.
+    for (const low of ['bush', 'scrub_bush', 'juniper'])
+      expect(v(low).info.height).toBeLessThan(4);
+    expect(v('fruit_tree').info.height).toBeLessThan(
+      v('oak_tree').info.height * 0.7,
+    );
+    expect(v('poplar_tree').info.height).toBeGreaterThan(
+      v('oak_tree').info.height * 1.4,
+    );
   });
 
   test('conifers and broadleaves collide on their trunk; shrubs are drive-through', () => {
@@ -146,7 +200,14 @@ describe('trees', () => {
       expect(Math.hypot(low.a![0] - 10, low.a![2] + 5)).toBeLessThan(0.01);
       expect(low.a![1]).toBeCloseTo(2, 5);
     }
-    expect(at('bush')).toEqual([]);
+    for (const asset of [
+      'bush',
+      'scrub_bush',
+      'thicket_shrub',
+      'hazelnut_tree',
+      'juniper',
+    ])
+      expect(at(asset)).toEqual([]);
   });
 });
 

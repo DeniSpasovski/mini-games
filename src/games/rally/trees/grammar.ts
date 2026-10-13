@@ -7,7 +7,7 @@ import type { SpeciesDef } from './species';
  */
 
 /** The symbols the turtle reads (trees/skeleton.ts). */
-export const ALPHABET = 'FfAB+-&^<>|![]L';
+export const ALPHABET = 'FfAB+-&^<>|![]LT';
 
 export interface Module {
   s: string;

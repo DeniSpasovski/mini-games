@@ -16,6 +16,7 @@ A species' L-system is a parametric, stochastic, bracketed grammar: an axiom and
 - "!" multiplies the current radius by the species radius decay.
 - "[" pushes the turtle state and starts a child branch, one branch order deeper; "]" pops it.
 - L places a leaf cluster at the turtle's position and orientation.
+- T(e) sets the tropism strength of the current branch and every branch grown from it, so a willow's shoots hang and a poplar's limbs stay upright while the trunk grows straight.
 
 ## Rules
 
@@ -31,7 +32,7 @@ A species' L-system is a parametric, stochastic, bracketed grammar: an axiom and
 ## Turtle
 
 - The turtle keeps position, an orientation frame, the current radius and the current branch order.
-- After each segment its heading bends toward the species tropism vector (gravity or light) by the species tropism strength.
+- After each segment its heading bends toward the species tropism vector (gravity or light) by the branch's tropism strength, the species strength unless T changed it.
 - Radii taper so a parent segment is never thinner than any child leaving it.
 
 ## Skeleton

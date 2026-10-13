@@ -292,9 +292,14 @@ export class ScatterField {
     return out;
   }
 
-  /** Variant, rotation, scale and tint of a placed tree from the stage id and its placement index. */
+  /** Variant, rotation, scale (x the map's) and tint of a placed tree from the stage id and its placement index. */
   private poseTree(inst: ScatterInstance, index: number): void {
-    const t = placeTree(this.ctx.stageId ?? 'stage', index, inst.asset);
+    const t = placeTree(
+      this.ctx.stageId ?? 'stage',
+      index,
+      inst.asset,
+      inst.scale,
+    );
     inst.variant = t.variant;
     inst.rotY = t.rotY;
     inst.scale = t.scale;

@@ -26,11 +26,16 @@ export interface PlacedTree {
   pose: TreePose;
 }
 
-/** Pose of the `index`-th tree placed on stage `stageId`, a tree type from the map data. */
+/**
+ * Pose of the `index`-th tree placed on stage `stageId`, a tree type from the map data. `mapScale` is the scale the
+ * map gave it (its scatter rule's range, a hand-placed sapling, a street tree sized by its trunk): it multiplies the
+ * species' own size range.
+ */
 export function placeTree(
   stageId: string,
   index: number,
   asset: string,
+  mapScale = 1,
 ): PlacedTree {
   const def = speciesOfType(asset);
   const h = mix32(hashText(stageId), index);
@@ -41,7 +46,7 @@ export function placeTree(
       Math.floor(u(1) * variantCount(def)),
     ),
     rotY: u(2) * Math.PI * 2,
-    scale: def.scale[0] + (def.scale[1] - def.scale[0]) * u(3),
+    scale: (def.scale[0] + (def.scale[1] - def.scale[0]) * u(3)) * mapScale,
     pose: {
       species: def.name,
       hue: (u(4) - 0.5) * 0.06,
