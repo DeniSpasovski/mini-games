@@ -6,7 +6,7 @@ parts by material only (no cuts). In game it is **Ford Mustang GT3**: RWD, 1300 
 - **Kept from the model:** the body, wing, splitter and diffuser, the cockpit (seats, cage, wheel, dash) behind see-through glass, the
   3D head / tail lamps and the 10-spoke rim (de-cambered, centred on the hub).
 - **Dropped:** tyres, brake discs and calipers (the game draws its own), the windscreen banner.
-- **Paint (ours):** one flat colour, other seeds recolour it; no logos or lettering.
+- **Paint (ours):** one flat dark blue, other seeds recolour it; no logos or lettering.
 
 ![Front three-quarter](screenshots/front-34.jpg)
 

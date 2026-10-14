@@ -195,7 +195,7 @@ export const fordGt3: CarDef = {
     ]),
   },
   model: {
-    paint: '#e9e6dd',
+    paint: '#1a2b55',
     // The model's own rim (ford_gt3_wheel.glb), de-cambered and centred on the hub.
     rim: { color: '#3a3d42', spokes: 10, style: 'spoke', caliper: '#c8a040' },
     wheelModel: 'ford_gt3_wheel.glb',
