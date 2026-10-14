@@ -79,8 +79,8 @@ export interface CarModelDef {
     spokes: number;
     /** 'spoke' = alloy rally wheel, 'steel' = pressed steel disc with hub cap. */
     style?: 'spoke' | 'steel';
-    /** Brake caliper colour (default red). */
-    caliper?: string;
+    /** Brake caliper colour (default red); `false` = none (an old car whose wheel shows only the disc). */
+    caliper?: string | false;
   };
   /**
    * Window glass tint override (default: dark, 45% opaque). On an imported body it also replaces the opaque `glass`

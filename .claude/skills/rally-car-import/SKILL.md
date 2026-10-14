@@ -148,7 +148,7 @@ Picking workflow (`parts.picks`, first pick wins):
    domed lamp glass (a bulge over each bowl) gets `parts.flatten` (one smooth cover through the lamp outline, `stl-to-glb.mjs`).
 7. Materials by name in `cars/shared/part-materials.ts`; add names there, never per-car material code. Clearcoat on
    dark parts (grille, wing) reflects the sky and reads grey - keep `clearcoat` <= 0.6 and `envMapIntensity` ~0.5
-   on blacks and carbon. Calipers / damper colours come from the CarDef (`rim.caliper`, `suspension.damper`).
+   on blacks and carbon. Calipers / damper colours come from the CarDef (`rim.caliper`, `false` = none; `suspension.damper`).
 
 Check each part close up in the viewer (lamp, vent, wing, arches **with the wheels hidden**:
 `__carViewer.model.tires.visible = false; __carViewer.model.rims.visible = false`). The GLB render of

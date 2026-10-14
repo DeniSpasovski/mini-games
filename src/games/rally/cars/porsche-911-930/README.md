@@ -6,9 +6,9 @@ material only (no cuts). In game it is **Porsche 911 (930)**: RWD, 1195 kg, 3.0 
 
 - **Kept from the model:** the body with its whale tail and bumpers, the headlamps (with their own texture) and tail lamps, the
   five-spoke rim (de-cambered, centred on the hub), ash-black centre with a silver lip.
-- **Dropped:** tyres, brake discs and the wheel nuts (a simpler rim); the wordmark on the rear light strip is now a plain red lens.
+- **Dropped:** tyres, brake discs and the wheel nuts (a simpler rim), and no caliper is drawn (`rim.caliper: false`); the wordmark on the rear light strip is now a plain red lens.
 - **No interior:** the model is an empty shell, so the windows are tinted.
-- **Paint (ours):** one flat red, other seeds recolour it; no logos or lettering.
+- **Paint (ours):** one flat Porsche yellow, other seeds recolour it; no logos or lettering.
 
 ![Front three-quarter](screenshots/front-34.jpg)
 
@@ -48,5 +48,5 @@ Power and torque are the published figures; gearbox ratios, tyre grip and brake 
 | Body, lamps, rim | ["Porsche 911 (930) Turbo 1975" by Lexyc16, Sketchfab](https://sketchfab.com/3d-models/porsche-911-930-turbo-1975-de1ffd344c41481892511f7fd332c136) | **CC BY 4.0**  |
 | Specification    | [Porsche Classic - 911 Turbo](https://www.porsche.com/usa/accessoriesandservice/classic/models/911-g/911-turbo/)                                    | reference only |
 
-Converted and repainted by us (attribution in `CarDef.credit`, `THIRD-PARTY.md`, `public/models/CREDITS.md`). The downloaded GLB
+Converted and repainted by us (attribution in `gltf.credit`, `THIRD-PARTY.md`, `public/models/CREDITS.md`). The downloaded GLB
 itself is not in the repository (`sources/` is git-ignored); only the converted `porsche_911_930.glb` / `_wheel.glb` / `_lamp.png` ship.

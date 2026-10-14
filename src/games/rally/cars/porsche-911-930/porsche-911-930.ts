@@ -206,9 +206,9 @@ export const porsche911930: CarDef = {
     ]),
   },
   model: {
-    paint: '#b3161d',
+    paint: '#ffc800',
     // The model's own five-spoke rim (porsche_911_930_wheel.glb), de-cambered and centred on the hub.
-    rim: { color: '#c9ccd0', spokes: 5, style: 'spoke', caliper: '#7a7c80' },
+    rim: { color: '#c9ccd0', spokes: 5, style: 'spoke', caliper: false },
     wheelModel: 'porsche_911_930_wheel.glb',
     suspensionStyle: 'classic',
     cornerSuspension: {

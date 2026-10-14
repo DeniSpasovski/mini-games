@@ -1000,6 +1000,8 @@ export class CarModel {
       this.rimColoredMat = this.rimMat.clone();
       this.rimColoredMat.color.set(0xffffff);
       this.rimColoredMat.vertexColors = true;
+      // The model's rim is a thin dished shell with no barrel: seen from inside / the side it must not vanish.
+      this.rimColoredMat.side = DoubleSide;
       this.owned.push(this.rimColoredMat);
     }
     return this.rimColoredMat;
@@ -1154,6 +1156,10 @@ export function buildWheelSet(
   const scale = barrel / RIM_UNIT_BARREL;
   const brakes = buildBrakeGeometries(scale, size.width);
   base.caliper.dispose();
+  if (def.model.rim.caliper === false) {
+    brakes.caliper.dispose();
+    brakes.caliper = new BoxGeometry(0.001, 0.001, 0.001);
+  }
   let rim = base.rim;
   const stlRim = stlRims.get(file);
   if (stlRim) {
