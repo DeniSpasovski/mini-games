@@ -363,6 +363,13 @@ body {
   flex-direction: column;
   gap: 4px;
   margin-top: 6px;
+  /* stays in view while the card content scrolls (the card is the scroller) */
+  position: sticky;
+  bottom: -20px;
+  z-index: 2;
+  padding-bottom: 20px;
+  margin-bottom: -20px;
+  background: linear-gradient(0deg, var(--kb-card) 75%, transparent);
 }
 .kb-range {
   flex: 1;
