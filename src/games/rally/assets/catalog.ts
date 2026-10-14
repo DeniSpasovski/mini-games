@@ -179,6 +179,18 @@ export const ASSET_CATALOG: AssetMeta[] = [
     ],
   },
   {
+    id: 'flagpole',
+    name: 'Flagpole',
+    category: 'props',
+    description:
+      'National flag of North Macedonia on an 11 m mast (Sredno Vodno car park). Flies along +X. Solid pole.',
+    variants: 1,
+    lods: [
+      { maxDistance: 160, castShadow: true },
+      { maxDistance: 600, castShadow: false },
+    ],
+  },
+  {
     id: 'road_barrier',
     name: 'Road barrier',
     category: 'props',

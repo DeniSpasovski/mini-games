@@ -5,6 +5,7 @@ import { variantMaterial } from '../engine/materials';
 import {
   chevronSign,
   fanFlag,
+  flagpole,
   hayBale,
   markerPost,
   roadBarrier,
@@ -60,6 +61,7 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   spectator,
   tape_post: tapePost,
   fan_flag: fanFlag,
+  flagpole,
   road_barrier: roadBarrier,
   marker_post: markerPost,
   chevron_sign: chevronSign,

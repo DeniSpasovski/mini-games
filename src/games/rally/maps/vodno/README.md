@@ -29,6 +29,9 @@ grass on the lower slopes. Side streets and tracks meeting the stage road are cl
 | St. Panteleimon (1164, five domes)     | Gorno Nerezi, 2.9 km west of the finish            |
 | Lookout tower, Markovi Kuli ruins      | on Abedishte; above Kisela Voda                    |
 
+Two car parks sit on the stage road: the Vidikovec viewpoint lot at the hairpin and the Sredno Vodno lot at the finish (with the
+flag of North Macedonia on its mast). Both are wide paved ribbons joined to the road (`lots.ts`), not the thin OSM aisle lines.
+
 The churches, platform, lodge, stations, tower and ruins are hand-modelled in the style of the Ajvatovci hilltop church
 (`landmarks/`): the real plans from OpenStreetMap, the sizes from published figures, fewer details (they are far away).
 

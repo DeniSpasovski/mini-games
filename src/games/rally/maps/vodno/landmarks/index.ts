@@ -18,6 +18,7 @@ import { buildLodge, buildPlatform } from './summit';
 import {
   LODGE,
   LOOKOUT,
+  LOT_FLAGPOLE,
   LOWER_STATION,
   NEREZI_AREAS,
   NEREZI_CHURCH,
@@ -123,9 +124,11 @@ export const srednoVodnoLandmark = landmark({
       cylinderCollider(SREDNO_CHURCH, -1.1, 3.05, yc, 3.1, 3.8),
       cylinderCollider(SREDNO_CHURCH, 2.05, 0, yc, 3.1, 3.8),
       boxCollider(LOWER_STATION, [-HALF_L, HALF_L, -HALF_W, HALF_W], ys, 9.6),
+      cylinderCollider(LOT_FLAGPOLE, 0, 0, base(g, LOT_FLAGPOLE), 0.12, 11),
     ];
   },
   plants: [
+    { asset: 'flagpole', site: LOT_FLAGPOLE, x: 0, z: 0, scale: 1 },
     { asset: 'juniper', site: SREDNO_CHURCH, x: -9, z: -4.6, scale: 0.8 },
     { asset: 'juniper', site: SREDNO_CHURCH, x: -5, z: 6.4, scale: 0.7 },
     { asset: 'pine_tree', site: SREDNO_CHURCH, x: -14.5, z: 4.6, scale: 0.9 },

@@ -16,6 +16,7 @@ import data from './data.json';
 import horizon from './horizon.json';
 import { vodnoInfo as info } from './info';
 import { VODNO_FLATS } from './landmarks';
+import { dropLotAisles, LOT_FLATS, LOT_PATHS } from './lots';
 import { FINISH, START } from './stages';
 
 /**
@@ -70,7 +71,7 @@ export const vodnoMap: MapDef = {
     ],
     edgeRise: 0,
     rockSlope: [0.65, 1.0],
-    flatAreas: VODNO_FLATS,
+    flatAreas: [...VODNO_FLATS, ...LOT_FLATS],
   },
   landcover: {
     ...(data.landcover as Omit<LandcoverDef, 'splat' | 'fields'>),
@@ -93,7 +94,7 @@ export const vodnoMap: MapDef = {
       cemetery: [0.7, 0.2, 0, 0.1],
     },
   },
-  paths: data.paths as PathDef[],
+  paths: [...dropLotAisles(data.paths as PathDef[]), ...LOT_PATHS],
   // The side roads are streets and forest tracks: tracks are gravel ribbons (objects), streets city asphalt.
   trackRibbons: true,
   // Tracks over steep pine woods: a longer height window than the default track (25 m) keeps them smooth.
@@ -330,6 +331,41 @@ export const vodnoMap: MapDef = {
       offset: 1.6,
       minRadius: 40,
       faceRoad: true,
+    },
+    // The suburban start street (the run-up and the first 700 m of the climb): tall leafy trees and thick bushes close in on
+    // the verge on both sides, as on the real street.
+    {
+      asset: 'walnut_tree',
+      every: 11,
+      from: 0,
+      to: START + 700,
+      side: 'both',
+      offset: 3.4,
+      depth: 3,
+      scale: [0.9, 1.4],
+      skipJunctions: 6,
+    },
+    {
+      asset: 'oak_tree',
+      every: 17,
+      from: 8,
+      to: START + 700,
+      side: 'both',
+      offset: 5,
+      depth: 3,
+      scale: [0.8, 1.3],
+      skipJunctions: 6,
+    },
+    {
+      asset: 'thicket_shrub',
+      every: 3.5,
+      from: 0,
+      to: START + 700,
+      side: 'both',
+      offset: 1.9,
+      depth: 1.5,
+      scale: [0.8, 1.3],
+      skipJunctions: 6,
     },
     // Crowds: the start, the hairpins above it, the Vidikovec junction, the finish at Sredno Vodno.
     {

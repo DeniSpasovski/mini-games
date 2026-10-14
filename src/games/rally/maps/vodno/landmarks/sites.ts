@@ -16,6 +16,9 @@ const rad = (deg: number): number => (deg * Math.PI) / 180;
 /** Church of the Nativity of the Theotokos (Middle Vodno monastery), OSM way 689815741: three-lobed (triconch) plan. */
 export const SREDNO_CHURCH: Site = { x: 464.27, z: -528.81, yaw: rad(-16.5) };
 
+/** The flagpole in the Sredno Vodno car park (at the finish): the lot's north-east edge, see ../lots.ts. */
+export const LOT_FLAGPOLE: Site = { x: 511.5, z: -367, yaw: 0 };
+
 /** The Millennium Cross platform, OSM way 618009929: a round platform of 24 m on twelve columns. */
 export const PLATFORM: Site = { x: -700.6, z: 796.4, yaw: 0 };
 export const PLATFORM_RADIUS = 12;

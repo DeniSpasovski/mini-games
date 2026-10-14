@@ -250,6 +250,60 @@ export const fanFlag: AssetBuilder = ({ seed, variant, lod }) => {
 };
 
 /**
+ * Flagpole with the flag of North Macedonia (a national flag on a 11 m mast, as on the Sredno Vodno car park): a yellow
+ * eight-ray sun on red, flying along +X. The sun is coloured per triangle on a fine grid.
+ */
+export const flagpole: AssetBuilder = ({ lod }) => {
+  const H = 11;
+  const W = 3.6;
+  const FH = 1.8;
+  const pole = new CylinderGeometry(0.06, 0.1, H, lod === 0 ? 8 : 4);
+  pole.translate(0, H / 2, 0);
+  const ball = new IcosahedronGeometry(0.11, 0);
+  ball.translate(0, H + 0.1, 0);
+  const nx = lod === 0 ? 96 : 32;
+  const ny = lod === 0 ? 48 : 16;
+  const cloth = paint(new PlaneGeometry(W, FH, nx, ny), '#ffffff');
+  const RED = new Color('#ee2a20');
+  const YELLOW = new Color('#ffe424');
+  // Sun: disc of 0.1 flag widths, eight rays (one per 45 degrees, straight up and along the diagonals), widening
+  // from the disc then narrowing to a point.
+  const sun = (x: number, y: number): Color => {
+    const r = Math.hypot(x, y) / FH;
+    if (r < 0.14) return YELLOW;
+    if (r > 0.5) return RED;
+    const a = Math.atan2(y, x);
+    const q = Math.PI / 4;
+    const k = Math.abs(((((a + q / 2) % q) + q) % q) - q / 2);
+    const t = (r - 0.14) / 0.36;
+    return k < 0.11 * (1 - t) + 0.015 ? YELLOW : RED;
+  };
+  colourTriangles(cloth, (x, y) => sun(x, y));
+  const p = cloth.getAttribute('position');
+  for (let i = 0; i < p.count; i++) {
+    const u = p.getX(i) / W + 0.5;
+    p.setXYZ(
+      i,
+      u * W + 0.06,
+      p.getY(i) + H - FH / 2 - 0.2 - u * u * 0.15,
+      Math.sin(u * 6) * 0.14 * u,
+    );
+  }
+  return {
+    parts: [
+      {
+        geometry: merge([
+          paint(pole, '#d8d8d4'),
+          paint(ball, '#c9a227'),
+          ...twoSided(cloth),
+        ]),
+        material: getMaterial('props'),
+      },
+    ],
+  };
+};
+
+/**
  * Police / marshal road-closed barrier: two red-white striped rails on A-frame legs.
  * 2.2 m long along local X, front (+Z) faces the stage road.
  */
