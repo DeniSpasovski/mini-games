@@ -148,6 +148,10 @@
         "material": "amber"
       },
       {
+        "node": "body.008_emzone_206_deta1_0",
+        "material": "reverselamp"
+      },
+      {
         "mat": "emzone_206_deta1",
         "material": "lamphousing"
       },
@@ -232,6 +236,7 @@
       "amber",
       "lamphousing",
       "tailled",
+      "reverselamp",
       "mirror",
       "interior",
       "interior:2s",
