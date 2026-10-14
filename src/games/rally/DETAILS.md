@@ -310,6 +310,7 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 - Long synchronous steps (world build, road, props, shader compile) set their label and `paint()` first, so the bar never
   sits unlabelled at 0%. The car's GLB starts downloading before the map data (`preloadCarModel`).
 - Car select: a "Loading model" spinner (`Showroom.loadCue`) shows while a car's GLB downloads (the car stays hidden until then).
+- Car select: All / AWD / RWD / FWD filter row on top (`driveGroup` from the car's `drivetrain.frontSplit`, not remembered); up from the first car or the pad focuses it, left / right switch.
 
 ## Known limitations
 
