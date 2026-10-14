@@ -39,9 +39,10 @@ npm run dev     # /games/rally/car-viewer.html?car=ford_gt3
 
 ## Credits and licence
 
-| What                      | Source                                       | Licence       |
-| ------------------------- | -------------------------------------------- | ------------- |
-| Body, cockpit, lamps, rim | "2024 Ford Mustang GT3" by kevin (Sketchfab) | **CC BY 4.0** |
+| What                      | Source                                                                                                                                | Licence        |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| Body, cockpit, lamps, rim | ["2024 Ford Mustang GT3" by kevin, Sketchfab](https://sketchfab.com/3d-models/2024-ford-mustang-gt3-d2b7823f48f147e99e857ee825d089cc) | **CC BY 4.0**  |
+| Specification             | [Ford Performance - Mustang GT3](https://www.ford.com/performance/mustang-gt3/)                                                       | reference only |
 
 Converted and repainted by us (attribution in `CarDef.credit`, `THIRD-PARTY.md`, `public/models/CREDITS.md`). The downloaded GLB
 itself is not in the repository (`sources/` is git-ignored); only the converted `ford_gt3.glb` / `ford_gt3_wheel.glb` ship.

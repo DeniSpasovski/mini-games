@@ -82,7 +82,18 @@ export const fordGt3: CarDef = {
   className: 'GT3 · RWD V8',
   description:
     'Customer GT3 racer of the seventh-generation Mustang: a 5.4 litre V8 up front, a rear-mounted sequential gearbox and slicks on all four corners.',
-  sources: [],
+  sources: [
+    {
+      label: '"2024 Ford Mustang GT3" by kevin (Sketchfab)',
+      url: 'https://sketchfab.com/3d-models/2024-ford-mustang-gt3-d2b7823f48f147e99e857ee825d089cc',
+      note: 'imported body, cockpit, lamps and rim (converted + repainted), CC BY 4.0',
+    },
+    {
+      label: 'Ford Performance - Mustang GT3',
+      url: 'https://www.ford.com/performance/mustang-gt3/',
+      note: 'specification reference (5.4 l Coyote-based V8, rear transaxle)',
+    },
+  ],
   // 5.4 l naturally aspirated V8, open race exhaust, sequential race box.
   sound: {
     layout: 'v8',
@@ -204,7 +215,8 @@ export const fordGt3: CarDef = {
     doorBadge: { z: 0.25, y: 0.6 },
     gltf: {
       file: 'ford_gt3.glb',
-      credit: '"2024 Ford Mustang GT3" by kevin (Sketchfab, CC BY 4.0)',
+      credit:
+        '"2024 Ford Mustang GT3" by kevin, sketchfab.com/3d-models/2024-ford-mustang-gt3-d2b7823f48f147e99e857ee825d089cc, CC BY 4.0 (converted + repainted)',
       autoFit: false,
       atlas: fordGt3Livery,
     },
