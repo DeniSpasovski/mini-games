@@ -140,9 +140,9 @@ export const merc190: CarDef = {
     engine: {
       // 2.5 l NA four (Evolution II class): ~245 Nm at 5000, ~173 kW (235 hp) at 7200.
       torqueCurve: [
-        [1000, 130],
-        [2000, 175],
-        [3000, 205],
+        [1000, 150],
+        [2000, 195],
+        [3000, 225],
         [4000, 228],
         [5000, 245],
         [6000, 242],
@@ -156,7 +156,7 @@ export const merc190: CarDef = {
       launchRpm: 4500,
     },
     gearbox: {
-      ratios: [3.5, 2.2, 1.55, 1.2, 0.95],
+      ratios: [4.0, 2.35, 1.6, 1.22, 0.95],
       reverse: 3.4,
       finalDrive: 3.9,
       shiftTime: 0.2,
@@ -167,7 +167,7 @@ export const merc190: CarDef = {
     gearings: {
       short: { finalDrive: 4.4 },
       medium: { finalDrive: 3.9 },
-      long: { finalDrive: 3.4 },
+      long: { finalDrive: 3.8 },
     },
     drivetrain: {
       frontSplit: 0,
