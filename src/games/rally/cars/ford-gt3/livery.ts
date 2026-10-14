@@ -186,8 +186,7 @@ function paint(
   const FIELD: Pt[] = [
     [0.39, DOOR_TOP],
     [0.69, DOOR_TOP],
-    [0.69, 0.69],
-    [0.802, 0.694],
+    [0.85, 0.7],
     [1.121, 0.746],
     [1.09, 0.835],
     [1.25, 0.832],
@@ -197,9 +196,9 @@ function paint(
     [1.44, 0.735],
     [1.138, 0.717],
     [1.037, 0.579],
-    [0.875, 0.579],
-    [0.83, 0.403],
-    [0.39, 0.4],
+    [0.853, 0.579],
+    [0.767, 0.331],
+    [0.39, 0.331],
   ];
   const FIN_REF = 0.945; // stripes are defined at this height
   const FIN_SLOPE = 0.5; // z shift per metre of height drop (traced: ~0.45 on the door, steeper on the vent)
