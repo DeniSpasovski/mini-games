@@ -98,16 +98,17 @@ export const bimmerGt2: CarDef = {
       note: 'GT2 race car reference (article, looked at only)',
     },
   ],
-  // Race V8 (~4 l), open race exhaust, sequential race box.
+  // Flat-plane race V8 (S65 / P65 style, ~4 l), open race exhaust, sequential race box.
   sound: {
-    layout: 'v8',
-    displacement: 4,
-    exhaust: 1,
-    intake: 0.6,
-    pops: 0.8,
+    layout: 'v8flat',
+    displacement: 3.6,
+    exhaust: 0.9,
+    intake: 0.75,
+    pops: 0.6,
     gearWhine: 0.7,
     gearbox: 'sequential',
-    cam: 0.7,
+    cam: 0.3,
+    roughness: 0.03,
   },
   physics: {
     mass: 1150,

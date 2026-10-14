@@ -46,6 +46,9 @@ describe('engine sound', () => {
       offOrder({ ...base, layout: 'v8', displacement: 4 }),
     ).toBeGreaterThan(0.05);
     expect(offOrder({ ...base, layout: 'flat4' })).toBeGreaterThan(0.05);
+    expect(offOrder({ ...base, layout: 'v8flat' })).toBeLessThan(
+      offOrder({ ...base, layout: 'v8' }),
+    );
   });
 
   test('roughness is seeded (same car, same sound)', () => {
