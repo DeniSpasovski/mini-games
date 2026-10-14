@@ -29,6 +29,8 @@ const DECK = 1.5; // above this nothing is painted on the side chart; the top ch
 
 // Front fender: solid light blue behind the front arch that breaks up into FIN stripes going rearward and thinning out.
 const FIN = 12;
+/** The rear chart also holds rear-facing walls further forward (door gaps, mirror, vent ribs) at |x| > 0.8: red only on the back panel. */
+const REAR_RED_X = 0.8;
 
 function paint(
   ctx: CanvasRenderingContext2D,
@@ -126,10 +128,10 @@ function paint(
   P.end(
     'rear',
     [
-      [-1.2, 0],
-      [1.2, 0],
-      [1.2, 1.6],
-      [-1.2, 1.6],
+      [-REAR_RED_X, 0],
+      [REAR_RED_X, 0],
+      [REAR_RED_X, 1.6],
+      [-REAR_RED_X, 1.6],
     ],
     RED,
   );
