@@ -930,6 +930,25 @@
   }
 }
 
+/* Select car: the description card sits right of the car list (wide screens). */
+.menu-car-card {
+  position: absolute;
+  z-index: 41;
+  top: 40px;
+  left: 472px;
+  width: 280px;
+  max-height: calc(100% - 64px);
+  box-sizing: border-box;
+  padding: 18px 20px;
+  overflow-y: auto;
+  border-radius: 12px;
+  background: rgba(8, 10, 14, 0.78);
+  backdrop-filter: blur(6px);
+}
+.menu-car-card p:first-child {
+  margin-top: 0;
+}
+
 /* Stage times: the saved runs float over the map view, right of the stage list. */
 .menu-times-card {
   position: absolute;

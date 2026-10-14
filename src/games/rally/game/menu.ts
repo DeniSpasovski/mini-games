@@ -279,13 +279,14 @@ class MainMenu {
     this.panel = this.root.querySelector('.menu-panel')!;
     const bg = this.root.querySelector<HTMLElement>('.menu-bg')!;
     // The 3D subject (car / stage) is centred in the screen area right of the panel.
-    this.showroom = new Showroom(
-      bg,
-      quality,
-      () =>
-        this.panel.getBoundingClientRect().right -
-        bg.getBoundingClientRect().left,
-    );
+    this.showroom = new Showroom(bg, quality, () => {
+      // The car sits right of the panel and, on the car screen, right of the spec card beside it.
+      const card = this.root.querySelector('.menu-car-card');
+      return (
+        (card ?? this.panel).getBoundingClientRect().right -
+        bg.getBoundingClientRect().left
+      );
+    });
     this.showroom.setCar(this.car.id, this.livery, this.badge);
     window.addEventListener('keydown', this.onKey);
     // Console handle: __rallyMenu.showroom
@@ -394,7 +395,9 @@ class MainMenu {
     this.screen = screen;
     this.panel.dataset.screen = screen;
     this.panel.replaceChildren();
-    this.root.querySelector('.menu-times-card')?.remove();
+    this.root
+      .querySelectorAll('.menu-times-card, .menu-car-card')
+      .forEach((el) => el.remove());
     if (screen === 'welcome') this.welcome();
     if (screen === 'options')
       this.panel.append(
@@ -419,7 +422,10 @@ class MainMenu {
     // Stage select shows the map from the air, everything else the car.
     // The setup screen drives the showroom itself (parts bench, see setupSelect).
     if (screen === 'map') this.showroom.showMap(this.map.id);
-    else if (screen !== 'setup' && screen !== 'times') this.showroom.showCar();
+    else if (screen !== 'setup' && screen !== 'times')
+      this.showroom.showCar(
+        screen === 'car' && !!this.root.querySelector('.menu-car-card'),
+      );
     // First visit with no quality chosen: measure the picking screens, the stage then starts on the result.
     if ((screen === 'map' || screen === 'car') && needsAutoQuality())
       this.showroom.measureFrameTime((ms) => {
@@ -648,6 +654,9 @@ class MainMenu {
     const p = car.physics;
     const pk = peakPower(p.engine);
     const specs = div('menu-specs');
+    // Wide screens: the description sits in a card right of the car list; phones keep it under the list.
+    const beside = window.innerWidth >= 1200;
+    if (beside) specs.classList.add('menu-car-card');
     specs.innerHTML = `
       <p>${car.description}</p>
       ${isTestCar(car.id) ? `<p class="menu-test-note">${TEST_NOTE}</p>` : ''}
@@ -670,9 +679,10 @@ class MainMenu {
       .querySelector('[data-a="livery+"]')!
       .addEventListener('click', () => this.setLivery(this.livery + 1));
 
+    if (beside) this.root.append(specs);
     this.panel.append(
       list,
-      specs,
+      ...(beside ? [] : [specs]),
       buttons(
         ['Back', () => this.show('map')],
         ['Setup car', () => this.show('setup')],
