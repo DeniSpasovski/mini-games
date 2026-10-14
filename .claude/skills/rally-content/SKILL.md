@@ -38,7 +38,7 @@ Rules (performance — late-2000s look must not lag):
   instance with `ScatterInstance.sx / sy / sz` (width / height / depth) and a `box` collider; keep details
   relative. `house_pitched` walls end at `HOUSE_WALL_FRACTION` of the height (roof above), `building_flat` styles
   0/1 hall, 2 brick block, 3 rendered block; variants 4-7 = two floors of windows.
-- Vegetation palette so far: `pine_tree`, `birch_tree`, `oak_tree`, `poplar_tree`, `fruit_tree` (orchard rows), `hazelnut_tree`
+- Vegetation palette so far: `pine_tree`, `black_pine`, `birch_tree`, `oak_tree`, `beech_tree` (mountain beech), `juniper`, `poplar_tree`, `fruit_tree` (orchard rows), `hazelnut_tree`
   (plantation rows), `pale_tree` (tall plane / ash), `young_tree` (sapling), `thicket_shrub` (autumn roadside brush, drive-through),
   `bush` (green), `scrub_bush` (dark olive hill scrub), `grass_tuft`, `spring_grass`, `dry_grass`; props incl. `street_lamp`, `road_barrier` (red-white police / marshal barrier, solid, closes side-road junctions),
   `tape_post` (5.2 m of red / white tape along local X), `fan_flag` (generic designs, no national / club flags).

@@ -1,0 +1,294 @@
+{
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/merc-190/model-01-mercedes-190e-evo.glb = 'Mercedes 190E EVO 1982 3D Model Free' by Betier Models (CC BY 4.0), metres, +x left, +y up, +z nose. Mapped by material only (no region cuts) except the badges: the hood star, the grille badge, the three boot-lid badges and the steering-wheel badge are dropped, and so are the model's own springs, dampers and arms at the four wheels (the game draws its coil-overs). Tyres, rims, discs, hubs and calipers are dropped (the game builds its own wheels, the rim is the model's: merc_190_wheel.glb). The offset centres the car on x (body and hub centre -0.052), puts the front hub (model z 1.612) on physics front.z 1.229 and the hubs (model y 0.314) at the tyre radius 0.3146. The atlas block is also read by livery.ts at runtime - edit it only here.",
+  "source": "sources/cars/merc-190/model-01-mercedes-190e-evo.glb -> glb-to-parts-stl.py -> sources/cars/merc-190/merc-190-parts.stl",
+  "output": "public/models/cars/merc_190.glb",
+  "axes": ["x", "y", "z"],
+  "scale": 1.0,
+  "offset": [0.052, 0.0006, -0.383],
+  "groundAtMin": false,
+  "targetTriangles": 90000,
+  "creaseDeg": 40,
+  "wheels": {
+    "$comment": "the wheels are separate primitives (dropped below) - nothing to cut",
+    "radius": 0,
+    "minAbsX": 9,
+    "centres": []
+  },
+  "atlas": {
+    "pxPerMetre": 256,
+    "width": 5.25,
+    "height": 9.0,
+    "bounds": {
+      "x": [-1.05, 1.05],
+      "y": [0, 1.5],
+      "z": [-2.6, 2.6]
+    },
+    "charts": {
+      "left": [0, 0],
+      "right": [0, 1.55],
+      "top": [0, 3.1],
+      "front": [0, 5.25],
+      "rear": [2.2, 5.25],
+      "bottom": [0, 6.8]
+    }
+  },
+  "gltf": {
+    "drop": [
+      "Tyre",
+      "material_43",
+      "rotor",
+      "material_45",
+      "caliper",
+      "IN2_LF_black_0",
+      "IN2_RF_black_0",
+      "IN2_LR_black_0",
+      "IN2_RR_black_0",
+      "mer_190e_90_cockpit_hooda_emblem___367_vertices_544_faces_emblem_0",
+      "mer_190e_90_lod0_trunk_emblem___180_vertices_268_faces_emblem_0",
+      "mer_190e_90_lod0_trunk_chrome___3495_vertices_5903_faces_Car_exterior_metal_0",
+      "mer_190e_90_cockpit_steering_wheel_reflector___37_vertices_63_f_reflector_0",
+      "mer_190e_90_cockpit_steering_wheel_glass___73_vertices_136_face_Car_frame_0",
+      "mer_190e_90_cockpit_steering_wheel_chrome___271_vertices_426_fa_chrome_0"
+    ],
+    "parts": [
+      {
+        "node": "mer_190e_90_lod0_undercarriagea_undercarriage___4247_vertices_3_undercarriage_0",
+        "x": [-0.62, 0.52],
+        "y": [0.05, 0.85],
+        "z": [1.3, 1.75],
+        "whole": true,
+        "material": "susp"
+      },
+      {
+        "node": "mer_190e_90_lod0_undercarriagea_undercarriage___4247_vertices_3_undercarriage_0",
+        "x": [-0.62, 0.52],
+        "y": [0.05, 0.85],
+        "z": [-1.25, -0.9],
+        "whole": true,
+        "material": "susp"
+      },
+      {
+        "node": "mer_190e_90_lod0_trunk_plastic2___470_vertices_961_faces_Car_Plastic_Detail_0",
+        "x": [-0.08, -0.03],
+        "y": [0.83, 0.87],
+        "z": [-2.0, -1.97],
+        "whole": true,
+        "material": "logo"
+      },
+      {
+        "node": "mer_190e_90_cockpit_hooda_chrome___2048_vertices_3927_faces_Car_exterior_metal_0",
+        "x": [-0.1, -0.01],
+        "y": [0.7, 0.82],
+        "z": [2.17, 2.22],
+        "whole": true,
+        "material": "logo"
+      },
+      {
+        "mat": "Car_body_color",
+        "material": "body"
+      },
+      {
+        "mat": "Car_headlight_glass",
+        "material": "glass"
+      },
+      {
+        "mat": "Car_Mirror",
+        "material": "mirror"
+      },
+      {
+        "mat": "head_light",
+        "material": "chrome"
+      },
+      {
+        "mat": "reflector",
+        "material": "chrome"
+      },
+      {
+        "mat": "Car_Windows_All_black",
+        "material": "lamphousing"
+      },
+      {
+        "mat": "Car_turn_light",
+        "material": "amber"
+      },
+      {
+        "mat": "Car_backight_glass_orange",
+        "material": "amber"
+      },
+      {
+        "mat": "Car_backlight_glass_red",
+        "material": "brakecover"
+      },
+      {
+        "mat": "Car_backlight_glass_red.001",
+        "material": "brakecover"
+      },
+      {
+        "mat": "Car_backlight_glass",
+        "material": "lenscover"
+      },
+      {
+        "mat": "Car_Windows_All",
+        "z": [1.9, 3],
+        "material": "lenscover"
+      },
+      {
+        "mat": "Car_Windows_All",
+        "material": "glass"
+      },
+      {
+        "node": [
+          "mer_190e_90_lod0_taillightR_reverse_light_lod0___85_vertices_10_intlighty_0",
+          "mer_190e_90_lod0_taillightL_reverse_light_lod0___85_vertices_10_intlighty_0"
+        ],
+        "material": "reverselamp"
+      },
+      {
+        "mat": "intlighty",
+        "z": [0.5, 3],
+        "material": "headled"
+      },
+      {
+        "mat": "intlighty",
+        "material": "tailled"
+      },
+      {
+        "mat": "chrome",
+        "material": "chrome"
+      },
+      {
+        "mat": "Car_exterior_metal",
+        "material": "chrome"
+      },
+      {
+        "mat": "cloth",
+        "material": "interior"
+      },
+      {
+        "mat": "plastic",
+        "material": "interior"
+      },
+      {
+        "mat": "bump_leather2",
+        "material": "interior"
+      },
+      {
+        "mat": "bump_leather3",
+        "material": "interior"
+      },
+      {
+        "mat": "INT_Cintura",
+        "material": "interior"
+      },
+      {
+        "mat": "tett",
+        "material": "interior"
+      },
+      {
+        "mat": "wood",
+        "material": "interior"
+      },
+      {
+        "mat": "mottled",
+        "material": "interior"
+      },
+      {
+        "mat": "metal",
+        "material": "interior"
+      },
+      {
+        "mat": "metallzz",
+        "material": "interior"
+      },
+      {
+        "mat": "material",
+        "material": "interior"
+      },
+      {
+        "mat": "material_33",
+        "material": "interior"
+      },
+      {
+        "mat": "gauge_emissive",
+        "material": "interior"
+      },
+      {
+        "mat": "badge",
+        "material": "interior"
+      },
+      {
+        "mat": "baddge2",
+        "material": "interior"
+      },
+      {
+        "mat": "black",
+        "material": "trim"
+      },
+      {
+        "mat": "Car_frame",
+        "material": "trim"
+      },
+      {
+        "mat": "Car_Plastic_Detail",
+        "material": "trim"
+      },
+      {
+        "mat": "Car_Plastic_Detail_Ext_Door",
+        "material": "trim"
+      },
+      {
+        "mat": "rubber_trim.001",
+        "material": "trim"
+      },
+      {
+        "mat": "matte_colors",
+        "material": "trim"
+      },
+      {
+        "mat": "bottom",
+        "material": "trim"
+      },
+      {
+        "mat": "undercarriage",
+        "material": "trim"
+      },
+      {
+        "mat": "grille",
+        "material": "trim"
+      },
+      {
+        "mat": "grille1_alpha",
+        "material": "trim"
+      },
+      {
+        "mat": "emblem",
+        "material": "trim"
+      }
+    ],
+    "default": "trim"
+  },
+  "parts": {
+    "materials": [
+      "body",
+      "trim",
+      "glass",
+      "lenscover",
+      "chrome",
+      "interior",
+      "logo",
+      "mirror",
+      "lamphousing",
+      "headled",
+      "tailled",
+      "brakecover",
+      "amber",
+      "susp",
+      "reverselamp"
+    ],
+    "drop": ["logo", "susp"],
+    "maxTriangles": {
+      "interior": 22000,
+      "lamphousing": 8000
+    }
+  }
+}

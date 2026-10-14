@@ -128,7 +128,7 @@ export class StageTimer {
 
   /** Where a manual reset puts the car: nearest point on the road around the progress. */
   resetAlong(x: number, z: number): number {
-    return this.world.road.queryRange(
+    return this.world.stageRoad.queryRange(
       x,
       z,
       this.progress - WINDOW,
@@ -190,7 +190,7 @@ export class StageTimer {
       return;
     }
     if (this.phase !== 'running') return;
-    const q = this.world.road.query(x, z, this.q);
+    const q = this.world.stageRoad.query(x, z, this.q);
     this.time += dt;
     if (
       q.found &&
@@ -200,7 +200,7 @@ export class StageTimer {
     ) {
       this.progress = Math.max(this.progress, q.along);
       // Wrong way: facing against the road while moving.
-      const s = this.world.road.at(q.along);
+      const s = this.world.stageRoad.at(q.along);
       const against = fwdX * s.tx + fwdZ * s.tz < -0.4 && speed > 3;
       this.wrongTimer = against ? this.wrongTimer + dt : 0;
       const ww = this.wrongTimer > 1.5;
@@ -246,7 +246,7 @@ export class StageTimer {
 
   /** Off-stage warning / reset (see the file comment). True = the car was reset ('cut' emitted). */
   private updateCut(dt: number, x: number, z: number, q: RoadQuery): boolean {
-    const l = this.world.road.queryRange(
+    const l = this.world.stageRoad.queryRange(
       x,
       z,
       this.progress - WINDOW,
@@ -295,10 +295,13 @@ export class StageTimer {
 }
 
 /**
- * Times versions: a saved time is only comparable while the MAP and the CAR it was driven with still behave
- * the same, so each run carries both (`RunRecord.ver` = map version, `RunRecord.carVer` = car version).
+ * Times versions: a saved time is only comparable while the STAGE and the CAR it was driven with still behave
+ * the same, so each run carries both (`RunRecord.ver` = stage version, `RunRecord.carVer` = car version). Times are
+ * stored per stage id; every stage that existed before the map / stage split has its old map id, so the keys
+ * (`rally.times.<id>`, `rally.best.<id>.<car>`, `rally.timesVersion.<id>`) and numbers did not change.
  *
- * - Map (`MAP_TIMES_VERSIONS`): bump a map when its road / length, track-limit penalties or a surface change.
+ * - Stage (`STAGE_TIMES_VERSIONS`): bump a stage when its road / length, track-limit penalties or a surface change; a
+ *   map change that moves its road bumps every stage on that map. Never rename a stage id (its times are keyed by it).
  * - Car (`CAR_TIMES_VERSIONS`): bump a car when ITS handling changes (stats, grip, setups, gearing). A new
  *   shared physics change bumps EVERY released car. Livery / model / visual fixes never bump anything. Test cars / maps
  *   (`release.ts` TEST_*) stay at 1 until they are released: nobody has official times on them yet. Bump only in a prod
@@ -313,11 +316,14 @@ export class StageTimer {
  * History: 1 = first per-map / per-car versions. Every time saved before them (map and car version unknown) is kept
  * as an old `v0` run.
  */
-export const MAP_TIMES_VERSIONS: Record<string, number> = {
+export const STAGE_TIMES_VERSIONS: Record<string, number> = {
   test: 1,
   ajvatovci: 1,
   petralica: 1,
   jackie: 1,
+  galichica_west: 1,
+  galichica_east: 1,
+  prespa_ohrid: 1,
 };
 export const CAR_TIMES_VERSIONS: Record<string, number> = {
   skoda_rally: 3,
@@ -330,13 +336,14 @@ export const CAR_TIMES_VERSIONS: Record<string, number> = {
   lancer_evo_6: 2,
   ford_gt3: 1,
   porsche_911_930: 1,
+  merc_190: 1,
 };
 /** Current version of a map / car (unknown ids count as 1). */
-export const timesVersion = (mapId: string): number =>
-  MAP_TIMES_VERSIONS[mapId] ?? 1;
+export const timesVersion = (stageId: string): number =>
+  STAGE_TIMES_VERSIONS[stageId] ?? 1;
 export const carTimesVersion = (carId: string): number =>
   CAR_TIMES_VERSIONS[carId] ?? 1;
-const versionKey = (mapId: string) => `rally.timesVersion.${mapId}`;
+const versionKey = (stageId: string) => `rally.timesVersion.${stageId}`;
 const carVersionKey = (carId: string) => `rally.carVersion.${carId}`;
 
 /** The stored version of a map / car (null = nothing saved yet). */
@@ -365,28 +372,28 @@ export function migrateTimes(store: Storage = localStorage): boolean {
   let changed = false;
   try {
     // Stored version of every map / car that differs from the code (a fresh player has nothing to migrate).
-    const mapOld = new Map<string, number>();
+    const stageOld = new Map<string, number>();
     const carOld = new Map<string, number>();
-    for (const mapId of Object.keys(MAP_TIMES_VERSIONS)) {
-      const prev = storedVersion(store, versionKey(mapId));
-      if (prev !== timesVersion(mapId)) mapOld.set(mapId, prev ?? 0);
+    for (const stageId of Object.keys(STAGE_TIMES_VERSIONS)) {
+      const prev = storedVersion(store, versionKey(stageId));
+      if (prev !== timesVersion(stageId)) stageOld.set(stageId, prev ?? 0);
     }
     for (const carId of Object.keys(CAR_TIMES_VERSIONS)) {
       const prev = storedVersion(store, carVersionKey(carId));
       if (prev !== carTimesVersion(carId)) carOld.set(carId, prev ?? 0);
     }
-    if (mapOld.size || carOld.size) {
+    if (stageOld.size || carOld.size) {
       const keys = storedKeys(store);
       // Per-car bests of a bumped map / car -> old runs in the leaderboard.
       for (const k of keys) {
         if (!k.startsWith(BEST_PREFIX)) continue;
-        const [mapId, carId] = k.slice(BEST_PREFIX.length).split('.');
-        if (!mapOld.has(mapId) && !carOld.has(carId)) continue;
+        const [stageId, carId] = k.slice(BEST_PREFIX.length).split('.');
+        if (!stageOld.has(stageId) && !carOld.has(carId)) continue;
         const best = loadBest(k, store);
         store.removeItem(k);
         changed = true;
         if (!best) continue;
-        const list = readRuns(store, timesKey(mapId));
+        const list = readRuns(store, timesKey(stageId));
         if (
           list.some(
             (r) => r.car === carId && Math.abs(r.time - best.total) < 1e-6,
@@ -400,18 +407,18 @@ export function migrateTimes(store: Storage = localStorage): boolean {
           splits: best.splits,
           date: 0,
         });
-        store.setItem(timesKey(mapId), JSON.stringify(list));
+        store.setItem(timesKey(stageId), JSON.stringify(list));
       }
       // Tag every untagged run with the version it was set on.
       for (const k of storedKeys(store)) {
         if (!k.startsWith(TIMES_PREFIX)) continue;
-        const mapId = k.slice(TIMES_PREFIX.length);
+        const stageId = k.slice(TIMES_PREFIX.length);
         try {
           const runs = JSON.parse(store.getItem(k) ?? 'null');
           if (!Array.isArray(runs)) continue;
           for (const r of runs) {
             if (!r || typeof r !== 'object') continue;
-            if (mapOld.has(mapId)) r.ver ??= mapOld.get(mapId);
+            if (stageOld.has(stageId)) r.ver ??= stageOld.get(stageId);
             if (carOld.has(r.car)) r.carVer ??= carOld.get(r.car);
           }
           store.setItem(k, JSON.stringify(runs));
@@ -421,8 +428,8 @@ export function migrateTimes(store: Storage = localStorage): boolean {
         }
       }
     }
-    for (const mapId of Object.keys(MAP_TIMES_VERSIONS))
-      store.setItem(versionKey(mapId), String(timesVersion(mapId)));
+    for (const stageId of Object.keys(STAGE_TIMES_VERSIONS))
+      store.setItem(versionKey(stageId), String(timesVersion(stageId)));
     for (const carId of Object.keys(CAR_TIMES_VERSIONS))
       store.setItem(carVersionKey(carId), String(carTimesVersion(carId)));
   } catch {
@@ -473,8 +480,8 @@ const BEST_PREFIX = 'rally.best.';
 const TIMES_PREFIX = 'rally.times.';
 
 /** localStorage key of the best run per map + car. */
-export function bestKey(mapId: string, carId: string): string {
-  return `rally.best.${mapId}.${carId}`;
+export function bestKey(stageId: string, carId: string): string {
+  return `rally.best.${stageId}.${carId}`;
 }
 
 export function loadBest(
@@ -526,13 +533,13 @@ export interface RunRecord {
 /** Runs kept per car and map (so "this car" can always show a full top 10). */
 const RUNS_PER_CAR = 10;
 
-const timesKey = (mapId: string) => `rally.times.${mapId}`;
+const timesKey = (stageId: string) => `rally.times.${stageId}`;
 
 /** Leaderboard of a map, current runs fastest first, then older versions. Older per-car bests are folded in once. */
-export function loadTimes(mapId: string, carIds: string[]): RunRecord[] {
+export function loadTimes(stageId: string, carIds: string[]): RunRecord[] {
   let runs: RunRecord[] | null;
   try {
-    const raw = localStorage.getItem(timesKey(mapId));
+    const raw = localStorage.getItem(timesKey(stageId));
     const parsed = raw ? JSON.parse(raw) : null;
     runs = Array.isArray(parsed)
       ? parsed.filter(
@@ -549,7 +556,7 @@ export function loadTimes(mapId: string, carIds: string[]): RunRecord[] {
   if (!runs) {
     runs = [];
     for (const car of carIds) {
-      const b = loadBest(bestKey(mapId, car));
+      const b = loadBest(bestKey(stageId, car));
       if (b)
         runs.push({
           time: b.total,
@@ -560,21 +567,21 @@ export function loadTimes(mapId: string, carIds: string[]): RunRecord[] {
         });
     }
   }
-  return runs.sort(compareRuns(timesVersion(mapId)));
+  return runs.sort(compareRuns(timesVersion(stageId)));
 }
 
 /** Add a run to the map leaderboard (keeps the fastest RUNS_PER_CAR per car and version). */
 export function recordTime(
-  mapId: string,
+  stageId: string,
   carIds: string[],
   run: RunRecord,
 ): RunRecord[] {
   // The finish saves the per-car best before this runs, so on a map with no leaderboard
   // yet the imported best is this very run: drop it instead of listing the run twice.
-  const old = loadTimes(mapId, carIds).filter(
+  const old = loadTimes(stageId, carIds).filter(
     (r) => !(r.date === 0 && r.car === run.car && r.time === run.time),
   );
-  const cur = timesVersion(mapId);
+  const cur = timesVersion(stageId);
   const all = [...old, run].sort(compareRuns(cur));
   const perCar = new Map<string, number>();
   const kept = all.filter((r) => {
@@ -584,7 +591,7 @@ export function recordTime(
     return n <= RUNS_PER_CAR;
   });
   try {
-    localStorage.setItem(timesKey(mapId), JSON.stringify(kept));
+    localStorage.setItem(timesKey(stageId), JSON.stringify(kept));
   } catch {
     // ignore - times just won't persist
   }

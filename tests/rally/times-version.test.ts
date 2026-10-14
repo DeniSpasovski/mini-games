@@ -1,7 +1,7 @@
 import { describe, expect, test } from '@rstest/core';
 import {
   CAR_TIMES_VERSIONS,
-  MAP_TIMES_VERSIONS,
+  STAGE_TIMES_VERSIONS,
   carTimesVersion,
   isOldRun,
   migrateTimes,
@@ -24,8 +24,8 @@ function memoryStorage(initial: Record<string, string> = {}): Storage {
   };
 }
 
-const MAP = Object.keys(MAP_TIMES_VERSIONS)[0];
-const OTHER = Object.keys(MAP_TIMES_VERSIONS)[1];
+const MAP = Object.keys(STAGE_TIMES_VERSIONS)[0];
+const OTHER = Object.keys(STAGE_TIMES_VERSIONS)[1];
 const CUR = timesVersion(MAP);
 
 describe('saved times version (per map)', () => {
@@ -128,17 +128,18 @@ describe('saved times version (per map)', () => {
   test('every released car and map has a version', async () => {
     const { ALL_CARS } = await import('../../src/games/rally/cars');
     for (const c of ALL_CARS) expect(CAR_TIMES_VERSIONS[c.id]).toBeDefined();
-    const { ALL_MAPS } = await import('../../src/games/rally/maps');
-    for (const m of ALL_MAPS) expect(MAP_TIMES_VERSIONS[m.id]).toBeDefined();
+    const { ALL_STAGES } = await import('../../src/games/rally/maps');
+    for (const m of ALL_STAGES)
+      expect(STAGE_TIMES_VERSIONS[m.id]).toBeDefined();
   });
 
   test('test cars and maps stay at version 1 until released', async () => {
-    const { CARS_LIST, MAPS_LIST } =
+    const { CARS_LIST, STAGES_LIST } =
       await import('../../src/games/rally/release');
     for (const e of CARS_LIST)
       if (e.hideInProd) expect(CAR_TIMES_VERSIONS[e.id]).toBe(1);
-    for (const e of MAPS_LIST)
-      if (e.hideInProd) expect(MAP_TIMES_VERSIONS[e.id]).toBe(1);
+    for (const e of STAGES_LIST)
+      if (e.hideInProd) expect(STAGE_TIMES_VERSIONS[e.id]).toBe(1);
   });
 
   test('a fresh player gets every map stamped', () => {

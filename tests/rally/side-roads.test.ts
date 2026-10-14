@@ -22,6 +22,8 @@ describe.each(
   // (a map with many roads in its free-drive background, e.g. ajvatovci, keeps the strict ones).
   const city = !!map.cityStreets;
   const maxAcross = city ? 0.35 : 0.1;
+  // Unpaved tracks on steep mountainsides keep a little crossfall where the cut cannot level them (Galichica karst).
+  const maxAcrossTrack = Math.max(maxAcross, 0.15);
   const maxBump = city ? 0.8 : 0.3;
 
   /** Short ground ways between bridge decks (interchange approach stubs): tied to the deck ends, not free roads. */
@@ -73,6 +75,8 @@ describe.each(
   test('flat across', () => {
     let worst = 0;
     let at = '';
+    let worstTrack = 0;
+    let atTrack = '';
     const t0 = { x: 0, z: 0 };
     const t1 = { x: 0, z: 0 };
     along(5, (pi, a) => {
@@ -100,16 +104,17 @@ describe.each(
         if (net.query(x, z, pq).path !== pi || pq.distance > hw + 0.1) continue;
         if (!gen.isCarriageway(pi) && inVerge(x, z)) continue;
         const d = Math.abs(gen.height(x, z) - c);
-        if (d > worst) {
-          worst = d;
-          at = `${net.paths[pi].kind} @${a.toFixed(0)} m (${pt.x.toFixed(0)}, ${pt.z.toFixed(0)})`;
-        }
+        const here = `${net.paths[pi].kind} @${a.toFixed(0)} m (${pt.x.toFixed(0)}, ${pt.z.toFixed(0)})`;
+        if (net.paths[pi].surface === 'dirt') {
+          if (d > worstTrack) [worstTrack, atTrack] = [d, here];
+        } else if (d > worst) [worst, at] = [d, here];
       }
     });
     console.info(
-      `[${map.id}] side roads: max height change across ${worst.toFixed(3)} m at ${at}`,
+      `[${map.id}] side roads: max height change across ${worst.toFixed(3)} m at ${at}; tracks ${worstTrack.toFixed(3)} m at ${atTrack}`,
     );
     expect(worst).toBeLessThan(maxAcross);
+    expect(worstTrack).toBeLessThan(maxAcrossTrack);
   });
 
   test('smooth along (no elevation-model bumps)', () => {

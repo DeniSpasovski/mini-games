@@ -539,8 +539,6 @@ export const jackieMap: MapDef = {
       scale: [0.95, 1.05],
     },
   ],
-  // Side roads / ramps meeting the stage road are closed with barriers (as on a real stage).
-  junctionBarriers: { asset: 'road_barrier', length: 2.2, setback: 4 },
   // Green guide signs on steel gantries: "EXIT n" before every ramp leaving the parkway, and the real sequence of
   // boards at the Kew Gardens end (plain road names, no route shields).
   goreAreas: true,

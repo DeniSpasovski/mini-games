@@ -351,8 +351,10 @@ const NO_SHADOW_PARTS = new Set([
   'lamphousing',
   'headled',
   'tailled',
+  'reverselamp',
   'lenscover',
   'redcover',
+  'brakecover',
   'headlight',
   'tailc',
 ]);

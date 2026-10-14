@@ -164,10 +164,20 @@ describe.each(
   test('a car in a lake is on mud and slowed by the water', () => {
     const world = new World(map);
     const p = lakes.polys[0];
-    let cx = 0;
-    let cz = 0;
-    for (let k = 0; k < p.length; k += 2) [cx, cz] = [cx + p[k], cz + p[k + 1]];
-    [cx, cz] = [(cx * 2) / p.length, (cz * 2) / p.length];
+    // The deepest point on a grid over the lake (a vertex average can fall outside a lake clipped at the map edge).
+    let [x0, z0, x1, z1] = [Infinity, Infinity, -Infinity, -Infinity];
+    for (let k = 0; k < p.length; k += 2) {
+      [x0, x1] = [Math.min(x0, p[k]), Math.max(x1, p[k])];
+      [z0, z1] = [Math.min(z0, p[k + 1]), Math.max(z1, p[k + 1])];
+    }
+    let [cx, cz, best] = [0, 0, Infinity];
+    for (let i = 1; i < 24; i++)
+      for (let j = 1; j < 24; j++) {
+        const x = x0 + ((x1 - x0) * i) / 24;
+        const z = z0 + ((z1 - z0) * j) / 24;
+        const sd = signedDistance(p, x, z);
+        if (sd < best) [cx, cz, best] = [x, z, sd];
+      }
     const pq = { x: cx, z: cz };
     expect(signedDistance(p, pq.x, pq.z)).toBeLessThan(0);
     expect(world.waterLevel(cx, cz)).toBeCloseTo(lakes.levels[0], 3);

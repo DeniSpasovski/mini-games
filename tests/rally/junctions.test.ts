@@ -43,7 +43,7 @@ describe.each(
 
   test('barriers close the mouths and stay off the road', () => {
     const bars = world.junctionInstances();
-    if (!map.junctionBarriers) return;
+    if (!world.stageDef.closures) return;
     console.info(`[${map.id}] ${bars.length} junction barriers`);
     expect(bars.length).toBeGreaterThan(0);
     for (const b of bars) {

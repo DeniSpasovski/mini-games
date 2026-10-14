@@ -1,0 +1,94 @@
+{
+  "id": "galichica",
+  "name": "Galichica",
+  "out": "src/games/rally/maps/galichica/data.json",
+  "origin": [40.955, 20.845],
+  "waypoints": [
+    [40.9419161, 20.7881257],
+    [40.9440267, 20.789616],
+    [40.9538369, 20.8290593],
+    [40.9612712, 20.8976721],
+    [40.9635501, 20.8984596]
+  ],
+  "osm": {
+    "source": "overpass"
+  },
+  "route": {
+    "width": 5.6
+  },
+  "heightBase": 1000,
+  "detail": {
+    "cell": 10,
+    "extent": [-6200, 5800, -3200, 2800]
+  },
+  "outer": {
+    "cell": 50,
+    "extent": [-16000, 16000, -12000, 12000]
+  },
+  "landcover": {
+    "cell": 5,
+    "extent": [-6200, 5800, -3200, 2800],
+    "highTrees": "trees",
+    "osmWood": "trees",
+    "plainOrchards": false,
+    "belts": [
+      {
+        "from": ["trees", "pine"],
+        "to": "beech",
+        "min": 1150,
+        "max": 1750
+      },
+      {
+        "from": ["trees", "pine", "beech"],
+        "to": "shrub",
+        "min": 1750
+      },
+      {
+        "from": ["grass", "shrub", "bare", "crop"],
+        "to": "pasture",
+        "min": 1450
+      }
+    ]
+  },
+  "lakes": {
+    "levels": {
+      "Lake Ohrid": 693.2,
+      "Lake Prespa": 847
+    }
+  },
+  "canopy": {
+    "trees": 8,
+    "beech": 10,
+    "pine": 8,
+    "orchard": 3,
+    "urban": 2
+  },
+  "routeSmoothSigma": 4,
+  "routeTolerance": 0.6,
+  "minCornerRadius": 10,
+  "stage": 4,
+  "paths": {
+    "corridor": 150,
+    "keepNear": [
+      [40.9440267, 20.789616, 1000],
+      [40.9537817, 20.8289773, 1000],
+      [40.9612712, 20.8976721, 1000]
+    ]
+  },
+  "buildings": {
+    "microsoft": false,
+    "roadClearance": 5.0,
+    "corridor": 250,
+    "box": true
+  },
+  "horizon": {
+    "inner": {
+      "cell": 100,
+      "radius": 8000
+    },
+    "outer": {
+      "cell": 300,
+      "radius": 30000
+    }
+  }
+}

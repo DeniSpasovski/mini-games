@@ -249,12 +249,15 @@ const PATH_TILE = 256; // m, one merged mesh per tile
 
 /**
  * Paved non-stage roads (village streets, motorway, ...) as terrain-hugging ribbons,
- * merged per 256 m tile. Unpaved tracks are only painted into the terrain splat.
+ * merged per 256 m tile. Unpaved tracks too on maps with `trackRibbons` (gravel texture); elsewhere they are only
+ * painted into the terrain splat.
  */
 function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
   // Bridge decks are drawn by bridge-mesh at their own height.
+  const tracks = !!world.map.trackRibbons;
   const paths = world.gen.paths?.paths.filter(
-    (p) => p.surface === 'tarmac' && !p.bridge,
+    (p) =>
+      (p.surface === 'tarmac' || (tracks && p.surface === 'dirt')) && !p.bridge,
   );
   if (!paths?.length) return undefined;
   // The ground, not the top surface: a street under a stage-road bridge stays down in its underpass.
@@ -320,7 +323,9 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
     // A lane in the highway's cut (MapDef.parkwayLanes) is a carriageway: lane markings, no centre line.
     const tex = world.gen.isParkwayLane(world.gen.paths!.paths.indexOf(p))
       ? 'road_parkway'
-      : pathTexture(p.kind, p.width, !!world.map.cityStreets);
+      : p.surface === 'dirt'
+        ? 'road'
+        : pathTexture(p.kind, p.width, !!world.map.cityStreets);
     const key = `${tex}:${Math.floor(mid[0] / PATH_TILE)},${Math.floor(mid[1] / PATH_TILE)}`;
     let tile = tiles.get(key);
     if (!tile)

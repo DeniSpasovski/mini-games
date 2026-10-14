@@ -36,12 +36,13 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 
 ## Stages
 
-| Map                                     | Where                       | Length | Surface         | Status   |
-| --------------------------------------- | --------------------------- | ------ | --------------- | -------- |
-| [Petralica](maps/petralica/)            | North Macedonia (mountains) | 9.6 km | gravel + tarmac | playable |
-| [Ajvatovci Hill](maps/ajvatovci/)       | Ilinden, North Macedonia    | 4.5 km | old tarmac      | playable |
-| [Jackie Robinson Parkway](maps/jackie/) | New York City               | 7.3 km | tarmac, bridges | playable |
-| [Test Map](maps/test/)                  | procedural forest           | 1.7 km | gravel          | physics  |
+| Map                                     | Where                       | Length       | Surface         | Status          |
+| --------------------------------------- | --------------------------- | ------------ | --------------- | --------------- |
+| [Petralica](maps/petralica/)            | North Macedonia (mountains) | 9.6 km       | gravel + tarmac | playable        |
+| [Ajvatovci Hill](maps/ajvatovci/)       | Ilinden, North Macedonia    | 4.5 km       | old tarmac      | playable        |
+| [Jackie Robinson Parkway](maps/jackie/) | New York City               | 7.3 km       | tarmac, bridges | playable        |
+| [Test Map](maps/test/)                  | procedural forest           | 1.7 km       | gravel          | physics         |
+| [Galichica](maps/galichica/) (3 stages) | Lake Ohrid - Lake Prespa    | 12.7-27.4 km | mountain tarmac | test (dev only) |
 
 [![Ajvatovci](maps/ajvatovci/screenshots/start-street.jpg)](maps/ajvatovci/) [![Jackie](maps/jackie/screenshots/parkway-bridge.jpg)](maps/jackie/)
 
@@ -58,6 +59,7 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 | [Citroen C4 WRC](cars/citroen-c4/)         | AWD   | 2007 WRC C4 with a visible cockpit                                                                      |
 | [Lancer EVO VI](cars/lancer-evo-6/)        | AWD   | 1999-style Lancer with a visible cockpit                                                                |
 | [Ford Mustang GT3](cars/ford-gt3/)         | RWD   | 2024 GT3 racer from a CC BY Sketchfab GLB, kept as is (test)                                            |
+| [Mercedes 190E](cars/merc-190/)            | RWD   | 2.5-16 Evolution saloon from a CC BY Sketchfab GLB, kept as is, badges removed (test)                   |
 | [Porsche 911 (930)](cars/porsche-911-930/) | RWD   | 1975 911 Turbo from a CC BY Sketchfab GLB, kept as is (test)                                            |
 
 [![Skoda Rally](cars/skoda-rally/screenshots/front-34.jpg)](cars/skoda-rally/) [![Zastava](cars/zastava-101/screenshots/front-34.jpg)](cars/zastava-101/)

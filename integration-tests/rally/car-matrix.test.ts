@@ -42,7 +42,7 @@ function drive(
   if (climate) v.setClimate(stageClimate(world.map.environment));
   const spawn = world.roadSpawn();
   v.reset(spawn.position, spawn.heading);
-  const ap = new Autopilot(world.road);
+  const ap = new Autopilot(world.stageRoad);
   ap.useExtraGrip = extraGrip;
   ap.reset(world.stage.start - 9);
   const limit = Math.max(240, (world.stage.finish - world.stage.start) / 4);
@@ -90,7 +90,7 @@ describe.each(ALL_CARS.map((c) => c.id))('%s', (carId) => {
     '%s: finishes upright on the recommended and on the worst pick',
     (mapId) => {
       const map = STAGES.find((m) => m.id === mapId)!;
-      const rec = map.tyre;
+      const rec = map.stages[0].tyre;
       // The worst pick, with its matching set-up: tarmac tyres on a gravel stage, gravel tyres on a tarmac or
       // dusty-tarmac (mixed) stage.
       const worst: TyreId = rec === 'gravel' ? 'tarmac' : 'gravel';
