@@ -1,7 +1,7 @@
 # Ford Mustang GT3 (`ford_gt3`)
 
 A 2024 GT3 racer from a **CC BY Sketchfab model**, used as it comes: the model has no livery and no logos, so it is mapped to game
-parts by material only (no cuts). In game it is **Ford Mustang GT3**: RWD, 1300 kg, 5.4 V8, slicks. Test car (`hideInProd` in `CARS_LIST`).
+parts by material only (no cuts). In game it is **Ford Mustang GT3**: RWD, 1300 kg, 5.4 V8, slicks.
 
 - **Kept from the model:** the body, wing, splitter and diffuser, the cockpit (seats, cage, wheel, dash) behind see-through glass, the
   3D head / tail lamps and the 10-spoke rim (de-cambered, centred on the hub).
