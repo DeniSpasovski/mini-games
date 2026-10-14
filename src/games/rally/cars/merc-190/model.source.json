@@ -117,11 +117,11 @@
       },
       {
         "mat": "Car_backlight_glass_red",
-        "material": "redcover"
+        "material": "brakecover"
       },
       {
         "mat": "Car_backlight_glass_red.001",
-        "material": "redcover"
+        "material": "brakecover"
       },
       {
         "mat": "Car_backlight_glass",
@@ -135,6 +135,13 @@
       {
         "mat": "Car_Windows_All",
         "material": "glass"
+      },
+      {
+        "node": [
+          "mer_190e_90_lod0_taillightR_reverse_light_lod0___85_vertices_10_intlighty_0",
+          "mer_190e_90_lod0_taillightL_reverse_light_lod0___85_vertices_10_intlighty_0"
+        ],
+        "material": "reverselamp"
       },
       {
         "mat": "intlighty",
@@ -273,9 +280,10 @@
       "lamphousing",
       "headled",
       "tailled",
-      "redcover",
+      "brakecover",
       "amber",
-      "susp"
+      "susp",
+      "reverselamp"
     ],
     "drop": ["logo", "susp"],
     "maxTriangles": {
