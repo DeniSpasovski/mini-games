@@ -26,7 +26,7 @@ export const POLE_WIRES: [number, number][] = [
 
 const GALV = '#868b91';
 
-const slab = (
+export const slab = (
   w: number,
   h: number,
   d: number,
@@ -38,7 +38,7 @@ const slab = (
   planarUV(paint(new BoxGeometry(w, h, d).translate(x, y, z), color), 0.5);
 
 /** A leaning box strut from (x0, y0, z0) to (x1, y1, z1), `t` thick. */
-function strut(
+export function strut(
   a: [number, number, number],
   b: [number, number, number],
   t: number,

@@ -378,6 +378,47 @@ export const ASSET_CATALOG: AssetMeta[] = [
     colliders: [{ kind: 'cylinder', r: 0.28, h: 8 }],
   },
   {
+    id: 'millennium_cross',
+    name: 'Millennium Cross',
+    category: 'structures',
+    description:
+      '66 m white lattice steel Latin cross (the 2002 monument above Skopje): LOD 0 full lattice, LOD 1 coarse, LOD 2 solid slabs (drawn with the horizon backdrop, world/horizon.ts). Foot 8 m below the origin. Solid.',
+    variants: 1,
+    lods: [
+      { maxDistance: 450, castShadow: true },
+      { maxDistance: 1100, castShadow: false },
+      { maxDistance: 6000, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 2.2, h: 20 }],
+  },
+  {
+    id: 'antenna_mast',
+    name: 'Antenna mast',
+    category: 'structures',
+    description:
+      '155 m red / white triangular lattice mast (the antenna tower on the Vodno ridge): LOD 2 = tapered prism for the horizon backdrop. Solid base.',
+    variants: 1,
+    lods: [
+      { maxDistance: 500, castShadow: true },
+      { maxDistance: 1500, castShadow: false },
+      { maxDistance: 6000, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 3.2, h: 20 }],
+  },
+  {
+    id: 'gondola_pylon',
+    name: 'Cable car pylon',
+    category: 'structures',
+    description:
+      'Lattice support of a gondola line, 20 m at unit scale (instances scale it), ropes along local X over two sheave trains (world/aerialway.ts, aerialway-mesh.ts). Solid legs.',
+    variants: 1,
+    lods: [
+      { maxDistance: 300, castShadow: true },
+      { maxDistance: 2800, castShadow: false },
+    ],
+    colliders: [{ kind: 'cylinder', r: 1.8, h: 12 }],
+  },
+  {
     id: 'concrete_block',
     name: 'Concrete block',
     category: 'structures',

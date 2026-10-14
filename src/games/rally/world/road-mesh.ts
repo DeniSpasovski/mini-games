@@ -15,6 +15,7 @@ import {
 import { barrierMeshJob } from './barrier-mesh';
 import { bridgeMeshJob } from './bridge-mesh';
 import { cutWallMeshJob } from './cut-wall-mesh';
+import { aerialwayMeshJob } from './aerialway-mesh';
 import { powerLineMeshJob } from './power-line-mesh';
 import { railMeshJob } from './rail-mesh';
 import { streetDetailMeshJob } from './street-detail-mesh';
@@ -222,6 +223,8 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
   if (plazas) group.add(plazas);
   const power = yield* timed('powerLines', powerLineMeshJob(world));
   if (power) group.add(power);
+  const aerial = yield* timed('aerialways', aerialwayMeshJob(world));
+  if (aerial) group.add(aerial);
   const rail = yield* timed('railways', railMeshJob(world));
   if (rail) group.add(rail);
   const cutWalls = yield* timed('cutWalls', cutWallMeshJob(world));

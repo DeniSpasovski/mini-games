@@ -57,6 +57,8 @@ export interface MapDef {
   /** Power line supports [x, z] and line polylines (flat x, z lists), baked from OSM: towers / poles + cables (world/power-lines.ts). */
   pylons?: [number, number][];
   powerLines?: number[][];
+  /** Cable cars (gondola lines): pylons, two ropes and static cabins between the stations (world/aerialway.ts). */
+  aerialways?: AerialwayDef[];
   /**
    * Railway tracks baked from OSM (`railway=rail`): a ballast bed carved into the terrain, sleepers + rails, and
    * catenary masts / wires on the electrified ones (world/railways.ts). Road decks crossing them clear the wires.
@@ -851,4 +853,31 @@ export interface EnvironmentDef {
     crop?: string;
     moisture?: number;
   };
+}
+
+/**
+ * A gondola line: the polyline of the ropes (flat x, z, lower station first) with pylons placed along it. The ropes
+ * hang from the pylon heads (taller where the slope asks for it), two cabin rows hang from them, static.
+ */
+export interface AerialwayDef {
+  name: string;
+  /** Line of the cable car, flat [x, z, x, z, ...], lower station -> upper station. */
+  line: number[];
+  /** Distance between pylons (m, default 125). */
+  pylonEvery?: number;
+  /**
+   * The line's interior vertices ARE the pylons (a surveyed line: OSM draws the rope with a node at each tower): spans
+   * longer than `maxSpan` get extra pylons, `pylonEvery` is then only the spacing of those.
+   */
+  pylonsAtVertices?: boolean;
+  /** Longest span with `pylonsAtVertices` before extra pylons are added (m, default 400). */
+  maxSpan?: number;
+  /** Cabin speed on the ropes (m/s, default 5): the cabins run round the loop, up one rope and down the other. */
+  speed?: number;
+  /** Rope height over the ground at the two stations (m, default 7). */
+  stationHeight?: number;
+  /** Distance between cabins on one rope (m, default 117). */
+  cabinEvery?: number;
+  /** Least rope clearance over the ground mid-span (m, default 8). */
+  clearance?: number;
 }

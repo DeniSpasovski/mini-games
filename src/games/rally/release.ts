@@ -36,6 +36,7 @@ export const STAGES_LIST: readonly ReleaseEntry[] = [
   { id: 'galichica_west', hideInProd: true },
   { id: 'galichica_east', hideInProd: true },
   { id: 'prespa_ohrid', hideInProd: true },
+  { id: 'vodno', hideInProd: true },
 ];
 
 /** Not released (`hideInProd`, or by mistake not listed) - shown with a TEST badge on the dev server. */

@@ -24,6 +24,11 @@ import {
   streetCar,
   taxi,
 } from './builders/vehicles';
+import {
+  antennaMast,
+  gondolaPylon,
+  millenniumCross,
+} from './builders/landmarks';
 import { catenaryMast, powerPole, powerPylon } from './builders/power';
 import {
   concreteBlock,
@@ -74,6 +79,9 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   power_pylon: powerPylon,
   power_pole: powerPole,
   catenary_mast: catenaryMast,
+  millennium_cross: millenniumCross,
+  antenna_mast: antennaMast,
+  gondola_pylon: gondolaPylon,
   village_sign: villageSign,
 };
 

@@ -197,7 +197,7 @@ const STAGES: MapDef[] = [
   petralicaMap,
   jackieMap,
   ajvatovciMap,
-  // Not Galichica: the limit driver (`useExtraGrip`) cannot take its 11-12 m hairpins after fast straights on grippy tyres
+  // Not Galichica or Vodno: the limit driver (`useExtraGrip`) cannot take its 11-12 m hairpins after fast straights on grippy tyres
   // (it runs wide into a side-track mouth); the stage autopilot drives it with every car (stage.test.ts).
 ];
 describe.each(STAGES.map((m) => m.id))(

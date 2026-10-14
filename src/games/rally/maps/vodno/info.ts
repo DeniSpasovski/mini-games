@@ -1,0 +1,73 @@
+import type { MapInfo } from '../shared/types';
+import data from './route.json';
+import { vodnoStages } from './stages';
+
+/**
+ * Light part of the Vodno map (menus, stage select, URL defaults): the map and its stage. ./map.ts spreads it into the
+ * full `MapDef` and is loaded on demand (`loadStage`, ../index.ts).
+ */
+export const vodnoInfo: MapInfo = {
+  id: 'vodno',
+  name: 'Vodno Hillclimb',
+  stages: vodnoStages,
+  seed: 5210,
+  geo: { lat: data.meta.origin[0], lon: data.meta.origin[1] },
+  credits: data.meta.sources,
+  sources: [
+    {
+      label: 'OpenStreetMap',
+      url: 'https://www.openstreetmap.org/copyright',
+      note: 'the streets and roads of Vodno, Kisela Voda and Nerezi, every building footprint, the cable car line and its stations, the Millennium Cross and the antenna mast - (c) OpenStreetMap contributors, ODbL',
+    },
+    {
+      label: 'Overpass API',
+      url: 'https://overpass-api.de/',
+      note: 'how the OpenStreetMap data was downloaded',
+    },
+    {
+      label: 'Microsoft Global ML Building Footprints',
+      url: 'https://github.com/microsoft/GlobalMLBuildingFootprints',
+      note: 'the houses OpenStreetMap does not have yet - ODbL',
+    },
+    {
+      label: 'AWS Terrain Tiles (Terrarium)',
+      url: 'https://registry.opendata.aws/terrain-tiles/',
+      note: 'elevation of the map and of the far horizon (Skopje valley, Skopska Crna Gora, Sar Mountains) - SRTM / EU-DEM derived, see the tile attributions',
+    },
+    {
+      label: 'ESA WorldCover 10 m 2021 v200',
+      url: 'https://esa-worldcover.org/',
+      note: 'land cover (pine woods, scrub, built-up land) - contains modified Copernicus Sentinel data (2021), CC BY 4.0',
+    },
+    {
+      label: 'Millennium Cross (Wikipedia)',
+      url: 'https://en.wikipedia.org/wiki/Millennium_Cross',
+      note: 'height and look of the cross on Krstovar - reference only',
+    },
+    {
+      label: 'Vodno (Wikipedia)',
+      url: 'https://en.wikipedia.org/wiki/Vodno',
+      note: 'the mountain, its woods and the cable car - reference only',
+    },
+  ],
+  stageNumber: 5,
+  bounds: { minX: -3000, maxX: 3000, minZ: -1750, maxZ: 1750 },
+  environment: {
+    sunElevation: 30,
+    // Morning sun from the south-east (azimuth from +Z towards +X; +Z = south).
+    sunAzimuth: 35,
+    // Late October, 10:00: the valley haze of Skopje, cool air, the pine slope in the mountain's shade.
+    timeOfDay: 10,
+    airTemp: 11,
+    cloudCoverage: 0.25,
+    turbidity: 4.6,
+    rayleigh: 1.5,
+    fogColor: '#c5ccd2',
+    fogDensity: 0.0003,
+    exposure: 0.95,
+    groundTint: { grass: '#9d9560', amount: 0.5 },
+  },
+  route: data.route,
+  // The road's surface, then each section's (the street at the start, the climb): see `infoOf` in ../index.ts.
+  surfaces: ['tarmac', 'tarmac'],
+};

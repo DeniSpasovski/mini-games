@@ -4,6 +4,8 @@ import {
   Color,
   Group,
   Matrix4,
+  Quaternion,
+  Vector3,
   Mesh,
   MeshLambertMaterial,
   PerspectiveCamera,
@@ -11,7 +13,10 @@ import {
   type Camera,
   type WebGLRenderer,
 } from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { hash3 } from '../../../shared/rng';
+import { getAssetMeta } from '../assets/catalog';
+import { getAsset } from '../assets/library';
 import { addWorldUniforms } from '../engine/world-shading';
 import type { HorizonDef } from '../maps/shared/types';
 import { base64Bytes } from './real-data';
@@ -77,6 +82,18 @@ export class Horizon {
         mesh.onAfterRender = (renderer: WebGLRenderer) => renderer.clearDepth();
       this.group.add(mesh);
     });
+    // Big landmarks (the cross, the antenna mast) stay on the skyline beyond the streamed scatter: their last LOD is drawn
+    // here, with the same cut-away inside the terrain view distance where the real instances take over.
+    const far = farLandmarks(world);
+    if (far) {
+      const mesh = new Mesh(far, this.material);
+      mesh.name = 'horizon landmarks';
+      mesh.frustumCulled = false;
+      mesh.matrixAutoUpdate = false;
+      mesh.renderOrder = -0.505; // after the outer grid, before the inner one (which clears the depth)
+      mesh.onBeforeRender = (_r, _s, camera) => this.project(camera);
+      this.group.add(mesh);
+    }
   }
 
   /** Cut the backdrop away inside the streamed area within this distance of the camera (the terrain view distance). */
@@ -255,4 +272,36 @@ function gridGeometry(
   geo.computeVertexNormals();
   geo.computeBoundingSphere();
   return geo;
+}
+
+/** Catalog assets of `MapDef.props` that are also drawn on the backdrop (last LOD) so they read from far away. */
+const FAR_LANDMARKS = new Set(['millennium_cross', 'antenna_mast']);
+
+/** The far landmarks of a map merged into one vertex-coloured geometry in world space, or undefined. */
+function farLandmarks(world: World): BufferGeometry | undefined {
+  const parts: BufferGeometry[] = [];
+  const q = new Quaternion();
+  const up = new Vector3(0, 1, 0);
+  for (const p of world.map.props) {
+    if (!FAR_LANDMARKS.has(p.asset) || p.x === undefined || p.z === undefined)
+      continue;
+    const lod = getAssetMeta(p.asset).lods.length - 1;
+    const m = new Matrix4().compose(
+      new Vector3(p.x, world.analytic.height(p.x, p.z), p.z),
+      q.setFromAxisAngle(up, ((p.rotY ?? 0) * Math.PI) / 180),
+      new Vector3(1, 1, 1).multiplyScalar(p.scale ?? 1),
+    );
+    for (const part of getAsset(p.asset, p.variant ?? 0, lod).parts) {
+      const g = new BufferGeometry();
+      for (const name of ['position', 'normal', 'color'])
+        g.setAttribute(name, part.geometry.getAttribute(name).clone());
+      g.applyMatrix4(m);
+      parts.push(g);
+    }
+  }
+  if (!parts.length) return undefined;
+  const merged = mergeGeometries(parts, false);
+  for (const g of parts) g.dispose();
+  merged.computeBoundingSphere();
+  return merged;
 }

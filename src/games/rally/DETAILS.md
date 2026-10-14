@@ -117,13 +117,14 @@ are keyed by stage id. Every map from before the split has one stage with the ol
 keeps `road` (geometry) and adds `stageRoad` (the road, or its `reversed()` view) for timing, spawn, signs, fans, closures
 and the autopilot.
 
-| map id      | name           | notes                                                                                                                 |
-| ----------- | -------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `test`      | Test Map       | procedural 1.7 km forest gravel stage, hairpin, crest jump, test pad                                                  |
-| `ajvatovci` | Ajvatovci Hill | real world (Ilinden, North Macedonia), 4.5 km old tarmac                                                              |
-| `petralica` | Petralica      | real world (North Macedonia), 9.6 km mountain stage, 560 m of climb                                                   |
-| `jackie`    | The Jackie     | real world (New York), 7.3 km parkway with bridges and portals                                                        |
-| `galichica` | Galichica      | real world (North Macedonia), pass road between Lake Ohrid and Lake Prespa, 3 stages (two run against the road); test |
+| map id      | name            | notes                                                                                                                                                                 |
+| ----------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test`      | Test Map        | procedural 1.7 km forest gravel stage, hairpin, crest jump, test pad                                                                                                  |
+| `ajvatovci` | Ajvatovci Hill  | real world (Ilinden, North Macedonia), 4.5 km old tarmac                                                                                                              |
+| `petralica` | Petralica       | real world (North Macedonia), 9.6 km mountain stage, 560 m of climb                                                                                                   |
+| `jackie`    | The Jackie      | real world (New York), 7.3 km parkway with bridges and portals                                                                                                        |
+| `galichica` | Galichica       | real world (North Macedonia), pass road between Lake Ohrid and Lake Prespa, 3 stages (two run against the road); test                                                 |
+| `vodno`     | Vodno Hillclimb | real world (Skopje, North Macedonia), 4.0 km hillclimb up Mount Vodno, whole suburb, hand-modelled churches and summit landmarks, cross, mast, moving cable car; test |
 
 A map is `maps/<id>/map.ts` (gameplay and look) plus a baked `data.json` (`scripts/realmap/bake.py`: OpenStreetMap, ESA
 WorldCover, elevation). Format and helpers: `maps/shared/`. World axes: +X east, **+Z south**. How to build and verify maps:
@@ -144,7 +145,13 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   `groundTint.moisture` sets the strength (0 = off).
 - **Horizon backdrop** (`horizon`, real maps): the land ~25 km around the map (terrain + land cover from Terrarium /
   WorldCover, no roads or buildings), baked by `scripts/realmap/horizon.py` into `<map>/horizon.json`, drawn behind
-  everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain).
+  everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain). A grid may be
+  off-centre and non-square (`horizon` `extent` in the bake config: Vodno reaches 50 km north over the valley, 16 km south behind
+  the ridge). Catalog assets in `props` named in `FAR_LANDMARKS` (the Vodno cross and mast) are also drawn there with their last
+  LOD, so they stay on the skyline beyond the scatter's view distance.
+- **Cable cars** (`aerialways`): a gondola line from a polyline - pylons on its vertices (`pylonsAtVertices`) or evenly spaced (taller
+  where the slope asks), two ropes in a sag parabola, cabins running the loop (`world/aerialway.ts` pure layout + `cabinPose`, test;
+  `aerialway-mesh.ts` one instanced mesh moved when drawn; asset `gondola_pylon`).
 - **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
   spectators, flags (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`).
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)

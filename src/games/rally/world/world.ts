@@ -26,6 +26,11 @@ import { overheadSigns, type OverheadSigns } from './overhead-signs';
 import { stageSigns, type StageSigns } from './stage-signs';
 import { nearestRoadPoint } from './road-distance';
 import {
+  aerialwayLayout,
+  pylonInstances,
+  type AerialwayLayout,
+} from './aerialway';
+import {
   powerNetwork,
   supportInstances,
   type PowerSupport,
@@ -138,6 +143,8 @@ export class World implements GroundProvider {
   readonly streetDetail?: StreetDetail;
   /** Power line supports + spans (MapDef.pylons / powerLines): instances here, cables by power-line-mesh.ts. */
   readonly power?: { supports: PowerSupport[]; spans: PowerSpan[] };
+  /** Cable cars (MapDef.aerialways): pylon instances here, ropes + cabins by aerialway-mesh.ts. */
+  readonly aerialways: AerialwayLayout[] = [];
   /** Catenary masts of the electrified railways (instances here, wires by rail-mesh.ts). */
   readonly catenary: CatenaryMast[] = [];
   /** Piers under the decks of other roads (drawn by bridge-mesh.ts, solid). */
@@ -371,6 +378,11 @@ export class World implements GroundProvider {
         seen.add(k);
         this.scatter.addFixed(inst);
       }
+    }
+    for (const def of map.aerialways ?? []) {
+      const lay = aerialwayLayout(def, (x, z) => this.analytic.height(x, z));
+      this.aerialways.push(lay);
+      for (const inst of pylonInstances(lay)) this.scatter.addFixed(inst);
     }
     if (rails.length) {
       const electrified = rails.filter((_, i) => map.railways![i]?.electrified);
