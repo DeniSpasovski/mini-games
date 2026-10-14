@@ -37,7 +37,7 @@ const FRONT: AxleDef = {
   antiRoll: scale(23833),
   handbrakeTorque: 0,
   steer: 1,
-  grip: 1.1,
+  grip: 1.25, // only 39 % of the weight is on the narrow front tyres: at 1.1 it pushed wide; this turns in like the M3
   forceHeight: 0.3,
 };
 
