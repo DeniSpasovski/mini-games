@@ -442,6 +442,9 @@ registered car; see `src/games/rally/PHYSICS.md`.
   outer face at z max) then `wheel-stl-to-glb.mjs --keep --barrel <bore radius it prints>`. A wrong outer-face sign shows as spokes
   sunk behind the barrel. A rim that ends at its bead seat (no lip above the tyre bore: max rim radius ~0.62 in the GLB) shows a
   groove between rim and tyre (the game tyre flares out from its bead): add `--flange 0.68` (a lathed lip, `cars/lancer-evo-6/`).
+- A busy source rim: `glb-rim-extract.py --min-island 400` drops small islands (wheel nuts / bolts); `wheel-stl-to-glb.mjs --two-tone <r>:<face hex>:<lip hex>`
+  paints the rim in two colours as vertex colours (centre / spokes below unit radius r, lip above; the game then ignores `model.rim.color`,
+  worked example `cars/porsche-911-930/`: ash-black centre, silver lip).
 - `model.wheelByCompound` gives a compound its own wheel GLB and / or rim colour (`rimColorFor`, `wheelModelFor` in `stl-wheel.ts`).
 - Wide gravel tyres lose grip on loose ground (`sizeFactors`): keep a rally tyre near 235 mm, and raise `rear.grip` for more than the M3's power.
 - A GLB body whose paint / carbon split lives only in its texture: `glb-to-parts-stl.py` rule `{"mat": "Body", "texture": {"maxLum": 0.42, "maxSat": 0.06, "blur": 9, "refine": 0.02}, "y": [..], "z": [..], "material": "carbon"}`

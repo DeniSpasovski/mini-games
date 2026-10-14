@@ -9,6 +9,7 @@ smallest principal axis of the tyre's vertices; the wheel is rotated about the h
 (the game's wheels are upright). Output frame: STL z = axle (outer face at z max), STL y = up, a proper rotation of the model's.
 `--wheel`: the primitive is split by connected islands - an island that keeps clear of the centre (no vertex within 70 % of
 the largest radius from the wheel's centroid, in the plane across the axle) is tyre, the rest (rim, nuts) is rim.
+`--min-island N` drops rim islands of fewer than N triangles (wheel nuts, bolts: a simpler rim).
 `--side +x` keeps only the triangles whose centre has x > 0 (a primitive that holds both left wheels of an axle, e.g. a mirrored
 FBX symmetry); add `--z front` / `rear` / a number to pick one axle by the sign of z (`front` z > 0, `rear` z < 0).
 Writes <out-prefix>-rim.stl / -tyre.stl and prints the numbers wheel-stl-to-glb.mjs needs: `--barrel` (the tyre's bore radius
@@ -65,6 +66,15 @@ def one_wheel(T):
 
 
 tyre, rim = one_wheel(tyre), one_wheel(rim)
+if '--min-island' in opts:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location('g2s', __file__.rsplit('/', 1)[0] + '/glb-to-parts-stl.py')
+    g2s = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(g2s)
+    iid = g2s.islands(rim)[0]
+    size = np.bincount(iid)
+    rim = rim[size[iid] >= int(opts['--min-island'])]
 V = tyre.reshape(-1, 3)
 hub = V.mean(0)
 axis = np.linalg.svd(V - hub, full_matrices=False)[2][2]

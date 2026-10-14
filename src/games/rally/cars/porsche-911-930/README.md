@@ -5,8 +5,8 @@ material only (no cuts). In game it is **Porsche 911 (930)**: RWD, 1195 kg, 3.0 
 (`hideInProd` in `CARS_LIST`).
 
 - **Kept from the model:** the body with its whale tail and bumpers, the headlamps (with their own texture) and tail lamps, the
-  five-spoke rim (de-cambered, centred on the hub).
-- **Dropped:** tyres and rim lips (the game draws its own wheels), the wordmark on the rear light strip (now a plain red lens).
+  five-spoke rim (de-cambered, centred on the hub), ash-black centre with a silver lip.
+- **Dropped:** tyres, brake discs and the wheel nuts (a simpler rim); the wordmark on the rear light strip is now a plain red lens.
 - **No interior:** the model is an empty shell, so the windows are tinted.
 - **Paint (ours):** one flat red, other seeds recolour it; no logos or lettering.
 

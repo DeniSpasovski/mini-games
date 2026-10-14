@@ -368,6 +368,8 @@ export class CarModel {
   /** Rims of the car's wheel GLBs in unit space once loaded (STL wheels), by file. */
   private stlRims = new Map<string, BufferGeometry>();
   private rimMat: MeshStandardMaterial;
+  /** Rim material for a wheel GLB with its own vertex colours (two-tone rims): white, the colours come from the mesh. */
+  private rimColoredMat?: MeshStandardMaterial;
   private calMat: MeshStandardMaterial;
   /** Ride height last set by `setRideHeight` (showroom pose; null = the vehicle drives the wheels). */
   private ride: number | null = null;
@@ -993,6 +995,16 @@ export class CarModel {
     };
   }
 
+  private rimColored(): MeshStandardMaterial {
+    if (!this.rimColoredMat) {
+      this.rimColoredMat = this.rimMat.clone();
+      this.rimColoredMat.color.set(0xffffff);
+      this.rimColoredMat.vertexColors = true;
+      this.owned.push(this.rimColoredMat);
+    }
+    return this.rimColoredMat;
+  }
+
   /** Rebuild tyre / rim / brake geometry for the fitted compound and swap it in (old ones are disposed). */
   private refreshWheels(): void {
     this.rimMat.color.set(rimColorFor(this.def.model, this.tyre));
@@ -1002,6 +1014,9 @@ export class CarModel {
       g.geoms = [w.tire, w.rim, w.caliper];
       g.tire.geometry = w.tire;
       g.rim.geometry = w.rim;
+      g.rim.material = w.rim.hasAttribute('color')
+        ? this.rimColored()
+        : this.rimMat;
       g.caliper.geometry = w.caliper;
       if (g.disc && w.disc) {
         g.disc.geometry = w.disc;
