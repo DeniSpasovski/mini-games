@@ -119,6 +119,17 @@ out;"""
     return parse(run(q, cache_dir, 'base'))
 
 
+def load_buildings_box(box, cache_dir):
+    """Every building in the box (lat0, lat1, lon0, lon1) in one query: rural maps, where a long winding route would
+    need dozens of `around` chunks (and a changed route re-fetches them all)."""
+    s, n, w, e = box
+    q = f"""[out:xml][timeout:600];
+way["building"]({s:.5f},{w:.5f},{n:.5f},{e:.5f});
+(._;>;);
+out;"""
+    return parse(run(q, cache_dir, 'buildingsbox'))
+
+
 def load_buildings(route_ll, radius, cache_dir, chunk=1500.0):
     """Buildings within `radius` m of the route polyline [(lat, lon), ...], queried in `chunk` m pieces
     (a long `around` polyline makes Overpass slow / refuse)."""

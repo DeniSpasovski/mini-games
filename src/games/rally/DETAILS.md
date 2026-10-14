@@ -7,28 +7,28 @@ sim-lite physics that is still fun on a keyboard.
 
 ## Pages and URLs
 
-| Page        | URL                                                    | What it is                                                                       |
-| ----------- | ------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| Game        | `/games/rally/`                                        | welcome -> select stage -> select car -> (set-up) -> drive                       |
-| Map viewer  | `/games/rally/map-viewer.html?map=test&grid=1&splat=1` | aerial view, click terrain to inspect, "Drive from here", lat / lon on real maps |
-| Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`  | livery seed, door plate, pose, physics hull, torque chart, test drive            |
-| Asset debug | `/games/rally/asset-debug.html?asset=pine_tree&lod=1`  | every asset / car (`car:<id>`) / texture (`tex:<id>`): seed, variant, LOD        |
+| Page        | URL                                                               | What it is                                                                                                                                                 |
+| ----------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Game        | `/games/rally/`                                                   | welcome -> select stage -> select car -> (set-up) -> drive                                                                                                 |
+| Map viewer  | `/games/rally/map-viewer.html?map=test&stage=test&grid=1&splat=1` | a map with one of its stages (`stage=`, default the first; a stage picker lists them), click terrain to inspect, "Drive from here", lat / lon on real maps |
+| Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`             | livery seed, door plate, pose, physics hull, torque chart, test drive                                                                                      |
+| Asset debug | `/games/rally/asset-debug.html?asset=pine_tree&lod=1`             | every asset / car (`car:<id>`) / texture (`tex:<id>`): seed, variant, LOD                                                                                  |
 
 Tool pages are dev-server only and keep their state in the URL; `H` hides the panel, `F3` shows stats, "Copy camera link"
 gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
 
 **URL parameters** (any of the play ones skips the menu):
 
-| Parameter                  | Pages | Effect                                                                                                                              |
-| -------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `map`, `car`, `livery`     | play  | stage, car, livery seed                                                                                                             |
-| `tyre`, `susp`, `gear`     | play  | `tarmac / tarmac_hard / mixed / gravel_hard / gravel`, `soft / medium / stiff`, `short / medium / long` (default: the stage's pick) |
-| `spawn`                    | play  | `start`, a flat-area name (`pad`) or metres along the road = free drive (no clock, never ranked)                                    |
-| `quality`                  | play  | `low / medium / high`                                                                                                               |
-| `mute=1`                   | play  | silent (bots and tests)                                                                                                             |
-| `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                                                  |
-| `tod=<hours>`, `tonemap=`  | all   | look experiments: time of day (maps with `environment.timeOfDay`), `aces / agx / neutral`                                           |
-| `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the map's `environment.airTemp`)                                                |
+| Parameter                  | Pages | Effect                                                                                                                                              |
+| -------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stage`, `car`, `livery`   | play  | stage id, car, livery seed; an old `map=<id>` link is rewritten in place to `stage=` (`stageLinkParams`; a map with several stages opens its first) |
+| `tyre`, `susp`, `gear`     | play  | `tarmac / tarmac_hard / mixed / gravel_hard / gravel`, `soft / medium / stiff`, `short / medium / long` (default: the stage's pick)                 |
+| `spawn`                    | play  | `start`, a flat-area name (`pad`) or metres along the stage road = free drive (no clock, never ranked)                                              |
+| `quality`                  | play  | `low / medium / high`                                                                                                                               |
+| `mute=1`                   | play  | silent (bots and tests)                                                                                                                             |
+| `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                                                                  |
+| `tod=<hours>`, `tonemap=`  | all   | look experiments: time of day (maps with `environment.timeOfDay`), `aces / agx / neutral`                                                           |
+| `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the map's `environment.airTemp`)                                                                |
 
 Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab hidden), `__rally.loadTimings`,
 `__rally.vehicle`, `__rallyProbe()` (what the camera draws), `__worldShading`, `__mapViewer`, `__carViewer`.
@@ -45,8 +45,10 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 
 ## Game flow
 
-- **Menus** (`game/menu.ts`): welcome -> **select stage** (orbiting 3D view of the stage, length, splits, best time; every map
-  shows a pre-baked stage card, `tools/stage-card.ts`, re-baked with `?bakecard=<id>` only when asked) -> **select car** ->
+- **Menus** (`game/menu.ts`): welcome -> **select stage** (route outline of the stage and 150 m either side, orbiting 3D view of
+  the stage, length, splits, best time; every stage shows a pre-baked stage card, `tools/stage-card.ts`, cropped to the stage +
+  500 m and re-baked with `?bakecard=<stage id>` / `?bakecards=1` only when asked; `stageCardHash` covers only what the card
+  draws, so text edits need no re-bake) -> **select car** ->
   **Start stage** with the recommended set-up, or **Setup car**. The car stands in a 3D showroom (`game/showroom.ts`): car
   screens add studio strip lights to the env map (`Environment` `studio`) and a shallow depth of field
   (`engine/depth-of-field.ts`, off on low quality); the stage view keeps the map's sky env, no blur. Console (dev): `__showroom`.
@@ -57,7 +59,7 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
   Options slider `musicVolume` (0 = off, 100% plays at half of full volume); `?mute=1` silences it. Add a track = file + `MENU_TRACKS` row (+ `THIRD-PARTY.md`).
 - **Pause** (`Esc`): resume, restart, free-drive pad <-> stage, options, main menu.
 - **Stage times** (welcome menu): stage list on the left (↑↓), the selected stage's saved runs over its map view on the right; current versions first, older ones dimmed below.
-- **About:** every external source per map (`MapDef.sources`) and car (`CarDef.sources`), menu music credits, plus `version` from `game.json`.
+- **About:** every external source per map (`MapDef.sources` + its stages' `StageDef.sources`) and car (`CarDef.sources`), menu music credits, plus `version` from `game.json`.
 
 **On a stage** (`game/stage.ts`):
 
@@ -70,9 +72,9 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 - **Finish:** the car brakes itself to a stop on the run-off (`finishStopControls()`), so every map needs a run-off. The
   autopilot (`F8`, finish stop) runs per 240 Hz physics step, exactly as in the tests.
 - **Results:** time, delta to the best run, sector chips, then the stage top 10 (all cars / this car) with each run's set-up.
-  Stored per map in localStorage (`rally.times.<map>`). `MAP_TIMES_VERSIONS` + `CAR_TIMES_VERSIONS` (`game/stage.ts`): each run stores its map and car version. On a bump
+  Stored per stage in localStorage (`rally.times.<stage>`). `STAGE_TIMES_VERSIONS` + `CAR_TIMES_VERSIONS` (`game/stage.ts`): each run stores its stage and car version. On a bump
   `migrateTimes` keeps the runs, tags them with the version they were set on (`RunRecord.ver` / `carVer`) and lists them below all
-  current runs, dimmed, behind a divider; the bumped map's / car's per-car bests move into the leaderboard as old runs. Times saved before per-map / per-car versions show as `v0`. Map change = bump that map; a car's
+  current runs, dimmed, behind a divider; the bumped stage's / car's per-car bests move into the leaderboard as old runs. Times saved before per-stage / per-car versions show as `v0`. Stage road change = bump that stage (a map's road change bumps every stage on it); a car's
   handling change = bump that car; a shared physics change = bump every car. Livery / model fixes never bump. Agents bump
   them as part of the change (AGENTS.md).
 
@@ -94,21 +96,33 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 
 ## Maps
 
-| id          | name           | notes                                                                |
-| ----------- | -------------- | -------------------------------------------------------------------- |
-| `test`      | Test Map       | procedural 1.7 km forest gravel stage, hairpin, crest jump, test pad |
-| `ajvatovci` | Ajvatovci Hill | real world (Ilinden, North Macedonia), 4.5 km old tarmac             |
-| `petralica` | Petralica      | real world (North Macedonia), 9.6 km mountain stage, 560 m of climb  |
-| `jackie`    | The Jackie     | real world (New York), 7.3 km parkway with bridges and portals       |
+Maps and stages: a **map** is the world (terrain, roads, land cover, scatter, buildings, environment: `maps/<id>/map.ts`); a
+**stage** (`StageDef`, the map's `stages`, `maps/<id>/stages.ts`) is the event on it: name, tyre / gearing, `reverse` (driven
+against the road's direction), `timing` (start / finish / splits), `closures` (barrier rows at side-road mouths, `stageMargin`
+= only along the stage), `cornerFans`, event `props`. Players only see stages; times (`rally.times.<stage>`), release flags
+(`STAGES_LIST`), URLs (`?stage=<id>`; an old `?map=<id>` link is rewritten to it) and cards (`maps/<map>/preview/<stage>.json` + `.jpg`)
+are keyed by stage id. Every map from before the split has one stage with the old map id, so stored times kept their keys
+(`tests/rally/times-migration.test.ts`, `stage-identity.test.ts`). The world never depends on the stage: `World(map, stage)`
+keeps `road` (geometry) and adds `stageRoad` (the road, or its `reversed()` view) for timing, spawn, signs, fans, closures
+and the autopilot.
+
+| map id      | name           | notes                                                                                                                 |
+| ----------- | -------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `test`      | Test Map       | procedural 1.7 km forest gravel stage, hairpin, crest jump, test pad                                                  |
+| `ajvatovci` | Ajvatovci Hill | real world (Ilinden, North Macedonia), 4.5 km old tarmac                                                              |
+| `petralica` | Petralica      | real world (North Macedonia), 9.6 km mountain stage, 560 m of climb                                                   |
+| `jackie`    | The Jackie     | real world (New York), 7.3 km parkway with bridges and portals                                                        |
+| `galichica` | Galichica      | real world (North Macedonia), pass road between Lake Ohrid and Lake Prespa, 3 stages (two run against the road); test |
 
 A map is `maps/<id>/map.ts` (gameplay and look) plus a baked `data.json` (`scripts/realmap/bake.py`: OpenStreetMap, ESA
 WorldCover, elevation). Format and helpers: `maps/shared/`. World axes: +X east, **+Z south**. How to build and verify maps:
 rally-maps skill.
 
-**Lazy loading:** the registry (`maps/index.ts`) holds each map's light `MapInfo` (`<id>/info.ts` + the small baked
-`route.json`: menus, stage select, URL defaults) and a dynamic import of the full `MapDef` (`map.ts` + `data.json` = its own
-chunk). Menus use `MAPS` / `getMap(id)` (info); anything that builds a `World` awaits `loadMap(id)`. Tests and tools that need
-every full map use `maps/all.ts`. `info.ts` must not import `data.json` (the landmark code in `world/` imports map files
+**Lazy loading:** the registry (`maps/index.ts`) holds each map's light `MapInfo` (`<id>/info.ts` with its `stages` + the
+small baked `route.json`: menus, stage select, URL defaults) and a dynamic import of the full `MapDef` (`map.ts` + `data.json` =
+its own chunk, shared by every stage of the map). Menus use `STAGES` / `getStage(id)` (`StageInfo`); anything that builds a
+`World` awaits `loadStage(id)` (`{ map, stage }`). Tests and tools that need every full map use `maps/all.ts`
+(`ALL_STAGE_DEFS` = every map / stage pair). `info.ts` must not import `data.json` (the landmark code in `world/` imports map files
 eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks the info against the full map.
 
 **Map features** (all set in `MapDef`):
@@ -120,11 +134,14 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Horizon backdrop** (`horizon`, real maps): the land ~25 km around the map (terrain + land cover from Terrarium /
   WorldCover, no roads or buildings), baked by `scripts/realmap/horizon.py` into `<map>/horizon.json`, drawn behind
   everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain).
-- **Corner fans** (`cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
+- **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
   spectators, flags (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`).
+- **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)
+  puts them on the outside of every tight bend of a mountain road (Galichica).
 - **Other roads** (`paths`): tarmac ribbons, dirt paint or canals with their own surface; side roads carved with grade limits
-  and extended to meet the stage road, `junctionBarriers` closes the mouths (`world/junctions.ts`). Dirt tracks / paths are
-  only painted into the splat; coarse terrain tiles paint them at least ~a vertex step wide (`splat` `minPathHw`) so
+  and extended to meet the stage road, the stage's `closures` close the mouths (`world/junctions.ts`). Dirt tracks / paths are
+  painted into the splat, and drawn as gravel ribbons too on maps with `trackRibbons`; `pathProfiles` overrides the
+  height-line smoothing / grade per OSM kind (`PATH_PROFILE`); coarse terrain tiles paint them at least ~a vertex step wide (`splat` `minPathHw`) so
   they stay lines from afar.
   The baker splits an OSM way where it folds back (> 120 deg) or revisits one of its nodes (two ways meeting there);
   a ground way under 15 m anchored at both ends is one straight ramp (`SHORT_JOINT`). Paved mouths on rural
@@ -134,7 +151,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Railways:** OSM tracks as `rail` paths with a drivable ballast hump, rails and catenary (`world/railways.ts`, `rail-mesh.ts`).
 - **Buildings:** placeholder boxes with stable ids (`buildings.csv`, viewer `?building=N`) or mesh buildings from the real
   footprints (`world/building-mesh.ts`).
-- **Stage signs:** start / finish gantries and split boards from `MapDef.stage` (`world/stage-signs.ts`).
+- **Stage signs:** start / finish gantries and split boards from the stage's `timing`, along the stage road (`world/stage-signs.ts`).
 - **Landmarks:** hand-modelled lots on graded pads that replace the placeholders, hooks `surfaceAt` / `keepsClear` /
   `groundOverride` (`world/landmarks.ts`, `pads.ts`; `maps/ajvatovci/start-row`, `hilltop`, `station`).
 - **City maps** (`jackie`): one-way carriageways, bridges and decks, portals, junction plazas, parkway lanes, continuous
@@ -170,7 +187,7 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   (`scripts/car-model/glb-meshopt.mjs`, about half the size, same meshes; `car-glb-meshopt.test.ts` checks every file).
 - **Door plates** (`cars/shared/rally-badge.ts`): our own event plate (emblem, car number, map name) projected onto both front
   doors. Liveries carry no numbers or lettering.
-- **Release flags** (`release.ts`): `CARS_LIST` / `MAPS_LIST` list every car / map id; `hideInProd: true` = dev server + `npm run build:test` only (TEST badge). Same flag and `RELEASE_BUILD` check (`src/shared/release.ts`) as `game.json`.
+- **Release flags** (`release.ts`): `CARS_LIST` / `STAGES_LIST` list every car / stage id (a map ships when one of its stages does); `hideInProd: true` = dev server + `npm run build:test` only (TEST badge). Same flag and `RELEASE_BUILD` check (`src/shared/release.ts`) as `game.json`.
   Unknown ids fall back to the defaults; `tests/rally/release.test.ts` guards the lists. The flag only hides - code still ships.
 
 ## Sound (`game/audio.ts`, `game/engine-sound.ts`)
@@ -233,7 +250,7 @@ assets/       catalog.ts (variants, LODs, colliders <- add assets here), builder
 cars/         index.ts registry; <car>/ per car; shared/ = body, parts, tyres, suspension, livery, door plate
 engine/       renderer, quality, sky / sun / fog / IBL, world shading, textures, materials, texture arrays
 game/         rally-game.ts (frame loop), input, camera, stage timing, HUD, effects, audio, autopilot, menus
-maps/         one folder per map, shared/ (format + helpers), index.ts registry
+maps/         one folder per map (info.ts, map.ts, stages.ts, baked data), shared/ (format + helpers), index.ts registry
 tools/        dev-only builders (stage cards)
 pages/        entry points listed in game.json; debug/ = tool page shell
 ```

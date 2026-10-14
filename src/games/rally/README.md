@@ -36,12 +36,13 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 
 ## Stages
 
-| Map                                     | Where                       | Length | Surface         | Status   |
-| --------------------------------------- | --------------------------- | ------ | --------------- | -------- |
-| [Petralica](maps/petralica/)            | North Macedonia (mountains) | 9.6 km | gravel + tarmac | playable |
-| [Ajvatovci Hill](maps/ajvatovci/)       | Ilinden, North Macedonia    | 4.5 km | old tarmac      | playable |
-| [Jackie Robinson Parkway](maps/jackie/) | New York City               | 7.3 km | tarmac, bridges | playable |
-| [Test Map](maps/test/)                  | procedural forest           | 1.7 km | gravel          | physics  |
+| Map                                     | Where                       | Length       | Surface         | Status          |
+| --------------------------------------- | --------------------------- | ------------ | --------------- | --------------- |
+| [Petralica](maps/petralica/)            | North Macedonia (mountains) | 9.6 km       | gravel + tarmac | playable        |
+| [Ajvatovci Hill](maps/ajvatovci/)       | Ilinden, North Macedonia    | 4.5 km       | old tarmac      | playable        |
+| [Jackie Robinson Parkway](maps/jackie/) | New York City               | 7.3 km       | tarmac, bridges | playable        |
+| [Test Map](maps/test/)                  | procedural forest           | 1.7 km       | gravel          | physics         |
+| [Galichica](maps/galichica/) (3 stages) | Lake Ohrid - Lake Prespa    | 12.7-27.4 km | mountain tarmac | test (dev only) |
 
 [![Ajvatovci](maps/ajvatovci/screenshots/start-street.jpg)](maps/ajvatovci/) [![Jackie](maps/jackie/screenshots/parkway-bridge.jpg)](maps/jackie/)
 

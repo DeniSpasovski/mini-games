@@ -14,8 +14,8 @@ import {
   type QualityName,
   type QualitySettings,
 } from '../engine/quality';
-import { ALL_MAPS, DEFAULT_MAP, MAPS } from '../maps';
-import type { MapInfo, SourceLink } from '../maps/shared/types';
+import { ALL_STAGES, DEFAULT_STAGE, MAPS, STAGES } from '../maps';
+import type { SourceLink, StageInfo } from '../maps/shared/types';
 import { peakPower } from '../physics/drivetrain';
 import {
   applySetup,
@@ -45,7 +45,7 @@ import {
   type TyreId,
 } from '../physics/tyres';
 import type { CarPhysicsDef, GearingId, SetupId } from '../physics/types';
-import { isTestCar, isTestMap, TEST_NOTE } from '../release';
+import { isTestCar, isTestStage, TEST_NOTE } from '../release';
 import { portalUrl } from '../../../shared/portal-link';
 import gameManifest from '../game.json';
 import {
@@ -191,7 +191,8 @@ const TYRE_RESEARCH: SourceLink[] = [
  * 3D showroom behind the panel. Resolves with the chosen stage.
  */
 export interface MenuResult {
-  map: string;
+  /** Stage id. */
+  stage: string;
   car: string;
   livery: number;
   tyre: TyreId;
@@ -247,7 +248,8 @@ class MainMenu {
     this.settings = loadSettings();
     this.mapIndex = Math.max(
       0,
-      MAPS.findIndex((m) => m.id === (this.settings.map || DEFAULT_MAP)),
+      // The last picked stage (settings `map`: the stored name stays, the value is a stage id).
+      STAGES.findIndex((m) => m.id === (this.settings.map || DEFAULT_STAGE)),
     );
     // The menu always opens on the default car (the map + livery are remembered).
     this.carIndex = Math.max(
@@ -290,7 +292,7 @@ class MainMenu {
     const q = new URLSearchParams(location.search);
     const one = q.get('bakecard');
     if (!one && !q.get('bakecards')) return;
-    const ids = one ? [one] : ALL_MAPS.map((m) => m.id);
+    const ids = one ? [one] : ALL_STAGES.map((m) => m.id);
     const box = document.createElement('pre');
     box.className = 'menu-bake-log';
     Object.assign(box.style, {
@@ -318,8 +320,9 @@ class MainMenu {
       .catch((e: unknown) => log(`FAILED: ${String(e)}`));
   }
 
-  private get map(): MapInfo {
-    return MAPS[this.mapIndex];
+  /** The selected stage (the menu's "map" screen is the stage select). */
+  private get map(): StageInfo {
+    return STAGES[this.mapIndex];
   }
 
   private get car(): CarDef {
@@ -467,7 +470,7 @@ class MainMenu {
       <h2>Built with</h2>
       ${links(BUILT_WITH, '')}
       <h2>Maps</h2>
-      ${MAPS.map((m) => `<h3>${m.name}</h3>${links(m.sources, 'Fully procedural - no external data.')}`).join('')}
+      ${MAPS.map((m) => `<h3>${m.name}</h3>${links([...(m.sources ?? []), ...m.stages.flatMap((st) => st.sources ?? [])], 'Fully procedural - no external data.')}`).join('')}
       <h2>Cars</h2>
       ${CARS.map((c) => `<h3>${c.name}</h3>${links(c.sources, 'Procedural model - no external sources.')}`).join('')}
       <h2>Physics</h2>
@@ -490,7 +493,7 @@ class MainMenu {
 
   /** Main-menu "Stage times": stage list on the left, the saved runs of the selected stage over its map on the right (current versions first, older ones dimmed below). */
   private timesScreen(): void {
-    const m = MAPS[this.timesMap];
+    const m = STAGES[this.timesMap];
     const cur = timesVersion(m.id);
     const times = loadTimes(m.id, CAR_IDS);
     const rows = times.filter((r) => !isOldRun(r, cur));
@@ -536,7 +539,7 @@ class MainMenu {
   }
 
   /** One stage card (route, description, tags, best time) of the stage list; `showBest` off on the Stage times screen. */
-  private stageCard(m: MapInfo, selected: boolean, showBest: boolean) {
+  private stageCard(m: StageInfo, selected: boolean, showBest: boolean) {
     const b = document.createElement('button');
     b.className = 'menu-card';
     b.classList.toggle('selected', selected);
@@ -547,11 +550,11 @@ class MainMenu {
     b.innerHTML = `
       ${routeSvg(m)}
       <div class="menu-card-body">
-        <div class="menu-card-title">${m.name}${testBadge(isTestMap(m.id))}</div>
+        <div class="menu-card-title">${m.name}${testBadge(isTestStage(m.id))}</div>
         <div class="menu-card-desc">${m.description}</div>
         <div class="menu-tags">
           <span>${(stageLength(m) / 1000).toFixed(1)} km</span>
-          <span>${m.stage.splits} splits</span>
+          <span>${m.timing.splits} splits</span>
           <span>${[...new Set(m.surfaces)].map((s) => s.replace(/_/g, ' + ')).join(' → ')}</span>
         </div>
         ${showBest ? `<div class="menu-best">${best ? `Best ${formatTime(best.time)} · ${carName(best.car)}` : oldBest ? `<span class="old">Older best ${formatTime(oldBest.time)} · ${oldRunLabel(oldBest, cur)}</span>` : 'No time set yet'}</div>` : ''}
@@ -566,7 +569,7 @@ class MainMenu {
     onPick: (i: number) => void,
   ): HTMLElement {
     const list = div('menu-cards');
-    MAPS.forEach((m, i) => {
+    STAGES.forEach((m, i) => {
       const b = this.stageCard(m, i === selected, showBest);
       b.addEventListener('click', () => onPick(i));
       list.append(b);
@@ -870,14 +873,14 @@ class MainMenu {
 
   private start(): void {
     const r = {
-      map: this.map.id,
+      stage: this.map.id,
       car: this.car.id,
       livery: this.livery,
       tyre: this.tyre,
       setup: this.setup,
       gearing: this.gearing,
     };
-    saveSettings({ map: r.map, car: r.car, livery: r.livery });
+    saveSettings({ map: r.stage, car: r.car, livery: r.livery });
     this.done(r);
   }
 
@@ -914,7 +917,7 @@ class MainMenu {
     if (a !== 'confirm' && a !== 'start') this.tick.play();
     if (s === 'map' && (up || a === 'down')) {
       this.mapIndex =
-        (this.mapIndex + (up ? -1 : 1) + MAPS.length) % MAPS.length;
+        (this.mapIndex + (up ? -1 : 1) + STAGES.length) % STAGES.length;
       this.show('map');
     } else if (s === 'car' && (up || a === 'down')) {
       this.selectCar(this.carIndex + (up ? -1 : 1));
@@ -943,7 +946,7 @@ class MainMenu {
       }
     } else if (s === 'times' && (up || a === 'down')) {
       this.timesMap =
-        (this.timesMap + (up ? -1 : 1) + MAPS.length) % MAPS.length;
+        (this.timesMap + (up ? -1 : 1) + STAGES.length) % STAGES.length;
       this.show('times');
     } else if (s === 'car' && (a === 'left' || a === 'right')) {
       this.setLivery(this.livery + (a === 'left' ? -1 : 1));
@@ -1315,12 +1318,12 @@ function driveLabel(frontSplit: number): string {
 
 const last = (a: number[]) => a[a.length - 1];
 
-function roadXZ(m: MapInfo): { x: number; z: number }[] {
+function roadXZ(m: StageInfo): { x: number; z: number }[] {
   return m.route.map(([x, z]) => ({ x, z }));
 }
 
 /** Road polyline lengths (control points; close enough to the spline for menus). */
-function cumulative(m: MapInfo): number[] {
+function cumulative(m: StageInfo): number[] {
   const pts = roadXZ(m);
   const out = [0];
   for (let i = 1; i < pts.length; i++)
@@ -1330,21 +1333,48 @@ function cumulative(m: MapInfo): number[] {
   return out;
 }
 
-function stageLength(m: MapInfo): number {
+function stageLength(m: StageInfo): number {
   const total = last(cumulative(m));
-  return Math.max(0, total - m.stage.start - m.stage.finishFromEnd);
+  return Math.max(0, total - m.timing.start - m.timing.finishFromEnd);
 }
 
-/** Small route outline: whole road faint, stage start -> finish highlighted (north up). */
-function routeSvg(m: MapInfo): string {
+/** Road shown around a stage in its outline (m before the start / after the finish): the run-up and run-out. */
+const ROUTE_MARGIN = 150;
+
+/**
+ * Small route outline (north up): the stage start -> finish highlighted, with ROUTE_MARGIN of road either side faint,
+ * framed on that stretch only - a stage on part of a longer road (Galichica West / East) shows just its own part.
+ */
+function routeSvg(m: StageInfo): string {
   const pts = roadXZ(m);
   const acc = cumulative(m);
   const total = last(acc);
+  const a = m.timing.start;
+  const b = total - m.timing.finishFromEnd;
+  const point = (d: number) => {
+    let i = 1;
+    while (i < acc.length - 1 && acc[i] < d) i++;
+    const t = (d - acc[i - 1]) / (acc[i] - acc[i - 1] || 1);
+    return {
+      x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * t,
+      z: pts[i - 1].z + (pts[i].z - pts[i - 1].z) * t,
+    };
+  };
+  /** The road between two distances along it, end points interpolated. */
+  const stretch = (lo: number, hi: number) => [
+    point(lo),
+    ...pts.filter((_, i) => acc[i] > lo && acc[i] < hi),
+    point(hi),
+  ];
+  const shown = stretch(
+    Math.max(0, a - ROUTE_MARGIN),
+    Math.min(total, b + ROUTE_MARGIN),
+  );
   let minX = Infinity;
   let maxX = -Infinity;
   let minZ = Infinity;
   let maxZ = -Infinity;
-  for (const p of pts) {
+  for (const p of shown) {
     minX = Math.min(minX, p.x);
     maxX = Math.max(maxX, p.x);
     minZ = Math.min(minZ, p.z);
@@ -1353,29 +1383,13 @@ function routeSvg(m: MapInfo): string {
   const size = Math.max(maxX - minX, maxZ - minZ) * 1.12 || 1;
   const cx = (minX + maxX) / 2;
   const cz = (minZ + maxZ) / 2;
-  const f = (x: number, z: number) =>
-    `${(((x - cx) / size + 0.5) * 100).toFixed(1)},${(((z - cz) / size + 0.5) * 100).toFixed(1)}`;
-  const at = (d: number) => {
-    let i = 1;
-    while (i < acc.length - 1 && acc[i] < d) i++;
-    const t = (d - acc[i - 1]) / (acc[i] - acc[i - 1] || 1);
-    return f(
-      pts[i - 1].x + (pts[i].x - pts[i - 1].x) * t,
-      pts[i - 1].z + (pts[i].z - pts[i - 1].z) * t,
-    );
-  };
-  const a = m.stage.start;
-  const b = total - m.stage.finishFromEnd;
-  const stage = [at(a)];
-  pts.forEach((p, i) => {
-    if (acc[i] > a && acc[i] < b) stage.push(f(p.x, p.z));
-  });
-  stage.push(at(b));
-  const [sx, sy] = at(a).split(',');
-  const [fx, fy] = at(b).split(',');
+  const f = (p: { x: number; z: number }) =>
+    `${(((p.x - cx) / size + 0.5) * 100).toFixed(1)},${(((p.z - cz) / size + 0.5) * 100).toFixed(1)}`;
+  const [sx, sy] = f(point(a)).split(',');
+  const [fx, fy] = f(point(b)).split(',');
   return `<svg class="menu-route" viewBox="0 0 100 100" aria-hidden="true">
-    <polyline points="${pts.map((p) => f(p.x, p.z)).join(' ')}" class="all"/>
-    <polyline points="${stage.join(' ')}" class="stage"/>
+    <polyline points="${shown.map(f).join(' ')}" class="all"/>
+    <polyline points="${stretch(a, b).map(f).join(' ')}" class="stage"/>
     <circle cx="${sx}" cy="${sy}" r="3.2" class="start"/>
     <circle cx="${fx}" cy="${fy}" r="3.2" class="finish"/>
   </svg>`;

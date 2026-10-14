@@ -25,8 +25,8 @@ import { SetupBench } from './setup-bench';
 import type { QualitySettings } from '../engine/quality';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
 import { getTexture, setTextureAnisotropy } from '../engine/textures';
-import { getMap, loadMap, MAPS } from '../maps';
-import type { MapDef } from '../maps/shared/types';
+import { getStage, loadStage, STAGES } from '../maps';
+import type { MapDef, StageDef } from '../maps/shared/types';
 import { testMap } from '../maps/test/map';
 import { AerialTerrain } from '../world/aerial-terrain';
 import { AerialTrees } from '../world/aerial-trees';
@@ -38,7 +38,7 @@ import {
   cardMesh,
   LARGE_MAP_AREA,
   loadStageCard,
-  mapHash,
+  stageCardHash,
   STAGE_CARD_VERSION,
   stageBox,
   stageOverlay,
@@ -333,7 +333,7 @@ export class Showroom {
     this.scene.add(view.group);
   }
 
-  private liveMaps = new Map<string, MapDef>();
+  private liveMaps = new Map<string, { map: MapDef; stage: StageDef }>();
   private liveLoading = new Set<string>();
 
   /** A large map without a baked card: replace its (empty) card view with a live build. */
@@ -341,17 +341,17 @@ export class Showroom {
     console.warn(
       `[stage card] ${old.id}: no baked card - building the view live (bake it: /games/rally/?bakecard=${old.id})`,
     );
-    const map = this.liveMaps.get(old.id);
-    if (!map) {
+    const live = this.liveMaps.get(old.id);
+    if (!live) {
       // The full map (baked data) is its own chunk: fetch it, keep the empty card view until it is here.
       if (!this.liveLoading.has(old.id)) {
         this.liveLoading.add(old.id);
-        void loadMap(old.id).then((m) => this.liveMaps.set(old.id, m));
+        void loadStage(old.id).then((m) => this.liveMaps.set(old.id, m));
       }
       return old;
     }
     this.scene.remove(old.group);
-    const view = buildMapView(map, this.quality);
+    const view = buildMapView(live.map, live.stage, this.quality);
     this.addView(view);
     if (this.wanted === old) this.wanted = view;
     return view;
@@ -361,7 +361,7 @@ export class Showroom {
   private preloadCards(): void {
     if (this.preloaded) return;
     this.preloaded = true;
-    for (const m of MAPS) this.getMap(m.id);
+    for (const m of STAGES) this.getMap(m.id);
   }
 
   /**
@@ -384,10 +384,10 @@ export class Showroom {
     if (view) {
       view.group.visible = true;
       // The terrain material is shared: re-apply this map's grass tint (another map may have set it).
-      setGroundTint(getMap(view.id).environment.groundTint);
+      setGroundTint(getStage(view.id).environment.groundTint);
       setGroundMoisture(null);
       this.env.apply(
-        { ...getMap(view.id).environment, fogDensity: 0.25 / view.size },
+        { ...getStage(view.id).environment, fogDensity: 0.25 / view.size },
         false,
       );
       this.env.update(view.center);
@@ -540,7 +540,7 @@ export class Showroom {
    */
   private bake(v: MapView): void {
     const card = v.card!;
-    const env = getMap(v.id).environment;
+    const env = getStage(v.id).environment;
     const shown = v === this.mapView;
     const prevEnv = this.env.def;
     const prevStudio = this.env.studio;
@@ -585,7 +585,7 @@ export class Showroom {
     this.scene.fog = fog;
     if (!shown) this.env.apply(prevEnv, prevStudio);
     if (this.mapView)
-      setGroundTint(getMap(this.mapView.id).environment.groundTint);
+      setGroundTint(getStage(this.mapView.id).environment.groundTint);
   }
 
   /**
@@ -700,7 +700,7 @@ function previewMap(map: MapDef): { map: MapDef; grow: number } {
  * and decoded. Marked `missing` when the map has no card yet (the menu then builds it live).
  */
 function cardView(mapId: string): MapView {
-  const map = getMap(mapId);
+  const map = getStage(mapId);
   const group = new Group();
   const detail = new Group();
   const overlay = new Group();
@@ -726,7 +726,7 @@ function cardView(mapId: string): MapView {
       marks?.dispose();
     },
   };
-  loadStageCard(mapId).then(
+  loadStageCard(map.map, mapId).then(
     (card) => {
       const d = card.data;
       if (import.meta.env.DEV && d.version !== STAGE_CARD_VERSION)
@@ -735,8 +735,8 @@ function cardView(mapId: string): MapView {
         );
       // Dev only: the data hash needs the full map (its own chunk), so check it after the card is shown.
       if (import.meta.env.DEV)
-        void loadMap(mapId).then((full) => {
-          if (d.hash !== mapHash(full))
+        void loadStage(mapId).then(({ map: full, stage }) => {
+          if (d.hash !== stageCardHash(full, stage))
             console.warn(
               `[stage card] ${mapId}: out of date (map changed) - re-bake: /games/rally/?bakecard=${mapId}`,
             );
@@ -776,12 +776,16 @@ function cardView(mapId: string): MapView {
   return view;
 }
 
-function buildMapView(map: MapDef, quality: QualitySettings): MapView {
-  const mapId = map.id;
+function buildMapView(
+  map: MapDef,
+  stageDef: StageDef,
+  quality: QualitySettings,
+): MapView {
+  const mapId = stageDef.id;
   const b = map.bounds;
   const large = (b.maxX - b.minX) * (b.maxZ - b.minZ) > LARGE_MAP_AREA;
   const preview = large ? previewMap(map) : undefined;
-  const world = new World(preview?.map ?? map);
+  const world = new World(preview?.map ?? map, stageDef);
   // Map extent (terrain floor) vs the stage: the orbit camera circles the STAGE (start -> finish bounding box),
   // not the map bounds - on maps where the stage uses a corner of the map (Ajvatovci) the view stays on it.
   const mapSize = Math.max(b.maxX - b.minX, b.maxZ - b.minZ);

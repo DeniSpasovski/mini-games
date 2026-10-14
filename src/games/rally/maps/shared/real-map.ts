@@ -1,4 +1,4 @@
-import type { BuildingDef, RoadPoint, RoadSpan } from './types';
+import type { BarrierRule, BuildingDef, RoadPoint, RoadSpan } from './types';
 
 /**
  * Helpers for real-world maps baked by scripts/realmap/bake.py
@@ -18,6 +18,65 @@ export function routePoints(
     if (i > 0) along += Math.hypot(x - route[i - 1][0], z - route[i - 1][1]);
     return { x, z, width: widthAt(along) };
   });
+}
+
+/**
+ * Guard rails on the outside of the hairpins of a mountain road (`MapDef.barriers`): every bend tighter than `maxRadius`
+ * (m, measured over +/- 8 m of the route's control-point line) gets a rail on its outer side from `lead` m before to
+ * `lead` m after it, broken at side-road mouths. Distances are along the control-point line, within a few metres of the
+ * game road. The outside of a hairpin is the drop on a switchback climb: a car that runs wide stays on the road.
+ */
+export function hairpinRails(
+  route: number[][],
+  o: { maxRadius: number; lead: number; offset?: number },
+): BarrierRule[] {
+  // Resample the control-point line every 2 m.
+  const pts: { x: number; z: number; d: number }[] = [];
+  let d = 0;
+  for (let i = 1; i < route.length; i++) {
+    const [ax, az] = route[i - 1];
+    const [bx, bz] = route[i];
+    const L = Math.hypot(bx - ax, bz - az);
+    const n = Math.max(1, Math.ceil(L / 2));
+    for (let k = 0; k < n; k++)
+      pts.push({
+        x: ax + ((bx - ax) * k) / n,
+        z: az + ((bz - az) * k) / n,
+        d: d + (L * k) / n,
+      });
+    d += L;
+  }
+  const last = route[route.length - 1];
+  pts.push({ x: last[0], z: last[1], d });
+  // Signed curvature over +/- 8 m (4 samples), + = turning left (the Road convention).
+  const w = 4;
+  const bends: { from: number; to: number; side: 'left' | 'right' }[] = [];
+  for (let i = w; i < pts.length - w; i++) {
+    const a = pts[i - w];
+    const m = pts[i];
+    const b = pts[i + w];
+    const ax = m.x - a.x;
+    const az = m.z - a.z;
+    const bx = b.x - m.x;
+    const bz = b.z - m.z;
+    const ang = Math.atan2(ax * bz - az * bx, ax * bx + az * bz);
+    const k = -ang / Math.max(1e-3, b.d - a.d);
+    if (Math.abs(k) < 1 / o.maxRadius) continue;
+    // The outside of a left turn is the right side.
+    const side = k > 0 ? 'right' : 'left';
+    const prev = bends[bends.length - 1];
+    if (prev && prev.side === side && m.d - o.lead <= prev.to)
+      prev.to = m.d + o.lead;
+    else bends.push({ from: m.d - o.lead, to: m.d + o.lead, side });
+  }
+  return bends.map((r) => ({
+    kind: 'guardrail',
+    side: r.side,
+    offset: o.offset ?? 0.9,
+    from: Math.max(0, Math.round(r.from)),
+    to: Math.round(r.to),
+    skipJunctions: 4,
+  }));
 }
 
 /** Compact baked building rows -> BuildingDef[] (columns listed in `fields`). */

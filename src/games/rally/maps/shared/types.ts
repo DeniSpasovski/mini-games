@@ -23,19 +23,17 @@ export interface PlazaIsland {
   pts: number[];
 }
 
+/**
+ * A MAP is the world (terrain, roads, land cover, scatter, buildings, environment); the stages that run on it are
+ * `stages` (StageDef: route direction, start / finish / splits, closures, event props, tyre). Players only see stages
+ * (menus, times, URLs); the map viewer shows a map with one of its stages (a stage picker). The world never depends on
+ * the stage.
+ */
 export interface MapDef {
   id: string;
   name: string;
-  /** Edition year printed in the start / finish gantry header next to the map name. */
-  year: number;
-  description: string;
-  /** Recommended tyre for the stage's surfaces: pre-selected on the car screen, the player may pick another. */
-  tyre: TyreId;
-  /**
-   * Recommended gearing (physics/gearing.ts) for cars that can change it - e.g. `long` on a fast stage. Missing =
-   * `medium`. Pre-selected on the setup screen like the tyre.
-   */
-  gearing?: GearingId;
+  /** The stages on this map (menu order). A stage id is never renamed once released: times are stored by it. */
+  stages: StageDef[];
   seed: number;
   /** Area that is rendered / streamed. Terrain outside rises to form a horizon. */
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number };
@@ -48,13 +46,10 @@ export interface MapDef {
   /** Far land around a real map (terrain + land cover, no roads / buildings), drawn as a backdrop: world/horizon.ts. */
   horizon?: HorizonDef;
   road: RoadDef;
-  stage: StageDef;
   /** Procedural vegetation / rocks per terrain chunk. */
   scatter: ScatterRule[];
   /** Props placed along the road (posts, signs, bales, crowds...). */
   roadside: RoadsideRule[];
-  /** Fan groups (tape, spectators, flags) on the inside of tight corners along the whole stage: world/corner-fans.ts. */
-  cornerFans?: CornerFansRule;
   /** Continuous barriers along the road (Jersey wall, guard rail): one swept mesh, not separate props. */
   barriers?: BarrierRule[];
   /** City dressing (parked cars, spectators, police / fire vehicles) placed from the road network: world/street-dressing.ts. */
@@ -127,21 +122,18 @@ export interface MapDef {
   plazaSignals?: number[];
   /** Street trees on the junction areas' sidewalks (`[x, z, trunk diameter in inches, ...]`, world m). */
   plazaTrees?: number[];
-  /** Hand-placed props. */
-  props: PropPlacement[];
   /**
-   * Real-world maps: where another road / track meets the stage road (the baked side roads
-   * are extended up to it), close its mouth with a row of barriers across the side road.
+   * Unpaved side roads (baked `dirt` paths: tracks, forest roads) are ribbon meshes with the gravel road texture, like
+   * the paved ones - a road is an object, not only paint on the terrain (they are carved and splat-painted either way).
    */
-  junctionBarriers?: {
-    asset: string;
-    /** Length of one barrier (m); a row of ceil(width / length) is placed. */
-    length: number;
-    /** Distance from the stage road edge to the barrier row (m), default 4. */
-    setback?: number;
-    /** Skip side roads narrower than this (footpaths), default 2.5 m. */
-    minWidth?: number;
-  };
+  trackRibbons?: boolean;
+  /**
+   * Per OSM kind: smoothing window (m) and grade limit of the other roads' height lines, over the defaults
+   * (`PATH_PROFILE` in world/terrain-gen.ts) - e.g. longer windows for tracks over lumpy karst.
+   */
+  pathProfiles?: Record<string, [number, number]>;
+  /** Hand-placed props along the map's road (`along` on the road as drawn, whatever stage runs on it). */
+  props: PropPlacement[];
   environment: EnvironmentDef;
   /** Data attributions shown in the pause menu and map viewer (required for OSM / CC BY data). */
   credits?: string[];
@@ -175,25 +167,38 @@ export type MapInfo = Pick<
   MapDef,
   | 'id'
   | 'name'
-  | 'year'
-  | 'description'
-  | 'tyre'
-  | 'gearing'
+  | 'stages'
   | 'seed'
   | 'bounds'
   | 'previewRelief'
-  | 'stage'
   | 'environment'
   | 'credits'
   | 'sources'
   | 'geo'
   | 'stageNumber'
 > & {
-  /** Stage road control points [x, z] (menu route outline and length). */
+  /** The map road's control points [x, z] (menu route outline and length; a reverse stage reads them backwards). */
   route: number[][];
   /** Surfaces along the road, in order (menu tags): `RoadDef.surface` then each `sections[].surface`. */
   surfaces: SurfaceId[];
 };
+
+/**
+ * What the menus know about a stage: the stage plus the bits of its map they show (maps/index.ts `stageInfo`).
+ * `route` is the map road's outline in the stage's direction.
+ */
+export type StageInfo = StageDef &
+  Pick<
+    MapInfo,
+    'bounds' | 'previewRelief' | 'environment' | 'credits' | 'geo' | 'surfaces'
+  > & {
+    /** Map id (the world this stage runs on). */
+    map: string;
+    mapName: string;
+    route: number[][];
+    /** The map's sources, then the stage's own. */
+    sources: SourceLink[];
+  };
 
 /**
  * A graded pad (a lot / yard): the terrain is levelled inside `polygon` and blends back to the land
@@ -332,6 +337,11 @@ export interface LakeDef {
   area?: number;
   /** Flat [x0, z0, x1, z1, ...]. */
   pts: number[];
+  /**
+   * Fixed water level (m above sea level, bake config `lakes.levels`), e.g. a big lake clipped at the map's edge. Missing:
+   * the median land height along the shore.
+   */
+  level?: number;
 }
 
 export interface PathDef {
@@ -545,13 +555,61 @@ export function roadSurfaceAt(
   return { surface, texture };
 }
 
-export interface StageDef {
+/** Start / finish / splits of a stage, measured along the stage road (its own direction, see StageDef.reverse). */
+export interface StageTiming {
   /** Distance along the road of the start line (m). */
   start: number;
   /** Distance before the road end of the finish line (m). */
   finishFromEnd: number;
   /** Number of split times between start and finish. */
   splits: number;
+}
+
+/** Side-road mouths closed with a row of barriers across the side road (a rally stage is a closed road). */
+export interface ClosureRule {
+  asset: string;
+  /** Length of one barrier (m); a row of ceil(width / length) is placed. */
+  length: number;
+  /** Distance from the stage road edge to the barrier row (m), default 4. */
+  setback?: number;
+  /** Skip side roads narrower than this (footpaths), default 2.5 m. */
+  minWidth?: number;
+  /**
+   * Only mouths between the start and the finish, +/- this margin (m along the stage road). Missing = every mouth on
+   * the map's road (a map with one stage over the whole road).
+   */
+  stageMargin?: number;
+}
+
+/**
+ * A STAGE: the rally event on a map's road (see MapDef). Runs along the map's road, or against it (`reverse`): every
+ * distance of the stage (`timing`, `props`, the `spawn=` URL) is measured along the stage road in its own direction.
+ */
+export interface StageDef {
+  /** Stage id: menus, times (`rally.times.<id>`), URLs. Never renamed once released. */
+  id: string;
+  name: string;
+  /** Edition year printed in the start / finish gantry header next to the stage name. */
+  year: number;
+  description: string;
+  /** Recommended tyre for the stage's surfaces: pre-selected on the car screen, the player may pick another. */
+  tyre: TyreId;
+  /**
+   * Recommended gearing (physics/gearing.ts) for cars that can change it - e.g. `long` on a fast stage. Missing =
+   * `medium`. Pre-selected on the setup screen like the tyre.
+   */
+  gearing?: GearingId;
+  /** Driven against the map road's direction: distances count from the road's end. */
+  reverse?: boolean;
+  timing: StageTiming;
+  /** Real-world maps: where another road / track meets the stage road, close its mouth (world/world.ts closures). */
+  closures?: ClosureRule;
+  /** Fan groups (tape, spectators, flags) on the inside of tight corners along the stage: world/corner-fans.ts. */
+  cornerFans?: CornerFansRule;
+  /** Event props (closure rows, hay bales, tape) along the stage road. */
+  props?: PropPlacement[];
+  /** Links only this stage uses (its route): listed with the map's sources on the About screen. */
+  sources?: SourceLink[];
 }
 
 export interface ScatterRule {
