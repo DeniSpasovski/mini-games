@@ -35,7 +35,7 @@ npm run dev     # /games/rally/car-viewer.html?car=ford_gt3
 | `ford-gt3.ts`       | `CarDef`: physics, hull fitted to the model, rim, glass tint, glTF      |
 | `profile.ts`        | boxy side profile baked from the GLB: fallback body and city street car |
 | `livery.ts`         | body atlas painter: the livery (seed 0) over a dark underside           |
-| `fender-mask.ts`    | traced texels of the solid fender blue (re-trace if the atlas changes)  |
+| `fender-mask.ts`    | traced polygons of the solid fender blue (re-trace if the atlas changes)  |
 | `model.source.json` | converter settings (offset, atlas) and `gltf` rules (material -> part)  |
 
 ## Credits and licence

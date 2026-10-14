@@ -1,5 +1,5 @@
 import { atlasKit, type Pt } from '../shared/atlas-painter';
-import { FENDER_RUNS } from './fender-mask';
+import { FENDER_POLYS } from './fender-mask';
 import type { LiveryInfo } from '../shared/livery';
 import type { CarAtlas } from '../shared/types';
 import source from './model.source.json';
@@ -159,30 +159,29 @@ function paint(
   const SW = (B.z[1] - B.z[0]) * K; // side chart width: right px + left px = SW at the same z
   const TY = 2 * (CH.top[1] - B.x[0]) * K; // top chart rows mirror across x = 0
   const RX = 2 * (CH.rear[0] + B.x[1]) * K; // rear chart columns mirror across x = 0
+  // Polygons (even-odd, so holes cut out) per chart; `map` turns a texel point into its mirror on the left side / top / rear.
+  const fill = (
+    polys: readonly (readonly number[])[],
+    map?: (x: number, y: number) => Pt,
+  ) => {
+    ctx.beginPath();
+    for (const p of polys) {
+      for (let i = 0; i < p.length; i += 2) {
+        const [x, y] = map ? map(p[i], p[i + 1]) : [p[i], p[i + 1]];
+        if (i) ctx.lineTo(x, y);
+        else ctx.moveTo(x, y);
+      }
+      ctx.closePath();
+    }
+    ctx.fill('evenodd');
+  };
   ctx.fillStyle = SKY;
-  for (const [y, ...xs] of FENDER_RUNS.right) {
-    for (let i = 0; i < xs.length; i += 2) {
-      ctx.fillRect(xs[i], y, xs[i + 1] - xs[i], 1);
-      ctx.fillRect(
-        Math.round(SW - xs[i + 1]),
-        Math.round(y - CH.right[1] * K),
-        xs[i + 1] - xs[i],
-        1,
-      );
-    }
-  }
-  for (const [y, ...xs] of FENDER_RUNS.top) {
-    for (let i = 0; i < xs.length; i += 2) {
-      ctx.fillRect(xs[i], y, xs[i + 1] - xs[i], 1);
-      ctx.fillRect(xs[i], Math.round(TY - y) - 1, xs[i + 1] - xs[i], 1);
-    }
-  }
-  for (const [y, ...xs] of FENDER_RUNS.rear) {
-    for (let i = 0; i < xs.length; i += 2) {
-      ctx.fillRect(xs[i], y, xs[i + 1] - xs[i], 1);
-      ctx.fillRect(RX - xs[i + 1], y, xs[i + 1] - xs[i], 1);
-    }
-  }
+  fill(FENDER_POLYS.right);
+  fill(FENDER_POLYS.right, (x, y) => [SW - x, y - CH.right[1] * K]);
+  fill(FENDER_POLYS.top);
+  fill(FENDER_POLYS.top, (x, y) => [x, TY - y]);
+  fill(FENDER_POLYS.rear);
+  fill(FENDER_POLYS.rear, (x, y) => [RX - x, y]);
   const DOOR_TOP = 0.84; // stripes stop under the door's shoulder line: none on the cowl / A-pillar base
   const FIELD: Pt[] = [
     [0.39, DOOR_TOP],
@@ -190,15 +189,15 @@ function paint(
     [0.69, 0.69],
     [0.802, 0.694],
     [1.121, 0.746],
-    [1.09, 0.85],
-    [1.25, 0.85],
-    [1.36, 0.836],
-    [1.454, 0.832],
+    [1.09, 0.835],
+    [1.25, 0.832],
+    [1.36, 0.82],
+    [1.454, 0.81],
     [1.572, 0.703],
     [1.44, 0.735],
-    [1.145, 0.717],
-    [1.045, 0.569],
-    [0.875, 0.569],
+    [1.138, 0.717],
+    [1.037, 0.579],
+    [0.875, 0.579],
     [0.83, 0.403],
     [0.39, 0.4],
   ];
