@@ -36,6 +36,7 @@ export type PartName =
   | 'lens'
   | 'lenscover'
   | 'chrome'
+  | 'satin'
   | 'amber'
   | 'tail'
   | 'tailc'
@@ -1489,6 +1490,14 @@ const BUILDERS: Record<PartName, () => Material> = {
       roughness: 0.14,
       metalness: 1,
       envMapIntensity: 1.1,
+    }),
+  /** Brushed aluminium: window frames, roof rails. */
+  satin: () =>
+    new MeshStandardMaterial({
+      color: 0xb4b8be,
+      roughness: 0.4,
+      metalness: 0.85,
+      envMapIntensity: 0.7,
     }),
   /** Amber indicator bulb, glowing. */
   amber: () =>

@@ -1,0 +1,182 @@
+{
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/audi-rs6/model-01-audi-rs6-avant-c8-m.glb = 'Audi RS 6 Avant (C8)' by GT Cars: Hyperspeed (CC BY 4.0), metres (root node scale fixed with glb-set-root-scale.py 0 100), +x left, +y up, +z nose, 2.928 m wheelbase. Mapped by material (boxes where one material holds two parts); tyres, rims, discs, calipers, the engine bay, badges and the plate are dropped (the game builds its own wheels, the rim is the model's: audi_rs6_wheel.glb); the lamp sheet keeps its texture (srcParts). The offset puts the front hub (model z 1.537) on physics front.z 1.26 and the hubs (model y 0.364) at the front tyre radius 0.3665. The atlas block is also read by livery.ts at runtime - edit it only here.",
+  "source": "sources/cars/audi-rs6/model-01-audi-rs6-avant-c8-m.glb -> glb-to-parts-stl.py -> sources/cars/audi-rs6/audi-rs6-parts.stl",
+  "output": "public/models/cars/audi_rs6.glb",
+  "axes": ["x", "y", "z"],
+  "scale": 1.0,
+  "offset": [0, 0.0025, -0.277],
+  "groundAtMin": false,
+  "targetTriangles": 60000,
+  "creaseDeg": 40,
+  "wheels": {
+    "$comment": "the wheels are separate nodes (dropped below) - nothing to cut",
+    "radius": 0,
+    "minAbsX": 9,
+    "centres": []
+  },
+  "atlas": {
+    "pxPerMetre": 256,
+    "width": 5.25,
+    "height": 9.0,
+    "bounds": {
+      "x": [-1.05, 1.05],
+      "y": [0, 1.5],
+      "z": [-2.8, 2.3]
+    },
+    "charts": {
+      "left": [0, 0],
+      "right": [0, 1.55],
+      "top": [0, 3.1],
+      "front": [0, 5.25],
+      "rear": [2.2, 5.25],
+      "bottom": [0, 6.8]
+    }
+  },
+  "gltf": {
+    "drop": [
+      "AAudi_RS6AvantRewardRecycled_2020_CallipersCalliperBadge_edcdd82",
+      "AAudi_RS6AvantRewardRecycled_2020_CallipersCalliperGloss_87e966e1",
+      "AAudi_RS6AvantRewardRecycled_2020_Wheel1A_3D_3DWheel1A_Material1",
+      "AAudi_RS6AvantRewardRecycled_2020EngineA_Material1",
+      "Object_2244"
+    ],
+    "parts": [
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020BadgeA_Material1",
+        "material": "logo"
+      },
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020ManufacturerPlateA_Material1",
+        "material": "logo"
+      },
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020Coloured_Material1",
+        "whole": true,
+        "x": [-0.15, 0.15],
+        "y": [0.52, 0.67],
+        "z": [2.38, 2.5],
+        "material": "logo"
+      },
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020Coloured_Material1",
+        "whole": true,
+        "x": [-0.12, 0.12],
+        "y": [0.91, 1.0],
+        "z": [-2.42, -2.37],
+        "material": "logo"
+      },
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020Coloured_Material1",
+        "whole": true,
+        "x": [0.4, 0.575],
+        "y": [0.65, 0.76],
+        "z": [-2.37, -2.29],
+        "material": "logo"
+      },
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020Paint_Material1",
+        "material": "body"
+      },
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020Base_Material1",
+        "material": "trim"
+      },
+      {
+        "mat": "red_glass",
+        "material": "redcover"
+      },
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020Window_Material1",
+        "z": [1.9, 3],
+        "y": [0, 1.05],
+        "material": "lenscover"
+      },
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020Window_Material1",
+        "material": "glass"
+      },
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020Carbon1_Material1",
+        "material": "carbon"
+      },
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020Carbon1M_Material1",
+        "material": "carbon"
+      },
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020Grille9A_Material1",
+        "material": "mesh"
+      },
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020Grille1A_Material1",
+        "material": "mesh"
+      },
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020Coloured_Material1",
+        "texture": {
+          "maxLum": 0.22,
+          "maxSat": 0.1,
+          "blur": 9,
+          "refine": 0.02
+        },
+        "material": "trim:2s"
+      },
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020Coloured_Material1",
+        "material": "satin"
+      },
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020InteriorA_Material1",
+        "material": "interior:2s"
+      },
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020InteriorTillingA_Material1",
+        "material": "interior:2s"
+      },
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020InteriorTillingColourZo_c11b746",
+        "material": "interior:2s"
+      }
+    ],
+    "default": "trim"
+  },
+  "parts": {
+    "materials": [
+      "body",
+      "trim",
+      "trim:2s",
+      "glass",
+      "carbon",
+      "satin",
+      "mesh",
+      "lenscover",
+      "redcover",
+      "interior:2s",
+      "logo"
+    ],
+    "drop": ["logo"],
+    "maxTriangles": {
+      "interior:2s": 16000
+    }
+  },
+  "srcParts": {
+    "textures": [
+      {
+        "material": "AAudi_RS6AvantRewardRecycled_2020LightA_Material1",
+        "out": "public/models/cars/audi_rs6_lamps.png"
+      }
+    ],
+    "parts": [
+      {
+        "node": "Object_2244",
+        "z": [0, 3],
+        "material": "src:lamp:audi_rs6_lamps.png"
+      },
+      {
+        "node": "Object_2244",
+        "z": [-3, 0],
+        "material": "src:tail:audi_rs6_lamps.png"
+      }
+    ]
+  }
+}
