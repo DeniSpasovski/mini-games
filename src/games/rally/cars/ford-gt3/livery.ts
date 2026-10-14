@@ -9,7 +9,7 @@ import source from './model.source.json';
  * and the cockpit are separate parts (`gltf.parts` in model.source.json), so nothing painted here can reach them.
  */
 const A = source.atlas;
-const { K, B, CH, Painter } = atlasKit(A);
+const { K, B, CH, Painter, sidePx } = atlasKit(A);
 
 const WHITE = '#f1f3f6';
 const RED = '#c4202c';
@@ -21,16 +21,15 @@ const RAIL = 13;
 const REAR_Z0 = -0.8; // behind the door's rear edge (door edge z ~ -0.65)
 const REAR_PITCH = 0.1; // stripe pitch along z; the last width equals it, so the stripes close up
 const LEAN = 0.42; // bottom edge sits this much further forward than the top (z)
+const LEAN_TOP = 0.9;
 const SHOULDER = 0.98; // top of the stripes beside the window (below the glass)
-/** Height where the side chart hands over to the top chart at |x| ~0.7 (chart-probe): 1.15 at the C-pillar, 0.94 at the tail. */
-const crestY = (z: number) =>
-  0.94 + 0.21 * Math.min(1, Math.max(0, (z + 1.9) / 0.8));
 const DECK = 1.5; // above this nothing is painted on the side chart; the top chart carries the roof / deck
 
 // Front fender: solid light blue behind the front arch that breaks up into FIN stripes going rearward and thinning out.
-const FIN = 12;
+const FIN = 28;
 /** The rear chart also holds rear-facing walls further forward (door gaps, mirror, vent ribs) at |x| > 0.8: red only on the back panel. */
 const REAR_RED_X = 0.8;
+const REAR_RED_Y = 0.83;
 
 function paint(
   ctx: CanvasRenderingContext2D,
@@ -60,17 +59,22 @@ function paint(
     // y from the sill up; the lean is applied by shifting the lower points forward
     const yLo = 0.12;
     const yHi = k < 2 ? SHOULDER : DECK;
-    const lean = (y: number) => (LEAN * (SHOULDER - y)) / (SHOULDER - yLo);
+    // Above LEAN_TOP the stripe stops leaning: the side -> top chart seam sits at 0.94 - 1.15 depending on z, and a constant
+    // offset there keeps the roof / deck stripes lined up with the side ones wherever the seam is.
+    const lean = (y: number) =>
+      (LEAN * (SHOULDER - Math.min(y, LEAN_TOP))) / (SHOULDER - yLo);
     const poly: Pt[] = [
       [z0 + lean(yHi), yHi],
       [z1 + lean(yHi), yHi],
+      [z1 + lean(LEAN_TOP), LEAN_TOP],
       [z1 + lean(yLo), yLo],
       [z0 + lean(yLo), yLo],
+      [z0 + lean(LEAN_TOP), LEAN_TOP],
     ];
     P.side(poly, col);
     if (z0 < -1.0) {
       // The top chart carries the stripe where it crosses the roof edge: same z as the side stripe at CREST height.
-      const o = lean(crestY(z0));
+      const o = lean(LEAN_TOP);
       P.top(
         [
           [z0 + o, -1.1],
@@ -125,68 +129,83 @@ function paint(
       RED,
     );
   }
+  // Rear chart: red back panel up to REAR_RED_Y, white lid lip above it. The chart also holds rear-facing walls elsewhere
+  // (door gaps, mirror, vent ribs at |x| > 0.8, hood base and bumper top at y > 0.83): they must not pick up the red.
   P.end(
     'rear',
     [
       [-REAR_RED_X, 0],
       [REAR_RED_X, 0],
-      [REAR_RED_X, 1.6],
-      [-REAR_RED_X, 1.6],
+      [REAR_RED_X, REAR_RED_Y],
+      [-REAR_RED_X, REAR_RED_Y],
     ],
     RED,
   );
+  P.end(
+    'rear',
+    [
+      [-REAR_RED_X, REAR_RED_Y],
+      [REAR_RED_X, REAR_RED_Y],
+      [REAR_RED_X, 1.0],
+      [-REAR_RED_X, 1.0],
+    ],
+    WHITE,
+  );
 
-  // Front fender: solid light blue on the vent panel (outline traced in the car viewer) and a band along the top of the
-  // fender to the nose, then FIN stripes (leaning, bottom edge forward) going back over the door, thinning out. The
-  // stripes sit between the shoulder line (FIN_TOP) and the door's lower line (FIN_BOT).
-  const VENT: Pt[] = [
-    [0.727, 0.848],
-    [1.023, 0.842],
-    [1.148, 0.717],
+  // Front fender (traced by hand on the car viewer, mapped with the vent's corners): solid light blue above the vent's
+  // louvre lines, leaning stripes below them and over the door, all inside the traced outline FIELD.
+  const SOLID: Pt[] = [
+    [0.69, 1.0],
+    [1.9, 1.0],
+    [1.9, 0.85],
+    [1.09, 0.855],
+    [1.121, 0.746],
+    [0.802, 0.694],
+    [0.69, 0.69],
+  ];
+  const FIELD: Pt[] = [
+    [0.39, 0.93],
+    [0.69, 0.93],
+    [0.69, 0.69],
+    [0.802, 0.694],
+    [1.121, 0.746],
+    [1.09, 0.855],
+    [1.454, 0.846],
+    [1.572, 0.703],
+    [1.44, 0.735],
+    [1.145, 0.717],
     [1.045, 0.569],
     [0.875, 0.569],
-    [0.898, 0.717],
+    [0.83, 0.403],
+    [0.39, 0.4],
   ];
-  P.side(VENT, SKY);
-  // Fender top / louvre faces (side chart, y 0.70 - 0.90 from the vent to the nose).
-  P.side(
-    [
-      [0.73, 0.9],
-      [1.5, 0.9],
-      [1.5, 0.7],
-      [0.73, 0.7],
-    ],
-    SKY,
-  );
-  const FIN_TOP = 0.82;
-  const FIN_BOT = 0.38;
-  const FIN_SLOPE = 0.43; // z shift per metre of height drop
-  const GAP_Z = 0.675; // door / fender cut line: the stripes stop here, the vent block starts on the other side
-  const clipZ = (pts: Pt[]): Pt[] => {
-    const out: Pt[] = [];
-    pts.forEach((a, i) => {
-      const b = pts[(i + 1) % pts.length];
-      if (a[0] <= GAP_Z) out.push(a);
-      if (a[0] <= GAP_Z !== b[0] <= GAP_Z)
-        out.push([
-          GAP_Z,
-          a[1] + ((b[1] - a[1]) * (GAP_Z - a[0])) / (b[0] - a[0]),
-        ]);
+  P.side(SOLID, SKY);
+  const FIN_REF = 0.945; // stripes are defined at this height
+  const FIN_SLOPE = 0.5; // z shift per metre of height drop (traced: ~0.45 on the door, steeper on the vent)
+  for (const s of ['left', 'right'] as const) {
+    ctx.save();
+    ctx.beginPath();
+    FIELD.forEach(([z, y], i) => {
+      const [px, py] = sidePx(s, z, y);
+      if (i) ctx.lineTo(px, py);
+      else ctx.moveTo(px, py);
     });
-    return out;
-  };
-  for (let k = 0; k < FIN; k++) {
-    const t = k / (FIN - 1);
-    const zt = 0.82 - k * 0.04;
-    const w = 0.03 * (1 - t) + 0.01;
-    const sh = (FIN_TOP - FIN_BOT) * FIN_SLOPE;
-    const quad = clipZ([
-      [zt, FIN_TOP],
-      [zt - w, FIN_TOP],
-      [zt - w + sh, FIN_BOT],
-      [zt + sh, FIN_BOT],
-    ]);
-    if (quad.length > 2) P.side(quad, SKY);
+    ctx.closePath();
+    ctx.clip();
+    for (let k = 0; k < FIN; k++) {
+      const zt = 1.6 - k * 0.045;
+      const w = 0.022;
+      const at = (z: number, y: number): Pt => [
+        z + (FIN_REF - y) * FIN_SLOPE,
+        y,
+      ];
+      P.side(
+        [at(zt, 1.0), at(zt - w, 1.0), at(zt - w, 0.3), at(zt, 0.3)],
+        SKY,
+        s,
+      );
+    }
+    ctx.restore();
   }
 }
 
