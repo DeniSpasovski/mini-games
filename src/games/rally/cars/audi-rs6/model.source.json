@@ -37,10 +37,36 @@
       "AAudi_RS6AvantRewardRecycled_2020_CallipersCalliperBadge_edcdd82",
       "AAudi_RS6AvantRewardRecycled_2020_CallipersCalliperGloss_87e966e1",
       "AAudi_RS6AvantRewardRecycled_2020_Wheel1A_3D_3DWheel1A_Material1",
-      "AAudi_RS6AvantRewardRecycled_2020EngineA_Material1",
-      "Object_2244"
+      "AAudi_RS6AvantRewardRecycled_2020EngineA_Material1"
     ],
     "parts": [
+      {
+        "node": "Object_2244",
+        "x": [0.4, 0.62],
+        "y": [0.82, 0.865],
+        "z": [-3, -2.0],
+        "material": "reverselamp"
+      },
+      {
+        "node": "Object_2244",
+        "x": [-0.62, -0.4],
+        "y": [0.82, 0.865],
+        "z": [-3, -2.0],
+        "material": "reverselamp"
+      },
+      {
+        "node": "Object_2244",
+        "material": "logo"
+      },
+      {
+        "mat": "AAudi_RS6AvantRewardRecycled_2020InteriorA_Material1",
+        "whole": true,
+        "islandTris": [1, 12],
+        "x": [0.33, 0.43],
+        "y": [0.86, 0.94],
+        "z": [0.41, 0.445],
+        "material": "logo"
+      },
       {
         "mat": "AAudi_RS6AvantRewardRecycled_2020BadgeA_Material1",
         "material": "logo"
@@ -56,6 +82,12 @@
         "y": [0.52, 0.67],
         "z": [2.38, 2.5],
         "material": "logo"
+      },
+      {
+        "x": [-0.23, 0.23],
+        "y": [0.45, 0.7],
+        "z": [2.2, 3],
+        "material": "mesh"
       },
       {
         "mat": "AAudi_RS6AvantRewardRecycled_2020Coloured_Material1",
@@ -83,7 +115,7 @@
       },
       {
         "mat": "red_glass",
-        "material": "redcover"
+        "material": "brakecover"
       },
       {
         "mat": "AAudi_RS6AvantRewardRecycled_2020Window_Material1",
@@ -150,9 +182,10 @@
       "satin",
       "mesh",
       "lenscover",
-      "redcover",
+      "brakecover",
       "interior:2s",
-      "logo"
+      "logo",
+      "reverselamp"
     ],
     "drop": ["logo"],
     "maxTriangles": {
@@ -174,7 +207,43 @@
       },
       {
         "node": "Object_2244",
-        "z": [-3, 0],
+        "z": [-3, -2.0],
+        "y": [0.865, 2],
+        "material": "src:tail:audi_rs6_lamps.png"
+      },
+      {
+        "node": "Object_2244",
+        "z": [-3, -2.0],
+        "x": [0.62, 1.2],
+        "y": [0, 0.865],
+        "material": "src:tail:audi_rs6_lamps.png"
+      },
+      {
+        "node": "Object_2244",
+        "z": [-3, -2.0],
+        "x": [-1.2, -0.62],
+        "y": [0, 0.865],
+        "material": "src:tail:audi_rs6_lamps.png"
+      },
+      {
+        "node": "Object_2244",
+        "z": [-3, -2.0],
+        "x": [-0.4, 0.4],
+        "y": [0, 0.82],
+        "material": "src:tail:audi_rs6_lamps.png"
+      },
+      {
+        "node": "Object_2244",
+        "z": [-3, -2.0],
+        "x": [0.4, 0.62],
+        "y": [0, 0.82],
+        "material": "src:tail:audi_rs6_lamps.png"
+      },
+      {
+        "node": "Object_2244",
+        "z": [-3, -2.0],
+        "x": [-0.62, -0.4],
+        "y": [0, 0.82],
         "material": "src:tail:audi_rs6_lamps.png"
       }
     ]
