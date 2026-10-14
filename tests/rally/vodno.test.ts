@@ -191,6 +191,7 @@ describe('vodno landmarks (churches, platform, stations, towers)', () => {
     'vodno-summit',
     'vodno-nerezi',
     'vodno-outposts',
+    'vodno-car-parks',
   ];
 
   test('registered on the map and in the world', () => {

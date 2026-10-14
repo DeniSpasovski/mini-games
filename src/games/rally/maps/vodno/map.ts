@@ -16,7 +16,7 @@ import data from './data.json';
 import horizon from './horizon.json';
 import { vodnoInfo as info } from './info';
 import { VODNO_FLATS } from './landmarks';
-import { dropLotAisles, LOT_FLATS, LOT_PATHS } from './lots';
+import { countryRoad, dropLotAisles, LOT_PADS } from './lots';
 import { FINISH, START } from './stages';
 
 /**
@@ -71,7 +71,8 @@ export const vodnoMap: MapDef = {
     ],
     edgeRise: 0,
     rockSlope: [0.65, 1.0],
-    flatAreas: [...VODNO_FLATS, ...LOT_FLATS],
+    flatAreas: VODNO_FLATS,
+    pads: LOT_PADS,
   },
   landcover: {
     ...(data.landcover as Omit<LandcoverDef, 'splat' | 'fields'>),
@@ -94,7 +95,7 @@ export const vodnoMap: MapDef = {
       cemetery: [0.7, 0.2, 0, 0.1],
     },
   },
-  paths: [...dropLotAisles(data.paths as PathDef[]), ...LOT_PATHS],
+  paths: countryRoad(dropLotAisles(data.paths as PathDef[]), data.route),
   // The side roads are streets and forest tracks: tracks are gravel ribbons (objects), streets city asphalt.
   trackRibbons: true,
   // Tracks over steep pine woods: a longer height window than the default track (25 m) keeps them smooth.
@@ -398,5 +399,6 @@ export const vodnoMap: MapDef = {
     'vodno-summit',
     'vodno-nerezi',
     'vodno-outposts',
+    'vodno-car-parks',
   ],
 };

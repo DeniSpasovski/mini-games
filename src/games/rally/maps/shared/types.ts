@@ -356,6 +356,8 @@ export interface PathDef {
   /** false = passes over / under the stage road (bridge, not connected): never joined to it or barriered. */
   /** A road in the divided highway's cut beside its carriageways (set by world/parkway-lanes.ts, MapDef.parkwayLanes). */
   parkwayLane?: boolean;
+  /** No kerbs / sidewalks / lamps / crosswalks on this street (a country road inside the city-street reach, MapDef.cityStreets). */
+  bare?: boolean;
   junction?: boolean;
   /** OSM bridge=yes: an elevated deck (not carved into the terrain, drawn as a bridge mesh). */
   bridge?: boolean;

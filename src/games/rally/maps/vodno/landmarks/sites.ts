@@ -1,4 +1,4 @@
-import { toLocal, type Site } from '../../ajvatovci/hilltop/site';
+import { toLocal, toWorld, type Site } from '../../ajvatovci/hilltop/site';
 import type { FlatArea } from '../../shared/types';
 
 export { toLocal, toWorld } from '../../ajvatovci/hilltop/site';
@@ -16,8 +16,38 @@ const rad = (deg: number): number => (deg * Math.PI) / 180;
 /** Church of the Nativity of the Theotokos (Middle Vodno monastery), OSM way 689815741: three-lobed (triconch) plan. */
 export const SREDNO_CHURCH: Site = { x: 464.27, z: -528.81, yaw: rad(-16.5) };
 
-/** The flagpole in the Sredno Vodno car park (at the finish): the lot's north-east edge, see ../lots.ts. */
-export const LOT_FLAGPOLE: Site = { x: 511.5, z: -367, yaw: 0 };
+/**
+ * The car parks (modelled in car-parks.ts, levelled in ../lots.ts). Sredno Vodno lot: local x runs from the road (where it
+ * opens onto the stage road) up the slope; centre lines in local metres; half widths in m.
+ */
+export const SREDNO_LOT: Site = {
+  x: 511.5,
+  z: -359,
+  yaw: Math.atan2(-48, -83),
+};
+export const SREDNO_LOT_CENTRE: [number, number][] = [
+  [-50, 0],
+  [48, 0],
+];
+export const SREDNO_LOT_HW = 9.5;
+/** Vidikovec viewpoint lot beside the hairpin: a terrace along the road, on its outer (north) side. */
+export const VIDIKOVEC_LOT: Site = { x: 1565, z: -586, yaw: 0 };
+export const VIDIKOVEC_LOT_CENTRE: [number, number][] = [
+  [1621, -581],
+  [1608.2, -591.8],
+  [1592.6, -595.9],
+  [1569.3, -596.3],
+  [1549.8, -591.7],
+  [1530.6, -585.2],
+  [1507, -573.9],
+].map(([x, z]) => [x - 1565, z + 586]);
+export const VIDIKOVEC_LOT_HW = 7.8;
+
+/** The flagpole of the Sredno Vodno car park: on the lawn behind the kerb near the entrance. */
+export const LOT_FLAGPOLE: Site = (() => {
+  const [x, z] = toWorld(SREDNO_LOT, -14, 11.6);
+  return { x, z, yaw: 0 };
+})();
 
 /** The Millennium Cross platform, OSM way 618009929: a round platform of 24 m on twelve columns. */
 export const PLATFORM: Site = { x: -700.6, z: 796.4, yaw: 0 };

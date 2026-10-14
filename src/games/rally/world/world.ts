@@ -406,7 +406,8 @@ export class World implements GroundProvider {
         blocked: (x, z, r) => this.buildings.contains(x, z, r),
         underpass: (pi, a) =>
           this.gen.isUnderpass(pi) && this.gen.underpassDipAt(pi, a) > 1,
-        skip: (pi) => this.gen.isParkwayLane(pi),
+        skip: (pi) =>
+          this.gen.isParkwayLane(pi) || !!this.gen.paths!.paths[pi].bare,
         deck: (pi) => this.gen.isPortalDeck(pi),
         plaza: this.gen.plazas.empty
           ? undefined

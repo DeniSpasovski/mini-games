@@ -1,6 +1,7 @@
 import type { Group } from 'three';
 import { getAssetMeta } from '../../../assets/catalog';
 import { hash3 } from '../../../../../shared/rng';
+import type { SurfaceId } from '../../../physics/surfaces';
 import type { StaticCollider } from '../../../physics/types';
 import type { TerrainSampler } from '../../../world/heightfield';
 import type { Landmark } from '../../../world/landmarks';
@@ -10,6 +11,7 @@ import { Local } from '../../ajvatovci/hilltop/build/shapes';
 import { Bucket } from '../../ajvatovci/start-row/build/kit';
 import type { BuildingDef } from '../../shared/types';
 import { boxCollider, cylinderCollider, turnedBoxCollider } from './common';
+import { buildLot, onLot, SREDNO, VIDIKOVEC } from './car-parks';
 import { buildNereziChurch } from './nerezi-church';
 import { buildLookout, buildRuins, ruinsLayout } from './outposts';
 import { buildSrednoChurch, NAVE_X0 } from './sredno-church';
@@ -19,6 +21,10 @@ import {
   LODGE,
   LOOKOUT,
   LOT_FLAGPOLE,
+  SREDNO_LOT,
+  SREDNO_LOT_HW,
+  VIDIKOVEC_LOT,
+  VIDIKOVEC_LOT_CENTRE,
   LOWER_STATION,
   NEREZI_AREAS,
   NEREZI_CHURCH,
@@ -59,8 +65,13 @@ interface Spec {
   replaces?: (b: BuildingDef) => boolean;
   colliders: (ground: TerrainSampler) => StaticCollider[];
   plants?: Plant[];
+  /** The surface the car drives on where the landmark paves the ground (physics only). */
+  surfaceAt?: (x: number, z: number) => SurfaceId | undefined;
   /** Writes the structures into the bucket, `at` = a structure's frame on the ground under its site. */
-  build: (at: (site: Site, tile: string) => Local) => void;
+  build: (
+    at: (site: Site, tile: string) => Local,
+    ground: (x: number, z: number) => number,
+  ) => void;
 }
 
 function landmark(spec: Spec): Landmark {
@@ -69,6 +80,7 @@ function landmark(spec: Spec): Landmark {
     occupies: (x, z, margin) => onAreas(spec.areas, x, z, margin),
     replaces: (b) => onAreas(spec.areas, b.x, b.z, 0) || !!spec.replaces?.(b),
     colliders: (ground) => spec.colliders(ground),
+    surfaceAt: spec.surfaceAt,
     instances: (ground): ScatterInstance[] =>
       (spec.plants ?? []).map((p, i) => {
         const [x, z] = toWorld(p.site, p.x, p.z);
@@ -89,7 +101,7 @@ function landmark(spec: Spec): Landmark {
       const bucket = new Bucket();
       const at = (site: Site, tile: string) =>
         new Local(bucket, tile, site, world.analytic.height(site.x, site.z));
-      spec.build(at);
+      spec.build(at, (x, z) => world.analytic.height(x, z));
       yield;
       const group = bucket.build(spec.id);
       group.userData.stats = {
@@ -124,11 +136,9 @@ export const srednoVodnoLandmark = landmark({
       cylinderCollider(SREDNO_CHURCH, -1.1, 3.05, yc, 3.1, 3.8),
       cylinderCollider(SREDNO_CHURCH, 2.05, 0, yc, 3.1, 3.8),
       boxCollider(LOWER_STATION, [-HALF_L, HALF_L, -HALF_W, HALF_W], ys, 9.6),
-      cylinderCollider(LOT_FLAGPOLE, 0, 0, base(g, LOT_FLAGPOLE), 0.12, 11),
     ];
   },
   plants: [
-    { asset: 'flagpole', site: LOT_FLAGPOLE, x: 0, z: 0, scale: 1 },
     { asset: 'juniper', site: SREDNO_CHURCH, x: -9, z: -4.6, scale: 0.8 },
     { asset: 'juniper', site: SREDNO_CHURCH, x: -5, z: 6.4, scale: 0.7 },
     { asset: 'pine_tree', site: SREDNO_CHURCH, x: -14.5, z: 4.6, scale: 0.9 },
@@ -253,10 +263,77 @@ export const outpostsLandmark = landmark({
   },
 });
 
+/** Lamp poles along the Sredno Vodno lot (local x along the lot, on the side away from the flag). */
+const LOT_LAMPS = [-28, -2, 24, 46];
+
+/** The two car parks (Sredno Vodno at the finish, Vidikovec at the hairpin) and the flagpole of the first. */
+export const carParksLandmark = landmark({
+  id: 'vodno-car-parks',
+  areas: [
+    {
+      site: SREDNO_LOT,
+      rect: [-53, 50, -SREDNO_LOT_HW - 1, SREDNO_LOT_HW + 3],
+    },
+    ...VIDIKOVEC_LOT_CENTRE.map(([x, z]) => ({
+      site: {
+        ...VIDIKOVEC_LOT,
+        x: VIDIKOVEC_LOT.x + x,
+        z: VIDIKOVEC_LOT.z + z,
+      },
+      r: 11,
+    })),
+  ],
+  colliders: (g) => [
+    cylinderCollider(LOT_FLAGPOLE, 0, 0, base(g, LOT_FLAGPOLE), 0.12, 11),
+    ...LOT_LAMPS.map((x) =>
+      cylinderCollider(
+        SREDNO_LOT,
+        x,
+        -SREDNO_LOT_HW - 0.6,
+        base(g, SREDNO_LOT),
+        0.1,
+        7,
+      ),
+    ),
+  ],
+  plants: [{ asset: 'flagpole', site: LOT_FLAGPOLE, x: 0, z: 0, scale: 1 }],
+  surfaceAt: (x, z) =>
+    onLot(SREDNO, x, z) || onLot(VIDIKOVEC, x, z) ? 'tarmac' : undefined,
+  build: (at, ground) => {
+    const sredno = at(SREDNO_LOT, 'sredno-lot');
+    buildLot(sredno, SREDNO, ground);
+    const y0 = ground(SREDNO_LOT.x, SREDNO_LOT.z);
+    for (const x of LOT_LAMPS) {
+      const [wx, wz] = toWorld(SREDNO_LOT, x, -SREDNO_LOT_HW - 0.6);
+      const y = ground(wx, wz) - y0;
+      sredno.box(
+        'metal',
+        [-0.07, y, -SREDNO_LOT_HW - 0.67],
+        [0.07, y + 7, -SREDNO_LOT_HW - 0.53],
+        '#8d9296',
+      );
+      sredno.box(
+        'metal',
+        [-0.05, y + 6.9, -SREDNO_LOT_HW - 0.6],
+        [0.05, y + 7, -SREDNO_LOT_HW + 1.1],
+        '#8d9296',
+      );
+      sredno.box(
+        'metal',
+        [-0.2, y + 6.84, -SREDNO_LOT_HW + 0.8],
+        [0.2, y + 6.92, -SREDNO_LOT_HW + 1.4],
+        '#d9dcde',
+      );
+    }
+    buildLot(at(VIDIKOVEC_LOT, 'vidikovec-lot'), VIDIKOVEC, ground);
+  },
+});
+
 export const VODNO_LANDMARKS: Landmark[] = [
   srednoVodnoLandmark,
   summitLandmark,
   nereziLandmark,
   outpostsLandmark,
+  carParksLandmark,
 ];
 export { VODNO_FLATS } from './sites';
