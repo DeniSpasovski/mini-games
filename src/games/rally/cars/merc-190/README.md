@@ -1,7 +1,7 @@
 # Mercedes 190E (`merc_190`)
 
 A 2.5-16 Evolution saloon from a **CC BY Sketchfab model**, used as it comes: mapped to game parts by material only (no cuts), no
-livery. In game it is **Mercedes 190E**: RWD, 1340 kg, 2.5 l four, five-speed, road tyres. Test car (`hideInProd` in `CARS_LIST`).
+livery. In game it is **Mercedes 190E**: RWD, 1340 kg, 2.5 l four, five-speed, road tyres.
 
 - **Kept from the model:** the body with its wing and wide arches, the cockpit (seats, dash, wheel) behind see-through glass, the 3D head /
   tail lamps and the 6-spoke rim (de-cambered, centred on the hub).

@@ -37,6 +37,16 @@ const FIRING: Record<EngineLayout, Firing> = {
       [0.72, 14],
     ],
   },
+  // Flat-plane V8 (BMW S65 / P65, Ferrari): two even fours, so the banks alternate every 90°. No cross-plane lope:
+  // a smooth, high howl that is mostly the firing order and the half-order between it from the unequal pipes.
+  v8flat: {
+    angles: even(8),
+    banks: [0, 1, 0, 1, 0, 1, 0, 1],
+    pipes: [
+      [1, 0],
+      [0.92, 5],
+    ],
+  },
   // Firing order 1-3-2-4, 1/3 on one side; unequal-length headers smear the pulses = the boxer rumble.
   flat4: {
     angles: even(4),

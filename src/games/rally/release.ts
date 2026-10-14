@@ -23,9 +23,9 @@ export const CARS_LIST: readonly ReleaseEntry[] = [
   { id: 'subie_22b', hideInProd: true },
   { id: 'citroen_c4' },
   { id: 'lancer_evo_6' },
-  { id: 'ford_gt3', hideInProd: true },
+  { id: 'ford_gt3' },
+  { id: 'merc_190' },
   { id: 'porsche_911_930', hideInProd: true },
-  { id: 'merc_190', hideInProd: true },
 ];
 
 export const STAGES_LIST: readonly ReleaseEntry[] = [
