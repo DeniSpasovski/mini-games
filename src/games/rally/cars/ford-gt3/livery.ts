@@ -1,4 +1,5 @@
 import { atlasKit, type Pt } from '../shared/atlas-painter';
+import { FENDER_RUNS } from './fender-mask';
 import type { LiveryInfo } from '../shared/livery';
 import type { CarAtlas } from '../shared/types';
 import source from './model.source.json';
@@ -153,18 +154,35 @@ function paint(
     RED,
   );
 
-  // Front fender (traced by hand on the car viewer, mapped with the vent's corners): solid light blue above the vent's
-  // louvre lines, leaning stripes below them and over the door, all inside the traced outline FIELD.
-  /** Nothing above the fender's top edge (the red line in Deni's trace): the louvre faces end here, the sloped top is bare. */
-  const FENDER_TOP = 0.885;
-  const SOLID: Pt[] = [
-    [0.8, FENDER_TOP],
-    [1.9, FENDER_TOP],
-    [1.9, 0.85],
-    [1.09, 0.855],
-    [1.121, 0.746],
-    [0.802, 0.694],
-  ];
+  // Front fender: the solid blue is traced texel by texel (fender-mask.ts: vent facets up to the fender crest, nothing above it);
+  // leaning stripes below it and over the door stay inside the traced outline FIELD.
+  const SW = (B.z[1] - B.z[0]) * K; // side chart width: right px + left px = SW at the same z
+  const TY = 2 * (CH.top[1] - B.x[0]) * K; // top chart rows mirror across x = 0
+  const RX = 2 * (CH.rear[0] + B.x[1]) * K; // rear chart columns mirror across x = 0
+  ctx.fillStyle = SKY;
+  for (const [y, ...xs] of FENDER_RUNS.right) {
+    for (let i = 0; i < xs.length; i += 2) {
+      ctx.fillRect(xs[i], y, xs[i + 1] - xs[i], 1);
+      ctx.fillRect(
+        Math.round(SW - xs[i + 1]),
+        Math.round(y - CH.right[1] * K),
+        xs[i + 1] - xs[i],
+        1,
+      );
+    }
+  }
+  for (const [y, ...xs] of FENDER_RUNS.top) {
+    for (let i = 0; i < xs.length; i += 2) {
+      ctx.fillRect(xs[i], y, xs[i + 1] - xs[i], 1);
+      ctx.fillRect(xs[i], Math.round(TY - y) - 1, xs[i + 1] - xs[i], 1);
+    }
+  }
+  for (const [y, ...xs] of FENDER_RUNS.rear) {
+    for (let i = 0; i < xs.length; i += 2) {
+      ctx.fillRect(xs[i], y, xs[i + 1] - xs[i], 1);
+      ctx.fillRect(RX - xs[i + 1], y, xs[i + 1] - xs[i], 1);
+    }
+  }
   const DOOR_TOP = 0.84; // stripes stop under the door's shoulder line: none on the cowl / A-pillar base
   const FIELD: Pt[] = [
     [0.39, DOOR_TOP],
@@ -182,7 +200,6 @@ function paint(
     [0.83, 0.403],
     [0.39, 0.4],
   ];
-  P.side(SOLID, SKY);
   const FIN_REF = 0.945; // stripes are defined at this height
   const FIN_SLOPE = 0.5; // z shift per metre of height drop (traced: ~0.45 on the door, steeper on the vent)
   for (const s of ['left', 'right'] as const) {
