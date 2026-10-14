@@ -1,0 +1,250 @@
+{
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/ford-gt3/model-01-mustang-gt3.glb = '2024 Ford Mustang GT3' by kevin (CC BY 4.0), metres, +x left, +y up, +z nose, no textures (flat colours). Mapped by material only (no region cuts); tyres, rims, discs and calipers are dropped (the game builds its own wheels, the rim is the model's: ford_gt3_wheel.glb). The offset puts the front hub (model z 1.39) on physics front.z 1.419 and the hubs (model y 0.413) at the front tyre radius 0.3426. The atlas block is also read by livery.ts at runtime - edit it only here.",
+  "source": "sources/cars/ford-gt3/model-01-mustang-gt3.glb -> glb-to-parts-stl.py -> sources/cars/ford-gt3/ford-gt3-parts.stl",
+  "output": "public/models/cars/ford_gt3.glb",
+  "axes": ["x", "y", "z"],
+  "scale": 1.0,
+  "offset": [0, -0.0704, 0.029],
+  "groundAtMin": false,
+  "targetTriangles": 90000,
+  "creaseDeg": 40,
+  "wheels": {
+    "$comment": "the wheels are separate primitives (dropped below) - nothing to cut",
+    "radius": 0,
+    "minAbsX": 9,
+    "centres": []
+  },
+  "atlas": {
+    "pxPerMetre": 256,
+    "width": 5.25,
+    "height": 9.0,
+    "bounds": {
+      "x": [-1.05, 1.05],
+      "y": [0, 1.5],
+      "z": [-2.6, 2.6]
+    },
+    "charts": {
+      "left": [0, 0],
+      "right": [0, 1.55],
+      "top": [0, 3.1],
+      "front": [0, 5.25],
+      "rear": [2.2, 5.25],
+      "bottom": [0, 6.8]
+    }
+  },
+  "gltf": {
+    "drop": [
+      "DETROIT_EGT_RIM",
+      "DETROIT_EGT_RIM_BLUR",
+      "DETROIT_EGT_RIM_BLURA",
+      "DETROIT_EGT_RIM_IN",
+      "DETROIT_EGT_2018_CAL",
+      "DISC",
+      "GTE_M_TREAD",
+      "GTE_M_TWALL",
+      "GTE_M_TWALL_INSIDE",
+      "Default",
+      "vidro_int",
+      "INT_DECALS",
+      "INT_LED_LIMITER"
+    ],
+    "parts": [
+      {
+        "mat": "body",
+        "material": "body"
+      },
+      {
+        "mat": "logo_banner",
+        "material": "logo"
+      },
+      {
+        "mat": "vidro_Ext",
+        "material": "glass"
+      },
+      {
+        "mat": "int_vidros_black",
+        "material": "trim"
+      },
+      {
+        "mat": "vidro_farois_frente",
+        "material": "lenscover"
+      },
+      {
+        "mat": "farol_interior",
+        "material": "lamphousing"
+      },
+      {
+        "mat": "farol_refletivo",
+        "material": "chrome"
+      },
+      {
+        "mat": "farol_led",
+        "material": "headled"
+      },
+      {
+        "mat": "farois_tras",
+        "material": "tailled"
+      },
+      {
+        "mat": "vidro_farois_tras",
+        "material": "redcover"
+      },
+      {
+        "mat": "MIRROR",
+        "material": "mirror"
+      },
+      {
+        "mat": "cromado_ext",
+        "material": "chrome"
+      },
+      {
+        "mat": "cockpit_chrome",
+        "material": "chrome"
+      },
+      {
+        "mat": "ext_metal_polido",
+        "material": "trim"
+      },
+      {
+        "mat": "carbono",
+        "material": "carbon"
+      },
+      {
+        "mat": "linha_cor",
+        "material": "carbon"
+      },
+      {
+        "mat": "INT_CARBON_A",
+        "material": "carbon"
+      },
+      {
+        "mat": "sw_carbon",
+        "material": "carbon"
+      },
+      {
+        "mat": "INT_TUBES",
+        "material": "cage"
+      },
+      {
+        "mat": "INT_ALCANTARA",
+        "material": "interior"
+      },
+      {
+        "mat": "INT_Dash",
+        "material": "interior"
+      },
+      {
+        "mat": "INT_METAL",
+        "material": "interior"
+      },
+      {
+        "mat": "INT_PAINTED_WHITE",
+        "material": "interior"
+      },
+      {
+        "mat": "INT_PLASTIC_BLACK_MATTE",
+        "material": "interior"
+      },
+      {
+        "mat": "INT_METAL_RED",
+        "material": "interior"
+      },
+      {
+        "mat": "INT_PLASTIC_BLUE_GLOSSY",
+        "material": "interior"
+      },
+      {
+        "mat": "INT_PLASTIC_RED_GLOSSY",
+        "material": "interior"
+      },
+      {
+        "mat": "INT_PLASTIC_BLACK_GLOSSY",
+        "material": "interior"
+      },
+      {
+        "mat": "INT_METAL_BLUE",
+        "material": "interior"
+      },
+      {
+        "mat": "INT_POLYSTYRENE",
+        "material": "interior"
+      },
+      {
+        "mat": "INT_SCREEN",
+        "material": "interior"
+      },
+      {
+        "mat": "INT_PLASTIC_GREY_GLOSSY",
+        "material": "interior"
+      },
+      {
+        "mat": "INT_NET",
+        "material": "interior"
+      },
+      {
+        "mat": "cockpit_black_s",
+        "material": "interior"
+      },
+      {
+        "mat": "int_plastico_normal",
+        "material": "interior"
+      },
+      {
+        "mat": "int_carpete_bordas",
+        "material": "interior"
+      },
+      {
+        "mat": "int_carpete",
+        "material": "interior"
+      },
+      {
+        "mat": "sw_buttons",
+        "material": "interior"
+      },
+      {
+        "mat": "sw_handles",
+        "material": "interior"
+      },
+      {
+        "mat": "int_plastico_tex",
+        "material": "interior"
+      },
+      {
+        "mat": "int_pele",
+        "material": "interior"
+      },
+      {
+        "mat": "INT_MISC",
+        "material": "interior"
+      },
+      {
+        "mat": "LEDGLASS",
+        "material": "interior"
+      }
+    ],
+    "default": "trim"
+  },
+  "parts": {
+    "materials": [
+      "body",
+      "trim",
+      "glass",
+      "lenscover",
+      "chrome",
+      "interior",
+      "logo",
+      "carbon",
+      "mirror",
+      "cage",
+      "lamphousing",
+      "headled",
+      "tailled",
+      "redcover"
+    ],
+    "drop": ["logo"],
+    "maxTriangles": {
+      "interior": 22000,
+      "lamphousing": 8000
+    }
+  }
+}

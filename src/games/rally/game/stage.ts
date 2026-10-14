@@ -328,6 +328,7 @@ export const CAR_TIMES_VERSIONS: Record<string, number> = {
   subie_22b: 1,
   citroen_c4: 2,
   lancer_evo_6: 2,
+  ford_gt3: 1,
 };
 /** Current version of a map / car (unknown ids count as 1). */
 export const timesVersion = (mapId: string): number =>
