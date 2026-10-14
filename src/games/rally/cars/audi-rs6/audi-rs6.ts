@@ -151,11 +151,6 @@ export const audiRs6: CarDef = {
       upshiftRpm: 6400,
       downshiftRpm: 3400,
     },
-    gearings: {
-      short: { finalDrive: 3.6 },
-      medium: { finalDrive: 3.2 },
-      long: { finalDrive: 2.9 },
-    },
     drivetrain: {
       // Torsen centre differential, 40 : 60 front : rear at rest.
       frontSplit: 0.4,
