@@ -574,6 +574,9 @@
   margin: 0;
   font-weight: 600;
 }
+.menu-filter {
+  margin-bottom: 8px;
+}
 .menu-livery {
   display: flex;
   align-items: center;
