@@ -1,5 +1,6 @@
 import type { MapInfo } from '../shared/types';
 import data from './route.json';
+import { petralicaStages } from './stages';
 
 /**
  * Light part of the map (menus, stage select, URL defaults): everything the menus need without the baked data.
@@ -10,11 +11,7 @@ import data from './route.json';
 export const petralicaInfo: MapInfo = {
   id: 'petralica',
   name: 'Petralica',
-  year: 2026,
-  /** Recommended tyre (pre-selected on the car screen; see ../../PHYSICS.md). */
-  tyre: 'gravel',
-  description:
-    'Real-world mountain stage in Rankovce municipality, north-east North Macedonia: from Ginovci up the valley to Petralica, then a narrow switchback climb through oak woods to Vila Ristovski. 9.6 km, 560 m of climb.',
+  stages: petralicaStages,
   seed: 4222,
   geo: { lat: data.meta.origin[0], lon: data.meta.origin[1] },
   credits: data.meta.sources,
@@ -52,7 +49,6 @@ export const petralicaInfo: MapInfo = {
   ],
   stageNumber: 2,
   bounds: { minX: -2400, maxX: 2400, minZ: -4800, maxZ: 4800 },
-  stage: { start: 40, finishFromEnd: 150, splits: 4 },
   environment: {
     sunElevation: 38,
     // Afternoon sun from the south-west (azimuth from +Z towards +X; +Z = south).

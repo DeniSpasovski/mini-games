@@ -279,10 +279,20 @@ def cog_window(url, r0, r1, c0, c1):
 
 def worldcover_sampler(lat0, lat1, lon0, lon1):
     """Returns f(lat[], lon[]) -> WorldCover class (nearest). Handles 3-degree tile seams."""
+    tlon = math.floor(lon0 / 3) * 3
+    if math.floor(lon1 / 3) * 3 != tlon:
+        # A window across a tile column seam (a big horizon box): one sampler per side of the seam.
+        seam = tlon + 3
+        west = worldcover_sampler(lat0, lat1, lon0, seam - 1e-7)
+        east = worldcover_sampler(lat0, lat1, seam, lon1)
+
+        def sample2(lat, lon):
+            lat, lon = np.asarray(lat), np.asarray(lon)
+            return np.where(lon < seam, west(lat, lon), east(lat, lon))
+
+        return sample2
     key = f'{lat0:.4f}_{lat1:.4f}_{lon0:.4f}_{lon1:.4f}'
     fn = os.path.join(CACHE, 'worldcover', key + '.npy')
-    tlon = math.floor(lon0 / 3) * 3
-    assert math.floor(lon1 / 3) * 3 == tlon, 'window spans a tile column seam (not supported)'
     # Row 0 of the window = first full pixel row at/below lat1 in the top tile.
     tl_top = math.floor((lat1 - 1e-9) / 3) * 3
     lat_top = tl_top + 3 - int((tl_top + 3 - lat1) * WC_RES) / WC_RES
@@ -647,7 +657,7 @@ def rle_b64(a):
 # --- land cover ---------------------------------------------------------------------------
 
 # Cover classes. Zones 0..len-1 are these; orchard zones with their own row angle follow.
-COVERS = ['grass', 'crop', 'shrub', 'pine', 'trees', 'orchard', 'urban', 'industrial', 'bare', 'water', 'vineyard', 'cemetery', 'hazelnut']  # fmt: skip
+COVERS = ['grass', 'crop', 'shrub', 'pine', 'trees', 'orchard', 'urban', 'industrial', 'bare', 'water', 'vineyard', 'cemetery', 'hazelnut', 'beech', 'pasture']  # fmt: skip
 C = {c: i for i, c in enumerate(COVERS)}
 WC_MAP = {10: 'trees', 20: 'shrub', 30: 'grass', 40: 'crop', 50: 'urban', 60: 'bare', 80: 'water', 90: 'grass', 95: 'trees', 100: 'grass'}  # fmt: skip
 OSM_COVER = {
@@ -696,7 +706,7 @@ def landcover(cfg, proj, nodes, ways, rels, wc_sample, raw_dem):
     for r in rels:
         for (k, v), (name, strong) in OSM_COVER.items():
             if r['tags'].get(k) == v:
-                rings = [ways[m[1]]['refs'] for m in r['members'] if m[0] == 'way' and m[2] == 'outer' and m[1] in ways and ways[m[1]]['closed']]  # fmt: skip
+                rings = stitch_rings(ways, [m[1] for m in r['members'] if m[0] == 'way' and m[2] == 'outer'])
                 if rings:
                     polys.append((name, strong, rings))
     order = ['crop', 'grass', 'shrub', 'urban', 'industrial', 'bare', 'vineyard', 'orchard', 'pine', 'trees', 'cemetery', 'water']  # fmt: skip
@@ -738,6 +748,24 @@ def landcover(cfg, proj, nodes, ways, rels, wc_sample, raw_dem):
             # landcover.plainTreesAs = "shrub" makes them scrub (a valley of bushes with lone tall trees).
             cover[sel] = C[lc.get('plainTreesAs', 'orchard')]
 
+    # Altitude belts (config landcover.belts: [{from: [covers], to, min?, max?}], metres of DEM height): mountain maps
+    # where the woods / grass change with height (oak low, beech higher, pasture on top). The band edges wander by up
+    # to `jitter` m (smooth seeded noise, default 40) so a belt never follows one contour line.
+    belts = lc.get('belts', ())
+    if belts:
+        rng = np.random.default_rng(lc.get('beltSeed', 7))
+        wobble = gaussian_filter(rng.standard_normal(elev.shape), 24 / cell * 5)
+        wobble *= lc.get('jitter', 40) / max(1e-6, float(np.abs(wobble).max()))
+        e = elev + wobble
+        for b in belts:
+            sel = np.isin(cover, [C[c] for c in b['from']])
+            if 'min' in b:
+                sel &= e >= b['min']
+            if 'max' in b:
+                sel &= e < b['max']
+            cover[sel] = C[b['to']]
+        print('  belts: ' + ', '.join(f'{c} {100 * float(np.mean(cover == C[c])):.1f} %' for c in COVERS if np.any(cover == C[c])))
+
     # Orchard zones (fruit + hazelnut, `hazelnut` only from manualCover) with a row direction (long side of the
     # min-area rectangle).
     zones = [{'cover': c} for c in COVERS]
@@ -763,12 +791,52 @@ def landcover(cfg, proj, nodes, ways, rels, wc_sample, raw_dem):
 RIVER_AREAS = {'river', 'stream', 'canal', 'oxbow', 'ditch', 'drain', 'stream_pool', 'rapids'}
 
 
-def lake_polygons(ways, rels, nodes, proj, ext, min_area=150.0):
+def stitch_rings(ways, ids):
+    """Closed rings (lists of node refs) from the member ways of a multipolygon: ways that are rings already, plus
+    open ways joined end to end by shared end nodes (big lakes / forests are drawn as many pieces). Pieces that never
+    close are dropped."""
+    rings, open_ = [], []
+    for i in ids:
+        w = ways.get(i)
+        if not w or len(w['refs']) < 2:
+            continue
+        (rings if w['closed'] else open_).append(list(w['refs']))
+    while open_:
+        cur = open_.pop()
+        grown = True
+        while grown and cur[0] != cur[-1]:
+            grown = False
+            for k, o in enumerate(open_):
+                if o[0] == cur[-1]:
+                    cur += o[1:]
+                elif o[-1] == cur[-1]:
+                    cur += o[-2::-1]
+                elif o[-1] == cur[0]:
+                    cur = o[:-1] + cur
+                elif o[0] == cur[0]:
+                    cur = o[:0:-1] + cur
+                else:
+                    continue
+                open_.pop(k)
+                grown = True
+                break
+        if cur[0] == cur[-1] and len(cur) > 3:
+            rings.append(cur)
+    return rings
+
+
+def lake_polygons(ways, rels, nodes, proj, ext, min_area=150.0, levels=None, clip=300.0):
     """
     Standing water (natural=water: lakes, ponds, reservoirs, basins; landuse=reservoir / basin) as
-    world-space polygons: closed ways and the closed outer rings of multipolygon relations. River /
-    canal areas are skipped (their waterway line is the carved channel). Inner rings (islands) ignored.
+    world-space polygons: closed ways and the outer rings of multipolygon relations (pieces stitched, see
+    stitch_rings). River / canal areas are skipped (their waterway line is the carved channel). Inner rings
+    (islands) ignored. A lake reaching beyond the box is clipped to it + `clip` m (a big lake's far shore is
+    the horizon's business). `levels` = config lakes.levels {name: metres}: a fixed water level (DEM metres)
+    for a lake by its OSM name / name:en, instead of the game's shore median.
     """
+    from shapely.geometry import Polygon, box as sbox
+
+    levels = levels or {}
 
     def kind_of(t):
         if t.get('waterway') == 'riverbank' or t.get('water') in RIVER_AREAS:
@@ -783,27 +851,42 @@ def lake_polygons(ways, rels, nodes, proj, ext, min_area=150.0):
     for w in ways.values():
         k = kind_of(w['tags'])
         if k and w['closed']:
-            rings.append((k, w['tags'].get('name'), w['refs']))
+            rings.append((k, w['tags'], w['refs']))
     for rel in rels:
         k = kind_of(rel['tags'])
         if not k or rel['tags'].get('type') != 'multipolygon':
             continue
-        for typ, ref, role in rel['members']:
-            w = ways.get(ref)
-            if typ == 'way' and role == 'outer' and w and w['closed']:
-                rings.append((k, rel['tags'].get('name'), w['refs']))
+        for refs in stitch_rings(ways, [ref for typ, ref, role in rel['members'] if typ == 'way' and role == 'outer']):
+            rings.append((k, rel['tags'], refs))
     out = []
-    for kind, name, refs in rings:
+    win = sbox(ext[0] - clip, ext[2] - clip, ext[1] + clip, ext[3] + clip)
+    for kind, tags, refs in rings:
+        if any(r not in nodes for r in refs):
+            continue
         pts = np.array([proj.fwd(*nodes[r]) for r in refs])
         if len(pts) < 4:
             continue
         x, z = pts[:, 0], pts[:, 1]
-        area = 0.5 * abs(np.dot(x, np.roll(z, 1)) - np.dot(z, np.roll(x, 1)))
-        if area < min_area or x.max() < ext[0] or x.min() > ext[1] or z.max() < ext[2] or z.min() > ext[3]:
+        if x.max() < ext[0] or x.min() > ext[1] or z.max() < ext[2] or z.min() > ext[3]:
             continue
-        pts = pts[:-1] if np.allclose(pts[0], pts[-1]) else pts
-        out.append({'kind': kind, **({'name': name} if name else {}), 'area': round(float(area)),
-                    'pts': pts.round(1).ravel().tolist()})  # fmt: skip
+        name = tags.get('name')
+        level = levels.get(tags.get('name:en')) if tags.get('name:en') in levels else levels.get(name)
+        poly = Polygon(pts)
+        if not poly.is_valid:
+            poly = poly.buffer(0)
+        clipped = not win.contains(poly)
+        if clipped:
+            poly = poly.intersection(win)
+        parts = [poly] if poly.geom_type == 'Polygon' else [g for g in getattr(poly, 'geoms', []) if g.geom_type == 'Polygon']
+        for g in parts:
+            if g.area < min_area:
+                continue
+            if clipped or len(g.exterior.coords) > 400:
+                g = g.simplify(1.0)
+            q = np.array(g.exterior.coords)[:-1]
+            out.append({'kind': kind, **({'name': name} if name else {}), 'area': round(float(g.area)),
+                        **({'level': level} if level is not None else {}),
+                        'pts': q.round(1).ravel().tolist()})  # fmt: skip
     return out
 
 
@@ -972,6 +1055,7 @@ def main():
     stage_hw = cfg.get('route', {}).get('width', 7.4) / 2
     corridor = pcfg.get('corridor')  # keep other roads only this close to the stage road (m); None = all
     hw_corridor = pcfg.get('highwayCorridor', corridor)  # same for motorway / trunk (+ links)
+    keep_near = [(*proj.fwd(la, lo), r) for la, lo, r in pcfg.get('keepNear', ())]
     big_kinds = ('motorway', 'motorway_link', 'trunk', 'trunk_link')
     def add_way(t, refs, pts=None, detected=False, branch=False):
         """One road / water way -> runs of `paths` (cut short of the stage road unless grade-separated)."""
@@ -1084,7 +1168,12 @@ def main():
         keep = ~cutoff | (surface == 'water')
         lim = hw_corridor if kind in big_kinds else corridor
         if lim is not None and surface != 'water':
-            keep &= d <= lim
+            # Config paths.keepNear [[lat, lon, radius], ...]: whole roads round these points (stage starts / finishes)
+            # stay, beyond the corridor.
+            near_pts = np.zeros(len(pts), bool)
+            for kx, kz, kr in keep_near:
+                near_pts |= np.hypot(pts[:, 0] - kx, pts[:, 1] - kz) <= kr
+            keep &= (d <= lim) | near_pts
         keep &= (pts[:, 0] > ext[0] - 300) & (pts[:, 0] < ext[1] + 300) & (pts[:, 1] > ext[2] - 300) & (pts[:, 1] < ext[3] + 300)  # fmt: skip
         extra = {}
         if t.get('bridge') not in (None, 'no'):
@@ -1162,8 +1251,19 @@ def main():
     if use_overpass:
         # Only a corridor around the stage road is modelled (a city has ~90 000 buildings in the box).
         r_corr = cfg.get('buildings', {}).get('corridor', 220)
-        rl = [proj.inv(*p) for p in smooth[::40]] + [proj.inv(*smooth[-1])]
-        ovp.merge((nodes, ntags, ways, rels), ovp.load_buildings(rl, r_corr, CACHE))
+        if cfg.get('buildings', {}).get('box'):
+            # Config buildings.box: one query for the land cover box, then only the buildings within the corridor.
+            bn, bt, bw, _ = ovp.load_buildings_box(ll_box(lcc['extent'], 0), CACHE)
+            kd_b = cKDTree(smooth)
+            near_b = {}
+            for wid, w in bw.items():
+                xy = [proj.fwd(*bn[r]) for r in w['refs'] if r in bn]
+                if xy and kd_b.query(np.mean(xy, axis=0))[0] <= r_corr:
+                    near_b[wid] = w
+            ovp.merge((nodes, ntags, ways, rels), (bn, bt, near_b, []))
+        else:
+            rl = [proj.inv(*p) for p in smooth[::40]] + [proj.inv(*smooth[-1])]
+            ovp.merge((nodes, ntags, ways, rels), ovp.load_buildings(rl, r_corr, CACHE))
         print(f'  + buildings within {r_corr} m of the route: {sum(1 for w in ways.values() if "building" in w["tags"])} ways')
 
     def cover_at(x, z):
@@ -1186,7 +1286,7 @@ def main():
         else []
     )
 
-    lakes =lake_polygons(ways, rels, nodes, proj, ext)
+    lakes = lake_polygons(ways, rels, nodes, proj, ext, levels=cfg.get('lakes', {}).get('levels'))
     print(f'  {len(lakes)} lake(s) / pond(s) / reservoir(s)')
 
     pylons = [
@@ -1224,6 +1324,8 @@ def main():
             + ([msroads.CREDIT] if ms_runs else []),
             'axes': '+X east, +Z south (north = -Z), metres from origin',
             'routeLength': round(length, 1),
+            # Distance along the route (m) of each config waypoint: stage ranges on a multi-stage map.
+            'waypointsAlong': [round(float(acc[cKDTree(smooth).query(proj.fwd(la, lo))[1]]), 1) for la, lo in cfg['waypoints']],
         },
         'heightmap': {
             'base': base,
@@ -1262,7 +1364,8 @@ def main():
         pv = os.path.join(CACHE, f'{cfg["id"]}_preview.png')
         pal = np.array(
             [[200, 190, 110], [170, 120, 90], [120, 140, 60], [20, 70, 30], [50, 110, 40], [90, 160, 60],
-             [210, 120, 110], [160, 140, 190], [220, 210, 190], [40, 90, 200], [150, 60, 150], [100, 100, 100]],
+             [210, 120, 110], [160, 140, 190], [220, 210, 190], [40, 90, 200], [150, 60, 150], [100, 100, 100],
+             [120, 170, 40], [70, 150, 70], [215, 200, 140]],
             np.uint8,
         )  # fmt: skip
         img = pal[cover].copy()  # row 0 = min z = north: north up

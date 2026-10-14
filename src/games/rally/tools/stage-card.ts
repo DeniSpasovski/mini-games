@@ -14,19 +14,19 @@ import {
   TextureLoader,
   Vector3,
 } from 'three';
-import type { MapDef } from '../maps/shared/types';
+import type { MapDef, StageDef } from '../maps/shared/types';
 import type { World } from '../world/world';
 
 /**
  * Stage cards: the stage-select view of a large map, PRE-BAKED on the dev server (`?bakecards=1`, see
  * stage-card-bake.ts) instead of building the whole map in the menu (0.5-6 s of main-thread work per map).
  *
- * A card = `maps/<id>/preview/stage-card.json` (height grid, stage polyline, framing) + `stage-card.jpg` (top-down
+ * A card = `maps/<map>/preview/<stage id>.json` (height grid, stage polyline, framing) + `stage-card.jpg` (top-down
  * render of the stage area: terrain, roads, trees, buildings, the map's sun and long shadows baked in). At runtime it
  * is ONE textured grid mesh (relief from the height grid, `MapDef.previewRelief` exaggerates it) + the stage ribbon,
  * start / finish poles and a floor - loaded lazily per map, ~30-50 ms.
  *
- * DOM-free at import (node tests check the cards are up to date with `mapHash`).
+ * DOM-free at import (node tests can check a card against `stageCardHash`).
  */
 
 /** Maps bigger than this (m²) use a baked card; smaller maps are built live (cheap: real 3D trees / rocks). */
@@ -40,7 +40,7 @@ const STAGE_MARGIN = 150;
 
 export interface StageCardData {
   version: number;
-  /** `mapHash(map)` at bake time: a different hash = the map changed since, re-bake. */
+  /** `stageCardHash(map, stage)` at bake time: a different hash = the map or stage changed since, re-bake. */
   hash: string;
   map: string;
   /** Ground rectangle of the texture / grid (m): texture u = (x - x0) / w, v = 1 - (z - z0) / h. */
@@ -78,7 +78,7 @@ export function stageBox(world: World): {
   let z0 = Infinity;
   let z1 = -Infinity;
   for (let d = st.start; ; d = Math.min(st.finish, d + 10)) {
-    const p = world.road.at(d);
+    const p = world.stageRoad.at(d);
     x0 = Math.min(x0, p.x);
     x1 = Math.max(x1, p.x);
     y0 = Math.min(y0, p.y);
@@ -103,7 +103,7 @@ export function stagePoints(world: World, step = 4): Vector3[] {
   const st = world.stage;
   const out: Vector3[] = [];
   for (let d = st.start; ; d = Math.min(st.finish, d + step)) {
-    const p = world.road.at(d);
+    const p = world.stageRoad.at(d);
     out.push(new Vector3(p.x, p.y, p.z));
     if (d >= st.finish) break;
   }
@@ -111,27 +111,44 @@ export function stagePoints(world: World, step = 4): Vector3[] {
 }
 
 /**
- * Hash of everything in a map definition (JSON, sorted keys; functions and `previewRelief` are skipped) - FNV-1a 32 bit, hex. Data-only: a change in
- * the generators / renderers needs a `STAGE_CARD_VERSION` bump instead.
+ * Map fields a card does not draw: text and menu data (names, links, credits, the menu outline), `previewRelief`
+ * (applied at load time) and `horizon` (the far backdrop is not on the card). Changing them needs no re-bake.
  */
-export function mapHash(map: MapDef): string {
-  // `previewRelief` is applied at load time: changing it needs no re-bake.
-  // Keys are sorted (moving a property in a map file is no data change); `route` / `surfaces` come from the map's
-  // `MapInfo` and are derived from `road`. `horizon` (the far backdrop) is not on the card.
-  const s = JSON.stringify(map, (k, v) => {
-    if (
-      k === 'previewRelief' ||
-      k === 'route' ||
-      k === 'surfaces' ||
-      k === 'horizon'
-    )
-      return undefined;
-    if (v && typeof v === 'object' && !Array.isArray(v))
-      return Object.fromEntries(
-        Object.entries(v).sort(([a], [b]) => (a < b ? -1 : 1)),
-      );
-    return v;
-  });
+const NOT_ON_CARD = new Set([
+  'id',
+  'name',
+  'stages',
+  'sources',
+  'credits',
+  'geo',
+  'stageNumber',
+  'previewRelief',
+  'route',
+  'surfaces',
+  'horizon',
+]);
+
+/**
+ * Hash of what a stage's card is rendered from: the map's world data (terrain, roads, land cover, scatter, buildings,
+ * environment, ...) and the stage's stretch of road and event dressing (`reverse`, `timing`, `closures`, `cornerFans`,
+ * `props`). Stage text (name, description, year, tyre, gearing, links) is left out. JSON with sorted keys (moving a
+ * property in a file is no change), FNV-1a 32 bit, hex. Data only: a change in the generators / renderers needs a
+ * `STAGE_CARD_VERSION` bump instead.
+ */
+export function stageCardHash(map: MapDef, stage: StageDef): string {
+  const world = Object.fromEntries(
+    Object.entries(map).filter(([k]) => !NOT_ON_CARD.has(k)),
+  );
+  const { reverse, timing, closures, cornerFans, props } = stage;
+  const s = JSON.stringify(
+    { world, stage: { reverse, timing, closures, cornerFans, props } },
+    (_k, v) =>
+      v && typeof v === 'object' && !Array.isArray(v)
+        ? Object.fromEntries(
+            Object.entries(v).sort(([a], [b]) => (a < b ? -1 : 1)),
+          )
+        : v,
+  );
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {
     h ^= s.charCodeAt(i);
@@ -222,10 +239,13 @@ export interface StageCard {
  * Load a map's card (lazy chunk per map: only the selected map's files are fetched). Rejects when the map has no
  * card (not baked yet) - the caller then builds the view live.
  */
-export async function loadStageCard(id: string): Promise<StageCard> {
+export async function loadStageCard(
+  mapId: string,
+  stageId: string,
+): Promise<StageCard> {
   const [json, jpg] = await Promise.all([
-    import(`../maps/${id}/preview/stage-card.json`),
-    import(`../maps/${id}/preview/stage-card.jpg`),
+    import(`../maps/${mapId}/preview/${stageId}.json`),
+    import(`../maps/${mapId}/preview/${stageId}.jpg`),
   ]);
   const data = (json.default ?? json) as StageCardData;
   const url = (jpg.default ?? jpg) as string;

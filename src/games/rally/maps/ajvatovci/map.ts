@@ -426,9 +426,6 @@ export const ajvatovciMap: MapDef = {
   bridgeStyle: 'concrete',
   // Marshals / onlookers behind the closed junction mouths.
   streetDressing: { spectators: { perJunction: 4, reach: 400 } },
-  // Every side road / track meeting the stage road is closed with barriers (as on a real stage).
-  cornerFans: {},
-  junctionBarriers: { asset: 'road_barrier', length: 2.2, setback: 4 },
   // Start / finish gantries, lines and split boards come from `stage` (world/stage-signs.ts).
   // Village name boards where the road enters / leaves Ajvatovci (facing the driver coming in).
   props: [

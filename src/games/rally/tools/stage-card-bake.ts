@@ -12,7 +12,7 @@ import { getAssetMeta } from '../assets/catalog';
 import { Environment } from '../engine/environment';
 import type { QualitySettings } from '../engine/quality';
 import { worldUniforms } from '../engine/world-shading';
-import { getMap, loadMap } from '../maps';
+import { getStage, loadStage } from '../maps';
 import { AerialTerrain } from '../world/aerial-terrain';
 import { AerialTrees } from '../world/aerial-trees';
 import { InstanceStreamer } from '../world/instance-streamer';
@@ -23,7 +23,7 @@ import { RENDER_MARGIN, World } from '../world/world';
 import {
   CARD_MARGIN,
   encodeHeights,
-  mapHash,
+  stageCardHash,
   STAGE_CARD_VERSION,
   type StageCardData,
   stageBox,
@@ -48,15 +48,17 @@ const breathe = () => new Promise<void>((r) => setTimeout(r, 0));
 export async function bakeStageCard(
   renderer: WebGLRenderer,
   quality: QualitySettings,
-  mapId: string,
+  stageId: string,
   log: (s: string) => void = console.info,
 ): Promise<string> {
-  if (getMap(mapId).id !== mapId) throw new Error(`unknown map ${mapId}`);
-  const map = await loadMap(mapId);
+  const info = getStage(stageId);
+  if (info.id !== stageId) throw new Error(`unknown stage ${stageId}`);
+  const { map, stage } = await loadStage(stageId);
+  const mapId = stageId;
   const t0 = performance.now();
   log(`${mapId}: world`);
   await breathe();
-  const world = new World(map);
+  const world = new World(map, stage);
   const box = stageBox(world);
 
   // Card rectangle: the route's bounding box + CARD_MARGIN, inside the map's terrain, snapped to the height grid.
@@ -203,7 +205,7 @@ export async function bakeStageCard(
 
   const data: StageCardData = {
     version: STAGE_CARD_VERSION,
-    hash: mapHash(map),
+    hash: stageCardHash(map, stage),
     map: mapId,
     rect,
     grid: encodeHeights(heights, nx, nz),
@@ -233,7 +235,7 @@ export async function bakeStageCard(
 
   log(`${mapId}: save`);
   const res = await fetch(
-    `/__dev/stage-card?map=${encodeURIComponent(mapId)}`,
+    `/__dev/stage-card?map=${encodeURIComponent(info.map)}&stage=${encodeURIComponent(stageId)}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

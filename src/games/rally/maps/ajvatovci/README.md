@@ -20,7 +20,7 @@ Around the stage, the map reaches over Ilinden town, the A2 and Marino (6.9 x 4.
 buildings, fields and drains) to explore in free drive.
 
 ```bash
-npm run dev     # /games/rally/?map=ajvatovci&spawn=200      (drive from 200 m)
+npm run dev     # /games/rally/?stage=ajvatovci&spawn=200      (drive from 200 m)
                 # /games/rally/map-viewer.html?map=ajvatovci (fly around the whole map)
 ```
 

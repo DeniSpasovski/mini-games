@@ -27,7 +27,7 @@ import {
   TouchControls,
 } from '../game/touch-controls';
 import { formatDelta, formatTime, migrateTimes } from '../game/stage';
-import { DEFAULT_MAP, getMap, loadMap } from '../maps';
+import { DEFAULT_STAGE, getStage, loadStage, stageLinkParams } from '../maps';
 import { SETUP_FOR_TYRE, SETUP_IDS } from '../physics/car-setup';
 import { isGearingId } from '../physics/gearing';
 import { parseTyre } from '../physics/tyres';
@@ -35,25 +35,26 @@ import { paramInt } from '../../../shared/url-params';
 
 /**
  * /games/rally/                -> main menu (welcome -> stage -> car, options)
- * /games/rally/?map=test&car=skoda_rally&livery=3&tyre=tarmac|mixed|gravel&susp=soft|medium|stiff&gear=short|medium|long&spawn=start|pad|<metres>&quality=high
+ * /games/rally/?stage=test&car=skoda_rally&livery=3&tyre=tarmac|mixed|gravel&susp=soft|medium|stiff&gear=short|medium|long&spawn=start|pad|<metres>&quality=high
  *                              -> straight into the stage (deep links from the tool pages, reloads)
+ * Old links say `map=<id>`: every old map id is its stage's id, so it is read as the stage.
  */
 const DEFAULTS = {
-  map: DEFAULT_MAP,
+  stage: DEFAULT_STAGE,
   car: DEFAULT_CAR,
   livery: 0,
-  /** '' = the map's recommended tyre. */
+  /** '' = the stage's recommended tyre. */
   tyre: '',
   /** '' = the recommended suspension for the tyre (gravel soft, mixed medium, tarmac stiff). */
   susp: '',
-  /** '' = the map's recommended gearing (medium unless the map says otherwise; fixed-gearing cars ignore it). */
+  /** '' = the stage's recommended gearing (medium unless the stage says otherwise; fixed-gearing cars ignore it). */
   gear: '',
   spawn: 'start',
 };
 /** Only `spawn` is dropped at its default, so the URL stays a deep link. */
 const KEEP = { spawn: DEFAULTS.spawn };
 const root = document.querySelector<HTMLElement>('#root')!;
-const search = new URLSearchParams(location.search);
+const search = rewriteOldLink(new URLSearchParams(location.search));
 const deepLink = Object.keys(DEFAULTS).some((k) => search.has(k));
 /** Phones / tablets: on-screen controls + landscape only (menus included). */
 const touch = isTouchDevice();
@@ -79,16 +80,28 @@ else
     void play(params);
   });
 
+/** An old `map=<id>` link is rewritten in place to its `stage=<id>` form (`stageLinkParams`, no reload). */
+function rewriteOldLink(params: URLSearchParams): URLSearchParams {
+  const out = stageLinkParams(params);
+  if (!out) return params;
+  history.replaceState(
+    history.state,
+    '',
+    `${location.pathname}?${out.toString()}${location.hash}`,
+  );
+  return out;
+}
+
 /** Back to the main menu (fresh page: the stage isn't torn down in place). */
 function mainMenu(): void {
   location.href = location.pathname;
 }
 
 async function play(raw: typeof DEFAULTS): Promise<void> {
-  // Only real values go on: known map / car ids (unknown -> default), a whole livery number, a spawn that is metres or a short name.
+  // Only real values go on: known stage / car ids (unknown -> default), a whole livery number, a spawn that is metres or a short name.
   const params = {
     ...raw,
-    map: getMap(raw.map).id,
+    stage: getStage(raw.stage).id,
     car: getCar(raw.car).id,
     livery: paramInt(String(raw.livery), 0, 9999, 0),
     spawn: /^(\d{1,6}(\.\d{1,3})?|[a-z][a-z0-9_-]{0,31})$/.test(raw.spawn)
@@ -102,7 +115,7 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
       <div class="status">Preparing</div>
     </div>`);
 
-  const info = getMap(params.map);
+  const info = getStage(params.stage);
   const tyre = parseTyre(params.tyre, info.tyre);
   const setup =
     SETUP_IDS.find((s) => s === params.susp) ?? SETUP_FOR_TYRE[tyre];
@@ -118,12 +131,13 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
   };
   setLoading(0.01, 'Loading map data');
   await paintNow();
-  const map = await loadMap(params.map);
+  const { map, stage } = await loadStage(params.stage);
   // Building the world is one synchronous step: show its label first.
   setLoading(0.03, 'Building world');
   await paintNow();
   const game = new RallyGame(root, {
     map,
+    stage,
     carId: params.car,
     livery: params.livery,
     tyre,

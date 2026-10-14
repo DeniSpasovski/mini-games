@@ -1,5 +1,6 @@
 import type { MapInfo } from '../shared/types';
 import data from './route.json';
+import { jackieStages } from './stages';
 
 /**
  * Light part of the map (menus, stage select, URL defaults): everything the menus need without the baked data.
@@ -10,13 +11,7 @@ import data from './route.json';
 export const jackieInfo: MapInfo = {
   id: 'jackie',
   name: 'The Jackie',
-  year: 2026,
-  /** Recommended tyre (pre-selected on the car screen; see ../../PHYSICS.md). */
-  tyre: 'tarmac',
-  // Fast parkway: the race cars' long final drive (Skoda Rally ~205 km/h instead of 165).
-  gearing: 'long',
-  description:
-    'Real-world city stage in New York: the narrow, winding 1930s Jackie Robinson Parkway from East New York through three cemeteries and Forest Park to the Grand Central Parkway interchange in Queens. 7.3 km of tree-lined tarmac.',
+  stages: jackieStages,
   seed: 4040,
   geo: { lat: data.meta.origin[0], lon: data.meta.origin[1] },
   credits: [
@@ -58,9 +53,6 @@ export const jackieInfo: MapInfo = {
   ],
   stageNumber: 3,
   bounds: { minX: -3150, maxX: 3550, minZ: -2300, maxZ: 2300 },
-  // Finish at 7 298 m: past the Queens Blvd portal (7 186-7 273 m), 2 m before the last green gantry (7 300 m; the two
-  // gantries clipped when they stood on the same spot).
-  stage: { start: 40, finishFromEnd: 47, splits: 4 },
   environment: {
     sunElevation: 42,
     sunAzimuth: 330,

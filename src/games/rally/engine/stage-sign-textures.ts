@@ -17,7 +17,7 @@ export interface StageTitle {
   /** Map name, shown big in the header. */
   name: string;
   year: number;
-  /** "SS3" badge text source (MapDef.stageNumber), omitted when the map has none. */
+  /** "S3" badge over START / FINISH, omitted when missing. Not passed yet: it needs multi-stage rallies to count stages. */
   stageNumber?: number;
 }
 
@@ -182,7 +182,7 @@ export function headerTexture(kind: GantryKind, title: StageTitle): Texture {
     if (hasSs) {
       ctx.fillStyle = kind === 'start' ? '#d9ffe3' : '#f5c518';
       ctx.font = `44px ${FONT}`;
-      ctx.fillText(`SS${title.stageNumber}`, 36 + bw / 2, inset + 50);
+      ctx.fillText(`S${title.stageNumber}`, 36 + bw / 2, inset + 50);
     }
     // Year badge on the right.
     const yw = 340;

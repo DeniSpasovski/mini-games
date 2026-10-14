@@ -1,8 +1,9 @@
 import { ajvatovciMap } from './ajvatovci/map';
+import { galichicaMap } from './galichica/map';
 import { jackieMap } from './jackie/map';
 import { petralicaMap } from './petralica/map';
 import { testMap } from './test/map';
-import type { MapDef } from './shared/types';
+import type { MapDef, StageDef } from './shared/types';
 
 /**
  * Every full `MapDef`, loaded eagerly - for tests and tools that need all the baked data at once. The game imports
@@ -13,4 +14,9 @@ export const ALL_MAPS: MapDef[] = [
   ajvatovciMap,
   petralicaMap,
   jackieMap,
+  galichicaMap,
 ];
+
+/** Every stage of every map with its full map (tests: `new World(map, stage)` per stage). */
+export const ALL_STAGE_DEFS: { map: MapDef; stage: StageDef }[] =
+  ALL_MAPS.flatMap((map) => map.stages.map((stage) => ({ map, stage })));

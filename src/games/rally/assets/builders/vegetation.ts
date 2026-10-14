@@ -423,6 +423,27 @@ export const oakTree: AssetBuilder = ({ seed, lod }) => {
   return { parts: [{ geometry, material: getMaterial('vegetation') }] };
 };
 
+/**
+ * Mountain beech (Galichica, 1 100-1 700 m): tall straight smooth pale-grey trunk, dense rounded crown of fresh green
+ * leaves turning yellow-bronze in early October. Grows in close stands, so the crowns are tall and narrow-ish.
+ */
+export const beechTree: AssetBuilder = ({ seed, lod }) => {
+  const rng = new Rng(seed);
+  const H = rng.range(13, 19);
+  const geometry = broadleaf(rng, lod, {
+    height: H,
+    trunkTop: H * rng.range(0.38, 0.48),
+    trunkR: 0.28,
+    crownR: rng.range(3.2, 4.2),
+    flatten: 1.15,
+    clumps: 7,
+    colors: ['#5f7c2c', '#6c8732', '#7d8a34', '#9a8a3a'],
+    bark: '#9c9c94',
+    lean: rng.range(-0.3, 0.3),
+  });
+  return { parts: [{ geometry, material: getMaterial('vegetation') }] };
+};
+
 /** Lombardy poplar: tall narrow column, planted along canals, roads and field edges. */
 export const poplarTree: AssetBuilder = ({ seed, lod }) => {
   const rng = new Rng(seed);

@@ -280,6 +280,17 @@ export const ASSET_CATALOG: AssetMeta[] = [
     tint: 0.14,
   },
   {
+    id: 'beech_tree',
+    name: 'Beech tree',
+    category: 'vegetation',
+    description:
+      'Mountain beech: tall smooth pale-grey trunk, dense rounded crown starting to turn in autumn (Galichica mid slopes).',
+    variants: 4,
+    lods: tree(1700),
+    colliders: [{ kind: 'cylinder', r: 0.32, h: 6, y: -0.5 }],
+    tint: 0.13,
+  },
+  {
     id: 'poplar_tree',
     name: 'Lombardy poplar',
     category: 'vegetation',
