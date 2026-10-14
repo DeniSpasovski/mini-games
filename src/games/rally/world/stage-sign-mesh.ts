@@ -339,7 +339,6 @@ export function* stageSignMeshJob(
   const title: StageTitle = {
     name: world.stageDef.name,
     year: world.stageDef.year,
-    stageNumber: world.map.stageNumber,
   };
   const solids: BufferGeometry[] = [];
   const maps = new Map<Texture, BufferGeometry[]>();

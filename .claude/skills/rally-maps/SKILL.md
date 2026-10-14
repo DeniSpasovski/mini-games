@@ -34,7 +34,7 @@ generated deterministically from it. There is no map editor on purpose — edit 
   next entry; `road.surface` / `texture` are used before the first). E.g. asphalt valley road -> gravel climb
   (`maps/petralica`). Real maps: check Street View for where the surface really changes.
 - `stage.start` / `stage.finishFromEnd` / `stage.splits` define timing. They also place the start / finish gantries, the lines
-  and the split boards automatically (`world/stage-signs.ts`; the gantry header shows `name` + `year`, SS badge from `stageNumber`) -
+  and the split boards automatically (`world/stage-signs.ts`; the gantry header shows `name` + `year`) -
   do not add arch props. Every map needs `year`.
 
 ## Terrain
