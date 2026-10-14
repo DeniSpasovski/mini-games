@@ -311,7 +311,7 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   sits unlabelled at 0%. The car's GLB starts downloading before the map data (`preloadCarModel`).
 - Car select: a "Loading model" spinner (`Showroom.loadCue`) shows while a car's GLB downloads (the car stays hidden until then).
 - Car select: All / AWD / RWD / FWD filter row on top (`driveGroup` from the car's `drivetrain.frontSplit`, not remembered); up from the first car or the pad focuses it, left / right switch.
-- Car select (screens >= 1200 px wide): the description / stats / livery sit in a card right of the list (`.menu-car-card`); the car re-centres right of it (`Showroom.showCar(true)`). Narrower screens keep them under the list.
+- Car select (screens >= 1200 px wide): the description / stats / livery sit in a wide card right of the list (`.menu-car-card`); the showroom car keeps its shared place and size (`CAR_SHIFT`, `CAR_DIST_SCALE`) and may run behind the card. Narrower screens keep them under the list.
 
 ## Known limitations
 

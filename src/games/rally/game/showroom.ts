@@ -50,6 +50,8 @@ import {
  * of them, so the car doesn't move when the screen changes.
  */
 const CAR_SHIFT = 0.1;
+/** Orbit distance of the turntable car on every car screen (< 1: larger car, may run behind the spec card). */
+const CAR_DIST_SCALE = 0.9;
 const CAR_ENV = { ...testMap.environment, fogDensity: 0.02, sunElevation: 24 };
 /** Map view: camera height angle over the stage (rad), ~36 deg. */
 const ORBIT_ELEVATION = Math.atan2(0.7, 0.95);
@@ -151,8 +153,6 @@ export class Showroom {
    * centred in the screen area right of the menu panel (`panelRight`, the stage view).
    */
   private fixedShift: number | null = CAR_SHIFT;
-  /** Car screen with the spec card beside the list: the car backs off to fit the narrower free area. */
-  private besideCard = false;
   private env: Environment;
   /** Car screens: shallow depth of field on the turntable car (off on low quality). */
   private dof?: DepthOfField;
@@ -307,19 +307,15 @@ export class Showroom {
     this.rideTarget = ride;
   }
 
-  /**
-   * Car mode (turntable). `besideCard`: the car is centred in the area right of the menu (panel + spec card) instead of
-   * keeping the shared car shift.
-   */
-  showCar(besideCard = false): void {
+  /** Car mode (turntable). */
+  showCar(): void {
     this.wanted = undefined;
     this.display(undefined);
     this.bench?.dispose();
     this.bench = undefined;
     this.benchCar = '';
     this.benchBoxes = [];
-    this.fixedShift = besideCard ? null : CAR_SHIFT;
-    this.besideCard = besideCard;
+    this.fixedShift = CAR_SHIFT;
   }
 
   /**
@@ -339,7 +335,6 @@ export class Showroom {
     this.benchBoxes = boxes;
     // The normal turntable ground + sky + car stay as the background (like the car screen), the pickers sit over them.
     this.fixedShift = CAR_SHIFT;
-    this.besideCard = false;
   }
 
   /**
@@ -349,7 +344,6 @@ export class Showroom {
    */
   showMap(mapId: string): void {
     this.fixedShift = null;
-    this.besideCard = false;
     this.preloadCards();
     this.wanted = this.getMap(mapId);
     if (this.wanted.ready()) this.display(this.wanted);
@@ -467,8 +461,7 @@ export class Showroom {
     this.loadCue.style.left = `${(0.5 + (w > h ? this.shift() : 0)) * cw}px`;
     this.angle += dt * 0.18;
     // Back off on narrow windows so the car still fits beside the panel.
-    const dist =
-      8.2 * Math.max(1, 1.7 / (w / h)) * (this.besideCard && w > h ? 1.4 : 1);
+    const dist = 8.2 * Math.max(1, 1.7 / (w / h)) * CAR_DIST_SCALE;
     const cam = this.camera;
     cam.position.set(
       Math.sin(this.angle) * dist,
@@ -496,7 +489,7 @@ export class Showroom {
     if (this.fixedShift !== null) return this.fixedShift;
     const width = this.renderer.domElement.clientWidth || 1;
     const panel = this.panelRight();
-    return panel > width * 0.75 ? 0 : panel / (2 * width);
+    return panel > width * 0.6 ? 0 : panel / (2 * width);
   }
 
   private aim(cam: PerspectiveCamera, v: MapView, aspect: number): void {

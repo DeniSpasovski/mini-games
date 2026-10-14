@@ -279,14 +279,13 @@ class MainMenu {
     this.panel = this.root.querySelector('.menu-panel')!;
     const bg = this.root.querySelector<HTMLElement>('.menu-bg')!;
     // The 3D subject (car / stage) is centred in the screen area right of the panel.
-    this.showroom = new Showroom(bg, quality, () => {
-      // The car sits right of the panel and, on the car screen, right of the spec card beside it.
-      const card = this.root.querySelector('.menu-car-card');
-      return (
-        (card ?? this.panel).getBoundingClientRect().right -
-        bg.getBoundingClientRect().left
-      );
-    });
+    this.showroom = new Showroom(
+      bg,
+      quality,
+      () =>
+        this.panel.getBoundingClientRect().right -
+        bg.getBoundingClientRect().left,
+    );
     this.showroom.setCar(this.car.id, this.livery, this.badge);
     window.addEventListener('keydown', this.onKey);
     // Console handle: __rallyMenu.showroom
@@ -422,10 +421,7 @@ class MainMenu {
     // Stage select shows the map from the air, everything else the car.
     // The setup screen drives the showroom itself (parts bench, see setupSelect).
     if (screen === 'map') this.showroom.showMap(this.map.id);
-    else if (screen !== 'setup' && screen !== 'times')
-      this.showroom.showCar(
-        screen === 'car' && !!this.root.querySelector('.menu-car-card'),
-      );
+    else if (screen !== 'setup' && screen !== 'times') this.showroom.showCar();
     // First visit with no quality chosen: measure the picking screens, the stage then starts on the result.
     if ((screen === 'map' || screen === 'car') && needsAutoQuality())
       this.showroom.measureFrameTime((ms) => {

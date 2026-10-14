@@ -936,7 +936,7 @@
   z-index: 41;
   top: 40px;
   left: 472px;
-  width: 280px;
+  width: min(600px, calc(100% - 504px));
   max-height: calc(100% - 64px);
   box-sizing: border-box;
   padding: 18px 20px;
