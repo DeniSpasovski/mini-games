@@ -16,7 +16,7 @@ streets with kerbs, sidewalks and crosswalks, sheer retaining-wall cuts, and abo
 OpenStreetMap footprints and heights.
 
 ```bash
-npm run dev     # /games/rally/?map=jackie&spawn=1000
+npm run dev     # /games/rally/?stage=jackie&spawn=1000
                 # /games/rally/map-viewer.html?map=jackie
 ```
 

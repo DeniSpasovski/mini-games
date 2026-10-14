@@ -59,17 +59,49 @@ export const QUALITY: Record<QualityName, QualitySettings> = {
 };
 
 const KEY = 'rally.quality';
+/** Measured pick (menu FPS probe), used only while the player has no choice of their own. */
+const AUTO_KEY = 'rally.quality.auto';
+
+function readKey(key: string): QualityName | null {
+  try {
+    const v = localStorage.getItem(key);
+    return v && Object.prototype.hasOwnProperty.call(QUALITY, v)
+      ? (v as QualityName)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** True while nothing picked a quality yet (no URL param, no saved choice, no earlier measurement). */
+export function needsAutoQuality(): boolean {
+  return (
+    !new URLSearchParams(location.search).get('quality') &&
+    !readKey(KEY) &&
+    !readKey(AUTO_KEY)
+  );
+}
+
+/** Median frame time (ms) of the medium-quality menu -> preset. Only an old phone drops to low; 100+ fps earns high. */
+export function qualityForFrameMs(ms: number): QualityName {
+  if (ms > 1000 / 40) return 'low';
+  if (ms < 1000 / 100) return 'high';
+  return 'medium';
+}
+
+export function saveAutoQuality(name: QualityName): void {
+  try {
+    // A manual choice made meanwhile always wins.
+    if (!localStorage.getItem(KEY)) localStorage.setItem(AUTO_KEY, name);
+  } catch {
+    // storage unavailable - the probe just runs again next visit
+  }
+}
 
 export function loadQuality(): QualitySettings {
   const fromUrl = new URLSearchParams(location.search).get('quality');
   let name = fromUrl as QualityName | null;
-  if (!name) {
-    try {
-      name = localStorage.getItem(KEY) as QualityName | null;
-    } catch {
-      name = null;
-    }
-  }
+  if (!name) name = readKey(KEY) ?? readKey(AUTO_KEY);
   return QUALITY[
     name && Object.prototype.hasOwnProperty.call(QUALITY, name)
       ? name

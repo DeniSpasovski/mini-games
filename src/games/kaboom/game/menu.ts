@@ -183,6 +183,13 @@ export class Menu {
     return b;
   }
 
+  /** Bottom action row of a card: stays in view while the card content scrolls. */
+  private actions(...kids: HTMLElement[]): HTMLElement {
+    const a = el('div', 'kb-actions');
+    a.append(...kids);
+    return a;
+  }
+
   private allGames(card: HTMLElement): void {
     if (portalUrl())
       card.append(this.btn('All games', 'ghost', () => goToPortal()));
@@ -387,7 +394,6 @@ export class Menu {
     };
     refresh();
 
-    const actions = el('div', 'kb-actions');
     const startBtn = this.btn('Start!', 'primary big', () =>
       this.api.onPlay({
         critter: s.critter,
@@ -401,11 +407,12 @@ export class Menu {
     // The pad starts on the critter picker, not on Start! (Start button = go).
     startBtn.removeAttribute('data-primary');
     startBtn.setAttribute('data-start', '');
-    actions.append(
-      startBtn,
-      this.btn('Back', 'ghost', () => this.welcome()),
+    card.append(
+      this.actions(
+        startBtn,
+        this.btn('Back', 'ghost', () => this.welcome()),
+      ),
     );
-    card.append(actions);
     this.show(card);
     this.onBack = () => this.click(() => this.welcome())();
   }
@@ -451,7 +458,7 @@ export class Menu {
       list.append(el('li', '', line));
     card.append(
       list,
-      this.btn('Got it', 'primary', () => this.welcome()),
+      this.actions(this.btn('Got it', 'primary', () => this.welcome())),
     );
     this.show(card);
     this.onBack = () => this.click(() => this.welcome())();
@@ -499,7 +506,7 @@ export class Menu {
         'kb-small',
         'Auto picks Low on phones. Changing graphics reloads the game.',
       ),
-      this.btn('Back', 'primary', back),
+      this.actions(this.btn('Back', 'primary', back)),
     );
     this.show(card);
     this.onBack = () => this.click(back)();

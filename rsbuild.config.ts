@@ -302,16 +302,20 @@ export default defineConfig(({ envMode }) => ({
           res.end(`saved ${path.relative(root, out)}`);
         });
       });
-      // Dev-only helper: save a rally map's baked stage card (stage-select view) into
-      // src/games/rally/maps/<map>/preview/ (see src/games/rally/tools/stage-card-bake.ts).
+      // Dev-only helper: save a rally stage's baked stage card (stage-select view) into
+      // src/games/rally/maps/<map>/preview/<stage>.json + .jpg (see src/games/rally/tools/stage-card-bake.ts).
       server.middlewares.use('/__dev/stage-card', (req, res) => {
         const url = new URL(req.url ?? '', 'http://x');
         const map = (url.searchParams.get('map') ?? '').replace(
           /[^a-z0-9_-]/gi,
           '',
         );
+        const stage = (url.searchParams.get('stage') ?? map).replace(
+          /[^a-z0-9_-]/gi,
+          '',
+        );
         const mapDir = path.join(gamesDir, 'rally', 'maps', map);
-        if (req.method !== 'POST' || !map || !fs.existsSync(mapDir)) {
+        if (req.method !== 'POST' || !map || !stage || !fs.existsSync(mapDir)) {
           res.statusCode = 400;
           res.end('unknown map');
           return;
@@ -325,9 +329,9 @@ export default defineConfig(({ envMode }) => ({
           };
           const dir = path.join(mapDir, 'preview');
           fs.mkdirSync(dir, { recursive: true });
-          fs.writeFileSync(path.join(dir, 'stage-card.json'), body.json);
+          fs.writeFileSync(path.join(dir, `${stage}.json`), body.json);
           fs.writeFileSync(
-            path.join(dir, 'stage-card.jpg'),
+            path.join(dir, `${stage}.jpg`),
             Buffer.from(
               body.jpeg.replace(/^data:image\/\w+;base64,/, ''),
               'base64',

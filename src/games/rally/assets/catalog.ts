@@ -280,6 +280,17 @@ export const ASSET_CATALOG: AssetMeta[] = [
     tint: 0.14,
   },
   {
+    id: 'beech_tree',
+    name: 'Beech tree',
+    category: 'vegetation',
+    description:
+      'Mountain beech: tall smooth pale-grey trunk, dense rounded crown starting to turn in autumn (Galichica mid slopes).',
+    variants: 4,
+    lods: tree(1700),
+    colliders: [{ kind: 'cylinder', r: 0.32, h: 6, y: -0.5 }],
+    tint: 0.13,
+  },
+  {
     id: 'poplar_tree',
     name: 'Lombardy poplar',
     category: 'vegetation',
@@ -478,7 +489,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Street car',
     category: 'props',
     description:
-      'Parked car: a boxy rally car (side outline extruded, glass, lamps, simple wheels; cars/<car>/profile.ts). Variants 0-11 pick the shape (variant % 8: 0 M3 saloon, 1 Skoda hatch, 2 Fiesta hatch, 3 GT2 coupe, 4 C4 hatch, 5 Lancer saloon, 6 Mustang GT3 coupe, 7 Peugeot 206 hatch) and a paint; 12 = white Skoda hatch (placed on purpose). Faces +X. Solid.',
+      'Parked car: a boxy rally car (side outline extruded, glass, lamps, simple wheels; cars/<car>/profile.ts). Variants 0-11 pick the shape (variant % 9: 0 M3 saloon, 1 Skoda hatch, 2 Fiesta hatch, 3 GT2 coupe, 4 C4 hatch, 5 Lancer saloon, 6 Mustang GT3 coupe, 7 190E saloon, 8 Peugeot 206 hatch) and a paint; 12 = white Skoda hatch (placed on purpose). Faces +X. Solid.',
     variants: 13,
     lods: [
       { maxDistance: 90, castShadow: true },

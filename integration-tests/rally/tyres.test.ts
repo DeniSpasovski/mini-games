@@ -86,7 +86,7 @@ describe('tyre data', () => {
 
   test('every map recommends a known tyre', () => {
     for (const m of [testMap, petralicaMap, jackieMap])
-      expect(TYRE_IDS).toContain(m.tyre);
+      expect(TYRE_IDS).toContain(m.stages[0].tyre);
   });
 });
 
@@ -145,7 +145,7 @@ function driveStage(world: World, tyre: TyreId, extraGrip = false) {
   v.setClimate(stageClimate(world.map.environment));
   const spawn = world.roadSpawn();
   v.reset(spawn.position, spawn.heading);
-  const ap = new Autopilot(world.road);
+  const ap = new Autopilot(world.stageRoad);
   ap.useExtraGrip = extraGrip;
   ap.reset(world.stage.start - 9);
   const limit = Math.max(240, (world.stage.finish - world.stage.start) / 6);
@@ -192,15 +192,22 @@ const report = (mapId: string, label: string, r: StageRun) =>
  *    actually driven faster. Proves what a tyre is worth over a whole stage, which the careful driver
  *    cannot show (it ties on tarmac).
  */
-const STAGES: MapDef[] = [testMap, petralicaMap, jackieMap, ajvatovciMap];
+const STAGES: MapDef[] = [
+  testMap,
+  petralicaMap,
+  jackieMap,
+  ajvatovciMap,
+  // Not Galichica: the limit driver (`useExtraGrip`) cannot take its 11-12 m hairpins after fast straights on grippy tyres
+  // (it runs wide into a side-track mouth); the stage autopilot drives it with every car (stage.test.ts).
+];
 describe.each(STAGES.map((m) => m.id))(
   'stage %s',
   (mapId) => {
     const map = STAGES.find((m) => m.id === mapId)!;
     const world = new World(map);
     const { careful, limit } = runsFor(map);
-    report(mapId, `recommended ${map.tyre}, careful`, careful);
-    report(mapId, `recommended ${map.tyre}, limit`, limit);
+    report(mapId, `recommended ${map.stages[0].tyre}, careful`, careful);
+    report(mapId, `recommended ${map.stages[0].tyre}, limit`, limit);
 
     test('careful driver: every tyre finishes upright', () => {
       for (const t of TYRE_IDS) {
@@ -216,7 +223,7 @@ describe.each(STAGES.map((m) => m.id))(
       }
       const fastest = Math.min(...TYRE_IDS.map((t) => limit[t].t));
       // Within 0.5 %: on a mixed-surface stage two tyres can be nearly level (Petralica).
-      expect(limit[map.tyre].t).toBeLessThanOrEqual(fastest * 1.005);
+      expect(limit[map.stages[0].tyre].t).toBeLessThanOrEqual(fastest * 1.005);
     });
   },
   600000,

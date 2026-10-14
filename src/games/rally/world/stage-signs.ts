@@ -78,12 +78,17 @@ function clearance(
   s: RoadSample,
   side: 1 | -1,
   edgeGap: number,
+  roadLength: number,
+  reverse: boolean,
 ): number {
   let lat = s.halfWidth + edgeGap;
+  // Barriers are placed along the map's road: on a reverse stage its distances and sides are mirrored.
+  const dist = reverse ? roadLength - s.dist : s.dist;
+  const mapSide = reverse ? -side : side;
   for (const b of map.barriers ?? []) {
-    if (b.side !== 'both' && b.side !== (side === 1 ? 'left' : 'right'))
+    if (b.side !== 'both' && b.side !== (mapSide === 1 ? 'left' : 'right'))
       continue;
-    if (s.dist < (b.from ?? 0) || s.dist > (b.to ?? Infinity)) continue;
+    if (dist < (b.from ?? 0) || dist > (b.to ?? Infinity)) continue;
     lat = Math.max(lat, s.halfWidth + b.offset + 0.9);
   }
   return lat;
@@ -94,6 +99,7 @@ export function stageSigns(
   road: Road,
   ground: TerrainSampler,
   stage: StageLayoutLike,
+  reverse = false,
 ): StageSigns {
   const out: StageSigns = { gantries: [], boards: [], colliders: [] };
   const dropAt = (s: RoadSample, lat: number): number => {
@@ -116,8 +122,8 @@ export function stageSigns(
     const s = road.at(along);
     const half = Math.max(
       MIN_HALF,
-      clearance(map, s, 1, PILLAR_CLEAR),
-      clearance(map, s, -1, PILLAR_CLEAR),
+      clearance(map, s, 1, PILLAR_CLEAR, road.length, reverse),
+      clearance(map, s, -1, PILLAR_CLEAR, road.length, reverse),
     );
     out.gantries.push({
       kind,
@@ -134,7 +140,14 @@ export function stageSigns(
   stage.splits.forEach((along, i) => {
     const s = road.at(along);
     for (const side of [1, -1] as const) {
-      const lateral = clearance(map, s, side, BOARD_CLEAR);
+      const lateral = clearance(
+        map,
+        s,
+        side,
+        BOARD_CLEAR,
+        road.length,
+        reverse,
+      );
       const p = roadLocal(s, side * lateral);
       out.boards.push({
         split: i + 1,

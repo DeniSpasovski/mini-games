@@ -1,5 +1,5 @@
 import { Vector3 } from 'three';
-import type { BuildingDef, MapDef } from '../maps/shared/types';
+import type { BuildingDef, MapDef, StageDef } from '../maps/shared/types';
 import { SURFACES, type SurfaceId } from '../physics/surfaces';
 import type {
   GroundProvider,
@@ -108,7 +108,15 @@ export interface TunnelAcoustics {
 
 export class World implements GroundProvider {
   readonly gen: TerrainGenerator;
+  /** The map's road (geometry: terrain carving, meshes, physics surface), whatever stage runs on it. */
   readonly road: Road;
+  /** The stage driven in this world (MapDef.stages); the world itself is the same for every stage of the map. */
+  readonly stageDef: StageDef;
+  /**
+   * The road as the stage drives it: `road`, or its reversed view for a `reverse` stage. Everything of the stage
+   * event - timing, spawn, signs, fans, closures, event props, autopilot - measures distances along this one.
+   */
+  readonly stageRoad: Road;
   readonly heightfield: Heightfield;
   /** Uncached terrain sampling for whole-map placement work (see AnalyticTerrain). */
   readonly analytic: AnalyticTerrain;
@@ -148,9 +156,24 @@ export class World implements GroundProvider {
     return (this.moistureMap ??= bakeGroundMoisture(this.gen, this.map));
   }
 
-  constructor(readonly map: MapDef) {
+  constructor(
+    readonly map: MapDef,
+    stage?: StageDef | string,
+  ) {
+    this.stageDef =
+      typeof stage === 'object'
+        ? stage
+        : (map.stages.find((s) => s.id === stage) ?? map.stages[0]);
     this.gen = new TerrainGenerator(map);
     this.road = this.gen.road;
+    this.stageRoad = this.stageDef.reverse ? this.road.reversed() : this.road;
+    const timing = this.stageDef.timing;
+    const finish = this.stageRoad.length - timing.finishFromEnd;
+    const start = timing.start;
+    const splits: number[] = [];
+    for (let i = 1; i <= timing.splits; i++)
+      splits.push(start + ((finish - start) * i) / (timing.splits + 1));
+    this.stage = { start, finish, splits };
     this.heightfield = new Heightfield(this.gen);
     this.analytic = new AnalyticTerrain(this.gen);
     this.landmarks = landmarksOf(map);
@@ -190,13 +213,14 @@ export class World implements GroundProvider {
     const crowdQ = newPathQuery();
     const fanQ = newPathQuery();
     const fanLq = newLakeQuery();
-    this.cornerFans = map.cornerFans
+    const fans = this.stageDef.cornerFans;
+    this.cornerFans = fans
       ? cornerFanInstances(
-          this.road,
+          this.stageRoad,
           (x, z) => this.analytic.height(x, z),
-          map.cornerFans,
+          fans,
           map.seed,
-          this.gen.junctions,
+          this.stageJunctions(),
           (x, z) =>
             map.terrain.flatAreas.some(
               (f) => Math.hypot(x - f.x, z - f.z) < f.radius + 4,
@@ -430,13 +454,13 @@ export class World implements GroundProvider {
         this.surfaceFns.push(landmark.surfaceAt.bind(landmark));
     }
 
-    const finish = this.road.length - map.stage.finishFromEnd;
-    const start = map.stage.start;
-    const splits: number[] = [];
-    for (let i = 1; i <= map.stage.splits; i++)
-      splits.push(start + ((finish - start) * i) / (map.stage.splits + 1));
-    this.stage = { start, finish, splits };
-    this.signs = stageSigns(map, this.road, this.analytic, this.stage);
+    this.signs = stageSigns(
+      map,
+      this.stageRoad,
+      this.analytic,
+      this.stage,
+      !!this.stageDef.reverse,
+    );
     for (const c of this.signs.colliders) this.scatter.addFixedCollider(c);
     this.overheadSigns = overheadSigns(
       map,
@@ -494,15 +518,38 @@ export class World implements GroundProvider {
     return this.landmarks.some((l) => l.keepsClear?.(x, z));
   }
 
-  /** Side-road mouths closed with a row of barriers (MapDef.junctionBarriers). */
+  /** Distance along the stage road of a point `along` the map's road. */
+  stageAlong(along: number): number {
+    return this.stageDef.reverse ? this.road.length - along : along;
+  }
+
+  /** The side-road junctions in stage-road terms (distance along the stage road, side of its direction of travel). */
+  stageJunctions(): { along: number; width: number; side: 1 | -1 }[] {
+    if (!this.stageDef.reverse) return this.gen.junctions;
+    return this.gen.junctions.map((j) => ({
+      along: this.stageAlong(j.along),
+      width: j.width,
+      side: (j.side === 1 ? -1 : 1) as 1 | -1,
+    }));
+  }
+
+  /** Side-road mouths closed with a row of barriers (StageDef.closures; with `stageMargin` only along the stage). */
   junctionInstances(): ScatterInstance[] {
-    const rule = this.map.junctionBarriers;
+    const rule = this.stageDef.closures;
     if (!rule) return [];
     const out: ScatterInstance[] = [];
     const q = newRoadQuery();
     const pq = newPathQuery();
     for (const j of this.gen.junctions) {
       if (j.width < (rule.minWidth ?? 2.5)) continue;
+      if (rule.stageMargin !== undefined) {
+        const a = this.stageAlong(j.along);
+        if (
+          a < this.stage.start - rule.stageMargin ||
+          a > this.stage.finish + rule.stageMargin
+        )
+          continue;
+      }
       // Walk up the side road until the near end of the row clears the stage road edge by
       // `setback` (a row across an oblique junction leans towards the road by up to width / 2).
       // Front (+Z) faces the stage road, length runs across the side road.
@@ -757,14 +804,18 @@ export class World implements GroundProvider {
     });
   }
 
+  /** Map props along the map's road, then the stage's event props along the stage road. */
   private propInstances(): ScatterInstance[] {
-    return this.map.props.map((p, i) => {
+    return [
+      ...this.map.props.map((p) => [p, this.road] as const),
+      ...(this.stageDef.props ?? []).map((p) => [p, this.stageRoad] as const),
+    ].map(([p, road], i) => {
       let x = p.x ?? 0;
       let z = p.z ?? 0;
       let rotY = ((p.rotY ?? 0) * Math.PI) / 180;
       if (p.along !== undefined) {
-        const along = p.along < 0 ? this.road.length + p.along : p.along;
-        const s = this.road.at(along);
+        const along = p.along < 0 ? road.length + p.along : p.along;
+        const s = road.at(along);
         const lat = p.lateral ?? 0;
         x = s.x + s.tz * lat;
         z = s.z - s.tx * lat;
@@ -988,9 +1039,9 @@ export class World implements GroundProvider {
   }
   private rq = newRoadQuery();
 
-  /** Spawn on the road at `along` metres (default: just behind the start line). */
+  /** Spawn on the stage road at `along` metres (default: just behind the start line). */
   roadSpawn(along = this.stage.start - 9): Spawn {
-    const s = this.road.at(along);
+    const s = this.stageRoad.at(along);
     return {
       position: new Vector3(s.x, this.heightAt(s.x, s.z), s.z),
       heading: Math.atan2(s.tx, s.tz),
@@ -1010,9 +1061,9 @@ export class World implements GroundProvider {
     return this.roadSpawn();
   }
 
-  /** Nearest road point as a reset spawn (used by "reset car"). */
+  /** Nearest road point as a reset spawn (used by "reset car"), facing the stage's direction. */
   resetSpawn(x: number, z: number, fallbackAlong: number): Spawn {
-    const q = this.road.query(x, z, {
+    const q = this.stageRoad.query(x, z, {
       found: false,
       lateral: 0,
       distance: 0,

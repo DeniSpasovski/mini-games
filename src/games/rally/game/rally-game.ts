@@ -26,7 +26,7 @@ import { brakeLevel } from '../physics/brakes';
 import { TYRES, type TyreId } from '../physics/tyres';
 import type { GearingId, SetupId } from '../physics/types';
 import { PHYSICS_HZ, Vehicle } from '../physics/vehicle';
-import { isTestCar, isTestMap, TEST_NOTE } from '../release';
+import { isTestCar, isTestStage, TEST_NOTE } from '../release';
 import { getAssetMeta } from '../assets/catalog';
 import { Breakables } from '../world/breakables';
 import { DistanceCull } from '../world/distance-cull';
@@ -64,15 +64,17 @@ import {
   timesVersion,
 } from './stage';
 import { stageClimate } from '../maps/shared/climate';
-import type { MapDef } from '../maps/shared/types';
+import type { MapDef, StageDef } from '../maps/shared/types';
 import { trackTemp } from '../physics/tyre-temp';
 import type { TyreGaugeState } from './tyre-gauge';
 import { ForceLines, Telemetry } from './telemetry';
 import { paramNumber } from '../../../shared/url-params';
 
 export interface GameOptions {
-  /** The full map (`loadMap`, maps/index.ts: the baked data is loaded on demand). */
+  /** The full map (`loadStage`, maps/index.ts: the baked data is loaded on demand). */
   map: MapDef;
+  /** The stage driven on it (default: the map's first). */
+  stage?: StageDef;
   carId: string;
   /** Livery seed. */
   livery: number;
@@ -174,7 +176,7 @@ export class RallyGame {
       Math.min(8, this.renderer.capabilities.getMaxAnisotropy()),
     );
     bindCameraAspect(this.renderer, this.camera);
-    this.world = new World(opts.map);
+    this.world = new World(opts.map, opts.stage);
     this.car = getCar(opts.carId);
     this.audio = new CarAudio(this.car);
     // Any spawn other than the stage start (pad, ?spawn=<metres>) is free drive: no clock, no splits.
@@ -311,11 +313,16 @@ export class RallyGame {
     this.rig = new CameraRig(this.camera, (x, z) => this.world.heightAt(x, z));
     this.hud = new Hud(
       this.container,
-      `${map.name} · ${this.car.name}`,
-      isTestMap(map.id) || isTestCar(this.car.id) ? [TEST_NOTE] : [],
+      `${this.world.stageDef.name} · ${this.car.name}`,
+      isTestStage(this.world.stageDef.id) || isTestCar(this.car.id)
+        ? [TEST_NOTE]
+        : [],
     );
     this.telemetry = new Telemetry(this.container);
-    this.stage = new StageTimer(this.world, bestKey(map.id, this.car.id));
+    this.stage = new StageTimer(
+      this.world,
+      bestKey(this.world.stageDef.id, this.car.id),
+    );
     this.stage.on((e) => this.onStageEvent(e));
     this.input.onAction((a) => this.onAction(a));
     this.renderer.domElement.addEventListener('resized', () =>
@@ -363,7 +370,7 @@ export class RallyGame {
       this.streamer.setOptions({ lodScale });
     this.model.setBadge({
       number: s.carNumber,
-      rally: rallyName(this.world.map.name),
+      rally: rallyName(this.world.stageDef.name),
     });
   }
 
@@ -390,7 +397,7 @@ export class RallyGame {
   /** Name of the stage surface the fitted tyre grips worst ("gravel"), or null when it is fine on all of them. */
   private wrongTyreSurface(): string | null {
     // The recommended tyre is the stage's own answer: never nag about it (it may be poor on part of the road).
-    if (this.opts.tyre === this.world.map.tyre) return null;
+    if (this.opts.tyre === this.world.stageDef.tyre) return null;
     const road = this.world.map.road;
     let worst: SurfaceId | null = null;
     let worstRating = 2; // only "poor" (1) or "bad" (0) counts as wrong
@@ -578,7 +585,7 @@ export class RallyGame {
       case 'autopilot':
         if (this.autopilot) this.autopilot = undefined;
         else {
-          this.autopilot = new Autopilot(this.world.road);
+          this.autopilot = new Autopilot(this.world.stageRoad);
           this.autopilot.reset(this.stage.progress);
         }
         this.hud.message(
@@ -609,7 +616,7 @@ export class RallyGame {
   /** Shared GA params of a ranked run (see src/shared/analytics.ts, DETAILS.md "Analytics"). */
   private runParams(): EventParams {
     return {
-      game_level_name: this.world.map.id,
+      game_level_name: this.world.stageDef.id,
       game_version: gameManifest.version,
       game_rally_car: this.car.id,
       game_rally_tyre: this.opts.tyre,
@@ -617,7 +624,7 @@ export class RallyGame {
       game_rally_gearing: hasGearings(this.car.physics)
         ? this.opts.gearing
         : undefined,
-      game_rally_times_version: timesVersion(this.world.map.id),
+      game_rally_times_version: timesVersion(this.world.stageDef.id),
     };
   }
 
@@ -679,7 +686,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         ...(hasGearings(this.car.physics) ? { gear: this.opts.gearing } : {}),
         splits: [...this.stage.splitTimes],
         ...(e.penalty ? { penalty: e.penalty } : {}),
-        ver: timesVersion(this.world.map.id),
+        ver: timesVersion(this.world.stageDef.id),
         carVer: carTimesVersion(this.car.id),
         date: Date.now(),
       };
@@ -687,12 +694,12 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       const ranked = !this.freeDrive;
       const board = ranked
         ? recordTime(
-            this.world.map.id,
+            this.world.stageDef.id,
             CARS.map((c) => c.id),
             run,
           )
         : loadTimes(
-            this.world.map.id,
+            this.world.stageDef.id,
             CARS.map((c) => c.id),
           );
       if (ranked) {
@@ -950,7 +957,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
    */
   private finishStop(v: Vehicle): void {
     if (!this.finishPilot) {
-      this.finishPilot = new Autopilot(this.world.road);
+      this.finishPilot = new Autopilot(this.world.stageRoad);
       this.finishPilot.reset(this.stage.progress);
     }
     finishStopControls(this.finishPilot, v, v.controls);

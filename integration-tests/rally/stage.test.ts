@@ -4,7 +4,7 @@ import {
   Autopilot,
   finishStopControls,
 } from '../../src/games/rally/game/autopilot';
-import { ALL_MAPS } from '../../src/games/rally/maps/all';
+import { ALL_STAGE_DEFS } from '../../src/games/rally/maps/all';
 import { PHYSICS_HZ, Vehicle } from '../../src/games/rally/physics/vehicle';
 import { newRoadQuery } from '../../src/games/rally/world/road';
 import { World } from '../../src/games/rally/world/world';
@@ -14,10 +14,14 @@ import { World } from '../../src/games/rally/world/world';
  * car without rolling over or getting stuck. Catches broken maps (cliffs,
  * trees on the road, impossible jumps) and physics regressions together.
  */
-const worlds = new Map(ALL_MAPS.map((m) => [m.id, new World(m)]));
+const worlds = new Map(
+  ALL_STAGE_DEFS.map(({ map, stage }) => [stage.id, new World(map, stage)]),
+);
 
 describe.each(
-  ALL_MAPS.flatMap((m) => ALL_CARS.map((c) => [m.id, c.id] as const)),
+  ALL_STAGE_DEFS.flatMap(({ stage }) =>
+    ALL_CARS.map((c) => [stage.id, c.id] as const),
+  ),
 )('%s / %s', (mapId, carId) => {
   test('autopilot finishes the stage', () => {
     const world = worlds.get(mapId)!;
@@ -25,7 +29,7 @@ describe.each(
     const v = new Vehicle(car.physics, world);
     const spawn = world.roadSpawn();
     v.reset(spawn.position, spawn.heading);
-    const ap = new Autopilot(world.road);
+    const ap = new Autopilot(world.stageRoad);
     ap.reset(world.stage.start - 9);
     let t = 0;
     let minUp = 1;
@@ -50,13 +54,13 @@ describe.each(
 
     // After the finish line the car must stop by itself, upright, on the road.
     const crossSpeed = v.speed * 3.6;
-    const stopPilot = new Autopilot(world.road);
+    const stopPilot = new Autopilot(world.stageRoad);
     stopPilot.reset(ap.along);
     for (let i = 0; i < PHYSICS_HZ * 15; i++) {
       finishStopControls(stopPilot, v, v.controls);
       v.step(1 / PHYSICS_HZ);
     }
-    const q = world.road.query(v.position.x, v.position.z, newRoadQuery());
+    const q = world.stageRoad.query(v.position.x, v.position.z, newRoadQuery());
     console.info(
       `[${mapId}/${carId}] finish stop from ${crossSpeed.toFixed(0)} km/h: ${(q.along - world.stage.finish).toFixed(0)} m after the line, lateral ${q.lateral.toFixed(1)} m`,
     );

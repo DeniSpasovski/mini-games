@@ -17,7 +17,7 @@
 **Public, source-available repo** (educational three.js project, not commercial): treat every committed file as published.
 
 - **Licences:** code, procedural assets, docs, screenshots = [PolyForm Noncommercial 1.0.0](LICENSE). Baked real-map data
-  (`maps/<id>/` `data.json`, `route.json`, `horizon.json`, `junction*.json`, `buildings.csv`, `preview/stage-card.json` + `.jpg`)
+  (`maps/<id>/` `data.json`, `route.json`, `horizon.json`, `junction*.json`, `buildings.csv`, `preview/<stage>.json` + `.jpg`)
   is OpenStreetMap-derived = **ODbL**; a new baked file joins this list (README, `THIRD-PARTY.md`). Third-party models / data keep
   their own licences.
 - **Never commit a third-party file** (model, texture, font, sound, image, dataset) unless its licence allows redistribution of
@@ -70,7 +70,7 @@ into `DETAILS.md`, never up.
 - Games live in `src/games/<id>/`, registered only by `game.json` (auto-discovered). Default engine: three.js.
 - Rally: `DETAILS.md` (architecture, URLs, keys, menus, roadmap), `PHYSICS.md` (model, tuning, tyres, suspension), `TASKS.md`
   (open work, local)
-- Rally maps: `maps/<id>/` = `info.ts` (menus, credits), `map.ts`, baked data, README; local-only DETAILS (every source) +
+- Rally maps: `maps/<id>/` = `info.ts` (menus, credits), `map.ts` (the world), `stages.ts` (its stages), baked data, README; local-only DETAILS (every source) +
   `TODO.md`; `maps/shared/` = format + helpers
 - Rally cars: `cars/<car>/` = `<car>.ts`, README, local-only DETAILS (build notes + sources); `cars/shared/` = code for every car
 - 3, 2, 1 Kabooom (`src/games/kaboom/`, unlisted via `hideInProd` in `src/portal/release.ts` until released): `DETAILS.md` (rules, bots, architecture, performance, contract in `sim/types.ts`), `TASKS.md` (open work, local)
@@ -109,13 +109,16 @@ into `DETAILS.md`, never up.
 - Tool pages mirror their state in the URL (`src/shared/url-state.ts`).
 - Testing in the browser pane: add `mute=1` to game URLs (`isMutedByUrl()`, every audio class honours it); leave it off only for
   sound fixes (low volume).
-- Rally release flags (`src/games/rally/release.ts`): `CARS_LIST` / `MAPS_LIST` list every car / map; a new one gets `hideInProd: true` (dev only) first, remove it to ship (same flag as `GAME_LIST` and `game.json`, `src/shared/release.ts`).
+- Rally maps vs stages: a MAP is the world (`maps/<id>/map.ts`), a STAGE is the event on it (route direction, start / finish,
+  closures; `stages.ts`). Players only see stages; times, URLs and cards are keyed by stage id. Never rename a released stage id.
+- Rally release flags (`src/games/rally/release.ts`): `CARS_LIST` / `STAGES_LIST` list every car / stage; a new one gets `hideInProd: true` (dev only) first, remove it to ship (same flag as `GAME_LIST` and `game.json`, `src/shared/release.ts`).
 - Game `version` (`game.json`, `0.x.y`, minor = feature, patch = fix): bump only when the user says we are making a build.
-- Rally times versions (`game/stage.ts`): bump `MAP_TIMES_VERSIONS[map]` when a map's road / layout / length / surfaces change, `CAR_TIMES_VERSIONS[car]`
+- Rally times versions (`game/stage.ts`): bump `STAGE_TIMES_VERSIONS[stage]` when a stage's road / layout / length / surfaces change (a map
+  change that moves its road bumps every stage on that map), `CAR_TIMES_VERSIONS[car]`
   when that car's handling changes, every car for a shared physics change (livery / model fixes never); a new car / map adds its
   entry (a test checks). Old times stay, listed below the new ones. Only changes shipped to prod count: bump when the user says
   we are making a build; until then leave the numbers and say in the PR which cars / maps changed.
-  **Cars / maps with `hideInProd` in `CARS_LIST` / `MAPS_LIST` stay at 1 and are never bumped** (unreleased: no official times yet);
+  **Cars / stages with `hideInProd` in `CARS_LIST` / `STAGES_LIST` stay at 1 and are never bumped** (unreleased: no official times yet);
   bumps start once the flag is removed (a test checks).
 - Hole Island: scoring changes (points, tiers, bonus, times, map content) bump that map's `MAP_SCORING_VERSIONS` entry
   (`game/scores.ts`; `sim/` changes = every map).

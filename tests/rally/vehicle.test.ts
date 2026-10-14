@@ -78,6 +78,7 @@ const BANDS: Record<
   citroen_c4: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
   fiesta: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
   lancer_evo_6: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
+  merc_190: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
   ford_gt3: { zeroTo100: [3, 10], brake100: [25, 75], top: [120, 290] },
   peugeot_206: { zeroTo100: [5, 12], brake100: [25, 75], top: [130, 230] },
 };

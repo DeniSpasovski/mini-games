@@ -482,3 +482,15 @@ export function worldToGeo(
   const mx = 111412.84 * Math.cos(p) - 93.5 * Math.cos(3 * p);
   return { lat: origin.lat - z / my, lon: origin.lon + x / mx };
 }
+
+/** WGS84 -> world (x, z) for real-world maps: the inverse of `worldToGeo`. */
+export function geoToWorld(
+  origin: { lat: number; lon: number },
+  lat: number,
+  lon: number,
+): { x: number; z: number } {
+  const p = (origin.lat * Math.PI) / 180;
+  const my = 111132.92 - 559.82 * Math.cos(2 * p) + 1.175 * Math.cos(4 * p);
+  const mx = 111412.84 * Math.cos(p) - 93.5 * Math.cos(3 * p);
+  return { x: (lon - origin.lon) * mx, z: (origin.lat - lat) * my };
+}

@@ -165,6 +165,17 @@
   gap: 10px;
   margin-top: auto;
   padding-top: 8px;
+  /* action row stays in view; only the content above it scrolls (panel is the scroller) */
+  position: sticky;
+  bottom: -24px;
+  z-index: 2;
+  padding-bottom: 24px;
+  margin-bottom: -24px;
+  background: linear-gradient(
+    0deg,
+    rgba(8, 10, 14, 0.95) 70%,
+    rgba(8, 10, 14, 0)
+  );
 }
 .menu-buttons .menu-btn {
   flex: 1;

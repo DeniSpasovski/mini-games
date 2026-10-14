@@ -140,8 +140,9 @@ export class InstanceStreamer {
     const metas = new Set([
       ...world.map.scatter.map((r) => r.asset),
       ...world.map.roadside.map((r) => r.asset),
-      ...(world.map.cornerFans ? CORNER_FAN_ASSETS : []),
+      ...(world.stageDef.cornerFans ? CORNER_FAN_ASSETS : []),
       ...world.map.props.map((p) => p.asset),
+      ...(world.stageDef.props ?? []).map((p) => p.asset),
     ]);
     let max = 0;
     let detail = 0;
@@ -591,8 +592,9 @@ export class InstanceStreamer {
     const ids = new Set([
       ...this.world.map.scatter.map((r) => r.asset),
       ...this.world.map.roadside.map((r) => r.asset),
-      ...(this.world.map.cornerFans ? CORNER_FAN_ASSETS : []),
+      ...(this.world.stageDef.cornerFans ? CORNER_FAN_ASSETS : []),
       ...this.world.map.props.map((p) => p.asset),
+      ...(this.world.stageDef.props ?? []).map((p) => p.asset),
     ]);
     for (const id of ids) {
       const meta = getAssetMeta(id);

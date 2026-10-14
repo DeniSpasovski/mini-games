@@ -11,11 +11,19 @@ import type { MapDef } from '../shared/types';
 export const testMap: MapDef = {
   id: 'test',
   name: 'Test Map',
-  year: 2026,
-  /** Recommended tyre (pre-selected on the car screen; see ../../PHYSICS.md). */
-  tyre: 'gravel',
-  description:
-    'Short forest gravel stage with a hairpin, a crest jump and a flat test pad.',
+  stages: [
+    {
+      id: 'test',
+      name: 'Test Map',
+      year: 2026,
+      /** Recommended tyre (pre-selected on the car screen; see ../../PHYSICS.md). */
+      tyre: 'gravel',
+      description:
+        'Short forest gravel stage with a hairpin, a crest jump and a flat test pad.',
+      timing: { start: 40, finishFromEnd: 175, splits: 2 },
+      cornerFans: { every: 40, chance: 0.6, from: 60 },
+    },
+  ],
   seed: 1337,
   bounds: { minX: -420, maxX: 360, minZ: -460, maxZ: 420 },
   terrain: {
@@ -82,7 +90,6 @@ export const testMap: MapDef = {
       [-185, 312],
     ],
   },
-  stage: { start: 40, finishFromEnd: 175, splits: 2 },
   scatter: [
     {
       asset: 'pine_tree',
@@ -182,7 +189,6 @@ export const testMap: MapDef = {
       spread: 16,
     },
   ],
-  cornerFans: { every: 40, chance: 0.6, from: 60 },
   // Start / finish gantries, lines and split boards come from `stage` (world/stage-signs.ts).
   props: [],
   environment: {
