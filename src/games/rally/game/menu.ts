@@ -663,11 +663,16 @@ class MainMenu {
         <dt>Power / weight</dt><dd>${Math.round((pk.kw * 1341) / p.mass)} hp/t</dd>
       </dl>
       ${this.setupSummary()}
-      <div class="menu-livery">Livery
+      <div class="menu-livery">
+        <button class="menu-btn small" data-a="setup">Setup car</button>
+        <span class="menu-livery-label">Livery</span>
         <button class="menu-btn small" data-a="livery-" title="← key">‹</button>
         <b>${this.livery + 1}</b>
         <button class="menu-btn small" data-a="livery+" title="→ key">›</button>
       </div>`;
+    specs
+      .querySelector('[data-a="setup"]')!
+      .addEventListener('click', () => this.show('setup'));
     specs
       .querySelector('[data-a="livery-"]')!
       .addEventListener('click', () => this.setLivery(this.livery - 1));
@@ -689,7 +694,6 @@ class MainMenu {
       ...(beside ? [] : [specs]),
       buttons(
         ['Back', () => this.show('map')],
-        ['Setup car', () => this.show('setup')],
         ['Start stage ›', () => this.start(), true],
       ),
     );

@@ -49,7 +49,7 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
   the stage, length, splits, best time; every stage shows a pre-baked stage card, `tools/stage-card.ts`, cropped to the stage +
   500 m and re-baked with `?bakecard=<stage id>` / `?bakecards=1` only when asked; `stageCardHash` covers only what the card
   draws, so text edits need no re-bake) -> **select car** ->
-  **Start stage** with the recommended set-up, or **Setup car**. The car stands in a 3D showroom (`game/showroom.ts`): car
+  **Start stage** with the recommended set-up, or **Setup car** (small button left of the livery picker). The car stands in a 3D showroom (`game/showroom.ts`): car
   screens add studio strip lights to the env map (`Environment` `studio`) and a shallow depth of field
   (`engine/depth-of-field.ts`, off on low quality); the stage view keeps the map's sky env, no blur. Console (dev): `__showroom`.
 - **Options** (main and pause menu): quality, object distance, volume, gearbox, traction assist and ABS (each hidden for

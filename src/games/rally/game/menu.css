@@ -587,6 +587,9 @@
   font-size: 13px;
   color: #8b95a3;
 }
+.menu-livery-label {
+  margin-left: 8px;
+}
 .menu-livery b {
   min-width: 20px;
   text-align: center;
