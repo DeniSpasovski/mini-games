@@ -451,6 +451,14 @@ registered car; see `src/games/rally/PHYSICS.md`.
 - A GLB body whose paint / carbon split lives only in its texture: `glb-to-parts-stl.py` rule `{"mat": "Body", "texture": {"maxLum": 0.42, "maxSat": 0.06, "blur": 9, "refine": 0.02}, "y": [..], "z": [..], "material": "carbon"}`
   labels body triangles by the (blurred) texture and splits them along its border. Put it first in `gltf.parts`, box it tight (dirt looks like carbon), keep `blur` (raw texels speckle: 140k triangles). `exclude` UV boxes keep emblems out. The 22B sends its
   black rubbers, mirrors, lip and diffuser to `trim` this way (without it the body is one flat paint colour).
+- A minimal GLB import still needs these fixes from the user's close-ups (worked example `cars/porsche-911-930/`):
+  - Paint striped on the arch walls: an `arch` rule first in `gltf.parts` (`mat` = body, `material: "trim"`; hub y / axle z in SOURCE units,
+    `r` just over the arch opening, `dy` -0.25 so the walls below the hub count). Check with `wheels=1&wcam=FL&body=0`.
+  - Hollow exhaust: send the pipe's node to `trim:2s` (source shells are single-faced).
+  - Sawtooth paint edge on a slanted fender lip: an `atlas.chartBoxes` entry with chart `rear` and `any: true` (one paint colour inside).
+  - Reflectors that light on braking: their own island (`whole` + a y box) in a `reflector` part.
+  - Lens texture the model keeps only as flat colours: `tailweave`, `amberweave`, `lensweave`, `clearweave` (`part-materials.ts`, one
+    drawn diamond tile, no shipped texture). `side-profile.mjs` `LAMPS` must list new tail / lens part names.
 - A new car needs its own `suspensionStyle` (`suspension-mesh.test.ts`): add one to `SUSPENSION_STYLE_COLORS`.
 
 ## Bump the times version (last step)
