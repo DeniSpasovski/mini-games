@@ -140,7 +140,7 @@ export const peugeot206: CarDef = {
       launchRpm: 4500,
     },
     gearbox: {
-      ratios: [3.58, 2.05, 1.43, 1.07, 0.85],
+      ratios: [3.58, 2.05, 1.43, 1.07, 0.92],
       reverse: 3.5,
       finalDrive: 4.3,
       shiftTime: 0.2,
@@ -148,10 +148,11 @@ export const peugeot206: CarDef = {
       upshiftRpm: 6900,
       downshiftRpm: 4200,
     },
+    // 5th is short enough that medium is rev-limited: the power peak is at 6900 rpm, so a longer drive alone would not go faster.
     gearings: {
       short: { finalDrive: 4.9 },
       medium: { finalDrive: 4.3 },
-      long: { finalDrive: 3.85 },
+      long: { finalDrive: 4.15 },
     },
     drivetrain: {
       frontSplit: 1,
