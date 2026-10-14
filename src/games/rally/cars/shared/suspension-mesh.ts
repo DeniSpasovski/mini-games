@@ -25,11 +25,21 @@ import type { SetupPreset } from '../../physics/types';
  *   wrcgold - the same unit in gold (Citroen C4 WRC)
  *   sti   - yellow short coil-over (race geometry), piggyback reservoir
  *   gt3   - orange coil-over (race geometry; Ford Mustang GT3)
+ *   saloon - green coil-over (touring-car geometry; Mercedes 190E)
  * The spring gets fewer, thicker coils the stiffer the rate; the whole unit is longer the more travel the preset
  * has (soft = long).
  */
 export type SuspensionStyle =
-  'rally' | 'road' | 'race' | 'gt' | 'gt3' | 'wrc' | 'wrcgold' | 'sti' | 'evo';
+  | 'rally'
+  | 'road'
+  | 'race'
+  | 'gt'
+  | 'gt3'
+  | 'saloon'
+  | 'wrc'
+  | 'wrcgold'
+  | 'sti'
+  | 'evo';
 
 export const SUSPENSION_STYLE_COLORS: Record<
   SuspensionStyle,
@@ -40,6 +50,7 @@ export const SUSPENSION_STYLE_COLORS: Record<
   race: { body: 0xb9bdc3, chrome: 0xd2d5d9 },
   gt: { body: 0x2a56a8, chrome: 0xc4c8cc },
   gt3: { body: 0xd8561f, chrome: 0xc4c8cc },
+  saloon: { body: 0x2f8a4e, chrome: 0xc4c8cc },
   wrc: { body: 0x2a62c9, chrome: 0xc8ccd0 },
   evo: { body: 0xc8281e, chrome: 0xc8ccd0 },
   wrcgold: { body: 0xd9a21b, chrome: 0xc8ccd0 },

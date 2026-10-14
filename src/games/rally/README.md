@@ -58,6 +58,7 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 | [Citroen C4 WRC](cars/citroen-c4/)    | AWD   | 2007 WRC C4 with a visible cockpit                                                                      |
 | [Lancer EVO VI](cars/lancer-evo-6/)   | AWD   | 1999-style Lancer with a visible cockpit                                                                |
 | [Ford Mustang GT3](cars/ford-gt3/)    | RWD   | 2024 GT3 racer from a CC BY Sketchfab GLB, kept as is (test)                                            |
+| [Mercedes 190E](cars/merc-190/)       | RWD   | 2.5-16 Evolution saloon from a CC BY Sketchfab GLB, kept as is, badges removed (test)                   |
 
 [![Skoda Rally](cars/skoda-rally/screenshots/front-34.jpg)](cars/skoda-rally/) [![Zastava](cars/zastava-101/screenshots/front-34.jpg)](cars/zastava-101/)
 

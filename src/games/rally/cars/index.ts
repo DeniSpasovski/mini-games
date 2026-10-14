@@ -4,6 +4,7 @@ import { bimmerM3 } from './bimmer-m3/bimmer-m3';
 import { citroenC4 } from './citroen-c4/citroen-c4';
 import { fiesta } from './fiesta/fiesta';
 import { fordGt3 } from './ford-gt3/ford-gt3';
+import { merc190 } from './merc-190/merc-190';
 import { lancerEvo6 } from './lancer-evo-6/lancer-evo-6';
 import type { CarDef } from './shared/types';
 import { skodaRally } from './skoda-rally/skoda-rally';
@@ -21,6 +22,7 @@ export const ALL_CARS: CarDef[] = [
   citroenC4,
   lancerEvo6,
   fordGt3,
+  merc190,
 ];
 
 /** Cars this build offers: ALL_CARS on the dev server, those without `hideInProd` in the published build (release.ts). */
