@@ -29,7 +29,6 @@ const DECK = 1.5; // above this nothing is painted on the side chart; the top ch
 const FIN = 28;
 /** The rear chart also holds rear-facing walls further forward (door gaps, mirror, vent ribs) at |x| > 0.8: red only on the back panel. */
 const REAR_RED_X = 0.8;
-const REAR_RED_Y = 0.83;
 
 function paint(
   ctx: CanvasRenderingContext2D,
@@ -97,6 +96,8 @@ function paint(
     ],
     WHITE,
   );
+  // Top chart behind the quarters: the lid is white (|x| < 0.82, z > -2.14); the bumper ledge (z < -2.14 shares the lid edge's texels) and corners that share its
+  // texels (lower, further back / out) are red.
   P.top(
     [
       [-1.75, -1.1],
@@ -104,8 +105,18 @@ function paint(
       [-3, 0],
       [-1.75, 0],
     ],
+    RED,
+  );
+  P.top(
+    [
+      [-1.75, -0.82],
+      [-2.14, -0.82],
+      [-2.14, 0],
+      [-1.75, 0],
+    ],
     WHITE,
   );
+
   // Corner crease line (measured on the side view): top (z, y) -> bottom; the red back panel starts behind it.
   P.side(
     [
@@ -129,43 +140,35 @@ function paint(
       RED,
     );
   }
-  // Rear chart: red back panel up to REAR_RED_Y, white lid lip above it. The chart also holds rear-facing walls elsewhere
-  // (door gaps, mirror, vent ribs at |x| > 0.8, hood base and bumper top at y > 0.83): they must not pick up the red.
+  // Rear chart: the red back panel incl. the lid lip. The chart also holds rear-facing walls elsewhere (door gaps, mirror,
+  // vent ribs at |x| > 0.8): red stops at REAR_RED_X. The hood-base edge shares the lip's texels (y 0.88 - 0.94) and stays red.
   P.end(
     'rear',
     [
       [-REAR_RED_X, 0],
       [REAR_RED_X, 0],
-      [REAR_RED_X, REAR_RED_Y],
-      [-REAR_RED_X, REAR_RED_Y],
-    ],
-    RED,
-  );
-  P.end(
-    'rear',
-    [
-      [-REAR_RED_X, REAR_RED_Y],
-      [REAR_RED_X, REAR_RED_Y],
       [REAR_RED_X, 1.0],
       [-REAR_RED_X, 1.0],
     ],
-    WHITE,
+    RED,
   );
 
   // Front fender (traced by hand on the car viewer, mapped with the vent's corners): solid light blue above the vent's
   // louvre lines, leaning stripes below them and over the door, all inside the traced outline FIELD.
+  /** Nothing above the fender's top edge (the red line in Deni's trace): the louvre faces end here, the sloped top is bare. */
+  const FENDER_TOP = 0.885;
   const SOLID: Pt[] = [
-    [0.69, 1.0],
-    [1.9, 1.0],
+    [0.8, FENDER_TOP],
+    [1.9, FENDER_TOP],
     [1.9, 0.85],
     [1.09, 0.855],
     [1.121, 0.746],
     [0.802, 0.694],
-    [0.69, 0.69],
   ];
+  const DOOR_TOP = 0.84; // stripes stop under the door's shoulder line: none on the cowl / A-pillar base
   const FIELD: Pt[] = [
-    [0.39, 0.93],
-    [0.69, 0.93],
+    [0.39, DOOR_TOP],
+    [0.69, DOOR_TOP],
     [0.69, 0.69],
     [0.802, 0.694],
     [1.121, 0.746],
