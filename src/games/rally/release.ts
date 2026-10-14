@@ -23,6 +23,7 @@ export const CARS_LIST: readonly ReleaseEntry[] = [
   { id: 'citroen_c4' },
   { id: 'lancer_evo_6' },
   { id: 'ford_gt3', hideInProd: true },
+  { id: 'peugeot_206', hideInProd: true },
 ];
 
 export const MAPS_LIST: readonly ReleaseEntry[] = [
