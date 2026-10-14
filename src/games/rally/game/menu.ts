@@ -417,9 +417,16 @@ class MainMenu {
     else if (screen !== 'setup' && screen !== 'times') this.showroom.showCar();
     // First visit with no quality chosen: measure the picking screens, the stage then starts on the result.
     if ((screen === 'map' || screen === 'car') && needsAutoQuality())
-      this.showroom.measureFrameTime((ms) =>
-        saveAutoQuality(qualityForFrameMs(ms)),
-      );
+      this.showroom.measureFrameTime((ms) => {
+        const q = qualityForFrameMs(ms);
+        saveAutoQuality(q);
+        // High also draws objects Far and renders for HDR, unless the player already set either.
+        if (q === 'high') {
+          if (loadSettings().objectDistance === 'normal')
+            saveSettings({ objectDistance: 'far' });
+          if (loadDisplayMode() === 'auto') saveDisplayMode('hdr');
+        }
+      });
     // Options start on the first setting, every other screen on its primary button.
     this.panel
       .querySelector<HTMLElement>(
@@ -1034,14 +1041,27 @@ export function buildOptions(opts: {
       quality,
       (q) => {
         saveQuality(q);
+        // High comes with Far object distance and HDR display (both stay changeable below).
+        if (q === 'high') {
+          set({ objectDistance: 'far' });
+          saveDisplayMode('hdr');
+          showOn(distanceRow, 'Far');
+          showOn(displayRow, 'HDR');
+        }
         opts.onQuality?.(q);
       },
     ),
     opts.onQuality ? 'reloads the stage' : '',
   );
+  const showOn = (g: HTMLElement | undefined, label: string) =>
+    g
+      ?.querySelectorAll('button')
+      .forEach((b) => b.classList.toggle('on', b.textContent === label));
+  let distanceRow: HTMLElement | undefined;
+  let displayRow: HTMLElement | undefined;
   row(
     'Object distance',
-    choice(
+    (distanceRow = choice(
       [
         ['normal', 'Normal'],
         ['far', 'Far'],
@@ -1049,19 +1069,19 @@ export function buildOptions(opts: {
       ] as [ObjectDistance, string][],
       s.objectDistance,
       (v) => set({ objectDistance: v }),
-    ),
+    )),
     'trees, houses and props pop in further away · Max costs GPU',
   );
   row(
     'Display',
-    choice(
+    (displayRow = choice(
       DISPLAY_MODES.map((m): [typeof m, string] => [
         m,
         m === 'auto' ? 'Auto' : m.toUpperCase(),
       ]),
       loadDisplayMode(),
       (m) => saveDisplayMode(m),
-    ),
+    )),
     `HDR screens look washed out otherwise · auto = ${isHdrDisplay() ? 'HDR' : 'SDR'} here`,
   );
   const vol = document.createElement('input');
