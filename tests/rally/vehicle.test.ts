@@ -79,6 +79,7 @@ const BANDS: Record<
   fiesta: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
   lancer_evo_6: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
   ford_gt3: { zeroTo100: [3, 10], brake100: [25, 75], top: [120, 290] },
+  porsche_911_930: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 260] },
 };
 
 describe.each(ALL_CARS.map((c) => c.id))('%s', (carId) => {

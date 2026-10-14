@@ -47,17 +47,18 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 
 ## Cars
 
-| Car                                   | Drive | Notes                                                                                                   |
-| ------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------- |
-| [Skoda Rally](cars/skoda-rally/)      | AWD   | Fabia R5 from a CC BY Sketchfab model, own livery                                                       |
-| [Bimmer M3](cars/bimmer-m3/)          | RWD   | E46 coupe from a CC BY print STL                                                                        |
-| [Bimmer GT2](cars/bimmer-gt2/)        | RWD   | E92 GT2 racer from a CC BY Sketchfab GLB                                                                |
-| [Subaru WRX STI 22B](cars/subie-22b/) | AWD   | widebody GC8 / 22B from a CC BY-NC Sketchfab GLB, real lamps + cockpit, crescent / stars graphic (test) |
-| [Zastava 101](cars/zastava-101/)      | FWD   | hand-built from a blueprint                                                                             |
-| [Fiesta WRC](cars/fiesta/)            | AWD   | WRC Fiesta with a visible cockpit                                                                       |
-| [Citroen C4 WRC](cars/citroen-c4/)    | AWD   | 2007 WRC C4 with a visible cockpit                                                                      |
-| [Lancer EVO VI](cars/lancer-evo-6/)   | AWD   | 1999-style Lancer with a visible cockpit                                                                |
-| [Ford Mustang GT3](cars/ford-gt3/)    | RWD   | 2024 GT3 racer from a CC BY Sketchfab GLB, kept as is (test)                                            |
+| Car                                        | Drive | Notes                                                                                                   |
+| ------------------------------------------ | ----- | ------------------------------------------------------------------------------------------------------- |
+| [Skoda Rally](cars/skoda-rally/)           | AWD   | Fabia R5 from a CC BY Sketchfab model, own livery                                                       |
+| [Bimmer M3](cars/bimmer-m3/)               | RWD   | E46 coupe from a CC BY print STL                                                                        |
+| [Bimmer GT2](cars/bimmer-gt2/)             | RWD   | E92 GT2 racer from a CC BY Sketchfab GLB                                                                |
+| [Subaru WRX STI 22B](cars/subie-22b/)      | AWD   | widebody GC8 / 22B from a CC BY-NC Sketchfab GLB, real lamps + cockpit, crescent / stars graphic (test) |
+| [Zastava 101](cars/zastava-101/)           | FWD   | hand-built from a blueprint                                                                             |
+| [Fiesta WRC](cars/fiesta/)                 | AWD   | WRC Fiesta with a visible cockpit                                                                       |
+| [Citroen C4 WRC](cars/citroen-c4/)         | AWD   | 2007 WRC C4 with a visible cockpit                                                                      |
+| [Lancer EVO VI](cars/lancer-evo-6/)        | AWD   | 1999-style Lancer with a visible cockpit                                                                |
+| [Ford Mustang GT3](cars/ford-gt3/)         | RWD   | 2024 GT3 racer from a CC BY Sketchfab GLB, kept as is (test)                                            |
+| [Porsche 911 (930)](cars/porsche-911-930/) | RWD   | 1975 911 Turbo from a CC BY Sketchfab GLB, kept as is (test)                                            |
 
 [![Skoda Rally](cars/skoda-rally/screenshots/front-34.jpg)](cars/skoda-rally/) [![Zastava](cars/zastava-101/screenshots/front-34.jpg)](cars/zastava-101/)
 
