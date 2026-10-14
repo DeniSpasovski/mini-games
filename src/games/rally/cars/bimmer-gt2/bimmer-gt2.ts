@@ -101,13 +101,13 @@ export const bimmerGt2: CarDef = {
   // Flat-plane race V8 (S65 / P65 style, ~4 l), open race exhaust, sequential race box.
   sound: {
     layout: 'v8flat',
-    displacement: 3.6,
-    exhaust: 0.9,
-    intake: 0.75,
-    pops: 0.6,
-    gearWhine: 0.7,
+    displacement: 3.8,
+    exhaust: 1,
+    intake: 0.8,
+    pops: 0.85,
+    gearWhine: 0.85,
     gearbox: 'sequential',
-    cam: 0.3,
+    cam: 0.45,
     roughness: 0.03,
   },
   physics: {
