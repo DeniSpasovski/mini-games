@@ -143,7 +143,21 @@ export interface CarModelDef {
   cornerSuspension?: CornerSuspensionDef;
 }
 
+/** A painted piece cut out of a named part of the GLB (e.g. wing end plates out of the trim), see splitRecolor() in car-gltf.ts. */
+export interface CarGltfRecolor {
+  /** Material name of the part the triangles come from (`trim`). */
+  part: string;
+  /** Triangle centroids inside this box (model space, m: x0, x1, y0, y1, z0, z1) move to the coloured piece. */
+  box: [number, number, number, number, number, number];
+  /** Box test on |x| (a pair of mirrored pieces). */
+  absX?: boolean;
+  /** Paint colour (CSS), glossy like the body paint. */
+  color: string;
+}
+
 export interface CarGltfDef {
+  /** Cut-outs painted another colour (wing end plates ...). */
+  recolor?: CarGltfRecolor[];
   /** File name inside public/models/cars/, e.g. "skoda_rally.glb". */
   file: string;
   /** Attribution (CC-BY etc.) shown in the car viewer / menu. */
