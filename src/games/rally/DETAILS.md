@@ -52,6 +52,8 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
   (`engine/depth-of-field.ts`, off on low quality); the stage view keeps the map's sky env, no blur. Console (dev): `__showroom`.
 - **Options** (main and pause menu): quality, object distance, volume, gearbox, traction assist and ABS (each hidden for
   cars with `physics.noTractionControl` / `noAbs`), car number (door plates), start camera. Saved in localStorage (`game/settings.ts`).
+- **Auto quality**: with no `?quality`, saved choice or earlier measurement, the first Select car / stage screen measures the menu's median
+  frame time for 2.5 s (`Showroom.measureFrameTime`) and saves a preset under its own key (`engine/quality.ts`); a manual choice always wins. High (picked or measured) also sets object distance Far and Display HDR.
 - **Menu music** (main menu only, none in the race): `game/menu-music.ts` loops `sources/music/*.mp3` (git-ignored, copied on build; only files present at build time play and are credited, so a CI checkout / Pages deploy is silent, no errors) (tracks + credits listed
   there), starts on the first click / key (autoplay rule), shows "now playing" bottom right, pauses with the tab. Main-menu
   Options slider `musicVolume` (0 = off, 100% plays at half of full volume); `?mute=1` silences it. Add a track = file + `MENU_TRACKS` row (+ `THIRD-PARTY.md`).
