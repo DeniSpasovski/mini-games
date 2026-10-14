@@ -675,7 +675,15 @@ class MainMenu {
       .querySelector('[data-a="livery+"]')!
       .addEventListener('click', () => this.setLivery(this.livery + 1));
 
-    if (beside) this.root.append(specs);
+    if (beside) {
+      this.root.append(specs);
+      // Top edge level with the filter row (the header height depends on the font).
+      const top =
+        filter.getBoundingClientRect().top -
+        this.root.getBoundingClientRect().top;
+      specs.style.top = `${top}px`;
+      specs.style.maxHeight = `calc(100% - ${top + 24}px)`;
+    }
     this.panel.append(
       list,
       ...(beside ? [] : [specs]),
