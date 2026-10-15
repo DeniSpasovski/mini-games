@@ -4,6 +4,7 @@ import {
   SRGBColorSpace,
   WebGLRenderer,
 } from 'three';
+import { setTreeFoliageAntialias } from '../trees/materials';
 import { setFoliageAntialias } from './materials';
 import type { QualitySettings } from './quality';
 
@@ -25,6 +26,7 @@ export function createRenderer(
   renderer.shadowMap.type = PCFShadowMap;
   // MSAA on -> alpha-to-coverage on the grass / leaf cards.
   setFoliageAntialias(quality.antialias);
+  setTreeFoliageAntialias(quality.antialias);
   renderer.domElement.style.display = 'block';
   container.append(renderer.domElement);
 

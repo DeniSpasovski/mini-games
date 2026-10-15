@@ -15,6 +15,7 @@ import {
   WebGLRenderTarget,
 } from 'three';
 import { getAssetMeta } from '../assets/catalog';
+import { isTreeType } from '../trees/species';
 import { getCar } from '../cars';
 import { CarModel } from '../cars/shared/car-model';
 import type { RallyBadge } from '../cars/shared/rally-badge';
@@ -717,7 +718,11 @@ function previewMap(map: MapDef): { map: MapDef; grow: number } {
     LARGE_MAP_AREA / ((b.maxX - b.minX) * (b.maxZ - b.minZ)),
   );
   const scatter = map.scatter
-    .filter((r) => !r.detail && getAssetMeta(r.asset).category !== 'rocks')
+    .filter(
+      (r) =>
+        !r.detail &&
+        (isTreeType(r.asset) || getAssetMeta(r.asset).category !== 'rocks'),
+    )
     .map((r) => ({
       ...r,
       density: r.density * k,
@@ -854,7 +859,8 @@ function buildMapView(
   const trees = preview && new AerialTrees(world, preview.grow);
   if (trees) {
     // Trees are green circles; buildings / props stay models.
-    streamer.filter = (asset) => getAssetMeta(asset).category !== 'vegetation';
+    streamer.filter = (asset) =>
+      getAssetMeta(asset).category !== 'vegetation';
     detail.add(trees.mesh);
   }
   detail.add(terrain.mesh, road, streamer.group);

@@ -14,6 +14,14 @@ export interface QualitySettings {
   viewDistance: number;
   /** Multiplies every asset LOD distance (and therefore draw distance) and the terrain LOD bands. */
   lodScale: number;
+  /**
+   * The procedural trees' lodScale (trees/draw.ts: divides their screen-height thresholds): lower = impostors and
+   * coarser branches closer. Trees are the biggest GPU cost of a forest stage, so medium / low bring them in further
+   * than the other assets; the full-detail distance (trees/species.ts) never moves.
+   */
+  treeLodScale: number;
+  /** Trees are drawn up to this distance (m); past it the forest is painted on the ground (canopy texture). */
+  forestDistance: number;
   /** Multiplies detail-layer (grass) density, 0 disables it. */
   detailDensity: number;
   /** Max dust particles alive. */
@@ -31,6 +39,8 @@ export const QUALITY: Record<QualityName, QualitySettings> = {
     shadowExtent: 45,
     viewDistance: 1100,
     lodScale: 0.7,
+    treeLodScale: 0.35,
+    forestDistance: 450,
     detailDensity: 0.35,
     particles: 600,
   },
@@ -42,6 +52,8 @@ export const QUALITY: Record<QualityName, QualitySettings> = {
     shadowExtent: 60,
     viewDistance: 1700,
     lodScale: 1,
+    treeLodScale: 0.5,
+    forestDistance: 700,
     detailDensity: 0.7,
     particles: 1200,
   },
@@ -53,6 +65,8 @@ export const QUALITY: Record<QualityName, QualitySettings> = {
     shadowExtent: 75,
     viewDistance: 2400,
     lodScale: 1.3,
+    treeLodScale: 1.3,
+    forestDistance: 1100,
     detailDensity: 1,
     particles: 2000,
   },

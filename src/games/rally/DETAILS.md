@@ -29,19 +29,25 @@ gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
 | `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                                                                  |
 | `tod=<hours>`, `tonemap=`  | all   | look experiments: time of day (maps with `environment.timeOfDay`), `aces / agx / neutral`                                                           |
 | `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the map's `environment.airTemp`)                                                                |
+| `perf=1`                   | play  | open the perf panel (below)                                                                                                         |
+
+Perf panel (`` ` `` key in game or `perf=1`, `game/perf-panel.ts`): FPS, frame ms, CPU ms per frame step, GPU ms (timer
+queries; "Wait for GPU" measures it by a readback where they are missing), draw calls, triangles; switches for every
+costly feature (world layers, each tree part, shadows, clouds, fog, IBL, effects) and sliders (resolution, object /
+tree distance, shadow map). Remembered in localStorage, applied only while the panel exists.
 
 Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab hidden), `__rally.loadTimings`,
 `__rally.vehicle`, `__rallyProbe()` (what the camera draws), `__worldShading`, `__mapViewer`, `__carViewer`.
 
 ## Controls
 
-| Input    | Keys                                                                                                                       |
-| -------- | -------------------------------------------------------------------------------------------------------------------------- |
-| Keyboard | `W` / `S` throttle / brake (hold `S` when stopped = reverse), `A` / `D` steer, `Space` handbrake                           |
-|          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS  |
-|          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F8` autopilot, `F9` save the portal thumbnail (dev)      |
-| Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B |
-| Touch    | on-screen steer arrows, BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                    |
+| Input    | Keys                                                                                                                                                            |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Keyboard | `W` / `S` throttle / brake (hold `S` when stopped = reverse), `A` / `D` steer, `Space` handbrake                                                                |
+|          | `R` reset to road, `C` camera, `Esc` menu, `Q` / `E` shift (`G` manual gearbox), `T` traction / stability assist, `B` ABS                                       |
+|          | `M` mute, `F2` telemetry, `F3` stats, `F4` force vectors + hull, `F6` tree debug view, `F8` autopilot, `` ` `` perf panel, `F9` save the portal thumbnail (dev) |
+| Gamepad  | RT / LT throttle / brake, left stick steer, A / X handbrake, B reset, Y camera, LB / RB shift; menus: d-pad / stick, A / B                                      |
+| Touch    | on-screen steer arrows, BRAKE / GAS, reset to road and pause, landscape only (`game/touch-controls.ts`)                                                         |
 
 ## Game flow
 
@@ -89,9 +95,12 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 - **Shadows:** one shadow map ahead of the camera, snapped to texels so edges do not crawl.
 - **Sky / tone mapping:** drifting clouds (`cloudCoverage`, `cloudSpeed`); ACES, or `toneMapping: 'agx' | 'neutral'` per map.
 - **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark outside the
-  shadow box (`world/canopy-shadows.ts`), height fog warming towards the sun, wind, leaf translucency. Custom shaders must call
-  `addWorldUniforms(shader)`.
+  shadow box (`world/canopy-shadows.ts`: a coarse whole-map texture plus a 1.5 m local window of 768 m around the camera,
+  rebuilt from the generated scatter chunks every 64 m, so the road gets tree shadows far past the shadow map), height fog
+  warming towards the sun, wind, leaf translucency. Custom shaders must call `addWorldUniforms(shader)`.
 - **Surfaces:** bump relief on roads, rocks and terrain (off on low); grass cards use alpha-to-coverage with MSAA.
+  Terrain chunks beyond the first LOD band use the cheaper `TERRAIN_FAR` material (`world/terrain-material.ts`): no relief, one
+  texture octave per layer, no specular environment lookup.
 - **Effects:** dust, gravel spray and haze (`game/dust.ts`), tyre marks (`game/tyre-marks.ts`), a contact shadow under the car,
   brake and reversing lamps (`CarModel.setBrake(level, reversing)`; a lamp's `userData.brakeLamp.reverseGlow` map lights its
   white section in gear R, in R the throttle key is the brake pedal; car viewer `lamps=brake|reverse`).
@@ -249,10 +258,11 @@ world/        map data -> deterministic world
   road.ts         centreline at 1 m, height smoothing, spatial queries
   terrain-gen.ts  noise + real heightmap + pads + channels + road carving + splat
   heightfield.ts  chunked 1 m height cache = shared truth for physics and the LOD0 mesh
-  scatter.ts      per-chunk placement, road-side rules, props, colliders
+  scatter.ts      per-chunk placement, road-side rules, props, colliders (trees posed by trees/placement.ts)
   world.ts        ties it together; physics ground; spawns, stage layout
   terrain-renderer.ts, instance-streamer.ts, road-mesh.ts, building-mesh.ts, landmarks.ts, ...
 assets/       catalog.ts (variants, LODs, colliders <- add assets here), builders/, library.ts (cached geometry)
+trees/        L-system trees: species -> grammar -> skeleton -> mesh -> impostor -> placement -> draw (worker + IndexedDB cache)
 cars/         index.ts registry; <car>/ per car; shared/ = body, parts, tyres, suspension, livery, door plate
 engine/       renderer, quality, sky / sun / fog / IBL, world shading, textures, materials, texture arrays
 game/         rally-game.ts (frame loop), input, camera, stage timing, HUD, effects, audio, autopilot, menus
@@ -284,8 +294,71 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   per 128 m tile). A custom shader must scale `envMapIntensity` (it carries `scene.environmentIntensity`), never replace it.
 - Scatter view culling (`InstanceStreamer.setView`, called every frame by the game): non-shadow buckets (LOD1+) are
   angle-sorted and only the camera's view (+ 25 deg) is drawn. LOD0 shadow casters are drawn whole.
-- Far trees: variants share one bucket past ~420 m (`LodSpec.oneVariant`); past 900 m they are 2-triangle camera-facing
-  impostors (`LodSpec.impostor`, `assets/impostor.ts`).
+- Trees (`trees/`, L-system species in `trees/species.ts`): map rules place the old tree type ids, each grown as the species
+  its description names (`TREE_TYPES`: pine, black pine, juniper, oak, walnut, fruit tree, plane, birch, sapling, poplar,
+  willow, bush, scrub, hazel, thicket); 6 variants for pine / oak / bush / scrub, 4 for the rest. The map's `scale`
+  multiplies the species size.
+  Branches are tubes at two levels (LOD0 = the skeleton without twigs, LOD1 = trunk + first-order limbs), then an
+  octahedral impostor (albedo, normal + depth, thickness: lit like everything else). Foliage = one lit, camera-facing
+  cluster sprite per leaf point from a per-kind atlas of 8 images (`trees/leaftex.ts`: albedo, normal + thickness),
+  drawn with both branch levels; a crown draws its highest-ranked 35 % (`NEAR_SPRITES`, the rest left out, the kept
+  ones grown to the same coverage) within the full-detail distance (`FULL_DETAIL_DISTANCE`, 40 m: the only trees with
+  LOD0 branches); over the next 60 m (`FAR_RAMP`, smooth) it eases to the far share (`FAR_SPRITES`: 20 %), then on to 15 % at
+  the impostor (3.5 % of the screen height; perf panel sliders). Defaults at high quality:
+  `QualitySettings.treeLodScale` brings every tree distance to half on medium, about a third on low. Past
+  `QualitySettings.forestDistance` (450 / 700 / 1100 m) no tree is drawn (they dissolve in over its last 15 %, `tlForest`): the ground under the canopy texture takes the
+  forest's colour (`setForest`, engine/world-shading.ts; three's physical path lights `diffuseContribution`). Trees more
+  than `FAKE_TREES_FROM` (250 m, game/rally-game.ts) from the stage road are always static impostors (`fakeFrom`): the
+  player only sees them from the road. Level changes
+  are a fixed 0.3 s fade per tree (8x8 ordered dither, one fade value per tree, at most 32 at once), selected from the
+  camera before shake (`CameraRig.steady`) with 15 % hysteresis. A batching job (every 5 m of travel) puts every tree
+  that keeps its level for any camera within 9 m into static batches (shadow casters packed first); only trees near a
+  switching boundary, fading or waiting for a fade slot are re-selected per frame (a few hundred). A camera jump > 50 m
+  is a cut: every tree takes its level at once. The shadow distance is tested per instance in the shader
+  (`tlShadowD`), so it never activates a tree; the shadow pass draws only a batch's casters, and a static tree is a
+  caster only when its bounding sphere can reach the sun's shadow box (`shadowExtent`, light space, re-packed with
+  the view). Sprites cast no shadow: the crown proxy does (`trees/proxy.ts` `crownProxy`, a ~100-triangle lathe
+  through the sprites' reach, drawn in the shadow pass only, leafy holes from a world-space noise); a sprite looks
+  its shadow up most of the way out of its crown's ellipsoid towards the sun (`SELF_SHADOW`). Trees cast real
+  shadows within 60 m only (`TREE_SHADOW_DISTANCE`, game/rally-game.ts); the canopy shadows fade in over its last
+  15 m (`setCanopyFade`).
+- Tree occlusion (`trees/occlusion.ts`): the job builds a terrain horizon map from the camera (1024 rays over a lazy 8 m
+  height grid) and leaves out trees beyond 140 m that a hill hides from every camera position in its window; margins
+  cover a 9 m move, a 35 % grade, 0.5 slopes. CPU, not the spec's GPU depth pyramid (WebGL2 has no compute / indirect
+  draws). `?treeocclusion=0` = debug toggle.
+- Tree shading: sprites (Lambert: diffuse only) / impostors go through the lit path (sun, shadows, fog); the sky's diffuse light is
+  spherical harmonics of the environment (`setTreeSky`, engine/environment.ts) instead of the env map, so they read 2
+  atlas textures + shadow map + cloud noise. Sprite normals = crown ellipsoid bent by the atlas normal map;
+  translucency = a wrap term on the thickness map. Caps: LOD0 branches <= 6,000 triangles (shrubs 2,000), <= 600
+  sprites (shrubs 200). Wind fades out by 110 m (`TREE_WIND_FAR`; past it the vertex work is skipped).
+- Tree drawing (spec `trees/Drawing`): every tree mesh is opaque, depth-tested and depth-writing; the depth buffer
+  alone decides what is in front (nothing sorted). Sprite parts (`trees/draw.ts`): crowns within
+  `NEAR_SPRITE_DISTANCE` (55 m) use the tight outlines with a depth prepass, then shade where the depth is not behind it
+  (less-or-equal + a polygon offset, never EQUAL: it blinked on some GPUs; off on touch devices, `?treeprepass=0|1`; the prepass
+  draws after the horizon backdrop, which clears the depth: `PREPASS_ORDER`);
+  farther crowns use plain quads (`quadSprites`) in one lit pass: a mid batch per variant over the ramp and a far one
+  past it, each holding the share at its near end (one batch per thinning step left a few crowns per draw call);
+  both use ONE program (`spriteLit`, `tlDepthOnly` stops the prepass after the alpha test) because two programs
+  did not give bit-identical depths on ANGLE / Mesa. `checkPrepass` renders it once at load and falls back to a single
+  normal-depth pass if any pixel misses (`prepassMisses`). The impostor quad sits at the front of the tree's bounding sphere and its
+  baked depth only pushes pixels back; static impostors past `IMPOSTOR_FLAT_FROM` (350 m) use the far program (no
+  baked depth, which costs the early depth test; the quad through the centre). Impostors are Lambert, receive no
+  shadow (beyond the shadow box), read the normal from the nearest view only and are cropped to their views' coverage
+  (`impostorBounds`). Trunks are sunk by their base radius. Debug views 4 (depth) and 5 (EQUAL
+  misses, magenta) check it.
+- Tree cost (`trees/stats.ts`): `F6` (= the LOD debug view) shows the tree stats overlay (`trees/overlay.ts`): trees per
+  level / fading, re-selected / static trees, cells checked, terrain-hidden trees, draw calls, triangles and GPU ms
+  (timer queries) of the tree main and shadow passes, selection CPU ms, which mitigations are on, load time, cache
+  hits and memory. Debug view (`F6` cycles): levels (green LOD0, orange LOD1, blue impostor, magenta-white = fading, flashing
+  red = more than 2 level changes in 1 s), lighting only, normals only, depth, EQUAL misses; `?treedebug=1..5`, map
+  viewer select.
+  Benchmark: `/games/rally/?map=<id>&treebench=1` or `await __rally.treeBenchmark()` flies a fixed path (stage start,
+  600 m) with and without trees, checks the budget (`TREE_BUDGET` in `game/tree-bench.ts`: +1 ms frame and 1 %
+  low, 0.1 ms selection, 0.5 s load, no tree spike frames; `result.pass` false = failing) and downloads
+  `tree-bench-<stage>-<quality>-<res>-<date>.json` (machine, mitigations, re-selected trees, spike frames;
+  `compare: <earlier report>` adds the change in every figure). Each frame ends with `waitForGpu` (a 1-pixel
+  readback): WebGL `gl.finish()` does not wait in Chrome, so frames queued up and one in ~100 absorbed ~10 frames of GPU
+  work (the old 300-400 ms "spikes").
 - Variant sets (`getVariantSet`, `assets/library.ts`): the other LODs draw every variant with ONE `InstancedMesh` per material -
   all variants in one geometry, the instance's `instVariant` picks one, the shader clips the rest (`variantMaterial` /
   `variantDepthMaterial` for the shadow pass). Costs vertex work x variants, so sets are capped (vegetation 1200 triangles:
