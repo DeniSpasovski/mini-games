@@ -305,7 +305,8 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   sprites (shrubs 200). Wind fades out by 110 m (`TREE_WIND_FAR`; past it the vertex work is skipped).
 - Tree drawing (spec `trees/Drawing`): every tree mesh is opaque, depth-tested and depth-writing; the depth buffer
   alone decides what is in front (nothing sorted). Sprite parts (`trees/draw.ts`): crowns within
-  `NEAR_SPRITE_DISTANCE` (55 m) use the tight outlines with a depth prepass, then shade where the depth is EQUAL;
+  `NEAR_SPRITE_DISTANCE` (55 m) use the tight outlines with a depth prepass, then shade where the depth is EQUAL
+  (the prepass draws after the horizon backdrop, which clears the depth: `PREPASS_ORDER`);
   farther crowns use plain quads (`quadSprites`) in one lit pass: a mid batch per variant over the ramp and a far one
   past it, each holding the share at its near end (one batch per thinning step left a few crowns per draw call);
   both use ONE program (`spriteLit`, `tlDepthOnly` stops the prepass after the alpha test) because two programs

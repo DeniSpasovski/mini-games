@@ -94,8 +94,11 @@ const INCOMING = 2;
 const SHADOW_ONLY = 3;
 /** Trees fading at once (trees/Performance.md#mitigations); a change beyond that waits for a free slot. */
 export const MAX_FADES = 32;
-/** Render order of the sprite depth prepass (before every other opaque draw). */
-const PREPASS_ORDER = -10;
+/**
+ * Render order of the sprite depth prepass: before every other opaque draw, but after the sky (-1) and the horizon
+ * backdrop (world/horizon.ts, -0.5), which clears the depth buffer after it draws (it would wipe the prepass depth).
+ */
+const PREPASS_ORDER = -0.25;
 /**
  * The sprite depth prepass + EQUAL-depth lit pass (trees/Drawing.md#depth, Performance.md#mitigations) is on by
  * default; `?treeprepass=0` is its debug toggle. It needs the prepass and the lit program to compute bit-identical
