@@ -305,9 +305,11 @@ test('straight-line launch on loose ground: every car gets to 100 km/h pointing 
       console.info(
         `${c.id} on ${s}: 0-100 ${t100.toFixed(1)} s, heading at 100 km/h ${((heading * 180) / Math.PI).toFixed(0)} deg`,
       );
-      // The ~85 hp Zastava is slow by design (0-100 ~12-14 s on loose gravel, band in vehicle.test.ts); this test is about
-      // getting there pointing straight.
-      expect(t100).toBeLessThan(c.id === 'zastava_101' ? 16 : 8);
+      // The ~85 hp Zastava (0-100 ~12-14 s on loose gravel, band in vehicle.test.ts) and the 180 hp 206 (~9 s) are slow by
+      // design; this test is about getting there pointing straight.
+      expect(t100).toBeLessThan(
+        c.id === 'zastava_101' ? 16 : c.id === 'peugeot_206' ? 10 : 8,
+      );
       expect(Math.abs(heading)).toBeLessThan((30 * Math.PI) / 180);
     }
   }

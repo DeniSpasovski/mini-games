@@ -337,6 +337,7 @@ export const CAR_TIMES_VERSIONS: Record<string, number> = {
   ford_gt3: 1,
   porsche_911_930: 1,
   merc_190: 1,
+  peugeot_206: 1,
   audi_rs6: 1,
 };
 /** Current version of a map / car (unknown ids count as 1). */
