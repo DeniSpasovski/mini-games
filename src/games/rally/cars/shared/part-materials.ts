@@ -36,6 +36,7 @@ export type PartName =
   | 'lens'
   | 'lenscover'
   | 'chrome'
+  | 'steel'
   | 'amber'
   | 'tail'
   | 'tailc'
@@ -241,18 +242,32 @@ function tiling(t: CanvasTexture, tile: number): CanvasTexture {
   return t;
 }
 
-let weaveTiles: { map: CanvasTexture; bump: CanvasTexture } | undefined;
+let weaveTiles: { map: CanvasTexture; normal: CanvasTexture } | undefined;
 
 /**
- * Fine diamond weave of moulded lamp lenses (the Porsche 930's own lenses): a 64 px tile of 4 x 4 pyramids per 16 mm in
- * box-projected metre UVs, as a grey map (dark grooves) and a height map (bump). Shared by the `*weave` parts.
+ * Moulded lamp lenses (the Porsche 930's own lenses): square pyramids on a 45 degree lattice, 6 mm apart, in box-projected
+ * metre UVs (a 64 px tile = 24 mm). A grey map holds the faceting light from the upper left (dark / mid / bright facets) and
+ * a normal map the facet slopes, so the lens glitters with the sun. Shared by the `*weave` parts.
  */
-function lensWeave(): { map: CanvasTexture; bump: CanvasTexture } {
+function lensWeave(): { map: CanvasTexture; normal: CanvasTexture } {
   if (!weaveTiles) {
     const S = 64;
     const P = 16;
-    const tri = (t: number) => 1 - Math.abs(((((t / P) % 1) + 1) % 1) * 2 - 1);
-    const tile = (shade: (h: number) => number, color: boolean) =>
+    const TILT = (40 * Math.PI) / 180;
+    // Which way the facet under pixel (x, y) leans, as a unit vector in the canvas plane.
+    const lean = (x: number, y: number): [number, number] => {
+      const u = (x + y) / P;
+      const v = (x - y) / P;
+      const a = u - Math.floor(u) - 0.5;
+      const b = v - Math.floor(v) - 0.5;
+      const k = Math.SQRT1_2;
+      if (Math.abs(a) > Math.abs(b)) return a > 0 ? [k, k] : [-k, -k];
+      return b > 0 ? [k, -k] : [-k, k];
+    };
+    const tile = (
+      shade: (dx: number, dy: number) => [number, number, number],
+      color: boolean,
+    ) =>
       tiling(
         canvas(
           S,
@@ -261,20 +276,30 @@ function lensWeave(): { map: CanvasTexture; bump: CanvasTexture } {
             const d = g.createImageData(S, S);
             for (let y = 0; y < S; y++)
               for (let x = 0; x < S; x++) {
-                const v = shade(Math.min(tri(x + y), tri(x - y)));
+                const [dx, dy] = lean(x, y);
                 const i = (y * S + x) * 4;
-                d.data[i] = d.data[i + 1] = d.data[i + 2] = v;
+                [d.data[i], d.data[i + 1], d.data[i + 2]] = shade(dx, dy);
                 d.data[i + 3] = 255;
               }
             g.putImageData(d, 0, 0);
           },
           color,
         ),
-        0.016,
+        0.024,
       );
     weaveTiles = {
-      map: tile((h) => 195 + 60 * h, true),
-      bump: tile((h) => 255 * h, false),
+      map: tile((dx, dy) => {
+        const v = 185 + 70 * (-dx - dy) * Math.SQRT1_2;
+        return [v, v, v];
+      }, true),
+      normal: tile((dx, dy) => {
+        const s = Math.sin(TILT);
+        return [
+          (dx * s * 0.5 + 0.5) * 255,
+          (dy * s * 0.5 + 0.5) * 255,
+          (Math.cos(TILT) * 0.5 + 0.5) * 255,
+        ];
+      }, false),
     };
   }
   return weaveTiles;
@@ -1533,6 +1558,15 @@ const BUILDERS: Record<PartName, () => Material> = {
       metalness: 1,
       envMapIntensity: 1.1,
     }),
+  /** Satin stainless steel: exhaust tail pipes. */
+  steel: () =>
+    new MeshPhysicalMaterial({
+      color: 0xdfe3e8,
+      roughness: 0.32,
+      metalness: 0.65,
+      emissive: 0x2a2d32,
+      envMapIntensity: 1.2,
+    }),
   /** Amber indicator bulb, glowing. */
   amber: () =>
     new MeshPhysicalMaterial({
@@ -1800,13 +1834,12 @@ const BUILDERS: Record<PartName, () => Material> = {
     }),
   /** Red weave lens (Porsche 930 tail lamp): lights with the brake like `tailled`. */
   tailweave: () => {
-    const { map, bump } = lensWeave();
+    const { map, normal } = lensWeave();
     return lamp(
       new MeshPhysicalMaterial({
         color: 0xd01418,
         map,
-        bumpMap: bump,
-        bumpScale: 2,
+        normalMap: normal,
         emissive: 0xff2010,
         emissiveMap: map,
         emissiveIntensity: 0.35,
@@ -1820,12 +1853,11 @@ const BUILDERS: Record<PartName, () => Material> = {
   },
   /** Amber weave lens (indicator), faintly glowing. */
   amberweave: () => {
-    const { map, bump } = lensWeave();
+    const { map, normal } = lensWeave();
     return new MeshPhysicalMaterial({
       color: 0xf0900f,
       map,
-      bumpMap: bump,
-      bumpScale: 2,
+      normalMap: normal,
       emissive: 0xff7a00,
       emissiveMap: map,
       emissiveIntensity: 0.4,
@@ -1836,12 +1868,11 @@ const BUILDERS: Record<PartName, () => Material> = {
   },
   /** White weave lens (reversing section of a tail lamp). */
   lensweave: () => {
-    const { map, bump } = lensWeave();
+    const { map, normal } = lensWeave();
     return new MeshPhysicalMaterial({
       color: 0xd8dadc,
       map,
-      bumpMap: bump,
-      bumpScale: 2,
+      normalMap: normal,
       roughness: 0.3,
       metalness: 0.15,
       clearcoat: 1,
@@ -1850,12 +1881,11 @@ const BUILDERS: Record<PartName, () => Material> = {
   },
   /** Smoked clear weave lens over a dark housing (front bumper lamps). */
   clearweave: () => {
-    const { map, bump } = lensWeave();
+    const { map, normal } = lensWeave();
     return new MeshPhysicalMaterial({
       color: 0x5c6167,
       map,
-      bumpMap: bump,
-      bumpScale: 2,
+      normalMap: normal,
       transparent: true,
       opacity: 0.7,
       depthWrite: false,

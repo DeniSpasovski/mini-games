@@ -1,5 +1,5 @@
 {
-  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/porsche-911-930/model-01-porsche-930-turbo.glb = 'Porsche 911 (930) Turbo 1975' by Lexyc16 (CC BY 4.0), +x left, +y up, +z nose, units ~0.79 of a metre (scale = real wheelbase 2.272 m / the model's hub distance 1.8019), flat colours + one headlamp photo. Mapped by material (the materials are Material.NNN); extra rules: `arch` (black wheel arches), Object_24 = the exhaust pipes (`trim:2s`, single-faced in the source), Material.006 islands under the bumper = dark reflectors, lenses = `*weave` parts (the source lens colours are flat, its weave is a texture the game draws itself); atlas `chartBoxes` keeps the rear fender's lower corner one paint colour; tyres, rim lips and the wheel nodes are dropped (the rim is rebuilt without its nuts: wheel-stl-to-glb.mjs --two-tone) (the rim is the model's own: porsche_911_930_wheel.glb), the headlamp keeps its texture (srcParts). The offset centres the body, puts the hubs at the tyre radius 0.32 and the front hub (source z 1.084) on physics front.z 1.386 (61 % of the weight on the rear axle). The atlas block is also read by livery.ts at runtime - edit it only here.",
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/porsche-911-930/model-01-porsche-930-turbo.glb = 'Porsche 911 (930) Turbo 1975' by Lexyc16 (CC BY 4.0), +x left, +y up, +z nose, units ~0.79 of a metre (scale = real wheelbase 2.272 m / the model's hub distance 1.8019), flat colours + one headlamp photo. Mapped by material (the materials are Material.NNN); extra rules: `arch` (black wheel arches), Object_24 (the exhaust pipes, a bent single-faced shell) is dropped and `parts.tubes` builds two hollow steel tail pipes, Material.006 islands under the bumper = dark reflectors, lenses = `*weave` parts (the source lens colours are flat, its weave is a texture the game draws itself); atlas `chartBoxes` keeps the rear fender's lower corner one paint colour; tyres, rim lips and the wheel nodes are dropped (the rim is rebuilt without its nuts: wheel-stl-to-glb.mjs --two-tone) (the rim is the model's own: porsche_911_930_wheel.glb), the headlamp keeps its texture (srcParts). The offset centres the body, puts the hubs at the tyre radius 0.32 and the front hub (source z 1.084) on physics front.z 1.386 (61 % of the weight on the rear axle). The atlas block is also read by livery.ts at runtime - edit it only here.",
   "source": "sources/cars/porsche-911-930/model-01-porsche-930-turbo.glb -> glb-to-parts-stl.py -> sources/cars/porsche-911-930/porsche-930-parts.stl",
   "output": "public/models/cars/porsche_911_930.glb",
   "axes": ["x", "y", "z"],
@@ -49,7 +49,8 @@
       "Object_28",
       "Object_32",
       "Object_36",
-      "Object_42"
+      "Object_42",
+      "Object_24"
     ],
     "parts": [
       {
@@ -59,10 +60,6 @@
       {
         "node": "Object_6",
         "material": "clearweave"
-      },
-      {
-        "node": "Object_24",
-        "material": "trim:2s"
       },
       {
         "mat": "Material.001",
@@ -131,7 +128,35 @@
       "lensweave",
       "reflector",
       "clearweave",
-      "trim:2s"
+      "steel"
+    ],
+    "tubes": [
+      {
+        "material": "steel",
+        "inner": "trim",
+        "frame": {
+          "origin": [0.625, 0.225, -1.5],
+          "tilt": 180
+        },
+        "r": 0.04,
+        "wall": 0.004,
+        "depth": 0.12,
+        "w": [0, 0.16],
+        "segs": 24
+      },
+      {
+        "material": "steel",
+        "inner": "trim",
+        "frame": {
+          "origin": [-0.625, 0.225, -1.5],
+          "tilt": 180
+        },
+        "r": 0.04,
+        "wall": 0.004,
+        "depth": 0.12,
+        "w": [0, 0.16],
+        "segs": 24
+      }
     ]
   },
   "srcParts": {

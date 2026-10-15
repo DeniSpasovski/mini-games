@@ -454,11 +454,12 @@ registered car; see `src/games/rally/PHYSICS.md`.
 - A minimal GLB import still needs these fixes from the user's close-ups (worked example `cars/porsche-911-930/`):
   - Paint striped on the arch walls: an `arch` rule first in `gltf.parts` (`mat` = body, `material: "trim"`; hub y / axle z in SOURCE units,
     `r` just over the arch opening, `dy` -0.25 so the walls below the hub count). Check with `wheels=1&wcam=FL&body=0`.
-  - Hollow exhaust: send the pipe's node to `trim:2s` (source shells are single-faced).
+  - Exhaust that is a bent single-faced shell: drop its node and build the tail pipes with `parts.tubes` in `steel` (hollow tube: outer wall + rim
+    in `material`, bore in `inner`, same frame as `parts.solids`; `tilt` 180 points a pipe at the back).
   - Sawtooth paint edge on a slanted fender lip: an `atlas.chartBoxes` entry with chart `rear` and `any: true` (one paint colour inside).
   - Reflectors that light on braking: their own island (`whole` + a y box) in a `reflector` part.
   - Lens texture the model keeps only as flat colours: `tailweave`, `amberweave`, `lensweave`, `clearweave` (`part-materials.ts`, one
-    drawn diamond tile, no shipped texture). `side-profile.mjs` `LAMPS` must list new tail / lens part names.
+    drawn tile of faceted pyramids with a normal map, 6 mm pitch, no shipped texture). `side-profile.mjs` `LAMPS` must list new tail / lens part names.
 - A new car needs its own `suspensionStyle` (`suspension-mesh.test.ts`): add one to `SUSPENSION_STYLE_COLORS`.
 
 ## Bump the times version (last step)
