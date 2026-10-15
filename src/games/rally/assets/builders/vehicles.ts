@@ -190,34 +190,16 @@ export const policeCar: AssetBuilder = ({ lod }) => {
   if (lod === 0) {
     for (const side of [1, -1])
       parts.push(
-        box(
-          3.4,
-          0.14,
-          0.012,
-          m.roofX - 0.1,
-          DOOR_Y[0] + 0.14,
-          side * z,
-          '#14306b',
-        ),
+        box(3.4, 0.14, 0.012, 0, DOOR_Y[0] + 0.14, side * z, '#14306b'),
       );
     const top = m.height;
     parts.push(box(0.9, 0.09, 0.34, m.roofX, top + 0.045, 0, '#222428'));
     parts.push(box(0.4, 0.1, 0.32, m.roofX, top + 0.095, 0.14, '#d3202a'));
     parts.push(box(0.4, 0.1, 0.32, m.roofX, top + 0.095, -0.14, '#2a5fd6'));
-    parts.push(
-      ...decal(PD, 1.2, 0.3, m.roofX + 0.2, DOOR_Y[0] + 0.04, z + 0.025),
-    );
+    parts.push(...decal(PD, 1.2, 0.3, 0, DOOR_Y[0] + 0.04, z + 0.025));
   } else
     parts.push(
-      box(
-        3.4,
-        0.14,
-        m.sideZ * 2 + 0.02,
-        m.roofX - 0.1,
-        DOOR_Y[0] + 0.14,
-        0,
-        '#14306b',
-      ),
+      box(3.4, 0.14, m.sideZ * 2 + 0.02, 0, DOOR_Y[0] + 0.14, 0, '#14306b'),
     );
   return finish(parts);
 };
