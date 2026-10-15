@@ -149,6 +149,7 @@ describe('trees', () => {
     // Columnar poplar and juniper; spreading walnut and willow; a pine taller than wide.
     expect(ratio('poplar_tree')).toBeGreaterThan(2.5);
     expect(ratio('juniper')).toBeGreaterThan(1.1);
+    expect(ratio('cypress_tree')).toBeGreaterThan(2.5);
     expect(ratio('pine_tree')).toBeGreaterThan(1.3);
     expect(ratio('walnut_tree')).toBeLessThan(1);
     expect(ratio('willow_tree')).toBeLessThan(0.8);
@@ -161,16 +162,23 @@ describe('trees', () => {
         lum(v('oak_tree').def.bark.color) + 0.3,
       );
     // Conifers wear needles, the rest leaves; the thicket is in autumn colours (red over green).
-    for (const c of ['pine_tree', 'black_pine', 'juniper'])
+    for (const c of ['pine_tree', 'black_pine', 'juniper', 'cypress_tree'])
       expect(v(c).def.foliage.kind).toBe('needles');
-    for (const c of ['oak_tree', 'poplar_tree', 'willow_tree', 'bush'])
+    for (const c of [
+      'oak_tree',
+      'poplar_tree',
+      'willow_tree',
+      'bush',
+      'locust_tree',
+      'bramble_shrub',
+    ])
       expect(v(c).def.foliage.kind).toBe('broadleaf');
     for (const hex of v('thicket_shrub').def.foliage.palette)
       expect(parseInt(hex.slice(1, 3), 16)).toBeGreaterThan(
         parseInt(hex.slice(3, 5), 16) - 20,
       );
     // Sizes: shrubs and junipers are low; the fruit tree is smaller than the oak; the poplar is the tallest.
-    for (const low of ['bush', 'scrub_bush', 'juniper'])
+    for (const low of ['bush', 'scrub_bush', 'juniper', 'bramble_shrub'])
       expect(v(low).info.height).toBeLessThan(4);
     expect(v('fruit_tree').info.height).toBeLessThan(
       v('oak_tree').info.height * 0.7,
@@ -178,6 +186,12 @@ describe('trees', () => {
     expect(v('poplar_tree').info.height).toBeGreaterThan(
       v('oak_tree').info.height * 1.4,
     );
+    // The cypress is a tall dark column under the poplar; the locust a mid-size light tree.
+    expect(v('cypress_tree').info.height).toBeGreaterThan(7);
+    expect(v('cypress_tree').info.height).toBeLessThan(
+      v('poplar_tree').info.height,
+    );
+    expect(lum(v('cypress_tree').def.foliage.palette[0])).toBeLessThan(0.25);
   });
 
   test('conifers and broadleaves collide on their trunk; shrubs are drive-through', () => {
@@ -206,6 +220,7 @@ describe('trees', () => {
       'thicket_shrub',
       'hazelnut_tree',
       'juniper',
+      'bramble_shrub',
     ])
       expect(at(asset)).toEqual([]);
   });

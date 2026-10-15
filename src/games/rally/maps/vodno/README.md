@@ -17,7 +17,7 @@ with the mountains beyond is the backdrop. One map, one stage (map id `vodno`, t
 | Vodno Hillclimb | `vodno` | Vodno neighbourhood -> Sredno Vodno (finish) | 4.0 km | 220 m |
 
 Narrow tarmac with switchbacks (guard rails on the outside of the tight bends), black pine plantations with oak and scrub, dry
-grass on the lower slopes; leafy trees and bushes line the suburban start street. Side streets and tracks meeting the stage road are closed with barriers.
+grass on the lower slopes; locust and walnut trees with bramble line the suburban start street, cypresses stand in the church yards. Side streets and tracks meeting the stage road are closed with barriers.
 
 | Landmark                               | Where                                              |
 | -------------------------------------- | -------------------------------------------------- |

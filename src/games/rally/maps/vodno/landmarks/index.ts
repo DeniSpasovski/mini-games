@@ -144,6 +144,8 @@ export const srednoVodnoLandmark = landmark({
     { asset: 'juniper', site: SREDNO_CHURCH, x: -9, z: -4.6, scale: 0.8 },
     { asset: 'juniper', site: SREDNO_CHURCH, x: -5, z: 6.4, scale: 0.7 },
     { asset: 'pine_tree', site: SREDNO_CHURCH, x: -14.5, z: 4.6, scale: 0.9 },
+    { asset: 'cypress_tree', site: SREDNO_CHURCH, x: -11, z: -2, scale: 0.9 },
+    { asset: 'cypress_tree', site: SREDNO_CHURCH, x: -11.5, z: 1.5, scale: 1 },
     { asset: 'bush', site: SREDNO_CHURCH, x: 6.2, z: 4.6, scale: 0.7 },
   ],
   build: (at) => {
@@ -227,6 +229,8 @@ export const nereziLandmark = landmark({
     { asset: 'juniper', site: NEREZI_CHURCH, x: -9.5, z: -5.5, scale: 0.9 },
     { asset: 'juniper', site: NEREZI_CHURCH, x: -9.5, z: 5.5, scale: 0.9 },
     { asset: 'oak_tree', site: NEREZI_CHURCH, x: 4, z: 8.5, scale: 1 },
+    { asset: 'cypress_tree', site: NEREZI_CHURCH, x: -11.5, z: -1.5, scale: 1 },
+    { asset: 'cypress_tree', site: NEREZI_CHURCH, x: -11, z: 2, scale: 0.9 },
     { asset: 'bush', site: NEREZI_CHURCH, x: -3.5, z: -7, scale: 0.7 },
     { asset: 'bush', site: NEREZI_CHURCH, x: 2, z: 7.2, scale: 0.6 },
   ],
