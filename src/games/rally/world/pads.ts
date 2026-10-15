@@ -35,6 +35,11 @@ export class PadField {
     const q = newRoadQuery();
     for (const d of defs) {
       const lift = d.lift ?? 0.1;
+      if (d.level !== undefined) {
+        // A fixed level: no stage road beside the lot to follow.
+        this.add(d, 0, 0, 1, 0, [0, 1], [d.level + lift, d.level + lift], 0);
+        continue;
+      }
       const knots: { x: number; z: number; h: number }[] = [];
       for (let i = 0; i + 1 < d.frontage.length; i += 2) {
         const x = d.frontage[i];
@@ -53,36 +58,57 @@ export class PadField {
           h: k.h,
         }))
         .sort((a, b) => a.t - b.t);
-      const pts = Float64Array.from(d.polygon);
-      let minX = Infinity;
-      let maxX = -Infinity;
-      let minZ = Infinity;
-      let maxZ = -Infinity;
-      for (let i = 0; i < pts.length; i += 2) {
-        minX = Math.min(minX, pts[i]);
-        maxX = Math.max(maxX, pts[i]);
-        minZ = Math.min(minZ, pts[i + 1]);
-        maxZ = Math.max(maxZ, pts[i + 1]);
-      }
-      this.pads.push({
-        pts,
-        minX: minX - d.blend,
-        maxX: maxX + d.blend,
-        minZ: minZ - d.blend,
-        maxZ: maxZ + d.blend,
-        blend: d.blend,
-        surface: d.surface,
-        x0: first.x,
-        z0: first.z,
+      this.add(
+        d,
+        first.x,
+        first.z,
         dx,
         dz,
-        ts: along.map((a) => a.t),
-        hs: along.map((a) => a.h),
-        slope:
-          (along[along.length - 1].h - along[0].h) /
+        along.map((a) => a.t),
+        along.map((a) => a.h),
+        (along[along.length - 1].h - along[0].h) /
           Math.max(1e-6, along[along.length - 1].t - along[0].t),
-      });
+      );
     }
+  }
+
+  private add(
+    d: PadDef,
+    x0: number,
+    z0: number,
+    dx: number,
+    dz: number,
+    ts: number[],
+    hs: number[],
+    slope: number,
+  ): void {
+    const pts = Float64Array.from(d.polygon);
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    for (let i = 0; i < pts.length; i += 2) {
+      minX = Math.min(minX, pts[i]);
+      maxX = Math.max(maxX, pts[i]);
+      minZ = Math.min(minZ, pts[i + 1]);
+      maxZ = Math.max(maxZ, pts[i + 1]);
+    }
+    this.pads.push({
+      pts,
+      minX: minX - d.blend,
+      maxX: maxX + d.blend,
+      minZ: minZ - d.blend,
+      maxZ: maxZ + d.blend,
+      blend: d.blend,
+      surface: d.surface,
+      x0,
+      z0,
+      dx,
+      dz,
+      ts,
+      hs,
+      slope,
+    });
   }
 
   /**

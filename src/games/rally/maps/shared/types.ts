@@ -213,6 +213,8 @@ export interface PadDef {
   blend: number;
   /** Frontage points next to the stage road, flat [x0, z0, x1, z1, ...] (at least two, west to east). */
   frontage: number[];
+  /** Fixed level (m, before `lift`) for a lot with no stage road beside it: `frontage` is then ignored. */
+  level?: number;
   /** Metres above the road's centre line at the frontage (sidewalk height), default 0.1. */
   lift?: number;
   /** Surface inside the outline (physics + ground texture), default the land's own. */
@@ -634,9 +636,11 @@ export interface ServiceLot {
 export interface ServicePark {
   /** Lots, filled in order until `bays` bays fit. */
   lots: ServiceLot[];
-  /** Team bays wanted (>= 10); each holds a team car, its truck or van, tents, props and 3-6 people. */
+  /** Team bays wanted (>= 10); each holds a team car, its truck or van, tents, props and 6-12 people. */
   bays: number;
-  /** Spectators along the public edge (default 30). */
+  /** Space between neighbouring bays of a row (m, default 5). */
+  gap?: number;
+  /** Spectators along 84 m of public edge (default 30); visitors in the aisles scale with the lot length. */
   crowd?: number;
   /** Timekeeper tent, control boards, marshals and a rescue ambulance beside the start line. */
   startControl?: boolean;

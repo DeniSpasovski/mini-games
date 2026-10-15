@@ -2,7 +2,6 @@ import { describe, expect, test } from '@rstest/core';
 import { Vector3 } from 'three';
 import { getAssetMeta } from '../../src/games/rally/assets/catalog';
 import { ajvatovciMap } from '../../src/games/rally/maps/ajvatovci/map';
-import { START_LOT } from '../../src/games/rally/maps/ajvatovci/service-park';
 import { lotContains } from '../../src/games/rally/maps/shared/service-lot';
 import { newRoadQuery } from '../../src/games/rally/world/road';
 import { SERVICE_PARK_ASSETS } from '../../src/games/rally/world/service-park';
@@ -63,7 +62,7 @@ describe('service park (Ajvatovci start)', () => {
     });
     expect(bayAssets.length).toBeGreaterThan(100);
     const off = bayAssets
-      .filter((i) => !lotContains(START_LOT, i.x, i.z, 0.5))
+      .filter((i) => !def.lots.some((l) => lotContains(l, i.x, i.z, 0.5)))
       .map(
         (i) => `${i.asset}#${i.variant} ${i.x.toFixed(1)},${i.z.toFixed(1)}`,
       );
@@ -159,31 +158,62 @@ describe('service park (Ajvatovci start)', () => {
     expect(hits).toEqual([]);
   });
 
-  test('the lot is a gravel yard and nothing grows on it', () => {
+  test('every lot is a gravel yard and nothing grows on it', () => {
     const out: GroundSample = {
       height: 0,
       normal: new Vector3(),
       surface: SURFACES.tarmac,
     };
-    world.sampleGround(START_LOT.x, START_LOT.z, out);
-    expect(out.surface.id).toBe('gravel');
     const cs = world.scatter.chunkSize;
-    for (const [dx, dz] of [
-      [0, 0],
-      [30, 5],
-      [-30, -5],
-    ]) {
-      const chunk = world.scatter.chunk(
-        Math.floor((START_LOT.x + dx) / cs),
-        Math.floor((START_LOT.z + dz) / cs),
-      );
-      const trees = chunk.instances.filter(
-        (i) =>
-          getAssetMeta(i.asset).category === 'vegetation' &&
-          lotContains(START_LOT, i.x, i.z, 1),
-      );
-      expect(trees).toEqual([]);
+    for (const lot of def.lots) {
+      world.sampleGround(lot.x, lot.z, out);
+      expect(out.surface.id).toBe('gravel');
+      for (const [dx, dz] of [
+        [0, 0],
+        [30, 5],
+        [-30, -5],
+      ]) {
+        const chunk = world.scatter.chunk(
+          Math.floor((lot.x + dx) / cs),
+          Math.floor((lot.z + dz) / cs),
+        );
+        const trees = chunk.instances.filter(
+          (i) =>
+            getAssetMeta(i.asset).category === 'vegetation' &&
+            lotContains(lot, i.x, i.z, 1),
+        );
+        expect(trees).toEqual([]);
+      }
     }
+  });
+
+  test('teams have room: bays keep apart, both lots hold teams', () => {
+    for (const lot of def.lots)
+      expect(
+        park.bayCentres.filter((b) => lotContains(lot, b.x, b.z)).length,
+      ).toBeGreaterThanOrEqual(3);
+    // Neighbouring bays are at least 5 m apart (the narrowest bay is 9.5 m wide, so centres >= 14.5 m in a row).
+    for (const a of park.bayCentres)
+      for (const b of park.bayCentres)
+        if (a !== b && Math.abs(a.x - b.x) + Math.abs(a.z - b.z) < 30)
+          expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeGreaterThan(13);
+  });
+
+  test('plenty of people: a crowd, visitors and at least six round every bay', () => {
+    const people = park.instances.filter((i) => PEOPLE.has(i.asset));
+    expect(people.length).toBeGreaterThan(250);
+    for (const b of park.bayCentres) {
+      const near = people.filter(
+        (p) => p.asset !== 'spectator' && Math.hypot(p.x - b.x, p.z - b.z) < 11,
+      );
+      expect(near.length).toBeGreaterThanOrEqual(6);
+    }
+    // Nobody stands inside another person.
+    for (let a = 0; a < people.length; a++)
+      for (let c = a + 1; c < people.length; c++)
+        expect(
+          Math.hypot(people[a].x - people[c].x, people[a].z - people[c].z),
+        ).toBeGreaterThan(0.25);
   });
 
   test('start control: boards, tent and marshals beside the line, a rescue ambulance beyond it', () => {

@@ -80,6 +80,8 @@ interface BayCtx {
   ): void;
   /** The facing that looks from (bx, bz) towards (tx, tz). */
   face(bx: number, bz: number, tx: number, tz: number): number;
+  /** True when nothing but a ground sheet stands within `r` m of (bx, bz). */
+  clear(bx: number, bz: number, r: number): boolean;
 }
 
 /**
@@ -128,23 +130,24 @@ function layBays(
   const rng = new Rng(seed);
   const teams = shuffle([...Array(TEAM_COUNT).keys()], rng);
   const layout: ServiceParkLayout = { instances: [], bays: 0, bayCentres: [] };
+  const gap = def.gap ?? 5;
   let next = 0;
   for (const lot of def.lots) {
     const rows = lot.width >= 2 * BAY_DEPTH + 4 ? 2 : 1;
     for (let r = 0; r < rows && layout.bays < def.bays; r++) {
       // Row 0 backs on v = BAY_DEPTH (front at the public edge), row 1 on the far edge of the lot.
       const vBack = r === 0 ? BAY_DEPTH : lot.width;
-      let uEast = lot.length - 0.5;
+      let uEast = lot.length - 1.5;
       let first = true;
       while (layout.bays < def.bays) {
         // Each row opens with a works team (truck + awning, two cars), the rest is drawn.
-        const template = first ? 'works' : pickTemplate(rng, uEast - 0.5);
+        const template = first ? 'works' : pickTemplate(rng, uEast - 1.5);
         first = false;
         if (!template) break;
         const w = WIDTH[template];
         const team = teams[next % TEAM_COUNT];
         const bay = buildBay(lot, uEast, vBack, template, team, ctx, rng);
-        uEast -= w + 0.4;
+        uEast -= w + gap;
         if (!bay) continue;
         next++;
         layout.bays++;
@@ -213,6 +216,12 @@ function buildBay(
       });
     },
     face: (bx, bz, tx, tz) => Math.atan2(tx - bx, tz - bz),
+    clear(bx, bz, r) {
+      const [x, z] = toWorld(bx, bz);
+      return !items.some(
+        (i) => i.asset !== 'ground_sheet' && Math.hypot(i.x - x, i.z - z) < r,
+      );
+    },
   };
   const width = WIDTH[template];
   const carIdx = rng.chance(0.4) ? team + TEAM_COUNT : team;
@@ -309,7 +318,29 @@ function carCrew(
       );
     },
   ];
-  if (raised) list.unshift(list[2]);
+  list.push(
+    // The strategist with a laptop on the far side, and a crew member watching from behind the car.
+    () => {
+      const x = cx + fwd * 0.6;
+      const z = cz - side * 3.0;
+      bay.put('crew', team + TEAM_COUNT, x, z, bay.face(x, z, cx, cz) + jit(), {
+        r: 0.4,
+      });
+    },
+    () => {
+      const x = cx - fwd * 3.3;
+      const z = cz + side * 0.9;
+      bay.put(
+        'crew',
+        team + 2 * TEAM_COUNT,
+        x,
+        z,
+        bay.face(x, z, cx, cz) + jit(),
+        { r: 0.4 },
+      );
+    },
+  );
+  if (raised) list.unshift(...list.splice(2, 1));
   for (const f of list.slice(0, count)) f();
 }
 
@@ -336,6 +367,36 @@ function carSpot(
   carCrew(bay, team, cx, cz, fwd, carVariant >= TEAM_COUNT, rng, people);
 }
 
+/**
+ * Guests at the front of a bay (journalists, friends, local fans): singles and chatting pairs on free ground between
+ * the cars and the walkway.
+ */
+function guests(bay: BayCtx, w: number, rng: Rng, count: number): void {
+  for (let i = 0; i < count; i++) {
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const bx = rng.range(2.2, w - 2.2);
+      const bz = rng.range(8.6, 10.6);
+      const pair = rng.chance(0.55);
+      const bx2 = bx + (rng.chance(0.5) ? 0.9 : -0.9);
+      const bz2 = bz + rng.range(-0.25, 0.25);
+      if (!bay.clear(bx, bz, 0.9) || (pair && !bay.clear(bx2, bz2, 0.9)))
+        continue;
+      // Drink, phone, hands in pockets (visitor variants are 4 * k + pose, pose 0 = walking).
+      const v = () => rng.int(0, 3) * 4 + rng.int(1, 3);
+      if (pair) {
+        bay.put('visitor', v(), bx, bz, bay.face(bx, bz, bx2, bz2), { r: 0.4 });
+        bay.put('visitor', v(), bx2, bz2, bay.face(bx2, bz2, bx, bz), {
+          r: 0.4,
+        });
+        i++;
+      } else {
+        bay.put('visitor', v(), bx, bz, rng.range(-1.2, 1.2), { r: 0.4 });
+      }
+      break;
+    }
+  }
+}
+
 function works(
   bay: BayCtx,
   w: number,
@@ -345,11 +406,11 @@ function works(
 ): void {
   const tx = 6.4;
   bay.put('service_truck', team, tx, 2.0, 0, { must: true, r: 4.6 });
-  carSpot(bay, team, carVariant, tx, 5.1, rng, 4);
+  carSpot(bay, team, carVariant, tx, 5.1, rng, 6);
   // Second car, a tent and the work table behind it.
   const cx = w - 5.8;
   const second = rng.chance(0.5) ? team + TEAM_COUNT : team;
-  carSpot(bay, team, second, cx, 6.6, rng, 3);
+  carSpot(bay, team, second, cx, 6.6, rng, 5);
   bay.put('gazebo_long', team, cx, 2.7, 0, { r: 1.6 });
   bay.put('table_chairs', 0, cx + 0.5, 1.9, 0, { r: 1 });
   bay.put('crew', team + TEAM_COUNT, cx - 1.4, 3.4, 0.4, { r: 0.4 });
@@ -371,6 +432,12 @@ function works(
     { r: 0.4 },
   );
   bay.put('crew', team, 11.2, 7.4, rng.range(-0.8, 0.8), { r: 0.4 });
+  // The co-driver beside the driver, one more at the truck, guests out front.
+  bay.put('driver', team + TEAM_COUNT, 16.6, 9.0, rng.range(-0.8, 0.8), {
+    r: 0.4,
+  });
+  bay.put('crew', team, 1.4, 4.2, 1.2, { r: 0.4 });
+  guests(bay, w, rng, 4);
 }
 
 function privateer(
@@ -382,7 +449,7 @@ function privateer(
 ): void {
   bay.put('service_van', team, 3.5, 1.7, 0, { must: true, r: 2.8 });
   bay.put('car_trailer', rng.int(0, 1), 9.6, 1.7, Math.PI, { r: 2.6 });
-  carSpot(bay, team, carVariant, 7.2, 6.6, rng, 3);
+  carSpot(bay, team, carVariant, 7.2, 6.6, rng, 5);
   bay.put('gazebo', team, 2.3, 6.9, 0, { r: 1.6 });
   bay.put('table_chairs', 0, 2.3, 6.2, 0, { r: 1 });
   bay.put('crew', team + TEAM_COUNT, 2.9, 8.3, -0.4, { r: 0.4 });
@@ -391,6 +458,9 @@ function privateer(
   bay.put('tool_chest', (team + 1) % 4, w - 1.2, 8.1, 0, { r: 0.7 });
   bay.put('feather_flag', team, w - 0.6, 10.2, 0, { r: 0.3 });
   bay.put('driver', team, 5.2, 9.6, rng.range(-0.6, 0.6), { r: 0.4 });
+  bay.put('crew', team, w - 3.4, 3.2, -1.3, { r: 0.4 });
+  bay.put('crew', team + 2 * TEAM_COUNT, 3.6, 4.6, 0.9, { r: 0.4 });
+  guests(bay, w, rng, 3);
 }
 
 function small(
@@ -401,7 +471,7 @@ function small(
   rng: Rng,
 ): void {
   bay.put('pickup', team, w - 3.2, 1.7, 0, { must: true, r: 2.7 });
-  carSpot(bay, team, carVariant, 4.4, 6.4, rng, 3);
+  carSpot(bay, team, carVariant, 4.4, 6.4, rng, 4);
   bay.put('tyre_stack', 0, 1.0, 3.2, 0, { r: 0.4 });
   bay.put('tyre_stack', 1, 1.0, 4.0, 0, { r: 0.4 });
   bay.put('tool_chest', (team + 2) % 4, w - 1.1, 7.0, 0, { r: 0.7 });
@@ -409,9 +479,43 @@ function small(
   bay.put('driver', team + TEAM_COUNT, w - 2.8, 9.4, rng.range(-0.6, 0.6), {
     r: 0.4,
   });
+  bay.put('crew', team, w - 2.2, 4.4, -1.6, { r: 0.4 });
+  guests(bay, w, rng, 2);
 }
 
 // --- public edge, support, start control ---------------------------------------------------------------
+
+const PEOPLE = new Set([
+  'spectator',
+  'mechanic',
+  'crew',
+  'driver',
+  'marshal',
+  'visitor',
+]);
+/** Clear radius (m) round the centre of the pieces a walking person must keep out of (people: 0.6). */
+const KEEP_OUT: Record<string, number> = {
+  team_car: 2.7,
+  service_truck: 4.9,
+  service_van: 3,
+  car_trailer: 3.6,
+  pickup: 3,
+  gazebo: 2,
+  gazebo_long: 3.4,
+  food_truck: 3.2,
+  fuel_trailer: 2.2,
+  porta_toilet: 1,
+  table_chairs: 1.4,
+  generator: 0.9,
+  tool_chest: 0.8,
+  tyre_stack: 0.6,
+  ambulance: 3.2,
+};
+const occupied = (list: ScatterInstance[], x: number, z: number): boolean =>
+  list.some((o) => {
+    const r = PEOPLE.has(o.asset) ? 0.6 : (KEEP_OUT[o.asset] ?? 0);
+    return r > 0 && Math.hypot(o.x - x, o.z - z) < r;
+  });
 
 const yawAlong = (dx: number, dz: number): number => -Math.atan2(dz, dx);
 const yawToward = (dx: number, dz: number): number => Math.atan2(dx, dz);
@@ -437,6 +541,8 @@ function addPublicEdge(
     margin = 2.5,
   ): boolean => {
     if (ctx.blocked(x, z, r) || onRoad(x, z, margin)) return false;
+    // A person keeps off vehicles, tents and other people.
+    if (PEOPLE.has(asset) && occupied(out.instances, x, z)) return false;
     out.instances.push({
       asset,
       variant,
@@ -474,28 +580,40 @@ function addPublicEdge(
       const look = towardLot ? 1 : -1;
       const [vx, vz] = [-s, c];
       const yaw = yawToward(vx * look, vz * look) + rng.range(-0.6, 0.6);
-      if (
-        out.instances.some(
-          (o) => Math.hypot(o.x - x, o.z - z) < 0.7 && o.asset === 'spectator',
-        )
-      )
-        continue;
       place('spectator', rng.int(0, 23), x, z, yaw, 0.3);
     }
-    // A few visitors walking the aisle between the rows.
+    // Visitors walking the aisle between the rows (a lot with one row: the walkway in front of the cars).
+    const twoRows = lot.width >= 2 * BAY_DEPTH + 4;
     const aisleV = lot.width / 2;
-    for (let i = 0; i < 6; i++) {
-      const [x, z] = lotWorld(
-        lot,
-        rng.range(2, lot.length - 2),
-        aisleV + rng.range(-1.5, 1.5),
-      );
-      place('visitor', rng.int(0, 15), x, z, rng.range(0, Math.PI * 2), 0.4, 0);
+    const visitors = Math.round(lot.length * 0.32);
+    for (let i = 0; i < visitors; i++) {
+      const u = rng.range(2, lot.length - 2);
+      const v = twoRows ? aisleV + rng.range(-1.6, 1.6) : rng.range(0.6, 3.4);
+      const [x, z] = lotWorld(lot, u, v);
+      // Walking, drinking, on the phone, standing: pairs turn to each other.
+      const variant = rng.int(0, 3) * 4 + rng.int(0, 3);
+      if (rng.chance(0.4)) {
+        const yaw = rng.range(0, Math.PI * 2);
+        const [x2, z2] = [x + Math.cos(yaw) * 0.9, z + Math.sin(yaw) * 0.9];
+        place('visitor', variant, x, z, yawToward(x2 - x, z2 - z), 0.4, 0);
+        place(
+          'visitor',
+          rng.int(0, 15),
+          x2,
+          z2,
+          yawToward(x - x2, z - z2),
+          0.4,
+          0,
+        );
+        i++;
+      } else {
+        place('visitor', variant, x, z, rng.range(0, Math.PI * 2), 0.4, 0);
+      }
     }
     // Support in the aisle: catering at the east end, toilets and the fuel trailer at the west end.
     const at = (u: number, v = aisleV): [number, number] => lotWorld(lot, u, v);
     const turn = (a: number): number => -(lot.heading + a);
-    if (lot.width >= 2 * BAY_DEPTH + 4) {
+    if (twoRows) {
       let [x, z] = at(lot.length - 4);
       place('food_truck', rng.int(0, 2), x, z, turn(Math.PI), 2.8, 0);
       for (let i = 0; i < 3; i++) {
