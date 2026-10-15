@@ -13,7 +13,7 @@ import {
 } from './sites';
 
 /**
- * The two big car parks on the stage road, modelled by hand (no road ribbons): the Sredno Vodno lot at the finish (a
+ * The two big car parks on the stage road, ai-generated models (no road ribbons): the Sredno Vodno lot at the finish (a
  * long double-row lot with marked bays, kerbs and lamps) and the Vidikovec viewpoint lot beside the hairpin (a paved
  * terrace along the road: stone retaining wall, green railing, a few bays and the painted crosses). The asphalt is a
  * strip draped on the levelled ground (`flatAreas`, ../lots.ts); the road side is clamped to the road's edge.

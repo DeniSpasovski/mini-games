@@ -117,14 +117,14 @@ are keyed by stage id. Every map from before the split has one stage with the ol
 keeps `road` (geometry) and adds `stageRoad` (the road, or its `reversed()` view) for timing, spawn, signs, fans, closures
 and the autopilot.
 
-| map id      | name            | notes                                                                                                                                                                 |
-| ----------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `test`      | Test Map        | procedural 1.7 km forest gravel stage, hairpin, crest jump, test pad                                                                                                  |
-| `ajvatovci` | Ajvatovci Hill  | real world (Ilinden, North Macedonia), 4.5 km old tarmac                                                                                                              |
-| `petralica` | Petralica       | real world (North Macedonia), 9.6 km mountain stage, 560 m of climb                                                                                                   |
-| `jackie`    | The Jackie      | real world (New York), 7.3 km parkway with bridges and portals                                                                                                        |
-| `galichica` | Galichica       | real world (North Macedonia), pass road between Lake Ohrid and Lake Prespa, 3 stages (two run against the road); test                                                 |
-| `vodno`     | Vodno Hillclimb | real world (Skopje, North Macedonia), 4.0 km hillclimb up Mount Vodno, whole suburb, hand-modelled churches and summit landmarks, cross, mast, moving cable car; test |
+| map id      | name            | notes                                                                                                                                                                |
+| ----------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test`      | Test Map        | procedural 1.7 km forest gravel stage, hairpin, crest jump, test pad                                                                                                 |
+| `ajvatovci` | Ajvatovci Hill  | real world (Ilinden, North Macedonia), 4.5 km old tarmac                                                                                                             |
+| `petralica` | Petralica       | real world (North Macedonia), 9.6 km mountain stage, 560 m of climb                                                                                                  |
+| `jackie`    | The Jackie      | real world (New York), 7.3 km parkway with bridges and portals                                                                                                       |
+| `galichica` | Galichica       | real world (North Macedonia), pass road between Lake Ohrid and Lake Prespa, 3 stages (two run against the road); test                                                |
+| `vodno`     | Vodno Hillclimb | real world (Skopje, North Macedonia), 4.0 km hillclimb up Mount Vodno, whole suburb, ai-generated churches and summit landmarks, cross, mast, moving cable car; test |
 
 A map is `maps/<id>/map.ts` (gameplay and look) plus a baked `data.json` (`scripts/realmap/bake.py`: OpenStreetMap, ESA
 WorldCover, elevation). Format and helpers: `maps/shared/`. World axes: +X east, **+Z south**. How to build and verify maps:

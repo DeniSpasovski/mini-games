@@ -30,11 +30,11 @@ grass on the lower slopes; leafy trees and bushes line the suburban start street
 | Lookout tower, Markovi Kuli ruins      | on Abedishte; above Kisela Voda                    |
 
 Two car parks sit on the stage road: the Vidikovec viewpoint lot at the hairpin (stone wall, green railing) and the Sredno Vodno
-lot at the finish (marked bays, lamps, the flag of North Macedonia on its mast). Both are hand-built models (`landmarks/car-parks.ts`)
+lot at the finish (marked bays, lamps, the flag of North Macedonia on its mast). Both are ai-generated models (`landmarks/car-parks.ts`)
 on graded pads (`lots.ts`), not road ribbons. The mountain road that leaves the stage road to the right at the hairpin
 below the finish is narrower, with no sidewalks.
 
-The churches, platform, lodge, stations, tower and ruins are hand-modelled in the style of the Ajvatovci hilltop church
+The churches, platform, lodge, stations, tower and ruins are ai-generated in the style of the Ajvatovci hilltop church
 (`landmarks/`): the real plans from OpenStreetMap, the sizes from published figures, fewer details (they are far away).
 
 ```bash

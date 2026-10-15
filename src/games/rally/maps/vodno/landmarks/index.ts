@@ -44,7 +44,7 @@ import {
 } from './sites';
 
 /**
- * The hand-modelled landmarks of Vodno Hillclimb, from the Ajvatovci hilltop's kit (`ajvatovci/hilltop/build/shapes.ts`):
+ * The ai-generated landmarks of Vodno Hillclimb, from the Ajvatovci hilltop's kit (`ajvatovci/hilltop/build/shapes.ts`):
  * the three-lobed church and the lower cable car station at Sredno Vodno (the finish), the Millennium Cross platform, the
  * mountain lodge and the upper station on the summit, the five-domed church of St. Panteleimon at Gorno Nerezi, the
  * observation tower on Abedishte and the ruins of Markovi Kuli. Far landmarks: the rough shape and the materials of the

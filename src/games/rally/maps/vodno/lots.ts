@@ -4,7 +4,7 @@ import { lotPolygon, SREDNO, VIDIKOVEC } from './landmarks/car-parks';
 /**
  * The two big car parks on the stage road: the Vidikovec viewpoint lot (beside a hairpin, 1.3 km below the finish) and the
  * Sredno Vodno lot at the finish. OSM draws them as thin aisle lines that stop short of the road; here the ground under
- * each is a graded pad following the road's height and the lot is a hand-built model (landmarks/car-parks.ts).
+ * each is a graded pad following the road's height and the lot is an ai-generated model (landmarks/car-parks.ts).
  */
 export const LOT_PADS: PadDef[] = [
   {
