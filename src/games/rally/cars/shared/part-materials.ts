@@ -983,6 +983,26 @@ const P206_TUBE_CORE: Pt[] = [
   [0.09, 0.88],
 ];
 /** The same lamp in the body part's wrap UV: the top tube's top edge, the gap between the tubes (pocket), the lower tube's underside. */
+const P206_LENS_OUTLINE: Pt[] = [
+  [0.018, 0.88],
+  [0.066, 0.49],
+  [0.134, 0.24],
+  [0.184, 0.166],
+  [0.4, 0.04],
+  [0.58, 0],
+  [0.96, 0.1],
+  [0.99, 0.155],
+  [0.999, 0.2],
+  [0.99, 0.31],
+  [0.944, 0.445],
+  [0.8, 0.62],
+  [0.625, 0.79],
+  [0.54, 0.845],
+  [0.375, 0.92],
+  [0.206, 0.97],
+  [0.047, 0.98],
+  [0.024, 0.95],
+];
 const P206_TOP_EDGE: Pt[] = [
   [0.201, 0.335],
   [0.276, 0.281],
@@ -1108,17 +1128,27 @@ function lampClearMaps(): { map: CanvasTexture; reverseGlow: CanvasTexture } {
   const map = canvas(W, H, (g) => {
     // Deep red lens: lighter in the middle, darker towards the rim.
     const lens = g.createLinearGradient(0, 0, 0, H);
-    lens.addColorStop(0, '#860b13');
-    lens.addColorStop(0.45, '#b6121c');
-    lens.addColorStop(1, '#720a10');
+    lens.addColorStop(0, '#58070d');
+    lens.addColorStop(0.45, '#7c0c14');
+    lens.addColorStop(1, '#470609');
     g.fillStyle = lens;
     g.fillRect(0, 0, W, H);
     const sweep = g.createLinearGradient(0, 0, W, H * 0.4);
     sweep.addColorStop(0, 'rgba(255,90,80,0)');
-    sweep.addColorStop(0.5, 'rgba(255,90,80,0.16)');
+    sweep.addColorStop(0.5, 'rgba(255,90,80,0.12)');
     sweep.addColorStop(1, 'rgba(255,90,80,0)');
     g.fillStyle = sweep;
     g.fillRect(0, 0, W, H);
+    // The lens rim (the lamp's outline) is darker still, so the lamp reads as its own part on the red body.
+    g.strokeStyle = '#1c0205';
+    g.lineJoin = 'round';
+    g.globalAlpha = 0.13;
+    for (let width = 44; width >= 12; width -= 4) {
+      g.lineWidth = width;
+      tracePath(g, P206_LENS_OUTLINE, W, H, true);
+      g.stroke();
+    }
+    g.globalAlpha = 1;
     // A thin lighter line along the top of the upper tube.
     g.strokeStyle = 'rgba(255,130,120,0.3)';
     g.lineWidth = 3;
