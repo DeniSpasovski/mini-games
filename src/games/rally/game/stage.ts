@@ -335,6 +335,7 @@ export const CAR_TIMES_VERSIONS: Record<string, number> = {
   citroen_c4: 2,
   lancer_evo_6: 2,
   ford_gt3: 1,
+  porsche_911_930: 1,
   merc_190: 1,
   peugeot_206: 1,
   audi_rs6: 1,

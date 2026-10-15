@@ -151,7 +151,7 @@ Picking workflow (`parts.picks`, first pick wins):
    domed lamp glass (a bulge over each bowl) gets `parts.flatten` (one smooth cover through the lamp outline, `stl-to-glb.mjs`).
 7. Materials by name in `cars/shared/part-materials.ts`; add names there, never per-car material code. Clearcoat on
    dark parts (grille, wing) reflects the sky and reads grey - keep `clearcoat` <= 0.6 and `envMapIntensity` ~0.5
-   on blacks and carbon. Calipers / damper colours come from the CarDef (`rim.caliper`, `suspension.damper`).
+   on blacks and carbon. Calipers / damper colours come from the CarDef (`rim.caliper`, `false` = none; `suspension.damper`).
 
 Check each part close up in the viewer (lamp, vent, wing, arches **with the wheels hidden**:
 `__carViewer.model.tires.visible = false; __carViewer.model.rims.visible = false`). The GLB render of
@@ -445,11 +445,24 @@ registered car; see `src/games/rally/PHYSICS.md`.
   outer face at z max) then `wheel-stl-to-glb.mjs --keep --barrel <bore radius it prints>`. A wrong outer-face sign shows as spokes
   sunk behind the barrel. A rim that ends at its bead seat (no lip above the tyre bore: max rim radius ~0.62 in the GLB) shows a
   groove between rim and tyre (the game tyre flares out from its bead): add `--flange 0.68` (a lathed lip, `cars/lancer-evo-6/`).
+- A busy source rim: `glb-rim-extract.py --min-island 400` drops small islands (wheel nuts / bolts); `wheel-stl-to-glb.mjs --two-tone <r>:<face hex>:<lip hex>`
+  paints the rim in two colours as vertex colours (centre / spokes below unit radius r, lip above; the game then ignores `model.rim.color`,
+  worked example `cars/porsche-911-930/`: ash-black centre, silver lip, with `--flange 0.68`; the setup screen's tyre
+  pickers use the same material, `createRimMaterial` in `car-model.ts`).
 - `model.wheelByCompound` gives a compound its own wheel GLB and / or rim colour (`rimColorFor`, `wheelModelFor` in `stl-wheel.ts`).
 - Wide gravel tyres lose grip on loose ground (`sizeFactors`): keep a rally tyre near 235 mm, and raise `rear.grip` for more than the M3's power.
 - A GLB body whose paint / carbon split lives only in its texture: `glb-to-parts-stl.py` rule `{"mat": "Body", "texture": {"maxLum": 0.42, "maxSat": 0.06, "blur": 9, "refine": 0.02}, "y": [..], "z": [..], "material": "carbon"}`
   labels body triangles by the (blurred) texture and splits them along its border. Put it first in `gltf.parts`, box it tight (dirt looks like carbon), keep `blur` (raw texels speckle: 140k triangles). `exclude` UV boxes keep emblems out. The 22B sends its
   black rubbers, mirrors, lip and diffuser to `trim` this way (without it the body is one flat paint colour).
+- A minimal GLB import still needs these fixes from the user's close-ups (worked example `cars/porsche-911-930/`):
+  - Paint striped on the arch walls: an `arch` rule first in `gltf.parts` (`mat` = body, `material: "trim"`; hub y / axle z in SOURCE units,
+    `r` just over the arch opening, `dy` -0.25 so the walls below the hub count). Check with `wheels=1&wcam=FL&body=0`.
+  - Exhaust that is a bent single-faced shell: drop its node and build the tail pipes with `parts.tubes` in `steel` (hollow tube: outer wall + rim
+    in `material`, bore in `inner`, same frame as `parts.solids`; `tilt` 180 points a pipe at the back).
+  - Sawtooth paint edge on a slanted fender lip: an `atlas.chartBoxes` entry with chart `rear` and `any: true` (one paint colour inside).
+  - Reflectors that light on braking: their own island (`whole` + a y box) in a `reflector` part.
+  - Lens texture the model keeps only as flat colours: `tailweave`, `amberweave`, `lensweave`, `clearweave` (`part-materials.ts`, one
+    drawn tile of faceted pyramids with a normal map, 6 mm pitch, no shipped texture). `side-profile.mjs` `LAMPS` must list new tail / lens part names.
 - A new car needs its own `suspensionStyle` (`suspension-mesh.test.ts`): add one to `SUSPENSION_STYLE_COLORS`.
 
 ## Bump the times version (last step)

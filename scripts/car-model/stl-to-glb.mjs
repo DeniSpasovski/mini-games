@@ -618,6 +618,64 @@ for (const sd of cfg.parts?.solids ?? []) {
     );
   console.log(`solid added to ${sd.material}: ${tris} triangles`);
 }
+// parts.tubes: [{ material, inner?, frame?, r, wall, depth, w: [w0, w1], segs? }] - a hollow round tube built in code (an
+// exhaust tail pipe): the outer wall and the end ring go into `material`, the bore and its bottom into `inner` (default
+// `material`), smooth normals. Same frame as parts.solids (u = +x, v = up the plane, w = out of it): the tube runs from w0
+// to w1, the open end is at w1, the bore is `depth` deep, `r` = outer radius, `wall` = wall thickness.
+for (const tb of cfg.parts?.tubes ?? []) {
+  const outer = prims[MATERIALS.indexOf(tb.material)];
+  const bore = prims[MATERIALS.indexOf(tb.inner ?? tb.material)];
+  if (!outer || !bore)
+    throw new Error(
+      `parts.tubes: unknown material ${tb.material} / ${tb.inner}`,
+    );
+  const [ox, oy, oz] = tb.frame?.origin ?? [0, 0, 0];
+  const th = ((tb.frame?.tilt ?? 0) * Math.PI) / 180;
+  const [c, sn] = [Math.cos(th), Math.sin(th)];
+  const rot = ([u, v, w]) => [u, v * c + w * sn, -v * sn + w * c];
+  const [w0, w1] = tb.w;
+  const n = tb.segs ?? 24;
+  const ri = tb.r - tb.wall;
+  const wb = w1 - tb.depth;
+  const vert = (out, [u, v, w], nrm) => {
+    const [x, y, z] = rot([u, v, w]);
+    out.pos.push(ox + x, oy + y, oz + z);
+    out.nrm.push(...rot(nrm));
+    out.uv.push(ox + x, oy + y + oz + z);
+    return out.pos.length / 3 - 1;
+  };
+  // A ring of quads between two circles (a, w) -> (b, w): the outer wall with `dir` 1, the bore with -1 (radial normals),
+  // or with `flat` an annulus facing +w. The winding is the same in all three cases.
+  const ring = (out, ra, wa, rb, wbb, dir, flat) => {
+    for (let i = 0; i < n; i++) {
+      const p = [0, 1].map((k) => {
+        const a = (2 * Math.PI * (i + k)) / n;
+        return [Math.cos(a), Math.sin(a)];
+      });
+      const nrm = (d) => (flat ? [0, 0, 1] : [dir * d[0], dir * d[1], 0]);
+      const at = (d, r, w) => vert(out, [d[0] * r, d[1] * r, w], nrm(d));
+      const [a0, a1, b1, b0] = [
+        at(p[0], ra, wa),
+        at(p[1], ra, wa),
+        at(p[1], rb, wbb),
+        at(p[0], rb, wbb),
+      ];
+      out.idx.push(a0, a1, b1, a0, b1, b0);
+    }
+  };
+  ring(outer, tb.r, w0, tb.r, w1, 1, false); // outer wall
+  ring(outer, tb.r, w1, ri, w1, 1, true); // end ring
+  ring(bore, ri, w1, ri, wb, -1, false); // bore
+  // bottom disc: a fan to the axis
+  for (let i = 0; i < n; i++) {
+    const [a, b] = [0, 1].map((k) => (2 * Math.PI * (i + k)) / n);
+    const c0 = vert(bore, [0, 0, wb], [0, 0, 1]);
+    const p0 = vert(bore, [Math.cos(a) * ri, Math.sin(a) * ri, wb], [0, 0, 1]);
+    const p1 = vert(bore, [Math.cos(b) * ri, Math.sin(b) * ri, wb], [0, 0, 1]);
+    bore.idx.push(c0, p0, p1);
+  }
+  console.log(`tube added to ${tb.material}: ${n * 7} triangles`);
+}
 // parts.shells: [{ from, cover, wall, offset, centre? }] - a thin open sheet (a modelled lamp that is one surface) gets
 // depth: a copy of it `offset` metres outwards (away from `centre`, default the car's middle) goes into the `cover`
 // material (a see-through lens over the sheet) and a strip joins the two along every free edge (`wall` material: the
