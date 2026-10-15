@@ -154,8 +154,7 @@ export interface CarModelDef {
   gltf?: CarGltfDef;
   /** Draw hub uprights + wishbones + dampers behind the wheels (useful with open-arch imported bodies). */
   suspension?:
-    | boolean
-    | { /** Damper colour (default gold). */ damper: string };
+    boolean | { /** Damper colour (default gold). */ damper: string };
   /** Visible coil-overs + arms in empty wheel wells (cars/shared/corner-suspension.ts), sized per car. */
   cornerSuspension?: CornerSuspensionDef;
 }
