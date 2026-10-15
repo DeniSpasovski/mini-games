@@ -30,8 +30,8 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
   `integration-tests/rally/tyres.test.ts`. A new surface needs an entry in every `TyreDef.grip`. Sizes, brake kit, rim and tread
   follow the family (`TyreSize` per `byCompound[family]`); a car's class of rubber is `TyreSize.grade` (rally 1, road 0.82,
   slick 1.12).
-- Tyre temperature: `physics/tyre-temp.ts` (heat / cooling constants, grip curve), windows in `TyreDef.temp`, air per map
-  (`EnvironmentDef.airTemp`). Only runs with `Vehicle.setClimate` (game); tests without it keep the reference numbers.
+- Tyre temperature: `physics/tyre-temp.ts` (heat / cooling constants, grip curve), windows in `TyreDef.temp`, air per map and season
+  (`EnvironmentDef.airTemps`). Only runs with `Vehicle.setClimate` (game); tests without it keep the reference numbers.
   Tests: `tests/rally/tyre-temp.test.ts` (feel targets), `integration-tests/rally/tyre-temp.test.ts`.
 - Brakes: `CarPhysicsDef.brakes` / `gravelBrakes` (type, size, pad class, `clamp` force; `physics/brakes.ts`), torque acts on the
   wheel's effective inertia, disc temperature + pad fade only with a climate. Tune `clamp` until the torque limit sits ~10 %

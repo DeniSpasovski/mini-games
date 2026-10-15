@@ -42,6 +42,11 @@ A species is a data definition that the tree code reads, so adding or tuning a k
 - Conifers wear needle sprays and the other species leaf bunches. Bark and leaf colours follow the description: white birch, grey-white plane, dark black pine needles, pale willow leaves, olive scrub, autumn thicket.
 - The common forest species, pine, oak, bush and scrub, have six variants; the rest have four, to keep the draw calls of a map with many species in budget.
 
+## Seasons
+
+- A stage has a season, spring, summer or autumn. A species' palette is its summer look; a table gives the species that change their own spring and autumn palettes: fresh yellow-green in spring, blossom on the fruit tree, yellow, orange and russet in autumn. Conifers hardly change and the juniper never does.
+- A season changes colours only. Its variants grow from the summer seeds, so a tree is the same tree all year, and the palette is part of the species hash, so each season has its own cached variants.
+
 ## Checks
 
 - A test checks every type's proportions and colours against its description: a columnar poplar and juniper, a pine taller than wide, a walnut and a willow wider than tall, a black pine crown in its top third, pale birch and plane bark, needles on the conifers, autumn colours on the thicket, low bushes, a fruit tree under an oak and a poplar over it.

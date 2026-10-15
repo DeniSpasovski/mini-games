@@ -5,6 +5,7 @@ import {
   type MeshLambertMaterial,
   type WebGLRenderer,
 } from 'three';
+import { DEFAULT_SEASON, type Season } from '../season';
 import { getCached, pruneCached, putCached } from './cache';
 import {
   bakeImpostor,
@@ -20,6 +21,7 @@ import {
   spriteTextures,
 } from './materials';
 import type { Crown, MeshData, SpriteData, VariantMeshes } from './mesh';
+import { allSeasons, seasonal, seasonOf } from './seasons';
 import { isTreeType, speciesOfType, type SpeciesDef } from './species';
 import {
   cacheKey,
@@ -152,7 +154,12 @@ class Generator {
       if (!this.worker) return this.inline(job);
       const id = this.next++;
       this.pending.set(id, job);
-      const req: GenerateRequest = { id, species: def.name, index };
+      const req: GenerateRequest = {
+        id,
+        species: def.name,
+        index,
+        season: seasonOf(def),
+      };
       this.worker.postMessage(req);
     });
   }
@@ -206,10 +213,14 @@ export class TreeLibrary {
     diskBytes: 0,
   };
 
-  /** Species of every tree type in `assets` (map rules / fixed instances). */
-  static speciesOf(assets: Iterable<string>): SpeciesDef[] {
+  /** Species of every tree type in `assets` (map rules / fixed instances), in the leaf colours of `season`. */
+  static speciesOf(
+    assets: Iterable<string>,
+    season: Season = DEFAULT_SEASON,
+  ): SpeciesDef[] {
     const out = new Set<SpeciesDef>();
-    for (const a of assets) if (isTreeType(a)) out.add(speciesOfType(a));
+    for (const a of assets)
+      if (isTreeType(a)) out.add(seasonal(speciesOfType(a), season));
     return [...out];
   }
 
@@ -295,10 +306,15 @@ export class TreeLibrary {
         ((t.startsWith('bark') ? 64 * 128 : 256 * 128) * 4 * 4) / 3,
       );
     st.totalMs = performance.now() - t0;
+    // The other seasons' variants stay cached.
     for (const def of species)
       void pruneCached(
         def.name,
-        new Set(variantsOf(def).map((i) => cacheKey(def, variantSeed(def, i)))),
+        new Set(
+          allSeasons(def).flatMap((d) =>
+            variantsOf(d).map((i) => cacheKey(d, variantSeed(d, i))),
+          ),
+        ),
       );
     return lib;
   }

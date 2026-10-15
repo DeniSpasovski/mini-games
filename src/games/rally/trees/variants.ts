@@ -2,6 +2,7 @@ import { derive } from './grammar';
 import { mix32, type V3 } from './math';
 import { buildMeshes, type Crown, type VariantMeshes } from './mesh';
 import { buildSkeleton, type Skeleton } from './skeleton';
+import { summerOf } from './seasons';
 import {
   getSpecies,
   speciesHash,
@@ -38,9 +39,12 @@ export interface GeneratedVariant {
   meshes: VariantMeshes;
 }
 
-/** Seed of a species' variant: from the species content hash, so any change to the species gives new variants. */
+/**
+ * Seed of a species' variant: from the species content hash, so any change to the species gives new variants. A
+ * season's species hashes as its summer one, so every season grows the same trees (trees/seasons.ts).
+ */
 export function variantSeed(def: SpeciesDef, index: number): number {
-  return mix32(speciesHash(def), index + 1);
+  return mix32(speciesHash(summerOf(def)), index + 1);
 }
 
 export function cacheKey(def: SpeciesDef, seed: number): string {

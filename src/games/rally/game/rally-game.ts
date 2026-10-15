@@ -85,7 +85,8 @@ import {
   carTimesVersion,
   timesVersion,
 } from './stage';
-import { stageClimate } from '../maps/shared/climate';
+import { mapSeason, stageClimate } from '../maps/shared/climate';
+import { seasonParam, type Season } from '../season';
 import type { MapDef, StageDef } from '../maps/shared/types';
 import { trackTemp } from '../physics/tyre-temp';
 import type { TyreGaugeState } from './tyre-gauge';
@@ -159,6 +160,8 @@ export class RallyGame {
   roadCull!: DistanceCull;
   contactShadow!: ContactShadow;
   streamer!: InstanceStreamer;
+  /** Season of the stage: the map's, or `?season=spring|summer|autumn` (leaf colours, air temperature). */
+  readonly season: Season;
   /** L-system trees (trees/): their variants and the renderer drawing them. */
   treeLibrary!: TreeLibrary;
   trees!: TreeRenderer;
@@ -230,6 +233,10 @@ export class RallyGame {
     );
     bindCameraAspect(this.renderer, this.camera);
     this.world = new World(opts.map, opts.stage);
+    this.season = seasonParam(
+      new URLSearchParams(location.search).get('season'),
+      mapSeason(this.world.map.environment),
+    );
     this.car = getCar(opts.carId);
     this.audio = new CarAudio(this.car);
     // Any spawn other than the stage start (pad, ?spawn=<metres>) is free drive: no clock, no splits.
@@ -263,7 +270,7 @@ export class RallyGame {
     // scatter chunk is used (their colliders come from the same skeletons).
     progress(0.08, 'Trees');
     this.treeLibrary = await TreeLibrary.load(
-      TreeLibrary.speciesOf(this.world.placedAssets()),
+      TreeLibrary.speciesOf(this.world.placedAssets(), this.season),
       this.renderer,
       (f) => progress(0.08 + 0.06 * f, 'Trees'),
     );
@@ -372,13 +379,14 @@ export class RallyGame {
       this.world,
     );
     this.vehicle.setTyre(this.opts.tyre);
-    // Tyre temperatures: the map's air temperature (`?air=<°C>` to try others) and the sun as drawn (after `?tod=`).
+    // Tyre temperatures: the air temperature of the season (`?air=<°C>` to try others) and the sun as drawn (after `?tod=`).
     const air = new URLSearchParams(location.search).get('air');
     this.vehicle.setClimate(
       stageClimate(
         map.environment,
         this.env.sunElevation,
         paramNumber(air, -60, 70, undefined),
+        this.season,
       ),
     );
     this.model = new CarModel(this.car, {

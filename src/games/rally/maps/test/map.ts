@@ -194,7 +194,7 @@ export const testMap: MapDef = {
   environment: {
     sunElevation: 32,
     sunAzimuth: 215,
-    airTemp: 20,
+    airTemps: { spring: 14, summer: 20, autumn: 12 },
     turbidity: 4,
     rayleigh: 1.2,
     fogColor: '#a3b3c4',

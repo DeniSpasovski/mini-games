@@ -305,9 +305,9 @@ Cold tyres grip less, tyres overheated by sliding grip less, in between they are
 (`WheelState.temp`), only with a climate (`Vehicle.setClimate`; the game sets it from the map, `null` = off, so tool
 pages and the reference tests above are unchanged).
 
-- **Climate:** `EnvironmentDef.airTemp` (°C, default 20; Ajvatovci 27, Jackie 17, test 20, Petralica 17, `?air=` to try)
-  and the sun (`stageClimate`: sun height after `?tod=`, clouds). Track temperature = air + sun x `SurfaceDef.heat`
-  (tarmac 1 ... grass 0.3, snow 0).
+- **Climate:** `EnvironmentDef.airTemps` (°C per season, `?season=`; summer: Ajvatovci 27, Jackie 17, test 20, Petralica 17,
+  Galichica 12; `airTemp` alone moves by `SEASON_AIR_OFFSET`; `?air=` to try any) and the sun (`stageClimate`: sun height
+  after `?tod=`, clouds). Track temperature = air + sun x `SurfaceDef.heat` (tarmac 1 ... grass 0.3, snow 0).
 - **Heat:** sliding work (`|F| x slide speed / static load`, the stones take 60 % of it on loose ground) + carcass flex
   (speed x load). **Cooling:** air (more with speed), the ground (towards the track temperature), water. Capped at 150 °C.
   Tyres start a stage at the air temperature (`resetTyreTemps` on start / restart; reset to road keeps them).

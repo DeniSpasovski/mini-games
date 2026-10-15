@@ -28,7 +28,8 @@ gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
 | `mute=1`                   | play  | silent (bots and tests)                                                                                                                             |
 | `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                                                                  |
 | `tod=<hours>`, `tonemap=`  | all   | look experiments: time of day (maps with `environment.timeOfDay`), `aces / agx / neutral`                                                           |
-| `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the map's `environment.airTemp`)                                                                |
+| `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the map's `environment.airTemps` for the season)                                                |
+| `season=`                  | play  | `spring / summer / autumn`: tree leaf colours + the map's air temperature for it (default: `environment.season`, summer)                            |
 | `perf=1`                   | play  | open the perf panel (below)                                                                                                                         |
 
 Perf panel (`` ` `` key in game or `perf=1`, `game/perf-panel.ts`): FPS, frame ms, CPU ms per frame step, GPU ms (timer
@@ -306,6 +307,7 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   Branches are tubes at two levels (LOD0 = the skeleton without twigs, LOD1 = trunk + the first-order limbs thicker than 1/120 of the tree's height), then an
   octahedral impostor (albedo, normal + depth, thickness: lit like everything else). Foliage = one lit, camera-facing
   cluster sprite per leaf point from the atlas of its species' leaf style (`foliage.leaf`, 8 styles x 8 images of 256 px, `trees/leaftex.ts`: albedo, normal + thickness; a leaf is a few % of the image),
+  tinted by the species palette (`foliage.palette` = summer; spring / autumn palettes in `trees/seasons.ts`, picked by the stage's season, so each season is its own cache entry and the trees themselves stay the same),
   drawn with both branch levels; a crown draws its highest-ranked 35 % (`NEAR_SPRITES`, the rest left out, the kept
   ones grown to the same coverage) within the full-detail distance (`FULL_DETAIL_DISTANCE`, 40 m: the only trees with
   LOD0 branches); over the next 60 m (`FAR_RAMP`, smooth) it eases to the far share (`FAR_SPRITES`: 20 %), then on to 15 % at

@@ -1,6 +1,7 @@
 import type { GearingId } from '../../physics/types';
 import type { SurfaceId } from '../../physics/surfaces';
 import type { TyreId } from '../../physics/tyres';
+import type { Season } from '../../season';
 
 /**
  * Map format. A map is pure data: the world (heightfield, road, scatter) is
@@ -803,10 +804,17 @@ export interface EnvironmentDef {
    */
   timeOfDay?: number;
   /**
-   * Air temperature (°C, default 20): with the sun height and clouds it sets the track temperature and how the tyres
-   * warm up (physics/tyre-temp.ts, `stageClimate`). Try others with `?air=<°C>`.
+   * Season (default summer): the leaf colours of the trees (trees/seasons.ts) and, through `airTemps`, the air
+   * temperature. Try others with `?season=spring|summer|autumn`.
+   */
+  season?: Season;
+  /**
+   * Air temperature (°C, default 20) in the map's `season`: with the sun height and clouds it sets the track temperature
+   * and how the tyres warm up (physics/tyre-temp.ts, `stageClimate`). Try others with `?air=<°C>`.
    */
   airTemp?: number;
+  /** Air temperature (°C) per season, ahead of `airTemp`; a season left out is `airTemp` shifted by `SEASON_AIR_OFFSET` (maps/shared/climate.ts). */
+  airTemps?: Partial<Record<Season, number>>;
   /** Override the sun colour / intensity (default: warmer and dimmer the lower the sun). */
   sunColor?: string;
   sunIntensity?: number;
