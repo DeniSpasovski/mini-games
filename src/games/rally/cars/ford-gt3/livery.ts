@@ -182,11 +182,21 @@ function paint(
   fill(FENDER_POLYS.top, (x, y) => [x, TY - y]);
   fill(FENDER_POLYS.rear);
   fill(FENDER_POLYS.rear, (x, y) => [RX - x, y]);
+  // The panel behind the first vent facet is stripes only: clear the traced solid there, the stripes below repaint it.
+  P.side(
+    [
+      [0.858, 0.579],
+      [1.04, 0.579],
+      [1.141, 0.72],
+      [0.897, 0.72],
+    ],
+    info.base,
+  );
   const DOOR_TOP = 0.84; // stripes stop under the door's shoulder line: none on the cowl / A-pillar base
   const FIELD: Pt[] = [
     [0.39, DOOR_TOP],
     [0.69, DOOR_TOP],
-    [0.85, 0.7],
+    [0.85, 0.722],
     [1.121, 0.746],
     [1.09, 0.835],
     [1.25, 0.832],
