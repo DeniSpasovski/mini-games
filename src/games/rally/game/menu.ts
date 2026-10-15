@@ -230,6 +230,8 @@ class MainMenu {
   private mapIndex: number;
   private timesMap = 0;
   private carIndex: number;
+  /** Drivetrain filter on the car screen (not remembered: the menu opens on All). */
+  private driveFilter: DriveFilter = 'all';
   private livery: number;
   /** Setup screen choices for one map + car (anything else resets to the stage recommendation, nothing is saved). */
   private pick: {
@@ -392,7 +394,9 @@ class MainMenu {
     this.screen = screen;
     this.panel.dataset.screen = screen;
     this.panel.replaceChildren();
-    this.root.querySelector('.menu-times-card')?.remove();
+    this.root
+      .querySelectorAll('.menu-times-card, .menu-car-card')
+      .forEach((el) => el.remove());
     if (screen === 'welcome') this.welcome();
     if (screen === 'options')
       this.panel.append(
@@ -618,9 +622,20 @@ class MainMenu {
     const car = this.car;
     this.showSetupCar();
     this.panel.append(header('Select car', `Step 2 / 3 · ${this.map.name}`));
+    const filter = div('menu-seg menu-filter');
+    for (const f of DRIVE_FILTERS) {
+      const b = document.createElement('button');
+      b.textContent = f.label;
+      b.dataset.filter = f.id;
+      b.classList.toggle('on', f.id === this.driveFilter);
+      b.addEventListener('click', () => this.setDriveFilter(f.id, true));
+      filter.append(b);
+    }
+    this.panel.append(filter);
     const list = div('menu-list compact');
     const times = loadTimes(this.map.id, CAR_IDS);
     CARS.forEach((c, i) => {
+      if (!this.inFilter(c)) return;
       const b = document.createElement('button');
       b.className = 'menu-btn menu-car';
       b.classList.toggle('selected', i === this.carIndex);
@@ -635,6 +650,9 @@ class MainMenu {
     const p = car.physics;
     const pk = peakPower(p.engine);
     const specs = div('menu-specs');
+    // Wide screens: the description sits in a card right of the car list; phones keep it under the list.
+    const beside = window.innerWidth >= 1200;
+    if (beside) specs.classList.add('menu-car-card');
     specs.innerHTML = `
       <p>${car.description}</p>
       ${isTestCar(car.id) ? `<p class="menu-test-note">${TEST_NOTE}</p>` : ''}
@@ -645,11 +663,16 @@ class MainMenu {
         <dt>Power / weight</dt><dd>${Math.round((pk.kw * 1341) / p.mass)} hp/t</dd>
       </dl>
       ${this.setupSummary()}
-      <div class="menu-livery">Livery
+      <div class="menu-livery">
+        <button class="menu-btn small" data-a="setup">Setup car</button>
+        <span class="menu-livery-label">Livery</span>
         <button class="menu-btn small" data-a="livery-" title="← key">‹</button>
         <b>${this.livery + 1}</b>
         <button class="menu-btn small" data-a="livery+" title="→ key">›</button>
       </div>`;
+    specs
+      .querySelector('[data-a="setup"]')!
+      .addEventListener('click', () => this.show('setup'));
     specs
       .querySelector('[data-a="livery-"]')!
       .addEventListener('click', () => this.setLivery(this.livery - 1));
@@ -657,12 +680,20 @@ class MainMenu {
       .querySelector('[data-a="livery+"]')!
       .addEventListener('click', () => this.setLivery(this.livery + 1));
 
+    if (beside) {
+      this.root.append(specs);
+      // Top edge level with the filter row (the header height depends on the font).
+      const top =
+        filter.getBoundingClientRect().top -
+        this.root.getBoundingClientRect().top;
+      specs.style.top = `${top}px`;
+      specs.style.maxHeight = `calc(100% - ${top + 24}px)`;
+    }
     this.panel.append(
       list,
-      specs,
+      ...(beside ? [] : [specs]),
       buttons(
         ['Back', () => this.show('map')],
-        ['Setup car', () => this.show('setup')],
         ['Start stage ›', () => this.start(), true],
       ),
     );
@@ -882,6 +913,38 @@ class MainMenu {
     this.show('setup');
   }
 
+  private inFilter(c: CarDef): boolean {
+    return (
+      this.driveFilter === 'all' ||
+      driveGroup(c.physics.drivetrain.frontSplit) === this.driveFilter
+    );
+  }
+
+  /** Indices into CARS of the cars the drivetrain filter shows. */
+  private visibleCars(): number[] {
+    return CARS.flatMap((c, i) => (this.inFilter(c) ? [i] : []));
+  }
+
+  private setDriveFilter(f: DriveFilter, keepFocus: boolean): void {
+    this.driveFilter = f;
+    const vis = this.visibleCars();
+    // The picked car stays when it matches, else the first car of the group.
+    if (vis.length && !vis.includes(this.carIndex)) this.carIndex = vis[0];
+    this.show('car');
+    if (keepFocus)
+      this.panel
+        .querySelector<HTMLElement>(`.menu-filter [data-filter="${f}"]`)
+        ?.focus();
+  }
+
+  /** Step through the visible cars (wraps); `i` is a CARS index only when the filter shows it. */
+  private stepCar(d: number): void {
+    const vis = this.visibleCars();
+    if (!vis.length) return;
+    const at = vis.indexOf(this.carIndex);
+    this.selectCar(vis[(at + d + vis.length) % vis.length]);
+  }
+
   private selectCar(i: number): void {
     this.carIndex = (i + CARS.length) % CARS.length;
     this.show('car');
@@ -940,8 +1003,11 @@ class MainMenu {
       this.mapIndex =
         (this.mapIndex + (up ? -1 : 1) + STAGES.length) % STAGES.length;
       this.show('map');
+    } else if (s === 'car' && this.filterNav(a)) {
+      // handled by the filter row
     } else if (s === 'car' && (up || a === 'down')) {
-      this.selectCar(this.carIndex + (up ? -1 : 1));
+      if (up && this.visibleCars()[0] === this.carIndex) this.focusFilter();
+      else this.stepCar(up ? -1 : 1);
     } else if (s === 'setup' && (up || a === 'down')) {
       // The gearing row is only selectable when the car can change it.
       const rows = hasGearings(this.car.physics) ? 3 : 2;
@@ -976,6 +1042,29 @@ class MainMenu {
     } else {
       moveFocus(this.panel, a);
     }
+  }
+
+  private focusFilter(): void {
+    this.panel.querySelector<HTMLElement>('.menu-filter button.on')?.focus();
+  }
+
+  /** With the filter row focused: left / right change the filter, down returns to the car list. */
+  private filterNav(a: NavAction): boolean {
+    const el = document.activeElement;
+    if (!(el instanceof HTMLElement) || !el.closest('.menu-filter'))
+      return false;
+    if (a === 'left' || a === 'right') {
+      const n = DRIVE_FILTERS.length;
+      const at = DRIVE_FILTERS.findIndex((f) => f.id === this.driveFilter);
+      const d = a === 'left' ? -1 : 1;
+      this.setDriveFilter(DRIVE_FILTERS[(at + d + n) % n].id, true);
+      return true;
+    }
+    if (a === 'down') {
+      el.blur();
+      return true;
+    }
+    return a === 'up';
   }
 
   dispose(): void {
@@ -1342,6 +1431,22 @@ const cap = (s: string) => s[0].toUpperCase() + s.slice(1);
 
 function cameraLabel(m: CameraMode): string {
   return m === 'chase_far' ? 'Far' : cap(m);
+}
+
+type DriveFilter = 'all' | 'awd' | 'rwd' | 'fwd';
+
+const DRIVE_FILTERS: { id: DriveFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'awd', label: 'AWD' },
+  { id: 'rwd', label: 'RWD' },
+  { id: 'fwd', label: 'FWD' },
+];
+
+/** Drivetrain group from the car's own front torque split. */
+function driveGroup(frontSplit: number): Exclude<DriveFilter, 'all'> {
+  if (frontSplit === 0) return 'rwd';
+  if (frontSplit === 1) return 'fwd';
+  return 'awd';
 }
 
 function driveLabel(frontSplit: number): string {

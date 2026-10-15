@@ -576,6 +576,9 @@
   margin: 0;
   font-weight: 600;
 }
+.menu-filter {
+  margin-bottom: 8px;
+}
 .menu-livery {
   display: flex;
   align-items: center;
@@ -583,6 +586,9 @@
   margin-top: 12px;
   font-size: 13px;
   color: #8b95a3;
+}
+.menu-livery-label {
+  margin-left: 8px;
 }
 .menu-livery b {
   min-width: 20px;
@@ -925,6 +931,25 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* Select car: the description card sits right of the car list (wide screens). */
+.menu-car-card {
+  position: absolute;
+  z-index: 41;
+  top: 40px;
+  left: 472px;
+  width: min(600px, calc(100% - 504px));
+  max-height: calc(100% - 64px);
+  box-sizing: border-box;
+  padding: 18px 20px;
+  overflow-y: auto;
+  border-radius: 12px;
+  background: rgba(8, 10, 14, 0.78);
+  backdrop-filter: blur(6px);
+}
+.menu-car-card p:first-child {
+  margin-top: 0;
 }
 
 /* Stage times: the saved runs float over the map view, right of the stage list. */

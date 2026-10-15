@@ -49,7 +49,7 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
   the stage, length, splits, best time; every stage shows a pre-baked stage card, `tools/stage-card.ts`, cropped to the stage +
   500 m and re-baked with `?bakecard=<stage id>` / `?bakecards=1` only when asked; `stageCardHash` covers only what the card
   draws, so text edits need no re-bake) -> **select car** ->
-  **Start stage** with the recommended set-up, or **Setup car**. The car stands in a 3D showroom (`game/showroom.ts`): car
+  **Start stage** with the recommended set-up, or **Setup car** (small button left of the livery picker). The car stands in a 3D showroom (`game/showroom.ts`): car
   screens add studio strip lights to the env map (`Environment` `studio`) and a shallow depth of field
   (`engine/depth-of-field.ts`, off on low quality); the stage view keeps the map's sky env, no blur. Console (dev): `__showroom`.
 - **Options** (main and pause menu): quality, object distance, volume, gearbox, traction assist and ABS (each hidden for
@@ -311,6 +311,8 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 - Long synchronous steps (world build, road, props, shader compile) set their label and `paint()` first, so the bar never
   sits unlabelled at 0%. The car's GLB starts downloading before the map data (`preloadCarModel`).
 - Car select: a "Loading model" spinner (`Showroom.loadCue`) shows while a car's GLB downloads (the car stays hidden until then).
+- Car select: All / AWD / RWD / FWD filter row on top (`driveGroup` from the car's `drivetrain.frontSplit`, not remembered); up from the first car or the pad focuses it, left / right switch.
+- Car select (screens >= 1200 px wide): the description / stats / livery sit in a wide card right of the list (`.menu-car-card`); the showroom car keeps its shared place and size (`CAR_SHIFT`, `CAR_DIST_SCALE`) and may run behind the card. Narrower screens keep them under the list.
 
 ## Known limitations
 
