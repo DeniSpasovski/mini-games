@@ -1,7 +1,15 @@
-import { Box3, Mesh, Vector3, type Group, type Object3D } from 'three';
+import {
+  BufferAttribute,
+  BufferGeometry,
+  Box3,
+  Mesh,
+  Vector3,
+  type Group,
+  type Object3D,
+} from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
-import type { CarDef } from './types';
+import type { CarDef, CarGltfRecolor } from './types';
 
 /**
  * Imported car models (glTF/GLB) - e.g. Sketchfab downloads - living in
@@ -88,4 +96,52 @@ export async function loadImportedCar(def: CarDef): Promise<Object3D> {
     centreZ - c.z + o[2],
   );
   return obj;
+}
+
+/**
+ * Cut the triangles of `mesh` whose centroid lies in `r.box` out into a new mesh (same attributes, own index; the source
+ * geometry is shared between cars, so it is never edited). `mesh` keeps the rest. Returns undefined if nothing matched.
+ */
+export function splitRecolor(mesh: Mesh, r: CarGltfRecolor): Mesh | undefined {
+  const g = mesh.geometry;
+  const pos = g.getAttribute('position') as BufferAttribute;
+  const src = g.index;
+  const n = src ? src.count : pos.count;
+  const [x0, x1, y0, y1, z0, z1] = r.box;
+  const taken: number[] = [];
+  const kept: number[] = [];
+  const v = new Vector3();
+  mesh.updateMatrix();
+  for (let i = 0; i + 2 < n; i += 3) {
+    const t = [0, 1, 2].map((k) => (src ? src.getX(i + k) : i + k));
+    v.set(0, 0, 0);
+    for (const j of t) {
+      v.x += pos.getX(j);
+      v.y += pos.getY(j);
+      v.z += pos.getZ(j);
+    }
+    v.divideScalar(3).applyMatrix4(mesh.matrix);
+    const x = r.absX ? Math.abs(v.x) : v.x;
+    (x >= x0 && x <= x1 && v.y >= y0 && v.y <= y1 && v.z >= z0 && v.z <= z1
+      ? taken
+      : kept
+    ).push(...t);
+  }
+  if (!taken.length) return undefined;
+  const index = (a: number[]) => {
+    const out = new BufferGeometry();
+    for (const k of Object.keys(g.attributes))
+      out.setAttribute(k, g.attributes[k]);
+    out.setIndex(a);
+    return out;
+  };
+  mesh.geometry = index(kept);
+  const piece = new Mesh(index(taken), mesh.material);
+  piece.castShadow = mesh.castShadow;
+  piece.receiveShadow = mesh.receiveShadow;
+  piece.position.copy(mesh.position);
+  piece.quaternion.copy(mesh.quaternion);
+  piece.scale.copy(mesh.scale);
+  mesh.parent?.add(piece);
+  return piece;
 }
