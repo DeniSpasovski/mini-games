@@ -249,10 +249,11 @@ export class TerrainRenderer {
     if (old) {
       releaseGeometry(old.mesh.geometry);
       old.mesh.geometry = geometry;
+      old.mesh.material = getTerrainMaterial(w.lod > 0);
       old.lod = w.lod;
       return;
     }
-    const mesh = new Mesh(geometry, getTerrainMaterial());
+    const mesh = new Mesh(geometry, getTerrainMaterial(w.lod > 0));
     mesh.position.set(w.cx * this.cs, 0, w.cz * this.cs);
     mesh.receiveShadow = true;
     mesh.matrixAutoUpdate = false;

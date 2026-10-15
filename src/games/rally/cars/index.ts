@@ -1,4 +1,5 @@
 import { CARS_LIST, released } from '../release';
+import { audiRs6 } from './audi-rs6/audi-rs6';
 import { bimmerGt2 } from './bimmer-gt2/bimmer-gt2';
 import { bimmerM3 } from './bimmer-m3/bimmer-m3';
 import { citroenC4 } from './citroen-c4/citroen-c4';
@@ -24,6 +25,7 @@ export const ALL_CARS: CarDef[] = [
   lancerEvo6,
   fordGt3,
   merc190,
+  audiRs6,
   porsche911930,
 ];
 

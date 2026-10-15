@@ -2,6 +2,7 @@ import {
   Color,
   Material,
   ShaderChunk,
+  Vector2,
   Vector3,
   Vector4,
   type Texture,
@@ -47,8 +48,21 @@ export const worldUniforms = {
   /** Canopy shadow texture (world/canopy-shadows.ts) and its ground mapping: x0, z0, 1/width, 1/depth. */
   wsCanopy: { value: null as Texture | null },
   wsCanopyMap: { value: new Vector4(0, 0, 0, 0) },
+  /** The finer canopy window following the camera (world/canopy-shadows.ts) and its ground mapping. */
+  wsCanopyLocal: { value: null as Texture | null },
+  wsCanopyLocalMap: { value: new Vector4(0, 0, 0, 0) },
   /** Shadow-map box on the ground: centre x, z, half extent (m), canopy shadow strength (0 = off). */
   wsShadowBox: { value: new Vector4(0, 0, 60, 0) },
+  /**
+   * Canopy shadows fade in between these distances from the camera (m; y = 0: at the shadow box's edge instead):
+   * where the trees stop casting real shadows (`setCanopyFade`).
+   */
+  wsCanopyFade: { value: new Vector2(0, 0) },
+  /**
+   * The far forest painted on the ground (`setForest`): canopy colour (linear) and the distance (m) where the trees
+   * end; the ground under the canopy texture turns this colour over the last quarter before it (w = 0: off).
+   */
+  wsForest: { value: new Vector4(0, 0, 0, 0) },
 };
 // Dev: tweak live from the console (`__worldShading.wsCloud.value.x = 1`).
 (globalThis as { __worldShading?: typeof worldUniforms }).__worldShading =
@@ -101,11 +115,37 @@ export function setCanopyShadows(
   texture: Texture | null,
   map: { x0: number; z0: number; invW: number; invD: number },
   strength: number,
+  local?: {
+    texture: Texture;
+    map: { x0: number; z0: number; invW: number; invD: number };
+  },
 ): void {
   const u = worldUniforms;
   u.wsCanopy.value = texture;
   u.wsCanopyMap.value.set(map.x0, map.z0, map.invW, map.invD);
+  u.wsCanopyLocal.value = local?.texture ?? null;
+  if (local) setCanopyLocalMap(local.map);
   u.wsShadowBox.value.w = texture ? strength : 0;
+}
+
+/** Where the local canopy window is on the ground (call after it moved: `CanopyShadows.update`). */
+export function setCanopyLocalMap(map: {
+  x0: number;
+  z0: number;
+  invW: number;
+  invD: number;
+}): void {
+  worldUniforms.wsCanopyLocalMap.value.set(map.x0, map.z0, map.invW, map.invD);
+}
+
+/** Canopy shadows fade in from `start` to `end` m from the camera (where trees stop casting real shadows). */
+export function setCanopyFade(start: number, end: number): void {
+  worldUniforms.wsCanopyFade.value.set(start, end);
+}
+
+/** The far forest on the ground: canopy colour (linear) and where the trees end (m; 0 = off). */
+export function setForest(color: Color, distance: number): void {
+  worldUniforms.wsForest.value.set(color.r, color.g, color.b, distance);
 }
 
 /** Where the sun's shadow map is (canopy shadows fade in outside it; call every frame). */
@@ -224,7 +264,11 @@ const LIGHTS_PARS = /* glsl */ `
 uniform sampler2D wsMacro;
 uniform sampler2D wsCanopy;
 uniform vec4 wsCanopyMap;
+uniform sampler2D wsCanopyLocal;
+uniform vec4 wsCanopyLocalMap;
 uniform vec4 wsShadowBox;
+uniform vec2 wsCanopyFade;
+uniform vec4 wsForest;
 vec3 wsWorldPos( vec3 viewPos ) {
 	return ${WORLD_FROM_VIEW.replace('%v', 'viewPos')};
 }
@@ -240,9 +284,21 @@ float wsCloudShadow( vec3 wp ) {
 /** Sun visibility under the baked tree shadows, faded in outside the shadow-map box, 1 = clear. */
 float wsCanopyShadow( vec3 wp ) {
 	if ( wsShadowBox.w <= 0.0 ) return 1.0;
-	float fade = smoothstep( wsShadowBox.z * 0.65, wsShadowBox.z * 0.95, length( wp.xz - wsShadowBox.xy ) );
+	float fade = wsCanopyFade.y > 0.0
+		? smoothstep( wsCanopyFade.x, wsCanopyFade.y, length( wp.xz - cameraPosition.xz ) )
+		: smoothstep( wsShadowBox.z * 0.65, wsShadowBox.z * 0.95, length( wp.xz - wsShadowBox.xy ) );
 	float d = texture2D( wsCanopy, ( wp.xz - wsCanopyMap.xy ) * wsCanopyMap.zw ).r;
-	return 1.0 - wsShadowBox.w * fade * d;
+	float str = wsShadowBox.w;
+	// The finer window around the camera (blended out over its outer fifth).
+	if ( wsCanopyLocalMap.z > 0.0 ) {
+		vec2 lu = ( wp.xz - wsCanopyLocalMap.xy ) * wsCanopyLocalMap.zw;
+		float lw = 1.0 - smoothstep( 0.38, 0.48, max( abs( lu.x - 0.5 ), abs( lu.y - 0.5 ) ) );
+		if ( lw > 0.0 ) {
+			d = mix( d, texture2D( wsCanopyLocal, lu ).r, lw );
+			str = mix( str, min( str * 1.4, 0.9 ), lw );
+		}
+	}
+	return 1.0 - str * fade * d;
 }
 `;
 
@@ -252,13 +308,31 @@ const SUN_TERMS = /* glsl */ `
 		directLight.color *= wsCloudShadow( wsWP );
 		#ifdef RALLY_GROUND
 			directLight.color *= wsCanopyShadow( wsWP );
+			// The far forest (no trees drawn there): the ground under the canopy takes the canopy's colour.
+			if ( wsForest.w > 0.0 && wsShadowBox.w > 0.0 ) {
+				float wsFd = texture2D( wsCanopy, ( wsWP.xz - wsCanopyMap.xy ) * wsCanopyMap.zw ).r;
+				float wsFf = smoothstep( wsForest.w * 0.75, wsForest.w, length( wsWP.xz - cameraPosition.xz ) );
+				float wsFk = clamp( wsFd * 1.5, 0.0, 1.0 ) * wsFf;
+				material.diffuseColor = mix( material.diffuseColor, wsForest.rgb, wsFk );
+				#ifdef STANDARD
+					// three's physical path lights the diffuse contribution (diffuseColor is for its specular terms).
+					material.diffuseContribution = mix( material.diffuseContribution, wsForest.rgb, wsFk );
+				#endif
+			}
 		#endif`;
 
 /** Inserted after the directional `RE_Direct` (after the shadow map: shaded leaves stay dark). */
 const FOLIAGE_TERM = /* glsl */ `
 		#ifdef RALLY_FOLIAGE
-			float wsBack = saturate( dot( - geometryViewDir, directLight.direction ) );
-			reflectedLight.directDiffuse += directLight.color * material.diffuseColor * ( float( RALLY_FOLIAGE ) * wsBack * wsBack * wsBack );
+			#if defined( TREE_SPRITE ) || defined( TREE_IMPOSTOR )
+				// Tree foliage (trees/materials.ts): a cheap wrap term for light through the leaves, weighted by the
+				// atlas / impostor thickness map (thin leaves let light through: a crown against a low sun glows).
+				float wsWrap = saturate( ( dot( - geometryNormal, directLight.direction ) + 0.5 ) / 1.5 );
+				reflectedLight.directDiffuse += directLight.color * material.diffuseColor * ( float( RALLY_FOLIAGE ) * wsWrap * ( 1.0 - tlThickness ) );
+			#else
+				float wsBack = saturate( dot( - geometryViewDir, directLight.direction ) );
+				reflectedLight.directDiffuse += directLight.color * material.diffuseColor * ( float( RALLY_FOLIAGE ) * wsBack * wsBack * wsBack );
+			#endif
 		#endif`;
 
 let installed = false;

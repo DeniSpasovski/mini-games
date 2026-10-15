@@ -21,9 +21,13 @@ import type { GroundMoisture } from './ground-moisture';
  * Grass moisture: lusher green in hollows / by water, straw on ridges and steep slopes (`setGroundMoisture`, a
  * baked map texture + the vertex normal + slow macro noise so flat land is not one colour either).
  *
- * One instance is shared by every terrain chunk.
+ * One instance is shared by every near chunk and one `far` variant by every coarser chunk (beyond the first LOD
+ * band, ~150 m): no relief (it fades out by 90 m anyway), one octave per layer, no specular environment lookup;
+ * both read the same uniforms.
  */
 let shared: MeshStandardMaterial | undefined;
+let sharedFar: MeshStandardMaterial | undefined;
+let sharedUniforms: Record<string, { value: unknown }> | undefined;
 
 /** Ripe wheat. */
 const DEFAULT_CROP = '#c2a552';
@@ -36,14 +40,14 @@ const NEUTRAL_MOISTURE = new DataTexture(
 );
 NEUTRAL_MOISTURE.needsUpdate = true;
 
-export function getTerrainMaterial(): MeshStandardMaterial {
-  if (shared) return shared;
+export function getTerrainMaterial(far = false): MeshStandardMaterial {
+  if (far ? sharedFar : shared) return (far ? sharedFar : shared)!;
   const mat = new MeshStandardMaterial({
     color: 0xffffff,
     roughness: 0.96,
     metalness: 0,
   });
-  const uniforms = {
+  const uniforms = sharedUniforms ?? {
     tGrass: { value: getTexture('grass') },
     tDirt: { value: getTexture('dirt') },
     tRock: { value: getTexture('rock') },
@@ -61,9 +65,10 @@ export function getTerrainMaterial(): MeshStandardMaterial {
     /** Bump strength (0 = flat, `setTerrainRelief`). */
     uRelief: { value: 1 },
   };
+  sharedUniforms = uniforms;
   mat.userData.uniforms = uniforms;
   // Canopy shadows beyond the shadow map (engine/world-shading.ts).
-  mat.defines = { RALLY_GROUND: 1 };
+  mat.defines = far ? { RALLY_GROUND: 1, TERRAIN_FAR: 1 } : { RALLY_GROUND: 1 };
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, uniforms);
     addWorldUniforms(shader);
@@ -113,9 +118,19 @@ export function getTerrainMaterial(): MeshStandardMaterial {
       .replace(
         '#include <normal_fragment_maps>',
         `#include <normal_fragment_maps>
+        #ifndef TERRAIN_FAR
         // No branch: screen-space derivatives are undefined in non-uniform control flow (0 relief = same normal).
         float reliefFade = uRelief * ( 1.0 - smoothstep( 25.0, 90.0, length( vWPos - cameraPosition ) ) );
-        normal = terrainPerturb( - vViewPosition, normal, vec2( dFdx( terrainH ), dFdy( terrainH ) ) * reliefFade, faceDirection );`,
+        normal = terrainPerturb( - vViewPosition, normal, vec2( dFdx( terrainH ), dFdy( terrainH ) ) * reliefFade, faceDirection );
+        #endif`,
+      )
+      .replace(
+        '#include <lights_fragment_maps>',
+        `#ifdef TERRAIN_FAR
+        // Rough ground: the specular environment lookup adds next to nothing here (far chunks only).
+        #define getIBLRadiance( v, n, r ) vec3( 0.0 )
+        #endif
+        #include <lights_fragment_maps>`,
       )
       .replace(
         '#include <map_fragment>',
@@ -123,10 +138,17 @@ export function getTerrainMaterial(): MeshStandardMaterial {
         vec2 wp = vWPos.xz;
         float macro = texture2D(tMacro, wp * 0.0031).r;
         float macro2 = texture2D(tMacro, wp * 0.027 + 0.37).r;
+        #ifdef TERRAIN_FAR
+        vec3 cGrass = texture2D(tGrass, wp * 0.061).rgb;
+        vec3 cDirt = texture2D(tDirt, wp * 0.07).rgb;
+        vec3 cRock = texture2D(tRock, wp * 0.041).rgb;
+        vec3 cGravel = texture2D(tGravel, wp * 0.08).rgb;
+        #else
         vec3 cGrass = mix(texture2D(tGrass, wp * 0.22).rgb, texture2D(tGrass, wp * 0.061).rgb, 0.45);
         vec3 cDirt = texture2D(tDirt, wp * 0.28).rgb;
         vec3 cRock = mix(texture2D(tRock, wp * 0.13).rgb, texture2D(tRock, wp * 0.041).rgb, 0.4);
         vec3 cGravel = texture2D(tGravel, wp * 0.33).rgb;
+        #endif
         // Recolour (0.09 = mean linear luminance of the grass texture).
         float grassLum = dot(cGrass, vec3(0.2126, 0.7152, 0.0722)) / 0.09;
         cGrass = mix(cGrass, uTintGrass * grassLum, uTintAmount);
@@ -156,6 +178,7 @@ export function getTerrainMaterial(): MeshStandardMaterial {
         col *= mix(0.78, 1.16, macro);
         if (uDebugSplat > 0.5) col = vec3(w.x * 0.2 + w.y * 0.6 + w.w * 0.9 + crop, w.x * 0.8 + w.y * 0.4 + w.w * 0.8 + crop * 0.8, w.z + w.w * 0.5);
         diffuseColor.rgb *= col;
+        #ifndef TERRAIN_FAR
         // Height for the relief: per-layer brightness, rock / gravel bumpiest, grass nearly flat.
         vec4 lum = vec4(
           dot(cGrass, vec3(0.3333)) * 0.25,
@@ -164,11 +187,14 @@ export function getTerrainMaterial(): MeshStandardMaterial {
           dot(cGravel, vec3(0.3333)) * 0.9
         );
         float terrainH = dot(lum, w) * 4.0;
+        #endif
         `,
       );
   };
-  mat.customProgramCacheKey = () => 'rally-terrain-v4';
-  shared = mat;
+  mat.customProgramCacheKey = () =>
+    far ? 'rally-terrain-far-v1' : 'rally-terrain-v4';
+  if (far) sharedFar = mat;
+  else shared = mat;
   return mat;
 }
 

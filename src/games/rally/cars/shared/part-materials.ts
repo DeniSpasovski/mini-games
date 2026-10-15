@@ -36,6 +36,7 @@ export type PartName =
   | 'lens'
   | 'lenscover'
   | 'chrome'
+  | 'satin'
   | 'steel'
   | 'amber'
   | 'tail'
@@ -49,6 +50,7 @@ export type PartName =
   | 'lamphousing'
   | 'headled'
   | 'tailled'
+  | 'brakestrip'
   | 'reverselamp'
   | 'tailc4'
   | 'redcover'
@@ -1558,6 +1560,14 @@ const BUILDERS: Record<PartName, () => Material> = {
       metalness: 1,
       envMapIntensity: 1.1,
     }),
+  /** Brushed aluminium: window frames, roof rails. */
+  satin: () =>
+    new MeshStandardMaterial({
+      color: 0xb4b8be,
+      roughness: 0.4,
+      metalness: 0.85,
+      envMapIntensity: 0.7,
+    }),
   /** Satin stainless steel: exhaust tail pipes. */
   steel: () =>
     new MeshPhysicalMaterial({
@@ -1771,6 +1781,19 @@ const BUILDERS: Record<PartName, () => Material> = {
         metalness: 0.1,
         clearcoat: 1,
         clearcoatRoughness: 0.05,
+      }),
+      3.2,
+    ),
+  /** Bumper corner strip: dark red reflector while off, lights like `tailled` with the brake pedal (setBrake). */
+  brakestrip: () =>
+    lamp(
+      new MeshPhysicalMaterial({
+        color: 0xa30f17,
+        emissive: 0xff2010,
+        emissiveIntensity: 0,
+        roughness: 0.25,
+        metalness: 0.3,
+        clearcoat: 1,
       }),
       3.2,
     ),

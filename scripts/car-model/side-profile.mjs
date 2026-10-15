@@ -61,6 +61,7 @@ const LAMPS = new Set([
   'tail',
   'tailc',
   'tailled',
+  'brakestrip',
   'tailweave',
   'lensweave',
   'redcover',

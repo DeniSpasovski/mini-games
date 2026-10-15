@@ -34,3 +34,8 @@ src/games/rally/maps/**/TODO.md
 
 # Open task lists - local only for now
 src/games/*/TASKS.md
+
+# Suspense
+.suspense/asks/
+.suspense/history/
+.suspense-draft.pi

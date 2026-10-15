@@ -16,6 +16,7 @@ export const CAMERA_MODES: CameraMode[] = [
 
 const _v = new Vector3();
 const _t = new Vector3();
+const _up = new Vector3(0, 1, 0);
 
 export class CameraRig {
   mode: CameraMode = 'chase';
@@ -27,6 +28,8 @@ export class CameraRig {
   private ground = 0;
   private initialized = false;
   private shake = 0;
+  /** Camera position before shake and body bounce: what the tree level choice measures from (trees/draw.ts). */
+  readonly steady = new Vector3();
 
   constructor(
     readonly camera: PerspectiveCamera,
@@ -61,6 +64,10 @@ export class CameraRig {
       const local =
         this.mode === 'hood' ? _v.set(0, 0.62, 0.15) : _v.set(0, 0.05, 2.05);
       cam.position.copy(local.applyQuaternion(v.quaternion)).add(carPos);
+      // Steady: the same point without the body's pitch / roll.
+      if (this.mode === 'hood') this.steady.set(0, 0.62, 0.15);
+      else this.steady.set(0, 0.05, 2.05);
+      this.steady.applyAxisAngle(_up, Math.atan2(forward.x, forward.z)).add(carPos);
       cam.up.copy(up);
       cam.lookAt(
         _t
@@ -135,6 +142,7 @@ export class CameraRig {
       this.pos.y += (g - this.pos.y) * (1 - Math.exp(-dt * 20));
 
     cam.position.copy(this.pos);
+    this.steady.copy(this.pos);
     if (this.shake > 0.01) {
       const s = this.shake * 0.15;
       cam.position.x += (Math.random() - 0.5) * s;

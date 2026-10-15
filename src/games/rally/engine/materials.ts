@@ -7,14 +7,12 @@ import {
   type WebGLRenderer,
 } from 'three';
 import { getTexture } from './textures';
-import { addWorldUniforms } from './world-shading';
 
 /**
  * Shared material library. Assets reference materials by id so thousands of
  * instances / dozens of asset types share a handful of GPU programs.
  */
 export type MaterialId =
-  | 'vegetation'
   | 'foliage_card'
   | 'foliage_card_dry'
   | 'foliage_card_spring'
@@ -22,16 +20,15 @@ export type MaterialId =
   | 'props'
   | 'chevron'
   | 'vehicle'
-  | 'village_sign'
-  | 'tree_impostor';
+  | 'village_sign';
 
 const cache = new Map<MaterialId, Material>();
 
 /**
  * Wind sway (`RALLY_WIND`, metres of sway per m² of height) and leaf translucency (`RALLY_FOLIAGE`) for the
- * world shading (engine/world-shading.ts). Trees bend at the top, grass / reed cards at their tips.
+ * world shading (engine/world-shading.ts): grass / reed cards bend at their tips. Trees sway in their own shader
+ * (trees/draw.ts).
  */
-const TREE_DEFINES = { RALLY_WIND: 0.0009, RALLY_FOLIAGE: 0.3 };
 const CARD_DEFINES = { RALLY_WIND: 0.1, RALLY_FOLIAGE: 0.25, RALLY_GROUND: 1 };
 
 const FOLIAGE: MaterialId[] = [
@@ -62,14 +59,6 @@ export function getMaterial(id: MaterialId): Material {
   let m = cache.get(id);
   if (m) return m;
   switch (id) {
-    case 'vegetation':
-      m = new MeshStandardMaterial({
-        vertexColors: true,
-        map: getTexture('detail'),
-        roughness: 0.92,
-      });
-      m.defines = { ...TREE_DEFINES };
-      break;
     case 'foliage_card':
       m = new MeshStandardMaterial({
         vertexColors: true,
@@ -135,9 +124,6 @@ export function getMaterial(id: MaterialId): Material {
         roughness: 0.55,
       });
       break;
-    case 'tree_impostor':
-      m = impostorMaterial();
-      break;
   }
   m.name = id;
   if (FOLIAGE.includes(id)) {
@@ -150,39 +136,6 @@ export function getMaterial(id: MaterialId): Material {
 
 export function allMaterials(): Material[] {
   return [...cache.values()];
-}
-
-/**
- * Far trees (assets/impostor.ts): a flat diamond turned to face the camera in the vertex shader - 2 triangles
- * instead of an 8-face crown. Geometry x = sideways offset, y = height; the instance matrix places the axis.
- * Lit like a crown seen from the front (normal towards the camera, tipped up), no wind (sub-pixel).
- */
-function impostorMaterial(): MeshStandardMaterial {
-  const m = new MeshStandardMaterial({ vertexColors: true, roughness: 0.92 });
-  m.defines = { RALLY_FOLIAGE: TREE_DEFINES.RALLY_FOLIAGE };
-  m.onBeforeCompile = (shader) => {
-    addWorldUniforms(shader);
-    shader.vertexShader = shader.vertexShader
-      .replace(
-        '#include <defaultnormal_vertex>',
-        '#include <defaultnormal_vertex>\ntransformedNormal = normalize( vec3( 0.0, 0.55, 1.0 ) );',
-      )
-      .replace(
-        '#include <project_vertex>',
-        `vec4 mvPosition = vec4( 0.0, transformed.y, 0.0, 1.0 );
-#ifdef USE_INSTANCING
-	mvPosition = instanceMatrix * mvPosition;
-	float impostorScale = length( instanceMatrix[ 0 ].xyz );
-#else
-	float impostorScale = 1.0;
-#endif
-mvPosition = modelViewMatrix * mvPosition;
-mvPosition.x += transformed.x * impostorScale;
-gl_Position = projectionMatrix * mvPosition;`,
-      );
-  };
-  m.customProgramCacheKey = () => 'tree-impostor-v1';
-  return m;
 }
 
 /**
