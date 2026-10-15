@@ -1194,7 +1194,7 @@ function headParts(
   }
   void rng;
   // The ring head is narrower than the sphere one: hair and hats hug it.
-  if (detail) for (const g of out.slice(coverFrom)) g.scale(0.88, 1, 0.9);
+  if (detail) for (const g of out.slice(coverFrom)) g.scale(1, 1.02, 0.99);
   return out;
 }
 
