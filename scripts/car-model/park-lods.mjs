@@ -46,6 +46,7 @@ export const PARK_CARS = [
   'lancer_evo_6',
   'ford_gt3',
   'merc_190',
+  'audi_rs6',
 ];
 
 /** Triangle targets per LOD: the whole body (paint shell + parts, simplified as one surface) and one rim. */
@@ -94,6 +95,8 @@ const PART_COLORS = {
   brakecover: '#b3151c',
   reflector: '#a30f17',
   recess: '#101112',
+  satin: '#b4b8be',
+  brakestrip: '#a30f17',
   'src:shell': '#0b0b0c',
   'src:lamp': '#d9dde0',
   'src:tail': '#b81820',
