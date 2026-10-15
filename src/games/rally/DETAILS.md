@@ -27,7 +27,7 @@ gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
 | `quality`                  | play  | `low / medium / high`                                                                                                                               |
 | `mute=1`                   | play  | silent (bots and tests)                                                                                                                             |
 | `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                                                                  |
-| `tod=<hours>`, `tonemap=`  | all   | look experiments: time of day (maps with `environment.timeOfDay`), `aces / agx / neutral`                                                           |
+| `tod=<hours>`, `tonemap=`  | all   | look experiments: time of day (maps with `environment.timeOfDay`; 20-4:30 = night, see Look), `aces / agx / neutral`                                |
 | `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the map's `environment.airTemp`)                                                                |
 | `perf=1`                   | play  | open the perf panel (below)                                                                                                                         |
 
@@ -93,6 +93,13 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 - **Light:** the sun follows `timeOfDay` (or `sunElevation` / `sunAzimuth`); a lower sun is warmer and dimmer (raise `exposure`).
   Cool sky fill + warm ground bounce; a PMREM of the sky gives paint, glass and water reflections.
 - **Shadows:** one shadow map ahead of the camera, snapped to texels so edges do not crawl.
+- **Night** (`engine/night.ts`, `?tod=<hours>` from 19:30 to 04:30 on any map; not in the studio): the moon is the directional light
+  (dim, blue, `moonAt`), the sky is a dark dome with a town glow, moon and stars (`NightSky`), fog is dark, tone mapping AgX at a
+  fixed exposure; the env map and the tree ambient (`setTreeSky`) are rebuilt from the night sky. The car switches its lights on
+  (`CarModel.setLamps`: head / tail lamp materials, `userData.headLamp`) and `game/headlights.ts` adds a low-beam spot, a wide
+  spill spot and two soft beam cones; dust, spray and haze glow inside the beam (`ParticleSystem.setHeadlight`). Shadows: the low
+  beam and the moon cast them on high quality only. No map has a night stage yet. Not done: bloom, retro-reflective posts / signs,
+  street-lamp light pools, high / low beam key.
 - **Sky / tone mapping:** drifting clouds (`cloudCoverage`, `cloudSpeed`); ACES, or `toneMapping: 'agx' | 'neutral'` per map.
 - **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark outside the
   shadow box (`world/canopy-shadows.ts`: a coarse whole-map texture plus a 1.5 m local window of 768 m around the camera,

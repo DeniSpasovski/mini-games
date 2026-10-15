@@ -28,6 +28,7 @@ import { LightProbeGenerator } from 'three/examples/jsm/lights/LightProbeGenerat
 import { ownValue, paramNumber } from '../../../shared/url-params';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { setTreeSky } from '../trees/materials';
+import { dome, isNightHour, moonAt, NIGHT, NightSky } from './night';
 import type { EnvironmentDef } from '../maps/shared/types';
 import { getTexture } from './textures';
 import {
@@ -86,10 +87,15 @@ export class Environment {
   readonly sky = new Sky();
   readonly sun = new DirectionalLight(0xfff1dc, 3);
   readonly hemi = new HemisphereLight(0xbcd2ee, 0x4a4630, 0.18);
+  /** Direction of the main light: the sun, or the moon at night. */
   readonly sunDir = new Vector3();
-  /** Effective sun angles (deg) after `timeOfDay` / `?tod=`. */
+  /** Effective sun angles (deg) after `timeOfDay` / `?tod=` (below the horizon at night). */
   sunElevation = 0;
   sunAzimuth = 0;
+  /** True from ~19:30 to ~04:30 (`timeOfDay` / `?tod=`, not in the studio): moon, stars, dark fog; cars switch their lights on. */
+  night = false;
+  private nightSky: NightSky;
+  private quality: QualitySettings;
   private target = new Object3D();
   private pmrem: PMREMGenerator;
   private envMap?: Texture;
@@ -111,6 +117,9 @@ export class Environment {
     opts: { studio?: boolean } = {},
   ) {
     this.studio = opts.studio ?? false;
+    this.quality = quality;
+    this.nightSky = new NightSky(this.sunDir);
+    scene.add(this.nightSky.group);
     // Box half-size 1500 m: keep camera.far >= ~2700 (corner distance). Drawn first, never writes depth.
     this.sky.scale.setScalar(3000);
     this.sky.renderOrder = -1;
@@ -149,54 +158,81 @@ export class Environment {
     u.cloudCoverage.value = def.cloudCoverage ?? 0.4;
     u.cloudDensity.value = def.cloudDensity ?? 0.4;
 
-    // Time of day (map default, `?tod=` to try others) or the fixed angles.
+    // Time of day (map default, `?tod=` to try others) or the fixed angles. Night: the moon is the light.
     let elevation = def.sunElevation;
     let azimuth = def.sunAzimuth;
-    if (def.timeOfDay !== undefined) {
-      const s = sunAt(urlNumber('tod') ?? def.timeOfDay);
-      elevation = s.elevation;
+    const hour =
+      def.timeOfDay !== undefined
+        ? (urlNumber('tod') ?? def.timeOfDay)
+        : undefined;
+    this.night = !this.studio && hour !== undefined && isNightHour(hour);
+    if (hour !== undefined) {
+      const s = sunAt(hour);
+      elevation = this.night ? -20 : s.elevation;
       azimuth = s.azimuth;
     }
     this.sunElevation = elevation;
     this.sunAzimuth = azimuth;
-    const phi = MathUtils.degToRad(90 - elevation);
-    const theta = MathUtils.degToRad(azimuth);
+    const lamp = this.night && hour !== undefined ? moonAt(hour) : null;
+    const phi = MathUtils.degToRad(90 - (lamp?.elevation ?? elevation));
+    const theta = MathUtils.degToRad(lamp?.azimuth ?? azimuth);
     this.sunDir.setFromSphericalCoords(1, phi, theta);
     u.sunPosition.value.copy(this.sunDir);
+    this.sky.visible = !this.night;
+    this.nightSky.visible = this.night;
+    this.nightSky.setMoon(this.sunDir);
     // Shadow camera axes (DirectionalLight looks at its target with up = +Y): x = up x dir, y = dir x x.
     this.lightRight.set(0, 1, 0).cross(this.sunDir).normalize();
     this.lightUp.copy(this.sunDir).cross(this.lightRight).normalize();
 
-    // Warmer, dimmer sun near the horizon (golden below ~25 deg), unless the map sets it.
-    const low = MathUtils.clamp(1 - elevation / 40, 0, 1);
-    if (def.sunColor) this.sun.color.set(def.sunColor);
-    else this.sun.color.setRGB(1, 0.93 - low * 0.2, 0.84 - low * 0.38);
-    this.sun.intensity = def.sunIntensity ?? 3.1 - low * 1.1;
+    if (this.night) {
+      // Moon: dim and blue; the headlights' own shadow map (game/headlights.ts) carries the scene, so the moon casts
+      // shadows on high quality only. Cool sky fill, almost no ground bounce.
+      this.sun.color.set(NIGHT.moonColor);
+      this.sun.intensity = NIGHT.moonIntensity;
+      this.sun.castShadow = this.quality.name === 'high';
+      this.hemi.color.set(NIGHT.hemiSky);
+      this.hemi.groundColor.set(NIGHT.hemiGround);
+      this.hemi.intensity = NIGHT.hemiIntensity;
+    } else {
+      // Warmer, dimmer sun near the horizon (golden below ~25 deg), unless the map sets it.
+      const low = MathUtils.clamp(1 - elevation / 40, 0, 1);
+      if (def.sunColor) this.sun.color.set(def.sunColor);
+      else this.sun.color.setRGB(1, 0.93 - low * 0.2, 0.84 - low * 0.38);
+      this.sun.intensity = def.sunIntensity ?? 3.1 - low * 1.1;
+      this.sun.castShadow = true;
 
-    // Fill: cool sky light in the shadows, warm bounce from the map's ground.
-    this.hemi.color.set(def.fillSky ?? '#9fb8e6');
-    this.hemi.groundColor
-      .set(def.groundTint?.grass ?? '#7a6a48')
-      .lerp(new Color('#8a6a40'), 0.45)
-      .multiplyScalar(0.7);
-    this.hemi.intensity = def.fillIntensity ?? 0.26;
+      // Fill: cool sky light in the shadows, warm bounce from the map's ground.
+      this.hemi.color.set(def.fillSky ?? '#9fb8e6');
+      this.hemi.groundColor
+        .set(def.groundTint?.grass ?? '#7a6a48')
+        .lerp(new Color('#8a6a40'), 0.45)
+        .multiplyScalar(0.7);
+      this.hemi.intensity = def.fillIntensity ?? 0.26;
+    }
 
     this.renderer.toneMapping =
       ownValue(
         TONE_MAPPINGS,
-        urlString('tonemap') ?? def.toneMapping ?? 'aces',
+        urlString('tonemap') ??
+          (this.night ? 'agx' : (def.toneMapping ?? 'aces')),
       ) ?? ACESFilmicToneMapping;
 
-    this.scene.fog = new FogExp2(new Color(def.fogColor), def.fogDensity);
+    this.scene.fog = this.night
+      ? new FogExp2(
+          new Color(NIGHT.fogColor),
+          def.fogDensity * NIGHT.fogDensity,
+        )
+      : new FogExp2(new Color(def.fogColor), def.fogDensity);
     // Cloud shadows, height fog + sun glow, foliage wind (engine/world-shading.ts).
     setWorldShading({
       sunDir: this.sunDir,
       sunColor: this.sun.color,
-      cloudShadow: def.cloudShadow ?? 0.5,
+      cloudShadow: this.night ? 0 : (def.cloudShadow ?? 0.5),
       cloudCoverage: def.cloudCoverage ?? 0.4,
       cloudSpeed: def.cloudSpeed ?? 1,
       wind: def.wind ?? 1,
-      fogSunGlow: def.fogSunGlow ?? 0.45,
+      fogSunGlow: this.night ? 0 : (def.fogSunGlow ?? 0.45),
       fogFalloff: def.fogFalloff ?? 0.004,
       macro: getTexture('macro'),
     });
@@ -206,11 +242,13 @@ export class Environment {
 
   /** Map exposure, scaled for the display (engine/display.ts: HDR monitors get less). */
   refreshExposure(): void {
-    this.renderer.toneMappingExposure = this.def.exposure * displayExposure();
+    this.renderer.toneMappingExposure =
+      (this.night ? NIGHT.exposure : this.def.exposure) * displayExposure();
   }
 
   private rebuildEnvMap(): void {
     const envScene = new Scene();
+    const nightDome = this.night ? dome(this.sunDir, 40) : null;
     const sky = new Sky();
     sky.scale.setScalar(1000);
     const src = this.sky.material.uniforms;
@@ -228,13 +266,18 @@ export class Environment {
       dst[k].value = src[k].value;
     dst.sunPosition.value.copy(src.sunPosition.value);
     // Studio: a dim grey room instead of the sky, so the strip lights below dominate the reflections.
-    if (!this.studio) envScene.add(sky);
+    if (nightDome) {
+      nightDome.renderOrder = -2;
+      envScene.add(nightDome);
+    } else if (!this.studio) envScene.add(sky);
     // Ground under the sky: paint, glass and water reflect earth below the horizon, not more sky. Its radiance
     // ~ albedo x (sun + sky), in the map's ground colour, a little warm.
     const groundCol = new Color(this.def.groundTint?.grass ?? '#7a6a48')
       .lerp(new Color('#6b5a3e'), 0.5)
       .multiplyScalar(
-        0.25 + 0.55 * Math.sin(MathUtils.degToRad(this.sunElevation)),
+        this.night
+          ? 0.012
+          : 0.25 + 0.55 * Math.sin(MathUtils.degToRad(this.sunElevation)),
       );
     const ground = new Mesh(
       new CircleGeometry(900, 48).rotateX(-Math.PI / 2),
@@ -290,7 +333,9 @@ export class Environment {
     this.envMap = this.pmrem.fromScene(envScene, 0, 0.1, 2000).texture;
     this.scene.environment = this.envMap;
     // Key/fill balance: keep IBL + hemi low enough that sun shadows read clearly.
-    this.scene.environmentIntensity = this.def.envIntensity ?? 0.3;
+    this.scene.environmentIntensity = this.night
+      ? NIGHT.envIntensity
+      : (this.def.envIntensity ?? 0.3);
     // The same sky's diffuse light as spherical harmonics, for the tree foliage (it does not sample the env map:
     // trees/materials.ts `setTreeSky`). A tiny cube of the environment scene, read back once.
     const cube = new WebGLCubeRenderTarget(32);
@@ -301,6 +346,10 @@ export class Environment {
       .finally(() => cube.dispose());
     sky.material.dispose();
     sky.geometry.dispose();
+    if (nightDome) {
+      nightDome.geometry.dispose();
+      nightDome.material.dispose();
+    }
     for (const m of [ground, ...panels]) {
       m.geometry.dispose();
       (m.material as MeshBasicMaterial).dispose();
@@ -337,6 +386,7 @@ export class Environment {
   /** Move the sky dome with the camera so it never clips; drift the clouds. */
   follow(cameraPos: Vector3): void {
     this.sky.position.copy(cameraPos);
+    this.nightSky.group.position.copy(cameraPos);
     setWorldTime((performance.now() - this.t0) / 1000);
     this.sky.material.uniforms.time.value =
       ((performance.now() - this.t0) / 1000) * (this.def.cloudSpeed ?? 1);
@@ -344,6 +394,7 @@ export class Environment {
 
   dispose(): void {
     this.offDisplay();
+    this.nightSky.dispose();
     this.envMap?.dispose();
     this.pmrem.dispose();
   }
