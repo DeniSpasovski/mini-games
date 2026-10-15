@@ -9,6 +9,7 @@ import { profile as m3 } from '../../cars/bimmer-m3/profile';
 import { profile as gt2 } from '../../cars/bimmer-gt2/profile';
 import { profile as citroenC4 } from '../../cars/citroen-c4/profile';
 import { profile as fiesta } from '../../cars/fiesta/profile';
+import { profile as audiRs6 } from '../../cars/audi-rs6/profile';
 import { profile as fordGt3 } from '../../cars/ford-gt3/profile';
 import { profile as merc190 } from '../../cars/merc-190/profile';
 import { profile as lancerEvo6 } from '../../cars/lancer-evo-6/profile';
@@ -101,7 +102,7 @@ const PAINTS = [
 
 /**
  * The boxy rally cars as street cars (profiles baked from their GLBs, cars/<car>/profile.ts): 0 Bimmer M3 (saloon),
- * 1 Skoda Rally (hatch), 2 Fiesta (hatch), 3 Bimmer GT2 (coupe), 4 Citroen C4 (hatch), 5 Lancer EVO VI (saloon), 6 Ford Mustang GT3 (coupe), 7 Mercedes 190E (saloon), 8 Peugeot 206 (hatch).
+ * 1 Skoda Rally (hatch), 2 Fiesta (hatch), 3 Bimmer GT2 (coupe), 4 Citroen C4 (hatch), 5 Lancer EVO VI (saloon), 6 Ford Mustang GT3 (coupe), 7 Mercedes 190E (saloon), 8 Audi RS6 (estate), 9 Peugeot 206 (hatch).
  */
 const SHAPES: CarProfile[] = [
   m3,
@@ -112,6 +113,7 @@ const SHAPES: CarProfile[] = [
   lancerEvo6,
   fordGt3,
   merc190,
+  audiRs6,
   peugeot206,
 ];
 

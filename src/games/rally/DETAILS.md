@@ -178,6 +178,7 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
 | `ford_gt3`     | Ford Mustang GT3   | RWD   | 2024 GT3 racer from a CC BY model kept as is (own cockpit, lamps, rim), flat dark blue paint                          |
 | `merc_190`     | Mercedes 190E      | RWD   | 2.5-16 Evolution saloon from a CC BY model kept as is (own cockpit, lamps, rim), badges removed, flat dark grey paint |
 | `peugeot_206`  | Peugeot 206        | FWD   | tuned widebody 206 from a CC BY model kept as is (own cockpit, lamps, rim), flat paint, test car                      |
+| `audi_rs6`     | Audi RS6           | AWD   | C8 RS6 Avant from a CC BY model kept as is (own cockpit, lamps, rim), flat grey paint, test car                       |
 
 - A car is `cars/<car>/<car>.ts` (a `CarDef`: physics + model + sound) with its README. A GLB in `public/models/cars/` replaces the
   car's own body (`cars/shared/car-gltf.ts`; credits in `public/models/CREDITS.md`). Imports: rally-car-import skill.

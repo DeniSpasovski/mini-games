@@ -64,6 +64,7 @@ const LAMPS = new Set([
   'reverselamp',
   'lampclear',
   'lampred',
+  'brakestrip',
   'redcover',
   'headlight22',
   'tail22',
