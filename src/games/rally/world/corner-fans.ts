@@ -1,4 +1,9 @@
 import { hash3, hashString, Rng } from '../../../shared/rng';
+import {
+  SPECTATOR_SEATED_COUNT,
+  SPECTATOR_SEATED_FROM,
+  SPECTATOR_VARIANTS,
+} from '../assets/catalog';
 import type { CornerFansRule } from '../maps/shared/types';
 import { newRoadQuery, type Road } from './road';
 import type { ScatterInstance } from './scatter';
@@ -102,7 +107,10 @@ export function cornerFanInstances(
         'spectator',
         (sub.next() - 0.5) * len * 0.9,
         tapeOff + 1.5 + sub.next() * 4,
-        sub.int(0, 5),
+        // About one in five sits or squats at the roadside.
+        sub.next() < 0.2
+          ? SPECTATOR_SEATED_FROM + sub.int(0, SPECTATOR_SEATED_COUNT - 1)
+          : sub.int(0, SPECTATOR_VARIANTS - 1),
         sub.range(-0.5, 0.5),
       );
     for (let i = 0; i < flags; i++)

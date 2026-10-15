@@ -59,6 +59,18 @@ export interface AssetMeta {
   breakable?: { r: number; h: number; slow?: number };
 }
 
+/** Standing fans (variants 0-23); 24-41 sit or squat (SPECTATOR_SEATED_FROM..). */
+export const SPECTATOR_VARIANTS = 24;
+export const SPECTATOR_SEATED_FROM = 24;
+export const SPECTATOR_SEATED_COUNT = 18;
+
+/** Figures: full detail near (shadows), a simpler body, then a two-box silhouette. */
+const PEOPLE_LODS: LodSpec[] = [
+  { maxDistance: 70, castShadow: true },
+  { maxDistance: 220, castShadow: false },
+  { maxDistance: 520, castShadow: false },
+];
+
 export const ASSET_CATALOG: AssetMeta[] = [
   // --- vegetation (detail layer; trees and bushes grow from L-systems: trees/species.ts) ---
   {
@@ -151,12 +163,63 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Spectator',
     category: 'props',
     description:
-      'Low-poly standing fan with random clothing colours (variant = outfit).',
-    variants: 6,
-    lods: [
-      { maxDistance: 100, castShadow: true },
-      { maxDistance: 500, castShadow: false },
-    ],
+      'Fan made of jointed parts (assets/builders/people.ts). Variant % 6 = outfit (jacket, T-shirt + cap, hoodie, hi-vis vest, backpack, supporter shirt), variant / 6 = pose (stand, wave, camera, hands in pockets); variants 24-41: sitting on the ground, knees up, squatting.',
+    variants: SPECTATOR_VARIANTS + SPECTATOR_SEATED_COUNT,
+    lods: PEOPLE_LODS,
+  },
+  {
+    id: 'mechanic',
+    name: 'Mechanic',
+    category: 'props',
+    description:
+      'Service-park mechanic in team overalls. Variant % 12 = team (builders/teams.ts), variant / 12 = pose (crouch at a wheel, bent over the nose, kneel).',
+    variants: 36,
+    lods: PEOPLE_LODS,
+  },
+  {
+    id: 'crew',
+    name: 'Team crew',
+    category: 'props',
+    description:
+      'Team member in a team shirt. Variant % 12 = team, variant / 12 = pose (carrying a tyre, engineer with a laptop, manager with crossed arms).',
+    variants: 36,
+    lods: PEOPLE_LODS,
+  },
+  {
+    id: 'driver',
+    name: 'Driver',
+    category: 'props',
+    description:
+      'Driver / co-driver in a race suit. Variant % 12 = team, variant / 12 = pose (helmet in hand, arms crossed).',
+    variants: 24,
+    lods: PEOPLE_LODS,
+  },
+  {
+    id: 'marshal',
+    name: 'Marshal',
+    category: 'props',
+    description:
+      'Stage marshal / official in a hi-vis tabard with reflective bands (variant % 6 = tabard colour; variants 0-11: variant % 4 = pose stand, pointing, hands in pockets, phone; 12-23: yellow flag, green sign on a pole, radio, arms crossed).',
+    variants: 24,
+    lods: PEOPLE_LODS,
+  },
+  {
+    id: 'photographer',
+    name: 'Photographer',
+    category: 'props',
+    description:
+      'Press photographer / camera operator in a coloured bib. Variant % 6 = pose (long lens raised, low shot, kneeling, shoulder video camera, tripod, camera lowered), variant / 6 % 4 = bib colour.',
+    variants: 24,
+    lods: PEOPLE_LODS,
+  },
+  {
+    id: 'visitor',
+    name: 'Visitor',
+    category: 'props',
+    description:
+      'Casual person visiting: variant % 4 = pose (walking, drinking, on the phone, standing), variant / 4 = persona (man, woman, child, older man / woman, dress, teen, tourist, coat, big man, small child, fan).',
+    variants: 48,
+    lods: PEOPLE_LODS,
   },
   {
     id: 'tape_post',

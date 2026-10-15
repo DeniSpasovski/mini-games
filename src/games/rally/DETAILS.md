@@ -29,7 +29,7 @@ gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
 | `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                                                                  |
 | `tod=<hours>`, `tonemap=`  | all   | look experiments: time of day (maps with `environment.timeOfDay`), `aces / agx / neutral`                                                           |
 | `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the map's `environment.airTemp`)                                                                |
-| `perf=1`                   | play  | open the perf panel (below)                                                                                                         |
+| `perf=1`                   | play  | open the perf panel (below)                                                                                                                         |
 
 Perf panel (`` ` `` key in game or `perf=1`, `game/perf-panel.ts`): FPS, frame ms, CPU ms per frame step, GPU ms (timer
 queries; "Wait for GPU" measures it by a readback where they are missing), draw calls, triangles; switches for every
@@ -147,6 +147,8 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain).
 - **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
   spectators, flags (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`).
+- **People** (`assets/builders/people.ts`): jointed low-poly figures posed by joint angles + outfit colours - `spectator` (24 standing + 18 sitting / squatting at corner fans),
+  `mechanic`, `crew`, `driver`, `marshal` (flag, sign, radio), `photographer`, `visitor` (12 personas: ages, sizes, dresses, kids); test `people`.
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)
   puts them on the outside of every tight bend of a mountain road (Galichica).
 - **Other roads** (`paths`): tarmac ribbons, dirt paint or canals with their own surface; side roads carved with grade limits
