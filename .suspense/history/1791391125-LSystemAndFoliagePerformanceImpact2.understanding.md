@@ -1,8 +1,0 @@
-- [A tree stats overlay is shown with the LOD debug toggle](.claude/reference/trees/Performance.md#counters)
-- [Per frame it shows trees per level and fading, tree triangles and draw calls incl. shadow passes](.claude/reference/trees/Performance.md#counters)
-- [Per frame it shows GPU time of the tree main pass and tree shadow pass on their own](.claude/reference/trees/Performance.md#counters)
-- [Per frame it shows CPU time of level selection and fade updates](.claude/reference/trees/Performance.md#counters)
-- [At load it records derive/mesh/bake time, cache hits, and GPU and disk memory of variants](.claude/reference/trees/Performance.md#counters)
-- [A benchmark runs a fixed camera path along a stage: average, 1% low and worst frame time, tree GPU time, load time](.claude/reference/trees/Performance.md#benchmark)
-- [The benchmark can run the same path with trees off; the trees' cost is the difference](.claude/reference/trees/Performance.md#benchmark)
-- [Results go to a file with stage, quality, resolution and GPU](.claude/reference/trees/Performance.md#benchmark)

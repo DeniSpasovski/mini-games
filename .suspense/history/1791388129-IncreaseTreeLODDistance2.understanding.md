@@ -1,6 +1,0 @@
-- [Default thresholds: LOD0->1 below 6%, LOD1->2 below 2.5%, LOD2->impostor below 1% of screen height](.claude/reference/trees/Lod.md#selection)
-- [A tree within 120 m of the camera is always LOD0, whatever its height, FOV or quality](.claude/reference/trees/Lod.md#selection)
-- [Projected height is from the bounding sphere and the steady camera, with 15% hysteresis](.claude/reference/trees/Lod.md#selection)
-- [Quality scaling may bring thresholds closer but never inside 120 m](.claude/reference/trees/Lod.md#budget)
-- [LOD1 merged cards use the same leaf texture at the same texel density, crown-blended normals and colour as the clusters they replace](.claude/reference/trees/Lod.md#levels)
-- [Level changes still use the 0.3 s dithered cross-fade](.claude/reference/trees/Lod.md#transition)

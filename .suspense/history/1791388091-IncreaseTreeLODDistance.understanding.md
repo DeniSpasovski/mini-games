@@ -1,8 +1,0 @@
-- [The LOD is picked by the tree's height on screen, not raw distance](.claude/reference/trees/Lod.md#selection)
-- [Default thresholds: LOD1 below 6% of screen height, LOD2 below 2.5%, impostor below 1%](.claude/reference/trees/Lod.md#selection)
-- [A tree within 120 m of the camera is always LOD0](.claude/reference/trees/Lod.md#selection)
-- [A tree goes back to a finer level only 15% above the threshold](.claude/reference/trees/Lod.md#selection)
-- [Quality settings may bring thresholds closer, but never inside 120 m](.claude/reference/trees/Lod.md#budget)
-- [LOD1's merged leaf cards match LOD0 in texture, texel density, normals and colour](.claude/reference/trees/Lod.md#levels)
-- [LOD changes are a 0.3 s dithered cross-fade, never a swap](.claude/reference/trees/Lod.md#transition)
-- [LOD changes never show as pops in silhouette, crown volume, colour or lighting](.claude/reference/trees/ProceduralTrees.md#goals)

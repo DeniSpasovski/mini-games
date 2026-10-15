@@ -1,1 +1,0 @@
-- [The rally game's trees are built in its existing codebase, language and renderer, with no second engine](.claude/reference/trees/ProceduralTrees.md#integration)
