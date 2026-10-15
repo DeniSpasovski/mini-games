@@ -86,6 +86,14 @@ export const subie22b: CarDef = {
       note: 'specs reference (2.2 l, 280 PS, 5-speed AWD), looked at only',
     },
   ],
+  // Night headlights: rally lamps with driving lights.
+  headlights: {
+    power: 1.0,
+    color: 0xfff0d0,
+    angle: 0.4,
+    penumbra: 0.5,
+    spill: 0.2,
+  },
   // 2.2 l boxer four with a turbo and a free-flowing exhaust: lumpy, unequal-length headers.
   sound: {
     layout: 'flat4',

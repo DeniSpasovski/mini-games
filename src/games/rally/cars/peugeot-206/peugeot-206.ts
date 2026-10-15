@@ -88,6 +88,14 @@ export const peugeot206: CarDef = {
       note: 'specification reference (206 GTi 180: 2.0 litre, 180 hp, 202 Nm)',
     },
   ],
+  // Night headlights: 2000s halogen.
+  headlights: {
+    power: 0.85,
+    color: 0xffe9c0,
+    angle: 0.46,
+    penumbra: 0.65,
+    spill: 0.22,
+  },
   // 2.0 litre 16V four on a sports exhaust, naturally aspirated, 5-speed manual.
   sound: {
     layout: 'i4',

@@ -108,6 +108,14 @@ export const bimmerM3: CarDef = {
       note: 'livery reference',
     },
   ],
+  // Night headlights: 80s halogen.
+  headlights: {
+    power: 0.8,
+    color: 0xffe5b8,
+    angle: 0.45,
+    penumbra: 0.7,
+    spill: 0.22,
+  },
   // Flat-plane race V8 (S65 / P65 style, ~4 l: a high howl, not a burble), open race exhaust, individual throttle bodies, sequential race box.
   sound: {
     layout: 'v8flat',
