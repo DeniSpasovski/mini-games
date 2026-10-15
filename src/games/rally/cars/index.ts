@@ -15,11 +15,10 @@ import { zastava101 } from './zastava-101/zastava-101';
 
 /** Car registry in menu order (AWD, FWD, RWD; each by name), test-only cars included. Add new cars here + a `hideInProd` row to CARS_LIST in release.ts (see .claude/skills/rally-content). */
 export const ALL_CARS: CarDef[] = [
-  // AWD, by name
-  audiRs6,
   citroenC4,
   fiesta,
   lancerEvo6,
+  audiRs6,
   skodaRally,
   subie22b,
   // FWD, by name
