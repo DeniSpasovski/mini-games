@@ -6,7 +6,7 @@ parts by material only (no cuts). In game it is **Ford Mustang GT3**: RWD, 1300 
 - **Kept from the model:** the body, wing, splitter and diffuser, the cockpit (seats, cage, wheel, dash) behind see-through glass, the
   3D head / tail lamps and the 10-spoke rim (de-cambered, centred on the hub).
 - **Dropped:** tyres, brake discs and calipers (the game draws its own), the windscreen banner.
-- **Paint (ours):** one flat dark blue, other seeds recolour it; no logos or lettering.
+- **Paint (ours):** dark blue with white rear-quarter stripes, a red tail and a light-blue front fender (solid on the vent, stripes towards the door) (seed 0), red wing end plates; other seeds recolour flat. No logos or lettering.
 
 ![Front three-quarter](screenshots/front-34.jpg)
 
@@ -34,7 +34,8 @@ npm run dev     # /games/rally/car-viewer.html?car=ford_gt3
 | ------------------- | ----------------------------------------------------------------------- |
 | `ford-gt3.ts`       | `CarDef`: physics, hull fitted to the model, rim, glass tint, glTF      |
 | `profile.ts`        | boxy side profile baked from the GLB: fallback body and city street car |
-| `livery.ts`         | body atlas painter: flat paint over a dark underside                    |
+| `livery.ts`         | body atlas painter: the livery (seed 0) over a dark underside           |
+| `fender-mask.ts`    | traced polygons of the solid fender blue (re-trace if the atlas changes)  |
 | `model.source.json` | converter settings (offset, atlas) and `gltf` rules (material -> part)  |
 
 ## Credits and licence
