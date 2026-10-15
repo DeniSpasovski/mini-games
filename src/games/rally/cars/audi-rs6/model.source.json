@@ -45,14 +45,14 @@
         "x": [-1.2, -0.6],
         "y": [0, 0.6],
         "z": [-3, -2.0],
-        "material": "tailled"
+        "material": "brakestrip"
       },
       {
         "node": "Object_2244",
         "x": [0.6, 1.2],
         "y": [0, 0.6],
         "z": [-3, -2.0],
-        "material": "tailled"
+        "material": "brakestrip"
       },
       {
         "node": "Object_2244",
@@ -131,7 +131,7 @@
         "mat": "red_glass",
         "y": [0, 0.6],
         "z": [-3, -2.0],
-        "material": "tailled"
+        "material": "brakestrip"
       },
       {
         "mat": "red_glass",
@@ -206,7 +206,7 @@
       "interior:2s",
       "logo",
       "reverselamp",
-      "tailled"
+      "brakestrip"
     ],
     "drop": ["logo"],
     "maxTriangles": {
