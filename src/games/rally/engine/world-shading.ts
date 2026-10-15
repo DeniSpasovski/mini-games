@@ -328,6 +328,9 @@ const FOLIAGE_TERM = /* glsl */ `
 				// Tree foliage (trees/materials.ts): a cheap wrap term for light through the leaves, weighted by the
 				// atlas / impostor thickness map (thin leaves let light through: a crown against a low sun glows).
 				float wsWrap = saturate( ( dot( - geometryNormal, directLight.direction ) + 0.5 ) / 1.5 );
+				// ... and a half-Lambert wrap on the sun's diffuse, so a crown turning from the sun darkens softly.
+				float wsLam = dot( geometryNormal, directLight.direction );
+				reflectedLight.directDiffuse += directLight.color * BRDF_Lambert( material.diffuseColor ) * ( saturate( ( wsLam + 0.5 ) / 1.5 ) - saturate( wsLam ) );
 				reflectedLight.directDiffuse += directLight.color * material.diffuseColor * ( float( RALLY_FOLIAGE ) * wsWrap * ( 1.0 - tlThickness ) );
 			#else
 				float wsBack = saturate( dot( - geometryViewDir, directLight.direction ) );

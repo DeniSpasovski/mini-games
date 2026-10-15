@@ -12,7 +12,7 @@ A species is a data definition that the tree code reads, so adding or tuning a k
 - branching angle, length scale, radius at the base and radius decay.
 - tropism vector and strength.
 - bark material and its texture tiling along the branch length.
-- foliage kind, conifer needles or broadleaf, with its cluster sprite atlas, sprite size, density and a colour palette ([Foliage](./Foliage.md#foliage)).
+- foliage kind, conifer needles or broadleaf, with its cluster sprite atlas (a leaf style), sprite size and a colour palette ([Foliage](./Foliage.md#foliage)).
 - a variant count.
 - LOD settings that override the defaults ([Lod](./Lod.md#lod)).
 - a scale range for instances.

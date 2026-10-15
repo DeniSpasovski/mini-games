@@ -1,3 +1,4 @@
+import type { LeafStyle } from './leaftex';
 import { hashText } from './math';
 
 /**
@@ -94,8 +95,8 @@ export interface SpeciesDef {
     kind: FoliageKind;
     /** Sprite size (m) at a leaf point, before the cluster-size variation. */
     spriteSize: number;
-    /** Leaves (or sprays) per cluster image of the atlas, relative to the default. */
-    density: number;
+    /** The leaf style: which atlas (trees/leaftex.ts) the cluster sprites are cut from. */
+    leaf: LeafStyle;
     palette: string[];
   };
   lod?: Partial<LodSettings>;
@@ -103,7 +104,7 @@ export interface SpeciesDef {
   scale: [number, number];
   /** Branches thinner than this (m) are left out: the foliage sprites cover them (trees/Lod.md#levels). */
   twigRadius: number;
-  /** Most LOD0 branch triangles (6,000; shrubs 2,000) and sprites per crown (600; shrubs 200). */
+  /** Most LOD0 branch triangles (6,000; shrubs 2,000) and sprites per crown (broadleaf 360, conifers 400; shrubs 200). */
   maxBranchTriangles: number;
   maxSprites: number;
   /** Trunk / first-order limb segments at least this thick (m) collide (trees/Placement.md#collision). */
@@ -188,9 +189,9 @@ function broadleaf(o: BroadleafShape): SpeciesDef {
     bark: o.bark,
     foliage: o.foliage,
     scale: o.scale,
-    twigRadius: 0.03,
+    twigRadius: 0.048,
     maxBranchTriangles: 6000,
-    maxSprites: 600,
+    maxSprites: 360,
     collisionRadius: 0.1,
     variants: o.variants,
   };
@@ -300,13 +301,13 @@ export const PINE: SpeciesDef = {
   foliage: {
     kind: 'needles',
     spriteSize: 1.3,
-    density: 1,
+    leaf: 'pine',
     palette: ['#2f4a26', '#355229', '#2a4322', '#3b5a2c'],
   },
   scale: [0.95, 1.35],
-  twigRadius: 0.03,
+  twigRadius: 0.048,
   maxBranchTriangles: 6000,
-  maxSprites: 600,
+  maxSprites: 400,
   collisionRadius: 0.1,
   variants: 6,
 };
@@ -354,13 +355,13 @@ export const BLACK_PINE: SpeciesDef = {
   foliage: {
     kind: 'needles',
     spriteSize: 1.5,
-    density: 1.2,
+    leaf: 'pine',
     palette: ['#22341c', '#2a3d20', '#1f3019', '#2e4423'],
   },
   scale: [0.9, 1.2],
-  twigRadius: 0.03,
+  twigRadius: 0.048,
   maxBranchTriangles: 6000,
-  maxSprites: 600,
+  maxSprites: 400,
   collisionRadius: 0.1,
   variants: 4,
 };
@@ -399,7 +400,7 @@ export const JUNIPER: SpeciesDef = {
   foliage: {
     kind: 'needles',
     spriteSize: 0.75,
-    density: 1.4,
+    leaf: 'juniper',
     palette: ['#24361f', '#2b3f26', '#1f2f1c', '#2f4129'],
   },
   scale: [0.85, 1.2],
@@ -425,7 +426,7 @@ export const OAK = broadleaf({
   foliage: {
     kind: 'broadleaf',
     spriteSize: 1.7,
-    density: 1,
+    leaf: 'lobed',
     palette: ['#465f28', '#52702f', '#3f5824', '#5a7832', '#4c682b'],
   },
   scale: [0.9, 1.3],
@@ -447,7 +448,7 @@ export const BEECH = broadleaf({
   foliage: {
     kind: 'broadleaf',
     spriteSize: 1.8,
-    density: 1.1,
+    leaf: 'ovate',
     palette: ['#5c8a2a', '#6a9830', '#77a336', '#527e26'],
   },
   scale: [0.95, 1.25],
@@ -472,7 +473,7 @@ export const HORNBEAM = broadleaf({
   foliage: {
     kind: 'broadleaf',
     spriteSize: 1.65,
-    density: 1.25,
+    leaf: 'serrate',
     palette: ['#74a42e', '#82b236', '#68982a', '#8fbc40', '#5c8a26'],
   },
   scale: [0.85, 1.3],
@@ -494,7 +495,7 @@ export const WALNUT = broadleaf({
   foliage: {
     kind: 'broadleaf',
     spriteSize: 1.9,
-    density: 1.3,
+    leaf: 'round',
     palette: ['#36501f', '#3d5823', '#42602a', '#334a1d'],
   },
   scale: [0.95, 1.2],
@@ -517,7 +518,7 @@ export const FRUIT_TREE: SpeciesDef = {
     foliage: {
       kind: 'broadleaf',
       spriteSize: 1.1,
-      density: 1.1,
+      leaf: 'round',
       palette: ['#56752f', '#5f7f35', '#4d6a2a', '#68863a'],
     },
     scale: [0.9, 1.15],
@@ -542,7 +543,7 @@ export const PLANE = broadleaf({
   foliage: {
     kind: 'broadleaf',
     spriteSize: 1.6,
-    density: 0.75,
+    leaf: 'lobed',
     palette: ['#7f9a3e', '#8ca646', '#74903a', '#97a84a'],
   },
   scale: [0.95, 1.2],
@@ -580,13 +581,13 @@ export const BIRCH: SpeciesDef = {
   foliage: {
     kind: 'broadleaf',
     spriteSize: 1.1,
-    density: 0.8,
+    leaf: 'small',
     palette: ['#6a8a3a', '#78963f', '#5f7f34', '#829e44'],
   },
   scale: [0.9, 1.2],
-  twigRadius: 0.025,
+  twigRadius: 0.04,
   maxBranchTriangles: 5000,
-  maxSprites: 600,
+  maxSprites: 360,
   collisionRadius: 0.1,
   variants: 4,
 };
@@ -615,7 +616,7 @@ export const SAPLING: SpeciesDef = {
   foliage: {
     kind: 'broadleaf',
     spriteSize: 1,
-    density: 0.85,
+    leaf: 'ovate',
     palette: ['#8a9a3a', '#9aa640', '#7b8f36', '#a8a848'],
   },
   scale: [0.9, 1.15],
@@ -656,13 +657,13 @@ export const POPLAR: SpeciesDef = {
   foliage: {
     kind: 'broadleaf',
     spriteSize: 1.3,
-    density: 1.1,
+    leaf: 'round',
     palette: ['#4f6e2c', '#5a7a32', '#47652a', '#62823a'],
   },
   scale: [0.95, 1.25],
-  twigRadius: 0.03,
+  twigRadius: 0.048,
   maxBranchTriangles: 5000,
-  maxSprites: 600,
+  maxSprites: 360,
   // The trunk alone: its many short limbs stay out of the physics.
   collisionRadius: 0.17,
   variants: 4,
@@ -709,13 +710,13 @@ export const WILLOW: SpeciesDef = {
   foliage: {
     kind: 'broadleaf',
     spriteSize: 0.9,
-    density: 0.9,
+    leaf: 'narrow',
     palette: ['#8ea24e', '#9cb05a', '#829a48', '#a6b864'],
   },
   scale: [0.9, 1.15],
-  twigRadius: 0.02,
+  twigRadius: 0.032,
   maxBranchTriangles: 6000,
-  maxSprites: 600,
+  maxSprites: 360,
   collisionRadius: 0.1,
   variants: 4,
 };
@@ -732,7 +733,7 @@ export const BUSH = shrub({
   foliage: {
     kind: 'broadleaf',
     spriteSize: 0.85,
-    density: 1.2,
+    leaf: 'small',
     palette: ['#45602a', '#3e5826', '#52702f', '#4a5f2a'],
   },
   scale: [0.8, 1.3],
@@ -751,7 +752,7 @@ export const SCRUB = shrub({
   foliage: {
     kind: 'broadleaf',
     spriteSize: 0.75,
-    density: 1.4,
+    leaf: 'small',
     palette: ['#4a5230', '#535b34', '#434a2b', '#5a6038'],
   },
   scale: [0.85, 1.2],
@@ -770,7 +771,7 @@ export const HAZEL = shrub({
   foliage: {
     kind: 'broadleaf',
     spriteSize: 1.1,
-    density: 1.1,
+    leaf: 'serrate',
     palette: ['#5f8a34', '#6a953a', '#557d2f', '#73a040'],
   },
   scale: [0.9, 1.15],
@@ -789,7 +790,7 @@ export const THICKET = shrub({
   foliage: {
     kind: 'broadleaf',
     spriteSize: 1,
-    density: 1.4,
+    leaf: 'small',
     palette: ['#8a6a2a', '#9a5a26', '#6f6a2c', '#a27a30', '#5d6a2a'],
   },
   scale: [0.85, 1.2],
@@ -808,7 +809,7 @@ export const BROOM = shrub({
   foliage: {
     kind: 'broadleaf',
     spriteSize: 0.6,
-    density: 1.3,
+    leaf: 'narrow',
     palette: ['#e2c22a', '#d6b220', '#ecd23e', '#6e8e2c', '#e8c62e'],
   },
   scale: [0.8, 1.2],

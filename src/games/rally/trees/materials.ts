@@ -19,7 +19,7 @@ import {
   type WebGLProgramParametersWithUniforms,
 } from 'three';
 import { addWorldUniforms } from '../engine/world-shading';
-import { ALPHA_TEST, spriteAtlas } from './leaftex';
+import { ALPHA_TEST, spriteAtlas, type LeafStyle } from './leaftex';
 import { mix32, unit } from './math';
 import {
   FAR_RAMP,
@@ -27,7 +27,6 @@ import {
   FULL_DETAIL_DISTANCE,
   NEAR_SPRITES,
   type BarkTexture,
-  type FoliageKind,
 } from './species';
 
 /**
@@ -239,6 +238,8 @@ const VERTEX_COLLAPSE = /* glsl */ `
 `;
 
 const FRAGMENT_PARS = /* glsl */ `
+const float TREE_SKY_LEAN = 0.8;
+const float TREE_LEAF_FILL = 0.06;
 #ifdef TREE_SPRITE
 uniform sampler2D tlSprNormal;
 uniform float tlDepthOnly;
@@ -300,6 +301,12 @@ const FRAGMENT_AMBIENT = /* glsl */ `
 	#ifdef TREE_SKY
 		if ( tlSkyOn > 0.5 ) {
 			vec3 tSkyN = inverseTransformDirection( normal, viewMatrix );
+			#if defined( TREE_SPRITE ) || defined( TREE_IMPOSTOR )
+				// Foliage: the sky light of a leaf is soft whatever way its crown faces (light bounces between the
+				// leaves, and the ground), so the sky normal leans up and a little light is always there.
+				tSkyN = normalize( tSkyN + vec3( 0.0, TREE_SKY_LEAN, 0.0 ) );
+				reflectedLight.indirectDiffuse += material.diffuseColor * ( TREE_LEAF_FILL * vTreeAO );
+			#endif
 			reflectedLight.indirectDiffuse += shGetIrradianceAt( tSkyN, tlSky ) * BRDF_Lambert( material.diffuseColor ) * vTreeAO;
 		} else reflectedLight.indirectDiffuse *= FALLBACK_AMBIENT;
 	#endif
@@ -465,17 +472,17 @@ export function barkTexture(kind: BarkTexture): Texture {
 }
 
 /**
- * The sprite atlas textures of a foliage kind (pixels from trees/leaftex.ts): albedo + alpha (sRGB) and normal +
+ * The sprite atlas textures of a leaf style (pixels from trees/leaftex.ts): albedo + alpha (sRGB) and normal +
  * thickness (linear), both with coverage-preserving mipmaps (the normal map follows the albedo's alpha scale).
  */
-export function spriteTextures(
-  kind: FoliageKind,
-  density: number,
-): { albedo: Texture; normal: Texture } {
-  const key = `sprite:${kind}:${density}`;
+export function spriteTextures(style: LeafStyle): {
+  albedo: Texture;
+  normal: Texture;
+} {
+  const key = `sprite:${style}`;
   const hit = textures.get(`${key}:a`);
   if (hit) return { albedo: hit, normal: textures.get(`${key}:n`)! };
-  const atlas = spriteAtlas(kind, density);
+  const atlas = spriteAtlas(style);
   const mips = coverageMips(
     atlas.albedo,
     atlas.width,
@@ -668,14 +675,11 @@ function litSpriteDepth(m: Material): void {
 }
 
 /** The lit foliage sprites (trees/Foliage.md#shading), after the depth prepass while it is on (`setSpritePrepass`). */
-export function spriteMaterial(
-  kind: FoliageKind,
-  density: number,
-): MeshLambertMaterial {
-  const key = `sprite:lit:${kind}:${density}`;
+export function spriteMaterial(style: LeafStyle): MeshLambertMaterial {
+  const key = `sprite:lit:${style}`;
   let m = materials.get(key) as MeshLambertMaterial | undefined;
   if (m) return m;
-  m = spriteLit(kind, density, false);
+  m = spriteLit(style, false);
   m.name = `tree ${key}`;
   litSpriteDepth(m);
   materials.set(key, m);
@@ -686,14 +690,11 @@ export function spriteMaterial(
  * Far sprites (trees/draw.ts: quads, one lit pass): the sprite program with the normal depth test, writing depth,
  * whatever `setSpritePrepass` says (no prepass draws them).
  */
-export function spriteFarMaterial(
-  kind: FoliageKind,
-  density: number,
-): MeshLambertMaterial {
-  const key = `sprite:far:${kind}:${density}`;
+export function spriteFarMaterial(style: LeafStyle): MeshLambertMaterial {
+  const key = `sprite:far:${style}`;
   let m = materials.get(key) as MeshLambertMaterial | undefined;
   if (m) return m;
-  m = spriteLit(kind, density, false);
+  m = spriteLit(style, false);
   m.name = `tree ${key}`;
   materials.set(key, m);
   return m;
@@ -720,12 +721,8 @@ export function proxyMaterial(): MeshBasicMaterial {
  * Lambert, not standard: a leaf cluster at roughness ~0.85 has next to no specular, and the sprites are most of the
  * tree pixels (trees/Performance.md#hotspots); the same sun, sky ambient, shadows, fog and leaf translucency.
  */
-function spriteLit(
-  kind: FoliageKind,
-  density: number,
-  depthOnly: boolean,
-): MeshLambertMaterial {
-  const tex = spriteTextures(kind, density);
+function spriteLit(style: LeafStyle, depthOnly: boolean): MeshLambertMaterial {
+  const tex = spriteTextures(style);
   const m = new MeshLambertMaterial({
     vertexColors: true,
     map: tex.albedo,
@@ -761,14 +758,11 @@ export function setSpritePrepassDebug(on: boolean): void {
  * Sprite depth prepass: the lit sprites' own program (`spriteLit`) stopping after the alpha test, depth only.
  * Colour only in the equal-test debug view: magenta, so what the lit pass then fails to cover stays magenta.
  */
-export function spritePrepassMaterial(
-  kind: FoliageKind,
-  density: number,
-): MeshLambertMaterial {
-  const key = `sprite:prepass:${kind}:${density}`;
+export function spritePrepassMaterial(style: LeafStyle): MeshLambertMaterial {
+  const key = `sprite:prepass:${style}`;
   let m = materials.get(key) as MeshLambertMaterial | undefined;
   if (m) return m;
-  m = spriteLit(kind, density, true);
+  m = spriteLit(style, true);
   m.name = `tree ${key}`;
   m.colorWrite = false;
   materials.set(key, m);

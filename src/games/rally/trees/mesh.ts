@@ -26,7 +26,7 @@ import type { SpeciesDef } from './species';
  *  - LOD0: every segment at least the species' `twigRadius` thick as a tapered tube (fewer sides per higher order);
  *    thinner twigs are left out, the sprites cover them. Capped at `maxBranchTriangles` (the twig radius grows until
  *    it fits).
- *  - LOD1: the trunk and first-order limbs of LOD0 (the levels nest: same segments, same place and radius).
+ *  - LOD1: the trunk and the thicker first-order limbs of LOD0 (the levels nest: same segments, same place and radius).
  *  - Sprites: one per leaf point, at most `maxSprites` (the most important ones, grown to keep the crown's area),
  *    drawn with every branch level and thinned continuously with distance by the shader (trees/materials.ts).
  * The impostor is baked from LOD0 + the sprites (trees/impostor.ts).
@@ -91,6 +91,9 @@ export interface VariantMeshes {
 const OVERLAP_TIP = 0.75;
 
 /** Tube sides per branch order (last entry for every higher order). */
+/** LOD1 keeps the trunk and the first-order limbs at least `height / LOD1_LIMB_DIV` thick. */
+const LOD1_LIMB_DIV = 120;
+
 const SIDES: number[][] = [
   [8, 5, 4, 3],
   [6, 4],
@@ -171,6 +174,11 @@ function crownAt(cr: Crown, p: V3): { e: number; n: V3 } {
 /** Ambient occlusion from how deep a point sits inside the crown (0.5 at its heart: sky still reaches in). */
 function occlusion(cr: Crown, p: V3): number {
   return 0.5 + 0.5 * smoothstep(0.1, 1.0, crownAt(cr, p).e);
+}
+
+/** A sprite's: leaves in a crown's heart are shaded but not black (0.8 at the heart). */
+function spriteOcclusion(cr: Crown, p: V3): number {
+  return 0.8 + 0.2 * smoothstep(0.1, 1.0, crownAt(cr, p).e);
 }
 
 function perpendicular(d: V3): V3 {
@@ -264,6 +272,16 @@ function leafColor(def: SpeciesDef, seed: number, l: number): V3 {
   return scale(c, rng.range(0.88, 1.1));
 }
 
+/** Thin twigs that show between the leaves are dark brown, not the pale grey of the trunk. */
+function twigBark(bark: V3, order: number): V3 {
+  const k = Math.min(1, Math.max(0, (order - 1) / 2));
+  return [
+    bark[0] + (0.06 * 0.9 - bark[0]) * k,
+    bark[1] + (0.045 * 0.9 - bark[1]) * k,
+    bark[2] + (0.03 * 0.9 - bark[2]) * k,
+  ];
+}
+
 function mean(cs: V3[]): V3 {
   let m: V3 = [0, 0, 0];
   for (const c of cs) m = madd(m, c, 1 / cs.length);
@@ -285,12 +303,15 @@ function branches(
   const b1 = new Builder();
   let n0 = 0;
   let n1 = 0;
+  // LOD1 starts where a tree is 7 % of the screen high: a limb under 1 / 120 of its height is under a pixel wide there.
+  const limb = sk.height / LOD1_LIMB_DIV;
   sk.segments.forEach((s, i) => {
     if (s.r0 < twig) return;
-    tube(b0, sk, i, sides(0, s.order), bark, def.bark.tiling, cr, wd);
+    const tint = twigBark(bark, s.order);
+    tube(b0, sk, i, sides(0, s.order), tint, def.bark.tiling, cr, wd);
     n0++;
-    if (s.order <= 1) {
-      tube(b1, sk, i, sides(1, s.order), bark, def.bark.tiling, cr, wd);
+    if (s.order === 0 || (s.order === 1 && s.r0 >= limb)) {
+      tube(b1, sk, i, sides(1, s.order), tint, def.bark.tiling, cr, wd);
       n1++;
     }
   });
@@ -323,7 +344,7 @@ function sprites(
   wd: WindData,
   colors: V3[],
 ): SpriteData {
-  const atlas = spriteAtlas(def.foliage.kind, def.foliage.density);
+  const atlas = spriteAtlas(def.foliage.leaf);
   const order = spriteOrder(sk, seed);
   const kept = order.slice(0, def.maxSprites);
   // Fewer sprites than leaf points: each kept one grows so the crown covers the same area.
@@ -358,7 +379,7 @@ function sprites(
         ? madd(l.pos, l.heading, -0.3 * size)
         : l.pos;
     const n = crownAt(cr, centre).n;
-    const ao = occlusion(cr, centre);
+    const ao = spriteOcclusion(cr, centre);
     const w = leafWind(sk, wd, l);
     const shape = atlas.outlines[image];
     const base = pos.length / 3;

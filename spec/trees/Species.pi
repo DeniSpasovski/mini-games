@@ -15,7 +15,7 @@ export anchor Species:
         - branching angle, length scale, radius at the base and radius decay.
         - tropism vector and strength.
         - bark material and its texture tiling along the branch length.
-        - foliage kind, conifer needles or broadleaf, with its cluster sprite atlas, sprite size, density and a colour palette (@{Foliage}).
+        - foliage kind, conifer needles or broadleaf, with its cluster sprite atlas (a leaf style), sprite size and a colour palette (@{Foliage}).
         - a variant count.
         - LOD settings that override the defaults (@{Lod}).
         - a scale range for instances.

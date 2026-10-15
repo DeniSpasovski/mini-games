@@ -16,7 +16,7 @@ import {
  */
 
 /** Bump when generated output changes for the same species and seed: cached variants regenerate. */
-export const GENERATOR_VERSION = 7;
+export const GENERATOR_VERSION = 8;
 
 export interface TreeVariantInfo {
   species: string;

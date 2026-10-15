@@ -303,9 +303,9 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   its description names (`TREE_TYPES`: pine, black pine, juniper, oak, walnut, fruit tree, plane, birch, sapling, poplar,
   willow, bush, scrub, hazel, thicket); 6 variants for pine / oak / bush / scrub, 4 for the rest. The map's `scale`
   multiplies the species size.
-  Branches are tubes at two levels (LOD0 = the skeleton without twigs, LOD1 = trunk + first-order limbs), then an
+  Branches are tubes at two levels (LOD0 = the skeleton without twigs, LOD1 = trunk + the first-order limbs thicker than 1/120 of the tree's height), then an
   octahedral impostor (albedo, normal + depth, thickness: lit like everything else). Foliage = one lit, camera-facing
-  cluster sprite per leaf point from a per-kind atlas of 8 images (`trees/leaftex.ts`: albedo, normal + thickness),
+  cluster sprite per leaf point from the atlas of its species' leaf style (`foliage.leaf`, 8 styles x 8 images of 256 px, `trees/leaftex.ts`: albedo, normal + thickness; a leaf is a few % of the image),
   drawn with both branch levels; a crown draws its highest-ranked 35 % (`NEAR_SPRITES`, the rest left out, the kept
   ones grown to the same coverage) within the full-detail distance (`FULL_DETAIL_DISTANCE`, 40 m: the only trees with
   LOD0 branches); over the next 60 m (`FAR_RAMP`, smooth) it eases to the far share (`FAR_SPRITES`: 20 %), then on to 15 % at
@@ -334,8 +334,8 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 - Tree shading: sprites (Lambert: diffuse only) / impostors go through the lit path (sun, shadows, fog); the sky's diffuse light is
   spherical harmonics of the environment (`setTreeSky`, engine/environment.ts) instead of the env map, so they read 2
   atlas textures + shadow map + cloud noise. Sprite normals = crown ellipsoid bent by the atlas normal map;
-  translucency = a wrap term on the thickness map. Caps: LOD0 branches <= 6,000 triangles (shrubs 2,000), <= 600
-  sprites (shrubs 200). Wind fades out by 110 m (`TREE_WIND_FAR`; past it the vertex work is skipped).
+  translucency = a wrap term on the thickness map; the sky light leans up and a small fill light keeps shaded crowns green. Caps: LOD0 branches <= 6,000 triangles (shrubs 2,000), <= 400
+  sprites (broadleaf 360, shrubs 200). Wind fades out by 110 m (`TREE_WIND_FAR`; past it the vertex work is skipped).
 - Tree drawing (spec `trees/Drawing`): every tree mesh is opaque, depth-tested and depth-writing; the depth buffer
   alone decides what is in front (nothing sorted). Sprite parts (`trees/draw.ts`): crowns within
   `NEAR_SPRITE_DISTANCE` (55 m) use the tight outlines with a depth prepass, then shade where the depth is not behind it

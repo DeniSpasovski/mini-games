@@ -1459,7 +1459,7 @@ export class TreeRenderer {
     tag: string,
   ): void {
     const name = `tree ${lv.info.species}#${lv.info.index} ${tag}`;
-    const { kind, density } = lv.def.foliage;
+    const { leaf } = lv.def.foliage;
     if (part === NEAR_PART) {
       const keep = Math.min(1, NEAR_SPRITES * (1 + KEEP_WINDOW));
       b.sprites = Math.max(1, Math.ceil(keep * lv.spriteCount));
@@ -1471,7 +1471,7 @@ export class TreeRenderer {
       const pre = this.addMesh(
         b,
         g0,
-        spritePrepassMaterial(kind, density),
+        spritePrepassMaterial(leaf),
         `${name} depth`,
         false,
         'sprite',
@@ -1479,14 +1479,7 @@ export class TreeRenderer {
       pre.renderOrder = PREPASS_ORDER;
       this.prepassMeshes.add(pre);
       this.litSprites.add(
-        this.addMesh(
-          b,
-          g1,
-          spriteMaterial(kind, density),
-          name,
-          false,
-          'sprite',
-        ),
+        this.addMesh(b, g1, spriteMaterial(leaf), name, false, 'sprite'),
       );
     } else if (part === MID_PART || part === FAR_PART) {
       const g = this.wrap(lv.quads);
@@ -1499,14 +1492,7 @@ export class TreeRenderer {
       };
       resize();
       this.farResize.push(resize);
-      this.addMesh(
-        b,
-        g,
-        spriteFarMaterial(kind, density),
-        name,
-        false,
-        'sprite',
-      );
+      this.addMesh(b, g, spriteFarMaterial(leaf), name, false, 'sprite');
     } else if (part === PROXY_PART) {
       if (!lv.proxy) return;
       const mesh = this.addMesh(

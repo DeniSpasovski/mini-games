@@ -315,7 +315,7 @@ export class TreeLibrary {
     const sprites = spriteGeometry(meshes.sprites);
     const quads = quadSprites(meshes.sprites);
     for (const g of [sprites, quads.geometry]) crownAttributes(g, info.crown);
-    const tex = spriteTextures(def.foliage.kind, def.foliage.density);
+    const tex = spriteTextures(def.foliage.leaf);
     const pixels =
       cachedImpostor ??
       bakeImpostor(
@@ -328,7 +328,7 @@ export class TreeLibrary {
       );
     // Materials are shared per bark / foliage kind; created here so they exist before the first frame.
     barkMaterial(def.bark.texture);
-    spriteMaterial(def.foliage.kind, def.foliage.density);
+    spriteMaterial(def.foliage.leaf);
     return {
       loaded: {
         info,

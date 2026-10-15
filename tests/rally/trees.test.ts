@@ -14,7 +14,11 @@ import {
   stepFade,
   type FadeState,
 } from '../../src/games/rally/trees/draw';
-import { spriteAtlas } from '../../src/games/rally/trees/leaftex';
+import {
+  LEAF_STYLES,
+  spriteAtlas,
+  styleKind,
+} from '../../src/games/rally/trees/leaftex';
 import { HeightGrid, Horizon } from '../../src/games/rally/trees/occlusion';
 import {
   placeTree,
@@ -319,9 +323,9 @@ describe('tree performance rules (trees/Performance.md#mitigations)', () => {
     },
   );
 
-  test('the sprite atlas: 4-8 cluster images, each cut to a 6-8 vertex outline around its opaque texels', () => {
-    for (const kind of ['needles', 'broadleaf'] as const) {
-      const a = spriteAtlas(kind);
+  test('the sprite atlases: 4-8 cluster images, each cut to a 6-8 vertex outline around its opaque texels', () => {
+    for (const style of LEAF_STYLES) {
+      const a = spriteAtlas(style);
       expect(a.outlines.length).toBeGreaterThanOrEqual(4);
       expect(a.outlines.length).toBeLessThanOrEqual(8);
       for (const o of a.outlines) {
@@ -339,6 +343,14 @@ describe('tree performance rules (trees/Performance.md#mitigations)', () => {
       }
     }
   });
+
+  test.each(SPECIES.map((s) => [s.name, s] as const))(
+    '%s: its leaf style is one of the atlases and matches its foliage kind',
+    (_n, def: SpeciesDef) => {
+      expect(LEAF_STYLES).toContain(def.foliage.leaf);
+      expect(styleKind(def.foliage.leaf)).toBe(def.foliage.kind);
+    },
+  );
 
   test('without a free fade slot a settled tree keeps its level, then gets a full fade', () => {
     const st: FadeState = { from: 1, to: 1, fade: 1, dir: 1 };
@@ -385,8 +397,8 @@ describe('tree drawing (trees/Drawing.md)', () => {
     // Prepass on (the default off touch devices): the prepass writes depth, the lit sprites shade where it is not
     // behind (less-or-equal, offset toward the camera: never EQUAL, it blinked), both opaque and on the same program.
     m.setSpritePrepass(true);
-    const lit = m.spriteMaterial('broadleaf', 1);
-    const pre = m.spritePrepassMaterial('broadleaf', 1);
+    const lit = m.spriteMaterial('ovate');
+    const pre = m.spritePrepassMaterial('ovate');
     expect(lit.depthFunc).toBe(LessEqualDepth);
     expect(lit.polygonOffset).toBe(true);
     expect(lit.depthWrite).toBe(false);
