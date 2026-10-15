@@ -64,9 +64,10 @@ export const SPECTATOR_VARIANTS = 24;
 export const SPECTATOR_SEATED_FROM = 24;
 export const SPECTATOR_SEATED_COUNT = 18;
 
-/** Figures: full detail near (shadows), a simpler body, then a two-box silhouette. */
+/** Figures: smooth painted body close up, the jointed low-poly one, a boxy body, then a two-box silhouette. */
 const PEOPLE_LODS: LodSpec[] = [
-  { maxDistance: 70, castShadow: true },
+  { maxDistance: 28, castShadow: true },
+  { maxDistance: 75, castShadow: true },
   { maxDistance: 220, castShadow: false },
   { maxDistance: 520, castShadow: false },
 ];

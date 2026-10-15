@@ -11,6 +11,30 @@ import {
 import { Rng } from '../../../../shared/rng';
 import { merge, paint } from '../../engine/geo';
 import { getMaterial } from '../../engine/materials';
+import {
+  BAG,
+  cellUV,
+  GLOVE,
+  HAIR,
+  HAT,
+  HEAD,
+  HEAD_RINGS,
+  HIVIS,
+  JACKET,
+  JEANS,
+  KNIT,
+  REFLECT,
+  SKIN,
+  SLEEVE,
+  TROUSERS,
+  ball,
+  hand,
+  limb as bodyLimb,
+  loft,
+  shoe,
+  slab,
+  type Ring,
+} from './people-parts';
 import type { AssetBuilder } from '../types';
 import { TEAMS } from './teams';
 
@@ -357,8 +381,22 @@ interface Outfit {
   broad: number;
 }
 
-const SKIN = ['#f0d0b0', '#e8c4a0', '#c99a72', '#a8744c', '#8d5a3b', '#6b4430'];
-const HAIR = ['#1c1814', '#2e2218', '#4a3220', '#6b4a2a', '#8a6a3a', '#b0a090'];
+const SKIN_TONES = [
+  '#f4d8bc',
+  '#ecc9a6',
+  '#d9ae88',
+  '#bf8a60',
+  '#a07050',
+  '#80583c',
+];
+const HAIR_COLORS = [
+  '#1c1814',
+  '#2e2218',
+  '#4a3220',
+  '#6b4a2a',
+  '#8a6a3a',
+  '#b0a090',
+];
 
 const v = (x: number, y: number, z: number): Vector3 => new Vector3(x, y, z);
 
@@ -374,21 +412,6 @@ function dirDown(pitch: number, ab: number, side: number): Vector3 {
     z,
   );
 }
-
-/** Atlas cells of the `people` texture (engine/textures.ts): 4 x 4, 128 px each, multiplied with the vertex colour. */
-const CLOTH = 0;
-const DENIM = 1;
-const SKIN_CELL = 2;
-const HAIR_CELL = 3;
-const FACE = 4;
-const NYLON = 5;
-const LEATHER = 6;
-const HIVIS = 7;
-
-const cellUV = (cell: number, fu: number, fv: number): [number, number] => [
-  ((cell % 4) + 0.05 + 0.9 * fu) / 4,
-  1 - (Math.floor(cell / 4) + 0.05 + 0.9 * fv) / 4,
-];
 
 /**
  * Maps a part onto its atlas cell: per triangle the projection along the dominant axis of its normal, scaled by the
@@ -445,7 +468,7 @@ function tube(
   color: string,
   sides = 5,
   flat = 1,
-  cell = CLOTH,
+  cell = KNIT,
 ): BufferGeometry {
   const len = a.distanceTo(b);
   const g = new CylinderGeometry(ra, rb, Math.max(len, 1e-3), sides, 1, true);
@@ -465,7 +488,7 @@ function block(
   at: Vector3,
   color: string,
   m?: Matrix4,
-  cell = NYLON,
+  cell = HAT,
 ): BufferGeometry {
   const g = new BoxGeometry(w, h, d);
   if (m) g.applyMatrix4(m);
@@ -498,7 +521,7 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
     v(x, y, z).applyMatrix4(R);
   const P = v(0, 0, 0);
 
-  const legCell = JEANS.includes(o.legs) ? DENIM : CLOTH;
+  const legCell = JEAN_COLORS.includes(o.legs) ? JEANS : TROUSERS;
   // Legs: hips, knees, ankles, boots.
   for (const [side, leg] of [
     [1, pose.legL],
@@ -510,7 +533,7 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
       dirDown(leg.p - leg.bend, leg.ab * 0.5, side).multiplyScalar(SHIN),
     );
     const thighColor = o.shorts ? o.skin : o.legs;
-    const lc = o.shorts ? SKIN_CELL : legCell;
+    const lc = o.shorts ? SKIN : legCell;
     parts.push(tube(H, K, 0.1, 0.07, thighColor, sides, 1, lc));
     parts.push(
       tube(K, A, 0.07, 0.05, o.shorts ? o.skin : o.legs, sides, 1, lc),
@@ -535,7 +558,7 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
         A.clone().add(v(0, -0.035, 0.07)),
         o.shoes,
         undefined,
-        LEATHER,
+        GLOVE,
       ),
     );
     if (hi)
@@ -547,7 +570,7 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
           A.clone().add(v(0, -0.08, 0.07)),
           '#d9d4c8',
           undefined,
-          LEATHER,
+          GLOVE,
         ),
       );
   }
@@ -562,7 +585,7 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
       P,
       o.skirt ?? o.legs,
       undefined,
-      o.skirt ? CLOTH : legCell,
+      o.skirt ? KNIT : legCell,
     ),
   );
   const waist = P.clone().add(rot(0, 0.06, 0));
@@ -577,7 +600,7 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
         o.skirt,
         hi ? 7 : 5,
         0.85,
-        CLOTH,
+        KNIT,
       ),
     );
   }
@@ -595,7 +618,7 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
         '#1c1a18',
         6,
         0.62,
-        LEATHER,
+        GLOVE,
       ),
     );
   if (o.vest) {
@@ -646,7 +669,7 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
       S.clone().add(rot(0, -0.045, 0)),
       o.vest ?? o.torso,
       R,
-      o.vest ? HIVIS : CLOTH,
+      o.vest ? HIVIS : KNIT,
     ),
   );
   if (hi && o.pack)
@@ -665,7 +688,7 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
     const fd = dirDown(arm.p + arm.bend, arm.ab2 ?? arm.ab, side);
     const F = E.clone().add(fd.clone().multiplyScalar(FORE));
     const sleeve = o.sleeves ?? o.torso;
-    const ac = o.shortSleeves ? SKIN_CELL : CLOTH;
+    const ac = o.shortSleeves ? SKIN : KNIT;
     if (hi) {
       const cap = new SphereGeometry(0.07, 6, 4);
       cap.translate(J.x, J.y, J.z);
@@ -689,7 +712,7 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
         hand,
         o.gloves ?? o.skin,
         along(fd),
-        o.gloves ? LEATHER : SKIN_CELL,
+        o.gloves ? GLOVE : SKIN,
       ),
     );
   }
@@ -705,7 +728,7 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
       o.collar ?? o.skin,
       4,
       1,
-      o.collar ? CLOTH : SKIN_CELL,
+      o.collar ? KNIT : SKIN,
     ),
   );
   const M = R.clone().multiply(
@@ -726,9 +749,18 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
   // What is held.
   if (pose.prop) parts.push(...propParts(pose.prop, hands, S, R, Hc, hi));
 
+  return finishBody(parts, pose, o);
+}
+
+/** Merges the parts, lies a figure down when posed so, stands it on the ground and scales it. */
+function finishBody(
+  parts: BufferGeometry[],
+  pose: Pose,
+  o: Outfit,
+): BufferGeometry {
   const g = merge(
     parts.map((p) =>
-      p.userData.cell === -1 ? p : mapCell(p, p.userData.cell ?? NYLON),
+      p.userData.cell === -1 ? p : mapCell(p, p.userData.cell ?? HAT),
     ),
   );
   const bodyScale = o.scale;
@@ -744,48 +776,291 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
   return g;
 }
 
-function headParts(o: Outfit, hi: boolean, rng: Rng): BufferGeometry[] {
-  const out: BufferGeometry[] = [];
-  const seg = hi ? 6 : 4;
-  const head = new SphereGeometry(HEAD_R, seg, hi ? 4 : 3);
-  head.scale(0.92, 1.1, 1);
-  out.push(tag(paint(head, o.skin), SKIN_CELL));
-  if (hi) {
-    // Painted face (eyes, brows, nose, mouth) on a patch just over the front of the head.
-    const f = new SphereGeometry(
-      HEAD_R * 1.012,
-      6,
-      5,
-      Math.PI / 2 - 0.72,
-      1.44,
-      Math.PI * 0.3,
-      Math.PI * 0.5,
+/** Torso rings from the neck base down to the hem (pelvis at y = 0); `bust` fills the chest of a narrower figure. */
+function torsoRings(
+  broad: number,
+  bust: number,
+  hemY: number,
+  flare: number,
+): Ring[] {
+  return [
+    { y: 0.585, w: 0.055, d: 0.05 },
+    { y: 0.565, w: 0.14 * broad, d: 0.075 },
+    { y: 0.535, w: 0.21 * broad, d: 0.095 },
+    { y: 0.47, w: 0.2 * broad, d: 0.11 * bust },
+    { y: 0.38, w: 0.185 * broad, d: 0.112 * bust, z: 0.01 },
+    { y: 0.27, w: 0.165 * broad, d: 0.1 },
+    { y: 0.15, w: 0.17 * broad, d: 0.102 },
+    { y: 0.04, w: 0.182 * broad, d: 0.108 },
+    { y: hemY, w: 0.18 * broad * flare, d: 0.108 * flare },
+  ];
+}
+
+/** Scales rings about the body axis (a garment over another) and keeps those from index `from` to `to`. */
+function over(rings: Ring[], k: number, from = 0, to = rings.length): Ring[] {
+  return rings
+    .slice(from, to)
+    .map((r) => ({ ...r, w: r.w * k, d: r.d * (k + 0.02) }));
+}
+
+/** The near figure (LOD 0): smooth lofted body, capsule limbs, shaped hands / shoes / head, garments mapped unwrapped. */
+function figureDetail({ pose, outfit: o, rng }: FigureOpts): BufferGeometry {
+  const parts: BufferGeometry[] = [];
+  const broad = o.broad;
+  const bust = broad < 0.95 ? 1.1 : 1;
+  const R = new Matrix4().makeRotationFromEuler(
+    new Euler(pose.lean ?? 0, 0, pose.sway ?? 0, 'ZXY'),
+  );
+  const rot = (x: number, y: number, z: number): Vector3 =>
+    v(x, y, z).applyMatrix4(R);
+  const torsoParts: BufferGeometry[] = [];
+  const denim = JEAN_COLORS.includes(o.legs);
+  const legCell = o.shorts ? SKIN : denim ? JEANS : TROUSERS;
+  const legColor = o.shorts ? o.skin : o.legs;
+  const lightShoe = o.shoes === '#e6e6e6';
+
+  // Legs: hip, knee, ankle, shoe.
+  for (const [side, leg] of [
+    [1, pose.legL],
+    [-1, pose.legR],
+  ] as const) {
+    const H = v(side * 0.095 * broad, 0, 0);
+    const K = H.clone().add(dirDown(leg.p, leg.ab, side).multiplyScalar(THIGH));
+    const A = K.clone().add(
+      dirDown(leg.p - leg.bend, leg.ab * 0.5, side).multiplyScalar(SHIN),
     );
-    f.scale(0.92, 1.1, 1);
-    const fp = paint(f, o.skin);
-    const uv = fp.getAttribute('uv');
-    const pos = fp.getAttribute('position');
-    for (let i = 0; i < pos.count; i++) {
-      const [u, w] = cellUV(
-        FACE,
-        0.5 + pos.getX(i) / 0.25,
-        0.5 - pos.getY(i) / 0.3,
-      );
-      uv.setXY(i, u, w);
-    }
-    out.push(tag(fp, -1));
-    out.push(
-      block(
-        0.03,
-        0.04,
-        0.035,
-        v(0, -0.01, HEAD_R + 0.005),
-        o.skin,
-        undefined,
-        SKIN_CELL,
+    parts.push(bodyLimb(H, K, 0.098, 0.068, legColor, legCell, [0, 0.5]));
+    parts.push(ball(K, 0.068, legColor, legCell, [0.46, 0.54]));
+    parts.push(bodyLimb(K, A, 0.066, 0.046, legColor, legCell, [0.5, 1]));
+    parts.push(
+      ...shoe(
+        A.clone().add(v(0, -0.04, 0)),
+        o.shoes,
+        lightShoe ? '#8e8a82' : '#d8d3c6',
+        0.27,
       ),
     );
   }
+
+  // Hips (in the trousers / skirt colour) and the belt.
+  const hipColor = o.skirt ?? o.legs;
+  parts.push(
+    loft(
+      [
+        { y: 0.1, w: 0.172 * broad, d: 0.106 },
+        { y: 0.0, w: 0.186 * broad, d: 0.113 },
+        { y: -0.07, w: 0.172 * broad, d: 0.105 },
+        { y: -0.13, w: 0.11 * broad, d: 0.09 },
+      ],
+      12,
+      hipColor,
+      o.skirt ? KNIT : legCell,
+      { fv: [0, 0.2], capBottom: true },
+    ),
+  );
+  const S = rot(0, TORSO, 0);
+  const jacketTorso = !(o.shortSleeves || o.vest || o.skirt);
+  const torsoCell = jacketTorso ? JACKET : KNIT;
+  if (o.skirt) {
+    const len = o.skirtLen ?? 0.45;
+    parts.push(
+      loft(
+        [
+          { y: 0.14, w: 0.17 * broad, d: 0.105 },
+          { y: 0.0, w: 0.2 * broad, d: 0.128 },
+          { y: -len * 0.5, w: 0.2 * broad + len * 0.14, d: 0.13 + len * 0.12 },
+          { y: -len, w: 0.2 * broad + len * 0.3, d: 0.13 + len * 0.26 },
+        ],
+        14,
+        o.skirt,
+        TROUSERS,
+      ),
+    );
+  }
+
+  // Torso, vest, belt, collar, pack (built upright, then leant with the pose).
+  const rings = torsoRings(
+    broad,
+    bust,
+    jacketTorso ? -0.06 : 0.0,
+    jacketTorso ? 1.06 : 1,
+  );
+  torsoParts.push(loft(rings, 12, o.torso, torsoCell, { capTop: true }));
+  if (o.vest) {
+    torsoParts.push(loft(over(rings, 1.07, 2, 8), 12, o.vest, HIVIS));
+    if (o.bands)
+      for (const y of [0.4, 0.28])
+        torsoParts.push(
+          loft(
+            [
+              { y, w: (0.186 - (0.4 - y) * 0.1) * broad * 1.085, d: 0.125 },
+              {
+                y: y - 0.045,
+                w: (0.182 - (0.4 - y) * 0.1) * broad * 1.085,
+                d: 0.125,
+              },
+            ],
+            12,
+            '#e6e8ea',
+            REFLECT,
+          ),
+        );
+  } else if (o.stripe) {
+    torsoParts.push(
+      loft(over(rings, 1.012, 3, 5), 12, o.stripe, KNIT, { fv: [0.4, 0.5] }),
+    );
+  }
+  if (!jacketTorso && !o.skirt && !o.shorts && !o.vest)
+    torsoParts.push(
+      loft(
+        [
+          { y: 0.085, w: 0.178 * broad, d: 0.113 },
+          { y: 0.045, w: 0.182 * broad, d: 0.115 },
+        ],
+        12,
+        '#1c1a18',
+        GLOVE,
+      ),
+    );
+  if (jacketTorso || o.collar)
+    torsoParts.push(
+      loft(
+        [
+          { y: 0.64, w: 0.066, d: 0.062 },
+          { y: 0.585, w: 0.078, d: 0.074 },
+        ],
+        10,
+        o.collar ?? o.torso,
+        o.collar ? KNIT : JACKET,
+        { fv: [0, 0.07] },
+      ),
+    );
+  if (o.pack)
+    torsoParts.push(slab(0.3, 0.38, 0.13, v(0, 0.3, -0.17), o.pack, BAG));
+  for (const g of torsoParts) parts.push(g.applyMatrix4(R));
+
+  // Arms: shoulder, elbow, wrist, hand.
+  const hands: Vector3[] = [];
+  const sleeveColor = o.sleeves ?? o.torso;
+  const armColor = o.shortSleeves ? o.skin : sleeveColor;
+  const armCell = o.shortSleeves ? SKIN : SLEEVE;
+  for (const [side, arm] of [
+    [1, pose.armL],
+    [-1, pose.armR],
+  ] as const) {
+    const J = S.clone().add(rot(side * 0.205 * broad, -0.04, 0));
+    const E = J.clone().add(dirDown(arm.p, arm.ab, side).multiplyScalar(UPPER));
+    const fd = dirDown(arm.p + arm.bend, arm.ab2 ?? arm.ab, side);
+    const F = E.clone().add(fd.clone().multiplyScalar(FORE));
+    parts.push(
+      ball(
+        J,
+        0.068,
+        o.vest && !o.shortSleeves ? sleeveColor : armColor,
+        armCell,
+        [0, 0.12],
+      ),
+    );
+    parts.push(bodyLimb(J, E, 0.064, 0.05, armColor, armCell, [0, 0.5]));
+    parts.push(ball(E, 0.05, armColor, armCell, [0.46, 0.54]));
+    parts.push(bodyLimb(E, F, 0.049, 0.039, armColor, armCell, [0.5, 1]));
+    parts.push(
+      ...hand(F, fd, side, o.gloves ?? o.skin, o.gloves ? GLOVE : SKIN),
+    );
+    hands.push(F.clone().add(fd.clone().multiplyScalar(0.05)));
+  }
+
+  // Neck + head.
+  const neck = S.clone().add(rot(0, 0.07, 0));
+  parts.push(
+    bodyLimb(
+      S.clone().add(rot(0, -0.02, 0)),
+      neck,
+      0.056,
+      0.05,
+      o.skin,
+      SKIN,
+      [0, 1],
+      8,
+    ),
+  );
+  const M = R.clone().multiply(
+    new Matrix4().makeRotationFromEuler(
+      new Euler(pose.head ?? 0, pose.turn ?? 0, 0, 'YXZ'),
+    ),
+  );
+  const hs = o.headScale ?? 1;
+  const Hc = S.clone().add(rot(0, 0.06 + HEAD_R * 0.95 * hs, 0.01));
+  for (const g of headParts(o, true, rng, true)) {
+    g.applyMatrix4(M).scale(hs, hs, hs).translate(Hc.x, Hc.y, Hc.z);
+    parts.push(g);
+  }
+
+  if (pose.prop) parts.push(...propParts(pose.prop, hands, S, R, Hc, true));
+  return finishBody(parts, pose, o);
+}
+
+/** Maps a head sphere onto the two-cell head texture: u = angle round the head (0.5 = face), v = chin to crown. */
+function headMap(g: BufferGeometry): BufferGeometry {
+  const p = g.getAttribute('position');
+  const uv = g.getAttribute('uv');
+  for (let i = 0; i < p.count; i++) {
+    const [u, w] = cellUV(
+      HEAD,
+      0.5 + Math.atan2(p.getX(i), p.getZ(i)) / (Math.PI * 2),
+      0.5 - p.getY(i) / 0.275,
+      2,
+    );
+    uv.setXY(i, u, w);
+  }
+  return tag(g, -1);
+}
+
+function headParts(
+  o: Outfit,
+  hi: boolean,
+  rng: Rng,
+  detail = false,
+): BufferGeometry[] {
+  const out: BufferGeometry[] = [];
+  const seg = hi ? 6 : 4;
+  if (detail) {
+    out.push(loft(HEAD_RINGS, 12, o.skin, HEAD, { wCells: 2, capTop: true }));
+    // Nose (bridge + tip) and ears.
+    out.push(
+      block(0.026, 0.05, 0.04, v(0, -0.005, 0.105), o.skin, undefined, SKIN),
+      block(0.034, 0.02, 0.03, v(0, -0.03, 0.112), o.skin, undefined, SKIN),
+    );
+    for (const s of [-1, 1])
+      out.push(
+        block(
+          0.014,
+          0.052,
+          0.036,
+          v(s * 0.106, 0.0, -0.004),
+          o.skin,
+          undefined,
+          SKIN,
+        ),
+      );
+  } else {
+    const head = new SphereGeometry(HEAD_R, seg, hi ? 4 : 3);
+    head.scale(0.92, 1.1, 1);
+    out.push(headMap(paint(head, o.skin)));
+    if (hi)
+      out.push(
+        block(
+          0.03,
+          0.04,
+          0.035,
+          v(0, -0.01, HEAD_R + 0.005),
+          o.skin,
+          undefined,
+          SKIN,
+        ),
+      );
+  }
+  const coverFrom = out.length;
   if (hi && o.glasses)
     out.push(block(0.17, 0.032, 0.02, v(0, 0.02, HEAD_R * 0.98), '#15171a'));
   if (hi && o.beard)
@@ -797,7 +1072,7 @@ function headParts(o: Outfit, hi: boolean, rng: Rng): BufferGeometry[] {
         v(0, -0.07, HEAD_R * 0.8),
         o.hair,
         undefined,
-        HAIR_CELL,
+        HAIR,
       ),
     );
   const hatLow = o.hat === 'cap' || o.hat === 'beanie' || o.hat === 'helmet';
@@ -866,7 +1141,7 @@ function headParts(o: Outfit, hi: boolean, rng: Rng): BufferGeometry[] {
     );
     d.scale(0.96, 1.05, 1.03);
     d.rotateX(-0.45);
-    out.push(tag(paint(d, o.hair), HAIR_CELL));
+    out.push(tag(paint(d, o.hair), HAIR));
     if (o.hairKind === 'long')
       out.push(
         block(
@@ -876,7 +1151,7 @@ function headParts(o: Outfit, hi: boolean, rng: Rng): BufferGeometry[] {
           v(0, -0.05, -HEAD_R * 0.9),
           o.hair,
           undefined,
-          HAIR_CELL,
+          HAIR,
         ),
       );
     else if (o.hairKind === 'pony')
@@ -889,7 +1164,7 @@ function headParts(o: Outfit, hi: boolean, rng: Rng): BufferGeometry[] {
           o.hair,
           4,
           1,
-          HAIR_CELL,
+          HAIR,
         ),
       );
     else if (o.hairKind === 'bun')
@@ -901,7 +1176,7 @@ function headParts(o: Outfit, hi: boolean, rng: Rng): BufferGeometry[] {
           v(0, 0.1, -HEAD_R * 0.95),
           o.hair,
           undefined,
-          HAIR_CELL,
+          HAIR,
         ),
       );
   } else if (hi && o.hat === 'cap' && o.hairKind === 'long') {
@@ -913,11 +1188,13 @@ function headParts(o: Outfit, hi: boolean, rng: Rng): BufferGeometry[] {
         v(0, -0.07, -HEAD_R * 0.85),
         o.hair,
         undefined,
-        HAIR_CELL,
+        HAIR,
       ),
     );
   }
   void rng;
+  // The ring head is narrower than the sphere one: hair and hats hug it.
+  if (detail) for (const g of out.slice(coverFrom)) g.scale(0.88, 1, 0.9);
   return out;
 }
 
@@ -1081,7 +1358,7 @@ function blob(o: Outfit): BufferGeometry {
       o.hat === 'none' ? o.skin : o.hatColor,
     ),
   ];
-  const g = merge(parts.map((p) => mapCell(p, p.userData.cell ?? NYLON)));
+  const g = merge(parts.map((p) => mapCell(p, p.userData.cell ?? HAT)));
   g.scale(o.scale, o.scale, o.scale);
   return g;
 }
@@ -1106,7 +1383,7 @@ function blocky(o: Outfit, pose: PoseName): BufferGeometry {
       o.hat === 'none' ? o.skin : o.hatColor,
     ),
   ];
-  const g = merge(parts.map((p) => mapCell(p, p.userData.cell ?? NYLON)));
+  const g = merge(parts.map((p) => mapCell(p, p.userData.cell ?? HAT)));
   g.scale(o.scale, o.scale, o.scale);
   return g;
 }
@@ -1125,11 +1402,18 @@ function finishFigure(
   }[];
 } {
   const g =
-    lod >= 2
+    lod >= 3
       ? blob(outfit)
-      : crowd && lod === 1
+      : lod === 2 && crowd
         ? blocky(outfit, pose)
-        : figure({ pose: POSES[pose] as Pose, outfit, lod, rng });
+        : lod === 0
+          ? figureDetail({ pose: POSES[pose] as Pose, outfit, lod, rng })
+          : figure({
+              pose: POSES[pose] as Pose,
+              outfit,
+              lod: lod === 1 ? 0 : 1,
+              rng,
+            });
   return { parts: [{ geometry: g, material: getMaterial('people') }] };
 }
 
@@ -1137,8 +1421,8 @@ const baseOutfit = (rng: Rng): Outfit => ({
   shoes: rng.pick(['#1b1b1d', '#2c2a28', '#e6e6e6', '#3a2a1c']),
   legs: '#2b2f3a',
   torso: '#555555',
-  skin: rng.pick(SKIN),
-  hair: rng.pick(HAIR),
+  skin: rng.pick(SKIN_TONES),
+  hair: rng.pick(HAIR_COLORS),
   hairKind: rng.chance(0.3) ? 'long' : rng.chance(0.12) ? 'bald' : 'short',
   hat: 'none',
   hatColor: '#333333',
@@ -1163,7 +1447,7 @@ const JACKETS = [
   '#1aa6c8',
   '#f05a10',
 ];
-const TROUSERS = [
+const TROUSER_COLORS = [
   '#2b2f3a',
   '#3b3a36',
   '#25344f',
@@ -1171,7 +1455,7 @@ const TROUSERS = [
   '#5a5040',
   '#1f2630',
 ];
-const JEANS = ['#34486b', '#2a3a58', '#3f5578'];
+const JEAN_COLORS = ['#34486b', '#2a3a58', '#3f5578'];
 
 /** The six spectator outfits (variant % 6); the pose is variant / 6. */
 const SPECTATOR_OUTFITS = 6;
@@ -1187,7 +1471,7 @@ export const spectator: AssetBuilder = ({ seed, variant, lod }) => {
   const jacket = JACKETS[(variant * 5 + rng.int(0, 11)) % JACKETS.length];
   const style = variant % SPECTATOR_OUTFITS;
   o.torso = jacket;
-  o.legs = rng.pick(style === 1 ? JEANS : TROUSERS);
+  o.legs = rng.pick(style === 1 ? JEAN_COLORS : TROUSER_COLORS);
   if (style === 0) o.sleeves = jacket;
   if (style === 1) {
     // T-shirt, shorts, cap.
@@ -1199,7 +1483,7 @@ export const spectator: AssetBuilder = ({ seed, variant, lod }) => {
     // Hoodie, hood up or a beanie.
     o.hat = rng.chance(0.5) ? 'hood' : 'beanie';
     o.hatColor = o.hat === 'hood' ? jacket : rng.pick(JACKETS);
-    o.legs = rng.pick(JEANS);
+    o.legs = rng.pick(JEAN_COLORS);
   } else if (style === 3) {
     // Hi-vis vest over a dark jacket (helpers, locals).
     o.torso = '#2e3138';
@@ -1209,7 +1493,7 @@ export const spectator: AssetBuilder = ({ seed, variant, lod }) => {
   } else if (style === 4) {
     // Backpack, jeans.
     o.pack = rng.pick(['#2a2f3a', '#7a2a2a', '#2a5a3a']);
-    o.legs = rng.pick(JEANS);
+    o.legs = rng.pick(JEAN_COLORS);
     o.hat = rng.chance(0.35) ? 'cap' : 'none';
     o.hatColor = rng.pick(JACKETS);
   } else if (style === 5) {
@@ -1218,7 +1502,7 @@ export const spectator: AssetBuilder = ({ seed, variant, lod }) => {
     o.torso = t.base;
     o.collar = t.accent;
     o.shortSleeves = rng.chance(0.4);
-    o.legs = rng.pick(JEANS);
+    o.legs = rng.pick(JEAN_COLORS);
   }
   const pose =
     variant >= SPECTATOR_STANDING
@@ -1322,7 +1606,7 @@ export const photographer: AssetBuilder = ({ seed, variant, lod }) => {
   const rng = new Rng(seed);
   const o = baseOutfit(rng);
   o.torso = rng.pick(['#1e2024', '#3a3226', '#2a3a58', '#6b2a24']);
-  o.legs = rng.pick(JEANS.concat(['#23262c', '#3b3a36']));
+  o.legs = rng.pick(JEAN_COLORS.concat(['#23262c', '#3b3a36']));
   o.vest = BIBS[Math.floor(variant / PHOTO_POSES.length) % BIBS.length];
   o.hat = rng.chance(0.65) ? 'cap' : rng.chance(0.3) ? 'beanie' : 'none';
   o.hatColor = rng.pick(['#c0302a', '#2a4a8a', '#222222', '#e6e6e6']);
@@ -1344,7 +1628,7 @@ export const visitor: AssetBuilder = ({ seed, variant, lod }) => {
   const persona = Math.floor(variant / 4) % VISITOR_PERSONAS;
   o.hat = 'none';
   o.torso = rng.pick(JACKETS);
-  o.legs = rng.pick(JEANS);
+  o.legs = rng.pick(JEAN_COLORS);
   o.hatColor = rng.pick(JACKETS);
   switch (persona) {
     case 0: // man in a hoodie, maybe a cap
@@ -1370,7 +1654,7 @@ export const visitor: AssetBuilder = ({ seed, variant, lod }) => {
       o.hairKind = rng.chance(0.3) ? 'bald' : 'short';
       o.beard = rng.chance(0.4);
       o.torso = rng.pick(['#5a5040', '#3a4a5a', '#6a6a60']);
-      o.legs = rng.pick(TROUSERS);
+      o.legs = rng.pick(TROUSER_COLORS);
       o.scale = rng.range(0.94, 1);
       o.broad = 1.08;
       o.glasses = rng.chance(0.4);

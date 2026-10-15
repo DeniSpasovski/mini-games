@@ -3,6 +3,7 @@ import {
   Material,
   MeshDepthMaterial,
   MeshStandardMaterial,
+  Vector2,
   type WebGLProgramParametersWithUniforms,
   type WebGLRenderer,
 } from 'three';
@@ -108,6 +109,8 @@ export function getMaterial(id: MaterialId): Material {
       m = new MeshStandardMaterial({
         vertexColors: true,
         map: getTexture('people'),
+        normalMap: getTexture('people_normal'),
+        normalScale: new Vector2(0.5, 0.5),
         roughness: 0.85,
       });
       break;
