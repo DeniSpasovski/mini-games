@@ -354,6 +354,44 @@ export class Road {
     const s = this.at(along);
     return Math.atan2(s.tx, s.tz);
   }
+
+  /**
+   * The same road driven the other way (a stage with `reverse`, maps/shared/types.ts StageDef): the same samples in
+   * reverse order, distances counted from this road's end, tangents and curvature flipped, so `lateral` (left of
+   * travel) flips too. Geometry is untouched: the terrain, meshes and physics keep using this road; only the stage
+   * event (timing, spawn, signs, fans, autopilot) runs on the reversed view.
+   */
+  reversed(): Road {
+    const r = Object.create(Road.prototype) as Road;
+    const L = this.length;
+    const w = r as unknown as {
+      samples: RoadSample[];
+      length: number;
+      influence: number;
+      bridges: RoadSpan[];
+      grid: Map<number, number[]>;
+      def: RoadDef;
+    };
+    w.def = this.def;
+    w.length = L;
+    w.influence = this.influence;
+    w.samples = this.samples
+      .slice()
+      .reverse()
+      .map((s) => ({
+        ...s,
+        dist: L - s.dist,
+        tx: -s.tx,
+        tz: -s.tz,
+        curvature: -s.curvature,
+      }));
+    w.bridges = this.bridges
+      .map((sp) => ({ ...sp, from: L - sp.to, to: L - sp.from }))
+      .sort((a, b) => a.from - b.from);
+    w.grid = new Map();
+    r.buildGrid();
+    return r;
+  }
 }
 
 function normalizePoint(p: RoadPoint): {

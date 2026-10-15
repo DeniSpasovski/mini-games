@@ -432,6 +432,53 @@ export const OAK = broadleaf({
   variants: 6,
 });
 
+/** Mountain beech (Galichica): tall straight smooth pale-grey trunk under a dense rounded crown turning bronze. */
+export const BEECH = broadleaf({
+  name: 'Beech',
+  bole: 2.6,
+  lead: 1.2,
+  limbs: [38, 50],
+  leaders: [20, 30],
+  laterals: [24, 38],
+  iterations: 10,
+  baseRadius: 0.3,
+  tropismStrength: 0.05,
+  bark: { color: '#9c9c94', texture: 'smooth', tiling: 0.8 },
+  foliage: {
+    kind: 'broadleaf',
+    spriteSize: 1.8,
+    density: 1.1,
+    palette: ['#5c8a2a', '#6a9830', '#77a336', '#527e26'],
+  },
+  scale: [0.95, 1.25],
+  variants: 4,
+});
+
+/**
+ * Oriental hornbeam / oak coppice (Galichica's low and mid slopes): two or three slender smooth grey stems from one
+ * stool, short upswept limbs, a narrow crown of small bright-green leaves; 6-12 m, in dense stands.
+ */
+export const HORNBEAM = broadleaf({
+  name: 'Hornbeam',
+  bole: 0.5,
+  lead: 1.5,
+  limbs: [18, 28],
+  leaders: [14, 24],
+  laterals: [32, 50],
+  iterations: 10,
+  baseRadius: 0.15,
+  tropismStrength: 0.03,
+  bark: { color: '#8c8a80', texture: 'smooth', tiling: 1 },
+  foliage: {
+    kind: 'broadleaf',
+    spriteSize: 1.65,
+    density: 1.25,
+    palette: ['#74a42e', '#82b236', '#68982a', '#8fbc40', '#5c8a26'],
+  },
+  scale: [0.85, 1.3],
+  variants: 6,
+});
+
 /** Walnut / mulberry yard tree: a thick short trunk under a big, dense, dark round crown. */
 export const WALNUT = broadleaf({
   name: 'Walnut',
@@ -749,11 +796,32 @@ export const THICKET = shrub({
   variants: 4,
 });
 
+/** Flowering broom (Cytisus / Spartium) on the road cuttings: upright green switches covered in yellow, 1-2 m. */
+export const BROOM = shrub({
+  name: 'Broom',
+  stem: [0.38, 0.5],
+  lean: [6, 22],
+  fork: [16, 30],
+  stems: 6,
+  baseRadius: 0.025,
+  bark: { color: '#55603a', texture: 'smooth', tiling: 1.5 },
+  foliage: {
+    kind: 'broadleaf',
+    spriteSize: 0.6,
+    density: 1.3,
+    palette: ['#e2c22a', '#d6b220', '#ecd23e', '#6e8e2c', '#e8c62e'],
+  },
+  scale: [0.8, 1.2],
+  variants: 4,
+});
+
 export const SPECIES: readonly SpeciesDef[] = [
   PINE,
   BLACK_PINE,
   JUNIPER,
   OAK,
+  BEECH,
+  HORNBEAM,
   WALNUT,
   FRUIT_TREE,
   PLANE,
@@ -765,6 +833,7 @@ export const SPECIES: readonly SpeciesDef[] = [
   SCRUB,
   HAZEL,
   THICKET,
+  BROOM,
 ];
 
 const byName = new Map(SPECIES.map((s) => [s.name, s]));
@@ -784,6 +853,8 @@ export const TREE_TYPES: Readonly<Record<string, string>> = {
   black_pine: 'Black pine',
   juniper: 'Juniper',
   oak_tree: 'Oak',
+  beech_tree: 'Beech',
+  hornbeam_tree: 'Hornbeam',
   walnut_tree: 'Walnut',
   fruit_tree: 'Fruit tree',
   pale_tree: 'Plane',
@@ -795,6 +866,7 @@ export const TREE_TYPES: Readonly<Record<string, string>> = {
   scrub_bush: 'Scrub',
   hazelnut_tree: 'Hazel',
   thicket_shrub: 'Thicket',
+  broom_shrub: 'Broom',
 };
 
 export function isTreeType(asset: string): boolean {

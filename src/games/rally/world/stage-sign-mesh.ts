@@ -337,9 +337,8 @@ export function* stageSignMeshJob(
   const group = new Group();
   group.name = 'stage-signs';
   const title: StageTitle = {
-    name: world.map.name,
-    year: world.map.year,
-    stageNumber: world.map.stageNumber,
+    name: world.stageDef.name,
+    year: world.stageDef.year,
   };
   const solids: BufferGeometry[] = [];
   const maps = new Map<Texture, BufferGeometry[]>();
@@ -347,7 +346,7 @@ export function* stageSignMeshJob(
     geo.applyMatrix4(frameOf(s));
 
   for (const g of signs.gantries) {
-    const s = world.road.at(g.along);
+    const s = world.stageRoad.at(g.along);
     const built = gantry(g, title);
     for (const geo of built.solid) solids.push(bake(geo, s));
     for (const [t, geos] of built.textured)
@@ -355,7 +354,7 @@ export function* stageSignMeshJob(
     yield;
   }
   for (const b of signs.boards) {
-    const s = world.road.at(b.along);
+    const s = world.stageRoad.at(b.along);
     const built = board(b);
     for (const geo of built.solid) solids.push(bake(geo, s));
     maps.set(built.texture, [

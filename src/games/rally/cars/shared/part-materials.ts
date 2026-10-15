@@ -44,8 +44,10 @@ export type PartName =
   | 'lamphousing'
   | 'headled'
   | 'tailled'
+  | 'reverselamp'
   | 'tailc4'
   | 'redcover'
+  | 'brakecover'
   | 'headlight22'
   | 'tail22'
   | 'corner22'
@@ -1695,6 +1697,26 @@ const BUILDERS: Record<PartName, () => Material> = {
       }),
       3.2,
     ),
+  /** Modelled reversing lamp: matte white, dark until the car is in reverse gear (setBrake `reversing`), never lit by the brake. */
+  reverselamp: () =>
+    lamp(
+      new MeshPhysicalMaterial({
+        color: 0xe4e6e8,
+        roughness: 0.55,
+        metalness: 0,
+        emissive: 0xffffff,
+        emissiveMap: canvas(2, 2, (g) => {
+          g.fillStyle = '#000';
+          g.fillRect(0, 0, 2, 2);
+        }),
+        emissiveIntensity: 0,
+      }),
+      2.2,
+      canvas(2, 2, (g) => {
+        g.fillStyle = '#fff';
+        g.fillRect(0, 0, 2, 2);
+      }),
+    ),
   /** Red see-through cover over a modelled tail lamp. */
   redcover: () =>
     new MeshPhysicalMaterial({
@@ -1708,6 +1730,24 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoatRoughness: 0.02,
       envMapIntensity: 1.5,
     }),
+  /** Red see-through cover that lights with the brake pedal (setBrake), like `tailled`. */
+  brakecover: () =>
+    lamp(
+      new MeshPhysicalMaterial({
+        color: 0xb3151c,
+        emissive: 0xff2010,
+        emissiveIntensity: 0.2,
+        roughness: 0.03,
+        metalness: 0,
+        transparent: true,
+        opacity: 0.55,
+        depthWrite: false,
+        clearcoat: 1,
+        clearcoatRoughness: 0.02,
+        envMapIntensity: 1.5,
+      }),
+      4,
+    ),
   reflector: () =>
     new MeshPhysicalMaterial({
       color: 0xa30f17,

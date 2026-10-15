@@ -649,8 +649,9 @@ function assetIds(world: World): Set<string> {
   const ids = new Set([
     ...world.map.scatter.map((r) => r.asset),
     ...world.map.roadside.map((r) => r.asset),
-    ...(world.map.cornerFans ? CORNER_FAN_ASSETS : []),
+    ...(world.stageDef.cornerFans ? CORNER_FAN_ASSETS : []),
     ...world.map.props.map((p) => p.asset),
+    ...(world.stageDef.props ?? []).map((p) => p.asset),
   ]);
   for (const id of ids) if (isTreeType(id)) ids.delete(id);
   return ids;

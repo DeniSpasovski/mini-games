@@ -1,13 +1,15 @@
 import { describe, expect, test } from '@rstest/core';
-import { ALL_MAPS } from '../../src/games/rally/maps/all';
+import { ALL_STAGE_DEFS } from '../../src/games/rally/maps/all';
 import { newRoadQuery } from '../../src/games/rally/world/road';
 import { World } from '../../src/games/rally/world/world';
 
-/** Fan groups in the corners (MapDef.cornerFans): placed, and never on the stage road or in a building. */
+/** Fan groups in the corners (StageDef.cornerFans): placed, and never on the stage road or in a building. */
 describe.each(
-  ALL_MAPS.filter((m) => m.cornerFans).map((m) => [m.id, m] as const),
-)('corner fans %s', (_id, map) => {
-  const world = new World(map);
+  ALL_STAGE_DEFS.filter((d) => d.stage.cornerFans).map(
+    (d) => [d.stage.id, d] as const,
+  ),
+)('corner fans %s', (_id, { map, stage }) => {
+  const world = new World(map, stage);
   const fans = world.cornerFans;
 
   test('groups of tape, spectators and flags', () => {

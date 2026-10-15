@@ -1,7 +1,11 @@
 import { describe, expect, it } from '@rstest/core';
 import { ALL_CARS, DEFAULT_CAR } from '../../src/games/rally/cars';
-import { ALL_MAPS, DEFAULT_MAP } from '../../src/games/rally/maps';
-import { CARS_LIST, MAPS_LIST, released } from '../../src/games/rally/release';
+import { ALL_STAGES, DEFAULT_STAGE } from '../../src/games/rally/maps';
+import {
+  CARS_LIST,
+  STAGES_LIST,
+  released,
+} from '../../src/games/rally/release';
 import { isReleased } from '../../src/shared/release';
 
 describe('release flags', () => {
@@ -24,14 +28,14 @@ describe('release flags', () => {
     );
   });
 
-  it('every registered map is listed once in MAPS_LIST', () => {
-    expect(MAPS_LIST.map((e) => e.id).sort()).toEqual(
-      ALL_MAPS.map((m) => m.id).sort(),
+  it('every registered stage is listed once in STAGES_LIST', () => {
+    expect(STAGES_LIST.map((e) => e.id).sort()).toEqual(
+      ALL_STAGES.map((m) => m.id).sort(),
     );
   });
 
   it('defaults are released (they are the fallback for hidden ids)', () => {
     expect(isReleased(CARS_LIST, DEFAULT_CAR)).toBe(true);
-    expect(isReleased(MAPS_LIST, DEFAULT_MAP)).toBe(true);
+    expect(isReleased(STAGES_LIST, DEFAULT_STAGE)).toBe(true);
   });
 });

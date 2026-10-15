@@ -20,8 +20,15 @@ import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { paramOneOf } from '../../../shared/url-params';
 import { track } from '../../../shared/analytics';
 import { CAMERA_LINK_DEFAULTS, ViewerShell } from '../debug/viewer-shell';
-import { DEFAULT_MAP, loadMap, MAPS } from '../maps';
-import { isTestMap, listLabel, TEST_NOTE } from '../release';
+import {
+  DEFAULT_STAGE,
+  getMapInfo,
+  getStage,
+  loadMap,
+  MAPS,
+  stagesOf,
+} from '../maps';
+import { isTestMap, isTestStage, listLabel, TEST_NOTE } from '../release';
 import { loadQuality } from '../engine/quality';
 import { InstanceStreamer } from '../world/instance-streamer';
 import { TreeRenderer } from '../trees/draw';
@@ -38,13 +45,16 @@ import type { GroundSample } from '../physics/types';
 import { SURFACES } from '../physics/surfaces';
 
 /**
- * Map viewer: aerial view of a whole map for quick iteration.
- *   map-viewer.html?map=test&scatter=1&road=1&grid=0&splat=0&fog=0&labels=1&along=1100&zoom=0.5
- * Click the terrain to inspect a point; "Drive from here" opens the game at
- * that distance along the road. "Copy camera link" (Camera section) shares the exact view (`cam`, `look`, `fov`, `clean`).
+ * Map viewer: aerial view of a whole map with one of its stages, for quick iteration.
+ *   map-viewer.html?map=test&stage=test&scatter=1&road=1&grid=0&splat=0&fog=0&labels=1&along=1100&zoom=0.5
+ * `stage` = the stage shown (its route, start / splits / finish, closures and fans; default the map's first). Old links
+ * `map=<stage id>` open that stage on its map. Distances (`along`, the 250 m ticks, "Drive from here") are along the
+ * stage road, in the stage's direction. "Copy camera link" (Camera section) shares the exact view (`cam`, `look`, `fov`, `clean`).
  */
 const DEFAULTS = {
-  map: DEFAULT_MAP,
+  map: DEFAULT_STAGE,
+  /** Stage id on the map; '' = its first stage. */
+  stage: '',
   scatter: true,
   road: true,
   grid: false,
@@ -54,19 +64,29 @@ const DEFAULTS = {
   wire: false,
   /** Real-world maps: focus + inspect this building id ("stage 1 - building 12"). */
   building: 0,
-  /** Fly to this distance along the road (m); 0 = overview. `zoom` scales the camera offset (default 1). */
+  /** Fly to this distance along the stage road (m); 0 = overview. `zoom` scales the camera offset (default 1). */
   along: 0,
   zoom: 1,
   // Shared camera: cam / look / fov / clean (see "Copy camera link").
   ...CAMERA_LINK_DEFAULTS,
 };
 const state = readUrlState(DEFAULTS);
-state.map = paramOneOf(
-  state.map,
-  MAPS.map((m) => m.id),
-  DEFAULTS.map,
-);
+{
+  // `map` may be a stage id (old links, the game's ids): open that stage on its map.
+  const info = getMapInfo(state.map);
+  if (info.id !== state.map && !state.stage)
+    state.stage = getStage(state.map).id;
+  state.map = paramOneOf(
+    info.id,
+    MAPS.map((m) => m.id),
+    getStage(DEFAULT_STAGE).map,
+  );
+  if (!stagesOf(state.map).some((st) => st.id === state.stage))
+    state.stage = stagesOf(state.map)[0]?.id ?? '';
+}
 const sync = (push = false) => writeUrlState(state, DEFAULTS, push);
+// An old `map=<stage id>` link (or a map with several stages): the URL now names the map and its stage.
+sync();
 track('rally', 'select_content', {
   game_content_type: 'map_viewer',
   game_content_id: state.map,
@@ -87,7 +107,7 @@ void loadMap(state.map).then(async (map) => {
     },
   });
   const { scene, camera, controls, renderer } = shell;
-  const world = new World(map);
+  const world = new World(map, state.stage || undefined);
   const center = new Vector3((b.minX + b.maxX) / 2, 0, (b.minZ + b.maxZ) / 2);
   // Mountain maps: orbit around the ground, not sea level.
   center.y = world.analytic.height(center.x, center.z);
@@ -138,7 +158,9 @@ void loadMap(state.map).then(async (map) => {
   const roadLine = buildRoadLine();
   const markers = buildMarkers();
   const chunkGrid = buildChunkGrid();
-  overlays.add(roadLine, markers, chunkGrid);
+  const stageLines = buildStageLines();
+  overlays.add(roadLine, stageLines, markers, chunkGrid);
+  stageLines.visible = state.labels;
   roadLine.visible = state.road;
   markers.visible = state.labels;
   chunkGrid.visible = state.grid;
@@ -199,11 +221,34 @@ void loadMap(state.map).then(async (map) => {
     return s;
   }
 
+  /** The stage's start -> finish as a thick orange line. */
+  function buildStageLines(): Group {
+    const g = new Group();
+    const pts: number[] = [];
+    for (let d = world.stage.start; d <= world.stage.finish; d += 4) {
+      const p = world.stageRoad.at(d);
+      pts.push(p.x, p.y + 3, p.z);
+    }
+    const geo = new BufferGeometry();
+    geo.setAttribute('position', new BufferAttribute(new Float32Array(pts), 3));
+    g.add(
+      new Line(
+        geo,
+        new LineBasicMaterial({
+          color: 0xffa020,
+          depthTest: false,
+          transparent: true,
+        }),
+      ),
+    );
+    return g;
+  }
+
   function buildMarkers(): Group {
     const g = new Group();
     const st = world.stage;
     const pole = (along: number, text: string, color: string) => {
-      const p = world.road.at(along);
+      const p = world.stageRoad.at(along);
       const m = new Mesh(
         new CylinderGeometry(0.8, 0.8, 30, 8),
         new MeshBasicMaterial({ color }),
@@ -223,9 +268,9 @@ void loadMap(state.map).then(async (map) => {
       l.position.set(f.x, world.heightAt(f.x, f.z) + 20, f.z);
       g.add(l);
     }
-    // Distance ticks every 250 m.
-    for (let d = 250; d < world.road.length; d += 250) {
-      const p = world.road.at(d);
+    // Distance ticks every 250 m along the stage road.
+    for (let d = 250; d < world.stageRoad.length; d += 250) {
+      const p = world.stageRoad.at(d);
       const l = label(`${d} m`, '#ffffff');
       l.scale.set(0.07, 0.0175, 1);
       l.position.set(p.x, p.y + 8, p.z);
@@ -274,14 +319,18 @@ void loadMap(state.map).then(async (map) => {
   shell.panel.section('Maps').list(
     MAPS.map((m) => ({
       id: m.id,
-      label: listLabel(m.name, isTestMap(m.id)),
-      hint: isTestMap(m.id) ? `${TEST_NOTE}. ${m.description}` : m.description,
+      label: listLabel(
+        m.stages.length > 1 ? `${m.name} (${m.stages.length} stages)` : m.name,
+        isTestMap(m.stages.map((st) => st.id)),
+      ),
+      hint: m.stages.map((st) => st.name).join(' · '),
     })),
     state.map,
     (id) => {
       // Camera / focus params belong to the old map: the new one opens on its default overview.
       Object.assign(state, {
         map: id,
+        stage: DEFAULTS.stage,
         cam: DEFAULTS.cam,
         look: DEFAULTS.look,
         fov: DEFAULTS.fov,
@@ -289,6 +338,23 @@ void loadMap(state.map).then(async (map) => {
         zoom: DEFAULTS.zoom,
         building: DEFAULTS.building,
       });
+      sync(true);
+      location.reload();
+    },
+  );
+
+  // The stages on this map (the one shown: its route, start / finish, closures, fans).
+  shell.panel.section('Stages').list(
+    stagesOf(map.id).map((st) => ({
+      id: st.id,
+      label: listLabel(st.name, isTestStage(st.id)),
+      hint: isTestStage(st.id)
+        ? `${TEST_NOTE}. ${st.description}`
+        : st.description,
+    })),
+    world.stageDef.id,
+    (id) => {
+      Object.assign(state, { stage: id, along: DEFAULTS.along });
       sync(true);
       location.reload();
     },
@@ -319,11 +385,16 @@ void loadMap(state.map).then(async (map) => {
     roadLine.visible = v;
     sync();
   });
-  layers.checkbox('Labels (start / splits / finish)', state.labels, (v) => {
-    state.labels = v;
-    markers.visible = v;
-    sync();
-  });
+  layers.checkbox(
+    'Stages (routes, start / splits / finish)',
+    state.labels,
+    (v) => {
+      state.labels = v;
+      markers.visible = v;
+      stageLines.visible = v;
+      sync();
+    },
+  );
   layers.checkbox('Chunk grid (64 m)', state.grid, (v) => {
     state.grid = v;
     chunkGrid.visible = v;
@@ -380,7 +451,7 @@ void loadMap(state.map).then(async (map) => {
     );
   }
   function focusAlong(along: number, zoom = 1): void {
-    const p = world.road.at(along);
+    const p = world.stageRoad.at(along);
     controls.target.set(p.x, p.y, p.z);
     camera.position.set(
       p.x + (-p.tx * 60 + 30) * zoom,
@@ -451,7 +522,7 @@ void loadMap(state.map).then(async (map) => {
       sync();
     }
     world.sampleGround(p.x, p.z, sample);
-    world.road.query(p.x, p.z, rq);
+    world.stageRoad.query(p.x, p.z, rq);
     marker.position.set(p.x, sample.height + 6, p.z);
     marker.visible = true;
     pickInfo({
@@ -474,7 +545,7 @@ void loadMap(state.map).then(async (map) => {
     const along = rq.found ? Math.max(0, rq.along - 15) : null;
     pickLinks.innerHTML =
       (along !== null
-        ? `<a style="color:#f0a020" href="./?map=${map.id}&spawn=${along.toFixed(0)}">▶ Drive from here (${along.toFixed(0)} m)</a>`
+        ? `<a style="color:#f0a020" href="./?stage=${world.stageDef.id}&spawn=${along.toFixed(0)}">▶ Drive ${world.stageDef.name} from here (${along.toFixed(0)} m)</a>`
         : '<i>Not near the road.</i>') +
       (geo
         ? `<br><a style="color:#7ab8ff" target="_blank" rel="noopener" href="https://www.google.com/maps/@${geo.lat.toFixed(6)},${geo.lon.toFixed(6)},250m/data=!3m1!1e3">Satellite (Google Maps)</a>` +
@@ -560,6 +631,7 @@ void loadMap(state.map).then(async (map) => {
     treeStats.update();
     statInfo({
       road: `${world.road.length.toFixed(0)} m`,
+      stage: world.stageDef.name,
       'stage (start→finish)': `${(world.stage.finish - world.stage.start).toFixed(0)} m`,
       'road height': `${Math.min(...roadYs).toFixed(0)} … ${Math.max(...roadYs).toFixed(0)} m`,
       bounds: `${b.maxX - b.minX} × ${b.maxZ - b.minZ} m`,

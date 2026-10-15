@@ -1,5 +1,6 @@
 import type { MapInfo } from '../shared/types';
 import data from './route.json';
+import { ajvatovciStages } from './stages';
 
 /**
  * Light part of the map (menus, stage select, URL defaults): everything the menus need without the baked data.
@@ -10,13 +11,7 @@ import data from './route.json';
 export const ajvatovciInfo: MapInfo = {
   id: 'ajvatovci',
   name: 'Ajvatovci Hill',
-  year: 2026,
-  /** Recommended tyre (pre-selected on the car screen; see ../../PHYSICS.md). */
-  tyre: 'mixed',
-  /** Long gearing on the long straights (cars that cannot change it ignore this). */
-  gearing: 'long',
-  description:
-    'Real-world stage near Ilinden, North Macedonia: from the A2 industrial zone across the plain and Ajvatovci village up the hill. Narrow dusty tarmac.',
+  stages: ajvatovciStages,
   seed: 4207,
   geo: { lat: data.meta.origin[0], lon: data.meta.origin[1] },
   credits: data.meta.sources,
@@ -56,7 +51,6 @@ export const ajvatovciInfo: MapInfo = {
   // Stage + free-drive background: Ilinden town / A2 (west, south-west) and Marino (south). The baked
   // detail heights / land cover / roads / buildings cover this box (scripts/realmap/ajvatovci.json).
   bounds: { minX: -4300, maxX: 4600, minZ: -3450, maxZ: 3500 },
-  stage: { start: 40, finishFromEnd: 150, splits: 3 },
   environment: {
     sunElevation: 40,
     // Afternoon sun from the south-west (azimuth from +Z towards +X; +Z = south).

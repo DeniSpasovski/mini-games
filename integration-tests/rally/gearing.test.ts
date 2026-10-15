@@ -87,21 +87,21 @@ describe.each(ALL_CARS.filter((c) => hasGearings(c.physics)).map((c) => c.id))(
 );
 
 test('jackie recommends long gearing and the Fabia reaches 200 km/h on it', () => {
-  expect(jackieMap.gearing).toBe('long');
+  expect(jackieMap.stages[0].gearing).toBe('long');
   const world = new World(jackieMap);
   const def = applyGearing(
-    applySetup(car('skoda_rally'), SETUP_FOR_TYRE[jackieMap.tyre]),
+    applySetup(car('skoda_rally'), SETUP_FOR_TYRE[jackieMap.stages[0].tyre]),
     'long',
   );
   const v = new Vehicle(def, world);
-  v.setTyre(jackieMap.tyre);
+  v.setTyre(jackieMap.stages[0].tyre);
   const spawn = world.roadSpawn();
   v.reset(spawn.position, spawn.heading);
   // A driver who uses the car's speed (the stage tests' autopilot never goes past 151 km/h): the long straight
   // before 5 000 m is where 200 km/h is reached. Flat out, the autopilot is on a knife edge in the bends after it
   // (a millimetre of terrain beside the road decides whether a guard-rail brush spins it), so finishing the whole
   // stage is the stage test's job (at its own speed), not this one's.
-  const ap = new Autopilot(world.road);
+  const ap = new Autopilot(world.stageRoad);
   ap.useExtraGrip = true;
   ap.maxSpeed = 70;
   ap.reset(world.stage.start - 9);

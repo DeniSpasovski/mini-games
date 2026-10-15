@@ -58,6 +58,7 @@
   position: absolute;
   left: 10px;
   bottom: 6px;
+  z-index: 3;
   font-size: 11px;
   color: #6f7986;
   pointer-events: none;
@@ -67,6 +68,7 @@
   position: absolute;
   right: 14px;
   bottom: 10px;
+  z-index: 3;
   max-width: 60vw;
   padding: 5px 10px;
   border-radius: 14px;
@@ -165,6 +167,17 @@
   gap: 10px;
   margin-top: auto;
   padding-top: 8px;
+  /* action row stays in view; only the content above it scrolls (panel is the scroller) */
+  position: sticky;
+  bottom: -24px;
+  z-index: 2;
+  padding-bottom: 32px; /* room for the version / now-playing labels under the buttons */
+  margin-bottom: -24px;
+  background: linear-gradient(
+    0deg,
+    rgba(8, 10, 14, 0.95) 70%,
+    rgba(8, 10, 14, 0)
+  );
 }
 .menu-buttons .menu-btn {
   flex: 1;
@@ -562,6 +575,9 @@
 .menu-specs dd {
   margin: 0;
   font-weight: 600;
+}
+.menu-filter {
+  margin-bottom: 8px;
 }
 .menu-livery {
   display: flex;

@@ -397,10 +397,6 @@ export const petralicaMap: MapDef = {
       spread: 18,
     },
   ],
-  // Every side road / track meeting the stage road is closed with barriers (as on a real stage).
-  // Small fan groups (tape, spectators, flags) inside the tight corners.
-  cornerFans: {},
-  junctionBarriers: { asset: 'road_barrier', length: 2.2, setback: 4 },
   // Steel guard rails over the E-871 bridge (1097-1141 m), a few metres past each end over the embankments.
   barriers: [
     { kind: 'guardrail', side: 'both', offset: 0.9, from: 1085, to: 1147 },

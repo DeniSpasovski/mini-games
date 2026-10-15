@@ -16,7 +16,7 @@ last 1.1 km) were traced from a route screenshot and are only accurate to 10-25 
 land that is marked as built-up, so their number and sizes are approximate.
 
 ```bash
-npm run dev     # /games/rally/?map=petralica&spawn=7500
+npm run dev     # /games/rally/?stage=petralica&spawn=7500
                 # /games/rally/map-viewer.html?map=petralica
 ```
 

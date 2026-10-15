@@ -432,10 +432,24 @@ export class TerrainGenerator {
     }
     if (map.lakes?.length) {
       const lakes = (this.lakes = new Lakes(map.lakes));
-      lakes.levels = lakes.polys.map((p) => this.lakeLevel(p));
+      // A fixed level (sea level metres) is shifted like the heightmap; otherwise the shore decides.
+      const off = map.terrain.heightmap?.offset ?? 0;
+      lakes.levels = lakes.polys.map((p, i) => {
+        const lv = map.lakes![i].level;
+        return lv !== undefined ? lv - off : this.lakeLevel(p);
+      });
     }
     if (map.terrain.pads?.length)
       this.pads = new PadField(map.terrain.pads, this.road);
+  }
+
+  /** Smoothing window (m) and grade limit of another road's height line: `PATH_PROFILE`, or the map's `pathProfiles`. */
+  private pathProfile(kind: string): [number, number] {
+    return (
+      this.map.pathProfiles?.[kind] ??
+      PATH_PROFILE[kind] ??
+      PATH_PROFILE_DEFAULT
+    );
   }
 
   /**
@@ -480,7 +494,7 @@ export class TerrainGenerator {
       const L = net.lengths[pi];
       const n = Math.max(2, Math.ceil(L / PROFILE_STEP) + 1);
       const step = L / (n - 1) || 1;
-      const [window, grade] = PATH_PROFILE[p.kind] ?? PATH_PROFILE_DEFAULT;
+      const [window, grade] = this.pathProfile(p.kind);
       // Streets on top of a portal structure follow the raised land (the pad); the carriageways in the trench and
       // streets running inside the trench do not.
       const raise = !this.trenchPath(net, pi);
@@ -589,7 +603,7 @@ export class TerrainGenerator {
       // with distance from the nearest one (longer for big height differences, so the
       // ramp stays near the road's grade limit).
       if (at.length) {
-        const grade = (PATH_PROFILE[p.kind] ?? PATH_PROFILE_DEFAULT)[1];
+        const grade = this.pathProfile(p.kind)[1];
         let maxDy = 0;
         for (const d of dy) maxDy = Math.max(maxDy, Math.abs(d));
         const ease = Math.min(

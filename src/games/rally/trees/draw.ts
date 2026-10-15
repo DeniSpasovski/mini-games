@@ -16,6 +16,7 @@ import {
   type WebGLRenderer,
 } from 'three';
 import { worldUniforms } from '../engine/world-shading';
+import type { RoadQuery } from '../world/road';
 import type { ScatterInstance } from '../world/scatter';
 import type { World } from '../world/world';
 import type { LoadedVariant, TreeLibrary } from './load';
@@ -217,6 +218,11 @@ export interface TreeRendererOptions {
    * `shadowDistance` (behind the camera, most of them throw their shadow where no shadow map is).
    */
   shadowExtent?: number;
+  /**
+   * Trees farther than this from the stage road (m) are always static impostors (no branches, sprites or shadows): the
+   * player only ever sees them from the road, at least this far away.
+   */
+  fakeFrom?: number;
   /** New job after the camera moved this far (m). */
   rebuildDistance?: number;
   /** Max ms per frame for a job. */
@@ -253,6 +259,8 @@ interface TreeState extends FadeState {
   /** Its variant's dynamic batches: LOD0, LOD1 branches, then the sprite buckets (KEEP). */
   batches: Batch[];
   budget: Budget;
+  /** Farther than `fakeFrom` from the road: always a static impostor. */
+  faked: boolean;
 }
 
 /** Horizontal half-angle a tree (bounding radius r) at distance d covers beyond its centre's direction. */
@@ -315,6 +323,15 @@ const STATIC_IMPOSTOR = [1, SOLID, 0, IMPOSTOR];
 const _m = new Matrix4();
 const _q = new Quaternion();
 const _e = new Euler();
+const _rq: RoadQuery = {
+  found: false,
+  lateral: 0,
+  distance: 0,
+  along: 0,
+  height: 0,
+  halfWidth: 0,
+  index: 0,
+};
 const _p = new Vector3();
 const _s = new Vector3();
 const _dir = new Vector3();
@@ -744,9 +761,17 @@ export class TreeRenderer {
       staticJob: -1,
       batches: this.batchesOf(lv),
       budget: this.budget(lv),
+      faked: this.farFromRoad(inst.x, inst.z),
     };
     this.states.set(inst, st);
     return st;
+  }
+
+  private farFromRoad(x: number, z: number): boolean {
+    const d = this.opts.fakeFrom;
+    if (d === undefined) return false;
+    const q = this.world.road.query(x, z, _rq);
+    return !q.found || q.distance > d;
   }
 
   /** treeLod of a tree: sphere centre rise, diameter, thinning and impostor thresholds (the sprite shader's input). */
@@ -825,6 +850,16 @@ export class TreeRenderer {
           ) {
             this.current.occluded++;
             occluded++;
+            continue;
+          }
+          if (st.faked) {
+            st.from = st.to = IMPOSTOR;
+            st.fade = 1;
+            st.dir = 1;
+            st.seen = this.frame;
+            this.jobSpread = spread(st.diameter / 2 + move, dist);
+            this.stageImpostor(st, Math.atan2(dz, dx));
+            st.staticJob = job;
             continue;
           }
           const { t, hysteresis: margin } = st.budget;

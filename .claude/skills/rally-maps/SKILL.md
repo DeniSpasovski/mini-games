@@ -5,14 +5,15 @@ description: Create or edit Gravel Rally maps (road layout, terrain, jumps, scat
 
 # Rally maps
 
-Every map needs `tyre` (required `TyreId`: the recommended compound for its road surfaces - `tarmac`, `mixed` or `gravel`, see `physics/tyres.ts` / `src/games/rally/PHYSICS.md`; the recommended suspension follows from it); `integration-tests/rally/tyres.test.ts` lists the maps it drives (add the new id).
+Every stage needs `tyre` (`StageDef`, required `TyreId`: the recommended compound for its road surfaces - `tarmac`, `mixed` or `gravel`, see `physics/tyres.ts` / `src/games/rally/PHYSICS.md`; the recommended suspension follows from it); `integration-tests/rally/tyres.test.ts` lists the maps it drives (add the new id).
 
-A map is pure data: one folder per map, `src/games/rally/maps/<id>/map.ts` exporting a `MapDef`
+A map is pure data: one folder per map, `src/games/rally/maps/<id>/map.ts` exporting a `MapDef` (the world) with its
+`stages` (`stages.ts`: the events on it, rally `DETAILS.md` "Maps")
 (format in `maps/shared/types.ts`; helpers shared by maps in `maps/shared/`), registered in `maps/index.ts`.
 Map-specific files (baked `data.json`, `TODO.md`, later textures / props) live in the map's folder.
 Every map folder has a `DETAILS.md` tracking ALL external links / files used (route links, data sources +
 licences / citations, downloaded files, reference screenshots) - add one short row whenever you use a new source (no prose; `AGENTS.md` "Write short"). Public-facing
-sources (data sets, route links) also go in `MapDef.sources` (label / url / note) - listed on the main menu About screen. Everything (heightfield, road carving, trees, colliders) is
+sources (data sets) also go in `MapDef.sources` (label / url / note; a stage's own route link in `StageDef.sources`) - listed on the main menu About screen. Everything (heightfield, road carving, trees, colliders) is
 generated deterministically from it. There is no map editor on purpose — edit the data.
 
 ## Coordinate system
@@ -33,7 +34,7 @@ generated deterministically from it. There is no map editor on purpose — edit 
   next entry; `road.surface` / `texture` are used before the first). E.g. asphalt valley road -> gravel climb
   (`maps/petralica`). Real maps: check Street View for where the surface really changes.
 - `stage.start` / `stage.finishFromEnd` / `stage.splits` define timing. They also place the start / finish gantries, the lines
-  and the split boards automatically (`world/stage-signs.ts`; the gantry header shows `name` + `year`, SS badge from `stageNumber`) -
+  and the split boards automatically (`world/stage-signs.ts`; the gantry header shows `name` + `year`) -
   do not add arch props. Every map needs `year`.
 
 ## Terrain
@@ -63,15 +64,16 @@ generated deterministically from it. There is no map editor on purpose — edit 
    these to place `at:` props), checks the road is flat/gravel and no solid scatter is on the road.
 2. `npm run test:integration -- integration-tests/rally/stage.test.ts` — the autopilot must finish the stage with every car without rolling.
    If it fails, trace the failing distance (lower `maxGrade`, widen a hairpin, move a crest out of a corner).
-3. Look: `/games/rally/map-viewer.html?map=<id>` (oblique overview, `grid=1` chunk grid, `splat=1` surfaces,
+3. Look: `/games/rally/map-viewer.html?map=<id>&stage=<id>` (one stage of the map, default the first; oblique overview, `grid=1` chunk grid, `splat=1` surfaces,
    click terrain -> "Drive from here").
-4. Drive: `/games/rally/?map=<id>&spawn=<metres>&mute=1` to test a section directly.
+4. Drive: `/games/rally/?stage=<id>&spawn=<metres along the stage>&mute=1` to test a section directly.
 5. **No sound while testing**: add `mute=1` to every game URL you open (see AGENTS.md "Sound while testing").
-6. **Stage card** (every map, stage select; a map without one is built live in the menu, dev warning): NEVER re-bake on your own - only when the user asks. Then
-   `/games/rally/?bakecard=<id>&mute=1` (or `?bakecards=1`) on `npm run dev:noreload` (launch config `portal-dev-noreload`;
+6. **Stage card** (every stage, stage select; a stage without one is built live in the menu, dev warning): NEVER re-bake on your own - only when the user asks. Then
+   `/games/rally/?bakecard=<stage id>&mute=1` (or `?bakecards=1`) on `npm run dev:noreload` (launch config `portal-dev-noreload`;
    on the normal server each saved card - or another session's edit - reloads the page and restarts / cuts off the bake),
-   wait for "saved", and the changed `maps/<id>/preview/stage-card.{json,jpg}` go in the commit. An out-of-date card only warns in the dev console -
-   mention it to the user. Flat map: `previewRelief` (e.g. 1.8) needs no re-bake. Code: `tools/stage-card*.ts`.
+   wait for "saved", and the changed `maps/<map>/preview/<stage>.{json,jpg}` go in the commit. An out-of-date card only warns in the dev console -
+   mention it to the user. `stageCardHash` covers only what the card draws: text (names, descriptions, tyre, links) and
+   `previewRelief` (e.g. 1.8 on a flat map) need no re-bake. Code: `tools/stage-card*.ts`.
 
 ## Real-world maps (OSM + elevation + land cover)
 
@@ -84,6 +86,11 @@ Example: `maps/ajvatovci/` (`map.ts`, baked `data.json`, task list `TODO.md`, so
    Optional: `dem` (`file` = local GeoTIFF or the OpenTopography `.tar.gz` in `sources/maps/<id>/`, `credit`) instead
    of Terrarium tiles - the detail grid must lie inside the file, the horizon grid falls back to Terrarium beyond it;
    `landcover.highTrees` / `osmWood` = `"trees"` where the woods are broadleaf (default: pine plantations); `landcover.plainOrchards = false` keeps big lowland tree patches as woods (default: they become `orchard`, which only suits farmland maps - a city forest turns empty), `landcover.plainTreesAs = "shrub"` makes them scrub (a valley of bushes); `landcover.manualCover` = hand-traced lat / lon rings painted over the cover (orchards WorldCover reads as crops: fit the screenshot to the baked route line by ICP, see ajvatovci DETAILS.md "Traced land cover");
+   `landcover.belts` = cover by altitude (`[{from: [covers], to, min?, max?}]`, DEM metres, e.g. oak -> beech -> pasture on a
+   mountain; covers `beech`, `pasture`); `lakes.levels` = fixed water level by lake name (big multipolygon lakes are stitched
+   and clipped to the map, `LakeDef.level`); `paths.keepNear` = `[[lat, lon, radius]]` keeps every road round the stage ends
+   beyond `paths.corridor`; `buildings.box: true` = one Overpass building query for the box (long winding routes);
+   Mountain roads: `barriers: hairpinRails(data.route, { maxRadius: 30, lead: 20 })` rails the outside of every hairpin.
    `buildings.worldcover: true` generates houses on WorldCover built-up ground where no footprint data set covers
    the area (source `wc` - say so in the map DETAILS.md); `buildings.manual` = known buildings by lat / lon;
    `msRoads: { country, clearance, minLength }` adds roads OSM lacks from Microsoft ML Road Detections (ODbL,
@@ -115,8 +122,8 @@ scripts/realmap/<id>.json` (config `trace`: screenshot, start / end marker pixel
    ponds / reservoirs come from the baker (`data.lakes`): set `lakes: data.lakes` in `map.ts`. To add them to an
    already baked map without renumbering its buildings, bake to a temp `out` and copy only `lakes` into its data.json. Roadside `minRadius` keeps solid props out of hairpins.
    Junctions: side roads are joined to the stage road automatically (`world/junctions.ts`); add
-   `junctionBarriers: { asset: 'road_barrier', length: 2.2, setback: 4 }` to close their mouths like a real stage.
-   Check them in game (`/games/rally/?map=<id>&spawn=<along>`; `__rally.world.gen.junctions` lists every one).
+   stage `closures: { asset: 'road_barrier', length: 2.2, setback: 4 }` (+ `stageMargin` on a map with several stages) to
+   close their mouths like a real stage. Check them in game (`/games/rally/?stage=<id>&spawn=<along>`; `__rally.world.gen.junctions` lists every one).
    Season look: `environment.groundTint` (`grass` + `amount`, `crop` = ripe crop colour, `moisture` = wet hollows / dry
    ridges strength, default 1); a `fields.palette` entry
    whose weights sum to < 1 leaves the rest as ripe crop (`[0, 0, 0, 0]` = wheat field, drives like grass). Match the
@@ -141,7 +148,7 @@ They are referred to as `stage <stageNumber> - building <id> - lat, lon`; ids ar
 
 Junctions (rule for every real-world map): the world must not end at the stage road. Every other road / track
 that meets it is joined to it (`world/junctions.ts` extends the baked side roads to the stage road edge) and its
-mouth is closed like on a real rally stage - set `junctionBarriers: { asset: 'road_barrier', length: 2.2,
+mouth is closed like on a real rally stage - set the stage's `closures: { asset: 'road_barrier', length: 2.2,
 setback: 4 }` in `map.ts`. The baker marks ways that only pass over / under the stage road (bridge, no shared
 OSM node) with `junction: false` - those get a bridge TODO, not barriers. `tests/rally/junctions.test.ts` prints
 the junction / barrier count per map and checks the barriers are off the road; look at a few in game
@@ -190,7 +197,7 @@ City maps (example `maps/jackie/`, config `scripts/realmap/jackie.json`) - extra
 - Browser checks: the preview pane throttles rendering hard; stream terrain by hand from the console
   (`__rally.terrain.update(pos, 300)` in a loop, `__rally.streamer.updateNow(pos)`) and park the camera with
   `__rally.rig.update = () => {}` + `__rally.camera.position.set(...)`.
-- README shots in game (`?map=<id>&car=<car>&spawn=<along>&mute=1`, no HUD): step the game by hand (`__rally.frame(1 / 60)` x 90,
+- README shots in game (`?stage=<id>&car=<car>&spawn=<along>&mute=1`, no HUD): step the game by hand (`__rally.frame(1 / 60)` x 90,
   what `benchmark` uses) and read `__rally.renderer.domElement` in the same task - `renderer.render` outside the loop draws
   sky only (the frame sets up the camera-relative scene). A hidden pane stalls loading: `tabs_select` the tab first.
 
@@ -250,7 +257,7 @@ the road height along it). Place lots from a satellite screenshot: trace pixels 
 road (`start-row/trace.ts`), share one fence between neighbouring lots (`layout.ts` `sharedFences`), and make fences /
 poles colliders and kerbs `groundOverride` ground so the car feels them (`start-row/index.ts`, `streetwork.ts`).
 Parked vehicles are instanced (`build/vehicles.ts`): keep a car < ~500 triangles. Check: `tests/rally/start-row.test.ts` style
-tests + the stage test (colliders must stay off the road), look at it in `/games/rally/?map=<id>&spawn=<along>`.
+tests + the stage test (colliders must stay off the road), look at it in `/games/rally/?stage=<id>&spawn=<along>`.
 Single buildings away from the stage road (example `maps/ajvatovci/hilltop/`: church, bell tower, court): positions from
 OSM ways reprojected with the baker's `Proj`, one `Local` frame per structure (`hilltop/build/shapes.ts`: the kit's
 `Frame` with its own `origin`, walls with real openings, tiled roof planes), ground levelled with named `flatAreas`
@@ -258,11 +265,14 @@ OSM ways reprojected with the baker's `Proj`, one `Local` frame per structure (`
 
 ## New map checklist
 
-Copy `maps/test/` to `maps/<id>/` (fill in its `DETAILS.md` sources), change `id`, `name`, `seed`, `bounds`, `road.points`; add to `ENTRIES` in `maps/index.ts` (a real map with baked data: put the menu fields in `<id>/info.ts`, load `map.ts` with a dynamic import, see rally DETAILS.md "Lazy loading");
-the stage test picks it up automatically. **Add it to `MAPS_LIST` with `hideInProd: true`** in
-`src/games/rally/release.ts` (one file tracks all maps + cars; `tests/rally/release.test.ts` fails for an unlisted
-map): it is then dev server only (`npm run dev` uses `ALL_MAPS`, TEST badge) and out of the published build, so other
-fixes can ship meanwhile. Remove the flag to release it (or set it again to pull it).
+Copy `maps/test/` to `maps/<id>/` (fill in its `DETAILS.md` sources), change `id`, `name`, `seed`, `bounds`, `road.points` and
+its `stages` (one or more `StageDef`: id, name, tyre, `timing`, `reverse` for a stage driven the other way along the road,
+`closures`, `cornerFans`); add to `ENTRIES` in `maps/index.ts` (a real map with baked data: put the menu fields + `stages.ts` in
+`<id>/info.ts`, load `map.ts` with a dynamic import, see rally DETAILS.md "Lazy loading"); the stage test picks every stage up
+automatically. Several stages on one road: measure each stage end's distance along the road in node (bake `meta.waypointsAlong`
+is along the baked polyline, the game road differs by metres) and hard-code `timing`. **Add every stage to `STAGES_LIST` with
+`hideInProd: true`** in `src/games/rally/release.ts` (`tests/rally/release.test.ts` fails for an unlisted stage): it is then
+dev server only (TEST badge) and out of the published build. Remove the flag to release it (or set it again to pull it).
 
 ## Source files
 
@@ -271,5 +281,5 @@ listed in the car / map folder `DETAILS.md` - follow `.claude/skills/source-file
 
 ## Bump the times version (last step)
 
-A new map adds its id to `MAP_TIMES_VERSIONS` in `game/stage.ts` (start at 1). Changing a released map's road, layout, length or surfaces bumps its entry, but only when the user says we are making a build;
-until then say in the PR which map changed (AGENTS.md "Rally times versions"). A `hideInProd` map stays at 1 until released (a test checks). Old times stay below the new ones.
+A new stage adds its id to `STAGE_TIMES_VERSIONS` in `game/stage.ts` (start at 1). Changing a released stage's road, layout, length or surfaces bumps its entry (a map's road change bumps every stage on it), but only when the user says we are making a build;
+until then say in the PR which stage changed (AGENTS.md "Rally times versions"). A `hideInProd` stage stays at 1 until released (a test checks). Old times stay below the new ones.

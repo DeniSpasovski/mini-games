@@ -21,7 +21,7 @@ data are ever used for this map, put the files in `sources/maps/test/` and add a
 
 ## Tools
 
-| Tool       | Link                                                  |
-| ---------- | ----------------------------------------------------- |
-| Map viewer | `/games/rally/map-viewer.html?map=test`               |
-| Play       | `/games/rally/?map=test&spawn=start` (or `spawn=pad`) |
+| Tool       | Link                                                    |
+| ---------- | ------------------------------------------------------- |
+| Map viewer | `/games/rally/map-viewer.html?map=test`                 |
+| Play       | `/games/rally/?stage=test&spawn=start` (or `spawn=pad`) |

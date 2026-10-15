@@ -24,6 +24,7 @@ A species is a data definition that the tree code reads, so adding or tuning a k
 - black_pine is a black pine, an Austrian black pine: a long straight trunk bare but for dead stubs, under a flat umbrella of dark needle clumps.
 - juniper is a juniper, a dark narrow cone of short upswept needled limbs, 2 to 3.5 m, drive-through.
 - oak_tree is an oak, a broad irregular field tree with a forking trunk and a rounded crown.
+- beech_tree is a mountain beech: a tall straight smooth pale-grey trunk under a dense rounded crown.
 - walnut_tree is a walnut, a big yard tree: a thick short trunk under a dense, dark, round crown wider than it is tall.
 - fruit_tree is a fruit tree, an apple or plum: a short trunk and a low, wide, round crown about half an oak's height.
 - pale_tree is a plane, a plane or ash with a long grey-white trunk and an open yellow-green crown.
@@ -35,6 +36,8 @@ A species is a data definition that the tree code reads, so adding or tuning a k
 - scrub_bush is scrub, Mediterranean hill scrub: dark olive, low and wide.
 - hazelnut_tree is a hazel, a plantation hazelnut: a multi-stemmed upright bush with a fresh green crown, 3 to 4 m.
 - thicket_shrub is a thicket, hawthorn and blackthorn brush in autumn colours.
+- hornbeam_tree is a hornbeam / oak coppice: two or three slender smooth grey stems from one stool under a narrow crown of small bright-green leaves.
+- broom_shrub is flowering broom: upright green switches covered in yellow, 1 to 2 m.
 - Bushes, scrub, hazels, thickets and junipers are drive-through. The other trees collide on their trunk, the poplar on its trunk alone.
 - Conifers wear needle sprays and the other species leaf bunches. Bark and leaf colours follow the description: white birch, grey-white plane, dark black pine needles, pale willow leaves, olive scrub, autumn thicket.
 - The common forest species, pine, oak, bush and scrub, have six variants; the rest have four, to keep the draw calls of a map with many species in budget.

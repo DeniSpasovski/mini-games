@@ -1,0 +1,4 @@
+ref,id,lat,lon,along_m,side,road_dist_m,type,floors,width_m,depth_m,wall_height_m,source,osm_way,osm_building,kind,roof,roof_height_m
+"stage 4 - building 1 - 40.951622, 20.830138",1,40.951622,20.830138,15096,R,231.8,house,1,12.6,10.6,3.3,osm,235728304,house,house,gable,3.9
+"stage 4 - building 2 - 40.959532, 20.895936",2,40.959532,20.895936,27671,R,246.8,house,2,10.2,6.7,6.2,osm,1004685105,yes,house,gable,7.0
+"stage 4 - building 3 - 40.959527, 20.896091",3,40.959527,20.896091,27671,R,240.6,house,2,13.2,11.8,6.2,osm,1004685103,yes,house,gable,7.0
