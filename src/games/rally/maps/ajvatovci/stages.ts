@@ -15,6 +15,6 @@ export const ajvatovciStages: StageDef[] = [
     timing: { start: 40, finishFromEnd: 150, splits: 3 },
     // Every side road / track meeting the stage road is closed with barriers (as on a real stage).
     closures: { asset: 'road_barrier', length: 2.2, setback: 4 },
-    cornerFans: {},
+    cornerFans: { flag: 'mk' },
   },
 ];

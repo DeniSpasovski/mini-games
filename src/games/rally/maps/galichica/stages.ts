@@ -36,7 +36,7 @@ export const galichicaStages: StageDef[] = [
       splits: 3,
     },
     closures: CLOSURES,
-    cornerFans: { from: PARK_ENTRANCE + 150, to: MAGARO - 150 },
+    cornerFans: { flag: 'mk', from: PARK_ENTRANCE + 150, to: MAGARO - 150 },
     sources: [
       {
         label: 'Google Maps route (park entrance -> Magaro trail parking)',
@@ -60,6 +60,7 @@ export const galichicaStages: StageDef[] = [
     },
     closures: CLOSURES,
     cornerFans: {
+      flag: 'mk',
       from: ROAD_LENGTH - PRESPA + 150,
       to: ROAD_LENGTH - MAGARO - 150,
     },
@@ -87,6 +88,7 @@ export const galichicaStages: StageDef[] = [
     },
     closures: CLOSURES,
     cornerFans: {
+      flag: 'mk',
       from: ROAD_LENGTH - PRESPA + 150,
       to: ROAD_LENGTH - PARK_ENTRANCE - 150,
     },

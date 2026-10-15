@@ -17,5 +17,7 @@ export const jackieStages: StageDef[] = [
     timing: { start: 40, finishFromEnd: 47, splits: 4 },
     // Side roads / ramps meeting the stage road are closed with barriers (as on a real stage).
     closures: { asset: 'road_barrier', length: 2.2, setback: 4 },
+    // Fans, marshals and photographers behind the tape in the bends, at the side-road mouths, the start and the finish.
+    cornerFans: { flag: 'us', maxRadius: 160, chance: 0.6 },
   },
 ];

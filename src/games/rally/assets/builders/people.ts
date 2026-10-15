@@ -79,6 +79,8 @@ type Prop =
   | 'tripod'
   | 'flag'
   | 'smallFlag'
+  | 'flagMk'
+  | 'flagUs'
   | 'sign'
   | 'radio';
 
@@ -138,6 +140,23 @@ const POSES = {
     armR: limb(0.2, 2.5, 0.5, 2.7),
     sway: -0.05,
     prop: 'smallFlag',
+  },
+  // A fan waving a national hand flag (North Macedonia / USA).
+  waveMk: {
+    legL: limb(0, 0.06, 0),
+    legR: limb(0, 0.06, 0),
+    armL: limb(0.05, 0.12, 0.15),
+    armR: limb(0.2, 2.5, 0.5, 2.7),
+    sway: -0.05,
+    prop: 'flagMk',
+  },
+  waveUs: {
+    legL: limb(0, 0.06, 0),
+    legR: limb(0, 0.06, 0),
+    armL: limb(0.05, 0.12, 0.15),
+    armR: limb(0.2, 2.5, 0.5, 2.7),
+    sway: -0.05,
+    prop: 'flagUs',
   },
   camera: {
     legL: limb(0.1, 0.07, 0.05),
@@ -793,8 +812,8 @@ function torsoRings(
     { y: 0.38, w: 0.185 * broad, d: 0.112 * bust, z: 0.01 },
     { y: 0.27, w: 0.165 * broad, d: 0.1 },
     { y: 0.15, w: 0.17 * broad, d: 0.102 },
-    { y: 0.04, w: 0.182 * broad, d: 0.108 },
-    { y: hemY, w: 0.18 * broad * flare, d: 0.108 * flare },
+    { y: 0.04, w: 0.2 * broad, d: 0.114 },
+    { y: hemY, w: 0.2 * broad * flare, d: 0.114 * flare },
   ];
 }
 
@@ -849,10 +868,11 @@ function figureDetail({ pose, outfit: o, rng }: FigureOpts): BufferGeometry {
   parts.push(
     loft(
       [
-        { y: 0.1, w: 0.172 * broad, d: 0.106 },
-        { y: 0.0, w: 0.186 * broad, d: 0.113 },
-        { y: -0.07, w: 0.172 * broad, d: 0.105 },
-        { y: -0.13, w: 0.11 * broad, d: 0.09 },
+        // Inside the torso garment, which always hangs over the hips.
+        { y: 0.1, w: 0.15 * broad, d: 0.092 },
+        { y: 0.0, w: 0.164 * broad, d: 0.1 },
+        { y: -0.07, w: 0.158 * broad, d: 0.096 },
+        { y: -0.13, w: 0.11 * broad, d: 0.088 },
       ],
       12,
       hipColor,
@@ -884,8 +904,9 @@ function figureDetail({ pose, outfit: o, rng }: FigureOpts): BufferGeometry {
   const rings = torsoRings(
     broad,
     bust,
-    jacketTorso ? -0.06 : 0.0,
-    jacketTorso ? 1.06 : 1,
+    // The hem hangs below the waist over the hips and thigh tops.
+    jacketTorso ? -0.11 : -0.07,
+    jacketTorso ? 1.12 : 1.08,
   );
   torsoParts.push(loft(rings, 12, o.torso, torsoCell, { capTop: true }));
   if (o.vest) {
@@ -1322,6 +1343,53 @@ function propParts(
     out.push(
       block(0.2, 0.13, 0.008, hr.clone().add(v(0.1, 0.23, 0)), '#d8322a'),
     );
+  } else if (prop === 'flagMk' || prop === 'flagUs') {
+    out.push(
+      tube(
+        hr.clone().add(v(0, -0.06, 0)),
+        hr.clone().add(v(0, 0.31, 0)),
+        0.008,
+        0.008,
+        '#6b5a40',
+        3,
+      ),
+    );
+    const c = hr.clone().add(v(0.15, 0.22, 0));
+    const zRot = (a: number) => new Matrix4().makeRotationZ(a);
+    if (prop === 'flagMk') {
+      // North Macedonia: red field, a yellow sun with eight rays.
+      out.push(block(0.3, 0.15, 0.008, c, '#d20000'));
+      out.push(block(0.055, 0.055, 0.011, c, '#f8e100', zRot(Math.PI / 4)));
+      if (hi)
+        for (const [len, a] of [
+          [0.3, 0],
+          [0.14, Math.PI / 2],
+          [0.18, Math.PI / 4],
+          [0.18, -Math.PI / 4],
+        ] as const)
+          out.push(block(len, 0.008, 0.01, c, '#f8e100', zRot(a)));
+    } else {
+      // USA: seven stripes and the blue canton.
+      const stripe = 0.15 / 7;
+      const top = c.y + 0.075;
+      for (let i = 0; i < (hi ? 7 : 2); i++)
+        out.push(
+          block(
+            0.3,
+            hi ? stripe : 0.075,
+            0.008,
+            v(
+              c.x,
+              hi ? top - stripe * (i + 0.5) : top - 0.0375 - i * 0.075,
+              c.z,
+            ),
+            i % 2 === 0 ? '#bf1e2e' : '#f4f4f4',
+          ),
+        );
+      out.push(
+        block(0.12, 0.086, 0.011, v(c.x - 0.09, top - 0.043, c.z), '#1d3c8a'),
+      );
+    }
   } else if (prop === 'sign') {
     const at = hl
       .clone()
@@ -1480,6 +1548,9 @@ const SPECTATOR_POSES: PoseName[] = ['stand', 'wave', 'camera', 'pockets'];
 
 /** Variants from here on sit or squat at the roadside (outfit = variant % 6, pose = 3 seated ones). */
 export const SPECTATOR_STANDING = 24;
+/** Variants from here wave a hand flag: 6 outfits x (North Macedonia, USA). */
+const SPECTATOR_FLAG_FROM = 42;
+const FLAG_POSES: PoseName[] = ['waveMk', 'waveUs'];
 const SPECTATOR_SEATED: PoseName[] = ['sitGround', 'sitKnees', 'squat'];
 
 export const spectator: AssetBuilder = ({ seed, variant, lod }) => {
@@ -1522,11 +1593,15 @@ export const spectator: AssetBuilder = ({ seed, variant, lod }) => {
     o.legs = rng.pick(JEAN_COLORS);
   }
   const pose =
-    variant >= SPECTATOR_STANDING
-      ? SPECTATOR_SEATED[
-          Math.floor((variant - SPECTATOR_STANDING) / SPECTATOR_OUTFITS) % 3
+    variant >= SPECTATOR_FLAG_FROM
+      ? FLAG_POSES[
+          Math.floor((variant - SPECTATOR_FLAG_FROM) / SPECTATOR_OUTFITS) % 2
         ]
-      : SPECTATOR_POSES[Math.floor(variant / SPECTATOR_OUTFITS) % 4];
+      : variant >= SPECTATOR_STANDING
+        ? SPECTATOR_SEATED[
+            Math.floor((variant - SPECTATOR_STANDING) / SPECTATOR_OUTFITS) % 3
+          ]
+        : SPECTATOR_POSES[Math.floor(variant / SPECTATOR_OUTFITS) % 4];
   return finishFigure(pose, o, lod, rng, true);
 };
 

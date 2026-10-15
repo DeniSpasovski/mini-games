@@ -2,6 +2,7 @@ import { describe, expect, rs, test } from '@rstest/core';
 import { Texture } from 'three';
 import {
   ASSET_CATALOG,
+  SPECTATOR_FLAG_COUNT,
   SPECTATOR_SEATED_COUNT,
   SPECTATOR_VARIANTS,
 } from '../../src/games/rally/assets/catalog';
@@ -50,7 +51,7 @@ describe('people', () => {
   test('the spectator catalog count matches the builder', () => {
     expect(SPECTATOR_VARIANTS).toBe(6 * 4);
     expect(ASSET_CATALOG.find((a) => a.id === 'spectator')!.variants).toBe(
-      SPECTATOR_VARIANTS + SPECTATOR_SEATED_COUNT,
+      SPECTATOR_VARIANTS + SPECTATOR_SEATED_COUNT + SPECTATOR_FLAG_COUNT,
     );
   });
 

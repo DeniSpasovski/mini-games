@@ -1,5 +1,6 @@
 import { hash3, hashString, Rng } from '../../../shared/rng';
 import {
+  SPECTATOR_FLAG_FROM,
   SPECTATOR_SEATED_COUNT,
   SPECTATOR_SEATED_FROM,
   SPECTATOR_VARIANTS,
@@ -134,7 +135,14 @@ export function cornerFanInstances(
         : sub.int(0, SPECTATOR_VARIANTS - 1);
       const yaw = sub.range(-0.5, 0.5);
       // About a third are visitors in everyday clothes (seated ones stay fans).
-      if (!seated && mix.next() < 0.35)
+      const pickVisitor = mix.next() < 0.35;
+      const pickFlag = mix.next() < 0.45;
+      const flagVariant =
+        SPECTATOR_FLAG_FROM + (rule.flag === 'us' ? 6 : 0) + mix.int(0, 5);
+      if (seated) place('spectator', da, off, variant, yaw);
+      else if (rule.flag && pickFlag)
+        place('spectator', da, off, flagVariant, yaw);
+      else if (pickVisitor)
         place('visitor', da, off, mix.int(0, VISITOR_VARIANTS - 1), yaw);
       else place('spectator', da, off, variant, yaw);
     }

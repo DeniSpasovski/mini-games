@@ -63,6 +63,9 @@ export interface AssetMeta {
 export const SPECTATOR_VARIANTS = 24;
 export const SPECTATOR_SEATED_FROM = 24;
 export const SPECTATOR_SEATED_COUNT = 18;
+/** Fans waving a hand flag (from variant 42): 6 outfits of North Macedonia, then 6 of the USA. */
+export const SPECTATOR_FLAG_FROM = 42;
+export const SPECTATOR_FLAG_COUNT = 12;
 
 /** Figures: smooth painted body close up, the jointed low-poly one, a boxy body, then a two-box silhouette. */
 const PEOPLE_LODS: LodSpec[] = [
@@ -164,8 +167,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Spectator',
     category: 'props',
     description:
-      'Fan made of jointed parts (assets/builders/people.ts). Variant % 6 = outfit (jacket, T-shirt + cap, hoodie, hi-vis vest, backpack, supporter shirt), variant / 6 = pose (stand, wave, camera, hands in pockets); variants 24-41: sitting on the ground, knees up, squatting.',
-    variants: SPECTATOR_VARIANTS + SPECTATOR_SEATED_COUNT,
+      'Fan made of jointed parts (assets/builders/people.ts). Variant % 6 = outfit (jacket, T-shirt + cap, hoodie, hi-vis vest, backpack, supporter shirt), variant / 6 = pose (stand, wave, camera, hands in pockets); variants 24-41: sitting on the ground, knees up, squatting; 42-53: waving a North Macedonia (42-47) or USA (48-53) hand flag.',
+    variants:
+      SPECTATOR_VARIANTS + SPECTATOR_SEATED_COUNT + SPECTATOR_FLAG_COUNT,
     lods: PEOPLE_LODS,
   },
   {

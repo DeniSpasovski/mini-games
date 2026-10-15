@@ -769,6 +769,8 @@ export interface CornerFansRule {
   chance?: number;
   /** Spectators per group [min, max] (default [3, 8]). */
   fans?: [number, number];
+  /** Hand flag the waving fans carry: North Macedonia or the USA (none = no waving fans). */
+  flag?: 'mk' | 'us';
   /** Share of the groups with 1-3 flags (default 0.6). */
   flagChance?: number;
   /** Tape line distance from the road edge (m, default 3.5); the fans stand 1.5-5.5 m behind it. */
