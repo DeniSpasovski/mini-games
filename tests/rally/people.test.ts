@@ -59,10 +59,12 @@ describe('people', () => {
     const meta = ASSET_CATALOG.find((a) => a.id === id)!;
     const variants = Array.from({ length: meta.variants }, (_, v) => v);
 
-    test('every variant: one part, feet on the ground, 0.8-2.4 m tall (arms up), within budget', () => {
+    test('every variant: one body part (+ a flag part when waving one), feet on the ground, 0.8-2.4 m tall (arms up), within budget', () => {
       for (const v of variants) {
         const near = measure(id, v, 0);
-        expect(near.parts).toBe(1);
+        // A hand flag is its own mesh (waved by the people_flag material).
+        expect(near.parts).toBeLessThanOrEqual(id === 'spectator' ? 2 : 1);
+        expect(near.parts).toBeGreaterThanOrEqual(1);
         expect(near.lo).toBeGreaterThan(-0.005);
         expect(near.lo).toBeLessThan(0.02);
         expect(near.hi).toBeGreaterThan(0.8);

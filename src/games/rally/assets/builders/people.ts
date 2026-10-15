@@ -1,6 +1,7 @@
 import {
   BoxGeometry,
   CylinderGeometry,
+  BufferAttribute,
   Euler,
   ExtrudeGeometry,
   Matrix4,
@@ -501,6 +502,27 @@ function flatPoly(
   return tag(paint(g, color), REFLECT);
 }
 
+/**
+ * Marks parts as a hand flag (pole + cloth) that the `people_flag` material waves about the hand `pivot`: `flagRel` =
+ * vertex minus pivot, `flutter` = 0 for the pole (first part), 1 for the cloth (its pieces turn together).
+ */
+function markFlag(parts: BufferGeometry[], pivot: Vector3): void {
+  for (const [k, g] of parts.entries()) {
+    const p = g.getAttribute('position');
+    const rel = new Float32Array(p.count * 3);
+    const fl = new Float32Array(p.count);
+    for (let i = 0; i < p.count; i++) {
+      rel[i * 3] = p.getX(i) - pivot.x;
+      rel[i * 3 + 1] = p.getY(i) - pivot.y;
+      rel[i * 3 + 2] = p.getZ(i) - pivot.z;
+      fl[i] = k === 0 ? 0 : 1;
+    }
+    g.setAttribute('flagRel', new BufferAttribute(rel, 3));
+    g.setAttribute('flutter', new BufferAttribute(fl, 1));
+    g.userData.flag = true;
+  }
+}
+
 /** Open tapered tube from `a` (radius `ra`) to `b` (radius `rb`), `flat` squashes it front to back. */
 function tube(
   a: Vector3,
@@ -800,10 +822,13 @@ function finishBody(
   pose: Pose,
   o: Outfit,
 ): BufferGeometry {
+  const cloth = parts.filter((p) => p.userData.flag);
   const g = merge(
-    parts.map((p) =>
-      p.userData.cell === -1 ? p : mapCell(p, p.userData.cell ?? HAT),
-    ),
+    parts
+      .filter((p) => !p.userData.flag)
+      .map((p) =>
+        p.userData.cell === -1 ? p : mapCell(p, p.userData.cell ?? HAT),
+      ),
   );
   const bodyScale = o.scale;
   if (pose.lie) {
@@ -815,6 +840,21 @@ function finishBody(
   g.translate(0, -minY, 0);
   if (bodyScale !== 1) g.scale(bodyScale, bodyScale, bodyScale);
   g.computeBoundingSphere();
+  if (cloth.length) {
+    // A hand flag is its own mesh (the `people_flag` material waves it); it follows the body's placement.
+    const f = merge(cloth);
+    f.translate(0, -minY, 0);
+    f.scale(bodyScale, bodyScale, bodyScale);
+    const rel = f.getAttribute('flagRel');
+    for (let i = 0; i < rel.count; i++)
+      rel.setXYZ(
+        i,
+        rel.getX(i) * bodyScale,
+        rel.getY(i) * bodyScale,
+        rel.getZ(i) * bodyScale,
+      );
+    g.userData.flag = f;
+  }
   return g;
 }
 
@@ -1354,6 +1394,7 @@ function propParts(
     );
   } else if (prop === 'smallFlag') {
     // A fan's hand flag: short pole held upright, cloth streaming to the side.
+    const f0 = out.length;
     out.push(
       tube(
         hr.clone().add(v(0, -0.06, 0)),
@@ -1367,7 +1408,9 @@ function propParts(
     out.push(
       block(0.2, 0.13, 0.008, hr.clone().add(v(0.1, 0.23, 0)), '#d8322a'),
     );
+    markFlag(out.slice(f0), hr);
   } else if (prop === 'flagMk' || prop === 'flagUs') {
+    const f0 = out.length;
     out.push(
       tube(
         hr.clone().add(v(0, -0.06, 0)),
@@ -1378,7 +1421,6 @@ function propParts(
         3,
       ),
     );
-    const cloth0 = out.length;
     const c = hr.clone().add(v(0.15, 0.22, 0));
     // Flag units: W x H, origin at the cloth centre, +y up.
     const W = 0.3;
@@ -1386,8 +1428,8 @@ function propParts(
     if (prop === 'flagMk') {
       // North Macedonia: red field, a yellow disc and eight rays reaching the edges (a ray = two inner points near the
       // disc and two on the border).
-      out.push(block(W, H, 0.008, c, '#d82126', undefined, REFLECT));
-      const disc = new CylinderGeometry(0.0215, 0.0215, 0.011, hi ? 10 : 6);
+      out.push(block(W, H, 0.006, c, '#d82126', undefined, REFLECT));
+      const disc = new CylinderGeometry(0.0215, 0.0215, 0.02, fine ? 10 : 6);
       disc.rotateX(Math.PI / 2);
       disc.translate(c.x, c.y, c.z);
       out.push(tag(paint(disc, '#f8e92e'), REFLECT));
@@ -1432,21 +1474,21 @@ function propParts(
             return [p[0] * k, p[1] * k];
           };
           out.push(
-            flatPoly([inner(p1), inner(p2), p2, p1], c, '#f8e92e', 0.01),
+            flatPoly([inner(p1), inner(p2), p2, p1], c, '#f8e92e', 0.02),
           );
         }
       }
     } else {
       // USA: thirteen stripes, the blue canton (two fifths wide, seven stripes tall) with rows of stars.
       const stripe = H / 13;
-      out.push(block(W, H, 0.008, c, '#f4f4f4', undefined, REFLECT));
+      out.push(block(W, H, 0.006, c, '#f4f4f4', undefined, REFLECT));
       if (fine) {
         for (let i = 0; i < 13; i += 2)
           out.push(
             block(
               W,
               stripe,
-              0.01,
+              0.016,
               v(c.x, c.y + H / 2 - stripe * (i + 0.5), c.z),
               '#bb1030',
               undefined,
@@ -1468,7 +1510,7 @@ function propParts(
       const cw = W * 0.4;
       const ch = stripe * 7;
       const cc = v(c.x - W / 2 + cw / 2, c.y + H / 2 - ch / 2, c.z);
-      out.push(block(cw, ch, 0.012, cc, '#002060', undefined, REFLECT));
+      out.push(block(cw, ch, 0.022, cc, '#002060', undefined, REFLECT));
       if (fine)
         for (let r = 0; r < 5; r++)
           for (let k = 0; k < (r % 2 === 0 ? 4 : 3); k++)
@@ -1476,7 +1518,7 @@ function propParts(
               block(
                 0.0075,
                 0.0075,
-                0.014,
+                0.028,
                 v(
                   cc.x - cw / 2 + (cw / 9) * ((r % 2 === 0 ? 1 : 2) + k * 2),
                   cc.y + ch / 2 - (ch / 6) * (r + 1),
@@ -1488,12 +1530,7 @@ function propParts(
               ),
             );
     }
-    // Printed cloth stays bright whatever the light does to its flat faces.
-    for (const g of out.slice(cloth0)) {
-      const col = g.getAttribute('color');
-      for (let i = 0; i < col.count; i++)
-        col.setXYZ(i, col.getX(i) * 2.8, col.getY(i) * 2.8, col.getZ(i) * 2.8);
-    }
+    markFlag(out.slice(f0), hr);
   } else if (prop === 'sign') {
     const at = hl
       .clone()
@@ -1603,7 +1640,11 @@ function finishFigure(
               lod: lod === 1 ? 0 : 1,
               rng,
             });
-  return { parts: [{ geometry: g, material: getMaterial('people') }] };
+  const parts = [{ geometry: g, material: getMaterial('people') }];
+  const flag = g.userData.flag as BufferGeometry | undefined;
+  if (flag)
+    parts.push({ geometry: flag, material: getMaterial('people_flag') });
+  return { parts };
 }
 
 const baseOutfit = (rng: Rng): Outfit => ({
