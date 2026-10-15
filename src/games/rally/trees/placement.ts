@@ -105,7 +105,9 @@ export function treeColliders(inst: Placed): StaticCollider[] {
 /** A tree type's crown seen from above at scale 1 (aerial previews, baked canopy shadows): variant 0's crown. */
 export function treeCanopy(asset: string): {
   radius: number;
+  /** Crown centre height and vertical radius. */
   height: number;
+  ry: number;
   color: V3;
 } {
   const info = variantInfo(speciesOfType(asset).name, 0);
@@ -113,6 +115,7 @@ export function treeCanopy(asset: string): {
   return {
     radius: info.crown.r[0] * 0.85,
     height: info.crown.c[1],
+    ry: info.crown.r[1],
     color: [f[0] * 0.75, f[1] * 0.75, f[2] * 0.75],
   };
 }

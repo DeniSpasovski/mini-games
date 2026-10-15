@@ -101,14 +101,21 @@ export const MAX_FADES = 32;
  */
 const PREPASS_ORDER = -0.25;
 /**
- * The sprite depth prepass + EQUAL-depth lit pass (trees/Drawing.md#depth, Performance.md#mitigations) is on by
- * default; `?treeprepass=0` is its debug toggle. It needs the prepass and the lit program to compute bit-identical
- * depths (`invariant gl_Position`), which WebGL does not promise on every driver: `checkPrepass` renders it once at
- * load and turns it off if any sprite pixel failed its own EQUAL test (debug view 5 shows those in magenta).
+ * The sprite depth prepass + lit pass (trees/Drawing.md#depth, Performance.md#mitigations) is on by default except
+ * on touch devices; `?treeprepass=0|1` forces it. The lit pass tests LESS-OR-EQUAL with a small polygon offset toward
+ * the camera (not EQUAL: two programs' depths differ in the last bit on some drivers, and a missed pixel kept the
+ * background colour = a blinking crown); `checkPrepass` still renders it once at load and turns the prepass off if
+ * sprite pixels stay unshaded (debug view 5 shows those in magenta).
  */
-export const SPRITE_PREPASS =
-  typeof location === 'undefined' ||
-  new URLSearchParams(location.search).get('treeprepass') !== '0';
+export const SPRITE_PREPASS = (() => {
+  if (typeof location === 'undefined') return true;
+  const flag = new URLSearchParams(location.search).get('treeprepass');
+  if (flag !== null) return flag !== '0';
+  // Phones / tablets: tile GPUs already discard hidden pixels, and their depths did not always match (blinking crowns).
+  const coarse =
+    typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  return !coarse;
+})();
 /** Share of the sprite pixels that may miss the EQUAL test before the load check turns the prepass off. */
 const PREPASS_MISS_LIMIT = 0.002;
 /** The shader's sprite fade window (trees/materials.ts `treeSpriteScale`). */

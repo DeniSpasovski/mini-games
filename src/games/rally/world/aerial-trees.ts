@@ -24,6 +24,8 @@ export interface Canopy {
   /** Disc radius and height above the instance origin at scale 1 (m). */
   radius: number;
   height: number;
+  /** Vertical radius of the crown (the shadow's length along the sun). */
+  ry: number;
   color: Color;
 }
 
@@ -39,7 +41,12 @@ export function canopyOf(id: string): Canopy {
   if (c) return c;
   if (isTreeType(id)) {
     const t = treeCanopy(id);
-    c = { radius: t.radius, height: t.height, color: new Color(...t.color) };
+    c = {
+      radius: t.radius,
+      height: t.height,
+      ry: t.ry,
+      color: new Color(...t.color),
+    };
     canopies.set(id, c);
     return c;
   }
@@ -73,7 +80,13 @@ export function canopyOf(id: string): Canopy {
   else color.multiplyScalar(1 / n);
   // Darken a bit: the real crowns self-shade, a flat disc is lit like open ground.
   color.multiplyScalar(0.75);
-  c = { radius: r * 0.85, height: n ? y / n : maxY, color };
+  const height = n ? y / n : maxY;
+  c = {
+    radius: r * 0.85,
+    height,
+    ry: Math.max(r * 0.85, (maxY - height) * 1.1),
+    color,
+  };
   canopies.set(id, c);
   return c;
 }

@@ -372,7 +372,7 @@ describe('tree performance rules (trees/Performance.md#mitigations)', () => {
 describe('tree drawing (trees/Drawing.md)', () => {
   test('every tree material is opaque, depth-tested and depth-writing (the prepass pairing aside)', async () => {
     const m = await import('../../src/games/rally/trees/materials');
-    const { EqualDepth, LessEqualDepth } = await import('three');
+    const { LessEqualDepth } = await import('three');
     for (const mat of [
       m.barkMaterial('furrowed'),
       m.treeDepthMaterial(true),
@@ -382,12 +382,13 @@ describe('tree drawing (trees/Drawing.md)', () => {
       expect(mat.depthTest).toBe(true);
       expect(mat.depthWrite).toBe(true);
     }
-    // Prepass on (the default): the prepass writes depth, the lit sprites shade where it is EQUAL, both opaque and
-    // on the same program (same cache key), so their depths match.
+    // Prepass on (the default off touch devices): the prepass writes depth, the lit sprites shade where it is not
+    // behind (less-or-equal, offset toward the camera: never EQUAL, it blinked), both opaque and on the same program.
     m.setSpritePrepass(true);
     const lit = m.spriteMaterial('broadleaf', 1);
     const pre = m.spritePrepassMaterial('broadleaf', 1);
-    expect(lit.depthFunc).toBe(EqualDepth);
+    expect(lit.depthFunc).toBe(LessEqualDepth);
+    expect(lit.polygonOffset).toBe(true);
     expect(lit.depthWrite).toBe(false);
     expect(lit.transparent).toBe(false);
     expect(pre.depthWrite).toBe(true);
@@ -397,6 +398,7 @@ describe('tree drawing (trees/Drawing.md)', () => {
     // Prepass off (debug toggle / failed load check): the normal depth test, writing depth.
     m.setSpritePrepass(false);
     expect(lit.depthFunc).toBe(LessEqualDepth);
+    expect(lit.polygonOffset).toBe(false);
     expect(lit.depthWrite).toBe(true);
     m.setSpritePrepass(true);
   });

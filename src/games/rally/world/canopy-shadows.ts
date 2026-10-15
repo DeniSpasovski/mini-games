@@ -28,6 +28,12 @@ const LOCAL_RES = 1.5;
 const LOCAL_N = 512;
 const LOCAL_MOVE = 64;
 const LOCAL_BUDGET = 1.5;
+/** Shadow density of one crown in the local window (overlaps add up to 1). */
+const LOCAL_DENSITY = 0.85;
+const smooth = (a: number, b: number, x: number): number => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
 
 /**
  * Tree shadows on the ground BEYOND the sun's shadow map (which only covers ~50-75 m around the car): every
@@ -75,6 +81,10 @@ export class CanopyShadows {
   private ax: number;
   private az: number;
   private stretch: number;
+  /** cot of the sun's elevation: a crown's shadow is as long as sqrt(r^2 + (ry cot)^2) along the sun. */
+  private cot: number;
+  /** Local window tuning (crown radius factor, density): `__rally.canopy.tune`. */
+  tune = { radius: 1, density: LOCAL_DENSITY };
 
   constructor(
     private world: World,
@@ -104,6 +114,7 @@ export class CanopyShadows {
     this.ax = sunDir.x / flat;
     this.az = sunDir.z / flat;
     this.stretch = Math.min(3, 1 / sy);
+    this.cot = Math.min(4, Math.sqrt(Math.max(0, 1 - sy * sy)) / sy);
 
     const cs = world.scatter.chunkSize;
     const keys: number[] = [];
@@ -230,14 +241,19 @@ export class CanopyShadows {
   ): void {
     if (!isVegetation(inst.asset)) return;
     const c = canopyOf(inst.asset);
-    const r = c.radius * inst.scale;
+    const r =
+      c.radius * inst.scale * (grid === this.grid ? 1 : this.tune.radius);
     // Skip bushes / grass: small shadows are lost at these texels anyway.
     if (r < minRadius) return;
     const global = grid === this.grid;
     const h = c.height * inst.scale;
     const sx = inst.x + this.ox * h;
     const sz = inst.z + this.oz * h;
-    const ra = r * this.stretch; // along the sun azimuth
+    // Along the sun azimuth: the global map keeps one cheap stretch; the local window (the road) the crown's
+    // true shadow ellipse, and a solid profile (a crown lets ~a third of the sun through, not the soft blob).
+    const ra = global
+      ? r * this.stretch
+      : Math.min(r * 4, Math.hypot(r, c.ry * inst.scale * this.cot));
     const reach = ra + res;
     const i0 = Math.max(0, Math.floor((sx - reach - x0) / res));
     const i1 = Math.min(nx - 1, Math.ceil((sx + reach - x0) / res));
@@ -254,7 +270,13 @@ export class CanopyShadows {
         const q = u * u + v * v;
         if (q >= 1) continue;
         const k = j * nx + i;
-        grid[k] = Math.min(1, grid[k] + DENSITY * (1 - q) * (1 - q));
+        grid[k] = Math.min(
+          1,
+          grid[k] +
+            (global
+              ? DENSITY * (1 - q) * (1 - q)
+              : this.tune.density * (1 - smooth(0.55, 1, q))),
+        );
       }
     }
     if (!global) return;

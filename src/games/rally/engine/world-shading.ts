@@ -288,13 +288,17 @@ float wsCanopyShadow( vec3 wp ) {
 		? smoothstep( wsCanopyFade.x, wsCanopyFade.y, length( wp.xz - cameraPosition.xz ) )
 		: smoothstep( wsShadowBox.z * 0.65, wsShadowBox.z * 0.95, length( wp.xz - wsShadowBox.xy ) );
 	float d = texture2D( wsCanopy, ( wp.xz - wsCanopyMap.xy ) * wsCanopyMap.zw ).r;
+	float str = wsShadowBox.w;
 	// The finer window around the camera (blended out over its outer fifth).
 	if ( wsCanopyLocalMap.z > 0.0 ) {
 		vec2 lu = ( wp.xz - wsCanopyLocalMap.xy ) * wsCanopyLocalMap.zw;
 		float lw = 1.0 - smoothstep( 0.38, 0.48, max( abs( lu.x - 0.5 ), abs( lu.y - 0.5 ) ) );
-		if ( lw > 0.0 ) d = mix( d, texture2D( wsCanopyLocal, lu ).r, lw );
+		if ( lw > 0.0 ) {
+			d = mix( d, texture2D( wsCanopyLocal, lu ).r, lw );
+			str = mix( str, min( str * 1.4, 0.9 ), lw );
+		}
 	}
-	return 1.0 - wsShadowBox.w * fade * d;
+	return 1.0 - str * fade * d;
 }
 `;
 

@@ -3,8 +3,8 @@ import {
   DoubleSide,
   LinearFilter,
   LinearMipmapLinearFilter,
-  EqualDepth,
   LessEqualDepth,
+  type Material,
   MeshBasicMaterial,
   MeshDepthMaterial,
   MeshLambertMaterial,
@@ -655,10 +655,16 @@ let spritePrepass = true;
 export function setSpritePrepass(on: boolean): void {
   spritePrepass = on;
   for (const [k, m] of materials)
-    if (k.startsWith('sprite:lit:')) {
-      m.depthFunc = on ? EqualDepth : LessEqualDepth;
-      m.depthWrite = !on;
-    }
+    if (k.startsWith('sprite:lit:')) litSpriteDepth(m);
+}
+
+/** Lit sprites: after the prepass they pass where the depth is the prepass' (or nearer: a tiny offset covers the last bit). */
+function litSpriteDepth(m: Material): void {
+  m.depthFunc = LessEqualDepth;
+  m.depthWrite = !spritePrepass;
+  m.polygonOffset = spritePrepass;
+  m.polygonOffsetFactor = -1;
+  m.polygonOffsetUnits = -2;
 }
 
 /** The lit foliage sprites (trees/Foliage.md#shading), after the depth prepass while it is on (`setSpritePrepass`). */
@@ -671,8 +677,7 @@ export function spriteMaterial(
   if (m) return m;
   m = spriteLit(kind, density, false);
   m.name = `tree ${key}`;
-  m.depthFunc = spritePrepass ? EqualDepth : LessEqualDepth;
-  m.depthWrite = !spritePrepass;
+  litSpriteDepth(m);
   materials.set(key, m);
   return m;
 }
