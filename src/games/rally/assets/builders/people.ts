@@ -78,6 +78,7 @@ type Prop =
   | 'video'
   | 'tripod'
   | 'flag'
+  | 'smallFlag'
   | 'sign'
   | 'radio';
 
@@ -136,6 +137,7 @@ const POSES = {
     armL: limb(0.05, 0.12, 0.15),
     armR: limb(0.2, 2.5, 0.5, 2.7),
     sway: -0.05,
+    prop: 'smallFlag',
   },
   camera: {
     legL: limb(0.1, 0.07, 0.05),
@@ -1304,6 +1306,21 @@ function propParts(
     );
     out.push(
       block(0.34, 0.26, 0.01, at.clone().add(v(0.17, 0.34, 0)), '#f2d21c'),
+    );
+  } else if (prop === 'smallFlag') {
+    // A fan's hand flag: short pole held upright, cloth streaming to the side.
+    out.push(
+      tube(
+        hr.clone().add(v(0, -0.06, 0)),
+        hr.clone().add(v(0, 0.3, 0)),
+        0.008,
+        0.008,
+        '#6b5a40',
+        3,
+      ),
+    );
+    out.push(
+      block(0.2, 0.13, 0.008, hr.clone().add(v(0.1, 0.23, 0)), '#d8322a'),
     );
   } else if (prop === 'sign') {
     const at = hl
