@@ -94,11 +94,22 @@ export const galichicaMap: MapDef = {
     points: routePoints(data.route, () => 5.6),
   },
   scatter: [
-    // Low slopes (Ohrid / Prespa sides, < 1 150 m): oak and hornbeam scrub woods, black pine plantations, juniper.
+    // Low slopes (Ohrid / Prespa sides, < 1 150 m): a closed canopy of bright-green hornbeam / oak coppice over
+    // hazel and juniper, black pine only in its plantations, flowering broom on the road cuttings.
+    {
+      asset: 'hornbeam_tree',
+      cover: ['trees'],
+      density: 13,
+      minRoadDist: 3,
+      maxSlope: 0.8,
+      scale: [0.7, 1.2],
+      tilt: 5,
+      sink: 0.2,
+    },
     {
       asset: 'oak_tree',
       cover: ['trees'],
-      density: 8,
+      density: 4,
       minRoadDist: 3.5,
       maxSlope: 0.75,
       scale: [0.65, 1.15],
@@ -106,9 +117,9 @@ export const galichicaMap: MapDef = {
       sink: 0.25,
     },
     {
-      asset: 'thicket_shrub',
+      asset: 'hazelnut_tree',
       cover: ['trees'],
-      density: 9,
+      density: 10,
       minRoadDist: 2.2,
       maxSlope: 0.85,
       scale: [0.8, 1.25],
@@ -117,7 +128,7 @@ export const galichicaMap: MapDef = {
     },
     {
       asset: 'black_pine',
-      cover: ['trees', 'pine'],
+      cover: ['pine'],
       density: 6,
       minRoadDist: 4,
       maxSlope: 0.7,
@@ -136,7 +147,18 @@ export const galichicaMap: MapDef = {
       tilt: 3,
       sink: 0.1,
     },
-    // Mid slopes (1 150 - 1 750 m): beech forest, dark undergrowth.
+    {
+      asset: 'broom_shrub',
+      cover: ['trees', 'beech', 'shrub', 'grass'],
+      density: 14,
+      minRoadDist: 1.8,
+      maxRoadDist: 8,
+      maxSlope: 0.9,
+      scale: [0.7, 1.2],
+      tilt: 4,
+      sink: 0.1,
+    },
+    // Mid slopes (1 150 - 1 750 m): beech forest with hornbeam, fresh-green hazel undergrowth.
     {
       asset: 'beech_tree',
       cover: ['beech'],
@@ -148,7 +170,17 @@ export const galichicaMap: MapDef = {
       sink: 0.3,
     },
     {
-      asset: 'bush',
+      asset: 'hornbeam_tree',
+      cover: ['beech'],
+      density: 4,
+      minRoadDist: 3,
+      maxSlope: 0.8,
+      scale: [0.75, 1.2],
+      tilt: 4,
+      sink: 0.2,
+    },
+    {
+      asset: 'hazelnut_tree',
       cover: ['beech'],
       density: 4,
       minRoadDist: 2,

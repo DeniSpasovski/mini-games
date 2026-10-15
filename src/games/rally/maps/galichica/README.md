@@ -16,7 +16,8 @@ backdrop. One map, three stages on the same road (map id `galichica`, test conte
 | Galichica East       | `galichica_east` | above Lake Prespa -> Magaro parking                 | 12.7 km |
 | From Prespa to Ohrid | `prespa_ohrid`   | above Lake Prespa -> over the pass -> park entrance | 27.4 km |
 
-Narrow tarmac with switchbacks on both sides; oak and hornbeam woods low down, beech forest on the mid slopes, karst
+Narrow tarmac with switchbacks on both sides; a closed canopy of bright-green hornbeam / oak coppice over hazel and
+juniper low down, flowering yellow broom on the road cuttings, beech forest on the mid slopes, karst
 pasture with dwarf juniper on the top. Only the pass road and the roads round the stage ends are imported; side tracks
 meeting the stage road are closed with barriers on each stage.
 
