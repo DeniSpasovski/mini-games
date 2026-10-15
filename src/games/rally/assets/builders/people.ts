@@ -2,9 +2,12 @@ import {
   BoxGeometry,
   CylinderGeometry,
   Euler,
+  ExtrudeGeometry,
   Matrix4,
   Quaternion,
+  Shape,
   SphereGeometry,
+  Vector2,
   Vector3,
   type BufferGeometry,
 } from 'three';
@@ -479,6 +482,24 @@ const tag = (g: BufferGeometry, cell: number): BufferGeometry => {
   g.userData.cell = cell;
   return g;
 };
+
+/** A thin flat polygon (points in x / y about `at`), `depth` thick: the printed pieces of a hand flag. */
+function flatPoly(
+  pts: [number, number][],
+  at: Vector3,
+  color: string,
+  depth = 0.01,
+): BufferGeometry {
+  const g = new ExtrudeGeometry(
+    new Shape(pts.map(([x, y]) => new Vector2(x, y))),
+    {
+      depth,
+      bevelEnabled: false,
+    },
+  );
+  g.translate(at.x, at.y, at.z - depth / 2);
+  return tag(paint(g, color), REFLECT);
+}
 
 /** Open tapered tube from `a` (radius `ra`) to `b` (radius `rb`), `flat` squashes it front to back. */
 function tube(
@@ -1019,7 +1040,8 @@ function figureDetail({ pose, outfit: o, rng }: FigureOpts): BufferGeometry {
     parts.push(g);
   }
 
-  if (pose.prop) parts.push(...propParts(pose.prop, hands, S, R, Hc, true));
+  if (pose.prop)
+    parts.push(...propParts(pose.prop, hands, S, R, Hc, true, true));
   return finishBody(parts, pose, o);
 }
 
@@ -1228,6 +1250,8 @@ function propParts(
   R: Matrix4,
   Hc: Vector3,
   hi: boolean,
+  /** The near figure: flags get their rays, stripes and stars. */
+  fine = false,
 ): BufferGeometry[] {
   const out: BufferGeometry[] = [];
   const rot = (x: number, y: number, z: number): Vector3 =>
@@ -1354,41 +1378,121 @@ function propParts(
         3,
       ),
     );
+    const cloth0 = out.length;
     const c = hr.clone().add(v(0.15, 0.22, 0));
-    const zRot = (a: number) => new Matrix4().makeRotationZ(a);
+    // Flag units: W x H, origin at the cloth centre, +y up.
+    const W = 0.3;
+    const H = 0.15;
     if (prop === 'flagMk') {
-      // North Macedonia: red field, a yellow sun with eight rays.
-      out.push(block(0.3, 0.15, 0.008, c, '#d20000'));
-      out.push(block(0.055, 0.055, 0.011, c, '#f8e100', zRot(Math.PI / 4)));
-      if (hi)
-        for (const [len, a] of [
-          [0.3, 0],
-          [0.14, Math.PI / 2],
-          [0.18, Math.PI / 4],
-          [0.18, -Math.PI / 4],
-        ] as const)
-          out.push(block(len, 0.008, 0.01, c, '#f8e100', zRot(a)));
+      // North Macedonia: red field, a yellow disc and eight rays reaching the edges (a ray = two inner points near the
+      // disc and two on the border).
+      out.push(block(W, H, 0.008, c, '#d82126', undefined, REFLECT));
+      const disc = new CylinderGeometry(0.0215, 0.0215, 0.011, hi ? 10 : 6);
+      disc.rotateX(Math.PI / 2);
+      disc.translate(c.x, c.y, c.z);
+      out.push(tag(paint(disc, '#f8e92e'), REFLECT));
+      if (fine) {
+        const edge: [number, number][][] = [
+          [
+            [-W / 2, -H / 2],
+            [-W / 2 + 0.15 * W, -H / 2],
+          ],
+          [
+            [W / 2, -H / 2],
+            [W / 2 - 0.15 * W, -H / 2],
+          ],
+          [
+            [-W / 2, H / 2],
+            [-W / 2 + 0.15 * W, H / 2],
+          ],
+          [
+            [W / 2, H / 2],
+            [W / 2 - 0.15 * W, H / 2],
+          ],
+          [
+            [-0.05 * W, -H / 2],
+            [0.05 * W, -H / 2],
+          ],
+          [
+            [-0.05 * W, H / 2],
+            [0.05 * W, H / 2],
+          ],
+          [
+            [-W / 2, -0.1 * H],
+            [-W / 2, 0.1 * H],
+          ],
+          [
+            [W / 2, -0.1 * H],
+            [W / 2, 0.1 * H],
+          ],
+        ];
+        for (const [p1, p2] of edge) {
+          const inner = (p: [number, number]): [number, number] => {
+            const k = (0.029 * 1.0) / Math.hypot(p[0], p[1]);
+            return [p[0] * k, p[1] * k];
+          };
+          out.push(
+            flatPoly([inner(p1), inner(p2), p2, p1], c, '#f8e92e', 0.01),
+          );
+        }
+      }
     } else {
-      // USA: seven stripes and the blue canton.
-      const stripe = 0.15 / 7;
-      const top = c.y + 0.075;
-      for (let i = 0; i < (hi ? 7 : 2); i++)
+      // USA: thirteen stripes, the blue canton (two fifths wide, seven stripes tall) with rows of stars.
+      const stripe = H / 13;
+      out.push(block(W, H, 0.008, c, '#f4f4f4', undefined, REFLECT));
+      if (fine) {
+        for (let i = 0; i < 13; i += 2)
+          out.push(
+            block(
+              W,
+              stripe,
+              0.01,
+              v(c.x, c.y + H / 2 - stripe * (i + 0.5), c.z),
+              '#bb1030',
+              undefined,
+              REFLECT,
+            ),
+          );
+      } else
         out.push(
           block(
-            0.3,
-            hi ? stripe : 0.075,
-            0.008,
-            v(
-              c.x,
-              hi ? top - stripe * (i + 0.5) : top - 0.0375 - i * 0.075,
-              c.z,
-            ),
-            i % 2 === 0 ? '#bf1e2e' : '#f4f4f4',
+            W,
+            H * 0.4,
+            0.01,
+            v(c.x, c.y - H * 0.25, c.z),
+            '#bb1030',
+            undefined,
+            REFLECT,
           ),
         );
-      out.push(
-        block(0.12, 0.086, 0.011, v(c.x - 0.09, top - 0.043, c.z), '#1d3c8a'),
-      );
+      const cw = W * 0.4;
+      const ch = stripe * 7;
+      const cc = v(c.x - W / 2 + cw / 2, c.y + H / 2 - ch / 2, c.z);
+      out.push(block(cw, ch, 0.012, cc, '#002060', undefined, REFLECT));
+      if (fine)
+        for (let r = 0; r < 5; r++)
+          for (let k = 0; k < (r % 2 === 0 ? 4 : 3); k++)
+            out.push(
+              block(
+                0.0075,
+                0.0075,
+                0.014,
+                v(
+                  cc.x - cw / 2 + (cw / 9) * ((r % 2 === 0 ? 1 : 2) + k * 2),
+                  cc.y + ch / 2 - (ch / 6) * (r + 1),
+                  cc.z,
+                ),
+                '#ffffff',
+                undefined,
+                REFLECT,
+              ),
+            );
+    }
+    // Printed cloth stays bright whatever the light does to its flat faces.
+    for (const g of out.slice(cloth0)) {
+      const col = g.getAttribute('color');
+      for (let i = 0; i < col.count; i++)
+        col.setXYZ(i, col.getX(i) * 2.8, col.getY(i) * 2.8, col.getZ(i) * 2.8);
     }
   } else if (prop === 'sign') {
     const at = hl
