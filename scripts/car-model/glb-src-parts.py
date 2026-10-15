@@ -60,6 +60,8 @@ def walk(i, M):
             P = (M[:3, :3] @ P.T).T + M[:3, 3]
             N = g2s.accessor(g, bins, a['NORMAL']) @ np.linalg.inv(M[:3, :3])  # inverse transpose
             N /= np.linalg.norm(N, axis=1)[:, None] + 1e-20
+            if 'TEXCOORD_0' not in a:  # untextured primitives (flat colours) are never source parts
+                continue
             UV = g2s.accessor(g, bins, a['TEXCOORD_0'])
             I = g2s.accessor(g, bins, p['indices']).astype(np.int64).ravel() if 'indices' in p else np.arange(len(P))
             prims[n.get('name', f'node{i}')] = (P * scale + offset, N, UV, I.reshape(-1, 3), p.get('material'))
