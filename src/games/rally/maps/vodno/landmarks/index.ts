@@ -1,5 +1,6 @@
 import type { Group } from 'three';
 import { getAssetMeta } from '../../../assets/catalog';
+import { isTreeType } from '../../../trees/species';
 import { hash3 } from '../../../../../shared/rng';
 import type { SurfaceId } from '../../../physics/surfaces';
 import type { StaticCollider } from '../../../physics/types';
@@ -87,7 +88,8 @@ function landmark(spec: Spec): Landmark {
         const h = hash3(i, 9, 5, 5101);
         return {
           asset: p.asset,
-          variant: h % getAssetMeta(p.asset).variants,
+          // Trees: the placement stage sets variant, rotation and scale (trees/placement.ts).
+          variant: isTreeType(p.asset) ? 0 : h % getAssetMeta(p.asset).variants,
           x,
           y: ground.height(x, z),
           z,
