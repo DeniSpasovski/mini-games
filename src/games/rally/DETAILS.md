@@ -174,20 +174,21 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
 
 ## Cars
 
-| id             | name               | drive | notes                                                                                                                 |
-| -------------- | ------------------ | ----- | --------------------------------------------------------------------------------------------------------------------- |
-| `skoda_rally`  | Skoda Rally        | AWD   | Rally2-class hatch from a CC BY Fabia R5 model, own livery                                                            |
-| `bimmer_m3`    | Bimmer M3          | RWD   | lowered E46 coupe from a CC BY print model, own livery                                                                |
-| `bimmer_gt2`   | Bimmer GT2         | RWD   | wide-body E92 GT2 racer from a CC BY Sketchfab model, clean livery (test only)                                        |
-| `subie_22b`    | Subaru WRX STI 22B | AWD   | widebody GC8 / 22B from a CC BY-NC Sketchfab model, crescent / stars graphic (test only)                              |
-| `zastava_101`  | Zastava 101        | FWD   | stock "Stojadin", body hand-built from dimensions and a blueprint                                                     |
-| `fiesta`       | Fiesta WRC         | AWD   | World Rally Car from a CC BY model with its cockpit, own rim and livery, test car                                     |
-| `citroen_c4`   | Citroen C4 WRC     | AWD   | 2007 World Rally Car from a CC BY model with its cockpit, own rim and livery, test car                                |
-| `lancer_evo_6` | Lancer EVO VI      | AWD   | 1999-style Lancer from a CC BY model with its cockpit, own rim and livery, test car                                   |
-| `ford_gt3`     | Ford Mustang GT3   | RWD   | 2024 GT3 racer from a CC BY model kept as is (own cockpit, lamps, rim), flat dark blue paint                          |
-| `merc_190`     | Mercedes 190E      | RWD   | 2.5-16 Evolution saloon from a CC BY model kept as is (own cockpit, lamps, rim), badges removed, flat dark grey paint |
-| `peugeot_206`  | Peugeot 206        | FWD   | tuned widebody 206 from a CC BY model kept as is (own cockpit, lamps, rim), flat paint, test car                      |
-| `audi_rs6`     | Audi RS6           | AWD   | C8 RS6 Avant from a CC BY model kept as is (own cockpit, lamps, rim), flat grey paint                                 |
+| id                | name               | drive | notes                                                                                                                 |
+| ----------------- | ------------------ | ----- | --------------------------------------------------------------------------------------------------------------------- |
+| `skoda_rally`     | Skoda Rally        | AWD   | Rally2-class hatch from a CC BY Fabia R5 model, own livery                                                            |
+| `bimmer_m3`       | Bimmer M3          | RWD   | lowered E46 coupe from a CC BY print model, own livery                                                                |
+| `bimmer_gt2`      | Bimmer GT2         | RWD   | wide-body E92 GT2 racer from a CC BY Sketchfab model, clean livery (test only)                                        |
+| `subie_22b`       | Subaru WRX STI 22B | AWD   | widebody GC8 / 22B from a CC BY-NC Sketchfab model, crescent / stars graphic (test only)                              |
+| `zastava_101`     | Zastava 101        | FWD   | stock "Stojadin", body hand-built from dimensions and a blueprint                                                     |
+| `fiesta`          | Fiesta WRC         | AWD   | World Rally Car from a CC BY model with its cockpit, own rim and livery, test car                                     |
+| `citroen_c4`      | Citroen C4 WRC     | AWD   | 2007 World Rally Car from a CC BY model with its cockpit, own rim and livery, test car                                |
+| `lancer_evo_6`    | Lancer EVO VI      | AWD   | 1999-style Lancer from a CC BY model with its cockpit, own rim and livery, test car                                   |
+| `ford_gt3`        | Ford Mustang GT3   | RWD   | 2024 GT3 racer from a CC BY model kept as is (own cockpit, lamps, rim), flat dark blue paint                          |
+| `merc_190`        | Mercedes 190E      | RWD   | 2.5-16 Evolution saloon from a CC BY model kept as is (own cockpit, lamps, rim), badges removed, flat dark grey paint |
+| `peugeot_206`     | Peugeot 206        | FWD   | tuned widebody 206 from a CC BY model kept as is (own cockpit, lamps, rim), flat paint, test car                      |
+| `audi_rs6`        | Audi RS6           | AWD   | C8 RS6 Avant from a CC BY model kept as is (own cockpit, lamps, rim), flat grey paint                                 |
+| `porsche_911_930` | Porsche 911 (930)  | RWD   | 1975 911 Turbo from a CC BY model kept as is (own lamps, rim, no interior), flat yellow paint, test car               |
 
 - A car is `cars/<car>/<car>.ts` (a `CarDef`: physics + model + sound) with its README. A GLB in `public/models/cars/` replaces the
   car's own body (`cars/shared/car-gltf.ts`; credits in `public/models/CREDITS.md`). Imports: rally-car-import skill.
@@ -247,6 +248,8 @@ Rendering: `cars/shared/tyre-mesh.ts` (tread per compound, compound ring), `susp
 `model.suspensionStyle`), `buildWheelSet` in `car-model.ts`.
 Cars whose model has empty wheel wells set `model.cornerSuspension` (`cars/shared/corner-suspension.ts`): a coil-over in the car's
 style plus arms / drive shafts, following the live wheel travel (Zastava, M3, GT2, C4, Lancer; Skoda, Fiesta, 22B show the model's own).
+A wheel GLB rim with `COLOR_0` vertex colours (two-tone, Porsche 930) gets its own `vertexColors` material (`rimColored` in
+`car-model.ts`); `rim.caliper: false` draws no caliper.
 
 ## Architecture
 
