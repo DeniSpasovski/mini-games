@@ -204,13 +204,7 @@ export interface MenuResult {
 }
 
 type Screen =
-  | 'welcome'
-  | 'options'
-  | 'about'
-  | 'times'
-  | 'map'
-  | 'car'
-  | 'setup';
+  'welcome' | 'options' | 'about' | 'times' | 'map' | 'car' | 'setup';
 
 export function runMenu(container: HTMLElement): Promise<MenuResult> {
   return new Promise((resolve) => {
@@ -492,6 +486,11 @@ class MainMenu {
       forests, props, cars and liveries - and real-world stages baked from open map data.</p>
       <p class="menu-keys"><b>W/S</b> throttle / brake · <b>A/D</b> steer · <b>Space</b> handbrake ·
       <b>R</b> reset · <b>C</b> camera · <b>Esc</b> pause</p>
+      <h2>Contributors</h2>
+      <ul>
+        <li>Deni Spasovski<small>Agent Orchestrator</small></li>
+        <li><a href="https://github.com/hyphyphyph" target="_blank" rel="noopener">Derek McTavish</a><small>Contributor: foliage and rendering improvements</small></li>
+      </ul>
       <h2>Built with</h2>
       ${links(BUILT_WITH, '')}
       <h2>Maps</h2>
