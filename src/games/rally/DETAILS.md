@@ -146,7 +146,8 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   WorldCover, no roads or buildings), baked by `scripts/realmap/horizon.py` into `<map>/horizon.json`, drawn behind
   everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain).
 - **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
-  spectators, flags (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`).
+  spectators + visitors, a marshal, 2-3 photographers, flags; marshals at every side-road mouth, 10 photographers each at start and finish
+  (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`).
 - **People** (`assets/builders/people.ts`): jointed low-poly figures posed by joint angles + outfit colours, smooth lofted bodies close up (LOD 0), painted unwrapped garment atlas + normal map (`engine/people-atlas.ts`, `people` material; zips, pockets, seams, face) - `spectator` (24 standing + 18 sitting / squatting at corner fans),
   `mechanic`, `crew`, `driver`, `marshal` (flag, sign, radio), `photographer`, `visitor` (12 personas: ages, sizes, dresses, kids); test `people`.
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)

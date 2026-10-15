@@ -51,7 +51,7 @@ import {
 } from './portals';
 import { DECK_DEPTH, TerrainGenerator } from './terrain-gen';
 import { bakeGroundMoisture, type GroundMoisture } from './ground-moisture';
-import { cornerFanInstances } from './corner-fans';
+import { cornerFanInstances, PEOPLE_ASSETS } from './corner-fans';
 import { newLakeQuery } from './lakes';
 
 /**
@@ -233,6 +233,7 @@ export class World implements GroundProvider {
             (!!this.gen.channels?.query(x, z, fanQ).found &&
               fanQ.distance < fanQ.halfWidth + 3) ||
             (!!this.gen.lakes?.query(x, z, fanLq) && fanLq.sd < 3),
+          { start: this.stage.start, finish: this.stage.finish },
         )
       : [];
     for (const inst of [
@@ -254,12 +255,12 @@ export class World implements GroundProvider {
         continue;
       // No crowd standing in a house (a crowd spot in a village).
       if (
-        inst.asset === 'spectator' &&
+        PEOPLE_ASSETS.includes(inst.asset) &&
         this.buildings.contains(inst.x, inst.z, 0.5)
       )
         continue;
       // No crowd standing on another carriageway / parkway lane beside the stage road.
-      if (inst.asset === 'spectator' && this.gen.paths) {
+      if (PEOPLE_ASSETS.includes(inst.asset) && this.gen.paths) {
         const q = this.gen.paths.query(inst.x, inst.z, crowdQ, 'tarmac', (pi) =>
           this.gen.isCarriageway(pi),
         );
