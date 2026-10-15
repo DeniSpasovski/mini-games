@@ -341,8 +341,8 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Street car',
     category: 'props',
     description:
-      'Parked car: a boxy rally car (side outline extruded, glass, lamps, simple wheels; cars/<car>/profile.ts). Variants 0-11 pick the shape (variant % 10: 0 M3 saloon, 1 Skoda hatch, 2 Fiesta hatch, 3 GT2 coupe, 4 C4 hatch, 5 Lancer saloon, 6 Mustang GT3 coupe, 7 190E saloon, 8 Audi RS6 estate, 9 Peugeot 206 hatch) and a paint; 12 = white Skoda hatch (placed on purpose). Faces +X. Solid.',
-    variants: 13,
+      'Parked car: a simplified model of the CC BY packs (street-car-models.ts). Variants 0-14 are the models (0-4 old boxy cars, 5-14 modern: hatch, pickup, sport, minivan, SUV, coupe, off-road, compact, sedan, wagon) in a seeded paint; 15 = white hatch (placed on purpose). Faces +X. Solid.',
+    variants: 16,
     lods: [
       { maxDistance: 90, castShadow: true },
       { maxDistance: 420, castShadow: false },

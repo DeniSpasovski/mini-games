@@ -9,6 +9,7 @@ import {
   CylinderGeometry,
   DoubleSide,
   ExtrudeGeometry,
+  FrontSide,
   Group,
   InstancedMesh,
   LatheGeometry,
@@ -25,6 +26,7 @@ import {
   SphereGeometry,
   Vector2,
   Vector3,
+  type ColorRepresentation,
   type Material,
   type Texture,
 } from 'three';
@@ -266,6 +268,23 @@ const caliperMat = new MeshStandardMaterial({
   roughness: 0.45,
   metalness: 0.3,
 });
+/**
+ * Rim paint. `vertexColors` = a rim whose GLB carries its own colours (two-tone, `COLOR_0`): they show as they are, and
+ * the material is double-sided because such a rim is a thin dished shell that is also seen from inside.
+ */
+export function createRimMaterial(
+  color: ColorRepresentation,
+  vertexColors = false,
+): MeshStandardMaterial {
+  return new MeshStandardMaterial({
+    color: vertexColors ? 0xffffff : color,
+    metalness: 0.75,
+    roughness: 0.32,
+    vertexColors,
+    side: vertexColors ? DoubleSide : FrontSide,
+  });
+}
+
 /** The shared wheel materials (the setup screen's parts bench draws the same tyres / rims / brakes). */
 export const wheelMaterials = {
   get tire() {
@@ -373,6 +392,8 @@ export class CarModel {
   /** Rims of the car's wheel GLBs in unit space once loaded (STL wheels), by file. */
   private stlRims = new Map<string, BufferGeometry>();
   private rimMat: MeshStandardMaterial;
+  /** Rim material for a wheel GLB with its own vertex colours (two-tone rims): white, the colours come from the mesh. */
+  private rimColoredMat?: MeshStandardMaterial;
   private calMat: MeshStandardMaterial;
   /** Ride height last set by `setRideHeight` (showroom pose; null = the vehicle drives the wheels). */
   private ride: number | null = null;
@@ -437,11 +458,7 @@ export class CarModel {
         })
       : glassMat;
     if (carGlass !== glassMat) this.owned.push(carGlass);
-    const rimMat = new MeshStandardMaterial({
-      color: def.model.rim.color,
-      metalness: 0.75,
-      roughness: 0.32,
-    });
+    const rimMat = createRimMaterial(def.model.rim.color);
     this.owned.push(plainMat, rimMat);
     this.rimMat = rimMat;
 
@@ -1018,6 +1035,14 @@ export class CarModel {
     };
   }
 
+  private rimColored(): MeshStandardMaterial {
+    if (!this.rimColoredMat) {
+      this.rimColoredMat = createRimMaterial(0xffffff, true);
+      this.owned.push(this.rimColoredMat);
+    }
+    return this.rimColoredMat;
+  }
+
   /** Rebuild tyre / rim / brake geometry for the fitted compound and swap it in (old ones are disposed). */
   private refreshWheels(): void {
     this.rimMat.color.set(rimColorFor(this.def.model, this.tyre));
@@ -1027,6 +1052,9 @@ export class CarModel {
       g.geoms = [w.tire, w.rim, w.caliper];
       g.tire.geometry = w.tire;
       g.rim.geometry = w.rim;
+      g.rim.material = w.rim.hasAttribute('color')
+        ? this.rimColored()
+        : this.rimMat;
       g.caliper.geometry = w.caliper;
       if (g.disc && w.disc) {
         g.disc.geometry = w.disc;
@@ -1164,6 +1192,10 @@ export function buildWheelSet(
   const scale = barrel / RIM_UNIT_BARREL;
   const brakes = buildBrakeGeometries(scale, size.width);
   base.caliper.dispose();
+  if (def.model.rim.caliper === false) {
+    brakes.caliper.dispose();
+    brakes.caliper = new BoxGeometry(0.001, 0.001, 0.001);
+  }
   let rim = base.rim;
   const stlRim = stlRims.get(file);
   if (stlRim) {

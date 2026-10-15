@@ -8,6 +8,7 @@ import { nearestRoadPoint } from './road-distance';
 import type { ScatterInstance } from './scatter';
 import { KERB_H, KERB_W, type StreetDetail } from './street-detail';
 import { UNDERPASS_WALL } from './terrain-gen';
+import { STREET_CAR_MIX } from '../assets/builders/vehicles';
 
 /**
  * City dressing placed from the road network (MapDef.streetDressing): parked cars along the kerbs of
@@ -183,7 +184,14 @@ export function streetDressingInstances(
           const yaw = yawAlong(tx * flip, tz * flip);
           if (parked.taxiShare && rng.chance(parked.taxiShare))
             placeCar('taxi', 0, x, z, yaw);
-          else placeCar('street_car', rng.int(0, 11), x, z, yaw);
+          else
+            placeCar(
+              'street_car',
+              STREET_CAR_MIX[rng.int(0, STREET_CAR_MIX.length - 1)],
+              x,
+              z,
+              yaw,
+            );
         }
       }
     });

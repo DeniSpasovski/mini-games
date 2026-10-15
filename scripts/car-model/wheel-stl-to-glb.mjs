@@ -14,6 +14,9 @@
  * (cars/peugeot-206/: barrel 80 boundary edges, centre cap 100, spokes 8 - n = 20).
  * `--bridge x0,r0,x1,r1` = add a two-sided cone (unit wheel space, see step 4) from the barrel's front end to the lip, for a rim
  * whose barrel stops short of it (the source tyre covered the gap; the game's tyre does not): a slot shows otherwise.
+ * `--two-tone <r>:<face hex>:<lip hex>` = two paint colours on the rim as vertex colours (COLOR_0): everything from unit
+ * radius r outwards (the barrel lip) wears the lip colour, the rest (spokes, hub) the face colour. The game then uses the
+ * colours as they are instead of `model.rim.color` (cars/porsche-911-930/: ash-black centre, silver lip).
  * `--flange <r>` = add a rim lip on the outer face up to unit radius r (> 0.62), for a rim that ends at its bead seat
  * (cars/lancer-evo-6/): the game tyre's sidewall flares out from the bead, so without a lip a groove shows between them.
  *
@@ -50,6 +53,15 @@ const TWO_SIDED = opt('two-sided', 0);
 const BRIDGE = rest.includes('--bridge')
   ? rest[rest.indexOf('--bridge') + 1].split(',').map(Number)
   : null;
+const TWO_TONE = rest.includes('--two-tone')
+  ? rest[rest.indexOf('--two-tone') + 1].split(':')
+  : null;
+/** sRGB hex -> linear RGB (glTF vertex colours are linear). */
+const linear = (hex) =>
+  [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
 
 // --- 1. load ----------------------------------------------------------------------------------
 const rim = loadStl(rimPath);
@@ -114,6 +126,18 @@ const parts = {
 if (FLANGE > 0.62) parts.rim = addFlange(parts.rim, FLANGE);
 if (TWO_SIDED > 0) parts.rim = addBackFaces(parts.rim, TWO_SIDED);
 if (BRIDGE) parts.rim = addBridge(parts.rim, BRIDGE);
+if (TWO_TONE) {
+  const [from, face, lip] = [
+    Number(TWO_TONE[0]),
+    linear(TWO_TONE[1]),
+    linear(TWO_TONE[2]),
+  ];
+  const pos = parts.rim.position;
+  const color = new Float32Array(pos.length);
+  for (let i = 0; i < pos.length; i += 3)
+    color.set(Math.hypot(pos[i + 1], pos[i + 2]) >= from ? lip : face, i);
+  parts.rim.color = color;
+}
 writeGlb(outPath, parts);
 console.log(
   `wrote ${outPath} (${(fs.statSync(outPath).size / 1e3).toFixed(0)} kB)`,
@@ -466,6 +490,7 @@ function writeGlb(file, meshes) {
   for (const [name, m] of Object.entries(meshes)) {
     const position = add(m.position, 'VEC3', 5126, 34962, true);
     const normal = add(m.normal, 'VEC3', 5126, 34962);
+    const color = m.color ? add(m.color, 'VEC3', 5126, 34962) : undefined;
     const indices = add(
       m.index,
       'SCALAR',
@@ -475,7 +500,14 @@ function writeGlb(file, meshes) {
     gltfMeshes.push({
       name,
       primitives: [
-        { attributes: { POSITION: position, NORMAL: normal }, indices },
+        {
+          attributes: {
+            POSITION: position,
+            NORMAL: normal,
+            ...(color === undefined ? {} : { COLOR_0: color }),
+          },
+          indices,
+        },
       ],
     });
     nodes.push({ name, mesh: gltfMeshes.length - 1 });

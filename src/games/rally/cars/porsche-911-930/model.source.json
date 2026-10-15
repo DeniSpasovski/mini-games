@@ -1,0 +1,176 @@
+{
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/porsche-911-930/model-01-porsche-930-turbo.glb = 'Porsche 911 (930) Turbo 1975' by Lexyc16 (CC BY 4.0), +x left, +y up, +z nose, units ~0.79 of a metre (scale = real wheelbase 2.272 m / the model's hub distance 1.8019), flat colours + one headlamp photo. Mapped by material (the materials are Material.NNN); extra rules: `arch` (black wheel arches), Object_24 (the exhaust pipes, a bent single-faced shell) is dropped and `parts.tubes` builds two hollow steel tail pipes, Material.006 islands under the bumper = dark reflectors, lenses = `*weave` parts (the source lens colours are flat, its weave is a texture the game draws itself); atlas `chartBoxes` keeps the rear fender's lower corner one paint colour; tyres, rim lips and the wheel nodes are dropped (the rim is rebuilt without its nuts: wheel-stl-to-glb.mjs --two-tone) (the rim is the model's own: porsche_911_930_wheel.glb), the headlamp keeps its texture (srcParts). The offset centres the body, puts the hubs at the tyre radius 0.32 and the front hub (source z 1.084) on physics front.z 1.386 (61 % of the weight on the rear axle). The atlas block is also read by livery.ts at runtime - edit it only here.",
+  "source": "sources/cars/porsche-911-930/model-01-porsche-930-turbo.glb -> glb-to-parts-stl.py -> sources/cars/porsche-911-930/porsche-930-parts.stl",
+  "output": "public/models/cars/porsche_911_930.glb",
+  "axes": ["x", "y", "z"],
+  "scale": 1.26089,
+  "offset": [1.3782, 1.9782, 0.0192],
+  "groundAtMin": false,
+  "targetTriangles": 60000,
+  "creaseDeg": 40,
+  "wheels": {
+    "$comment": "the wheels are separate nodes (dropped below) - nothing to cut",
+    "radius": 0,
+    "minAbsX": 9,
+    "centres": []
+  },
+  "atlas": {
+    "pxPerMetre": 256,
+    "chartBoxes": [
+      {
+        "chart": "rear",
+        "any": true,
+        "x": [0.45, 0.98],
+        "y": [0.12, 0.42],
+        "z": [-1.99, -1.2]
+      }
+    ],
+    "width": 5.25,
+    "height": 9.0,
+    "bounds": {
+      "x": [-1.05, 1.05],
+      "y": [0, 1.5],
+      "z": [-2.6, 2.6]
+    },
+    "charts": {
+      "left": [0, 0],
+      "right": [0, 1.55],
+      "top": [0, 3.1],
+      "front": [0, 5.25],
+      "rear": [2.2, 5.25],
+      "bottom": [0, 6.8]
+    }
+  },
+  "gltf": {
+    "drop": [
+      "Material.005",
+      "Material.008",
+      "Material.010",
+      "Object_28",
+      "Object_32",
+      "Object_36",
+      "Object_42",
+      "Object_24"
+    ],
+    "parts": [
+      {
+        "node": "Object_17",
+        "material": "amberweave"
+      },
+      {
+        "node": "Object_6",
+        "material": "clearweave"
+      },
+      {
+        "mat": "Material.001",
+        "arch": {
+          "axles": [1.084, -0.7177],
+          "y": -1.3151,
+          "r": [0.27, 0.42],
+          "toward": 0.3,
+          "dy": -0.25
+        },
+        "material": "trim"
+      },
+      {
+        "mat": "Material.001",
+        "material": "body"
+      },
+      {
+        "mat": "Material.002",
+        "material": "trim"
+      },
+      {
+        "mat": "Material.009",
+        "material": "trim"
+      },
+      {
+        "mat": "Material.014",
+        "material": "glass"
+      },
+      {
+        "mat": "Material.007",
+        "material": "mirror"
+      },
+      {
+        "mat": "Material.011",
+        "material": "amberweave"
+      },
+      {
+        "mat": "Material.006",
+        "whole": true,
+        "y": [-1.3, -1.2],
+        "material": "reflector"
+      },
+      {
+        "mat": "Material.006",
+        "material": "tailweave"
+      },
+      {
+        "mat": "Material.012",
+        "material": "lensweave"
+      },
+      {
+        "mat": "Material.003",
+        "material": "tailweave"
+      }
+    ],
+    "default": "trim"
+  },
+  "parts": {
+    "materials": [
+      "body",
+      "trim",
+      "glass",
+      "mirror",
+      "amberweave",
+      "tailweave",
+      "lensweave",
+      "reflector",
+      "clearweave",
+      "steel"
+    ],
+    "tubes": [
+      {
+        "material": "steel",
+        "inner": "trim",
+        "frame": {
+          "origin": [0.625, 0.225, -1.5],
+          "tilt": 180
+        },
+        "r": 0.04,
+        "wall": 0.004,
+        "depth": 0.12,
+        "w": [0, 0.16],
+        "segs": 24
+      },
+      {
+        "material": "steel",
+        "inner": "trim",
+        "frame": {
+          "origin": [-0.625, 0.225, -1.5],
+          "tilt": 180
+        },
+        "r": 0.04,
+        "wall": 0.004,
+        "depth": 0.12,
+        "w": [0, 0.16],
+        "segs": 24
+      }
+    ]
+  },
+  "srcParts": {
+    "textures": [
+      {
+        "material": "Material.010",
+        "out": "public/models/cars/porsche_911_930_lamp.png"
+      }
+    ],
+    "parts": [
+      {
+        "node": "Object_16",
+        "material": "src:lamp:porsche_911_930_lamp.png"
+      }
+    ]
+  }
+}
