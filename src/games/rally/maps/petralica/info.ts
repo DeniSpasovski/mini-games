@@ -46,6 +46,11 @@ export const petralicaInfo: MapInfo = {
       url: 'https://esa-worldcover.org/',
       note: 'land cover + built-up areas used to place the houses - contains modified Copernicus Sentinel data (2021), CC BY 4.0',
     },
+    {
+      label: 'Generic passenger car pack (Comrade1280, Sketchfab)',
+      url: 'https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5',
+      note: 'parked cars, simplified - CC BY 4.0',
+    },
   ],
   stageNumber: 2,
   bounds: { minX: -2400, maxX: 2400, minZ: -4800, maxZ: 4800 },
