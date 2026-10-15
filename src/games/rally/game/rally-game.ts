@@ -55,6 +55,7 @@ import { CanopyShadows } from '../world/canopy-shadows';
 import { Horizon } from '../world/horizon';
 import {
   setCanopyFade,
+  setCanopyLocalMap,
   setCanopyShadows,
   setForest,
 } from '../engine/world-shading';
@@ -347,11 +348,12 @@ export class RallyGame {
       }
     });
     this.canopy = new CanopyShadows(this.world, this.env.sunDir);
-    this.canopy.update();
+    this.updateCanopy();
     setCanopyShadows(
       this.canopy.texture,
       this.canopy.map,
       map.environment.canopyShadow ?? 0.6,
+      { texture: this.canopy.local, map: this.canopy.localMap },
     );
     setCanopyFade(TREE_SHADOW_DISTANCE * 0.75, TREE_SHADOW_DISTANCE);
     setForest(forestColor(this.treeLibrary), q.forestDistance);
@@ -1049,7 +1051,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     });
     this.env.update(cam.position, dir);
     this.env.follow(cam.position);
-    this.canopy.update();
+    this.updateCanopy();
     lap('env');
     this.renderer.render(this.scene, cam);
     lap('render');
@@ -1152,7 +1154,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     // Shadow box ahead of the camera (where the player looks), not centred on the car.
     this.env.update(this.renderPos, dir);
     this.env.follow(camPos);
-    this.canopy.update();
+    this.updateCanopy();
 
     // --- effects / audio / HUD ------------------------------------------------------------------
     if (!this.paused) {
@@ -1257,6 +1259,13 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       `${this.dust.aliveCount} dust  ${this.gravel.aliveCount} gravel  ${this.haze?.aliveCount ?? 0} haze`,
     );
     this.stats.end();
+  }
+
+  /** Canopy shadows (global map + the local window around the camera). */
+  private updateCanopy(): void {
+    const p = this.camera.position;
+    this.canopy.update(performance.now(), p);
+    setCanopyLocalMap(this.canopy.localMap);
   }
 
   /** Show / hide the perf panel (created on first use; its switches stay applied while it exists). */

@@ -95,9 +95,12 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 - **Shadows:** one shadow map ahead of the camera, snapped to texels so edges do not crawl.
 - **Sky / tone mapping:** drifting clouds (`cloudCoverage`, `cloudSpeed`); ACES, or `toneMapping: 'agx' | 'neutral'` per map.
 - **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark outside the
-  shadow box (`world/canopy-shadows.ts`), height fog warming towards the sun, wind, leaf translucency. Custom shaders must call
-  `addWorldUniforms(shader)`.
+  shadow box (`world/canopy-shadows.ts`: a coarse whole-map texture plus a 1.5 m local window of 768 m around the camera,
+  rebuilt from the generated scatter chunks every 64 m, so the road gets tree shadows far past the shadow map), height fog
+  warming towards the sun, wind, leaf translucency. Custom shaders must call `addWorldUniforms(shader)`.
 - **Surfaces:** bump relief on roads, rocks and terrain (off on low); grass cards use alpha-to-coverage with MSAA.
+  Terrain chunks beyond the first LOD band use the cheaper `TERRAIN_FAR` material (`world/terrain-material.ts`): no relief, one
+  texture octave per layer, no specular environment lookup.
 - **Effects:** dust, gravel spray and haze (`game/dust.ts`), tyre marks (`game/tyre-marks.ts`), a contact shadow under the car,
   brake and reversing lamps (`CarModel.setBrake(level, reversing)`; a lamp's `userData.brakeLamp.reverseGlow` map lights its
   white section in gear R, in R the throttle key is the brake pedal; car viewer `lamps=brake|reverse`).

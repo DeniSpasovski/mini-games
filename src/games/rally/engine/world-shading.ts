@@ -48,6 +48,9 @@ export const worldUniforms = {
   /** Canopy shadow texture (world/canopy-shadows.ts) and its ground mapping: x0, z0, 1/width, 1/depth. */
   wsCanopy: { value: null as Texture | null },
   wsCanopyMap: { value: new Vector4(0, 0, 0, 0) },
+  /** The finer canopy window following the camera (world/canopy-shadows.ts) and its ground mapping. */
+  wsCanopyLocal: { value: null as Texture | null },
+  wsCanopyLocalMap: { value: new Vector4(0, 0, 0, 0) },
   /** Shadow-map box on the ground: centre x, z, half extent (m), canopy shadow strength (0 = off). */
   wsShadowBox: { value: new Vector4(0, 0, 60, 0) },
   /**
@@ -112,11 +115,27 @@ export function setCanopyShadows(
   texture: Texture | null,
   map: { x0: number; z0: number; invW: number; invD: number },
   strength: number,
+  local?: {
+    texture: Texture;
+    map: { x0: number; z0: number; invW: number; invD: number };
+  },
 ): void {
   const u = worldUniforms;
   u.wsCanopy.value = texture;
   u.wsCanopyMap.value.set(map.x0, map.z0, map.invW, map.invD);
+  u.wsCanopyLocal.value = local?.texture ?? null;
+  if (local) setCanopyLocalMap(local.map);
   u.wsShadowBox.value.w = texture ? strength : 0;
+}
+
+/** Where the local canopy window is on the ground (call after it moved: `CanopyShadows.update`). */
+export function setCanopyLocalMap(map: {
+  x0: number;
+  z0: number;
+  invW: number;
+  invD: number;
+}): void {
+  worldUniforms.wsCanopyLocalMap.value.set(map.x0, map.z0, map.invW, map.invD);
 }
 
 /** Canopy shadows fade in from `start` to `end` m from the camera (where trees stop casting real shadows). */
@@ -245,6 +264,8 @@ const LIGHTS_PARS = /* glsl */ `
 uniform sampler2D wsMacro;
 uniform sampler2D wsCanopy;
 uniform vec4 wsCanopyMap;
+uniform sampler2D wsCanopyLocal;
+uniform vec4 wsCanopyLocalMap;
 uniform vec4 wsShadowBox;
 uniform vec2 wsCanopyFade;
 uniform vec4 wsForest;
@@ -267,6 +288,12 @@ float wsCanopyShadow( vec3 wp ) {
 		? smoothstep( wsCanopyFade.x, wsCanopyFade.y, length( wp.xz - cameraPosition.xz ) )
 		: smoothstep( wsShadowBox.z * 0.65, wsShadowBox.z * 0.95, length( wp.xz - wsShadowBox.xy ) );
 	float d = texture2D( wsCanopy, ( wp.xz - wsCanopyMap.xy ) * wsCanopyMap.zw ).r;
+	// The finer window around the camera (blended out over its outer fifth).
+	if ( wsCanopyLocalMap.z > 0.0 ) {
+		vec2 lu = ( wp.xz - wsCanopyLocalMap.xy ) * wsCanopyLocalMap.zw;
+		float lw = 1.0 - smoothstep( 0.38, 0.48, max( abs( lu.x - 0.5 ), abs( lu.y - 0.5 ) ) );
+		if ( lw > 0.0 ) d = mix( d, texture2D( wsCanopyLocal, lu ).r, lw );
+	}
 	return 1.0 - wsShadowBox.w * fade * d;
 }
 `;
