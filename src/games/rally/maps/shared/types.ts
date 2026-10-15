@@ -215,6 +215,8 @@ export interface PadDef {
   frontage: number[];
   /** Metres above the road's centre line at the frontage (sidewalk height), default 0.1. */
   lift?: number;
+  /** Surface inside the outline (physics + ground texture), default the land's own. */
+  surface?: SurfaceId;
 }
 
 /** A building placed from a real footprint (oriented rectangle). */
@@ -608,8 +610,38 @@ export interface StageDef {
   cornerFans?: CornerFansRule;
   /** Event props (closure rows, hay bales, tape) along the stage road. */
   props?: PropPlacement[];
+  /** Service park beside the start: team bays, crowd, start control (world/service-park.ts). */
+  servicePark?: ServicePark;
   /** Links only this stage uses (its route): listed with the map's sources on the About screen. */
   sources?: SourceLink[];
+}
+
+/**
+ * A level lot for a service park, in world metres. `u` runs along `heading` (rad, x towards z), `v` across it; the
+ * lot's origin is its west corner on the public edge (v = 0, where the tape and the crowd are). The map levels the
+ * same rectangle with a `terrain.pads` entry (`servicePad`, maps/shared/service-lot.ts).
+ */
+export interface ServiceLot {
+  /** Centre. */
+  x: number;
+  z: number;
+  heading: number;
+  length: number;
+  width: number;
+}
+
+/** A rally service park (paddock) at a stage start: team bays on the lots, a crowd on the public edge. */
+export interface ServicePark {
+  /** Lots, filled in order until `bays` bays fit. */
+  lots: ServiceLot[];
+  /** Team bays wanted (>= 10); each holds a team car, its truck or van, tents, props and 3-6 people. */
+  bays: number;
+  /** Spectators along the public edge (default 30). */
+  crowd?: number;
+  /** Timekeeper tent, control boards, marshals and a rescue ambulance beside the start line. */
+  startControl?: boolean;
+  /** Default: hash of the stage id. */
+  seed?: number;
 }
 
 export interface ScatterRule {

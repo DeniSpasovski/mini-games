@@ -11,6 +11,7 @@ import horizon from './horizon.json';
 import { ajvatovciInfo as info } from './info';
 import { HILLTOP_FLATS } from './hilltop';
 import { STATION_FLAT } from './station';
+import { startLotPad } from './service-park';
 import { startRowPads } from './start-row';
 
 /**
@@ -76,7 +77,8 @@ export const ajvatovciMap: MapDef = {
     // Level lawn round the hilltop church and the court's terrace (the 30 m DEM slopes ~20 % there).
     flatAreas: [...HILLTOP_FLATS, STATION_FLAT],
     // Level yards for the start row's lots (levelled to the sidewalk in front of each).
-    pads: startRowPads(),
+    // + the service park's gravel yard beside the start (./service-park.ts).
+    pads: [...startRowPads(), startLotPad()],
   },
   landcover: {
     ...(data.landcover as Omit<LandcoverDef, 'splat' | 'fields'>),

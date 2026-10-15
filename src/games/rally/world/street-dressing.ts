@@ -1,4 +1,5 @@
 import { hash3, Rng } from '../../../shared/rng';
+import { SPECTATOR_VARIANTS } from '../assets/catalog';
 import type { StreetDressing } from '../maps/shared/types';
 import type { Junction } from './junctions';
 import { newPathQuery, type PathNetwork } from './real-data';
@@ -225,7 +226,7 @@ export function streetDressingInstances(
         const r = nearRoad(x, z);
         place(
           'spectator',
-          rng.int(0, 5),
+          rng.int(0, SPECTATOR_VARIANTS - 1),
           x,
           z,
           yawToward(r.x - x, r.z - z) + rng.range(-0.4, 0.4),
@@ -373,7 +374,7 @@ export function streetDressingInstances(
           const r = nearRoad(x, z);
           place(
             'spectator',
-            rng.int(0, 5),
+            rng.int(0, SPECTATOR_VARIANTS - 1),
             x,
             z,
             yawToward(r.x - x, r.z - z) + rng.range(-0.4, 0.4),
@@ -537,7 +538,7 @@ export function streetDressingInstances(
         if (ctx.blocked(c.x, c.z, 0.5)) continue;
         place(
           'spectator',
-          rng.int(0, 5),
+          rng.int(0, SPECTATOR_VARIANTS - 1),
           c.x,
           c.z,
           yawToward(-j.dx, -j.dz) + rng.range(-0.5, 0.5),

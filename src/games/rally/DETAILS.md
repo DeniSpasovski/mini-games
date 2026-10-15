@@ -138,6 +138,13 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain).
 - **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
   spectators, flags (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`).
+- **Service park** (stage `servicePark`, Ajvatovci only so far): team bays on a levelled gravel lot beside the start - trucks / vans,
+  team cars on ground sheets, tents, props, crew, tape + crowd, start control (`world/service-park.ts`, `World.servicePark`;
+  assets `assets/builders/service.ts` + `teams.ts`; test `service-park`). The lot is a `ServiceLot` rectangle: the map levels it
+  with `servicePad` (`maps/shared/service-lot.ts`, a `terrain.pads` entry with `surface: 'gravel'`), the stage references the same
+  rectangle (`maps/ajvatovci/service-park.ts`). Team cars are the boxy profile cars in team colours.
+- **People** (`assets/builders/people.ts`): jointed low-poly figures posed by joint angles + outfit colours - `spectator` (24),
+  `mechanic`, `crew`, `driver`, `marshal`, `visitor`; test `people`.
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)
   puts them on the outside of every tight bend of a mountain road (Galichica).
 - **Other roads** (`paths`): tarmac ribbons, dirt paint or canals with their own surface; side roads carved with grade limits

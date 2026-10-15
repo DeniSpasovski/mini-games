@@ -39,16 +39,16 @@ const PD: [number, number] = [0.067, 0.367];
 const FD: [number, number] = [0.367, 0.667];
 const AMB: [number, number] = [0.667, 1];
 
-function plain(g: BufferGeometry): BufferGeometry {
+export function plain(g: BufferGeometry): BufferGeometry {
   const uv = g.getAttribute('uv');
   for (let i = 0; i < uv.count; i++) uv.setXY(i, PLAIN[0], PLAIN[1]);
   return g;
 }
 
-const solid = (g: BufferGeometry, color: string): BufferGeometry =>
+export const solid = (g: BufferGeometry, color: string): BufferGeometry =>
   plain(paint(g, color));
 
-const box = (
+export const box = (
   w: number,
   h: number,
   d: number,
@@ -77,7 +77,12 @@ function decal(
   });
 }
 
-const wheel = (r: number, w: number, x: number, z: number): BufferGeometry =>
+export const wheel = (
+  r: number,
+  w: number,
+  x: number,
+  z: number,
+): BufferGeometry =>
   solid(
     new CylinderGeometry(r, r, w, 9).rotateX(Math.PI / 2).translate(x, r, z),
     '#1b1b1d',
@@ -102,7 +107,7 @@ const PAINTS = [
  * The boxy rally cars as street cars (profiles baked from their GLBs, cars/<car>/profile.ts): 0 Bimmer M3 (saloon),
  * 1 Skoda Rally (hatch), 2 Fiesta (hatch), 3 Bimmer GT2 (coupe), 4 Citroen C4 (hatch), 5 Lancer EVO VI (saloon), 6 Ford Mustang GT3 (coupe), 7 Mercedes 190E (saloon).
  */
-const SHAPES: CarProfile[] = [
+export const SHAPES: CarProfile[] = [
   m3,
   skoda,
   fiesta,
@@ -124,10 +129,12 @@ const TYRE_W = 0.22;
  * A boxy car (cars/shared/profile-body.ts) in one paint: body, greenhouse, head / tail lamps, wheels with a flat rim
  * (LOD 1: coarser outlines and wheels, no rims or lamps). Turned to face +X.
  */
-function carParts(
+export function carParts(
   s: CarProfile,
   paintColor: string,
   lod: number,
+  /** Index of an axle left without wheels (a car raised on stands with a wheel change under way). */
+  bareAxle = -1,
 ): BufferGeometry[] {
   // Far: outlines simplified to 12 cm, 5-sided wheels without rims, no lamps.
   const p = buildProfileParts(s, undefined, lod ? 0.12 : 0);
@@ -135,8 +142,9 @@ function carParts(
   if (lod === 0) parts.push(solid(p.head, '#f4f0d8'), solid(p.tail, '#a31a1a'));
   const { tyre, rim } = buildProfileWheel(s.wheel, TYRE_W, lod ? 5 : 12);
   const x = s.width / 2 - 0.01 - TYRE_W / 2;
-  for (const z of s.axles)
+  for (const [i, z] of s.axles.entries())
     for (const side of [1, -1]) {
+      if (i === bareAxle) continue;
       const at = (g: BufferGeometry) =>
         g
           .clone()
@@ -151,7 +159,7 @@ function carParts(
   return parts;
 }
 
-const finish = (parts: BufferGeometry[]) => ({
+export const finish = (parts: BufferGeometry[]) => ({
   parts: [{ geometry: merge(parts), material: getMaterial('vehicle') }],
 });
 

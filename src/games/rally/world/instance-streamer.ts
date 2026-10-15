@@ -14,6 +14,7 @@ import { getAsset, getVariantSet } from '../assets/library';
 import { variantDepthMaterial } from '../engine/materials';
 import { hash3 } from '../../../shared/rng';
 import { CORNER_FAN_ASSETS } from './corner-fans';
+import { SERVICE_PARK_ASSETS } from './service-park';
 import type { ScatterInstance } from './scatter';
 import type { World } from './world';
 
@@ -141,6 +142,7 @@ export class InstanceStreamer {
       ...world.map.scatter.map((r) => r.asset),
       ...world.map.roadside.map((r) => r.asset),
       ...(world.stageDef.cornerFans ? CORNER_FAN_ASSETS : []),
+      ...(world.stageDef.servicePark ? SERVICE_PARK_ASSETS : []),
       ...world.map.props.map((p) => p.asset),
       ...(world.stageDef.props ?? []).map((p) => p.asset),
     ]);
@@ -593,6 +595,7 @@ export class InstanceStreamer {
       ...this.world.map.scatter.map((r) => r.asset),
       ...this.world.map.roadside.map((r) => r.asset),
       ...(this.world.stageDef.cornerFans ? CORNER_FAN_ASSETS : []),
+      ...(this.world.stageDef.servicePark ? SERVICE_PARK_ASSETS : []),
       ...this.world.map.props.map((p) => p.asset),
       ...(this.world.stageDef.props ?? []).map((p) => p.asset),
     ]);

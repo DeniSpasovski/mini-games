@@ -76,6 +76,28 @@ const farTree = (maxDist: number): LodSpec[] => [
   { maxDistance: maxDist, castShadow: false, oneVariant: true, impostor: true },
 ];
 
+/** Spectator variants: 6 outfits x 4 poses (builders/people.ts). */
+export const SPECTATOR_VARIANTS = 24;
+
+/** Service park vehicles: boxes + wheels, a plain body far away. */
+const VEHICLE_LODS: LodSpec[] = [
+  { maxDistance: 140, castShadow: true },
+  { maxDistance: 480, castShadow: false },
+];
+
+/** Service park small props. */
+const PROP_LODS: LodSpec[] = [
+  { maxDistance: 90, castShadow: true },
+  { maxDistance: 260, castShadow: false },
+];
+
+/** Figures: full detail near (shadows), a simpler body, then a two-box silhouette. */
+const PEOPLE_LODS: LodSpec[] = [
+  { maxDistance: 70, castShadow: true },
+  { maxDistance: 220, castShadow: false },
+  { maxDistance: 520, castShadow: false },
+];
+
 export const ASSET_CATALOG: AssetMeta[] = [
   // --- vegetation -----------------------------------------------------------
   {
@@ -363,12 +385,54 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Spectator',
     category: 'props',
     description:
-      'Low-poly standing fan with random clothing colours (variant = outfit).',
-    variants: 6,
-    lods: [
-      { maxDistance: 100, castShadow: true },
-      { maxDistance: 500, castShadow: false },
-    ],
+      'Fan made of jointed parts (assets/builders/people.ts). Variant % 6 = outfit (jacket, T-shirt + cap, hoodie, hi-vis vest, backpack, supporter shirt), variant / 6 = pose (stand, wave, camera, hands in pockets).',
+    variants: SPECTATOR_VARIANTS,
+    lods: PEOPLE_LODS,
+  },
+  {
+    id: 'mechanic',
+    name: 'Mechanic',
+    category: 'props',
+    description:
+      'Service-park mechanic in team overalls. Variant % 12 = team (builders/teams.ts), variant / 12 = pose (crouch at a wheel, bent over the nose, kneel).',
+    variants: 36,
+    lods: PEOPLE_LODS,
+  },
+  {
+    id: 'crew',
+    name: 'Team crew',
+    category: 'props',
+    description:
+      'Team member in a team shirt. Variant % 12 = team, variant / 12 = pose (carrying a tyre, engineer with a laptop, manager with crossed arms).',
+    variants: 36,
+    lods: PEOPLE_LODS,
+  },
+  {
+    id: 'driver',
+    name: 'Driver',
+    category: 'props',
+    description:
+      'Driver / co-driver in a race suit. Variant % 12 = team, variant / 12 = pose (helmet in hand, arms crossed).',
+    variants: 24,
+    lods: PEOPLE_LODS,
+  },
+  {
+    id: 'marshal',
+    name: 'Marshal',
+    category: 'props',
+    description:
+      'Stage marshal / official in a hi-vis tabard (variant % 6 = tabard colour, variant % 4 = pose: stand, pointing, hands in pockets, phone).',
+    variants: 12,
+    lods: PEOPLE_LODS,
+  },
+  {
+    id: 'visitor',
+    name: 'Visitor',
+    category: 'props',
+    description:
+      'Casual person around a service park: walking, drinking, on the phone, standing.',
+    variants: 16,
+    lods: PEOPLE_LODS,
   },
   {
     id: 'tape_post',
@@ -548,6 +612,203 @@ export const ASSET_CATALOG: AssetMeta[] = [
       { maxDistance: 520, castShadow: false },
     ],
     colliders: [{ kind: 'box', hx: 3.2, hz: 1.17, h: 2.8, r: 3.4 }],
+  },
+  // --- service park (rally paddock; builders/service.ts, teams in builders/teams.ts) ---------------
+  {
+    id: 'service_truck',
+    name: 'Service truck',
+    category: 'props',
+    description:
+      'Team box truck (9 m) in team colours (variant = team) with a side awning on +Z. Faces +X. Solid body + awning legs.',
+    variants: 12,
+    lods: VEHICLE_LODS,
+    colliders: [
+      { kind: 'box', hx: 4.5, hz: 1.25, h: 3.5, r: 4.7 },
+      { kind: 'cylinder', x: -3.9, z: 5, r: 0.07, h: 3 },
+      { kind: 'cylinder', x: 1.5, z: 5, r: 0.07, h: 3 },
+    ],
+  },
+  {
+    id: 'service_van',
+    name: 'Service van',
+    category: 'props',
+    description:
+      'Team panel van (5.4 m, variant = team) with a roof rack. Faces +X. Solid.',
+    variants: 12,
+    lods: VEHICLE_LODS,
+    colliders: [{ kind: 'box', hx: 2.7, hz: 1.0, h: 2.4, r: 2.9 }],
+  },
+  {
+    id: 'car_trailer',
+    name: 'Car trailer',
+    category: 'props',
+    description:
+      'Flat car trailer with a tow bar to +X (variant 0 grey, 1 dark). Solid.',
+    variants: 2,
+    lods: VEHICLE_LODS,
+    colliders: [{ kind: 'box', hx: 2.6, hz: 1.05, h: 0.9, r: 2.9 }],
+  },
+  {
+    id: 'pickup',
+    name: 'Pickup',
+    category: 'props',
+    description:
+      'Double-cab pickup in team colours (variant = team), open bed. Faces +X. Solid.',
+    variants: 12,
+    lods: VEHICLE_LODS,
+    colliders: [{ kind: 'box', hx: 2.5, hz: 0.95, h: 1.9, r: 2.7 }],
+  },
+  {
+    id: 'gazebo',
+    name: 'Gazebo 3 x 3',
+    category: 'props',
+    description:
+      'Pop-up tent 3 x 3 m, open sides (variant = team, 12 = white timekeeper tent). Solid legs.',
+    variants: 13,
+    lods: PROP_LODS,
+    colliders: [-1.5, 1.5].flatMap((x) =>
+      [-1.45, 1.45].map((z) => ({
+        kind: 'cylinder' as const,
+        x,
+        z,
+        r: 0.06,
+        h: 2.5,
+      })),
+    ),
+  },
+  {
+    id: 'gazebo_long',
+    name: 'Gazebo 3 x 6',
+    category: 'props',
+    description:
+      'Pop-up tent 6 x 3 m (long side along X), open sides (variant = team, 12 = white timekeeper tent). Solid legs.',
+    variants: 13,
+    lods: PROP_LODS,
+    colliders: [-3, 0, 3].flatMap((x) =>
+      [-1.45, 1.45].map((z) => ({
+        kind: 'cylinder' as const,
+        x,
+        z,
+        r: 0.06,
+        h: 2.5,
+      })),
+    ),
+  },
+  {
+    id: 'team_car',
+    name: 'Team car',
+    category: 'props',
+    description:
+      'Service-park rally car: the boxy rally car of the team (profiles, builders/teams.ts TEAM_SHAPE) in team colours with stripes and door plates. Variants 0-11 = team on its wheels, 12-23 = raised on axle stands with the rear wheels off. Faces +X. Solid.',
+    variants: 24,
+    lods: [
+      { maxDistance: 120, castShadow: true },
+      { maxDistance: 520, castShadow: false },
+    ],
+    colliders: [{ kind: 'box', hx: 2.3, hz: 0.96, h: 1.4, r: 2.5 }],
+  },
+  {
+    id: 'tyre_stack',
+    name: 'Tyre stack',
+    category: 'props',
+    description: 'Stack of 2-4 rally tyres (variant % 3).',
+    variants: 3,
+    lods: PROP_LODS,
+    colliders: [{ kind: 'cylinder', r: 0.36, h: 0.9 }],
+  },
+  {
+    id: 'tool_chest',
+    name: 'Tool chest',
+    category: 'props',
+    description:
+      'Rolling tool chest (variant = colour). Front faces +Z. Solid.',
+    variants: 4,
+    lods: PROP_LODS,
+    colliders: [{ kind: 'box', hx: 0.5, hz: 0.3, h: 1, r: 0.6 }],
+  },
+  {
+    id: 'table_chairs',
+    name: 'Table and chairs',
+    category: 'props',
+    description:
+      'Folding table with two chairs on the +Z side and a laptop. Solid table.',
+    variants: 1,
+    lods: PROP_LODS,
+    colliders: [{ kind: 'box', hx: 0.95, hz: 0.45, h: 0.9, r: 1.0 }],
+  },
+  {
+    id: 'generator',
+    name: 'Generator',
+    category: 'props',
+    description: 'Petrol generator on a frame. Solid.',
+    variants: 1,
+    lods: PROP_LODS,
+    colliders: [{ kind: 'box', hx: 0.55, hz: 0.35, h: 1, r: 0.65 }],
+  },
+  {
+    id: 'feather_flag',
+    name: 'Feather flag',
+    category: 'props',
+    description:
+      'Team feather flag on a pole (variant = team), two-sided, faces +Z. No collision.',
+    variants: 12,
+    lods: PROP_LODS,
+  },
+  {
+    id: 'ground_sheet',
+    name: 'Ground sheet',
+    category: 'props',
+    description:
+      'Flat tarp 1 x 1 m, scaled by the instance (sx / sz) to a work area; variants blue, grey, green, black. No collision.',
+    variants: 4,
+    lods: [{ maxDistance: 160, castShadow: false }],
+  },
+  {
+    id: 'trolley_jack',
+    name: 'Trolley jack',
+    category: 'props',
+    description: 'Red trolley jack with a long handle (-X). No collision.',
+    variants: 1,
+    lods: PROP_LODS,
+  },
+  {
+    id: 'food_truck',
+    name: 'Catering van',
+    category: 'props',
+    description:
+      'Catering van (variant = colour) with a serving hatch and awning flap on +Z. Faces +X. Solid.',
+    variants: 3,
+    lods: VEHICLE_LODS,
+    colliders: [{ kind: 'box', hx: 2.5, hz: 1.05, h: 2.7, r: 2.7 }],
+  },
+  {
+    id: 'porta_toilet',
+    name: 'Portable toilet',
+    category: 'props',
+    description: 'Portable toilet cabin (variant = colour), door on +Z. Solid.',
+    variants: 3,
+    lods: PROP_LODS,
+    colliders: [{ kind: 'box', hx: 0.6, hz: 0.6, h: 2.3, r: 0.85 }],
+  },
+  {
+    id: 'fuel_trailer',
+    name: 'Fuel trailer',
+    category: 'props',
+    description:
+      'Refuelling trailer: lying tank on a two-wheel chassis. Faces +X. Solid.',
+    variants: 1,
+    lods: VEHICLE_LODS,
+    colliders: [{ kind: 'box', hx: 1.7, hz: 0.75, h: 2, r: 1.9 }],
+  },
+  {
+    id: 'control_board',
+    name: 'Control board',
+    category: 'props',
+    description:
+      'Time-control board on a post, symbols only (variant 0 yellow with a clock disc, 1 red with a white bar). Faces +Z. Solid post.',
+    variants: 2,
+    lods: PROP_LODS,
+    colliders: [{ kind: 'cylinder', r: 0.07, h: 2.3 }],
   },
   // --- highway structures ----------------------------------------------------------
   {

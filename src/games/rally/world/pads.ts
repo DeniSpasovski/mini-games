@@ -1,5 +1,6 @@
 import { smoothstep } from '../../../shared/noise';
 import type { PadDef } from '../maps/shared/types';
+import type { SurfaceId } from '../physics/surfaces';
 import { newRoadQuery, type Road } from './road';
 
 interface Pad {
@@ -9,6 +10,7 @@ interface Pad {
   minZ: number;
   maxZ: number;
   blend: number;
+  surface?: SurfaceId;
   /** Start of the frontage and its direction (unit), metres. */
   x0: number;
   z0: number;
@@ -69,6 +71,7 @@ export class PadField {
         minZ: minZ - d.blend,
         maxZ: maxZ + d.blend,
         blend: d.blend,
+        surface: d.surface,
         x0: first.x,
         z0: first.z,
         dx,
@@ -97,6 +100,33 @@ export class PadField {
     while (i < n - 1 && p.ts[i] < t) i++;
     const u = (t - p.ts[i - 1]) / (p.ts[i] - p.ts[i - 1] || 1);
     return p.hs[i - 1] + (p.hs[i] - p.hs[i - 1]) * u;
+  }
+
+  /** Surface of a pad with one at (x, z) (inside its outline), else undefined. */
+  surfaceAt(x: number, z: number): SurfaceId | undefined {
+    for (const p of this.pads) {
+      if (!p.surface || x < p.minX || x > p.maxX || z < p.minZ || z > p.maxZ)
+        continue;
+      if (distance(p.pts, x, z) === 0) return p.surface;
+    }
+    return undefined;
+  }
+
+  /** Gravel weight (1 inside, fading out over 3 m) of the pads whose surface is gravel. */
+  gravel(x: number, z: number): number {
+    let w = 0;
+    for (const p of this.pads) {
+      if (
+        (p.surface !== 'gravel' && p.surface !== 'gravel_loose') ||
+        x < p.minX ||
+        x > p.maxX ||
+        z < p.minZ ||
+        z > p.maxZ
+      )
+        continue;
+      w = Math.max(w, 1 - smoothstep(0, 3, distance(p.pts, x, z)));
+    }
+    return w;
   }
 
   /** `h` (the land height) with every pad applied. */

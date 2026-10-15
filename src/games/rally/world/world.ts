@@ -1,4 +1,5 @@
 import { Vector3 } from 'three';
+import { hashString } from '../../../shared/rng';
 import type { BuildingDef, MapDef, StageDef } from '../maps/shared/types';
 import { SURFACES, type SurfaceId } from '../physics/surfaces';
 import type {
@@ -52,6 +53,11 @@ import {
 import { DECK_DEPTH, TerrainGenerator } from './terrain-gen';
 import { bakeGroundMoisture, type GroundMoisture } from './ground-moisture';
 import { cornerFanInstances } from './corner-fans';
+import {
+  serviceParkInstances,
+  serviceParkOccupies,
+  type ServiceParkLayout,
+} from './service-park';
 import { newLakeQuery } from './lakes';
 
 /**
@@ -150,6 +156,8 @@ export class World implements GroundProvider {
   private moistureMap?: GroundMoisture;
   /** Fan groups in the corners (MapDef.cornerFans, world/corner-fans.ts), also in `scatter`. */
   readonly cornerFans: ScatterInstance[];
+  /** Service park beside the start (StageDef.servicePark, world/service-park.ts), also in `scatter`. */
+  readonly servicePark?: ServiceParkLayout;
 
   /** Ground moisture texture for the grass tint (baked on first use, world/ground-moisture.ts). */
   get moisture(): GroundMoisture {
@@ -187,6 +195,24 @@ export class World implements GroundProvider {
     );
     const b = map.bounds;
     const m = RENDER_MARGIN * 0.6;
+    const parkDef = this.stageDef.servicePark;
+    const parkQ = newPathQuery();
+    const parkLq = newLakeQuery();
+    if (parkDef)
+      this.servicePark = serviceParkInstances(parkDef, {
+        road: this.stageRoad,
+        start,
+        height: (x, z) => this.analytic.height(x, z),
+        seed: hashString(this.stageDef.id),
+        blocked: (x, z, r) =>
+          this.buildings.contains(x, z, r) ||
+          this.landmarks.some((l) => l.occupies(x, z, r)) ||
+          (!!this.gen.paths?.query(x, z, parkQ).found &&
+            parkQ.distance < parkQ.halfWidth + r) ||
+          (!!this.gen.channels?.query(x, z, parkQ).found &&
+            parkQ.distance < parkQ.halfWidth + r + 2) ||
+          (!!this.gen.lakes?.query(x, z, parkLq) && parkLq.sd < r + 2),
+      });
     this.scatter = new ScatterField(
       this.analytic,
       this.road,
@@ -201,7 +227,9 @@ export class World implements GroundProvider {
         this.buildings.contains(x, z, 1.5) ||
         this.landmarks.some((l) => l.occupies(x, z, 1.5)) ||
         // No trees hanging into an underpass trench.
-        this.gen.inUnderpassTrench(x, z),
+        this.gen.inUnderpassTrench(x, z) ||
+        // Nothing grows on a service park's level lot.
+        (!!parkDef && serviceParkOccupies(parkDef, x, z, 3)),
       this.heightfield,
       {
         landcover: this.gen.landcover,
@@ -267,6 +295,8 @@ export class World implements GroundProvider {
       this.scatter.addFixed(inst);
     }
     for (const inst of this.propInstances()) this.scatter.addFixed(inst);
+    for (const inst of this.servicePark?.instances ?? [])
+      this.scatter.addFixed(inst);
     const bq = newPathQuery();
     const ba = { x: 0, z: 0 };
     const bb = { x: 0, z: 0 };

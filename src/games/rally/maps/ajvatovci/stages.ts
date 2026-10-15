@@ -1,4 +1,5 @@
 import type { StageDef } from '../shared/types';
+import { AJVATOVCI_PARK } from './service-park';
 
 /** The stages on the Ajvatovci map (./map.ts). The id is the map's old id: stored times are keyed by it. */
 export const ajvatovciStages: StageDef[] = [
@@ -16,5 +17,6 @@ export const ajvatovciStages: StageDef[] = [
     // Every side road / track meeting the stage road is closed with barriers (as on a real stage).
     closures: { asset: 'road_barrier', length: 2.2, setback: 4 },
     cornerFans: {},
+    servicePark: AJVATOVCI_PARK,
   },
 ];

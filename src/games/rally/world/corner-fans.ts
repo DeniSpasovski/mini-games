@@ -1,4 +1,5 @@
 import { hash3, hashString, Rng } from '../../../shared/rng';
+import { SPECTATOR_VARIANTS } from '../assets/catalog';
 import type { CornerFansRule } from '../maps/shared/types';
 import { newRoadQuery, type Road } from './road';
 import type { ScatterInstance } from './scatter';
@@ -102,7 +103,7 @@ export function cornerFanInstances(
         'spectator',
         (sub.next() - 0.5) * len * 0.9,
         tapeOff + 1.5 + sub.next() * 4,
-        sub.int(0, 5),
+        sub.int(0, SPECTATOR_VARIANTS - 1),
         sub.range(-0.5, 0.5),
       );
     for (let i = 0; i < flags; i++)
