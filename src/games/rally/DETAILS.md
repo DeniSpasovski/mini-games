@@ -29,7 +29,7 @@ gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
 | `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                                                                  |
 | `tod=<hours>`, `tonemap=`  | all   | look experiments: time of day (maps with `environment.timeOfDay`), `aces / agx / neutral`                                                           |
 | `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the map's `environment.airTemp`)                                                                |
-| `perf=1`                   | play  | open the perf panel (below)                                                                                                         |
+| `perf=1`                   | play  | open the perf panel (below)                                                                                                                         |
 
 Perf panel (`` ` `` key in game or `perf=1`, `game/perf-panel.ts`): FPS, frame ms, CPU ms per frame step, GPU ms (timer
 queries; "Wait for GPU" measures it by a readback where they are missing), draw calls, triangles; switches for every
@@ -194,9 +194,11 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   baked by `scripts/car-model/side-profile.mjs`): the boxy side outline extruded to the body width with its glass and lamps
   tagged (`cars/shared/profile-body.ts`), shown only if the GLB fails to load. It wears the car's livery, box-projected
   onto the atlas (`CarAtlas.layout`). Car viewer `fallback=1` shows it.
-- The same profiles are the city maps' parked cars (`street_car`, `taxi`, `police_car`; `assets/builders/vehicles.ts`):
-  one paint, simple wheels, one draw call per LOD (variant sets); the far LOD simplifies the outlines and drops rims and
-  lamps (`tests/rally/street-car.test.ts` holds the triangle budget).
+- The city maps' parked cars (`street_car`, `taxi`, `police_car`; `assets/builders/vehicles.ts`) are NOT the rally cars: they are
+  15 simplified models of three CC BY packs (`street-car-models.ts`, data in `street-cars.data.ts`, baked by
+  `scripts/car-model/street-pack-extract.py` + `bake-street-cars.mjs`): ~900 / ~450 triangles, one draw call per LOD, the body
+  paint recoloured per car (variants 0-14 = model, `STREET_CAR_MIX` weights what streets pick; 15 = the white hatch a map places).
+  Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` holds the triangle budget.
 - Car GLBs are committed plain (the model scripts and `hull-fit.test.ts` read them); the build copies them meshopt-compressed
   (`scripts/car-model/glb-meshopt.mjs`, about half the size, same meshes; `car-glb-meshopt.test.ts` checks every file).
 - **Door plates** (`cars/shared/rally-badge.ts`): our own event plate (emblem, car number, map name) projected onto both front
