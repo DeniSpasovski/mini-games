@@ -263,6 +263,7 @@ export class RallyGame {
     this.breakables = new Breakables(this.world.scatter, (x, z) =>
       this.world.heightAt(x, z),
     );
+    await this.streamer.ready; // the service park's team cars
     await frame();
 
     progress(0.9, 'Car');

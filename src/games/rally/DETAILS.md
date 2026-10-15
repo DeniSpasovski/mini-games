@@ -138,11 +138,18 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain).
 - **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
   spectators, flags (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`).
-- **Service park** (stage `servicePark`, Ajvatovci only so far): team bays on a levelled gravel lot beside the start - trucks / vans,
-  team cars on ground sheets, tents, props, crew, tape + crowd, start control (`world/service-park.ts`, `World.servicePark`;
-  assets `assets/builders/service.ts` + `teams.ts`; test `service-park`). The lot is a `ServiceLot` rectangle: the map levels it
-  with `servicePad` (`maps/shared/service-lot.ts`, a `terrain.pads` entry with `surface: 'gravel'`), the stage references the same
-  rectangle (`maps/ajvatovci/service-park.ts`). Team cars are the boxy profile cars in team colours.
+- **Service park** (stage `servicePark`, Ajvatovci only so far): team bays on levelled gravel lots - trucks / vans, team cars on
+  ground sheets, tents, props, 4-6 crew and guests each, tape + crowd, start control (`world/service-park.ts`,
+  `World.servicePark`; assets `assets/builders/service.ts` + `teams.ts`; test `service-park`). A lot is a `ServiceLot` rectangle:
+  the map levels it with a `terrain.pads` entry (`servicePad` in `maps/shared/service-lot.ts`, or a fixed `level` for a flat
+  field), the stage lists the lots and the bay `gap` (`maps/ajvatovci/service-park.ts`: the start lot + a field north-west of it).
+- **Park cars**: `team_car` only places the car and gives it its collider. The car is a real released model at low quality:
+  `world/park-car-mesh.ts` (`ParkCars`, owned by `InstanceStreamer`, `streamer.ready`) draws `parkCarId(team)` (`world/park-cars.ts`)
+  from `public/models/cars/<id>_park.glb` (`scripts/car-model/park-lods.mjs`: three body LODs of about 7.5k / 2.3k / 1.1k
+  triangles = livery shell + vertex-coloured parts, and three rims). It wears the team's colours through the car's own livery
+  painter (~85 px/m, one texture per car and team), wheels are built at runtime and merged into the parts, so a car is two draw
+  calls. A raised car stands on axle stands with the rear wheels off (a `tyre_stack` lies beside it). Tests `park-cars`,
+  `car-glb-meshopt`.
 - **People** (`assets/builders/people.ts`): jointed low-poly figures posed by joint angles + outfit colours - `spectator` (24),
   `mechanic`, `crew`, `driver`, `marshal`, `visitor`; test `people`.
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)

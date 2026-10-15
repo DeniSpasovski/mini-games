@@ -2,6 +2,7 @@ import { describe, expect, test } from '@rstest/core';
 import { Vector3 } from 'three';
 import { getAssetMeta } from '../../src/games/rally/assets/catalog';
 import { ajvatovciMap } from '../../src/games/rally/maps/ajvatovci/map';
+import { TEAM_COUNT } from '../../src/games/rally/assets/builders/teams';
 import { lotContains } from '../../src/games/rally/maps/shared/service-lot';
 import { newRoadQuery } from '../../src/games/rally/world/road';
 import { SERVICE_PARK_ASSETS } from '../../src/games/rally/world/service-park';
@@ -214,6 +215,20 @@ describe('service park (Ajvatovci start)', () => {
         expect(
           Math.hypot(people[a].x - people[c].x, people[a].z - people[c].z),
         ).toBeGreaterThan(0.25);
+  });
+
+  test('a raised car has its rear wheels lying beside it', () => {
+    const raised = park.instances.filter(
+      (i) => i.asset === 'team_car' && i.variant >= TEAM_COUNT,
+    );
+    expect(raised.length).toBeGreaterThan(2);
+    for (const c of raised)
+      expect(
+        park.instances.some(
+          (i) =>
+            i.asset === 'tyre_stack' && Math.hypot(i.x - c.x, i.z - c.z) < 3.2,
+        ),
+      ).toBe(true);
   });
 
   test('start control: boards, tent and marshals beside the line, a rescue ambulance beyond it', () => {

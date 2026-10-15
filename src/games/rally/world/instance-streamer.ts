@@ -14,6 +14,7 @@ import { getAsset, getVariantSet } from '../assets/library';
 import { variantDepthMaterial } from '../engine/materials';
 import { hash3 } from '../../../shared/rng';
 import { CORNER_FAN_ASSETS } from './corner-fans';
+import { ParkCars } from './park-car-mesh';
 import { SERVICE_PARK_ASSETS } from './service-park';
 import type { ScatterInstance } from './scatter';
 import type { World } from './world';
@@ -132,6 +133,10 @@ export class InstanceStreamer {
   private sortZ = 0;
   /** View window (centre angle + half width, rad) the buckets are packed for; null = draw everything. */
   private view: { yaw: number; half: number } | null = null;
+  /** The service park's team cars: real car models, drawn apart from the instance buckets (`team_car` is a collider). */
+  private parkCars: ParkCars | null = null;
+  /** Resolves when the park's car models are loaded (loading screens, bakes wait for it). */
+  readonly ready: Promise<void>;
 
   constructor(
     private world: World,
@@ -157,6 +162,16 @@ export class InstanceStreamer {
     }
     this.maxRange = max;
     this.detailRange = detail;
+    const cars =
+      typeof document === 'undefined'
+        ? []
+        : (world.servicePark?.instances.filter((i) => i.asset === 'team_car') ??
+          []);
+    if (cars.length) {
+      this.parkCars = new ParkCars(cars, opts);
+      this.group.add(this.parkCars.group);
+    }
+    this.ready = this.parkCars?.ready ?? Promise.resolve();
   }
 
   /** Current LOD distance multiplier. */
@@ -175,6 +190,7 @@ export class InstanceStreamer {
 
   /** Call every frame. Starts / continues a time-sliced rebuild. */
   update(focus: Vector3): void {
+    this.parkCars?.update(focus, this.filter('team_car'));
     if (!this.job) {
       const rebuild = this.opts.rebuildDistance ?? 10;
       if (this.lastFocus.distanceToSquared(focus) < rebuild * rebuild) return;
@@ -193,6 +209,7 @@ export class InstanceStreamer {
 
   /** Rebuild synchronously (loading screens, tools). */
   updateNow(focus: Vector3): void {
+    this.parkCars?.update(focus, this.filter('team_car'));
     this.lastFocus.copy(focus);
     const job = this.rebuildJob(focus.clone());
     while (!job.next().done);
@@ -620,12 +637,14 @@ export class InstanceStreamer {
         }
       }
     }
+    this.parkCars?.prewarm();
   }
 
   /** Re-apply visibility after prewarm/compile. */
   settle(): void {
     for (const b of this.buckets.values())
       for (const m of b.meshes) m.visible = m.count > 0;
+    this.parkCars?.settle();
   }
 
   /** True while a rebuild job is in progress. */
@@ -646,6 +665,7 @@ export class InstanceStreamer {
       for (const m of b.meshes) m.dispose();
     this.buckets.clear();
     this.group.clear();
+    this.parkCars?.dispose();
   }
 
   /** Drop every bucket and cached bucket key and rebuild from scratch (after `setVariantSets`; dev A/B). */
@@ -654,6 +674,7 @@ export class InstanceStreamer {
     this.data = new WeakMap();
     this.moved.clear();
     this.job = null;
+    if (this.parkCars) this.group.add(this.parkCars.group);
     this.updateNow(focus);
   }
 }

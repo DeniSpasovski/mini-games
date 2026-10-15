@@ -342,6 +342,9 @@ function carCrew(
   );
   if (raised) list.unshift(...list.splice(2, 1));
   for (const f of list.slice(0, count)) f();
+  // The raised car's rear wheels (the model has them off) lie in a stack beside the mechanic changing them.
+  if (raised)
+    bay.put('tyre_stack', 0, cx - fwd * 1.5, cz - side * 2.25, 0, { r: 0.4 });
 }
 
 /** A team car on its ground sheet with its crew (the car faces along +bx or -bx). */

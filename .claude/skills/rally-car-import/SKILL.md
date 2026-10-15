@@ -408,6 +408,14 @@ whenever the GLB is regenerated.
    (triangle budget) pass; look at `car-viewer.html?car=<id>&fallback=1` (glass over the windows, lamps on the nose and
    tail, livery) and `asset-debug.html?asset=street_car&variant=<n>`. Tweak `--tol` only if the outline looks wrong.
 
+## 6d. Service-park copy (released cars only)
+
+The service park draws its team cars from a cheap copy of the final GLB. When the car is released (no `hideInProd`):
+`node scripts/car-model/park-lods.mjs <id>` writes `public/models/cars/<id>_park.glb` (needs the livery atlas in
+`model.source.json`; every material name needs a colour in the script's `PART_COLORS`), then add the id to `PARK_CARS` in the
+script and to `PARK_CAR_IDS` in `world/park-cars.ts`. Re-run it whenever the GLB or its atlas changes. Check it in
+`map-viewer.html?map=ajvatovci` at the lots; `tests/rally/park-cars.test.ts` checks size and budgets. Details: `DETAILS.md` "Park cars".
+
 ## 7. Done
 
 - **Hub check in the viewer**: `car-viewer.html?car=<id>&tyres=0&rims=0&clean=1&mute=1` (body + brakes only), cameras at each

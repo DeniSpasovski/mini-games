@@ -4,14 +4,13 @@ import {
   CylinderGeometry,
   Float32BufferAttribute,
 } from 'three';
-import type { CarProfile } from '../../cars/shared/types';
 import type { AssetBuilder } from '../types';
-import { TEAM_COUNT, TEAM_SHAPE, TEAMS } from './teams';
-import { box, carParts, finish, SHAPES, solid, wheel } from './vehicles';
+import { TEAM_COUNT, TEAMS } from './teams';
+import { box, finish, solid, wheel } from './vehicles';
 
 /**
- * Service park assets (rally paddock): team trucks, vans, trailers, gazebos, props, the team cars and the public
- * extras. Team-coloured assets use the team index (builders/teams.ts) as variant; everything is boxes + a few
+ * Service park assets (rally paddock): team trucks, vans, trailers, gazebos, props, the team car stand-in and the
+ * public extras. Team-coloured assets use the team index (builders/teams.ts) as variant; everything is boxes + a few
  * cylinders in the `vehicle` material (vertex colours, one draw call per asset). Vehicles face +X with the origin on
  * the ground under their middle; a truck's awning and a gazebo's open front are on the +Z side. No logos or lettering.
  */
@@ -205,130 +204,14 @@ export const gazeboShort: AssetBuilder = ({ variant, lod }) =>
 export const gazeboLong: AssetBuilder = ({ variant, lod }) =>
   finish(gazebo(variant, lod, true));
 
-// --- team cars -------------------------------------------------------------------------------------
-
-/** Upper edge of a closed (z, y) outline at z (the roof line). */
-function envelope(outline: number[], z: number): number {
-  let best = -Infinity;
-  const n = outline.length / 2;
-  for (let i = 0; i < n; i++) {
-    const [za, ya] = [outline[2 * i], outline[2 * i + 1]];
-    const j = (i + 1) % n;
-    const [zb, yb] = [outline[2 * j], outline[2 * j + 1]];
-    if (Math.min(za, zb) > z || Math.max(za, zb) < z) continue;
-    best = Math.max(
-      best,
-      za === zb ? Math.max(ya, yb) : ya + ((yb - ya) * (z - za)) / (zb - za),
-    );
-  }
-  return best;
-}
-
-/** A stripe along the car's centre line (width `w`, centre offset `x`) over bonnet, roof and boot. */
-function stripe(
-  s: CarProfile,
-  x: number,
-  w: number,
-  color: string,
-  lift: number,
-): BufferGeometry {
-  const zs = s.outline.filter((_, i) => i % 2 === 0);
-  const [z0, z1] = [Math.min(...zs) + 0.12, Math.max(...zs) - 0.12];
-  const pos: number[] = [];
-  const step = 0.14;
-  let prev: [number, number] | undefined;
-  for (let z = z0; z <= z1 + 1e-6; z += step) {
-    const y = envelope(s.outline, z) + lift;
-    if (prev) {
-      const [pz, py] = prev;
-      const a = [x - w / 2, py, pz];
-      const b = [x + w / 2, py, pz];
-      const c = [x - w / 2, y, z];
-      const d = [x + w / 2, y, z];
-      for (const p of [a, c, b, b, c, d]) pos.push(...p);
-    }
-    prev = [z, y];
-  }
-  const g = new BufferGeometry();
-  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
-  g.computeVertexNormals();
-  return solid(g, color);
-}
+// --- team cars ----------------------------------------------------------------------------------
 
 /**
- * A team's rally car: one of the boxy rally cars (cars/<car>/profile.ts, the team's own shape) in the team's colours -
- * two bonnet / roof / boot stripes, a door band, white door plates. Variants 12-23 stand raised on axle stands with
- * the rear wheels off (a wheel change under way). Faces +X.
+ * A team's rally car as a catalog entry: only the collider (solid) and the placement matter. The car itself is the
+ * real model at a low LOD, drawn by world/park-car-mesh.ts; this stand-in (a 1 cm cube inside it) is never in view.
  */
-export const teamCar: AssetBuilder = ({ variant, lod }) => {
-  const idx = variant % TEAM_COUNT;
-  const raised = variant >= TEAM_COUNT;
-  const t = TEAMS[idx];
-  const s = SHAPES[TEAM_SHAPE[idx]];
-  const parts = carParts(s, t.base, lod, raised ? 1 : -1);
-  if (lod === 0) {
-    // Model space (z along the car) until the final turn to +X.
-    const model: BufferGeometry[] = [
-      stripe(s, -0.14, 0.2, t.accent, 0.006),
-      stripe(s, 0.14, 0.2, t.accent, 0.006),
-      stripe(s, 0, 0.08, t.accent2, 0.009),
-    ];
-    const hw = s.width / 2 + 0.004;
-    const belt = s.wheel * 1.75;
-    const [zr, zf] = [s.axles[1] + 0.5, s.axles[0] - 0.5];
-    for (const side of [1, -1]) {
-      model.push(
-        solid(
-          new BoxGeometry(0.014, 0.1, zf - zr).translate(
-            side * hw,
-            belt,
-            (zf + zr) / 2,
-          ),
-          t.accent2,
-        ),
-        solid(
-          new BoxGeometry(0.014, 0.22, 0.55).translate(
-            side * hw,
-            belt + 0.22,
-            zf - 0.55,
-          ),
-          WHITE,
-        ),
-      );
-    }
-    for (const g of model) {
-      g.rotateY(Math.PI / 2);
-      parts.push(g);
-    }
-  }
-  if (raised) {
-    for (const g of parts) g.translate(0, 0.16, 0);
-    const z = s.axles[1];
-    for (const side of [1, -1])
-      for (const dz of lod ? [0] : [-0.3, 0.3])
-        parts.push(
-          box(
-            0.4,
-            0.06,
-            0.4,
-            z + dz,
-            0.03,
-            side * (s.width / 2 - 0.3),
-            '#c8321e',
-          ),
-          box(
-            0.07,
-            0.34,
-            0.07,
-            z + dz,
-            0.2,
-            side * (s.width / 2 - 0.3),
-            '#c8321e',
-          ),
-        );
-  }
-  return finish(parts);
-};
+export const teamCar: AssetBuilder = () =>
+  finish([box(0.01, 0.01, 0.01, 0, 0.5, 0, DARK)]);
 
 // --- props ---------------------------------------------------------------------------------------
 

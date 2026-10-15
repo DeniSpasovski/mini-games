@@ -699,12 +699,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Team car',
     category: 'props',
     description:
-      'Service-park rally car: the boxy rally car of the team (profiles, builders/teams.ts TEAM_SHAPE) in team colours with stripes and door plates. Variants 0-11 = team on its wheels, 12-23 = raised on axle stands with the rear wheels off. Faces +X. Solid.',
+      'Service-park rally car (placement + collider only: world/park-car-mesh.ts draws the real car model, world/park-cars.ts picks it per team). Variants 0-11 = team on its wheels, 12-23 = raised on axle stands with the rear wheels off. Faces +X. Solid.',
     variants: 24,
-    lods: [
-      { maxDistance: 120, castShadow: true },
-      { maxDistance: 520, castShadow: false },
-    ],
+    lods: [{ maxDistance: 1, castShadow: false, oneVariant: true }],
     colliders: [{ kind: 'box', hx: 2.3, hz: 0.96, h: 1.4, r: 2.5 }],
   },
   {

@@ -34,6 +34,8 @@ const MAX: Record<string, number> = {
   position: MAX_ERROR.POSITION,
   normal: MAX_ERROR.NORMAL,
   uv: MAX_ERROR.TEXCOORD_0,
+  // The service park cars' vertex colours (bytes) are lossless.
+  color: 0,
 };
 
 describe.each(files)('%s', (file) => {
