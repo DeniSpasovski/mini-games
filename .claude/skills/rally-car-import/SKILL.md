@@ -108,6 +108,9 @@ its offset, near-ortho camera along the axle) and compare `wangle=0` with `wangl
 &look=<track/2>,<R>,<z>&fov=0.9`) - a rim off its axle shows as the hub bore moving round the 2 cm ring. Judge centring
 only in that ortho view: in a 3/4 perspective a deep dish makes a centred hub look off. Print-model wheels may be
 cambered: de-camber before centring (`stl-wheel-extract.py` `axis`, worked example `cars/bimmer-m3/` "Rim").
+A GLB rim's barrel is often a one-sided tube: it vanishes from the axle side and the rim looks see-through (ground shows
+between the spokes). Look into the dish from an angle; fix with `wheel-stl-to-glb.mjs --two-sided 20` (back faces for open
+shells) and `--bridge x0,r0,x1,r1` when the barrel stops short of the lip (worked example `cars/peugeot-206/`).
 Only then start on parts and paint - texture work on a bad mesh is wasted twice.
 
 ## 4. Split accent parts off the body (never paint them)

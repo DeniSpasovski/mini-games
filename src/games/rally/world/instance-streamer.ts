@@ -13,6 +13,7 @@ import { ASSET_CATALOG, getAssetMeta, type AssetMeta } from '../assets/catalog';
 import { getAsset, getVariantSet } from '../assets/library';
 import { variantDepthMaterial } from '../engine/materials';
 import { hash3 } from '../../../shared/rng';
+import { isTreeType } from '../trees/species';
 import { CORNER_FAN_ASSETS } from './corner-fans';
 import { ParkCars } from './park-car-mesh';
 import { SERVICE_PARK_ASSETS } from './service-park';
@@ -143,14 +144,7 @@ export class InstanceStreamer {
     private opts: StreamerOptions,
   ) {
     this.group.name = 'scatter';
-    const metas = new Set([
-      ...world.map.scatter.map((r) => r.asset),
-      ...world.map.roadside.map((r) => r.asset),
-      ...(world.stageDef.cornerFans ? CORNER_FAN_ASSETS : []),
-      ...(world.stageDef.servicePark ? SERVICE_PARK_ASSETS : []),
-      ...world.map.props.map((p) => p.asset),
-      ...(world.stageDef.props ?? []).map((p) => p.asset),
-    ]);
+    const metas = assetIds(world);
     let max = 0;
     let detail = 0;
     for (const id of metas) {
@@ -251,7 +245,8 @@ export class InstanceStreamer {
 
     const visit = (list: ScatterInstance[], detail: boolean) => {
       for (const inst of list) {
-        if (!this.filter(inst.asset)) continue;
+        // Trees are drawn by trees/draw.ts (TreeRenderer).
+        if (inst.tree || !this.filter(inst.asset)) continue;
         if (
           detail &&
           hash3(Math.floor(inst.x * 10), Math.floor(inst.z * 10), 3) /
@@ -350,7 +345,7 @@ export class InstanceStreamer {
       r = 0;
       const seen = new Set<string>();
       for (const inst of list) {
-        if (seen.has(inst.asset)) continue;
+        if (inst.tree || seen.has(inst.asset)) continue;
         seen.add(inst.asset);
         const lods = getAssetMeta(inst.asset).lods;
         r = Math.max(r, lods[lods.length - 1].maxDistance);
@@ -608,15 +603,7 @@ export class InstanceStreamer {
    * the next commit sets visibility correctly again.
    */
   prewarm(): void {
-    const ids = new Set([
-      ...this.world.map.scatter.map((r) => r.asset),
-      ...this.world.map.roadside.map((r) => r.asset),
-      ...(this.world.stageDef.cornerFans ? CORNER_FAN_ASSETS : []),
-      ...(this.world.stageDef.servicePark ? SERVICE_PARK_ASSETS : []),
-      ...this.world.map.props.map((p) => p.asset),
-      ...(this.world.stageDef.props ?? []).map((p) => p.asset),
-    ]);
-    for (const id of ids) {
+    for (const id of assetIds(this.world)) {
       const meta = getAssetMeta(id);
       for (let v = 0; v < meta.variants; v++) {
         for (let lod = 0; lod < meta.lods.length; lod++) {
@@ -679,6 +666,20 @@ export class InstanceStreamer {
   }
 }
 
+/** Every catalog asset the map places (tree types are not assets: trees/). */
+function assetIds(world: World): Set<string> {
+  const ids = new Set([
+    ...world.map.scatter.map((r) => r.asset),
+    ...world.map.roadside.map((r) => r.asset),
+    ...(world.stageDef.cornerFans ? CORNER_FAN_ASSETS : []),
+    ...(world.stageDef.servicePark ? SERVICE_PARK_ASSETS : []),
+    ...world.map.props.map((p) => p.asset),
+    ...(world.stageDef.props ?? []).map((p) => p.asset),
+  ]);
+  for (const id of ids) if (isTreeType(id)) ids.delete(id);
+  return ids;
+}
+
 let _bins = new Uint16Array(4096);
 const _cursor = new Uint32Array(BINS + 1);
 
@@ -712,6 +713,7 @@ function shareAttributes(src: BufferGeometry): BufferGeometry {
   const g = new BufferGeometry();
   for (const [name, attr] of Object.entries(src.attributes))
     g.setAttribute(name, attr);
+  g.setIndex(src.index);
   g.boundingSphere = src.boundingSphere;
   g.boundingBox = src.boundingBox;
   return g;

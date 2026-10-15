@@ -1,4 +1,5 @@
 import { getAssetMeta } from '../../../assets/catalog';
+import { isTreeType } from '../../../trees/species';
 import { hash3 } from '../../../../../shared/rng';
 import type { StaticCollider } from '../../../physics/types';
 import type { TerrainSampler } from '../../../world/heightfield';
@@ -281,7 +282,8 @@ export const hilltopLandmark: Landmark = {
       const h = hash3(i, 7, 3, 4207);
       return {
         asset,
-        variant: h % getAssetMeta(asset).variants,
+        // Trees: the placement stage sets variant, rotation and scale (trees/placement.ts).
+        variant: isTreeType(asset) ? 0 : h % getAssetMeta(asset).variants,
         x,
         y: ground.height(x, z),
         z,

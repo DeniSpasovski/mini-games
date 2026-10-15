@@ -7,6 +7,8 @@ import {
 } from 'three';
 import { getAssetMeta } from '../assets/catalog';
 import { getAsset } from '../assets/library';
+import { treeCanopy } from '../trees/placement';
+import { isTreeType } from '../trees/species';
 import { hash3 } from '../../../shared/rng';
 import type { World } from './world';
 
@@ -22,25 +24,39 @@ export interface Canopy {
   /** Disc radius and height above the instance origin at scale 1 (m). */
   radius: number;
   height: number;
+  /** Vertical radius of the crown (the shadow's length along the sun). */
+  ry: number;
   color: Color;
 }
 
 const canopies = new Map<string, Canopy>();
 let disc: CircleGeometry | undefined;
 
-/** Canopy of an asset, measured from its farthest LOD (variant 0). Also used by canopy-shadows.ts. */
+/**
+ * Canopy of a tree type (its species' crown, trees/placement.ts) or an asset (measured from its farthest LOD,
+ * variant 0). Also used by canopy-shadows.ts.
+ */
 export function canopyOf(id: string): Canopy {
   let c = canopies.get(id);
   if (c) return c;
+  if (isTreeType(id)) {
+    const t = treeCanopy(id);
+    c = {
+      radius: t.radius,
+      height: t.height,
+      ry: t.ry,
+      color: new Color(...t.color),
+    };
+    canopies.set(id, c);
+    return c;
+  }
   const meta = getAssetMeta(id);
   let maxY = 0;
   let r = 0;
   let n = 0;
   let y = 0;
   const color = new Color(0, 0, 0);
-  // Farthest real LOD (an impostor is a flat card).
-  let lod = meta.lods.length - 1;
-  while (lod > 0 && meta.lods[lod].impostor) lod--;
+  const lod = meta.lods.length - 1;
   const parts = getAsset(id, 0, lod).parts;
   for (const p of parts) {
     const pos = p.geometry.getAttribute('position');
@@ -64,9 +80,20 @@ export function canopyOf(id: string): Canopy {
   else color.multiplyScalar(1 / n);
   // Darken a bit: the real crowns self-shade, a flat disc is lit like open ground.
   color.multiplyScalar(0.75);
-  c = { radius: r * 0.85, height: n ? y / n : maxY, color };
+  const height = n ? y / n : maxY;
+  c = {
+    radius: r * 0.85,
+    height,
+    ry: Math.max(r * 0.85, (maxY - height) * 1.1),
+    color,
+  };
   canopies.set(id, c);
   return c;
+}
+
+/** Trees (trees/species.ts TREE_TYPES) and the vegetation assets (reeds, weeds). */
+export function isVegetation(asset: string): boolean {
+  return isTreeType(asset) || getAssetMeta(asset).category === 'vegetation';
 }
 
 export class AerialTrees {
@@ -103,7 +130,7 @@ export class AerialTrees {
         cx++
       ) {
         for (const inst of scatter.chunk(cx, cz).instances) {
-          if (getAssetMeta(inst.asset).category !== 'vegetation') continue;
+          if (!isVegetation(inst.asset)) continue;
           const c = canopyOf(inst.asset);
           const r = c.radius * inst.scale * this.grow;
           // Column-major matrix: scale (r, 1, r), translate to canopy height.

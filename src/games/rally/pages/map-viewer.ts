@@ -31,6 +31,9 @@ import {
 import { isTestMap, isTestStage, listLabel, TEST_NOTE } from '../release';
 import { loadQuality } from '../engine/quality';
 import { InstanceStreamer } from '../world/instance-streamer';
+import { TreeRenderer } from '../trees/draw';
+import { TreeLibrary } from '../trees/load';
+import { TreeStatsOverlay } from '../trees/overlay';
 import { worldToGeo } from '../world/real-data';
 import { newRoadQuery } from '../world/road';
 import { buildRoadMesh } from '../world/road-mesh';
@@ -90,7 +93,7 @@ track('rally', 'select_content', {
 });
 
 // The map's baked data is loaded on demand (own chunk), so the viewer body runs once it is here.
-void loadMap(state.map).then((map) => {
+void loadMap(state.map).then(async (map) => {
   const b = map.bounds;
   const size = Math.max(b.maxX - b.minX, b.maxZ - b.minZ);
   const shell = new ViewerShell({
@@ -131,6 +134,23 @@ void loadMap(state.map).then((map) => {
   });
   streamer.group.visible = state.scatter;
   scene.add(streamer.group);
+  const treeLibrary = await TreeLibrary.load(TreeLibrary.speciesOf(world.placedAssets()), renderer);
+  const trees = new TreeRenderer(
+    world,
+    treeLibrary,
+    {
+      // The game's tree levels (their thresholds already reach far: trees/species.ts DEFAULT_LOD).
+      lodScale: quality.lodScale,
+      maxDistance: size + RENDER_MARGIN * 2,
+      shadowDistance: quality.shadowExtent * 2 + 10,
+      rebuildDistance: 25,
+      budgetMs: 8,
+    },
+  );
+  trees.group.visible = state.scatter;
+  scene.add(trees.group);
+  trees.attachRenderer(renderer);
+  const treeStats = new TreeStatsOverlay(renderer.domElement.parentElement ?? document.body, trees, treeLibrary);
 
   // --- overlays ------------------------------------------------------------------------------
   const overlays = new Group();
@@ -344,8 +364,22 @@ void loadMap(state.map).then((map) => {
   layers.checkbox('Scatter (trees, props)', state.scatter, (v) => {
     state.scatter = v;
     streamer.group.visible = v;
+    trees.group.visible = v;
     sync();
   });
+  layers.select(
+    'Tree debug',
+    String(trees.debugMode),
+    [
+      { value: '0', label: 'off' },
+      { value: '1', label: 'levels, fades, flicker' },
+      { value: '2', label: 'lighting only' },
+      { value: '3', label: 'normals only' },
+      { value: '4', label: 'depth' },
+      { value: '5', label: 'equal-depth misses (?treeprepass=1)' },
+    ],
+    (v) => (trees.debugMode = Number(v)),
+  );
   layers.checkbox('Road centreline (height colour)', state.road, (v) => {
     state.road = v;
     roadLine.visible = v;
@@ -593,6 +627,8 @@ void loadMap(state.map).then((map) => {
     // Big budget while catching up (tool page: a few long frames are fine).
     terrain.update(focus, terrain.pending > 20 ? 30 : 8, above * 0.8);
     streamer.update(t);
+    trees.update(camera);
+    treeStats.update();
     statInfo({
       road: `${world.road.length.toFixed(0)} m`,
       stage: world.stageDef.name,
@@ -602,6 +638,8 @@ void loadMap(state.map).then((map) => {
       'terrain chunks': `${terrain.chunkCount} (+${terrain.pending} queued)`,
       'hf cache': `${world.heightfield.cachedChunks} chunks`,
       'instances drawn': streamer.drawn.toLocaleString(),
+      'trees drawn': trees.drawn.toLocaleString(),
+      'trees flickering': trees.flickering,
     });
   });
 
@@ -656,6 +694,7 @@ void loadMap(state.map).then((map) => {
     }
     // The instance streamer builds its chunks over several updates.
     for (let i = 0; i < 80; i++) streamer.update(controls.target);
+    trees.updateNow(camera);
     return n;
   }
 
@@ -663,6 +702,7 @@ void loadMap(state.map).then((map) => {
     world,
     terrain,
     streamer,
+    trees,
     shell,
     look,
   };

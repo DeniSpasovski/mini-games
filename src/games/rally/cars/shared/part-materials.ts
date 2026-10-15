@@ -36,6 +36,7 @@ export type PartName =
   | 'lens'
   | 'lenscover'
   | 'chrome'
+  | 'satin'
   | 'amber'
   | 'tail'
   | 'tailc'
@@ -44,7 +45,10 @@ export type PartName =
   | 'lamphousing'
   | 'headled'
   | 'tailled'
+  | 'brakestrip'
   | 'reverselamp'
+  | 'lampclear'
+  | 'lampred'
   | 'tailc4'
   | 'redcover'
   | 'brakecover'
@@ -932,6 +936,300 @@ function tailCMaps(): {
   return { map, glow, reverseGlow };
 }
 
+type Pt = [number, number];
+
+/** Peugeot 206 LED tail lamp, left lamp, in each part's own 'corner' wrap UV (0..1, v down): read off the model's mesh. */
+const P206_TUBES: Pt[] = [
+  [0.702, 0.68],
+  [0.812, 0.552],
+  [0.873, 0.452],
+  [0.967, 0.219],
+  [0.996, 0.121],
+  [1, 0.061],
+  [0.941, 0],
+  [0.683, 0.045],
+  [0.273, 0.154],
+  [0.18, 0.233],
+  [0.099, 0.421],
+  [0.339, 0.371],
+  [0.777, 0.262],
+  [0.738, 0.36],
+  [0.698, 0.418],
+  [0.603, 0.523],
+  [0.558, 0.556],
+  [0.218, 0.674],
+  [0.156, 0.714],
+  [0.084, 0.816],
+  [0.022, 0.97],
+  [0.19, 0.934],
+  [0.398, 0.863],
+  [0.493, 0.818],
+];
+/** The tubes' centre line (inner tip of the top tube, round the outer end, back to the inner tip of the lower one). */
+const P206_TUBE_CORE: Pt[] = [
+  [0.14, 0.33],
+  [0.31, 0.26],
+  [0.5, 0.2],
+  [0.7, 0.155],
+  [0.86, 0.12],
+  [0.93, 0.19],
+  [0.9, 0.3],
+  [0.83, 0.43],
+  [0.74, 0.53],
+  [0.63, 0.6],
+  [0.55, 0.67],
+  [0.4, 0.74],
+  [0.2, 0.81],
+  [0.09, 0.88],
+];
+/** The same lamp in the body part's wrap UV: the top tube's top edge, the gap between the tubes (pocket), the lower tube's underside. */
+const P206_LENS_OUTLINE: Pt[] = [
+  [0.018, 0.88],
+  [0.066, 0.49],
+  [0.134, 0.24],
+  [0.184, 0.166],
+  [0.4, 0.04],
+  [0.58, 0],
+  [0.96, 0.1],
+  [0.99, 0.155],
+  [0.999, 0.2],
+  [0.99, 0.31],
+  [0.944, 0.445],
+  [0.8, 0.62],
+  [0.625, 0.79],
+  [0.54, 0.845],
+  [0.375, 0.92],
+  [0.206, 0.97],
+  [0.047, 0.98],
+  [0.024, 0.95],
+];
+const P206_TOP_EDGE: Pt[] = [
+  [0.201, 0.335],
+  [0.276, 0.281],
+  [0.523, 0.223],
+  [0.813, 0.176],
+];
+const P206_POCKET_TOP: Pt[] = [
+  [0.136, 0.464],
+  [0.678, 0.356],
+];
+const P206_POCKET_BOTTOM: Pt[] = [
+  [0.074, 0.84],
+  [0.124, 0.734],
+  [0.182, 0.665],
+  [0.232, 0.637],
+  [0.505, 0.557],
+  [0.618, 0.462],
+  [0.65, 0.422],
+];
+const P206_UNDERSIDE: Pt[] = [
+  [0.074, 0.84],
+  [0.21, 0.815],
+  [0.376, 0.766],
+  [0.453, 0.736],
+  [0.621, 0.641],
+  [0.709, 0.554],
+  [0.758, 0.485],
+];
+
+/** v of a polyline (u ascending) at u. */
+function polyAt(p: Pt[], u: number): number {
+  for (let i = 1; i < p.length; i++) {
+    if (u <= p[i][0] || i === p.length - 1) {
+      const t = (u - p[i - 1][0]) / (p[i][0] - p[i - 1][0]);
+      return p[i - 1][1] + (p[i][1] - p[i - 1][1]) * t;
+    }
+  }
+  return p[0][1];
+}
+
+/** A polyline moved `d` px sideways (towards the lower side) in canvas pixels. */
+function offsetLine(p: Pt[], d: number): Pt[] {
+  return p.map((q, i) => {
+    const a = p[Math.max(i - 1, 0)];
+    const b = p[Math.min(i + 1, p.length - 1)];
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    return [q[0] - ((b[1] - a[1]) / len) * d, q[1] + ((b[0] - a[0]) / len) * d];
+  });
+}
+
+function tracePath(
+  g: CanvasRenderingContext2D,
+  p: Pt[],
+  W: number,
+  H: number,
+  close = false,
+) {
+  g.beginPath();
+  p.forEach(([x, y], i) =>
+    i ? g.lineTo(x * W, y * H) : g.moveTo(x * W, y * H),
+  );
+  if (close) g.closePath();
+}
+
+/**
+ * Peugeot 206 LED tail-lamp body ('corner' wrap fitted over the lamp body part, about 0.6 x 0.18 m): a deep red glossy
+ * lens with a dark smoked pocket in the gap between the two tubes (two rows of LED dots) and a smoked dotted strip under
+ * the lower tube. `reverseGlow` = that strip lit white for the reversing light (the rest stays black).
+ */
+function lampClearMaps(): { map: CanvasTexture; reverseGlow: CanvasTexture } {
+  const W = 768;
+  const H = 232;
+  const stripLine = offsetLine(
+    P206_UNDERSIDE.map(([u, v]): Pt => [u * W, v * H]),
+    16,
+  );
+  const pocket = (g: CanvasRenderingContext2D, inset: number) => {
+    const us: number[] = [];
+    for (let u = 0.15; u < 0.655; u += 0.02) us.push(u);
+    const top = us.map((u): Pt => [
+      u * W,
+      (polyAt(P206_POCKET_TOP, u) + inset) * H,
+    ]);
+    const bottom = us.map((u): Pt => [
+      u * W,
+      (polyAt(P206_POCKET_BOTTOM, u) - inset) * H,
+    ]);
+    g.beginPath();
+    [...top, ...bottom.reverse()].forEach(([x, y], i) =>
+      i ? g.lineTo(x, y) : g.moveTo(x, y),
+    );
+    g.closePath();
+  };
+  const dotRows = (
+    g: CanvasRenderingContext2D,
+    colour: string,
+    rows: number,
+  ) => {
+    g.setLineDash([9, 7]);
+    g.lineWidth = 8;
+    g.strokeStyle = colour;
+    for (let r = 1; r <= rows; r++) {
+      g.beginPath();
+      for (let u = 0.19; u <= 0.52; u += 0.02) {
+        const top = polyAt(P206_POCKET_TOP, u);
+        const bottom = polyAt(P206_POCKET_BOTTOM, u);
+        const v = top + ((bottom - top) * r) / (rows + 1);
+        if (u === 0.19) g.moveTo(u * W, v * H);
+        else g.lineTo(u * W, v * H);
+      }
+      g.stroke();
+    }
+    g.setLineDash([]);
+  };
+  const strip = (g: CanvasRenderingContext2D, width: number) => {
+    g.beginPath();
+    stripLine.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+    g.lineWidth = width;
+    g.lineCap = 'butt';
+    g.lineJoin = 'round';
+    g.stroke();
+  };
+  const map = canvas(W, H, (g) => {
+    // Deep red lens: lighter in the middle, darker towards the rim.
+    const lens = g.createLinearGradient(0, 0, 0, H);
+    lens.addColorStop(0, '#58070d');
+    lens.addColorStop(0.45, '#7c0c14');
+    lens.addColorStop(1, '#470609');
+    g.fillStyle = lens;
+    g.fillRect(0, 0, W, H);
+    const sweep = g.createLinearGradient(0, 0, W, H * 0.4);
+    sweep.addColorStop(0, 'rgba(255,90,80,0)');
+    sweep.addColorStop(0.5, 'rgba(255,90,80,0.12)');
+    sweep.addColorStop(1, 'rgba(255,90,80,0)');
+    g.fillStyle = sweep;
+    g.fillRect(0, 0, W, H);
+    // The lens rim (the lamp's outline) is darker still, so the lamp reads as its own part on the red body.
+    g.strokeStyle = '#1c0205';
+    g.lineJoin = 'round';
+    g.globalAlpha = 0.13;
+    for (let width = 44; width >= 12; width -= 4) {
+      g.lineWidth = width;
+      tracePath(g, P206_LENS_OUTLINE, W, H, true);
+      g.stroke();
+    }
+    g.globalAlpha = 1;
+    // A thin lighter line along the top of the upper tube.
+    g.strokeStyle = 'rgba(255,130,120,0.3)';
+    g.lineWidth = 3;
+    g.lineCap = 'round';
+    g.beginPath();
+    offsetLine(
+      P206_TOP_EDGE.map(([u, v]): Pt => [u * W, v * H]),
+      -13,
+    ).forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+    g.stroke();
+    // Smoked pocket between the tubes, with two rows of LED dots.
+    pocket(g, 0.026);
+    g.fillStyle = '#3a0a10';
+    g.strokeStyle = '#3a0a10';
+    g.lineJoin = 'round';
+    g.lineWidth = 11; // rounds the pocket's corners
+    g.fill();
+    g.stroke();
+    dotRows(g, '#5e1a22', 2);
+    // Smoked strip under the lower tube: a row of dark LED cells.
+    g.strokeStyle = '#4a2a2e';
+    strip(g, 26);
+    g.strokeStyle = '#2a0b10';
+    strip(g, 22);
+    g.setLineDash([16, 10]);
+    g.strokeStyle = '#4e1a21';
+    strip(g, 12);
+    g.setLineDash([]);
+  });
+  const reverseGlow = canvas(W, H, (g) => {
+    g.fillStyle = '#000';
+    g.fillRect(0, 0, W, H);
+    g.strokeStyle = '#4e4e4e';
+    strip(g, 20);
+    g.setLineDash([16, 10]);
+    g.strokeStyle = '#ffffff';
+    strip(g, 12);
+    g.setLineDash([]);
+  });
+  return { map, reverseGlow };
+}
+
+/**
+ * Peugeot 206 LED tubes ('corner' wrap fitted over the two joined red tubes): lighter glossy red than the lens, dark at the
+ * rim, a thin light-guide line along the middle. `glow` = what lights with the brake pedal: a hot core fading to dark red.
+ */
+function lampRedMaps(): { map: CanvasTexture; glow: CanvasTexture } {
+  const W = 768;
+  const H = 192;
+  const draw = (g: CanvasRenderingContext2D, lit: boolean) => {
+    g.fillStyle = lit ? '#000' : '#6e070d';
+    g.fillRect(0, 0, W, H);
+    g.save();
+    tracePath(g, P206_TUBES, W, H, true);
+    g.fillStyle = lit ? '#f4201a' : '#d1202a';
+    g.fill();
+    g.clip();
+    // Darker towards the rim of the tube: strokes along the outline, each wider and fainter (a smooth falloff).
+    g.lineJoin = 'round';
+    g.strokeStyle = lit ? '#2a0204' : '#7a070d';
+    g.globalAlpha = 0.14;
+    for (let width = 44; width >= 8; width -= 4) {
+      g.lineWidth = width;
+      tracePath(g, P206_TUBES, W, H, true);
+      g.stroke();
+    }
+    g.globalAlpha = 1;
+    // The core of the tube: a light-guide line (hot white when lit).
+    g.lineCap = 'round';
+    g.lineWidth = lit ? 9 : 5;
+    g.strokeStyle = lit ? '#ffe2c8' : 'rgba(255,170,160,0.55)';
+    tracePath(g, P206_TUBE_CORE, W, H);
+    g.stroke();
+    g.restore();
+  };
+  return {
+    map: canvas(W, H, (g) => draw(g, false)),
+    glow: canvas(W, H, (g) => draw(g, true)),
+  };
+}
+
 /**
  * Citroen C4 WRC tail lamp ('corner' wrap fitted over the lamp mesh: u = |x| - |z| from its inner end, v from the top
  * edge down; a tall wedge that is wide at the bottom: the rear-facing lower pad is v 0.72 - 1, the sweep up the pillar
@@ -1490,6 +1788,14 @@ const BUILDERS: Record<PartName, () => Material> = {
       metalness: 1,
       envMapIntensity: 1.1,
     }),
+  /** Brushed aluminium: window frames, roof rails. */
+  satin: () =>
+    new MeshStandardMaterial({
+      color: 0xb4b8be,
+      roughness: 0.4,
+      metalness: 0.85,
+      envMapIntensity: 0.7,
+    }),
   /** Amber indicator bulb, glowing. */
   amber: () =>
     new MeshPhysicalMaterial({
@@ -1697,6 +2003,19 @@ const BUILDERS: Record<PartName, () => Material> = {
       }),
       3.2,
     ),
+  /** Bumper corner strip: dark red reflector while off, lights like `tailled` with the brake pedal (setBrake). */
+  brakestrip: () =>
+    lamp(
+      new MeshPhysicalMaterial({
+        color: 0xa30f17,
+        emissive: 0xff2010,
+        emissiveIntensity: 0,
+        roughness: 0.25,
+        metalness: 0.3,
+        clearcoat: 1,
+      }),
+      3.2,
+    ),
   /** Modelled reversing lamp: matte white, dark until the car is in reverse gear (setBrake `reversing`), never lit by the brake. */
   reverselamp: () =>
     lamp(
@@ -1717,6 +2036,49 @@ const BUILDERS: Record<PartName, () => Material> = {
         g.fillRect(0, 0, 2, 2);
       }),
     ),
+  /**
+   * Peugeot 206 LED tail-lamp body (the lens behind the tubes): glossy deep red with smoked LED pockets, see lampClearMaps -
+   * needs `parts.wrap` 'corner'. The smoked strip along the bottom lights white in reverse gear only, like `reverselamp`.
+   */
+  lampclear: () => {
+    const { map, reverseGlow } = lampClearMaps();
+    return lamp(
+      new MeshPhysicalMaterial({
+        map,
+        roughness: 0.3,
+        metalness: 0,
+        envMapIntensity: 0.35,
+        clearcoat: 0.3,
+        clearcoatRoughness: 0.12,
+        emissive: 0xffffff,
+        emissiveMap: canvas(2, 2, (g) => {
+          g.fillStyle = '#000';
+          g.fillRect(0, 0, 2, 2);
+        }),
+        emissiveIntensity: 0,
+      }),
+      2,
+      reverseGlow,
+    );
+  },
+  /** Peugeot 206 LED tubes: glossy red, see lampRedMaps - needs `parts.wrap` 'corner'. The tube cores light with the brake. */
+  lampred: () => {
+    const { map, glow } = lampRedMaps();
+    return lamp(
+      new MeshPhysicalMaterial({
+        map,
+        emissive: 0xffffff,
+        emissiveMap: glow,
+        emissiveIntensity: 0.12,
+        roughness: 0.25,
+        metalness: 0,
+        envMapIntensity: 0.7,
+        clearcoat: 0.9,
+        clearcoatRoughness: 0.08,
+      }),
+      1.2,
+    );
+  },
   /** Red see-through cover over a modelled tail lamp. */
   redcover: () =>
     new MeshPhysicalMaterial({

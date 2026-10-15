@@ -20,15 +20,20 @@ export interface GroundSample {
 
 /** Static obstacle the car body can hit (trees, posts, rocks). */
 export interface StaticCollider {
-  kind: 'cylinder' | 'sphere' | 'box';
+  kind: 'cylinder' | 'sphere' | 'box' | 'capsule';
+  /** capsule: centre of its XZ extent. */
   x: number;
-  /** cylinder / box: base Y, sphere: centre Y */
+  /** cylinder / box: base Y, sphere: centre Y, capsule: lowest Y */
   y: number;
   z: number;
-  /** Radius (box: bounding radius in XZ, used for culling). */
+  /** Radius (box / capsule: bounding radius in XZ, used for culling). */
   r: number;
-  /** cylinder / box height (ignored for spheres) */
+  /** cylinder / box / capsule height (ignored for spheres) */
   h: number;
+  /** capsule: segment end points and radius (tree trunks and limbs, trees/placement.ts). */
+  a?: [number, number, number];
+  b?: [number, number, number];
+  rc?: number;
   /** box: half extents along its local X / Z and yaw (rad, three.js rotation about +Y). */
   hx?: number;
   hz?: number;

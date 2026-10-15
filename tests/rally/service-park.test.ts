@@ -4,6 +4,7 @@ import { getAssetMeta } from '../../src/games/rally/assets/catalog';
 import { ajvatovciMap } from '../../src/games/rally/maps/ajvatovci/map';
 import { TEAM_COUNT } from '../../src/games/rally/assets/builders/teams';
 import { lotContains } from '../../src/games/rally/maps/shared/service-lot';
+import { isTreeType } from '../../src/games/rally/trees/species';
 import { newRoadQuery } from '../../src/games/rally/world/road';
 import { SERVICE_PARK_ASSETS } from '../../src/games/rally/world/service-park';
 import { World } from '../../src/games/rally/world/world';
@@ -180,7 +181,8 @@ describe('service park (Ajvatovci start)', () => {
         );
         const trees = chunk.instances.filter(
           (i) =>
-            getAssetMeta(i.asset).category === 'vegetation' &&
+            (isTreeType(i.asset) ||
+              getAssetMeta(i.asset).category === 'vegetation') &&
             lotContains(lot, i.x, i.z, 1),
         );
         expect(trees).toEqual([]);

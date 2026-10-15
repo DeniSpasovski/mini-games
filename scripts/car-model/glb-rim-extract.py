@@ -2,6 +2,7 @@
 
     python scripts/car-model/glb-rim-extract.py <in.glb> <out-prefix> --tyre <node-prefix> --rim <node-prefix>[,<prefix>...]
     python scripts/car-model/glb-rim-extract.py <in.glb> <out-prefix> --wheel <node-prefix>      # tyre + rim in one primitive
+    ... --true-width   # keep the tyre stub its real width (a rim that is only its face, much narrower than the tyre) instead of the rim's span
 
 Node prefixes match the primitive's node name case-insensitively ("wheel_lf_002" matches "wheel_lf_002_ac3dmat126_0"); use the
 LEFT wheel (outer face towards +x). The hub is the tyre's centroid (a tyre is symmetric about its centre plane), the axle is the
@@ -23,7 +24,9 @@ sys.path.insert(0, __file__.rsplit('/', 1)[0])
 from gltfio import load_glb, primitives  # noqa: E402
 
 src, prefix = sys.argv[1], sys.argv[2]
-opts = dict(zip(sys.argv[3::2], sys.argv[4::2]))
+TRUE_WIDTH = '--true-width' in sys.argv
+argv = [a for a in sys.argv if a != '--true-width']
+opts = dict(zip(argv[3::2], argv[4::2]))
 g, binary = load_glb(src)
 prims = primitives(g, binary)
 
@@ -98,7 +101,7 @@ tw, rw = to_wheel(tyre), to_wheel(rim)
 mid = (rw[..., 2].min() + rw[..., 2].max()) / 2
 rw[..., 2] -= mid
 tmid = (tw[..., 2].min() + tw[..., 2].max()) / 2
-tw[..., 2] = (tw[..., 2] - tmid) * (np.ptp(rw[..., 2]) / np.ptp(tw[..., 2]))
+tw[..., 2] = (tw[..., 2] - tmid) * (1 if TRUE_WIDTH else np.ptp(rw[..., 2]) / np.ptp(tw[..., 2]))
 write_stl(prefix + '-rim.stl', rw)
 write_stl(prefix + '-tyre.stl', tw)
 tv = tw.reshape(-1, 3)
