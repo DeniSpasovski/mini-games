@@ -31,7 +31,7 @@ import {
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { autoHull, type Vehicle } from '../../physics/vehicle';
 import type { CarPartGeometry } from './car-parts';
-import { hasImportedModel, loadImportedCar } from './car-gltf';
+import { hasImportedModel, loadImportedCar, splitRecolor } from './car-gltf';
 import { liveryInfo, type LiveryInfo } from './livery';
 import { buildProfileParts } from './profile-body';
 import { axleRadius, tyreSizeFor, type Axle } from '../../physics/car-tyres';
@@ -332,6 +332,7 @@ const NO_SHADOW_PARTS = new Set([
   'lamphousing',
   'headled',
   'tailled',
+  'brakestrip',
   'reverselamp',
   'lenscover',
   'redcover',
@@ -563,6 +564,26 @@ export class CarModel {
               obj.traverse((o) => {
                 if ((o as Mesh).isMesh && o.visible) painted.push(o as Mesh);
               });
+            }
+            for (const r of def.model.gltf?.recolor ?? []) {
+              const paintMat = new MeshPhysicalMaterial({
+                color: new Color(r.color),
+                metalness: 0.25,
+                roughness: 0.42,
+                clearcoat: 1,
+                clearcoatRoughness: 0.1,
+              });
+              this.owned.push(paintMat);
+              const from: Mesh[] = [];
+              obj.traverse((o) => {
+                const m = o as Mesh;
+                if (m.isMesh && (m.material as Material).name === r.part)
+                  from.push(m);
+              });
+              for (const m of from) {
+                const piece = splitRecolor(m, r);
+                if (piece) piece.material = paintMat;
+              }
             }
             // Plate targets in body space (obj has no parent yet, so matrixWorld = obj -> body).
             obj.updateMatrixWorld(true);

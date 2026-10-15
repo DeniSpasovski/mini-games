@@ -394,7 +394,9 @@ class MainMenu {
     this.screen = screen;
     this.panel.dataset.screen = screen;
     this.panel.replaceChildren();
-    this.root.querySelector('.menu-times-card')?.remove();
+    this.root
+      .querySelectorAll('.menu-times-card, .menu-car-card')
+      .forEach((el) => el.remove());
     if (screen === 'welcome') this.welcome();
     if (screen === 'options')
       this.panel.append(
@@ -648,6 +650,9 @@ class MainMenu {
     const p = car.physics;
     const pk = peakPower(p.engine);
     const specs = div('menu-specs');
+    // Wide screens: the description sits in a card right of the car list; phones keep it under the list.
+    const beside = window.innerWidth >= 1200;
+    if (beside) specs.classList.add('menu-car-card');
     specs.innerHTML = `
       <p>${car.description}</p>
       ${isTestCar(car.id) ? `<p class="menu-test-note">${TEST_NOTE}</p>` : ''}
@@ -658,11 +663,16 @@ class MainMenu {
         <dt>Power / weight</dt><dd>${Math.round((pk.kw * 1341) / p.mass)} hp/t</dd>
       </dl>
       ${this.setupSummary()}
-      <div class="menu-livery">Livery
+      <div class="menu-livery">
+        <button class="menu-btn small" data-a="setup">Setup car</button>
+        <span class="menu-livery-label">Livery</span>
         <button class="menu-btn small" data-a="livery-" title="← key">‹</button>
         <b>${this.livery + 1}</b>
         <button class="menu-btn small" data-a="livery+" title="→ key">›</button>
       </div>`;
+    specs
+      .querySelector('[data-a="setup"]')!
+      .addEventListener('click', () => this.show('setup'));
     specs
       .querySelector('[data-a="livery-"]')!
       .addEventListener('click', () => this.setLivery(this.livery - 1));
@@ -670,12 +680,20 @@ class MainMenu {
       .querySelector('[data-a="livery+"]')!
       .addEventListener('click', () => this.setLivery(this.livery + 1));
 
+    if (beside) {
+      this.root.append(specs);
+      // Top edge level with the filter row (the header height depends on the font).
+      const top =
+        filter.getBoundingClientRect().top -
+        this.root.getBoundingClientRect().top;
+      specs.style.top = `${top}px`;
+      specs.style.maxHeight = `calc(100% - ${top + 24}px)`;
+    }
     this.panel.append(
       list,
-      specs,
+      ...(beside ? [] : [specs]),
       buttons(
         ['Back', () => this.show('map')],
-        ['Setup car', () => this.show('setup')],
         ['Start stage ›', () => this.start(), true],
       ),
     );

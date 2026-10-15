@@ -51,6 +51,8 @@ import {
  * of them, so the car doesn't move when the screen changes.
  */
 const CAR_SHIFT = 0.1;
+/** Orbit distance of the turntable car on every car screen (< 1: larger car, may run behind the spec card). */
+const CAR_DIST_SCALE = 0.9;
 const CAR_ENV = { ...testMap.environment, fogDensity: 0.02, sunElevation: 24 };
 /** Map view: camera height angle over the stage (rad), ~36 deg. */
 const ORBIT_ELEVATION = Math.atan2(0.7, 0.95);
@@ -460,7 +462,7 @@ export class Showroom {
     this.loadCue.style.left = `${(0.5 + (w > h ? this.shift() : 0)) * cw}px`;
     this.angle += dt * 0.18;
     // Back off on narrow windows so the car still fits beside the panel.
-    const dist = 8.2 * Math.max(1, 1.7 / (w / h));
+    const dist = 8.2 * Math.max(1, 1.7 / (w / h)) * CAR_DIST_SCALE;
     const cam = this.camera;
     cam.position.set(
       Math.sin(this.angle) * dist,

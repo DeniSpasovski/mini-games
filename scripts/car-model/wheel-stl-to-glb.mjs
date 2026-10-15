@@ -9,6 +9,11 @@
  * `--barrel <r>` = the rim's bead-seat radius in STL units: the game (cars/shared/stl-wheel.ts) scales the rim so
  * that 0.62 of the unit radius lands on the tyre's bead, so the radial unit is barrel / 0.62 instead of the tyre
  * radius (the Printables rim happens to have its barrel at 0.62 of its tyre radius; others do not).
+ * `--two-sided <n>` = add back faces to the rim's open thin shells (connected pieces with at least n boundary edges): a model's
+ * barrel is often a one-sided tube that the game's culled rim material hides from the axle side, so the rim looks see-through
+ * (cars/peugeot-206/: barrel 80 boundary edges, centre cap 100, spokes 8 - n = 20).
+ * `--bridge x0,r0,x1,r1` = add a two-sided cone (unit wheel space, see step 4) from the barrel's front end to the lip, for a rim
+ * whose barrel stops short of it (the source tyre covered the gap; the game's tyre does not): a slot shows otherwise.
  * `--flange <r>` = add a rim lip on the outer face up to unit radius r (> 0.62), for a rim that ends at its bead seat
  * (cars/lancer-evo-6/): the game tyre's sidewall flares out from the bead, so without a lip a groove shows between them.
  *
@@ -41,6 +46,10 @@ const CREASE_DEG = 38;
 const KEEP_ALL = rest.includes('--keep');
 const BARREL = opt('barrel', 0);
 const FLANGE = opt('flange', 0);
+const TWO_SIDED = opt('two-sided', 0);
+const BRIDGE = rest.includes('--bridge')
+  ? rest[rest.indexOf('--bridge') + 1].split(',').map(Number)
+  : null;
 
 // --- 1. load ----------------------------------------------------------------------------------
 const rim = loadStl(rimPath);
@@ -103,12 +112,107 @@ const parts = {
   ),
 };
 if (FLANGE > 0.62) parts.rim = addFlange(parts.rim, FLANGE);
+if (TWO_SIDED > 0) parts.rim = addBackFaces(parts.rim, TWO_SIDED);
+if (BRIDGE) parts.rim = addBridge(parts.rim, BRIDGE);
 writeGlb(outPath, parts);
 console.log(
   `wrote ${outPath} (${(fs.statSync(outPath).size / 1e3).toFixed(0)} kB)`,
 );
 
 // --- helpers ------------------------------------------------------------------------------------
+
+/** A cone from (x0, r0) to (x1, r1) in unit wheel space, drawn from both sides. */
+function addBridge(part, [x0, r0, x1, r1], segments = 96) {
+  const pos = [...part.position];
+  const nor = [...part.normal];
+  const idx = [...part.index];
+  const base = pos.length / 3;
+  const l = Math.hypot(x1 - x0, r1 - r0);
+  const [nx, nr] = [(r1 - r0) / l, -(x1 - x0) / l]; // outward normal of the profile
+  for (let s = 0; s <= segments; s++) {
+    const t = (s / segments) * Math.PI * 2;
+    const [c, si] = [Math.cos(t), Math.sin(t)];
+    for (const [x, r] of [
+      [x0, r0],
+      [x1, r1],
+    ]) {
+      pos.push(x, r * c, r * si); // outer surface vertex, then the same point for the inner surface
+      nor.push(nx, nr * c, nr * si);
+      pos.push(x, r * c, r * si);
+      nor.push(-nx, -nr * c, -nr * si);
+    }
+  }
+  for (let s = 0; s < segments; s++) {
+    const a = base + s * 4;
+    const b = a + 4;
+    idx.push(a, a + 2, b, b, a + 2, b + 2); // outer faces (x0 ring -> x1 ring)
+    idx.push(a + 1, b + 1, a + 3, b + 1, b + 3, a + 3); // inner faces, reversed
+  }
+  console.log(`rim: + bridge cone (${segments * 4} triangles)`);
+  return {
+    position: new Float32Array(pos),
+    normal: new Float32Array(nor),
+    index: pos.length / 3 < 65536 ? new Uint16Array(idx) : new Uint32Array(idx),
+  };
+}
+
+/** Reversed copies (flipped normals) of the triangles of every open thin shell: connected pieces (by position) with >= minOpen boundary edges. */
+function addBackFaces(part, minOpen) {
+  const { position: P, normal: N, index: I } = part;
+  const weldId = new Map();
+  const wid = (v) => {
+    const k = `${Math.round(P[v * 3] * 1e4)},${Math.round(P[v * 3 + 1] * 1e4)},${Math.round(P[v * 3 + 2] * 1e4)}`;
+    if (!weldId.has(k)) weldId.set(k, weldId.size);
+    return weldId.get(k);
+  };
+  const w = Array.from(I, wid);
+  const parent = Array.from({ length: weldId.size }, (_, i) => i);
+  const find = (a) => {
+    while (parent[a] !== a) a = parent[a] = parent[parent[a]];
+    return a;
+  };
+  const edges = new Map();
+  for (let t = 0; t < w.length; t += 3)
+    for (let k = 0; k < 3; k++) {
+      const [a, b] = [w[t + k], w[t + ((k + 1) % 3)]];
+      parent[find(a)] = find(b);
+      const e = a < b ? `${a}|${b}` : `${b}|${a}`;
+      edges.set(e, (edges.get(e) ?? 0) + 1);
+    }
+  const open = new Map();
+  for (const [e, n] of edges)
+    if (n === 1) {
+      const root = find(Number(e.split('|')[0]));
+      open.set(root, (open.get(root) ?? 0) + 1);
+    }
+  const pos = [...P];
+  const nor = [...N];
+  const idx = [...I];
+  const copy = new Map();
+  let tris = 0;
+  for (let t = 0; t < I.length; t += 3) {
+    if ((open.get(find(w[t])) ?? 0) < minOpen) continue;
+    const v = [0, 1, 2].map((k) => {
+      const src = I[t + k];
+      if (!copy.has(src)) {
+        copy.set(src, pos.length / 3);
+        pos.push(P[src * 3], P[src * 3 + 1], P[src * 3 + 2]);
+        nor.push(-N[src * 3], -N[src * 3 + 1], -N[src * 3 + 2]);
+      }
+      return copy.get(src);
+    });
+    idx.push(v[0], v[2], v[1]);
+    tris++;
+  }
+  console.log(
+    `rim: + ${tris} back faces on open shells (>= ${minOpen} boundary edges)`,
+  );
+  return {
+    position: new Float32Array(pos),
+    normal: new Float32Array(nor),
+    index: pos.length / 3 < 65536 ? new Uint16Array(idx) : new Uint32Array(idx),
+  };
+}
 
 /** A lathed rim lip (unit wheel space) on the outer face: from under the bead seat (0.62) up to `top`, rolled inwards. */
 function addFlange(part, top, segments = 96) {
