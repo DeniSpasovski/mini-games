@@ -48,21 +48,21 @@ const REAR: AxleDef = {
   forceHeight: 0.4,
 };
 
-/** RS6 brakes: 400 mm vented front, 370 mm vented rear steel discs, road pads (PHYSICS.md "Brakes"). */
+/** RS6 brakes: 400 mm vented front, 370 mm vented rear steel discs, sport pads, ~34 m from 100 km/h on tarmac (PHYSICS.md "Brakes"). */
 const BRAKES: BrakeSet = {
   front: {
     type: 'vented',
     diameter: 0.4,
     thickness: 0.038,
-    pad: 'road',
-    clamp: 15500,
+    pad: 'sport',
+    clamp: 22000,
   },
   rear: {
     type: 'vented',
     diameter: 0.37,
     thickness: 0.03,
-    pad: 'road',
-    clamp: 8500,
+    pad: 'sport',
+    clamp: 11800,
   },
 };
 
