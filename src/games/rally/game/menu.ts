@@ -488,7 +488,7 @@ class MainMenu {
       <b>R</b> reset · <b>C</b> camera · <b>Esc</b> pause</p>
       <h2>Contributors</h2>
       <ul>
-        <li>Deni Spasovski<small>Lead developer</small></li>
+        <li>Deni Spasovski<small>Agent Orchestrator</small></li>
         <li><a href="https://github.com/hyphyphyph" target="_blank" rel="noopener">Derek McTavish</a><small>Contributor: foliage and rendering improvements</small></li>
       </ul>
       <h2>Built with</h2>
