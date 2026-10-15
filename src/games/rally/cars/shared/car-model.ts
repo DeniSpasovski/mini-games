@@ -334,6 +334,8 @@ const NO_SHADOW_PARTS = new Set([
   'tailled',
   'brakestrip',
   'reverselamp',
+  'lampclear',
+  'lampred',
   'lenscover',
   'redcover',
   'brakecover',
