@@ -243,6 +243,10 @@
       "logo",
       "headled"
     ],
+    "wrap": {
+      "lampred": "corner",
+      "lampclear": "corner"
+    },
     "drop": ["logo"],
     "maxTriangles": {
       "interior": 16000

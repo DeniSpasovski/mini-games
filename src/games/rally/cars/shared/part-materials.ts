@@ -934,6 +934,127 @@ function tailCMaps(): {
   return { map, glow, reverseGlow };
 }
 
+/** Cheap deterministic 0..1 hash of a cell (lamp art varies cell by cell without Math.random: every run draws the same). */
+const cellHash = (x: number, y: number) => {
+  const h = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return h - Math.floor(h);
+};
+
+/**
+ * Peugeot 206 clear tail-lamp lens ('corner' wrap fitted over the white lamp body, a long oval about 0.6 x 0.18 m): soft
+ * grey-white ribs (each rib lighter on top, with a dark seam below) over a cloudy, slightly mottled clear plastic.
+ * `reverseGlow` = the same ribs for the reverse-gear light (seams stay dark).
+ */
+function lampClearMaps(): { map: CanvasTexture; reverseGlow: CanvasTexture } {
+  const W = 768;
+  const H = 232;
+  const RIB = 26;
+  const draw = (g: CanvasRenderingContext2D, lit: boolean) => {
+    g.fillStyle = lit ? '#000' : '#e2ddd4';
+    g.fillRect(0, 0, W, H);
+    for (let y = -6; y < H; y += RIB) {
+      const grad = g.createLinearGradient(0, y, 0, y + RIB);
+      const stops: [number, string][] = lit
+        ? [
+            [0, '#ffffff'],
+            [0.8, '#bdbdbd'],
+            [1, '#000000'],
+          ]
+        : [
+            [0, '#f1ede5'],
+            [0.78, '#d9d4cb'],
+            [1, '#a3a2a5'],
+          ];
+      for (const [at, colour] of stops) grad.addColorStop(at, colour);
+      g.fillStyle = grad;
+      g.fillRect(0, y, W, RIB);
+    }
+    // Cloudy blotches: the clear plastic is not even.
+    for (let i = 0; i < 70; i++) {
+      const x = cellHash(i, 1) * W;
+      const y = cellHash(i, 2) * H;
+      const r = 26 + cellHash(i, 3) * 70;
+      const blot = g.createRadialGradient(x, y, 0, x, y, r);
+      const dark = cellHash(i, 4) > 0.5;
+      blot.addColorStop(
+        0,
+        lit
+          ? `rgba(0,0,0,${dark ? 0.22 : 0})`
+          : dark
+            ? 'rgba(96,98,106,0.14)'
+            : 'rgba(255,255,255,0.22)',
+      );
+      blot.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = blot;
+      g.fillRect(x - r, y - r, 2 * r, 2 * r);
+    }
+    if (!lit) {
+      // A lens is deeper (greyer) at its rim than in the middle.
+      const v = g.createLinearGradient(0, 0, 0, H);
+      v.addColorStop(0, 'rgba(80,82,88,0.28)');
+      v.addColorStop(0.2, 'rgba(80,82,88,0)');
+      v.addColorStop(0.8, 'rgba(80,82,88,0)');
+      v.addColorStop(1, 'rgba(80,82,88,0.28)');
+      g.fillStyle = v;
+      g.fillRect(0, 0, W, H);
+    }
+  };
+  return {
+    map: canvas(W, H, (g) => draw(g, false)),
+    reverseGlow: canvas(W, H, (g) => draw(g, true)),
+  };
+}
+
+/**
+ * Peugeot 206 red tail-lamp lens ('corner' wrap fitted over the two red bars): each bar is a glossy red tube, dark at its
+ * edges with a bright core. `glow` = what lights with the brake pedal (the tube cores).
+ */
+function lampRedMaps(): { map: CanvasTexture; glow: CanvasTexture } {
+  const W = 768;
+  const H = 192;
+  const draw = (g: CanvasRenderingContext2D, lit: boolean) => {
+    g.fillStyle = lit ? '#000' : '#a50f17';
+    g.fillRect(0, 0, W, H);
+    for (let bar = 0; bar < 2; bar++) {
+      const y0 = (bar * H) / 2;
+      const grad = g.createLinearGradient(0, y0, 0, y0 + H / 2);
+      const stops: [number, string][] = lit
+        ? [
+            [0, '#400404'],
+            [0.2, '#8c0a0a'],
+            [0.4, '#ff3a2c'],
+            [0.7, '#a80e0e'],
+            [1, '#400404'],
+          ]
+        : [
+            [0, '#8a0910'],
+            [0.18, '#c4111b'],
+            [0.4, '#e4232d'],
+            [0.7, '#b80f18'],
+            [1, '#8a0910'],
+          ];
+      for (const [at, colour] of stops) grad.addColorStop(at, colour);
+      g.fillStyle = grad;
+      g.fillRect(0, y0, W, H / 2);
+      if (!lit) {
+        // Thin light-guide line along the tube.
+        g.fillStyle = 'rgba(255,150,140,0.28)';
+        g.fillRect(0, y0 + 0.4 * (H / 2) - 1, W, 2);
+      }
+    }
+    // The bars join at the outer end: one even tube there, not two gradients meeting.
+    const end = g.createLinearGradient(0, 0, 0.22 * W, 0);
+    end.addColorStop(0, lit ? 'rgba(200,24,18,1)' : 'rgba(196,17,27,1)');
+    end.addColorStop(1, lit ? 'rgba(200,24,18,0)' : 'rgba(196,17,27,0)');
+    g.fillStyle = end;
+    g.fillRect(0, 0, 0.22 * W, H);
+  };
+  return {
+    map: canvas(W, H, (g) => draw(g, false)),
+    glow: canvas(W, H, (g) => draw(g, true)),
+  };
+}
+
 /**
  * Citroen C4 WRC tail lamp ('corner' wrap fitted over the lamp mesh: u = |x| - |z| from its inner end, v from the top
  * edge down; a tall wedge that is wide at the bottom: the rear-facing lower pad is v 0.72 - 1, the sweep up the pillar
@@ -1720,16 +1841,17 @@ const BUILDERS: Record<PartName, () => Material> = {
       }),
     ),
   /**
-   * Modelled lamp body behind the red bars, a clear plastic lens seen matte (Peugeot 206): soft grey-white, barely any
-   * reflection; lights white in reverse gear only, like `reverselamp`.
+   * Peugeot 206 lamp body behind the red bars: the real lamp's faceted clear lens, matte, see lampClearMaps - needs
+   * `parts.wrap` 'corner'. Lights white in reverse gear only, like `reverselamp`.
    */
-  lampclear: () =>
-    lamp(
+  lampclear: () => {
+    const { map, reverseGlow } = lampClearMaps();
+    return lamp(
       new MeshPhysicalMaterial({
-        color: 0xd2d2cf,
-        roughness: 0.8,
-        metalness: 0,
-        envMapIntensity: 0.15,
+        map,
+        roughness: 0.6,
+        metalness: 0.05,
+        envMapIntensity: 0.12,
         emissive: 0xffffff,
         emissiveMap: canvas(2, 2, (g) => {
           g.fillStyle = '#000';
@@ -1737,27 +1859,28 @@ const BUILDERS: Record<PartName, () => Material> = {
         }),
         emissiveIntensity: 0,
       }),
-      2.2,
-      canvas(2, 2, (g) => {
-        g.fillStyle = '#fff';
-        g.fillRect(0, 0, 2, 2);
-      }),
-    ),
-  /** Modelled tail-lamp red lens, deep and calm (Peugeot 206): faint idle glow, clear red with the brake pedal (setBrake). */
-  lampred: () =>
-    lamp(
+      2,
+      reverseGlow,
+    );
+  },
+  /** Peugeot 206 red lamp bars: glossy red tubes, see lampRedMaps - needs `parts.wrap` 'corner'. Tube cores light with the brake. */
+  lampred: () => {
+    const { map, glow } = lampRedMaps();
+    return lamp(
       new MeshPhysicalMaterial({
-        color: 0xa3111a,
-        emissive: 0xd00808,
-        emissiveIntensity: 0.1,
-        roughness: 0.3,
+        map,
+        emissive: 0xffffff,
+        emissiveMap: glow,
+        emissiveIntensity: 0.12,
+        roughness: 0.28,
         metalness: 0,
         envMapIntensity: 0.6,
         clearcoat: 0.8,
         clearcoatRoughness: 0.1,
       }),
-      1.3,
-    ),
+      1.2,
+    );
+  },
   /** Red see-through cover over a modelled tail lamp. */
   redcover: () =>
     new MeshPhysicalMaterial({
