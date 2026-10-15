@@ -13,20 +13,22 @@ import { skodaRally } from './skoda-rally/skoda-rally';
 import { subie22b } from './subie-22b/subie-22b';
 import { zastava101 } from './zastava-101/zastava-101';
 
-/** Car registry - every car, test-only ones included. Add new cars here + a `hideInProd` row to CARS_LIST in release.ts (see .claude/skills/rally-content). */
+/** Car registry in menu order (AWD, FWD, RWD; each by name), test-only cars included. Add new cars here + a `hideInProd` row to CARS_LIST in release.ts (see .claude/skills/rally-content). */
 export const ALL_CARS: CarDef[] = [
-  skodaRally,
-  zastava101,
-  bimmerM3,
-  bimmerGt2,
-  subie22b,
-  fiesta,
   citroenC4,
+  fiesta,
   lancerEvo6,
+  audiRs6,
+  skodaRally,
+  subie22b,
+  // FWD, by name
+  peugeot206,
+  zastava101,
+  // RWD, by name
+  bimmerGt2,
+  bimmerM3,
   fordGt3,
   merc190,
-  peugeot206,
-  audiRs6,
 ];
 
 /** Cars this build offers: ALL_CARS on the dev server, those without `hideInProd` in the published build (release.ts). */

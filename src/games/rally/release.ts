@@ -26,7 +26,7 @@ export const CARS_LIST: readonly ReleaseEntry[] = [
   { id: 'ford_gt3' },
   { id: 'merc_190' },
   { id: 'peugeot_206', hideInProd: true },
-  { id: 'audi_rs6', hideInProd: true },
+  { id: 'audi_rs6' },
 ];
 
 export const STAGES_LIST: readonly ReleaseEntry[] = [
