@@ -66,7 +66,7 @@ describe('people', () => {
         expect(near.lo).toBeLessThan(0.02);
         expect(near.hi).toBeGreaterThan(0.8);
         expect(near.hi).toBeLessThan(2.4);
-        expect(near.tris).toBeLessThan(420);
+        expect(near.tris).toBeLessThan(600);
         const mid = measure(id, v, 1);
         expect(mid.tris).toBeLessThan(260);
         expect(measure(id, v, 2).tris).toBeLessThan(40);

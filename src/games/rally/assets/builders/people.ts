@@ -9,7 +9,7 @@ import {
   type BufferGeometry,
 } from 'three';
 import { Rng } from '../../../../shared/rng';
-import { merge, paint, planarUV } from '../../engine/geo';
+import { merge, paint } from '../../engine/geo';
 import { getMaterial } from '../../engine/materials';
 import type { AssetBuilder } from '../types';
 import { TEAMS } from './teams';
@@ -281,8 +281,8 @@ const POSES = {
   sitGround: {
     lean: -0.18,
     head: 0.15,
-    legL: limb(1.45, 0.18, 0.12),
-    legR: limb(1.4, 0.3, 0.15),
+    legL: limb(1.52, 0.18, 0.02),
+    legR: limb(1.5, 0.32, 0.03),
     armL: limb(-0.7, 0.35, 0.1),
     armR: limb(-0.6, 0.45, 0.1),
   },
@@ -375,6 +375,67 @@ function dirDown(pitch: number, ab: number, side: number): Vector3 {
   );
 }
 
+/** Atlas cells of the `people` texture (engine/textures.ts): 4 x 4, 128 px each, multiplied with the vertex colour. */
+const CLOTH = 0;
+const DENIM = 1;
+const SKIN_CELL = 2;
+const HAIR_CELL = 3;
+const FACE = 4;
+const NYLON = 5;
+const LEATHER = 6;
+const HIVIS = 7;
+
+const cellUV = (cell: number, fu: number, fv: number): [number, number] => [
+  ((cell % 4) + 0.05 + 0.9 * fu) / 4,
+  1 - (Math.floor(cell / 4) + 0.05 + 0.9 * fv) / 4,
+];
+
+/**
+ * Maps a part onto its atlas cell: per triangle the projection along the dominant axis of its normal, scaled by the
+ * part's longest side so the weave keeps its proportions (a tube is not stretched).
+ */
+function mapCell(g: BufferGeometry, cell: number): BufferGeometry {
+  const p = g.getAttribute('position');
+  const n = g.getAttribute('normal');
+  g.computeBoundingBox();
+  const b = g.boundingBox!;
+  const size = Math.max(
+    b.max.x - b.min.x,
+    b.max.y - b.min.y,
+    b.max.z - b.min.z,
+    1e-3,
+  );
+  const uv = g.getAttribute('uv');
+  for (let t = 0; t < p.count; t += 3) {
+    let nx = 0;
+    let ny = 0;
+    let nz = 0;
+    for (let k = 0; k < 3; k++) {
+      nx += Math.abs(n.getX(t + k));
+      ny += Math.abs(n.getY(t + k));
+      nz += Math.abs(n.getZ(t + k));
+    }
+    for (let k = 0; k < 3; k++) {
+      const i = t + k;
+      const x = (p.getX(i) - b.min.x) / size;
+      const y = (p.getY(i) - b.min.y) / size;
+      const z = (p.getZ(i) - b.min.z) / size;
+      const [u, w] =
+        nz >= nx && nz >= ny ? [x, 1 - y] : nx >= ny ? [z, 1 - y] : [x, z];
+      const [cu, cv] = cellUV(cell, u, w);
+      uv.setXY(i, cu, cv);
+    }
+  }
+  uv.needsUpdate = true;
+  return g;
+}
+
+/** Marks the atlas cell a part is mapped to when the figure is merged (-1 = already mapped). */
+const tag = (g: BufferGeometry, cell: number): BufferGeometry => {
+  g.userData.cell = cell;
+  return g;
+};
+
 /** Open tapered tube from `a` (radius `ra`) to `b` (radius `rb`), `flat` squashes it front to back. */
 function tube(
   a: Vector3,
@@ -384,6 +445,7 @@ function tube(
   color: string,
   sides = 5,
   flat = 1,
+  cell = CLOTH,
 ): BufferGeometry {
   const len = a.distanceTo(b);
   const g = new CylinderGeometry(ra, rb, Math.max(len, 1e-3), sides, 1, true);
@@ -392,7 +454,7 @@ function tube(
     new Quaternion().setFromUnitVectors(UP, a.clone().sub(b).normalize()),
   );
   g.translate((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
-  return paint(g, color);
+  return tag(paint(g, color), cell);
 }
 
 /** A box at `at`, optionally turned so its Y axis follows `axis`, or by a matrix. */
@@ -403,11 +465,12 @@ function block(
   at: Vector3,
   color: string,
   m?: Matrix4,
+  cell = NYLON,
 ): BufferGeometry {
   const g = new BoxGeometry(w, h, d);
   if (m) g.applyMatrix4(m);
   g.translate(at.x, at.y, at.z);
-  return paint(g, color);
+  return tag(paint(g, color), cell);
 }
 
 function along(axis: Vector3): Matrix4 {
@@ -435,6 +498,7 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
     v(x, y, z).applyMatrix4(R);
   const P = v(0, 0, 0);
 
+  const legCell = JEANS.includes(o.legs) ? DENIM : CLOTH;
   // Legs: hips, knees, ankles, boots.
   for (const [side, leg] of [
     [1, pose.legL],
@@ -446,9 +510,12 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
       dirDown(leg.p - leg.bend, leg.ab * 0.5, side).multiplyScalar(SHIN),
     );
     const thighColor = o.shorts ? o.skin : o.legs;
-    parts.push(tube(H, K, 0.1, 0.07, thighColor, sides));
-    parts.push(tube(K, A, 0.07, 0.05, o.shorts ? o.skin : o.legs, sides));
-    if (hi) parts.push(block(0.1, 0.1, 0.1, K, thighColor));
+    const lc = o.shorts ? SKIN_CELL : legCell;
+    parts.push(tube(H, K, 0.1, 0.07, thighColor, sides, 1, lc));
+    parts.push(
+      tube(K, A, 0.07, 0.05, o.shorts ? o.skin : o.legs, sides, 1, lc),
+    );
+    if (hi) parts.push(block(0.1, 0.1, 0.1, K, thighColor, undefined, lc));
     if (hi && o.stripe && !o.shorts)
       parts.push(
         tube(
@@ -467,13 +534,37 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
         hi ? 0.28 : 0.25,
         A.clone().add(v(0, -0.035, 0.07)),
         o.shoes,
+        undefined,
+        LEATHER,
       ),
     );
+    if (hi)
+      parts.push(
+        block(
+          0.115,
+          0.022,
+          0.29,
+          A.clone().add(v(0, -0.08, 0.07)),
+          '#d9d4c8',
+          undefined,
+          LEATHER,
+        ),
+      );
   }
 
   // Pelvis, torso, shoulders.
   const S = rot(0, TORSO, 0);
-  parts.push(block(0.33 * broad, 0.16, 0.2, P, o.legs));
+  parts.push(
+    block(
+      0.33 * broad,
+      0.16,
+      0.2,
+      P,
+      o.skirt ?? o.legs,
+      undefined,
+      o.skirt ? CLOTH : legCell,
+    ),
+  );
   const waist = P.clone().add(rot(0, 0.06, 0));
   if (o.skirt) {
     const len = o.skirtLen ?? 0.45;
@@ -486,6 +577,7 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
         o.skirt,
         hi ? 7 : 5,
         0.85,
+        CLOTH,
       ),
     );
   }
@@ -493,6 +585,19 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
   parts.push(
     tube(waist, chest, 0.17 * broad, 0.21 * broad, o.torso, hi ? 6 : 5, 0.62),
   );
+  if (hi && !o.skirt && !o.shorts)
+    parts.push(
+      tube(
+        waist.clone().add(rot(0, -0.005, 0)),
+        waist.clone().add(rot(0, 0.04, 0)),
+        0.172 * broad + 0.004,
+        0.176 * broad + 0.004,
+        '#1c1a18',
+        6,
+        0.62,
+        LEATHER,
+      ),
+    );
   if (o.vest) {
     parts.push(
       tube(
@@ -503,6 +608,7 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
         o.vest,
         hi ? 6 : 5,
         0.72,
+        HIVIS,
       ),
     );
     if (hi && o.bands)
@@ -516,6 +622,7 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
             '#e6e8ea',
             6,
             0.72,
+            HIVIS,
           ),
         );
   } else if (hi && o.stripe) {
@@ -539,6 +646,7 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
       S.clone().add(rot(0, -0.045, 0)),
       o.vest ?? o.torso,
       R,
+      o.vest ? HIVIS : CLOTH,
     ),
   );
   if (hi && o.pack)
@@ -557,13 +665,33 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
     const fd = dirDown(arm.p + arm.bend, arm.ab2 ?? arm.ab, side);
     const F = E.clone().add(fd.clone().multiplyScalar(FORE));
     const sleeve = o.sleeves ?? o.torso;
+    const ac = o.shortSleeves ? SKIN_CELL : CLOTH;
+    if (hi) {
+      const cap = new SphereGeometry(0.07, 6, 4);
+      cap.translate(J.x, J.y, J.z);
+      parts.push(
+        tag(paint(cap, o.shortSleeves ? o.skin : (o.vest ?? sleeve)), ac),
+      );
+    }
     parts.push(
-      tube(J, E, 0.062, 0.05, o.shortSleeves ? o.skin : sleeve, sides),
+      tube(J, E, 0.062, 0.05, o.shortSleeves ? o.skin : sleeve, sides, 1, ac),
     );
-    parts.push(tube(E, F, 0.05, 0.04, o.shortSleeves ? o.skin : sleeve, sides));
+    parts.push(
+      tube(E, F, 0.05, 0.04, o.shortSleeves ? o.skin : sleeve, sides, 1, ac),
+    );
     const hand = F.clone().add(fd.clone().multiplyScalar(0.05));
     hands.push(hand);
-    parts.push(block(0.085, 0.11, 0.07, hand, o.gloves ?? o.skin, along(fd)));
+    parts.push(
+      block(
+        0.085,
+        0.11,
+        0.07,
+        hand,
+        o.gloves ?? o.skin,
+        along(fd),
+        o.gloves ? LEATHER : SKIN_CELL,
+      ),
+    );
   }
 
   // Neck + head.
@@ -576,6 +704,8 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
       0.05,
       o.collar ?? o.skin,
       4,
+      1,
+      o.collar ? CLOTH : SKIN_CELL,
     ),
   );
   const M = R.clone().multiply(
@@ -596,7 +726,11 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
   // What is held.
   if (pose.prop) parts.push(...propParts(pose.prop, hands, S, R, Hc, hi));
 
-  const g = merge(parts.map((p) => planarUV(p, 1.3)));
+  const g = merge(
+    parts.map((p) =>
+      p.userData.cell === -1 ? p : mapCell(p, p.userData.cell ?? NYLON),
+    ),
+  );
   const bodyScale = o.scale;
   if (pose.lie) {
     // On the back: face up, head towards -Z (feet at the origin side).
@@ -615,13 +749,57 @@ function headParts(o: Outfit, hi: boolean, rng: Rng): BufferGeometry[] {
   const seg = hi ? 6 : 4;
   const head = new SphereGeometry(HEAD_R, seg, hi ? 4 : 3);
   head.scale(0.92, 1.1, 1);
-  out.push(paint(head, o.skin));
-  if (hi)
-    out.push(block(0.03, 0.04, 0.035, v(0, -0.01, HEAD_R + 0.005), o.skin));
+  out.push(tag(paint(head, o.skin), SKIN_CELL));
+  if (hi) {
+    // Painted face (eyes, brows, nose, mouth) on a patch just over the front of the head.
+    const f = new SphereGeometry(
+      HEAD_R * 1.012,
+      6,
+      5,
+      Math.PI / 2 - 0.72,
+      1.44,
+      Math.PI * 0.3,
+      Math.PI * 0.5,
+    );
+    f.scale(0.92, 1.1, 1);
+    const fp = paint(f, o.skin);
+    const uv = fp.getAttribute('uv');
+    const pos = fp.getAttribute('position');
+    for (let i = 0; i < pos.count; i++) {
+      const [u, w] = cellUV(
+        FACE,
+        0.5 + pos.getX(i) / 0.25,
+        0.5 - pos.getY(i) / 0.3,
+      );
+      uv.setXY(i, u, w);
+    }
+    out.push(tag(fp, -1));
+    out.push(
+      block(
+        0.03,
+        0.04,
+        0.035,
+        v(0, -0.01, HEAD_R + 0.005),
+        o.skin,
+        undefined,
+        SKIN_CELL,
+      ),
+    );
+  }
   if (hi && o.glasses)
     out.push(block(0.17, 0.032, 0.02, v(0, 0.02, HEAD_R * 0.98), '#15171a'));
   if (hi && o.beard)
-    out.push(block(0.13, 0.07, 0.05, v(0, -0.07, HEAD_R * 0.8), o.hair));
+    out.push(
+      block(
+        0.13,
+        0.07,
+        0.05,
+        v(0, -0.07, HEAD_R * 0.8),
+        o.hair,
+        undefined,
+        HAIR_CELL,
+      ),
+    );
   const hatLow = o.hat === 'cap' || o.hat === 'beanie' || o.hat === 'helmet';
   if (o.hat === 'helmet') {
     const d = new SphereGeometry(
@@ -688,9 +866,19 @@ function headParts(o: Outfit, hi: boolean, rng: Rng): BufferGeometry[] {
     );
     d.scale(0.96, 1.05, 1.03);
     d.rotateX(-0.45);
-    out.push(paint(d, o.hair));
+    out.push(tag(paint(d, o.hair), HAIR_CELL));
     if (o.hairKind === 'long')
-      out.push(block(0.19, 0.2, 0.06, v(0, -0.05, -HEAD_R * 0.9), o.hair));
+      out.push(
+        block(
+          0.19,
+          0.2,
+          0.06,
+          v(0, -0.05, -HEAD_R * 0.9),
+          o.hair,
+          undefined,
+          HAIR_CELL,
+        ),
+      );
     else if (o.hairKind === 'pony')
       out.push(
         tube(
@@ -700,12 +888,34 @@ function headParts(o: Outfit, hi: boolean, rng: Rng): BufferGeometry[] {
           0.018,
           o.hair,
           4,
+          1,
+          HAIR_CELL,
         ),
       );
     else if (o.hairKind === 'bun')
-      out.push(block(0.08, 0.08, 0.08, v(0, 0.1, -HEAD_R * 0.95), o.hair));
+      out.push(
+        block(
+          0.08,
+          0.08,
+          0.08,
+          v(0, 0.1, -HEAD_R * 0.95),
+          o.hair,
+          undefined,
+          HAIR_CELL,
+        ),
+      );
   } else if (hi && o.hat === 'cap' && o.hairKind === 'long') {
-    out.push(block(0.12, 0.14, 0.05, v(0, -0.07, -HEAD_R * 0.85), o.hair));
+    out.push(
+      block(
+        0.12,
+        0.14,
+        0.05,
+        v(0, -0.07, -HEAD_R * 0.85),
+        o.hair,
+        undefined,
+        HAIR_CELL,
+      ),
+    );
   }
   void rng;
   return out;
@@ -871,7 +1081,7 @@ function blob(o: Outfit): BufferGeometry {
       o.hat === 'none' ? o.skin : o.hatColor,
     ),
   ];
-  const g = merge(parts.map((p) => planarUV(p, 1.3)));
+  const g = merge(parts.map((p) => mapCell(p, p.userData.cell ?? NYLON)));
   g.scale(o.scale, o.scale, o.scale);
   return g;
 }
@@ -896,7 +1106,7 @@ function blocky(o: Outfit, pose: PoseName): BufferGeometry {
       o.hat === 'none' ? o.skin : o.hatColor,
     ),
   ];
-  const g = merge(parts.map((p) => planarUV(p, 1.3)));
+  const g = merge(parts.map((p) => mapCell(p, p.userData.cell ?? NYLON)));
   g.scale(o.scale, o.scale, o.scale);
   return g;
 }
@@ -920,7 +1130,7 @@ function finishFigure(
       : crowd && lod === 1
         ? blocky(outfit, pose)
         : figure({ pose: POSES[pose] as Pose, outfit, lod, rng });
-  return { parts: [{ geometry: g, material: getMaterial('props') }] };
+  return { parts: [{ geometry: g, material: getMaterial('people') }] };
 }
 
 const baseOutfit = (rng: Rng): Outfit => ({

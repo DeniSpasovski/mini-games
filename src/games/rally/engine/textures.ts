@@ -40,6 +40,7 @@ export type TextureId =
   | 'vehicle_decals'
   | 'village_sign'
   | 'detail'
+  | 'people'
   | 'macro'
   | 'grass_card'
   | 'grass_card_dry'
@@ -967,6 +968,202 @@ const DEFS: Record<TextureId, TexDef> = {
         24,
         61,
       );
+    },
+  },
+  people: {
+    // Linear multiplier for the vertex colours of every figure (assets/builders/people.ts): a 4 x 4 atlas of 128 px
+    // cells - 0 cloth weave, 1 denim twill, 2 skin, 3 hair strands, 4 painted face, 5 nylon / hat, 6 leather, 7 hi-vis mesh.
+    name: 'People atlas (cloth, denim, skin, hair, face)',
+    size: [512, 512],
+    color: false,
+    draw(ctx, w) {
+      const C = w / 4;
+      const rng = new Rng(404);
+      const cell = (
+        i: number,
+        base: number,
+        fn: (ox: number, oy: number) => void,
+      ) => {
+        const ox = (i % 4) * C;
+        const oy = Math.floor(i / 4) * C;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(ox, oy, C, C);
+        ctx.clip();
+        ctx.fillStyle = `rgb(${base},${base},${base})`;
+        ctx.fillRect(ox, oy, C, C);
+        fn(ox, oy);
+        ctx.restore();
+      };
+      const speckle = (ox: number, oy: number, n: number, a: number) => {
+        for (let k = 0; k < n; k++) {
+          ctx.fillStyle =
+            rng.next() < 0.5 ? `rgba(0,0,0,${a})` : `rgba(255,255,255,${a})`;
+          ctx.fillRect(ox + rng.next() * C, oy + rng.next() * C, 2, 2);
+        }
+      };
+      cell(0, 232, (ox, oy) => {
+        for (let y = 0; y < C; y += 2) {
+          ctx.fillStyle = 'rgba(0,0,0,0.07)';
+          ctx.fillRect(ox, oy + y, C, 1);
+        }
+        for (let x = 0; x < C; x += 3) {
+          ctx.fillStyle = 'rgba(0,0,0,0.06)';
+          ctx.fillRect(ox + x, oy, 1, C);
+        }
+        // Soft folds.
+        for (let k = 0; k < 7; k++) {
+          ctx.strokeStyle = `rgba(0,0,0,${0.05 + rng.next() * 0.06})`;
+          ctx.lineWidth = 3 + rng.next() * 6;
+          ctx.beginPath();
+          const x0 = ox + rng.next() * C;
+          ctx.moveTo(x0, oy);
+          ctx.quadraticCurveTo(
+            x0 + rng.range(-25, 25),
+            oy + C / 2,
+            x0 + rng.range(-20, 20),
+            oy + C,
+          );
+          ctx.stroke();
+        }
+        speckle(ox, oy, 500, 0.07);
+      });
+      cell(1, 214, (ox, oy) => {
+        for (let k = -C; k < C * 2; k += 3) {
+          ctx.strokeStyle = 'rgba(0,10,50,0.13)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(ox + k, oy);
+          ctx.lineTo(ox + k + C, oy + C);
+          ctx.stroke();
+        }
+        // Worn, lighter patches and a seam.
+        for (let k = 0; k < 6; k++) {
+          const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 24);
+          g.addColorStop(0, 'rgba(255,255,255,0.28)');
+          g.addColorStop(1, 'rgba(255,255,255,0)');
+          ctx.save();
+          ctx.translate(ox + rng.next() * C, oy + rng.next() * C);
+          ctx.fillStyle = g;
+          ctx.fillRect(-24, -24, 48, 48);
+          ctx.restore();
+        }
+        ctx.fillStyle = 'rgba(0,0,0,0.18)';
+        ctx.fillRect(ox + C * 0.5, oy, 1, C);
+        speckle(ox, oy, 300, 0.07);
+      });
+      cell(2, 244, (ox, oy) => {
+        for (let k = 0; k < 40; k++) {
+          const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 20);
+          g.addColorStop(0, `rgba(180,110,90,${0.05 + rng.next() * 0.06})`);
+          g.addColorStop(1, 'rgba(180,110,90,0)');
+          ctx.save();
+          ctx.translate(ox + rng.next() * C, oy + rng.next() * C);
+          ctx.fillStyle = g;
+          ctx.fillRect(-20, -20, 40, 40);
+          ctx.restore();
+        }
+        speckle(ox, oy, 200, 0.04);
+      });
+      cell(3, 205, (ox, oy) => {
+        for (let k = 0; k < 260; k++) {
+          const x = ox + rng.next() * C;
+          const y = oy + rng.next() * C * 0.6;
+          ctx.strokeStyle =
+            rng.next() < 0.6
+              ? `rgba(0,0,0,${0.15 + rng.next() * 0.25})`
+              : `rgba(255,255,255,${0.1 + rng.next() * 0.18})`;
+          ctx.lineWidth = 1 + rng.next();
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + rng.range(-6, 6), y + 30 + rng.next() * 60);
+          ctx.stroke();
+        }
+      });
+      cell(4, 246, (ox, oy) => {
+        // Face: fu / fv in [0, 1] -> the inset 90% of the cell (people.ts cellUV); eyes at y ~ 0.03 m, mouth ~ -0.06 m.
+        const X = (fu: number) => ox + C * (0.05 + 0.9 * fu);
+        const Y = (fv: number) => oy + C * (0.05 + 0.9 * fv);
+        const shade = (cx: number, cy: number, r: number, rgba: string) => {
+          const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+          g.addColorStop(0, rgba);
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = g;
+          ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+        };
+        shade(X(0.15), Y(0.62), 18, 'rgba(200,110,100,0.35)');
+        shade(X(0.85), Y(0.62), 18, 'rgba(200,110,100,0.35)');
+        shade(X(0.5), Y(0.56), 14, 'rgba(120,70,50,0.25)');
+        for (const sx of [-1, 1]) {
+          const ex = X(0.5 + sx * 0.18);
+          ctx.fillStyle = 'rgb(255,255,255)';
+          ctx.beginPath();
+          ctx.ellipse(ex, Y(0.4), 9, 5.5, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = 'rgb(40,32,30)';
+          ctx.beginPath();
+          ctx.arc(ex, Y(0.4), 4.2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(30,20,15,0.95)';
+          ctx.lineWidth = 3.5;
+          ctx.beginPath();
+          ctx.moveTo(ex - 10, Y(0.31) + sx * 1);
+          ctx.lineTo(ex + 10, Y(0.28) - sx * 1);
+          ctx.stroke();
+          ctx.strokeStyle = 'rgba(90,50,40,0.6)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.ellipse(ex, Y(0.4), 9.5, 6, 0, Math.PI, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.strokeStyle = 'rgba(110,60,50,0.5)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(X(0.5), Y(0.42));
+        ctx.lineTo(X(0.47), Y(0.56));
+        ctx.lineTo(X(0.53), Y(0.57));
+        ctx.stroke();
+        ctx.fillStyle = 'rgb(205,120,118)';
+        ctx.beginPath();
+        ctx.ellipse(X(0.5), Y(0.7), 12, 3.6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(80,30,30,0.9)';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(X(0.5) - 12, Y(0.7));
+        ctx.lineTo(X(0.5) + 12, Y(0.7));
+        ctx.stroke();
+      });
+      cell(5, 238, (ox, oy) => {
+        for (let y = 18; y < C; y += 26) {
+          ctx.fillStyle = 'rgba(0,0,0,0.14)';
+          ctx.fillRect(ox, oy + y, C, 2);
+          ctx.fillStyle = 'rgba(255,255,255,0.12)';
+          ctx.fillRect(ox, oy + y + 2, C, 2);
+        }
+        const g = ctx.createLinearGradient(ox, oy, ox + C, oy);
+        g.addColorStop(0, 'rgba(0,0,0,0.1)');
+        g.addColorStop(0.5, 'rgba(255,255,255,0.1)');
+        g.addColorStop(1, 'rgba(0,0,0,0.1)');
+        ctx.fillStyle = g;
+        ctx.fillRect(ox, oy, C, C);
+        speckle(ox, oy, 250, 0.05);
+      });
+      cell(6, 210, (ox, oy) => {
+        speckle(ox, oy, 700, 0.12);
+        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillRect(ox, oy + C * 0.88, C, C * 0.12);
+      });
+      cell(7, 245, (ox, oy) => {
+        for (let y = 0; y < C; y += 3) {
+          ctx.fillStyle = 'rgba(0,0,0,0.1)';
+          ctx.fillRect(ox, oy + y, C, 1);
+        }
+        for (let x = 0; x < C; x += 3) {
+          ctx.fillStyle = 'rgba(0,0,0,0.1)';
+          ctx.fillRect(ox + x, oy, 1, C);
+        }
+      });
     },
   },
   macro: {

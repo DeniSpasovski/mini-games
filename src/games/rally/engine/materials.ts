@@ -18,6 +18,7 @@ export type MaterialId =
   | 'foliage_card_spring'
   | 'rock'
   | 'props'
+  | 'people'
   | 'chevron'
   | 'vehicle'
   | 'village_sign';
@@ -100,6 +101,14 @@ export function getMaterial(id: MaterialId): Material {
         vertexColors: true,
         map: getTexture('detail'),
         roughness: 0.7,
+      });
+      break;
+    case 'people':
+      // Figures: vertex colour x the people atlas (weave, denim, skin, hair, painted face).
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: getTexture('people'),
+        roughness: 0.85,
       });
       break;
     case 'vehicle':
