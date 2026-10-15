@@ -407,13 +407,13 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Service truck',
     category: 'props',
     description:
-      'Team box truck (9 m) in team colours (variant = team) with a side awning on +Z. Faces +X. Solid body + awning legs.',
+      'Team box truck (8 m) in team colours (variant = team) with a side awning on +Z. Faces +X. Solid body + awning legs.',
     variants: 12,
     lods: VEHICLE_LODS,
     colliders: [
-      { kind: 'box', hx: 4.5, hz: 1.25, h: 3.5, r: 4.7 },
-      { kind: 'cylinder', x: -3.9, z: 5, r: 0.07, h: 3 },
-      { kind: 'cylinder', x: 1.5, z: 5, r: 0.07, h: 3 },
+      { kind: 'box', hx: 4.0, hz: 1.2, h: 3.1, r: 4.2 },
+      { kind: 'cylinder', x: -3.8, z: 4.8, r: 0.07, h: 2.7 },
+      { kind: 'cylinder', x: 0.5, z: 4.8, r: 0.07, h: 2.7 },
     ],
   },
   {
@@ -421,10 +421,10 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Service van',
     category: 'props',
     description:
-      'Team panel van (5.4 m, variant = team) with a roof rack. Faces +X. Solid.',
+      'Team panel van (5.6 m, variant = team) with side stripes. Faces +X. Solid.',
     variants: 12,
     lods: VEHICLE_LODS,
-    colliders: [{ kind: 'box', hx: 2.7, hz: 1.0, h: 2.4, r: 2.9 }],
+    colliders: [{ kind: 'box', hx: 2.8, hz: 1.1, h: 2.6, r: 3.0 }],
   },
   {
     id: 'car_trailer',
@@ -444,7 +444,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
       'Double-cab pickup in team colours (variant = team), open bed. Faces +X. Solid.',
     variants: 12,
     lods: VEHICLE_LODS,
-    colliders: [{ kind: 'box', hx: 2.5, hz: 0.95, h: 1.9, r: 2.7 }],
+    colliders: [{ kind: 'box', hx: 2.6, hz: 1.0, h: 1.9, r: 2.8 }],
   },
   {
     id: 'gazebo',
@@ -564,7 +564,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
       'Catering van (variant = colour) with a serving hatch and awning flap on +Z. Faces +X. Solid.',
     variants: 3,
     lods: VEHICLE_LODS,
-    colliders: [{ kind: 'box', hx: 2.5, hz: 1.05, h: 2.7, r: 2.7 }],
+    colliders: [{ kind: 'box', hx: 2.8, hz: 1.1, h: 2.4, r: 3.0 }],
   },
   {
     id: 'porta_toilet',

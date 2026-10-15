@@ -35,6 +35,7 @@ import { autoHull, type Vehicle } from '../../physics/vehicle';
 import type { CarPartGeometry } from './car-parts';
 import { hasImportedModel, loadImportedCar, splitRecolor } from './car-gltf';
 import { liveryInfo, type LiveryInfo } from './livery';
+import { paintParams, type PaintFinish } from './paint-finish';
 import { buildProfileParts } from './profile-body';
 import { axleRadius, tyreSizeFor, type Axle } from '../../physics/car-tyres';
 import type { TyreId } from '../../physics/tyres';
@@ -343,6 +344,7 @@ function getMeshMaterial(): MeshStandardMaterial {
 
 /** Livery brightness (linear) inside a recess (CarModel.recessMaterial). */
 const RECESS_SHADE = 0.12;
+
 /** Imported-model parts that never cast a shadow (hidden by the body's own shadow or too small to show). */
 const NO_SHADOW_PARTS = new Set([
   'interior',
@@ -773,11 +775,9 @@ export class CarModel {
     atlas: CarAtlas,
     info: LiveryInfo,
     seed: number,
-    finish: 'gloss' | 'satin' | 'matte' | 'metallic',
+    finish: PaintFinish,
   ): MeshPhysicalMaterial {
     const matte = finish === 'matte';
-    const satin = finish === 'satin';
-    const metallic = finish === 'metallic';
     const canvas = document.createElement('canvas');
     canvas.width = atlas.width;
     canvas.height = atlas.height;
@@ -786,14 +786,7 @@ export class CarModel {
     map.colorSpace = SRGBColorSpace;
     map.flipY = false; // glTF UV convention
     map.anisotropy = 8;
-    const mat = new MeshPhysicalMaterial({
-      map,
-      metalness: matte ? 0 : satin ? 0.1 : metallic ? 0.35 : 0.2,
-      roughness: matte ? 0.88 : satin ? 0.58 : metallic ? 0.34 : 0.45,
-      clearcoat: matte ? 0 : satin ? 0.35 : metallic ? 0.65 : 1,
-      clearcoatRoughness: satin ? 0.4 : metallic ? 0.04 : 0.12,
-      envMapIntensity: 1,
-    });
+    const mat = new MeshPhysicalMaterial({ map, ...paintParams(finish) });
     if (atlas.matteRect && !matte) {
       // Matte patch (wheel arches): rough + no clearcoat where the atlas says so.
       const [rx, ry, rw, rh] = atlas.matteRect;

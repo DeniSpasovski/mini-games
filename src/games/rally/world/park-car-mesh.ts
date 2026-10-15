@@ -9,6 +9,7 @@ import {
   LatheGeometry,
   Matrix4,
   Mesh,
+  MeshPhysicalMaterial,
   MeshStandardMaterial,
   SRGBColorSpace,
   Vector2,
@@ -21,6 +22,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { TEAM_COUNT, TEAMS } from '../assets/builders/teams';
 import { getCar } from '../cars';
 import { loadCarModelFile } from '../cars/shared/car-gltf';
+import { paintParams } from '../cars/shared/paint-finish';
 import { rimColorFor, RIM_UNIT_BARREL } from '../cars/shared/stl-wheel';
 import { rimRadius } from '../cars/shared/tyre-mesh';
 import type { CarDef } from '../cars/shared/types';
@@ -41,13 +43,15 @@ import type { ScatterInstance } from './scatter';
  */
 
 /** Body LOD limits (m) before `lodScale`: full detail near, then ~1/3 and ~1/7 of the triangles, hidden beyond. */
-const LOD_DISTANCE = [32, 90, 420];
+const LOD_DISTANCE = [45, 120, 420];
 /** Tyre lathe segments per LOD. */
 const TYRE_SEGMENTS = [24, 14, 9];
 /** Longest side of a livery texture (px). */
 const LIVERY_SIDE = 768;
 /** Height a raised car stands off the ground (m). */
 const RAISE = 0.14;
+/** LODs below this index draw their glass with its own material (a third draw call). */
+const GLASS_LODS = 2;
 const STAND = '#c8321e';
 const TYRE = '#141516';
 
@@ -267,6 +271,7 @@ function poseGeometry(kit: Kit, lod: number, raised: boolean): BufferGeometry {
       }
   }
   g = mergeGeometries(pieces, false)!;
+  if (lod < GLASS_LODS) groupGlass(g);
   for (const piece of pieces) piece.dispose();
   g.computeBoundingSphere();
   kit.poses.set(key, g);
@@ -275,13 +280,13 @@ function poseGeometry(kit: Kit, lod: number, raised: boolean): BufferGeometry {
 
 // --- livery ------------------------------------------------------------------------------------
 
-const liveries = new Map<string, MeshStandardMaterial>();
+const liveries = new Map<string, MeshPhysicalMaterial>();
 
 /**
  * The car's livery painter in a team's colours, drawn on the full atlas and scaled down to `LIVERY_SIDE`.
  * One material per (car, team), kept for the page's life (a park uses about a dozen).
  */
-function liveryMaterial(def: CarDef, team: number): MeshStandardMaterial {
+function liveryMaterial(def: CarDef, team: number): MeshPhysicalMaterial {
   const key = `${def.id}:${team}`;
   let mat = liveries.get(key);
   if (mat) return mat;
@@ -308,11 +313,13 @@ function liveryMaterial(def: CarDef, team: number): MeshStandardMaterial {
   map.colorSpace = SRGBColorSpace;
   map.flipY = false; // glTF UV convention
   map.anisotropy = 4;
-  const matte = !!def.model.gltf?.matte;
-  mat = new MeshStandardMaterial({
+  // The finish of the car itself (clearcoat and all), so a team car shines like the player's.
+  const gltf = def.model.gltf;
+  mat = new MeshPhysicalMaterial({
     map,
-    roughness: matte ? 0.88 : 0.42,
-    metalness: matte ? 0 : 0.2,
+    ...paintParams(
+      gltf?.matte ? 'matte' : gltf?.metallic ? 'metallic' : 'gloss',
+    ),
   });
   liveries.set(key, mat);
   return mat;
@@ -325,6 +332,37 @@ const parts = (): MeshStandardMaterial =>
     roughness: 0.55,
     metalness: 0.1,
   }));
+
+/** Glass and gloss-black parts of the near LODs: the reflective material of the car's own windows. */
+let glassMaterial: MeshStandardMaterial | undefined;
+const glass = (): MeshStandardMaterial =>
+  (glassMaterial ??= new MeshStandardMaterial({
+    vertexColors: true,
+    metalness: 0.3,
+    roughness: 0.04,
+    envMapIntensity: 1.8,
+  }));
+
+/** Linear colour below which a part is glass or gloss black (baked as #0a0d10 / #08090a; the tyres' #141516 is above). */
+const DARK = 0.006;
+
+/** Puts the dark triangles of `g` (indexed, vertex colours) first and gives them group 1, the rest group 0. */
+function groupGlass(g: BufferGeometry): void {
+  const col = g.getAttribute('color');
+  const index = g.index!.array;
+  const dark: number[] = [];
+  const rest: number[] = [];
+  for (let i = 0; i < index.length; i += 3) {
+    const isDark = [0, 1, 2].every((k) => {
+      const v = index[i + k];
+      return col.getX(v) < DARK && col.getY(v) < DARK && col.getZ(v) < DARK;
+    });
+    (isDark ? dark : rest).push(index[i], index[i + 1], index[i + 2]);
+  }
+  g.setIndex([...rest, ...dark]);
+  g.addGroup(0, rest.length, 0);
+  g.addGroup(rest.length, dark.length, 1);
+}
 
 // --- the cars of a park ---------------------------------------------------------------------------
 
@@ -417,7 +455,10 @@ export class ParkCars {
     g = new Group();
     const body = new Mesh(kit.paint[lod], liveryMaterial(kit.def, c.team));
     body.position.y = kit.lift + (c.raised ? RAISE : 0);
-    const rest = new Mesh(poseGeometry(kit, lod, c.raised), parts());
+    const rest = new Mesh(
+      poseGeometry(kit, lod, c.raised),
+      lod < GLASS_LODS ? [parts(), glass()] : parts(),
+    );
     for (const m of [body, rest]) {
       m.castShadow = lod < 2;
       m.receiveShadow = true;

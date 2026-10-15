@@ -149,7 +149,9 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   spectators, flags (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`).
 - **Service park** (stage `servicePark`, Ajvatovci only so far): team bays on levelled gravel lots - trucks / vans, team cars on
   ground sheets, tents, props, 4-6 crew and guests each, tape + crowd, start control (`world/service-park.ts`,
-  `World.servicePark`; assets `assets/builders/service.ts` + `teams.ts`; test `service-park`). A lot is a `ServiceLot` rectangle:
+  `World.servicePark`; assets `assets/builders/service.ts` + `teams.ts`; test `service-park`). The team trucks, vans, pickups and the
+  catering van are the background models (`assets/builders/street-car-models.ts`, vans / trucks of pack 7 baked by
+  `bake-street-cars.mjs --vans`) in the team paint plus side stripes. A lot is a `ServiceLot` rectangle:
   the map levels it with a `terrain.pads` entry (`servicePad` in `maps/shared/service-lot.ts`, or a fixed `level` for a flat
   field), the stage lists the lots and the bay `gap` (`maps/ajvatovci/service-park.ts`: the start lot + a field north-west of it).
 - **Park cars**: `team_car` only places the car and gives it its collider. The car is a real released model at low quality:
@@ -214,7 +216,10 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   15 simplified models of three CC BY packs (`street-car-models.ts`, data in `street-cars.data.ts`, baked by
   `scripts/car-model/street-pack-extract.py` + `bake-street-cars.mjs`): ~900 / ~450 triangles, one draw call per LOD, the body
   paint recoloured per car (variants 0-14 = model, `STREET_CAR_MIX` weights what streets pick; 15 = the white hatch a map places).
-  Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` holds the triangle budget.
+  Pack 7's 5 vans / trucks (`service-vehicles.data.ts`, `bake-street-cars.mjs --vans`, `serviceVehicleModel`) dress the service park
+  and, with the cars, the Ajvatovci start-row lots (`maps/ajvatovci/start-row/build/vehicles.ts`: a few models per kind, scaled
+  to the layout footprint; only the tractor-trailers are built there). `StreetCarShape.parts()` splits a model into paint + rest.
+  Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` and `service-vehicles.test.ts` hold the triangle budgets.
 - Car GLBs are committed plain (the model scripts and `hull-fit.test.ts` read them); the build copies them meshopt-compressed
   (`scripts/car-model/glb-meshopt.mjs`, about half the size, same meshes; `car-glb-meshopt.test.ts` checks every file).
 - **Door plates** (`cars/shared/rally-badge.ts`): our own event plate (emblem, car number, map name) projected onto both front

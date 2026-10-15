@@ -6,18 +6,23 @@ import {
 } from 'three';
 import type { AssetBuilder } from '../types';
 import { TEAM_COUNT, TEAMS } from './teams';
+import {
+  serviceVehicleModel,
+  streetCarIndex,
+  streetCarModel,
+} from './street-car-models';
 import { box, finish, solid, wheel } from './vehicles';
 
 /**
  * Service park assets (rally paddock): team trucks, vans, trailers, gazebos, props, the team car stand-in and the
- * public extras. Team-coloured assets use the team index (builders/teams.ts) as variant; everything is boxes + a few
- * cylinders in the `vehicle` material (vertex colours, one draw call per asset). Vehicles face +X with the origin on
+ * public extras. Team-coloured assets use the team index (builders/teams.ts) as variant. The team trucks, vans, pickups
+ * and the catering van are the background models (street-car-models.ts) in the team paint plus side stripes; everything
+ * else is boxes + a few cylinders. All in the `vehicle` material (vertex colours, one draw call per asset). Vehicles face +X with the origin on
  * the ground under their middle; a truck's awning and a gazebo's open front are on the +Z side. No logos or lettering.
  */
 
 const WHITE = '#f2f2f2';
 const DARK = '#1d1d20';
-const GLASS = '#1b232b';
 
 const team = (variant: number) => TEAMS[variant % TEAM_COUNT];
 
@@ -72,62 +77,45 @@ function sheet(pts: [number, number, number][], color: string): BufferGeometry {
 
 // --- team vehicles ---------------------------------------------------------------------------------
 
-/** Cab colour: the team's base, or dark grey where the base is too light to read as a cab. */
-const cabColor = (base: string): string =>
-  base === '#eeeeee' || base === '#f0c020' ? '#d4d6da' : base;
+/** Half width of the baked vans' body (mirrors excluded); side stripes sit just outside it. */
+const SIDE = 1.07;
 
-/** Box truck (9 m) in team colours with a side awning on +Z (6 x 3.8 m, two legs). */
+/** A stripe on both sides of a van or truck: `len` long at height `y`, middle at `x`. */
+const sideStripe = (
+  len: number,
+  h: number,
+  x: number,
+  y: number,
+  color: string,
+  out = SIDE,
+): BufferGeometry[] =>
+  [1, -1].map((side) => box(len, h, 0.03, x, y, side * (out + 0.012), color));
+
+/** Box truck (8 m, the background box truck) in team colours with a side awning on +Z (4.6 x 3.8 m, two legs). */
 export const serviceTruck: AssetBuilder = ({ variant, lod }) => {
   const t = team(variant);
   const parts: BufferGeometry[] = [
-    box(9, 0.35, 2.1, 0, 0.55, 0, DARK),
-    box(6.6, 2.6, 2.5, -1.2, 2.15, 0, t.base),
-    box(1.9, 2.2, 2.4, 3.4, 1.7, 0, cabColor(t.base)),
-    box(0.06, 0.85, 2.2, 4.36, 2.35, 0, GLASS),
-    box(6.62, 0.38, 2.52, -1.2, 1.55, 0, t.accent),
-    box(6.62, 0.12, 2.52, -1.2, 1.9, 0, t.accent2),
-    box(0.06, 2.2, 2.3, -4.52, 2.1, 0, '#3a3d42'),
+    serviceVehicleModel('box_truck', lod).geometry(t.base),
+    ...sideStripe(4.6, 0.38, -1.65, 1.55, t.accent),
+    ...sideStripe(4.6, 0.12, -1.65, 1.9, t.accent2),
   ];
-  for (const z of [1.21, -1.21])
-    parts.push(box(1.1, 0.7, 0.04, 3.5, 2.35, z, GLASS));
-  if (lod === 0)
-    for (const x of [3.2, -2.4, -3.7])
-      for (const z of [1.05, -1.05]) parts.push(wheel(0.55, 0.4, x, z));
-  else
-    for (const z of [1.05, -1.05])
-      parts.push(box(8, 0.55, 0.4, -0.5, 0.55, z, DARK));
   // Awning: canopy sloping down to the valance, two legs.
   parts.push(
-    tilted(6, 0.07, 3.8, -1.2, 3.1, 3.2, 0.07, WHITE),
-    box(6, 0.3, 0.05, -1.2, 2.85, 5.1, t.accent),
+    tilted(4.6, 0.07, 3.8, -1.65, 2.85, 3.0, 0.07, WHITE),
+    box(4.6, 0.3, 0.05, -1.65, 2.6, 4.9, t.accent),
   );
-  for (const x of [-3.9, 1.5]) parts.push(post(x, 5.0, 2.95, 0.04, '#b8bcc2'));
+  for (const x of [-3.8, 0.5]) parts.push(post(x, 4.8, 2.7, 0.04, '#b8bcc2'));
   return finish(parts);
 };
 
-/** Panel van (5.4 m) in team colours with a roof rack. */
+/** Panel van (5.6 m, the background high-roof van) in team colours with side stripes. */
 export const serviceVan: AssetBuilder = ({ variant, lod }) => {
   const t = team(variant);
-  const parts: BufferGeometry[] = [
-    box(5.2, 0.3, 1.9, 0, 0.5, 0, DARK),
-    box(3.4, 1.85, 2.0, -0.7, 1.5, 0, t.base),
-    box(1.8, 1.2, 2.0, 1.8, 1.1, 0, cabColor(t.base)),
-    tilted(1.0, 0.06, 1.9, 1.75, 1.78, 0, 0, cabColor(t.base)),
-    box(0.06, 0.7, 1.8, 2.5, 1.5, 0, GLASS),
-    box(3.42, 0.3, 2.02, -0.7, 1.25, 0, t.accent),
-    box(3.42, 0.1, 2.02, -0.7, 1.55, 0, t.accent2),
-  ];
-  for (const z of [1.01, -1.01])
-    parts.push(box(0.9, 0.55, 0.03, 1.7, 1.6, z, GLASS));
-  if (lod === 0) {
-    for (const x of [1.7, -1.6])
-      for (const z of [0.95, -0.95]) parts.push(wheel(0.36, 0.26, x, z));
-    for (const x of [-1.5, 0.1])
-      parts.push(box(0.06, 0.06, 1.8, x, 2.5, 0, '#8d9096'));
-  } else
-    for (const z of [0.95, -0.95])
-      parts.push(box(4.2, 0.4, 0.26, 0, 0.4, z, DARK));
-  return finish(parts);
+  return finish([
+    serviceVehicleModel('van_high', lod).geometry(t.base),
+    ...sideStripe(3.4, 0.28, -1.1, 1.1, t.accent),
+    ...sideStripe(3.4, 0.09, -1.1, 1.38, t.accent2),
+  ]);
 };
 
 /** Flat car trailer (5.5 m) with a tow bar to +X, the ramp folded at -X. Variant 0 grey, 1 dark. */
@@ -149,27 +137,14 @@ export const carTrailer: AssetBuilder = ({ variant, lod }) => {
   return finish(parts);
 };
 
-/** Double-cab pickup (5.2 m) in team colours with an open bed. */
+/** Double-cab pickup (5.2 m, the background pickup) in team colours with an open bed. */
 export const pickup: AssetBuilder = ({ variant, lod }) => {
   const t = team(variant);
-  const parts: BufferGeometry[] = [
-    box(5.0, 0.3, 1.8, 0, 0.55, 0, DARK),
-    box(2.3, 0.85, 1.9, 0.9, 0.95, 0, t.base),
-    box(1.5, 0.6, 1.8, 0.55, 1.65, 0, t.base),
-    box(0.05, 0.5, 1.7, 1.3, 1.68, 0, GLASS),
-    box(2.2, 0.5, 1.9, -1.6, 0.9, 0, t.base),
-    box(2.2, 0.06, 1.7, -1.6, 1.12, 0, '#2a2d34'),
-    box(2.22, 0.14, 1.92, -1.6, 1.0, 0, t.accent),
-  ];
-  for (const z of [0.95, -0.95])
-    parts.push(box(0.9, 0.38, 0.03, 0.6, 1.68, z, GLASS));
-  if (lod === 0)
-    for (const x of [1.6, -1.6])
-      for (const z of [0.9, -0.9]) parts.push(wheel(0.37, 0.26, x, z));
-  else
-    for (const z of [0.9, -0.9])
-      parts.push(box(3.8, 0.4, 0.26, 0, 0.4, z, DARK));
-  return finish(parts);
+  const m = streetCarModel(streetCarIndex('pickup'), lod);
+  return finish([
+    m.geometry(t.base),
+    ...sideStripe(1.6, 0.14, -1.45, 0.98, t.accent, m.sideZ),
+  ]);
 };
 
 /**
@@ -353,25 +328,15 @@ export const trolleyJack: AssetBuilder = () =>
 
 // --- public side and control ---------------------------------------------------------------------------
 
-/** Catering van (variant = colour): serving hatch with an awning flap, counter. */
+/** Catering van (variant = colour, the background low-roof van): serving hatch with an awning flap, counter. */
 export const foodTruck: AssetBuilder = ({ variant, lod }) => {
   const c = ['#e0b020', '#c8321e', '#14908c'][variant % 3];
-  const parts: BufferGeometry[] = [
-    box(5.0, 0.3, 1.9, 0, 0.5, 0, DARK),
-    box(3.2, 2.05, 2.1, -0.8, 1.6, 0, c),
-    box(1.6, 1.3, 2.0, 1.65, 1.15, 0, c),
-    box(0.06, 0.65, 1.8, 2.43, 1.55, 0, GLASS),
-    box(1.6, 0.7, 0.03, -0.8, 1.75, 1.06, '#16181c'),
-    tilted(1.9, 0.04, 0.9, -0.8, 2.35, 1.5, 0.35, WHITE),
-    box(1.8, 0.05, 0.4, -0.8, 1.38, 1.2, '#c8cbd0'),
-  ];
-  if (lod === 0)
-    for (const x of [1.6, -1.6])
-      for (const z of [0.95, -0.95]) parts.push(wheel(0.38, 0.26, x, z));
-  else
-    for (const z of [0.95, -0.95])
-      parts.push(box(4, 0.4, 0.26, 0, 0.4, z, DARK));
-  return finish(parts);
+  return finish([
+    serviceVehicleModel('van_low', lod).geometry(c),
+    box(1.6, 0.7, 0.03, -0.9, 1.45, SIDE + 0.012, '#16181c'),
+    tilted(1.9, 0.04, 0.9, -0.9, 2.05, SIDE + 0.55, 0.35, WHITE),
+    box(1.8, 0.05, 0.4, -0.9, 1.15, SIDE + 0.2, '#c8cbd0'),
+  ]);
 };
 
 /** Portable toilet cabin (variant = colour). */
