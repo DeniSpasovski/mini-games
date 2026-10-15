@@ -9,7 +9,7 @@ export const petralicaStages: StageDef[] = [
     /** Recommended tyre (pre-selected on the car screen; see ../../PHYSICS.md). */
     tyre: 'gravel',
     description:
-      'Rankovce, North Macedonia: from Ginovci up the valley to Petralica, then a narrow switchback climb through oak woods. 9.6 km of tarmac and gravel.',
+      'Real-world mountain stage in Rankovce, north-east North Macedonia: from Ginovci across the E-871 road and up the valley on a straight road through fields to Petralica village, then a twisty climb through oak woods and open pasture to Vila Ristovski. It climbs from 478 m to 1040 m: asphalt first, gravel from about halfway.',
     timing: { start: 40, finishFromEnd: 150, splits: 4 },
     // Every side road / track meeting the stage road is closed with barriers (as on a real stage).
     closures: { asset: 'road_barrier', length: 2.2, setback: 4 },

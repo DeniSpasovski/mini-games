@@ -11,7 +11,7 @@ export const ajvatovciStages: StageDef[] = [
     /** Long gearing on the long straights (cars that cannot change it ignore this). */
     gearing: 'long',
     description:
-      'Real-world stage near Ilinden, North Macedonia: from the A2 industrial zone across the plain and Ajvatovci village up the hill. Narrow dusty tarmac.',
+      'Real-world stage near Ilinden, North Macedonia: from the Ilinden industrial zone beside the A2 motorway over the Aracinovo canal, along a farmland road through orchards to Ajvatovci village and up the hill in switchbacks. Old, narrow tarmac with a loose gravel film, in spring colours. A detailed start street with parked cars, and the hilltop church at the finish.',
     timing: { start: 40, finishFromEnd: 150, splits: 3 },
     // Every side road / track meeting the stage road is closed with barriers (as on a real stage).
     closures: { asset: 'road_barrier', length: 2.2, setback: 4 },

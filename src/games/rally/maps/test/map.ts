@@ -19,7 +19,7 @@ export const testMap: MapDef = {
       /** Recommended tyre (pre-selected on the car screen; see ../../PHYSICS.md). */
       tyre: 'gravel',
       description:
-        'Short forest gravel stage with a hairpin, a crest jump and a flat test pad.',
+        'Short procedural forest gravel stage for physics work: fast sweepers, S-bends, a hairpin, a crest jump and a flat test pad.',
       timing: { start: 40, finishFromEnd: 175, splits: 2 },
       cornerFans: { every: 40, chance: 0.6, from: 60 },
     },
