@@ -149,7 +149,7 @@
       },
       {
         "node": "body.008_emzone_206_deta1_0",
-        "material": "reverselamp"
+        "material": "lampclear"
       },
       {
         "mat": "emzone_206_deta1",
@@ -157,7 +157,7 @@
       },
       {
         "mat": "Material.006",
-        "material": "tailled"
+        "material": "lampred"
       },
       {
         "mat": "M_96_96_1.001",
@@ -235,8 +235,8 @@
       "gloss",
       "amber",
       "lamphousing",
-      "tailled",
-      "reverselamp",
+      "lampred",
+      "lampclear",
       "mirror",
       "interior",
       "interior:2s",

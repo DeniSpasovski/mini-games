@@ -22,12 +22,12 @@ npm run dev     # /games/rally/car-viewer.html?car=peugeot_206
 
 ## Stats (game engine configuration)
 
-Power, torque and mass are estimates of a 206 GTi 180, not measured values.
+Power and torque follow the 206 GTi 180 (180 hp, 202 Nm); the mass is an estimate.
 
 | Stat       | Value                                                           |
 | ---------- | --------------------------------------------------------------- |
 | Drivetrain | FWD, 5-speed manual, final drive 4.3 (short / medium / long)    |
-| Engine     | 2.0 16V, about 200 Nm at 4750 rpm, about 180 hp, redline 7200   |
+| Engine     | 2.0 16V, 202 Nm at 4750 rpm, 180 hp at 6900, redline 7200       |
 | Mass       | 1100 kg, wheelbase 2.443 m, track 1.43 / 1.41 m                 |
 | Wheels     | 215/45 R17 tarmac, 205/55 R16 mixed, 195/65 R15 gravel          |
 | Aids       | ABS, TC like every car (ABS can be switched off in the options) |
@@ -43,9 +43,10 @@ Power, torque and mass are estimates of a 206 GTi 180, not measured values.
 
 ## Credits and licence
 
-| What                      | Source                                                                                                             | Licence       |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------- |
-| Body, cockpit, lamps, rim | ["Peugeot 206" by Alvier, Sketchfab](https://sketchfab.com/3d-models/peugeot-206-dc25a117378545e7a804c8594aa86938) | **CC BY 4.0** |
+| What                      | Source                                                                                                                                                                            | Licence        |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| Body, cockpit, lamps, rim | ["Peugeot 206" by Alvier, Sketchfab](https://sketchfab.com/3d-models/peugeot-206-dc25a117378545e7a804c8594aa86938)                                                                | **CC BY 4.0**  |
+| Specification             | [Stellantis Media - Peugeot GTi through the years](https://www.media.stellantis.com/uk-en/peugeot/press/peugeot-gti-through-the-years-10-icons-that-set-automotive-hearts-racing) | reference only |
 
 Converted and repainted by us (attribution in `CarDef.credit`, `THIRD-PARTY.md`, `public/models/CREDITS.md`). The downloaded GLB
 itself is not in the repository (`sources/` is git-ignored); only the converted `peugeot_206.glb` / `peugeot_206_wheel.glb` ship.

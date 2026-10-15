@@ -75,12 +75,17 @@ export const peugeot206: CarDef = {
   name: 'Peugeot 206',
   className: 'Hot hatch · FWD',
   description:
-    'Tuned 206 GTi: a light, short-wheelbase FWD hatch with a 2.0 litre four. Lift to rotate it, keep the revs up and use the handbrake.',
+    'Tuned 206 GTi 180: a light, short-wheelbase FWD hatch with a 2.0 litre, 180 hp four. Lift to rotate it, keep the revs up and use the handbrake.',
   sources: [
     {
       label: '"Peugeot 206" by Alvier (Sketchfab)',
       url: 'https://sketchfab.com/3d-models/peugeot-206-dc25a117378545e7a804c8594aa86938',
       note: 'imported body, cockpit, lamps and rim (converted + repainted), CC BY 4.0',
+    },
+    {
+      label: 'Stellantis Media - Peugeot GTi through the years: 10 icons',
+      url: 'https://www.media.stellantis.com/uk-en/peugeot/press/peugeot-gti-through-the-years-10-icons-that-set-automotive-hearts-racing',
+      note: 'specification reference (206 GTi 180: 2.0 litre, 180 hp, 202 Nm)',
     },
   ],
   // 2.0 litre 16V four on a sports exhaust, naturally aspirated, 5-speed manual.
@@ -108,7 +113,7 @@ export const peugeot206: CarDef = {
       },
     },
     wheelInertia: 1.0,
-    maxSteerDeg: 32,
+    maxSteerDeg: 30,
     front: FRONT,
     rear: REAR,
     setup: 'soft',
@@ -121,7 +126,7 @@ export const peugeot206: CarDef = {
       },
     ),
     engine: {
-      // 2.0 16V (GTi 180): ~202 Nm at 4750, ~132 kW (180 hp) at 6900.
+      // 2.0 16V (GTi 180): 202 Nm at 4750, 180 hp (the menu's kW x 1.341) at 6900.
       torqueCurve: [
         [1000, 120],
         [2000, 160],
@@ -130,7 +135,7 @@ export const peugeot206: CarDef = {
         [4750, 202],
         [5500, 200],
         [6200, 192],
-        [6900, 183],
+        [6900, 186],
         [7300, 160],
       ],
       idleRpm: 900,

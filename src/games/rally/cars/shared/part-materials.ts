@@ -45,6 +45,8 @@ export type PartName =
   | 'headled'
   | 'tailled'
   | 'reverselamp'
+  | 'lampclear'
+  | 'lampred'
   | 'tailc4'
   | 'redcover'
   | 'brakecover'
@@ -1716,6 +1718,45 @@ const BUILDERS: Record<PartName, () => Material> = {
         g.fillStyle = '#fff';
         g.fillRect(0, 0, 2, 2);
       }),
+    ),
+  /**
+   * Modelled lamp body behind the red bars, a clear plastic lens seen matte (Peugeot 206): soft grey-white, barely any
+   * reflection; lights white in reverse gear only, like `reverselamp`.
+   */
+  lampclear: () =>
+    lamp(
+      new MeshPhysicalMaterial({
+        color: 0xd2d2cf,
+        roughness: 0.8,
+        metalness: 0,
+        envMapIntensity: 0.15,
+        emissive: 0xffffff,
+        emissiveMap: canvas(2, 2, (g) => {
+          g.fillStyle = '#000';
+          g.fillRect(0, 0, 2, 2);
+        }),
+        emissiveIntensity: 0,
+      }),
+      2.2,
+      canvas(2, 2, (g) => {
+        g.fillStyle = '#fff';
+        g.fillRect(0, 0, 2, 2);
+      }),
+    ),
+  /** Modelled tail-lamp red lens, deep and calm (Peugeot 206): faint idle glow, clear red with the brake pedal (setBrake). */
+  lampred: () =>
+    lamp(
+      new MeshPhysicalMaterial({
+        color: 0xa3111a,
+        emissive: 0xd00808,
+        emissiveIntensity: 0.1,
+        roughness: 0.3,
+        metalness: 0,
+        envMapIntensity: 0.6,
+        clearcoat: 0.8,
+        clearcoatRoughness: 0.1,
+      }),
+      1.3,
     ),
   /** Red see-through cover over a modelled tail lamp. */
   redcover: () =>
