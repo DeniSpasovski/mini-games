@@ -61,7 +61,7 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 | [Ford Mustang GT3](cars/ford-gt3/)         | RWD   | 2024 GT3 racer from a CC BY Sketchfab GLB, kept as is                                                   |
 | [Mercedes 190E](cars/merc-190/)            | RWD   | 2.5-16 Evolution saloon from a CC BY Sketchfab GLB, kept as is, badges removed                          |
 | [Peugeot 206](cars/peugeot-206/)           | FWD   | tuned 206 hot hatch from a CC BY Sketchfab GLB, kept as is (test)                                       |
-| [Audi RS6](cars/audi-rs6/)                 | AWD   | C8 RS6 Avant from a CC BY Sketchfab GLB, kept as is (test)                                              |
+| [Audi RS6](cars/audi-rs6/)                 | AWD   | C8 RS6 Avant from a CC BY Sketchfab GLB, kept as is                                                     |
 | [Porsche 911 (930)](cars/porsche-911-930/) | RWD   | 1975 911 Turbo from a CC BY Sketchfab GLB, kept as is (test)                                            |
 
 [![Skoda Rally](cars/skoda-rally/screenshots/front-34.jpg)](cars/skoda-rally/) [![Zastava](cars/zastava-101/screenshots/front-34.jpg)](cars/zastava-101/)

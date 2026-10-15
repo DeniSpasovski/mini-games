@@ -34,6 +34,11 @@ played and modified locally.
 - An installable, offline-capable portal (PWA), one self-contained build per game.
 - Bundled with [Rsbuild](https://rsbuild.rs/), tested with Rstest on GitHub Actions, written in TypeScript.
 
+## Contributors
+
+- **Deni Spasovski** - agent orchestrator
+- **[Derek McTavish](https://github.com/hyphyphyph)** - foliage and rendering improvements
+
 ## Quick start
 
 ```bash

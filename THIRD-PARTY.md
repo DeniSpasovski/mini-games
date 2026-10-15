@@ -60,6 +60,17 @@ Some roads, properties and outlines were added or traced by hand on top of the o
 | `porsche_911_930.glb`, `porsche_911_930_wheel.glb`, `porsche_911_930_lamp.png`           | "Porsche 911 (930) Turbo 1975" by Lexyc16 (Sketchfab; split by material and converted, wheels dropped, rear light wordmark replaced by a flat lens; rim extracted, nuts dropped, recoloured two-tone; headlamp texture kept; flat paint at runtime)                                                | CC BY 4.0                    |
 | `lancer_evo_6.glb`, `lancer_evo_6_wheel.glb`, `lancer_evo_6_{lamps,seat,fabric,cab}.png` | "Mitsubishi Lancer Evolution 6" by vecarz (Sketchfab; converted and repainted, badges + plate removed; lamp and seat textures kept)                                                                                                                                                                | CC BY 4.0                    |
 
+### Background cars (baked into `src/games/rally/assets/builders/street-cars.data.ts`)
+
+The parked cars of the city maps are simplified, recoloured copies of vehicles from three CC BY 4.0 packs (split, reduced to
+about 900 / 450 triangles and packed by `scripts/car-model/bake-street-cars.mjs`; the source files are not in the repository).
+
+| Pack                                                                                                                                                 | Author                                                       | Licence   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------- |
+| ["Generic passenger car pack"](https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5) (modern cars)            | [Comrade1280](https://sketchfab.com/comrade1280) (Sketchfab) | CC BY 4.0 |
+| ["Low Poly Vehicle Mini Pack 8"](https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-8-52ee24ff6eb2479891fe68e6ce46af28) (old boxy cars)      | [Vladek](https://sketchfab.com/vladek27) (Sketchfab)         | CC BY 4.0 |
+| ["Low Poly Vehicle Mini Pack 7"](https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-7-c8fce59e51874a4182dc20a66cbc6c74) (vans, not used yet) | [Vladek](https://sketchfab.com/vladek27) (Sketchfab)         | CC BY 4.0 |
+
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 
 ## Music

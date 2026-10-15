@@ -404,6 +404,6 @@ export const petralicaMap: MapDef = {
   // Start / finish gantries, lines and split boards come from `stage` (world/stage-signs.ts).
   props: [
     // White hatchback in the yard of house 665 (stage-road side, parallel to the house).
-    { asset: 'street_car', variant: 12, x: -338.5, z: 2440.5, rotY: 50 },
+    { asset: 'street_car', variant: 15, x: -338.5, z: 2440.5, rotY: 50 },
   ],
 };
