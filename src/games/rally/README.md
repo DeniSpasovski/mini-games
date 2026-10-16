@@ -43,6 +43,7 @@ Menu: select stage (with its time of day: night to evening) -> select car -> (op
 | [Jackie Robinson Parkway](maps/jackie/) | New York City               | 7.3 km       | tarmac, bridges | playable        |
 | [Test Map](maps/test/)                  | procedural forest           | 1.7 km       | gravel          | physics         |
 | [Galichica](maps/galichica/) (3 stages) | Lake Ohrid - Lake Prespa    | 12.7-27.4 km | mountain tarmac | test (dev only) |
+| [Vodno Hillclimb](maps/vodno/)          | Skopje, North Macedonia     | 4.0 km       | mountain tarmac | test (dev only) |
 
 [![Ajvatovci](maps/ajvatovci/screenshots/start-street.jpg)](maps/ajvatovci/) [![Jackie](maps/jackie/screenshots/parkway-bridge.jpg)](maps/jackie/)
 

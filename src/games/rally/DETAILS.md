@@ -106,7 +106,11 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 - **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark outside the
   shadow box (`world/canopy-shadows.ts`: a coarse whole-map texture plus a 1.5 m local window of 768 m around the camera,
   rebuilt from the generated scatter chunks every 64 m, so the road gets tree shadows far past the shadow map), height fog
-  warming towards the sun, wind, leaf translucency. Custom shaders must call `addWorldUniforms(shader)`.
+  warming towards the sun, wind, leaf translucency. Custom shaders must call `addWorldUniforms(shader)`. Flag cloth
+  (`defines.RALLY_FLAG`: materials `flag` = the printed flag of North Macedonia, texture `flag_mk`; `fan_flag`) turns downwind
+  and ripples; print the pattern on the cloth, never lay geometry over it (the wind shader moves vertices, not surfaces).
+  Levelled gardens / park strips: `terrain.lawns` (flat world polygons) paints the terrain itself pure grass (splat) and wet
+  (`world/ground-moisture.ts`, lush green) - do not lay a green decal over terrain.
 - **Surfaces:** bump relief on roads, rocks and terrain (off on low); grass cards use alpha-to-coverage with MSAA.
   Terrain chunks beyond the first LOD band use the cheaper `TERRAIN_FAR` material (`world/terrain-material.ts`): no relief, one
   texture octave per layer, no specular environment lookup.
@@ -126,13 +130,14 @@ are keyed by stage id. Every map from before the split has one stage with the ol
 keeps `road` (geometry) and adds `stageRoad` (the road, or its `reversed()` view) for timing, spawn, signs, fans, closures
 and the autopilot.
 
-| map id      | name           | notes                                                                                                                 |
-| ----------- | -------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `test`      | Test Map       | procedural 1.7 km forest gravel stage, hairpin, crest jump, test pad                                                  |
-| `ajvatovci` | Ajvatovci Hill | real world (Ilinden, North Macedonia), 4.5 km old tarmac                                                              |
-| `petralica` | Petralica      | real world (North Macedonia), 9.6 km mountain stage, 560 m of climb                                                   |
-| `jackie`    | The Jackie     | real world (New York), 7.3 km parkway with bridges and portals                                                        |
-| `galichica` | Galichica      | real world (North Macedonia), pass road between Lake Ohrid and Lake Prespa, 3 stages (two run against the road); test |
+| map id      | name            | notes                                                                                                                                                                |
+| ----------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test`      | Test Map        | procedural 1.7 km forest gravel stage, hairpin, crest jump, test pad                                                                                                 |
+| `ajvatovci` | Ajvatovci Hill  | real world (Ilinden, North Macedonia), 4.5 km old tarmac                                                                                                             |
+| `petralica` | Petralica       | real world (North Macedonia), 9.6 km mountain stage, 560 m of climb                                                                                                  |
+| `jackie`    | The Jackie      | real world (New York), 7.3 km parkway with bridges and portals                                                                                                       |
+| `galichica` | Galichica       | real world (North Macedonia), pass road between Lake Ohrid and Lake Prespa, 3 stages (two run against the road); test                                                |
+| `vodno`     | Vodno Hillclimb | real world (Skopje, North Macedonia), 4.0 km hillclimb up Mount Vodno, whole suburb, ai-generated churches and summit landmarks, cross, mast, moving cable car; test |
 
 A map is `maps/<id>/map.ts` (gameplay and look) plus a baked `data.json` (`scripts/realmap/bake.py`: OpenStreetMap, ESA
 WorldCover, elevation). Format and helpers: `maps/shared/`. World axes: +X east, **+Z south**. How to build and verify maps:
@@ -153,14 +158,27 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   `groundTint.moisture` sets the strength (0 = off).
 - **Horizon backdrop** (`horizon`, real maps): the land ~25 km around the map (terrain + land cover from Terrarium /
   WorldCover, no roads or buildings), baked by `scripts/realmap/horizon.py` into `<map>/horizon.json`, drawn behind
-  everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain).
+  everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain). A grid may be
+  off-centre and non-square (`horizon` `extent` in the bake config: Vodno reaches 50 km north over the valley, 16 km south behind
+  the ridge). Catalog assets in `props` named in `FAR_LANDMARKS` (the Vodno cross and mast) are also drawn there with their last
+  LOD, so they stay on the skyline beyond the scatter's view distance.
+  `skyline` (`SkylineBuilding`: extruded footprint, one wall / glass band per floor, flat roof) adds the city's tall buildings beyond
+  the baked area (Vodno: Cevahir Sky City, the MRT tower; one draw, `skylineGeometry`).
+- **Cable cars** (`aerialways`): a gondola line from a polyline - pylons on its vertices (`pylonsAtVertices`) or evenly spaced (taller
+  where the slope asks), two ropes in a sag parabola, cabins running the loop (`world/aerialway.ts` pure layout + `cabinPose`, test;
+  `aerialway-mesh.ts` one instanced mesh moved when drawn; asset `gondola_pylon`).
 - **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
   spectators (some waving their map's own hand flag - `MapDef.country` - or a plain colour flag, never another country's) + visitors, a marshal, 2-3 photographers, flags; marshals at every side-road mouth, 10 photographers each at start and finish
   (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`). People animate (`world/people-anim.ts`, run by `RallyGame.frame`): within 45 m they turn to watch the car, photographers (75 m) keep it centred, via `InstanceStreamer.setMatrix`; hand flags wave in the `people_flag` shader (`engine/materials.ts`, own mesh from `markFlag` in people.ts).
 - **People** (`assets/builders/people.ts`): jointed low-poly figures posed by joint angles + outfit colours, smooth lofted bodies close up (LOD 0), painted unwrapped garment atlas + normal map (`engine/people-atlas.ts`, `people` material; zips, pockets, seams, face) - `spectator` (24 standing + 18 sitting / squatting at corner fans),
   `mechanic`, `crew`, `driver`, `marshal` (flag, sign, radio), `photographer`, `visitor` (12 personas: ages, sizes, dresses, kids); test `people`.
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)
-  puts them on the outside of every tight bend of a mountain road (Galichica).
+  puts them on the outside of every tight bend of a mountain road (Galichica). `rusty: true` = weathered brown steel (Vodno).
+- **Scatter area** (`MapDef.scatterBounds`): narrows where trees / bushes / rocks are generated (any side of `bounds`) - for land no
+  camera can see (Vodno: nothing south of the ridge). A way merging into another at a shallow angle sets `PathDef.mergeTaper` (its end
+  narrows to a point) and `joinsUnder` (its ribbon lies under the other's).
+- **Road textures** (`RoadDef.texture`, per stretch in `sections`): gravel `road`, worn `road_tarmac`, `road_tarmac_lines` (the
+  same with white edge lines), `road_parkway`, the city asphalts.
 - **Other roads** (`paths`): tarmac ribbons, dirt paint or canals with their own surface; side roads carved with grade limits
   and extended to meet the stage road, the stage's `closures` close the mouths (`world/junctions.ts`). Dirt tracks / paths are
   painted into the splat, and drawn as gravel ribbons too on maps with `trackRibbons`; `pathProfiles` overrides the
@@ -176,7 +194,8 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   footprints (`world/building-mesh.ts`).
 - **Stage signs:** start / finish gantries and split boards from the stage's `timing`, along the stage road (`world/stage-signs.ts`).
 - **Landmarks:** hand-modelled lots on graded pads that replace the placeholders, hooks `surfaceAt` / `keepsClear` /
-  `groundOverride` (`world/landmarks.ts`, `pads.ts`; `maps/ajvatovci/start-row`, `hilltop`, `station`).
+  `groundOverride` (`world/landmarks.ts`, `pads.ts`; `maps/ajvatovci/start-row`, `hilltop`, `station`; Vodno's car parks:
+  `maps/vodno/landmarks/car-parks.ts` + `lots.ts`). A `PathDef.bare` street gets no kerbs / sidewalks / lamps inside `cityStreets` reach.
 - **City maps** (`jackie`): one-way carriageways, bridges and decks, portals, junction plazas, parkway lanes, continuous
   barriers, retaining walls, gores, overhead signs, kerbs / crosswalks / lamps, parked vehicles (`world/bridge-mesh.ts`,
   `portals.ts`, `plazas.ts`, `parkway-lanes.ts`, `barriers.ts`, `cut-wall-mesh.ts`, `street-detail.ts`).
@@ -312,8 +331,8 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 - Scatter view culling (`InstanceStreamer.setView`, called every frame by the game): non-shadow buckets (LOD1+) are
   angle-sorted and only the camera's view (+ 25 deg) is drawn. LOD0 shadow casters are drawn whole.
 - Trees (`trees/`, L-system species in `trees/species.ts`): map rules place the old tree type ids, each grown as the species
-  its description names (`TREE_TYPES`: pine, black pine, juniper, oak, walnut, fruit tree, plane, birch, sapling, poplar,
-  willow, bush, scrub, hazel, thicket); 6 variants for pine / oak / bush / scrub, 4 for the rest. The map's `scale`
+  its description names (`TREE_TYPES`: pine, plantation pine (half the sprites, for dense stands), black pine, juniper, cypress, oak, locust, walnut, fruit tree, plane, birch, sapling, poplar,
+  willow, bush, scrub, hazel, thicket, bramble); 6 variants for pine / oak / bush / scrub, 4 for the rest. The map's `scale`
   multiplies the species size.
   Branches are tubes at two levels (LOD0 = the skeleton without twigs, LOD1 = trunk + first-order limbs), then an
   octahedral impostor (albedo, normal + depth, thickness: lit like everything else). Foliage = one lit, camera-facing

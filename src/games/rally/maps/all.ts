@@ -3,6 +3,7 @@ import { galichicaMap } from './galichica/map';
 import { jackieMap } from './jackie/map';
 import { petralicaMap } from './petralica/map';
 import { testMap } from './test/map';
+import { vodnoMap } from './vodno/map';
 import type { MapDef, StageDef } from './shared/types';
 
 /**
@@ -15,6 +16,7 @@ export const ALL_MAPS: MapDef[] = [
   petralicaMap,
   jackieMap,
   galichicaMap,
+  vodnoMap,
 ];
 
 /** Every stage of every map with its full map (tests: `new World(map, stage)` per stage). */

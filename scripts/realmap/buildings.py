@@ -6,7 +6,8 @@ Sources, merged:
   - Microsoft Global ML Building Footprints (ODbL) - per-quadkey CSV.gz from
     https://minedbuildings.z5.web.core.windows.net/global-buildings/dataset-links.csv
 
-  - config buildings.manual: [{lat, lon, w, d, angleDeg, floors, type, note}] - known buildings no data set has
+  - config buildings.dropWays: [OSM way ids] - ways a landmark asset draws instead (a 155 m antenna mast mapped as a building)
+  - config buildings.manual: [{lat, lon, w, d, angleDeg, floors, type, building?, note}] - known buildings no data set has
     (source 'manual')
   - fallback where neither has footprints (config buildings.worldcover): houses generated from the ESA
     WorldCover 10 m built-up class - real built-up spots, but invented sizes / exact positions (source 'wc')
@@ -266,8 +267,9 @@ def build(cfg, proj, nodes, ways, ll_box, ext, fetch, cache, route, paths, cover
     """route: smoothed 1 m stage polyline [n,2]; paths: [(kind, width, surface, pts)]."""
     seed = 17
     foot = []  # (rect, src, tags, osm id)
+    drop_ways = {str(i) for i in cfg.get('buildings', {}).get('dropWays', [])}
     for wid, w in ways.items():
-        if 'building' not in w['tags'] or len(w['refs']) < 4:
+        if 'building' not in w['tags'] or len(w['refs']) < 4 or wid in drop_ways:
             continue
         ring = [proj.fwd(*nodes[r]) for r in w['refs']]
         rc = rect(ring)
@@ -293,7 +295,7 @@ def build(cfg, proj, nodes, ways, ll_box, ext, fetch, cache, route, paths, cover
         foot += [(r, 'wc', None, None) for r in gen]
     for m in cfg.get('buildings', {}).get('manual', []):
         x, z = proj.fwd(m['lat'], m['lon'])
-        tags = {'building': 'house' if m.get('type', 'house') == 'house' else 'roof', 'building:levels': str(m.get('floors', 1))}
+        tags = {'building': m.get('building') or ('house' if m.get('type', 'house') == 'house' else 'roof'), 'building:levels': str(m.get('floors', 1))}
         foot.append(([x, z, m.get('w', 12), m.get('d', 8), math.radians(m.get('angleDeg', 0))], 'manual', tags, None))
     foot = [f for f in foot if ext[0] < f[0][0] < ext[1] and ext[2] < f[0][1] < ext[3] and f[0][2] * f[0][3] >= 12]
 

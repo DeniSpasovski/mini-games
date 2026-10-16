@@ -15,6 +15,7 @@ import {
 import { barrierMeshJob } from './barrier-mesh';
 import { bridgeMeshJob } from './bridge-mesh';
 import { cutWallMeshJob } from './cut-wall-mesh';
+import { aerialwayMeshJob } from './aerialway-mesh';
 import { powerLineMeshJob } from './power-line-mesh';
 import { railMeshJob } from './rail-mesh';
 import { streetDetailMeshJob } from './street-detail-mesh';
@@ -28,6 +29,7 @@ import { buildingMeshJob } from './building-mesh';
 import { waterMeshJob } from './water-mesh';
 import type { World } from './world';
 import { GroundTerrain } from './heightfield';
+import { newPathQuery } from './real-data';
 
 /**
  * Road surface ribbon. Vertices sample the terrain generator (so the ribbon hugs
@@ -222,6 +224,8 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
   if (plazas) group.add(plazas);
   const power = yield* timed('powerLines', powerLineMeshJob(world));
   if (power) group.add(power);
+  const aerial = yield* timed('aerialways', aerialwayMeshJob(world));
+  if (aerial) group.add(aerial);
   const rail = yield* timed('railways', railMeshJob(world));
   if (rail) group.add(rail);
   const cutWalls = yield* timed('cutWalls', cutWallMeshJob(world));
@@ -264,6 +268,8 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
   const hf = new GroundTerrain(world.gen);
   const nTmp = new Vector3();
   const rq = newRoadQuery();
+  const pqOther = newPathQuery();
+  const hasJoiners = paths.some((q) => q.joinsUnder);
   const tiles = new Map<
     string,
     {
@@ -379,7 +385,51 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
               Math.min(1, Math.max(0, (rq.distance - rq.halfWidth + 0.2) / 1.0))
             : 0;
         // Inside a junction plaza the plaza is the surface: a ribbon along its edge stays just under it.
-        let top = y + 0.03 - 0.08 * sink;
+        // Within a few metres of the stage road the carved shoulder folds the terrain into creases that a 3 cm lift does
+        // not clear (the end of a side road showed the terrain through it): the ribbon rises up to 5 cm more there.
+        const crease =
+          rq.found && rq.distance > rq.halfWidth
+            ? Math.max(0, 1 - (rq.distance - rq.halfWidth) / 8)
+            : 0;
+        // A way that joins another one (`PathDef.joinsUnder`) lies under that one's ribbon where they overlap; the way it joins rises
+        // up to 5 cm near the joining one's edge (the junction's carve folds the terrain into creases, like the stage road's).
+        let sinkOther = 0;
+        let creaseOther = 0;
+        if (p.joinsUnder || hasJoiners) {
+          net.query(x, z, pqOther, undefined, (i) => i !== pi);
+          if (pqOther.found) {
+            // (full under the other ribbon, none a step outside its edge: a ribbon dipping below the terrain there shows it)
+            if (p.joinsUnder)
+              sinkOther =
+                1 -
+                Math.min(
+                  1,
+                  Math.max(0, (pqOther.distance - pqOther.halfWidth) / 0.3),
+                );
+            else if (net.paths[pqOther.path].joinsUnder)
+              creaseOther = Math.max(
+                0,
+                1 - Math.max(0, pqOther.distance - pqOther.halfWidth) / 6,
+              );
+          }
+        }
+        // (where a joining way's carve folds the terrain, the ribbon covers the highest ground round the vertex)
+        let yTop = y;
+        if (creaseOther > 0)
+          yTop = Math.max(
+            y,
+            hf.height(x + 1.5, z),
+            hf.height(x - 1.5, z),
+            hf.height(x, z + 1.5),
+            hf.height(x, z - 1.5),
+          );
+        let top =
+          y +
+          (yTop - y) * creaseOther +
+          0.03 +
+          0.05 * Math.max(crease, creaseOther) -
+          0.08 * sink -
+          0.1 * sinkOther;
         if (onTop && !plazas.empty && plazas.inside(x, z)) {
           const ph = plazas.height(x, z);
           // (an area that keeps its ribbons: they lie on the paving)

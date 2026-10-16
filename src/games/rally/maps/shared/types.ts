@@ -50,9 +50,16 @@ export interface MapDef {
   terrain: TerrainDef;
   /** Far land around a real map (terrain + land cover, no roads / buildings), drawn as a backdrop: world/horizon.ts. */
   horizon?: HorizonDef;
+  /** Tall buildings far outside the baked area (a city's skyline), drawn with the backdrop: world/horizon.ts. */
+  skyline?: SkylineBuilding[];
   road: RoadDef;
   /** Procedural vegetation / rocks per terrain chunk. */
   scatter: ScatterRule[];
+  /**
+   * Narrows the area the scatter (trees, bushes, rocks) is generated in, inside `bounds` (any side left out keeps the bounds'): for
+   * land no camera can see - the far side of a ridge - where it only costs generation time, memory and canopy-shadow work.
+   */
+  scatterBounds?: Partial<MapDef['bounds']>;
   /** Props placed along the road (posts, signs, bales, crowds...). */
   roadside: RoadsideRule[];
   /** Continuous barriers along the road (Jersey wall, guard rail): one swept mesh, not separate props. */
@@ -62,6 +69,8 @@ export interface MapDef {
   /** Power line supports [x, z] and line polylines (flat x, z lists), baked from OSM: towers / poles + cables (world/power-lines.ts). */
   pylons?: [number, number][];
   powerLines?: number[][];
+  /** Cable cars (gondola lines): pylons, two ropes and static cabins between the stations (world/aerialway.ts). */
+  aerialways?: AerialwayDef[];
   /**
    * Railway tracks baked from OSM (`railway=rail`): a ballast bed carved into the terrain, sleepers + rails, and
    * catenary masts / wires on the electrified ones (world/railways.ts). Road decks crossing them clear the wires.
@@ -220,6 +229,15 @@ export interface PadDef {
   frontage: number[];
   /** Metres above the road's centre line at the frontage (sidewalk height), default 0.1. */
   lift?: number;
+  /**
+   * A sloped pad (a ramp between two levelled terraces): instead of `lift` the level is the road's height at the frontage plus
+   * `lift[0]` at `from`, `lift[1]` at `to` (world x, z), eased between them along that line and held beyond its ends.
+   */
+  ramp?: {
+    from: [number, number];
+    to: [number, number];
+    lift: [number, number];
+  };
 }
 
 /** A building placed from a real footprint (oriented rectangle). */
@@ -293,6 +311,21 @@ export interface HorizonDef {
   }[];
 }
 
+/** A big building on the skyline: an extruded footprint with a banded facade (one wall / glass band per floor). */
+export interface SkylineBuilding {
+  name?: string;
+  /** Footprint, flat [x0, z0, x1, z1, ...] (world metres, either winding). */
+  footprint: number[];
+  /** Height above the lowest ground of the footprint (m). */
+  height: number;
+  /** Floors, for the facade bands (default: one per 3.2 m). */
+  floors?: number;
+  /** Colours: the wall band (spandrel), the glass band, the roof. */
+  wall?: string;
+  glass?: string;
+  roof?: string;
+}
+
 export interface HeightmapDef {
   base: number;
   step: number;
@@ -359,6 +392,18 @@ export interface PathDef {
   /** false = passes over / under the stage road (bridge, not connected): never joined to it or barriered. */
   /** A road in the divided highway's cut beside its carriageways (set by world/parkway-lanes.ts, MapDef.parkwayLanes). */
   parkwayLane?: boolean;
+  /**
+   * This way ends inside another way (a lane merging into a road): its ribbon is sunk a few cm under the other ways' ribbons where
+   * they overlap, so its end is covered by the road it joins instead of poking out of the road's edge.
+   */
+  joinsUnder?: boolean;
+  /**
+   * A way merging into another at a shallow angle: its width narrows to a point over this many metres towards its END, so it
+   * runs into the other road's edge like a lane merge instead of ending in a square cut (`PathNetwork.halfWidthAt`).
+   */
+  mergeTaper?: number;
+  /** No kerbs / sidewalks / lamps / crosswalks on this street (a country road inside the city-street reach, MapDef.cityStreets). */
+  bare?: boolean;
   junction?: boolean;
   /** OSM bridge=yes: an elevated deck (not carved into the terrain, drawn as a bridge mesh). */
   bridge?: boolean;
@@ -462,6 +507,12 @@ export interface TerrainDef {
   flatAreas: FlatArea[];
   /** Graded lots / yards (real-world maps with landmarks), applied after the flat areas. */
   pads?: PadDef[];
+  /**
+   * Lawns: closed polygons (flat [x0, z0, x1, z1, ...], world metres) where the terrain itself is painted lush green grass
+   * (pure grass in the splat, wet in the grass moisture tint), with a metre of feather outside. For levelled gardens and
+   * park strips: paint the ground instead of laying a green decal over a terrain that pokes through it.
+   */
+  lawns?: number[][];
 }
 
 /**
@@ -482,6 +533,7 @@ export type RoadPoint =
 export type RoadTexture =
   | 'road'
   | 'road_tarmac'
+  | 'road_tarmac_lines'
   | 'road_parkway'
   | 'road_street'
   | 'road_street4'
@@ -665,6 +717,8 @@ export interface BarrierRule {
   onBridge?: boolean;
   /** Break the barrier where a side road / ramp joins on the same side, within this distance along (m, + half its width). */
   skipJunctions?: number;
+  /** Guard rail only: weathered, rusted brown steel instead of galvanised. */
+  rusty?: boolean;
 }
 
 /** Street detail along the other roads near the stage road. */
@@ -856,4 +910,31 @@ export interface EnvironmentDef {
     crop?: string;
     moisture?: number;
   };
+}
+
+/**
+ * A gondola line: the polyline of the ropes (flat x, z, lower station first) with pylons placed along it. The ropes
+ * hang from the pylon heads (taller where the slope asks for it), two cabin rows hang from them, static.
+ */
+export interface AerialwayDef {
+  name: string;
+  /** Line of the cable car, flat [x, z, x, z, ...], lower station -> upper station. */
+  line: number[];
+  /** Distance between pylons (m, default 125). */
+  pylonEvery?: number;
+  /**
+   * The line's interior vertices ARE the pylons (a surveyed line: OSM draws the rope with a node at each tower): spans
+   * longer than `maxSpan` get extra pylons, `pylonEvery` is then only the spacing of those.
+   */
+  pylonsAtVertices?: boolean;
+  /** Longest span with `pylonsAtVertices` before extra pylons are added (m, default 400). */
+  maxSpan?: number;
+  /** Cabin speed on the ropes (m/s, default 5): the cabins run round the loop, up one rope and down the other. */
+  speed?: number;
+  /** Rope height over the ground at the two stations (m, default 7). */
+  stationHeight?: number;
+  /** Distance between cabins on one rope (m, default 117). */
+  cabinEvery?: number;
+  /** Least rope clearance over the ground mid-span (m, default 8). */
+  clearance?: number;
 }

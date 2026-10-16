@@ -327,6 +327,16 @@ export class PathNetwork {
         this.taper[i] = Math.max(this.taper[i], Math.min(TAPER_LEN, L * 0.45));
       }
     }
+    // A way that merges into another (`PathDef.mergeTaper`): its end narrows to a point.
+    for (let i = 0; i < n; i++) {
+      const m = this.paths[i].mergeTaper;
+      if (!m) continue;
+      this.endHw[i * 2 + 1] = 0.15;
+      this.taper[i] = Math.max(
+        this.taper[i],
+        Math.min(m, this.lengths[i] * 0.45),
+      );
+    }
   }
 
   /** Half width of path `pi` at `along` metres: its own, tapering towards the ends that meet a different width. */
