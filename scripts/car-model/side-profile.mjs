@@ -68,8 +68,6 @@ const LAMPS = new Set([
   'tailweave',
   'lensweave',
   'redcover',
-  'headlight22',
-  'tail22',
 ]);
 const tris = []; // [z0, y0, z1, y1, z2, y2]
 const glassTris = [];

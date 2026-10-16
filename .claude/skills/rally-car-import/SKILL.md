@@ -292,16 +292,21 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   big triangles crossing the line leave small spikes.
 - **`region` rule** in `glb-to-parts-stl.py` (`gltf.parts`): `{"mat": "Car_body", "region": {"view": "front", "poly": [[x, y], ...], "depth": [zmin, zmax], "mirror": true}, "material": "trim"}`
   = exact outline cut (model coordinates, convex polygon): triangles are clipped along the outline, no saw teeth (bumper intakes).
-- **`uv` rule** in `glb-to-parts-stl.py` (`gltf.parts`): `{"mat": "Car_body", "uv": [u0, u1, v0, v1], "x": [0.28, 1], "material": "headlight22"}` = triangles whose
+- **`uv` rule** in `glb-to-parts-stl.py` (`gltf.parts`): `{"mat": "Car_body", "uv": [u0, u1, v0, v1], "x": [0.28, 1], "material": "<lamp part>"}` = triangles whose
   TEXCOORD_0 centroid lies in that texture rectangle (v down). For models that paint lamps into the body texture: each lamp is its own UV island, so
   this is exact, and the lamp's art can be cut out of the texture rectangle into a lamp sheet (check orientation: correlate UV u / v with
   |x|-|z| / y of the triangles; the `corner` wrap fits the part bbox, u from the centre outwards, v top down). Needs to come before any `region` of the same primitive.
-- **Modelled lamps with their own (photo) texture** (`cars/subie-22b/`): send each lamp node to a `corner`-wrap lamp part, list both sides'
+- **Modelled lamps with their own (photo) texture**: send each lamp node to a `corner`-wrap lamp part, list both sides'
   nodes in `lampSheet` (`model.source.json`) and run `bake-lamp-sheet.py <model.source.json>`: it paints the source triangles into the wrap
-  space (lens over housing) and prints the sheet rectangles for the `part-materials.ts` table (`LAMPS22`). The sheet has three rows:
+  space (lens over housing) and prints the sheet rectangles for a `part-materials.ts` table. The sheet has three rows:
   base colour, emissive, normal map. A low-poly lamp gets its depth from those two maps - use them, or it reads flat. For real 3D
   round lamps, `gltf.lampCups` (`glb-to-parts-stl.py`) builds reflector cups + bulbs behind the shell and the lens material gets
-  see-through windows over them (22B tail lamp: `tail22Windows`).
+  see-through windows over them.
+- **Modelled lamps without textures** (plain emissive shells, `cars/subie-22b/`): send them to the stock `lenscover` / `headled` / `amber` /
+  `brakecover` / `tailled` parts. A shell with no housing behind it shows the ground through the lens: add a `parts.solids` prism
+  (`lamphousing`) just behind it.
+- **Tilted model** (modelled at an angle to the axes): `glb-orient.py <in.glb> <out.glb> --heading <deg> [--shift x,y,z]` turns the scene
+  about y (heading = atan2(dx, dz) of the front / rear wheel centres) and centres it, so the `gltf.parts` boxes use the car's own axes.
 - **`adjacent` pick** in `segment-stl.py`: small segments touching an earlier-picked material; and for frames that are NOT own segments
   (smooth skins) use a `region` with the glass outline (shapely union of the glass triangles in the view) + `grow`.
 - More `gltf.parts` options (2026-10-04 evening): `facing` (normal component ranges, `"|x|": [0, 0.6]`) on a rule or inside `near`
@@ -315,7 +320,7 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   into the body primitive, so the arches are black, not painted (worked example `cars/subie-22b/`).
 - **A model's own springs / dampers**: keep them (node rules; `node` takes a list) instead of dropping the whole wheel material - an
   empty wheel well reads as missing suspension. If the physics track is narrower than the model's, `move: [dx, 0, 0]` (source units,
-  per side) puts each corner on the game's hub (worked example `cars/subie-22b/`).
+  per side) puts each corner on the game's hub. With none in the model, set `model.cornerSuspension` (`cars/subie-22b/`).
 - **Roll cage** in the same primitive as seats / door cards: the `tube` rule (`{"tube": {"r": [0.012, 0.024], "score": 0.15,
 "length": 0.3}, "material": "cage"}`) picks whole tube-shaped islands; send steering column / gear rod to `interior` with
   earlier `whole` boxes, flat gusset plates to `cage` by box. `cage` = light grey part material (worked example `cars/skoda-rally/`).

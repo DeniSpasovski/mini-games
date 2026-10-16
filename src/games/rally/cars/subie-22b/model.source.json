@@ -1,173 +1,241 @@
 {
-  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/subie-22b/03-rally-car.glb (CC BY-NC 4.0, SpatialNeglect), local only. The GLB is in centimetres, +z nose, ground at y -8.04, hubs at z 188.5 / -141.9 (wheelbase 330.4 cm), track 208 cm, centred on x -4.2. `scale` = physics wheelbase 2.54 m / 330.4 cm; `offset` puts the front hub on physics front.z 1.08 and the body on its wheels. After conversion `scripts/car-model/scale-x.mjs ... 0.942 --keep coilover,chrome` narrows the body to the real 1.77 m (springs / dampers stay on the hubs); rerun it after a rebuild from the source. The atlas block is also read by livery.ts at runtime - edit only here.",
-  "source": "sources/cars/subie-22b/03-rally-car.glb -> glb-to-parts-stl.py -> sources/cars/subie-22b/subie-22b-parts.stl",
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/subie-22b/04-impreza-22b-v2.glb = 'Subaru Impreza 22B_v2' by Lukas Scheermann (CC BY 4.0), local only; modelled at 64.16 deg to the axes, so glb-orient.py first turns it nose to +z (heading 64.1568594, shift 0.3807,0.186,-1.0645 = body centred on x, tyre bottoms on y 0, front hub at z 0) into 04-oriented.glb. Metres, +x left, +z nose; wheelbase 2.588 m, tyres 0.727 m. `scale` = physics wheelbase 2.54 m / 2.588 m; `offset` puts the front hub on physics front.z 1.08 and the hubs on the 0.31 m tyre radius. After conversion `scripts/car-model/scale-x.mjs ... 0.954` narrows the body so the wheels sit on the physics track 1.52 m (body 1.76 m); rerun it after a rebuild. The atlas block is also read by livery.ts at runtime - edit only here.",
+  "source": "sources/cars/subie-22b/04-oriented.glb -> glb-to-parts-stl.py -> sources/cars/subie-22b/subie-22b-parts.stl",
   "output": "public/models/cars/subie_22b.glb",
-  "axes": ["x", "y", "z"],
-  "scale": 0.0076877,
-  "offset": [0.0323, 0.064, -0.3691],
+  "axes": [
+    "x",
+    "y",
+    "z"
+  ],
+  "scale": 0.98145,
+  "offset": [
+    0,
+    -0.0468,
+    1.08
+  ],
   "groundAtMin": false,
   "targetTriangles": 60000,
   "creaseDeg": 40,
   "wheels": {
-    "$comment": "the wheels are separate meshes (dropped below) - nothing to cut",
+    "$comment": "the wheels are separate nodes (dropped below) - nothing to cut",
     "radius": 0,
     "minAbsX": 9,
     "centres": []
   },
   "gltf": {
-    "$comment": "primitive -> part by node / material name. Wheels, brake discs and calipers (the game builds its own) and the spare wheel, the two crew figures ('driver') and the number plate are dropped. The model's own springs, dampers and axle stubs stay, moved in by `move` (source cm) so each corner sits on the game's 1.52 m track (the model's is ~1.62 m).",
+    "$comment": "Wheel groups (tyres, rims, bolts, wheel badges), discs, calipers and the plate are dropped: the game builds its own tyres / discs / calipers, the rim is the model's own (subie_22b_wheel.glb). Badges go to `logo` (dropped).",
     "drop": [
-      "Wheel.001",
-      "Wheel.002",
-      "Wheel.003",
-      "Wheel.004",
-      "Wheel.005",
-      "Brake Caliper",
-      "Brake Caliper.001",
-      "Brake Caliper.002",
-      "Brake Caliper.003",
-      "Brake Disc",
-      "Brake Disc.001",
-      "Brake Disc.002",
-      "Brake Disc.003",
-      "driver",
-      "licence_plate"
+      "Hinten Links",
+      "Vorne Rechts",
+      "Vorne Links",
+      "Hinren Rechts",
+      "Scheibenbremse",
+      "Scheibenbremse_2",
+      "Scheibenbremse_3",
+      "Scheibenbremse_4",
+      "Bremsbllcke",
+      "Nummernschild"
     ],
     "parts": [
       {
-        "node": ["spring.001_wheel_0"],
-        "material": "coilover",
-        "move": [-6.54, 0, 0],
-        "$comment": "front left"
+        "node": "Front Badge_Carpaint_0",
+        "material": "logo"
       },
       {
-        "node": ["shock absorber.001_wheel_0", "axle_wheel_0"],
-        "material": "chrome",
-        "move": [-6.54, 0, 0]
+        "mat": "Stars_Chrome",
+        "material": "logo"
       },
       {
-        "node": ["spring.002_wheel_0"],
-        "material": "coilover",
-        "move": [-7.84, 0, 0],
-        "$comment": "rear left"
+        "mat": "Cap_2__0",
+        "material": "logo"
       },
       {
-        "node": ["shock absorber.002_wheel_0", "axle.001_wheel_0"],
-        "material": "chrome",
-        "move": [-7.84, 0, 0]
+        "mat": "Front_badge_Pink",
+        "material": "logo"
       },
       {
-        "node": ["spring.003_wheel_0"],
-        "material": "coilover",
-        "move": [8.34, 0, 0],
-        "$comment": "rear right"
+        "mat": "Sti_Badge_Seite",
+        "material": "logo"
       },
       {
-        "node": ["shock absorber.003_wheel_0", "axle.002_wheel_0"],
-        "material": "chrome",
-        "move": [8.34, 0, 0]
+        "mat": "22B_Badge",
+        "material": "logo"
       },
       {
-        "node": ["spring.004_wheel_0"],
-        "material": "coilover",
-        "move": [6.54, 0, 0],
-        "$comment": "front right"
+        "mat": "Wheels_Badge",
+        "material": "logo"
       },
       {
-        "node": ["shock absorber.004_wheel_0", "axle.003_wheel_0"],
-        "material": "chrome",
-        "move": [6.54, 0, 0]
+        "node": "Keylock_Trunk_Scheibenbremsen_0",
+        "material": "trim"
       },
       {
-        "node": "Body_livery_0",
-        "whole": true,
-        "x": [-12, 3],
-        "y": [67, 79],
-        "z": [280, 289],
-        "material": "logo",
-        "$comment": "manufacturer badge: the oval on the grille (no logos, AGENTS.md); dropped via the `logo` part"
+        "mat": "Carpaint",
+        "arch": {
+          "axles": [
+            0,
+            -2.588
+          ],
+          "y": 0.3635,
+          "r": [
+            0.37,
+            0.46
+          ],
+          "toward": 0.2,
+          "|x|": [
+            0.45,
+            1.0
+          ],
+          "dy": -0.25
+        },
+        "material": "trim"
       },
       {
-        "mat": "livery",
+        "mat": "Carpaint",
+        "x": [
+          0.4,
+          0.7
+        ],
+        "y": [
+          0.05,
+          0.74
+        ],
+        "z": [
+          -0.55,
+          0.55
+        ],
+        "facing": {
+          "|x|": [
+            0.45,
+            1
+          ]
+        },
+        "material": "trim"
+      },
+      {
+        "mat": "Carpaint",
+        "x": [
+          -0.7,
+          -0.4
+        ],
+        "y": [
+          0.05,
+          0.74
+        ],
+        "z": [
+          -0.55,
+          0.55
+        ],
+        "facing": {
+          "|x|": [
+            0.45,
+            1
+          ]
+        },
+        "material": "trim"
+      },
+      {
+        "mat": "Carpaint",
+        "x": [
+          0.4,
+          0.7
+        ],
+        "y": [
+          0.05,
+          0.74
+        ],
+        "z": [
+          -3.138,
+          -2.0380000000000003
+        ],
+        "facing": {
+          "|x|": [
+            0.45,
+            1
+          ]
+        },
+        "material": "trim"
+      },
+      {
+        "mat": "Carpaint",
+        "x": [
+          -0.7,
+          -0.4
+        ],
+        "y": [
+          0.05,
+          0.74
+        ],
+        "z": [
+          -3.138,
+          -2.0380000000000003
+        ],
+        "facing": {
+          "|x|": [
+            0.45,
+            1
+          ]
+        },
+        "material": "trim"
+      },
+      {
+        "mat": "Carpaint",
         "material": "body"
       },
       {
-        "mat": "window_frame",
+        "mat": "Dunkles_Glas",
         "material": "trim"
       },
       {
-        "mat": "bottom",
-        "material": "trim"
-      },
-      {
-        "mat": "clip",
-        "material": "trim"
-      },
-      {
-        "mat": "glass",
+        "mat": "Glass",
         "material": "glass"
       },
       {
-        "mat": "mirror",
-        "material": "mirror"
+        "mat": "Rubber",
+        "material": "interior"
       },
       {
-        "mat": "grill",
+        "mat": "Hard_Rough_Plastic_Black",
+        "material": "interior"
+      },
+      {
+        "mat": "wiper_520_mmcolor252525",
+        "material": "interior"
+      },
+      {
+        "mat": "Gitter_Alpha",
         "material": "mesh"
       },
       {
-        "mat": "roll_cage",
-        "material": "cage"
+        "mat": "Chrom",
+        "material": "steel"
       },
       {
-        "node": "headlight_headlights_0",
-        "material": "headlight22",
-        "$comment": "lamps: the model's own lamp meshes; their art is baked from the source textures into lamp space (lampSheet, bake-lamp-sheet.py)"
+        "mat": "Headlights",
+        "material": "lenscover"
       },
       {
-        "node": "headlight.001_headlights_0",
-        "material": "headlight22"
+        "mat": "Headlights_Emission",
+        "material": "headled"
       },
       {
-        "node": "blinker.001_headlights_0",
-        "material": "corner22"
+        "mat": "Blinker.001",
+        "material": "amber"
       },
       {
-        "node": "blinker.002_headlights_0",
-        "material": "corner22"
+        "mat": "Blinker_Emission",
+        "material": "amber"
       },
       {
-        "node": "blinker.003_headlights_0",
-        "material": "indic22"
+        "mat": "Backlights",
+        "material": "brakecover"
       },
       {
-        "node": "blinker.004_headlights_0",
-        "material": "indic22"
-      },
-      {
-        "mat": "taillight",
-        "material": "tail22"
-      },
-      {
-        "mat": "fog_lights",
-        "material": "lens"
+        "mat": "BAcklights_Emission.001",
+        "material": "tailled"
       }
     ],
-    "default": "interior",
-    "lampCups": {
-      "$comment": "real round tail lamps: cups [u, v, ru, rv] in the tail shell's corner-wrap space = LAMPS22.tailBowls (part-materials.ts); the lens is see-through over them",
-      "lens": ["tail light_taillight_0", "tail light.001_taillight_0"],
-      "cups": [
-        [0.19, 0.33, 0.069, 0.26],
-        [0.361, 0.33, 0.08, 0.27]
-      ],
-      "depth": 0.045,
-      "back": 0.35,
-      "axis": [0, 0, 1],
-      "material": "lampcup",
-      "bulbMaterial": "lampbulb",
-      "bulb": 0.008
-    }
+    "default": "trim"
   },
   "parts": {
     "materials": [
@@ -175,89 +243,150 @@
       "trim",
       "glass",
       "interior",
-      "cage",
-      "mirror",
       "mesh",
-      "lens",
-      "headlight22",
-      "tail22",
-      "corner22",
-      "indic22",
+      "lenscover",
+      "headled",
+      "amber",
+      "brakecover",
+      "tailled",
+      "steel",
       "logo",
-      "coilover",
-      "chrome",
-      "lampcup",
-      "lampbulb"
+      "lamphousing"
     ],
-    "wrap": {
-      "headlight22": "corner",
-      "tail22": "corner",
-      "corner22": "corner",
-      "indic22": "corner"
-    },
     "preview": {
       "body": "#c8ccd0",
       "trim": "#2a2c30",
       "glass": "#1d3140",
       "interior": "#6a4a8a",
-      "cage": "#b0b4b8",
-      "mirror": "#9aa0a6",
       "mesh": "#202224",
-      "lens": "#d5dae0",
-      "headlight22": "#fff4d6",
-      "tail22": "#e0242c",
-      "corner22": "#ff9a1a",
-      "indic22": "#ff9a1a",
-      "coilover": "#f0c020",
-      "chrome": "#c8ccd0",
-      "lampcup": "#d0303a",
-      "lampbulb": "#ffe0d0"
+      "lenscover": "#d5dae0",
+      "headled": "#fff4d6",
+      "amber": "#ff9a1a",
+      "brakecover": "#e0242c",
+      "tailled": "#c01018",
+      "steel": "#c8ccd0",
+      "logo": "#ff00ff",
+      "lamphousing": "#3a3b3e"
     },
     "maxTriangles": {
-      "interior": 16000,
-      "coilover": 3000,
-      "chrome": 1200
+      "interior": 1500
     },
-    "drop": ["logo"]
+    "drop": [
+      "logo"
+    ],
+    "solids": [
+      {
+        "$comment": "dark reflector plate behind each headlight: the lens is see-through and the source has no housing, so the engine bay showed through",
+        "material": "lamphousing",
+        "poly": [
+          [
+            0.1963,
+            0.5224
+          ],
+          [
+            0.7704,
+            0.5224
+          ],
+          [
+            0.7753,
+            0.5617
+          ],
+          [
+            0.7753,
+            0.6795
+          ],
+          [
+            0.7459,
+            0.7187
+          ],
+          [
+            0.1963,
+            0.7187
+          ]
+        ],
+        "w": [
+          1.5607,
+          1.5707
+        ]
+      },
+      {
+        "material": "lamphousing",
+        "poly": [
+          [
+            -0.1963,
+            0.7187
+          ],
+          [
+            -0.7459,
+            0.7187
+          ],
+          [
+            -0.7753,
+            0.6795
+          ],
+          [
+            -0.7753,
+            0.5617
+          ],
+          [
+            -0.7704,
+            0.5224
+          ],
+          [
+            -0.1963,
+            0.5224
+          ]
+        ],
+        "w": [
+          1.5607,
+          1.5707
+        ]
+      }
+    ]
   },
   "atlas": {
     "pxPerMetre": 256,
     "width": 4.85,
     "height": 8.9,
     "bounds": {
-      "x": [-1.07, 1.07],
-      "y": [0, 1.45],
-      "z": [-2.4, 2.4]
+      "x": [
+        -1.07,
+        1.07
+      ],
+      "y": [
+        0,
+        1.45
+      ],
+      "z": [
+        -2.4,
+        2.4
+      ]
     },
     "charts": {
-      "left": [0, 0],
-      "right": [0, 1.5],
-      "top": [0, 3.0],
-      "front": [0, 5.15],
-      "rear": [2.2, 5.15],
-      "bottom": [0, 6.7]
+      "left": [
+        0,
+        0
+      ],
+      "right": [
+        0,
+        1.5
+      ],
+      "top": [
+        0,
+        3.0
+      ],
+      "front": [
+        0,
+        5.15
+      ],
+      "rear": [
+        2.2,
+        5.15
+      ],
+      "bottom": [
+        0,
+        6.7
+      ]
     }
-  },
-  "lampSheet": {
-    "file": "public/models/cars/subie_22b_lamps.png",
-    "pxPerMetre": 600,
-    "lamps": [
-      {
-        "name": "head",
-        "nodes": ["headlight_headlights_0", "headlight.001_headlights_0"]
-      },
-      {
-        "name": "tail",
-        "nodes": ["tail light_taillight_0", "tail light.001_taillight_0"]
-      },
-      {
-        "name": "corner",
-        "nodes": ["blinker.001_headlights_0", "blinker.002_headlights_0"]
-      },
-      {
-        "name": "indic",
-        "nodes": ["blinker.003_headlights_0", "blinker.004_headlights_0"]
-      }
-    ]
   }
 }
