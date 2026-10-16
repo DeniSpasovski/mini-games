@@ -24,9 +24,9 @@ Which primitive becomes which material is the `gltf` block of model.source.json:
 `panels` adds flat downward-facing patches for holes the model leaves open: `"panels": [{"material": "trim", "y": 0.19, "poly": [[x, z], ...], "mirror": true}]`
 (source coordinates, convex polygon, mirrored in x with `mirror`; cars/ford-gt3/ closes the open front underbody).
 
-`lampCups` adds real round lamp cups + bulbs behind a lamp shell whose depth is only texture (see lamp_cups, cars/subie-22b/).
+`lampCups` adds real round lamp cups + bulbs behind a lamp shell whose depth is only texture (see lamp_cups).
 `node` can also be a list of node names. `move: [dx, dy, dz]` (source units) shifts the rule's triangles - e.g. the model's own
-springs / dampers pulled in to the game's wheel track when the physics track is narrower than the model's (cars/subie-22b/).
+springs / dampers pulled in to the game's wheel track when the physics track is narrower than the model's.
 
 A rule can also be an exact outline cut - `"region": {"view": "front", "poly": [[x, y], ...], "depth": [zmin, zmax], "mirror": true}` in
 MODEL coordinates (after the config's offset), convex polygon: the primitive's triangles are CLIPPED along the outline and the
