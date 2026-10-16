@@ -21,6 +21,9 @@ Which primitive becomes which material is the `gltf` block of model.source.json:
       "default": "trim"                                   # unmatched primitives (omit = error)
     }
 
+`panels` adds flat downward-facing patches for holes the model leaves open: `"panels": [{"material": "trim", "y": 0.19, "poly": [[x, z], ...], "mirror": true}]`
+(source coordinates, convex polygon, mirrored in x with `mirror`; cars/ford-gt3/ closes the open front underbody).
+
 `lampCups` adds real round lamp cups + bulbs behind a lamp shell whose depth is only texture (see lamp_cups, cars/subie-22b/).
 `node` can also be a list of node names. `move: [dx, dy, dz]` (source units) shifts the rule's triangles - e.g. the model's own
 springs / dampers pulled in to the game's wheel track when the physics track is narrower than the model's (cars/subie-22b/).
@@ -506,6 +509,21 @@ def lamp_cups(cfg, prims):
     return (T - off) / s, L
 
 
+def flat_panel(pn):
+    """`gltf.panels`: a flat, downward-facing patch (source coordinates) that closes a hole the model leaves open."""
+    poly = [(float(x), float(z)) for x, z in pn['poly']]
+    y = float(pn['y'])
+    out = []
+    for sign in (1, -1) if pn.get('mirror') else (1,):
+        pts = [(sign * x, z) for x, z in poly]
+        for i in range(1, len(pts) - 1):
+            (x0, z0), (x1, z1), (x2, z2) = pts[0], pts[i], pts[i + 1]
+            if (z1 - z0) * (x2 - x0) - (x1 - x0) * (z2 - z0) > 0:  # normal must point down (-y)
+                (x1, z1), (x2, z2) = (x2, z2), (x1, z1)
+            out.append([[x0, y, z0], [x1, y, z1], [x2, y, z2]])
+    return np.array(out, float)
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     if len(args) < 2:
@@ -636,6 +654,13 @@ def main():
             tris.append(CT[k])
             labels.append(np.full(k.sum(), mats.index(m), np.uint16))
             used[m] = used.get(m, 0) + int(k.sum())
+    for pn in rules.get('panels', []):
+        if pn['material'] not in mats:
+            raise SystemExit(f"material {pn['material']!r} is not in parts.materials")
+        PT = flat_panel(pn)
+        tris.append(PT)
+        labels.append(np.full(len(PT), mats.index(pn['material']), np.uint16))
+        used[pn['material']] = used.get(pn['material'], 0) + len(PT)
     T = np.vstack(tris).astype(np.float32)
     L = np.concatenate(labels)
     N = np.cross(T[:, 1] - T[:, 0], T[:, 2] - T[:, 0])
