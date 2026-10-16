@@ -195,6 +195,8 @@ export const testMap: MapDef = {
   environment: {
     sunElevation: 32,
     sunAzimuth: 215,
+    // Same sun height as above (31.6 deg), so the time of day picker works here too.
+    timeOfDay: 15.8,
     airTemp: 20,
     turbidity: 4,
     rayleigh: 1.2,

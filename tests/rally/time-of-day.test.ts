@@ -9,15 +9,15 @@ import {
 import { STAGES } from '../../src/games/rally/maps';
 
 describe('times of day', () => {
-  test('five slots in clock order, night first', () => {
+  test('five slots in clock order, night last', () => {
     expect(TIMES_OF_DAY.map((t) => t.id)).toEqual([
-      'night',
       'early',
       'midday',
       'afternoon',
       'evening',
+      'night',
     ]);
-    const hours = TIMES_OF_DAY.map((t) => t.hour);
+    const hours = TIMES_OF_DAY.slice(0, -1).map((t) => t.hour);
     expect(hours).toEqual([...hours].sort((a, b) => a - b));
   });
 
