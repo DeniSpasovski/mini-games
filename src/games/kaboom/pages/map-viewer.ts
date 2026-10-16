@@ -15,7 +15,9 @@ import {
   stepsFrom,
 } from '../map/safety';
 import { MAP_SIZES, MAP_SIZE_IDS, isMapSizeId } from '../map/sizes';
+import { LEVEL_IDS, LEVELS, isLevelId } from '../game/levels';
 import { Arena } from '../render/arena';
+import { levelTheme } from '../render/themes';
 import { GlowGrid } from '../render/fx/glow-grid';
 import { BASE_SPEED, FUSE_S, MIN_FUSE_S, START_RANGE } from '../sim/rules';
 import { DangerMap, NEVER } from '../sim/danger';
@@ -27,7 +29,7 @@ import { Terrain, type MapData } from '../sim/types';
 
 /**
  * Map viewer: regenerate the arena from a size + seed and inspect it.
- *   map-viewer.html?size=m&seed=1&overlay=escape&spawn=0&orbit=0
+ *   map-viewer.html?size=m&level=quarry&seed=1&overlay=escape&spawn=0&orbit=0
  * Overlays: spawn zones (cells within 3 steps of each spawn), escape (a TNT dropped on a spawn: burning cells, and how
  * long each reachable safe cell takes to reach), danger (the same TNT through the bots' danger map: when each cell burns).
  */
@@ -35,6 +37,7 @@ const OVERLAYS = ['none', 'spawns', 'escape', 'danger', 'powerups'] as const;
 type Overlay = (typeof OVERLAYS)[number];
 const DEFAULTS = {
   size: 'm',
+  level: 'quarry' as string,
   seed: 1,
   overlay: 'spawns' as string,
   spawn: 0,
@@ -42,6 +45,7 @@ const DEFAULTS = {
 };
 const state = readUrlState(DEFAULTS);
 if (!isMapSizeId(state.size)) state.size = DEFAULTS.size;
+if (!isLevelId(state.level)) state.level = DEFAULTS.level;
 if (!(OVERLAYS as readonly string[]).includes(state.overlay))
   state.overlay = DEFAULTS.overlay;
 
@@ -212,15 +216,20 @@ function updateInfo(): void {
 
 function rebuild(): void {
   if (arena) {
-    shell.scene.remove(arena.group);
+    shell.scene.remove(arena.group, arena.scenery);
     arena.dispose();
     glow?.dispose();
   }
   const sizeId = isMapSizeId(state.size) ? state.size : 'm';
   map = generateMap({ size: sizeId, seed: state.seed });
   glow = new GlowGrid(map.w, map.h);
-  arena = new Arena(map, shell.quality, glow);
-  shell.scene.add(arena.group);
+  arena = new Arena(
+    map,
+    shell.quality,
+    glow,
+    levelTheme(isLevelId(state.level) ? state.level : 'quarry'),
+  );
+  shell.scene.add(arena.group, arena.scenery);
   shell.fitArenaOnResize(() => {
     const { w, h } = MAP_SIZES[sizeId];
     shell.rig.fitArena(w, h);
@@ -241,6 +250,15 @@ s.select(
   (v) => {
     state.size = v;
     state.spawn = 0;
+    rebuild();
+  },
+);
+s.select(
+  'Level',
+  state.level,
+  LEVEL_IDS.map((id) => ({ value: id, label: LEVELS[id].label })),
+  (v) => {
+    state.level = v;
     rebuild();
   },
 );
