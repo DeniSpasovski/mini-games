@@ -4,8 +4,6 @@ A party game for you and up to seven bots. A crew of chubby animal demolition wo
 with a cheering crowd: light the fuse, watch the band count **3, 2, 1**, blast the crates and be the last critter standing. A tilted 3D
 arena, three arena sizes, bots in three skill levels, and chain reactions that stay smooth.
 
-> **In development.** Not listed on the portal in the release build (playable by its link); listed on the dev server and in test builds.
-
 ![The Quarry arena in the middle of a blast](screenshots/blast.jpg)
 
 ## Play
