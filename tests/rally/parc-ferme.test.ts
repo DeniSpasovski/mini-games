@@ -12,7 +12,8 @@ import { World } from '../../src/games/rally/world/world';
 /**
  * Parcs fermés: a small row of team cars on a lay-by beside the road behind a stage start (ServicePark.ferme): the Test
  * map (4 cars, left of the run-up), Galichica West (6, Ohrid side) and Galichica East / Prespa to Ohrid (5, Prespa side).
- * The Jackie parks its cars along two stretches of the street beside the start instead.
+ * Each car has its team's tent behind it and its crew round it. The Jackie parks its cars along two stretches of the
+ * street beside the start instead.
  */
 const CASES: [string, () => World, number][] = [
   ['test', () => new World(testMap), 4],
@@ -34,13 +35,30 @@ describe.each(CASES)('parc fermé: %s', (_, make, cars) => {
     expect(
       park.instances.filter((i) => i.asset === 'ground_sheet').length,
     ).toBe(cars);
-    // Parked in a row on the lot, nobody else's trucks, tents or crews.
+    // Parked in a row on the lot, no trucks, vans or pickups.
     for (const car of teamCars)
       expect(def.lots.some((l) => lotContains(l, car.x, car.z, 0.5))).toBe(
         true,
       );
-    for (const asset of ['service_truck', 'service_van', 'gazebo', 'pickup'])
+    for (const asset of ['service_truck', 'service_van', 'pickup'])
       expect(park.instances.some((i) => i.asset === asset)).toBe(false);
+  });
+
+  test("a tent of the car's team behind each car, the crew round it", () => {
+    const tents = park.instances.filter((i) => i.asset === 'gazebo');
+    expect(tents.length).toBe(cars);
+    for (const tent of tents)
+      expect(def.lots.some((l) => lotContains(l, tent.x, tent.z, 0.5))).toBe(
+        true,
+      );
+    const team = park.instances.filter((i) =>
+      ['driver', 'crew', 'mechanic'].includes(i.asset),
+    );
+    expect(team.length).toBeGreaterThanOrEqual(cars * 3);
+    for (const person of team)
+      expect(
+        def.lots.some((l) => lotContains(l, person.x, person.z, 0.5)),
+      ).toBe(true);
   });
 
   test('only park assets; a crowd, a photographer and visitors on the public edge', () => {
@@ -118,6 +136,19 @@ describe('parc fermé: jackie (parallel on the roads beside the start)', () => {
     }
     expect(park.instances.some((i) => i.asset === 'spectator')).toBe(true);
     expect(park.instances.some((i) => i.asset === 'photographer')).toBe(true);
+  });
+
+  test('a team tent behind the cars and the crew round them', () => {
+    const tents = park.instances.filter((i) => i.asset === 'gazebo_long');
+    expect(tents.length).toBe(10);
+    for (const tent of tents)
+      expect(def.lots.some((l) => lotContains(l, tent.x, tent.z, 0.5))).toBe(
+        true,
+      );
+    const team = park.instances.filter((i) =>
+      ['driver', 'crew', 'mechanic'].includes(i.asset),
+    );
+    expect(team.length).toBeGreaterThanOrEqual(25);
   });
 
   test('deterministic', () => {

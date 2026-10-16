@@ -581,12 +581,21 @@ function small(
   guests(bay, w, rng, 2);
 }
 
+/** Nose-in parc fermé car: its centre is this far from the public edge (m); a deeper lot only adds room behind it. */
+const FERME_CAR_V = 6.1;
+/** Lot depth (m) with room for a team tent behind each nose-in car. */
+const TENT_DEPTH = 12.5;
+
 /** Parallel-parked car: its centre line this far in from the kerb on the public edge (m). */
 const STREET_CAR_V = 1.5;
+/** A street lot's tent stands behind the car, its centre this far from the public edge (m); the lot needs this depth. */
+const STREET_TENT_V = 4.4;
+const PARALLEL_TENT_DEPTH = 6;
 
 /**
- * Parc fermé bay: one team car on its ground sheet, nose towards the public edge, the next car close beside it; now and
- * then a crew member or the driver stands in front of it. On a street (`parallel`) the cars stand nose to tail along
+ * Parc fermé bay: one team car on its ground sheet, nose towards the public edge, the next car close beside it, with
+ * the driver or a crew member in front of it, mechanics at its wheels and - on a deep lot - the team's tent behind
+ * it. On a street (`parallel`) the cars stand nose to tail along
  * the kerb, no sheets, and the person on the pavement beside the car.
  */
 function ferme(
@@ -597,44 +606,72 @@ function ferme(
   parallel: boolean,
   rng: Rng,
 ): void {
+  const side = rng.chance(0.5) ? 1 : -1;
+  const person = (
+    asset: 'crew' | 'mechanic' | 'driver',
+    bx: number,
+    bz: number,
+    tx: number,
+    tz: number,
+  ): void =>
+    bay.put(
+      asset,
+      team + TEAM_COUNT * rng.int(0, asset === 'driver' ? 1 : 2),
+      bx,
+      bz,
+      bay.face(bx, bz, tx, tz) + rng.range(-0.3, 0.3),
+      { r: 0.4 },
+    );
   if (parallel) {
     const cz = depth - STREET_CAR_V;
     bay.put('team_car', team, w / 2, cz, Math.PI, { must: true, r: 2.2 });
-    if (rng.chance(0.5)) {
-      const x = w / 2 + rng.range(-1, 1);
-      const z = depth + 0.5;
-      const who = rng.chance(0.5) ? 'driver' : 'crew';
-      bay.put(
-        who,
-        team + TEAM_COUNT * rng.int(0, 1),
-        x,
-        z,
-        bay.face(x, z, w / 2, cz) + rng.range(-0.4, 0.4),
-        { r: 0.4 },
+    if (rng.chance(0.6))
+      person(
+        rng.chance(0.5) ? 'driver' : 'crew',
+        w / 2 + rng.range(-1, 1),
+        depth + 0.5,
+        w / 2,
+        cz,
       );
+    // A mechanic in the gap beside the car, the team's tent (3 x 6 m) in the lane behind it with a tool chest and crew.
+    person('mechanic', w / 2 + side * (w / 2 - 0.4), cz, w / 2, cz);
+    if (depth >= PARALLEL_TENT_DEPTH) {
+      const tz = depth - STREET_TENT_V;
+      bay.put('gazebo_long', team, w / 2, tz, 0, { r: 1.6 });
+      bay.put('tool_chest', team % 4, w / 2 + side * 1.9, tz + 0.2, 0, {
+        r: 0.7,
+      });
+      person('crew', w / 2 - side * 1.2, tz, w / 2, cz);
+      if (rng.chance(0.6))
+        person('crew', w / 2 + side * 0.4, tz - 0.3, w / 2, cz);
     }
     return;
   }
   const cx = w / 2;
-  const cz = 2.9;
+  const cz = depth - FERME_CAR_V;
   bay.put('ground_sheet', rng.pick(SHEET), cx, cz, 0, {
     sx: w - 0.2,
     sz: 5.6,
     r: 0.2,
   });
   bay.put('team_car', team, cx, cz, -Math.PI / 2, { must: true, r: 2.2 });
-  if (rng.chance(0.55)) {
-    const x = cx + rng.range(-0.5, 0.5);
-    const z = Math.min(depth - 1.2, cz + 4.2);
-    const who = rng.chance(0.5) ? 'driver' : 'crew';
-    bay.put(
-      who,
-      team + TEAM_COUNT * rng.int(0, 1),
-      x,
-      z,
-      bay.face(x, z, cx, cz) + rng.range(-0.5, 0.5),
-      { r: 0.4 },
-    );
+  // The driver or a crew member in front of the nose, a mechanic at the front wheel, one at the rear wheel now and then.
+  person(
+    rng.chance(0.5) ? 'driver' : 'crew',
+    cx + rng.range(-0.5, 0.5),
+    Math.min(depth - 1.2, cz + 4.2),
+    cx,
+    cz,
+  );
+  person('mechanic', cx + side * 1.35, cz + 1.1, cx, cz + 1.1);
+  if (rng.chance(0.4))
+    person('mechanic', cx - side * 1.35, cz - 1.2, cx, cz - 1.2);
+  // The team's tent behind the car (3 x 3 m in a 3.6 m bay) with its tool chest and a crew member or two.
+  if (depth >= TENT_DEPTH) {
+    bay.put('gazebo', team, cx, 1.8, 0, { r: 1.6 });
+    bay.put('tool_chest', team % 4, cx + side * 0.8, 1.3, 0, { r: 0.7 });
+    person('crew', cx - side * 0.6, 2.2, cx, cz);
+    if (rng.chance(0.5)) person('crew', cx + side * 0.5, 3.2, cx, cz);
   }
 }
 

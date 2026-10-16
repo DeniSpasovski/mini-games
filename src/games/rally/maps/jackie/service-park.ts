@@ -7,22 +7,22 @@ import type { ServiceLot, ServicePark } from '../shared/types';
  * on the strip between. Nothing is levelled, the roads keep their own surface.
  */
 export const EAST_STREET: ServiceLot = {
-  x: -2808.1,
-  z: 1857.6,
+  x: -2807.5,
+  z: 1857.5,
   heading: -1.6988,
   length: 33,
-  width: 5,
+  width: 6.2,
   bays: 5,
   paved: true,
   parallel: true,
 };
 
 export const WEST_LANE: ServiceLot = {
-  x: -2837.4,
-  z: 1857.5,
+  x: -2838.4,
+  z: 1857.4,
   heading: 1.6208,
   length: 33,
-  width: 4.1,
+  width: 6.2,
   bays: 5,
   paved: true,
   parallel: true,

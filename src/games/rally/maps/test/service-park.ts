@@ -6,11 +6,11 @@ import type { PadDef, ServiceLot, ServicePark } from '../shared/types';
  * the public edge facing the road.
  */
 export const TEST_LOT: ServiceLot = {
-  x: -247.5,
-  z: -385,
+  x: -245.8,
+  z: -385.0,
   heading: -Math.PI / 2,
   length: 19,
-  width: 9,
+  width: 12.5,
   bays: 4,
 };
 

@@ -8,20 +8,20 @@ import type { PadDef, ServiceLot, ServicePark } from '../shared/types';
  * so both lay-bys are there on every stage; only the stage that starts beside one gets the cars.
  */
 export const OHRID_LOT: ServiceLot = {
-  x: -4683.6,
-  z: 1262.4,
+  x: -4682.0,
+  z: 1263.0,
   heading: -1.2118,
   length: 28,
-  width: 9,
+  width: 12.5,
   bays: 6,
 };
 
 export const PRESPA_LOT: ServiceLot = {
-  x: 4426.4,
-  z: -788.1,
+  x: 4428.1,
+  z: -788.2,
   heading: 4.6437,
   length: 24,
-  width: 9,
+  width: 12.5,
   bays: 5,
 };
 
