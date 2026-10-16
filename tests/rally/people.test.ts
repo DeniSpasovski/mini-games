@@ -2,6 +2,8 @@ import { describe, expect, rs, test } from '@rstest/core';
 import { Texture } from 'three';
 import {
   ASSET_CATALOG,
+  SPECTATOR_FLAG_COUNT,
+  SPECTATOR_SEATED_COUNT,
   SPECTATOR_VARIANTS,
 } from '../../src/games/rally/assets/catalog';
 import { buildAsset, variantSeed } from '../../src/games/rally/assets/library';
@@ -21,6 +23,7 @@ const ROLES = [
   'crew',
   'driver',
   'marshal',
+  'photographer',
   'visitor',
 ] as const;
 
@@ -48,7 +51,7 @@ describe('people', () => {
   test('the spectator catalog count matches the builder', () => {
     expect(SPECTATOR_VARIANTS).toBe(6 * 4);
     expect(ASSET_CATALOG.find((a) => a.id === 'spectator')!.variants).toBe(
-      SPECTATOR_VARIANTS,
+      SPECTATOR_VARIANTS + SPECTATOR_SEATED_COUNT + SPECTATOR_FLAG_COUNT,
     );
   });
 
@@ -56,18 +59,20 @@ describe('people', () => {
     const meta = ASSET_CATALOG.find((a) => a.id === id)!;
     const variants = Array.from({ length: meta.variants }, (_, v) => v);
 
-    test('every variant: one part, feet on the ground, 0.8-2.4 m tall (arms up), within budget', () => {
+    test('every variant: one body part (+ a flag part when waving one), feet on the ground, 0.8-2.4 m tall (arms up), within budget', () => {
       for (const v of variants) {
         const near = measure(id, v, 0);
-        expect(near.parts).toBe(1);
+        // A hand flag is its own mesh (waved by the people_flag material).
+        expect(near.parts).toBeLessThanOrEqual(id === 'spectator' ? 2 : 1);
+        expect(near.parts).toBeGreaterThanOrEqual(1);
         expect(near.lo).toBeGreaterThan(-0.005);
         expect(near.lo).toBeLessThan(0.02);
         expect(near.hi).toBeGreaterThan(0.8);
         expect(near.hi).toBeLessThan(2.4);
-        expect(near.tris).toBeLessThan(420);
-        const mid = measure(id, v, 1);
-        expect(mid.tris).toBeLessThan(260);
-        expect(measure(id, v, 2).tris).toBeLessThan(40);
+        expect(near.tris).toBeLessThan(3200);
+        expect(measure(id, v, 1).tris).toBeLessThan(600);
+        expect(measure(id, v, 2).tris).toBeLessThan(260);
+        expect(measure(id, v, 3).tris).toBeLessThan(40);
       }
     });
 

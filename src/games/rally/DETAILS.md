@@ -27,7 +27,7 @@ gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
 | `quality`                  | play  | `low / medium / high`                                                                                                                               |
 | `mute=1`                   | play  | silent (bots and tests)                                                                                                                             |
 | `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                                                                  |
-| `tod=<hours>`, `tonemap=`  | all   | look experiments: time of day (maps with `environment.timeOfDay`), `aces / agx / neutral`                                                           |
+| `tod=<hours>`, `tonemap=`  | all   | time of day (maps with `environment.timeOfDay`; 20-4:30 = night, see Look; the stage menu sets it), `aces / agx / neutral`                          |
 | `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the map's `environment.airTemp`)                                                                |
 | `perf=1`                   | play  | open the perf panel (below)                                                                                                                         |
 
@@ -93,6 +93,13 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 - **Light:** the sun follows `timeOfDay` (or `sunElevation` / `sunAzimuth`); a lower sun is warmer and dimmer (raise `exposure`).
   Cool sky fill + warm ground bounce; a PMREM of the sky gives paint, glass and water reflections.
 - **Shadows:** one shadow map ahead of the camera, snapped to texels so edges do not crawl.
+- **Night** (`engine/night.ts`, `?tod=<hours>` from 19:30 to 04:30 on any map; not in the studio): the moon is the directional light
+  (dim, blue, `moonAt`), the sky is a dark dome with a town glow, moon and stars (`NightSky`), fog is dark, tone mapping AgX at a
+  fixed exposure; the env map and the tree ambient (`setTreeSky`) are rebuilt from the night sky. The car switches its lights on
+  (`CarModel.setLamps`: head / tail lamp materials, `userData.headLamp`) and `game/headlights.ts` adds a low-beam spot, a wide
+  spill spot and two soft beam cones; dust, spray and haze glow inside the beam (`ParticleSystem.setHeadlight`). Shadows: the low
+  beam and the moon cast them on high quality only. No map has a night stage yet. Not done: bloom, retro-reflective posts / signs,
+  street-lamp light pools, high / low beam key.
 - **Sky / tone mapping:** drifting clouds (`cloudCoverage`, `cloudSpeed`); ACES, or `toneMapping: 'agx' | 'neutral'` per map.
 - **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark outside the
   shadow box (`world/canopy-shadows.ts`: a coarse whole-map texture plus a 1.5 m local window of 768 m around the camera,
@@ -146,7 +153,8 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   WorldCover, no roads or buildings), baked by `scripts/realmap/horizon.py` into `<map>/horizon.json`, drawn behind
   everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain).
 - **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
-  spectators, flags (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`).
+  spectators (some waving their map's own hand flag - `MapDef.country` - or a plain colour flag, never another country's) + visitors, a marshal, 2-3 photographers, flags; marshals at every side-road mouth, 10 photographers each at start and finish
+  (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`). People animate (`world/people-anim.ts`, run by `RallyGame.frame`): within 45 m they turn to watch the car, photographers (75 m) keep it centred, via `InstanceStreamer.setMatrix`; hand flags wave in the `people_flag` shader (`engine/materials.ts`, own mesh from `markFlag` in people.ts).
 - **Service park** (stage `servicePark`, Ajvatovci only so far): team bays on levelled gravel lots - trucks / vans, team cars on
   ground sheets, tents, props, 4-6 crew and guests each, tape + crowd, start control (`world/service-park.ts`,
   `World.servicePark`; assets `assets/builders/service.ts` + `teams.ts`; test `service-park`). The team trucks, vans, pickups and the
@@ -161,8 +169,8 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   painter (~85 px/m, one texture per car and team), wheels are built at runtime and merged into the parts, so a car is two draw
   calls. A raised car stands on axle stands with the rear wheels off (a `tyre_stack` lies beside it). Tests `park-cars`,
   `car-glb-meshopt`.
-- **People** (`assets/builders/people.ts`): jointed low-poly figures posed by joint angles + outfit colours - `spectator` (24),
-  `mechanic`, `crew`, `driver`, `marshal`, `visitor`; test `people`.
+- **People** (`assets/builders/people.ts`): jointed low-poly figures posed by joint angles + outfit colours, smooth lofted bodies close up (LOD 0), painted unwrapped garment atlas + normal map (`engine/people-atlas.ts`, `people` material; zips, pockets, seams, face) - `spectator` (24 standing + 18 sitting / squatting at corner fans),
+  `mechanic`, `crew`, `driver`, `marshal` (flag, sign, radio), `photographer`, `visitor` (12 personas: ages, sizes, dresses, kids); test `people`.
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)
   puts them on the outside of every tight bend of a mountain road (Galichica).
 - **Other roads** (`paths`): tarmac ribbons, dirt paint or canals with their own surface; side roads carved with grade limits
@@ -410,7 +418,9 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   sits unlabelled at 0%. The car's GLB starts downloading before the map data (`preloadCarModel`).
 - Car select: a "Loading model" spinner (`Showroom.loadCue`) shows while a car's GLB downloads (the car stays hidden until then).
 - Car select: All / AWD / RWD / FWD filter row on top (`driveGroup` from the car's `drivetrain.frontSplit`, not remembered); up from the first car or the pad focuses it, left / right switch.
-- Car select (screens >= 1200 px wide): the description / stats / livery sit in a wide card right of the list (`.menu-car-card`); the showroom car keeps its shared place and size (`CAR_SHIFT`, `CAR_DIST_SCALE`) and may run behind the card. Narrower screens keep them under the list.
+- Car select (screens >= 1200 px wide): the description / stats / livery sit in a wide card right of the list (`.menu-side-card`, `MainMenu.sideCard`, shared with Select stage); the showroom car keeps its shared place and size (`CAR_SHIFT`, `CAR_DIST_SCALE`) and may run behind the card. Narrower screens keep them under the list.
+- Select stage: the stage's description (`StageDef.description`: what the drive is like for the player, no data sources or build details), recommended set-up and a **Time of day** dropdown sit in the same card (phones: under the selected stage). Left / right (or the pad) step the time; the list cards keep the route, tags and best time.
+- Time of day (`game/time-of-day.ts`, the one config): night 01:00, early morning 07:00, mid day 12:00, afternoon 15:30, evening 17:30 - each is a `?tod=<hours>` hour, so any stage of a map with `environment.timeOfDay` takes any of them. A stage's own default hour stays exact on its nearest slot (Jackie opens on "Early morning · 08:00"); a pick applies to every stage until changed and is not remembered; the menu mirrors it into the URL (`tod=`), stages without `timeOfDay` (test map) show no dropdown. Under it the card shows the clock time and the air / road temperature at that hour (`maps/shared/day-temperature.ts`, the numbers the tyres run with, see PHYSICS.md). Times are saved per stage, not per time of day.
 
 ## Known limitations
 

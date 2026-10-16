@@ -11,11 +11,13 @@ export const jackieStages: StageDef[] = [
     // Fast parkway: the race cars' long final drive (Skoda Rally ~205 km/h instead of 165).
     gearing: 'long',
     description:
-      'Real-world city stage in New York: the narrow, winding 1930s Jackie Robinson Parkway from East New York through three cemeteries and Forest Park to the Grand Central Parkway interchange in Queens. 7.3 km of tree-lined tarmac.',
+      'A fast, narrow parkway in New York City, driven from Brooklyn into Queens: tight bends under tall trees, bridges overhead, a concrete median and guard rails close on both sides, and a long run into the Kew Gardens interchange.',
     // Finish at 7 298 m: past the Queens Blvd portal (7 186-7 273 m), 2 m before the last green gantry (7 300 m; the two
     // gantries clipped when they stood on the same spot).
     timing: { start: 40, finishFromEnd: 47, splits: 4 },
     // Side roads / ramps meeting the stage road are closed with barriers (as on a real stage).
     closures: { asset: 'road_barrier', length: 2.2, setback: 4 },
+    // Fans, marshals and photographers behind the tape in the bends, at the side-road mouths, the start and the finish.
+    cornerFans: { maxRadius: 160, chance: 0.6 },
   },
 ];

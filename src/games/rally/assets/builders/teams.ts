@@ -24,3 +24,8 @@ export const TEAMS: readonly Team[] = [
 ];
 
 export const TEAM_COUNT = TEAMS.length;
+
+/** The boxy car shape (vehicles.ts SHAPES index) each team runs. */
+export const TEAM_SHAPE: readonly number[] = [
+  0, 2, 5, 3, 1, 6, 7, 4, 3, 0, 2, 5,
+];

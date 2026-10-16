@@ -282,6 +282,7 @@ const QUEENS_BLVD_SKEW: [number, number] = [-0.26, -0.46];
 
 export const jackieMap: MapDef = {
   ...info,
+  country: 'us',
   buildings: buildingsFromData(data.buildings),
   terrain: {
     baseHeight: 0,

@@ -20,6 +20,7 @@ import {
   driver,
   marshal,
   mechanic,
+  photographer,
   spectator,
   visitor,
 } from './builders/people';
@@ -84,6 +85,7 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   crew,
   driver,
   marshal,
+  photographer,
   visitor,
   tape_post: tapePost,
   fan_flag: fanFlag,

@@ -36,6 +36,7 @@ const DRY = ['grass', 'shrub', 'bare', 'pasture', 'urban'];
 
 export const galichicaMap: MapDef = {
   ...info,
+  country: 'mk',
   buildings: buildingsFromData({ ...data.buildings, kinds: undefined }),
   horizon: horizon as HorizonDef,
   terrain: {

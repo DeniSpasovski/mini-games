@@ -17,7 +17,7 @@ export const petralicaInfo: MapInfo = {
   credits: data.meta.sources,
   sources: [
     {
-      label: 'Google Maps route (Ginovci -> Vila Ristovski)',
+      label: 'Google Maps route (Ginovci -> finish)',
       url: 'https://www.google.com/maps/dir/42.1707824,22.1691664/42.2401682,22.2009501',
       note: 'stage waypoints; the two parts of the road missing in OpenStreetMap were traced from a screenshot of this route',
     },

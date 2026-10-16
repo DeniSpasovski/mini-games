@@ -29,7 +29,7 @@ export const galichicaStages: StageDef[] = [
     year: 2026,
     tyre: 'tarmac',
     description:
-      'Galichica National Park, North Macedonia: from Lake Ohrid up the switchbacks through oak and beech woods to the Livada pass. 14.7 km of narrow mountain tarmac.',
+      'A narrow mountain road in Galichica National Park, North Macedonia: tarmac switchbacks climb from Lake Ohrid through oak and beech woods to the Livada pass, with both lakes in the distance.',
     timing: {
       start: PARK_ENTRANCE,
       finishFromEnd: ROAD_LENGTH - MAGARO,
@@ -51,7 +51,7 @@ export const galichicaStages: StageDef[] = [
     year: 2026,
     tyre: 'tarmac',
     description:
-      'Galichica National Park, North Macedonia: from Lake Prespa up through beech forest to the bare karst top of the Livada pass. 12.7 km.',
+      'The same mountain road from the Prespa side: tarmac switchbacks through beech forest up to the bare, rocky top of the Livada pass, with both lakes below.',
     reverse: true,
     timing: {
       start: ROAD_LENGTH - PRESPA,
@@ -78,7 +78,7 @@ export const galichicaStages: StageDef[] = [
     tyre: 'tarmac',
     gearing: 'long',
     description:
-      'The whole Galichica crossing: from Lake Prespa over the Livada pass and down to Lake Ohrid. 27.4 km.',
+      'The whole Galichica crossing in one run: up from Lake Prespa, over the Livada pass and down through the woods to Lake Ohrid. The longest stage.',
     reverse: true,
     timing: {
       start: ROAD_LENGTH - PRESPA,

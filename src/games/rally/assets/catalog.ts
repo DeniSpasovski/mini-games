@@ -59,8 +59,13 @@ export interface AssetMeta {
   breakable?: { r: number; h: number; slow?: number };
 }
 
-/** Spectator variants: 6 outfits x 4 poses (builders/people.ts). */
+/** Standing fans (variants 0-23); 24-41 sit or squat (SPECTATOR_SEATED_FROM..). */
 export const SPECTATOR_VARIANTS = 24;
+export const SPECTATOR_SEATED_FROM = 24;
+export const SPECTATOR_SEATED_COUNT = 18;
+/** Fans waving a hand flag (from variant 42): 6 outfits of North Macedonia, then 6 of the USA. */
+export const SPECTATOR_FLAG_FROM = 42;
+export const SPECTATOR_FLAG_COUNT = 12;
 
 /** Service park vehicles: boxes + wheels, a plain body far away. */
 const VEHICLE_LODS: LodSpec[] = [
@@ -74,9 +79,10 @@ const PROP_LODS: LodSpec[] = [
   { maxDistance: 260, castShadow: false },
 ];
 
-/** Figures: full detail near (shadows), a simpler body, then a two-box silhouette. */
+/** Figures: smooth painted body close up, the jointed low-poly one, a boxy body, then a two-box silhouette. */
 const PEOPLE_LODS: LodSpec[] = [
-  { maxDistance: 70, castShadow: true },
+  { maxDistance: 28, castShadow: true },
+  { maxDistance: 75, castShadow: true },
   { maxDistance: 220, castShadow: false },
   { maxDistance: 520, castShadow: false },
 ];
@@ -173,8 +179,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Spectator',
     category: 'props',
     description:
-      'Fan made of jointed parts (assets/builders/people.ts). Variant % 6 = outfit (jacket, T-shirt + cap, hoodie, hi-vis vest, backpack, supporter shirt), variant / 6 = pose (stand, wave, camera, hands in pockets).',
-    variants: SPECTATOR_VARIANTS,
+      'Fan made of jointed parts (assets/builders/people.ts). Variant % 6 = outfit (jacket, T-shirt + cap, hoodie, hi-vis vest, backpack, supporter shirt), variant / 6 = pose (stand, wave, camera, hands in pockets); variants 24-41: sitting on the ground, knees up, squatting; 42-53: waving a North Macedonia (42-47) or USA (48-53) hand flag.',
+    variants:
+      SPECTATOR_VARIANTS + SPECTATOR_SEATED_COUNT + SPECTATOR_FLAG_COUNT,
     lods: PEOPLE_LODS,
   },
   {
@@ -209,8 +216,17 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Marshal',
     category: 'props',
     description:
-      'Stage marshal / official in a hi-vis tabard (variant % 6 = tabard colour, variant % 4 = pose: stand, pointing, hands in pockets, phone).',
-    variants: 12,
+      'Stage marshal / official in a hi-vis tabard with reflective bands (variant % 6 = tabard colour; variants 0-11: variant % 4 = pose stand, pointing, hands in pockets, phone; 12-23: yellow flag, green sign on a pole, radio, arms crossed).',
+    variants: 24,
+    lods: PEOPLE_LODS,
+  },
+  {
+    id: 'photographer',
+    name: 'Photographer',
+    category: 'props',
+    description:
+      'Press photographer / camera operator in a coloured bib. Variant % 6 = pose (long lens raised, low shot, kneeling, shoulder video camera, tripod, camera lowered), variant / 6 % 4 = bib colour.',
+    variants: 24,
     lods: PEOPLE_LODS,
   },
   {
@@ -218,8 +234,8 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Visitor',
     category: 'props',
     description:
-      'Casual person around a service park: walking, drinking, on the phone, standing.',
-    variants: 16,
+      'Casual person visiting: variant % 4 = pose (walking, drinking, on the phone, standing), variant / 4 = persona (man, woman, child, older man / woman, dress, teen, tourist, coat, big man, small child, fan).',
+    variants: 48,
     lods: PEOPLE_LODS,
   },
   {
