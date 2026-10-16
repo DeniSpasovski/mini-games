@@ -62,10 +62,11 @@ Some roads, properties and outlines were added or traced by hand on top of the o
 | `subie_wrx_sti.glb`, `subie_wrx_sti_wheel.glb`, `subie_wrx_sti_lamps.png`                | "2019 Rowen Subaru WRX STI" by Car design (Sketchfab; split by material and converted, tyres + discs + calipers + engine bay dropped, badges, lettering and plates removed; rim extracted; lamp texture kept; cockpit simplified; flat paint at runtime)                                           | CC BY 4.0                    |
 | `lancer_evo_6.glb`, `lancer_evo_6_wheel.glb`, `lancer_evo_6_{lamps,seat,fabric,cab}.png` | "Mitsubishi Lancer Evolution 6" by vecarz (Sketchfab; converted and repainted, badges + plate removed; lamp and seat textures kept)                                                                                                                                                                | CC BY 4.0                    |
 
-### Background cars (baked into `src/games/rally/assets/builders/street-cars.data.ts`)
+### Background cars (baked into `src/games/rally/assets/builders/`: `street-cars.data.ts`, `street-car-atlas.jpg`, `street-car-mask.png`)
 
-The parked cars of the city maps are simplified, recoloured copies of vehicles from three CC BY 4.0 packs (split, reduced to
-about 900 / 450 triangles and packed by `scripts/car-model/bake-street-cars.mjs`; the source files are not in the repository).
+The parked cars of the city maps are recoloured copies of vehicles from three CC BY 4.0 packs (split and packed by
+`scripts/car-model/street-pack-extract.py` + `bake-street-textures.py` + `bake-street-cars.mjs`; their own triangles and textures,
+paint panels tinted, far LODs reduced, wheels redrawn at the far LODs; the source files are not in the repository).
 
 | Pack                                                                                                                                                 | Author                                                       | Licence   |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------- |

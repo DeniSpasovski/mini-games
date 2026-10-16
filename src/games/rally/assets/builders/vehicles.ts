@@ -9,6 +9,7 @@ import { merge, paint } from '../../engine/geo';
 import { getMaterial } from '../../engine/materials';
 import type { AssetBuilder } from '../types';
 import {
+  streetCarMaterial,
   streetCarModel,
   SEDAN,
   STREET_CAR_COUNT,
@@ -16,13 +17,14 @@ import {
 } from './street-car-models';
 
 /**
- * Street vehicles for city maps: parked cars (`street_car`: simplified models of the CC BY packs in `street-car-models.ts`, in a few paints), the
- * yellow `taxi`, the `police_car` (white, navy band, light bar, "POLICE" on the doors) and the
- * `fire_truck` (red engine with a roof ladder, "FIRE DEPT" on the side) and the `ambulance` (white box van, red
- * stripe, "FIRE DEPT" + "AMBULANCE" on the box). The lettering is generic words on
- * purpose (no real agency names, badges or exact liveries). Every vehicle is one
- * draw call (shared `vehicle` material: vertex colour paint + the decals atlas), models face +X with
- * the origin on the ground under their middle. Cars are ~900 triangles (~400 at LOD 1), the truck ~450.
+ * Street vehicles for city maps: parked cars (`street_car`: the CC BY pack models in `street-car-models.ts` with their
+ * own textures, in a few paints), the yellow `taxi`, the `police_car` (white, navy band, light bar, "POLICE" on the
+ * doors) and the `fire_truck` (red engine with a roof ladder, "FIRE DEPT" on the side) and the `ambulance` (white box
+ * van, red stripe, "FIRE DEPT" + "AMBULANCE" on the box). The lettering is generic words on purpose (no real agency
+ * names, badges or exact liveries). The pack cars are one draw call in the shared `streetCarMaterial` (atlas + paint
+ * tint), their add-ons (taxi sign, light bar, lettering) a second one in the `vehicle` material (vertex colour paint + the
+ * decals atlas); the fire truck and ambulance are one `vehicle` draw call. Models face +X with the origin on the ground
+ * under their middle. A car is ~6-8k triangles up close, ~2.2k at LOD 1, ~1k at LOD 2; the truck ~450.
  */
 
 /** u / v of the plain-white corner of the decals atlas (every painted face samples it). */
@@ -145,6 +147,19 @@ const finish = (parts: BufferGeometry[]) => ({
   parts: [{ geometry: merge(parts), material: getMaterial('vehicle') }],
 });
 
+/** A pack car with its add-ons (`extra`, may be empty) as a second part in the `vehicle` material. */
+const withExtras = (car: BufferGeometry, extra: BufferGeometry[]) => ({
+  parts: [
+    { geometry: car, material: streetCarMaterial() },
+    ...(extra.length
+      ? [{ geometry: merge(extra), material: getMaterial('vehicle') }]
+      : []),
+  ],
+});
+
+/** Add-ons (roof sign, light bar, lettering) are drawn up to this LOD. */
+const EXTRAS_LOD = 1;
+
 const carPaint = (m: StreetCarShape, seed: number, variant: number): string => {
   const list = m.old ? OLD_PAINTS : PAINTS;
   return list[(variant * 7 + new Rng(seed).int(0, 3)) % list.length];
@@ -154,7 +169,10 @@ export const streetCar: AssetBuilder = ({ seed, variant, lod }) => {
   const fixed = FIXED_CARS[variant - STREET_CAR_FIXED];
   const index = fixed ? fixed[0] : variant % STREET_CAR_COUNT;
   const m = streetCarModel(index, lod);
-  return finish([m.geometry(fixed ? fixed[1] : carPaint(m, seed, variant))]);
+  return withExtras(
+    m.geometry(fixed ? fixed[1] : carPaint(m, seed, variant)),
+    [],
+  );
 };
 
 /** Door height band of a model (m): where the lettering / stripes of the taxi and the police car go. */
@@ -163,8 +181,8 @@ const DOOR_Y = [0.5, 0.95];
 /** Yellow cab (the sedan) with a roof sign and a black stripe along the doors. */
 export const taxi: AssetBuilder = ({ lod }) => {
   const m = streetCarModel(SEDAN, lod);
-  const parts = [m.geometry('#f1b516')];
-  if (lod === 0) {
+  const parts: BufferGeometry[] = [];
+  if (lod <= EXTRAS_LOD) {
     parts.push(box(0.5, 0.17, 0.26, m.roofX, m.height + 0.075, 0, '#f6e7b0'));
     for (const side of [1, -1])
       parts.push(
@@ -179,15 +197,15 @@ export const taxi: AssetBuilder = ({ lod }) => {
         ),
       );
   }
-  return finish(parts);
+  return withExtras(m.geometry('#f1b516'), parts);
 };
 
 /** Patrol car: white sedan, navy band, roof light bar and "POLICE" on both front doors. */
 export const policeCar: AssetBuilder = ({ lod }) => {
   const m = streetCarModel(SEDAN, lod);
-  const parts = [m.geometry('#f1f2f2')];
+  const parts: BufferGeometry[] = [];
   const z = m.sideZ + 0.012;
-  if (lod === 0) {
+  if (lod <= EXTRAS_LOD) {
     for (const side of [1, -1])
       parts.push(
         box(3.4, 0.14, 0.012, 0, DOOR_Y[0] + 0.14, side * z, '#14306b'),
@@ -201,7 +219,7 @@ export const policeCar: AssetBuilder = ({ lod }) => {
     parts.push(
       box(3.4, 0.14, m.sideZ * 2 + 0.02, 0, DOOR_Y[0] + 0.14, 0, '#14306b'),
     );
-  return finish(parts);
+  return withExtras(m.geometry('#f1f2f2'), parts);
 };
 
 /** Fire engine: red cab and body, white stripe, roof ladder, "FIRE DEPT" on the sides. */

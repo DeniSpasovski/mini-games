@@ -1,11 +1,23 @@
-import { BufferAttribute, BufferGeometry, Color } from 'three';
+import {
+  BufferAttribute,
+  BufferGeometry,
+  Color,
+  Material,
+  MeshStandardMaterial,
+  SRGBColorSpace,
+  Texture,
+  TextureLoader,
+} from 'three';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import atlasUrl from './street-car-atlas.jpg';
+import maskUrl from './street-car-mask.png';
 import { STREET_CAR_DATA } from './street-cars.data';
 
 /**
- * The background cars: vehicles of three CC BY packs (credits: THIRD-PARTY.md), simplified and packed by
- * `scripts/car-model/bake-street-cars.mjs` into `street-cars.data.ts`. Models face +X, origin on the ground under the middle.
- * Paint triangles come first in a model; they get the car's paint, the rest keeps its baked colour.
+ * The background cars: vehicles of three CC BY packs (credits: THIRD-PARTY.md) with their own triangles and textures,
+ * packed by `scripts/car-model/bake-street-cars.mjs` into `street-cars.data.ts`. Models face +X, origin on the ground under
+ * the middle. A model is one mesh (body, glass, lamps, wheels) with its uv in one shared atlas; the car's paint goes in the
+ * `color` attribute and replaces the source paint where the atlas's tint mask is white (`streetCarMaterial`).
  */
 
 /** Models 0-4 are the old boxy cars, the rest are modern. */
@@ -13,11 +25,6 @@ const OLD_COUNT = 5;
 export const STREET_CAR_COUNT = STREET_CAR_DATA.length;
 /** Index of the sedan (the taxi and police car). */
 export const SEDAN = STREET_CAR_DATA.findIndex((d) => d.id === 'sedan');
-
-/** sRGB byte -> linear. */
-const LINEAR = new Float32Array(256).map(
-  (_, i) => new Color().setRGB(i / 255, i / 255, i / 255, 'srgb').r,
-);
 
 export interface StreetCarShape {
   old: boolean;
@@ -32,9 +39,8 @@ export interface StreetCarShape {
 
 interface Decoded {
   pos: Float32Array;
-  col: Uint8Array;
+  uv: Float32Array;
   idx: Uint16Array;
-  paintVerts: number;
 }
 
 function decode(b64: string): Decoded {
@@ -43,81 +49,51 @@ function decode(b64: string): Decoded {
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   const dv = new DataView(bytes.buffer);
   const n = dv.getUint16(0, true);
-  const paintVerts = dv.getUint16(2, true);
   const lo = [0, 1, 2].map((k) => dv.getFloat32(4 + k * 4, true));
   const size = [0, 1, 2].map((k) => dv.getFloat32(16 + k * 4, true));
   const pos = new Float32Array(n * 3);
   for (let i = 0; i < n * 3; i++)
     pos[i] = lo[i % 3] + (dv.getUint16(28 + i * 2, true) / 65535) * size[i % 3];
-  const colAt = 28 + n * 6;
-  const col = bytes.slice(colAt, colAt + n * 3);
-  const idxAt = colAt + n * 3;
+  const uvAt = 28 + n * 6;
+  const uv = new Float32Array(n * 2);
+  for (let i = 0; i < n * 2; i++)
+    uv[i] = dv.getUint16(uvAt + i * 2, true) / 65535;
+  const idxAt = uvAt + n * 4;
   const count = dv.getUint32(idxAt, true);
   const idx = new Uint16Array(count);
   for (let i = 0; i < count; i++)
     idx[i] = dv.getUint16(idxAt + 4 + i * 2, true);
-  return { pos, col, idx, paintVerts };
+  return { pos, uv, idx };
 }
 
 const cache = new Map<string, StreetCarShape>();
 
-/** The model `index` (wrapped) at `lod` (0 near, 1 far). */
+/** The model `index` (wrapped) at `lod` (0 near; the last one is the farthest). */
 export function streetCarModel(index: number, lod: number): StreetCarShape {
   const i = ((index % STREET_CAR_COUNT) + STREET_CAR_COUNT) % STREET_CAR_COUNT;
-  const key = `${i}:${lod ? 1 : 0}`;
+  const data = STREET_CAR_DATA[i];
+  const l = Math.min(Math.max(lod, 0), data.lods.length - 1);
+  const key = `${i}:${l}`;
   const hit = cache.get(key);
   if (hit) return hit;
-  const d = decode(STREET_CAR_DATA[i].lods[lod ? 1 : 0]);
-  let height = 0;
-  for (let v = 0; v < d.pos.length; v += 3)
-    height = Math.max(height, d.pos[v + 1]);
-  // Roof middle: vertices within 5 cm of the top. Door side: the median |z| of the paint vertices at door height.
-  let roofX = 0;
-  let roofN = 0;
-  const side: number[] = [];
-  for (let v = 0; v < d.paintVerts; v++) {
-    const y = d.pos[v * 3 + 1];
-    if (y > height - 0.05) {
-      roofX += d.pos[v * 3];
-      roofN++;
-    }
-    if (y > 0.5 && y < 0.95 && Math.abs(d.pos[v * 3]) < 0.9)
-      side.push(Math.abs(d.pos[v * 3 + 2]));
-  }
-  side.sort((a, b) => a - b);
+  const d = decode(data.lods[l]);
   const shape: StreetCarShape = {
     old: i < OLD_COUNT,
-    height,
-    roofX: roofN ? roofX / roofN : 0,
-    sideZ: side.length
-      ? side[Math.floor(side.length / 2)]
-      : STREET_CAR_DATA[i].width / 2,
+    height: data.height,
+    roofX: data.roofX,
+    sideZ: data.sideZ,
     geometry: (paintHex) => {
       const g = new BufferGeometry();
       g.setAttribute('position', new BufferAttribute(d.pos, 3));
+      g.setAttribute('uv', new BufferAttribute(d.uv, 2));
       const base = new Color(paintHex);
-      const col = new Float32Array(d.col.length);
-      for (let v = 0; v < d.col.length / 3; v++) {
-        if (v < d.paintVerts) col.set([base.r, base.g, base.b], v * 3);
-        else
-          col.set(
-            [
-              LINEAR[d.col[v * 3]],
-              LINEAR[d.col[v * 3 + 1]],
-              LINEAR[d.col[v * 3 + 2]],
-            ],
-            v * 3,
-          );
-      }
+      const col = new Float32Array(d.pos.length);
+      for (let v = 0; v < col.length; v += 3)
+        col.set([base.r, base.g, base.b], v);
       g.setAttribute('color', new BufferAttribute(col, 3));
       g.setIndex(new BufferAttribute(d.idx, 1));
       // Creased normals (hard edges above ~35 deg), non-indexed like every other vehicle part.
-      const out = lod ? g.toNonIndexed() : toCreasedNormals(g, 0.6);
-      if (lod) out.computeVertexNormals();
-      const n = out.getAttribute('position').count;
-      const uv = new Float32Array(n * 2);
-      for (let v = 0; v < n; v++) uv.set(PLAIN_UV, v * 2);
-      out.setAttribute('uv', new BufferAttribute(uv, 2));
+      const out = toCreasedNormals(g, 0.6);
       for (const name of Object.keys(out.attributes))
         if (!['position', 'normal', 'uv', 'color'].includes(name))
           out.deleteAttribute(name);
@@ -128,5 +104,52 @@ export function streetCarModel(index: number, lod: number): StreetCarShape {
   return shape;
 }
 
-/** u / v of the plain-white corner of the decals atlas (engine/textures.ts `vehicle_decals`). */
-const PLAIN_UV = [0.03, 0.5];
+let material: Material | undefined;
+
+/**
+ * The one material of every background car: the atlas, drawn as it is where the tint mask is black (glass, lamps, wheels,
+ * trim) and multiplied by the car's paint (the `color` attribute) where it is white - the atlas holds the shade of the
+ * source paint there, so the baked shading stays. Without a DOM (tests) it has no textures.
+ */
+export function streetCarMaterial(): Material {
+  if (material) return material;
+  const load = (uri: string, srgb: boolean): Texture => {
+    const t = new TextureLoader().load(uri);
+    // glTF uv: origin top left.
+    t.flipY = false;
+    t.anisotropy = 4;
+    if (srgb) t.colorSpace = SRGBColorSpace;
+    return t;
+  };
+  const dom = typeof document !== 'undefined';
+  const mask = dom ? load(maskUrl, false) : null;
+  const m = new MeshStandardMaterial({
+    map: dom ? load(atlasUrl, true) : null,
+    vertexColors: true,
+    roughness: 0.42,
+    metalness: 0.3,
+  });
+  m.onBeforeCompile = (shader, renderer) => {
+    // The world shading's uniforms (fog, lights) come with the default hook (engine/world-shading.ts).
+    Material.prototype.onBeforeCompile.call(m, shader, renderer);
+    shader.uniforms.tintMask = { value: mask };
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nuniform sampler2D tintMask;',
+      )
+      // The paint colour is applied below, through the mask.
+      .replace('#include <color_fragment>', '')
+      .replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+        #ifdef USE_COLOR
+        diffuseColor.rgb *= mix( vec3( 1.0 ), vColor.rgb, texture2D( tintMask, vMapUv ).r );
+        #endif`,
+      );
+  };
+  m.customProgramCacheKey = () => 'street-car-tint';
+  m.name = 'street_car';
+  material = m;
+  return m;
+}

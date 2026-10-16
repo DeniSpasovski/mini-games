@@ -231,10 +231,14 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   tagged (`cars/shared/profile-body.ts`), shown only if the GLB fails to load. It wears the car's livery, box-projected
   onto the atlas (`CarAtlas.layout`). Car viewer `fallback=1` shows it.
 - The city maps' parked cars (`street_car`, `taxi`, `police_car`; `assets/builders/vehicles.ts`) are NOT the rally cars: they are
-  15 simplified models of three CC BY packs (`street-car-models.ts`, data in `street-cars.data.ts`, baked by
-  `scripts/car-model/street-pack-extract.py` + `bake-street-cars.mjs`): ~900 / ~450 triangles, one draw call per LOD, the body
-  paint recoloured per car (variants 0-14 = model, `STREET_CAR_MIX` weights what streets pick; 15 = the white hatch a map places).
-  Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` holds the triangle budget.
+  15 vehicles of three CC BY packs with their own triangles and textures (`street-car-models.ts`, data in `street-cars.data.ts`,
+  atlas `street-car-atlas.jpg` + `street-car-mask.png`; baked by `scripts/car-model/street-pack-extract.py` +
+  `bake-street-textures.py` + `bake-street-cars.mjs`, flags in their headers). LOD 0 is the full model (~6-7k triangles; interior
+  triangles culled), LOD 1 ~2k, LOD 2 ~1k (meshopt, round wheels). One shared material (`streetCarMaterial`): the atlas, with the
+  paint (per-vertex `color`) multiplied in only where the mask is white, so lamps, glass and trim keep their texels; the taxi sign,
+  light bar and lettering are a second `vehicle` part up to LOD 1. Variants 0-14 = model (`STREET_CAR_MIX` weights what streets pick;
+  15 = the white hatch a map places). The car LODs set `separateVariants` (no merged variant set: every instance would run the
+  vertex shader over all 15 models). Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` holds the triangle budget.
 - The Ajvatovci yards' trucks (`maps/ajvatovci/start-row/build/vehicles.ts`, `truck-models.ts`) are baked from two CC BY models
   (`scripts/car-model/bake-trucks.mjs`, data in `truck-models.data.ts`): `tractor` + `trailer` (the `trailer` kind), the `tractor` under a
   code-built tank (`tanker`), the `cab` under a code-built box (`box`) and a `dump` truck whose back is swapped (`Back`: tipper, flatbed,

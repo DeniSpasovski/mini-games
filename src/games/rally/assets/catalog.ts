@@ -38,6 +38,8 @@ export interface LodSpec {
   castShadow: boolean;
   /** Every instance uses variant 0's geometry (one draw call per asset instead of per variant: far LODs). */
   oneVariant?: boolean;
+  /** One InstancedMesh per variant, never a merged variant set (heavy variants: every instance would run the vertex shader over all of them). */
+  separateVariants?: boolean;
 }
 
 export interface AssetMeta {
@@ -73,6 +75,13 @@ const PEOPLE_LODS: LodSpec[] = [
   { maxDistance: 75, castShadow: true },
   { maxDistance: 220, castShadow: false },
   { maxDistance: 520, castShadow: false },
+];
+
+/** Pack cars: the full model up close, a reduced one out to the end of the shadows, then a plain one (no shadow). */
+const carLods = (full: number, reduced: number, far: number): LodSpec[] => [
+  { maxDistance: full, castShadow: true, separateVariants: true },
+  { maxDistance: reduced, castShadow: true, separateVariants: true },
+  { maxDistance: far, castShadow: false, separateVariants: true },
 ];
 
 export const ASSET_CATALOG: AssetMeta[] = [
@@ -357,12 +366,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Street car',
     category: 'props',
     description:
-      'Parked car: a simplified model of the CC BY packs (street-car-models.ts). Variants 0-14 are the models (0-4 old boxy cars, 5-14 modern: hatch, pickup, sport, minivan, SUV, coupe, off-road, compact, sedan, wagon) in a seeded paint; 15 = white hatch (placed on purpose). Faces +X. Solid.',
+      'Parked car: a model of the CC BY packs with its own textures (street-car-models.ts). Variants 0-14 are the models (0-4 old boxy cars, 5-14 modern: hatch, pickup, sport, minivan, SUV, coupe, off-road, compact, sedan, wagon) in a seeded paint; 15 = white hatch (placed on purpose). Faces +X. Solid.',
     variants: 16,
-    lods: [
-      { maxDistance: 90, castShadow: true },
-      { maxDistance: 420, castShadow: false },
-    ],
+    lods: carLods(40, 100, 420),
     colliders: [{ kind: 'box', hx: 2.3, hz: 0.96, h: 1.4, r: 2.5 }],
   },
   {
@@ -370,12 +376,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Taxi',
     category: 'props',
     description:
-      'Yellow cab with a roof sign and a black stripe (the boxy M3 saloon, faces +X). Solid.',
+      'Yellow cab with a roof sign and a black stripe (the sedan model, faces +X). Solid.',
     variants: 1,
-    lods: [
-      { maxDistance: 90, castShadow: true },
-      { maxDistance: 420, castShadow: false },
-    ],
+    lods: carLods(40, 100, 420),
     colliders: [{ kind: 'box', hx: 2.3, hz: 0.96, h: 1.5, r: 2.5 }],
   },
   {
@@ -383,12 +386,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Police car',
     category: 'props',
     description:
-      'White patrol car (the boxy M3 saloon), navy band, red / blue roof light bar, "POLICE" (generic, no real agency name) on the doors. Faces +X. Solid.',
+      'White patrol car (the sedan model), navy band, red / blue roof light bar, "POLICE" (generic, no real agency name) on the doors. Faces +X. Solid.',
     variants: 1,
-    lods: [
-      { maxDistance: 110, castShadow: true },
-      { maxDistance: 480, castShadow: false },
-    ],
+    lods: carLods(50, 120, 480),
     colliders: [{ kind: 'box', hx: 2.3, hz: 0.96, h: 1.6, r: 2.5 }],
   },
   {

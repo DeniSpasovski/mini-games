@@ -96,7 +96,7 @@ for s in g['scenes'][g.get('scene', 0)]['nodes']:
 
 if '--seeds' in sys.argv:
     # Packs whose bodies overlap: seed = prims named "<vehicle>_Body_0"; "<vehicle>_*" prims follow it; every other prim
-    # (a wheel) goes to the nearest seed that still has fewer than 4 of them.
+    # (optics, glass, wheels) goes to the nearest seed that still has fewer than 6 of them (optics, glass, 4 wheels).
     tail = sys.argv[sys.argv.index('--seeds') + 1]
     seeds = {p['node'][:-len(tail)]: [p] for p in prims if p['node'].endswith(tail) and not p['node'].startswith('Wheel')}
     rest = []
@@ -117,7 +117,7 @@ if '--seeds' in sys.argv:
         wheel = byid[pid]
         if pid in taken:
             continue
-        if count[k] >= 4 and not wheel['node'].endswith('Body_0'):
+        if count[k] >= 6 and not wheel['node'].endswith('Body_0'):
             continue
         taken.add(pid)
         if not wheel['node'].endswith('Body_0'):
