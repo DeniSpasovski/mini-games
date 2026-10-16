@@ -248,7 +248,7 @@
       {
         "node": "Object_164",
         "z": [-3, 0],
-        "material": "src:tail:subie_wrx_sti_lamps.png"
+        "material": "src:tail:subie_wrx_sti_lamps.png:250,420"
       }
     ]
   }

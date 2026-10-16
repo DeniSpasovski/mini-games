@@ -153,14 +153,37 @@ function sheetFor(file: string): Promise<HTMLImageElement> {
   return sheet;
 }
 
+/** Pixels of the sheet joined to `seed` (x, y) through non-black pixels: one lens, cut off from its neighbours by a dark outline. */
+function lensRegion(
+  px: Uint8ClampedArray,
+  [sx, sy]: [number, number],
+): Uint8Array {
+  const inside = new Uint8Array(SRC_SIZE * SRC_SIZE);
+  const todo = [sy * SRC_SIZE + sx];
+  while (todo.length) {
+    const i = todo.pop()!;
+    const p = i * 4;
+    if (inside[i] || px[p] + px[p + 1] + px[p + 2] < 77) continue;
+    inside[i] = 1;
+    const x = i % SRC_SIZE;
+    if (x > 0) todo.push(i - 1);
+    if (x < SRC_SIZE - 1) todo.push(i + 1);
+    if (i >= SRC_SIZE) todo.push(i - SRC_SIZE);
+    if (i < SRC_SIZE * (SRC_SIZE - 1)) todo.push(i + SRC_SIZE);
+  }
+  return inside;
+}
+
 /**
  * A part that keeps the source model's own texture and UVs (scripts/car-model/glb-src-parts.py): material name
  * `src:<kind>:<file in public/models/cars/>`. `int` = the sheet as it is (seat fabric, cockpit), matt, back faces dark; `shell` (no file) = dark plastic;
- * `lamp` = the sheet, its bright pixels glow (head lamps, indicators); `tail` = brake lamp (setBrake): the red pixels glow, the bright neutral ones light in reverse. The maps
+ * `lamp` = the sheet, its bright pixels glow (head lamps, indicators); `tail` = brake lamp (setBrake): the red pixels glow, the bright neutral ones light in reverse
+ * (`src:tail:<file>:<x>,<y>` = only the lens around that sheet pixel, when the clear ribbed trim behind the red cover must stay dark). The maps
  * stay dark until the sheet has loaded. Alpha comes from the sheet (clear lens areas show the reflector behind them).
  */
 function srcPart(name: string): Material {
-  const [, kind, file] = name.split(':');
+  const [, kind, file, seedText] = name.split(':');
+  const seed = seedText?.split(',').map(Number) as [number, number] | undefined;
   // Closed back of an open source shell (glb-src-parts.py `shells`): dark plastic.
   if (kind === 'shell')
     return new MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.6 });
@@ -207,12 +230,12 @@ function srcPart(name: string): Material {
       const px = g.getImageData(0, 0, SRC_SIZE, SRC_SIZE).data;
       const paint = (
         t: CanvasTexture,
-        f: (r: number, gr: number, b: number) => number,
+        f: (r: number, gr: number, b: number, n: number) => number,
       ) => {
         const c = (t.image as HTMLCanvasElement).getContext('2d')!;
         const d = c.createImageData(SRC_SIZE, SRC_SIZE);
         for (let i = 0; i < px.length; i += 4) {
-          const v = f(px[i], px[i + 1], px[i + 2]) * (px[i + 3] / 255);
+          const v = f(px[i], px[i + 1], px[i + 2], i >> 2) * (px[i + 3] / 255);
           d.data[i] = px[i] * v;
           d.data[i + 1] = px[i + 1] * v;
           d.data[i + 2] = px[i + 2] * v;
@@ -224,8 +247,11 @@ function srcPart(name: string): Material {
       const lum = (r: number, gr: number, b: number) => (r + gr + b) / 765;
       if (kind === 'tail') {
         paint(glow, (r, gr) => (r > 2 * gr + 40 ? 1 : 0));
-        paint(reverseGlow!, (r, gr, b) =>
-          Math.max(r, gr, b) - Math.min(r, gr, b) < 40 && lum(r, gr, b) > 0.6
+        const lens = seed && lensRegion(px, seed);
+        paint(reverseGlow!, (r, gr, b, n) =>
+          (!lens || lens[n]) &&
+          Math.max(r, gr, b) - Math.min(r, gr, b) < 40 &&
+          lum(r, gr, b) > 0.6
             ? 1
             : 0,
         );
