@@ -1,3 +1,4 @@
+import type { TimeOfDayId } from '../../game/time-of-day';
 import type { GearingId } from '../../physics/types';
 import type { SurfaceId } from '../../physics/surfaces';
 import type { TyreId } from '../../physics/tyres';
@@ -639,6 +640,17 @@ export interface ClosureRule {
   stageMargin?: number;
 }
 
+/** `[air, road]` in °C. */
+export type AirRoad = readonly [air: number, road: number];
+
+/**
+ * Predefined temperatures of a stage by season and time of day (`TIMES_OF_DAY` slot; the stage's own slot is at the
+ * stage's own hour, `environment.timeOfDay`): the air and the road, the road being the stage's first surface (what the
+ * stage screen shows). Other hours (`?tod=`) blend the neighbouring slots (maps/shared/day-temperature.ts); the tyres'
+ * sun heat is the road's gap to the air, scaled to each surface's `heat`.
+ */
+export type StageTemps = Record<Season, Record<TimeOfDayId, AirRoad>>;
+
 /**
  * A STAGE: the rally event on a map's road (see MapDef). Runs along the map's road, or against it (`reverse`): every
  * distance of the stage (`timing`, `props`, the `spawn=` URL) is measured along the stage road in its own direction.
@@ -649,6 +661,8 @@ export interface StageDef {
   name: string;
   /** Edition year printed in the start / finish gantry header next to the stage name. */
   year: number;
+  /** Air and road temperature for every season and time of day (`StageTemps`): the stage screen and the tyres use it. */
+  temps: StageTemps;
   description: string;
   /** Recommended tyre for the stage's surfaces: pre-selected on the car screen, the player may pick another. */
   tyre: TyreId;
@@ -863,28 +877,15 @@ export interface EnvironmentDef {
    */
   timeOfDay?: number;
   /**
-   * Season (default summer): the leaf colours of the trees (trees/seasons.ts) and, through `airTemps`, the air
-   * temperature. Try others with `?season=spring|summer|autumn`.
+   * Season (default summer): the leaf colours of the trees (trees/seasons.ts), the ground (`groundTints`) and which
+   * temperatures of the stages' `temps` apply. Try others with `?season=spring|summer|autumn`.
    */
   season?: Season;
   /**
-   * Air temperature (°C, default 20) in the map's `season`: with the sun height and clouds it sets the track temperature
-   * and how the tyres warm up (physics/tyre-temp.ts, `stageClimate`). Try others with `?air=<°C>`.
-   */
-  airTemp?: number;
-  /** Air temperature (°C) per season, ahead of `airTemp`; a season left out is `airTemp` shifted by `SEASON_AIR_OFFSET` (maps/shared/climate.ts). */
-  airTemps?: Partial<Record<Season, number>>;
-  /**
    * Month (1 = January ... 12) the stage is driven in per season, shown on the stage screen (default April / July /
-   * October, `DEFAULT_MONTHS`). `airTemps` and `sunHeats` are authored for that month.
+   * October, `DEFAULT_MONTHS`). The stages' `temps` are researched for that month.
    */
   months?: Partial<Record<Season, number>>;
-  /**
-   * How much the sun warms a dark, fully sun-heated road above the air (°C, clear noon sun) per season, researched for
-   * the stage's month (physics/tyre-temp.ts, `SUN_HEAT` = 24 where left out). The road is air + this x the sun height
-   * factor x (1 - clouds / 2) x the surface's `heat`.
-   */
-  sunHeats?: Partial<Record<Season, number>>;
   /** Override the sun colour / intensity (default: warmer and dimmer the lower the sun). */
   sunColor?: string;
   sunIntensity?: number;

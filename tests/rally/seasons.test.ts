@@ -4,17 +4,17 @@ import { ajvatovciInfo } from '../../src/games/rally/maps/ajvatovci/info';
 import { galichicaInfo } from '../../src/games/rally/maps/galichica/info';
 import { jackieInfo } from '../../src/games/rally/maps/jackie/info';
 import { petralicaInfo } from '../../src/games/rally/maps/petralica/info';
+import { mapSeason } from '../../src/games/rally/maps/shared/climate';
 import {
-  mapSeason,
-  seasonAirTemp,
   stageClimate,
-} from '../../src/games/rally/maps/shared/climate';
+  stageTemps,
+} from '../../src/games/rally/maps/shared/day-temperature';
 import {
   groundTintFor,
   mapInSeason,
 } from '../../src/games/rally/maps/shared/season-map';
-import type { EnvironmentDef } from '../../src/games/rally/maps/shared/types';
 import { testMap } from '../../src/games/rally/maps/test/map';
+import { TIMES_OF_DAY } from '../../src/games/rally/game/time-of-day';
 import { SEASONS, seasonParam } from '../../src/games/rally/season';
 import { hexToLinear } from '../../src/games/rally/trees/math';
 import {
@@ -43,20 +43,31 @@ const MAPS = [
   ['test', testMap.environment, 20],
 ] as const;
 
-describe('seasons: every map has all three', () => {
-  // A new map (Vodno came after the seasons) needs its season data before it merges.
+describe('seasons: every stage and map has all three', () => {
+  // A new stage needs its temperatures, a new map its ground, before it merges.
+  test.each(STAGES.map((s) => [s.id, s] as const))(
+    '%s: air and road for each season and time of day',
+    (_id, stage) => {
+      for (const season of SEASONS)
+        for (const slot of TIMES_OF_DAY) {
+          const [air, road] = stage.temps[season][slot.id];
+          expect(air, `${season} ${slot.id} air`).toBeTypeOf('number');
+          expect(road, `${season} ${slot.id} road`).toBeTypeOf('number');
+          // The road is never colder than the air (night: the same).
+          expect(road).toBeGreaterThanOrEqual(air);
+        }
+    },
+  );
+
   test.each(
     [...new Map(STAGES.map((s) => [s.map, s])).values()].map(
       (s) => [s.map, s.environment] as const,
     ),
-  )('%s: air temperature, sun heat and ground for each season', (_id, env) => {
+  )('%s: ground for each season', (_id, env) => {
     const own = mapSeason(env);
-    for (const season of SEASONS) {
-      expect(env.airTemps?.[season], `${season} air`).toBeTypeOf('number');
-      expect(env.sunHeats?.[season], `${season} sun`).toBeTypeOf('number');
+    for (const season of SEASONS)
       if (season !== own)
         expect(env.groundTints?.[season], `${season} ground`).toBeTruthy();
-    }
   });
 });
 
@@ -107,35 +118,41 @@ describe('seasons: air temperature', () => {
     expect(seasonParam('__proto__', 'spring')).toBe('spring');
   });
 
-  test.each(MAPS)(
-    '%s keeps its summer temperature and is cooler in spring and autumn',
-    (_id, env, summer) => {
-      expect(mapSeason(env)).toBe('summer');
-      expect(seasonAirTemp(env)).toBe(summer);
-      expect(stageClimate(env).air).toBe(summer);
-      expect(seasonAirTemp(env, 'spring')).toBeLessThan(summer);
-      expect(seasonAirTemp(env, 'autumn')).toBeLessThan(summer);
+  // The air at each stage's own hour in summer, as before the seasons (`?air=` and the old authored numbers).
+  const SUMMER_AIR: Record<string, number> = {
+    test: 20,
+    ajvatovci: 27,
+    petralica: 17,
+    jackie: 17,
+    galichica_west: 12,
+    galichica_east: 12,
+    prespa_ohrid: 12,
+  };
+  test.each(Object.entries(SUMMER_AIR))(
+    '%s keeps its summer air at its own hour and is cooler in spring and autumn',
+    (id, summer) => {
+      const stage = STAGES.find((s) => s.id === id)!;
+      const own = stage.environment.timeOfDay;
+      expect(mapSeason(stage.environment)).toBe('summer');
+      expect(stageTemps(stage, own).air).toBe(summer);
+      expect(stageClimate(stage, own).air).toBe(summer);
+      expect(stageTemps(stage, own, 'spring').air).toBeLessThan(summer);
+      expect(stageTemps(stage, own, 'autumn').air).toBeLessThan(summer);
     },
   );
 
-  test('the maps have their own temperatures', () => {
-    const temps = MAPS.map(([, env]) =>
-      SEASONS.map((s) => seasonAirTemp(env, s)),
+  test('the stages have their own temperatures; ?air= wins', () => {
+    // One stage per map: the three Galichica stages share one table.
+    const temps = [...new Map(STAGES.map((s) => [s.map, s])).values()].map(
+      (s) => JSON.stringify(s.temps),
     );
-    expect(new Set(temps.map((t) => t.join())).size).toBe(MAPS.length);
-  });
-
-  test('a map with one temperature moves it with the season; ?air= wins', () => {
-    const env = { airTemp: 20 } as EnvironmentDef;
-    expect(seasonAirTemp(env, 'summer')).toBe(20);
-    expect(seasonAirTemp(env, 'spring')).toBeLessThan(20);
-    expect(seasonAirTemp({ ...env, season: 'autumn' }, 'autumn')).toBe(20);
-    expect(
-      seasonAirTemp({ ...env, season: 'autumn' }, 'summer'),
-    ).toBeGreaterThan(20);
-    const full = { ...env, sunElevation: 30, sunAzimuth: 0 } as EnvironmentDef;
-    expect(stageClimate(full, 30, 3).air).toBe(3);
-    expect(stageClimate(full, 30).air).toBe(seasonAirTemp(full));
+    expect(new Set(temps).size).toBe(temps.length);
+    const stage = STAGES.find((s) => s.id === 'ajvatovci')!;
+    expect(stageClimate(stage, 12, 'summer', 3).air).toBe(3);
+    // The sun heat does not follow the overridden air.
+    expect(stageClimate(stage, 12, 'summer', 3).sun).toBe(
+      stageClimate(stage, 12, 'summer').sun,
+    );
   });
 });
 

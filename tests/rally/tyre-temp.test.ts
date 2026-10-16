@@ -2,9 +2,8 @@ import { describe, expect, test } from '@rstest/core';
 import { Vector3 } from 'three';
 import { ALL_CARS } from '../../src/games/rally/cars';
 import { tyreColor } from '../../src/games/rally/game/tyre-gauge';
-import { ajvatovciMap } from '../../src/games/rally/maps/ajvatovci/map';
-import { petralicaMap } from '../../src/games/rally/maps/petralica/map';
-import { stageClimate } from '../../src/games/rally/maps/shared/climate';
+import { getStage } from '../../src/games/rally/maps';
+import { stageClimate } from '../../src/games/rally/maps/shared/day-temperature';
 import {
   applySetup,
   SETUP_FOR_TYRE,
@@ -125,7 +124,7 @@ describe('grip curves', () => {
 
 describe('climate', () => {
   test('a dark road in the sun is hotter than the air, gravel and grass less so', () => {
-    const c = stageClimate(petralicaMap.environment);
+    const c = stageClimate(getStage('petralica'));
     const t = (s: SurfaceId) => trackTemp(c, SURFACES[s]);
     expect(t('tarmac')).toBeGreaterThan(c.air + 3);
     expect(t('tarmac')).toBeGreaterThan(t('gravel'));
@@ -133,8 +132,8 @@ describe('climate', () => {
   });
 
   test('a hot clear June morning heats the road more than a cool Petralica afternoon', () => {
-    const hot = stageClimate(ajvatovciMap.environment);
-    const cool = stageClimate(petralicaMap.environment);
+    const hot = stageClimate(getStage('ajvatovci'));
+    const cool = stageClimate(getStage('petralica'));
     expect(trackTemp(hot, SURFACES.tarmac)).toBeGreaterThan(
       trackTemp(cool, SURFACES.tarmac) + 5,
     );

@@ -4,7 +4,8 @@ import { Autopilot } from '../../src/games/rally/game/autopilot';
 import { ajvatovciMap } from '../../src/games/rally/maps/ajvatovci/map';
 import { jackieMap } from '../../src/games/rally/maps/jackie/map';
 import { petralicaMap } from '../../src/games/rally/maps/petralica/map';
-import { stageClimate } from '../../src/games/rally/maps/shared/climate';
+import { getStage } from '../../src/games/rally/maps';
+import { stageClimate } from '../../src/games/rally/maps/shared/day-temperature';
 import type { MapDef } from '../../src/games/rally/maps/shared/types';
 import { testMap } from '../../src/games/rally/maps/test/map';
 import {
@@ -39,7 +40,7 @@ function drive(
   const def = ALL_CARS.find((c) => c.id === carId)!.physics;
   const v = new Vehicle(applySetup(def, setup), world);
   v.setTyre(tyre);
-  if (climate) v.setClimate(stageClimate(world.map.environment));
+  if (climate) v.setClimate(stageClimate(getStage(world.stageDef.id)));
   const spawn = world.roadSpawn();
   v.reset(spawn.position, spawn.heading);
   const ap = new Autopilot(world.stageRoad);

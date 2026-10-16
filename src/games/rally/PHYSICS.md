@@ -305,18 +305,18 @@ Cold tyres grip less, tyres overheated by sliding grip less, in between they are
 (`WheelState.temp`), only with a climate (`Vehicle.setClimate`; the game sets it from the map, `null` = off, so tool
 pages and the reference tests above are unchanged).
 
-- **Climate:** `EnvironmentDef.airTemps` (°C per season, `?season=` or the stage screen's Season; summer: Ajvatovci 27,
-  Jackie 17, test 20, Petralica 17, Galichica 12; `airTemp` alone moves by `SEASON_AIR_OFFSET`; `?air=` to try any) is the air
-  at the map's own `timeOfDay`; at another hour (`?tod=`, the stage screen's Time of day) it swings +-6 °C (coldest ~03:00,
-  warmest ~15:00, `airAtHour`). The sun (`stageClimate`: sun height after `?tod=`, clouds, the season) warms the road:
-  track temperature = air + sun x `SurfaceDef.heat` (tarmac 1 ... grass 0.3, snow 0). The drawn sun path is one mid-summer
-  day, so each map hardcodes how hot a dark road runs above the air in the clear noon sun per season
-  (`EnvironmentDef.sunHeats`, researched for the stage's month in `EnvironmentDef.months`, shown on the stage screen):
-  summer 24 (as before), April 16, May 19, September 17, October 10. Source figures (plain text): a hot clear summer noon
-  heats dark asphalt ~23 °C above the air at 41 N (Solaimanian and Kennedy, TRR 1417, 1993); monthly daily-maximum
-  surface minus air at the MnROAD asphalt test road (Minnesota, 2001-2005): April 16.6, May 20.4, July 26.2, September 17.0,
-  October 8.9 °C, i.e. 0.63, 0.78, 0.65 and 0.34 of July (applied to our 24; October a little higher for the higher
-  sun at 41 N). The stage screen shows the same air / road numbers (`stageTemps`).
+- **Climate:** every stage hardcodes its temperatures: `StageDef.temps` (`maps/<map>/stages.ts`) = `[air, road]` °C for each
+  season (spring / summer / autumn, `?season=` or the stage screen's Season) and time of day (early morning, mid day,
+  afternoon, evening, night; the stage's own slot is at its own `timeOfDay`). The road is the stage's first surface; any
+  other hour (`?tod=`) blends the neighbouring slots in a straight line (`stageTemps`, maps/shared/day-temperature.ts), and
+  `?air=<°C>` replaces the air only. `stageClimate` turns it into the tyre climate: the air and a sun heat = the road's gap to
+  the air scaled to a `heat` 1 surface, so every surface runs air + sun x `SurfaceDef.heat` (tarmac 1 ... grass 0.3,
+  snow 0). The numbers are researched, not computed (the table is the matrix in DETAILS.md "Temperatures"). Summer keeps the
+  authored air at each stage's own hour (Ajvatovci 27, Jackie 17, test 20, Petralica 17, Galichica 12). Source figures (plain
+  text): a hot clear summer noon heats dark asphalt ~23 °C above the air at 41 N (Solaimanian and Kennedy, TRR 1417, 1993);
+  monthly daily-maximum surface minus air at the MnROAD asphalt test road (Minnesota, 2001-2005): April 16.6, May 20.4, July
+  26.2, September 17.0, October 8.9 °C, so the noon gap is about 16 in April, 19 in May, 24 in July, 17 in September and 10
+  in October (`EnvironmentDef.months` names the month of each season). The stage screen shows the same numbers.
 - **Heat:** sliding work (`|F| x slide speed / static load`, the stones take 60 % of it on loose ground) + carcass flex
   (speed x load). **Cooling:** air (more with speed), the ground (towards the track temperature), water. Capped at 150 °C.
   Tyres start a stage at the air temperature (`resetTyreTemps` on start / restart; reset to road keeps them).

@@ -140,15 +140,9 @@ const NOT_ON_CARD = new Set([
   'horizon',
 ]);
 
-/** The environment as drawn: not the air temperatures, months nor the other seasons' tints (the card is one season's picture). */
+/** The environment as drawn: not the months nor the other seasons' tints (the card is one season's picture). */
 function drawnEnvironment(env: MapDef['environment']): unknown {
-  const {
-    airTemp: _a,
-    airTemps: _t,
-    months: _m,
-    groundTints: _g,
-    ...drawn
-  } = env;
+  const { months: _m, groundTints: _g, ...drawn } = env;
   return drawn;
 }
 

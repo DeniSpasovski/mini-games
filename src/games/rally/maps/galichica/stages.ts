@@ -1,4 +1,4 @@
-import type { ClosureRule, StageDef } from '../shared/types';
+import type { ClosureRule, StageDef, StageTemps } from '../shared/types';
 
 /**
  * The three stages on the Galichica road (./map.ts). The road runs west -> east: 280 m of the Ohrid lakeside road
@@ -22,11 +22,41 @@ const CLOSURES: ClosureRule = {
   stageMargin: 60,
 };
 
+/**
+ * Air and road temperature (°C, `[air, road]`) by season and time of day: hardcoded for the stage, researched (rally
+ * DETAILS.md "Temperatures"). The road is the stage's first surface; a time of day is a slot of game/time-of-day.ts (the
+ * stage's own slot at its own hour).
+ */
+const TEMPS: StageTemps = {
+  spring: {
+    early: [6, 19],
+    midday: [10, 27],
+    afternoon: [12, 24],
+    evening: [11, 13],
+    night: [1, 1],
+  },
+  summer: {
+    early: [12, 29],
+    midday: [16, 38],
+    afternoon: [18, 33],
+    evening: [17, 20],
+    night: [7, 7],
+  },
+  autumn: {
+    early: [9, 16],
+    midday: [13, 22],
+    afternoon: [15, 21],
+    evening: [14, 15],
+    night: [4, 4],
+  },
+};
+
 export const galichicaStages: StageDef[] = [
   {
     id: 'galichica_west',
     name: 'Galichica West',
     year: 2026,
+    temps: TEMPS,
     tyre: 'tarmac',
     description:
       'A narrow mountain road in Galichica National Park, North Macedonia: tarmac switchbacks climb from Lake Ohrid through oak and beech woods to the Livada pass, with both lakes in the distance.',
@@ -49,6 +79,7 @@ export const galichicaStages: StageDef[] = [
     id: 'galichica_east',
     name: 'Galichica East',
     year: 2026,
+    temps: TEMPS,
     tyre: 'tarmac',
     description:
       'The same mountain road from the Prespa side: tarmac switchbacks through beech forest up to the bare, rocky top of the Livada pass, with both lakes below.',
@@ -75,6 +106,7 @@ export const galichicaStages: StageDef[] = [
     id: 'prespa_ohrid',
     name: 'From Prespa to Ohrid',
     year: 2026,
+    temps: TEMPS,
     tyre: 'tarmac',
     gearing: 'long',
     description:

@@ -48,9 +48,7 @@ export const galichicaInfo: MapInfo = {
     sunAzimuth: 40,
     // Early October, 09:00: clear dry mountain air, long views over both lakes.
     timeOfDay: 9,
-    airTemps: { spring: 6, summer: 12, autumn: 9 },
     months: { spring: 5, summer: 7, autumn: 10 },
-    sunHeats: { spring: 19, summer: 24, autumn: 10 },
     cloudCoverage: 0.15,
     turbidity: 3.5,
     rayleigh: 1.4,

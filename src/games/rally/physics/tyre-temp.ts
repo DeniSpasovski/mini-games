@@ -28,9 +28,6 @@ export interface TempWindow {
 export const COLD_SPAN = 45;
 /** °C above the window over which a tyre goes from full grip to `hot`. */
 export const HOT_SPAN = 35;
-/** Sun heat on a dark surface with the sun high and no clouds (°C above the air) in summer; a map sets its own per season. */
-export const SUN_HEAT = 24;
-
 // Heat in (°C/s): sliding friction work per unit of nominal load, and carcass flex per m/s of speed.
 const SLIDE_HEAT = 0.65;
 const ROLL_HEAT = 0.08;
@@ -43,24 +40,6 @@ const ROAD_COOL = 0.016;
 const WATER_COOL = 0.25;
 /** Hottest a tyre gets (°C): keeps the cool-down after a long burnout short. */
 const MAX_TEMP = 150;
-
-/**
- * Climate of a stage: air temperature, sun height (deg), cloud cover (0..1) and `sunHeat`: the °C a dark surface runs
- * above the air in the high clear sun of the stage's season (`EnvironmentDef.sunHeats`, maps/shared/climate.ts).
- */
-export function climateFor(
-  air: number,
-  sunElevationDeg: number,
-  clouds = 0.4,
-  sunHeat = SUN_HEAT,
-): Climate {
-  const sun = Math.max(0, Math.sin((sunElevationDeg * Math.PI) / 180));
-  return {
-    air,
-    sun:
-      sunHeat * Math.min(1, sun / Math.sin(Math.PI / 3)) * (1 - 0.5 * clouds),
-  };
-}
 
 /** Temperature of a surface in the sun (°C). */
 export function trackTemp(c: Climate, s: SurfaceDef): number {

@@ -19,7 +19,7 @@ import {
 } from '../engine/quality';
 import { ALL_STAGES, DEFAULT_STAGE, MAPS, STAGES } from '../maps';
 import { MONTH_NAMES, mapSeason, seasonMonth } from '../maps/shared/climate';
-import { stageTemps } from '../maps/shared/day-temperature';
+import { slotHour, stageTemps } from '../maps/shared/day-temperature';
 import { SEASON_LABELS, SEASONS, seasonParam, type Season } from '../season';
 import type { SourceLink, StageInfo } from '../maps/shared/types';
 import { peakPower } from '../physics/drivetrain';
@@ -714,12 +714,7 @@ class MainMenu {
     when.innerHTML = `<dt>Time</dt><dd></dd><dt>Temperature</dt><dd></dd>`;
     const [clock, temp] = when.querySelectorAll('dd');
     const show = (h: number) => {
-      const t = stageTemps(
-        m.environment,
-        h,
-        m.surfaces[0] ?? 'tarmac',
-        this.seasonFor(m),
-      );
+      const t = stageTemps(m, h, this.seasonFor(m));
       clock.textContent = formatHour(h);
       temp.textContent = `air ${Math.round(t.air)}°C / road ${Math.round(t.road)}°C`;
     };
@@ -750,8 +745,7 @@ class MainMenu {
 
   /** The hour a slot means on a stage: the stage's own slot keeps the stage's exact default hour. */
   private slotHour(m: StageInfo, t: TimeOfDay): number {
-    const own = m.environment.timeOfDay;
-    return own !== undefined && slotFor(own).id === t.id ? own : t.hour;
+    return slotHour(m.environment.timeOfDay, t);
   }
 
   /** Hour the stage runs at: the picked time, else `?tod=`, else its own; missing = the stage has no time of day. */

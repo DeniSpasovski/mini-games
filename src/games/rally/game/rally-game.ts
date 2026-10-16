@@ -91,9 +91,10 @@ import {
   carTimesVersion,
   timesVersion,
 } from './stage';
-import { mapSeason, stageClimate } from '../maps/shared/climate';
+import { infoOf, stageInfo } from '../maps';
+import { mapSeason } from '../maps/shared/climate';
 import { mapInSeason } from '../maps/shared/season-map';
-import { airAtHour } from '../maps/shared/day-temperature';
+import { stageClimate } from '../maps/shared/day-temperature';
 import { seasonParam, type Season } from '../season';
 import type { MapDef, StageDef } from '../maps/shared/types';
 import { trackTemp } from '../physics/tyre-temp';
@@ -397,15 +398,14 @@ export class RallyGame {
       this.world,
     );
     this.vehicle.setTyre(this.opts.tyre);
-    // Tyre temperatures: the map's air temperature for the season at the hour drawn (`?tod=`; `?air=<°C>` to try others) and the sun as drawn.
+    // Tyre temperatures: the stage's predefined air and road for the season at the hour drawn (`?tod=`; `?air=<°C>` to try other air).
     const air = new URLSearchParams(location.search).get('air');
     this.vehicle.setClimate(
       stageClimate(
-        map.environment,
-        this.env.sunElevation,
-        paramNumber(air, -60, 70, undefined) ??
-          airAtHour(map.environment, this.env.hour, this.season),
+        stageInfo(infoOf(map), this.world.stageDef),
+        this.env.hour,
         this.season,
+        paramNumber(air, -60, 70, undefined),
       ),
     );
     this.model = new CarModel(this.car, {

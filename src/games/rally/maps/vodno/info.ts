@@ -59,9 +59,7 @@ export const vodnoInfo: MapInfo = {
     // Late October, 10:00: the valley haze of Skopje, cool air, the pine slope in the mountain's shade.
     timeOfDay: 10,
     season: 'autumn',
-    airTemps: { spring: 14, summer: 27, autumn: 11 },
     months: { spring: 4, summer: 7, autumn: 10 },
-    sunHeats: { spring: 16, summer: 24, autumn: 10 },
     cloudCoverage: 0.25,
     turbidity: 4.6,
     rayleigh: 1.5,

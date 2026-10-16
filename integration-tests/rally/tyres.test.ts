@@ -9,7 +9,8 @@ import {
 import { ajvatovciMap } from '../../src/games/rally/maps/ajvatovci/map';
 import { jackieMap } from '../../src/games/rally/maps/jackie/map';
 import { petralicaMap } from '../../src/games/rally/maps/petralica/map';
-import { stageClimate } from '../../src/games/rally/maps/shared/climate';
+import { getStage } from '../../src/games/rally/maps';
+import { stageClimate } from '../../src/games/rally/maps/shared/day-temperature';
 import type { MapDef } from '../../src/games/rally/maps/shared/types';
 import { testMap } from '../../src/games/rally/maps/test/map';
 import {
@@ -142,7 +143,7 @@ test('the wrong tyre is a clear penalty, the right one a modest bonus', () => {
 function driveStage(world: World, tyre: TyreId, extraGrip = false) {
   const v = new Vehicle(applySetup(fabia.physics, SETUP_FOR_TYRE[tyre]), world);
   v.setTyre(tyre);
-  v.setClimate(stageClimate(world.map.environment));
+  v.setClimate(stageClimate(getStage(world.stageDef.id)));
   const spawn = world.roadSpawn();
   v.reset(spawn.position, spawn.heading);
   const ap = new Autopilot(world.stageRoad);

@@ -1,4 +1,33 @@
-import type { MapDef } from '../shared/types';
+import type { MapDef, StageTemps } from '../shared/types';
+
+/**
+ * Air and road temperature (°C, `[air, road]`) by season and time of day: hardcoded for the stage, researched (rally
+ * DETAILS.md "Temperatures"). The road is the stage's first surface; a time of day is a slot of game/time-of-day.ts (the
+ * stage's own slot at its own hour).
+ */
+const TEMPS: StageTemps = {
+  spring: {
+    early: [5, 7],
+    midday: [12, 20],
+    afternoon: [14, 19],
+    evening: [13, 14],
+    night: [3, 3],
+  },
+  summer: {
+    early: [11, 15],
+    midday: [18, 30],
+    afternoon: [20, 27],
+    evening: [19, 21],
+    night: [9, 9],
+  },
+  autumn: {
+    early: [3, 5],
+    midday: [10, 15],
+    afternoon: [12, 15],
+    evening: [11, 12],
+    night: [1, 1],
+  },
+};
 
 /**
  * "Test map" - a short (~1.5 km) classic forest gravel stage for physics work.
@@ -17,6 +46,7 @@ export const testMap: MapDef = {
       id: 'test',
       name: 'Test Map',
       year: 2026,
+      temps: TEMPS,
       /** Recommended tyre (pre-selected on the car screen; see ../../PHYSICS.md). */
       tyre: 'gravel',
       description:
@@ -197,8 +227,6 @@ export const testMap: MapDef = {
     sunAzimuth: 215,
     // Same sun height as above (31.6 deg), so the time of day picker works here too.
     timeOfDay: 15.8,
-    airTemps: { spring: 14, summer: 20, autumn: 12 },
-    sunHeats: { spring: 16, summer: 24, autumn: 10 },
     groundTints: {
       spring: { grass: '#7ab648', amount: 0.5 },
       autumn: { grass: '#8d7440', amount: 0.6 },
