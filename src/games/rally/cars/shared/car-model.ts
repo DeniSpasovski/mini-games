@@ -143,6 +143,7 @@ const lightMat = new MeshStandardMaterial({
   roughness: 0.12,
   ...decal,
 });
+markHeadLamp(lightMat, 5);
 // Unlit lamp lenses: deep glossy colour, a little glow (ribbed lens geometry gives the sparkle).
 const tailMat = new MeshStandardMaterial({
   color: 0x720709,
@@ -209,6 +210,15 @@ function lampCellTexture(): CanvasTexture {
   cellTex.repeat.set(80, 80);
   cellTex.anisotropy = 4;
   return cellTex;
+}
+
+/** Mark a lamp material as a headlight: its emissive intensity goes from today's value to `on` with the lights on (`CarModel.setLamps`). */
+function markHeadLamp<M extends Material & { emissiveIntensity: number }>(
+  m: M,
+  on: number,
+): M {
+  m.userData.headLamp = { off: m.emissiveIntensity, on };
+  return m;
 }
 
 /** Mark a lamp material as a brake light: its emissive intensity goes from today's value to `on` when braking. */
@@ -341,6 +351,8 @@ function getMeshMaterial(): MeshStandardMaterial {
   return meshMat;
 }
 
+/** Extra emissive intensity of a tail lamp with the lights on (night), up to its full brake glow. */
+const TAIL_NIGHT_GLOW = 1;
 /** Livery brightness (linear) inside a recess (CarModel.recessMaterial). */
 const RECESS_SHADE = 0.12;
 /** Imported-model parts that never cast a shadow (hidden by the body's own shadow or too small to show). */
@@ -380,6 +392,9 @@ export class CarModel {
   private owned: (Material | Texture | BufferGeometry)[] = [];
   /** This car's own copies of its brake-lamp materials (collected on the first setBrake / after the import). */
   private brakeLamps?: MeshStandardMaterial[];
+  private headLamps: MeshStandardMaterial[] = [];
+  /** Lights on (night): headlamps glow, tail lamps keep a steady glow under the brake light. */
+  private lampsOn = false;
   private brakeLevel = 0;
   private reversing = false;
   /** Fitted compound (null = plain tyre). */
@@ -1063,6 +1078,60 @@ export class CarModel {
     }
   }
 
+  /** This car's own copies of its lamp materials (shared ones would light every car), then the lamp state as it is now. */
+  private collectLamps(): void {
+    const own = new Map<Material, MeshStandardMaterial>();
+    this.root.traverse((o) => {
+      const mesh = o as Mesh;
+      if (!mesh.isMesh) return;
+      const m = mesh.material as MeshStandardMaterial;
+      if (
+        !m ||
+        Array.isArray(m) ||
+        !(m.userData.brakeLamp || m.userData.headLamp)
+      )
+        return;
+      if (m.userData.brakeOwner === this) {
+        own.set(m, m);
+        return;
+      }
+      let c = own.get(m);
+      if (!c) {
+        c = m.clone();
+        // clone() drops per-material shader hooks (lampDepth's recessed lamps).
+        c.onBeforeCompile = m.onBeforeCompile;
+        c.customProgramCacheKey = m.customProgramCacheKey;
+        c.userData = { ...m.userData, brakeOwner: this };
+        own.set(m, c);
+        this.owned.push(c);
+      }
+      mesh.material = c;
+    });
+    const all = [...new Set(own.values())];
+    this.brakeLamps = all.filter((m) => m.userData.brakeLamp);
+    this.headLamps = all.filter((m) => m.userData.headLamp);
+    this.brakeLevel = -1;
+    this.applyHeadLamps();
+  }
+
+  private applyHeadLamps(): void {
+    for (const m of this.headLamps) {
+      const { off, on } = m.userData.headLamp as { off: number; on: number };
+      m.emissiveIntensity = this.lampsOn ? on : off;
+    }
+  }
+
+  /** Lights on / off (night): headlamps glow, tail lamps stay lit (brake light still brighter). */
+  setLamps(on: boolean): void {
+    if (on === this.lampsOn) return;
+    this.lampsOn = on;
+    if (!this.brakeLamps) this.collectLamps();
+    else {
+      this.brakeLevel = -1; // the next setBrake rewrites the tail lamps
+      this.applyHeadLamps();
+    }
+  }
+
   /**
    * Brake lights: 0 = off (the lamps' faint idle glow), 1 = brake pedal fully down (bright). The car's brake-lamp
    * materials (`userData.brakeLamp`) are cloned once per CarModel, so other cars (showroom, bench) never light up.
@@ -1070,45 +1139,21 @@ export class CarModel {
    * (the game passes the pedal that brakes in reverse): then only the red brake glow shows.
    */
   setBrake(level: number, reversing = false): void {
-    if (!this.brakeLamps) {
-      const own = new Map<Material, MeshStandardMaterial>();
-      this.root.traverse((o) => {
-        const mesh = o as Mesh;
-        if (!mesh.isMesh) return;
-        const m = mesh.material as MeshStandardMaterial;
-        if (!m || Array.isArray(m) || !m.userData.brakeLamp) return;
-        if (m.userData.brakeOwner === this) {
-          own.set(m, m);
-          return;
-        }
-        let c = own.get(m);
-        if (!c) {
-          c = m.clone();
-          // clone() drops per-material shader hooks (lampDepth's recessed lamps).
-          c.onBeforeCompile = m.onBeforeCompile;
-          c.customProgramCacheKey = m.customProgramCacheKey;
-          c.userData = { ...m.userData, brakeOwner: this };
-          own.set(m, c);
-          this.owned.push(c);
-        }
-        mesh.material = c;
-      });
-      this.brakeLamps = [...new Set(own.values())];
-      this.brakeLevel = -1;
-    }
+    if (!this.brakeLamps) this.collectLamps();
     const l = Math.max(0, Math.min(1, level));
     if (Math.abs(l - this.brakeLevel) < 0.02 && reversing === this.reversing)
       return;
     this.brakeLevel = l;
     this.reversing = reversing;
-    for (const m of this.brakeLamps) {
+    for (const m of this.brakeLamps ?? []) {
       const { off, on, reverseGlow } = m.userData.brakeLamp as {
         off: number;
         on: number;
         reverseGlow?: Texture;
       };
       m.userData.brakeGlow ??= m.emissiveMap;
-      const lit = off + (on - off) * l;
+      const idle = this.lampsOn ? Math.min(on, off + TAIL_NIGHT_GLOW) : off;
+      const lit = idle + (on - idle) * l;
       if (reverseGlow && reversing && l < 0.02) {
         // Reversing without the brake pedal: the white section only. With the brake down the white one goes dark.
         m.emissiveMap = reverseGlow;

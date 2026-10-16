@@ -72,6 +72,15 @@ export type PartName =
 
 const cache = new Map<string, Material>();
 
+/** Headlight (CarModel.setLamps): emissive from its idle value to `on` with the lights on (night). */
+function headLamp<M extends Material & { emissiveIntensity: number }>(
+  m: M,
+  on: number,
+): M {
+  m.userData.headLamp = { off: m.emissiveIntensity, on };
+  return m;
+}
+
 /**
  * Brake lamp (CarModel.setBrake): emissive from its idle value to `on` with the brake down. `reverseGlow` = an
  * emissive map that lights only the white reversing section; CarModel swaps it in while the car is in reverse gear.
@@ -1783,16 +1792,19 @@ const BUILDERS: Record<PartName, () => Material> = {
   },
   headlight: () => {
     const { map, glow } = headlightMaps();
-    return new MeshPhysicalMaterial({
-      map,
-      emissive: 0xffffff,
-      emissiveMap: glow,
-      emissiveIntensity: 0.6,
-      roughness: 0.22,
-      metalness: 0.12,
-      clearcoat: 1,
-      clearcoatRoughness: 0.04,
-    });
+    return headLamp(
+      new MeshPhysicalMaterial({
+        map,
+        emissive: 0xffffff,
+        emissiveMap: glow,
+        emissiveIntensity: 0.6,
+        roughness: 0.22,
+        metalness: 0.12,
+        clearcoat: 1,
+        clearcoatRoughness: 0.04,
+      }),
+      5,
+    );
   },
   /** Twin round headlight (E46 style), see twinLampMaps / lampDepth - needs `parts.wrap` 'corner'. */
   twinlamp: () => {
@@ -1886,17 +1898,20 @@ const BUILDERS: Record<PartName, () => Material> = {
   /** Subaru 22B headlight: the model's own multi-reflector lamp, see headlight22Maps - needs `parts.wrap` 'corner'. */
   headlight22: () => {
     const { map, glow, normal } = headlight22Maps();
-    return new MeshPhysicalMaterial({
-      map,
-      normalMap: normal,
-      emissive: 0xffffff,
-      emissiveMap: glow,
-      emissiveIntensity: 0.6,
-      roughness: 0.16,
-      metalness: 0.15,
-      clearcoat: 1,
-      clearcoatRoughness: 0.04,
-    });
+    return headLamp(
+      new MeshPhysicalMaterial({
+        map,
+        normalMap: normal,
+        emissive: 0xffffff,
+        emissiveMap: glow,
+        emissiveIntensity: 0.6,
+        roughness: 0.16,
+        metalness: 0.15,
+        clearcoat: 1,
+        clearcoatRoughness: 0.04,
+      }),
+      5,
+    );
   },
   /** Subaru 22B tail lamp: the model's own red lens with a clear band, see tail22Maps - needs `parts.wrap` 'corner'. */
   tail22: () => {
@@ -2041,13 +2056,16 @@ const BUILDERS: Record<PartName, () => Material> = {
     }),
   /** Modelled headlight LED ring / DRL: warm white, always glowing. */
   headled: () =>
-    new MeshPhysicalMaterial({
-      color: 0xfff4d6,
-      emissive: 0xffe9b0,
-      emissiveIntensity: 1.2,
-      roughness: 0.3,
-      metalness: 0,
-    }),
+    headLamp(
+      new MeshPhysicalMaterial({
+        color: 0xfff4d6,
+        emissive: 0xffe9b0,
+        emissiveIntensity: 1.2,
+        roughness: 0.3,
+        metalness: 0,
+      }),
+      4,
+    ),
   /** Citroen C4 WRC tail lamp, see tailC4Maps - needs `parts.wrap` 'corner'. */
   tailc4: () => {
     const { map, glow, reverseGlow } = tailC4Maps();

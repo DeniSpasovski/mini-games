@@ -1,0 +1,126 @@
+import {
+  AdditiveBlending,
+  Color,
+  ConeGeometry,
+  DoubleSide,
+  Group,
+  Mesh,
+  type Object3D,
+  ShaderMaterial,
+  SpotLight,
+} from 'three';
+import type { QualityName } from '../engine/quality';
+
+/** Luminous intensity of the main low beam (scene units, physical falloff). */
+const BEAM = 3200;
+const COLOR = 0xfff1cf;
+/** Visible beam length (m) and the cone's radius at its far end. */
+const CONE_LENGTH = 28;
+const CONE_RADIUS = 5.5;
+
+/**
+ * The car's headlights at night (`Environment.night`): a narrow bright low beam, a wide dim spill for the verges and
+ * two soft additive cones for the beam seen in the air. Children of the car, so they follow its pitch and roll.
+ * The low beam casts shadows on high quality only (one extra shadow pass over what the beam covers; medium / low
+ * keep the light and drop the shadow). Created before the first compile: lights are compiled into every lit shader.
+ */
+export class Headlights {
+  readonly group = new Group();
+  private readonly cones: Mesh[] = [];
+  private readonly spots: SpotLight[] = [];
+  private readonly beamMat = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    fog: false,
+    blending: AdditiveBlending,
+    side: DoubleSide,
+    vertexShader: /* glsl */ `
+      varying vec2 vU;
+      varying vec3 vN;
+      varying vec3 vV;
+      varying float vH;
+      void main() {
+        vU = uv;
+        vH = position.y;
+        vN = normalize( normalMatrix * normal );
+        vec4 mv = modelViewMatrix * vec4( position, 1.0 );
+        vV = normalize( - mv.xyz );
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: /* glsl */ `
+      varying vec2 vU;
+      varying vec3 vN;
+      varying vec3 vV;
+      varying float vH;
+      void main() {
+        float t = 1.0 - vU.y;
+        float rim = 1.0 - abs( dot( normalize( vN ), vV ) );
+        float f = exp( - t * 3.5 ) * ( 0.55 + 0.45 * ( 1.0 - rim ) ) * smoothstep( 0.0, 0.08, t ) * 0.55;
+        // Only the part above the lamps shows: the lower half would draw bright arcs where the cone meets the road.
+        f *= smoothstep( - 0.1, 0.5, vH );
+        gl_FragColor = vec4( vec3( 1.0, 0.93, 0.78 ) * f, f );
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
+
+  /** `lamp` = lamp position on the car (x = half the lamp spacing, y height, z the nose), `car` = its root. */
+  constructor(
+    car: Object3D,
+    lamp: { x: number; y: number; z: number },
+    quality: QualityName,
+  ) {
+    const spot = (
+      x: number,
+      aim: number,
+      aimY: number,
+      angle: number,
+      penumbra: number,
+      power: number,
+      distance: number,
+      shadow: boolean,
+    ): void => {
+      const l = new SpotLight(COLOR, power, distance, angle, penumbra, 2);
+      l.position.set(x, lamp.y, lamp.z);
+      l.target.position.set(x, aimY, lamp.z + aim);
+      if (shadow) {
+        l.castShadow = true;
+        l.shadow.mapSize.set(2048, 2048);
+        l.shadow.camera.near = 1;
+        l.shadow.camera.far = distance;
+        l.shadow.bias = -0.0008;
+        l.shadow.normalBias = 0.05;
+      }
+      this.spots.push(l);
+      this.group.add(l, l.target);
+    };
+    // Low beam (both lamps as one, centred), wide spill for the verges.
+    spot(0, 60, -0.9, 0.42, 0.55, BEAM, 170, quality === 'high');
+    spot(0, 35, -0.6, 0.85, 1, BEAM * 0.2, 90, false);
+    for (const side of [-1, 1]) {
+      const geo = new ConeGeometry(CONE_RADIUS, CONE_LENGTH, 24, 1, true);
+      // Apex at the lamp, opening forwards (+Z).
+      geo.translate(0, -CONE_LENGTH / 2, 0).rotateX(-Math.PI / 2);
+      const cone = new Mesh(geo, this.beamMat);
+      cone.position.set(side * lamp.x, lamp.y, lamp.z);
+      cone.rotation.x = 0.03;
+      cone.renderOrder = 10;
+      cone.frustumCulled = false;
+      this.cones.push(cone);
+      this.group.add(cone);
+    }
+    car.add(this.group);
+  }
+
+  /** Beam colour for the dust / haze lit by it (game/dust.ts `setHeadlight`). */
+  static get color(): Color {
+    return new Color(COLOR);
+  }
+
+  dispose(): void {
+    for (const c of this.cones) c.geometry.dispose();
+    this.beamMat.dispose();
+    for (const s of this.spots) s.shadow.map?.dispose();
+    this.group.removeFromParent();
+  }
+}

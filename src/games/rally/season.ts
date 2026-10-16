@@ -7,6 +7,13 @@ import { paramOneOf } from '../../shared/url-params';
 export const SEASONS = ['spring', 'summer', 'autumn'] as const;
 export type Season = (typeof SEASONS)[number];
 
+/** Names in the stage screen's Season dropdown. */
+export const SEASON_LABELS: Readonly<Record<Season, string>> = {
+  spring: 'Spring',
+  summer: 'Summer',
+  autumn: 'Autumn',
+};
+
 /** The season of a map without `EnvironmentDef.season`: the leaf colours and temperatures it always had. */
 export const DEFAULT_SEASON: Season = 'summer';
 

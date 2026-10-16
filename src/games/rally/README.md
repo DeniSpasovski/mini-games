@@ -12,7 +12,7 @@ look is "late-2000s rally game" and the feel is grounded sim-lite that is still 
 npm run dev     # then open http://localhost:3000/games/rally/
 ```
 
-Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, gamepad and touch controls are supported.
+Menu: select stage (with its time of day: night to evening) -> select car -> (optional) car set-up -> drive. Keyboard, gamepad and touch controls are supported.
 
 | Keys                |                                                    |
 | ------------------- | -------------------------------------------------- |

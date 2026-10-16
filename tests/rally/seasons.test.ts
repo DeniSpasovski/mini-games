@@ -74,10 +74,8 @@ describe('seasons: air temperature', () => {
       seasonAirTemp({ ...env, season: 'autumn' }, 'summer'),
     ).toBeGreaterThan(20);
     const full = { ...env, sunElevation: 30, sunAzimuth: 0 } as EnvironmentDef;
-    expect(stageClimate(full, 30, 3, 'autumn').air).toBe(3);
-    expect(stageClimate(full, 30, undefined, 'spring').air).toBe(
-      seasonAirTemp(full, 'spring'),
-    );
+    expect(stageClimate(full, 30, 3).air).toBe(3);
+    expect(stageClimate(full, 30).air).toBe(seasonAirTemp(full));
   });
 });
 

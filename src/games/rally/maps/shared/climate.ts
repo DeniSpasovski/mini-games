@@ -29,14 +29,13 @@ export function seasonAirTemp(
 }
 
 /**
- * Tyre-temperature climate of a stage (physics/tyre-temp.ts): the air temperature (`air`, else the map's for `season`),
+ * Tyre-temperature climate of a stage (physics/tyre-temp.ts): the air temperature (`air`, else the map's own season's),
  * the sun height (`timeOfDay` or `sunElevation`; pass the game's effective one after `?tod=`) and the clouds.
  */
 export function stageClimate(
   env: EnvironmentDef,
   sunElevation?: number,
   air?: number,
-  season?: Season,
 ): Climate {
   const elevation =
     sunElevation ??
@@ -44,7 +43,7 @@ export function stageClimate(
       ? sunAt(env.timeOfDay).elevation
       : env.sunElevation);
   return climateFor(
-    air ?? seasonAirTemp(env, season),
+    air ?? seasonAirTemp(env),
     elevation,
     env.cloudCoverage ?? 0.4,
   );

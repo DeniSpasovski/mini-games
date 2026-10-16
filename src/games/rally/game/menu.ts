@@ -18,6 +18,9 @@ import {
   type QualitySettings,
 } from '../engine/quality';
 import { ALL_STAGES, DEFAULT_STAGE, MAPS, STAGES } from '../maps';
+import { mapSeason } from '../maps/shared/climate';
+import { stageTemps } from '../maps/shared/day-temperature';
+import { SEASON_LABELS, SEASONS, type Season } from '../season';
 import type { SourceLink, StageInfo } from '../maps/shared/types';
 import { peakPower } from '../physics/drivetrain';
 import {
@@ -50,6 +53,7 @@ import {
 import type { CarPhysicsDef, GearingId, SetupId } from '../physics/types';
 import { isTestCar, isTestStage, TEST_NOTE } from '../release';
 import { portalUrl } from '../../../shared/portal-link';
+import { paramNumber, paramOneOf } from '../../../shared/url-params';
 import gameManifest from '../game.json';
 import {
   DISPLAY_MODES,
@@ -84,6 +88,14 @@ import {
   timesVersion,
   type RunRecord,
 } from './stage';
+import {
+  formatHour,
+  slotFor,
+  TIMES_OF_DAY,
+  timeOfDay,
+  type TimeOfDay,
+  type TimeOfDayId,
+} from './time-of-day';
 
 /** Game version (game.json, semver 0.x.y), shown in the menu + About. */
 const VERSION = gameManifest.version;
@@ -201,6 +213,10 @@ export interface MenuResult {
   tyre: TyreId;
   setup: SetupId;
   gearing: GearingId;
+  /** Hour of day picked on the stage screen (`?tod=`); missing = the stage's own. */
+  tod?: number;
+  /** Season picked on the stage screen (`?season=`); missing = the stage's own. */
+  season?: Season;
 }
 
 type Screen =
@@ -223,6 +239,23 @@ class MainMenu {
   private settings: RallySettings;
   private mapIndex: number;
   private timesMap = 0;
+  /** Time of day picked on the stage screen (not remembered); missing = each stage's own. */
+  private time?: TimeOfDayId;
+  /** Season picked on the stage screen (not remembered); missing = each stage's own. */
+  private season?: Season;
+  /** `?season=` on the menu URL (dev): the season of every stage until one is picked. */
+  private readonly urlSeason = paramOneOf(
+    new URLSearchParams(location.search).get('season'),
+    SEASONS,
+    undefined,
+  );
+  /** `?tod=` on the menu URL (dev): the hour of every stage until a time is picked. */
+  private readonly urlHour = paramNumber(
+    new URLSearchParams(location.search).get('tod'),
+    0,
+    24,
+    undefined,
+  );
   private carIndex: number;
   /** Drivetrain filter on the car screen (not remembered: the menu opens on All). */
   private driveFilter: DriveFilter = 'all';
@@ -382,14 +415,16 @@ class MainMenu {
   }
 
   private show(screen: Screen): void {
-    // Re-rendering the setup screen after a pick keeps its scroll position (three rows scroll on small screens).
+    // Re-rendering the setup / stage screen after a pick keeps its scroll position (rows / cards scroll on small screens).
     const keepScroll =
-      screen === 'setup' && this.screen === 'setup' ? this.panel.scrollTop : 0;
+      (screen === 'setup' || screen === 'map') && this.screen === screen
+        ? this.panel.scrollTop
+        : 0;
     this.screen = screen;
     this.panel.dataset.screen = screen;
     this.panel.replaceChildren();
     this.root
-      .querySelectorAll('.menu-times-card, .menu-car-card')
+      .querySelectorAll('.menu-times-card, .menu-side-card')
       .forEach((el) => el.remove());
     if (screen === 'welcome') this.welcome();
     if (screen === 'options')
@@ -435,6 +470,15 @@ class MainMenu {
       )
       ?.focus({ preventScroll: true });
     this.panel.scrollTop = keepScroll;
+    // Select stage: the picked stage (and, on phones, its description under it) stays in view.
+    if (screen === 'map') {
+      this.panel
+        .querySelector('.menu-card.selected')
+        ?.scrollIntoView({ block: 'nearest' });
+      this.panel
+        .querySelector('.menu-cards .menu-specs')
+        ?.scrollIntoView({ block: 'nearest' });
+    }
   }
 
   private welcome(): void {
@@ -575,7 +619,6 @@ class MainMenu {
       ${routeSvg(m)}
       <div class="menu-card-body">
         <div class="menu-card-title">${m.name}${testBadge(isTestStage(m.id))}</div>
-        <div class="menu-card-desc">${m.description}</div>
         <div class="menu-tags">
           <span>${(stageLength(m) / 1000).toFixed(1)} km</span>
           <span>${m.timing.splits} splits</span>
@@ -608,13 +651,113 @@ class MainMenu {
       this.mapIndex = i;
       this.show('map');
     });
+    this.panel.append(list);
+    // Wide screens: the description sits in a card right of the list; phones open it under the selected stage.
+    const details = this.stageDetails();
+    if (!this.sideCard(details, list))
+      list.children[this.mapIndex]?.after(details);
     this.panel.append(
-      list,
       buttons(
         ['Back', () => this.show('welcome')],
         ['Next: choose car ›', () => this.show('car'), true],
       ),
     );
+  }
+
+  /** The selected stage's description, recommended set-up, time of day and its air / road temperature (Select stage). */
+  private stageDetails(): HTMLElement {
+    const m = this.map;
+    const hour = this.hourFor(m);
+    const card = div('menu-specs');
+    card.innerHTML = `
+      <p>${m.description}</p>
+      ${isTestStage(m.id) ? `<p class="menu-test-note">${TEST_NOTE}</p>` : ''}
+      <dl>
+        <dt>Recommended</dt><dd>${TYRES[this.recTyre].name} tyres · ${SETUP_NAMES[this.recSetup]} suspension</dd>
+      </dl>`;
+    const seasonRow = pickerRow(
+      'Season',
+      SEASONS.map((id) => ({ id, label: SEASON_LABELS[id] })),
+      this.seasonFor(m),
+    );
+    card.append(seasonRow.row);
+    if (hour === undefined) return card;
+    const timeRow = pickerRow(
+      'Time of day',
+      TIMES_OF_DAY,
+      slotFor(hour).id,
+      '← → keys',
+    );
+    const when = document.createElement('dl');
+    when.innerHTML = `<dt>Time</dt><dd></dd><dt>Temperature</dt><dd></dd>`;
+    const [clock, temp] = when.querySelectorAll('dd');
+    const show = (h: number) => {
+      const t = stageTemps(
+        m.environment,
+        h,
+        m.surfaces[0] ?? 'tarmac',
+        this.seasonFor(m),
+      );
+      clock.textContent = formatHour(h);
+      temp.textContent = `air ${Math.round(t.air)}°C / road ${Math.round(t.road)}°C`;
+    };
+    show(hour);
+    // The list needs no redraw: only the stage's description card knows the season and the time.
+    seasonRow.select.addEventListener('change', (e) => {
+      this.season = (e.target as HTMLSelectElement).value as Season;
+      show(this.hourFor(m) ?? hour);
+    });
+    timeRow.select.addEventListener('change', (e) => {
+      this.time = (e.target as HTMLSelectElement).value as TimeOfDayId;
+      show(this.hourFor(m) ?? hour);
+    });
+    card.append(timeRow.row, when);
+    return card;
+  }
+
+  /** Season the stage runs in: the picked one, else `?season=`, else its own. */
+  private seasonFor(m: StageInfo): Season {
+    return this.season ?? this.urlSeason ?? mapSeason(m.environment);
+  }
+
+  /** The hour a slot means on a stage: the stage's own slot keeps the stage's exact default hour. */
+  private slotHour(m: StageInfo, t: TimeOfDay): number {
+    const own = m.environment.timeOfDay;
+    return own !== undefined && slotFor(own).id === t.id ? own : t.hour;
+  }
+
+  /** Hour the stage runs at: the picked time, else `?tod=`, else its own; missing = the stage has no time of day (test map). */
+  private hourFor(m: StageInfo): number | undefined {
+    const own = m.environment.timeOfDay;
+    if (own === undefined) return undefined;
+    if (!this.time) return this.urlHour ?? own;
+    return this.slotHour(m, timeOfDay(this.time));
+  }
+
+  /** Left / right on Select stage: the previous / next time of day (wraps). */
+  private stepTime(d: number): void {
+    const hour = this.hourFor(this.map);
+    if (hour === undefined) return;
+    const n = TIMES_OF_DAY.length;
+    const at = TIMES_OF_DAY.findIndex((t) => t.id === slotFor(hour).id);
+    this.time = TIMES_OF_DAY[(at + d + n) % n].id;
+    this.show('map');
+  }
+
+  /**
+   * Description card of Select stage / Select car (`.menu-side-card`): on screens >= 1200 px wide it floats right of the
+   * list with its top level with `align` (the header height depends on the font) and this returns true; narrower screens
+   * leave it to the caller to put in the panel.
+   */
+  private sideCard(card: HTMLElement, align: HTMLElement): boolean {
+    if (window.innerWidth < 1200) return false;
+    card.classList.add('menu-side-card');
+    this.root.append(card);
+    const top =
+      align.getBoundingClientRect().top - this.root.getBoundingClientRect().top;
+    card.style.top = `${top}px`;
+    card.style.maxHeight = `calc(100% - ${top + 24}px)`;
+    return true;
   }
 
   private carSelect(): void {
@@ -649,9 +792,6 @@ class MainMenu {
     const p = car.physics;
     const pk = peakPower(p.engine);
     const specs = div('menu-specs');
-    // Wide screens: the description sits in a card right of the car list; phones keep it under the list.
-    const beside = window.innerWidth >= 1200;
-    if (beside) specs.classList.add('menu-car-card');
     specs.innerHTML = `
       <p>${car.description}</p>
       ${isTestCar(car.id) ? `<p class="menu-test-note">${TEST_NOTE}</p>` : ''}
@@ -679,15 +819,8 @@ class MainMenu {
       .querySelector('[data-a="livery+"]')!
       .addEventListener('click', () => this.setLivery(this.livery + 1));
 
-    if (beside) {
-      this.root.append(specs);
-      // Top edge level with the filter row (the header height depends on the font).
-      const top =
-        filter.getBoundingClientRect().top -
-        this.root.getBoundingClientRect().top;
-      specs.style.top = `${top}px`;
-      specs.style.maxHeight = `calc(100% - ${top + 24}px)`;
-    }
+    // Wide screens: the description sits in a card right of the car list; phones keep it under the list.
+    const beside = this.sideCard(specs, filter);
     this.panel.append(
       list,
       ...(beside ? [] : [specs]),
@@ -955,13 +1088,17 @@ class MainMenu {
   }
 
   private start(): void {
-    const r = {
+    const hour = this.hourFor(this.map);
+    const season = this.seasonFor(this.map);
+    const r: MenuResult = {
       stage: this.map.id,
       car: this.car.id,
       livery: this.livery,
       tyre: this.tyre,
       setup: this.setup,
       gearing: this.gearing,
+      tod: hour === this.map.environment.timeOfDay ? undefined : hour,
+      season: season === mapSeason(this.map.environment) ? undefined : season,
     };
     saveSettings({ map: r.stage, car: r.car, livery: r.livery });
     this.done(r);
@@ -975,12 +1112,14 @@ class MainMenu {
       const slider =
         document.activeElement instanceof HTMLInputElement &&
         (dir === 'left' || dir === 'right');
-      if (slider) return;
+      // A focused dropdown (time of day) keeps all its arrows.
+      if (slider || document.activeElement instanceof HTMLSelectElement) return;
       e.preventDefault();
       return this.nav(dir);
     }
     const focusedButton =
       document.activeElement instanceof HTMLButtonElement ||
+      document.activeElement instanceof HTMLSelectElement ||
       document.activeElement instanceof HTMLAnchorElement;
     if (e.code === 'Enter' && !focusedButton)
       this.panel.querySelector<HTMLElement>('[data-primary]')?.click();
@@ -1034,6 +1173,8 @@ class MainMenu {
       this.timesMap =
         (this.timesMap + (up ? -1 : 1) + STAGES.length) % STAGES.length;
       this.show('times');
+    } else if (s === 'map' && (a === 'left' || a === 'right')) {
+      this.stepTime(a === 'left' ? -1 : 1);
     } else if (s === 'car' && (a === 'left' || a === 'right')) {
       this.setLivery(this.livery + (a === 'left' ? -1 : 1));
     } else if (a === 'confirm' || a === 'start') {
@@ -1385,6 +1526,25 @@ export function buildLeaderboard(
 }
 
 // --- helpers ---------------------------------------------------------------------------
+
+/** A labelled dropdown row of the stage description card (Season, Time of day). */
+function pickerRow(
+  label: string,
+  options: readonly { id: string; label: string }[],
+  selected: string,
+  title = '',
+): { row: HTMLLabelElement; select: HTMLSelectElement } {
+  const row = document.createElement('label');
+  row.className = 'menu-time';
+  row.innerHTML = `<span>${label}</span>
+    <select${title ? ` title="${title}"` : ''}>${options
+      .map(
+        (o) =>
+          `<option value="${o.id}"${o.id === selected ? ' selected' : ''}>${o.label}</option>`,
+      )
+      .join('')}</select>`;
+  return { row, select: row.querySelector('select')! };
+}
 
 function div(className: string): HTMLDivElement {
   const d = document.createElement('div');
