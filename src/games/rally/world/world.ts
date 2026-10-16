@@ -204,6 +204,7 @@ export class World implements GroundProvider {
         start,
         height: (x, z) => this.analytic.height(x, z),
         seed: hashString(this.stageDef.id),
+        country: map.country,
         blocked: (x, z, r) =>
           this.buildings.contains(x, z, r) ||
           this.landmarks.some((l) => l.occupies(x, z, r)) ||

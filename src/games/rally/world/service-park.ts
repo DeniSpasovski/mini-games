@@ -1,7 +1,13 @@
 import { hash3, Rng } from '../../../shared/rng';
 import { TEAM_COUNT } from '../assets/builders/teams';
+import {
+  ASSET_CATALOG,
+  SPECTATOR_SEATED_COUNT,
+  SPECTATOR_SEATED_FROM,
+} from '../assets/catalog';
 import { lotContains, lotWorld } from '../maps/shared/service-lot';
-import type { ServiceLot, ServicePark } from '../maps/shared/types';
+import type { Country, ServiceLot, ServicePark } from '../maps/shared/types';
+import { fanVariant } from './fan-variants';
 import { newRoadQuery, type Road } from './road';
 import type { ScatterInstance } from './scatter';
 
@@ -29,11 +35,16 @@ export const SERVICE_PARK_ASSETS = [
   'crew',
   'driver',
   'marshal',
+  'photographer',
   'visitor',
   'spectator',
   'tape_post',
   'ambulance',
 ];
+
+/** Variants of a people asset (the people kit owns the count; the catalog states it). */
+const variantsOf = (id: string): number =>
+  ASSET_CATALOG.find((a) => a.id === id)?.variants ?? 1;
 
 export interface ServiceParkContext {
   /** The stage road (the park's lots sit beside it, the start control on it). */
@@ -45,6 +56,8 @@ export interface ServiceParkContext {
   blocked: (x: number, z: number, r: number) => boolean;
   /** Seed when the definition has none (hash of the stage id). */
   seed: number;
+  /** The map's country: a share of the crowd waves its hand flag (none without one). */
+  country?: Country;
 }
 
 export interface ServiceParkLayout {
@@ -370,6 +383,10 @@ function carSpot(
   carCrew(bay, team, cx, cz, fwd, carVariant >= TEAM_COUNT, rng, people);
 }
 
+/** A visitor variant: any persona (ages, sizes, clothes), a pose from `firstPose` (0 = walking) to standing. */
+const visitorLook = (rng: Rng, firstPose = 0): number =>
+  rng.int(0, variantsOf('visitor') / 4 - 1) * 4 + rng.int(firstPose, 3);
+
 /**
  * Guests at the front of a bay (journalists, friends, local fans): singles and chatting pairs on free ground between
  * the cars and the walkway.
@@ -384,8 +401,8 @@ function guests(bay: BayCtx, w: number, rng: Rng, count: number): void {
       const bz2 = bz + rng.range(-0.25, 0.25);
       if (!bay.clear(bx, bz, 0.9) || (pair && !bay.clear(bx2, bz2, 0.9)))
         continue;
-      // Drink, phone, hands in pockets (visitor variants are 4 * k + pose, pose 0 = walking).
-      const v = () => rng.int(0, 3) * 4 + rng.int(1, 3);
+      // Drink, phone, hands in pockets (visitor variants are 4 * persona + pose, pose 0 = walking).
+      const v = () => visitorLook(rng, 1);
       if (pair) {
         bay.put('visitor', v(), bx, bz, bay.face(bx, bz, bx2, bz2), { r: 0.4 });
         bay.put('visitor', v(), bx2, bz2, bay.face(bx2, bz2, bx, bz), {
@@ -494,6 +511,7 @@ const PEOPLE = new Set([
   'crew',
   'driver',
   'marshal',
+  'photographer',
   'visitor',
 ]);
 /** Clear radius (m) round the centre of the pieces a walking person must keep out of (people: 0.6). */
@@ -583,7 +601,28 @@ function addPublicEdge(
       const look = towardLot ? 1 : -1;
       const [vx, vz] = [-s, c];
       const yaw = yawToward(vx * look, vz * look) + rng.range(-0.6, 0.6);
-      place('spectator', rng.int(0, 23), x, z, yaw, 0.3);
+      // Some sit or squat at the tape, the rest stand (some wave the map's flag).
+      const variant = rng.chance(0.2)
+        ? SPECTATOR_SEATED_FROM + rng.int(0, SPECTATOR_SEATED_COUNT - 1)
+        : fanVariant(rng.next(), ctx.country, true);
+      place('spectator', variant, x, z, yaw, 0.3);
+    }
+    // Press photographers just behind the tape, aiming at the bays (they follow the car when it passes).
+    const shooters = Math.max(2, Math.round(lot.length / 30));
+    for (let i = 0; i < shooters; i++) {
+      const [x, z] = lotWorld(
+        lot,
+        rng.range(0.1, 0.9) * lot.length,
+        -rng.range(0.9, 2.6),
+      );
+      place(
+        'photographer',
+        rng.int(0, variantsOf('photographer') - 1),
+        x,
+        z,
+        yawToward(-s, c) + rng.range(-0.4, 0.4),
+        0.4,
+      );
     }
     // Visitors walking the aisle between the rows (a lot with one row: the walkway in front of the cars).
     const twoRows = lot.width >= 2 * BAY_DEPTH + 4;
@@ -594,14 +633,14 @@ function addPublicEdge(
       const v = twoRows ? aisleV + rng.range(-1.6, 1.6) : rng.range(0.6, 3.4);
       const [x, z] = lotWorld(lot, u, v);
       // Walking, drinking, on the phone, standing: pairs turn to each other.
-      const variant = rng.int(0, 3) * 4 + rng.int(0, 3);
+      const variant = visitorLook(rng);
       if (rng.chance(0.4)) {
         const yaw = rng.range(0, Math.PI * 2);
         const [x2, z2] = [x + Math.cos(yaw) * 0.9, z + Math.sin(yaw) * 0.9];
         place('visitor', variant, x, z, yawToward(x2 - x, z2 - z), 0.4, 0);
         place(
           'visitor',
-          rng.int(0, 15),
+          rng.int(0, variantsOf('visitor') - 1),
           x2,
           z2,
           yawToward(x - x2, z - z2),
@@ -626,7 +665,15 @@ function addPublicEdge(
       [x, z] = at(lot.length - 15);
       place('fuel_trailer', 0, x, z, turn(0), 2, 0);
       [x, z] = at(lot.length - 15, aisleV + 2.2);
-      place('marshal', 0, x, z, rng.range(0, 6.2), 0.4, 0);
+      place(
+        'marshal',
+        rng.int(0, variantsOf('marshal') - 1),
+        x,
+        z,
+        rng.range(0, 6.2),
+        0.4,
+        0,
+      );
     }
   }
 }
@@ -698,8 +745,9 @@ function addStartControl(
     (p) => towardRoad(p) + rng.range(-0.3, 0.3),
     0.4,
   );
-  put('marshal', 1, -1.5, 3.4, (p) => towardRoad(p) - 0.4, 0.4);
-  put('marshal', 3, -24.5, 3.2, (p) => towardRoad(p), 0.4);
+  // One waves the flag at the line, one with a radio further back.
+  put('marshal', 12, -1.5, 3.4, (p) => towardRoad(p) - 0.4, 0.4);
+  put('marshal', 14, -24.5, 3.2, (p) => towardRoad(p), 0.4);
   // Rescue ambulance on the verge beyond the line, nose forward.
   put('ambulance', 0, 14, 3.4, alongRoad, 3.4);
 }

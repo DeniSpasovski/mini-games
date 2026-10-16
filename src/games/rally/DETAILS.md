@@ -156,7 +156,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   spectators (some waving their map's own hand flag - `MapDef.country` - or a plain colour flag, never another country's) + visitors, a marshal, 2-3 photographers, flags; marshals at every side-road mouth, 10 photographers each at start and finish
   (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`). People animate (`world/people-anim.ts`, run by `RallyGame.frame`): within 45 m they turn to watch the car, photographers (75 m) keep it centred, via `InstanceStreamer.setMatrix`; hand flags wave in the `people_flag` shader (`engine/materials.ts`, own mesh from `markFlag` in people.ts).
 - **Service park** (stage `servicePark`, Ajvatovci only so far): team bays on levelled gravel lots - trucks / vans, team cars on
-  ground sheets, tents, props, 4-6 crew and guests each, tape + crowd, start control (`world/service-park.ts`,
+  ground sheets, tents, props, 4-6 crew and guests each, tape + crowd (seated or flag-waving fans, photographers, every visitor persona), start control (`world/service-park.ts`,
   `World.servicePark`; assets `assets/builders/service.ts` + `teams.ts`; test `service-park`). The team trucks, vans, pickups and the
   catering van are the background models (`assets/builders/street-car-models.ts`, vans / trucks of pack 7 baked by
   `bake-street-cars.mjs --vans`) in the team paint plus side stripes. A lot is a `ServiceLot` rectangle:

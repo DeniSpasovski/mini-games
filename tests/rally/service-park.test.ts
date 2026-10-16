@@ -1,6 +1,11 @@
 import { describe, expect, test } from '@rstest/core';
 import { Vector3 } from 'three';
-import { getAssetMeta } from '../../src/games/rally/assets/catalog';
+import {
+  getAssetMeta,
+  SPECTATOR_FLAG_FROM,
+  SPECTATOR_SEATED_COUNT,
+  SPECTATOR_SEATED_FROM,
+} from '../../src/games/rally/assets/catalog';
 import { ajvatovciMap } from '../../src/games/rally/maps/ajvatovci/map';
 import { TEAM_COUNT } from '../../src/games/rally/assets/builders/teams';
 import { lotContains } from '../../src/games/rally/maps/shared/service-lot';
@@ -17,6 +22,7 @@ const PEOPLE = new Set([
   'crew',
   'driver',
   'marshal',
+  'photographer',
   'visitor',
 ]);
 
@@ -58,7 +64,7 @@ describe('service park (Ajvatovci start)', () => {
     const bayAssets = park.instances.filter((i) => {
       world.stageRoad.query(i.x, i.z, q);
       return (
-        !['tape_post', 'spectator'].includes(i.asset) &&
+        !['tape_post', 'spectator', 'photographer'].includes(i.asset) &&
         !(q.found && q.distance < 10)
       );
     });
@@ -217,6 +223,29 @@ describe('service park (Ajvatovci start)', () => {
         expect(
           Math.hypot(people[a].x - people[c].x, people[a].z - people[c].z),
         ).toBeGreaterThan(0.25);
+  });
+
+  test('the crowd mixes the people kit: photographers, seated fans, only the map flag, many visitor looks', () => {
+    const of = (asset: string) =>
+      park.instances.filter((i) => i.asset === asset);
+    expect(of('photographer').length).toBeGreaterThanOrEqual(3);
+    const fans = of('spectator').map((i) => i.variant);
+    expect(
+      fans.some(
+        (v) =>
+          v >= SPECTATOR_SEATED_FROM &&
+          v < SPECTATOR_SEATED_FROM + SPECTATOR_SEATED_COUNT,
+      ),
+    ).toBe(true);
+    // Ajvatovci is North Macedonian: flag fans wave its flag (first 6), never the American one (next 6).
+    expect(
+      fans.some((v) => v >= SPECTATOR_FLAG_FROM && v < SPECTATOR_FLAG_FROM + 6),
+    ).toBe(true);
+    expect(fans.some((v) => v >= SPECTATOR_FLAG_FROM + 6)).toBe(false);
+    const personas = new Set(
+      of('visitor').map((i) => Math.floor(i.variant / 4)),
+    );
+    expect(personas.size).toBeGreaterThanOrEqual(8);
   });
 
   test('a raised car has its rear wheels lying beside it', () => {
