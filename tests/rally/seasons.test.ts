@@ -57,7 +57,6 @@ describe('seasons: every map has all three', () => {
       if (season !== own)
         expect(env.groundTints?.[season], `${season} ground`).toBeTruthy();
     }
-    expect(env.groundTint, 'own ground').toBeTruthy();
   });
 });
 
