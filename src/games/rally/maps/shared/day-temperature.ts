@@ -1,5 +1,5 @@
 import { SURFACES } from '../../physics/surfaces';
-import type { Climate } from '../../physics/tyre-temp';
+import { airAtRise, type Climate } from '../../physics/tyre-temp';
 import { TIMES_OF_DAY, slotFor, type TimeOfDay } from '../../game/time-of-day';
 import type { Season } from '../../season';
 import { stageSeason } from './climate';
@@ -27,12 +27,14 @@ export function slotHour(
 /**
  * Air and road temperature (deg C) of a stage at `hour` in `season` (default: the one the stage opens in): the stage's predefined
  * `temps` at the slot hours (`slotHour`), blended in a straight line between the neighbouring slots for any other hour
- * (`?tod=`), round the clock. The road is the stage's first surface.
+ * (`?tod=`), round the clock. The road is the stage's first surface. The table holds at the stage start (its lowest
+ * point); `rise` metres higher both fall with the height (`AIR_LAPSE`, the car does the same in `Vehicle.setClimate`).
  */
 export function stageTemps(
   stage: TempStage,
   hour: number | undefined,
   season: Season = stageSeason(stage),
+  rise = 0,
 ): { air: number; road: number } {
   const own = stage.environment.timeOfDay;
   const table = stage.temps[season];
@@ -52,7 +54,7 @@ export function stageTemps(
   };
   const f = (h - prev.hour) / (next.hour - prev.hour);
   const mix = (i: 0 | 1) => prev.at[i] + (next.at[i] - prev.at[i]) * f;
-  return { air: mix(0), road: mix(1) };
+  return { air: airAtRise(mix(0), rise), road: airAtRise(mix(1), rise) };
 }
 
 /**

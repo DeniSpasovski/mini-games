@@ -14,6 +14,7 @@ import { Drivetrain } from './drivetrain';
 import { SURFACES, type SurfaceDef, type SurfaceId } from './surfaces';
 import { computeTire, type TireInput, type TireOutput } from './tire';
 import {
+  airAtRise,
   startTemp,
   stepTemp,
   tempGrip,
@@ -201,8 +202,11 @@ export class Vehicle {
     null;
   /** Rolling radius the gearbox sees (driven axle, fitted tyre): ground speed -> wheel speed for the drivetrain. */
   private drivenR = 0;
-  /** Air + sun of the stage: tyre temperatures run only with a climate AND a tyre (`setClimate`). */
+  /** Air + sun at the car's height: tyre temperatures run only with a climate AND a tyre (`setClimate`). */
   climate: Climate | null = null;
+  /** The climate's air at `climateRef` (m, world y), or null for the same air at any height. */
+  private climateAir = 0;
+  private climateRef: number | null = null;
   private heatIn: TyreHeatInput = {
     temp: 0,
     contact: false,
@@ -289,16 +293,30 @@ export class Vehicle {
   }
 
   /**
-   * Stage climate for tyre temperatures (physics/tyre-temp.ts); null = none (every tyre at full grip). Also sets the
-   * start temperature (`resetTyreTemps`).
+   * Stage climate for tyre temperatures (physics/tyre-temp.ts); null = none (every tyre at full grip). `c` holds at
+   * world height `refHeight` (a stage's table is for its start); the air then falls with the car's height
+   * (`AIR_LAPSE`), the sun gap stays. No `refHeight` = the same climate everywhere. Also sets the start temperature
+   * (`resetTyreTemps`).
    */
-  setClimate(c: Climate | null): void {
-    this.climate = c;
+  setClimate(c: Climate | null, refHeight?: number): void {
+    this.climate = c && { ...c };
+    this.climateAir = c ? c.air : 0;
+    this.climateRef = refHeight ?? null;
     this.resetTyreTemps();
+  }
+
+  /** The air at the car's height (a no-op without a reference height). */
+  private climatePass(): void {
+    if (this.climate && this.climateRef !== null)
+      this.climate.air = airAtRise(
+        this.climateAir,
+        this.position.y - this.climateRef,
+      );
   }
 
   /** Tyres and brakes back to the start temperature (stage start / restart; reset-to-road keeps them). */
   resetTyreTemps(): void {
+    this.climatePass();
     const t = this.climate ? startTemp(this.climate) : 20;
     for (const w of this.wheels) {
       w.temp = t;
@@ -498,6 +516,7 @@ export class Vehicle {
     this.airTime = anyContact ? 0 : this.airTime + dt;
 
     this.waterPass();
+    this.climatePass();
     this.tyreTempPass(dt);
     this.brakeTempPass(dt);
 

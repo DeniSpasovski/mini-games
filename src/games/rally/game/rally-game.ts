@@ -399,7 +399,8 @@ export class RallyGame {
       this.world,
     );
     this.vehicle.setTyre(this.opts.tyre);
-    // Tyre temperatures: the stage's predefined air and road for the season at the hour drawn (`?tod=`; `?air=<°C>` to try other air).
+    // Tyre temperatures: the stage's predefined air and road for the season at the hour drawn (`?tod=`; `?air=<°C>` to
+    // try other air). The table holds at the stage start; higher up the air and the road are colder.
     const air = new URLSearchParams(location.search).get('air');
     this.vehicle.setClimate(
       stageClimate(
@@ -408,6 +409,7 @@ export class RallyGame {
         this.season,
         paramNumber(air, -60, 70, undefined),
       ),
+      this.world.roadSpawn(this.world.stage.start).position.y,
     );
     this.model = new CarModel(this.car, {
       seed: this.opts.livery,

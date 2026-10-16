@@ -23,8 +23,9 @@ const CLOSURES: ClosureRule = {
 
 /**
  * Air and road temperature (°C, `[air, road]`) by season and time of day: hardcoded for the stage, researched (the
- * matrix of every stage is in rally DETAILS.md "Temperatures", source figures in PHYSICS.md "Climate"). The road is the
- * stage's first surface; a time of day is a slot of game/time-of-day.ts (the stage's own slot at its own hour).
+ * matrix of every stage is in rally DETAILS.md "Temperatures", source figures in PHYSICS.md "Climate"). Valid at the
+ * bottom of the hill (the stage start); higher up the car is colder (`AIR_LAPSE`). The road is the stage's first
+ * surface; a time of day is a slot of game/time-of-day.ts (the stage's own slot at its own hour).
  */
 const TEMPS: StageTemps = {
   spring: {
@@ -34,13 +35,13 @@ const TEMPS: StageTemps = {
     evening: [17, 19],
     night: [7, 7],
   },
-  // Summer keeps the cool, clear day the stage was released with: 11 °C air and a 30 °C road at its own 10:00.
+  // A hot Skopje day: 30 °C already at 08:00, 35 °C at its own 10:00, 38 °C in the afternoon; the night stays warm.
   summer: {
-    early: [8, 15],
-    midday: [11, 30],
-    afternoon: [13, 27],
-    evening: [11, 14],
-    night: [5, 5],
+    early: [30, 40],
+    midday: [35, 54],
+    afternoon: [38, 55],
+    evening: [36, 44],
+    night: [26, 26],
   },
   autumn: {
     early: [6, 9],

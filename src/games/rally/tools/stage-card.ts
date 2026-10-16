@@ -269,6 +269,17 @@ export async function loadStageCardData(
   return (json.default ?? json) as StageCardData;
 }
 
+/** How far the stage climbs above its start (m, 0 when it only descends): the highest point of its card's route. */
+export async function loadStageRise(
+  mapId: string,
+  stageId: string,
+): Promise<number> {
+  const { stage } = await loadStageCardData(mapId, stageId);
+  let top = stage[1];
+  for (let i = 4; i < stage.length; i += 3) top = Math.max(top, stage[i]);
+  return top - stage[1];
+}
+
 /** One season's image of a card; null when that season was not baked. */
 async function loadSeasonImage(
   mapId: string,

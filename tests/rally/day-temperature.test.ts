@@ -12,7 +12,7 @@ import {
 } from '../../src/games/rally/maps/shared/day-temperature';
 import { TIMES_OF_DAY, slotFor } from '../../src/games/rally/game/time-of-day';
 import { SURFACES } from '../../src/games/rally/physics/surfaces';
-import { trackTemp } from '../../src/games/rally/physics/tyre-temp';
+import { AIR_LAPSE, trackTemp } from '../../src/games/rally/physics/tyre-temp';
 import { SEASONS } from '../../src/games/rally/season';
 
 const timed = STAGES.filter((s) => s.environment.timeOfDay !== undefined);
@@ -53,6 +53,16 @@ describe('air and road temperature of a stage (predefined)', () => {
     // A stage without slotHours uses the game's hours.
     const jackie = STAGES.find((s) => s.id === 'jackie')!;
     expect(slotHour(jackie, TIMES_OF_DAY[1])).toBe(TIMES_OF_DAY[1].hour);
+  });
+
+  test('the table holds at the stage start, higher up the air and the road fall 6.5 K per km', () => {
+    for (const s of timed)
+      for (const season of SEASONS) {
+        const start = stageTemps(s, undefined, season);
+        const top = stageTemps(s, undefined, season, 530);
+        expect(start.air - top.air).toBeCloseTo(AIR_LAPSE * 530, 9);
+        expect(start.road - top.road).toBeCloseTo(AIR_LAPSE * 530, 9);
+      }
   });
 
   test('other hours blend the neighbouring slots, round the clock', () => {
@@ -97,8 +107,6 @@ describe('air and road temperature of a stage (predefined)', () => {
         expect(t.night[0]).toBeLessThan(t.afternoon[0] - 6);
         expect(t.early[0]).toBeLessThanOrEqual(t.afternoon[0]);
       }
-      // Vodno's summer is the cool clear day it was released with (11 °C at 10:00): not warmer than spring.
-      if (s.id === 'vodno') continue;
       expect(s.temps.spring.midday[0]).toBeLessThan(s.temps.summer.midday[0]);
       expect(s.temps.autumn.midday[0]).toBeLessThan(s.temps.summer.midday[0]);
     }

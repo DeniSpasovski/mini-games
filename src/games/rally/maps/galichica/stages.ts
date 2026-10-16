@@ -24,8 +24,8 @@ const CLOSURES: ClosureRule = {
 
 /**
  * Air and road temperature (°C, `[air, road]`) by season and time of day: hardcoded for the stage, researched (the
- * matrix of every stage is in rally DETAILS.md "Temperatures", source figures in PHYSICS.md "Climate"). The road is the
- * stage's first surface; a time of day is a slot of game/time-of-day.ts (the stage's own slot at its own hour).
+ * matrix of every stage is in rally DETAILS.md "Temperatures", source figures in PHYSICS.md "Climate"). Valid at the stage start (its lowest
+ * point; higher up the car is colder, `AIR_LAPSE`). The road is the stage's first surface; a time of day is a slot of game/time-of-day.ts (the stage's own slot at its own hour).
  */
 const TEMPS: StageTemps = {
   spring: {

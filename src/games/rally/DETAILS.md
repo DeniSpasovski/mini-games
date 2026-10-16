@@ -439,7 +439,9 @@ the season the stage opens in (`StageDef.season`), is the default look. Edit a c
 tyres follow, nothing is computed. Hours between the slots blend them, `?air=` overrides the air, a new stage needs a full
 table (`tests/rally/seasons.test.ts`). Source figures: PHYSICS.md "Climate". The table below is written from the data
 (`tests/rally/temps-doc.test.ts` fails when it is stale: `UPDATE_TEMPS_DOC=1 npm run test:rally -- temps-doc` rewrites it).
-Vodno's summer is the cool, clear day it was released with, so it is not warmer than its spring.
+Each table holds at the stage start (its lowest point, `Vehicle.setClimate` `refHeight`): the car's air falls 6.5 K per km of
+climb (`AIR_LAPSE`, tyre-temp.ts) and the road with it (the sun gap stays), so Petralica is ~3.4 K and Galichica ~4.5 K
+colder at the top. Select stage shows "At the top" for climbs of 50 m or more (`loadStageRise`, from the stage card's route).
 
 <!-- temps-matrix -->
 
@@ -452,7 +454,7 @@ Vodno's summer is the cool, clear day it was released with, so it is not warmer 
 |                                                              | summer | **27 / 35**   | 34 / 53     | 35 / 48     | 34 / 37 | 24 / 24 |
 |                                                              | autumn | **14 / 18**   | 21 / 28     | 22 / 28     | 21 / 22 | 11 / 11 |
 | `vodno` (10:00; early morning 08:00)                         | spring | 9 / 14        | **14 / 26** | 18 / 28     | 17 / 19 | 7 / 7   |
-|                                                              | summer | 8 / 15        | **11 / 30** | 13 / 27     | 11 / 14 | 5 / 5   |
+|                                                              | summer | 30 / 40       | **35 / 54** | 38 / 55     | 36 / 44 | 26 / 26 |
 |                                                              | autumn | 6 / 9         | **11 / 19** | 15 / 21     | 14 / 16 | 4 / 4   |
 | `petralica` (16:30)                                          | spring | 2 / 7         | 10 / 25     | **11 / 18** | 10 / 13 | 0 / 0   |
 |                                                              | summer | 8 / 14        | 16 / 35     | **17 / 25** | 16 / 19 | 6 / 6   |

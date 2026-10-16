@@ -43,6 +43,7 @@ import {
   topSpeed,
 } from '../physics/gearing';
 import { SURFACES } from '../physics/surfaces';
+import { loadStageRise } from '../tools/stage-card';
 import {
   GRIP_LABELS,
   isTyreId,
@@ -711,14 +712,29 @@ class MainMenu {
       '← → keys',
     );
     const when = document.createElement('dl');
-    when.innerHTML = `<dt>Time</dt><dd></dd><dt>Temperature</dt><dd></dd>`;
-    const [clock, temp] = when.querySelectorAll('dd');
+    when.innerHTML = `<dt>Time</dt><dd></dd><dt>Temperature</dt><dd></dd><dt hidden>At the top</dt><dd hidden></dd>`;
+    const [clock, temp, top] = when.querySelectorAll('dd');
+    const topLabel = when.querySelector('dt[hidden]') as HTMLElement;
+    // The table is for the stage start; a long climb is colder (`stageTemps` `rise`), shown once the card's route is loaded.
+    let rise = 0;
+    const climbs = () => rise >= MIN_RISE;
     const show = (h: number) => {
       const t = stageTemps(m, h, this.seasonFor(m));
       clock.textContent = formatHour(h);
       temp.textContent = `air ${Math.round(t.air)}°C / road ${Math.round(t.road)}°C`;
+      topLabel.hidden = top.hidden = !climbs();
+      if (!climbs()) return;
+      const u = stageTemps(m, h, this.seasonFor(m), rise);
+      top.textContent = `air ${Math.round(u.air)}°C / road ${Math.round(u.road)}°C`;
     };
     show(hour);
+    void loadStageRise(m.map, m.id).then(
+      (r) => {
+        rise = r;
+        show(this.hourFor(m) ?? hour);
+      },
+      () => {},
+    );
     // The list needs no redraw: only the stage's description card knows the season and the time.
     seasonRow.select.addEventListener('change', (e) => {
       onSeason(e);
@@ -1465,6 +1481,8 @@ export function buildSectors(
 }
 
 const MAX_ROWS = 10;
+/** A stage that climbs less than this (m) shows no second, colder temperature on Select stage. */
+const MIN_RISE = 50;
 
 /**
  * Stage results, 10 rows at most (current runs first, older versions fill the rest), toggle

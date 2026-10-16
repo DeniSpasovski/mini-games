@@ -309,7 +309,9 @@ pages and the reference tests above are unchanged).
   season (spring / summer / autumn: the stage's own, `?season=` or the stage screen's Season) and time of day (early morning, mid day,
   afternoon, evening, night; the stage's own slot is at its own `timeOfDay`). The road is the stage's first surface; any
   other hour (`?tod=`) blends the neighbouring slots in a straight line (`stageTemps`, maps/shared/day-temperature.ts), and
-  `?air=<°C>` replaces the air only. `stageClimate` turns it into the tyre climate: the air and a sun heat = the road's gap to
+  `?air=<°C>` replaces the air only. The table holds at the stage start: the car's air falls 6.5 K per km of height
+  (`AIR_LAPSE`, standard atmosphere) while the sun gap stays, so the road falls with it (`Vehicle.setClimate` `refHeight`;
+  the HUD and `F2` show the air at the car). `stageClimate` turns it into the tyre climate: the air and a sun heat = the road's gap to
   the air scaled to a `heat` 1 surface, so every surface runs air + sun x `SurfaceDef.heat` (tarmac 1 ... grass 0.3,
   snow 0). The numbers are researched, not computed (the matrix of every stage is in DETAILS.md "Temperatures"). Source figures (plain
   text): a hot clear summer noon heats dark asphalt ~23 °C above the air at 41 N (Solaimanian and Kennedy, TRR 1417, 1993);
