@@ -8,8 +8,8 @@ import type { PadDef, ServiceLot, ServicePark } from '../shared/types';
  * so both lay-bys are there on every stage; only the stage that starts beside one gets the cars.
  */
 export const OHRID_LOT: ServiceLot = {
-  x: -4682.0,
-  z: 1263.0,
+  x: -4684.4,
+  z: 1262.1,
   heading: -1.2118,
   length: 28,
   width: 12.5,
@@ -17,8 +17,8 @@ export const OHRID_LOT: ServiceLot = {
 };
 
 export const PRESPA_LOT: ServiceLot = {
-  x: 4428.1,
-  z: -788.2,
+  x: 4425.5,
+  z: -788.0,
   heading: 4.6437,
   length: 24,
   width: 12.5,
@@ -29,9 +29,12 @@ export const PRESPA_LOT: ServiceLot = {
 const OHRID_FRONTAGE = [-4702.1, 1270.4, -4692.1, 1244.2];
 const PRESPA_FRONTAGE = [4413.3, -775.2, 4411.6, -799.1];
 
+/** The strip between a lot's public edge and the road is levelled with it (m): no bump or ditch in front of the cars. */
+const APRON = 3.5;
+
 export const galichicaLotPads = (): PadDef[] => [
-  servicePad(OHRID_LOT, OHRID_FRONTAGE),
-  servicePad(PRESPA_LOT, PRESPA_FRONTAGE),
+  servicePad(OHRID_LOT, OHRID_FRONTAGE, 8, APRON),
+  servicePad(PRESPA_LOT, PRESPA_FRONTAGE, 8, APRON),
 ];
 
 export const OHRID_PARK: ServicePark = {

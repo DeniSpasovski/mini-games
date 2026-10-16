@@ -5,7 +5,7 @@ import {
   SPECTATOR_SEATED_COUNT,
   SPECTATOR_SEATED_FROM,
 } from '../assets/catalog';
-import { lotContains, lotWorld } from '../maps/shared/service-lot';
+import { LINK_WIDTH, lotContains, lotWorld } from '../maps/shared/service-lot';
 import type { Country, ServiceLot, ServicePark } from '../maps/shared/types';
 import { fanVariant } from './fan-variants';
 import { newRoadQuery, type Road } from './road';
@@ -711,6 +711,9 @@ const occupied = (list: ScatterInstance[], x: number, z: number): boolean =>
     return r > 0 && Math.hypot(o.x - x, o.z - z) < r;
   });
 
+/** Factors on a crowd member's distance from the tape to try in turn (a narrow verge squeezes the crowd). */
+const VERGE_TRIES = [1, 0.7, 0.45, 0.25];
+
 const yawAlong = (dx: number, dz: number): number => -Math.atan2(dz, dx);
 const yawToward = (dx: number, dz: number): number => Math.atan2(dx, dz);
 
@@ -755,10 +758,16 @@ function addPublicEdge(
     paved = !!lot.paved;
     const c = Math.cos(lot.heading);
     const s = Math.sin(lot.heading);
+    // The dirt links across the verge stay open: no tape, crowd or press on them.
+    const inLink = (u: number, pad: number): boolean =>
+      !!lot.links?.some((l) => Math.abs(u - l) < LINK_WIDTH / 2 + pad);
     // Tape along the public edge; the lot's own outer lines are open.
     const posts = Math.max(2, Math.round(lot.length / 5) + 1);
     for (let i = 0; i < posts; i++) {
-      const [x, z] = lotWorld(lot, (i / (posts - 1)) * lot.length, -0.4);
+      const pu = (i / (posts - 1)) * lot.length;
+      // (a post's tape reaches 2.6 m to either side)
+      if (inLink(pu, 2.6)) continue;
+      const [x, z] = lotWorld(lot, pu, -0.4);
       place('tape_post', 0, x, z, yawAlong(c, s), 0.2, 1.5);
     }
     // Crowd behind the tape (road side), watching the bays or the road; knots, not a line.
@@ -771,7 +780,6 @@ function addPublicEdge(
       const knot = knots[rng.int(0, knots.length - 1)];
       const u = Math.min(lot.length, Math.max(0, knot + rng.gauss() * 7));
       const v = -rng.range(1.3, 4.3);
-      const [x, z] = lotWorld(lot, u, v);
       const towardLot = rng.chance(0.6);
       const look = towardLot ? 1 : -1;
       const [vx, vz] = [-s, c];
@@ -780,24 +788,25 @@ function addPublicEdge(
       const variant = rng.chance(0.2)
         ? SPECTATOR_SEATED_FROM + rng.int(0, SPECTATOR_SEATED_COUNT - 1)
         : fanVariant(rng.next(), ctx.country, true);
-      place('spectator', variant, x, z, yaw, 0.3);
+      // On a narrow verge the spectator stands nearer the tape (the road keeps its own margin).
+      for (const k of VERGE_TRIES) {
+        if (inLink(u, 0.8)) break;
+        const [x, z] = lotWorld(lot, u, v * k);
+        if (place('spectator', variant, x, z, yaw, 0.3)) break;
+      }
     }
     // Press photographers just behind the tape, aiming at the bays (they follow the car when it passes).
     const shooters = Math.max(def.ferme ? 1 : 2, Math.round(lot.length / 30));
     for (let i = 0; i < shooters; i++) {
-      const [x, z] = lotWorld(
-        lot,
-        rng.range(0.1, 0.9) * lot.length,
-        -rng.range(0.9, 2.6),
-      );
-      place(
-        'photographer',
-        rng.int(0, variantsOf('photographer') - 1),
-        x,
-        z,
-        yawToward(-s, c) + rng.range(-0.4, 0.4),
-        0.4,
-      );
+      const u = rng.range(0.1, 0.9) * lot.length;
+      const v = -rng.range(0.9, 2.6);
+      const kind = rng.int(0, variantsOf('photographer') - 1);
+      const yaw = yawToward(-s, c) + rng.range(-0.4, 0.4);
+      for (const k of VERGE_TRIES) {
+        if (inLink(u, 0.8)) break;
+        const [x, z] = lotWorld(lot, u, v * k);
+        if (place('photographer', kind, x, z, yaw, 0.4)) break;
+      }
     }
     // Visitors walking the aisle between the rows (a lot with one row: the walkway in front of the cars).
     const twoRows = !lot.semis && lot.width >= 2 * BAY_DEPTH + 4;

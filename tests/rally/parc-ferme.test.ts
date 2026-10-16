@@ -1,8 +1,14 @@
 import { describe, expect, test } from '@rstest/core';
+import { Vector3 } from 'three';
 import { galichicaMap } from '../../src/games/rally/maps/galichica/map';
 import { jackieMap } from '../../src/games/rally/maps/jackie/map';
 import { petralicaMap } from '../../src/games/rally/maps/petralica/map';
-import { lotContains } from '../../src/games/rally/maps/shared/service-lot';
+import {
+  lotContains,
+  lotWorld,
+} from '../../src/games/rally/maps/shared/service-lot';
+import { SURFACES } from '../../src/games/rally/physics/surfaces';
+import type { GroundSample } from '../../src/games/rally/physics/types';
 import { testMap } from '../../src/games/rally/maps/test/map';
 import { newPathQuery } from '../../src/games/rally/world/real-data';
 import { newRoadQuery } from '../../src/games/rally/world/road';
@@ -88,6 +94,30 @@ describe.each(CASES)('parc fermé: %s', (_, make, cars) => {
       world.stageRoad.query(i.x, i.z, q);
       expect(q.distance).toBeGreaterThan(q.halfWidth + 1);
     }
+  });
+
+  test('gravel runs level from the tape to the road: no bump, no grass between them', () => {
+    const q = newRoadQuery();
+    const out: GroundSample = {
+      height: 0,
+      normal: new Vector3(),
+      surface: SURFACES.tarmac,
+    };
+    for (const lot of def.lots)
+      for (const f of [0.25, 0.5, 0.75]) {
+        const u = lot.length * f;
+        const [x0, z0] = lotWorld(lot, u, 0);
+        const h0 = world.analytic.height(x0, z0);
+        // From the public edge to 2.7 m short of the road's edge (its own shoulder dips closer in).
+        for (let v = 0; v > -12; v -= 0.5) {
+          const [x, z] = lotWorld(lot, u, v);
+          world.stageRoad.query(x, z, q);
+          if (q.distance - q.halfWidth < 2.7) break;
+          expect(Math.abs(world.analytic.height(x, z) - h0)).toBeLessThan(0.15);
+          world.sampleGround(x, z, out);
+          expect(out.surface.id).toBe('gravel');
+        }
+      }
   });
 
   test('deterministic', () => {

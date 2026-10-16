@@ -181,6 +181,9 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   field), the stage lists the lots and the bay `gap` (`maps/ajvatovci/service-park.ts`: the start lot and a field row facing the road
   to the factory). `ServiceLot.semis` parks tractor-trailer team trucks (`service_semi`, the baked lorry model below, tinted in the nearest bay's team colours) across the
   gravel behind a single row of bays, noses to the back edge (the lot is then about 36 m deep).
+  `ServiceLot.links` (u, m) are dirt links across the verge to the road (`linkPad`: a gravel ramp from the lot level up to the
+  road's height, 5 m wide; Ajvatovci's west park has three): tape, crowd and press keep off them. `servicePad`'s `apron` levels the strip
+  between the public edge and a stage road so there is no bump or grass in front of the lot (Galichica, Test).
   A `ferme` park (parc fermé) is a row of 4-6 team cars, noses to the tape, on a small lay-by beside the road behind the
   start (`ServiceLot.bays` cars per lot): Test map (4, left of the run-up), Galichica West (6, Ohrid side), East and
   Prespa-Ohrid (5, Prespa side). Each car has its crew (driver or crew in front, mechanics at the wheels) and, when the lot is

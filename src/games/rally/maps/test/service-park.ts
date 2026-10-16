@@ -6,7 +6,7 @@ import type { PadDef, ServiceLot, ServicePark } from '../shared/types';
  * the public edge facing the road.
  */
 export const TEST_LOT: ServiceLot = {
-  x: -245.8,
+  x: -248.2,
   z: -385.0,
   heading: -Math.PI / 2,
   length: 19,
@@ -17,7 +17,11 @@ export const TEST_LOT: ServiceLot = {
 /** The road beside the lot (west to east along it): its level follows it. */
 const FRONTAGE = [-262, -375.5, -262, -394.5];
 
-export const testLotPad = (): PadDef => servicePad(TEST_LOT, FRONTAGE);
+/** The strip between the lot and the road is levelled with it (m): no bump or grass in front of the cars. */
+const APRON = 3;
+
+export const testLotPad = (): PadDef =>
+  servicePad(TEST_LOT, FRONTAGE, 8, APRON);
 
 export const TEST_PARK: ServicePark = {
   lots: [TEST_LOT],

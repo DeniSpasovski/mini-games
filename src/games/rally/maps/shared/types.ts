@@ -708,6 +708,8 @@ export interface ServiceLot {
    * about 36 m, its length 11 m per truck.
    */
   semis?: number;
+  /** Where dirt links cross the verge to the road (`linkPad`): u along the lot (m); tape, crowd and press keep clear of them. */
+  links?: number[];
 }
 
 /** A rally service park (paddock) at a stage start: team bays on the lots, a crowd on the public edge. */

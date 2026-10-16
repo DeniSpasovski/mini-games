@@ -1,4 +1,4 @@
-import { servicePad } from '../shared/service-lot';
+import { linkPad, servicePad } from '../shared/service-lot';
 import type { PadDef, ServiceLot, ServicePark } from '../shared/types';
 
 /**
@@ -23,6 +23,7 @@ export const FIELD_LOT: ServiceLot = {
   length: 56,
   width: 36,
   semis: 5,
+  links: [8, 28, 48],
 };
 
 /** The stage road beside lot 1 (west to east): its level follows it. */
@@ -35,6 +36,16 @@ export const fieldLotPad = (): PadDef => ({
   ...servicePad(FIELD_LOT, []),
   level: 0,
 });
+
+/**
+ * Three dirt links from the west park's public edge up the verge to the road: the road stands about a metre above the field,
+ * so each ramp ends at the road's own level (reach and height measured at u = 8, 28, 48).
+ */
+export const fieldLinkPads = (): PadDef[] => [
+  linkPad(FIELD_LOT, 8, 8, 1.05),
+  linkPad(FIELD_LOT, 28, 8.6, 1.03),
+  linkPad(FIELD_LOT, 48, 9.2, 0.45),
+];
 
 export const AJVATOVCI_PARK: ServicePark = {
   lots: [START_LOT, FIELD_LOT],

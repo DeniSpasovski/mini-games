@@ -307,4 +307,47 @@ describe('service park (Ajvatovci start)', () => {
     expect(near('marshal').length).toBeGreaterThanOrEqual(3);
     expect(near('ambulance').length).toBe(1);
   });
+  test('dirt links join the west park to the factory road, level with both, kept clear of the crowd', () => {
+    const field = def.lots[1];
+    expect(field.links?.length).toBe(3);
+    const pq = newPathQuery();
+    const out: GroundSample = {
+      height: 0,
+      normal: new Vector3(),
+      surface: SURFACES.tarmac,
+    };
+    const edge = (u: number, v: number): number => {
+      const [x, z] = lotWorld(field, u, v);
+      const hit = world.gen.paths?.query(x, z, pq);
+      return hit?.found ? pq.distance - pq.halfWidth : Infinity;
+    };
+    for (const u of field.links!) {
+      // Walk from the lot's edge to the road (the factory road is the first path within 14 m).
+      let v = 0;
+      while (edge(u, v) > 0.4 && v > -14) v -= 0.5;
+      expect(v).toBeGreaterThan(-12);
+      const roadH = (() => {
+        const [x, z] = lotWorld(field, u, v - 1.5);
+        return world.analytic.height(x, z);
+      })();
+      // Gravel all the way, no step at either end, the slope drivable (under 20 percent).
+      let last = NaN;
+      for (let w = 0.5; w >= v + 0.5; w -= 0.5) {
+        const [x, z] = lotWorld(field, u, w);
+        world.sampleGround(x, z, out);
+        expect(out.surface.id).toBe('gravel');
+        if (!Number.isNaN(last))
+          expect(Math.abs(out.height - last)).toBeLessThan(0.1);
+        last = out.height;
+      }
+      const [ex, ez] = lotWorld(field, u, v + 0.5);
+      expect(Math.abs(world.analytic.height(ex, ez) - roadH)).toBeLessThan(0.2);
+      // Nobody stands on the link.
+      for (const i of park.instances) {
+        const [pu, pv] = lotLocal(field, i.x, i.z);
+        if (i.asset === 'tape_post' || PEOPLE.has(i.asset))
+          if (pv < 0 && pv > v) expect(Math.abs(pu - u)).toBeGreaterThan(2.5);
+      }
+    }
+  });
 });
