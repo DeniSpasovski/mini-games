@@ -96,7 +96,7 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 - **Night** (`engine/night.ts`, `?tod=<hours>` from 19:30 to 04:30 on any map; not in the studio): the moon is the directional light
   (dim, blue, `moonAt`), the sky is a dark dome with a town glow, moon and stars (`NightSky`), fog is dark, tone mapping AgX at a
   fixed exposure; the env map and the tree ambient (`setTreeSky`) are rebuilt from the night sky. The car switches its lights on
-  (`CarModel.setLamps`: head / tail lamp materials, `userData.headLamp`) and `game/headlights.ts` adds a low-beam spot, a wide
+  (`CarModel.setLamps`: head / tail lamp materials, `userData.headLamp`) and `game/headlights.ts` (strength, colour and beam shape per car: `CarDef.headlights`) adds a low-beam spot, a wide
   spill spot and two soft beam cones; dust, spray and haze glow inside the beam (`ParticleSystem.setHeadlight`). Shadows: the low
   beam and the moon cast them on high quality only. No map has a night stage yet. Not done: bloom, retro-reflective posts / signs,
   street-lamp light pools, high / low beam key.

@@ -93,6 +93,14 @@ export const merc190: CarDef = {
       note: 'specification reference',
     },
   ],
+  // Night headlights: 80s halogen.
+  headlights: {
+    power: 0.7,
+    color: 0xffe0ac,
+    angle: 0.46,
+    penumbra: 0.75,
+    spill: 0.26,
+  },
   // 2.5 l sixteen-valve four, sports exhaust, five-speed dog-leg box.
   sound: {
     layout: 'i4',

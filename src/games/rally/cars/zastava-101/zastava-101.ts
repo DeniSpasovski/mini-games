@@ -76,6 +76,14 @@ export const zastava101: CarDef = {
       note: 'styling reference for the hand-built body + optional imported model, CC BY 4.0',
     },
   ],
+  // Night headlights: dim, warm halogen.
+  headlights: {
+    power: 0.55,
+    color: 0xffd49a,
+    angle: 0.5,
+    penumbra: 0.9,
+    spill: 0.32,
+  },
   // Carburettor 1.3 four on a road silencer, no turbo: weak, thin and buzzy - mostly intake honk and a rough idle,
   // the odd carb backfire on a lift, soft road gearbox.
   sound: {
