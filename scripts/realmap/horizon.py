@@ -8,7 +8,9 @@ Reads the map's bake config (origin, bounds via `detail.extent`) and its optiona
 
     "horizon": { "inner": { "cell": 100, "radius": 8000 }, "outer": { "cell": 300, "radius": 25000 } }
 
-(radius = half the side of a square around the centre of `detail.extent`, metres). Writes
+(radius = half the side of a square around the centre of `detail.extent`, metres). A grid may instead give a world-space
+`"extent": [minX, maxX, minZ, maxZ]` (metres, +Z south): an off-centre, non-square backdrop, e.g. a map that looks over a
+valley to one side and at its own ridge on the other. Writes
 src/games/rally/maps/<id>/horizon.json - two grids, each:
   - heights   int16 LE base64, metres = base + v * step (absolute DEM; the game subtracts the map's heightmap offset)
   - cover     uint16 LE base64 per cell, 4 x 4 bit = share of trees / crops / built + bare / water (grass = the rest)
@@ -41,8 +43,15 @@ def ll_box(proj, ext, pad=0):
     return min(la0, la1), max(la0, la1), lo0, lo1
 
 
-def bake_grid(proj, cx, cz, cell, radius, wc):
-    ext = [cx - radius, cx + radius, cz - radius, cz + radius]
+def grid_extent(g, cx, cz):
+    """World extent [minX, maxX, minZ, maxZ] of a horizon grid config: `extent`, or a square of `radius` round (cx, cz)."""
+    if 'extent' in g:
+        return list(g['extent'])
+    r = g['radius']
+    return [cx - r, cx + r, cz - r, cz + r]
+
+
+def bake_grid(proj, ext, cell, wc):
     X, Z = grid_coords(ext, cell)
     lat, lon = proj.inv(X, Z)
     dem = terrarium_sampler(*ll_box(proj, ext, 2 * cell), ZOOM.get(cell, 11))
@@ -88,11 +97,12 @@ def main():
     outer = hz.get('outer', {'cell': 300, 'radius': 25000})
     d = cfg['detail']['extent']
     cx, cz = (d[0] + d[1]) / 2, (d[2] + d[3]) / 2
-    r = outer['radius']
+    exts = [grid_extent(g, cx, cz) for g in (inner, outer)]
+    box = [min(e[0] for e in exts), max(e[1] for e in exts), min(e[2] for e in exts), max(e[3] for e in exts)]
     print('worldcover (horizon box)...')
-    wc = worldcover_sampler(*ll_box(proj, [cx - r, cx + r, cz - r, cz + r], 400))
+    wc = worldcover_sampler(*ll_box(proj, box, 400))
     print('grids...')
-    grids = [bake_grid(proj, cx, cz, g['cell'], g['radius'], wc) for g in (inner, outer)]
+    grids = [bake_grid(proj, e, g['cell'], wc) for e, g in zip(exts, (inner, outer))]
     out_dir = os.path.dirname(os.path.join(ROOT, cfg['out']))
     out = os.path.join(out_dir, 'horizon.json')
     with open(out, 'w') as f:

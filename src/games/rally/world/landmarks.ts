@@ -3,6 +3,7 @@ import { hilltopLandmark } from '../maps/ajvatovci/hilltop';
 import { startRowLandmark } from '../maps/ajvatovci/start-row';
 import { stationLandmark } from '../maps/ajvatovci/station';
 import { propertiesLandmark } from '../maps/petralica/properties';
+import { VODNO_LANDMARKS } from '../maps/vodno/landmarks';
 import type { BuildingDef, MapDef } from '../maps/shared/types';
 import type { SurfaceId } from '../physics/surfaces';
 import type { StaticCollider } from '../physics/types';
@@ -46,6 +47,7 @@ const REGISTRY: Record<string, Landmark> = {
   [hilltopLandmark.id]: hilltopLandmark,
   [stationLandmark.id]: stationLandmark,
   [propertiesLandmark.id]: propertiesLandmark,
+  ...Object.fromEntries(VODNO_LANDMARKS.map((l) => [l.id, l])),
 };
 
 export function landmarksOf(map: MapDef): Landmark[] {

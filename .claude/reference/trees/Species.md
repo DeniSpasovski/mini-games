@@ -21,6 +21,7 @@ A species is a data definition that the tree code reads, so adding or tuning a k
 
 - The maps place trees by the tree type ids of the old catalog, and each type grows as a species built to match the map data's description of it. A pine looks like a pine, a poplar like a poplar.
 - pine_tree is a pine, a Scots or spruce style conifer: one straight leader, whorls of drooping limbs, a layered cone of needle sprays.
+- plantation_pine is a plantation pine: the pine's cone grown cheaper for dense stands, four limbs to a whorl and about half the sprites, each larger.
 - black_pine is a black pine, an Austrian black pine: a long straight trunk bare but for dead stubs, under a flat umbrella of dark needle clumps.
 - juniper is a juniper, a dark narrow cone of short upswept needled limbs, 2 to 3.5 m, drive-through.
 - oak_tree is an oak, a broad irregular field tree with a forking trunk and a rounded crown.
@@ -38,7 +39,10 @@ A species is a data definition that the tree code reads, so adding or tuning a k
 - thicket_shrub is a thicket, hawthorn and blackthorn brush in autumn colours.
 - hornbeam_tree is a hornbeam / oak coppice: two or three slender smooth grey stems from one stool under a narrow crown of small bright-green leaves.
 - broom_shrub is flowering broom: upright green switches covered in yellow, 1 to 2 m.
-- Bushes, scrub, hazels, thickets and junipers are drive-through. The other trees collide on their trunk, the poplar on its trunk alone.
+- cypress_tree is a Mediterranean cypress: a tall dark narrow column of short limbs close to the stem, 8 to 12 m (Vodno's church yards and suburb).
+- locust_tree is a black locust (acacia), a street and garden tree: a tall open crown of light feathery leaves on a dark furrowed trunk.
+- bramble_shrub is bramble and wild rose: a low arching tangle of green canes, 0.8 to 1.4 m, for forest edges and verges.
+- Bushes, scrub, hazels, thickets, brambles and junipers are drive-through. The other trees collide on their trunk, the poplar on its trunk alone.
 - Conifers wear needle sprays and the other species leaf bunches. Bark and leaf colours follow the description: white birch, grey-white plane, dark black pine needles, pale willow leaves, olive scrub, autumn thicket.
 - The common forest species, pine, oak, bush and scrub, have six variants; the rest have four, to keep the draw calls of a map with many species in budget.
 
@@ -49,7 +53,7 @@ A species is a data definition that the tree code reads, so adding or tuning a k
 
 ## Checks
 
-- A test checks every type's proportions and colours against its description: a columnar poplar and juniper, a pine taller than wide, a walnut and a willow wider than tall, a black pine crown in its top third, pale birch and plane bark, needles on the conifers, autumn colours on the thicket, low bushes, a fruit tree under an oak and a poplar over it.
+- A test checks every type's proportions and colours against its description: a columnar poplar, cypress and juniper, a pine taller than wide, a walnut and a willow wider than tall, a black pine crown in its top third, pale birch and plane bark, needles on the conifers, autumn colours on the thicket, low bushes, a fruit tree under an oak and a poplar over it.
 
 ## Identity
 

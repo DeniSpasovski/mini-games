@@ -51,7 +51,7 @@ generated deterministically from it. There is no map editor on purpose — edit 
 - Real maps: grow the area by widening `detail` / `landcover` / `outer` extents and ADDING the new strips to
   `osmBoxes` (each box is downloaded / cached on its own, the first wins: the old area's route, roads and building ids
   stay identical - diff the old and new `data.json` to prove it). `railways.drop` leaves out tracks of given services
-  inside a box (a freight yard the track bed cannot level). Far backdrop: `python scripts/realmap/horizon.py <config>`.
+  inside a box (a freight yard the track bed cannot level). Far backdrop: `python scripts/realmap/horizon.py <config>` (a grid takes `radius` or a world `extent`: reach far where the view goes, little behind a ridge - Vodno); `buildings.dropWays` = OSM ways a landmark asset draws instead; `paths.dropWays` / `dropKinds` leave roads / kinds out (a junction ring the engine cannot level, gully streams that hold no water), `paths.mergeJoints` joins ways that meet end to end at a plain two-way node (short ways = a height step at every joint); `MapDef.aerialways` = a cable car line (pylons, ropes, cabins).
 - `cornerFans: {}`: tape + spectators + flags on the inside of tight corners over the whole stage (`every`, `maxRadius`,
   `chance`, `fans`, `flagChance`, `tapeOffset`; `world/corner-fans.ts`). Use it on rural stages; hand-placed crowds
   (`roadside` `at`) stay for the big spots.

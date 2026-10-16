@@ -2,8 +2,9 @@ import {
   BoxGeometry,
   Color,
   CylinderGeometry,
+  BufferGeometry,
+  IcosahedronGeometry,
   PlaneGeometry,
-  type BufferGeometry,
 } from 'three';
 import { Rng } from '../../../../shared/rng';
 import { cylindricalUV, merge, paint, planarUV, shade } from '../../engine/geo';
@@ -130,7 +131,8 @@ const FLAGS: [
 ];
 
 /**
- * Fan flag on a pole stuck in the ground (2.3-2.9 m): a rippled cloth in saturated colours, flying along +X.
+ * Fan flag on a pole stuck in the ground (2.3-2.9 m): a rippled cloth in saturated colours, flying along +X (in the game
+ * it turns downwind and flutters: the `fan_flag` material).
  * Variant = design (`FLAGS`). The cloth is two one-sided sheets (opposite windings), the props material is front-side.
  */
 export const fanFlag: AssetBuilder = ({ seed, variant, lod }) => {
@@ -175,10 +177,49 @@ export const fanFlag: AssetBuilder = ({ seed, variant, lod }) => {
   }
   return {
     parts: [
+      { geometry: paint(pole, '#d8d8d4'), material: getMaterial('props') },
+      { geometry: merge(twoSided(front)), material: getMaterial('fan_flag') },
+    ],
+  };
+};
+
+/**
+ * Flagpole with the flag of North Macedonia (a national flag on a 11 m mast, as on the Sredno Vodno car park): the yellow
+ * eight-ray sun on red, 2:1, flying along +X. The cloth carries the printed flag (the `flag_mk` texture, official geometry
+ * drawn in `engine/textures.ts`), so it ripples as one surface: a separate sun laid over it tore where the wind shader's
+ * ripples out-ran the vertex spacing. It is its own part (the `flag` material): in the game it turns downwind and flutters
+ * with the wind the foliage sways in.
+ */
+export const flagpole: AssetBuilder = ({ lod }) => {
+  const H = 11;
+  const W = 3.6;
+  const FH = W / 2;
+  const pole = new CylinderGeometry(0.06, 0.1, H, lod === 0 ? 8 : 4);
+  pole.translate(0, H / 2, 0);
+  const ball = new IcosahedronGeometry(0.11, 0);
+  ball.translate(0, H + 0.1, 0);
+  const cloth = paint(
+    new PlaneGeometry(W, FH, lod === 0 ? 48 : 16, lod === 0 ? 24 : 8),
+    '#ffffff',
+  );
+  const phase = 0.6;
+  const p = cloth.getAttribute('position');
+  for (let i = 0; i < p.count; i++) {
+    const u = p.getX(i) / W + 0.5;
+    p.setXYZ(
+      i,
+      u * W + 0.06,
+      p.getY(i) + H - FH / 2 - 0.2 - u * u * 0.15,
+      Math.sin(u * 6 + phase) * 0.14 * u,
+    );
+  }
+  return {
+    parts: [
       {
-        geometry: merge([paint(pole, '#d8d8d4'), ...twoSided(front)]),
+        geometry: merge([paint(pole, '#d8d8d4'), paint(ball, '#c9a227')]),
         material: getMaterial('props'),
       },
+      { geometry: merge(twoSided(cloth)), material: getMaterial('flag') },
     ],
   };
 };

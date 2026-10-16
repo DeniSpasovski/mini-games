@@ -119,7 +119,14 @@ export const ajvatovciMap: MapDef = {
     },
   },
   paths: [
-    ...(data.paths as PathDef[]),
+    // The baker leaves the rest of a way the stage follows for a stretch ("branch") unjoined (`junction: false`);
+    // the one leaving the bend at (1688, -268) is joined to the stage road (bales still block the way straight on).
+    ...(data.paths as PathDef[]).map((p) =>
+      p.junction === false &&
+      Math.hypot(p.pts[0] - 1687.6, p.pts[1] + 268.3) < 1
+        ? { ...p, junction: true }
+        : p,
+    ),
     // The road behind the start line: links the stage road to the A2 slip-road junction (the baked route starts at the line).
     {
       kind: 'tertiary',
@@ -440,5 +447,8 @@ export const ajvatovciMap: MapDef = {
       lateral,
       rotY: 180,
     })),
+    // The bale of the corner rule (roadside above) that stands in the mouth of the side road joined in `paths`:
+    // the rule drops solids on a road, so it is placed by hand to keep the way straight on blocked.
+    { asset: 'hay_bale', along: 3703.5, lateral: -4.6, variant: 0 },
   ],
 };

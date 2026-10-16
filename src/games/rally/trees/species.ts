@@ -312,6 +312,30 @@ export const PINE: SpeciesDef = {
   variants: 6,
 };
 
+/**
+ * Plantation pine: the pine's cone for the dense stands of a mountain forest, grown cheaper: four limbs to a whorl
+ * and half the sprites, each larger (a pine stand costs about a third of the GPU time per tree).
+ */
+export const PLANTATION_PINE: SpeciesDef = {
+  ...PINE,
+  name: 'Plantation pine',
+  rules: [
+    {
+      pred: 'A(l,k)',
+      succ:
+        'F(l)L![&(rnd(70,88))!!!B(l*0.5,0)]>(rnd(84,100))[&(rnd(70,88))!!!B(l*0.48,0)]>(rnd(84,100))' +
+        '[&(rnd(70,88))!!!B(l*0.5,0)]>(rnd(84,100))[&(rnd(70,88))!!!B(l*0.46,0)]>(rnd(15,45))A(l*rnd(0.93,0.98),k+1)',
+    },
+    ...PINE.rules.slice(1),
+  ],
+  foliage: { ...PINE.foliage, spriteSize: 1.35 },
+  scale: [1, 1.4],
+  twigRadius: 0.045,
+  maxBranchTriangles: 4000,
+  maxSprites: 300,
+  variants: 4,
+};
+
 /** Austrian black pine: a long straight trunk, bare but for dead stubs, under a flat umbrella of dark needle clumps. */
 export const BLACK_PINE: SpeciesDef = {
   name: 'Black pine',
@@ -816,8 +840,93 @@ export const BROOM = shrub({
   variants: 4,
 });
 
+/** Mediterranean cypress: a tall, dark, narrow column of short limbs close to the stem (churchyards, slopes), 8-12 m. */
+export const CYPRESS: SpeciesDef = {
+  name: 'Cypress',
+  // The poplar's leader with a short limb per step at the golden angle, dark needles and a shorter, fuller column.
+  axiom: '!F(0.8)A(0.7,0)',
+  rules: [
+    {
+      pred: 'A(l,k)',
+      cond: 'k < 14',
+      succ: 'F(l)L[&(rnd(14,24))!!!B(rnd(0.5,0.85)*(1.05-k*0.045),0)]>(137.5)A(l*0.985,k+1)',
+    },
+    { pred: 'A(l,k)', cond: 'k >= 14', succ: 'F(l*0.7)L' },
+    {
+      pred: 'B(l,o)',
+      cond: 'o < 2',
+      succ: 'F(l)L[+(rnd(15,25))!B(l*0.6,o+1)][-(rnd(15,25))!B(l*0.55,o+1)]!B(l*0.7,o+1)',
+    },
+    { pred: 'B(l,o)', cond: 'o >= 2', succ: 'F(l*0.5)L' },
+  ],
+  iterations: 16,
+  segmentCap: 1400,
+  angle: 22,
+  lengthScale: 1,
+  baseRadius: 0.22,
+  radiusDecay: 0.82,
+  tropism: [0, 1, 0],
+  tropismStrength: 0.16,
+  bark: { color: '#5b4b3d', texture: 'furrowed', tiling: 1.2 },
+  foliage: {
+    kind: 'needles',
+    spriteSize: 0.95,
+    density: 1.5,
+    palette: ['#1f3a22', '#254429', '#1b3320', '#2a4a2d'],
+  },
+  scale: [0.85, 1.25],
+  twigRadius: 0.02,
+  maxBranchTriangles: 4000,
+  maxSprites: 400,
+  // The trunk alone: its many short limbs stay out of the physics.
+  collisionRadius: 0.14,
+  variants: 4,
+};
+
+/** Black locust (acacia): a street and garden tree of Skopje, a tall open crown of light feathery leaves, 9-14 m. */
+export const LOCUST = broadleaf({
+  name: 'Locust',
+  bole: 2.4,
+  lead: 1.3,
+  limbs: [28, 40],
+  leaders: [18, 30],
+  laterals: [24, 38],
+  iterations: 10,
+  baseRadius: 0.2,
+  tropismStrength: 0.04,
+  bark: { color: '#463d35', texture: 'furrowed', tiling: 1 },
+  foliage: {
+    kind: 'broadleaf',
+    spriteSize: 1.15,
+    density: 0.8,
+    palette: ['#7a9a3c', '#86a644', '#6f8f36', '#93b04c', '#7fa03e'],
+  },
+  scale: [0.85, 1.2],
+  variants: 4,
+});
+
+/** Bramble and wild rose along the forest edge and the verges: a low arching tangle of green canes, 0.8-1.4 m. */
+export const BRAMBLE = shrub({
+  name: 'Bramble',
+  stem: [0.35, 0.5],
+  lean: [48, 70],
+  fork: [28, 46],
+  stems: 7,
+  baseRadius: 0.02,
+  bark: { color: '#4e5a34', texture: 'smooth', tiling: 1.5 },
+  foliage: {
+    kind: 'broadleaf',
+    spriteSize: 0.7,
+    density: 1.5,
+    palette: ['#3f6a2a', '#4b7830', '#36601f', '#567f33'],
+  },
+  scale: [0.85, 1.3],
+  variants: 4,
+});
+
 export const SPECIES: readonly SpeciesDef[] = [
   PINE,
+  PLANTATION_PINE,
   BLACK_PINE,
   JUNIPER,
   OAK,
@@ -835,6 +944,9 @@ export const SPECIES: readonly SpeciesDef[] = [
   HAZEL,
   THICKET,
   BROOM,
+  CYPRESS,
+  LOCUST,
+  BRAMBLE,
 ];
 
 const byName = new Map(SPECIES.map((s) => [s.name, s]));
@@ -851,6 +963,7 @@ export function getSpecies(name: string): SpeciesDef {
  */
 export const TREE_TYPES: Readonly<Record<string, string>> = {
   pine_tree: 'Pine',
+  plantation_pine: 'Plantation pine',
   black_pine: 'Black pine',
   juniper: 'Juniper',
   oak_tree: 'Oak',
@@ -868,6 +981,9 @@ export const TREE_TYPES: Readonly<Record<string, string>> = {
   hazelnut_tree: 'Hazel',
   thicket_shrub: 'Thicket',
   broom_shrub: 'Broom',
+  cypress_tree: 'Cypress',
+  locust_tree: 'Locust',
+  bramble_shrub: 'Bramble',
 };
 
 export function isTreeType(asset: string): boolean {
