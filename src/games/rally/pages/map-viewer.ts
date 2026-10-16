@@ -29,6 +29,9 @@ import {
   stagesOf,
 } from '../maps';
 import { isTestMap, isTestStage, listLabel, TEST_NOTE } from '../release';
+import { stageSeason } from '../maps/shared/climate';
+import { mapInSeason } from '../maps/shared/season-map';
+import { SEASON_LABELS, SEASONS, seasonParam } from '../season';
 import { loadQuality } from '../engine/quality';
 import { InstanceStreamer } from '../world/instance-streamer';
 import { TreeRenderer } from '../trees/draw';
@@ -49,12 +52,15 @@ import { SURFACES } from '../physics/surfaces';
  *   map-viewer.html?map=test&stage=test&scatter=1&road=1&grid=0&splat=0&fog=0&labels=1&along=1100&zoom=0.5
  * `stage` = the stage shown (its route, start / splits / finish, closures and fans; default the map's first). Old links
  * `map=<stage id>` open that stage on its map. Distances (`along`, the 250 m ticks, "Drive from here") are along the
- * stage road, in the stage's direction. "Copy camera link" (Camera section) shares the exact view (`cam`, `look`, `fov`, `clean`).
+ * stage road, in the stage's direction. `season` = spring | summer | autumn (ground, leaves; default the stage's own, as in the game).
+ * "Copy camera link" (Camera section) shares the exact view (`cam`, `look`, `fov`, `clean`).
  */
 const DEFAULTS = {
   map: DEFAULT_STAGE,
   /** Stage id on the map; '' = its first stage. */
   stage: '',
+  /** Season shown; '' = the stage's own. */
+  season: '',
   scatter: true,
   road: true,
   grid: false,
@@ -107,7 +113,12 @@ void loadMap(state.map).then(async (map) => {
     },
   });
   const { scene, camera, controls, renderer } = shell;
-  const world = new World(map, state.stage || undefined);
+  const stageDef = stagesOf(map.id).find((st) => st.id === state.stage);
+  const season = seasonParam(
+    state.season,
+    stageSeason({ season: stageDef?.season, environment: map.environment }),
+  );
+  const world = new World(mapInSeason(map, season), state.stage || undefined);
   const center = new Vector3((b.minX + b.maxX) / 2, 0, (b.minZ + b.maxZ) / 2);
   // Mountain maps: orbit around the ground, not sea level.
   center.y = world.analytic.height(center.x, center.z);
@@ -134,23 +145,26 @@ void loadMap(state.map).then(async (map) => {
   });
   streamer.group.visible = state.scatter;
   scene.add(streamer.group);
-  const treeLibrary = await TreeLibrary.load(TreeLibrary.speciesOf(world.placedAssets()), renderer);
-  const trees = new TreeRenderer(
-    world,
-    treeLibrary,
-    {
-      // The game's tree levels (their thresholds already reach far: trees/species.ts DEFAULT_LOD).
-      lodScale: quality.lodScale,
-      maxDistance: size + RENDER_MARGIN * 2,
-      shadowDistance: quality.shadowExtent * 2 + 10,
-      rebuildDistance: 25,
-      budgetMs: 8,
-    },
+  const treeLibrary = await TreeLibrary.load(
+    TreeLibrary.speciesOf(world.placedAssets(), season),
+    renderer,
   );
+  const trees = new TreeRenderer(world, treeLibrary, {
+    // The game's tree levels (their thresholds already reach far: trees/species.ts DEFAULT_LOD).
+    lodScale: quality.lodScale,
+    maxDistance: size + RENDER_MARGIN * 2,
+    shadowDistance: quality.shadowExtent * 2 + 10,
+    rebuildDistance: 25,
+    budgetMs: 8,
+  });
   trees.group.visible = state.scatter;
   scene.add(trees.group);
   trees.attachRenderer(renderer);
-  const treeStats = new TreeStatsOverlay(renderer.domElement.parentElement ?? document.body, trees, treeLibrary);
+  const treeStats = new TreeStatsOverlay(
+    renderer.domElement.parentElement ?? document.body,
+    trees,
+    treeLibrary,
+  );
 
   // --- overlays ------------------------------------------------------------------------------
   const overlays = new Group();
@@ -355,6 +369,17 @@ void loadMap(state.map).then(async (map) => {
     world.stageDef.id,
     (id) => {
       Object.assign(state, { stage: id, along: DEFAULTS.along });
+      sync(true);
+      location.reload();
+    },
+  );
+
+  // The season of the ground and the leaves (the game's Season picker).
+  shell.panel.section('Season').list(
+    SEASONS.map((id) => ({ id, label: SEASON_LABELS[id] })),
+    season,
+    (id) => {
+      state.season = id;
       sync(true);
       location.reload();
     },
