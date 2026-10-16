@@ -15,6 +15,7 @@ export const PARK_CAR_IDS: readonly string[] = [
   'ford_gt3',
   'merc_190',
   'audi_rs6',
+  'peugeot_206',
 ];
 
 /** The car model of a team (`team_car` variant % TEAM_COUNT). */
