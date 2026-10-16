@@ -57,6 +57,8 @@ export type PartName =
   | 'tailc4'
   | 'redcover'
   | 'brakecover'
+  | 'brakered'
+  | 'brakestripred'
   | 'flagblue'
   | 'flagwhite'
   | 'flagred'
@@ -80,14 +82,64 @@ function headLamp<M extends Material & { emissiveIntensity: number }>(
 /**
  * Brake lamp (CarModel.setBrake): emissive from its idle value to `on` with the brake down. `reverseGlow` = an
  * emissive map that lights only the white reversing section; CarModel swaps it in while the car is in reverse gear.
+ * `night` = the extra glow with the lights on (default `TAIL_NIGHT_GLOW`): keep it well under `on` or the brake shows no step.
  */
 function lamp(
   m: MeshPhysicalMaterial,
   on: number,
   reverseGlow?: CanvasTexture,
+  night?: number,
 ): MeshPhysicalMaterial {
-  m.userData.brakeLamp = { off: m.emissiveIntensity, on, reverseGlow };
+  m.userData.brakeLamp = { off: m.emissiveIntensity, on, reverseGlow, night };
   return m;
+}
+
+/** Red see-through lens cover (transparent over a modelled lamp) that glows `emissive` up to intensity `on` with the brake down. */
+function brakeCover(
+  emissive: number,
+  opacity: number,
+  on: number,
+  night?: number,
+): MeshPhysicalMaterial {
+  return lamp(
+    new MeshPhysicalMaterial({
+      color: 0xb3151c,
+      emissive,
+      emissiveIntensity: 0.2,
+      roughness: 0.03,
+      metalness: 0,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+      clearcoat: 1,
+      clearcoatRoughness: 0.02,
+      envMapIntensity: 1.5,
+    }),
+    on,
+    undefined,
+    night,
+  );
+}
+
+/** Dark red bumper reflector strip that glows `emissive` up to intensity `on` with the brake down. */
+function brakeStrip(
+  emissive: number,
+  on: number,
+  night?: number,
+): MeshPhysicalMaterial {
+  return lamp(
+    new MeshPhysicalMaterial({
+      color: 0xa30f17,
+      emissive,
+      emissiveIntensity: 0,
+      roughness: 0.25,
+      metalness: 0.3,
+      clearcoat: 1,
+    }),
+    on,
+    undefined,
+    night,
+  );
 }
 
 export function partMaterial(name: string): Material | undefined {
@@ -149,14 +201,37 @@ function sheetFor(file: string): Promise<HTMLImageElement> {
   return sheet;
 }
 
+/** Pixels of the sheet joined to `seed` (x, y) through non-black pixels: one lens, cut off from its neighbours by a dark outline. */
+function lensRegion(
+  px: Uint8ClampedArray,
+  [sx, sy]: [number, number],
+): Uint8Array {
+  const inside = new Uint8Array(SRC_SIZE * SRC_SIZE);
+  const todo = [sy * SRC_SIZE + sx];
+  while (todo.length) {
+    const i = todo.pop()!;
+    const p = i * 4;
+    if (inside[i] || px[p] + px[p + 1] + px[p + 2] < 77) continue;
+    inside[i] = 1;
+    const x = i % SRC_SIZE;
+    if (x > 0) todo.push(i - 1);
+    if (x < SRC_SIZE - 1) todo.push(i + 1);
+    if (i >= SRC_SIZE) todo.push(i - SRC_SIZE);
+    if (i < SRC_SIZE * (SRC_SIZE - 1)) todo.push(i + SRC_SIZE);
+  }
+  return inside;
+}
+
 /**
  * A part that keeps the source model's own texture and UVs (scripts/car-model/glb-src-parts.py): material name
  * `src:<kind>:<file in public/models/cars/>`. `int` = the sheet as it is (seat fabric, cockpit), matt, back faces dark; `shell` (no file) = dark plastic;
- * `lamp` = the sheet, its bright pixels glow (head lamps, indicators); `tail` = brake lamp (setBrake): the red pixels glow, the bright neutral ones light in reverse. The maps
+ * `lamp` = the sheet, its bright pixels glow (head lamps, indicators); `tail` = brake lamp (setBrake): the red pixels glow, the bright neutral ones light in reverse
+ * (`src:tail:<file>:<x>,<y>` = only the lens around that sheet pixel, when the clear ribbed trim behind the red cover must stay dark). The maps
  * stay dark until the sheet has loaded. Alpha comes from the sheet (clear lens areas show the reflector behind them).
  */
 function srcPart(name: string): Material {
-  const [, kind, file] = name.split(':');
+  const [, kind, file, seedText] = name.split(':');
+  const seed = seedText?.split(',').map(Number) as [number, number] | undefined;
   // Closed back of an open source shell (glb-src-parts.py `shells`): dark plastic.
   if (kind === 'shell')
     return new MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.6 });
@@ -203,12 +278,12 @@ function srcPart(name: string): Material {
       const px = g.getImageData(0, 0, SRC_SIZE, SRC_SIZE).data;
       const paint = (
         t: CanvasTexture,
-        f: (r: number, gr: number, b: number) => number,
+        f: (r: number, gr: number, b: number, n: number) => number,
       ) => {
         const c = (t.image as HTMLCanvasElement).getContext('2d')!;
         const d = c.createImageData(SRC_SIZE, SRC_SIZE);
         for (let i = 0; i < px.length; i += 4) {
-          const v = f(px[i], px[i + 1], px[i + 2]) * (px[i + 3] / 255);
+          const v = f(px[i], px[i + 1], px[i + 2], i >> 2) * (px[i + 3] / 255);
           d.data[i] = px[i] * v;
           d.data[i + 1] = px[i + 1] * v;
           d.data[i + 2] = px[i + 2] * v;
@@ -220,8 +295,11 @@ function srcPart(name: string): Material {
       const lum = (r: number, gr: number, b: number) => (r + gr + b) / 765;
       if (kind === 'tail') {
         paint(glow, (r, gr) => (r > 2 * gr + 40 ? 1 : 0));
-        paint(reverseGlow!, (r, gr, b) =>
-          Math.max(r, gr, b) - Math.min(r, gr, b) < 40 && lum(r, gr, b) > 0.6
+        const lens = seed && lensRegion(px, seed);
+        paint(reverseGlow!, (r, gr, b, n) =>
+          (!lens || lens[n]) &&
+          Math.max(r, gr, b) - Math.min(r, gr, b) < 40 &&
+          lum(r, gr, b) > 0.6
             ? 1
             : 0,
         );
@@ -1797,18 +1875,9 @@ const BUILDERS: Record<PartName, () => Material> = {
       3.2,
     ),
   /** Bumper corner strip: dark red reflector while off, lights like `tailled` with the brake pedal (setBrake). */
-  brakestrip: () =>
-    lamp(
-      new MeshPhysicalMaterial({
-        color: 0xa30f17,
-        emissive: 0xff2010,
-        emissiveIntensity: 0,
-        roughness: 0.25,
-        metalness: 0.3,
-        clearcoat: 1,
-      }),
-      3.2,
-    ),
+  brakestrip: () => brakeStrip(0xff2010, 3.2),
+  /** `brakestrip` with a pure red glow, softer at night: reads red (not orange) when braking. */
+  brakestripred: () => brakeStrip(0xff0000, 1.8, 0.6),
   /** Modelled reversing lamp: matte white, dark until the car is in reverse gear (setBrake `reversing`), never lit by the brake. */
   reverselamp: () =>
     lamp(
@@ -1886,23 +1955,9 @@ const BUILDERS: Record<PartName, () => Material> = {
       envMapIntensity: 1.5,
     }),
   /** Red see-through cover that lights with the brake pedal (setBrake), like `tailled`. */
-  brakecover: () =>
-    lamp(
-      new MeshPhysicalMaterial({
-        color: 0xb3151c,
-        emissive: 0xff2010,
-        emissiveIntensity: 0.2,
-        roughness: 0.03,
-        metalness: 0,
-        transparent: true,
-        opacity: 0.55,
-        depthWrite: false,
-        clearcoat: 1,
-        clearcoatRoughness: 0.02,
-        envMapIntensity: 1.5,
-      }),
-      4,
-    ),
+  brakecover: () => brakeCover(0xff2010, 0.55, 4),
+  /** `brakecover` with a denser cover and a pure red glow: stays red (not salmon) over a white lens when braking. */
+  brakered: () => brakeCover(0xff0000, 0.7, 1.8, 0.6),
   reflector: () =>
     new MeshPhysicalMaterial({
       color: 0xa30f17,

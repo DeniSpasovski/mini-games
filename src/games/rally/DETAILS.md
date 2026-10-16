@@ -162,6 +162,8 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   off-centre and non-square (`horizon` `extent` in the bake config: Vodno reaches 50 km north over the valley, 16 km south behind
   the ridge). Catalog assets in `props` named in `FAR_LANDMARKS` (the Vodno cross and mast) are also drawn there with their last
   LOD, so they stay on the skyline beyond the scatter's view distance.
+  A far river (`HorizonDef.rivers`, bake config `rivers`: `scripts/realmap/rivers.py` after horizon.py) is a centreline + width from
+  the WorldCover water pixels, drawn as one flat ribbon over the finest grid (`riverGeometry`; Vodno: the Vardar, one draw).
   `skyline` (`SkylineBuilding`: extruded footprint, one wall / glass band per floor, flat roof) adds the city's tall buildings beyond
   the baked area (Vodno: Cevahir Sky City, the MRT tower; one draw, `skylineGeometry`).
 - **Cable cars** (`aerialways`): a gondola line from a polyline - pylons on its vertices (`pylonsAtVertices`) or evenly spaced (taller
@@ -220,6 +222,7 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
 | `peugeot_206`     | Peugeot 206        | FWD   | tuned widebody 206 from a CC BY model kept as is (own cockpit, lamps, rim), flat paint                                |
 | `audi_rs6`        | Audi RS6           | AWD   | C8 RS6 Avant from a CC BY model kept as is (own cockpit, lamps, rim), flat grey paint                                 |
 | `porsche_911_930` | Porsche 911 (930)  | RWD   | 1975 911 Turbo from a CC BY model kept as is (own lamps, rim, no interior), flat yellow paint, test car               |
+| `subie_wrx_sti`   | Subaru WRX STI     | AWD   | 2019 STI saloon from a CC BY model kept as is (own cockpit, lamps, rim), flat blue paint, test car                    |
 
 - A car is `cars/<car>/<car>.ts` (a `CarDef`: physics + model + sound) with its README. A GLB in `public/models/cars/` replaces the
   car's own body (`cars/shared/car-gltf.ts`; credits in `public/models/CREDITS.md`). Imports: rally-car-import skill.
@@ -232,6 +235,14 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   `scripts/car-model/street-pack-extract.py` + `bake-street-cars.mjs`): ~900 / ~450 triangles, one draw call per LOD, the body
   paint recoloured per car (variants 0-14 = model, `STREET_CAR_MIX` weights what streets pick; 15 = the white hatch a map places).
   Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` holds the triangle budget.
+- The Ajvatovci yards' trucks (`maps/ajvatovci/start-row/build/vehicles.ts`, `truck-models.ts`) are baked from two CC BY models
+  (`scripts/car-model/bake-trucks.mjs`, data in `truck-models.data.ts`): `tractor` + `trailer` (the `trailer` kind), the `tractor` under a
+  code-built tank (`tanker`), the `cab` under a code-built box (`box`) and a `dump` truck whose back is swapped (`Back`: tipper, flatbed,
+  van body, tank; every 2nd-8th box-truck place, `DUMP_CYCLE`). The models keep their own triangles (welded, never simplified) and
+  textures; the code adds nothing to lamps or grilles. `cab` / `paint` parts take the placement's cab / body colour through a tint
+  mask (`truckMaps`: the light neutral panels of the texture, so grille, lamps and stripes keep their look); the `tyre` model is the
+  template for the axles the builders add. Textures + masks come from `scripts/car-model/bake-truck-textures.py` (run it after
+  `street-pack-extract.py --images`, then `bake-trucks.mjs`); the hub-cap emblem is blanked there.
 - Car GLBs are committed plain (the model scripts and `hull-fit.test.ts` read them); the build copies them meshopt-compressed
   (`scripts/car-model/glb-meshopt.mjs`, about half the size, same meshes; `car-glb-meshopt.test.ts` checks every file).
 - **Door plates** (`cars/shared/rally-badge.ts`): our own event plate (emblem, car number, map name) projected onto both front
@@ -324,7 +335,9 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 
 **Draw calls**
 
-- Far terrain merges chunks 2 x 2 (LOD2) / 4 x 4 (LOD3) into one mesh; the tile plan is redone after 8 m of travel.
+- Terrain chunks merge per detail band into 2 x 2 / 4 x 4 (from LOD2) and 8 x 8 (LOD3) meshes (`terrain-renderer.ts`: the
+  `blockLod` bands never make a chunk coarser than unmerged, `MERGE_SLACK` stops tiles fragmenting along band edges; big tiles
+  are sampled in slices). Merged tiles keep the vertex grid of their LOD. The plan is redone after 8 m of travel.
 - Whole-map meshes are merged per tile, never per object. Many materials = many draws: use a texture array
   (`engine/texture-array.ts` `layeredMaterial`; mesh buildings = one mesh per 192 m tile, start-row lots = 3 material groups
   per 128 m tile). A custom shader must scale `envMapIntensity` (it carries `scene.environmentIntensity`), never replace it.

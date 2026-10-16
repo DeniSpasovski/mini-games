@@ -103,6 +103,10 @@ into `DETAILS.md`, never up.
 
 ## Conventions
 
+- **Realism first** (rally above all): the aim is a world that looks real up close, not a cheap stand-in. Good models, then fewer
+  triangles: simplify a supplied model only where nothing visible is lost, keep its own textures, lamps and grille (no re-colouring,
+  no invented parts), and compare close-ups of the front, lamps, grille and wheels with the source before calling it done. If a
+  simplification costs quality, undo it; measure the cost on the reference devices.
 - Determinism: procedural content uses `src/shared/rng.ts` / `noise.ts` with explicit seeds.
 - Rendering: never clone geometry / materials per instance; asset library + InstancedMesh.
 - Physics (`src/games/rally/physics`, `world/` logic) stays DOM-free so tests run in node.

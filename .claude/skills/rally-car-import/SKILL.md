@@ -352,7 +352,8 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   has no UVs and turns them into flat colour. Drop those primitives in `gltf.drop`, list them in `srcParts` and run
   `python3 -I scripts/car-model/glb-src-parts.py <model.source.json> <source.glb>` after every `stl-to-glb.mjs`: it appends them with
   their own UVs as `src:lamp:<png>` / `src:tail:<png>` primitives and writes the sheet next to the GLB (`srcPart` in
-  `part-materials.ts`: the sheet's bright pixels glow; `tail` = brake lamp, red pixels for the brake, neutral white for reversing).
+  `part-materials.ts`: the sheet's bright pixels glow; `tail` = brake lamp, red pixels for the brake, neutral white for reversing;
+  `src:tail:<png>:<x>,<y>` limits the reversing glow to the lens around that sheet pixel, so clear ribbed trim behind a red cover stays dark, `cars/subie-wrx-sti/`).
   `src:int:<png>` keeps a cockpit part's own texture (seat fabric; matt, double-sided, back faces dark). Check each sheet for logos
   before shipping it (a dash sheet with wordmarks stays out), and credit it like the GLB. Seats that are one open sheet (no back
   panel: look at them from the rear seats) get a closed back from `srcParts.shells` (dark hull, `cars/lancer-evo-6/`).
