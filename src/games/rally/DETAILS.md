@@ -162,6 +162,8 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   off-centre and non-square (`horizon` `extent` in the bake config: Vodno reaches 50 km north over the valley, 16 km south behind
   the ridge). Catalog assets in `props` named in `FAR_LANDMARKS` (the Vodno cross and mast) are also drawn there with their last
   LOD, so they stay on the skyline beyond the scatter's view distance.
+  A far river (`HorizonDef.rivers`, bake config `rivers`: `scripts/realmap/rivers.py` after horizon.py) is a centreline + width from
+  the WorldCover water pixels, drawn as one flat ribbon over the finest grid (`riverGeometry`; Vodno: the Vardar, one draw).
   `skyline` (`SkylineBuilding`: extruded footprint, one wall / glass band per floor, flat roof) adds the city's tall buildings beyond
   the baked area (Vodno: Cevahir Sky City, the MRT tower; one draw, `skylineGeometry`).
 - **Cable cars** (`aerialways`): a gondola line from a polyline - pylons on its vertices (`pylonsAtVertices`) or evenly spaced (taller
