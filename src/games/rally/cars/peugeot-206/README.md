@@ -1,7 +1,7 @@
 # Peugeot 206 (`peugeot_206`)
 
 A tuned 206 hot hatch from a **CC BY Sketchfab model**, used as it comes: the model has no livery, so it is mapped to game parts by
-material only (no cuts). In game it is **Peugeot 206**: FWD, 1100 kg, 2.0 four, 5-speed. Test car (`hideInProd` in `CARS_LIST`).
+material only (no cuts). In game it is **Peugeot 206**: FWD, 1100 kg, 2.0 four, 5-speed.
 
 - **Kept from the model:** the body with its hood vents and roof wing, the cockpit (seats, dash, wheel) behind see-through glass,
   the 3D head / tail lamps and the 5-spoke rim (de-cambered, centred on the hub).

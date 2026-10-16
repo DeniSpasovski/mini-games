@@ -70,12 +70,12 @@ test('levels: every level has a theme, a label and exactly one release entry', (
   expect(isLevelId(undefined)).toBe(false);
 });
 
-test('levels: the release build offers only the Quarry while the new ones are in development', () => {
-  expect(offeredLevels(true)).toEqual(['quarry']);
+test('levels: the release build offers every level', () => {
+  expect(offeredLevels(true)).toEqual([...LEVEL_IDS]);
   expect(offeredLevels(false)).toEqual([...LEVEL_IDS]);
   expect(isTestLevel('quarry')).toBe(false);
-  expect(isTestLevel('valley')).toBe(true);
-  expect(isTestLevel('sea')).toBe(true);
+  expect(isTestLevel('valley')).toBe(false);
+  expect(isTestLevel('sea')).toBe(false);
 });
 
 test('levels: the saved setting falls back to the first level when unknown or not offered', () => {

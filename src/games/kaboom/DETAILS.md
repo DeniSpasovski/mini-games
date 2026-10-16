@@ -2,8 +2,7 @@
 
 > **Status:** playable end to end (menus, bots, HUD, touch / keyboard / gamepad, audio, sudden death); polish and a real-device
 > pass remain (`TASKS.md`, local).
-> **Unlisted on the portal** (`hideInProd` in `GAME_LIST`, `src/portal/release.ts`): the release build still builds it, so `games/kaboom/` plays
-> for anyone with the link; the portal card shows on the dev server and in `npm run build:test` only. Remove the flag to release.
+> **Released** (listed in `GAME_LIST`, `src/portal/release.ts`).
 
 An arena game in a tilted 3D view: you and up to 7 bots walk a grid, place TNT, blow up crates and each other. The last
 one standing wins the round. three.js, procedural art only (no model / texture / sound files).
@@ -81,7 +80,7 @@ families; critters are drawn 14 % bigger than their hitbox; a bobbing arrow in t
 A level is a **render theme** (`render/themes/<id>.ts`, the `LevelTheme` type in `theme.ts`). The sim, the map generator, the
 bots, the safety checks and `MapData` never see it: layouts, crate ratio and rules are identical, only the look, the sounds and
 how a sudden-death cell falls differ. `game/levels.ts` = ids, labels, the banner line; `release.ts` = `LEVELS_LIST`
-(`valley` and `sea` are `hideInProd`: dev server and `npm run build:test` only; `offeredLevels()` feeds the setup menu, whose Level row shows
+(all three are released; `offeredLevels()` feeds the setup menu, whose Level row shows
 only with more than one level, and `sanitizeSettings`). Pick it in the setup menu (`settings.level`) or with `?level=quarry|valley|sea`
 (skips the menu like `size`); the map viewer and the bench take it too.
 
@@ -102,7 +101,7 @@ only with more than one level, and `sanitizeSettings`). Pick it in the setup men
   (`splash` on the sea). The sudden-death banner's second line is `LEVELS[id].closing`.
 - **Budgets hold per level**: draw calls <= 60 in the 40-TNT chain, the arena a handful (`tests/kaboom/levels.test.ts` checks every theme).
   Low quality: a coarser water plane, no glitter / glint, no bob, fewer trees and one row less of spectators.
-- **New level**: add the id to `LEVEL_IDS` / `LEVELS`, a `LEVELS_LIST` entry (`hideInProd` first), a theme file and its line in `themes/index.ts`.
+- **New level**: add the id to `LEVEL_IDS` / `LEVELS`, a `LEVELS_LIST` entry (`hideInProd` first, remove it to ship), a theme file and its line in `themes/index.ts`.
 
 ## Rules (`sim/rules.ts` holds every number)
 

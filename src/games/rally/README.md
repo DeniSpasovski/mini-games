@@ -36,14 +36,14 @@ Menu: select stage (with its time of day: night to evening) -> select car -> (op
 
 ## Stages
 
-| Map                                     | Where                       | Length       | Surface         | Status          |
-| --------------------------------------- | --------------------------- | ------------ | --------------- | --------------- |
-| [Petralica](maps/petralica/)            | North Macedonia (mountains) | 9.6 km       | gravel + tarmac | playable        |
-| [Ajvatovci Hill](maps/ajvatovci/)       | Ilinden, North Macedonia    | 4.5 km       | old tarmac      | playable        |
-| [Jackie Robinson Parkway](maps/jackie/) | New York City               | 7.3 km       | tarmac, bridges | playable        |
-| [Test Map](maps/test/)                  | procedural forest           | 1.7 km       | gravel          | physics         |
-| [Galichica](maps/galichica/) (3 stages) | Lake Ohrid - Lake Prespa    | 12.7-27.4 km | mountain tarmac | test (dev only) |
-| [Vodno Hillclimb](maps/vodno/)          | Skopje, North Macedonia     | 4.0 km       | mountain tarmac | test (dev only) |
+| Map                                     | Where                       | Length       | Surface         | Status        |
+| --------------------------------------- | --------------------------- | ------------ | --------------- | ------------- |
+| [Petralica](maps/petralica/)            | North Macedonia (mountains) | 9.6 km       | gravel + tarmac | playable      |
+| [Ajvatovci Hill](maps/ajvatovci/)       | Ilinden, North Macedonia    | 4.5 km       | old tarmac      | playable      |
+| [Jackie Robinson Parkway](maps/jackie/) | New York City               | 7.3 km       | tarmac, bridges | playable      |
+| [Test Map](maps/test/)                  | procedural forest           | 1.7 km       | gravel          | physics       |
+| [Galichica](maps/galichica/) (3 stages) | Lake Ohrid - Lake Prespa    | 12.7-27.4 km | mountain tarmac | West playable |
+| [Vodno Hillclimb](maps/vodno/)          | Skopje, North Macedonia     | 4.0 km       | mountain tarmac | playable      |
 
 [![Ajvatovci](maps/ajvatovci/screenshots/start-street.jpg)](maps/ajvatovci/) [![Jackie](maps/jackie/screenshots/parkway-bridge.jpg)](maps/jackie/)
 
@@ -61,7 +61,7 @@ Menu: select stage (with its time of day: night to evening) -> select car -> (op
 | [Lancer EVO VI](cars/lancer-evo-6/)        | AWD   | 1999-style Lancer with a visible cockpit                                                                |
 | [Ford Mustang GT3](cars/ford-gt3/)         | RWD   | 2024 GT3 racer from a CC BY Sketchfab GLB, kept as is                                                   |
 | [Mercedes 190E](cars/merc-190/)            | RWD   | 2.5-16 Evolution saloon from a CC BY Sketchfab GLB, kept as is, badges removed                          |
-| [Peugeot 206](cars/peugeot-206/)           | FWD   | tuned 206 hot hatch from a CC BY Sketchfab GLB, kept as is (test)                                       |
+| [Peugeot 206](cars/peugeot-206/)           | FWD   | tuned 206 hot hatch from a CC BY Sketchfab GLB, kept as is                                              |
 | [Audi RS6](cars/audi-rs6/)                 | AWD   | C8 RS6 Avant from a CC BY Sketchfab GLB, kept as is                                                     |
 | [Porsche 911 (930)](cars/porsche-911-930/) | RWD   | 1975 911 Turbo from a CC BY Sketchfab GLB, kept as is (test)                                            |
 | [Subaru WRX STI](cars/subie-wrx-sti/)      | AWD   | 2019 STI saloon from a CC BY Sketchfab GLB, kept as is (test)                                           |
