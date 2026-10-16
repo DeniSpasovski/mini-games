@@ -151,6 +151,16 @@ describe('trees', () => {
     expect(ratio('juniper')).toBeGreaterThan(1.1);
     expect(ratio('cypress_tree')).toBeGreaterThan(2.5);
     expect(ratio('pine_tree')).toBeGreaterThan(1.3);
+    // The plantation pine is the pine's cone grown cheaper: as tall and narrow, with fewer sprites and limbs.
+    expect(ratio('plantation_pine')).toBeGreaterThan(1.3);
+    expect(v('plantation_pine').info.height).toBeGreaterThan(
+      v('pine_tree').info.height * 0.8,
+    );
+    expect(
+      generateVariant(speciesOfType('plantation_pine'), 0).meshes.sprites.count,
+    ).toBeLessThan(
+      generateVariant(speciesOfType('pine_tree'), 0).meshes.sprites.count * 0.6,
+    );
     expect(ratio('walnut_tree')).toBeLessThan(1);
     expect(ratio('willow_tree')).toBeLessThan(0.8);
     // Black pine: a bare trunk under an umbrella crown (its lowest crown point in the top third).
@@ -162,7 +172,13 @@ describe('trees', () => {
         lum(v('oak_tree').def.bark.color) + 0.3,
       );
     // Conifers wear needles, the rest leaves; the thicket is in autumn colours (red over green).
-    for (const c of ['pine_tree', 'black_pine', 'juniper', 'cypress_tree'])
+    for (const c of [
+      'pine_tree',
+      'plantation_pine',
+      'black_pine',
+      'juniper',
+      'cypress_tree',
+    ])
       expect(v(c).def.foliage.kind).toBe('needles');
     for (const c of [
       'oak_tree',

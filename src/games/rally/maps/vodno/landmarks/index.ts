@@ -12,8 +12,39 @@ import { Local } from '../../ajvatovci/hilltop/build/shapes';
 import { Bucket } from '../../ajvatovci/start-row/build/kit';
 import type { BuildingDef } from '../../shared/types';
 import { boxCollider, cylinderCollider, turnedBoxCollider } from './common';
-import { buildLot, onLot, SREDNO, VIDIKOVEC } from './car-parks';
+import {
+  buildLot,
+  onLot,
+  slabHeight,
+  SREDNO,
+  wallColliders,
+  SREDNO_BUS,
+  VIDIKOVEC,
+} from './car-parks';
+import {
+  drawGarden,
+  drawGazebo,
+  drawMarkings,
+  drawParkGround,
+  gardenColliders,
+  drawPiece,
+  GAZEBO,
+  gardenAreas,
+  gazeboCollider,
+  nearStoneRoad,
+  parkColliders,
+  parkPieces,
+  parkPlants,
+  STONE_ROAD_WIDTH,
+  stoneRoadAreas,
+} from './lot-park';
 import { buildNereziChurch } from './nerezi-church';
+import {
+  buildRestaurant,
+  RESTAURANT_AREAS,
+  RESTAURANT_TREES,
+  restaurantColliders,
+} from './restaurant';
 import { buildLookout, buildRuins, ruinsLayout } from './outposts';
 import { buildSrednoChurch, NAVE_X0 } from './sredno-church';
 import { buildStation } from './station';
@@ -23,7 +54,8 @@ import {
   LOOKOUT,
   LOT_FLAGPOLE,
   SREDNO_LOT,
-  SREDNO_LOT_HW,
+  SREDNO_BANDS,
+  LOT_WEST_X,
   VIDIKOVEC_LOT,
   VIDIKOVEC_LOT_CENTRE,
   LOWER_STATION,
@@ -32,6 +64,7 @@ import {
   onAreas,
   OUTPOST_AREAS,
   PLATFORM,
+  RESTAURANT,
   RUINS,
   SREDNO_AREAS,
   SREDNO_CHURCH,
@@ -68,6 +101,8 @@ interface Spec {
   plants?: Plant[];
   /** The surface the car drives on where the landmark paves the ground (physics only). */
   surfaceAt?: (x: number, z: number) => SurfaceId | undefined;
+  /** The raised ground the car drives on (NaN elsewhere): a slab's top. */
+  groundOverride?: Landmark['groundOverride'];
   /** Writes the structures into the bucket, `at` = a structure's frame on the ground under its site. */
   build: (
     at: (site: Site, tile: string) => Local,
@@ -82,6 +117,7 @@ function landmark(spec: Spec): Landmark {
     replaces: (b) => onAreas(spec.areas, b.x, b.z, 0) || !!spec.replaces?.(b),
     colliders: (ground) => spec.colliders(ground),
     surfaceAt: spec.surfaceAt,
+    groundOverride: spec.groundOverride,
     instances: (ground): ScatterInstance[] =>
       (spec.plants ?? []).map((p, i) => {
         const [x, z] = toWorld(p.site, p.x, p.z);
@@ -269,17 +305,38 @@ export const outpostsLandmark = landmark({
   },
 });
 
-/** Lamp poles along the Sredno Vodno lot (local x along the lot, on the side away from the flag). */
-const LOT_LAMPS = [-28, -2, 24, 46];
-
 /** The two car parks (Sredno Vodno at the finish, Vidikovec at the hairpin) and the flagpole of the first. */
 export const carParksLandmark = landmark({
   id: 'vodno-car-parks',
+  // Placeholder boxes that stand on the stone road go.
+  replaces: (b) =>
+    nearStoneRoad(
+      b.x,
+      b.z,
+      Math.max(b.w, b.d) / 2 + STONE_ROAD_WIDTH / 2 + 0.5,
+    ),
   areas: [
+    // Both Sredno lots (local frame: x up the slope, z to the right) with the park strip and the entrance at the far end.
     {
       site: SREDNO_LOT,
-      rect: [-53, 50, -SREDNO_LOT_HW - 1, SREDNO_LOT_HW + 3],
+      rect: [
+        -72,
+        LOT_WEST_X + 12,
+        SREDNO_BANDS.top[0] - 2,
+        SREDNO_BANDS.top[1] + 8,
+      ],
     },
+    {
+      site: SREDNO_LOT,
+      rect: [
+        -24,
+        LOT_WEST_X + 6,
+        SREDNO_BANDS.low[0] - 2.5,
+        SREDNO_BANDS.low[1] + 2.5,
+      ],
+    },
+    // The gazebo in the park (it stands where OSM has a building: replaced).
+    { site: GAZEBO, r: 7 },
     ...VIDIKOVEC_LOT_CENTRE.map(([x, z]) => ({
       site: {
         ...VIDIKOVEC_LOT,
@@ -288,50 +345,80 @@ export const carParksLandmark = landmark({
       },
       r: 11,
     })),
+    // The stone road from the Sredno park entrance to the lower cable car station.
+    ...stoneRoadAreas().map(({ x, z, r }) => ({
+      site: { ...SREDNO_LOT, x, z },
+      r,
+    })),
+    // The lowered garden north of the Vidikovec.
+    ...gardenAreas().map(({ x, z, r }) => ({
+      site: { ...VIDIKOVEC_LOT, x, z },
+      r,
+    })),
   ],
   colliders: (g) => [
     cylinderCollider(LOT_FLAGPOLE, 0, 0, base(g, LOT_FLAGPOLE), 0.12, 11),
-    ...LOT_LAMPS.map((x) =>
-      cylinderCollider(
-        SREDNO_LOT,
-        x,
-        -SREDNO_LOT_HW - 0.6,
-        base(g, SREDNO_LOT),
-        0.1,
-        7,
-      ),
+    gazeboCollider(base(g, GAZEBO)),
+    // The rock walls of the mid parking and of its garden are hard borders.
+    ...wallColliders(VIDIKOVEC, (x, z) => g.height(x, z)),
+    ...gardenColliders((x, z) => g.height(x, z)),
+    ...[SREDNO, VIDIKOVEC].flatMap((lot) =>
+      parkColliders(lot, (x, z) => g.height(x, z) - 0.8),
     ),
   ],
-  plants: [{ asset: 'flagpole', site: LOT_FLAGPOLE, x: 0, z: 0, scale: 1 }],
+  plants: [
+    { asset: 'flagpole', site: LOT_FLAGPOLE, x: 0, z: 0, scale: 1 },
+    ...parkPlants(SREDNO),
+    ...parkPlants(VIDIKOVEC),
+  ],
   surfaceAt: (x, z) =>
-    onLot(SREDNO, x, z) || onLot(VIDIKOVEC, x, z) ? 'tarmac' : undefined,
+    onLot(SREDNO, x, z) || onLot(SREDNO_BUS, x, z) || onLot(VIDIKOVEC, x, z)
+      ? 'tarmac'
+      : undefined,
+  groundOverride: (ground) =>
+    slabHeight([SREDNO, SREDNO_BUS, VIDIKOVEC], (x, z) => ground.height(x, z)),
   build: (at, ground) => {
-    const sredno = at(SREDNO_LOT, 'sredno-lot');
-    buildLot(sredno, SREDNO, ground);
-    const y0 = ground(SREDNO_LOT.x, SREDNO_LOT.z);
-    for (const x of LOT_LAMPS) {
-      const [wx, wz] = toWorld(SREDNO_LOT, x, -SREDNO_LOT_HW - 0.6);
-      const y = ground(wx, wz) - y0;
-      sredno.box(
-        'metal',
-        [-0.07, y, -SREDNO_LOT_HW - 0.67],
-        [0.07, y + 7, -SREDNO_LOT_HW - 0.53],
-        '#8d9296',
-      );
-      sredno.box(
-        'metal',
-        [-0.05, y + 6.9, -SREDNO_LOT_HW - 0.6],
-        [0.05, y + 7, -SREDNO_LOT_HW + 1.1],
-        '#8d9296',
-      );
-      sredno.box(
-        'metal',
-        [-0.2, y + 6.84, -SREDNO_LOT_HW + 0.8],
-        [0.2, y + 6.92, -SREDNO_LOT_HW + 1.4],
-        '#d9dcde',
-      );
+    for (const [lot, tile] of [
+      [SREDNO, 'sredno-lot'],
+      [SREDNO_BUS, 'sredno-bus-lot'],
+      [VIDIKOVEC, 'vidikovec-lot'],
+    ] as const) {
+      const l = at(lot.site, tile);
+      buildLot(l, lot, ground);
+      // Height of a point of the lot's frame over the frame's base.
+      const base = ground(lot.site.x, lot.site.z);
+      const gy = (x: number, z: number): number => {
+        const [wx, wz] = toWorld(lot.site, x, z);
+        return ground(wx, wz) - base;
+      };
+      if (lot === SREDNO_BUS) continue;
+      drawParkGround(l, lot, gy);
+      drawMarkings(l, lot, gy);
+      for (const piece of parkPieces(lot)) drawPiece(l, piece, gy);
+      if (lot === VIDIKOVEC) drawGarden(l, gy);
     }
-    buildLot(at(VIDIKOVEC_LOT, 'vidikovec-lot'), VIDIKOVEC, ground);
+    drawGazebo(at(GAZEBO, 'gazebo'));
+  },
+});
+
+/** The restaurant beside the Sredno church (it replaces OSM building 3974), its plaza and the cedars round it. */
+export const restaurantLandmark = landmark({
+  id: 'vodno-restaurant',
+  areas: RESTAURANT_AREAS,
+  colliders: (g) => restaurantColliders((x, z) => g.height(x, z)),
+  plants: RESTAURANT_TREES.map(([asset, x, z, scale]) => ({
+    asset,
+    site: RESTAURANT,
+    x,
+    z,
+    scale,
+  })),
+  build: (at, ground) => {
+    const base = ground(RESTAURANT.x, RESTAURANT.z);
+    buildRestaurant(at(RESTAURANT, 'restaurant'), (x, z) => {
+      const [wx, wz] = toWorld(RESTAURANT, x, z);
+      return ground(wx, wz) - base;
+    });
   },
 });
 
@@ -341,5 +428,6 @@ export const VODNO_LANDMARKS: Landmark[] = [
   nereziLandmark,
   outpostsLandmark,
   carParksLandmark,
+  restaurantLandmark,
 ];
 export { VODNO_FLATS } from './sites';

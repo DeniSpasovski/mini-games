@@ -44,7 +44,7 @@ Power, torque and mass follow the published RS6 figures; gearing, grip and brake
 
 | What                      | Source                                                                                                                                          | Licence       |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| Body, cockpit, lamps, rim | ["Audi RS 6 Avant (C8)" by GT Cars: Hyperspeed, Sketchfab](https://sketchfab.com/3d-models/audi-rs-6-avant-c8-99aa71f747b0453eb58334414d34397c) | **CC BY 4.0** |
+| Body, cockpit, lamps, rim | ["Audi RS 6 Avant (C8)" by Mona x Supercars, Sketchfab](https://sketchfab.com/3d-models/audi-rs-6-avant-c8-99aa71f747b0453eb58334414d34397c) | **CC BY 4.0** |
 
 Converted and repainted by us (attribution in `CarDef.credit`, `THIRD-PARTY.md`, `public/models/CREDITS.md`). The downloaded GLB
 itself is not in the repository (`sources/` is git-ignored); only the converted `audi_rs6.glb`, `audi_rs6_wheel.glb` and

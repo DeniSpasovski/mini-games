@@ -4,6 +4,7 @@ import {
   routePoints,
 } from '../shared/real-map';
 import type {
+  BarrierRule,
   HeightmapDef,
   HorizonDef,
   LandcoverDef,
@@ -11,12 +12,15 @@ import type {
   PathDef,
   PropPlacement,
   RailwayDef,
+  ScatterRule,
 } from '../shared/types';
 import data from './data.json';
 import horizon from './horizon.json';
 import { vodnoInfo as info } from './info';
 import { VODNO_FLATS } from './landmarks';
-import { countryRoad, dropLotAisles, LOT_PADS } from './lots';
+import { LOWER_NODE } from './landmarks/sites';
+import { countryRoad, dropLotAisles, LAWNS, LOT_PADS } from './lots';
+import { SKYLINE } from './skyline';
 import { FINISH, START } from './stages';
 
 /**
@@ -34,6 +38,13 @@ import { FINISH, START } from './stages';
 /** Height of the stage start (a street of the Vodno neighbourhood): y = 0 there. */
 const BASE_HEIGHT = 349;
 
+/**
+ * The approach to the Vidikovec car park (m along the road): a guard rail on the drop at its right up to the lot's
+ * wall, white edge lines on the tarmac from the rail's start to `VIDIKOVEC_LINES_END`.
+ */
+const VIDIKOVEC_RAIL = { from: 2600, to: 2796 };
+const VIDIKOVEC_LINES_END = 2940;
+
 /** Covers where dry grass grows (detail layer). */
 const DRY = ['grass', 'shrub', 'bare', 'crop', 'urban'];
 
@@ -47,9 +58,35 @@ const MAST = { x: -433, z: 741 };
  * cabins running round the loop follow from them (world/aerialway.ts).
  */
 const CABLE_CAR = [
-  380, -455, 334, -403, 227, -284, 29, -64, -79, 58, -178, 164, -325, 338, -559,
-  597, -599, 645, -684, 741,
+  LOWER_NODE.x,
+  LOWER_NODE.z,
+  ...[334, -403, 227, -284, 29, -64, -79, 58, -178, 164, -325, 338, -559, 597],
+  ...[-599, 645, -684, 741],
 ];
+
+/**
+ * Plantation conifers in bands from the road edge: a closed canopy at the verge, thinner across the slope where the
+ * crowns are still drawn as sprites (the costly part of a tree; the road side within ~100 m is most of it), the full
+ * forest behind (trees past 250 m are only impostors). [from, to, share of the density] (m).
+ */
+const PLANTATION_BANDS: [number, number | undefined, number][] = [
+  [0, 40, 1.4],
+  [40, 100, 0.8],
+  [100, 245, 0.5],
+  [245, undefined, 1],
+];
+
+function plantation(
+  rule: Omit<ScatterRule, 'cover' | 'maxRoadDist'>,
+): ScatterRule[] {
+  return PLANTATION_BANDS.map(([from, to, share]) => ({
+    ...rule,
+    cover: ['pine'],
+    density: rule.density * share,
+    minRoadDist: Math.max(rule.minRoadDist ?? 0, from),
+    maxRoadDist: to,
+  }));
+}
 
 const props: PropPlacement[] = [
   // The cross faces the city: its arm runs north-west / south-east, square to the view from the stage.
@@ -62,6 +99,7 @@ export const vodnoMap: MapDef = {
   country: 'mk',
   buildings: buildingsFromData(data.buildings),
   horizon: horizon as HorizonDef,
+  skyline: SKYLINE,
   terrain: {
     baseHeight: 0,
     heightmap: { ...(data.heightmap as HeightmapDef), offset: BASE_HEIGHT },
@@ -74,6 +112,7 @@ export const vodnoMap: MapDef = {
     rockSlope: [0.65, 1.0],
     flatAreas: VODNO_FLATS,
     pads: LOT_PADS,
+    lawns: LAWNS,
   },
   landcover: {
     ...(data.landcover as Omit<LandcoverDef, 'splat' | 'fields'>),
@@ -96,7 +135,7 @@ export const vodnoMap: MapDef = {
       cemetery: [0.7, 0.2, 0, 0.1],
     },
   },
-  paths: countryRoad(dropLotAisles(data.paths as PathDef[]), data.route),
+  paths: countryRoad(dropLotAisles(data.paths as PathDef[])),
   // The side roads are streets and forest tracks: tracks are gravel ribbons (objects), streets city asphalt.
   trackRibbons: true,
   // Tracks over steep pine woods: a longer height window than the default track (25 m) keeps them smooth.
@@ -135,58 +174,55 @@ export const vodnoMap: MapDef = {
     texture: 'road_city',
     sections: [
       { from: START + 700, surface: 'tarmac', texture: 'road_tarmac' },
+      // The approach to the Vidikovec car park has white edge lines.
+      {
+        from: VIDIKOVEC_RAIL.from,
+        surface: 'tarmac',
+        texture: 'road_tarmac_lines',
+      },
+      { from: VIDIKOVEC_LINES_END, surface: 'tarmac', texture: 'road_tarmac' },
     ],
     points: routePoints(data.route, (along) =>
       along < START + 500 ? 6.4 : 5.8,
     ),
   },
+  // Nothing grows south of the ridge (the cross stands at z 796): no stage camera sees the far side of Vodno, 1.1 km and more from the
+  // road, past the forest distance and behind the mountain.
+  scatterBounds: { maxZ: 900 },
   scatter: [
-    // The pine plantations that cover most of Vodno: dense, dark, with oak and scrub among them.
-    {
-      asset: 'pine_tree',
-      cover: ['pine'],
-      density: 9,
-      minRoadDist: 3.5,
-      maxSlope: 0.8,
-      scale: [0.8, 1.2],
-      tilt: 2,
-      sink: 0.3,
-    },
-    {
-      asset: 'black_pine',
-      cover: ['pine'],
+    // The pine plantations that cover most of Vodno (planted from the 1950s): dense, dark conifers with some Austrian
+    // black pine among them, oak and scrub below. The road runs through them: a closed canopy at the verge (the satellite
+    // view of the start street has the forest right at its south edge).
+    ...plantation({
+      asset: 'plantation_pine',
       density: 7,
-      minRoadDist: 4,
+      minRoadDist: 3.5,
       maxSlope: 0.8,
-      mask: { scale: 260, threshold: -0.1 },
-      scale: [0.75, 1.15],
+      scale: [0.8, 1.2],
       tilt: 2,
       sink: 0.3,
-    },
-    // The road runs through the plantation: a denser stand along it, a closed canopy at the verge (the satellite view of the
-    // start street has the forest right at its south edge).
+    }),
+    // A few full pines at the verge, where the car passes close enough to see the needles.
     {
       asset: 'pine_tree',
       cover: ['pine'],
-      density: 9,
+      density: 2.5,
       minRoadDist: 3.5,
-      maxRoadDist: 70,
+      maxRoadDist: 40,
       maxSlope: 0.8,
       scale: [0.8, 1.2],
       tilt: 2,
       sink: 0.3,
     },
-    {
+    ...plantation({
       asset: 'black_pine',
-      cover: ['pine'],
-      density: 6,
+      density: 2.5,
       minRoadDist: 4,
-      maxRoadDist: 70,
       maxSlope: 0.8,
       scale: [0.75, 1.15],
       tilt: 2,
       sink: 0.3,
-    },
+    }),
     {
       asset: 'oak_tree',
       cover: ['pine', 'trees'],
@@ -198,10 +234,21 @@ export const vodnoMap: MapDef = {
       tilt: 4,
       sink: 0.25,
     },
+    // Undergrowth: a thicket in the broadleaf woods, only the odd bush under the pines.
     {
       asset: 'thicket_shrub',
-      cover: ['pine', 'trees'],
+      cover: ['trees'],
       density: 6,
+      minRoadDist: 2.2,
+      maxSlope: 0.85,
+      scale: [0.8, 1.25],
+      tilt: 3,
+      sink: 0.15,
+    },
+    {
+      asset: 'thicket_shrub',
+      cover: ['pine'],
+      density: 1.5,
       minRoadDist: 2.2,
       maxSlope: 0.85,
       scale: [0.8, 1.25],
@@ -245,6 +292,17 @@ export const vodnoMap: MapDef = {
       mask: { scale: 200, threshold: 0 },
       scale: [0.55, 1],
       tilt: 5,
+      sink: 0.2,
+    },
+    // Black locust, the roadside and wasteland tree of the Skopje valley, loose among the oaks of the lower slopes.
+    {
+      asset: 'locust_tree',
+      cover: ['shrub', 'grass', 'trees'],
+      density: 0.7,
+      minRoadDist: 4,
+      mask: { scale: 170, threshold: -0.05 },
+      scale: [0.7, 1.15],
+      tilt: 4,
       sink: 0.2,
     },
     {
@@ -368,7 +426,7 @@ export const vodnoMap: MapDef = {
     // the verge on both sides, as on the real street.
     {
       asset: 'walnut_tree',
-      every: 11,
+      every: 19,
       from: 0,
       to: START + 700,
       side: 'both',
@@ -379,7 +437,7 @@ export const vodnoMap: MapDef = {
     },
     {
       asset: 'oak_tree',
-      every: 17,
+      every: 31,
       from: 8,
       to: START + 700,
       side: 'both',
@@ -433,8 +491,19 @@ export const vodnoMap: MapDef = {
   // Marshals / onlookers behind the closed side-street mouths.
   streetDressing: { spectators: { perJunction: 4, reach: 500 } },
   railways: data.railways as RailwayDef[],
-  // Steel guard rails on the outside of the hairpins (the drop on the switchbacks).
-  barriers: hairpinRails(data.route, { maxRadius: 30, lead: 20 }),
+  // Rusted steel guard rails on the outside of the hairpins (the drop on the switchbacks) and along the drop of the
+  // approach to the Vidikovec car park (the rail ends where the lot's retaining wall begins).
+  barriers: [
+    ...hairpinRails(data.route, { maxRadius: 30, lead: 20 }),
+    {
+      kind: 'guardrail',
+      side: 'right',
+      offset: 0.9,
+      from: VIDIKOVEC_RAIL.from,
+      to: VIDIKOVEC_RAIL.to,
+      skipJunctions: 4,
+    } satisfies BarrierRule,
+  ].map((rule) => ({ ...rule, rusty: true })),
   props,
   landmarks: [
     'vodno-sredno-vodno',
@@ -442,5 +511,6 @@ export const vodnoMap: MapDef = {
     'vodno-nerezi',
     'vodno-outposts',
     'vodno-car-parks',
+    'vodno-restaurant',
   ],
 };

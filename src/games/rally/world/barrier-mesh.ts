@@ -314,10 +314,20 @@ export function* barrierMeshJob(
     metalness: 0.5,
     side: DoubleSide,
   });
+  // Rusted rails are painted steel gone brown: not metallic (no sky-blue reflection).
+  const rustMat = new MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.8,
+    metalness: 0.1,
+    side: DoubleSide,
+  });
   const ctx: BarrierContext = { road: world.road, net: world.gen.paths };
   const white: [number, number, number] = [1, 1, 1];
   const steel: [number, number, number] = [0.62, 0.64, 0.66];
   const postCol: [number, number, number] = [0.3, 0.31, 0.32];
+  // (linear vertex colours: a deep orange-brown rust, the posts darker)
+  const rustSteel: [number, number, number] = [0.34, 0.1, 0.03];
+  const rustPost: [number, number, number] = [0.22, 0.07, 0.025];
   const tiles = new Map<string, { acc: Acc; mat: MeshStandardMaterial }>();
   const tileAcc = (
     kind: string,
@@ -334,11 +344,12 @@ export function* barrierMeshJob(
     for (let from = run.from; from < run.to - 0.5; from += PIECE) {
       const to = Math.min(run.to, from + PIECE);
       const rows = rowsOf(ctx, world.analytic, run, from, to);
+      const rusty = run.rule.kind === 'guardrail' && !!run.rule.rusty;
       const acc = tileAcc(
-        run.rule.kind,
+        rusty ? 'rust' : run.rule.kind,
         rows[0].x,
         rows[0].z,
-        run.rule.kind === 'jersey' ? jerseyMat : railMat,
+        run.rule.kind === 'jersey' ? jerseyMat : rusty ? rustMat : railMat,
       );
       if (run.rule.kind === 'jersey') {
         const uvOf = (r: Row, dy: number): [number, number] => [
@@ -366,12 +377,20 @@ export function* barrierMeshJob(
           // Front zig-zag faces the road, the lip faces up, the back faces away.
           const n: [number, number] =
             i < 6 ? [-1, 0] : i === 6 ? [0, 1] : [1, 0];
-          strip(acc, rows, a, b, n, steel, uvOf);
+          strip(acc, rows, a, b, n, run.rule.rusty ? rustSteel : steel, uvOf);
         }
         // Posts every 2 m (aligned to the rail's own metres so they never shift between pieces).
         for (let d = Math.ceil(from / 2) * 2; d < to; d += 2) {
           const r = rowsOf(ctx, world.analytic, run, d, d + 0.01)[0];
-          post(acc, r, 0.14, 0.12, 0.78, 0.1, postCol);
+          post(
+            acc,
+            r,
+            0.14,
+            0.12,
+            0.78,
+            0.1,
+            run.rule.rusty ? rustPost : postCol,
+          );
         }
       }
     }

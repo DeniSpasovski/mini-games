@@ -5,6 +5,8 @@ import {
   Group,
   Matrix4,
   Quaternion,
+  ShapeUtils,
+  Vector2,
   Vector3,
   Mesh,
   MeshLambertMaterial,
@@ -84,6 +86,17 @@ export class Horizon {
     });
     // Big landmarks (the cross, the antenna mast) stay on the skyline beyond the streamed scatter: their last LOD is drawn
     // here, with the same cut-away inside the terrain view distance where the real instances take over.
+    // The city's tall buildings beyond the baked area (MapDef.skyline): extruded footprints, same pass as the landmarks.
+    const skyline = skylineGeometry(world, def);
+    if (skyline) {
+      const mesh = new Mesh(skyline, this.material);
+      mesh.name = 'horizon skyline';
+      mesh.frustumCulled = false;
+      mesh.matrixAutoUpdate = false;
+      mesh.renderOrder = -0.505;
+      mesh.onBeforeRender = (_r, _s, camera) => this.project(camera);
+      this.group.add(mesh);
+    }
     const far = farLandmarks(world);
     if (far) {
       const mesh = new Mesh(far, this.material);
@@ -304,4 +317,133 @@ function farLandmarks(world: World): BufferGeometry | undefined {
   for (const g of parts) g.dispose();
   merged.computeBoundingSphere();
   return merged;
+}
+
+/** Ground height of the backdrop's finest grid at (x, z) (bilinear), in the same frame as its mesh. */
+function gridHeight(g: GridDef, heights: Int16Array, lift: number) {
+  return (x: number, z: number): number => {
+    const fx = Math.min(g.cols - 1.001, Math.max(0, (x - g.originX) / g.cell));
+    const fz = Math.min(g.rows - 1.001, Math.max(0, (z - g.originZ) / g.cell));
+    const i = Math.floor(fx);
+    const j = Math.floor(fz);
+    const tx = fx - i;
+    const tz = fz - j;
+    const h = (a: number, b: number): number => heights[b * g.cols + a];
+    const v =
+      h(i, j) * (1 - tx) * (1 - tz) +
+      h(i + 1, j) * tx * (1 - tz) +
+      h(i, j + 1) * (1 - tx) * tz +
+      h(i + 1, j + 1) * tx * tz;
+    return g.base + v * g.step + lift;
+  };
+}
+
+/**
+ * The skyline buildings (MapDef.skyline) as one vertex-coloured geometry: each footprint extruded from just under its
+ * lowest ground to its height, the facade in a wall band and a glass band per floor, a flat roof.
+ */
+function skylineGeometry(
+  world: World,
+  def: HorizonDef,
+): BufferGeometry | undefined {
+  const list = world.map.skyline;
+  const g = def.grids[0];
+  if (!list?.length || !g) return undefined;
+  const hb = base64Bytes(g.heights);
+  const heights = new Int16Array(hb.buffer, hb.byteOffset, g.cols * g.rows);
+  const lift =
+    world.map.terrain.baseHeight - (world.map.terrain.heightmap?.offset ?? 0);
+  const ground = gridHeight(g, heights, lift);
+  const pos: number[] = [];
+  const nor: number[] = [];
+  const col: number[] = [];
+  const tri = (
+    a: number[],
+    b: number[],
+    c: number[],
+    n: number[],
+    color: Color,
+  ): void => {
+    // Wound so the face looks along +n (counter-clockwise seen from outside).
+    const ux = b[0] - a[0];
+    const uy = b[1] - a[1];
+    const uz = b[2] - a[2];
+    const vx = c[0] - a[0];
+    const vy = c[1] - a[1];
+    const vz = c[2] - a[2];
+    const dot =
+      (uy * vz - uz * vy) * n[0] +
+      (uz * vx - ux * vz) * n[1] +
+      (ux * vy - uy * vx) * n[2];
+    const pts = dot >= 0 ? [a, b, c] : [a, c, b];
+    for (const p of pts) {
+      pos.push(p[0], p[1], p[2]);
+      nor.push(n[0], n[1], n[2]);
+      col.push(color.r, color.g, color.b);
+    }
+  };
+  for (const b of list) {
+    const n = b.footprint.length / 2;
+    const P: [number, number][] = [];
+    for (let i = 0; i < n; i++)
+      P.push([b.footprint[i * 2], b.footprint[i * 2 + 1]]);
+    // (a closed outline repeats its first point)
+    if (n > 3 && P[0][0] === P[n - 1][0] && P[0][1] === P[n - 1][1]) P.pop();
+    const m = P.length;
+    let low = Infinity;
+    for (const [x, z] of P) low = Math.min(low, ground(x, z));
+    const y0 = low - 4;
+    const top = low + b.height;
+    let area = 0;
+    for (let i = 0; i < m; i++) {
+      const [x0, z0] = P[i];
+      const [x1, z1] = P[(i + 1) % m];
+      area += x0 * z1 - x1 * z0;
+    }
+    const s = area >= 0 ? 1 : -1;
+    const wall = new Color(b.wall ?? '#c9c6bd');
+    const glass = new Color(b.glass ?? '#4a5d72');
+    const roof = new Color(b.roof ?? '#8d8a84');
+    const floors = Math.max(1, b.floors ?? Math.round(b.height / 3.2));
+    const floorH = b.height / floors;
+    for (let i = 0; i < m; i++) {
+      const [x0, z0] = P[i];
+      const [x1, z1] = P[(i + 1) % m];
+      const len = Math.hypot(x1 - x0, z1 - z0);
+      if (len < 0.05) continue;
+      const nrm = [((z1 - z0) / len) * s, 0, (-(x1 - x0) / len) * s];
+      const quad = (ya: number, yb: number, color: Color): void => {
+        const a = [x0, ya, z0];
+        const bb = [x1, ya, z1];
+        const c = [x1, yb, z1];
+        const d = [x0, yb, z0];
+        tri(a, bb, c, nrm, color);
+        tri(a, c, d, nrm, color);
+      };
+      // Below the lowest ground: plain wall; then a wall band and a glass band per floor.
+      quad(y0, low, wall);
+      for (let f = 0; f < floors; f++) {
+        const ya = low + f * floorH;
+        quad(ya, ya + floorH * 0.32, wall);
+        quad(ya + floorH * 0.32, ya + floorH, glass);
+      }
+    }
+    // The roof, triangulated (a footprint need not be convex).
+    const contour = P.map(([x, z]) => new Vector2(x, z));
+    for (const [i, j, k] of ShapeUtils.triangulateShape(contour, [])) {
+      tri(
+        [P[i][0], top, P[i][1]],
+        [P[j][0], top, P[j][1]],
+        [P[k][0], top, P[k][1]],
+        [0, 1, 0],
+        roof,
+      );
+    }
+  }
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  geo.setAttribute('normal', new BufferAttribute(new Float32Array(nor), 3));
+  geo.setAttribute('color', new BufferAttribute(new Float32Array(col), 3));
+  geo.computeBoundingSphere();
+  return geo;
 }
