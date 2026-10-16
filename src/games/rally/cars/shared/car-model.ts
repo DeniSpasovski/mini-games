@@ -366,12 +366,14 @@ const NO_SHADOW_PARTS = new Set([
   'headled',
   'tailled',
   'brakestrip',
+  'brakestripred',
   'reverselamp',
   'lampclear',
   'lampred',
   'lenscover',
   'redcover',
   'brakecover',
+  'brakered',
   'headlight',
   'tailc',
 ]);
@@ -776,8 +778,7 @@ export class CarModel {
 
   private clearBadge(): void {
     const mat = this.badgeMeshes[0]?.material as
-      | MeshStandardMaterial
-      | undefined;
+      MeshStandardMaterial | undefined;
     for (const m of this.badgeMeshes) {
       m.removeFromParent();
       m.geometry.dispose();
@@ -1142,13 +1143,15 @@ export class CarModel {
     this.brakeLevel = l;
     this.reversing = reversing;
     for (const m of this.brakeLamps ?? []) {
-      const { off, on, reverseGlow } = m.userData.brakeLamp as {
+      const { off, on, reverseGlow, night } = m.userData.brakeLamp as {
         off: number;
         on: number;
         reverseGlow?: Texture;
+        night?: number;
       };
       m.userData.brakeGlow ??= m.emissiveMap;
-      const idle = off + Math.min(on - off, TAIL_NIGHT_GLOW) * this.lampsOn;
+      const idle =
+        off + Math.min(on - off, night ?? TAIL_NIGHT_GLOW) * this.lampsOn;
       const lit = idle + (on - idle) * l;
       if (reverseGlow && reversing && l < 0.02) {
         // Reversing without the brake pedal: the white section only. With the brake down the white one goes dark.

@@ -11,7 +11,8 @@ normals and TEXCOORD_0) and writes the source images they use next to the GLB. C
       "textures": [{"material": "lights", "out": "public/models/cars/<car>_lamps.png"}],  # source materials whose base colour images ship
       "parts": [                                                                      # in draw order: what sits behind first
         {"node": "<primitive name>", "material": "src:lamp:<car>_lamps.png"},
-        {"node": "<primitive name>", "z": [-3, 0], "material": "src:tail:<car>_lamps.png"}   # optional x / y / z box on triangle centres
+        {"node": "<primitive name>", "z": [-3, 0], "material": "src:tail:<car>_lamps.png"}   # optional x / y / z box on triangle centres;
+                                                                                              # "...png:<x>,<y>" = reverse light only in the lens around that sheet pixel
       ],
       "shells": [{"nodes": [...], "x": [..], "y": [..], "z": [..], "mirror": true, "material": "src:shell"}]  # optional
     }
