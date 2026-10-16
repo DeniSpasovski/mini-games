@@ -28,7 +28,7 @@ import type { QualitySettings } from '../engine/quality';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
 import { getTexture, setTextureAnisotropy } from '../engine/textures';
 import { getStage, loadStage, STAGES } from '../maps';
-import { mapSeason } from '../maps/shared/climate';
+import { mapSeason, stageSeason } from '../maps/shared/climate';
 import { mapInSeason } from '../maps/shared/season-map';
 import { SEASONS, type Season } from '../season';
 import type { EnvironmentDef, MapDef, StageDef } from '../maps/shared/types';
@@ -374,8 +374,7 @@ export class Showroom {
   /** The stage's environment in the shown season (ground tint). */
   private stageEnv(id: string): EnvironmentDef {
     const info = getStage(id);
-    return mapInSeason(info, this.season ?? mapSeason(info.environment))
-      .environment;
+    return mapInSeason(info, this.season ?? stageSeason(info)).environment;
   }
 
   private getMap(mapId: string): MapView {

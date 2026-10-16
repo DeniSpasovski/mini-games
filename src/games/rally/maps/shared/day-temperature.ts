@@ -2,11 +2,14 @@ import { SURFACES } from '../../physics/surfaces';
 import type { Climate } from '../../physics/tyre-temp';
 import { TIMES_OF_DAY, slotFor, type TimeOfDay } from '../../game/time-of-day';
 import type { Season } from '../../season';
-import { mapSeason } from './climate';
+import { stageSeason } from './climate';
 import type { StageInfo } from './types';
 
 /** What the temperatures need of a stage. */
-export type TempStage = Pick<StageInfo, 'temps' | 'surfaces' | 'environment'>;
+export type TempStage = Pick<
+  StageInfo,
+  'temps' | 'surfaces' | 'environment' | 'season'
+>;
 
 /** The hour a time-of-day slot means on a stage: the stage's own slot keeps the stage's exact default hour. */
 export function slotHour(ownHour: number | undefined, t: TimeOfDay): number {
@@ -16,14 +19,14 @@ export function slotHour(ownHour: number | undefined, t: TimeOfDay): number {
 }
 
 /**
- * Air and road temperature (deg C) of a stage at `hour` in `season` (default: the map's): the stage's predefined
+ * Air and road temperature (deg C) of a stage at `hour` in `season` (default: the one the stage opens in): the stage's predefined
  * `temps` at the slot hours (`slotHour`), blended in a straight line between the neighbouring slots for any other hour
  * (`?tod=`), round the clock. The road is the stage's first surface.
  */
 export function stageTemps(
   stage: TempStage,
   hour: number | undefined,
-  season: Season = mapSeason(stage.environment),
+  season: Season = stageSeason(stage),
 ): { air: number; road: number } {
   const own = stage.environment.timeOfDay;
   const table = stage.temps[season];

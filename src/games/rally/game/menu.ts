@@ -18,7 +18,7 @@ import {
   type QualitySettings,
 } from '../engine/quality';
 import { ALL_STAGES, DEFAULT_STAGE, MAPS, STAGES } from '../maps';
-import { MONTH_NAMES, mapSeason, seasonMonth } from '../maps/shared/climate';
+import { MONTH_NAMES, seasonMonth, stageSeason } from '../maps/shared/climate';
 import { slotHour, stageTemps } from '../maps/shared/day-temperature';
 import { SEASON_LABELS, SEASONS, seasonParam, type Season } from '../season';
 import type { SourceLink, StageInfo } from '../maps/shared/types';
@@ -740,7 +740,7 @@ class MainMenu {
 
   /** Season the stage runs in: the picked one, else `?season=`, else its own. */
   private seasonFor(m: StageInfo): Season {
-    return this.season ?? this.urlSeason ?? mapSeason(m.environment);
+    return this.season ?? this.urlSeason ?? stageSeason(m);
   }
 
   /** The hour a slot means on a stage: the stage's own slot keeps the stage's exact default hour. */
@@ -1120,7 +1120,7 @@ class MainMenu {
       setup: this.setup,
       gearing: this.gearing,
       tod: hour === this.map.environment.timeOfDay ? undefined : hour,
-      season: season === mapSeason(this.map.environment) ? undefined : season,
+      season: season === stageSeason(this.map) ? undefined : season,
     };
     saveSettings({ map: r.stage, car: r.car, livery: r.livery });
     this.done(r);

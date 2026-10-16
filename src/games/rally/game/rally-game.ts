@@ -92,7 +92,7 @@ import {
   timesVersion,
 } from './stage';
 import { infoOf, stageInfo } from '../maps';
-import { mapSeason } from '../maps/shared/climate';
+import { stageSeason } from '../maps/shared/climate';
 import { mapInSeason } from '../maps/shared/season-map';
 import { stageClimate } from '../maps/shared/day-temperature';
 import { seasonParam, type Season } from '../season';
@@ -176,7 +176,7 @@ export class RallyGame {
   private lampPos = new Vector3();
   private lampDir = new Vector3();
   streamer!: InstanceStreamer;
-  /** Season of the stage: the map's, or `?season=spring|summer|autumn` (leaf colours, air temperature). */
+  /** Season of the stage: its own, or `?season=spring|summer|autumn` (leaf colours, ground, temperatures). */
   readonly season: Season;
   /** L-system trees (trees/): their variants and the renderer drawing them. */
   treeLibrary!: TreeLibrary;
@@ -250,11 +250,12 @@ export class RallyGame {
       Math.min(8, this.renderer.capabilities.getMaxAnisotropy()),
     );
     bindCameraAspect(this.renderer, this.camera);
+    const stage = opts.stage ?? opts.map.stages[0];
     this.season = seasonParam(
       new URLSearchParams(location.search).get('season'),
-      mapSeason(opts.map.environment),
+      stageSeason({ season: stage.season, environment: opts.map.environment }),
     );
-    this.world = new World(mapInSeason(opts.map, this.season), opts.stage);
+    this.world = new World(mapInSeason(opts.map, this.season), stage);
     this.car = getCar(opts.carId);
     this.audio = new CarAudio(this.car);
     // Any spawn other than the stage start (pad, ?spawn=<metres>) is free drive: no clock, no splits.

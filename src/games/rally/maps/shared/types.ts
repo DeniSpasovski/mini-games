@@ -663,6 +663,11 @@ export interface StageDef {
   year: number;
   /** Air and road temperature for every season and time of day (`StageTemps`): the stage screen and the tyres use it. */
   temps: StageTemps;
+  /**
+   * Season the stage opens in (default: the map's, `EnvironmentDef.season`): stages on one map can differ. The ground
+   * and the leaves of the others come from the map's `groundTints` and `trees/seasons.ts`.
+   */
+  season?: Season;
   description: string;
   /** Recommended tyre for the stage's surfaces: pre-selected on the car screen, the player may pick another. */
   tyre: TyreId;
@@ -877,8 +882,9 @@ export interface EnvironmentDef {
    */
   timeOfDay?: number;
   /**
-   * Season (default summer): the leaf colours of the trees (trees/seasons.ts), the ground (`groundTints`) and which
-   * temperatures of the stages' `temps` apply. Try others with `?season=spring|summer|autumn`.
+   * Season of the map's own look, the one `groundTint` is for (default summer); a stage opens in it unless its
+   * `StageDef.season` says otherwise. The season picks the leaf colours (trees/seasons.ts), the ground (`groundTints`)
+   * and the stage's `temps`. Try others with `?season=spring|summer|autumn`.
    */
   season?: Season;
   /**

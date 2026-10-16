@@ -57,6 +57,7 @@ export const galichicaStages: StageDef[] = [
     name: 'Galichica West',
     year: 2026,
     temps: TEMPS,
+    season: 'autumn',
     tyre: 'tarmac',
     description:
       'A narrow mountain road in Galichica National Park, North Macedonia: tarmac switchbacks climb from Lake Ohrid through oak and beech woods to the Livada pass, with both lakes in the distance.',
@@ -80,6 +81,7 @@ export const galichicaStages: StageDef[] = [
     name: 'Galichica East',
     year: 2026,
     temps: TEMPS,
+    season: 'spring',
     tyre: 'tarmac',
     description:
       'The same mountain road from the Prespa side: tarmac switchbacks through beech forest up to the bare, rocky top of the Livada pass, with both lakes below.',

@@ -2,8 +2,8 @@ import { describe, expect, test } from '@rstest/core';
 import { STAGES } from '../../src/games/rally/maps';
 import {
   MONTH_NAMES,
-  mapSeason,
   seasonMonth,
+  stageSeason,
 } from '../../src/games/rally/maps/shared/climate';
 import {
   slotHour,
@@ -34,9 +34,7 @@ describe('air and road temperature of a stage (predefined)', () => {
       const slot = slotFor(own);
       expect(slotHour(own, slot)).toBe(own);
       const t = stageTemps(s, undefined);
-      expect([t.air, t.road]).toEqual([
-        ...s.temps[mapSeason(s.environment)][slot.id],
-      ]);
+      expect([t.air, t.road]).toEqual([...s.temps[stageSeason(s)][slot.id]]);
     }
   });
 

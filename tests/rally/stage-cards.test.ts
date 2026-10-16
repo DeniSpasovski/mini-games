@@ -46,26 +46,33 @@ describe('stage cards', () => {
   );
 
   // One picture per season the map has its own ground for (`groundTints`) (bake: /games/rally/?bakecard=<stage id>&season=all).
-  test.each(released.map((d) => [d.stage.id, d.map.id, d.map] as const))(
-    '%s has a card picture for each season',
-    (id, mapId, map) => {
-      const dir = path.join(mapsDir, mapId, 'preview');
-      const card = JSON.parse(
-        fs.readFileSync(path.join(dir, `${id}.json`), 'utf8'),
-      ) as StageCardData;
-      const own = mapSeason(map.environment);
-      expect(card.season ?? 'summer').toBe(own);
-      for (const season of SEASONS) {
-        if (!map.environment.groundTints?.[season] && season !== own) continue;
-        const name = cardImageName(id, season);
-        expect(
-          fs.existsSync(path.join(dir, `${name}.jpg`)),
-          `no ${season} picture - bake /games/rally/?bakecard=${id}&season=${season}`,
-        ).toBe(true);
-        if (season === own) continue;
-        expect(card.seasons?.[season]?.hash).toBeTruthy();
-        expect(card.seasons?.[season]?.floor).toMatch(/^#[0-9a-f]{6}$/);
-      }
-    },
-  );
+  test.each(
+    released.map(
+      (d) =>
+        [d.stage.id, d.map.id, d.map, d.stage.season ?? undefined] as const,
+    ),
+  )('%s has a card picture for each season', (id, mapId, map, opens) => {
+    const dir = path.join(mapsDir, mapId, 'preview');
+    const card = JSON.parse(
+      fs.readFileSync(path.join(dir, `${id}.json`), 'utf8'),
+    ) as StageCardData;
+    const own = mapSeason(map.environment);
+    expect(card.season ?? 'summer').toBe(own);
+    for (const season of SEASONS) {
+      if (
+        !map.environment.groundTints?.[season] &&
+        season !== own &&
+        season !== opens
+      )
+        continue;
+      const name = cardImageName(id, season);
+      expect(
+        fs.existsSync(path.join(dir, `${name}.jpg`)),
+        `no ${season} picture - bake /games/rally/?bakecard=${id}&season=${season}`,
+      ).toBe(true);
+      if (season === own) continue;
+      expect(card.seasons?.[season]?.hash).toBeTruthy();
+      expect(card.seasons?.[season]?.floor).toMatch(/^#[0-9a-f]{6}$/);
+    }
+  });
 });

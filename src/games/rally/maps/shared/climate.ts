@@ -1,9 +1,17 @@
 import { DEFAULT_SEASON, type Season } from '../../season';
-import type { EnvironmentDef } from './types';
+import type { EnvironmentDef, StageDef } from './types';
 
-/** Season of a map as authored (`?season=` is applied by the game). */
+/** Season of a map's own look as authored (`?season=` is applied by the game). */
 export function mapSeason(env: EnvironmentDef): Season {
   return env.season ?? DEFAULT_SEASON;
+}
+
+/** Season a stage opens in: its own `season`, else its map's. */
+export function stageSeason(stage: {
+  season?: StageDef['season'];
+  environment: EnvironmentDef;
+}): Season {
+  return stage.season ?? mapSeason(stage.environment);
 }
 
 /** Month (1-12) a season is driven in unless `EnvironmentDef.months` says otherwise. */

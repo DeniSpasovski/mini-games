@@ -306,7 +306,7 @@ Cold tyres grip less, tyres overheated by sliding grip less, in between they are
 pages and the reference tests above are unchanged).
 
 - **Climate:** every stage hardcodes its temperatures: `StageDef.temps` (`maps/<map>/stages.ts`) = `[air, road]` °C for each
-  season (spring / summer / autumn, `?season=` or the stage screen's Season) and time of day (early morning, mid day,
+  season (spring / summer / autumn: the stage's own, `?season=` or the stage screen's Season) and time of day (early morning, mid day,
   afternoon, evening, night; the stage's own slot is at its own `timeOfDay`). The road is the stage's first surface; any
   other hour (`?tod=`) blends the neighbouring slots in a straight line (`stageTemps`, maps/shared/day-temperature.ts), and
   `?air=<°C>` replaces the air only. `stageClimate` turns it into the tyre climate: the air and a sun heat = the road's gap to

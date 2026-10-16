@@ -4,7 +4,10 @@ import { ajvatovciInfo } from '../../src/games/rally/maps/ajvatovci/info';
 import { galichicaInfo } from '../../src/games/rally/maps/galichica/info';
 import { jackieInfo } from '../../src/games/rally/maps/jackie/info';
 import { petralicaInfo } from '../../src/games/rally/maps/petralica/info';
-import { mapSeason } from '../../src/games/rally/maps/shared/climate';
+import {
+  mapSeason,
+  stageSeason,
+} from '../../src/games/rally/maps/shared/climate';
 import {
   stageClimate,
   stageTemps,
@@ -134,10 +137,29 @@ describe('seasons: air temperature', () => {
       const stage = STAGES.find((s) => s.id === id)!;
       const own = stage.environment.timeOfDay;
       expect(mapSeason(stage.environment)).toBe('summer');
-      expect(stageTemps(stage, own).air).toBe(summer);
-      expect(stageClimate(stage, own).air).toBe(summer);
+      expect(stageTemps(stage, own, 'summer').air).toBe(summer);
+      expect(stageClimate(stage, own, 'summer').air).toBe(summer);
       expect(stageTemps(stage, own, 'spring').air).toBeLessThan(summer);
       expect(stageTemps(stage, own, 'autumn').air).toBeLessThan(summer);
+    },
+  );
+
+  // The season a stage opens in: its map's (summer) unless the stage says otherwise.
+  const OPENS_IN: Record<string, 'spring' | 'autumn'> = {
+    galichica_west: 'autumn',
+    galichica_east: 'spring',
+  };
+  test.each(STAGES.map((s) => [s.id, s] as const))(
+    '%s opens in its own season and shows its temperatures',
+    (id, stage) => {
+      const season = OPENS_IN[id] ?? 'summer';
+      expect(stageSeason(stage)).toBe(season);
+      // The default look: the stage's table for that season at its own hour.
+      const own = stage.environment.timeOfDay;
+      expect(stageTemps(stage, own)).toEqual(stageTemps(stage, own, season));
+      expect(stageClimate(stage, own).air).toBe(
+        stageTemps(stage, own, season).air,
+      );
     },
   );
 
