@@ -121,15 +121,16 @@ describe('seasons: air temperature', () => {
     expect(seasonParam('__proto__', 'spring')).toBe('spring');
   });
 
-  // The air at each stage's own hour in summer, as before the seasons (`?air=` and the old authored numbers).
+  // The air at each stage's own hour in summer, pinned: a change is a deliberate retune (Petralica, Galichica and Jackie
+  // follow the station normals of their start, DETAILS.md "Temperatures").
   const SUMMER_AIR: Record<string, number> = {
     test: 20,
     ajvatovci: 27,
-    petralica: 17,
-    jackie: 17,
-    galichica_west: 12,
-    galichica_east: 12,
-    prespa_ohrid: 12,
+    petralica: 28,
+    jackie: 24,
+    galichica_west: 19,
+    galichica_east: 19,
+    prespa_ohrid: 19,
   };
   test.each(Object.entries(SUMMER_AIR))(
     '%s keeps its summer air at its own hour and is cooler in spring and autumn',

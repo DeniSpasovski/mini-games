@@ -3,29 +3,29 @@ import type { StageDef, StageTemps } from '../shared/types';
 /**
  * Air and road temperature (°C, `[air, road]`) by season and time of day: hardcoded for the stage, researched (the
  * matrix of every stage is in rally DETAILS.md "Temperatures", source figures in PHYSICS.md "Climate"). Valid at the stage start (its lowest
- * point; higher up the car is colder, `AIR_LAPSE`). The road is the stage's first surface; a time of day is a slot of game/time-of-day.ts (the stage's own slot at its own hour). Summer: a mild morning.
+ * point; higher up the car is colder, `AIR_LAPSE`). The road is the stage's first surface; a time of day is a slot of game/time-of-day.ts (the stage's own slot at its own hour). Basis: LaGuardia 1991-2020 normals (average high and low) of May, July and October.
  */
 const TEMPS: StageTemps = {
   spring: {
-    early: [9, 18],
-    midday: [15, 30],
-    afternoon: [17, 27],
-    evening: [15, 18],
-    night: [5, 5],
+    early: [15, 21],
+    midday: [20, 38],
+    afternoon: [22, 39],
+    evening: [22, 34],
+    night: [16, 16],
   },
   summer: {
-    early: [17, 28],
-    midday: [23, 42],
-    afternoon: [25, 37],
-    evening: [23, 26],
-    night: [13, 13],
+    early: [24, 31],
+    midday: [28, 50],
+    afternoon: [30, 51],
+    evening: [30, 45],
+    night: [24, 24],
   },
   autumn: {
-    early: [11, 15],
-    midday: [17, 25],
-    afternoon: [19, 24],
-    evening: [17, 19],
-    night: [7, 7],
+    early: [12, 13],
+    midday: [17, 26],
+    afternoon: [19, 27],
+    evening: [19, 23],
+    night: [14, 14],
   },
 };
 

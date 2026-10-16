@@ -317,7 +317,11 @@ pages and the reference tests above are unchanged).
   text): a hot clear summer noon heats dark asphalt ~23 °C above the air at 41 N (Solaimanian and Kennedy, TRR 1417, 1993);
   monthly daily-maximum surface minus air at the MnROAD asphalt test road (Minnesota, 2001-2005): April 16.6, May 20.4, July
   26.2, September 17.0, October 8.9 °C, so the noon gap is about 16 in April, 19 in May, 24 in July, 17 in September and 10
-  in October (`EnvironmentDef.months` names the month of each season). The stage screen shows the same numbers.
+  in October (`EnvironmentDef.months` names the month of each season).
+  Air figures (plain text): monthly average daily maximum / minimum at Kriva Palanka (Petralica) and Ohrid (Galichica, 1.2 K
+  lower for the 882 m start; climate-zone.com station tables) and the LaGuardia 1991-2020 normals (Jackie, NWS), spread over
+  the day by the sun's hours at each place (lowest near sunrise, highest mid-afternoon), the road above them by the hour's
+  clear-sky gap. The stage screen shows the same numbers.
 - **Heat:** sliding work (`|F| x slide speed / static load`, the stones take 60 % of it on loose ground) + carcass flex
   (speed x load). **Cooling:** air (more with speed), the ground (towards the track temperature), water. Capped at 150 °C.
   Tyres start a stage at the air temperature (`resetTyreTemps` on start / restart; reset to road keeps them).

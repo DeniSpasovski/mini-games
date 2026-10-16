@@ -25,29 +25,29 @@ const CLOSURES: ClosureRule = {
 /**
  * Air and road temperature (°C, `[air, road]`) by season and time of day: hardcoded for the stage, researched (the
  * matrix of every stage is in rally DETAILS.md "Temperatures", source figures in PHYSICS.md "Climate"). Valid at the stage start (its lowest
- * point; higher up the car is colder, `AIR_LAPSE`). The road is the stage's first surface; a time of day is a slot of game/time-of-day.ts (the stage's own slot at its own hour).
+ * point; higher up the car is colder, `AIR_LAPSE`). The road is the stage's first surface; a time of day is a slot of game/time-of-day.ts (the stage's own slot at its own hour). Basis: Ohrid, average daily maximum and minimum of May, July and October, 1.2 K lower for the start (882 m).
  */
 const TEMPS: StageTemps = {
   spring: {
-    early: [6, 19],
-    midday: [10, 27],
-    afternoon: [12, 24],
-    evening: [11, 13],
-    night: [1, 1],
+    early: [13, 23],
+    midday: [18, 36],
+    afternoon: [20, 37],
+    evening: [19, 30],
+    night: [10, 10],
   },
   summer: {
-    early: [12, 29],
-    midday: [16, 38],
-    afternoon: [18, 33],
-    evening: [17, 20],
-    night: [7, 7],
+    early: [19, 32],
+    midday: [25, 47],
+    afternoon: [28, 48],
+    evening: [27, 41],
+    night: [16, 16],
   },
   autumn: {
-    early: [9, 16],
-    midday: [13, 22],
-    afternoon: [15, 21],
-    evening: [14, 15],
-    night: [4, 4],
+    early: [9, 13],
+    midday: [14, 24],
+    afternoon: [17, 25],
+    evening: [17, 20],
+    night: [9, 9],
   },
 };
 

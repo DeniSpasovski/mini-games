@@ -3,29 +3,29 @@ import type { StageDef, StageTemps } from '../shared/types';
 /**
  * Air and road temperature (°C, `[air, road]`) by season and time of day: hardcoded for the stage, researched (the
  * matrix of every stage is in rally DETAILS.md "Temperatures", source figures in PHYSICS.md "Climate"). Valid at the stage start (its lowest
- * point; higher up the car is colder, `AIR_LAPSE`). The road is the stage's first surface; a time of day is a slot of game/time-of-day.ts (the stage's own slot at its own hour). Autumn: a September afternoon (dry golden grass), a cool autumn day.
+ * point; higher up the car is colder, `AIR_LAPSE`). The road is the stage's first surface; a time of day is a slot of game/time-of-day.ts (the stage's own slot at its own hour). Basis: Kriva Palanka (about 480 m, the stage start), average daily maximum and minimum of May, July and September.
  */
 const TEMPS: StageTemps = {
   spring: {
-    early: [2, 7],
-    midday: [10, 25],
-    afternoon: [11, 18],
-    evening: [10, 13],
-    night: [0, 0],
+    early: [11, 14],
+    midday: [19, 37],
+    afternoon: [21, 35],
+    evening: [20, 31],
+    night: [11, 11],
   },
   summer: {
-    early: [8, 14],
-    midday: [16, 35],
-    afternoon: [17, 25],
-    evening: [16, 19],
-    night: [6, 6],
+    early: [16, 20],
+    midday: [26, 47],
+    afternoon: [28, 46],
+    evening: [28, 42],
+    night: [17, 17],
   },
   autumn: {
-    early: [4, 9],
-    midday: [12, 25],
-    afternoon: [13, 19],
-    evening: [12, 14],
-    night: [2, 2],
+    early: [11, 11],
+    midday: [21, 35],
+    afternoon: [24, 34],
+    evening: [23, 30],
+    night: [14, 14],
   },
 };
 

@@ -132,9 +132,9 @@ describe('climate', () => {
     expect(t('gravel')).toBeGreaterThan(t('grass'));
   });
 
-  test('a hot clear June morning heats the road more than a cool Petralica afternoon', () => {
+  test('a hot clear June morning heats the road more than an October morning in Queens', () => {
     const hot = stageClimate(getStage('ajvatovci'));
-    const cool = stageClimate(getStage('petralica'));
+    const cool = stageClimate(getStage('jackie'), undefined, 'autumn');
     expect(trackTemp(hot, SURFACES.tarmac)).toBeGreaterThan(
       trackTemp(cool, SURFACES.tarmac) + 5,
     );

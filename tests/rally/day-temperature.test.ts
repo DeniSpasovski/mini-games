@@ -104,7 +104,8 @@ describe('air and road temperature of a stage (predefined)', () => {
     for (const s of timed) {
       for (const season of SEASONS) {
         const t = s.temps[season];
-        expect(t.night[0]).toBeLessThan(t.afternoon[0] - 6);
+        // A maritime city (LaGuardia) swings only ~7-9 K between the daily low and high.
+        expect(t.night[0]).toBeLessThan(t.afternoon[0] - 4);
         expect(t.early[0]).toBeLessThanOrEqual(t.afternoon[0]);
       }
       expect(s.temps.spring.midday[0]).toBeLessThan(s.temps.summer.midday[0]);
