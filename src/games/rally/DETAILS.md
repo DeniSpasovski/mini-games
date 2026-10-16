@@ -180,7 +180,13 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   camera can see (Vodno: nothing south of the ridge). A way merging into another at a shallow angle sets `PathDef.mergeTaper` (its end
   narrows to a point) and `joinsUnder` (its ribbon lies under the other's).
 - **Road textures** (`RoadDef.texture`, per stretch in `sections`): gravel `road`, worn `road_tarmac`, `road_tarmac_lines` (the
-  same with white edge lines), `road_parkway`, the city asphalts.
+  same with white edge lines), `road_parkway`, the city asphalts (`road_city`, `road_street`, `road_street4`, `junction_asphalt`).
+  The asphalts are baked images, not drawn at load: `engine/asphalt/<id>.<size>.{color,normal,rough}.webp`, made by
+  `scripts/asphalt/bake.mjs` (tiles drawn by `gen.js` in headless Chromium; the output is committed, rerun after changing
+  `gen.js`). High loads the 1024 px set, Medium / Low their own 512 px set. `engine/road-surface.ts` loads them (the play page
+  preloads the map's sets), `getRoadMaterial` puts them on the road: colour + normal map with the roughness packed in its alpha
+  (one sampler) + a tone shader (blotches and streaks that never repeat). A new asphalt id = a `gen.js` preset, `ROAD_SURFACE_LEN`
+  (same `len` as `texLength`, a test checks), a rebake.
 - **Other roads** (`paths`): tarmac ribbons, dirt paint or canals with their own surface; side roads carved with grade limits
   and extended to meet the stage road, the stage's `closures` close the mouths (`world/junctions.ts`). Dirt tracks / paths are
   painted into the splat, and drawn as gravel ribbons too on maps with `trackRibbons`; `pathProfiles` overrides the

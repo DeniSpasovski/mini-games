@@ -6,6 +6,7 @@ import {
   MeshStandardMaterial,
   Vector3,
 } from 'three';
+import { applyRoadSurface, isRoadSurface } from '../engine/road-surface';
 import { getTexture } from '../engine/textures';
 import {
   type PathDef,
@@ -88,12 +89,18 @@ export function getRoadMaterial(
   const key = `${texture}:${layer}`;
   let m = roadMaterials.get(key);
   if (!m) {
+    const baked = isRoadSurface(texture);
     m = new MeshStandardMaterial({
-      map: getTexture(texture),
-      // Relief from the texture itself: gravel stones / tarmac grain catch a low sun.
-      bumpMap: getTexture(texture),
-      bumpScale: texture === 'road' ? 2.2 : 1.2,
-      roughness: texture === 'road' ? 0.93 : 0.86,
+      // Baked asphalt (engine/road-surface.ts) brings its own normal + roughness maps and tone variation.
+      ...(baked
+        ? {}
+        : {
+            map: getTexture(texture),
+            // Relief from the texture itself: gravel stones / tarmac grain catch a low sun.
+            bumpMap: getTexture(texture),
+            bumpScale: texture === 'road' ? 2.2 : 1.2,
+            roughness: texture === 'road' ? 0.93 : 0.86,
+          }),
       metalness: 0,
       polygonOffset: true,
       polygonOffsetFactor: layer === 0 ? -3 : layer === 2 ? -2 : -1,
@@ -101,6 +108,7 @@ export function getRoadMaterial(
     });
     // Canopy shadows beyond the shadow map (engine/world-shading.ts).
     m.defines = { RALLY_GROUND: 1 };
+    if (baked) applyRoadSurface(m, texture);
     roadMaterials.set(key, m);
   }
   return m;

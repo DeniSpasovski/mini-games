@@ -83,6 +83,7 @@ into `DETAILS.md`, never up.
   `stl-to-glb.mjs` (STL -> game GLB with livery-atlas UVs), `stl-wheel-extract.py` + `wheel-stl-to-glb.mjs` (a print model's own
   rim; `stl-flatten-cap.py` flattens an emblem on its centre cap; `--two-sided` / `--bridge` close a one-sided rim barrel), `chart-probe.py` (atlas chart per triangle, livery debugging), `bake-lamp-sheet.py` (a GLB's own lamp textures -> lamp
   sheet), `glb-meshopt.mjs` (the build's GLB compression), `side-profile.mjs` (boxy profile from a GLB: fallback body + street cars)
+- `scripts/asphalt/`: `bake.mjs` + `gen.js` (the baked road asphalt tiles, `src/games/rally/engine/asphalt/`; `DETAILS.md` -> Road textures)
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
   `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `plaza_islands.py` (city junction
   `junction.json`), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from

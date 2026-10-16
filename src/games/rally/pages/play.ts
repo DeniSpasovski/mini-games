@@ -6,6 +6,7 @@ import { installThumbnailCapture } from '../../../shared/thumbnail';
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { DEFAULT_CAR, getCar } from '../cars';
 import { preloadCarModel } from '../cars/shared/car-gltf';
+import { preloadRoadSurfaces } from '../engine/road-surface';
 import { loadQuality } from '../engine/quality';
 import {
   buildLeaderboard,
@@ -133,6 +134,8 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
   setLoading(0.01, 'Loading map data');
   await paintNow();
   const { map, stage } = await loadStage(params.stage);
+  setLoading(0.02, 'Loading road textures');
+  await preloadRoadSurfaces(map);
   // Building the world is one synchronous step: show its label first.
   setLoading(0.03, 'Building world');
   await paintNow();
