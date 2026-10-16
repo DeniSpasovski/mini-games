@@ -36,6 +36,18 @@ export const NIGHT = {
 /** Sun height (deg) used at night: below the horizon, so nothing is sun-heated (`Environment`, `stageTemps`). */
 export const NIGHT_SUN_ELEVATION = -20;
 
+/**
+ * How much the car's lights are needed, 0..1, from the sun height (deg): off in daylight, fading in through dusk
+ * (and dawn), full once the sun is down. Night runs use `NIGHT_SUN_ELEVATION`, so they get 1.
+ */
+export function lightNeed(sunElevation: number): number {
+  const t = MathUtils.clamp((16 - sunElevation) / 14, 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+/** Below this the lights stay off (nothing is built). */
+export const LIGHTS_MIN_NEED = 0.03;
+
 export function isNightHour(hour: number): boolean {
   const h = ((hour % 24) + 24) % 24;
   return h >= NIGHT_FROM || h <= NIGHT_UNTIL;

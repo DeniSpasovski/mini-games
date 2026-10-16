@@ -222,11 +222,17 @@ export const markerPost: AssetBuilder = () => {
   const parts = [
     box(0.1, 1.05, 0.1, 0, 0.52, 0, '#f4f4f0'),
     box(0.105, 0.2, 0.105, 0, 0.82, 0, '#151515'),
+  ];
+  // Reflectors: their own material, so they light up in the car's low beam at night.
+  const reflectors = [
     box(0.06, 0.1, 0.02, 0, 0.82, 0.055, '#ff8a00'),
     box(0.06, 0.1, 0.02, 0, 0.82, -0.055, '#ff2a00'),
   ];
   return {
-    parts: [{ geometry: merge(parts), material: getMaterial('props') }],
+    parts: [
+      { geometry: merge(parts), material: getMaterial('props') },
+      { geometry: merge(reflectors), material: getMaterial('reflector') },
+    ],
   };
 };
 
@@ -269,9 +275,13 @@ export const streetLamp: AssetBuilder = ({ seed, lod }) => {
   arm.translate(0, H + 0.1, 0.62);
   parts.push(paint(arm, '#a9aeb2'));
   parts.push(box(0.32, 0.12, 0.62, 0, H + 0.2, 1.4, '#8f9599'));
-  if (lod === 0) parts.push(box(0.24, 0.03, 0.48, 0, H + 0.13, 1.4, '#f4efd8'));
+  // The lens glows at night (its own material, also on the far LOD: a village's lamps show from afar).
+  const lens = box(0.24, 0.03, 0.48, 0, H + 0.13, 1.4, '#ffdc9a');
   return {
-    parts: [{ geometry: merge(parts), material: getMaterial('props') }],
+    parts: [
+      { geometry: merge(parts), material: getMaterial('props') },
+      { geometry: lens, material: getMaterial('lamp_lens') },
+    ],
   };
 };
 

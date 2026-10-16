@@ -63,6 +63,12 @@ export const worldUniforms = {
    * end; the ground under the canopy texture turns this colour over the last quarter before it (w = 0: off).
    */
   wsForest: { value: new Vector4(0, 0, 0, 0) },
+  /** The car's low beam in world space (`engine/night-glow.ts`): colour x strength (black = lights off), lamp position, aim. */
+  wsHead: { value: new Color(0, 0, 0) },
+  wsHeadPos: { value: new Vector3() },
+  wsHeadDir: { value: new Vector3(0, 0, 1) },
+  /** 0..1: how much the street lamps glow (`Environment.lightNeed`). */
+  wsLamp: { value: 0 },
 };
 // Dev: tweak live from the console (`__worldShading.wsCloud.value.x = 1`).
 (globalThis as { __worldShading?: typeof worldUniforms }).__worldShading =

@@ -85,13 +85,16 @@ export class Headlights {
     lamp: { x: number; y: number; z: number },
     quality: QualityName,
     def: CarHeadlightsDef = DEFAULT_HEADLIGHTS,
+    /** 0..1 (`Environment.lightNeed`): dusk lights are weaker, so the beam and its air cones fade with it. */
+    level = 1,
   ) {
     this.color = new Color(def.color);
     this.beamMat.uniforms.uTint.value
       .copy(this.color)
       .lerp(new Color(1, 1, 1), 0.2);
     // Brighter lamps show a stronger beam in the air, old dim ones a faint one.
-    this.beamMat.uniforms.uGain.value = Math.min(1.4, 0.4 + 0.6 * def.power);
+    this.beamMat.uniforms.uGain.value =
+      Math.min(1.4, 0.4 + 0.6 * def.power) * level;
     const spot = (
       x: number,
       aim: number,
@@ -123,11 +126,11 @@ export class Headlights {
       -0.9,
       def.angle,
       def.penumbra,
-      BEAM * def.power,
+      BEAM * def.power * level,
       170,
       quality === 'high',
     );
-    spot(0, 35, -0.6, 0.85, 1, BEAM * def.power * def.spill, 90, false);
+    spot(0, 35, -0.6, 0.85, 1, BEAM * def.power * def.spill * level, 90, false);
     for (const side of [-1, 1]) {
       const geo = new ConeGeometry(
         CONE_RADIUS * (def.angle / CONE_ANGLE),
