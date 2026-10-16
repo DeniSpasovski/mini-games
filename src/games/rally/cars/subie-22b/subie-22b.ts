@@ -187,7 +187,13 @@ export const subie22b: CarDef = {
   },
   model: {
     paint: '#1a56c0',
-    rim: { color: '#d8b24a', spokes: 6, style: 'spoke', caliper: '#c8102e' },
+    rim: {
+      color: '#d8b24a',
+      spokes: 6,
+      style: 'spoke',
+      caliper: '#c8102e',
+      finish: 'satin',
+    },
     // The model's own gold alloy (subie_22b_wheel.glb), de-cambered and centred on the hub, scaled to each compound's tyre.
     wheelModel: 'subie_22b_wheel.glb',
     // The model's cockpit shows through the windows.
