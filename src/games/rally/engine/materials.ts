@@ -18,6 +18,8 @@ export type MaterialId =
   | 'foliage_card_spring'
   | 'rock'
   | 'props'
+  | 'flag'
+  | 'fan_flag'
   | 'chevron'
   | 'vehicle'
   | 'village_sign';
@@ -102,6 +104,22 @@ export function getMaterial(id: MaterialId): Material {
         roughness: 0.7,
       });
       break;
+    case 'flag':
+      // The national flag's cloth: the printed flag, with the wind shader (RALLY_FLAG, engine/world-shading.ts).
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: getTexture('flag_mk'),
+        roughness: 0.75,
+      });
+      break;
+    case 'fan_flag':
+      // Fan flag cloth: vertex-coloured like the props, but with the wind shader.
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: getTexture('detail'),
+        roughness: 0.75,
+      });
+      break;
     case 'vehicle':
       // Vertex-coloured paint; the decals atlas supplies the lettering (plain faces sample its white corner).
       m = new MeshStandardMaterial({
@@ -130,6 +148,8 @@ export function getMaterial(id: MaterialId): Material {
     m.alphaToCoverage = foliageA2C;
     m.defines = { ...CARD_DEFINES };
   }
+  if (id === 'flag') m.defines = { RALLY_FLAG: 1 };
+  if (id === 'fan_flag') m.defines = { RALLY_FLAG: 0.4 };
   cache.set(id, m);
   return m;
 }

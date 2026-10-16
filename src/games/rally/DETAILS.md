@@ -97,7 +97,11 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 - **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark outside the
   shadow box (`world/canopy-shadows.ts`: a coarse whole-map texture plus a 1.5 m local window of 768 m around the camera,
   rebuilt from the generated scatter chunks every 64 m, so the road gets tree shadows far past the shadow map), height fog
-  warming towards the sun, wind, leaf translucency. Custom shaders must call `addWorldUniforms(shader)`.
+  warming towards the sun, wind, leaf translucency. Custom shaders must call `addWorldUniforms(shader)`. Flag cloth
+  (`defines.RALLY_FLAG`: materials `flag` = the printed flag of North Macedonia, texture `flag_mk`; `fan_flag`) turns downwind
+  and ripples; print the pattern on the cloth, never lay geometry over it (the wind shader moves vertices, not surfaces).
+  Levelled gardens / park strips: `terrain.lawns` (flat world polygons) paints the terrain itself pure grass (splat) and wet
+  (`world/ground-moisture.ts`, lush green) - do not lay a green decal over terrain.
 - **Surfaces:** bump relief on roads, rocks and terrain (off on low); grass cards use alpha-to-coverage with MSAA.
   Terrain chunks beyond the first LOD band use the cheaper `TERRAIN_FAR` material (`world/terrain-material.ts`): no relief, one
   texture octave per layer, no specular environment lookup.
@@ -149,13 +153,17 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   off-centre and non-square (`horizon` `extent` in the bake config: Vodno reaches 50 km north over the valley, 16 km south behind
   the ridge). Catalog assets in `props` named in `FAR_LANDMARKS` (the Vodno cross and mast) are also drawn there with their last
   LOD, so they stay on the skyline beyond the scatter's view distance.
+  `skyline` (`SkylineBuilding`: extruded footprint, one wall / glass band per floor, flat roof) adds the city's tall buildings beyond
+  the baked area (Vodno: Cevahir Sky City, the MRT tower; one draw, `skylineGeometry`).
 - **Cable cars** (`aerialways`): a gondola line from a polyline - pylons on its vertices (`pylonsAtVertices`) or evenly spaced (taller
   where the slope asks), two ropes in a sag parabola, cabins running the loop (`world/aerialway.ts` pure layout + `cabinPose`, test;
   `aerialway-mesh.ts` one instanced mesh moved when drawn; asset `gondola_pylon`).
 - **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
   spectators, flags (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`).
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)
-  puts them on the outside of every tight bend of a mountain road (Galichica).
+  puts them on the outside of every tight bend of a mountain road (Galichica). `rusty: true` = weathered brown steel (Vodno).
+- **Road textures** (`RoadDef.texture`, per stretch in `sections`): gravel `road`, worn `road_tarmac`, `road_tarmac_lines` (the
+  same with white edge lines), `road_parkway`, the city asphalts.
 - **Other roads** (`paths`): tarmac ribbons, dirt paint or canals with their own surface; side roads carved with grade limits
   and extended to meet the stage road, the stage's `closures` close the mouths (`world/junctions.ts`). Dirt tracks / paths are
   painted into the splat, and drawn as gravel ribbons too on maps with `trackRibbons`; `pathProfiles` overrides the
@@ -302,8 +310,8 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 - Scatter view culling (`InstanceStreamer.setView`, called every frame by the game): non-shadow buckets (LOD1+) are
   angle-sorted and only the camera's view (+ 25 deg) is drawn. LOD0 shadow casters are drawn whole.
 - Trees (`trees/`, L-system species in `trees/species.ts`): map rules place the old tree type ids, each grown as the species
-  its description names (`TREE_TYPES`: pine, black pine, juniper, oak, walnut, fruit tree, plane, birch, sapling, poplar,
-  willow, bush, scrub, hazel, thicket); 6 variants for pine / oak / bush / scrub, 4 for the rest. The map's `scale`
+  its description names (`TREE_TYPES`: pine, plantation pine (half the sprites, for dense stands), black pine, juniper, cypress, oak, locust, walnut, fruit tree, plane, birch, sapling, poplar,
+  willow, bush, scrub, hazel, thicket, bramble); 6 variants for pine / oak / bush / scrub, 4 for the rest. The map's `scale`
   multiplies the species size.
   Branches are tubes at two levels (LOD0 = the skeleton without twigs, LOD1 = trunk + first-order limbs), then an
   octahedral impostor (albedo, normal + depth, thickness: lit like everything else). Foliage = one lit, camera-facing

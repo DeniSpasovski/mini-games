@@ -311,6 +311,30 @@ export const PINE: SpeciesDef = {
   variants: 6,
 };
 
+/**
+ * Plantation pine: the pine's cone for the dense stands of a mountain forest, grown cheaper: four limbs to a whorl
+ * and half the sprites, each larger (a pine stand costs about a third of the GPU time per tree).
+ */
+export const PLANTATION_PINE: SpeciesDef = {
+  ...PINE,
+  name: 'Plantation pine',
+  rules: [
+    {
+      pred: 'A(l,k)',
+      succ:
+        'F(l)L![&(rnd(70,88))!!!B(l*0.5,0)]>(rnd(84,100))[&(rnd(70,88))!!!B(l*0.48,0)]>(rnd(84,100))' +
+        '[&(rnd(70,88))!!!B(l*0.5,0)]>(rnd(84,100))[&(rnd(70,88))!!!B(l*0.46,0)]>(rnd(15,45))A(l*rnd(0.93,0.98),k+1)',
+    },
+    ...PINE.rules.slice(1),
+  ],
+  foliage: { ...PINE.foliage, spriteSize: 1.35 },
+  scale: [1, 1.4],
+  twigRadius: 0.045,
+  maxBranchTriangles: 4000,
+  maxSprites: 300,
+  variants: 4,
+};
+
 /** Austrian black pine: a long straight trunk, bare but for dead stubs, under a flat umbrella of dark needle clumps. */
 export const BLACK_PINE: SpeciesDef = {
   name: 'Black pine',
@@ -901,6 +925,7 @@ export const BRAMBLE = shrub({
 
 export const SPECIES: readonly SpeciesDef[] = [
   PINE,
+  PLANTATION_PINE,
   BLACK_PINE,
   JUNIPER,
   OAK,
@@ -937,6 +962,7 @@ export function getSpecies(name: string): SpeciesDef {
  */
 export const TREE_TYPES: Readonly<Record<string, string>> = {
   pine_tree: 'Pine',
+  plantation_pine: 'Plantation pine',
   black_pine: 'Black pine',
   juniper: 'Juniper',
   oak_tree: 'Oak',

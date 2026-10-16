@@ -1,9 +1,9 @@
 # Vodno Hillclimb
 
-Real-world hillclimb on Mount Vodno above Skopje, North Macedonia: from the Vodno neighbourhood up the hairpins of the
-north face, through the pine woods, to Sredno Vodno. The 66 m Millennium Cross, the antenna mast and the cable car stand
-on the ridge above the road; the whole 6 x 4 km round it (streets, houses, side roads) is in the world, and the Skopje valley
-with the mountains beyond is the backdrop. One map, one stage (map id `vodno`, test content: dev server only).
+Real hillclimb on Mount Vodno above Skopje, North Macedonia: 4.0 km and 220 m of climb from the Vodno neighbourhood up the
+hairpins of the north face, through the pine woods, to Sredno Vodno. The Millennium Cross, the antenna mast and the cable car
+stand on the ridge above the road; the 6 x 4 km round it (streets, houses, side roads) is in the world, with the Skopje valley
+as the backdrop. Map and stage id `vodno`, test content (dev server only).
 
 ![Start line](screenshots/start-line.jpg)
 
@@ -12,30 +12,16 @@ with the mountains beyond is the backdrop. One map, one stage (map id `vodno`, t
 | ![Hairpins](screenshots/hairpins.jpg)      | ![Cross, mast and cable car](screenshots/cross-ridge.jpg)     |
 | the hairpins above the suburb, guard rails | the Millennium Cross, the mast and the cable car on the ridge |
 
-| Stage           | Id      | From -> to                                   | Length | Climb |
-| --------------- | ------- | -------------------------------------------- | ------ | ----- |
-| Vodno Hillclimb | `vodno` | Vodno neighbourhood -> Sredno Vodno (finish) | 4.0 km | 220 m |
+Narrow tarmac with switchbacks and guard rails, pine plantations with oak and scrub, black locust on the lower slopes;
+locust and walnut trees with bramble line the suburban start street, cypresses stand in the church yards. Side streets meeting
+the stage road are closed with barriers.
 
-Narrow tarmac with switchbacks (guard rails on the outside of the tight bends), black pine plantations with oak and scrub, dry
-grass on the lower slopes; locust and walnut trees with bramble line the suburban start street, cypresses stand in the church yards. Side streets and tracks meeting the stage road are closed with barriers.
-
-| Landmark                               | Where                                              |
-| -------------------------------------- | -------------------------------------------------- |
-| Millennium Cross, 66 m, round platform | Krstovar, 1 066 m, 1.7 km south-west of the finish |
-| Antenna mast, 155 m                    | 270 m east of the cross                            |
-| Cable car, two stations                | Sredno Vodno -> the cross: pylons, ropes, cabins   |
-| Mountain lodge                         | by the cross: a round tower and a fan-shaped hall  |
-| Church of the Nativity (three-lobed)   | Sredno Vodno, beside the finish                    |
-| St. Panteleimon (1164, five domes)     | Gorno Nerezi, 2.9 km west of the finish            |
-| Lookout tower, Markovi Kuli ruins      | on Abedishte; above Kisela Voda                    |
-
-Two car parks sit on the stage road: the Vidikovec viewpoint lot at the hairpin (stone wall, green railing) and the Sredno Vodno
-lot at the finish (marked bays, lamps, the flag of North Macedonia on its mast). Both are ai-generated models (`landmarks/car-parks.ts`)
-on graded pads (`lots.ts`), not road ribbons. The mountain road that leaves the stage road to the right at the hairpin
-below the finish is narrower, with no sidewalks.
-
-The churches, platform, lodge, stations, tower and ruins are ai-generated in the style of the Ajvatovci hilltop church
-(`landmarks/`): the real plans from OpenStreetMap, the sizes from published figures, fewer details (they are far away).
+Landmarks (OpenStreetMap plans, rough shapes in the style of the Ajvatovci hilltop church, ai-generated in `landmarks/`): the
+66 m Millennium Cross and the 155 m mast, the cable car with moving cabins, the mountain lodge, the churches of Sredno Vodno
+(beside the finish) and Gorno Nerezi, the lookout tower, the Markovi Kuli ruins, and three car parks beside the stage road (the
+Sredno Vodno one with its flag, lamps, a timber gazebo and watch towers; the Vidikovec with a grass island, a lattice lookout tower
+and rusted guard rails on its approach). Skopje's skyline stands on the horizon: the 70 m MRT tower and the 136 m Cevahir Sky City
+slabs (extruded OpenStreetMap footprints).
 
 ```bash
 npm run dev     # /games/rally/?stage=vodno&mute=1
@@ -44,14 +30,14 @@ npm run dev     # /games/rally/?stage=vodno&mute=1
 
 ## Data and credits
 
-| What                                   | Source                                                                                                                       | Licence                                                                          |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Stage start / finish                   | [Google Maps route](https://www.google.com/maps/dir/41.9808131,21.4219566/41.9752441,21.4096439)                             | the end points only                                                              |
-| Roads, buildings, cable car, landmarks | [OpenStreetMap](https://www.openstreetmap.org/copyright) via the [Overpass API](https://overpass-api.de/)                    | ODbL, © OpenStreetMap contributors                                               |
-| More building footprints               | [Microsoft Global ML Building Footprints](https://github.com/microsoft/GlobalMLBuildingFootprints)                           | ODbL                                                                             |
-| Elevation, far horizon                 | [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/)                                                            | [attributions](https://github.com/tilezen/joerd/blob/master/docs/attribution.md) |
-| Land cover                             | [ESA WorldCover 2021](https://esa-worldcover.org/)                                                                           | CC BY 4.0                                                                        |
-| Landmark facts                         | [Millennium Cross](https://en.wikipedia.org/wiki/Millennium_Cross), [Vodno](https://en.wikipedia.org/wiki/Vodno) (Wikipedia) | reference only, nothing copied                                                   |
+| What                                   | Source                                                                                                                                                                                                                                               | Licence                                                                          |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Stage start / finish                   | [Google Maps route](https://www.google.com/maps/dir/41.9808131,21.4219566/41.9752441,21.4096439)                                                                                                                                                     | the end points only                                                              |
+| Roads, buildings, cable car, landmarks | [OpenStreetMap](https://www.openstreetmap.org/copyright) via the [Overpass API](https://overpass-api.de/)                                                                                                                                            | ODbL, © OpenStreetMap contributors                                               |
+| More building footprints               | [Microsoft Global ML Building Footprints](https://github.com/microsoft/GlobalMLBuildingFootprints)                                                                                                                                                   | ODbL                                                                             |
+| Elevation, far horizon                 | [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/)                                                                                                                                                                                    | [attributions](https://github.com/tilezen/joerd/blob/master/docs/attribution.md) |
+| Land cover                             | [ESA WorldCover 2021](https://esa-worldcover.org/)                                                                                                                                                                                                   | CC BY 4.0                                                                        |
+| Landmark facts                         | [Millennium Cross](https://en.wikipedia.org/wiki/Millennium_Cross), [Vodno](https://en.wikipedia.org/wiki/Vodno), [MRT Center](https://en.wikipedia.org/wiki/MRT_Center), [Cevahir Towers](https://en.wikipedia.org/wiki/Cevahir_Towers) (Wikipedia) | reference only, nothing copied                                                   |
 
-The baked map files (`*.json`, `buildings.csv`, the stage card in `preview/`) are a derived database of OpenStreetMap and stay under the ODbL. The cross, mast,
-pylons and all landmark models are procedural (no logos or lettering).
+The baked map files (`*.json`, `buildings.csv`, the stage card in `preview/`) are a derived database of OpenStreetMap and stay
+under the ODbL. The cross, mast, pylons and all landmark models are procedural (no logos or lettering).

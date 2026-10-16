@@ -25,11 +25,34 @@ export const SREDNO_LOT: Site = {
   z: -359,
   yaw: Math.atan2(-48, -83),
 };
-export const SREDNO_LOT_CENTRE: [number, number][] = [
-  [-50, 0],
-  [48, 0],
-];
-export const SREDNO_LOT_HW = 9.5;
+/**
+ * The two Sredno Vodno car parks as the owner drew them on a top view: straight bands along the lot's axis (local x up the
+ * slope, z to the right / north-east), their long sides parallel, their west ends on ONE straight line (`LOT_WEST_X`), their
+ * east ends following the stage road (car-parks.ts clamps every row to it, so the centre lines only have to reach it).
+ * The top lot lies between z `TOP_Z`, the lower one between `LOW_Z` (the 10 m of land between them stays).
+ */
+export const LOT_WEST_X = 60.2;
+const TOP_Z: [number, number] = [-21.4, 13.5];
+const LOW_Z: [number, number] = [-54.8, -31.8];
+const band = (x0: number, [z0, z1]: [number, number]) => ({
+  centre: [
+    [x0, (z0 + z1) / 2],
+    [LOT_WEST_X, (z0 + z1) / 2],
+  ] as [number, number][],
+  hw: (z1 - z0) / 2,
+});
+const TOP = band(-62, TOP_Z);
+const LOW = band(-16, LOW_Z);
+export const SREDNO_LOT_CENTRE = TOP.centre;
+export const SREDNO_LOT_WIDTHS = [TOP.hw, TOP.hw];
+/** The half width (the scatter's clearance area, the lamps). */
+export const SREDNO_LOT_HW = TOP.hw;
+/** The lower lot (OSM draws it as a service road ring off the stage road, the bus turnaround): the same frame, 10 m south of the top one. */
+export const SREDNO_BUS_LOT: Site = SREDNO_LOT;
+export const SREDNO_BUS_CENTRE = LOW.centre;
+export const SREDNO_BUS_WIDTHS = [LOW.hw, LOW.hw];
+/** Local z of the top lot's two long sides and of the lower lot's (south, north): the scatter areas, tests. */
+export const SREDNO_BANDS = { top: TOP_Z, low: LOW_Z };
 /** Vidikovec viewpoint lot beside the hairpin: a terrace along the road, on its outer (north) side. */
 export const VIDIKOVEC_LOT: Site = { x: 1565, z: -586, yaw: 0 };
 export const VIDIKOVEC_LOT_CENTRE: [number, number][] = [
@@ -45,7 +68,7 @@ export const VIDIKOVEC_LOT_HW = 7.8;
 
 /** The flagpole of the Sredno Vodno car park: on the lawn behind the kerb near the entrance. */
 export const LOT_FLAGPOLE: Site = (() => {
-  const [x, z] = toWorld(SREDNO_LOT, -14, 11.6);
+  const [x, z] = toWorld(SREDNO_LOT, -14, TOP_Z[1] + 2.2);
   return { x, z, yaw: 0 };
 })();
 
@@ -97,19 +120,18 @@ export const LODGE_OUTLINE: [number, number][] = [
 export const LINE_YAW = Math.atan2(741 - -455, -684 - 380);
 export const STATION_LENGTH = 23.4;
 export const STATION_WIDTH = 6.4;
-/** Rope end of the lower / upper station (OSM nodes 1830721340 / 1830721339). */
-export const LOWER_NODE = { x: 380.0, z: -455.0 };
+/**
+ * The lower station stands on OSM's 24 x 6.5 m building (baked building 3951, a "house" on the rope line's axis, 17 m
+ * up-line of the OSM node (380, -455) that only carried a placeholder box); the owner had that building replaced by the
+ * station. Its rope end (the node) follows it: the up-line end wall is 1 m past the node.
+ */
+export const LOWER_STATION: Site = { x: 376.2, z: -449.2, yaw: LINE_YAW };
+export const LOWER_NODE = {
+  x: LOWER_STATION.x + Math.cos(LINE_YAW) * (STATION_LENGTH / 2 - 1),
+  z: LOWER_STATION.z + Math.sin(LINE_YAW) * (STATION_LENGTH / 2 - 1),
+};
+/** Rope end of the upper station (OSM node 1830721339). */
 export const UPPER_NODE = { x: -683.9, z: 740.7 };
-/** The station buildings: the rope end node sits 1 m inside the up-line end wall. */
-const stationSite = (n: { x: number; z: number }, back: number): Site => ({
-  x: n.x - Math.cos(LINE_YAW) * back,
-  z: n.z - Math.sin(LINE_YAW) * back,
-  yaw: LINE_YAW,
-});
-export const LOWER_STATION: Site = stationSite(
-  LOWER_NODE,
-  STATION_LENGTH / 2 - 1,
-);
 export const UPPER_STATION: Site = {
   x: -680.87,
   z: 737.21,
@@ -154,7 +176,7 @@ export function onAreas(
 
 export const SREDNO_AREAS: Area[] = [
   { site: SREDNO_CHURCH, rect: [-13.2, 5.8, -6.9, 6.9] },
-  { site: LOWER_STATION, rect: [-12.7, 2.5, -4.2, 4.2] },
+  { site: LOWER_STATION, rect: [-12.7, 12.7, -4.5, 4.5] },
 ];
 export const SUMMIT_AREAS: Area[] = [
   { site: PLATFORM, r: PLATFORM_RADIUS + 1 },

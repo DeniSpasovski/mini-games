@@ -25,6 +25,7 @@ export type TextureId =
   | 'rail_track'
   | 'road'
   | 'road_tarmac'
+  | 'road_tarmac_lines'
   | 'road_parkway'
   | 'road_street'
   | 'road_street4'
@@ -40,6 +41,7 @@ export type TextureId =
   | 'vehicle_decals'
   | 'village_sign'
   | 'detail'
+  | 'flag_mk'
   | 'macro'
   | 'grass_card'
   | 'grass_card_dry'
@@ -948,6 +950,84 @@ const DEFS: Record<TextureId, TexDef> = {
           ctx.fill();
         });
       }
+    },
+  },
+  road_tarmac_lines: {
+    name: 'Old tarmac with a worn white edge line each side',
+    size: [512, 512],
+    color: true,
+    draw(ctx, w, h) {
+      DEFS.road_tarmac.draw(ctx, w, h);
+      const rng = new Rng(65);
+      const us = [0.05, 0.95];
+      ctx.fillStyle = '#d6d6ce';
+      for (const u of us) ctx.fillRect(u * w - 6, 0, 12, h);
+      // Wear: asphalt specks and gaps over the paint.
+      for (let i = 0; i < 2400; i++) {
+        ctx.fillStyle = `rgba(${84 + rng.int(0, 30)},${82 + rng.int(0, 30)},${80 + rng.int(0, 30)},${rng.range(0.35, 0.85)})`;
+        ctx.fillRect(
+          rng.pick(us) * w + rng.range(-7, 7),
+          rng.next() * h,
+          rng.range(1, 3),
+          rng.range(1, 5),
+        );
+      }
+    },
+  },
+  flag_mk: {
+    name: 'Flag of North Macedonia (2:1; the yellow eight-ray sun on red, official geometry 1200 x 600)',
+    size: [1024, 512],
+    color: true,
+    draw(ctx, w, h) {
+      // Flag units (centre origin, +y up): the sun disc of radius 85, eight rays from radius 107 widening from
+      // 11 to 60 either side of their axis at the border - four along the axes, four to the corners.
+      const k = w / 1200;
+      ctx.fillStyle = '#d92125';
+      ctx.fillRect(0, 0, w, h);
+      ctx.save();
+      ctx.translate(w / 2, h / 2);
+      ctx.scale(k, -k);
+      ctx.fillStyle = '#f8e92e';
+      ctx.beginPath();
+      ctx.arc(0, 0, 85, 0, Math.PI * 2);
+      ctx.fill();
+      const angles = [
+        0,
+        Math.PI,
+        Math.PI / 2,
+        -Math.PI / 2,
+        Math.atan2(300, 600),
+        Math.atan2(300, -600),
+        Math.atan2(-300, 600),
+        Math.atan2(-300, -600),
+      ];
+      for (const a of angles) {
+        const ux = Math.cos(a);
+        const uy = Math.sin(a);
+        // Length to the border along the ray (the corner rays end in the corners).
+        const L = Math.min(
+          ux ? 600 / Math.abs(ux) : Infinity,
+          uy ? 300 / Math.abs(uy) : Infinity,
+        );
+        const pt = (s: number, t: number): [number, number] => [
+          ux * s - uy * t,
+          uy * s + ux * t,
+        ];
+        ctx.beginPath();
+        for (const [s, t] of [
+          [107, -11],
+          [L, -60],
+          [L, 60],
+          [107, 11],
+        ] as const) {
+          const [x, y] = pt(s, t);
+          if (s === 107 && t < 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
     },
   },
   detail: {

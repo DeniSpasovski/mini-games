@@ -29,6 +29,7 @@ import { buildingMeshJob } from './building-mesh';
 import { waterMeshJob } from './water-mesh';
 import type { World } from './world';
 import { GroundTerrain } from './heightfield';
+import { newPathQuery } from './real-data';
 
 /**
  * Road surface ribbon. Vertices sample the terrain generator (so the ribbon hugs
@@ -267,6 +268,7 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
   const hf = new GroundTerrain(world.gen);
   const nTmp = new Vector3();
   const rq = newRoadQuery();
+  const pqOther = newPathQuery();
   const tiles = new Map<
     string,
     {
@@ -382,7 +384,25 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
               Math.min(1, Math.max(0, (rq.distance - rq.halfWidth + 0.2) / 1.0))
             : 0;
         // Inside a junction plaza the plaza is the surface: a ribbon along its edge stays just under it.
-        let top = y + 0.03 - 0.08 * sink;
+        // Within a few metres of the stage road the carved shoulder folds the terrain into creases that a 3 cm lift does
+        // not clear (the end of a side road showed the terrain through it): the ribbon rises up to 5 cm more there.
+        const crease =
+          rq.found && rq.distance > rq.halfWidth
+            ? Math.max(0, 1 - (rq.distance - rq.halfWidth) / 8)
+            : 0;
+        // A way that joins another one (`PathDef.joinsUnder`) lies under that one's ribbon where they overlap.
+        let sinkOther = 0;
+        if (p.joinsUnder) {
+          net.query(x, z, pqOther, undefined, (i) => i !== pi);
+          if (pqOther.found)
+            sinkOther =
+              1 -
+              Math.min(
+                1,
+                Math.max(0, (pqOther.distance - pqOther.halfWidth + 0.2) / 1.0),
+              );
+        }
+        let top = y + 0.03 + 0.05 * crease - 0.08 * sink - 0.16 * sinkOther;
         if (onTop && !plazas.empty && plazas.inside(x, z)) {
           const ph = plazas.height(x, z);
           // (an area that keeps its ribbons: they lie on the paving)

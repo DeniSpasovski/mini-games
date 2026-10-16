@@ -3,7 +3,6 @@ import {
   Color,
   CylinderGeometry,
   BufferGeometry,
-  Float32BufferAttribute,
   IcosahedronGeometry,
   PlaneGeometry,
 } from 'three';
@@ -197,7 +196,8 @@ const FLAGS: [
 ];
 
 /**
- * Fan flag on a pole stuck in the ground (2.3-2.9 m): a rippled cloth in saturated colours, flying along +X.
+ * Fan flag on a pole stuck in the ground (2.3-2.9 m): a rippled cloth in saturated colours, flying along +X (in the game
+ * it turns downwind and flutters: the `fan_flag` material).
  * Variant = design (`FLAGS`). The cloth is two one-sided sheets (opposite windings), the props material is front-side.
  */
 export const fanFlag: AssetBuilder = ({ seed, variant, lod }) => {
@@ -242,157 +242,49 @@ export const fanFlag: AssetBuilder = ({ seed, variant, lod }) => {
   }
   return {
     parts: [
-      {
-        geometry: merge([paint(pole, '#d8d8d4'), ...twoSided(front)]),
-        material: getMaterial('props'),
-      },
+      { geometry: paint(pole, '#d8d8d4'), material: getMaterial('props') },
+      { geometry: merge(twoSided(front)), material: getMaterial('fan_flag') },
     ],
   };
 };
 
-type Pt = [number, number];
-
-/** Clip a convex polygon to the rectangle |x| <= hw, |y| <= hh (Sutherland-Hodgman). */
-function clipRect(poly: Pt[], hw: number, hh: number): Pt[] {
-  const edges: [Pt, number][] = [
-    [[1, 0], hw],
-    [[-1, 0], hw],
-    [[0, 1], hh],
-    [[0, -1], hh],
-  ];
-  let out = poly;
-  for (const [n, d] of edges) {
-    const inp = out;
-    out = [];
-    for (let i = 0; i < inp.length; i++) {
-      const p = inp[i];
-      const q = inp[(i + 1) % inp.length];
-      const dp = n[0] * p[0] + n[1] * p[1] - d;
-      const dq = n[0] * q[0] + n[1] * q[1] - d;
-      if (dp <= 0) out.push(p);
-      if (dp <= 0 !== dq <= 0) {
-        const t = dp / (dp - dq);
-        out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]);
-      }
-    }
-  }
-  return out;
-}
-
 /**
  * Flagpole with the flag of North Macedonia (a national flag on a 11 m mast, as on the Sredno Vodno car park): the yellow
- * eight-ray sun on red, 2:1, flying along +X. Official geometry (1200 x 600 units): sun disc radius 85 with a red ring
- * round it, eight rays from radius 107 widening to 120 at the border - four along the axes, four to the corners.
- * The sun is real geometry laid 1 cm over the cloth (crisp edges, no texture), rippled with it.
+ * eight-ray sun on red, 2:1, flying along +X. The cloth carries the printed flag (the `flag_mk` texture, official geometry
+ * drawn in `engine/textures.ts`), so it ripples as one surface: a separate sun laid over it tore where the wind shader's
+ * ripples out-ran the vertex spacing. It is its own part (the `flag` material): in the game it turns downwind and flutters
+ * with the wind the foliage sways in.
  */
 export const flagpole: AssetBuilder = ({ lod }) => {
   const H = 11;
   const W = 3.6;
   const FH = W / 2;
-  const k = W / 1200;
   const pole = new CylinderGeometry(0.06, 0.1, H, lod === 0 ? 8 : 4);
   pole.translate(0, H / 2, 0);
   const ball = new IcosahedronGeometry(0.11, 0);
   ball.translate(0, H + 0.1, 0);
   const cloth = paint(
     new PlaneGeometry(W, FH, lod === 0 ? 48 : 16, lod === 0 ? 24 : 8),
-    '#d92125',
+    '#ffffff',
   );
-  // The sun in flag units (centre origin, +y up), as triangles.
-  const tris: Pt[][] = [];
-  const disc = lod === 0 ? 40 : 16;
-  for (let r = 0; r < 3; r++)
-    for (let i = 0; i < disc; i++) {
-      const a0 = (i / disc) * Math.PI * 2;
-      const a1 = ((i + 1) / disc) * Math.PI * 2;
-      const r0 = (85 * r) / 3;
-      const r1 = (85 * (r + 1)) / 3;
-      const p = (rr: number, a: number): Pt => [
-        rr * Math.cos(a),
-        rr * Math.sin(a),
-      ];
-      tris.push([p(r0, a0), p(r1, a0), p(r1, a1)]);
-      if (r) tris.push([p(r0, a0), p(r1, a1), p(r0, a1)]);
-    }
-  const rayAngles = [
-    0,
-    Math.PI,
-    Math.PI / 2,
-    -Math.PI / 2,
-    Math.atan2(300, 600),
-    Math.atan2(300, -600),
-    Math.atan2(-300, 600),
-    Math.atan2(-300, -600),
-  ];
-  const seg = lod === 0 ? 14 : 5;
-  for (const ang of rayAngles) {
-    const ux = Math.cos(ang);
-    const uy = Math.sin(ang);
-    // Length to the border along the ray (the corner rays end in the corners).
-    const L = Math.min(
-      ux ? 600 / Math.abs(ux) : Infinity,
-      uy ? 300 / Math.abs(uy) : Infinity,
-    );
-    const hwAt = (s: number): number => 11 + (49 * (s - 107)) / (L - 107);
-    const at = (s: number, t: number): Pt => [ux * s - uy * t, uy * s + ux * t];
-    for (let i = 0; i < seg; i++) {
-      const s0 = 107 + ((L - 107) * i) / seg;
-      const s1 = 107 + ((L - 107) * (i + 1)) / seg;
-      const q = clipRect(
-        [
-          at(s0, -hwAt(s0)),
-          at(s1, -hwAt(s1)),
-          at(s1, hwAt(s1)),
-          at(s0, hwAt(s0)),
-        ],
-        600,
-        300,
-      );
-      for (let j = 1; j + 1 < q.length; j++) tris.push([q[0], q[j], q[j + 1]]);
-    }
-  }
   const phase = 0.6;
-  const ripple = (x: number, y: number): [number, number, number] => {
-    const u = x / W + 0.5;
-    return [
-      u * W + 0.06,
-      y + H - FH / 2 - 0.2 - u * u * 0.15,
-      Math.sin(u * 6 + phase) * 0.14 * u,
-    ];
-  };
   const p = cloth.getAttribute('position');
   for (let i = 0; i < p.count; i++) {
-    const [x, y, z] = ripple(p.getX(i), p.getY(i));
-    p.setXYZ(i, x, y, z);
+    const u = p.getX(i) / W + 0.5;
+    p.setXYZ(
+      i,
+      u * W + 0.06,
+      p.getY(i) + H - FH / 2 - 0.2 - u * u * 0.15,
+      Math.sin(u * 6 + phase) * 0.14 * u,
+    );
   }
-  const sun = (side: 1 | -1): BufferGeometry => {
-    const pos: number[] = [];
-    for (const t of tris) {
-      const v = side > 0 ? t : [t[0], t[2], t[1]];
-      for (const [x, y] of v) {
-        const [px, py, pz] = ripple(x * k, y * k);
-        pos.push(px, py, pz + side * 0.012);
-      }
-    }
-    const g = new BufferGeometry();
-    g.setAttribute('position', new Float32BufferAttribute(pos, 3));
-    g.computeVertexNormals();
-    return paint(g, '#f8e92e');
-  };
-  const [front, back] = twoSided(cloth);
   return {
     parts: [
       {
-        geometry: merge([
-          paint(pole, '#d8d8d4'),
-          paint(ball, '#c9a227'),
-          front,
-          back,
-          sun(1),
-          sun(-1),
-        ]),
+        geometry: merge([paint(pole, '#d8d8d4'), paint(ball, '#c9a227')]),
         material: getMaterial('props'),
       },
+      { geometry: merge(twoSided(cloth)), material: getMaterial('flag') },
     ],
   };
 };
