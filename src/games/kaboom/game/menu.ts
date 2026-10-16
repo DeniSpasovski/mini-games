@@ -32,6 +32,9 @@ import {
   type QualitySetting,
 } from './settings';
 
+import { LEVELS, type LevelId } from './levels';
+import { offeredLevels } from '../release';
+
 const VERSION = manifest.version;
 
 /** What the setup screen asks for. */
@@ -42,6 +45,7 @@ export interface MatchSetup {
   bots: number;
   difficulty: Difficulty;
   size: MapSizeId;
+  level: LevelId;
   rounds: RoundCount;
 }
 
@@ -342,6 +346,34 @@ export class Menu {
     }
     card.append(sizes);
 
+    // level (the look): only when this build offers more than the Quarry
+    const levels = offeredLevels();
+    const levelBtns = new Map<LevelId, HTMLButtonElement>();
+    if (levels.length > 1) {
+      card.append(el('h3', '', 'Level'));
+      const seg = el('div', 'kb-seg');
+      for (const id of levels) {
+        const b = el('button', 'kb-segbtn', '', { type: 'button' });
+        b.append(
+          el('b', '', LEVELS[id].label),
+          el('small', '', LEVELS[id].blurb),
+        );
+        b.addEventListener(
+          'click',
+          this.click(() => {
+            if (s.level === id) return;
+            s.level = id;
+            this.api.onSettings();
+            refresh();
+            this.api.onArena();
+          }),
+        );
+        levelBtns.set(id, b);
+        seg.append(b);
+      }
+      card.append(seg);
+    }
+
     const botsRow = el('div', 'kb-row');
     const botsLabel = el('span', 'kb-botlabel');
     const minus = this.btn('−', 'round', () => bump(-1));
@@ -388,6 +420,7 @@ export class Menu {
 
     const refresh = () => {
       sizeBtns.forEach((b, id) => b.classList.toggle('on', id === s.size));
+      levelBtns.forEach((b, id) => b.classList.toggle('on', id === s.level));
       botsLabel.textContent = String(s.bots);
       (minus as HTMLButtonElement).disabled = s.bots <= 1;
       (plus as HTMLButtonElement).disabled = s.bots >= clampBots(s.size, 99);
@@ -401,6 +434,7 @@ export class Menu {
         bots: s.bots,
         difficulty: s.difficulty,
         size: s.size,
+        level: s.level,
         rounds: s.rounds,
       }),
     );
@@ -453,7 +487,7 @@ export class Menu {
       'The band counts 3, 2, 1, then KABOOOM: flames shoot out in a cross.',
       'Hard blocks stop the flames; crates break and stop them too. Flames set off other TNT.',
       'Touch a flame and you are out. Run round a corner before your own TNT goes off!',
-      'Last critter standing wins the round. Late in a round the walls fall in from the edge.',
+      'Last critter standing wins the round. Late in a round the arena closes in from the edge.',
     ])
       list.append(el('li', '', line));
     card.append(

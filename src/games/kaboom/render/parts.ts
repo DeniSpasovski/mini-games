@@ -81,10 +81,12 @@ export function merge(parts: BufferGeometry[]): BufferGeometry {
   return g;
 }
 
-const box = (w: number, h: number, d: number) => new BoxGeometry(w, h, d);
-const rbox = (w: number, h: number, d: number, r: number, seg = 1) =>
+export const box = (w: number, h: number, d: number) =>
+  new BoxGeometry(w, h, d);
+export const rbox = (w: number, h: number, d: number, r: number, seg = 1) =>
   new RoundedBoxGeometry(w, h, d, seg, r);
-const rock = (r: number, detail = 1) => new IcosahedronGeometry(r, detail);
+export const rock = (r: number, detail = 1) =>
+  new IcosahedronGeometry(r, detail);
 
 /** Floor tile: a flat rounded slab, top on y = 0. Tinted per instance. */
 export function tileGeometry(): BufferGeometry {
@@ -127,18 +129,24 @@ export function postGeometry(): BufferGeometry {
 }
 
 /** Crate 0: a wooden crate with corner posts, bands and a cross plank. */
-export function woodCrateGeometry(): BufferGeometry {
+export function woodCrateGeometry(
+  wood: { crate: number; band: number; dark: number } = {
+    crate: PALETTE.crate,
+    band: PALETTE.crateBand,
+    dark: PALETTE.crateDark,
+  },
+): BufferGeometry {
   const p: BufferGeometry[] = [
-    part(rbox(0.8, 0.8, 0.8, 0.06), PALETTE.crate, { y: 0.42, tint: 0.1 }),
-    part(box(0.88, 0.1, 0.88), PALETTE.crateBand, { y: 0.2 }),
-    part(box(0.88, 0.1, 0.88), PALETTE.crateBand, { y: 0.64 }),
-    part(box(0.07, 0.08, 0.7), PALETTE.crateDark, { y: 0.83, x: 0.12 }),
-    part(box(0.07, 0.08, 0.7), PALETTE.crateDark, { y: 0.83, x: -0.12 }),
+    part(rbox(0.8, 0.8, 0.8, 0.06), wood.crate, { y: 0.42, tint: 0.1 }),
+    part(box(0.88, 0.1, 0.88), wood.band, { y: 0.2 }),
+    part(box(0.88, 0.1, 0.88), wood.band, { y: 0.64 }),
+    part(box(0.07, 0.08, 0.7), wood.dark, { y: 0.83, x: 0.12 }),
+    part(box(0.07, 0.08, 0.7), wood.dark, { y: 0.83, x: -0.12 }),
   ];
   for (const sx of [-1, 1])
     for (const sz of [-1, 1])
       p.push(
-        part(box(0.11, 0.84, 0.11), PALETTE.crateDark, {
+        part(box(0.11, 0.84, 0.11), wood.dark, {
           x: sx * 0.4,
           z: sz * 0.4,
           y: 0.42,

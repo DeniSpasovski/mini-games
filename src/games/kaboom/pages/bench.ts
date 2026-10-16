@@ -2,6 +2,7 @@ import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { Rng } from '../../../shared/rng';
 import { ViewerShell } from '../debug/viewer-shell';
 import { generateMap } from '../map/generate';
+import { isLevelId, type LevelId } from '../game/levels';
 import { WorldView } from '../render/world-view';
 import { MAX_TNT, STEP } from '../sim/rules';
 import { BotController } from '../sim/bot';
@@ -11,7 +12,7 @@ import type { InstancedMesh } from 'three';
 
 /**
  * Bench: scripted stress scenes with ms / frame and draw calls. Live on the page, or `__kaboomBench.run(scene, frames)`.
- *   bench.html?scene=chain40&seed=1&orbit=0
+ *   bench.html?scene=chain40&level=sea&seed=1&orbit=0
  *   chain40  - Large map, 8 players, 40 TNT lit by one fuse: a chain across the whole map
  *   grid-all - Large map, a full pool of TNT (every one lit at once): the worst simultaneous blast
  *   8bots    - Large map, eight hard bots playing real rounds (2 minutes when run as a benchmark)
@@ -21,6 +22,7 @@ const SCENES = ['chain40', 'grid-all', '8bots'] as const;
 type SceneId = (typeof SCENES)[number];
 const DEFAULTS = {
   scene: 'chain40' as string,
+  level: 'quarry' as string,
   seed: 1,
   orbit: false,
   auto: true,
@@ -28,6 +30,7 @@ const DEFAULTS = {
 const state = readUrlState(DEFAULTS);
 if (!(SCENES as readonly string[]).includes(state.scene))
   state.scene = DEFAULTS.scene;
+if (!isLevelId(state.level)) state.level = DEFAULTS.level;
 
 const shell = new ViewerShell('Kabooom · Bench');
 const IDLE: PlayerInput[] = Array.from({ length: 8 }, () => ({
@@ -84,6 +87,7 @@ function setup(scene: SceneId): void {
     rig: shell.rig,
     background: null,
     follow: false,
+    level: state.level as LevelId,
   });
   view.controlCamera = !state.orbit;
   shell.scene.add(view.root);

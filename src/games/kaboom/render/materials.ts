@@ -66,15 +66,21 @@ export function makeGrainTexture(size = 128, seed = 77): DataTexture {
 }
 
 /** Vertical sky gradient used as the scene background (one full-screen quad, no geometry of our own). */
-export function makeSkyTexture(): CanvasTexture {
+export function makeSkyTexture(
+  sky: readonly [string, string, string] = [
+    PALETTE.skyTop,
+    PALETTE.skyMid,
+    PALETTE.skyLow,
+  ],
+): CanvasTexture {
   const c = document.createElement('canvas');
   c.width = 4;
   c.height = 256;
   const g = c.getContext('2d')!;
   const grad = g.createLinearGradient(0, 0, 0, 256);
-  grad.addColorStop(0, PALETTE.skyTop);
-  grad.addColorStop(0.55, PALETTE.skyMid);
-  grad.addColorStop(1, PALETTE.skyLow);
+  grad.addColorStop(0, sky[0]);
+  grad.addColorStop(0.55, sky[1]);
+  grad.addColorStop(1, sky[2]);
   g.fillStyle = grad;
   g.fillRect(0, 0, 4, 256);
   const tex = new CanvasTexture(c);
