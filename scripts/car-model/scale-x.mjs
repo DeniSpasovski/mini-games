@@ -1,8 +1,8 @@
 /**
  * Narrow (or widen) a plain car GLB sideways: scales x of every primitive except the `--keep` materials
- * (positions about x = 0, normals corrected), in place. Example (22B body 1.85 -> 1.77 m):
+ * (positions about x = 0, normals corrected), in place. Example (body 1.85 -> 1.77 m):
  *
- *   node scripts/car-model/scale-x.mjs public/models/cars/subie_22b.glb 0.954
+ *   node scripts/car-model/scale-x.mjs public/models/cars/<car>.glb 0.954
  *
  * Run it ONCE on the converted file (stl-to-glb.mjs output, not meshopt: the build compresses on the way); a rebuild
  * from the source model needs it again. Atlas UVs are untouched, so the livery still fits.

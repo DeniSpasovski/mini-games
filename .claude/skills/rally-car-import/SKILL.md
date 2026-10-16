@@ -302,11 +302,12 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   base colour, emissive, normal map. A low-poly lamp gets its depth from those two maps - use them, or it reads flat. For real 3D
   round lamps, `gltf.lampCups` (`glb-to-parts-stl.py`) builds reflector cups + bulbs behind the shell and the lens material gets
   see-through windows over them.
-- **Modelled lamps without textures** (plain emissive shells, `cars/subie-22b/`): send them to the stock `lenscover` / `headled` / `amber` /
+- **Modelled lamps without textures** (plain emissive shells, `cars/bimmer-gt2/`): send them to the stock `lenscover` / `headled` / `amber` /
   `brakecover` / `tailled` parts. A shell with no housing behind it shows the ground through the lens: add a `parts.solids` prism
   (`lamphousing`) just behind it.
-- **Tilted model** (modelled at an angle to the axes): `glb-orient.py <in.glb> <out.glb> --heading <deg> [--shift x,y,z]` turns the scene
-  about y (heading = atan2(dx, dz) of the front / rear wheel centres) and centres it, so the `gltf.parts` boxes use the car's own axes.
+- **Tilted model** (modelled at an angle to the axes): `glb-orient.py <in.glb> <out.glb> --heading <deg> [--shift x,y,z] [--scale k]` turns the scene
+  about y (heading = atan2(dx, dz) of the front / rear wheel centres) and centres it, so the `gltf.parts` boxes use the car's own axes;
+  `--scale 100` for an FBX export in centimetres (worked example `cars/subie-22b/`).
 - **`adjacent` pick** in `segment-stl.py`: small segments touching an earlier-picked material; and for frames that are NOT own segments
   (smooth skins) use a `region` with the glass outline (shapely union of the glass triangles in the view) + `grow`.
 - More `gltf.parts` options (2026-10-04 evening): `facing` (normal component ranges, `"|x|": [0, 0.6]`) on a rule or inside `near`
@@ -457,7 +458,7 @@ registered car; see `src/games/rally/PHYSICS.md`.
 - `model.wheelByCompound` gives a compound its own wheel GLB and / or rim colour (`rimColorFor`, `wheelModelFor` in `stl-wheel.ts`).
 - Wide gravel tyres lose grip on loose ground (`sizeFactors`): keep a rally tyre near 235 mm, and raise `rear.grip` for more than the M3's power.
 - A GLB body whose paint / carbon split lives only in its texture: `glb-to-parts-stl.py` rule `{"mat": "Body", "texture": {"maxLum": 0.42, "maxSat": 0.06, "blur": 9, "refine": 0.02}, "y": [..], "z": [..], "material": "carbon"}`
-  labels body triangles by the (blurred) texture and splits them along its border. Put it first in `gltf.parts`, box it tight (dirt looks like carbon), keep `blur` (raw texels speckle: 140k triangles). `exclude` UV boxes keep emblems out. The 22B sends its
+  labels body triangles by the (blurred) texture and splits them along its border. Put it first in `gltf.parts`, box it tight (dirt looks like carbon), keep `blur` (raw texels speckle: 140k triangles). `exclude` UV boxes keep emblems out. The GT2 sends its
   black rubbers, mirrors, lip and diffuser to `trim` this way (without it the body is one flat paint colour).
 - A minimal GLB import still needs these fixes from the user's close-ups (worked example `cars/porsche-911-930/`):
   - Paint striped on the arch walls: an `arch` rule first in `gltf.parts` (`mat` = body, `material: "trim"`; hub y / axle z in SOURCE units,

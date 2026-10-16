@@ -76,9 +76,9 @@ export const subie22b: CarDef = {
     'Blue 90s turbo coupe with the works star livery: flat-four boxer rumble, grippy AWD, a little heavy on the nose.',
   sources: [
     {
-      label: '"Subaru Impreza 22B_v2" by Lukas Scheermann (Sketchfab)',
-      url: 'https://sketchfab.com/3d-models/subaru-impreza-22b-v2-dbd871a37f80439f982ca523c1de4eef',
-      note: 'body, glass, lamps + wheel, converted to the in-game model; CC BY 4.0',
+      label: '"1998 Subaru Impreza 22B STi" by 007 (Sketchfab)',
+      url: 'https://sketchfab.com/3d-models/1998-subaru-impreza-22b-sti-62ce498bf3204ccbb875c8682ccd87b2',
+      note: 'body, cockpit, lamps + wheel, converted to the in-game model; CC BY 4.0',
     },
     {
       label: 'STI - Impreza 22B',
@@ -182,7 +182,7 @@ export const subie22b: CarDef = {
       { x: [0.5], z: 0, r: 0.25, bottom: 0.13 },
       { x: [0.5], z: -0.8, r: 0.25, bottom: 0.13 },
       { x: [0], z: -1.4, r: 0.22, bottom: 0.13 },
-      { x: [0, 0.5], z: -2.2, r: 0.2, bottom: 0.145 },
+      { x: [0, 0.5], z: -2.2, r: 0.2, bottom: 0.18 },
     ]),
   },
   model: {
@@ -190,6 +190,8 @@ export const subie22b: CarDef = {
     rim: { color: '#d8b24a', spokes: 6, style: 'spoke', caliper: '#c8102e' },
     // The model's own gold alloy (subie_22b_wheel.glb), de-cambered and centred on the hub, scaled to each compound's tyre.
     wheelModel: 'subie_22b_wheel.glb',
+    // The model's cockpit shows through the windows.
+    glass: { color: 0x141c24, opacity: 0.6 },
     suspensionStyle: 'sti',
     cornerSuspension: {
       style: 'sti',
@@ -206,7 +208,7 @@ export const subie22b: CarDef = {
     gltf: {
       file: 'subie_22b.glb',
       credit:
-        '"Subaru Impreza 22B_v2" by Lukas Scheermann, sketchfab.com/3d-models/subaru-impreza-22b-v2-dbd871a37f80439f982ca523c1de4eef, CC BY 4.0 (converted + repainted)',
+        '"1998 Subaru Impreza 22B STi" by 007, sketchfab.com/3d-models/1998-subaru-impreza-22b-sti-62ce498bf3204ccbb875c8682ccd87b2, CC BY 4.0 (converted + repainted)',
       autoFit: false,
       atlas: subie22bLivery,
       metallic: true,
