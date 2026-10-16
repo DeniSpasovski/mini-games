@@ -25,7 +25,7 @@ export const CARS_LIST: readonly ReleaseEntry[] = [
   { id: 'lancer_evo_6' },
   { id: 'ford_gt3' },
   { id: 'merc_190' },
-  { id: 'peugeot_206', hideInProd: true },
+  { id: 'peugeot_206' },
   { id: 'audi_rs6' },
   { id: 'porsche_911_930', hideInProd: true },
 ];
@@ -34,11 +34,11 @@ export const STAGES_LIST: readonly ReleaseEntry[] = [
   { id: 'test' },
   { id: 'ajvatovci' },
   { id: 'petralica' },
-  { id: 'jackie' },
-  { id: 'galichica_west', hideInProd: true },
+  { id: 'vodno' },
+  { id: 'galichica_west' },
   { id: 'galichica_east', hideInProd: true },
   { id: 'prespa_ohrid', hideInProd: true },
-  { id: 'vodno', hideInProd: true },
+  { id: 'jackie' },
 ];
 
 /** Not released (`hideInProd`, or by mistake not listed) - shown with a TEST badge on the dev server. */

@@ -130,14 +130,14 @@ are keyed by stage id. Every map from before the split has one stage with the ol
 keeps `road` (geometry) and adds `stageRoad` (the road, or its `reversed()` view) for timing, spawn, signs, fans, closures
 and the autopilot.
 
-| map id      | name            | notes                                                                                                                                                                |
-| ----------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `test`      | Test Map        | procedural 1.7 km forest gravel stage, hairpin, crest jump, test pad                                                                                                 |
-| `ajvatovci` | Ajvatovci Hill  | real world (Ilinden, North Macedonia), 4.5 km old tarmac                                                                                                             |
-| `petralica` | Petralica       | real world (North Macedonia), 9.6 km mountain stage, 560 m of climb                                                                                                  |
-| `jackie`    | The Jackie      | real world (New York), 7.3 km parkway with bridges and portals                                                                                                       |
-| `galichica` | Galichica       | real world (North Macedonia), pass road between Lake Ohrid and Lake Prespa, 3 stages (two run against the road); test                                                |
-| `vodno`     | Vodno Hillclimb | real world (Skopje, North Macedonia), 4.0 km hillclimb up Mount Vodno, whole suburb, ai-generated churches and summit landmarks, cross, mast, moving cable car; test |
+| map id      | name            | notes                                                                                                                                                          |
+| ----------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `test`      | Test Map        | procedural 1.7 km forest gravel stage, hairpin, crest jump, test pad                                                                                           |
+| `ajvatovci` | Ajvatovci Hill  | real world (Ilinden, North Macedonia), 4.5 km old tarmac                                                                                                       |
+| `petralica` | Petralica       | real world (North Macedonia), 9.6 km mountain stage, 560 m of climb                                                                                            |
+| `jackie`    | The Jackie      | real world (New York), 7.3 km parkway with bridges and portals                                                                                                 |
+| `galichica` | Galichica       | real world (North Macedonia), pass road between Lake Ohrid and Lake Prespa, 3 stages (two run against the road); West released, East and Prespa test           |
+| `vodno`     | Vodno Hillclimb | real world (Skopje, North Macedonia), 4.0 km hillclimb up Mount Vodno, whole suburb, ai-generated churches and summit landmarks, cross, mast, moving cable car |
 
 A map is `maps/<id>/map.ts` (gameplay and look) plus a baked `data.json` (`scripts/realmap/bake.py`: OpenStreetMap, ESA
 WorldCover, elevation). Format and helpers: `maps/shared/`. World axes: +X east, **+Z south**. How to build and verify maps:
@@ -217,7 +217,7 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
 | `lancer_evo_6`    | Lancer EVO VI      | AWD   | 1999-style Lancer from a CC BY model with its cockpit, own rim and livery, test car                                   |
 | `ford_gt3`        | Ford Mustang GT3   | RWD   | 2024 GT3 racer from a CC BY model kept as is (own cockpit, lamps, rim), flat dark blue paint                          |
 | `merc_190`        | Mercedes 190E      | RWD   | 2.5-16 Evolution saloon from a CC BY model kept as is (own cockpit, lamps, rim), badges removed, flat dark grey paint |
-| `peugeot_206`     | Peugeot 206        | FWD   | tuned widebody 206 from a CC BY model kept as is (own cockpit, lamps, rim), flat paint, test car                      |
+| `peugeot_206`     | Peugeot 206        | FWD   | tuned widebody 206 from a CC BY model kept as is (own cockpit, lamps, rim), flat paint                                |
 | `audi_rs6`        | Audi RS6           | AWD   | C8 RS6 Avant from a CC BY model kept as is (own cockpit, lamps, rim), flat grey paint                                 |
 | `porsche_911_930` | Porsche 911 (930)  | RWD   | 1975 911 Turbo from a CC BY model kept as is (own lamps, rim, no interior), flat yellow paint, test car               |
 
