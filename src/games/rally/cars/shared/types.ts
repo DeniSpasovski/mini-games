@@ -97,6 +97,8 @@ export interface CarModelDef {
     style?: 'spoke' | 'steel';
     /** Brake caliper colour (default red); `false` = none (an old car whose wheel shows only the disc). */
     caliper?: string | false;
+    /** 'satin' = duller alloy (lower metalness, rougher, less sky reflection); default polished. */
+    finish?: 'polished' | 'satin';
   };
   /**
    * Window glass tint override (default: dark, 45% opaque). On an imported body it also replaces the opaque `glass`

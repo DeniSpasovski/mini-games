@@ -281,16 +281,19 @@ const caliperMat = new MeshStandardMaterial({
 });
 /**
  * Rim paint. `vertexColors` = a rim whose GLB carries its own colours (two-tone, `COLOR_0`): they show as they are, and
- * the material is double-sided because such a rim is a thin dished shell that is also seen from inside.
+ * the material is double-sided because such a rim is a thin dished shell that is also seen from inside. `satin` = the
+ * duller `rim.finish`.
  */
 export function createRimMaterial(
   color: ColorRepresentation,
   vertexColors = false,
+  satin = false,
 ): MeshStandardMaterial {
   return new MeshStandardMaterial({
     color: vertexColors ? 0xffffff : color,
-    metalness: 0.75,
-    roughness: 0.32,
+    metalness: satin ? 0.4 : 0.75,
+    roughness: satin ? 0.65 : 0.32,
+    envMapIntensity: satin ? 0.5 : 1,
     vertexColors,
     side: vertexColors ? DoubleSide : FrontSide,
   });
@@ -478,7 +481,11 @@ export class CarModel {
         })
       : glassMat;
     if (carGlass !== glassMat) this.owned.push(carGlass);
-    const rimMat = createRimMaterial(def.model.rim.color);
+    const rimMat = createRimMaterial(
+      def.model.rim.color,
+      false,
+      def.model.rim.finish === 'satin',
+    );
     this.owned.push(plainMat, rimMat);
     this.rimMat = rimMat;
 

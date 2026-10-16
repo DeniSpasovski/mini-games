@@ -278,4 +278,84 @@ describe('terrain tiles', () => {
     whole.dispose();
     sliced.dispose();
   });
+
+  test('a tile that splits or merges at the same LOD copies the vertices a fresh build gives', () => {
+    const terrain = new TerrainRenderer(world, {
+      viewDistance: vd,
+      lodDistances: [60, 150, 300],
+    });
+    const focus = new Vector3();
+    settle(terrain, focus);
+    // Walk away and back so band edges move and tiles split / merge.
+    for (const x of [200, 400, 200, 0]) {
+      focus.x = x;
+      settle(terrain, focus);
+    }
+    const build = terrain as unknown as {
+      buildGeometry(
+        cx: number,
+        cz: number,
+        span: number,
+        lod: number,
+      ): Mesh['geometry'];
+    };
+    const reused = terrain as unknown as {
+      reuse(
+        w: Tile,
+      ): { pos: Float32Array; nor: Float32Array; spl: Uint8Array } | undefined;
+    };
+    // Rebuild every merged tile from its (split) neighbours' data: rebuild it from a one-level-smaller grid.
+    let checked = 0;
+    for (const t of tilesOf(terrain).values()) {
+      if (t.lod === 0 || t.span === 1) continue;
+      // Pretend the tile is gone, so its four halves must be built from the generator, then merged back.
+      const fresh = build.buildGeometry(t.cx, t.cz, t.span, t.lod);
+      const halves = t.span / 2;
+      const kids: Tile[] = [];
+      for (let j = 0; j < 2; j++)
+        for (let i = 0; i < 2; i++) {
+          const cx = t.cx + i * halves;
+          const cz = t.cz + j * halves;
+          kids.push({
+            cx,
+            cz,
+            span: halves,
+            lod: t.lod,
+            mesh: {
+              geometry: build.buildGeometry(cx, cz, halves, t.lod),
+            } as Mesh,
+          });
+        }
+      const map = tilesOf(terrain);
+      const saved = [...map];
+      map.clear();
+      for (const k of kids)
+        map.set(((k.cx + 32768) * 65536 + (k.cz + 32768)) * 16 + k.span, k);
+      const got = reused.reuse({ ...t, mesh: t.mesh });
+      map.clear();
+      for (const [k, v] of saved) map.set(k, v);
+      expect(got).toBeDefined();
+      const verts = (t.span * (64 / 2 ** t.lod) + 1) ** 2;
+      for (let v = 0; v < verts; v++)
+        for (let c = 0; c < 3; c++)
+          expect(got!.pos[v * 3 + c]).toBe(
+            fresh.attributes.position.array[v * 3 + c],
+          );
+      for (let v = 0; v < verts; v++) {
+        for (let c = 0; c < 3; c++)
+          expect(got!.nor[v * 3 + c]).toBeCloseTo(
+            fresh.attributes.normal.array[v * 3 + c],
+            5,
+          );
+        for (let c = 0; c < 4; c++)
+          expect(got!.spl[v * 4 + c]).toBe(
+            fresh.attributes.splat.array[v * 4 + c],
+          );
+      }
+      checked++;
+      if (checked >= 6) break;
+    }
+    expect(checked).toBeGreaterThan(0);
+    terrain.dispose();
+  });
 });
