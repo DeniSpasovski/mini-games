@@ -48,6 +48,7 @@ const DRY = ['grass', 'shrub', 'bare', 'urban', 'industrial'];
 
 export const petralicaMap: MapDef = {
   ...info,
+  country: 'mk',
   // Box houses (the newer bake's building kinds would switch them to mesh buildings).
   buildings: buildingsFromData({ ...data.buildings, kinds: undefined }),
   // Fenced hazelnut farm + yard, tall trees along the road through the hedge (maps/petralica/properties/).

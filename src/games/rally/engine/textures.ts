@@ -8,6 +8,11 @@ import {
 import { hash3, Rng } from '../../../shared/rng';
 import { FACADE_DEFS, type FacadeId } from './facade-textures';
 import { LOT_DEFS, type LotTextureId } from './lot-textures';
+import {
+  drawPeopleAtlas,
+  drawPeopleNormal,
+  PEOPLE_ATLAS_SIZE,
+} from './people-atlas';
 
 /**
  * Procedural texture library. Every texture is generated once on a canvas
@@ -40,6 +45,8 @@ export type TextureId =
   | 'vehicle_decals'
   | 'village_sign'
   | 'detail'
+  | 'people'
+  | 'people_normal'
   | 'macro'
   | 'grass_card'
   | 'grass_card_dry'
@@ -967,6 +974,23 @@ const DEFS: Record<TextureId, TexDef> = {
         24,
         61,
       );
+    },
+  },
+  people: {
+    // Grey multiplier for the vertex colours of every figure: garments painted unwrapped (engine/people-atlas.ts).
+    name: 'People atlas (garments, face)',
+    size: [PEOPLE_ATLAS_SIZE, PEOPLE_ATLAS_SIZE],
+    color: false,
+    draw(ctx) {
+      drawPeopleAtlas(ctx);
+    },
+  },
+  people_normal: {
+    name: 'People normal map (stitching, weave, creases)',
+    size: [PEOPLE_ATLAS_SIZE, PEOPLE_ATLAS_SIZE],
+    color: false,
+    draw(ctx) {
+      drawPeopleNormal(ctx, getTexture('people').image as HTMLCanvasElement);
     },
   },
   macro: {
