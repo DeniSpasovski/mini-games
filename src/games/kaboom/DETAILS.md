@@ -85,15 +85,15 @@ how a sudden-death cell falls differ. `game/levels.ts` = ids, labels, the banner
 only with more than one level, and `sanitizeSettings`). Pick it in the setup menu (`settings.level`) or with `?level=quarry|valley|sea`
 (skips the menu like `size`); the map viewer and the bench take it too.
 
-| Level        | Floor and blocks                                                                                              | Surroundings                                                                                           | Sudden death                    |
-| ------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------- |
-| Quarry       | sandstone tiles; granite boulders / timber-propped pillars; wooden crates, dirt mounds; rails, barrels        | rocky bowl, sandstone terraces, rim rocks                                                              | a wall lands                    |
-| Green Valley | mown-grass tiles, tufts, dirt patches; mossy boulders / cairns; wooden crates, hay bales; stream, fence, cart | hedge wall, grassy banks, tree rim, its own sky                                                        | a boulder lands                 |
-| Sea Deck     | plank tiles on a raft; iron bollards / capstans; cargo barrels, wooden crates; ropes, lanterns, lifebuoys     | open sea (`render/sea.ts` shader plane), the crowd on moored boats (`render/boats.ts`), a bobbing raft | the tile sinks (`fall: 'tile'`) |
+| Level        | Floor and blocks                                                                                              | Surroundings                                                                                                                        | Sudden death                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| Quarry       | sandstone tiles; granite boulders / timber-propped pillars; wooden crates, dirt mounds; rails, barrels        | rocky bowl, sandstone terraces, rim rocks                                                                                           | a wall lands                    |
+| Green Valley | mown-grass tiles, tufts, dirt patches; mossy boulders / cairns; wooden crates, hay bales; stream, fence, cart | a low hedge, flat meadow ground all round (the crowd stands in three rows on it, no terraces), trees in the background, its own sky | a boulder lands                 |
+| Sea Deck     | plank tiles on a raft; iron bollards / capstans; cargo barrels, wooden crates; ropes, lanterns, lifebuoys     | open sea (`render/sea.ts` shader plane), the crowd on moored boats (`render/boats.ts`), a bobbing raft                              | the tile sinks (`fall: 'tile'`) |
 
 - **What a theme holds**: sky, light, `fx` tint (dust / splinter / scorch colours as uniforms of the shared particle shaders), warning colour,
   `fall`, tile / hard-block / crate / floor / decor geometry, `scenery` (static things: bowl, water, boats, trees; `update`, `ripple`,
-  `dispose`), `crowd` (`CrowdLayout`: ring, height, optional `seat` mask) and an optional `motion` (the platform's bob).
+  `dispose`), `crowd` (`CrowdLayout`: ring, height, optional `tiers` / `rowD` / `seat` mask) and an optional `motion` (the platform's bob).
   `Arena.group` is the platform, `Arena.scenery` stays put. Geometry is built once per page (`themes/cache.ts`), never per instance or round.
 - **Sea Deck sudden death** reuses `blockFell`: `Arena.sinkTile` shakes the tile `SINK_DELAY_S` = 0.2 s, drops and tilts it, scales it
   away under the water; the splash (`Fx.splash`, `Sea.ripple`) comes `TILE_SPLASH_S` = 0.6 s after the event. A crate on the cell
@@ -101,7 +101,7 @@ only with more than one level, and `sanitizeSettings`). Pick it in the setup men
 - **Sounds** (`game/audio.ts`): `Sfx.level` picks the ambience (birds in the valley, a gull and water on the sea) and the fall sound
   (`splash` on the sea). The sudden-death banner's second line is `LEVELS[id].closing`.
 - **Budgets hold per level**: draw calls <= 60 in the 40-TNT chain, the arena a handful (`tests/kaboom/levels.test.ts` checks every theme).
-  Low quality: a coarser water plane, no glitter / glint, no bob, fewer rim trees.
+  Low quality: a coarser water plane, no glitter / glint, no bob, fewer trees and one row less of spectators.
 - **New level**: add the id to `LEVEL_IDS` / `LEVELS`, a `LEVELS_LIST` entry (`hideInProd` first), a theme file and its line in `themes/index.ts`.
 
 ## Rules (`sim/rules.ts` holds every number)

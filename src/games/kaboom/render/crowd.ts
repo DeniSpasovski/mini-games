@@ -140,7 +140,7 @@ export class Crowd {
     const hx = w / 2 + pad;
     const hz = h / 2 + pad;
     const low = quality.name === 'low';
-    const tiers = low ? TIERS - 1 : TIERS;
+    const tiers = (layout.tiers ?? TIERS) - (low ? 1 : 0);
     const spacing = low ? 1.3 : 1.0;
     const fill = [0.94, 0.9, 0.82, 0.72];
     const rng = new Rng(hash3(w, h, 0xc0de, 5));
@@ -149,7 +149,7 @@ export class Crowd {
     this.cols = Math.floor(this.sideFor(quality) / this.tilePx);
 
     for (let t = 0; t < tiers; t++) {
-      const pts = layout.ring(hx, hz, treadMidD(t));
+      const pts = layout.ring(hx, hz, layout.rowD?.(t) ?? treadMidD(t));
       const n = pts.length / 2;
       let carry = rng.range(0, spacing);
       let acc = 0;

@@ -171,23 +171,11 @@ function floatBarrel(
   return out;
 }
 
-/** What the raft rides on: dark stringers under the deck (seen through a hole), barrels lashed round the rim. */
+/** What the raft rides on: barrels lashed round the rim (nothing under the tiles: a fallen tile leaves open water). */
 function frame(w: number, h: number, pad: number): BufferGeometry {
   const hw = w / 2;
   const hh = h / 2;
   const p: BufferGeometry[] = [];
-  for (let y = 0; y <= h; y++)
-    p.push(
-      part(box(w + 0.1, 0.12, 0.13), S.beam, { z: y - hh, y: -0.3, tint: 0.2 }),
-    );
-  for (let x = 0; x <= w; x++)
-    p.push(
-      part(box(0.13, 0.12, h + 0.1), S.beam, {
-        x: x - hw,
-        y: -0.42,
-        tint: 0.2,
-      }),
-    );
   let k = 0;
   for (let x = -hw - pad + 0.6; x <= hw + pad - 0.5; x += 0.95) {
     p.push(...floatBarrel(x, -0.66, hh + pad - 0.42, Math.PI / 2, k++));

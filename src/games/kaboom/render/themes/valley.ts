@@ -1,27 +1,23 @@
 import {
   ConeGeometry,
   CylinderGeometry,
+  Float32BufferAttribute,
   InstancedMesh,
   Color,
   Matrix4,
   Mesh,
+  PlaneGeometry,
   Quaternion,
   SphereGeometry,
   Vector3,
-  type BufferGeometry,
+  BufferGeometry,
   type Material,
 } from 'three';
+import { Noise2D } from '../../../../shared/noise';
 import { Rng, hash3 } from '../../../../shared/rng';
 import { gridToWorldX, gridToWorldZ } from '../../sim/grid';
 import { Terrain } from '../../sim/types';
-import {
-  RIM_D,
-  RIM_H,
-  bowlGeometry,
-  treadHeight,
-  warpedRing,
-  type BowlColors,
-} from '../bowl';
+import { WALL_D, ringPoints } from '../bowl';
 import {
   box,
   merge,
@@ -63,19 +59,17 @@ const V = {
   milk: 0xe9ecef,
   cart: 0x8a5a2e,
   red: 0xd24a3a,
+  hedge: 0x5aa03f,
+  hedgeSide: 0x4a8a35,
+  hedgeDark: 0x376a2a,
+  meadow: [0x86b95d, 0x7aae55],
+  trodden: 0x9dc66a,
+  haze: 0xc9dcae,
+  leaf: [0x4f9a3f, 0x5fae48, 0x3f8a38],
   skyTop: '#8fc4ee',
   skyMid: '#d8ecf7',
   skyLow: '#f4f0d6',
 } as const;
-
-const VALLEY_BOWL: BowlColors = {
-  // a clipped hedge round the pitch, grassy banks for the stands, an earth bank under the pines
-  wall: new Color(0x4d8a3a),
-  treads: [0x8dbd5f, 0x82b358, 0x78a950].map((c) => new Color(c)),
-  riser: new Color(0x8a6a45),
-  strata: [0x6faa4c, 0x8d6c45, 0x7a5a38, 0x5f4630].map((c) => new Color(c)),
-  rim: new Color(0x6fae4a),
-};
 
 const FX: FxTint = {
   dustDark: [0.5, 0.48, 0.32],
@@ -207,6 +201,35 @@ function pineGeometry(): BufferGeometry {
       tint: 0.1,
     }),
     part(new ConeGeometry(0.5, 1.15, 6), V.pine[2], { y: 3.1, tint: 0.1 }),
+  ]);
+}
+
+/** A broadleaf tree: a short trunk under three lumpy crowns. */
+function oakGeometry(): BufferGeometry {
+  return merge([
+    part(new CylinderGeometry(0.13, 0.2, 1.0, 6), V.trunk, { y: 0.5 }),
+    part(rock(0.85, 1), V.leaf[0], {
+      y: 1.65,
+      sy: 0.85,
+      lumpy: 0.12,
+      tint: 0.12,
+    }),
+    part(rock(0.62, 1), V.leaf[1], {
+      x: 0.45,
+      y: 1.4,
+      z: 0.2,
+      sy: 0.85,
+      lumpy: 0.1,
+      tint: 0.12,
+    }),
+    part(rock(0.58, 1), V.leaf[2], {
+      x: -0.4,
+      y: 1.5,
+      z: -0.25,
+      sy: 0.85,
+      lumpy: 0.1,
+      tint: 0.12,
+    }),
   ]);
 }
 
@@ -475,75 +498,203 @@ function decor(w: number, h: number, pad: number): DecorParts {
 
 const UP = new Vector3(0, 1, 0);
 
-function rimTrees(
+/** Flat meadow level: the ground, the crowd's ground and the hedge all sit on the arena's floor level. */
+const GROUND_Y = -0.12;
+const HEDGE_H = 0.5;
+const HEDGE_W = 0.45;
+const meadowNoise = new Noise2D(2077);
+
+const smooth = (a: number, b: number, x: number): number => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
+
+/** A low clipped hedge round the pitch, a ring strip with a lumpy top: vertex colours, flat faces. */
+function hedgeGeometry(hx: number, hz: number): BufferGeometry {
+  const a = ringPoints(hx, hz, WALL_D);
+  const b = ringPoints(hx, hz, WALL_D + HEDGE_W);
+  const n = a.length / 2;
+  const pos: number[] = [];
+  const col: number[] = [];
+  const top = new Color(V.hedge);
+  const side = new Color(V.hedgeSide);
+  const dark = new Color(V.hedgeDark);
+  const c = new Color();
+  const lump = (x: number, z: number): number =>
+    HEDGE_H + 0.07 * meadowNoise.noise2(x * 1.3, z * 1.3);
+  type P = [number, number, number];
+  /** One quad, wound so its normal faces `want` (the material is single-sided). */
+  const quad = (
+    q: [P, P, P, P],
+    colors: [Color, Color, Color, Color],
+    want: P,
+  ): void => {
+    const [p0, p1, p2] = q;
+    const u: P = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]];
+    const v: P = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]];
+    const nx = u[1] * v[2] - u[2] * v[1];
+    const ny = u[2] * v[0] - u[0] * v[2];
+    const nz = u[0] * v[1] - u[1] * v[0];
+    const order =
+      nx * want[0] + ny * want[1] + nz * want[2] >= 0
+        ? [0, 1, 2, 0, 2, 3]
+        : [0, 2, 1, 0, 3, 2];
+    for (const k of order) {
+      pos.push(...q[k]);
+      c.copy(colors[k]).multiplyScalar(1 + 0.06 * (((k * 7) % 3) - 1));
+      col.push(c.r, c.g, c.b);
+    }
+  };
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const ax = a[i * 2];
+    const az = a[i * 2 + 1];
+    const bx = b[i * 2];
+    const bz = b[i * 2 + 1];
+    const jax = a[j * 2];
+    const jaz = a[j * 2 + 1];
+    const jbx = b[j * 2];
+    const jbz = b[j * 2 + 1];
+    const hi = lump(ax, az);
+    const hj = lump(jax, jaz);
+    const ol = Math.hypot(bx - ax, bz - az) || 1;
+    const out: P = [(bx - ax) / ol, 0, (bz - az) / ol];
+    const g = GROUND_Y;
+    quad(
+      [
+        [ax, g, az],
+        [jax, g, jaz],
+        [jax, hj, jaz],
+        [ax, hi, az],
+      ],
+      [dark, dark, side, side],
+      [-out[0], 0, -out[2]],
+    );
+    quad(
+      [
+        [ax, hi, az],
+        [jax, hj, jaz],
+        [jbx, hj, jbz],
+        [bx, hi, bz],
+      ],
+      [top, top, top, top],
+      [0, 1, 0],
+    );
+    quad(
+      [
+        [bx, hi, bz],
+        [jbx, hj, jbz],
+        [jbx, g, jbz],
+        [bx, g, bz],
+      ],
+      [side, side, dark, dark],
+      out,
+    );
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new Float32BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  return g;
+}
+
+/**
+ * The meadow: one flat plane under everything, the same level all the way out to the haze. The ground round the pitch (where
+ * the crowd stands) is trodden lighter; far away it fades towards the sky's colour.
+ */
+function groundGeometry(hx: number, hz: number, low: boolean): BufferGeometry {
+  const seg = low ? 60 : 120;
+  const g = new PlaneGeometry(240, 240, seg, seg)
+    .rotateX(-Math.PI / 2)
+    .translate(0, GROUND_Y, 0);
+  g.deleteAttribute('uv');
+  const pos = g.getAttribute('position');
+  const col = new Float32Array(pos.count * 3);
+  const c = new Color();
+  const trodden = new Color(V.trodden);
+  const haze = new Color(V.haze);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const dd = Math.hypot(
+      Math.max(Math.abs(x) - hx, 0),
+      Math.max(Math.abs(z) - hz, 0),
+    );
+    const n =
+      meadowNoise.noise2(x * 0.09, z * 0.09) * 0.6 +
+      meadowNoise.noise2(x * 0.31 + 9, z * 0.31) * 0.4;
+    c.set(V.meadow[0]).lerp(c.clone().set(V.meadow[1]), n * 0.5 + 0.5);
+    c.lerp(trodden, (1 - smooth(4.8, 7.5, dd)) * 0.75);
+    c.lerp(haze, smooth(30, 115, dd) * 0.6);
+    col[i * 3] = c.r;
+    col[i * 3 + 1] = c.g;
+    col[i * 3 + 2] = c.b;
+  }
+  g.setAttribute('color', new Float32BufferAttribute(col, 3));
+  return g.toNonIndexed();
+}
+
+/** Trees well behind the crowd, in loose clusters; none close to the camera's side (it would stand in the picture). */
+function meadowTrees(
   hx: number,
   hz: number,
   rng: Rng,
   mat: Material,
   low: boolean,
-): InstancedMesh {
+): InstancedMesh[] {
   const m4 = new Matrix4();
   const quat = new Quaternion();
   const pos = new Vector3();
   const scl = new Vector3();
-  const spots: [number, number][] = [];
-  for (const d of [3.2, 4.6, 6.4, 8.6, 11]) {
-    const pts = warpedRing(hx, hz, RIM_D + d);
-    for (let i = 0; i < pts.length; i += 2)
-      if (rng.chance(low ? 0.4 : 0.78)) spots.push([pts[i], pts[i + 1]]);
+  const pines: [number, number][] = [];
+  const oaks: [number, number][] = [];
+  for (const d of [7.5, 10, 13, 17, 22, 28, 35]) {
+    const pts = ringPoints(hx, hz, d);
+    for (let i = 0; i < pts.length; i += 2) {
+      const x = pts[i];
+      const z = pts[i + 1];
+      if (z > hz + 1 && d < 22) continue;
+      const cluster = Math.min(
+        1,
+        Math.max(0, 0.5 + meadowNoise.noise2(x * 0.08 + 3, z * 0.08) * 0.9),
+      );
+      if (!rng.chance(cluster * (low ? 0.03 : 0.075))) continue;
+      (rng.chance(0.5) ? pines : oaks).push([x, z]);
+    }
   }
-  const mesh = new InstancedMesh(
-    shared('valley-pine', pineGeometry),
-    mat,
-    Math.max(1, spots.length),
-  );
-  spots.forEach(([x, z], k) => {
-    const sc = rng.range(1.3, 2.6);
-    m4.compose(
-      pos.set(x + rng.range(-0.5, 0.5), RIM_H - 0.2, z + rng.range(-0.5, 0.5)),
-      quat.setFromAxisAngle(UP, rng.range(0, 6.28)),
-      scl.set(
-        sc * rng.range(0.85, 1.1),
-        sc * rng.range(0.9, 1.35),
-        sc * rng.range(0.85, 1.1),
-      ),
+  const make = (
+    key: string,
+    build: () => BufferGeometry,
+    spots: [number, number][],
+    lo: number,
+    hi: number,
+  ): InstancedMesh => {
+    const mesh = new InstancedMesh(
+      shared(key, build),
+      mat,
+      Math.max(1, spots.length),
     );
-    mesh.setMatrixAt(k, m4);
-    mesh.setColorAt(k, new Color().setScalar(rng.range(0.85, 1.1)));
-  });
-  return mesh;
-}
-
-/** Mossy boulders among the trees on the rim. */
-function rimBoulders(
-  hx: number,
-  hz: number,
-  rng: Rng,
-  mat: Material,
-): InstancedMesh {
-  const m4 = new Matrix4();
-  const quat = new Quaternion();
-  const pos = new Vector3();
-  const scl = new Vector3();
-  const spots: [number, number][] = [];
-  for (const d of [1.2, 3.6])
-    for (let i = 0, pts = warpedRing(hx, hz, RIM_D + d); i < pts.length; i += 2)
-      if (rng.chance(0.12)) spots.push([pts[i], pts[i + 1]]);
-  const mesh = new InstancedMesh(
-    shared('valley-boulder', mossyBoulder),
-    mat,
-    Math.max(1, spots.length),
-  );
-  spots.forEach(([x, z], k) => {
-    const sc = rng.range(1.2, 2.4);
-    m4.compose(
-      pos.set(x, RIM_H - 0.2, z),
-      quat.setFromAxisAngle(UP, rng.range(0, 6.28)),
-      scl.set(sc, sc * rng.range(0.8, 1.3), sc),
-    );
-    mesh.setMatrixAt(k, m4);
-  });
-  return mesh;
+    spots.forEach(([x, z], k) => {
+      const sc = rng.range(lo, hi);
+      m4.compose(
+        pos.set(x + rng.range(-0.6, 0.6), 0, z + rng.range(-0.6, 0.6)),
+        quat.setFromAxisAngle(UP, rng.range(0, 6.28)),
+        scl.set(
+          sc * rng.range(0.85, 1.1),
+          sc * rng.range(0.9, 1.3),
+          sc * rng.range(0.85, 1.1),
+        ),
+      );
+      mesh.setMatrixAt(k, m4);
+      mesh.setColorAt(k, new Color().setScalar(rng.range(0.88, 1.1)));
+    });
+    mesh.count = spots.length;
+    return mesh;
+  };
+  return [
+    make('valley-pine', pineGeometry, pines, 1.3, 2.3),
+    make('valley-oak', oakGeometry, oaks, 1.2, 1.9),
+  ];
 }
 
 /** Grass tufts on the floor that is empty at the start of the round: one instanced mesh, lit by the blasts. */
@@ -586,14 +737,16 @@ function tufts({ map, w, h, lit }: SceneryCtx): InstancedMesh {
 
 function scenery(ctx: SceneryCtx) {
   const { w, h, hx, hz, rng, flat, quality } = ctx;
+  const low = quality.name === 'low';
   return {
     objects: [
       new Mesh(
-        shared(`valley-bowl${w}x${h}`, () => bowlGeometry(hx, hz, VALLEY_BOWL)),
+        shared(`valley-meadow${w}x${h}${low ? 'l' : ''}`, () =>
+          merge([hedgeGeometry(hx, hz), groundGeometry(hx, hz, low)]),
+        ),
         flat,
       ),
-      rimTrees(hx, hz, rng, flat, quality.name === 'low'),
-      rimBoulders(hx, hz, rng, flat),
+      ...meadowTrees(hx, hz, rng, flat, low),
     ],
   };
 }
@@ -642,5 +795,11 @@ export const VALLEY_THEME: LevelTheme = {
   decor,
   platformExtras: (ctx) => [tufts(ctx)],
   scenery,
-  crowd: { ring: warpedRing, height: treadHeight },
+  // the crowd stands on the flat meadow: three loose rows right behind the hedge
+  crowd: {
+    ring: ringPoints,
+    height: () => GROUND_Y,
+    tiers: 3,
+    rowD: (t) => 0.8 + 1.3 * t,
+  },
 };

@@ -237,6 +237,13 @@ test('world view: every level stays in the draw-call budget through a round, and
   }
 });
 
+test('valley: the crowd stands on flat ground in a few rows, never on terraces', () => {
+  const layout = levelTheme('valley').crowd;
+  expect(layout.height(0, 5, 5)).toBe(layout.height(2, -9, 3));
+  expect(layout.tiers).toBe(3);
+  expect(layout.rowD!(1)).toBeGreaterThan(layout.rowD!(0));
+});
+
 test('levels: the platform bobs only in the Sea Deck and never on low quality', () => {
   const pose = { y: 0, rx: 0, rz: 0 };
   expect(levelTheme('quarry').motion).toBeUndefined();

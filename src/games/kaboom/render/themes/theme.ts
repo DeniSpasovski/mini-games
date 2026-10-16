@@ -47,6 +47,10 @@ export interface CrowdLayout {
   ring(hx: number, hz: number, d: number): number[];
   /** Height of terrace `tier` at `(x, z)`. */
   height(tier: number, x: number, z: number): number;
+  /** Rows of spectators (one fewer on low quality). Default: the bowl's `TIERS`. */
+  tiers?: number;
+  /** Offset of row `t` from the floor. Default: the middle of terrace `t` of the bowl. */
+  rowD?(t: number): number;
   /** Is there a seat at fractional ring-point index `i`? Default: everywhere. */
   seat?(i: number, n: number, hx: number, hz: number): boolean;
 }
