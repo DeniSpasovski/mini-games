@@ -1,5 +1,7 @@
 import { isMutedByUrl } from '../../../shared/mute-param';
 import type { SimEvent } from '../sim/types';
+import { TILE_SPLASH_S } from '../render/arena';
+import type { LevelId } from './levels';
 
 /** Blast voices playing at once; more are dropped (the loudest already covers them). */
 export const MAX_BLAST_VOICES = 4;
@@ -22,6 +24,9 @@ export class Sfx {
   private pendingBoom = 0;
   private activeBooms = 0;
   private lastCrate = -1;
+  /** The level on screen: sets what a falling block sounds like and which ambience plays. */
+  level: LevelId = 'quarry';
+  private ambientIn = 3;
 
   /** Call from a touch / click / key handler. */
   unlock(): void {
@@ -145,6 +150,37 @@ export class Sfx {
     this.burst(0.25, 0.3, 500, 70, delay);
   }
 
+  /** Sea Deck: a tile breaks loose (a creak), then hits the water `TILE_SPLASH_S` later (a splash). */
+  splash(): void {
+    this.tone(110, 0.22, 'sawtooth', 0.05, 70);
+    this.burst(0.5, 0.3, 2200, 350, TILE_SPLASH_S, 'bandpass');
+    this.tone(150, 0.3, 'sine', 0.2, 55, TILE_SPLASH_S);
+  }
+
+  /**
+   * Level ambience, a random call every few seconds: songbirds in the Green Valley, a gull and a slap of water on the
+   * Sea Deck, nothing in the Quarry. `dt` = frame seconds.
+   */
+  ambient(dt: number): void {
+    if (this.level === 'quarry' || !this.ctx) return;
+    this.ambientIn -= dt;
+    if (this.ambientIn > 0) return;
+    if (this.level === 'valley') {
+      const base = 2300 + Math.random() * 1200;
+      for (let i = 0; i < 2 + Math.floor(Math.random() * 3); i++)
+        this.tone(base, 0.07, 'sine', 0.035, base * 1.35, i * 0.1);
+      this.ambientIn = 2.5 + Math.random() * 4;
+    } else {
+      if (Math.random() < 0.45) {
+        this.tone(1500, 0.3, 'triangle', 0.05, 1050);
+        this.tone(1250, 0.35, 'triangle', 0.045, 900, 0.32);
+      } else {
+        this.burst(0.4, 0.05, 700, 220, 0, 'bandpass');
+      }
+      this.ambientIn = 2 + Math.random() * 5;
+    }
+  }
+
   countdown(n: number): void {
     this.tone(n === 0 ? 880 : 440, n === 0 ? 0.5 : 0.18, 'square', 0.12);
   }
@@ -205,7 +241,8 @@ export class Sfx {
           this.ko();
           break;
         case 'blockFell':
-          this.thud(0.3);
+          if (this.level === 'sea') this.splash();
+          else this.thud(0.3);
           break;
         case 'itemAppeared':
           this.blip();

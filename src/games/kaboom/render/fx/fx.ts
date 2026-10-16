@@ -4,10 +4,14 @@ import type { SimEvent } from '../../sim/types';
 import { FlameType, FlameField } from './flames';
 import {
   ParticleSystem,
+  QUARRY_FX,
+  applyTint,
+  makeTint,
   type ParticleKind,
   type TimeUniform,
 } from './particles';
-import { WALL_FALL_S } from '../arena';
+import type { FxTint } from '../themes/theme';
+import { TILE_SPLASH_S, WALL_FALL_S } from '../arena';
 import { Shake } from './shake';
 import { WordBurst, makeWordAtlas } from './word-burst';
 
@@ -52,6 +56,8 @@ export class Fx {
   readonly group = new Group();
   /** The one clock all FX shaders read. */
   readonly time: TimeUniform = { value: 0 };
+  /** The level's dust / splinter / scorch colours, shared by every pool. */
+  private readonly tint = makeTint();
   readonly fire: ParticleSystem;
   readonly smoke: ParticleSystem;
   readonly dust: ParticleSystem;
@@ -63,6 +69,8 @@ export class Fx {
   readonly flames: FlameField;
   readonly words: WordBurst;
   readonly shake = new Shake();
+  /** Sea Deck: a sudden-death cell is a tile sinking into the sea (a splash) instead of a wall landing (dust). */
+  sea = false;
   private readonly pools: ParticleSystem[];
   private readonly rng = new Rng(31337);
 
@@ -71,9 +79,11 @@ export class Fx {
     private readonly w: number,
     private readonly h: number,
     wordAtlas: Texture = makeWordAtlas(),
+    fxTint: FxTint = QUARRY_FX,
   ) {
+    applyTint(this.tint, fxTint);
     const pool = (kind: ParticleKind, n: number) =>
-      new ParticleSystem(kind, n, this.time);
+      new ParticleSystem(kind, n, this.time, this.tint);
     this.fire = pool('fire', FX_CAPACITY.fire);
     this.smoke = pool('smoke', FX_CAPACITY.smoke);
     this.dust = pool('dust', FX_CAPACITY.dust);
@@ -352,9 +362,14 @@ export class Fx {
         break;
       }
       case 'blockFell': {
-        // the wall lands WALL_FALL_S later: a puff of dust then (particles may be born in the future)
         const x = this.wx(e.x);
         const z = this.wz(e.y);
+        if (this.sea) {
+          this.splash(x, z, t + TILE_SPLASH_S, 1);
+          this.shake.add(0.07, 0.3);
+          break;
+        }
+        // the wall lands WALL_FALL_S later: a puff of dust then (particles may be born in the future)
         for (let i = 0; i < 6; i++) {
           const a = r.range(0, 6.283);
           const sp = r.range(0.8, 2);
@@ -469,6 +484,55 @@ export class Fx {
         12,
       );
     }
+  }
+
+  /**
+   * Spray where a tile (or a critter) meets the sea at world `(x, z)` at clock time `t` (particles may be born in the
+   * future): a column of droplets, a few slow foam puffs. `power` 1 = a tile, 1.6 = a critter.
+   */
+  splash(x: number, z: number, t: number, power: number): void {
+    const r = this.rng;
+    const n = Math.round(9 * power);
+    for (let i = 0; i < n; i++) {
+      const a = r.range(0, 6.283);
+      const sp = r.range(0.2, 1.1) * power;
+      this.dust.emit(
+        t,
+        x + Math.cos(a) * 0.25,
+        0.1,
+        z + Math.sin(a) * 0.25,
+        Math.cos(a) * sp,
+        r.range(2.6, 4.6) * (0.8 + 0.3 * power),
+        Math.sin(a) * sp,
+        r.range(0.6, 1),
+        r.range(0.08, 0.15),
+        r.next(),
+        0,
+        9,
+      );
+    }
+    for (let i = 0; i < 3; i++) {
+      const a = r.range(0, 6.283);
+      this.dust.emit(
+        t,
+        x,
+        0.2,
+        z,
+        Math.cos(a) * 0.5,
+        r.range(0.6, 1.2),
+        Math.sin(a) * 0.5,
+        r.range(0.9, 1.3),
+        r.range(0.25, 0.4) * power,
+        r.next(),
+        0,
+        0,
+      );
+    }
+  }
+
+  /** A critter went into the sea with its tile at cell position `(x, y)`: a big splash, no stars. */
+  onKoSplash(x: number, y: number): void {
+    this.splash(x - this.w / 2, y - this.h / 2, this.time.value + 0.35, 1.6);
   }
 
   /** A benched critter is launched from world `(x, z)`: a kick of dust and a few sparks. */

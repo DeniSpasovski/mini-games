@@ -14,7 +14,7 @@ export const TREAD_RISE = 0.8;
 /** Height of the first terrace above the floor (the arena wall). */
 export const WALL_H = 0.95;
 /** Offset from the floor rectangle where the first terrace starts. */
-const WALL_D = 0.02;
+export const WALL_D = 0.02;
 /** Height of the rim the cliff climbs to. */
 export const RIM_H = 10.6;
 
@@ -174,15 +174,44 @@ export function treadHeight(i: number, x: number, z: number): number {
   );
 }
 
-const WALL_COL = new Color(0xb4875a);
+/** Colours of the bowl's faces: the wall at the arena, the stands (treads + risers), the cliff strata (high to low) and the rim. */
+export interface BowlColors {
+  wall: Color;
+  treads: Color[];
+  riser: Color;
+  strata: Color[];
+  rim: Color;
+}
+
+const colors = (c: {
+  wall: number;
+  treads: number[];
+  riser: number;
+  strata: number[];
+  rim: number;
+}): BowlColors => ({
+  wall: new Color(c.wall),
+  treads: c.treads.map((x) => new Color(x)),
+  riser: new Color(c.riser),
+  strata: c.strata.map((x) => new Color(x)),
+  rim: new Color(c.rim),
+});
+
 // carved rock, darker than the floor tiles so the arena reads apart from the stands
-const TREAD_COLS = [0xc2a47c, 0xb99b73, 0xb09169].map((c) => new Color(c));
-const RISER_COL = new Color(0x9b6f48);
-const STRATA = PALETTE.slab.map((c) => new Color(c));
-const RIM_COL = new Color(0xcaa670);
+export const QUARRY_BOWL: BowlColors = colors({
+  wall: 0xb4875a,
+  treads: [0xc2a47c, 0xb99b73, 0xb09169],
+  riser: 0x9b6f48,
+  strata: [...PALETTE.slab],
+  rim: 0xcaa670,
+});
 
 /** The bowl for a floor of half extents `hx`, `hz` (world units, centred on the origin). */
-export function bowlGeometry(hx: number, hz: number): BufferGeometry {
+export function bowlGeometry(
+  hx: number,
+  hz: number,
+  pal: BowlColors = QUARRY_BOWL,
+): BufferGeometry {
   const { pts: prof, t: along } = subdivide(profile());
   const n = ringSize(hx, hz);
   // rock noise only on the cliff and the far rim; the stands stay clean so the crowd stands level
@@ -241,21 +270,26 @@ export function bowlGeometry(hx: number, hz: number): BufferGeometry {
         noise.noise2((a[i][0] + b[j][0]) * 0.5, (a[i][2] + b[j][2]) * 0.5) *
           0.9 +
         0.1 * noise.noise2(i * 3.3, s * 5.1);
-      if (kind === 'wall') c.copy(WALL_COL).multiplyScalar(0.94 + r * 0.08);
+      if (kind === 'wall') c.copy(pal.wall).multiplyScalar(0.94 + r * 0.08);
       else if (kind === 'tread')
-        c.copy(TREAD_COLS[1]).lerp(
-          TREAD_COLS[r > 0 ? 0 : 2],
+        c.copy(pal.treads[1]).lerp(
+          pal.treads[r > 0 ? 0 : 2],
           Math.abs(r) * 1.4,
         );
       else if (kind === 'riser')
-        c.copy(RISER_COL).multiplyScalar(0.93 + r * 0.1);
+        c.copy(pal.riser).multiplyScalar(0.93 + r * 0.1);
       else if (kind === 'cliff') {
         const band = Math.max(
           0,
-          Math.min(STRATA.length - 1, Math.floor(mid / 3.2 + r * 0.8 - 0.4)),
+          Math.min(
+            pal.strata.length - 1,
+            Math.floor(mid / 3.2 + r * 0.8 - 0.4),
+          ),
         );
-        c.copy(STRATA[STRATA.length - 1 - band]).multiplyScalar(0.9 + r * 0.14);
-      } else c.copy(RIM_COL).multiplyScalar(0.96 + r * 0.06);
+        c.copy(pal.strata[pal.strata.length - 1 - band]).multiplyScalar(
+          0.9 + r * 0.14,
+        );
+      } else c.copy(pal.rim).multiplyScalar(0.96 + r * 0.06);
       // crevices: the foot of a riser or cliff is darker, its top edge catches the light
       if (kind === 'riser' || kind === 'cliff' || kind === 'wall')
         c.multiplyScalar(0.8 + 0.28 * along[s]);
