@@ -20,7 +20,7 @@ import { petralicaInfo as info } from './info';
 /**
  * "Petralica" - real-world mountain stage in Rankovce municipality, north-east North Macedonia: Ginovci village
  * -> across the E-871 -> straight valley road up to Petralica -> narrow switchback track
- * through oak woods and pasture up to Vila Ristovski. ~9.6 km, 478 m -> 1040 m above sea level.
+ * through oak woods and pasture up to the finish. ~9.6 km, 478 m -> 1040 m above sea level.
  *
  * Terrain, land cover, roads, houses and the route are baked from open data by
  * `python scripts/realmap/bake.py scripts/realmap/petralica.json` into ./data.json

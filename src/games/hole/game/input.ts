@@ -18,7 +18,8 @@ export class Controls {
   enabled = false;
   /** Called on a 3-finger tap (debug HUD on devices without F keys). */
   onThreeFingerTap: (() => void) | null = null;
-  private pointerId = -1;
+  /** The steering pointer, null while nothing steers (any number is a valid id, so no -1 sentinel). */
+  private pointerId: number | null = null;
   private ox = 0;
   private oy = 0;
   private px = 0;
@@ -43,7 +44,7 @@ export class Controls {
     this.hide();
 
     surface.addEventListener('pointerdown', (e) => {
-      if (!this.enabled || this.pointerId >= 0) return;
+      if (!this.enabled || this.pointerId !== null) return;
       this.pointerId = e.pointerId;
       try {
         surface.setPointerCapture(e.pointerId);
@@ -72,7 +73,7 @@ export class Controls {
     });
     const end = (e: PointerEvent) => {
       if (e.pointerId !== this.pointerId) return;
-      this.pointerId = -1;
+      this.pointerId = null;
       this.stick = { x: 0, y: 0 };
       this.hide();
     };
@@ -124,14 +125,15 @@ export class Controls {
       const l = Math.hypot(kx, ky);
       return stickToWorld(kx / l, ky / l);
     }
-    if (this.pointerId >= 0) return stickToWorld(this.stick.x, this.stick.y);
+    if (this.pointerId !== null)
+      return stickToWorld(this.stick.x, this.stick.y);
     const p = padStick();
     return stickToWorld(p.x, p.y);
   }
 
   /** Drop the current touch (menus, pause). */
   release(): void {
-    this.pointerId = -1;
+    this.pointerId = null;
     this.stick = { x: 0, y: 0 };
     this.keys.clear();
     this.hide();
