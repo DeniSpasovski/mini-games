@@ -153,6 +153,7 @@ export async function bakeStageCard(
   });
   streamer.filter = (asset) => getAssetMeta(asset).category !== 'vegetation';
   content.add(streamer.group);
+  await streamer.ready;
   while (!streamer.commits) {
     streamer.update(center);
     await breathe();

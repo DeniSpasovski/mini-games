@@ -38,6 +38,8 @@ in the car viewer.
 | `cars/lancer_evo_6_seat.png`, `cars/lancer_evo_6_fabric.png`, `cars/lancer_evo_6_cab.png` | "Mitsubishi Lancer Evolution 6" (Sketchfab) - the model's own seat insert, seat / door fabric and rear cabin textures, unchanged; copied with their primitives by `scripts/car-model/glb-src-parts.py`                                                                                                                                                             | vecarz               | CC BY 4.0    | https://sketchfab.com/3d-models/mitsubishi-lancer-evolution-6-wwwvecarzcom-c3d5dcd8ff724bc88c46760d92fc5188 |
 | _(not shipped)_                                                                           | Zastava 101 (Stojadin) - shape reference only, the car is hand-built in code, no GLB is used                                                                                                                                                                                                                                                                       | Tomislav Tomljenović | CC BY 4.0    | https://sketchfab.com/3d-models/zastava-101-stojadin-52c885cfc52a4ac1acb14f84a3feacfa                       |
 
+`cars/<car>_park.glb` (Skoda, M3, GT2, Fiesta, C4, Lancer, GT3, Merc 190, Audi RS6): simplified low-detail copies of the matching model and its rim for the service park (`scripts/car-model/park-lods.mjs`); same model, author, licence and credit as that car's row above.
+
 Bimmer M3 (`cars/bimmer_m3.glb`) model + livery references (the M3 ALMS livery it wears; articles, nothing copied):
 
 - https://www.topgear.com/car-news/motorsport/e46-m3-gtr-would-be-ultimate-track-day-toy

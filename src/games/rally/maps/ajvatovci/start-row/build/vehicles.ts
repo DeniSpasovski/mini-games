@@ -12,13 +12,17 @@ import {
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   Shape,
-  ShapeGeometry,
   SphereGeometry,
-  Vector2,
   type ColorRepresentation,
   type Material,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import {
+  serviceVehicleModel,
+  streetCarIndex,
+  streetCarModel,
+  type StreetCarShape,
+} from '../../../../assets/builders/street-car-models';
 import { ORIGIN } from '../frame';
 import {
   getLayout,
@@ -29,17 +33,13 @@ import {
 import { standHeight, type Build } from './ctx';
 
 /**
- * The parked vehicles of the lots: three cars (a modern hatchback, a small boxy Yugo-style hatch,
- * a 90s sports saloon), two vans (a Caddy-type and a high-roof Transit-type) and three trucks (a
- * cab-over box truck, a tractor unit with a box semi-trailer and the same with a tank semi-trailer). Each is built once from simple side
- * profiles and drawn as instanced meshes, one per part (paint, cab paint, glass,
- * chrome, details), so a hundred vehicles cost a few dozen draw calls. Only what reads from the
- * road is modelled (body, glass, lamps, bumpers, grille, wheels): a car is ~500 triangles, a
- * tractor-trailer ~1500. Models face +x with the origin on the ground under their middle
- * (`centre` shifts the truck models, whose origin is over the rear axle).
+ * The parked vehicles of the lots. Cars, vans and box trucks are the background models
+ * (assets/builders/street-car-models.ts, a few per kind, scaled to the layout's footprint); the tractor units with a
+ * box or tank semi-trailer are built here from simple profiles (~1500 triangles). Drawn as instanced meshes, one per
+ * part (paint, cab paint, glass, chrome, details), so a hundred vehicles cost a few dozen draw calls. Models face +x
+ * with the origin on the ground under their middle (`centre` shifts the truck models, whose origin is over the rear axle).
  */
 
-type Pt = [number, number];
 type Part = 'paint' | 'cab' | 'glass' | 'chrome' | 'detail';
 
 /** Geometry collected per part, with vertex colours (used by `detail`). */
@@ -62,6 +62,15 @@ class Pieces {
     flat.clearGroups();
     const list = this.lists.get(part) ?? [];
     list.push(flat);
+    this.lists.set(part, list);
+  }
+
+  /** A baked model part (street-car-models.ts) keeping its own vertex colours; the paint part is white. */
+  addBaked(part: Part, g: BufferGeometry): void {
+    g.deleteAttribute('uv');
+    g.clearGroups();
+    const list = this.lists.get(part) ?? [];
+    list.push(g);
     this.lists.set(part, list);
   }
 
@@ -89,86 +98,6 @@ class Pieces {
     return list?.length ? mergeGeometries(list) : undefined;
   }
 }
-
-const BEVEL = 0.03;
-
-const extrude = (
-  outline: Pt[],
-  width: number,
-  bevel = BEVEL,
-): BufferGeometry => {
-  const depth = width - bevel * 2;
-  return new ExtrudeGeometry(
-    new Shape(outline.map(([x, y]) => new Vector2(x, y))),
-    {
-      depth,
-      bevelEnabled: true,
-      bevelThickness: bevel,
-      bevelSize: bevel,
-      bevelSegments: 1,
-      curveSegments: 6,
-    },
-  ).translate(0, 0, -depth / 2);
-};
-
-/** A pane lying on the cabin edge a-b (counter-clockwise outline, so outward is (dy, -dx)). */
-const pane = ([a, b]: [Pt, Pt], width: number): BufferGeometry => {
-  const dx = b[0] - a[0];
-  const dy = b[1] - a[1];
-  const length = Math.hypot(dx, dy);
-  const off = BEVEL + 0.01;
-  return new BoxGeometry(length - 0.08, 0.02, width)
-    .rotateZ(Math.atan2(dy, dx))
-    .translate(
-      (a[0] + b[0]) / 2 + (dy / length) * off,
-      (a[1] + b[1]) / 2 - (dx / length) * off,
-      0,
-    );
-};
-
-/**
- * A side window: the rectangle x0..x1 by y0..y1 on a vehicle's side face, cut down wherever the
- * body's roofline (its side `profile`) dips below the top, so the glass never sticks out past it.
- */
-const sideWindow = (
-  profile: Pt[],
-  [x0, x1, y0, y1]: number[],
-  z: number,
-  inset = 0.04,
-): BufferGeometry => {
-  const roof = (x: number) => {
-    let top = -Infinity;
-    profile.forEach(([ax, ay], i) => {
-      const [bx, by] = profile[(i + 1) % profile.length];
-      if (ax !== bx && x >= Math.min(ax, bx) && x <= Math.max(ax, bx))
-        top = Math.max(top, ay + ((by - ay) * (x - ax)) / (bx - ax));
-    });
-    return top;
-  };
-  const xs = [
-    x0,
-    ...profile.map(([x]) => x).filter((x) => x > x0 && x < x1),
-    x1,
-  ].sort((a, b) => a - b);
-  const top = xs.map((x) => Math.max(y0 + 0.02, Math.min(y1, roof(x) - inset)));
-  const shape = new Shape([
-    new Vector2(x0, y0),
-    new Vector2(x1, y0),
-    ...xs.map((x, i) => new Vector2(x, top[i])).reverse(),
-  ]);
-  const geometry = new ShapeGeometry(shape);
-  if (z < 0) {
-    const index = geometry.getIndex()!;
-    for (let i = 0; i < index.count; i += 3) {
-      const b = index.getX(i + 1);
-      index.setX(i + 1, index.getX(i + 2));
-      index.setX(i + 2, b);
-    }
-    const normal = geometry.getAttribute('normal');
-    for (let i = 0; i < normal.count; i++) normal.setZ(i, -1);
-  }
-  return geometry.translate(0, 0, z);
-};
 
 // ----- The materials: paint takes the instance colour -----
 
@@ -207,405 +136,6 @@ const materialFor = (): Record<Part, Material> =>
       roughness: 0.68,
     }),
   });
-
-/**
- * A wheel: a ten-sided tyre and a hub disc on its outer face, axle along z, centred at (x, y, z);
- * `side` (+1 / -1) is the face the hub is on.
- */
-const wheel = (
-  p: Pieces,
-  r: number,
-  width: number,
-  x: number,
-  y: number,
-  z: number,
-  side: number,
-): void => {
-  p.add(
-    'detail',
-    new CylinderGeometry(r, r, width, 10)
-      .rotateX(Math.PI / 2)
-      .translate(x, y, z),
-    '#1a1b1d',
-  );
-  const hub = new CircleGeometry(r * 0.6, 8).translate(0, 0, 0);
-  if (side < 0) hub.rotateY(Math.PI);
-  p.add('chrome', hub.translate(x, y, z + side * (width / 2 + 0.006)));
-};
-
-// ----- Cars -----
-
-type CarSpec = {
-  body: number;
-  cabin: number;
-  lower: Pt[];
-  roof: Pt[];
-  front: [Pt, Pt];
-  rear: [Pt, Pt];
-  windows: number[][];
-  wheel: { r: number; width: number; front: number; rear: number };
-  mirror: number;
-};
-
-const CARS: Record<'car' | 'hatch' | 'sport', CarSpec> = {
-  car: {
-    body: 1.8,
-    cabin: 1.6,
-    lower: [
-      [-2.15, 0.4],
-      [2.15, 0.4],
-      [2.15, 0.62],
-      [1.95, 0.8],
-      [1.05, 0.88],
-      [0.8, 0.95],
-      [-1.9, 0.95],
-      [-2.15, 0.92],
-    ],
-    roof: [
-      [0.85, 0.9],
-      [0.2, 1.4],
-      [-1.1, 1.43],
-      [-1.74, 0.98],
-      [-1.74, 0.9],
-    ],
-    front: [
-      [0.85, 0.9],
-      [0.2, 1.4],
-    ],
-    rear: [
-      [-1.1, 1.43],
-      [-1.74, 0.98],
-    ],
-    windows: [
-      [-1.5, -0.05, 1.0, 1.45],
-      [0.03, 0.55, 1.0, 1.45],
-    ],
-    wheel: { r: 0.32, width: 0.22, front: 1.38, rear: -1.3 },
-    mirror: 0.6,
-  },
-  hatch: {
-    body: 1.56,
-    cabin: 1.4,
-    lower: [
-      [-1.72, 0.36],
-      [1.72, 0.36],
-      [1.72, 0.6],
-      [1.6, 0.74],
-      [0.9, 0.85],
-      [0.66, 0.9],
-      [-1.72, 0.9],
-    ],
-    roof: [
-      [0.7, 0.86],
-      [0.2, 1.36],
-      [-1.5, 1.38],
-      [-1.72, 0.86],
-    ],
-    front: [
-      [0.7, 0.86],
-      [0.2, 1.36],
-    ],
-    rear: [
-      [-1.5, 1.38],
-      [-1.72, 0.9],
-    ],
-    windows: [
-      [-1.45, -0.42, 0.98, 1.4],
-      [-0.3, 0.5, 0.98, 1.4],
-    ],
-    wheel: { r: 0.28, width: 0.17, front: 1.08, rear: -1.04 },
-    mirror: 0.58,
-  },
-  sport: {
-    body: 1.64,
-    cabin: 1.42,
-    lower: [
-      [-2.17, 0.35],
-      [2.17, 0.35],
-      [2.17, 0.72],
-      [2.05, 0.78],
-      [1.2, 0.86],
-      [0.85, 0.93],
-      [-1.5, 0.98],
-      [-2.17, 1.03],
-    ],
-    roof: [
-      [0.85, 0.9],
-      [0.05, 1.36],
-      [-0.85, 1.37],
-      [-1.5, 1.03],
-      [-1.5, 0.9],
-    ],
-    front: [
-      [0.85, 0.9],
-      [0.05, 1.36],
-    ],
-    rear: [
-      [-0.85, 1.37],
-      [-1.5, 1.03],
-    ],
-    windows: [
-      [-1.25, -0.5, 1.04, 1.4],
-      [-0.4, 0.6, 1.0, 1.4],
-    ],
-    wheel: { r: 0.31, width: 0.24, front: 1.3, rear: -1.27 },
-    mirror: 0.6,
-  },
-};
-
-const LAMP = '#eef3f6';
-const RED = '#b3242b';
-const BLACK = '#0e0f11';
-const PLASTIC = '#33373c';
-
-const buildCar = (variant: 'car' | 'hatch' | 'sport'): Pieces => {
-  const s = CARS[variant];
-  const p = new Pieces();
-  const { body, cabin } = s;
-  const fx = Math.max(...s.lower.map(([x]) => x)) + BEVEL;
-  const rx = Math.min(...s.lower.map(([x]) => x)) - BEVEL;
-  const half = body / 2;
-  p.add('paint', extrude(s.lower, body));
-  p.add('paint', extrude(s.roof, cabin));
-  p.add('glass', pane(s.front, cabin - 0.16));
-  p.add('glass', pane(s.rear, cabin - 0.16));
-  for (const z of [-1, 1]) {
-    for (const w of s.windows)
-      p.add('glass', sideWindow(s.roof, w, z * (cabin / 2 + 0.008), 0.07));
-    // Mirror.
-    p.box(
-      'detail',
-      [s.mirror - 0.06, 0.98, z * (half + 0.06) - 0.02],
-      [s.mirror + 0.08, 1.1, z * (half + 0.11) + 0.02],
-      PLASTIC,
-    );
-    // Dark arches over the body side.
-    for (const x of [s.wheel.front, s.wheel.rear]) {
-      const big = s.wheel.r + 0.07;
-      const low = Math.max(0.36 - s.wheel.r, -big + 0.01);
-      const start = Math.asin(low / big);
-      const arch = new Shape().absarc(0, 0, big, start, Math.PI - start, false);
-      const g = new ShapeGeometry(arch, 6).translate(x, s.wheel.r, 0);
-      if (z < 0) g.rotateY(Math.PI);
-      p.add('detail', g.translate(0, 0, z * (half + 0.006)), BLACK);
-    }
-  }
-  for (const x of [s.wheel.front, s.wheel.rear])
-    for (const z of [-1, 1])
-      wheel(
-        p,
-        s.wheel.r,
-        s.wheel.width,
-        x,
-        s.wheel.r,
-        z * (half + 0.03 - s.wheel.width / 2),
-        z,
-      );
-
-  if (variant === 'car') {
-    for (const z of [-1, 1]) {
-      p.box(
-        'detail',
-        [fx - 0.05, 0.66, 0.5 * z],
-        [fx + 0.008, 0.79, 0.86 * z],
-        LAMP,
-      );
-      p.box(
-        'detail',
-        [rx - 0.008, 0.72, 0.55 * z],
-        [rx + 0.05, 0.87, 0.87 * z],
-        RED,
-      );
-    }
-    p.box('detail', [fx - 0.05, 0.5, -0.42], [fx + 0.008, 0.66, 0.42], BLACK); // grille
-    p.box(
-      'detail',
-      [fx - 0.15, 0.3, -half + 0.02],
-      [fx + 0.06, 0.5, half - 0.02],
-      PLASTIC,
-    );
-    p.box(
-      'detail',
-      [rx - 0.06, 0.3, -half + 0.02],
-      [rx + 0.15, 0.52, half - 0.02],
-      PLASTIC,
-    );
-  } else if (variant === 'hatch') {
-    for (const z of [-1, 1]) {
-      p.box(
-        'detail',
-        [fx - 0.04, 0.6, 0.42 * z],
-        [fx + 0.012, 0.7, 0.68 * z],
-        LAMP,
-      );
-      p.box(
-        'detail',
-        [rx - 0.01, 0.66, 0.5 * z],
-        [rx + 0.05, 0.82, 0.74 * z],
-        RED,
-      );
-    }
-    p.box('detail', [fx - 0.05, 0.56, -0.34], [fx + 0.008, 0.72, 0.34], BLACK);
-    p.box(
-      'detail',
-      [fx - 0.12, 0.28, -half - 0.02],
-      [fx + 0.08, 0.52, half + 0.02],
-      BLACK,
-    );
-    p.box(
-      'detail',
-      [rx - 0.08, 0.28, -half - 0.02],
-      [rx + 0.12, 0.52, half + 0.02],
-      BLACK,
-    );
-  } else {
-    for (const z of [-1, 1]) {
-      p.box(
-        'detail',
-        [fx - 0.05, 0.56, 0.45 * z - 0.09],
-        [fx + 0.01, 0.68, 0.45 * z + 0.09],
-        LAMP,
-      );
-      p.box(
-        'detail',
-        [fx - 0.05, 0.56, 0.66 * z - 0.09],
-        [fx + 0.01, 0.68, 0.66 * z + 0.09],
-        LAMP,
-      );
-      p.box(
-        'detail',
-        [rx - 0.008, 0.77, 0.4 * z],
-        [rx + 0.05, 0.92, 0.8 * z],
-        RED,
-      );
-    }
-    p.box('detail', [fx - 0.05, 0.56, -0.24], [fx + 0.008, 0.72, 0.24], BLACK);
-    p.box(
-      'detail',
-      [fx - 0.05, 0.38, -half + 0.1],
-      [fx + 0.008, 0.46, half - 0.1],
-      BLACK,
-    );
-    p.box('paint', [rx + 0.03, 1.03, -0.6], [rx + 0.26, 1.13, 0.6]); // boot spoiler
-    p.box(
-      'detail',
-      [rx - 0.05, 0.3, -half + 0.03],
-      [rx + 0.1, 0.5, half - 0.03],
-      PLASTIC,
-    );
-  }
-  return p;
-};
-
-// ----- Vans -----
-
-type VanSpec = {
-  width: number;
-  profile: Pt[];
-  screen: [Pt, Pt];
-  windows: [number, number, number, number][];
-  wheel: number;
-  axles: [number, number];
-};
-
-const VANS: Record<'small' | 'large', VanSpec> = {
-  small: {
-    width: 1.84,
-    profile: [
-      [-2.3, 0.38],
-      [2.3, 0.38],
-      [2.3, 0.72],
-      [1.75, 0.93],
-      [1.25, 1.02],
-      [0.55, 1.76],
-      [-2.2, 1.83],
-      [-2.3, 1.76],
-    ],
-    screen: [
-      [1.25, 1.02],
-      [0.55, 1.76],
-    ],
-    windows: [[-0.35, 0.72, 1.1, 1.66]],
-    wheel: 0.32,
-    axles: [1.48, -1.42],
-  },
-  large: {
-    width: 2.04,
-    profile: [
-      [-3, 0.42],
-      [3, 0.42],
-      [3, 0.86],
-      [2.5, 1.18],
-      [2.02, 1.3],
-      [1.4, 2.25],
-      [1.12, 2.72],
-      [-2.95, 2.76],
-      [-3, 2.7],
-    ],
-    screen: [
-      [2.02, 1.3],
-      [1.4, 2.25],
-    ],
-    windows: [
-      [0.3, 1.5, 1.35, 2.1],
-      [-2.7, 0.1, 1.45, 2.15],
-    ],
-    wheel: 0.38,
-    axles: [1.98, -1.9],
-  },
-};
-
-const buildVan = (variant: 'small' | 'large'): Pieces => {
-  const s = VANS[variant];
-  const p = new Pieces();
-  const half = s.width / 2;
-  const bevel = 0.05;
-  p.add('paint', extrude(s.profile, s.width, bevel));
-  const front = s.profile[1][0] + bevel;
-  const back = s.profile[0][0] - bevel;
-  const [[x0, y0], [x1, y1]] = s.screen;
-  const run = Math.hypot(x1 - x0, y1 - y0);
-  p.add(
-    'glass',
-    new BoxGeometry(0.03, run * 0.94, s.width - 0.2)
-      .rotateZ(Math.atan2(x0 - x1, y1 - y0))
-      .translate((x0 + x1) / 2 + 0.05, (y0 + y1) / 2, 0),
-  );
-  for (const z of [-half - 0.005, half + 0.005])
-    for (const w of s.windows)
-      p.add('glass', sideWindow(s.profile, w, z + Math.sign(z) * 0.001));
-  for (const z of [-1, 1]) {
-    p.box(
-      'detail',
-      [front - 0.02, 0.72, (half - 0.45) * z],
-      [front + 0.03, 0.9, (half - 0.1) * z],
-      LAMP,
-    );
-    p.box(
-      'detail',
-      [back - 0.03, 0.8, (half - 0.14) * z],
-      [back + 0.02, 1.35, (half - 0.02) * z],
-      RED,
-    );
-  }
-  p.box(
-    'detail',
-    [front - 0.02, 0.55, -0.45],
-    [front + 0.02, 0.8, 0.45],
-    PLASTIC,
-  );
-  p.box(
-    'detail',
-    [front - 0.2, 0.3, -half],
-    [front + 0.08, 0.52, half],
-    PLASTIC,
-  );
-  p.box('detail', [back - 0.08, 0.3, -half], [back + 0.2, 0.5, half], PLASTIC);
-  for (const x of s.axles)
-    for (const z of [-1, 1])
-      wheel(p, s.wheel, 0.26, x, s.wheel, z * (half - 0.1), z);
-  return p;
-};
 
 // ----- Trucks -----
 
@@ -652,13 +182,11 @@ const extrudeShape = (
   return g.translate(0, 0, -(width - bevel * 2) / 2);
 };
 
-const buildTruck = (variant: 'box' | 'tractor' | 'tanker'): Pieces => {
-  const tractor = variant !== 'box';
+const buildTruck = (variant: 'tractor' | 'tanker'): Pieces => {
   const p = new Pieces();
   const dark = '#2d3136';
   const plastic = '#43484e';
   const steel = '#8d9399';
-  const amber = '#f39a1e';
   const red = '#c8242b';
   const box = (
     part: Part,
@@ -684,19 +212,9 @@ const buildTruck = (variant: 'box' | 'tractor' | 'tanker'): Pieces => {
   box('detail', [4.2, 2.02, 1.44], [4.33, 2.78, 1.62], dark, true); // mirror arms
 
   // ----- Chassis -----
-  const rearX = tractor ? -2.5 : -4.45;
-  box('detail', [rearX, 0.62, -1.15], [3.9, 1.12, 1.15], dark);
-  const mudFrom = tractor ? -2.45 : -3.72;
-  const mudTo = tractor ? 0.15 : -1.22;
-  box('detail', [mudFrom, 1.02, 0.78], [mudTo, 1.06, 1.24], '#1e1f21', true);
-  if (tractor) {
-    box('detail', [-1.5, 1.12, -0.75], [0.3, 1.3, 0.75], dark); // fifth wheel
-  } else {
-    box('detail', [-1.25, 0.45, 1.12], [2.1, 0.88, 1.17], steel, true); // side guards
-    box('detail', [-4.53, 0.42, -1.1], [-4.4, 0.6, 1.1], steel); // underrun bar
-    box('detail', [-4.48, 0.68, 0.62], [-4.46, 0.86, 0.9], red, true);
-    box('detail', [-4.48, 0.68, 0.9], [-4.46, 0.86, 1.0], amber, true);
-  }
+  box('detail', [-2.5, 0.62, -1.15], [3.9, 1.12, 1.15], dark);
+  box('detail', [-2.45, 1.02, 0.78], [0.15, 1.06, 1.24], '#1e1f21', true);
+  box('detail', [-1.5, 1.12, -0.75], [0.3, 1.3, 0.75], dark); // fifth wheel
 
   if (variant === 'tanker') {
     // ----- Tank semi-trailer (ref-45): a white cylinder with dished ends on an underframe, landing legs,
@@ -759,7 +277,7 @@ const buildTruck = (variant: 'box' | 'tractor' | 'tanker'): Pieces => {
         undefined,
         true,
       );
-  } else if (tractor) {
+  } else {
     // ----- Semi-trailer: plain box on an underframe, landing legs, rear doors -----
     const front = 0.9;
     const rear = -12.7;
@@ -780,21 +298,13 @@ const buildTruck = (variant: 'box' | 'tractor' | 'tanker'): Pieces => {
     box('detail', [-12.88, 1.06, 0.62], [-12.86, 1.26, 0.9], red, true);
     box('chrome', [rear, 1.35, 1.27], [front, 1.45, 1.33], undefined, true);
     box('chrome', [rear, 4.03, 1.27], [front, 4.13, 1.33], undefined, true);
-  } else {
-    // ----- Box body -----
-    p.add('paint', new BoxGeometry(6.4, 2.98, 2.5).translate(-1.25, 2.61, 0));
-    box('detail', [-4.47, 1.2, 0.0], [-4.45, 4.0, 1.14], '#ececea', true); // rear doors
-    box('chrome', [-4.48, 1.08, 1.17], [1.98, 1.19, 1.27], undefined, true);
-    box('chrome', [-4.48, 4.02, 1.17], [1.98, 4.13, 1.27], undefined, true);
   }
 
   // ----- Wheels: a ten-sided tyre with a steel hub -----
   const axles =
     variant === 'tanker'
       ? [3.2, -0.5, -1.8, -9.4, -10.7, -12.0]
-      : tractor
-        ? [3.2, -0.5, -1.8, -10.4, -11.7]
-        : [3.2, -1.8, -3.1];
+      : [3.2, -0.5, -1.8, -10.4, -11.7];
   for (const x of axles)
     for (const z of [-1.0, 1.0]) {
       p.add(
@@ -819,15 +329,39 @@ interface Model {
   centre: number;
 }
 
-const MODEL: Record<VehicleKind, () => Model> = {
-  car: () => ({ pieces: buildCar('car'), centre: 0 }),
-  hatch: () => ({ pieces: buildCar('hatch'), centre: 0 }),
-  sport: () => ({ pieces: buildCar('sport'), centre: 0 }),
-  van: () => ({ pieces: buildVan('small'), centre: 0 }),
-  bigvan: () => ({ pieces: buildVan('large'), centre: 0 }),
-  box: () => ({ pieces: buildTruck('box'), centre: 0.03 }),
-  trailer: () => ({ pieces: buildTruck('tractor'), centre: -4.13 }),
-  tanker: () => ({ pieces: buildTruck('tanker'), centre: -4.13 }),
+/**
+ * A background model (assets/builders/street-car-models.ts) as a fleet model, scaled to the kind's footprint
+ * (within 10 %, so the rows keep their spacing): the paint triangles take the instance colour, the rest (glass,
+ * wheels, lamps) keeps its baked colours.
+ */
+const baked = (shape: StreetCarShape, kind: VehicleKind): Model => {
+  const scale = Math.min(
+    1.1,
+    Math.max(0.9, VEHICLE_SIZE[kind].length / shape.length),
+  );
+  const { paint, fixed } = shape.parts(scale);
+  const pieces = new Pieces();
+  pieces.addBaked('paint', paint);
+  pieces.addBaked('detail', fixed);
+  return { pieces, centre: 0 };
+};
+const street = (id: string, kind: VehicleKind): Model =>
+  baked(streetCarModel(streetCarIndex(id), 0), kind);
+const service = (id: string, kind: VehicleKind): Model =>
+  baked(serviceVehicleModel(id, 0), kind);
+
+/** The models of a kind: its placements take them in turn (so a row mixes them), each with its own meshes. */
+const MODEL: Record<VehicleKind, () => Model[]> = {
+  car: () => ['sedan', 'wagon', 'suv'].map((id) => street(id, 'car')),
+  hatch: () => ['compact', 'hatch'].map((id) => street(id, 'hatch')),
+  sport: () => ['coupe', 'sport'].map((id) => street(id, 'sport')),
+  van: () => [street('minivan', 'van')],
+  bigvan: () =>
+    ['van_high', 'minibus', 'van_low'].map((id) => service(id, 'bigvan')),
+  box: () =>
+    ['box_truck', 'box_truck', 'flatbed'].map((id) => service(id, 'box')),
+  trailer: () => [{ pieces: buildTruck('tractor'), centre: -4.13 }],
+  tanker: () => [{ pieces: buildTruck('tanker'), centre: -4.13 }],
 };
 
 /** Vehicles nearer than this (m) to the camera draw in full; farther ones as a two-box stand-in. */
@@ -855,10 +389,18 @@ export function buildFleet(b: Build): Group {
     parts: [Part, InstancedMesh][];
     proxy: InstancedMesh;
   }[] = [];
-  for (const kind of Object.keys(MODEL) as VehicleKind[]) {
-    const placements: Placement[] = layout.vehicles[kind];
+  const groups = (Object.keys(MODEL) as VehicleKind[]).flatMap((kind) => {
+    const all: Placement[] = layout.vehicles[kind];
+    if (!all.length) return [];
+    const models = MODEL[kind]();
+    return models.map((model, m) => ({
+      kind,
+      model,
+      placements: all.filter((_, i) => i % models.length === m),
+    }));
+  });
+  for (const { kind, model, placements } of groups) {
     if (!placements.length) continue;
-    const model = MODEL[kind]();
     const { length, width } = VEHICLE_SIZE[kind];
     const matrices = placements.map(({ x, z, heading }) => {
       // Stand on the yard surface (or the ground) under the four corners, not level at the middle: a long truck

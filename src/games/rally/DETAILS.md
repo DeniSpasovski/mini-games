@@ -170,6 +170,27 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
   spectators (some waving their map's own hand flag - `MapDef.country` - or a plain colour flag, never another country's) + visitors, a marshal, 2-3 photographers, flags; marshals at every side-road mouth, 10 photographers each at start and finish
   (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`). People animate (`world/people-anim.ts`, run by `RallyGame.frame`): within 45 m they turn to watch the car, photographers (75 m) keep it centred, via `InstanceStreamer.setMatrix`; hand flags wave in the `people_flag` shader (`engine/materials.ts`, own mesh from `markFlag` in people.ts).
+- **Service park** (stage `servicePark`, Ajvatovci only so far): team bays on levelled gravel lots - trucks / vans, team cars on
+  ground sheets, tents, props, 4-6 crew and guests each, tape + crowd (seated or flag-waving fans, photographers, every visitor persona), start control (`world/service-park.ts`,
+  `World.servicePark`; assets `assets/builders/service.ts` + `teams.ts`; test `service-park`). The team trucks, vans, pickups and the
+  catering van are the background models (`assets/builders/street-car-models.ts`, vans / trucks of pack 7 baked by
+  `bake-street-cars.mjs --vans`) in the team paint plus side stripes. A lot is a `ServiceLot` rectangle:
+  the map levels it with a `terrain.pads` entry (`servicePad` in `maps/shared/service-lot.ts`, or a fixed `level` for a flat
+  field), the stage lists the lots and the bay `gap` (`maps/ajvatovci/service-park.ts`: the start lot + a field north-west of it beside
+  the farm road). `ServiceLot.semis` lines tractor-trailer team trucks (`service_semi`, in the nearest bay's team colours) up along a
+  lot's back edge, behind the bays.
+  A `ferme` park (parc fermé) is only a row of 4-6 team cars, noses to the tape, on a small lay-by beside the road behind the
+  start (`ServiceLot.bays` cars per lot): Test map (4, left of the run-up), Galichica West (6, Ohrid side), East and
+  Prespa-Ohrid (5, Prespa side). On a street (The Jackie: 5 + 5 abeam the start, on the street east of the stage road and the
+  opposite carriageway's inner lane west of it) the lot lies over the road (`paved`: other roads do not block, no pad) and
+  `parallel` parks the cars nose to tail along the kerb, side-on to the start. `maps/<id>/service-park.ts`, test `parc-ferme`.
+- **Park cars**: `team_car` only places the car and gives it its collider. The car is a real released model at low quality:
+  `world/park-car-mesh.ts` (`ParkCars`, owned by `InstanceStreamer`, `streamer.ready`) draws `parkCarId(team)` (`world/park-cars.ts`)
+  from `public/models/cars/<id>_park.glb` (`scripts/car-model/park-lods.mjs`: three body LODs of about 7.5k / 2.3k / 1.1k
+  triangles = livery shell + vertex-coloured parts, and three rims). It wears the team's colours through the car's own livery
+  painter (~85 px/m, one texture per car and team), wheels are built at runtime and merged into the parts, so a car is two draw
+  calls. A raised car stands on axle stands with the rear wheels off (a `tyre_stack` lies beside it). Tests `park-cars`,
+  `car-glb-meshopt`.
 - **People** (`assets/builders/people.ts`): jointed low-poly figures posed by joint angles + outfit colours, smooth lofted bodies close up (LOD 0), painted unwrapped garment atlas + normal map (`engine/people-atlas.ts`, `people` material; zips, pockets, seams, face) - `spectator` (24 standing + 18 sitting / squatting at corner fans),
   `mechanic`, `crew`, `driver`, `marshal` (flag, sign, radio), `photographer`, `visitor` (12 personas: ages, sizes, dresses, kids); test `people`.
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)
@@ -231,7 +252,10 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   15 simplified models of three CC BY packs (`street-car-models.ts`, data in `street-cars.data.ts`, baked by
   `scripts/car-model/street-pack-extract.py` + `bake-street-cars.mjs`): ~900 / ~450 triangles, one draw call per LOD, the body
   paint recoloured per car (variants 0-14 = model, `STREET_CAR_MIX` weights what streets pick; 15 = the white hatch a map places).
-  Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` holds the triangle budget.
+  Pack 7's 5 vans / trucks (`service-vehicles.data.ts`, `bake-street-cars.mjs --vans`, `serviceVehicleModel`) dress the service park
+  and, with the cars, the Ajvatovci start-row lots (`maps/ajvatovci/start-row/build/vehicles.ts`: a few models per kind, scaled
+  to the layout footprint; only the tractor-trailers are built there). `StreetCarShape.parts()` splits a model into paint + rest.
+  Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` and `service-vehicles.test.ts` hold the triangle budgets.
 - Car GLBs are committed plain (the model scripts and `hull-fit.test.ts` read them); the build copies them meshopt-compressed
   (`scripts/car-model/glb-meshopt.mjs`, about half the size, same meshes; `car-glb-meshopt.test.ts` checks every file).
 - **Door plates** (`cars/shared/rally-badge.ts`): our own event plate (emblem, car number, map name) projected onto both front

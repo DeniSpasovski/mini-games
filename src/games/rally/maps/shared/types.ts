@@ -227,8 +227,12 @@ export interface PadDef {
   blend: number;
   /** Frontage points next to the stage road, flat [x0, z0, x1, z1, ...] (at least two, west to east). */
   frontage: number[];
+  /** Fixed level (m, before `lift`) for a lot with no stage road beside it: `frontage` is then ignored. */
+  level?: number;
   /** Metres above the road's centre line at the frontage (sidewalk height), default 0.1. */
   lift?: number;
+  /** Surface inside the outline (physics + ground texture), default the land's own. */
+  surface?: SurfaceId;
   /**
    * A sloped pad (a ramp between two levelled terraces): instead of `lift` the level is the road's height at the frontage plus
    * `lift[0]` at `from`, `lift[1]` at `to` (world x, z), eased between them along that line and held beyond its ends.
@@ -665,8 +669,59 @@ export interface StageDef {
   cornerFans?: CornerFansRule;
   /** Event props (closure rows, hay bales, tape) along the stage road. */
   props?: PropPlacement[];
+  /** Service park beside the start: team bays, crowd, start control (world/service-park.ts). */
+  servicePark?: ServicePark;
   /** Links only this stage uses (its route): listed with the map's sources on the About screen. */
   sources?: SourceLink[];
+}
+
+/**
+ * A level lot for a service park, in world metres. `u` runs along `heading` (rad, x towards z), `v` across it; the
+ * lot's origin is its west corner on the public edge (v = 0, where the tape and the crowd are). The map levels the
+ * same rectangle with a `terrain.pads` entry (`servicePad`, maps/shared/service-lot.ts).
+ */
+export interface ServiceLot {
+  /** Centre. */
+  x: number;
+  z: number;
+  heading: number;
+  length: number;
+  width: number;
+  /** Parc fermé lots (`ServicePark.ferme`): at most this many cars here (default: as many as fit). */
+  bays?: number;
+  /** A parc fermé on a street: its pieces may stand on the road surface of other roads (buildings and water still block). */
+  paved?: boolean;
+  /**
+   * A parc fermé parked along the street (nose to tail on the side of the public edge, no ground sheets) instead of
+   * nose-in. Set the lot over the street: `width` = its carriageway, public edge on the kerb facing the stage.
+   */
+  parallel?: boolean;
+  /**
+   * Tractor-trailer team trucks (`service_semi`) lined up along the lot's back edge, behind the bays, each in the colours
+   * of the nearest bay's team. The lot needs about 6 m behind the bay depth (11 m) and 18 m of length per truck.
+   */
+  semis?: number;
+}
+
+/** A rally service park (paddock) at a stage start: team bays on the lots, a crowd on the public edge. */
+export interface ServicePark {
+  /** Lots, filled in order until `bays` bays fit. */
+  lots: ServiceLot[];
+  /** Team bays wanted (>= 10, a parc fermé: the cars); each holds a team car, its truck or van, tents, props and 6-12 people. */
+  bays: number;
+  /**
+   * A parc fermé instead of a paddock: just the cars, parked side by side with their noses to the public edge on
+   * ground sheets, a few people and the tape. Small lots beside the road (`ServiceLot.bays` cars each).
+   */
+  ferme?: boolean;
+  /** Space between neighbouring bays of a row (m, default 5; a parc fermé 0.6). */
+  gap?: number;
+  /** Spectators along 84 m of public edge (default 30); visitors in the aisles scale with the lot length. */
+  crowd?: number;
+  /** Timekeeper tent, control boards, marshals and a rescue ambulance beside the start line. */
+  startControl?: boolean;
+  /** Default: hash of the stage id. */
+  seed?: number;
 }
 
 export interface ScatterRule {
