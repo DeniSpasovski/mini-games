@@ -51,6 +51,8 @@ export interface CrowdLayout {
   tiers?: number;
   /** Offset of row `t` from the floor. Default: the middle of terrace `t` of the bowl. */
   rowD?(t: number): number;
+  /** Share of the seats that are taken, on top of each row's own fill. Default: 1. */
+  fill?: number;
   /** Is there a seat at fractional ring-point index `i`? Default: everywhere. */
   seat?(i: number, n: number, hx: number, hz: number): boolean;
 }

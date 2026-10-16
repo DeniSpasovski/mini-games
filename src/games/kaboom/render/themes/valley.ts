@@ -795,11 +795,12 @@ export const VALLEY_THEME: LevelTheme = {
   decor,
   platformExtras: (ctx) => [tufts(ctx)],
   scenery,
-  // the crowd stands on the flat meadow: three loose rows right behind the hedge
+  // the crowd stands on the flat meadow: three loose rows right behind the hedge, a thin crowd
   crowd: {
     ring: ringPoints,
     height: () => GROUND_Y,
     tiers: 3,
     rowD: (t) => 0.8 + 1.3 * t,
+    fill: 0.62,
   },
 };

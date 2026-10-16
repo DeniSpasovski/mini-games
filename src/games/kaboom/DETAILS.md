@@ -93,7 +93,7 @@ only with more than one level, and `sanitizeSettings`). Pick it in the setup men
 
 - **What a theme holds**: sky, light, `fx` tint (dust / splinter / scorch colours as uniforms of the shared particle shaders), warning colour,
   `fall`, tile / hard-block / crate / floor / decor geometry, `scenery` (static things: bowl, water, boats, trees; `update`, `ripple`,
-  `dispose`), `crowd` (`CrowdLayout`: ring, height, optional `tiers` / `rowD` / `seat` mask) and an optional `motion` (the platform's bob).
+  `dispose`), `crowd` (`CrowdLayout`: ring, height, optional `tiers` / `rowD` / `fill` / `seat` mask) and an optional `motion` (the platform's bob).
   `Arena.group` is the platform, `Arena.scenery` stays put. Geometry is built once per page (`themes/cache.ts`), never per instance or round.
 - **Sea Deck sudden death** reuses `blockFell`: `Arena.sinkTile` shakes the tile `SINK_DELAY_S` = 0.2 s, drops and tilts it, scales it
   away under the water; the splash (`Fx.splash`, `Sea.ripple`) comes `TILE_SPLASH_S` = 0.6 s after the event. A crate on the cell

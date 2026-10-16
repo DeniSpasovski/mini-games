@@ -166,7 +166,7 @@ export class Crowd {
         const len = Math.hypot(bx - ax, bz - az);
         let s = carry;
         for (; s < len; s += spacing) {
-          if (rng.next() > fill[t]) continue;
+          if (rng.next() > fill[t] * (layout.fill ?? 1)) continue;
           if (layout.seat && !layout.seat(i + s / len, n, hx, hz)) continue;
           const k = s / len;
           let x = ax + (bx - ax) * k;
