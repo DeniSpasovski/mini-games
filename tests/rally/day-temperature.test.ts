@@ -25,9 +25,7 @@ describe('air and road temperature through the day', () => {
   });
 
   test('no time of day, no change', () => {
-    const env = STAGES.find(
-      (s) => s.environment.timeOfDay === undefined,
-    )!.environment;
+    const env = { ...timed[0].environment, timeOfDay: undefined };
     expect(airAtHour(env, 3)).toBe(env.airTemp ?? 20);
     expect(airAtHour(timed[0].environment, undefined)).toBe(
       timed[0].environment.airTemp ?? 20,
