@@ -73,7 +73,7 @@ into `DETAILS.md`, never up.
 - Rally maps: `maps/<id>/` = `info.ts` (menus, credits), `map.ts` (the world), `stages.ts` (its stages), baked data, README; local-only DETAILS (every source) +
   `TODO.md`; `maps/shared/` = format + helpers
 - Rally cars: `cars/<car>/` = `<car>.ts`, README, local-only DETAILS (build notes + sources); `cars/shared/` = code for every car
-- 3, 2, 1 Kabooom (`src/games/kaboom/`, unlisted via `hideInProd` in `src/portal/release.ts` until released): `DETAILS.md` (rules, bots, architecture, performance, contract in `sim/types.ts`), `TASKS.md` (open work, local)
+- 3, 2, 1 Kabooom (`src/games/kaboom/`): `DETAILS.md` (rules, bots, architecture, performance, contract in `sim/types.ts`), `TASKS.md` (open work, local)
 - Hole Island: `src/games/hole/DETAILS.md` (rules, levels, tiers, catalog, generator, debug, architecture), `TASKS.md`,
   `TOY-STORE.md`, `ANIMAL-ISLAND.md`, `CONSTRUCTION-SITE.md` (map design, roster, open tasks)
 - `sources/cars/<car>/`, `sources/maps/<map>/` - files the user shared, git-ignored, never served. Models / data / licence files

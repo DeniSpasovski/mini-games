@@ -10,9 +10,11 @@ import {
   OneMinusSrcAlphaFactor,
   PlaneGeometry,
   ShaderMaterial,
+  Vector3,
   type IUniform,
 } from 'three';
 import { PUFF_GLSL, puffAtlas } from './puff-atlas';
+import type { FxTint } from '../themes/theme';
 
 /**
  * Particle kinds. Sprites face the camera (fire, dust, smoke, flash), sparks are streaks stretched along their motion,
@@ -30,6 +32,58 @@ export type ParticleKind =
 
 /** Shared clock for every FX shader: one uniform written once per frame. */
 export type TimeUniform = IUniform<number>;
+
+/** The level's non-fire colours (dust, splinters, scorch): one uniform bundle shared by every pool (`Fx.setTint`). */
+export interface ParticleTint {
+  uDustDark: IUniform<Vector3>;
+  uDustLight: IUniform<Vector3>;
+  uWood0: IUniform<Vector3>;
+  uWood1: IUniform<Vector3>;
+  uWood2: IUniform<Vector3>;
+  uScorch: IUniform<Vector3>;
+}
+
+export function makeTint(): ParticleTint {
+  const v = () => ({ value: new Vector3() });
+  return {
+    uDustDark: v(),
+    uDustLight: v(),
+    uWood0: v(),
+    uWood1: v(),
+    uWood2: v(),
+    uScorch: v(),
+  };
+}
+
+export function applyTint(t: ParticleTint, c: FxTint): void {
+  t.uDustDark.value.set(...c.dustDark);
+  t.uDustLight.value.set(...c.dustLight);
+  t.uWood0.value.set(...c.wood[0]);
+  t.uWood1.value.set(...c.wood[1]);
+  t.uWood2.value.set(...c.wood[2]);
+  t.uScorch.value.set(...c.scorch);
+}
+
+/** Quarry's dust, splinters and scorch: the look every other level starts from. */
+export const QUARRY_FX: FxTint = {
+  dustDark: [0.66, 0.58, 0.47],
+  dustLight: [0.98, 0.93, 0.82],
+  wood: [
+    [0.82, 0.56, 0.28],
+    [0.62, 0.4, 0.19],
+    [0.9, 0.7, 0.4],
+  ],
+  scorch: [0.07, 0.05, 0.04],
+};
+
+const TINT_GLSL = /* glsl */ `
+  uniform vec3 uDustDark;
+  uniform vec3 uDustLight;
+  uniform vec3 uWood0;
+  uniform vec3 uWood1;
+  uniform vec3 uWood2;
+  uniform vec3 uScorch;
+`;
 
 const KIND_ID: Record<ParticleKind, number> = {
   fire: 0,
@@ -56,6 +110,7 @@ const ORDER: Record<ParticleKind, number> = {
 
 const VERT = /* glsl */ `
   uniform float uTime;
+  ${TINT_GLSL}
   attribute vec4 aSpawn; // xyz = spawn position, w = spawn time
   attribute vec4 aVel;   // xyz = velocity, w = life (s)
   attribute vec4 aMisc;  // x = size, y = spin (rad/s), z = seed, w = gravity (negative = rises)
@@ -117,7 +172,7 @@ const VERT = /* glsl */ `
       vec3 local = rotateAround(position * size, axis, a);
       vec3 n = rotateAround(normal, axis, a);
       float t = fract(seed * 3.7);
-      vec3 wood = t < 0.34 ? vec3(0.82, 0.56, 0.28) : (t < 0.67 ? vec3(0.62, 0.4, 0.19) : vec3(0.9, 0.7, 0.4));
+      vec3 wood = t < 0.34 ? uWood0 : (t < 0.67 ? uWood1 : uWood2);
       vColor = wood * (0.55 + 0.6 * max(dot(n, normalize(vec3(-0.4, 0.85, 0.35))), 0.0));
       p.y = max(p.y, 0.02 + size * 0.3);
       gl_Position = projectionMatrix * viewMatrix * vec4(p + local, 1.0);
@@ -155,6 +210,7 @@ const VERT = /* glsl */ `
 `;
 
 const FRAG = /* glsl */ `
+  ${TINT_GLSL}
   varying vec2 vUv;
   varying float vK;
   varying float vSeed;
@@ -177,8 +233,8 @@ const FRAG = /* glsl */ `
     #elif KIND == 1 || KIND == 4
       vec2 pf = puffAt(vUv, 0.08 + k * 0.4);
       #if KIND == 1
-        vec3 dark = vec3(0.66, 0.58, 0.47);
-        vec3 light = vec3(0.98, 0.93, 0.82);
+        vec3 dark = uDustDark;
+        vec3 light = uDustLight;
         float strength = 0.75;
       #else
         vec3 dark = vec3(0.24, 0.22, 0.21);
@@ -212,7 +268,7 @@ const FRAG = /* glsl */ `
       float fine = texture2D(uPuff, vUv * 0.25 + vec2(0.5, 0.5)).b;
       float a = (1.0 - smoothstep(0.3, 0.95, r + (fine - 0.5) * 0.5)) * 0.78;
       a *= smoothstep(0.0, 0.05, k) * (1.0 - smoothstep(0.55, 1.0, k));
-      gl_FragColor = vec4(vec3(0.07, 0.05, 0.04) * a, a);
+      gl_FragColor = vec4(uScorch * a, a);
     #endif
   }
 `;
@@ -246,6 +302,7 @@ export class ParticleSystem {
     readonly kind: ParticleKind,
     readonly capacity: number,
     time: TimeUniform,
+    tint: Partial<ParticleTint> = {},
   ) {
     const geo = geometryFor(kind);
     this.spawn = new InstancedBufferAttribute(
@@ -261,7 +318,12 @@ export class ParticleSystem {
     geo.setAttribute('aMisc', this.misc);
     const soft = kind !== 'splinter';
     this.material = new ShaderMaterial({
-      uniforms: { uTime: time, uPuff: { value: puffAtlas() } },
+      uniforms: {
+        uTime: time,
+        uPuff: { value: puffAtlas() },
+        ...makeTint(),
+        ...tint,
+      },
       vertexShader: VERT,
       fragmentShader: FRAG,
       defines: { KIND: KIND_ID[kind] },

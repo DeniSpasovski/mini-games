@@ -7,6 +7,8 @@ import {
   type RoundCount,
 } from '../sim/types';
 import { TEAM_COUNT } from '../sim/rules';
+import { offeredLevels } from '../release';
+import { DEFAULT_LEVEL, type LevelId } from './levels';
 import type { KV } from './storage';
 
 export const DIFFICULTIES: readonly Difficulty[] = ['easy', 'normal', 'hard'];
@@ -24,6 +26,8 @@ export interface KaboomSettings {
   bots: number;
   difficulty: Difficulty;
   size: MapSizeId;
+  /** The look of the arena (`game/levels.ts`); only levels this build offers are kept. */
+  level: LevelId;
   rounds: RoundCount;
   volume: number;
   quality: QualitySetting;
@@ -37,6 +41,7 @@ export const DEFAULT_SETTINGS: KaboomSettings = {
   bots: 3,
   difficulty: 'normal',
   size: 'm',
+  level: DEFAULT_LEVEL,
   rounds: 3,
   volume: 0.7,
   quality: 'auto',
@@ -81,6 +86,7 @@ export function sanitizeSettings(raw: unknown): KaboomSettings {
     ),
     difficulty: oneOf(o.difficulty, DIFFICULTIES, d.difficulty),
     size,
+    level: oneOf(o.level, offeredLevels(), d.level),
     rounds: oneOf(o.rounds, ROUND_COUNTS, d.rounds),
     volume:
       typeof o.volume === 'number' && Number.isFinite(o.volume)

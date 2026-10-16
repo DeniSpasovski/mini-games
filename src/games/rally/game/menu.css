@@ -223,6 +223,11 @@
 .menu-route .finish {
   fill: #ff4a3a;
 }
+.menu-card-body {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+}
 .menu-card-title {
   font-size: 17px;
   font-weight: 600;
@@ -231,7 +236,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 8px;
+  margin-top: auto;
+  padding-top: 8px;
 }
 .menu-tags span {
   font-size: 11px;

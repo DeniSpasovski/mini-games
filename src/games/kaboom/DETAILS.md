@@ -2,8 +2,7 @@
 
 > **Status:** playable end to end (menus, bots, HUD, touch / keyboard / gamepad, audio, sudden death); polish and a real-device
 > pass remain (`TASKS.md`, local).
-> **Unlisted on the portal** (`hideInProd` in `GAME_LIST`, `src/portal/release.ts`): the release build still builds it, so `games/kaboom/` plays
-> for anyone with the link; the portal card shows on the dev server and in `npm run build:test` only. Remove the flag to release.
+> **Released** (listed in `GAME_LIST`, `src/portal/release.ts`).
 
 An arena game in a tilted 3D view: you and up to 7 bots walk a grid, place TNT, blow up crates and each other. The last
 one standing wins the round. three.js, procedural art only (no model / texture / sound files).
@@ -19,7 +18,7 @@ one standing wins the round. three.js, procedural art only (no model / texture /
 
 ## Style
 
-**Look: "clay diorama".** Each arena sits on the floor of a rocky bowl, a gladiator arena: a low wall, four sandstone
+**Look: "clay diorama".** In the Quarry each arena sits on the floor of a rocky bowl, a gladiator arena (the other levels: "Levels"): a low wall, four sandstone
 terraces for the crowd, then a cliff up to a flat rim with boulders (`render/bowl.ts`: rings are the floor grown by an
 offset, bent by slow noise and carved by finer noise (crumbling step edges, lumpy treads, a rough cliff) so it reads as 3D rock, one tile of sand margin round the battle zone). Rounded blocks, matte grain over Lambert shading, warm key light + cool
 fill, one soft static sun shadow. Deliberately different from Hole Island's sharp blocky toys.
@@ -76,8 +75,33 @@ A comic **KABOOOM!** / **BOOM!** / **KA-POW!** word pops over blasts (throttled)
 **Readability**: slate-blue pillars, grey-brown boulders, warm wood crates and brown dirt mounds are four distinct
 families; critters are drawn 14 % bigger than their hitbox; a bobbing arrow in the team colour marks the human.
 
-**Map 1: Quarry.** Sandstone tiles; hard blocks = granite boulders / timber-propped pillars; breakables = wooden crates and
-dirt mounds; decor on the slab margin: mine-cart rails with a cart, barrels, rocks, lantern posts.
+## Levels
+
+A level is a **render theme** (`render/themes/<id>.ts`, the `LevelTheme` type in `theme.ts`). The sim, the map generator, the
+bots, the safety checks and `MapData` never see it: layouts, crate ratio and rules are identical, only the look, the sounds and
+how a sudden-death cell falls differ. `game/levels.ts` = ids, labels, the banner line; `release.ts` = `LEVELS_LIST`
+(all three are released; `offeredLevels()` feeds the setup menu, whose Level row shows
+only with more than one level, and `sanitizeSettings`). Pick it in the setup menu (`settings.level`) or with `?level=quarry|valley|sea`
+(skips the menu like `size`); the map viewer and the bench take it too.
+
+| Level        | Floor and blocks                                                                                              | Surroundings                                                                                                                        | Sudden death                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| Quarry       | sandstone tiles; granite boulders / timber-propped pillars; wooden crates, dirt mounds; rails, barrels        | rocky bowl, sandstone terraces, rim rocks                                                                                           | a wall lands                    |
+| Green Valley | mown-grass tiles, tufts, dirt patches; mossy boulders / cairns; wooden crates, hay bales; stream, fence, cart | a low hedge, flat meadow ground all round (the crowd stands in three rows on it, no terraces), trees in the background, its own sky | a boulder lands                 |
+| Sea Deck     | plank tiles on a raft; iron bollards / capstans; cargo barrels, wooden crates; ropes, lanterns, lifebuoys     | open sea (`render/sea.ts` shader plane), the crowd on moored boats (`render/boats.ts`), a bobbing raft                              | the tile sinks (`fall: 'tile'`) |
+
+- **What a theme holds**: sky, light, `fx` tint (dust / splinter / scorch colours as uniforms of the shared particle shaders), warning colour,
+  `fall`, tile / hard-block / crate / floor / decor geometry, `scenery` (static things: bowl, water, boats, trees; `update`, `ripple`,
+  `dispose`), `crowd` (`CrowdLayout`: ring, height, optional `tiers` / `rowD` / `fill` / `seat` mask) and an optional `motion` (the platform's bob).
+  `Arena.group` is the platform, `Arena.scenery` stays put. Geometry is built once per page (`themes/cache.ts`), never per instance or round.
+- **Sea Deck sudden death** reuses `blockFell`: `Arena.sinkTile` shakes the tile `SINK_DELAY_S` = 0.2 s, drops and tilts it, scales it
+  away under the water; the splash (`Fx.splash`, `Sea.ripple`) comes `TILE_SPLASH_S` = 0.6 s after the event. A crate on the cell
+  rides down; a critter KO'd on a sunk cell (`Arena.isSunk`) gets a splash, not dust and stars. The sim already treats the cell as hard.
+- **Sounds** (`game/audio.ts`): `Sfx.level` picks the ambience (birds in the valley, a gull and water on the sea) and the fall sound
+  (`splash` on the sea). The sudden-death banner's second line is `LEVELS[id].closing`.
+- **Budgets hold per level**: draw calls <= 60 in the 40-TNT chain, the arena a handful (`tests/kaboom/levels.test.ts` checks every theme).
+  Low quality: a coarser water plane, no glitter / glint, no bob, fewer trees and one row less of spectators.
+- **New level**: add the id to `LEVEL_IDS` / `LEVELS`, a `LEVELS_LIST` entry (`hideInProd` first, remove it to ship), a theme file and its line in `themes/index.ts`.
 
 ## Rules (`sim/rules.ts` holds every number)
 
@@ -192,6 +216,7 @@ What usually kills FPS in these games, and our rule for each:
 frames; scenes `chain40`, `grid-all`, `8bots` = two minutes of eight hard bots) and by `tests/kaboom/` (sim tick time, draw-call
 count in a 40-TNT chain, pools never overflow). Quality `low | high`: low has no shadow map and a lower pixel ratio (Auto picks
 Low on small touch screens; low also halves the fur shells). Triangle counts per part: `__kaboomBench.triangles()`.
+Headless Chromium (SwiftShader) queues frames and stalls once the queue fills, so its ms are meaningless: there read only `callsMax` / `trisMax`.
 
 ## Architecture
 
@@ -199,13 +224,14 @@ Same split as Hole Island: DOM-free `sim/` + `map/` (tested in node), three.js `
 
 ```
 src/games/kaboom/
-  game.json  README.md  DETAILS.md  TASKS.md (local)  thumbnail.jpg  screenshots/
+  game.json  release.ts (the levels' release list)  README.md  DETAILS.md  TASKS.md (local)  thumbnail.jpg  screenshots/
   sim/     types.ts rules.ts grid.ts (the contract)  state.ts movement.ts blast.ts sim.ts danger.ts bot.ts powerups.ts
   map/     sizes.ts blank.ts generate.ts spawns.ts safety.ts styles.ts
   render/  renderer.ts camera-rig.ts materials.ts parts.ts arena.ts critters.ts fur.ts crew-parts.ts characters.ts tnt.ts
-           bowl.ts crowd.ts shadows.ts portraits.ts critter-preview.ts items.ts world-view.ts
+           bowl.ts crowd.ts shadows.ts portraits.ts critter-preview.ts items.ts world-view.ts sea.ts boats.ts
+           themes/ theme.ts index.ts cache.ts quarry.ts valley.ts sea.ts
            fx/ glow-grid.ts puff-atlas.ts particles.ts flames.ts word-burst.ts shake.ts fx.ts
-  game/    kaboom-game.ts menu.ts hud.ts icons.ts input.ts input-map.ts audio.ts settings.ts storage.ts dom.ts ios.ts
+  game/    kaboom-game.ts levels.ts menu.ts hud.ts icons.ts input.ts input-map.ts audio.ts settings.ts storage.ts dom.ts ios.ts
            kaboom.css
   debug/   viewer-shell.ts
   pages/   play.ts map-viewer.ts crew-viewer.ts bench.ts
@@ -238,12 +264,12 @@ src/games/kaboom/
 
 ## Pages
 
-| Page        | URL                                                                  | Notes                                                                                                                                                                            |
-| ----------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Play        | `/games/kaboom/`                                                     | menus; URL params above                                                                                                                                                          |
-| Map viewer  | `/games/kaboom/map-viewer.html?size=m&seed=1&overlay=escape&spawn=2` | regenerate; overlays: spawn zones, escape (TNT on a spawn), danger map, power-ups (the crates hiding them); safety result                                                        |
-| Crew viewer | `/games/kaboom/crew-viewer.html?critter=mole&anim=walk&blast=1`      | one critter or all eight; idle / walk / place / ko / cheer; TNT (`view=tnt` = close-up); both power-ups; a looping blast of any level (`blastLevel=5`; `blastAt=0.2` freezes it) |
-| Bench       | `/games/kaboom/bench.html?scene=chain40`                             | `chain40`, `grid-all`, `8bots`; live or `__kaboomBench.run`; link hidden in the release build (`hideInProd`)                                                                     |
+| Page        | URL                                                                            | Notes                                                                                                                                                                            |
+| ----------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Play        | `/games/kaboom/`                                                               | menus; URL params above                                                                                                                                                          |
+| Map viewer  | `/games/kaboom/map-viewer.html?size=m&level=sea&seed=1&overlay=escape&spawn=2` | regenerate; overlays: spawn zones, escape (TNT on a spawn), danger map, power-ups (the crates hiding them); safety result                                                        |
+| Crew viewer | `/games/kaboom/crew-viewer.html?critter=mole&anim=walk&blast=1`                | one critter or all eight; idle / walk / place / ko / cheer; TNT (`view=tnt` = close-up); both power-ups; a looping blast of any level (`blastLevel=5`; `blastAt=0.2` freezes it) |
+| Bench       | `/games/kaboom/bench.html?scene=chain40&level=sea`                             | `chain40`, `grid-all`, `8bots`; live or `__kaboomBench.run`; link hidden in the release build (`hideInProd`)                                                                     |
 
 Debug hooks (the browser pane throttles frames, so these step the scene): `__kaboom.advance(s)` / `.benchmark()` /
 `.screenshot(name)` (play; the last saves `screenshots/<name>.jpg` through the dev server), `__crew.advance(s)` (crew viewer),

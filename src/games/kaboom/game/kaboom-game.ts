@@ -33,6 +33,8 @@ import { title } from './dom';
 import { Hud } from './hud';
 import { Controls } from './input';
 import { Menu, type MatchSetup, type MatchSummary } from './menu';
+import { offeredLevels } from '../release';
+import { LEVELS, isLevelId } from './levels';
 import {
   DIFFICULTIES,
   ROUND_COUNTS,
@@ -190,8 +192,8 @@ export class KaboomGame {
     this.startAttract();
     // dev deep link: ?play=1 (or any of size / bots / difficulty / rounds / critter) skips the menu
     if (
-      ['play', 'size', 'bots', 'difficulty', 'rounds', 'critter'].some((k) =>
-        this.params.has(k),
+      ['play', 'size', 'level', 'bots', 'difficulty', 'rounds', 'critter'].some(
+        (k) => this.params.has(k),
       )
     )
       void this.startMatch(this.setupFromUrl());
@@ -209,6 +211,7 @@ export class KaboomGame {
       bots: s.bots,
       difficulty: s.difficulty,
       size: s.size,
+      level: s.level,
       rounds: s.rounds,
     };
   }
@@ -221,9 +224,14 @@ export class KaboomGame {
     const diff = p.get('difficulty') ?? '';
     const rounds = Number(p.get('rounds'));
     const critter = p.get('critter') ?? '';
+    const level = p.get('level');
     const sz: MapSizeId = isMapSizeId(size) ? size : base.size;
     return {
       size: sz,
+      level:
+        isLevelId(level) && offeredLevels().includes(level)
+          ? level
+          : base.level,
       bots: clampBots(sz, p.has('bots') ? Number(p.get('bots')) : base.bots),
       difficulty: DIFFICULTIES.includes(diff as Difficulty)
         ? (diff as Difficulty)
@@ -289,6 +297,7 @@ export class KaboomGame {
     this.view = new WorldView(sim, this.quality, {
       rig: this.rig,
       follow: false,
+      level: this.settings.level,
     });
     this.view.followId = -1;
     // benched before the first frame: the crew starts without them (no launch)
@@ -307,7 +316,11 @@ export class KaboomGame {
   private syncAttract(): void {
     const sim = this.sim;
     if (this.mode !== 'attract' || !sim) return;
-    if (sim.map.sizeId !== this.settings.size) return this.startAttract();
+    if (
+      sim.map.sizeId !== this.settings.size ||
+      this.view?.theme.id !== this.settings.level
+    )
+      return this.startAttract();
     const bots = clampBots(this.settings.size, this.settings.bots);
     for (const p of sim.players) sim.setPresent(p.id, p.id <= bots);
     sim.setTeamColor(this.settings.color);
@@ -340,7 +353,10 @@ export class KaboomGame {
       cfg.seed,
       autopilot ? sim.players.map((p) => p.id) : undefined,
     );
-    const view = new WorldView(sim, this.quality, { rig: this.rig });
+    const view = new WorldView(sim, this.quality, {
+      rig: this.rig,
+      level: setup.level,
+    });
     view.followId = autopilot ? -1 : 0;
     view.crew.setYou(autopilot ? -1 : 0);
     await view.warmUp(this.renderer, view.scene);
@@ -450,6 +466,9 @@ export class KaboomGame {
       this.alpha = this.acc / STEP;
     }
     this.afterTicks(sim);
+    this.sfx.level = view.theme.id;
+    if (this.phase !== 'paused' && this.phase !== 'loading')
+      this.sfx.ambient(dt);
     view.update(this.alpha, this.phase === 'paused' ? 0 : dt * speed);
     if (this.mode === 'match' && this.phase !== 'loading') this.updateHud(sim);
     if (draw) {
@@ -595,7 +614,11 @@ export class KaboomGame {
         this.sfx.siren();
       }
       if (this.clock - this.suddenShownAt < 2.4) {
-        this.hud.setBanner('SUDDEN DEATH!', 'Walls are falling in', 'warn');
+        this.hud.setBanner(
+          'SUDDEN DEATH!',
+          LEVELS[this.view!.theme.id].closing,
+          'warn',
+        );
         return;
       }
     }

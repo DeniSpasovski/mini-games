@@ -1,10 +1,8 @@
 # 3, 2, 1 Kabooom
 
-A party game for you and up to seven bots. A crew of chubby animal demolition workers is dropped into a rocky arena
+A party game for you and up to seven bots. A crew of chubby animal demolition workers is dropped into an arena
 with a cheering crowd: light the fuse, watch the band count **3, 2, 1**, blast the crates and be the last critter standing. A tilted 3D
 arena, three arena sizes, bots in three skill levels, and chain reactions that stay smooth.
-
-> **In development.** Not listed on the portal in the release build (playable by its link); listed on the dev server and in test builds.
 
 ![The Quarry arena in the middle of a blast](screenshots/blast.jpg)
 
@@ -14,21 +12,21 @@ arena, three arena sizes, bots in three skill levels, and chain reactions that s
 npm run dev      # then open http://localhost:3000/games/kaboom/
 ```
 
-Pick your critter (it turns on a little stage in your team colour) and team colour, the arena, how many bots (1-7),
-their skill and the number of rounds, then:
+Pick your critter (it turns on a little stage in your team colour) and team colour, the arena and level, how many bots
+(1-7), their skill and the number of rounds, then:
 
 - **Move** with WASD / arrows (or drag a finger, or a gamepad stick); **drop TNT** with Space (or the TNT button / pad A). Menus work with the pad too: d-pad / stick, A = select, B = back, Start = resume.
 - The band counts 3, 2, 1, then flames shoot out in a cross. Hard blocks stop them, crates break, other TNT goes off.
   At blast level 4 the flames also turn the first corner, at level 5 the second.
 - Crates hide **power-ups**: walk onto them for more dynamites at once or a longer blast (up to level 5 each).
-- Touch a flame and you are out. Last critter standing wins the round; late in a round the walls fall in from the edge.
+- Touch a flame and you are out. Last critter standing wins the round; late in a round the arena closes in from the edge.
 
-Dev links: `?size=l&bots=5&difficulty=hard&rounds=3&critter=otter&seed=7`, `bot=1` (autopilot), `debug=1`, `camera=full`, `mute=1`.
+Dev links: `?size=l&level=sea&bots=5&difficulty=hard&rounds=3&critter=otter&seed=7`, `bot=1` (autopilot), `debug=1`, `camera=full`, `mute=1`.
 
-|                                                                    |                                                                   |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| ![Medium arena at the start](screenshots/arena.jpg)                | ![Sudden death: walls fall in](screenshots/sudden-death.jpg)      |
-| **Medium arena**: four critters, crates and boulders, a safe start | **Sudden death**: late in a round the walls fall in from the edge |
+|                                                             |                                                               |
+| ----------------------------------------------------------- | ------------------------------------------------------------- |
+| ![Green Valley, a sunny meadow](screenshots/valley.jpg)     | ![Sea Deck: planks sink in sudden death](screenshots/sea.jpg) |
+| **Green Valley**: a sunny meadow, hay bales, mossy boulders | **Sea Deck**: a raft at sea; in sudden death the planks sink  |
 
 ![Large arena, the camera follows you](screenshots/large-arena.jpg)
 
@@ -39,7 +37,9 @@ The Large arena (up to 8 players) is bigger than the screen: the camera follows 
 - **The Boom Crew**: Mole, Badger, Beaver, Hedgehog, Armadillo, Raccoon, Capybara and Otter, each with its own build
   (tall and slim to low and broad), real shell-rendered fur, hard hats and hi-vis vests in their team colour, animated
   by code.
-- **A gladiator-style bowl**: the arena sits at the bottom of a rocky pit; the stands are full of the same animals (pre-rendered
+- **Levels**: Quarry (sandstone pit), Green Valley (sunny meadow) and Sea Deck (a raft at sea, the crowd on boats). Same
+  rules; only the look, the sounds and the sudden-death fall differ (walls land, or planks sink). The last two are dev / test builds only for now.
+- **A gladiator-style bowl** (Quarry): the arena sits at the bottom of a rocky pit; the stands are full of the same animals (pre-rendered
   sprites, fur and all) in shirts, in blocks of fans cheering in the colours of the players in the match, some waving flags, who cheer in turn, do the wave and jump when things blow up.
 - **Power-ups** hidden in crates, two kinds up to level 5: more dynamites to place at once, more sticks for a longer
   blast. Drops scale with the player count (6 + 2 per player), one always close to you; to max out you have to win some from the others.
