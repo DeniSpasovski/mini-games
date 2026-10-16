@@ -754,7 +754,7 @@ class MainMenu {
     return own !== undefined && slotFor(own).id === t.id ? own : t.hour;
   }
 
-  /** Hour the stage runs at: the picked time, else `?tod=`, else its own; missing = the stage has no time of day (test map). */
+  /** Hour the stage runs at: the picked time, else `?tod=`, else its own; missing = the stage has no time of day. */
   private hourFor(m: StageInfo): number | undefined {
     const own = m.environment.timeOfDay;
     if (own === undefined) return undefined;

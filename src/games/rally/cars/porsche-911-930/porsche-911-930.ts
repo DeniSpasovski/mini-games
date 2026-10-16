@@ -95,6 +95,14 @@ export const porsche911930: CarDef = {
       note: 'specification reference (3.0 l, 260 PS)',
     },
   ],
+  // Night headlights: 70s-80s halogen.
+  headlights: {
+    power: 0.65,
+    color: 0xffdba4,
+    angle: 0.48,
+    penumbra: 0.8,
+    spill: 0.26,
+  },
   // 3.0 l turbo flat-six (an inline six fires the same even pattern), road silencer, manual box.
   sound: {
     layout: 'i6',

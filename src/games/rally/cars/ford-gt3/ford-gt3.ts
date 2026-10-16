@@ -94,6 +94,14 @@ export const fordGt3: CarDef = {
       note: 'specification reference (5.4 l Coyote-based V8, rear transaxle)',
     },
   ],
+  // Night headlights: racing LED.
+  headlights: {
+    power: 1.5,
+    color: 0xf0f4ff,
+    angle: 0.34,
+    penumbra: 0.3,
+    spill: 0.16,
+  },
   // 5.4 l naturally aspirated V8, open race exhaust, sequential race box.
   sound: {
     layout: 'v8',

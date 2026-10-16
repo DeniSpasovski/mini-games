@@ -111,6 +111,14 @@ export const fiesta: CarDef = {
       note: 'specification reference',
     },
   ],
+  // Night headlights: rally lamps with driving lights.
+  headlights: {
+    power: 1.3,
+    color: 0xfff6e6,
+    angle: 0.37,
+    penumbra: 0.4,
+    spill: 0.2,
+  },
   // 1.6 turbo four, open rally exhaust, anti-lag, sequential box.
   sound: {
     layout: 'i4',
