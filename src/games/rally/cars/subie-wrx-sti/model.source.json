@@ -1,0 +1,255 @@
+{
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/subie-wrx-sti/model-01-subaru-wrx-sti.glb = '2019 Rowen Subaru WRX STI' by Car design (CC BY 4.0), metres (root node scale fixed with glb-set-root-scale.py 4 100 -> model-02-metres.glb), +x left, +y up, +z nose, 2.647 m wheelbase. Mapped by material (nodes where one material holds two parts); tyres, rims, discs, calipers, the engine bay, badges and the plates are dropped (the game builds its own wheels, the rim is the model's: subie_wrx_sti_wheel.glb); the lamp sheet keeps its texture (srcParts). The offset puts the front hub (model z 1.271) on physics front.z 1.09 and the hubs (model y 0.3308) at the front tyre radius 0.3266. The atlas block is also read by livery.ts at runtime - edit it only here.",
+  "source": "sources/cars/subie-wrx-sti/model-02-metres.glb -> glb-to-parts-stl.py -> sources/cars/subie-wrx-sti/subie-wrx-sti-parts.stl",
+  "output": "public/models/cars/subie_wrx_sti.glb",
+  "axes": ["x", "y", "z"],
+  "scale": 1.0,
+  "offset": [0, -0.0042, -0.181],
+  "groundAtMin": false,
+  "targetTriangles": 60000,
+  "creaseDeg": 40,
+  "wheels": {
+    "$comment": "the wheels are separate nodes (dropped below) - nothing to cut",
+    "radius": 0,
+    "minAbsX": 9,
+    "centres": []
+  },
+  "atlas": {
+    "pxPerMetre": 256,
+    "width": 5.25,
+    "height": 9.0,
+    "bounds": {
+      "x": [-1.05, 1.05],
+      "y": [0, 1.5],
+      "z": [-2.7, 2.2]
+    },
+    "charts": {
+      "left": [0, 0],
+      "right": [0, 1.55],
+      "top": [0, 3.1],
+      "front": [0, 5.25],
+      "rear": [2.2, 5.25],
+      "bottom": [0, 6.8]
+    }
+  },
+  "gltf": {
+    "drop": [
+      "3DWheel Front L_01_6",
+      "3DWheel Front R_02_18",
+      "3DWheel Rear L_03_30",
+      "3DWheel Rear R_04_42",
+      "Wheel1A_Alpha_05_54",
+      "subSubaru_WRXSTITNR0_2018EngineA_Material1",
+      "rowenSubaru_WRXSTITNR2_2018Grille9A_Material1"
+    ],
+    "parts": [
+      {
+        "mat": "rowenSubaru_WRXSTITNR2_2018BadgeC_Material1",
+        "whole": true,
+        "x": [-0.07, 0.07],
+        "y": [0.95, 1.03],
+        "z": [-2.3, -2.2],
+        "material": "body"
+      },
+      {
+        "mat": "rowenSubaru_WRXSTITNR2_2018BadgeC_Material1",
+        "material": "logo"
+      },
+      {
+        "mat": "rowenSubaru_WRXSTITNR2_2018ManufacturerPlateC_Material1",
+        "material": "logo"
+      },
+      {
+        "mat": "rowenSubaru_WRXSTITNR2_2018Wing2a_Badge_Material1",
+        "material": "logo"
+      },
+      {
+        "mat": "subSubaru_WRXSTITNR0_2018Coloured_Material1",
+        "whole": true,
+        "x": [0.24, 0.345],
+        "y": [0.525, 0.575],
+        "z": [2.19, 2.23],
+        "material": "logo"
+      },
+      {
+        "mat": "subSubaru_WRXSTITNR0_2018Coloured_Material1",
+        "x": [-0.082, 0.082],
+        "y": [0.555, 0.64],
+        "z": [2.19, 2.23],
+        "material": "logo"
+      },
+      {
+        "mat": "subSubaru_WRXSTITNR0_2018Coloured_Material1",
+        "whole": true,
+        "x": [-0.09, 0.09],
+        "y": [0.94, 1.03],
+        "z": [-2.3, -2.2],
+        "material": "body"
+      },
+      {
+        "mat": "subSubaru_WRXSTITNR0_2018Coloured_Material1",
+        "whole": true,
+        "x": [-0.47, -0.33],
+        "y": [0.7, 0.78],
+        "z": [-2.3, -2.2],
+        "material": "logo"
+      },
+      {
+        "mat": "subSubaru_WRXSTITNR0_2018Coloured_Material1",
+        "whole": true,
+        "x": [0.39, 0.47],
+        "y": [0.69, 0.72],
+        "z": [-2.3, -2.2],
+        "material": "logo"
+      },
+      {
+        "mat": "subSubaru_WRXSTITNR0_2018Coloured_Material1",
+        "whole": true,
+        "x": [-0.46, -0.37],
+        "y": [0.96, 1.02],
+        "z": [-2.3, -2.2],
+        "material": "logo"
+      },
+      {
+        "node": "Object_164",
+        "material": "drop"
+      },
+      {
+        "mat": "orange_glass",
+        "material": "amber"
+      },
+      {
+        "mat": "red_glass",
+        "y": [0, 0.6],
+        "material": "brakestrip"
+      },
+      {
+        "mat": "red_glass",
+        "material": "brakecover"
+      },
+      {
+        "mat": "glass_light",
+        "material": "lenscover"
+      },
+      {
+        "mat": "glass_surr",
+        "material": "trim"
+      },
+      {
+        "mat": "subSubaru_WRXSTITNR0_2018Window_Material1",
+        "material": "glass"
+      },
+      {
+        "node": "Object_170",
+        "material": "body"
+      },
+      {
+        "node": "Object_192",
+        "material": "interior:2s"
+      },
+      {
+        "mat": "subSubaru_WRXSTITNR0_2018PaintTNR_Material1",
+        "material": "body"
+      },
+      {
+        "mat": "rowenSubaru_WRXSTITNR2_2018Base_Material1",
+        "material": "trim"
+      },
+      {
+        "mat": "subSubaru_WRXSTITNR0_2018Carbon1M_Material1",
+        "material": "carbon"
+      },
+      {
+        "mat": "rowenSubaru_WRXSTITNR2_2018SpecularTintC_Material1",
+        "material": "steel"
+      },
+      {
+        "mat": "subSubaru_WRXSTITNR0_2018Grille1A_Material1",
+        "material": "trim"
+      },
+      {
+        "mat": "rowenSubaru_WRXSTITNR2_2018Grille2C_Material1",
+        "material": "mesh"
+      },
+      {
+        "mat": "subSubaru_WRXSTITNR0_2018Hood0a_Grille1_Material1",
+        "material": "mesh"
+      },
+      {
+        "mat": "rowenSubaru_WRXSTITNR2_2018Grille4C_Material1",
+        "material": "mesh"
+      },
+      {
+        "mat": "subSubaru_WRXSTITNR0_2018Grille8A_Material1",
+        "material": "mesh"
+      },
+      {
+        "mat": "subSubaru_WRXSTITNR0_2018Coloured_Material1",
+        "texture": {
+          "maxLum": 0.22,
+          "maxSat": 0.1,
+          "blur": 9,
+          "refine": 0.02
+        },
+        "material": "trim:2s"
+      },
+      {
+        "mat": "subSubaru_WRXSTITNR0_2018Coloured_Material1",
+        "material": "satin"
+      },
+      {
+        "mat": "subSubaru_WRXSTITNR0_2018InteriorA_Material1",
+        "material": "interior:2s"
+      },
+      {
+        "mat": "subSubaru_WRXSTITNR0_2018InteriorTillingA_Material1",
+        "material": "interior:2s"
+      }
+    ],
+    "default": "trim"
+  },
+  "parts": {
+    "materials": [
+      "body",
+      "trim",
+      "trim:2s",
+      "glass",
+      "carbon",
+      "satin",
+      "mesh",
+      "lenscover",
+      "brakecover",
+      "amber",
+      "steel",
+      "interior:2s",
+      "logo",
+      "drop",
+      "brakestrip",
+      "reverselamp"
+    ],
+    "drop": ["logo", "drop"],
+    "maxTriangles": {
+      "interior:2s": 16000
+    }
+  },
+  "srcParts": {
+    "textures": [
+      {
+        "material": "rowenSubaru_WRXSTITNR2_2018LightC_Material1",
+        "out": "public/models/cars/subie_wrx_sti_lamps.png"
+      }
+    ],
+    "parts": [
+      {
+        "node": "Object_164",
+        "z": [0, 3],
+        "material": "src:lamp:subie_wrx_sti_lamps.png"
+      },
+      {
+        "node": "Object_164",
+        "z": [-3, 0],
+        "material": "src:tail:subie_wrx_sti_lamps.png"
+      }
+    ]
+  }
+}
