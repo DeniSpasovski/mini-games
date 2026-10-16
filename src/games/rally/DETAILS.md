@@ -11,7 +11,7 @@ sim-lite physics that is still fun on a keyboard.
 | ----------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Game        | `/games/rally/`                                                   | welcome -> select stage -> select car -> (set-up) -> drive                                                                                                 |
 | Map viewer  | `/games/rally/map-viewer.html?map=test&stage=test&grid=1&splat=1` | a map with one of its stages (`stage=`, default the first; a stage picker lists them), click terrain to inspect, "Drive from here", lat / lon on real maps |
-| Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`             | livery seed, door plate, pose, physics hull, torque chart, test drive                                                                                      |
+| Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`             | livery seed, door plate, pose, physics hull, torque chart, test drive, time of day + lights (`tod=1&lamps=brake`)                                          |
 | Asset debug | `/games/rally/asset-debug.html?asset=pine_tree&lod=1`             | every asset / car (`car:<id>`) / texture (`tex:<id>`): seed, variant, LOD                                                                                  |
 
 Tool pages are dev-server only and keep their state in the URL; `H` hides the panel, `F3` shows stats, "Copy camera link"
@@ -116,7 +116,10 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   texture octave per layer, no specular environment lookup.
 - **Effects:** dust, gravel spray and haze (`game/dust.ts`), tyre marks (`game/tyre-marks.ts`), a contact shadow under the car,
   brake and reversing lamps (`CarModel.setBrake(level, reversing)`; a lamp's `userData.brakeLamp.reverseGlow` map lights its
-  white section in gear R, in R the throttle key is the brake pedal; car viewer `lamps=brake|reverse`).
+  white section in gear R, in R the throttle key is the brake pedal; car viewer `lamps=brake|reverse`). With the lights on a lamp
+  moves to its `LampNight` glow (`part-materials.ts` `lamp()`): red lamps (`RED_NIGHT`) stay low, because AgX turns a bright red
+  salmon pink (ACES, by day, keeps pure red up to ~1.2). Check lamps in the car viewer: `tod=1` (night; `tod=17.5` = evening, lights
+  half on) with `lamps=off|brake|reverse`, `beam=0` hides the headlight beam, `quality=high` adds the bloom.
 
 ## Maps
 

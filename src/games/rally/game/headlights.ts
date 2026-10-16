@@ -11,6 +11,7 @@ import {
 } from 'three';
 import type { QualityName } from '../engine/quality';
 import type { CarHeadlightsDef } from '../cars/shared/types';
+import type { CarPhysicsDef } from '../physics/types';
 
 /** Luminous intensity of the main low beam (scene units, physical falloff). */
 const BEAM = 3200;
@@ -27,6 +28,19 @@ const CONE_LENGTH = 28;
 const CONE_RADIUS = 5.5;
 /** The default beam angle the cone radius is made for. */
 const CONE_ANGLE = 0.42;
+
+/** Lamp position on a car (`Headlights`): 0.8 of the widest half-track, 0.75 m ahead of the front axle, 0.7 m up. */
+export function headlightMount(p: Pick<CarPhysicsDef, 'front' | 'rear'>): {
+  x: number;
+  y: number;
+  z: number;
+} {
+  return {
+    x: (Math.max(p.front.track, p.rear.track) / 2) * 0.8,
+    y: 0.7,
+    z: p.front.z + 0.75,
+  };
+}
 
 /**
  * The car's headlights at night (`Environment.night`): a narrow bright low beam, a wide dim spill for the verges and

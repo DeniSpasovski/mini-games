@@ -8,7 +8,10 @@ import { CARS, DEFAULT_CAR, getCar } from '../cars';
 import { clampCarNumber, rallyName } from '../cars/shared/rally-badge';
 import { MAPS } from '../maps';
 import { isTestCar, listLabel, TEST_NOTE } from '../release';
-import { parseVec3, ViewerShell } from '../debug/viewer-shell';
+import { parseVec3, VIEWER_HOUR, ViewerShell } from '../debug/viewer-shell';
+import { LIGHTS_MIN_NEED } from '../engine/night';
+import { Headlights, headlightMount } from '../game/headlights';
+import { formatHour, TIMES_OF_DAY } from '../game/time-of-day';
 import { peakPower, sampleTorque } from '../physics/drivetrain';
 import { axleRadius, tyreSizeFor } from '../physics/car-tyres';
 import { WheelDebug } from '../debug/wheel-debug';
@@ -27,6 +30,8 @@ import { rimRadius } from '../cars/shared/tyre-mesh';
  * "Copy camera link" (Pose section) writes the current orbit (position, target, fov) into these params and copies the URL.
  * `lamps=brake|reverse|reverse+brake` lights the rear lamps (brake pedal down / gear R). `fallback=1` shows the body a car
  * falls back to when its GLB can't load (hand-built `custom` or the boxy side-outline `profile`).
+ * `tod=<hours>` = the game's time of day (default: the test map's afternoon): 17.5 evening (lights half on), 1 night (moon,
+ * dark fog, running lamps + headlights + beam (`beam=0` hides the beam), bloom on High quality), e.g. `car-viewer.html?car=audi_rs6&tod=1&lamps=brake&view=rear`.
  * Wheels section (debug/wheel-debug.ts): `wheels=1` overlay (fixed hub crosshair + tyre / bead circles, spin pointer, fitted
  * arch circle + offsets), `wangle=<deg>` wheel angle while not spinning, `tyres=0` / `rims=0` / `brakes=0` / `body=0` hide
  * parts, `wcam=FL|FR|RL|RR` near-orthographic camera straight along that wheel's axle, e.g.
@@ -60,6 +65,10 @@ const DEFAULTS = {
   turntable: false,
   /** off | brake | reverse | reverse+brake: rear lamps lit (CarModel.setBrake). */
   lamps: 'off',
+  /** Hour of day (`Environment`, `?tod=`): from 19:30 to 04:30 night, the car's lights come on as the sun goes down. */
+  tod: VIEWER_HOUR,
+  /** Headlight beam (spot lights + the cones in the air) at night: off to see the car and its lamps without it. */
+  beam: true,
   view: 'three-quarter',
   cam: '',
   look: '',
@@ -221,16 +230,6 @@ pose.checkbox('Spin wheels', state.spin, (v) => {
   state.spin = v;
   sync();
 });
-pose.select(
-  'Rear lamps',
-  state.lamps,
-  ['off', 'brake', 'reverse', 'reverse+brake'],
-  (v) => {
-    state.lamps = v;
-    applyLamps();
-    sync();
-  },
-);
 pose.checkbox('Turntable', state.turntable, (v) => {
   state.turntable = v;
   sync();
@@ -242,6 +241,41 @@ pose.select('Camera', state.view, Object.keys(VIEWS), (v) => {
   setView(v);
 });
 shell.addCameraShare(pose, state, sync);
+
+const lights = shell.panel.section(
+  'Lights',
+  state.tod !== VIEWER_HOUR || state.lamps !== 'off' || !state.beam,
+);
+const todOptions = [
+  { value: String(VIEWER_HOUR), label: 'Day' },
+  ...TIMES_OF_DAY.map((t) => ({
+    value: String(t.hour),
+    label: `${t.label} ${formatHour(t.hour)}`,
+  })),
+];
+if (!todOptions.some((o) => o.value === String(state.tod)))
+  todOptions.push({ value: String(state.tod), label: formatHour(state.tod) });
+lights.select('Time of day', String(state.tod), todOptions, (v) => {
+  state.tod = Number(v);
+  sync();
+  shell.setHour(state.tod);
+  applyLights();
+});
+lights.checkbox('Headlight beam', state.beam, (v) => {
+  state.beam = v;
+  sync();
+  applyLights();
+});
+lights.select(
+  'Rear lamps',
+  state.lamps,
+  ['off', 'brake', 'reverse', 'reverse+brake'],
+  (v) => {
+    state.lamps = v;
+    applyLamps();
+    sync();
+  },
+);
 
 const wheelsSec = shell.panel.section(
   'Wheels',
@@ -360,6 +394,8 @@ function applyParts(force = false): void {
 }
 
 function rebuild(): void {
+  headlights?.dispose();
+  headlights = undefined;
   model?.dispose();
   const def = getCar(state.car);
   model = new CarModel(def, {
@@ -375,9 +411,29 @@ function rebuild(): void {
   if (!state.paint) paintCtl.set(model.livery.base);
   applyBadge();
   applyWire();
-  applyLamps();
+  applyLights();
   applyWheelDebug();
   updateSpecs();
+}
+
+let headlights: Headlights | undefined;
+
+/** Lights for the hour of day (`Environment.lightNeed`, as in the game): running lamps, headlamps and the beam. Before the first compile where possible. */
+function applyLights(): void {
+  headlights?.dispose();
+  headlights = undefined;
+  const need = shell.env.lightNeed;
+  const on = need >= LIGHTS_MIN_NEED;
+  model?.setLamps(on ? need : 0);
+  if (model && on && state.beam)
+    headlights = new Headlights(
+      model.root,
+      headlightMount(model.def.physics),
+      shell.quality.name,
+      model.def.headlights,
+      need,
+    );
+  applyLamps();
 }
 
 function applyLamps(): void {
@@ -499,6 +555,7 @@ shell.onFrame((dt) => {
   if (state.turntable) model.root.rotation.y += dt * 0.4;
 });
 
+if (state.tod !== VIEWER_HOUR) shell.setHour(state.tod);
 setView(state.view);
 if (state.wcam !== 'off' && !state.cam) setWheelCam(state.wcam);
 rebuild();

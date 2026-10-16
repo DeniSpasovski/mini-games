@@ -68,7 +68,7 @@ import { World } from '../world/world';
 import { CarAudio } from './audio';
 import { Autopilot, finishStopControls } from './autopilot';
 import { ContactShadow } from './contact-shadow';
-import { Headlights } from './headlights';
+import { Headlights, headlightMount } from './headlights';
 import { CameraRig } from './camera-rig';
 import { ParticleSystem } from './dust';
 import { TyreMarks } from './tyre-marks';
@@ -409,15 +409,9 @@ export class RallyGame {
       // the air, all scaled by how dark it is (before the first compile).
       const need = this.env.lightNeed;
       this.model.setLamps(need);
-      let zf = -Infinity;
-      let hx = 0;
-      for (const w of this.vehicle.wheels) {
-        zf = Math.max(zf, w.mount.z);
-        hx = Math.max(hx, Math.abs(w.mount.x));
-      }
       this.headlights = new Headlights(
         this.model.root,
-        { x: hx * 0.8, y: 0.7, z: zf + 0.75 },
+        headlightMount(this.car.physics),
         q.name,
         this.car.headlights,
         need,

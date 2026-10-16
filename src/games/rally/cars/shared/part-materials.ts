@@ -83,27 +83,41 @@ function headLamp<M extends Material & { emissiveIntensity: number }>(
   return m;
 }
 
+/** A lamp's emissive intensities with the lights fully on (night): idle (running lamp) and the brake pedal down. */
+export interface LampNight {
+  idle: number;
+  on: number;
+}
+
 /**
  * Brake lamp (CarModel.setBrake): emissive from its idle value to `on` with the brake down. `reverseGlow` = an
  * emissive map that lights only the white reversing section; CarModel swaps it in while the car is in reverse gear.
- * `night` = the extra glow with the lights on (default `TAIL_NIGHT_GLOW`): keep it well under `on` or the brake shows no step.
+ * `night` = the emissive intensities with the lights fully on (default: the idle glow rises by `TAIL_NIGHT_GLOW`, the
+ * brake stays `on`). Night tone mapping (AgX) washes a bright red out to salmon pink, so red lamps keep both low there.
  */
 function lamp(
   m: MeshPhysicalMaterial,
   on: number,
   reverseGlow?: CanvasTexture,
-  night?: number,
+  night?: LampNight,
 ): MeshPhysicalMaterial {
   m.userData.brakeLamp = { off: m.emissiveIntensity, on, reverseGlow, night };
   return m;
 }
+
+/**
+ * Red lamp glow with the lights on: night tone mapping (AgX) turns a bright red salmon pink, so the running lamp is dim and
+ * the brake stays near 0.45 (by day, ACES keeps a pure red up to ~1.2 before it goes orange).
+ */
+const RED_NIGHT: LampNight = { idle: 0.1, on: 0.5 };
+const STRIP_NIGHT: LampNight = { idle: 0.03, on: 0.45 };
 
 /** Red see-through lens cover (transparent over a modelled lamp) that glows `emissive` up to intensity `on` with the brake down. */
 function brakeCover(
   emissive: number,
   opacity: number,
   on: number,
-  night?: number,
+  night?: LampNight,
 ): MeshPhysicalMaterial {
   return lamp(
     new MeshPhysicalMaterial({
@@ -129,7 +143,7 @@ function brakeCover(
 function brakeStrip(
   emissive: number,
   on: number,
-  night?: number,
+  night?: LampNight,
 ): MeshPhysicalMaterial {
   return lamp(
     new MeshPhysicalMaterial({
@@ -139,6 +153,29 @@ function brakeStrip(
       roughness: 0.25,
       metalness: 0.3,
       clearcoat: 1,
+    }),
+    on,
+    undefined,
+    night,
+  );
+}
+
+/** Modelled tail-lamp LED strip: red, idle glow `idle`, bright (`on`) with the brake pedal (setBrake). */
+function tailLed(
+  emissive: number,
+  idle: number,
+  on: number,
+  night?: LampNight,
+): MeshPhysicalMaterial {
+  return lamp(
+    new MeshPhysicalMaterial({
+      color: 0xd01418,
+      emissive,
+      emissiveIntensity: idle,
+      roughness: 0.2,
+      metalness: 0.1,
+      clearcoat: 1,
+      clearcoatRoughness: 0.05,
     }),
     on,
     undefined,
@@ -1072,16 +1109,16 @@ function tailCMaps(): {
   };
   const map = canvas(W, H, (g) => {
     const bg = g.createLinearGradient(0, 0, W, 0);
-    bg.addColorStop(0, '#d8343a');
-    bg.addColorStop(1, '#b61f27');
+    bg.addColorStop(0, '#d01a20');
+    bg.addColorStop(1, '#ac1218');
     g.fillStyle = bg;
     g.fillRect(0, 0, W, H);
     box(g, '#f4f4f2');
   });
   const glow = canvas(W, H, (g) => {
-    g.fillStyle = '#3a0608';
+    g.fillStyle = '#ff0000';
     g.fillRect(0, 0, W, H);
-    box(g, '#3a0608'); // brake light stays red-only: the white box has no brake glow
+    box(g, '#000'); // brake light stays red-only: the white box has no brake glow
   });
   const reverseGlow = canvas(W, H, (g) => {
     g.fillStyle = '#000';
@@ -2110,7 +2147,7 @@ const BUILDERS: Record<PartName, () => Material> = {
         map,
         emissive: 0xffffff,
         emissiveMap: glow,
-        emissiveIntensity: 0.4,
+        emissiveIntensity: 0.05,
         roughness: 0.16,
         metalness: 0,
         transparent: true,
@@ -2118,8 +2155,9 @@ const BUILDERS: Record<PartName, () => Material> = {
         clearcoat: 1,
         clearcoatRoughness: 0.05,
       }),
-      5,
+      1.1,
       reverseGlow,
+      RED_NIGHT,
     );
   },
   /** Dark metal lamp housing / bezel of a modelled (3D) lamp. */
@@ -2163,23 +2201,10 @@ const BUILDERS: Record<PartName, () => Material> = {
     );
   },
   /** Modelled tail-lamp LED strip: red, idle glow, bright with the brake pedal (setBrake). */
-  tailled: () =>
-    lamp(
-      new MeshPhysicalMaterial({
-        color: 0xd01418,
-        emissive: 0xff2010,
-        emissiveIntensity: 0.35,
-        roughness: 0.2,
-        metalness: 0.1,
-        clearcoat: 1,
-        clearcoatRoughness: 0.05,
-      }),
-      3.2,
-    ),
+  tailled: () => tailLed(0xff0000, 0.3, 1.1, RED_NIGHT),
   /** Bumper corner strip: dark red reflector while off, lights like `tailled` with the brake pedal (setBrake). */
-  brakestrip: () => brakeStrip(0xff2010, 3.2),
-  /** `brakestrip` with a pure red glow, softer at night: reads red (not orange) when braking. */
-  brakestripred: () => brakeStrip(0xff0000, 1.8, 0.6),
+  brakestrip: () => brakeStrip(0xff0000, 1.1, STRIP_NIGHT),
+  brakestripred: () => brakeStrip(0xff0000, 1.1, STRIP_NIGHT),
   /** Modelled reversing lamp: matte white, dark until the car is in reverse gear (setBrake `reversing`), never lit by the brake. */
   reverselamp: () =>
     lamp(
@@ -2257,9 +2282,9 @@ const BUILDERS: Record<PartName, () => Material> = {
       envMapIntensity: 1.5,
     }),
   /** Red see-through cover that lights with the brake pedal (setBrake), like `tailled`. */
-  brakecover: () => brakeCover(0xff2010, 0.55, 4),
-  /** `brakecover` with a denser cover and a pure red glow: stays red (not salmon) over a white lens when braking. */
-  brakered: () => brakeCover(0xff0000, 0.7, 1.8, 0.6),
+  brakecover: () => brakeCover(0xff0000, 0.55, 1.1, RED_NIGHT),
+  /** `brakecover` with a denser cover: stays red (not salmon) over a white lens when braking. */
+  brakered: () => brakeCover(0xff0000, 0.7, 1.1, RED_NIGHT),
   reflector: () =>
     new MeshPhysicalMaterial({
       color: 0xa30f17,

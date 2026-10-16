@@ -47,7 +47,7 @@ import {
   wheelModelFor,
 } from './stl-wheel';
 import { buildTyre, rimRadius } from './tyre-mesh';
-import { partMaterial } from './part-materials';
+import { type LampNight, partMaterial } from './part-materials';
 import {
   badgeMaterial,
   buildBadgeGeometry,
@@ -1154,12 +1154,16 @@ export class CarModel {
         off: number;
         on: number;
         reverseGlow?: Texture;
-        night?: number;
+        night?: LampNight;
       };
       m.userData.brakeGlow ??= m.emissiveMap;
+      // With the lights on the lamp moves to its night glow (`LampNight`), by how dark it is.
       const idle =
-        off + Math.min(on - off, night ?? TAIL_NIGHT_GLOW) * this.lampsOn;
-      const lit = idle + (on - idle) * l;
+        off +
+        ((night?.idle ?? off + Math.min(on - off, TAIL_NIGHT_GLOW)) - off) *
+          this.lampsOn;
+      const full = on + ((night?.on ?? on) - on) * this.lampsOn;
+      const lit = idle + (full - idle) * l;
       if (reverseGlow && reversing && l < 0.02) {
         // Reversing without the brake pedal: the white section only. With the brake down the white one goes dark.
         m.emissiveMap = reverseGlow;
