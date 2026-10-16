@@ -56,6 +56,16 @@ export const ajvatovciInfo: MapInfo = {
       url: 'https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-7-c8fce59e51874a4182dc20a66cbc6c74',
       note: 'parked vans and trucks, simplified - CC BY 4.0',
     },
+    {
+      label: 'Low Poly Truck (FS 3D Studio, Sketchfab)',
+      url: 'https://sketchfab.com/3d-models/low-poly-truck-d61a2ac0a706462ebf82459907f21573',
+      note: 'parked tractor units, trailers and box trucks, recoloured - CC BY 4.0',
+    },
+    {
+      label: 'Dump Truck (ElectroNick, Sketchfab)',
+      url: 'https://sketchfab.com/3d-models/dump-truck-781c616da8f44982a59cb3fc3fa67f98',
+      note: 'parked dump trucks, recoloured - CC BY 4.0',
+    },
   ],
   stageNumber: 1,
   // Stage + free-drive background: Ilinden town / A2 (west, south-west) and Marino (south). The baked

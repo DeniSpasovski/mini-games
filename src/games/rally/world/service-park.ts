@@ -193,7 +193,7 @@ function layBays(
 }
 
 /** Length of a team semi (m), the aisle between the bays and the trucks, and the most room one gets along the lot. */
-const SEMI_LENGTH = 17.2;
+const SEMI_LENGTH = 17.5;
 const SEMI_AISLE = 6;
 const SEMI_PITCH = 11;
 
@@ -214,7 +214,7 @@ function addSemis(
   for (let i = 0; i < count; i++) {
     const u = lot.length / 2 + (i - (count - 1) / 2) * pitch;
     const [x, z] = lotWorld(lot, u, v);
-    const ends = [-1, 1].map((k) => lotWorld(lot, u, v + k * 7));
+    const ends = [-1, 1].map((k) => lotWorld(lot, u, v + k * 7.2));
     if (
       ctx.blocked(x, z, 2.5, lot.paved) ||
       ends.some(([ex, ez]) => ctx.blocked(ex, ez, 1.5, lot.paved))
@@ -653,7 +653,7 @@ const PEOPLE = new Set([
 const KEEP_OUT: Record<string, number> = {
   team_car: 2.7,
   service_truck: 4.9,
-  service_semi: 8.5,
+  service_semi: 8.8,
   service_van: 3,
   car_trailer: 3.6,
   pickup: 3,

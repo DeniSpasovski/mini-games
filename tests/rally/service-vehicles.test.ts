@@ -75,7 +75,6 @@ describe('service vehicle models', () => {
 describe('team vehicles of the service park', () => {
   test.each([
     ['service_truck', serviceTruck],
-    ['service_semi', serviceSemi],
     ['service_van', serviceVan],
     ['pickup', pickup],
   ])('%s: one draw call per team, within budget', (_, build) => {
@@ -85,6 +84,18 @@ describe('team vehicles of the service park', () => {
       expect(near.parts.length).toBe(1);
       expect(tris(near)).toBeLessThan(1700);
       expect(tris(far)).toBeLessThan(900);
+    }
+  });
+
+  test('service_semi: the baked lorry model, one stand-in box far away', () => {
+    for (let team = 0; team < TEAM_COUNT; team++) {
+      const near = serviceSemi({ seed: 1, variant: team, lod: 0 });
+      const far = serviceSemi({ seed: 1, variant: team, lod: 1 });
+      // The model's own triangles (welded, never simplified), a mesh per part and texture.
+      expect(near.parts.length).toBeLessThanOrEqual(4);
+      expect(tris(near)).toBeLessThan(17000);
+      expect(far.parts.length).toBe(1);
+      expect(tris(far)).toBeLessThan(100);
     }
   });
 

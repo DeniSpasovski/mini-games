@@ -11,13 +11,15 @@ import {
   streetCarIndex,
   streetCarModel,
 } from './street-car-models';
+import { teamSemi } from '../../maps/ajvatovci/start-row/build/vehicles';
 import { box, finish, solid, wheel } from './vehicles';
 
 /**
  * Service park assets (rally paddock): team trucks, vans, trailers, gazebos, props, the team car stand-in and the
  * public extras. Team-coloured assets use the team index (builders/teams.ts) as variant. The team trucks, vans, pickups
- * and the catering van are the background models (street-car-models.ts) in the team paint plus side stripes; everything
- * else is boxes + a few cylinders. All in the `vehicle` material (vertex colours, one draw call per asset). Vehicles face +X with the origin on
+ * and the catering van are the background models (street-car-models.ts) in the team paint plus side stripes, the
+ * tractor-trailer the baked lorry model with its own textures; everything else is boxes + a few cylinders. All in the `vehicle` material
+ * (vertex colours, one draw call per asset) except the tractor-trailer. Vehicles face +X with the origin on
  * the ground under their middle; a truck's awning and a gazebo's open front are on the +Z side. No logos or lettering.
  */
 
@@ -109,43 +111,12 @@ export const serviceTruck: AssetBuilder = ({ variant, lod }) => {
 };
 
 /**
- * Team tractor-trailer (17 m): a cab-over tractor and a box semi-trailer in the team colours with side stripes, on
- * three axle groups. Boxes and cylinders only (the lorry stand-in of the park's back row).
+ * Team tractor-trailer (17.5 m): the baked lorry model (maps/ajvatovci/start-row/build/truck-models.ts) in the team's
+ * colour, drawn with its own textures (`teamSemi`).
  */
-export const serviceSemi: AssetBuilder = ({ variant, lod }) => {
-  const t = team(variant);
-  const glass = '#22303a';
-  const steel = '#8d9399';
-  const parts: BufferGeometry[] = [
-    // Trailer box on its underframe, rear doors, side guards, landing legs.
-    box(12.6, 2.8, 2.55, -2.1, 2.55, 0, t.base),
-    box(0.06, 2.5, 2.3, -8.43, 2.5, 0, WHITE),
-    box(12.2, 0.3, 1.9, -2.1, 0.95, 0, DARK),
-    ...[1, -1].map((s) => box(6, 0.4, 0.05, -4.6, 0.62, s * 1.22, steel)),
-    ...[1, -1].map((s) => box(0.2, 0.9, 0.2, 2.9, 0.5, s * 0.9, steel)),
-    ...sideStripe(11.6, 0.5, -2.1, 2.25, t.accent, 1.275),
-    ...sideStripe(11.6, 0.14, -2.1, 2.85, t.accent2, 1.275),
-    // Tractor: chassis, fifth wheel, cab-over cab with roof deflector, glass, bumper, grille, lamps.
-    box(8.4, 0.5, 1.6, 4.4, 0.9, 0, DARK),
-    box(1.2, 0.14, 1.3, 1.9, 1.22, 0, DARK),
-    box(2.5, 2.4, 2.4, 7.2, 2.3, 0, t.base),
-    box(1.5, 0.9, 2.3, 6.1, 3.75, 0, t.base),
-    box(0.04, 1.0, 2.1, 8.46, 2.95, 0, glass),
-    ...[1, -1].map((s) => box(1.4, 0.9, 0.03, 7.4, 2.95, s * 1.22, glass)),
-    box(0.3, 0.5, 2.4, 8.5, 0.8, 0, '#43484e'),
-    box(0.04, 0.7, 1.2, 8.47, 1.7, 0, DARK),
-    ...[1, -1].map((s) =>
-      box(0.05, 0.25, 0.4, 8.46, 1.25, s * 0.85, '#eef3f6'),
-    ),
-  ];
-  // Front axle under the cab, drive tandem under the fifth wheel, trailer tandem at the back.
-  for (const x of [7.4, 2.6, 1.3, -5.8, -7.1])
-    for (const z of [1.0, -1.0])
-      parts.push(
-        lod === 0 ? wheel(0.5, 0.3, x, z) : box(1.0, 1.0, 0.3, x, 0.5, z, DARK),
-      );
-  return finish(parts);
-};
+export const serviceSemi: AssetBuilder = ({ variant, lod }) => ({
+  parts: teamSemi(team(variant).base, lod),
+});
 
 /** Panel van (5.6 m, the background high-roof van) in team colours with side stripes. */
 export const serviceVan: AssetBuilder = ({ variant, lod }) => {
