@@ -24,23 +24,17 @@ import {
   HEAD,
   HEAD_RINGS,
   HIVIS,
-  JACKET,
   JEANS,
   KNIT,
   REFLECT,
   SKIN,
-  SLEEVE,
   TROUSERS,
-  ball,
-  hand,
-  limb as bodyLimb,
   loft,
-  shoe,
   slab,
-  type Ring,
 } from './people-parts';
 import type { AssetBuilder } from '../types';
 import { TEAMS } from './teams';
+import { sculptBody } from './people-figure';
 
 /**
  * People kit: a jointed low-poly figure (feet, shins, thighs, pelvis, tapered torso, shoulders, arms, hands, neck,
@@ -52,12 +46,12 @@ import { TEAMS } from './teams';
 const UP = new Vector3(0, 1, 0);
 
 /** Segment lengths (m). */
-const THIGH = 0.44;
-const SHIN = 0.43;
-const TORSO = 0.56;
-const UPPER = 0.29;
-const FORE = 0.27;
-const HEAD_R = 0.124;
+export const THIGH = 0.44;
+export const SHIN = 0.43;
+export const TORSO = 0.56;
+export const UPPER = 0.29;
+export const FORE = 0.27;
+export const HEAD_R = 0.124;
 
 /** Arm / leg pose: swing (rad, + = forward) and spread (+ = outward) of the upper part, bend of the lower part. */
 interface Limb {
@@ -88,7 +82,7 @@ type Prop =
   | 'sign'
   | 'radio';
 
-interface Pose {
+export interface Pose {
   /** Torso pitch forward / roll sideways, head pitch / turn (rad). */
   lean?: number;
   sway?: number;
@@ -366,7 +360,7 @@ export type PoseName = keyof typeof POSES;
 type HatKind = 'none' | 'cap' | 'beanie' | 'helmet' | 'hood';
 type HairKind = 'short' | 'long' | 'bald' | 'bun' | 'pony';
 
-interface Outfit {
+export interface Outfit {
   /** Hand-flag cloth for the plain `wave` pose: [main, lower band] (never a national flag). */
   flag?: [string, string];
   shoes: string;
@@ -409,12 +403,12 @@ interface Outfit {
 }
 
 const SKIN_TONES = [
-  '#f4d8bc',
-  '#ecc9a6',
-  '#d9ae88',
-  '#bf8a60',
-  '#a07050',
-  '#80583c',
+  '#d9a581',
+  '#cc9470',
+  '#b97f5a',
+  '#9a6542',
+  '#865535',
+  '#5f3b26',
 ];
 const HAIR_COLORS = [
   '#1c1814',
@@ -428,7 +422,7 @@ const HAIR_COLORS = [
 const v = (x: number, y: number, z: number): Vector3 => new Vector3(x, y, z);
 
 /** Direction hanging down, swung forward by `pitch` and spread outward by `ab` (mirrored with `side`). */
-function dirDown(pitch: number, ab: number, side: number): Vector3 {
+export function dirDown(pitch: number, ab: number, side: number): Vector3 {
   const x = 0;
   const y = -Math.cos(pitch);
   const z = Math.sin(pitch);
@@ -829,9 +823,11 @@ function finishBody(
   const g = merge(
     parts
       .filter((p) => !p.userData.flag)
-      .map((p) =>
-        p.userData.cell === -1 ? p : mapCell(p, p.userData.cell ?? HAT),
-      ),
+      .map((p) => {
+        const m =
+          p.userData.cell === -1 ? p : mapCell(p, p.userData.cell ?? HAT);
+        return m.index ? m.toNonIndexed() : m;
+      }),
   );
   const bodyScale = o.scale;
   if (pose.lie) {
@@ -861,230 +857,43 @@ function finishBody(
   return g;
 }
 
-/** Torso rings from the neck base down to the hem (pelvis at y = 0); `bust` fills the chest of a narrower figure. */
-function torsoRings(
-  broad: number,
-  bust: number,
-  hemY: number,
-  flare: number,
-): Ring[] {
-  return [
-    { y: 0.585, w: 0.055, d: 0.05 },
-    { y: 0.565, w: 0.14 * broad, d: 0.075 },
-    { y: 0.535, w: 0.21 * broad, d: 0.095 },
-    { y: 0.47, w: 0.2 * broad, d: 0.11 * bust },
-    { y: 0.38, w: 0.185 * broad, d: 0.112 * bust, z: 0.01 },
-    { y: 0.27, w: 0.165 * broad, d: 0.1 },
-    { y: 0.15, w: 0.17 * broad, d: 0.102 },
-    { y: 0.04, w: 0.2 * broad, d: 0.114 },
-    { y: hemY, w: 0.2 * broad * flare, d: 0.114 * flare },
-  ];
-}
-
-/** Scales rings about the body axis (a garment over another) and keeps those from index `from` to `to`. */
-function over(rings: Ring[], k: number, from = 0, to = rings.length): Ring[] {
-  return rings
-    .slice(from, to)
-    .map((r) => ({ ...r, w: r.w * k, d: r.d * (k + 0.02) }));
-}
-
-/** The near figure (LOD 0): smooth lofted body, capsule limbs, shaped hands / shoes / head, garments mapped unwrapped. */
-function figureDetail({ pose, outfit: o, rng }: FigureOpts): BufferGeometry {
+/** The near figure (LOD 0 / 1 of the sculpted kit): one skin from a distance field (people-figure.ts) plus the props. */
+function figureDetail({
+  pose,
+  outfit: o,
+  lod,
+  rng,
+}: FigureOpts): BufferGeometry {
   const parts: BufferGeometry[] = [];
-  const broad = o.broad;
-  const bust = broad < 0.95 ? 1.1 : 1;
-  const R = new Matrix4().makeRotationFromEuler(
-    new Euler(pose.lean ?? 0, 0, pose.sway ?? 0, 'ZXY'),
-  );
-  const rot = (x: number, y: number, z: number): Vector3 =>
-    v(x, y, z).applyMatrix4(R);
-  const torsoParts: BufferGeometry[] = [];
-  const denim = JEAN_COLORS.includes(o.legs);
-  const legCell = o.shorts ? SKIN : denim ? JEANS : TROUSERS;
-  const legColor = o.shorts ? o.skin : o.legs;
-  const lightShoe = o.shoes === '#e6e6e6';
-
-  // Legs: hip, knee, ankle, shoe.
-  for (const [side, leg] of [
-    [1, pose.legL],
-    [-1, pose.legR],
-  ] as const) {
-    const H = v(side * 0.095 * broad, 0, 0);
-    const K = H.clone().add(dirDown(leg.p, leg.ab, side).multiplyScalar(THIGH));
-    const A = K.clone().add(
-      dirDown(leg.p - leg.bend, leg.ab * 0.5, side).multiplyScalar(SHIN),
-    );
-    parts.push(bodyLimb(H, K, 0.098, 0.068, legColor, legCell, [0, 0.5]));
-    parts.push(ball(K, 0.068, legColor, legCell, [0.46, 0.54]));
-    parts.push(bodyLimb(K, A, 0.066, 0.046, legColor, legCell, [0.5, 1]));
-    parts.push(
-      ...shoe(
-        A.clone().add(v(0, -0.04, 0)),
-        o.shoes,
-        lightShoe ? '#8e8a82' : '#d8d3c6',
-        0.27,
-      ),
-    );
-  }
-
-  // Hips (in the trousers / skirt colour) and the belt.
-  const hipColor = o.skirt ?? o.legs;
-  parts.push(
-    loft(
-      [
-        // Inside the torso garment, which always hangs over the hips.
-        { y: 0.1, w: 0.15 * broad, d: 0.092 },
-        { y: 0.0, w: 0.164 * broad, d: 0.1 },
-        { y: -0.07, w: 0.158 * broad, d: 0.096 },
-        { y: -0.13, w: 0.11 * broad, d: 0.088 },
-      ],
-      12,
-      hipColor,
-      o.skirt ? KNIT : legCell,
-      { fv: [0, 0.2], capBottom: true },
-    ),
-  );
-  const S = rot(0, TORSO, 0);
-  const jacketTorso = !(o.shortSleeves || o.vest || o.skirt);
-  const torsoCell = jacketTorso ? JACKET : KNIT;
-  if (o.skirt) {
-    const len = o.skirtLen ?? 0.45;
-    parts.push(
-      loft(
-        [
-          { y: 0.14, w: 0.17 * broad, d: 0.105 },
-          { y: 0.0, w: 0.2 * broad, d: 0.128 },
-          { y: -len * 0.5, w: 0.2 * broad + len * 0.14, d: 0.13 + len * 0.12 },
-          { y: -len, w: 0.2 * broad + len * 0.3, d: 0.13 + len * 0.26 },
-        ],
-        14,
-        o.skirt,
-        TROUSERS,
-      ),
-    );
-  }
-
-  // Torso, vest, belt, collar, pack (built upright, then leant with the pose).
-  const rings = torsoRings(
-    broad,
-    bust,
-    // The hem hangs below the waist over the hips and thigh tops.
-    jacketTorso ? -0.11 : -0.07,
-    jacketTorso ? 1.12 : 1.08,
-  );
-  torsoParts.push(loft(rings, 12, o.torso, torsoCell, { capTop: true }));
-  if (o.vest) {
-    torsoParts.push(loft(over(rings, 1.07, 2, 8), 12, o.vest, HIVIS));
-    if (o.bands)
-      for (const y of [0.4, 0.28])
-        torsoParts.push(
-          loft(
-            [
-              { y, w: (0.186 - (0.4 - y) * 0.1) * broad * 1.085, d: 0.125 },
-              {
-                y: y - 0.045,
-                w: (0.182 - (0.4 - y) * 0.1) * broad * 1.085,
-                d: 0.125,
-              },
-            ],
-            12,
-            '#e6e8ea',
-            REFLECT,
-          ),
-        );
-  } else if (o.stripe) {
-    torsoParts.push(
-      loft(over(rings, 1.012, 3, 5), 12, o.stripe, KNIT, { fv: [0.4, 0.5] }),
-    );
-  }
-  if (!jacketTorso && !o.skirt && !o.shorts && !o.vest)
-    torsoParts.push(
-      loft(
-        [
-          { y: 0.085, w: 0.178 * broad, d: 0.113 },
-          { y: 0.045, w: 0.182 * broad, d: 0.115 },
-        ],
-        12,
-        '#1c1a18',
-        GLOVE,
-      ),
-    );
-  if (jacketTorso || o.collar)
-    torsoParts.push(
-      loft(
-        [
-          { y: 0.64, w: 0.066, d: 0.062 },
-          { y: 0.585, w: 0.078, d: 0.074 },
-        ],
-        10,
-        o.collar ?? o.torso,
-        o.collar ? KNIT : JACKET,
-        { fv: [0, 0.07] },
-      ),
-    );
+  const built = sculptBody(pose, o, lod, { rngSeed: 0 });
+  const body = built.geometry;
+  body.userData.cell = -1;
+  parts.push(body);
+  void rng;
   if (o.pack)
-    torsoParts.push(slab(0.3, 0.38, 0.13, v(0, 0.3, -0.17), o.pack, BAG));
-  for (const g of torsoParts) parts.push(g.applyMatrix4(R));
-
-  // Arms: shoulder, elbow, wrist, hand.
-  const hands: Vector3[] = [];
-  const sleeveColor = o.sleeves ?? o.torso;
-  const armColor = o.shortSleeves ? o.skin : sleeveColor;
-  const armCell = o.shortSleeves ? SKIN : SLEEVE;
-  for (const [side, arm] of [
-    [1, pose.armL],
-    [-1, pose.armR],
-  ] as const) {
-    const J = S.clone().add(rot(side * 0.205 * broad, -0.04, 0));
-    const E = J.clone().add(dirDown(arm.p, arm.ab, side).multiplyScalar(UPPER));
-    const fd = dirDown(arm.p + arm.bend, arm.ab2 ?? arm.ab, side);
-    const F = E.clone().add(fd.clone().multiplyScalar(FORE));
     parts.push(
-      ball(
-        J,
-        0.068,
-        o.vest && !o.shortSleeves ? sleeveColor : armColor,
-        armCell,
-        [0, 0.12],
+      slab(
+        0.3,
+        0.38,
+        0.13,
+        v(0, 0.3, -0.17).applyMatrix4(built.R),
+        o.pack,
+        BAG,
       ),
     );
-    parts.push(bodyLimb(J, E, 0.064, 0.05, armColor, armCell, [0, 0.5]));
-    parts.push(ball(E, 0.05, armColor, armCell, [0.46, 0.54]));
-    parts.push(bodyLimb(E, F, 0.049, 0.039, armColor, armCell, [0.5, 1]));
-    parts.push(
-      ...hand(F, fd, side, o.gloves ?? o.skin, o.gloves ? GLOVE : SKIN),
-    );
-    hands.push(F.clone().add(fd.clone().multiplyScalar(0.05)));
-  }
-
-  // Neck + head.
-  const neck = S.clone().add(rot(0, 0.07, 0));
-  parts.push(
-    bodyLimb(
-      S.clone().add(rot(0, -0.02, 0)),
-      neck,
-      0.056,
-      0.05,
-      o.skin,
-      SKIN,
-      [0, 1],
-      8,
-    ),
-  );
-  const M = R.clone().multiply(
-    new Matrix4().makeRotationFromEuler(
-      new Euler(pose.head ?? 0, pose.turn ?? 0, 0, 'YXZ'),
-    ),
-  );
-  const hs = o.headScale ?? 1;
-  const Hc = S.clone().add(rot(0, 0.06 + HEAD_R * 0.95 * hs, 0.01));
-  for (const g of headParts(o, true, rng, true)) {
-    g.applyMatrix4(M).scale(hs, hs, hs).translate(Hc.x, Hc.y, Hc.z);
-    parts.push(g);
-  }
-
   if (pose.prop)
-    parts.push(...propParts(pose.prop, hands, S, R, Hc, true, true, o.flag));
+    parts.push(
+      ...propParts(
+        pose.prop,
+        built.hands,
+        built.S,
+        built.R,
+        built.Hc,
+        true,
+        true,
+        o.flag,
+      ),
+    );
   return finishBody(parts, pose, o);
 }
 
@@ -1640,12 +1449,14 @@ function finishFigure(
         ? blocky(outfit, pose)
         : lod === 0
           ? figureDetail({ pose: POSES[pose] as Pose, outfit, lod, rng })
-          : figure({
-              pose: POSES[pose] as Pose,
-              outfit,
-              lod: lod === 1 ? 0 : 1,
-              rng,
-            });
+          : lod === 1
+            ? figureDetail({ pose: POSES[pose] as Pose, outfit, lod, rng })
+            : figure({
+                pose: POSES[pose] as Pose,
+                outfit,
+                lod: 1,
+                rng,
+              });
   const parts = [{ geometry: g, material: getMaterial('people') }];
   const flag = g.userData.flag as BufferGeometry | undefined;
   if (flag)
@@ -1691,7 +1502,7 @@ const TROUSER_COLORS = [
   '#5a5040',
   '#1f2630',
 ];
-const JEAN_COLORS = ['#34486b', '#2a3a58', '#3f5578'];
+export const JEAN_COLORS = ['#34486b', '#2a3a58', '#3f5578'];
 
 /** The six spectator outfits (variant % 6); the pose is variant / 6. */
 const SPECTATOR_OUTFITS = 6;
