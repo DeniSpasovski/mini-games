@@ -56,12 +56,12 @@ const ENTRIES: MapEntry[] = [
     load: async () => (await import('./ajvatovci/map')).ajvatovciMap,
   },
   {
-    info: petralicaInfo,
-    load: async () => (await import('./petralica/map')).petralicaMap,
-  },
-  {
     info: vodnoInfo,
     load: async () => (await import('./vodno/map')).vodnoMap,
+  },
+  {
+    info: petralicaInfo,
+    load: async () => (await import('./petralica/map')).petralicaMap,
   },
   {
     info: galichicaInfo,
