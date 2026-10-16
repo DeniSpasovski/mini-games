@@ -97,6 +97,29 @@ export class Horizon {
       mesh.onBeforeRender = (_r, _s, camera) => this.project(camera);
       this.group.add(mesh);
     }
+    const rivers =
+      inner && def.rivers?.length
+        ? riverGeometry(
+            def,
+            inner,
+            lift,
+            palette.water.clone().multiplyScalar(0.75),
+          )
+        : undefined;
+    if (rivers) {
+      // Over the grid it lies on (its surface is the same coarse mesh): depth pulled forward so the banks never cover it.
+      const mat = this.createMaterial();
+      mat.polygonOffset = true;
+      mat.polygonOffsetFactor = -4;
+      mat.polygonOffsetUnits = -16;
+      const mesh = new Mesh(rivers, mat);
+      mesh.name = 'horizon rivers';
+      mesh.frustumCulled = false;
+      mesh.matrixAutoUpdate = false;
+      mesh.renderOrder = -0.505;
+      mesh.onBeforeRender = (_r, _s, camera) => this.project(camera);
+      this.group.add(mesh);
+    }
     const far = farLandmarks(world);
     if (far) {
       const mesh = new Mesh(far, this.material);
@@ -283,6 +306,89 @@ function gridGeometry(
   geo.setAttribute('color', new BufferAttribute(col, 3));
   geo.setIndex(idx);
   geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+/** Height the river ribbon floats over the coarse ground (m), and the smoothing window along the river (samples each side). */
+const RIVER_LIFT = 0.9;
+const RIVER_SMOOTH = 6;
+
+/**
+ * `HorizonDef.rivers` as one flat ribbon each, merged: its centre height follows the finest grid's ground averaged along the
+ * river (a river does not climb the banks), so it reads as one level strip of water across the valley floor.
+ */
+function riverGeometry(
+  def: HorizonDef,
+  g: GridDef,
+  lift: number,
+  color: Color,
+): BufferGeometry | undefined {
+  const hb = base64Bytes(g.heights);
+  const heights = new Int16Array(hb.buffer, hb.byteOffset, g.cols * g.rows);
+  const ground = gridHeight(g, heights, lift);
+  const pos: number[] = [];
+  const idx: number[] = [];
+  for (const r of def.rivers ?? []) {
+    const n = r.pts.length / 3;
+    if (n < 2) continue;
+    const gy: number[] = [];
+    for (let i = 0; i < n; i++) gy.push(ground(r.pts[i * 3], r.pts[i * 3 + 1]));
+    const v0 = pos.length / 3;
+    for (let i = 0; i < n; i++) {
+      let sum = 0;
+      let cnt = 0;
+      for (
+        let k = Math.max(0, i - RIVER_SMOOTH);
+        k <= Math.min(n - 1, i + RIVER_SMOOTH);
+        k++
+      ) {
+        sum += gy[k];
+        cnt++;
+      }
+      const x = r.pts[i * 3];
+      const z = r.pts[i * 3 + 1];
+      const hw = r.pts[i * 3 + 2] / 2;
+      const a = Math.max(0, i - 1) * 3;
+      const b = Math.min(n - 1, i + 1) * 3;
+      const tx = r.pts[b] - r.pts[a];
+      const tz = r.pts[b + 1] - r.pts[a + 1];
+      const len = Math.hypot(tx, tz) || 1;
+      const y = sum / cnt + RIVER_LIFT;
+      pos.push(
+        x + (tz / len) * hw,
+        y,
+        z - (tx / len) * hw,
+        x - (tz / len) * hw,
+        y,
+        z + (tx / len) * hw,
+      );
+    }
+    for (let i = 0; i < n - 1; i++) {
+      const a = v0 + i * 2;
+      // Face up (+Y); the ribbon's winding follows the river, so test it per quad.
+      const up =
+        (pos[(a + 2) * 3 + 2] - pos[a * 3 + 2]) *
+          (pos[(a + 1) * 3] - pos[a * 3]) -
+        (pos[(a + 2) * 3] - pos[a * 3]) *
+          (pos[(a + 1) * 3 + 2] - pos[a * 3 + 2]);
+      if (up >= 0) idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
+      else idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+  }
+  if (!idx.length) return undefined;
+  const nv = pos.length / 3;
+  const col = new Float32Array(nv * 3);
+  const nor = new Float32Array(nv * 3);
+  for (let i = 0; i < nv; i++) {
+    col.set([color.r, color.g, color.b], i * 3);
+    nor[i * 3 + 1] = 1;
+  }
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  geo.setAttribute('normal', new BufferAttribute(nor, 3));
+  geo.setAttribute('color', new BufferAttribute(col, 3));
+  geo.setIndex(idx);
   geo.computeBoundingSphere();
   return geo;
 }
