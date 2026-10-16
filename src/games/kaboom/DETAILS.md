@@ -2,8 +2,7 @@
 
 > **Status:** playable end to end (menus, bots, HUD, touch / keyboard / gamepad, audio, sudden death); polish and a real-device
 > pass remain (`TASKS.md`, local).
-> **Unlisted on the portal** (`hideInProd` in `GAME_LIST`, `src/portal/release.ts`): the release build still builds it, so `games/kaboom/` plays
-> for anyone with the link; the portal card shows on the dev server and in `npm run build:test` only. Remove the flag to release.
+> **Released** (listed in `GAME_LIST`, `src/portal/release.ts`). The levels `valley` and `sea` are still `hideInProd` (see "Levels").
 
 An arena game in a tilted 3D view: you and up to 7 bots walk a grid, place TNT, blow up crates and each other. The last
 one standing wins the round. three.js, procedural art only (no model / texture / sound files).
