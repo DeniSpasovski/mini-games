@@ -1,5 +1,6 @@
 import { FUR_SHELLS } from './fur';
 import { Group, Scene, Vector3, type Texture, type WebGLRenderer } from 'three';
+import type { LevelId } from '../game/levels';
 import { MAX_PLAYERS, MAX_TNT } from '../sim/rules';
 import type { KaboomSim, SimEvent } from '../sim/types';
 import { Arena } from './arena';
@@ -11,6 +12,8 @@ import { Fx } from './fx/fx';
 import { ItemRenderer } from './items';
 import { GlowGrid } from './fx/glow-grid';
 import { makeSkyTexture } from './materials';
+import { levelTheme } from './themes';
+import type { LevelTheme, PlatformPose } from './themes/theme';
 import type { Quality } from './renderer';
 import { BlobShadows } from './shadows';
 import { TntRenderer } from './tnt';
@@ -25,6 +28,8 @@ export interface WorldViewOptions {
   /** TNT digit atlas / comic word atlas (default: drawn on canvases). */
   digitAtlas?: Texture;
   wordAtlas?: Texture;
+  /** The look of the arena (default Quarry). */
+  level?: LevelId;
 }
 
 const shakeOffset = new Vector3();
@@ -41,6 +46,10 @@ const SHADOW_REDRAW_S = 0.15;
 export class WorldView {
   readonly scene = new Scene();
   readonly root = new Group();
+  /** Arena, crew, TNT, items, shadows and FX: what rides the platform (it bobs at sea). The crowd and the scenery stay put. */
+  readonly platform = new Group();
+  readonly theme: LevelTheme;
+  private readonly pose: PlatformPose = { y: 0, rx: 0, rz: 0 };
   readonly rig: CameraRig;
   arena!: Arena;
   glow!: GlowGrid;
@@ -70,8 +79,11 @@ export class WorldView {
   ) {
     this.rig = opts.rig ?? new CameraRig();
     this.followCamera = opts.follow ?? true;
+    this.theme = levelTheme(opts.level ?? 'quarry');
     const bg =
-      opts.background === undefined ? makeSkyTexture() : opts.background;
+      opts.background === undefined
+        ? makeSkyTexture(this.theme.sky)
+        : opts.background;
     if (bg) this.scene.background = bg;
     this.mapRef = sim.map;
     const { w, h } = sim.map;
@@ -83,18 +95,19 @@ export class WorldView {
     this.crew.onLand = (x, z) => this.fx.land(x, z);
     this.tnt = new TntRenderer(w, h, opts.digitAtlas);
     this.items = new ItemRenderer(w, h);
-    this.fx = new Fx(w, h, opts.wordAtlas);
-    this.crowd = new Crowd(w, h, SLAB_PAD, quality);
+    this.fx = new Fx(w, h, opts.wordAtlas, this.theme.fx);
+    this.fx.sea = this.theme.fall === 'tile';
+    this.crowd = new Crowd(w, h, SLAB_PAD, quality, this.theme.crowd);
     this.crowd.setPlayers(sim.players);
     this.buildArena();
-    this.root.add(
-      this.crowd.group,
+    this.platform.add(
       this.crew.group,
       this.tnt.group,
       this.items.group,
       this.shadows.mesh,
       this.fx.group,
     );
+    this.root.add(this.crowd.group, this.platform);
     this.scene.add(this.root);
     this.fit();
   }
@@ -102,8 +115,9 @@ export class WorldView {
   private buildArena(): void {
     const { w, h } = this.sim.map;
     this.glow = new GlowGrid(w, h);
-    this.arena = new Arena(this.sim.map, this.quality, this.glow);
-    this.root.add(this.arena.group);
+    this.arena = new Arena(this.sim.map, this.quality, this.glow, this.theme);
+    this.platform.add(this.arena.group);
+    this.root.add(this.arena.scenery);
   }
 
   /** Frame the whole arena for the camera's current aspect (call when the canvas is resized). */
@@ -122,7 +136,8 @@ export class WorldView {
 
   /** The sim started a new round (new map): rebuild the arena, clean the crew and FX. */
   newRound(): void {
-    this.root.remove(this.arena.group);
+    this.platform.remove(this.arena.group);
+    this.root.remove(this.arena.scenery);
     this.arena.dispose();
     this.glow.dispose();
     this.buildArena();
@@ -137,11 +152,16 @@ export class WorldView {
     for (const e of events) {
       if (e.type === 'blockBroken') this.arena.removeCrate(e.x, e.y);
       else if (e.type === 'blockFell') {
-        this.arena.removeCrate(e.x, e.y);
+        // a wall lands on a crate and flattens it; a sinking tile takes its crate down with it
+        if (this.theme.fall === 'wall') this.arena.removeCrate(e.x, e.y);
         this.arena.dropWall(e.x, e.y, this.fx.time.value);
       } else if (e.type === 'playerKo') {
         const p = this.sim.players[e.id];
-        if (p) this.fx.onKo(p.x, p.y);
+        if (p) {
+          if (this.arena.isSunk(Math.floor(p.x), Math.floor(p.y)))
+            this.fx.onKoSplash(p.x, p.y);
+          else this.fx.onKo(p.x, p.y);
+        }
       }
       if (e.type === 'tntExploded')
         this.crowd.excite(0.35 + 0.1 * e.chainDepth);
@@ -175,6 +195,12 @@ export class WorldView {
     this.glow.update(this.sim.flame);
     this.fx.update(dt);
     this.arena.update(this.fx.time.value);
+    if (this.theme.motion) {
+      const p = this.pose;
+      this.theme.motion(this.fx.time.value, this.quality, p);
+      this.platform.position.y = p.y;
+      this.platform.rotation.set(p.rx, 0, p.rz);
+    }
     this.crowd.setPlayers(players);
     this.crowd.update(this.fx.time.value, dt);
     const falls = this.sim.upcomingFalls(WARN_S, this.fallCells, this.fallSecs);

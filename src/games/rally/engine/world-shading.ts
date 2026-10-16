@@ -23,6 +23,7 @@ import {
  *   (incl. the dust).
  * - **Wind:** vertex sway for materials with `defines.RALLY_WIND` (= sway per metre² of height above the asset
  *   origin; foliage materials in `engine/materials.ts`), phase from the instance position.
+ * - **Flags:** cloth materials with `defines.RALLY_FLAG` fly downwind and ripple (`FLAG_VERTEX`).
  * - **Leaf translucency:** materials with `defines.RALLY_FOLIAGE` glow a little when the sun is behind them.
  *
  * How: ShaderChunk overrides (fog, begin_vertex, lights) that read the `ws*` uniforms below, and a default
@@ -244,6 +245,57 @@ const FOG_FRAGMENT = /* glsl */ `
 #endif
 `;
 
+/**
+ * Flag cloth (`defines.RALLY_FLAG` = wavelength scale, 1 = a 3.6 m flag): the cloth is turned about its pole to fly
+ * downwind (the clouds' drift, veering a little with the gusts) and ripples with waves that travel down it and grow
+ * towards the free end, with the foliage's wind clock, gusts and strength (`wsWind.z`, 0 = still). Declares `wsFm`
+ * (the instance's world matrix) and the named yaw (to turn by).
+ */
+const FLAG_THETA = (v: string): string => /* glsl */ `
+		mat4 wsFm = modelMatrix;
+		#ifdef USE_INSTANCING
+			wsFm = modelMatrix * instanceMatrix;
+		#endif
+		float ${v} = 0.0;
+		vec2 wsFa = ( wsFm * vec4( 1.0, 0.0, 0.0, 0.0 ) ).xz;
+		if ( wsWind.z > 0.0 && dot( wsFa, wsFa ) > 1e-6 ) {
+			float wsFv = 0.25 * sin( wsTime * 0.17 + dot( wsFm[ 3 ].xz, vec2( 0.011, 0.007 ) ) );
+			${v} = atan( wsFa.y, wsFa.x ) - ( atan( wsWind.y, wsWind.x ) + wsFv );
+		}`;
+
+const FLAG_VERTEX = /* glsl */ `
+#ifdef RALLY_FLAG
+	{
+		${FLAG_THETA('wsFth')}
+		if ( wsWind.z > 0.0 ) {
+			float wsX = max( position.x - 0.05, 0.0 );
+			float wsK = 1.0 / float( RALLY_FLAG );
+			float wsGu = 0.6 + 0.4 * sin( wsTime * 0.31 + dot( wsFm[ 3 ].xz, vec2( 0.011, 0.007 ) ) );
+			float wsT = wsTime * wsWind.w * 2.2;
+			float wsAmp = 0.09 * wsWind.z * wsGu * wsX;
+			transformed.z += wsAmp * ( sin( 5.5 * wsK * wsX - wsT ) + 0.4 * sin( 10.0 * wsK * wsX - 1.7 * wsT + 1.3 ) );
+			transformed.y += 0.5 * wsAmp * cos( 4.0 * wsK * wsX - 0.9 * wsT + 0.7 );
+			transformed.x -= 0.18 * wsAmp * ( 0.5 + 0.5 * sin( 5.5 * wsK * wsX - wsT ) );
+			float wsC = cos( wsFth );
+			float wsS = sin( wsFth );
+			transformed.xz = vec2( wsC * transformed.x + wsS * transformed.z, - wsS * transformed.x + wsC * transformed.z );
+		}
+	}
+#endif
+`;
+
+/** The cloth's normals turn with it (appended to `beginnormal_vertex`). */
+const FLAG_NORMAL = /* glsl */ `
+#ifdef RALLY_FLAG
+	{
+		${FLAG_THETA('wsFthN')}
+		float wsCn = cos( wsFthN );
+		float wsSn = sin( wsFthN );
+		objectNormal.xz = vec2( wsCn * objectNormal.x + wsSn * objectNormal.z, - wsSn * objectNormal.x + wsCn * objectNormal.z );
+	}
+#endif
+`;
+
 const BEGIN_VERTEX = /* glsl */ `
 vec3 transformed = vec3( position );
 #ifdef USE_ALPHAHASH
@@ -264,7 +316,7 @@ vec3 transformed = vec3( position );
 		transformed.xz += wsSway * ( float( RALLY_WIND ) * wsWind.z * wsGust * wsH * wsH );
 	}
 #endif
-`;
+${FLAG_VERTEX}`;
 
 const LIGHTS_PARS = /* glsl */ `
 uniform sampler2D wsMacro;
@@ -352,6 +404,7 @@ function install(): void {
   chunks.fog_pars_fragment = FOG_PARS_FRAGMENT;
   chunks.fog_fragment = FOG_FRAGMENT;
   chunks.begin_vertex = BEGIN_VERTEX;
+  chunks.beginnormal_vertex = chunks.beginnormal_vertex + FLAG_NORMAL;
   chunks.common = WORLD_SHADING_DECL + chunks.common;
   chunks.lights_pars_begin = chunks.lights_pars_begin + LIGHTS_PARS;
   // Directional light loop only (the point / spot loops call RE_Direct too).

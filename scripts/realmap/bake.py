@@ -24,6 +24,9 @@ that a MapDef imports (see src/games/rally/maps/ajvatovci/map.ts):
                 Config "msRoads" {country, clearance, minLength, stageClearance?}: + roads OSM lacks from Microsoft
                 ML Road Detections (ODbL, see msroads.py), as dirt tracks; kept off OSM roads and railways, and
                 `stageClearance` m from the stage road (no new junctions on a finished stage).
+                Config paths {dropWays: [OSM way ids], dropKinds: [kinds], mergeJoints: true}: leave ways / kinds out;
+                join ways that meet end to end at a node no other road touches (a street cut into 20 m ways has a
+                height step at every joint).
   - buildings   OSM + Microsoft ML footprints as oriented boxes, typed house / flat, numbered along the
                 route (stable ids) -> also <map folder>/buildings.csv (see buildings.py)
   - power       OSM pylons + lines
@@ -929,6 +932,67 @@ def railway_lines(ways, nodes, proj, ext, pad=300.0):
     return rows
 
 
+JOINT_KEYS = ('highway', 'surface', 'oneway', 'bridge', 'tunnel', 'layer', 'width', 'lanes', 'junction')
+
+
+def merge_joints(items, locked_nodes):
+    """Join road ways that meet end to end at a node no other road touches (config paths.mergeJoints).
+
+    OSM cuts one street into many ways (a name, a lane count, a turn); the engine levels every way on its own, so each short
+    way ends in a height step at its joints. Two ways with the same kind / surface / direction / width are one way here.
+    items: [(way id, tags, refs)] -> the same shape. Ways touching a stage-road node (`locked_nodes`) are never merged."""
+    ways = {wid: (t, list(refs)) for wid, t, refs in items}
+
+    def key(t):
+        return tuple(t.get(k) for k in JOINT_KEYS)
+
+    merged_total = 0
+    while True:
+        touch = {}
+        for wid, (t, refs) in ways.items():
+            if 'highway' in t:
+                for i, r in enumerate(refs):
+                    touch.setdefault(r, []).append((wid, i))
+        used = set()
+        merged = 0
+        for n, lst in touch.items():
+            if n in locked_nodes or len(lst) != 2:
+                continue
+            (wa, ia), (wb, ib) = lst
+            if wa == wb or wa in used or wb in used:
+                continue
+            ta, ra = ways[wa]
+            tb, rb = ways[wb]
+            if key(ta) != key(tb) or any(r in locked_nodes for r in ra + rb):
+                continue
+            a_end, a_start = ia == len(ra) - 1, ia == 0
+            b_end, b_start = ib == len(rb) - 1, ib == 0
+            if not (a_end or a_start) or not (b_end or b_start) or len(ra) < 2 or len(rb) < 2:
+                continue
+            ow = ta.get('oneway')
+            if ow == '-1':
+                continue
+            one = ow in ('yes', '1', 'true')
+            if a_end and b_start:
+                new = ra + rb[1:]
+            elif a_start and b_end:
+                new = rb + ra[1:]
+            elif one:
+                continue  # head-on one-way ways: not one street
+            elif a_end and b_end:
+                new = ra + rb[::-1][1:]
+            else:  # both start here
+                new = ra[::-1] + rb[1:]
+            ways[wa] = (ta, new)
+            del ways[wb]
+            used |= {wa, wb}
+            merged += 1
+        merged_total += merged
+        if not merged:
+            break
+    return [(wid, t, refs) for wid, (t, refs) in ways.items()], merged_total
+
+
 def main():
     cfg_path = sys.argv[1]
     preview = '--preview' in sys.argv
@@ -1198,8 +1262,20 @@ def main():
                 run = []
         if len(run) > 1:
             paths.append((kind, width, surface, np.array(run), flag, extra))
-    for w in ways.values():
-        add_way(w['tags'], w['refs'])
+    # Config paths.dropWays (OSM way ids) / paths.dropKinds (highway / waterway kinds): left out of the other roads - a junction
+    # complex the engine cannot level (a ring of 20 m ways), steep gully streams that cannot hold water.
+    drop_ways = {str(i) for i in pcfg.get('dropWays', ())}
+    drop_kinds = set(pcfg.get('dropKinds', ()))
+    way_list = [
+        (wid, w['tags'], w['refs'])
+        for wid, w in ways.items()
+        if wid not in drop_ways and not ({w['tags'].get('highway'), w['tags'].get('waterway')} & drop_kinds)
+    ]
+    if pcfg.get('mergeJoints'):
+        way_list, n_merged = merge_joints(way_list, route_nodes)
+        print(f'  paths.mergeJoints: {n_merged} ways joined at plain two-way nodes')
+    for wid, tags, refs in way_list:
+        add_way(tags, refs)
     # Roads OSM lacks (Microsoft ML Road Detections): untagged, so treated as dirt tracks.
     ms_cfg = cfg.get('msRoads')
     ms_runs = []

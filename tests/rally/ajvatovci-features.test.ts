@@ -45,6 +45,15 @@ describe('ajvatovci', () => {
     }
   });
 
+  test('the side road at the bend by 3704 m joins the stage road and both corner bales stay', () => {
+    const j = world.gen.junctions.find((q) => Math.abs(q.along - 3704) < 5);
+    expect(j).toBeTruthy();
+    const bales = [...world.scatter.fixedInstances()].filter(
+      (i) => i.asset === 'hay_bale' && Math.hypot(i.x - j!.x, i.z - j!.z) < 8,
+    );
+    expect(bales.length).toBe(2);
+  });
+
   test('A2 carriageways have barriers, village dressing exists', () => {
     const runs = world.barrierRuns.filter((r) => r.path !== undefined);
     console.info(`[ajvatovci] A2 barrier runs: ${runs.length}`);

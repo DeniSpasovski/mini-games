@@ -13,5 +13,5 @@ import type { ReleaseEntry } from '../shared/release';
 export const GAME_LIST: readonly ReleaseEntry[] = [
   { id: 'rally' },
   { id: 'hole' },
-  { id: 'kaboom', hideInProd: true },
+  { id: 'kaboom' },
 ];

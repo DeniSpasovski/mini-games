@@ -274,6 +274,9 @@ test('menu: welcome -> setup -> pick a critter and an arena -> Start hands over 
   expect(api.settings.bots).toBe(3); // clamped to the small arena
   buttons(root, 'Hard')[0].click();
   buttons(root, 'Best of 5')[0].click();
+  // the level is picked on the same screen (test builds offer all of them)
+  buttons(root, 'Sea Deck')[0].click();
+  expect(api.settings.level).toBe('sea');
   buttons(root, 'Start!')[0].click();
   const play = api.calls.find((c) => c.startsWith('play '))!;
   expect(JSON.parse(play.slice(5))).toEqual({
@@ -282,6 +285,7 @@ test('menu: welcome -> setup -> pick a critter and an arena -> Start hands over 
     bots: 3,
     difficulty: 'hard',
     size: 's',
+    level: 'sea',
     rounds: 5,
   });
 });

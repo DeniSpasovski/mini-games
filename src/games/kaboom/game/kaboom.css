@@ -323,6 +323,9 @@ body {
   cursor: pointer;
   touch-action: manipulation;
 }
+.kb-segbtn b {
+  white-space: nowrap;
+}
 .kb-segbtn small {
   font-size: 11px;
   font-weight: 600;
@@ -742,6 +745,10 @@ body {
   .kb-pill {
     font-size: 16px;
     padding: 4px 10px;
+  }
+  .kb-segbtn {
+    font-size: 13px;
+    padding: 9px 2px;
   }
 }
 
