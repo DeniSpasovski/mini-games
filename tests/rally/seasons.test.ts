@@ -8,6 +8,10 @@ import {
   seasonAirTemp,
   stageClimate,
 } from '../../src/games/rally/maps/shared/climate';
+import {
+  groundTintFor,
+  mapInSeason,
+} from '../../src/games/rally/maps/shared/season-map';
 import type { EnvironmentDef } from '../../src/games/rally/maps/shared/types';
 import { testMap } from '../../src/games/rally/maps/test/map';
 import { SEASONS, seasonParam } from '../../src/games/rally/season';
@@ -37,6 +41,44 @@ const MAPS = [
   ['petralica', petralicaInfo.environment, 17],
   ['test', testMap.environment, 20],
 ] as const;
+
+describe('seasons: ground', () => {
+  test.each(MAPS)(
+    '%s has a ground tint of its own for each season',
+    (_id, env) => {
+      const own = mapSeason(env);
+      const others = SEASONS.filter((s) => s !== own).map((s) =>
+        groundTintFor(env, s),
+      );
+      expect(others.every(Boolean)).toBe(true);
+      // The test map has no tint in its own season: the ground texture as drawn.
+      const tints = env.groundTint ? [env.groundTint, ...others] : others;
+      expect(new Set(tints.map((t) => t!.grass)).size).toBe(tints.length);
+      // The map's own season keeps the tint it always had.
+      expect(groundTintFor(env, mapSeason(env))).toBe(env.groundTint);
+    },
+  );
+
+  test('a map in a season is a copy that names it and carries its tint', () => {
+    const map = { environment: testMap.environment, other: 1 };
+    expect(mapInSeason(map, 'summer')).toBe(map);
+    const spring = mapInSeason(map, 'spring');
+    expect(spring).not.toBe(map);
+    expect(spring.other).toBe(1);
+    expect(mapSeason(spring.environment)).toBe('spring');
+    expect(spring.environment.groundTint).toBe(
+      testMap.environment.groundTints!.spring,
+    );
+    expect(mapInSeason(spring, 'spring')).toBe(spring);
+    expect(map.environment.groundTint).not.toBe(spring.environment.groundTint);
+  });
+
+  test('a map without season tints keeps its ground', () => {
+    const env = { groundTint: { grass: '#123456' } } as EnvironmentDef;
+    expect(groundTintFor(env, 'autumn')).toBe(env.groundTint);
+    expect(groundTintFor({} as EnvironmentDef, 'spring')).toBeUndefined();
+  });
+});
 
 describe('seasons: air temperature', () => {
   test('the URL names a season or the map keeps its own', () => {

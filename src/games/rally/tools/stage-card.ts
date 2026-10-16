@@ -15,6 +15,7 @@ import {
   Vector3,
 } from 'three';
 import type { MapDef, StageDef } from '../maps/shared/types';
+import { DEFAULT_SEASON, type Season } from '../season';
 import type { World } from '../world/world';
 
 /**
@@ -33,6 +34,17 @@ import type { World } from '../world/world';
 export const LARGE_MAP_AREA = 8e6;
 /** Bump when the baker's look or the card format changes: every card must be re-baked. */
 export const STAGE_CARD_VERSION = 3;
+/**
+ * A card has one image per season (`MapDef.environment.season`, spring / summer / autumn): `<stage id>.jpg` is the map's
+ * own season, `<stage id>-<season>.jpg` the others. Only the image shown is fetched.
+ */
+export function cardImageName(
+  stageId: string,
+  season: Season,
+  own: Season,
+): string {
+  return season === own ? stageId : `${stageId}-${season}`;
+}
 /** Card = the stage's bounding rectangle + this margin (m): a tight cut, the rest of the map stays a surprise. */
 export const CARD_MARGIN = 500;
 /** Margin around the stage (m), so the start / finish poles and corners aren't at the view's edge. */
@@ -54,6 +66,10 @@ export interface StageCardData {
   stage: number[];
   /** Floor colour ('#rrggbb') = the card's faded edge colour. */
   floor: string;
+  /** Season of the base image (default summer): the map's own. */
+  season?: Season;
+  /** The other seasons' images (`cardImageName`): their hash (as `hash`) and floor colour. */
+  seasons?: Partial<Record<Season, { hash: string; floor: string }>>;
 }
 
 /**
@@ -128,6 +144,18 @@ const NOT_ON_CARD = new Set([
   'horizon',
 ]);
 
+/** The environment as drawn: not the air temperatures, months nor the other seasons' tints (the card is one season's picture). */
+function drawnEnvironment(env: MapDef['environment']): unknown {
+  const {
+    airTemp: _a,
+    airTemps: _t,
+    months: _m,
+    groundTints: _g,
+    ...drawn
+  } = env;
+  return drawn;
+}
+
 /**
  * Hash of what a stage's card is rendered from: the map's world data (terrain, roads, land cover, scatter, buildings,
  * environment, ...) and the stage's stretch of road and event dressing (`reverse`, `timing`, `closures`, `cornerFans`,
@@ -137,7 +165,9 @@ const NOT_ON_CARD = new Set([
  */
 export function stageCardHash(map: MapDef, stage: StageDef): string {
   const world = Object.fromEntries(
-    Object.entries(map).filter(([k]) => !NOT_ON_CARD.has(k)),
+    Object.entries(map)
+      .filter(([k]) => !NOT_ON_CARD.has(k))
+      .map(([k, v]) => [k, k === 'environment' ? drawnEnvironment(v) : v]),
   );
   const { reverse, timing, closures, cornerFans, props } = stage;
   const s = JSON.stringify(
@@ -159,6 +189,8 @@ export function stageCardHash(map: MapDef, stage: StageDef): string {
 
 export interface StageOverlay {
   group: Group;
+  /** The floor disc's colour (a season's card has its own). */
+  setFloor(color: Color): void;
   dispose(): void;
 }
 
@@ -218,6 +250,7 @@ export function stageOverlay(o: {
   group.add(line);
   return {
     group,
+    setFloor: (color) => floorMat.color.copy(color),
     dispose() {
       lineGeo.dispose();
       lineMat.dispose();
@@ -229,30 +262,63 @@ export function stageOverlay(o: {
   };
 }
 
-/** A loaded card: data + texture (decoded). */
+/** A loaded card: data + the image of one season (decoded). */
 export interface StageCard {
   data: StageCardData;
   texture: Texture;
+  /** The season of `texture`: the one asked for, or the base one when that season has no image. */
+  season: Season;
+}
+
+/** The card's data (`maps/<map>/preview/<stage>.json`, lazy chunk per map). */
+export async function loadStageCardData(
+  mapId: string,
+  stageId: string,
+): Promise<StageCardData> {
+  const json = await import(`../maps/${mapId}/preview/${stageId}.json`);
+  return (json.default ?? json) as StageCardData;
+}
+
+/** One season's image of a card; null when that season was not baked. */
+async function loadSeasonImage(
+  mapId: string,
+  name: string,
+): Promise<Texture | null> {
+  try {
+    const jpg = await import(`../maps/${mapId}/preview/${name}.jpg`);
+    const texture = await new TextureLoader().loadAsync(
+      (jpg.default ?? jpg) as string,
+    );
+    texture.colorSpace = SRGBColorSpace;
+    texture.anisotropy = 8;
+    return texture;
+  } catch {
+    return null;
+  }
 }
 
 /**
- * Load a map's card (lazy chunk per map: only the selected map's files are fetched). Rejects when the map has no
- * card (not baked yet) - the caller then builds the view live.
+ * Load a map's card (lazy chunk per map: only the selected map's files are fetched), with the image of `season`
+ * (default: the card's own; a season that was not baked shows the own one). Rejects when the map has no card (not baked
+ * yet) - the caller then builds the view live.
  */
 export async function loadStageCard(
   mapId: string,
   stageId: string,
+  season?: Season,
+  data?: StageCardData,
 ): Promise<StageCard> {
-  const [json, jpg] = await Promise.all([
-    import(`../maps/${mapId}/preview/${stageId}.json`),
-    import(`../maps/${mapId}/preview/${stageId}.jpg`),
-  ]);
-  const data = (json.default ?? json) as StageCardData;
-  const url = (jpg.default ?? jpg) as string;
-  const texture = await new TextureLoader().loadAsync(url);
-  texture.colorSpace = SRGBColorSpace;
-  texture.anisotropy = 8;
-  return { data, texture };
+  const card = data ?? (await loadStageCardData(mapId, stageId));
+  const own = card.season ?? DEFAULT_SEASON;
+  const want = season ?? own;
+  const image =
+    (want !== own &&
+      (await loadSeasonImage(mapId, cardImageName(stageId, want, own)))) ||
+    null;
+  if (image) return { data: card, texture: image, season: want };
+  const base = await loadSeasonImage(mapId, stageId);
+  if (!base) throw new Error(`no stage card image for ${stageId}`);
+  return { data: card, texture: base, season: own };
 }
 
 /** Heights of a card's grid (m). */

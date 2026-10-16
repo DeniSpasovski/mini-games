@@ -308,9 +308,13 @@ pages and the reference tests above are unchanged).
 - **Climate:** `EnvironmentDef.airTemps` (°C per season, `?season=` or the stage screen's Season; summer: Ajvatovci 27,
   Jackie 17, test 20, Petralica 17, Galichica 12; `airTemp` alone moves by `SEASON_AIR_OFFSET`; `?air=` to try any) is the air
   at the map's own `timeOfDay`; at another hour (`?tod=`, the stage screen's Time of day) it swings +-6 °C (coldest ~03:00,
-  warmest ~15:00, `airAtHour`). The sun (`stageClimate`: sun height after `?tod=`, clouds) warms the road: track
-  temperature = air + sun x `SurfaceDef.heat` (tarmac 1 ... grass 0.3, snow 0). The stage screen shows the same air / road
-  numbers (`stageTemps`).
+  warmest ~15:00, `airAtHour`). The sun (`stageClimate`: sun height after `?tod=`, clouds, the season) warms the road: track
+  temperature = air + sun x `SurfaceDef.heat` (tarmac 1 ... grass 0.3, snow 0). The drawn sun path is one mid-summer day,
+  so `seasonSunShare` scales the heat by the clear-sky sun (Haurwitz) of the stage's month (`EnvironmentDef.months`, shown
+  on the stage screen; default April / July / October) against July at the same hour angle, at 41.5 N: noon ~0.9 in April,
+  ~0.7 in October, October mornings and evenings ~0. Checked against measurements: a hot clear summer noon heats dark
+  asphalt ~23 °C above the air at 41 N (Solaimanian and Kennedy, TRR 1417, 1993; we give ~22), sunny-day means in a mild
+  climate ~12 °C (Brisbane road studies). The stage screen shows the same air / road numbers (`stageTemps`).
 - **Heat:** sliding work (`|F| x slide speed / static load`, the stones take 60 % of it on loose ground) + carcass flex
   (speed x load). **Cooling:** air (more with speed), the ground (towards the track temperature), water. Capped at 150 °C.
   Tyres start a stage at the air temperature (`resetTyreTemps` on start / restart; reset to road keeps them).

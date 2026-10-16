@@ -18,9 +18,9 @@ import {
   type QualitySettings,
 } from '../engine/quality';
 import { ALL_STAGES, DEFAULT_STAGE, MAPS, STAGES } from '../maps';
-import { mapSeason } from '../maps/shared/climate';
+import { MONTH_NAMES, mapSeason, seasonMonth } from '../maps/shared/climate';
 import { stageTemps } from '../maps/shared/day-temperature';
-import { SEASON_LABELS, SEASONS, type Season } from '../season';
+import { SEASON_LABELS, SEASONS, seasonParam, type Season } from '../season';
 import type { SourceLink, StageInfo } from '../maps/shared/types';
 import { peakPower } from '../physics/drivetrain';
 import {
@@ -324,7 +324,8 @@ class MainMenu {
 
   /**
    * DEV: `?bakecard=<id>` / `?bakecards=1` (every large map) bakes the stage-select cards (tools/stage-card-bake.ts)
-   * into maps/<id>/preview/, with the progress shown over the menu. Reload afterwards.
+   * into maps/<id>/preview/, with the progress shown over the menu; `&season=all` (or one season) bakes the seasons'
+   * pictures. Reload afterwards.
    */
   private bakeCardsFromUrl(): void {
     const q = new URLSearchParams(location.search);
@@ -351,9 +352,13 @@ class MainMenu {
       console.info(`[stage card] ${s}`);
       box.textContent = `${box.textContent}${s}\n`;
     };
+    // `&season=spring|summer|autumn|all` (default: each stage's own season).
+    const raw = q.get('season');
+    const seasons =
+      raw === 'all' ? raw : raw ? seasonParam(raw, 'summer') : undefined;
     log(`baking ${ids.join(', ')}...`);
     this.showroom
-      .bakeStageCards(ids, log)
+      .bakeStageCards(ids, seasons, log)
       .then(() => log('done - reload the page (without ?bakecard) to see them'))
       .catch((e: unknown) => log(`FAILED: ${String(e)}`));
   }
@@ -449,7 +454,7 @@ class MainMenu {
     if (screen === 'setup') this.setupSelect();
     // Stage select shows the map from the air, everything else the car.
     // The setup screen drives the showroom itself (parts bench, see setupSelect).
-    if (screen === 'map') this.showroom.showMap(this.map.id);
+    if (screen === 'map') this.showMap(this.map);
     else if (screen !== 'setup' && screen !== 'times') this.showroom.showCar();
     // First visit with no quality chosen: measure the picking screens, the stage then starts on the result.
     if ((screen === 'map' || screen === 'car') && needsAutoQuality())
@@ -603,7 +608,7 @@ class MainMenu {
     );
     // The results start level with the first stage card.
     card.style.top = `${list.getBoundingClientRect().top - this.root.getBoundingClientRect().top}px`;
-    this.showroom.showMap(m.id);
+    this.showMap(m);
   }
 
   /** One stage card (route, description, tags, best time) of the stage list; `showBest` off on the Stage times screen. */
@@ -680,8 +685,25 @@ class MainMenu {
       SEASONS.map((id) => ({ id, label: SEASON_LABELS[id] })),
       this.seasonFor(m),
     );
-    card.append(seasonRow.row);
-    if (hour === undefined) return card;
+    // The month the stage is driven in that season (`EnvironmentDef.months`).
+    const monthRow = document.createElement('dl');
+    monthRow.innerHTML = `<dt>Month</dt><dd></dd>`;
+    const showMonth = () => {
+      monthRow.querySelector('dd')!.textContent =
+        MONTH_NAMES[seasonMonth(m.environment, this.seasonFor(m)) - 1];
+    };
+    showMonth();
+    card.append(seasonRow.row, monthRow);
+    // Without a time of day (the test map) the season only changes the picture, the leaves and the month.
+    const onSeason = (e: Event) => {
+      this.season = (e.target as HTMLSelectElement).value as Season;
+      this.showroom.setSeason(this.season);
+      showMonth();
+    };
+    if (hour === undefined) {
+      seasonRow.select.addEventListener('change', onSeason);
+      return card;
+    }
     const timeRow = pickerRow(
       'Time of day',
       TIMES_OF_DAY,
@@ -704,7 +726,7 @@ class MainMenu {
     show(hour);
     // The list needs no redraw: only the stage's description card knows the season and the time.
     seasonRow.select.addEventListener('change', (e) => {
-      this.season = (e.target as HTMLSelectElement).value as Season;
+      onSeason(e);
       show(this.hourFor(m) ?? hour);
     });
     timeRow.select.addEventListener('change', (e) => {
@@ -713,6 +735,12 @@ class MainMenu {
     });
     card.append(timeRow.row, when);
     return card;
+  }
+
+  /** The stage from the air (its card) in the season it will run in. */
+  private showMap(m: StageInfo): void {
+    this.showroom.setSeason(this.seasonFor(m));
+    this.showroom.showMap(m.id);
   }
 
   /** Season the stage runs in: the picked one, else `?season=`, else its own. */

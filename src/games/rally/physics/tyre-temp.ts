@@ -44,17 +44,24 @@ const WATER_COOL = 0.25;
 /** Hottest a tyre gets (°C): keeps the cool-down after a long burnout short. */
 const MAX_TEMP = 150;
 
-/** Climate of a stage: air temperature, sun height (deg) and cloud cover (0..1). */
+/**
+ * Climate of a stage: air temperature, sun height (deg), cloud cover (0..1) and `sunShare` (0..1): how much of the
+ * sun's full heat the season brings at that hour (`seasonSunShare`, maps/shared/climate.ts; 1 = as drawn).
+ */
 export function climateFor(
   air: number,
   sunElevationDeg: number,
   clouds = 0.4,
+  sunShare = 1,
 ): Climate {
   const sun = Math.max(0, Math.sin((sunElevationDeg * Math.PI) / 180));
   return {
     air,
     sun:
-      SUN_HEAT * Math.min(1, sun / Math.sin(Math.PI / 3)) * (1 - 0.5 * clouds),
+      SUN_HEAT *
+      Math.min(1, sun / Math.sin(Math.PI / 3)) *
+      (1 - 0.5 * clouds) *
+      sunShare,
   };
 }
 

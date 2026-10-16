@@ -820,6 +820,12 @@ export interface EnvironmentDef {
   airTemp?: number;
   /** Air temperature (°C) per season, ahead of `airTemp`; a season left out is `airTemp` shifted by `SEASON_AIR_OFFSET` (maps/shared/climate.ts). */
   airTemps?: Partial<Record<Season, number>>;
+  /**
+   * Month (1 = January ... 12) the stage is driven in per season, shown on the stage screen (default April / July /
+   * October, `DEFAULT_MONTHS`) and setting how high the sun stands, so how much it warms the road
+   * (`seasonSunShare`, maps/shared/climate.ts). Air temperatures (`airTemps`) are authored for that month.
+   */
+  months?: Partial<Record<Season, number>>;
   /** Override the sun colour / intensity (default: warmer and dimmer the lower the sun). */
   sunColor?: string;
   sunIntensity?: number;
@@ -858,10 +864,19 @@ export interface EnvironmentDef {
    * parcels (see `LandcoverDef.fields.palette`), default wheat gold. `moisture` = strength of the wet / dry grass
    * variation (greener hollows and banks, straw ridges and slopes; world/ground-moisture.ts), default 1, 0 = off.
    */
-  groundTint?: {
-    grass: string;
-    amount?: number;
-    crop?: string;
-    moisture?: number;
-  };
+  groundTint?: GroundTint;
+  /**
+   * The ground in other seasons (spring, autumn), ahead of `groundTint` (the map's look in its own season): fresh green
+   * grass and young crops in spring, dry olive and stubble in autumn. `mapInSeason` (maps/shared/season-map.ts) puts
+   * the season's tint into `groundTint`, so every consumer reads one field.
+   */
+  groundTints?: Partial<Record<Season, GroundTint>>;
+}
+
+/** Recolour of the terrain grass and crop parcels (`EnvironmentDef.groundTint`). */
+export interface GroundTint {
+  grass: string;
+  amount?: number;
+  crop?: string;
+  moisture?: number;
 }

@@ -60,7 +60,8 @@ const STUDIO_POWER = 60;
 const STUDIO_ROOM = 0.5;
 
 /** Highest sun of the day (deg): late spring at ~42 deg N (all maps are at 40-42 deg N). */
-const NOON_ELEVATION = 58;
+/** Sun height (deg) at noon: the drawn sun path (`sunAt`) is one mid-season day. */
+export const NOON_ELEVATION = 58;
 
 /**
  * Sun position for a time of day (hours, 6 = sunrise, 12 = noon, 18 = sunset): a plain half-circle sun path,

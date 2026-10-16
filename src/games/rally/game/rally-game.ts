@@ -88,6 +88,7 @@ import {
   timesVersion,
 } from './stage';
 import { mapSeason, stageClimate } from '../maps/shared/climate';
+import { mapInSeason } from '../maps/shared/season-map';
 import { airAtHour } from '../maps/shared/day-temperature';
 import { seasonParam, type Season } from '../season';
 import type { MapDef, StageDef } from '../maps/shared/types';
@@ -241,11 +242,11 @@ export class RallyGame {
       Math.min(8, this.renderer.capabilities.getMaxAnisotropy()),
     );
     bindCameraAspect(this.renderer, this.camera);
-    this.world = new World(opts.map, opts.stage);
     this.season = seasonParam(
       new URLSearchParams(location.search).get('season'),
-      mapSeason(this.world.map.environment),
+      mapSeason(opts.map.environment),
     );
+    this.world = new World(mapInSeason(opts.map, this.season), opts.stage);
     this.car = getCar(opts.carId);
     this.audio = new CarAudio(this.car);
     // Any spawn other than the stage start (pad, ?spawn=<metres>) is free drive: no clock, no splits.
@@ -397,6 +398,7 @@ export class RallyGame {
         this.env.sunElevation,
         paramNumber(air, -60, 70, undefined) ??
           airAtHour(map.environment, this.env.hour, this.season),
+        this.season,
       ),
     );
     this.model = new CarModel(this.car, {

@@ -62,12 +62,17 @@ export const petralicaInfo: MapInfo = {
     timeOfDay: 16.5,
     // September afternoon (dry golden grass), a cool autumn day.
     airTemps: { spring: 11, summer: 17, autumn: 13 },
+    months: { spring: 5, summer: 7, autumn: 9 },
     turbidity: 5,
     rayleigh: 1.6,
     fogColor: '#c2cbd2',
     fogDensity: 0.00036,
     exposure: 0.95,
     groundTint: { grass: '#9d9562', amount: 0.6 },
+    groundTints: {
+      spring: { grass: '#76a048', amount: 0.7 },
+      autumn: { grass: '#8f7a50', amount: 0.6 },
+    },
   },
   route: data.route,
   surfaces: ['tarmac', 'gravel'],

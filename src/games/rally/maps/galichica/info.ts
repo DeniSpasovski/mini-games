@@ -49,6 +49,7 @@ export const galichicaInfo: MapInfo = {
     // Early October, 09:00: clear dry mountain air, long views over both lakes.
     timeOfDay: 9,
     airTemps: { spring: 6, summer: 12, autumn: 9 },
+    months: { spring: 5, summer: 7, autumn: 10 },
     cloudCoverage: 0.15,
     turbidity: 3.5,
     rayleigh: 1.4,
@@ -57,6 +58,10 @@ export const galichicaInfo: MapInfo = {
     exposure: 0.95,
     // Golden autumn pasture on the karst top.
     groundTint: { grass: '#a59a62', amount: 0.55 },
+    groundTints: {
+      spring: { grass: '#7fa04a', amount: 0.65 },
+      autumn: { grass: '#94784a', amount: 0.55 },
+    },
   },
   route: data.route,
   surfaces: ['tarmac'],

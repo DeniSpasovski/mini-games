@@ -1,7 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, test } from '@rstest/core';
-import { type StageCardData } from '../../src/games/rally/tools/stage-card';
+import {
+  cardImageName,
+  type StageCardData,
+} from '../../src/games/rally/tools/stage-card';
+import { mapSeason } from '../../src/games/rally/maps/shared/climate';
+import { SEASONS } from '../../src/games/rally/season';
 import { ALL_STAGE_DEFS } from '../../src/games/rally/maps/all';
 import { isReleased } from '../../src/shared/release';
 import { STAGES_LIST } from '../../src/games/rally/release';
@@ -34,6 +39,29 @@ describe('stage cards', () => {
       expect(card.grid.nx * card.grid.nz * 2).toBe(
         Buffer.from(card.grid.heights, 'base64').length,
       );
+    },
+  );
+
+  // One picture per season the map has its own ground for (`groundTints`) (bake: /games/rally/?bakecard=<stage id>&season=all).
+  test.each(released.map((d) => [d.stage.id, d.map.id, d.map] as const))(
+    '%s has a card picture for each season',
+    (id, mapId, map) => {
+      const dir = path.join(mapsDir, mapId, 'preview');
+      const card = JSON.parse(
+        fs.readFileSync(path.join(dir, `${id}.json`), 'utf8'),
+      ) as StageCardData;
+      const own = mapSeason(map.environment);
+      expect(card.season ?? 'summer').toBe(own);
+      for (const season of SEASONS) {
+        if (!map.environment.groundTints?.[season] || season === own) continue;
+        const name = cardImageName(id, season, own);
+        expect(
+          fs.existsSync(path.join(dir, `${name}.jpg`)),
+          `no ${season} picture - bake /games/rally/?bakecard=${id}&season=${season}`,
+        ).toBe(true);
+        expect(card.seasons?.[season]?.hash).toBeTruthy();
+        expect(card.seasons?.[season]?.floor).toMatch(/^#[0-9a-f]{6}$/);
+      }
     },
   );
 });

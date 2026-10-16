@@ -10,6 +10,7 @@ import {
   OrthographicCamera,
   PerspectiveCamera,
   Scene,
+  type Texture,
   Vector3,
   type WebGLRenderer,
   WebGLRenderTarget,
@@ -27,7 +28,10 @@ import type { QualitySettings } from '../engine/quality';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
 import { getTexture, setTextureAnisotropy } from '../engine/textures';
 import { getStage, loadStage, STAGES } from '../maps';
-import type { MapDef, StageDef } from '../maps/shared/types';
+import { mapSeason } from '../maps/shared/climate';
+import { mapInSeason } from '../maps/shared/season-map';
+import { SEASONS, type Season } from '../season';
+import type { EnvironmentDef, MapDef, StageDef } from '../maps/shared/types';
 import { testMap } from '../maps/test/map';
 import { AerialTerrain } from '../world/aerial-terrain';
 import { AerialTrees } from '../world/aerial-trees';
@@ -39,11 +43,13 @@ import {
   cardMesh,
   LARGE_MAP_AREA,
   loadStageCard,
+  loadStageCardData,
   stageCardHash,
   STAGE_CARD_VERSION,
   stageBox,
   stageOverlay,
   stagePoints,
+  type StageCardData,
 } from '../tools/stage-card';
 
 /**
@@ -88,6 +94,8 @@ interface MapView {
   dispose: () => void;
   /** Baked-card view of a map that has no card (yet): build it live when it is wanted. */
   missing?: boolean;
+  /** Baked cards: show the image of this season (loaded on first use); a no-op while the card is loading. */
+  setSeason?: (season: Season) => void;
   /** Stage line points the orbit keeps in view (`fitDistance`); empty = fit the bounding sphere (`size`). */
   fit: Vector3[];
   /** Cached orbit distance for one view shape (fov / aspect / shift). */
@@ -181,6 +189,8 @@ export class Showroom {
   private bakeCam = new OrthographicCamera();
   private maps = new Map<string, MapView>();
   private preloaded = false;
+  /** Season of the map views (the stage screen's pick); undefined = each map's own. */
+  private season?: Season;
   /** Displayed map (undefined = car mode). */
   private mapView?: MapView;
   /** Requested map, shown once its terrain is built. */
@@ -350,10 +360,28 @@ export class Showroom {
     if (this.wanted.ready()) this.display(this.wanted);
   }
 
+  /**
+   * Season of the map views: baked cards switch to that season's image (fetched when first shown), live views take its
+   * ground tint. Applies to every map until changed.
+   */
+  setSeason(season: Season): void {
+    if (season === this.season) return;
+    this.season = season;
+    for (const v of this.maps.values()) v.setSeason?.(season);
+    if (this.mapView) this.applyMapLook(this.mapView);
+  }
+
+  /** The stage's environment in the shown season (ground tint). */
+  private stageEnv(id: string): EnvironmentDef {
+    const info = getStage(id);
+    return mapInSeason(info, this.season ?? mapSeason(info.environment))
+      .environment;
+  }
+
   private getMap(mapId: string): MapView {
     let view = this.maps.get(mapId);
     if (!view) {
-      view = cardView(mapId);
+      view = cardView(mapId, this.season);
       this.addView(view);
     }
     return view;
@@ -398,14 +426,35 @@ export class Showroom {
 
   /**
    * DEV: bake the stage cards of `ids` (stage-card-bake.ts, saved into maps/<id>/preview/ by the dev server), one
-   * after another. Stops the menu loop - reload the page afterwards to see the new cards.
+   * after another, in `seasons` (default: each stage's own; 'all' = its own first, then the others). Stops the menu
+   * loop - reload the page afterwards to see the new cards.
    */
-  async bakeStageCards(ids: string[], log: (s: string) => void): Promise<void> {
+  async bakeStageCards(
+    ids: string[],
+    seasons: Season | 'all' | undefined,
+    log: (s: string) => void,
+  ): Promise<void> {
     if (!import.meta.env.DEV) return; // the baker (and its chunk) never ships
     this.running = false;
     const { bakeStageCard } = await import('../tools/stage-card-bake');
-    for (const id of ids)
-      log(await bakeStageCard(this.renderer, this.quality, id, log));
+    for (const id of ids) {
+      const own = mapSeason(getStage(id).environment);
+      const list =
+        seasons === 'all'
+          ? [own, ...SEASONS.filter((s) => s !== own)]
+          : [seasons ?? own];
+      for (const season of list)
+        log(await bakeStageCard(this.renderer, this.quality, id, season, log));
+    }
+  }
+
+  /** The shown map's grass tint (the terrain material is shared: another map or season may have set it) and sky. */
+  private applyMapLook(view: MapView): void {
+    const env = this.stageEnv(view.id);
+    setGroundTint(env.groundTint);
+    setGroundMoisture(null);
+    this.env.apply({ ...env, fogDensity: 0.25 / view.size }, false);
+    this.env.update(view.center);
   }
 
   private display(view: MapView | undefined): void {
@@ -415,14 +464,7 @@ export class Showroom {
     this.pad.visible = !view;
     if (view) {
       view.group.visible = true;
-      // The terrain material is shared: re-apply this map's grass tint (another map may have set it).
-      setGroundTint(getStage(view.id).environment.groundTint);
-      setGroundMoisture(null);
-      this.env.apply(
-        { ...getStage(view.id).environment, fogDensity: 0.25 / view.size },
-        false,
-      );
-      this.env.update(view.center);
+      this.applyMapLook(view);
     } else {
       this.env.apply(CAR_ENV, true);
       this.env.update(this.target);
@@ -572,7 +614,7 @@ export class Showroom {
    */
   private bake(v: MapView): void {
     const card = v.card!;
-    const env = getStage(v.id).environment;
+    const env = this.stageEnv(v.id);
     const shown = v === this.mapView;
     const prevEnv = this.env.def;
     const prevStudio = this.env.studio;
@@ -616,8 +658,7 @@ export class Showroom {
     this.env.sky.visible = true;
     this.scene.fog = fog;
     if (!shown) this.env.apply(prevEnv, prevStudio);
-    if (this.mapView)
-      setGroundTint(getStage(this.mapView.id).environment.groundTint);
+    if (this.mapView) setGroundTint(this.stageEnv(this.mapView.id).groundTint);
   }
 
   /**
@@ -735,7 +776,7 @@ function previewMap(map: MapDef): { map: MapDef; grow: number } {
  * Map view from the map's baked stage card (stage-card.ts): nothing to build, `ready()` once the two files are loaded
  * and decoded. Marked `missing` when the map has no card yet (the menu then builds it live).
  */
-function cardView(mapId: string): MapView {
+function cardView(mapId: string, wantSeason?: Season): MapView {
   const map = getStage(mapId);
   const group = new Group();
   const detail = new Group();
@@ -744,6 +785,32 @@ function cardView(mapId: string): MapView {
   let loaded = false;
   let mesh: Mesh | undefined;
   let marks: ReturnType<typeof stageOverlay> | undefined;
+  let data: StageCardData | undefined;
+  /** The season shown / being fetched, and every season's image fetched so far. */
+  let shown: Season | undefined;
+  const images = new Map<Season, Texture>();
+  /** Floor colour of a season's image (the card's faded edge). */
+  const floorOf = (season: Season) =>
+    new Color(data!.seasons?.[season]?.floor ?? data!.floor);
+  const apply = (texture: Texture, season: Season) => {
+    if (!mesh) return;
+    (mesh.material as MeshBasicMaterial).map = texture;
+    (mesh.material as MeshBasicMaterial).needsUpdate = true;
+    marks?.setFloor(floorOf(season));
+  };
+  const show = (season: Season) => {
+    shown = season;
+    if (!data) return;
+    const had = images.get(season);
+    if (had) return apply(had, season);
+    void loadStageCard(map.map, mapId, season, data).then((c) => {
+      // A season that was not baked comes back as the card's own image (already held).
+      const dup = images.get(c.season);
+      if (dup) c.texture.dispose();
+      else images.set(c.season, c.texture);
+      if (shown === season) apply(dup ?? c.texture, c.season);
+    });
+  };
   const view: MapView = {
     id: mapId,
     group,
@@ -755,60 +822,77 @@ function cardView(mapId: string): MapView {
     fit: [],
     build: null,
     freeDetail: () => {},
+    setSeason: show,
     dispose: () => {
       mesh?.geometry.dispose();
-      (mesh?.material as MeshBasicMaterial | undefined)?.map?.dispose();
+      for (const t of images.values()) t.dispose();
       (mesh?.material as MeshBasicMaterial | undefined)?.dispose();
       marks?.dispose();
     },
   };
-  loadStageCard(map.map, mapId).then(
-    (card) => {
-      const d = card.data;
-      if (import.meta.env.DEV && d.version !== STAGE_CARD_VERSION)
-        console.warn(
-          `[stage card] ${mapId}: out of date (baker changed) - re-bake: /games/rally/?bakecard=${mapId}`,
-        );
-      // Dev only: the data hash needs the full map (its own chunk), so check it after the card is shown.
-      if (import.meta.env.DEV)
-        void loadStage(mapId).then(({ map: full, stage }) => {
-          if (d.hash !== stageCardHash(full, stage))
-            console.warn(
-              `[stage card] ${mapId}: out of date (map changed) - re-bake: /games/rally/?bakecard=${mapId}`,
+  void loadStageCardData(map.map, mapId)
+    .then((d) => {
+      data = d;
+      return loadStageCard(map.map, mapId, shown ?? wantSeason, d);
+    })
+    .then(
+      (card) => {
+        const d = card.data;
+        images.set(card.season, card.texture);
+        shown = card.season;
+        if (import.meta.env.DEV && d.version !== STAGE_CARD_VERSION)
+          console.warn(
+            `[stage card] ${mapId}: out of date (baker changed) - re-bake: /games/rally/?bakecard=${mapId}`,
+          );
+        // Dev only: the data hash needs the full map (its own chunk), so check it after the card is shown.
+        if (import.meta.env.DEV)
+          void loadStage(mapId).then(({ map: full, stage }) => {
+            const own = d.season ?? mapSeason(full.environment);
+            const stale = [
+              own,
+              ...(Object.keys(d.seasons ?? {}) as Season[]),
+            ].filter(
+              (s) =>
+                (s === own ? d.hash : d.seasons?.[s]?.hash) !==
+                stageCardHash(mapInSeason(full, s), stage),
             );
+            if (stale.length)
+              console.warn(
+                `[stage card] ${mapId}: out of date (map changed: ${stale.join(', ')}) - re-bake: /games/rally/?bakecard=${mapId}&season=<season>`,
+              );
+          });
+        // Relief exaggeration around the card's lowest point (flat maps read better with some).
+        const relief = map.previewRelief ?? 1;
+        const base = d.grid.min;
+        const ex = (y: number) => base + (y - base) * relief;
+        mesh = cardMesh(card, relief, base);
+        overlay.add(mesh);
+        const points: Vector3[] = [];
+        for (let i = 0; i < d.stage.length; i += 3)
+          points.push(
+            new Vector3(d.stage[i], ex(d.stage[i + 1]), d.stage[i + 2]),
+          );
+        view.center.set(d.center[0], ex(d.center[1]), d.center[2]);
+        view.size = d.size;
+        view.fit = thin(points);
+        marks = stageOverlay({
+          points,
+          size: d.size,
+          floor: {
+            x: d.rect.x0 + d.rect.w / 2,
+            y: base - 5,
+            z: d.rect.z0 + d.rect.h / 2,
+            radius: Math.max(d.rect.w, d.rect.h) * 4,
+            color: floorOf(card.season),
+          },
         });
-      // Relief exaggeration around the card's lowest point (flat maps read better with some).
-      const relief = map.previewRelief ?? 1;
-      const base = d.grid.min;
-      const ex = (y: number) => base + (y - base) * relief;
-      mesh = cardMesh(card, relief, base);
-      overlay.add(mesh);
-      const points: Vector3[] = [];
-      for (let i = 0; i < d.stage.length; i += 3)
-        points.push(
-          new Vector3(d.stage[i], ex(d.stage[i + 1]), d.stage[i + 2]),
-        );
-      view.center.set(d.center[0], ex(d.center[1]), d.center[2]);
-      view.size = d.size;
-      view.fit = thin(points);
-      marks = stageOverlay({
-        points,
-        size: d.size,
-        floor: {
-          x: d.rect.x0 + d.rect.w / 2,
-          y: base - 5,
-          z: d.rect.z0 + d.rect.h / 2,
-          radius: Math.max(d.rect.w, d.rect.h) * 4,
-          color: new Color(d.floor),
-        },
-      });
-      overlay.add(marks.group);
-      loaded = true;
-    },
-    () => {
-      view.missing = true;
-    },
-  );
+        overlay.add(marks.group);
+        loaded = true;
+      },
+      () => {
+        view.missing = true;
+      },
+    );
   return view;
 }
 
@@ -859,8 +943,7 @@ function buildMapView(
   const trees = preview && new AerialTrees(world, preview.grow);
   if (trees) {
     // Trees are green circles; buildings / props stay models.
-    streamer.filter = (asset) =>
-      getAssetMeta(asset).category !== 'vegetation';
+    streamer.filter = (asset) => getAssetMeta(asset).category !== 'vegetation';
     detail.add(trees.mesh);
   }
   detail.add(terrain.mesh, road, streamer.group);

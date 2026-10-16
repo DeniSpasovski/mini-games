@@ -314,6 +314,14 @@ export default defineConfig(({ envMode }) => ({
           /[^a-z0-9_-]/gi,
           '',
         );
+        const season = (url.searchParams.get('season') ?? 'summer').replace(
+          /[^a-z]/g,
+          '',
+        );
+        const own = (url.searchParams.get('own') ?? season).replace(
+          /[^a-z]/g,
+          '',
+        );
         const mapDir = path.join(gamesDir, 'rally', 'maps', map);
         if (req.method !== 'POST' || !map || !stage || !fs.existsSync(mapDir)) {
           res.statusCode = 400;
@@ -329,9 +337,35 @@ export default defineConfig(({ envMode }) => ({
           };
           const dir = path.join(mapDir, 'preview');
           fs.mkdirSync(dir, { recursive: true });
-          fs.writeFileSync(path.join(dir, `${stage}.json`), body.json);
+          // The map's own season is the card (<stage>.json + .jpg); the others add <stage>-<season>.jpg and an entry
+          // in the card's `seasons` (hash + floor colour).
+          const jsonFile = path.join(dir, `${stage}.json`);
+          const other = season !== own;
+          type Card = {
+            hash: string;
+            floor: string;
+            seasons?: Record<string, { hash: string; floor: string }>;
+          };
+          const baked = JSON.parse(body.json) as Card;
+          let card = baked;
+          if (other) {
+            if (!fs.existsSync(jsonFile)) {
+              res.statusCode = 400;
+              res.end(`bake the ${own} card of ${stage} first`);
+              return;
+            }
+            card = JSON.parse(fs.readFileSync(jsonFile, 'utf8')) as Card;
+            card.seasons = {
+              ...card.seasons,
+              [season]: { hash: baked.hash, floor: baked.floor },
+            };
+          } else if (fs.existsSync(jsonFile)) {
+            const prev = JSON.parse(fs.readFileSync(jsonFile, 'utf8')) as Card;
+            if (prev.seasons) card.seasons = prev.seasons;
+          }
+          fs.writeFileSync(jsonFile, JSON.stringify(card));
           fs.writeFileSync(
-            path.join(dir, `${stage}.jpg`),
+            path.join(dir, other ? `${stage}-${season}.jpg` : `${stage}.jpg`),
             Buffer.from(
               body.jpeg.replace(/^data:image\/\w+;base64,/, ''),
               'base64',

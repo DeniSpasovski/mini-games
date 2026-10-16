@@ -42,6 +42,6 @@ export function stageTemps(
   season?: Season,
 ): { air: number; road: number } {
   const air = airAtHour(env, hour, season);
-  const climate = stageClimate(env, sunElevationAt(hour), air);
+  const climate = stageClimate(env, sunElevationAt(hour), air, season);
   return { air, road: trackTemp(climate, SURFACES[surface]) };
 }

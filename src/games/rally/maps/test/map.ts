@@ -196,6 +196,10 @@ export const testMap: MapDef = {
     sunElevation: 32,
     sunAzimuth: 215,
     airTemps: { spring: 14, summer: 20, autumn: 12 },
+    groundTints: {
+      spring: { grass: '#7ab648', amount: 0.5 },
+      autumn: { grass: '#a08a54', amount: 0.55 },
+    },
     turbidity: 4,
     rayleigh: 1.2,
     fogColor: '#a3b3c4',
