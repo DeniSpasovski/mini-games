@@ -1,4 +1,5 @@
 import { describe, expect, test } from '@rstest/core';
+import { STAGES } from '../../src/games/rally/maps';
 import { ajvatovciInfo } from '../../src/games/rally/maps/ajvatovci/info';
 import { galichicaInfo } from '../../src/games/rally/maps/galichica/info';
 import { jackieInfo } from '../../src/games/rally/maps/jackie/info';
@@ -41,6 +42,24 @@ const MAPS = [
   ['petralica', petralicaInfo.environment, 17],
   ['test', testMap.environment, 20],
 ] as const;
+
+describe('seasons: every map has all three', () => {
+  // A new map (Vodno came after the seasons) needs its season data before it merges.
+  test.each(
+    [...new Map(STAGES.map((s) => [s.map, s])).values()].map(
+      (s) => [s.map, s.environment] as const,
+    ),
+  )('%s: air temperature, sun heat and ground for each season', (_id, env) => {
+    const own = mapSeason(env);
+    for (const season of SEASONS) {
+      expect(env.airTemps?.[season], `${season} air`).toBeTypeOf('number');
+      expect(env.sunHeats?.[season], `${season} sun`).toBeTypeOf('number');
+      if (season !== own)
+        expect(env.groundTints?.[season], `${season} ground`).toBeTruthy();
+    }
+    expect(env.groundTint, 'own ground').toBeTruthy();
+  });
+});
 
 describe('seasons: ground', () => {
   test.each(MAPS)(

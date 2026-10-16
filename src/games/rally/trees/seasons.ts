@@ -6,13 +6,15 @@ import type { SpeciesDef } from './species';
  * this table gives the spring and autumn palettes of the species that change (conifers barely, the juniper never).
  * Only colours differ: a season's variants grow from the same seeds, so a tree is the same tree all year.
  */
+const PINE_PALETTES = {
+  spring: ['#3a5a2c', '#41662f', '#365428', '#487035'],
+  autumn: ['#2c4524', '#32502a', '#274020', '#385428'],
+};
 const PALETTES: Readonly<
   Record<string, Partial<Record<Exclude<Season, 'summer'>, string[]>>>
 > = {
-  Pine: {
-    spring: ['#3a5a2c', '#41662f', '#365428', '#487035'],
-    autumn: ['#2c4524', '#32502a', '#274020', '#385428'],
-  },
+  Pine: PINE_PALETTES,
+  'Plantation pine': PINE_PALETTES,
   'Black pine': {
     spring: ['#2a4222', '#32492a', '#27391f', '#375228'],
   },
@@ -72,6 +74,15 @@ const PALETTES: Readonly<
   Thicket: {
     spring: ['#6a8a34', '#78963c', '#5c7a2e', '#84a044', '#527030'],
     autumn: ['#a06a24', '#b2561e', '#8a6a26', '#b88430', '#6a5a24'],
+  },
+  // Evergreen cypress: the same dark green all year (no entry).
+  Locust: {
+    spring: ['#8fb84a', '#9bc452', '#86ae42', '#a6cc5a'],
+    autumn: ['#cdb82e', '#d6c236', '#bfa828', '#dcc83e'],
+  },
+  Bramble: {
+    spring: ['#58883a', '#639442', '#4e7c32', '#6e9c48'],
+    autumn: ['#8a6a2c', '#9a5c28', '#7a5a28', '#a87630'],
   },
   // Its summer palette is the yellow bloom; in autumn only seed pods and green stems are left.
   Broom: {

@@ -71,6 +71,7 @@ export const jackieInfo: MapInfo = {
     // Mild morning.
     airTemps: { spring: 9, summer: 17, autumn: 11 },
     months: { spring: 5, summer: 7, autumn: 10 },
+    sunHeats: { spring: 19, summer: 24, autumn: 10 },
     turbidity: 6,
     rayleigh: 1.4,
     fogColor: '#bfc8d0',

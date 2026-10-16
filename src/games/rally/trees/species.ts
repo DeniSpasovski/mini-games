@@ -332,7 +332,7 @@ export const PLANTATION_PINE: SpeciesDef = {
   scale: [1, 1.4],
   twigRadius: 0.045,
   maxBranchTriangles: 4000,
-  maxSprites: 300,
+  maxSprites: 200,
   variants: 4,
 };
 
@@ -871,7 +871,7 @@ export const CYPRESS: SpeciesDef = {
   foliage: {
     kind: 'needles',
     spriteSize: 0.95,
-    density: 1.5,
+    leaf: 'juniper',
     palette: ['#1f3a22', '#254429', '#1b3320', '#2a4a2d'],
   },
   scale: [0.85, 1.25],
@@ -898,7 +898,7 @@ export const LOCUST = broadleaf({
   foliage: {
     kind: 'broadleaf',
     spriteSize: 1.15,
-    density: 0.8,
+    leaf: 'small',
     palette: ['#7a9a3c', '#86a644', '#6f8f36', '#93b04c', '#7fa03e'],
   },
   scale: [0.85, 1.2],
@@ -917,7 +917,7 @@ export const BRAMBLE = shrub({
   foliage: {
     kind: 'broadleaf',
     spriteSize: 0.7,
-    density: 1.5,
+    leaf: 'serrate',
     palette: ['#3f6a2a', '#4b7830', '#36601f', '#567f33'],
   },
   scale: [0.85, 1.3],

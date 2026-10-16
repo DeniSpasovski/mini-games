@@ -876,10 +876,15 @@ export interface EnvironmentDef {
   airTemps?: Partial<Record<Season, number>>;
   /**
    * Month (1 = January ... 12) the stage is driven in per season, shown on the stage screen (default April / July /
-   * October, `DEFAULT_MONTHS`) and setting how high the sun stands, so how much it warms the road
-   * (`seasonSunShare`, maps/shared/climate.ts). Air temperatures (`airTemps`) are authored for that month.
+   * October, `DEFAULT_MONTHS`). `airTemps` and `sunHeats` are authored for that month.
    */
   months?: Partial<Record<Season, number>>;
+  /**
+   * How much the sun warms a dark, fully sun-heated road above the air (°C, clear noon sun) per season, researched for
+   * the stage's month (physics/tyre-temp.ts, `SUN_HEAT` = 24 where left out). The road is air + this x the sun height
+   * factor x (1 - clouds / 2) x the surface's `heat`.
+   */
+  sunHeats?: Partial<Record<Season, number>>;
   /** Override the sun colour / intensity (default: warmer and dimmer the lower the sun). */
   sunColor?: string;
   sunIntensity?: number;

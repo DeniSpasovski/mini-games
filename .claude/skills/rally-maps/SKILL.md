@@ -125,7 +125,7 @@ scripts/realmap/<id>.json` (config `trace`: screenshot, start / end marker pixel
    Junctions: side roads are joined to the stage road automatically (`world/junctions.ts`); add
    stage `closures: { asset: 'road_barrier', length: 2.2, setback: 4 }` (+ `stageMargin` on a map with several stages) to
    close their mouths like a real stage. Check them in game (`/games/rally/?stage=<id>&spawn=<along>`; `__rally.world.gen.junctions` lists every one).
-   Season month: `environment.months` (`{ spring: 4, summer: 7, autumn: 10 }`, the default) says which month each season is driven in; shown on the stage screen, sets the sun's height for the road temperature, and `airTemps` are authored for it.
+   Season month: `environment.months` (`{ spring: 4, summer: 7, autumn: 10 }`, the default) says which month each season is driven in; shown on the stage screen; `airTemps` and `sunHeats` (°C a dark road runs above the air in the clear noon sun: April 16, May 19, September 17, October 10, summer 24; PHYSICS.md "Climate") are authored for it.
    Season look: `environment.groundTint` (the map's own season; `groundTints` = spring / autumn, same fields; `grass` + `amount`, `crop` = ripe crop colour, `moisture` = wet hollows / dry
    ridges strength, default 1); a `fields.palette` entry
    whose weights sum to < 1 leaves the rest as ripe crop (`[0, 0, 0, 0]` = wheat field, drives like grass). Match the

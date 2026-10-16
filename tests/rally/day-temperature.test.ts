@@ -3,7 +3,7 @@ import { STAGES } from '../../src/games/rally/maps';
 import {
   seasonAirTemp,
   seasonMonth,
-  seasonSunShare,
+  seasonSunHeat,
   stageClimate,
 } from '../../src/games/rally/maps/shared/climate';
 import {
@@ -84,31 +84,24 @@ describe('air and road temperature by season', () => {
   });
 });
 
-describe('road heating by month (measured sun)', () => {
-  const share = (month: number, id: string) =>
-    seasonSunShare(month, sunElevationAt(at(id)));
+describe('road heating by season (researched per map)', () => {
+  const season3 = ['spring', 'summer', 'autumn'] as const;
 
-  test('July is the drawn sun; the lower October and April sun heats the road less', () => {
-    for (const id of ['early', 'midday', 'afternoon', 'evening']) {
-      expect(share(7, id)).toBe(1);
-      expect(share(10, id)).toBeLessThan(share(4, id));
-      expect(share(4, id)).toBeLessThan(1);
-      // May is higher than April, September higher than October.
-      expect(share(5, id)).toBeGreaterThanOrEqual(share(4, id));
-      expect(share(9, id)).toBeGreaterThan(share(10, id));
+  test('summer keeps the full sun heat; spring and autumn are lower, October lowest', () => {
+    for (const s of STAGES) {
+      const env = s.environment;
+      expect(seasonSunHeat(env, 'summer')).toBe(24);
+      for (const season of ['spring', 'autumn'] as const)
+        expect(seasonSunHeat(env, season)).toBeLessThan(24);
+      expect(seasonSunHeat(env, 'autumn')).toBeLessThanOrEqual(
+        seasonSunHeat(env, 'spring'),
+      );
     }
-    // Clear-sky sun on level ground at 41 N: October noon ~2/3, April ~85 % of the July one.
-    expect(share(10, 'midday')).toBeGreaterThan(0.6);
-    expect(share(10, 'midday')).toBeLessThan(0.75);
-    expect(share(4, 'midday')).toBeGreaterThan(0.8);
-    // October mornings and evenings barely warm anything.
-    expect(share(10, 'early')).toBeLessThan(0.35);
-    expect(share(10, 'evening')).toBeLessThan(0.1);
   });
 
   test("each map's months are real months, one per season", () => {
     for (const s of STAGES) {
-      for (const season of ['spring', 'summer', 'autumn'] as const) {
+      for (const season of season3) {
         const m = seasonMonth(s.environment, season);
         expect(Number.isInteger(m) && m >= 1 && m <= 12).toBe(true);
         expect(MONTH_NAMES[m - 1]).toBeTruthy();
@@ -120,17 +113,18 @@ describe('road heating by month (measured sun)', () => {
     expect(MONTH_NAMES[seasonMonth(ajvatovci, 'spring') - 1]).toBe('April');
   });
 
-  test('a clear summer noon heats tarmac ~20-25 deg C above the air, an autumn morning ~10', () => {
-    // Solaimanian and Kennedy 1993: ~23 deg C at 41 N on a hot clear day; Brisbane sunny-day means ~12.
+  test('a clear summer noon heats tarmac ~20 deg C above the air, an October morning ~5', () => {
+    // Measured: ~23 deg C at 41 N on a hot clear day (Solaimanian and Kennedy 1993); monthly daily-maximum surface minus
+    // air at MnROAD (Minnesota) ~26 in July and ~9 in October.
     const ajv = STAGES.find((s) => s.id === 'ajvatovci')!.environment;
     const noon = stageTemps(ajv, at('midday'), 'tarmac', 'summer');
     expect(noon.road - noon.air).toBeGreaterThan(19);
     expect(noon.road - noon.air).toBeLessThan(25);
     const gal = STAGES.find((s) => s.id === 'galichica_west')!.environment;
     const morning = stageTemps(gal, 9, 'tarmac', 'autumn');
-    expect(morning.road - morning.air).toBeGreaterThan(7);
-    expect(morning.road - morning.air).toBeLessThan(13);
+    expect(morning.road - morning.air).toBeGreaterThan(3);
+    expect(morning.road - morning.air).toBeLessThan(8);
     const autumnNoon = stageTemps(gal, at('midday'), 'tarmac', 'autumn');
-    expect(autumnNoon.road - autumnNoon.air).toBeLessThan(17);
+    expect(autumnNoon.road - autumnNoon.air).toBeLessThan(10);
   });
 });

@@ -198,6 +198,7 @@ export const testMap: MapDef = {
     // Same sun height as above (31.6 deg), so the time of day picker works here too.
     timeOfDay: 15.8,
     airTemps: { spring: 14, summer: 20, autumn: 12 },
+    sunHeats: { spring: 16, summer: 24, autumn: 10 },
     groundTints: {
       spring: { grass: '#7ab648', amount: 0.5 },
       autumn: { grass: '#8d7440', amount: 0.6 },

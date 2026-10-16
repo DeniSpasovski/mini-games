@@ -58,7 +58,10 @@ export const vodnoInfo: MapInfo = {
     sunAzimuth: 35,
     // Late October, 10:00: the valley haze of Skopje, cool air, the pine slope in the mountain's shade.
     timeOfDay: 10,
-    airTemp: 11,
+    season: 'autumn',
+    airTemps: { spring: 14, summer: 27, autumn: 11 },
+    months: { spring: 4, summer: 7, autumn: 10 },
+    sunHeats: { spring: 16, summer: 24, autumn: 10 },
     cloudCoverage: 0.25,
     turbidity: 4.6,
     rayleigh: 1.5,
@@ -66,6 +69,11 @@ export const vodnoInfo: MapInfo = {
     fogDensity: 0.0003,
     exposure: 0.95,
     groundTint: { grass: '#9d9560', amount: 0.5 },
+    // Autumn is the map's own look; the grass of an April hillside and of a July one.
+    groundTints: {
+      spring: { grass: '#76a44a', amount: 0.65 },
+      summer: { grass: '#b0a45c', amount: 0.6 },
+    },
   },
   route: data.route,
   // The road's surface, then each section's (the street at the start, the climb, the edge-lined Vidikovec approach, the

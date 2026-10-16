@@ -60,6 +60,7 @@ export const ajvatovciInfo: MapInfo = {
     // Hot dry June morning near Skopje (a day that is 27 deg by 07:30 is a heatwave day with a clear sky). Humidity is not simulated.
     airTemps: { spring: 13, summer: 27, autumn: 14 },
     months: { spring: 4, summer: 6, autumn: 10 },
+    sunHeats: { spring: 16, summer: 24, autumn: 10 },
     cloudCoverage: 0.1,
     turbidity: 6,
     rayleigh: 1.5,
