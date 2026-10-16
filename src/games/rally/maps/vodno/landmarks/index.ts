@@ -38,6 +38,18 @@ import {
   STONE_ROAD_WIDTH,
   stoneRoadAreas,
 } from './lot-park';
+import {
+  BOARD,
+  buildBoard,
+  buildShelter,
+  buildSign,
+  buildTower,
+  GATE_AREAS,
+  SHELTER,
+  SIGN,
+  TOWER_LEFT,
+  TOWER_RIGHT,
+} from './gate';
 import { buildNereziChurch } from './nerezi-church';
 import {
   buildRestaurant,
@@ -47,6 +59,18 @@ import {
 } from './restaurant';
 import { buildLookout, buildRuins, ruinsLayout } from './outposts';
 import { buildSrednoChurch, NAVE_X0 } from './sredno-church';
+import {
+  BALCONY_BLOCK,
+  BALCONY_BOX,
+  BALCONY_SIZE,
+  blockRect,
+  buildBalconyBlock,
+  buildCurvedBlock,
+  CURVED_BLOCK,
+  CURVED_BOX,
+  CURVED_SIZE,
+  frontWall,
+} from './start-blocks';
 import { buildStation } from './station';
 import { buildLodge, buildPlatform } from './summit';
 import {
@@ -422,6 +446,97 @@ export const restaurantLandmark = landmark({
   },
 });
 
+/** The wooden gate at the foot of the road: two lattice log towers, a notice board, a log shelter and an information board. */
+export const gateLandmark = landmark({
+  id: 'vodno-gate',
+  areas: GATE_AREAS,
+  // The baked 36 x 8 m box beside the left tower (nothing stands there: the road runs through woods).
+  replaces: (b) => b.id === 603,
+  colliders: (g) => [
+    boxCollider(TOWER_LEFT, [-1.05, 1.05, -1.05, 1.05], base(g, TOWER_LEFT), 9),
+    boxCollider(
+      TOWER_RIGHT,
+      [-1.05, 1.05, -1.05, 1.05],
+      base(g, TOWER_RIGHT),
+      9,
+    ),
+    boxCollider(BOARD, [-0.3, 0.3, -1.6, 1.6], base(g, BOARD), 3.6),
+    boxCollider(SHELTER, [-2.6, 2.6, -1.9, 1.9], base(g, SHELTER), 4.4),
+    boxCollider(SIGN, [-0.2, 0.2, -0.95, 0.95], base(g, SIGN), 3.6),
+  ],
+  build: (at) => {
+    buildTower(at(TOWER_LEFT, 'tower-left'), 0);
+    buildTower(at(TOWER_RIGHT, 'tower-right'), 2);
+    buildBoard(at(BOARD, 'notice-board'));
+    buildShelter(at(SHELTER, 'shelter'));
+    buildSign(at(SIGN, 'info-board'));
+  },
+});
+
+/** Depth of the front gardens (m from the facade to the front wall). */
+const GARDEN = { balcony: 4.6, curved: 4.4 };
+
+/** Two blocks of flats on the street before the start: they stand in for the baked boxes 7 and 6. */
+export const startBlocksLandmark = landmark({
+  id: 'vodno-start-blocks',
+  areas: [
+    { site: BALCONY_BLOCK, rect: blockRect(BALCONY_SIZE, GARDEN.balcony) },
+    { site: CURVED_BLOCK, rect: blockRect(CURVED_SIZE, GARDEN.curved) },
+  ],
+  replaces: (b) => b.id === BALCONY_BOX.id || b.id === CURVED_BOX.id,
+  colliders: (g) =>
+    (
+      [
+        [BALCONY_BLOCK, BALCONY_SIZE],
+        [CURVED_BLOCK, CURVED_SIZE],
+      ] as const
+    ).map(([site, size]) =>
+      boxCollider(
+        site,
+        [-size.width / 2, size.width / 2, -size.depth, 0],
+        base(g, site),
+        size.height + 0.8,
+      ),
+    ),
+  build: (at, ground) => {
+    for (const [site, size, tile, build, kind, garden] of [
+      [
+        BALCONY_BLOCK,
+        BALCONY_SIZE,
+        'balcony-block',
+        buildBalconyBlock,
+        'block',
+        GARDEN.balcony,
+      ],
+      [
+        CURVED_BLOCK,
+        CURVED_SIZE,
+        'curved-block',
+        buildCurvedBlock,
+        'panel',
+        GARDEN.curved,
+      ],
+    ] as const) {
+      const l = at(site, tile);
+      build(l);
+      const base0 = ground(site.x, site.z);
+      const gy = (x: number, z: number): number => {
+        const [wx, wz] = toWorld(site, x, z);
+        return ground(wx, wz) - base0;
+      };
+      // The balcony block's wall stops short of its left end, where the road swings in round the corner.
+      frontWall(
+        l,
+        gy,
+        site === BALCONY_BLOCK ? -6.2 : -size.width / 2 - 0.6,
+        size.width / 2 + 0.6,
+        garden,
+        kind,
+      );
+    }
+  },
+});
+
 export const VODNO_LANDMARKS: Landmark[] = [
   srednoVodnoLandmark,
   summitLandmark,
@@ -429,5 +544,7 @@ export const VODNO_LANDMARKS: Landmark[] = [
   outpostsLandmark,
   carParksLandmark,
   restaurantLandmark,
+  gateLandmark,
+  startBlocksLandmark,
 ];
 export { VODNO_FLATS } from './sites';

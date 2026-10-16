@@ -230,6 +230,8 @@ describe('vodno landmarks (churches, platform, stations, towers)', () => {
     'vodno-outposts',
     'vodno-car-parks',
     'vodno-restaurant',
+    'vodno-gate',
+    'vodno-start-blocks',
   ];
 
   test('registered on the map and in the world', () => {
@@ -731,7 +733,7 @@ describe('vodno car park surroundings', () => {
     expect(carParksLandmark.replaces(b!)).toBe(true);
   });
 
-  test('the approach to the Vidikovec has a rusty guard rail on its drop and white edge lines', () => {
+  test('the approach to the Vidikovec has a rusty guard rail on its drop, the climb white edge and centre lines', () => {
     const rails = (map.barriers ?? []).filter((b) => b.kind === 'guardrail');
     expect(rails.length).toBeGreaterThan(0);
     expect(rails.every((b) => b.rusty)).toBe(true);
@@ -742,6 +744,7 @@ describe('vodno car park surroundings', () => {
       (s) => s.texture === 'road_tarmac_lines',
     );
     expect(lines?.length).toBe(1);
+    expect(lines?.[0].from).toBe(START);
   });
 
   test('the service road that merges above the finish ends level with the summit road', () => {

@@ -68,7 +68,6 @@ export const vodnoInfo: MapInfo = {
     groundTint: { grass: '#9d9560', amount: 0.5 },
   },
   route: data.route,
-  // The road's surface, then each section's (the street at the start, the climb, the edge-lined Vidikovec approach, the
-  // climb again): see `infoOf` in ../index.ts.
-  surfaces: ['tarmac', 'tarmac', 'tarmac', 'tarmac'],
+  // The road's surface, then each section's (the run-up street, the lined climb): see `infoOf` in ../index.ts.
+  surfaces: ['tarmac', 'tarmac'],
 };

@@ -40,10 +40,9 @@ const BASE_HEIGHT = 349;
 
 /**
  * The approach to the Vidikovec car park (m along the road): a guard rail on the drop at its right up to the lot's
- * wall, white edge lines on the tarmac from the rail's start to `VIDIKOVEC_LINES_END`.
+ * wall.
  */
 const VIDIKOVEC_RAIL = { from: 2600, to: 2796 };
-const VIDIKOVEC_LINES_END = 2940;
 
 /** Covers where dry grass grows (detail layer). */
 const DRY = ['grass', 'shrub', 'bare', 'crop', 'urban'];
@@ -170,17 +169,10 @@ export const vodnoMap: MapDef = {
     // is cut / filled into the mountainside like the built one.
     maxGrade: 0.11,
     surface: 'tarmac',
-    // Clean city asphalt along the street at the start, worn mountain asphalt once it climbs into the woods.
+    // Clean city asphalt on the run-up street, then the worn mountain road with its white edge and centre lines.
     texture: 'road_city',
     sections: [
-      { from: START + 700, surface: 'tarmac', texture: 'road_tarmac' },
-      // The approach to the Vidikovec car park has white edge lines.
-      {
-        from: VIDIKOVEC_RAIL.from,
-        surface: 'tarmac',
-        texture: 'road_tarmac_lines',
-      },
-      { from: VIDIKOVEC_LINES_END, surface: 'tarmac', texture: 'road_tarmac' },
+      { from: START, surface: 'tarmac', texture: 'road_tarmac_lines' },
     ],
     points: routePoints(data.route, (along) =>
       along < START + 500 ? 6.4 : 5.8,
@@ -512,5 +504,7 @@ export const vodnoMap: MapDef = {
     'vodno-outposts',
     'vodno-car-parks',
     'vodno-restaurant',
+    'vodno-gate',
+    'vodno-start-blocks',
   ],
 };

@@ -960,23 +960,32 @@ const DEFS: Record<TextureId, TexDef> = {
     },
   },
   road_tarmac_lines: {
-    name: 'Old tarmac with a worn white edge line each side',
+    name: 'Old tarmac with a worn white edge line each side and a worn white centre line',
     size: [512, 512],
     color: true,
     draw(ctx, w, h) {
       DEFS.road_tarmac.draw(ctx, w, h);
       const rng = new Rng(65);
-      const us = [0.05, 0.95];
+      const us = [0.05, 0.5, 0.95];
       ctx.fillStyle = '#d6d6ce';
       for (const u of us) ctx.fillRect(u * w - 6, 0, 12, h);
-      // Wear: asphalt specks and gaps over the paint.
-      for (let i = 0; i < 2400; i++) {
+      // Wear: asphalt specks and gaps over the paint, a few bald stretches where the wheels run.
+      for (let i = 0; i < 3600; i++) {
         ctx.fillStyle = `rgba(${84 + rng.int(0, 30)},${82 + rng.int(0, 30)},${80 + rng.int(0, 30)},${rng.range(0.35, 0.85)})`;
         ctx.fillRect(
           rng.pick(us) * w + rng.range(-7, 7),
           rng.next() * h,
           rng.range(1, 3),
           rng.range(1, 5),
+        );
+      }
+      for (let i = 0; i < 9; i++) {
+        ctx.fillStyle = `rgba(${96 + rng.int(0, 16)},${94 + rng.int(0, 16)},${92 + rng.int(0, 16)},${rng.range(0.45, 0.7)})`;
+        ctx.fillRect(
+          rng.pick(us) * w - 6,
+          rng.next() * h,
+          12,
+          rng.range(6, 26),
         );
       }
     },

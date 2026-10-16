@@ -12,7 +12,7 @@ as the backdrop. Map and stage id `vodno`, test content (dev server only).
 | ![Hairpins](screenshots/hairpins.jpg)      | ![Cross, mast and cable car](screenshots/cross-ridge.jpg)     |
 | the hairpins above the suburb, guard rails | the Millennium Cross, the mast and the cable car on the ridge |
 
-Narrow tarmac with switchbacks and guard rails, pine plantations with oak and scrub, black locust on the lower slopes;
+Narrow tarmac with white edge and centre lines, switchbacks and guard rails, pine plantations with oak and scrub, black locust on the lower slopes;
 locust and walnut trees with bramble line the suburban start street, cypresses stand in the church yards. Side streets meeting
 the stage road are closed with barriers.
 
@@ -21,7 +21,8 @@ Landmarks (OpenStreetMap plans, rough shapes in the style of the Ajvatovci hillt
 (beside the finish) and Gorno Nerezi, the lookout tower, the Markovi Kuli ruins, the restaurant beside the Sredno Vodno church, and
 three car parks beside the stage road (the
 Sredno Vodno one with its flag, lamps, a timber gazebo and watch towers; the Vidikovec with a grass island, a lattice lookout tower
-and rusted guard rails on its approach). Skopje's skyline stands on the horizon: the 70 m MRT tower and the 136 m Cevahir Sky City
+and rusted guard rails on its approach), the wooden gate at the foot of the road (two log towers, a notice board and a shelter) and two blocks
+of flats on the start street. Skopje's skyline stands on the horizon: the 70 m MRT tower and the 136 m Cevahir Sky City
 slabs (extruded OpenStreetMap footprints).
 
 ```bash
