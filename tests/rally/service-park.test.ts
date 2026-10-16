@@ -10,6 +10,7 @@ import { ajvatovciMap } from '../../src/games/rally/maps/ajvatovci/map';
 import { TEAM_COUNT } from '../../src/games/rally/assets/builders/teams';
 import {
   lotContains,
+  lotLocal,
   lotWorld,
 } from '../../src/games/rally/maps/shared/service-lot';
 import { isTreeType } from '../../src/games/rally/trees/species';
@@ -57,24 +58,25 @@ describe('service park (Ajvatovci start)', () => {
       expect(getAssetMeta(id)).toBeDefined();
   });
 
-  test('the field lot faces the factory road, the team semis stand in a yard behind it', () => {
-    const [field, yard] = [def.lots[1], def.lots[2]];
+  test('the west park faces the factory road, five team semis stand across it behind the bays', () => {
+    const field = def.lots[1];
     const semis = park.instances.filter((i) => i.asset === 'service_semi');
-    expect(semis.length).toBe(yard.semis);
+    expect(semis.length).toBe(field.semis);
     const cars = park.instances.filter(
       (i) => i.asset === 'team_car' && lotContains(field, i.x, i.z, 0.5),
     );
     expect(cars.length).toBeGreaterThan(2);
-    // The semis are inside the yard (a truck yard has no bays, tape or crowd) and further from the road than every car.
-    for (const s of semis) {
-      expect(lotContains(yard, s.x, s.z)).toBe(true);
-      for (const c of cars) expect(s.x).toBeLessThan(c.x - 12);
+    // Inside the lot, further from the public edge than every car, noses to the back edge (east to west).
+    const c = Math.cos(field.heading);
+    const s = Math.sin(field.heading);
+    for (const t of semis) {
+      expect(lotContains(field, t.x, t.z)).toBe(true);
+      const [, tv] = lotLocal(field, t.x, t.z);
+      for (const car of cars)
+        expect(tv).toBeGreaterThan(lotLocal(field, car.x, car.z)[1] + 6);
+      const nose = [Math.cos(t.rotY), -Math.sin(t.rotY)];
+      expect(nose[0] * -s + nose[1] * c).toBeGreaterThan(0.99);
     }
-    expect(
-      park.instances.filter(
-        (i) => i.asset !== 'service_semi' && lotContains(yard, i.x, i.z, 0.5),
-      ),
-    ).toEqual([]);
     // Close to the road: the public edge is within 14 m of a path's edge.
     const pq = newPathQuery();
     const [ex, ez] = lotWorld(field, field.length / 2, -2);
@@ -227,8 +229,8 @@ describe('service park (Ajvatovci start)', () => {
     }
   });
 
-  test('teams have room: bays keep apart, both bay lots hold teams', () => {
-    for (const lot of def.lots.filter((l) => l.bays !== 0))
+  test('teams have room: bays keep apart, both lots hold teams', () => {
+    for (const lot of def.lots)
       expect(
         park.bayCentres.filter((b) => lotContains(lot, b.x, b.z)).length,
       ).toBeGreaterThanOrEqual(3);

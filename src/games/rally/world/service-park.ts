@@ -154,7 +154,8 @@ function layBays(
   const gap = def.gap ?? (ferme ? 0.6 : 5);
   let next = 0;
   for (const lot of def.lots) {
-    const rows = !ferme && lot.width >= 2 * BAY_DEPTH + 4 ? 2 : 1;
+    const rows = !ferme && !lot.semis && lot.width >= 2 * BAY_DEPTH + 4 ? 2 : 1;
+    const firstCentre = layout.bayCentres.length;
     let inLot = 0;
     for (let r = 0; r < rows && layout.bays < def.bays; r++) {
       // Row 0 backs on v = BAY_DEPTH (front at the public edge), row 1 on the far edge of the lot; a parc fermé row
@@ -185,18 +186,21 @@ function layBays(
         layout.bayCentres.push({ ...bay.centre, team });
       }
     }
-    if (lot.semis) addSemis(layout, lot, ctx, layout.bayCentres);
+    if (lot.semis)
+      addSemis(layout, lot, ctx, layout.bayCentres.slice(firstCentre));
   }
   return layout;
 }
 
-/** Length of a team semi (m) and the space left between two of them. */
+/** Length of a team semi (m), the aisle between the bays and the trucks, and the most room one gets along the lot. */
 const SEMI_LENGTH = 17.2;
-const SEMI_GAP = 1.6;
+const SEMI_AISLE = 6;
+const SEMI_PITCH = 11;
 
 /**
- * The back row of a lot (`ServiceLot.semis`): tractor-trailer team trucks side by side behind the bays, noses to -u like
- * the bay trucks, each in the colours of the team whose bay is nearest. One that cannot stand (buildings, water) is left out.
+ * The truck park of a lot (`ServiceLot.semis`): tractor-trailer team trucks side by side across the lot behind the
+ * bays, noses to the back edge, each in the colours of the team whose bay is nearest. One that cannot stand (buildings,
+ * water) is left out.
  */
 function addSemis(
   layout: ServiceParkLayout,
@@ -205,13 +209,12 @@ function addSemis(
   centres: ServiceParkLayout['bayCentres'],
 ): void {
   const count = lot.semis ?? 0;
-  const row = count * SEMI_LENGTH + (count - 1) * SEMI_GAP;
+  const pitch = Math.min(SEMI_PITCH, (lot.length - 4) / count);
+  const v = BAY_DEPTH + SEMI_AISLE + SEMI_LENGTH / 2;
   for (let i = 0; i < count; i++) {
-    const u =
-      (lot.length - row) / 2 + SEMI_LENGTH / 2 + i * (SEMI_LENGTH + SEMI_GAP);
-    const v = lot.semiV ?? BAY_DEPTH + 3.2;
+    const u = lot.length / 2 + (i - (count - 1) / 2) * pitch;
     const [x, z] = lotWorld(lot, u, v);
-    const ends = [-1, 1].map((k) => lotWorld(lot, u + k * 7, v));
+    const ends = [-1, 1].map((k) => lotWorld(lot, u, v + k * 7));
     if (
       ctx.blocked(x, z, 2.5, lot.paved) ||
       ends.some(([ex, ez]) => ctx.blocked(ex, ez, 1.5, lot.paved))
@@ -229,7 +232,8 @@ function addSemis(
       x,
       y: ctx.height(x, z),
       z,
-      rotY: Math.PI - lot.heading,
+      // The model's nose is +x: turned to +v, away from the public edge.
+      rotY: -Math.PI / 2 - lot.heading,
       scale: 1,
       tiltX: 0,
       tiltZ: 0,
@@ -711,7 +715,6 @@ function addPublicEdge(
     return true;
   };
   for (const lot of def.lots) {
-    if (lot.bays === 0) continue;
     paved = !!lot.paved;
     const c = Math.cos(lot.heading);
     const s = Math.sin(lot.heading);
@@ -760,7 +763,7 @@ function addPublicEdge(
       );
     }
     // Visitors walking the aisle between the rows (a lot with one row: the walkway in front of the cars).
-    const twoRows = lot.width >= 2 * BAY_DEPTH + 4;
+    const twoRows = !lot.semis && lot.width >= 2 * BAY_DEPTH + 4;
     const aisleV = lot.width / 2;
     const visitors = Math.round(lot.length * (def.ferme ? 0.1 : 0.32));
     for (let i = 0; i < visitors; i++) {

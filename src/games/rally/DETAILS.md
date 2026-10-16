@@ -176,9 +176,9 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   catering van are the background models (`assets/builders/street-car-models.ts`, vans / trucks of pack 7 baked by
   `bake-street-cars.mjs --vans`) in the team paint plus side stripes. A lot is a `ServiceLot` rectangle:
   the map levels it with a `terrain.pads` entry (`servicePad` in `maps/shared/service-lot.ts`, or a fixed `level` for a flat
-  field), the stage lists the lots and the bay `gap` (`maps/ajvatovci/service-park.ts`: the start lot, a field row facing the road to
-  the factory, and a truck yard behind it). `ServiceLot.semis` lines tractor-trailer team trucks (`service_semi`, in the nearest
-  bay's team colours) up along a lot at `semiV`; `bays: 0` makes the lot a truck yard (no bays, tape or crowd).
+  field), the stage lists the lots and the bay `gap` (`maps/ajvatovci/service-park.ts`: the start lot and a field row facing the road
+  to the factory). `ServiceLot.semis` parks tractor-trailer team trucks (`service_semi`, in the nearest bay's team colours) across the
+  gravel behind a single row of bays, noses to the back edge (the lot is then about 36 m deep).
   A `ferme` park (parc fermé) is only a row of 4-6 team cars, noses to the tape, on a small lay-by beside the road behind the
   start (`ServiceLot.bays` cars per lot): Test map (4, left of the run-up), Galichica West (6, Ohrid side), East and
   Prespa-Ohrid (5, Prespa side). On a street (The Jackie: 5 + 5 abeam the start, on the street east of the stage road and the
