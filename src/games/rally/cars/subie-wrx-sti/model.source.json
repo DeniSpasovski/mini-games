@@ -121,11 +121,11 @@
       {
         "mat": "red_glass",
         "y": [0, 0.6],
-        "material": "brakestrip"
+        "material": "brakestripred"
       },
       {
         "mat": "red_glass",
-        "material": "brakecover"
+        "material": "brakered"
       },
       {
         "mat": "glass_light",
@@ -218,13 +218,13 @@
       "satin",
       "mesh",
       "lenscover",
-      "brakecover",
+      "brakered",
       "amber",
       "steel",
       "interior:2s",
       "logo",
       "drop",
-      "brakestrip",
+      "brakestripred",
       "reverselamp"
     ],
     "drop": ["logo", "drop"],
