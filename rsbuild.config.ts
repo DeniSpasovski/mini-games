@@ -303,7 +303,7 @@ export default defineConfig(({ envMode }) => ({
         });
       });
       // Dev-only helper: save a rally stage's baked stage card (stage-select view) into
-      // src/games/rally/maps/<map>/preview/<stage>.json + .jpg (see src/games/rally/tools/stage-card-bake.ts).
+      // src/games/rally/maps/<map>/preview/<stage>.json + <stage>-<season>.jpg (see src/games/rally/tools/stage-card-bake.ts).
       server.middlewares.use('/__dev/stage-card', (req, res) => {
         const url = new URL(req.url ?? '', 'http://x');
         const map = (url.searchParams.get('map') ?? '').replace(
@@ -337,8 +337,8 @@ export default defineConfig(({ envMode }) => ({
           };
           const dir = path.join(mapDir, 'preview');
           fs.mkdirSync(dir, { recursive: true });
-          // The map's own season is the card (<stage>.json + .jpg); the others add <stage>-<season>.jpg and an entry
-          // in the card's `seasons` (hash + floor colour).
+          // The map's own season writes the card (<stage>.json); every season writes <stage>-<season>.jpg, and the others
+          // add an entry to the card's `seasons` (hash + floor colour).
           const jsonFile = path.join(dir, `${stage}.json`);
           const other = season !== own;
           type Card = {
@@ -365,7 +365,7 @@ export default defineConfig(({ envMode }) => ({
           }
           fs.writeFileSync(jsonFile, JSON.stringify(card));
           fs.writeFileSync(
-            path.join(dir, other ? `${stage}-${season}.jpg` : `${stage}.jpg`),
+            path.join(dir, `${stage}-${season}.jpg`),
             Buffer.from(
               body.jpeg.replace(/^data:image\/\w+;base64,/, ''),
               'base64',

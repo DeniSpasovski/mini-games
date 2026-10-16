@@ -72,7 +72,7 @@ generated deterministically from it. There is no map editor on purpose — edit 
    `/games/rally/?bakecard=<stage id>&season=all&mute=1` (or `?bakecards=1&season=all`; `season=` one of spring / summer / autumn
    bakes just that picture, none = the map's own season; one `<stage id>-<season>.jpg` per season in `environment.groundTints`) on `npm run dev:noreload` (launch config `portal-dev-noreload`;
    on the normal server each saved card - or another session's edit - reloads the page and restarts / cuts off the bake),
-   wait for "saved", and the changed `maps/<map>/preview/<stage>*.{json,jpg}` go in the commit. An out-of-date card only warns in the dev console -
+   wait for "saved", and the changed `maps/<map>/preview/<stage>.json` + `<stage>-<season>.jpg` go in the commit. An out-of-date card only warns in the dev console -
    mention it to the user. `stageCardHash` covers only what the card draws: text (names, descriptions, tyre, links) and
    `previewRelief` (e.g. 1.8 on a flat map) need no re-bake. Code: `tools/stage-card*.ts`.
 

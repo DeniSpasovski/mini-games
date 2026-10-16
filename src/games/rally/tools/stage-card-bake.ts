@@ -50,7 +50,7 @@ const breathe = () => new Promise<void>((r) => setTimeout(r, 0));
  * (stage-card.ts) and save it through the dev server (`/__dev/stage-card`, rsbuild.config.ts) into
  * `maps/<id>/preview/`. Full scatter density (the old live card thinned it), trees as canopy discs, one sun shadow
  * map over the whole card so trees / buildings / hills cast long shadows into the image. `season` = the picture's
- * season (default: the map's own, which writes the card's data too; the others add `<stage>-<season>.jpg`).
+ * season (default: the map's own, which writes the card's data too; every season writes `<stage>-<season>.jpg`).
  */
 export async function bakeStageCard(
   renderer: WebGLRenderer,

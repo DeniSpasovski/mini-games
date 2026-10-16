@@ -22,7 +22,7 @@ import type { World } from '../world/world';
  * Stage cards: the stage-select view of a large map, PRE-BAKED on the dev server (`?bakecards=1`, see
  * stage-card-bake.ts) instead of building the whole map in the menu (0.5-6 s of main-thread work per map).
  *
- * A card = `maps/<map>/preview/<stage id>.json` (height grid, stage polyline, framing) + `stage-card.jpg` (top-down
+ * A card = `maps/<map>/preview/<stage id>.json` (height grid, stage polyline, framing) + `<stage id>-<season>.jpg` (top-down
  * render of the stage area: terrain, roads, trees, buildings, the map's sun and long shadows baked in). At runtime it
  * is ONE textured grid mesh (relief from the height grid, `MapDef.previewRelief` exaggerates it) + the stage ribbon,
  * start / finish poles and a floor - loaded lazily per map, ~30-50 ms.
@@ -35,15 +35,11 @@ export const LARGE_MAP_AREA = 8e6;
 /** Bump when the baker's look or the card format changes: every card must be re-baked. */
 export const STAGE_CARD_VERSION = 3;
 /**
- * A card has one image per season (`MapDef.environment.season`, spring / summer / autumn): `<stage id>.jpg` is the map's
- * own season, `<stage id>-<season>.jpg` the others. Only the image shown is fetched.
+ * A card has one image per season (spring / summer / autumn), every one named `<stage id>-<season>.jpg`; the JSON
+ * (`StageCardData.season`) says which is the map's own. Only the image shown is fetched.
  */
-export function cardImageName(
-  stageId: string,
-  season: Season,
-  own: Season,
-): string {
-  return season === own ? stageId : `${stageId}-${season}`;
+export function cardImageName(stageId: string, season: Season): string {
+  return `${stageId}-${season}`;
 }
 /** Card = the stage's bounding rectangle + this margin (m): a tight cut, the rest of the map stays a surprise. */
 export const CARD_MARGIN = 500;
@@ -311,12 +307,12 @@ export async function loadStageCard(
   const card = data ?? (await loadStageCardData(mapId, stageId));
   const own = card.season ?? DEFAULT_SEASON;
   const want = season ?? own;
-  const image =
-    (want !== own &&
-      (await loadSeasonImage(mapId, cardImageName(stageId, want, own)))) ||
-    null;
+  const image = await loadSeasonImage(mapId, cardImageName(stageId, want));
   if (image) return { data: card, texture: image, season: want };
-  const base = await loadSeasonImage(mapId, stageId);
+  const base =
+    want !== own
+      ? await loadSeasonImage(mapId, cardImageName(stageId, own))
+      : null;
   if (!base) throw new Error(`no stage card image for ${stageId}`);
   return { data: card, texture: base, season: own };
 }
