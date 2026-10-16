@@ -1,4 +1,5 @@
 import type { StageDef } from '../shared/types';
+import { JACKIE_PARK } from './service-park';
 
 /** The stages on the Jackie map (./map.ts). The id is the map's old id: stored times are keyed by it. */
 export const jackieStages: StageDef[] = [
@@ -19,5 +20,7 @@ export const jackieStages: StageDef[] = [
     closures: { asset: 'road_barrier', length: 2.2, setback: 4 },
     // Fans, marshals and photographers behind the tape in the bends, at the side-road mouths, the start and the finish.
     cornerFans: { maxRadius: 160, chance: 0.6 },
+    // Parc fermé: ten team cars parked side-on to the start, five each side of the stage road (./service-park.ts).
+    servicePark: JACKIE_PARK,
   },
 ];

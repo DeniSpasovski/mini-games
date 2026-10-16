@@ -162,6 +162,11 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   `bake-street-cars.mjs --vans`) in the team paint plus side stripes. A lot is a `ServiceLot` rectangle:
   the map levels it with a `terrain.pads` entry (`servicePad` in `maps/shared/service-lot.ts`, or a fixed `level` for a flat
   field), the stage lists the lots and the bay `gap` (`maps/ajvatovci/service-park.ts`: the start lot + a field north-west of it).
+  A `ferme` park (parc fermé) is only a row of 4-6 team cars, noses to the tape, on a small lay-by beside the road behind the
+  start (`ServiceLot.bays` cars per lot): Test map (4, left of the run-up), Galichica West (6, Ohrid side), East and
+  Prespa-Ohrid (5, Prespa side). On a street (The Jackie: 5 + 5 abeam the start, on the street east of the stage road and the
+  opposite carriageway's inner lane west of it) the lot lies over the road (`paved`: other roads do not block, no pad) and
+  `parallel` parks the cars nose to tail along the kerb, side-on to the start. `maps/<id>/service-park.ts`, test `parc-ferme`.
 - **Park cars**: `team_car` only places the car and gives it its collider. The car is a real released model at low quality:
   `world/park-car-mesh.ts` (`ParkCars`, owned by `InstanceStreamer`, `streamer.ready`) draws `parkCarId(team)` (`world/park-cars.ts`)
   from `public/models/cars/<id>_park.glb` (`scripts/car-model/park-lods.mjs`: three body LODs of about 7.5k / 2.3k / 1.1k

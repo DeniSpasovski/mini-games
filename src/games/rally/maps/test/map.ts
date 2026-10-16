@@ -1,4 +1,5 @@
 import type { MapDef } from '../shared/types';
+import { TEST_PARK, testLotPad } from './service-park';
 
 /**
  * "Test map" - a short (~1.5 km) classic forest gravel stage for physics work.
@@ -21,12 +22,14 @@ export const testMap: MapDef = {
       tyre: 'gravel',
       description:
         'Short forest gravel stage with fast sweepers, S-bends, a hairpin, a crest jump and a flat pad for testing cars.',
-      timing: { start: 40, finishFromEnd: 175, splits: 2 },
-      cornerFans: { every: 40, chance: 0.6, from: 60 },
+      // The road runs 160 m before the start line (a straight run-up with the parc fermé beside it).
+      timing: { start: 160, finishFromEnd: 175, splits: 2 },
+      cornerFans: { every: 40, chance: 0.6, from: 180 },
+      servicePark: TEST_PARK,
     },
   ],
   seed: 1337,
-  bounds: { minX: -420, maxX: 360, minZ: -460, maxZ: 420 },
+  bounds: { minX: -420, maxX: 360, minZ: -580, maxZ: 420 },
   terrain: {
     baseHeight: 0,
     layers: [
@@ -45,6 +48,7 @@ export const testMap: MapDef = {
         surface: 'gravel',
       },
     ],
+    pads: [testLotPad()],
   },
   road: {
     width: 7,
@@ -55,6 +59,7 @@ export const testMap: MapDef = {
     maxGrade: 0.11,
     surface: 'gravel',
     points: [
+      [-262, -520],
       [-262, -400],
       [-262, -340],
       [-262, -280],
@@ -173,7 +178,7 @@ export const testMap: MapDef = {
     // Crowds at the hairpin and the jump.
     {
       asset: 'spectator',
-      at: [628, 662, 845],
+      at: [748, 782, 965],
       side: 'outside',
       offset: 9,
       count: 9,
@@ -183,7 +188,7 @@ export const testMap: MapDef = {
     },
     {
       asset: 'tape_post',
-      at: [628, 662, 845],
+      at: [748, 782, 965],
       side: 'outside',
       offset: 6,
       count: 6,

@@ -635,15 +635,29 @@ export interface ServiceLot {
   heading: number;
   length: number;
   width: number;
+  /** Parc fermé lots (`ServicePark.ferme`): at most this many cars here (default: as many as fit). */
+  bays?: number;
+  /** A parc fermé on a street: its pieces may stand on the road surface of other roads (buildings and water still block). */
+  paved?: boolean;
+  /**
+   * A parc fermé parked along the street (nose to tail on the side of the public edge, no ground sheets) instead of
+   * nose-in. Set the lot over the street: `width` = its carriageway, public edge on the kerb facing the stage.
+   */
+  parallel?: boolean;
 }
 
 /** A rally service park (paddock) at a stage start: team bays on the lots, a crowd on the public edge. */
 export interface ServicePark {
   /** Lots, filled in order until `bays` bays fit. */
   lots: ServiceLot[];
-  /** Team bays wanted (>= 10); each holds a team car, its truck or van, tents, props and 6-12 people. */
+  /** Team bays wanted (>= 10, a parc fermé: the cars); each holds a team car, its truck or van, tents, props and 6-12 people. */
   bays: number;
-  /** Space between neighbouring bays of a row (m, default 5). */
+  /**
+   * A parc fermé instead of a paddock: just the cars, parked side by side with their noses to the public edge on
+   * ground sheets, a few people and the tape. Small lots beside the road (`ServiceLot.bays` cars each).
+   */
+  ferme?: boolean;
+  /** Space between neighbouring bays of a row (m, default 5; a parc fermé 0.6). */
   gap?: number;
   /** Spectators along 84 m of public edge (default 30); visitors in the aisles scale with the lot length. */
   crowd?: number;

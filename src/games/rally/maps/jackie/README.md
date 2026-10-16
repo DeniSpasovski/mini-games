@@ -11,6 +11,8 @@ carriageway, ramps and interchange as ordinary side roads. Map id `jackie`, stag
 | ------------------------------------------------- |
 | ![Start of the stage](screenshots/city-start.jpg) |
 
+Ten team cars are parked on both sides of the stage road at the start line (`service-park.ts`).
+
 What makes it different from the village maps: bridges and under-passes, a concrete median and guard rails, city
 streets with kerbs, sidewalks and crosswalks, sheer retaining-wall cuts, and about 7,800 mesh buildings extruded from
 OpenStreetMap footprints and heights.

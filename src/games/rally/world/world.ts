@@ -205,10 +205,11 @@ export class World implements GroundProvider {
         height: (x, z) => this.analytic.height(x, z),
         seed: hashString(this.stageDef.id),
         country: map.country,
-        blocked: (x, z, r) =>
+        blocked: (x, z, r, paved) =>
           this.buildings.contains(x, z, r) ||
           this.landmarks.some((l) => l.occupies(x, z, r)) ||
-          (!!this.gen.paths?.query(x, z, parkQ).found &&
+          (!paved &&
+            !!this.gen.paths?.query(x, z, parkQ).found &&
             parkQ.distance < parkQ.halfWidth + r) ||
           (!!this.gen.channels?.query(x, z, parkQ).found &&
             parkQ.distance < parkQ.halfWidth + r + 2) ||

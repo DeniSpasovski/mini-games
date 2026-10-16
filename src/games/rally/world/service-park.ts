@@ -52,8 +52,11 @@ export interface ServiceParkContext {
   /** Stage distance of the start line (m). */
   start: number;
   height: (x: number, z: number) => number;
-  /** True where a piece of radius `r` cannot stand (buildings, water, other roads, ...). */
-  blocked: (x: number, z: number, r: number) => boolean;
+  /**
+   * True where a piece of radius `r` cannot stand (buildings, water, other roads, ...); `paved` (a lot on a street):
+   * the road surface of other roads does not count.
+   */
+  blocked: (x: number, z: number, r: number, paved?: boolean) => boolean;
   /** Seed when the definition has none (hash of the stage id). */
   seed: number;
   /** The map's country: a share of the crowd waves its hand flag (none without one). */
@@ -71,12 +74,15 @@ export interface ServiceParkLayout {
 /** Bay depth (m) from the back edge (trucks) to the front (cars, tents, people); two rows face one aisle. */
 const BAY_DEPTH = 11;
 
-type Template = 'works' | 'privateer' | 'small';
+type Template = 'works' | 'privateer' | 'small' | 'ferme';
 const WIDTH: Record<Template, number> = {
   works: 21,
   privateer: 13.5,
   small: 9.5,
+  ferme: 3.6,
 };
+/** Along-the-lot width of a parc fermé bay: nose-in cars stand close, parallel-parked ones nose to tail (m). */
+const fermeWidth = (lot: ServiceLot): number => (lot.parallel ? 5.4 : 3.6);
 
 type Item = ScatterInstance & { must: boolean };
 
@@ -143,26 +149,36 @@ function layBays(
   const rng = new Rng(seed);
   const teams = shuffle([...Array(TEAM_COUNT).keys()], rng);
   const layout: ServiceParkLayout = { instances: [], bays: 0, bayCentres: [] };
-  const gap = def.gap ?? 5;
+  const ferme = !!def.ferme;
+  const gap = def.gap ?? (ferme ? 0.6 : 5);
   let next = 0;
   for (const lot of def.lots) {
-    const rows = lot.width >= 2 * BAY_DEPTH + 4 ? 2 : 1;
+    const rows = !ferme && lot.width >= 2 * BAY_DEPTH + 4 ? 2 : 1;
+    let inLot = 0;
     for (let r = 0; r < rows && layout.bays < def.bays; r++) {
-      // Row 0 backs on v = BAY_DEPTH (front at the public edge), row 1 on the far edge of the lot.
-      const vBack = r === 0 ? BAY_DEPTH : lot.width;
-      let uEast = lot.length - 1.5;
-      let first = true;
-      while (layout.bays < def.bays) {
-        // Each row opens with a works team (truck + awning, two cars), the rest is drawn.
-        const template = first ? 'works' : pickTemplate(rng, uEast - 1.5);
+      // Row 0 backs on v = BAY_DEPTH (front at the public edge), row 1 on the far edge of the lot; a parc fermé row
+      // fills the lot's whole depth.
+      const vBack = ferme ? lot.width : r === 0 ? BAY_DEPTH : lot.width;
+      let uEast = lot.length - (ferme ? 1.2 : 1.5);
+      let first = !ferme;
+      while (layout.bays < def.bays && inLot < (lot.bays ?? Infinity)) {
+        // Each row opens with a works team (truck + awning, two cars), the rest is drawn; a parc fermé is cars only.
+        const template: Template | undefined = ferme
+          ? fermeWidth(lot) <= uEast - 1.2
+            ? 'ferme'
+            : undefined
+          : first
+            ? 'works'
+            : pickTemplate(rng, uEast - 1.5);
         first = false;
         if (!template) break;
-        const w = WIDTH[template];
+        const w = template === 'ferme' ? fermeWidth(lot) : WIDTH[template];
         const team = teams[next % TEAM_COUNT];
         const bay = buildBay(lot, uEast, vBack, template, team, ctx, rng);
         uEast -= w + gap;
         if (!bay) continue;
         next++;
+        inLot++;
         layout.bays++;
         layout.instances.push(...bay.items);
         layout.bayCentres.push({ ...bay.centre, team });
@@ -209,7 +225,7 @@ function buildBay(
   const bay: BayCtx = {
     put(asset, variant, bx, bz, turn = 0, o = {}) {
       const [x, z] = toWorld(bx, bz);
-      if (ctx.blocked(x, z, o.r ?? 0.6)) {
+      if (ctx.blocked(x, z, o.r ?? 0.6, lot.paved)) {
         if (o.must) items.push(DROPPED);
         return;
       }
@@ -236,13 +252,22 @@ function buildBay(
       );
     },
   };
-  const width = WIDTH[template];
+  const width = template === 'ferme' ? fermeWidth(lot) : WIDTH[template];
   const carIdx = rng.chance(0.4) ? team + TEAM_COUNT : team;
   if (template === 'works') works(bay, width, team, carIdx, rng);
   else if (template === 'privateer') privateer(bay, width, team, carIdx, rng);
+  else if (template === 'ferme')
+    ferme(bay, width, team, vBack, !!lot.parallel, rng);
   else small(bay, width, team, carIdx, rng);
   if (items.some((i) => i === DROPPED)) return undefined;
-  const [cx, cz] = toWorld(width / 2, BAY_DEPTH / 2);
+  const [cx, cz] = toWorld(
+    width / 2,
+    template !== 'ferme'
+      ? BAY_DEPTH / 2
+      : lot.parallel
+        ? vBack - STREET_CAR_V
+        : vBack / 2,
+  );
   return {
     items: items.map(({ must: _must, ...i }) => i),
     centre: { x: cx, z: cz },
@@ -503,6 +528,63 @@ function small(
   guests(bay, w, rng, 2);
 }
 
+/** Parallel-parked car: its centre line this far in from the kerb on the public edge (m). */
+const STREET_CAR_V = 1.5;
+
+/**
+ * Parc fermé bay: one team car on its ground sheet, nose towards the public edge, the next car close beside it; now and
+ * then a crew member or the driver stands in front of it. On a street (`parallel`) the cars stand nose to tail along
+ * the kerb, no sheets, and the person on the pavement beside the car.
+ */
+function ferme(
+  bay: BayCtx,
+  w: number,
+  team: number,
+  depth: number,
+  parallel: boolean,
+  rng: Rng,
+): void {
+  if (parallel) {
+    const cz = depth - STREET_CAR_V;
+    bay.put('team_car', team, w / 2, cz, Math.PI, { must: true, r: 2.2 });
+    if (rng.chance(0.5)) {
+      const x = w / 2 + rng.range(-1, 1);
+      const z = depth + 0.5;
+      const who = rng.chance(0.5) ? 'driver' : 'crew';
+      bay.put(
+        who,
+        team + TEAM_COUNT * rng.int(0, 1),
+        x,
+        z,
+        bay.face(x, z, w / 2, cz) + rng.range(-0.4, 0.4),
+        { r: 0.4 },
+      );
+    }
+    return;
+  }
+  const cx = w / 2;
+  const cz = 2.9;
+  bay.put('ground_sheet', rng.pick(SHEET), cx, cz, 0, {
+    sx: w - 0.2,
+    sz: 5.6,
+    r: 0.2,
+  });
+  bay.put('team_car', team, cx, cz, -Math.PI / 2, { must: true, r: 2.2 });
+  if (rng.chance(0.55)) {
+    const x = cx + rng.range(-0.5, 0.5);
+    const z = Math.min(depth - 1.2, cz + 4.2);
+    const who = rng.chance(0.5) ? 'driver' : 'crew';
+    bay.put(
+      who,
+      team + TEAM_COUNT * rng.int(0, 1),
+      x,
+      z,
+      bay.face(x, z, cx, cz) + rng.range(-0.5, 0.5),
+      { r: 0.4 },
+    );
+  }
+}
+
 // --- public edge, support, start control ---------------------------------------------------------------
 
 const PEOPLE = new Set([
@@ -552,6 +634,7 @@ function addPublicEdge(
     ctx.road.query(x, z, rq);
     return rq.found && rq.distance < rq.halfWidth + margin;
   };
+  let paved = false;
   const place = (
     asset: string,
     variant: number,
@@ -561,7 +644,7 @@ function addPublicEdge(
     r: number,
     margin = 2.5,
   ): boolean => {
-    if (ctx.blocked(x, z, r) || onRoad(x, z, margin)) return false;
+    if (ctx.blocked(x, z, r, paved) || onRoad(x, z, margin)) return false;
     // A person keeps off vehicles, tents and other people.
     if (PEOPLE.has(asset) && occupied(out.instances, x, z)) return false;
     out.instances.push({
@@ -578,6 +661,7 @@ function addPublicEdge(
     return true;
   };
   for (const lot of def.lots) {
+    paved = !!lot.paved;
     const c = Math.cos(lot.heading);
     const s = Math.sin(lot.heading);
     // Tape along the public edge; the lot's own outer lines are open.
@@ -608,7 +692,7 @@ function addPublicEdge(
       place('spectator', variant, x, z, yaw, 0.3);
     }
     // Press photographers just behind the tape, aiming at the bays (they follow the car when it passes).
-    const shooters = Math.max(2, Math.round(lot.length / 30));
+    const shooters = Math.max(def.ferme ? 1 : 2, Math.round(lot.length / 30));
     for (let i = 0; i < shooters; i++) {
       const [x, z] = lotWorld(
         lot,
@@ -627,10 +711,14 @@ function addPublicEdge(
     // Visitors walking the aisle between the rows (a lot with one row: the walkway in front of the cars).
     const twoRows = lot.width >= 2 * BAY_DEPTH + 4;
     const aisleV = lot.width / 2;
-    const visitors = Math.round(lot.length * 0.32);
+    const visitors = Math.round(lot.length * (def.ferme ? 0.1 : 0.32));
     for (let i = 0; i < visitors; i++) {
       const u = rng.range(2, lot.length - 2);
-      const v = twoRows ? aisleV + rng.range(-1.6, 1.6) : rng.range(0.6, 3.4);
+      const v = lot.parallel
+        ? -rng.range(0.8, 2.2)
+        : twoRows
+          ? aisleV + rng.range(-1.6, 1.6)
+          : rng.range(0.6, 3.4);
       const [x, z] = lotWorld(lot, u, v);
       // Walking, drinking, on the phone, standing: pairs turn to each other.
       const variant = visitorLook(rng);
