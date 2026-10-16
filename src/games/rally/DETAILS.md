@@ -326,7 +326,9 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 
 **Draw calls**
 
-- Far terrain merges chunks 2 x 2 (LOD2) / 4 x 4 (LOD3) into one mesh; the tile plan is redone after 8 m of travel.
+- Terrain chunks merge per detail band into 2 x 2 / 4 x 4 (from LOD2) and 8 x 8 (LOD3) meshes (`terrain-renderer.ts`: the
+  `blockLod` bands never make a chunk coarser than unmerged, `MERGE_SLACK` stops tiles fragmenting along band edges; big tiles
+  are sampled in slices). Merged tiles keep the vertex grid of their LOD. The plan is redone after 8 m of travel.
 - Whole-map meshes are merged per tile, never per object. Many materials = many draws: use a texture array
   (`engine/texture-array.ts` `layeredMaterial`; mesh buildings = one mesh per 192 m tile, start-row lots = 3 material groups
   per 128 m tile). A custom shader must scale `envMapIntensity` (it carries `scene.environmentIntensity`), never replace it.
