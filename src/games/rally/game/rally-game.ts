@@ -15,6 +15,7 @@ import { CARS, getCar } from '../cars';
 import { rallyName } from '../cars/shared/rally-badge';
 import type { CarDef } from '../cars/shared/types';
 import { Environment } from '../engine/environment';
+import { LIGHTS_MIN_NEED } from '../engine/night';
 import type { QualitySettings } from '../engine/quality';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
 import { setClockTime } from '../engine/stage-sign-textures';
@@ -163,6 +164,7 @@ export class RallyGame {
   contactShadow!: ContactShadow;
   /** Night only (`env.night`): the car's lights. */
   private headlights?: Headlights;
+  private readonly lampColor = new Color();
   private lampPos = new Vector3();
   private lampDir = new Vector3();
   streamer!: InstanceStreamer;
@@ -397,9 +399,11 @@ export class RallyGame {
       tyre: this.opts.tyre,
     });
     this.scene.add(this.model.root);
-    if (this.env.night) {
-      // Lights on: lamp glow, tail lamps, two spot lights and the beam in the air (before the first compile).
-      this.model.setLamps(true);
+    if (this.env.lightNeed >= LIGHTS_MIN_NEED) {
+      // Lights on (night, and fading in through dusk / dawn): lamp glow, tail lamps, two spot lights and the beam in
+      // the air, all scaled by how dark it is (before the first compile).
+      const need = this.env.lightNeed;
+      this.model.setLamps(need);
       let zf = -Infinity;
       let hx = 0;
       for (const w of this.vehicle.wheels) {
@@ -411,6 +415,7 @@ export class RallyGame {
         { x: hx * 0.8, y: 0.7, z: zf + 0.75 },
         q.name,
         this.car.headlights,
+        need,
       );
     }
     // Soft dark patch under the car: grounds it at any shadow resolution.
@@ -552,8 +557,9 @@ export class RallyGame {
     this.lampDir.set(0, -0.02, 1).transformDirection(root.matrixWorld);
     const c = this.headlights?.color;
     if (!c) return;
+    this.lampColor.copy(c).multiplyScalar(this.env.lightNeed);
     for (const p of [this.dust, this.gravel, this.haze])
-      p?.setHeadlight(c, this.lampPos, this.lampDir);
+      p?.setHeadlight(this.lampColor, this.lampPos, this.lampDir);
   }
 
   /** Name of the stage surface the fitted tyre grips worst ("gravel"), or null when it is fine on all of them. */
