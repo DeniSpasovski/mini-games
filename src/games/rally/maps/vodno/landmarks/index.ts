@@ -17,6 +17,7 @@ import {
   onLot,
   slabHeight,
   SREDNO,
+  wallColliders,
   SREDNO_BUS,
   VIDIKOVEC,
 } from './car-parks';
@@ -25,6 +26,7 @@ import {
   drawGazebo,
   drawMarkings,
   drawParkGround,
+  gardenColliders,
   drawPiece,
   GAZEBO,
   gardenAreas,
@@ -37,6 +39,12 @@ import {
   stoneRoadAreas,
 } from './lot-park';
 import { buildNereziChurch } from './nerezi-church';
+import {
+  buildRestaurant,
+  RESTAURANT_AREAS,
+  RESTAURANT_TREES,
+  restaurantColliders,
+} from './restaurant';
 import { buildLookout, buildRuins, ruinsLayout } from './outposts';
 import { buildSrednoChurch, NAVE_X0 } from './sredno-church';
 import { buildStation } from './station';
@@ -56,6 +64,7 @@ import {
   onAreas,
   OUTPOST_AREAS,
   PLATFORM,
+  RESTAURANT,
   RUINS,
   SREDNO_AREAS,
   SREDNO_CHURCH,
@@ -350,6 +359,9 @@ export const carParksLandmark = landmark({
   colliders: (g) => [
     cylinderCollider(LOT_FLAGPOLE, 0, 0, base(g, LOT_FLAGPOLE), 0.12, 11),
     gazeboCollider(base(g, GAZEBO)),
+    // The rock walls of the mid parking and of its garden are hard borders.
+    ...wallColliders(VIDIKOVEC, (x, z) => g.height(x, z)),
+    ...gardenColliders((x, z) => g.height(x, z)),
     ...[SREDNO, VIDIKOVEC].flatMap((lot) =>
       parkColliders(lot, (x, z) => g.height(x, z) - 0.8),
     ),
@@ -389,11 +401,33 @@ export const carParksLandmark = landmark({
   },
 });
 
+/** The restaurant beside the Sredno church (it replaces OSM building 3974), its plaza and the cedars round it. */
+export const restaurantLandmark = landmark({
+  id: 'vodno-restaurant',
+  areas: RESTAURANT_AREAS,
+  colliders: (g) => restaurantColliders((x, z) => g.height(x, z)),
+  plants: RESTAURANT_TREES.map(([asset, x, z, scale]) => ({
+    asset,
+    site: RESTAURANT,
+    x,
+    z,
+    scale,
+  })),
+  build: (at, ground) => {
+    const base = ground(RESTAURANT.x, RESTAURANT.z);
+    buildRestaurant(at(RESTAURANT, 'restaurant'), (x, z) => {
+      const [wx, wz] = toWorld(RESTAURANT, x, z);
+      return ground(wx, wz) - base;
+    });
+  },
+});
+
 export const VODNO_LANDMARKS: Landmark[] = [
   srednoVodnoLandmark,
   summitLandmark,
   nereziLandmark,
   outpostsLandmark,
   carParksLandmark,
+  restaurantLandmark,
 ];
 export { VODNO_FLATS } from './sites';

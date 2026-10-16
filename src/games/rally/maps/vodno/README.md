@@ -18,7 +18,8 @@ the stage road are closed with barriers.
 
 Landmarks (OpenStreetMap plans, rough shapes in the style of the Ajvatovci hilltop church, ai-generated in `landmarks/`): the
 66 m Millennium Cross and the 155 m mast, the cable car with moving cabins, the mountain lodge, the churches of Sredno Vodno
-(beside the finish) and Gorno Nerezi, the lookout tower, the Markovi Kuli ruins, and three car parks beside the stage road (the
+(beside the finish) and Gorno Nerezi, the lookout tower, the Markovi Kuli ruins, the restaurant beside the Sredno Vodno church, and
+three car parks beside the stage road (the
 Sredno Vodno one with its flag, lamps, a timber gazebo and watch towers; the Vidikovec with a grass island, a lattice lookout tower
 and rusted guard rails on its approach). Skopje's skyline stands on the horizon: the 70 m MRT tower and the 136 m Cevahir Sky City
 slabs (extruded OpenStreetMap footprints).

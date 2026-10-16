@@ -185,6 +185,9 @@ export const vodnoMap: MapDef = {
       along < START + 500 ? 6.4 : 5.8,
     ),
   },
+  // Nothing grows south of the ridge (the cross stands at z 796): no stage camera sees the far side of Vodno, 1.1 km and more from the
+  // road, past the forest distance and behind the mountain.
+  scatterBounds: { maxZ: 900 },
   scatter: [
     // The pine plantations that cover most of Vodno (planted from the 1950s): dense, dark conifers with some Austrian
     // black pine among them, oak and scrub below. The road runs through them: a closed canopy at the verge (the satellite
@@ -507,5 +510,6 @@ export const vodnoMap: MapDef = {
     'vodno-nerezi',
     'vodno-outposts',
     'vodno-car-parks',
+    'vodno-restaurant',
   ],
 };

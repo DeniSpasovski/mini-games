@@ -14,10 +14,12 @@ import {
   onLot,
   SREDNO,
   stairsAnchor,
+  wallRuns,
   SREDNO_BUS,
   VIDIKOVEC,
 } from '../../src/games/rally/maps/vodno/landmarks/car-parks';
 import {
+  gardenColliders,
   gardenPolygon,
   GAZEBO_BUILDING,
   parkColliders,
@@ -26,6 +28,15 @@ import {
   stoneRoad,
 } from '../../src/games/rally/maps/vodno/landmarks/lot-park';
 import { LOT_ROADS } from '../../src/games/rally/maps/vodno/landmarks/lot-road';
+import {
+  PLAZA,
+  plazaSouth,
+  pylonXs,
+  R1,
+  R2W,
+  R3,
+  roadZ,
+} from '../../src/games/rally/maps/vodno/landmarks/restaurant';
 import { LOT_PADS } from '../../src/games/rally/maps/vodno/lots';
 import { SKYLINE } from '../../src/games/rally/maps/vodno/skyline';
 import {
@@ -35,6 +46,7 @@ import {
   LOWER_STATION,
   NEREZI_CHURCH,
   PLATFORM,
+  RESTAURANT,
   SREDNO_CHURCH,
   STATION_LENGTH,
   STATION_WIDTH,
@@ -217,6 +229,7 @@ describe('vodno landmarks (churches, platform, stations, towers)', () => {
     'vodno-nerezi',
     'vodno-outposts',
     'vodno-car-parks',
+    'vodno-restaurant',
   ];
 
   test('registered on the map and in the world', () => {
@@ -305,6 +318,26 @@ describe('vodno landmarks (churches, platform, stations, towers)', () => {
       }
     for (const l of world.landmarks)
       for (const c of l.colliders(world.analytic)) {
+        if (c.kind === 'box' && c.hz !== undefined && c.hz < 1) {
+          // A thin box (a wall) hugs the road's clearance line: its corners must be off the road's surface, not a metre beyond.
+          const cs = Math.cos(c.rot ?? 0);
+          const sn = Math.sin(c.rot ?? 0);
+          for (const [sx, sz] of [
+            [1, 1],
+            [1, -1],
+            [-1, 1],
+            [-1, -1],
+          ]) {
+            const px = c.x + sx * (c.hx ?? 0) * cs + sz * c.hz * sn;
+            const pz = c.z - sx * (c.hx ?? 0) * sn + sz * c.hz * cs;
+            const r = world.road.query(px, pz, q);
+            if (r.found)
+              expect(r.distance, `${l.id} wall corner`).toBeGreaterThan(
+                r.halfWidth + 0.2,
+              );
+          }
+          continue;
+        }
         const r = world.road.query(c.x, c.z, q);
         if (r.found)
           expect(r.distance - c.r, `${l.id} collider`).toBeGreaterThan(
@@ -373,7 +406,8 @@ describe('vodno car parks', () => {
       'vidikovec_lot',
       'vidikovec_garden_2',
       'vidikovec_garden_1',
-      'vidikovec_garden_ramp',
+      'vidikovec_garden_ramp_1',
+      'vidikovec_garden_ramp_2',
       'sredno_lot',
       'sredno_bus_lot',
     ]);
@@ -520,7 +554,7 @@ describe('vodno car park surroundings', () => {
 
   test('the garden terraces and the park strip are painted lush grass terrain, not decals', () => {
     const lawns = vodnoMap.terrain.lawns!;
-    expect(lawns.length).toBe(4);
+    expect(lawns.length).toBe(5);
     const out = new Float32Array(4);
     for (const poly of lawns) {
       // The polygon's vertex mean (a thin strip: inside enough for the feather).
@@ -535,6 +569,151 @@ describe('vodno car park surroundings', () => {
       world.gen.splat(cx, cz, 0, Infinity, 0, out);
       expect(out[0], 'pure grass').toBeGreaterThan(0.97);
       expect(out[1] + out[2] + out[3]).toBeLessThan(0.03);
+    }
+  });
+
+  test('the junction at 2000 m is one street joined to the stage road: the one-way arcs of the OSM knot are gone', () => {
+    const paths = world.gen.paths!.paths;
+    const knot = paths.filter((p) =>
+      p.pts.some(
+        (_, k) =>
+          k % 2 === 0 && Math.hypot(p.pts[k] - 2161.5, p.pts[k + 1] + 58.5) < 1,
+      ),
+    );
+    // Only the street's own link (370: knot -> Сончев Град) still reaches the knot's centre: it was extended to the stage road.
+    expect(knot.every((p) => !p.oneway)).toBe(true);
+    const street = paths.find((p) => p.name === 'Сончев Град')!;
+    expect(street).toBeTruthy();
+    expect(
+      world.gen.junctions.some((j) => Math.hypot(j.x - 2152, j.z + 70) < 14),
+    ).toBe(true);
+  });
+
+  test('the service road merges into the summit road: its end narrows to a point', () => {
+    const net = world.gen.paths!;
+    const si = net.paths.findIndex((p) => p.mergeTaper);
+    expect(si).toBeGreaterThanOrEqual(0);
+    const L = net.lengths[si];
+    expect(net.halfWidthAt(si, L)).toBeLessThan(0.3);
+    expect(net.halfWidthAt(si, L - 40)).toBeCloseTo(net.paths[si].width / 2, 1);
+  });
+
+  test('nothing grows south of the ridge: no scatter instance past z 900, plenty on the north face', () => {
+    expect(vodnoMap.scatterBounds?.maxZ).toBe(900);
+    const cs = world.scatter.chunkSize;
+    const count = (x: number, z: number): number =>
+      world.scatter.chunk(Math.floor(x / cs), Math.floor(z / cs)).instances
+        .length;
+    expect(count(-400, 1500)).toBe(0);
+    expect(count(300, 1300)).toBe(0);
+    expect(count(500, -700)).toBeGreaterThan(20);
+  });
+
+  test('the rock walls of the mid parking and its garden are hard borders (colliders), the stairs opening is closed too', () => {
+    const cols = carParksLandmark.colliders(world.analytic);
+    const inside = (x: number, z: number, y: number): boolean =>
+      cols.some((c) => {
+        if (c.kind !== 'box' || y < c.y || y > c.y + c.h) return false;
+        const cs = Math.cos(c.rot ?? 0);
+        const sn = Math.sin(c.rot ?? 0);
+        const lx = (x - c.x) * cs - (z - c.z) * sn;
+        const lz = (x - c.x) * sn + (z - c.z) * cs;
+        return Math.abs(lx) <= (c.hx ?? 0) && Math.abs(lz) <= (c.hz ?? 0);
+      });
+    let checked = 0;
+    for (const run of wallRuns(VIDIKOVEC))
+      for (let k = 0; k + 1 < run.p.length; k++) {
+        const T = VIDIKOVEC.wallThick ?? 0.6;
+        const mx =
+          (run.p[k][0] + run.p[k + 1][0]) / 2 + run.n[k][0] * (0.05 + T / 2);
+        const mz =
+          (run.p[k][1] + run.p[k + 1][1]) / 2 + run.n[k][1] * (0.05 + T / 2);
+        const [wx, wz] = toWorld(VIDIKOVEC.site, mx, mz);
+        // A car's hull point on the wall at slab height + 0.8 m is inside a box.
+        expect(
+          inside(wx, wz, world.analytic.height(wx, wz) + 1),
+          `(${wx}, ${wz})`,
+        ).toBe(true);
+        checked++;
+      }
+    expect(checked).toBeGreaterThan(40);
+    // The opening of the stairs from the lot is closed.
+    const a = stairsAnchor(VIDIKOVEC)!;
+    const [sx, sz] = toWorld(
+      VIDIKOVEC.site,
+      a.p[0] + a.n[0] * 0.5,
+      a.p[1] + a.n[1] * 0.5,
+    );
+    expect(inside(sx, sz, world.analytic.height(sx, sz) + 1)).toBe(true);
+    // The garden's dividing wall (off its ramps and stairs gap) is solid; the lot's road side is open.
+    expect(
+      gardenColliders((x, z) => world.analytic.height(x, z)).length,
+    ).toBeGreaterThan(15);
+  });
+
+  test('the restaurant replaces OSM building 3974 beside the church, off every road', () => {
+    const b = (world.map.buildings ?? []).find(
+      (o) => Math.hypot(o.x - RESTAURANT.x, o.z - RESTAURANT.z) < 1.5,
+    );
+    expect(b?.id, 'the OSM box under the restaurant').toBe(3974);
+    const landmark = world.landmarks.find((l) => l.id === 'vodno-restaurant')!;
+    expect(landmark.replaces(b!)).toBe(true);
+    // The church's own box and the small shed next to it stay.
+    for (const id of [3987, 3991]) {
+      const o = (world.map.buildings ?? []).find((q) => q.id === id)!;
+      expect(landmark.replaces(o), `building ${id} stays`).toBe(false);
+    }
+    // The masses' corners and the plaza lie off every road.
+    const q = newRoadQuery();
+    for (const [lx, lz] of [
+      [R1.x0, R1.z0],
+      [R3.x1, R3.z0],
+      [R3.x1, R3.z1],
+      [R2W.x0, R2W.z1],
+      [PLAZA.x0, PLAZA.z1],
+      [PLAZA.x1, PLAZA.z1],
+    ]) {
+      const [x, z] = toWorld(RESTAURANT, lx, lz);
+      const r = world.road.query(x, z, q);
+      if (r.found) expect(r.distance).toBeGreaterThan(r.halfWidth + 3);
+    }
+    // The parking fills the ground in front: the service road that crossed it is cut at its east edge, no path runs through it.
+    const net = world.gen.paths!;
+    let roadEnd = Infinity;
+    for (const p of net.paths)
+      for (let k = 0; k < p.pts.length; k += 2) {
+        const [lx, lz] = toLocal(RESTAURANT, p.pts[k], p.pts[k + 1]);
+        if (lz > 30 && lz < 45 && lx > PLAZA.x0 - 1 && lx < 60)
+          roadEnd = Math.min(roadEnd, lx);
+        if (
+          lx > PLAZA.x0 &&
+          lx < PLAZA.x1 &&
+          lz > PLAZA.z0 &&
+          lz < plazaSouth(lx)
+        )
+          throw new Error(`path point (${lx}, ${lz}) lies in the parking`);
+      }
+    expect(roadEnd).toBeGreaterThan(PLAZA.x1);
+    expect(roadEnd).toBeLessThan(PLAZA.x1 + 1);
+    // Five tall columns carry the hall's canopy.
+    expect(pylonXs()).toHaveLength(5);
+    // The gate stands on that road's end: a post on each side and a closed arm that blocks a car.
+    const [gx, gzz] = toWorld(RESTAURANT, 37.2, roadZ(37.2));
+    const boxes = landmark
+      .colliders(world.analytic)
+      .filter((c) => c.kind === 'box' && Math.hypot(c.x - gx, c.z - gzz) < 4);
+    expect(boxes.length).toBeGreaterThan(0);
+    // A car cannot drive through the hall or the back block: collider boxes stand in them.
+    for (const [lx, lz] of [
+      [20, 8],
+      [-15, -11],
+    ]) {
+      const [cx, cz] = toWorld(RESTAURANT, lx, lz);
+      expect(
+        landmark
+          .colliders(world.analytic)
+          .some((c) => c.kind === 'box' && Math.hypot(c.x - cx, c.z - cz) < 22),
+      ).toBe(true);
     }
   });
 

@@ -72,6 +72,14 @@ export const LOT_FLAGPOLE: Site = (() => {
   return { x, z, yaw: 0 };
 })();
 
+/**
+ * The restaurant beside the Sredno Vodno church (restaurant.ts): its site is the centre of OSM building 3974 (a 72 x 41 m grey
+ * box of seven notches that it replaces), turned to the box's long side (0.433 rad); local +z, the front, faces the plaza.
+ */
+export const RESTAURANT: Site = { x: 502.9, z: -485.9, yaw: 0.433 };
+/** The levelled ground under its hall and plaza: a flat circle at local (x, z) of the site. */
+export const RESTAURANT_PAD = { x: 6, z: 18, radius: 22, blend: 10 };
+
 /** The Millennium Cross platform, OSM way 618009929: a round platform of 24 m on twelve columns. */
 export const PLATFORM: Site = { x: -700.6, z: 796.4, yaw: 0 };
 export const PLATFORM_RADIUS = 12;
@@ -250,6 +258,14 @@ export const VODNO_FLATS: FlatArea[] = [
     z: LOOKOUT.z,
     radius: 4.5,
     blend: 5,
+    label: false,
+  },
+  {
+    name: 'restaurant',
+    x: toWorld(RESTAURANT, RESTAURANT_PAD.x, RESTAURANT_PAD.z)[0],
+    z: toWorld(RESTAURANT, RESTAURANT_PAD.x, RESTAURANT_PAD.z)[1],
+    radius: RESTAURANT_PAD.radius,
+    blend: RESTAURANT_PAD.blend,
     label: false,
   },
   {

@@ -1,4 +1,11 @@
-import { placeAt, type Local, type V2, type V3 } from './common';
+import type { StaticCollider } from '../../../physics/types';
+import {
+  placeAt,
+  turnedBoxCollider,
+  type Local,
+  type V2,
+  type V3,
+} from './common';
 import { strut } from './park';
 import { wallRibbon } from './stone-wall';
 import { LOT_ROADS } from './lot-road';
@@ -373,6 +380,111 @@ export function onLot(lot: Lot, x: number, z: number): boolean {
   return inPolygon(slabOutline(lot), lx, lz);
 }
 
+/** One run of a lot's rock wall: the outline's points, the unit normal to the outer side at each, and whether it carries the railing. */
+export interface WallRun {
+  p: V2[];
+  n: V2[];
+  rail: boolean;
+}
+
+/** A cap across the strip's end is open (no kerb, no wall) where it meets the road: a narrow mouth, or a cap that runs along the road. */
+function capOpenOf(shape: LotShape, i: number): boolean {
+  const { left, right, dl, dr } = shape;
+  return (
+    (Math.hypot(left[i][0] - right[i][0], left[i][1] - right[i][1]) < 9 &&
+      Math.min(dl[i], dr[i]) < ROAD_SIDE) ||
+    Math.max(dl[i], dr[i]) < ROAD_SIDE + 3
+  );
+}
+
+/**
+ * The runs of a walled lot's rock wall (pure, shared by the drawing and the colliders): one along each long edge - the road
+ * side is open, the outer edge opens where the stairs go down - and the end caps, which run on past the corners so the corner
+ * squares are solid.
+ */
+export function wallRuns(lot: Lot): WallRun[] {
+  if (!lot.wall) return [];
+  const shape = lotShape(lot);
+  const { centre, left, right, dl, dr } = shape;
+  const n = centre.length;
+  const OUT = 0.05 + (lot.wallThick ?? 0.6);
+  const stairs = stairsAnchor(lot);
+  const capOpen = (i: number): boolean => capOpenOf(shape, i);
+  const runs: WallRun[] = [];
+  const unit = (x: number, z: number): V2 => {
+    const k = Math.hypot(x, z) || 1;
+    return [x / k, z / k];
+  };
+  for (const [pts, d, s] of [
+    [left, dl, -1],
+    [right, dr, 1],
+  ] as const) {
+    let from = -1;
+    const close = (to: number): void => {
+      if (from >= 0 && to - from >= 1) {
+        const seg: V2[] = [];
+        for (let i = from; i < to; i++)
+          seg.push(
+            unit(
+              -(pts[i + 1][1] - pts[i][1]) * s,
+              (pts[i + 1][0] - pts[i][0]) * s,
+            ),
+          );
+        runs.push({
+          p: pts.slice(from, to + 1),
+          n: seg.length
+            ? Array.from({ length: to - from + 1 }, (_, k) =>
+                k === 0
+                  ? seg[0]
+                  : k === seg.length
+                    ? seg[k - 1]
+                    : unit(
+                        seg[k - 1][0] + seg[k][0],
+                        seg[k - 1][1] + seg[k][1],
+                      ),
+              )
+            : [],
+          rail: true,
+        });
+      }
+      from = -1;
+    };
+    for (let i = 0; i + 1 < n; i++) {
+      const open =
+        (d[i] < ROAD_SIDE && d[i + 1] < ROAD_SIDE) ||
+        (s === 1 &&
+          stairs !== undefined &&
+          (i === stairs.k || i + 1 === stairs.k));
+      if (open) close(i);
+      else if (from < 0) from = i;
+    }
+    close(n - 1);
+  }
+  for (const [i, j] of [
+    [0, 1],
+    [n - 1, n - 2],
+  ] as const) {
+    const w = Math.hypot(left[i][0] - right[i][0], left[i][1] - right[i][1]);
+    // (a cap that meets the road is the lot's mouth: open)
+    if (capOpen(i)) continue;
+    const out = unit(centre[i][0] - centre[j][0], centre[i][1] - centre[j][1]);
+    const along = unit(right[i][0] - left[i][0], right[i][1] - left[i][1]);
+    const m = Math.max(1, Math.ceil(w / 2));
+    const p: V2[] = [];
+    if (!(dl[i] < ROAD_SIDE && dl[j] < ROAD_SIDE))
+      p.push([left[i][0] - along[0] * OUT, left[i][1] - along[1] * OUT]);
+    for (let k = 0; k <= m; k++)
+      p.push([
+        left[i][0] + ((right[i][0] - left[i][0]) * k) / m,
+        left[i][1] + ((right[i][1] - left[i][1]) * k) / m,
+      ]);
+    if (!(dr[i] < ROAD_SIDE && dr[j] < ROAD_SIDE))
+      p.push([right[i][0] + along[0] * OUT, right[i][1] + along[1] * OUT]);
+    runs.push({ p, n: p.map(() => out), rail: false });
+  }
+  return runs;
+}
+
 export function buildLot(l: Local, lot: Lot, ground: Ground): void {
   const { site } = lot;
   const baseY = ground(site.x, site.z);
@@ -429,10 +541,8 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
    * A cap across the strip's end is open (no kerb, no wall) where it meets the road: a narrow mouth, or a cap that runs along the
    * road (the wide strip cut by it: both its ends within a few metres of the road's edge).
    */
-  const capOpen = (i: number): boolean =>
-    (Math.hypot(left[i][0] - right[i][0], left[i][1] - right[i][1]) < 9 &&
-      Math.min(dl[i], dr[i]) < ROAD_SIDE) ||
-    Math.max(dl[i], dr[i]) < ROAD_SIDE + 3;
+  const shape = lotShape(lot);
+  const capOpen = (i: number): boolean => capOpenOf(shape, i);
   const edges: Edge[] = [];
   const push = (
     a: V2,
@@ -511,87 +621,7 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
     const IN = 0.05;
     const OUT = IN + T;
     const depth = lot.wallDepth ?? 1.4;
-    const stairs = stairsAnchor(lot);
-    interface Run {
-      p: V2[];
-      n: V2[];
-      rail: boolean;
-    }
-    const runs: Run[] = [];
-    const unit = (x: number, z: number): V2 => {
-      const k = Math.hypot(x, z) || 1;
-      return [x / k, z / k];
-    };
-    for (const [pts, d, s] of [
-      [left, dl, -1],
-      [right, dr, 1],
-    ] as const) {
-      let from = -1;
-      const close = (to: number): void => {
-        if (from >= 0 && to - from >= 1) {
-          const seg: V2[] = [];
-          for (let i = from; i < to; i++)
-            seg.push(
-              unit(
-                -(pts[i + 1][1] - pts[i][1]) * s,
-                (pts[i + 1][0] - pts[i][0]) * s,
-              ),
-            );
-          runs.push({
-            p: pts.slice(from, to + 1),
-            n: seg.length
-              ? Array.from({ length: to - from + 1 }, (_, k) =>
-                  k === 0
-                    ? seg[0]
-                    : k === seg.length
-                      ? seg[k - 1]
-                      : unit(
-                          seg[k - 1][0] + seg[k][0],
-                          seg[k - 1][1] + seg[k][1],
-                        ),
-                )
-              : [],
-            rail: true,
-          });
-        }
-        from = -1;
-      };
-      for (let i = 0; i + 1 < n; i++) {
-        const open =
-          (d[i] < ROAD_SIDE && d[i + 1] < ROAD_SIDE) ||
-          (s === 1 &&
-            stairs !== undefined &&
-            (i === stairs.k || i + 1 === stairs.k));
-        if (open) close(i);
-        else if (from < 0) from = i;
-      }
-      close(n - 1);
-    }
-    for (const [i, j] of [
-      [0, 1],
-      [n - 1, n - 2],
-    ] as const) {
-      const w = Math.hypot(left[i][0] - right[i][0], left[i][1] - right[i][1]);
-      // (a cap that meets the road is the lot's mouth: open)
-      if (capOpen(i)) continue;
-      const out = unit(
-        centre[i][0] - centre[j][0],
-        centre[i][1] - centre[j][1],
-      );
-      const along = unit(right[i][0] - left[i][0], right[i][1] - left[i][1]);
-      const m = Math.max(1, Math.ceil(w / 2));
-      const p: V2[] = [];
-      if (!(dl[i] < ROAD_SIDE && dl[j] < ROAD_SIDE))
-        p.push([left[i][0] - along[0] * OUT, left[i][1] - along[1] * OUT]);
-      for (let k = 0; k <= m; k++)
-        p.push([
-          left[i][0] + ((right[i][0] - left[i][0]) * k) / m,
-          left[i][1] + ((right[i][1] - left[i][1]) * k) / m,
-        ]);
-      if (!(dr[i] < ROAD_SIDE && dr[j] < ROAD_SIDE))
-        p.push([right[i][0] + along[0] * OUT, right[i][1] + along[1] * OUT]);
-      runs.push({ p, n: p.map(() => out), rail: false });
-    }
+    const runs = wallRuns(lot);
     for (const run of runs) {
       const m = run.p.length;
       if (m < 2) continue;
@@ -827,6 +857,58 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
       }
     }
   }
+}
+
+/**
+ * The solid wall of a walled lot: a box per 2 m of its runs (the whole thickness, from 3 m under the slab's level to 1.4 m over it), and
+ * one across the opening of its stairs (the stairs are for walkers: a car is stopped there too). `ground` = the levelled terrain.
+ */
+export function wallColliders(
+  lot: Lot,
+  ground: (x: number, z: number) => number,
+): StaticCollider[] {
+  const T = lot.wallThick ?? 0.6;
+  const mid = 0.05 + T / 2;
+  const out: StaticCollider[] = [];
+  const box = (a: V2, b: V2, nx: number, nz: number): void => {
+    const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (len < 0.05) return;
+    const cx = (a[0] + b[0]) / 2 + nx * mid;
+    const cz = (a[1] + b[1]) / 2 + nz * mid;
+    // The slab's level just inside the wall (the ground at the wall itself is the cliff's edge, a couple of metres under it).
+    const [ix, iz] = toWorld(
+      lot.site,
+      (a[0] + b[0]) / 2 - nx * 0.5,
+      (a[1] + b[1]) / 2 - nz * 0.5,
+    );
+    const slab = ground(ix, iz) + SLAB;
+    out.push(
+      turnedBoxCollider(
+        lot.site,
+        cx,
+        cz,
+        Math.atan2(b[1] - a[1], b[0] - a[0]),
+        len / 2 + 0.05,
+        T / 2,
+        slab - 3,
+        3 + 1.4,
+      ),
+    );
+  };
+  for (const run of wallRuns(lot))
+    for (let k = 0; k + 1 < run.p.length; k++)
+      box(
+        run.p[k],
+        run.p[k + 1],
+        (run.n[k][0] + run.n[k + 1][0]) / 2,
+        (run.n[k][1] + run.n[k + 1][1]) / 2,
+      );
+  const stairs = stairsAnchor(lot);
+  if (stairs) {
+    const { right } = lotShape(lot);
+    box(right[stairs.k - 1], right[stairs.k + 1], stairs.n[0], stairs.n[1]);
+  }
+  return out;
 }
 
 /**

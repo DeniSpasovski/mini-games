@@ -192,7 +192,7 @@ export class World implements GroundProvider {
           !(rails.length && this.onTrackBed(b)),
       ),
     );
-    const b = map.bounds;
+    const b = { ...map.bounds, ...map.scatterBounds };
     const m = RENDER_MARGIN * 0.6;
     this.scatter = new ScatterField(
       this.analytic,

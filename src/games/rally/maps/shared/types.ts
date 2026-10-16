@@ -50,6 +50,11 @@ export interface MapDef {
   road: RoadDef;
   /** Procedural vegetation / rocks per terrain chunk. */
   scatter: ScatterRule[];
+  /**
+   * Narrows the area the scatter (trees, bushes, rocks) is generated in, inside `bounds` (any side left out keeps the bounds'): for
+   * land no camera can see - the far side of a ridge - where it only costs generation time, memory and canopy-shadow work.
+   */
+  scatterBounds?: Partial<MapDef['bounds']>;
   /** Props placed along the road (posts, signs, bales, crowds...). */
   roadside: RoadsideRule[];
   /** Continuous barriers along the road (Jersey wall, guard rail): one swept mesh, not separate props. */
@@ -387,6 +392,11 @@ export interface PathDef {
    * they overlap, so its end is covered by the road it joins instead of poking out of the road's edge.
    */
   joinsUnder?: boolean;
+  /**
+   * A way merging into another at a shallow angle: its width narrows to a point over this many metres towards its END, so it
+   * runs into the other road's edge like a lane merge instead of ending in a square cut (`PathNetwork.halfWidthAt`).
+   */
+  mergeTaper?: number;
   /** No kerbs / sidewalks / lamps / crosswalks on this street (a country road inside the city-street reach, MapDef.cityStreets). */
   bare?: boolean;
   junction?: boolean;

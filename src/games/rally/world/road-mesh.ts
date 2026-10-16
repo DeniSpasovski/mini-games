@@ -269,6 +269,7 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
   const nTmp = new Vector3();
   const rq = newRoadQuery();
   const pqOther = newPathQuery();
+  const hasJoiners = paths.some((q) => q.joinsUnder);
   const tiles = new Map<
     string,
     {
@@ -390,19 +391,45 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
           rq.found && rq.distance > rq.halfWidth
             ? Math.max(0, 1 - (rq.distance - rq.halfWidth) / 8)
             : 0;
-        // A way that joins another one (`PathDef.joinsUnder`) lies under that one's ribbon where they overlap.
+        // A way that joins another one (`PathDef.joinsUnder`) lies under that one's ribbon where they overlap; the way it joins rises
+        // up to 5 cm near the joining one's edge (the junction's carve folds the terrain into creases, like the stage road's).
         let sinkOther = 0;
-        if (p.joinsUnder) {
+        let creaseOther = 0;
+        if (p.joinsUnder || hasJoiners) {
           net.query(x, z, pqOther, undefined, (i) => i !== pi);
-          if (pqOther.found)
-            sinkOther =
-              1 -
-              Math.min(
-                1,
-                Math.max(0, (pqOther.distance - pqOther.halfWidth + 0.2) / 1.0),
+          if (pqOther.found) {
+            // (full under the other ribbon, none a step outside its edge: a ribbon dipping below the terrain there shows it)
+            if (p.joinsUnder)
+              sinkOther =
+                1 -
+                Math.min(
+                  1,
+                  Math.max(0, (pqOther.distance - pqOther.halfWidth) / 0.3),
+                );
+            else if (net.paths[pqOther.path].joinsUnder)
+              creaseOther = Math.max(
+                0,
+                1 - Math.max(0, pqOther.distance - pqOther.halfWidth) / 6,
               );
+          }
         }
-        let top = y + 0.03 + 0.05 * crease - 0.08 * sink - 0.16 * sinkOther;
+        // (where a joining way's carve folds the terrain, the ribbon covers the highest ground round the vertex)
+        let yTop = y;
+        if (creaseOther > 0)
+          yTop = Math.max(
+            y,
+            hf.height(x + 1.5, z),
+            hf.height(x - 1.5, z),
+            hf.height(x, z + 1.5),
+            hf.height(x, z - 1.5),
+          );
+        let top =
+          y +
+          (yTop - y) * creaseOther +
+          0.03 +
+          0.05 * Math.max(crease, creaseOther) -
+          0.08 * sink -
+          0.1 * sinkOther;
         if (onTop && !plazas.empty && plazas.inside(x, z)) {
           const ph = plazas.height(x, z);
           // (an area that keeps its ribbons: they lie on the paving)

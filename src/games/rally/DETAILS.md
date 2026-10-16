@@ -162,6 +162,9 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   spectators, flags (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`).
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)
   puts them on the outside of every tight bend of a mountain road (Galichica). `rusty: true` = weathered brown steel (Vodno).
+- **Scatter area** (`MapDef.scatterBounds`): narrows where trees / bushes / rocks are generated (any side of `bounds`) - for land no
+  camera can see (Vodno: nothing south of the ridge). A way merging into another at a shallow angle sets `PathDef.mergeTaper` (its end
+  narrows to a point) and `joinsUnder` (its ribbon lies under the other's).
 - **Road textures** (`RoadDef.texture`, per stretch in `sections`): gravel `road`, worn `road_tarmac`, `road_tarmac_lines` (the
   same with white edge lines), `road_parkway`, the city asphalts.
 - **Other roads** (`paths`): tarmac ribbons, dirt paint or canals with their own surface; side roads carved with grade limits

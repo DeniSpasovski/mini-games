@@ -1,5 +1,7 @@
 import type { PadDef, PathDef } from '../shared/types';
 import { LOT_ROADS } from './landmarks/lot-road';
+import { PLAZA, roadZ } from './landmarks/restaurant';
+import { RESTAURANT, toWorld } from './landmarks/sites';
 import {
   GARDEN,
   gardenPadPolygon,
@@ -47,12 +49,12 @@ export const LOT_PADS: PadDef[] = [
     frontage: VIDIKOVEC_FRONTAGE,
     lift: PAD_LIFT - GARDEN.drop[k] - GARDEN.sink,
   })),
-  // The ramp between the terraces at the dividing wall's south-west end: a sloped pad from terrace 1's level to terrace 2's,
-  // applied last (its ends meet the two terraces' levels); the blend grades its sides into the terraces as grassy banks.
-  (() => {
-    const { polygon, from, to } = rampPad();
+  // The ramps between the terraces at both ends of the dividing wall: a sloped pad from terrace 1's level to terrace 2's, applied
+  // last (its ends meet the two terraces' levels); the blend grades its sides into the terraces as grassy banks.
+  ...([0, 1] as const).map((end): PadDef => {
+    const { polygon, from, to } = rampPad(end);
     return {
-      name: 'vidikovec_garden_ramp',
+      name: `vidikovec_garden_ramp_${end + 1}`,
       polygon,
       blend: 3,
       frontage: VIDIKOVEC_FRONTAGE,
@@ -64,8 +66,8 @@ export const LOT_PADS: PadDef[] = [
           PAD_LIFT - GARDEN.drop[1] - GARDEN.sink,
         ],
       },
-    } satisfies PadDef;
-  })(),
+    };
+  }),
   {
     name: 'sredno_lot',
     polygon: lotPolygon(SREDNO, GRADED_MARGIN),
@@ -95,10 +97,32 @@ const REPLACED = new Set(['1492,-570', '539,-349', '554,-339', '477,-329']);
 /** Painted lawns (`MapDef.terrain.lawns`): the Sredno park strip and the two garden terraces. */
 export const LAWNS: number[][] = lawnPolygons();
 
+/**
+ * The one-way pair of short curved arcs round the junction of the street "Сончев Град" with the hairpin at 2000 m (OSM draws the
+ * junction as a knot of six pieces: a double curve): each arc as "first point > last point" of the BAKED way, rounded (not the
+ * ends `connectPaths` extends at load time). Dropped: the street itself
+ * is kept and `connectPaths` joins its end to the stage road.
+ */
+const JUNCTION_ARCS = new Set([
+  '2158,-64>2162,-58',
+  '2162,-58>2158,-59',
+  '2134,-50>2149,-51',
+  '2162,-58>2159,-77',
+  '2149,-51>2162,-58',
+]);
+const pointKey = (x: number, z: number): string =>
+  `${Math.round(x)},${Math.round(z)}`;
+
 export const dropLotAisles = (paths: PathDef[]): PathDef[] =>
-  paths.filter(
-    (p) => !REPLACED.has(`${Math.round(p.pts[0])},${Math.round(p.pts[1])}`),
-  );
+  paths.filter((p) => {
+    const n = p.pts.length;
+    return (
+      !REPLACED.has(pointKey(p.pts[0], p.pts[1])) &&
+      !JUNCTION_ARCS.has(
+        `${pointKey(p.pts[0], p.pts[1])}>${pointKey(p.pts[n - 2], p.pts[n - 1])}`,
+      )
+    );
+  });
 
 /**
  * The road that leaves the stage road to the right at the hairpin below the finish (OSM way, first point rounded): the
@@ -107,6 +131,11 @@ export const dropLotAisles = (paths: PathDef[]): PathDef[] =>
 const SUMMIT_ROAD = '656,-343';
 /** The service road that merges into the summit road above the finish (first point, rounded). */
 const MERGING_SERVICE = '435,-535';
+/**
+ * The service road past the restaurant (first > last point of the BAKED way, rounded): the parking in front of the building covers
+ * its stretch there, so it is cut to end at the parking's east edge, where the gate stands (`landmarks/restaurant.ts`).
+ */
+const RESTAURANT_ROAD = '532,-430>464,-463';
 
 /** The nearest point of a flat polyline [x0, z0, x1, z1, ...] to (x, z). */
 function snapToRoute(road: number[], x: number, z: number): [number, number] {
@@ -175,14 +204,34 @@ export const countryRoad = (paths: PathDef[]): PathDef[] => {
         bare: true,
         pts: [...snapToRoute(LOT_ROADS[1], p.pts[0], p.pts[1]), ...p.pts],
       };
+    // The street "Сончев Град" ends at the knot of arcs dropped above, 14 m short of the hairpin (the engine's own extension misses
+    // it: the hairpin curves away): two points run it on to the stage road's edge, in line with its last stretch.
+    if (
+      `${pointKey(p.pts[0], p.pts[1])}>${pointKey(p.pts[p.pts.length - 2], p.pts[p.pts.length - 1])}` ===
+      '2162,-58>2166,-38'
+    )
+      return { ...p, pts: [2152.6, -67.8, 2157.6, -63, ...p.pts] };
     // The service road that merges into it above the finish ends at its centre line (within the engine's 0.5 m anchor reach of the
     // road's edge, `terrain-gen.ts` `anchor`, so it is eased to the road's height instead of ending 1.4 m above it) and lies
     // under the summit road's ribbon there (`joinsUnder`): its square end is covered by the road, not poking out of its edge.
+    if (
+      `${key}>${pointKey(p.pts[p.pts.length - 2], p.pts[p.pts.length - 1])}` ===
+      RESTAURANT_ROAD
+    )
+      return {
+        ...p,
+        pts: [
+          p.pts[0],
+          p.pts[1],
+          ...toWorld(RESTAURANT, PLAZA.x1 + 0.05, roadZ(PLAZA.x1 + 0.05)),
+        ],
+      };
     if (key === MERGING_SERVICE && summit)
       return {
         ...p,
         pts: trimEnd(p.pts, summit.pts, 0.3),
         joinsUnder: true,
+        mergeTaper: 16,
       };
     return p;
   });

@@ -662,16 +662,26 @@ export function lawnPolygons(): number[][] {
   const strip = [...inner, ...outer.slice().reverse()].flatMap(([x, z]) =>
     toWorld(SREDNO.site, x, z),
   );
-  return [strip, gardenPadPolygon(0), gardenPadPolygon(1), rampPad().polygon];
+  return [
+    strip,
+    gardenPadPolygon(0),
+    gardenPadPolygon(1),
+    rampPad(0).polygon,
+    rampPad(1).polygon,
+  ];
 }
 
-/** The ramp's pad outline in world metres (flat) and its two ends (world x, z), terrace 1's side first. */
-export function rampPad(): { polygon: number[]; from: V2; to: V2 } {
+/**
+ * The ramp pad at one end of the garden (0 = the south-west end, 1 = the north-east end): its outline in world metres (flat)
+ * and its two ends (world x, z), terrace 1's side first.
+ */
+export function rampPad(end: 0 | 1): { polygon: number[]; from: V2; to: V2 } {
   const right = outerEdge();
   const [, o1, o2] = GARDEN.o;
   const s0 = right.length * GARDEN.from;
-  const sa = s0 + 0.2;
-  const sb = s0 + NATURAL_GAP;
+  const s1 = right.length * GARDEN.to;
+  const sa = end ? s1 - NATURAL_GAP : s0 + 0.2;
+  const sb = end ? s1 - 0.2 : s0 + NATURAL_GAP;
   const oa = o1 - RAMP_IN;
   const ob = o2 + RAMP_OUT;
   const w = (p: V2): V2 => toWorld(VIDIKOVEC.site, p[0], p[1]) as V2;
@@ -733,17 +743,25 @@ function gardenPieces(out: Piece[], trees: ParkPlant[]): void {
   // A hedge of bushes along the lot's wall (open where the stairs come down), a looser row along the north wall, beds by the
   // stairs between the terraces.
   const stairs = stairsAnchor(VIDIKOVEC);
+  /**
+   * True where the flight of stairs from the lot comes down (and a margin round it): nothing is planted there, nothing may clip
+   * the steps or their handrails (`out` = m out from the lot's edge, `lat` = m along it from the stairs' middle).
+   */
+  const onStairs = (p: V2): boolean => {
+    if (!stairs) return false;
+    const dx = p[0] - stairs.p[0];
+    const dz = p[1] - stairs.p[1];
+    const out = dx * stairs.n[0] + dz * stairs.n[1];
+    const lat = dx * stairs.t[0] + dz * stairs.t[1];
+    return out > -1 && out < 7 && Math.abs(lat) < stairs.width / 2 + 3.2;
+  };
   const bush = (asset: string, q: number, o: number, scale: number): void => {
     const { p } = at(q, o);
-    if (
-      stairs &&
-      o < o0 + 3 &&
-      Math.hypot(p[0] - stairs.p[0], p[1] - stairs.p[1]) < 3.4
-    )
-      return;
+    if (onStairs(p)) return;
     trees.push({ asset, site: VIDIKOVEC.site, x: p[0], z: p[1], scale });
   };
-  for (let q = 0.03; q < 0.98; q += 0.045) bush('bush', q, o0 + 0.9, 0.8);
+  // (the hedge stands clear of the wall: a bush is 1-1.5 m across)
+  for (let q = 0.03; q < 0.98; q += 0.045) bush('bush', q, o0 + 1.5, 0.75);
   for (let q = 0.06; q < 0.96; q += 0.07) bush('scrub_bush', q, o3 - 1.3, 0.75);
   for (const q of [0.4, 0.5])
     for (const o of [o2 + 1.2, o2 + 2.2]) bush('bush', q, o, 0.65);
@@ -755,18 +773,125 @@ function gardenPieces(out: Piece[], trees: ParkPlant[]): void {
   // Trees: cypresses along both walls, junipers and oaks in the lawns.
   const tree = (asset: string, q: number, o: number, scale: number): void => {
     const { p } = at(q, o);
+    if (onStairs(p)) return;
     trees.push({ asset, site: VIDIKOVEC.site, x: p[0], z: p[1], scale });
   };
   for (const q of [0.06, 0.34, 0.58, 0.84])
     tree('cypress_tree', q, o1 - 0.9, 0.95);
   for (const q of [0.16, 0.46, 0.7, 0.92])
     tree('cypress_tree', q, o3 - 0.9, 1.05);
-  for (const q of [0.33, 0.56, 0.9]) tree('juniper', q, o0 + 1.7, 0.7);
+  for (const q of [0.33, 0.56, 0.9]) tree('juniper', q, o0 + 2.2, 0.7);
   for (const q of [0.3, 0.66]) tree('oak_tree', q, o2 + 3.2, 0.6);
 }
 
+export interface GardenWall {
+  /** The wall's inner face line (local frame), the unit normals to its outer side, its thickness (m). */
+  p: V2[];
+  n: V2[];
+  thick: number;
+  /** A low kerb on an embankment (not a solid wall). */
+  low: boolean;
+}
+
 /**
- * The dividing wall is left out this far from the garden's south-west end (m): the terrain ramps there from terrace 1 down to
+ * The garden's rock walls (pure, shared by the drawing and the colliders): the low kerb along the north edge of terrace 2, the
+ * dividing wall between the terraces - open at both ends (the ramps) and for the stairs between them - and the end walls.
+ */
+export function gardenWallRuns(): GardenWall[] {
+  const right = outerEdge();
+  const [o0, o1, o2, o3] = GARDEN.o;
+  const s0 = right.length * GARDEN.from;
+  const s1 = right.length * GARDEN.to;
+  const sStairs =
+    right.length * (GARDEN.from + (GARDEN.to - GARDEN.from) * GARDEN.stairs.at);
+  const gapHalf = GARDEN.stairs.width / 2 + 0.5;
+  /** The garden's line `o` m from the lot edge between arc lengths `sa` and `sb`, a point about every 2 m, with its outward normals. */
+  const run = (o: number, sa: number, sb: number): { p: V2[]; n: V2[] } => {
+    const p: V2[] = [];
+    for (let s = sa; s < sb - 0.3; s += 2) p.push(off(right.at(s), o));
+    p.push(off(right.at(sb), o));
+    const n = p.map((_, k): V2 => {
+      const a = p[Math.max(0, k - 1)];
+      const b = p[Math.min(p.length - 1, k + 1)];
+      return unitV(-(b[1] - a[1]), b[0] - a[0]);
+    });
+    return { p, n };
+  };
+  const out: GardenWall[] = [];
+  out.push({ ...run(o3, s0, s1), thick: 0.7, low: true });
+  for (const [sa, sb] of [
+    [s0 + NATURAL_GAP, sStairs - gapHalf],
+    [sStairs + gapHalf, s1 - NATURAL_GAP],
+  ] as const)
+    out.push({ ...run(o1, sa, sb), thick: o2 - o1, low: false });
+  for (const [side, sEnd] of [
+    [-1, s0],
+    [1, s1],
+  ] as const) {
+    const f = right.at(sEnd);
+    const n: V2 = [f.t[0] * side, f.t[1] * side];
+    for (const [oa, ob] of [
+      [o0, o2],
+      [o2, o3 + 0.7],
+    ] as const)
+      out.push({
+        p: [off(f, oa), off(f, ob)],
+        n: [n, n],
+        thick: 0.7,
+        low: false,
+      });
+  }
+  return out;
+}
+
+/**
+ * The solid garden walls as colliders (the kerb on the embankment is not one): a box per run segment, from 1.5 m under the lower
+ * floor beside it to 0.9 m over the higher one. `ground` = the levelled terrain (world x, z).
+ */
+export function gardenColliders(
+  ground: (x: number, z: number) => number,
+): StaticCollider[] {
+  const out: StaticCollider[] = [];
+  for (const w of gardenWallRuns()) {
+    if (w.low) continue;
+    for (let k = 0; k + 1 < w.p.length; k++) {
+      const [a, b] = [w.p[k], w.p[k + 1]];
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (len < 0.05) continue;
+      const nx = (w.n[k][0] + w.n[k + 1][0]) / 2;
+      const nz = (w.n[k][1] + w.n[k + 1][1]) / 2;
+      const cx = (a[0] + b[0]) / 2 + nx * (w.thick / 2);
+      const cz = (a[1] + b[1]) / 2 + nz * (w.thick / 2);
+      // From the lower floor beside the wall to 0.9 m over the higher one.
+      const side = (o: number): number => {
+        const [gx, gz] = toWorld(
+          VIDIKOVEC.site,
+          (a[0] + b[0]) / 2 + nx * o,
+          (a[1] + b[1]) / 2 + nz * o,
+        );
+        return ground(gx, gz);
+      };
+      const hiG = Math.max(side(-0.6), side(w.thick + 0.6));
+      const loG = Math.min(side(-0.6), side(w.thick + 0.6));
+      out.push(
+        turnedBoxCollider(
+          VIDIKOVEC.site,
+          cx,
+          cz,
+          Math.atan2(b[1] - a[1], b[0] - a[0]),
+          len / 2 + 0.05,
+          w.thick / 2,
+          loG - 1.5,
+          hiG + 0.9 - (loG - 1.5),
+        ),
+      );
+    }
+  }
+  return out;
+}
+
+/**
+ * The dividing wall is left out this far from each end of the garden (m): the terrain ramps there from terrace 1 down to
  * terrace 2 (a sloped pad, `rampPad`): a grassy path, no steps.
  */
 const NATURAL_GAP = 4;
@@ -776,7 +901,7 @@ const RAMP_OUT = 6.5;
 
 /** Retaining walls, the stairs and their handrails (local frame; `gy` = the levelled terrain; the lawns are the terrain itself). */
 export function drawGarden(l: Local, gy: LocalGround): void {
-  const [o0, o1, o2, o3] = GARDEN.o;
+  const [, o1, o2] = GARDEN.o;
   /**
    * A rock wall along `pts` (its inner face on the line, `thick` m out along the normals `ns`): one ribbon, its top 45 cm over
    * the floor beside it - or at the land behind it where that is higher (a cut) - smoothed along the run; it runs under whatever
@@ -819,49 +944,10 @@ export function drawGarden(l: Local, gy: LocalGround): void {
     });
   };
   const right = outerEdge();
-  const s0 = right.length * GARDEN.from;
-  const s1 = right.length * GARDEN.to;
   const sStairs =
     right.length * (GARDEN.from + (GARDEN.to - GARDEN.from) * GARDEN.stairs.at);
   const stairsHalf = GARDEN.stairs.width / 2;
-  /** Where the dividing wall opens for the stairs between the terraces: half the gap (m). */
-  const gapHalf = stairsHalf + 0.5;
-  /** The garden's line `o` m from the lot edge between arc lengths `sa` and `sb`, a point about every 2 m, with its outward normals. */
-  const run = (o: number, sa: number, sb: number): { p: V2[]; n: V2[] } => {
-    const p: V2[] = [];
-    for (let s = sa; s < sb - 0.3; s += 2) p.push(off(right.at(s), o));
-    p.push(off(right.at(sb), o));
-    const n = p.map((_, k): V2 => {
-      const a = p[Math.max(0, k - 1)];
-      const b = p[Math.min(p.length - 1, k + 1)];
-      return unitV(-(b[1] - a[1]), b[0] - a[0]);
-    });
-    return { p, n };
-  };
-  // The north wall of terrace 2 (a low kerb on its embankment), the dividing wall with the gap for its stairs.
-  const north = run(o3, s0, s1);
-  wall(north.p, north.n, 0.7, true);
-  // (and at its south-west end, where a natural flight of stone steps connects the terraces: `NATURAL_GAP`)
-  for (const [sa, sb] of [
-    [s0 + NATURAL_GAP, sStairs - gapHalf],
-    [sStairs + gapHalf, s1],
-  ] as const) {
-    const part = run(o1, sa, sb);
-    wall(part.p, part.n, o2 - o1);
-  }
-  // The ends of both terraces face the land beside the garden: walls across, the second one past the north wall's corner.
-  for (const [side, sEnd] of [
-    [-1, s0],
-    [1, s1],
-  ] as const) {
-    const f = right.at(sEnd);
-    const n: V2 = [f.t[0] * side, f.t[1] * side];
-    for (const [oa, ob] of [
-      [o0, o2],
-      [o2, o3 + 0.7],
-    ] as const)
-      wall([off(f, oa), off(f, ob)], [n, n]);
-  }
+  for (const w of gardenWallRuns()) wall(w.p, w.n, w.thick, w.low);
   // Stairs down from the lot through its rock wall to terrace 1 (the wall opens there: `Lot.stairsAt`): treads of 32 cm run,
   // about 17 cm a step, from the slab's top to the lawn, a log handrail each side.
   const lotStairs = stairsAnchor(VIDIKOVEC);
