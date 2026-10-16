@@ -76,7 +76,7 @@ about 900 / 450 triangles and packed by `scripts/car-model/bake-street-cars.mjs`
 
 The tractor units, trailers, box-truck cabs and dump trucks parked at Ajvatovci are recoloured copies of two CC BY 4.0
 models (split and packed by `scripts/car-model/street-pack-extract.py` + `bake-truck-textures.py` + `bake-trucks.mjs`; their own
-triangles and textures, the tyre hub-cap emblem blanked; the dump truck's other backs are built in code; the source files are not in
+triangles and textures, the tyre hub-cap emblem blanked; the tank, tow and freezer bodies and the dump truck's other backs are built in code; the source files are not in
 the repository).
 
 | Model                                                                                                                   | Author                   | Licence   |
