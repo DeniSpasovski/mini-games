@@ -411,6 +411,7 @@ export class RallyGame {
         this.model.root,
         { x: hx * 0.8, y: 0.7, z: zf + 0.75 },
         q.name,
+        this.car.headlights,
       );
     }
     // Soft dark patch under the car: grounds it at any shadow resolution.
@@ -550,7 +551,8 @@ export class RallyGame {
     root.updateMatrixWorld();
     this.lampPos.set(0, 0.7, 2).applyMatrix4(root.matrixWorld);
     this.lampDir.set(0, -0.02, 1).transformDirection(root.matrixWorld);
-    const c = Headlights.color;
+    const c = this.headlights?.color;
+    if (!c) return;
     for (const p of [this.dust, this.gravel, this.haze])
       p?.setHeadlight(c, this.lampPos, this.lampDir);
   }

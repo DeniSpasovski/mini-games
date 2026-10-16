@@ -10,13 +10,23 @@ import {
   SpotLight,
 } from 'three';
 import type { QualityName } from '../engine/quality';
+import type { CarHeadlightsDef } from '../cars/shared/types';
 
 /** Luminous intensity of the main low beam (scene units, physical falloff). */
 const BEAM = 3200;
-const COLOR = 0xfff1cf;
+/** A car without its own `headlights` def. */
+export const DEFAULT_HEADLIGHTS: CarHeadlightsDef = {
+  power: 1,
+  color: 0xfff1cf,
+  angle: 0.42,
+  penumbra: 0.55,
+  spill: 0.2,
+};
 /** Visible beam length (m) and the cone's radius at its far end. */
 const CONE_LENGTH = 28;
 const CONE_RADIUS = 5.5;
+/** The default beam angle the cone radius is made for. */
+const CONE_ANGLE = 0.42;
 
 /**
  * The car's headlights at night (`Environment.night`): a narrow bright low beam, a wide dim spill for the verges and
@@ -28,7 +38,9 @@ export class Headlights {
   readonly group = new Group();
   private readonly cones: Mesh[] = [];
   private readonly spots: SpotLight[] = [];
+  readonly color: Color;
   private readonly beamMat = new ShaderMaterial({
+    uniforms: { uTint: { value: new Color() }, uGain: { value: 1 } },
     transparent: true,
     depthWrite: false,
     fog: false,
@@ -52,13 +64,16 @@ export class Headlights {
       varying vec3 vN;
       varying vec3 vV;
       varying float vH;
+      uniform vec3 uTint;
+      uniform float uGain;
       void main() {
         float t = 1.0 - vU.y;
         float rim = 1.0 - abs( dot( normalize( vN ), vV ) );
         float f = exp( - t * 3.5 ) * ( 0.55 + 0.45 * ( 1.0 - rim ) ) * smoothstep( 0.0, 0.08, t ) * 0.55;
         // Only the part above the lamps shows: the lower half would draw bright arcs where the cone meets the road.
         f *= smoothstep( - 0.1, 0.5, vH );
-        gl_FragColor = vec4( vec3( 1.0, 0.93, 0.78 ) * f, f );
+        f *= uGain;
+        gl_FragColor = vec4( uTint * f, f );
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`,
@@ -69,7 +84,14 @@ export class Headlights {
     car: Object3D,
     lamp: { x: number; y: number; z: number },
     quality: QualityName,
+    def: CarHeadlightsDef = DEFAULT_HEADLIGHTS,
   ) {
+    this.color = new Color(def.color);
+    this.beamMat.uniforms.uTint.value
+      .copy(this.color)
+      .lerp(new Color(1, 1, 1), 0.2);
+    // Brighter lamps show a stronger beam in the air, old dim ones a faint one.
+    this.beamMat.uniforms.uGain.value = Math.min(1.4, 0.4 + 0.6 * def.power);
     const spot = (
       x: number,
       aim: number,
@@ -80,7 +102,7 @@ export class Headlights {
       distance: number,
       shadow: boolean,
     ): void => {
-      const l = new SpotLight(COLOR, power, distance, angle, penumbra, 2);
+      const l = new SpotLight(this.color, power, distance, angle, penumbra, 2);
       l.position.set(x, lamp.y, lamp.z);
       l.target.position.set(x, aimY, lamp.z + aim);
       if (shadow) {
@@ -95,10 +117,25 @@ export class Headlights {
       this.group.add(l, l.target);
     };
     // Low beam (both lamps as one, centred), wide spill for the verges.
-    spot(0, 60, -0.9, 0.42, 0.55, BEAM, 170, quality === 'high');
-    spot(0, 35, -0.6, 0.85, 1, BEAM * 0.2, 90, false);
+    spot(
+      0,
+      60,
+      -0.9,
+      def.angle,
+      def.penumbra,
+      BEAM * def.power,
+      170,
+      quality === 'high',
+    );
+    spot(0, 35, -0.6, 0.85, 1, BEAM * def.power * def.spill, 90, false);
     for (const side of [-1, 1]) {
-      const geo = new ConeGeometry(CONE_RADIUS, CONE_LENGTH, 24, 1, true);
+      const geo = new ConeGeometry(
+        CONE_RADIUS * (def.angle / CONE_ANGLE),
+        CONE_LENGTH,
+        24,
+        1,
+        true,
+      );
       // Apex at the lamp, opening forwards (+Z).
       geo.translate(0, -CONE_LENGTH / 2, 0).rotateX(-Math.PI / 2);
       const cone = new Mesh(geo, this.beamMat);
@@ -110,11 +147,6 @@ export class Headlights {
       this.group.add(cone);
     }
     car.add(this.group);
-  }
-
-  /** Beam colour for the dust / haze lit by it (game/dust.ts `setHeadlight`). */
-  static get color(): Color {
-    return new Color(COLOR);
   }
 
   dispose(): void {

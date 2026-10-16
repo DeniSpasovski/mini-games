@@ -83,6 +83,14 @@ export const audiRs6: CarDef = {
       note: 'imported body, cockpit, lamps and rim (converted + repainted), CC BY 4.0',
     },
   ],
+  // Night headlights: matrix LED.
+  headlights: {
+    power: 1.7,
+    color: 0xeef4ff,
+    angle: 0.36,
+    penumbra: 0.3,
+    spill: 0.22,
+  },
   // 4.0 litre twin-turbo V8 on a sports exhaust, eight-speed torque-converter automatic.
   sound: {
     layout: 'v8',

@@ -106,6 +106,14 @@ export const skodaRally: CarDef = {
       note: 'press photos + dimensions used as shape reference (no model, no logos)',
     },
   ],
+  // Night headlights: rally lamps with driving lights.
+  headlights: {
+    power: 1.15,
+    color: 0xfff3dc,
+    angle: 0.38,
+    penumbra: 0.45,
+    spill: 0.2,
+  },
   // 1.6 turbo four, open rally exhaust, anti-lag, straight-cut sequential box.
   sound: {
     layout: 'i4',
