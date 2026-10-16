@@ -18,6 +18,7 @@ import {
   type QualitySettings,
 } from '../engine/quality';
 import { ALL_STAGES, DEFAULT_STAGE, MAPS, STAGES } from '../maps';
+import { stageTemps } from '../maps/shared/day-temperature';
 import type { SourceLink, StageInfo } from '../maps/shared/types';
 import { peakPower } from '../physics/drivetrain';
 import {
@@ -651,7 +652,7 @@ class MainMenu {
     );
   }
 
-  /** The selected stage's description, recommended set-up and time of day (Select stage). */
+  /** The selected stage's description, recommended set-up, time of day and its air / road temperature (Select stage). */
   private stageDetails(): HTMLElement {
     const m = this.map;
     const hour = this.hourFor(m);
@@ -669,13 +670,23 @@ class MainMenu {
     row.innerHTML = `<span>Time of day</span>
       <select title="← → keys">${TIMES_OF_DAY.map(
         (t) =>
-          `<option value="${t.id}"${t.id === sel ? ' selected' : ''}>${t.label} · ${formatHour(this.slotHour(m, t))}</option>`,
+          `<option value="${t.id}"${t.id === sel ? ' selected' : ''}>${t.label}</option>`,
       ).join('')}</select>`;
+    const when = document.createElement('dl');
+    when.innerHTML = `<dt>Time</dt><dd></dd><dt>Temperature</dt><dd></dd>`;
+    const [clock, temp] = when.querySelectorAll('dd');
+    const show = (h: number) => {
+      const t = stageTemps(m.environment, h, m.surfaces[0] ?? 'tarmac');
+      clock.textContent = formatHour(h);
+      temp.textContent = `air ${Math.round(t.air)}°C / road ${Math.round(t.road)}°C`;
+    };
+    show(hour);
     row.querySelector('select')!.addEventListener('change', (e) => {
       // The list needs no redraw: only the stage's description card knows the time.
       this.time = (e.target as HTMLSelectElement).value as TimeOfDayId;
+      show(this.hourFor(m) ?? hour);
     });
-    card.append(row);
+    card.append(row, when);
     return card;
   }
 

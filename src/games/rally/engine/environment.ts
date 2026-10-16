@@ -28,7 +28,14 @@ import { LightProbeGenerator } from 'three/examples/jsm/lights/LightProbeGenerat
 import { ownValue, paramNumber } from '../../../shared/url-params';
 import { Sky } from 'three/examples/jsm/objects/Sky.js';
 import { setTreeSky } from '../trees/materials';
-import { dome, isNightHour, moonAt, NIGHT, NightSky } from './night';
+import {
+  dome,
+  isNightHour,
+  moonAt,
+  NIGHT,
+  NIGHT_SUN_ELEVATION,
+  NightSky,
+} from './night';
 import type { EnvironmentDef } from '../maps/shared/types';
 import { getTexture } from './textures';
 import {
@@ -91,6 +98,8 @@ export class Environment {
   readonly sunDir = new Vector3();
   /** Effective sun angles (deg) after `timeOfDay` / `?tod=` (below the horizon at night). */
   sunElevation = 0;
+  /** Effective hour of day (`timeOfDay` / `?tod=`); missing on maps with fixed sun angles. */
+  hour?: number;
   sunAzimuth = 0;
   /** True from ~19:30 to ~04:30 (`timeOfDay` / `?tod=`, not in the studio): moon, stars, dark fog; cars switch their lights on. */
   night = false;
@@ -165,10 +174,11 @@ export class Environment {
       def.timeOfDay !== undefined
         ? (urlNumber('tod') ?? def.timeOfDay)
         : undefined;
+    this.hour = hour;
     this.night = !this.studio && hour !== undefined && isNightHour(hour);
     if (hour !== undefined) {
       const s = sunAt(hour);
-      elevation = this.night ? -20 : s.elevation;
+      elevation = this.night ? NIGHT_SUN_ELEVATION : s.elevation;
       azimuth = s.azimuth;
     }
     this.sunElevation = elevation;

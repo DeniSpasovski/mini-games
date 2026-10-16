@@ -87,6 +87,7 @@ import {
   timesVersion,
 } from './stage';
 import { stageClimate } from '../maps/shared/climate';
+import { airAtHour } from '../maps/shared/day-temperature';
 import type { MapDef, StageDef } from '../maps/shared/types';
 import { trackTemp } from '../physics/tyre-temp';
 import type { TyreGaugeState } from './tyre-gauge';
@@ -377,13 +378,14 @@ export class RallyGame {
       this.world,
     );
     this.vehicle.setTyre(this.opts.tyre);
-    // Tyre temperatures: the map's air temperature (`?air=<°C>` to try others) and the sun as drawn (after `?tod=`).
+    // Tyre temperatures: the map's air temperature at the hour drawn (`?tod=`; `?air=<°C>` to try others) and the sun as drawn.
     const air = new URLSearchParams(location.search).get('air');
     this.vehicle.setClimate(
       stageClimate(
         map.environment,
         this.env.sunElevation,
-        paramNumber(air, -60, 70, undefined),
+        paramNumber(air, -60, 70, undefined) ??
+          airAtHour(map.environment, this.env.hour),
       ),
     );
     this.model = new CarModel(this.car, {
