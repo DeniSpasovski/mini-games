@@ -8,6 +8,7 @@ import {
   type WebGLRenderer,
 } from 'three';
 import { getTexture } from './textures';
+import { addNightGlow } from './night-glow';
 
 /**
  * Shared material library. Assets reference materials by id so thousands of
@@ -22,6 +23,8 @@ export type MaterialId =
   | 'people'
   | 'people_flag'
   | 'chevron'
+  | 'reflector'
+  | 'lamp_lens'
   | 'vehicle'
   | 'village_sign';
 
@@ -202,6 +205,16 @@ export function getMaterial(id: MaterialId): Material {
         map: getTexture('chevron'),
         roughness: 0.55,
       });
+      // Reflective sheeting: lights up in the car's low beam at night.
+      addNightGlow(m as MeshStandardMaterial, 'retro');
+      break;
+    case 'reflector':
+      m = new MeshStandardMaterial({ vertexColors: true, roughness: 0.4 });
+      addNightGlow(m as MeshStandardMaterial, 'retro');
+      break;
+    case 'lamp_lens':
+      m = new MeshStandardMaterial({ vertexColors: true, roughness: 0.5 });
+      addNightGlow(m as MeshStandardMaterial, 'lamp');
       break;
   }
   m.name = id;

@@ -95,11 +95,13 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 - **Shadows:** one shadow map ahead of the camera, snapped to texels so edges do not crawl.
 - **Night** (`engine/night.ts`, `?tod=<hours>` from 19:30 to 04:30 on any map; not in the studio): the moon is the directional light
   (dim, blue, `moonAt`), the sky is a dark dome with a town glow, moon and stars (`NightSky`), fog is dark, tone mapping AgX at a
-  fixed exposure; the env map and the tree ambient (`setTreeSky`) are rebuilt from the night sky. The car switches its lights on
-  (`CarModel.setLamps`: head / tail lamp materials, `userData.headLamp`) and `game/headlights.ts` (strength, colour and beam shape per car: `CarDef.headlights`) adds a low-beam spot, a wide
+  fixed exposure; the env map and the tree ambient (`setTreeSky`) are rebuilt from the night sky. The car's lights fade in with the dark (`lightNeed`, from the sun height: off by day, ~0.6 at the 17:30 evening, 1 at night; scales lamps, beam, cones and dust glow). They switch on
+  (`CarModel.setLamps(level)`: head / tail lamp materials, `userData.headLamp`) and `game/headlights.ts` (strength, colour and beam shape per car: `CarDef.headlights`) adds a low-beam spot, a wide
   spill spot and two soft beam cones; dust, spray and haze glow inside the beam (`ParticleSystem.setHeadlight`). Shadows: the low
-  beam and the moon cast them on high quality only. No map has a night stage yet. Not done: bloom, retro-reflective posts / signs,
-  street-lamp light pools, high / low beam key.
+  beam and the moon cast them on high quality only. No map has a night stage yet. Road side (`engine/night-glow.ts`, shared `ws*` uniforms): marker-post reflectors and chevron boards
+  light up in the car's beam (`retro`), street lamp lenses glow with `lightNeed` and `world/lamp-pools.ts` lays a soft light pool under
+  each lamp. High quality adds bloom (`engine/night-bloom.ts`, threshold far above the lit ground, so lenses and reflectors are
+  emissive well over it). Not done: high / low beam key.
 - **Sky / tone mapping:** drifting clouds (`cloudCoverage`, `cloudSpeed`); ACES, or `toneMapping: 'agx' | 'neutral'` per map.
 - **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark outside the
   shadow box (`world/canopy-shadows.ts`: a coarse whole-map texture plus a 1.5 m local window of 768 m around the camera,

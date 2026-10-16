@@ -394,7 +394,8 @@ export class CarModel {
   private brakeLamps?: MeshStandardMaterial[];
   private headLamps: MeshStandardMaterial[] = [];
   /** Lights on (night): headlamps glow, tail lamps keep a steady glow under the brake light. */
-  private lampsOn = false;
+  /** 0..1 lights level (`setLamps`). */
+  private lampsOn = 0;
   private brakeLevel = 0;
   private reversing = false;
   /** Fitted compound (null = plain tyre). */
@@ -773,7 +774,8 @@ export class CarModel {
 
   private clearBadge(): void {
     const mat = this.badgeMeshes[0]?.material as
-      MeshStandardMaterial | undefined;
+      | MeshStandardMaterial
+      | undefined;
     for (const m of this.badgeMeshes) {
       m.removeFromParent();
       m.geometry.dispose();
@@ -1117,14 +1119,15 @@ export class CarModel {
   private applyHeadLamps(): void {
     for (const m of this.headLamps) {
       const { off, on } = m.userData.headLamp as { off: number; on: number };
-      m.emissiveIntensity = this.lampsOn ? on : off;
+      m.emissiveIntensity = off + (on - off) * this.lampsOn;
     }
   }
 
   /** Lights on / off (night): headlamps glow, tail lamps stay lit (brake light still brighter). */
-  setLamps(on: boolean): void {
-    if (on === this.lampsOn) return;
-    this.lampsOn = on;
+  setLamps(on: boolean | number): void {
+    const level = Number(on);
+    if (level === this.lampsOn) return;
+    this.lampsOn = level;
     if (!this.brakeLamps) this.collectLamps();
     else {
       this.brakeLevel = -1; // the next setBrake rewrites the tail lamps
@@ -1152,7 +1155,7 @@ export class CarModel {
         reverseGlow?: Texture;
       };
       m.userData.brakeGlow ??= m.emissiveMap;
-      const idle = this.lampsOn ? Math.min(on, off + TAIL_NIGHT_GLOW) : off;
+      const idle = off + Math.min(on - off, TAIL_NIGHT_GLOW) * this.lampsOn;
       const lit = idle + (on - idle) * l;
       if (reverseGlow && reversing && l < 0.02) {
         // Reversing without the brake pedal: the white section only. With the brake down the white one goes dark.

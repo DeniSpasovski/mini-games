@@ -31,6 +31,7 @@ import { setTreeSky } from '../trees/materials';
 import {
   dome,
   isNightHour,
+  lightNeed,
   moonAt,
   NIGHT,
   NIGHT_SUN_ELEVATION,
@@ -103,6 +104,8 @@ export class Environment {
   sunAzimuth = 0;
   /** True from ~19:30 to ~04:30 (`timeOfDay` / `?tod=`, not in the studio): moon, stars, dark fog; cars switch their lights on. */
   night = false;
+  /** 0..1: how much the car's lights are needed (1 at night, fading in through dusk and dawn). */
+  lightNeed = 0;
   private nightSky: NightSky;
   private quality: QualitySettings;
   private target = new Object3D();
@@ -182,6 +185,7 @@ export class Environment {
       azimuth = s.azimuth;
     }
     this.sunElevation = elevation;
+    this.lightNeed = this.studio ? 0 : lightNeed(elevation);
     this.sunAzimuth = azimuth;
     const lamp = this.night && hour !== undefined ? moonAt(hour) : null;
     const phi = MathUtils.degToRad(90 - (lamp?.elevation ?? elevation));

@@ -106,13 +106,14 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         varying float vUpY;
         // Bump from a screen-space height gradient (three's perturbNormalArb, Mikkelsen).
         vec3 terrainPerturb( vec3 surf_pos, vec3 surf_norm, vec2 dHdxy, float faceDirection ) {
-          vec3 vSigmaX = normalize( dFdx( surf_pos.xyz ) );
-          vec3 vSigmaY = normalize( dFdy( surf_pos.xyz ) );
+          // The offsets keep a zero derivative (screen edge, a lone helper pixel) from making a NaN.
+          vec3 vSigmaX = normalize( dFdx( surf_pos.xyz ) + vec3( 1e-9 ) );
+          vec3 vSigmaY = normalize( dFdy( surf_pos.xyz ) + vec3( 1e-9 ) );
           vec3 R1 = cross( vSigmaY, surf_norm );
           vec3 R2 = cross( surf_norm, vSigmaX );
           float fDet = dot( vSigmaX, R1 ) * faceDirection;
           vec3 vGrad = sign( fDet ) * ( dHdxy.x * R1 + dHdxy.y * R2 );
-          return normalize( abs( fDet ) * surf_norm - vGrad );
+          return normalize( abs( fDet ) * surf_norm - vGrad + surf_norm * 1e-6 );
         }`,
       )
       .replace(
