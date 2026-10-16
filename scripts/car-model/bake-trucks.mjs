@@ -100,7 +100,7 @@ function weld(m) {
   return out;
 }
 
-function simplify(w, tris) {
+function simplify(w, tris, options = []) {
   if (!w.idx.length || w.idx.length / 3 <= tris) return w;
   const P = new Float32Array(w.pos.flat());
   const A = new Float32Array(
@@ -115,8 +115,8 @@ function simplify(w, tris) {
     [0.35, 0.35, 0.35],
     null,
     tris * 3,
-    0.25,
-    [],
+    0.05,
+    options,
   );
   const keep = new Map();
   const out = empty();
@@ -176,8 +176,28 @@ const load = (name) => {
   return v.mesh;
 };
 const byNode = (mesh, re) => mesh.filter((m) => re.test(m.node));
-const asMesh = (list) =>
-  weld(merge(list.map((m) => ({ pos: m.pos, col: m.col, idx: m.idx }))));
+/** Near-identical dark greys (a noisy texture) to one grey, so the simplifier can merge their faces. */
+const snapGrey = (c) =>
+  lum(c) < 100 && chroma(c) < 14
+    ? c.map(() => Math.round(lum(c) / 16) * 16)
+    : c;
+const snapCoarse = (c) => c.map((x) => Math.round(x / 16) * 16);
+/** The prims as one welded mesh, a colour per triangle (sampled at the middle of its UVs by the extractor). */
+const asMesh = (list, snap = null) =>
+  weld(
+    merge(
+      list.map((m) => {
+        const out = empty();
+        for (let t = 0; t < m.idx.length; t += 3)
+          for (let k = 0; k < 3; k++) {
+            out.pos.push(m.pos[m.idx[t + k]]);
+            out.col.push(snap ? snap(m.tcol[t / 3]) : m.tcol[t / 3]);
+            out.idx.push(t + k);
+          }
+        return out;
+      }),
+    ),
+  );
 /** Rounded to centimetres. */
 const r2 = (x) => Math.round(x * 100) / 100;
 
@@ -252,9 +272,112 @@ const isLightPaint = (cols, min) => {
 
 function split(m, isPaint) {
   return [
-    filterTris(m, (_c, C) => isPaint(C)),
-    filterTris(m, (_c, C) => !isPaint(C)),
+    filterTris(m, (c, C, n, P) => isPaint(C, c, P, n)),
+    filterTris(m, (c, C, n, P) => !isPaint(C, c, P, n)),
   ];
+}
+
+/** The triangles of \`m\` for which \`hit(centroid, normal)\` holds, in one flat colour (rgb 0-255). */
+function recolor(m, hit, rgb) {
+  const out = empty();
+  for (let t = 0; t < m.idx.length; t += 3) {
+    const ids = [0, 1, 2].map((k) => m.idx[t + k]);
+    const P = ids.map((i) => m.pos[i]);
+    const c = [0, 1, 2].map((k) => (P[0][k] + P[1][k] + P[2][k]) / 3);
+    const e1 = P[1].map((x, k) => x - P[0][k]);
+    const e2 = P[2].map((x, k) => x - P[0][k]);
+    const n = [
+      e1[1] * e2[2] - e1[2] * e2[1],
+      e1[2] * e2[0] - e1[0] * e2[2],
+      e1[0] * e2[1] - e1[1] * e2[0],
+    ];
+    const len = Math.hypot(...n) || 1;
+    const flat = hit(
+      c,
+      n.map((x) => x / len),
+    );
+    for (const i of ids) {
+      out.idx.push(out.pos.length);
+      out.pos.push(m.pos[i]);
+      out.col.push(flat ? rgb : m.col[i]);
+    }
+  }
+  return weld(out);
+}
+
+const area = (P) => {
+  const e1 = P[1].map((x, k) => x - P[0][k]);
+  const e2 = P[2].map((x, k) => x - P[0][k]);
+  return (
+    0.5 *
+    Math.hypot(
+      e1[1] * e2[2] - e1[2] * e2[1],
+      e1[2] * e2[0] - e1[0] * e2[2],
+      e1[0] * e2[1] - e1[1] * e2[0],
+    )
+  );
+};
+/** A stray warm brown texel (dirt) on a panel. */
+const isDirtTexel = (c) =>
+  c[0] > c[1] && c[1] > c[2] && chroma(c) > 15 && chroma(c) < 60;
+/** Light panels, and the big dark triangles of the body's skin (UVs in an unused corner of the texture; real trim is small). */
+const isBodyPaint = (C, c, P, min) =>
+  isLightPaint(C, min) ||
+  isDirtTexel(C[0]) ||
+  (lum(C[0]) < min && area(P) > 0.05 && c[1] > 0.4);
+
+/** An axis-aligned box as a mesh in one flat colour (rgb 0-255). */
+function boxMesh(a, b, col) {
+  const out = empty();
+  const [x0, y0, z0] = a;
+  const [x1, y1, z1] = b;
+  const v = [
+    [x0, y0, z0],
+    [x1, y0, z0],
+    [x1, y1, z0],
+    [x0, y1, z0],
+    [x0, y0, z1],
+    [x1, y0, z1],
+    [x1, y1, z1],
+    [x0, y1, z1],
+  ];
+  const faces = [
+    [0, 3, 2, 1],
+    [4, 5, 6, 7],
+    [0, 1, 5, 4],
+    [3, 7, 6, 2],
+    [0, 4, 7, 3],
+    [1, 2, 6, 5],
+  ];
+  for (const f of faces) {
+    const base = out.pos.length;
+    for (const i of f) {
+      out.pos.push(v[i]);
+      out.col.push(col);
+    }
+    out.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  return out;
+}
+
+/** The lower front of the tractor cab: grille, head lamps, indicators, number plate (x = the front face). */
+function frontDetails(x) {
+  const dark = [28, 30, 33];
+  const lamp = [238, 243, 246];
+  const amber = [243, 154, 30];
+  const list = [boxMesh([x, 1.3, -0.68], [x + 0.03, 1.78, 0.68], dark)];
+  for (const y of [1.42, 1.54, 1.66])
+    list.push(
+      boxMesh([x + 0.03, y, -0.6], [x + 0.05, y + 0.04, 0.6], [70, 74, 80]),
+    );
+  for (const s of [1, -1]) {
+    const z0 = s > 0 ? 0.86 : -1.22;
+    list.push(boxMesh([x, 1.3, z0], [x + 0.05, 1.6, z0 + 0.36], lamp));
+    const a0 = s > 0 ? 0.86 : -1.0;
+    list.push(boxMesh([x, 1.65, a0], [x + 0.05, 1.78, a0 + 0.14], amber));
+  }
+  list.push(boxMesh([x, 0.62, -0.3], [x + 0.04, 0.82, 0.3], [235, 235, 220]));
+  return merge(list);
 }
 
 const out = {};
@@ -262,22 +385,30 @@ const out = {};
 {
   const low = bakeLow();
   const cabMask = (c) => c[0] > low.L / 2 - (LOW.frontZ - LOW.cabCut) * LOW.s;
-  // Full tractor: simplified first, then split by colour (so the paint edge follows the simplified mesh).
-  const simple = simplify(weld(low.tractor), 1900);
-  const [tp, tf] = split(simple, (C) => isLightPaint(C, 130));
-  // (Below the cab floor and behind the bumper: long white slivers of the side skirts.)
+  // Split by colour first and simplify each half with its border locked, so the paint edge stays where the texture has it.
+  const [rp, rf] = split(weld(low.tractor), (C, c, P) =>
+    isBodyPaint(C, c, P, 85),
+  );
+  const [tp, tf] = [
+    simplify(weld(rp), 2400, ['LockBorder']),
+    simplify(weld(rf), 2600, ['LockBorder']),
+  ];
   const cabOnly = (m) =>
     filterTris(
       m,
-      (c) => cabMask(c) && !(c[1] < 0.75 && c[0] < low.L / 2 - 0.7),
+      (c, _C, _n, P) =>
+        cabMask(c) &&
+        P.every((p) => cabMask([p[0] + 0.15])) &&
+        !(c[1] < 0.75 && c[0] < low.L / 2 - 0.7),
     );
-  const tractor = { paint: tp, fixed: tf };
+  const front = frontDetails(low.L / 2 - 0.1);
+  const tractor = { paint: tp, fixed: merge([tf, front]) };
   // The trailer's texture is sampled at the corners of big panels (dark frame texels): paint = the box above the frame.
   const trp = filterTris(low.trailer, (c) => c[1] > 1.25);
   const trf = filterTris(low.trailer, (c) => c[1] <= 1.25);
   const trailer = {
-    paint: simplify(weld(trp), 600),
-    fixed: simplify(weld(trf), 700),
+    paint: simplify(weld(trp), 900),
+    fixed: simplify(weld(trf), 1000),
   };
   const glass = low.glassG;
   out.tractor = {
@@ -299,8 +430,12 @@ const out = {};
     wheels: low.wheels.filter((w) => w.trailer),
   };
   // The cab alone, for the rigid box truck.
-  const cp = cabOnly(tp);
-  const cf = cabOnly(tf);
+  // Cut before simplifying: a simplified triangle can span the cut and leave a long sliver behind the cab.
+  const cp = simplify(weld(cabOnly(weld(rp))), 2000, ['LockBorder']);
+  const cf = merge([
+    simplify(weld(cabOnly(weld(rf))), 2200, ['LockBorder']),
+    front,
+  ]);
   const shift = 4.6 - low.L / 2;
   const sh = (m) => ({
     ...m,
@@ -331,14 +466,9 @@ const out = {};
   const L = r2((2.829 + 2.987) * S);
   const wheels = [];
   const toGame = (m) => ({ ...m, pos: m.pos.map(place) });
-  const base = weld(
-    merge(
-      byNode(mesh, /dumb_truck_B_01|dump_truck_[DE]_01/).map((m) => ({
-        pos: m.pos,
-        col: m.col,
-        idx: m.idx,
-      })),
-    ),
+  const base = asMesh(
+    byNode(mesh, /dumb_truck_B_01|dump_truck_[DE]_01/),
+    snapGrey,
   );
   // Wheels: components of the welded positions that are round and short in the axle direction (x).
   const keyOf = (p) => p.map((x) => Math.round(x * 500)).join(',');
@@ -414,19 +544,31 @@ const out = {};
   const inCab = (c) => c[0] > cabZ && c[1] > 0.7;
   const cabAll = filterTris(g, (c) => inCab(c));
   const frame = filterTris(g, (c) => !inCab(c));
-  const [cp, cf] = split(simplify(weld(cabAll), 1100), (C) =>
-    isLightPaint(C, 45),
+  // The grille panel and the lower front are trim: dark, not cab paint.
+  const front = bounds(cabAll.pos).hi[0];
+  const isGrille = (c, n) =>
+    c[0] > front - 0.3 &&
+    c[1] > 0.95 &&
+    c[1] < 1.5 &&
+    Math.abs(c[2]) < 0.9 &&
+    n[0] > 0.5;
+  const [cpAll, cfRaw] = split(
+    weld(cabAll),
+    (C, c, P, n) => !isGrille(c, n) && isBodyPaint(C, c, P, 45),
   );
+  const cfAll = recolor(cfRaw, isGrille, [44, 46, 48]);
+  const cp = simplify(cpAll, 4500, ['LockBorder']);
+  const cf = simplify(cfAll, 3500, ['LockBorder']);
   const glass = toGame(asMesh(byNode(mesh, /lamp_glass/)));
-  const dumper = toGame(asMesh(byNode(mesh, /dump_truck_A_01/)));
+  const dumper = toGame(asMesh(byNode(mesh, /dump_truck_A_01/), snapCoarse));
   const rear = bounds(frame.pos).lo[0];
   const deck = bounds(frame.pos).hi[1];
   out.dump = {
     length: L,
     width: 2.6,
     cab: pack(cp),
-    detail: pack(merge([cf, simplify(weld(frame), 1800)])),
-    paint: pack(simplify(dumper, 1200)),
+    detail: pack(merge([cf, simplify(weld(frame), 3400)])),
+    paint: pack(simplify(dumper, 3800)),
     glass: pack(simplify(weld(glass), 120)),
     wheels,
     cabBack: r2(cabZ),
@@ -467,5 +609,6 @@ export interface TruckData {
 
 export const TRUCK_DATA: Record<'tractor' | 'trailer' | 'cab' | 'dump', TruckData> = ${JSON.stringify(out, null, 2)};
 `;
+if (process.env.SHEET) fs.writeFileSync(process.env.SHEET, JSON.stringify(out));
 fs.writeFileSync(file, ts);
 console.log('wrote', (ts.length / 1024).toFixed(0), 'KB');

@@ -3,7 +3,7 @@
     python scripts/car-model/street-pack-extract.py <pack.glb> <out.json> [--margin 0.15] [--skip <node-name part>] [--seeds <body suffix>]
 
 Primitives whose world bounding boxes touch (within --margin m) form one vehicle. Output: a list of
-{name, bbox, mesh: [{node, pos, idx, col}]} (world space, Y up, colours 0-255). Feeds bake-street-cars.mjs.
+{name, bbox, mesh: [{node, pos, idx, col, tcol}]} (world space, Y up, colours 0-255). Feeds bake-street-cars.mjs.
 """
 import json
 import os
@@ -69,7 +69,10 @@ def walk(i, M):
             uv = accessor(g, binary, p['attributes']['TEXCOORD_0']) if 'TEXCOORD_0' in p['attributes'] else np.zeros((len(P), 2))
             col = material_sampler(p['material'])(uv, len(P)) if 'material' in p else np.full((len(P), 3), 128.0)
             mat = g['materials'][p['material']].get('name', '') if 'material' in p else ''
-            prims.append(dict(node=n.get('name', f'node{i}'), mat=mat, pos=P, idx=idx, col=srgb_keep(col)))
+            # One colour per triangle, sampled at the middle of its UVs (flat panels have colours only at their corners).
+            tuv = uv[idx.reshape(-1, 3)].mean(axis=1)
+            tcol = material_sampler(p['material'])(tuv, len(tuv)) if 'material' in p else np.full((len(tuv), 3), 128.0)
+            prims.append(dict(node=n.get('name', f'node{i}'), mat=mat, pos=P, idx=idx, col=srgb_keep(col), tcol=srgb_keep(tcol)))
     for c in n.get('children', []):
         walk(c, M)
 
@@ -145,7 +148,8 @@ for ids in groups.values():
         bbox=[lo.round(3).tolist(), hi.round(3).tolist()],
         tris=int(sum(len(prims[i]['idx']) for i in ids) // 3),
         mesh=[dict(node=prims[i]['node'], mat=prims[i]['mat'], pos=prims[i]['pos'].round(4).tolist(),
-                   idx=prims[i]['idx'].tolist(), col=prims[i]['col'].tolist()) for i in ids]))
+                   idx=prims[i]['idx'].tolist(), col=prims[i]['col'].tolist(),
+                   tcol=prims[i]['tcol'].tolist()) for i in ids]))
 vehicles.sort(key=lambda v: (round(v['bbox'][0][2] / 4), v['bbox'][0][0]))
 json.dump(vehicles, open(out, 'w'))
 for k, v in enumerate(vehicles):
