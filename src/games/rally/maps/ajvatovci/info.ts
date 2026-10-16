@@ -70,7 +70,7 @@ export const ajvatovciInfo: MapInfo = {
     groundTint: { grass: '#65952f', amount: 0.8, crop: '#c49c36' },
     groundTints: {
       spring: { grass: '#5fae2e', amount: 0.85, crop: '#7fa63c' },
-      autumn: { grass: '#8c8a42', amount: 0.75, crop: '#9a7b3e' },
+      autumn: { grass: '#847636', amount: 0.85, crop: '#7e5f2e' },
     },
   },
   route: data.route,

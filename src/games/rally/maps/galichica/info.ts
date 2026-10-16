@@ -60,7 +60,7 @@ export const galichicaInfo: MapInfo = {
     groundTint: { grass: '#a59a62', amount: 0.55 },
     groundTints: {
       spring: { grass: '#7fa04a', amount: 0.65 },
-      autumn: { grass: '#94784a', amount: 0.55 },
+      autumn: { grass: '#876b3e', amount: 0.65 },
     },
   },
   route: data.route,

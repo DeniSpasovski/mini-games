@@ -71,7 +71,7 @@ export const petralicaInfo: MapInfo = {
     groundTint: { grass: '#9d9562', amount: 0.6 },
     groundTints: {
       spring: { grass: '#76a048', amount: 0.7 },
-      autumn: { grass: '#8f7a50', amount: 0.6 },
+      autumn: { grass: '#82683c', amount: 0.7 },
     },
   },
   route: data.route,

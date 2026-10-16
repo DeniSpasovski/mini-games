@@ -79,7 +79,7 @@ export const jackieInfo: MapInfo = {
     groundTint: { grass: '#7d8f4c', amount: 0.55 },
     groundTints: {
       spring: { grass: '#72a640', amount: 0.65 },
-      autumn: { grass: '#908448', amount: 0.55 },
+      autumn: { grass: '#867438', amount: 0.65 },
     },
   },
   // Baked route + the run-out past the Queens Blvd portal (see `road.points` in ./map.ts).

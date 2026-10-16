@@ -198,7 +198,7 @@ export const testMap: MapDef = {
     airTemps: { spring: 14, summer: 20, autumn: 12 },
     groundTints: {
       spring: { grass: '#7ab648', amount: 0.5 },
-      autumn: { grass: '#a08a54', amount: 0.55 },
+      autumn: { grass: '#8d7440', amount: 0.6 },
     },
     turbidity: 4,
     rayleigh: 1.2,
