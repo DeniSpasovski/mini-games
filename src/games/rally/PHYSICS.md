@@ -312,7 +312,7 @@ pages and the reference tests above are unchanged).
   temperature = air + sun x `SurfaceDef.heat` (tarmac 1 ... grass 0.3, snow 0). The drawn sun path is one mid-summer day,
   so `seasonSunShare` scales the heat by the clear-sky sun (Haurwitz) of the stage's month (`EnvironmentDef.months`, shown
   on the stage screen; default April / July / October) against July at the same hour angle, at 41.5 N: noon ~0.9 in April,
-  ~0.7 in October, October mornings and evenings ~0. Checked against measurements: a hot clear summer noon heats dark
+  ~0.65 in October, an October morning at 07:00 ~0.1, October evenings 0. Checked against measurements: a hot clear summer noon heats dark
   asphalt ~23 °C above the air at 41 N (Solaimanian and Kennedy, TRR 1417, 1993; we give ~22), sunny-day means in a mild
   climate ~12 °C (Brisbane road studies). The stage screen shows the same air / road numbers (`stageTemps`).
 - **Heat:** sliding work (`|F| x slide speed / static load`, the stones take 60 % of it on loose ground) + carcass flex
