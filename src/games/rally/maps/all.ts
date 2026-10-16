@@ -13,8 +13,8 @@ import type { MapDef, StageDef } from './shared/types';
 export const ALL_MAPS: MapDef[] = [
   testMap,
   ajvatovciMap,
-  petralicaMap,
   vodnoMap,
+  petralicaMap,
   galichicaMap,
   jackieMap,
 ];

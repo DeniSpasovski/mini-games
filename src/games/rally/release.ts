@@ -33,8 +33,8 @@ export const CARS_LIST: readonly ReleaseEntry[] = [
 export const STAGES_LIST: readonly ReleaseEntry[] = [
   { id: 'test' },
   { id: 'ajvatovci' },
-  { id: 'petralica' },
   { id: 'vodno' },
+  { id: 'petralica' },
   { id: 'galichica_west' },
   { id: 'galichica_east', hideInProd: true },
   { id: 'prespa_ohrid', hideInProd: true },
