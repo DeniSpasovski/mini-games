@@ -14,9 +14,9 @@ export const ALL_MAPS: MapDef[] = [
   testMap,
   ajvatovciMap,
   petralicaMap,
-  jackieMap,
-  galichicaMap,
   vodnoMap,
+  galichicaMap,
+  jackieMap,
 ];
 
 /** Every stage of every map with its full map (tests: `new World(map, stage)` per stage). */
