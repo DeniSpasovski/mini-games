@@ -14,6 +14,7 @@ import type { ScatterInstance } from './scatter';
 /** Every asset a service park uses (the streamer's prewarm / view distance). */
 export const SERVICE_PARK_ASSETS = [
   'service_truck',
+  'service_semi',
   'service_van',
   'car_trailer',
   'pickup',
@@ -154,6 +155,7 @@ function layBays(
   let next = 0;
   for (const lot of def.lots) {
     const rows = !ferme && lot.width >= 2 * BAY_DEPTH + 4 ? 2 : 1;
+    const firstCentre = layout.bayCentres.length;
     let inLot = 0;
     for (let r = 0; r < rows && layout.bays < def.bays; r++) {
       // Row 0 backs on v = BAY_DEPTH (front at the public edge), row 1 on the far edge of the lot; a parc fermé row
@@ -184,8 +186,56 @@ function layBays(
         layout.bayCentres.push({ ...bay.centre, team });
       }
     }
+    if (lot.semis)
+      addSemis(layout, lot, ctx, layout.bayCentres.slice(firstCentre));
   }
   return layout;
+}
+
+/** Length of a team semi (m) and the space left between two of them. */
+const SEMI_LENGTH = 17.2;
+const SEMI_GAP = 1.6;
+
+/**
+ * The back row of a lot (`ServiceLot.semis`): tractor-trailer team trucks side by side behind the bays, noses to -u like
+ * the bay trucks, each in the colours of the team whose bay is nearest. One that cannot stand (buildings, water) is left out.
+ */
+function addSemis(
+  layout: ServiceParkLayout,
+  lot: ServiceLot,
+  ctx: ServiceParkContext,
+  centres: ServiceParkLayout['bayCentres'],
+): void {
+  const count = lot.semis ?? 0;
+  const row = count * SEMI_LENGTH + (count - 1) * SEMI_GAP;
+  for (let i = 0; i < count; i++) {
+    const u =
+      (lot.length - row) / 2 + SEMI_LENGTH / 2 + i * (SEMI_LENGTH + SEMI_GAP);
+    const [x, z] = lotWorld(lot, u, BAY_DEPTH + 3.2);
+    const ends = [-1, 1].map((k) => lotWorld(lot, u + k * 7, BAY_DEPTH + 3.2));
+    if (
+      ctx.blocked(x, z, 2.5, lot.paved) ||
+      ends.some(([ex, ez]) => ctx.blocked(ex, ez, 1.5, lot.paved))
+    )
+      continue;
+    let team = i % TEAM_COUNT;
+    let nearest = Infinity;
+    for (const c of centres) {
+      const d = Math.hypot(c.x - x, c.z - z);
+      if (d < nearest) [nearest, team] = [d, c.team];
+    }
+    layout.instances.push({
+      asset: 'service_semi',
+      variant: team,
+      x,
+      y: ctx.height(x, z),
+      z,
+      rotY: Math.PI - lot.heading,
+      scale: 1,
+      tiltX: 0,
+      tiltZ: 0,
+    });
+  }
 }
 
 /** A template that still fits in `room` m: seeded, favouring privateers and small teams. */
@@ -600,6 +650,7 @@ const PEOPLE = new Set([
 const KEEP_OUT: Record<string, number> = {
   team_car: 2.7,
   service_truck: 4.9,
+  service_semi: 8.5,
   service_van: 3,
   car_trailer: 3.6,
   pickup: 3,

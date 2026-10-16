@@ -10,6 +10,7 @@ import { ajvatovciMap } from '../../src/games/rally/maps/ajvatovci/map';
 import { TEAM_COUNT } from '../../src/games/rally/assets/builders/teams';
 import { lotContains } from '../../src/games/rally/maps/shared/service-lot';
 import { isTreeType } from '../../src/games/rally/trees/species';
+import { newPathQuery } from '../../src/games/rally/world/real-data';
 import { newRoadQuery } from '../../src/games/rally/world/road';
 import { SERVICE_PARK_ASSETS } from '../../src/games/rally/world/service-park';
 import { World } from '../../src/games/rally/world/world';
@@ -51,6 +52,35 @@ describe('service park (Ajvatovci start)', () => {
     }
     for (const id of SERVICE_PARK_ASSETS)
       expect(getAssetMeta(id)).toBeDefined();
+  });
+
+  test('the field lot stands close to the road, with team semis behind its bays', () => {
+    const field = def.lots[1];
+    const semis = park.instances.filter((i) => i.asset === 'service_semi');
+    expect(semis.length).toBe(field.semis);
+    // The row is behind the cars (further from the public edge) and inside the lot.
+    const cars = park.instances.filter(
+      (i) => i.asset === 'team_car' && lotContains(field, i.x, i.z, 0.5),
+    );
+    expect(cars.length).toBeGreaterThan(2);
+    for (const s of semis) {
+      expect(lotContains(field, s.x, s.z)).toBe(true);
+      // Behind: further north (the lot's public edge faces south) than every car of the lot.
+      for (const c of cars) expect(s.z).toBeLessThan(c.z - 6);
+    }
+    // Close to the farm road: the public edge is within 12 m of a path's edge (not 50 m as before).
+    const pq = newPathQuery();
+    const edgeZ = field.z + field.width / 2;
+    let best = Infinity;
+    for (
+      let x = field.x - field.length / 2;
+      x <= field.x + field.length / 2;
+      x += 4
+    ) {
+      const hit = world.gen.paths?.query(x, edgeZ, pq);
+      if (hit?.found) best = Math.min(best, pq.distance - pq.halfWidth);
+    }
+    expect(best).toBeLessThan(12);
   });
 
   test('deterministic: the same stage gives the same park', () => {
@@ -121,6 +151,7 @@ describe('service park (Ajvatovci start)', () => {
       if (
         ![
           'service_truck',
+          'service_semi',
           'service_van',
           'pickup',
           'team_car',

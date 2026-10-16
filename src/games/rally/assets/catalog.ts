@@ -433,6 +433,16 @@ export const ASSET_CATALOG: AssetMeta[] = [
     ],
   },
   {
+    id: 'service_semi',
+    name: 'Team semi truck',
+    category: 'props',
+    description:
+      'Team tractor-trailer (17 m) in team colours (variant = team) with side stripes, the back row of a parc. Faces +X. Solid.',
+    variants: 12,
+    lods: VEHICLE_LODS,
+    colliders: [{ kind: 'box', hx: 8.6, hz: 1.35, h: 4, r: 9 }],
+  },
+  {
     id: 'service_van',
     name: 'Service van',
     category: 'props',

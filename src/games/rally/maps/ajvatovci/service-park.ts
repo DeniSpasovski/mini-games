@@ -4,7 +4,8 @@ import type { PadDef, ServiceLot, ServicePark } from '../shared/types';
 /**
  * Service park of the Ajvatovci stage. Lot 1: the empty field south of the road between the start line and the A2
  * (right of the run-up), 11 m off the road's centre line, 84 x 28 m, its long side parallel to the road. Lot 2: the
- * open field north-west of it (about 150 m from the start), one row of teams whose public edge faces south.
+ * open field north-west of it beside the farm road (about 150 m from the start), one row of teams whose public edge
+ * faces south, 9 m from the road, with three tractor-trailer team trucks along its back edge.
  */
 export const START_LOT: ServiceLot = {
   x: -1449.2,
@@ -15,11 +16,12 @@ export const START_LOT: ServiceLot = {
 };
 
 export const FIELD_LOT: ServiceLot = {
-  x: -1636,
-  z: 340,
+  x: -1622,
+  z: 375,
   heading: Math.PI,
-  length: 80,
-  width: 14,
+  length: 56,
+  width: 17,
+  semis: 3,
 };
 
 /** The stage road beside lot 1 (west to east): its level follows it. */

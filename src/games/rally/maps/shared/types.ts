@@ -644,6 +644,11 @@ export interface ServiceLot {
    * nose-in. Set the lot over the street: `width` = its carriageway, public edge on the kerb facing the stage.
    */
   parallel?: boolean;
+  /**
+   * Tractor-trailer team trucks (`service_semi`) lined up along the lot's back edge, behind the bays, each in the colours
+   * of the nearest bay's team. The lot needs about 6 m behind the bay depth (11 m) and 18 m of length per truck.
+   */
+  semis?: number;
 }
 
 /** A rally service park (paddock) at a stage start: team bays on the lots, a crowd on the public edge. */

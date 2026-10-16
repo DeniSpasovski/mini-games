@@ -3,6 +3,7 @@ import { Texture } from 'three';
 import {
   foodTruck,
   pickup,
+  serviceSemi,
   serviceTruck,
   serviceVan,
 } from '../../src/games/rally/assets/builders/service';
@@ -74,6 +75,7 @@ describe('service vehicle models', () => {
 describe('team vehicles of the service park', () => {
   test.each([
     ['service_truck', serviceTruck],
+    ['service_semi', serviceSemi],
     ['service_van', serviceVan],
     ['pickup', pickup],
   ])('%s: one draw call per team, within budget', (_, build) => {
