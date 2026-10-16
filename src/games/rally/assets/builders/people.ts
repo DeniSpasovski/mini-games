@@ -367,6 +367,8 @@ type HatKind = 'none' | 'cap' | 'beanie' | 'helmet' | 'hood';
 type HairKind = 'short' | 'long' | 'bald' | 'bun' | 'pony';
 
 interface Outfit {
+  /** Hand-flag cloth for the plain `wave` pose: [main, lower band] (never a national flag). */
+  flag?: [string, string];
   shoes: string;
   legs: string;
   torso: string;
@@ -811,7 +813,8 @@ function figure({ pose, outfit: o, lod, rng }: FigureOpts): BufferGeometry {
   }
 
   // What is held.
-  if (pose.prop) parts.push(...propParts(pose.prop, hands, S, R, Hc, hi));
+  if (pose.prop)
+    parts.push(...propParts(pose.prop, hands, S, R, Hc, hi, false, o.flag));
 
   return finishBody(parts, pose, o);
 }
@@ -1081,7 +1084,7 @@ function figureDetail({ pose, outfit: o, rng }: FigureOpts): BufferGeometry {
   }
 
   if (pose.prop)
-    parts.push(...propParts(pose.prop, hands, S, R, Hc, true, true));
+    parts.push(...propParts(pose.prop, hands, S, R, Hc, true, true, o.flag));
   return finishBody(parts, pose, o);
 }
 
@@ -1292,6 +1295,7 @@ function propParts(
   hi: boolean,
   /** The near figure: flags get their rays, stripes and stars. */
   fine = false,
+  flag: [string, string] = ['#d8322a', '#d8322a'],
 ): BufferGeometry[] {
   const out: BufferGeometry[] = [];
   const rot = (x: number, y: number, z: number): Vector3 =>
@@ -1405,9 +1409,11 @@ function propParts(
         3,
       ),
     );
-    out.push(
-      block(0.2, 0.13, 0.008, hr.clone().add(v(0.1, 0.23, 0)), '#d8322a'),
-    );
+    out.push(block(0.2, 0.13, 0.008, hr.clone().add(v(0.1, 0.23, 0)), flag[0]));
+    if (flag[1] !== flag[0])
+      out.push(
+        block(0.2, 0.05, 0.012, hr.clone().add(v(0.1, 0.2, 0)), flag[1]),
+      );
     markFlag(out.slice(f0), hr);
   } else if (prop === 'flagMk' || prop === 'flagUs') {
     const f0 = out.length;
@@ -1695,6 +1701,21 @@ const SPECTATOR_POSES: PoseName[] = ['stand', 'wave', 'camera', 'pockets'];
 export const SPECTATOR_STANDING = 24;
 /** Variants from here wave a hand flag: 6 outfits x (North Macedonia, USA). */
 const SPECTATOR_FLAG_FROM = 42;
+/** Plain hand flags (solid or two-tone, no national colour combinations). */
+const FAN_FLAGS: [string, string][] = [
+  ['#1c6fd1', '#1c6fd1'],
+  ['#1f9e5a', '#1f9e5a'],
+  ['#7a35b8', '#7a35b8'],
+  ['#f07a10', '#f07a10'],
+  ['#14a6b8', '#14a6b8'],
+  ['#d8322a', '#d8322a'],
+  ['#1c6fd1', '#f07a10'],
+  ['#1f9e5a', '#f2f2f2'],
+  ['#7a35b8', '#f2c21c'],
+  ['#14181c', '#f2f2f2'],
+  ['#d8327a', '#14a6b8'],
+  ['#f2c21c', '#14181c'],
+];
 const FLAG_POSES: PoseName[] = ['waveMk', 'waveUs'];
 const SPECTATOR_SEATED: PoseName[] = ['sitGround', 'sitKnees', 'squat'];
 
@@ -1737,6 +1758,7 @@ export const spectator: AssetBuilder = ({ seed, variant, lod }) => {
     o.shortSleeves = rng.chance(0.4);
     o.legs = rng.pick(JEAN_COLORS);
   }
+  o.flag = FAN_FLAGS[rng.int(0, FAN_FLAGS.length - 1)];
   const pose =
     variant >= SPECTATOR_FLAG_FROM
       ? FLAG_POSES[

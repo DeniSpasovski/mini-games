@@ -11,6 +11,7 @@ import type { MapDef } from '../shared/types';
 export const testMap: MapDef = {
   id: 'test',
   name: 'Test Map',
+  country: 'mk',
   stages: [
     {
       id: 'test',

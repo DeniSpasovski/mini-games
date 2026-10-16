@@ -1,11 +1,11 @@
 import { hash3, hashString, Rng } from '../../../shared/rng';
 import {
-  SPECTATOR_FLAG_FROM,
   SPECTATOR_SEATED_COUNT,
   SPECTATOR_SEATED_FROM,
   SPECTATOR_VARIANTS,
 } from '../assets/catalog';
-import type { CornerFansRule } from '../maps/shared/types';
+import type { CornerFansRule, Country } from '../maps/shared/types';
+import { flagVariant } from './fan-variants';
 import { newRoadQuery, type Road } from './road';
 import type { ScatterInstance } from './scatter';
 
@@ -48,7 +48,8 @@ export function cornerFanInstances(
   seed: number,
   junctions: readonly { along: number; width: number; side: 1 | -1 }[],
   blocked: (x: number, z: number) => boolean,
-  ends?: { start: number; finish: number },
+  ends: { start: number; finish: number } | undefined,
+  country: Country,
 ): ScatterInstance[] {
   const out: ScatterInstance[] = [];
   const rng = new Rng(hash3(7, 3, 1, seed ^ hashString('corner-fans')));
@@ -137,11 +138,9 @@ export function cornerFanInstances(
       // About a third are visitors in everyday clothes (seated ones stay fans).
       const pickVisitor = mix.next() < 0.35;
       const pickFlag = mix.next() < 0.45;
-      const flagVariant =
-        SPECTATOR_FLAG_FROM + (rule.flag === 'us' ? 6 : 0) + mix.int(0, 5);
+      const flagFan = flagVariant(country, mix.next());
       if (seated) place('spectator', da, off, variant, yaw);
-      else if (rule.flag && pickFlag)
-        place('spectator', da, off, flagVariant, yaw);
+      else if (pickFlag) place('spectator', da, off, flagFan, yaw);
       else if (pickVisitor)
         place('visitor', da, off, mix.int(0, VISITOR_VARIANTS - 1), yaw);
       else place('spectator', da, off, variant, yaw);

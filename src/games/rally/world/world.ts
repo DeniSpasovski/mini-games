@@ -234,6 +234,7 @@ export class World implements GroundProvider {
               fanQ.distance < fanQ.halfWidth + 3) ||
             (!!this.gen.lakes?.query(x, z, fanLq) && fanLq.sd < 3),
           { start: this.stage.start, finish: this.stage.finish },
+          map.country,
         )
       : [];
     for (const inst of [
@@ -244,6 +245,7 @@ export class World implements GroundProvider {
         map.seed,
         this.gen.junctions,
         this.gen.paths,
+        map.country,
       ),
       ...this.cornerFans,
     ]) {
@@ -406,6 +408,7 @@ export class World implements GroundProvider {
     if (map.streetDressing)
       for (const inst of streetDressingInstances(map.streetDressing, {
         seed: map.seed,
+        country: map.country,
         road: this.road,
         net: this.gen.paths,
         junctions: this.gen.junctions,

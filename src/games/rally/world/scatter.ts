@@ -2,7 +2,7 @@ import { Vector3 } from 'three';
 import { Noise2D } from '../../../shared/noise';
 import { hash3, hashString, Rng } from '../../../shared/rng';
 import { getAssetMeta } from '../assets/catalog';
-import type { RoadsideRule, ScatterRule } from '../maps/shared/types';
+import type { Country, RoadsideRule, ScatterRule } from '../maps/shared/types';
 import type { StaticCollider } from '../physics/types';
 import {
   isTreeType,
@@ -16,6 +16,7 @@ import type { TerrainSampler } from './heightfield';
 import { newLakeQuery, type Lakes } from './lakes';
 import { newPathQuery, type Landcover, type PathNetwork } from './real-data';
 import { newRoadQuery, type Road } from './road';
+import { fanVariant } from './fan-variants';
 
 /** Real-world map data the scatter respects (land cover classes, other roads, canals). */
 export interface ScatterContext {
@@ -116,7 +117,8 @@ export class ScatterField {
 
   /** Add a hand-placed / road-side instance (call before streaming starts). */
   addFixed(inst: ScatterInstance): void {
-    if (isTreeType(inst.asset)) this.poseTree(inst, 0x40000000 + this.fixedTrees++);
+    if (isTreeType(inst.asset))
+      this.poseTree(inst, 0x40000000 + this.fixedTrees++);
     const cs = this.chunkSize;
     const k = key(Math.floor(inst.x / cs), Math.floor(inst.z / cs));
     let list = this.fixed.get(k);
@@ -238,7 +240,10 @@ export class ScatterField {
           const zone = lc.zoneAt(x, z);
           if (zone < 0 || !coverMask[zone]) continue;
         }
-        const variant = Math.floor(rng.next() * variants);
+        const variant =
+          rule.asset === 'spectator'
+            ? fanVariant(rng.next(), undefined)
+            : Math.floor(rng.next() * variants);
         const scale = rng.range(rule.scale[0], rule.scale[1]);
         const rotY = rng.next() * Math.PI * 2;
         const tiltA = rng.next() * Math.PI * 2;
@@ -418,6 +423,7 @@ export function roadsideInstances(
   seed: number,
   junctions: readonly { along: number; width: number; side: 1 | -1 }[] = [],
   paths?: PathNetwork,
+  country?: Country,
 ): ScatterInstance[] {
   const out: ScatterInstance[] = [];
   const pq = newPathQuery();
@@ -494,7 +500,9 @@ export function roadsideInstances(
               ? p.curvature > 0
                 ? 0
                 : 1
-              : Math.floor(rng.next() * variants);
+              : rule.asset === 'spectator'
+                ? fanVariant(rng.next(), country)
+                : Math.floor(rng.next() * variants);
           out.push({
             asset: rule.asset,
             variant,

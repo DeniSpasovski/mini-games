@@ -14,6 +14,6 @@ export const petralicaStages: StageDef[] = [
     // Every side road / track meeting the stage road is closed with barriers (as on a real stage).
     closures: { asset: 'road_barrier', length: 2.2, setback: 4 },
     // Small fan groups (tape, spectators, flags) inside the tight corners.
-    cornerFans: { flag: 'mk' },
+    cornerFans: {},
   },
 ];

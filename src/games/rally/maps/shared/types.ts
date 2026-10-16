@@ -29,9 +29,14 @@ export interface PlazaIsland {
  * (menus, times, URLs); the map viewer shows a map with one of its stages (a stage picker). The world never depends on
  * the stage.
  */
+/** Countries a map can be in: their hand flags, and more later (spectator flags: world/fan-variants.ts). */
+export type Country = 'mk' | 'us';
+
 export interface MapDef {
   id: string;
   name: string;
+  /** Where the map is: North Macedonia or the USA. Fans only wave this country's flag. */
+  country: Country;
   /** The stages on this map (menu order). A stage id is never renamed once released: times are stored by it. */
   stages: StageDef[];
   seed: number;
@@ -769,8 +774,6 @@ export interface CornerFansRule {
   chance?: number;
   /** Spectators per group [min, max] (default [3, 8]). */
   fans?: [number, number];
-  /** Hand flag the waving fans carry: North Macedonia or the USA (none = no waving fans). */
-  flag?: 'mk' | 'us';
   /** Share of the groups with 1-3 flags (default 0.6). */
   flagChance?: number;
   /** Tape line distance from the road edge (m, default 3.5); the fans stand 1.5-5.5 m behind it. */
