@@ -1,13 +1,14 @@
 import { FOOT, LIFT, strut, type Local, type V3 } from './common';
+import type { PadDef } from '../../shared/types';
 import { toWorld, type Area, type Site } from './sites';
 
 /**
- * The wooden gate at the foot of the Vodno road: two lattice log towers with pyramid roofs stand either side of the
+ * The wooden gate where the Vodno road leaves the suburb, a short way past the first crossroad: two lattice log towers with pyramid roofs stand either side of the
  * road, with a timber notice board and a log shelter on the gravel beside the right one and an orange information board
  * a little way up the road. Rough shapes, no lettering. `GATE` is the road's centre line at the gate: local x along the
  * road (up the climb), z to its right; every structure has its own site (its own ground height).
  */
-export const GATE: Site = { x: 1650, z: -935.4, yaw: 0.327 };
+export const GATE: Site = { x: 1803.9, z: -764.5, yaw: 1.169 };
 const near = (x: number, z: number): Site => {
   const [wx, wz] = toWorld(GATE, x, z);
   return { x: wx, z: wz, yaw: GATE.yaw };
@@ -25,6 +26,22 @@ export const GATE_AREAS: Area[] = [
   { site: SHELTER, rect: [-3.2, 3.2, -2.6, 2.6] },
   { site: SIGN, rect: [-0.8, 0.8, -1.4, 1.4] },
 ];
+
+/** The gravel beside the right tower (the notice board, the shelter): level with the road, cut into the slope above it. */
+export const GATE_PAD: PadDef = {
+  name: 'gate_gravel',
+  polygon: (
+    [
+      [-5, 7.5],
+      [13, 7.5],
+      [13, 22],
+      [-5, 22],
+    ] as const
+  ).flatMap(([x, z]) => toWorld(GATE, x, z)),
+  blend: 4,
+  frontage: [...toWorld(GATE, -6, 0), ...toWorld(GATE, 14, 0)],
+  lift: 0.15,
+};
 
 const LOGS = ['#8c5c38', '#7d5031', '#97653b', '#74492d'];
 const PLANK = ['#6a4529', '#74492c', '#5f3d24', '#6d4527'];

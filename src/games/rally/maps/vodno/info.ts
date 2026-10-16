@@ -1,4 +1,6 @@
+import { shiftedRoute } from '../shared/real-map';
 import type { MapInfo } from '../shared/types';
+import { laneShift } from './crossroad';
 import data from './route.json';
 import { vodnoStages } from './stages';
 
@@ -67,7 +69,9 @@ export const vodnoInfo: MapInfo = {
     exposure: 0.95,
     groundTint: { grass: '#9d9560', amount: 0.5 },
   },
-  route: data.route,
-  // The road's surface, then each section's (the run-up street, the lined climb): see `infoOf` in ../index.ts.
-  surfaces: ['tarmac', 'tarmac'],
+  // The road's centre line (the first crossroad's extra lane moves it): the same points as the full map's road.
+  route: shiftedRoute(data.route, laneShift),
+  // The road's surface, then each section's (the run-up street, the lined climb, the three lanes, the lined climb): see
+  // `infoOf` in ../index.ts.
+  surfaces: ['tarmac', 'tarmac', 'tarmac', 'tarmac'],
 };

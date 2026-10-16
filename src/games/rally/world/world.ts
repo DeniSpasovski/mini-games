@@ -217,6 +217,7 @@ export class World implements GroundProvider {
         channels: this.gen.channels,
         lakes: this.gen.lakes,
         stageId: map.id,
+        treeSetback: map.treeSetback,
       },
     );
     const crowdQ = newPathQuery();

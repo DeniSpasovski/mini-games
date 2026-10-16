@@ -69,8 +69,14 @@ import {
   CURVED_BLOCK,
   CURVED_BOX,
   CURVED_SIZE,
-  frontWall,
+  GARDEN,
 } from './start-blocks';
+import {
+  buildStartWall,
+  WALL_SITE,
+  startWallColliders,
+  wallAreas,
+} from './start-wall';
 import { buildStation } from './station';
 import { buildLodge, buildPlatform } from './summit';
 import {
@@ -450,8 +456,6 @@ export const restaurantLandmark = landmark({
 export const gateLandmark = landmark({
   id: 'vodno-gate',
   areas: GATE_AREAS,
-  // The baked 36 x 8 m box beside the left tower (nothing stands there: the road runs through woods).
-  replaces: (b) => b.id === 603,
   colliders: (g) => [
     boxCollider(TOWER_LEFT, [-1.05, 1.05, -1.05, 1.05], base(g, TOWER_LEFT), 9),
     boxCollider(
@@ -473,15 +477,13 @@ export const gateLandmark = landmark({
   },
 });
 
-/** Depth of the front gardens (m from the facade to the front wall). */
-const GARDEN = { balcony: 4.6, curved: 4.4 };
-
 /** Two blocks of flats on the street before the start: they stand in for the baked boxes 7 and 6. */
 export const startBlocksLandmark = landmark({
   id: 'vodno-start-blocks',
   areas: [
     { site: BALCONY_BLOCK, rect: blockRect(BALCONY_SIZE, GARDEN.balcony) },
     { site: CURVED_BLOCK, rect: blockRect(CURVED_SIZE, GARDEN.curved) },
+    ...wallAreas(),
   ],
   replaces: (b) => b.id === BALCONY_BOX.id || b.id === CURVED_BOX.id,
   colliders: (g) =>
@@ -490,50 +492,20 @@ export const startBlocksLandmark = landmark({
         [BALCONY_BLOCK, BALCONY_SIZE],
         [CURVED_BLOCK, CURVED_SIZE],
       ] as const
-    ).map(([site, size]) =>
-      boxCollider(
-        site,
-        [-size.width / 2, size.width / 2, -size.depth, 0],
-        base(g, site),
-        size.height + 0.8,
-      ),
-    ),
+    )
+      .map(([site, size]) =>
+        boxCollider(
+          site,
+          [-size.width / 2, size.width / 2, -size.depth, 0],
+          base(g, site),
+          size.height + 0.8,
+        ),
+      )
+      .concat(startWallColliders(g)),
   build: (at, ground) => {
-    for (const [site, size, tile, build, kind, garden] of [
-      [
-        BALCONY_BLOCK,
-        BALCONY_SIZE,
-        'balcony-block',
-        buildBalconyBlock,
-        'block',
-        GARDEN.balcony,
-      ],
-      [
-        CURVED_BLOCK,
-        CURVED_SIZE,
-        'curved-block',
-        buildCurvedBlock,
-        'panel',
-        GARDEN.curved,
-      ],
-    ] as const) {
-      const l = at(site, tile);
-      build(l);
-      const base0 = ground(site.x, site.z);
-      const gy = (x: number, z: number): number => {
-        const [wx, wz] = toWorld(site, x, z);
-        return ground(wx, wz) - base0;
-      };
-      // The balcony block's wall stops short of its left end, where the road swings in round the corner.
-      frontWall(
-        l,
-        gy,
-        site === BALCONY_BLOCK ? -6.2 : -size.width / 2 - 0.6,
-        size.width / 2 + 0.6,
-        garden,
-        kind,
-      );
-    }
+    buildBalconyBlock(at(BALCONY_BLOCK, 'balcony-block'));
+    buildCurvedBlock(at(CURVED_BLOCK, 'curved-block'));
+    buildStartWall(at(WALL_SITE, 'start-wall'), ground);
   },
 });
 

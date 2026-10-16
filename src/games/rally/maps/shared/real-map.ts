@@ -6,16 +6,43 @@ import type { BarrierRule, BuildingDef, RoadPoint, RoadSpan } from './types';
  */
 
 /**
+ * The route with its centre line moved sideways by `shiftAt(along)` metres to the RIGHT of the direction of travel (a lane
+ * added on one side: half the extra width, the other edge stays); `along` is measured on the unshifted route.
+ */
+export function shiftedRoute(
+  route: number[][],
+  shiftAt: (along: number) => number,
+): [number, number][] {
+  let along = 0;
+  return route.map(([x, z], i) => {
+    if (i > 0) along += Math.hypot(x - route[i - 1][0], z - route[i - 1][1]);
+    const shift = shiftAt(along);
+    if (!shift) return [x, z];
+    const [ax, az] = route[Math.max(0, i - 1)];
+    const [bx, bz] = route[Math.min(route.length - 1, i + 1)];
+    const l = Math.hypot(bx - ax, bz - az) || 1;
+    // Right of the direction of travel (tx, tz) is (-tz, tx).
+    return [x - ((bz - az) / l) * shift, z + ((bx - ax) / l) * shift];
+  });
+}
+
+/**
  * Baked route control points -> road points, with the width chosen by distance
- * along the route (e.g. wide industrial street, narrow hill road).
+ * along the route (e.g. wide industrial street, narrow hill road). `shiftAt`: see `shiftedRoute`.
  */
 export function routePoints(
   route: number[][],
   widthAt: (along: number) => number,
+  shiftAt?: (along: number) => number,
 ): RoadPoint[] {
+  const centre = shiftAt ? shiftedRoute(route, shiftAt) : route;
   let along = 0;
-  return route.map(([x, z], i) => {
-    if (i > 0) along += Math.hypot(x - route[i - 1][0], z - route[i - 1][1]);
+  return centre.map(([x, z], i) => {
+    if (i > 0)
+      along += Math.hypot(
+        route[i][0] - route[i - 1][0],
+        route[i][1] - route[i - 1][1],
+      );
     return { x, z, width: widthAt(along) };
   });
 }

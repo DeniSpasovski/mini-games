@@ -440,7 +440,9 @@ export class TerrainGenerator {
       });
     }
     if (map.terrain.pads?.length)
-      this.pads = new PadField(map.terrain.pads, this.road);
+      this.pads = new PadField(map.terrain.pads, this.road, (x, z) =>
+        this.naturalHeight(x, z, false, false),
+      );
   }
 
   /** Smoothing window (m) and grade limit of another road's height line: `PATH_PROFILE`, or the map's `pathProfiles`. */
@@ -1811,8 +1813,10 @@ export class TerrainGenerator {
     pathAlong = NaN,
   ): number {
     const cw = this.map.road.cutWalls;
+    // (a `range` limits the walls to that stretch of the stage road)
     if (
       !cw ||
+      cw.range ||
       !(
         this.isCarriageway(pi) ||
         this.underpass.has(pi) ||
@@ -2129,10 +2133,18 @@ export class TerrainGenerator {
   ): number {
     const cw = this.map.road.cutWalls;
     if (!cw) return 0;
+    if (
+      cw.range &&
+      Number.isFinite(along) &&
+      (along < cw.range[0] || along > cw.range[1])
+    )
+      return 0;
     let w = smoothstep(cw.minHeight, cw.minHeight + 1.5, rise);
-    // Inside a portal the walls carry the slab: sheer whatever street runs on top.
+    // Inside a portal the walls carry the slab: sheer whatever street runs on top. (A hand-picked `range` of wall ignores the
+    // streets: its stretch is chosen so.)
     if (
       w > 0 &&
+      !cw.range &&
       this.paths &&
       !(Number.isFinite(along) && this.underSpanAt(along))
     ) {

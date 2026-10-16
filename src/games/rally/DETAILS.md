@@ -180,7 +180,8 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   camera can see (Vodno: nothing south of the ridge). A way merging into another at a shallow angle sets `PathDef.mergeTaper` (its end
   narrows to a point) and `joinsUnder` (its ribbon lies under the other's).
 - **Road textures** (`RoadDef.texture`, per stretch in `sections`): gravel `road`, worn `road_tarmac`, `road_tarmac_lines` (the
-  same with white edge and centre lines), `road_parkway`, the city asphalts.
+  same with white edge and centre lines), `road_tarmac_lanes` (three lanes: edge lines and two dashed lane lines), `road_parkway`, the
+  city asphalts.
 - **Other roads** (`paths`): tarmac ribbons, dirt paint or canals with their own surface; side roads carved with grade limits
   and extended to meet the stage road, the stage's `closures` close the mouths (`world/junctions.ts`). Dirt tracks / paths are
   painted into the splat, and drawn as gravel ribbons too on maps with `trackRibbons`; `pathProfiles` overrides the
@@ -195,9 +196,13 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Buildings:** placeholder boxes with stable ids (`buildings.csv`, viewer `?building=N`) or mesh buildings from the real
   footprints (`world/building-mesh.ts`).
 - **Stage signs:** start / finish gantries and split boards from the stage's `timing`, along the stage road (`world/stage-signs.ts`).
+- **Terrain by hand:** `terrain.pads` level the land round a lot (along the road: `frontage` + `lift`) or a house on a slope (a terrace:
+  `PadDef.level`); the road's carve wins near the road. `road.cutWalls.range` limits the sheer, walled cut to one stretch of the stage
+  road (Vodno's concrete wall at the first crossroad, on a pad `lift`ed above the road: `maps/vodno/crossroad.ts`). `routePoints` takes a
+  sideways shift (a lane added on one side). `MapDef.treeSetback` keeps the solid trees back from the road's edge along a stretch.
 - **Landmarks:** hand-modelled lots on graded pads that replace the placeholders, hooks `surfaceAt` / `keepsClear` /
   `groundOverride` (`world/landmarks.ts`, `pads.ts`; `maps/ajvatovci/start-row`, `hilltop`, `station`; Vodno's car parks:
-  `maps/vodno/landmarks/car-parks.ts` + `lots.ts`, its gate `gate.ts` and the two flats on the start street `start-blocks.ts`). A `PathDef.bare` street gets no kerbs / sidewalks / lamps inside `cityStreets` reach.
+  `maps/vodno/landmarks/car-parks.ts` + `lots.ts`, its gate `gate.ts` and the two flats and their wall on the start street `start-blocks.ts`, `start-wall.ts`). A `PathDef.bare` street gets no kerbs / sidewalks / lamps inside `cityStreets` reach.
 - **City maps** (`jackie`): one-way carriageways, bridges and decks, portals, junction plazas, parkway lanes, continuous
   barriers, retaining walls, gores, overhead signs, kerbs / crosswalks / lamps, parked vehicles (`world/bridge-mesh.ts`,
   `portals.ts`, `plazas.ts`, `parkway-lanes.ts`, `barriers.ts`, `cut-wall-mesh.ts`, `street-detail.ts`).

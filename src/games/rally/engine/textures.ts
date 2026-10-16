@@ -31,6 +31,7 @@ export type TextureId =
   | 'road'
   | 'road_tarmac'
   | 'road_tarmac_lines'
+  | 'road_tarmac_lanes'
   | 'road_parkway'
   | 'road_street'
   | 'road_street4'
@@ -986,6 +987,34 @@ const DEFS: Record<TextureId, TexDef> = {
           rng.next() * h,
           12,
           rng.range(6, 26),
+        );
+      }
+    },
+  },
+  road_tarmac_lanes: {
+    name: 'Old tarmac for three lanes: a worn white edge line each side and a worn dashed lane line each side of the middle lane (12 m per repeat)',
+    size: [512, 512],
+    color: true,
+    draw(ctx, w, h) {
+      DEFS.road_tarmac.draw(ctx, w, h);
+      const rng = new Rng(66);
+      const edges = [0.05, 0.95];
+      const lanes = [0.34, 0.66];
+      ctx.fillStyle = '#d6d6ce';
+      for (const u of edges) ctx.fillRect(u * w - 6, 0, 12, h);
+      // 3 m dash, 9 m gap (the tile is 12 m).
+      for (const u of lanes) ctx.fillRect(u * w - 6, 0, 12, h / 4);
+      // Wear: asphalt specks and gaps over the paint, a few bald stretches where the wheels run.
+      for (let i = 0; i < 3600; i++) {
+        const u = rng.pick([...edges, ...lanes]);
+        const y = rng.next() * h;
+        if (lanes.includes(u) && y > h / 4) continue;
+        ctx.fillStyle = `rgba(${84 + rng.int(0, 30)},${82 + rng.int(0, 30)},${80 + rng.int(0, 30)},${rng.range(0.35, 0.85)})`;
+        ctx.fillRect(
+          u * w + rng.range(-7, 7),
+          y,
+          rng.range(1, 3),
+          rng.range(1, 5),
         );
       }
     },

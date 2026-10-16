@@ -6,14 +6,14 @@ import {
   type V3,
   type Wall,
 } from './common';
-import type { Site } from './sites';
+import type { PadDef } from '../../shared/types';
+import { toWorld, type Site } from './sites';
 
 /**
  * Two blocks of flats on the street just before the stage start (the Vodno neighbourhood), standing where the baked
  * boxes 7 and 6 are, front to the road: the "balcony block" (stacked balconies, peach and cream render) and the
- * "curved block" beside it (beige cladding on the end bays, three floors of balconies under a segmental arch). Each
- * has its own front wall: rough-cut block with pillars in front of the balcony block, a render base with a timber panel
- * fence in front of the curved one. A site is the FRONT-CENTRE of a block's footprint: local x along the facade, +z out
+ * "curved block" beside it (beige cladding on the end bays, three floors of balconies under a segmental arch). The wall
+ * in front of both is `start-wall.ts`. A site is the FRONT-CENTRE of a block's footprint: local x along the facade, +z out
  * towards the street (the facade is the plane z = 0), the block stands at z in [-DEPTH, 0], y up from the ground at
  * the front.
  */
@@ -390,81 +390,75 @@ export function buildBalconyBlock(l: Local): void {
   );
 }
 
-/** World-height of a point of a site's frame over the ground at the site (for walls that step down a slope). */
-export type Stepper = (x: number, z: number) => number;
+/** The baked house on the slope at the corner before the blocks (data.json building 9). */
+export const CORNER_HOUSE = {
+  id: 9,
+  x: 1514.3,
+  z: -1017.6,
+  w: 23.9,
+  d: 10.9,
+  angle: -1.268,
+};
+
+/** Depth of the front gardens (m from the facade to the street wall). */
+export const GARDEN = { balcony: 4.6, curved: 4.4 };
 
 /**
- * A front wall along a facade, stepping with the ground in `step` m sections: `x0..x1` at local z. `kind` 'block' =
- * rough-cut block with pillars every 3 sections (the balcony block), 'panel' = a render base with a timber panel
- * fence and render pillars (the curved block).
+ * The terrace each block stands on (`MapDef.terrain.pads`): level at the middle of its front garden, a little wider than the
+ * block, so the flats stand on flat ground (the street's side of it is held up by the wall, `start-wall.ts`).
  */
-export function frontWall(
-  l: Local,
-  gy: Stepper,
-  x0: number,
-  x1: number,
-  z: number,
-  kind: 'block' | 'panel',
-  step = 2.7,
-): void {
-  const n = Math.max(1, Math.round((x1 - x0) / step));
-  const len = (x1 - x0) / n;
-  for (let i = 0; i < n; i++) {
-    const a = x0 + i * len;
-    const b = a + len;
-    const g = Math.max(gy(a, z), gy(b, z));
-    if (kind === 'block') {
-      l.box('ashlar', [a, DEEP, z - 0.17], [b, g + 1.35, z + 0.17], '#d9caa6');
-      l.box('paint', [a, g + 1.35, z - 0.2], [b, g + 1.43, z + 0.2], '#c9bc9c');
-    } else {
-      l.box('render', [a, DEEP, z - 0.14], [b, g + 0.95, z + 0.14], '#e6e3da');
-      l.box(
-        'paint',
-        [a, g + 0.95, z - 0.16],
-        [b, g + 1.02, z + 0.16],
-        '#cfcbc0',
-      );
-      const slats = ['#a96b3d', '#b47745', '#9d6236', '#b07240'];
-      for (let k = 0; k < 4; k++)
-        l.box(
-          'paint',
-          [a + 0.04, g + 1.02 + k * 0.27, z - 0.04],
-          [b - 0.04, g + 1.02 + (k + 1) * 0.27 - 0.02, z + 0.04],
-          slats[(i + k) % 4],
-        );
-      l.box(
-        'paint',
-        [a, g + 2.1, z - 0.05],
-        [b, g + 2.16, z + 0.05],
-        '#3d4247',
-      );
-      for (const x of [a, b])
-        l.box(
-          'paint',
-          [x - 0.03, g + 1.02, z - 0.06],
-          [x + 0.03, g + 2.16, z + 0.06],
-          '#3d4247',
-        );
-    }
-  }
-  // Pillars at both ends and every third section.
-  for (let i = 0; i <= n; i += i === 0 || i + 3 > n ? 1 : 3) {
-    const x = x0 + i * len;
-    const g = gy(x, z);
-    const top = kind === 'block' ? 1.95 : 2.25;
-    l.box(
-      kind === 'block' ? 'ashlar' : 'render',
-      [x - 0.26, DEEP, z - 0.26],
-      [x + 0.26, g + top, z + 0.26],
-      kind === 'block' ? '#d3c29c' : '#e9e6dd',
-    );
-    l.box(
-      'paint',
-      [x - 0.32, g + top, z - 0.32],
-      [x + 0.32, g + top + 0.09, z + 0.32],
-      '#cfcbc0',
-    );
-  }
+export const BLOCK_PADS: PadDef[] = [
+  ...blockPads(),
+  // The corner house stands on a 5 m slope with its road-side corner 5 m from the road (a house stands on its lowest corner):
+  // its terrace is cut 3 m into the land there, down to that corner (applied last: it keeps its level where the blocks' meet it).
+  terracePad('corner_house', CORNER_HOUSE, 2, [1507.3, -1013.5], -3),
+];
+
+function terracePad(
+  name: string,
+  b: { x: number; z: number; w: number; d: number; angle: number },
+  margin: number,
+  level: [number, number] = [b.x, b.z],
+  lift = 0.1,
+): PadDef {
+  const c = Math.cos(b.angle);
+  const s = Math.sin(b.angle);
+  const hw = b.w / 2 + margin;
+  const hd = b.d / 2 + margin;
+  return {
+    name,
+    polygon: (
+      [
+        [-hw, -hd],
+        [hw, -hd],
+        [hw, hd],
+        [-hw, hd],
+      ] as const
+    ).flatMap(([u, v]) => [b.x + u * c - v * s, b.z + u * s + v * c]),
+    blend: 6,
+    level: { at: level, lift },
+  };
+}
+
+function blockPads(): PadDef[] {
+  return (
+    [
+      ['balcony_block', BALCONY_BLOCK, BALCONY_SIZE, GARDEN.balcony],
+      ['curved_block', CURVED_BLOCK, CURVED_SIZE, GARDEN.curved],
+    ] as const
+  ).map(([name, site, size, garden]): PadDef => ({
+    name,
+    polygon: (
+      [
+        [-size.width / 2 - 1.2, -size.depth - 1.5],
+        [size.width / 2 + 1.2, -size.depth - 1.5],
+        [size.width / 2 + 1.2, garden + 0.4],
+        [-size.width / 2 - 1.2, garden + 0.4],
+      ] as const
+    ).flatMap(([x, z]) => toWorld(site, x, z)),
+    blend: 5,
+    level: { at: toWorld(site, 0, 2.3), lift: 0.1 },
+  }));
 }
 
 /** The facade of a block in the world: where scatter stays off (a margin round the block and its front garden). */

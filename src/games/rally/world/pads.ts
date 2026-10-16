@@ -19,6 +19,8 @@ interface Pad {
   hs: number[];
   /** Slope used beyond the first / last knot (end to end average). */
   slope: number;
+  /** A terrace (`PadDef.level`): this one level over the whole pad. */
+  flat?: number;
   /** A ramp (`PadDef.ramp`): its start, the unit direction and length, the lifts at the two ends. */
   ramp?: {
     x0: number;
@@ -39,16 +41,35 @@ interface Pad {
 export class PadField {
   private pads: Pad[] = [];
 
-  constructor(defs: PadDef[], road: Road) {
+  /** `land` = the terrain before any pad (for the terraces, `PadDef.level`). */
+  constructor(
+    defs: PadDef[],
+    road: Road,
+    land: (x: number, z: number) => number = () => 0,
+  ) {
     const q = newRoadQuery();
     for (const d of defs) {
       // (a ramp's heights come from `ramp.lift`, over the bare road height)
       const lift = d.ramp ? 0 : (d.lift ?? 0.1);
       const knots: { x: number; z: number; h: number }[] = [];
-      for (let i = 0; i + 1 < d.frontage.length; i += 2) {
-        const x = d.frontage[i];
-        const z = d.frontage[i + 1];
+      const frontage = d.frontage ?? [];
+      for (let i = 0; i + 1 < frontage.length; i += 2) {
+        const x = frontage[i];
+        const z = frontage[i + 1];
         if (road.query(x, z, q).found) knots.push({ x, z, h: q.height + lift });
+      }
+      const flat = d.level
+        ? land(d.level.at[0], d.level.at[1]) + (d.level.lift ?? 0.1)
+        : undefined;
+      if (flat !== undefined) {
+        // (one knot pair: the along-street level is never used)
+        const [x, z] = d.level!.at;
+        knots.splice(
+          0,
+          knots.length,
+          { x, z, h: flat },
+          { x: x + 1, z, h: flat },
+        );
       }
       if (knots.length < 2) continue;
       const first = knots[0];
@@ -89,6 +110,7 @@ export class PadField {
         };
       }
       this.pads.push({
+        flat,
         ramp,
         pts,
         minX: minX - d.blend,
@@ -115,6 +137,7 @@ export class PadField {
    * average slope continues (limited to 120 m), so one bad frontage can never send a pad skywards.
    */
   private level(p: Pad, x: number, z: number): number {
+    if (p.flat !== undefined) return p.flat;
     const t = (x - p.x0) * p.dx + (z - p.z0) * p.dz;
     const n = p.ts.length;
     let base: number;

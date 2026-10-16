@@ -38,6 +38,15 @@ import {
   roadZ,
 } from '../../src/games/rally/maps/vodno/landmarks/restaurant';
 import { LOT_PADS } from '../../src/games/rally/maps/vodno/lots';
+import {
+  BANK,
+  LANES_FROM,
+  LANES_TO,
+  laneExtra,
+  WALL_RANGE,
+} from '../../src/games/rally/maps/vodno/crossroad';
+import { CORNER_HOUSE } from '../../src/games/rally/maps/vodno/landmarks/start-blocks';
+import { wallSections } from '../../src/games/rally/maps/vodno/landmarks/start-wall';
 import { SKYLINE } from '../../src/games/rally/maps/vodno/skyline';
 import {
   LODGE,
@@ -61,6 +70,7 @@ import {
   cabinPose,
 } from '../../src/games/rally/world/aerialway';
 import { newRoadQuery } from '../../src/games/rally/world/road';
+import { setbackAt } from '../../src/games/rally/world/scatter';
 import {
   geoToWorld,
   newPathQuery,
@@ -735,16 +745,19 @@ describe('vodno car park surroundings', () => {
 
   test('the approach to the Vidikovec has a rusty guard rail on its drop, the climb white edge and centre lines', () => {
     const rails = (map.barriers ?? []).filter((b) => b.kind === 'guardrail');
-    expect(rails.length).toBeGreaterThan(0);
-    expect(rails.every((b) => b.rusty)).toBe(true);
+    const rusty = rails.filter((b) => b.rusty);
+    expect(rusty.length).toBeGreaterThan(0);
     expect(
-      rails.some((b) => b.side === 'right' && b.from === 2600 && b.to === 2796),
+      rusty.some((b) => b.side === 'right' && b.from === 2600 && b.to === 2796),
     ).toBe(true);
-    const lines = map.road.sections?.filter(
-      (s) => s.texture === 'road_tarmac_lines',
-    );
-    expect(lines?.length).toBe(1);
-    expect(lines?.[0].from).toBe(START);
+    // The one galvanised rail: the left side after the first crossroad.
+    expect(rails.filter((b) => !b.rusty).map((b) => b.side)).toEqual(['left']);
+    // Edge and centre lines from the start, the dashed three-lane stretch at the first crossroad, the lines again after it.
+    expect(map.road.sections?.map((s) => [s.texture, s.from])).toEqual([
+      ['road_tarmac_lines', START],
+      ['road_tarmac_lanes', LANES_FROM],
+      ['road_tarmac_lines', LANES_TO],
+    ]);
   });
 
   test('the service road that merges above the finish ends level with the summit road', () => {
@@ -769,6 +782,84 @@ describe('vodno car park surroundings', () => {
         world.gen.pathHeight(si, L) - world.gen.pathHeight(pq.path, pq.along),
       ),
     ).toBeLessThan(0.05);
+  });
+});
+
+describe('vodno start street and first crossroad', () => {
+  const q = newRoadQuery();
+  /** The ground `d` m to the right of the stage road's centre at `along` (right of travel = (-tz, tx)). */
+  const rightOf = (along: number, d: number) => {
+    const s = world.stageRoad.at(along);
+    return {
+      road: s.y,
+      ground: world.analytic.height(s.x - s.tz * d, s.z + s.tx * d),
+    };
+  };
+
+  test('the road widens to three lanes at the first crossroad and is back to its width after it', () => {
+    expect(laneExtra(300)).toBe(0);
+    expect(laneExtra(440)).toBeGreaterThan(2.8);
+    expect(laneExtra(520)).toBe(0);
+    expect(LANES_FROM).toBeLessThan(WALL_RANGE[1]);
+    expect(LANES_TO).toBeGreaterThan(LANES_FROM);
+  });
+
+  test('the land on the right of the crossroad stands above the road behind its retaining wall', () => {
+    for (const along of [410, 440, 470]) {
+      const { road, ground } = rightOf(along, 9);
+      expect(ground - road, `${along} m`).toBeGreaterThan(BANK - 1);
+    }
+    // Before and after the wall the right side is not lifted by it.
+    expect(rightOf(300, 9).ground - rightOf(300, 9).road).toBeLessThan(3);
+    expect(map.road.cutWalls?.range).toEqual(WALL_RANGE);
+  });
+
+  test('the trees keep back from the road on the start street and ease in and out', () => {
+    const set = map.treeSetback!;
+    expect(set.length).toBeGreaterThan(0);
+    expect(setbackAt(set, 700)).toBe(8);
+    expect(setbackAt(set, set[0].from - 1)).toBe(0);
+    expect(setbackAt(set, set[0].from + 10)).toBeLessThan(8);
+  });
+
+  test('the street wall in front of the blocks is one piece along the road, 6-7 m left of its centre', () => {
+    const secs = wallSections();
+    expect(secs.length).toBeGreaterThan(8);
+    secs.forEach((s, i) => {
+      expect(s.len).toBeLessThanOrEqual(3.3);
+      if (i > 0) {
+        expect(
+          Math.hypot(s.a[0] - secs[i - 1].b[0], s.a[1] - secs[i - 1].b[1]),
+        ).toBeLessThan(0.01);
+      }
+      const mid = [(s.a[0] + s.b[0]) / 2, (s.a[1] + s.b[1]) / 2];
+      const r = world.road.query(mid[0], mid[1], q);
+      expect(r.found).toBe(true);
+      const off = r.distance - r.halfWidth;
+      expect(off, `section ${i}`).toBeGreaterThan(2.5);
+      expect(off, `section ${i}`).toBeLessThan(5);
+    });
+  });
+
+  test('the corner house stands level: its footprint is flat, not buried in the slope', () => {
+    const { x, z, w, d, angle } = CORNER_HOUSE;
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    const ys = (
+      [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+        [0, 0],
+      ] as const
+    ).map(([u, v]) =>
+      world.analytic.height(
+        x + u * w * 0.5 * c - v * d * 0.5 * s,
+        z + u * w * 0.5 * s + v * d * 0.5 * c,
+      ),
+    );
+    expect(Math.max(...ys) - Math.min(...ys)).toBeLessThan(0.4);
   });
 });
 
