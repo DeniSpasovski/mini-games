@@ -311,6 +311,12 @@ export interface HorizonDef {
     /** Per cell 4 x 4 bit shares (uint16 LE, base64): trees, crops, built / bare, water; grass = the rest. */
     cover: string;
   }[];
+  /** Far rivers (`scripts/realmap/rivers.py`): drawn as a flat ribbon on the backdrop, over the finest grid. */
+  rivers?: {
+    name: string;
+    /** Flat [x, z, width, ...] (world metres), ordered along the river. */
+    pts: number[];
+  }[];
 }
 
 /** A big building on the skyline: an extruded footprint with a banded facade (one wall / glass band per floor). */

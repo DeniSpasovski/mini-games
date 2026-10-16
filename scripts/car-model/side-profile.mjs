@@ -65,6 +65,7 @@ const LAMPS = new Set([
   'lampclear',
   'lampred',
   'brakestrip',
+  'brakestripred',
   'tailweave',
   'lensweave',
   'redcover',

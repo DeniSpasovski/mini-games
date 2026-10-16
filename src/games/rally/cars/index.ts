@@ -12,6 +12,7 @@ import { porsche911930 } from './porsche-911-930/porsche-911-930';
 import type { CarDef } from './shared/types';
 import { skodaRally } from './skoda-rally/skoda-rally';
 import { subie22b } from './subie-22b/subie-22b';
+import { subieWrxSti } from './subie-wrx-sti/subie-wrx-sti';
 import { zastava101 } from './zastava-101/zastava-101';
 
 /** Car registry in menu order (AWD, FWD, RWD; each by name), test-only cars included. Add new cars here + a `hideInProd` row to CARS_LIST in release.ts (see .claude/skills/rally-content). */
@@ -22,6 +23,7 @@ export const ALL_CARS: CarDef[] = [
   audiRs6,
   skodaRally,
   subie22b,
+  subieWrxSti,
   // FWD, by name
   peugeot206,
   zastava101,

@@ -59,6 +59,7 @@ Some roads, properties and outlines were added or traced by hand on top of the o
 | `peugeot_206.glb`, `peugeot_206_wheel.glb`                                               | "Peugeot 206" by Alvier (Sketchfab; split by material and converted, tyres + discs + calipers + springs dropped, lion emblem, rear lettering and side badge dropped; rim extracted, centre-cap emblem flattened; flat paint at runtime)                                                            | CC BY 4.0                    |
 | `audi_rs6.glb`, `audi_rs6_wheel.glb`, `audi_rs6_lamps.png`                               | "Audi RS 6 Avant (C8)" by GT Cars: Hyperspeed (Sketchfab; split by material and converted, tyres + discs + calipers + engine bay dropped, rings, badges, lettering and plate removed; rim extracted; lamp texture kept; flat paint at runtime)                                                     | CC BY 4.0                    |
 | `porsche_911_930.glb`, `porsche_911_930_wheel.glb`, `porsche_911_930_lamp.png`           | "Porsche 911 (930) Turbo 1975" by Lexyc16 (Sketchfab; split by material and converted, wheels dropped, rear light wordmark replaced by a flat lens; rim extracted, nuts dropped, recoloured two-tone; headlamp texture kept; flat paint at runtime)                                                | CC BY 4.0                    |
+| `subie_wrx_sti.glb`, `subie_wrx_sti_wheel.glb`, `subie_wrx_sti_lamps.png`                | "2019 Rowen Subaru WRX STI" by Car design (Sketchfab; split by material and converted, tyres + discs + calipers + engine bay dropped, badges, lettering and plates removed; rim extracted; lamp texture kept; cockpit simplified; flat paint at runtime)                                           | CC BY 4.0                    |
 | `lancer_evo_6.glb`, `lancer_evo_6_wheel.glb`, `lancer_evo_6_{lamps,seat,fabric,cab}.png` | "Mitsubishi Lancer Evolution 6" by vecarz (Sketchfab; converted and repainted, badges + plate removed; lamp and seat textures kept)                                                                                                                                                                | CC BY 4.0                    |
 
 ### Background cars (baked into `src/games/rally/assets/builders/street-cars.data.ts`)
@@ -71,6 +72,18 @@ about 900 / 450 triangles and packed by `scripts/car-model/bake-street-cars.mjs`
 | ["Generic passenger car pack"](https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5) (modern cars)            | [Comrade1280](https://sketchfab.com/comrade1280) (Sketchfab) | CC BY 4.0 |
 | ["Low Poly Vehicle Mini Pack 8"](https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-8-52ee24ff6eb2479891fe68e6ce46af28) (old boxy cars)      | [Vladek](https://sketchfab.com/vladek27) (Sketchfab)         | CC BY 4.0 |
 | ["Low Poly Vehicle Mini Pack 7"](https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-7-c8fce59e51874a4182dc20a66cbc6c74) (vans, not used yet) | [Vladek](https://sketchfab.com/vladek27) (Sketchfab)         | CC BY 4.0 |
+
+### Parked trucks (baked into `src/games/rally/maps/ajvatovci/start-row/build/truck-models.data.ts`)
+
+The tractor units, trailers, box-truck cabs and dump trucks parked at Ajvatovci are recoloured copies of two CC BY 4.0
+models (split and packed by `scripts/car-model/street-pack-extract.py` + `bake-truck-textures.py` + `bake-trucks.mjs`; their own
+triangles and textures, the tyre hub-cap emblem blanked; the dump truck's other backs are built in code; the source files are not in
+the repository).
+
+| Model                                                                                                                   | Author                   | Licence   |
+| ----------------------------------------------------------------------------------------------------------------------- | ------------------------ | --------- |
+| ["Low Poly Truck"](https://sketchfab.com/3d-models/low-poly-truck-d61a2ac0a706462ebf82459907f21573) (tractor + trailer) | FS 3D Studio (Sketchfab) | CC BY 4.0 |
+| ["Dump Truck"](https://sketchfab.com/3d-models/dump-truck-781c616da8f44982a59cb3fc3fa67f98)                             | ElectroNick (Sketchfab)  | CC BY 4.0 |
 
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 
