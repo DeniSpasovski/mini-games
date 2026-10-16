@@ -8,8 +8,8 @@ import { LEVEL_IDS, type LevelId } from './game/levels';
 
 export const LEVELS_LIST: readonly ReleaseEntry[] = [
   { id: 'quarry' },
-  { id: 'valley', hideInProd: true },
-  { id: 'sea', hideInProd: true },
+  { id: 'valley' },
+  { id: 'sea' },
 ];
 
 /** The levels this build offers (all of them on the dev server and in test builds). */
