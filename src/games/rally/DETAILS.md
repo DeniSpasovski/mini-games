@@ -234,6 +234,14 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   `scripts/car-model/street-pack-extract.py` + `bake-street-cars.mjs`): ~900 / ~450 triangles, one draw call per LOD, the body
   paint recoloured per car (variants 0-14 = model, `STREET_CAR_MIX` weights what streets pick; 15 = the white hatch a map places).
   Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` holds the triangle budget.
+- The Ajvatovci yards' trucks (`maps/ajvatovci/start-row/build/vehicles.ts`, `truck-models.ts`) are baked from two CC BY models
+  (`scripts/car-model/bake-trucks.mjs`, data in `truck-models.data.ts`): `tractor` + `trailer` (the `trailer` kind), the `tractor` under a
+  code-built tank (`tanker`), the `cab` under a code-built box (`box`) and a `dump` truck whose back is swapped (`Back`: tipper, flatbed,
+  van body, tank; every 2nd-8th box-truck place, `DUMP_CYCLE`). The models keep their own triangles (welded, never simplified) and
+  textures; the code adds nothing to lamps or grilles. `cab` / `paint` parts take the placement's cab / body colour through a tint
+  mask (`truckMaps`: the light neutral panels of the texture, so grille, lamps and stripes keep their look); the `tyre` model is the
+  template for the axles the builders add. Textures + masks come from `scripts/car-model/bake-truck-textures.py` (run it after
+  `street-pack-extract.py --images`, then `bake-trucks.mjs`); the hub-cap emblem is blanked there.
 - Car GLBs are committed plain (the model scripts and `hull-fit.test.ts` read them); the build copies them meshopt-compressed
   (`scripts/car-model/glb-meshopt.mjs`, about half the size, same meshes; `car-glb-meshopt.test.ts` checks every file).
 - **Door plates** (`cars/shared/rally-badge.ts`): our own event plate (emblem, car number, map name) projected onto both front
