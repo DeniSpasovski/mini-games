@@ -15,6 +15,10 @@ import { CARS, getCar } from '../cars';
 import { rallyName } from '../cars/shared/rally-badge';
 import type { CarDef } from '../cars/shared/types';
 import { Environment } from '../engine/environment';
+import { LIGHTS_MIN_NEED } from '../engine/night';
+import { setHeadBeam, setLampGlow } from '../engine/night-glow';
+import { LampPools } from '../world/lamp-pools';
+import { NightBloom } from '../engine/night-bloom';
 import type { QualitySettings } from '../engine/quality';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
 import { setClockTime } from '../engine/stage-sign-textures';
@@ -30,6 +34,7 @@ import { PHYSICS_HZ, Vehicle } from '../physics/vehicle';
 import { isTestCar, isTestStage, TEST_NOTE } from '../release';
 import { getAssetMeta } from '../assets/catalog';
 import { Breakables } from '../world/breakables';
+import { PeopleAnimator } from '../world/people-anim';
 import { DistanceCull } from '../world/distance-cull';
 import { InstanceStreamer } from '../world/instance-streamer';
 import { TreeRenderer } from '../trees/draw';
@@ -63,6 +68,7 @@ import { World } from '../world/world';
 import { CarAudio } from './audio';
 import { Autopilot, finishStopControls } from './autopilot';
 import { ContactShadow } from './contact-shadow';
+import { Headlights } from './headlights';
 import { CameraRig } from './camera-rig';
 import { ParticleSystem } from './dust';
 import { TyreMarks } from './tyre-marks';
@@ -86,6 +92,7 @@ import {
   timesVersion,
 } from './stage';
 import { stageClimate } from '../maps/shared/climate';
+import { airAtHour } from '../maps/shared/day-temperature';
 import type { MapDef, StageDef } from '../maps/shared/types';
 import { trackTemp } from '../physics/tyre-temp';
 import type { TyreGaugeState } from './tyre-gauge';
@@ -158,6 +165,13 @@ export class RallyGame {
   /** Hides road-group meshes beyond the terrain view distance (world/distance-cull.ts). */
   roadCull!: DistanceCull;
   contactShadow!: ContactShadow;
+  /** Night only (`env.night`): the car's lights. */
+  private headlights?: Headlights;
+  /** High quality at night / dusk: glow around lamps and reflectors. */
+  private bloom?: NightBloom;
+  private readonly lampColor = new Color();
+  private lampPos = new Vector3();
+  private lampDir = new Vector3();
   streamer!: InstanceStreamer;
   /** L-system trees (trees/): their variants and the renderer drawing them. */
   treeLibrary!: TreeLibrary;
@@ -167,6 +181,8 @@ export class RallyGame {
   loadMs = 0;
   /** Marker posts the car knocks over (drawn by the streamer). */
   breakables!: Breakables;
+  /** Fans, marshals and photographers turning to follow the car. */
+  people!: PeopleAnimator;
   stage!: StageTimer;
   readonly input = new InputController();
   rig!: CameraRig;
@@ -360,6 +376,7 @@ export class RallyGame {
     this.breakables = new Breakables(this.world.scatter, (x, z) =>
       this.world.heightAt(x, z),
     );
+    this.people = new PeopleAnimator(this.world.scatter.fixedInstances());
     await frame();
 
     progress(0.9, 'Car');
@@ -372,13 +389,14 @@ export class RallyGame {
       this.world,
     );
     this.vehicle.setTyre(this.opts.tyre);
-    // Tyre temperatures: the map's air temperature (`?air=<°C>` to try others) and the sun as drawn (after `?tod=`).
+    // Tyre temperatures: the map's air temperature at the hour drawn (`?tod=`; `?air=<°C>` to try others) and the sun as drawn.
     const air = new URLSearchParams(location.search).get('air');
     this.vehicle.setClimate(
       stageClimate(
         map.environment,
         this.env.sunElevation,
-        paramNumber(air, -60, 70, undefined),
+        paramNumber(air, -60, 70, undefined) ??
+          airAtHour(map.environment, this.env.hour),
       ),
     );
     this.model = new CarModel(this.car, {
@@ -386,6 +404,46 @@ export class RallyGame {
       tyre: this.opts.tyre,
     });
     this.scene.add(this.model.root);
+    if (this.env.lightNeed >= LIGHTS_MIN_NEED) {
+      // Lights on (night, and fading in through dusk / dawn): lamp glow, tail lamps, two spot lights and the beam in
+      // the air, all scaled by how dark it is (before the first compile).
+      const need = this.env.lightNeed;
+      this.model.setLamps(need);
+      let zf = -Infinity;
+      let hx = 0;
+      for (const w of this.vehicle.wheels) {
+        zf = Math.max(zf, w.mount.z);
+        hx = Math.max(hx, Math.abs(w.mount.x));
+      }
+      this.headlights = new Headlights(
+        this.model.root,
+        { x: hx * 0.8, y: 0.7, z: zf + 0.75 },
+        q.name,
+        this.car.headlights,
+        need,
+      );
+    }
+    if (q.name === 'high' && this.env.lightNeed >= LIGHTS_MIN_NEED)
+      this.bloom = new NightBloom(
+        this.renderer,
+        this.scene,
+        this.camera,
+        q.antialias,
+        this.env.lightNeed,
+      );
+    setLampGlow(this.env.lightNeed);
+    if (this.env.lightNeed >= LIGHTS_MIN_NEED) {
+      // Street lamps: light pools on the ground under the lamps (the lens glow is the `lamp_lens` material).
+      this.scene.add(
+        new LampPools(
+          [...this.world.scatter.fixedInstances()].filter(
+            (i) => i.asset === 'street_lamp',
+          ),
+          (x, z) => this.world.heightAt(x, z),
+          this.env.lightNeed,
+        ).mesh,
+      );
+    }
     // Soft dark patch under the car: grounds it at any shadow resolution.
     this.contactShadow = new ContactShadow(this.vehicle, (x, z) =>
       this.world.heightAt(x, z),
@@ -436,6 +494,7 @@ export class RallyGame {
     await paint();
     this.model.updateFromVehicle(this.vehicle, 1);
     // The chase camera at the start line (it only moves in frame()): the trees are batched for where it looks from.
+    if (this.headlights) this.lightParticlesByHeadlights();
     this.renderPos.copy(this.model.root.position);
     this.renderFwd.set(0, 0, 1).applyQuaternion(this.model.root.quaternion);
     this.renderUp.set(0, 1, 0).applyQuaternion(this.model.root.quaternion);
@@ -505,13 +564,30 @@ export class RallyGame {
     const sun = this.env.sun.color
       .clone()
       .multiplyScalar(this.env.sun.intensity / 3.1);
-    // Half sky colour, half white: dust in the shade stays dust-coloured, not blue.
-    const ambient = this.env.hemi.color
-      .clone()
-      .lerp(new Color(1, 1, 1), 0.5)
-      .multiplyScalar(0.65);
+    // Half sky colour, half white: dust in the shade stays dust-coloured, not blue. Night: only the moon's blue.
+    const ambient = this.env.night
+      ? this.env.hemi.color.clone().multiplyScalar(0.25)
+      : this.env.hemi.color
+          .clone()
+          .lerp(new Color(1, 1, 1), 0.5)
+          .multiplyScalar(0.65);
     for (const p of [this.dust, this.gravel, this.haze])
       p?.setLight(sun, ambient);
+  }
+
+  /** Night: dust, spray and haze in the beam glow (the beam follows the car, so this runs every frame). */
+  private lightParticlesByHeadlights(): void {
+    const root = this.model.root;
+    root.updateMatrixWorld();
+    this.lampPos.set(0, 0.7, 2).applyMatrix4(root.matrixWorld);
+    this.lampDir.set(0, -0.02, 1).transformDirection(root.matrixWorld);
+    const c = this.headlights?.color;
+    if (!c) return;
+    this.lampColor.copy(c).multiplyScalar(this.env.lightNeed);
+    for (const p of [this.dust, this.gravel, this.haze])
+      p?.setHeadlight(this.lampColor, this.lampPos, this.lampDir);
+    // Reflectors and reflective boards in the beam.
+    setHeadBeam(this.lampColor, this.lampPos, this.lampDir);
   }
 
   /** Name of the stage surface the fitted tyre grips worst ("gravel"), or null when it is fine on all of them. */
@@ -541,6 +617,7 @@ export class RallyGame {
     this.tyreMarks?.breakStrips();
     this.rig.snap();
     this.breakables.reset((inst) => this.streamer.setMatrix(inst, null));
+    this.people.reset((inst, m) => this.streamer.setMatrix(inst, m));
     if (this.freeDrive) {
       this.stage.freeDrive();
       this.hud.message('FREE DRIVE', 2, 'small');
@@ -1107,6 +1184,14 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       // Slow-mo instead of a death spiral; keep the remainder (< 1 step) so the interpolated car never steps back.
       if (steps === MAX_STEPS) this.acc = Math.min(this.acc, STEP);
       this.knockPosts(dt);
+      this.people.update(
+        dt,
+        v.position.x,
+        v.position.z,
+        v.velocity.x,
+        v.velocity.z,
+        (inst, m) => this.streamer.setMatrix(inst, m),
+      );
     } else this.input.poll();
     const tPhysics = performance.now();
     const alpha = this.paused ? 1 : this.acc / STEP;
@@ -1232,7 +1317,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
 
     const tFx = performance.now();
     this.perf?.gpuBegin();
-    this.renderer.render(this.scene, this.camera);
+    if (this.bloom) this.bloom.render();
+    else this.renderer.render(this.scene, this.camera);
     this.perf?.gpuEnd();
     const tRender = performance.now();
     this.perf?.frame({

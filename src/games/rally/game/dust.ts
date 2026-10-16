@@ -8,7 +8,7 @@ import {
   ShaderMaterial,
   UniformsLib,
   UniformsUtils,
-  type Vector3,
+  Vector3,
 } from 'three';
 import { getTexture } from '../engine/textures';
 import { WORLD_SHADING_DECL, worldUniforms } from '../engine/world-shading';
@@ -70,6 +70,10 @@ export class ParticleSystem {
           // Unlit until setLight (ambient 1, no sun) = the old flat look.
           uSun: { value: new Color(0, 0, 0) },
           uAmbient: { value: new Color(1, 1, 1) },
+          // Headlight beam at night: colour (black = off), lamp position and aim in world space.
+          uHead: { value: new Color(0, 0, 0) },
+          uHeadPos: { value: new Vector3() },
+          uHeadDir: { value: new Vector3(0, 0, 1) },
         },
       ]),
       vertexShader: /* glsl */ `
@@ -81,13 +85,15 @@ export class ParticleSystem {
         varying float vSpin;
         varying vec3 vColor;
         varying vec3 vRay;
+        varying vec3 vWorld;
         uniform float uScale;
         #include <fog_pars_vertex>
         void main() {
           vAlpha = alpha;
           vSpin = spin;
           vColor = color;
-          vRay = ( modelMatrix * vec4( position, 1.0 ) ).xyz - cameraPosition;
+          vWorld = ( modelMatrix * vec4( position, 1.0 ) ).xyz;
+          vRay = vWorld - cameraPosition;
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = size * uScale / max(0.5, -mvPosition.z);
           gl_Position = projectionMatrix * mvPosition;
@@ -98,11 +104,15 @@ export class ParticleSystem {
         uniform vec3 uLight;
         uniform vec3 uSun;
         uniform vec3 uAmbient;
+        uniform vec3 uHead;
+        uniform vec3 uHeadPos;
+        uniform vec3 uHeadDir;
         ${WORLD_SHADING_DECL}
         varying float vAlpha;
         varying float vSpin;
         varying vec3 vColor;
         varying vec3 vRay;
+        varying vec3 vWorld;
         #include <fog_pars_fragment>
         void main() {
           float c = cos( vSpin ), s = sin( vSpin );
@@ -112,7 +122,12 @@ export class ParticleSystem {
           // Forward scattering towards the camera when it looks at the sun through the dust.
           float toSun = max( dot( normalize( vRay ), wsSunDir ), 0.0 );
           float scatter = 0.75 + 1.6 * toSun * toSun * toSun * toSun * toSun;
-          gl_FragColor = vec4( vColor * uLight * ( uAmbient + uSun * scatter ), a );
+          // Dust, spray and haze inside the headlight beam glow (night).
+          vec3 toP = vWorld - uHeadPos;
+          float dHead = max( length( toP ), 0.5 );
+          float cone = smoothstep( 0.9, 0.97, dot( toP / dHead, uHeadDir ) );
+          vec3 head = uHead * cone * ( 6.0 / ( 1.0 + dHead * 0.08 ) );
+          gl_FragColor = vec4( vColor * uLight * ( uAmbient + uSun * scatter + head ), a );
           #include <fog_fragment>
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
@@ -127,6 +142,14 @@ export class ParticleSystem {
     this.points = new Points(g, this.material);
     this.points.frustumCulled = false;
     this.points.renderOrder = 2;
+  }
+
+  /** Night: the car's headlight beam (world-space lamp position and aim) lights the particles inside it; black = off. */
+  setHeadlight(color: Color, pos: Vector3, dir: Vector3): void {
+    const u = this.material.uniforms;
+    u.uHead.value.copy(color);
+    u.uHeadPos.value.copy(pos);
+    u.uHeadDir.value.copy(dir);
   }
 
   /** Light the particles: sun colour x intensity scale and the ambient (sky) colour. */

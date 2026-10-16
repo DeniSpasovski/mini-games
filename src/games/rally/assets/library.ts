@@ -9,7 +9,6 @@ import {
   hayBale,
   markerPost,
   roadBarrier,
-  spectator,
   streetLamp,
   trafficSignal,
   wallLamp,
@@ -17,6 +16,15 @@ import {
   villageSign,
 } from './builders/props';
 import { buildingFlat, housePitched } from './builders/buildings';
+import {
+  crew,
+  driver,
+  marshal,
+  mechanic,
+  photographer,
+  spectator,
+  visitor,
+} from './builders/people';
 import { rockBoulder, rockSmall } from './builders/rocks';
 import {
   ambulance,
@@ -59,6 +67,12 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   rock_small: rockSmall,
   hay_bale: hayBale,
   spectator,
+  mechanic,
+  crew,
+  driver,
+  marshal,
+  photographer,
+  visitor,
   tape_post: tapePost,
   fan_flag: fanFlag,
   flagpole,

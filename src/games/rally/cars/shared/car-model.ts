@@ -9,6 +9,7 @@ import {
   CylinderGeometry,
   DoubleSide,
   ExtrudeGeometry,
+  FrontSide,
   Group,
   InstancedMesh,
   LatheGeometry,
@@ -25,6 +26,7 @@ import {
   SphereGeometry,
   Vector2,
   Vector3,
+  type ColorRepresentation,
   type Material,
   type Texture,
 } from 'three';
@@ -141,6 +143,7 @@ const lightMat = new MeshStandardMaterial({
   roughness: 0.12,
   ...decal,
 });
+markHeadLamp(lightMat, 5);
 // Unlit lamp lenses: deep glossy colour, a little glow (ribbed lens geometry gives the sparkle).
 const tailMat = new MeshStandardMaterial({
   color: 0x720709,
@@ -209,6 +212,15 @@ function lampCellTexture(): CanvasTexture {
   return cellTex;
 }
 
+/** Mark a lamp material as a headlight: its emissive intensity goes from today's value to `on` with the lights on (`CarModel.setLamps`). */
+function markHeadLamp<M extends Material & { emissiveIntensity: number }>(
+  m: M,
+  on: number,
+): M {
+  m.userData.headLamp = { off: m.emissiveIntensity, on };
+  return m;
+}
+
 /** Mark a lamp material as a brake light: its emissive intensity goes from today's value to `on` when braking. */
 function markBrakeLamp<M extends Material & { emissiveIntensity: number }>(
   m: M,
@@ -266,6 +278,23 @@ const caliperMat = new MeshStandardMaterial({
   roughness: 0.45,
   metalness: 0.3,
 });
+/**
+ * Rim paint. `vertexColors` = a rim whose GLB carries its own colours (two-tone, `COLOR_0`): they show as they are, and
+ * the material is double-sided because such a rim is a thin dished shell that is also seen from inside.
+ */
+export function createRimMaterial(
+  color: ColorRepresentation,
+  vertexColors = false,
+): MeshStandardMaterial {
+  return new MeshStandardMaterial({
+    color: vertexColors ? 0xffffff : color,
+    metalness: 0.75,
+    roughness: 0.32,
+    vertexColors,
+    side: vertexColors ? DoubleSide : FrontSide,
+  });
+}
+
 /** The shared wheel materials (the setup screen's parts bench draws the same tyres / rims / brakes). */
 export const wheelMaterials = {
   get tire() {
@@ -322,6 +351,8 @@ function getMeshMaterial(): MeshStandardMaterial {
   return meshMat;
 }
 
+/** Extra emissive intensity of a tail lamp with the lights on (night), up to its full brake glow. */
+const TAIL_NIGHT_GLOW = 1;
 /** Livery brightness (linear) inside a recess (CarModel.recessMaterial). */
 const RECESS_SHADE = 0.12;
 /** Imported-model parts that never cast a shadow (hidden by the body's own shadow or too small to show). */
@@ -334,6 +365,8 @@ const NO_SHADOW_PARTS = new Set([
   'tailled',
   'brakestrip',
   'reverselamp',
+  'lampclear',
+  'lampred',
   'lenscover',
   'redcover',
   'brakecover',
@@ -359,6 +392,10 @@ export class CarModel {
   private owned: (Material | Texture | BufferGeometry)[] = [];
   /** This car's own copies of its brake-lamp materials (collected on the first setBrake / after the import). */
   private brakeLamps?: MeshStandardMaterial[];
+  private headLamps: MeshStandardMaterial[] = [];
+  /** Lights on (night): headlamps glow, tail lamps keep a steady glow under the brake light. */
+  /** 0..1 lights level (`setLamps`). */
+  private lampsOn = 0;
   private brakeLevel = 0;
   private reversing = false;
   /** Fitted compound (null = plain tyre). */
@@ -371,6 +408,8 @@ export class CarModel {
   /** Rims of the car's wheel GLBs in unit space once loaded (STL wheels), by file. */
   private stlRims = new Map<string, BufferGeometry>();
   private rimMat: MeshStandardMaterial;
+  /** Rim material for a wheel GLB with its own vertex colours (two-tone rims): white, the colours come from the mesh. */
+  private rimColoredMat?: MeshStandardMaterial;
   private calMat: MeshStandardMaterial;
   /** Ride height last set by `setRideHeight` (showroom pose; null = the vehicle drives the wheels). */
   private ride: number | null = null;
@@ -435,11 +474,7 @@ export class CarModel {
         })
       : glassMat;
     if (carGlass !== glassMat) this.owned.push(carGlass);
-    const rimMat = new MeshStandardMaterial({
-      color: def.model.rim.color,
-      metalness: 0.75,
-      roughness: 0.32,
-    });
+    const rimMat = createRimMaterial(def.model.rim.color);
     this.owned.push(plainMat, rimMat);
     this.rimMat = rimMat;
 
@@ -739,7 +774,8 @@ export class CarModel {
 
   private clearBadge(): void {
     const mat = this.badgeMeshes[0]?.material as
-      MeshStandardMaterial | undefined;
+      | MeshStandardMaterial
+      | undefined;
     for (const m of this.badgeMeshes) {
       m.removeFromParent();
       m.geometry.dispose();
@@ -1016,6 +1052,14 @@ export class CarModel {
     };
   }
 
+  private rimColored(): MeshStandardMaterial {
+    if (!this.rimColoredMat) {
+      this.rimColoredMat = createRimMaterial(0xffffff, true);
+      this.owned.push(this.rimColoredMat);
+    }
+    return this.rimColoredMat;
+  }
+
   /** Rebuild tyre / rim / brake geometry for the fitted compound and swap it in (old ones are disposed). */
   private refreshWheels(): void {
     this.rimMat.color.set(rimColorFor(this.def.model, this.tyre));
@@ -1025,11 +1069,69 @@ export class CarModel {
       g.geoms = [w.tire, w.rim, w.caliper];
       g.tire.geometry = w.tire;
       g.rim.geometry = w.rim;
+      g.rim.material = w.rim.hasAttribute('color')
+        ? this.rimColored()
+        : this.rimMat;
       g.caliper.geometry = w.caliper;
       if (g.disc && w.disc) {
         g.disc.geometry = w.disc;
         g.geoms.push(w.disc);
       } else w.disc?.dispose();
+    }
+  }
+
+  /** This car's own copies of its lamp materials (shared ones would light every car), then the lamp state as it is now. */
+  private collectLamps(): void {
+    const own = new Map<Material, MeshStandardMaterial>();
+    this.root.traverse((o) => {
+      const mesh = o as Mesh;
+      if (!mesh.isMesh) return;
+      const m = mesh.material as MeshStandardMaterial;
+      if (
+        !m ||
+        Array.isArray(m) ||
+        !(m.userData.brakeLamp || m.userData.headLamp)
+      )
+        return;
+      if (m.userData.brakeOwner === this) {
+        own.set(m, m);
+        return;
+      }
+      let c = own.get(m);
+      if (!c) {
+        c = m.clone();
+        // clone() drops per-material shader hooks (lampDepth's recessed lamps).
+        c.onBeforeCompile = m.onBeforeCompile;
+        c.customProgramCacheKey = m.customProgramCacheKey;
+        c.userData = { ...m.userData, brakeOwner: this };
+        own.set(m, c);
+        this.owned.push(c);
+      }
+      mesh.material = c;
+    });
+    const all = [...new Set(own.values())];
+    this.brakeLamps = all.filter((m) => m.userData.brakeLamp);
+    this.headLamps = all.filter((m) => m.userData.headLamp);
+    this.brakeLevel = -1;
+    this.applyHeadLamps();
+  }
+
+  private applyHeadLamps(): void {
+    for (const m of this.headLamps) {
+      const { off, on } = m.userData.headLamp as { off: number; on: number };
+      m.emissiveIntensity = off + (on - off) * this.lampsOn;
+    }
+  }
+
+  /** Lights on / off (night): headlamps glow, tail lamps stay lit (brake light still brighter). */
+  setLamps(on: boolean | number): void {
+    const level = Number(on);
+    if (level === this.lampsOn) return;
+    this.lampsOn = level;
+    if (!this.brakeLamps) this.collectLamps();
+    else {
+      this.brakeLevel = -1; // the next setBrake rewrites the tail lamps
+      this.applyHeadLamps();
     }
   }
 
@@ -1040,45 +1142,21 @@ export class CarModel {
    * (the game passes the pedal that brakes in reverse): then only the red brake glow shows.
    */
   setBrake(level: number, reversing = false): void {
-    if (!this.brakeLamps) {
-      const own = new Map<Material, MeshStandardMaterial>();
-      this.root.traverse((o) => {
-        const mesh = o as Mesh;
-        if (!mesh.isMesh) return;
-        const m = mesh.material as MeshStandardMaterial;
-        if (!m || Array.isArray(m) || !m.userData.brakeLamp) return;
-        if (m.userData.brakeOwner === this) {
-          own.set(m, m);
-          return;
-        }
-        let c = own.get(m);
-        if (!c) {
-          c = m.clone();
-          // clone() drops per-material shader hooks (lampDepth's recessed lamps).
-          c.onBeforeCompile = m.onBeforeCompile;
-          c.customProgramCacheKey = m.customProgramCacheKey;
-          c.userData = { ...m.userData, brakeOwner: this };
-          own.set(m, c);
-          this.owned.push(c);
-        }
-        mesh.material = c;
-      });
-      this.brakeLamps = [...new Set(own.values())];
-      this.brakeLevel = -1;
-    }
+    if (!this.brakeLamps) this.collectLamps();
     const l = Math.max(0, Math.min(1, level));
     if (Math.abs(l - this.brakeLevel) < 0.02 && reversing === this.reversing)
       return;
     this.brakeLevel = l;
     this.reversing = reversing;
-    for (const m of this.brakeLamps) {
+    for (const m of this.brakeLamps ?? []) {
       const { off, on, reverseGlow } = m.userData.brakeLamp as {
         off: number;
         on: number;
         reverseGlow?: Texture;
       };
       m.userData.brakeGlow ??= m.emissiveMap;
-      const lit = off + (on - off) * l;
+      const idle = off + Math.min(on - off, TAIL_NIGHT_GLOW) * this.lampsOn;
+      const lit = idle + (on - idle) * l;
       if (reverseGlow && reversing && l < 0.02) {
         // Reversing without the brake pedal: the white section only. With the brake down the white one goes dark.
         m.emissiveMap = reverseGlow;
@@ -1162,6 +1240,10 @@ export function buildWheelSet(
   const scale = barrel / RIM_UNIT_BARREL;
   const brakes = buildBrakeGeometries(scale, size.width);
   base.caliper.dispose();
+  if (def.model.rim.caliper === false) {
+    brakes.caliper.dispose();
+    brakes.caliper = new BoxGeometry(0.001, 0.001, 0.001);
+  }
   let rim = base.rim;
   const stlRim = stlRims.get(file);
   if (stlRim) {

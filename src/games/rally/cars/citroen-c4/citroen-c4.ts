@@ -111,6 +111,14 @@ export const citroenC4: CarDef = {
       note: 'specification reference',
     },
   ],
+  // Night headlights: rally lamps with driving lights.
+  headlights: {
+    power: 1.2,
+    color: 0xfff4e0,
+    angle: 0.38,
+    penumbra: 0.45,
+    spill: 0.2,
+  },
   // 2.0 turbo four, open rally exhaust, anti-lag, sequential box.
   sound: {
     layout: 'i4',

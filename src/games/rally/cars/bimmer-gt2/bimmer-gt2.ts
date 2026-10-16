@@ -98,6 +98,14 @@ export const bimmerGt2: CarDef = {
       note: 'GT2 race car reference (article, looked at only)',
     },
   ],
+  // Night headlights: rally lamps with driving lights.
+  headlights: {
+    power: 1.25,
+    color: 0xfff6e6,
+    angle: 0.38,
+    penumbra: 0.4,
+    spill: 0.2,
+  },
   // Flat-plane race V8 (S65 / P65 style, ~4 l), open race exhaust, sequential race box.
   sound: {
     layout: 'v8flat',

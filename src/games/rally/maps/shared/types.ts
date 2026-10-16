@@ -29,9 +29,14 @@ export interface PlazaIsland {
  * (menus, times, URLs); the map viewer shows a map with one of its stages (a stage picker). The world never depends on
  * the stage.
  */
+/** Countries a map can be in: their hand flags, and more later (spectator flags: world/fan-variants.ts). */
+export type Country = 'mk' | 'us';
+
 export interface MapDef {
   id: string;
   name: string;
+  /** Where the map is: North Macedonia or the USA. Fans only wave this country's flag. */
+  country: Country;
   /** The stages on this map (menu order). A stage id is never renamed once released: times are stored by it. */
   stages: StageDef[];
   seed: number;

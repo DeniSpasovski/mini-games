@@ -111,6 +111,14 @@ export const lancerEvo6: CarDef = {
       note: 'specification and season reference',
     },
   ],
+  // Night headlights: rally lamps with driving lights.
+  headlights: {
+    power: 1.05,
+    color: 0xfff1d4,
+    angle: 0.4,
+    penumbra: 0.5,
+    spill: 0.2,
+  },
   // 2.0 turbo four (4G63), open rally exhaust, anti-lag.
   sound: {
     layout: 'i4',

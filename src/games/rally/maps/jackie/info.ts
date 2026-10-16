@@ -50,6 +50,16 @@ export const jackieInfo: MapInfo = {
       url: 'https://opendata.cityofnewyork.us/',
       note: 'street surface, medians, sidewalks and street trees of the Kew Gardens junction - NYC Office of Technology and Innovation, NYC Parks',
     },
+    {
+      label: 'Generic passenger car pack (Comrade1280, Sketchfab)',
+      url: 'https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5',
+      note: 'parked cars, simplified - CC BY 4.0',
+    },
+    {
+      label: 'Low Poly Vehicle Mini Pack 8 (Vladek, Sketchfab)',
+      url: 'https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-8-52ee24ff6eb2479891fe68e6ce46af28',
+      note: 'parked old cars, simplified - CC BY 4.0',
+    },
   ],
   stageNumber: 3,
   bounds: { minX: -3150, maxX: 3550, minZ: -2300, maxZ: 2300 },

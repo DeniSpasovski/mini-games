@@ -1,5 +1,6 @@
 import { hash3, Rng } from '../../../shared/rng';
-import type { StreetDressing } from '../maps/shared/types';
+import { fanVariant } from './fan-variants';
+import type { Country, StreetDressing } from '../maps/shared/types';
 import type { Junction } from './junctions';
 import { newPathQuery, type PathNetwork } from './real-data';
 import { newRoadQuery, type Road } from './road';
@@ -7,6 +8,7 @@ import { nearestRoadPoint } from './road-distance';
 import type { ScatterInstance } from './scatter';
 import { KERB_H, KERB_W, type StreetDetail } from './street-detail';
 import { UNDERPASS_WALL } from './terrain-gen';
+import { STREET_CAR_MIX } from '../assets/builders/vehicles';
 
 /**
  * City dressing placed from the road network (MapDef.streetDressing): parked cars along the kerbs of
@@ -19,6 +21,8 @@ import { UNDERPASS_WALL } from './terrain-gen';
 
 export interface DressingContext {
   seed: number;
+  /** The map's country: its fans wave its flag (world/fan-variants.ts). */
+  country?: Country;
   road: Road;
   net?: PathNetwork;
   junctions: readonly Junction[];
@@ -182,7 +186,14 @@ export function streetDressingInstances(
           const yaw = yawAlong(tx * flip, tz * flip);
           if (parked.taxiShare && rng.chance(parked.taxiShare))
             placeCar('taxi', 0, x, z, yaw);
-          else placeCar('street_car', rng.int(0, 11), x, z, yaw);
+          else
+            placeCar(
+              'street_car',
+              STREET_CAR_MIX[rng.int(0, STREET_CAR_MIX.length - 1)],
+              x,
+              z,
+              yaw,
+            );
         }
       }
     });
@@ -225,7 +236,7 @@ export function streetDressingInstances(
         const r = nearRoad(x, z);
         place(
           'spectator',
-          rng.int(0, 5),
+          fanVariant(rng.next(), ctx.country, true),
           x,
           z,
           yawToward(r.x - x, r.z - z) + rng.range(-0.4, 0.4),
@@ -373,7 +384,7 @@ export function streetDressingInstances(
           const r = nearRoad(x, z);
           place(
             'spectator',
-            rng.int(0, 5),
+            fanVariant(rng.next(), ctx.country, true),
             x,
             z,
             yawToward(r.x - x, r.z - z) + rng.range(-0.4, 0.4),
@@ -537,7 +548,7 @@ export function streetDressingInstances(
         if (ctx.blocked(c.x, c.z, 0.5)) continue;
         place(
           'spectator',
-          rng.int(0, 5),
+          fanVariant(rng.next(), ctx.country, true),
           c.x,
           c.z,
           yawToward(-j.dx, -j.dz) + rng.range(-0.5, 0.5),

@@ -12,7 +12,7 @@ look is "late-2000s rally game" and the feel is grounded sim-lite that is still 
 npm run dev     # then open http://localhost:3000/games/rally/
 ```
 
-Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, gamepad and touch controls are supported.
+Menu: select stage (with its time of day: night to evening) -> select car -> (optional) car set-up -> drive. Keyboard, gamepad and touch controls are supported.
 
 | Keys                |                                                    |
 | ------------------- | -------------------------------------------------- |
@@ -49,19 +49,21 @@ Menu: select stage -> select car -> (optional) car set-up -> drive. Keyboard, ga
 
 ## Cars
 
-| Car                                   | Drive | Notes                                                                                                   |
-| ------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------- |
-| [Skoda Rally](cars/skoda-rally/)      | AWD   | Fabia R5 from a CC BY Sketchfab model, own livery                                                       |
-| [Bimmer M3](cars/bimmer-m3/)          | RWD   | E46 coupe from a CC BY print STL                                                                        |
-| [Bimmer GT2](cars/bimmer-gt2/)        | RWD   | E92 GT2 racer from a CC BY Sketchfab GLB                                                                |
-| [Subaru WRX STI 22B](cars/subie-22b/) | AWD   | widebody GC8 / 22B from a CC BY-NC Sketchfab GLB, real lamps + cockpit, crescent / stars graphic (test) |
-| [Zastava 101](cars/zastava-101/)      | FWD   | hand-built from a blueprint                                                                             |
-| [Fiesta WRC](cars/fiesta/)            | AWD   | WRC Fiesta with a visible cockpit                                                                       |
-| [Citroen C4 WRC](cars/citroen-c4/)    | AWD   | 2007 WRC C4 with a visible cockpit                                                                      |
-| [Lancer EVO VI](cars/lancer-evo-6/)   | AWD   | 1999-style Lancer with a visible cockpit                                                                |
-| [Ford Mustang GT3](cars/ford-gt3/)    | RWD   | 2024 GT3 racer from a CC BY Sketchfab GLB, kept as is                                                   |
-| [Mercedes 190E](cars/merc-190/)       | RWD   | 2.5-16 Evolution saloon from a CC BY Sketchfab GLB, kept as is, badges removed                          |
-| [Audi RS6](cars/audi-rs6/)            | AWD   | C8 RS6 Avant from a CC BY Sketchfab GLB, kept as is (test)                                              |
+| Car                                        | Drive | Notes                                                                                                   |
+| ------------------------------------------ | ----- | ------------------------------------------------------------------------------------------------------- |
+| [Skoda Rally](cars/skoda-rally/)           | AWD   | Fabia R5 from a CC BY Sketchfab model, own livery                                                       |
+| [Bimmer M3](cars/bimmer-m3/)               | RWD   | E46 coupe from a CC BY print STL                                                                        |
+| [Bimmer GT2](cars/bimmer-gt2/)             | RWD   | E92 GT2 racer from a CC BY Sketchfab GLB                                                                |
+| [Subaru WRX STI 22B](cars/subie-22b/)      | AWD   | widebody GC8 / 22B from a CC BY-NC Sketchfab GLB, real lamps + cockpit, crescent / stars graphic (test) |
+| [Zastava 101](cars/zastava-101/)           | FWD   | hand-built from a blueprint                                                                             |
+| [Fiesta WRC](cars/fiesta/)                 | AWD   | WRC Fiesta with a visible cockpit                                                                       |
+| [Citroen C4 WRC](cars/citroen-c4/)         | AWD   | 2007 WRC C4 with a visible cockpit                                                                      |
+| [Lancer EVO VI](cars/lancer-evo-6/)        | AWD   | 1999-style Lancer with a visible cockpit                                                                |
+| [Ford Mustang GT3](cars/ford-gt3/)         | RWD   | 2024 GT3 racer from a CC BY Sketchfab GLB, kept as is                                                   |
+| [Mercedes 190E](cars/merc-190/)            | RWD   | 2.5-16 Evolution saloon from a CC BY Sketchfab GLB, kept as is, badges removed                          |
+| [Peugeot 206](cars/peugeot-206/)           | FWD   | tuned 206 hot hatch from a CC BY Sketchfab GLB, kept as is (test)                                       |
+| [Audi RS6](cars/audi-rs6/)                 | AWD   | C8 RS6 Avant from a CC BY Sketchfab GLB, kept as is                                                     |
+| [Porsche 911 (930)](cars/porsche-911-930/) | RWD   | 1975 911 Turbo from a CC BY Sketchfab GLB, kept as is (test)                                            |
 
 [![Skoda Rally](cars/skoda-rally/screenshots/front-34.jpg)](cars/skoda-rally/) [![Zastava](cars/zastava-101/screenshots/front-34.jpg)](cars/zastava-101/)
 

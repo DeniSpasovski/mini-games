@@ -81,6 +81,8 @@ const BANDS: Record<
   merc_190: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
   audi_rs6: { zeroTo100: [2.5, 10], brake100: [25, 75], top: [200, 330] },
   ford_gt3: { zeroTo100: [3, 10], brake100: [25, 75], top: [120, 290] },
+  peugeot_206: { zeroTo100: [5, 12], brake100: [25, 75], top: [130, 230] },
+  porsche_911_930: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 260] },
 };
 
 describe.each(ALL_CARS.map((c) => c.id))('%s', (carId) => {

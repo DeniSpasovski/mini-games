@@ -59,6 +59,7 @@ const props: PropPlacement[] = [
 
 export const vodnoMap: MapDef = {
   ...info,
+  country: 'mk',
   buildings: buildingsFromData(data.buildings),
   horizon: horizon as HorizonDef,
   terrain: {

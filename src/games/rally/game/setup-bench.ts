@@ -10,7 +10,11 @@ import {
   Vector3,
   type Material,
 } from 'three';
-import { buildWheelSet, wheelMaterials } from '../cars/shared/car-model';
+import {
+  buildWheelSet,
+  createRimMaterial,
+  wheelMaterials,
+} from '../cars/shared/car-model';
 import { loadRimUnits, rimColorFor } from '../cars/shared/stl-wheel';
 import {
   buildCoilover,
@@ -114,11 +118,10 @@ export class SetupBench {
     TYRE_IDS.forEach((id, i) => {
       const w = buildWheelSet(def, id, rimUnits, 'rear');
       const rimMat = this.mat(
-        new MeshStandardMaterial({
-          color: rimColorFor(def.model, id),
-          metalness: 0.75,
-          roughness: 0.32,
-        }),
+        createRimMaterial(
+          rimColorFor(def.model, id),
+          w.rim.hasAttribute('color'),
+        ),
       );
       this.geometries.push(w.tire, w.rim, w.caliper);
       if (w.disc) this.geometries.push(w.disc);

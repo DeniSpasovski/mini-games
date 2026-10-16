@@ -59,6 +59,22 @@ export interface AssetMeta {
   breakable?: { r: number; h: number; slow?: number };
 }
 
+/** Standing fans (variants 0-23); 24-41 sit or squat (SPECTATOR_SEATED_FROM..). */
+export const SPECTATOR_VARIANTS = 24;
+export const SPECTATOR_SEATED_FROM = 24;
+export const SPECTATOR_SEATED_COUNT = 18;
+/** Fans waving a hand flag (from variant 42): 6 outfits of North Macedonia, then 6 of the USA. */
+export const SPECTATOR_FLAG_FROM = 42;
+export const SPECTATOR_FLAG_COUNT = 12;
+
+/** Figures: smooth painted body close up, the jointed low-poly one, a boxy body, then a two-box silhouette. */
+const PEOPLE_LODS: LodSpec[] = [
+  { maxDistance: 28, castShadow: true },
+  { maxDistance: 75, castShadow: true },
+  { maxDistance: 220, castShadow: false },
+  { maxDistance: 520, castShadow: false },
+];
+
 export const ASSET_CATALOG: AssetMeta[] = [
   // --- vegetation (detail layer; trees and bushes grow from L-systems: trees/species.ts) ---
   {
@@ -151,12 +167,64 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Spectator',
     category: 'props',
     description:
-      'Low-poly standing fan with random clothing colours (variant = outfit).',
-    variants: 6,
-    lods: [
-      { maxDistance: 100, castShadow: true },
-      { maxDistance: 500, castShadow: false },
-    ],
+      'Fan made of jointed parts (assets/builders/people.ts). Variant % 6 = outfit (jacket, T-shirt + cap, hoodie, hi-vis vest, backpack, supporter shirt), variant / 6 = pose (stand, wave, camera, hands in pockets); variants 24-41: sitting on the ground, knees up, squatting; 42-53: waving a North Macedonia (42-47) or USA (48-53) hand flag.',
+    variants:
+      SPECTATOR_VARIANTS + SPECTATOR_SEATED_COUNT + SPECTATOR_FLAG_COUNT,
+    lods: PEOPLE_LODS,
+  },
+  {
+    id: 'mechanic',
+    name: 'Mechanic',
+    category: 'props',
+    description:
+      'Service-park mechanic in team overalls. Variant % 12 = team (builders/teams.ts), variant / 12 = pose (crouch at a wheel, bent over the nose, kneel).',
+    variants: 36,
+    lods: PEOPLE_LODS,
+  },
+  {
+    id: 'crew',
+    name: 'Team crew',
+    category: 'props',
+    description:
+      'Team member in a team shirt. Variant % 12 = team, variant / 12 = pose (carrying a tyre, engineer with a laptop, manager with crossed arms).',
+    variants: 36,
+    lods: PEOPLE_LODS,
+  },
+  {
+    id: 'driver',
+    name: 'Driver',
+    category: 'props',
+    description:
+      'Driver / co-driver in a race suit. Variant % 12 = team, variant / 12 = pose (helmet in hand, arms crossed).',
+    variants: 24,
+    lods: PEOPLE_LODS,
+  },
+  {
+    id: 'marshal',
+    name: 'Marshal',
+    category: 'props',
+    description:
+      'Stage marshal / official in a hi-vis tabard with reflective bands (variant % 6 = tabard colour; variants 0-11: variant % 4 = pose stand, pointing, hands in pockets, phone; 12-23: yellow flag, green sign on a pole, radio, arms crossed).',
+    variants: 24,
+    lods: PEOPLE_LODS,
+  },
+  {
+    id: 'photographer',
+    name: 'Photographer',
+    category: 'props',
+    description:
+      'Press photographer / camera operator in a coloured bib. Variant % 6 = pose (long lens raised, low shot, kneeling, shoulder video camera, tripod, camera lowered), variant / 6 % 4 = bib colour.',
+    variants: 24,
+    lods: PEOPLE_LODS,
+  },
+  {
+    id: 'visitor',
+    name: 'Visitor',
+    category: 'props',
+    description:
+      'Casual person visiting: variant % 4 = pose (walking, drinking, on the phone, standing), variant / 4 = persona (man, woman, child, older man / woman, dress, teen, tourist, coat, big man, small child, fan).',
+    variants: 48,
+    lods: PEOPLE_LODS,
   },
   {
     id: 'tape_post',
@@ -289,8 +357,8 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Street car',
     category: 'props',
     description:
-      'Parked car: a boxy rally car (side outline extruded, glass, lamps, simple wheels; cars/<car>/profile.ts). Variants 0-11 pick the shape (variant % 9: 0 M3 saloon, 1 Skoda hatch, 2 Fiesta hatch, 3 GT2 coupe, 4 C4 hatch, 5 Lancer saloon, 6 Mustang GT3 coupe, 7 190E saloon, 8 RS6 estate) and a paint; 12 = white Skoda hatch (placed on purpose). Faces +X. Solid.',
-    variants: 13,
+      'Parked car: a simplified model of the CC BY packs (street-car-models.ts). Variants 0-14 are the models (0-4 old boxy cars, 5-14 modern: hatch, pickup, sport, minivan, SUV, coupe, off-road, compact, sedan, wagon) in a seeded paint; 15 = white hatch (placed on purpose). Faces +X. Solid.',
+    variants: 16,
     lods: [
       { maxDistance: 90, castShadow: true },
       { maxDistance: 420, castShadow: false },

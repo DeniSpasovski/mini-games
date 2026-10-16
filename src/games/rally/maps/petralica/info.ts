@@ -17,7 +17,7 @@ export const petralicaInfo: MapInfo = {
   credits: data.meta.sources,
   sources: [
     {
-      label: 'Google Maps route (Ginovci -> Vila Ristovski)',
+      label: 'Google Maps route (Ginovci -> finish)',
       url: 'https://www.google.com/maps/dir/42.1707824,22.1691664/42.2401682,22.2009501',
       note: 'stage waypoints; the two parts of the road missing in OpenStreetMap were traced from a screenshot of this route',
     },
@@ -45,6 +45,11 @@ export const petralicaInfo: MapInfo = {
       label: 'ESA WorldCover 10 m 2021 v200',
       url: 'https://esa-worldcover.org/',
       note: 'land cover + built-up areas used to place the houses - contains modified Copernicus Sentinel data (2021), CC BY 4.0',
+    },
+    {
+      label: 'Generic passenger car pack (Comrade1280, Sketchfab)',
+      url: 'https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5',
+      note: 'parked cars, simplified - CC BY 4.0',
     },
   ],
   stageNumber: 2,

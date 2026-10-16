@@ -24,6 +24,22 @@ export interface CarDef {
   physics: CarPhysicsDef;
   model: CarModelDef;
   sound: CarSoundDef;
+  /** Night headlights (game/headlights.ts); omitted = the default modern halogen. */
+  headlights?: CarHeadlightsDef;
+}
+
+/** How a car's headlights look at night: old halogens are dim, warm and wide; modern LEDs bright, white and tight. */
+export interface CarHeadlightsDef {
+  /** Strength of the low beam, 1 = the default (0.5 old dim lamps .. 1.7 matrix LED). */
+  power: number;
+  /** Beam colour (sRGB hex number). */
+  color: number;
+  /** Half angle of the main low beam (rad): small = tight reach, large = wide and short. */
+  angle: number;
+  /** Edge softness of the main beam, 0 = sharp cut-off .. 1 = soft. */
+  penumbra: number;
+  /** Strength of the wide verge spill relative to the main beam. */
+  spill: number;
 }
 
 /** Cylinder layout = firing pattern (game/engine-sound.ts). `v8` is cross-plane (American burble), `v8flat` flat-plane (BMW M / Ferrari howl); `flat4` has unequal headers. */
@@ -79,8 +95,8 @@ export interface CarModelDef {
     spokes: number;
     /** 'spoke' = alloy rally wheel, 'steel' = pressed steel disc with hub cap. */
     style?: 'spoke' | 'steel';
-    /** Brake caliper colour (default red). */
-    caliper?: string;
+    /** Brake caliper colour (default red); `false` = none (an old car whose wheel shows only the disc). */
+    caliper?: string | false;
   };
   /**
    * Window glass tint override (default: dark, 45% opaque). On an imported body it also replaces the opaque `glass`

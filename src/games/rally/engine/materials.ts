@@ -3,10 +3,12 @@ import {
   Material,
   MeshDepthMaterial,
   MeshStandardMaterial,
+  Vector2,
   type WebGLProgramParametersWithUniforms,
   type WebGLRenderer,
 } from 'three';
 import { getTexture } from './textures';
+import { addNightGlow } from './night-glow';
 
 /**
  * Shared material library. Assets reference materials by id so thousands of
@@ -18,11 +20,78 @@ export type MaterialId =
   | 'foliage_card_spring'
   | 'rock'
   | 'props'
+  | 'people'
+  | 'people_flag'
   | 'chevron'
+  | 'reflector'
+  | 'lamp_lens'
   | 'vehicle'
   | 'village_sign';
 
 const cache = new Map<MaterialId, Material>();
+
+/** Seconds, shared by every waving hand flag (`people_flag`); a free-running clock so tools animate it too. */
+const FLAG_TIME = { value: 0 };
+let flagClock = false;
+function startFlagClock(): void {
+  if (flagClock || typeof requestAnimationFrame === 'undefined') return;
+  flagClock = true;
+  const tick = (): void => {
+    FLAG_TIME.value = performance.now() / 1000;
+    requestAnimationFrame(tick);
+  };
+  tick();
+}
+
+/**
+ * Hand flags (people.ts `markFlag`): vertex colours only, lit but kept bright, and waved in the vertex shader. The
+ * pole and cloth lean about the hand together (`flagRel` = vertex minus hand) and the cloth also swings about the pole
+ * (`flutter` 0..1 along it); both are rigid turns, so the printed pieces on the cloth stay put on it.
+ */
+function peopleFlagMaterial(): Material {
+  startFlagClock();
+  const m = new MeshStandardMaterial({
+    vertexColors: true,
+    side: DoubleSide,
+    roughness: 1,
+  });
+  m.onBeforeCompile = (shader, renderer: WebGLRenderer) => {
+    Material.prototype.onBeforeCompile.call(m, shader, renderer);
+    shader.uniforms.uFlagTime = FLAG_TIME;
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+attribute vec3 flagRel;
+attribute float flutter;
+uniform float uFlagTime;`,
+      )
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+	float ph = 0.0;
+#ifdef USE_INSTANCING
+	ph = instanceMatrix[3].x * 0.7 + instanceMatrix[3].z * 0.9;
+#endif
+	float lean = 0.42 * sin(uFlagTime * 6.0 + ph) + 0.12 * sin(uFlagTime * 10.0 + ph * 2.0);
+	float lc = cos(lean);
+	float ls = sin(lean);
+	vec3 fr = vec3(lc * flagRel.x - ls * flagRel.y, ls * flagRel.x + lc * flagRel.y, flagRel.z);
+	float yw = flutter * 0.5 * sin(uFlagTime * 11.0 + ph * 1.3 + 1.0);
+	float yc = cos(yw);
+	float ys = sin(yw);
+	fr = vec3(yc * fr.x + ys * fr.z, fr.y, -ys * fr.x + yc * fr.z);
+	transformed += fr - flagRel;`,
+      );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <emissivemap_fragment>',
+      `#include <emissivemap_fragment>
+	totalEmissiveRadiance += diffuseColor.rgb * 0.45;`,
+    );
+  };
+  m.customProgramCacheKey = () => 'people_flag';
+  return m;
+}
 
 /**
  * Wind sway (`RALLY_WIND`, metres of sway per m² of height) and leaf translucency (`RALLY_FOLIAGE`) for the
@@ -102,6 +171,19 @@ export function getMaterial(id: MaterialId): Material {
         roughness: 0.7,
       });
       break;
+    case 'people':
+      // Figures: vertex colour x the people atlas (weave, denim, skin, hair, painted face).
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: getTexture('people'),
+        normalMap: getTexture('people_normal'),
+        normalScale: new Vector2(0.5, 0.5),
+        roughness: 0.85,
+      });
+      break;
+    case 'people_flag':
+      m = peopleFlagMaterial();
+      break;
     case 'vehicle':
       // Vertex-coloured paint; the decals atlas supplies the lettering (plain faces sample its white corner).
       m = new MeshStandardMaterial({
@@ -123,6 +205,16 @@ export function getMaterial(id: MaterialId): Material {
         map: getTexture('chevron'),
         roughness: 0.55,
       });
+      // Reflective sheeting: lights up in the car's low beam at night.
+      addNightGlow(m as MeshStandardMaterial, 'retro');
+      break;
+    case 'reflector':
+      m = new MeshStandardMaterial({ vertexColors: true, roughness: 0.4 });
+      addNightGlow(m as MeshStandardMaterial, 'retro');
+      break;
+    case 'lamp_lens':
+      m = new MeshStandardMaterial({ vertexColors: true, roughness: 0.5 });
+      addNightGlow(m as MeshStandardMaterial, 'lamp');
       break;
   }
   m.name = id;

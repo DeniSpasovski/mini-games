@@ -27,6 +27,8 @@ import type { SetupPreset } from '../../physics/types';
  *   gt3   - orange coil-over (race geometry; Ford Mustang GT3)
  *   estate - slate coil-over (road geometry; Audi RS6)
  *   saloon - green coil-over (touring-car geometry; Mercedes 190E)
+ *   hatch - teal MacPherson strut (road geometry; Peugeot 206)
+ *   classic - the road strut in dark grey (Porsche 911 (930))
  * The spring gets fewer, thicker coils the stiffer the rate; the whole unit is longer the more travel the preset
  * has (soft = long).
  */
@@ -37,7 +39,9 @@ export type SuspensionStyle =
   | 'gt'
   | 'gt3'
   | 'saloon'
+  | 'hatch'
   | 'estate'
+  | 'classic'
   | 'wrc'
   | 'wrcgold'
   | 'sti'
@@ -53,7 +57,9 @@ export const SUSPENSION_STYLE_COLORS: Record<
   gt: { body: 0x2a56a8, chrome: 0xc4c8cc },
   gt3: { body: 0xd8561f, chrome: 0xc4c8cc },
   saloon: { body: 0x2f8a4e, chrome: 0xc4c8cc },
+  hatch: { body: 0x1f8f7a, chrome: 0x9a9da0 },
   estate: { body: 0x5a6068, chrome: 0xc4c8cc },
+  classic: { body: 0x4a4e54, chrome: 0xc4c8cc },
   wrc: { body: 0x2a62c9, chrome: 0xc8ccd0 },
   evo: { body: 0xc8281e, chrome: 0xc8ccd0 },
   wrcgold: { body: 0xd9a21b, chrome: 0xc8ccd0 },
@@ -150,7 +156,7 @@ export function buildCoilover(
       new Vector3(0.085, L * 0.3, 0),
     ]);
     chrome.push(new TubeGeometry(hose, 8, 0.005, 5, false));
-  } else if (style === 'road') {
+  } else if (style === 'road' || style === 'hatch' || style === 'classic') {
     // Plain MacPherson strut: black tube, ribbed boot over the shaft, thin spring, rubber top mount.
     body.push(rod(0.024, 0, L * 0.55, 0, 0, 12));
     chrome.push(rod(0.011, L * 0.55, L * 0.98, 0, 0, 10));

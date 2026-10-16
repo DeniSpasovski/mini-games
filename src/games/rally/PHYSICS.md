@@ -306,8 +306,10 @@ Cold tyres grip less, tyres overheated by sliding grip less, in between they are
 pages and the reference tests above are unchanged).
 
 - **Climate:** `EnvironmentDef.airTemp` (°C, default 20; Ajvatovci 27, Jackie 17, test 20, Petralica 17, `?air=` to try)
-  and the sun (`stageClimate`: sun height after `?tod=`, clouds). Track temperature = air + sun x `SurfaceDef.heat`
-  (tarmac 1 ... grass 0.3, snow 0).
+  is the air at the map's own `timeOfDay`; at another hour (`?tod=`, the stage screen's Time of day) it swings +-6 °C
+  (coldest ~03:00, warmest ~15:00, `airAtHour`). The sun (`stageClimate`: sun height after `?tod=`, clouds) warms the road:
+  track temperature = air + sun x `SurfaceDef.heat` (tarmac 1 ... grass 0.3, snow 0). The stage screen shows the same
+  air / road numbers (`stageTemps`).
 - **Heat:** sliding work (`|F| x slide speed / static load`, the stones take 60 % of it on loose ground) + carcass flex
   (speed x load). **Cooling:** air (more with speed), the ground (towards the track temperature), water. Capped at 150 °C.
   Tyres start a stage at the air temperature (`resetTyreTemps` on start / restart; reset to road keeps them).

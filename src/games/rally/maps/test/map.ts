@@ -11,6 +11,7 @@ import type { MapDef } from '../shared/types';
 export const testMap: MapDef = {
   id: 'test',
   name: 'Test Map',
+  country: 'mk',
   stages: [
     {
       id: 'test',
@@ -19,7 +20,7 @@ export const testMap: MapDef = {
       /** Recommended tyre (pre-selected on the car screen; see ../../PHYSICS.md). */
       tyre: 'gravel',
       description:
-        'Short forest gravel stage with a hairpin, a crest jump and a flat test pad.',
+        'Short forest gravel stage with fast sweepers, S-bends, a hairpin, a crest jump and a flat pad for testing cars.',
       timing: { start: 40, finishFromEnd: 175, splits: 2 },
       cornerFans: { every: 40, chance: 0.6, from: 60 },
     },
@@ -194,6 +195,8 @@ export const testMap: MapDef = {
   environment: {
     sunElevation: 32,
     sunAzimuth: 215,
+    // Same sun height as above (31.6 deg), so the time of day picker works here too.
+    timeOfDay: 15.8,
     airTemp: 20,
     turbidity: 4,
     rayleigh: 1.2,

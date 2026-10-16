@@ -5,32 +5,24 @@ import {
   type BufferGeometry,
 } from 'three';
 import { Rng } from '../../../../shared/rng';
-import { profile as m3 } from '../../cars/bimmer-m3/profile';
-import { profile as gt2 } from '../../cars/bimmer-gt2/profile';
-import { profile as citroenC4 } from '../../cars/citroen-c4/profile';
-import { profile as fiesta } from '../../cars/fiesta/profile';
-import { profile as audiRs6 } from '../../cars/audi-rs6/profile';
-import { profile as fordGt3 } from '../../cars/ford-gt3/profile';
-import { profile as merc190 } from '../../cars/merc-190/profile';
-import { profile as lancerEvo6 } from '../../cars/lancer-evo-6/profile';
-import {
-  buildProfileParts,
-  buildProfileWheel,
-} from '../../cars/shared/profile-body';
-import type { CarProfile } from '../../cars/shared/types';
-import { profile as skoda } from '../../cars/skoda-rally/profile';
 import { merge, paint } from '../../engine/geo';
 import { getMaterial } from '../../engine/materials';
 import type { AssetBuilder } from '../types';
+import {
+  streetCarModel,
+  SEDAN,
+  STREET_CAR_COUNT,
+  type StreetCarShape,
+} from './street-car-models';
 
 /**
- * Street vehicles for city maps: parked cars (`street_car`: the boxy rally cars in a few paints), the
+ * Street vehicles for city maps: parked cars (`street_car`: simplified models of the CC BY packs in `street-car-models.ts`, in a few paints), the
  * yellow `taxi`, the `police_car` (white, navy band, light bar, "POLICE" on the doors) and the
  * `fire_truck` (red engine with a roof ladder, "FIRE DEPT" on the side) and the `ambulance` (white box van, red
  * stripe, "FIRE DEPT" + "AMBULANCE" on the box). The lettering is generic words on
  * purpose (no real agency names, badges or exact liveries). Every vehicle is one
  * draw call (shared `vehicle` material: vertex colour paint + the decals atlas), models face +X with
- * the origin on the ground under their middle. Cars are ~500 triangles (~300 at LOD 1), the truck ~450.
+ * the origin on the ground under their middle. Cars are ~900 triangles (~400 at LOD 1), the truck ~450.
  */
 
 /** u / v of the plain-white corner of the decals atlas (every painted face samples it). */
@@ -84,8 +76,9 @@ const wheel = (r: number, w: number, x: number, z: number): BufferGeometry =>
     '#1b1b1d',
   );
 
+/** Paints of the modern models and of the old (boxy, Yugo-style) ones. */
 const PAINTS = [
-  '#16171a',
+  '#2a2c31',
   '#e9eaec',
   '#9ea3a9',
   '#27406b',
@@ -98,89 +91,92 @@ const PAINTS = [
   '#6b2f2a',
   '#3a3d42',
 ];
-
-/**
- * The boxy rally cars as street cars (profiles baked from their GLBs, cars/<car>/profile.ts): 0 Bimmer M3 (saloon),
- * 1 Skoda Rally (hatch), 2 Fiesta (hatch), 3 Bimmer GT2 (coupe), 4 Citroen C4 (hatch), 5 Lancer EVO VI (saloon), 6 Ford Mustang GT3 (coupe), 7 Mercedes 190E (saloon), 8 Audi RS6 (estate).
- */
-const SHAPES: CarProfile[] = [
-  m3,
-  skoda,
-  fiesta,
-  gt2,
-  citroenC4,
-  lancerEvo6,
-  fordGt3,
-  merc190,
-  audiRs6,
+const OLD_PAINTS = [
+  '#e9eaec',
+  '#b3231f',
+  '#2d5f9a',
+  '#e3c13f',
+  '#c8b99a',
+  '#3f6b45',
+  '#9a9ea4',
+  '#2a2c31',
+  '#8a4a2a',
 ];
 
-/** Bimmer M3 half width / roof height (m): the taxi and the police car are M3s. */
-const M3_HW = m3.width / 2;
-const M3_ROOF = Math.max(...m3.outline.filter((_, i) => i % 2));
-
-/** Tyre width (m); the outer face sits 1 cm inside the body side. */
-const TYRE_W = 0.22;
-
 /**
- * A boxy car (cars/shared/profile-body.ts) in one paint: body, greenhouse, head / tail lamps, wheels with a flat rim
- * (LOD 1: coarser outlines and wheels, no rims or lamps). Turned to face +X.
+ * Parked-car variants, one per model (`street-car-models.ts` order): the five old ones first, then the modern ones.
+ * Variants 0..STREET_CAR_COUNT-1 are a model in a seeded paint; `STREET_CAR_MIX` is the pick list for street dressing
+ * (common cars repeat, sports cars and pickups are rare). `FIXED_CARS` are cars a map places on purpose.
  */
-function carParts(
-  s: CarProfile,
-  paintColor: string,
-  lod: number,
-): BufferGeometry[] {
-  // Far: outlines simplified to 12 cm, 5-sided wheels without rims, no lamps.
-  const p = buildProfileParts(s, undefined, lod ? 0.12 : 0);
-  const parts = [solid(p.body, paintColor), solid(p.glass, '#1b232b')];
-  if (lod === 0) parts.push(solid(p.head, '#f4f0d8'), solid(p.tail, '#a31a1a'));
-  const { tyre, rim } = buildProfileWheel(s.wheel, TYRE_W, lod ? 5 : 12);
-  const x = s.width / 2 - 0.01 - TYRE_W / 2;
-  for (const z of s.axles)
-    for (const side of [1, -1]) {
-      const at = (g: BufferGeometry) =>
-        g
-          .clone()
-          .rotateY(side > 0 ? 0 : Math.PI)
-          .translate(side * x, s.wheel, z);
-      parts.push(solid(at(tyre), '#1b1b1d'));
-      if (lod === 0) parts.push(solid(at(rim), '#bfc3c9'));
-    }
-  tyre.dispose();
-  rim.dispose();
-  for (const g of parts) g.rotateY(Math.PI / 2);
-  return parts;
-}
+export const STREET_CAR_MIX: number[] = [
+  0,
+  0,
+  1,
+  1,
+  2,
+  3,
+  3,
+  4, // old
+  5,
+  5,
+  5,
+  8,
+  9,
+  9,
+  12,
+  12,
+  12,
+  13,
+  13,
+  13,
+  14,
+  14, // hatch, minivan?, suv, compact, sedan, wagon
+  10,
+  10,
+  6,
+  7,
+  11, // coupe, pickup, sport, offroad
+];
+const FIXED_CARS: [number, string][] = [[5, '#e9eaec']];
+/** First variant of `FIXED_CARS` (the white hatch at a Petralica house). */
+export const STREET_CAR_FIXED = STREET_CAR_COUNT;
 
 const finish = (parts: BufferGeometry[]) => ({
   parts: [{ geometry: merge(parts), material: getMaterial('vehicle') }],
 });
 
-/**
- * A parked car. Variants 0-11: shape `variant % SHAPES.length`, a seeded paint (street dressing picks among these). From 12 on:
- * fixed [shape, paint] for cars a map places on purpose (`props`, e.g. the white hatch at a Petralica house).
- */
-const FIXED_CARS: [number, string][] = [[1, '#e9eaec']];
-
-export const streetCar: AssetBuilder = ({ seed, variant, lod }) => {
-  const fixed = FIXED_CARS[variant - 12];
-  if (fixed) return finish(carParts(SHAPES[fixed[0]], fixed[1], lod));
-  const rng = new Rng(seed);
-  const shape = SHAPES[variant % SHAPES.length];
-  const color = PAINTS[(variant * 7 + rng.int(0, 3)) % PAINTS.length];
-  return finish(carParts(shape, color, lod));
+const carPaint = (m: StreetCarShape, seed: number, variant: number): string => {
+  const list = m.old ? OLD_PAINTS : PAINTS;
+  return list[(variant * 7 + new Rng(seed).int(0, 3)) % list.length];
 };
 
-/** New York style yellow cab (sedan with a roof sign). */
+export const streetCar: AssetBuilder = ({ seed, variant, lod }) => {
+  const fixed = FIXED_CARS[variant - STREET_CAR_FIXED];
+  const index = fixed ? fixed[0] : variant % STREET_CAR_COUNT;
+  const m = streetCarModel(index, lod);
+  return finish([m.geometry(fixed ? fixed[1] : carPaint(m, seed, variant))]);
+};
+
+/** Door height band of a model (m): where the lettering / stripes of the taxi and the police car go. */
+const DOOR_Y = [0.5, 0.95];
+
+/** Yellow cab (the sedan) with a roof sign and a black stripe along the doors. */
 export const taxi: AssetBuilder = ({ lod }) => {
-  const parts = carParts(m3, '#f1b516', lod);
+  const m = streetCarModel(SEDAN, lod);
+  const parts = [m.geometry('#f1b516')];
   if (lod === 0) {
-    parts.push(box(0.5, 0.17, 0.26, -0.3, M3_ROOF + 0.08, 0, '#f6e7b0'));
-    // Black checker stripe along the doors, over the wheel arches.
+    parts.push(box(0.5, 0.17, 0.26, m.roofX, m.height + 0.075, 0, '#f6e7b0'));
     for (const side of [1, -1])
       parts.push(
-        box(2.6, 0.07, 0.01, -0.1, 0.76, side * (M3_HW + 0.005), '#1a1a1a'),
+        box(
+          2.4,
+          0.07,
+          0.01,
+          m.roofX - 0.1,
+          0.7,
+          side * (m.sideZ + 0.01),
+          '#1a1a1a',
+        ),
       );
   }
   return finish(parts);
@@ -188,18 +184,23 @@ export const taxi: AssetBuilder = ({ lod }) => {
 
 /** Patrol car: white sedan, navy band, roof light bar and "POLICE" on both front doors. */
 export const policeCar: AssetBuilder = ({ lod }) => {
-  const parts = carParts(m3, '#f1f2f2', lod);
+  const m = streetCarModel(SEDAN, lod);
+  const parts = [m.geometry('#f1f2f2')];
+  const z = m.sideZ + 0.012;
   if (lod === 0) {
-    // Navy band over the wheel arches, "POLICE" on the doors under it, light bar on the roof.
     for (const side of [1, -1])
       parts.push(
-        box(3.9, 0.16, 0.012, -0.1, 0.78, side * (M3_HW + 0.006), '#14306b'),
+        box(3.4, 0.14, 0.012, 0, DOOR_Y[0] + 0.14, side * z, '#14306b'),
       );
-    parts.push(box(0.9, 0.09, 0.34, -0.3, M3_ROOF + 0.045, 0, '#222428'));
-    parts.push(box(0.4, 0.1, 0.32, -0.3, M3_ROOF + 0.095, 0.14, '#d3202a'));
-    parts.push(box(0.4, 0.1, 0.32, -0.3, M3_ROOF + 0.095, -0.14, '#2a5fd6'));
-    parts.push(...decal(PD, 1.5, 0.37, 0.15, 0.48, M3_HW + 0.012));
-  } else parts.push(box(3.9, 0.16, M3_HW * 2 + 0.02, -0.1, 0.78, 0, '#14306b'));
+    const top = m.height;
+    parts.push(box(0.9, 0.09, 0.34, m.roofX, top + 0.045, 0, '#222428'));
+    parts.push(box(0.4, 0.1, 0.32, m.roofX, top + 0.095, 0.14, '#d3202a'));
+    parts.push(box(0.4, 0.1, 0.32, m.roofX, top + 0.095, -0.14, '#2a5fd6'));
+    parts.push(...decal(PD, 1.2, 0.3, 0, DOOR_Y[0] + 0.04, z + 0.025));
+  } else
+    parts.push(
+      box(3.4, 0.14, m.sideZ * 2 + 0.02, 0, DOOR_Y[0] + 0.14, 0, '#14306b'),
+    );
   return finish(parts);
 };
 
