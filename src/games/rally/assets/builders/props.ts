@@ -2,7 +2,6 @@ import {
   BoxGeometry,
   Color,
   CylinderGeometry,
-  IcosahedronGeometry,
   PlaneGeometry,
   type BufferGeometry,
 } from 'three';
@@ -43,71 +42,6 @@ export const hayBale: AssetBuilder = ({ seed, lod }) => {
       (Math.abs(x) > 0.59 ? 1.12 : 1) * (0.7 + 0.3 * Math.min(1, y / r)),
   );
   return { parts: [{ geometry: merge([p]), material: getMaterial('props') }] };
-};
-
-/** Mostly saturated: small bright spots make a stage look alive at speed. */
-const JACKETS = [
-  '#c0302a',
-  '#2a5fc0',
-  '#e0b020',
-  '#2d8a3e',
-  '#e6e6e6',
-  '#333333',
-  '#e06a1a',
-  '#7a3ab0',
-  '#d4e21c', // hi-vis yellow
-  '#e0306e',
-  '#1aa6c8',
-  '#f05a10', // hi-vis orange
-];
-const SKIN = ['#e8c4a0', '#c99a72', '#8d5a3b', '#f0d0b0'];
-
-export const spectator: AssetBuilder = ({ seed, variant, lod }) => {
-  const rng = new Rng(seed);
-  const jacket = JACKETS[(variant * 5 + rng.int(0, 11)) % JACKETS.length];
-  const pants = rng.pick(['#2b2f3a', '#3b3a36', '#25344f', '#4a4a4a']);
-  const skin = rng.pick(SKIN);
-  const s = rng.range(0.92, 1.08);
-  const parts: BufferGeometry[] = [];
-  if (lod === 0) {
-    parts.push(
-      box(0.15, 0.86, 0.17, -0.1, 0.43, 0, pants),
-      box(0.15, 0.86, 0.17, 0.1, 0.43, 0, pants),
-    );
-    parts.push(box(0.44, 0.62, 0.25, 0, 1.17, 0, jacket, rng));
-    const armL = new BoxGeometry(0.11, 0.6, 0.13);
-    armL.rotateZ(rng.range(-0.25, 0.1));
-    armL.translate(0.28, 1.15, 0.02);
-    const armR = new BoxGeometry(0.11, 0.6, 0.13);
-    // Some fans wave / hold a camera up.
-    if (rng.chance(0.35)) {
-      armR.rotateZ(2.6);
-      armR.translate(-0.33, 1.62, 0.02);
-    } else {
-      armR.rotateZ(rng.range(-0.1, 0.25));
-      armR.translate(-0.28, 1.15, 0.02);
-    }
-    parts.push(
-      planarUV(paint(armL, jacket), 1),
-      planarUV(paint(armR, jacket), 1),
-    );
-    const head = new IcosahedronGeometry(0.12, 1);
-    head.translate(0, 1.62, 0);
-    parts.push(paint(head, skin));
-    if (rng.chance(0.5))
-      parts.push(box(0.26, 0.07, 0.28, 0, 1.73, 0.03, rng.pick(JACKETS)));
-  } else {
-    parts.push(
-      box(0.4, 0.9, 0.22, 0, 0.45, 0, pants),
-      box(0.46, 0.62, 0.26, 0, 1.18, 0, jacket),
-    );
-    const head = new IcosahedronGeometry(0.13, 0);
-    head.translate(0, 1.62, 0);
-    parts.push(paint(head, skin));
-  }
-  const g = merge(parts);
-  g.scale(s, s, s);
-  return { parts: [{ geometry: g, material: getMaterial('props') }] };
 };
 
 /**

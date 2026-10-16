@@ -1,10 +1,35 @@
 import { hash3, hashString, Rng } from '../../../shared/rng';
-import type { CornerFansRule } from '../maps/shared/types';
+import {
+  SPECTATOR_SEATED_COUNT,
+  SPECTATOR_SEATED_FROM,
+  SPECTATOR_VARIANTS,
+} from '../assets/catalog';
+import type { CornerFansRule, Country } from '../maps/shared/types';
+import { flagVariant } from './fan-variants';
 import { newRoadQuery, type Road } from './road';
 import type { ScatterInstance } from './scatter';
 
 /** Assets a corner fan group uses (for the streamer's prewarm / view distance). */
-export const CORNER_FAN_ASSETS = ['tape_post', 'spectator', 'fan_flag'];
+export const CORNER_FAN_ASSETS = [
+  'tape_post',
+  'spectator',
+  'visitor',
+  'marshal',
+  'photographer',
+  'fan_flag',
+];
+
+/** Assets that are people: kept out of houses and off other carriageways (world.ts). */
+export const PEOPLE_ASSETS: readonly string[] = [
+  'spectator',
+  'visitor',
+  'marshal',
+  'photographer',
+];
+
+const VISITOR_VARIANTS = 48;
+const MARSHAL_VARIANTS = 24;
+const PHOTOGRAPHER_VARIANTS = 24;
 
 /**
  * Fan groups on the INSIDE of tight corners along the whole stage (MapDef.cornerFans): a red / white tape line
@@ -23,6 +48,8 @@ export function cornerFanInstances(
   seed: number,
   junctions: readonly { along: number; width: number; side: 1 | -1 }[],
   blocked: (x: number, z: number) => boolean,
+  ends: { start: number; finish: number } | undefined,
+  country: Country,
 ): ScatterInstance[] {
   const out: ScatterInstance[] = [];
   const rng = new Rng(hash3(7, 3, 1, seed ^ hashString('corner-fans')));
@@ -96,14 +123,45 @@ export function cornerFanInstances(
     const posts = Math.max(2, Math.round(len / 5.2) + 1);
     for (let i = 0; i < posts; i++)
       place('tape_post', (i / (posts - 1) - 0.5) * len, tapeOff, 0);
+    // The mix (its own stream, so the fan spots below stay where they were): visitors, a marshal, a photographer.
+    const mix = new Rng(hash3(Math.round(a0), 13, 7, seed));
     // Fans behind the tape, loosely bunched, some a row further back.
-    for (let i = 0; i < fans; i++)
+    for (let i = 0; i < fans; i++) {
+      const da = (sub.next() - 0.5) * len * 0.9;
+      const off = tapeOff + 1.5 + sub.next() * 4;
+      // About one in five sits or squats at the roadside.
+      const seated = sub.next() < 0.2;
+      const variant = seated
+        ? SPECTATOR_SEATED_FROM + sub.int(0, SPECTATOR_SEATED_COUNT - 1)
+        : sub.int(0, SPECTATOR_VARIANTS - 1);
+      const yaw = sub.range(-0.5, 0.5);
+      // About a third are visitors in everyday clothes (seated ones stay fans).
+      const pickVisitor = mix.next() < 0.35;
+      const pickFlag = mix.next() < 0.45;
+      const flagFan = flagVariant(country, mix.next());
+      if (seated) place('spectator', da, off, variant, yaw);
+      else if (pickFlag) place('spectator', da, off, flagFan, yaw);
+      else if (pickVisitor)
+        place('visitor', da, off, mix.int(0, VISITOR_VARIANTS - 1), yaw);
+      else place('spectator', da, off, variant, yaw);
+    }
+    // A marshal at the tape, most groups, at one end; a photographer a little further along, on some.
+    if (mix.next() < 0.7)
       place(
-        'spectator',
-        (sub.next() - 0.5) * len * 0.9,
-        tapeOff + 1.5 + sub.next() * 4,
-        sub.int(0, 5),
-        sub.range(-0.5, 0.5),
+        'marshal',
+        (mix.next() < 0.5 ? -0.5 : 0.5) * len * 0.8,
+        tapeOff + 0.4,
+        mix.int(0, MARSHAL_VARIANTS - 1),
+        mix.range(-0.3, 0.3),
+      );
+    const shooters = mix.int(2, 3);
+    for (let i = 0; i < shooters; i++)
+      place(
+        'photographer',
+        mix.range(-0.45, 0.45) * len,
+        tapeOff + 0.6 + mix.next() * 2.5,
+        mix.int(0, PHOTOGRAPHER_VARIANTS - 1),
+        mix.range(-0.4, 0.4),
       );
     for (let i = 0; i < flags; i++)
       place(
@@ -115,5 +173,75 @@ export function cornerFanInstances(
         (sub.next() < 0.5 ? 0 : Math.PI) + sub.range(-0.6, 0.6),
       );
   }
+
+  // Marshals at every side-road intersection along the stage: one each side of the mouth, facing the road.
+  const jrng = new Rng(hash3(7, 3, 2, seed ^ hashString('junction-marshals')));
+  for (const j of junctions) {
+    if (j.width < 2.5 || j.along < from - 100 || j.along > to + 100) continue;
+    const p0 = j.along;
+    const pick = jrng.int(0, MARSHAL_VARIANTS - 1);
+    const pick2 = jrng.int(0, MARSHAL_VARIANTS - 1);
+    for (const [k, v] of [
+      [-1, pick],
+      [1, pick2],
+    ] as const) {
+      const a = p0 + k * (j.width / 2 + 1.8);
+      if (road.bridgeAt(a)) continue;
+      const p = road.at(a);
+      const lat = j.side * (p.halfWidth + 3.2);
+      const x = p.x + p.tz * lat;
+      const z = p.z - p.tx * lat;
+      if (blocked(x, z)) continue;
+      const q = road.query(x, z, rq);
+      if (q.found && q.distance < q.halfWidth + 3) continue;
+      out.push({
+        asset: 'marshal',
+        variant: v,
+        x,
+        y: height(x, z),
+        z,
+        rotY:
+          Math.atan2(p.tx, p.tz) +
+          (j.side > 0 ? -Math.PI / 2 : Math.PI / 2) +
+          jrng.range(-0.3, 0.3),
+        scale: 1,
+        tiltX: 0,
+        tiltZ: 0,
+      });
+    }
+  }
+
+  // Ten photographers at the start line and ten at the finish, both sides of the road.
+  const erng = new Rng(hash3(7, 3, 3, seed ^ hashString('end-photographers')));
+  for (const at of ends ? [ends.start, ends.finish] : [])
+    for (let i = 0; i < 10; i++) {
+      const a = at + erng.range(-14, 10);
+      const side: 1 | -1 = i % 2 === 0 ? 1 : -1;
+      const off = 3.4 + erng.next() * 3.5;
+      const variant = erng.int(0, PHOTOGRAPHER_VARIANTS - 1);
+      const yaw = erng.range(-0.4, 0.4);
+      if (a < 0 || a > road.length || road.bridgeAt(a)) continue;
+      const p = road.at(a);
+      const lat = side * (p.halfWidth + off);
+      const x = p.x + p.tz * lat;
+      const z = p.z - p.tx * lat;
+      if (blocked(x, z)) continue;
+      const q = road.query(x, z, rq);
+      if (q.found && q.distance < q.halfWidth + 3) continue;
+      out.push({
+        asset: 'photographer',
+        variant,
+        x,
+        y: height(x, z),
+        z,
+        rotY:
+          Math.atan2(p.tx, p.tz) +
+          (side > 0 ? -Math.PI / 2 : Math.PI / 2) +
+          yaw,
+        scale: 1,
+        tiltX: 0,
+        tiltZ: 0,
+      });
+    }
   return out;
 }

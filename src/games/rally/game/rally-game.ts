@@ -30,6 +30,7 @@ import { PHYSICS_HZ, Vehicle } from '../physics/vehicle';
 import { isTestCar, isTestStage, TEST_NOTE } from '../release';
 import { getAssetMeta } from '../assets/catalog';
 import { Breakables } from '../world/breakables';
+import { PeopleAnimator } from '../world/people-anim';
 import { DistanceCull } from '../world/distance-cull';
 import { InstanceStreamer } from '../world/instance-streamer';
 import { TreeRenderer } from '../trees/draw';
@@ -173,6 +174,8 @@ export class RallyGame {
   loadMs = 0;
   /** Marker posts the car knocks over (drawn by the streamer). */
   breakables!: Breakables;
+  /** Fans, marshals and photographers turning to follow the car. */
+  people!: PeopleAnimator;
   stage!: StageTimer;
   readonly input = new InputController();
   rig!: CameraRig;
@@ -366,6 +369,7 @@ export class RallyGame {
     this.breakables = new Breakables(this.world.scatter, (x, z) =>
       this.world.heightAt(x, z),
     );
+    this.people = new PeopleAnimator(this.world.scatter.fixedInstances());
     await frame();
 
     progress(0.9, 'Car');
@@ -577,6 +581,7 @@ export class RallyGame {
     this.tyreMarks?.breakStrips();
     this.rig.snap();
     this.breakables.reset((inst) => this.streamer.setMatrix(inst, null));
+    this.people.reset((inst, m) => this.streamer.setMatrix(inst, m));
     if (this.freeDrive) {
       this.stage.freeDrive();
       this.hud.message('FREE DRIVE', 2, 'small');
@@ -1143,6 +1148,14 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       // Slow-mo instead of a death spiral; keep the remainder (< 1 step) so the interpolated car never steps back.
       if (steps === MAX_STEPS) this.acc = Math.min(this.acc, STEP);
       this.knockPosts(dt);
+      this.people.update(
+        dt,
+        v.position.x,
+        v.position.z,
+        v.velocity.x,
+        v.velocity.z,
+        (inst, m) => this.streamer.setMatrix(inst, m),
+      );
     } else this.input.poll();
     const tPhysics = performance.now();
     const alpha = this.paused ? 1 : this.acc / STEP;

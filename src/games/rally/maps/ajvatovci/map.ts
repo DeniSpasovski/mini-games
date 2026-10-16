@@ -49,6 +49,7 @@ const WILD = [
 
 export const ajvatovciMap: MapDef = {
   ...info,
+  country: 'mk',
   // Plain instanced boxes (house / flat): the baked `kind` (mesh buildings with facades) is left out so
   // the ~6 500 buildings of the Ilinden / Marino background stay cheap and the stage keeps its look.
   buildings: buildingsFromData({ ...data.buildings, kinds: undefined }),
