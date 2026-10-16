@@ -155,7 +155,6 @@ function layBays(
   let next = 0;
   for (const lot of def.lots) {
     const rows = !ferme && lot.width >= 2 * BAY_DEPTH + 4 ? 2 : 1;
-    const firstCentre = layout.bayCentres.length;
     let inLot = 0;
     for (let r = 0; r < rows && layout.bays < def.bays; r++) {
       // Row 0 backs on v = BAY_DEPTH (front at the public edge), row 1 on the far edge of the lot; a parc fermé row
@@ -186,8 +185,7 @@ function layBays(
         layout.bayCentres.push({ ...bay.centre, team });
       }
     }
-    if (lot.semis)
-      addSemis(layout, lot, ctx, layout.bayCentres.slice(firstCentre));
+    if (lot.semis) addSemis(layout, lot, ctx, layout.bayCentres);
   }
   return layout;
 }
@@ -211,8 +209,9 @@ function addSemis(
   for (let i = 0; i < count; i++) {
     const u =
       (lot.length - row) / 2 + SEMI_LENGTH / 2 + i * (SEMI_LENGTH + SEMI_GAP);
-    const [x, z] = lotWorld(lot, u, BAY_DEPTH + 3.2);
-    const ends = [-1, 1].map((k) => lotWorld(lot, u + k * 7, BAY_DEPTH + 3.2));
+    const v = lot.semiV ?? BAY_DEPTH + 3.2;
+    const [x, z] = lotWorld(lot, u, v);
+    const ends = [-1, 1].map((k) => lotWorld(lot, u + k * 7, v));
     if (
       ctx.blocked(x, z, 2.5, lot.paved) ||
       ends.some(([ex, ez]) => ctx.blocked(ex, ez, 1.5, lot.paved))
@@ -712,6 +711,7 @@ function addPublicEdge(
     return true;
   };
   for (const lot of def.lots) {
+    if (lot.bays === 0) continue;
     paved = !!lot.paved;
     const c = Math.cos(lot.heading);
     const s = Math.sin(lot.heading);

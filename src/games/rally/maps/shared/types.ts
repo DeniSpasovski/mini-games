@@ -687,7 +687,10 @@ export interface ServiceLot {
   heading: number;
   length: number;
   width: number;
-  /** Parc fermé lots (`ServicePark.ferme`): at most this many cars here (default: as many as fit). */
+  /**
+   * At most this many bays / parc fermé cars here (default: as many as fit). 0 = a truck yard: no bays, no tape and
+   * crowd on its edge, only `semis`.
+   */
   bays?: number;
   /** A parc fermé on a street: its pieces may stand on the road surface of other roads (buildings and water still block). */
   paved?: boolean;
@@ -698,9 +701,11 @@ export interface ServiceLot {
   parallel?: boolean;
   /**
    * Tractor-trailer team trucks (`service_semi`) lined up along the lot's back edge, behind the bays, each in the colours
-   * of the nearest bay's team. The lot needs about 6 m behind the bay depth (11 m) and 18 m of length per truck.
+   * of the nearest bay's team. The lot needs about 18 m of length per truck.
    */
   semis?: number;
+  /** Across the lot (v) of the trucks' centre line, default 14.2 (3.2 m behind the bay depth of 11 m). */
+  semiV?: number;
 }
 
 /** A rally service park (paddock) at a stage start: team bays on the lots, a crowd on the public edge. */
