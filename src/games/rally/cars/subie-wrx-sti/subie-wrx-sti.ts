@@ -82,6 +82,11 @@ export const subieWrxSti: CarDef = {
       url: 'https://sketchfab.com/3d-models/2019-rowen-subaru-wrx-sti-dfd3b419f6c84f52920476549c403f17',
       note: 'imported body, cockpit, lamps and rim (converted + repainted), CC BY 4.0',
     },
+    {
+      label: 'Subaru - 2021 WRX brochure (PDF)',
+      url: 'https://www.subaru.com/content/dam/subaru/downloads/pdf/brochures/2021/wrx/2021_WRX_Brochure.pdf',
+      note: 'specification reference',
+    },
   ],
   // Night headlights: HID / LED low beam.
   headlights: {

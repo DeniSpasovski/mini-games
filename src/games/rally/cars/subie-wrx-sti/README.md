@@ -42,9 +42,10 @@ Power, torque and mass follow the published STI figures; gearing, grip and brake
 
 ## Credits and licence
 
-| What                      | Source                                                                                                                                             | Licence       |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| Body, cockpit, lamps, rim | ["2019 Rowen Subaru WRX STI" by Car design, Sketchfab](https://sketchfab.com/3d-models/2019-rowen-subaru-wrx-sti-dfd3b419f6c84f52920476549c403f17) | **CC BY 4.0** |
+| What                      | Source                                                                                                                                             | Licence        |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| Body, cockpit, lamps, rim | ["2019 Rowen Subaru WRX STI" by Car design, Sketchfab](https://sketchfab.com/3d-models/2019-rowen-subaru-wrx-sti-dfd3b419f6c84f52920476549c403f17) | **CC BY 4.0**  |
+| Specification             | [Subaru - 2021 WRX brochure (PDF)](https://www.subaru.com/content/dam/subaru/downloads/pdf/brochures/2021/wrx/2021_WRX_Brochure.pdf)               | reference only |
 
 Converted and repainted by us (attribution in `CarDef.credit`, `THIRD-PARTY.md`, `public/models/CREDITS.md`). The downloaded GLB
 itself is not in the repository (`sources/` is git-ignored); only the converted `subie_wrx_sti.glb`, `subie_wrx_sti_wheel.glb` and
