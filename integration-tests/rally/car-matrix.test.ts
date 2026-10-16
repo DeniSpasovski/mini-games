@@ -64,8 +64,10 @@ function drive(
     }
     stuck = Math.abs(v.speed) < 0.5 ? stuck + DT : 0;
     if (stuck > 5) {
-      // A player presses R (reset to the road) when stuck; the wrong tyre on a steep loose climb may need it once.
-      if (resets++ > 3) break;
+      // A player presses R (reset to the road) when stuck; the wrong tyre on a steep loose climb may need it a few times
+      // (the Porsche on tarmac tyres on Petralica needs 2 to 7, by the tenth of a degree of the sun heat). The careful run
+      // on the right tyre is held to one reset below.
+      if (resets++ > 9) break;
       const s = world.roadSpawn(ap.along);
       v.reset(s.position, s.heading);
       stuck = 0;
