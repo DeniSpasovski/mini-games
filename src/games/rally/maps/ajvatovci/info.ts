@@ -49,12 +49,12 @@ export const ajvatovciInfo: MapInfo = {
     {
       label: 'Low Poly Truck (FS 3D Studio, Sketchfab)',
       url: 'https://sketchfab.com/3d-models/low-poly-truck-d61a2ac0a706462ebf82459907f21573',
-      note: 'parked tractor units, trailers and box trucks, simplified and recoloured - CC BY 4.0',
+      note: 'parked tractor units, trailers and box trucks, recoloured - CC BY 4.0',
     },
     {
       label: 'Dump Truck (ElectroNick, Sketchfab)',
       url: 'https://sketchfab.com/3d-models/dump-truck-781c616da8f44982a59cb3fc3fa67f98',
-      note: 'parked dump trucks, simplified and recoloured - CC BY 4.0',
+      note: 'parked dump trucks, recoloured - CC BY 4.0',
     },
   ],
   stageNumber: 1,

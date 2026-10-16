@@ -16,7 +16,7 @@ import {
   SphereGeometry,
   Vector2,
   type ColorRepresentation,
-  type Material,
+  Material,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { ORIGIN } from '../frame';
@@ -29,9 +29,9 @@ import {
 import { standHeight, type Build } from './ctx';
 import {
   truckData,
-  truckPart,
+  truckMaps,
+  truckPieces,
   type TruckModel,
-  type TruckPart,
 } from './truck-models';
 
 /**
@@ -48,9 +48,25 @@ import {
 type Pt = [number, number];
 type Part = 'paint' | 'cab' | 'glass' | 'chrome' | 'detail';
 
-/** Geometry collected per part, with vertex colours (used by `detail`). */
+/** One mesh of a model: a part (its material), drawn with a texture of the baked trucks or flat. */
+interface Slot {
+  part: Part;
+  /** Key of a truck texture (`truck-models.data.ts`). */
+  tex?: string;
+}
+
+const slotKey = (s: Slot): string => (s.tex ? `${s.part}|${s.tex}` : s.part);
+
+/** Geometry collected per part (and texture), with vertex colours where there is no texture. */
 class Pieces {
-  private lists = new Map<Part, BufferGeometry[]>();
+  private lists = new Map<string, { slot: Slot; list: BufferGeometry[] }>();
+
+  private push(slot: Slot, g: BufferGeometry): void {
+    const key = slotKey(slot);
+    const entry = this.lists.get(key) ?? { slot, list: [] };
+    entry.list.push(g);
+    this.lists.set(key, entry);
+  }
 
   add(
     part: Part,
@@ -66,28 +82,24 @@ class Pieces {
     for (let i = 0; i < n; i++) col.set([c.r, c.g, c.b], i * 3);
     flat.setAttribute('color', new BufferAttribute(col, 3));
     flat.clearGroups();
-    const list = this.lists.get(part) ?? [];
-    list.push(flat);
-    this.lists.set(part, list);
+    this.push({ part }, flat);
   }
 
-  /** A baked mesh (position, normal, colour); `dx` shifts it along the vehicle. */
-  addBaked(part: Part, g: BufferGeometry, dx = 0): void {
+  /** A baked mesh (position, normal, colour or uv); `dx` shifts it along the vehicle. */
+  addBaked(part: Part, g: BufferGeometry, dx = 0, tex?: string): void {
     const flat = g.index ? g.toNonIndexed() : g;
     for (const name of Object.keys(flat.attributes))
-      if (!['position', 'normal', 'color'].includes(name))
+      if (!['position', 'normal', 'color', 'uv'].includes(name))
         flat.deleteAttribute(name);
     flat.translate(dx, 0, 0);
     flat.clearGroups();
-    const list = this.lists.get(part) ?? [];
-    list.push(flat);
-    this.lists.set(part, list);
+    this.push({ part, tex }, flat);
   }
 
   /** Every piece of `other`, shifted `dx` along the vehicle. */
   append(other: Pieces, dx: number): void {
-    for (const [part, list] of other.lists)
-      for (const g of list) this.addBaked(part, g, dx);
+    for (const { slot, list } of other.lists.values())
+      for (const g of list) this.addBaked(slot.part, g, dx, slot.tex);
   }
 
   /** Box from corner to corner (and its mirror image in z when `mirror`). */
@@ -109,8 +121,13 @@ class Pieces {
       this.add(part, make([a[0], a[1], -a[2]], [b[0], b[1], -b[2]]), color);
   }
 
-  geometry(part: Part): BufferGeometry | undefined {
-    const list = this.lists.get(part);
+  /** The meshes of the model: one per part and texture. */
+  slots(): Slot[] {
+    return [...this.lists.values()].map((e) => e.slot);
+  }
+
+  geometry(slot: Slot): BufferGeometry | undefined {
+    const list = this.lists.get(slotKey(slot))?.list;
     return list?.length ? mergeGeometries(list) : undefined;
   }
 }
@@ -232,6 +249,64 @@ const materialFor = (): Record<Part, Material> =>
       roughness: 0.68,
     }),
   });
+
+const texturedMaterials = new Map<string, Material>();
+
+/**
+ * The material of a textured part (baked trucks). `cab` / `paint` take the instance colour where the texture's tint
+ * mask is white (all of it without a mask): the texel's brightness stays, scaled so the panels' own brightness comes
+ * out as the paint colour. `detail` shows the texture as it is.
+ */
+const texturedMaterial = (slot: Slot): Material => {
+  const key = slotKey(slot);
+  let made = texturedMaterials.get(key);
+  if (made) return made;
+  const t = truckMaps(slot.tex!);
+  if (slot.part === 'detail') {
+    made = new MeshStandardMaterial({
+      map: t?.map,
+      metalness: 0.15,
+      roughness: 0.68,
+    });
+  } else {
+    const paint = slot.part === 'paint';
+    const m = new MeshPhysicalMaterial({
+      map: t?.map,
+      metalness: paint ? 0.5 : 0.4,
+      roughness: paint ? 0.34 : 0.4,
+      clearcoat: paint ? 0.8 : 0.5,
+      clearcoatRoughness: paint ? 0.12 : 0.2,
+      ...(paint ? { envMapIntensity: 1.4 } : {}),
+    });
+    const masked = !!t?.mask;
+    m.onBeforeCompile = (shader, renderer) => {
+      // The world shading's uniforms (fog, lights) come with the default hook (engine/world-shading.ts).
+      Material.prototype.onBeforeCompile.call(m, shader, renderer);
+      shader.uniforms.tintMask = { value: t?.mask ?? null };
+      shader.uniforms.tintRef = { value: t?.ref ?? 1 };
+      shader.fragmentShader = shader.fragmentShader
+        .replace(
+          '#include <common>',
+          '#include <common>\nuniform sampler2D tintMask;\nuniform float tintRef;',
+        )
+        // The instance colour is applied below, through the mask.
+        .replace('#include <color_fragment>', '')
+        .replace(
+          '#include <map_fragment>',
+          `#include <map_fragment>
+          #ifdef USE_COLOR
+          float tintK = ${masked ? 'texture2D( tintMask, vMapUv ).r' : '1.0'};
+          float tintL = dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) / tintRef;
+          diffuseColor.rgb = mix( diffuseColor.rgb, vColor.rgb * min( tintL, 1.35 ), tintK );
+          #endif`,
+        );
+    };
+    m.customProgramCacheKey = () => (masked ? 'truck-tint-mask' : 'truck-tint');
+    made = m;
+  }
+  texturedMaterials.set(key, made);
+  return made;
+};
 
 /**
  * A wheel: a ten-sided tyre and a hub disc on its outer face, axle along z, centred at (x, y, z);
@@ -634,19 +709,39 @@ const buildVan = (variant: 'small' | 'large'): Pieces => {
 
 // ----- Trucks -----
 
-/** A baked model's meshes and tyres go into `p`, shifted `dx` along the vehicle. */
+/** A baked model's parts go into `p`, shifted `dx` along the vehicle; `skip` leaves parts out (by id). */
 const baked = (
   p: Pieces,
   model: TruckModel,
   dx = 0,
-  parts: readonly TruckPart[] = ['cab', 'paint', 'glass', 'detail'],
+  skip: readonly string[] = [],
 ): void => {
-  for (const part of parts) {
-    const g = truckPart(model, part);
-    if (g) p.addBaked(part, g, dx);
-  }
-  for (const w of truckData(model).wheels)
-    wheel(p, w.r, w.w, w.x + dx, w.y, w.z, Math.sign(w.z) || 1);
+  for (const piece of truckPieces(model))
+    if (!skip.includes(piece.id))
+      p.addBaked(piece.role, piece.geometry, dx, piece.tex);
+};
+
+let tyreTemplates:
+  Map<string, ReturnType<typeof truckPieces>[number]> | undefined;
+
+/** A tyre of the baked trucks scaled to radius `r`, at (x, y, z), its outer face on `side` (+1 / -1 in z). */
+const truckTyre = (
+  p: Pieces,
+  r: number,
+  x: number,
+  y: number,
+  z: number,
+  side: number,
+): void => {
+  tyreTemplates ??= new Map(truckPieces('tyre').map((t) => [t.id, t]));
+  const t = tyreTemplates.get(side > 0 ? 'pos' : 'neg')!;
+  const k = r / truckData('tyre').r!;
+  p.addBaked(
+    'detail',
+    t.geometry.clone().scale(k, k, k).translate(x, y, z),
+    0,
+    t.tex,
+  );
 };
 
 /** What sits on a dump truck's frame, from the back of its cab to its rear end. */
@@ -655,12 +750,7 @@ type Back = 'tipper' | 'flatbed' | 'vanbody' | 'tank';
 const buildDump = (back: Back): Pieces => {
   const p = new Pieces();
   // The model's own dumper is the tipper's back; the other backs replace it.
-  baked(
-    p,
-    'dump',
-    0,
-    back === 'tipper' ? undefined : ['cab', 'glass', 'detail'],
-  );
+  baked(p, 'dump', 0, back === 'tipper' ? [] : ['dumper']);
   if (back === 'tipper') return p;
   const d = truckData('dump');
   const x0 = (d.rear ?? -3) + 0.05;
@@ -873,7 +963,7 @@ const buildTruck = (variant: 'box' | 'tractor' | 'tanker'): Pieces => {
         true,
       );
     for (const x of [-9.4, -10.7, -12.0])
-      for (const z of [-1.0, 1.0]) wheel(t, 0.5, 0.31, x, 0.5, z, Math.sign(z));
+      for (const z of [-0.9, 0.9]) truckTyre(t, 0.5, x, 0.5, z, Math.sign(z));
     p.append(t, 4.13);
     return p;
   }
@@ -913,7 +1003,7 @@ const buildTruck = (variant: 'box' | 'tractor' | 'tanker'): Pieces => {
     true,
   );
   for (const x of [-1.8, -3.1])
-    for (const z of [-1.0, 1.0]) wheel(p, 0.5, 0.31, x, 0.5, z, Math.sign(z));
+    for (const z of [-0.9, 0.9]) truckTyre(p, 0.5, x, 0.5, z, Math.sign(z));
   return p;
 };
 
@@ -1043,16 +1133,15 @@ export function buildFleet(b: Build): Group {
     const paint = placements.map((pl) => new Color(pl.color));
     const cab = placements.map((pl) => new Color(pl.cabColor ?? pl.color));
     const parts: [Part, InstancedMesh][] = [];
-    for (const part of [
-      'paint',
-      'cab',
-      'glass',
-      'chrome',
-      'detail',
-    ] as Part[]) {
-      const geometry = model.pieces.geometry(part);
+    for (const slot of model.pieces.slots()) {
+      const { part } = slot;
+      const geometry = model.pieces.geometry(slot);
       if (!geometry) continue;
-      const mesh = new InstancedMesh(geometry, mats[part], placements.length);
+      const mesh = new InstancedMesh(
+        geometry,
+        slot.tex ? texturedMaterial(slot) : mats[part],
+        placements.length,
+      );
       matrices.forEach((m, i) => mesh.setMatrixAt(i, m));
       if (part === 'paint' || part === 'cab')
         (part === 'cab' ? cab : paint).forEach((c, i) => mesh.setColorAt(i, c));
@@ -1145,10 +1234,10 @@ function proxyOf(pieces: Pieces): BufferGeometry {
   };
   let maxY = 0;
   const all: [Part, BufferGeometry][] = [];
-  for (const part of Object.keys(tone) as Part[]) {
-    const g = pieces.geometry(part);
+  for (const slot of pieces.slots()) {
+    const g = pieces.geometry(slot);
     if (!g) continue;
-    all.push([part, g]);
+    all.push([slot.part, g]);
     const p = g.getAttribute('position');
     for (let i = 0; i < p.count; i++) maxY = Math.max(maxY, p.getY(i));
   }

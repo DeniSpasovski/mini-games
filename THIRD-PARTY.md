@@ -74,9 +74,10 @@ about 900 / 450 triangles and packed by `scripts/car-model/bake-street-cars.mjs`
 
 ### Parked trucks (baked into `src/games/rally/maps/ajvatovci/start-row/build/truck-models.data.ts`)
 
-The tractor units, trailers, box-truck cabs and dump trucks parked at Ajvatovci are simplified, recoloured copies of two CC BY 4.0
-models (split, reduced and packed by `scripts/car-model/street-pack-extract.py` + `bake-trucks.mjs`; tyres are drawn by the game;
-the dump truck's other backs are built in code; the source files are not in the repository).
+The tractor units, trailers, box-truck cabs and dump trucks parked at Ajvatovci are recoloured copies of two CC BY 4.0
+models (split and packed by `scripts/car-model/street-pack-extract.py` + `bake-truck-textures.py` + `bake-trucks.mjs`; their own
+triangles and textures, the tyre hub-cap emblem blanked; the dump truck's other backs are built in code; the source files are not in
+the repository).
 
 | Model                                                                                                                   | Author                   | Licence   |
 | ----------------------------------------------------------------------------------------------------------------------- | ------------------------ | --------- |
