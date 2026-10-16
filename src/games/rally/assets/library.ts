@@ -5,6 +5,7 @@ import { variantMaterial } from '../engine/materials';
 import {
   chevronSign,
   fanFlag,
+  flagpole,
   hayBale,
   markerPost,
   roadBarrier,
@@ -33,6 +34,12 @@ import {
   taxi,
 } from './builders/vehicles';
 import {
+  antennaMast,
+  gondolaPylon,
+  millenniumCross,
+} from './builders/landmarks';
+import { catenaryMast, powerPole, powerPylon } from './builders/power';
+import {
   carTrailer,
   controlBoard,
   featherFlag,
@@ -53,7 +60,6 @@ import {
   trolleyJack,
   tyreStack,
 } from './builders/service';
-import { catenaryMast, powerPole, powerPylon } from './builders/power';
 import {
   concreteBlock,
   crashCushion,
@@ -90,6 +96,7 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   visitor,
   tape_post: tapePost,
   fan_flag: fanFlag,
+  flagpole,
   road_barrier: roadBarrier,
   marker_post: markerPost,
   chevron_sign: chevronSign,
@@ -128,6 +135,9 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   power_pylon: powerPylon,
   power_pole: powerPole,
   catenary_mast: catenaryMast,
+  millennium_cross: millenniumCross,
+  antenna_mast: antennaMast,
+  gondola_pylon: gondolaPylon,
   village_sign: villageSign,
 };
 

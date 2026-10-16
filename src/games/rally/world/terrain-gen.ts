@@ -32,7 +32,7 @@ import {
   newLakeQuery,
   type LakeQuery,
 } from './lakes';
-import { PadField } from './pads';
+import { distance as polygonDistance, PadField } from './pads';
 import { markParkwayLanes } from './parkway-lanes';
 import { Plazas } from './plazas';
 import { buildPortals, Portals } from './portals';
@@ -2372,6 +2372,7 @@ export class TerrainGenerator {
         out,
         minPathHw,
       );
+      this.paintLawns(x, z, out);
       return;
     }
     let dirt = smoothstep(0.15, 0.55, n) * 0.85;
@@ -2388,6 +2389,45 @@ export class TerrainGenerator {
     out[SPLAT_ROCK] = rk;
     out[SPLAT_DIRT] = dr;
     out[SPLAT_GRASS] = Math.max(0, 1 - gravel - rk - dr);
+    this.paintLawns(x, z, out);
+  }
+
+  /** `MapDef.terrain.lawns` with their bounds. */
+  private lawnPolys?: {
+    pts: Float64Array;
+    minX: number;
+    maxX: number;
+    minZ: number;
+    maxZ: number;
+  }[];
+
+  /** Pure grass inside a lawn polygon, feathered a metre outside it. */
+  private paintLawns(x: number, z: number, out: Float32Array | number[]): void {
+    const polys = (this.lawnPolys ??= (this.map.terrain.lawns ?? []).map(
+      (poly) => {
+        const pts = Float64Array.from(poly);
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minZ = Infinity;
+        let maxZ = -Infinity;
+        for (let i = 0; i < pts.length; i += 2) {
+          minX = Math.min(minX, pts[i]);
+          maxX = Math.max(maxX, pts[i]);
+          minZ = Math.min(minZ, pts[i + 1]);
+          maxZ = Math.max(maxZ, pts[i + 1]);
+        }
+        return { pts, minX, maxX, minZ, maxZ };
+      },
+    ));
+    let w = 0;
+    for (const p of polys) {
+      if (x < p.minX - 1 || x > p.maxX + 1 || z < p.minZ - 1 || z > p.maxZ + 1)
+        continue;
+      w = Math.max(w, 1 - smoothstep(0, 1, polygonDistance(p.pts, x, z)));
+    }
+    if (w <= 0) return;
+    for (let i = 0; i < 4; i++)
+      out[i] = out[i] * (1 - w) + (i === SPLAT_GRASS ? w : 0);
   }
 
   /** Land cover base weights (already in `out`) + road / path / channel paint + slope rock. */

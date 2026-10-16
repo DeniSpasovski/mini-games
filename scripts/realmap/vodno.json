@@ -1,0 +1,82 @@
+{
+  "id": "vodno",
+  "name": "Vodno Hillclimb",
+  "out": "src/games/rally/maps/vodno/data.json",
+  "origin": [41.97219, 21.40287],
+  "waypoints": [
+    [41.9824265, 21.4218115],
+    [41.9808131, 21.4219566],
+    [41.975188, 21.4098313],
+    [41.9752331, 21.4076597]
+  ],
+  "osm": {
+    "source": "overpass"
+  },
+  "route": {
+    "width": 6.0
+  },
+  "heightBase": 500,
+  "detail": {
+    "cell": 10,
+    "extent": [-3100, 3100, -1850, 1850]
+  },
+  "outer": {
+    "cell": 50,
+    "extent": [-10000, 10000, -10000, 5000]
+  },
+  "landcover": {
+    "cell": 5,
+    "extent": [-3100, 3100, -1850, 1850],
+    "plainOrchards": false
+  },
+  "canopy": {
+    "trees": 8,
+    "pine": 8,
+    "orchard": 3,
+    "urban": 2
+  },
+  "routeSmoothSigma": 4,
+  "routeTolerance": 0.6,
+  "minCornerRadius": 10,
+  "stage": 5,
+  "paths": {
+    "corridor": 4000,
+    "highwayCorridor": 4000,
+    "dropWays": [
+      694830751, 694830752, 694830753, 694830754, 694830755, 725189364,
+      725686717
+    ],
+    "dropKinds": ["stream"],
+    "mergeJoints": true
+  },
+  "buildings": {
+    "microsoft": true,
+    "roadClearance": 5.0,
+    "corridor": 4000,
+    "box": true,
+    "dropWays": [1178638147],
+    "manual": [
+      {
+        "lat": 41.97629,
+        "lon": 21.40745,
+        "w": 22,
+        "d": 12,
+        "angleDeg": 131,
+        "floors": 2,
+        "type": "flat",
+        "note": "cable car lower station (OSM has the node only)",
+        "building": "commercial"
+      }
+    ]
+  },
+  "horizon": {
+    "inner": {
+      "cell": 100,
+      "extent": [-9000, 9000, -13000, 5000]
+    },
+    "outer": {
+      "cell": 300,
+      "extent": [-30000, 40000, -50000, 16000]
+    }
+  }
+}

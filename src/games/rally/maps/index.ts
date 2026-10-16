@@ -4,6 +4,7 @@ import { galichicaInfo } from './galichica/info';
 import { jackieInfo } from './jackie/info';
 import { petralicaInfo } from './petralica/info';
 import { testMap } from './test/map';
+import { vodnoInfo } from './vodno/info';
 import type { MapDef, MapInfo, StageDef, StageInfo } from './shared/types';
 
 /** The light `MapInfo` of a full map (small maps whose whole definition is always loaded). */
@@ -65,6 +66,10 @@ const ENTRIES: MapEntry[] = [
   {
     info: galichicaInfo,
     load: async () => (await import('./galichica/map')).galichicaMap,
+  },
+  {
+    info: vodnoInfo,
+    load: async () => (await import('./vodno/map')).vodnoMap,
   },
 ];
 

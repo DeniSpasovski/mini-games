@@ -21,6 +21,16 @@ interface Pad {
   hs: number[];
   /** Slope used beyond the first / last knot (end to end average). */
   slope: number;
+  /** A ramp (`PadDef.ramp`): its start, the unit direction and length, the lifts at the two ends. */
+  ramp?: {
+    x0: number;
+    z0: number;
+    dx: number;
+    dz: number;
+    len: number;
+    a: number;
+    b: number;
+  };
 }
 
 /**
@@ -34,7 +44,8 @@ export class PadField {
   constructor(defs: PadDef[], road: Road) {
     const q = newRoadQuery();
     for (const d of defs) {
-      const lift = d.lift ?? 0.1;
+      // (a ramp's heights come from `ramp.lift`, over the bare road height)
+      const lift = d.ramp ? 0 : (d.lift ?? 0.1);
       if (d.level !== undefined) {
         // A fixed level: no stage road beside the lot to follow.
         this.add(d, 0, 0, 1, 0, [0, 1], [d.level + lift, d.level + lift], 0);
@@ -93,7 +104,23 @@ export class PadField {
       minZ = Math.min(minZ, pts[i + 1]);
       maxZ = Math.max(maxZ, pts[i + 1]);
     }
+    let ramp: Pad['ramp'];
+    if (d.ramp) {
+      const rx = d.ramp.to[0] - d.ramp.from[0];
+      const rz = d.ramp.to[1] - d.ramp.from[1];
+      const len = Math.hypot(rx, rz) || 1;
+      ramp = {
+        x0: d.ramp.from[0],
+        z0: d.ramp.from[1],
+        dx: rx / len,
+        dz: rz / len,
+        len,
+        a: d.ramp.lift[0],
+        b: d.ramp.lift[1],
+      };
+    }
     this.pads.push({
+      ramp,
       pts,
       minX: minX - d.blend,
       maxX: maxX + d.blend,
@@ -119,13 +146,23 @@ export class PadField {
   private level(p: Pad, x: number, z: number): number {
     const t = (x - p.x0) * p.dx + (z - p.z0) * p.dz;
     const n = p.ts.length;
-    if (t <= p.ts[0]) return p.hs[0] + p.slope * Math.max(-120, t - p.ts[0]);
-    if (t >= p.ts[n - 1])
-      return p.hs[n - 1] + p.slope * Math.min(120, t - p.ts[n - 1]);
-    let i = 1;
-    while (i < n - 1 && p.ts[i] < t) i++;
-    const u = (t - p.ts[i - 1]) / (p.ts[i] - p.ts[i - 1] || 1);
-    return p.hs[i - 1] + (p.hs[i] - p.hs[i - 1]) * u;
+    let base: number;
+    if (t <= p.ts[0]) base = p.hs[0] + p.slope * Math.max(-120, t - p.ts[0]);
+    else if (t >= p.ts[n - 1])
+      base = p.hs[n - 1] + p.slope * Math.min(120, t - p.ts[n - 1]);
+    else {
+      let i = 1;
+      while (i < n - 1 && p.ts[i] < t) i++;
+      const u = (t - p.ts[i - 1]) / (p.ts[i] - p.ts[i - 1] || 1);
+      base = p.hs[i - 1] + (p.hs[i] - p.hs[i - 1]) * u;
+    }
+    const r = p.ramp;
+    if (!r) return base;
+    const u = Math.min(
+      1,
+      Math.max(0, ((x - r.x0) * r.dx + (z - r.z0) * r.dz) / r.len),
+    );
+    return base + r.a + (r.b - r.a) * smoothstep(0, 1, u);
   }
 
   /** Surface of a pad with one at (x, z) (inside its outline), else undefined. */
