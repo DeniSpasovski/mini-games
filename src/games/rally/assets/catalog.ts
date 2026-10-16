@@ -276,7 +276,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Village sign',
     category: 'props',
     description:
-      'Village name board on two posts, "Ajvatovci / Ајватовци" (Latin + Cyrillic), faces +Z. Solid posts.',
+      'Village name board on two posts, "Ajvatovci / Ајватовци" (Latin + Cyrillic), front faces +Z, back plate has the red end-of-village slash. Solid posts.',
     variants: 1,
     lods: [
       { maxDistance: 140, castShadow: true },
