@@ -30,7 +30,6 @@
       "Object_44",
       "Object_71",
       "Object_26",
-      "Object_32",
       "Object_35",
       "Object_38",
       "wheel",
@@ -70,6 +69,10 @@
       {
         "node": "Object_62",
         "material": "steel"
+      },
+      {
+        "node": "Object_32",
+        "material": "brakestripred"
       },
       {
         "node": ["Object_121", "Object_124"],
@@ -140,7 +143,8 @@
       "lenscover",
       "steel",
       "mirror",
-      "logo"
+      "logo",
+      "brakestripred"
     ],
     "preview": {
       "body": "#c8ccd0",
@@ -151,7 +155,8 @@
       "lenscover": "#d5dae0",
       "steel": "#8a9096",
       "mirror": "#9aa8b5",
-      "logo": "#ff00ff"
+      "logo": "#ff00ff",
+      "brakestripred": "#d01418"
     },
     "maxTriangles": {
       "interior:2s": 16000
@@ -187,14 +192,6 @@
       {
         "node": "Object_44",
         "z": [-2.6, -1.9],
-        "material": "src:tail:subie_22b_lamps.png"
-      },
-      {
-        "node": "Object_26",
-        "material": "src:tail:subie_22b_lamps.png"
-      },
-      {
-        "node": "Object_32",
         "material": "src:tail:subie_22b_lamps.png"
       },
       {

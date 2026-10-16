@@ -197,7 +197,7 @@ export const subie22b: CarDef = {
     // The model's own gold alloy (subie_22b_wheel.glb), de-cambered and centred on the hub, scaled to each compound's tyre.
     wheelModel: 'subie_22b_wheel.glb',
     // The model's cockpit shows through the windows.
-    glass: { color: 0x141c24, opacity: 0.6 },
+    glass: { color: 0x141c24, opacity: 0.4 },
     suspensionStyle: 'sti',
     cornerSuspension: {
       style: 'sti',
