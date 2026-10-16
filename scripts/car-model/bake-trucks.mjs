@@ -58,6 +58,7 @@ function filterTris(m, keep) {
         c,
         C,
         n.map((x) => x / len),
+        P,
       )
     )
       continue;
@@ -264,7 +265,12 @@ const out = {};
   // Full tractor: simplified first, then split by colour (so the paint edge follows the simplified mesh).
   const simple = simplify(weld(low.tractor), 1900);
   const [tp, tf] = split(simple, (C) => isLightPaint(C, 130));
-  const cabOnly = (m) => filterTris(m, (c) => cabMask(c));
+  // (Below the cab floor and behind the bumper: long white slivers of the side skirts.)
+  const cabOnly = (m) =>
+    filterTris(
+      m,
+      (c) => cabMask(c) && !(c[1] < 0.75 && c[0] < low.L / 2 - 0.7),
+    );
   const tractor = { paint: tp, fixed: tf };
   // The trailer's texture is sampled at the corners of big panels (dark frame texels): paint = the box above the frame.
   const trp = filterTris(low.trailer, (c) => c[1] > 1.25);

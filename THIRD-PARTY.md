@@ -77,10 +77,10 @@ The tractor units, trailers, box-truck cabs and dump trucks parked at Ajvatovci 
 models (split, reduced and packed by `scripts/car-model/street-pack-extract.py` + `bake-trucks.mjs`; tyres are drawn by the game;
 the dump truck's other backs are built in code; the source files are not in the repository).
 
-| Model                                                                                                                   | Author                                                                | Licence   |
-| ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | --------- |
-| ["Low Poly Truck"](https://sketchfab.com/3d-models/low-poly-truck-d61a2ac0a706462ebf82459907f21573) (tractor + trailer) | [FS 3D Studio](https://sketchfab.com/mwaqasmalik11221122) (Sketchfab) | CC BY 4.0 |
-| ["Dump Truck"](https://sketchfab.com/3d-models/dump-truck-781c616da8f44982a59cb3fc3fa67f98)                             | [ElectroNick](https://sketchfab.com/ElectroNick) (Sketchfab)          | CC BY 4.0 |
+| Model                                                                                                                   | Author                   | Licence   |
+| ----------------------------------------------------------------------------------------------------------------------- | ------------------------ | --------- |
+| ["Low Poly Truck"](https://sketchfab.com/3d-models/low-poly-truck-d61a2ac0a706462ebf82459907f21573) (tractor + trailer) | FS 3D Studio (Sketchfab) | CC BY 4.0 |
+| ["Dump Truck"](https://sketchfab.com/3d-models/dump-truck-781c616da8f44982a59cb3fc3fa67f98)                             | ElectroNick (Sketchfab)  | CC BY 4.0 |
 
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 
