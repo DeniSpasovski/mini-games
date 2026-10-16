@@ -15,6 +15,10 @@ import { CARS, getCar } from '../cars';
 import { rallyName } from '../cars/shared/rally-badge';
 import type { CarDef } from '../cars/shared/types';
 import { Environment } from '../engine/environment';
+import { LIGHTS_MIN_NEED } from '../engine/night';
+import { setHeadBeam, setLampGlow } from '../engine/night-glow';
+import { LampPools } from '../world/lamp-pools';
+import { NightBloom } from '../engine/night-bloom';
 import type { QualitySettings } from '../engine/quality';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
 import { setClockTime } from '../engine/stage-sign-textures';
@@ -165,6 +169,9 @@ export class RallyGame {
   contactShadow!: ContactShadow;
   /** Night only (`env.night`): the car's lights. */
   private headlights?: Headlights;
+  /** High quality at night / dusk: glow around lamps and reflectors. */
+  private bloom?: NightBloom;
+  private readonly lampColor = new Color();
   private lampPos = new Vector3();
   private lampDir = new Vector3();
   streamer!: InstanceStreamer;
@@ -406,9 +413,11 @@ export class RallyGame {
       tyre: this.opts.tyre,
     });
     this.scene.add(this.model.root);
-    if (this.env.night) {
-      // Lights on: lamp glow, tail lamps, two spot lights and the beam in the air (before the first compile).
-      this.model.setLamps(true);
+    if (this.env.lightNeed >= LIGHTS_MIN_NEED) {
+      // Lights on (night, and fading in through dusk / dawn): lamp glow, tail lamps, two spot lights and the beam in
+      // the air, all scaled by how dark it is (before the first compile).
+      const need = this.env.lightNeed;
+      this.model.setLamps(need);
       let zf = -Infinity;
       let hx = 0;
       for (const w of this.vehicle.wheels) {
@@ -420,6 +429,28 @@ export class RallyGame {
         { x: hx * 0.8, y: 0.7, z: zf + 0.75 },
         q.name,
         this.car.headlights,
+        need,
+      );
+    }
+    if (q.name === 'high' && this.env.lightNeed >= LIGHTS_MIN_NEED)
+      this.bloom = new NightBloom(
+        this.renderer,
+        this.scene,
+        this.camera,
+        q.antialias,
+        this.env.lightNeed,
+      );
+    setLampGlow(this.env.lightNeed);
+    if (this.env.lightNeed >= LIGHTS_MIN_NEED) {
+      // Street lamps: light pools on the ground under the lamps (the lens glow is the `lamp_lens` material).
+      this.scene.add(
+        new LampPools(
+          [...this.world.scatter.fixedInstances()].filter(
+            (i) => i.asset === 'street_lamp',
+          ),
+          (x, z) => this.world.heightAt(x, z),
+          this.env.lightNeed,
+        ).mesh,
       );
     }
     // Soft dark patch under the car: grounds it at any shadow resolution.
@@ -561,8 +592,11 @@ export class RallyGame {
     this.lampDir.set(0, -0.02, 1).transformDirection(root.matrixWorld);
     const c = this.headlights?.color;
     if (!c) return;
+    this.lampColor.copy(c).multiplyScalar(this.env.lightNeed);
     for (const p of [this.dust, this.gravel, this.haze])
-      p?.setHeadlight(c, this.lampPos, this.lampDir);
+      p?.setHeadlight(this.lampColor, this.lampPos, this.lampDir);
+    // Reflectors and reflective boards in the beam.
+    setHeadBeam(this.lampColor, this.lampPos, this.lampDir);
   }
 
   /** Name of the stage surface the fitted tyre grips worst ("gravel"), or null when it is fine on all of them. */
@@ -1292,7 +1326,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
 
     const tFx = performance.now();
     this.perf?.gpuBegin();
-    this.renderer.render(this.scene, this.camera);
+    if (this.bloom) this.bloom.render();
+    else this.renderer.render(this.scene, this.camera);
     this.perf?.gpuEnd();
     const tRender = performance.now();
     this.perf?.frame({

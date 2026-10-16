@@ -1,6 +1,7 @@
 import { describe, expect, test } from '@rstest/core';
 import {
   isNightHour,
+  lightNeed,
   moonAt,
   NIGHT_FROM,
   NIGHT_UNTIL,
@@ -36,5 +37,15 @@ describe('night hours', () => {
   test('sunAt is unchanged for daylight hours', () => {
     expect(sunAt(12).elevation).toBeCloseTo(58, 5);
     expect(sunAt(6).elevation).toBe(2);
+  });
+
+  test('lights fade in as the sun sets', () => {
+    expect(lightNeed(sunAt(12).elevation)).toBe(0);
+    expect(lightNeed(sunAt(15.5).elevation)).toBe(0);
+    const evening = lightNeed(sunAt(17.5).elevation);
+    expect(evening).toBeGreaterThan(0.3);
+    expect(evening).toBeLessThan(1);
+    expect(lightNeed(-20)).toBe(1);
+    expect(lightNeed(2)).toBeGreaterThan(lightNeed(8));
   });
 });
