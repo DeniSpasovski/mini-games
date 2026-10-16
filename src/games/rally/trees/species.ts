@@ -65,6 +65,35 @@ export const FAR_RAMP = 60;
 /** Crowns nearer than this (m) draw their sprites' tight outlines with the depth prepass (trees/draw.ts NEAR_PART). */
 export const NEAR_SPRITE_DISTANCE = FULL_DETAIL_DISTANCE + 15;
 
+/** The distances (m) of a tree's detail zones (trees/draw.ts, trees/materials.ts `treeSpriteScale`). */
+export interface Reach {
+  /** LOD0 branches and the full sprite share inside it. */
+  full: number;
+  /** Over this many metres past `full` the sprite share eases to the far share. */
+  ramp: number;
+  /** Crowns nearer than this draw their tight sprite outlines with the depth prepass. */
+  near: number;
+}
+
+export const FOREST_REACH: Reach = {
+  full: FULL_DETAIL_DISTANCE,
+  ramp: FAR_RAMP,
+  near: NEAR_SPRITE_DISTANCE,
+};
+
+/**
+ * The first row: trees within ROADSIDE_EDGE m of the road's edge are the ones a driver passes at arm's length and sees
+ * longest, so their zones reach out farther (trees/draw.ts `reachOf`). The second row and the forest behind keep
+ * FOREST_REACH. The shader learns it from the fraction of `treeInst.w` (the variant slot): ROAD_REACH_FLAG.
+ */
+export const ROADSIDE_EDGE = 9;
+export const ROAD_REACH: Reach = {
+  full: 80,
+  ramp: 80,
+  near: 95,
+};
+export const ROAD_REACH_FLAG = 0.25;
+
 export type BarkTexture = 'furrowed' | 'smooth';
 export type FoliageKind = 'needles' | 'broadleaf';
 

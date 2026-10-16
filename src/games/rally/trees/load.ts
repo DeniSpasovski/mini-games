@@ -23,6 +23,7 @@ import {
 import type { Crown, MeshData, SpriteData, VariantMeshes } from './mesh';
 import { allSeasons, seasonal, seasonOf } from './seasons';
 import { isTreeType, speciesOfType, type SpeciesDef } from './species';
+import { headingAt, packSprite } from './sprite-attr';
 import {
   cacheKey,
   generateVariant,
@@ -95,7 +96,17 @@ function spriteGeometry(s: SpriteData): BufferGeometry {
   g.setAttribute('uv', new BufferAttribute(s.uv, 2));
   g.setAttribute('color', new BufferAttribute(s.color, 3));
   g.setAttribute('treeWind', new BufferAttribute(s.wind, 4));
-  g.setAttribute('treeSprite', new BufferAttribute(s.sprite, 4));
+  const packed = new Float32Array(s.sprite.length);
+  for (let v = 0; v < packed.length / 4; v++)
+    packSprite(
+      s.sprite[v * 4],
+      s.sprite[v * 4 + 1],
+      s.sprite[v * 4 + 2],
+      headingAt(s.heading, v),
+      packed,
+      v * 4,
+    );
+  g.setAttribute('treeSprite', new BufferAttribute(packed, 4));
   g.setAttribute('treeRank', new BufferAttribute(s.rank, 1));
   g.setIndex(new BufferAttribute(s.index, 1));
   g.computeBoundingSphere();

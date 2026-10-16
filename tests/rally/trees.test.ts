@@ -10,10 +10,12 @@ import {
 import {
   MAX_FADES,
   selectLevel,
+  spriteKeep,
   spriteRole,
   stepFade,
   type FadeState,
 } from '../../src/games/rally/trees/draw';
+import { treeUniforms } from '../../src/games/rally/trees/materials';
 import {
   LEAF_STYLES,
   spriteAtlas,
@@ -26,6 +28,9 @@ import {
 } from '../../src/games/rally/trees/placement';
 import { buildSkeleton } from '../../src/games/rally/trees/skeleton';
 import {
+  FOREST_REACH,
+  NEAR_SPRITES,
+  ROAD_REACH,
   SPECIES,
   speciesOfType,
   TREE_TYPES,
@@ -283,6 +288,28 @@ describe('tree LOD transitions', () => {
     expect(selectLevel(0.0001, 2, T, 0.15, 41)).toBe(2);
   });
 
+  test('the first row keeps LOD0 and its full sprite share out to its own, longer reach', () => {
+    expect(ROAD_REACH.full).toBeGreaterThan(FOREST_REACH.full);
+    const mid = (FOREST_REACH.full + ROAD_REACH.full) / 2;
+    // A forest tree is LOD1 there, a first-row tree still LOD0 (sprites + branches: no drop in detail at 40 m).
+    expect(selectLevel(0.5, 0, T, 0.15, mid)).toBe(1);
+    expect(selectLevel(0.5, 0, T, 0.15, mid, ROAD_REACH.full)).toBe(0);
+    expect(
+      selectLevel(0.5, 1, T, 0.15, ROAD_REACH.full + 1, ROAD_REACH.full),
+    ).toBe(1);
+    // The sprite share holds NEAR_SPRITES to the reach and eases to the far share over its ramp.
+    const keep = (d: number, r = FOREST_REACH) =>
+      spriteKeep(Infinity, d, 1, 0.5, r);
+    expect(keep(FOREST_REACH.full)).toBeCloseTo(NEAR_SPRITES, 5);
+    expect(keep(mid)).toBeLessThan(NEAR_SPRITES);
+    expect(keep(mid, ROAD_REACH)).toBeCloseTo(NEAR_SPRITES, 5);
+    const far = treeUniforms.tlFar.value.x;
+    expect(keep(ROAD_REACH.full + ROAD_REACH.ramp, ROAD_REACH)).toBeCloseTo(
+      far,
+      5,
+    );
+  });
+
   test('sprites stay solid between branch levels and fade only against the impostor', () => {
     expect(spriteRole({ from: 0, to: 0, fade: 1, dir: 1 })).toBe(0);
     expect(spriteRole({ from: 0, to: 1, fade: 0.4, dir: 1 })).toBe(0);
@@ -368,9 +395,9 @@ describe('tree performance rules (trees/Performance.md#mitigations)', () => {
           const [x1, y1] = o[(i + 1) % o.length];
           area += x0 * y1 - x1 * y0;
         }
-        // Smaller than the full square, but not empty.
+        // Smaller than the full square, but not empty (a spray lies along x: a third of it or more).
         expect(Math.abs(area / 2)).toBeLessThan(0.95);
-        expect(Math.abs(area / 2)).toBeGreaterThan(0.2);
+        expect(Math.abs(area / 2)).toBeGreaterThan(0.15);
       }
     }
   });

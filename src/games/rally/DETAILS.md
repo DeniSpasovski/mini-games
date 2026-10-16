@@ -337,11 +337,13 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   multiplies the species size.
   Branches are tubes at two levels (LOD0 = the skeleton without twigs, LOD1 = trunk + the first-order limbs thicker than 1/120 of the tree's height), then an
   octahedral impostor (albedo, normal + depth, thickness: lit like everything else). Foliage = one lit, camera-facing
-  cluster sprite per leaf point from the atlas of its species' leaf style (`foliage.leaf`, 8 styles x 8 images of 256 px, `trees/leaftex.ts`: albedo, normal + thickness; a leaf is a few % of the image),
+  cluster sprite per leaf point from the atlas of its species' leaf style (`foliage.leaf`, 8 styles x 8 images of 256 px, `trees/leaftex.ts`: albedo, normal + thickness; a leaf is a few % of the image;
+  broadleaf images are oval shoots with a side fork, turned in the shader to lie along their twig: `trees/sprite-attr.ts` packs the corner + heading into `treeSprite`),
   tinted by the species palette (`foliage.palette` = summer; spring / autumn palettes in `trees/seasons.ts`, picked by the stage's season, so each season is its own cache entry and the trees themselves stay the same),
   drawn with both branch levels; a crown draws its highest-ranked 35 % (`NEAR_SPRITES`, the rest left out, the kept
-  ones grown to the same coverage) within the full-detail distance (`FULL_DETAIL_DISTANCE`, 40 m: the only trees with
-  LOD0 branches); over the next 60 m (`FAR_RAMP`, smooth) it eases to the far share (`FAR_SPRITES`: 20 %), then on to 15 % at
+  ones grown to the same coverage) within the full-detail distance (`FOREST_REACH.full`, 40 m: the only trees with
+  LOD0 branches; the first row within `ROADSIDE_EDGE` (9 m) of the road's edge uses `ROAD_REACH`: 80 m + 80 m ramp, flagged to the shader in the fraction of `treeInst.w`);
+  over the next 60 m (`FOREST_REACH.ramp`, smooth) it eases to the far share (`FAR_SPRITES`: 20 %), then on to 15 % at
   the impostor (3.5 % of the screen height; perf panel sliders). Defaults at high quality:
   `QualitySettings.treeLodScale` brings every tree distance to half on medium, about a third on low. Past
   `QualitySettings.forestDistance` (450 / 700 / 1100 m) no tree is drawn (they dissolve in over its last 15 %, `tlForest`): the ground under the canopy texture takes the
@@ -371,7 +373,7 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   sprites (broadleaf 360, shrubs 200). Wind fades out by 110 m (`TREE_WIND_FAR`; past it the vertex work is skipped).
 - Tree drawing (spec `trees/Drawing`): every tree mesh is opaque, depth-tested and depth-writing; the depth buffer
   alone decides what is in front (nothing sorted). Sprite parts (`trees/draw.ts`): crowns within
-  `NEAR_SPRITE_DISTANCE` (55 m) use the tight outlines with a depth prepass, then shade where the depth is not behind it
+  `Reach.near` (55 m, first row 95 m) use the tight outlines with a depth prepass, then shade where the depth is not behind it
   (less-or-equal + a polygon offset, never EQUAL: it blinked on some GPUs; off on touch devices, `?treeprepass=0|1`; the prepass
   draws after the horizon backdrop, which clears the depth: `PREPASS_ORDER`);
   farther crowns use plain quads (`quadSprites`) in one lit pass: a mid batch per variant over the ramp and a far one

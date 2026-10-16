@@ -34,11 +34,13 @@ import {
 } from './materials';
 import { HeightGrid, Horizon } from './occlusion';
 import {
-  FAR_RAMP,
-  FULL_DETAIL_DISTANCE,
+  FOREST_REACH,
   lodOf,
-  NEAR_SPRITE_DISTANCE,
   NEAR_SPRITES,
+  ROAD_REACH,
+  ROAD_REACH_FLAG,
+  ROADSIDE_EDGE,
+  type Reach,
 } from './species';
 import {
   emptyFrameStats,
@@ -56,7 +58,7 @@ import {
  * - **Selection** (Lod.md#selection), once per frame per tree, the same for every pass: the share of the screen
  *   height the tree's bounding sphere covers, from the camera position before shake and bounce
  *   (`update(camera, steady)`) and its field of view. Coarser below a threshold, finer only above it by the species'
- *   hysteresis margin; within FULL_DETAIL_DISTANCE always LOD0. Sprite thinning is not a level: the sprite shader
+ *   hysteresis margin; within the tree's `Reach.full` always LOD0. Sprite thinning is not a level: the sprite shader
  *   does it continuously from the same height (trees/materials.ts).
  * - **Transition** (Lod.md#transition): each tree keeps (from, to, fade, direction). A level change starts a fade of
  *   the species' fixed time; changing back reverses it; a third level waits; at most MAX_FADES fade at once. The fade
@@ -121,7 +123,7 @@ const PREPASS_MISS_LIMIT = 0.002;
 /** The shader's sprite fade window (trees/materials.ts `treeSpriteScale`). */
 const KEEP_WINDOW = 0.08;
 /**
- * Sprite batches per variant (trees/Performance.md#mitigations). Crowns within FULL_DETAIL_DISTANCE + FAR_RAMP: part
+ * Sprite batches per variant (trees/Performance.md#mitigations). Crowns within a tree's `Reach` full + ramp: part
  * NEAR_PART, the sprites' tight outlines (NEAR_SPRITES of them), depth prepass + EQUAL lit pass (near crowns fill the
  * screen: overdraw is their cost). Farther crowns: part FAR_PART, plain quads in ONE lit pass, holding the far share
  * (`tlFar.x`; thinner crowns shrink the rest to nothing in the shader). One far batch per variant, not one per
@@ -144,13 +146,14 @@ export function spriteKeep(
   dist: number,
   thin: number,
   impostor: number,
+  reach: Reach = FOREST_REACH,
 ): number {
   const far = treeUniforms.tlFar.value;
   const f =
     h < thin
       ? Math.min(1, Math.max(0, Math.log(thin / h) / Math.log(thin / impostor)))
       : 0;
-  const t = Math.min(1, Math.max(0, (dist - FULL_DETAIL_DISTANCE) / FAR_RAMP));
+  const t = Math.min(1, Math.max(0, (dist - reach.full) / reach.ramp));
   const w = t * t * (3 - 2 * t);
   return NEAR_SPRITES + (far.x + (far.y - far.x) * f - NEAR_SPRITES) * w;
 }
@@ -172,22 +175,26 @@ function partOfMesh(name: string, proxy: boolean): TreePart {
 }
 
 /** Sprite part of a crown at distance `dist`: near (outlines + prepass), mid (the ramp, quads) or far (quads). */
-function spritePart(dist: number): number {
-  return dist < NEAR_SPRITE_DISTANCE
+function spritePart(dist: number, reach: Reach): number {
+  return dist < reach.near
     ? NEAR_PART
-    : dist < FULL_DETAIL_DISTANCE + FAR_RAMP
+    : dist < reach.full + reach.ramp
       ? MID_PART
       : FAR_PART;
 }
 
 /**
  * Sprites a mid / far batch holds: every one the shader keeps in its range (the share at its near end: the mid batch
- * starts at NEAR_SPRITE_DISTANCE, the far one past the ramp at `tlFar.x`) and its fade window.
+ * starts at a tree's `Reach.near`, the larger share of the two reaches; the far one past the ramp at `tlFar.x`) and
+ * its fade window.
  */
 function bucketSprites(lv: LoadedVariant, part: number): number {
   const share =
     part === MID_PART
-      ? spriteKeep(Infinity, NEAR_SPRITE_DISTANCE, 1, 0.5)
+      ? Math.max(
+          spriteKeep(Infinity, FOREST_REACH.near, 1, 0.5),
+          spriteKeep(Infinity, ROAD_REACH.near, 1, 0.5, ROAD_REACH),
+        )
       : treeUniforms.tlFar.value.x;
   return Math.max(
     1,
@@ -268,6 +275,8 @@ interface TreeState extends FadeState {
   budget: Budget;
   /** Farther than `fakeFrom` from the road: always a static impostor. */
   faked: boolean;
+  /** Its detail zones: the first row (within ROADSIDE_EDGE of the road) reaches farther than the forest behind. */
+  reach: Reach;
 }
 
 /** Horizontal half-angle a tree (bounding radius r) at distance d covers beyond its centre's direction. */
@@ -415,7 +424,7 @@ export function fadeTarget(st: FadeState): number {
 /**
  * Level for projected height `h` (share of the screen height) from the current level: coarser below a threshold,
  * back to finer only above it by `margin` (the hysteresis). `t` = the branch thresholds, LOD0 -> LOD1 and
- * LOD1 -> impostor. Within FULL_DETAIL_DISTANCE (`dist`, m) always LOD0.
+ * LOD1 -> impostor. Within `full` (`dist`, m: the tree's `Reach.full`) always LOD0.
  */
 export function selectLevel(
   h: number,
@@ -423,14 +432,14 @@ export function selectLevel(
   t: readonly number[],
   margin: number,
   dist: number,
+  full: number = FOREST_REACH.full,
 ): number {
-  if (dist < FULL_DETAIL_DISTANCE) return 0;
+  if (dist < full) return 0;
   let l = current;
   while (l < IMPOSTOR && h < t[l]) l++;
   while (l > 0 && h > t[l - 1] * (1 + margin)) l--;
   // LOD0 branches only in the full-detail zone (+ the hysteresis margin for a tree already there): past it, LOD1.
-  if (l === 0 && !(current === 0 && dist < FULL_DETAIL_DISTANCE * (1 + margin)))
-    l = 1;
+  if (l === 0 && !(current === 0 && dist < full * (1 + margin))) l = 1;
   return l;
 }
 
@@ -748,10 +757,16 @@ export class TreeRenderer {
       _q,
       _s.setScalar(inst.scale),
     );
+    const reach = this.reachOf(inst.x, inst.z);
     st = {
       m: new Float32Array(_m.elements),
-      // w: the variant's slot in the impostor texture array.
-      inst: [inst.tree.hue, inst.tree.value, inst.tree.phase, lv.slot],
+      // w: the variant's slot in the impostor texture array + the first-row flag (the fraction, for the sprite shader).
+      inst: [
+        inst.tree.hue,
+        inst.tree.value,
+        inst.tree.phase,
+        lv.slot + (reach === ROAD_REACH ? ROAD_REACH_FLAG : 0),
+      ],
       lv,
       cx: inst.x,
       cy: inst.y + lv.info.sphere.cy * inst.scale,
@@ -769,9 +784,18 @@ export class TreeRenderer {
       batches: this.batchesOf(lv),
       budget: this.budget(lv),
       faked: this.farFromRoad(inst.x, inst.z),
+      reach,
     };
     this.states.set(inst, st);
     return st;
+  }
+
+  /** The first row: within ROADSIDE_EDGE of the road's edge (`Reach`). */
+  private reachOf(x: number, z: number): Reach {
+    const q = this.world.road.query(x, z, _rq);
+    return q.found && q.distance - q.halfWidth <= ROADSIDE_EDGE
+      ? ROAD_REACH
+      : FOREST_REACH;
   }
 
   private farFromRoad(x: number, z: number): boolean {
@@ -823,7 +847,6 @@ export class TreeRenderer {
       this.horizon = horizon;
     }
     // Trees nearer than this always draw (they cast shadows and fill the full-detail distance).
-    const occludeFrom = Math.max(shadowD, FULL_DETAIL_DISTANCE) + move;
     let cells = 0;
     let occluded = 0;
     const x0 = Math.floor(Math.max(bounds.minX - 300, focus.x - maxD) / cs);
@@ -852,7 +875,7 @@ export class TreeRenderer {
           if (dist > maxD || dist > forestD + move) continue;
           if (
             horizon &&
-            dist > occludeFrom &&
+            dist > Math.max(shadowD, st.reach.full) + move &&
             horizon.hides(st.cx, st.cy, st.cz, st.diameter / 2)
           ) {
             this.current.occluded++;
@@ -881,6 +904,7 @@ export class TreeRenderer {
               t,
               0,
               dist,
+              st.reach.full,
             );
             st.fade = 1;
             st.dir = 1;
@@ -891,14 +915,14 @@ export class TreeRenderer {
           const hMin = (st.diameter * px) / (ZOOM_MARGIN * dMax);
           const hMax = (st.diameter * px * ZOOM_MARGIN) / dMin;
           const l = st.to;
-          // Settled at l for every camera in the window: LOD0 only inside the full-detail distance (`selectLevel`);
+          // Settled at l for every camera in the window: LOD0 only inside the tree's full-detail distance (`selectLevel`);
           // LOD1 the whole window outside it and above the impostor threshold; the impostor the whole window outside
           // it and inside its hysteresis band.
           const steadyLevel =
             st.from === l &&
             (l === 0
-              ? dMax < FULL_DETAIL_DISTANCE
-              : dMin >= FULL_DETAIL_DISTANCE &&
+              ? dMax < st.reach.full
+              : dMin >= st.reach.full &&
                 (l === IMPOSTOR
                   ? hMax <= t[l - 1] * (1 + margin)
                   : hMin >= t[l]));
@@ -917,7 +941,7 @@ export class TreeRenderer {
               // Sprites cast no shadow: the crown proxy does (trees/proxy.ts).
               this.stageStatic(
                 st,
-                spritePart(dMin),
+                spritePart(dMin, st.reach),
                 SOLID,
                 false,
                 false,
@@ -1050,6 +1074,7 @@ export class TreeRenderer {
         lod.t,
         lod.hysteresis,
         dist,
+        st.reach.full,
       );
       const fresh = st.seen < frame - 1;
       st.seen = frame;
@@ -1095,7 +1120,7 @@ export class TreeRenderer {
       // Sprites: with both branch levels; fading out against the impostor. The crown proxy casts their shadow while
       // the tree is settled on branches.
       if (role >= 0 && visible) {
-        const part = spritePart(dist);
+        const part = spritePart(dist, st.reach);
         this.emit(
           st,
           part,

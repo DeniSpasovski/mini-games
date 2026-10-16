@@ -7,8 +7,11 @@ import type { FoliageKind } from './species';
  * squares. Pure (the meshing worker reads the outlines, trees/materials.ts makes the textures), drawn with the tree
  * code's own trig (trees/math.ts), so the pixels and the outlines fitted to them are the same on every platform.
  *
- * A broadleaf image is a dozen rounded lobes of small leaves (a leaf is 4-9 % of the image), dark in the lobes' hearts
- * and lighter at their rims, so a crown reads as leafy masses with a ragged edge, not as separate big leaves.
+ * A broadleaf image is a leafy shoot lying along the image's x axis (its base on the left, `SPRAY_*`): a dozen
+ * rounded lobes of small leaves (a leaf is 4-9 % of the image) in a row that swells and tapers, swept towards the tip,
+ * on a thin twig, dark in the lobes' hearts and lighter at their rims. A sprite turns so that x follows its twig
+ * (trees/sprite-attr.ts), so a crown reads as leafy sprays along its branches with a ragged edge, not as round
+ * clumps. A needle image is a burst of sprays round the middle.
  *
  * - `albedo`: grey shading + a slight warm / cool tint per leaf (the sprite's vertex colour is the palette colour)
  *   + alpha (leaf mask).
@@ -56,6 +59,8 @@ export function styleKind(style: LeafStyle): FoliageKind {
 export interface SpriteAtlas {
   width: number;
   height: number;
+  /** Broadleaf images lie along x and are turned to their twig; needle bursts are round. */
+  aligned: boolean;
   /** RGBA8, row 0 = v 0. */
   albedo: Uint8Array;
   normal: Uint8Array;
@@ -66,10 +71,27 @@ export interface SpriteAtlas {
 /** Polygon vertices (CCW) in image coordinates. */
 export type Outline = [number, number][];
 
+/** Point (px) at t (0..1) along a shoot. */
+type Arc = (t: number) => [number, number];
+
+interface Spot {
+  x: number;
+  y: number;
+  r: number;
+  tone: number;
+  /** Direction of the shoot here (rad). */
+  slope: number;
+}
+
 /** Pixel sizes below are for a 256 px image. */
 const K = IMAGE / 256;
-/** Scales the lobes' radii (the clump fills ~85 % of the image). */
-const SPREAD = 1.25;
+/** The shoot: half its length along x (px), lobes along it (min, extra), their radius against a ring lobe's, its sag. */
+const SPRAY_HALF = 92;
+const SPRAY_LOBES: [number, number] = [12, 4];
+const SPRAY_LOBE = 0.78;
+const SPRAY_SAG = 0.2;
+/** Chance of a side shoot forking off. */
+const SPRAY_FORK = 0.75;
 
 interface BroadStyle {
   /** Leaf length range (px) and length / width. */
@@ -443,29 +465,80 @@ export function spriteAtlas(style: LeafStyle): SpriteAtlas {
       const st = BROAD[style];
       const prof = profiles.get(style) ?? profile(st);
       profiles.set(style, prof);
-      const lobes = st.lobes[0] + Math.floor(r(0) * st.lobes[1]);
-      const ring = 72 * K;
-      const spots: { x: number; y: number; r: number; tone: number }[] = [];
-      for (let m = 0; m < lobes; m++) {
-        const a0 = r(m * 31 + 1) * Math.PI * 2;
-        const d =
-          m === 0
-            ? r(m * 31 + 2) * 6 * K
-            : Math.sqrt(m / lobes) * ring * (0.75 + 0.5 * r(m * 31 + 2));
-        const lr =
-          (st.lobeR[0] + (st.lobeR[1] - st.lobeR[0]) * r(m * 31 + 3)) *
-          K *
-          SPREAD;
-        spots.push({
-          x: c + tcos(a0) * d,
-          y: c + tsin(a0) * d,
-          r: lr,
-          tone: 0.8 + 0.25 * (d / ring),
-        });
+      const half = SPRAY_HALF * K;
+      // The shoot arcs: `sag` px below (or above) the line from its base to its tip in the middle, its tip drooping on.
+      const sag = (r(900) - 0.5) * 2 * SPRAY_SAG * half;
+      const droop = (r(901) - 0.3) * 0.25 * half;
+      const main: Arc = (t) => [
+        c - half + 2 * half * t,
+        c + sag * (1 - (2 * t - 1) ** 2) + droop * t * t,
+      ];
+      const spots: Spot[] = [];
+      /** Lobes along an arc (t 0 = base .. 1 = tip) and the twig under them. */
+      const shoot = (
+        arc: Arc,
+        lobes: number,
+        size: number,
+        first: number,
+        twig: number,
+        salt: number,
+      ) => {
+        for (let t = -first * 0.5; t <= 0.92; t += 0.5 / half) {
+          const [x, y] = arc(Math.max(0, t));
+          stamp(x, y, twig * K, 0.3, 0, 0, 0, 0);
+        }
+        for (let m = 0; m < lobes; m++) {
+          const q = (k: number) => r(salt + m * 31 + k);
+          // The first leaves start a little way out on the twig.
+          const t =
+            first + ((1 - first) * (m + 0.5 + (q(1) - 0.5) * 0.6)) / lobes;
+          // Swells to the middle, narrow at the base and the tip.
+          const taper = 0.5 + 0.5 * tsin(Math.PI * Math.pow(t, 0.8));
+          const lr =
+            (st.lobeR[0] + (st.lobeR[1] - st.lobeR[0]) * q(3)) *
+            K *
+            SPRAY_LOBE *
+            size *
+            taper *
+            (0.8 + 0.4 * q(5));
+          const across = (q(2) - 0.5) * 1.1 * lr;
+          const [xa, ya] = arc(Math.max(0, t - 0.01));
+          const [xb, yb] = arc(Math.min(1, t + 0.01));
+          const slope = Math.atan2(yb - ya, xb - xa);
+          const [x, y] = arc(t);
+          spots.push({
+            x: x - tsin(slope) * across,
+            y: y + tcos(slope) * across,
+            r: lr,
+            tone: 0.8 + 0.25 * Math.abs(t - 0.4),
+            slope,
+          });
+        }
+      };
+      const lobes = SPRAY_LOBES[0] + Math.floor(r(0) * SPRAY_LOBES[1]);
+      // A side shoot forks off the main one, under it: a spray with a branch, not one big leaf.
+      if (r(902) < SPRAY_FORK) {
+        const at = 0.25 + 0.3 * r(903);
+        const [bx, by] = main(at);
+        const a = (r(904) < 0.5 ? -1 : 1) * (0.6 + 0.35 * r(905));
+        const l = 2 * half * (0.55 + 0.2 * r(906));
+        const bend = (r(907) - 0.4) * 0.35 * l;
+        shoot(
+          (t) => [
+            bx + t * l * tcos(a) - bend * t * t * tsin(a),
+            by + t * l * tsin(a) + bend * t * t * tcos(a),
+          ],
+          Math.round(lobes * 0.55),
+          0.85,
+          0.12,
+          1.3,
+          5000,
+        );
       }
+      shoot(main, lobes, 1, 0.1, 1.7, 0);
       // Shaded hearts first, so the lobes' leaves all lie over them.
       spots.forEach((o, m) =>
-        stamp(o.x, o.y, o.r * 0.62, 0.5 + 0.1 * r(m * 31 + 4), 0, 0, 0, 0.7),
+        stamp(o.x, o.y, o.r * 0.5, 0.5 + 0.1 * r(m * 31 + 4), 0, 0, 0, 0.7),
       );
       // Lobes from the heart outwards (outer ones on top), leaves from the middle of a lobe to its rim.
       spots.forEach((o, m) => {
@@ -478,8 +551,13 @@ export function spriteAtlas(style: LeafStyle): SpriteAtlas {
           const rim = Math.sqrt((i + 0.5) / n);
           const rho = rim * o.r * 0.85;
           const th = q(1) * Math.PI * 2;
-          // Leaves point out of the lobe; the ones near its middle any way.
-          const point = th + (q(2) - 0.5) * (1 + 3 * (1 - rim));
+          // Leaves point out of the lobe and sweep towards the shoot's tip; the ones near its middle any way.
+          const point =
+            Math.atan2(
+              tsin(th) * 0.55 + tsin(o.slope) * 0.9,
+              tcos(th) * 0.55 + tcos(o.slope) * 0.9,
+            ) +
+            (q(2) - 0.5) * (0.7 + 2 * (1 - rim));
           const l = (st.len[0] + (st.len[1] - st.len[0]) * q(3)) * K;
           const v = (0.56 + 0.56 * rim) * o.tone * (0.8 + 0.4 * q(4));
           leaf(
@@ -521,7 +599,14 @@ export function spriteAtlas(style: LeafStyle): SpriteAtlas {
   const outlines: Outline[] = [];
   for (let img = 0; img < CLUSTER_IMAGES; img++)
     outlines.push(outline(albedo, W, img));
-  const atlas = { width: W, height: H, albedo, normal, outlines };
+  const atlas = {
+    width: W,
+    height: H,
+    aligned: styleKind(style) === 'broadleaf',
+    albedo,
+    normal,
+    outlines,
+  };
   atlases.set(style, atlas);
   return atlas;
 }
