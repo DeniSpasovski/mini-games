@@ -311,8 +311,7 @@ pages and the reference tests above are unchanged).
   other hour (`?tod=`) blends the neighbouring slots in a straight line (`stageTemps`, maps/shared/day-temperature.ts), and
   `?air=<°C>` replaces the air only. `stageClimate` turns it into the tyre climate: the air and a sun heat = the road's gap to
   the air scaled to a `heat` 1 surface, so every surface runs air + sun x `SurfaceDef.heat` (tarmac 1 ... grass 0.3,
-  snow 0). The numbers are researched, not computed (the table is the matrix in DETAILS.md "Temperatures"). Summer keeps the
-  authored air at each stage's own hour (Ajvatovci 27, Jackie 17, test 20, Petralica 17, Galichica 12). Source figures (plain
+  snow 0). The numbers are researched, not computed (the matrix of every stage is in DETAILS.md "Temperatures"). Source figures (plain
   text): a hot clear summer noon heats dark asphalt ~23 °C above the air at 41 N (Solaimanian and Kennedy, TRR 1417, 1993);
   monthly daily-maximum surface minus air at the MnROAD asphalt test road (Minnesota, 2001-2005): April 16.6, May 20.4, July
   26.2, September 17.0, October 8.9 °C, so the noon gap is about 16 in April, 19 in May, 24 in July, 17 in September and 10

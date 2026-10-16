@@ -745,7 +745,7 @@ class MainMenu {
 
   /** The hour a slot means on a stage: the stage's own slot keeps the stage's exact default hour. */
   private slotHour(m: StageInfo, t: TimeOfDay): number {
-    return slotHour(m.environment.timeOfDay, t);
+    return slotHour(m, t);
   }
 
   /** Hour the stage runs at: the picked time, else `?tod=`, else its own; missing = the stage has no time of day. */

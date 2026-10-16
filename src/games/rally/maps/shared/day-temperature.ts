@@ -8,14 +8,20 @@ import type { StageInfo } from './types';
 /** What the temperatures need of a stage. */
 export type TempStage = Pick<
   StageInfo,
-  'temps' | 'surfaces' | 'environment' | 'season'
+  'temps' | 'surfaces' | 'environment' | 'season' | 'slotHours'
 >;
 
-/** The hour a time-of-day slot means on a stage: the stage's own slot keeps the stage's exact default hour. */
-export function slotHour(ownHour: number | undefined, t: TimeOfDay): number {
-  return ownHour !== undefined && slotFor(ownHour).id === t.id
-    ? ownHour
-    : t.hour;
+/**
+ * The hour a time-of-day slot means on a stage: the stage's own slot keeps the stage's exact default hour, else the
+ * stage's `slotHours` entry, else the slot's own hour (game/time-of-day.ts).
+ */
+export function slotHour(
+  stage: Pick<StageInfo, 'environment' | 'slotHours'>,
+  t: TimeOfDay,
+): number {
+  const own = stage.environment.timeOfDay;
+  if (own !== undefined && slotFor(own).id === t.id) return own;
+  return stage.slotHours?.[t.id] ?? t.hour;
 }
 
 /**
@@ -31,7 +37,7 @@ export function stageTemps(
   const own = stage.environment.timeOfDay;
   const table = stage.temps[season];
   const keys = TIMES_OF_DAY.map((t) => ({
-    hour: slotHour(own, t),
+    hour: slotHour(stage, t),
     at: table[t.id],
   })).sort((a, b) => a.hour - b.hour);
   let h = (hour ?? own ?? 12) % 24;

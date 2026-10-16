@@ -1,8 +1,9 @@
 import { paramOneOf } from '../../shared/url-params';
 
 /**
- * Season of a stage (visual: tree leaf colours, trees/seasons.ts; and the base air temperature,
- * maps/shared/climate.ts). `EnvironmentDef.season` sets a map's, `?season=spring|summer|autumn` tries the others.
+ * Season of a stage: the tree leaf colours (trees/seasons.ts), the ground (maps/shared/season-map.ts) and which of the
+ * stage's `temps` apply (maps/shared/day-temperature.ts). A stage opens in `StageDef.season`, else its map's
+ * `EnvironmentDef.season`; `?season=spring|summer|autumn` tries the others.
  */
 export const SEASONS = ['spring', 'summer', 'autumn'] as const;
 export type Season = (typeof SEASONS)[number];
@@ -14,10 +15,10 @@ export const SEASON_LABELS: Readonly<Record<Season, string>> = {
   autumn: 'Autumn',
 };
 
-/** The season of a map without `EnvironmentDef.season`: the leaf colours and temperatures it always had. */
+/** The season of a stage and map that name none. */
 export const DEFAULT_SEASON: Season = 'summer';
 
-/** The season a `?season=` value names; `fallback` (the map's) when it is missing or unknown. */
+/** The season a `?season=` value names; `fallback` (the stage's) when it is missing or unknown. */
 export function seasonParam(
   raw: string | null | undefined,
   fallback: Season,

@@ -1,9 +1,9 @@
 import type { StageDef, StageTemps } from '../shared/types';
 
 /**
- * Air and road temperature (°C, `[air, road]`) by season and time of day: hardcoded for the stage, researched (rally
- * DETAILS.md "Temperatures"). The road is the stage's first surface; a time of day is a slot of game/time-of-day.ts (the
- * stage's own slot at its own hour). Summer: a hot dry June morning near Skopje (27 deg by 07:30 is a heatwave day with a clear sky). Humidity is not simulated.
+ * Air and road temperature (°C, `[air, road]`) by season and time of day: hardcoded for the stage, researched (the
+ * matrix of every stage is in rally DETAILS.md "Temperatures", source figures in PHYSICS.md "Climate"). The road is the
+ * stage's first surface; a time of day is a slot of game/time-of-day.ts (the stage's own slot at its own hour). Summer: a hot dry June morning near Skopje (27 deg by 07:30 is a heatwave day with a clear sky). Humidity is not simulated.
  */
 const TEMPS: StageTemps = {
   spring: {

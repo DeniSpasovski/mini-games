@@ -22,9 +22,9 @@ const CLOSURES: ClosureRule = {
 };
 
 /**
- * Air and road temperature (°C, `[air, road]`) by season and time of day: hardcoded for the stage, researched (rally
- * DETAILS.md "Temperatures"). The road is the stage's first surface; a time of day is a slot of game/time-of-day.ts (the
- * stage's own slot at its own hour).
+ * Air and road temperature (°C, `[air, road]`) by season and time of day: hardcoded for the stage, researched (the
+ * matrix of every stage is in rally DETAILS.md "Temperatures", source figures in PHYSICS.md "Climate"). The road is the
+ * stage's first surface; a time of day is a slot of game/time-of-day.ts (the stage's own slot at its own hour).
  */
 const TEMPS: StageTemps = {
   spring: {
@@ -34,12 +34,13 @@ const TEMPS: StageTemps = {
     evening: [17, 19],
     night: [7, 7],
   },
+  // Summer keeps the cool, clear day the stage was released with: 11 °C air and a 30 °C road at its own 10:00.
   summer: {
-    early: [22, 29],
-    midday: [27, 46],
-    afternoon: [31, 45],
-    evening: [30, 33],
-    night: [20, 20],
+    early: [8, 15],
+    midday: [11, 30],
+    afternoon: [13, 27],
+    evening: [11, 14],
+    night: [5, 5],
   },
   autumn: {
     early: [6, 9],
@@ -56,6 +57,8 @@ export const vodnoStages: StageDef[] = [
     name: 'Vodno Hillclimb',
     year: 2026,
     temps: TEMPS,
+    // The early morning slot is 08:00 here (the game's default is 07:00).
+    slotHours: { early: 8 },
     tyre: 'tarmac',
     gearing: 'short',
     description:

@@ -664,6 +664,11 @@ export interface StageDef {
   /** Air and road temperature for every season and time of day (`StageTemps`): the stage screen and the tyres use it. */
   temps: StageTemps;
   /**
+   * Hour a time-of-day slot means on this stage where it differs from game/time-of-day.ts (Vodno's early morning is
+   * 08:00). The stage's own slot always sits at its own `timeOfDay`; the temperatures follow these hours.
+   */
+  slotHours?: Partial<Record<TimeOfDayId, number>>;
+  /**
    * Season the stage opens in (default: the map's, `EnvironmentDef.season`): stages on one map can differ. The ground
    * and the leaves of the others come from the map's `groundTints` and `trees/seasons.ts`.
    */

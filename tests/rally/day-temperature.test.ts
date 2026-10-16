@@ -22,7 +22,7 @@ describe('air and road temperature of a stage (predefined)', () => {
     for (const s of timed)
       for (const season of SEASONS)
         for (const slot of TIMES_OF_DAY) {
-          const hour = slotHour(s.environment.timeOfDay, slot);
+          const hour = slotHour(s, slot);
           const t = stageTemps(s, hour, season);
           expect([t.air, t.road]).toEqual([...s.temps[season][slot.id]]);
         }
@@ -32,10 +32,27 @@ describe('air and road temperature of a stage (predefined)', () => {
     for (const s of timed) {
       const own = s.environment.timeOfDay!;
       const slot = slotFor(own);
-      expect(slotHour(own, slot)).toBe(own);
+      expect(slotHour(s, slot)).toBe(own);
       const t = stageTemps(s, undefined);
       expect([t.air, t.road]).toEqual([...s.temps[stageSeason(s)][slot.id]]);
     }
+  });
+
+  test("a stage's slotHours move a slot, the own slot stays at its own hour", () => {
+    const vodno = STAGES.find((s) => s.id === 'vodno')!;
+    const [early, midday, afternoon] = ['early', 'midday', 'afternoon'].map(
+      (id) => TIMES_OF_DAY.find((t) => t.id === id)!,
+    );
+    expect(slotHour(vodno, early)).toBe(8);
+    // Vodno opens at 10:00, its own slot: mid day.
+    expect(slotHour(vodno, midday)).toBe(10);
+    expect(slotHour(vodno, afternoon)).toBe(afternoon.hour);
+    // The table cell sits at the moved hour.
+    const t = stageTemps(vodno, 8, 'summer');
+    expect([t.air, t.road]).toEqual([...vodno.temps.summer.early]);
+    // A stage without slotHours uses the game's hours.
+    const jackie = STAGES.find((s) => s.id === 'jackie')!;
+    expect(slotHour(jackie, TIMES_OF_DAY[1])).toBe(TIMES_OF_DAY[1].hour);
   });
 
   test('other hours blend the neighbouring slots, round the clock', () => {
@@ -80,6 +97,8 @@ describe('air and road temperature of a stage (predefined)', () => {
         expect(t.night[0]).toBeLessThan(t.afternoon[0] - 6);
         expect(t.early[0]).toBeLessThanOrEqual(t.afternoon[0]);
       }
+      // Vodno's summer is the cool clear day it was released with (11 °C at 10:00): not warmer than spring.
+      if (s.id === 'vodno') continue;
       expect(s.temps.spring.midday[0]).toBeLessThan(s.temps.summer.midday[0]);
       expect(s.temps.autumn.midday[0]).toBeLessThan(s.temps.summer.midday[0]);
     }

@@ -29,7 +29,7 @@ gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
 | `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                                                                  |
 | `tod=<hours>`, `tonemap=`  | all   | time of day (maps with `environment.timeOfDay`; 20-4:30 = night, see Look; the stage menu sets it), `aces / agx / neutral`                          |
 | `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the stage's `temps` for the season and hour)                                                |
-| `season=`                  | play  | `spring / summer / autumn`: tree leaf colours, ground colour + the map's air temperature for it (default: `environment.season`, summer)            |
+| `season=`                  | play  | `spring / summer / autumn`: tree leaf colours, ground colour and the stage's `temps` for it (default: `StageDef.season`, else `environment.season`, summer) |
 | `perf=1`                   | play  | open the perf panel (below)                                                                                                                         |
 
 Perf panel (`` ` `` key in game or `perf=1`, `game/perf-panel.ts`): FPS, frame ms, CPU ms per frame step, GPU ms (timer
@@ -426,17 +426,45 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 - Car select: All / AWD / RWD / FWD filter row on top (`driveGroup` from the car's `drivetrain.frontSplit`, not remembered); up from the first car or the pad focuses it, left / right switch.
 - Car select (screens >= 1200 px wide): the description / stats / livery sit in a wide card right of the list (`.menu-side-card`, `MainMenu.sideCard`, shared with Select stage); the showroom car keeps its shared place and size (`CAR_SHIFT`, `CAR_DIST_SCALE`) and may run behind the card. Narrower screens keep them under the list.
 - Select stage: the stage's description (`StageDef.description`: what the drive is like for the player, no data sources or build details), recommended set-up and a **Time of day** dropdown sit in the same card (phones: under the selected stage), with a **Season** dropdown (spring / summer / autumn, above the time) and the **Month** it is driven in in front. Left / right (or the pad) step the time; the list cards keep the route, tags and best time.
-- Time of day (`game/time-of-day.ts`, the one config): early morning 07:00, mid day 12:00, afternoon 15:30, evening 17:30, night 01:00 (dropdown order) - each is a `?tod=<hours>` hour, so any stage of a map with `environment.timeOfDay` takes any of them. A stage's own default hour stays exact on its nearest slot (Jackie opens on "Early morning · 08:00"); a pick applies to every stage until changed and is not remembered; the menu mirrors it into the URL (`tod=`), a stage without `timeOfDay` shows no dropdown. Under it the card shows the clock time and the air / road temperature at that hour (`StageDef.temps`, the numbers the tyres run with, see PHYSICS.md). Times are saved per stage, not per time of day.
+- Time of day (`game/time-of-day.ts`, the one config): early morning 07:00, mid day 12:00, afternoon 15:30, evening 17:30, night 01:00 (dropdown order) - each is a `?tod=<hours>` hour, so any stage of a map with `environment.timeOfDay` takes any of them. A stage's own default hour stays exact on its nearest slot (Jackie opens on "Early morning · 08:00") and a stage can move a slot (`StageDef.slotHours`: Vodno's early morning is 08:00); a pick applies to every stage until changed and is not remembered; the menu mirrors it into the URL (`tod=`), a stage without `timeOfDay` shows no dropdown. Under it the card shows the clock time and the air / road temperature at that hour (`StageDef.temps`, the numbers the tyres run with, see PHYSICS.md). Times are saved per stage, not per time of day.
 - Season (`season.ts`): spring / summer / autumn, the one the stage opens in (`StageDef.season`, else the map's `environment.season`, default summer; `stageSeason`) or `?season=`; the stage screen's pick is mirrored into the URL (`season=`, none = the stage's own) and shown on every stage including the test map. It sets the tree leaf colours (`trees/seasons.ts`), the ground (`environment.groundTints`, below) and the stage's air / road temperatures (`StageDef.temps`, "Temperatures" below). The stage card lists the **Month** the stage is driven in that season (`environment.months`, default April / July / October: e.g. Ajvatovci spring April, Jackie spring May).
 - Season ground: `environment.groundTint` is the map's own season (`environment.season`, the card's `season`; a stage can open in another, e.g. Galichica West in autumn, East in spring); `environment.groundTints` has the other seasons' tint (fresh green / young crops in spring, dry olive / stubble in autumn). `mapInSeason` (`maps/shared/season-map.ts`) returns the map with that season's tint as `groundTint` and `season` set, and `RallyGame` builds its `World` from it, so terrain, horizon and sky colours follow. The stage card (select stage) has one picture per season, every one `<stage id>-<season>.jpg` (`cardImageName`; the card's `season` is the map's own), the other seasons listed with their hash + floor colour in the card's `seasons`; the dropdown swaps the picture (`Showroom.setSeason`), only the shown season is fetched. A map without `groundTints` shows one picture for every season.
 
 ## Temperatures (`StageDef.temps`)
 
 Each stage lists `[air, road]` °C per season and time-of-day slot, hardcoded and researched, in `maps/<map>/stages.ts` (the
-three Galichica stages share one table). The road is the stage's first surface; the stage's own slot is at its own hour, so
-that cell, in the season the stage opens in, is the default look. Edit a cell to retune it: the stage screen and the tyres follow, nothing is computed. Hours
-between the slots blend them, `?air=` overrides the air, a new stage needs a full table (a test checks it). Source figures:
-PHYSICS.md "Climate".
+three Galichica stages share one table). The road is the stage's first surface. The stage's own slot sits at its own
+`timeOfDay` (bold below) and a stage can move other slots (`StageDef.slotHours`: Vodno's early morning is 08:00); that cell, in
+the season the stage opens in (`StageDef.season`), is the default look. Edit a cell to retune it: the stage screen and the
+tyres follow, nothing is computed. Hours between the slots blend them, `?air=` overrides the air, a new stage needs a full
+table (`tests/rally/seasons.test.ts`). Source figures: PHYSICS.md "Climate". The table below is written from the data
+(`tests/rally/temps-doc.test.ts` fails when it is stale: `UPDATE_TEMPS_DOC=1 npm run test:rally -- temps-doc` rewrites it).
+Vodno's summer is the cool, clear day it was released with, so it is not warmer than its spring.
+
+<!-- temps-matrix -->
+
+| Stage                                                        | Season | Early morning | Mid day     | Afternoon   | Evening | Night   |
+| ------------------------------------------------------------ | ------ | ------------- | ----------- | ----------- | ------- | ------- |
+| `test` (15:48)                                               | spring | 5 / 7         | 12 / 20     | **14 / 19** | 13 / 14 | 3 / 3   |
+|                                                              | summer | 11 / 15       | 18 / 30     | **20 / 27** | 19 / 21 | 9 / 9   |
+|                                                              | autumn | 3 / 5         | 10 / 15     | **12 / 15** | 11 / 12 | 1 / 1   |
+| `ajvatovci` (07:30)                                          | spring | **13 / 19**   | 20 / 32     | 21 / 30     | 20 / 22 | 10 / 10 |
+|                                                              | summer | **27 / 35**   | 34 / 53     | 35 / 48     | 34 / 37 | 24 / 24 |
+|                                                              | autumn | **14 / 18**   | 21 / 28     | 22 / 28     | 21 / 22 | 11 / 11 |
+| `vodno` (10:00; early morning 08:00)                         | spring | 9 / 14        | **14 / 26** | 18 / 28     | 17 / 19 | 7 / 7   |
+|                                                              | summer | 8 / 15        | **11 / 30** | 13 / 27     | 11 / 14 | 5 / 5   |
+|                                                              | autumn | 6 / 9         | **11 / 19** | 15 / 21     | 14 / 16 | 4 / 4   |
+| `petralica` (16:30)                                          | spring | 2 / 7         | 10 / 25     | **11 / 18** | 10 / 13 | 0 / 0   |
+|                                                              | summer | 8 / 14        | 16 / 35     | **17 / 25** | 16 / 19 | 6 / 6   |
+|                                                              | autumn | 4 / 9         | 12 / 25     | **13 / 19** | 12 / 14 | 2 / 2   |
+| `galichica_west` · `galichica_east` · `prespa_ohrid` (09:00) | spring | **6 / 19**    | 10 / 27     | 12 / 24     | 11 / 13 | 1 / 1   |
+|                                                              | summer | **12 / 29**   | 16 / 38     | 18 / 33     | 17 / 20 | 7 / 7   |
+|                                                              | autumn | **9 / 16**    | 13 / 22     | 15 / 21     | 14 / 15 | 4 / 4   |
+| `jackie` (08:00)                                             | spring | **9 / 18**    | 15 / 30     | 17 / 27     | 15 / 18 | 5 / 5   |
+|                                                              | summer | **17 / 28**   | 23 / 42     | 25 / 37     | 23 / 26 | 13 / 13 |
+|                                                              | autumn | **11 / 15**   | 17 / 25     | 19 / 24     | 17 / 19 | 7 / 7   |
+
+<!-- /temps-matrix -->
 
 ## Known limitations
 
