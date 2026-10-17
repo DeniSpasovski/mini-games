@@ -8,9 +8,9 @@ import { profile } from './profile';
 
 /** Body dimensions (also what the hull is fitted from); wheel radius = tyre overall radius (235/40 R17, the real size). */
 const BODY = {
-  length: 4.35,
+  length: 4.43,
   width: 1.77,
-  height: 1.39,
+  height: 1.4,
   comHeight: 0.5,
   wheelRadius: 0.31,
 };
@@ -65,7 +65,7 @@ const BRAKES: BrakeSet = {
 
 /**
  * Subaru WRX STI 22B (`subie_22b`) - a 1998 blue coupe with the side star livery: 2.2 l turbo flat-four, five-speed box,
- * permanent AWD, 1,270 kg. Body: a CC BY-NC Sketchfab rally GC8, split by node and converted by stl-to-glb.mjs (settings:
+ * permanent AWD, 1,270 kg. Body: a CC BY Sketchfab 22B, split by material and converted by stl-to-glb.mjs (settings:
  * model.source.json); the raw download stays out of git. Test only (release.ts).
  */
 export const subie22b: CarDef = {
@@ -76,9 +76,9 @@ export const subie22b: CarDef = {
     'Blue 90s turbo coupe with the works star livery: flat-four boxer rumble, grippy AWD, a little heavy on the nose.',
   sources: [
     {
-      label: '"Rally Car" by SpatialNeglect (Sketchfab)',
-      url: 'https://sketchfab.com/3d-models/rally-car-e0dfd3b6d19947df85002fd8de0a3a02',
-      note: 'body, glass, cockpit, lamps + wheel, converted to the in-game model; CC BY-NC 4.0 (noncommercial)',
+      label: '"1998 Subaru Impreza 22B STi" by 007 (Sketchfab)',
+      url: 'https://sketchfab.com/3d-models/1998-subaru-impreza-22b-sti-62ce498bf3204ccbb875c8682ccd87b2',
+      note: 'body, cockpit, lamps + wheel, converted to the in-game model; CC BY 4.0',
     },
     {
       label: 'STI - Impreza 22B',
@@ -173,26 +173,40 @@ export const subie22b: CarDef = {
     brakes: BRAKES,
     dragArea: 0.78,
     downforceArea: 0.08,
-    // Fitted to subie_22b.glb (tests/rally/hull-fit.test.ts prints the model's underside): mudflaps 0.11 - 0.12 m, sills 0.22 m,
-    // front bumper 0.2 m (body lifted 3 cm: model.source.json `offset`).
-    hull: bodyHull(BODY, -0.175, [
-      { x: [0, 0.55], z: 1.8, r: 0.16, bottom: 0.2 },
+    // Fitted to subie_22b.glb (tests/rally/hull-fit.test.ts prints the model's underside): flat floor and sills 0.13 - 0.14 m,
+    // nose lip 0.135 m, tail 0.145 m.
+    hull: bodyHull(BODY, -0.19, [
+      { x: [0, 0.55], z: 1.85, r: 0.16, bottom: 0.135 },
       { x: [0], z: 1.2, r: 0.22, bottom: 0.13 },
       { x: [0.5], z: 0.6, r: 0.25, bottom: 0.13 },
       { x: [0.5], z: 0, r: 0.25, bottom: 0.13 },
       { x: [0.5], z: -0.8, r: 0.25, bottom: 0.13 },
       { x: [0], z: -1.4, r: 0.22, bottom: 0.13 },
-      { x: [0, 0.5], z: -2.1, r: 0.2, bottom: 0.145 },
+      { x: [0, 0.5], z: -2.2, r: 0.2, bottom: 0.18 },
     ]),
   },
   model: {
     paint: '#1a56c0',
-    rim: { color: '#d8b24a', spokes: 6, style: 'spoke', caliper: '#c8102e' },
-    // The model's own gold alloy (subie_22b_wheel.glb), scaled to each compound's tyre.
+    rim: {
+      color: '#d8b24a',
+      spokes: 6,
+      style: 'spoke',
+      caliper: '#c8102e',
+      finish: 'satin',
+    },
+    // The model's own gold alloy (subie_22b_wheel.glb), de-cambered and centred on the hub, scaled to each compound's tyre.
     wheelModel: 'subie_22b_wheel.glb',
+    // The model's cockpit shows through the windows.
+    glass: { color: 0x141c24, opacity: 0.4 },
     suspensionStyle: 'sti',
-    // The model's own cockpit (left-hand drive, seats, roll cage) shows through lightly tinted windows.
-    glass: { color: 0x141c24, opacity: 0.6 },
+    cornerSuspension: {
+      style: 'sti',
+      front: 'strut',
+      rear: 'strut',
+      topY: { front: 0.42, rear: 0.36 },
+      topIn: { front: 0.2, rear: 0.2 },
+      driven: ['front', 'rear'],
+    },
     // Fallback body if the GLB can't load: profile.ts. Not a city street car while the 22B is a test car.
     profile,
     // Rally plate on the front door (front = +z), over the crescent graphic.
@@ -200,7 +214,7 @@ export const subie22b: CarDef = {
     gltf: {
       file: 'subie_22b.glb',
       credit:
-        'Body: "Rally Car" by SpatialNeglect (Sketchfab, CC BY-NC 4.0), converted + repainted',
+        '"1998 Subaru Impreza 22B STi" by 007, sketchfab.com/3d-models/1998-subaru-impreza-22b-sti-62ce498bf3204ccbb875c8682ccd87b2, CC BY 4.0 (converted + repainted)',
       autoFit: false,
       atlas: subie22bLivery,
       metallic: true,

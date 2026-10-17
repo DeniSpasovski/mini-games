@@ -213,7 +213,7 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
 | `skoda_rally`     | Skoda Rally        | AWD   | Rally2-class hatch from a CC BY Fabia R5 model, own livery                                                            |
 | `bimmer_m3`       | Bimmer M3          | RWD   | lowered E46 coupe from a CC BY print model, own livery                                                                |
 | `bimmer_gt2`      | Bimmer GT2         | RWD   | wide-body E92 GT2 racer from a CC BY Sketchfab model, clean livery (test only)                                        |
-| `subie_22b`       | Subaru WRX STI 22B | AWD   | widebody GC8 / 22B from a CC BY-NC Sketchfab model, crescent / stars graphic (test only)                              |
+| `subie_22b`       | Subaru WRX STI 22B | AWD   | 1998 22B coupe from a CC BY Sketchfab model, crescent / stars graphic (test only)                                     |
 | `zastava_101`     | Zastava 101        | FWD   | stock "Stojadin", body hand-built from dimensions and a blueprint                                                     |
 | `fiesta`          | Fiesta WRC         | AWD   | World Rally Car from a CC BY model with its cockpit, own rim and livery, test car                                     |
 | `citroen_c4`      | Citroen C4 WRC     | AWD   | 2007 World Rally Car from a CC BY model with its cockpit, own rim and livery, test car                                |
@@ -237,9 +237,11 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   paint recoloured per car (variants 0-14 = model, `STREET_CAR_MIX` weights what streets pick; 15 = the white hatch a map places).
   Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` holds the triangle budget.
 - The Ajvatovci yards' trucks (`maps/ajvatovci/start-row/build/vehicles.ts`, `truck-models.ts`) are baked from two CC BY models
-  (`scripts/car-model/bake-trucks.mjs`, data in `truck-models.data.ts`): `tractor` + `trailer` (the `trailer` kind), the `tractor` under a
-  code-built tank (`tanker`), the `cab` under a code-built box (`box`) and a `dump` truck whose back is swapped (`Back`: tipper, flatbed,
-  van body, tank; every 2nd-8th box-truck place, `DUMP_CYCLE`). The models keep their own triangles (welded, never simplified) and
+  (`scripts/car-model/bake-trucks.mjs`, data in `truck-models.data.ts`): `tractor` + `trailer` (the `trailer` kind), the `tractor` and
+  the trailer's chassis under a code-built tank (`tanker`), the `cab` (back wall closed by the baker, the tractor's step column and side skirt kept behind the front wheel) under a code-built body
+  (`box`, or `cab-tow` / `cab-reefer`) and a `dump` truck whose back is swapped (tipper, flatbed, van body, tank, `tow`,
+  `reefer`; backs in `truck-backs.ts`). Box-truck places go to these in turn (`RIGID_CYCLE`). Models keep their origin under the middle of
+  the 17.5 m footprint (`centre: 0`). The models keep their own triangles (welded, never simplified) and
   textures; the code adds nothing to lamps or grilles. `cab` / `paint` parts take the placement's cab / body colour through a tint
   mask (`truckMaps`: the light neutral panels of the texture, so grille, lamps and stripes keep their look); the `tyre` model is the
   template for the axles the builders add. Textures + masks come from `scripts/car-model/bake-truck-textures.py` (run it after
@@ -336,9 +338,10 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 
 **Draw calls**
 
-- Terrain chunks merge per detail band into 2 x 2 / 4 x 4 (from LOD2) and 8 x 8 (LOD3) meshes (`terrain-renderer.ts`: the
+- Terrain chunks merge per detail band into 2 x 2 (from LOD1) / 4 x 4 (from LOD2) and 8 x 8 (LOD3) meshes (`terrain-renderer.ts`: the
   `blockLod` bands never make a chunk coarser than unmerged, `MERGE_SLACK` stops tiles fragmenting along band edges; big tiles
-  are sampled in slices). Merged tiles keep the vertex grid of their LOD. The plan is redone after 8 m of travel.
+  are sampled in slices). Merged tiles keep the vertex grid of their LOD; a tile that splits or merges at the same LOD copies
+  its vertices from the tiles it replaces (`reuse`), so streaming while driving does not resample the generator. The plan is redone after 8 m of travel.
 - Whole-map meshes are merged per tile, never per object. Many materials = many draws: use a texture array
   (`engine/texture-array.ts` `layeredMaterial`; mesh buildings = one mesh per 192 m tile, start-row lots = 3 material groups
   per 128 m tile). A custom shader must scale `envMapIntensity` (it carries `scene.environmentIntensity`), never replace it.
