@@ -28,6 +28,10 @@ const LOCAL_RES = 1.5;
 const LOCAL_N = 512;
 const LOCAL_MOVE = 64;
 const LOCAL_BUDGET = 1.5;
+/** New chunks re-run the rebuild at most this often (ms) once the window holds something. */
+const LOCAL_REFRESH = 600;
+/** A finished rebuild fades in over this long (ms) instead of swapping, so shadows do not pop in. */
+const LOCAL_FADE = 700;
 /** Shadow density of one crown in the local window (overlaps add up to 1). */
 const LOCAL_DENSITY = 0.85;
 const smooth = (a: number, b: number, x: number): number => {
@@ -57,6 +61,10 @@ export class CanopyShadows {
     invD: 1 / (LOCAL_N * LOCAL_RES),
   };
   private localData = new Uint8Array(LOCAL_N * LOCAL_N);
+  /** The window being faded from (the old one, shifted onto the new origin) and to (the rebuilt one). */
+  private fadeFrom = new Uint8Array(LOCAL_N * LOCAL_N);
+  private fadeTo = new Uint8Array(LOCAL_N * LOCAL_N);
+  private fadeStart = -1;
   private localJob: Generator<void> | null = null;
   private localAt = { x: Infinity, z: Infinity };
   private localStale = true;
@@ -172,6 +180,7 @@ export class CanopyShadows {
       this.todo[i + 1] = this.todo[this.todoCount * 2 + 1];
     }
     if (focus) this.updateLocal(focus, now);
+    this.fadeLocal(now);
     if (this.dirtyMin >= 0 && now - this.lastUpload >= UPLOAD_EVERY) {
       const a = this.dirtyMin * this.nx;
       const b = (this.dirtyMax + 1) * this.nx;
@@ -188,8 +197,9 @@ export class CanopyShadows {
       const dx = focus.x - this.localAt.x;
       const dz = focus.z - this.localAt.z;
       const moved = dx * dx + dz * dz >= LOCAL_MOVE * LOCAL_MOVE;
-      // New chunks only re-run it while the window still holds nothing (the first fill) or every few seconds.
-      if (!moved && !(this.localStale && now - this.lastLocal > 3000)) return;
+      // New chunks re-run it every LOCAL_REFRESH ms (the rebuilt window fades in, so shadows do not pop).
+      if (!moved && !(this.localStale && now - this.lastLocal > LOCAL_REFRESH))
+        return;
       this.localStale = false;
       this.lastLocal = now;
       this.localAt.x = focus.x;
@@ -222,10 +232,43 @@ export class CanopyShadows {
       }
       yield;
     }
-    const data = this.localData;
-    for (let k = 0; k < data.length; k++) data[k] = Math.round(grid[k] * 255);
+    // Fade from what is shown now (same ground, shifted onto the new origin) to the rebuilt window.
+    const to = this.fadeTo;
+    for (let k = 0; k < to.length; k++) to[k] = Math.round(grid[k] * 255);
+    const from = this.fadeFrom;
+    from.fill(0);
+    const sx = Math.round((x0 - this.localMap.x0) / LOCAL_RES);
+    const sz = Math.round((z0 - this.localMap.z0) / LOCAL_RES);
+    const shown = this.localData;
+    for (let j = Math.max(0, -sz); j < LOCAL_N && j + sz < LOCAL_N; j++) {
+      const i0 = Math.max(0, -sx);
+      const i1 = Math.min(LOCAL_N, LOCAL_N - sx);
+      if (i0 < i1)
+        from.set(
+          shown.subarray(
+            (j + sz) * LOCAL_N + i0 + sx,
+            (j + sz) * LOCAL_N + i1 + sx,
+          ),
+          j * LOCAL_N + i0,
+        );
+    }
     this.localMap.x0 = x0;
     this.localMap.z0 = z0;
+    this.fadeStart = performance.now();
+    this.fadeLocal(this.fadeStart);
+  }
+
+  /** Blend the window from the old shadows to the rebuilt ones (one texture upload per frame while it runs). */
+  private fadeLocal(now: number): void {
+    if (this.fadeStart < 0) return;
+    const t = Math.min(1, (now - this.fadeStart) / LOCAL_FADE);
+    const a = this.fadeFrom;
+    const b = this.fadeTo;
+    const d = this.localData;
+    if (t >= 1) {
+      d.set(b);
+      this.fadeStart = -1;
+    } else for (let k = 0; k < d.length; k++) d[k] = a[k] + (b[k] - a[k]) * t;
     this.local.needsUpdate = true;
   }
 
