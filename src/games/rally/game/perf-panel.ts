@@ -6,12 +6,7 @@ import { worldUniforms } from '../engine/world-shading';
 import { OBJECT_DISTANCE } from './settings';
 import type { TreePart } from '../trees/draw';
 import { treeUniforms } from '../trees/materials';
-import {
-  FAR_RAMP,
-  FAR_SPRITES,
-  FULL_DETAIL_DISTANCE,
-  NEAR_SPRITE_DISTANCE,
-} from '../trees/species';
+import { FAR_SPRITES, FOREST_REACH, ROAD_REACH } from '../trees/species';
 import type { RallyGame } from './rally-game';
 
 /**
@@ -100,7 +95,7 @@ const SWITCHES: Switch[] = [
   { id: 'lod1', label: 'Branches LOD1', section: 'Trees', set: tree('lod1') },
   {
     id: 'near',
-    label: `Near sprites (< ${NEAR_SPRITE_DISTANCE} m)`,
+    label: `Near sprites (< ${FOREST_REACH.near} m, roadside ${ROAD_REACH.near})`,
     section: 'Trees',
     set: tree('near'),
   },
@@ -201,7 +196,7 @@ const far = () => treeUniforms.tlFar.value;
 const SLIDERS: Slider[] = [
   {
     id: 'farStart',
-    label: `Far sprites past ${FULL_DETAIL_DISTANCE + FAR_RAMP} m`,
+    label: `Far sprites past ${FOREST_REACH.full + FOREST_REACH.ramp} m (roadside ${ROAD_REACH.full + ROAD_REACH.ramp})`,
     section: 'Trees',
     min: 0.05,
     max: 0.55,

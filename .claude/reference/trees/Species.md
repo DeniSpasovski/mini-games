@@ -12,7 +12,7 @@ A species is a data definition that the tree code reads, so adding or tuning a k
 - branching angle, length scale, radius at the base and radius decay.
 - tropism vector and strength.
 - bark material and its texture tiling along the branch length.
-- foliage kind, conifer needles or broadleaf, with its cluster sprite atlas, sprite size, density and a colour palette ([Foliage](./Foliage.md#foliage)).
+- foliage kind, conifer needles or broadleaf, with its cluster sprite atlas (a leaf style), sprite size and a colour palette ([Foliage](./Foliage.md#foliage)).
 - a variant count.
 - LOD settings that override the defaults ([Lod](./Lod.md#lod)).
 - a scale range for instances.
@@ -40,15 +40,21 @@ A species is a data definition that the tree code reads, so adding or tuning a k
 - hornbeam_tree is a hornbeam / oak coppice: two or three slender smooth grey stems from one stool under a narrow crown of small bright-green leaves.
 - broom_shrub is flowering broom: upright green switches covered in yellow, 1 to 2 m.
 - cypress_tree is a Mediterranean cypress: a tall dark narrow column of short limbs close to the stem, 8 to 12 m (Vodno's church yards and suburb).
+- hedge_cypress is a hedge cypress (leyland / arborvitae): a fuller, greener column on a broad base, 6 to 9 m, planted in rows along lot fences and field edges of Ajvatovci's start row.
 - locust_tree is a black locust (acacia), a street and garden tree: a tall open crown of light feathery leaves on a dark furrowed trunk.
 - bramble_shrub is bramble and wild rose: a low arching tangle of green canes, 0.8 to 1.4 m, for forest edges and verges.
 - Bushes, scrub, hazels, thickets, brambles and junipers are drive-through. The other trees collide on their trunk, the poplar on its trunk alone.
 - Conifers wear needle sprays and the other species leaf bunches. Bark and leaf colours follow the description: white birch, grey-white plane, dark black pine needles, pale willow leaves, olive scrub, autumn thicket.
 - The common forest species, pine, oak, bush and scrub, have six variants; the rest have four, to keep the draw calls of a map with many species in budget.
 
+## Seasons
+
+- A stage has a season, spring, summer or autumn. A species' palette is its summer look; a table gives the species that change their own spring and autumn palettes: fresh yellow-green in spring, blossom on the fruit tree, yellow, orange and russet in autumn. Conifers hardly change and the juniper never does.
+- A season changes colours only. Its variants grow from the summer seeds, so a tree is the same tree all year, and the palette is part of the species hash, so each season has its own cached variants.
+
 ## Checks
 
-- A test checks every type's proportions and colours against its description: a columnar poplar, cypress and juniper, a pine taller than wide, a walnut and a willow wider than tall, a black pine crown in its top third, pale birch and plane bark, needles on the conifers, autumn colours on the thicket, low bushes, a fruit tree under an oak and a poplar over it.
+- A test checks every type's proportions and colours against its description: a columnar poplar, cypress, hedge cypress and juniper, a pine taller than wide, a walnut and a willow wider than tall, a black pine crown in its top third, pale birch and plane bark, needles on the conifers, autumn colours on the thicket, low bushes, a fruit tree under an oak and a poplar over it.
 
 ## Identity
 

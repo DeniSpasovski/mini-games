@@ -68,14 +68,17 @@ export const jackieInfo: MapInfo = {
     sunAzimuth: 330,
     // Hazy morning on the parkway: low sun from the east (~29 deg). ?tod=<hours> to try others.
     timeOfDay: 8,
-    // Mild morning.
-    airTemp: 17,
+    months: { spring: 5, summer: 7, autumn: 10 },
     turbidity: 6,
     rayleigh: 1.4,
     fogColor: '#bfc8d0',
     fogDensity: 0.00042,
     exposure: 0.84,
     groundTint: { grass: '#7d8f4c', amount: 0.55 },
+    groundTints: {
+      spring: { grass: '#72a640', amount: 0.65 },
+      autumn: { grass: '#867438', amount: 0.65 },
+    },
   },
   // Baked route + the run-out past the Queens Blvd portal (see `road.points` in ./map.ts).
   route: [...data.route, [2835, -1847], [2866, -1858.6], [2896, -1870.9]],

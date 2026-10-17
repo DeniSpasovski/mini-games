@@ -10,8 +10,8 @@ sim-lite physics that is still fun on a keyboard.
 | Page        | URL                                                               | What it is                                                                                                                                                 |
 | ----------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Game        | `/games/rally/`                                                   | welcome -> select stage -> select car -> (set-up) -> drive                                                                                                 |
-| Map viewer  | `/games/rally/map-viewer.html?map=test&stage=test&grid=1&splat=1` | a map with one of its stages (`stage=`, default the first; a stage picker lists them), click terrain to inspect, "Drive from here", lat / lon on real maps |
-| Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`             | livery seed, door plate, pose, physics hull, torque chart, test drive                                                                                      |
+| Map viewer  | `/games/rally/map-viewer.html?map=test&stage=test&grid=1&splat=1` | a map with one of its stages (`stage=`, default the first; a stage picker lists them) in a season (`season=`, the Season picker), click terrain to inspect, "Drive from here", lat / lon on real maps |
+| Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`             | livery seed, door plate, pose, physics hull, torque chart, test drive, time of day + lights (`tod=1&lamps=brake`)                                          |
 | Asset debug | `/games/rally/asset-debug.html?asset=pine_tree&lod=1`             | every asset / car (`car:<id>`) / texture (`tex:<id>`): seed, variant, LOD                                                                                  |
 
 Tool pages are dev-server only and keep their state in the URL; `H` hides the panel, `F3` shows stats, "Copy camera link"
@@ -28,7 +28,8 @@ gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
 | `mute=1`                   | play  | silent (bots and tests)                                                                                                                             |
 | `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                                                                  |
 | `tod=<hours>`, `tonemap=`  | all   | time of day (maps with `environment.timeOfDay`; 20-4:30 = night, see Look; the stage menu sets it), `aces / agx / neutral`                          |
-| `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the map's `environment.airTemp`)                                                                |
+| `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the stage's `temps` for the season and hour)                                                |
+| `season=`                  | play  | `spring / summer / autumn`: tree leaf colours, ground colour and the stage's `temps` for it (default: `StageDef.season`, else `environment.season`, summer); the map viewer takes it too |
 | `perf=1`                   | play  | open the perf panel (below)                                                                                                                         |
 
 Perf panel (`` ` `` key in game or `perf=1`, `game/perf-panel.ts`): FPS, frame ms, CPU ms per frame step, GPU ms (timer
@@ -53,8 +54,8 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 
 - **Menus** (`game/menu.ts`): welcome -> **select stage** (route outline of the stage and 150 m either side, orbiting 3D view of
   the stage, length, splits, best time; every stage shows a pre-baked stage card, `tools/stage-card.ts`, cropped to the stage +
-  500 m and re-baked with `?bakecard=<stage id>` / `?bakecards=1` only when asked; `stageCardHash` covers only what the card
-  draws, so text edits need no re-bake) -> **select car** ->
+  500 m and re-baked with `?bakecard=<stage id>&season=all` / `?bakecards=1&season=all` only when asked, one picture per
+  season; `stageCardHash` covers only what the card draws, so text edits need no re-bake) -> **select car** ->
   **Start stage** with the recommended set-up, or **Setup car** (small button left of the livery picker). The car stands in a 3D showroom (`game/showroom.ts`): car
   screens add studio strip lights to the env map (`Environment` `studio`) and a shallow depth of field
   (`engine/depth-of-field.ts`, off on low quality); the stage view keeps the map's sky env, no blur. Console (dev): `__showroom`.
@@ -116,7 +117,16 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   texture octave per layer, no specular environment lookup.
 - **Effects:** dust, gravel spray and haze (`game/dust.ts`), tyre marks (`game/tyre-marks.ts`), a contact shadow under the car,
   brake and reversing lamps (`CarModel.setBrake(level, reversing)`; a lamp's `userData.brakeLamp.reverseGlow` map lights its
-  white section in gear R, in R the throttle key is the brake pedal; car viewer `lamps=brake|reverse`).
+  white section in gear R, in R the throttle key is the brake pedal; car viewer `lamps=brake|reverse`). With the lights on a lamp
+  moves to its `LampNight` glow (`part-materials.ts` `lamp()`): red lamps keep it low and in pure red, because AgX turns a bright red
+  salmon pink (ACES, by day, keeps pure red up to ~1.2); a lamp's glow map holds the LED parts at full red and the lens body dimmer.
+  A lamp piece on the centre line (the third brake light) is split off at load (`lamp-islands.ts`) and lights with the brake only,
+  halo included; `lamp()` `idleGlow` does the same inside one glow map (22B: pale red body = running lamp, strong reds = brake).
+  A lamp with a `LampNight` also gets a soft red halo (`cars/shared/lamp-halo.ts`: its silhouette from behind, blurred, on an
+  additive quad), and at night `game/headlights.ts` `TailLight` adds a dim red spot behind the car (road, verges) while
+  `ParticleSystem.setTaillight` tints the dust behind it; both follow the brake pedal (`rally-game.ts` `lightParticlesByLamps`).
+  Check lamps in the car viewer: `tod=1` (night; `tod=17.5` = evening, lights half on) with `lamps=off|on|brake|reverse` (off = every lamp dark, on = the running lamps as the hour has them), `beam=0` hides
+  the headlight beam, `quality=high` adds the bloom.
 
 ## Maps
 
@@ -124,7 +134,7 @@ Maps and stages: a **map** is the world (terrain, roads, land cover, scatter, bu
 **stage** (`StageDef`, the map's `stages`, `maps/<id>/stages.ts`) is the event on it: name, tyre / gearing, `reverse` (driven
 against the road's direction), `timing` (start / finish / splits), `closures` (barrier rows at side-road mouths, `stageMargin`
 = only along the stage), `cornerFans`, event `props`. Players only see stages; times (`rally.times.<stage>`), release flags
-(`STAGES_LIST`), URLs (`?stage=<id>`; an old `?map=<id>` link is rewritten to it) and cards (`maps/<map>/preview/<stage>.json` + `.jpg`)
+(`STAGES_LIST`), URLs (`?stage=<id>`; an old `?map=<id>` link is rewritten to it) and cards (`maps/<map>/preview/<stage>.json` + one `<stage>-<season>.jpg` per season)
 are keyed by stage id. Every map from before the split has one stage with the old map id, so stored times kept their keys
 (`tests/rally/times-migration.test.ts`, `stage-identity.test.ts`). The world never depends on the stage: `World(map, stage)`
 keeps `road` (geometry) and adds `stageRoad` (the road, or its `reversed()` view) for timing, spawn, signs, fans, closures
@@ -378,21 +388,26 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 - Scatter view culling (`InstanceStreamer.setView`, called every frame by the game): non-shadow buckets (LOD1+) are
   angle-sorted and only the camera's view (+ 25 deg) is drawn. LOD0 shadow casters are drawn whole.
 - Trees (`trees/`, L-system species in `trees/species.ts`): map rules place the old tree type ids, each grown as the species
-  its description names (`TREE_TYPES`: pine, plantation pine (half the sprites, for dense stands), black pine, juniper, cypress, oak, locust, walnut, fruit tree, plane, birch, sapling, poplar,
+  its description names (`TREE_TYPES`: pine, plantation pine (half the sprites, for dense stands), black pine, juniper, cypress, hedge cypress, oak, locust, walnut, fruit tree, plane, birch, sapling, poplar,
   willow, bush, scrub, hazel, thicket, bramble); 6 variants for pine / oak / bush / scrub, 4 for the rest. The map's `scale`
   multiplies the species size.
-  Branches are tubes at two levels (LOD0 = the skeleton without twigs, LOD1 = trunk + first-order limbs), then an
+  Branches are tubes at two levels (LOD0 = the skeleton without twigs, LOD1 = trunk + the first-order limbs thicker than 1/120 of the tree's height), then an
   octahedral impostor (albedo, normal + depth, thickness: lit like everything else). Foliage = one lit, camera-facing
-  cluster sprite per leaf point from a per-kind atlas of 8 images (`trees/leaftex.ts`: albedo, normal + thickness),
+  cluster sprite per leaf point from the atlas of its species' leaf style (`foliage.leaf`, 8 styles x 8 images (512 px; the pine's 256 px), `trees/leaftex.ts`: albedo, normal + thickness at half size; a leaf is 4-6 % of the image;
+  broadleaf images are leafy branches (twigs with small stalked leaves, a side fork), cypress / juniper images drooping fronds, all turned in the shader to lie along their twig: `trees/sprite-attr.ts` packs the corner + heading into `treeSprite`),
+  tinted by the species palette (`foliage.palette` = summer; spring / autumn palettes in `trees/seasons.ts`, picked by the stage's season, so each season is its own cache entry and the trees themselves stay the same),
   drawn with both branch levels; a crown draws its highest-ranked 35 % (`NEAR_SPRITES`, the rest left out, the kept
-  ones grown to the same coverage) within the full-detail distance (`FULL_DETAIL_DISTANCE`, 40 m: the only trees with
-  LOD0 branches); over the next 60 m (`FAR_RAMP`, smooth) it eases to the far share (`FAR_SPRITES`: 20 %), then on to 15 % at
+  ones grown to the same coverage) within the full-detail distance (`FOREST_REACH.full`, 40 m: the only trees with
+  LOD0 branches; the first row within `ROADSIDE_EDGE` (9 m) of the road's edge uses `ROAD_REACH`: 80 m + 80 m ramp, flagged to the shader in the fraction of `treeInst.w`);
+  over the next 60 m (`FOREST_REACH.ramp`, smooth) it eases to the far share (`FAR_SPRITES`: 20 %), then on to 15 % at
   the impostor (3.5 % of the screen height; perf panel sliders). Defaults at high quality:
   `QualitySettings.treeLodScale` brings every tree distance to half on medium, about a third on low. Past
   `QualitySettings.forestDistance` (450 / 700 / 1100 m) no tree is drawn (they dissolve in over its last 15 %, `tlForest`): the ground under the canopy texture takes the
-  forest's colour (`setForest`, engine/world-shading.ts; three's physical path lights `diffuseContribution`). Trees more
-  than `FAKE_TREES_FROM` (250 m, game/rally-game.ts) from the stage road are always static impostors (`fakeFrom`): the
-  player only sees them from the road. Level changes
+  forest's colour (`setForest`, engine/world-shading.ts; three's physical path lights `diffuseContribution`). Trees
+  beyond the stage road's influence (half width + shoulder + 30 m, about 45 m from its edge; `FAKE_TREES_FROM` 250 m
+  caps it, game/rally-game.ts) are static impostors (`fakeFrom`), except within `IMPOSTOR_FROM` (80 m,
+  `trees/species.ts`) of the camera: no tree is an impostor up close, whatever the quality (it reads as a blotchy blob;
+  medium and low bring the impostor in to about 50 m for a small tree). Level changes
   are a fixed 0.3 s fade per tree (8x8 ordered dither, one fade value per tree, at most 32 at once), selected from the
   camera before shake (`CameraRig.steady`) with 15 % hysteresis. A batching job (every 5 m of travel) puts every tree
   that keeps its level for any camera within 9 m into static batches (shadow casters packed first); only trees near a
@@ -412,11 +427,11 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 - Tree shading: sprites (Lambert: diffuse only) / impostors go through the lit path (sun, shadows, fog); the sky's diffuse light is
   spherical harmonics of the environment (`setTreeSky`, engine/environment.ts) instead of the env map, so they read 2
   atlas textures + shadow map + cloud noise. Sprite normals = crown ellipsoid bent by the atlas normal map;
-  translucency = a wrap term on the thickness map. Caps: LOD0 branches <= 6,000 triangles (shrubs 2,000), <= 600
-  sprites (shrubs 200). Wind fades out by 110 m (`TREE_WIND_FAR`; past it the vertex work is skipped).
+  translucency = a wrap term on the thickness map; the sky light leans up and a small fill light keeps shaded crowns green. Caps: LOD0 branches <= 6,000 triangles (shrubs 2,000), <= 400
+  sprites (broadleaf 360, shrubs 200). Wind fades out by 110 m (`TREE_WIND_FAR`; past it the vertex work is skipped).
 - Tree drawing (spec `trees/Drawing`): every tree mesh is opaque, depth-tested and depth-writing; the depth buffer
   alone decides what is in front (nothing sorted). Sprite parts (`trees/draw.ts`): crowns within
-  `NEAR_SPRITE_DISTANCE` (55 m) use the tight outlines with a depth prepass, then shade where the depth is not behind it
+  `Reach.near` (55 m, first row 95 m) use the tight outlines with a depth prepass, then shade where the depth is not behind it
   (less-or-equal + a polygon offset, never EQUAL: it blinked on some GPUs; off on touch devices, `?treeprepass=0|1`; the prepass
   draws after the horizon backdrop, which clears the depth: `PREPASS_ORDER`);
   farther crowns use plain quads (`quadSprites`) in one lit pass: a mid batch per variant over the ramp and a far one
@@ -470,8 +485,48 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 - Car select: a "Loading model" spinner (`Showroom.loadCue`) shows while a car's GLB downloads (the car stays hidden until then).
 - Car select: All / AWD / RWD / FWD filter row on top (`driveGroup` from the car's `drivetrain.frontSplit`, not remembered); up from the first car or the pad focuses it, left / right switch.
 - Car select (screens >= 1200 px wide): the description / stats / livery sit in a wide card right of the list (`.menu-side-card`, `MainMenu.sideCard`, shared with Select stage); the showroom car keeps its shared place and size (`CAR_SHIFT`, `CAR_DIST_SCALE`) and may run behind the card. Narrower screens keep them under the list.
-- Select stage: the stage's description (`StageDef.description`: what the drive is like for the player, no data sources or build details), recommended set-up and a **Time of day** dropdown sit in the same card (phones: under the selected stage). Left / right (or the pad) step the time; the list cards keep the route, tags and best time.
-- Time of day (`game/time-of-day.ts`, the one config): early morning 07:00, mid day 12:00, afternoon 15:30, evening 17:30, night 01:00 (dropdown order) - each is a `?tod=<hours>` hour, so any stage of a map with `environment.timeOfDay` takes any of them. A stage's own default hour stays exact on its nearest slot (Jackie opens on "Early morning · 08:00"); a pick applies to every stage until changed and is not remembered; the menu mirrors it into the URL (`tod=`), a stage without `timeOfDay` shows no dropdown. Under it the card shows the clock time and the air / road temperature at that hour (`maps/shared/day-temperature.ts`, the numbers the tyres run with, see PHYSICS.md). Times are saved per stage, not per time of day.
+- Select stage: the stage's description (`StageDef.description`: what the drive is like for the player, no data sources or build details), recommended set-up and a **Time of day** dropdown sit in the same card (phones: under the selected stage), with a **Season** dropdown (spring / summer / autumn, above the time) and the **Month** it is driven in in front. Left / right (or the pad) step the time; the list cards keep the route, tags and best time.
+- Time of day (`game/time-of-day.ts`, the one config): early morning 07:00, mid day 12:00, afternoon 15:30, evening 17:30, night 01:00 (dropdown order) - each is a `?tod=<hours>` hour, so any stage of a map with `environment.timeOfDay` takes any of them. A stage's own default hour stays exact on its nearest slot (Jackie opens on "Early morning · 08:00") and a stage can move a slot (`StageDef.slotHours`: Vodno's early morning is 08:00); a pick applies to every stage until changed and is not remembered; the menu mirrors it into the URL (`tod=`), a stage without `timeOfDay` shows no dropdown. Under it the card shows the clock time and the air / road temperature at that hour (`StageDef.temps`, the numbers the tyres run with, see PHYSICS.md). Times are saved per stage, not per time of day.
+- Season (`season.ts`): spring / summer / autumn, the one the stage opens in (`StageDef.season`, else the map's `environment.season`, default summer; `stageSeason`) or `?season=`; the stage screen's pick is mirrored into the URL (`season=`, none = the stage's own) and shown on every stage including the test map. It sets the tree leaf colours (`trees/seasons.ts`), the ground (`environment.groundTints`, below) and the stage's air / road temperatures (`StageDef.temps`, "Temperatures" below). The stage card lists the **Month** the stage is driven in that season (`environment.months`, default April / July / October: e.g. Ajvatovci spring April, Jackie spring May).
+- Season ground: `environment.groundTint` is the map's own season (`environment.season`, the card's `season`; a stage can open in another, e.g. Galichica West in autumn, East in spring); `environment.groundTints` has the other seasons' tint (fresh green / young crops in spring, dry olive / stubble in autumn). `mapInSeason` (`maps/shared/season-map.ts`) returns the map with that season's tint as `groundTint` and `season` set, and `RallyGame` builds its `World` from it, so terrain, horizon and sky colours follow. The stage card (select stage) has one picture per season, every one `<stage id>-<season>.jpg` (`cardImageName`; the card's `season` is the map's own), the other seasons listed with their hash + floor colour in the card's `seasons`; the dropdown swaps the picture (`Showroom.setSeason`), only the shown season is fetched. A map without `groundTints` shows one picture for every season.
+
+## Temperatures (`StageDef.temps`)
+
+Each stage lists `[air, road]` °C per season and time-of-day slot, hardcoded and researched, in `maps/<map>/stages.ts` (the
+three Galichica stages share one table). The road is the stage's first surface. The stage's own slot sits at its own
+`timeOfDay` (bold below) and a stage can move other slots (`StageDef.slotHours`: Vodno's early morning is 08:00); that cell, in
+the season the stage opens in (`StageDef.season`), is the default look. Edit a cell to retune it: the stage screen and the
+tyres follow, nothing is computed. Hours between the slots blend them, `?air=` overrides the air, a new stage needs a full
+table (`tests/rally/seasons.test.ts`). Source figures: PHYSICS.md "Climate". The table below is written from the data
+(`tests/rally/temps-doc.test.ts` fails when it is stale: `UPDATE_TEMPS_DOC=1 npm run test:rally -- temps-doc` rewrites it).
+Each table holds at the stage start (its lowest point, `Vehicle.setClimate` `refHeight`): the car's air falls 6.5 K per km of
+climb (`AIR_LAPSE`, tyre-temp.ts) and the road with it (the sun gap stays), so Petralica is ~3.4 K and Galichica ~4.5 K
+colder at the top. Select stage shows "At the top" for climbs of 50 m or more (`loadStageRise`, from the stage card's route).
+
+<!-- temps-matrix -->
+
+| Stage                                                        | Season | Early morning | Mid day     | Afternoon   | Evening | Night   |
+| ------------------------------------------------------------ | ------ | ------------- | ----------- | ----------- | ------- | ------- |
+| `test` (15:48)                                               | spring | 5 / 7         | 12 / 20     | **14 / 19** | 13 / 14 | 3 / 3   |
+|                                                              | summer | 11 / 15       | 18 / 30     | **20 / 27** | 19 / 21 | 9 / 9   |
+|                                                              | autumn | 3 / 5         | 10 / 15     | **12 / 15** | 11 / 12 | 1 / 1   |
+| `ajvatovci` (07:30)                                          | spring | **13 / 19**   | 20 / 32     | 21 / 30     | 20 / 22 | 10 / 10 |
+|                                                              | summer | **27 / 35**   | 34 / 53     | 35 / 48     | 34 / 37 | 24 / 24 |
+|                                                              | autumn | **14 / 18**   | 21 / 28     | 22 / 28     | 21 / 22 | 11 / 11 |
+| `vodno` (10:00; early morning 08:00)                         | spring | 9 / 14        | **14 / 26** | 18 / 28     | 17 / 19 | 7 / 7   |
+|                                                              | summer | 30 / 40       | **35 / 54** | 38 / 55     | 36 / 44 | 26 / 26 |
+|                                                              | autumn | 6 / 9         | **11 / 19** | 15 / 21     | 14 / 16 | 4 / 4   |
+| `petralica` (16:30)                                          | spring | 11 / 14       | 19 / 37     | **21 / 35** | 20 / 31 | 11 / 11 |
+|                                                              | summer | 16 / 20       | 26 / 47     | **28 / 46** | 28 / 42 | 17 / 17 |
+|                                                              | autumn | 11 / 11       | 21 / 35     | **24 / 34** | 23 / 30 | 14 / 14 |
+| `galichica_west` · `galichica_east` · `prespa_ohrid` (09:00) | spring | **13 / 23**   | 18 / 36     | 20 / 37     | 19 / 30 | 10 / 10 |
+|                                                              | summer | **19 / 32**   | 25 / 47     | 28 / 48     | 27 / 41 | 16 / 16 |
+|                                                              | autumn | **9 / 13**    | 14 / 24     | 17 / 25     | 17 / 20 | 9 / 9   |
+| `jackie` (08:00)                                             | spring | **15 / 21**   | 20 / 38     | 22 / 39     | 22 / 34 | 16 / 16 |
+|                                                              | summer | **24 / 31**   | 28 / 50     | 30 / 51     | 30 / 45 | 24 / 24 |
+|                                                              | autumn | **12 / 13**   | 17 / 26     | 19 / 27     | 19 / 23 | 14 / 14 |
+
+<!-- /temps-matrix -->
 
 ## Known limitations
 
