@@ -760,6 +760,9 @@
     sans-serif;
   color: #8a94a1;
 }
+.menu-board tr.me .when {
+  color: #4a3206;
+}
 .menu-board tr.sec .when {
   display: inline;
   margin-left: 0.9em;
