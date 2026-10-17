@@ -105,12 +105,12 @@ function lamp(
  * Red lamp glow with the lights on: night tone mapping (AgX) turns a bright red salmon pink, so the running lamp is dim and
  * the brake stays near 0.45 (by day, ACES keeps a pure red up to ~1.2 before it goes orange).
  */
-const RED_NIGHT: LampNight = { idle: 0.1, on: 0.5 };
-const STRIP_NIGHT: LampNight = { idle: 0.03, on: 0.45 };
+const RED_NIGHT: LampNight = { idle: 0.25, on: 0.5 };
+const STRIP_NIGHT: LampNight = { idle: 0.15, on: 0.45 };
 /** Lamps whose glow map lights the whole lens body dimly and the LED parts at full red: a stronger running light than `RED_NIGHT`. */
-const LENS_NIGHT: LampNight = { idle: 0.2, on: 0.55 };
+const LENS_NIGHT: LampNight = { idle: 0.35, on: 0.6 };
 /** `LENS_NIGHT` for small lamps (C4, 206): a little brighter so they read from a distance. */
-const SMALL_LAMP_NIGHT: LampNight = { idle: 0.25, on: 0.8 };
+const SMALL_LAMP_NIGHT: LampNight = { idle: 0.45, on: 0.85 };
 
 /** Red see-through lens cover (transparent over a modelled lamp) that glows `emissive` up to intensity `on` with the brake down. */
 function brakeCover(
@@ -121,7 +121,7 @@ function brakeCover(
 ): MeshPhysicalMaterial {
   return lamp(
     new MeshPhysicalMaterial({
-      color: 0xb3151c,
+      color: 0xb81408,
       emissive,
       emissiveIntensity: 0.2,
       roughness: 0.03,
@@ -147,7 +147,7 @@ function brakeStrip(
 ): MeshPhysicalMaterial {
   return lamp(
     new MeshPhysicalMaterial({
-      color: 0xa30f17,
+      color: 0xa80f08,
       emissive,
       emissiveIntensity: 0,
       roughness: 0.25,
@@ -169,7 +169,7 @@ function tailLed(
 ): MeshPhysicalMaterial {
   return lamp(
     new MeshPhysicalMaterial({
-      color: 0xd01418,
+      color: 0xd41408,
       emissive,
       emissiveIntensity: idle,
       roughness: 0.2,
@@ -1787,12 +1787,12 @@ const BUILDERS: Record<PartName, () => Material> = {
       emissive: 0x2a2d32,
       envMapIntensity: 1.2,
     }),
-  /** Amber indicator bulb, glowing. */
+  /** Amber indicator lens: orange plastic, only a faint glow (no indicator lamp is ever lit, so it must not shine at night). */
   amber: () =>
     new MeshPhysicalMaterial({
       color: 0xff9a1a,
       emissive: 0xff7a00,
-      emissiveIntensity: 0.55,
+      emissiveIntensity: 0.06,
       roughness: 0.2,
       clearcoat: 1,
       clearcoatRoughness: 0.05,
@@ -1973,7 +1973,7 @@ const BUILDERS: Record<PartName, () => Material> = {
       }),
       2,
       reverseGlow,
-      { idle: 0.35, on: 0.8 },
+      { idle: 0.5, on: 0.85 },
     );
   },
   /** Peugeot 206 LED tubes: glossy red, see lampRedMaps - needs `parts.wrap` 'corner'. The tube cores light with the brake. */
@@ -1999,7 +1999,7 @@ const BUILDERS: Record<PartName, () => Material> = {
   /** Red see-through cover over a modelled tail lamp. */
   redcover: () =>
     new MeshPhysicalMaterial({
-      color: 0xb3151c,
+      color: 0xb81408,
       roughness: 0.03,
       metalness: 0,
       transparent: true,
@@ -2010,12 +2010,12 @@ const BUILDERS: Record<PartName, () => Material> = {
       envMapIntensity: 1.5,
     }),
   /** Red see-through cover that lights with the brake pedal (setBrake), like `tailled`. */
-  brakecover: () => brakeCover(0xff0000, 0.55, 1.1, RED_NIGHT),
+  brakecover: () => brakeCover(0xff0000, 0.72, 1.1, RED_NIGHT),
   /** `brakecover` with a denser cover: stays red (not salmon) over a white lens when braking. */
   brakered: () => brakeCover(0xff0000, 0.7, 1.1, RED_NIGHT),
   reflector: () =>
     new MeshPhysicalMaterial({
-      color: 0xa30f17,
+      color: 0xa80f08,
       roughness: 0.25,
       metalness: 0.3,
       clearcoat: 1,
@@ -2025,7 +2025,7 @@ const BUILDERS: Record<PartName, () => Material> = {
     const { map, normal } = lensWeave();
     return lamp(
       new MeshPhysicalMaterial({
-        color: 0xd01418,
+        color: 0xd41408,
         map,
         normalMap: normal,
         emissive: 0xff2010,
@@ -2038,7 +2038,7 @@ const BUILDERS: Record<PartName, () => Material> = {
       }),
       1.2,
       undefined,
-      { idle: 0.15, on: 0.65 },
+      { idle: 0.3, on: 0.65 },
     );
   },
   /** Amber weave lens (indicator), faintly glowing. */

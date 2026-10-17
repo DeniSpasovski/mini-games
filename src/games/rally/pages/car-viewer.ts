@@ -33,7 +33,7 @@ import { rimRadius } from '../cars/shared/tyre-mesh';
  *   car-viewer.html?car=bimmer_m3&cam=-1.2,4,-1.6&look=-0.5,0.7,-1.8&fov=14&clean=1
  * `cam` overrides `view`; choosing a view in the panel clears the free camera.
  * "Copy camera link" (Pose section) writes the current orbit (position, target, fov) into these params and copies the URL.
- * `lamps=off|position|brake|reverse|reverse+brake`: off = every lamp dark, position (default) = the running lamps as the hour of day has them (night = on), brake / reverse = pedal down / gear R. `fallback=1` shows the body a car
+ * `lamps=off|on|brake|reverse|reverse+brake`: off = every lamp dark, on (default) = the running lamps as the hour of day has them (night = lit), brake / reverse = pedal down / gear R. `fallback=1` shows the body a car
  * falls back to when its GLB can't load (hand-built `custom` or the boxy side-outline `profile`).
  * `tod=<hours>` = the game's time of day (default: the test map's afternoon): 17.5 evening (lights half on), 1 night (moon,
  * dark fog, running lamps + headlights + beam (`beam=0` hides the beam), bloom on High quality), e.g. `car-viewer.html?car=audi_rs6&tod=1&lamps=brake&view=rear`.
@@ -68,8 +68,8 @@ const DEFAULTS = {
   fallback: false,
   wire: false,
   turntable: false,
-  /** off | position | brake | reverse | reverse+brake: lamps dark / running (position) lamps / rear lamps lit (CarModel.setBrake). */
-  lamps: 'position',
+  /** off | on | brake | reverse | reverse+brake: lamps dark / running lamps / rear lamps lit (CarModel.setBrake). */
+  lamps: 'on',
   /** Hour of day (`Environment`, `?tod=`): from 19:30 to 04:30 night, the car's lights come on as the sun goes down. */
   tod: VIEWER_HOUR,
   /** Headlight beam (spot lights + the cones in the air) at night: off to see the car and its lamps without it. */
@@ -90,7 +90,7 @@ state.rally = paramOneOf(
 );
 const LAMP_MODES = [
   { value: 'off', label: 'off' },
-  { value: 'position', label: 'on (position)' },
+  { value: 'on', label: 'on' },
   { value: 'brake', label: 'brake' },
   { value: 'reverse', label: 'reverse' },
   { value: 'reverse+brake', label: 'reverse + brake' },
@@ -256,7 +256,7 @@ shell.addCameraShare(pose, state, sync);
 
 const lights = shell.panel.section(
   'Lights',
-  state.tod !== VIEWER_HOUR || state.lamps !== 'position' || !state.beam,
+  state.tod !== VIEWER_HOUR || state.lamps !== 'on' || !state.beam,
 );
 const todOptions = [
   { value: String(VIEWER_HOUR), label: 'Day' },
@@ -453,7 +453,7 @@ function applyLights(): void {
   applyLamps();
 }
 
-/** `lamps=off`: every lamp dark; otherwise the lamps follow the hour of day (night = running / position lamps on) plus the brake / reverse pedal. */
+/** `lamps=off`: every lamp dark; otherwise the lamps follow the hour of day (night = running lamps lit) plus the brake / reverse pedal. */
 function applyLamps(): void {
   const need = shell.env.lightNeed;
   const level = need >= LIGHTS_MIN_NEED && state.lamps !== 'off' ? need : 0;

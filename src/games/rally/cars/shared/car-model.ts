@@ -358,8 +358,8 @@ function getMeshMaterial(): MeshStandardMaterial {
 /** Extra emissive intensity of a tail lamp with the lights on (night), up to its full brake glow. */
 const TAIL_NIGHT_GLOW = 1;
 /** Halo strength round the red tail lamps (`LampHalos`): running light at night, brake pedal at night / by day. */
-const HALO_IDLE = 0.03;
-const HALO_BRAKE_NIGHT = 0.2;
+const HALO_IDLE = 0.11;
+const HALO_BRAKE_NIGHT = 0.26;
 const HALO_BRAKE_DAY = 0;
 /** Livery brightness (linear) inside a recess (CarModel.recessMaterial). */
 const RECESS_SHADE = 0.12;
