@@ -59,6 +59,7 @@
    * len = metres per tile along the road (must match `texLength` in world/road-mesh.ts).
    * polish: bitumen film over the wheel paths; exposed: aggregate showing between them; grain: stone size
    * (1 = worn road, 0.6 = fine new surface); dust: grit along the edges; age: warm, sun-bleached;
+   * gain: brightens the bitumen and stones keeping their contrast (a sun-bleached light road);
    * lift: 0..1 toward a lighter, lower-contrast warm grey (bleached old road);
    * relief: scales the stone relief in the normal map; crackW: scales the crack width.
    */
@@ -70,9 +71,10 @@
       exposed: 0.55,
       cracks: 26,
       grain: 1,
-      patches: 3,
+      patches: 0,
       dust: 0.9,
       age: 0.7,
+      gain: 1.65,
     },
     road_tarmac_lines: {
       ...VODNO,
@@ -189,8 +191,11 @@
     // Bitumen base.
     const warm = o.age;
     const lift = o.lift ?? 0;
+    const gain = o.gain ?? 1;
     const lighten = (c) =>
-      c.map((v, i) => Math.round(v + ([128, 124, 116][i] - v) * lift));
+      c.map((v, i) =>
+        Math.round(v * gain + ([128, 124, 116][i] - v * gain) * lift),
+      );
     cx.fillStyle = `rgb(${lighten([44 + warm * 10, 44 + warm * 8, 46 + warm * 4])})`;
     cx.fillRect(0, 0, w, h);
     hx.fillStyle = grey(70);

@@ -235,22 +235,23 @@ export function applyRoadSurface(
             if ( rsPatch > 0.0 ) {
               float rsCi = floor( rsM.y / 10.0 );
               float rsFy = rsM.y - rsCi * 10.0;
-              float rsDens = rsPatch * mix( 0.12, 0.55, smoothstep( 250.0, 3500.0, rsM.y ) );
+              float rsDens = rsPatch * mix( 0.25, 0.8, smoothstep( 250.0, 3500.0, rsM.y ) );
               float rsCov = 0.0;
               for ( int k = 0; k < 2; k ++ ) {
                 vec2 id = vec2( rsCi, float( k ) * 17.0 + 1.0 );
                 if ( rsHash( id ) < rsDens * ( k == 0 ? 1.0 : 0.35 ) ) {
-                  float hl = 0.8 + 2.7 * pow( rsHash( id + 3.7 ), 2.0 );
+                  float hl = 0.8 + 1.9 * pow( rsHash( id + 3.7 ), 2.0 );
                   float hw = 0.25 + 0.7 * rsHash( id + 7.3 );
                   float cy = hl + 0.2 + ( 9.6 - 2.0 * hl ) * rsHash( id + 11.9 );
-                  float cx = 0.9 + 4.2 * rsHash( id + 19.1 );
+                  float rsX = rsHash( id + 19.1 );
+                  float cx = rsX < 0.5 ? 1.7 + 2.6 * step( 0.25, rsX ) + 0.5 * ( rsHash( id + 23.3 ) - 0.5 ) : 0.9 + 4.2 * rsHash( id + 29.9 );
                   vec2 q = vec2( ( rsM.x - cx ) / hw, ( rsFy - cy ) / hl );
-                  q += 0.2 * ( vec2( rsNoise( rsM * 2.3 ), rsNoise( rsM * 2.3 + 9.0 ) ) - 0.5 );
+                  q += 0.1 * ( vec2( rsNoise( rsM * 2.3 ), rsNoise( rsM * 2.3 + 9.0 ) ) - 0.5 );
                   float d = pow( pow( abs( q.x ), 3.0 ) + pow( abs( q.y ), 3.0 ), 1.0 / 3.0 );
-                  rsCov = max( rsCov, 1.0 - smoothstep( 0.88, 1.0, d ) );
+                  rsCov = max( rsCov, 1.0 - smoothstep( 0.95, 1.0, d ) );
                 }
               }
-              diffuseColor.rgb *= 1.0 + 0.8 * rsCov * ( 0.75 + 0.25 * rsNoise( rsM * 9.0 ) );
+              diffuseColor.rgb *= 1.0 + 0.6 * rsCov * ( 0.75 + 0.25 * rsNoise( rsM * 9.0 ) );
             }
           }`,
         )
