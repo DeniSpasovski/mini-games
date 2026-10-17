@@ -814,14 +814,15 @@ class MainMenu {
   }
 
   /**
-   * Description card of Select stage / Select car (`.menu-side-card`): on screens >= 1200 px wide it floats right of the
-   * list with its top level with `align` (the header height depends on the font) and this returns true; narrower screens
-   * leave it to the caller to put in the panel.
+   * Description card of Select stage / Select car (`.menu-side-card`): it floats over the map: right of the list with its top
+   * level with `align` (the header height depends on the font) on screens >= `SIDE_CARD_MIN_WIDTH` px wide, above the
+   * buttons on phones. Always returns true.
    */
   private sideCard(card: HTMLElement, align: HTMLElement): boolean {
-    if (window.innerWidth < 1200) return false;
     card.classList.add('menu-side-card');
     this.root.append(card);
+    // Phones: the card covers the map / car above the buttons (CSS), no alignment needed.
+    if (window.innerWidth < SIDE_CARD_MIN_WIDTH) return true;
     const top =
       align.getBoundingClientRect().top - this.root.getBoundingClientRect().top;
     card.style.top = `${top}px`;
@@ -1512,6 +1513,8 @@ export function buildSectors(
 }
 
 const MAX_ROWS = 10;
+/** Below this width the Select stage / car description card covers the map instead of sitting right of the list. */
+const SIDE_CARD_MIN_WIDTH = 800;
 /** A stage that climbs less than this (m) shows no second, colder temperature on Select stage. */
 const MIN_RISE = 50;
 
