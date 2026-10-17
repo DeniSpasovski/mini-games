@@ -35,22 +35,32 @@ export function startRowInstances(
   };
   const layout = getLayout();
   const rng = new Rng(77);
-  /** A dense cypress screen along a fence edge, 1.2 m inside it (towards `centre`), a tree every 1.5 m. */
-  const hedge = (a: Vector2, b: Vector2, centre: Vector2, salt: number) => {
-    const v = b.clone().sub(a);
-    const inward = new Vector2(-v.y, v.x).normalize().multiplyScalar(1.2);
+  /** A row of hedge cypress along a fence edge, 1.2 m inside it (towards `centre`), one every `step` m for `length` m. */
+  const fenceRow = (
+    a: Vector2,
+    b: Vector2,
+    centre: Vector2,
+    step: number,
+    salt: number,
+    length = a.distanceTo(b),
+  ) => {
+    const v = b.clone().sub(a).normalize();
+    const inward = new Vector2(-v.y, v.x).multiplyScalar(1.2);
     if (inward.dot(centre.clone().sub(a)) < 0) inward.negate();
-    const n = Math.max(Math.floor(v.length() / 1.5), 1);
-    for (let k = 0; k <= n; k++)
+    for (let d = 0; d <= Math.min(length, a.distanceTo(b)); d += step)
       plant(
         'hedge_cypress',
-        a
-          .clone()
-          .addScaledVector(v, k / n)
-          .add(inward),
-        0.95 + rng.next() * 0.25,
+        a.clone().addScaledVector(v, d).add(inward),
+        0.9 + rng.next() * 0.2,
         salt,
       );
+  };
+  /** The edge of a fence run furthest from the street (the south lots' back, at the motorway). */
+  const backEdge = (run: Vector2[]) => {
+    let back = 1;
+    for (let i = 2; i < run.length; i++)
+      if (run[i].y + run[i - 1].y > run[back].y + run[back - 1].y) back = i;
+    return back;
   };
   const centreOf = (polygon: Vector2[]) =>
     polygon
@@ -61,7 +71,7 @@ export function startRowInstances(
   for (const [from, to] of CYPRESS) {
     const a = new Vector2(...px(...from));
     const b = new Vector2(...px(...to));
-    const n = Math.max(1, Math.round(a.distanceTo(b) / 2.2));
+    const n = Math.max(1, Math.round(a.distanceTo(b) / 3));
     for (let k = 0; k <= n; k++) {
       const at = a
         .clone()
@@ -74,17 +84,20 @@ export function startRowInstances(
         )
       )
         continue;
-      plant('hedge_cypress', at, 0.95 + rng.next() * 0.25, 1);
+      plant('hedge_cypress', at, 0.9 + rng.next() * 0.2, 1);
     }
   }
 
-  // South 6: a cypress hedge round its fence, and four small trees in front of the round glass.
+  // South 6: cypress along its two side fences (none at the back), and four small trees in front of the round glass.
   for (const yard of layout.yards) {
     const { plot, polygon } = yard;
     if (plot.style !== 'office') continue;
     const centre = centreOf(polygon);
-    for (const run of yard.fence)
-      for (let i = 1; i < run.length; i++) hedge(run[i - 1], run[i], centre, 3);
+    for (const run of yard.fence) {
+      const back = backEdge(run);
+      for (let i = 1; i < run.length; i++)
+        if (i !== back) fenceRow(run[i - 1], run[i], centre, 3.2, 3);
+    }
     const north = plot.corners
       .map(([x, z]) => new Vector2(x, z))
       .sort((p, q) => p.y - q.y)
@@ -104,16 +117,11 @@ export function startRowInstances(
       );
   }
 
-  // South 4 and 5: a cypress hedge along the back fence (the edge furthest from the street).
+  // South 4: a short row of cypress along its east fence from the street, where its cars park (none at the back).
   for (const yard of layout.yards) {
-    if (yard.plot.name !== 'south 4' && yard.plot.name !== 'south 5') continue;
-    const centre = centreOf(yard.polygon);
-    for (const run of yard.fence) {
-      let back = 1;
-      for (let i = 2; i < run.length; i++)
-        if (run[i].y + run[i - 1].y > run[back].y + run[back - 1].y) back = i;
-      if (run.length > 1) hedge(run[back - 1], run[back], centre, 7);
-    }
+    if (yard.plot.name !== 'south 4') continue;
+    const [a, b] = yard.fence[0];
+    fenceRow(a, b, centreOf(yard.polygon), 2.2, 7, 24);
   }
 
   // The Mileks front garden: shrubs along the inside of the low wall and two small trees.

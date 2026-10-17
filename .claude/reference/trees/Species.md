@@ -40,7 +40,7 @@ A species is a data definition that the tree code reads, so adding or tuning a k
 - hornbeam_tree is a hornbeam / oak coppice: two or three slender smooth grey stems from one stool under a narrow crown of small bright-green leaves.
 - broom_shrub is flowering broom: upright green switches covered in yellow, 1 to 2 m.
 - cypress_tree is a Mediterranean cypress: a tall dark narrow column of short limbs close to the stem, 8 to 12 m (Vodno's church yards and suburb).
-- hedge_cypress is a hedge cypress (leyland / arborvitae): a fuller, greener column on a broad base, 6 to 9 m, planted close as the screens along lot fences and field rows of Ajvatovci's start row.
+- hedge_cypress is a hedge cypress (leyland / arborvitae): a fuller, greener column on a broad base, 6 to 9 m, planted in rows along lot fences and field edges of Ajvatovci's start row.
 - locust_tree is a black locust (acacia), a street and garden tree: a tall open crown of light feathery leaves on a dark furrowed trunk.
 - bramble_shrub is bramble and wild rose: a low arching tangle of green canes, 0.8 to 1.4 m, for forest edges and verges.
 - Bushes, scrub, hazels, thickets, brambles and junipers are drive-through. The other trees collide on their trunk, the poplar on its trunk alone.
