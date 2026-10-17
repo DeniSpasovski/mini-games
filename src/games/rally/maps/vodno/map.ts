@@ -188,10 +188,10 @@ export const vodnoMap: MapDef = {
       solid: true,
     },
     surface: 'tarmac',
-    // Old tarmac with white edge and centre lines all along; at the first crossroad the centre paint is `markings`.
+    // Old tarmac with white edge and centre lines all along; at the first crossroad every line is paint (`markings`).
     texture: 'road_tarmac_lines',
     sections: [
-      { from: WIDE_FROM, surface: 'tarmac', texture: 'road_tarmac_edges' },
+      { from: WIDE_FROM, surface: 'tarmac', texture: 'road_tarmac' },
       { from: WIDE_TO, surface: 'tarmac', texture: 'road_tarmac_lines' },
     ],
     markings: MARKINGS,

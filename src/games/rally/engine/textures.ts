@@ -31,7 +31,6 @@ export type TextureId =
   | 'road'
   | 'road_tarmac'
   | 'road_tarmac_lines'
-  | 'road_tarmac_edges'
   | 'road_paint'
   | 'road_arrow_left'
   | 'road_arrow_straight'
@@ -351,6 +350,9 @@ function wearOver(
     );
   }
 }
+
+/** The road paint of the lane lines and arrows: the colour of the road textures' own lines. */
+const ROAD_PAINT = '#d6d6ce';
 
 /** Wear on alpha road paint: `count` bald specks and short gaps cut out of it (a few of them wider). */
 function wornPaint(
@@ -1016,46 +1018,33 @@ const DEFS: Record<TextureId, TexDef> = {
       }
     },
   },
-  road_tarmac_edges: {
-    name: 'Old tarmac with a worn white edge line each side and no centre line (the centre paint is a RoadMarking)',
-    size: [512, 512],
-    color: true,
-    draw(ctx, w, h) {
-      DEFS.road_tarmac.draw(ctx, w, h);
-      const rng = new Rng(66);
-      const us = [0.05, 0.95];
-      ctx.fillStyle = '#d6d6ce';
-      for (const u of us) ctx.fillRect(u * w - 6, 0, 12, h);
-      // Wear: asphalt specks and gaps over the paint, a few bald stretches where the wheels run.
-      for (let i = 0; i < 2400; i++) {
-        ctx.fillStyle = `rgba(${84 + rng.int(0, 30)},${82 + rng.int(0, 30)},${80 + rng.int(0, 30)},${rng.range(0.35, 0.85)})`;
-        ctx.fillRect(
-          rng.pick(us) * w + rng.range(-7, 7),
-          rng.next() * h,
-          rng.range(1, 3),
-          rng.range(1, 5),
-        );
-      }
-      for (let i = 0; i < 6; i++) {
-        ctx.fillStyle = `rgba(${96 + rng.int(0, 16)},${94 + rng.int(0, 16)},${92 + rng.int(0, 16)},${rng.range(0.45, 0.7)})`;
-        ctx.fillRect(
-          rng.pick(us) * w - 6,
-          rng.next() * h,
-          12,
-          rng.range(6, 26),
-        );
-      }
-    },
-  },
   road_paint: {
-    name: 'Worn white road paint (alpha: a lane line; u across the line, v along it, 2 m per repeat)',
-    size: [32, 256],
+    name: 'Worn white road paint (alpha: a lane line; u across the line, v along it, 4 m per repeat): worn like the road textures own lines',
+    size: [32, 512],
     color: true,
     draw(ctx, w, h) {
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = 'rgba(224,224,216,0.96)';
+      ctx.fillStyle = ROAD_PAINT;
       ctx.fillRect(0, 0, w, h);
-      wornPaint(ctx, w, h, 151, 90);
+      const rng = new Rng(151);
+      ctx.globalCompositeOperation = 'destination-out';
+      // Specks of asphalt through the paint (a third of them bite the line's edges), and a few bald stretches.
+      const bite = (x: number, y: number, bw: number, bh: number): void => {
+        for (const dy of [-h, 0, h]) ctx.fillRect(x, y + dy, bw, bh);
+      };
+      for (let i = 0; i < 230; i++) {
+        ctx.fillStyle = `rgba(0,0,0,${rng.range(0.4, 0.9)})`;
+        const bw = rng.range(2.6, 8);
+        const x = rng.chance(0.3)
+          ? rng.pick([0, w]) + rng.range(-0.2, 0.2) * w - bw / 2
+          : rng.next() * w - bw / 2;
+        bite(x, rng.next() * h, bw, rng.range(1.8, 8.7));
+      }
+      for (let i = 0; i < 1; i++) {
+        ctx.fillStyle = `rgba(0,0,0,${rng.range(0.4, 0.7)})`;
+        bite(0, rng.next() * h, w, rng.range(10, 46));
+      }
+      ctx.globalCompositeOperation = 'source-over';
     },
   },
   road_arrow_left: {
@@ -1064,7 +1053,7 @@ const DEFS: Record<TextureId, TexDef> = {
     color: true,
     draw(ctx, w, h) {
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = 'rgba(224,224,216,0.96)';
+      ctx.fillStyle = ROAD_PAINT;
       // Metres -> pixels: u 0..1.1 across, v 0..4 up (canvas y runs down).
       const X = (u: number): number => (u * w) / 1.1;
       const Y = (v: number): number => h - (v * h) / 4;
@@ -1103,7 +1092,7 @@ const DEFS: Record<TextureId, TexDef> = {
     color: true,
     draw(ctx, w, h) {
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = 'rgba(224,224,216,0.96)';
+      ctx.fillStyle = ROAD_PAINT;
       const X = (u: number): number => (u * w) / 1.1;
       const Y = (v: number): number => h - (v * h) / 4;
       ctx.fillRect(X(0.55 - 0.13), Y(2.7), X(0.26), Y(0.1) - Y(2.7));

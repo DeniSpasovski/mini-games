@@ -550,7 +550,6 @@ export type RoadTexture =
   | 'road'
   | 'road_tarmac'
   | 'road_tarmac_lines'
-  | 'road_tarmac_edges'
   | 'road_parkway'
   | 'road_street'
   | 'road_street4'

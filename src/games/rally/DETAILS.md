@@ -180,7 +180,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   camera can see (Vodno: nothing south of the ridge). A way merging into another at a shallow angle sets `PathDef.mergeTaper` (its end
   narrows to a point) and `joinsUnder` (its ribbon lies under the other's).
 - **Road textures** (`RoadDef.texture`, per stretch in `sections`): gravel `road`, worn `road_tarmac`, `road_tarmac_lines` (the
-  same with white edge and centre lines), `road_tarmac_edges` (edge lines only, under painted lanes), `road_parkway`, the
+  same with white edge and centre lines), `road_parkway`, the
   city asphalts.
 - **Road paint** (`RoadDef.markings`): lane lines (solid or dashed) and left / straight arrows as thin meshes over the road
   (`world/road-markings.ts`: `roadPaint` is the pure geometry, `roadMarkingsMesh` the meshes; textures `road_paint`,

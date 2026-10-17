@@ -20,8 +20,8 @@ const LIFT = 0.036;
 /** Metres between the points of a line (a curve is followed within a few centimetres). */
 const STEP = 1;
 /** Metres of line per repeat of the paint texture. */
-const LINE_TILE = 2;
-const DEFAULT_WIDTH = 0.12;
+const LINE_TILE = 4;
+const DEFAULT_WIDTH = 0.15;
 /** An arrow's size (m): the tail is where `at` minus half its length is. */
 export const ARROW = { length: 4, width: 1.1 };
 
@@ -151,7 +151,10 @@ function paintMesh(
     g,
     new MeshStandardMaterial({
       map: getTexture(texture),
-      alphaTest: 0.5,
+      // Blended, not cut out: the worn paint stays a soft line from afar (a cut-out one fades away with the mip levels).
+      transparent: true,
+      alphaTest: 0.02,
+      depthWrite: false,
       roughness: 0.8,
       side: DoubleSide,
       polygonOffset: true,

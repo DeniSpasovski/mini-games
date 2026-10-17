@@ -40,6 +40,7 @@ import {
 import { LOT_PADS } from '../../src/games/rally/maps/vodno/lots';
 import {
   BANK,
+  JUNCTION,
   laneExtra,
   MARKINGS,
   WALL_RANGE,
@@ -758,7 +759,7 @@ describe('vodno car park surroundings', () => {
     // Edge and centre lines all along (the run-up street too), edge lines only where the crossroad's own paint is.
     expect(map.road.texture).toBe('road_tarmac_lines');
     expect(map.road.sections?.map((s) => [s.texture, s.from])).toEqual([
-      ['road_tarmac_edges', WIDE_FROM],
+      ['road_tarmac', WIDE_FROM],
       ['road_tarmac_lines', WIDE_TO],
     ]);
   });
@@ -817,13 +818,11 @@ describe('vodno start street and first crossroad', () => {
     expect(map.road.cutWalls?.range).toEqual(WALL_RANGE);
   });
 
-  test('the crossroad lanes are painted: a double centre line, a left-turn arrow and a straight arrow, measured from the left edge', () => {
+  test('the crossroad lanes are painted: edge lines, a double centre line on the texture line, a left-turn arrow and a straight arrow', () => {
     expect(map.road.markings).toBe(MARKINGS);
-    const lines = MARKINGS.filter((m) => m.kind === 'line');
-    expect(lines.filter((m) => m.from === WIDE_FROM).length).toBe(2);
+    const lines = MARKINGS.flatMap((m) => (m.kind === 'line' ? [m] : []));
+    const arrows = MARKINGS.flatMap((m) => (m.kind === 'arrow' ? [m] : []));
     expect(lines.some((m) => m.dash)).toBe(true);
-    expect(MARKINGS.every((m) => m.edge === 'left')).toBe(true);
-    const arrows = MARKINGS.filter((m) => m.kind === 'arrow');
     expect(arrows.some((m) => m.arrow === 'left')).toBe(true);
     expect(arrows.some((m) => m.arrow === 'straight')).toBe(true);
     for (const m of MARKINGS) {
@@ -831,6 +830,41 @@ describe('vodno start street and first crossroad', () => {
       expect(a).toBeGreaterThanOrEqual(WIDE_FROM);
       expect(b).toBeLessThanOrEqual(WIDE_TO);
     }
+    // The paint meets the road texture's own lines: the double line is centred on the centre line of the road before
+    // it, and the edge lines are as far in as the texture's (5% of the road width).
+    const before = world.stageRoad.at(WIDE_FROM - 1).halfWidth * 2;
+    const double = lines.filter(
+      (m) => m.from === WIDE_FROM && m.width === 0.13,
+    );
+    expect(double.length).toBe(2);
+    expect(
+      (double[0].offset + double[1].offset) / 2,
+      'centre of the double line',
+    ).toBeCloseTo(before / 2, 1);
+    for (const e of lines.filter(
+      (m) => m.from === WIDE_FROM && m.width === 0.15,
+    ))
+      expect(e.offset).toBeCloseTo(0.05 * before, 1);
+    expect(world.stageRoad.at(WIDE_TO + 1).halfWidth * 2).toBeCloseTo(
+      before,
+      1,
+    );
+  });
+
+  test('the left edge line and the centre line stop at the side street; the right edge line runs on', () => {
+    const j = world
+      .stageJunctions()
+      .filter((x) => x.side === 1 && x.along > WIDE_FROM && x.along < WIDE_TO);
+    expect(j.length).toBe(1);
+    expect(j[0].along).toBeGreaterThan(JUNCTION[0]);
+    expect(j[0].along).toBeLessThan(JUNCTION[1]);
+    const lines = MARKINGS.flatMap((m) =>
+      m.kind === 'line' && !m.dash ? [m] : [],
+    );
+    const over = (m: { from: number; to: number }) =>
+      m.from < JUNCTION[1] && m.to > JUNCTION[0];
+    expect(lines.filter((m) => m.edge === 'left' && over(m))).toEqual([]);
+    expect(lines.filter((m) => m.edge === 'right' && over(m)).length).toBe(1);
   });
 
   test('the retaining wall is solid: boxes along its face, on the right of the road, between the road edge and the land', () => {
