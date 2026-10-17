@@ -64,7 +64,7 @@ Menu: select stage (with its time of day: night to evening) -> select car -> (op
 | [Peugeot 206](cars/peugeot-206/)           | FWD   | tuned 206 hot hatch from a CC BY Sketchfab GLB, kept as is                                              |
 | [Audi RS6](cars/audi-rs6/)                 | AWD   | C8 RS6 Avant from a CC BY Sketchfab GLB, kept as is                                                     |
 | [Porsche 911 (930)](cars/porsche-911-930/) | RWD   | 1975 911 Turbo from a CC BY Sketchfab GLB, kept as is (test)                                            |
-| [Subaru WRX STI](cars/subie-wrx-sti/)      | AWD   | 2019 STI saloon from a CC BY Sketchfab GLB, kept as is (test)                                           |
+| [Subaru WRX STI](cars/subie-wrx-sti/)      | AWD   | 2019 STI saloon from a CC BY Sketchfab GLB, kept as is                                                  |
 
 [![Skoda Rally](cars/skoda-rally/screenshots/front-34.jpg)](cars/skoda-rally/) [![Zastava](cars/zastava-101/screenshots/front-34.jpg)](cars/zastava-101/)
 

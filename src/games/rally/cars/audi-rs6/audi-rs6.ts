@@ -78,7 +78,7 @@ export const audiRs6: CarDef = {
     'A 600 hp estate: twin-turbo 4.0 litre V8, eight-speed automatic and permanent four-wheel drive. Very quick in a straight line, heavy to turn: brake early and let the quattro pull you out.',
   sources: [
     {
-      label: '"Audi RS 6 Avant (C8)" by GT Cars: Hyperspeed (Sketchfab)',
+      label: '"Audi RS 6 Avant (C8)" by Mona x Supercars (Sketchfab)',
       url: 'https://sketchfab.com/3d-models/audi-rs-6-avant-c8-99aa71f747b0453eb58334414d34397c',
       note: 'imported body, cockpit, lamps and rim (converted + repainted), CC BY 4.0',
     },
@@ -208,7 +208,7 @@ export const audiRs6: CarDef = {
     gltf: {
       file: 'audi_rs6.glb',
       credit:
-        '"Audi RS 6 Avant (C8)" by GT Cars: Hyperspeed, sketchfab.com/3d-models/audi-rs-6-avant-c8-99aa71f747b0453eb58334414d34397c, CC BY 4.0 (converted + repainted)',
+        '"Audi RS 6 Avant (C8)" by Mona x Supercars, sketchfab.com/3d-models/audi-rs-6-avant-c8-99aa71f747b0453eb58334414d34397c, CC BY 4.0 (converted + repainted)',
       autoFit: false,
       atlas: audiRs6Livery,
     },

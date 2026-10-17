@@ -2,7 +2,7 @@
 
 Real-world mountain map in Galichica national park, North Macedonia: the pass road over Galichica between Lake Ohrid
 (693 m) and Lake Prespa (847 m), over the Livada pass (1 570 m), with both lakes and the mountains around them as the
-backdrop. One map, three stages on the same road (map id `galichica`, test content: dev server only).
+backdrop. One map, three stages on the same road (map id `galichica`; Galichica West is released, the other two stages are test content: dev server only).
 
 ![Livada pass](screenshots/livada-pass.jpg)
 

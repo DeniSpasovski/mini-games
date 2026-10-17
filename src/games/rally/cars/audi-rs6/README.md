@@ -2,7 +2,7 @@
 
 A C8 RS6 Avant from a **CC BY Sketchfab model**, used as it comes: the model has no livery, so it is mapped to game parts by
 material (a few box rules where one material holds two parts). In game it is **Audi RS6**: AWD, 2075 kg, twin-turbo 4.0 V8,
-8-speed. Test car (`hideInProd` in `CARS_LIST`).
+8-speed. Released.
 
 - **Kept from the model:** the body, the cockpit (flat colours) behind see-through glass, the head / tail lamps with the model's own
   lamp texture and the five double-spoke rim (de-cambered, centred on the hub, lip outside the tyre).
@@ -42,9 +42,9 @@ Power, torque and mass follow the published RS6 figures; gearing, grip and brake
 
 ## Credits and licence
 
-| What                      | Source                                                                                                                                          | Licence       |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| Body, cockpit, lamps, rim | ["Audi RS 6 Avant (C8)" by GT Cars: Hyperspeed, Sketchfab](https://sketchfab.com/3d-models/audi-rs-6-avant-c8-99aa71f747b0453eb58334414d34397c) | **CC BY 4.0** |
+| What                      | Source                                                                                                                                       | Licence       |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| Body, cockpit, lamps, rim | ["Audi RS 6 Avant (C8)" by Mona x Supercars, Sketchfab](https://sketchfab.com/3d-models/audi-rs-6-avant-c8-99aa71f747b0453eb58334414d34397c) | **CC BY 4.0** |
 
 Converted and repainted by us (attribution in `CarDef.credit`, `THIRD-PARTY.md`, `public/models/CREDITS.md`). The downloaded GLB
 itself is not in the repository (`sources/` is git-ignored); only the converted `audi_rs6.glb`, `audi_rs6_wheel.glb` and

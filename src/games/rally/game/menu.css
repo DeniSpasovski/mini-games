@@ -953,9 +953,16 @@
 .menu-side-card p:first-child {
   margin-top: 0;
 }
-/* Select stage, narrow screens: the description opens under the selected stage. */
-.menu-cards .menu-specs {
-  padding: 0 4px 6px;
+/* Phones: the description covers the map / car, above the buttons. */
+@media (max-width: 799px) {
+  .menu-side-card {
+    top: auto;
+    left: 16px;
+    right: 16px;
+    bottom: 112px;
+    width: auto;
+    max-height: 40%;
+  }
 }
 /* Season and Time of day dropdowns (Select stage). */
 .menu-time {
