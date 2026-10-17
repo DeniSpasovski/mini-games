@@ -74,7 +74,8 @@
       patches: 0,
       dust: 0.9,
       age: 0.7,
-      gain: 1.65,
+      gain: 2.4,
+      lift: 0.2,
     },
     road_tarmac_lines: {
       ...VODNO,
