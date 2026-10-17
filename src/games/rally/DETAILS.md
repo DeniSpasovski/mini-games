@@ -410,7 +410,7 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   the view). Sprites cast no shadow: the crown proxy does (`trees/proxy.ts` `crownProxy`, a ~100-triangle lathe
   through the sprites' reach, drawn in the shadow pass only, leafy holes from a world-space noise); a sprite looks
   its shadow up most of the way out of its crown's ellipsoid towards the sun (`SELF_SHADOW`). Trees cast real
-  shadows within 1.3 x the quality's `shadowExtent` (`TREE_SHADOW_REACH`, game/rally-game.ts: 58 / 78 / 98 m); the canopy shadows fade in over its last
+  shadows within 87 % of the sun box's reach ahead (`treeShadowDistance`, game/rally-game.ts: 58 / 78 / 188 m; High's box is centred 0.8 of its 120 m half-size ahead, `shadowAhead`); the canopy shadows fade in over its last
   15 m (`setCanopyFade`).
 - Tree occlusion (`trees/occlusion.ts`): the job builds a terrain horizon map from the camera (1024 rays over a lazy 8 m
   height grid) and leaves out trees beyond 140 m that a hill hides from every camera position in its window; margins
@@ -463,7 +463,7 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 
 **Shadows**
 
-- Only LOD0 casts shadows, so every LOD0 radius must reach the far edge of the shadow box: 1.5 x `quality.shadowExtent`.
+- Only LOD0 casts shadows, so every LOD0 radius must reach the far edge of the shadow box: `(1 + shadowAhead) x quality.shadowExtent` (216 m on High).
 - The shadow pass is triangle bound: hidden parts do not cast (car interior, parked vehicles' glass / chrome / details). An
   `InstancedMesh` spanning a whole area is never culled, so each of its casters draws every frame.
 

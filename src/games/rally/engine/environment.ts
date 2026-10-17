@@ -112,6 +112,7 @@ export class Environment {
   private pmrem: PMREMGenerator;
   private envMap?: Texture;
   private shadowExtent: number;
+  private shadowAhead: number;
   private offDisplay: () => void;
   /** Light-space axes of the shadow camera (texel snapping). */
   private lightRight = new Vector3();
@@ -142,6 +143,7 @@ export class Environment {
     s.castShadow = true;
     s.shadow.mapSize.set(quality.shadowMapSize, quality.shadowMapSize);
     this.shadowExtent = quality.shadowExtent;
+    this.shadowAhead = quality.shadowAhead ?? 0.5;
     const cam = s.shadow.camera;
     cam.left = cam.bottom = -this.shadowExtent;
     cam.right = cam.top = this.shadowExtent;
@@ -371,7 +373,7 @@ export class Environment {
   }
 
   /**
-   * Place the sun's shadow box. It covers the area AHEAD of the camera (`forward`, horizontal; centred half a box
+   * Place the sun's shadow box. It covers the area AHEAD of the camera (`forward`, horizontal; centred `shadowAhead` of a half box
    * in front of `focus`) and is snapped to shadow-map texels in light space, so its edges don't crawl while driving.
    */
   update(focus: Vector3, forward?: Vector3): void {
@@ -380,8 +382,8 @@ export class Environment {
     if (forward) {
       const l = Math.hypot(forward.x, forward.z);
       if (l > 1e-3) {
-        c.x += (forward.x / l) * this.shadowExtent * 0.5;
-        c.z += (forward.z / l) * this.shadowExtent * 0.5;
+        c.x += (forward.x / l) * this.shadowExtent * this.shadowAhead;
+        c.z += (forward.z / l) * this.shadowExtent * this.shadowAhead;
       }
     }
     // Snap along the shadow camera's right / up axes (its texel grid); depth along the light needs no snap.
