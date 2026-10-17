@@ -238,7 +238,7 @@ export function sculptBody(
   const torsoFrame = frame({ kind: Fk.Torso, ax: torsoRows });
 
   // Cloth: thickness + garment of the torso prims (the hem lies at `hem` in torso space).
-  const hem = jacketTorso ? -0.075 : -0.07;
+  const hem = jacketTorso ? -0.125 : -0.07;
   const lowG = o.skirt ? G.skirt : bareLegs ? G.skin : G.leg;
   const lowT = bareLegs && !o.skirt ? 0 : 0.01;
   const torsoCloth: ClothFn = (x, y, z) => {
@@ -254,7 +254,7 @@ export function sculptBody(
     const droop = smoothstep(0.5, 0.0, ty);
     let t = loose * (0.65 + 0.5 * droop);
     // Waistband / hem rib.
-    if (jacketTorso) t += 0.012 * smoothstep(hem + 0.1, hem, ty);
+    if (jacketTorso) t += 0.014 * smoothstep(hem + 0.22, hem, ty);
     // Eases to the trousers' thickness just above the hem, so the edge stays clean at any grid size.
     t = lowT + (t - lowT) * smoothstep(hem, hem + 0.03, ty);
     cl.g = o.vest ? G.vest : G.torso;
@@ -329,8 +329,8 @@ export function sculptBody(
     // Buttocks.
     add(
       ellipsoid(
-        arr(rot(side * 0.075 * b, -0.025, -0.07)),
-        [0.088, 0.1, 0.082],
+        arr(rot(side * 0.07 * b, -0.025, -0.058)),
+        [0.08, 0.092, 0.07],
         torsoRows,
         0.05,
         torsoFrame,
