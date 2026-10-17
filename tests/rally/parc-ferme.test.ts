@@ -10,6 +10,7 @@ import {
 import { SURFACES } from '../../src/games/rally/physics/surfaces';
 import type { GroundSample } from '../../src/games/rally/physics/types';
 import { testMap } from '../../src/games/rally/maps/test/map';
+import { vodnoMap } from '../../src/games/rally/maps/vodno/map';
 import { newPathQuery } from '../../src/games/rally/world/real-data';
 import { newRoadQuery } from '../../src/games/rally/world/road';
 import { SERVICE_PARK_ASSETS } from '../../src/games/rally/world/service-park';
@@ -183,6 +184,48 @@ describe('parc fermé: jackie (parallel on the roads beside the start)', () => {
 
   test('deterministic', () => {
     expect(new World(jackieMap).servicePark!.instances).toEqual(park.instances);
+  });
+});
+
+describe('parc fermé: vodno (parallel on the side street behind the start)', () => {
+  const world = new World(vodnoMap);
+  const park = world.servicePark!;
+  const def = world.stageDef.servicePark!;
+  const cars = park.instances.filter((i) => i.asset === 'team_car');
+
+  test('6 cars nose to tail on one lot, each with its tent, chest and crew', () => {
+    expect(def.lots.length).toBe(1);
+    expect(cars.length).toBe(6);
+    expect(park.instances.filter((i) => i.asset === 'gazebo_long').length).toBe(
+      6,
+    );
+    expect(park.instances.filter((i) => i.asset === 'tool_chest').length).toBe(
+      6,
+    );
+    expect(
+      park.instances.filter((i) => ['crew', 'mechanic'].includes(i.asset))
+        .length,
+    ).toBeGreaterThanOrEqual(12);
+    expect(park.instances.some((i) => i.asset === 'ground_sheet')).toBe(false);
+    for (const car of cars)
+      expect(lotContains(def.lots[0], car.x, car.z, 0.5)).toBe(true);
+  });
+
+  test('every car stands on the side street, off the stage road and well before the start line', () => {
+    const pq = newPathQuery();
+    const rq = newRoadQuery();
+    for (const car of cars) {
+      const hit = world.gen.paths!.query(car.x, car.z, pq);
+      expect(hit.found && pq.distance < pq.halfWidth).toBe(true);
+      world.stageRoad.query(car.x, car.z, rq);
+      expect(rq.distance).toBeGreaterThan(rq.halfWidth + 20);
+      expect(rq.along).toBeLessThan(world.stageDef.timing.start - 100);
+    }
+    expect(park.instances.some((i) => i.asset === 'spectator')).toBe(true);
+  });
+
+  test('deterministic', () => {
+    expect(new World(vodnoMap).servicePark!.instances).toEqual(park.instances);
   });
 });
 

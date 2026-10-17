@@ -190,7 +190,8 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   deep enough (`TENT_DEPTH`, 12.5 m; the car keeps its distance from the tape), the team's tent behind it with a tool chest and
   crew. On a street (The Jackie: 5 + 5 abeam the start, on the street east of the stage road and the opposite carriageway's inner
   lane west of it) the lot lies over the road (`paved`: other roads do not block, no pad) and `parallel` parks the cars nose to
-  tail along the kerb, side-on to the start, the tent (3 x 6 m) in the lane behind each car. `maps/<id>/service-park.ts`, test `parc-ferme`.
+  tail along the kerb, side-on to the start, the tent (3 x 6 m) in the lane behind each car. Vodno parks 6 the same way on the side street
+  that leaves the run-up street 140 m before the start (its straight west leg). `maps/<id>/service-park.ts`, test `parc-ferme`.
 - **Park cars**: `team_car` only places the car and gives it its collider. The car is a real released model at low quality:
   `world/park-car-mesh.ts` (`ParkCars`, owned by `InstanceStreamer`, `streamer.ready`) draws `parkCarId(team)` (`world/park-cars.ts`)
   from `public/models/cars/<id>_park.glb` (`scripts/car-model/park-lods.mjs`: three body LODs of about 7.5k / 2.3k / 1.1k
