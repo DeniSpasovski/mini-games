@@ -855,8 +855,8 @@ interface Hull {
   rz: number[];
 }
 
-function hull(m: ScanModel, pos: ArrayLike<number>): Hull {
-  const r = model(m).full;
+function hull(m: ScanModel, pos: ArrayLike<number>, mid: boolean): Hull {
+  const r = mid ? model(m).mid : model(m).full;
   const top = 0.3;
   const step = 0.04;
   const bins = Math.round(1.25 / step);
@@ -895,7 +895,7 @@ function hull(m: ScanModel, pos: ArrayLike<number>): Hull {
 
 /**
  * A skirt / long coat from `top` down `len` metres (pelvis frame): a rounded box round the hips and legs as `posed`
- * (the posed body's positions; the baggy trousers of the woman included) that opens towards the hem by `flare` metres.
+ * (the posed body's positions, `mid` = of the mid-range mesh; the baggy trousers of the woman included) that opens towards the hem by `flare` metres.
  */
 export function skirtShell(
   m: ScanModel,
@@ -903,8 +903,9 @@ export function skirtShell(
   len: number,
   flare: number,
   posed: ArrayLike<number>,
+  mid: boolean,
 ): BufferGeometry {
-  const H = hull(m, posed);
+  const H = hull(m, posed, mid);
   const rows = 6;
   const pos: number[] = [];
   const idx: number[] = [];
@@ -918,8 +919,10 @@ export function skirtShell(
     const t = row / rows;
     const y = top - len * t;
     // The widest the legs get over the skirt's reach: walking swings them through it.
-    const rx = at(y, H.rx) + 0.02 + flare * t;
-    const rz = at(y, H.rz) + 0.03 + (flare + 0.03) * t;
+    // The mid-range mesh has fewer vertices to find the widest point of a leg: a little more room.
+    const room = mid ? 0.05 : 0;
+    const rx = at(y, H.rx) + 0.02 + room + flare * t;
+    const rz = at(y, H.rz) + 0.03 + room + (flare + 0.03) * t;
     const cz = at(y, H.cz);
     for (let a = 0; a < SEG; a++) {
       const ang = (a / SEG) * Math.PI * 2;

@@ -238,6 +238,7 @@ export function dress(
             len,
             0.02 + len * 0.05,
             body.geometry.getAttribute('position').array,
+            !hi,
           ),
           o.skirt,
         ),
