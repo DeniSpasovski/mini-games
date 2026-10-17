@@ -2357,6 +2357,7 @@ export class TerrainGenerator {
         );
       }
     }
+    if (this.pads) gravel = Math.max(gravel, this.pads.gravel(x, z));
     const [rockLo, rockHi] = this.map.terrain.rockSlope ?? [0.22, 0.38];
     const rock = smoothstep(rockLo, rockHi, slope);
     const n = this.detailNoise.fbm(x / 45, z / 45, 3);
@@ -2583,6 +2584,8 @@ export class TerrainGenerator {
       if (f.surface && Math.hypot(x - f.x, z - f.z) <= f.radius)
         return f.surface;
     }
+    const padSurface = this.pads?.surfaceAt(x, z);
+    if (padSurface) return padSurface;
     if (this.paths) {
       const pq = this.paths.query(x, z, this.pq, undefined, this.onGround);
       if (pq.found && pq.distance <= pq.halfWidth)

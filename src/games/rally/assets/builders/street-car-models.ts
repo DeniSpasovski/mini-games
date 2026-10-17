@@ -11,13 +11,15 @@ import {
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import atlasUrl from './street-car-atlas.jpg';
 import maskUrl from './street-car-mask.png';
-import { STREET_CAR_DATA } from './street-cars.data';
+import { SERVICE_VEHICLE_DATA } from './service-vehicles.data';
+import { STREET_CAR_DATA, type StreetCarData } from './street-cars.data';
 
 /**
- * The background cars: vehicles of three CC BY packs (credits: THIRD-PARTY.md) with their own triangles and textures,
- * packed by `scripts/car-model/bake-street-cars.mjs` into `street-cars.data.ts`. Models face +X, origin on the ground under
- * the middle. A model is one mesh (body, glass, lamps, wheels) with its uv in one shared atlas; the car's paint goes in the
- * `color` attribute and replaces the source paint where the atlas's tint mask is white (`streetCarMaterial`).
+ * The background cars and the service park's vans and trucks: vehicles of three CC BY packs (credits: THIRD-PARTY.md) with
+ * their own triangles and textures, packed by `scripts/car-model/bake-street-cars.mjs` into `street-cars.data.ts` and
+ * `service-vehicles.data.ts`. Models face +X, origin on the ground under the middle. A model is one mesh (body, glass, lamps,
+ * wheels) with its uv in one shared atlas; the vehicle's paint goes in the `color` attribute and replaces the source paint
+ * where the atlas's tint mask is white (`streetCarMaterial`).
  */
 
 /** Models 0-4 are the old boxy cars, the rest are modern. */
@@ -72,19 +74,35 @@ function decode(b64: string): Decoded {
   return { pos, uv, idx };
 }
 
-const cache = new Map<string, StreetCarShape>();
+const caches = new WeakMap<StreetCarData[], Map<string, StreetCarShape>>();
 
-/** The model `index` (wrapped) at `lod` (0 near; the last one is the farthest). */
-export function streetCarModel(index: number, lod: number): StreetCarShape {
-  const i = ((index % STREET_CAR_COUNT) + STREET_CAR_COUNT) % STREET_CAR_COUNT;
-  const data = STREET_CAR_DATA[i];
+/** The street car `index` (wrapped) at `lod` (0 near; the last one is the farthest). */
+export const streetCarModel = (index: number, lod: number): StreetCarShape =>
+  vehicleModel(STREET_CAR_DATA, index, lod);
+
+/** A van or truck of pack 7 by id (`van_low`, `van_high`, `minibus`, `box_truck`, `flatbed`), same LODs. */
+export function serviceVehicleModel(id: string, lod: number): StreetCarShape {
+  const index = SERVICE_VEHICLE_DATA.findIndex((d) => d.id === id);
+  if (index < 0) throw new Error(`Unknown service vehicle "${id}"`);
+  return vehicleModel(SERVICE_VEHICLE_DATA, index, lod);
+}
+
+function vehicleModel(
+  list: StreetCarData[],
+  index: number,
+  lod: number,
+): StreetCarShape {
+  const i = ((index % list.length) + list.length) % list.length;
+  const data = list[i];
   const l = Math.min(Math.max(lod, 0), data.lods.length - 1);
   const key = `${i}:${l}`;
+  let cache = caches.get(list);
+  if (!cache) caches.set(list, (cache = new Map()));
   const hit = cache.get(key);
   if (hit) return hit;
   const d = decode(data.lods[l]);
   const shape: StreetCarShape = {
-    old: i < OLD_COUNT,
+    old: list === STREET_CAR_DATA && i < OLD_COUNT,
     length: data.length,
     width: data.width,
     height: data.height,

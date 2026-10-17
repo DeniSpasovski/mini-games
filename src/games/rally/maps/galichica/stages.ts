@@ -1,4 +1,5 @@
 import type { ClosureRule, StageDef } from '../shared/types';
+import { OHRID_PARK, PRESPA_PARK } from './service-park';
 
 /**
  * The three stages on the Galichica road (./map.ts). The road runs west -> east: 280 m of the Ohrid lakeside road
@@ -37,6 +38,7 @@ export const galichicaStages: StageDef[] = [
     },
     closures: CLOSURES,
     cornerFans: { from: PARK_ENTRANCE + 150, to: MAGARO - 150 },
+    servicePark: OHRID_PARK,
     sources: [
       {
         label: 'Google Maps route (park entrance -> Magaro trail parking)',
@@ -63,6 +65,7 @@ export const galichicaStages: StageDef[] = [
       from: ROAD_LENGTH - PRESPA + 150,
       to: ROAD_LENGTH - MAGARO - 150,
     },
+    servicePark: PRESPA_PARK,
     sources: [
       {
         label: 'Google Maps route (Prespa -> Magaro trail parking)',
@@ -90,5 +93,6 @@ export const galichicaStages: StageDef[] = [
       from: ROAD_LENGTH - PRESPA + 150,
       to: ROAD_LENGTH - PARK_ENTRANCE - 150,
     },
+    servicePark: PRESPA_PARK,
   },
 ];

@@ -5,12 +5,14 @@
  *   python scripts/car-model/street-pack-extract.py sources/street-cars/<pack>.glb <dir>/<pack>.json --images <dir>/<pack> [flags]
  *       (p8 and p7 with no flags, gp with `--seeds Body_0`)
  *   python scripts/car-model/bake-street-textures.py <dir>
- *   node scripts/car-model/bake-street-cars.mjs <dir>
- *   npx prettier --write src/games/rally/assets/builders/street-cars.data.ts
+ *   node scripts/car-model/bake-street-cars.mjs <dir> [--vans]
+ *   npx prettier --write src/games/rally/assets/builders/*.data.ts
  *
- * <dir> holds the extractor outputs (p8.json, gp.json, their images) and the atlas files; the model list is MODELS below.
- * Output (src/games/rally/assets/builders/, do not edit by hand): street-cars.data.ts (the meshes) and the atlas
- * street-car-atlas.jpg + street-car-mask.png (copied from <dir>; the bundler serves them as files).
+ * <dir> holds the extractor outputs (p8.json, gp.json, p7.json, their images) and the atlas files; the model list is MODELS
+ * below. `FLIP=id,id` turns models round. Output (src/games/rally/assets/builders/, do not edit by hand): street-cars.data.ts
+ * (the cars; `--vans` bakes the pack 7 vans and trucks into service-vehicles.data.ts instead, same layout) and the atlas
+ * street-car-atlas.jpg + street-car-mask.png (copied from <dir>; the bundler serves them as files). The uv of every model
+ * point into the atlas: bake both lists again after each atlas change.
  *
  * Per vehicle: turned to face +X, origin on the ground under the middle. LOD 0 is the model as it is (vertices welded,
  * nothing simplified); the far LODs are meshopt reductions of the body, glass and lamps (each on its own, borders kept)
@@ -25,6 +27,7 @@ import path from 'node:path';
 import { MeshoptSimplifier } from 'meshoptimizer';
 
 const dir = process.argv[2];
+const VANS = process.argv.includes('--vans');
 
 /** Per LOD: triangles of the body, the glass, the lamps (LOD 0 keeps everything) and the sides of a round wheel (0 = the model's own). */
 const BUDGET = [
@@ -33,10 +36,10 @@ const BUDGET = [
   { body: 500, glass: 40, optics: 40, wheel: 8, error: 0.05 },
 ];
 /** Weight of the uv in the simplifier's error: the palette cars' cells are 0.005 apart, the gp textures span 0.2. */
-const UV_WEIGHT = { p8: 800, gp: 6 };
+const UV_WEIGHT = { p8: 800, p7: 800, gp: 6 };
 
 /** id, flip (the nose points -X after the long-axis turn), pack file, vehicle index in the extractor's listing, kind of pack. */
-const MODELS = [
+const CAR_MODELS = [
   { id: 'old_a', flip: true, pack: 'p8', idx: 0, kind: 'p8' },
   { id: 'old_b', pack: 'p8', idx: 1, kind: 'p8' },
   { id: 'old_c', pack: 'p8', idx: 2, kind: 'p8' },
@@ -53,7 +56,16 @@ const MODELS = [
   { id: 'sedan', pack: 'gp', idx: 8, kind: 'gp' },
   { id: 'wagon', pack: 'gp', idx: 9, kind: 'gp' },
 ];
-/** The palette's window colour. */
+/** Pack 7 (Sprinter-style vans and trucks, unlettered ones only), palette models like pack 8. */
+const VAN_MODELS = [
+  { id: 'van_low', pack: 'p7', idx: 18, kind: 'p7' },
+  { id: 'van_high', pack: 'p7', idx: 19, kind: 'p7' },
+  { id: 'minibus', pack: 'p7', idx: 20, kind: 'p7' },
+  { id: 'box_truck', flip: true, pack: 'p7', idx: 6, kind: 'p7' },
+  { id: 'flatbed', flip: true, pack: 'p7', idx: 12, kind: 'p7' },
+];
+const MODELS = VANS ? VAN_MODELS : CAR_MODELS;
+/** The pack 8 palette's window colour. */
 const PALETTE_WINDOW = [142, 142, 142];
 const FLIP = (process.env.FLIP || '').split(',').filter(Boolean);
 
@@ -80,11 +92,11 @@ function mapUv(model, m, uv, cell) {
     return [u0 + clamp01(uv[0]) * (u1 - u0), v0 + clamp01(uv[1]) * (v1 - v0)];
   }
   if (cell) return atlas.cells[cell];
-  const [u0, v0, u1, v1] = atlas.tiles['p8:0'];
+  const [u0, v0, u1, v1] = atlas.tiles[`${model.pack}:0`];
   return [u0 + clamp01(uv[0]) * (u1 - u0), v0 + clamp01(uv[1]) * (v1 - v0)];
 }
 
-/** The palette cars' paint: the most common non-dark colour of the body prim's triangles. */
+/** The palette models' paint: the most common non-dark colour of the body prim's triangles. */
 function dominantColour(body) {
   const count = new Map();
   for (const c of body.tcol) {
@@ -403,14 +415,16 @@ function bake(model, list) {
   const turned = prims.map((p) => p.pos.map(rot));
   const { lo, hi } = bounds(turned.flat());
   const off = [(lo[0] + hi[0]) / 2, lo[1], (lo[2] + hi[2]) / 2];
-  const dom = model.kind === 'p8' ? dominantColour(prims[0]) : null;
-  // Palette cars: the paint cell for the body colour, the glass swatch for the windows (a light grey cell in the palette).
+  const dom = model.kind !== 'gp' ? dominantColour(prims[0]) : null;
+  // Palette models: the paint cell for the body colour, the glass swatch for the windows (a light grey cell in pack 8's palette).
   const near = (c, ref, d) =>
     Math.hypot(c[0] - ref[0], c[1] - ref[1], c[2] - ref[2]) < d;
   const cellOf = (m, t) => {
-    if (model.kind !== 'p8' || m.role === 'wheel') return null;
+    if (model.kind === 'gp' || m.role === 'wheel') return null;
     if (near(m.tcol[t], dom, 30)) return 'paint';
-    return near(m.tcol[t], PALETTE_WINDOW, 6) ? 'glass' : null;
+    return model.kind === 'p8' && near(m.tcol[t], PALETTE_WINDOW, 6)
+      ? 'glass'
+      : null;
   };
 
   const parts = prims.map((m, pi) => {
@@ -532,7 +546,17 @@ for (const m of MODELS) {
   );
 }
 
-const ts = `// Generated by scripts/car-model/bake-street-cars.mjs from the CC BY packs credited in THIRD-PARTY.md. Do not edit.
+const header =
+  '// Generated by scripts/car-model/bake-street-cars.mjs from the CC BY packs credited in THIRD-PARTY.md. Do not edit.';
+const list = JSON.stringify(rows, null, 2);
+const ts = VANS
+  ? `${header}
+import type { StreetCarData } from './street-cars.data';
+
+/** Vans and trucks of pack 7 (Sprinter-style), same layout as the street cars. */
+export const SERVICE_VEHICLE_DATA: StreetCarData[] = ${list};
+`
+  : `${header}
 export interface StreetCarData {
   id: string;
   /** Length / width / height (m). */
@@ -546,10 +570,11 @@ export interface StreetCarData {
   lods: string[];
 }
 
-export const STREET_CAR_DATA: StreetCarData[] = ${JSON.stringify(rows, null, 2)};
+export const STREET_CAR_DATA: StreetCarData[] = ${list};
 `;
 const out = 'src/games/rally/assets/builders';
-fs.writeFileSync(`${out}/street-cars.data.ts`, ts);
+const file = VANS ? 'service-vehicles.data.ts' : 'street-cars.data.ts';
+fs.writeFileSync(`${out}/${file}`, ts);
 fs.copyFileSync(path.join(dir, 'atlas.jpg'), `${out}/street-car-atlas.jpg`);
 fs.copyFileSync(path.join(dir, 'mask.png'), `${out}/street-car-mask.png`);
-console.log('wrote', (ts.length / 1024).toFixed(0), 'KB');
+console.log('wrote', file, (ts.length / 1024).toFixed(0), 'KB');

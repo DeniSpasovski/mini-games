@@ -10,8 +10,9 @@ bake-street-cars.mjs maps every part's uv into its tile and embeds the images.
 The paint of a gp body is a coloured (or dark grey) panel area of its texture: the mask is white there, and inside it the
 texture holds the shade only (grey = luminance / the lit paint's), so the game's tint colour replaces the source paint and
 keeps the baked shading. Everything else (grille, trim, lamps, wheels) keeps its own texels. The p8 cars have a flat palette
-instead: their paint triangles are re-pointed to a white `paint` cell (mask white) by the baker; `glass`, `tyre`, `side`
-and `rim` are flat swatches for the windows and the far LODs' wheels (atlas.json `cells`: uv of each swatch's middle).
+instead (pack 7's vans have one too): their paint triangles are re-pointed to a white `paint` cell (mask white) by the
+baker; `glass`, `tyre`, `side` and `rim` are flat swatches for the windows and the far LODs' wheels (atlas.json `cells`: uv
+of each swatch's middle).
 """
 import json
 import os
@@ -42,6 +43,8 @@ BODIES = {
 LAMPS = 'gp:6'
 WHEELS = ['gp:13', 'gp:23', 'gp:31', 'gp:15', 'gp:9', 'gp:19', 'gp:2', 'gp:29']
 PALETTE = 'p8:0'
+# Pack 7's palette (same kind of flat cells, 512 px in the source): kept flat, only the size changes.
+PALETTE7 = 'p7:0'
 BODY_PX, WHEEL_PX, LAMP_PX, PALETTE_PX = 496, 240, 496, 256
 MIN_BLOB = 600
 SHADE_GAMMA = 0.6
@@ -93,8 +96,8 @@ mask_full = Image.new('L', (ATLAS, ATLAS), 0)
 
 
 def gutter(key):
-    # The palette is flat cells read at their centres: no padding, so it stays pixel-exact.
-    return 0 if key == PALETTE else GUTTER
+    # The palettes are flat cells read at their centres: no padding, so they stay pixel-exact.
+    return 0 if key in (PALETTE, PALETTE7) else GUTTER
 
 
 def shelf_pack(sizes):
@@ -111,7 +114,7 @@ def shelf_pack(sizes):
     return pos
 
 
-want = [(k, BODY_PX) for k in BODIES] + [(LAMPS, LAMP_PX), (PALETTE, PALETTE_PX)] + [(k, WHEEL_PX) for k in WHEELS]
+want = [(k, BODY_PX) for k in BODIES] + [(LAMPS, LAMP_PX), (PALETTE, PALETTE_PX), (PALETTE7, PALETTE_PX)] + [(k, WHEEL_PX) for k in WHEELS]
 at = shelf_pack(want)
 
 
@@ -143,6 +146,7 @@ for key, spec in BODIES.items():
     print(key, 'paint', round(float(m.mean()) * 100, 1), '%')
 
 put(LAMPS, source(LAMPS).resize((LAMP_PX, LAMP_PX), Image.LANCZOS))
+put(PALETTE7, source(PALETTE7).resize((PALETTE_PX, PALETTE_PX), Image.NEAREST))
 for key in WHEELS:
     put(key, source(key).resize((WHEEL_PX, WHEEL_PX), Image.LANCZOS))
 

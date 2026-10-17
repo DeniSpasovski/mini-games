@@ -172,6 +172,26 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
   spectators (some waving their map's own hand flag - `MapDef.country` - or a plain colour flag, never another country's) + visitors, a marshal, 2-3 photographers, flags; marshals at every side-road mouth, 10 photographers each at start and finish
   (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`). People animate (`world/people-anim.ts`, run by `RallyGame.frame`): within 45 m they turn to watch the car, photographers (75 m) keep it centred, via `InstanceStreamer.setMatrix`; hand flags wave in the `people_flag` shader (`engine/materials.ts`, own mesh from `markFlag` in people.ts).
+- **Service park** (stage `servicePark`; `world/service-park.ts`, `World.servicePark`; assets `assets/builders/service.ts` + `teams.ts`;
+  per map `maps/<id>/service-park.ts`; tests `service-park`, `parc-ferme`): team bays on levelled gravel lots - truck / van, team cars on
+  ground sheets, tents, props, crew and guests - plus tape, a crowd (seated or flag-waving fans, photographers, visitors) and a start
+  control. Team trucks, vans and the catering van are the background models in team paint plus side stripes.
+  - **Lot** (`ServiceLot` in `maps/shared/types.ts`): a rectangle levelled by a `terrain.pads` entry (`servicePad` in
+    `maps/shared/service-lot.ts`; its `apron` levels the strip to the road, `level` fixes a flat field). `cars` = team cars wanted
+    (a works bay holds two), `semis` = team lorries (`service_semi`, the baked lorry model) across the gravel behind one row of bays,
+    `links` = dirt links across the verge (`linkPad`: gravel ramp up to the road, 5 m wide; tape, crowd and press keep off them).
+  - **Ajvatovci**: 4 cars at the start lot, 6 in the west park (field beside the factory road, 5 lorries behind the bays, 3 links).
+  - **Parc fermé** (`ferme`): a row of team cars, noses to the tape, on a lay-by behind the start (`ServiceLot.bays` per lot): Test 4,
+    Galichica West 6, Galichica East / Prespa-Ohrid 5. Each car has its crew and, on a lot 12.5 m deep (`TENT_DEPTH`), its team tent
+    and tool chest. On a street (The Jackie 5 + 5, Vodno 6 on its side street) the lot lies over the road (`paved`, no pad) and
+    `parallel` parks the cars nose to tail along the kerb with a 3 x 6 m tent behind each.
+  - **Recovery truck** (`ServiceLot.tow`): `service_tow` (dump cab + roll-back deck, `build/truck-backs.ts`, one colour) and a marshal in
+    a 9.5 m stretch at the lot's far end; make the lot that much longer (Test, Galichica West, Jackie east street, Vodno).
+- **Park cars**: `team_car` only places the car and its collider. The car is a real released model at low quality
+  (`world/park-car-mesh.ts` `ParkCars`, owned by `InstanceStreamer`, `streamer.ready`): `public/models/cars/<id>_park.glb`
+  (`scripts/car-model/park-lods.mjs`: body LODs of about 7.5k / 2.3k / 1.1k triangles, three rims) in the team's livery (car's own
+  painter, one texture per car and team), two draw calls per car; a raised car stands on axle stands (`tyre_stack` beside it). Models
+  load near the park and are freed far away (`parkCarsPlan`). Tests `park-cars`, `car-glb-meshopt`.
 - **People** (`assets/builders/people.ts`): jointed low-poly figures posed by joint angles + outfit colours, smooth lofted bodies close up (LOD 0), painted unwrapped garment atlas + normal map (`engine/people-atlas.ts`, `people` material; zips, pockets, seams, face) - `spectator` (24 standing + 18 sitting / squatting at corner fans),
   `mechanic`, `crew`, `driver`, `marshal` (flag, sign, radio), `photographer`, `visitor` (12 personas: ages, sizes, dresses, kids); test `people`.
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)
@@ -239,9 +259,13 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   light bar and lettering are a second `vehicle` part up to LOD 1. Variants 0-14 = model (`STREET_CAR_MIX` weights what streets pick;
   15 = the white hatch a map places). The car LODs set `separateVariants` (no merged variant set: every instance would run the
   vertex shader over all 15 models). Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` holds the triangle budget.
-- The Ajvatovci yards' cars (`PACK_CARS` in `maps/ajvatovci/start-row/build/vehicles.ts`) are the same pack models: a few per kind,
-  scaled to the layout's footprint, drawn per instance colour through the atlas tint mask in three distance tiers (`CAR_LOD_RANGE`:
-  full / ~2k / ~1k triangles, then the two-box stand-in). The vans are still code-built.
+- Pack 7's five vans and trucks (`service-vehicles.data.ts`, `bake-street-cars.mjs --vans`, `serviceVehicleModel`) are baked the same
+  way into the same atlas and dress the service park (`builders/service.ts`: team paint through the tint mask, stripes and awnings a
+  second `vehicle` part up to LOD 1, `PACK_VEHICLE_LODS`) and the Ajvatovci start-row lots. Both lists are baked again after every
+  atlas change. `tests/rally/service-vehicles.test.ts` holds their triangle budgets.
+- The Ajvatovci yards' cars and vans (`MODEL` in `maps/ajvatovci/start-row/build/vehicles.ts`) are these models: a few per kind taken
+  in turn, scaled to the layout's footprint, drawn per instance colour through the atlas tint mask in three distance tiers
+  (`CAR_LOD_RANGE`: full / ~2k / ~1k triangles, then the two-box stand-in). The trucks are the baked models below.
 - The Ajvatovci yards' trucks (`maps/ajvatovci/start-row/build/vehicles.ts`, `truck-models.ts`) are baked from two CC BY models
   (`scripts/car-model/bake-trucks.mjs`, data in `truck-models.data.ts`): `tractor` + `trailer` (the `trailer` kind), the `tractor` and
   the trailer's chassis under a code-built tank (`tanker`), the `cab` (back wall closed by the baker, the tractor's step column and side skirt kept behind the front wheel) under a code-built body

@@ -2,28 +2,25 @@ import {
   BoxGeometry,
   BufferAttribute,
   BufferGeometry,
-  CircleGeometry,
   Color,
   CylinderGeometry,
-  ExtrudeGeometry,
   Group,
   InstancedMesh,
   Matrix4,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
-  Shape,
-  ShapeGeometry,
   SphereGeometry,
-  Vector2,
   type ColorRepresentation,
   Material,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { Rng } from '../../../../../../shared/rng';
+import type { AssetPart } from '../../../../assets/types';
 import {
+  serviceVehicleModel,
   streetCarIndex,
   streetCarMaterial,
   streetCarModel,
+  type StreetCarShape,
 } from '../../../../assets/builders/street-car-models';
 import { ORIGIN } from '../frame';
 import {
@@ -42,15 +39,14 @@ import {
 import { buildRigidBack, type Rigid } from './truck-backs';
 
 /**
- * The parked vehicles of the lots: three kinds of car (`PACK_CARS`: the background car models, a few per kind), two vans (a
- * Caddy-type and a high-roof Transit-type) and three trucks (a cab-over box truck, a tractor unit with a box semi-trailer
- * and the same with a tank semi-trailer). The vans and trucks are built once from simple side profiles or baked models and
- * drawn as instanced meshes, one per part (paint, cab paint, glass, chrome, details), so a hundred vehicles cost a few
- * dozen draw calls. Models face +x with the origin on the ground under their middle (`centre` shifts the truck models,
- * whose origin is over the rear axle).
+ * The parked vehicles of the lots. Cars and vans are the background models with their own textures
+ * (assets/builders/street-car-models.ts, a few per kind, scaled to the layout's footprint, three LODs); the trucks are the
+ * baked truck models (truck-models.ts) and the dump trucks. Drawn as instanced meshes, one per part (paint, cab paint,
+ * glass, chrome, details; a background model is one mesh per LOD), so a hundred vehicles cost a few dozen draw calls.
+ * Models face +x with the origin on the ground under their middle (`centre` shifts the truck models, whose origin is
+ * over the rear axle).
  */
 
-type Pt = [number, number];
 type Part = 'paint' | 'cab' | 'glass' | 'chrome' | 'detail';
 
 /** One mesh of a model: a part (its material), drawn with a texture of the baked trucks or flat. */
@@ -137,71 +133,6 @@ class Pieces {
   }
 }
 
-const BEVEL = 0.03;
-
-const extrude = (
-  outline: Pt[],
-  width: number,
-  bevel = BEVEL,
-): BufferGeometry => {
-  const depth = width - bevel * 2;
-  return new ExtrudeGeometry(
-    new Shape(outline.map(([x, y]) => new Vector2(x, y))),
-    {
-      depth,
-      bevelEnabled: true,
-      bevelThickness: bevel,
-      bevelSize: bevel,
-      bevelSegments: 1,
-      curveSegments: 6,
-    },
-  ).translate(0, 0, -depth / 2);
-};
-
-/**
- * A side window: the rectangle x0..x1 by y0..y1 on a vehicle's side face, cut down wherever the
- * body's roofline (its side `profile`) dips below the top, so the glass never sticks out past it.
- */
-const sideWindow = (
-  profile: Pt[],
-  [x0, x1, y0, y1]: number[],
-  z: number,
-  inset = 0.04,
-): BufferGeometry => {
-  const roof = (x: number) => {
-    let top = -Infinity;
-    profile.forEach(([ax, ay], i) => {
-      const [bx, by] = profile[(i + 1) % profile.length];
-      if (ax !== bx && x >= Math.min(ax, bx) && x <= Math.max(ax, bx))
-        top = Math.max(top, ay + ((by - ay) * (x - ax)) / (bx - ax));
-    });
-    return top;
-  };
-  const xs = [
-    x0,
-    ...profile.map(([x]) => x).filter((x) => x > x0 && x < x1),
-    x1,
-  ].sort((a, b) => a - b);
-  const top = xs.map((x) => Math.max(y0 + 0.02, Math.min(y1, roof(x) - inset)));
-  const shape = new Shape([
-    new Vector2(x0, y0),
-    new Vector2(x1, y0),
-    ...xs.map((x, i) => new Vector2(x, top[i])).reverse(),
-  ]);
-  const geometry = new ShapeGeometry(shape);
-  if (z < 0) {
-    const index = geometry.getIndex()!;
-    for (let i = 0; i < index.count; i += 3) {
-      const b = index.getX(i + 1);
-      index.setX(i + 1, index.getX(i + 2));
-      index.setX(i + 2, b);
-    }
-    const normal = geometry.getAttribute('normal');
-    for (let i = 0; i < normal.count; i++) normal.setZ(i, -1);
-  }
-  return geometry.translate(0, 0, z);
-};
-
 // ----- The materials: paint takes the instance colour -----
 
 let materials: Record<Part, Material> | undefined;
@@ -245,10 +176,11 @@ const texturedMaterials = new Map<string, Material>();
 /**
  * The material of a textured part (baked trucks). `cab` / `paint` take the instance colour where the texture's tint
  * mask is white (all of it without a mask): the texel's brightness stays, scaled so the panels' own brightness comes
- * out as the paint colour. `detail` shows the texture as it is.
+ * out as the paint colour (from the vertex colours instead with `vertexColors`: a single mesh, not instances). `detail`
+ * shows the texture as it is.
  */
-const texturedMaterial = (slot: Slot): Material => {
-  const key = slotKey(slot);
+const texturedMaterial = (slot: Slot, vertexColors = false): Material => {
+  const key = vertexColors ? `${slotKey(slot)}|vc` : slotKey(slot);
   let made = texturedMaterials.get(key);
   if (made) return made;
   const t = truckMaps(slot.tex!);
@@ -262,6 +194,7 @@ const texturedMaterial = (slot: Slot): Material => {
     const paint = slot.part === 'paint';
     const m = new MeshPhysicalMaterial({
       map: t?.map,
+      vertexColors,
       metalness: paint ? 0.5 : 0.4,
       roughness: paint ? 0.34 : 0.4,
       clearcoat: paint ? 0.8 : 0.5,
@@ -296,145 +229,6 @@ const texturedMaterial = (slot: Slot): Material => {
   }
   texturedMaterials.set(key, made);
   return made;
-};
-
-/**
- * A wheel: a ten-sided tyre and a hub disc on its outer face, axle along z, centred at (x, y, z);
- * `side` (+1 / -1) is the face the hub is on.
- */
-const wheel = (
-  p: Pieces,
-  r: number,
-  width: number,
-  x: number,
-  y: number,
-  z: number,
-  side: number,
-): void => {
-  p.add(
-    'detail',
-    new CylinderGeometry(r, r, width, 10)
-      .rotateX(Math.PI / 2)
-      .translate(x, y, z),
-    '#1a1b1d',
-  );
-  const hub = new CircleGeometry(r * 0.6, 8).translate(0, 0, 0);
-  if (side < 0) hub.rotateY(Math.PI);
-  p.add('chrome', hub.translate(x, y, z + side * (width / 2 + 0.006)));
-};
-
-const LAMP = '#eef3f6';
-const RED = '#b3242b';
-const PLASTIC = '#33373c';
-
-// ----- Vans -----
-
-type VanSpec = {
-  width: number;
-  profile: Pt[];
-  screen: [Pt, Pt];
-  windows: [number, number, number, number][];
-  wheel: number;
-  axles: [number, number];
-};
-
-const VANS: Record<'small' | 'large', VanSpec> = {
-  small: {
-    width: 1.84,
-    profile: [
-      [-2.3, 0.38],
-      [2.3, 0.38],
-      [2.3, 0.72],
-      [1.75, 0.93],
-      [1.25, 1.02],
-      [0.55, 1.76],
-      [-2.2, 1.83],
-      [-2.3, 1.76],
-    ],
-    screen: [
-      [1.25, 1.02],
-      [0.55, 1.76],
-    ],
-    windows: [[-0.35, 0.72, 1.1, 1.66]],
-    wheel: 0.32,
-    axles: [1.48, -1.42],
-  },
-  large: {
-    width: 2.04,
-    profile: [
-      [-3, 0.42],
-      [3, 0.42],
-      [3, 0.86],
-      [2.5, 1.18],
-      [2.02, 1.3],
-      [1.4, 2.25],
-      [1.12, 2.72],
-      [-2.95, 2.76],
-      [-3, 2.7],
-    ],
-    screen: [
-      [2.02, 1.3],
-      [1.4, 2.25],
-    ],
-    windows: [
-      [0.3, 1.5, 1.35, 2.1],
-      [-2.7, 0.1, 1.45, 2.15],
-    ],
-    wheel: 0.38,
-    axles: [1.98, -1.9],
-  },
-};
-
-const buildVan = (variant: 'small' | 'large'): Pieces => {
-  const s = VANS[variant];
-  const p = new Pieces();
-  const half = s.width / 2;
-  const bevel = 0.05;
-  p.add('paint', extrude(s.profile, s.width, bevel));
-  const front = s.profile[1][0] + bevel;
-  const back = s.profile[0][0] - bevel;
-  const [[x0, y0], [x1, y1]] = s.screen;
-  const run = Math.hypot(x1 - x0, y1 - y0);
-  p.add(
-    'glass',
-    new BoxGeometry(0.03, run * 0.94, s.width - 0.2)
-      .rotateZ(Math.atan2(x0 - x1, y1 - y0))
-      .translate((x0 + x1) / 2 + 0.05, (y0 + y1) / 2, 0),
-  );
-  for (const z of [-half - 0.005, half + 0.005])
-    for (const w of s.windows)
-      p.add('glass', sideWindow(s.profile, w, z + Math.sign(z) * 0.001));
-  for (const z of [-1, 1]) {
-    p.box(
-      'detail',
-      [front - 0.02, 0.72, (half - 0.45) * z],
-      [front + 0.03, 0.9, (half - 0.1) * z],
-      LAMP,
-    );
-    p.box(
-      'detail',
-      [back - 0.03, 0.8, (half - 0.14) * z],
-      [back + 0.02, 1.35, (half - 0.02) * z],
-      RED,
-    );
-  }
-  p.box(
-    'detail',
-    [front - 0.02, 0.55, -0.45],
-    [front + 0.02, 0.8, 0.45],
-    PLASTIC,
-  );
-  p.box(
-    'detail',
-    [front - 0.2, 0.3, -half],
-    [front + 0.08, 0.52, half],
-    PLASTIC,
-  );
-  p.box('detail', [back - 0.08, 0.3, -half], [back + 0.2, 0.5, half], PLASTIC);
-  for (const x of s.axles)
-    for (const z of [-1, 1])
-      wheel(p, s.wheel, 0.26, x, s.wheel, z * (half - 0.1), z);
-  return p;
 };
 
 // ----- Trucks -----
@@ -760,7 +554,10 @@ const buildTruck = (variant: 'box' | 'tractor' | 'tanker' | Rigid): Pieces => {
 // ----- The fleet -----
 
 interface Model {
-  pieces: Pieces;
+  /** The parts of a truck model (every other model: `pack`). */
+  pieces?: Pieces;
+  /** A background model: one geometry per LOD (white paint) and the far stand-in. */
+  pack?: { lods: BufferGeometry[]; proxy: BufferGeometry };
   /** x of the model's middle (the placement's point lands on it). */
   centre: number;
 }
@@ -771,29 +568,58 @@ interface Model {
  */
 type FleetKind = VehicleKind | Back | Rigid | `cab-${Rigid}`;
 
-/** The cars: the background car models each kind picks from (assets/builders/street-car-models.ts). */
-const PACK_CARS = {
-  car: ['sedan', 'wagon', 'minivan', 'coupe'],
-  hatch: ['compact', 'hatch'],
-  sport: ['sport', 'coupe'],
-} as const;
-type PackKind = keyof typeof PACK_CARS;
-const isPackKind = (kind: FleetKind): kind is PackKind => kind in PACK_CARS;
+/** Vehicles nearer than this (m) to the camera draw in full; farther ones as a two-box stand-in. */
+const FLEET_NEAR = 200;
+/** Re-sort near / far after the camera moved this far (m). */
+const FLEET_STEP = 10;
 
-const MODEL: Record<Exclude<FleetKind, PackKind>, () => Model> = {
-  van: () => ({ pieces: buildVan('small'), centre: 0 }),
-  bigvan: () => ({ pieces: buildVan('large'), centre: 0 }),
-  box: () => ({ pieces: buildTruck('box'), centre: 0.03 }),
-  trailer: () => ({ pieces: buildTruck('tractor'), centre: 0 }),
-  tanker: () => ({ pieces: buildTruck('tanker'), centre: 0 }),
-  tipper: () => ({ pieces: buildDump('tipper'), centre: 0 }),
-  flatbed: () => ({ pieces: buildDump('flatbed'), centre: 0 }),
-  vanbody: () => ({ pieces: buildDump('vanbody'), centre: 0 }),
-  tank: () => ({ pieces: buildDump('tank'), centre: 0 }),
-  tow: () => ({ pieces: buildDump('tow'), centre: 0 }),
-  reefer: () => ({ pieces: buildDump('reefer'), centre: 0 }),
-  'cab-tow': () => ({ pieces: buildTruck('tow'), centre: 0.03 }),
-  'cab-reefer': () => ({ pieces: buildTruck('reefer'), centre: 0.03 }),
+/** A car draws as LOD 0 / 1 / 2 of its model up to these distances (m); LOD 0 and 1 cast shadows. */
+const CAR_LOD_RANGE = [45, 110, FLEET_NEAR];
+
+/**
+ * A background model (assets/builders/street-car-models.ts, `at(lod)`) as a fleet model, scaled to the kind's footprint
+ * (within 10 %, so the rows keep their spacing): the textured model with white paint (the instance colour tints it in
+ * through the atlas mask). `topTone` is the tone of the far stand-in's upper box (dark where the top is mostly glass).
+ */
+const packModel = (
+  at: (lod: number) => StreetCarShape,
+  kind: VehicleKind,
+  topTone: number,
+): Model => {
+  const scale = Math.min(
+    1.1,
+    Math.max(0.9, VEHICLE_SIZE[kind].length / at(0).length),
+  );
+  const lods = CAR_LOD_RANGE.map((_, lod) =>
+    at(lod).geometry('#ffffff').scale(scale, scale, scale),
+  );
+  const proxy = proxyBoxes([[topTone, lods[lods.length - 1]]]);
+  return { pack: { lods, proxy }, centre: 0 };
+};
+const street = (id: string, kind: VehicleKind): Model =>
+  packModel((lod) => streetCarModel(streetCarIndex(id), lod), kind, 0.3);
+const service = (id: string, kind: VehicleKind): Model =>
+  packModel((lod) => serviceVehicleModel(id, lod), kind, 0.85);
+
+/** The models of a kind: its placements take them in turn (so a row mixes them), each with its own meshes. */
+const MODEL: Record<FleetKind, () => Model[]> = {
+  car: () => ['sedan', 'wagon', 'suv'].map((id) => street(id, 'car')),
+  hatch: () => ['compact', 'hatch'].map((id) => street(id, 'hatch')),
+  sport: () => ['coupe', 'sport'].map((id) => street(id, 'sport')),
+  van: () => [street('minivan', 'van')],
+  bigvan: () =>
+    ['van_high', 'minibus', 'van_low'].map((id) => service(id, 'bigvan')),
+  box: () => [{ pieces: buildTruck('box'), centre: 0.03 }],
+  trailer: () => [{ pieces: buildTruck('tractor'), centre: 0 }],
+  tanker: () => [{ pieces: buildTruck('tanker'), centre: 0 }],
+  tipper: () => [{ pieces: buildDump('tipper'), centre: 0 }],
+  flatbed: () => [{ pieces: buildDump('flatbed'), centre: 0 }],
+  vanbody: () => [{ pieces: buildDump('vanbody'), centre: 0 }],
+  tank: () => [{ pieces: buildDump('tank'), centre: 0 }],
+  tow: () => [{ pieces: buildDump('tow'), centre: 0 }],
+  reefer: () => [{ pieces: buildDump('reefer'), centre: 0 }],
+  'cab-tow': () => [{ pieces: buildTruck('tow'), centre: 0.03 }],
+  'cab-reefer': () => [{ pieces: buildTruck('reefer'), centre: 0.03 }],
 };
 
 /** The box-truck places go to the other rigid trucks in turn (`undefined` = a plain box truck). */
@@ -828,22 +654,12 @@ const cabPaint = (kind: Exclude<FleetKind, VehicleKind>, body: string) => {
   return back === 'tow' || back === 'reefer' ? body : undefined;
 };
 
-/** Placements per model (and the pack car's id): a box truck's place goes to another truck by `RIGID_CYCLE`, a car's to one of its kind's models. */
+/** Placements per model: a box truck's place goes to another truck by `RIGID_CYCLE`. */
 function fleetOf(
   layout: ReturnType<typeof getLayout>,
-): [FleetKind, VehicleKind, Placement[], string?][] {
-  const out: [FleetKind, VehicleKind, Placement[], string?][] = [];
+): [FleetKind, VehicleKind, Placement[]][] {
+  const out: [FleetKind, VehicleKind, Placement[]][] = [];
   for (const kind of Object.keys(layout.vehicles) as VehicleKind[]) {
-    if (isPackKind(kind)) {
-      const rng = new Rng(0xca4 + kind.length);
-      const split = new Map<string, Placement[]>();
-      for (const pl of layout.vehicles[kind]) {
-        const id = rng.pick(PACK_CARS[kind]);
-        split.set(id, [...(split.get(id) ?? []), pl]);
-      }
-      for (const [id, list] of split) out.push([kind, kind, list, id]);
-      continue;
-    }
     if (kind !== 'box') {
       out.push([kind, kind, layout.vehicles[kind]]);
       continue;
@@ -861,42 +677,6 @@ function fleetOf(
     for (const [fleet, list] of split) out.push([fleet, 'box', list]);
   }
   return out;
-}
-
-/** Vehicles nearer than this (m) to the camera draw in full; farther ones as a two-box stand-in. */
-const FLEET_NEAR = 200;
-/** Re-sort near / far after the camera moved this far (m). */
-const FLEET_STEP = 10;
-/** A car draws as LOD 0 / 1 / 2 of its model up to these distances (m); LOD 0 and 1 cast shadows. */
-const CAR_LOD_RANGE = [45, 110, FLEET_NEAR];
-
-/** Tone of a car stand-in's upper box: mostly glass, some roof paint. */
-const CAR_TOP_TONE = 0.3;
-
-interface PackModel {
-  /** One geometry per LOD of the model: white paint, scaled to the kind's footprint. */
-  lods: BufferGeometry[];
-  proxy: BufferGeometry;
-}
-
-const packModels = new Map<string, PackModel>();
-
-/** The background car `id` as a parked `kind`: its own proportions, scaled a little to fit the layout's footprint. */
-function packModel(id: string, kind: PackKind): PackModel {
-  const key = `${kind}:${id}`;
-  const hit = packModels.get(key);
-  if (hit) return hit;
-  const index = streetCarIndex(id);
-  const { length, width } = VEHICLE_SIZE[kind];
-  const shape = streetCarModel(index, 0);
-  const fit = Math.min(length / shape.length, width / shape.width);
-  const scale = Math.min(1.15, Math.max(0.85, fit));
-  const lods = CAR_LOD_RANGE.map((_, lod) =>
-    streetCarModel(index, lod).geometry('#ffffff').scale(scale, scale, scale),
-  );
-  const model = { lods, proxy: proxyBoxes([[CAR_TOP_TONE, lods[2]]]) };
-  packModels.set(key, model);
-  return model;
 }
 
 /**
@@ -920,11 +700,17 @@ export function buildFleet(b: Build): Group {
     tiers: { to: number; parts: [Part, InstancedMesh][] }[];
     proxy: InstancedMesh;
   }[] = [];
-  for (const [fleet, kind, placements, packId] of fleetOf(layout)) {
+  const groups = fleetOf(layout).flatMap(([fleet, kind, all]) => {
+    if (!all.length) return [];
+    const models = MODEL[fleet]();
+    return models.map((model, m) => ({
+      kind,
+      model,
+      placements: all.filter((_, i) => i % models.length === m),
+    }));
+  });
+  for (const { kind, model, placements } of groups) {
     if (!placements.length) continue;
-    const pack = packId && isPackKind(fleet) ? packModel(packId, fleet) : null;
-    const model = isPackKind(fleet) ? null : MODEL[fleet]();
-    const centre = model?.centre ?? 0;
     const { length, width } = VEHICLE_SIZE[kind];
     const matrices = placements.map(({ x, z, heading }) => {
       // Stand on the yard surface (or the ground) under the four corners, not level at the middle: a long truck
@@ -949,14 +735,13 @@ export function buildFleet(b: Build): Group {
         .multiply(new Matrix4().makeRotationZ(Math.atan2(front - rear, length)))
         .multiply(new Matrix4().makeRotationX(-Math.atan2(right - left, width)))
         .setPosition(x + ORIGIN.x, y, z + ORIGIN.z);
-      return m.multiply(new Matrix4().makeTranslation(-centre, 0, 0));
+      return m.multiply(new Matrix4().makeTranslation(-model.centre, 0, 0));
     });
     const paint = placements.map((pl) => new Color(pl.color));
     const cab = placements.map((pl) => new Color(pl.cabColor ?? pl.color));
     const tiers: (typeof kinds)[number]['tiers'] = [];
-    if (pack) {
-      // A pack car: the textured model, its paint (instance colour) tinted in through the atlas mask.
-      pack.lods.forEach((geometry, lod) => {
+    if (model.pack) {
+      model.pack.lods.forEach((geometry, lod) => {
         const mesh = new InstancedMesh(
           geometry,
           streetCarMaterial(),
@@ -969,11 +754,11 @@ export function buildFleet(b: Build): Group {
         tiers.push({ to: CAR_LOD_RANGE[lod], parts: [['paint', mesh]] });
         group.add(mesh);
       });
-    } else if (model) {
+    } else {
       const parts: [Part, InstancedMesh][] = [];
-      for (const slot of model.pieces.slots()) {
+      for (const slot of model.pieces!.slots()) {
         const { part } = slot;
-        const geometry = model.pieces.geometry(slot);
+        const geometry = model.pieces!.geometry(slot);
         if (!geometry) continue;
         const mesh = new InstancedMesh(
           geometry,
@@ -994,7 +779,7 @@ export function buildFleet(b: Build): Group {
       tiers.push({ to: FLEET_NEAR, parts });
     }
     const proxy = new InstancedMesh(
-      pack ? pack.proxy : proxyOf(model!.pieces),
+      model.pack ? model.pack.proxy : proxyOf(model.pieces!),
       mats.detail,
       placements.length,
     );
@@ -1131,3 +916,66 @@ function proxyBoxes(parts: [number, BufferGeometry][]): BufferGeometry {
   if (topN) boxes.push(box(hi, cut, maxY, topTone / topN));
   return mergeGeometries(boxes)!;
 }
+
+/** Paint and cab paint of a mesh coloured through its vertex colours (a service park vehicle: one draw call per mesh). */
+let tintedMaterials: Record<'paint' | 'cab', Material> | undefined;
+const tintedMaterial = (part: 'paint' | 'cab'): Material => {
+  tintedMaterials ??= {
+    paint: Object.assign(materialFor().paint.clone(), { vertexColors: true }),
+    cab: Object.assign(materialFor().cab.clone(), { vertexColors: true }),
+  };
+  return tintedMaterials[part];
+};
+
+/**
+ * A baked truck in one colour for the service park: paint and cab take `color` through the vertex colours (the model
+ * is centred on the origin). LOD 1 is the two-box stand-in.
+ */
+function tintedTruck(pieces: Pieces, color: string, lod: number): AssetPart[] {
+  const tint = new Color(color);
+  /** `g` with the colour on every vertex (times `tone` per vertex when given). */
+  const colored = (g: BufferGeometry, tone?: (i: number) => number) => {
+    const n = g.getAttribute('position').count;
+    const c = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const k = tone?.(i) ?? 1;
+      c.set([tint.r * k, tint.g * k, tint.b * k], i * 3);
+    }
+    g.setAttribute('color', new BufferAttribute(c, 3));
+    return g;
+  };
+  const mats = materialFor();
+  if (lod > 0) {
+    const g = proxyOf(pieces);
+    const tone = g.getAttribute('color');
+    return [
+      { geometry: colored(g, (i) => tone.getX(i)), material: mats.detail },
+    ];
+  }
+  return pieces.slots().flatMap((slot) => {
+    const geometry = pieces.geometry(slot);
+    if (!geometry) return [];
+    const paint = slot.part === 'paint' || slot.part === 'cab';
+    return [
+      {
+        geometry: paint ? colored(geometry) : geometry,
+        material: slot.tex
+          ? texturedMaterial(slot, paint)
+          : paint
+            ? tintedMaterial(slot.part as 'paint' | 'cab')
+            : mats[slot.part],
+      },
+    ];
+  });
+}
+
+/** The team tractor-trailer of the service park (`service_semi`, assets/builders/service.ts), tractor and trailer in `color`. */
+export const teamSemi = (color: string, lod: number): AssetPart[] =>
+  tintedTruck(buildTruck('tractor'), color, lod);
+
+/** The recovery tow truck of a parc fermé (`service_tow`): the roll-back on the dump cab, one colour all over. */
+export const recoveryTruck = (color: string, lod: number): AssetPart[] =>
+  tintedTruck(buildDump('tow'), color, lod);
+
+/** Colours of a recovery truck (the fleet's tow palette). */
+export const RECOVERY_COLORS = BACK_PAINT.tow;

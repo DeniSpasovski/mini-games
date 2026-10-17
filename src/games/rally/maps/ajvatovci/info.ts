@@ -49,7 +49,12 @@ export const ajvatovciInfo: MapInfo = {
     {
       label: 'Generic passenger car pack (Comrade1280, Sketchfab)',
       url: 'https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5',
-      note: 'parked cars - CC BY 4.0',
+      note: 'parked cars and pickups - CC BY 4.0',
+    },
+    {
+      label: 'Low Poly Vehicle Mini Pack 7 (Vladek, Sketchfab)',
+      url: 'https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-7-c8fce59e51874a4182dc20a66cbc6c74',
+      note: 'parked vans and trucks - CC BY 4.0',
     },
     {
       label: 'Low Poly Truck (FS 3D Studio, Sketchfab)',

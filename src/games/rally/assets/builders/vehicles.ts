@@ -40,10 +40,10 @@ function plain(g: BufferGeometry): BufferGeometry {
   return g;
 }
 
-const solid = (g: BufferGeometry, color: string): BufferGeometry =>
+export const solid = (g: BufferGeometry, color: string): BufferGeometry =>
   plain(paint(g, color));
 
-const box = (
+export const box = (
   w: number,
   h: number,
   d: number,
@@ -72,7 +72,12 @@ function decal(
   });
 }
 
-const wheel = (r: number, w: number, x: number, z: number): BufferGeometry =>
+export const wheel = (
+  r: number,
+  w: number,
+  x: number,
+  z: number,
+): BufferGeometry =>
   solid(
     new CylinderGeometry(r, r, w, 9).rotateX(Math.PI / 2).translate(x, r, z),
     '#1b1b1d',
@@ -143,12 +148,12 @@ const FIXED_CARS: [number, string][] = [[5, '#e9eaec']];
 /** First variant of `FIXED_CARS` (the white hatch at a Petralica house). */
 export const STREET_CAR_FIXED = STREET_CAR_COUNT;
 
-const finish = (parts: BufferGeometry[]) => ({
+export const finish = (parts: BufferGeometry[]) => ({
   parts: [{ geometry: merge(parts), material: getMaterial('vehicle') }],
 });
 
 /** A pack car with its add-ons (`extra`, may be empty) as a second part in the `vehicle` material. */
-const withExtras = (car: BufferGeometry, extra: BufferGeometry[]) => ({
+export const withExtras = (car: BufferGeometry, extra: BufferGeometry[]) => ({
   parts: [
     { geometry: car, material: streetCarMaterial() },
     ...(extra.length
@@ -158,7 +163,7 @@ const withExtras = (car: BufferGeometry, extra: BufferGeometry[]) => ({
 });
 
 /** Add-ons (roof sign, light bar, lettering) are drawn up to this LOD. */
-const EXTRAS_LOD = 1;
+export const EXTRAS_LOD = 1;
 
 const carPaint = (m: StreetCarShape, seed: number, variant: number): string => {
   const list = m.old ? OLD_PAINTS : PAINTS;
