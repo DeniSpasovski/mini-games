@@ -10,7 +10,12 @@ import { MAPS } from '../maps';
 import { isTestCar, listLabel, TEST_NOTE } from '../release';
 import { parseVec3, VIEWER_HOUR, ViewerShell } from '../debug/viewer-shell';
 import { LIGHTS_MIN_NEED } from '../engine/night';
-import { Headlights, headlightMount } from '../game/headlights';
+import {
+  Headlights,
+  headlightMount,
+  TailLight,
+  tailLightMount,
+} from '../game/headlights';
 import { formatHour, TIMES_OF_DAY } from '../game/time-of-day';
 import { peakPower, sampleTorque } from '../physics/drivetrain';
 import { axleRadius, tyreSizeFor } from '../physics/car-tyres';
@@ -396,6 +401,8 @@ function applyParts(force = false): void {
 function rebuild(): void {
   headlights?.dispose();
   headlights = undefined;
+  tailLight?.dispose();
+  tailLight = undefined;
   model?.dispose();
   const def = getCar(state.car);
   model = new CarModel(def, {
@@ -417,30 +424,40 @@ function rebuild(): void {
 }
 
 let headlights: Headlights | undefined;
+let tailLight: TailLight | undefined;
 
-/** Lights for the hour of day (`Environment.lightNeed`, as in the game): running lamps, headlamps and the beam. Before the first compile where possible. */
+/** Lights for the hour of day (`Environment.lightNeed`, as in the game): running lamps, headlamps, the beam and the tail lamps' red spill. Before the first compile where possible. */
 function applyLights(): void {
   headlights?.dispose();
   headlights = undefined;
+  tailLight?.dispose();
+  tailLight = undefined;
   const need = shell.env.lightNeed;
   const on = need >= LIGHTS_MIN_NEED;
   model?.setLamps(on ? need : 0);
-  if (model && on && state.beam)
-    headlights = new Headlights(
+  if (model && on) {
+    tailLight = new TailLight(
       model.root,
-      headlightMount(model.def.physics),
-      shell.quality.name,
-      model.def.headlights,
+      tailLightMount(model.def.physics),
       need,
     );
+    if (state.beam)
+      headlights = new Headlights(
+        model.root,
+        headlightMount(model.def.physics),
+        shell.quality.name,
+        model.def.headlights,
+        need,
+      );
+  }
   applyLamps();
 }
 
 function applyLamps(): void {
-  model?.setBrake(
-    state.lamps === 'brake' || state.lamps === 'reverse+brake' ? 1 : 0,
-    state.lamps.startsWith('reverse'),
-  );
+  const brake =
+    state.lamps === 'brake' || state.lamps === 'reverse+brake' ? 1 : 0;
+  model?.setBrake(brake, state.lamps.startsWith('reverse'));
+  tailLight?.setBrake(brake);
 }
 
 function applyWire(): void {

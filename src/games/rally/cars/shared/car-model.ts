@@ -47,6 +47,7 @@ import {
   wheelModelFor,
 } from './stl-wheel';
 import { buildTyre, rimRadius } from './tyre-mesh';
+import { LampHalos } from './lamp-halo';
 import { type LampNight, partMaterial } from './part-materials';
 import {
   badgeMaterial,
@@ -356,6 +357,10 @@ function getMeshMaterial(): MeshStandardMaterial {
 
 /** Extra emissive intensity of a tail lamp with the lights on (night), up to its full brake glow. */
 const TAIL_NIGHT_GLOW = 1;
+/** Halo strength round the red tail lamps (`LampHalos`): running light at night, brake pedal at night / by day. */
+const HALO_IDLE = 0.03;
+const HALO_BRAKE_NIGHT = 0.2;
+const HALO_BRAKE_DAY = 0;
 /** Livery brightness (linear) inside a recess (CarModel.recessMaterial). */
 const RECESS_SHADE = 0.12;
 /** Imported-model parts that never cast a shadow (hidden by the body's own shadow or too small to show). */
@@ -398,6 +403,9 @@ export class CarModel {
   /** This car's own copies of its brake-lamp materials (collected on the first setBrake / after the import). */
   private brakeLamps?: MeshStandardMaterial[];
   private headLamps: MeshStandardMaterial[] = [];
+  /** Glow round the red tail lamps (`collectLamps`), lit by `setBrake`. */
+  private halos?: LampHalos;
+  private haloBuild = 0;
   /** Lights on (night): headlamps glow, tail lamps keep a steady glow under the brake light. */
   /** 0..1 lights level (`setLamps`). */
   private lampsOn = 0;
@@ -1091,6 +1099,8 @@ export class CarModel {
   /** This car's own copies of its lamp materials (shared ones would light every car), then the lamp state as it is now. */
   private collectLamps(): void {
     const own = new Map<Material, MeshStandardMaterial>();
+    this.root.updateWorldMatrix(true, true);
+    const redLamps: Mesh[] = [];
     this.root.traverse((o) => {
       const mesh = o as Mesh;
       if (!mesh.isMesh) return;
@@ -1101,6 +1111,9 @@ export class CarModel {
         !(m.userData.brakeLamp || m.userData.headLamp)
       )
         return;
+      if (m.userData.brakeLamp?.night) {
+        redLamps.push(mesh);
+      }
       if (m.userData.brakeOwner === this) {
         own.set(m, m);
         return;
@@ -1120,8 +1133,47 @@ export class CarModel {
     const all = [...new Set(own.values())];
     this.brakeLamps = all.filter((m) => m.userData.brakeLamp);
     this.headLamps = all.filter((m) => m.userData.headLamp);
+    this.addHalos(redLamps);
     this.brakeLevel = -1;
     this.applyHeadLamps();
+  }
+
+  /** The glow round the red lamp meshes (own glow maps: once a lamp sheet has loaded). */
+  private addHalos(redLamps: Mesh[]): void {
+    this.halos?.dispose();
+    this.halos = undefined;
+    const build = this.haloBuild + 1;
+    this.haloBuild = build;
+    const loads = redLamps
+      .map(
+        (m) =>
+          (m.material as Material).userData.lampLoaded as
+            Promise<unknown> | undefined,
+      )
+      .filter((p) => p);
+    const add = (): void => {
+      if (this.disposed || build !== this.haloBuild) return;
+      this.root.updateWorldMatrix(true, true);
+      this.halos = new LampHalos(
+        redLamps,
+        this.body.matrixWorld.clone().invert(),
+      );
+      this.body.add(this.halos.group);
+      this.applyHalos(Math.max(0, this.brakeLevel));
+    };
+    if (loads.length)
+      Promise.all(loads)
+        .then(add)
+        .catch(() => {});
+    else add();
+  }
+
+  /** Halo strength for the brake level `l` (0..1) and the lights level (`lampsOn`). */
+  private applyHalos(l: number): void {
+    const night = this.lampsOn;
+    const idle = HALO_IDLE * night;
+    const brake = HALO_BRAKE_DAY + (HALO_BRAKE_NIGHT - HALO_BRAKE_DAY) * night;
+    this.halos?.setLevel(idle + (brake - idle) * l);
   }
 
   private applyHeadLamps(): void {
@@ -1180,10 +1232,12 @@ export class CarModel {
         m.emissiveIntensity = lit;
       }
     }
+    this.applyHalos(l);
   }
 
   dispose(): void {
     this.disposed = true;
+    this.halos?.dispose();
     for (const g of this.wheelGroups) for (const geo of g.geoms) geo.dispose();
     this.clearBadge();
     this.root.removeFromParent();

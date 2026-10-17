@@ -173,3 +173,50 @@ export class Headlights {
     this.group.removeFromParent();
   }
 }
+
+/** Luminous intensity of the tail lamps' red spill (scene units): the running lights, and the brake pedal fully down. */
+const TAIL_IDLE = 0.8;
+const TAIL_BRAKE = 10;
+
+/** Where the red spill starts (`TailLight`): centred, 0.55 m above the road (the car's origin is its centre of mass), just behind the bumper (the rear overhang is ~0.38 of the wheelbase). */
+export function tailLightMount(
+  p: Pick<CarPhysicsDef, 'front' | 'rear' | 'comHeight'>,
+): { x: number; y: number; z: number } {
+  return {
+    x: 0,
+    y: 0.55 - p.comHeight,
+    z: p.rear.z - 0.38 * (p.front.z - p.rear.z) - 0.15,
+  };
+}
+
+/**
+ * The tail lamps' red spill at night: one dim red spot light at the bumper aimed back and down, so it tints the road and
+ * the verges behind the car (not the car's own rear), brighter with the brake. A child of the car; like the headlights
+ * it exists from the first compile (lights are compiled into every lit shader), so it is created only when the lights are on.
+ */
+export class TailLight {
+  private readonly light = new SpotLight(0xff1408, 0, 6.5, 0.95, 1, 2);
+
+  /** `level` = 0..1 lights level (`Environment.lightNeed`). */
+  constructor(
+    car: Object3D,
+    at: { x: number; y: number; z: number },
+    private readonly level: number,
+  ) {
+    this.light.position.set(at.x, at.y, at.z);
+    this.light.target.position.set(at.x, at.y - 0.55, at.z - 3);
+    car.add(this.light, this.light.target);
+    this.setBrake(0);
+  }
+
+  /** 0 = running lights, 1 = brake pedal fully down. */
+  setBrake(brake: number): void {
+    this.light.intensity =
+      this.level * (TAIL_IDLE + (TAIL_BRAKE - TAIL_IDLE) * brake);
+  }
+
+  dispose(): void {
+    this.light.removeFromParent();
+    this.light.target.removeFromParent();
+  }
+}

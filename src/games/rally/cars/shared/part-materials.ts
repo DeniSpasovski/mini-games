@@ -107,6 +107,10 @@ function lamp(
  */
 const RED_NIGHT: LampNight = { idle: 0.1, on: 0.5 };
 const STRIP_NIGHT: LampNight = { idle: 0.03, on: 0.45 };
+/** Lamps whose glow map lights the whole lens body dimly and the LED parts at full red: a stronger running light than `RED_NIGHT`. */
+const LENS_NIGHT: LampNight = { idle: 0.2, on: 0.55 };
+/** `LENS_NIGHT` for small lamps (C4, 206): a little brighter so they read from a distance. */
+const SMALL_LAMP_NIGHT: LampNight = { idle: 0.25, on: 0.8 };
 
 /** Red see-through lens cover (transparent over a modelled lamp) that glows `emissive` up to intensity `on` with the brake down. */
 function brakeCover(
@@ -307,23 +311,25 @@ function srcPart(name: string): Material {
   }
   const glow = blank('#000');
   const reverseGlow = kind === 'tail' ? blank('#000') : undefined;
-  sheetFor(file)
+  const loaded = sheetFor(file)
     .then((img) => {
       const g = (map.image as HTMLCanvasElement).getContext('2d')!;
       g.clearRect(0, 0, SRC_SIZE, SRC_SIZE);
       g.drawImage(img, 0, 0, SRC_SIZE, SRC_SIZE);
       const px = g.getImageData(0, 0, SRC_SIZE, SRC_SIZE).data;
+      // `red` = glow in pure red at the sheet's red level (a tail lamp's sheet colour is often orange or pink once it glows).
       const paint = (
         t: CanvasTexture,
         f: (r: number, gr: number, b: number, n: number) => number,
+        red = false,
       ) => {
         const c = (t.image as HTMLCanvasElement).getContext('2d')!;
         const d = c.createImageData(SRC_SIZE, SRC_SIZE);
         for (let i = 0; i < px.length; i += 4) {
           const v = f(px[i], px[i + 1], px[i + 2], i >> 2) * (px[i + 3] / 255);
           d.data[i] = px[i] * v;
-          d.data[i + 1] = px[i + 1] * v;
-          d.data[i + 2] = px[i + 2] * v;
+          d.data[i + 1] = (red ? px[i] * 0.03 : px[i + 1]) * v;
+          d.data[i + 2] = (red ? px[i] * 0.015 : px[i + 2]) * v;
           d.data[i + 3] = 255;
         }
         c.putImageData(d, 0, 0);
@@ -331,7 +337,7 @@ function srcPart(name: string): Material {
       };
       const lum = (r: number, gr: number, b: number) => (r + gr + b) / 765;
       if (kind === 'tail') {
-        paint(glow, (r, gr) => (r > 2 * gr + 40 ? 1 : 0));
+        paint(glow, (r, gr) => (r > 2 * gr + 40 ? 1 : 0), true);
         const lens = seed && lensRegion(px, seed);
         paint(reverseGlow!, (r, gr, b, n) =>
           (!lens || lens[n]) &&
@@ -356,7 +362,10 @@ function srcPart(name: string): Material {
     clearcoat: 1,
     clearcoatRoughness: 0.05,
   });
-  return kind === 'tail' ? lamp(m, 4, reverseGlow) : m;
+  if (kind !== 'tail') return m;
+  // The glow map is painted once the sheet has loaded: `CarModel` builds the lamp halos after that.
+  m.userData.lampLoaded = loaded;
+  return lamp(m, 1.2, reverseGlow, LENS_NIGHT);
 }
 
 /** Tiling texture for metre UVs: `tile` = size of one canvas repeat in metres. */
@@ -811,8 +820,8 @@ function tailMaps(): {
     }
     g.restore();
   });
-  // Emissive (x idle 0.5 / brake 5.5; the map is sRGB, so '#78' is ~19 % linear): the LED ring at full = the tail light,
-  // the red lens areas at ~19 % only really light up with the brake (more washes the red out to salmon). The clear indicator section stays dark.
+  // Emissive (x idle 0.5 / brake 1.1 by day, LENS_NIGHT in the dark; the map is sRGB, so '#b0' is ~43 % linear): the LED ring at
+  // full red = the tail light, the red lens at ~43 %. Pure red only: a lighter ring washes out to salmon. The clear indicator section stays dark.
   const glow = canvas(W, H, (g) => {
     g.fillStyle = '#000000';
     g.fillRect(0, 0, W, H);
@@ -820,7 +829,7 @@ function tailMaps(): {
     outline(g);
     g.clip();
     red(g);
-    g.fillStyle = '#780400';
+    g.fillStyle = '#b00800';
     g.fill();
     reverseRect(g);
     g.fillStyle = '#000000';
@@ -1021,9 +1030,13 @@ function tracePath(
 /**
  * Peugeot 206 LED tail-lamp body ('corner' wrap fitted over the lamp body part, about 0.6 x 0.18 m): a deep red glossy
  * lens with a dark smoked pocket in the gap between the two tubes (two rows of LED dots) and a smoked dotted strip under
- * the lower tube. `reverseGlow` = that strip lit white for the reversing light (the rest stays black).
+ * the lower tube. `glow` = the lens body lit dark red; `reverseGlow` = that strip lit white for the reversing light (the rest stays black).
  */
-function lampClearMaps(): { map: CanvasTexture; reverseGlow: CanvasTexture } {
+function lampClearMaps(): {
+  map: CanvasTexture;
+  glow: CanvasTexture;
+  reverseGlow: CanvasTexture;
+} {
   const W = 768;
   const H = 232;
   const stripLine = offsetLine(
@@ -1129,6 +1142,19 @@ function lampClearMaps(): { map: CanvasTexture; reverseGlow: CanvasTexture } {
     strip(g, 12);
     g.setLineDash([]);
   });
+  // The red lens body lights dimly behind the tubes (running / brake light); the smoked pocket and the strip stay dark.
+  const glow = canvas(W, H, (g) => {
+    g.fillStyle = '#9a0c10';
+    g.fillRect(0, 0, W, H);
+    pocket(g, 0.026);
+    g.fillStyle = '#000';
+    g.strokeStyle = '#000';
+    g.lineJoin = 'round';
+    g.lineWidth = 11;
+    g.fill();
+    g.stroke();
+    strip(g, 26);
+  });
   const reverseGlow = canvas(W, H, (g) => {
     g.fillStyle = '#000';
     g.fillRect(0, 0, W, H);
@@ -1139,7 +1165,7 @@ function lampClearMaps(): { map: CanvasTexture; reverseGlow: CanvasTexture } {
     strip(g, 12);
     g.setLineDash([]);
   });
-  return { map, reverseGlow };
+  return { map, glow, reverseGlow };
 }
 
 /**
@@ -1154,7 +1180,7 @@ function lampRedMaps(): { map: CanvasTexture; glow: CanvasTexture } {
     g.fillRect(0, 0, W, H);
     g.save();
     tracePath(g, P206_TUBES, W, H, true);
-    g.fillStyle = lit ? '#f4201a' : '#d1202a';
+    g.fillStyle = lit ? '#ff2418' : '#d1202a';
     g.fill();
     g.clip();
     // Darker towards the rim of the tube: strokes along the outline, each wider and fainter (a smooth falloff).
@@ -1169,8 +1195,8 @@ function lampRedMaps(): { map: CanvasTexture; glow: CanvasTexture } {
     g.globalAlpha = 1;
     // The core of the tube: a light-guide line (hot white when lit).
     g.lineCap = 'round';
-    g.lineWidth = lit ? 9 : 5;
-    g.strokeStyle = lit ? '#ffe2c8' : 'rgba(255,170,160,0.55)';
+    g.lineWidth = lit ? 11 : 5;
+    g.strokeStyle = lit ? '#ff4630' : 'rgba(255,170,160,0.55)';
     tracePath(g, P206_TUBE_CORE, W, H);
     g.stroke();
     g.restore();
@@ -1272,14 +1298,16 @@ function tailC4Maps(): {
       white: '#f2f2ef',
     }),
   );
+  // Lit with SMALL_LAMP_NIGHT: the whole lens body glows dark red, the light-guide stripes and dots at full red (a lighter dot
+  // would wash out to pink), the white reversing lens stays dark.
   const glow = canvas(W, H, (g) =>
     draw(g, {
-      base: '#2c0406',
+      base: '#b00c10',
       dark: '#000',
-      stripe: ['#ff2a1c', '#4a0608'],
-      dot: '#ff5a44',
-      rib: ['#3a0508', ''],
-      white: '#2c0406',
+      stripe: ['#ff2a1c', '#8a0a0e'],
+      dot: '#ff2a1c',
+      rib: ['#7a090c', ''],
+      white: '#160204',
     }),
   );
   const reverseGlow = canvas(W, H, (g) => {
@@ -1807,8 +1835,9 @@ const BUILDERS: Record<PartName, () => Material> = {
         clearcoat: 1,
         clearcoatRoughness: 0.05,
       }),
-      5.5,
+      1.1,
       reverseGlow,
+      LENS_NIGHT,
     );
   },
   /**
@@ -1888,14 +1917,15 @@ const BUILDERS: Record<PartName, () => Material> = {
         map,
         emissive: 0xffffff,
         emissiveMap: glow,
-        emissiveIntensity: 0.4,
+        emissiveIntensity: 0.5,
         roughness: 0.16,
         metalness: 0,
         clearcoat: 1,
         clearcoatRoughness: 0.05,
       }),
-      4,
+      1.2,
       reverseGlow,
+      SMALL_LAMP_NIGHT,
     );
   },
   /** Modelled tail-lamp LED strip: red, idle glow, bright with the brake pedal (setBrake). */
@@ -1928,7 +1958,7 @@ const BUILDERS: Record<PartName, () => Material> = {
    * needs `parts.wrap` 'corner'. The smoked strip along the bottom lights white in reverse gear only, like `reverselamp`.
    */
   lampclear: () => {
-    const { map, reverseGlow } = lampClearMaps();
+    const { map, glow, reverseGlow } = lampClearMaps();
     return lamp(
       new MeshPhysicalMaterial({
         map,
@@ -1938,14 +1968,12 @@ const BUILDERS: Record<PartName, () => Material> = {
         clearcoat: 0.3,
         clearcoatRoughness: 0.12,
         emissive: 0xffffff,
-        emissiveMap: canvas(2, 2, (g) => {
-          g.fillStyle = '#000';
-          g.fillRect(0, 0, 2, 2);
-        }),
-        emissiveIntensity: 0,
+        emissiveMap: glow,
+        emissiveIntensity: 0.2,
       }),
       2,
       reverseGlow,
+      { idle: 0.35, on: 0.8 },
     );
   },
   /** Peugeot 206 LED tubes: glossy red, see lampRedMaps - needs `parts.wrap` 'corner'. The tube cores light with the brake. */
@@ -1956,7 +1984,7 @@ const BUILDERS: Record<PartName, () => Material> = {
         map,
         emissive: 0xffffff,
         emissiveMap: glow,
-        emissiveIntensity: 0.12,
+        emissiveIntensity: 0.4,
         roughness: 0.25,
         metalness: 0,
         envMapIntensity: 0.7,
@@ -1964,6 +1992,8 @@ const BUILDERS: Record<PartName, () => Material> = {
         clearcoatRoughness: 0.08,
       }),
       1.2,
+      undefined,
+      SMALL_LAMP_NIGHT,
     );
   },
   /** Red see-through cover over a modelled tail lamp. */
@@ -2006,7 +2036,9 @@ const BUILDERS: Record<PartName, () => Material> = {
         clearcoat: 1,
         clearcoatRoughness: 0.05,
       }),
-      3.2,
+      1.2,
+      undefined,
+      { idle: 0.15, on: 0.65 },
     );
   },
   /** Amber weave lens (indicator), faintly glowing. */

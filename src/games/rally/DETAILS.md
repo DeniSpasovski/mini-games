@@ -117,9 +117,13 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 - **Effects:** dust, gravel spray and haze (`game/dust.ts`), tyre marks (`game/tyre-marks.ts`), a contact shadow under the car,
   brake and reversing lamps (`CarModel.setBrake(level, reversing)`; a lamp's `userData.brakeLamp.reverseGlow` map lights its
   white section in gear R, in R the throttle key is the brake pedal; car viewer `lamps=brake|reverse`). With the lights on a lamp
-  moves to its `LampNight` glow (`part-materials.ts` `lamp()`): red lamps (`RED_NIGHT`) stay low, because AgX turns a bright red
-  salmon pink (ACES, by day, keeps pure red up to ~1.2). Check lamps in the car viewer: `tod=1` (night; `tod=17.5` = evening, lights
-  half on) with `lamps=off|brake|reverse`, `beam=0` hides the headlight beam, `quality=high` adds the bloom.
+  moves to its `LampNight` glow (`part-materials.ts` `lamp()`): red lamps keep it low and in pure red, because AgX turns a bright red
+  salmon pink (ACES, by day, keeps pure red up to ~1.2); a lamp's glow map holds the LED parts at full red and the lens body dimmer.
+  A lamp with a `LampNight` also gets a soft red halo (`cars/shared/lamp-halo.ts`: its silhouette from behind, blurred, on an
+  additive quad), and at night `game/headlights.ts` `TailLight` adds a dim red spot behind the car (road, verges) while
+  `ParticleSystem.setTaillight` tints the dust behind it; both follow the brake pedal (`rally-game.ts` `lightParticlesByLamps`).
+  Check lamps in the car viewer: `tod=1` (night; `tod=17.5` = evening, lights half on) with `lamps=off|brake|reverse`, `beam=0` hides
+  the headlight beam, `quality=high` adds the bloom.
 
 ## Maps
 
