@@ -534,7 +534,7 @@ export function streetDressingInstances(
       )
         park('ambulance', 6.4, 0.08);
       if (j.width >= 6 && rng.chance(emergency.fire))
-        park('fire_truck', 8.6, 0.05);
+        park(ctx.country === 'mk' ? 'fire_truck_mk' : 'fire_truck', 9.2, 0.05);
     }
     // Spectators stand along the verges, behind the barrier / beside the vehicles.
     const n = crowd?.perJunction ?? 0;

@@ -42,6 +42,8 @@ export const SERVICE_PARK_ASSETS = [
   'spectator',
   'tape_post',
   'ambulance',
+  'fire_truck',
+  'fire_truck_mk',
 ];
 
 /** Variants of a people asset (the people kit owns the count; the catalog states it). */
@@ -972,7 +974,7 @@ function addPublicEdge(
   }
 }
 
-/** Timekeeper tent, boards, marshals and a rescue ambulance on the right-hand verge at the start line. */
+/** Timekeeper tent, boards, marshals, a rescue ambulance and the fire engine on the right-hand verge at the start line. */
 function addStartControl(
   out: ServiceParkLayout,
   ctx: ServiceParkContext,
@@ -1044,4 +1046,14 @@ function addStartControl(
   put('marshal', 14, -24.5, 3.2, (p) => towardRoad(p), 0.4);
   // Rescue ambulance on the verge beyond the line, nose forward.
   put('ambulance', 0, 14, 3.4, alongRoad, 3.4);
+  // The fire engine of the map's country behind it.
+  const us = ctx.country === 'us';
+  put(
+    us ? 'fire_truck' : 'fire_truck_mk',
+    0,
+    24,
+    3.6,
+    alongRoad,
+    us ? 4.8 : 4.4,
+  );
 }

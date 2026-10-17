@@ -36,16 +36,24 @@ if '--images' in sys.argv:
         Image.fromarray(arr[..., :3]).save(f'{prefix}_{i}.png')
 
 
+def base_colour(mi):
+    """(factor, texture ref) of a material's base colour: metallic-roughness, or the diffuse of KHR_materials_pbrSpecularGlossiness."""
+    m = g['materials'][mi]
+    sg = m.get('extensions', {}).get('KHR_materials_pbrSpecularGlossiness')
+    if sg is not None:
+        return sg.get('diffuseFactor', [1, 1, 1, 1]), sg.get('diffuseTexture')
+    pbr = m.get('pbrMetallicRoughness', {})
+    return pbr.get('baseColorFactor', [1, 1, 1, 1]), pbr.get('baseColorTexture')
+
+
 def image_of(mi):
-    tex = g['materials'][mi].get('pbrMetallicRoughness', {}).get('baseColorTexture')
+    tex = base_colour(mi)[1]
     return -1 if tex is None else g['textures'][tex['index']]['source']
 
 
 def material_sampler(mi):
-    m = g['materials'][mi]
-    pbr = m.get('pbrMetallicRoughness', {})
-    factor = np.array(pbr.get('baseColorFactor', [1, 1, 1, 1])[:3])
-    tex = pbr.get('baseColorTexture')
+    factor, tex = base_colour(mi)
+    factor = np.array(factor[:3])
     if tex is None:
         return lambda uv, n: np.tile(factor, (n, 1)) * 255
     img = images[g['textures'][tex['index']]['source']]

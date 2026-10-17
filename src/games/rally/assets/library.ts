@@ -29,6 +29,7 @@ import { rockBoulder, rockSmall } from './builders/rocks';
 import {
   ambulance,
   fireTruck,
+  fireTruckMk,
   policeCar,
   streetCar,
   taxi,
@@ -111,6 +112,7 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   taxi,
   police_car: policeCar,
   fire_truck: fireTruck,
+  fire_truck_mk: fireTruckMk,
   ambulance,
   service_truck: serviceTruck,
   service_semi: serviceSemi,

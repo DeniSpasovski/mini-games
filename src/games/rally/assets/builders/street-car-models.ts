@@ -84,7 +84,8 @@ export function serviceVehicleModel(id: string, lod: number): StreetCarShape {
   return vehicleModel(SERVICE_VEHICLE_DATA, index, lod);
 }
 
-function vehicleModel(
+/** A model of any baked list (`street-cars.data.ts` layout) at `lod`: also the fire engines' (`fire-truck-models.ts`). */
+export function vehicleModel(
   list: StreetCarData[],
   index: number,
   lod: number,

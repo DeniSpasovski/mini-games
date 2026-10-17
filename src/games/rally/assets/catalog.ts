@@ -408,13 +408,23 @@ export const ASSET_CATALOG: AssetMeta[] = [
   },
   {
     id: 'fire_truck',
-    name: 'Fire truck',
+    name: 'Fire truck (USA)',
     category: 'props',
     description:
-      'Red fire engine (the box truck model with its textures): white stripe, roof ladder, light bar, "FIRE DEPT" (generic, no real agency name) on the box sides. Faces +X. Solid.',
+      'US fire engine (its own model and textures, roof ladder and light bar; ~9 m): the one of the USA map. Faces +X. Solid.',
     variants: 1,
-    lods: carLods(50, 130, 600),
-    colliders: [{ kind: 'box', hx: 4.3, hz: 1.27, h: 3, r: 4.5 }],
+    lods: carLods(40, 120, 600),
+    colliders: [{ kind: 'box', hx: 4.5, hz: 1.4, h: 3.3, r: 4.8 }],
+  },
+  {
+    id: 'fire_truck_mk',
+    name: 'Fire truck (North Macedonia)',
+    category: 'props',
+    description:
+      'Fire engine of the Macedonian maps (its own model and textures, roof ladder, blue lights; 8 m). Faces +X. Solid.',
+    variants: 1,
+    lods: carLods(40, 120, 600),
+    colliders: [{ kind: 'box', hx: 4.0, hz: 1.3, h: 3.1, r: 4.3 }],
   },
   {
     id: 'ambulance',

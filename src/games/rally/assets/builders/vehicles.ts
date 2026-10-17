@@ -9,6 +9,11 @@ import { merge, paint } from '../../engine/geo';
 import { getMaterial } from '../../engine/materials';
 import type { AssetBuilder } from '../types';
 import {
+  fireTruckMaterial,
+  fireTruckModel,
+  type FireTruckId,
+} from './fire-truck-models';
+import {
   serviceVehicleModel,
   streetCarIndex,
   streetCarMaterial,
@@ -20,9 +25,9 @@ import {
 /**
  * Street vehicles for city maps: parked cars (`street_car`: the CC BY pack models in `street-car-models.ts` with their
  * own textures, in a few paints), the yellow `taxi`, the `police_car` (white, navy band, light bar, "POLICE" on the
- * doors), the `fire_truck` (the pack's box truck in red with a white stripe, roof ladder and "FIRE DEPT" on the sides) and
- * the `ambulance` (its high-roof van in white, red stripe, "FIRE DEPT" + "AMBULANCE" on the sides). The lettering is
- * generic words on purpose (no real agency names, badges or exact liveries). Every vehicle is one draw call in the shared
+ * doors), the `ambulance` (its high-roof van in white, red stripe, "FIRE DEPT" + "AMBULANCE" on the sides) and the two fire
+ * engines (`fire_truck` for the USA, `fire_truck_mk` for North Macedonia: their own models and textures,
+ * `fire-truck-models.ts`). The lettering is generic words on purpose (no real agency names, badges or exact liveries). Every vehicle is one draw call in the shared
  * `streetCarMaterial` (atlas + paint tint), its add-ons (taxi sign, light bar, ladder, stripes, lettering) a second one in
  * the `vehicle` material (vertex colour paint + the decals atlas). Models face +X with the origin on the ground under
  * their middle. A car is ~6-8k triangles up close, ~2k at LOD 1, ~1k at LOD 2.
@@ -201,25 +206,22 @@ export const policeCar: AssetBuilder = ({ lod }) => {
   return withExtras(m.geometry('#f1f2f2'), parts);
 };
 
-/** Fire engine: the box truck model (assets/builders/street-car-models.ts) in red with a white stripe, roof ladder, light bar and "FIRE DEPT" on the box sides. */
-export const fireTruck: AssetBuilder = ({ lod }) => {
-  const parts: BufferGeometry[] = [];
-  if (lod <= EXTRAS_LOD) {
-    const z = 1.125;
-    for (const side of [1, -1])
-      parts.push(box(4.4, 0.2, 0.02, -1.65, 1.45, side * z, '#f2f0e8'));
-    // Roof ladder: two rails over a rung plate, a light bar on the cab roof.
-    for (const rail of [0.4, -0.4])
-      parts.push(box(4.4, 0.07, 0.07, -1.65, 3.12, rail, '#b8bcc2'));
-    parts.push(box(4.4, 0.04, 0.8, -1.65, 3.09, 0, '#8d9096'));
-    parts.push(box(0.4, 0.12, 1.4, 3.05, 2.44, 0, '#d3202a'));
-    parts.push(...decal(FD, 1.8, 0.4, -1.65, 2.2, z + 0.012));
-  }
-  return withExtras(
-    serviceVehicleModel('box_truck', lod).geometry('#b3121a'),
-    parts,
-  );
-};
+const fireEngine =
+  (id: FireTruckId): AssetBuilder =>
+  ({ lod }) => ({
+    parts: [
+      {
+        geometry: fireTruckModel(id, lod).geometry('#ffffff'),
+        material: fireTruckMaterial(id),
+      },
+    ],
+  });
+
+/** US fire engine (Jackie's junctions, its start control): its own model and livery. */
+export const fireTruck: AssetBuilder = fireEngine('fire_truck');
+
+/** The fire engine of the Macedonian maps (start control): its own model and livery. */
+export const fireTruckMk: AssetBuilder = fireEngine('fire_truck_mk');
 
 /** Ambulance: the high-roof van model in white with a red stripe, light bar, "FIRE DEPT" + "AMBULANCE" on the sides. */
 export const ambulance: AssetBuilder = ({ lod }) => {
