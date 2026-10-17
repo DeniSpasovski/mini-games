@@ -254,7 +254,7 @@ export function sculptBody(
     const droop = smoothstep(0.5, 0.0, ty);
     let t = loose * (0.65 + 0.5 * droop);
     // Waistband / hem rib.
-    if (jacketTorso) t += 0.014 * smoothstep(hem + 0.22, hem, ty);
+    if (jacketTorso) t += 0.006 * smoothstep(hem + 0.18, hem, ty);
     // Eases to the trousers' thickness just above the hem, so the edge stays clean at any grid size.
     t = lowT + (t - lowT) * smoothstep(hem, hem + 0.03, ty);
     cl.g = o.vest ? G.vest : G.torso;
@@ -276,7 +276,7 @@ export function sculptBody(
   add(
     ellipsoid(
       arr(rot(0, 0.015, -0.005)),
-      [0.155 * b, 0.115, 0.094],
+      [0.165 * b, 0.115, 0.104],
       torsoRows,
       0.025,
       torsoFrame,
@@ -286,7 +286,7 @@ export function sculptBody(
   add(
     ellipsoid(
       arr(rot(0, 0.2, 0)),
-      [0.135 * b, 0.13, 0.084],
+      [0.15 * b, 0.13, 0.094],
       torsoRows,
       0.03,
       torsoFrame,
@@ -329,8 +329,8 @@ export function sculptBody(
     // Buttocks.
     add(
       ellipsoid(
-        arr(rot(side * 0.07 * b, -0.025, -0.058)),
-        [0.08, 0.092, 0.07],
+        arr(rot(side * 0.07 * b, -0.025, -0.042)),
+        [0.078, 0.09, 0.064],
         torsoRows,
         0.05,
         torsoFrame,
@@ -1174,10 +1174,10 @@ export function sculptBody(
     });
   };
 
-  emit(bodyField, hBody, 0.04, fine);
-  emit(headField, hHead, 0.03, fine);
-  for (const hf of handFields) emit(hf, hHand, 0.02, fine);
-  for (const s of shoeFields) emit(s.f, hFoot, 0.02, fine);
+  emit(bodyField, hBody, 0.09, fine);
+  emit(headField, hHead, 0.07, fine);
+  for (const hf of handFields) emit(hf, hHand, 0.04, fine);
+  for (const s of shoeFields) emit(s.f, hFoot, 0.05, fine);
   void evalField;
 
   const geometry = toGeometry(out);

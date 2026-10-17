@@ -267,7 +267,7 @@ export function polygonise(
           min[1] + cj * h,
           min[2] + ck * h,
         );
-        const far = Math.abs(dc) > B * h * 1.6;
+        const far = Math.abs(dc) > B * h * 3.2;
         for (let k = bk; k < Math.min(bk + B, nz); k++)
           for (let j = bj; j < Math.min(bj + B, ny); j++)
             for (let i = bi; i < Math.min(bi + B, nx); i++)
