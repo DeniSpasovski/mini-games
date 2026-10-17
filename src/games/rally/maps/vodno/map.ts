@@ -553,5 +553,6 @@ export const vodnoMap: MapDef = {
     'vodno-gate',
     'vodno-start-blocks',
     'vodno-crossroad-hotel',
+    'vodno-roadside-gazebo',
   ],
 };

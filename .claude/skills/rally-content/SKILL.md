@@ -26,7 +26,7 @@ Rules (performance — late-2000s look must not lag):
   call `addWorldUniforms(shader)`.
 - Budget guide: tree LOD0 < 1k tris, LOD1 < 250, LOD2 < 50. Far LODs must not cast shadows. Far tree LODs set
   `oneVariant` (all variants share one bucket = one draw call) and the last one `impostor` (a 2-triangle camera-facing
-  diamond built from the previous LOD, `assets/impostor.ts`) - use the catalog's `tree()` / `farTree()` helpers.
+  diamond built from the previous LOD) - use the catalog's `tree()` / `farTree()` helpers.
 - Variants are cheap in draw calls: other LODs are drawn as variant sets (one draw per asset / LOD / material, see
   DETAILS.md "Draw calls"). Every variant's parts must share the same attributes (position, normal, color, uv) or the
   asset falls back to one draw per variant; keep LOD0 tree crowns small - sets over the cap are not merged.

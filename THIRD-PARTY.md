@@ -20,8 +20,9 @@ README files carry the same information in more detail. Keep this file current w
 
 3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party: its critters, arenas, effects and sounds are original and procedural.
 
-No fonts, textures, sounds or music files are bundled: textures are painted on canvases at runtime, audio is
-synthesised with WebAudio, and text uses system fonts.
+No fonts, sounds or music files are bundled: audio is synthesised with WebAudio and text uses system fonts. Most textures
+are painted on canvases at runtime; the only texture files that ship are the car lamp and seat textures and the truck
+textures, listed with their licences in `public/models/CREDITS.md`.
 
 ## Map data (baked into `src/games/rally/maps/<id>/`)
 
@@ -57,7 +58,7 @@ Some roads, properties and outlines were added or traced by hand on top of the o
 | `ford_gt3.glb`, `ford_gt3_wheel.glb`                                                     | "2024 Ford Mustang GT3" by kevin (Sketchfab; split by material and converted, tyres + discs + calipers dropped, logo banner dropped; rim extracted; flat paint at runtime)                                                                                                                         | CC BY 4.0                 |
 | `merc_190.glb`, `merc_190_wheel.glb`                                                     | "Mercedes 190E EVO 1982 3D Model Free" by Betier Models (Sketchfab; split by material and converted, tyres + discs + calipers + own springs and arms dropped, hood star, grille, boot-lid and steering-wheel badges removed; rim extracted with the hub-cap star flattened; flat paint at runtime) | CC BY 4.0                 |
 | `peugeot_206.glb`, `peugeot_206_wheel.glb`                                               | "Peugeot 206" by Alvier (Sketchfab; split by material and converted, tyres + discs + calipers + springs dropped, lion emblem, rear lettering and side badge dropped; rim extracted, centre-cap emblem flattened; flat paint at runtime)                                                            | CC BY 4.0                 |
-| `audi_rs6.glb`, `audi_rs6_wheel.glb`, `audi_rs6_lamps.png`                               | "Audi RS 6 Avant (C8)" by GT Cars: Hyperspeed (Sketchfab; split by material and converted, tyres + discs + calipers + engine bay dropped, rings, badges, lettering and plate removed; rim extracted; lamp texture kept; flat paint at runtime)                                                     | CC BY 4.0                 |
+| `audi_rs6.glb`, `audi_rs6_wheel.glb`, `audi_rs6_lamps.png`                               | "Audi RS 6 Avant (C8)" by Mona x Supercars (Sketchfab; split by material and converted, tyres + discs + calipers + engine bay dropped, rings, badges, lettering and plate removed; rim extracted; lamp texture kept; flat paint at runtime)                                                        | CC BY 4.0                 |
 | `porsche_911_930.glb`, `porsche_911_930_wheel.glb`, `porsche_911_930_lamp.png`           | "Porsche 911 (930) Turbo 1975" by Lexyc16 (Sketchfab; split by material and converted, wheels dropped, rear light wordmark replaced by a flat lens; rim extracted, nuts dropped, recoloured two-tone; headlamp texture kept; flat paint at runtime)                                                | CC BY 4.0                 |
 | `subie_wrx_sti.glb`, `subie_wrx_sti_wheel.glb`, `subie_wrx_sti_lamps.png`                | "2019 Rowen Subaru WRX STI" by Car design (Sketchfab; split by material and converted, tyres + discs + calipers + engine bay dropped, badges, lettering and plates removed; rim extracted; lamp texture kept; cockpit simplified; flat paint at runtime)                                           | CC BY 4.0                 |
 | `lancer_evo_6.glb`, `lancer_evo_6_wheel.glb`, `lancer_evo_6_{lamps,seat,fabric,cab}.png` | "Mitsubishi Lancer Evolution 6" by vecarz (Sketchfab; converted and repainted, badges + plate removed; lamp and seat textures kept)                                                                                                                                                                | CC BY 4.0                 |
@@ -74,6 +75,17 @@ paint panels tinted, far LODs reduced, wheels redrawn at the far LODs; the sourc
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------- |
 | ["Generic passenger car pack"](https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5) (cars)                | [Comrade1280](https://sketchfab.com/comrade1280) (Sketchfab) | CC BY 4.0 |
 | ["Low Poly Vehicle Mini Pack 7"](https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-7-c8fce59e51874a4182dc20a66cbc6c74) (vans and trucks) | [Vladek](https://sketchfab.com/vladek27) (Sketchfab)         | CC BY 4.0 |
+
+### Fire engines (baked into `src/games/rally/assets/builders/`: `fire-trucks.data.ts`, `fire-truck-us.jpg`, `fire-truck-mk.jpg`)
+
+The two fire engines keep their own triangles and textures (split and packed by `scripts/car-model/street-pack-extract.py` +
+`bake-fire-truck-textures.py` + `bake-fire-trucks.mjs`; scaled to real size, unseen triangles dropped, far LODs reduced; the source
+files are not in the repository).
+
+| Model                                                                                                                                                      | Author                                                                             | Used for                              | Licence   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------- | --------- |
+| ["Fire engine/Fire truck low poly game asset"](https://sketchfab.com/3d-models/fire-enginefire-truck-low-poly-game-asset-2f663c7477374d30af9f80c528fff55c) | [FixedShark554](https://sketchfab.com/FixedShark554) (Sketchfab)                   | the Macedonian maps (`fire_truck_mk`) | CC BY 4.0 |
+| ["Fire Truck"](https://sketchfab.com/3d-models/fire-truck-4a0d8c5bfca643d2aaa9b113ff752c26)                                                                | amongus ([holedonutdriveout](https://sketchfab.com/holedonutdriveout)) (Sketchfab) | the USA map (`fire_truck`)            | CC BY 4.0 |
 
 ### Parked trucks (baked into `src/games/rally/maps/ajvatovci/start-row/build/truck-models.data.ts`)
 
@@ -122,7 +134,7 @@ Papers and articles read to tune the rally tyre types, tyre temperature, suspens
 
 Skoda, Fabia, BMW, M3, Ford, Fiesta, Subaru, Impreza, WRX, STI, Citroen, C4, Mitsubishi, Lancer Evolution, Zastava and other make or model names are trademarks of their owners and appear only to
 identify the car that inspired a model. The liveries use no manufacturer, sponsor or series logos. Emergency vehicles
-in the Jackie map carry only generic lettering ("POLICE", "FIRE DEPT", "AMBULANCE") and no agency names, logos or badges.
+in the Jackie map carry only generic lettering ("POLICE", "FIRE DEPT", "AMBULANCE") and no agency names, logos or badges; the two fire engine models carry none.
 The Subaru WRX STI 22B (test car) carries a crescent-and-stars side graphic redrawn as shapes after a reference picture of
 the manufacturer's motorsport emblem, at the owner's request; it is not the picture and has no lettering, but it is the one
 exception to "no manufacturer logos" - `cars/subie-22b/livery.ts` drops it.

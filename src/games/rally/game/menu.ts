@@ -120,7 +120,18 @@ const NPC_CARS: SourceLink[] = [
   {
     label: 'Low Poly Vehicle Mini Pack 7 (Vladek, Sketchfab)',
     url: 'https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-7-c8fce59e51874a4182dc20a66cbc6c74',
-    note: 'parked vans, trucks, ambulance and fire truck - CC BY 4.0',
+    note: 'parked vans, trucks and ambulance - CC BY 4.0',
+  },
+  {
+    label:
+      'Fire engine/Fire truck low poly game asset (FixedShark554, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/fire-enginefire-truck-low-poly-game-asset-2f663c7477374d30af9f80c528fff55c',
+    note: 'fire engine of the Macedonian maps - CC BY 4.0',
+  },
+  {
+    label: 'Fire Truck (amongus, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/fire-truck-4a0d8c5bfca643d2aaa9b113ff752c26',
+    note: 'fire truck of the USA map - CC BY 4.0',
   },
   {
     label: 'Low Poly Truck (FS 3D Studio, Sketchfab)',
@@ -809,14 +820,15 @@ class MainMenu {
   }
 
   /**
-   * Description card of Select stage / Select car (`.menu-side-card`): on screens >= 1200 px wide it floats right of the
-   * list with its top level with `align` (the header height depends on the font) and this returns true; narrower screens
-   * leave it to the caller to put in the panel.
+   * Description card of Select stage / Select car (`.menu-side-card`): it floats over the map: right of the list with its top
+   * level with `align` (the header height depends on the font) on screens >= `SIDE_CARD_MIN_WIDTH` px wide, above the
+   * buttons on phones. Always returns true.
    */
   private sideCard(card: HTMLElement, align: HTMLElement): boolean {
-    if (window.innerWidth < 1200) return false;
     card.classList.add('menu-side-card');
     this.root.append(card);
+    // Phones: the card covers the map / car above the buttons (CSS), no alignment needed.
+    if (window.innerWidth < SIDE_CARD_MIN_WIDTH) return true;
     const top =
       align.getBoundingClientRect().top - this.root.getBoundingClientRect().top;
     card.style.top = `${top}px`;
@@ -1507,6 +1519,8 @@ export function buildSectors(
 }
 
 const MAX_ROWS = 10;
+/** Below this width the Select stage / car description card covers the map instead of sitting right of the list. */
+const SIDE_CARD_MIN_WIDTH = 800;
 /** A stage that climbs less than this (m) shows no second, colder temperature on Select stage. */
 const MIN_RISE = 50;
 
