@@ -29,6 +29,7 @@ import type { SetupPreset } from '../../physics/types';
  *   saloon - green coil-over (touring-car geometry; Mercedes 190E)
  *   hatch - teal MacPherson strut (road geometry; Peugeot 206)
  *   classic - the road strut in dark grey (Porsche 911 (930))
+ *   wrx   - violet coil-over (race geometry; Subaru WRX STI)
  * The spring gets fewer, thicker coils the stiffer the rate; the whole unit is longer the more travel the preset
  * has (soft = long).
  */
@@ -45,6 +46,7 @@ export type SuspensionStyle =
   | 'wrc'
   | 'wrcgold'
   | 'sti'
+  | 'wrx'
   | 'evo';
 
 export const SUSPENSION_STYLE_COLORS: Record<
@@ -64,6 +66,7 @@ export const SUSPENSION_STYLE_COLORS: Record<
   evo: { body: 0xc8281e, chrome: 0xc8ccd0 },
   wrcgold: { body: 0xd9a21b, chrome: 0xc8ccd0 },
   sti: { body: 0xf0c020, chrome: 0xc8ccd0 },
+  wrx: { body: 0x7a4fb0, chrome: 0xc8ccd0 },
 };
 
 /** Installed length (m) of a unit for a preset's travel. */

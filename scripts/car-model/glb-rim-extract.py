@@ -4,7 +4,7 @@
     python scripts/car-model/glb-rim-extract.py <in.glb> <out-prefix> --wheel <node-prefix>      # tyre + rim in one primitive
     ... --true-width   # keep the tyre stub its real width (a rim that is only its face, much narrower than the tyre) instead of the rim's span
 
-Node prefixes match the primitive's node name case-insensitively ("wheel_lf_002" matches "wheel_lf_002_ac3dmat126_0"); use the
+Node prefixes match the primitive's node name case-insensitively ("wheel_lf_002" matches "wheel_lf_002_ac3dmat126_0"; a trailing `$` = the whole name: "Object_20$"); use the
 LEFT wheel (outer face towards +x). The hub is the tyre's centroid (a tyre is symmetric about its centre plane), the axle is the
 smallest principal axis of the tyre's vertices; the wheel is rotated about the hub so the axle is exactly +x, which removes camber
 (the game's wheels are upright). Output frame: STL z = axle (outer face at z max), STL y = up, a proper rotation of the model's.
@@ -33,7 +33,10 @@ prims = primitives(g, binary)
 
 
 def pick(names):
-    sel = [T for n, _, T in prims if any(n.lower().startswith(p.lower()) for p in names.split(','))]
+    def hit(n, p):
+        return n.lower() == p[:-1].lower() if p.endswith('$') else n.lower().startswith(p.lower())
+
+    sel = [T for n, _, T in prims if any(hit(n, p) for p in names.split(','))]
     if not sel:
         sys.exit(f'no primitive starts with {names}')
     return np.concatenate(sel)

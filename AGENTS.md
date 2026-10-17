@@ -24,7 +24,7 @@
   the file AND of derivatives (CC0, CC BY, CC BY-SA, MIT ...). "Personal use only", "Standard Digital File License" (MakerWorld /
   Printables default), no-derivatives and non-commercial files stay out of git and `public/`. Converted models are derivatives.
   Unknown licence = NOT allowed; ask the user. Exception: a CC BY-NC model may ship with the owner's explicit OK, marked NC in
-  every credit (only `subie_22b` so far).
+  every credit (none now).
 - **Every external source gets a row** in the car / map README credits table (public) and its `DETAILS.md` (local,
   git-ignored) and, if it ships, in `THIRD-PARTY.md` + `public/models/CREDITS.md`. Keep CC BY / ODbL attribution current in
   the `credit` / `meta.sources` strings and the About links (`info.ts`).
@@ -103,6 +103,10 @@ into `DETAILS.md`, never up.
 
 ## Conventions
 
+- **Realism first** (rally above all): the aim is a world that looks real up close, not a cheap stand-in. Good models, then fewer
+  triangles: simplify a supplied model only where nothing visible is lost, keep its own textures, lamps and grille (no re-colouring,
+  no invented parts), and compare close-ups of the front, lamps, grille and wheels with the source before calling it done. If a
+  simplification costs quality, undo it; measure the cost on the reference devices.
 - Determinism: procedural content uses `src/shared/rng.ts` / `noise.ts` with explicit seeds.
 - Rendering: never clone geometry / materials per instance; asset library + InstancedMesh.
 - Physics (`src/games/rally/physics`, `world/` logic) stays DOM-free so tests run in node.

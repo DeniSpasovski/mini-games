@@ -57,10 +57,8 @@ export type PartName =
   | 'tailc4'
   | 'redcover'
   | 'brakecover'
-  | 'headlight22'
-  | 'tail22'
-  | 'corner22'
-  | 'indic22'
+  | 'brakered'
+  | 'brakestripred'
   | 'flagblue'
   | 'flagwhite'
   | 'flagred'
@@ -84,14 +82,64 @@ function headLamp<M extends Material & { emissiveIntensity: number }>(
 /**
  * Brake lamp (CarModel.setBrake): emissive from its idle value to `on` with the brake down. `reverseGlow` = an
  * emissive map that lights only the white reversing section; CarModel swaps it in while the car is in reverse gear.
+ * `night` = the extra glow with the lights on (default `TAIL_NIGHT_GLOW`): keep it well under `on` or the brake shows no step.
  */
 function lamp(
   m: MeshPhysicalMaterial,
   on: number,
   reverseGlow?: CanvasTexture,
+  night?: number,
 ): MeshPhysicalMaterial {
-  m.userData.brakeLamp = { off: m.emissiveIntensity, on, reverseGlow };
+  m.userData.brakeLamp = { off: m.emissiveIntensity, on, reverseGlow, night };
   return m;
+}
+
+/** Red see-through lens cover (transparent over a modelled lamp) that glows `emissive` up to intensity `on` with the brake down. */
+function brakeCover(
+  emissive: number,
+  opacity: number,
+  on: number,
+  night?: number,
+): MeshPhysicalMaterial {
+  return lamp(
+    new MeshPhysicalMaterial({
+      color: 0xb3151c,
+      emissive,
+      emissiveIntensity: 0.2,
+      roughness: 0.03,
+      metalness: 0,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+      clearcoat: 1,
+      clearcoatRoughness: 0.02,
+      envMapIntensity: 1.5,
+    }),
+    on,
+    undefined,
+    night,
+  );
+}
+
+/** Dark red bumper reflector strip that glows `emissive` up to intensity `on` with the brake down. */
+function brakeStrip(
+  emissive: number,
+  on: number,
+  night?: number,
+): MeshPhysicalMaterial {
+  return lamp(
+    new MeshPhysicalMaterial({
+      color: 0xa30f17,
+      emissive,
+      emissiveIntensity: 0,
+      roughness: 0.25,
+      metalness: 0.3,
+      clearcoat: 1,
+    }),
+    on,
+    undefined,
+    night,
+  );
 }
 
 export function partMaterial(name: string): Material | undefined {
@@ -153,14 +201,37 @@ function sheetFor(file: string): Promise<HTMLImageElement> {
   return sheet;
 }
 
+/** Pixels of the sheet joined to `seed` (x, y) through non-black pixels: one lens, cut off from its neighbours by a dark outline. */
+function lensRegion(
+  px: Uint8ClampedArray,
+  [sx, sy]: [number, number],
+): Uint8Array {
+  const inside = new Uint8Array(SRC_SIZE * SRC_SIZE);
+  const todo = [sy * SRC_SIZE + sx];
+  while (todo.length) {
+    const i = todo.pop()!;
+    const p = i * 4;
+    if (inside[i] || px[p] + px[p + 1] + px[p + 2] < 77) continue;
+    inside[i] = 1;
+    const x = i % SRC_SIZE;
+    if (x > 0) todo.push(i - 1);
+    if (x < SRC_SIZE - 1) todo.push(i + 1);
+    if (i >= SRC_SIZE) todo.push(i - SRC_SIZE);
+    if (i < SRC_SIZE * (SRC_SIZE - 1)) todo.push(i + SRC_SIZE);
+  }
+  return inside;
+}
+
 /**
  * A part that keeps the source model's own texture and UVs (scripts/car-model/glb-src-parts.py): material name
  * `src:<kind>:<file in public/models/cars/>`. `int` = the sheet as it is (seat fabric, cockpit), matt, back faces dark; `shell` (no file) = dark plastic;
- * `lamp` = the sheet, its bright pixels glow (head lamps, indicators); `tail` = brake lamp (setBrake): the red pixels glow, the bright neutral ones light in reverse. The maps
+ * `lamp` = the sheet, its bright pixels glow (head lamps, indicators); `tail` = brake lamp (setBrake): the red pixels glow, the bright neutral ones light in reverse
+ * (`src:tail:<file>:<x>,<y>` = only the lens around that sheet pixel, when the clear ribbed trim behind the red cover must stay dark). The maps
  * stay dark until the sheet has loaded. Alpha comes from the sheet (clear lens areas show the reflector behind them).
  */
 function srcPart(name: string): Material {
-  const [, kind, file] = name.split(':');
+  const [, kind, file, seedText] = name.split(':');
+  const seed = seedText?.split(',').map(Number) as [number, number] | undefined;
   // Closed back of an open source shell (glb-src-parts.py `shells`): dark plastic.
   if (kind === 'shell')
     return new MeshStandardMaterial({ color: 0x0b0b0c, roughness: 0.6 });
@@ -207,12 +278,12 @@ function srcPart(name: string): Material {
       const px = g.getImageData(0, 0, SRC_SIZE, SRC_SIZE).data;
       const paint = (
         t: CanvasTexture,
-        f: (r: number, gr: number, b: number) => number,
+        f: (r: number, gr: number, b: number, n: number) => number,
       ) => {
         const c = (t.image as HTMLCanvasElement).getContext('2d')!;
         const d = c.createImageData(SRC_SIZE, SRC_SIZE);
         for (let i = 0; i < px.length; i += 4) {
-          const v = f(px[i], px[i + 1], px[i + 2]) * (px[i + 3] / 255);
+          const v = f(px[i], px[i + 1], px[i + 2], i >> 2) * (px[i + 3] / 255);
           d.data[i] = px[i] * v;
           d.data[i + 1] = px[i + 1] * v;
           d.data[i + 2] = px[i + 2] * v;
@@ -224,8 +295,11 @@ function srcPart(name: string): Material {
       const lum = (r: number, gr: number, b: number) => (r + gr + b) / 765;
       if (kind === 'tail') {
         paint(glow, (r, gr) => (r > 2 * gr + 40 ? 1 : 0));
-        paint(reverseGlow!, (r, gr, b) =>
-          Math.max(r, gr, b) - Math.min(r, gr, b) < 40 && lum(r, gr, b) > 0.6
+        const lens = seed && lensRegion(px, seed);
+        paint(reverseGlow!, (r, gr, b, n) =>
+          (!lens || lens[n]) &&
+          Math.max(r, gr, b) - Math.min(r, gr, b) < 40 &&
+          lum(r, gr, b) > 0.6
             ? 1
             : 0,
         );
@@ -316,243 +390,6 @@ function lensWeave(): { map: CanvasTexture; normal: CanvasTexture } {
     };
   }
   return weaveTiles;
-}
-
-/**
- * Lamp art of the Subaru 22B (rally car source model): its own headlight, tail lamp, corner lens and lower indicator, baked from
- * the model's lamp textures into lamp space (`parts.wrap` 'corner': u from the car's centre outwards, v top down) by
- * scripts/car-model/bake-lamp-sheet.py. One sheet, four rectangles (the script prints them) in three rows: base colour, emissive,
- * normal map.
- */
-const LAMPS22 = {
-  file: 'subie_22b_lamps.png',
-  /** Pitch of the sheet's rows (base colour, emissive, normal map). */
-  row: 114,
-  head: { x: 0, y: 0, w: 293, h: 107 },
-  tail: { x: 293, y: 0, w: 457, h: 105 },
-  corner: { x: 750, y: 0, w: 188, h: 114 },
-  indic: { x: 938, y: 0, w: 227, h: 35 },
-  /** The tail lamp's two round lamps (centre u, v, radius u, v; the rings of its emissive map) = model.source.json `lampCups`. */
-  tailBowls: [
-    [0.19, 0.33, 0.069, 0.26],
-    [0.361, 0.33, 0.08, 0.27],
-  ],
-  /** Reversing section of the tail lamp (fractions of the lamp): the clear block at the inner end of the amber band. */
-  rev: { u0: 0.01, u1: 0.18, v0: 0.6, v1: 0.92 },
-};
-type Rect = { x: number; y: number; w: number; h: number };
-
-let lampSheet: Promise<HTMLImageElement> | undefined;
-function loadLampSheet(): Promise<HTMLImageElement> {
-  lampSheet ??= new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = new URL(`models/cars/${LAMPS22.file}`, location.href).href;
-  });
-  return lampSheet;
-}
-
-/** Rows of the lamp sheet (one under the other, `LAMPS22.row` px apart): base colour, emissive, normal map. */
-type LampPx = (
-  px: Uint8ClampedArray,
-  i: number,
-  u: number,
-  v: number,
-  rows: Uint8ClampedArray[],
-) => [number, number, number];
-
-/**
- * Fill each map with a rectangle of the lamp sheet once it has loaded; `glow(base, i, u, v, rows)` makes the map's pixel from
- * the base-colour row (`base`) or any sheet row (`rows[0..2]`, same pixel index).
- */
-function paintLamp22(
-  rect: Rect,
-  maps: { tex: CanvasTexture; glow: LampPx }[],
-): void {
-  loadLampSheet()
-    .then((img) => {
-      for (const { tex, glow } of maps) {
-        const c = tex.image as HTMLCanvasElement;
-        const g = c.getContext('2d')!;
-        const rows = [0, 1, 2].map((r) => {
-          g.clearRect(0, 0, c.width, c.height);
-          g.drawImage(
-            img,
-            rect.x,
-            rect.y + r * LAMPS22.row,
-            rect.w,
-            rect.h,
-            0,
-            0,
-            c.width,
-            c.height,
-          );
-          return g.getImageData(0, 0, c.width, c.height).data;
-        });
-        const d = g.getImageData(0, 0, c.width, c.height);
-        for (let y = 0; y < c.height; y++)
-          for (let x = 0; x < c.width; x++) {
-            const i = (y * c.width + x) * 4;
-            const [r, gr, b] = glow(
-              rows[0],
-              i,
-              x / c.width,
-              y / c.height,
-              rows,
-            );
-            d.data[i] = r;
-            d.data[i + 1] = gr;
-            d.data[i + 2] = b;
-            d.data[i + 3] = 255;
-          }
-        g.putImageData(d, 0, 0);
-        tex.needsUpdate = true;
-      }
-    })
-    .catch(() => {}); // no sheet: the dark placeholder stays
-}
-
-/** A flat normal map placeholder (filled from the sheet's normal row by paintLamp22). */
-function lampNormal22(rect: Rect, scale = 2): CanvasTexture {
-  return canvas(
-    rect.w * scale,
-    rect.h * scale,
-    (g) => {
-      g.fillStyle = '#8080ff';
-      g.fillRect(0, 0, rect.w * scale, rect.h * scale);
-    },
-    false,
-  );
-}
-const NORMAL_ROW: LampPx = (_p, i, _u, _v, rows) => [
-  rows[2][i],
-  rows[2][i + 1],
-  rows[2][i + 2],
-];
-
-/** A small lamp of the sheet as a plain colour map (corner lens, front indicator). */
-function lampMap22(rect: Rect): CanvasTexture {
-  const map = canvas(rect.w * 4, rect.h * 4, (g) => {
-    g.fillStyle = '#1a1a1c';
-    g.fillRect(0, 0, rect.w * 4, rect.h * 4);
-  });
-  paintLamp22(rect, [{ tex: map, glow: (p, i) => [p[i], p[i + 1], p[i + 2]] }]);
-  return map;
-}
-
-function headlight22Maps(): {
-  map: CanvasTexture;
-  glow: CanvasTexture;
-  normal: CanvasTexture;
-} {
-  const W = LAMPS22.head.w * 2;
-  const H = LAMPS22.head.h * 2;
-  const normal = lampNormal22(LAMPS22.head);
-  const map = canvas(W, H, (g) => {
-    g.fillStyle = '#0d0e10';
-    g.fillRect(0, 0, W, H);
-  });
-  const glow = canvas(W, H, (g) => {
-    g.fillStyle = '#000';
-    g.fillRect(0, 0, W, H);
-  });
-  // The map is the sheet as it is; the glow lights the bright reflector facets (squared brightness).
-  paintLamp22(LAMPS22.head, [
-    { tex: map, glow: (p, i) => [p[i], p[i + 1], p[i + 2]] },
-    {
-      tex: glow,
-      glow: (p, i) => {
-        const l = (p[i] + p[i + 1] + p[i + 2]) / 765;
-        const v = l * l * 255;
-        return [v, v, v * 0.92];
-      },
-    },
-    { tex: normal, glow: NORMAL_ROW },
-  ]);
-  return { map, glow, normal };
-}
-
-/** Tail lamp alpha: opaque lens, see-through windows over the round lamps (LAMPS22.tailBowls) with a soft edge. */
-function tail22Windows(): CanvasTexture {
-  const W = LAMPS22.tail.w * 2;
-  const H = LAMPS22.tail.h * 2;
-  return canvas(
-    W,
-    H,
-    (g) => {
-      g.fillStyle = '#fff';
-      g.fillRect(0, 0, W, H);
-      for (const [u, v, ru, rv] of LAMPS22.tailBowls) {
-        g.save();
-        g.translate(u * W, v * H);
-        g.scale(ru * W, rv * H);
-        const r = g.createRadialGradient(0, 0, 0.8, 0, 0, 1);
-        r.addColorStop(0, '#4d4d4d');
-        r.addColorStop(1, '#ffffff');
-        g.fillStyle = r;
-        g.beginPath();
-        g.arc(0, 0, 1, 0, Math.PI * 2);
-        g.fill();
-        g.restore();
-      }
-    },
-    false,
-  );
-}
-
-/**
- * Subaru 22B tail lamp: the model's own lamp - red lens round the corner with a clear band underneath; the inner end of the
- * band is the reversing lamp (`reverseGlow` lights only that). Brake / tail glow = the red pixels.
- */
-function tail22Maps(): {
-  map: CanvasTexture;
-  glow: CanvasTexture;
-  reverseGlow: CanvasTexture;
-  normal: CanvasTexture;
-} {
-  const W = LAMPS22.tail.w * 2;
-  const H = LAMPS22.tail.h * 2;
-  const fill = (c: string) => (g: CanvasRenderingContext2D) => {
-    g.fillStyle = c;
-    g.fillRect(0, 0, W, H);
-  };
-  const map = canvas(W, H, fill('#7a0a12'));
-  const glow = canvas(W, H, fill('#000'));
-  const reverseGlow = canvas(W, H, fill('#000'));
-  const R = LAMPS22.rev;
-  const normal = lampNormal22(LAMPS22.tail);
-  paintLamp22(LAMPS22.tail, [
-    {
-      // The lens over the two round lamp bowls: lighter where the bowls glow, darker between them (depth in daylight).
-      tex: map,
-      glow: (p, i, _u, _v, rows) => {
-        const k = 0.72 + 0.45 * (rows[1][i] / 255);
-        return [p[i] * k, p[i + 1] * k, p[i + 2] * k];
-      },
-    },
-    // Tail / brake glow: the model's own emissive map (two ringed round lamps and the outer cells), kept red at brake strength.
-    {
-      tex: glow,
-      glow: (_p, i, _u, _v, rows) => [
-        Math.min(255, rows[1][i] * 1.15),
-        rows[1][i + 1] * 0.35,
-        rows[1][i + 2] * 0.3,
-      ],
-    },
-    {
-      tex: reverseGlow,
-      glow: (p, i, u, v) => {
-        const inside = u >= R.u0 && u <= R.u1 && v >= R.v0 && v <= R.v1;
-        const l = (p[i] + p[i + 1] + p[i + 2]) / 765;
-        const v2 =
-          inside && p[i] < 2 * p[i + 1] + 40 ? Math.min(255, l * l * 700) : 0;
-        return [v2, v2, v2];
-      },
-    },
-    { tex: normal, glow: NORMAL_ROW },
-  ]);
-  return { map, glow, reverseGlow, normal };
 }
 
 /**
@@ -1895,46 +1732,6 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoat: 1,
       clearcoatRoughness: 0.05,
     }),
-  /** Subaru 22B headlight: the model's own multi-reflector lamp, see headlight22Maps - needs `parts.wrap` 'corner'. */
-  headlight22: () => {
-    const { map, glow, normal } = headlight22Maps();
-    return headLamp(
-      new MeshPhysicalMaterial({
-        map,
-        normalMap: normal,
-        emissive: 0xffffff,
-        emissiveMap: glow,
-        emissiveIntensity: 0.6,
-        roughness: 0.16,
-        metalness: 0.15,
-        clearcoat: 1,
-        clearcoatRoughness: 0.04,
-      }),
-      5,
-    );
-  },
-  /** Subaru 22B tail lamp: the model's own red lens with a clear band, see tail22Maps - needs `parts.wrap` 'corner'. */
-  tail22: () => {
-    const { map, glow, reverseGlow, normal } = tail22Maps();
-    return lamp(
-      new MeshPhysicalMaterial({
-        map,
-        normalMap: normal,
-        // See-through over the two round lamps: the real cups behind it (`lampcup`, model.source.json `lampCups`).
-        alphaMap: tail22Windows(),
-        transparent: true,
-        emissive: 0xffffff,
-        emissiveMap: glow,
-        emissiveIntensity: 0.5,
-        roughness: 0.16,
-        metalness: 0.05,
-        clearcoat: 1,
-        clearcoatRoughness: 0.05,
-      }),
-      5,
-      reverseGlow,
-    );
-  },
   /** Round lamp cup behind a see-through lens (chrome reflector seen through red), glows with the tail / brake light. */
   lampcup: () =>
     lamp(
@@ -1960,27 +1757,6 @@ const BUILDERS: Record<PartName, () => Material> = {
       }),
       6,
     ),
-  /** Subaru 22B clear corner lens (front fender), the model's own art - needs `parts.wrap` 'corner'. */
-  corner22: () =>
-    new MeshPhysicalMaterial({
-      map: lampMap22(LAMPS22.corner),
-      roughness: 0.16,
-      clearcoat: 1,
-      clearcoatRoughness: 0.05,
-    }),
-  /** Subaru 22B front indicator, the model's own art, lit - needs `parts.wrap` 'corner'. */
-  indic22: () => {
-    const map = lampMap22(LAMPS22.indic);
-    return new MeshPhysicalMaterial({
-      map,
-      emissive: 0xffffff,
-      emissiveMap: map,
-      emissiveIntensity: 0.35,
-      roughness: 0.2,
-      clearcoat: 1,
-      clearcoatRoughness: 0.05,
-    });
-  },
   tail: () => {
     const { map, glow, reverseGlow } = tailMaps();
     return lamp(
@@ -2099,18 +1875,9 @@ const BUILDERS: Record<PartName, () => Material> = {
       3.2,
     ),
   /** Bumper corner strip: dark red reflector while off, lights like `tailled` with the brake pedal (setBrake). */
-  brakestrip: () =>
-    lamp(
-      new MeshPhysicalMaterial({
-        color: 0xa30f17,
-        emissive: 0xff2010,
-        emissiveIntensity: 0,
-        roughness: 0.25,
-        metalness: 0.3,
-        clearcoat: 1,
-      }),
-      3.2,
-    ),
+  brakestrip: () => brakeStrip(0xff2010, 3.2),
+  /** `brakestrip` with a pure red glow, softer at night: reads red (not orange) when braking. */
+  brakestripred: () => brakeStrip(0xff0000, 1.8, 0.6),
   /** Modelled reversing lamp: matte white, dark until the car is in reverse gear (setBrake `reversing`), never lit by the brake. */
   reverselamp: () =>
     lamp(
@@ -2188,23 +1955,9 @@ const BUILDERS: Record<PartName, () => Material> = {
       envMapIntensity: 1.5,
     }),
   /** Red see-through cover that lights with the brake pedal (setBrake), like `tailled`. */
-  brakecover: () =>
-    lamp(
-      new MeshPhysicalMaterial({
-        color: 0xb3151c,
-        emissive: 0xff2010,
-        emissiveIntensity: 0.2,
-        roughness: 0.03,
-        metalness: 0,
-        transparent: true,
-        opacity: 0.55,
-        depthWrite: false,
-        clearcoat: 1,
-        clearcoatRoughness: 0.02,
-        envMapIntensity: 1.5,
-      }),
-      4,
-    ),
+  brakecover: () => brakeCover(0xff2010, 0.55, 4),
+  /** `brakecover` with a denser cover and a pure red glow: stays red (not salmon) over a white lens when braking. */
+  brakered: () => brakeCover(0xff0000, 0.7, 1.8, 0.6),
   reflector: () =>
     new MeshPhysicalMaterial({
       color: 0xa30f17,

@@ -2,14 +2,15 @@
  * Boxy profile of a car GLB (`CarProfile`, cars/shared/profile-body.ts): the car's fallback body when the GLB can't
  * load, and the street cars of the city maps (assets/builders/vehicles.ts).
  *
- *   node scripts/car-model/side-profile.mjs <car.glb> --axles <front z>,<rear z> --wheel <radius> [--tol 0.03]
+ *   node scripts/car-model/side-profile.mjs <car.glb> --axles <front z>,<rear z> --wheel <radius> [--tol 0.03] [--width <m>]
  *
  * Reads the plain GLB (model space: y = 0 ground, +z nose), projects every triangle onto the side (z, y) on a 1 cm
  * grid, opens it (drops antennae / wipers thinner than ~6 cm), cuts a round arch over each axle (wheel radius + 4 cm,
  * hub at y = radius), takes the top + bottom edge per column and simplifies that outline to `--tol` metres (boxy).
- * Width = the x extent of the painted `body` material (no mirrors / trim). Tags: `glass` = the side projection of the
- * glass grown 2 cm (so it stands proud of the windscreen / rear window), `lamps` = the box (x0, x1, y0, y1) of the
- * left head / tail lamps seen from the front / back. Prints `profile.ts` for the car folder.
+ * Width = the x extent of the painted `body` material (no mirrors / trim); `--width` sets it when the mirrors are painted
+ * with the body. Tags: `glass` = the side projection of the glass grown 2 cm (so it stands proud of the windscreen / rear
+ * window), `lamps` = the box (x0, x1, y0, y1) of the left head / tail lamps seen from the front / back. Prints `profile.ts`
+ * for the car folder.
  */
 import fs from 'node:fs';
 
@@ -21,7 +22,7 @@ const opt = (name, def) => {
 const file = args[0];
 if (!file || !opt('axles') || !opt('wheel')) {
   console.error(
-    'usage: side-profile.mjs <car.glb> --axles <front z>,<rear z> --wheel <radius> [--tol 0.03]',
+    'usage: side-profile.mjs <car.glb> --axles <front z>,<rear z> --wheel <radius> [--tol 0.03] [--width <m>]',
   );
   process.exit(1);
 }
@@ -65,11 +66,10 @@ const LAMPS = new Set([
   'lampclear',
   'lampred',
   'brakestrip',
+  'brakestripred',
   'tailweave',
   'lensweave',
   'redcover',
-  'headlight22',
-  'tail22',
 ]);
 const tris = []; // [z0, y0, z1, y1, z2, y2]
 const glassTris = [];
@@ -340,10 +340,10 @@ console.log(`import type { CarProfile } from '../shared/types';
 /**
  * Boxy profile (cars/shared/profile-body.ts): the fallback body when the GLB can't load and the street car of the
  * city maps. Baked from the GLB - do not edit by hand:
- *   node scripts/car-model/side-profile.mjs ${file} --axles ${axles.join(',')} --wheel ${wheel}${tol !== 0.03 ? ` --tol ${tol}` : ''}
+ *   node scripts/car-model/side-profile.mjs ${file} --axles ${axles.join(',')} --wheel ${wheel}${tol !== 0.03 ? ` --tol ${tol}` : ''}${opt('width') ? ` --width ${opt('width')}` : ''}
  */
 export const profile: CarProfile = {
-  width: ${r3(halfWidth * 2)},
+  width: ${opt('width') ? Number(opt('width')) : r3(halfWidth * 2)},
   axles: [${axles.join(', ')}],
   wheel: ${wheel},
   outline: [${flat(outline)}],

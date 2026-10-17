@@ -20,17 +20,24 @@ import { RENDER_MARGIN, type World } from './world';
  *  - LOD by distance: vertex step 1/2/4/8 cells. LOD0 reads the cached
  *    heightfield (exact match with physics), LOD1-3 sample the generator
  *    directly at coarse resolution so far terrain never fills the cache.
- *  - Far tiles merge chunks to save draw calls: 2 x 2 chunks once a block is all
- *    LOD2, 4 x 4 once it is all LOD3 (same vertex spacing, one mesh each).
+ *  - Chunks merge into bigger tiles inside one detail band to save draw calls (2 x 2 from LOD1, 4 x 4 from LOD2,
+ *    8 x 8 at LOD3; same vertex spacing, one mesh each). A tile that splits or merges at the same LOD copies the
+ *    vertices of the tiles it replaces instead of sampling the generator again (`reuse`). `blockLod` keeps the bands of the unmerged streamer, so merging
+ *    never makes a chunk coarser; a tile may reach `MERGE_SLACK` tile sizes past its band end (at LOD3 past the
+ *    view distance) instead of splitting along every band edge.
  *  - Skirts hide cracks between neighbouring LODs.
  *  - Index buffers are shared per grid size (same topology for every tile).
  *  - Work is time-sliced: `update()` builds tiles until its ms budget is used.
  *    A replaced tile stays until every tile covering its area is built.
  */
 const STEPS = [1, 2, 4, 8];
-/** Merged tile sizes (chunks per side) -> the LOD they need: 2 x 2 at LOD2, 4 x 4 at LOD3. */
-const MERGE: Record<number, number> = { 2: 2, 4: 3 };
-const TOP = 4;
+/** Merged tile sizes (chunks per side) -> the lowest LOD that merges at that size. */
+const MERGE: Record<number, number> = { 2: 1, 4: 2, 8: 3 };
+const TOP = 8;
+/** How far (in tile sizes) a merged tile may reach past its band end / the view distance. Without it the tiles fragment along every band edge. */
+const MERGE_SLACK = 2;
+/** Generator grids with more vertices per side than this are sampled across several `update()` calls. */
+const SLICE_ABOVE = 33;
 /** Metres of camera travel before the tile plan is redone (well inside the 10% LOD hysteresis). */
 const REPLAN = 8;
 
@@ -51,6 +58,23 @@ interface Want {
   d: number;
 }
 
+/** Vertex data of a tile's n x n grid plus room for its skirts. */
+interface Vertices {
+  pos: Float32Array;
+  nor: Float32Array;
+  spl: Uint8Array;
+}
+
+/** A big generator tile being sampled over several `update()` calls. */
+interface SampleJob extends Vertices {
+  w: Want;
+  grid: TerrainGrid;
+  n: number;
+  /** Next height row / vertex row to sample. */
+  hrow: number;
+  vrow: number;
+}
+
 export interface TerrainOptions {
   viewDistance: number;
   /** Distance thresholds between LODs (m). */
@@ -63,6 +87,8 @@ export class TerrainRenderer {
   private indexCache = new Map<number, BufferAttribute>();
   private lodDistances: [number, number, number];
   private cs: number;
+  /** Chunks inside the map (+ margin): merged tiles need all their chunks in here. */
+  private lim: { x0: number; x1: number; z0: number; z1: number };
   private heightAbove = 0;
   /** Where the tile plan was last made (re-planned after REPLAN m of travel). */
   private planned = { x: Infinity, z: Infinity, h: 0 };
@@ -70,6 +96,7 @@ export class TerrainRenderer {
   /** Builds of the current plan, nearest first; `next` = the first not yet done. */
   private todo: Want[] = [];
   private next = 0;
+  private job: SampleJob | null = null;
   /** Tile builds still wanted (for loading screens / stats). */
   pending = 0;
 
@@ -79,7 +106,14 @@ export class TerrainRenderer {
   ) {
     this.group.name = 'terrain';
     this.lodDistances = opts.lodDistances ?? [150, 320, 640];
-    this.cs = world.heightfield.chunkSize;
+    const cs = (this.cs = world.heightfield.chunkSize);
+    const b = world.map.bounds;
+    this.lim = {
+      x0: Math.floor((b.minX - RENDER_MARGIN) / cs),
+      x1: Math.floor((b.maxX + RENDER_MARGIN) / cs),
+      z0: Math.floor((b.minZ - RENDER_MARGIN) / cs),
+      z1: Math.floor((b.maxZ + RENDER_MARGIN) / cs),
+    };
     setGroundTint(world.map.environment.groundTint);
     setGroundMoisture(world.moisture);
   }
@@ -127,7 +161,19 @@ export class TerrainRenderer {
       // LOD0 needs the 1 m heightfield: generate it time-sliced, build the mesh when ready.
       if (w.lod === 0 && !this.world.heightfield.prepare(w.cx, w.cz, deadline))
         break;
-      this.buildTile(w);
+      // Tiles that only split / merge at the same LOD copy their vertices from the tiles they replace.
+      let job: Vertices | undefined = w.lod > 0 ? this.reuse(w) : undefined;
+      // Big generator tiles (merged 4 x 4 and up) are sampled a few rows at a time.
+      if (
+        !job &&
+        w.lod > 0 &&
+        (w.span * CHUNK_CELLS) / STEPS[w.lod] > SLICE_ABOVE
+      ) {
+        job = this.sample(w, deadline);
+        if (!job) break;
+      }
+      this.buildTile(w, job);
+      this.job = null;
       built++;
     }
     this.pending = todo.length - this.next;
@@ -138,41 +184,40 @@ export class TerrainRenderer {
 
   /** Wanted tiles around `focus` and the builds they need, nearest first. */
   private plan(focus: Vector3): void {
-    const b = this.world.map.bounds;
-    const m = RENDER_MARGIN;
     const vd = this.opts.viewDistance;
     const cs = this.cs;
     // Chunks inside the map (+ margin); single chunks also stay inside the view square.
-    const lx0 = Math.floor((b.minX - m) / cs);
-    const lx1 = Math.floor((b.maxX + m) / cs);
-    const lz0 = Math.floor((b.minZ - m) / cs);
-    const lz1 = Math.floor((b.maxZ + m) / cs);
+    const { x0: lx0, x1: lx1, z0: lz0, z1: lz1 } = this.lim;
     const cx0 = Math.max(lx0, Math.floor((focus.x - vd) / cs));
     const cx1 = Math.min(lx1, Math.floor((focus.x + vd) / cs));
     const cz0 = Math.max(lz0, Math.floor((focus.z - vd) / cs));
     const cz1 = Math.min(lz1, Math.floor((focus.z + vd) / cs));
 
-    // Wanted tiles: split each 4 x 4 block until its parts are far enough to merge.
+    // Wanted tiles: split each 8 x 8 block until it lies inside one detail band (a merged tile takes the band of its
+    // nearest chunk and may reach `MERGE_SLACK` tile sizes into the next one).
     const want = new Map<number, Want>();
     const visit = (cx: number, cz: number, span: number): void => {
       const d = this.tileDistance(cx, cz, span, focus);
       if (d > vd) return;
+      const k = key(cx, cz, span);
+      const lod = this.blockLod(cx, cz, span, d, focus, this.tiles.get(k)?.lod);
       if (span === 1) {
         if (cx < cx0 || cx > cx1 || cz < cz0 || cz > cz1) return;
-        const k = key(cx, cz, 1);
-        const lod = this.lodFor(d, this.tiles.get(k)?.lod);
         want.set(k, { cx, cz, span, lod, d });
         return;
       }
-      const lod = MERGE[span];
-      const k = key(cx, cz, span);
-      const inMap =
-        cx >= lx0 && cx + span - 1 <= lx1 && cz >= lz0 && cz + span - 1 <= lz1;
-      // Hysteresis: merge 10% past the threshold, split again right at it.
-      const t = this.lodDistances[lod - 1] * (this.tiles.has(k) ? 1 : 1.1);
-      if (inMap && d >= t) {
-        want.set(k, { cx, cz, span, lod, d });
-        return;
+      if (this.inMap(cx, cz, span) && lod >= MERGE[span]) {
+        // The band ends where the next LOD starts, unless none follows (LOD3, or the aligned 4 x 4 block hangs over
+        // the map edge, which keeps its chunks at LOD2).
+        const last =
+          lod >= 3 ||
+          !this.inMap(Math.floor(cx / 4) * 4, Math.floor(cz / 4) * 4, 4);
+        const end =
+          (last ? vd : this.lodDistances[lod] * 1.1) + MERGE_SLACK * span * cs;
+        if (this.tileFarDistance(cx, cz, span, focus) <= end) {
+          want.set(k, { cx, cz, span, lod, d });
+          return;
+        }
       }
       const h = span / 2;
       for (let j = 0; j < 2; j++)
@@ -231,6 +276,63 @@ export class TerrainRenderer {
     return Math.hypot(dx, dz, this.heightAbove);
   }
 
+  private inMap(cx: number, cz: number, span: number): boolean {
+    const l = this.lim;
+    return (
+      cx >= l.x0 && cx + span - 1 <= l.x1 && cz >= l.z0 && cz + span - 1 <= l.z1
+    );
+  }
+
+  /** Distance to the far corner of a tile (m). */
+  private tileFarDistance(
+    cx: number,
+    cz: number,
+    span: number,
+    p: Vector3,
+  ): number {
+    const cs = this.cs;
+    const dx = Math.max(
+      Math.abs(cx * cs - p.x),
+      Math.abs((cx + span) * cs - p.x),
+    );
+    const dz = Math.max(
+      Math.abs(cz * cs - p.z),
+      Math.abs((cz + span) * cs - p.z),
+    );
+    return Math.hypot(dx, dz, this.heightAbove);
+  }
+
+  /**
+   * LOD of a chunk (or merged tile) as the unmerged streamer picks it: a chunk is as coarse as the aligned 2 x 2 /
+   * 4 x 4 block it sits in (when that block lies inside the map) once the block's nearest chunk is 10% past the
+   * band start, so a band really starts a block later than its nominal distance. Merged tiles keep these bands,
+   * so merging never costs detail.
+   */
+  private blockLod(
+    cx: number,
+    cz: number,
+    span: number,
+    d: number,
+    focus: Vector3,
+    current?: number,
+  ): number {
+    const t = this.lodDistances;
+    // Distance to the aligned block of that size (a tile at least that big is its own block: `visit` checked it).
+    const reach = (size: number): number => {
+      if (span >= size) return d;
+      const bx = Math.floor(cx / size) * size;
+      const bz = Math.floor(cz / size) * size;
+      return this.inMap(bx, bz, size)
+        ? this.tileDistance(bx, bz, size, focus)
+        : 0;
+    };
+    const past = (to: number): number =>
+      t[to - 1] * (current !== undefined && current >= to ? 1 : 1.1);
+    if (reach(4) >= past(3)) return 3;
+    if (reach(2) >= past(2)) return 2;
+    return Math.min(2, this.lodFor(d, current));
+  }
+
   private lodFor(d: number, current?: number): number {
     const t = this.lodDistances;
     // Hysteresis: stay at the current LOD unless 10% past the threshold.
@@ -242,10 +344,111 @@ export class TerrainRenderer {
     return 3;
   }
 
-  private buildTile(w: Want): void {
+  /**
+   * Vertices of tile `w` taken from built tiles at the same LOD that cover all its chunks (it splits off a bigger
+   * tile or merges smaller ones). The lattice is global, so a shared vertex has the same height, normal and splat
+   * in every tile; only the position is re-based on the new origin. Undefined when any chunk lacks such a tile.
+   */
+  private reuse(w: Want): Vertices | undefined {
+    const step = STEPS[w.lod];
+    const q = CHUNK_CELLS / step;
+    const n = w.span * q + 1;
+    const cover: Tile[] = [];
+    for (let j = 0; j < w.span; j++)
+      for (let i = 0; i < w.span; i++) {
+        const t = this.coveringTile(w.cx + i, w.cz + j);
+        if (!t || t.lod !== w.lod || t.span === w.span) return undefined;
+        cover.push(t);
+      }
+    const vcount = n * n + 4 * n;
+    const out: Vertices = {
+      pos: new Float32Array(vcount * 3),
+      nor: new Float32Array(vcount * 3),
+      spl: new Uint8Array(vcount * 4),
+    };
+    const d = step * this.world.heightfield.cell;
+    for (let j = 0; j < w.span; j++)
+      for (let i = 0; i < w.span; i++) {
+        const t = cover[j * w.span + i];
+        const sn = t.span * q + 1;
+        const sp = t.mesh.geometry.attributes.position.array as Float32Array;
+        const sno = t.mesh.geometry.attributes.normal.array as Float32Array;
+        const ssp = t.mesh.geometry.attributes.splat.array as Uint8Array;
+        const u0 = (w.cx + i - t.cx) * q;
+        const v0 = (w.cz + j - t.cz) * q;
+        for (let b = 0; b <= q; b++)
+          for (let a = 0; a <= q; a++) {
+            const s = (v0 + b) * sn + u0 + a;
+            const v = (j * q + b) * n + i * q + a;
+            out.pos[v * 3] = (i * q + a) * d;
+            out.pos[v * 3 + 1] = sp[s * 3 + 1];
+            out.pos[v * 3 + 2] = (j * q + b) * d;
+            for (let c = 0; c < 3; c++) out.nor[v * 3 + c] = sno[s * 3 + c];
+            for (let c = 0; c < 4; c++) out.spl[v * 4 + c] = ssp[s * 4 + c];
+          }
+      }
+    return out;
+  }
+
+  /** The built tile covering a chunk (the smallest if old and new overlap). */
+  private coveringTile(cx: number, cz: number): Tile | undefined {
+    for (let span = 1; span <= TOP; span *= 2) {
+      const t = this.tiles.get(
+        key(Math.floor(cx / span) * span, Math.floor(cz / span) * span, span),
+      );
+      if (t) return t;
+    }
+    return undefined;
+  }
+
+  /** Sample a tile's generator grid until `deadline`; returns the job once every row is done. */
+  private sample(w: Want, deadline: number): SampleJob | undefined {
+    let j = this.job;
+    if (
+      !j ||
+      j.w.cx !== w.cx ||
+      j.w.cz !== w.cz ||
+      j.w.span !== w.span ||
+      j.w.lod !== w.lod
+    ) {
+      const step = STEPS[w.lod];
+      const n = (w.span * CHUNK_CELLS) / step + 1;
+      const vcount = n * n + 4 * n;
+      j = this.job = {
+        w,
+        n,
+        grid: new TerrainGrid(
+          this.world.gen,
+          w.cx * this.cs,
+          w.cz * this.cs,
+          step * this.world.heightfield.cell,
+          n,
+          n,
+        ),
+        pos: new Float32Array(vcount * 3),
+        nor: new Float32Array(vcount * 3),
+        spl: new Uint8Array(vcount * 4),
+        hrow: 0,
+        vrow: 0,
+      };
+    }
+    while (j.hrow < j.n + 2) {
+      if (performance.now() > deadline) return undefined;
+      j.grid.heights(j.hrow, j.hrow + 1);
+      j.hrow++;
+    }
+    while (j.vrow < j.n) {
+      if (performance.now() > deadline) return undefined;
+      j.grid.vertices(j.vrow, j.vrow + 1, j.pos, j.nor, j.spl);
+      j.vrow++;
+    }
+    return j;
+  }
+
+  private buildTile(w: Want, sampled?: Vertices): void {
     const k = key(w.cx, w.cz, w.span);
     const old = this.tiles.get(k);
-    const geometry = this.buildGeometry(w.cx, w.cz, w.span, w.lod);
+    const geometry = this.buildGeometry(w.cx, w.cz, w.span, w.lod, sampled);
     if (old) {
       releaseGeometry(old.mesh.geometry);
       old.mesh.geometry = geometry;
@@ -268,13 +471,14 @@ export class TerrainRenderer {
     cz: number,
     span: number,
     lod: number,
+    sampled?: Vertices,
   ): BufferGeometry {
     const step = STEPS[lod];
     const n = (span * CHUNK_CELLS) / step + 1;
     const vcount = n * n + 4 * n;
-    const pos = new Float32Array(vcount * 3);
-    const nor = new Float32Array(vcount * 3);
-    const spl = new Uint8Array(vcount * 4);
+    const pos = sampled?.pos ?? new Float32Array(vcount * 3);
+    const nor = sampled?.nor ?? new Float32Array(vcount * 3);
+    const spl = sampled?.spl ?? new Uint8Array(vcount * 4);
     const cell = this.world.heightfield.cell;
     const skirt = 1.5 * step;
 
@@ -298,7 +502,7 @@ export class TerrainRenderer {
           for (let q = 0; q < 4; q++) spl[v * 4 + q] = c.splat[s * 4 + q];
         }
       }
-    } else {
+    } else if (!sampled) {
       // Coarse LODs sample the generator directly (no heightfield cache).
       const g = new TerrainGrid(
         this.world.gen,
@@ -382,6 +586,7 @@ export class TerrainRenderer {
   dispose(): void {
     for (const t of this.tiles.values()) this.disposeTile(t);
     this.tiles.clear();
+    this.job = null;
   }
 }
 
@@ -475,5 +680,5 @@ function releaseGeometry(g: BufferGeometry): void {
 }
 
 function key(cx: number, cz: number, span: number): number {
-  return ((cx + 32768) * 65536 + (cz + 32768)) * 8 + span;
+  return ((cx + 32768) * 65536 + (cz + 32768)) * 16 + span;
 }

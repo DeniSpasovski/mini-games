@@ -372,17 +372,27 @@ export const wallLamp: AssetBuilder = ({ lod }) => {
   };
 };
 
-/** Village name board on two posts (the board faces +Z): "Ajvatovci / Ајватовци". */
+/** Maps a plane's UVs into the texture's top (v0 = 0.5) or bottom (v0 = 0) half. */
+function halfUv(g: BufferGeometry, v0: number): void {
+  const uv = g.getAttribute('uv');
+  for (let i = 0; i < uv.count; i++) uv.setY(i, v0 + uv.getY(i) * 0.5);
+}
+
+/** Village name board on two posts (front faces +Z): "Ajvatovci / Ајватовци"; the back plate has the red slash. */
 export const villageSign: AssetBuilder = () => {
   const posts = merge([
     box(0.08, 2.4, 0.08, -0.9, 1.2, 0, '#8d9096'),
     box(0.08, 2.4, 0.08, 0.9, 1.2, 0, '#8d9096'),
   ]);
-  // Board: 2.1 x 0.79 m, both faces show the texture.
+  // Board: 2.1 x 0.79 m, two plates. The front shows the name; the back (seen when leaving)
+  // shows it struck through with a red slash. The texture holds the front in its top half,
+  // the back in its bottom half.
   const board = new PlaneGeometry(2.1, 0.79).translate(0, 2.0, 0.05);
   const back = new PlaneGeometry(2.1, 0.79)
     .rotateY(Math.PI)
-    .translate(0, 2.0, 0.04);
+    .translate(0, 2.0, -0.05);
+  halfUv(board, 0.5);
+  halfUv(back, 0);
   const bg = merge([paint(board, '#ffffff'), paint(back, '#ffffff')]);
   return {
     parts: [
