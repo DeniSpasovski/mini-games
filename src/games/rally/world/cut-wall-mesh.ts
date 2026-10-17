@@ -12,10 +12,11 @@ import { newRoadQuery } from './road';
 import { newPathQuery } from './real-data';
 import {
   APPROACH_WALL,
-  CUT_RISE,
   CUT_SETBACK,
+  cutShape,
   UNDERPASS_WALL,
 } from './terrain-gen';
+import { CUT_MIN_H } from './cut-wall-colliders';
 import type { World } from './world';
 
 /**
@@ -37,8 +38,7 @@ const STREETS = new Set([
   'living_street',
   'service',
 ]);
-/** Walls lower than this are not built (the terrain slope reads fine) (m). */
-const MIN_H = 0.9;
+const MIN_H = CUT_MIN_H;
 /** Underpass wall lines run this far past the ends of their way (m): a small overlap at the mitred joints. */
 const WALL_EXT = 0.3;
 /** Longest piece of one mesh (m of road). */
@@ -413,6 +413,7 @@ export function* cutWallMeshJob(
   }
 
   for (const line of lines) {
+    const shape = cutShape(line.path === undefined ? cw.solid : undefined);
     for (const side of [1, -1] as const) {
       let rows: WallRow[] = [];
       let gap = 0;
@@ -426,9 +427,10 @@ export function* cutWallMeshJob(
         const s = line.at(d);
         let top = NaN;
         let lat = side * (s.hw + line.offset - 0.05);
-        let back = lat + side * (CUT_SETBACK + CUT_RISE + 0.35);
+        let back = lat + side * (shape.setback + shape.rise + shape.over);
         if (!line.skip(d)) {
-          const lq = lat + side * (CUT_SETBACK + CUT_RISE + 0.45);
+          const lq =
+            lat + side * (shape.setback + shape.rise + shape.over + 0.1);
           const qx = s.x + s.tz * lq;
           const qz = s.z - s.tx * lq;
           const h = gen.height(qx, qz);
@@ -482,9 +484,9 @@ export function* cutWallMeshJob(
                 s.z - s.tx * l * side,
               );
               if (hx - s.y > 0.8) {
-                // 1.6 m: the smear of a step covers the cell before it too (the grid is not aligned to the road).
-                lat = side * Math.max(s.hw + 0.3, l - 1.6);
-                back = side * (l + CUT_RISE + 0.35);
+                // The smear of a step covers the cell before it too (the grid is not aligned to the road).
+                lat = side * Math.max(s.hw + 0.3, l - shape.margin);
+                back = side * (l + shape.rise + shape.over);
                 break;
               }
             }

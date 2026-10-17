@@ -38,6 +38,25 @@ import {
   STONE_ROAD_WIDTH,
   stoneRoadAreas,
 } from './lot-park';
+import {
+  BOARD,
+  buildBoard,
+  buildShelter,
+  buildSign,
+  buildTower,
+  GATE_AREAS,
+  SHELTER,
+  SIGN,
+  TOWER_LEFT,
+  TOWER_RIGHT,
+} from './gate';
+import {
+  HOTEL,
+  HOTEL_AREAS,
+  HOTEL_CARS,
+  buildHotelSite,
+  hotelColliders,
+} from './hotel';
 import { buildNereziChurch } from './nerezi-church';
 import {
   buildRestaurant,
@@ -47,6 +66,24 @@ import {
 } from './restaurant';
 import { buildLookout, buildRuins, ruinsLayout } from './outposts';
 import { buildSrednoChurch, NAVE_X0 } from './sredno-church';
+import {
+  BALCONY_BLOCK,
+  BALCONY_BOX,
+  BALCONY_SIZE,
+  blockRect,
+  buildBalconyBlock,
+  buildCurvedBlock,
+  CURVED_BLOCK,
+  CURVED_BOX,
+  CURVED_SIZE,
+  GARDEN,
+} from './start-blocks';
+import {
+  buildStartWall,
+  WALL_SITE,
+  startWallColliders,
+  wallAreas,
+} from './start-wall';
 import { buildStation } from './station';
 import { buildLodge, buildPlatform } from './summit';
 import {
@@ -90,6 +127,9 @@ interface Plant {
   x: number;
   z: number;
   scale: number;
+  /** A fixed variant / heading (rad) for a placed prop (a parked car); a tree or plant gets a seeded one. */
+  variant?: number;
+  rotY?: number;
 }
 
 interface Spec {
@@ -125,11 +165,13 @@ function landmark(spec: Spec): Landmark {
         return {
           asset: p.asset,
           // Trees: the placement stage sets variant, rotation and scale (trees/placement.ts).
-          variant: isTreeType(p.asset) ? 0 : h % getAssetMeta(p.asset).variants,
+          variant:
+            p.variant ??
+            (isTreeType(p.asset) ? 0 : h % getAssetMeta(p.asset).variants),
           x,
           y: ground.height(x, z),
           z,
-          rotY: ((h >>> 8) % 628) / 100,
+          rotY: p.rotY ?? ((h >>> 8) % 628) / 100,
           scale: p.scale,
           tiltX: 0,
           tiltZ: 0,
@@ -422,6 +464,81 @@ export const restaurantLandmark = landmark({
   },
 });
 
+/** The wooden gate at the foot of the road: two lattice log towers, a notice board, a log shelter and an information board. */
+export const gateLandmark = landmark({
+  id: 'vodno-gate',
+  areas: GATE_AREAS,
+  colliders: (g) => [
+    boxCollider(TOWER_LEFT, [-1.05, 1.05, -1.05, 1.05], base(g, TOWER_LEFT), 9),
+    boxCollider(
+      TOWER_RIGHT,
+      [-1.05, 1.05, -1.05, 1.05],
+      base(g, TOWER_RIGHT),
+      9,
+    ),
+    boxCollider(BOARD, [-0.3, 0.3, -1.6, 1.6], base(g, BOARD), 3.6),
+    boxCollider(SHELTER, [-2.6, 2.6, -1.9, 1.9], base(g, SHELTER), 4.4),
+    boxCollider(SIGN, [-0.2, 0.2, -0.95, 0.95], base(g, SIGN), 3.6),
+  ],
+  build: (at) => {
+    buildTower(at(TOWER_LEFT, 'tower-left'), 0);
+    buildTower(at(TOWER_RIGHT, 'tower-right'), 2);
+    buildBoard(at(BOARD, 'notice-board'));
+    buildShelter(at(SHELTER, 'shelter'));
+    buildSign(at(SIGN, 'info-board'));
+  },
+});
+
+/** Two blocks of flats on the street before the start: they stand in for the baked boxes 7 and 6. */
+export const startBlocksLandmark = landmark({
+  id: 'vodno-start-blocks',
+  areas: [
+    { site: BALCONY_BLOCK, rect: blockRect(BALCONY_SIZE, GARDEN.balcony) },
+    { site: CURVED_BLOCK, rect: blockRect(CURVED_SIZE, GARDEN.curved) },
+    ...wallAreas(),
+  ],
+  replaces: (b) => b.id === BALCONY_BOX.id || b.id === CURVED_BOX.id,
+  colliders: (g) =>
+    (
+      [
+        [BALCONY_BLOCK, BALCONY_SIZE],
+        [CURVED_BLOCK, CURVED_SIZE],
+      ] as const
+    )
+      .map(([site, size]) =>
+        boxCollider(
+          site,
+          [-size.width / 2, size.width / 2, -size.depth, 0],
+          base(g, site),
+          size.height + 0.8,
+        ),
+      )
+      .concat(startWallColliders(g)),
+  build: (at, ground) => {
+    buildBalconyBlock(at(BALCONY_BLOCK, 'balcony-block'));
+    buildCurvedBlock(at(CURVED_BLOCK, 'curved-block'));
+    buildStartWall(at(WALL_SITE, 'start-wall'), ground);
+  },
+});
+
+/** The hotel on the empty lot at the first crossroad (the lot has no baked building): a brick-and-concrete frame, its forecourt, the road wall, the boards. */
+export const hotelLandmark = landmark({
+  id: 'vodno-crossroad-hotel',
+  areas: HOTEL_AREAS,
+  colliders: hotelColliders,
+  plants: HOTEL_CARS.map(({ variant, x, z, turn }) => ({
+    asset: 'street_car',
+    site: HOTEL,
+    x,
+    z,
+    scale: 1,
+    variant,
+    // The car model faces +x: turned `turn` from the road's direction (three.js yaws the other way round).
+    rotY: -(HOTEL.yaw + turn),
+  })),
+  build: buildHotelSite,
+});
+
 export const VODNO_LANDMARKS: Landmark[] = [
   srednoVodnoLandmark,
   summitLandmark,
@@ -429,5 +546,8 @@ export const VODNO_LANDMARKS: Landmark[] = [
   outpostsLandmark,
   carParksLandmark,
   restaurantLandmark,
+  gateLandmark,
+  startBlocksLandmark,
+  hotelLandmark,
 ];
 export { VODNO_FLATS } from './sites';

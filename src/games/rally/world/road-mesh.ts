@@ -15,6 +15,7 @@ import {
 import { barrierMeshJob } from './barrier-mesh';
 import { bridgeMeshJob } from './bridge-mesh';
 import { cutWallMeshJob } from './cut-wall-mesh';
+import { roadMarkingsMesh } from './road-markings';
 import { aerialwayMeshJob } from './aerialway-mesh';
 import { powerLineMeshJob } from './power-line-mesh';
 import { railMeshJob } from './rail-mesh';
@@ -230,6 +231,8 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
   if (rail) group.add(rail);
   const cutWalls = yield* timed('cutWalls', cutWallMeshJob(world));
   if (cutWalls) group.add(cutWalls);
+  const markings = roadMarkingsMesh(world);
+  if (markings) group.add(markings);
   const signs = yield* timed('stageSigns', stageSignMeshJob(world));
   if (signs) group.add(signs);
   const gantries = yield* timed('gantries', gantryMeshJob(world));

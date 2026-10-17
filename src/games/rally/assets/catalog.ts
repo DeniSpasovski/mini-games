@@ -381,8 +381,8 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Street car',
     category: 'props',
     description:
-      'Parked car: a model of the CC BY packs with its own textures (street-car-models.ts). Variants 0-9 are the models (hatch, pickup, sport, minivan, SUV, coupe, off-road, compact, sedan, wagon) in a seeded paint; 10 = white hatch (placed on purpose). Faces +X. Solid.',
-    variants: 11,
+      'Parked car: a model of the CC BY packs with its own textures (street-car-models.ts). Variants 0-9 are the models (hatch, pickup, sport, minivan, SUV, coupe, off-road, compact, sedan, wagon) in a seeded paint; 10 = white hatch, 11 = dark sedan, 12 = white minivan (placed on purpose). Faces +X. Solid.',
+    variants: 13,
     lods: carLods(40, 100, 420),
     colliders: [{ kind: 'box', hx: 2.3, hz: 0.96, h: 1.4, r: 2.5 }],
   },

@@ -1,4 +1,3 @@
-import { Matrix4 } from 'three';
 import { Rng } from '../../../../../shared/rng';
 import {
   arc,
@@ -6,6 +5,7 @@ import {
   LIFT,
   PLINTH,
   ringWalls,
+  strut,
   WOOD,
   type Local,
   type V2,
@@ -20,22 +20,6 @@ import {
  * a ring of rubble-stone wall stumps round a courtyard with three tower stumps; deterministic broken heights.
  */
 const STEEL = '#8d9188';
-
-/** A leaning strut between two points (a box 0.14 m thick). */
-function strut(l: Local, a: V3, b: V3, t: number, color: string): void {
-  const dx = b[0] - a[0];
-  const dy = b[1] - a[1];
-  const dz = b[2] - a[2];
-  const len = Math.hypot(dx, dy, dz);
-  const ax = Math.atan2(Math.hypot(dx, dz), dy);
-  const ay = Math.atan2(dx, dz);
-  // A box along +Y, tipped onto the direction: rotate about X, then Y (the order power.ts uses).
-  const m = new Matrix4()
-    .makeRotationY(ay)
-    .multiply(new Matrix4().makeRotationX(ax));
-  m.setPosition((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
-  l.box('metal', [-t / 2, -len / 2, -t / 2], [t / 2, len / 2, t / 2], color, m);
-}
 
 export function buildLookout(l: Local): void {
   const H = 10.5;

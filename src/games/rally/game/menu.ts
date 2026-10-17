@@ -110,6 +110,30 @@ const KEY_DIRS: Record<string, NavDir> = {
   ArrowRight: 'right',
 };
 
+/** Third-party models of the background cars and trucks (parked, traffic) - not drivable cars. */
+const NPC_CARS: SourceLink[] = [
+  {
+    label: 'Generic passenger car pack (Comrade1280, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5',
+    note: 'parked cars and pickups - CC BY 4.0',
+  },
+  {
+    label: 'Low Poly Vehicle Mini Pack 7 (Vladek, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-7-c8fce59e51874a4182dc20a66cbc6c74',
+    note: 'parked vans, trucks, ambulance and fire truck - CC BY 4.0',
+  },
+  {
+    label: 'Low Poly Truck (FS 3D Studio, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/low-poly-truck-d61a2ac0a706462ebf82459907f21573',
+    note: 'parked tractor units, trailers and box trucks, recoloured - CC BY 4.0',
+  },
+  {
+    label: 'Dump Truck (ElectroNick, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/dump-truck-781c616da8f44982a59cb3fc3fa67f98',
+    note: 'parked dump trucks, recoloured - CC BY 4.0',
+  },
+];
+
 const BUILT_WITH: SourceLink[] = [
   { label: 'three.js', url: 'https://threejs.org/', note: 'rendering, MIT' },
   { label: 'Rsbuild', url: 'https://rsbuild.rs/', note: 'build tooling, MIT' },
@@ -538,7 +562,7 @@ class MainMenu {
       <b>R</b> reset · <b>C</b> camera · <b>Esc</b> pause</p>
       <h2>Contributors</h2>
       <ul>
-        <li>Deni Spasovski<small>Agent Orchestrator</small></li>
+        <li><a href="https://github.com/DeniSpasovski" target="_blank" rel="noopener">Deni Spasovski</a><small>Agent Orchestrator</small></li>
         <li><a href="https://github.com/hyphyphyph" target="_blank" rel="noopener">Derek McTavish</a><small>Contributor: foliage and rendering improvements</small></li>
       </ul>
       <h2>Built with</h2>
@@ -547,6 +571,8 @@ class MainMenu {
       ${MAPS.map((m) => `<h3>${m.name}</h3>${links([...(m.sources ?? []), ...m.stages.flatMap((st) => st.sources ?? [])], 'Fully procedural - no external data.')}`).join('')}
       <h2>Cars</h2>
       ${CARS.map((c) => `<h3>${c.name}</h3>${links(c.sources, 'Procedural model - no external sources.')}`).join('')}
+      <h3>NPC cars</h3>
+      ${links(NPC_CARS, '')}
       <h2>Physics</h2>
       <h3>Tyres</h3>
       ${links(TYRE_RESEARCH, '')}

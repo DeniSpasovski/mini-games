@@ -28,7 +28,7 @@ const tris = (b: ReturnType<typeof streetCar>) =>
   );
 
 describe('street cars', () => {
-  test.each([0, 3, 5, 9, 10])(
+  test.each([0, 3, 5, 9, 10, 11, 12])(
     'variant %i: one part, within budget',
     (variant) => {
       const near = streetCar({ seed: 1, variant, lod: 0 });
@@ -42,10 +42,10 @@ describe('street cars', () => {
     },
   );
 
-  test('variants: the models, then the white hatch a map places (Petralica)', () => {
+  test('variants: the models, then the cars a map places (white hatch, dark sedan, white minivan)', () => {
     expect(STREET_CAR_COUNT).toBe(10);
     expect(STREET_CAR_FIXED).toBe(10);
-    expect(getAssetMeta('street_car').variants).toBe(STREET_CAR_COUNT + 1);
+    expect(getAssetMeta('street_car').variants).toBe(STREET_CAR_COUNT + 3);
     expect(Math.max(...STREET_CAR_MIX)).toBeLessThan(STREET_CAR_COUNT);
     expect(Math.min(...STREET_CAR_MIX)).toBeGreaterThanOrEqual(0);
   });
