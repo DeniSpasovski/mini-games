@@ -122,7 +122,7 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   A lamp with a `LampNight` also gets a soft red halo (`cars/shared/lamp-halo.ts`: its silhouette from behind, blurred, on an
   additive quad), and at night `game/headlights.ts` `TailLight` adds a dim red spot behind the car (road, verges) while
   `ParticleSystem.setTaillight` tints the dust behind it; both follow the brake pedal (`rally-game.ts` `lightParticlesByLamps`).
-  Check lamps in the car viewer: `tod=1` (night; `tod=17.5` = evening, lights half on) with `lamps=off|brake|reverse`, `beam=0` hides
+  Check lamps in the car viewer: `tod=1` (night; `tod=17.5` = evening, lights half on) with `lamps=off|position|brake|reverse` (off = every lamp dark, position = the running lamps as the hour has them), `beam=0` hides
   the headlight beam, `quality=high` adds the bloom.
 
 ## Maps

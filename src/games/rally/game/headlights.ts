@@ -196,23 +196,35 @@ export function tailLightMount(
  */
 export class TailLight {
   private readonly light = new SpotLight(0xff1408, 0, 6.5, 0.95, 1, 2);
+  private brake = 0;
 
   /** `level` = 0..1 lights level (`Environment.lightNeed`). */
   constructor(
     car: Object3D,
     at: { x: number; y: number; z: number },
-    private readonly level: number,
+    private level: number,
   ) {
     this.light.position.set(at.x, at.y, at.z);
     this.light.target.position.set(at.x, at.y - 0.55, at.z - 3);
     car.add(this.light, this.light.target);
-    this.setBrake(0);
+    this.apply();
+  }
+
+  /** 0..1 lights level; 0 = off (the light stays in the scene, so no shader recompiles). */
+  setLevel(level: number): void {
+    this.level = level;
+    this.apply();
   }
 
   /** 0 = running lights, 1 = brake pedal fully down. */
   setBrake(brake: number): void {
+    this.brake = brake;
+    this.apply();
+  }
+
+  private apply(): void {
     this.light.intensity =
-      this.level * (TAIL_IDLE + (TAIL_BRAKE - TAIL_IDLE) * brake);
+      this.level * (TAIL_IDLE + (TAIL_BRAKE - TAIL_IDLE) * this.brake);
   }
 
   dispose(): void {
