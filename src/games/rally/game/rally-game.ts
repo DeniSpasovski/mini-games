@@ -213,6 +213,7 @@ export class RallyGame {
   private gravelAcc = [0, 0, 0, 0];
   /** Far tree shadows, filled in as the streamer generates scatter (world/canopy-shadows.ts). */
   private canopy!: CanopyShadows;
+  private readonly canopyDir = new Vector3();
   private hazeAcc = 0;
   audio: CarAudio;
   telemetry!: Telemetry;
@@ -1422,7 +1423,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
   /** Canopy shadows (global map + the local window around the camera). */
   private updateCanopy(): void {
     const p = this.camera.position;
-    this.canopy.update(performance.now(), p);
+    this.camera.getWorldDirection(this.canopyDir);
+    this.canopy.update(performance.now(), p, this.canopyDir);
     setCanopyLocalMap(this.canopy.localMap);
   }
 
