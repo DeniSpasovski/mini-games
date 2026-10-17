@@ -50,6 +50,13 @@ import {
   TOWER_LEFT,
   TOWER_RIGHT,
 } from './gate';
+import {
+  HOTEL,
+  HOTEL_AREAS,
+  HOTEL_CARS,
+  buildHotelSite,
+  hotelColliders,
+} from './hotel';
 import { buildNereziChurch } from './nerezi-church';
 import {
   buildRestaurant,
@@ -120,6 +127,9 @@ interface Plant {
   x: number;
   z: number;
   scale: number;
+  /** A fixed variant / heading (rad) for a placed prop (a parked car); a tree or plant gets a seeded one. */
+  variant?: number;
+  rotY?: number;
 }
 
 interface Spec {
@@ -155,11 +165,13 @@ function landmark(spec: Spec): Landmark {
         return {
           asset: p.asset,
           // Trees: the placement stage sets variant, rotation and scale (trees/placement.ts).
-          variant: isTreeType(p.asset) ? 0 : h % getAssetMeta(p.asset).variants,
+          variant:
+            p.variant ??
+            (isTreeType(p.asset) ? 0 : h % getAssetMeta(p.asset).variants),
           x,
           y: ground.height(x, z),
           z,
-          rotY: ((h >>> 8) % 628) / 100,
+          rotY: p.rotY ?? ((h >>> 8) % 628) / 100,
           scale: p.scale,
           tiltX: 0,
           tiltZ: 0,
@@ -509,6 +521,24 @@ export const startBlocksLandmark = landmark({
   },
 });
 
+/** The hotel on the empty lot at the first crossroad (the lot has no baked building): a brick-and-concrete frame, its forecourt, the road wall, the boards. */
+export const hotelLandmark = landmark({
+  id: 'vodno-crossroad-hotel',
+  areas: HOTEL_AREAS,
+  colliders: hotelColliders,
+  plants: HOTEL_CARS.map(({ variant, x, z, turn }) => ({
+    asset: 'street_car',
+    site: HOTEL,
+    x,
+    z,
+    scale: 1,
+    variant,
+    // The car model faces +x: turned `turn` from the road's direction (three.js yaws the other way round).
+    rotY: -(HOTEL.yaw + turn),
+  })),
+  build: buildHotelSite,
+});
+
 export const VODNO_LANDMARKS: Landmark[] = [
   srednoVodnoLandmark,
   summitLandmark,
@@ -518,5 +548,6 @@ export const VODNO_LANDMARKS: Landmark[] = [
   restaurantLandmark,
   gateLandmark,
   startBlocksLandmark,
+  hotelLandmark,
 ];
 export { VODNO_FLATS } from './sites';

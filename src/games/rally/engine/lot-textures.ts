@@ -4,7 +4,7 @@ import { hash3, Rng } from '../../../shared/rng';
  * Textures of the hand-modelled lots (maps/ajvatovci/start-row): render, sandwich panels, trapezoid
  * sheeting, roller doors, glass, yard asphalt, pavers, concrete, wire fence, roof membrane, solar
  * panels, striped barrier, signs; and of the hilltop church (maps/ajvatovci/hilltop): cut limestone,
- * rubble stone, clay roof tiles. Drawn on canvases like every texture in `textures.ts`, which
+ * rubble stone, clay roof tiles; the terracotta brick infill of the Vodno crossroad hotel. Drawn on canvases like every texture in `textures.ts`, which
  * registers them (`LOT_DEFS`). Wall textures are light neutrals: the meshes multiply a per-building
  * vertex colour on top. The metres each texture covers is written on its entry, and
  * `build/materials.ts` sets the UVs to match.
@@ -28,7 +28,8 @@ export type LotTextureId =
   | 'lot_sign_station'
   | 'lot_ashlar'
   | 'lot_rubble'
-  | 'lot_roof_tiles';
+  | 'lot_roof_tiles'
+  | 'lot_brick';
 
 export interface LotTexDef {
   name: string;
@@ -898,6 +899,55 @@ export const LOT_DEFS: Record<LotTextureId, LotTexDef> = {
       ctx.putImageData(img, 0, 0);
       // Lichen / dust specks.
       grit(ctx, w, h, 833, 2500, 0.1);
+    },
+  },
+  lot_brick: {
+    // 2 m x 2 m. Terracotta facing brick in stretcher bond: 8 bricks (25 cm pitch) x 26 courses, pale
+    // mortar joints, every brick its own tone with a few darker / fired ones, light dust. The colour is
+    // baked (like the roof tiles): the vertex colour only nudges it.
+    name: 'Lot: terracotta brick (hotel infill, 2 m)',
+    size: [512, 512],
+    color: true,
+    draw(ctx, w, h) {
+      const courses = 26;
+      const across = 8;
+      const ch = h / courses;
+      const bw = w / across;
+      ctx.fillStyle = 'rgb(196,188,174)';
+      ctx.fillRect(0, 0, w, h);
+      const palette: RGB[] = [
+        [208, 104, 68],
+        [196, 94, 60],
+        [216, 114, 76],
+        [186, 86, 56],
+        [210, 108, 72],
+        [176, 80, 54],
+      ];
+      for (let row = 0; row < courses; row++) {
+        const y = row * ch;
+        const shift = (row % 2) * bw * 0.5;
+        for (let col = -1; col < across; col++) {
+          const x = col * bw + shift;
+          const base =
+            palette[hash3(col + across * 4, row, 5, 842) % palette.length];
+          const tone =
+            0.88 + (0.2 * hash3(col + across * 4, row, 9, 843)) / 4294967296;
+          for (const ox of [0, -w, w]) {
+            const bx = x + ox;
+            if (bx + bw < 0 || bx > w) continue;
+            ctx.fillStyle = `rgb(${base.map((v) => Math.min(255, v * tone)).join(',')})`;
+            ctx.fillRect(bx + 2, y + 1.5, bw - 4, ch - 3);
+            // Lit top edge and a shaded bottom edge give each brick a little relief.
+            ctx.fillStyle = 'rgba(255,225,200,0.16)';
+            ctx.fillRect(bx + 2, y + 1.5, bw - 4, 1.4);
+            ctx.fillStyle = 'rgba(40,10,0,0.18)';
+            ctx.fillRect(bx + 2, y + ch - 3.4, bw - 4, 1.9);
+          }
+        }
+      }
+      grain(ctx, w, h, 844, 0.16);
+      streaks(ctx, w, h, 845, 22, 0.05);
+      grit(ctx, w, h, 846, 5000, 0.08);
     },
   },
 };

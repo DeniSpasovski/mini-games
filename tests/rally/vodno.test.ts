@@ -246,6 +246,7 @@ describe('vodno landmarks (churches, platform, stations, towers)', () => {
     'vodno-restaurant',
     'vodno-gate',
     'vodno-start-blocks',
+    'vodno-crossroad-hotel',
   ];
 
   test('registered on the map and in the world', () => {
