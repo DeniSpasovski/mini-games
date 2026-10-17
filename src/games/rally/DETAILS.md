@@ -172,8 +172,15 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
   spectators (some waving their map's own hand flag - `MapDef.country` - or a plain colour flag, never another country's) + visitors, a marshal, 2-3 photographers, flags; marshals at every side-road mouth, 10 photographers each at start and finish
   (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`). People animate (`world/people-anim.ts`, run by `RallyGame.frame`): within 45 m they turn to watch the car, photographers (75 m) keep it centred, via `InstanceStreamer.setMatrix`; hand flags wave in the `people_flag` shader (`engine/materials.ts`, own mesh from `markFlag` in people.ts).
-- **People** (`assets/builders/people.ts`): jointed low-poly figures posed by joint angles + outfit colours, LOD 0 / 1 sculpted from a signed distance field (`people-sculpt.ts` engine, `people-figure.ts` body: cloth as thickness, surface nets, one skin with garment ids and AO in vertex colours; ~9-11k / ~2.3k tris, built once per variant, so `getVariantSet` stops at its triangle cap), painted unwrapped garment atlas + normal map (`engine/people-atlas.ts`, `people` material; zips, pockets, seams, face) - `spectator` (24 standing + 18 sitting / squatting at corner fans),
-  `mechanic`, `crew`, `driver`, `marshal` (flag, sign, radio), `photographer`, `visitor` (12 personas: ages, sizes, dresses, kids); test `people`.
+- **People** (`assets/builders/people.ts`; credits THIRD-PARTY.md): close up (LOD 0 ~12k tris, LOD 1 ~2.6k flat-shaded) a person is one of
+  two CC BY scans (`engine/people-scan.data.ts`, baked by `scripts/people/extract.py` + `bake-people.mjs`, sources in `sources/people/`):
+  skinned on the CPU per variant to the pose (`people-scan.ts`: 13 bones, joint-rule weights, A-pose baked in), the outfit dyed into
+  the scan's own texture by two tint masks (`engine/people-scan-material.ts`; LOD 1 dyes the vertex colours), hats / vests / jackets
+  / skirts / packs / glasses and props added as parts on the posed bones (`people-wear.ts`, `people-parts.ts`, atlas cells). Women use
+  the female scan, men the male; `Outfit.hairKind` `short` / `bald` crops the scan's hair. LOD 2 / 3 stay code-built (jointed figure,
+  boxy body, silhouette). Variants are built at load (~2 s for all 246, one InstancedMesh each; `getVariantSet` stops at its cap).
+  Roles: `spectator` (24 standing + 18 sitting / squatting + 12 flag wavers), `mechanic`, `crew`, `driver`, `marshal`, `photographer`,
+  `visitor` (12 personas: ages, sizes, skirts, kids); test `people`. A new look = a colour / part in `Outfit`, a new pose = `POSES`.
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)
   puts them on the outside of every tight bend of a mountain road (Galichica). `rusty: true` = weathered brown steel (Vodno).
 - **Scatter area** (`MapDef.scatterBounds`): narrows where trees / bushes / rocks are generated (any side of `bounds`) - for land no

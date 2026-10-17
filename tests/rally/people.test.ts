@@ -14,8 +14,8 @@ rs.mock('../../src/games/rally/engine/textures', () => ({
 }));
 
 /**
- * The people kit (assets/builders/people.ts): every role x variant builds one draw call, stands on the ground
- * whatever its pose, is a plausible height and stays inside the triangle budget of its LOD.
+ * The people kit (assets/builders/people.ts): every role x variant builds a scanned body (+ what it wears, + a hand
+ * flag), stands on the ground whatever its pose, is a plausible height and stays inside the triangle budget of its LOD.
  */
 const ROLES = [
   'spectator',
@@ -38,7 +38,7 @@ function measure(id: string, variant: number, lod: number) {
   let hi = -Infinity;
   for (const p of a.parts) {
     const pos = p.geometry.getAttribute('position');
-    tris += pos.count / 3;
+    tris += (p.geometry.index?.count ?? pos.count) / 3;
     for (let i = 0; i < pos.count; i++) {
       lo = Math.min(lo, pos.getY(i));
       hi = Math.max(hi, pos.getY(i));
@@ -59,18 +59,18 @@ describe('people', () => {
     const meta = ASSET_CATALOG.find((a) => a.id === id)!;
     const variants = Array.from({ length: meta.variants }, (_, v) => v);
 
-    test('every variant: one body part (+ a flag part when waving one), feet on the ground, 0.8-2.4 m tall (arms up), within budget', () => {
+    test('every variant: the body, what it wears and a flag part when waving one, feet on the ground, 0.8-2.4 m tall (arms up), within budget', () => {
       for (const v of variants) {
         const near = measure(id, v, 0);
-        // A hand flag is its own mesh (waved by the people_flag material).
-        expect(near.parts).toBeLessThanOrEqual(id === 'spectator' ? 2 : 1);
+        // The scanned body, the worn / held parts (one mesh) and a hand flag (its own mesh, waved by the people_flag material).
+        expect(near.parts).toBeLessThanOrEqual(3);
         expect(near.parts).toBeGreaterThanOrEqual(1);
         expect(near.lo).toBeGreaterThan(-0.005);
         expect(near.lo).toBeLessThan(0.02);
         expect(near.hi).toBeGreaterThan(0.8);
         expect(near.hi).toBeLessThan(2.4);
-        expect(near.tris).toBeLessThan(15000);
-        expect(measure(id, v, 1).tris).toBeLessThan(3500);
+        expect(near.tris).toBeLessThan(16000);
+        expect(measure(id, v, 1).tris).toBeLessThan(4500);
         expect(measure(id, v, 2).tris).toBeLessThan(260);
         expect(measure(id, v, 3).tris).toBeLessThan(40);
       }
@@ -80,8 +80,8 @@ describe('people', () => {
       const keys = new Set(
         variants.map((v) => {
           const a = build(id, v, 0);
-          const c = a.parts[0].geometry.getAttribute('color');
-          return `${a.parts[0].geometry.getAttribute('position').count}:${c.getX(0).toFixed(2)}:${c.getY(0).toFixed(2)}:${c.getZ(0).toFixed(2)}:${c.getX(c.count - 1).toFixed(2)}`;
+          const p = a.parts[0].geometry.getAttribute('position');
+          return `${a.parts.length}:${p.getX(2000).toFixed(3)}:${p.getY(9000).toFixed(3)}:${p.getZ(14000).toFixed(3)}`;
         }),
       );
       expect(keys.size).toBeGreaterThan(meta.variants / 3);
