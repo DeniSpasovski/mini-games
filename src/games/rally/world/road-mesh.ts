@@ -16,6 +16,7 @@ import {
 import { barrierMeshJob } from './barrier-mesh';
 import { bridgeMeshJob } from './bridge-mesh';
 import { cutWallMeshJob } from './cut-wall-mesh';
+import { roadMarkingsMesh } from './road-markings';
 import { aerialwayMeshJob } from './aerialway-mesh';
 import { powerLineMeshJob } from './power-line-mesh';
 import { railMeshJob } from './rail-mesh';
@@ -42,7 +43,7 @@ import { newPathQuery } from './real-data';
 const ACROSS = [-1.04, -0.66, -0.33, 0, 0.33, 0.66, 1.04];
 /** Metres of road per texture repeat (the parkway tile holds one 3 m dash + 9 m gap of the lane line). */
 export const texLength = (t: RoadTexture): number =>
-  t === 'road_parkway' || t === 'road_street4' || t === 'road_tarmac_lanes'
+  t === 'road_parkway' || t === 'road_street4'
     ? 12
     : t === 'road_street' || t === 'road_city'
       ? 8
@@ -238,6 +239,8 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
   if (rail) group.add(rail);
   const cutWalls = yield* timed('cutWalls', cutWallMeshJob(world));
   if (cutWalls) group.add(cutWalls);
+  const markings = roadMarkingsMesh(world);
+  if (markings) group.add(markings);
   const signs = yield* timed('stageSigns', stageSignMeshJob(world));
   if (signs) group.add(signs);
   const gantries = yield* timed('gantries', gantryMeshJob(world));

@@ -3,12 +3,12 @@ import type { PadDef } from '../../shared/types';
 import { toWorld, type Area, type Site } from './sites';
 
 /**
- * The wooden gate where the Vodno road leaves the suburb, a short way past the first crossroad: two lattice log towers with pyramid roofs stand either side of the
+ * The wooden gate where the Vodno road leaves the suburb, about 200 m past the first crossroad, where the left-hand rail ends: two lattice log towers with pyramid roofs stand either side of the
  * road, with a timber notice board and a log shelter on the gravel beside the right one and an orange information board
  * a little way up the road. Rough shapes, no lettering. `GATE` is the road's centre line at the gate: local x along the
  * road (up the climb), z to its right; every structure has its own site (its own ground height).
  */
-export const GATE: Site = { x: 1803.9, z: -764.5, yaw: 1.169 };
+export const GATE: Site = { x: 1841.2, z: -700.1, yaw: 0.6845 };
 const near = (x: number, z: number): Site => {
   const [wx, wz] = toWorld(GATE, x, z);
   return { x: wx, z: wz, yaw: GATE.yaw };
@@ -16,7 +16,7 @@ const near = (x: number, z: number): Site => {
 export const TOWER_LEFT = near(0, -6.4);
 export const TOWER_RIGHT = near(0, 7.3);
 export const BOARD = near(1.6, 10.6);
-export const SHELTER = near(5.5, 17.2);
+export const SHELTER = near(5.5, 13.2);
 export const SIGN = near(24, 5.6);
 
 export const GATE_AREAS: Area[] = [
@@ -34,8 +34,8 @@ export const GATE_PAD: PadDef = {
     [
       [-5, 7.5],
       [13, 7.5],
-      [13, 22],
-      [-5, 22],
+      [13, 16.5],
+      [-5, 16.5],
     ] as const
   ).flatMap(([x, z]) => toWorld(GATE, x, z)),
   blend: 4,

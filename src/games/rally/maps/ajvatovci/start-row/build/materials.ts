@@ -176,6 +176,8 @@ export const MATS = {
   wall: { map: 'lot_concrete', tile: [4, 4], roughness: 0.92 },
   /** Clay roof tiles: u along the eaves, v up the slope. */
   tiles: { map: 'lot_roof_tiles', tile: [2, 2], roughness: 0.8 },
+  /** Terracotta brick infill (the Vodno crossroad hotel). */
+  brick: { map: 'lot_brick', tile: [2, 2], roughness: 0.9 },
 } satisfies Record<string, MatDef>;
 
 export type MatKey = keyof typeof MATS;
@@ -230,6 +232,7 @@ const GROUPS: Partial<Record<MatKey, MatGroup>> = {
   rubble: 'solid',
   wall: 'solid',
   tiles: 'solid',
+  brick: 'solid',
   asphalt: 'ground',
   gravel: 'ground',
   pavers: 'ground',

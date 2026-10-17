@@ -180,14 +180,18 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   camera can see (Vodno: nothing south of the ridge). A way merging into another at a shallow angle sets `PathDef.mergeTaper` (its end
   narrows to a point) and `joinsUnder` (its ribbon lies under the other's).
 - **Road textures** (`RoadDef.texture`, per stretch in `sections`): gravel `road`, worn `road_tarmac`, `road_tarmac_lines` (the
-  same with white edge and centre lines), `road_tarmac_lanes` (three lanes: edge lines and two dashed lane lines), `road_parkway`, the
-  city asphalts (`road_city`, `road_street`, `road_street4`, `junction_asphalt`).
+  same with white edge and centre lines), `road_tarmac_plain` (the same surface without lines: Vodno's crossroad, where the road paint
+  lies over it), `road_parkway`, the city asphalts (`road_city`, `road_street`, `road_street4`, `junction_asphalt`).
   The asphalts are baked images, not drawn at load: `engine/asphalt/<id>.<size>.{color,normal,rough}.webp`, made by
   `scripts/asphalt/bake.mjs` (tiles drawn by `gen.js` in headless Chromium; the output is committed, rerun after changing
   `gen.js`). High loads the 1024 px set, Medium / Low their own 512 px set. `engine/road-surface.ts` loads them (the play page
   preloads the map's sets), `getRoadMaterial` puts them on the road: colour + normal map with the roughness packed in its alpha
   (one sampler) + a tone shader (blotches and streaks that never repeat). A new asphalt id = a `gen.js` preset, `ROAD_SURFACE_LEN`
   (same `len` as `texLength`, a test checks), a rebake.
+- **Road paint** (`RoadDef.markings`): lane lines (solid or dashed) and left / straight arrows as thin meshes over the road
+  (`world/road-markings.ts`: `roadPaint` is the pure geometry, `roadMarkingsMesh` the meshes; textures `road_paint`,
+  `road_arrow_left`, `road_arrow_straight`). Positions are measured from the road's left or right edge, so a lane keeps its
+  place where the road widens on the other side (Vodno's crossroad: `maps/vodno/crossroad.ts`).
 - **Other roads** (`paths`): tarmac ribbons, dirt paint or canals with their own surface; side roads carved with grade limits
   and extended to meet the stage road, the stage's `closures` close the mouths (`world/junctions.ts`). Dirt tracks / paths are
   painted into the splat, and drawn as gravel ribbons too on maps with `trackRibbons`; `pathProfiles` overrides the
@@ -204,11 +208,13 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Stage signs:** start / finish gantries and split boards from the stage's `timing`, along the stage road (`world/stage-signs.ts`).
 - **Terrain by hand:** `terrain.pads` level the land round a lot (along the road: `frontage` + `lift`) or a house on a slope (a terrace:
   `PadDef.level`); the road's carve wins near the road. `road.cutWalls.range` limits the sheer, walled cut to one stretch of the stage
-  road (Vodno's concrete wall at the first crossroad, on a pad `lift`ed above the road: `maps/vodno/crossroad.ts`). `routePoints` takes a
+  road (Vodno's concrete wall at the first crossroad, on a pad `lift`ed above the road: `maps/vodno/crossroad.ts`);
+  `cutWalls.solid` holds the cut tight (`cutShape`: a thin coping) and gives the face box colliders
+  (`world/cut-wall-colliders.ts`), so a car stops at it. `routePoints` takes a
   sideways shift (a lane added on one side). `MapDef.treeSetback` keeps the solid trees back from the road's edge along a stretch.
 - **Landmarks:** hand-modelled lots on graded pads that replace the placeholders, hooks `surfaceAt` / `keepsClear` /
   `groundOverride` (`world/landmarks.ts`, `pads.ts`; `maps/ajvatovci/start-row`, `hilltop`, `station`; Vodno's car parks:
-  `maps/vodno/landmarks/car-parks.ts` + `lots.ts`, its gate `gate.ts` and the two flats and their wall on the start street `start-blocks.ts`, `start-wall.ts`). A `PathDef.bare` street gets no kerbs / sidewalks / lamps inside `cityStreets` reach.
+  `maps/vodno/landmarks/car-parks.ts` + `lots.ts`, its gate `gate.ts`, the two flats and their wall on the start street `start-blocks.ts`, `start-wall.ts`, and the brick hotel on the corner lot at the first crossroad `hotel.ts`: its own `lot_brick` texture, fixed `street_car` variants 16 / 17). A `PathDef.bare` street gets no kerbs / sidewalks / lamps inside `cityStreets` reach.
 - **City maps** (`jackie`): one-way carriageways, bridges and decks, portals, junction plazas, parkway lanes, continuous
   barriers, retaining walls, gores, overhead signs, kerbs / crosswalks / lamps, parked vehicles (`world/bridge-mesh.ts`,
   `portals.ts`, `plazas.ts`, `parkway-lanes.ts`, `barriers.ts`, `cut-wall-mesh.ts`, `street-detail.ts`).

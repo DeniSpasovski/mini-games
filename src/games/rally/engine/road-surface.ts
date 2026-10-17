@@ -24,7 +24,7 @@ import { getTexture } from './textures';
 export type RoadSurfaceId =
   | 'road_tarmac'
   | 'road_tarmac_lines'
-  | 'road_tarmac_lanes'
+  | 'road_tarmac_plain'
   | 'road_city'
   | 'road_street'
   | 'road_street4'
@@ -35,7 +35,7 @@ export type RoadSurfaceId =
 export const ROAD_SURFACE_LEN: Record<RoadSurfaceId, number> = {
   road_tarmac: 7,
   road_tarmac_lines: 7,
-  road_tarmac_lanes: 12,
+  road_tarmac_plain: 7,
   road_city: 8,
   road_street: 8,
   road_street4: 12,

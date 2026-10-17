@@ -40,11 +40,15 @@ import {
 import { LOT_PADS } from '../../src/games/rally/maps/vodno/lots';
 import {
   BANK,
-  LANES_FROM,
-  LANES_TO,
+  JUNCTION,
   laneExtra,
+  MARKINGS,
   WALL_RANGE,
+  WIDE_FROM,
+  WIDE_TO,
 } from '../../src/games/rally/maps/vodno/crossroad';
+import { GATE } from '../../src/games/rally/maps/vodno/landmarks/gate';
+import { cutWallColliders } from '../../src/games/rally/world/cut-wall-colliders';
 import { CORNER_HOUSE } from '../../src/games/rally/maps/vodno/landmarks/start-blocks';
 import { wallSections } from '../../src/games/rally/maps/vodno/landmarks/start-wall';
 import { SKYLINE } from '../../src/games/rally/maps/vodno/skyline';
@@ -242,6 +246,7 @@ describe('vodno landmarks (churches, platform, stations, towers)', () => {
     'vodno-restaurant',
     'vodno-gate',
     'vodno-start-blocks',
+    'vodno-crossroad-hotel',
   ];
 
   test('registered on the map and in the world', () => {
@@ -752,11 +757,11 @@ describe('vodno car park surroundings', () => {
     ).toBe(true);
     // The one galvanised rail: the left side after the first crossroad.
     expect(rails.filter((b) => !b.rusty).map((b) => b.side)).toEqual(['left']);
-    // Edge and centre lines from the start, the dashed three-lane stretch at the first crossroad, the lines again after it.
+    // Edge and centre lines all along (the run-up street too), edge lines only where the crossroad's own paint is.
+    expect(map.road.texture).toBe('road_tarmac_lines');
     expect(map.road.sections?.map((s) => [s.texture, s.from])).toEqual([
-      ['road_tarmac_lines', START],
-      ['road_tarmac_lanes', LANES_FROM],
-      ['road_tarmac_lines', LANES_TO],
+      ['road_tarmac_plain', WIDE_FROM],
+      ['road_tarmac_lines', WIDE_TO],
     ]);
   });
 
@@ -800,8 +805,8 @@ describe('vodno start street and first crossroad', () => {
     expect(laneExtra(300)).toBe(0);
     expect(laneExtra(440)).toBeGreaterThan(2.8);
     expect(laneExtra(520)).toBe(0);
-    expect(LANES_FROM).toBeLessThan(WALL_RANGE[1]);
-    expect(LANES_TO).toBeGreaterThan(LANES_FROM);
+    expect(WIDE_FROM).toBeLessThan(WALL_RANGE[0]);
+    expect(WIDE_TO).toBeGreaterThan(WALL_RANGE[1]);
   });
 
   test('the land on the right of the crossroad stands above the road behind its retaining wall', () => {
@@ -812,6 +817,81 @@ describe('vodno start street and first crossroad', () => {
     // Before and after the wall the right side is not lifted by it.
     expect(rightOf(300, 9).ground - rightOf(300, 9).road).toBeLessThan(3);
     expect(map.road.cutWalls?.range).toEqual(WALL_RANGE);
+  });
+
+  test('the crossroad lanes are painted: edge lines, a double centre line on the texture line, a left-turn arrow and a straight arrow', () => {
+    expect(map.road.markings).toBe(MARKINGS);
+    const lines = MARKINGS.flatMap((m) => (m.kind === 'line' ? [m] : []));
+    const arrows = MARKINGS.flatMap((m) => (m.kind === 'arrow' ? [m] : []));
+    expect(lines.some((m) => m.dash)).toBe(true);
+    expect(arrows.some((m) => m.arrow === 'left')).toBe(true);
+    expect(arrows.some((m) => m.arrow === 'straight')).toBe(true);
+    for (const m of MARKINGS) {
+      const [a, b] = m.kind === 'line' ? [m.from, m.to] : [m.at, m.at];
+      expect(a).toBeGreaterThanOrEqual(WIDE_FROM);
+      expect(b).toBeLessThanOrEqual(WIDE_TO);
+    }
+    // The paint meets the road texture's own lines: the double line is centred on the centre line of the road before
+    // it, and the edge lines are as far in as the texture's (5% of the road width).
+    const before = world.stageRoad.at(WIDE_FROM - 1).halfWidth * 2;
+    const double = lines.filter(
+      (m) => m.from === WIDE_FROM && m.width === 0.13,
+    );
+    expect(double.length).toBe(2);
+    expect(
+      (double[0].offset + double[1].offset) / 2,
+      'centre of the double line',
+    ).toBeCloseTo(before / 2, 1);
+    for (const e of lines.filter(
+      (m) => m.from === WIDE_FROM && m.width === 0.15,
+    ))
+      expect(e.offset).toBeCloseTo(0.05 * before, 1);
+    expect(world.stageRoad.at(WIDE_TO + 1).halfWidth * 2).toBeCloseTo(
+      before,
+      1,
+    );
+  });
+
+  test('the left edge line and the centre line stop at the side street; the right edge line runs on', () => {
+    const j = world
+      .stageJunctions()
+      .filter((x) => x.side === 1 && x.along > WIDE_FROM && x.along < WIDE_TO);
+    expect(j.length).toBe(1);
+    expect(j[0].along).toBeGreaterThan(JUNCTION[0]);
+    expect(j[0].along).toBeLessThan(JUNCTION[1]);
+    const lines = MARKINGS.flatMap((m) =>
+      m.kind === 'line' && !m.dash ? [m] : [],
+    );
+    const over = (m: { from: number; to: number }) =>
+      m.from < JUNCTION[1] && m.to > JUNCTION[0];
+    expect(lines.filter((m) => m.edge === 'left' && over(m))).toEqual([]);
+    expect(lines.filter((m) => m.edge === 'right' && over(m)).length).toBe(1);
+  });
+
+  test('the retaining wall is solid: boxes along its face, on the right of the road, between the road edge and the land', () => {
+    expect(map.road.cutWalls?.solid).toBe(true);
+    const boxes = cutWallColliders(world.road, world.gen, map.road);
+    expect(boxes.length).toBeGreaterThan(30);
+    const q2 = newRoadQuery();
+    for (const b of boxes) {
+      expect(b.kind).toBe('box');
+      const r = world.road.query(b.x, b.z, q2);
+      expect(r.found).toBe(true);
+      expect(r.along).toBeGreaterThan(WALL_RANGE[0] - 6);
+      expect(r.along).toBeLessThan(WALL_RANGE[1] + 6);
+      // On the right (lateral < 0) and past the road edge, not out in the land.
+      expect(r.lateral).toBeLessThan(0);
+      expect(r.distance - r.halfWidth).toBeGreaterThan(0.3);
+      expect(r.distance - r.halfWidth).toBeLessThan(3);
+    }
+  });
+
+  test('the wooden gate stands on the road about 645 m along, past the end of the crossroad wall', () => {
+    const r = world.road.query(GATE.x, GATE.z, newRoadQuery());
+    expect(r.found).toBe(true);
+    expect(r.along).toBeGreaterThan(635);
+    expect(r.along).toBeLessThan(655);
+    expect(r.distance).toBeLessThan(1);
   });
 
   test('the trees keep back from the road on the start street and ease in and out', () => {

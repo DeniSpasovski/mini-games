@@ -31,7 +31,10 @@ export type TextureId =
   | 'road'
   | 'road_tarmac'
   | 'road_tarmac_lines'
-  | 'road_tarmac_lanes'
+  | 'road_tarmac_plain'
+  | 'road_paint'
+  | 'road_arrow_left'
+  | 'road_arrow_straight'
   | 'road_parkway'
   | 'road_street'
   | 'road_street4'
@@ -347,6 +350,31 @@ function wearOver(
       rng.range(1, 4),
     );
   }
+}
+
+/** The road paint of the lane lines and arrows: the colour of the road textures' own lines. */
+const ROAD_PAINT = '#d6d6ce';
+
+/** Wear on alpha road paint: `count` bald specks and short gaps cut out of it (a few of them wider). */
+function wornPaint(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  seed: number,
+  count: number,
+): void {
+  const rng = new Rng(seed);
+  ctx.globalCompositeOperation = 'destination-out';
+  for (let i = 0; i < count; i++) {
+    ctx.fillStyle = `rgba(0,0,0,${rng.range(0.5, 1)})`;
+    ctx.fillRect(
+      rng.next() * w,
+      rng.next() * h,
+      rng.range(1, w / 10),
+      rng.range(1, h / 40),
+    );
+  }
+  ctx.globalCompositeOperation = 'source-over';
 }
 
 // --- definitions ---------------------------------------------------------------------
@@ -991,32 +1019,99 @@ const DEFS: Record<TextureId, TexDef> = {
       }
     },
   },
-  road_tarmac_lanes: {
-    name: 'Old tarmac for three lanes: a worn white edge line each side and a worn dashed lane line each side of the middle lane (12 m per repeat)',
+  road_tarmac_plain: {
+    name: 'Old tarmac without lines (where the road paint lies over it): the surface of road_tarmac_lines',
     size: [512, 512],
     color: true,
     draw(ctx, w, h) {
       DEFS.road_tarmac.draw(ctx, w, h);
-      const rng = new Rng(66);
-      const edges = [0.05, 0.95];
-      const lanes = [0.34, 0.66];
-      ctx.fillStyle = '#d6d6ce';
-      for (const u of edges) ctx.fillRect(u * w - 6, 0, 12, h);
-      // 3 m dash, 9 m gap (the tile is 12 m).
-      for (const u of lanes) ctx.fillRect(u * w - 6, 0, 12, h / 4);
-      // Wear: asphalt specks and gaps over the paint, a few bald stretches where the wheels run.
-      for (let i = 0; i < 3600; i++) {
-        const u = rng.pick([...edges, ...lanes]);
-        const y = rng.next() * h;
-        if (lanes.includes(u) && y > h / 4) continue;
-        ctx.fillStyle = `rgba(${84 + rng.int(0, 30)},${82 + rng.int(0, 30)},${80 + rng.int(0, 30)},${rng.range(0.35, 0.85)})`;
-        ctx.fillRect(
-          u * w + rng.range(-7, 7),
-          y,
-          rng.range(1, 3),
-          rng.range(1, 5),
-        );
+    },
+  },
+  road_paint: {
+    name: 'Worn white road paint (alpha: a lane line; u across the line, v along it, 4 m per repeat): worn like the road textures own lines',
+    size: [32, 512],
+    color: true,
+    draw(ctx, w, h) {
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = ROAD_PAINT;
+      ctx.fillRect(0, 0, w, h);
+      const rng = new Rng(151);
+      ctx.globalCompositeOperation = 'destination-out';
+      // Specks of asphalt through the paint (a third of them bite the line's edges), and a few bald stretches.
+      const bite = (x: number, y: number, bw: number, bh: number): void => {
+        for (const dy of [-h, 0, h]) ctx.fillRect(x, y + dy, bw, bh);
+      };
+      for (let i = 0; i < 230; i++) {
+        ctx.fillStyle = `rgba(0,0,0,${rng.range(0.4, 0.9)})`;
+        const bw = rng.range(2.6, 8);
+        const x = rng.chance(0.3)
+          ? rng.pick([0, w]) + rng.range(-0.2, 0.2) * w - bw / 2
+          : rng.next() * w - bw / 2;
+        bite(x, rng.next() * h, bw, rng.range(1.8, 8.7));
       }
+      for (let i = 0; i < 1; i++) {
+        ctx.fillStyle = `rgba(0,0,0,${rng.range(0.4, 0.7)})`;
+        bite(0, rng.next() * h, w, rng.range(10, 46));
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    },
+  },
+  road_arrow_left: {
+    name: 'Worn white turn-left-only road arrow (alpha: u across 1.1 m, v along 4 m, a straight stem bending to a head pointing up-left)',
+    size: [128, 512],
+    color: true,
+    draw(ctx, w, h) {
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = ROAD_PAINT;
+      // Metres -> pixels: u 0..1.1 across, v 0..4 up (canvas y runs down).
+      const X = (u: number): number => (u * w) / 1.1;
+      const Y = (v: number): number => h - (v * h) / 4;
+      const stem = 0.13;
+      // The stem rises to v 1.9, then runs up-left to the head.
+      const bend: [number, number] = [0.74, 1.9];
+      const tip: [number, number] = [0.3, 2.95];
+      const dx = tip[0] - bend[0];
+      const dy = tip[1] - bend[1];
+      const len = Math.hypot(dx, dy);
+      const d: [number, number] = [dx / len, dy / len];
+      const p: [number, number] = [d[1], -d[0]];
+      ctx.beginPath();
+      ctx.moveTo(X(0.74 - stem), Y(0.1));
+      ctx.lineTo(X(bend[0] - stem), Y(bend[1]));
+      ctx.lineTo(X(tip[0] - p[0] * stem), Y(tip[1] - p[1] * stem));
+      ctx.lineTo(X(tip[0] + p[0] * stem), Y(tip[1] + p[1] * stem));
+      ctx.lineTo(X(bend[0] + stem), Y(bend[1] - 0.18));
+      ctx.lineTo(X(0.74 + stem), Y(0.1));
+      ctx.closePath();
+      ctx.fill();
+      // The head: base across the run, tip 0.8 m on.
+      const head = 0.42;
+      ctx.beginPath();
+      ctx.moveTo(X(tip[0] + d[0] * 0.8), Y(tip[1] + d[1] * 0.8));
+      ctx.lineTo(X(tip[0] + p[0] * head), Y(tip[1] + p[1] * head));
+      ctx.lineTo(X(tip[0] - p[0] * head), Y(tip[1] - p[1] * head));
+      ctx.closePath();
+      ctx.fill();
+      wornPaint(ctx, w, h, 152, 380);
+    },
+  },
+  road_arrow_straight: {
+    name: 'Worn white straight-ahead road arrow (alpha: u across 1.1 m, v along 4 m, head up)',
+    size: [128, 512],
+    color: true,
+    draw(ctx, w, h) {
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = ROAD_PAINT;
+      const X = (u: number): number => (u * w) / 1.1;
+      const Y = (v: number): number => h - (v * h) / 4;
+      ctx.fillRect(X(0.55 - 0.13), Y(2.7), X(0.26), Y(0.1) - Y(2.7));
+      ctx.beginPath();
+      ctx.moveTo(X(0.55), Y(3.95));
+      ctx.lineTo(X(1.0), Y(2.6));
+      ctx.lineTo(X(0.1), Y(2.6));
+      ctx.closePath();
+      ctx.fill();
+      wornPaint(ctx, w, h, 153, 380);
     },
   },
   flag_mk: {

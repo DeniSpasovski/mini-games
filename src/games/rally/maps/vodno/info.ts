@@ -71,7 +71,7 @@ export const vodnoInfo: MapInfo = {
   },
   // The road's centre line (the first crossroad's extra lane moves it): the same points as the full map's road.
   route: shiftedRoute(data.route, laneShift),
-  // The road's surface, then each section's (the run-up street, the lined climb, the three lanes, the lined climb): see
+  // The road's surface, then each section's (the lined road, the crossroad's wide stretch, the lined road again): see
   // `infoOf` in ../index.ts.
-  surfaces: ['tarmac', 'tarmac', 'tarmac', 'tarmac'],
+  surfaces: ['tarmac', 'tarmac', 'tarmac'],
 };

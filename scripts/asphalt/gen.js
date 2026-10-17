@@ -41,6 +41,20 @@
 
   const WHITE = '#dcdcd4';
   const YELLOW = '#d2a82a';
+  /** Vodno's old mountain road: lighter, finer stones, no patches (the lines and plain tiles share it, so they join). */
+  const VODNO = {
+    seed: 7,
+    polish: 0.5,
+    exposed: 0.55,
+    cracks: 22,
+    grain: 0.75,
+    patches: 0,
+    dust: 0.7,
+    age: 0.7,
+    lift: 0.3,
+    relief: 0.6,
+    crackW: 0.7,
+  };
   /**
    * len = metres per tile along the road (must match `texLength` in world/road-mesh.ts).
    * polish: bitumen film over the wheel paths; exposed: aggregate showing between them; grain: stone size
@@ -61,45 +75,16 @@
       age: 0.7,
     },
     road_tarmac_lines: {
-      seed: 7,
+      ...VODNO,
       len: 7,
-      polish: 0.5,
-      exposed: 0.55,
-      cracks: 22,
-      grain: 0.75,
-      patches: 0,
-      dust: 0.7,
-      age: 0.7,
-      lift: 0.3,
-      relief: 0.6,
-      crackW: 0.7,
       lines: [
         { u: 0.05, w: 12, color: WHITE },
         { u: 0.5, w: 12, color: WHITE },
         { u: 0.95, w: 12, color: WHITE },
       ],
     },
-    /** Three lanes (Vodno): worn edge lines and a dashed lane line each side of the middle lane. */
-    road_tarmac_lanes: {
-      seed: 9,
-      len: 12,
-      polish: 0.5,
-      exposed: 0.55,
-      cracks: 22,
-      grain: 0.75,
-      patches: 0,
-      dust: 0.7,
-      age: 0.7,
-      lift: 0.3,
-      relief: 0.6,
-      crackW: 0.7,
-      lines: [
-        { u: 0.05, w: 12, color: WHITE },
-        { u: 0.95, w: 12, color: WHITE },
-        { u: 0.34, w: 12, color: WHITE, dash: [3, 9] },
-        { u: 0.66, w: 12, color: WHITE, dash: [3, 9] },
-      ],
-    },
+    /** The same surface without lines (Vodno's crossroad, where the road paint lies over it). */
+    road_tarmac_plain: { ...VODNO, len: 7 },
     road_city: {
       seed: 11,
       len: 8,

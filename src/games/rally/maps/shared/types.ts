@@ -550,7 +550,7 @@ export type RoadTexture =
   | 'road'
   | 'road_tarmac'
   | 'road_tarmac_lines'
-  | 'road_tarmac_lanes'
+  | 'road_tarmac_plain'
   | 'road_parkway'
   | 'road_street'
   | 'road_street4'
@@ -592,6 +592,11 @@ export interface RoadDef {
     /** Only the stage road, between these distances along it (m); missing = the whole road and the highway carriageways. */
     range?: [number, number];
     /**
+     * A real wall: the cut is held tighter (a narrow coping on top of the face, `cutShape` in world/terrain-gen.ts) and
+     * the wall stops a car (colliders, world/cut-wall-colliders.ts).
+     */
+    solid?: boolean;
+    /**
      * From this distance along the stage road on, the walls are plain concrete with a chain-link fence on top (the
      * newer stretch of a parkway) instead of coursed stone with a picket railing.
      */
@@ -614,7 +619,35 @@ export interface RoadDef {
     surface: SurfaceId;
     texture?: RoadTexture;
   }[];
+  /** Paint laid on the stage road over its texture: lane lines and arrows (world/road-markings.ts). */
+  markings?: RoadMarking[];
 }
+
+/**
+ * One piece of road paint. Across the road it sits `offset` m in from the road's `edge` (the left is the left of the
+ * direction of travel), so it keeps its lane when the road widens; along it runs `from` to `to` (a line) or is
+ * centred at `at` (an arrow), in metres along the stage road.
+ */
+export type RoadMarking =
+  | {
+      kind: 'line';
+      from: number;
+      to: number;
+      edge: 'left' | 'right';
+      offset: number;
+      /** Paint width (m, default 0.12). */
+      width?: number;
+      /** [dash, gap] in metres; missing = a solid line. */
+      dash?: [number, number];
+    }
+  | {
+      kind: 'arrow';
+      /** 'left' = the turn-left-only arrow, 'straight' = the ahead arrow. */
+      arrow: 'left' | 'straight';
+      at: number;
+      edge: 'left' | 'right';
+      offset: number;
+    };
 
 /** Road surface / texture at a distance along the stage road (see RoadDef.sections). */
 export function roadSurfaceAt(
