@@ -640,7 +640,7 @@ class MainMenu {
       buttons(['Back', () => this.show('welcome'), true]),
     );
     // The results start level with the first stage card.
-    card.style.top = `${list.getBoundingClientRect().top - this.root.getBoundingClientRect().top}px`;
+    card.style.top = `${this.topIn(list)}px`;
     this.showMap(m);
   }
 
@@ -718,15 +718,20 @@ class MainMenu {
       SEASONS.map((id) => ({ id, label: SEASON_LABELS[id] })),
       this.seasonFor(m),
     );
+    // Dropdowns left, what they give right (month, time, temperature); the right side drops below when the card is narrow.
+    const picks = div('menu-when-pick');
+    picks.append(seasonRow.row);
+    const info = document.createElement('dl');
+    info.innerHTML = `<dt>Month</dt><dd></dd>`;
     // The month the stage is driven in that season (`EnvironmentDef.months`).
-    const monthRow = document.createElement('dl');
-    monthRow.innerHTML = `<dt>Month</dt><dd></dd>`;
     const showMonth = () => {
-      monthRow.querySelector('dd')!.textContent =
+      info.querySelector('dd')!.textContent =
         MONTH_NAMES[seasonMonth(m.environment, this.seasonFor(m)) - 1];
     };
     showMonth();
-    card.append(seasonRow.row, monthRow);
+    const when = div('menu-when');
+    when.append(picks, info);
+    card.append(when);
     // Without a time of day (the test map) the season only changes the picture, the leaves and the month.
     const onSeason = (e: Event) => {
       this.season = (e.target as HTMLSelectElement).value as Season;
@@ -743,10 +748,12 @@ class MainMenu {
       slotFor(hour).id,
       '← → keys',
     );
-    const when = document.createElement('dl');
-    when.innerHTML = `<dt>Time</dt><dd></dd><dt>Temperature</dt><dd></dd><dt hidden>At the top</dt><dd hidden></dd>`;
-    const [clock, temp, top] = when.querySelectorAll('dd');
-    const topLabel = when.querySelector('dt[hidden]') as HTMLElement;
+    info.insertAdjacentHTML(
+      'beforeend',
+      `<dt>Time</dt><dd></dd><dt>Temperature</dt><dd></dd><dt hidden>At the top</dt><dd hidden></dd>`,
+    );
+    const [, clock, temp, top] = info.querySelectorAll('dd');
+    const topLabel = info.querySelector('dt[hidden]') as HTMLElement;
     // The table is for the stage start; a long climb is colder (`stageTemps` `rise`), shown once the card's route is loaded.
     let rise = 0;
     const climbs = () => rise >= MIN_RISE;
@@ -776,7 +783,7 @@ class MainMenu {
       this.time = (e.target as HTMLSelectElement).value as TimeOfDayId;
       show(this.hourFor(m) ?? hour);
     });
-    card.append(timeRow.row, when);
+    picks.append(timeRow.row);
     return card;
   }
 
@@ -824,11 +831,19 @@ class MainMenu {
     this.root.append(card);
     // Phones: the card covers the map / car above the buttons (CSS), no alignment needed.
     if (window.innerWidth < SIDE_CARD_MIN_WIDTH) return true;
-    const top =
-      align.getBoundingClientRect().top - this.root.getBoundingClientRect().top;
+    const top = this.topIn(align);
     card.style.top = `${top}px`;
     card.style.maxHeight = `calc(100% - ${top + 24}px)`;
     return true;
+  }
+
+  /** Top of `el` inside the menu as if the panel were not scrolled (it keeps its scroll while the screen is rebuilt). */
+  private topIn(el: HTMLElement): number {
+    return (
+      el.getBoundingClientRect().top -
+      this.root.getBoundingClientRect().top +
+      this.panel.scrollTop
+    );
   }
 
   private carSelect(): void {
