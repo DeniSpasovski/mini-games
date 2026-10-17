@@ -452,7 +452,7 @@ export const JUNIPER: SpeciesDef = {
   bark: { color: '#5a4636', texture: 'furrowed', tiling: 1.5 },
   foliage: {
     kind: 'needles',
-    spriteSize: 0.75,
+    spriteSize: 0.5,
     leaf: 'juniper',
     palette: ['#24361f', '#2b3f26', '#1f2f1c', '#2f4129'],
   },

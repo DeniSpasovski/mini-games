@@ -350,8 +350,8 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   multiplies the species size.
   Branches are tubes at two levels (LOD0 = the skeleton without twigs, LOD1 = trunk + the first-order limbs thicker than 1/120 of the tree's height), then an
   octahedral impostor (albedo, normal + depth, thickness: lit like everything else). Foliage = one lit, camera-facing
-  cluster sprite per leaf point from the atlas of its species' leaf style (`foliage.leaf`, 8 styles x 8 images of 256 px, `trees/leaftex.ts`: albedo, normal + thickness; a leaf is a few % of the image;
-  broadleaf images are oval shoots with a side fork, turned in the shader to lie along their twig: `trees/sprite-attr.ts` packs the corner + heading into `treeSprite`),
+  cluster sprite per leaf point from the atlas of its species' leaf style (`foliage.leaf`, 8 styles x 8 images (512 px; the pine's 256 px), `trees/leaftex.ts`: albedo, normal + thickness at half size; a leaf is 4-6 % of the image;
+  broadleaf images are leafy branches (twigs with small stalked leaves, a side fork), cypress / juniper images drooping fronds, all turned in the shader to lie along their twig: `trees/sprite-attr.ts` packs the corner + heading into `treeSprite`),
   tinted by the species palette (`foliage.palette` = summer; spring / autumn palettes in `trees/seasons.ts`, picked by the stage's season, so each season is its own cache entry and the trees themselves stay the same),
   drawn with both branch levels; a crown draws its highest-ranked 35 % (`NEAR_SPRITES`, the rest left out, the kept
   ones grown to the same coverage) within the full-detail distance (`FOREST_REACH.full`, 40 m: the only trees with

@@ -486,7 +486,8 @@ export function barkTexture(kind: BarkTexture): Texture {
 
 /**
  * The sprite atlas textures of a leaf style (pixels from trees/leaftex.ts): albedo + alpha (sRGB) and normal +
- * thickness (linear), both with coverage-preserving mipmaps (the normal map follows the albedo's alpha scale).
+ * thickness (linear, half the albedo's size), both with coverage-preserving mipmaps (the normal map follows the
+ * albedo's alpha scale).
  */
 export function spriteTextures(style: LeafStyle): {
   albedo: Texture;
@@ -503,8 +504,12 @@ export function spriteTextures(style: LeafStyle): {
     false,
     atlas.normal,
   );
-  const make = (data: Uint8Array, levels: MipLevel[], srgb: boolean) => {
-    const t = new DataTexture(data, atlas.width, atlas.height);
+  const make = (levels: MipLevel[], srgb: boolean) => {
+    const t = new DataTexture(
+      levels[0].data,
+      levels[0].width,
+      levels[0].height,
+    );
     t.mipmaps = levels;
     t.generateMipmaps = false;
     t.magFilter = LinearFilter;
@@ -513,8 +518,10 @@ export function spriteTextures(style: LeafStyle): {
     t.needsUpdate = true;
     return t;
   };
-  const albedo = make(atlas.albedo, mips.main, true);
-  const normal = make(atlas.normal, mips.companion, false);
+  // The normal + thickness map is read at the albedo's uv at half its resolution (a leaf's tilt and glow need no more),
+  // which saves a quarter of the atlas' memory.
+  const albedo = make(mips.main, true);
+  const normal = make(mips.companion.slice(1), false);
   textures.set(`${key}:a`, albedo);
   textures.set(`${key}:n`, normal);
   return { albedo, normal };

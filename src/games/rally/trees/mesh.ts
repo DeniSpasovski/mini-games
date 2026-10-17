@@ -392,7 +392,7 @@ function sprites(
       grow *
       (0.8 + 0.4 * r(2)) *
       (l.order <= 1 ? 1.15 : 1) *
-      (atlas.aligned ? SPRAY_GROW : 1);
+      (atlas.aligned ? SPRAY_GROW * atlas.grow : 1);
     // A spray grows along its heading from the twig; a round burst has none.
     const heading = atlas.aligned ? sprayHeading(l, r(3) - 0.5) : null;
     // Needle sprays sit along the twig behind its tip, leaf sprays start on it and grow out, bunches around it.

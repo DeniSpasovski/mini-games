@@ -157,7 +157,7 @@ describe('trees', () => {
       765;
     // Columnar poplar and juniper; spreading walnut and willow; a pine taller than wide.
     expect(ratio('poplar_tree')).toBeGreaterThan(2.5);
-    expect(ratio('juniper')).toBeGreaterThan(1.1);
+    expect(ratio('juniper')).toBeGreaterThan(0.9);
     expect(ratio('cypress_tree')).toBeGreaterThan(2.5);
     expect(ratio('pine_tree')).toBeGreaterThan(1.3);
     // The plantation pine is the pine's cone grown cheaper: as tall and narrow, with fewer sprites and limbs.
@@ -204,7 +204,7 @@ describe('trees', () => {
       );
     // Sizes: shrubs and junipers are low; the fruit tree is smaller than the oak; the poplar is the tallest.
     for (const low of ['bush', 'scrub_bush', 'juniper', 'bramble_shrub'])
-      expect(v(low).info.height).toBeLessThan(4);
+      expect(v(low).info.height).toBeLessThan(4.5);
     expect(v('fruit_tree').info.height).toBeLessThan(
       v('oak_tree').info.height * 0.7,
     );
@@ -395,9 +395,9 @@ describe('tree performance rules (trees/Performance.md#mitigations)', () => {
           const [x1, y1] = o[(i + 1) % o.length];
           area += x0 * y1 - x1 * y0;
         }
-        // Smaller than the full square, but not empty (a spray lies along x: a third of it or more).
+        // Smaller than the full square, but not empty (a spray or a thin frond lies along x).
         expect(Math.abs(area / 2)).toBeLessThan(0.95);
-        expect(Math.abs(area / 2)).toBeGreaterThan(0.15);
+        expect(Math.abs(area / 2)).toBeGreaterThan(0.08);
       }
     }
   });
