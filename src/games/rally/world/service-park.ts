@@ -15,6 +15,7 @@ import type { ScatterInstance } from './scatter';
 export const SERVICE_PARK_ASSETS = [
   'service_truck',
   'service_semi',
+  'service_tow',
   'service_van',
   'car_trailer',
   'pickup',
@@ -161,7 +162,8 @@ function layBays(
       // Row 0 backs on v = BAY_DEPTH (front at the public edge), row 1 on the far edge of the lot; a parc fermé row
       // fills the lot's whole depth.
       const vBack = ferme ? lot.width : r === 0 ? BAY_DEPTH : lot.width;
-      let uEast = lot.length - (ferme ? 1.2 : 1.5);
+      let uEast =
+        lot.length - (ferme ? 1.2 : 1.5) - (lot.tow && ferme ? TOW_STRETCH : 0);
       let first = !ferme;
       while (layout.bays < def.bays && inLot < (lot.bays ?? Infinity)) {
         // Each row opens with a works team (truck + awning, two cars), the rest is drawn; a parc fermé is cars only.
@@ -186,10 +188,64 @@ function layBays(
         layout.bayCentres.push({ ...bay.centre, team });
       }
     }
+    if (lot.tow && ferme) addTow(layout, lot, ctx);
     if (lot.semis)
       addSemis(layout, lot, ctx, layout.bayCentres.slice(firstCentre));
   }
   return layout;
+}
+
+/** Length (m) of the recovery tow truck and the stretch at a lot's far end it takes (clear ground at either end). */
+const TOW_LENGTH = 7.1;
+const TOW_STRETCH = 9.5;
+
+/**
+ * The recovery tow truck of a parc fermé lot (`ServiceLot.tow`): in the stretch beyond the cars at the lot's far end,
+ * beside the public edge like a car, with a marshal at its cab. Left out when something blocks it.
+ */
+function addTow(
+  layout: ServiceParkLayout,
+  lot: ServiceLot,
+  ctx: ServiceParkContext,
+): void {
+  const u = lot.length - TOW_STRETCH / 2;
+  const v = lot.parallel ? STREET_CAR_V + 0.3 : 2.4;
+  const [x, z] = lotWorld(lot, u, v);
+  const [x0, z0] = lotWorld(lot, u - TOW_LENGTH / 2, v);
+  const [x1, z1] = lotWorld(lot, u + TOW_LENGTH / 2, v);
+  if (
+    ctx.blocked(x, z, 1.6, lot.paved) ||
+    ctx.blocked(x0, z0, 1.4, lot.paved) ||
+    ctx.blocked(x1, z1, 1.4, lot.paved)
+  )
+    return;
+  const [h0, h1] = [ctx.height(x0, z0), ctx.height(x1, z1)];
+  layout.instances.push({
+    asset: 'service_tow',
+    variant: Math.abs(Math.round(lot.x + lot.z)) % 4,
+    x,
+    y: (h0 + h1) / 2,
+    z,
+    // Nose to +u, like the cars of a street lot.
+    rotY: -lot.heading,
+    scale: 1,
+    tiltX: 0,
+    tiltZ: Math.atan2(h1 - h0, TOW_LENGTH),
+  });
+  // The marshal stands behind the cab, looking at the truck.
+  const [mx, mz] = lotWorld(lot, u + 2.3, v + 2.3);
+  if (ctx.blocked(mx, mz, 0.4, lot.paved)) return;
+  layout.instances.push({
+    asset: 'marshal',
+    variant: 3,
+    x: mx,
+    y: ctx.height(mx, mz),
+    z: mz,
+    rotY: yawToward(Math.sin(lot.heading), -Math.cos(lot.heading)),
+    scale: 1,
+    tiltX: 0,
+    tiltZ: 0,
+  });
 }
 
 /** Length of a team semi (m), the aisle between the bays and the trucks, and the most room one gets along the lot. */
@@ -691,6 +747,7 @@ const KEEP_OUT: Record<string, number> = {
   team_car: 2.7,
   service_truck: 4.9,
   service_semi: 8.8,
+  service_tow: 3.8,
   service_van: 3,
   car_trailer: 3.6,
   pickup: 3,

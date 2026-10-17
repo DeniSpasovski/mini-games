@@ -191,14 +191,18 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   crew. On a street (The Jackie: 5 + 5 abeam the start, on the street east of the stage road and the opposite carriageway's inner
   lane west of it) the lot lies over the road (`paved`: other roads do not block, no pad) and `parallel` parks the cars nose to
   tail along the kerb, side-on to the start, the tent (3 x 6 m) in the lane behind each car. Vodno parks 6 the same way on the side street
-  that leaves the run-up street 140 m before the start (its straight west leg). `maps/<id>/service-park.ts`, test `parc-ferme`.
+  that leaves the run-up street 140 m before the start (its straight west leg). `ServiceLot.tow` adds a recovery tow truck
+  (`service_tow`: the dump cab with the roll-back deck of `build/truck-backs.ts`, one colour all over) and a marshal in a 9.5 m stretch at
+  the lot's far end (the bays start short of it: make the lot that much longer; Test, Galichica West, The Jackie's east street, Vodno).
+  `maps/<id>/service-park.ts`, test `parc-ferme`.
 - **Park cars**: `team_car` only places the car and gives it its collider. The car is a real released model at low quality:
   `world/park-car-mesh.ts` (`ParkCars`, owned by `InstanceStreamer`, `streamer.ready`) draws `parkCarId(team)` (`world/park-cars.ts`)
   from `public/models/cars/<id>_park.glb` (`scripts/car-model/park-lods.mjs`: three body LODs of about 7.5k / 2.3k / 1.1k
   triangles = livery shell + vertex-coloured parts, and three rims). It wears the team's colours through the car's own livery
   painter (~85 px/m, one texture per car and team), wheels are built at runtime and merged into the parts, so a car is two draw
   calls. A raised car stands on axle stands with the rear wheels off (a `tyre_stack` lies beside it). Tests `park-cars`,
-  `car-glb-meshopt`.
+  `car-glb-meshopt`. The models load when the camera is within 200 m of the last LOD's reach of a car and are freed (geometry,
+  liveries) beyond 800 m of it (`parkCarsPlan`), so a stage driven away from its park holds nothing of it.
 - **People** (`assets/builders/people.ts`): jointed low-poly figures posed by joint angles + outfit colours, smooth lofted bodies close up (LOD 0), painted unwrapped garment atlas + normal map (`engine/people-atlas.ts`, `people` material; zips, pockets, seams, face) - `spectator` (24 standing + 18 sitting / squatting at corner fans),
   `mechanic`, `crew`, `driver`, `marshal` (flag, sign, radio), `photographer`, `visitor` (12 personas: ages, sizes, dresses, kids); test `people`.
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)

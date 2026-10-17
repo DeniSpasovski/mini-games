@@ -455,6 +455,16 @@ export const ASSET_CATALOG: AssetMeta[] = [
     colliders: [{ kind: 'box', hx: 8.8, hz: 1.35, h: 4, r: 9.2 }],
   },
   {
+    id: 'service_tow',
+    name: 'Recovery tow truck',
+    category: 'props',
+    description:
+      'Roll-back tow truck (7 m) of a parc fermé, one colour all over (variant 0 yellow, 1 white, 2 red, 3 blue), the baked lorry cab with its textures. Faces +X. Solid.',
+    variants: 4,
+    lods: VEHICLE_LODS,
+    colliders: [{ kind: 'box', hx: 3.5, hz: 1.35, h: 2.9, r: 3.8 }],
+  },
+  {
     id: 'service_van',
     name: 'Service van',
     category: 'props',

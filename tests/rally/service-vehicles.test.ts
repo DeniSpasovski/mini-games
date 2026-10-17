@@ -4,6 +4,7 @@ import {
   foodTruck,
   pickup,
   serviceSemi,
+  serviceTow,
   serviceTruck,
   serviceVan,
 } from '../../src/games/rally/assets/builders/service';
@@ -94,6 +95,17 @@ describe('team vehicles of the service park', () => {
       // The model's own triangles (welded, never simplified), a mesh per part and texture.
       expect(near.parts.length).toBeLessThanOrEqual(4);
       expect(tris(near)).toBeLessThan(17000);
+      expect(far.parts.length).toBe(1);
+      expect(tris(far)).toBeLessThan(100);
+    }
+  });
+
+  test('service_tow: the roll-back tow truck in one colour, one stand-in box far away', () => {
+    for (let variant = 0; variant < 4; variant++) {
+      const near = serviceTow({ seed: 1, variant, lod: 0 });
+      const far = serviceTow({ seed: 1, variant, lod: 1 });
+      expect(near.parts.length).toBeLessThanOrEqual(8);
+      expect(tris(near)).toBeLessThan(22000);
       expect(far.parts.length).toBe(1);
       expect(tris(far)).toBeLessThan(100);
     }

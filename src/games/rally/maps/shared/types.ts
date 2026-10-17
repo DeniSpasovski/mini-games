@@ -708,6 +708,11 @@ export interface ServiceLot {
    * about 36 m, its length 11 m per truck.
    */
   semis?: number;
+  /**
+   * A recovery tow truck (`service_tow`, 7 m) with a marshal stands at the lot's far end (u = length), beside the
+   * cars, nose to +u; the bays start 9.5 m short of that end. A parc fermé lot: make it 9.5 m longer than its cars need.
+   */
+  tow?: boolean;
   /** Where dirt links cross the verge to the road (`linkPad`): u along the lot (m); tape, crowd and press keep clear of them. */
   links?: number[];
 }

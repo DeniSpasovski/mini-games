@@ -7,14 +7,15 @@ import type { ServiceLot, ServicePark } from '../shared/types';
  * tents behind them on the south half of the carriageway. Nothing is levelled, the street keeps its own surface.
  */
 export const SIDE_STREET: ServiceLot = {
-  x: 1432.6,
-  z: -1082.3,
+  x: 1427.9,
+  z: -1083.2,
   heading: -2.96,
-  length: 39,
+  length: 48.5,
   width: 6.2,
   bays: 6,
   paved: true,
   parallel: true,
+  tow: true,
 };
 
 export const VODNO_PARK: ServicePark = {

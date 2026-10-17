@@ -5,6 +5,7 @@ import { jackieMap } from '../../src/games/rally/maps/jackie/map';
 import { petralicaMap } from '../../src/games/rally/maps/petralica/map';
 import {
   lotContains,
+  lotLocal,
   lotWorld,
 } from '../../src/games/rally/maps/shared/service-lot';
 import { SURFACES } from '../../src/games/rally/physics/surfaces';
@@ -227,6 +228,48 @@ describe('parc fermé: vodno (parallel on the side street behind the start)', ()
   test('deterministic', () => {
     expect(new World(vodnoMap).servicePark!.instances).toEqual(park.instances);
   });
+});
+
+describe('recovery tow trucks', () => {
+  const TOW: [string, () => World, number][] = [
+    ['test', () => new World(testMap), 1],
+    ['galichica_west', () => new World(galichicaMap, 'galichica_west'), 1],
+    ['galichica_east', () => new World(galichicaMap, 'galichica_east'), 0],
+    ['jackie', () => new World(jackieMap), 1],
+    ['vodno', () => new World(vodnoMap), 1],
+  ];
+
+  test.each(TOW)(
+    '%s: %i tow truck(s) past the cars, off the road',
+    (_, make, n) => {
+      const world = make();
+      const park = world.servicePark!;
+      const def = world.stageDef.servicePark!;
+      const tows = park.instances.filter((i) => i.asset === 'service_tow');
+      expect(tows.length).toBe(n);
+      const rq = newRoadQuery();
+      for (const tow of tows) {
+        const lot = def.lots.find(
+          (l) => l.tow && lotContains(l, tow.x, tow.z),
+        )!;
+        expect(lot).toBeDefined();
+        // In the stretch at the lot's far end, clear of every car.
+        const [u] = lotLocal(lot, tow.x, tow.z);
+        expect(u).toBeGreaterThan(lot.length - 9.5);
+        for (const car of park.instances.filter((i) => i.asset === 'team_car'))
+          expect(Math.hypot(car.x - tow.x, car.z - tow.z)).toBeGreaterThan(5);
+        world.stageRoad.query(tow.x, tow.z, rq);
+        expect(rq.distance).toBeGreaterThan(rq.halfWidth + 3);
+        // A marshal stands beside it.
+        expect(
+          park.instances.some(
+            (i) =>
+              i.asset === 'marshal' && Math.hypot(i.x - tow.x, i.z - tow.z) < 4,
+          ),
+        ).toBe(true);
+      }
+    },
+  );
 });
 
 describe('stages without a park', () => {

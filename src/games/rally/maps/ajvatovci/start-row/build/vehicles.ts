@@ -879,12 +879,21 @@ function proxyOf(pieces: Pieces): BufferGeometry {
   return mergeGeometries(boxes)!;
 }
 
+/** Paint and cab paint of a mesh coloured through its vertex colours (a service park vehicle: one draw call per mesh). */
+let tintedMaterials: Record<'paint' | 'cab', Material> | undefined;
+const tintedMaterial = (part: 'paint' | 'cab'): Material => {
+  tintedMaterials ??= {
+    paint: Object.assign(materialFor().paint.clone(), { vertexColors: true }),
+    cab: Object.assign(materialFor().cab.clone(), { vertexColors: true }),
+  };
+  return tintedMaterials[part];
+};
+
 /**
- * The team tractor-trailer of the service park (`service_semi`, assets/builders/service.ts): the baked `trailer` model with
- * tractor and trailer tinted `color` through the vertex colours (the model is centred on the origin). LOD 1 is the two-box stand-in.
+ * A baked truck in one colour for the service park: paint and cab take `color` through the vertex colours (the model
+ * is centred on the origin). LOD 1 is the two-box stand-in.
  */
-export function teamSemi(color: string, lod: number): AssetPart[] {
-  const pieces = buildTruck('tractor');
+function tintedTruck(pieces: Pieces, color: string, lod: number): AssetPart[] {
   const tint = new Color(color);
   /** `g` with the colour on every vertex (times `tone` per vertex when given). */
   const colored = (g: BufferGeometry, tone?: (i: number) => number) => {
@@ -908,12 +917,27 @@ export function teamSemi(color: string, lod: number): AssetPart[] {
   return pieces.slots().flatMap((slot) => {
     const geometry = pieces.geometry(slot);
     if (!geometry) return [];
-    const tinted = slot.part === 'paint' || slot.part === 'cab';
+    const paint = slot.part === 'paint' || slot.part === 'cab';
     return [
       {
-        geometry: tinted ? colored(geometry) : geometry,
-        material: slot.tex ? texturedMaterial(slot, tinted) : mats[slot.part],
+        geometry: paint ? colored(geometry) : geometry,
+        material: slot.tex
+          ? texturedMaterial(slot, paint)
+          : paint
+            ? tintedMaterial(slot.part as 'paint' | 'cab')
+            : mats[slot.part],
       },
     ];
   });
 }
+
+/** The team tractor-trailer of the service park (`service_semi`, assets/builders/service.ts), tractor and trailer in `color`. */
+export const teamSemi = (color: string, lod: number): AssetPart[] =>
+  tintedTruck(buildTruck('tractor'), color, lod);
+
+/** The recovery tow truck of a parc fermé (`service_tow`): the roll-back on the dump cab, one colour all over. */
+export const recoveryTruck = (color: string, lod: number): AssetPart[] =>
+  tintedTruck(buildDump('tow'), color, lod);
+
+/** Colours of a recovery truck (the fleet's tow palette). */
+export const RECOVERY_COLORS = BACK_PAINT.tow;

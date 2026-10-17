@@ -11,7 +11,11 @@ import {
   streetCarIndex,
   streetCarModel,
 } from './street-car-models';
-import { teamSemi } from '../../maps/ajvatovci/start-row/build/vehicles';
+import {
+  RECOVERY_COLORS,
+  recoveryTruck,
+  teamSemi,
+} from '../../maps/ajvatovci/start-row/build/vehicles';
 import { box, finish, solid, wheel } from './vehicles';
 
 /**
@@ -116,6 +120,14 @@ export const serviceTruck: AssetBuilder = ({ variant, lod }) => {
  */
 export const serviceSemi: AssetBuilder = ({ variant, lod }) => ({
   parts: teamSemi(team(variant).base, lod),
+});
+
+/**
+ * Recovery tow truck of a parc fermé (7 m): the baked dump cab with a roll-back deck, one colour all over (variant =
+ * colour of the fleet's tow palette), drawn with its own textures (`recoveryTruck`).
+ */
+export const serviceTow: AssetBuilder = ({ variant, lod }) => ({
+  parts: recoveryTruck(RECOVERY_COLORS[variant % RECOVERY_COLORS.length], lod),
 });
 
 /** Panel van (5.6 m, the background high-roof van) in team colours with side stripes. */
