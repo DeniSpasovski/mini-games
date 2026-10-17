@@ -64,7 +64,7 @@ Some roads, properties and outlines were added or traced by hand on top of the o
 
 ### Background cars (baked into `src/games/rally/assets/builders/`: `street-cars.data.ts`, `street-car-atlas.jpg`, `street-car-mask.png`)
 
-The parked cars of the city maps are recoloured copies of vehicles from three CC BY 4.0 packs (split and packed by
+The parked cars of the city maps and the Ajvatovci yards (modern cars only) are recoloured copies of vehicles from three CC BY 4.0 packs (split and packed by
 `scripts/car-model/street-pack-extract.py` + `bake-street-textures.py` + `bake-street-cars.mjs`; their own triangles and textures,
 paint panels tinted, far LODs reduced, wheels redrawn at the far LODs; the source files are not in the repository).
 

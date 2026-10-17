@@ -239,6 +239,9 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   light bar and lettering are a second `vehicle` part up to LOD 1. Variants 0-14 = model (`STREET_CAR_MIX` weights what streets pick;
   15 = the white hatch a map places). The car LODs set `separateVariants` (no merged variant set: every instance would run the
   vertex shader over all 15 models). Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` holds the triangle budget.
+- The Ajvatovci yards' cars (`PACK_CARS` in `maps/ajvatovci/start-row/build/vehicles.ts`) are the same pack models: a few per kind,
+  scaled to the layout's footprint, drawn per instance colour through the atlas tint mask in three distance tiers (`CAR_LOD_RANGE`:
+  full / ~2k / ~1k triangles, then the two-box stand-in). The vans are still code-built.
 - The Ajvatovci yards' trucks (`maps/ajvatovci/start-row/build/vehicles.ts`, `truck-models.ts`) are baked from two CC BY models
   (`scripts/car-model/bake-trucks.mjs`, data in `truck-models.data.ts`): `tractor` + `trailer` (the `trailer` kind), the `tractor` under a
   code-built tank (`tanker`), the `cab` under a code-built box (`box`) and a `dump` truck whose back is swapped (`Back`: tipper, flatbed,

@@ -49,7 +49,7 @@ export const petralicaInfo: MapInfo = {
     {
       label: 'Generic passenger car pack (Comrade1280, Sketchfab)',
       url: 'https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5',
-      note: 'parked cars, simplified - CC BY 4.0',
+      note: 'parked cars - CC BY 4.0',
     },
   ],
   stageNumber: 2,

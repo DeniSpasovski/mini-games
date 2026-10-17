@@ -25,9 +25,15 @@ const OLD_COUNT = 5;
 export const STREET_CAR_COUNT = STREET_CAR_DATA.length;
 /** Index of the sedan (the taxi and police car). */
 export const SEDAN = STREET_CAR_DATA.findIndex((d) => d.id === 'sedan');
+/** Index of the model `id` (-1 if there is none). */
+export const streetCarIndex = (id: string): number =>
+  STREET_CAR_DATA.findIndex((d) => d.id === id);
 
 export interface StreetCarShape {
   old: boolean;
+  /** Length and width of the model (m), mirrors included. */
+  length: number;
+  width: number;
   /** Height of the roof (m) and its middle along the car. */
   height: number;
   roofX: number;
@@ -79,6 +85,8 @@ export function streetCarModel(index: number, lod: number): StreetCarShape {
   const d = decode(data.lods[l]);
   const shape: StreetCarShape = {
     old: i < OLD_COUNT,
+    length: data.length,
+    width: data.width,
     height: data.height,
     roofX: data.roofX,
     sideZ: data.sideZ,
