@@ -262,6 +262,8 @@ export interface TreeRendererOptions {
    * `shadowDistance` (behind the camera, most of them throw their shadow where no shadow map is).
    */
   shadowExtent?: number;
+  /** Share of `shadowExtent` the box is centred ahead of the camera (engine/environment.ts; default 0.5). */
+  shadowAhead?: number;
   /**
    * Trees farther than this from the stage road (m) are always static impostors (no branches, sprites or shadows): the
    * player only ever sees them from the road, at least this far away.
@@ -1396,12 +1398,13 @@ export class TreeRenderer {
     const uy = sun.z * rx - sun.x * rz;
     const uz = -sun.y * rx;
     const p = this.steadyPos;
-    const bx = p.x + Math.cos(v.yaw) * ext * 0.5;
-    const bz = p.z + Math.sin(v.yaw) * ext * 0.5;
+    const ahead = this.opts.shadowAhead ?? 0.5;
+    const bx = p.x + Math.cos(v.yaw) * ext * ahead;
+    const bz = p.z + Math.sin(v.yaw) * ext * ahead;
     const by = p.y;
     // + the chase camera's distance behind the car (the box follows the car, this the camera).
     const margin =
-      (this.opts.rebuildDistance ?? 5) + 4 + ext * 0.5 * REPACK + 10;
+      (this.opts.rebuildDistance ?? 5) + 4 + ext * ahead * REPACK + 10;
     return {
       reaches: (s, at) => {
         const dx = s[at] - bx;
