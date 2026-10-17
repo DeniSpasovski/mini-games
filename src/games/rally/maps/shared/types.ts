@@ -60,6 +60,11 @@ export interface MapDef {
    * land no camera can see - the far side of a ridge - where it only costs generation time, memory and canopy-shadow work.
    */
   scatterBounds?: Partial<MapDef['bounds']>;
+  /**
+   * Trees (not the drive-through bushes) stand at least `dist` m from the stage road's edge between `from` and `to` m along it (a verge of open ground: a road
+   * through a suburb, a forest road with the trees set back), easing in and out over `fade` m (default 30) at the ends.
+   */
+  treeSetback?: { from: number; to: number; dist: number; fade?: number }[];
   /** Props placed along the road (posts, signs, bales, crowds...). */
   roadside: RoadsideRule[];
   /** Continuous barriers along the road (Jersey wall, guard rail): one swept mesh, not separate props. */
@@ -225,8 +230,13 @@ export interface PadDef {
   polygon: number[];
   /** Max blend distance back to the land (m); steeper cuts / fills get less. */
   blend: number;
-  /** Frontage points next to the stage road, flat [x0, z0, x1, z1, ...] (at least two, west to east). */
-  frontage: number[];
+  /** Frontage points next to the stage road, flat [x0, z0, x1, z1, ...] (at least two, west to east). Not needed with `level`. */
+  frontage?: number[];
+  /**
+   * A terrace: one level over the whole pad (a house on a hillside), the land's height at `at` plus `lift` (default 0.1),
+   * instead of following the road along `frontage`.
+   */
+  level?: { at: [number, number]; lift?: number };
   /** Metres above the road's centre line at the frontage (sidewalk height), default 0.1. */
   lift?: number;
   /**
@@ -540,6 +550,7 @@ export type RoadTexture =
   | 'road'
   | 'road_tarmac'
   | 'road_tarmac_lines'
+  | 'road_tarmac_lanes'
   | 'road_parkway'
   | 'road_street'
   | 'road_street4'
@@ -578,6 +589,8 @@ export interface RoadDef {
   cutWalls?: {
     minHeight: number;
     offset: number;
+    /** Only the stage road, between these distances along it (m); missing = the whole road and the highway carriageways. */
+    range?: [number, number];
     /**
      * From this distance along the stage road on, the walls are plain concrete with a chain-link fence on top (the
      * newer stretch of a parkway) instead of coursed stone with a picket railing.

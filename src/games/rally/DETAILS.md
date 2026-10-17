@@ -180,7 +180,8 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   camera can see (Vodno: nothing south of the ridge). A way merging into another at a shallow angle sets `PathDef.mergeTaper` (its end
   narrows to a point) and `joinsUnder` (its ribbon lies under the other's).
 - **Road textures** (`RoadDef.texture`, per stretch in `sections`): gravel `road`, worn `road_tarmac`, `road_tarmac_lines` (the
-  same with white edge lines), `road_parkway`, the city asphalts (`road_city`, `road_street`, `road_street4`, `junction_asphalt`).
+  same with white edge and centre lines), `road_tarmac_lanes` (three lanes: edge lines and two dashed lane lines), `road_parkway`, the
+  city asphalts (`road_city`, `road_street`, `road_street4`, `junction_asphalt`).
   The asphalts are baked images, not drawn at load: `engine/asphalt/<id>.<size>.{color,normal,rough}.webp`, made by
   `scripts/asphalt/bake.mjs` (tiles drawn by `gen.js` in headless Chromium; the output is committed, rerun after changing
   `gen.js`). High loads the 1024 px set, Medium / Low their own 512 px set. `engine/road-surface.ts` loads them (the play page
@@ -201,9 +202,13 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Buildings:** placeholder boxes with stable ids (`buildings.csv`, viewer `?building=N`) or mesh buildings from the real
   footprints (`world/building-mesh.ts`).
 - **Stage signs:** start / finish gantries and split boards from the stage's `timing`, along the stage road (`world/stage-signs.ts`).
+- **Terrain by hand:** `terrain.pads` level the land round a lot (along the road: `frontage` + `lift`) or a house on a slope (a terrace:
+  `PadDef.level`); the road's carve wins near the road. `road.cutWalls.range` limits the sheer, walled cut to one stretch of the stage
+  road (Vodno's concrete wall at the first crossroad, on a pad `lift`ed above the road: `maps/vodno/crossroad.ts`). `routePoints` takes a
+  sideways shift (a lane added on one side). `MapDef.treeSetback` keeps the solid trees back from the road's edge along a stretch.
 - **Landmarks:** hand-modelled lots on graded pads that replace the placeholders, hooks `surfaceAt` / `keepsClear` /
   `groundOverride` (`world/landmarks.ts`, `pads.ts`; `maps/ajvatovci/start-row`, `hilltop`, `station`; Vodno's car parks:
-  `maps/vodno/landmarks/car-parks.ts` + `lots.ts`). A `PathDef.bare` street gets no kerbs / sidewalks / lamps inside `cityStreets` reach.
+  `maps/vodno/landmarks/car-parks.ts` + `lots.ts`, its gate `gate.ts` and the two flats and their wall on the start street `start-blocks.ts`, `start-wall.ts`). A `PathDef.bare` street gets no kerbs / sidewalks / lamps inside `cityStreets` reach.
 - **City maps** (`jackie`): one-way carriageways, bridges and decks, portals, junction plazas, parkway lanes, continuous
   barriers, retaining walls, gores, overhead signs, kerbs / crosswalks / lamps, parked vehicles (`world/bridge-mesh.ts`,
   `portals.ts`, `plazas.ts`, `parkway-lanes.ts`, `barriers.ts`, `cut-wall-mesh.ts`, `street-detail.ts`).
@@ -341,9 +346,10 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 
 **Draw calls**
 
-- Terrain chunks merge per detail band into 2 x 2 / 4 x 4 (from LOD2) and 8 x 8 (LOD3) meshes (`terrain-renderer.ts`: the
+- Terrain chunks merge per detail band into 2 x 2 (from LOD1) / 4 x 4 (from LOD2) and 8 x 8 (LOD3) meshes (`terrain-renderer.ts`: the
   `blockLod` bands never make a chunk coarser than unmerged, `MERGE_SLACK` stops tiles fragmenting along band edges; big tiles
-  are sampled in slices). Merged tiles keep the vertex grid of their LOD. The plan is redone after 8 m of travel.
+  are sampled in slices). Merged tiles keep the vertex grid of their LOD; a tile that splits or merges at the same LOD copies
+  its vertices from the tiles it replaces (`reuse`), so streaming while driving does not resample the generator. The plan is redone after 8 m of travel.
 - Whole-map meshes are merged per tile, never per object. Many materials = many draws: use a texture array
   (`engine/texture-array.ts` `layeredMaterial`; mesh buildings = one mesh per 192 m tile, start-row lots = 3 material groups
   per 128 m tile). A custom shader must scale `envMapIntensity` (it carries `scene.environmentIntensity`), never replace it.

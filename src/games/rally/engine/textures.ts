@@ -31,6 +31,7 @@ export type TextureId =
   | 'road'
   | 'road_tarmac'
   | 'road_tarmac_lines'
+  | 'road_tarmac_lanes'
   | 'road_parkway'
   | 'road_street'
   | 'road_street4'
@@ -960,21 +961,58 @@ const DEFS: Record<TextureId, TexDef> = {
     },
   },
   road_tarmac_lines: {
-    name: 'Old tarmac with a worn white edge line each side',
+    name: 'Old tarmac with a worn white edge line each side and a worn white centre line',
     size: [512, 512],
     color: true,
     draw(ctx, w, h) {
       DEFS.road_tarmac.draw(ctx, w, h);
       const rng = new Rng(65);
-      const us = [0.05, 0.95];
+      const us = [0.05, 0.5, 0.95];
       ctx.fillStyle = '#d6d6ce';
       for (const u of us) ctx.fillRect(u * w - 6, 0, 12, h);
-      // Wear: asphalt specks and gaps over the paint.
-      for (let i = 0; i < 2400; i++) {
+      // Wear: asphalt specks and gaps over the paint, a few bald stretches where the wheels run.
+      for (let i = 0; i < 3600; i++) {
         ctx.fillStyle = `rgba(${84 + rng.int(0, 30)},${82 + rng.int(0, 30)},${80 + rng.int(0, 30)},${rng.range(0.35, 0.85)})`;
         ctx.fillRect(
           rng.pick(us) * w + rng.range(-7, 7),
           rng.next() * h,
+          rng.range(1, 3),
+          rng.range(1, 5),
+        );
+      }
+      for (let i = 0; i < 9; i++) {
+        ctx.fillStyle = `rgba(${96 + rng.int(0, 16)},${94 + rng.int(0, 16)},${92 + rng.int(0, 16)},${rng.range(0.45, 0.7)})`;
+        ctx.fillRect(
+          rng.pick(us) * w - 6,
+          rng.next() * h,
+          12,
+          rng.range(6, 26),
+        );
+      }
+    },
+  },
+  road_tarmac_lanes: {
+    name: 'Old tarmac for three lanes: a worn white edge line each side and a worn dashed lane line each side of the middle lane (12 m per repeat)',
+    size: [512, 512],
+    color: true,
+    draw(ctx, w, h) {
+      DEFS.road_tarmac.draw(ctx, w, h);
+      const rng = new Rng(66);
+      const edges = [0.05, 0.95];
+      const lanes = [0.34, 0.66];
+      ctx.fillStyle = '#d6d6ce';
+      for (const u of edges) ctx.fillRect(u * w - 6, 0, 12, h);
+      // 3 m dash, 9 m gap (the tile is 12 m).
+      for (const u of lanes) ctx.fillRect(u * w - 6, 0, 12, h / 4);
+      // Wear: asphalt specks and gaps over the paint, a few bald stretches where the wheels run.
+      for (let i = 0; i < 3600; i++) {
+        const u = rng.pick([...edges, ...lanes]);
+        const y = rng.next() * h;
+        if (lanes.includes(u) && y > h / 4) continue;
+        ctx.fillStyle = `rgba(${84 + rng.int(0, 30)},${82 + rng.int(0, 30)},${80 + rng.int(0, 30)},${rng.range(0.35, 0.85)})`;
+        ctx.fillRect(
+          u * w + rng.range(-7, 7),
+          y,
           rng.range(1, 3),
           rng.range(1, 5),
         );
@@ -1332,26 +1370,45 @@ const DEFS: Record<TextureId, TexDef> = {
     },
   },
   village_sign: {
-    name: 'Village name board (Latin + Cyrillic)',
-    size: [512, 192],
+    name: 'Village name board, front (top) and back with the red end slash (bottom)',
+    size: [512, 384],
     color: true,
     draw(ctx, w, h) {
-      ctx.fillStyle = '#f4f4f1';
-      ctx.fillRect(0, 0, w, h);
-      ctx.strokeStyle = '#1d3c78';
-      ctx.lineWidth = 10;
-      ctx.strokeRect(8, 8, w - 16, h - 16);
-      ctx.fillStyle = '#16181c';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = `bold ${Math.round(h * 0.3)}px Arial, Helvetica, sans-serif`;
-      ctx.fillText('Ajvatovci', w / 2, h * 0.34, w - 50);
-      ctx.fillText(
-        '\u0410\u0458\u0432\u0430\u0442\u043e\u0432\u0446\u0438',
-        w / 2,
-        h * 0.7,
-        w - 50,
-      );
+      const ph = h / 2;
+      for (const end of [false, true]) {
+        const y0 = end ? ph : 0;
+        ctx.fillStyle = '#f4f4f1';
+        ctx.fillRect(0, y0, w, ph);
+        ctx.strokeStyle = '#1d3c78';
+        ctx.lineWidth = 10;
+        ctx.strokeRect(8, y0 + 8, w - 16, ph - 16);
+        ctx.fillStyle = '#16181c';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = `bold ${Math.round(ph * 0.3)}px Arial, Helvetica, sans-serif`;
+        ctx.fillText('Ajvatovci', w / 2, y0 + ph * 0.34, w - 50);
+        ctx.fillText(
+          '\u0410\u0458\u0432\u0430\u0442\u043e\u0432\u0446\u0438',
+          w / 2,
+          y0 + ph * 0.7,
+          w - 50,
+        );
+        if (end) {
+          // End of village: red slash from top right to bottom left, inside the border.
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(13, y0 + 13, w - 26, ph - 26);
+          ctx.clip();
+          ctx.strokeStyle = '#c8161d';
+          ctx.lineWidth = 34;
+          ctx.lineCap = 'butt';
+          ctx.beginPath();
+          ctx.moveTo(w - 4, y0 + 4);
+          ctx.lineTo(4, y0 + ph - 4);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
     },
   },
   water_normal: {

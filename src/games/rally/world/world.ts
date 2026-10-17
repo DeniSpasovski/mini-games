@@ -8,6 +8,7 @@ import type {
 } from '../physics/types';
 import { BuildingIndex, buildingCollider, buildingInstance } from './buildings';
 import { AnalyticTerrain, Heightfield } from './heightfield';
+import { isTreeType } from '../trees/species';
 import { landmarksOf, type Landmark } from './landmarks';
 import {
   barrierColliders,
@@ -216,6 +217,7 @@ export class World implements GroundProvider {
         channels: this.gen.channels,
         lakes: this.gen.lakes,
         stageId: map.id,
+        treeSetback: map.treeSetback,
       },
     );
     const crowdQ = newPathQuery();
@@ -260,6 +262,12 @@ export class World implements GroundProvider {
       if (
         inst.asset === 'street_lamp' &&
         this.gen.portals.inside(inst.x, inst.z)
+      )
+        continue;
+      // No roadside tree or bush growing through a landmark (a gate tower, a block of flats).
+      if (
+        isTreeType(inst.asset) &&
+        this.landmarks.some((l) => l.occupies(inst.x, inst.z, 0.5))
       )
         continue;
       // No crowd standing in a house (a crowd spot in a village).

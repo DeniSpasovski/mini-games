@@ -18,7 +18,17 @@ import data from './data.json';
 import horizon from './horizon.json';
 import { vodnoInfo as info } from './info';
 import { VODNO_FLATS } from './landmarks';
+import { GATE_PAD } from './landmarks/gate';
 import { LOWER_NODE } from './landmarks/sites';
+import { BLOCK_PADS } from './landmarks/start-blocks';
+import {
+  CROSSROAD_BANK,
+  laneExtra,
+  LANES_FROM,
+  LANES_TO,
+  laneShift,
+  WALL_RANGE,
+} from './crossroad';
 import { countryRoad, dropLotAisles, LAWNS, LOT_PADS } from './lots';
 import { SKYLINE } from './skyline';
 import { FINISH, START } from './stages';
@@ -40,10 +50,9 @@ const BASE_HEIGHT = 349;
 
 /**
  * The approach to the Vidikovec car park (m along the road): a guard rail on the drop at its right up to the lot's
- * wall, white edge lines on the tarmac from the rail's start to `VIDIKOVEC_LINES_END`.
+ * wall.
  */
 const VIDIKOVEC_RAIL = { from: 2600, to: 2796 };
-const VIDIKOVEC_LINES_END = 2940;
 
 /** Covers where dry grass grows (detail layer). */
 const DRY = ['grass', 'shrub', 'bare', 'crop', 'urban'];
@@ -111,7 +120,7 @@ export const vodnoMap: MapDef = {
     edgeRise: 0,
     rockSlope: [0.65, 1.0],
     flatAreas: VODNO_FLATS,
-    pads: LOT_PADS,
+    pads: [...LOT_PADS, ...BLOCK_PADS, CROSSROAD_BANK, GATE_PAD],
     lawns: LAWNS,
   },
   landcover: {
@@ -169,26 +178,28 @@ export const vodnoMap: MapDef = {
     // asks for 25 % in places (an OSM line a few metres off on a steep slope reads metres of height): cap it, the road
     // is cut / filled into the mountainside like the built one.
     maxGrade: 0.11,
+    // The concrete retaining wall on the right of the first crossroad (./crossroad.ts): the only sheer cut of the road.
+    cutWalls: { minHeight: 1, offset: 0.9, concreteFrom: 0, range: WALL_RANGE },
     surface: 'tarmac',
-    // Clean city asphalt along the street at the start, worn mountain asphalt once it climbs into the woods.
+    // Clean city asphalt on the run-up street, then the worn mountain road with its white edge and centre lines.
     texture: 'road_city',
     sections: [
-      { from: START + 700, surface: 'tarmac', texture: 'road_tarmac' },
-      // The approach to the Vidikovec car park has white edge lines.
-      {
-        from: VIDIKOVEC_RAIL.from,
-        surface: 'tarmac',
-        texture: 'road_tarmac_lines',
-      },
-      { from: VIDIKOVEC_LINES_END, surface: 'tarmac', texture: 'road_tarmac' },
+      { from: START, surface: 'tarmac', texture: 'road_tarmac_lines' },
+      { from: LANES_FROM, surface: 'tarmac', texture: 'road_tarmac_lanes' },
+      { from: LANES_TO, surface: 'tarmac', texture: 'road_tarmac_lines' },
     ],
-    points: routePoints(data.route, (along) =>
-      along < START + 500 ? 6.4 : 5.8,
+    points: routePoints(
+      data.route,
+      (along) => (along < START + 500 ? 6.4 : 5.8) + laneExtra(along),
+      laneShift,
     ),
   },
   // Nothing grows south of the ridge (the cross stands at z 796): no stage camera sees the far side of Vodno, 1.1 km and more from the
   // road, past the forest distance and behind the mountain.
   scatterBounds: { maxZ: 900 },
+  // The lower road runs through open ground: grass and bushes to the verge, the forest standing 8 m and more back (the pines
+  // come to the edge further up).
+  treeSetback: [{ from: 250, to: 1150, dist: 8, fade: 80 }],
   scatter: [
     // The pine plantations that cover most of Vodno (planted from the 1950s): dense, dark conifers with some Austrian
     // black pine among them, oak and scrub below. The road runs through them: a closed canopy at the verge (the satellite
@@ -422,49 +433,49 @@ export const vodnoMap: MapDef = {
       minRadius: 40,
       faceRoad: true,
     },
-    // The suburban start street (the run-up and the first 700 m of the climb): tall leafy trees and thick bushes close in on
-    // the verge on both sides, as on the real street.
+    // The suburban start street (the run-up and the first 700 m of the climb): single trees and the odd bush along the
+    // verge, with gaps between them; the trees stand back from the road, the bushes at its edge.
     {
       asset: 'walnut_tree',
-      every: 19,
+      every: 38,
       from: 0,
       to: START + 700,
       side: 'both',
-      offset: 3.4,
-      depth: 3,
+      offset: 8,
+      depth: 4,
       scale: [0.9, 1.4],
       skipJunctions: 6,
     },
     {
       asset: 'oak_tree',
-      every: 31,
+      every: 44,
       from: 8,
       to: START + 700,
       side: 'both',
-      offset: 5,
-      depth: 3,
+      offset: 9.5,
+      depth: 4,
       scale: [0.8, 1.3],
       skipJunctions: 6,
     },
     {
       asset: 'locust_tree',
-      every: 23,
+      every: 34,
       from: 4,
       to: START + 700,
       side: 'both',
-      offset: 4.2,
-      depth: 3,
+      offset: 8.5,
+      depth: 4,
       scale: [0.9, 1.3],
       skipJunctions: 6,
     },
     {
       asset: 'bramble_shrub',
-      every: 3.5,
+      every: 10,
       from: 0,
       to: START + 700,
       side: 'both',
-      offset: 1.9,
-      depth: 1.5,
+      offset: 2.4,
+      depth: 2,
       scale: [0.8, 1.3],
       skipJunctions: 6,
     },
@@ -492,18 +503,30 @@ export const vodnoMap: MapDef = {
   streetDressing: { spectators: { perJunction: 4, reach: 500 } },
   railways: data.railways as RailwayDef[],
   // Rusted steel guard rails on the outside of the hairpins (the drop on the switchbacks) and along the drop of the
-  // approach to the Vidikovec car park (the rail ends where the lot's retaining wall begins).
+  // approach to the Vidikovec car park (the rail ends where the lot's retaining wall begins); a galvanised one on the left
+  // after the first crossroad, where the verge falls away.
   barriers: [
-    ...hairpinRails(data.route, { maxRadius: 30, lead: 20 }),
+    ...[
+      ...hairpinRails(data.route, { maxRadius: 30, lead: 20 }),
+      {
+        kind: 'guardrail',
+        side: 'right',
+        offset: 0.9,
+        from: VIDIKOVEC_RAIL.from,
+        to: VIDIKOVEC_RAIL.to,
+        skipJunctions: 4,
+      } satisfies BarrierRule,
+    ].map((rule) => ({ ...rule, rusty: true })),
     {
       kind: 'guardrail',
-      side: 'right',
+      side: 'left',
       offset: 0.9,
-      from: VIDIKOVEC_RAIL.from,
-      to: VIDIKOVEC_RAIL.to,
+      from: 500,
+      to: 640,
       skipJunctions: 4,
+      rusty: false,
     } satisfies BarrierRule,
-  ].map((rule) => ({ ...rule, rusty: true })),
+  ],
   props,
   landmarks: [
     'vodno-sredno-vodno',
@@ -512,5 +535,7 @@ export const vodnoMap: MapDef = {
     'vodno-outposts',
     'vodno-car-parks',
     'vodno-restaurant',
+    'vodno-gate',
+    'vodno-start-blocks',
   ],
 };

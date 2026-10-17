@@ -70,7 +70,26 @@
       age: 0.7,
       lines: [
         { u: 0.05, w: 12, color: WHITE },
+        { u: 0.5, w: 12, color: WHITE },
         { u: 0.95, w: 12, color: WHITE },
+      ],
+    },
+    /** Three lanes (Vodno): worn edge lines and a dashed lane line each side of the middle lane. */
+    road_tarmac_lanes: {
+      seed: 9,
+      len: 12,
+      polish: 0.7,
+      exposed: 0.55,
+      cracks: 22,
+      grain: 1,
+      patches: 2,
+      dust: 0.7,
+      age: 0.7,
+      lines: [
+        { u: 0.05, w: 12, color: WHITE },
+        { u: 0.95, w: 12, color: WHITE },
+        { u: 0.34, w: 12, color: WHITE, dash: [3, 9] },
+        { u: 0.66, w: 12, color: WHITE, dash: [3, 9] },
       ],
     },
     road_city: {
