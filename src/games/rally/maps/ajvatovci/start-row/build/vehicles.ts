@@ -1021,7 +1021,7 @@ const buildTruck = (variant: 'box' | 'tractor' | 'tanker' | Rigid): Pieces => {
       cabX: 3.35,
     });
   }
-  box('detail', [-1.25, 0.45, 1.12], [1.0, 0.88, 1.17], steel, true); // side guards
+  box('detail', [-1.25, 0.45, 1.12], [0.74, 0.88, 1.17], steel, true); // side guards (the cab's skirt follows)
   box('detail', [rearX - 0.08, 0.42, -1.1], [rearX, 0.6, 1.1], steel); // underrun bar
   for (const x of [-1.8, -3.1])
     for (const z of [-0.9, 0.9]) truckTyre(p, 0.5, x, 0.5, z, Math.sign(z));

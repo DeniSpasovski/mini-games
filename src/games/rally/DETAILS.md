@@ -236,7 +236,7 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` holds the triangle budget.
 - The Ajvatovci yards' trucks (`maps/ajvatovci/start-row/build/vehicles.ts`, `truck-models.ts`) are baked from two CC BY models
   (`scripts/car-model/bake-trucks.mjs`, data in `truck-models.data.ts`): `tractor` + `trailer` (the `trailer` kind), the `tractor` and
-  the trailer's chassis under a code-built tank (`tanker`), the `cab` (back wall closed by the baker) under a code-built body
+  the trailer's chassis under a code-built tank (`tanker`), the `cab` (back wall closed by the baker, the tractor's step column and side skirt kept behind the front wheel) under a code-built body
   (`box`, or `cab-tow` / `cab-reefer`) and a `dump` truck whose back is swapped (tipper, flatbed, van body, tank, `tow`,
   `reefer`; backs in `truck-backs.ts`). Box-truck places go to these in turn (`RIGID_CYCLE`). Models keep their origin under the middle of
   the 17.5 m footprint (`centre: 0`). The models keep their own triangles (welded, never simplified) and

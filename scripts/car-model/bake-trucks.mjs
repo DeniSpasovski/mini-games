@@ -291,6 +291,8 @@ const LOW = {
   stretch: 1.27,
   /** Cab / chassis cut (model z): in front of it the cab, behind it the frame. */
   cabCut: 0.6,
+  /** Rear end of the side skirt that goes with the rigid truck's cab (model x). */
+  skirtX: 4.9,
   /** Footprint length (m). */
   L: 17.5,
 };
@@ -365,21 +367,27 @@ const LOW = {
 
   // The cab alone, for the rigid box truck: what is in front of the cut, without the chassis behind the cab.
   const shift = 4.6 - L / 2;
-  const cabOnly = (m) =>
-    filterTris(
-      m,
-      (c, P) =>
-        cabMask(c) &&
-        P.every((p) => cabMask([p[0] + 0.15])) &&
-        !(c[1] < 0.75 && c[0] < L / 2 - 0.7),
-    );
-  const cabShell = cabOnly(body);
+  const inCab = (c, P) =>
+    cabMask(c) &&
+    P.every((p) => cabMask([p[0] + 0.15])) &&
+    !(c[1] < 0.75 && c[0] < L / 2 - 0.7);
+  const cabShell = filterTris(body, inCab);
   const { cap: cabCap, x: cabRearX } = capRear(cabShell, 6.75);
+  // The tractor's step column, fuel tank fairing and side skirt behind the front wheel: the rigid truck's frame needs them.
+  const skirt = filterTris(
+    body,
+    (c, P) => !inCab(c, P) && c[0] > LOW.skirtX && c[1] < 0.9,
+  );
   out.cab = {
     length: 9.2,
     width: 2.6,
     parts: [
-      part('body', 'cab', 'lowBody', shifted(merge([cabShell, cabCap]), shift)),
+      part(
+        'body',
+        'cab',
+        'lowBody',
+        shifted(merge([cabShell, cabCap, skirt]), shift),
+      ),
       part(
         'glass',
         'glass',
