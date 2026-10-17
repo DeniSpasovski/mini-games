@@ -2,7 +2,7 @@
 
 A C8 RS6 Avant from a **CC BY Sketchfab model**, used as it comes: the model has no livery, so it is mapped to game parts by
 material (a few box rules where one material holds two parts). In game it is **Audi RS6**: AWD, 2075 kg, twin-turbo 4.0 V8,
-8-speed. Test car (`hideInProd` in `CARS_LIST`).
+8-speed. Released.
 
 - **Kept from the model:** the body, the cockpit (flat colours) behind see-through glass, the head / tail lamps with the model's own
   lamp texture and the five double-spoke rim (de-cambered, centred on the hub, lip outside the tyre).

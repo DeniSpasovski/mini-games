@@ -213,7 +213,7 @@ off-white (`#e9e6dd` pearl) and leave the exposure to `engine/display.ts` (`?dis
 - Seeds: seed 0 = the reference scheme; other seeds reuse the shapes with `info.accent` / `accent2`.
 - Verify from side, front 3/4, top, rear 3/4, and low rear (underside) - one page load per screenshot in the
   browser pane.
-- **Photo tracing is a last resort, and never all at once.** Warping press photos into the atlas (`trace-livery.py`: one 2D
+- **Photo tracing is a last resort, and never all at once.** Warping press photos into the atlas (one 2D
   warp per view + per-axis stretch pairs, letters dropped, plates kept as quads) gave a livery the user rejected outright -
   the mesh and the real car differ by centimetres everywhere, so every edge was slightly off and the whole looked smeared.
   The user prefers to **start from a clean base colour and add livery elements step by step, guided**. If a photo trace is

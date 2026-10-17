@@ -416,8 +416,7 @@ Splash Zone -> Figure Falls, then the Atrium for the last levels (the player can
 
 ### Test map (60 x 40 m)
 
-`map/toy/minimal.ts` for tests and viewers (like `map/minimal.ts`): one of every size tier in a row, a panda XS->XXL
-line-up, a clear start. Not playable content.
+`map/minimal.ts` is the tiny map for tests and viewers. Not playable content.
 
 **Pacing rule for every seed:** along the intended route, within 40 m of the player there must always be at least
 **3x the XP-to-next** of the current level available as items the hole can eat now (XP to next: L1 8 · L2 44 · L3 112 ·

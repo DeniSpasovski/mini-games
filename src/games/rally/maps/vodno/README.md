@@ -3,7 +3,7 @@
 Real hillclimb on Mount Vodno above Skopje, North Macedonia: 4.0 km and 220 m of climb from the Vodno neighbourhood up the
 hairpins of the north face, through the pine woods, to Sredno Vodno. The Millennium Cross, the antenna mast and the cable car
 stand on the ridge above the road; the 6 x 4 km round it (streets, houses, side roads) is in the world, with the Skopje valley
-as the backdrop. Map and stage id `vodno`, test content (dev server only).
+as the backdrop. Map and stage id `vodno`.
 
 ![Start line](screenshots/start-line.jpg)
 
