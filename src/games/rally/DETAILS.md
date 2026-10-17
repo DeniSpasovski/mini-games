@@ -461,7 +461,7 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   the view). Sprites cast no shadow: the crown proxy does (`trees/proxy.ts` `crownProxy`, a ~100-triangle lathe
   through the sprites' reach, drawn in the shadow pass only, leafy holes from a world-space noise); a sprite looks
   its shadow up most of the way out of its crown's ellipsoid towards the sun (`SELF_SHADOW`). Trees cast real
-  shadows within 60 m only (`TREE_SHADOW_DISTANCE`, game/rally-game.ts); the canopy shadows fade in over its last
+  shadows within 1.3 x the quality's `shadowExtent` (`TREE_SHADOW_REACH`, game/rally-game.ts: 58 / 78 / 98 m); the canopy shadows fade in over its last
   15 m (`setCanopyFade`).
 - Tree occlusion (`trees/occlusion.ts`): the job builds a terrain horizon map from the camera (1024 rays over a lazy 8 m
   height grid) and leaves out trees beyond 140 m that a hill hides from every camera position in its window; margins
