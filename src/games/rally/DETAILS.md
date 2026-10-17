@@ -209,7 +209,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Scatter area** (`MapDef.scatterBounds`): narrows where trees / bushes / rocks are generated (any side of `bounds`) - for land no
   camera can see (Vodno: nothing south of the ridge). A way merging into another at a shallow angle sets `PathDef.mergeTaper` (its end
   narrows to a point) and `joinsUnder` (its ribbon lies under the other's).
-- **Road textures** (`RoadDef.texture`, per stretch in `sections`): gravel `road`, worn `road_tarmac`, `road_tarmac_lines` (the
+- **Road textures** (`RoadDef.texture`, per stretch in `sections`): gravel `road`, `road_tarmac` (pale warm asphalt, hairline cracks, faint tyre / oil marks: Ajvatovci, Galichica, Petralica), `road_tarmac_lines` (the
   same with white edge and centre lines), `road_tarmac_plain` (the same surface without lines: Vodno's crossroad, where the road
   paint lies over it), `road_parkway`, the city asphalts (`road_city`, `road_street`, `road_street4`, `junction_asphalt`).
   The asphalts are baked images, not drawn at load: `engine/asphalt/<id>.<size>.{color,normal,rough}.webp`, made by

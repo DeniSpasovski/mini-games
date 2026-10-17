@@ -61,7 +61,12 @@
    * (1 = worn road, 0.6 = fine new surface); dust: grit along the edges; age: warm, sun-bleached;
    * gain: brightens the bitumen and stones keeping their contrast (a sun-bleached light road);
    * lift: 0..1 toward a lighter, lower-contrast warm grey (bleached old road);
-   * relief: scales the stone relief in the normal map; crackW: scales the crack width.
+   * relief: scales the stone relief in the normal map; crackW: scales the crack width;
+   * warmTarget: the colour `lift` blends toward (default a neutral warm grey);
+   * filmA: strength of the wheel-path film (0.8 = dark tyre bands, 0.5 = faint tyre marks);
+   * crackDark / crackA: grey level and opacity of the cracks (12 / 1 = black, 60 / 0.45 = hairline grey);
+   * snakes / joints: counts of tar-filled snakes and transverse joints (default cracks / 8 and 2);
+   * oil: faint oil stains; tone: strength of the slow tone variation.
    */
   const PRESETS = {
     road_tarmac: {
@@ -69,13 +74,23 @@
       len: 7,
       polish: 0.7,
       exposed: 0.55,
-      cracks: 26,
-      grain: 1,
+      cracks: 16,
+      grain: 0.7,
       patches: 0,
-      dust: 0.9,
+      dust: 0.6,
       age: 0.7,
       gain: 2.4,
-      lift: 0.2,
+      lift: 0.7,
+      warmTarget: [233, 190, 139],
+      relief: 0.4,
+      crackW: 0.7,
+      crackDark: 70,
+      crackA: 0.75,
+      filmA: 0.45,
+      snakes: 0,
+      joints: 0,
+      oil: 14,
+      tone: 0.25,
     },
     road_tarmac_lines: {
       ...VODNO,
@@ -193,10 +208,9 @@
     const warm = o.age;
     const lift = o.lift ?? 0;
     const gain = o.gain ?? 1;
+    const target = o.warmTarget ?? [128, 124, 116];
     const lighten = (c) =>
-      c.map((v, i) =>
-        Math.round(v * gain + ([128, 124, 116][i] - v * gain) * lift),
-      );
+      c.map((v, i) => Math.round(v * gain + (target[i] - v * gain) * lift));
     cx.fillStyle = `rgb(${lighten([44 + warm * 10, 44 + warm * 8, 46 + warm * 4])})`;
     cx.fillRect(0, 0, w, h);
     hx.fillStyle = grey(70);
@@ -255,7 +269,7 @@
             0,
           );
           g.addColorStop(0, `rgba(${c0},0)`);
-          g.addColorStop(0.5, `rgba(${c0},${o.polish * 0.8})`);
+          g.addColorStop(0.5, `rgba(${c0},${o.polish * (o.filmA ?? 0.8)})`);
           g.addColorStop(1, `rgba(${c0},0)`);
           ctx.fillStyle = g;
           ctx.fillRect((u0 - 0.1) * w, 0, 0.2 * w, h);
@@ -274,7 +288,7 @@
       lx.putImageData(img, 0, 0);
       cx.save();
       cx.globalCompositeOperation = 'overlay';
-      cx.globalAlpha = 0.55;
+      cx.globalAlpha = o.tone ?? 0.55;
       cx.imageSmoothingEnabled = true;
       cx.drawImage(lo, 0, 0, w, h);
       cx.restore();
@@ -298,6 +312,30 @@
       rx.strokeStyle = grey(90);
       rx.lineWidth = 2 * S;
       rx.strokeRect(px, py, pw, ph);
+    }
+
+    // Oil and tyre stains: long, faint, mostly on the wheel paths.
+    for (let i = 0; i < (o.oil ?? 0); i++) {
+      const u = rng.chance(0.7)
+        ? rng.pick([0.28, 0.72]) + rng.range(-0.05, 0.05)
+        : rng.range(0.1, 0.9);
+      const y = rng.next() * h;
+      const len = rng.range(50, 240) * S;
+      const wid = rng.range(7, 20) * S;
+      for (const oy of [-h, 0, h]) {
+        const g = cx.createRadialGradient(u * w, y + oy, 0, u * w, y + oy, len);
+        g.addColorStop(0, `rgba(60,48,36,${rng.range(0.07, 0.16)})`);
+        g.addColorStop(1, 'rgba(60,48,36,0)');
+        cx.save();
+        cx.translate(u * w, y + oy);
+        cx.scale(wid / len, 1);
+        cx.translate(-u * w, -(y + oy));
+        cx.fillStyle = g;
+        cx.beginPath();
+        cx.arc(u * w, y + oy, len, 0, Math.PI * 2);
+        cx.fill();
+        cx.restore();
+      }
     }
 
     // Cracks (thin, dark, recessed, branching) and tar-filled snakes (wider, glossy).
@@ -332,8 +370,20 @@
             );
             ctx.stroke();
           };
-          stroke(cx, snake ? 'rgba(14,14,16,0.85)' : 'rgba(12,12,14,0.8)', lw);
-          stroke(hx, snake ? 'rgba(80,80,80,0.9)' : 'rgba(10,10,10,0.9)', lw);
+          const cd = o.crackDark ?? 12;
+          const ca = o.crackA ?? 1;
+          stroke(
+            cx,
+            snake
+              ? 'rgba(14,14,16,0.85)'
+              : `rgba(${cd},${cd},${cd + 2},${0.8 * ca})`,
+            lw,
+          );
+          stroke(
+            hx,
+            snake ? 'rgba(80,80,80,0.9)' : `rgba(10,10,10,${0.9 * ca})`,
+            lw,
+          );
           stroke(rx, grey(snake ? 150 : 215), lw);
         }
     };
@@ -353,7 +403,7 @@
         false,
       );
     }
-    for (let i = 0; i < Math.round(o.cracks / 8); i++) {
+    for (let i = 0; i < (o.snakes ?? Math.round(o.cracks / 8)); i++) {
       const a = o.anyDir
         ? rng.range(0, Math.PI * 2)
         : Math.PI / 2 + rng.range(-0.3, 0.3);
@@ -367,7 +417,7 @@
       );
     }
     // Transverse joints (not on a junction box: it has no direction).
-    for (let i = 0; i < (o.anyDir ? 0 : 2); i++) {
+    for (let i = 0; i < (o.joints ?? (o.anyDir ? 0 : 2)); i++) {
       const y = rng.next() * h;
       for (const [ctx, style] of [
         [cx, 'rgba(14,14,16,0.7)'],
