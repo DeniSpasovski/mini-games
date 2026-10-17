@@ -381,8 +381,8 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Street car',
     category: 'props',
     description:
-      'Parked car: a model of the CC BY packs with its own textures (street-car-models.ts). Variants 0-14 are the models (0-4 old boxy cars, 5-14 modern: hatch, pickup, sport, minivan, SUV, coupe, off-road, compact, sedan, wagon) in a seeded paint; 15 = white hatch (placed on purpose). Faces +X. Solid.',
-    variants: 16,
+      'Parked car: a model of the CC BY packs with its own textures (street-car-models.ts). Variants 0-9 are the models (hatch, pickup, sport, minivan, SUV, coupe, off-road, compact, sedan, wagon) in a seeded paint; 10 = white hatch (placed on purpose). Faces +X. Solid.',
+    variants: 11,
     lods: carLods(40, 100, 420),
     colliders: [{ kind: 'box', hx: 2.3, hz: 0.96, h: 1.4, r: 2.5 }],
   },
@@ -411,12 +411,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Fire truck',
     category: 'props',
     description:
-      'Red fire engine: cab, compartments with roller doors, white stripe, roof ladder, "FIRE DEPT" (generic, no real agency name) on the sides. Faces +X. Solid.',
+      'Red fire engine (the box truck model with its textures): white stripe, roof ladder, light bar, "FIRE DEPT" (generic, no real agency name) on the box sides. Faces +X. Solid.',
     variants: 1,
-    lods: [
-      { maxDistance: 130, castShadow: true },
-      { maxDistance: 600, castShadow: false },
-    ],
+    lods: carLods(50, 130, 600),
     colliders: [{ kind: 'box', hx: 4.3, hz: 1.27, h: 3, r: 4.5 }],
   },
   {
@@ -424,12 +421,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Ambulance',
     category: 'props',
     description:
-      'White box-body ambulance: red stripe, light bar, "FIRE DEPT" and "AMBULANCE" on the box sides (generic words, no agency name or logos). Faces +X. Solid.',
+      'White ambulance (the high-roof van model with its textures): red stripe, light bar, "FIRE DEPT" and "AMBULANCE" on the sides (generic words, no agency name or logos). Faces +X. Solid.',
     variants: 1,
-    lods: [
-      { maxDistance: 120, castShadow: true },
-      { maxDistance: 520, castShadow: false },
-    ],
+    lods: carLods(50, 120, 520),
     colliders: [{ kind: 'box', hx: 3.2, hz: 1.17, h: 2.8, r: 3.4 }],
   },
   // --- service park (rally paddock; builders/service.ts, teams in builders/teams.ts) ---------------

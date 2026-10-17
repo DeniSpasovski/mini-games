@@ -9,10 +9,10 @@ bake-street-cars.mjs maps every part's uv into its tile and embeds the images.
 
 The paint of a gp body is a coloured (or dark grey) panel area of its texture: the mask is white there, and inside it the
 texture holds the shade only (grey = luminance / the lit paint's), so the game's tint colour replaces the source paint and
-keeps the baked shading. Everything else (grille, trim, lamps, wheels) keeps its own texels. The p8 cars have a flat palette
-instead (pack 7's vans have one too): their paint triangles are re-pointed to a white `paint` cell (mask white) by the
-baker; `glass`, `tyre`, `side` and `rim` are flat swatches for the windows and the far LODs' wheels (atlas.json `cells`: uv
-of each swatch's middle).
+keeps the baked shading. Everything else (grille, trim, lamps, wheels) keeps its own texels. The pack 7 vans have a flat
+palette instead: their paint triangles are re-pointed to a white `paint` cell (mask white) by the baker; `glass`, `tyre`,
+`side` and `rim` are flat swatches for the gp windows and the far LODs' wheels (atlas.json `cells`: uv of each swatch's
+middle).
 """
 import json
 import os
@@ -42,10 +42,11 @@ BODIES = {
 }
 LAMPS = 'gp:6'
 WHEELS = ['gp:13', 'gp:23', 'gp:31', 'gp:15', 'gp:9', 'gp:19', 'gp:2', 'gp:29']
-PALETTE = 'p8:0'
-# Pack 7's palette (same kind of flat cells, 512 px in the source): kept flat, only the size changes.
-PALETTE7 = 'p7:0'
-BODY_PX, WHEEL_PX, LAMP_PX, PALETTE_PX = 496, 240, 496, 256
+# Pack 7's palette (flat colour cells, 512 px in the source): kept flat, only the size changes.
+PALETTE = 'p7:0'
+# Flat swatches (glass, tyre, tyre side, rim, white paint) in a tile of their own.
+SWATCH = 'swatch'
+BODY_PX, WHEEL_PX, LAMP_PX, PALETTE_PX, SWATCH_PX = 496, 240, 496, 256, 128
 MIN_BLOB = 600
 SHADE_GAMMA = 0.6
 
@@ -96,8 +97,8 @@ mask_full = Image.new('L', (ATLAS, ATLAS), 0)
 
 
 def gutter(key):
-    # The palettes are flat cells read at their centres: no padding, so they stay pixel-exact.
-    return 0 if key in (PALETTE, PALETTE7) else GUTTER
+    # The palette and the swatches are flat cells read at their centres: no padding, so they stay pixel-exact.
+    return 0 if key in (PALETTE, SWATCH) else GUTTER
 
 
 def shelf_pack(sizes):
@@ -114,7 +115,7 @@ def shelf_pack(sizes):
     return pos
 
 
-want = [(k, BODY_PX) for k in BODIES] + [(LAMPS, LAMP_PX), (PALETTE, PALETTE_PX), (PALETTE7, PALETTE_PX)] + [(k, WHEEL_PX) for k in WHEELS]
+want = [(k, BODY_PX) for k in BODIES] + [(LAMPS, LAMP_PX), (PALETTE, PALETTE_PX), (SWATCH, SWATCH_PX)] + [(k, WHEEL_PX) for k in WHEELS]
 at = shelf_pack(want)
 
 
@@ -146,29 +147,29 @@ for key, spec in BODIES.items():
     print(key, 'paint', round(float(m.mean()) * 100, 1), '%')
 
 put(LAMPS, source(LAMPS).resize((LAMP_PX, LAMP_PX), Image.LANCZOS))
-put(PALETTE7, source(PALETTE7).resize((PALETTE_PX, PALETTE_PX), Image.NEAREST))
+put(PALETTE, source(PALETTE).resize((PALETTE_PX, PALETTE_PX), Image.NEAREST))
 for key in WHEELS:
     put(key, source(key).resize((WHEEL_PX, WHEEL_PX), Image.LANCZOS))
 
-# The palette (flat 12 px cells) keeps its pixels; flat 32 px swatches in its unused right edge (spaced, so mip levels
-# never mix them): glass, tyre, tyre side, rim (the far LODs' wheels and the glass of the gp cars) and the white paint cell
-# (masked) of the palette cars.
-pal = np.asarray(source(PALETTE)).copy()
-pm = np.zeros((PALETTE_PX, PALETTE_PX), np.uint8)
+# 32 px swatches (spaced, so mip levels never mix them): glass, tyre, tyre side, rim (the far LODs' wheels and the glass of
+# the gp cars) and the white paint cell (masked) of the palette vans.
 BLOCK = 32
-SWATCHES = {  # name: (y of the block, colour)
-    'glass': (0, (22, 30, 38)),
-    'tyre': (48, (27, 27, 29)),
-    'side': (96, (44, 44, 48)),
-    'rim': (144, (118, 120, 125)),
-    'paint': (PALETTE_PX - BLOCK, (255, 255, 255)),
+SWATCHES = {  # name: (x, y of the block, colour)
+    'glass': (96, 0, (22, 30, 38)),
+    'tyre': (96, 48, (27, 27, 29)),
+    'side': (96, 96, (44, 44, 48)),
+    'rim': (0, 0, (118, 120, 125)),
+    'paint': (0, 96, (255, 255, 255)),
 }
-for name, (y, colour_) in SWATCHES.items():
-    pal[y:y + BLOCK, -BLOCK:] = colour_
-pm[-BLOCK:, -BLOCK:] = 255
-put(PALETTE, Image.fromarray(pal), Image.fromarray(pm))
-x0, y0, x1, y1 = tiles[PALETTE]
-cells = {name: [round(x1 - BLOCK / 2 / ATLAS, 6), round(y0 + (y + BLOCK / 2) / ATLAS, 6)] for name, (y, _) in SWATCHES.items()}
+sw = np.zeros((SWATCH_PX, SWATCH_PX, 3), np.uint8)
+sm = np.zeros((SWATCH_PX, SWATCH_PX), np.uint8)
+for x, y, colour_ in SWATCHES.values():
+    sw[y:y + BLOCK, x:x + BLOCK] = colour_
+x, y, colour_ = SWATCHES['paint']
+sm[y:y + BLOCK, x:x + BLOCK] = 255
+put(SWATCH, Image.fromarray(sw), Image.fromarray(sm))
+x0, y0, x1, y1 = tiles[SWATCH]
+cells = {name: [round(x0 + (x + BLOCK / 2) / ATLAS, 6), round(y0 + (y + BLOCK / 2) / ATLAS, 6)] for name, (x, y, _) in SWATCHES.items()}
 out = {'tiles': tiles, 'cells': cells, 'atlas': ATLAS}
 
 colour.save(os.path.join(D, 'atlas.jpg'), quality=88, optimize=True, subsampling=0)

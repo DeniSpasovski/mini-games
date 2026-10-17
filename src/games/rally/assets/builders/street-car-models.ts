@@ -22,8 +22,6 @@ import { STREET_CAR_DATA, type StreetCarData } from './street-cars.data';
  * where the atlas's tint mask is white (`streetCarMaterial`).
  */
 
-/** Models 0-4 are the old boxy cars, the rest are modern. */
-const OLD_COUNT = 5;
 export const STREET_CAR_COUNT = STREET_CAR_DATA.length;
 /** Index of the sedan (the taxi and police car). */
 export const SEDAN = STREET_CAR_DATA.findIndex((d) => d.id === 'sedan');
@@ -32,7 +30,6 @@ export const streetCarIndex = (id: string): number =>
   STREET_CAR_DATA.findIndex((d) => d.id === id);
 
 export interface StreetCarShape {
-  old: boolean;
   /** Length and width of the model (m), mirrors included. */
   length: number;
   width: number;
@@ -102,7 +99,6 @@ function vehicleModel(
   if (hit) return hit;
   const d = decode(data.lods[l]);
   const shape: StreetCarShape = {
-    old: list === STREET_CAR_DATA && i < OLD_COUNT,
     length: data.length,
     width: data.width,
     height: data.height,

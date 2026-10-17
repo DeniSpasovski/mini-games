@@ -261,14 +261,14 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   tagged (`cars/shared/profile-body.ts`), shown only if the GLB fails to load. It wears the car's livery, box-projected
   onto the atlas (`CarAtlas.layout`). Car viewer `fallback=1` shows it.
 - The city maps' parked cars (`street_car`, `taxi`, `police_car`; `assets/builders/vehicles.ts`) are NOT the rally cars: they are
-  15 vehicles of three CC BY packs with their own triangles and textures (`street-car-models.ts`, data in `street-cars.data.ts`,
+  10 cars of a CC BY pack with their own triangles and textures (`street-car-models.ts`, data in `street-cars.data.ts`,
   atlas `street-car-atlas.jpg` + `street-car-mask.png`; baked by `scripts/car-model/street-pack-extract.py` +
   `bake-street-textures.py` + `bake-street-cars.mjs`, flags in their headers). LOD 0 is the full model (~6-7k triangles; interior
   triangles culled), LOD 1 ~2k, LOD 2 ~1k (meshopt, round wheels). One shared material (`streetCarMaterial`): the atlas, with the
   paint (per-vertex `color`) multiplied in only where the mask is white, so lamps, glass and trim keep their texels; the taxi sign,
-  light bar and lettering are a second `vehicle` part up to LOD 1. Variants 0-14 = model (`STREET_CAR_MIX` weights what streets pick;
-  15 = the white hatch a map places). The car LODs set `separateVariants` (no merged variant set: every instance would run the
-  vertex shader over all 15 models). Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` holds the triangle budget.
+  light bar and lettering are a second `vehicle` part up to LOD 1. Variants 0-9 = model (`STREET_CAR_MIX` weights what streets pick;
+  10 = the white hatch a map places). The car LODs set `separateVariants` (no merged variant set: every instance would run the
+  vertex shader over all 10 models). Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` holds the triangle budget.
 - Pack 7's five vans and trucks (`service-vehicles.data.ts`, `bake-street-cars.mjs --vans`, `serviceVehicleModel`) are baked the same
   way into the same atlas and dress the service park (`builders/service.ts`: team paint through the tint mask, stripes and awnings a
   second `vehicle` part up to LOD 1, `PACK_VEHICLE_LODS`) and the Ajvatovci start-row lots. Both lists are baked again after every

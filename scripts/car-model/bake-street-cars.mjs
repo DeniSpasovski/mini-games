@@ -3,12 +3,12 @@
  * triangles and textures, packed into one TypeScript module. The sources are not in the repository.
  *
  *   python scripts/car-model/street-pack-extract.py sources/street-cars/<pack>.glb <dir>/<pack>.json --images <dir>/<pack> [flags]
- *       (p8 and p7 with no flags, gp with `--seeds Body_0`)
+ *       (p7 with no flags, gp with `--seeds Body_0`)
  *   python scripts/car-model/bake-street-textures.py <dir>
  *   node scripts/car-model/bake-street-cars.mjs <dir> [--vans]
  *   npx prettier --write src/games/rally/assets/builders/*.data.ts
  *
- * <dir> holds the extractor outputs (p8.json, gp.json, p7.json, their images) and the atlas files; the model list is MODELS
+ * <dir> holds the extractor outputs (gp.json, p7.json, their images) and the atlas files; the model list is MODELS
  * below. `FLIP=id,id` turns models round. Output (src/games/rally/assets/builders/, do not edit by hand): street-cars.data.ts
  * (the cars; `--vans` bakes the pack 7 vans and trucks into service-vehicles.data.ts instead, same layout) and the atlas
  * street-car-atlas.jpg + street-car-mask.png (copied from <dir>; the bundler serves them as files). The uv of every model
@@ -17,7 +17,7 @@
  * Per vehicle: turned to face +X, origin on the ground under the middle. LOD 0 is the model as it is (vertices welded,
  * nothing simplified); the far LODs are meshopt reductions of the body, glass and lamps (each on its own, borders kept)
  * with plain round wheels (flat swatches) built from the source wheel's size. Every part is one mesh with its uv moved
- * into the shared atlas (bake-street-textures.py); the paint is the atlas's tint mask. p8 cars have a flat palette: their
+ * into the shared atlas (bake-street-textures.py); the paint is the atlas's tint mask. pack 7 has a flat palette: its
  * paint triangles point at the atlas's white `paint` cell, the glass of the gp cars at its dark `glass` cell.
  * Layout of a LOD (base64): u16 vertex count, u16 0, f32 min xyz + f32 size xyz, u16 xyz per vertex, u16 uv per vertex
  * (0..1 of the atlas), u32 index count + u16 indices (decoded to flat geometry at load).
@@ -35,16 +35,11 @@ const BUDGET = [
   { body: 1500, glass: 140, optics: 140, wheel: 14, error: 0.02 },
   { body: 500, glass: 40, optics: 40, wheel: 8, error: 0.05 },
 ];
-/** Weight of the uv in the simplifier's error: the palette cars' cells are 0.005 apart, the gp textures span 0.2. */
-const UV_WEIGHT = { p8: 800, p7: 800, gp: 6 };
+/** Weight of the uv in the simplifier's error: the palette vans' cells are 0.005 apart, the gp textures span 0.2. */
+const UV_WEIGHT = { p7: 800, gp: 6 };
 
 /** id, flip (the nose points -X after the long-axis turn), pack file, vehicle index in the extractor's listing, kind of pack. */
 const CAR_MODELS = [
-  { id: 'old_a', flip: true, pack: 'p8', idx: 0, kind: 'p8' },
-  { id: 'old_b', pack: 'p8', idx: 1, kind: 'p8' },
-  { id: 'old_c', pack: 'p8', idx: 2, kind: 'p8' },
-  { id: 'old_d', flip: true, pack: 'p8', idx: 3, kind: 'p8' },
-  { id: 'old_pickup', pack: 'p8', idx: 4, kind: 'p8' },
   { id: 'hatch', pack: 'gp', idx: 0, kind: 'gp' },
   { id: 'pickup', pack: 'gp', idx: 1, kind: 'gp' },
   { id: 'sport', flip: true, pack: 'gp', idx: 2, kind: 'gp' },
@@ -56,7 +51,7 @@ const CAR_MODELS = [
   { id: 'sedan', pack: 'gp', idx: 8, kind: 'gp' },
   { id: 'wagon', pack: 'gp', idx: 9, kind: 'gp' },
 ];
-/** Pack 7 (Sprinter-style vans and trucks, unlettered ones only), palette models like pack 8. */
+/** Pack 7 (Sprinter-style vans and trucks, unlettered ones only): palette models, flat colour cells. */
 const VAN_MODELS = [
   { id: 'van_low', pack: 'p7', idx: 18, kind: 'p7' },
   { id: 'van_high', pack: 'p7', idx: 19, kind: 'p7' },
@@ -65,8 +60,6 @@ const VAN_MODELS = [
   { id: 'flatbed', flip: true, pack: 'p7', idx: 12, kind: 'p7' },
 ];
 const MODELS = VANS ? VAN_MODELS : CAR_MODELS;
-/** The pack 8 palette's window colour. */
-const PALETTE_WINDOW = [142, 142, 142];
 const FLIP = (process.env.FLIP || '').split(',').filter(Boolean);
 
 await MeshoptSimplifier.ready;
@@ -84,7 +77,7 @@ function roleOf(node) {
   return 'body';
 }
 
-/** Where a source uv goes in the atlas (`cell`: a swatch the palette cars' paint and window triangles point at). */
+/** Where a source uv goes in the atlas (`cell`: a swatch the palette vans' paint triangles point at). */
 function mapUv(model, m, uv, cell) {
   if (model.kind === 'gp') {
     if (m.img < 0) return atlas.cells.glass;
@@ -416,14 +409,12 @@ function bake(model, list) {
   const { lo, hi } = bounds(turned.flat());
   const off = [(lo[0] + hi[0]) / 2, lo[1], (lo[2] + hi[2]) / 2];
   const dom = model.kind !== 'gp' ? dominantColour(prims[0]) : null;
-  // Palette models: the paint cell for the body colour, the glass swatch for the windows (a light grey cell in pack 8's palette).
-  const near = (c, ref, d) =>
-    Math.hypot(c[0] - ref[0], c[1] - ref[1], c[2] - ref[2]) < d;
+  // Palette models: the paint cell for the body colour.
   const cellOf = (m, t) => {
     if (model.kind === 'gp' || m.role === 'wheel') return null;
-    if (near(m.tcol[t], dom, 30)) return 'paint';
-    return model.kind === 'p8' && near(m.tcol[t], PALETTE_WINDOW, 6)
-      ? 'glass'
+    const c = m.tcol[t];
+    return Math.hypot(c[0] - dom[0], c[1] - dom[1], c[2] - dom[2]) < 30
+      ? 'paint'
       : null;
   };
 
