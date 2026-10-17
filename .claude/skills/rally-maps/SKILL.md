@@ -55,6 +55,7 @@ generated deterministically from it. There is no map editor on purpose — edit 
 - `cornerFans: {}`: tape + spectators + flags on the inside of tight corners over the whole stage (`every`, `maxRadius`,
   `chance`, `fans`, `flagChance`, `tapeOffset`; `world/corner-fans.ts`). Use it on rural stages; hand-placed crowds
   (`roadside` `at`) stay for the big spots.
+- `servicePark`: team bays at the start on a `ServiceLot` (`maps/shared/service-lot.ts`); add a `terrain.pads` entry with `servicePad` for the same rectangle (see `maps/ajvatovci/service-park.ts`).
 - `props`: explicit, either `x/z` or `along` (+`lateral`, negative `along` = from the end).
 - Asset ids must exist in `assets/catalog.ts` (see the rally-content skill).
 

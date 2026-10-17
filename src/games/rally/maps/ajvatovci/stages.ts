@@ -1,4 +1,5 @@
 import type { StageDef, StageTemps } from '../shared/types';
+import { AJVATOVCI_PARK } from './service-park';
 
 /**
  * Air and road temperature (°C, `[air, road]`) by season and time of day: hardcoded for the stage, researched (the
@@ -46,5 +47,6 @@ export const ajvatovciStages: StageDef[] = [
     // Every side road / track meeting the stage road is closed with barriers (as on a real stage).
     closures: { asset: 'road_barrier', length: 2.2, setback: 4 },
     cornerFans: {},
+    servicePark: AJVATOVCI_PARK,
   },
 ];

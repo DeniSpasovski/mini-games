@@ -1,5 +1,6 @@
 import { smoothstep } from '../../../shared/noise';
 import type { PadDef } from '../maps/shared/types';
+import type { SurfaceId } from '../physics/surfaces';
 import { newRoadQuery, type Road } from './road';
 
 interface Pad {
@@ -9,6 +10,7 @@ interface Pad {
   minZ: number;
   maxZ: number;
   blend: number;
+  surface?: SurfaceId;
   /** Start of the frontage and its direction (unit), metres. */
   x0: number;
   z0: number;
@@ -44,6 +46,11 @@ export class PadField {
     for (const d of defs) {
       // (a ramp's heights come from `ramp.lift`, over the bare road height)
       const lift = d.ramp ? 0 : (d.lift ?? 0.1);
+      if (d.level !== undefined) {
+        // A fixed level: no stage road beside the lot to follow.
+        this.add(d, 0, 0, 1, 0, [0, 1], [d.level + lift, d.level + lift], 0);
+        continue;
+      }
       const knots: { x: number; z: number; h: number }[] = [];
       for (let i = 0; i + 1 < d.frontage.length; i += 2) {
         const x = d.frontage[i];
@@ -62,51 +69,73 @@ export class PadField {
           h: k.h,
         }))
         .sort((a, b) => a.t - b.t);
-      const pts = Float64Array.from(d.polygon);
-      let minX = Infinity;
-      let maxX = -Infinity;
-      let minZ = Infinity;
-      let maxZ = -Infinity;
-      for (let i = 0; i < pts.length; i += 2) {
-        minX = Math.min(minX, pts[i]);
-        maxX = Math.max(maxX, pts[i]);
-        minZ = Math.min(minZ, pts[i + 1]);
-        maxZ = Math.max(maxZ, pts[i + 1]);
-      }
-      let ramp: Pad['ramp'];
-      if (d.ramp) {
-        const rx = d.ramp.to[0] - d.ramp.from[0];
-        const rz = d.ramp.to[1] - d.ramp.from[1];
-        const len = Math.hypot(rx, rz) || 1;
-        ramp = {
-          x0: d.ramp.from[0],
-          z0: d.ramp.from[1],
-          dx: rx / len,
-          dz: rz / len,
-          len,
-          a: d.ramp.lift[0],
-          b: d.ramp.lift[1],
-        };
-      }
-      this.pads.push({
-        ramp,
-        pts,
-        minX: minX - d.blend,
-        maxX: maxX + d.blend,
-        minZ: minZ - d.blend,
-        maxZ: maxZ + d.blend,
-        blend: d.blend,
-        x0: first.x,
-        z0: first.z,
+      this.add(
+        d,
+        first.x,
+        first.z,
         dx,
         dz,
-        ts: along.map((a) => a.t),
-        hs: along.map((a) => a.h),
-        slope:
-          (along[along.length - 1].h - along[0].h) /
+        along.map((a) => a.t),
+        along.map((a) => a.h),
+        (along[along.length - 1].h - along[0].h) /
           Math.max(1e-6, along[along.length - 1].t - along[0].t),
-      });
+      );
     }
+  }
+
+  private add(
+    d: PadDef,
+    x0: number,
+    z0: number,
+    dx: number,
+    dz: number,
+    ts: number[],
+    hs: number[],
+    slope: number,
+  ): void {
+    const pts = Float64Array.from(d.polygon);
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+    for (let i = 0; i < pts.length; i += 2) {
+      minX = Math.min(minX, pts[i]);
+      maxX = Math.max(maxX, pts[i]);
+      minZ = Math.min(minZ, pts[i + 1]);
+      maxZ = Math.max(maxZ, pts[i + 1]);
+    }
+    let ramp: Pad['ramp'];
+    if (d.ramp) {
+      const rx = d.ramp.to[0] - d.ramp.from[0];
+      const rz = d.ramp.to[1] - d.ramp.from[1];
+      const len = Math.hypot(rx, rz) || 1;
+      ramp = {
+        x0: d.ramp.from[0],
+        z0: d.ramp.from[1],
+        dx: rx / len,
+        dz: rz / len,
+        len,
+        a: d.ramp.lift[0],
+        b: d.ramp.lift[1],
+      };
+    }
+    this.pads.push({
+      ramp,
+      pts,
+      minX: minX - d.blend,
+      maxX: maxX + d.blend,
+      minZ: minZ - d.blend,
+      maxZ: maxZ + d.blend,
+      blend: d.blend,
+      surface: d.surface,
+      x0,
+      z0,
+      dx,
+      dz,
+      ts,
+      hs,
+      slope,
+    });
   }
 
   /**
@@ -134,6 +163,33 @@ export class PadField {
       Math.max(0, ((x - r.x0) * r.dx + (z - r.z0) * r.dz) / r.len),
     );
     return base + r.a + (r.b - r.a) * smoothstep(0, 1, u);
+  }
+
+  /** Surface of a pad with one at (x, z) (inside its outline), else undefined. */
+  surfaceAt(x: number, z: number): SurfaceId | undefined {
+    for (const p of this.pads) {
+      if (!p.surface || x < p.minX || x > p.maxX || z < p.minZ || z > p.maxZ)
+        continue;
+      if (distance(p.pts, x, z) === 0) return p.surface;
+    }
+    return undefined;
+  }
+
+  /** Gravel weight (1 inside, fading out over 3 m) of the pads whose surface is gravel. */
+  gravel(x: number, z: number): number {
+    let w = 0;
+    for (const p of this.pads) {
+      if (
+        (p.surface !== 'gravel' && p.surface !== 'gravel_loose') ||
+        x < p.minX ||
+        x > p.maxX ||
+        z < p.minZ ||
+        z > p.maxZ
+      )
+        continue;
+      w = Math.max(w, 1 - smoothstep(0, 3, distance(p.pts, x, z)));
+    }
+    return w;
   }
 
   /** `h` (the land height) with every pad applied. */

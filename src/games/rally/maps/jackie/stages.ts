@@ -1,4 +1,5 @@
 import type { StageDef, StageTemps } from '../shared/types';
+import { JACKIE_PARK } from './service-park';
 
 /**
  * Air and road temperature (°C, `[air, road]`) by season and time of day: hardcoded for the stage, researched (the
@@ -49,5 +50,7 @@ export const jackieStages: StageDef[] = [
     closures: { asset: 'road_barrier', length: 2.2, setback: 4 },
     // Fans, marshals and photographers behind the tape in the bends, at the side-road mouths, the start and the finish.
     cornerFans: { maxRadius: 160, chance: 0.6 },
+    // Parc fermé: ten team cars parked side-on to the start, five each side of the stage road (./service-park.ts).
+    servicePark: JACKIE_PARK,
   },
 ];

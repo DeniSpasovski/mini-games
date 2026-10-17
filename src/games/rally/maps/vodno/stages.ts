@@ -1,4 +1,5 @@
 import type { ClosureRule, StageDef, StageTemps } from '../shared/types';
+import { VODNO_PARK } from './service-park';
 
 /**
  * The Vodno stage (./map.ts): the hillclimb from the Vodno neighbourhood of Skopje up the hairpins of the north face of
@@ -70,6 +71,7 @@ export const vodnoStages: StageDef[] = [
       splits: 3,
     },
     closures: CLOSURES,
+    servicePark: VODNO_PARK,
     cornerFans: { from: START + 150, to: FINISH - 150 },
     sources: [
       {
