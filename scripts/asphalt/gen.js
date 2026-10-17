@@ -41,17 +41,17 @@
 
   const WHITE = '#dcdcd4';
   const YELLOW = '#d2a82a';
-  /** Vodno's old mountain road: lighter, finer stones, no patches (the lines and plain tiles share it, so they join). */
+  /** Vodno's old mountain road: lighter, finer stones, no baked patches (the shader draws them, road-surface.ts); the lines and plain tiles share it, so they join. */
   const VODNO = {
     seed: 7,
-    polish: 0.5,
+    polish: 0.4,
     exposed: 0.55,
-    cracks: 22,
+    cracks: 30,
     grain: 0.75,
     patches: 0,
     dust: 0.7,
     age: 0.7,
-    lift: 0.3,
+    lift: 0.45,
     relief: 0.6,
     crackW: 0.7,
   };

@@ -43,6 +43,20 @@ export const ROAD_SURFACE_LEN: Record<RoadSurfaceId, number> = {
   junction_asphalt: 8,
 };
 
+/**
+ * Roads with pale repair patches (a shader effect, so they never repeat): Vodno's mountain road. The number scales their
+ * count; they are rare near the start and come more often up the road (`rsPatch` in `applyRoadSurface`).
+ */
+const PATCHES: Partial<Record<RoadSurfaceId, number>> = {
+  road_tarmac_lines: 1,
+  road_tarmac_plain: 1,
+};
+/** Strength of the 9 m / 3 m blotches (1 = default): a calmer tone where the real road is even. */
+const TONE: Partial<Record<RoadSurfaceId, number>> = {
+  road_tarmac_lines: 0.6,
+  road_tarmac_plain: 0.6,
+};
+
 export const isRoadSurface = (id: string): id is RoadSurfaceId =>
   Object.prototype.hasOwnProperty.call(ROAD_SURFACE_LEN, id);
 
@@ -165,7 +179,8 @@ export async function preloadRoadSurfaces(map: MapDef): Promise<void> {
 /**
  * Give a road material its baked maps (or the placeholder + an in-place upgrade when they are not loaded yet).
  * The tone shader multiplies the colour by blotches (9 m, 3 m) and streaks along the road that never repeat, so the
- * tile does not show along a long straight.
+ * tile does not show along a long straight. Roads in `PATCHES` also get pale repair patches (one cell of road = 10 m,
+ * at most two patches in a cell: a pale rounded block, 0.5 - 1.9 m wide and up to 7 m long, with a wobbly edge).
  */
 export function applyRoadSurface(
   m: MeshStandardMaterial,
@@ -188,15 +203,21 @@ export function applyRoadSurface(
     m.roughness = 1;
     m.color.setScalar(1);
     const scale = { value: new Vector2(6, ROAD_SURFACE_LEN[id]) };
+    const patch = { value: PATCHES[id] ?? 0 };
+    const tone = { value: TONE[id] ?? 1 };
     m.onBeforeCompile = (shader, renderer) => {
       // World shading (canopy / cloud shadows) hooks the default `onBeforeCompile`: keep it.
       Material.prototype.onBeforeCompile.call(m, shader, renderer);
       shader.uniforms.rsScale = scale;
+      shader.uniforms.rsPatch = patch;
+      shader.uniforms.rsTone = tone;
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
           `#include <common>
           uniform vec2 rsScale;
+          uniform float rsPatch;
+          uniform float rsTone;
           float rsHash( vec2 p ) { p = fract( p * vec2( 123.34, 456.21 ) ); p += dot( p, p + 45.32 ); return fract( p.x * p.y ); }
           float rsNoise( vec2 p ) {
             vec2 i = floor( p ); vec2 f = fract( p ); f = f * f * ( 3.0 - 2.0 * f );
@@ -210,7 +231,27 @@ export function applyRoadSurface(
             vec2 rsM = vMapUv * rsScale;
             float rsT = 0.6 * rsNoise( rsM / 9.0 ) + 0.4 * rsNoise( rsM / 2.7 + 7.1 );
             float rsS = rsNoise( vec2( rsM.x * 1.6, rsM.y / 22.0 ) + 3.3 );
-            diffuseColor.rgb *= 0.78 + 0.5 * rsT + 0.22 * ( rsS - 0.5 );
+            diffuseColor.rgb *= 1.03 + rsTone * ( 0.5 * rsT - 0.25 + 0.22 * ( rsS - 0.5 ) );
+            if ( rsPatch > 0.0 ) {
+              float rsCi = floor( rsM.y / 10.0 );
+              float rsFy = rsM.y - rsCi * 10.0;
+              float rsDens = rsPatch * mix( 0.12, 0.55, smoothstep( 250.0, 3500.0, rsM.y ) );
+              float rsCov = 0.0;
+              for ( int k = 0; k < 2; k ++ ) {
+                vec2 id = vec2( rsCi, float( k ) * 17.0 + 1.0 );
+                if ( rsHash( id ) < rsDens * ( k == 0 ? 1.0 : 0.35 ) ) {
+                  float hl = 0.8 + 2.7 * pow( rsHash( id + 3.7 ), 2.0 );
+                  float hw = 0.25 + 0.7 * rsHash( id + 7.3 );
+                  float cy = hl + 0.2 + ( 9.6 - 2.0 * hl ) * rsHash( id + 11.9 );
+                  float cx = 0.9 + 4.2 * rsHash( id + 19.1 );
+                  vec2 q = vec2( ( rsM.x - cx ) / hw, ( rsFy - cy ) / hl );
+                  q += 0.2 * ( vec2( rsNoise( rsM * 2.3 ), rsNoise( rsM * 2.3 + 9.0 ) ) - 0.5 );
+                  float d = pow( pow( abs( q.x ), 3.0 ) + pow( abs( q.y ), 3.0 ), 1.0 / 3.0 );
+                  rsCov = max( rsCov, 1.0 - smoothstep( 0.88, 1.0, d ) );
+                }
+              }
+              diffuseColor.rgb *= 1.0 + 0.8 * rsCov * ( 0.75 + 0.25 * rsNoise( rsM * 9.0 ) );
+            }
           }`,
         )
         // Roughness rides in the normal map's alpha.
