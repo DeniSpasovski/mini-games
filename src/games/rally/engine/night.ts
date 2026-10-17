@@ -33,7 +33,7 @@ export const NIGHT = {
   envIntensity: 0.25,
 } as const;
 
-/** Sun height (deg) used at night: below the horizon, so nothing is sun-heated (`Environment`, `stageTemps`). */
+/** Sun height (deg) used at night: below the horizon, so nothing is sun-heated (`Environment`). */
 export const NIGHT_SUN_ELEVATION = -20;
 
 /**

@@ -96,8 +96,11 @@ import {
   carTimesVersion,
   timesVersion,
 } from './stage';
-import { stageClimate } from '../maps/shared/climate';
-import { airAtHour } from '../maps/shared/day-temperature';
+import { infoOf, stageInfo } from '../maps';
+import { stageSeason } from '../maps/shared/climate';
+import { mapInSeason } from '../maps/shared/season-map';
+import { stageClimate } from '../maps/shared/day-temperature';
+import { seasonParam, type Season } from '../season';
 import type { MapDef, StageDef } from '../maps/shared/types';
 import { trackTemp } from '../physics/tyre-temp';
 import type { TyreGaugeState } from './tyre-gauge';
@@ -181,6 +184,8 @@ export class RallyGame {
   private readonly tailColor = new Color();
   private readonly tailPos = new Vector3();
   streamer!: InstanceStreamer;
+  /** Season of the stage: its own, or `?season=spring|summer|autumn` (leaf colours, ground, temperatures). */
+  readonly season: Season;
   /** L-system trees (trees/): their variants and the renderer drawing them. */
   treeLibrary!: TreeLibrary;
   trees!: TreeRenderer;
@@ -253,7 +258,12 @@ export class RallyGame {
       Math.min(8, this.renderer.capabilities.getMaxAnisotropy()),
     );
     bindCameraAspect(this.renderer, this.camera);
-    this.world = new World(opts.map, opts.stage);
+    const stage = opts.stage ?? opts.map.stages[0];
+    this.season = seasonParam(
+      new URLSearchParams(location.search).get('season'),
+      stageSeason({ season: stage.season, environment: opts.map.environment }),
+    );
+    this.world = new World(mapInSeason(opts.map, this.season), stage);
     this.car = getCar(opts.carId);
     this.audio = new CarAudio(this.car);
     // Any spawn other than the stage start (pad, ?spawn=<metres>) is free drive: no clock, no splits.
@@ -287,7 +297,7 @@ export class RallyGame {
     // scatter chunk is used (their colliders come from the same skeletons).
     progress(0.08, 'Trees');
     this.treeLibrary = await TreeLibrary.load(
-      TreeLibrary.speciesOf(this.world.placedAssets()),
+      TreeLibrary.speciesOf(this.world.placedAssets(), this.season),
       this.renderer,
       (f) => progress(0.08 + 0.06 * f, 'Trees'),
     );
@@ -398,15 +408,17 @@ export class RallyGame {
       this.world,
     );
     this.vehicle.setTyre(this.opts.tyre);
-    // Tyre temperatures: the map's air temperature at the hour drawn (`?tod=`; `?air=<°C>` to try others) and the sun as drawn.
+    // Tyre temperatures: the stage's predefined air and road for the season at the hour drawn (`?tod=`; `?air=<°C>` to
+    // try other air). The table holds at the stage start; higher up the air and the road are colder.
     const air = new URLSearchParams(location.search).get('air');
     this.vehicle.setClimate(
       stageClimate(
-        map.environment,
-        this.env.sunElevation,
-        paramNumber(air, -60, 70, undefined) ??
-          airAtHour(map.environment, this.env.hour),
+        stageInfo(infoOf(map), this.world.stageDef),
+        this.env.hour,
+        this.season,
+        paramNumber(air, -60, 70, undefined),
       ),
+      this.world.roadSpawn(this.world.stage.start).position.y,
     );
     this.model = new CarModel(this.car, {
       seed: this.opts.livery,

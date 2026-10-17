@@ -17,7 +17,7 @@
 **Public, source-available repo** (educational three.js project, not commercial): treat every committed file as published.
 
 - **Licences:** code, procedural assets, docs, screenshots = [PolyForm Noncommercial 1.0.0](LICENSE). Baked real-map data
-  (`maps/<id>/` `data.json`, `route.json`, `horizon.json`, `junction*.json`, `buildings.csv`, `preview/<stage>.json` + `.jpg`)
+  (`maps/<id>/` `data.json`, `route.json`, `horizon.json`, `junction*.json`, `buildings.csv`, `preview/<stage>.json` + `<stage>-<season>.jpg`)
   is OpenStreetMap-derived = **ODbL**; a new baked file joins this list (README, `THIRD-PARTY.md`). Third-party models / data keep
   their own licences.
 - **Never commit a third-party file** (model, texture, font, sound, image, dataset) unless its licence allows redistribution of

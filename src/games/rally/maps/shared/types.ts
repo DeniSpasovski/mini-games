@@ -1,6 +1,8 @@
+import type { TimeOfDayId } from '../../game/time-of-day';
 import type { GearingId } from '../../physics/types';
 import type { SurfaceId } from '../../physics/surfaces';
 import type { TyreId } from '../../physics/tyres';
+import type { Season } from '../../season';
 
 /**
  * Map format. A map is pure data: the world (heightfield, road, scatter) is
@@ -648,6 +650,17 @@ export interface ClosureRule {
   stageMargin?: number;
 }
 
+/** `[air, road]` in °C. */
+export type AirRoad = readonly [air: number, road: number];
+
+/**
+ * Predefined temperatures of a stage by season and time of day (`TIMES_OF_DAY` slot; the stage's own slot is at the
+ * stage's own hour, `environment.timeOfDay`): the air and the road, the road being the stage's first surface (what the
+ * stage screen shows). Other hours (`?tod=`) blend the neighbouring slots (maps/shared/day-temperature.ts); the tyres'
+ * sun heat is the road's gap to the air, scaled to each surface's `heat`.
+ */
+export type StageTemps = Record<Season, Record<TimeOfDayId, AirRoad>>;
+
 /**
  * A STAGE: the rally event on a map's road (see MapDef). Runs along the map's road, or against it (`reverse`): every
  * distance of the stage (`timing`, `props`, the `spawn=` URL) is measured along the stage road in its own direction.
@@ -658,6 +671,18 @@ export interface StageDef {
   name: string;
   /** Edition year printed in the start / finish gantry header next to the stage name. */
   year: number;
+  /** Air and road temperature for every season and time of day (`StageTemps`): the stage screen and the tyres use it. */
+  temps: StageTemps;
+  /**
+   * Hour a time-of-day slot means on this stage where it differs from game/time-of-day.ts (Vodno's early morning is
+   * 08:00). The stage's own slot always sits at its own `timeOfDay`; the temperatures follow these hours.
+   */
+  slotHours?: Partial<Record<TimeOfDayId, number>>;
+  /**
+   * Season the stage opens in (default: the map's, `EnvironmentDef.season`): stages on one map can differ. The ground
+   * and the leaves of the others come from the map's `groundTints` and `trees/seasons.ts`.
+   */
+  season?: Season;
   description: string;
   /** Recommended tyre for the stage's surfaces: pre-selected on the car screen, the player may pick another. */
   tyre: TyreId;
@@ -936,10 +961,16 @@ export interface EnvironmentDef {
    */
   timeOfDay?: number;
   /**
-   * Air temperature (°C, default 20): with the sun height and clouds it sets the track temperature and how the tyres
-   * warm up (physics/tyre-temp.ts, `stageClimate`). Try others with `?air=<°C>`.
+   * Season of the map's own look, the one `groundTint` is for (default summer); a stage opens in it unless its
+   * `StageDef.season` says otherwise. The season picks the leaf colours (trees/seasons.ts), the ground (`groundTints`)
+   * and the stage's `temps`. Try others with `?season=spring|summer|autumn`.
    */
-  airTemp?: number;
+  season?: Season;
+  /**
+   * Month (1 = January ... 12) the stage is driven in per season, shown on the stage screen (default April / July /
+   * October, `DEFAULT_MONTHS`). The stages' `temps` are researched for that month.
+   */
+  months?: Partial<Record<Season, number>>;
   /** Override the sun colour / intensity (default: warmer and dimmer the lower the sun). */
   sunColor?: string;
   sunIntensity?: number;
@@ -978,12 +1009,21 @@ export interface EnvironmentDef {
    * parcels (see `LandcoverDef.fields.palette`), default wheat gold. `moisture` = strength of the wet / dry grass
    * variation (greener hollows and banks, straw ridges and slopes; world/ground-moisture.ts), default 1, 0 = off.
    */
-  groundTint?: {
-    grass: string;
-    amount?: number;
-    crop?: string;
-    moisture?: number;
-  };
+  groundTint?: GroundTint;
+  /**
+   * The ground in other seasons (spring, autumn), ahead of `groundTint` (the map's look in its own season): fresh green
+   * grass and young crops in spring, dry olive and stubble in autumn. `mapInSeason` (maps/shared/season-map.ts) puts
+   * the season's tint into `groundTint`, so every consumer reads one field.
+   */
+  groundTints?: Partial<Record<Season, GroundTint>>;
+}
+
+/** Recolour of the terrain grass and crop parcels (`EnvironmentDef.groundTint`). */
+export interface GroundTint {
+  grass: string;
+  amount?: number;
+  crop?: string;
+  moisture?: number;
 }
 
 /**

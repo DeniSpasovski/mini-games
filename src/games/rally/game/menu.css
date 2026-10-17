@@ -957,7 +957,7 @@
 .menu-cards .menu-specs {
   padding: 0 4px 6px;
 }
-/* Time of day dropdown (Select stage). */
+/* Season and Time of day dropdowns (Select stage). */
 .menu-time {
   display: flex;
   align-items: center;
@@ -965,6 +965,9 @@
   margin-top: 12px;
   font-size: 13px;
   color: #8b95a3;
+}
+.menu-time span {
+  min-width: 6.5em;
 }
 .menu-time select {
   width: auto;

@@ -4,7 +4,8 @@ import { Autopilot } from '../../src/games/rally/game/autopilot';
 import { ajvatovciMap } from '../../src/games/rally/maps/ajvatovci/map';
 import { jackieMap } from '../../src/games/rally/maps/jackie/map';
 import { petralicaMap } from '../../src/games/rally/maps/petralica/map';
-import { stageClimate } from '../../src/games/rally/maps/shared/climate';
+import { getStage } from '../../src/games/rally/maps';
+import { stageClimate } from '../../src/games/rally/maps/shared/day-temperature';
 import type { MapDef } from '../../src/games/rally/maps/shared/types';
 import { testMap } from '../../src/games/rally/maps/test/map';
 import {
@@ -141,7 +142,7 @@ function drive(
   const def = ALL_CARS.find((c) => c.id === carId)!.physics;
   const v = new Vehicle(applySetup(def, setup), world);
   v.setTyre(tyre);
-  if (climate) v.setClimate(stageClimate(world.map.environment));
+  if (climate) v.setClimate(stageClimate(getStage(world.stageDef.id)));
   const from = spot?.from ?? world.stage.start - 9;
   const to = spot?.to ?? world.stage.finish;
   const spawn = world.roadSpawn(from);
@@ -172,8 +173,10 @@ function drive(
     }
     stuck = Math.abs(v.speed) < 0.5 ? stuck + DT : 0;
     if (stuck > 5) {
-      // A player presses R (reset to the road) when stuck; the wrong tyre on a steep loose climb may need it once.
-      if (resets++ > 3) break;
+      // A player presses R (reset to the road) when stuck; the wrong tyre on a steep loose climb may need it a few times
+      // (the Porsche on tarmac tyres on Petralica needs 2 to 7, by the tenth of a degree of the sun heat). The careful run
+      // on the right tyre is held to one reset below.
+      if (resets++ > 9) break;
       const s = world.roadSpawn(ap.along);
       v.reset(s.position, s.heading);
       stuck = 0;

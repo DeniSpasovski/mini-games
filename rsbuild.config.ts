@@ -303,7 +303,7 @@ export default defineConfig(({ envMode }) => ({
         });
       });
       // Dev-only helper: save a rally stage's baked stage card (stage-select view) into
-      // src/games/rally/maps/<map>/preview/<stage>.json + .jpg (see src/games/rally/tools/stage-card-bake.ts).
+      // src/games/rally/maps/<map>/preview/<stage>.json + <stage>-<season>.jpg (see src/games/rally/tools/stage-card-bake.ts).
       server.middlewares.use('/__dev/stage-card', (req, res) => {
         const url = new URL(req.url ?? '', 'http://x');
         const map = (url.searchParams.get('map') ?? '').replace(
@@ -312,6 +312,14 @@ export default defineConfig(({ envMode }) => ({
         );
         const stage = (url.searchParams.get('stage') ?? map).replace(
           /[^a-z0-9_-]/gi,
+          '',
+        );
+        const season = (url.searchParams.get('season') ?? 'summer').replace(
+          /[^a-z]/g,
+          '',
+        );
+        const own = (url.searchParams.get('own') ?? season).replace(
+          /[^a-z]/g,
           '',
         );
         const mapDir = path.join(gamesDir, 'rally', 'maps', map);
@@ -329,9 +337,35 @@ export default defineConfig(({ envMode }) => ({
           };
           const dir = path.join(mapDir, 'preview');
           fs.mkdirSync(dir, { recursive: true });
-          fs.writeFileSync(path.join(dir, `${stage}.json`), body.json);
+          // The map's own season writes the card (<stage>.json); every season writes <stage>-<season>.jpg, and the others
+          // add an entry to the card's `seasons` (hash + floor colour).
+          const jsonFile = path.join(dir, `${stage}.json`);
+          const other = season !== own;
+          type Card = {
+            hash: string;
+            floor: string;
+            seasons?: Record<string, { hash: string; floor: string }>;
+          };
+          const baked = JSON.parse(body.json) as Card;
+          let card = baked;
+          if (other) {
+            if (!fs.existsSync(jsonFile)) {
+              res.statusCode = 400;
+              res.end(`bake the ${own} card of ${stage} first`);
+              return;
+            }
+            card = JSON.parse(fs.readFileSync(jsonFile, 'utf8')) as Card;
+            card.seasons = {
+              ...card.seasons,
+              [season]: { hash: baked.hash, floor: baked.floor },
+            };
+          } else if (fs.existsSync(jsonFile)) {
+            const prev = JSON.parse(fs.readFileSync(jsonFile, 'utf8')) as Card;
+            if (prev.seasons) card.seasons = prev.seasons;
+          }
+          fs.writeFileSync(jsonFile, JSON.stringify(card));
           fs.writeFileSync(
-            path.join(dir, `${stage}.jpg`),
+            path.join(dir, `${stage}-${season}.jpg`),
             Buffer.from(
               body.jpeg.replace(/^data:image\/\w+;base64,/, ''),
               'base64',
