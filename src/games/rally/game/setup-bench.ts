@@ -121,6 +121,7 @@ export class SetupBench {
         createRimMaterial(
           rimColorFor(def.model, id),
           w.rim.hasAttribute('color'),
+          def.model.rim.finish === 'satin',
         ),
       );
       this.geometries.push(w.tire, w.rim, w.caliper);
