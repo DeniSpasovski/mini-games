@@ -136,8 +136,6 @@ export class InstanceStreamer {
   private view: { yaw: number; half: number } | null = null;
   /** The service park's team cars: real car models, drawn apart from the instance buckets (`team_car` is a collider). */
   private parkCars: ParkCars | null = null;
-  /** Resolves when the park's car models are loaded (loading screens, bakes wait for it). */
-  readonly ready: Promise<void>;
 
   constructor(
     private world: World,
@@ -165,7 +163,14 @@ export class InstanceStreamer {
       this.parkCars = new ParkCars(cars, opts);
       this.group.add(this.parkCars.group);
     }
-    this.ready = this.parkCars?.ready ?? Promise.resolve();
+  }
+
+  /**
+   * Resolves when the park's car models are loaded (loading screens, bakes wait for it). They load once `update` /
+   * `updateNow` has put the focus near the park, so call one of those first.
+   */
+  get ready(): Promise<void> {
+    return this.parkCars?.ready ?? Promise.resolve();
   }
 
   /** Current LOD distance multiplier. */

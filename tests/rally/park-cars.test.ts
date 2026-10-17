@@ -3,6 +3,7 @@ import { describe, expect, test } from '@rstest/core';
 import { TEAM_COUNT } from '../../src/games/rally/assets/builders/teams';
 import { ALL_CARS } from '../../src/games/rally/cars';
 import { CARS_LIST } from '../../src/games/rally/release';
+import { parkCarsPlan } from '../../src/games/rally/world/park-car-mesh';
 import { PARK_CAR_IDS, parkCarId } from '../../src/games/rally/world/park-cars';
 
 /**
@@ -103,5 +104,30 @@ describe('service park cars', () => {
           expect(Math.abs(lods[l].hi[k] - lods[0].hi[k])).toBeLessThan(0.2);
         }
     });
+  });
+});
+
+describe('park car models load near the park and are freed far from it', () => {
+  const reach = 420;
+
+  test('not loaded: they load once the focus is within the reach and a margin, not before', () => {
+    expect(parkCarsPlan(5000, reach, false)).toBe('keep');
+    expect(parkCarsPlan(reach + 300, reach, false)).toBe('keep');
+    expect(parkCarsPlan(reach + 100, reach, false)).toBe('load');
+    expect(parkCarsPlan(0, reach, false)).toBe('load');
+  });
+
+  test('loaded: they stay while the car is still in sight and are freed well beyond it', () => {
+    expect(parkCarsPlan(0, reach, true)).toBe('keep');
+    expect(parkCarsPlan(reach + 500, reach, true)).toBe('keep');
+    expect(parkCarsPlan(reach + 900, reach, true)).toBe('unload');
+    expect(parkCarsPlan(3000, reach, true)).toBe('unload');
+  });
+
+  test('no flapping: between the two margins the state holds', () => {
+    for (const d of [reach + 250, reach + 500, reach + 750]) {
+      expect(parkCarsPlan(d, reach, false)).toBe('keep');
+      expect(parkCarsPlan(d, reach, true)).toBe('keep');
+    }
   });
 });

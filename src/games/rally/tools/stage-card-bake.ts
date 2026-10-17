@@ -153,6 +153,7 @@ export async function bakeStageCard(
   });
   streamer.filter = (asset) => getAssetMeta(asset).category !== 'vegetation';
   content.add(streamer.group);
+  streamer.update(center); // starts loading the park's cars
   await streamer.ready;
   while (!streamer.commits) {
     streamer.update(center);

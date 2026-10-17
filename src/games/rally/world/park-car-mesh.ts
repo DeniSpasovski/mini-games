@@ -44,6 +44,22 @@ import type { ScatterInstance } from './scatter';
 
 /** Body LOD limits (m) before `lodScale`: full detail near, then ~1/3 and ~1/7 of the triangles, hidden beyond. */
 const LOD_DISTANCE = [45, 120, 420];
+/**
+ * The car models (geometry, liveries) are loaded when the focus comes within `LOAD_MARGIN` m of the last LOD's reach of a
+ * park car, and freed again beyond `UNLOAD_MARGIN` m of it (a stage driven away from its start no longer holds the park).
+ */
+const LOAD_MARGIN = 200;
+const UNLOAD_MARGIN = 800;
+
+/** What a park does with its car models: `nearest` = distance (m) of the focus to the closest car, `reach` = how far a car is drawn. */
+export function parkCarsPlan(
+  nearest: number,
+  reach: number,
+  loaded: boolean,
+): 'load' | 'unload' | 'keep' {
+  if (!loaded) return nearest < reach + LOAD_MARGIN ? 'load' : 'keep';
+  return nearest > reach + UNLOAD_MARGIN ? 'unload' : 'keep';
+}
 /** Tyre lathe segments per LOD. */
 const TYRE_SEGMENTS = [24, 14, 9];
 /** Longest side of a livery texture (px). */
@@ -325,6 +341,34 @@ function liveryMaterial(def: CarDef, team: number): MeshPhysicalMaterial {
   return mat;
 }
 
+/** Frees a car model's geometry and the liveries painted for it (the shared part / glass materials stay). */
+function releaseKit(id: string): void {
+  const kit = loaded.get(id);
+  if (kit) {
+    for (const g of [
+      ...kit.paint,
+      ...kit.parts,
+      ...kit.rim,
+      ...kit.poses.values(),
+    ])
+      g.dispose();
+    kit.poses.clear();
+  }
+  loaded.delete(id);
+  kits.delete(id);
+  for (const [key, mat] of liveries)
+    if (key.startsWith(`${id}:`)) {
+      const map = mat.map;
+      mat.dispose();
+      if (map) {
+        map.dispose();
+        const canvas = map.image as HTMLCanvasElement;
+        canvas.width = canvas.height = 0;
+      }
+      liveries.delete(key);
+    }
+}
+
 let partsMaterial: MeshStandardMaterial | undefined;
 const parts = (): MeshStandardMaterial =>
   (partsMaterial ??= new MeshStandardMaterial({
@@ -382,11 +426,12 @@ interface ParkCar {
 /** Draws the `team_car` instances of a service park as real cars (see the file comment). */
 export class ParkCars {
   readonly group = new Group();
-  /** Resolves once the car models are in (the cars appear on their own; loading screens wait for this). */
-  readonly ready: Promise<void>;
   private cars: ParkCar[];
   private focus = new Vector3(Infinity, 0, 0);
   private enabled = true;
+  /** idle: no models in memory (the focus is far from the park); loading / ready: they are being loaded / in. */
+  private state: 'idle' | 'loading' | 'ready' = 'idle';
+  private loading: Promise<void> = Promise.resolve();
 
   constructor(
     instances: ScatterInstance[],
@@ -414,15 +459,55 @@ export class ParkCars {
         lod: -2,
       };
     });
-    const ids = new Set(this.cars.map((c) => c.id));
-    this.ready = Promise.all([...ids].map(loadKit)).then(() => this.apply());
+  }
+
+  /**
+   * Resolves once the car models are in (the cars appear on their own; loading screens wait for this). The models load when
+   * the focus first comes near the park (`update`), so call that before waiting.
+   */
+  get ready(): Promise<void> {
+    return this.loading;
   }
 
   /** Pick each car's LOD from its distance to `focus`; `enabled` false hides them all. */
   update(focus: Vector3, enabled = true): void {
     this.focus.copy(focus);
     this.enabled = enabled;
+    let nearest = Infinity;
+    for (const c of this.cars)
+      nearest = Math.min(nearest, Math.hypot(c.x - focus.x, c.z - focus.z));
+    const reach = Math.min(
+      this.opts.maxDistance ?? Infinity,
+      LOD_DISTANCE[LOD_DISTANCE.length - 1] * this.opts.lodScale,
+    );
+    const plan = parkCarsPlan(nearest, reach, this.state !== 'idle');
+    if (plan === 'load') this.load();
+    else if (plan === 'unload' && this.state === 'ready') this.unload();
     this.apply();
+  }
+
+  private load(): void {
+    this.state = 'loading';
+    const ids = new Set(this.cars.map((c) => c.id));
+    this.loading = Promise.all([...ids].map(loadKit)).then(() => {
+      // Left again (unloaded) while the files were coming in: nothing to show.
+      if (this.state !== 'loading') return;
+      this.state = 'ready';
+      this.apply();
+    });
+  }
+
+  /** Drop the models, their liveries and every LOD built from them (`load` brings them back). */
+  private unload(): void {
+    for (const c of this.cars) {
+      for (const g of c.lods) if (g) c.root.remove(g);
+      c.lods = [];
+      c.lod = -2;
+      c.root.visible = false;
+    }
+    for (const id of new Set(this.cars.map((c) => c.id))) releaseKit(id);
+    this.state = 'idle';
+    this.loading = Promise.resolve();
   }
 
   private apply(): void {
@@ -494,5 +579,6 @@ export class ParkCars {
 
   dispose(): void {
     this.group.removeFromParent();
+    if (this.state === 'ready') this.unload();
   }
 }
