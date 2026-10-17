@@ -2,7 +2,7 @@
 
 A 2019 WRX STI from a **CC BY Sketchfab model**, used as it comes: the model has no livery, so it is mapped to game parts by
 material (a few box rules where one material holds two parts). In game it is **Subaru WRX STI**: AWD, 1540 kg, 2.5 turbo
-flat-four, 6-speed. Test car (`hideInProd` in `CARS_LIST`).
+flat-four, 6-speed. Released.
 
 - **Kept from the model:** the body kit, the cockpit (flat colours, simplified to its seats, wheel, dash and door cards) behind
   see-through glass, the head / tail lamps with the model's own lamp texture and the multi-spoke rim (de-cambered, centred on the hub).
