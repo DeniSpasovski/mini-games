@@ -978,30 +978,47 @@
     max-height: 40%;
   }
 }
-/* Season and Time of day dropdowns (Select stage). */
+/* Select stage: Season and Time of day dropdowns left, month / time / temperature right (wraps below on narrow cards). */
+.menu-when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px 16px;
+  margin-top: 12px;
+}
+.menu-when-pick {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* The temperatures may wrap onto two lines before the whole block drops under the dropdowns. */
+.menu-when dl {
+  flex: 1 1 11em;
+  column-gap: 10px;
+  /* Month level with the Season label (the dropdown beside it is taller than a text line). */
+  padding-top: 8px;
+}
+.menu-when dd {
+  text-wrap: balance;
+}
 .menu-time {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 12px;
+  gap: 8px;
   font-size: 13px;
   color: #8b95a3;
 }
 .menu-time span {
-  min-width: 6.5em;
+  min-width: 5.4em;
 }
 .menu-time select {
   width: auto;
-  min-width: 10em;
   padding: 6px 8px;
   border: 1px solid #3a434f;
   border-radius: 6px;
   background: rgba(8, 10, 14, 0.85);
   color: #eee;
   font: inherit;
-}
-.menu-time + dl {
-  margin-top: 12px;
 }
 .menu-time select:focus-visible {
   outline: 2px solid #f0a020;
