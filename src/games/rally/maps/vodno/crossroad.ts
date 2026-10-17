@@ -53,8 +53,10 @@ export const WIDE_TO = 505;
 export const JUNCTION: [number, number] = [443.5, 450.7];
 /** The road before it widens is 6.4 m wide: its centre line is 3.2 m from the left edge, and stays there (the left edge stays where it is). */
 const CENTRE = 3.2;
-/** The road's edge lines sit this far in from its edges (the texture's own edge line is 5% of 6.4 m in). */
-const EDGE = 0.32;
+/** The road's edge lines sit this far in from its edges: the texture's own line is 5% in from the edge of a ribbon that is 4% wider than the road (6.4 m wide: 0.205 m). */
+const EDGE = 0.064 * 3.2;
+/** The paint runs this far (m) over the road texture's own lines at both ends, so no gap is left where the texture changes (it changes at the next road sample). */
+const OVERLAP = 3;
 /** The two lanes of the widened side (everything right of the centre line) are as wide as each other. */
 const FULL = 6.4 + 2.9;
 const DIVIDER = (CENTRE + FULL) / 2;
@@ -87,12 +89,12 @@ const line = (
  * lane (arrow, dashed line between them). The edge and centre lines stop at the side street's mouth (`JUNCTION`).
  */
 export const MARKINGS: RoadMarking[] = [
-  ...line(WIDE_FROM, WIDE_TO, 'left', EDGE, true),
-  ...line(WIDE_FROM, WIDE_TO, 'right', EDGE, false),
+  ...line(WIDE_FROM - OVERLAP, WIDE_TO + OVERLAP, 'left', EDGE, true),
+  ...line(WIDE_FROM - OVERLAP, WIDE_TO + OVERLAP, 'right', EDGE, false),
   ...[-1, 1].flatMap((k) =>
     line(WIDE_FROM, 490, 'left', CENTRE + k * DOUBLE_GAP, true, 0.13),
   ),
-  ...line(490, WIDE_TO, 'left', CENTRE, true),
+  ...line(490, WIDE_TO + OVERLAP, 'left', CENTRE, true),
   {
     kind: 'line',
     from: 398,

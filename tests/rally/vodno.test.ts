@@ -828,11 +828,12 @@ describe('vodno start street and first crossroad', () => {
     expect(arrows.some((m) => m.arrow === 'straight')).toBe(true);
     for (const m of MARKINGS) {
       const [a, b] = m.kind === 'line' ? [m.from, m.to] : [m.at, m.at];
-      expect(a).toBeGreaterThanOrEqual(WIDE_FROM);
-      expect(b).toBeLessThanOrEqual(WIDE_TO);
+      // Edge and end of the centre line run a few metres over the texture's own lines.
+      expect(a).toBeGreaterThanOrEqual(WIDE_FROM - 5);
+      expect(b).toBeLessThanOrEqual(WIDE_TO + 5);
     }
     // The paint meets the road texture's own lines: the double line is centred on the centre line of the road before
-    // it, and the edge lines are as far in as the texture's (5% of the road width).
+    // it, and the edge lines are as far in as the texture's (5% in from a ribbon 4% wider than the road).
     const before = world.stageRoad.at(WIDE_FROM - 1).halfWidth * 2;
     const double = lines.filter(
       (m) => m.from === WIDE_FROM && m.width === 0.13,
@@ -842,10 +843,13 @@ describe('vodno start street and first crossroad', () => {
       (double[0].offset + double[1].offset) / 2,
       'centre of the double line',
     ).toBeCloseTo(before / 2, 1);
-    for (const e of lines.filter(
-      (m) => m.from === WIDE_FROM && m.width === 0.15,
-    ))
-      expect(e.offset).toBeCloseTo(0.05 * before, 1);
+    const edges = lines.filter((m) => m.offset < 1);
+    expect(edges.length).toBeGreaterThan(2);
+    for (const e of edges)
+      expect(e.offset).toBeCloseTo(0.064 * (before / 2), 2);
+    // They start before the widening and end after it, over the texture's own lines.
+    expect(Math.min(...edges.map((m) => m.from))).toBeLessThan(WIDE_FROM);
+    expect(Math.max(...edges.map((m) => m.to))).toBeGreaterThan(WIDE_TO);
     expect(world.stageRoad.at(WIDE_TO + 1).halfWidth * 2).toBeCloseTo(
       before,
       1,
