@@ -1332,26 +1332,45 @@ const DEFS: Record<TextureId, TexDef> = {
     },
   },
   village_sign: {
-    name: 'Village name board (Latin + Cyrillic)',
-    size: [512, 192],
+    name: 'Village name board, front (top) and back with the red end slash (bottom)',
+    size: [512, 384],
     color: true,
     draw(ctx, w, h) {
-      ctx.fillStyle = '#f4f4f1';
-      ctx.fillRect(0, 0, w, h);
-      ctx.strokeStyle = '#1d3c78';
-      ctx.lineWidth = 10;
-      ctx.strokeRect(8, 8, w - 16, h - 16);
-      ctx.fillStyle = '#16181c';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = `bold ${Math.round(h * 0.3)}px Arial, Helvetica, sans-serif`;
-      ctx.fillText('Ajvatovci', w / 2, h * 0.34, w - 50);
-      ctx.fillText(
-        '\u0410\u0458\u0432\u0430\u0442\u043e\u0432\u0446\u0438',
-        w / 2,
-        h * 0.7,
-        w - 50,
-      );
+      const ph = h / 2;
+      for (const end of [false, true]) {
+        const y0 = end ? ph : 0;
+        ctx.fillStyle = '#f4f4f1';
+        ctx.fillRect(0, y0, w, ph);
+        ctx.strokeStyle = '#1d3c78';
+        ctx.lineWidth = 10;
+        ctx.strokeRect(8, y0 + 8, w - 16, ph - 16);
+        ctx.fillStyle = '#16181c';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = `bold ${Math.round(ph * 0.3)}px Arial, Helvetica, sans-serif`;
+        ctx.fillText('Ajvatovci', w / 2, y0 + ph * 0.34, w - 50);
+        ctx.fillText(
+          '\u0410\u0458\u0432\u0430\u0442\u043e\u0432\u0446\u0438',
+          w / 2,
+          y0 + ph * 0.7,
+          w - 50,
+        );
+        if (end) {
+          // End of village: red slash from top right to bottom left, inside the border.
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(13, y0 + 13, w - 26, ph - 26);
+          ctx.clip();
+          ctx.strokeStyle = '#c8161d';
+          ctx.lineWidth = 34;
+          ctx.lineCap = 'butt';
+          ctx.beginPath();
+          ctx.moveTo(w - 4, y0 + 4);
+          ctx.lineTo(4, y0 + ph - 4);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
     },
   },
   water_normal: {

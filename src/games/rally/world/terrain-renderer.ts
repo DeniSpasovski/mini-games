@@ -20,8 +20,9 @@ import { RENDER_MARGIN, type World } from './world';
  *  - LOD by distance: vertex step 1/2/4/8 cells. LOD0 reads the cached
  *    heightfield (exact match with physics), LOD1-3 sample the generator
  *    directly at coarse resolution so far terrain never fills the cache.
- *  - Chunks merge into bigger tiles inside one detail band to save draw calls (2 x 2 and 4 x 4 from LOD2, 8 x 8
- *    at LOD3; same vertex spacing, one mesh each). `blockLod` keeps the bands of the unmerged streamer, so merging
+ *  - Chunks merge into bigger tiles inside one detail band to save draw calls (2 x 2 from LOD1, 4 x 4 from LOD2,
+ *    8 x 8 at LOD3; same vertex spacing, one mesh each). A tile that splits or merges at the same LOD copies the
+ *    vertices of the tiles it replaces instead of sampling the generator again (`reuse`). `blockLod` keeps the bands of the unmerged streamer, so merging
  *    never makes a chunk coarser; a tile may reach `MERGE_SLACK` tile sizes past its band end (at LOD3 past the
  *    view distance) instead of splitting along every band edge.
  *  - Skirts hide cracks between neighbouring LODs.
@@ -31,7 +32,7 @@ import { RENDER_MARGIN, type World } from './world';
  */
 const STEPS = [1, 2, 4, 8];
 /** Merged tile sizes (chunks per side) -> the lowest LOD that merges at that size. */
-const MERGE: Record<number, number> = { 2: 2, 4: 2, 8: 3 };
+const MERGE: Record<number, number> = { 2: 1, 4: 2, 8: 3 };
 const TOP = 8;
 /** How far (in tile sizes) a merged tile may reach past its band end / the view distance. Without it the tiles fragment along every band edge. */
 const MERGE_SLACK = 2;
@@ -57,14 +58,18 @@ interface Want {
   d: number;
 }
 
-/** A big generator tile being sampled over several `update()` calls. */
-interface SampleJob {
-  w: Want;
-  grid: TerrainGrid;
-  n: number;
+/** Vertex data of a tile's n x n grid plus room for its skirts. */
+interface Vertices {
   pos: Float32Array;
   nor: Float32Array;
   spl: Uint8Array;
+}
+
+/** A big generator tile being sampled over several `update()` calls. */
+interface SampleJob extends Vertices {
+  w: Want;
+  grid: TerrainGrid;
+  n: number;
   /** Next height row / vertex row to sample. */
   hrow: number;
   vrow: number;
@@ -156,9 +161,14 @@ export class TerrainRenderer {
       // LOD0 needs the 1 m heightfield: generate it time-sliced, build the mesh when ready.
       if (w.lod === 0 && !this.world.heightfield.prepare(w.cx, w.cz, deadline))
         break;
+      // Tiles that only split / merge at the same LOD copy their vertices from the tiles they replace.
+      let job: Vertices | undefined = w.lod > 0 ? this.reuse(w) : undefined;
       // Big generator tiles (merged 4 x 4 and up) are sampled a few rows at a time.
-      let job: SampleJob | undefined;
-      if (w.lod > 0 && (w.span * CHUNK_CELLS) / STEPS[w.lod] > SLICE_ABOVE) {
+      if (
+        !job &&
+        w.lod > 0 &&
+        (w.span * CHUNK_CELLS) / STEPS[w.lod] > SLICE_ABOVE
+      ) {
         job = this.sample(w, deadline);
         if (!job) break;
       }
@@ -334,6 +344,63 @@ export class TerrainRenderer {
     return 3;
   }
 
+  /**
+   * Vertices of tile `w` taken from built tiles at the same LOD that cover all its chunks (it splits off a bigger
+   * tile or merges smaller ones). The lattice is global, so a shared vertex has the same height, normal and splat
+   * in every tile; only the position is re-based on the new origin. Undefined when any chunk lacks such a tile.
+   */
+  private reuse(w: Want): Vertices | undefined {
+    const step = STEPS[w.lod];
+    const q = CHUNK_CELLS / step;
+    const n = w.span * q + 1;
+    const cover: Tile[] = [];
+    for (let j = 0; j < w.span; j++)
+      for (let i = 0; i < w.span; i++) {
+        const t = this.coveringTile(w.cx + i, w.cz + j);
+        if (!t || t.lod !== w.lod || t.span === w.span) return undefined;
+        cover.push(t);
+      }
+    const vcount = n * n + 4 * n;
+    const out: Vertices = {
+      pos: new Float32Array(vcount * 3),
+      nor: new Float32Array(vcount * 3),
+      spl: new Uint8Array(vcount * 4),
+    };
+    const d = step * this.world.heightfield.cell;
+    for (let j = 0; j < w.span; j++)
+      for (let i = 0; i < w.span; i++) {
+        const t = cover[j * w.span + i];
+        const sn = t.span * q + 1;
+        const sp = t.mesh.geometry.attributes.position.array as Float32Array;
+        const sno = t.mesh.geometry.attributes.normal.array as Float32Array;
+        const ssp = t.mesh.geometry.attributes.splat.array as Uint8Array;
+        const u0 = (w.cx + i - t.cx) * q;
+        const v0 = (w.cz + j - t.cz) * q;
+        for (let b = 0; b <= q; b++)
+          for (let a = 0; a <= q; a++) {
+            const s = (v0 + b) * sn + u0 + a;
+            const v = (j * q + b) * n + i * q + a;
+            out.pos[v * 3] = (i * q + a) * d;
+            out.pos[v * 3 + 1] = sp[s * 3 + 1];
+            out.pos[v * 3 + 2] = (j * q + b) * d;
+            for (let c = 0; c < 3; c++) out.nor[v * 3 + c] = sno[s * 3 + c];
+            for (let c = 0; c < 4; c++) out.spl[v * 4 + c] = ssp[s * 4 + c];
+          }
+      }
+    return out;
+  }
+
+  /** The built tile covering a chunk (the smallest if old and new overlap). */
+  private coveringTile(cx: number, cz: number): Tile | undefined {
+    for (let span = 1; span <= TOP; span *= 2) {
+      const t = this.tiles.get(
+        key(Math.floor(cx / span) * span, Math.floor(cz / span) * span, span),
+      );
+      if (t) return t;
+    }
+    return undefined;
+  }
+
   /** Sample a tile's generator grid until `deadline`; returns the job once every row is done. */
   private sample(w: Want, deadline: number): SampleJob | undefined {
     let j = this.job;
@@ -378,7 +445,7 @@ export class TerrainRenderer {
     return j;
   }
 
-  private buildTile(w: Want, sampled?: SampleJob): void {
+  private buildTile(w: Want, sampled?: Vertices): void {
     const k = key(w.cx, w.cz, w.span);
     const old = this.tiles.get(k);
     const geometry = this.buildGeometry(w.cx, w.cz, w.span, w.lod, sampled);
@@ -404,7 +471,7 @@ export class TerrainRenderer {
     cz: number,
     span: number,
     lod: number,
-    sampled?: SampleJob,
+    sampled?: Vertices,
   ): BufferGeometry {
     const step = STEPS[lod];
     const n = (span * CHUNK_CELLS) / step + 1;

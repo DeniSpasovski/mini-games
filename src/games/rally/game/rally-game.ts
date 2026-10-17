@@ -376,6 +376,7 @@ export class RallyGame {
     this.breakables = new Breakables(this.world.scatter, (x, z) =>
       this.world.heightAt(x, z),
     );
+    await this.streamer.ready; // the service park's team cars
     this.people = new PeopleAnimator(this.world.scatter.fixedInstances());
     await frame();
 

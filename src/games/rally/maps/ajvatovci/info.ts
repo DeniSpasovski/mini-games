@@ -47,6 +47,16 @@ export const ajvatovciInfo: MapInfo = {
       note: 'tracks and lanes OpenStreetMap does not have, detected in Bing Maps imagery - (c) Microsoft, ODbL',
     },
     {
+      label: 'Generic passenger car pack (Comrade1280, Sketchfab)',
+      url: 'https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5',
+      note: 'parked cars and pickups, simplified - CC BY 4.0',
+    },
+    {
+      label: 'Low Poly Vehicle Mini Pack 7 (Vladek, Sketchfab)',
+      url: 'https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-7-c8fce59e51874a4182dc20a66cbc6c74',
+      note: 'parked vans and trucks, simplified - CC BY 4.0',
+    },
+    {
       label: 'Low Poly Truck (FS 3D Studio, Sketchfab)',
       url: 'https://sketchfab.com/3d-models/low-poly-truck-d61a2ac0a706462ebf82459907f21573',
       note: 'parked tractor units, trailers and box trucks, recoloured - CC BY 4.0',

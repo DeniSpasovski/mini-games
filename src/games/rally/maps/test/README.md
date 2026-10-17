@@ -2,13 +2,15 @@
 
 ![Forest stage](screenshots/forest-stage.jpg)
 
-Procedural ~1.7 km forest gravel stage for physics work: fast sweepers, S-bends, hairpin, crest jump, flat test
-pad (`?spawn=pad`). Everything is generated from `map.ts` (noise terrain, hand-placed road points, scatter rules).
+Procedural ~1.8 km forest gravel stage for physics work: a straight run-up with a small parc fermé (4 cars) beside it,
+fast sweepers, S-bends, hairpin, crest jump, flat test pad (`?spawn=pad`). Everything is generated from `map.ts` (noise
+terrain, hand-placed road points, scatter rules); `service-park.ts` is the parc fermé lot.
 
-| File        | What                                    |
-| ----------- | --------------------------------------- |
-| `map.ts`    | the whole map (pure data)               |
-| `README.md` | this file - external links / files used |
+| File              | What                                    |
+| ----------------- | --------------------------------------- |
+| `map.ts`          | the whole map (pure data)               |
+| `service-park.ts` | the parc fermé lot and its pad          |
+| `README.md`       | this file - external links / files used |
 
 ## External sources
 
