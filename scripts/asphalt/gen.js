@@ -44,7 +44,9 @@
   /**
    * len = metres per tile along the road (must match `texLength` in world/road-mesh.ts).
    * polish: bitumen film over the wheel paths; exposed: aggregate showing between them; grain: stone size
-   * (1 = worn road, 0.6 = fine new surface); dust: grit along the edges; age: warm, sun-bleached.
+   * (1 = worn road, 0.6 = fine new surface); dust: grit along the edges; age: warm, sun-bleached;
+   * lift: 0..1 toward a lighter, lower-contrast warm grey (bleached old road);
+   * relief: scales the stone relief in the normal map; crackW: scales the crack width.
    */
   const PRESETS = {
     road_tarmac: {
@@ -61,13 +63,16 @@
     road_tarmac_lines: {
       seed: 7,
       len: 7,
-      polish: 0.7,
+      polish: 0.5,
       exposed: 0.55,
       cracks: 22,
-      grain: 1,
-      patches: 2,
+      grain: 0.75,
+      patches: 0,
       dust: 0.7,
       age: 0.7,
+      lift: 0.3,
+      relief: 0.6,
+      crackW: 0.7,
       lines: [
         { u: 0.05, w: 12, color: WHITE },
         { u: 0.5, w: 12, color: WHITE },
@@ -78,13 +83,16 @@
     road_tarmac_lanes: {
       seed: 9,
       len: 12,
-      polish: 0.7,
+      polish: 0.5,
       exposed: 0.55,
       cracks: 22,
-      grain: 1,
-      patches: 2,
+      grain: 0.75,
+      patches: 0,
       dust: 0.7,
       age: 0.7,
+      lift: 0.3,
+      relief: 0.6,
+      crackW: 0.7,
       lines: [
         { u: 0.05, w: 12, color: WHITE },
         { u: 0.95, w: 12, color: WHITE },
@@ -195,7 +203,10 @@
 
     // Bitumen base.
     const warm = o.age;
-    cx.fillStyle = `rgb(${44 + warm * 10},${44 + warm * 8},${46 + warm * 4})`;
+    const lift = o.lift ?? 0;
+    const lighten = (c) =>
+      c.map((v, i) => Math.round(v + ([128, 124, 116][i] - v) * lift));
+    cx.fillStyle = `rgb(${lighten([44 + warm * 10, 44 + warm * 8, 46 + warm * 4])})`;
     cx.fillRect(0, 0, w, h);
     hx.fillStyle = grey(70);
     hx.fillRect(0, 0, w, h);
@@ -210,7 +221,7 @@
       [88, 86, 83],
       [96, 93, 89],
       [70, 67, 64],
-    ].map(([r, g, b]) => [r + warm * 10, g + warm * 6, b - warm * 2]);
+    ].map(([r, g, b]) => lighten([r + warm * 10, g + warm * 6, b - warm * 2]));
     const n = Math.round(
       (170000 * S * S) / (o.grain * o.grain * coarse * coarse),
     );
@@ -242,7 +253,7 @@
     if (o.polish > 0)
       for (const u0 of [0.28, 0.72]) {
         for (const [ctx, c0] of [
-          [cx, '30,30,32'],
+          [cx, lighten([30, 30, 32]).join(',')],
           [hx, '70,70,70'],
           [rx, '120,120,120'],
         ]) {
@@ -347,7 +358,7 @@
         rng.next() * h,
         a,
         long ? rng.int(20, 60) : rng.int(6, 18),
-        rng.range(1.0, 2.0),
+        rng.range(1.0, 2.0) * (o.crackW ?? 1),
         false,
       );
     }
@@ -469,7 +480,10 @@
 
     return {
       color,
-      normal: normalFromHeight(height, size < 1024 ? 1.8 : 2.2),
+      normal: normalFromHeight(
+        height,
+        (size < 1024 ? 1.8 : 2.2) * (o.relief ?? 1),
+      ),
       rough,
     };
   }
