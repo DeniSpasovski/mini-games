@@ -929,7 +929,7 @@ export function sculptBody(
   // --- polygonise everything ----------------------------------------------------------------------
   const hBody = fine ? 0.04 : 0.08;
   const hHead = fine ? 0.018 : 0.04;
-  const hHand = fine ? 0.011 : 0.02;
+  const hHand = fine ? 0.011 : 0.026;
   const hFoot = fine ? 0.02 : 0.04;
   const out: Parameters<typeof toGeometry>[0] = [];
 
