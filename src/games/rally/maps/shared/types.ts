@@ -695,6 +695,11 @@ export interface ServiceLot {
   width: number;
   /** Parc fermé lots (`ServicePark.ferme`): at most this many cars here (default: as many as fit). */
   bays?: number;
+  /**
+   * A paddock lot: team cars wanted here (a works bay holds two, the others one); bays are drawn from the east end until
+   * they add up to it. Without it as many bays as fit.
+   */
+  cars?: number;
   /** A parc fermé on a street: its pieces may stand on the road surface of other roads (buildings and water still block). */
   paved?: boolean;
   /**

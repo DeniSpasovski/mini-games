@@ -69,6 +69,8 @@ export interface ServiceParkLayout {
   instances: ScatterInstance[];
   /** Team bays that fit (each has a team car). */
   bays: number;
+  /** Team cars in them (a works bay has two). */
+  cars: number;
   /** Teams' bay centres (world x, z) in the order they were laid out. */
   bayCentres: { x: number; z: number; team: number }[];
 }
@@ -82,6 +84,14 @@ const WIDTH: Record<Template, number> = {
   privateer: 13.5,
   small: 9.5,
   ferme: 3.6,
+};
+const TEMPLATES: Template[] = ['works', 'privateer', 'small'];
+/** Team cars in a bay of each template. */
+const CARS: Record<Template, number> = {
+  works: 2,
+  privateer: 1,
+  small: 1,
+  ferme: 1,
 };
 /** Along-the-lot width of a parc fermé bay: nose-in cars stand close, parallel-parked ones nose to tail (m). */
 const fermeWidth = (lot: ServiceLot): number => (lot.parallel ? 5.4 : 3.6);
@@ -119,10 +129,19 @@ export function serviceParkInstances(
 ): ServiceParkLayout {
   const seed = def.seed ?? ctx.seed;
   let best: ServiceParkLayout | undefined;
+  // Every lot asks for its cars: the layout is complete when it has them all.
+  const wanted = def.lots.every((l) => l.cars !== undefined)
+    ? def.lots.reduce((n, l) => n + l.cars!, 0)
+    : Infinity;
   for (let attempt = 0; attempt < 8; attempt++) {
     const layout = layBays(def, ctx, hash3(attempt, 31, 7, seed));
-    if (!best || layout.bays > best.bays) best = layout;
-    if (best.bays >= def.bays) break;
+    if (
+      !best ||
+      layout.cars > best.cars ||
+      (layout.cars === best.cars && layout.bays > best.bays)
+    )
+      best = layout;
+    if (best.bays >= def.bays || best.cars >= wanted) break;
   }
   const out = best!;
   const rng = new Rng(hash3(5, 11, 3, seed));
@@ -150,7 +169,12 @@ function layBays(
 ): ServiceParkLayout {
   const rng = new Rng(seed);
   const teams = shuffle([...Array(TEAM_COUNT).keys()], rng);
-  const layout: ServiceParkLayout = { instances: [], bays: 0, bayCentres: [] };
+  const layout: ServiceParkLayout = {
+    instances: [],
+    bays: 0,
+    cars: 0,
+    bayCentres: [],
+  };
   const ferme = !!def.ferme;
   const gap = def.gap ?? (ferme ? 0.6 : 5);
   let next = 0;
@@ -158,6 +182,7 @@ function layBays(
     const rows = !ferme && !lot.semis && lot.width >= 2 * BAY_DEPTH + 4 ? 2 : 1;
     const firstCentre = layout.bayCentres.length;
     let inLot = 0;
+    let carsLeft = lot.cars ?? Infinity;
     for (let r = 0; r < rows && layout.bays < def.bays; r++) {
       // Row 0 backs on v = BAY_DEPTH (front at the public edge), row 1 on the far edge of the lot; a parc fermé row
       // fills the lot's whole depth.
@@ -165,15 +190,19 @@ function layBays(
       let uEast =
         lot.length - (ferme ? 1.2 : 1.5) - (lot.tow && ferme ? TOW_STRETCH : 0);
       let first = !ferme;
-      while (layout.bays < def.bays && inLot < (lot.bays ?? Infinity)) {
+      while (
+        layout.bays < def.bays &&
+        inLot < (lot.bays ?? Infinity) &&
+        carsLeft > 0
+      ) {
         // Each row opens with a works team (truck + awning, two cars), the rest is drawn; a parc fermé is cars only.
         const template: Template | undefined = ferme
           ? fermeWidth(lot) <= uEast - 1.2
             ? 'ferme'
             : undefined
-          : first
+          : first && carsLeft >= CARS.works
             ? 'works'
-            : pickTemplate(rng, uEast - 1.5);
+            : pickTemplate(rng, uEast - 1.5, carsLeft, gap);
         first = false;
         if (!template) break;
         const w = template === 'ferme' ? fermeWidth(lot) : WIDTH[template];
@@ -184,6 +213,8 @@ function layBays(
         next++;
         inLot++;
         layout.bays++;
+        layout.cars += CARS[template];
+        carsLeft -= CARS[template];
         layout.instances.push(...bay.items);
         layout.bayCentres.push({ ...bay.centre, team });
       }
@@ -297,9 +328,27 @@ function addSemis(
   }
 }
 
-/** A template that still fits in `room` m: seeded, favouring privateers and small teams. */
-function pickTemplate(rng: Rng, room: number): Template | undefined {
-  const fits = (t: Template) => WIDTH[t] <= room;
+/** A template that still fits in `room` m and `cars` cars: seeded, favouring privateers and small teams. */
+function pickTemplate(
+  rng: Rng,
+  room: number,
+  cars = Infinity,
+  gap = 0,
+): Template | undefined {
+  // A lot that wants `cars` more cars only takes a template after which they still fit in what is left.
+  const reachable = (room: number, cars: number): boolean =>
+    cars <= 0 ||
+    TEMPLATES.some(
+      (t) =>
+        WIDTH[t] <= room &&
+        CARS[t] <= cars &&
+        reachable(room - WIDTH[t] - gap, cars - CARS[t]),
+    );
+  const fits = (t: Template) => WIDTH[t] <= room && CARS[t] <= cars;
+  const reaches = (t: Template) =>
+    fits(t) &&
+    (!Number.isFinite(cars) ||
+      reachable(room - WIDTH[t] - gap, cars - CARS[t]));
   const roll = rng.next();
   const order: Template[] =
     roll < 0.25
@@ -307,7 +356,7 @@ function pickTemplate(rng: Rng, room: number): Template | undefined {
       : roll < 0.7
         ? ['privateer', 'small', 'works']
         : ['small', 'privateer', 'works'];
-  return order.find(fits);
+  return order.find(reaches) ?? order.find(fits);
 }
 
 function shuffle<T>(a: T[], rng: Rng): T[] {

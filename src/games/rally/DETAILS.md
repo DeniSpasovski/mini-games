@@ -179,7 +179,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   `bake-street-cars.mjs --vans`) in the team paint plus side stripes. A lot is a `ServiceLot` rectangle:
   the map levels it with a `terrain.pads` entry (`servicePad` in `maps/shared/service-lot.ts`, or a fixed `level` for a flat
   field), the stage lists the lots and the bay `gap` (`maps/ajvatovci/service-park.ts`: the start lot and a field row facing the road
-  to the factory). `ServiceLot.semis` parks tractor-trailer team trucks (`service_semi`, the baked lorry model below, tinted in the nearest bay's team colours) across the
+  to the factory: 4 team cars at the start lot, 6 in the west park, `ServiceLot.cars`; a works bay holds two). `ServiceLot.semis` parks tractor-trailer team trucks (`service_semi`, the baked lorry model below, tinted in the nearest bay's team colours) across the
   gravel behind a single row of bays, noses to the back edge (the lot is then about 36 m deep).
   `ServiceLot.links` (u, m) are dirt links across the verge to the road (`linkPad`: a gravel ramp from the lot level up to the
   road's height, 5 m wide; Ajvatovci's west park has three): tape, crowd and press keep off them. `servicePad`'s `apron` levels the strip

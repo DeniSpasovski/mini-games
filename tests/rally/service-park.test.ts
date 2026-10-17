@@ -36,14 +36,18 @@ describe('service park (Ajvatovci start)', () => {
   const park = world.servicePark!;
   const def = world.stageDef.servicePark!;
 
-  test('the stage has a park with at least ten team bays', () => {
+  test('4 team cars at the start lot and 6 in the west park, each on a ground sheet', () => {
     expect(park).toBeDefined();
-    expect(def.bays).toBeGreaterThanOrEqual(10);
-    expect(park.bays).toBeGreaterThanOrEqual(10);
+    const carsIn = (lot: (typeof def.lots)[number], asset: string) =>
+      park.instances.filter(
+        (i) => i.asset === asset && lotContains(lot, i.x, i.z, 0.5),
+      ).length;
+    expect(carsIn(def.lots[0], 'team_car')).toBe(4);
+    expect(carsIn(def.lots[1], 'team_car')).toBe(6);
+    // Works bays hold two cars on two sheets; every car stands on one.
+    expect(park.cars).toBe(10);
     expect(park.instances.filter((i) => i.asset === 'team_car').length).toBe(
-      park.instances.filter((i) => i.asset === 'ground_sheet').length -
-        // Works bays hold two cars on two sheets; every car stands on one.
-        0,
+      park.instances.filter((i) => i.asset === 'ground_sheet').length,
     );
   });
 
@@ -243,7 +247,7 @@ describe('service park (Ajvatovci start)', () => {
 
   test('plenty of people: a crowd, visitors and at least six round every bay', () => {
     const people = park.instances.filter((i) => PEOPLE.has(i.asset));
-    expect(people.length).toBeGreaterThan(250);
+    expect(people.length).toBeGreaterThan(200);
     for (const b of park.bayCentres) {
       const near = people.filter(
         (p) => p.asset !== 'spectator' && Math.hypot(p.x - b.x, p.z - b.z) < 11,
