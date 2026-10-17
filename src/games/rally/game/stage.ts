@@ -1,5 +1,7 @@
 import { newRoadQuery, type RoadQuery } from '../world/road';
 import type { World } from '../world/world';
+import { DEFAULT_SEASON, SEASON_LABELS, type Season } from '../season';
+import { slotFor } from './time-of-day';
 
 /**
  * Stage timing: countdown -> running -> finished, splits and progress along
@@ -530,8 +532,24 @@ export interface RunRecord {
   ver?: number;
   /** `CAR_TIMES_VERSIONS` of the car at the time; missing = the current one. */
   carVer?: number;
+  /** Season the run was driven in; missing on runs saved before it was kept (all summer). */
+  season?: Season;
+  /** Hour of day (0-24) the run was driven at; missing = the stage's own hour (the only one before the picker), none on stages without a time of day. */
+  hour?: number;
   /** ms since epoch (also the run's id); 0 = imported best from before the leaderboard existed. */
   date: number;
+}
+
+/** "Summer · Afternoon" of a run (`ownHour` = the stage's own hour, what runs without `hour` were driven at). */
+export function runConditions(
+  run: Pick<RunRecord, 'season' | 'hour'>,
+  ownHour: number | undefined,
+): string {
+  const hour = run.hour ?? ownHour;
+  return [
+    SEASON_LABELS[run.season ?? DEFAULT_SEASON],
+    ...(hour === undefined ? [] : [slotFor(hour).label]),
+  ].join(' · ');
 }
 
 /** Runs kept per car and map (so "this car" can always show a full top 10). */

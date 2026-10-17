@@ -753,6 +753,17 @@
 .menu-board tr.me td.set {
   color: #111;
 }
+.menu-board .when {
+  display: block;
+  font:
+    12px system-ui,
+    sans-serif;
+  color: #8a94a1;
+}
+.menu-board tr.sec .when {
+  display: inline;
+  margin-left: 0.9em;
+}
 .menu-board .na {
   color: #4b5562;
 }
