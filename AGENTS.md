@@ -84,7 +84,9 @@ into `DETAILS.md`, never up.
   `stl-to-glb.mjs` (STL -> game GLB with livery-atlas UVs), `stl-wheel-extract.py` + `wheel-stl-to-glb.mjs` (a print model's own
   rim; `stl-flatten-cap.py` flattens an emblem on its centre cap; `--two-sided` / `--bridge` close a one-sided rim barrel), `chart-probe.py` (atlas chart per triangle, livery debugging), `bake-lamp-sheet.py` (a GLB's own lamp textures -> lamp
   sheet), `glb-meshopt.mjs` (the build's GLB compression), `side-profile.mjs` (boxy profile from a GLB: fallback body + street cars);
-  the other scripts there (`glb-to-parts-stl.py`, `scale-x.mjs`, `bake-street-cars.mjs` ...) are covered by the `rally-car-import` skill
+  background vehicles: `street-pack-extract.py` (GLB -> per-vehicle json + images) -> `bake-street-textures.py` (car atlas) ->
+  `bake-street-cars.mjs`, and `bake-fire-truck-textures.py` -> `bake-fire-trucks.mjs` (the two fire engines; shared `street-bake-lib.mjs`);
+  the other scripts there (`glb-to-parts-stl.py`, `scale-x.mjs` ...) are covered by the `rally-car-import` skill
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
   `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `plaza_islands.py` (city junction
   `junction.json`), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from
