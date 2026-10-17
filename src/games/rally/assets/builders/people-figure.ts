@@ -238,7 +238,7 @@ export function sculptBody(
   const torsoFrame = frame({ kind: Fk.Torso, ax: torsoRows });
 
   // Cloth: thickness + garment of the torso prims (the hem lies at `hem` in torso space).
-  const hem = jacketTorso ? -0.11 : -0.07;
+  const hem = jacketTorso ? -0.075 : -0.07;
   const lowG = o.skirt ? G.skirt : bareLegs ? G.skin : G.leg;
   const lowT = bareLegs && !o.skirt ? 0 : 0.01;
   const torsoCloth: ClothFn = (x, y, z) => {
@@ -250,11 +250,11 @@ export function sculptBody(
       cl.t = lowT;
       return;
     }
-    const loose = o.vest ? 0.034 : jacketTorso ? 0.024 : 0.017;
+    const loose = o.vest ? 0.022 : jacketTorso ? 0.014 : 0.009;
     const droop = smoothstep(0.5, 0.0, ty);
     let t = loose * (0.65 + 0.5 * droop);
     // Waistband / hem rib.
-    if (jacketTorso) t += 0.005 * smoothstep(hem + 0.06, hem, ty);
+    if (jacketTorso) t += 0.012 * smoothstep(hem + 0.1, hem, ty);
     // Eases to the trousers' thickness just above the hem, so the edge stays clean at any grid size.
     t = lowT + (t - lowT) * smoothstep(hem, hem + 0.03, ty);
     cl.g = o.vest ? G.vest : G.torso;
@@ -276,9 +276,9 @@ export function sculptBody(
   add(
     ellipsoid(
       arr(rot(0, 0.015, -0.005)),
-      [0.17 * b, 0.115, 0.108],
+      [0.155 * b, 0.115, 0.094],
       torsoRows,
-      0.04,
+      0.025,
       torsoFrame,
       torsoCloth,
     ),
@@ -286,9 +286,9 @@ export function sculptBody(
   add(
     ellipsoid(
       arr(rot(0, 0.2, 0)),
-      [0.15 * b, 0.13, 0.096],
+      [0.135 * b, 0.13, 0.084],
       torsoRows,
-      0.05,
+      0.03,
       torsoFrame,
       torsoCloth,
     ),
@@ -296,9 +296,9 @@ export function sculptBody(
   add(
     ellipsoid(
       arr(rot(0, 0.38, 0.01)),
-      [0.178 * b, 0.15, 0.108 * bust],
+      [0.168 * b, 0.15, 0.097 * bust],
       torsoRows,
-      0.06,
+      0.035,
       torsoFrame,
       torsoCloth,
     ),
@@ -306,9 +306,9 @@ export function sculptBody(
   add(
     ellipsoid(
       arr(rot(0, 0.495, 0)),
-      [0.2 * b, 0.07, 0.088],
+      [0.185 * b, 0.065, 0.08],
       torsoRows,
-      0.05,
+      0.03,
       torsoFrame,
       torsoCloth,
     ),
@@ -319,9 +319,9 @@ export function sculptBody(
       cone(
         arr(rot(side * 0.17 * b, 0.505, 0)),
         arr(rot(side * 0.045, 0.585, -0.005)),
-        0.052,
+        0.042,
+        0.036,
         0.04,
-        0.05,
         torsoFrame,
         torsoCloth,
       ),
@@ -423,17 +423,17 @@ export function sculptBody(
         cl.t = (t0 + (o.shorts ? 0.006 : 0)) * cover;
       };
     };
-    const thighCloth = trouser(0.011);
-    add(cone(arr(H), arr(K), 0.1, 0.068, 0.05, thighF, thighCloth));
+    const thighCloth = trouser(0.009);
+    add(cone(arr(H), arr(K), 0.088, 0.058, 0.03, thighF, thighCloth));
     add(
-      cone(arr(K), arr(A), 0.066, 0.044, 0.04, shinF, (x, y, z, s) => {
+      cone(arr(K), arr(A), 0.056, 0.038, 0.03, shinF, (x, y, z, s) => {
         const ty = torsoRows[3] * x + torsoRows[4] * y + torsoRows[5] * z;
         if (ty > hem) {
           torsoCloth(x, y, z, s);
           return;
         }
         cl.g = bareLegs ? G.skin : G.leg;
-        cl.t = bareLegs ? 0 : 0.009;
+        cl.t = bareLegs ? 0 : 0.008;
       }),
     );
     // Calf.
@@ -444,16 +444,16 @@ export function sculptBody(
     add(
       ellipsoid(
         arr(calf),
-        [0.052, 0.12, 0.058],
+        [0.046, 0.12, 0.05],
         axisBasis(shinAxis),
-        0.05,
+        0.035,
         shinF,
         (x, y, z) => {
           void x;
           void y;
           void z;
           cl.g = bareLegs ? G.skin : G.leg;
-          cl.t = bareLegs ? 0 : 0.009;
+          cl.t = bareLegs ? 0 : 0.008;
         },
       ),
     );
@@ -463,7 +463,7 @@ export function sculptBody(
   const hands: Vector3[] = [];
   const handSpecs: { F: Vector3; fd: Vector3; side: number }[] = [];
   for (const [side, arm] of arms) {
-    const J = S.clone().add(rot(side * 0.205 * b, -0.04, 0));
+    const J = S.clone().add(rot(side * 0.192 * b, -0.045, 0));
     const E = J.clone().add(dirDown(arm.p, arm.ab, side).multiplyScalar(UPPER));
     const fd = dirDown(arm.p + arm.bend, arm.ab2 ?? arm.ab, side);
     const F = E.clone().add(fd.clone().multiplyScalar(FORE));
@@ -492,11 +492,11 @@ export function sculptBody(
         const cover = smoothstep(end + 0.015, end - 0.03, s);
         const cuff = !short && !upper ? 0.004 * smoothstep(0.82, 0.95, s) : 0;
         cl.g = cover > 0.5 ? G.sleeve : G.skin;
-        cl.t = (upper ? 0.016 : 0.012) * cover + cuff * cover;
+        cl.t = (upper ? 0.009 : 0.007) * cover + cuff * cover;
       };
     };
-    add(cone(arr(J), arr(E), 0.064, 0.05, 0.05, upF, sleeve(true)));
-    add(cone(arr(E), arr(F), 0.049, 0.037, 0.04, foreF, sleeve(false)));
+    add(cone(arr(J), arr(E), 0.05, 0.043, 0.03, upF, sleeve(true)));
+    add(cone(arr(E), arr(F), 0.043, 0.032, 0.03, foreF, sleeve(false)));
   }
 
   const bodyField = makeField(prims, bodyCut);
@@ -865,15 +865,15 @@ export function sculptBody(
       const base = at(0.1, w, 0.002);
       const mid = at(0.1 + L * 0.55, w, 0.014);
       const tip = at(0.1 + L * 0.85, w, 0.03);
-      hpz.push(cone(arr(base), arr(mid), 0.0092, 0.0085, 0.006, hf, cloth));
-      hpz.push(cone(arr(mid), arr(tip), 0.0085, 0.0072, 0.004, hf, cloth));
+      hpz.push(cone(arr(base), arr(mid), 0.0112, 0.0104, 0.008, hf, cloth));
+      hpz.push(cone(arr(mid), arr(tip), 0.0104, 0.0092, 0.006, hf, cloth));
     }
     // Thumb.
     const tb = at(0.035, 0.036, 0.004);
     const tm = at(0.075, 0.049, 0.012);
     const tt = at(0.105, 0.052, 0.02);
-    hpz.push(cone(arr(tb), arr(tm), 0.014, 0.011, 0.01, hf, cloth));
-    hpz.push(cone(arr(tm), arr(tt), 0.011, 0.0088, 0.006, hf, cloth));
+    hpz.push(cone(arr(tb), arr(tm), 0.0155, 0.0125, 0.01, hf, cloth));
+    hpz.push(cone(arr(tm), arr(tt), 0.0125, 0.0105, 0.006, hf, cloth));
     handFields.push(makeField(hpz));
   }
 
@@ -889,21 +889,35 @@ export function sculptBody(
       at.z + z,
     ];
     const sh = fixed(G.shoe, 0);
+    // Boot: heel + ankle shaft, instep, toe cap, and a flat lugged sole.
     sp.push(
-      ellipsoid(c(0, 0.012, -0.075), [0.048, 0.056, 0.064], null, 0.04, sf, sh),
+      ellipsoid(c(0, 0.03, -0.065), [0.046, 0.07, 0.052], null, 0.03, sf, sh),
     );
     sp.push(
-      ellipsoid(c(0, -0.012, 0.02), [0.054, 0.04, 0.09], null, 0.04, sf, sh),
+      cone(c(0, 0.03, -0.062), c(0, 0.12, -0.052), 0.047, 0.046, 0.03, sf, sh),
     );
     sp.push(
-      ellipsoid(c(0, -0.02, 0.09), [0.05, 0.033, 0.07], null, 0.03, sf, sh),
+      ellipsoid(c(0, -0.005, 0.03), [0.05, 0.04, 0.085], null, 0.03, sf, sh),
+    );
+    sp.push(
+      ellipsoid(c(0, -0.016, 0.105), [0.047, 0.03, 0.06], null, 0.025, sf, sh),
     );
     sp.push(
       ellipsoid(
-        c(0, -0.055, 0.005),
-        [0.057, 0.021, 0.146],
+        c(0, -0.05, 0.015),
+        [0.056, 0.016, 0.148],
         null,
-        0.01,
+        0.008,
+        sf,
+        fixed(G.sole, 0),
+      ),
+    );
+    sp.push(
+      ellipsoid(
+        c(0, -0.045, -0.09),
+        [0.05, 0.02, 0.05],
+        null,
+        0.008,
         sf,
         fixed(G.sole, 0),
       ),
@@ -912,9 +926,9 @@ export function sculptBody(
   }
 
   // --- polygonise everything ----------------------------------------------------------------------
-  const hBody = fine ? 0.042 : 0.08;
+  const hBody = fine ? 0.04 : 0.08;
   const hHead = fine ? 0.018 : 0.04;
-  const hHand = fine ? 0.016 : 0.035;
+  const hHand = fine ? 0.011 : 0.03;
   const hFoot = fine ? 0.02 : 0.04;
   const out: Parameters<typeof toGeometry>[0] = [];
 

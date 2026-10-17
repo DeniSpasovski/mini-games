@@ -69,7 +69,7 @@ describe('people', () => {
         expect(near.lo).toBeLessThan(0.02);
         expect(near.hi).toBeGreaterThan(0.8);
         expect(near.hi).toBeLessThan(2.4);
-        expect(near.tris).toBeLessThan(13000);
+        expect(near.tris).toBeLessThan(15000);
         expect(measure(id, v, 1).tris).toBeLessThan(3200);
         expect(measure(id, v, 2).tris).toBeLessThan(260);
         expect(measure(id, v, 3).tris).toBeLessThan(40);
