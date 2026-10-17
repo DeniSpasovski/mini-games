@@ -77,8 +77,7 @@ export const ajvatovciInfo: MapInfo = {
     sunAzimuth: 315,
     // Hot June morning, 07:30: low sun (~22 deg) in the east. ?tod=<hours> to try.
     timeOfDay: 7.5,
-    // Hot dry June morning near Skopje (a day that is 27 deg by 07:30 is a heatwave day with a clear sky). Humidity is not simulated.
-    airTemp: 27,
+    months: { spring: 4, summer: 6, autumn: 10 },
     cloudCoverage: 0.1,
     turbidity: 6,
     rayleigh: 1.5,
@@ -87,6 +86,10 @@ export const ajvatovciInfo: MapInfo = {
     exposure: 0.88,
     // Spring: fresh green meadows and young crops, golden wheat parcels.
     groundTint: { grass: '#65952f', amount: 0.8, crop: '#c49c36' },
+    groundTints: {
+      spring: { grass: '#5fae2e', amount: 0.85, crop: '#7fa63c' },
+      autumn: { grass: '#847636', amount: 0.85, crop: '#7e5f2e' },
+    },
   },
   route: data.route,
   surfaces: ['tarmac_gravel'],

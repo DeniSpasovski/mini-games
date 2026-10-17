@@ -11,6 +11,7 @@ import {
 } from 'three';
 import type { QualityName } from '../engine/quality';
 import type { CarHeadlightsDef } from '../cars/shared/types';
+import type { CarPhysicsDef } from '../physics/types';
 
 /** Luminous intensity of the main low beam (scene units, physical falloff). */
 const BEAM = 3200;
@@ -27,6 +28,19 @@ const CONE_LENGTH = 28;
 const CONE_RADIUS = 5.5;
 /** The default beam angle the cone radius is made for. */
 const CONE_ANGLE = 0.42;
+
+/** Lamp position on a car (`Headlights`): 0.8 of the widest half-track, 0.75 m ahead of the front axle, 0.7 m up. */
+export function headlightMount(p: Pick<CarPhysicsDef, 'front' | 'rear'>): {
+  x: number;
+  y: number;
+  z: number;
+} {
+  return {
+    x: (Math.max(p.front.track, p.rear.track) / 2) * 0.8,
+    y: 0.7,
+    z: p.front.z + 0.75,
+  };
+}
 
 /**
  * The car's headlights at night (`Environment.night`): a narrow bright low beam, a wide dim spill for the verges and
@@ -157,5 +171,64 @@ export class Headlights {
     this.beamMat.dispose();
     for (const s of this.spots) s.shadow.map?.dispose();
     this.group.removeFromParent();
+  }
+}
+
+/** Luminous intensity of the tail lamps' red spill (scene units): the running lights, and the brake pedal fully down. */
+const TAIL_IDLE = 0.8;
+const TAIL_BRAKE = 10;
+
+/** Where the red spill starts (`TailLight`): centred, 0.55 m above the road (the car's origin is its centre of mass), just behind the bumper (the rear overhang is ~0.38 of the wheelbase). */
+export function tailLightMount(
+  p: Pick<CarPhysicsDef, 'front' | 'rear' | 'comHeight'>,
+): { x: number; y: number; z: number } {
+  return {
+    x: 0,
+    y: 0.55 - p.comHeight,
+    z: p.rear.z - 0.38 * (p.front.z - p.rear.z) - 0.15,
+  };
+}
+
+/**
+ * The tail lamps' red spill at night: one dim red spot light at the bumper aimed back and down, so it tints the road and
+ * the verges behind the car (not the car's own rear), brighter with the brake. A child of the car; like the headlights
+ * it exists from the first compile (lights are compiled into every lit shader), so it is created only when the lights are on.
+ */
+export class TailLight {
+  private readonly light = new SpotLight(0xff1408, 0, 6.5, 0.95, 1, 2);
+  private brake = 0;
+
+  /** `level` = 0..1 lights level (`Environment.lightNeed`). */
+  constructor(
+    car: Object3D,
+    at: { x: number; y: number; z: number },
+    private level: number,
+  ) {
+    this.light.position.set(at.x, at.y, at.z);
+    this.light.target.position.set(at.x, at.y - 0.55, at.z - 3);
+    car.add(this.light, this.light.target);
+    this.apply();
+  }
+
+  /** 0..1 lights level; 0 = off (the light stays in the scene, so no shader recompiles). */
+  setLevel(level: number): void {
+    this.level = level;
+    this.apply();
+  }
+
+  /** 0 = running lights, 1 = brake pedal fully down. */
+  setBrake(brake: number): void {
+    this.brake = brake;
+    this.apply();
+  }
+
+  private apply(): void {
+    this.light.intensity =
+      this.level * (TAIL_IDLE + (TAIL_BRAKE - TAIL_IDLE) * this.brake);
+  }
+
+  dispose(): void {
+    this.light.removeFromParent();
+    this.light.target.removeFromParent();
   }
 }

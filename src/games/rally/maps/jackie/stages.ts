@@ -1,5 +1,34 @@
-import type { StageDef } from '../shared/types';
+import type { StageDef, StageTemps } from '../shared/types';
 import { JACKIE_PARK } from './service-park';
+
+/**
+ * Air and road temperature (°C, `[air, road]`) by season and time of day: hardcoded for the stage, researched (the
+ * matrix of every stage is in rally DETAILS.md "Temperatures", source figures in PHYSICS.md "Climate"). Valid at the stage start (its lowest
+ * point; higher up the car is colder, `AIR_LAPSE`). The road is the stage's first surface; a time of day is a slot of game/time-of-day.ts (the stage's own slot at its own hour). Basis: LaGuardia 1991-2020 normals (average high and low) of May, July and October.
+ */
+const TEMPS: StageTemps = {
+  spring: {
+    early: [15, 21],
+    midday: [20, 38],
+    afternoon: [22, 39],
+    evening: [22, 34],
+    night: [16, 16],
+  },
+  summer: {
+    early: [24, 31],
+    midday: [28, 50],
+    afternoon: [30, 51],
+    evening: [30, 45],
+    night: [24, 24],
+  },
+  autumn: {
+    early: [12, 13],
+    midday: [17, 26],
+    afternoon: [19, 27],
+    evening: [19, 23],
+    night: [14, 14],
+  },
+};
 
 /** The stages on the Jackie map (./map.ts). The id is the map's old id: stored times are keyed by it. */
 export const jackieStages: StageDef[] = [
@@ -7,6 +36,7 @@ export const jackieStages: StageDef[] = [
     id: 'jackie',
     name: 'The Jackie',
     year: 2026,
+    temps: TEMPS,
     /** Recommended tyre (pre-selected on the car screen; see ../../PHYSICS.md). */
     tyre: 'tarmac',
     // Fast parkway: the race cars' long final drive (Skoda Rally ~205 km/h instead of 165).

@@ -1,8 +1,16 @@
 import { describe, expect, test } from '@rstest/core';
 import type { SpriteData } from '../../src/games/rally/trees/mesh';
 import { crownProxy, quadSprites } from '../../src/games/rally/trees/proxy';
+import {
+  packSprite,
+  unpackCorner,
+  unpackHeading,
+} from '../../src/games/rally/trees/sprite-attr';
 
-/** Two sprites as fans of an outline (offsets -0.5..0.5, uv = cell origin + offset * cell size). */
+/**
+ * Two sprites as fans of an outline (offsets -0.5..0.5, uv = cell origin + offset * cell size): the first grows along a
+ * heading (a broadleaf spray), the second is a round image without one.
+ */
 function sprites(): SpriteData {
   const outline = [
     [-0.3, -0.4],
@@ -21,6 +29,7 @@ function sprites(): SpriteData {
   const col: number[] = [];
   const wind: number[] = [];
   const spr: number[] = [];
+  const heading: number[] = [];
   const rank: number[] = [];
   const index: number[] = [];
   const ends: number[] = [];
@@ -32,7 +41,8 @@ function sprites(): SpriteData {
       uv.push(0.25 * j + (x + 0.5) * 0.25, 0.5 + (y + 0.5) * 0.25);
       col.push(1, 1, 1);
       wind.push(2, 0.1 * j, 0.5, 0.8);
-      spr.push(x, y, 1.2, 0.3 * j);
+      spr.push(x, y, 1.2, 0);
+      heading.push(...(j === 0 ? [0.6, -0.8, 0] : [0, 2, 0]));
       rank.push(j / 2);
     }
     for (let k = 1; k + 1 < outline.length; k++)
@@ -46,6 +56,7 @@ function sprites(): SpriteData {
     color: new Float32Array(col),
     wind: new Float32Array(wind),
     sprite: new Float32Array(spr),
+    heading: new Float32Array(heading),
     rank: new Float32Array(rank),
     index: new Uint32Array(index),
     ends: new Uint32Array(ends),
@@ -64,14 +75,41 @@ describe('tree proxies', () => {
     for (let q = 0; q < 8; q++) {
       const j = q >> 2;
       // Offsets are the outline's box; the uv follows the same linear map as the outline's.
-      expect([-0.35, 0.4]).toContain(Number(spr.getX(q).toFixed(5)));
-      expect([-0.4, 0.45]).toContain(Number(spr.getY(q).toFixed(5)));
-      expect(uv.getX(q)).toBeCloseTo(0.25 * j + (spr.getX(q) + 0.5) * 0.25, 5);
-      expect(uv.getY(q)).toBeCloseTo(0.5 + (spr.getY(q) + 0.5) * 0.25, 5);
-      // Per-sprite data carried over.
+      const [cx, cy] = unpackCorner(spr.getX(q));
+      expect([-0.35, 0.4]).toContain(Number(cx.toFixed(3)));
+      expect([-0.4, 0.45]).toContain(Number(cy.toFixed(3)));
+      expect(uv.getX(q)).toBeCloseTo(0.25 * j + (cx + 0.5) * 0.25, 3);
+      expect(uv.getY(q)).toBeCloseTo(0.5 + (cy + 0.5) * 0.25, 3);
+      // Per-sprite data carried over: size, rank, heading (none for the round image).
       expect(spr.getZ(q)).toBeCloseTo(1.2, 5);
       expect(geometry.getAttribute('treeRank').getX(q)).toBeCloseTo(j / 2, 5);
+      const h = unpackHeading(spr.getX(q), spr.getY(q), spr.getW(q));
+      if (j === 0) {
+        expect(h![0]).toBeCloseTo(0.6, 5);
+        expect(h![1]).toBeCloseTo(-0.8, 5);
+        expect(h![2]).toBeCloseTo(0, 5);
+      } else expect(h).toBeNull();
     }
+  });
+
+  test('a packed sprite vertex keeps its corner, size and heading (either side of the horizon)', () => {
+    const out = new Float32Array(4);
+    for (const h of [
+      [0.36, 0.48, -0.8],
+      [-0.6, -0.8, 0],
+      [0, 1, 0],
+    ] as [number, number, number][]) {
+      packSprite(-0.31, 0.5, 2.5, h, out, 0);
+      const [cx, cy] = unpackCorner(out[0]);
+      expect(cx).toBeCloseTo(-0.31, 3);
+      expect(cy).toBeCloseTo(0.5, 3);
+      expect(out[2]).toBe(2.5);
+      const back = unpackHeading(out[0], out[1], out[3])!;
+      h.forEach((c, i) => expect(back[i]).toBeCloseTo(c, 5));
+    }
+    // The largest packed value stays an exact float (the shader unpacks it with mod / floor).
+    packSprite(0.5, 0.5, 1, [0, -1, 0], out, 0);
+    expect(Number.isInteger(out[0]) && out[0] < 2 ** 24).toBe(true);
   });
 
   test('crown proxy: a closed lathe round the sprites, inside their reach', () => {

@@ -30,6 +30,11 @@ export interface Canopy {
 }
 
 const canopies = new Map<string, Canopy>();
+
+/** Forget the measured canopies (their colours follow the registered tree variants: another season's, trees/seasons.ts). */
+export function resetCanopies(): void {
+  canopies.clear();
+}
 let disc: CircleGeometry | undefined;
 
 /**

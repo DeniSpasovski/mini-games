@@ -5,6 +5,7 @@ import {
   type MeshLambertMaterial,
   type WebGLRenderer,
 } from 'three';
+import { DEFAULT_SEASON, type Season } from '../season';
 import { getCached, pruneCached, putCached } from './cache';
 import {
   bakeImpostor,
@@ -20,7 +21,9 @@ import {
   spriteTextures,
 } from './materials';
 import type { Crown, MeshData, SpriteData, VariantMeshes } from './mesh';
+import { allSeasons, seasonal, seasonOf } from './seasons';
 import { isTreeType, speciesOfType, type SpeciesDef } from './species';
+import { headingAt, packSprite } from './sprite-attr';
 import {
   cacheKey,
   generateVariant,
@@ -93,7 +96,17 @@ function spriteGeometry(s: SpriteData): BufferGeometry {
   g.setAttribute('uv', new BufferAttribute(s.uv, 2));
   g.setAttribute('color', new BufferAttribute(s.color, 3));
   g.setAttribute('treeWind', new BufferAttribute(s.wind, 4));
-  g.setAttribute('treeSprite', new BufferAttribute(s.sprite, 4));
+  const packed = new Float32Array(s.sprite.length);
+  for (let v = 0; v < packed.length / 4; v++)
+    packSprite(
+      s.sprite[v * 4],
+      s.sprite[v * 4 + 1],
+      s.sprite[v * 4 + 2],
+      headingAt(s.heading, v),
+      packed,
+      v * 4,
+    );
+  g.setAttribute('treeSprite', new BufferAttribute(packed, 4));
   g.setAttribute('treeRank', new BufferAttribute(s.rank, 1));
   g.setIndex(new BufferAttribute(s.index, 1));
   g.computeBoundingSphere();
@@ -152,7 +165,12 @@ class Generator {
       if (!this.worker) return this.inline(job);
       const id = this.next++;
       this.pending.set(id, job);
-      const req: GenerateRequest = { id, species: def.name, index };
+      const req: GenerateRequest = {
+        id,
+        species: def.name,
+        index,
+        season: seasonOf(def),
+      };
       this.worker.postMessage(req);
     });
   }
@@ -206,10 +224,14 @@ export class TreeLibrary {
     diskBytes: 0,
   };
 
-  /** Species of every tree type in `assets` (map rules / fixed instances). */
-  static speciesOf(assets: Iterable<string>): SpeciesDef[] {
+  /** Species of every tree type in `assets` (map rules / fixed instances), in the leaf colours of `season`. */
+  static speciesOf(
+    assets: Iterable<string>,
+    season: Season = DEFAULT_SEASON,
+  ): SpeciesDef[] {
     const out = new Set<SpeciesDef>();
-    for (const a of assets) if (isTreeType(a)) out.add(speciesOfType(a));
+    for (const a of assets)
+      if (isTreeType(a)) out.add(seasonal(speciesOfType(a), season));
     return [...out];
   }
 
@@ -295,10 +317,15 @@ export class TreeLibrary {
         ((t.startsWith('bark') ? 64 * 128 : 256 * 128) * 4 * 4) / 3,
       );
     st.totalMs = performance.now() - t0;
+    // The other seasons' variants stay cached.
     for (const def of species)
       void pruneCached(
         def.name,
-        new Set(variantsOf(def).map((i) => cacheKey(def, variantSeed(def, i)))),
+        new Set(
+          allSeasons(def).flatMap((d) =>
+            variantsOf(d).map((i) => cacheKey(d, variantSeed(d, i))),
+          ),
+        ),
       );
     return lib;
   }
@@ -315,7 +342,7 @@ export class TreeLibrary {
     const sprites = spriteGeometry(meshes.sprites);
     const quads = quadSprites(meshes.sprites);
     for (const g of [sprites, quads.geometry]) crownAttributes(g, info.crown);
-    const tex = spriteTextures(def.foliage.kind, def.foliage.density);
+    const tex = spriteTextures(def.foliage.leaf);
     const pixels =
       cachedImpostor ??
       bakeImpostor(
@@ -328,7 +355,7 @@ export class TreeLibrary {
       );
     // Materials are shared per bark / foliage kind; created here so they exist before the first frame.
     barkMaterial(def.bark.texture);
-    spriteMaterial(def.foliage.kind, def.foliage.density);
+    spriteMaterial(def.foliage.leaf);
     return {
       loaded: {
         info,

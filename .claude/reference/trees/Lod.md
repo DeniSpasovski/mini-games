@@ -7,7 +7,7 @@ Every variant has three levels of detail built from the same skeleton. Foliage d
 ## Levels
 
 - LOD0 is the full skeleton as tapered branch tubes whose radial segment count falls with branch order. Twigs below a species radius are left out; the foliage sprites cover them.
-- LOD1 keeps only the trunk and the first-order limbs. The finer branches it drops sit inside the crown, so the sprites hide the change.
+- LOD1 keeps only the trunk and the first-order limbs thick enough to show (at least 1/120 of the tree's height, about one pixel wide where LOD1 starts). The finer branches it drops sit inside the crown, so the sprites hide the change.
 - LOD2 is an octahedral impostor baked from LOD0 with its full foliage, with albedo, normal, depth and thickness, lit by the same lit path, sun, sky, fog and shadows as the geometry. It is never drawn with albedo alone.
 
 ## Nesting
@@ -20,14 +20,15 @@ The levels are nested, so every segment in a coarser level is also in every fine
 - Projected height is measured from the tree's bounding sphere and the camera's position and field of view before camera shake and bounce are applied, so a shaking camera does not push trees back and forth across a threshold.
 - Each threshold has hysteresis. A tree moves to a coarser level when it drops below the threshold, and back to the finer one only when it rises above the threshold by a margin, 15% of the threshold by default.
 - The default thresholds sit where each coarser level is hard to tell from the finer one at rally speed, so trees near the road are at full detail and the distant forest is cheap. Sprite thinning starts below 14% of the screen height, branches move from LOD0 to LOD1 below 7%, and the tree moves to the impostor below 3.5%. For a 15 m tree at a 60 degree vertical field of view, that is roughly 90 m, 185 m and 370 m.
-- A tree within 40 m of the camera is always drawn at LOD0, and only such a tree draws LOD0 branches, with its full-detail sprites (see Foliage simplification), whatever its projected height, the field of view or the graphics quality setting.
+- A tree within 40 m of the camera is always drawn at LOD0, and only such a tree draws LOD0 branches, with its full-detail sprites (see Foliage simplification), whatever its projected height, the field of view or the graphics quality setting. The first row, trees within 9 m of the road's edge, keeps this to 80 m: they are the ones a driver passes at arm's length and sees longest. The second row and the forest behind use 40 m.
+- A tree within 80 m of the camera is never the impostor, whatever its projected height or the graphics quality setting: below the impostor threshold it stays LOD1 with thinned sprites until 80 m x (1 + hysteresis), and it is an impostor again only past that. The impostor is a few dozen pixels tall and reads as a blotchy blob up close. This also holds for trees far from the stage road, which are otherwise always static impostors.
 - Selection depends only on the frame's camera, never on draw order, culling batches or which pass is drawing.
 - Selection is not re-run for every tree every frame; see activeSet.
 
 ## Active Set
 
 - Trees are grouped into cells along the stage. For each cell, the camera's distance range to the cell's trees bounds the projected height each of them can have, so whole cells can be settled at one level.
-- A tree is active, and re-selected on the CPU each frame, only while its projected height is within its hysteresis margin of a threshold, or of the 40 m full-detail distance, or while it is in a fade. Every other tree is settled and drawn from its cell's static batch for its level, with no per-frame CPU work.
+- A tree is active, and re-selected on the CPU each frame, only while its projected height is within its hysteresis margin of a threshold, or of the tree's own full-detail distance (40 m, 80 m in the first row), or while it is in a fade. Every other tree is settled and drawn from its cell's static batch for its level, with no per-frame CPU work.
 - A settled cell records how far the camera can move, and how much the field of view can change, before any of its trees could reach a margin. The cell is checked again only once the camera has moved or zoomed that much, not every frame.
 - On a normal benchmark run, at most a few hundred trees are active in any frame, and the tree stats overlay reports the count.
 - Sprite thinning ([Foliage.simplification](./Foliage.md#simplification)) and wind are computed per sprite on the GPU from the camera. They never make a tree active.
@@ -57,7 +58,7 @@ The levels are nested, so every segment in a coarser level is also in every fine
 
 ## Budget
 
-The thresholds, the hysteresis margin and the fade time are per species, with defaults, and the thresholds can be scaled by the graphics quality setting. Lower quality settings may bring the thresholds closer, but never inside the 60 m full-detail distance. The defaults hold at high quality; medium brings every tree distance to half and low to about a third, since trees are the biggest GPU cost of a forest stage.
+The thresholds, the hysteresis margin and the fade time are per species, with defaults, and the thresholds can be scaled by the graphics quality setting. Lower quality settings may bring the thresholds closer, but never inside the 40 m full-detail distance, and no tree is the impostor inside 80 m. The defaults hold at high quality; medium brings every tree distance to half and low to about a third, since trees are the biggest GPU cost of a forest stage.
 
 ## Debug View
 

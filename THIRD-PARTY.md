@@ -8,7 +8,7 @@ README files carry the same information in more detail. Keep this file current w
 | Material                                                                                                                                                             | Licence                                                                 |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | Source code, procedural assets, docs, screenshots (everything original)                                                                                              | [PolyForm Noncommercial 1.0.0](LICENSE)                                 |
-| Baked map data of the real maps (`maps/<id>/`: `data.json`, `route.json`, `horizon.json`, `junction*.json`, `buildings.csv`, `preview/<stage>.json` + `.jpg` render) | ODbL 1.0 + attribution (derived from OpenStreetMap and other open data) |
+| Baked map data of the real maps (`maps/<id>/`: `data.json`, `route.json`, `horizon.json`, `junction*.json`, `buildings.csv`, `preview/<stage>.json` + `<stage>-<season>.jpg` renders) | ODbL 1.0 + attribution (derived from OpenStreetMap and other open data) |
 | Third-party models and data listed below                                                                                                                             | their own licences; not relicensed by this project                      |
 
 ## Software

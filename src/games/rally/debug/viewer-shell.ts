@@ -10,7 +10,9 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DebugPanel, type PanelSection } from '../../../shared/debug-panel';
 import { StatsOverlay } from '../../../shared/stats-overlay';
 import { Environment } from '../engine/environment';
-import { loadQuality } from '../engine/quality';
+import { LIGHTS_MIN_NEED } from '../engine/night';
+import { NightBloom } from '../engine/night-bloom';
+import { loadQuality, type QualitySettings } from '../engine/quality';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
 import { getTexture, setTextureAnisotropy } from '../engine/textures';
 import { testMap } from '../maps/test/map';
@@ -44,6 +46,9 @@ export function parseVec3(text: string): [number, number, number] | undefined {
 
 const num3 = (n: number) => String(Math.round(n * 1000) / 1000);
 
+/** The viewers' default hour of day (the test map's): an afternoon sun. */
+export const VIEWER_HOUR = testMap.environment.timeOfDay!;
+
 export interface ShellOptions {
   title: string;
   ground?: boolean;
@@ -58,15 +63,17 @@ export class ViewerShell {
   readonly renderer;
   readonly controls: OrbitControls;
   readonly env: Environment;
+  readonly quality: QualitySettings;
   readonly stats: StatsOverlay;
   readonly ground?: Mesh;
   readonly grid: GridHelper;
   private callbacks: ((dt: number) => void)[] = [];
+  private bloom?: NightBloom;
   envDef: EnvironmentDef;
 
   constructor(opts: ShellOptions) {
     this.panel = new DebugPanel({ title: opts.title, links: TOOL_LINKS });
-    const quality = loadQuality();
+    const quality = (this.quality = loadQuality());
     this.renderer = createRenderer(this.panel.viewport, quality);
     setTextureAnisotropy(
       Math.min(8, this.renderer.capabilities.getMaxAnisotropy()),
@@ -111,7 +118,8 @@ export class ViewerShell {
       for (const cb of this.callbacks) cb(dt);
       this.env.update(this.controls.target);
       this.env.follow(this.camera.position);
-      this.renderer.render(this.scene, this.camera);
+      if (this.bloom) this.bloom.render();
+      else this.renderer.render(this.scene, this.camera);
       this.stats.end();
     };
     requestAnimationFrame(loop);
@@ -119,6 +127,26 @@ export class ViewerShell {
 
   onFrame(cb: (dt: number) => void): void {
     this.callbacks.push(cb);
+  }
+
+  /**
+   * Try another hour of day (the game's `?tod=`): night and dusk bring the moon, dark fog and `env.lightNeed`. The page
+   * writes its own `tod` state to the URL first: the environment reads the URL before the map's hour.
+   */
+  setHour(hour: number): void {
+    this.envDef.timeOfDay = hour;
+    this.env.apply(this.envDef);
+    this.bloom?.dispose();
+    this.bloom =
+      this.quality.name === 'high' && this.env.lightNeed >= LIGHTS_MIN_NEED
+        ? new NightBloom(
+            this.renderer,
+            this.scene,
+            this.camera,
+            this.quality.antialias,
+            this.env.lightNeed,
+          )
+        : undefined;
   }
 
   /**

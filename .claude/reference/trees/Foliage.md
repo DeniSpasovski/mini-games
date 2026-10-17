@@ -7,10 +7,10 @@ Foliage is drawn as lit leaf-cluster sprites placed on the skeleton's leaf point
 ## Sprites
 
 - Each leaf point gets one sprite, a quad that faces the camera's position, not the view plane, so sprites do not swing when the camera turns.
-- The sprite's image is a whole cluster of leaves or needles, picked by the tree's seed from a species atlas of 4 to 8 cluster images, so a crown of a few hundred sprites looks like thousands of leaves.
-- Each sprite is turned about its view axis by an angle from the seed, and neighbouring sprites by the golden angle, about 137.5 degrees, from each other, so the images do not visibly repeat.
-- Sprite size comes from the cluster size at its leaf point. Conifer atlases hold needle sprays and broadleaf atlases hold leaf bunches.
-- The atlas has three textures: albedo with alpha, a tangent-space normal map and a thickness map.
+- The sprite's image is a whole cluster of leaves or needles, picked by the tree's seed from the atlas of the species' leaf style, 4 to 8 cluster images, so a crown of a few hundred sprites looks like thousands of leaves.
+- A broadleaf sprite is a spray that lies along its twig: its image's x axis follows the sprite's heading (the twig's direction, splayed round it by the golden angle and drooping), projected on the view plane, so a crown shows leafy sprays along its branches from any side. A spray seen end on takes a seeded angle and shortens. A needle burst is round and keeps a seeded turn.
+- Sprite size comes from the cluster size at its leaf point. Conifer atlases hold needle sprays and broadleaf atlases hold leaf bunches. A broadleaf image is a leafy branch lying along x, its base on a short stem at the left, with a side branch forking off most of them: twigs alternating along the stem (longest in the middle, swept towards the tip), small leaves on short stalks alternating along each twig and three at its end, so the stem and twigs show between the leaves, each leaf about 4 to 6 % of the image wide and darker towards the stem; a sprite turns to follow its twig, so a crown reads as leafy branches with sky and limbs showing through, not as clumps. A cypress or juniper image is a drooping frond: a stem with alternate branchlets of scale leaves that shorten towards the tip, drawn larger because it covers a thin strip. The pine's needle bursts stay round; leaf styles (ovate, serrate, lobed, round, narrow, small, pine, juniper) give species their own leaf shape.
+- The atlas has three maps in two textures: albedo with alpha, and a tangent-space normal map with the thickness map in its alpha at half the albedo's size (a pine atlas is 1024 x 512, the others 2048 x 1024, so leaves of a few centimetres keep their shape up close).
 
 ## Simplification
 
@@ -24,7 +24,7 @@ Foliage is drawn as lit leaf-cluster sprites placed on the skeleton's leaf point
 - The normal is the normal of the crown's fitted ellipsoid at the sprite's position, bent by the atlas normal map, so the crown shades as one soft volume with leafy detail and the individual sprites do not show.
 - Light through leaves is a wrap-lighting term weighted by the thickness map, so a crown against a low sun glows at its edges.
 - Sprites receive shadows, including the crown's own shadow, so the inside and the side away from the sun are darker ([Lod.shadows](./Lod.md#shadows)).
-- Ambient occlusion is baked per sprite from how deep it sits inside the crown.
+- Ambient occlusion is baked per sprite from how deep it sits inside the crown, mild: a crown's heart is shaded but stays green. The sky's light leans up and a little fill light is always there, and the sun's diffuse is wrapped past the terminator, so a crown shades softly instead of going black.
 - Each tree gets a hue and value variation from its seed, within its species palette.
 
 ## Alpha
