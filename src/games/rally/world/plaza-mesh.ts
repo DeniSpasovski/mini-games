@@ -7,6 +7,7 @@ import {
   ShapeUtils,
   Vector2,
 } from 'three';
+import { applyRoadSurface } from '../engine/road-surface';
 import { getTexture } from '../engine/textures';
 import { ISLAND_KERB } from './plazas';
 import { newPathQuery } from './real-data';
@@ -83,10 +84,6 @@ export function* plazaMeshJob(
   const m = new Mesh(
     g,
     new MeshStandardMaterial({
-      map: getTexture('junction_asphalt'),
-      bumpMap: getTexture('junction_asphalt'),
-      bumpScale: 1.2,
-      roughness: 0.86,
       // Under the street ribbons (road materials use -1 and lower) that reach in at its edge, over the terrain.
       polygonOffset: true,
       polygonOffsetFactor: -0.5,
@@ -94,6 +91,7 @@ export function* plazaMeshJob(
     }),
   );
   m.material.defines = { RALLY_GROUND: 1 };
+  applyRoadSurface(m.material, 'junction_asphalt');
   m.receiveShadow = true;
   m.matrixAutoUpdate = false;
   const group = new Group();

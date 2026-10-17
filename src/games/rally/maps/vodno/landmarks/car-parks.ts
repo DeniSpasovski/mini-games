@@ -1,5 +1,6 @@
 import type { StaticCollider } from '../../../physics/types';
 import {
+  LOT_ASPHALT,
   placeAt,
   turnedBoxCollider,
   type Local,
@@ -521,7 +522,7 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
       quad(
         'asphalt',
         [row(i, k), row(i + 1, k), row(i + 1, k + 1), row(i, k + 1)],
-        '#b4b4b0',
+        LOT_ASPHALT,
         SLAB,
       );
 
@@ -716,7 +717,7 @@ export function buildLot(l: Local, lot: Lot, ground: Ground): void {
         [b2[0], y(b2, 0.04), b2[1]],
         [a2[0], y(a2, 0.04), a2[1]],
       ],
-      '#b4b4b0',
+      LOT_ASPHALT,
       up,
       (q) => [q[0], q[2]],
     );
