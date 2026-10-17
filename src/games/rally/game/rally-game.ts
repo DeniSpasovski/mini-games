@@ -68,7 +68,12 @@ import { World } from '../world/world';
 import { CarAudio } from './audio';
 import { Autopilot, finishStopControls } from './autopilot';
 import { ContactShadow } from './contact-shadow';
-import { Headlights } from './headlights';
+import {
+  Headlights,
+  headlightMount,
+  TailLight,
+  tailLightMount,
+} from './headlights';
 import { CameraRig } from './camera-rig';
 import { ParticleSystem } from './dust';
 import { TyreMarks } from './tyre-marks';
@@ -167,11 +172,14 @@ export class RallyGame {
   contactShadow!: ContactShadow;
   /** Night only (`env.night`): the car's lights. */
   private headlights?: Headlights;
+  private tailLight?: TailLight;
   /** High quality at night / dusk: glow around lamps and reflectors. */
   private bloom?: NightBloom;
   private readonly lampColor = new Color();
   private lampPos = new Vector3();
   private lampDir = new Vector3();
+  private readonly tailColor = new Color();
+  private readonly tailPos = new Vector3();
   streamer!: InstanceStreamer;
   /** L-system trees (trees/): their variants and the renderer drawing them. */
   treeLibrary!: TreeLibrary;
@@ -410,17 +418,16 @@ export class RallyGame {
       // the air, all scaled by how dark it is (before the first compile).
       const need = this.env.lightNeed;
       this.model.setLamps(need);
-      let zf = -Infinity;
-      let hx = 0;
-      for (const w of this.vehicle.wheels) {
-        zf = Math.max(zf, w.mount.z);
-        hx = Math.max(hx, Math.abs(w.mount.x));
-      }
       this.headlights = new Headlights(
         this.model.root,
-        { x: hx * 0.8, y: 0.7, z: zf + 0.75 },
+        headlightMount(this.car.physics),
         q.name,
         this.car.headlights,
+        need,
+      );
+      this.tailLight = new TailLight(
+        this.model.root,
+        tailLightMount(this.car.physics),
         need,
       );
     }
@@ -495,7 +502,7 @@ export class RallyGame {
     await paint();
     this.model.updateFromVehicle(this.vehicle, 1);
     // The chase camera at the start line (it only moves in frame()): the trees are batched for where it looks from.
-    if (this.headlights) this.lightParticlesByHeadlights();
+    this.lightParticlesByLamps(0);
     this.renderPos.copy(this.model.root.position);
     this.renderFwd.set(0, 0, 1).applyQuaternion(this.model.root.quaternion);
     this.renderUp.set(0, 1, 0).applyQuaternion(this.model.root.quaternion);
@@ -576,19 +583,33 @@ export class RallyGame {
       p?.setLight(sun, ambient);
   }
 
-  /** Night: dust, spray and haze in the beam glow (the beam follows the car, so this runs every frame). */
-  private lightParticlesByHeadlights(): void {
+  /**
+   * Night: dust, spray and haze glow in the headlight beam and red behind the car, the road markers glow in the beam, and
+   * the tail light's red spill follows the brake pedal (`brake` 0..1). The lamps follow the car, so this runs every frame.
+   */
+  private lightParticlesByLamps(brake: number): void {
     const root = this.model.root;
     root.updateMatrixWorld();
-    this.lampPos.set(0, 0.7, 2).applyMatrix4(root.matrixWorld);
-    this.lampDir.set(0, -0.02, 1).transformDirection(root.matrixWorld);
     const c = this.headlights?.color;
-    if (!c) return;
-    this.lampColor.copy(c).multiplyScalar(this.env.lightNeed);
-    for (const p of [this.dust, this.gravel, this.haze])
-      p?.setHeadlight(this.lampColor, this.lampPos, this.lampDir);
-    // Reflectors and reflective boards in the beam.
-    setHeadBeam(this.lampColor, this.lampPos, this.lampDir);
+    if (c) {
+      this.lampPos.set(0, 0.7, 2).applyMatrix4(root.matrixWorld);
+      this.lampDir.set(0, -0.02, 1).transformDirection(root.matrixWorld);
+      this.lampColor.copy(c).multiplyScalar(this.env.lightNeed);
+      for (const p of [this.dust, this.gravel, this.haze])
+        p?.setHeadlight(this.lampColor, this.lampPos, this.lampDir);
+      // Reflectors and reflective boards in the beam.
+      setHeadBeam(this.lampColor, this.lampPos, this.lampDir);
+    }
+    if (this.tailLight) {
+      this.tailLight.setBrake(brake);
+      const at = tailLightMount(this.car.physics);
+      this.tailPos.set(at.x, at.y, at.z).applyMatrix4(root.matrixWorld);
+      this.tailColor
+        .setRGB(1, 0.05, 0.03)
+        .multiplyScalar(this.env.lightNeed * (0.1 + 0.9 * brake));
+      for (const p of [this.dust, this.gravel, this.haze])
+        p?.setTaillight(this.tailColor, this.tailPos);
+    }
   }
 
   /** Name of the stage surface the fitted tyre grips worst ("gravel"), or null when it is fine on all of them. */
@@ -1202,10 +1223,10 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.contactShadow.update(this.model.root);
     // In reverse gear the throttle key brakes (see Vehicle.resolvePedals), so that is the brake lamp's pedal.
     const reversing = v.drivetrain.gear === -1;
-    this.model.setBrake(
-      reversing ? v.controls.throttle : v.controls.brake,
-      reversing,
-    );
+    const brakePedal = reversing ? v.controls.throttle : v.controls.brake;
+    this.model.setBrake(brakePedal, reversing);
+    if (this.headlights || this.tailLight)
+      this.lightParticlesByLamps(brakePedal);
     this.renderPos.copy(this.model.root.position);
     this.renderFwd.set(0, 0, 1).applyQuaternion(this.model.root.quaternion);
     this.renderUp.set(0, 1, 0).applyQuaternion(this.model.root.quaternion);
