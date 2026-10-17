@@ -112,6 +112,18 @@ export const CUT_RISE = 1.0;
  * grid and its triangles saw-tooth up to a cell in front of the step - behind the wall face they are hidden.
  */
 export const CUT_SETBACK = 1.5;
+/** The shape of a sheer cut (m): where its rise starts behind the wall face, how far it takes to rise, how far the face stands in front of the visible rise and how far the coping runs past it. */
+export interface CutShape {
+  setback: number;
+  rise: number;
+  margin: number;
+  over: number;
+}
+/** A `solid` wall (RoadDef.cutWalls) is held tighter than the parkway's, so its coping is a narrow strip. */
+export const cutShape = (solid?: boolean): CutShape =>
+  solid
+    ? { setback: 0.6, rise: 0.6, margin: 1, over: 0.15 }
+    : { setback: CUT_SETBACK, rise: CUT_RISE, margin: 1.6, over: 0.35 };
 /** A mainline carriageway keeps a flat verge this wide beyond its edge whatever other road overlaps it (m). */
 const CARRIAGEWAY_VERGE = 2.0;
 /** Free height under a bridge deck (m): street clearance (real viaducts over a sunken parkway are ~10 m above the street below). */
@@ -2276,9 +2288,10 @@ export class TerrainGenerator {
     // Deep cuts are sheer (a retaining wall stands at their foot, cut-wall-mesh.ts).
     const w = this.cutWeightAt(x, z, base - q.height, q.along, q.height);
     if (w > 0) {
-      const wall = hw + r.shoulder + r.cutWalls!.offset + CUT_SETBACK;
+      const shape = cutShape(r.cutWalls!.solid);
+      const wall = hw + r.shoulder + r.cutWalls!.offset + shape.setback;
       const cut =
-        q.height + (base - q.height) * smoothstep(wall, wall + CUT_RISE, d);
+        q.height + (base - q.height) * smoothstep(wall, wall + shape.rise, d);
       return h + (cut - h) * w;
     }
     // Ditch just outside the verge, fading where the embankment is tall (no ditch on fills).

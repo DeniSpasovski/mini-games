@@ -24,10 +24,11 @@ import { BLOCK_PADS } from './landmarks/start-blocks';
 import {
   CROSSROAD_BANK,
   laneExtra,
-  LANES_FROM,
-  LANES_TO,
   laneShift,
+  MARKINGS,
   WALL_RANGE,
+  WIDE_FROM,
+  WIDE_TO,
 } from './crossroad';
 import { countryRoad, dropLotAisles, LAWNS, LOT_PADS } from './lots';
 import { SKYLINE } from './skyline';
@@ -179,15 +180,21 @@ export const vodnoMap: MapDef = {
     // is cut / filled into the mountainside like the built one.
     maxGrade: 0.11,
     // The concrete retaining wall on the right of the first crossroad (./crossroad.ts): the only sheer cut of the road.
-    cutWalls: { minHeight: 1, offset: 0.9, concreteFrom: 0, range: WALL_RANGE },
+    cutWalls: {
+      minHeight: 1,
+      offset: 0.9,
+      concreteFrom: 0,
+      range: WALL_RANGE,
+      solid: true,
+    },
     surface: 'tarmac',
-    // Clean city asphalt on the run-up street, then the worn mountain road with its white edge and centre lines.
-    texture: 'road_city',
+    // Old tarmac with white edge and centre lines all along; at the first crossroad the centre paint is `markings`.
+    texture: 'road_tarmac_lines',
     sections: [
-      { from: START, surface: 'tarmac', texture: 'road_tarmac_lines' },
-      { from: LANES_FROM, surface: 'tarmac', texture: 'road_tarmac_lanes' },
-      { from: LANES_TO, surface: 'tarmac', texture: 'road_tarmac_lines' },
+      { from: WIDE_FROM, surface: 'tarmac', texture: 'road_tarmac_edges' },
+      { from: WIDE_TO, surface: 'tarmac', texture: 'road_tarmac_lines' },
     ],
+    markings: MARKINGS,
     points: routePoints(
       data.route,
       (along) => (along < START + 500 ? 6.4 : 5.8) + laneExtra(along),

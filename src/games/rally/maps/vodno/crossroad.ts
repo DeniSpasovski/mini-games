@@ -1,4 +1,4 @@
-import type { PadDef } from '../shared/types';
+import type { PadDef, RoadMarking } from '../shared/types';
 
 /**
  * The first crossroad (about 445 m along the road): the road widens to three lanes (`LANE_EXTRA` in map.ts) and the land on
@@ -46,9 +46,49 @@ export const laneExtra = (along: number): number => {
   }
   return 0;
 };
-/** The stretch with the two dashed lane lines: where the extra lane is at least 2.2 m wide. */
-export const LANES_FROM = 413;
-export const LANES_TO = 465;
+/** The widened stretch: its texture has edge lines only, the centre paint is `MARKINGS` (the lanes are measured from the left edge). */
+export const WIDE_FROM = 366;
+export const WIDE_TO = 505;
+/** Width of the road before it widens: each direction has one 2.9 m lane, the left edge stays where it is. */
+const LANE = 2.9;
+const DOUBLE_GAP = 0.13;
+
+/**
+ * Lane paint of the first crossroad, uphill (the stage's direction): a double solid centre line, the left lane
+ * of the climb a turn-left-only pocket (arrow) beside the straight-ahead lane (arrow, dashed line between them).
+ * All measured from the road's left edge, so it keeps its lane as the road widens on the right.
+ */
+export const MARKINGS: RoadMarking[] = [
+  ...[-1, 1].map((k): RoadMarking => ({
+    kind: 'line',
+    from: WIDE_FROM,
+    to: 490,
+    edge: 'left',
+    offset: LANE + k * DOUBLE_GAP,
+  })),
+  {
+    kind: 'line',
+    from: 490,
+    to: WIDE_TO,
+    edge: 'left',
+    offset: LANE,
+    width: 0.14,
+  },
+  {
+    kind: 'line',
+    from: 398,
+    to: 478,
+    edge: 'left',
+    offset: 2 * LANE,
+    width: 0.14,
+    dash: [2, 3],
+  },
+  ...[412, 430].flatMap((at): RoadMarking[] => [
+    { kind: 'arrow', arrow: 'left', at, edge: 'left', offset: 1.5 * LANE },
+    { kind: 'arrow', arrow: 'straight', at, edge: 'left', offset: 2.5 * LANE },
+  ]),
+];
+
 /** The road's centre line moves right by half the extra width: the extra lane is on the right, the left edge stays. */
 export const laneShift = (along: number): number => laneExtra(along) / 2;
 

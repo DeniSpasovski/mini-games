@@ -55,6 +55,7 @@ import {
   laneWalls,
   type LaneWallRow,
 } from './portals';
+import { cutWallColliders } from './cut-wall-colliders';
 import { DECK_DEPTH, TerrainGenerator } from './terrain-gen';
 import { bakeGroundMoisture, type GroundMoisture } from './ground-moisture';
 import { cornerFanInstances, PEOPLE_ASSETS } from './corner-fans';
@@ -462,6 +463,8 @@ export class World implements GroundProvider {
     for (const c of this.pierColliders(this.piers))
       this.scatter.addFixedCollider(c);
     for (const c of this.parapetColliders()) this.scatter.addFixedCollider(c);
+    for (const c of cutWallColliders(this.road, this.gen, map.road))
+      this.scatter.addFixedCollider(c);
     for (const bd of this.buildings.buildings) {
       if (bd.kind) {
         // Mesh building (building-mesh.ts draws it): only its collider goes into the scatter chunks.

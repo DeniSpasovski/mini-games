@@ -13,7 +13,7 @@ as the backdrop. Map and stage id `vodno`, test content (dev server only).
 | the hairpins above the suburb, guard rails | the Millennium Cross, the mast and the cable car on the ridge |
 
 Narrow tarmac with white edge and centre lines, switchbacks and guard rails, pine plantations with oak and scrub, black locust on the lower slopes;
-the road widens to three lanes at the first crossroad, with a concrete retaining wall on its right. Locust and walnut trees with bramble
+the road widens to three lanes at the first crossroad (a left-turn lane beside the straight-ahead one), with a concrete retaining wall on its right. Locust and walnut trees with bramble
 stand back from the lower road, cypresses stand in the church yards. Side streets meeting
 the stage road are closed with barriers.
 

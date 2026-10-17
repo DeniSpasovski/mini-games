@@ -31,7 +31,10 @@ export type TextureId =
   | 'road'
   | 'road_tarmac'
   | 'road_tarmac_lines'
-  | 'road_tarmac_lanes'
+  | 'road_tarmac_edges'
+  | 'road_paint'
+  | 'road_arrow_left'
+  | 'road_arrow_straight'
   | 'road_parkway'
   | 'road_street'
   | 'road_street4'
@@ -347,6 +350,28 @@ function wearOver(
       rng.range(1, 4),
     );
   }
+}
+
+/** Wear on alpha road paint: `count` bald specks and short gaps cut out of it (a few of them wider). */
+function wornPaint(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  seed: number,
+  count: number,
+): void {
+  const rng = new Rng(seed);
+  ctx.globalCompositeOperation = 'destination-out';
+  for (let i = 0; i < count; i++) {
+    ctx.fillStyle = `rgba(0,0,0,${rng.range(0.5, 1)})`;
+    ctx.fillRect(
+      rng.next() * w,
+      rng.next() * h,
+      rng.range(1, w / 10),
+      rng.range(1, h / 40),
+    );
+  }
+  ctx.globalCompositeOperation = 'source-over';
 }
 
 // --- definitions ---------------------------------------------------------------------
@@ -991,32 +1016,104 @@ const DEFS: Record<TextureId, TexDef> = {
       }
     },
   },
-  road_tarmac_lanes: {
-    name: 'Old tarmac for three lanes: a worn white edge line each side and a worn dashed lane line each side of the middle lane (12 m per repeat)',
+  road_tarmac_edges: {
+    name: 'Old tarmac with a worn white edge line each side and no centre line (the centre paint is a RoadMarking)',
     size: [512, 512],
     color: true,
     draw(ctx, w, h) {
       DEFS.road_tarmac.draw(ctx, w, h);
       const rng = new Rng(66);
-      const edges = [0.05, 0.95];
-      const lanes = [0.34, 0.66];
+      const us = [0.05, 0.95];
       ctx.fillStyle = '#d6d6ce';
-      for (const u of edges) ctx.fillRect(u * w - 6, 0, 12, h);
-      // 3 m dash, 9 m gap (the tile is 12 m).
-      for (const u of lanes) ctx.fillRect(u * w - 6, 0, 12, h / 4);
+      for (const u of us) ctx.fillRect(u * w - 6, 0, 12, h);
       // Wear: asphalt specks and gaps over the paint, a few bald stretches where the wheels run.
-      for (let i = 0; i < 3600; i++) {
-        const u = rng.pick([...edges, ...lanes]);
-        const y = rng.next() * h;
-        if (lanes.includes(u) && y > h / 4) continue;
+      for (let i = 0; i < 2400; i++) {
         ctx.fillStyle = `rgba(${84 + rng.int(0, 30)},${82 + rng.int(0, 30)},${80 + rng.int(0, 30)},${rng.range(0.35, 0.85)})`;
         ctx.fillRect(
-          u * w + rng.range(-7, 7),
-          y,
+          rng.pick(us) * w + rng.range(-7, 7),
+          rng.next() * h,
           rng.range(1, 3),
           rng.range(1, 5),
         );
       }
+      for (let i = 0; i < 6; i++) {
+        ctx.fillStyle = `rgba(${96 + rng.int(0, 16)},${94 + rng.int(0, 16)},${92 + rng.int(0, 16)},${rng.range(0.45, 0.7)})`;
+        ctx.fillRect(
+          rng.pick(us) * w - 6,
+          rng.next() * h,
+          12,
+          rng.range(6, 26),
+        );
+      }
+    },
+  },
+  road_paint: {
+    name: 'Worn white road paint (alpha: a lane line; u across the line, v along it, 2 m per repeat)',
+    size: [32, 256],
+    color: true,
+    draw(ctx, w, h) {
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = 'rgba(224,224,216,0.96)';
+      ctx.fillRect(0, 0, w, h);
+      wornPaint(ctx, w, h, 151, 90);
+    },
+  },
+  road_arrow_left: {
+    name: 'Worn white turn-left-only road arrow (alpha: u across 1.1 m, v along 4 m, a straight stem bending to a head pointing up-left)',
+    size: [128, 512],
+    color: true,
+    draw(ctx, w, h) {
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = 'rgba(224,224,216,0.96)';
+      // Metres -> pixels: u 0..1.1 across, v 0..4 up (canvas y runs down).
+      const X = (u: number): number => (u * w) / 1.1;
+      const Y = (v: number): number => h - (v * h) / 4;
+      const stem = 0.13;
+      // The stem rises to v 1.9, then runs up-left to the head.
+      const bend: [number, number] = [0.74, 1.9];
+      const tip: [number, number] = [0.3, 2.95];
+      const dx = tip[0] - bend[0];
+      const dy = tip[1] - bend[1];
+      const len = Math.hypot(dx, dy);
+      const d: [number, number] = [dx / len, dy / len];
+      const p: [number, number] = [d[1], -d[0]];
+      ctx.beginPath();
+      ctx.moveTo(X(0.74 - stem), Y(0.1));
+      ctx.lineTo(X(bend[0] - stem), Y(bend[1]));
+      ctx.lineTo(X(tip[0] - p[0] * stem), Y(tip[1] - p[1] * stem));
+      ctx.lineTo(X(tip[0] + p[0] * stem), Y(tip[1] + p[1] * stem));
+      ctx.lineTo(X(bend[0] + stem), Y(bend[1] - 0.18));
+      ctx.lineTo(X(0.74 + stem), Y(0.1));
+      ctx.closePath();
+      ctx.fill();
+      // The head: base across the run, tip 0.8 m on.
+      const head = 0.42;
+      ctx.beginPath();
+      ctx.moveTo(X(tip[0] + d[0] * 0.8), Y(tip[1] + d[1] * 0.8));
+      ctx.lineTo(X(tip[0] + p[0] * head), Y(tip[1] + p[1] * head));
+      ctx.lineTo(X(tip[0] - p[0] * head), Y(tip[1] - p[1] * head));
+      ctx.closePath();
+      ctx.fill();
+      wornPaint(ctx, w, h, 152, 380);
+    },
+  },
+  road_arrow_straight: {
+    name: 'Worn white straight-ahead road arrow (alpha: u across 1.1 m, v along 4 m, head up)',
+    size: [128, 512],
+    color: true,
+    draw(ctx, w, h) {
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = 'rgba(224,224,216,0.96)';
+      const X = (u: number): number => (u * w) / 1.1;
+      const Y = (v: number): number => h - (v * h) / 4;
+      ctx.fillRect(X(0.55 - 0.13), Y(2.7), X(0.26), Y(0.1) - Y(2.7));
+      ctx.beginPath();
+      ctx.moveTo(X(0.55), Y(3.95));
+      ctx.lineTo(X(1.0), Y(2.6));
+      ctx.lineTo(X(0.1), Y(2.6));
+      ctx.closePath();
+      ctx.fill();
+      wornPaint(ctx, w, h, 153, 380);
     },
   },
   flag_mk: {
