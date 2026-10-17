@@ -85,6 +85,7 @@ import {
   isOldRun,
   loadTimes,
   oldRunLabel,
+  runConditions,
   sectorTimes,
   timesVersion,
   type RunRecord,
@@ -605,7 +606,7 @@ class MainMenu {
     const older = times.filter((r) => isOldRun(r, cur));
     const row = (r: RunRecord, i: number) => {
       const old = isOldRun(r, cur);
-      return `<tr${old ? ' class="old"' : ''}><td>${old ? oldRunLabel(r, cur) : i + 1}</td><td>${formatTime(r.time)}${r.penalty ? ` <span class="pen">(+${r.penalty}s)</span>` : ''}</td><td>${carName(r.car)}</td><td class="set">${isTyreId(r.tyre) ? TYRES[r.tyre].name : '–'}</td><td>${!old && i ? `+${(r.time - rows[0].time).toFixed(2)}` : ''}</td></tr>`;
+      return `<tr${old ? ' class="old"' : ''}><td>${old ? oldRunLabel(r, cur) : i + 1}</td><td>${formatTime(r.time)}${r.penalty ? ` <span class="pen">(+${r.penalty}s)</span>` : ''}</td><td>${carName(r.car)}<small class="when">${runConditions(r, m.environment.timeOfDay)}</small></td><td class="set">${isTyreId(r.tyre) ? TYRES[r.tyre].name : '–'}</td><td>${!old && i ? `+${(r.time - rows[0].time).toFixed(2)}` : ''}</td></tr>`;
     };
     const card = div('menu-times-card');
     card.innerHTML = `<h2>${m.name}</h2>
@@ -1527,6 +1528,8 @@ export function buildLeaderboard(
   board: RunRecord[],
   run: RunRecord,
   onScope?: (carOnly: boolean) => void,
+  /** The stage's own hour of day: what runs saved without one were driven at. */
+  ownHour?: number,
 ): HTMLElement {
   const el = div('menu-board');
   let carOnly = false;
@@ -1564,7 +1567,7 @@ export function buildLeaderboard(
           sec.length
             ? sec.map((t, k) => `S${k + 1} ${t.toFixed(2)}`).join(' · ')
             : 'no sector times'
-        }</td></tr>`
+        }<span class="when">${runConditions(r, ownHour)}</span></td></tr>`
       );
     };
     el.innerHTML = `

@@ -101,6 +101,7 @@ import { stageSeason } from '../maps/shared/climate';
 import { mapInSeason } from '../maps/shared/season-map';
 import { stageClimate } from '../maps/shared/day-temperature';
 import { seasonParam, type Season } from '../season';
+import { slotFor } from './time-of-day';
 import type { MapDef, StageDef } from '../maps/shared/types';
 import { trackTemp } from '../physics/tyre-temp';
 import type { TyreGaugeState } from './tyre-gauge';
@@ -856,6 +857,9 @@ export class RallyGame {
         ? this.opts.gearing
         : undefined,
       game_rally_times_version: timesVersion(this.world.stageDef.id),
+      game_rally_season: this.season,
+      game_rally_time_of_day:
+        this.env.hour === undefined ? undefined : slotFor(this.env.hour).id,
     };
   }
 
@@ -917,6 +921,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         ...(hasGearings(this.car.physics) ? { gear: this.opts.gearing } : {}),
         splits: [...this.stage.splitTimes],
         ...(e.penalty ? { penalty: e.penalty } : {}),
+        season: this.season,
+        ...(this.env.hour !== undefined ? { hour: this.env.hour } : {}),
         ver: timesVersion(this.world.stageDef.id),
         carVer: carTimesVersion(this.car.id),
         date: Date.now(),
