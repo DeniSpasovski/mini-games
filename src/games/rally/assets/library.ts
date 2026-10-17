@@ -203,7 +203,10 @@ export function getVariantSet(id: string, lod: number): BuiltAsset | null {
   if (VARIANT_SETS && meta.variants > 1 && !spec.oneVariant) {
     const groups = new Map<Material, BufferGeometry[]>();
     let tris = 0;
-    for (let v = 0; v < meta.variants; v++)
+    const cap =
+      meta.category === 'vegetation' ? VEGETATION_SET_TRIS : VARIANT_SET_TRIS;
+    // Stop building variants once the cap is passed (a slow builder would stall the load for nothing).
+    for (let v = 0; v < meta.variants && tris <= cap; v++)
       for (const part of getAsset(id, v, lod).parts) {
         const g = part.geometry.index
           ? part.geometry.toNonIndexed()
@@ -223,8 +226,6 @@ export function getVariantSet(id: string, lod: number): BuiltAsset | null {
         Object.keys(g.attributes).sort().join();
       return list.every((g) => names(g) === names(list[0]));
     });
-    const cap =
-      meta.category === 'vegetation' ? VEGETATION_SET_TRIS : VARIANT_SET_TRIS;
     if (tris <= cap && sameAttributes) {
       set = {
         parts: [...groups].map(([material, list]) => {

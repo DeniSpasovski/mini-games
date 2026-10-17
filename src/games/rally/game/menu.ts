@@ -115,6 +115,20 @@ const BUILT_WITH: SourceLink[] = [
   { label: 'Rsbuild', url: 'https://rsbuild.rs/', note: 'build tooling, MIT' },
 ];
 
+/** The two scanned people (THIRD-PARTY.md "People"). */
+const PEOPLE_CREDITS: SourceLink[] = [
+  {
+    label: 'Female character with casual clothing (mahensanketh, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/female-character-with-casual-clothing-622a56e7f30446b694f59245d3b01bcc',
+    note: 'spectators, crews, marshals and visitors, recoloured and dressed - CC BY 4.0',
+  },
+  {
+    label: 'Male character in casual clothing (mahensanketh, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/male-character-in-caual-clothing-24ad029f3a094a679bc0b0b109ee40e3',
+    note: 'spectators, crews, marshals and visitors, recoloured and dressed - CC BY 4.0',
+  },
+];
+
 /** Research behind the suspension model (PHYSICS.md "Dampers and bump stop"). Read only, nothing copied. */
 const SUSPENSION_RESEARCH: SourceLink[] = [
   {
@@ -547,6 +561,8 @@ class MainMenu {
       ${MAPS.map((m) => `<h3>${m.name}</h3>${links([...(m.sources ?? []), ...m.stages.flatMap((st) => st.sources ?? [])], 'Fully procedural - no external data.')}`).join('')}
       <h2>Cars</h2>
       ${CARS.map((c) => `<h3>${c.name}</h3>${links(c.sources, 'Procedural model - no external sources.')}`).join('')}
+      <h2>People</h2>
+      ${links(PEOPLE_CREDITS, '')}
       <h2>Physics</h2>
       <h3>Tyres</h3>
       ${links(TYRE_RESEARCH, '')}

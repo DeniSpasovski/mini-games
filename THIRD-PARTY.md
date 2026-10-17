@@ -87,6 +87,18 @@ the repository).
 | ["Low Poly Truck"](https://sketchfab.com/3d-models/low-poly-truck-d61a2ac0a706462ebf82459907f21573) (tractor + trailer) | FS 3D Studio (Sketchfab) | CC BY 4.0 |
 | ["Dump Truck"](https://sketchfab.com/3d-models/dump-truck-781c616da8f44982a59cb3fc3fa67f98)                             | ElectroNick (Sketchfab)  | CC BY 4.0 |
 
+### People (baked into `src/games/rally/engine/people-scan.data.ts`)
+
+Every spectator, marshal, mechanic, crew member, driver, photographer and visitor close up is one of two CC BY 4.0 models: their
+own triangles and texture (the small print on the man's T-shirt painted out), skinned to a simple skeleton, plus tint masks for
+the clothes and a simplified mid-range mesh (`scripts/people/extract.py` + `bake-people.mjs`; the source files are not in the
+repository). Hats, vests, skirts, packs and props are built in code; far away the people are low-poly figures built in code.
+
+| Model                                                                                                                                             | Author                                                         | Licence |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | --------- |
+| ["Female character with casual clothing"](https://sketchfab.com/3d-models/female-character-with-casual-clothing-622a56e7f30446b694f59245d3b01bcc) | [mahensanketh](https://sketchfab.com/mahensanketh) (Sketchfab) | CC BY 4.0 |
+| ["Male character in casual clothing"](https://sketchfab.com/3d-models/male-character-in-caual-clothing-24ad029f3a094a679bc0b0b109ee40e3)          | [mahensanketh](https://sketchfab.com/mahensanketh) (Sketchfab) | CC BY 4.0 |
+
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 
 ## Music
