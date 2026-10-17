@@ -7,12 +7,14 @@ import {
   LinearFilter,
   Matrix4,
   Mesh,
+  type Material,
   type MeshStandardMaterial,
   PlaneGeometry,
   RGBAFormat,
   ShaderMaterial,
   Vector3,
 } from 'three';
+import { weld } from './lamp-islands';
 
 /** Metres per mask pixel. */
 const TEXEL = 0.012;
@@ -58,11 +60,15 @@ function glowOf(m: MeshStandardMaterial): Glow | null {
 /** Below this glow a point counts as dark. */
 const LIT = 0.02;
 
-/** One lamp: its body-space box and its lit triangles, 12 numbers a triangle (x, y, u, v for each corner), `glows` = the glow map of each. */
+/**
+ * One lamp: its body-space box and its lit triangles, 12 numbers a triangle (x, y, u, v for each corner), `glows` = the glow map
+ * of each, `brakeOnly` = it lights only with the brake pedal (a third brake light).
+ */
 interface Piece {
   box: Box3;
   tris: number[];
   glows: (Glow | null)[];
+  brakeOnly: boolean;
 }
 
 /**
@@ -71,37 +77,9 @@ interface Piece {
  * (a lamp sheet's clear lens, a hidden bulb or a plate light do not).
  */
 function pieces(mesh: Mesh, toBody: Matrix4): Piece[] {
-  const geo = mesh.geometry;
-  const pos = geo.getAttribute('position');
-  const uv = geo.getAttribute('uv');
-  const index = geo.index;
-  const n = pos.count;
-  const m = toBody.clone().multiply(mesh.matrixWorld);
+  const uv = mesh.geometry.getAttribute('uv');
+  const { xyz, find, corner, count } = weld(mesh, toBody);
   const v = new Vector3();
-  const xyz = new Float32Array(n * 3);
-  // Weld vertices at the same spot (a mesh may repeat them for its UV seams), then union each triangle's corners.
-  const first = new Map<string, number>();
-  const root = new Int32Array(n);
-  for (let i = 0; i < n; i++) {
-    v.fromBufferAttribute(pos, i)
-      .applyMatrix4(m)
-      .toArray(xyz, i * 3);
-    const k = `${Math.round(xyz[i * 3] * 1e4)},${Math.round(xyz[i * 3 + 1] * 1e4)},${Math.round(xyz[i * 3 + 2] * 1e4)}`;
-    let r = first.get(k);
-    if (r === undefined) first.set(k, (r = i));
-    root[i] = r;
-  }
-  const find = (i: number): number => {
-    while (root[i] !== i) i = root[i] = root[root[i]];
-    return i;
-  };
-  const count = (index ? index.count : n) / 3;
-  const corner = (t: number, c: number): number =>
-    index ? index.getX(t * 3 + c) : t * 3 + c;
-  for (let t = 0; t < count; t++) {
-    const a = find(corner(t, 0));
-    for (let c = 1; c < 3; c++) root[find(corner(t, c))] = a;
-  }
   const glow = glowOf(mesh.material as MeshStandardMaterial);
   const out = new Map<number, Piece>();
   for (let t = 0; t < count; t++) {
@@ -131,7 +109,12 @@ function pieces(mesh: Mesh, toBody: Matrix4): Piece[] {
     const r = find(ids[0]);
     let piece = out.get(r);
     if (!piece) {
-      piece = { box: new Box3(), tris: [], glows: [] };
+      piece = {
+        box: new Box3(),
+        tris: [],
+        glows: [],
+        brakeOnly: !!(mesh.material as Material).userData.brakeLamp?.brakeOnly,
+      };
       out.set(r, piece);
     }
     for (let c = 0; c < 3; c++) {
@@ -160,6 +143,7 @@ function lamps(all: Piece[]): Piece[] {
           a.max.y + JOIN >= b.min.y
         ) {
           a.union(b);
+          list[i].brakeOnly &&= list[j].brakeOnly;
           list[i].tris.push(...list[j].tris);
           list[i].glows.push(...list[j].glows);
           list.splice(j, 1);
@@ -301,6 +285,8 @@ export class LampHalos {
   /** Children of the car body: the quads, in body space. */
   readonly group = new Group();
   private readonly materials: ShaderMaterial[] = [];
+  /** The quads of the third brake lights: they glow only with the brake. */
+  private readonly brakeOnly: ShaderMaterial[] = [];
 
   /** `meshes` = the red lamp meshes, `toBody` = world -> body matrix (the matrix worlds must be current). */
   constructor(meshes: Mesh[], toBody: Matrix4) {
@@ -326,20 +312,21 @@ export class LampHalos {
       );
       halo.renderOrder = 5;
       halo.frustumCulled = false;
-      this.materials.push(material);
+      (lamp.brakeOnly ? this.brakeOnly : this.materials).push(material);
       this.group.add(halo);
     }
   }
 
-  /** Glow strength: 0 = off. */
-  setLevel(level: number): void {
+  /** Glow strength of the lamps (0 = off) and of the brake-only ones (a third brake light). */
+  setLevel(level: number, brakeOnly: number): void {
     for (const m of this.materials) m.uniforms.uLevel.value = level;
-    this.group.visible = level > 0.003;
+    for (const m of this.brakeOnly) m.uniforms.uLevel.value = brakeOnly;
+    this.group.visible = Math.max(level, brakeOnly) > 0.003;
   }
 
   dispose(): void {
     this.group.removeFromParent();
-    for (const m of this.materials) {
+    for (const m of [...this.materials, ...this.brakeOnly]) {
       (m.uniforms.uMask.value as DataTexture).dispose();
       m.dispose();
     }

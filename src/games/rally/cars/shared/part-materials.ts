@@ -90,14 +90,22 @@ export interface LampNight {
  * emissive map that lights only the white reversing section; CarModel swaps it in while the car is in reverse gear.
  * `night` = the emissive intensities with the lights fully on (default: the idle glow rises by `TAIL_NIGHT_GLOW`, the
  * brake stays `on`). Night tone mapping (AgX) washes a bright red out to salmon pink, so red lamps keep both low there.
+ * `idleGlow` = the emissive map while the brake is up (the running lamp's part of the glow map: the rest lights with the brake).
  */
 function lamp(
   m: MeshPhysicalMaterial,
   on: number,
   reverseGlow?: CanvasTexture,
   night?: LampNight,
+  idleGlow?: CanvasTexture,
 ): MeshPhysicalMaterial {
-  m.userData.brakeLamp = { off: m.emissiveIntensity, on, reverseGlow, night };
+  m.userData.brakeLamp = {
+    off: m.emissiveIntensity,
+    on,
+    reverseGlow,
+    night,
+    idleGlow,
+  };
   return m;
 }
 
@@ -226,6 +234,17 @@ function canvas(
 
 /** Sheet size of a source part's texture (maps are drawn at this size, whatever the file's). */
 const SRC_SIZE = 512;
+
+/**
+ * Tail-lamp sheets whose pale red lens body is the running light (lit with the lights on, much brighter with the brake) while
+ * the strong red bars light with the brake only (`lamp` `idleGlow`).
+ */
+const RUNNING_BODY = new Set(['subie_22b_lamps.png']);
+const RUNNING_BODY_NIGHT: LampNight = { idle: 0.2, on: 0.6 };
+/** A sheet pixel of a strong red (a bar or reflector), and of a pale red lens body (pink: green and blue about equal). */
+const strongRed = (r: number, gr: number): boolean => r > 2 * gr + 40;
+const paleRed = (r: number, gr: number, b: number): boolean =>
+  r > gr + 30 && b > gr * 0.85;
 const srcSheets = new Map<string, Promise<HTMLImageElement>>();
 
 function sheetFor(file: string): Promise<HTMLImageElement> {
@@ -311,6 +330,8 @@ function srcPart(name: string): Material {
   }
   const glow = blank('#000');
   const reverseGlow = kind === 'tail' ? blank('#000') : undefined;
+  const running = kind === 'tail' && RUNNING_BODY.has(file);
+  const idleGlow = running ? blank('#000') : undefined;
   const loaded = sheetFor(file)
     .then((img) => {
       const g = (map.image as HTMLCanvasElement).getContext('2d')!;
@@ -337,7 +358,18 @@ function srcPart(name: string): Material {
       };
       const lum = (r: number, gr: number, b: number) => (r + gr + b) / 765;
       if (kind === 'tail') {
-        paint(glow, (r, gr) => (r > 2 * gr + 40 ? 1 : 0), true);
+        paint(
+          glow,
+          (r, gr, b) =>
+            strongRed(r, gr) || (running && paleRed(r, gr, b)) ? 1 : 0,
+          true,
+        );
+        if (idleGlow)
+          paint(
+            idleGlow,
+            (r, gr, b) => (!strongRed(r, gr) && paleRed(r, gr, b) ? 1 : 0),
+            true,
+          );
         const lens = seed && lensRegion(px, seed);
         paint(reverseGlow!, (r, gr, b, n) =>
           (!lens || lens[n]) &&
@@ -365,7 +397,13 @@ function srcPart(name: string): Material {
   if (kind !== 'tail') return m;
   // The glow map is painted once the sheet has loaded: `CarModel` builds the lamp halos after that.
   m.userData.lampLoaded = loaded;
-  return lamp(m, 1.2, reverseGlow, LENS_NIGHT);
+  return lamp(
+    m,
+    1.2,
+    reverseGlow,
+    running ? RUNNING_BODY_NIGHT : LENS_NIGHT,
+    idleGlow,
+  );
 }
 
 /** Tiling texture for metre UVs: `tile` = size of one canvas repeat in metres. */
