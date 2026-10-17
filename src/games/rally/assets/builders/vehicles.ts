@@ -142,8 +142,12 @@ export const STREET_CAR_MIX: number[] = [
   7,
   11, // coupe, pickup, sport, offroad
 ];
-const FIXED_CARS: [number, string][] = [[5, '#e9eaec']];
-/** First variant of `FIXED_CARS` (the white hatch at a Petralica house). */
+const FIXED_CARS: [number, string][] = [
+  [5, '#e9eaec'],
+  [13, '#23262b'],
+  [8, '#eceeef'],
+];
+/** First variant of `FIXED_CARS`: the white hatch at a Petralica house, then the dark sedan and the white van of the Vodno hotel. */
 export const STREET_CAR_FIXED = STREET_CAR_COUNT;
 
 export const finish = (parts: BufferGeometry[]) => ({

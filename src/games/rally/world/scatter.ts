@@ -2,7 +2,12 @@ import { Vector3 } from 'three';
 import { Noise2D } from '../../../shared/noise';
 import { hash3, hashString, Rng } from '../../../shared/rng';
 import { getAssetMeta } from '../assets/catalog';
-import type { Country, RoadsideRule, ScatterRule } from '../maps/shared/types';
+import type {
+  Country,
+  MapDef,
+  RoadsideRule,
+  ScatterRule,
+} from '../maps/shared/types';
 import type { StaticCollider } from '../physics/types';
 import {
   isTreeType,
@@ -26,6 +31,23 @@ export interface ScatterContext {
   lakes?: Lakes;
   /** Stage id: placed trees are posed by a hash of it and their placement index (trees/placement.ts). */
   stageId?: string;
+  /** `MapDef.treeSetback`: the verge the trees keep clear along the stage road. */
+  treeSetback?: MapDef['treeSetback'];
+}
+
+/** Distance from the road edge (m) the trees keep clear at `along`: the largest of the setbacks there, eased at their ends. */
+export function setbackAt(
+  setbacks: NonNullable<MapDef['treeSetback']>,
+  along: number,
+): number {
+  let best = 0;
+  for (const s of setbacks) {
+    if (along < s.from || along > s.to) continue;
+    const fade = s.fade ?? 30;
+    const k = Math.min(1, (along - s.from) / fade, (s.to - along) / fade);
+    best = Math.max(best, s.dist * Math.max(0, k));
+  }
+  return best;
 }
 
 /** Variant count / solidity of a placed asset id: a catalog asset or a tree type (trees/species.ts). */
@@ -263,6 +285,15 @@ export class ScatterField {
         const q = this.road.query(x, z, this.q);
         const rd = q.found ? q.distance - q.halfWidth : Infinity;
         if (rule.minRoadDist !== undefined && rd < rule.minRoadDist) continue;
+        // (bushes are drive-through: only the solid trees stand back)
+        if (
+          solid &&
+          tree &&
+          this.ctx.treeSetback &&
+          q.found &&
+          rd < setbackAt(this.ctx.treeSetback, q.along)
+        )
+          continue;
         if (rule.maxRoadDist !== undefined && rd > rule.maxRoadDist) continue;
         if (minPath > -Infinity && this.nearPath(x, z, minPath)) continue;
         if (rule.channelDist) {

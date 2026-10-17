@@ -62,6 +62,11 @@ export interface MapDef {
    * land no camera can see - the far side of a ridge - where it only costs generation time, memory and canopy-shadow work.
    */
   scatterBounds?: Partial<MapDef['bounds']>;
+  /**
+   * Trees (not the drive-through bushes) stand at least `dist` m from the stage road's edge between `from` and `to` m along it (a verge of open ground: a road
+   * through a suburb, a forest road with the trees set back), easing in and out over `fade` m (default 30) at the ends.
+   */
+  treeSetback?: { from: number; to: number; dist: number; fade?: number }[];
   /** Props placed along the road (posts, signs, bales, crowds...). */
   roadside: RoadsideRule[];
   /** Continuous barriers along the road (Jersey wall, guard rail): one swept mesh, not separate props. */
@@ -227,10 +232,14 @@ export interface PadDef {
   polygon: number[];
   /** Max blend distance back to the land (m); steeper cuts / fills get less. */
   blend: number;
-  /** Frontage points next to the stage road, flat [x0, z0, x1, z1, ...] (at least two, west to east). */
-  frontage: number[];
-  /** Fixed level (m, before `lift`) for a lot with no stage road beside it: `frontage` is then ignored. */
-  level?: number;
+  /** Frontage points next to the stage road, flat [x0, z0, x1, z1, ...] (at least two, west to east). Not needed with `level`. */
+  frontage?: number[];
+  /**
+   * The pad's own level instead of following the road along `frontage`: a number = a fixed level (m, before `lift`) for a lot
+   * with no stage road beside it; `{ at, lift }` = a terrace (a house on a hillside), the land's height at `at` plus `lift`
+   * (default 0.1).
+   */
+  level?: number | { at: [number, number]; lift?: number };
   /** Metres above the road's centre line at the frontage (sidewalk height), default 0.1. */
   lift?: number;
   /** Surface inside the outline (physics + ground texture), default the land's own. */
@@ -584,6 +593,13 @@ export interface RoadDef {
   cutWalls?: {
     minHeight: number;
     offset: number;
+    /** Only the stage road, between these distances along it (m); missing = the whole road and the highway carriageways. */
+    range?: [number, number];
+    /**
+     * A real wall: the cut is held tighter (a narrow coping on top of the face, `cutShape` in world/terrain-gen.ts) and
+     * the wall stops a car (colliders, world/cut-wall-colliders.ts).
+     */
+    solid?: boolean;
     /**
      * From this distance along the stage road on, the walls are plain concrete with a chain-link fence on top (the
      * newer stretch of a parkway) instead of coursed stone with a picket railing.
@@ -607,7 +623,35 @@ export interface RoadDef {
     surface: SurfaceId;
     texture?: RoadTexture;
   }[];
+  /** Paint laid on the stage road over its texture: lane lines and arrows (world/road-markings.ts). */
+  markings?: RoadMarking[];
 }
+
+/**
+ * One piece of road paint. Across the road it sits `offset` m in from the road's `edge` (the left is the left of the
+ * direction of travel), so it keeps its lane when the road widens; along it runs `from` to `to` (a line) or is
+ * centred at `at` (an arrow), in metres along the stage road.
+ */
+export type RoadMarking =
+  | {
+      kind: 'line';
+      from: number;
+      to: number;
+      edge: 'left' | 'right';
+      offset: number;
+      /** Paint width (m, default 0.12). */
+      width?: number;
+      /** [dash, gap] in metres; missing = a solid line. */
+      dash?: [number, number];
+    }
+  | {
+      kind: 'arrow';
+      /** 'left' = the turn-left-only arrow, 'straight' = the ahead arrow. */
+      arrow: 'left' | 'straight';
+      at: number;
+      edge: 'left' | 'right';
+      offset: number;
+    };
 
 /** Road surface / texture at a distance along the stage road (see RoadDef.sections). */
 export function roadSurfaceAt(

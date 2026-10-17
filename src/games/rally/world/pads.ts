@@ -21,6 +21,8 @@ interface Pad {
   hs: number[];
   /** Slope used beyond the first / last knot (end to end average). */
   slope: number;
+  /** A terrace (`PadDef.level` with `at`): this one level over the whole pad. */
+  flat?: number;
   /** A ramp (`PadDef.ramp`): its start, the unit direction and length, the lifts at the two ends. */
   ramp?: {
     x0: number;
@@ -41,20 +43,33 @@ interface Pad {
 export class PadField {
   private pads: Pad[] = [];
 
-  constructor(defs: PadDef[], road: Road) {
+  /** `land` = the terrain before any pad (for the terraces, `PadDef.level` with `at`). */
+  constructor(
+    defs: PadDef[],
+    road: Road,
+    land: (x: number, z: number) => number = () => 0,
+  ) {
     const q = newRoadQuery();
     for (const d of defs) {
       // (a ramp's heights come from `ramp.lift`, over the bare road height)
       const lift = d.ramp ? 0 : (d.lift ?? 0.1);
-      if (d.level !== undefined) {
+      if (typeof d.level === 'number') {
         // A fixed level: no stage road beside the lot to follow.
         this.add(d, 0, 0, 1, 0, [0, 1], [d.level + lift, d.level + lift], 0);
         continue;
       }
+      if (d.level) {
+        // A terrace (a house on a hillside): one level over the whole pad, the land's height at `at` plus `lift`.
+        const [x, z] = d.level.at;
+        const flat = land(x, z) + (d.level.lift ?? 0.1);
+        this.add(d, x, z, 1, 0, [0, 1], [flat, flat], 0, flat);
+        continue;
+      }
       const knots: { x: number; z: number; h: number }[] = [];
-      for (let i = 0; i + 1 < d.frontage.length; i += 2) {
-        const x = d.frontage[i];
-        const z = d.frontage[i + 1];
+      const frontage = d.frontage ?? [];
+      for (let i = 0; i + 1 < frontage.length; i += 2) {
+        const x = frontage[i];
+        const z = frontage[i + 1];
         if (road.query(x, z, q).found) knots.push({ x, z, h: q.height + lift });
       }
       if (knots.length < 2) continue;
@@ -92,6 +107,7 @@ export class PadField {
     ts: number[],
     hs: number[],
     slope: number,
+    flat?: number,
   ): void {
     const pts = Float64Array.from(d.polygon);
     let minX = Infinity;
@@ -135,6 +151,7 @@ export class PadField {
       ts,
       hs,
       slope,
+      flat,
     });
   }
 
@@ -144,6 +161,7 @@ export class PadField {
    * average slope continues (limited to 120 m), so one bad frontage can never send a pad skywards.
    */
   private level(p: Pad, x: number, z: number): number {
+    if (p.flat !== undefined) return p.flat;
     const t = (x - p.x0) * p.dx + (z - p.z0) * p.dz;
     const n = p.ts.length;
     let base: number;
