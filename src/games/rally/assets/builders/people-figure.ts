@@ -849,8 +849,8 @@ export function sculptBody(
     );
     hpz.push(
       ellipsoid(
-        arr(at(0.06, 0, 0)),
-        [0.038, 0.05, 0.0185],
+        arr(at(fine ? 0.06 : 0.09, 0, 0)),
+        [0.04, fine ? 0.05 : 0.085, 0.02],
         axisBasisHand(d, across, palmN),
         0.02,
         hf,
@@ -859,7 +859,8 @@ export function sculptBody(
     );
     // Four fingers, slightly curled towards the palm.
     const lens = [0.07, 0.078, 0.073, 0.058];
-    for (let i = 0; i < 4; i++) {
+    // Mid range: a mitten (fingers are thinner than its grid).
+    for (let i = 0; i < (fine ? 4 : 0); i++) {
       const w = (i - 1.5) * 0.0215 * (side > 0 ? -1 : -1);
       const L = lens[i];
       const base = at(0.1, w, 0.002);
@@ -928,7 +929,7 @@ export function sculptBody(
   // --- polygonise everything ----------------------------------------------------------------------
   const hBody = fine ? 0.04 : 0.08;
   const hHead = fine ? 0.018 : 0.04;
-  const hHand = fine ? 0.011 : 0.03;
+  const hHand = fine ? 0.011 : 0.02;
   const hFoot = fine ? 0.02 : 0.04;
   const out: Parameters<typeof toGeometry>[0] = [];
 
@@ -1113,6 +1114,30 @@ export function sculptBody(
         );
         uv[o * 2] = cu;
         uv[o * 2 + 1] = cv;
+      }
+    }
+    if (!detail) {
+      // Mid range: crisp flat facets (a low-poly look) instead of smooth shading.
+      for (let t = 0; t < tc; t++) {
+        const b = t * 9;
+        const ax = pos[b + 3] - pos[b];
+        const ay = pos[b + 4] - pos[b + 1];
+        const az = pos[b + 5] - pos[b + 2];
+        const bx = pos[b + 6] - pos[b];
+        const by = pos[b + 7] - pos[b + 1];
+        const bz = pos[b + 8] - pos[b + 2];
+        let nx = ay * bz - az * by;
+        let ny = az * bx - ax * bz;
+        let nz = ax * by - ay * bx;
+        const l = Math.hypot(nx, ny, nz) || 1;
+        nx /= l;
+        ny /= l;
+        nz /= l;
+        for (let c = 0; c < 3; c++) {
+          nor[b + c * 3] = nx;
+          nor[b + c * 3 + 1] = ny;
+          nor[b + c * 3 + 2] = nz;
+        }
       }
     }
     for (let o = 0; o < vc; o++) {
