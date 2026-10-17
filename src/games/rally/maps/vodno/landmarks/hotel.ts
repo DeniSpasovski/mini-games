@@ -24,11 +24,19 @@ import { toWorld, type Area, type Site } from './sites';
  * strip, a low concrete wall along the road with two sign boards behind it, a no-stopping sign, a street lamp, two yellow
  * waste bins, a dark saloon and a white van. Generic shapes only: no lettering, no logos.
  *
- * `HOTEL` is the FRONT-CENTRE of the building: local x runs up the climb (along the road), +z towards the road (the
- * facade is the plane z = 0, the building stands at z in [-DEPTH, 0]), y up from the forecourt. Every other piece has
- * its own site (its own ground height).
+ * `HOTEL` is the FRONT-CENTRE of the forecourt, on the road: local x runs up the climb (along the road), +z towards
+ * the road, y up from the forecourt; the forecourt, the road wall, the boards, the lamp, the bins and the cars are
+ * placed in this frame. The building stands BEHIND it, across the side street (`BUILDING`, same heading): its local
+ * facade is the plane z = 0 facing the road, the building at z in [-DEPTH, 0]. Every other piece has its own site (its
+ * own ground height).
  */
 export const HOTEL: Site = { x: 1777.4, z: -852.47, yaw: 1.0851 };
+
+/** The building's front-centre: 1 m up the climb and 28.5 m behind the forecourt (HOTEL's frame), behind the side street. */
+export const BUILDING: Site = (() => {
+  const [x, z] = toWorld(HOTEL, 1, -28.5);
+  return { x, z, yaw: HOTEL.yaw };
+})();
 
 const HX = 8;
 const DEPTH = 10;
@@ -363,12 +371,12 @@ export function buildHotel(l: Local): void {
   );
 }
 
-/** The terrace the hotel and its forecourt stand on: a flat pad, the land's height at the forecourt. */
+/** The forecourt's terrace (HOTEL's frame): a flat pad, the land's height at the road plus a little. */
 const PAD_POLYGON: V2[] = [
   [-19.5, 7.6],
   [10.5, 7.6],
-  [10.5, -11],
-  [-10.5, -11],
+  [10.5, -1],
+  [-17.4, -1],
   [-19.5, 2],
 ];
 export const HOTEL_PAD: PadDef = {
@@ -378,9 +386,25 @@ export const HOTEL_PAD: PadDef = {
   level: { at: toWorld(HOTEL, 0, 3.5), lift: 0.35 },
 };
 
-/** Where scatter stays off: the building and its forecourt, the parking strip on its left, the wall along the road. */
+/** The building's terrace (BUILDING's frame): level with the street at its front, filled a little behind. */
+export const BUILDING_PAD: PadDef = {
+  name: 'hotel-building',
+  polygon: (
+    [
+      [-9.5, 3],
+      [9.5, 3],
+      [9.5, -11.5],
+      [-9.5, -11.5],
+    ] as V2[]
+  ).flatMap(([x, z]) => toWorld(BUILDING, x, z)),
+  blend: 3,
+  level: { at: toWorld(BUILDING, 0, -2), lift: 0.1 },
+};
+
+/** Where scatter stays off: the building and its frontage, the forecourt, the parking strip on its left, the wall along the road. */
 export const HOTEL_AREAS: Area[] = [
-  { site: HOTEL, rect: [-11, 11.5, -12.5, 8.8] },
+  { site: BUILDING, rect: [-10.5, 10.5, -12, 3.2] },
+  { site: HOTEL, rect: [-11, 11.5, -1, 8.8] },
   { site: HOTEL, rect: [-20.5, -10, 0.2, 8.8] },
   { site: HOTEL, rect: [-10, 21.5, 6.6, 9.6] },
 ];
@@ -809,34 +833,35 @@ export function buildHotelSite(
   at: (site: Site, tile: string) => Local,
   ground: (x: number, z: number) => number,
 ): void {
+  const building = at(BUILDING, 'hotel');
+  buildHotel(building);
+  const draped =
+    (site: Site) =>
+    (x: number, z: number): number => {
+      const [wx, wz] = toWorld(site, x, z);
+      return ground(wx, wz) - ground(site.x, site.z);
+    };
+  // A paved strip along the facade; the forecourt by the road gets gravel over its terrace.
+  patch(
+    building,
+    'pavers',
+    '#bdb8ad',
+    [-9.3, 0, 9.3, 2.2],
+    draped(BUILDING),
+    1.1,
+    0.045,
+    () => true,
+  );
   const l = at(HOTEL, 'hotel');
-  buildHotel(l);
-  const base = ground(HOTEL.x, HOTEL.z);
-  const gy = (x: number, z: number): number => {
-    const [wx, wz] = toWorld(HOTEL, x, z);
-    return ground(wx, wz) - base;
-  };
-  // The forecourt: gravel over the terrace, a paved strip along the facade.
-  const inner = (x: number, z: number): boolean => inPad(x, z, 0.5);
   patch(
     l,
     'gravel',
     '#c9c2b4',
-    [-19.5, -11, 10.5, 7.6],
-    gy,
+    [-19.5, -1, 10.5, 7.6],
+    draped(HOTEL),
     1.5,
     0.03,
-    (x, z) => inner(x, z) && !(x > -HX - 0.6 && x < HX + 0.6 && z < 2.4),
-  );
-  patch(
-    l,
-    'pavers',
-    '#bdb8ad',
-    [-9.3, 0, 9.3, 2.2],
-    gy,
-    1.1,
-    0.045,
-    () => true,
+    (x, z) => inPad(x, z, 0.5),
   );
   buildRoadWall(l, ground);
   buildBlackBoard(at(SIGN_BLACK, 'hotel'));
@@ -854,9 +879,9 @@ export function hotelColliders(g: TerrainSampler): StaticCollider[] {
     boxCollider(s, [-hx, hx, -0.28, 0], low(s), 2);
   return [
     boxCollider(
-      HOTEL,
+      BUILDING,
       [-HX - 0.3, HX + 0.3, -DEPTH - 0.3, 0.12],
-      low(HOTEL),
+      low(BUILDING),
       S3 + PARAPET + 1,
     ),
     ...wallColliders(g),

@@ -2,6 +2,8 @@ import { describe, expect, test } from '@rstest/core';
 import { getAssetMeta } from '../../src/games/rally/assets/catalog';
 import { VODNO_LANDMARKS } from '../../src/games/rally/maps/vodno/landmarks';
 import {
+  BUILDING,
+  BUILDING_PAD,
   HOTEL,
   HOTEL_AREAS,
   HOTEL_CARS,
@@ -14,14 +16,22 @@ import { newRoadQuery } from '../../src/games/rally/world/road';
 import { World } from '../../src/games/rally/world/world';
 
 /**
- * The hotel on the empty lot at the first crossroad (`landmarks/hotel.ts`): where it stands relative to the road and the
- * side streets, that its terrace is level under it, and that scatter keeps off it.
+ * The hotel behind the first crossroad (`landmarks/hotel.ts`): the building across the side street, the forecourt on the
+ * road: where they stand relative to the road and the side streets, that their terraces are level, and that scatter
+ * keeps off them.
  */
 const world = new World(vodnoMap, vodnoMap.stages[0]);
 const landmark = VODNO_LANDMARKS.find((l) => l.id === 'vodno-crossroad-hotel')!;
+/** The forecourt's frame (on the road) and the building's frame (behind the side street). */
 const world2 = (x: number, z: number): [number, number] => toWorld(HOTEL, x, z);
+const worldB = (x: number, z: number): [number, number] =>
+  toWorld(BUILDING, x, z);
 const height = (x: number, z: number): number => {
   const [wx, wz] = world2(x, z);
+  return world.analytic.height(wx, wz);
+};
+const heightB = (x: number, z: number): number => {
+  const [wx, wz] = worldB(x, z);
   return world.analytic.height(wx, wz);
 };
 
@@ -34,22 +44,22 @@ const CORNERS: [number, number][] = [
 ];
 
 describe('vodno crossroad hotel', () => {
-  test('is registered on the map and its terrace is one of the map pads', () => {
+  test('is registered on the map and its terraces are map pads', () => {
     expect(landmark).toBeDefined();
     expect(vodnoMap.landmarks).toContain('vodno-crossroad-hotel');
     expect(world.landmarks.some((l) => l.id === landmark.id)).toBe(true);
     expect(vodnoMap.terrain.pads).toContain(HOTEL_PAD);
+    expect(vodnoMap.terrain.pads).toContain(BUILDING_PAD);
   });
 
   test('stands back from the stage road: the building a good way off, the road wall about two metres', () => {
     const q = newRoadQuery();
     for (const [x, z] of CORNERS) {
-      const [wx, wz] = world2(x, z);
+      const [wx, wz] = worldB(x, z);
       const r = world.road.query(wx, wz, q);
-      expect(r.found).toBe(true);
-      expect(r.distance - r.halfWidth, `corner (${x}, ${z})`).toBeGreaterThan(
-        6,
-      );
+      // (the road query only finds roads within its search radius: not found = far)
+      const gap = r.found ? r.distance - r.halfWidth : Infinity;
+      expect(gap, `corner (${x}, ${z})`).toBeGreaterThan(6);
     }
     const walls = hotelColliders(world.analytic).filter(
       (c) => c.kind === 'box' && c.hz !== undefined && c.hz < 1 && c.h > 1,
@@ -85,7 +95,7 @@ describe('vodno crossroad hotel', () => {
     for (const p of paths)
       for (let i = 0; i + 3 < p.pts.length; i += 2)
         for (const [x, z] of [...CORNERS, [0, -10] as [number, number]]) {
-          const [wx, wz] = world2(x, z);
+          const [wx, wz] = worldB(x, z);
           nearest = Math.min(
             nearest,
             segDist(
@@ -102,26 +112,47 @@ describe('vodno crossroad hotel', () => {
     expect(nearest).toBeGreaterThan(2.5);
   });
 
-  test('stands on level ground: the terrace holds the whole footprint', () => {
-    const level = height(0, 3.5);
-    for (const [x, z] of [...CORNERS, [0, -5], [0, 4], [-12, 4], [8, 6]])
-      expect(Math.abs(height(x, z) - level), `(${x}, ${z})`).toBeLessThan(0.3);
+  test('stands on level ground: the terraces hold the footprint and the forecourt', () => {
+    const level = heightB(0, 1);
+    for (const [x, z] of [...CORNERS, [0, -5], [0, 2], [-8, 2], [8, 2]])
+      expect(
+        Math.abs(heightB(x, z) - level),
+        `building (${x}, ${z})`,
+      ).toBeLessThan(0.3);
+    const forecourt = height(0, 3.5);
+    for (const [x, z] of [
+      [0, 3.5],
+      [-12, 4],
+      [8, 6],
+      [-15, 1],
+    ])
+      expect(
+        Math.abs(height(x, z) - forecourt),
+        `forecourt (${x}, ${z})`,
+      ).toBeLessThan(0.3);
   });
 
   test('scatter stays off the building, the forecourt, the parking strip and the road wall, not off the road', () => {
     for (const [x, z] of [
       [0, -5],
+      [0, 2],
+      [-8, -9],
+    ]) {
+      const [wx, wz] = worldB(x, z);
+      expect(landmark.occupies(wx, wz, 0), `building (${x}, ${z})`).toBe(true);
+    }
+    for (const [x, z] of [
       [0, 4],
       [-15, 4],
       [10, 8],
       [18, 8.3],
     ]) {
       const [wx, wz] = world2(x, z);
-      expect(landmark.occupies(wx, wz, 0), `(${x}, ${z})`).toBe(true);
+      expect(landmark.occupies(wx, wz, 0), `forecourt (${x}, ${z})`).toBe(true);
     }
     for (const [x, z] of [
       [0, 14],
-      [0, -30],
+      [0, -8],
       [40, 8],
     ]) {
       const [wx, wz] = world2(x, z);

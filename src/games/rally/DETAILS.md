@@ -238,7 +238,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   sideways shift (a lane added on one side). `MapDef.treeSetback` keeps the solid trees back from the road's edge along a stretch.
 - **Landmarks:** hand-modelled lots on graded pads that replace the placeholders, hooks `surfaceAt` / `keepsClear` /
   `groundOverride` (`world/landmarks.ts`, `pads.ts`; `maps/ajvatovci/start-row`, `hilltop`, `station`; Vodno's car parks:
-  `maps/vodno/landmarks/car-parks.ts` + `lots.ts`, its gate `gate.ts`, the two flats and their wall on the start street `start-blocks.ts`, `start-wall.ts`, and the brick hotel on the corner lot at the first crossroad `hotel.ts`: its own `lot_brick` texture, fixed `street_car` variants 16 / 17). A `PathDef.bare` street gets no kerbs / sidewalks / lamps inside `cityStreets` reach.
+  `maps/vodno/landmarks/car-parks.ts` + `lots.ts`, its gate `gate.ts`, the two flats and their wall on the start street `start-blocks.ts`, `start-wall.ts`, and the brick hotel behind the side street at the first crossroad (building on its own terrace, forecourt on the road) `hotel.ts`: its own `lot_brick` texture, fixed `street_car` variants 16 / 17). A `PathDef.bare` street gets no kerbs / sidewalks / lamps inside `cityStreets` reach.
 - **City maps** (`jackie`): one-way carriageways, bridges and decks, portals, junction plazas, parkway lanes, continuous
   barriers, retaining walls, gores, overhead signs, kerbs / crosswalks / lamps, parked vehicles (`world/bridge-mesh.ts`,
   `portals.ts`, `plazas.ts`, `parkway-lanes.ts`, `barriers.ts`, `cut-wall-mesh.ts`, `street-detail.ts`).

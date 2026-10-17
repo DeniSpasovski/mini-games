@@ -19,7 +19,7 @@ import horizon from './horizon.json';
 import { vodnoInfo as info } from './info';
 import { VODNO_FLATS } from './landmarks';
 import { GATE_PAD } from './landmarks/gate';
-import { HOTEL_PAD } from './landmarks/hotel';
+import { BUILDING_PAD, HOTEL_PAD } from './landmarks/hotel';
 import { LOWER_NODE } from './landmarks/sites';
 import { BLOCK_PADS } from './landmarks/start-blocks';
 import {
@@ -122,7 +122,14 @@ export const vodnoMap: MapDef = {
     edgeRise: 0,
     rockSlope: [0.65, 1.0],
     flatAreas: VODNO_FLATS,
-    pads: [...LOT_PADS, ...BLOCK_PADS, CROSSROAD_BANK, GATE_PAD, HOTEL_PAD],
+    pads: [
+      ...LOT_PADS,
+      ...BLOCK_PADS,
+      CROSSROAD_BANK,
+      GATE_PAD,
+      HOTEL_PAD,
+      BUILDING_PAD,
+    ],
     lawns: LAWNS,
   },
   landcover: {
