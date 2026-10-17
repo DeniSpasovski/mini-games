@@ -46,6 +46,13 @@ export const DEFAULT_LOD: LodSettings = {
 export const FULL_DETAIL_DISTANCE = 40;
 
 /**
+ * Trees closer than this (m) are never the impostor, whatever the quality setting: its bake is a few dozen pixels tall,
+ * which reads as a dithered blob up close (medium brings the impostor in to about 50 m for a small tree). They stay LOD1
+ * with thinned sprites (trees/Lod.md#selection).
+ */
+export const IMPOSTOR_FROM = 80;
+
+/**
  * Share of its rank-ordered sprites a crown draws at full detail (trees/Foliage.md#simplification): the rest are left
  * out and the kept ones are 1 / sqrt of it larger, so the crown covers the same area with half the sprites (the
  * sprites are most of the tree cost, trees/Performance.md#hotspots). Thinning then goes on from here to 25% at the
@@ -912,6 +919,38 @@ export const CYPRESS: SpeciesDef = {
   variants: 4,
 };
 
+/** Hedge cypress (leyland / arborvitae): the broad-based, fuller green column planted as lot screens and field rows, 6-9 m. */
+export const HEDGE_CYPRESS: SpeciesDef = {
+  ...CYPRESS,
+  name: 'Hedge cypress',
+  // The cypress leader with longer limbs low down (a cone, not a spire) that stay close to the stem higher up.
+  axiom: '!F(0.4)A(0.43,0)',
+  rules: [
+    {
+      pred: 'A(l,k)',
+      cond: 'k < 14',
+      succ: 'F(l)L[&(rnd(16,26))!!!B(rnd(0.5,0.75)*(1.1-k*0.055),0)]>(137.5)A(l*0.985,k+1)',
+    },
+    { pred: 'A(l,k)', cond: 'k >= 14', succ: 'F(l*0.7)L' },
+    {
+      pred: 'B(l,o)',
+      cond: 'o < 2',
+      succ: 'F(l)L[+(rnd(15,25))!B(l*0.6,o+1)][-(rnd(15,25))!B(l*0.55,o+1)]!B(l*0.7,o+1)',
+    },
+    { pred: 'B(l,o)', cond: 'o >= 2', succ: 'F(l*0.5)L' },
+  ],
+  baseRadius: 0.16,
+  foliage: {
+    kind: 'needles',
+    spriteSize: 0.95,
+    leaf: 'juniper',
+    palette: ['#35603a', '#3d6c3f', '#2f5535', '#46763f'],
+  },
+  scale: [0.8, 1.15],
+  maxBranchTriangles: 3000,
+  collisionRadius: 0.12,
+};
+
 /** Black locust (acacia): a street and garden tree of Skopje, a tall open crown of light feathery leaves, 9-14 m. */
 export const LOCUST = broadleaf({
   name: 'Locust',
@@ -974,6 +1013,7 @@ export const SPECIES: readonly SpeciesDef[] = [
   THICKET,
   BROOM,
   CYPRESS,
+  HEDGE_CYPRESS,
   LOCUST,
   BRAMBLE,
 ];
@@ -1011,6 +1051,7 @@ export const TREE_TYPES: Readonly<Record<string, string>> = {
   thicket_shrub: 'Thicket',
   broom_shrub: 'Broom',
   cypress_tree: 'Cypress',
+  hedge_cypress: 'Hedge cypress',
   locust_tree: 'Locust',
   bramble_shrub: 'Bramble',
 };

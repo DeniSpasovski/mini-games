@@ -35,6 +35,7 @@ import {
 import { HeightGrid, Horizon } from './occlusion';
 import {
   FOREST_REACH,
+  IMPOSTOR_FROM,
   lodOf,
   NEAR_SPRITES,
   ROAD_REACH,
@@ -438,6 +439,12 @@ export function selectLevel(
   let l = current;
   while (l < IMPOSTOR && h < t[l]) l++;
   while (l > 0 && h > t[l - 1] * (1 + margin)) l--;
+  // Never the impostor up close (IMPOSTOR_FROM); a tree already at LOD1 stays there until past it by the margin.
+  if (
+    l === IMPOSTOR &&
+    dist < IMPOSTOR_FROM * (current === IMPOSTOR ? 1 : 1 + margin)
+  )
+    l = 1;
   // LOD0 branches only in the full-detail zone (+ the hysteresis margin for a tree already there): past it, LOD1.
   if (l === 0 && !(current === 0 && dist < full * (1 + margin))) l = 1;
   return l;
@@ -882,7 +889,9 @@ export class TreeRenderer {
             occluded++;
             continue;
           }
-          if (st.faked) {
+          // Far from the road: always a static impostor, unless it is near the camera (IMPOSTOR_FROM) - the trees
+          // just beyond the first rows are what the driver sees across the fields.
+          if (st.faked && dist - move >= IMPOSTOR_FROM * 1.15) {
             st.from = st.to = IMPOSTOR;
             st.fade = 1;
             st.dir = 1;
@@ -924,8 +933,9 @@ export class TreeRenderer {
               ? dMax < st.reach.full
               : dMin >= st.reach.full &&
                 (l === IMPOSTOR
-                  ? hMax <= t[l - 1] * (1 + margin)
-                  : hMin >= t[l]));
+                  ? hMax <= t[l - 1] * (1 + margin) &&
+                    dMin >= IMPOSTOR_FROM * (1 + margin)
+                  : hMin >= t[l] || dMax < IMPOSTOR_FROM));
           const angle = Math.atan2(dz, dx);
           this.jobSpread = spread(st.diameter / 2 + move, dist);
           if (steadyLevel) {

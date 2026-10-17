@@ -21,6 +21,7 @@ The levels are nested, so every segment in a coarser level is also in every fine
 - Each threshold has hysteresis. A tree moves to a coarser level when it drops below the threshold, and back to the finer one only when it rises above the threshold by a margin, 15% of the threshold by default.
 - The default thresholds sit where each coarser level is hard to tell from the finer one at rally speed, so trees near the road are at full detail and the distant forest is cheap. Sprite thinning starts below 14% of the screen height, branches move from LOD0 to LOD1 below 7%, and the tree moves to the impostor below 3.5%. For a 15 m tree at a 60 degree vertical field of view, that is roughly 90 m, 185 m and 370 m.
 - A tree within 40 m of the camera is always drawn at LOD0, and only such a tree draws LOD0 branches, with its full-detail sprites (see Foliage simplification), whatever its projected height, the field of view or the graphics quality setting. The first row, trees within 9 m of the road's edge, keeps this to 80 m: they are the ones a driver passes at arm's length and sees longest. The second row and the forest behind use 40 m.
+- A tree within 80 m of the camera is never the impostor, whatever its projected height or the graphics quality setting: below the impostor threshold it stays LOD1 with thinned sprites until 80 m x (1 + hysteresis), and it is an impostor again only past that. The impostor is a few dozen pixels tall and reads as a blotchy blob up close. This also holds for trees far from the stage road, which are otherwise always static impostors.
 - Selection depends only on the frame's camera, never on draw order, culling batches or which pass is drawing.
 - Selection is not re-run for every tree every frame; see activeSet.
 
@@ -57,7 +58,7 @@ The levels are nested, so every segment in a coarser level is also in every fine
 
 ## Budget
 
-The thresholds, the hysteresis margin and the fade time are per species, with defaults, and the thresholds can be scaled by the graphics quality setting. Lower quality settings may bring the thresholds closer, but never inside the 60 m full-detail distance. The defaults hold at high quality; medium brings every tree distance to half and low to about a third, since trees are the biggest GPU cost of a forest stage.
+The thresholds, the hysteresis margin and the fade time are per species, with defaults, and the thresholds can be scaled by the graphics quality setting. Lower quality settings may bring the thresholds closer, but never inside the 40 m full-detail distance, and no tree is the impostor inside 80 m. The defaults hold at high quality; medium brings every tree distance to half and low to about a third, since trees are the biggest GPU cost of a forest stage.
 
 ## Debug View
 

@@ -159,6 +159,9 @@ describe('trees', () => {
     expect(ratio('poplar_tree')).toBeGreaterThan(2.5);
     expect(ratio('juniper')).toBeGreaterThan(0.9);
     expect(ratio('cypress_tree')).toBeGreaterThan(2.5);
+    // The hedge cypress is a fuller cone: still a column, but broader than the Mediterranean cypress.
+    expect(ratio('hedge_cypress')).toBeGreaterThan(1.5);
+    expect(ratio('hedge_cypress')).toBeLessThan(ratio('cypress_tree'));
     expect(ratio('pine_tree')).toBeGreaterThan(1.3);
     // The plantation pine is the pine's cone grown cheaper: as tall and narrow, with fewer sprites and limbs.
     expect(ratio('plantation_pine')).toBeGreaterThan(1.3);
@@ -187,6 +190,7 @@ describe('trees', () => {
       'black_pine',
       'juniper',
       'cypress_tree',
+      'hedge_cypress',
     ])
       expect(v(c).def.foliage.kind).toBe('needles');
     for (const c of [
@@ -217,6 +221,12 @@ describe('trees', () => {
       v('poplar_tree').info.height,
     );
     expect(lum(v('cypress_tree').def.foliage.palette[0])).toBeLessThan(0.25);
+    // The hedge cypress is a 5-9 m screen tree, greener and lighter than the dark cypress.
+    expect(v('hedge_cypress').info.height).toBeGreaterThan(5);
+    expect(v('hedge_cypress').info.height).toBeLessThan(9.5);
+    expect(lum(v('hedge_cypress').def.foliage.palette[0])).toBeGreaterThan(
+      lum(v('cypress_tree').def.foliage.palette[0]),
+    );
   });
 
   test('conifers and broadleaves collide on their trunk; shrubs are drive-through', () => {
@@ -277,6 +287,17 @@ describe('tree LOD transitions', () => {
     expect(selectLevel(0.5, 1, T, 0.15, 39)).toBe(0);
   });
 
+  test('a small tree is never the impostor up close (IMPOSTOR_FROM), whatever the quality', () => {
+    // A tree so small on screen that it would be an impostor: LOD1 inside 80 m, the impostor past it.
+    expect(selectLevel(0.02, 2, T, 0.15, 60)).toBe(1);
+    expect(selectLevel(0.02, 0, T, 0, 79)).toBe(1);
+    expect(selectLevel(0.02, 0, T, 0, 81)).toBe(2);
+    // The hysteresis: a tree at LOD1 goes to the impostor only past 80 m x 1.15, back to LOD1 inside 80 m.
+    expect(selectLevel(0.02, 1, T, 0.15, 90)).toBe(1);
+    expect(selectLevel(0.02, 1, T, 0.15, 93)).toBe(2);
+    expect(selectLevel(0.02, 2, T, 0.15, 85)).toBe(2);
+  });
+
   test('default thresholds: a 15 m tree at 60 deg is LOD1 past 40 m and an impostor at ~370 m', () => {
     const px = 1 / (2 * Math.tan(Math.PI / 6));
     const at = (d: number) => selectLevel((15 * px) / d, 0, T, 0, d);
@@ -285,7 +306,8 @@ describe('tree LOD transitions', () => {
 
   test('within 40 m always LOD0, whatever the projected height', () => {
     expect(selectLevel(0.0001, 2, T, 0.15, 39)).toBe(0);
-    expect(selectLevel(0.0001, 2, T, 0.15, 41)).toBe(2);
+    expect(selectLevel(0.0001, 2, T, 0.15, 41)).toBe(1);
+    expect(selectLevel(0.0001, 2, T, 0.15, 81)).toBe(2);
   });
 
   test('the first row keeps LOD0 and its full sprite share out to its own, longer reach', () => {

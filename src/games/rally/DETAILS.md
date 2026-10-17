@@ -345,7 +345,7 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 - Scatter view culling (`InstanceStreamer.setView`, called every frame by the game): non-shadow buckets (LOD1+) are
   angle-sorted and only the camera's view (+ 25 deg) is drawn. LOD0 shadow casters are drawn whole.
 - Trees (`trees/`, L-system species in `trees/species.ts`): map rules place the old tree type ids, each grown as the species
-  its description names (`TREE_TYPES`: pine, plantation pine (half the sprites, for dense stands), black pine, juniper, cypress, oak, locust, walnut, fruit tree, plane, birch, sapling, poplar,
+  its description names (`TREE_TYPES`: pine, plantation pine (half the sprites, for dense stands), black pine, juniper, cypress, hedge cypress, oak, locust, walnut, fruit tree, plane, birch, sapling, poplar,
   willow, bush, scrub, hazel, thicket, bramble); 6 variants for pine / oak / bush / scrub, 4 for the rest. The map's `scale`
   multiplies the species size.
   Branches are tubes at two levels (LOD0 = the skeleton without twigs, LOD1 = trunk + the first-order limbs thicker than 1/120 of the tree's height), then an
@@ -360,9 +360,11 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   the impostor (3.5 % of the screen height; perf panel sliders). Defaults at high quality:
   `QualitySettings.treeLodScale` brings every tree distance to half on medium, about a third on low. Past
   `QualitySettings.forestDistance` (450 / 700 / 1100 m) no tree is drawn (they dissolve in over its last 15 %, `tlForest`): the ground under the canopy texture takes the
-  forest's colour (`setForest`, engine/world-shading.ts; three's physical path lights `diffuseContribution`). Trees more
-  than `FAKE_TREES_FROM` (250 m, game/rally-game.ts) from the stage road are always static impostors (`fakeFrom`): the
-  player only sees them from the road. Level changes
+  forest's colour (`setForest`, engine/world-shading.ts; three's physical path lights `diffuseContribution`). Trees
+  beyond the stage road's influence (half width + shoulder + 30 m, about 45 m from its edge; `FAKE_TREES_FROM` 250 m
+  caps it, game/rally-game.ts) are static impostors (`fakeFrom`), except within `IMPOSTOR_FROM` (80 m,
+  `trees/species.ts`) of the camera: no tree is an impostor up close, whatever the quality (it reads as a blotchy blob;
+  medium and low bring the impostor in to about 50 m for a small tree). Level changes
   are a fixed 0.3 s fade per tree (8x8 ordered dither, one fade value per tree, at most 32 at once), selected from the
   camera before shake (`CameraRig.steady`) with 15 % hysteresis. A batching job (every 5 m of travel) puts every tree
   that keeps its level for any camera within 9 m into static batches (shadow casters packed first); only trees near a
