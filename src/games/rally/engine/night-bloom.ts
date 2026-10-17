@@ -87,10 +87,11 @@ export class NightBloom {
       ),
     );
     this.composer.addPass(new OutputPass());
-    const resize = (): void => this.resize();
-    renderer.domElement.addEventListener('resized', resize);
+    renderer.domElement.addEventListener('resized', this.onResize);
     this.resize();
   }
+
+  private readonly onResize = (): void => this.resize();
 
   private resize(): void {
     const size = this.renderer.getSize(new Vector2());
@@ -100,5 +101,10 @@ export class NightBloom {
 
   render(): void {
     this.composer.render();
+  }
+
+  dispose(): void {
+    this.renderer.domElement.removeEventListener('resized', this.onResize);
+    this.composer.dispose();
   }
 }
