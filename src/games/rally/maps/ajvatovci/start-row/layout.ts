@@ -75,6 +75,8 @@ interface Row {
   extraFrom?: 'start' | 'end';
   /** Leave the first this many bays at the start of the row empty. */
   skip?: number;
+  /** Paint no divider lines for this many bays after the skipped ones (they stay open for parking). */
+  noLines?: number;
 }
 
 export type LotStyle =
@@ -776,6 +778,7 @@ const PLOT_LAYOUT: Plot[] = [
         fill: 0.12,
         gap: 1.2,
         skip: 4,
+        noLines: 2,
         extra: 3,
       },
     ],
@@ -1250,7 +1253,8 @@ const PLOT_LAYOUT: Plot[] = [
         layout: 'dock',
         fill: 0.5,
         gap: 1.2,
-        skip: 4,
+        // Nobody parks here: the one trailer cut across the end of the east row.
+        skip: Infinity,
       },
       { edge: 'e', kind: 'box', layout: 'dock', fill: 0.7, gap: 1.4 },
       {
@@ -1263,7 +1267,7 @@ const PLOT_LAYOUT: Plot[] = [
         count: 3,
       },
     ],
-    maxTrucks: 12,
+    maxTrucks: 11,
   },
   {
     // The old compound behind the field (ref-46): a red-roofed hall and a white shed, block walls and a plank
@@ -1977,7 +1981,7 @@ const layoutPlots = (): Layout => {
       const gap = spec.gap ?? (dock ? 1.4 : 1.5);
       const depth = (dock ? length : width) + 0.6;
       for (
-        let t = 1 + (spec.skip ?? 0) * spacing;
+        let t = 1 + ((spec.skip ?? 0) + (spec.noLines ?? 0)) * spacing;
         t < wall.length;
         t += spacing
       ) {

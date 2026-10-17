@@ -172,6 +172,26 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
   spectators (some waving their map's own hand flag - `MapDef.country` - or a plain colour flag, never another country's) + visitors, a marshal, 2-3 photographers, flags; marshals at every side-road mouth, 10 photographers each at start and finish
   (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`). People animate (`world/people-anim.ts`, run by `RallyGame.frame`): within 45 m they turn to watch the car, photographers (75 m) keep it centred, via `InstanceStreamer.setMatrix`; hand flags wave in the `people_flag` shader (`engine/materials.ts`, own mesh from `markFlag` in people.ts).
+- **Service park** (stage `servicePark`; `world/service-park.ts`, `World.servicePark`; assets `assets/builders/service.ts` + `teams.ts`;
+  per map `maps/<id>/service-park.ts`; tests `service-park`, `parc-ferme`): team bays on levelled gravel lots - truck / van, team cars on
+  ground sheets, tents, props, crew and guests - plus tape, a crowd (seated or flag-waving fans, photographers, visitors) and a start
+  control. Team trucks, vans and the catering van are the background models in team paint plus side stripes.
+  - **Lot** (`ServiceLot` in `maps/shared/types.ts`): a rectangle levelled by a `terrain.pads` entry (`servicePad` in
+    `maps/shared/service-lot.ts`; its `apron` levels the strip to the road, `level` fixes a flat field). `cars` = team cars wanted
+    (a works bay holds two), `semis` = team lorries (`service_semi`, the baked lorry model) across the gravel behind one row of bays,
+    `links` = dirt links across the verge (`linkPad`: gravel ramp up to the road, 5 m wide; tape, crowd and press keep off them).
+  - **Ajvatovci**: 4 cars at the start lot, 6 in the west park (field beside the factory road, 5 lorries behind the bays, 3 links).
+  - **Parc fermé** (`ferme`): a row of team cars, noses to the tape, on a lay-by behind the start (`ServiceLot.bays` per lot): Test 4,
+    Galichica West 6, Galichica East / Prespa-Ohrid 5. Each car has its crew and, on a lot 12.5 m deep (`TENT_DEPTH`), its team tent
+    and tool chest. On a street (The Jackie 5 + 5, Vodno 6 on its side street) the lot lies over the road (`paved`, no pad) and
+    `parallel` parks the cars nose to tail along the kerb with a 3 x 6 m tent behind each.
+  - **Recovery truck** (`ServiceLot.tow`): `service_tow` (dump cab + roll-back deck, `build/truck-backs.ts`, one colour) and a marshal in
+    a 9.5 m stretch at the lot's far end; make the lot that much longer (Test, Galichica West, Jackie east street, Vodno).
+- **Park cars**: `team_car` only places the car and its collider. The car is a real released model at low quality
+  (`world/park-car-mesh.ts` `ParkCars`, owned by `InstanceStreamer`, `streamer.ready`): `public/models/cars/<id>_park.glb`
+  (`scripts/car-model/park-lods.mjs`: body LODs of about 7.5k / 2.3k / 1.1k triangles, three rims) in the team's livery (car's own
+  painter, one texture per car and team), two draw calls per car; a raised car stands on axle stands (`tyre_stack` beside it). Models
+  load near the park and are freed far away (`parkCarsPlan`). Tests `park-cars`, `car-glb-meshopt`.
 - **People** (`assets/builders/people.ts`): jointed low-poly figures posed by joint angles + outfit colours, smooth lofted bodies close up (LOD 0), painted unwrapped garment atlas + normal map (`engine/people-atlas.ts`, `people` material; zips, pockets, seams, face) - `spectator` (24 standing + 18 sitting / squatting at corner fans),
   `mechanic`, `crew`, `driver`, `marshal` (flag, sign, radio), `photographer`, `visitor` (12 personas: ages, sizes, dresses, kids); test `people`.
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)
@@ -245,11 +265,16 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   15 simplified models of three CC BY packs (`street-car-models.ts`, data in `street-cars.data.ts`, baked by
   `scripts/car-model/street-pack-extract.py` + `bake-street-cars.mjs`): ~900 / ~450 triangles, one draw call per LOD, the body
   paint recoloured per car (variants 0-14 = model, `STREET_CAR_MIX` weights what streets pick; 15 = the white hatch a map places).
-  Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` holds the triangle budget.
+  Pack 7's 5 vans / trucks (`service-vehicles.data.ts`, `bake-street-cars.mjs --vans`, `serviceVehicleModel`) dress the service park
+  and, with the cars, the Ajvatovci start-row lots (`maps/ajvatovci/start-row/build/vehicles.ts`: a few models per kind, scaled
+  to the layout footprint; the trucks are the baked models below). `StreetCarShape.parts()` splits a model into paint + rest.
+  Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` and `service-vehicles.test.ts` hold the triangle budgets.
 - The Ajvatovci yards' trucks (`maps/ajvatovci/start-row/build/vehicles.ts`, `truck-models.ts`) are baked from two CC BY models
-  (`scripts/car-model/bake-trucks.mjs`, data in `truck-models.data.ts`): `tractor` + `trailer` (the `trailer` kind), the `tractor` under a
-  code-built tank (`tanker`), the `cab` under a code-built box (`box`) and a `dump` truck whose back is swapped (`Back`: tipper, flatbed,
-  van body, tank; every 2nd-8th box-truck place, `DUMP_CYCLE`). The models keep their own triangles (welded, never simplified) and
+  (`scripts/car-model/bake-trucks.mjs`, data in `truck-models.data.ts`): `tractor` + `trailer` (the `trailer` kind), the `tractor` and
+  the trailer's chassis under a code-built tank (`tanker`), the `cab` (back wall closed by the baker, the tractor's step column and side skirt kept behind the front wheel) under a code-built body
+  (`box`, or `cab-tow` / `cab-reefer`) and a `dump` truck whose back is swapped (tipper, flatbed, van body, tank, `tow`,
+  `reefer`; backs in `truck-backs.ts`). Box-truck places go to these in turn (`RIGID_CYCLE`). Models keep their origin under the middle of
+  the 17.5 m footprint (`centre: 0`). The models keep their own triangles (welded, never simplified) and
   textures; the code adds nothing to lamps or grilles. `cab` / `paint` parts take the placement's cab / body colour through a tint
   mask (`truckMaps`: the light neutral panels of the texture, so grille, lamps and stripes keep their look); the `tyre` model is the
   template for the axles the builders add. Textures + masks come from `scripts/car-model/bake-truck-textures.py` (run it after
