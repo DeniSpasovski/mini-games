@@ -272,13 +272,21 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   tagged (`cars/shared/profile-body.ts`), shown only if the GLB fails to load. It wears the car's livery, box-projected
   onto the atlas (`CarAtlas.layout`). Car viewer `fallback=1` shows it.
 - The city maps' parked cars (`street_car`, `taxi`, `police_car`; `assets/builders/vehicles.ts`) are NOT the rally cars: they are
-  15 simplified models of three CC BY packs (`street-car-models.ts`, data in `street-cars.data.ts`, baked by
-  `scripts/car-model/street-pack-extract.py` + `bake-street-cars.mjs`): ~900 / ~450 triangles, one draw call per LOD, the body
-  paint recoloured per car (variants 0-14 = model, `STREET_CAR_MIX` weights what streets pick; 15 = the white hatch a map places).
-  Pack 7's 5 vans / trucks (`service-vehicles.data.ts`, `bake-street-cars.mjs --vans`, `serviceVehicleModel`) dress the service park
-  and, with the cars, the Ajvatovci start-row lots (`maps/ajvatovci/start-row/build/vehicles.ts`: a few models per kind, scaled
-  to the layout footprint; the trucks are the baked models below). `StreetCarShape.parts()` splits a model into paint + rest.
-  Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` and `service-vehicles.test.ts` hold the triangle budgets.
+  10 cars of a CC BY pack with their own triangles and textures (`street-car-models.ts`, data in `street-cars.data.ts`,
+  atlas `street-car-atlas.jpg` + `street-car-mask.png`; baked by `scripts/car-model/street-pack-extract.py` +
+  `bake-street-textures.py` + `bake-street-cars.mjs`, flags in their headers). LOD 0 is the full model (~6-7k triangles; interior
+  triangles culled), LOD 1 ~2k, LOD 2 ~1k (meshopt, round wheels). One shared material (`streetCarMaterial`): the atlas, with the
+  paint (per-vertex `color`) multiplied in only where the mask is white, so lamps, glass and trim keep their texels; the taxi sign,
+  light bar and lettering are a second `vehicle` part up to LOD 1. Variants 0-9 = model (`STREET_CAR_MIX` weights what streets pick;
+  10-12 = the white hatch, dark sedan and white minivan a map places). The car LODs set `separateVariants` (no merged variant set: every instance would run the
+  vertex shader over all 10 models). Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` holds the triangle budget.
+- Pack 7's five vans and trucks (`service-vehicles.data.ts`, `bake-street-cars.mjs --vans`, `serviceVehicleModel`) are baked the same
+  way into the same atlas and dress the service park (`builders/service.ts`: team paint through the tint mask, stripes and awnings a
+  second `vehicle` part up to LOD 1, `PACK_VEHICLE_LODS`) and the Ajvatovci start-row lots. Both lists are baked again after every
+  atlas change. `tests/rally/service-vehicles.test.ts` holds their triangle budgets.
+- The Ajvatovci yards' cars and vans (`MODEL` in `maps/ajvatovci/start-row/build/vehicles.ts`) are these models: a few per kind taken
+  in turn, scaled to the layout's footprint, drawn per instance colour through the atlas tint mask in three distance tiers
+  (`CAR_LOD_RANGE`: full / ~2k / ~1k triangles, then the two-box stand-in). The trucks are the baked models below.
 - The Ajvatovci yards' trucks (`maps/ajvatovci/start-row/build/vehicles.ts`, `truck-models.ts`) are baked from two CC BY models
   (`scripts/car-model/bake-trucks.mjs`, data in `truck-models.data.ts`): `tractor` + `trailer` (the `trailer` kind), the `tractor` and
   the trailer's chassis under a code-built tank (`tanker`), the `cab` (back wall closed by the baker, the tractor's step column and side skirt kept behind the front wheel) under a code-built body

@@ -38,6 +38,8 @@ export interface LodSpec {
   castShadow: boolean;
   /** Every instance uses variant 0's geometry (one draw call per asset instead of per variant: far LODs). */
   oneVariant?: boolean;
+  /** One InstancedMesh per variant, never a merged variant set (heavy variants: every instance would run the vertex shader over all of them). */
+  separateVariants?: boolean;
 }
 
 export interface AssetMeta {
@@ -67,7 +69,7 @@ export const SPECTATOR_SEATED_COUNT = 18;
 export const SPECTATOR_FLAG_FROM = 42;
 export const SPECTATOR_FLAG_COUNT = 12;
 
-/** Service park vehicles: boxes + wheels, a plain body far away. */
+/** Service park vehicles built from boxes + wheels, a plain body far away. */
 const VEHICLE_LODS: LodSpec[] = [
   { maxDistance: 140, castShadow: true },
   { maxDistance: 480, castShadow: false },
@@ -86,6 +88,16 @@ const PEOPLE_LODS: LodSpec[] = [
   { maxDistance: 220, castShadow: false },
   { maxDistance: 520, castShadow: false },
 ];
+
+/** Pack cars: the full model up close, a reduced one out to the end of the shadows, then a plain one (no shadow). */
+const carLods = (full: number, reduced: number, far: number): LodSpec[] => [
+  { maxDistance: full, castShadow: true, separateVariants: true },
+  { maxDistance: reduced, castShadow: true, separateVariants: true },
+  { maxDistance: far, castShadow: false, separateVariants: true },
+];
+
+/** Service park vans and trucks (pack models, `carLods`): the full model near, shadows out to the end of the park. */
+const PACK_VEHICLE_LODS = carLods(50, 140, 480);
 
 export const ASSET_CATALOG: AssetMeta[] = [
   // --- vegetation (detail layer; trees and bushes grow from L-systems: trees/species.ts) ---
@@ -369,12 +381,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Street car',
     category: 'props',
     description:
-      'Parked car: a simplified model of the CC BY packs (street-car-models.ts). Variants 0-14 are the models (0-4 old boxy cars, 5-14 modern: hatch, pickup, sport, minivan, SUV, coupe, off-road, compact, sedan, wagon) in a seeded paint; 15 = white hatch, 16 = dark sedan, 17 = white minivan (placed on purpose). Faces +X. Solid.',
-    variants: 18,
-    lods: [
-      { maxDistance: 90, castShadow: true },
-      { maxDistance: 420, castShadow: false },
-    ],
+      'Parked car: a model of the CC BY packs with its own textures (street-car-models.ts). Variants 0-9 are the models (hatch, pickup, sport, minivan, SUV, coupe, off-road, compact, sedan, wagon) in a seeded paint; 10 = white hatch, 11 = dark sedan, 12 = white minivan (placed on purpose). Faces +X. Solid.',
+    variants: 13,
+    lods: carLods(40, 100, 420),
     colliders: [{ kind: 'box', hx: 2.3, hz: 0.96, h: 1.4, r: 2.5 }],
   },
   {
@@ -382,12 +391,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Taxi',
     category: 'props',
     description:
-      'Yellow cab with a roof sign and a black stripe (the boxy M3 saloon, faces +X). Solid.',
+      'Yellow cab with a roof sign and a black stripe (the sedan model, faces +X). Solid.',
     variants: 1,
-    lods: [
-      { maxDistance: 90, castShadow: true },
-      { maxDistance: 420, castShadow: false },
-    ],
+    lods: carLods(40, 100, 420),
     colliders: [{ kind: 'box', hx: 2.3, hz: 0.96, h: 1.5, r: 2.5 }],
   },
   {
@@ -395,12 +401,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Police car',
     category: 'props',
     description:
-      'White patrol car (the boxy M3 saloon), navy band, red / blue roof light bar, "POLICE" (generic, no real agency name) on the doors. Faces +X. Solid.',
+      'White patrol car (the sedan model), navy band, red / blue roof light bar, "POLICE" (generic, no real agency name) on the doors. Faces +X. Solid.',
     variants: 1,
-    lods: [
-      { maxDistance: 110, castShadow: true },
-      { maxDistance: 480, castShadow: false },
-    ],
+    lods: carLods(50, 120, 480),
     colliders: [{ kind: 'box', hx: 2.3, hz: 0.96, h: 1.6, r: 2.5 }],
   },
   {
@@ -408,12 +411,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Fire truck',
     category: 'props',
     description:
-      'Red fire engine: cab, compartments with roller doors, white stripe, roof ladder, "FIRE DEPT" (generic, no real agency name) on the sides. Faces +X. Solid.',
+      'Red fire engine (the box truck model with its textures): white stripe, roof ladder, light bar, "FIRE DEPT" (generic, no real agency name) on the box sides. Faces +X. Solid.',
     variants: 1,
-    lods: [
-      { maxDistance: 130, castShadow: true },
-      { maxDistance: 600, castShadow: false },
-    ],
+    lods: carLods(50, 130, 600),
     colliders: [{ kind: 'box', hx: 4.3, hz: 1.27, h: 3, r: 4.5 }],
   },
   {
@@ -421,12 +421,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Ambulance',
     category: 'props',
     description:
-      'White box-body ambulance: red stripe, light bar, "FIRE DEPT" and "AMBULANCE" on the box sides (generic words, no agency name or logos). Faces +X. Solid.',
+      'White ambulance (the high-roof van model with its textures): red stripe, light bar, "FIRE DEPT" and "AMBULANCE" on the sides (generic words, no agency name or logos). Faces +X. Solid.',
     variants: 1,
-    lods: [
-      { maxDistance: 120, castShadow: true },
-      { maxDistance: 520, castShadow: false },
-    ],
+    lods: carLods(50, 120, 520),
     colliders: [{ kind: 'box', hx: 3.2, hz: 1.17, h: 2.8, r: 3.4 }],
   },
   // --- service park (rally paddock; builders/service.ts, teams in builders/teams.ts) ---------------
@@ -437,7 +434,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'Team box truck (8 m) in team colours (variant = team) with a side awning on +Z. Faces +X. Solid body + awning legs.',
     variants: 12,
-    lods: VEHICLE_LODS,
+    lods: PACK_VEHICLE_LODS,
     colliders: [
       { kind: 'box', hx: 4.0, hz: 1.2, h: 3.1, r: 4.2 },
       { kind: 'cylinder', x: -3.8, z: 4.8, r: 0.07, h: 2.7 },
@@ -471,7 +468,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'Team panel van (5.6 m, variant = team) with side stripes. Faces +X. Solid.',
     variants: 12,
-    lods: VEHICLE_LODS,
+    lods: PACK_VEHICLE_LODS,
     colliders: [{ kind: 'box', hx: 2.8, hz: 1.1, h: 2.6, r: 3.0 }],
   },
   {
@@ -491,7 +488,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'Double-cab pickup in team colours (variant = team), open bed. Faces +X. Solid.',
     variants: 12,
-    lods: VEHICLE_LODS,
+    lods: PACK_VEHICLE_LODS,
     colliders: [{ kind: 'box', hx: 2.6, hz: 1.0, h: 1.9, r: 2.8 }],
   },
   {
@@ -611,7 +608,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'Catering van (variant = colour) with a serving hatch and awning flap on +Z. Faces +X. Solid.',
     variants: 3,
-    lods: VEHICLE_LODS,
+    lods: PACK_VEHICLE_LODS,
     colliders: [{ kind: 'box', hx: 2.8, hz: 1.1, h: 2.4, r: 3.0 }],
   },
   {
