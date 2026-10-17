@@ -107,6 +107,75 @@ const shifted = (m, dx = 0, dy = 0, dz = 0) => ({
   pos: m.pos.map((p) => [p[0] + dx, p[1] + dy, p[2] + dz]),
 });
 
+/**
+ * Closes the open back of a cut shell (the cab was the front of a tractor, its back wall was never modelled): a fan over
+ * the hull (z, y) of the boundary vertices left of `xMax`, flat at their median x and facing -x. Returns the cap and its x.
+ * The cap wears one texel of the shell (the roof's rear edge), so it takes the cab paint like the roof does.
+ */
+function capRear(m, xMax) {
+  const key = (p) => p.map((x) => x.toFixed(3)).join(',');
+  const count = new Map();
+  for (let t = 0; t < m.idx.length; t += 3)
+    for (let k = 0; k < 3; k++) {
+      const a = m.idx[t + k];
+      const b = m.idx[t + ((k + 1) % 3)];
+      const [ka, kb] = [key(m.pos[a]), key(m.pos[b])];
+      const e = ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`;
+      count.set(e, (count.get(e) ?? 0) + 1);
+    }
+  const rim = new Map();
+  for (const [e, n] of count)
+    if (n === 1) {
+      const ends = e.split('|').map((k) => k.split(',').map(Number));
+      if (ends.every((p) => p[0] < xMax))
+        for (const p of ends) rim.set(key(p), p);
+    }
+  const pts = [...rim.values()];
+  const xs = pts.map((p) => p[0]).sort((a, b) => a - b);
+  const x = xs[Math.floor(xs.length / 2)];
+  // Convex hull (monotone chain) in (z, y).
+  const q = pts
+    .map((p) => [p[2], p[1]])
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o, a, b) =>
+    (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const half = (list) => {
+    const h = [];
+    for (const p of list) {
+      while (h.length >= 2 && cross(h[h.length - 2], h[h.length - 1], p) <= 0)
+        h.pop();
+      h.push(p);
+    }
+    h.pop();
+    return h;
+  };
+  const hull = [...half(q), ...half([...q].reverse())];
+  const c = [
+    hull.reduce((s, p) => s + p[0], 0) / hull.length,
+    hull.reduce((s, p) => s + p[1], 0) / hull.length,
+  ];
+  // The shell vertex at the top of the rim, for the texel.
+  let best = 0;
+  m.pos.forEach((p, i) => {
+    if (p[0] < xMax && p[1] > m.pos[best][1] - 1e-9 && Math.abs(p[2]) < 0.4)
+      best = i;
+  });
+  const uv = m.uv[best];
+  const pos = [[x, c[1], c[0]], ...hull.map(([z, y]) => [x, y, z])];
+  const idx = [];
+  for (let i = 0; i < hull.length; i++)
+    idx.push(0, 1 + i, 1 + ((i + 1) % hull.length));
+  // Face -x: the (z, y) hull runs counter-clockwise, which makes a +x normal here; swap if so.
+  const flip =
+    (pos[2][1] - pos[0][1]) * (pos[3][2] - pos[0][2]) -
+      (pos[2][2] - pos[0][2]) * (pos[3][1] - pos[0][1]) >
+    0;
+  if (flip)
+    for (let t = 0; t < idx.length; t += 3)
+      [idx[t + 1], idx[t + 2]] = [idx[t + 2], idx[t + 1]];
+  return { cap: { pos, uv: pos.map(() => uv), idx }, x };
+}
+
 /** Connected pieces of a prim (vertices that share a position are one), each as its own mesh. */
 function pieces(prim, xf) {
   const key = (p) => p.map((x) => Math.round(x * 500)).join(',');
@@ -222,6 +291,8 @@ const LOW = {
   stretch: 1.27,
   /** Cab / chassis cut (model z): in front of it the cab, behind it the frame. */
   cabCut: 0.6,
+  /** Rear end of the side skirt that goes with the rigid truck's cab (model x). */
+  skirtX: 4.9,
   /** Footprint length (m). */
   L: 17.5,
 };
@@ -276,30 +347,47 @@ const LOW = {
       part('tyres', 'detail', 'lowTyre', merge(tractorTyres)),
     ],
   };
+  // The model's container is a hollow box of ten big triangles on a chassis (nothing above 1.28 m); the tank trailer
+  // keeps the chassis and wears its own tank.
+  const lowTris = (m) => filterTris(m, (_c, P) => P.every((q) => q[1] < 1.4));
   out.trailer = {
     length: L,
     width: 2.6,
     parts: [
-      part('body', 'paint', 'lowTrailer', trailer),
+      part('body', 'paint', 'lowTrailer', lowTris(trailer)),
+      part(
+        'container',
+        'paint',
+        'lowTrailer',
+        filterTris(trailer, (_c, P) => P.some((q) => q[1] >= 1.4)),
+      ),
       part('tyres', 'detail', 'lowTyre', merge(trailerTyres)),
     ],
   };
 
   // The cab alone, for the rigid box truck: what is in front of the cut, without the chassis behind the cab.
   const shift = 4.6 - L / 2;
-  const cabOnly = (m) =>
-    filterTris(
-      m,
-      (c, P) =>
-        cabMask(c) &&
-        P.every((p) => cabMask([p[0] + 0.15])) &&
-        !(c[1] < 0.75 && c[0] < L / 2 - 0.7),
-    );
+  const inCab = (c, P) =>
+    cabMask(c) &&
+    P.every((p) => cabMask([p[0] + 0.15])) &&
+    !(c[1] < 0.75 && c[0] < L / 2 - 0.7);
+  const cabShell = filterTris(body, inCab);
+  const { cap: cabCap, x: cabRearX } = capRear(cabShell, 6.75);
+  // The tractor's step column, fuel tank fairing and side skirt behind the front wheel: the rigid truck's frame needs them.
+  const skirt = filterTris(
+    body,
+    (c, P) => !inCab(c, P) && c[0] > LOW.skirtX && c[1] < 0.9,
+  );
   out.cab = {
     length: 9.2,
     width: 2.6,
     parts: [
-      part('body', 'cab', 'lowBody', shifted(cabOnly(body), shift)),
+      part(
+        'body',
+        'cab',
+        'lowBody',
+        shifted(merge([cabShell, cabCap, skirt]), shift),
+      ),
       part(
         'glass',
         'glass',
@@ -319,7 +407,7 @@ const LOW = {
         ),
       ),
     ],
-    cabBack: r2(L / 2 - (LOW.frontZ - LOW.cabCut) * LOW.s + shift),
+    cabBack: r2(cabRearX + shift),
   };
 
   // One tyre of each side, centred, for the axles the runtime builds itself (trailer tyres: r ~ 0.46 m).
