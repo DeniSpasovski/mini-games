@@ -172,37 +172,26 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
   spectators (some waving their map's own hand flag - `MapDef.country` - or a plain colour flag, never another country's) + visitors, a marshal, 2-3 photographers, flags; marshals at every side-road mouth, 10 photographers each at start and finish
   (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`). People animate (`world/people-anim.ts`, run by `RallyGame.frame`): within 45 m they turn to watch the car, photographers (75 m) keep it centred, via `InstanceStreamer.setMatrix`; hand flags wave in the `people_flag` shader (`engine/materials.ts`, own mesh from `markFlag` in people.ts).
-- **Service park** (stage `servicePark`, Ajvatovci only so far): team bays on levelled gravel lots - trucks / vans, team cars on
-  ground sheets, tents, props, 4-6 crew and guests each, tape + crowd (seated or flag-waving fans, photographers, every visitor persona), start control (`world/service-park.ts`,
-  `World.servicePark`; assets `assets/builders/service.ts` + `teams.ts`; test `service-park`). The team trucks, vans, pickups and the
-  catering van are the background models (`assets/builders/street-car-models.ts`, vans / trucks of pack 7 baked by
-  `bake-street-cars.mjs --vans`) in the team paint plus side stripes. A lot is a `ServiceLot` rectangle:
-  the map levels it with a `terrain.pads` entry (`servicePad` in `maps/shared/service-lot.ts`, or a fixed `level` for a flat
-  field), the stage lists the lots and the bay `gap` (`maps/ajvatovci/service-park.ts`: the start lot and a field row facing the road
-  to the factory: 4 team cars at the start lot, 6 in the west park, `ServiceLot.cars`; a works bay holds two). `ServiceLot.semis` parks tractor-trailer team trucks (`service_semi`, the baked lorry model below, tinted in the nearest bay's team colours) across the
-  gravel behind a single row of bays, noses to the back edge (the lot is then about 36 m deep).
-  `ServiceLot.links` (u, m) are dirt links across the verge to the road (`linkPad`: a gravel ramp from the lot level up to the
-  road's height, 5 m wide; Ajvatovci's west park has three): tape, crowd and press keep off them. `servicePad`'s `apron` levels the strip
-  between the public edge and a stage road so there is no bump or grass in front of the lot (Galichica, Test).
-  A `ferme` park (parc fermé) is a row of 4-6 team cars, noses to the tape, on a small lay-by beside the road behind the
-  start (`ServiceLot.bays` cars per lot): Test map (4, left of the run-up), Galichica West (6, Ohrid side), East and
-  Prespa-Ohrid (5, Prespa side). Each car has its crew (driver or crew in front, mechanics at the wheels) and, when the lot is
-  deep enough (`TENT_DEPTH`, 12.5 m; the car keeps its distance from the tape), the team's tent behind it with a tool chest and
-  crew. On a street (The Jackie: 5 + 5 abeam the start, on the street east of the stage road and the opposite carriageway's inner
-  lane west of it) the lot lies over the road (`paved`: other roads do not block, no pad) and `parallel` parks the cars nose to
-  tail along the kerb, side-on to the start, the tent (3 x 6 m) in the lane behind each car. Vodno parks 6 the same way on the side street
-  that leaves the run-up street 140 m before the start (its straight west leg). `ServiceLot.tow` adds a recovery tow truck
-  (`service_tow`: the dump cab with the roll-back deck of `build/truck-backs.ts`, one colour all over) and a marshal in a 9.5 m stretch at
-  the lot's far end (the bays start short of it: make the lot that much longer; Test, Galichica West, The Jackie's east street, Vodno).
-  `maps/<id>/service-park.ts`, test `parc-ferme`.
-- **Park cars**: `team_car` only places the car and gives it its collider. The car is a real released model at low quality:
-  `world/park-car-mesh.ts` (`ParkCars`, owned by `InstanceStreamer`, `streamer.ready`) draws `parkCarId(team)` (`world/park-cars.ts`)
-  from `public/models/cars/<id>_park.glb` (`scripts/car-model/park-lods.mjs`: three body LODs of about 7.5k / 2.3k / 1.1k
-  triangles = livery shell + vertex-coloured parts, and three rims). It wears the team's colours through the car's own livery
-  painter (~85 px/m, one texture per car and team), wheels are built at runtime and merged into the parts, so a car is two draw
-  calls. A raised car stands on axle stands with the rear wheels off (a `tyre_stack` lies beside it). Tests `park-cars`,
-  `car-glb-meshopt`. The models load when the camera is within 200 m of the last LOD's reach of a car and are freed (geometry,
-  liveries) beyond 800 m of it (`parkCarsPlan`), so a stage driven away from its park holds nothing of it.
+- **Service park** (stage `servicePark`; `world/service-park.ts`, `World.servicePark`; assets `assets/builders/service.ts` + `teams.ts`;
+  per map `maps/<id>/service-park.ts`; tests `service-park`, `parc-ferme`): team bays on levelled gravel lots - truck / van, team cars on
+  ground sheets, tents, props, crew and guests - plus tape, a crowd (seated or flag-waving fans, photographers, visitors) and a start
+  control. Team trucks, vans and the catering van are the background models in team paint plus side stripes.
+  - **Lot** (`ServiceLot` in `maps/shared/types.ts`): a rectangle levelled by a `terrain.pads` entry (`servicePad` in
+    `maps/shared/service-lot.ts`; its `apron` levels the strip to the road, `level` fixes a flat field). `cars` = team cars wanted
+    (a works bay holds two), `semis` = team lorries (`service_semi`, the baked lorry model) across the gravel behind one row of bays,
+    `links` = dirt links across the verge (`linkPad`: gravel ramp up to the road, 5 m wide; tape, crowd and press keep off them).
+  - **Ajvatovci**: 4 cars at the start lot, 6 in the west park (field beside the factory road, 5 lorries behind the bays, 3 links).
+  - **Parc fermé** (`ferme`): a row of team cars, noses to the tape, on a lay-by behind the start (`ServiceLot.bays` per lot): Test 4,
+    Galichica West 6, Galichica East / Prespa-Ohrid 5. Each car has its crew and, on a lot 12.5 m deep (`TENT_DEPTH`), its team tent
+    and tool chest. On a street (The Jackie 5 + 5, Vodno 6 on its side street) the lot lies over the road (`paved`, no pad) and
+    `parallel` parks the cars nose to tail along the kerb with a 3 x 6 m tent behind each.
+  - **Recovery truck** (`ServiceLot.tow`): `service_tow` (dump cab + roll-back deck, `build/truck-backs.ts`, one colour) and a marshal in
+    a 9.5 m stretch at the lot's far end; make the lot that much longer (Test, Galichica West, Jackie east street, Vodno).
+- **Park cars**: `team_car` only places the car and its collider. The car is a real released model at low quality
+  (`world/park-car-mesh.ts` `ParkCars`, owned by `InstanceStreamer`, `streamer.ready`): `public/models/cars/<id>_park.glb`
+  (`scripts/car-model/park-lods.mjs`: body LODs of about 7.5k / 2.3k / 1.1k triangles, three rims) in the team's livery (car's own
+  painter, one texture per car and team), two draw calls per car; a raised car stands on axle stands (`tyre_stack` beside it). Models
+  load near the park and are freed far away (`parkCarsPlan`). Tests `park-cars`, `car-glb-meshopt`.
 - **People** (`assets/builders/people.ts`): jointed low-poly figures posed by joint angles + outfit colours, smooth lofted bodies close up (LOD 0), painted unwrapped garment atlas + normal map (`engine/people-atlas.ts`, `people` material; zips, pockets, seams, face) - `spectator` (24 standing + 18 sitting / squatting at corner fans),
   `mechanic`, `crew`, `driver`, `marshal` (flag, sign, radio), `photographer`, `visitor` (12 personas: ages, sizes, dresses, kids); test `people`.
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)
