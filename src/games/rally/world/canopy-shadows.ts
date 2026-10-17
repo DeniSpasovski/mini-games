@@ -20,14 +20,20 @@ const SCAN = 1500;
 /** Minimum time between texture uploads (ms). */
 const UPLOAD_EVERY = 1500;
 /**
- * The local window: a finer shadow texture (LOCAL_RES m per texel, LOCAL_N texels a side) that follows the camera,
+ * The local window: a finer shadow texture (LOCAL_RES m per texel, LOCAL_N texels a side) that follows the camera ahead,
  * so the road (5-6 m wide) gets readable tree shadows well past the sun's shadow map. Rebuilt from the scatter chunks
  * already generated after the camera moved LOCAL_MOVE m (or new chunks came in), in slices of LOCAL_BUDGET ms.
  */
-const LOCAL_RES = 1.5;
+const LOCAL_RES = 1;
 const LOCAL_N = 512;
-const LOCAL_MOVE = 64;
+const LOCAL_MOVE = 24;
 const LOCAL_BUDGET = 1.5;
+/** New chunks re-run the rebuild at most this often (ms) once the window holds something. */
+const LOCAL_REFRESH = 600;
+/** A finished rebuild fades in over this long (ms) instead of swapping, so shadows do not pop in. */
+const LOCAL_FADE = 250;
+/** The window's centre sits this far ahead of the camera, so it reaches ~300 m down the road and ~65 m behind. */
+const LOCAL_AHEAD = 130;
 /** Shadow density of one crown in the local window (overlaps add up to 1). */
 const LOCAL_DENSITY = 0.85;
 const smooth = (a: number, b: number, x: number): number => {
@@ -57,8 +63,13 @@ export class CanopyShadows {
     invD: 1 / (LOCAL_N * LOCAL_RES),
   };
   private localData = new Uint8Array(LOCAL_N * LOCAL_N);
+  /** The window being faded from (the old one, shifted onto the new origin) and to (the rebuilt one). */
+  private fadeFrom = new Uint8Array(LOCAL_N * LOCAL_N);
+  private fadeTo = new Uint8Array(LOCAL_N * LOCAL_N);
+  private fadeStart = -1;
   private localJob: Generator<void> | null = null;
   private localAt = { x: Infinity, z: Infinity };
+  private localDir = { x: 0, z: 1 };
   private localStale = true;
   /** x0, z0 (m) and 1 / width, 1 / depth (1/m) of the texture on the ground. */
   readonly map = { x0: 0, z0: 0, invW: 0, invD: 0 };
@@ -154,7 +165,11 @@ export class CanopyShadows {
   }
 
   /** Splat newly generated scatter chunks; upload when due. Cheap (~0.1 ms) once everything near is in. */
-  update(now = performance.now(), focus?: { x: number; z: number }): void {
+  update(
+    now = performance.now(),
+    focus?: { x: number; z: number },
+    heading?: { x: number; z: number },
+  ): void {
     const scatter = this.world.scatter;
     for (let n = 0; n < SCAN && this.todoCount > 0; n++) {
       if (this.cursor >= this.todoCount) this.cursor = 0;
@@ -171,7 +186,8 @@ export class CanopyShadows {
       this.todo[i] = this.todo[this.todoCount * 2];
       this.todo[i + 1] = this.todo[this.todoCount * 2 + 1];
     }
-    if (focus) this.updateLocal(focus, now);
+    if (focus) this.updateLocal(focus, now, heading);
+    this.fadeLocal(now);
     if (this.dirtyMin >= 0 && now - this.lastUpload >= UPLOAD_EVERY) {
       const a = this.dirtyMin * this.nx;
       const b = (this.dirtyMax + 1) * this.nx;
@@ -183,18 +199,32 @@ export class CanopyShadows {
   }
 
   /** Start / continue the local window rebuild (one slice per call). */
-  private updateLocal(focus: { x: number; z: number }, now: number): void {
+  private updateLocal(
+    focus: { x: number; z: number },
+    now: number,
+    heading?: { x: number; z: number },
+  ): void {
     if (!this.localJob) {
       const dx = focus.x - this.localAt.x;
       const dz = focus.z - this.localAt.z;
-      const moved = dx * dx + dz * dz >= LOCAL_MOVE * LOCAL_MOVE;
-      // New chunks only re-run it while the window still holds nothing (the first fill) or every few seconds.
-      if (!moved && !(this.localStale && now - this.lastLocal > 3000)) return;
+      const hl = heading ? Math.hypot(heading.x, heading.z) : 0;
+      const hx = hl > 0 ? heading!.x / hl : this.localDir.x;
+      const hz = hl > 0 ? heading!.z / hl : this.localDir.z;
+      const turned = hx * this.localDir.x + hz * this.localDir.z < 0.9;
+      const moved = dx * dx + dz * dz >= LOCAL_MOVE * LOCAL_MOVE || turned;
+      // New chunks re-run it every LOCAL_REFRESH ms (the rebuilt window fades in, so shadows do not pop).
+      if (!moved && !(this.localStale && now - this.lastLocal > LOCAL_REFRESH))
+        return;
       this.localStale = false;
       this.lastLocal = now;
       this.localAt.x = focus.x;
       this.localAt.z = focus.z;
-      this.localJob = this.localRebuild(focus.x, focus.z);
+      this.localDir.x = hx;
+      this.localDir.z = hz;
+      this.localJob = this.localRebuild(
+        focus.x + hx * LOCAL_AHEAD,
+        focus.z + hz * LOCAL_AHEAD,
+      );
     }
     const t0 = performance.now();
     while (performance.now() - t0 < LOCAL_BUDGET)
@@ -222,10 +252,43 @@ export class CanopyShadows {
       }
       yield;
     }
-    const data = this.localData;
-    for (let k = 0; k < data.length; k++) data[k] = Math.round(grid[k] * 255);
+    // Fade from what is shown now (same ground, shifted onto the new origin) to the rebuilt window.
+    const to = this.fadeTo;
+    for (let k = 0; k < to.length; k++) to[k] = Math.round(grid[k] * 255);
+    const from = this.fadeFrom;
+    from.fill(0);
+    const sx = Math.round((x0 - this.localMap.x0) / LOCAL_RES);
+    const sz = Math.round((z0 - this.localMap.z0) / LOCAL_RES);
+    const shown = this.localData;
+    for (let j = Math.max(0, -sz); j < LOCAL_N && j + sz < LOCAL_N; j++) {
+      const i0 = Math.max(0, -sx);
+      const i1 = Math.min(LOCAL_N, LOCAL_N - sx);
+      if (i0 < i1)
+        from.set(
+          shown.subarray(
+            (j + sz) * LOCAL_N + i0 + sx,
+            (j + sz) * LOCAL_N + i1 + sx,
+          ),
+          j * LOCAL_N + i0,
+        );
+    }
     this.localMap.x0 = x0;
     this.localMap.z0 = z0;
+    this.fadeStart = performance.now();
+    this.fadeLocal(this.fadeStart);
+  }
+
+  /** Blend the window from the old shadows to the rebuilt ones (one texture upload per frame while it runs). */
+  private fadeLocal(now: number): void {
+    if (this.fadeStart < 0) return;
+    const t = Math.min(1, (now - this.fadeStart) / LOCAL_FADE);
+    const a = this.fadeFrom;
+    const b = this.fadeTo;
+    const d = this.localData;
+    if (t >= 1) {
+      d.set(b);
+      this.fadeStart = -1;
+    } else for (let k = 0; k < d.length; k++) d[k] = a[k] + (b[k] - a[k]) * t;
     this.local.needsUpdate = true;
   }
 

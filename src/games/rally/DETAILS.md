@@ -105,8 +105,8 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   emissive well over it). Not done: high / low beam key.
 - **Sky / tone mapping:** drifting clouds (`cloudCoverage`, `cloudSpeed`); ACES, or `toneMapping: 'agx' | 'neutral'` per map.
 - **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark outside the
-  shadow box (`world/canopy-shadows.ts`: a coarse whole-map texture plus a 1.5 m local window of 768 m around the camera,
-  rebuilt from the generated scatter chunks every 64 m, so the road gets tree shadows far past the shadow map), height fog
+  shadow box (`world/canopy-shadows.ts`: a coarse whole-map texture plus a 1 m local window of 512 m centred 130 m ahead of the camera (~300 m down the road),
+  rebuilt from the generated scatter chunks every 24 m or 0.6 s of new chunks and faded in over 0.25 s, so the road gets tree shadows far past the shadow map), height fog
   warming towards the sun, wind, leaf translucency. Custom shaders must call `addWorldUniforms(shader)`. Flag cloth
   (`defines.RALLY_FLAG`: materials `flag` = the printed flag of North Macedonia, texture `flag_mk`; `fan_flag`) turns downwind
   and ripples; print the pattern on the cloth, never lay geometry over it (the wind shader moves vertices, not surfaces).
@@ -421,7 +421,7 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   the view). Sprites cast no shadow: the crown proxy does (`trees/proxy.ts` `crownProxy`, a ~100-triangle lathe
   through the sprites' reach, drawn in the shadow pass only, leafy holes from a world-space noise); a sprite looks
   its shadow up most of the way out of its crown's ellipsoid towards the sun (`SELF_SHADOW`). Trees cast real
-  shadows within 60 m only (`TREE_SHADOW_DISTANCE`, game/rally-game.ts); the canopy shadows fade in over its last
+  shadows within 87 % of the sun box's reach ahead (`treeShadowDistance`, game/rally-game.ts: 58 / 78 / 188 m; High's box is centred 0.8 of its 120 m half-size ahead, `shadowAhead`); the canopy shadows fade in over its last
   15 m (`setCanopyFade`).
 - Tree occlusion (`trees/occlusion.ts`): the job builds a terrain horizon map from the camera (1024 rays over a lazy 8 m
   height grid) and leaves out trees beyond 140 m that a hill hides from every camera position in its window; margins
@@ -474,7 +474,7 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 
 **Shadows**
 
-- Only LOD0 casts shadows, so every LOD0 radius must reach the far edge of the shadow box: 1.5 x `quality.shadowExtent`.
+- Only LOD0 casts shadows, so every LOD0 radius must reach the far edge of the shadow box: `(1 + shadowAhead) x quality.shadowExtent` (216 m on High).
 - The shadow pass is triangle bound: hidden parts do not cast (car interior, parked vehicles' glass / chrome / details). An
   `InstancedMesh` spanning a whole area is never culled, so each of its casters draws every frame.
 

@@ -129,8 +129,10 @@ export interface GameOptions {
 }
 
 const STEP = 1 / PHYSICS_HZ;
-/** Trees cast real shadows within this distance (m); the baked canopy shadows fade in over its last quarter. */
-const TREE_SHADOW_DISTANCE = 60;
+/** Trees cast real shadows out to this share of how far the sun's shadow box reaches ahead of the car. */
+const TREE_SHADOW_REACH = 0.87;
+const treeShadowDistance = (q: QualitySettings): number =>
+  q.shadowExtent * (1 + (q.shadowAhead ?? 0.5)) * TREE_SHADOW_REACH;
 /** Trees farther than this from the stage road (m) are only ever impostors (trees/draw.ts `fakeFrom`). */
 const FAKE_TREES_FROM = 250;
 
@@ -210,6 +212,7 @@ export class RallyGame {
   private gravelAcc = [0, 0, 0, 0];
   /** Far tree shadows, filled in as the streamer generates scatter (world/canopy-shadows.ts). */
   private canopy!: CanopyShadows;
+  private readonly canopyDir = new Vector3();
   private hazeAcc = 0;
   audio: CarAudio;
   telemetry!: Telemetry;
@@ -358,8 +361,9 @@ export class RallyGame {
       maxDistance: q.viewDistance,
       forestDistance: q.forestDistance,
       // Real tree shadows only near the camera; the baked canopy shadows take over from there (setCanopyFade).
-      shadowDistance: TREE_SHADOW_DISTANCE,
+      shadowDistance: treeShadowDistance(q),
       shadowExtent: q.shadowExtent,
+      shadowAhead: q.shadowAhead,
       fakeFrom: FAKE_TREES_FROM,
     });
     this.scene.add(this.trees.group);
@@ -389,7 +393,7 @@ export class RallyGame {
       map.environment.canopyShadow ?? 0.6,
       { texture: this.canopy.local, map: this.canopy.localMap },
     );
-    setCanopyFade(TREE_SHADOW_DISTANCE * 0.75, TREE_SHADOW_DISTANCE);
+    setCanopyFade(treeShadowDistance(q) * 0.75, treeShadowDistance(q));
     setForest(forestColor(this.treeLibrary), q.forestDistance);
     this.breakables = new Breakables(this.world.scatter, (x, z) =>
       this.world.heightAt(x, z),
@@ -1384,7 +1388,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
   /** Canopy shadows (global map + the local window around the camera). */
   private updateCanopy(): void {
     const p = this.camera.position;
-    this.canopy.update(performance.now(), p);
+    this.camera.getWorldDirection(this.canopyDir);
+    this.canopy.update(performance.now(), p, this.canopyDir);
     setCanopyLocalMap(this.canopy.localMap);
   }
 

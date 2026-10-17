@@ -10,6 +10,8 @@ export interface QualitySettings {
   shadowMapSize: number;
   /** Half-size of the shadow camera box around the focus point (m). */
   shadowExtent: number;
+  /** The shadow box is centred this share of its half-size ahead of the camera (default 0.5). */
+  shadowAhead?: number;
   /** Terrain chunks are drawn up to this distance (m). */
   viewDistance: number;
   /** Multiplies every asset LOD distance (and therefore draw distance) and the terrain LOD bands. */
@@ -62,7 +64,8 @@ export const QUALITY: Record<QualityName, QualitySettings> = {
     maxPixelRatio: 2,
     antialias: true,
     shadowMapSize: 4096,
-    shadowExtent: 75,
+    shadowExtent: 120,
+    shadowAhead: 0.8,
     viewDistance: 2400,
     lodScale: 1.3,
     treeLodScale: 1.3,
