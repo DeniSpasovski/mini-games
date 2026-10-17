@@ -14,6 +14,7 @@ import type {
 import data from './data.json';
 import horizon from './horizon.json';
 import { galichicaInfo as info } from './info';
+import { galichicaLotPads } from './service-park';
 
 /**
  * "Galichica" - the pass road over Galichica mountain (national park, North Macedonia) between Lake Ohrid (west, 693 m)
@@ -51,6 +52,8 @@ export const galichicaMap: MapDef = {
     // Limestone: steep cut slopes show bare rock.
     rockSlope: [0.6, 1.0],
     flatAreas: [],
+    // The parc fermé lay-bys behind the Ohrid and Prespa starts (./service-park.ts).
+    pads: galichicaLotPads(),
   },
   landcover: {
     ...(data.landcover as Omit<LandcoverDef, 'splat' | 'fields'>),

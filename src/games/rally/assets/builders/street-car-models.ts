@@ -1,6 +1,7 @@
 import { BufferAttribute, BufferGeometry, Color } from 'three';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { STREET_CAR_DATA } from './street-cars.data';
+import { SERVICE_VEHICLE_DATA } from './service-vehicles.data';
+import { STREET_CAR_DATA, type StreetCarData } from './street-cars.data';
 
 /**
  * The background cars: vehicles of three CC BY packs (credits: THIRD-PARTY.md), simplified and packed by
@@ -13,6 +14,9 @@ const OLD_COUNT = 5;
 export const STREET_CAR_COUNT = STREET_CAR_DATA.length;
 /** Index of the sedan (the taxi and police car). */
 export const SEDAN = STREET_CAR_DATA.findIndex((d) => d.id === 'sedan');
+/** Index of the street car `id` (`pickup`, `minivan`...), -1 when there is none. */
+export const streetCarIndex = (id: string): number =>
+  STREET_CAR_DATA.findIndex((d) => d.id === id);
 
 /** sRGB byte -> linear. */
 const LINEAR = new Float32Array(256).map(
@@ -21,6 +25,9 @@ const LINEAR = new Float32Array(256).map(
 
 export interface StreetCarShape {
   old: boolean;
+  /** Length and width (m), mirrors included. */
+  length: number;
+  width: number;
   /** Height of the roof (m) and its middle along the car. */
   height: number;
   roofX: number;
@@ -28,6 +35,11 @@ export interface StreetCarShape {
   sideZ: number;
   /** A fresh geometry painted in `paintHex` (non-indexed: position, normal, uv, color). */
   geometry: (paintHex: string) => BufferGeometry;
+  /**
+   * The same model as two geometries (non-indexed, scaled by `scale` about the ground point under the middle): the
+   * paint triangles (white, for an instance colour) and the rest in their baked colours.
+   */
+  parts: (scale?: number) => { paint: BufferGeometry; fixed: BufferGeometry };
 }
 
 interface Decoded {
@@ -35,6 +47,8 @@ interface Decoded {
   col: Uint8Array;
   idx: Uint16Array;
   paintVerts: number;
+  /** Triangles of the paint group (they come first). */
+  paintTris: number;
 }
 
 function decode(b64: string): Decoded {
@@ -56,18 +70,42 @@ function decode(b64: string): Decoded {
   const idx = new Uint16Array(count);
   for (let i = 0; i < count; i++)
     idx[i] = dv.getUint16(idxAt + 4 + i * 2, true);
-  return { pos, col, idx, paintVerts };
+  let paintTris = 0;
+  while (
+    paintTris * 3 < count &&
+    idx[paintTris * 3] < paintVerts &&
+    idx[paintTris * 3 + 1] < paintVerts &&
+    idx[paintTris * 3 + 2] < paintVerts
+  )
+    paintTris++;
+  return { pos, col, idx, paintVerts, paintTris };
 }
 
-const cache = new Map<string, StreetCarShape>();
+const caches = new WeakMap<StreetCarData[], Map<string, StreetCarShape>>();
 
 /** The model `index` (wrapped) at `lod` (0 near, 1 far). */
-export function streetCarModel(index: number, lod: number): StreetCarShape {
-  const i = ((index % STREET_CAR_COUNT) + STREET_CAR_COUNT) % STREET_CAR_COUNT;
+export const streetCarModel = (index: number, lod: number): StreetCarShape =>
+  vehicleModel(STREET_CAR_DATA, index, lod);
+
+/** A van or truck of pack 7 by id (`van_low`, `van_high`, `minibus`, `box_truck`, `flatbed`). */
+export function serviceVehicleModel(id: string, lod: number): StreetCarShape {
+  const index = SERVICE_VEHICLE_DATA.findIndex((d) => d.id === id);
+  if (index < 0) throw new Error(`Unknown service vehicle "${id}"`);
+  return vehicleModel(SERVICE_VEHICLE_DATA, index, lod);
+}
+
+function vehicleModel(
+  list: StreetCarData[],
+  index: number,
+  lod: number,
+): StreetCarShape {
+  const i = ((index % list.length) + list.length) % list.length;
   const key = `${i}:${lod ? 1 : 0}`;
+  let cache = caches.get(list);
+  if (!cache) caches.set(list, (cache = new Map()));
   const hit = cache.get(key);
   if (hit) return hit;
-  const d = decode(STREET_CAR_DATA[i].lods[lod ? 1 : 0]);
+  const d = decode(list[i].lods[lod ? 1 : 0]);
   let height = 0;
   for (let v = 0; v < d.pos.length; v += 3)
     height = Math.max(height, d.pos[v + 1]);
@@ -86,12 +124,12 @@ export function streetCarModel(index: number, lod: number): StreetCarShape {
   }
   side.sort((a, b) => a - b);
   const shape: StreetCarShape = {
-    old: i < OLD_COUNT,
+    old: list === STREET_CAR_DATA && i < OLD_COUNT,
+    length: list[i].length,
+    width: list[i].width,
     height,
     roofX: roofN ? roofX / roofN : 0,
-    sideZ: side.length
-      ? side[Math.floor(side.length / 2)]
-      : STREET_CAR_DATA[i].width / 2,
+    sideZ: side.length ? side[Math.floor(side.length / 2)] : list[i].width / 2,
     geometry: (paintHex) => {
       const g = new BufferGeometry();
       g.setAttribute('position', new BufferAttribute(d.pos, 3));
@@ -121,6 +159,24 @@ export function streetCarModel(index: number, lod: number): StreetCarShape {
       for (const name of Object.keys(out.attributes))
         if (!['position', 'normal', 'uv', 'color'].includes(name))
           out.deleteAttribute(name);
+      return out;
+    },
+    parts: (scale = 1) => {
+      const all = shape.geometry('#ffffff');
+      const total = all.getAttribute('position').count;
+      const cut = d.paintTris * 3;
+      const slice = (from: number, to: number): BufferGeometry => {
+        const out = new BufferGeometry();
+        for (const name of ['position', 'normal', 'uv', 'color']) {
+          const a = all.getAttribute(name);
+          const arr = a.array.slice(from * a.itemSize, to * a.itemSize);
+          out.setAttribute(name, new BufferAttribute(arr, a.itemSize));
+        }
+        if (scale !== 1) out.scale(scale, scale, scale);
+        return out;
+      };
+      const out = { paint: slice(0, cut), fixed: slice(cut, total) };
+      all.dispose();
       return out;
     },
   };
