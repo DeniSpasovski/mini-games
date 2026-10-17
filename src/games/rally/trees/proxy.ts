@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry } from 'three';
 import type { SpriteData } from './mesh';
+import { headingAt, packSprite } from './sprite-attr';
 
 /**
  * Cheap stand-ins derived from a crown's sprites at load (trees/Performance.md#mitigations), nothing baked or cached:
@@ -72,10 +73,14 @@ export function quadSprites(s: SpriteData): {
       nrm.set(s.normal.subarray(v0 * 3, v0 * 3 + 3), q * 3);
       col.set(s.color.subarray(v0 * 3, v0 * 3 + 3), q * 3);
       wind.set(s.wind.subarray(v0 * 4, v0 * 4 + 4), q * 4);
-      spr[q * 4] = x;
-      spr[q * 4 + 1] = y;
-      spr[q * 4 + 2] = s.sprite[v0 * 4 + 2];
-      spr[q * 4 + 3] = s.sprite[v0 * 4 + 3];
+      packSprite(
+        x,
+        y,
+        s.sprite[v0 * 4 + 2],
+        headingAt(s.heading, v0),
+        spr,
+        q * 4,
+      );
       uv[q * 2] = u;
       uv[q * 2 + 1] = w;
       rank[q] = s.rank[v0];

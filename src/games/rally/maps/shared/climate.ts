@@ -1,20 +1,44 @@
-import { sunAt } from '../../engine/environment';
-import { climateFor, type Climate } from '../../physics/tyre-temp';
-import type { EnvironmentDef } from './types';
+import { DEFAULT_SEASON, type Season } from '../../season';
+import type { EnvironmentDef, StageDef } from './types';
 
-/**
- * Tyre-temperature climate of a stage (physics/tyre-temp.ts): `airTemp`, the sun height (`timeOfDay` or
- * `sunElevation`; pass the game's effective one after `?tod=`) and the clouds.
- */
-export function stageClimate(
+/** Season of a map's own look as authored (`?season=` is applied by the game). */
+export function mapSeason(env: EnvironmentDef): Season {
+  return env.season ?? DEFAULT_SEASON;
+}
+
+/** Season a stage opens in: its own `season`, else its map's. */
+export function stageSeason(stage: {
+  season?: StageDef['season'];
+  environment: EnvironmentDef;
+}): Season {
+  return stage.season ?? mapSeason(stage.environment);
+}
+
+/** Month (1-12) a season is driven in unless `EnvironmentDef.months` says otherwise. */
+export const DEFAULT_MONTHS: Readonly<Record<Season, number>> = {
+  spring: 4,
+  summer: 7,
+  autumn: 10,
+};
+export const MONTH_NAMES = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+] as const;
+
+/** Month (1-12) a map is driven in `season` (default the map's own). */
+export function seasonMonth(
   env: EnvironmentDef,
-  sunElevation?: number,
-  air = env.airTemp ?? 20,
-): Climate {
-  const elevation =
-    sunElevation ??
-    (env.timeOfDay !== undefined
-      ? sunAt(env.timeOfDay).elevation
-      : env.sunElevation);
-  return climateFor(air, elevation, env.cloudCoverage ?? 0.4);
+  season: Season = mapSeason(env),
+): number {
+  return env.months?.[season] ?? DEFAULT_MONTHS[season];
 }

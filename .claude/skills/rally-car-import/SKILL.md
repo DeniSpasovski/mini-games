@@ -111,6 +111,9 @@ cambered: de-camber before centring (`stl-wheel-extract.py` `axis`, worked examp
 A GLB rim's barrel is often a one-sided tube: it vanishes from the axle side and the rim looks see-through (ground shows
 between the spokes). Look into the dish from an angle; fix with `wheel-stl-to-glb.mjs --two-sided 20` (back faces for open
 shells) and `--bridge x0,r0,x1,r1` when the barrel stops short of the lip (worked example `cars/peugeot-206/`).
+Lamps: check them in the dark too - `&tod=1&beam=0&view=rear&lamps=on` (running lamps; `off` = dark), `lamps=brake`, `lamps=reverse`, and `tod=17.5`
+(evening). A bright red glow turns salmon pink under the night tone mapping (AgX): glow maps in pure red, and a `LampNight` (`RED_NIGHT`,
+`LENS_NIGHT`...) on every red lamp material in `part-materials.ts`; that also gives the lamp its halo (`lamp-halo.ts`).
 Only then start on parts and paint - texture work on a bad mesh is wasted twice.
 
 ## 4. Split accent parts off the body (never paint them)
@@ -417,6 +420,14 @@ whenever the GLB is regenerated.
 6. Check: `tests/rally/car-fallback.test.ts` (size, arches, glass, lamps, UVs) and `tests/rally/street-car.test.ts`
    (triangle budget) pass; look at `car-viewer.html?car=<id>&fallback=1` (glass over the windows, lamps on the nose and
    tail, livery) and `asset-debug.html?asset=street_car&variant=<n>`. Tweak `--tol` only if the outline looks wrong.
+
+## 6d. Service-park copy (released cars only)
+
+The service park draws its team cars from a cheap copy of the final GLB. When the car is released (no `hideInProd`):
+`node scripts/car-model/park-lods.mjs <id>` writes `public/models/cars/<id>_park.glb` (needs the livery atlas in
+`model.source.json`; every material name needs a colour in the script's `PART_COLORS`), then add the id to `PARK_CARS` in the
+script and to `PARK_CAR_IDS` in `world/park-cars.ts`. Re-run it whenever the GLB or its atlas changes. Check it in
+`map-viewer.html?map=ajvatovci` at the lots; `tests/rally/park-cars.test.ts` checks size and budgets. Details: `DETAILS.md` "Park cars".
 
 ## 7. Done
 

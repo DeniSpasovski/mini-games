@@ -8,7 +8,7 @@ import { getLayout, MILEKS_CORNERS, ROTUNDA_DEPTH } from './layout';
 import { CYPRESS, px } from './trace';
 
 /**
- * The start row's trees and shrubs: rally assets (`poplar_tree` standing in for cypress, `oak_tree`
+ * The start row's trees and shrubs: rally assets (`hedge_cypress` rows and hedges, `oak_tree`
  * for the garden trees, `bush`) placed as fixed scatter instances, so they get the game's LOD,
  * instancing, shadows and colliders. Pure (runs in node); `ground` takes WORLD coordinates.
  */
@@ -35,6 +35,37 @@ export function startRowInstances(
   };
   const layout = getLayout();
   const rng = new Rng(77);
+  /** A row of hedge cypress along a fence edge, 1.2 m inside it (towards `centre`), one every `step` m for `length` m. */
+  const fenceRow = (
+    a: Vector2,
+    b: Vector2,
+    centre: Vector2,
+    step: number,
+    salt: number,
+    length = a.distanceTo(b),
+  ) => {
+    const v = b.clone().sub(a).normalize();
+    const inward = new Vector2(-v.y, v.x).multiplyScalar(1.2);
+    if (inward.dot(centre.clone().sub(a)) < 0) inward.negate();
+    for (let d = 0; d <= Math.min(length, a.distanceTo(b)); d += step)
+      plant(
+        'hedge_cypress',
+        a.clone().addScaledVector(v, d).add(inward),
+        0.9 + rng.next() * 0.2,
+        salt,
+      );
+  };
+  /** The edge of a fence run furthest from the street (the south lots' back, at the motorway). */
+  const backEdge = (run: Vector2[]) => {
+    let back = 1;
+    for (let i = 2; i < run.length; i++)
+      if (run[i].y + run[i - 1].y > run[back].y + run[back - 1].y) back = i;
+    return back;
+  };
+  const centreOf = (polygon: Vector2[]) =>
+    polygon
+      .reduce((s, p) => s.add(p), new Vector2())
+      .divideScalar(polygon.length);
 
   // Rows of cypress-like trees where the image shows them: between lots and along the field edges.
   for (const [from, to] of CYPRESS) {
@@ -53,35 +84,20 @@ export function startRowInstances(
         )
       )
         continue;
-      plant('poplar_tree', at, 0.5 + rng.next() * 0.2, 1);
+      plant('hedge_cypress', at, 0.9 + rng.next() * 0.2, 1);
     }
   }
 
-  // South 6: a cypress hedge round its fence, and four small trees in front of the round glass.
+  // South 6: cypress along its two side fences (none at the back), and four small trees in front of the round glass.
   for (const yard of layout.yards) {
     const { plot, polygon } = yard;
     if (plot.style !== 'office') continue;
-    const centre = polygon
-      .reduce((s, p) => s.add(p), new Vector2())
-      .divideScalar(polygon.length);
-    for (const run of yard.fence)
-      for (let i = 1; i < run.length; i++) {
-        const a = run[i - 1];
-        const c = run[i];
-        const v = c.clone().sub(a);
-        const n = Math.max(Math.floor(v.length() / 2.4), 1);
-        const inward = centre.clone().sub(a).normalize().multiplyScalar(1.2);
-        for (let k = 0; k <= n; k++)
-          plant(
-            'poplar_tree',
-            a
-              .clone()
-              .addScaledVector(v, k / n)
-              .add(inward),
-            0.4 + rng.next() * 0.2,
-            3,
-          );
-      }
+    const centre = centreOf(polygon);
+    for (const run of yard.fence) {
+      const back = backEdge(run);
+      for (let i = 1; i < run.length; i++)
+        if (i !== back) fenceRow(run[i - 1], run[i], centre, 3.2, 3);
+    }
     const north = plot.corners
       .map(([x, z]) => new Vector2(x, z))
       .sort((p, q) => p.y - q.y)
@@ -91,14 +107,21 @@ export function startRowInstances(
     const out2 = new Vector2(along.y, -along.x);
     for (const u of [-3.3, -1.1, 1.1, 3.3])
       plant(
-        'poplar_tree',
+        'hedge_cypress',
         mid
           .clone()
           .addScaledVector(out2, ROTUNDA_DEPTH + 3)
           .addScaledVector(along, u),
-        0.3 + rng.next() * 0.08,
+        0.55 + rng.next() * 0.1,
         4,
       );
+  }
+
+  // South 4: a short row of cypress along its east fence from the street, where its cars park (none at the back).
+  for (const yard of layout.yards) {
+    if (yard.plot.name !== 'south 4') continue;
+    const [a, b] = yard.fence[0];
+    fenceRow(a, b, centreOf(yard.polygon), 2.2, 7, 24);
   }
 
   // The Mileks front garden: shrubs along the inside of the low wall and two small trees.

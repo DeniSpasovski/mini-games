@@ -55,6 +55,7 @@ generated deterministically from it. There is no map editor on purpose — edit 
 - `cornerFans: {}`: tape + spectators + flags on the inside of tight corners over the whole stage (`every`, `maxRadius`,
   `chance`, `fans`, `flagChance`, `tapeOffset`; `world/corner-fans.ts`). Use it on rural stages; hand-placed crowds
   (`roadside` `at`) stay for the big spots.
+- `servicePark`: team bays at the start on a `ServiceLot` (`maps/shared/service-lot.ts`); add a `terrain.pads` entry with `servicePad` for the same rectangle (see `maps/ajvatovci/service-park.ts`).
 - `props`: explicit, either `x/z` or `along` (+`lateral`, negative `along` = from the end).
 - Asset ids must exist in `assets/catalog.ts` (see the rally-content skill).
 
@@ -69,9 +70,10 @@ generated deterministically from it. There is no map editor on purpose — edit 
 4. Drive: `/games/rally/?stage=<id>&spawn=<metres along the stage>&mute=1` to test a section directly.
 5. **No sound while testing**: add `mute=1` to every game URL you open (see AGENTS.md "Sound while testing").
 6. **Stage card** (every stage, stage select; a stage without one is built live in the menu, dev warning): NEVER re-bake on your own - only when the user asks. Then
-   `/games/rally/?bakecard=<stage id>&mute=1` (or `?bakecards=1`) on `npm run dev:noreload` (launch config `portal-dev-noreload`;
+   `/games/rally/?bakecard=<stage id>&season=all&mute=1` (or `?bakecards=1&season=all`; `season=` one of spring / summer / autumn
+   bakes just that picture, none = the map's own season; one `<stage id>-<season>.jpg` per season in `environment.groundTints`) on `npm run dev:noreload` (launch config `portal-dev-noreload`;
    on the normal server each saved card - or another session's edit - reloads the page and restarts / cuts off the bake),
-   wait for "saved", and the changed `maps/<map>/preview/<stage>.{json,jpg}` go in the commit. An out-of-date card only warns in the dev console -
+   wait for "saved", and the changed `maps/<map>/preview/<stage>.json` + `<stage>-<season>.jpg` go in the commit. An out-of-date card only warns in the dev console -
    mention it to the user. `stageCardHash` covers only what the card draws: text (names, descriptions, tyre, links) and
    `previewRelief` (e.g. 1.8 on a flat map) need no re-bake. Code: `tools/stage-card*.ts`.
 
@@ -124,7 +126,8 @@ scripts/realmap/<id>.json` (config `trace`: screenshot, start / end marker pixel
    Junctions: side roads are joined to the stage road automatically (`world/junctions.ts`); add
    stage `closures: { asset: 'road_barrier', length: 2.2, setback: 4 }` (+ `stageMargin` on a map with several stages) to
    close their mouths like a real stage. Check them in game (`/games/rally/?stage=<id>&spawn=<along>`; `__rally.world.gen.junctions` lists every one).
-   Season look: `environment.groundTint` (`grass` + `amount`, `crop` = ripe crop colour, `moisture` = wet hollows / dry
+   Season month: `environment.months` (`{ spring: 4, summer: 7, autumn: 10 }`, the default) says which month each season is driven in; shown on the stage screen, and each stage's `temps` (`[air, road]` per season and time-of-day slot in its `stages.ts`; DETAILS.md "Temperatures", figures in PHYSICS.md "Climate") are researched for it, at the stage start (higher up the car is colder, 6.5 K per km). A new stage needs a full table.
+   Season look: `environment.groundTint` (the map's own season, `environment.season`; `groundTints` = the other two, same fields; a stage opens in another one with `StageDef.season`; `grass` + `amount`, `crop` = ripe crop colour, `moisture` = wet hollows / dry
    ridges strength, default 1); a `fields.palette` entry
    whose weights sum to < 1 leaves the rest as ripe crop (`[0, 0, 0, 0]` = wheat field, drives like grass). Match the
    detail grass cards to the ground: `spring_grass` (bright green), `dry_grass` (golden), `grass_tuft` (olive,

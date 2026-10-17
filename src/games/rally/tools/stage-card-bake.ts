@@ -13,8 +13,14 @@ import { Environment } from '../engine/environment';
 import type { QualitySettings } from '../engine/quality';
 import { worldUniforms } from '../engine/world-shading';
 import { getStage, loadStage } from '../maps';
+import { mapSeason } from '../maps/shared/climate';
+import { mapInSeason } from '../maps/shared/season-map';
+import type { Season } from '../season';
+import { isTreeType, speciesOfType } from '../trees/species';
+import { seasonal } from '../trees/seasons';
+import { generateVariant, registerVariant } from '../trees/variants';
 import { AerialTerrain } from '../world/aerial-terrain';
-import { AerialTrees } from '../world/aerial-trees';
+import { AerialTrees, resetCanopies } from '../world/aerial-trees';
 import { InstanceStreamer } from '../world/instance-streamer';
 import { roadMeshJob } from '../world/road-mesh';
 import { setGroundMoisture, setGroundTint } from '../world/terrain-material';
@@ -43,22 +49,28 @@ const breathe = () => new Promise<void>((r) => setTimeout(r, 0));
  * DEV ONLY (dynamically imported by the menu with `?bakecards=1` / `?bakecard=<id>`): bake a large map's stage card
  * (stage-card.ts) and save it through the dev server (`/__dev/stage-card`, rsbuild.config.ts) into
  * `maps/<id>/preview/`. Full scatter density (the old live card thinned it), trees as canopy discs, one sun shadow
- * map over the whole card so trees / buildings / hills cast long shadows into the image.
+ * map over the whole card so trees / buildings / hills cast long shadows into the image. `season` = the picture's
+ * season (default: the map's own, which writes the card's data too; every season writes `<stage>-<season>.jpg`).
  */
 export async function bakeStageCard(
   renderer: WebGLRenderer,
   quality: QualitySettings,
   stageId: string,
+  season?: Season,
   log: (s: string) => void = console.info,
 ): Promise<string> {
   const info = getStage(stageId);
   if (info.id !== stageId) throw new Error(`unknown stage ${stageId}`);
-  const { map, stage } = await loadStage(stageId);
+  const { map: full, stage } = await loadStage(stageId);
+  const own = mapSeason(full.environment);
+  season ??= own;
+  const map = mapInSeason(full, season);
   const mapId = stageId;
   const t0 = performance.now();
-  log(`${mapId}: world`);
+  log(`${mapId} ${season}: world`);
   await breathe();
   const world = new World(map, stage);
+  seasonCanopies(world.placedAssets(), season);
   const box = stageBox(world);
 
   // Card rectangle: the route's bounding box + CARD_MARGIN, inside the map's terrain, snapped to the height grid.
@@ -153,6 +165,8 @@ export async function bakeStageCard(
   });
   streamer.filter = (asset) => getAssetMeta(asset).category !== 'vegetation';
   content.add(streamer.group);
+  streamer.update(center); // starts loading the park's cars
+  await streamer.ready;
   while (!streamer.commits) {
     streamer.update(center);
     await breathe();
@@ -206,6 +220,7 @@ export async function bakeStageCard(
   const data: StageCardData = {
     version: STAGE_CARD_VERSION,
     hash: stageCardHash(map, stage),
+    ...(own !== 'summer' ? { season: own } : {}),
     map: mapId,
     rect,
     grid: encodeHeights(heights, nx, nz),
@@ -235,7 +250,7 @@ export async function bakeStageCard(
 
   log(`${mapId}: save`);
   const res = await fetch(
-    `/__dev/stage-card?map=${encodeURIComponent(info.map)}&stage=${encodeURIComponent(stageId)}`,
+    `/__dev/stage-card?map=${encodeURIComponent(info.map)}&stage=${encodeURIComponent(stageId)}&season=${season}&own=${own}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -244,7 +259,20 @@ export async function bakeStageCard(
   );
   const msg = await res.text();
   if (!res.ok) throw new Error(`${mapId}: ${msg}`);
-  return `${mapId}: ${msg} (${w} x ${h}, ${((performance.now() - t0) / 1000).toFixed(1)} s)`;
+  return `${mapId} ${season}: ${msg} (${w} x ${h}, ${((performance.now() - t0) / 1000).toFixed(1)} s)`;
+}
+
+/**
+ * The canopy discs take their colour from the tree variants' registered summaries (trees/variants.ts); register the
+ * season's (same shapes, that season's leaves) and drop the colours cached for the last season baked.
+ */
+function seasonCanopies(assets: Iterable<string>, season: Season): void {
+  resetCanopies();
+  for (const id of assets)
+    if (isTreeType(id))
+      registerVariant(
+        generateVariant(seasonal(speciesOfType(id), season), 0).info,
+      );
 }
 
 /** Linear float pixels (bottom row first) -> sRGB JPEG with faded edges; the floor colour = the faded edge. */

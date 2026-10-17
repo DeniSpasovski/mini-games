@@ -1,4 +1,6 @@
 import { meshBuffers } from './mesh';
+import type { Season } from '../season';
+import { seasonal } from './seasons';
 import { getSpecies } from './species';
 import { generateVariant } from './variants';
 
@@ -8,6 +10,7 @@ export interface GenerateRequest {
   id: number;
   species: string;
   index: number;
+  season: Season;
 }
 
 const scope = globalThis as unknown as {
@@ -16,10 +19,10 @@ const scope = globalThis as unknown as {
 };
 
 scope.onmessage = (e) => {
-  const { id, species, index } = e.data;
+  const { id, species, index, season } = e.data;
   try {
     const t0 = performance.now();
-    const g = generateVariant(getSpecies(species), index);
+    const g = generateVariant(seasonal(getSpecies(species), season), index);
     scope.postMessage({ id, ...g, ms: performance.now() - t0 }, [
       ...meshBuffers(g.meshes),
       g.info.capsules.buffer as ArrayBuffer,

@@ -19,16 +19,17 @@ import {
   type WebGLProgramParametersWithUniforms,
 } from 'three';
 import { addWorldUniforms } from '../engine/world-shading';
-import { ALPHA_TEST, spriteAtlas } from './leaftex';
+import { ALPHA_TEST, spriteAtlas, type LeafStyle } from './leaftex';
 import { mix32, unit } from './math';
 import {
   FAR_RAMP,
   FAR_SPRITES,
   FULL_DETAIL_DISTANCE,
   NEAR_SPRITES,
+  ROAD_REACH,
   type BarkTexture,
-  type FoliageKind,
 } from './species';
+import { TREE_SPRITE_AXES } from './sprite-attr';
 
 /**
  * Shared materials of the tree module (the impostor bake and the drawing stage): bark and sprite atlas textures and
@@ -42,7 +43,7 @@ import {
  *   tile anchored to screen pixels: no gradient, no direction, nothing that could read as a wipe. Shadow casters are
  *   never dithered. Instances with nothing to draw collapse in the vertex shader.
  * - **Sprites** (trees/Foliage.md#sprites): every sprite vertex carries the sprite centre, its outline corner, size
- *   and turn; `treeSpriteWorld` turns it into a quad facing the camera POSITION (`tlCam`, before shake), in every
+ *   and heading (trees/sprite-attr.ts); `SPRITE_PROJECT` turns it into a quad facing the camera POSITION (`tlCam`, before shake), in every
  *   pass (depth prepass, lit pass, shadow pass) with the same code, so their depths match. Thinning
  *   (trees/Foliage.md#simplification) is computed there too, per tree, from its projected height.
  * - **Wind** (trees/Foliage.md#wind): the trunk bends with height^2, each limb sways about the trunk with its own
@@ -107,6 +108,9 @@ uniform float tlShadowD;
 uniform vec2 tlFar;
 uniform float tlForest;
 const float TREE_FAR_RAMP = ${FAR_RAMP.toFixed(1)};
+/** The first row's zones (species.ts ROAD_REACH): the fraction of the variant slot (treeInst.w) flags the tree. */
+const float TREE_FULL_ROAD = ${ROAD_REACH.full.toFixed(1)};
+const float TREE_FAR_RAMP_ROAD = ${ROAD_REACH.ramp.toFixed(1)};
 /** Wind fades out towards this distance (m): past it a sway is under a pixel, so its vertex maths is skipped. */
 const float TREE_WIND_FAR = 110.0;
 attribute vec4 treeInst;
@@ -123,6 +127,7 @@ attribute float treeCrownY;
 attribute vec4 treeLod;
 varying vec3 vSprRight;
 varying vec3 vSprUp;
+${TREE_SPRITE_AXES}
 #endif
 varying vec2 vTreeKeep;
 varying vec2 vTreeTint;
@@ -136,7 +141,7 @@ float treeTrunk( float y, float phase, float gust ) {
 #ifdef TREE_SPRITE
 /**
  * Sprite thinning (trees/Foliage.md#simplification), per tree: keep share k = TREE_KEEP_NEAR (species.ts NEAR_SPRITES)
- * inside FULL_DETAIL_DISTANCE and above the thinning threshold (treeLod.z), falling to 0.25 at the impostor threshold
+ * inside the tree's full-detail distance (the first row's reaches farther) and above the thinning threshold (treeLod.z), falling to 0.25 at the impostor threshold
  * (treeLod.w); a sprite of rank r shrinks to nothing as k passes it, the rest grow by 1 / sqrt(k) so the crown keeps
  * its coverage.
  */
@@ -145,7 +150,10 @@ float treeSpriteScale( vec3 origin, float rank ) {
 	float dist = max( distance( centre, tlCam ), 0.5 );
 	float h = treeLod.y * tlPx / dist;
 	float f = h < treeLod.z ? clamp( log( treeLod.z / h ) / log( treeLod.z / treeLod.w ), 0.0, 1.0 ) : 0.0;
-	float k = mix( TREE_KEEP_NEAR, mix( tlFar.x, tlFar.y, f ), smoothstep( TREE_FULL, TREE_FULL + TREE_FAR_RAMP, dist ) );
+	float road = step( 0.125, fract( treeInst.w ) );
+	float full = mix( TREE_FULL, TREE_FULL_ROAD, road );
+	float ramp = mix( TREE_FAR_RAMP, TREE_FAR_RAMP_ROAD, road );
+	float k = mix( TREE_KEEP_NEAR, mix( tlFar.x, tlFar.y, f ), smoothstep( full, full + ramp, dist ) );
 	const float w = 0.08;
 	return smoothstep( rank, rank + w, k * ( 1.0 + w ) ) * inversesqrt( k );
 }
@@ -193,7 +201,7 @@ const VERTEX_MAIN = /* glsl */ `
 
 /**
  * Replaces project_vertex for sprites (every pass): the sprite centre (`transformed`, already swayed) in the world,
- * a quad facing the camera position, turned by the sprite's turn + a small flutter, scaled by the thinning.
+ * a quad facing the camera position, its x axis along the sprite's heading (+ a small flutter), scaled by the thinning.
  */
 const SPRITE_PROJECT = /* glsl */ `
 	vec3 sprCentre = ( modelMatrix * instanceMatrix * vec4( transformed, 1.0 ) ).xyz;
@@ -201,14 +209,18 @@ const SPRITE_PROJECT = /* glsl */ `
 	vec3 sprRight = cross( vec3( 0.0, 1.0, 0.0 ), sprToCam );
 	sprRight = dot( sprRight, sprRight ) > 1e-6 ? normalize( sprRight ) : vec3( 1.0, 0.0, 0.0 );
 	vec3 sprUp = cross( sprToCam, sprRight );
-	float sprTurn = treeSprite.w;
-	if ( tWindK > 0.0 ) sprTurn += 0.12 * tWindK * sin( wsTime * 5.3 + treeWind.y * 2.7 + treeSprite.w * 3.0 );
-	float sprC = cos( sprTurn );
-	float sprS = sin( sprTurn );
-	vec3 sprR = sprRight * sprC + sprUp * sprS;
-	vec3 sprU = sprUp * sprC - sprRight * sprS;
+	vec2 sprCorner;
+	vec3 sprHeading;
+	float sprAligned;
+	treeSpriteCorner( treeSprite, sprCorner, sprHeading, sprAligned );
+	float sprFlutter = 0.0;
+	if ( tWindK > 0.0 ) sprFlutter = 0.12 * tWindK * sin( wsTime * 5.3 + treeWind.y * 2.7 );
+	vec3 sprR;
+	vec3 sprU;
+	float sprStretch;
+	treeSpriteAxes( sprRight, sprUp, tRot * sprHeading, sprAligned, treeWind.y, sprFlutter, sprR, sprU, sprStretch );
 	float sprSize = treeSprite.z * tScale * treeSpriteScale( tOrigin, treeRank );
-	vec3 sprWorld = sprCentre + ( sprR * treeSprite.x + sprU * treeSprite.y ) * sprSize;
+	vec3 sprWorld = sprCentre + ( sprR * ( sprCorner.x * sprStretch ) + sprU * sprCorner.y ) * sprSize;
 	vec4 mvPosition = viewMatrix * vec4( sprWorld, 1.0 );
 	gl_Position = projectionMatrix * mvPosition;
 	if ( sprSize <= 0.0 ) gl_Position = vec4( 0.0, 0.0, 2.0, 1.0 );
@@ -239,6 +251,8 @@ const VERTEX_COLLAPSE = /* glsl */ `
 `;
 
 const FRAGMENT_PARS = /* glsl */ `
+const float TREE_SKY_LEAN = 0.8;
+const float TREE_LEAF_FILL = 0.06;
 #ifdef TREE_SPRITE
 uniform sampler2D tlSprNormal;
 uniform float tlDepthOnly;
@@ -300,6 +314,12 @@ const FRAGMENT_AMBIENT = /* glsl */ `
 	#ifdef TREE_SKY
 		if ( tlSkyOn > 0.5 ) {
 			vec3 tSkyN = inverseTransformDirection( normal, viewMatrix );
+			#if defined( TREE_SPRITE ) || defined( TREE_IMPOSTOR )
+				// Foliage: the sky light of a leaf is soft whatever way its crown faces (light bounces between the
+				// leaves, and the ground), so the sky normal leans up and a little light is always there.
+				tSkyN = normalize( tSkyN + vec3( 0.0, TREE_SKY_LEAN, 0.0 ) );
+				reflectedLight.indirectDiffuse += material.diffuseColor * ( TREE_LEAF_FILL * vTreeAO );
+			#endif
 			reflectedLight.indirectDiffuse += shGetIrradianceAt( tSkyN, tlSky ) * BRDF_Lambert( material.diffuseColor ) * vTreeAO;
 		} else reflectedLight.indirectDiffuse *= FALLBACK_AMBIENT;
 	#endif
@@ -465,17 +485,18 @@ export function barkTexture(kind: BarkTexture): Texture {
 }
 
 /**
- * The sprite atlas textures of a foliage kind (pixels from trees/leaftex.ts): albedo + alpha (sRGB) and normal +
- * thickness (linear), both with coverage-preserving mipmaps (the normal map follows the albedo's alpha scale).
+ * The sprite atlas textures of a leaf style (pixels from trees/leaftex.ts): albedo + alpha (sRGB) and normal +
+ * thickness (linear, half the albedo's size), both with coverage-preserving mipmaps (the normal map follows the
+ * albedo's alpha scale).
  */
-export function spriteTextures(
-  kind: FoliageKind,
-  density: number,
-): { albedo: Texture; normal: Texture } {
-  const key = `sprite:${kind}:${density}`;
+export function spriteTextures(style: LeafStyle): {
+  albedo: Texture;
+  normal: Texture;
+} {
+  const key = `sprite:${style}`;
   const hit = textures.get(`${key}:a`);
   if (hit) return { albedo: hit, normal: textures.get(`${key}:n`)! };
-  const atlas = spriteAtlas(kind, density);
+  const atlas = spriteAtlas(style);
   const mips = coverageMips(
     atlas.albedo,
     atlas.width,
@@ -483,8 +504,12 @@ export function spriteTextures(
     false,
     atlas.normal,
   );
-  const make = (data: Uint8Array, levels: MipLevel[], srgb: boolean) => {
-    const t = new DataTexture(data, atlas.width, atlas.height);
+  const make = (levels: MipLevel[], srgb: boolean) => {
+    const t = new DataTexture(
+      levels[0].data,
+      levels[0].width,
+      levels[0].height,
+    );
     t.mipmaps = levels;
     t.generateMipmaps = false;
     t.magFilter = LinearFilter;
@@ -493,8 +518,10 @@ export function spriteTextures(
     t.needsUpdate = true;
     return t;
   };
-  const albedo = make(atlas.albedo, mips.main, true);
-  const normal = make(atlas.normal, mips.companion, false);
+  // The normal + thickness map is read at the albedo's uv at half its resolution (a leaf's tilt and glow need no more),
+  // which saves a quarter of the atlas' memory.
+  const albedo = make(mips.main, true);
+  const normal = make(mips.companion.slice(1), false);
   textures.set(`${key}:a`, albedo);
   textures.set(`${key}:n`, normal);
   return { albedo, normal };
@@ -668,14 +695,11 @@ function litSpriteDepth(m: Material): void {
 }
 
 /** The lit foliage sprites (trees/Foliage.md#shading), after the depth prepass while it is on (`setSpritePrepass`). */
-export function spriteMaterial(
-  kind: FoliageKind,
-  density: number,
-): MeshLambertMaterial {
-  const key = `sprite:lit:${kind}:${density}`;
+export function spriteMaterial(style: LeafStyle): MeshLambertMaterial {
+  const key = `sprite:lit:${style}`;
   let m = materials.get(key) as MeshLambertMaterial | undefined;
   if (m) return m;
-  m = spriteLit(kind, density, false);
+  m = spriteLit(style, false);
   m.name = `tree ${key}`;
   litSpriteDepth(m);
   materials.set(key, m);
@@ -686,14 +710,11 @@ export function spriteMaterial(
  * Far sprites (trees/draw.ts: quads, one lit pass): the sprite program with the normal depth test, writing depth,
  * whatever `setSpritePrepass` says (no prepass draws them).
  */
-export function spriteFarMaterial(
-  kind: FoliageKind,
-  density: number,
-): MeshLambertMaterial {
-  const key = `sprite:far:${kind}:${density}`;
+export function spriteFarMaterial(style: LeafStyle): MeshLambertMaterial {
+  const key = `sprite:far:${style}`;
   let m = materials.get(key) as MeshLambertMaterial | undefined;
   if (m) return m;
-  m = spriteLit(kind, density, false);
+  m = spriteLit(style, false);
   m.name = `tree ${key}`;
   materials.set(key, m);
   return m;
@@ -720,12 +741,8 @@ export function proxyMaterial(): MeshBasicMaterial {
  * Lambert, not standard: a leaf cluster at roughness ~0.85 has next to no specular, and the sprites are most of the
  * tree pixels (trees/Performance.md#hotspots); the same sun, sky ambient, shadows, fog and leaf translucency.
  */
-function spriteLit(
-  kind: FoliageKind,
-  density: number,
-  depthOnly: boolean,
-): MeshLambertMaterial {
-  const tex = spriteTextures(kind, density);
+function spriteLit(style: LeafStyle, depthOnly: boolean): MeshLambertMaterial {
+  const tex = spriteTextures(style);
   const m = new MeshLambertMaterial({
     vertexColors: true,
     map: tex.albedo,
@@ -743,7 +760,7 @@ function spriteLit(
     FALLBACK_AMBIENT: FALLBACK_AMBIENT.toFixed(2),
     RALLY_FOLIAGE: 0.45,
   };
-  hookStandard(m, 'tree-sprite-v8', true, {
+  hookStandard(m, 'tree-sprite-v9', true, {
     tlSprNormal: { value: tex.normal },
     tlDepthOnly: { value: depthOnly ? 1 : 0 },
   });
@@ -761,14 +778,11 @@ export function setSpritePrepassDebug(on: boolean): void {
  * Sprite depth prepass: the lit sprites' own program (`spriteLit`) stopping after the alpha test, depth only.
  * Colour only in the equal-test debug view: magenta, so what the lit pass then fails to cover stays magenta.
  */
-export function spritePrepassMaterial(
-  kind: FoliageKind,
-  density: number,
-): MeshLambertMaterial {
-  const key = `sprite:prepass:${kind}:${density}`;
+export function spritePrepassMaterial(style: LeafStyle): MeshLambertMaterial {
+  const key = `sprite:prepass:${style}`;
   let m = materials.get(key) as MeshLambertMaterial | undefined;
   if (m) return m;
-  m = spriteLit(kind, density, true);
+  m = spriteLit(style, true);
   m.name = `tree ${key}`;
   m.colorWrite = false;
   materials.set(key, m);
@@ -835,7 +849,7 @@ export function treeDepthMaterial(kind: TreeDepthKind): MeshDepthMaterial {
         .replace('void main() {', `void main() {\n${PROXY_HOLES}`);
     }
   };
-  m.customProgramCacheKey = () => `tree-depth-v7-${kind}`;
+  m.customProgramCacheKey = () => `tree-depth-v8-${kind}`;
   materials.set(key, m);
   return m;
 }

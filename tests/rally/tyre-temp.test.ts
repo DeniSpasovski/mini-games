@@ -2,9 +2,8 @@ import { describe, expect, test } from '@rstest/core';
 import { Vector3 } from 'three';
 import { ALL_CARS } from '../../src/games/rally/cars';
 import { tyreColor } from '../../src/games/rally/game/tyre-gauge';
-import { ajvatovciMap } from '../../src/games/rally/maps/ajvatovci/map';
-import { petralicaMap } from '../../src/games/rally/maps/petralica/map';
-import { stageClimate } from '../../src/games/rally/maps/shared/climate';
+import { getStage } from '../../src/games/rally/maps';
+import { stageClimate } from '../../src/games/rally/maps/shared/day-temperature';
 import {
   applySetup,
   SETUP_FOR_TYRE,
@@ -14,6 +13,7 @@ import {
   type SurfaceId,
 } from '../../src/games/rally/physics/surfaces';
 import {
+  AIR_LAPSE,
   tempGrip,
   tempLevel,
   trackTemp,
@@ -125,16 +125,16 @@ describe('grip curves', () => {
 
 describe('climate', () => {
   test('a dark road in the sun is hotter than the air, gravel and grass less so', () => {
-    const c = stageClimate(petralicaMap.environment);
+    const c = stageClimate(getStage('petralica'));
     const t = (s: SurfaceId) => trackTemp(c, SURFACES[s]);
     expect(t('tarmac')).toBeGreaterThan(c.air + 3);
     expect(t('tarmac')).toBeGreaterThan(t('gravel'));
     expect(t('gravel')).toBeGreaterThan(t('grass'));
   });
 
-  test('a hot clear June morning heats the road more than a cool Petralica afternoon', () => {
-    const hot = stageClimate(ajvatovciMap.environment);
-    const cool = stageClimate(petralicaMap.environment);
+  test('a hot clear June morning heats the road more than an October morning in Queens', () => {
+    const hot = stageClimate(getStage('ajvatovci'));
+    const cool = stageClimate(getStage('jackie'), undefined, 'autumn');
     expect(trackTemp(hot, SURFACES.tarmac)).toBeGreaterThan(
       trackTemp(cool, SURFACES.tarmac) + 5,
     );
@@ -238,5 +238,46 @@ describe('vehicle', () => {
     expect(minTemp(v)).toBe(hot);
     v.resetTyreTemps();
     expect(maxTemp(v)).toBeLessThan(hot);
+  });
+
+  test('with a reference height the air falls 6.5 K per km of climb, the sun gap stays', () => {
+    const rise = 530;
+    const ground: GroundProvider = {
+      sampleGround(_x, _z, out) {
+        out.height = rise;
+        out.normal.set(0, 1, 0);
+        out.surface = SURFACES.tarmac;
+        return out;
+      },
+    };
+    const def = ALL_CARS.find((c) => c.id === 'skoda_rally')!.physics;
+    const v = new Vehicle(applySetup(def, SETUP_FOR_TYRE.tarmac), ground);
+    v.setTyre('tarmac');
+    // The table's climate holds at height 0; the caller's object is left alone.
+    v.setClimate(CLIMATE, 0);
+    v.reset(new Vector3(0, rise, 0), 0);
+    v.resetTyreTemps();
+    run(v, 0.1);
+    const air = CLIMATE.air - AIR_LAPSE * rise;
+    expect(v.climate!.air).toBeCloseTo(air, 1);
+    expect(CLIMATE.air).toBe(20);
+    // The road follows: its gap to the air is unchanged.
+    expect(trackTemp(v.climate!, SURFACES.tarmac) - v.climate!.air).toBeCloseTo(
+      CLIMATE.sun,
+      9,
+    );
+    // The tyres of a restart at that height start at the air there.
+    expect(maxTemp(v)).toBeCloseTo(air, 0);
+    // Back at the reference height the air is the table's again.
+    v.reset(new Vector3(0, 0, 0), 0);
+    v.resetTyreTemps();
+    expect(v.climate!.air).toBeCloseTo(CLIMATE.air, 1);
+  });
+
+  test('no reference height = the same climate at any height', () => {
+    const v = car('tarmac', 'tarmac');
+    v.reset(new Vector3(0, 800, 0), 0);
+    v.resetTyreTemps();
+    expect(v.climate!.air).toBe(CLIMATE.air);
   });
 });
