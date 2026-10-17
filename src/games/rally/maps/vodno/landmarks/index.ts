@@ -21,6 +21,7 @@ import {
   SREDNO_BUS,
   VIDIKOVEC,
 } from './car-parks';
+import { gazebo } from './park';
 import {
   drawGarden,
   drawGazebo,
@@ -539,6 +540,32 @@ export const hotelLandmark = landmark({
   build: buildHotelSite,
 });
 
+/** The roadside gazebo near 1000 m: it stands on baked box 2688 (7.1 m wide) and replaces it. */
+const ROADSIDE_GAZEBO: Site = { x: 2106, z: -428.6, yaw: 0.346 };
+const ROADSIDE_GAZEBO_APOTHEM = 3.4;
+export const roadsideGazeboLandmark = landmark({
+  id: 'vodno-roadside-gazebo',
+  areas: [{ site: ROADSIDE_GAZEBO, r: 5 }],
+  colliders: (g) => [
+    cylinderCollider(
+      ROADSIDE_GAZEBO,
+      0,
+      0,
+      base(g, ROADSIDE_GAZEBO),
+      ROADSIDE_GAZEBO_APOTHEM * 1.05,
+      3,
+    ),
+  ],
+  build: (at) =>
+    gazebo(at(ROADSIDE_GAZEBO, 'roadside-gazebo'), 0, 0, 0, 0, {
+      apothem: ROADSIDE_GAZEBO_APOTHEM,
+      roof: '#3f6a3c',
+      roofKey: 'sheet',
+      open: [0, 4],
+      tables: 2,
+    }),
+});
+
 export const VODNO_LANDMARKS: Landmark[] = [
   srednoVodnoLandmark,
   summitLandmark,
@@ -549,5 +576,6 @@ export const VODNO_LANDMARKS: Landmark[] = [
   gateLandmark,
   startBlocksLandmark,
   hotelLandmark,
+  roadsideGazeboLandmark,
 ];
 export { VODNO_FLATS } from './sites';
