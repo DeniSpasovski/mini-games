@@ -9,15 +9,15 @@ import {
 import { paint } from '../../engine/geo';
 
 /**
- * Parts of the figures that are not the scanned body (hats, vests, props, the low-poly far figures): boxes and tubes
+ * Parts of the figures that are not the base body (hats, vests, props, the low-poly far figures): boxes and tubes
  * mapped onto cells of the people atlas (engine/people-atlas.ts) when a figure is merged (`mapCell`).
  */
 
-/** Cells of the people atlas (4 x 4, the head takes two side by side). */
-export const JACKET = 0;
+/** Cells of the people atlas (4 x 8, the head takes two side by side). Rows 0-3: planar parts and the far figures. */
+export const RIB = 0;
 export const KNIT = 1;
 export const HIVIS = 2;
-export const SLEEVE = 3;
+export const LEATHER = 3;
 export const JEANS = 4;
 export const TROUSERS = 5;
 export const SKIN = 6;
@@ -29,6 +29,25 @@ export const HAT = 12;
 export const GLOVE = 13;
 export const REFLECT = 14;
 export const BAG = 15;
+/** Rows 4-7: fabrics unwrapped round the body (people-tailor.ts); u 0 = front centre, 0.5 = side, 1 = back centre. */
+export const F_JERSEY = 16;
+export const F_POLO = 17;
+export const F_JERSEY_SLEEVE = 18;
+export const F_FLEECE = 19;
+export const F_FLEECE_SLEEVE = 20;
+export const F_JACKET = 21;
+export const F_JACKET_SLEEVE = 22;
+export const F_COVERALL = 23;
+export const F_COVERALL_SLEEVE = 24;
+export const F_COVERALL_LEG = 25;
+export const F_VEST = 26;
+export const F_DENIM = 27;
+export const F_TWILL = 28;
+export const F_CARGO = 29;
+export const F_PLEAT = 30;
+export const F_PLAID = 31;
+/** Rows in the atlas. */
+export const ATLAS_ROWS = 8;
 
 const INSET = 0.02;
 const UP = new Vector3(0, 1, 0);
@@ -44,7 +63,7 @@ export function cellUV(
   const row = Math.floor(cell / 4);
   return [
     (col + INSET * wCells + (wCells - 2 * INSET * wCells) * fu) / 4,
-    1 - (row + INSET + (1 - 2 * INSET) * fv) / 4,
+    1 - (row + INSET + (1 - 2 * INSET) * fv) / ATLAS_ROWS,
   ];
 }
 

@@ -1059,7 +1059,7 @@ const DEFS: Record<TextureId, TexDef> = {
   people: {
     // Grey multiplier for the vertex colours of every figure: garments painted unwrapped (engine/people-atlas.ts).
     name: 'People atlas (garments, face)',
-    size: [PEOPLE_ATLAS_SIZE, PEOPLE_ATLAS_SIZE],
+    size: PEOPLE_ATLAS_SIZE,
     color: false,
     draw(ctx) {
       drawPeopleAtlas(ctx);
@@ -1067,7 +1067,7 @@ const DEFS: Record<TextureId, TexDef> = {
   },
   people_normal: {
     name: 'People normal map (stitching, weave, creases)',
-    size: [PEOPLE_ATLAS_SIZE, PEOPLE_ATLAS_SIZE],
+    size: PEOPLE_ATLAS_SIZE,
     color: false,
     draw(ctx) {
       drawPeopleNormal(ctx, getTexture('people').image as HTMLCanvasElement);

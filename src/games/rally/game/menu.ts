@@ -112,17 +112,17 @@ const BUILT_WITH: SourceLink[] = [
   { label: 'Rsbuild', url: 'https://rsbuild.rs/', note: 'build tooling, MIT' },
 ];
 
-/** The two scanned people (THIRD-PARTY.md "People"). */
+/** The two base bodies of the people (THIRD-PARTY.md "People"). */
 const PEOPLE_CREDITS: SourceLink[] = [
   {
-    label: 'Female character with casual clothing (mahensanketh, Sketchfab)',
-    url: 'https://sketchfab.com/3d-models/female-character-with-casual-clothing-622a56e7f30446b694f59245d3b01bcc',
-    note: 'spectators, crews, marshals and visitors, recoloured and dressed - CC BY 4.0',
+    label: 'Male Base Mesh (Low Poly) (FormForge3D, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/male-base-mesh-low-poly-fece8bfaefdb42cb9fc2a9492ffa18c7',
+    note: 'the men, dressed and styled in code - CC BY 4.0',
   },
   {
-    label: 'Male character in casual clothing (mahensanketh, Sketchfab)',
-    url: 'https://sketchfab.com/3d-models/male-character-in-caual-clothing-24ad029f3a094a679bc0b0b109ee40e3',
-    note: 'spectators, crews, marshals and visitors, recoloured and dressed - CC BY 4.0',
+    label: 'Female Base Mesh (Low Poly) (FormForge3D, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/female-base-mesh-low-poly-b80022fb9db94c9e83cae5361931b3c9',
+    note: 'the women, dressed and styled in code - CC BY 4.0',
   },
 ];
 

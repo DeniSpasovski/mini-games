@@ -14,7 +14,7 @@ rs.mock('../../src/games/rally/engine/textures', () => ({
 }));
 
 /**
- * The people kit (assets/builders/people.ts): every role x variant builds a scanned body (+ what it wears, + a hand
+ * The people kit (assets/builders/people.ts): every role x variant builds a base body (+ what it wears, + a hand
  * flag), stands on the ground whatever its pose, is a plausible height and stays inside the triangle budget of its LOD.
  */
 const ROLES = [
@@ -62,15 +62,15 @@ describe('people', () => {
     test('every variant: the body, what it wears and a flag part when waving one, feet on the ground, 0.8-2.4 m tall (arms up), within budget', () => {
       for (const v of variants) {
         const near = measure(id, v, 0);
-        // The scanned body, the worn / held parts (one mesh) and a hand flag (its own mesh, waved by the people_flag material).
+        // The base body, the worn / held parts (one mesh) and a hand flag (its own mesh, waved by the people_flag material).
         expect(near.parts).toBeLessThanOrEqual(3);
         expect(near.parts).toBeGreaterThanOrEqual(1);
         expect(near.lo).toBeGreaterThan(-0.005);
         expect(near.lo).toBeLessThan(0.02);
         expect(near.hi).toBeGreaterThan(0.8);
         expect(near.hi).toBeLessThan(2.4);
-        expect(near.tris).toBeLessThan(16000);
-        expect(measure(id, v, 1).tris).toBeLessThan(4500);
+        expect(near.tris).toBeLessThan(24000);
+        expect(measure(id, v, 1).tris).toBeLessThan(9500);
         expect(measure(id, v, 2).tris).toBeLessThan(260);
         expect(measure(id, v, 3).tris).toBeLessThan(40);
       }
@@ -80,8 +80,14 @@ describe('people', () => {
       const keys = new Set(
         variants.map((v) => {
           const a = build(id, v, 0);
-          const p = a.parts[0].geometry.getAttribute('position');
-          return `${a.parts.length}:${p.getX(2000).toFixed(3)}:${p.getY(9000).toFixed(3)}:${p.getZ(14000).toFixed(3)}`;
+          // Counts and the sum of every coordinate: two outfits (or two heads of hair) never agree on both.
+          const sum = a.parts.reduce((t, p) => {
+            const pos = p.geometry.getAttribute('position').array;
+            let x = 0;
+            for (let i = 0; i < pos.length; i++) x += pos[i];
+            return t + x;
+          }, 0);
+          return `${a.parts.map((p) => p.geometry.getAttribute('position').count).join(',')}:${sum.toFixed(3)}`;
         }),
       );
       expect(keys.size).toBeGreaterThan(meta.variants / 3);

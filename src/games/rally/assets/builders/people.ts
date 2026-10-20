@@ -13,12 +13,7 @@ import {
 import { Rng } from '../../../../shared/rng';
 import { merge, paint } from '../../engine/geo';
 import { getMaterial } from '../../engine/materials';
-import {
-  scanMaterial,
-  scanMidMaterial,
-  type ScanLook,
-  type ScanModel,
-} from '../../engine/people-scan-material';
+import { bodySkinMaterial } from '../../engine/people-skin-material';
 import {
   GLOVE,
   HAIR,
@@ -37,16 +32,39 @@ import {
   tag,
   tube,
 } from './people-parts';
-import { packNormals, skinScan, type ScanPose } from './people-scan';
+import {
+  packNormals,
+  pose as poseBones,
+  RIGS,
+  widen,
+  type BodyModel,
+  type BodyPose,
+} from './people-body';
+import {
+  clearLegs,
+  clipAll,
+  field,
+  join,
+  posed,
+  type Surf,
+} from './people-surf';
+import { tailor } from './people-tailor';
+import type {
+  HairStyle,
+  LegKind,
+  Pattern,
+  ShoeKind,
+  TopKind,
+} from './people-looks';
 import { dress } from './people-wear';
 import type { AssetBuilder } from '../types';
 import { TEAMS } from './teams';
 
 /**
- * People kit. Close up (LOD 0 / 1) a figure is one of two scanned people (people-scan.ts: CC BY models, credits in
- * THIRD-PARTY.md) posed by joint angles and dressed by an outfit: colours dyed into the scan's own texture, plus hats,
- * vests, skirts, packs and props built on the posed bones (people-wear.ts). Far away (LOD 2 / 3) it is the old
- * jointed low-poly figure, a boxy body, a silhouette. Static: the poses are the animation. Front faces +Z, the origin
+ * People kit. Close up (LOD 0 / 1) a figure is one of two base bodies (people-body.ts: CC BY models, credits in
+ * THIRD-PARTY.md) posed by joint angles and dressed by an outfit: garments cut from the body itself (people-tailor.ts,
+ * people-wear.ts), hair and hats (people-hair.ts), shoes (people-shoes.ts) and props on the posed bones. Far away
+ * (LOD 2 / 3) it is the old jointed low-poly figure, a boxy body, a silhouette. Static: the poses are the animation. Front faces +Z, the origin
  * is on the ground between the feet (a figure is lifted so its lowest point sits there, whatever the pose).
  */
 
@@ -367,11 +385,13 @@ type HatKind = 'none' | 'cap' | 'beanie' | 'helmet' | 'hood';
 type HairKind = 'short' | 'long' | 'bald';
 
 export interface Outfit {
-  /** Which scanned body (people-scan.ts). */
-  model: ScanModel;
+  /** Which base body (people-body.ts). */
+  model: BodyModel;
   /** Hand-flag cloth for the plain `wave` pose: [main, lower band] (never a national flag). */
   flag?: [string, string];
   shoes: string;
+  shoeKind?: ShoeKind;
+  soleColor?: string;
   legs: string;
   torso: string;
   /** Sleeve colour (default the torso). */
@@ -395,6 +415,17 @@ export interface Outfit {
   /** Skirt / dress hem colour and length below the waist (m). */
   skirt?: string;
   skirtLen?: number;
+  /** What the legs wear (default from `skirt` / `shorts`), the top (default from `shortSleeves`), a shirt pattern. */
+  hairStyle?: HairStyle;
+  /** Seed of the hair's own noise. */
+  seed?: number;
+  legKind?: LegKind;
+  topKind?: TopKind;
+  pattern?: Pattern;
+  /** Hem height (m above the soles) of shorts, capris and skirts. */
+  hem?: number;
+  /** Tights under a skirt. */
+  tights?: string;
   /** Sunglasses / glasses. */
   glasses?: boolean;
   /** Head size factor (children ~1.25). */
@@ -420,8 +451,8 @@ const SKIN_TONES = [
   '#5f3b26',
 ];
 const HAIR_COLORS = [
-  '#1c1814',
-  '#2e2218',
+  '#2c2620',
+  '#3a2c20',
   '#4a3220',
   '#6b4a2a',
   '#8a6a3a',
@@ -650,7 +681,7 @@ function figure({
 }
 
 interface Built {
-  /** Atlas-mapped parts (merged), the scanned body, the hand flag. */
+  /** Atlas-mapped parts (merged), the base body, the hand flag. */
   atlas?: BufferGeometry;
   scan?: BufferGeometry;
   flag?: BufferGeometry;
@@ -658,7 +689,7 @@ interface Built {
 
 /**
  * Merges the parts, lies a figure down when posed so, stands it on the ground (the lowest point of the parts and the
- * scanned body) and scales it by `o.scale` (and `extra`).
+ * base body) and scales it by `o.scale` (and `extra`).
  */
 function finishBody(
   parts: BufferGeometry[],
@@ -672,7 +703,12 @@ function finishBody(
     .filter((p) => !p.userData.flag)
     .map((p) => {
       const m = p.userData.cell === -1 ? p : mapCell(p, p.userData.cell ?? HAT);
-      return m.index ? m.toNonIndexed() : m;
+      // One merge needs all parts indexed or none: the figure's own cloth is indexed.
+      if (!m.index)
+        m.setIndex(
+          Array.from({ length: m.getAttribute('position').count }, (_, i) => i),
+        );
+      return m;
     });
   const atlas = mapped.length ? merge(mapped) : undefined;
   const geoms = [atlas, scan].filter((g): g is BufferGeometry => !!g);
@@ -705,8 +741,8 @@ function finishBody(
   return { atlas, scan, flag };
 }
 
-/** Joint angles of a pose for the scanned body. */
-function scanPose(pose: Pose, o: Outfit): ScanPose {
+/** Joint angles of a pose for the body. */
+function bodyPose(pose: Pose, o: Outfit): BodyPose {
   const arm = (a: Limb, side: number) => ({
     up: dirDown(a.p, a.ab, side),
     low: dirDown(a.p + a.bend, a.ab2 ?? a.ab, side),
@@ -730,58 +766,68 @@ function scanPose(pose: Pose, o: Outfit): ScanPose {
     ),
     headScale: o.headScale ?? 1,
     broad: o.broad,
-    crop: o.hairKind === 'short' || o.hairKind === 'bald' ? 1 : 0,
     arm: [arm(pose.armL, 1), arm(pose.armR, -1)],
     leg: [leg(pose.legL, 1), leg(pose.legR, -1)],
   };
 }
 
-/** Where the scanned body's own sleeves end on a short-sleeved woman (the man's shirt already has them). */
-const SHORT_SLEEVE = 0.32;
-/** Shorts end this high (scan frame, m). */
-const SHORTS_HEM = 0.62;
-/** The scans are a little taller than the old figures (1.81 m): bring the average person to 1.76 m. */
-const SCAN_SCALE = 0.975;
+/** How far a garment's edge is allowed to sit inside before the body under it is dropped (m). */
+const UNDER = 0.03;
 
-/** The colours an outfit dyes into the scanned body. */
-function scanLook(o: Outfit): ScanLook {
-  return {
-    top: o.torso,
-    low: o.legs,
-    hair: o.hairKind === 'bald' ? o.skin : o.hair,
-    shoe: o.shoes,
-    skin: o.skin,
-    sleeve: o.sleeves ?? o.torso,
-    glove: o.gloves,
-    sleeveEnd: o.shortSleeves
-      ? o.model === 'female'
-        ? SHORT_SLEEVE
-        : 0
-      : 0.97,
-    hem: o.shorts ? SHORTS_HEM : 0,
-  };
-}
-
-/** The near figure (LOD 0 / 1): the scanned body, what it wears, what it holds. */
-function figureScan({ pose, outfit: o, lod }: FigureOpts): Built {
+/** The near figure (LOD 0 / 1): the body with what it wears cut from it, what it holds. */
+function figureBody({ pose, outfit: o, lod }: FigureOpts): Built {
   const hi = lod === 0;
-  const sp = scanPose(pose, o);
-  const body = skinScan(o.model, lod, sp, scanLook(o));
-  const parts = dress(o, o.model, body, o.broad, hi);
+  const sp = bodyPose(pose, o);
+  const bp = poseBones(o.model, sp);
+  const t = tailor(o.model, lod);
+  const wear = dress(o, t, hi);
+  const rig = RIGS[o.model];
+  const warp = (s: Surf, out: Float32Array): void =>
+    widen(s.a.pos, s.a.arm, s.n, rig, o.broad, out);
+  // The body where nothing covers it.
+  const visible = clipAll(
+    t.body.s,
+    wear.covers.map((c) => field(t.body.s, (i) => UNDER - c[i])),
+  );
+  const skin = posed(visible, bp.bones, warp, ['uv']);
+  const parts: BufferGeometry[] = [...wear.rigid];
+  let clothG: BufferGeometry | undefined;
+  let clothAll: Surf | undefined;
+  if (wear.cloth.length) {
+    clothAll = join(wear.cloth);
+    clothG = posed(clothAll, bp.bones, warp, ['uv', 'color']);
+    clothG.userData.cell = -1;
+    parts.push(clothG);
+  }
+  if (wear.skirts.length) {
+    const k = posed(join(wear.skirts), bp.bones, warp, ['uv', 'color']);
+    const legs: number[] = [];
+    const take = (g: BufferGeometry, leg: Float32Array): void => {
+      const p = g.getAttribute('position').array as Float32Array;
+      for (let i = 0; i < leg.length; i++)
+        if (leg[i] > 0.5) legs.push(p[i * 3], p[i * 3 + 1], p[i * 3 + 2]);
+    };
+    take(skin, visible.a.leg);
+    if (clothG && clothAll) take(clothG, clothAll.a.leg);
+    clearLegs(k, legs);
+    k.userData.cell = -1;
+    parts.push(k);
+  }
+  if (wear.shoes.length) {
+    const sh = posed(join(wear.shoes), bp.bones, warp, ['uv', 'color']);
+    sh.userData.cell = -1;
+    parts.push(sh);
+  }
+  if (wear.hair.length) {
+    const h = posed(join(wear.hair), bp.bones, warp, ['uv', 'color']);
+    h.userData.cell = -1;
+    parts.push(h);
+  }
   if (pose.prop)
     parts.push(
-      ...propParts(
-        pose.prop,
-        body.hands,
-        body.S,
-        sp.lean,
-        body.Hc,
-        hi,
-        hi,
-        o.flag,
-      ),
+      ...propParts(pose.prop, bp.hands, bp.S, sp.lean, bp.Hc, hi, hi, o.flag),
     );
-  const built = finishBody(parts, pose, o, body.geometry, SCAN_SCALE);
+  const built = finishBody(parts, pose, o, skin);
   if (hi) packNormals(built.scan!);
   return built;
 }
@@ -1239,14 +1285,16 @@ function finishFigure(
   }[];
 } {
   if (lod <= 1) {
-    const b = figureScan({ pose: POSES[pose] as Pose, outfit, lod, rng });
+    outfit = { ...outfit };
+    pickHair(outfit, rng);
+    const b = figureBody({ pose: POSES[pose] as Pose, outfit, lod, rng });
     const parts = [
       {
         geometry: b.scan!,
         material:
           lod === 0
-            ? scanMaterial(outfit.model, scanLook(outfit))
-            : scanMidMaterial(),
+            ? bodySkinMaterial(outfit.model, outfit.skin)
+            : bodySkinMaterial(outfit.model, outfit.skin),
       },
     ];
     if (b.atlas)
@@ -1268,8 +1316,85 @@ function finishFigure(
   return { parts };
 }
 
+/** Hairstyles by gender and length (people-hair.ts); repeats are weights. */
+const HAIR_POOLS: Record<BodyModel, Record<'short' | 'long', HairStyle[]>> = {
+  male: {
+    short: [
+      'crop',
+      'crop',
+      'crop',
+      'buzz',
+      'buzz',
+      'sidepart',
+      'sidepart',
+      'sidepart',
+      'quiff',
+      'quiff',
+      'slick',
+      'slick',
+      'messy',
+      'messy',
+      'curly',
+      'curly',
+      'afro',
+      'mohawk',
+    ],
+    long: ['manbun', 'manbun', 'long', 'long', 'wavy', 'wavy', 'curly'],
+  },
+  female: {
+    short: [
+      'pixie',
+      'bob',
+      'bob',
+      'bob',
+      'bobbang',
+      'bobbang',
+      'bobbang',
+      'curly',
+    ],
+    long: [
+      'long',
+      'long',
+      'long',
+      'wavy',
+      'wavy',
+      'pony',
+      'pony',
+      'pony',
+      'bun',
+      'bun',
+      'lowbun',
+      'lowbun',
+      'braid',
+      'braid',
+    ],
+  },
+};
+
+/** A style for an outfit that names none, and the seed that shapes its strands (same for every level of detail). */
+function pickHair(o: Outfit, rng: Rng): void {
+  const r = new Rng(rng.int(1, 1e6));
+  o.seed ??= r.int(1, 1e6);
+  if (o.hairStyle) return;
+  if (o.hairKind === 'bald') return;
+  const kid = o.scale < 0.75;
+  const grey = o.hair === '#b8b4ac' || o.hair === '#c8c4bc';
+  let pool = HAIR_POOLS[o.model][o.hairKind === 'long' ? 'long' : 'short'];
+  if (kid)
+    pool =
+      o.model === 'female'
+        ? ['pony', 'pony', 'buns', 'bob', 'bobbang', 'braid']
+        : ['crop', 'messy', 'sidepart', 'buzz'];
+  else if (grey)
+    pool =
+      o.model === 'female'
+        ? ['bob', 'pixie', 'lowbun', 'bobbang']
+        : ['crop', 'sidepart', 'buzz'];
+  o.hairStyle = r.pick(pool);
+}
+
 const baseOutfit = (rng: Rng): Outfit => {
-  const model: ScanModel = rng.chance(0.5) ? 'female' : 'male';
+  const model: BodyModel = rng.chance(0.5) ? 'female' : 'male';
   return {
     model,
     shoes: rng.pick(['#1b1b1d', '#2c2a28', '#e6e6e6', '#3a2a1c']),
@@ -1295,7 +1420,7 @@ const baseOutfit = (rng: Rng): Outfit => {
 };
 
 /** Puts an outfit on one of the two bodies (a woman keeps her hair). */
-function wearing(o: Outfit, model: ScanModel): Outfit {
+function wearing(o: Outfit, model: BodyModel): Outfit {
   o.model = model;
   if (model === 'female' && o.hairKind === 'bald') o.hairKind = 'long';
   return o;
@@ -1415,6 +1540,22 @@ export const spectator: AssetBuilder = ({ seed, variant, lod }) => {
 const MECHANIC_POSES: PoseName[] = ['crouch', 'bend', 'kneel'];
 const CREW_POSES: PoseName[] = ['carry', 'laptop', 'crossed'];
 
+/** The shirt pattern of each team's crew (people-wear.ts `patterned`). */
+const TEAM_PATTERNS: Pattern[] = [
+  'hoops',
+  'checker',
+  'chest',
+  'streaks',
+  'triple',
+  'diagonal',
+  'yoke',
+  'rings',
+  'chest',
+  'hoops',
+  'streaks',
+  'checker',
+];
+
 function teamOutfit(team: number, rng: Rng, overall: boolean): Outfit {
   const t = TEAMS[team % TEAMS.length];
   const o = baseOutfit(rng);
@@ -1425,6 +1566,16 @@ function teamOutfit(team: number, rng: Rng, overall: boolean): Outfit {
   o.collar = t.accent;
   o.shoes = '#1b1b1d';
   o.gloves = overall && rng.chance(0.6) ? '#26282c' : undefined;
+  if (overall) {
+    o.topKind = 'overall';
+    o.legKind = 'overall';
+  } else {
+    // The crew's team shirt over dark cargo trousers.
+    o.topKind = 'tee';
+    o.shortSleeves = true;
+    o.pattern = TEAM_PATTERNS[team % TEAM_PATTERNS.length];
+    o.legKind = 'cargo';
+  }
   o.hat = rng.chance(0.55) ? 'cap' : 'none';
   o.hatColor = t.accent === '#f2f2f2' ? t.accent2 : t.accent;
   return o;

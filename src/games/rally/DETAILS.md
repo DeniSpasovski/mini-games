@@ -192,15 +192,18 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   (`scripts/car-model/park-lods.mjs`: body LODs of about 7.5k / 2.3k / 1.1k triangles, three rims) in the team's livery (car's own
   painter, one texture per car and team), two draw calls per car; a raised car stands on axle stands (`tyre_stack` beside it). Models
   load near the park and are freed far away (`parkCarsPlan`). Tests `park-cars`, `car-glb-meshopt`.
-- **People** (`assets/builders/people.ts`; credits THIRD-PARTY.md): close up (LOD 0 ~12k tris, LOD 1 ~2.6k flat-shaded) a person is one of
-  two CC BY scans (`engine/people-scan.data.ts`, baked by `scripts/people/extract.py` + `bake-people.mjs`, sources in `sources/people/`):
-  skinned on the CPU per variant to the pose (`people-scan.ts`: 13 bones, joint-rule weights, A-pose baked in), the outfit dyed into
-  the scan's own texture by two tint masks (`engine/people-scan-material.ts`; LOD 1 dyes the vertex colours), hats / vests / jackets
-  / skirts / packs / glasses and props added as parts on the posed bones (`people-wear.ts`, `people-parts.ts`, atlas cells). Women use
-  the female scan, men the male; `Outfit.hairKind` `short` / `bald` crops the scan's hair. LOD 2 / 3 stay code-built (jointed figure,
-  boxy body, silhouette). Variants are built at load (~2 s for all 246, one InstancedMesh each; `getVariantSet` stops at its cap).
+- **People** (`assets/builders/people.ts`; credits THIRD-PARTY.md): close up (LOD 0 ~7k body + ~6-15k clothes, LOD 1 the same on the 2.5k mid mesh)
+  a person is one of two CC BY base bodies (`engine/people-base.data.ts`, baked by `scripts/people/extract-base.py` + `skin-map.py` +
+  `bake-base.mjs`, sources in `sources/people/base/`), posed on the CPU per variant (`people-body.ts`: 13 bones, A-pose baked in, `widen` for
+  build) with a painted face (`engine/people-skin-material.ts`, tinted to the skin tone). Everything worn is cut from that body:
+  `people-tailor.ts` (scalar fields clip the body, offset, relax, crease, seal, unwrap onto the fabric atlas cells of
+  `engine/people-fabrics.ts`; `split` / `splitIn` cut exact bands, hoops, checks, tape, pads), `people-wear.ts` (`dress`: tops, trousers, skirts,
+  coverall, hi-vis vest, gloves; team shirt patterns), `people-hair.ts` (scalp cut from the head + curtains, buns, ponytails, hats),
+  `people-shoes.ts` (lofts on the foot bones; the base legs end at the ankle). Each person gets a hairstyle from `pickHair` (people.ts) by
+  gender, length, age; `Outfit.topKind` / `legKind` / `pattern` / `hairStyle` / `shoeKind` override the defaults. LOD 2 / 3 stay code-built
+  (jointed figure, boxy body, silhouette). Variants are built at load (one InstancedMesh each; `getVariantSet` stops at its cap).
   Roles: `spectator` (24 standing + 18 sitting / squatting + 12 flag wavers), `mechanic`, `crew`, `driver`, `marshal`, `photographer`,
-  `visitor` (12 personas: ages, sizes, skirts, kids); test `people`. A new look = a colour / part in `Outfit`, a new pose = `POSES`.
+  `visitor` (12 personas: ages, sizes, skirts, kids); test `people`. A new look = a field in `Outfit`, a new pose = `POSES`.
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)
   puts them on the outside of every tight bend of a mountain road (Galichica). `rusty: true` = weathered brown steel (Vodno).
 - **Scatter area** (`MapDef.scatterBounds`): narrows where trees / bushes / rocks are generated (any side of `bounds`) - for land no
