@@ -127,7 +127,7 @@ function pieces(mesh: Mesh, toBody: Matrix4): Piece[] {
   return [...out.values()];
 }
 
-/** Pieces that overlap or sit within `JOIN` of each other (x / y) merged, until no two do. */
+/** Pieces that overlap or sit within `JOIN` of each other (x / y) merged (brake-only pieces only with each other), until no two do. */
 function lamps(all: Piece[]): Piece[] {
   const list = [...all];
   for (let again = true; again;) {
@@ -136,14 +136,15 @@ function lamps(all: Piece[]): Piece[] {
       for (let j = i + 1; j < list.length && !again; j++) {
         const a = list[i].box;
         const b = list[j].box;
+        // A brake-only piece keeps its own halo, so it stays dark with the running lamp beside it.
         if (
+          list[i].brakeOnly === list[j].brakeOnly &&
           a.min.x - JOIN <= b.max.x &&
           a.max.x + JOIN >= b.min.x &&
           a.min.y - JOIN <= b.max.y &&
           a.max.y + JOIN >= b.min.y
         ) {
           a.union(b);
-          list[i].brakeOnly &&= list[j].brakeOnly;
           list[i].tris.push(...list[j].tris);
           list[i].glows.push(...list[j].glows);
           list.splice(j, 1);

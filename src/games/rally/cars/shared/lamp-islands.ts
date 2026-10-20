@@ -64,11 +64,16 @@ function subset(geo: BufferGeometry, tris: number[]): BufferGeometry {
 }
 
 /**
- * The third brake light (a high-mount strip, a small bumper lamp): pieces of `mesh` that sit on the car's centre line are
- * moved into a new mesh next to it (same parent and transform), so it can have its own material that lights only with the
- * brake. When the whole mesh is such a piece it is returned as it is. `null` = no centre piece.
+ * The pieces of `mesh` whose body-space box passes `test` moved into a new mesh next to it (same parent and transform, name
+ * `<mesh>_<suffix>`), so they can have a lamp material of their own. When every piece passes, the mesh is returned as it is.
+ * `null` = no piece passes.
  */
-export function splitCentreLamp(mesh: Mesh, toBody: Matrix4): Mesh | null {
+export function splitLampPieces(
+  mesh: Mesh,
+  toBody: Matrix4,
+  test: (box: Box3) => boolean,
+  suffix: string,
+): Mesh | null {
   const w = weld(mesh, toBody);
   const boxes = new Map<number, Box3>();
   const v = new Vector3();
@@ -83,27 +88,20 @@ export function splitCentreLamp(mesh: Mesh, toBody: Matrix4): Mesh | null {
       box.expandByPoint(v.set(w.xyz[i], w.xyz[i + 1], w.xyz[i + 2]));
     }
   }
-  const centre = new Set<number>();
-  for (const [r, box] of boxes) {
-    const size = box.getSize(v);
-    if (
-      Math.abs((box.min.x + box.max.x) / 2) < CENTRE_X &&
-      size.x < CENTRE_WIDTH
-    )
-      centre.add(r);
-  }
-  if (!centre.size) return null;
-  if (centre.size === boxes.size) return mesh;
+  const picked = new Set<number>();
+  for (const [r, box] of boxes) if (test(box)) picked.add(r);
+  if (!picked.size) return null;
+  if (picked.size === boxes.size) return mesh;
   const mine: number[] = [];
   const rest: number[] = [];
   for (let t = 0; t < w.count; t++)
-    (centre.has(roots[t]) ? mine : rest).push(
+    (picked.has(roots[t]) ? mine : rest).push(
       w.corner(t, 0),
       w.corner(t, 1),
       w.corner(t, 2),
     );
   const part = new Mesh(subset(mesh.geometry, mine), mesh.material);
-  part.name = `${mesh.name}_centre`;
+  part.name = `${mesh.name}_${suffix}`;
   part.position.copy(mesh.position);
   part.quaternion.copy(mesh.quaternion);
   part.scale.copy(mesh.scale);
@@ -115,4 +113,36 @@ export function splitCentreLamp(mesh: Mesh, toBody: Matrix4): Mesh | null {
   mesh.parent?.add(part);
   mesh.geometry = subset(mesh.geometry, rest);
   return part;
+}
+
+/**
+ * The third brake light (a high-mount strip, a small bumper lamp): pieces of `mesh` that sit on the car's centre line
+ * (`splitLampPieces`), so it can have its own material that lights only with the brake.
+ */
+export function splitCentreLamp(mesh: Mesh, toBody: Matrix4): Mesh | null {
+  const v = new Vector3();
+  return splitLampPieces(
+    mesh,
+    toBody,
+    (box) =>
+      Math.abs((box.min.x + box.max.x) / 2) < CENTRE_X &&
+      box.getSize(v).x < CENTRE_WIDTH,
+    'centre',
+  );
+}
+
+/** Tail-lamp pieces inboard of `|x| = maxX` (the part of a split tail lamp that sits on the boot lid), see `splitLampPieces`. */
+export function splitBootLamp(
+  mesh: Mesh,
+  toBody: Matrix4,
+  maxX: number,
+): Mesh | null {
+  return splitLampPieces(
+    mesh,
+    toBody,
+    (box) =>
+      Math.abs((box.min.x + box.max.x) / 2) < maxX &&
+      Math.abs((box.min.x + box.max.x) / 2) >= CENTRE_X,
+    'boot',
+  );
 }
