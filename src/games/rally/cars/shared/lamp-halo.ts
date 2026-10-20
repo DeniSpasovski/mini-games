@@ -71,6 +71,11 @@ interface Piece {
   brakeOnly: boolean;
 }
 
+/** Joined pieces of one lamp; `brakeOnly` = all of them are. */
+interface Lamp extends Piece {
+  parts: Piece[];
+}
+
 /**
  * Pieces of `mesh` (triangles that share vertices) in body space: a lamp material's mesh holds both tail lamps and the
  * third brake light, so the mesh's own box would span the whole car width. Only triangles that glow somewhere count
@@ -127,24 +132,30 @@ function pieces(mesh: Mesh, toBody: Matrix4): Piece[] {
   return [...out.values()];
 }
 
-/** Pieces that overlap or sit within `JOIN` of each other (x / y) merged (brake-only pieces only with each other), until no two do. */
-function lamps(all: Piece[]): Piece[] {
-  const list = [...all];
+/** Pieces that overlap or sit within `JOIN` of each other (x / y) merged, until no two do (`parts` = the pieces merged). */
+function lamps(all: Piece[]): Lamp[] {
+  const list: Lamp[] = all.map((p) => ({
+    ...p,
+    box: p.box.clone(),
+    tris: [...p.tris],
+    glows: [...p.glows],
+    parts: [p],
+  }));
   for (let again = true; again;) {
     again = false;
     for (let i = 0; i < list.length && !again; i++)
       for (let j = i + 1; j < list.length && !again; j++) {
         const a = list[i].box;
         const b = list[j].box;
-        // A brake-only piece keeps its own halo, so it stays dark with the running lamp beside it.
         if (
-          list[i].brakeOnly === list[j].brakeOnly &&
           a.min.x - JOIN <= b.max.x &&
           a.max.x + JOIN >= b.min.x &&
           a.min.y - JOIN <= b.max.y &&
           a.max.y + JOIN >= b.min.y
         ) {
           a.union(b);
+          list[i].brakeOnly &&= list[j].brakeOnly;
+          list[i].parts.push(...list[j].parts);
           list[i].tris.push(...list[j].tris);
           list[i].glows.push(...list[j].glows);
           list.splice(j, 1);
@@ -288,6 +299,8 @@ export class LampHalos {
   private readonly materials: ShaderMaterial[] = [];
   /** The quads of the third brake lights: they glow only with the brake. */
   private readonly brakeOnly: ShaderMaterial[] = [];
+  /** Running pieces of a lamp that also has brake-only ones: their glow gives way to the whole lamp's with the brake. */
+  private readonly runningOnly: ShaderMaterial[] = [];
 
   /** `meshes` = the red lamp meshes, `toBody` = world -> body matrix (the matrix worlds must be current). */
   constructor(meshes: Mesh[], toBody: Matrix4) {
@@ -303,18 +316,37 @@ export class LampHalos {
       const y0 = lamp.box.min.y - margin;
       const w = Math.ceil((size.x + 2 * margin) / TEXEL);
       const h = Math.ceil((size.y + 2 * margin) / TEXEL);
-      const material = haloMaterial(maskTexture(lamp, x0, y0, w, h, radius));
-      const halo = new Mesh(quad, material);
-      halo.scale.set(w * TEXEL, h * TEXEL, 1);
-      halo.position.set(
-        x0 + (w * TEXEL) / 2,
-        y0 + (h * TEXEL) / 2,
-        lamp.box.min.z - SETBACK,
-      );
-      halo.renderOrder = 5;
-      halo.frustumCulled = false;
-      (lamp.brakeOnly ? this.brakeOnly : this.materials).push(material);
-      this.group.add(halo);
+      const add = (piece: Piece, list: ShaderMaterial[]): void => {
+        const material = haloMaterial(maskTexture(piece, x0, y0, w, h, radius));
+        const halo = new Mesh(quad, material);
+        halo.scale.set(w * TEXEL, h * TEXEL, 1);
+        halo.position.set(
+          x0 + (w * TEXEL) / 2,
+          y0 + (h * TEXEL) / 2,
+          lamp.box.min.z - SETBACK,
+        );
+        halo.renderOrder = 5;
+        halo.frustumCulled = false;
+        list.push(material);
+        this.group.add(halo);
+      };
+      const running = lamp.parts.filter((p) => !p.brakeOnly);
+      if (lamp.brakeOnly) add(lamp, this.brakeOnly);
+      else if (running.length === lamp.parts.length) add(lamp, this.materials);
+      else {
+        // A lamp with brake-only pieces (a boot-lid half): the running halo round its running pieces, fading out as the
+        // whole lamp's halo lights with the brake (one glow, no brighter overlap).
+        add(lamp, this.brakeOnly);
+        add(
+          {
+            box: lamp.box,
+            tris: running.flatMap((p) => p.tris),
+            glows: running.flatMap((p) => p.glows),
+            brakeOnly: false,
+          },
+          this.runningOnly,
+        );
+      }
     }
   }
 
@@ -322,12 +354,18 @@ export class LampHalos {
   setLevel(level: number, brakeOnly: number): void {
     for (const m of this.materials) m.uniforms.uLevel.value = level;
     for (const m of this.brakeOnly) m.uniforms.uLevel.value = brakeOnly;
+    for (const m of this.runningOnly)
+      m.uniforms.uLevel.value = Math.max(0, level - brakeOnly);
     this.group.visible = Math.max(level, brakeOnly) > 0.003;
   }
 
   dispose(): void {
     this.group.removeFromParent();
-    for (const m of [...this.materials, ...this.brakeOnly]) {
+    for (const m of [
+      ...this.materials,
+      ...this.brakeOnly,
+      ...this.runningOnly,
+    ]) {
       (m.uniforms.uMask.value as DataTexture).dispose();
       m.dispose();
     }
