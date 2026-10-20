@@ -285,7 +285,8 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   second `vehicle` part up to LOD 1, `PACK_VEHICLE_LODS`) and the Ajvatovci start-row lots. Both lists are baked again after every
   atlas change. `tests/rally/service-vehicles.test.ts` holds their triangle budgets.
 - The two fire engines (`fire_truck` = the US engine of Jackie's junctions, `fire_truck_mk` = the Macedonian engine at a start control;
-  junction dressing and `addStartControl` pick by `MapDef.country`) are two CC BY models with their own livery and one atlas each
+  junction dressing (street mouths 5 m or wider) and `addStartControl` pick by `MapDef.country`; both stand level with the slope under
+  their wheels) are two CC BY models with their own livery and one atlas each
   (`fire-truck-models.ts`, data `fire-trucks.data.ts`, `fire-truck-us.jpg` / `fire-truck-mk.jpg`, so a map loads only its engine's
   image): `street-pack-extract.py` + `bake-fire-truck-textures.py` + `bake-fire-trucks.mjs` (scale, turn and LOD budgets are its
   `MODELS`; mesh helpers shared with the street cars in `street-bake-lib.mjs`). LOD 0 keeps the shapes (US ~22k triangles, hidden

@@ -997,6 +997,8 @@ function addStartControl(
     off: number,
     rotY: (p: { tx: number; tz: number }) => number,
     r: number,
+    /** Wheel base and track (m) of a vehicle that follows the slope of the verge (nose-up and roll). */
+    wheels?: [number, number],
   ): void => {
     const p = spot(da, off);
     road.query(p.x, p.z, rq);
@@ -1005,16 +1007,31 @@ function addStartControl(
       (rq.found && rq.distance < rq.halfWidth + 1.5)
     )
       return;
+    const yaw = rotY(p);
+    let y = ctx.height(p.x, p.z);
+    let tiltX = 0;
+    let tiltZ = 0;
+    if (wheels) {
+      // Ground under the four wheels, in the vehicle's frame (+X nose, +Z right side).
+      const [c, sn] = [Math.cos(yaw), Math.sin(yaw)];
+      const at = (dx: number, dz: number): number =>
+        ctx.height(p.x + dx * c + dz * sn, p.z - dx * sn + dz * c);
+      const [l, w] = [wheels[0] / 2, wheels[1] / 2];
+      const [fl, fr, rl, rr] = [at(l, -w), at(l, w), at(-l, -w), at(-l, w)];
+      y = (fl + fr + rl + rr) / 4;
+      tiltZ = Math.atan2(fl + fr - rl - rr, 2 * wheels[0]);
+      tiltX = Math.atan2(fl + rl - fr - rr, 2 * wheels[1]);
+    }
     out.instances.push({
       asset,
       variant,
       x: p.x,
-      y: ctx.height(p.x, p.z),
+      y,
       z: p.z,
-      rotY: rotY(p),
+      rotY: yaw,
       scale: 1,
-      tiltX: 0,
-      tiltZ: 0,
+      tiltX,
+      tiltZ,
     });
   };
   const alongRoad = (p: { tx: number; tz: number }) => yawAlong(p.tx, p.tz);
@@ -1044,8 +1061,8 @@ function addStartControl(
   // One waves the flag at the line, one with a radio further back.
   put('marshal', 12, -1.5, 3.4, (p) => towardRoad(p) - 0.4, 0.4);
   put('marshal', 14, -24.5, 3.2, (p) => towardRoad(p), 0.4);
-  // Rescue ambulance on the verge beyond the line, nose forward.
-  put('ambulance', 0, 14, 3.4, alongRoad, 3.4);
+  // Rescue ambulance on the verge beyond the line, nose forward, level with the slope under its wheels.
+  put('ambulance', 0, 14, 3.4, alongRoad, 3.4, [4.4, 1.8]);
   // The fire engine of the map's country behind it.
   const us = ctx.country === 'us';
   put(
@@ -1055,5 +1072,6 @@ function addStartControl(
     3.6,
     alongRoad,
     us ? 4.8 : 4.4,
+    us ? [7, 2.4] : [6, 2.2],
   );
 }
