@@ -204,6 +204,19 @@ export function* cutWallMeshJob(
       const p = v0 + i * 2;
       conc.idx.push(p, p + 2, p + 3, p, p + 3, p + 1);
     }
+    // Close both ends of the run from the face back into the land: the face and the coping walk stop in mid-air
+    // where the cut weight drops, which left a dark slot under the walk's end.
+    for (const r of [rows[0], rows[rows.length - 1]]) {
+      const f = at(r, r.lat);
+      const b = at(r, r.back);
+      (concrete ? conc : stone).wall(
+        [
+          { ...f, bot: r.y - 0.2, top: r.top },
+          { ...b, bot: gen.height(b.x, b.z) - 1, top: r.top },
+        ],
+        concrete ? CONC : STONE,
+      );
+    }
     // Coping course along the face edge (0.4 m wide, 0.12 m proud of the walk).
     const cr: Row[] = rows.map((r) => {
       const p = at(r, r.lat + Math.sign(r.lat) * 0.2);

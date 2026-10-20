@@ -269,7 +269,14 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
     const sectors = buildSectors(board, run);
     results
       .querySelector('[data-ref="board"]')!
-      .replaceChildren(buildLeaderboard(board, run, sectors.setScope));
+      .replaceChildren(
+        buildLeaderboard(
+          board,
+          run,
+          sectors.setScope,
+          game.world.map.environment.timeOfDay,
+        ),
+      );
     results.querySelector('[data-ref="sectors"]')!.replaceChildren(sectors);
     results.querySelector('[data-ref="time"]')!.innerHTML =
       formatTime(time) +
