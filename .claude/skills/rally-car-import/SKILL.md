@@ -111,6 +111,9 @@ cambered: de-camber before centring (`stl-wheel-extract.py` `axis`, worked examp
 A GLB rim's barrel is often a one-sided tube: it vanishes from the axle side and the rim looks see-through (ground shows
 between the spokes). Look into the dish from an angle; fix with `wheel-stl-to-glb.mjs --two-sided 20` (back faces for open
 shells) and `--bridge x0,r0,x1,r1` when the barrel stops short of the lip (worked example `cars/peugeot-206/`).
+Lamps: check them in the dark too - `&tod=1&beam=0&view=rear&lamps=on` (running lamps; `off` = dark), `lamps=brake`, `lamps=reverse`, and `tod=17.5`
+(evening). A bright red glow turns salmon pink under the night tone mapping (AgX): glow maps in pure red, and a `LampNight` (`RED_NIGHT`,
+`LENS_NIGHT`...) on every red lamp material in `part-materials.ts`; that also gives the lamp its halo (`lamp-halo.ts`).
 Only then start on parts and paint - texture work on a bad mesh is wasted twice.
 
 ## 4. Split accent parts off the body (never paint them)
@@ -210,7 +213,7 @@ off-white (`#e9e6dd` pearl) and leave the exposure to `engine/display.ts` (`?dis
 - Seeds: seed 0 = the reference scheme; other seeds reuse the shapes with `info.accent` / `accent2`.
 - Verify from side, front 3/4, top, rear 3/4, and low rear (underside) - one page load per screenshot in the
   browser pane.
-- **Photo tracing is a last resort, and never all at once.** Warping press photos into the atlas (`trace-livery.py`: one 2D
+- **Photo tracing is a last resort, and never all at once.** Warping press photos into the atlas (one 2D
   warp per view + per-axis stretch pairs, letters dropped, plates kept as quads) gave a livery the user rejected outright -
   the mesh and the real car differ by centimetres everywhere, so every edge was slightly off and the whole looked smeared.
   The user prefers to **start from a clean base colour and add livery elements step by step, guided**. If a photo trace is

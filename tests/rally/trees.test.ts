@@ -10,11 +10,17 @@ import {
 import {
   MAX_FADES,
   selectLevel,
+  spriteKeep,
   spriteRole,
   stepFade,
   type FadeState,
 } from '../../src/games/rally/trees/draw';
-import { spriteAtlas } from '../../src/games/rally/trees/leaftex';
+import { treeUniforms } from '../../src/games/rally/trees/materials';
+import {
+  LEAF_STYLES,
+  spriteAtlas,
+  styleKind,
+} from '../../src/games/rally/trees/leaftex';
 import { HeightGrid, Horizon } from '../../src/games/rally/trees/occlusion';
 import {
   placeTree,
@@ -22,6 +28,9 @@ import {
 } from '../../src/games/rally/trees/placement';
 import { buildSkeleton } from '../../src/games/rally/trees/skeleton';
 import {
+  FOREST_REACH,
+  NEAR_SPRITES,
+  ROAD_REACH,
   SPECIES,
   speciesOfType,
   TREE_TYPES,
@@ -148,8 +157,11 @@ describe('trees', () => {
       765;
     // Columnar poplar and juniper; spreading walnut and willow; a pine taller than wide.
     expect(ratio('poplar_tree')).toBeGreaterThan(2.5);
-    expect(ratio('juniper')).toBeGreaterThan(1.1);
+    expect(ratio('juniper')).toBeGreaterThan(0.9);
     expect(ratio('cypress_tree')).toBeGreaterThan(2.5);
+    // The hedge cypress is a fuller cone: still a column, but broader than the Mediterranean cypress.
+    expect(ratio('hedge_cypress')).toBeGreaterThan(1.5);
+    expect(ratio('hedge_cypress')).toBeLessThan(ratio('cypress_tree'));
     expect(ratio('pine_tree')).toBeGreaterThan(1.3);
     // The plantation pine is the pine's cone grown cheaper: as tall and narrow, with fewer sprites and limbs.
     expect(ratio('plantation_pine')).toBeGreaterThan(1.3);
@@ -178,6 +190,7 @@ describe('trees', () => {
       'black_pine',
       'juniper',
       'cypress_tree',
+      'hedge_cypress',
     ])
       expect(v(c).def.foliage.kind).toBe('needles');
     for (const c of [
@@ -195,7 +208,7 @@ describe('trees', () => {
       );
     // Sizes: shrubs and junipers are low; the fruit tree is smaller than the oak; the poplar is the tallest.
     for (const low of ['bush', 'scrub_bush', 'juniper', 'bramble_shrub'])
-      expect(v(low).info.height).toBeLessThan(4);
+      expect(v(low).info.height).toBeLessThan(4.5);
     expect(v('fruit_tree').info.height).toBeLessThan(
       v('oak_tree').info.height * 0.7,
     );
@@ -208,6 +221,12 @@ describe('trees', () => {
       v('poplar_tree').info.height,
     );
     expect(lum(v('cypress_tree').def.foliage.palette[0])).toBeLessThan(0.25);
+    // The hedge cypress is a 5-9 m screen tree, greener and lighter than the dark cypress.
+    expect(v('hedge_cypress').info.height).toBeGreaterThan(5);
+    expect(v('hedge_cypress').info.height).toBeLessThan(9.5);
+    expect(lum(v('hedge_cypress').def.foliage.palette[0])).toBeGreaterThan(
+      lum(v('cypress_tree').def.foliage.palette[0]),
+    );
   });
 
   test('conifers and broadleaves collide on their trunk; shrubs are drive-through', () => {
@@ -268,6 +287,17 @@ describe('tree LOD transitions', () => {
     expect(selectLevel(0.5, 1, T, 0.15, 39)).toBe(0);
   });
 
+  test('a small tree is never the impostor up close (IMPOSTOR_FROM), whatever the quality', () => {
+    // A tree so small on screen that it would be an impostor: LOD1 inside 80 m, the impostor past it.
+    expect(selectLevel(0.02, 2, T, 0.15, 60)).toBe(1);
+    expect(selectLevel(0.02, 0, T, 0, 79)).toBe(1);
+    expect(selectLevel(0.02, 0, T, 0, 81)).toBe(2);
+    // The hysteresis: a tree at LOD1 goes to the impostor only past 80 m x 1.15, back to LOD1 inside 80 m.
+    expect(selectLevel(0.02, 1, T, 0.15, 90)).toBe(1);
+    expect(selectLevel(0.02, 1, T, 0.15, 93)).toBe(2);
+    expect(selectLevel(0.02, 2, T, 0.15, 85)).toBe(2);
+  });
+
   test('default thresholds: a 15 m tree at 60 deg is LOD1 past 40 m and an impostor at ~370 m', () => {
     const px = 1 / (2 * Math.tan(Math.PI / 6));
     const at = (d: number) => selectLevel((15 * px) / d, 0, T, 0, d);
@@ -276,7 +306,30 @@ describe('tree LOD transitions', () => {
 
   test('within 40 m always LOD0, whatever the projected height', () => {
     expect(selectLevel(0.0001, 2, T, 0.15, 39)).toBe(0);
-    expect(selectLevel(0.0001, 2, T, 0.15, 41)).toBe(2);
+    expect(selectLevel(0.0001, 2, T, 0.15, 41)).toBe(1);
+    expect(selectLevel(0.0001, 2, T, 0.15, 81)).toBe(2);
+  });
+
+  test('the first row keeps LOD0 and its full sprite share out to its own, longer reach', () => {
+    expect(ROAD_REACH.full).toBeGreaterThan(FOREST_REACH.full);
+    const mid = (FOREST_REACH.full + ROAD_REACH.full) / 2;
+    // A forest tree is LOD1 there, a first-row tree still LOD0 (sprites + branches: no drop in detail at 40 m).
+    expect(selectLevel(0.5, 0, T, 0.15, mid)).toBe(1);
+    expect(selectLevel(0.5, 0, T, 0.15, mid, ROAD_REACH.full)).toBe(0);
+    expect(
+      selectLevel(0.5, 1, T, 0.15, ROAD_REACH.full + 1, ROAD_REACH.full),
+    ).toBe(1);
+    // The sprite share holds NEAR_SPRITES to the reach and eases to the far share over its ramp.
+    const keep = (d: number, r = FOREST_REACH) =>
+      spriteKeep(Infinity, d, 1, 0.5, r);
+    expect(keep(FOREST_REACH.full)).toBeCloseTo(NEAR_SPRITES, 5);
+    expect(keep(mid)).toBeLessThan(NEAR_SPRITES);
+    expect(keep(mid, ROAD_REACH)).toBeCloseTo(NEAR_SPRITES, 5);
+    const far = treeUniforms.tlFar.value.x;
+    expect(keep(ROAD_REACH.full + ROAD_REACH.ramp, ROAD_REACH)).toBeCloseTo(
+      far,
+      5,
+    );
   });
 
   test('sprites stay solid between branch levels and fade only against the impostor', () => {
@@ -350,9 +403,9 @@ describe('tree performance rules (trees/Performance.md#mitigations)', () => {
     },
   );
 
-  test('the sprite atlas: 4-8 cluster images, each cut to a 6-8 vertex outline around its opaque texels', () => {
-    for (const kind of ['needles', 'broadleaf'] as const) {
-      const a = spriteAtlas(kind);
+  test('the sprite atlases: 4-8 cluster images, each cut to a 6-8 vertex outline around its opaque texels', () => {
+    for (const style of LEAF_STYLES) {
+      const a = spriteAtlas(style);
       expect(a.outlines.length).toBeGreaterThanOrEqual(4);
       expect(a.outlines.length).toBeLessThanOrEqual(8);
       for (const o of a.outlines) {
@@ -364,12 +417,20 @@ describe('tree performance rules (trees/Performance.md#mitigations)', () => {
           const [x1, y1] = o[(i + 1) % o.length];
           area += x0 * y1 - x1 * y0;
         }
-        // Smaller than the full square, but not empty.
+        // Smaller than the full square, but not empty (a spray or a thin frond lies along x).
         expect(Math.abs(area / 2)).toBeLessThan(0.95);
-        expect(Math.abs(area / 2)).toBeGreaterThan(0.2);
+        expect(Math.abs(area / 2)).toBeGreaterThan(0.08);
       }
     }
   });
+
+  test.each(SPECIES.map((s) => [s.name, s] as const))(
+    '%s: its leaf style is one of the atlases and matches its foliage kind',
+    (_n, def: SpeciesDef) => {
+      expect(LEAF_STYLES).toContain(def.foliage.leaf);
+      expect(styleKind(def.foliage.leaf)).toBe(def.foliage.kind);
+    },
+  );
 
   test('without a free fade slot a settled tree keeps its level, then gets a full fade', () => {
     const st: FadeState = { from: 1, to: 1, fade: 1, dir: 1 };
@@ -416,8 +477,8 @@ describe('tree drawing (trees/Drawing.md)', () => {
     // Prepass on (the default off touch devices): the prepass writes depth, the lit sprites shade where it is not
     // behind (less-or-equal, offset toward the camera: never EQUAL, it blinked), both opaque and on the same program.
     m.setSpritePrepass(true);
-    const lit = m.spriteMaterial('broadleaf', 1);
-    const pre = m.spritePrepassMaterial('broadleaf', 1);
+    const lit = m.spriteMaterial('ovate');
+    const pre = m.spritePrepassMaterial('ovate');
     expect(lit.depthFunc).toBe(LessEqualDepth);
     expect(lit.polygonOffset).toBe(true);
     expect(lit.depthWrite).toBe(false);

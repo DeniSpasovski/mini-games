@@ -5,11 +5,11 @@ README files carry the same information in more detail. Keep this file current w
 
 ## Licence scope
 
-| Material                                                                                                                                                             | Licence                                                                 |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Source code, procedural assets, docs, screenshots (everything original)                                                                                              | [PolyForm Noncommercial 1.0.0](LICENSE)                                 |
-| Baked map data of the real maps (`maps/<id>/`: `data.json`, `route.json`, `horizon.json`, `junction*.json`, `buildings.csv`, `preview/<stage>.json` + `.jpg` render) | ODbL 1.0 + attribution (derived from OpenStreetMap and other open data) |
-| Third-party models and data listed below                                                                                                                             | their own licences; not relicensed by this project                      |
+| Material                                                                                                                                                                              | Licence                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Source code, procedural assets, docs, screenshots (everything original)                                                                                                               | [PolyForm Noncommercial 1.0.0](LICENSE)                                 |
+| Baked map data of the real maps (`maps/<id>/`: `data.json`, `route.json`, `horizon.json`, `junction*.json`, `buildings.csv`, `preview/<stage>.json` + `<stage>-<season>.jpg` renders) | ODbL 1.0 + attribution (derived from OpenStreetMap and other open data) |
+| Third-party models and data listed below                                                                                                                                              | their own licences; not relicensed by this project                      |
 
 ## Software
 
@@ -20,8 +20,9 @@ README files carry the same information in more detail. Keep this file current w
 
 3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party: its critters, arenas, effects and sounds are original and procedural.
 
-No fonts, textures, sounds or music files are bundled: textures are painted on canvases at runtime, audio is
-synthesised with WebAudio, and text uses system fonts.
+No fonts, sounds or music files are bundled: audio is synthesised with WebAudio and text uses system fonts. Most textures
+are painted on canvases at runtime; the only texture files that ship are the car lamp, seat, fabric and cab textures (listed
+with their licences in `public/models/CREDITS.md`) and the truck textures (listed under "Parked trucks" below).
 
 ## Map data (baked into `src/games/rally/maps/<id>/`)
 
@@ -57,7 +58,7 @@ Some roads, properties and outlines were added or traced by hand on top of the o
 | `ford_gt3.glb`, `ford_gt3_wheel.glb`                                                     | "2024 Ford Mustang GT3" by kevin (Sketchfab; split by material and converted, tyres + discs + calipers dropped, logo banner dropped; rim extracted; flat paint at runtime)                                                                                                                         | CC BY 4.0                 |
 | `merc_190.glb`, `merc_190_wheel.glb`                                                     | "Mercedes 190E EVO 1982 3D Model Free" by Betier Models (Sketchfab; split by material and converted, tyres + discs + calipers + own springs and arms dropped, hood star, grille, boot-lid and steering-wheel badges removed; rim extracted with the hub-cap star flattened; flat paint at runtime) | CC BY 4.0                 |
 | `peugeot_206.glb`, `peugeot_206_wheel.glb`                                               | "Peugeot 206" by Alvier (Sketchfab; split by material and converted, tyres + discs + calipers + springs dropped, lion emblem, rear lettering and side badge dropped; rim extracted, centre-cap emblem flattened; flat paint at runtime)                                                            | CC BY 4.0                 |
-| `audi_rs6.glb`, `audi_rs6_wheel.glb`, `audi_rs6_lamps.png`                               | "Audi RS 6 Avant (C8)" by GT Cars: Hyperspeed (Sketchfab; split by material and converted, tyres + discs + calipers + engine bay dropped, rings, badges, lettering and plate removed; rim extracted; lamp texture kept; flat paint at runtime)                                                     | CC BY 4.0                 |
+| `audi_rs6.glb`, `audi_rs6_wheel.glb`, `audi_rs6_lamps.png`                               | "Audi RS 6 Avant (C8)" by Mona x Supercars (Sketchfab; split by material and converted, tyres + discs + calipers + engine bay dropped, rings, badges, lettering and plate removed; rim extracted; lamp texture kept; flat paint at runtime)                                                        | CC BY 4.0                 |
 | `porsche_911_930.glb`, `porsche_911_930_wheel.glb`, `porsche_911_930_lamp.png`           | "Porsche 911 (930) Turbo 1975" by Lexyc16 (Sketchfab; split by material and converted, wheels dropped, rear light wordmark replaced by a flat lens; rim extracted, nuts dropped, recoloured two-tone; headlamp texture kept; flat paint at runtime)                                                | CC BY 4.0                 |
 | `subie_wrx_sti.glb`, `subie_wrx_sti_wheel.glb`, `subie_wrx_sti_lamps.png`                | "2019 Rowen Subaru WRX STI" by Car design (Sketchfab; split by material and converted, tyres + discs + calipers + engine bay dropped, badges, lettering and plates removed; rim extracted; lamp texture kept; cockpit simplified; flat paint at runtime)                                           | CC BY 4.0                 |
 | `lancer_evo_6.glb`, `lancer_evo_6_wheel.glb`, `lancer_evo_6_{lamps,seat,fabric,cab}.png` | "Mitsubishi Lancer Evolution 6" by vecarz (Sketchfab; converted and repainted, badges + plate removed; lamp and seat textures kept)                                                                                                                                                                | CC BY 4.0                 |

@@ -22,6 +22,7 @@ import {
   IMPOSTOR_FRAMES,
   IMPOSTOR_LAYERS,
 } from './materials';
+import { TREE_SPRITE_AXES } from './sprite-attr';
 
 /**
  * Stage 4, impostor baking (spec: trees/Lod.md#levels): LOD0 branches and every foliage sprite (billboarded towards
@@ -79,15 +80,18 @@ varying vec3 vR;
 varying vec3 vU;
 varying float vDepth;
 varying float vAO;
+${TREE_SPRITE_AXES}
 void main() {
 	vec3 right = cross( vec3( 0.0, 1.0, 0.0 ), uDir );
 	right = dot( right, right ) > 1e-6 ? normalize( right ) : vec3( 1.0, 0.0, 0.0 );
 	vec3 up = cross( uDir, right );
-	float c = cos( treeSprite.w );
-	float s = sin( treeSprite.w );
-	vR = right * c + up * s;
-	vU = up * c - right * s;
-	vec3 p = position + ( vR * treeSprite.x + vU * treeSprite.y ) * treeSprite.z;
+	vec2 corner;
+	vec3 heading;
+	float aligned;
+	treeSpriteCorner( treeSprite, corner, heading, aligned );
+	float stretch;
+	treeSpriteAxes( right, up, heading, aligned, treeWind.y, 0.0, vR, vU, stretch );
+	vec3 p = position + ( vR * ( corner.x * stretch ) + vU * corner.y ) * treeSprite.z;
 	vColor = color;
 	vUv = uv;
 	vN = normal;

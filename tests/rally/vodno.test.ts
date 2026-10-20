@@ -38,6 +38,19 @@ import {
   roadZ,
 } from '../../src/games/rally/maps/vodno/landmarks/restaurant';
 import { LOT_PADS } from '../../src/games/rally/maps/vodno/lots';
+import {
+  BANK,
+  JUNCTION,
+  laneExtra,
+  MARKINGS,
+  WALL_RANGE,
+  WIDE_FROM,
+  WIDE_TO,
+} from '../../src/games/rally/maps/vodno/crossroad';
+import { GATE } from '../../src/games/rally/maps/vodno/landmarks/gate';
+import { cutWallColliders } from '../../src/games/rally/world/cut-wall-colliders';
+import { CORNER_HOUSE } from '../../src/games/rally/maps/vodno/landmarks/start-blocks';
+import { wallSections } from '../../src/games/rally/maps/vodno/landmarks/start-wall';
 import { SKYLINE } from '../../src/games/rally/maps/vodno/skyline';
 import {
   LODGE,
@@ -61,6 +74,7 @@ import {
   cabinPose,
 } from '../../src/games/rally/world/aerialway';
 import { newRoadQuery } from '../../src/games/rally/world/road';
+import { setbackAt } from '../../src/games/rally/world/scatter';
 import {
   geoToWorld,
   newPathQuery,
@@ -230,6 +244,10 @@ describe('vodno landmarks (churches, platform, stations, towers)', () => {
     'vodno-outposts',
     'vodno-car-parks',
     'vodno-restaurant',
+    'vodno-gate',
+    'vodno-start-blocks',
+    'vodno-crossroad-hotel',
+    'vodno-roadside-gazebo',
   ];
 
   test('registered on the map and in the world', () => {
@@ -731,17 +749,21 @@ describe('vodno car park surroundings', () => {
     expect(carParksLandmark.replaces(b!)).toBe(true);
   });
 
-  test('the approach to the Vidikovec has a rusty guard rail on its drop and white edge lines', () => {
+  test('the approach to the Vidikovec has a rusty guard rail on its drop, the climb white edge and centre lines', () => {
     const rails = (map.barriers ?? []).filter((b) => b.kind === 'guardrail');
-    expect(rails.length).toBeGreaterThan(0);
-    expect(rails.every((b) => b.rusty)).toBe(true);
+    const rusty = rails.filter((b) => b.rusty);
+    expect(rusty.length).toBeGreaterThan(0);
     expect(
-      rails.some((b) => b.side === 'right' && b.from === 2600 && b.to === 2796),
+      rusty.some((b) => b.side === 'right' && b.from === 2600 && b.to === 2796),
     ).toBe(true);
-    const lines = map.road.sections?.filter(
-      (s) => s.texture === 'road_tarmac_lines',
-    );
-    expect(lines?.length).toBe(1);
+    // The one galvanised rail: the left side after the first crossroad.
+    expect(rails.filter((b) => !b.rusty).map((b) => b.side)).toEqual(['left']);
+    // Edge and centre lines all along (the run-up street too), edge lines only where the crossroad's own paint is.
+    expect(map.road.texture).toBe('road_tarmac_lines');
+    expect(map.road.sections?.map((s) => [s.texture, s.from])).toEqual([
+      ['road_tarmac', WIDE_FROM],
+      ['road_tarmac_lines', WIDE_TO],
+    ]);
   });
 
   test('the service road that merges above the finish ends level with the summit road', () => {
@@ -766,6 +788,163 @@ describe('vodno car park surroundings', () => {
         world.gen.pathHeight(si, L) - world.gen.pathHeight(pq.path, pq.along),
       ),
     ).toBeLessThan(0.05);
+  });
+});
+
+describe('vodno start street and first crossroad', () => {
+  const q = newRoadQuery();
+  /** The ground `d` m to the right of the stage road's centre at `along` (right of travel = (-tz, tx)). */
+  const rightOf = (along: number, d: number) => {
+    const s = world.stageRoad.at(along);
+    return {
+      road: s.y,
+      ground: world.analytic.height(s.x - s.tz * d, s.z + s.tx * d),
+    };
+  };
+
+  test('the road widens to three lanes at the first crossroad and is back to its width after it', () => {
+    expect(laneExtra(300)).toBe(0);
+    expect(laneExtra(440)).toBeGreaterThan(2.8);
+    expect(laneExtra(520)).toBe(0);
+    expect(WIDE_FROM).toBeLessThan(WALL_RANGE[0]);
+    expect(WIDE_TO).toBeGreaterThan(WALL_RANGE[1]);
+  });
+
+  test('the land on the right of the crossroad stands above the road behind its retaining wall', () => {
+    for (const along of [410, 440, 470]) {
+      const { road, ground } = rightOf(along, 9);
+      expect(ground - road, `${along} m`).toBeGreaterThan(BANK - 1);
+    }
+    // Before and after the wall the right side is not lifted by it.
+    expect(rightOf(300, 9).ground - rightOf(300, 9).road).toBeLessThan(3);
+    expect(map.road.cutWalls?.range).toEqual(WALL_RANGE);
+  });
+
+  test('the crossroad lanes are painted: edge lines, a double centre line on the texture line, a left-turn arrow and a straight arrow', () => {
+    expect(map.road.markings).toBe(MARKINGS);
+    const lines = MARKINGS.flatMap((m) => (m.kind === 'line' ? [m] : []));
+    const arrows = MARKINGS.flatMap((m) => (m.kind === 'arrow' ? [m] : []));
+    expect(lines.some((m) => m.dash)).toBe(true);
+    expect(arrows.some((m) => m.arrow === 'left')).toBe(true);
+    expect(arrows.some((m) => m.arrow === 'straight')).toBe(true);
+    for (const m of MARKINGS) {
+      const [a, b] = m.kind === 'line' ? [m.from, m.to] : [m.at, m.at];
+      // Edge and end of the centre line run a few metres over the texture's own lines.
+      expect(a).toBeGreaterThanOrEqual(WIDE_FROM - 5);
+      expect(b).toBeLessThanOrEqual(WIDE_TO + 5);
+    }
+    // The paint meets the road texture's own lines: the double line is centred on the centre line of the road before
+    // it, and the edge lines are as far in as the texture's (5% in from a ribbon 4% wider than the road).
+    const before = world.stageRoad.at(WIDE_FROM - 1).halfWidth * 2;
+    const double = lines.filter(
+      (m) => m.from === WIDE_FROM && m.width === 0.13,
+    );
+    expect(double.length).toBe(2);
+    expect(
+      (double[0].offset + double[1].offset) / 2,
+      'centre of the double line',
+    ).toBeCloseTo(before / 2, 1);
+    const edges = lines.filter((m) => m.offset < 1);
+    expect(edges.length).toBeGreaterThan(2);
+    for (const e of edges)
+      expect(e.offset).toBeCloseTo(0.064 * (before / 2), 2);
+    // They start before the widening and end after it, over the texture's own lines.
+    expect(Math.min(...edges.map((m) => m.from))).toBeLessThan(WIDE_FROM);
+    expect(Math.max(...edges.map((m) => m.to))).toBeGreaterThan(WIDE_TO);
+    expect(world.stageRoad.at(WIDE_TO + 1).halfWidth * 2).toBeCloseTo(
+      before,
+      1,
+    );
+  });
+
+  test('the left edge line and the centre line stop at the side street; the right edge line runs on', () => {
+    const j = world
+      .stageJunctions()
+      .filter((x) => x.side === 1 && x.along > WIDE_FROM && x.along < WIDE_TO);
+    expect(j.length).toBe(1);
+    expect(j[0].along).toBeGreaterThan(JUNCTION[0]);
+    expect(j[0].along).toBeLessThan(JUNCTION[1]);
+    const lines = MARKINGS.flatMap((m) =>
+      m.kind === 'line' && !m.dash ? [m] : [],
+    );
+    const over = (m: { from: number; to: number }) =>
+      m.from < JUNCTION[1] && m.to > JUNCTION[0];
+    expect(lines.filter((m) => m.edge === 'left' && over(m))).toEqual([]);
+    expect(lines.filter((m) => m.edge === 'right' && over(m)).length).toBe(1);
+  });
+
+  test('the retaining wall is solid: boxes along its face, on the right of the road, between the road edge and the land', () => {
+    expect(map.road.cutWalls?.solid).toBe(true);
+    const boxes = cutWallColliders(world.road, world.gen, map.road);
+    expect(boxes.length).toBeGreaterThan(30);
+    const q2 = newRoadQuery();
+    for (const b of boxes) {
+      expect(b.kind).toBe('box');
+      const r = world.road.query(b.x, b.z, q2);
+      expect(r.found).toBe(true);
+      expect(r.along).toBeGreaterThan(WALL_RANGE[0] - 6);
+      expect(r.along).toBeLessThan(WALL_RANGE[1] + 6);
+      // On the right (lateral < 0) and past the road edge, not out in the land.
+      expect(r.lateral).toBeLessThan(0);
+      expect(r.distance - r.halfWidth).toBeGreaterThan(0.3);
+      expect(r.distance - r.halfWidth).toBeLessThan(3);
+    }
+  });
+
+  test('the wooden gate stands on the road about 645 m along, past the end of the crossroad wall', () => {
+    const r = world.road.query(GATE.x, GATE.z, newRoadQuery());
+    expect(r.found).toBe(true);
+    expect(r.along).toBeGreaterThan(635);
+    expect(r.along).toBeLessThan(655);
+    expect(r.distance).toBeLessThan(1);
+  });
+
+  test('the trees keep back from the road on the start street and ease in and out', () => {
+    const set = map.treeSetback!;
+    expect(set.length).toBeGreaterThan(0);
+    expect(setbackAt(set, 700)).toBe(8);
+    expect(setbackAt(set, set[0].from - 1)).toBe(0);
+    expect(setbackAt(set, set[0].from + 10)).toBeLessThan(8);
+  });
+
+  test('the street wall in front of the blocks is one piece along the road, 6-7 m left of its centre', () => {
+    const secs = wallSections();
+    expect(secs.length).toBeGreaterThan(8);
+    secs.forEach((s, i) => {
+      expect(s.len).toBeLessThanOrEqual(3.3);
+      if (i > 0) {
+        expect(
+          Math.hypot(s.a[0] - secs[i - 1].b[0], s.a[1] - secs[i - 1].b[1]),
+        ).toBeLessThan(0.01);
+      }
+      const mid = [(s.a[0] + s.b[0]) / 2, (s.a[1] + s.b[1]) / 2];
+      const r = world.road.query(mid[0], mid[1], q);
+      expect(r.found).toBe(true);
+      const off = r.distance - r.halfWidth;
+      expect(off, `section ${i}`).toBeGreaterThan(2.5);
+      expect(off, `section ${i}`).toBeLessThan(5);
+    });
+  });
+
+  test('the corner house stands level: its footprint is flat, not buried in the slope', () => {
+    const { x, z, w, d, angle } = CORNER_HOUSE;
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    const ys = (
+      [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+        [0, 0],
+      ] as const
+    ).map(([u, v]) =>
+      world.analytic.height(
+        x + u * w * 0.5 * c - v * d * 0.5 * s,
+        z + u * w * 0.5 * s + v * d * 0.5 * c,
+      ),
+    );
+    expect(Math.max(...ys) - Math.min(...ys)).toBeLessThan(0.4);
   });
 });
 

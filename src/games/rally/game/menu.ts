@@ -18,7 +18,9 @@ import {
   type QualitySettings,
 } from '../engine/quality';
 import { ALL_STAGES, DEFAULT_STAGE, MAPS, STAGES } from '../maps';
-import { stageTemps } from '../maps/shared/day-temperature';
+import { MONTH_NAMES, seasonMonth, stageSeason } from '../maps/shared/climate';
+import { slotHour, stageTemps } from '../maps/shared/day-temperature';
+import { SEASON_LABELS, SEASONS, seasonParam, type Season } from '../season';
 import type { SourceLink, StageInfo } from '../maps/shared/types';
 import { peakPower } from '../physics/drivetrain';
 import {
@@ -41,6 +43,7 @@ import {
   topSpeed,
 } from '../physics/gearing';
 import { SURFACES } from '../physics/surfaces';
+import { loadStageRise } from '../tools/stage-card';
 import {
   GRIP_LABELS,
   isTyreId,
@@ -51,7 +54,7 @@ import {
 import type { CarPhysicsDef, GearingId, SetupId } from '../physics/types';
 import { isTestCar, isTestStage, TEST_NOTE } from '../release';
 import { portalUrl } from '../../../shared/portal-link';
-import { paramNumber } from '../../../shared/url-params';
+import { paramNumber, paramOneOf } from '../../../shared/url-params';
 import gameManifest from '../game.json';
 import {
   DISPLAY_MODES,
@@ -82,6 +85,7 @@ import {
   isOldRun,
   loadTimes,
   oldRunLabel,
+  runConditions,
   sectorTimes,
   timesVersion,
   type RunRecord,
@@ -106,6 +110,35 @@ const KEY_DIRS: Record<string, NavDir> = {
   ArrowLeft: 'left',
   ArrowRight: 'right',
 };
+
+/** Third-party models of the background cars and trucks (parked, traffic) - not drivable cars. */
+const NPC_CARS: SourceLink[] = [
+  {
+    label: 'Generic passenger car pack (Comrade1280, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5',
+    note: 'parked cars and pickups, simplified - CC BY 4.0',
+  },
+  {
+    label: 'Low Poly Vehicle Mini Pack 8 (Vladek, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-8-52ee24ff6eb2479891fe68e6ce46af28',
+    note: 'parked old cars, simplified - CC BY 4.0',
+  },
+  {
+    label: 'Low Poly Vehicle Mini Pack 7 (Vladek, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-7-c8fce59e51874a4182dc20a66cbc6c74',
+    note: 'parked vans and trucks, simplified - CC BY 4.0',
+  },
+  {
+    label: 'Low Poly Truck (FS 3D Studio, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/low-poly-truck-d61a2ac0a706462ebf82459907f21573',
+    note: 'parked tractor units, trailers and box trucks, recoloured - CC BY 4.0',
+  },
+  {
+    label: 'Dump Truck (ElectroNick, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/dump-truck-781c616da8f44982a59cb3fc3fa67f98',
+    note: 'parked dump trucks, recoloured - CC BY 4.0',
+  },
+];
 
 const BUILT_WITH: SourceLink[] = [
   { label: 'three.js', url: 'https://threejs.org/', note: 'rendering, MIT' },
@@ -227,6 +260,8 @@ export interface MenuResult {
   gearing: GearingId;
   /** Hour of day picked on the stage screen (`?tod=`); missing = the stage's own. */
   tod?: number;
+  /** Season picked on the stage screen (`?season=`); missing = the stage's own. */
+  season?: Season;
 }
 
 type Screen =
@@ -251,6 +286,14 @@ class MainMenu {
   private timesMap = 0;
   /** Time of day picked on the stage screen (not remembered); missing = each stage's own. */
   private time?: TimeOfDayId;
+  /** Season picked on the stage screen (not remembered); missing = each stage's own. */
+  private season?: Season;
+  /** `?season=` on the menu URL (dev): the season of every stage until one is picked. */
+  private readonly urlSeason = paramOneOf(
+    new URLSearchParams(location.search).get('season'),
+    SEASONS,
+    undefined,
+  );
   /** `?tod=` on the menu URL (dev): the hour of every stage until a time is picked. */
   private readonly urlHour = paramNumber(
     new URLSearchParams(location.search).get('tod'),
@@ -326,7 +369,8 @@ class MainMenu {
 
   /**
    * DEV: `?bakecard=<id>` / `?bakecards=1` (every large map) bakes the stage-select cards (tools/stage-card-bake.ts)
-   * into maps/<id>/preview/, with the progress shown over the menu. Reload afterwards.
+   * into maps/<id>/preview/, with the progress shown over the menu; `&season=all` (or one season) bakes the seasons'
+   * pictures. Reload afterwards.
    */
   private bakeCardsFromUrl(): void {
     const q = new URLSearchParams(location.search);
@@ -353,9 +397,13 @@ class MainMenu {
       console.info(`[stage card] ${s}`);
       box.textContent = `${box.textContent}${s}\n`;
     };
+    // `&season=spring|summer|autumn|all` (default: each stage's own season).
+    const raw = q.get('season');
+    const seasons =
+      raw === 'all' ? raw : raw ? seasonParam(raw, 'summer') : undefined;
     log(`baking ${ids.join(', ')}...`);
     this.showroom
-      .bakeStageCards(ids, log)
+      .bakeStageCards(ids, seasons, log)
       .then(() => log('done - reload the page (without ?bakecard) to see them'))
       .catch((e: unknown) => log(`FAILED: ${String(e)}`));
   }
@@ -451,7 +499,7 @@ class MainMenu {
     if (screen === 'setup') this.setupSelect();
     // Stage select shows the map from the air, everything else the car.
     // The setup screen drives the showroom itself (parts bench, see setupSelect).
-    if (screen === 'map') this.showroom.showMap(this.map.id);
+    if (screen === 'map') this.showMap(this.map);
     else if (screen !== 'setup' && screen !== 'times') this.showroom.showCar();
     // First visit with no quality chosen: measure the picking screens, the stage then starts on the result.
     if ((screen === 'map' || screen === 'car') && needsAutoQuality())
@@ -534,7 +582,7 @@ class MainMenu {
       <b>R</b> reset · <b>C</b> camera · <b>Esc</b> pause</p>
       <h2>Contributors</h2>
       <ul>
-        <li>Deni Spasovski<small>Agent Orchestrator</small></li>
+        <li><a href="https://github.com/DeniSpasovski" target="_blank" rel="noopener">Deni Spasovski</a><small>Agent Orchestrator</small></li>
         <li><a href="https://github.com/hyphyphyph" target="_blank" rel="noopener">Derek McTavish</a><small>Contributor: foliage and rendering improvements</small></li>
       </ul>
       <h2>Built with</h2>
@@ -543,6 +591,8 @@ class MainMenu {
       ${MAPS.map((m) => `<h3>${m.name}</h3>${links([...(m.sources ?? []), ...m.stages.flatMap((st) => st.sources ?? [])], 'Fully procedural - no external data.')}`).join('')}
       <h2>Cars</h2>
       ${CARS.map((c) => `<h3>${c.name}</h3>${links(c.sources, 'Procedural model - no external sources.')}`).join('')}
+      <h3>NPC cars</h3>
+      ${links(NPC_CARS, '')}
       <h2>People</h2>
       ${links(PEOPLE_CREDITS, '')}
       <h2>Physics</h2>
@@ -572,7 +622,7 @@ class MainMenu {
     const older = times.filter((r) => isOldRun(r, cur));
     const row = (r: RunRecord, i: number) => {
       const old = isOldRun(r, cur);
-      return `<tr${old ? ' class="old"' : ''}><td>${old ? oldRunLabel(r, cur) : i + 1}</td><td>${formatTime(r.time)}${r.penalty ? ` <span class="pen">(+${r.penalty}s)</span>` : ''}</td><td>${carName(r.car)}</td><td class="set">${isTyreId(r.tyre) ? TYRES[r.tyre].name : '–'}</td><td>${!old && i ? `+${(r.time - rows[0].time).toFixed(2)}` : ''}</td></tr>`;
+      return `<tr${old ? ' class="old"' : ''}><td>${old ? oldRunLabel(r, cur) : i + 1}</td><td>${formatTime(r.time)}${r.penalty ? ` <span class="pen">(+${r.penalty}s)</span>` : ''}</td><td>${carName(r.car)}<small class="when">${runConditions(r, m.environment.timeOfDay)}</small></td><td class="set">${isTyreId(r.tyre) ? TYRES[r.tyre].name : '–'}</td><td>${!old && i ? `+${(r.time - rows[0].time).toFixed(2)}` : ''}</td></tr>`;
     };
     const card = div('menu-times-card');
     card.innerHTML = `<h2>${m.name}</h2>
@@ -606,8 +656,8 @@ class MainMenu {
       buttons(['Back', () => this.show('welcome'), true]),
     );
     // The results start level with the first stage card.
-    card.style.top = `${list.getBoundingClientRect().top - this.root.getBoundingClientRect().top}px`;
-    this.showroom.showMap(m.id);
+    card.style.top = `${this.topIn(list)}px`;
+    this.showMap(m);
   }
 
   /** One stage card (route, description, tags, best time) of the stage list; `showBest` off on the Stage times screen. */
@@ -679,37 +729,94 @@ class MainMenu {
       <dl>
         <dt>Recommended</dt><dd>${TYRES[this.recTyre].name} tyres · ${SETUP_NAMES[this.recSetup]} suspension</dd>
       </dl>`;
-    if (hour === undefined) return card;
-    const sel = slotFor(hour).id;
-    const row = document.createElement('label');
-    row.className = 'menu-time';
-    row.innerHTML = `<span>Time of day</span>
-      <select title="← → keys">${TIMES_OF_DAY.map(
-        (t) =>
-          `<option value="${t.id}"${t.id === sel ? ' selected' : ''}>${t.label}</option>`,
-      ).join('')}</select>`;
-    const when = document.createElement('dl');
-    when.innerHTML = `<dt>Time</dt><dd></dd><dt>Temperature</dt><dd></dd>`;
-    const [clock, temp] = when.querySelectorAll('dd');
+    const seasonRow = pickerRow(
+      'Season',
+      SEASONS.map((id) => ({ id, label: SEASON_LABELS[id] })),
+      this.seasonFor(m),
+    );
+    // Dropdowns left, what they give right (month, time, temperature); the right side drops below when the card is narrow.
+    const picks = div('menu-when-pick');
+    picks.append(seasonRow.row);
+    const info = document.createElement('dl');
+    info.innerHTML = `<dt>Month</dt><dd></dd>`;
+    // The month the stage is driven in that season (`EnvironmentDef.months`).
+    const showMonth = () => {
+      info.querySelector('dd')!.textContent =
+        MONTH_NAMES[seasonMonth(m.environment, this.seasonFor(m)) - 1];
+    };
+    showMonth();
+    const when = div('menu-when');
+    when.append(picks, info);
+    card.append(when);
+    // Without a time of day (the test map) the season only changes the picture, the leaves and the month.
+    const onSeason = (e: Event) => {
+      this.season = (e.target as HTMLSelectElement).value as Season;
+      this.showroom.setSeason(this.season);
+      showMonth();
+    };
+    if (hour === undefined) {
+      seasonRow.select.addEventListener('change', onSeason);
+      return card;
+    }
+    const timeRow = pickerRow(
+      'Time of day',
+      TIMES_OF_DAY,
+      slotFor(hour).id,
+      '← → keys',
+    );
+    info.insertAdjacentHTML(
+      'beforeend',
+      `<dt>Time</dt><dd></dd><dt>Temperature</dt><dd></dd><dt hidden>At the top</dt><dd hidden></dd>`,
+    );
+    const [, clock, temp, top] = info.querySelectorAll('dd');
+    const topLabel = info.querySelector('dt[hidden]') as HTMLElement;
+    // The table is for the stage start; a long climb is colder (`stageTemps` `rise`), shown once the card's route is loaded.
+    let rise = 0;
+    const climbs = () => rise >= MIN_RISE;
     const show = (h: number) => {
-      const t = stageTemps(m.environment, h, m.surfaces[0] ?? 'tarmac');
+      const t = stageTemps(m, h, this.seasonFor(m));
       clock.textContent = formatHour(h);
       temp.textContent = `air ${Math.round(t.air)}°C / road ${Math.round(t.road)}°C`;
+      topLabel.hidden = top.hidden = !climbs();
+      if (!climbs()) return;
+      const u = stageTemps(m, h, this.seasonFor(m), rise);
+      top.textContent = `air ${Math.round(u.air)}°C / road ${Math.round(u.road)}°C`;
     };
     show(hour);
-    row.querySelector('select')!.addEventListener('change', (e) => {
-      // The list needs no redraw: only the stage's description card knows the time.
+    void loadStageRise(m.map, m.id).then(
+      (r) => {
+        rise = r;
+        show(this.hourFor(m) ?? hour);
+      },
+      () => {},
+    );
+    // The list needs no redraw: only the stage's description card knows the season and the time.
+    seasonRow.select.addEventListener('change', (e) => {
+      onSeason(e);
+      show(this.hourFor(m) ?? hour);
+    });
+    timeRow.select.addEventListener('change', (e) => {
       this.time = (e.target as HTMLSelectElement).value as TimeOfDayId;
       show(this.hourFor(m) ?? hour);
     });
-    card.append(row, when);
+    picks.append(timeRow.row);
     return card;
+  }
+
+  /** The stage from the air (its card) in the season it will run in. */
+  private showMap(m: StageInfo): void {
+    this.showroom.setSeason(this.seasonFor(m));
+    this.showroom.showMap(m.id);
+  }
+
+  /** Season the stage runs in: the picked one, else `?season=`, else its own. */
+  private seasonFor(m: StageInfo): Season {
+    return this.season ?? this.urlSeason ?? stageSeason(m);
   }
 
   /** The hour a slot means on a stage: the stage's own slot keeps the stage's exact default hour. */
   private slotHour(m: StageInfo, t: TimeOfDay): number {
-    const own = m.environment.timeOfDay;
-    return own !== undefined && slotFor(own).id === t.id ? own : t.hour;
+    return slotHour(m, t);
   }
 
   /** Hour the stage runs at: the picked time, else `?tod=`, else its own; missing = the stage has no time of day. */
@@ -731,19 +838,28 @@ class MainMenu {
   }
 
   /**
-   * Description card of Select stage / Select car (`.menu-side-card`): on screens >= 1200 px wide it floats right of the
-   * list with its top level with `align` (the header height depends on the font) and this returns true; narrower screens
-   * leave it to the caller to put in the panel.
+   * Description card of Select stage / Select car (`.menu-side-card`): it floats over the map: right of the list with its top
+   * level with `align` (the header height depends on the font) on screens >= `SIDE_CARD_MIN_WIDTH` px wide, above the
+   * buttons on phones. Always returns true.
    */
   private sideCard(card: HTMLElement, align: HTMLElement): boolean {
-    if (window.innerWidth < 1200) return false;
     card.classList.add('menu-side-card');
     this.root.append(card);
-    const top =
-      align.getBoundingClientRect().top - this.root.getBoundingClientRect().top;
+    // Phones: the card covers the map / car above the buttons (CSS), no alignment needed.
+    if (window.innerWidth < SIDE_CARD_MIN_WIDTH) return true;
+    const top = this.topIn(align);
     card.style.top = `${top}px`;
     card.style.maxHeight = `calc(100% - ${top + 24}px)`;
     return true;
+  }
+
+  /** Top of `el` inside the menu as if the panel were not scrolled (it keeps its scroll while the screen is rebuilt). */
+  private topIn(el: HTMLElement): number {
+    return (
+      el.getBoundingClientRect().top -
+      this.root.getBoundingClientRect().top +
+      this.panel.scrollTop
+    );
   }
 
   private carSelect(): void {
@@ -1075,6 +1191,7 @@ class MainMenu {
 
   private start(): void {
     const hour = this.hourFor(this.map);
+    const season = this.seasonFor(this.map);
     const r: MenuResult = {
       stage: this.map.id,
       car: this.car.id,
@@ -1083,6 +1200,7 @@ class MainMenu {
       setup: this.setup,
       gearing: this.gearing,
       tod: hour === this.map.environment.timeOfDay ? undefined : hour,
+      season: season === stageSeason(this.map) ? undefined : season,
     };
     saveSettings({ map: r.stage, car: r.car, livery: r.livery });
     this.done(r);
@@ -1427,6 +1545,10 @@ export function buildSectors(
 }
 
 const MAX_ROWS = 10;
+/** Below this width the Select stage / car description card covers the map instead of sitting right of the list. */
+const SIDE_CARD_MIN_WIDTH = 800;
+/** A stage that climbs less than this (m) shows no second, colder temperature on Select stage. */
+const MIN_RISE = 50;
 
 /**
  * Stage results, 10 rows at most (current runs first, older versions fill the rest), toggle
@@ -1437,6 +1559,8 @@ export function buildLeaderboard(
   board: RunRecord[],
   run: RunRecord,
   onScope?: (carOnly: boolean) => void,
+  /** The stage's own hour of day: what runs saved without one were driven at. */
+  ownHour?: number,
 ): HTMLElement {
   const el = div('menu-board');
   let carOnly = false;
@@ -1474,7 +1598,7 @@ export function buildLeaderboard(
           sec.length
             ? sec.map((t, k) => `S${k + 1} ${t.toFixed(2)}`).join(' · ')
             : 'no sector times'
-        }</td></tr>`
+        }<span class="when">${runConditions(r, ownHour)}</span></td></tr>`
       );
     };
     el.innerHTML = `
@@ -1510,6 +1634,25 @@ export function buildLeaderboard(
 }
 
 // --- helpers ---------------------------------------------------------------------------
+
+/** A labelled dropdown row of the stage description card (Season, Time of day). */
+function pickerRow(
+  label: string,
+  options: readonly { id: string; label: string }[],
+  selected: string,
+  title = '',
+): { row: HTMLLabelElement; select: HTMLSelectElement } {
+  const row = document.createElement('label');
+  row.className = 'menu-time';
+  row.innerHTML = `<span>${label}</span>
+    <select${title ? ` title="${title}"` : ''}>${options
+      .map(
+        (o) =>
+          `<option value="${o.id}"${o.id === selected ? ' selected' : ''}>${o.label}</option>`,
+      )
+      .join('')}</select>`;
+  return { row, select: row.querySelector('select')! };
+}
 
 function div(className: string): HTMLDivElement {
   const d = document.createElement('div');

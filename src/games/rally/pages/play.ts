@@ -74,10 +74,13 @@ if (deepLink) void play(readUrlState(DEFAULTS));
 else
   void runMenu(root).then((r) => {
     // Mirror the choice in the URL: reload = same stage, link is shareable.
-    const { setup, gearing, tod, ...rest } = r;
+    const { setup, gearing, tod, season, ...rest } = r;
     const params = { ...DEFAULTS, ...rest, susp: setup, gear: gearing };
-    // `tod` = the time of day picked on the stage screen (engine/environment.ts reads it); none = the stage's own.
-    writeUrlState({ ...params, tod: tod ?? '' }, { ...KEEP, tod: '' });
+    // `tod` / `season` = the time of day / season picked on the stage screen (the game reads them); none = the stage's own.
+    writeUrlState(
+      { ...params, tod: tod ?? '', season: season ?? '' },
+      { ...KEEP, tod: '', season: '' },
+    );
     void play(params);
   });
 
@@ -266,7 +269,14 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
     const sectors = buildSectors(board, run);
     results
       .querySelector('[data-ref="board"]')!
-      .replaceChildren(buildLeaderboard(board, run, sectors.setScope));
+      .replaceChildren(
+        buildLeaderboard(
+          board,
+          run,
+          sectors.setScope,
+          game.world.map.environment.timeOfDay,
+        ),
+      );
     results.querySelector('[data-ref="sectors"]')!.replaceChildren(sectors);
     results.querySelector('[data-ref="time"]')!.innerHTML =
       formatTime(time) +

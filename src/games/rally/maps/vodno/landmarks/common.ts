@@ -395,6 +395,29 @@ export function gabledBox(
   }
 }
 
+/** A leaning strut between two points (a box `t` m thick; `key` 'paint' for timber, 'metal' for steel). */
+export function strut(
+  l: Local,
+  a: V3,
+  b: V3,
+  t: number,
+  color: string,
+  key: MatKey = 'metal',
+): void {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const dz = b[2] - a[2];
+  const len = Math.hypot(dx, dy, dz);
+  const ax = Math.atan2(Math.hypot(dx, dz), dy);
+  const ay = Math.atan2(dx, dz);
+  // A box along +Y, tipped onto the direction: rotate about X, then Y (the order power.ts uses).
+  const m = new Matrix4()
+    .makeRotationY(ay)
+    .multiply(new Matrix4().makeRotationX(ax));
+  m.setPosition((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+  l.box(key, [-t / 2, -len / 2, -t / 2], [t / 2, len / 2, t / 2], color, m);
+}
+
 /** A box collider round a local rectangle of a site, from `y` up `h` m. */
 export function boxCollider(
   site: Site,

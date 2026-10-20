@@ -1,6 +1,8 @@
+import type { TimeOfDayId } from '../../game/time-of-day';
 import type { GearingId } from '../../physics/types';
 import type { SurfaceId } from '../../physics/surfaces';
 import type { TyreId } from '../../physics/tyres';
+import type { Season } from '../../season';
 
 /**
  * Map format. A map is pure data: the world (heightfield, road, scatter) is
@@ -60,6 +62,11 @@ export interface MapDef {
    * land no camera can see - the far side of a ridge - where it only costs generation time, memory and canopy-shadow work.
    */
   scatterBounds?: Partial<MapDef['bounds']>;
+  /**
+   * Trees (not the drive-through bushes) stand at least `dist` m from the stage road's edge between `from` and `to` m along it (a verge of open ground: a road
+   * through a suburb, a forest road with the trees set back), easing in and out over `fade` m (default 30) at the ends.
+   */
+  treeSetback?: { from: number; to: number; dist: number; fade?: number }[];
   /** Props placed along the road (posts, signs, bales, crowds...). */
   roadside: RoadsideRule[];
   /** Continuous barriers along the road (Jersey wall, guard rail): one swept mesh, not separate props. */
@@ -225,10 +232,14 @@ export interface PadDef {
   polygon: number[];
   /** Max blend distance back to the land (m); steeper cuts / fills get less. */
   blend: number;
-  /** Frontage points next to the stage road, flat [x0, z0, x1, z1, ...] (at least two, west to east). */
-  frontage: number[];
-  /** Fixed level (m, before `lift`) for a lot with no stage road beside it: `frontage` is then ignored. */
-  level?: number;
+  /** Frontage points next to the stage road, flat [x0, z0, x1, z1, ...] (at least two, west to east). Not needed with `level`. */
+  frontage?: number[];
+  /**
+   * The pad's own level instead of following the road along `frontage`: a number = a fixed level (m, before `lift`) for a lot
+   * with no stage road beside it; `{ at, lift }` = a terrace (a house on a hillside), the land's height at `at` plus `lift`
+   * (default 0.1).
+   */
+  level?: number | { at: [number, number]; lift?: number };
   /** Metres above the road's centre line at the frontage (sidewalk height), default 0.1. */
   lift?: number;
   /** Surface inside the outline (physics + ground texture), default the land's own. */
@@ -582,6 +593,13 @@ export interface RoadDef {
   cutWalls?: {
     minHeight: number;
     offset: number;
+    /** Only the stage road, between these distances along it (m); missing = the whole road and the highway carriageways. */
+    range?: [number, number];
+    /**
+     * A real wall: the cut is held tighter (a narrow coping on top of the face, `cutShape` in world/terrain-gen.ts) and
+     * the wall stops a car (colliders, world/cut-wall-colliders.ts).
+     */
+    solid?: boolean;
     /**
      * From this distance along the stage road on, the walls are plain concrete with a chain-link fence on top (the
      * newer stretch of a parkway) instead of coursed stone with a picket railing.
@@ -605,7 +623,35 @@ export interface RoadDef {
     surface: SurfaceId;
     texture?: RoadTexture;
   }[];
+  /** Paint laid on the stage road over its texture: lane lines and arrows (world/road-markings.ts). */
+  markings?: RoadMarking[];
 }
+
+/**
+ * One piece of road paint. Across the road it sits `offset` m in from the road's `edge` (the left is the left of the
+ * direction of travel), so it keeps its lane when the road widens; along it runs `from` to `to` (a line) or is
+ * centred at `at` (an arrow), in metres along the stage road.
+ */
+export type RoadMarking =
+  | {
+      kind: 'line';
+      from: number;
+      to: number;
+      edge: 'left' | 'right';
+      offset: number;
+      /** Paint width (m, default 0.12). */
+      width?: number;
+      /** [dash, gap] in metres; missing = a solid line. */
+      dash?: [number, number];
+    }
+  | {
+      kind: 'arrow';
+      /** 'left' = the turn-left-only arrow, 'straight' = the ahead arrow. */
+      arrow: 'left' | 'straight';
+      at: number;
+      edge: 'left' | 'right';
+      offset: number;
+    };
 
 /** Road surface / texture at a distance along the stage road (see RoadDef.sections). */
 export function roadSurfaceAt(
@@ -648,6 +694,17 @@ export interface ClosureRule {
   stageMargin?: number;
 }
 
+/** `[air, road]` in °C. */
+export type AirRoad = readonly [air: number, road: number];
+
+/**
+ * Predefined temperatures of a stage by season and time of day (`TIMES_OF_DAY` slot; the stage's own slot is at the
+ * stage's own hour, `environment.timeOfDay`): the air and the road, the road being the stage's first surface (what the
+ * stage screen shows). Other hours (`?tod=`) blend the neighbouring slots (maps/shared/day-temperature.ts); the tyres'
+ * sun heat is the road's gap to the air, scaled to each surface's `heat`.
+ */
+export type StageTemps = Record<Season, Record<TimeOfDayId, AirRoad>>;
+
 /**
  * A STAGE: the rally event on a map's road (see MapDef). Runs along the map's road, or against it (`reverse`): every
  * distance of the stage (`timing`, `props`, the `spawn=` URL) is measured along the stage road in its own direction.
@@ -658,6 +715,18 @@ export interface StageDef {
   name: string;
   /** Edition year printed in the start / finish gantry header next to the stage name. */
   year: number;
+  /** Air and road temperature for every season and time of day (`StageTemps`): the stage screen and the tyres use it. */
+  temps: StageTemps;
+  /**
+   * Hour a time-of-day slot means on this stage where it differs from game/time-of-day.ts (Vodno's early morning is
+   * 08:00). The stage's own slot always sits at its own `timeOfDay`; the temperatures follow these hours.
+   */
+  slotHours?: Partial<Record<TimeOfDayId, number>>;
+  /**
+   * Season the stage opens in (default: the map's, `EnvironmentDef.season`): stages on one map can differ. The ground
+   * and the leaves of the others come from the map's `groundTints` and `trees/seasons.ts`.
+   */
+  season?: Season;
   description: string;
   /** Recommended tyre for the stage's surfaces: pre-selected on the car screen, the player may pick another. */
   tyre: TyreId;
@@ -936,10 +1005,16 @@ export interface EnvironmentDef {
    */
   timeOfDay?: number;
   /**
-   * Air temperature (°C, default 20): with the sun height and clouds it sets the track temperature and how the tyres
-   * warm up (physics/tyre-temp.ts, `stageClimate`). Try others with `?air=<°C>`.
+   * Season of the map's own look, the one `groundTint` is for (default summer); a stage opens in it unless its
+   * `StageDef.season` says otherwise. The season picks the leaf colours (trees/seasons.ts), the ground (`groundTints`)
+   * and the stage's `temps`. Try others with `?season=spring|summer|autumn`.
    */
-  airTemp?: number;
+  season?: Season;
+  /**
+   * Month (1 = January ... 12) the stage is driven in per season, shown on the stage screen (default April / July /
+   * October, `DEFAULT_MONTHS`). The stages' `temps` are researched for that month.
+   */
+  months?: Partial<Record<Season, number>>;
   /** Override the sun colour / intensity (default: warmer and dimmer the lower the sun). */
   sunColor?: string;
   sunIntensity?: number;
@@ -978,12 +1053,21 @@ export interface EnvironmentDef {
    * parcels (see `LandcoverDef.fields.palette`), default wheat gold. `moisture` = strength of the wet / dry grass
    * variation (greener hollows and banks, straw ridges and slopes; world/ground-moisture.ts), default 1, 0 = off.
    */
-  groundTint?: {
-    grass: string;
-    amount?: number;
-    crop?: string;
-    moisture?: number;
-  };
+  groundTint?: GroundTint;
+  /**
+   * The ground in other seasons (spring, autumn), ahead of `groundTint` (the map's look in its own season): fresh green
+   * grass and young crops in spring, dry olive and stubble in autumn. `mapInSeason` (maps/shared/season-map.ts) puts
+   * the season's tint into `groundTint`, so every consumer reads one field.
+   */
+  groundTints?: Partial<Record<Season, GroundTint>>;
+}
+
+/** Recolour of the terrain grass and crop parcels (`EnvironmentDef.groundTint`). */
+export interface GroundTint {
+  grass: string;
+  amount?: number;
+  crop?: string;
+  moisture?: number;
 }
 
 /**

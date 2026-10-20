@@ -9,6 +9,7 @@ import type {
 } from '../physics/types';
 import { BuildingIndex, buildingCollider, buildingInstance } from './buildings';
 import { AnalyticTerrain, Heightfield } from './heightfield';
+import { isTreeType } from '../trees/species';
 import { landmarksOf, type Landmark } from './landmarks';
 import {
   barrierColliders,
@@ -55,6 +56,7 @@ import {
   laneWalls,
   type LaneWallRow,
 } from './portals';
+import { cutWallColliders } from './cut-wall-colliders';
 import { DECK_DEPTH, TerrainGenerator } from './terrain-gen';
 import { bakeGroundMoisture, type GroundMoisture } from './ground-moisture';
 import { cornerFanInstances, PEOPLE_ASSETS } from './corner-fans';
@@ -246,6 +248,7 @@ export class World implements GroundProvider {
         channels: this.gen.channels,
         lakes: this.gen.lakes,
         stageId: map.id,
+        treeSetback: map.treeSetback,
       },
     );
     const crowdQ = newPathQuery();
@@ -290,6 +293,12 @@ export class World implements GroundProvider {
       if (
         inst.asset === 'street_lamp' &&
         this.gen.portals.inside(inst.x, inst.z)
+      )
+        continue;
+      // No roadside tree or bush growing through a landmark (a gate tower, a block of flats).
+      if (
+        isTreeType(inst.asset) &&
+        this.landmarks.some((l) => l.occupies(inst.x, inst.z, 0.5))
       )
         continue;
       // No crowd standing in a house (a crowd spot in a village).
@@ -486,6 +495,8 @@ export class World implements GroundProvider {
     for (const c of this.pierColliders(this.piers))
       this.scatter.addFixedCollider(c);
     for (const c of this.parapetColliders()) this.scatter.addFixedCollider(c);
+    for (const c of cutWallColliders(this.road, this.gen, map.road))
+      this.scatter.addFixedCollider(c);
     for (const bd of this.buildings.buildings) {
       if (bd.kind) {
         // Mesh building (building-mesh.ts draws it): only its collider goes into the scatter chunks.

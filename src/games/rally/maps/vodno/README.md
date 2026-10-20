@@ -3,7 +3,7 @@
 Real hillclimb on Mount Vodno above Skopje, North Macedonia: 4.0 km and 220 m of climb from the Vodno neighbourhood up the
 hairpins of the north face, through the pine woods, to Sredno Vodno. The Millennium Cross, the antenna mast and the cable car
 stand on the ridge above the road; the 6 x 4 km round it (streets, houses, side roads) is in the world, with the Skopje valley
-as the backdrop. Map and stage id `vodno`, test content (dev server only).
+as the backdrop. Map and stage id `vodno`.
 
 ![Start line](screenshots/start-line.jpg)
 
@@ -12,8 +12,9 @@ as the backdrop. Map and stage id `vodno`, test content (dev server only).
 | ![Hairpins](screenshots/hairpins.jpg)      | ![Cross, mast and cable car](screenshots/cross-ridge.jpg)     |
 | the hairpins above the suburb, guard rails | the Millennium Cross, the mast and the cable car on the ridge |
 
-Narrow tarmac with switchbacks and guard rails, pine plantations with oak and scrub, black locust on the lower slopes;
-locust and walnut trees with bramble line the suburban start street, cypresses stand in the church yards. Side streets meeting
+Narrow tarmac with white edge and centre lines, switchbacks and guard rails, pine plantations with oak and scrub, black locust on the lower slopes;
+the road widens to three lanes at the first crossroad (a left-turn lane beside the straight-ahead one), with a concrete retaining wall on its right. Locust and walnut trees with bramble
+stand back from the lower road, cypresses stand in the church yards. Side streets meeting
 the stage road are closed with barriers.
 
 Landmarks (OpenStreetMap plans, rough shapes in the style of the Ajvatovci hilltop church, ai-generated in `landmarks/`): the
@@ -21,7 +22,9 @@ Landmarks (OpenStreetMap plans, rough shapes in the style of the Ajvatovci hillt
 (beside the finish) and Gorno Nerezi, the lookout tower, the Markovi Kuli ruins, the restaurant beside the Sredno Vodno church, and
 three car parks beside the stage road (the
 Sredno Vodno one with its flag, lamps, a timber gazebo and watch towers; the Vidikovec with a grass island, a lattice lookout tower
-and rusted guard rails on its approach). Skopje's skyline stands on the horizon: the 70 m MRT tower and the 136 m Cevahir Sky City
+and rusted guard rails on its approach), the wooden gate past the first crossroad (two log towers, a notice board and a shelter) and two blocks
+of flats behind one street wall on the start street, and a brick-and-concrete hotel behind the side street at the first crossroad (its forecourt on the road, road
+wall, sign boards). Skopje's skyline stands on the horizon: the 70 m MRT tower and the 136 m Cevahir Sky City
 slabs (extruded OpenStreetMap footprints).
 
 ```bash

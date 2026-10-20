@@ -82,6 +82,7 @@ does; `game_id` is added to every event. `?analytics=log` prints each event to t
 - Only ranked runs are tracked: no rally free drive / test pad, no Hole dev runs (`?time=`, `?level=`, `?bot=1`), no Kaboom autopilot or fixed-seed runs (`?bot=1`, `?seed=`).
 - Quits are tracked from the pause menu (restart, main menu, portal, rally spawn change); closing the tab is not.
 - `game_rally_times_version` / `game_hole_scoring_version` keep times / scores from before a physics or scoring change apart in reports.
+- `game_rally_season` (`spring` / `summer` / `autumn`) and `game_rally_time_of_day` (`early` / `midday` / `afternoon` / `evening` / `night`; none on stages without a time of day) are in every rally start param set.
 - GA property settings (Admin; not in code, redo them for a new property):
   - every param above registered as an event-scoped custom dimension (`game_time_s`, `game_score`, `game_hole_level`,
     `game_hole_items_eaten`, `game_hole_pct_eaten`, `game_rally_penalty_s`, `game_rally_progress_pct` as custom metrics);

@@ -46,11 +46,6 @@ export const petralicaInfo: MapInfo = {
       url: 'https://esa-worldcover.org/',
       note: 'land cover + built-up areas used to place the houses - contains modified Copernicus Sentinel data (2021), CC BY 4.0',
     },
-    {
-      label: 'Generic passenger car pack (Comrade1280, Sketchfab)',
-      url: 'https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5',
-      note: 'parked cars, simplified - CC BY 4.0',
-    },
   ],
   stageNumber: 2,
   bounds: { minX: -2400, maxX: 2400, minZ: -4800, maxZ: 4800 },
@@ -60,14 +55,17 @@ export const petralicaInfo: MapInfo = {
     sunAzimuth: 320,
     // Late afternoon: low warm sun from the WSW (~22 deg), long shadows. Try others with ?tod=<hours>.
     timeOfDay: 16.5,
-    // September afternoon (dry golden grass), a cool autumn day.
-    airTemp: 17,
+    months: { spring: 5, summer: 7, autumn: 9 },
     turbidity: 5,
     rayleigh: 1.6,
     fogColor: '#c2cbd2',
     fogDensity: 0.00036,
     exposure: 0.95,
     groundTint: { grass: '#9d9562', amount: 0.6 },
+    groundTints: {
+      spring: { grass: '#76a048', amount: 0.7 },
+      autumn: { grass: '#82683c', amount: 0.7 },
+    },
   },
   route: data.route,
   surfaces: ['tarmac', 'gravel'],

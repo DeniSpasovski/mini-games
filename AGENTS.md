@@ -17,7 +17,7 @@
 **Public, source-available repo** (educational three.js project, not commercial): treat every committed file as published.
 
 - **Licences:** code, procedural assets, docs, screenshots = [PolyForm Noncommercial 1.0.0](LICENSE). Baked real-map data
-  (`maps/<id>/` `data.json`, `route.json`, `horizon.json`, `junction*.json`, `buildings.csv`, `preview/<stage>.json` + `.jpg`)
+  (`maps/<id>/` `data.json`, `route.json`, `horizon.json`, `junction*.json`, `buildings.csv`, `preview/<stage>.json` + `<stage>-<season>.jpg`)
   is OpenStreetMap-derived = **ODbL**; a new baked file joins this list (README, `THIRD-PARTY.md`). Third-party models / data keep
   their own licences.
 - **Never commit a third-party file** (model, texture, font, sound, image, dataset) unless its licence allows redistribution of
@@ -78,17 +78,20 @@ into `DETAILS.md`, never up.
   `TOY-STORE.md`, `ANIMAL-ISLAND.md`, `CONSTRUCTION-SITE.md` (map design, roster, open tasks)
 - `sources/cars/<car>/`, `sources/maps/<map>/` - files the user shared, git-ignored, never served. Models / data / licence files
   get a row in that folder's `DETAILS.md`; reference photos only in the local `NOTES.md`.
+- `scripts/ci-affected.mjs` - which integration tests CI runs for a change (`testing` skill)
 - `scripts/car-model/`: `scan-mesh.py` (run on every new model after the licence gate: split / panel edges / blob),
   `assemble-kit.py` (model kit on a sprue -> one body STL), `segment-stl.py` (labels body parts: seeds, regions, boxes, tubes),
   `stl-to-glb.mjs` (STL -> game GLB with livery-atlas UVs), `stl-wheel-extract.py` + `wheel-stl-to-glb.mjs` (a print model's own
   rim; `stl-flatten-cap.py` flattens an emblem on its centre cap; `--two-sided` / `--bridge` close a one-sided rim barrel), `chart-probe.py` (atlas chart per triangle, livery debugging), `bake-lamp-sheet.py` (a GLB's own lamp textures -> lamp
-  sheet), `glb-meshopt.mjs` (the build's GLB compression), `side-profile.mjs` (boxy profile from a GLB: fallback body + street cars)
+  sheet), `glb-meshopt.mjs` (the build's GLB compression), `side-profile.mjs` (boxy profile from a GLB: fallback body + street cars);
+  the GLB import steps (`glb-to-parts-stl.py`, `glb-orient.py`, `glb-src-parts.py` ...) are in the `rally-car-import` skill; the street-car
+  and truck bakes (`bake-street-cars.mjs`, `bake-trucks.mjs`, `street-pack-extract.py`) are in rally `DETAILS.md`
 - `scripts/people/`: `extract-base.py` (a base body GLB -> json with the face uv), `skin-map.py` (paints the face onto the skin map), `bake-base.mjs`
   (simplifies, packs both bodies into `engine/people-base.data.ts`; run order in its header)
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
   `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `plaza_islands.py` (city junction
   `junction.json`), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from
-  the DEM)
+  the DEM), `rivers.py` (the "rivers" list in `horizon.json`, run after `horizon.py`)
 
 ## Skills - read before these tasks (`.claude/skills/<name>/SKILL.md`)
 

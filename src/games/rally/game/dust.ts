@@ -74,6 +74,9 @@ export class ParticleSystem {
           uHead: { value: new Color(0, 0, 0) },
           uHeadPos: { value: new Vector3() },
           uHeadDir: { value: new Vector3(0, 0, 1) },
+          // Tail lamps' red glow at night: colour x level (black = off) and lamp position in world space.
+          uTail: { value: new Color(0, 0, 0) },
+          uTailPos: { value: new Vector3() },
         },
       ]),
       vertexShader: /* glsl */ `
@@ -107,6 +110,8 @@ export class ParticleSystem {
         uniform vec3 uHead;
         uniform vec3 uHeadPos;
         uniform vec3 uHeadDir;
+        uniform vec3 uTail;
+        uniform vec3 uTailPos;
         ${WORLD_SHADING_DECL}
         varying float vAlpha;
         varying float vSpin;
@@ -127,7 +132,10 @@ export class ParticleSystem {
           float dHead = max( length( toP ), 0.5 );
           float cone = smoothstep( 0.9, 0.97, dot( toP / dHead, uHeadDir ) );
           vec3 head = uHead * cone * ( 6.0 / ( 1.0 + dHead * 0.08 ) );
-          gl_FragColor = vec4( vColor * uLight * ( uAmbient + uSun * scatter + head ), a );
+          // The tail lamps tint the dust right behind the car red (braking at night).
+          float dTail = length( vWorld - uTailPos );
+          vec3 tail = uTail * ( 2.5 / ( 1.0 + dTail * dTail * 0.3 ) );
+          gl_FragColor = vec4( vColor * uLight * ( uAmbient + uSun * scatter + head + tail ), a );
           #include <fog_fragment>
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
@@ -150,6 +158,13 @@ export class ParticleSystem {
     u.uHead.value.copy(color);
     u.uHeadPos.value.copy(pos);
     u.uHeadDir.value.copy(dir);
+  }
+
+  /** Night: the tail lamps' red glow (colour x level, world-space lamp position) tints the particles near the car; black = off. */
+  setTaillight(color: Color, pos: Vector3): void {
+    const u = this.material.uniforms;
+    u.uTail.value.copy(color);
+    u.uTailPos.value.copy(pos);
   }
 
   /** Light the particles: sun colour x intensity scale and the ambient (sky) colour. */

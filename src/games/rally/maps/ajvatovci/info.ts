@@ -46,26 +46,6 @@ export const ajvatovciInfo: MapInfo = {
       url: 'https://github.com/microsoft/RoadDetections',
       note: 'tracks and lanes OpenStreetMap does not have, detected in Bing Maps imagery - (c) Microsoft, ODbL',
     },
-    {
-      label: 'Generic passenger car pack (Comrade1280, Sketchfab)',
-      url: 'https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5',
-      note: 'parked cars and pickups, simplified - CC BY 4.0',
-    },
-    {
-      label: 'Low Poly Vehicle Mini Pack 7 (Vladek, Sketchfab)',
-      url: 'https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-7-c8fce59e51874a4182dc20a66cbc6c74',
-      note: 'parked vans and trucks, simplified - CC BY 4.0',
-    },
-    {
-      label: 'Low Poly Truck (FS 3D Studio, Sketchfab)',
-      url: 'https://sketchfab.com/3d-models/low-poly-truck-d61a2ac0a706462ebf82459907f21573',
-      note: 'parked tractor units, trailers and box trucks, recoloured - CC BY 4.0',
-    },
-    {
-      label: 'Dump Truck (ElectroNick, Sketchfab)',
-      url: 'https://sketchfab.com/3d-models/dump-truck-781c616da8f44982a59cb3fc3fa67f98',
-      note: 'parked dump trucks, recoloured - CC BY 4.0',
-    },
   ],
   stageNumber: 1,
   // Stage + free-drive background: Ilinden town / A2 (west, south-west) and Marino (south). The baked
@@ -77,8 +57,7 @@ export const ajvatovciInfo: MapInfo = {
     sunAzimuth: 315,
     // Hot June morning, 07:30: low sun (~22 deg) in the east. ?tod=<hours> to try.
     timeOfDay: 7.5,
-    // Hot dry June morning near Skopje (a day that is 27 deg by 07:30 is a heatwave day with a clear sky). Humidity is not simulated.
-    airTemp: 27,
+    months: { spring: 4, summer: 6, autumn: 10 },
     cloudCoverage: 0.1,
     turbidity: 6,
     rayleigh: 1.5,
@@ -87,6 +66,10 @@ export const ajvatovciInfo: MapInfo = {
     exposure: 0.88,
     // Spring: fresh green meadows and young crops, golden wheat parcels.
     groundTint: { grass: '#65952f', amount: 0.8, crop: '#c49c36' },
+    groundTints: {
+      spring: { grass: '#5fae2e', amount: 0.85, crop: '#7fa63c' },
+      autumn: { grass: '#847636', amount: 0.85, crop: '#7e5f2e' },
+    },
   },
   route: data.route,
   surfaces: ['tarmac_gravel'],
