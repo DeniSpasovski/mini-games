@@ -451,8 +451,8 @@ const SKIN_TONES = [
   '#5f3b26',
 ];
 const HAIR_COLORS = [
-  '#2c2620',
-  '#3a2c20',
+  '#3a3028',
+  '#46342a',
   '#4a3220',
   '#6b4a2a',
   '#8a6a3a',

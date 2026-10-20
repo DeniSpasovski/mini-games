@@ -465,7 +465,11 @@ function curtain(
     const y = top + (bottom - top) * v;
     const dy = y - f.cy;
     // Head shell down to the neck, then the outline of the shoulders and the back.
-    const e = Math.sqrt(Math.max(0, 1 - (dy / (f.ry * 1.05)) ** 2));
+    // Below the head's middle the shell keeps most of its size: the hair falls from the skull over the nape.
+    const e = Math.max(
+      Math.sqrt(Math.max(0, 1 - (dy / (f.ry * 1.05)) ** 2)),
+      dy < 0 ? 0.8 : 0,
+    );
     const hx = (f.rx + sp.thick) * e;
     const hz = (f.rz + sp.thick) * e;
     const o = outline(t, y);
@@ -480,7 +484,10 @@ function curtain(
     return { rx: Math.max(rx, 0.03), zc, zr: Math.max(zr, 0.03) };
   };
   const arc = 1.65;
-  const back = sheet(rows, cols, (v, u) => {
+  const back = sheet(rows, cols, (v0, u) => {
+    // The hem is rounded: the middle of the back hangs longest, the sides end higher.
+    const side = Math.abs(u - 0.5) * 2;
+    const v = v0 * (1 - 0.2 * side * side);
     const p = profile(v);
     const th = (u - 0.5) * 2 * arc;
     const wob = waves * Math.sin(v * 24 + u * 9 + seed);
@@ -489,7 +496,7 @@ function curtain(
       Math.sin(th) * p.rx * r,
       top +
         (bottom - top) * v +
-        (v > 0.9 ? 0.004 * Math.sin(u * 40 + seed) : 0),
+        (v0 > 0.9 ? 0.004 * Math.sin(u * 40 + seed) : 0),
       p.zc - Math.cos(th) * p.zr * r,
     ];
   });
