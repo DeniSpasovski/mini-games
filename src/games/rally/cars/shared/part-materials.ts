@@ -70,14 +70,22 @@ export type PartName =
 
 const cache = new Map<string, Material>();
 
-/** Headlight (CarModel.setLamps): emissive from its idle value to `on` with the lights on (night). */
+/**
+ * Headlight (CarModel.setLamps): emissive from `off` (lights off: the bulbs dark, the reflector shows by its own map) to
+ * `on` with the lights on (night). `CarModel` also builds a halo round it and aims the beam from it.
+ */
 function headLamp<M extends Material & { emissiveIntensity: number }>(
   m: M,
   on: number,
+  off = HEAD_OFF,
 ): M {
-  m.userData.headLamp = { off: m.emissiveIntensity, on };
+  m.emissiveIntensity = off;
+  m.userData.headLamp = { off, on };
   return m;
 }
+
+/** A headlamp's glow with the lights off: almost dark (a hint of the lens catching the light, not a lit bulb). */
+const HEAD_OFF = 0.04;
 
 /** A lamp's emissive intensities with the lights fully on (night): idle (running lamp) and the brake pedal down. */
 export interface LampNight {
@@ -285,7 +293,7 @@ function lensRegion(
 /**
  * A part that keeps the source model's own texture and UVs (scripts/car-model/glb-src-parts.py): material name
  * `src:<kind>:<file in public/models/cars/>`. `int` = the sheet as it is (seat fabric, cockpit), matt, back faces dark; `shell` (no file) = dark plastic;
- * `lamp` = the sheet, its bright pixels glow (head lamps, indicators); `tail` = brake lamp (setBrake): the red pixels glow, the bright neutral ones light in reverse
+ * `lamp` = head lamp: the sheet, its bright neutral pixels glow with the lights on (`headLamp`); `tail` = brake lamp (setBrake): the red pixels glow, the bright neutral ones light in reverse
  * (`src:tail:<file>:<x>,<y>` = only the lens around that sheet pixel, when the clear ribbed trim behind the red cover must stay dark). The maps
  * stay dark until the sheet has loaded. Alpha comes from the sheet (clear lens areas show the reflector behind them).
  */
@@ -378,7 +386,12 @@ function srcPart(name: string): Material {
             ? 1
             : 0,
         );
-      } else paint(glow, (r, gr, b) => lum(r, gr, b) ** 2);
+      }
+      // Head lamp: the bright neutral pixels (bulb, reflector, clear lens) light up, the amber indicator stays dark.
+      else
+        paint(glow, (r, gr, b) =>
+          Math.max(r, gr, b) - Math.min(r, gr, b) < 60 ? lum(r, gr, b) ** 2 : 0,
+        );
       map.needsUpdate = true;
     })
     .catch(() => {}); // no sheet: the dark placeholder stays
@@ -394,9 +407,9 @@ function srcPart(name: string): Material {
     clearcoat: 1,
     clearcoatRoughness: 0.05,
   });
-  if (kind !== 'tail') return m;
   // The glow map is painted once the sheet has loaded: `CarModel` builds the lamp halos after that.
   m.userData.lampLoaded = loaded;
+  if (kind !== 'tail') return headLamp(m, 6);
   return lamp(
     m,
     1.2,
@@ -535,6 +548,8 @@ function headlightMaps(): { map: CanvasTexture; glow: CanvasTexture } {
     '#98a2ad',
   ];
 
+  /** Each module's LED emitter (canvas px), filled in while the map is drawn. */
+  const leds: [number, number][] = [];
   const map = canvas(W, H, (g) => {
     g.fillStyle = '#050607';
     g.fillRect(0, 0, W, H);
@@ -545,6 +560,7 @@ function headlightMaps(): { map: CanvasTexture; glow: CanvasTexture } {
       // Faceted reflector: a fan of flat chrome facets around the LED.
       const cx = ((m[0][0] + m[1][0]) / 2 + lean * 0.4) * W;
       const cy = ((m[0][1] + m[3][1]) / 2 + 0.06) * H;
+      leds.push([cx, cy]);
       const R = W * 0.25;
       const n = 11;
       for (let i = 0; i < n; i++) {
@@ -608,9 +624,25 @@ function headlightMaps(): { map: CanvasTexture; glow: CanvasTexture } {
     g.fillStyle = '#ffffff';
     g.fill();
   });
+  // Lights on: the low-beam LEDs blaze, their reflector modules light round them, the light guide glows.
   const glow = canvas(W, H, (g) => {
     g.fillStyle = '#000000';
     g.fillRect(0, 0, W, H);
+    modules.forEach((m, k) => {
+      g.save();
+      path(g, m);
+      g.clip();
+      g.fillStyle = '#4a4e54';
+      g.fillRect(0, 0, W, H);
+      const [cx, cy] = leds[k];
+      const led = g.createRadialGradient(cx, cy, 1, cx, cy, H * 0.14);
+      led.addColorStop(0, '#ffffff');
+      led.addColorStop(0.45, '#d8dce2');
+      led.addColorStop(1, 'rgba(74, 78, 84, 0)');
+      g.fillStyle = led;
+      g.fillRect(0, 0, W, H);
+      g.restore();
+    });
     path(g, guide);
     g.fillStyle = '#3a3f46';
     g.fill();
@@ -1515,10 +1547,21 @@ function twinLampMaps(): { map: CanvasTexture; glow: CanvasTexture } {
     g.fillStyle = hl;
     g.fillRect(0, 0, W, 0.3 * H);
   });
+  // Lights on: both ring lights, and the low-beam projector in the outer bowl (the inner one is the high beam: dark).
   const glow = canvas(W, H, (g) => {
     g.fillStyle = '#000000';
     g.fillRect(0, 0, W, H);
     for (const b of TWIN.bowls) atBowl(g, b, () => ring(g));
+    atBowl(g, TWIN.bowls[1], () => {
+      const lens = g.createRadialGradient(0, 0, R * 0.05, 0, 0, R * 0.7);
+      lens.addColorStop(0, '#ffffff');
+      lens.addColorStop(0.55, '#c9ced6');
+      lens.addColorStop(1, 'rgba(60, 64, 70, 0)');
+      g.fillStyle = lens;
+      g.beginPath();
+      g.arc(0, 0, R * 0.7, 0, Math.PI * 2);
+      g.fill();
+    });
   });
   return { map, glow };
 }
@@ -1737,7 +1780,6 @@ const BUILDERS: Record<PartName, () => Material> = {
         map,
         emissive: 0xffffff,
         emissiveMap: glow,
-        emissiveIntensity: 0.6,
         roughness: 0.22,
         metalness: 0.12,
         clearcoat: 1,
@@ -1753,14 +1795,13 @@ const BUILDERS: Record<PartName, () => Material> = {
       map,
       emissive: 0xffffff,
       emissiveMap: glow,
-      emissiveIntensity: 0.7,
       roughness: 0.18,
       metalness: 0.25,
       clearcoat: 1,
       clearcoatRoughness: 0.03,
     });
     lampDepth(m, TWIN_BOWLS);
-    return m;
+    return headLamp(m, 4);
   },
   /** Painted coil-over spring (a model's own suspension in the wheel well), the 'sti' yellow of the setup screen. */
   coilover: () =>
@@ -1935,13 +1976,12 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoatRoughness: 0.1,
       envMapIntensity: 0.8,
     }),
-  /** Modelled headlight LED ring / DRL: warm white, always glowing. */
+  /** Modelled headlight LED ring / bulb: warm white plastic, lit with the lights on. */
   headled: () =>
     headLamp(
       new MeshPhysicalMaterial({
         color: 0xfff4d6,
         emissive: 0xffe9b0,
-        emissiveIntensity: 1.2,
         roughness: 0.3,
         metalness: 0,
       }),

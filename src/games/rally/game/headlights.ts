@@ -26,6 +26,8 @@ export const DEFAULT_HEADLIGHTS: CarHeadlightsDef = {
 /** Visible beam length (m) and the cone's radius at its far end. */
 const CONE_LENGTH = 28;
 const CONE_RADIUS = 5.5;
+/** How far ahead of the lamp faces the spot lights sit (m), see `Headlights.moveTo`. */
+const LIGHT_AHEAD = 0.35;
 /** The default beam angle the cone radius is made for. */
 const CONE_ANGLE = 0.42;
 
@@ -52,6 +54,8 @@ export class Headlights {
   readonly group = new Group();
   private readonly cones: Mesh[] = [];
   private readonly spots: SpotLight[] = [];
+  /** Each spot light's aim: metres ahead of the lamps and the target height. */
+  private readonly aims: { ahead: number; y: number }[] = [];
   readonly color: Color;
   private readonly beamMat = new ShaderMaterial({
     uniforms: { uTint: { value: new Color() }, uGain: { value: 1 } },
@@ -65,12 +69,17 @@ export class Headlights {
       varying vec3 vN;
       varying vec3 vV;
       varying float vH;
+      varying float vAlong;
+      varying float vDist;
       void main() {
         vU = uv;
         vH = position.y;
         vN = normalize( normalMatrix * normal );
         vec4 mv = modelViewMatrix * vec4( position, 1.0 );
         vV = normalize( - mv.xyz );
+        vDist = length( mv.xyz );
+        // The view ray against the beam's axis (+Z of the cone after its rotation): 1 = looking down the beam, -1 = into the lamps.
+        vAlong = dot( - vV, normalize( ( modelViewMatrix * vec4( 0.0, 0.0, 1.0, 0.0 ) ).xyz ) );
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: /* glsl */ `
@@ -78,6 +87,8 @@ export class Headlights {
       varying vec3 vN;
       varying vec3 vV;
       varying float vH;
+      varying float vAlong;
+      varying float vDist;
       uniform vec3 uTint;
       uniform float uGain;
       void main() {
@@ -86,6 +97,9 @@ export class Headlights {
         float f = exp( - t * 3.5 ) * ( 0.55 + 0.45 * ( 1.0 - rim ) ) * smoothstep( 0.0, 0.08, t ) * 0.55;
         // Only the part above the lamps shows: the lower half would draw bright arcs where the cone meets the road.
         f *= smoothstep( - 0.1, 0.5, vH );
+        // Seen from in front (looking into the lamps) the beam is the lamps' glare, not a lit wall of air; close to the
+        // camera the cone's surface would show as a hard plane.
+        f *= smoothstep( - 0.75, - 0.1, vAlong ) * smoothstep( 1.5, 5.0, vDist );
         f *= uGain;
         gl_FragColor = vec4( uTint * f, f );
         #include <tonemapping_fragment>
@@ -131,6 +145,7 @@ export class Headlights {
         l.shadow.normalBias = 0.05;
       }
       this.spots.push(l);
+      this.aims.push({ ahead: aim, y: aimY });
       this.group.add(l, l.target);
     };
     // Low beam (both lamps as one, centred), wide spill for the verges.
@@ -164,6 +179,19 @@ export class Headlights {
       this.group.add(cone);
     }
     car.add(this.group);
+  }
+
+  /** Move the beam to the car's own lamps (`CarModel.onHeadlamps`): the cones start at the lamps, the light at their middle. */
+  moveTo(lamp: { x: number; y: number; z: number }): void {
+    // The light itself sits a little ahead of the lamps: at their face it would floodlight the car's own bumper lip.
+    const z = lamp.z + LIGHT_AHEAD;
+    this.spots.forEach((l, i) => {
+      l.position.set(0, lamp.y, z);
+      l.target.position.set(0, this.aims[i].y, z + this.aims[i].ahead);
+    });
+    this.cones.forEach((c, i) =>
+      c.position.set((i ? 1 : -1) * lamp.x, lamp.y, lamp.z),
+    );
   }
 
   dispose(): void {

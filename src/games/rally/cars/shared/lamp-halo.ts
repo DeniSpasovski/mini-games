@@ -1,6 +1,7 @@
 import {
   AdditiveBlending,
   Box3,
+  Color,
   DataTexture,
   DoubleSide,
   Group,
@@ -23,7 +24,7 @@ const BLUR_MAX = 7;
 const BLUR_MIN = 3;
 /** Lamp pieces closer than this (x / y, metres) belong to one lamp. */
 const JOIN = 0.05;
-/** The glow quad sits this far behind the lamp (metres). */
+/** The glow quad sits this far outside the lamp (behind a tail lamp, in front of a head lamp; metres). */
 const SETBACK = 0.04;
 /** A faint lamp (a thin LED strip) is boosted towards the same peak (`peak ** -0.6`), up to this factor. */
 const MAX_BOOST = 4;
@@ -250,9 +251,20 @@ function maskTexture(
   return tex;
 }
 
-function haloMaterial(mask: DataTexture): ShaderMaterial {
+function haloMaterial(
+  mask: DataTexture,
+  color: Color,
+  front: boolean,
+): ShaderMaterial {
   return new ShaderMaterial({
-    uniforms: { uMask: { value: mask }, uLevel: { value: 0 } },
+    uniforms: {
+      uMask: { value: mask },
+      uLevel: { value: 0 },
+      uColor: { value: color },
+    },
+    // Head lamps: the glow gathers round the lit parts (mask squared) and fades out before the quad's edges, so a wide
+    // white lamp gives a soft glow instead of a lit box.
+    defines: front ? { HEAD: '' } : {},
     transparent: true,
     depthWrite: false,
     fog: false,
@@ -267,19 +279,28 @@ function haloMaterial(mask: DataTexture): ShaderMaterial {
     fragmentShader: /* glsl */ `
       uniform sampler2D uMask;
       uniform float uLevel;
+      uniform vec3 uColor;
       varying vec2 vUv;
       void main() {
         float a = texture2D( uMask, vUv ).r;
-        gl_FragColor = vec4( vec3( 1.0, 0.03, 0.02 ) * ( uLevel * a ), 1.0 );
+        #ifdef HEAD
+          vec2 e = min( vUv, 1.0 - vUv );
+          a *= a * smoothstep( 0.0, 0.2, e.x ) * smoothstep( 0.0, 0.2, e.y );
+        #endif
+        gl_FragColor = vec4( uColor * ( uLevel * a ), 1.0 );
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`,
   });
 }
 
+/** Halo colour of the tail lamps: pure red, so night tone mapping keeps it red. */
+const TAIL_RED = new Color(1, 0.03, 0.02);
+
 /**
- * Soft red glow round a car's red tail lamps: for each lamp (its pieces joined) one additive quad just behind it whose
- * shape is the lamp's own silhouette from behind, blurred. Pure red, so night tone mapping keeps it red. Lit by `setLevel`.
+ * Soft glow round a car's red tail lamps: for each lamp (its pieces joined) one additive quad just behind it whose
+ * shape is the lamp's own silhouette from behind, blurred. Lit by `setLevel`. `front` = head lamps: the quad sits just in
+ * front of each lamp, in the beam's `color` (sRGB hex).
  */
 export class LampHalos {
   /** Children of the car body: the quads, in body space. */
@@ -287,10 +308,18 @@ export class LampHalos {
   private readonly materials: ShaderMaterial[] = [];
   /** The quads of the third brake lights: they glow only with the brake. */
   private readonly brakeOnly: ShaderMaterial[] = [];
+  /** Each lamp's box (body space). */
+  private readonly boxes: Box3[] = [];
 
   /** `meshes` = the red lamp meshes, `toBody` = world -> body matrix (the matrix worlds must be current). */
-  constructor(meshes: Mesh[], toBody: Matrix4) {
+  constructor(
+    meshes: Mesh[],
+    toBody: Matrix4,
+    opts: { front?: boolean; color?: number } = {},
+  ) {
+    const color = opts.color === undefined ? TAIL_RED : new Color(opts.color);
     for (const lamp of lamps(meshes.flatMap((m) => pieces(m, toBody)))) {
+      this.boxes.push(lamp.box);
       const size = lamp.box.getSize(new Vector3());
       const radius = Math.max(
         BLUR_MIN,
@@ -302,19 +331,48 @@ export class LampHalos {
       const y0 = lamp.box.min.y - margin;
       const w = Math.ceil((size.x + 2 * margin) / TEXEL);
       const h = Math.ceil((size.y + 2 * margin) / TEXEL);
-      const material = haloMaterial(maskTexture(lamp, x0, y0, w, h, radius));
+      const material = haloMaterial(
+        maskTexture(lamp, x0, y0, w, h, radius),
+        color,
+        !!opts.front,
+      );
       const halo = new Mesh(quad, material);
       halo.scale.set(w * TEXEL, h * TEXEL, 1);
       halo.position.set(
         x0 + (w * TEXEL) / 2,
         y0 + (h * TEXEL) / 2,
-        lamp.box.min.z - SETBACK,
+        opts.front ? lamp.box.max.z + SETBACK : lamp.box.min.z - SETBACK,
       );
       halo.renderOrder = 5;
       halo.frustumCulled = false;
       (lamp.brakeOnly ? this.brakeOnly : this.materials).push(material);
       this.group.add(halo);
     }
+  }
+
+  /**
+   * Where the lamps sit, through `bodyTo` (body -> the space wanted): x = half their spacing and y = their height (lamp
+   * faces seen from the front, weighted by size), z = the foremost lamp face (+z); null without lamps.
+   */
+  mount(bodyTo: Matrix4): { x: number; y: number; z: number } | null {
+    let area = 0;
+    let x = 0;
+    let y = 0;
+    let z = -Infinity;
+    const c = new Vector3();
+    const size = new Vector3();
+    for (const b of this.boxes) {
+      b.getCenter(c);
+      b.getSize(size);
+      const a = Math.max(1e-4, size.x * size.y);
+      area += a;
+      x += Math.abs(c.x) * a;
+      y += c.y * a;
+      z = Math.max(z, b.max.z);
+    }
+    if (!area) return null;
+    const p = new Vector3(x / area, y / area, z).applyMatrix4(bodyTo);
+    return { x: p.x, y: p.y, z: p.z };
   }
 
   /** Glow strength of the lamps (0 = off) and of the brake-only ones (a third brake light). */

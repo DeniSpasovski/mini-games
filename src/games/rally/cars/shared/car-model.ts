@@ -363,6 +363,17 @@ const TAIL_NIGHT_GLOW = 1;
 const HALO_IDLE = 0.11;
 const HALO_BRAKE_NIGHT = 0.26;
 const HALO_BRAKE_DAY = 0;
+/** Halo strength round the head lamps with the lights fully on (night). */
+const HALO_HEAD = 1.1;
+/** Halo colour of a car without its own `headlights` def (`DEFAULT_HEADLIGHTS` in game/headlights.ts). */
+const HEAD_HALO_COLOR = 0xfff1cf;
+
+/** Where a car's head lamps are, in car-root space: x = half their spacing, y = their height, z = their front face. */
+export interface HeadlampMount {
+  x: number;
+  y: number;
+  z: number;
+}
 /** Livery brightness (linear) inside a recess (CarModel.recessMaterial). */
 const RECESS_SHADE = 0.12;
 
@@ -409,6 +420,12 @@ export class CarModel {
   /** Glow round the red tail lamps (`collectLamps`), lit by `setBrake`. */
   private halos?: LampHalos;
   private haloBuild = 0;
+  /** Glow round the head lamps (`collectLamps`), lit by `setLamps`. */
+  private headHalos?: LampHalos;
+  private headBuild = 0;
+  /** The modelled head lamps' position (once they are known), see `onHeadlamps`. */
+  headlampMount: HeadlampMount | null = null;
+  private headlampListeners: ((m: HeadlampMount) => void)[] = [];
   /** Lights on (night): headlamps glow, tail lamps keep a steady glow under the brake light. */
   /** 0..1 lights level (`setLamps`). */
   private lampsOn = 0;
@@ -1096,6 +1113,7 @@ export class CarModel {
     this.root.updateWorldMatrix(true, true);
     this.splitCentreLamps();
     const redLamps: Mesh[] = [];
+    const headMeshes: Mesh[] = [];
     this.root.traverse((o) => {
       const mesh = o as Mesh;
       if (!mesh.isMesh) return;
@@ -1109,6 +1127,8 @@ export class CarModel {
       if (m.userData.brakeLamp?.night) {
         redLamps.push(mesh);
       }
+      // Hidden procedural lamps (the fallback body while the model loads) get no halo.
+      if (m.userData.headLamp && mesh.visible) headMeshes.push(mesh);
       if (m.userData.brakeOwner === this) {
         own.set(m, m);
         return;
@@ -1129,8 +1149,52 @@ export class CarModel {
     this.brakeLamps = all.filter((m) => m.userData.brakeLamp);
     this.headLamps = all.filter((m) => m.userData.headLamp);
     this.addHalos(redLamps);
+    this.addHeadHalos(headMeshes);
     this.brakeLevel = -1;
     this.applyHeadLamps();
+  }
+
+  /** Calls `f` with the head lamps' position whenever it is known or changes (the imported model's own lamps). */
+  onHeadlamps(f: (m: HeadlampMount) => void): void {
+    this.headlampListeners.push(f);
+    if (this.headlampMount) f(this.headlampMount);
+  }
+
+  /** The glow in front of the head lamps and where they are (the beam starts there), once their glow maps have loaded. */
+  private addHeadHalos(meshes: Mesh[]): void {
+    this.headHalos?.dispose();
+    this.headHalos = undefined;
+    const build = this.headBuild + 1;
+    this.headBuild = build;
+    if (!meshes.length) return;
+    const loads = meshes
+      .map(
+        (m) =>
+          (m.material as Material).userData.lampLoaded as
+            Promise<unknown> | undefined,
+      )
+      .filter((p) => p);
+    const add = (): void => {
+      if (this.disposed || build !== this.headBuild) return;
+      this.root.updateWorldMatrix(true, true);
+      this.headHalos = new LampHalos(
+        meshes,
+        this.body.matrixWorld.clone().invert(),
+        { front: true, color: this.def.headlights?.color ?? HEAD_HALO_COLOR },
+      );
+      this.body.add(this.headHalos.group);
+      this.applyHeadLamps();
+      const mount = this.headHalos.mount(this.body.matrix);
+      if (mount) {
+        this.headlampMount = mount;
+        for (const f of this.headlampListeners) f(mount);
+      }
+    };
+    if (loads.length)
+      Promise.all(loads)
+        .then(add)
+        .catch(() => {});
+    else add();
   }
 
   /**
@@ -1229,6 +1293,7 @@ export class CarModel {
       const { off, on } = m.userData.headLamp as { off: number; on: number };
       m.emissiveIntensity = off + (on - off) * this.lampsOn;
     }
+    this.headHalos?.setLevel(HALO_HEAD * this.lampsOn, 0);
   }
 
   /** Lights on / off (night): headlamps glow, tail lamps stay lit (brake light still brighter). */
@@ -1292,6 +1357,8 @@ export class CarModel {
   dispose(): void {
     this.disposed = true;
     this.halos?.dispose();
+    this.headHalos?.dispose();
+    this.headlampListeners = [];
     for (const g of this.wheelGroups) for (const geo of g.geoms) geo.dispose();
     this.clearBadge();
     this.root.removeFromParent();
