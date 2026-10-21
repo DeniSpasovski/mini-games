@@ -272,10 +272,13 @@ const HEAD_SWATCHES: Record<
   string,
   [number, number, number, number, string][]
 > = {
-  // RS6, bottom left of the sheet: the grey housing and outline swatches stay dark, the blue lens of the bottom bulb lights.
+  // RS6: its four bulbs light (the two upper modules, the round lower projector and the big lower module); the grey housing
+  // and outline swatches (bottom left of the sheet) stay dark.
   'audi_rs6_lamps.png': [
     [0, 455 / 512, 36 / 512, 493 / 512, '#000'],
     [18 / 512, 455 / 512, 36 / 512, 476 / 512, '#fff'],
+    [10 / 512, 282 / 512, 215 / 512, 412 / 512, '#fff'],
+    [50 / 512, 420 / 512, 215 / 512, 505 / 512, '#fff'],
   ],
 };
 /** Sheets whose third brake light is a speckled texture (only some pixels strong red): it glows by the sheet's own red instead. */
