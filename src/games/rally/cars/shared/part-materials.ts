@@ -264,10 +264,19 @@ const REVERSE_HALO = new Set([
   'subie_wrx_sti_lamps.png',
   'subie_22b_lamps.png',
 ]);
-/** Head lamp sheet areas [u0, v0, u1, v1] (v down) that are the lamp's bulbs / projector lenses as flat swatches, lit full white. */
-const HEAD_BULBS: Record<string, [number, number, number, number][]> = {
-  // RS6: the blue projector lens and grey bulb swatches of the lower lamp row (bottom left of the sheet).
-  'audi_rs6_lamps.png': [[18 / 512, 455 / 512, 36 / 512, 493 / 512]],
+/**
+ * Head lamp sheet areas [u0, v0, u1, v1, glow colour] (v down, painted in order) drawn as flat swatches: a bulb / projector
+ * lens lit full white, or housing / trim kept dark.
+ */
+const HEAD_SWATCHES: Record<
+  string,
+  [number, number, number, number, string][]
+> = {
+  // RS6, bottom left of the sheet: the grey housing and outline swatches stay dark, the blue lens of the bottom bulb lights.
+  'audi_rs6_lamps.png': [
+    [0, 455 / 512, 36 / 512, 493 / 512, '#000'],
+    [18 / 512, 455 / 512, 36 / 512, 476 / 512, '#fff'],
+  ],
 };
 /** Sheets whose third brake light is a speckled texture (only some pixels strong red): it glows by the sheet's own red instead. */
 const SOLID_CENTRE = new Set(['lancer_evo_6_lamps.png']);
@@ -425,16 +434,17 @@ function srcPart(name: string): Material {
             ? lum(r, gr, b) ** 0.4
             : 0,
         );
-        // Bulbs / projector lenses drawn as flat dark swatches: lit full white.
+        // Bulbs / housings drawn as flat swatches: their own glow.
         const gc = (glow.image as HTMLCanvasElement).getContext('2d')!;
-        gc.fillStyle = '#fff';
-        for (const [u0, v0, u1, v1] of HEAD_BULBS[file] ?? [])
+        for (const [u0, v0, u1, v1, colour] of HEAD_SWATCHES[file] ?? []) {
+          gc.fillStyle = colour;
           gc.fillRect(
             u0 * SRC_SIZE,
             v0 * SRC_SIZE,
             (u1 - u0) * SRC_SIZE,
             (v1 - v0) * SRC_SIZE,
           );
+        }
       }
       map.needsUpdate = true;
     })
