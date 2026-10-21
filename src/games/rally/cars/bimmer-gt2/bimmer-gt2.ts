@@ -236,6 +236,9 @@ export const bimmerGt2: CarDef = {
     doorBadge: { z: 0.25, y: 0.6 },
     // No `suspension`: the wheel wells are closed by the liner (model.source.json `wheels`).
     gltf: {
+      // E92 tail lamps: the outer half on the wing is the running lamp, the inner half on the boot lid lights with the
+      // brake and is the reversing lamp.
+      bootLamps: 0.53,
       file: 'bimmer_gt2.glb',
       credit:
         'Body: "E92 Barnfind" by Tushar Singh (Sketchfab, CC BY 4.0), converted + repainted',
