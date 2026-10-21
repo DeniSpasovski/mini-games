@@ -817,15 +817,15 @@ export function buildBin(l: Local): void {
       );
 }
 
-/** The cars parked on the forecourt (variants 16 and 17 of `street_car`: a dark saloon, a white van), local x, z, heading. */
+/** The cars parked on the forecourt (variants 11 and 12 of `street_car`: a dark saloon, a white van), local x, z, heading. */
 export const HOTEL_CARS: {
   variant: number;
   x: number;
   z: number;
   turn: number;
 }[] = [
-  { variant: 16, x: -14.6, z: 3.6, turn: Math.PI },
-  { variant: 17, x: -8.6, z: 3.6, turn: Math.PI - 0.05 },
+  { variant: 11, x: -14.6, z: 3.6, turn: Math.PI },
+  { variant: 12, x: -8.6, z: 3.6, turn: Math.PI - 0.05 },
 ];
 
 /** Everything of the hotel, as the landmark's `build`. */

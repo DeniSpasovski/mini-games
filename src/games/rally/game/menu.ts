@@ -116,17 +116,23 @@ const NPC_CARS: SourceLink[] = [
   {
     label: 'Generic passenger car pack (Comrade1280, Sketchfab)',
     url: 'https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5',
-    note: 'parked cars and pickups, simplified - CC BY 4.0',
-  },
-  {
-    label: 'Low Poly Vehicle Mini Pack 8 (Vladek, Sketchfab)',
-    url: 'https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-8-52ee24ff6eb2479891fe68e6ce46af28',
-    note: 'parked old cars, simplified - CC BY 4.0',
+    note: 'parked cars and pickups - CC BY 4.0',
   },
   {
     label: 'Low Poly Vehicle Mini Pack 7 (Vladek, Sketchfab)',
     url: 'https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-7-c8fce59e51874a4182dc20a66cbc6c74',
-    note: 'parked vans and trucks, simplified - CC BY 4.0',
+    note: 'parked vans, trucks and ambulance - CC BY 4.0',
+  },
+  {
+    label:
+      'Fire engine/Fire truck low poly game asset (FixedShark554, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/fire-enginefire-truck-low-poly-game-asset-2f663c7477374d30af9f80c528fff55c',
+    note: 'fire engine of the Macedonian maps - CC BY 4.0',
+  },
+  {
+    label: 'Fire Truck (amongus, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/fire-truck-4a0d8c5bfca643d2aaa9b113ff752c26',
+    note: 'fire truck of the USA map - CC BY 4.0',
   },
   {
     label: 'Low Poly Truck (FS 3D Studio, Sketchfab)',

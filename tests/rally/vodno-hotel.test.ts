@@ -1,4 +1,5 @@
 import { describe, expect, test } from '@rstest/core';
+import { STREET_CAR_FIXED } from '../../src/games/rally/assets/builders/vehicles';
 import { getAssetMeta } from '../../src/games/rally/assets/catalog';
 import { VODNO_LANDMARKS } from '../../src/games/rally/maps/vodno/landmarks';
 import {
@@ -169,7 +170,7 @@ describe('vodno crossroad hotel', () => {
     const variants = getAssetMeta('street_car').variants;
     const q = newRoadQuery();
     for (const c of cars) {
-      expect(c.variant).toBeGreaterThanOrEqual(16);
+      expect(c.variant).toBeGreaterThanOrEqual(STREET_CAR_FIXED);
       expect(c.variant).toBeLessThan(variants);
       expect(Number.isFinite(c.rotY)).toBe(true);
       const r = world.road.query(c.x, c.z, q);

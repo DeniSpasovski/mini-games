@@ -651,6 +651,7 @@ describe('jackie: street detail and dressing', () => {
     console.info(`[jackie] dressing: ${JSON.stringify(counts)}`);
     expect(counts.street_car).toBeGreaterThan(300);
     expect(counts.police_car).toBeGreaterThan(3);
+    expect(counts.fire_truck).toBeGreaterThanOrEqual(1);
     expect(counts.spectator).toBeGreaterThan(100);
     expect(counts.street_lamp).toBeGreaterThan(50);
   });
