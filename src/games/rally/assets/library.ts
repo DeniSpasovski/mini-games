@@ -29,6 +29,7 @@ import { rockBoulder, rockSmall } from './builders/rocks';
 import {
   ambulance,
   fireTruck,
+  fireTruckMk,
   policeCar,
   streetCar,
   taxi,
@@ -111,6 +112,7 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   taxi,
   police_car: policeCar,
   fire_truck: fireTruck,
+  fire_truck_mk: fireTruckMk,
   ambulance,
   service_truck: serviceTruck,
   service_semi: serviceSemi,
@@ -189,7 +191,7 @@ export function cachedAssetCount(): number {
 /**
  * Every variant of (id, lod) merged per material into one geometry, each vertex tagged with `variantId`
  * (engine/materials.ts `variantMaterial`): the streamer draws all variants of an asset with ONE InstancedMesh per
- * material. null when not worth it or not possible: one variant / `oneVariant` LODs, more than
+ * material. null when not worth it or not possible: one variant / `oneVariant` / `separateVariants` LODs, more than
  * VARIANT_SET_TRIS (vegetation: VEGETATION_SET_TRIS) triangles in all (every instance runs the vertex shader over all
  * of them), or parts whose
  * attributes differ (cannot be merged).
@@ -200,7 +202,12 @@ export function getVariantSet(id: string, lod: number): BuiltAsset | null {
   const meta = getAssetMeta(id);
   const spec = meta.lods[lod];
   let set: BuiltAsset | null = null;
-  if (VARIANT_SETS && meta.variants > 1 && !spec.oneVariant) {
+  if (
+    VARIANT_SETS &&
+    meta.variants > 1 &&
+    !spec.oneVariant &&
+    !spec.separateVariants
+  ) {
     const groups = new Map<Material, BufferGeometry[]>();
     let tris = 0;
     for (let v = 0; v < meta.variants; v++)
