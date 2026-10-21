@@ -1284,6 +1284,9 @@ function finishFigure(
     material: ReturnType<typeof getMaterial>;
   }[];
 } {
+  // Men wear their hair short.
+  if (outfit.model === 'male' && outfit.hairKind === 'long')
+    outfit = { ...outfit, hairKind: 'short' };
   if (lod <= 1) {
     outfit = { ...outfit };
     pickHair(outfit, rng);
@@ -1339,7 +1342,7 @@ const HAIR_POOLS: Record<BodyModel, Record<'short' | 'long', HairStyle[]>> = {
       'afro',
       'mohawk',
     ],
-    long: ['manbun', 'manbun', 'long', 'long', 'wavy', 'wavy', 'curly'],
+    long: ['crop', 'sidepart', 'messy'],
   },
   female: {
     short: [
@@ -1371,6 +1374,18 @@ const HAIR_POOLS: Record<BodyModel, Record<'short' | 'long', HairStyle[]>> = {
   },
 };
 
+/** Styles with volume on top of the head: they poke through a hat. */
+const HAT_CLASH: HairStyle[] = [
+  'bun',
+  'buns',
+  'manbun',
+  'afro',
+  'mohawk',
+  'quiff',
+  'curly',
+  'messy',
+];
+
 /** A style for an outfit that names none, and the seed that shapes its strands (same for every level of detail). */
 function pickHair(o: Outfit, rng: Rng): void {
   const r = new Rng(rng.int(1, 1e6));
@@ -1390,7 +1405,9 @@ function pickHair(o: Outfit, rng: Rng): void {
       o.model === 'female'
         ? ['bob', 'pixie', 'lowbun', 'bobbang']
         : ['crop', 'sidepart', 'buzz'];
-  o.hairStyle = r.pick(pool);
+  // A hat sits on the head: nothing piled on top of it.
+  if (o.hat !== 'none') pool = pool.filter((s) => !HAT_CLASH.includes(s));
+  o.hairStyle = r.pick(pool.length ? pool : ['crop']);
 }
 
 const baseOutfit = (rng: Rng): Outfit => {
@@ -1407,11 +1424,9 @@ const baseOutfit = (rng: Rng): Outfit => {
         ? rng.chance(0.3)
           ? 'short'
           : 'long'
-        : rng.chance(0.3)
-          ? 'long'
-          : rng.chance(0.12)
-            ? 'bald'
-            : 'short',
+        : rng.chance(0.12)
+          ? 'bald'
+          : 'short',
     hat: 'none',
     hatColor: '#333333',
     scale: rng.range(0.93, 1.06),

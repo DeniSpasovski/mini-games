@@ -706,10 +706,10 @@ export function hatOf(t: Tailor, kind: HatShape, color: string): Surf[] {
       cell: HAT,
     },
     beanie: {
-      line: hatLine(0.03, -0.035, -0.075),
+      line: hatLine(0.03, -0.005, -0.05),
       thick: 0.016,
-      ears: true,
-      roll: [0.006, 0.04],
+      ears: false,
+      roll: [0.011, 0.045],
       cell: KNIT,
     },
     helmet: {
@@ -719,8 +719,8 @@ export function hatOf(t: Tailor, kind: HatShape, color: string): Surf[] {
       cell: HAT,
     },
     hood: {
-      line: hatLine(0.045, -0.085, -0.17),
-      thick: 0.026,
+      line: hatLine(0.04, -0.05, -0.1),
+      thick: 0.02,
       ears: true,
       roll: [0.01, 0.025],
       cell: KNIT,
@@ -736,11 +736,15 @@ export function hatOf(t: Tailor, kind: HatShape, color: string): Surf[] {
       const x = pos[i * 3] - f.cx;
       const dy = pos[i * 3 + 1] - f.cy + 0.02;
       const phi = Math.abs(Math.atan2(x, pos[i * 3 + 2] - f.cz));
+      const rise =
+        pos[i * 3 + 1] - f.cy - h.line(Math.atan2(x, pos[i * 3 + 2] - f.cz));
+      // Snug at the edge, the bulge only above it.
       const w =
+        smooth(0, 0.035, rise) *
         smooth(0.9, 1.35, phi) *
         (1 - smooth(2.0, 2.6, phi)) *
         Math.exp(-((dy / 0.07) ** 2));
-      const out = f.rx + 0.03 - Math.abs(x);
+      const out = f.rx + 0.014 - Math.abs(x);
       if (out > 0) pos[i * 3] += Math.sign(x) * out * w;
     }
     s = relax({ ...s, a: { ...s.a, pos } }, 3, 0.5);
