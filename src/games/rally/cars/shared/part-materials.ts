@@ -241,6 +241,8 @@ const SRC_SIZE = 512;
  */
 const RUNNING_BODY = new Set(['subie_22b_lamps.png']);
 const RUNNING_BODY_NIGHT: LampNight = { idle: 0.2, on: 0.6 };
+/** Sheets whose third brake light is a speckled texture (only some pixels strong red): it glows by the sheet's own red instead. */
+const SOLID_CENTRE = new Set(['lancer_evo_6_lamps.png']);
 /** A sheet pixel of a strong red (a bar or reflector), and of a pale red lens body (pink: green and blue about equal). */
 const strongRed = (r: number, gr: number): boolean => r > 2 * gr + 40;
 const paleRed = (r: number, gr: number, b: number): boolean =>
@@ -397,13 +399,15 @@ function srcPart(name: string): Material {
   if (kind !== 'tail') return m;
   // The glow map is painted once the sheet has loaded: `CarModel` builds the lamp halos after that.
   m.userData.lampLoaded = loaded;
-  return lamp(
+  lamp(
     m,
     1.2,
     reverseGlow,
     running ? RUNNING_BODY_NIGHT : LENS_NIGHT,
     idleGlow,
   );
+  if (SOLID_CENTRE.has(file)) m.userData.brakeLamp.solidCentre = true;
+  return m;
 }
 
 /** Tiling texture for metre UVs: `tile` = size of one canvas repeat in metres. */
