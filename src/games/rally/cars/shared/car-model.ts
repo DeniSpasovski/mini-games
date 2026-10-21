@@ -2,6 +2,7 @@ import { CornerSuspension } from './corner-suspension';
 import {
   AxesHelper,
   BackSide,
+  Box3,
   BoxGeometry,
   BufferGeometry,
   CanvasTexture,
@@ -371,6 +372,10 @@ const HALO_BRAKE_DAY = 0;
 const HALO_HEAD = 1.1;
 /** How far (m) a chrome piece's centre may sit outside the profile's lamp box and still be a head lamp bowl (`gltf.headBowls`). */
 const BOWL_SLACK = 0.03;
+/** A head lamp sheet piece whose centre is this far (m) behind the lamps' front is a side repeater / mirror lamp (`splitHeadExtras`). */
+const EXTRA_BEHIND = 0.4;
+/** A head lamp sheet piece wholly this far (m) below the main lamp is a fog lamp (`splitHeadExtras`). */
+const EXTRA_BELOW = 0.02;
 /** Halo colour of a car without its own `headlights` def (`DEFAULT_HEADLIGHTS` in game/headlights.ts). */
 const HEAD_HALO_COLOR = 0xfff1cf;
 
@@ -1129,6 +1134,7 @@ export class CarModel {
     this.root.updateWorldMatrix(true, true);
     this.splitCentreLamps();
     this.splitHeadBowls();
+    this.splitHeadExtras();
     const redLamps: Mesh[] = [];
     const headMeshes: Mesh[] = [];
     this.root.traverse((o) => {
@@ -1267,6 +1273,63 @@ export class CarModel {
       lamp.material = partMaterial(
         mesh.userData.partName === 'chrome' ? 'headchrome' : 'lenscover',
       )!;
+    }
+  }
+
+  /**
+   * Pieces of an imported model's head lamp sheets that are not the head lamps: side repeaters and mirror lamps (well behind
+   * the lamps' front) and fog lamps (wholly below the main lamp) keep the sheet's day look but stay dark with the lights on.
+   */
+  private splitHeadExtras(): void {
+    if (!this.def.model.gltf) return;
+    const toBody = this.body.matrixWorld.clone().invert();
+    const meshes: Mesh[] = [];
+    this.root.traverse((o) => {
+      const mesh = o as Mesh;
+      const m = mesh.isMesh && (mesh.material as Material);
+      if (
+        m &&
+        m.userData.headLamp &&
+        mesh.visible &&
+        !mesh.userData.extrasChecked
+      )
+        meshes.push(mesh);
+    });
+    if (!meshes.length) return;
+    // First pass: every piece's box, for the main lamp (the biggest piece) and the foremost lamp face.
+    const boxes: Box3[] = [];
+    for (const mesh of meshes)
+      splitLampPieces(mesh, toBody, (b) => (boxes.push(b.clone()), false), '');
+    const size = new Vector3();
+    let main: Box3 | undefined;
+    let mainArea = 0;
+    let front = -Infinity;
+    for (const b of boxes) {
+      b.getSize(size);
+      if (size.x * size.y > mainArea) [main, mainArea] = [b, size.x * size.y];
+      front = Math.max(front, b.max.z);
+    }
+    if (!main) return;
+    const bottom = main.min.y;
+    const c = new Vector3();
+    for (const mesh of meshes) {
+      mesh.userData.extrasChecked = true;
+      const extra = splitLampPieces(
+        mesh,
+        toBody,
+        (b) =>
+          b.getCenter(c).z < front - EXTRA_BEHIND ||
+          b.max.y < bottom - EXTRA_BELOW,
+        'extra',
+      );
+      if (!extra) continue;
+      if (extra !== mesh) this.owned.push(extra.geometry, mesh.geometry);
+      extra.userData.extrasChecked = true;
+      const dark = (mesh.material as MeshStandardMaterial).clone();
+      dark.userData = { ...dark.userData };
+      delete dark.userData.headLamp;
+      this.owned.push(dark);
+      extra.material = dark;
     }
   }
 

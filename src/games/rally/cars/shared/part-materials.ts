@@ -412,10 +412,11 @@ function srcPart(name: string): Material {
             : 0,
         );
       }
-      // Head lamp: the bright neutral pixels (bulb, reflector, clear lens) light up, the amber indicator stays dark.
+      // Head lamp: the neutral pixels (bulb, reflector, clear lens) light up, the amber indicator stays dark. A lit lamp fills
+      // its whole lens, so the darker reflector / projector greys glow too (`** 0.4`), the black housing hardly.
       else
         paint(glow, (r, gr, b) =>
-          Math.max(r, gr, b) - Math.min(r, gr, b) < 60 ? lum(r, gr, b) ** 2 : 0,
+          Math.max(r, gr, b) - Math.min(r, gr, b) < 60 ? lum(r, gr, b) ** 0.4 : 0,
         );
       map.needsUpdate = true;
     })
