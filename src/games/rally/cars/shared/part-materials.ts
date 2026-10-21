@@ -126,12 +126,14 @@ function brakeCover(
   opacity: number,
   on: number,
   night?: LampNight,
+  idle = 0.2,
+  color = 0xb81408,
 ): MeshPhysicalMaterial {
   return lamp(
     new MeshPhysicalMaterial({
-      color: 0xb81408,
+      color,
       emissive,
-      emissiveIntensity: 0.2,
+      emissiveIntensity: idle,
       roughness: 0.03,
       metalness: 0,
       transparent: true,
@@ -241,6 +243,18 @@ const SRC_SIZE = 512;
  */
 const RUNNING_BODY = new Set(['subie_22b_lamps.png']);
 const RUNNING_BODY_NIGHT: LampNight = { idle: 0.2, on: 0.6 };
+/**
+ * Tail-lamp sheets of a clear (silver, ribbed) lamp interior behind a red cover: the red light is that texture's own shading
+ * painted in red, outside the reversing lens, and the lamp is dark while off.
+ */
+const CLEAR_INTERIOR = new Set(['subie_wrx_sti_lamps.png']);
+/** Sheet row (of `SRC_SIZE`) where the tail lamp island starts: the plate lamps and reflectors above it stay dark. */
+const CLEAR_FROM_ROW = 290;
+/** Lamp sheets whose reversing lens also gets a white halo (`LampHalos` `reverse`). */
+const REVERSE_HALO = new Set([
+  'subie_wrx_sti_lamps.png',
+  'subie_22b_lamps.png',
+]);
 /** A sheet pixel of a strong red (a bar or reflector), and of a pale red lens body (pink: green and blue about equal). */
 const strongRed = (r: number, gr: number): boolean => r > 2 * gr + 40;
 const paleRed = (r: number, gr: number, b: number): boolean =>
@@ -332,6 +346,7 @@ function srcPart(name: string): Material {
   const reverseGlow = kind === 'tail' ? blank('#000') : undefined;
   const running = kind === 'tail' && RUNNING_BODY.has(file);
   const idleGlow = running ? blank('#000') : undefined;
+  const clear = kind === 'tail' && CLEAR_INTERIOR.has(file);
   const loaded = sheetFor(file)
     .then((img) => {
       const g = (map.image as HTMLCanvasElement).getContext('2d')!;
@@ -357,11 +372,19 @@ function srcPart(name: string): Material {
         t.needsUpdate = true;
       };
       const lum = (r: number, gr: number, b: number) => (r + gr + b) / 765;
+      const lens = kind === 'tail' && seed ? lensRegion(px, seed) : undefined;
       if (kind === 'tail') {
         paint(
           glow,
-          (r, gr, b) =>
-            strongRed(r, gr) || (running && paleRed(r, gr, b)) ? 1 : 0,
+          (r, gr, b, n) =>
+            strongRed(r, gr) || (running && paleRed(r, gr, b))
+              ? 1
+              : clear &&
+                  n >> 9 > CLEAR_FROM_ROW &&
+                  !lens?.[n] &&
+                  Math.max(r, gr, b) - Math.min(r, gr, b) < 70
+                ? lum(r, gr, b) ** 1.5
+                : 0,
           true,
         );
         if (idleGlow)
@@ -370,7 +393,6 @@ function srcPart(name: string): Material {
             (r, gr, b) => (!strongRed(r, gr) && paleRed(r, gr, b) ? 1 : 0),
             true,
           );
-        const lens = seed && lensRegion(px, seed);
         paint(reverseGlow!, (r, gr, b, n) =>
           (!lens || lens[n]) &&
           Math.max(r, gr, b) - Math.min(r, gr, b) < 40 &&
@@ -386,7 +408,7 @@ function srcPart(name: string): Material {
     map,
     emissive: 0xffffff,
     emissiveMap: glow,
-    emissiveIntensity: kind === 'tail' ? 0.35 : 0.5,
+    emissiveIntensity: clear ? 0.02 : kind === 'tail' ? 0.35 : 0.5,
     transparent: true,
     side: DoubleSide,
     roughness: 0.16,
@@ -397,6 +419,8 @@ function srcPart(name: string): Material {
   if (kind !== 'tail') return m;
   // The glow map is painted once the sheet has loaded: `CarModel` builds the lamp halos after that.
   m.userData.lampLoaded = loaded;
+  m.userData.reverseHalo = REVERSE_HALO.has(file);
+  m.userData.srcUv = REVERSE_HALO.has(file);
   return lamp(
     m,
     1.2,
@@ -2049,8 +2073,12 @@ const BUILDERS: Record<PartName, () => Material> = {
     }),
   /** Red see-through cover that lights with the brake pedal (setBrake), like `tailled`. */
   brakecover: () => brakeCover(0xff0000, 0.72, 1.1, RED_NIGHT),
-  /** `brakecover` with a denser cover: stays red (not salmon) over a white lens when braking. */
-  brakered: () => brakeCover(0xff0000, 0.7, 1.1, RED_NIGHT),
+  /**
+   * Thin dark red glass over a lamp sheet (WRX): it hardly glows itself - the sheet beneath lights, so its texture shows through
+   * and the lamp stays dark while off.
+   */
+  brakered: () =>
+    brakeCover(0xff0000, 0.5, 0.15, { idle: 0.02, on: 0.1 }, 0, 0xc0160a),
   reflector: () =>
     new MeshPhysicalMaterial({
       color: 0xa80f08,
