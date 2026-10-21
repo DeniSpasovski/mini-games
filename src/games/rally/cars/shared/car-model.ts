@@ -374,6 +374,9 @@ export interface HeadlampMount {
   y: number;
   z: number;
 }
+/** Halo of a reversing lens (`LampHalos` `reverse`) by day and at night. */
+const HALO_REVERSE_DAY = 0.1;
+const HALO_REVERSE_NIGHT = 0.2;
 /** White glow of a boot-lid lamp piece in reverse gear (`gltf.bootLamps`): it shines through the red cover over it. */
 const BOOT_REVERSE = 2.4;
 /** Livery brightness (linear) inside a recess (CarModel.recessMaterial). */
@@ -421,6 +424,7 @@ export class CarModel {
   private headLamps: MeshStandardMaterial[] = [];
   /** Glow round the red tail lamps (`collectLamps`), lit by `setBrake`. */
   private halos?: LampHalos;
+  private reverseHalos?: LampHalos;
   private haloBuild = 0;
   /** Glow round the head lamps (`collectLamps`), lit by `setLamps`. */
   private headHalos?: LampHalos;
@@ -1280,6 +1284,8 @@ export class CarModel {
   private addHalos(redLamps: Mesh[]): void {
     this.halos?.dispose();
     this.halos = undefined;
+    this.reverseHalos?.dispose();
+    this.reverseHalos = undefined;
     const build = this.haloBuild + 1;
     this.haloBuild = build;
     const loads = redLamps
@@ -1297,6 +1303,18 @@ export class CarModel {
         this.body.matrixWorld.clone().invert(),
       );
       this.body.add(this.halos.group);
+      const white = redLamps.filter((m) => {
+        const { userData } = m.material as Material;
+        return userData.reverseHalo && userData.brakeLamp?.reverseGlow;
+      });
+      if (white.length) {
+        this.reverseHalos = new LampHalos(
+          white,
+          this.body.matrixWorld.clone().invert(),
+          { reverse: true },
+        );
+        this.body.add(this.reverseHalos.group);
+      }
       this.applyHalos(Math.max(0, this.brakeLevel));
     };
     if (loads.length)
@@ -1312,6 +1330,11 @@ export class CarModel {
     const idle = HALO_IDLE * night;
     const brake = HALO_BRAKE_DAY + (HALO_BRAKE_NIGHT - HALO_BRAKE_DAY) * night;
     this.halos?.setLevel(idle + (brake - idle) * l, brake * l);
+    const reverse =
+      this.reversing && l < 0.02
+        ? HALO_REVERSE_DAY + (HALO_REVERSE_NIGHT - HALO_REVERSE_DAY) * night
+        : 0;
+    this.reverseHalos?.setLevel(reverse, 0);
   }
 
   private applyHeadLamps(): void {
@@ -1393,6 +1416,7 @@ export class CarModel {
     this.halos?.dispose();
     this.headHalos?.dispose();
     this.headlampListeners = [];
+    this.reverseHalos?.dispose();
     for (const g of this.wheelGroups) for (const geo of g.geoms) geo.dispose();
     this.clearBadge();
     this.root.removeFromParent();

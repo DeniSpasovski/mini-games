@@ -16,15 +16,16 @@ import {
   recoveryTruck,
   teamSemi,
 } from '../../maps/ajvatovci/start-row/build/vehicles';
-import { box, finish, solid, wheel } from './vehicles';
+import { box, EXTRAS_LOD, finish, solid, wheel, withExtras } from './vehicles';
 
 /**
  * Service park assets (rally paddock): team trucks, vans, trailers, gazebos, props, the team car stand-in and the
  * public extras. Team-coloured assets use the team index (builders/teams.ts) as variant. The team trucks, vans, pickups
- * and the catering van are the background models (street-car-models.ts) in the team paint plus side stripes, the
- * tractor-trailer the baked lorry model with its own textures; everything else is boxes + a few cylinders. All in the `vehicle` material
- * (vertex colours, one draw call per asset) except the tractor-trailer. Vehicles face +X with the origin on
- * the ground under their middle; a truck's awning and a gazebo's open front are on the +Z side. No logos or lettering.
+ * and the catering van are the background models with their own textures (street-car-models.ts) in the team paint, their
+ * side stripes and awnings a second draw call in the `vehicle` material; the tractor-trailer is the baked lorry model with
+ * its own textures; everything else is boxes + a few cylinders in the `vehicle` material (vertex colours, one draw call per
+ * asset). Vehicles face +X with the origin on the ground under their middle; a truck's awning and a gazebo's open front are
+ * on the +Z side. No logos or lettering.
  */
 
 const WHITE = '#f2f2f2';
@@ -100,18 +101,23 @@ const sideStripe = (
 /** Box truck (8 m, the background box truck) in team colours with a side awning on +Z (4.6 x 3.8 m, two legs). */
 export const serviceTruck: AssetBuilder = ({ variant, lod }) => {
   const t = team(variant);
-  const parts: BufferGeometry[] = [
-    serviceVehicleModel('box_truck', lod).geometry(t.base),
-    ...sideStripe(4.6, 0.38, -1.65, 1.55, t.accent),
-    ...sideStripe(4.6, 0.12, -1.65, 1.9, t.accent2),
-  ];
+  const parts: BufferGeometry[] =
+    lod <= EXTRAS_LOD
+      ? [
+          ...sideStripe(4.6, 0.38, -1.65, 1.55, t.accent),
+          ...sideStripe(4.6, 0.12, -1.65, 1.9, t.accent2),
+        ]
+      : [];
   // Awning: canopy sloping down to the valance, two legs.
   parts.push(
     tilted(4.6, 0.07, 3.8, -1.65, 2.85, 3.0, 0.07, WHITE),
     box(4.6, 0.3, 0.05, -1.65, 2.6, 4.9, t.accent),
   );
   for (const x of [-3.8, 0.5]) parts.push(post(x, 4.8, 2.7, 0.04, '#b8bcc2'));
-  return finish(parts);
+  return withExtras(
+    serviceVehicleModel('box_truck', lod).geometry(t.base),
+    parts,
+  );
 };
 
 /**
@@ -133,11 +139,15 @@ export const serviceTow: AssetBuilder = ({ variant, lod }) => ({
 /** Panel van (5.6 m, the background high-roof van) in team colours with side stripes. */
 export const serviceVan: AssetBuilder = ({ variant, lod }) => {
   const t = team(variant);
-  return finish([
+  return withExtras(
     serviceVehicleModel('van_high', lod).geometry(t.base),
-    ...sideStripe(3.4, 0.28, -1.1, 1.1, t.accent),
-    ...sideStripe(3.4, 0.09, -1.1, 1.38, t.accent2),
-  ]);
+    lod <= EXTRAS_LOD
+      ? [
+          ...sideStripe(3.4, 0.28, -1.1, 1.1, t.accent),
+          ...sideStripe(3.4, 0.09, -1.1, 1.38, t.accent2),
+        ]
+      : [],
+  );
 };
 
 /** Flat car trailer (5.5 m) with a tow bar to +X, the ramp folded at -X. Variant 0 grey, 1 dark. */
@@ -163,10 +173,12 @@ export const carTrailer: AssetBuilder = ({ variant, lod }) => {
 export const pickup: AssetBuilder = ({ variant, lod }) => {
   const t = team(variant);
   const m = streetCarModel(streetCarIndex('pickup'), lod);
-  return finish([
+  return withExtras(
     m.geometry(t.base),
-    ...sideStripe(1.6, 0.14, -1.45, 0.98, t.accent, m.sideZ),
-  ]);
+    lod <= EXTRAS_LOD
+      ? sideStripe(1.6, 0.14, -1.45, 0.98, t.accent, m.sideZ)
+      : [],
+  );
 };
 
 /**
@@ -353,12 +365,16 @@ export const trolleyJack: AssetBuilder = () =>
 /** Catering van (variant = colour, the background low-roof van): serving hatch with an awning flap, counter. */
 export const foodTruck: AssetBuilder = ({ variant, lod }) => {
   const c = ['#e0b020', '#c8321e', '#14908c'][variant % 3];
-  return finish([
+  return withExtras(
     serviceVehicleModel('van_low', lod).geometry(c),
-    box(1.6, 0.7, 0.03, -0.9, 1.45, SIDE + 0.012, '#16181c'),
-    tilted(1.9, 0.04, 0.9, -0.9, 2.05, SIDE + 0.55, 0.35, WHITE),
-    box(1.8, 0.05, 0.4, -0.9, 1.15, SIDE + 0.2, '#c8cbd0'),
-  ]);
+    lod <= EXTRAS_LOD
+      ? [
+          box(1.6, 0.7, 0.03, -0.9, 1.45, SIDE + 0.012, '#16181c'),
+          tilted(1.9, 0.04, 0.9, -0.9, 2.05, SIDE + 0.55, 0.35, WHITE),
+          box(1.8, 0.05, 0.4, -0.9, 1.15, SIDE + 0.2, '#c8cbd0'),
+        ]
+      : [],
+  );
 };
 
 /** Portable toilet cabin (variant = colour). */

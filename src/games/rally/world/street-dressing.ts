@@ -105,14 +105,17 @@ export function streetDressingInstances(
     x: number,
     z: number,
     rotY: number,
+    /** Half the wheel base and half the track of the vehicle (m). */
+    halfL = CAR_HALF_L,
+    halfW = CAR_HALF_W,
   ): void => {
     // Local +X (nose) and +Z (the side a positive roll lowers) on the ground.
     const fx = Math.cos(rotY);
     const fz = -Math.sin(rotY);
     const h = (u: number, v: number) =>
       ctx.height(x + fx * u - fz * v, z + fz * u + fx * v);
-    const L = CAR_HALF_L;
-    const W = CAR_HALF_W;
+    const L = halfL;
+    const W = halfW;
     const front = (h(L, W) + h(L, -W)) / 2;
     const rear = (h(-L, W) + h(-L, -W)) / 2;
     const sideZ = (h(L, W) + h(-L, W)) / 2;
@@ -511,30 +514,48 @@ export function streetDressingInstances(
       const lane = (i: number): number =>
         twoAbreast ? (i % 2 ? 1 : -1) * (j.width / 4) : 0;
       let n = 0;
-      const park = (asset: string, length: number, yawJitter: number) => {
+      const park = (
+        asset: string,
+        length: number,
+        yawJitter: number,
+        wheels: [number, number],
+      ) => {
         const t =
           twoAbreast && n % 2 === 1 ? vehicleEnd : vehicleEnd + length / 2;
         const c = at(t + 0.3, lane(n) + rng.range(-0.3, 0.3));
         if (ctx.blocked(c.x, c.z, length / 2 + 0.5)) return;
-        place(
-          asset,
-          0,
-          c.x,
-          c.z,
-          yawAlong(-j.dx, -j.dz) + rng.range(-yawJitter, yawJitter),
-        );
+        const yaw = yawAlong(-j.dx, -j.dz) + rng.range(-yawJitter, yawJitter);
+        // Parked cars of the street stand clear of the vehicle (it was called there first).
+        const [fx, fz] = [Math.cos(yaw), -Math.sin(yaw)];
+        for (let k = out.length - 1; k >= 0; k--) {
+          const o = out[k];
+          if (o.asset !== 'street_car' && o.asset !== 'taxi') continue;
+          const [dx, dz] = [o.x - c.x, o.z - c.z];
+          if (
+            Math.abs(dx * fx + dz * fz) < length / 2 + 2 &&
+            Math.abs(-dx * fz + dz * fx) < wheels[1] + 2
+          )
+            out.splice(k, 1);
+        }
+        placeCar(asset, 0, c.x, c.z, yaw, wheels[0], wheels[1]);
         n++;
         if (!twoAbreast || n % 2 === 0) vehicleEnd = t + length / 2 + 1.2;
       };
-      if (rng.chance(emergency.police)) park('police_car', 4.6, 0.12);
+      if (rng.chance(emergency.police))
+        park('police_car', 4.6, 0.12, [CAR_HALF_L, CAR_HALF_W]);
       if (
         j.width >= 5 &&
         emergency.ambulance &&
         rng.chance(emergency.ambulance)
       )
-        park('ambulance', 6.4, 0.08);
-      if (j.width >= 6 && rng.chance(emergency.fire))
-        park('fire_truck', 8.6, 0.05);
+        park('ambulance', 6.4, 0.08, [2.2, 0.9]);
+      if (j.width >= 5 && rng.chance(emergency.fire))
+        park(
+          ctx.country === 'mk' ? 'fire_truck_mk' : 'fire_truck',
+          9.2,
+          0.05,
+          ctx.country === 'mk' ? [3, 1.1] : [3.5, 1.2],
+        );
     }
     // Spectators stand along the verges, behind the barrier / beside the vehicles.
     const n = crowd?.perJunction ?? 0;

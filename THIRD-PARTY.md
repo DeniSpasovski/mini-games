@@ -64,17 +64,28 @@ Some roads, properties and outlines were added or traced by hand on top of the o
 | `lancer_evo_6.glb`, `lancer_evo_6_wheel.glb`, `lancer_evo_6_{lamps,seat,fabric,cab}.png` | "Mitsubishi Lancer Evolution 6" by vecarz (Sketchfab; converted and repainted, badges + plate removed; lamp and seat textures kept)                                                                                                                                                                | CC BY 4.0                 |
 | `<car>_park.glb` (the nine cars above that the service park shows)                       | low-detail copies of the matching model and its rim, simplified by `scripts/car-model/park-lods.mjs`                                                                                                                                                                                               | as that model (CC BY 4.0) |
 
-### Background cars (baked into `src/games/rally/assets/builders/street-cars.data.ts`)
+### Background cars (baked into `src/games/rally/assets/builders/`: `street-cars.data.ts`, `service-vehicles.data.ts`, `street-car-atlas.jpg`, `street-car-mask.png`)
 
-The parked cars of the city maps, the vans and trucks of the Ajvatovci start lots and the service park trucks, vans and
-pickups are simplified, recoloured copies of vehicles from three CC BY 4.0 packs (split, reduced to about 900 / 450 triangles
-and packed by `scripts/car-model/bake-street-cars.mjs`; the source files are not in the repository).
+The parked cars of the city maps and the Ajvatovci yards, the Ajvatovci lots' vans and the service park's trucks, vans and
+pickups are recoloured copies of vehicles from two CC BY 4.0 packs (split and packed by
+`scripts/car-model/street-pack-extract.py` + `bake-street-textures.py` + `bake-street-cars.mjs`; their own triangles and textures,
+paint panels tinted, far LODs reduced, wheels redrawn at the far LODs; the source files are not in the repository).
 
 | Pack                                                                                                                                              | Author                                                       | Licence   |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | --------- |
-| ["Generic passenger car pack"](https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5) (modern cars)         | [Comrade1280](https://sketchfab.com/comrade1280) (Sketchfab) | CC BY 4.0 |
-| ["Low Poly Vehicle Mini Pack 8"](https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-8-52ee24ff6eb2479891fe68e6ce46af28) (old boxy cars)   | [Vladek](https://sketchfab.com/vladek27) (Sketchfab)         | CC BY 4.0 |
+| ["Generic passenger car pack"](https://sketchfab.com/3d-models/generic-passenger-car-pack-20f9af9b8a404d5cb022ac6fe87f21f5) (cars)                | [Comrade1280](https://sketchfab.com/comrade1280) (Sketchfab) | CC BY 4.0 |
 | ["Low Poly Vehicle Mini Pack 7"](https://sketchfab.com/3d-models/low-poly-vehicle-mini-pack-7-c8fce59e51874a4182dc20a66cbc6c74) (vans and trucks) | [Vladek](https://sketchfab.com/vladek27) (Sketchfab)         | CC BY 4.0 |
+
+### Fire engines (baked into `src/games/rally/assets/builders/`: `fire-trucks.data.ts`, `fire-truck-us.jpg`, `fire-truck-mk.jpg`)
+
+The two fire engines keep their own triangles and textures (split and packed by `scripts/car-model/street-pack-extract.py` +
+`bake-fire-truck-textures.py` + `bake-fire-trucks.mjs`; scaled to real size, unseen triangles dropped, far LODs reduced; the source
+files are not in the repository).
+
+| Model                                                                                                                                                      | Author                                                                             | Used for                              | Licence   |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------- | --------- |
+| ["Fire engine/Fire truck low poly game asset"](https://sketchfab.com/3d-models/fire-enginefire-truck-low-poly-game-asset-2f663c7477374d30af9f80c528fff55c) | [FixedShark554](https://sketchfab.com/FixedShark554) (Sketchfab)                   | the Macedonian maps (`fire_truck_mk`) | CC BY 4.0 |
+| ["Fire Truck"](https://sketchfab.com/3d-models/fire-truck-4a0d8c5bfca643d2aaa9b113ff752c26)                                                                | amongus ([holedonutdriveout](https://sketchfab.com/holedonutdriveout)) (Sketchfab) | the USA map (`fire_truck`)            | CC BY 4.0 |
 
 ### Parked trucks (baked into `src/games/rally/maps/ajvatovci/start-row/build/truck-models.data.ts`)
 
@@ -123,7 +134,7 @@ Papers and articles read to tune the rally tyre types, tyre temperature, suspens
 
 Skoda, Fabia, BMW, M3, Ford, Fiesta, Subaru, Impreza, WRX, STI, Citroen, C4, Mitsubishi, Lancer Evolution, Zastava and other make or model names are trademarks of their owners and appear only to
 identify the car that inspired a model. The liveries use no manufacturer, sponsor or series logos. Emergency vehicles
-in the Jackie map carry only generic lettering ("POLICE", "FIRE DEPT", "AMBULANCE") and no agency names, logos or badges.
+in the Jackie map carry only generic lettering ("POLICE", "FIRE DEPT", "AMBULANCE") and no agency names, logos or badges; the two fire engine models carry none.
 The Subaru WRX STI 22B (test car) carries a crescent-and-stars side graphic redrawn as shapes after a reference picture of
 the manufacturer's motorsport emblem, at the owner's request; it is not the picture and has no lettering, but it is the one
 exception to "no manufacturer logos" - `cars/subie-22b/livery.ts` drops it.
