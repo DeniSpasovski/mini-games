@@ -29,6 +29,8 @@ const SETBACK = 0.04;
 const MAX_BOOST = 4;
 
 const quad = new PlaneGeometry(1, 1);
+const RED_COLOUR = new Vector3(1, 0.03, 0.02);
+const REVERSE_COLOUR = new Vector3(1, 0.9, 0.75);
 
 /** How lit a lamp's surface is at a texture coordinate (0..1): its glow map. */
 type Glow = (u: number, v: number) => number;
@@ -37,25 +39,42 @@ type Glow = (u: number, v: number) => number;
  * The glow map of a lamp material as a lookup (brightness squared, ~ linear), or null when the material glows all over
  * (no map, or one we cannot read).
  */
-function glowOf(m: MeshStandardMaterial): Glow | null {
-  const map = m.userData.brakeGlow ?? m.emissiveMap;
+function glowOf(m: MeshStandardMaterial, reverse: boolean): Glow | null {
+  const map = reverse
+    ? m.userData.brakeLamp?.reverseGlow
+    : (m.userData.brakeGlow ?? m.emissiveMap);
   const img = map?.image as HTMLCanvasElement | undefined;
   if (!map || !img || typeof img.getContext !== 'function') return null;
   const { width, height } = img;
+  const srcUv = !!m.userData.srcUv;
   const px = img.getContext('2d')!.getImageData(0, 0, width, height).data;
   return (u, v) => {
     u = u * map.repeat.x + map.offset.x;
     v = v * map.repeat.y + map.offset.y;
     const x = Math.min(width - 1, Math.floor((u - Math.floor(u)) * width));
-    const y = Math.min(
-      height - 1,
-      Math.floor((1 - (v - Math.floor(v))) * height),
-    );
+    // A lamp sheet keeps the glTF convention (v down, `flipY` off): v indexes the rows as it is.
+    const row = srcUv ? v - Math.floor(v) : 1 - (v - Math.floor(v));
+    const y = Math.min(height - 1, Math.floor(row * height));
     const i = (y * width + x) * 4;
     const b = Math.max(px[i], px[i + 1], px[i + 2]) / 255;
     return b * b;
   };
 }
+
+/** Barycentric sample points of a triangle for the lit test: a grid for the reversing lens, which is small. */
+const FINE: [number, number, number][] = [];
+for (let i = 0; i <= 8; i++)
+  for (let j = 0; i + j <= 8; j++) FINE.push([i, j, 8 - i - j]);
+/** Corners, middle and edge middles: enough for the red lamps, whose lit areas are large. */
+const COARSE: [number, number, number][] = [
+  [1, 0, 0],
+  [0, 1, 0],
+  [0, 0, 1],
+  [1, 1, 1],
+  [1, 1, 0],
+  [0, 1, 1],
+  [1, 0, 1],
+];
 
 /** Below this glow a point counts as dark. */
 const LIT = 0.02;
@@ -81,11 +100,11 @@ interface Lamp extends Piece {
  * third brake light, so the mesh's own box would span the whole car width. Only triangles that glow somewhere count
  * (a lamp sheet's clear lens, a hidden bulb or a plate light do not).
  */
-function pieces(mesh: Mesh, toBody: Matrix4): Piece[] {
+function pieces(mesh: Mesh, toBody: Matrix4, reverse: boolean): Piece[] {
   const uv = mesh.geometry.getAttribute('uv');
   const { xyz, find, corner, count } = weld(mesh, toBody);
   const v = new Vector3();
-  const glow = glowOf(mesh.material as MeshStandardMaterial);
+  const glow = glowOf(mesh.material as MeshStandardMaterial, reverse);
   const out = new Map<number, Piece>();
   for (let t = 0; t < count; t++) {
     const ids = [corner(t, 0), corner(t, 1), corner(t, 2)];
@@ -98,18 +117,7 @@ function pieces(mesh: Mesh, toBody: Matrix4): Piece[] {
           (u[0] * a + u[1] * b + u[2] * c) / (a + b + c),
           (w[0] * a + w[1] * b + w[2] * c) / (a + b + c),
         ) > LIT;
-      if (
-        ![
-          [1, 0, 0],
-          [0, 1, 0],
-          [0, 0, 1],
-          [1, 1, 1],
-          [1, 1, 0],
-          [0, 1, 1],
-          [1, 0, 1],
-        ].some(([a, b, c]) => at(a, b, c))
-      )
-        continue;
+      if (!(reverse ? FINE : COARSE).some(([a, b, c]) => at(a, b, c))) continue;
     }
     const r = find(ids[0]);
     let piece = out.get(r);
@@ -262,9 +270,13 @@ function maskTexture(
   return tex;
 }
 
-function haloMaterial(mask: DataTexture): ShaderMaterial {
+function haloMaterial(mask: DataTexture, colour: Vector3): ShaderMaterial {
   return new ShaderMaterial({
-    uniforms: { uMask: { value: mask }, uLevel: { value: 0 } },
+    uniforms: {
+      uMask: { value: mask },
+      uLevel: { value: 0 },
+      uColour: { value: colour },
+    },
     transparent: true,
     depthWrite: false,
     fog: false,
@@ -279,10 +291,11 @@ function haloMaterial(mask: DataTexture): ShaderMaterial {
     fragmentShader: /* glsl */ `
       uniform sampler2D uMask;
       uniform float uLevel;
+      uniform vec3 uColour;
       varying vec2 vUv;
       void main() {
         float a = texture2D( uMask, vUv ).r;
-        gl_FragColor = vec4( vec3( 1.0, 0.03, 0.02 ) * ( uLevel * a ), 1.0 );
+        gl_FragColor = vec4( uColour * ( uLevel * a ), 1.0 );
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`,
@@ -302,9 +315,15 @@ export class LampHalos {
   /** Running pieces of a lamp that also has brake-only ones: their glow gives way to the whole lamp's with the brake. */
   private readonly runningOnly: ShaderMaterial[] = [];
 
-  /** `meshes` = the red lamp meshes, `toBody` = world -> body matrix (the matrix worlds must be current). */
-  constructor(meshes: Mesh[], toBody: Matrix4) {
-    for (const lamp of lamps(meshes.flatMap((m) => pieces(m, toBody)))) {
+  /**
+   * `meshes` = the red lamp meshes, `toBody` = world -> body matrix (the matrix worlds must be current). `reverse` = the glow
+   * of the white reversing lens (its `reverseGlow` map) instead, in warm white.
+   */
+  constructor(meshes: Mesh[], toBody: Matrix4, reverse = false) {
+    const colour = reverse ? REVERSE_COLOUR : RED_COLOUR;
+    for (const lamp of lamps(
+      meshes.flatMap((m) => pieces(m, toBody, reverse)),
+    )) {
       const size = lamp.box.getSize(new Vector3());
       const radius = Math.max(
         BLUR_MIN,
@@ -317,7 +336,10 @@ export class LampHalos {
       const w = Math.ceil((size.x + 2 * margin) / TEXEL);
       const h = Math.ceil((size.y + 2 * margin) / TEXEL);
       const add = (piece: Piece, list: ShaderMaterial[]): void => {
-        const material = haloMaterial(maskTexture(piece, x0, y0, w, h, radius));
+        const material = haloMaterial(
+          maskTexture(piece, x0, y0, w, h, radius),
+          colour,
+        );
         const halo = new Mesh(quad, material);
         halo.scale.set(w * TEXEL, h * TEXEL, 1);
         halo.position.set(
