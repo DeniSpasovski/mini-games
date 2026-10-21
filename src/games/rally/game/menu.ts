@@ -151,6 +151,20 @@ const BUILT_WITH: SourceLink[] = [
   { label: 'Rsbuild', url: 'https://rsbuild.rs/', note: 'build tooling, MIT' },
 ];
 
+/** The two base bodies of the people (THIRD-PARTY.md "People"). */
+const PEOPLE_CREDITS: SourceLink[] = [
+  {
+    label: 'Male Base Mesh (Low Poly) (FormForge3D, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/male-base-mesh-low-poly-fece8bfaefdb42cb9fc2a9492ffa18c7',
+    note: 'the men, dressed and styled in code - CC BY 4.0',
+  },
+  {
+    label: 'Female Base Mesh (Low Poly) (FormForge3D, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/female-base-mesh-low-poly-b80022fb9db94c9e83cae5361931b3c9',
+    note: 'the women, dressed and styled in code - CC BY 4.0',
+  },
+];
+
 /** Research behind the suspension model (PHYSICS.md "Dampers and bump stop"). Read only, nothing copied. */
 const SUSPENSION_RESEARCH: SourceLink[] = [
   {
@@ -585,6 +599,8 @@ class MainMenu {
       ${CARS.map((c) => `<h3>${c.name}</h3>${links(c.sources, 'Procedural model - no external sources.')}`).join('')}
       <h3>NPC cars</h3>
       ${links(NPC_CARS, '')}
+      <h2>People</h2>
+      ${links(PEOPLE_CREDITS, '')}
       <h2>Physics</h2>
       <h3>Tyres</h3>
       ${links(TYRE_RESEARCH, '')}

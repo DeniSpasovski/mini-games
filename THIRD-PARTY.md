@@ -100,6 +100,18 @@ the repository).
 | ["Low Poly Truck"](https://sketchfab.com/3d-models/low-poly-truck-d61a2ac0a706462ebf82459907f21573) (tractor + trailer) | FS 3D Studio (Sketchfab) | CC BY 4.0 |
 | ["Dump Truck"](https://sketchfab.com/3d-models/dump-truck-781c616da8f44982a59cb3fc3fa67f98)                             | ElectroNick (Sketchfab)  | CC BY 4.0 |
 
+### People (baked into `src/games/rally/engine/people-base.data.ts`)
+
+Every spectator, marshal, mechanic, crew member, driver, photographer and visitor close up is one of two CC BY 4.0 base bodies (their
+own mesh, simplified in `scripts/people/extract-base.py` + `bake-base.mjs`; the source files are not in the repository). The face
+(eyes, brows, lips) is painted by `scripts/people/skin-map.py`. Clothes, hair, hats and shoes are built in code from the body itself;
+far away the people are low-poly figures built in code.
+
+| Model                                                                                                                       | Author                                         | Licence   |
+| --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | --------- |
+| ["Male Base Mesh (Low Poly)"](https://sketchfab.com/3d-models/male-base-mesh-low-poly-fece8bfaefdb42cb9fc2a9492ffa18c7)     | FormForge3D (account aleenasani841, Sketchfab) | CC BY 4.0 |
+| ["Female Base Mesh (Low Poly)"](https://sketchfab.com/3d-models/female-base-mesh-low-poly-b80022fb9db94c9e83cae5361931b3c9) | FormForge3D (account aleenasani841, Sketchfab) | CC BY 4.0 |
+
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 
 ## Music
