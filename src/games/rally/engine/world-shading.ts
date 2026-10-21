@@ -1,3 +1,4 @@
+import { ROAD_SHADOW_TILE } from '../world/road-shadows';
 import {
   Color,
   Material,
@@ -52,6 +53,10 @@ export const worldUniforms = {
   /** The finer canopy window following the camera (world/canopy-shadows.ts) and its ground mapping. */
   wsCanopyLocal: { value: null as Texture | null },
   wsCanopyLocalMap: { value: new Vector4(0, 0, 0, 0) },
+  /** Pre-baked road tree shadows (world/road-shadows.ts): tile layers, the cell -> layer index, and x0, z0, 1/tile, grid width. */
+  wsRoadTiles: { value: null as Texture | null },
+  wsRoadIndex: { value: null as Texture | null },
+  wsRoadMap: { value: new Vector4(0, 0, 0, 0) },
   /** Shadow-map box on the ground: centre x, z, half extent (m), canopy shadow strength (0 = off). */
   wsShadowBox: { value: new Vector4(0, 0, 60, 0) },
   /**
@@ -133,6 +138,21 @@ export function setCanopyShadows(
   u.wsCanopyLocal.value = local?.texture ?? null;
   if (local) setCanopyLocalMap(local.map);
   u.wsShadowBox.value.w = texture ? strength : 0;
+}
+
+/** The pre-baked road tree shadows (null = off): preferred over the canopy window where a tile is baked. */
+export function setRoadShadows(
+  rs: {
+    tiles: Texture;
+    index: Texture;
+    map: { x0: number; z0: number; invTile: number; w: number };
+  } | null,
+): void {
+  const u = worldUniforms;
+  u.wsRoadTiles.value = rs?.tiles ?? null;
+  u.wsRoadIndex.value = rs?.index ?? null;
+  if (rs) u.wsRoadMap.value.set(rs.map.x0, rs.map.z0, rs.map.invTile, rs.map.w);
+  else u.wsRoadMap.value.set(0, 0, 0, 0);
 }
 
 /** Where the local canopy window is on the ground (call after it moved: `CanopyShadows.update`). */
@@ -324,6 +344,9 @@ uniform sampler2D wsCanopy;
 uniform vec4 wsCanopyMap;
 uniform sampler2D wsCanopyLocal;
 uniform vec4 wsCanopyLocalMap;
+uniform sampler2DArray wsRoadTiles;
+uniform sampler2D wsRoadIndex;
+uniform vec4 wsRoadMap;
 uniform vec4 wsShadowBox;
 uniform vec2 wsCanopyFade;
 uniform vec4 wsForest;
@@ -354,6 +377,20 @@ float wsCanopyShadow( vec3 wp ) {
 		if ( lw > 0.0 ) {
 			d = mix( d, texture2D( wsCanopyLocal, lu ).r, lw );
 			str = mix( str, min( str * 1.4, 0.9 ), lw );
+		}
+	}
+	// Pre-baked road tiles (0.5 m texels, 16 m tiles with a one texel apron): crisp, persistent, preferred where baked.
+	if ( wsRoadMap.z > 0.0 ) {
+		vec2 g = ( wp.xz - wsRoadMap.xy ) * wsRoadMap.z;
+		ivec2 cell = ivec2( floor( g ) );
+		ivec2 sz = textureSize( wsRoadIndex, 0 );
+		if ( cell.x >= 0 && cell.y >= 0 && cell.x < sz.x && cell.y < sz.y ) {
+			float layer = texelFetch( wsRoadIndex, cell, 0 ).r;
+			if ( layer > 0.5 ) {
+				vec2 t = g - vec2( cell );
+				d = texture( wsRoadTiles, vec3( ( t * ${ROAD_SHADOW_TILE.core}.0 + ${ROAD_SHADOW_TILE.apron}.0 ) / ${ROAD_SHADOW_TILE.texels}.0, layer - 1.0 ) ).r;
+				str = min( wsShadowBox.w * 1.4, 0.9 );
+			}
 		}
 	}
 	return 1.0 - str * fade * d;

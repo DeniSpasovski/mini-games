@@ -59,9 +59,12 @@ import { buildRoadMeshSliced } from '../world/road-mesh';
 import { TerrainRenderer } from '../world/terrain-renderer';
 import { setTerrainRelief } from '../world/terrain-material';
 import { CanopyShadows } from '../world/canopy-shadows';
+import type { RoadQuery } from '../world/road';
+import { RoadShadows } from '../world/road-shadows';
 import { Horizon } from '../world/horizon';
 import {
   setCanopyFade,
+  setRoadShadows,
   setCanopyLocalMap,
   setCanopyShadows,
   setForest,
@@ -216,6 +219,18 @@ export class RallyGame {
   /** Far tree shadows, filled in as the streamer generates scatter (world/canopy-shadows.ts). */
   private canopy!: CanopyShadows;
   private readonly canopyDir = new Vector3();
+  /** Pre-baked main-road tree shadows (world/road-shadows.ts). */
+  private roadShadows!: RoadShadows;
+  private roadAlong = 0;
+  private readonly roadQuery: RoadQuery = {
+    found: false,
+    lateral: 0,
+    distance: 0,
+    along: 0,
+    height: 0,
+    halfWidth: 0,
+    index: 0,
+  };
   private hazeAcc = 0;
   audio: CarAudio;
   telemetry!: Telemetry;
@@ -408,6 +423,8 @@ export class RallyGame {
       }
     });
     this.canopy = new CanopyShadows(this.world, this.env.sunDir);
+    this.roadShadows = new RoadShadows(this.world, this.env.sunDir);
+    setRoadShadows(this.roadShadows);
     this.updateCanopy();
     setCanopyShadows(
       this.canopy.texture,
@@ -1426,6 +1443,9 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.camera.getWorldDirection(this.canopyDir);
     this.canopy.update(performance.now(), p, this.canopyDir);
     setCanopyLocalMap(this.canopy.localMap);
+    const rq = this.world.stageRoad.query(p.x, p.z, this.roadQuery);
+    if (rq.found) this.roadAlong = rq.along;
+    this.roadShadows.update(this.roadAlong);
   }
 
   /** Show / hide the perf panel (created on first use; its switches stay applied while it exists). */

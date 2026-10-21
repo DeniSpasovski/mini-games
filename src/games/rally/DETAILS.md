@@ -106,7 +106,7 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 - **Sky / tone mapping:** drifting clouds (`cloudCoverage`, `cloudSpeed`); ACES, or `toneMapping: 'agx' | 'neutral'` per map.
 - **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark outside the
   shadow box (`world/canopy-shadows.ts`: a coarse whole-map texture plus a 1 m local window of 512 m centred 130 m ahead of the camera (~300 m down the road),
-  rebuilt from the generated scatter chunks every 24 m or 0.6 s of new chunks and faded in over 0.25 s, so the road gets tree shadows far past the shadow map), height fog
+  rebuilt from the generated scatter chunks every 24 m or 0.6 s of new chunks and faded in over 0.25 s, so the road gets tree shadows far past the shadow map; `world/road-shadows.ts` pre-bakes the main road's shadows as crisp 0.5 m tiles up to 700 m ahead, used in place of the window where baked), height fog
   warming towards the sun, wind, leaf translucency. Custom shaders must call `addWorldUniforms(shader)`. Flag cloth
   (`defines.RALLY_FLAG`: materials `flag` = the printed flag of North Macedonia, texture `flag_mk`; `fan_flag`) turns downwind
   and ripples; print the pattern on the cloth, never lay geometry over it (the wind shader moves vertices, not surfaces).
