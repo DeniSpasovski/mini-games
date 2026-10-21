@@ -27,7 +27,16 @@
   "landcover": {
     "cell": 5,
     "extent": [-3100, 3100, -1850, 1850],
-    "plainOrchards": false
+    "plainOrchards": false,
+    "leafType": {
+      "winter": "S2B_34TEM_20250306_0_L2A",
+      "summer": "S2B_34TEM_20250704_0_L2A",
+      "from": ["pine"],
+      "evergreen": "pine",
+      "mixed": "mixed",
+      "broadleaf": "oakwood",
+      "split": [0.35, 0.65]
+    }
   },
   "canopy": {
     "trees": 8,

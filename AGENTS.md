@@ -89,7 +89,8 @@ into `DETAILS.md`, never up.
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
   `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `plaza_islands.py` (city junction
   `junction.json`), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from
-  the DEM), `rivers.py` (the "rivers" list in `horizon.json`, run after `horizon.py`)
+  the DEM), `rivers.py` (the "rivers" list in `horizon.json`, run after `horizon.py`), `leaf_type.py` (woods -> pine / mixed / broadleaf
+  from a winter + summer Sentinel-2 scene, run after `bake.py`)
 
 ## Skills - read before these tasks (`.claude/skills/<name>/SKILL.md`)
 
