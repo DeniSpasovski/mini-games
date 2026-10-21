@@ -86,10 +86,13 @@ into `DETAILS.md`, never up.
   sheet), `glb-meshopt.mjs` (the build's GLB compression), `side-profile.mjs` (boxy profile from a GLB: fallback body + street cars);
   the GLB import steps (`glb-to-parts-stl.py`, `glb-orient.py`, `glb-src-parts.py` ...) are in the `rally-car-import` skill; the street-car
   and truck bakes (`street-pack-extract.py`, `bake-street-textures.py`, `bake-street-cars.mjs`, `bake-fire-trucks.mjs`, `bake-trucks.mjs`) are in rally `DETAILS.md`
+- `scripts/people/`: `extract-base.py` (a base body GLB -> json with the face uv), `skin-map.py` (paints the face onto the skin map), `bake-base.mjs`
+  (simplifies, packs both bodies into `engine/people-base.data.ts`; run order in its header)
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
   `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `plaza_islands.py` (city junction
   `junction.json`), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from
-  the DEM), `rivers.py` (the "rivers" list in `horizon.json`, run after `horizon.py`)
+  the DEM), `rivers.py` (the "rivers" list in `horizon.json`, run after `horizon.py`), `leaf_type.py` (woods -> pine / mixed / broadleaf
+  from a winter + summer Sentinel-2 scene, run after `bake.py`)
 
 ## Skills - read before these tasks (`.claude/skills/<name>/SKILL.md`)
 

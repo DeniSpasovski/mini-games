@@ -76,23 +76,27 @@ const CABLE_CAR = [
 ];
 
 /**
- * Plantation conifers in bands from the road edge: a closed canopy at the verge, thinner across the slope where the
- * crowns are still drawn as sprites (the costly part of a tree; the road side within ~100 m is most of it), the full
- * forest behind (trees past 250 m are only impostors). [from, to, share of the density] (m).
+ * Woods in bands from the road edge: a closed canopy at the verge, thinner across the slope where the crowns are still
+ * drawn as sprites (the costly part of a tree; the road side within ~100 m is most of it), the full forest behind (trees
+ * past 250 m are only impostors). [from, to, share of the density] (m).
  */
-const PLANTATION_BANDS: [number, number | undefined, number][] = [
+const WOOD_BANDS: [number, number | undefined, number][] = [
   [0, 40, 1.4],
   [40, 100, 0.8],
   [100, 245, 0.5],
   [245, undefined, 1],
 ];
 
-function plantation(
+/** Every wood cover (the bake's leaf type split, scripts/realmap/leaf_type.py): pine stands, mixed, oak coppice. */
+const WOODS = ['pine', 'mixed', 'oakwood'];
+
+function banded(
+  cover: string[],
   rule: Omit<ScatterRule, 'cover' | 'maxRoadDist'>,
 ): ScatterRule[] {
-  return PLANTATION_BANDS.map(([from, to, share]) => ({
+  return WOOD_BANDS.map(([from, to, share]) => ({
     ...rule,
-    cover: ['pine'],
+    cover,
     density: rule.density * share,
     minRoadDist: Math.max(rule.minRoadDist ?? 0, from),
     maxRoadDist: to,
@@ -142,6 +146,9 @@ export const vodnoMap: MapDef = {
       // Pine plantation floor: needles and bare earth.
       pine: [0.3, 0.68, 0.02, 0],
       beech: [0.25, 0.73, 0.02, 0],
+      // Oak / hornbeam coppice floor: leaf litter with grass in the gaps.
+      oakwood: [0.38, 0.58, 0.04, 0],
+      mixed: [0.34, 0.63, 0.03, 0],
       pasture: [0.62, 0.1, 0.28, 0],
       orchard: [0.7, 0.3, 0, 0],
       crop: [0.6, 0.4, 0, 0],
@@ -216,10 +223,12 @@ export const vodnoMap: MapDef = {
   // come to the edge further up).
   treeSetback: [{ from: 250, to: 1150, dist: 8, fade: 80 }],
   scatter: [
-    // The pine plantations that cover most of Vodno (planted from the 1950s): dense, dark conifers with some Austrian
-    // black pine among them, oak and scrub below. The road runs through them: a closed canopy at the verge (the satellite
-    // view of the start street has the forest right at its south edge).
-    ...plantation({
+    // The woods of the north face (leaf type from winter / summer satellite scenes, scripts/realmap/leaf_type.py): low
+    // downy / Turkey oak and oriental hornbeam coppice (the natural forest), black pine plantations from the 1950s in
+    // blocks and terrace strips across the slope, mixed stands between. The road verges are mostly broadleaf.
+    //
+    // Pine stands: dense, dark conifers, Austrian black pine among them, the odd oak.
+    ...banded(['pine'], {
       asset: 'plantation_pine',
       density: 7,
       minRoadDist: 3.5,
@@ -228,19 +237,7 @@ export const vodnoMap: MapDef = {
       tilt: 2,
       sink: 0.3,
     }),
-    // A few full pines at the verge, where the car passes close enough to see the needles.
-    {
-      asset: 'pine_tree',
-      cover: ['pine'],
-      density: 2.5,
-      minRoadDist: 3.5,
-      maxRoadDist: 40,
-      maxSlope: 0.8,
-      scale: [0.8, 1.2],
-      tilt: 2,
-      sink: 0.3,
-    },
-    ...plantation({
+    ...banded(['pine'], {
       asset: 'black_pine',
       density: 2.5,
       minRoadDist: 4,
@@ -249,10 +246,78 @@ export const vodnoMap: MapDef = {
       tilt: 2,
       sink: 0.3,
     }),
+    // A few full pines at the verge, where the car passes close enough to see the needles.
+    {
+      asset: 'pine_tree',
+      cover: ['pine', 'mixed'],
+      density: 2,
+      minRoadDist: 3.5,
+      maxRoadDist: 40,
+      maxSlope: 0.8,
+      scale: [0.8, 1.2],
+      tilt: 2,
+      sink: 0.3,
+    },
+    // Mixed stands: half pine, half oak / hornbeam.
+    ...banded(['mixed'], {
+      asset: 'plantation_pine',
+      density: 3.5,
+      minRoadDist: 3.5,
+      maxSlope: 0.8,
+      scale: [0.8, 1.2],
+      tilt: 2,
+      sink: 0.3,
+    }),
+    ...banded(['mixed'], {
+      asset: 'black_pine',
+      density: 1.5,
+      minRoadDist: 4,
+      maxSlope: 0.8,
+      scale: [0.75, 1.15],
+      tilt: 2,
+      sink: 0.3,
+    }),
+    // Oak coppice (downy / Turkey oak) with oriental hornbeam, crowns 6-12 m; the odd planted black pine.
+    ...banded(['oakwood'], {
+      asset: 'hornbeam_tree',
+      density: 4,
+      minRoadDist: 3,
+      maxSlope: 0.8,
+      scale: [0.7, 1.15],
+      tilt: 5,
+      sink: 0.2,
+    }),
+    ...banded(['mixed'], {
+      asset: 'hornbeam_tree',
+      density: 1.5,
+      minRoadDist: 3,
+      maxSlope: 0.8,
+      scale: [0.7, 1.15],
+      tilt: 5,
+      sink: 0.2,
+    }),
+    ...banded(['oakwood'], {
+      asset: 'oak_tree',
+      density: 7.5,
+      minRoadDist: 3.5,
+      maxSlope: 0.75,
+      scale: [0.6, 1.1],
+      tilt: 4,
+      sink: 0.25,
+    }),
+    ...banded(['mixed'], {
+      asset: 'oak_tree',
+      density: 3.5,
+      minRoadDist: 3.5,
+      maxSlope: 0.75,
+      scale: [0.6, 1.1],
+      tilt: 4,
+      sink: 0.25,
+    }),
     {
       asset: 'oak_tree',
       cover: ['pine', 'trees'],
-      density: 3,
+      density: 1.5,
       minRoadDist: 3.5,
       maxSlope: 0.75,
       mask: { scale: 150, threshold: 0.1 },
@@ -260,11 +325,21 @@ export const vodnoMap: MapDef = {
       tilt: 4,
       sink: 0.25,
     },
-    // Undergrowth: a thicket in the broadleaf woods, only the odd bush under the pines.
+    {
+      asset: 'black_pine',
+      cover: ['oakwood'],
+      density: 0.5,
+      minRoadDist: 4,
+      maxSlope: 0.8,
+      scale: [0.75, 1.15],
+      tilt: 2,
+      sink: 0.3,
+    },
+    // Undergrowth: a thicket under the broadleaf, only the odd bush under the pines.
     {
       asset: 'thicket_shrub',
-      cover: ['trees'],
-      density: 6,
+      cover: ['trees', 'oakwood'],
+      density: 5,
       minRoadDist: 2.2,
       maxSlope: 0.85,
       scale: [0.8, 1.25],
@@ -273,7 +348,7 @@ export const vodnoMap: MapDef = {
     },
     {
       asset: 'thicket_shrub',
-      cover: ['pine'],
+      cover: ['pine', 'mixed'],
       density: 1.5,
       minRoadDist: 2.2,
       maxSlope: 0.85,
@@ -283,7 +358,7 @@ export const vodnoMap: MapDef = {
     },
     {
       asset: 'bramble_shrub',
-      cover: ['pine', 'trees', 'shrub'],
+      cover: [...WOODS, 'trees', 'shrub'],
       density: 4,
       minRoadDist: 2,
       maxSlope: 0.8,
@@ -293,7 +368,7 @@ export const vodnoMap: MapDef = {
     },
     {
       asset: 'juniper',
-      cover: ['trees', 'shrub'],
+      cover: ['trees', 'oakwood', 'shrub'],
       density: 2,
       minRoadDist: 2.5,
       maxSlope: 0.8,
@@ -323,7 +398,7 @@ export const vodnoMap: MapDef = {
     // Black locust, the roadside and wasteland tree of the Skopje valley, loose among the oaks of the lower slopes.
     {
       asset: 'locust_tree',
-      cover: ['shrub', 'grass', 'trees'],
+      cover: ['shrub', 'grass', 'trees', 'oakwood'],
       density: 0.7,
       minRoadDist: 4,
       mask: { scale: 170, threshold: -0.05 },
@@ -333,7 +408,7 @@ export const vodnoMap: MapDef = {
     },
     {
       asset: 'rock_small',
-      cover: ['pine', 'trees', 'bare', 'shrub', 'grass'],
+      cover: [...WOODS, 'trees', 'bare', 'shrub', 'grass'],
       density: 1.5,
       minRoadDist: 1.4,
       scale: [0.6, 1.5],
@@ -342,7 +417,7 @@ export const vodnoMap: MapDef = {
     },
     {
       asset: 'rock_boulder',
-      cover: ['pine', 'bare', 'shrub'],
+      cover: [...WOODS, 'bare', 'shrub'],
       density: 0.3,
       minRoadDist: 4,
       maxSlope: 0.6,
@@ -401,7 +476,7 @@ export const vodnoMap: MapDef = {
       tilt: 4,
       sink: 0.1,
     },
-    // Detail: dry grass in the open, green tufts under the pines.
+    // Detail: dry grass in the open, green tufts in the woods.
     {
       asset: 'dry_grass',
       cover: DRY,
@@ -413,7 +488,7 @@ export const vodnoMap: MapDef = {
     },
     {
       asset: 'grass_tuft',
-      cover: ['pine', 'trees', 'orchard'],
+      cover: [...WOODS, 'trees', 'orchard'],
       density: 110,
       detail: true,
       minRoadDist: 1,

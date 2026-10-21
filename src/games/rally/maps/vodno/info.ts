@@ -39,7 +39,12 @@ export const vodnoInfo: MapInfo = {
     {
       label: 'ESA WorldCover 10 m 2021 v200',
       url: 'https://esa-worldcover.org/',
-      note: 'land cover (pine woods, scrub, built-up land) - contains modified Copernicus Sentinel data (2021), CC BY 4.0',
+      note: 'land cover (woods, scrub, built-up land) - contains modified Copernicus Sentinel data (2021), CC BY 4.0',
+    },
+    {
+      label: 'Copernicus Sentinel-2 L2A',
+      url: 'https://registry.opendata.aws/sentinel-2-l2a-cogs/',
+      note: 'which woods are pine and which are oak and hornbeam, from a winter and a summer scene - contains modified Copernicus Sentinel data (2025)',
     },
     {
       label: 'Millennium Cross (Wikipedia)',

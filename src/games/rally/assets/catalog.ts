@@ -81,10 +81,10 @@ const PROP_LODS: LodSpec[] = [
   { maxDistance: 260, castShadow: false },
 ];
 
-/** Figures: smooth painted body close up, the jointed low-poly one, a boxy body, then a two-box silhouette. */
+/** Figures: the base body and its clothes (~7k + ~10k triangles) close up, the same on the 2.5k mid mesh, the jointed low-poly one, a boxy body, then a two-box silhouette. */
 const PEOPLE_LODS: LodSpec[] = [
-  { maxDistance: 28, castShadow: true },
-  { maxDistance: 75, castShadow: true },
+  { maxDistance: 16, castShadow: true },
+  { maxDistance: 60, castShadow: true },
   { maxDistance: 220, castShadow: false },
   { maxDistance: 520, castShadow: false },
 ];
@@ -191,7 +191,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Spectator',
     category: 'props',
     description:
-      'Fan made of jointed parts (assets/builders/people.ts). Variant % 6 = outfit (jacket, T-shirt + cap, hoodie, hi-vis vest, backpack, supporter shirt), variant / 6 = pose (stand, wave, camera, hands in pockets); variants 24-41: sitting on the ground, knees up, squatting; 42-53: waving a North Macedonia (42-47) or USA (48-53) hand flag.',
+      'Fan: one of two base bodies, dressed and styled per person (assets/builders/people.ts). Variant % 6 = outfit (jacket, T-shirt + cap, hoodie, hi-vis vest, backpack, supporter shirt), variant / 6 = pose (stand, wave, camera, hands in pockets); variants 24-41: sitting on the ground, knees up, squatting; 42-53: waving a North Macedonia (42-47) or USA (48-53) hand flag.',
     variants:
       SPECTATOR_VARIANTS + SPECTATOR_SEATED_COUNT + SPECTATOR_FLAG_COUNT,
     lods: PEOPLE_LODS,
