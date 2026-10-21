@@ -36,6 +36,7 @@ export type PartName =
   | 'lens'
   | 'lenscover'
   | 'chrome'
+  | 'headchrome'
   | 'satin'
   | 'steel'
   | 'amber'
@@ -1877,6 +1878,18 @@ const BUILDERS: Record<PartName, () => Material> = {
       metalness: 1,
       envMapIntensity: 1.1,
     }),
+  /** Chrome headlamp reflector bowl (a car whose lamp is only the bowl, `gltf.remap`): polished metal by day, lit warm white with the lights on. */
+  headchrome: () =>
+    headLamp(
+      new MeshPhysicalMaterial({
+        color: 0xd8dce2,
+        emissive: 0xffe9b0,
+        roughness: 0.14,
+        metalness: 1,
+        envMapIntensity: 1.1,
+      }),
+      1.4,
+    ),
   /** Brushed aluminium: window frames, roof rails. */
   satin: () =>
     new MeshStandardMaterial({

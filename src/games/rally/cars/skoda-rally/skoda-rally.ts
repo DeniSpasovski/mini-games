@@ -227,6 +227,7 @@ export const skodaRally: CarDef = {
       autoFit: false,
       matte: true,
       atlas: skodaRallyLivery,
+      headBowls: true,
     },
   },
 };

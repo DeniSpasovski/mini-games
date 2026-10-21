@@ -49,7 +49,11 @@ import {
 } from './stl-wheel';
 import { buildTyre, rimRadius } from './tyre-mesh';
 import { LampHalos } from './lamp-halo';
-import { splitBootLamp, splitCentreLamp } from './lamp-islands';
+import {
+  splitBootLamp,
+  splitCentreLamp,
+  splitLampPieces,
+} from './lamp-islands';
 import { type LampNight, partMaterial } from './part-materials';
 import {
   badgeMaterial,
@@ -365,6 +369,8 @@ const HALO_BRAKE_NIGHT = 0.26;
 const HALO_BRAKE_DAY = 0;
 /** Halo strength round the head lamps with the lights fully on (night). */
 const HALO_HEAD = 1.1;
+/** How far (m) a chrome piece's centre may sit outside the profile's lamp box and still be a head lamp bowl (`gltf.headBowls`). */
+const BOWL_SLACK = 0.03;
 /** Halo colour of a car without its own `headlights` def (`DEFAULT_HEADLIGHTS` in game/headlights.ts). */
 const HEAD_HALO_COLOR = 0xfff1cf;
 
@@ -534,6 +540,9 @@ export class CarModel {
       this.addMesh(g.cage, cageMat),
       this.addMesh(g.lining, liningMat, false),
       ...(g.chrome ? [this.addMesh(g.chrome, chromeMat)] : []),
+      ...(g.headReflector
+        ? [this.addMesh(g.headReflector, partMaterial('headchrome')!)]
+        : []),
       ...(g.lens ? [this.addMesh(g.lens, lensMat, false)] : []),
       ...(g.redReflector
         ? [this.addMesh(g.redReflector, redReflectorMat)]
@@ -625,6 +634,7 @@ export class CarModel {
                     ? (recess ??= this.recessMaterial(mat))
                     : partMaterial(name);
                 // A car with its own glass tint (and a modelled cockpit) gets see-through windows.
+                mesh.userData.partName = name;
                 mesh.material =
                   name === 'glass' && def.model.glass
                     ? carGlass
@@ -1118,6 +1128,7 @@ export class CarModel {
     const own = new Map<Material, MeshStandardMaterial>();
     this.root.updateWorldMatrix(true, true);
     this.splitCentreLamps();
+    this.splitHeadBowls();
     const redLamps: Mesh[] = [];
     const headMeshes: Mesh[] = [];
     this.root.traverse((o) => {
@@ -1209,6 +1220,56 @@ export class CarModel {
    * the brake pedal (`brakeOnly`). A car with `gltf.bootLamps` does the same with the inner half of a split tail lamp (on the
    * boot lid): it lights with the brake and white in reverse gear, while only the outer half is the running lamp.
    */
+  /**
+   * `gltf.headBowls`: the chrome reflector bowls of the head lamps get a lamp material, and the cockpit glass over them
+   * (models that share one glass material) the clear lamp cover, so the lit bowl shows through it.
+   */
+  private splitHeadBowls(): void {
+    const opt = this.def.model.gltf?.headBowls;
+    const box = opt === true ? this.def.model.profile?.lamps.front : opt;
+    if (!box) return;
+    const [x0, x1, y0, y1] = box;
+    const toBody = this.body.matrixWorld.clone().invert();
+    const meshes: Mesh[] = [];
+    this.root.traverse((o) => {
+      const mesh = o as Mesh;
+      const part = mesh.userData.partName;
+      if (
+        mesh.isMesh &&
+        mesh.visible &&
+        (part === 'chrome' || part === 'glass') &&
+        !mesh.userData.bowlChecked
+      )
+        meshes.push(mesh);
+    });
+    const c = new Vector3();
+    for (const mesh of meshes) {
+      mesh.userData.bowlChecked = true;
+      const lamp = splitLampPieces(
+        mesh,
+        toBody,
+        (b) => {
+          b.getCenter(c);
+          const x = Math.abs(c.x);
+          return (
+            c.z > 0 &&
+            x > x0 - BOWL_SLACK &&
+            x < x1 + BOWL_SLACK &&
+            c.y > y0 - BOWL_SLACK &&
+            c.y < y1 + BOWL_SLACK
+          );
+        },
+        'lamp',
+      );
+      if (!lamp) continue;
+      if (lamp !== mesh) this.owned.push(lamp.geometry, mesh.geometry);
+      lamp.userData.bowlChecked = true;
+      lamp.material = partMaterial(
+        mesh.userData.partName === 'chrome' ? 'headchrome' : 'lenscover',
+      )!;
+    }
+  }
+
   private splitCentreLamps(): void {
     const toBody = this.body.matrixWorld.clone().invert();
     const bootX = this.def.model.gltf?.bootLamps;

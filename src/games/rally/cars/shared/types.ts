@@ -179,6 +179,11 @@ export interface CarGltfDef {
    * dark as a running lamp, lit with the brake and white in reverse gear (CarModel.splitCentreLamps).
    */
   bootLamps?: number;
+  /**
+   * The head lamps are the model's chrome bowls (no separate bulb): chrome pieces in front of the centre of mass and inside
+   * this [|x|0, |x|1, y0, y1] box (true = the profile's front lamp box) light up with the headlights (CarModel.splitHeadBowls).
+   */
+  headBowls?: true | [number, number, number, number];
   /** Cut-outs painted another colour (wing end plates ...). */
   recolor?: CarGltfRecolor[];
   /** File name inside public/models/cars/, e.g. "skoda_rally.glb". */

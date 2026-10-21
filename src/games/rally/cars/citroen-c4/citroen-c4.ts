@@ -237,6 +237,8 @@ export const citroenC4: CarDef = {
       autoFit: false,
       matte: false,
       atlas: citroenC4Livery,
+      // The lamp wraps from beside the grille round the corner (the profile box is only its outer end).
+      headBowls: [0.2, 0.85, 0.6, 0.95],
     },
   },
 };

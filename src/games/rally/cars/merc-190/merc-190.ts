@@ -221,6 +221,7 @@ export const merc190: CarDef = {
         '"Mercedes 190E EVO 1982 3D Model Free" by Betier Models, sketchfab.com/3d-models/mercedes-190e-evo-1982-3d-model-free-15e5576f4b724f2db357165caed3492b, CC BY 4.0 (converted + repainted, badges removed)',
       autoFit: false,
       atlas: merc190Livery,
+      headBowls: true,
     },
   },
 };
