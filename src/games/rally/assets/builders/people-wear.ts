@@ -535,8 +535,8 @@ export function dress(o: Outfit, t: Tailor, hi: boolean): Wardrobe {
           : 'crop');
   if (o.hat === 'none') hair.push(...hairOf(t, style, o.hair, o.seed ?? 1));
   else {
-    // Under a hat only what hangs out of it shows: the back and the sides of long hair, a tail, a bun.
-    hair.push(...hairOf(t, style, o.hair, o.seed ?? 1).slice(1));
+    // Under a hat only the long hair hanging out of it shows.
+    hair.push(...hairOf(t, style, o.hair, o.seed ?? 1, true));
     hair.push(...hatOf(t, o.hat, o.hatColor));
   }
   // The base legs end ragged at the ankle: the skin stops just above the shoe's collar.

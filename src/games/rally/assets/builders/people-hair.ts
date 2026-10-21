@@ -637,24 +637,39 @@ function extras(
   }
 }
 
-/** The hair of a style, as surfaces on the head bone. */
+/**
+ * The hair of a style, as surfaces on the head bone. Under a hat (`underHat`) only the curtain of long hair that hangs out
+ * of it is left: no scalp, no bun or tail behind it.
+ */
 export function hairOf(
   t: Tailor,
   style: HairStyle,
   color: string,
   seed: number,
+  underHat = false,
 ): Surf[] {
   const sp = STYLES[style];
   if (!sp) return [];
   const f = frame(t);
   const out: Surf[] = [];
-  const sc = scalp(t, f, sp, color, seed);
+  const sc = underHat ? undefined : scalp(t, f, sp, color, seed);
   if (sc) out.push(sc);
   if (sp.drop !== undefined && sp.drop < -0.1)
     out.push(...curtain(t, f, sp, color, seed));
-  out.push(...extras(t, f, sp, color, seed));
+  if (!underHat) out.push(...extras(t, f, sp, color, seed));
   return out;
 }
+
+/** A colour at `k` of its brightness (#rrggbb). */
+const shade = (hex: string, k: number): string =>
+  '#' +
+  [1, 3, 5]
+    .map((i) =>
+      Math.round(parseInt(hex.slice(i, i + 2), 16) * k)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('');
 
 export type HatShape = 'cap' | 'beanie' | 'helmet' | 'hood';
 
@@ -694,39 +709,40 @@ interface Hat {
   cell: number;
 }
 
+const HATS: Record<HatShape, Hat> = {
+  cap: {
+    line: hatLine(0.035, 0.03, -0.01),
+    thick: 0.014,
+    ears: false,
+    cell: HAT,
+  },
+  beanie: {
+    line: hatLine(0.03, -0.005, -0.05),
+    thick: 0.016,
+    ears: false,
+    roll: [0.011, 0.045],
+    cell: KNIT,
+  },
+  helmet: {
+    line: hatLine(0.025, -0.02, -0.07),
+    thick: 0.026,
+    ears: true,
+    cell: HAT,
+  },
+  hood: {
+    line: hatLine(0.04, -0.05, -0.1),
+    thick: 0.02,
+    ears: true,
+    roll: [0.01, 0.025],
+    cell: KNIT,
+  },
+};
+
 /** A hat: the same head cut at its own edge, thicker, with its brim / roll / hood. */
 export function hatOf(t: Tailor, kind: HatShape, color: string): Surf[] {
   const f = frame(t);
   const out: Surf[] = [];
-  const hats: Record<HatShape, Hat> = {
-    cap: {
-      line: hatLine(0.035, 0.03, -0.01),
-      thick: 0.014,
-      ears: false,
-      cell: HAT,
-    },
-    beanie: {
-      line: hatLine(0.03, -0.005, -0.05),
-      thick: 0.016,
-      ears: false,
-      roll: [0.011, 0.045],
-      cell: KNIT,
-    },
-    helmet: {
-      line: hatLine(0.025, -0.02, -0.07),
-      thick: 0.026,
-      ears: true,
-      cell: HAT,
-    },
-    hood: {
-      line: hatLine(0.04, -0.05, -0.1),
-      thick: 0.02,
-      ears: true,
-      roll: [0.01, 0.025],
-      cell: KNIT,
-    },
-  };
-  const h = hats[kind];
+  const h = HATS[kind];
   let s = head(t, f, h.line, 0.19, !h.ears);
   if (!s.idx.length) return out;
   if (h.ears) {
@@ -764,6 +780,24 @@ export function hatOf(t: Tailor, kind: HatShape, color: string): Surf[] {
   s = seal(s, 0.01);
   const [fu, fv] = strands(s, f);
   out.push(slim(s, color, h.cell, fu, fv));
+  // A dark lining of the same colour, facing down, so the underside is closed seen from below.
+  const inner: Surf = {
+    n: s.n,
+    a: {
+      ...s.a,
+      pos: s.a.pos.map(
+        (v, i) => v - s.a.nor[i] * h.thick * (h.ears ? 0.3 : 0.8),
+      ),
+      nor: s.a.nor.map((v) => -v),
+    },
+    idx: s.idx.slice(),
+  };
+  for (let i = 0; i < inner.idx.length; i += 3) {
+    const k = inner.idx[i + 1];
+    inner.idx[i + 1] = inner.idx[i + 2];
+    inner.idx[i + 2] = k;
+  }
+  out.push(slim(inner, shade(color, 0.45), h.cell, fu, fv));
   if (kind === 'cap' || kind === 'helmet') {
     // A peak: a thick curved plate over the brow, wider than the head, curling down at the tip.
     const g = new BufferGeometry();
