@@ -1980,14 +1980,19 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoatRoughness: 0.1,
       envMapIntensity: 0.8,
     }),
-  /** Modelled headlight LED ring / bulb: warm white plastic, lit with the lights on. */
+  /**
+   * Modelled headlight LED ring / bulb / light guide: frosted clear plastic, so it reads grey by day (not a lit white ring)
+   * and glows warm white with the lights on.
+   */
   headled: () =>
     headLamp(
       new MeshPhysicalMaterial({
-        color: 0xfff4d6,
+        color: 0x8f9194,
         emissive: 0xffe9b0,
-        roughness: 0.3,
+        roughness: 0.35,
         metalness: 0,
+        clearcoat: 1,
+        clearcoatRoughness: 0.08,
       }),
       4,
     ),

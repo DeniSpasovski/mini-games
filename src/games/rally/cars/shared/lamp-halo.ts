@@ -4,6 +4,7 @@ import {
   Color,
   DataTexture,
   DoubleSide,
+  FrontSide,
   Group,
   LinearFilter,
   Matrix4,
@@ -280,7 +281,8 @@ function haloMaterial(
     transparent: true,
     depthWrite: false,
     fog: false,
-    side: DoubleSide,
+    // A head lamp's glow faces forwards only: from behind it would shine through the car's windows.
+    side: front ? FrontSide : DoubleSide,
     blending: AdditiveBlending,
     vertexShader: /* glsl */ `
       varying vec2 vUv;
