@@ -49,7 +49,7 @@ import {
 } from './stl-wheel';
 import { buildTyre, rimRadius } from './tyre-mesh';
 import { LampHalos } from './lamp-halo';
-import { splitCentreLamp } from './lamp-islands';
+import { splitBootLamp, splitCentreLamp } from './lamp-islands';
 import { type LampNight, partMaterial } from './part-materials';
 import {
   badgeMaterial,
@@ -363,6 +363,11 @@ const TAIL_NIGHT_GLOW = 1;
 const HALO_IDLE = 0.11;
 const HALO_BRAKE_NIGHT = 0.26;
 const HALO_BRAKE_DAY = 0;
+/** Halo of a reversing lens (`LampHalos` `reverse`) by day and at night. */
+const HALO_REVERSE_DAY = 0.1;
+const HALO_REVERSE_NIGHT = 0.2;
+/** White glow of a boot-lid lamp piece in reverse gear (`gltf.bootLamps`): it shines through the red cover over it. */
+const BOOT_REVERSE = 2.4;
 /** Livery brightness (linear) inside a recess (CarModel.recessMaterial). */
 const RECESS_SHADE = 0.12;
 
@@ -408,6 +413,7 @@ export class CarModel {
   private headLamps: MeshStandardMaterial[] = [];
   /** Glow round the red tail lamps (`collectLamps`), lit by `setBrake`. */
   private halos?: LampHalos;
+  private reverseHalos?: LampHalos;
   private haloBuild = 0;
   /** Lights on (night): headlamps glow, tail lamps keep a steady glow under the brake light. */
   /** 0..1 lights level (`setLamps`). */
@@ -1136,10 +1142,12 @@ export class CarModel {
   /**
    * The third brake light (a high-mount strip, a small bumper lamp) is part of its lamp mesh and shares its material, so it
    * would glow with the running lamps: its pieces move to a mesh of their own with a lamp material that lights only with
-   * the brake pedal (`brakeOnly`).
+   * the brake pedal (`brakeOnly`). A car with `gltf.bootLamps` does the same with the inner half of a split tail lamp (on the
+   * boot lid): it lights with the brake and white in reverse gear, while only the outer half is the running lamp.
    */
   private splitCentreLamps(): void {
     const toBody = this.body.matrixWorld.clone().invert();
+    const bootX = this.def.model.gltf?.bootLamps;
     const meshes: Mesh[] = [];
     this.root.traverse((o) => {
       const mesh = o as Mesh;
@@ -1155,41 +1163,65 @@ export class CarModel {
     });
     for (const mesh of meshes) {
       mesh.userData.centreChecked = true;
-      const centre = splitCentreLamp(mesh, toBody);
-      if (!centre) continue;
-      if (centre !== mesh) {
-        this.owned.push(centre.geometry, mesh.geometry);
-        centre.userData.centreChecked = true;
+      const pieces = [splitCentreLamp(mesh, toBody)];
+      if (bootX && pieces[0] !== mesh)
+        pieces.push(splitBootLamp(mesh, toBody, bootX));
+      for (const [i, part] of pieces.entries()) {
+        if (!part) continue;
+        if (part !== mesh) {
+          this.owned.push(part.geometry, mesh.geometry);
+          part.userData.centreChecked = true;
+        }
+        part.material = this.brakeOnlyMaterial(
+          part.material as MeshStandardMaterial,
+          i === 1,
+        );
       }
-      const m = centre.material as MeshStandardMaterial;
-      const lamp = m.userData.brakeLamp as {
-        night: LampNight;
-        [k: string]: unknown;
-      };
-      const c = m.clone();
-      c.onBeforeCompile = m.onBeforeCompile;
-      c.customProgramCacheKey = m.customProgramCacheKey;
-      c.userData = {
-        ...m.userData,
-        brakeOwner: this,
-        brakeLamp: {
-          ...lamp,
-          off: 0,
-          brakeOnly: true,
-          night: { idle: 0, on: lamp.night.on },
-          reverseGlow: undefined,
-          idleGlow: undefined,
-        },
-      };
-      this.owned.push(c);
-      centre.material = c;
     }
+  }
+
+  /** `m` as a lamp that lights only with the brake pedal; `reverse` = white in reverse gear too (a boot-lid lamp). */
+  private brakeOnlyMaterial(
+    m: MeshStandardMaterial,
+    reverse: boolean,
+  ): MeshStandardMaterial {
+    const lamp = m.userData.brakeLamp as {
+      night: LampNight;
+      solidCentre?: boolean;
+      [k: string]: unknown;
+    };
+    const c = m.clone();
+    c.onBeforeCompile = m.onBeforeCompile;
+    c.customProgramCacheKey = m.customProgramCacheKey;
+    // A sheet whose third brake light is a speckled texture: the whole strip glows by the sheet's own red, without holes.
+    if (lamp.solidCentre && !reverse) {
+      c.emissive.set(0xff0000);
+      c.emissiveMap = c.map;
+    }
+    c.userData = {
+      ...m.userData,
+      brakeOwner: this,
+      brakeLamp: {
+        ...lamp,
+        off: 0,
+        brakeOnly: true,
+        night: { idle: 0, on: lamp.night.on },
+        reverseGlow: undefined,
+        reverseColor: reverse ? 0xffffff : undefined,
+        reverseOn: reverse ? BOOT_REVERSE : undefined,
+        idleGlow: undefined,
+      },
+    };
+    this.owned.push(c);
+    return c;
   }
 
   /** The glow round the red lamp meshes (own glow maps: once a lamp sheet has loaded). */
   private addHalos(redLamps: Mesh[]): void {
     this.halos?.dispose();
     this.halos = undefined;
+    this.reverseHalos?.dispose();
+    this.reverseHalos = undefined;
     const build = this.haloBuild + 1;
     this.haloBuild = build;
     const loads = redLamps
@@ -1207,6 +1239,18 @@ export class CarModel {
         this.body.matrixWorld.clone().invert(),
       );
       this.body.add(this.halos.group);
+      const white = redLamps.filter((m) => {
+        const { userData } = m.material as Material;
+        return userData.reverseHalo && userData.brakeLamp?.reverseGlow;
+      });
+      if (white.length) {
+        this.reverseHalos = new LampHalos(
+          white,
+          this.body.matrixWorld.clone().invert(),
+          true,
+        );
+        this.body.add(this.reverseHalos.group);
+      }
       this.applyHalos(Math.max(0, this.brakeLevel));
     };
     if (loads.length)
@@ -1222,6 +1266,11 @@ export class CarModel {
     const idle = HALO_IDLE * night;
     const brake = HALO_BRAKE_DAY + (HALO_BRAKE_NIGHT - HALO_BRAKE_DAY) * night;
     this.halos?.setLevel(idle + (brake - idle) * l, brake * l);
+    const reverse =
+      this.reversing && l < 0.02
+        ? HALO_REVERSE_DAY + (HALO_REVERSE_NIGHT - HALO_REVERSE_DAY) * night
+        : 0;
+    this.reverseHalos?.setLevel(reverse, 0);
   }
 
   private applyHeadLamps(): void {
@@ -1257,26 +1306,34 @@ export class CarModel {
     this.brakeLevel = l;
     this.reversing = reversing;
     for (const m of this.brakeLamps ?? []) {
-      const { off, on, reverseGlow, idleGlow, night } = m.userData
-        .brakeLamp as {
-        off: number;
-        on: number;
-        reverseGlow?: Texture;
-        idleGlow?: Texture;
-        night?: LampNight;
-      };
+      const { off, on, reverseGlow, reverseColor, reverseOn, idleGlow, night } =
+        m.userData.brakeLamp as {
+          off: number;
+          on: number;
+          reverseGlow?: Texture;
+          reverseColor?: number;
+          reverseOn?: number;
+          idleGlow?: Texture;
+          night?: LampNight;
+        };
       m.userData.brakeGlow ??= m.emissiveMap;
-      // With the lights on the lamp moves to its night glow (`LampNight`), by how dark it is.
+      m.userData.brakeEmissive ??= m.emissive.getHex();
+      // Lights off = a dark lamp; with the lights on it moves to its night glow (`LampNight`), by how dark it is.
       const idle =
-        off +
-        ((night?.idle ?? off + Math.min(on - off, TAIL_NIGHT_GLOW)) - off) *
-          this.lampsOn;
+        (night?.idle ?? off + Math.min(on - off, TAIL_NIGHT_GLOW)) *
+        this.lampsOn;
       const full = on + ((night?.on ?? on) - on) * this.lampsOn;
       const lit = idle + (full - idle) * l;
-      if (reverseGlow && reversing && l < 0.02) {
+      const reverseLamp = reversing && l < 0.02;
+      m.emissive.setHex(
+        reverseLamp && reverseColor !== undefined
+          ? reverseColor
+          : (m.userData.brakeEmissive as number),
+      );
+      if (reverseLamp && (reverseGlow || reverseColor !== undefined)) {
         // Reversing without the brake pedal: the white section only. With the brake down the white one goes dark.
-        m.emissiveMap = reverseGlow;
-        m.emissiveIntensity = on;
+        m.emissiveMap = reverseGlow ?? (m.userData.brakeGlow as Texture | null);
+        m.emissiveIntensity = reverseOn ?? on;
       } else {
         // `idleGlow` = the running lamp's part of the glow map: the rest (small reds) lights with the brake only.
         m.emissiveMap =
@@ -1292,6 +1349,7 @@ export class CarModel {
   dispose(): void {
     this.disposed = true;
     this.halos?.dispose();
+    this.reverseHalos?.dispose();
     for (const g of this.wheelGroups) for (const geo of g.geoms) geo.dispose();
     this.clearBadge();
     this.root.removeFromParent();

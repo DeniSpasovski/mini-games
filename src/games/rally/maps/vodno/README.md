@@ -1,7 +1,7 @@
 # Vodno Hillclimb
 
 Real hillclimb on Mount Vodno above Skopje, North Macedonia: 4.0 km and 220 m of climb from the Vodno neighbourhood up the
-hairpins of the north face, through the pine woods, to Sredno Vodno. The Millennium Cross, the antenna mast and the cable car
+hairpins of the north face, through oak and pine woods, to Sredno Vodno. The Millennium Cross, the antenna mast and the cable car
 stand on the ridge above the road; the 6 x 4 km round it (streets, houses, side roads) is in the world, with the Skopje valley
 as the backdrop. Map and stage id `vodno`.
 
@@ -12,7 +12,7 @@ as the backdrop. Map and stage id `vodno`.
 | ![Hairpins](screenshots/hairpins.jpg)      | ![Cross, mast and cable car](screenshots/cross-ridge.jpg)     |
 | the hairpins above the suburb, guard rails | the Millennium Cross, the mast and the cable car on the ridge |
 
-Narrow tarmac with white edge and centre lines, switchbacks and guard rails, pine plantations with oak and scrub, black locust on the lower slopes;
+Narrow tarmac with white edge and centre lines, switchbacks and guard rails, oak and hornbeam woods with blocks of black pine plantation (from winter satellite scenes), black locust on the lower slopes;
 the road widens to three lanes at the first crossroad (a left-turn lane beside the straight-ahead one), with a concrete retaining wall on its right. Locust and walnut trees with bramble
 stand back from the lower road, cypresses stand in the church yards. Side streets meeting
 the stage road are closed with barriers.
@@ -41,6 +41,7 @@ npm run dev     # /games/rally/?stage=vodno&mute=1
 | More building footprints               | [Microsoft Global ML Building Footprints](https://github.com/microsoft/GlobalMLBuildingFootprints)                                                                                                                                                   | ODbL                                                                             |
 | Elevation, far horizon                 | [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/)                                                                                                                                                                                    | [attributions](https://github.com/tilezen/joerd/blob/master/docs/attribution.md) |
 | Land cover                             | [ESA WorldCover 2021](https://esa-worldcover.org/)                                                                                                                                                                                                   | CC BY 4.0                                                                        |
+| Leaf type of the woods                 | [Copernicus Sentinel-2 L2A](https://registry.opendata.aws/sentinel-2-l2a-cogs/)                                                                                                                                                                      | contains modified Copernicus Sentinel data (2025)                                |
 | Landmark facts                         | [Millennium Cross](https://en.wikipedia.org/wiki/Millennium_Cross), [Vodno](https://en.wikipedia.org/wiki/Vodno), [MRT Center](https://en.wikipedia.org/wiki/MRT_Center), [Cevahir Towers](https://en.wikipedia.org/wiki/Cevahir_Towers) (Wikipedia) | reference only, nothing copied                                                   |
 
 The baked map files (`*.json`, `buildings.csv`, the stage card in `preview/`) are a derived database of OpenStreetMap and stay

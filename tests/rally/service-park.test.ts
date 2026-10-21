@@ -165,6 +165,7 @@ describe('service park (Ajvatovci start)', () => {
           'food_truck',
           'fuel_trailer',
           'ambulance',
+          'fire_truck_mk',
         ].includes(i.asset)
       )
         continue;
@@ -299,7 +300,7 @@ describe('service park (Ajvatovci start)', () => {
       ).toBe(true);
   });
 
-  test('start control: boards, tent and marshals beside the line, a rescue ambulance beyond it', () => {
+  test('start control: boards, tent and marshals beside the line, a rescue ambulance and the fire engine beyond it', () => {
     const near = (asset: string) =>
       park.instances.filter((i) => {
         if (i.asset !== asset) return false;
@@ -310,6 +311,9 @@ describe('service park (Ajvatovci start)', () => {
     expect(near('control_board').length).toBe(2);
     expect(near('marshal').length).toBeGreaterThanOrEqual(3);
     expect(near('ambulance').length).toBe(1);
+    // The Macedonian engine on a Macedonian map (the USA map gets its own).
+    expect(near('fire_truck_mk').length).toBe(1);
+    expect(near('fire_truck').length).toBe(0);
   });
   test('dirt links join the west park to the factory road, level with both, kept clear of the crowd', () => {
     const field = def.lots[1];

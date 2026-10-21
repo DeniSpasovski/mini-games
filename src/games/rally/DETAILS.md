@@ -7,30 +7,30 @@ sim-lite physics that is still fun on a keyboard.
 
 ## Pages and URLs
 
-| Page        | URL                                                               | What it is                                                                                                                                                 |
-| ----------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Game        | `/games/rally/`                                                   | welcome -> select stage -> select car -> (set-up) -> drive                                                                                                 |
+| Page        | URL                                                               | What it is                                                                                                                                                                                            |
+| ----------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Game        | `/games/rally/`                                                   | welcome -> select stage -> select car -> (set-up) -> drive                                                                                                                                            |
 | Map viewer  | `/games/rally/map-viewer.html?map=test&stage=test&grid=1&splat=1` | a map with one of its stages (`stage=`, default the first; a stage picker lists them) in a season (`season=`, the Season picker), click terrain to inspect, "Drive from here", lat / lon on real maps |
-| Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`             | livery seed, door plate, pose, physics hull, torque chart, test drive, time of day + lights (`tod=1&lamps=brake`)                                          |
-| Asset debug | `/games/rally/asset-debug.html?asset=pine_tree&lod=1`             | every asset / car (`car:<id>`) / texture (`tex:<id>`): seed, variant, LOD                                                                                  |
+| Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`             | livery seed, door plate, pose, physics hull, torque chart, test drive, time of day + lights (`tod=1&lamps=brake`)                                                                                     |
+| Asset debug | `/games/rally/asset-debug.html?asset=pine_tree&lod=1`             | every asset / car (`car:<id>`) / texture (`tex:<id>`): seed, variant, LOD                                                                                                                             |
 
 Tool pages are dev-server only and keep their state in the URL; `H` hides the panel, `F3` shows stats, "Copy camera link"
 gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
 
 **URL parameters** (any of the play ones skips the menu):
 
-| Parameter                  | Pages | Effect                                                                                                                                              |
-| -------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `stage`, `car`, `livery`   | play  | stage id, car, livery seed; an old `map=<id>` link is rewritten in place to `stage=` (`stageLinkParams`; a map with several stages opens its first) |
-| `tyre`, `susp`, `gear`     | play  | `tarmac / tarmac_hard / mixed / gravel_hard / gravel`, `soft / medium / stiff`, `short / medium / long` (default: the stage's pick)                 |
-| `spawn`                    | play  | `start`, a flat-area name (`pad`) or metres along the stage road = free drive (no clock, never ranked)                                              |
-| `quality`                  | play  | `low / medium / high`                                                                                                                               |
-| `mute=1`                   | play  | silent (bots and tests)                                                                                                                             |
-| `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                                                                  |
-| `tod=<hours>`, `tonemap=`  | all   | time of day (maps with `environment.timeOfDay`; 20-4:30 = night, see Look; the stage menu sets it), `aces / agx / neutral`                          |
-| `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the stage's `temps` for the season and hour)                                                |
+| Parameter                  | Pages | Effect                                                                                                                                                                                   |
+| -------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stage`, `car`, `livery`   | play  | stage id, car, livery seed; an old `map=<id>` link is rewritten in place to `stage=` (`stageLinkParams`; a map with several stages opens its first)                                      |
+| `tyre`, `susp`, `gear`     | play  | `tarmac / tarmac_hard / mixed / gravel_hard / gravel`, `soft / medium / stiff`, `short / medium / long` (default: the stage's pick)                                                      |
+| `spawn`                    | play  | `start`, a flat-area name (`pad`) or metres along the stage road = free drive (no clock, never ranked)                                                                                   |
+| `quality`                  | play  | `low / medium / high`                                                                                                                                                                    |
+| `mute=1`                   | play  | silent (bots and tests)                                                                                                                                                                  |
+| `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                                                                                                       |
+| `tod=<hours>`, `tonemap=`  | all   | time of day (maps with `environment.timeOfDay`; 20-4:30 = night, see Look; the stage menu sets it), `aces / agx / neutral`                                                               |
+| `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the stage's `temps` for the season and hour)                                                                                         |
 | `season=`                  | play  | `spring / summer / autumn`: tree leaf colours, ground colour and the stage's `temps` for it (default: `StageDef.season`, else `environment.season`, summer); the map viewer takes it too |
-| `perf=1`                   | play  | open the perf panel (below)                                                                                                                         |
+| `perf=1`                   | play  | open the perf panel (below)                                                                                                                                                              |
 
 Perf panel (`` ` `` key in game or `perf=1`, `game/perf-panel.ts`): FPS, frame ms, CPU ms per frame step, GPU ms (timer
 queries; "Wait for GPU" measures it by a readback where they are missing), draw calls, triangles; switches for every
@@ -117,11 +117,13 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   texture octave per layer, no specular environment lookup.
 - **Effects:** dust, gravel spray and haze (`game/dust.ts`), tyre marks (`game/tyre-marks.ts`), a contact shadow under the car,
   brake and reversing lamps (`CarModel.setBrake(level, reversing)`; a lamp's `userData.brakeLamp.reverseGlow` map lights its
-  white section in gear R, in R the throttle key is the brake pedal; car viewer `lamps=brake|reverse`). With the lights on a lamp
-  moves to its `LampNight` glow (`part-materials.ts` `lamp()`): red lamps keep it low and in pure red, because AgX turns a bright red
+  white section in gear R, in R the throttle key is the brake pedal; car viewer `lamps=brake|reverse`). With the lights off a lamp
+  is dark (no glow, by day too); with the lights on it moves to its `LampNight` glow (`part-materials.ts` `lamp()`): red lamps keep it low and in pure red, because AgX turns a bright red
   salmon pink (ACES, by day, keeps pure red up to ~1.2); a lamp's glow map holds the LED parts at full red and the lens body dimmer.
   A lamp piece on the centre line (the third brake light) is split off at load (`lamp-islands.ts`) and lights with the brake only,
-  halo included; `lamp()` `idleGlow` does the same inside one glow map (22B: pale red body = running lamp, strong reds = brake).
+  halo included (`SOLID_CENTRE` sheets glow by the sheet's own red, so a speckled strip has no holes); `gltf.bootLamps` does the
+  same for the boot-lid half of a split tail lamp, which is also its white reversing lamp (Bimmer GT2); `lamp()` `idleGlow` does
+  it inside one glow map (22B: pale red body = running lamp, strong reds = brake).
   A lamp with a `LampNight` also gets a soft red halo (`cars/shared/lamp-halo.ts`: its silhouette from behind, blurred, on an
   additive quad), and at night `game/headlights.ts` `TailLight` adds a dim red spot behind the car (road, verges) while
   `ParticleSystem.setTaillight` tints the dust behind it; both follow the brake pedal (`rally-game.ts` `lightParticlesByLamps`).
@@ -282,13 +284,28 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   tagged (`cars/shared/profile-body.ts`), shown only if the GLB fails to load. It wears the car's livery, box-projected
   onto the atlas (`CarAtlas.layout`). Car viewer `fallback=1` shows it.
 - The city maps' parked cars (`street_car`, `taxi`, `police_car`; `assets/builders/vehicles.ts`) are NOT the rally cars: they are
-  15 simplified models of three CC BY packs (`street-car-models.ts`, data in `street-cars.data.ts`, baked by
-  `scripts/car-model/street-pack-extract.py` + `bake-street-cars.mjs`): ~900 / ~450 triangles, one draw call per LOD, the body
-  paint recoloured per car (variants 0-14 = model, `STREET_CAR_MIX` weights what streets pick; 15 = the white hatch a map places).
-  Pack 7's 5 vans / trucks (`service-vehicles.data.ts`, `bake-street-cars.mjs --vans`, `serviceVehicleModel`) dress the service park
-  and, with the cars, the Ajvatovci start-row lots (`maps/ajvatovci/start-row/build/vehicles.ts`: a few models per kind, scaled
-  to the layout footprint; the trucks are the baked models below). `StreetCarShape.parts()` splits a model into paint + rest.
-  Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` and `service-vehicles.test.ts` hold the triangle budgets.
+  10 cars of a CC BY pack with their own triangles and textures (`street-car-models.ts`, data in `street-cars.data.ts`,
+  atlas `street-car-atlas.jpg` + `street-car-mask.png`; baked by `scripts/car-model/street-pack-extract.py` +
+  `bake-street-textures.py` + `bake-street-cars.mjs`, flags in their headers). LOD 0 is the full model (~6-7k triangles; interior
+  triangles culled), LOD 1 ~2k, LOD 2 ~1k (meshopt, round wheels). One shared material (`streetCarMaterial`): the atlas, with the
+  paint (per-vertex `color`) multiplied in only where the mask is white, so lamps, glass and trim keep their texels; the taxi sign,
+  light bar and lettering are a second `vehicle` part up to LOD 1. Variants 0-9 = model (`STREET_CAR_MIX` weights what streets pick;
+  10-12 = the white hatch, dark sedan and white minivan a map places). The car LODs set `separateVariants` (no merged variant set: every instance would run the
+  vertex shader over all 10 models). Credits: THIRD-PARTY.md; `tests/rally/street-car.test.ts` holds the triangle budget.
+- Pack 7's five vans and trucks (`service-vehicles.data.ts`, `bake-street-cars.mjs --vans`, `serviceVehicleModel`) are baked the same
+  way into the same atlas and dress the service park (`builders/service.ts`: team paint through the tint mask, stripes and awnings a
+  second `vehicle` part up to LOD 1, `PACK_VEHICLE_LODS`) and the Ajvatovci start-row lots. Both lists are baked again after every
+  atlas change. `tests/rally/service-vehicles.test.ts` holds their triangle budgets.
+- The two fire engines (`fire_truck` = the US engine of Jackie's junctions, `fire_truck_mk` = the Macedonian engine at a start control;
+  junction dressing (street mouths 5 m or wider) and `addStartControl` pick by `MapDef.country`; both stand level with the slope under
+  their wheels) are two CC BY models with their own livery and one atlas each
+  (`fire-truck-models.ts`, data `fire-trucks.data.ts`, `fire-truck-us.jpg` / `fire-truck-mk.jpg`, so a map loads only its engine's
+  image): `street-pack-extract.py` + `bake-fire-truck-textures.py` + `bake-fire-trucks.mjs` (scale, turn and LOD budgets are its
+  `MODELS`; mesh helpers shared with the street cars in `street-bake-lib.mjs`). LOD 0 keeps the shapes (US ~22k triangles, hidden
+  ones culled; MK ~11k), LOD 1 ~4k, LOD 2 ~2-3.5k (meshopt with `Prune`, LOD 2 reduced from LOD 1). No paint tint, no add-ons.
+- The Ajvatovci yards' cars and vans (`MODEL` in `maps/ajvatovci/start-row/build/vehicles.ts`) are these models: a few per kind taken
+  in turn, scaled to the layout's footprint, drawn per instance colour through the atlas tint mask in three distance tiers
+  (`CAR_LOD_RANGE`: full / ~2k / ~1k triangles, then the two-box stand-in). The trucks are the baked models below.
 - The Ajvatovci yards' trucks (`maps/ajvatovci/start-row/build/vehicles.ts`, `truck-models.ts`) are baked from two CC BY models
   (`scripts/car-model/bake-trucks.mjs`, data in `truck-models.data.ts`): `tractor` + `trailer` (the `trailer` kind), the `tractor` and
   the trailer's chassis under a code-built tank (`tanker`), the `cab` (back wall closed by the baker, the tractor's step column and side skirt kept behind the front wheel) under a code-built body

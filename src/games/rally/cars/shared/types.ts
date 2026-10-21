@@ -174,6 +174,11 @@ export interface CarGltfRecolor {
 }
 
 export interface CarGltfDef {
+  /**
+   * Split tail lamps (part on the wing, part on the boot lid): lamp pieces inboard of |x| = this (m) are the boot-lid half,
+   * dark as a running lamp, lit with the brake and white in reverse gear (CarModel.splitCentreLamps).
+   */
+  bootLamps?: number;
   /** Cut-outs painted another colour (wing end plates ...). */
   recolor?: CarGltfRecolor[];
   /** File name inside public/models/cars/, e.g. "skoda_rally.glb". */
