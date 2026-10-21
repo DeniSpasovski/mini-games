@@ -241,7 +241,9 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   `maps/vodno/landmarks/car-parks.ts` + `lots.ts`, its gate `gate.ts`, the two flats and their wall on the start street `start-blocks.ts`, `start-wall.ts`, and the brick hotel behind the side street at the first crossroad (building on its own terrace, forecourt on the road) `hotel.ts`: its own `lot_brick` texture, fixed `street_car` variants 16 / 17). A `PathDef.bare` street gets no kerbs / sidewalks / lamps inside `cityStreets` reach.
 - **City maps** (`jackie`): one-way carriageways, bridges and decks, portals, junction plazas, parkway lanes, continuous
   barriers, retaining walls, gores, overhead signs, kerbs / crosswalks / lamps, parked vehicles (`world/bridge-mesh.ts`,
-  `portals.ts`, `plazas.ts`, `parkway-lanes.ts`, `barriers.ts`, `cut-wall-mesh.ts`, `street-detail.ts`).
+  `portals.ts`, `plazas.ts`, `parkway-lanes.ts`, `barriers.ts`, `cut-wall-mesh.ts`, `street-detail.ts`). Plaza queries look
+  only at the plazas listed on a 16 m candidate grid (`Plazas.candidates`); same answers as a loop over all
+  (`tests/rally/plaza-index.test.ts`).
 
 City-map rules (streets keep their own height line, no terrain through decks, bug-fix workflow): rally-maps skill "Bridges and
 underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-roads`, `water`, `railways`, `stage-signs`.
@@ -533,6 +535,7 @@ colder at the top. Select stage shows "At the top" for climbs of 50 m or more (`
 
 ## Known limitations
 
-- Generation runs on the main thread (time-sliced); very large maps would need a Web Worker for heightfield and scatter.
+- Generation runs on the main thread, time-sliced: the load builds the road mesh in ~25 ms slices (`buildRoadMeshSliced`);
+  terrain and scatter stream within per-frame budgets. On city maps the load cost is the road mesh and `new World` (one task).
 - Real-world map data is not lazy-loaded; a bare-earth DEM would help where the elevation model includes trees.
 - Not done: tyre relaxation length, co-driver pace notes, car damage.

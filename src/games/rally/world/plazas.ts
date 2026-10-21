@@ -30,6 +30,10 @@ const BLEND = 8;
 const STREET_PIN = 3;
 /** Cell size of a junction area's height field (m). */
 const FIELD_CELL = 1;
+/** Cell size of the candidate grid (m): each cell lists the plazas whose box, grown by GRID_PAD, touches it. */
+const GRID_CELL = 16;
+/** The grid answers queries up to this far beyond a plaza's box (m): `indexAt` pads and `level`'s blend. */
+const GRID_PAD = BLEND;
 
 interface Field {
   x0: number;
@@ -84,6 +88,14 @@ function edgeDistance(p: number[], x: number, z: number): number {
   return best;
 }
 
+/** Distance from (x, z) to the box of `p` (0 inside it). */
+function boxDistance(p: Poly, x: number, z: number): number {
+  return Math.hypot(
+    Math.max(0, p.minX - x, x - p.maxX),
+    Math.max(0, p.minZ - z, z - p.maxZ),
+  );
+}
+
 function smoothstep(a: number, b: number, x: number): number {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
@@ -98,6 +110,12 @@ export class Plazas {
     minZ: number;
     maxZ: number;
   })[];
+  /** Candidate grid: plaza indices (ascending, so every query keeps the order of `polys`) per GRID_CELL cell. */
+  private readonly grid: (number[] | undefined)[] = [];
+  private gx0 = 0;
+  private gz0 = 0;
+  private gnx = 0;
+  private gnz = 0;
   constructor(
     outlines: number[][],
     private readonly portals: Portals,
@@ -149,6 +167,38 @@ export class Plazas {
         maxZ: Math.max(...zs),
       };
     });
+    if (!this.polys.length) return;
+    // One spare cell on every side: a point that passes a box test always lands on a cell that lists the plaza.
+    const pad = GRID_PAD + GRID_CELL;
+    this.gx0 = Math.min(...this.polys.map((p) => p.minX)) - pad;
+    this.gz0 = Math.min(...this.polys.map((p) => p.minZ)) - pad;
+    this.gnx =
+      Math.ceil(
+        (Math.max(...this.polys.map((p) => p.maxX)) + pad - this.gx0) /
+          GRID_CELL,
+      ) + 1;
+    this.gnz =
+      Math.ceil(
+        (Math.max(...this.polys.map((p) => p.maxZ)) + pad - this.gz0) /
+          GRID_CELL,
+      ) + 1;
+    this.polys.forEach((p, k) => {
+      const i0 = Math.floor((p.minX - GRID_PAD - this.gx0) / GRID_CELL) - 1;
+      const i1 = Math.floor((p.maxX + GRID_PAD - this.gx0) / GRID_CELL) + 1;
+      const j0 = Math.floor((p.minZ - GRID_PAD - this.gz0) / GRID_CELL) - 1;
+      const j1 = Math.floor((p.maxZ + GRID_PAD - this.gz0) / GRID_CELL) + 1;
+      for (let j = j0; j <= j1; j++)
+        for (let i = i0; i <= i1; i++)
+          (this.grid[j * this.gnx + i] ??= []).push(k);
+    });
+  }
+
+  /** Plazas whose box grown by GRID_PAD may hold (x, z), in `polys` order (empty off the grid). */
+  private candidates(x: number, z: number): readonly number[] {
+    const i = Math.floor((x - this.gx0) / GRID_CELL);
+    const j = Math.floor((z - this.gz0) / GRID_CELL);
+    if (i < 0 || j < 0 || i >= this.gnx || j >= this.gnz) return NONE;
+    return this.grid[j * this.gnx + i] ?? NONE;
   }
 
   get empty(): boolean {
@@ -221,7 +271,10 @@ export class Plazas {
 
   /** Index of the plaza (x, z) lies in, -1 = none. */
   indexAt(x: number, z: number, pad = 0): number {
-    for (let i = 0; i < this.polys.length; i++) {
+    const near = pad <= GRID_PAD ? this.candidates(x, z) : undefined;
+    const n = near ? near.length : this.polys.length;
+    for (let c = 0; c < n; c++) {
+      const i = near ? near[c] : c;
       const p = this.polys[i];
       if (
         x < p.minX - pad ||
@@ -268,11 +321,28 @@ export class Plazas {
   height(x: number, z: number): number | undefined {
     let best: Poly | undefined;
     let bd = Infinity;
-    for (const p of this.polys) {
+    // The nearest plaza (the first of equals). Every plaza off the candidate list lies more than GRID_PAD away, so a
+    // candidate nearer than that wins outright; otherwise every plaza whose box is no nearer than the best so far is
+    // skipped (it cannot be strictly nearer).
+    for (const i of this.candidates(x, z)) {
+      const p = this.polys[i];
       const d = inPoly(p.pts, x, z) ? 0 : edgeDistance(p.pts, x, z);
       if (d < bd) {
         bd = d;
         best = p;
+      }
+    }
+    if (bd >= GRID_PAD - 0.01) {
+      best = undefined;
+      bd = Infinity;
+      const bound = this.vertexBound(x, z);
+      for (const p of this.polys) {
+        if (boxDistance(p, x, z) > Math.min(bd, bound) + 1e-6) continue;
+        const d = inPoly(p.pts, x, z) ? 0 : edgeDistance(p.pts, x, z);
+        if (d < bd) {
+          bd = d;
+          best = p;
+        }
       }
     }
     if (best?.field) return sampleField(best.field, x, z);
@@ -446,31 +516,48 @@ export class Plazas {
 
   /** Distance to the nearest plaza (0 inside, Infinity without plazas; the open trench is not excluded). */
   distance(x: number, z: number): number {
+    // As `height`: a candidate nearer than GRID_PAD is the nearest; else skip plazas whose box is beyond the best so
+    // far (no outline bound here: the open cut may skip the plaza it came from).
     let best = Infinity;
-    for (const p of this.polys) {
-      // A junction area's outline reaches into the open cut: no distance there (nothing is eased to it).
-      if (
-        p.area &&
-        this.openCut &&
-        x >= p.minX &&
-        x <= p.maxX &&
-        z >= p.minZ &&
-        z <= p.maxZ &&
-        this.openCut(x, z)
-      )
-        continue;
-      best = Math.min(
-        best,
-        inPoly(p.pts, x, z) ? 0 : edgeDistance(p.pts, x, z),
-      );
-    }
+    for (const i of this.candidates(x, z))
+      best = this.distanceTo(this.polys[i], x, z, best);
+    if (best < GRID_PAD - 0.01) return best;
+    best = Infinity;
+    for (const p of this.polys)
+      if (boxDistance(p, x, z) <= best + 1e-6)
+        best = this.distanceTo(p, x, z, best);
     return best;
+  }
+
+  /** An upper bound of the distance to the nearest plaza: the nearest first outline point. */
+  private vertexBound(x: number, z: number): number {
+    let b = Infinity;
+    for (const p of this.polys)
+      b = Math.min(b, Math.hypot(p.pts[0] - x, p.pts[1] - z));
+    return b;
+  }
+
+  /** min(`best`, distance to `p`), as the full loop of `distance` takes it. */
+  private distanceTo(p: Poly, x: number, z: number, best: number): number {
+    // A junction area's outline reaches into the open cut: no distance there (nothing is eased to it).
+    if (
+      p.area &&
+      this.openCut &&
+      x >= p.minX &&
+      x <= p.maxX &&
+      z >= p.minZ &&
+      z <= p.maxZ &&
+      this.openCut(x, z)
+    )
+      return best;
+    return Math.min(best, inPoly(p.pts, x, z) ? 0 : edgeDistance(p.pts, x, z));
   }
 
   /** The land levelled onto the plaza (blending back over BLEND m beyond its edge unless `blend` is false): `h` -> levelled height. */
   level(x: number, z: number, h: number, blend = true): number {
     const B = blend ? BLEND : 0;
-    for (const p of this.polys) {
+    for (const i of this.candidates(x, z)) {
+      const p = this.polys[i];
       if (x < p.minX - B || x > p.maxX + B || z < p.minZ - B || z > p.maxZ + B)
         continue;
       const inside = inPoly(p.pts, x, z);
@@ -487,6 +574,8 @@ export class Plazas {
     return h;
   }
 }
+
+const NONE: readonly number[] = [];
 
 /** Bilinear sample of a height field (clamped to its grid). */
 function sampleField(f: Field, x: number, z: number): number {

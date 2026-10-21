@@ -53,7 +53,7 @@ import {
   type SpikeFrame,
   type TreeBenchReport,
 } from './tree-bench';
-import { buildRoadMesh } from '../world/road-mesh';
+import { buildRoadMeshSliced } from '../world/road-mesh';
 import { TerrainRenderer } from '../world/terrain-renderer';
 import { setTerrainRelief } from '../world/terrain-material';
 import { CanopyShadows } from '../world/canopy-shadows';
@@ -305,7 +305,12 @@ export class RallyGame {
 
     progress(0.15, 'Road');
     await paint();
-    const road = buildRoadMesh(this.world);
+    // The bar creeps towards the terrain step (the job's length is not known up front).
+    let slices = 0;
+    const road = await buildRoadMeshSliced(this.world, () => {
+      progress(0.15 + 0.14 * (1 - 20 / (20 + ++slices)), 'Road');
+      return frame();
+    });
     this.scene.add(road);
     this.roadGroup = road;
     // Whole-map meshes: nothing past the streamed terrain (no ground under them there).
