@@ -1,4 +1,3 @@
-import { ROAD_SHADOW_TILE } from '../world/road-shadows';
 import {
   Color,
   Material,
@@ -35,6 +34,9 @@ import {
  */
 
 /** Shared uniform objects (same references in every program). */
+/** Layout of the pre-baked road shadow tiles (world/road-shadows.ts): ground size (m), texels incl. apron, core, apron. */
+export const ROAD_SHADOW_TILE = { size: 16, texels: 34, core: 32, apron: 1 };
+
 export const worldUniforms = {
   wsTime: { value: 0 },
   wsSunDir: { value: new Vector3(0, 1, 0) },

@@ -9,13 +9,14 @@ import {
   type Vector3,
 } from 'three';
 import { Noise2D } from '../../../shared/noise';
+import { ROAD_SHADOW_TILE } from '../engine/world-shading';
 import { canopyOf, isVegetation } from './aerial-trees';
 import { nearestRoadPoint } from './road-distance';
 import type { ScatterInstance } from './scatter';
 import type { World } from './world';
 
 /** Ground size of one tile (m), its texel size (m) and the apron (texels) that makes bilinear reads seamless. */
-const TILE = 16;
+const { size: TILE } = ROAD_SHADOW_TILE;
 const RES = 0.5;
 const CORE = TILE / RES;
 const APRON = 1;
@@ -280,11 +281,4 @@ export class RoadShadows {
 const smooth = (a: number, b: number, x: number): number => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
-};
-
-export const ROAD_SHADOW_TILE = {
-  size: TILE,
-  texels: TEX,
-  apron: APRON,
-  core: CORE,
 };
