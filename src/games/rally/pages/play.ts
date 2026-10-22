@@ -1,4 +1,5 @@
 import { probeScene } from '../engine/perf-probe';
+import '../game/ui-tokens.css';
 import '../game/hud.css';
 import '../game/menu.css';
 import { goToPortal, portalUrl } from '../../../shared/portal-link';
@@ -12,6 +13,7 @@ import {
   buildOptions,
   buildSectors,
   runMenu,
+  stagePlateHtml,
 } from '../game/menu';
 import {
   activateFocused,
@@ -65,7 +67,7 @@ if (touch) {
 
 /** "All games" button, only when the game runs inside the portal (PWA has no back button). */
 const portalButton = portalUrl()
-  ? `<button data-a="portal">All games</button>`
+  ? `<button class="menu-btn" data-a="portal">All games</button>`
   : '';
 
 migrateTimes(); // physics changed -> old stage times are tagged with their version before any menu reads them
@@ -112,14 +114,17 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
       ? raw.spawn
       : 'start',
   };
-  const loading = overlay(`
+  const info = getStage(params.stage);
+  const loading = overlay(
+    `
     <div class="box">
       <h2>Loading stage…</h2>
       <div class="bar"><div></div></div>
       <div class="status">Preparing</div>
-    </div>`);
-
-  const info = getStage(params.stage);
+    </div>
+    <div class="stage-plate">${stagePlateHtml(info)}</div>`,
+    'loading',
+  );
   const tyre = parseTyre(params.tyre, info.tyre);
   const setup =
     SETUP_IDS.find((s) => s === params.susp) ?? SETUP_FOR_TYRE[tyre];
@@ -164,7 +169,7 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
   const freeDrive = params.spawn !== 'start';
 
   // --- pause menu (Esc) -----------------------------------------------------------------
-  const pause = overlay(`<div class="box"></div>`);
+  const pause = overlay(`<div class="box"></div>`, 'pause');
   pause.classList.add('hidden');
   const pauseBox = pause.querySelector<HTMLElement>('.box')!;
   let pauseView: 'menu' | 'options' = 'menu';
@@ -173,12 +178,12 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
     pauseBox.innerHTML = `
       <h2>Paused</h2>
       <div class="menu">
-        <button data-a="resume">Resume</button>
-        <button data-a="reset">Reset to road</button>
-        <button data-a="restart">Restart stage</button>
-        <button data-a="${freeDrive ? 'stage' : 'pad'}">${freeDrive ? 'Back to the stage start' : 'Free drive on the test pad'}</button>
-        <button data-a="options">Options</button>
-        <button data-a="menu">Main menu</button>
+        <button class="menu-btn primary" data-a="resume">Resume</button>
+        <button class="menu-btn" data-a="reset">Reset to road</button>
+        <button class="menu-btn" data-a="restart">Restart stage</button>
+        <button class="menu-btn" data-a="${freeDrive ? 'stage' : 'pad'}">${freeDrive ? 'Back to the stage start' : 'Free drive on the test pad'}</button>
+        <button class="menu-btn" data-a="options">Options</button>
+        <button class="menu-btn" data-a="menu">Main menu</button>
         ${portalButton}
       </div>`;
     pauseBox.querySelector<HTMLElement>('[data-a="resume"]')!.focus();
@@ -235,8 +240,8 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
           <div data-ref="sectors"></div>
         </div>
         <div class="menu">
-          <button data-a="again">Drive again (Enter)</button>
-          <button data-a="menu">Main menu</button>
+          <button class="menu-btn primary" data-a="again">Drive again (Enter)</button>
+          <button class="menu-btn" data-a="menu">Main menu</button>
           ${portalButton}
         </div>
       </div>
@@ -357,9 +362,9 @@ function paintNow(): Promise<void> {
   return new Promise((r) => requestAnimationFrame(() => setTimeout(r)));
 }
 
-function overlay(html: string): HTMLDivElement {
+function overlay(html: string, kind = ''): HTMLDivElement {
   const el = document.createElement('div');
-  el.className = 'overlay';
+  el.className = `overlay ${kind}`.trim();
   el.innerHTML = html;
   root.append(el);
   return el;

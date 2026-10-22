@@ -17,7 +17,7 @@ import {
   type QualityName,
   type QualitySettings,
 } from '../engine/quality';
-import { ALL_STAGES, DEFAULT_STAGE, MAPS, STAGES } from '../maps';
+import { ALL_STAGES, DEFAULT_STAGE, MAPS, STAGES, stagesOf } from '../maps';
 import { MONTH_NAMES, seasonMonth, stageSeason } from '../maps/shared/climate';
 import { slotHour, stageTemps } from '../maps/shared/day-temperature';
 import { SEASON_LABELS, SEASONS, seasonParam, type Season } from '../season';
@@ -79,6 +79,7 @@ import {
   type ObjectDistance,
   type RallySettings,
 } from './settings';
+import { SEASON_ICONS, TIME_ICONS } from './menu-icons';
 import { Showroom } from './showroom';
 import {
   formatTime,
@@ -350,6 +351,7 @@ class MainMenu {
     this.root.className = 'menu-root';
     this.root.innerHTML = `
       <div class="menu-bg"></div>
+      <div class="menu-slab"></div>
       <div class="menu-panel"></div>
       <div class="menu-version">v${VERSION}</div>`;
     container.append(this.root);
@@ -478,11 +480,15 @@ class MainMenu {
         : 0;
     this.screen = screen;
     this.panel.dataset.screen = screen;
+    this.root.dataset.screen = screen;
     this.panel.replaceChildren();
     this.root
-      .querySelectorAll('.menu-times-card, .menu-side-card')
+      .querySelectorAll('.menu-times-card, .menu-side-card, .menu-plate')
       .forEach((el) => el.remove());
     if (screen === 'welcome') this.welcome();
+    // The stage plate (S number, name, length, surface) once a stage is being picked (not on the welcome screen).
+    if (screen === 'map' || screen === 'car')
+      this.root.append(this.stagePlate());
     if (screen === 'options')
       this.panel.append(
         header('Options'),
@@ -542,16 +548,17 @@ class MainMenu {
     const portal = portalUrl();
     this.panel.innerHTML = `
       <div class="menu-brand">
-        <div class="menu-title">Gravel<br>Rally</div>
-        <div class="menu-tagline">Point-to-point stages against the clock</div>
+        <div class="menu-title">Gravel<span>Rally</span></div>
+        <div class="menu-tagline">Point-to-point · against the clock</div>
       </div>
       <div class="menu-list">
-        <button class="menu-btn big" data-primary data-a="start">Start rally</button>
+        <button class="menu-btn big" data-primary data-a="start">Start rally<kbd>Enter</kbd></button>
         <button class="menu-btn" data-a="times">Stage times</button>
         <button class="menu-btn" data-a="options">Options</button>
         <button class="menu-btn" data-a="about">About</button>
         ${portal ? `<a class="menu-btn" href="${portal}">‹ All games</a>` : ''}
       </div>
+      ${stepPips(0, 'Stage · Car · Go')}
       <div class="menu-foot">↑↓ select · Enter confirm · Esc back<br>Gamepad: D-pad select · A confirm · B back</div>`;
     this.panel
       .querySelector('[data-a="start"]')!
@@ -565,6 +572,13 @@ class MainMenu {
     this.panel
       .querySelector('[data-a="about"]')!
       .addEventListener('click', () => this.show('about'));
+  }
+
+  /** The stage plate bottom right of the pre-drive screens (the loading screen has the same one). */
+  private stagePlate(): HTMLElement {
+    const plate = div('menu-plate');
+    plate.innerHTML = stagePlateHtml(this.map);
+    return plate;
   }
 
   private about(): void {
@@ -680,8 +694,7 @@ class MainMenu {
       <div class="menu-card-body">
         <div class="menu-card-title">${m.name}${testBadge(isTestStage(m.id))}</div>
         <div class="menu-tags">
-          <span>${(stageLength(m) / 1000).toFixed(1)} km</span>
-          <span>${m.timing.splits} splits</span>
+          <span>${(stageLength(m) / 1000).toFixed(1)} km · ${m.timing.splits} splits</span>
           <span>${[...new Set(m.surfaces)].map((s) => s.replace(/_/g, ' + ')).join(' → ')}</span>
         </div>
         ${showBest ? `<div class="menu-best">${best ? `Best ${formatTime(best.time)} · ${carName(best.car)}` : oldBest ? `<span class="old">Older best ${formatTime(oldBest.time)} · ${oldRunLabel(oldBest, cur)}</span>` : 'No time set yet'}</div>` : ''}
@@ -705,7 +718,7 @@ class MainMenu {
   }
 
   private mapSelect(): void {
-    this.panel.append(header('Select stage', 'Step 1 / 3'));
+    this.panel.append(header('Select stage', '', 1));
     const list = this.stageList(this.mapIndex, true, (i) => {
       if (this.mapIndex === i) return this.show('car');
       this.mapIndex = i;
@@ -739,6 +752,7 @@ class MainMenu {
       'Season',
       SEASONS.map((id) => ({ id, label: SEASON_LABELS[id] })),
       this.seasonFor(m),
+      SEASON_ICONS,
     );
     // Dropdowns left, what they give right (month, time, temperature); the right side drops below when the card is narrow.
     const picks = div('menu-when-pick');
@@ -768,6 +782,7 @@ class MainMenu {
       'Time of day',
       TIMES_OF_DAY,
       slotFor(hour).id,
+      TIME_ICONS,
       '← → keys',
     );
     info.insertAdjacentHTML(
@@ -855,7 +870,9 @@ class MainMenu {
     if (window.innerWidth < SIDE_CARD_MIN_WIDTH) return true;
     const top = this.topIn(align);
     card.style.top = `${top}px`;
-    card.style.maxHeight = `calc(100% - ${top + 24}px)`;
+    // The bottom 120 px stay free for the stage plate (hidden on short screens, where the card may run down).
+    const reserve = window.innerHeight < SHORT_SCREEN_HEIGHT ? 24 : 120;
+    card.style.maxHeight = `calc(100% - ${top + reserve}px)`;
     return true;
   }
 
@@ -871,7 +888,7 @@ class MainMenu {
   private carSelect(): void {
     const car = this.car;
     this.showSetupCar();
-    this.panel.append(header('Select car', `Step 2 / 3 · ${this.map.name}`));
+    this.panel.append(header('Select car', this.map.name, 2));
     const filter = div('menu-seg menu-filter');
     for (const f of DRIVE_FILTERS) {
       const b = document.createElement('button');
@@ -984,6 +1001,8 @@ class MainMenu {
       b.className = 'setup-card';
       b.classList.toggle('selected', selected);
       b.innerHTML = `<div class="setup-view" data-view="${key}"></div><div class="setup-label">${label}</div>`;
+      // Short screens hide the description line (menu.css): it stays as the tooltip.
+      b.title = b.querySelector('small')?.textContent ?? '';
       b.addEventListener('click', onPick);
       return b;
     };
@@ -1095,6 +1114,7 @@ class MainMenu {
       b.classList.toggle('selected', !fixed && id === this.gearing);
       b.classList.toggle('fixed', fixed);
       b.innerHTML = `<div class="setup-view gear-view">${gearChart(d, scale, this.tyre)}</div><div class="setup-label">${label}</div>`;
+      b.title = b.querySelector('small')?.textContent ?? '';
       if (!fixed)
         b.addEventListener('click', () => this.setSetup({ gearing: id }, 2));
       gear.grid.append(b);
@@ -1553,6 +1573,8 @@ export function buildSectors(
 const MAX_ROWS = 10;
 /** Below this width the Select stage / car description card covers the map instead of sitting right of the list. */
 const SIDE_CARD_MIN_WIDTH = 800;
+/** Below this height (landscape phones) the stage plate is hidden on the stage / car screens (menu.css, same value). */
+const SHORT_SCREEN_HEIGHT = 560;
 /** A stage that climbs less than this (m) shows no second, colder temperature on Select stage. */
 const MIN_RISE = 50;
 
@@ -1646,18 +1668,24 @@ function pickerRow(
   label: string,
   options: readonly { id: string; label: string }[],
   selected: string,
+  icons: Record<string, string>,
   title = '',
 ): { row: HTMLLabelElement; select: HTMLSelectElement } {
   const row = document.createElement('label');
   row.className = 'menu-time';
   row.innerHTML = `<span>${label}</span>
-    <select${title ? ` title="${title}"` : ''}>${options
+    <div class="menu-select"><i>${icons[selected] ?? ''}</i><select${title ? ` title="${title}"` : ''}>${options
       .map(
         (o) =>
           `<option value="${o.id}"${o.id === selected ? ' selected' : ''}>${o.label}</option>`,
       )
-      .join('')}</select>`;
-  return { row, select: row.querySelector('select')! };
+      .join('')}</select></div>`;
+  const select = row.querySelector('select')!;
+  // The icon follows the picked option.
+  select.addEventListener('change', () => {
+    row.querySelector('.menu-select i')!.innerHTML = icons[select.value] ?? '';
+  });
+  return { row, select };
 }
 
 function div(className: string): HTMLDivElement {
@@ -1679,10 +1707,16 @@ function rowTitle(title: string, sub: string): HTMLElement {
   return h;
 }
 
-function header(title: string, sub = ''): HTMLElement {
+function header(title: string, sub = '', step = 0): HTMLElement {
   const h = div('menu-header');
-  h.innerHTML = `<h1>${title}</h1>${sub ? `<div>${sub}</div>` : ''}`;
+  h.innerHTML = `<h1>${title}</h1>${step ? stepPips(step, `Step ${step} / 3${sub ? ` · ${sub}` : ''}`) : sub ? `<div>${sub}</div>` : ''}`;
   return h;
+}
+
+/** Three slanted pips (Stage / Car / Go); `step` of them lit (0 = the first, for the welcome screen), then the label. */
+function stepPips(step: number, label: string): string {
+  const on = Math.max(1, step);
+  return `<div class="menu-steps">${[1, 2, 3].map((n) => `<i${n <= on ? ' class="on"' : ''}></i>`).join('')}<span>${label}</span></div>`;
 }
 
 function buttons(
@@ -1743,6 +1777,17 @@ function cumulative(m: StageInfo): number[] {
       out[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z),
     );
   return out;
+}
+
+/** Inside of a stage plate: S number (the stage's place on its map: only a map with several stages, Galichica, goes past S1), name, map, length and surface. */
+export function stagePlateHtml(m: StageInfo): string {
+  const map = MAPS.find((x) => x.id === m.map)?.name;
+  const surfaces = [...new Set(m.surfaces)]
+    .map((s) => s.replace(/_/g, ' + '))
+    .join(' → ');
+  return `<b class="n">S${stagesOf(m.map).findIndex((x) => x.id === m.id) + 1}</b>
+    <div class="t"><b>${m.name}</b>
+    <small>${map && !m.name.includes(map) ? `${map} · ` : ''}${(stageLength(m) / 1000).toFixed(1)} km · ${surfaces}</small></div>`;
 }
 
 function stageLength(m: StageInfo): number {

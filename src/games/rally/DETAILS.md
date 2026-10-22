@@ -73,7 +73,7 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 **On a stage** (`game/stage.ts`):
 
 - **Hold:** a stopped car with no pedal pressed is held (HUD `HOLD`); throttle releases it.
-- **Sectors:** one bar segment per sector, amber while running, green / red against your best run.
+- **Sectors:** one bar segment per sector, amber while running, green / yellow against your best run (faster / slower).
 - **Cutting** (`StageTimer.updateCut`): up to `CUT_WARN` (20 m off the road edge) is allowed. Past it the HUD shows `OFF STAGE`
   and a grace timer runs; when it ends, or past `CUT_MAX`, or on a later part of the road, the car is put back where it left.
 - **Penalties:** manual reset +2 s (+10 s when flipped), forced reset +5 s. Knocked-over marker posts are free, chevron signs only slow the car a bit
@@ -86,6 +86,10 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
   current runs, dimmed, behind a divider; the bumped stage's / car's per-car bests move into the leaderboard as old runs. Times saved before per-stage / per-car versions show as `v0`. Each run also stores `season` + `hour`; runs without them show Summer and the stage's own time of day (`runConditions`). Stage road change = bump that stage (a map's road change bumps every stage on it); a car's
   handling change = bump that car; a shared physics change = bump every car. Livery / model fixes never bump. Agents bump
   them as part of the change (AGENTS.md).
+
+## UI style
+
+Tokens, type, shapes, components and rules: [STYLEGUIDE.md](STYLEGUIDE.md). Code: `game/ui-tokens.css`, `menu.css`, `hud.css`, `menu-icons.ts`; the stage plate is `stagePlateHtml` in `game/menu.ts`.
 
 ## Look (`engine/environment.ts`, `engine/world-shading.ts`)
 

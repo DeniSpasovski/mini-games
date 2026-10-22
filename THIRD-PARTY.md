@@ -20,9 +20,15 @@ README files carry the same information in more detail. Keep this file current w
 
 3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party: its critters, arenas, effects and sounds are original and procedural.
 
-No fonts, sounds or music files are bundled: audio is synthesised with WebAudio and text uses system fonts. Most textures
+The only bundled font files are Gravel Rally's UI faces (below); sounds are synthesised with WebAudio and no music file is committed. Most textures
 are painted on canvases at runtime; the only texture files that ship are the car lamp, seat, fabric and cab textures (listed
 with their licences in `public/models/CREDITS.md`) and the truck textures (listed under "Parked trucks" below).
+
+## Fonts (Gravel Rally UI)
+
+| Font                                                                                                      | Licence                                        | Files                                  |
+| --------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | -------------------------------------- |
+| Barlow and Barlow Condensed (The Barlow Project Authors; woff2 latin + latin-ext subsets from Fontsource) | SIL Open Font License 1.1, `OFL.txt` alongside | `src/games/rally/assets/fonts/*.woff2` |
 
 ## Map data (baked into `src/games/rally/maps/<id>/`)
 

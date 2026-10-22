@@ -14,6 +14,8 @@ npm run dev     # then open http://localhost:3000/games/rally/
 
 Menu: select stage (with its time of day: night to evening) -> select car -> (optional) car set-up -> drive. Keyboard, gamepad and touch controls are supported.
 
+UI look and rules: [STYLEGUIDE.md](STYLEGUIDE.md).
+
 | Keys                |                                                    |
 | ------------------- | -------------------------------------------------- |
 | `W` / `S`           | throttle / brake (hold `S` when stopped = reverse) |
@@ -41,7 +43,7 @@ Menu: select stage (with its time of day: night to evening) -> select car -> (op
 | [Petralica](maps/petralica/)            | North Macedonia (mountains) | 9.6 km       | gravel + tarmac | playable      |
 | [Ajvatovci Hill](maps/ajvatovci/)       | Ilinden, North Macedonia    | 4.5 km       | old tarmac      | playable      |
 | [Jackie Robinson Parkway](maps/jackie/) | New York City               | 7.3 km       | tarmac, bridges | playable      |
-| [Test Map](maps/test/)                  | procedural forest           | 1.7 km       | gravel          | physics       |
+| [Forest Rally](maps/test/)              | procedural forest           | 1.7 km       | gravel          | physics       |
 | [Galichica](maps/galichica/) (3 stages) | Lake Ohrid - Lake Prespa    | 12.7-27.4 km | mountain tarmac | West playable |
 | [Vodno Hillclimb](maps/vodno/)          | Skopje, North Macedonia     | 4.0 km       | mountain tarmac | playable      |
 

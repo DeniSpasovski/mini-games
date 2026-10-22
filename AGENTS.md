@@ -68,7 +68,7 @@ into `DETAILS.md`, never up.
 - `README.md` / `DETAILS.md` - portal; `THIRD-PARTY.md` - every third-party source + licence status (keep current)
 - `src/site.config.ts` - allowed hosts (domain lock), owner, portal tagline
 - Games live in `src/games/<id>/`, registered only by `game.json` (auto-discovered). Default engine: three.js.
-- Rally: `DETAILS.md` (architecture, URLs, keys, menus, roadmap), `PHYSICS.md` (model, tuning, tyres, suspension), `TASKS.md`
+- Rally: `STYLEGUIDE.md` (UI look: tokens, type, components; read before UI work), `DETAILS.md` (architecture, URLs, keys, menus, roadmap), `PHYSICS.md` (model, tuning, tyres, suspension), `TASKS.md`
   (open work, local)
 - Rally maps: `maps/<id>/` = `info.ts` (menus, credits), `map.ts` (the world), `stages.ts` (its stages), baked data, README; local-only DETAILS (every source) +
   `TODO.md`; `maps/shared/` = format + helpers
