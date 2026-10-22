@@ -5,7 +5,7 @@ livery, so it is mapped to game parts by material. In game it is **Fiat 126p**: 
 rear axle, 4-speed, **no ABS and no traction control**. Test car (hidden in the published build).
 
 - **Kept from the model:** the whole body and cockpit shell (flat colours), the bumpers with their own weathered texture, the
-  head lamps with their own reflector sheet, the amber indicators, the two-colour tail lamps and the steel rim (de-cambered,
+  head lamps with their own reflector sheet, the amber indicators, the two-colour tail lamps (faceted lens) and the steel rim (de-cambered,
   centred on the hub).
 - **Dropped:** tyres, the plates, the front badge and the "126p" lettering.
 - **Shrunk:** the source is 27 MB (35 textures); the game uses flat paint, so only the bumper and head lamp sheets ship (512 px,

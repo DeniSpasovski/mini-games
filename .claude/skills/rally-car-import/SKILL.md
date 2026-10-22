@@ -373,8 +373,9 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   `srcParts.textures[].size` (e.g. 512) shrinks a kept sheet to that many px and 256 colours (the game draws sheets at 512 anyway):
   27 MB -> body 3.5 MB + rim 0.3 MB + two sheets of 0.2 / 0.1 MB.
 - **Textured but flat-coloured parts**: a bumper with its own weathered base colour = `src:int:<file>` (matt sheet); a headlamp whose
-  reflector art is the sheet = `src:lamp:<file>`; indicator lenses (`amber`), the lower red tail lens (`brakecover`) and the reflector
-  behind it (`lampcup`) are stock parts. A tail lamp that is one primitive with an amber top and a red bottom is split by a `y` box rule.
+  reflector art is the sheet = `src:lamp:<file>`; indicator lenses (`amber`), the reflector behind a tail lens (`lampcup`) and the moulded tail lens (`amberweave` /
+  `tailweave`: a flat-coloured source lens gets the faceted lens texture the game draws) are stock parts. A cockpit that reads as one
+  black mass through the glass: `interiorgrey` instead of `interior`. A cheap-looking suspension in an open underbody: `cornerSuspension.swayBar: false`. A tail lamp that is one primitive with an amber top and a red bottom is split by a `y` box rule.
 - **Rippled panels** (a dense hand-modelled mesh whose own normals were smoothed by the artist): computing normals from the geometry
   shows waves on bonnets and aprons. `normalSmooth: { "iterations": 8, "creaseDeg": 25 }` in `model.source.json` relaxes the face
   normals before the vertex normals are built (`stl-to-glb.mjs`); keep the triangle budget near the source's count (~100k) so the

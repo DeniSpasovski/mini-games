@@ -32,6 +32,8 @@ export interface CornerSuspensionDef {
   topIn: { front: number; rear: number };
   /** Axles whose wheels are driven: a drive shaft shows from the hub inboard (not on a rigid axle). */
   driven: ('front' | 'rear')[];
+  /** false = no anti-roll bar; one thin transverse leaf spring instead of the crossmembers (Fiat 126p). */
+  swayBar?: boolean;
 }
 
 const Y = new Vector3(0, 1, 0);
@@ -275,6 +277,14 @@ export class CornerSuspension {
    */
   private swayBar(i: number, z: number, cx: number, restY: number): void {
     const { bar, chassis, lower } = this;
+    if (this.def.swayBar === false) {
+      if (i % 2 === 1) {
+        bar.set(cx, restY - 0.1, z + 0.22);
+        chassis.set(-cx, restY - 0.1, z + 0.22);
+        this.rod(bar, chassis, 0.018); // transverse leaf spring
+      }
+      return;
+    }
     bar.set(cx * 1.1, restY - 0.04, z + 0.36);
     if (i % 2 === 1) {
       chassis.set(-cx * 1.1, restY - 0.04, z + 0.36);

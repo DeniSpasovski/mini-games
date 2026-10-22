@@ -209,6 +209,7 @@ export const pezetka: CarDef = {
       topY: { front: 0.34, rear: 0.32 },
       topIn: { front: 0.18, rear: 0.18 },
       driven: ['rear'],
+      swayBar: false,
     },
     // The model carries its own cockpit shell: see-through glass shows it.
     glass: { color: 0x141c24, opacity: 0.6 },
