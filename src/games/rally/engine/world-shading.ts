@@ -392,6 +392,8 @@ float wsCanopyShadow( vec3 wp ) {
 				vec2 t = g - vec2( cell );
 				d = texture( wsRoadTiles, vec3( ( t * ${ROAD_SHADOW_TILE.core}.0 + ${ROAD_SHADOW_TILE.apron}.0 ) / ${ROAD_SHADOW_TILE.texels}.0, layer - 1.0 ) ).r;
 				str = min( wsShadowBox.w * 1.4, 0.9 );
+				// A baked tile is exact at any distance: it only steps aside for the sun's shadow map right at the car.
+				fade = smoothstep( 15.0, 45.0, length( wp.xz - cameraPosition.xz ) );
 			}
 		}
 	}
