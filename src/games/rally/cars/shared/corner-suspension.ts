@@ -32,8 +32,8 @@ export interface CornerSuspensionDef {
   topIn: { front: number; rear: number };
   /** Axles whose wheels are driven: a drive shaft shows from the hub inboard (not on a rigid axle). */
   driven: ('front' | 'rear')[];
-  /** false = no anti-roll bar; one thin transverse leaf spring instead of the crossmembers (Fiat 126p). */
-  swayBar?: boolean;
+  /** false = only the upright and the coil-over show: no arms, bars, crossmember or drive shaft inboard (Fiat 126p: nothing shows under the bumper). */
+  inboard?: boolean;
 }
 
 const Y = new Vector3(0, 1, 0);
@@ -207,7 +207,11 @@ export class CornerSuspension {
         .add(h);
       top.set(sgn * (axleX - topIn[axle]), restY + topY[axle], h.z);
       const cx = sgn * axleX * 0.38;
-      if (this.def.driven.includes(axle) && layout !== 'axle') {
+      if (
+        this.def.inboard !== false &&
+        this.def.driven.includes(axle) &&
+        layout !== 'axle'
+      ) {
         tmp.set(inner, 0, 0).applyQuaternion(q).add(h);
         this.rod(tmp, chassis.set(cx * 0.3, restY + 0.02, h.z + 0.04), 0.024);
       }
@@ -223,6 +227,13 @@ export class CornerSuspension {
         this.rod(tmp, chassis.set(cx, restY + 0.02, h.z - 0.2), 0.014);
         this.swayBar(i, h.z, cx, restY);
       } else if (layout === 'wishbone') {
+        if (this.def.inboard === false) {
+          this.joint(lower, 0.032);
+          this.joint(upper, 0.028);
+          chassis.set(cx, restY - 0.1, h.z);
+          this.damper(i, tmp.copy(lower).lerp(chassis, 0.35), top, isRear);
+          continue;
+        }
         for (const dz of [0.2, -0.2]) {
           this.rod(lower, chassis.set(cx, restY - 0.1, h.z + dz), 0.02);
           this.joint(chassis, 0.03);
@@ -277,14 +288,6 @@ export class CornerSuspension {
    */
   private swayBar(i: number, z: number, cx: number, restY: number): void {
     const { bar, chassis, lower } = this;
-    if (this.def.swayBar === false) {
-      if (i % 2 === 1) {
-        bar.set(cx, restY - 0.1, z + 0.22);
-        chassis.set(-cx, restY - 0.1, z + 0.22);
-        this.rod(bar, chassis, 0.018); // transverse leaf spring
-      }
-      return;
-    }
     bar.set(cx * 1.1, restY - 0.04, z + 0.36);
     if (i % 2 === 1) {
       chassis.set(-cx * 1.1, restY - 0.04, z + 0.36);
