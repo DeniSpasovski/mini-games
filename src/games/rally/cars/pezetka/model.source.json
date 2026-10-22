@@ -8,7 +8,10 @@
   "groundAtMin": false,
   "targetTriangles": 100000,
   "creaseDeg": 40,
-  "normalSmooth": { "iterations": 8, "creaseDeg": 25 },
+  "normalSmooth": {
+    "iterations": 8,
+    "creaseDeg": 25
+  },
   "wheels": {
     "$comment": "the wheels are separate nodes (dropped below) - nothing to cut",
     "radius": 0,
@@ -36,28 +39,79 @@
   "gltf": {
     "drop": ["Object_4"],
     "parts": [
-      { "mat": "Fiat_126P_Rim", "material": "drop" },
-      { "mat": "Fiat_126P_Tire", "material": "drop" },
-      { "mat": "Fiat_126P_License_plate", "material": "logo" },
-      { "mat": "Fiat_126P_Fiat_Front_Emblem", "material": "logo" },
-      { "mat": "Fiat_126P_Rear_Emblem", "material": "logo" },
-      { "mat": "Fiat_126P_Car_paint", "material": "body" },
-      { "mat": "Fiat_126P_Shadow", "material": "interiorgrey:2s" },
-      { "mat": "Fiat_126P_Plastic", "material": "trim:2s" },
-      { "mat": "Fiat_126P_Windshield_wipers", "material": "trim" },
-      { "mat": "Fiat_126P_Windows", "material": "glass" },
-      { "mat": "Fiat_126P_Mirror", "material": "mirror" },
-      { "mat": "Fiat_126P_Exhaust", "material": "steel" },
-      { "mat": "Fiat_126P_Turnsignal_Glass", "material": "amber" },
-      { "mat": "Fiat_126P_Headlight_Glass", "material": "lenscover" },
+      {
+        "mat": "Fiat_126P_Rim",
+        "material": "drop"
+      },
+      {
+        "mat": "Fiat_126P_Tire",
+        "material": "drop"
+      },
+      {
+        "mat": "Fiat_126P_License_plate",
+        "material": "logo"
+      },
+      {
+        "mat": "Fiat_126P_Fiat_Front_Emblem",
+        "material": "logo"
+      },
+      {
+        "mat": "Fiat_126P_Rear_Emblem",
+        "material": "logo"
+      },
+      {
+        "mat": "Fiat_126P_Car_paint",
+        "material": "body"
+      },
+      {
+        "mat": "Fiat_126P_Shadow",
+        "material": "interiorgrey:2s"
+      },
+      {
+        "mat": "Fiat_126P_Plastic",
+        "material": "trim:2s"
+      },
+      {
+        "mat": "Fiat_126P_Windshield_wipers",
+        "material": "trim"
+      },
+      {
+        "mat": "Fiat_126P_Windows",
+        "material": "glass"
+      },
+      {
+        "mat": "Fiat_126P_Mirror",
+        "material": "mirror"
+      },
+      {
+        "mat": "Fiat_126P_Exhaust",
+        "material": "steel"
+      },
+      {
+        "mat": "Fiat_126P_Turnsignal_Glass",
+        "material": "amber"
+      },
+      {
+        "mat": "Fiat_126P_Headlight_Glass",
+        "material": "lenscover"
+      },
       {
         "mat": "Fiat_126P_Brake_Lights",
         "y": [0.533, 1],
         "material": "amberweave"
       },
-      { "mat": "Fiat_126P_Brake_Lights", "material": "tailweave" },
-      { "mat": "Fiat_126P_Reflector_Brake", "material": "lampcup" },
-      { "mat": "Fiat_126P_Reflector_Headlight", "material": "drop" },
+      {
+        "mat": "Fiat_126P_Brake_Lights",
+        "material": "tailweave"
+      },
+      {
+        "mat": "Fiat_126P_Reflector_Brake",
+        "material": "lampcup"
+      },
+      {
+        "mat": "Fiat_126P_Reflector_Headlight",
+        "material": "drop"
+      },
       {
         "mat": "Fiat_126P_Reflector_Turnsignal_Left",
         "material": "lamphousing"
@@ -66,7 +120,10 @@
         "mat": "Fiat_126P_Reflector_Turnsignal_Right",
         "material": "lamphousing"
       },
-      { "mat": "Fiat_126P_Metal", "material": "drop" }
+      {
+        "mat": "Fiat_126P_Metal",
+        "material": "drop"
+      }
     ],
     "default": "trim"
   },
@@ -88,7 +145,103 @@
       "logo",
       "drop"
     ],
-    "drop": ["logo", "drop"]
+    "drop": ["logo", "drop"],
+    "solids": [
+      {
+        "$comment": "Dash (ours, the model has none; after the Zastava 101's): flat padded dash under the windscreen. Frame tilt 180: u = x, v = -y, w = -z, front face towards the cabin.",
+        "material": "trim",
+        "frame": {
+          "origin": [0, 0, 0],
+          "tilt": 180
+        },
+        "poly": [
+          [-0.48, -0.82],
+          [0.48, -0.82],
+          [0.48, -0.66],
+          [-0.48, -0.66]
+        ],
+        "w": [-0.8, -0.66],
+        "bevel": 0.012
+      },
+      {
+        "$comment": "instrument pod in front of the driver (left-hand drive, +x)",
+        "material": "trim",
+        "frame": {
+          "origin": [0, 0, 0],
+          "tilt": 180
+        },
+        "poly": [
+          [0.17, -0.86],
+          [0.43, -0.86],
+          [0.43, -0.74],
+          [0.17, -0.74]
+        ],
+        "w": [-0.74, -0.635],
+        "bevel": 0.01
+      },
+      {
+        "$comment": "speedometer bezel",
+        "material": "steel",
+        "frame": {
+          "origin": [0, 0, 0],
+          "tilt": 180
+        },
+        "poly": [
+          [0.352, -0.8],
+          [0.3495, -0.7839],
+          [0.3421, -0.7694],
+          [0.3306, -0.7579],
+          [0.3161, -0.7505],
+          [0.3, -0.748],
+          [0.2839, -0.7505],
+          [0.2694, -0.7579],
+          [0.2579, -0.7694],
+          [0.2505, -0.7839],
+          [0.248, -0.8],
+          [0.2505, -0.8161],
+          [0.2579, -0.8306],
+          [0.2694, -0.8421],
+          [0.2839, -0.8495],
+          [0.3, -0.852],
+          [0.3161, -0.8495],
+          [0.3306, -0.8421],
+          [0.3421, -0.8306],
+          [0.3495, -0.8161]
+        ],
+        "w": [-0.64, -0.631]
+      },
+      {
+        "$comment": "speedometer glass",
+        "material": "lenscover",
+        "frame": {
+          "origin": [0, 0, 0],
+          "tilt": 180
+        },
+        "poly": [
+          [0.345, -0.8],
+          [0.3428, -0.7861],
+          [0.3364, -0.7735],
+          [0.3265, -0.7636],
+          [0.3139, -0.7572],
+          [0.3, -0.755],
+          [0.2861, -0.7572],
+          [0.2735, -0.7636],
+          [0.2636, -0.7735],
+          [0.2572, -0.7861],
+          [0.255, -0.8],
+          [0.2572, -0.8139],
+          [0.2636, -0.8265],
+          [0.2735, -0.8364],
+          [0.2861, -0.8428],
+          [0.3, -0.845],
+          [0.3139, -0.8428],
+          [0.3265, -0.8364],
+          [0.3364, -0.8265],
+          [0.3428, -0.8139]
+        ],
+        "w": [-0.64, -0.628]
+      }
+    ]
   },
   "srcParts": {
     "textures": [
@@ -104,8 +257,14 @@
       }
     ],
     "parts": [
-      { "node": "Object_8", "material": "src:int:pezetka_metal.png" },
-      { "node": "Object_20", "material": "src:lamp:pezetka_lamps.png" }
+      {
+        "node": "Object_8",
+        "material": "src:int:pezetka_metal.png"
+      },
+      {
+        "node": "Object_20",
+        "material": "src:lamp:pezetka_lamps.png"
+      }
     ]
   }
 }

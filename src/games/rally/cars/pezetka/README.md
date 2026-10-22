@@ -12,6 +12,8 @@ rear axle, 4-speed, **no ABS and no traction control**. Test car (hidden in the 
   256 colours). Body 100k triangles, kept at the model's own detail; `normalSmooth` in `model.source.json` irons out the
   ripples that the model's hand-smoothed normals hide.
 - **Paint (ours):** one flat white, other seeds recolour it.
+- **Dash (ours):** the model has none, so a plain black dash with an instrument pod and speedometer is built in code
+  (`parts.solids`), after the Zastava 101's.
 
 ![Front three-quarter](screenshots/front-34.jpg)
 
