@@ -6,6 +6,7 @@ import {
   RepeatWrapping,
   SRGBColorSpace,
   type Material,
+  type Vector3,
 } from 'three';
 import { addWorldUniforms } from '../../engine/world-shading';
 
@@ -85,6 +86,58 @@ function headLamp<M extends Material & { emissiveIntensity: number }>(
   m.userData.headLamp = { off, on };
   return m;
 }
+
+/**
+ * The inside of a lit head lamp (reflector bowl, housing, cover) glows from its bulbs: brightest right round each bulb and
+ * fading across the reflector, like the light scattered in a real lamp (a sim's painted glow map). `bulbs` are in the
+ * mesh's own space; `radius` (m) is how far the glow spreads.
+ */
+export function bulbScatter<M extends Material>(
+  m: M,
+  bulbs: Vector3[],
+  radius: number,
+): M {
+  const f = (x: number) => x.toFixed(4);
+  const pts = bulbs.map((b) => `vec3(${f(b.x)}, ${f(b.y)}, ${f(b.z)})`);
+  const key = `bulbScatter ${pts.join()} ${radius}`;
+  m.customProgramCacheKey = () => key;
+  m.onBeforeCompile = (shader) => {
+    addWorldUniforms(shader);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vBulbPos;')
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvBulbPos = transformed;',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vBulbPos;')
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        {
+          const vec3 bulbs[${pts.length}] = vec3[](${pts.join(', ')});
+          float g = 0.0;
+          for (int i = 0; i < ${pts.length}; i++) {
+            vec3 d = vBulbPos - bulbs[i];
+            g += exp(-dot(d, d) / ${f(radius * radius)});
+          }
+          totalEmissiveRadiance *= min(g, 1.5);
+        }`,
+      );
+  };
+  return m;
+}
+
+/** A copy of an imported model's lamp part that glows white with the headlights (its day look unchanged). */
+export function headLampOf(m: MeshStandardMaterial): MeshStandardMaterial {
+  const c = m.clone();
+  c.emissive.set(0xfff6ea);
+  c.emissiveMap = null;
+  return headLamp(c, HEAD_SCATTER_ON);
+}
+
+/** `headLampOf` parts' glow with the lights on, right at a bulb (`bulbScatter` fades it out from there). */
+const HEAD_SCATTER_ON = 2.5;
 
 /** A headlamp's glow with the lights off: almost dark (a hint of the lens catching the light, not a lit bulb). */
 const HEAD_OFF = 0.04;

@@ -55,7 +55,12 @@ import {
   splitCentreLamp,
   splitLampPieces,
 } from './lamp-islands';
-import { type LampNight, partMaterial } from './part-materials';
+import {
+  bulbScatter,
+  headLampOf,
+  type LampNight,
+  partMaterial,
+} from './part-materials';
 import {
   badgeMaterial,
   buildBadgeGeometry,
@@ -374,6 +379,8 @@ const HALO_HEAD = 1.1;
 const BOWL_SLACK = 0.03;
 /** A piece is a listed bulb (`gltf.headBulbs`) when its centre is this close (m) and it is no bigger than `BULB_SIZE`. */
 const BULB_NEAR = 0.025;
+/** How far (m) a lit reflector bowl's glow spreads from its bulbs (`bulbScatter`). */
+const SCATTER_RADIUS = 0.07;
 const BULB_SIZE = 0.12;
 /** A head lamp sheet piece whose centre is this far (m) behind the lamps' front is a side repeater / mirror lamp (`splitHeadExtras`). */
 const EXTRA_BEHIND = 0.4;
@@ -1232,13 +1239,15 @@ export class CarModel {
    */
   /**
    * `gltf.headBowls`: the chrome reflector bowls of the head lamps get a lamp material, and the cockpit glass over them
-   * (models that share one glass material) the clear lamp cover, so the lit bowl shows through it.
+   * (models that share one glass material) the clear lamp cover, so the lit bowl shows through it. With `gltf.headBulbs`
+   * the bowls and the lamp housing keep their own look and glow white from the bulbs out (`bulbScatter`).
    */
   private splitHeadBowls(): void {
     const opt = this.def.model.gltf?.headBowls;
     const box = opt === true ? this.def.model.profile?.lamps.front : opt;
     if (!box) return;
     const [x0, x1, y0, y1] = box;
+    const bulbs = this.def.model.gltf?.headBulbs;
     const toBody = this.body.matrixWorld.clone().invert();
     const meshes: Mesh[] = [];
     this.root.traverse((o) => {
@@ -1247,7 +1256,9 @@ export class CarModel {
       if (
         mesh.isMesh &&
         mesh.visible &&
-        (part === 'chrome' || part === 'glass') &&
+        (part === 'chrome' ||
+          part === 'glass' ||
+          (part === 'lamphousing' && bulbs?.length)) &&
         !mesh.userData.bowlChecked
       )
         meshes.push(mesh);
@@ -1274,9 +1285,28 @@ export class CarModel {
       if (!lamp) continue;
       if (lamp !== mesh) this.owned.push(lamp.geometry, mesh.geometry);
       lamp.userData.bowlChecked = true;
-      lamp.material = partMaterial(
-        mesh.userData.partName === 'chrome' ? 'headchrome' : 'lenscover',
-      )!;
+      if (mesh.userData.partName === 'glass')
+        lamp.material = partMaterial('lenscover')!;
+      else if (!bulbs?.length) lamp.material = partMaterial('headchrome')!;
+      else {
+        // The bowl glows out from its bulbs (both sides), in the mesh's own space.
+        const toLocal = lamp.matrixWorld
+          .clone()
+          .invert()
+          .multiply(this.body.matrixWorld);
+        const pts = bulbs.flatMap(([x, y, z]) => [
+          new Vector3(x, y, z).applyMatrix4(toLocal),
+          new Vector3(-x, y, z).applyMatrix4(toLocal),
+        ]);
+        // The part keeps its own day look (chrome bowl, the housing's lens texture) and glows white with the lights on.
+        const m = bulbScatter(
+          headLampOf(lamp.material as MeshStandardMaterial),
+          pts,
+          SCATTER_RADIUS,
+        );
+        this.owned.push(m);
+        lamp.material = m;
+      }
     }
   }
 

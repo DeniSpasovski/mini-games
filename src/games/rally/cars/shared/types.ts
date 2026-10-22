@@ -181,7 +181,7 @@ export interface CarGltfDef {
   bootLamps?: number;
   /**
    * The head lamps are the model's chrome bowls (no separate bulb): chrome pieces in front of the centre of mass and inside
-   * this [|x|0, |x|1, y0, y1] box (true = the profile's front lamp box) light up with the headlights (CarModel.splitHeadBowls).
+   * this [|x|0, |x|1, y0, y1] box (true = the profile's front lamp box) light up with the headlights (CarModel.splitHeadBowls); with `headBulbs` they glow from the bulbs out.
    */
   headBowls?: true | [number, number, number, number];
   /** The head lamps' bulbs / projector lenses ([|x|, y, z] centres, left side, mirrored): the model's pieces there light up (CarModel.splitHeadBulbs). */
