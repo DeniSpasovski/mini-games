@@ -9,6 +9,7 @@ import {
   Vector2,
   Vector3,
   type BufferGeometry,
+  type Material,
 } from 'three';
 import { Rng } from '../../../../shared/rng';
 import { merge, paint } from '../../engine/geo';
@@ -1271,6 +1272,23 @@ function blocky(o: Outfit, pose: PoseName): BufferGeometry {
   return g;
 }
 
+/**
+ * While true (`withLooks`, run by the worker: assets/people-worker.ts) the detailed figures carry the look of their
+ * material (`skin|<model>|<tone>`, `atlas`, `flag`) instead of the material, which needs a DOM; the main thread attaches
+ * it (assets/people-pool.ts).
+ */
+let looksOnly = false;
+
+/** Runs a builder so that its parts carry a look in place of a material (see `looksOnly`). */
+export function withLooks<T>(build: () => T): T {
+  looksOnly = true;
+  try {
+    return build();
+  } finally {
+    looksOnly = false;
+  }
+}
+
 function finishFigure(
   pose: PoseName,
   outfit: Outfit,
@@ -1291,19 +1309,26 @@ function finishFigure(
     outfit = { ...outfit };
     pickHair(outfit, rng);
     const b = figureBody({ pose: POSES[pose] as Pose, outfit, lod, rng });
+    const made = (look: string, make: () => Material): Material =>
+      looksOnly ? (look as unknown as Material) : make();
     const parts = [
       {
         geometry: b.scan!,
-        material:
-          lod === 0
-            ? bodySkinMaterial(outfit.model, outfit.skin)
-            : bodySkinMaterial(outfit.model, outfit.skin),
+        material: made(`skin|${outfit.model}|${outfit.skin}`, () =>
+          bodySkinMaterial(outfit.model, outfit.skin),
+        ),
       },
     ];
     if (b.atlas)
-      parts.push({ geometry: b.atlas, material: getMaterial('people') });
+      parts.push({
+        geometry: b.atlas,
+        material: made('atlas', () => getMaterial('people')),
+      });
     if (b.flag)
-      parts.push({ geometry: b.flag, material: getMaterial('people_flag') });
+      parts.push({
+        geometry: b.flag,
+        material: made('flag', () => getMaterial('people_flag')),
+      });
     return { parts };
   }
   const g =

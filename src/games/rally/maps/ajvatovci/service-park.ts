@@ -15,6 +15,10 @@ export const START_LOT: ServiceLot = {
   length: 64,
   width: 15,
   cars: 4,
+  // Lean: the four cars with 2-3 mechanics each, a crowd of 20 and 5 photographers.
+  mechanics: [2, 3],
+  crowd: 20,
+  press: 5,
 };
 
 /** Along the road to the factory (8.8 deg off north-south), the public edge facing it, 13 m from its centre line. */
@@ -27,6 +31,9 @@ export const FIELD_LOT: ServiceLot = {
   cars: 6,
   semis: 5,
   links: [18, 38, 58],
+  // Behind the start: a full paddock (more people), drawn only once the player drives up to it (free drive).
+  crowd: 40,
+  showWithin: 90,
 };
 
 /** The stage road beside lot 1 (west to east): its level follows it. */
@@ -54,6 +61,5 @@ export const AJVATOVCI_PARK: ServicePark = {
   lots: [START_LOT, FIELD_LOT],
   bays: 12,
   gap: 3,
-  crowd: 60,
   startControl: true,
 };

@@ -273,7 +273,10 @@ export class World implements GroundProvider {
             (!!this.gen.channels?.query(x, z, fanQ).found &&
               fanQ.distance < fanQ.halfWidth + 3) ||
             (!!this.gen.lakes?.query(x, z, fanLq) && fanLq.sd < 3),
-          { start: this.stage.start, finish: this.stage.finish },
+          // A park with its own press (`ServiceLot.press`) has the photographers at the start line.
+          parkDef?.lots.some((l) => l.press !== undefined)
+            ? { finish: this.stage.finish }
+            : { start: this.stage.start, finish: this.stage.finish },
           map.country,
         )
       : [];

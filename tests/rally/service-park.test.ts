@@ -234,11 +234,45 @@ describe('service park (Ajvatovci start)', () => {
     }
   });
 
+  test('the start lot is lean: 4 cars, 2-3 mechanics each, 20 spectators, 5 photographers, nobody else; the back lot shows only up close', () => {
+    const [start, back] = def.lots;
+    const on = (lot: typeof start) =>
+      park.instances.filter((i) => lotContains(lot, i.x, i.z, 4));
+    const inStart = on(start);
+    const count = (list: typeof inStart, asset: string) =>
+      list.filter((i) => i.asset === asset).length;
+    expect(count(inStart, 'team_car')).toBe(4);
+    expect(count(inStart, 'mechanic')).toBeGreaterThanOrEqual(8);
+    expect(count(inStart, 'mechanic')).toBeLessThanOrEqual(12);
+    for (const other of ['crew', 'driver', 'visitor'])
+      expect(count(inStart, other)).toBe(0);
+    // (a spectator or two can fall on the road or a link and be dropped)
+    expect(count(inStart, 'spectator')).toBeGreaterThanOrEqual(17);
+    expect(count(inStart, 'spectator')).toBeLessThanOrEqual(20);
+    expect(count(inStart, 'photographer')).toBeGreaterThanOrEqual(4);
+    expect(count(inStart, 'photographer')).toBeLessThanOrEqual(5);
+    expect(inStart.every((i) => i.showWithin === undefined)).toBe(true);
+    // The back park has more people and is drawn only within 90 m.
+    const inBack = on(back);
+    expect(
+      inBack.filter((i) => PEOPLE.has(i.asset)).length,
+    ).toBeGreaterThan(inStart.filter((i) => PEOPLE.has(i.asset)).length);
+    expect(inBack.every((i) => i.showWithin === back.showWithin)).toBe(true);
+    expect(back.showWithin).toBe(90);
+  });
+
   test('teams have room: bays keep apart, both lots hold teams', () => {
-    for (const lot of def.lots)
+    for (const lot of def.lots) {
       expect(
         park.bayCentres.filter((b) => lotContains(lot, b.x, b.z)).length,
-      ).toBeGreaterThanOrEqual(3);
+      ).toBeGreaterThanOrEqual(2);
+      // Every lot holds the cars it asks for.
+      expect(
+        park.instances.filter(
+          (i) => i.asset === 'team_car' && lotContains(lot, i.x, i.z),
+        ).length,
+      ).toBe(lot.cars);
+    }
     // Neighbouring bays are at least 5 m apart (the narrowest bay is 9.5 m wide, so centres >= 14.5 m in a row).
     for (const a of park.bayCentres)
       for (const b of park.bayCentres)
@@ -246,14 +280,20 @@ describe('service park (Ajvatovci start)', () => {
           expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeGreaterThan(13);
   });
 
-  test('plenty of people: a crowd, visitors and at least six round every bay', () => {
+  test('enough people to look lively, not more: a crowd and people round every bay (six, or 2-3 mechanics in a lean lot)', () => {
     const people = park.instances.filter((i) => PEOPLE.has(i.asset));
-    expect(people.length).toBeGreaterThan(200);
+    // Capped on purpose (every person is built and drawn close up).
+    expect(people.length).toBeGreaterThan(100);
+    expect(people.length).toBeLessThan(260);
     for (const b of park.bayCentres) {
       const near = people.filter(
         (p) => p.asset !== 'spectator' && Math.hypot(p.x - b.x, p.z - b.z) < 11,
       );
-      expect(near.length).toBeGreaterThanOrEqual(6);
+      // A lean lot (`mechanics`) has 2-3 mechanics round each car, a full team bay many more.
+      const lean = def.lots.some(
+        (l) => l.mechanics && lotContains(l, b.x, b.z),
+      );
+      expect(near.length).toBeGreaterThanOrEqual(lean ? 2 : 6);
     }
     // Nobody stands inside another person.
     for (let a = 0; a < people.length; a++)

@@ -130,6 +130,25 @@ export function buildRoadMesh(world: World): Group {
   return r.value;
 }
 
+/**
+ * buildRoadMesh in slices of about `sliceMs` with `pause` awaited between them (the game's load, the map viewer): the
+ * loading bar keeps moving and no single task freezes the tab. Same meshes as buildRoadMesh.
+ */
+export async function buildRoadMeshSliced(
+  world: World,
+  pause: () => Promise<void>,
+  sliceMs = 25,
+): Promise<Group> {
+  const job = roadMeshJob(world);
+  let r = job.next();
+  while (!r.done) {
+    const until = performance.now() + sliceMs;
+    while (!r.done && performance.now() < until) r = job.next();
+    if (!r.done) await pause();
+  }
+  return r.value;
+}
+
 /** buildRoadMesh as a time-sliced job: yields after every road segment / side road. */
 export function* roadMeshJob(world: World): Generator<void, Group> {
   const group = new Group();

@@ -82,6 +82,45 @@ export function setTextureAnisotropy(n: number): void {
   }
 }
 
+/** Textures drawn with text: the fonts of a worker are not the page's, so these are always drawn here. */
+const TEXT_TEXTURES = new Set<TextureId>([
+  'vehicle_decals',
+  'village_sign',
+  'lot_sign_mileks',
+  'lot_sign_station',
+]);
+
+/** Whether a worker may draw this texture (engine/texture-prefetch.ts). */
+export const drawableInWorker = (id: TextureId): boolean =>
+  !TEXT_TEXTURES.has(id);
+
+export const textureSize = (id: TextureId): [number, number] => DEFS[id].size;
+
+/** Draws a texture on any 2D context (the page's canvas, or a worker's OffscreenCanvas). */
+export function drawTexture(
+  id: TextureId,
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+): void {
+  DEFS[id].draw(ctx, w, h);
+}
+
+/** Textures drawn in a worker and waiting for their first `getTexture`. */
+const drawn = new Map<TextureId, ImageBitmap>();
+
+/** A texture drawn elsewhere (a worker) stands for the first draw of `getTexture(id)`; ignored when it came too late. */
+export function primeTexture(id: TextureId, bitmap: ImageBitmap): void {
+  if (cache.has(id)) bitmap.close();
+  else drawn.set(id, bitmap);
+}
+
+/** Whether `id` names a texture (a stored list may hold an old name). */
+export const isTexture = (id: string): id is TextureId => id in DEFS;
+
+/** Ids of every texture made so far (engine/texture-prefetch.ts remembers them per map). */
+export const madeTextures = (): TextureId[] => [...cache.keys()];
+
 export function getTexture(id: TextureId): Texture {
   let t = cache.get(id);
   if (!t) {
@@ -89,7 +128,12 @@ export function getTexture(id: TextureId): Texture {
     const canvas = document.createElement('canvas');
     [canvas.width, canvas.height] = def.size;
     const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-    def.draw(ctx, canvas.width, canvas.height);
+    const bitmap = drawn.get(id);
+    if (bitmap) {
+      ctx.drawImage(bitmap, 0, 0);
+      bitmap.close();
+      drawn.delete(id);
+    } else def.draw(ctx, canvas.width, canvas.height);
     t = new CanvasTexture(canvas);
     t.wrapS = t.wrapT = RepeatWrapping;
     t.minFilter = LinearMipmapLinearFilter;

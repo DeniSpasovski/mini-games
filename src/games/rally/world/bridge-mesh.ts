@@ -701,7 +701,11 @@ function stageSpans(world: World, tiles: TileParts): void {
 }
 
 /** Elevated decks of the other roads (OSM bridge=yes): road surface + girders + parapets + abutments + piers. */
-function pathDecks(world: World, group: Group, tiles: TileParts): void {
+function* pathDecks(
+  world: World,
+  group: Group,
+  tiles: TileParts,
+): Generator<void, void> {
   const gen = world.gen;
   const net = gen.paths;
   if (!net) return;
@@ -779,6 +783,7 @@ function pathDecks(world: World, group: Group, tiles: TileParts): void {
   };
   // Pass 2: surface, body, abutments.
   for (const { pi, rows } of decks) {
+    yield;
     const p = net.paths[pi];
     const L = net.lengths[pi];
     const tex = pathTexture(p.kind, p.width, !!world.map.cityStreets);
@@ -1311,7 +1316,7 @@ export function* bridgeMeshJob(
   const tiles = new TileParts();
   stageSpans(world, tiles);
   yield;
-  pathDecks(world, group, tiles);
+  yield* pathDecks(world, group, tiles);
   yield;
   piers(world, tiles);
   yield;
