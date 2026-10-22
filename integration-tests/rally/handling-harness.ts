@@ -366,23 +366,23 @@ export function handbrakeTurn(cfg: Cfg, surface: SurfaceId) {
 }
 
 /** Slalom at 90 km/h: 2 sine cycles of 3 deg wheel at 0.5 Hz, then straight; peak sideslip, residual yaw. */
-export function slalom(cfg: Cfg, surface: SurfaceId) {
+export function slalom(cfg: Cfg, surface: SurfaceId, kmh = 90) {
   const v = build(cfg, flat(surface));
-  launch(v, 90);
-  run(v, 1.5, () => cruise(v, 90));
+  launch(v, kmh);
+  run(v, 1.5, () => cruise(v, kmh));
   let maxB = 0;
   let maxRoll = 0;
   let maxG = 0;
   run(v, 4, (t) => {
     v.controls.steer = (3 / v.def.maxSteerDeg) * Math.sin(Math.PI * t);
-    cruise(v, 90);
+    cruise(v, kmh);
     maxB = Math.max(maxB, Math.abs(beta(v)) / DEG);
     maxRoll = Math.max(maxRoll, Math.abs(rollDeg(v)));
     maxG = Math.max(maxG, latG(v));
   });
   run(v, 1.5, () => {
     v.controls.steer = 0;
-    cruise(v, 90);
+    cruise(v, kmh);
     maxB = Math.max(maxB, Math.abs(beta(v)) / DEG);
   });
   return {

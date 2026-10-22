@@ -30,6 +30,8 @@ describe.each(
     const spawn = world.roadSpawn();
     v.reset(spawn.position, spawn.heading);
     const ap = new Autopilot(world.stageRoad);
+    // The 23 hp, rear-engined Fiat 126p plows wide on the fast downhill bends at the pilot's usual pace.
+    if (carId === 'pezetka') ap.aggression = 0.3;
     ap.reset(world.stage.start - 9);
     let t = 0;
     let minUp = 1;
