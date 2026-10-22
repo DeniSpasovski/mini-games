@@ -20,6 +20,13 @@ export interface SourceLink {
   note?: string;
 }
 
+/** The scanned asphalt under the `road_tarmac` texture (Ajvatovci, Galichica, Petralica). */
+export const ASPHALT_04_SOURCE: SourceLink = {
+  label: 'Asphalt 04 (Poly Haven)',
+  url: 'https://polyhaven.com/a/asphalt_04',
+  note: 'road asphalt - by Sergej Majboroda and Jenelle van Heerden, CC0',
+};
+
 export interface PlazaIsland {
   kind: 'island' | 'painted' | 'sidewalk';
   pts: number[];
@@ -554,7 +561,9 @@ export type RoadPoint =
 export type RoadTexture =
   | 'road'
   | 'road_tarmac'
+  | 'road_tarmac_kerbed'
   | 'road_tarmac_lines'
+  | 'road_tarmac_plain'
   | 'road_parkway'
   | 'road_street'
   | 'road_street4'

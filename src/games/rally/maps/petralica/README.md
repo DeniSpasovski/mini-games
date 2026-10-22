@@ -30,6 +30,7 @@ npm run dev     # /games/rally/?stage=petralica&spawn=7500
 | Elevation           | [Copernicus DEM GLO-30](https://doi.org/10.5069/G9028PQB) via OpenTopography                                         | Copernicus licence, © DLR e.V. 2010-2014 and © Airbus Defence and Space GmbH 2014-2018, provided under COPERNICUS by the EU and ESA |
 | Horizon terrain     | [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/)                                                    | [attributions](https://github.com/tilezen/joerd/blob/master/docs/attribution.md)                                                    |
 | Land cover          | [ESA WorldCover 2021](https://esa-worldcover.org/)                                                                   | CC BY 4.0                                                                                                                           |
+| Road asphalt        | [Asphalt 04 (Poly Haven)](https://polyhaven.com/a/asphalt_04), by Sergej Majboroda and Jenelle van Heerden           | CC0                                                                                                                                 |
 
 The baked map files (`*.json`, `buildings.csv`, stage card) are a derived database of OpenStreetMap and stay under the ODbL. Dataset citation: European Space
 Agency (2024). Copernicus Global Digital Elevation Model. Distributed by OpenTopography.

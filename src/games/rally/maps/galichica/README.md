@@ -37,6 +37,7 @@ npm run dev     # /games/rally/?stage=galichica_west&mute=1
 | Roads, lakes, woods    | [OpenStreetMap](https://www.openstreetmap.org/copyright) via the [Overpass API](https://overpass-api.de/)                                                                                    | ODbL, © OpenStreetMap contributors                                                           |
 | Elevation, far horizon | [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/)                                                                                                                            | [attributions](https://github.com/tilezen/joerd/blob/master/docs/attribution.md)             |
 | Land cover             | [ESA WorldCover 2021](https://esa-worldcover.org/)                                                                                                                                           | CC BY 4.0, © ESA WorldCover project 2021 / contains modified Copernicus Sentinel data (2021) |
+| Road asphalt           | [Asphalt 04 (Poly Haven)](https://polyhaven.com/a/asphalt_04), by Sergej Majboroda and Jenelle van Heerden                                                                                   | CC0                                                                                          |
 
 The baked map files (`*.json`, `buildings.csv`, stage cards) are a derived database of OpenStreetMap and stay under the
 ODbL.

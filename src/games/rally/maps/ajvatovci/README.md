@@ -34,6 +34,7 @@ npm run dev     # /games/rally/?stage=ajvatovci&spawn=200      (drive from 200 m
 | Roads (where OSM has none)                   | [Microsoft ML Road Detections](https://github.com/microsoft/RoadDetections)                                                | ODbL, © Microsoft                                                                |
 | Land cover                                   | [ESA WorldCover 2021](https://esa-worldcover.org/)                                                                         | CC BY 4.0                                                                        |
 | Elevation                                    | [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (SRTM / EU-DEM based)                                    | [attributions](https://github.com/tilezen/joerd/blob/master/docs/attribution.md) |
+| Road asphalt                                 | [Asphalt 04 (Poly Haven)](https://polyhaven.com/a/asphalt_04), by Sergej Majboroda and Jenelle van Heerden                 | CC0                                                                              |
 
 The baked map files (`*.json`, `buildings.csv`, stage card) are a derived database of the ODbL sources above and stay under the ODbL (attribution +
 share-alike). A few shapes (the orchard outline and the lot positions of the start street) were traced by eye from

@@ -1,5 +1,11 @@
 import type { StaticCollider } from '../../../physics/types';
-import { boxCollider, cylinderCollider, type Local, type V3 } from './common';
+import {
+  boxCollider,
+  cylinderCollider,
+  LOT_ASPHALT,
+  type Local,
+  type V3,
+} from './common';
 import { strut } from './park';
 import { RESTAURANT, RESTAURANT_PAD, toWorld, type Site } from './sites';
 
@@ -681,7 +687,7 @@ export function buildRestaurant(
         l.fan(
           'asphalt',
           [at(x0, j), at(x1, j), at(x1, j + 1), at(x0, j + 1)],
-          '#8c8a86',
+          LOT_ASPHALT,
           up,
           (p) => [p[0], p[2]],
         );

@@ -92,12 +92,15 @@ describe('junction fillets', () => {
     }
   });
 
-  test('angled junction: corners still on the stage edge; a near-parallel side gets none', () => {
-    const a = Math.PI / 4;
+  test('angled junction: corners still on the stage edge; a near-straight or near-parallel side gets none', () => {
+    const a = Math.PI / 3;
     const angled = { ...square, dx: Math.cos(a), dz: Math.sin(a) };
     const f = junctionFillets(angled, 1, 0);
     expect(f.length).toBe(2);
     for (const { c } of f) expect(Math.abs(c[1])).toBeLessThan(1e-9);
+    // 45 degrees: the 135 degree side has no corner to round (its fan was a sliver along the side road).
+    const slanted = { ...square, dx: Math.SQRT1_2, dz: Math.SQRT1_2 };
+    expect(junctionFillets(slanted, 1, 0).length).toBe(1);
     const shallow = { ...square, dx: Math.cos(0.2), dz: Math.sin(0.2) };
     expect(junctionFillets(shallow, 1, 0).length).toBe(0);
   });

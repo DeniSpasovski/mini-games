@@ -161,7 +161,8 @@ const FILLET_STEPS = 6;
  * along the stage edge / the side road edge, and the arc A -> B a quadratic curve bowing towards C (close to a
  * circle tangent to both edges). `tx, tz` = stage road tangent at the junction; `edge(d)` = the stage road edge on
  * the junction's side `d` metres further along (C and A sit on the real, possibly curved, edge; default: the
- * tangent line). A side whose edges meet at a very acute angle (the corner far from the mouth) gets no fillet.
+ * tangent line). A side whose edges meet at a very acute angle (the corner far from the mouth) or almost straight on
+ * (over 130 degrees) gets no fillet.
  */
 export function junctionFillets(
   j: Junction,
@@ -184,10 +185,17 @@ export function junctionFillets(
     const u = (-ex * -tz + ez * -tx) / det;
     const v = (j.dx * -ez + j.dz * ex) / det;
     if (Math.abs(u) > 2 * j.width || Math.abs(v) > 3 * j.width) continue;
-    const [cx, cz] = edge(v);
+    // C on the side road's edge (where it meets the stage edge's tangent), so the arc ends on the side road's real edge
+    // even where the stage road bends away from its tangent; A on the real stage edge.
+    const cx = j.x + ex + j.dx * u;
+    const cz = j.z + ez + j.dz * u;
     // Away from the side road along the stage edge, away from the stage road along the side edge.
     const sv = Math.sign(v) || s;
     const [ax, az] = edge(v + sv * radius);
+    // Nearly straight on (the far side of a shallow, slanted junction): no corner to round, and the fan would be a
+    // thin sliver poking out along the side road.
+    const al = Math.hypot(ax - cx, az - cz) || 1;
+    if (((ax - cx) * j.dx + (az - cz) * j.dz) / al < -0.64) continue;
     const bx = cx + j.dx * radius;
     const bz = cz + j.dz * radius;
     const arc: [number, number][] = [];

@@ -22,7 +22,8 @@ README files carry the same information in more detail. Keep this file current w
 
 No fonts, sounds or music files are bundled: audio is synthesised with WebAudio and text uses system fonts. Most textures
 are painted on canvases at runtime; the only texture files that ship are the car lamp, seat, fabric and cab textures (listed
-with their licences in `public/models/CREDITS.md`) and the truck textures (listed under "Parked trucks" below).
+with their licences in `public/models/CREDITS.md`), the truck textures (listed under "Parked trucks" below) and the road
+asphalt textures (`src/games/rally/engine/asphalt/`, listed under "Road textures" below).
 
 ## Map data (baked into `src/games/rally/maps/<id>/`)
 
@@ -113,6 +114,14 @@ far away the people are low-poly figures built in code.
 | ["Female Base Mesh (Low Poly)"](https://sketchfab.com/3d-models/female-base-mesh-low-poly-b80022fb9db94c9e83cae5361931b3c9) | FormForge3D (account aleenasani841, Sketchfab) | CC BY 4.0 |
 
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
+
+## Road textures
+
+| File (`src/games/rally/engine/asphalt/`)          | Source                                                                                                                                                                                                                    | Licence |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `road_tarmac.*.webp`, `road_tarmac_kerbed.*.webp` | [Asphalt 04](https://polyhaven.com/a/asphalt_04) by Sergej Majboroda and Jenelle van Heerden (Poly Haven; colour, height and roughness maps resampled, with cracks and tyre marks painted on by `scripts/asphalt/gen.js`) | CC0     |
+
+The other asphalt textures are painted procedurally by the same script. The scan itself is not committed (`sources/textures/`).
 
 ## Music
 

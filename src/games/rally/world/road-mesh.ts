@@ -6,6 +6,7 @@ import {
   MeshStandardMaterial,
   Vector3,
 } from 'three';
+import { applyRoadSurface, isRoadSurface } from '../engine/road-surface';
 import { getTexture } from '../engine/textures';
 import {
   type PathDef,
@@ -89,12 +90,18 @@ export function getRoadMaterial(
   const key = `${texture}:${layer}`;
   let m = roadMaterials.get(key);
   if (!m) {
+    const baked = isRoadSurface(texture);
     m = new MeshStandardMaterial({
-      map: getTexture(texture),
-      // Relief from the texture itself: gravel stones / tarmac grain catch a low sun.
-      bumpMap: getTexture(texture),
-      bumpScale: texture === 'road' ? 2.2 : 1.2,
-      roughness: texture === 'road' ? 0.93 : 0.86,
+      // Baked asphalt (engine/road-surface.ts) brings its own normal + roughness maps and tone variation.
+      ...(baked
+        ? {}
+        : {
+            map: getTexture(texture),
+            // Relief from the texture itself: gravel stones / tarmac grain catch a low sun.
+            bumpMap: getTexture(texture),
+            bumpScale: texture === 'road' ? 2.2 : 1.2,
+            roughness: texture === 'road' ? 0.93 : 0.86,
+          }),
       metalness: 0,
       polygonOffset: true,
       polygonOffsetFactor: layer === 0 ? -3 : layer === 2 ? -2 : -1,
@@ -102,6 +109,7 @@ export function getRoadMaterial(
     });
     // Canopy shadows beyond the shadow map (engine/world-shading.ts).
     m.defines = { RALLY_GROUND: 1 };
+    if (baked) applyRoadSurface(m, texture);
     roadMaterials.set(key, m);
   }
   return m;
@@ -270,6 +278,13 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
 }
 
 const PATH_ACROSS = [-1, -0.5, 0, 0.5, 1];
+/**
+ * A side road sinks under the stage ribbon over this many metres inside the road's half width (the ribbon reaches 4 %
+ * past it): sinking at or outside the edge let the verge show through the side road at the mouth.
+ */
+const SINK_RAMP = 0.8;
+/** Rings of a junction fillet fan from its corner to its arc. */
+const FILLET_RINGS = 4;
 const PATH_STEP = 3; // m between ribbon rows
 const PATH_TILE = 256; // m, one merged mesh per tile
 
@@ -347,6 +362,47 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
     const e = p.pts.length;
     pts.push([p.pts[e - 2], p.pts[e - 1], dist]);
     if (pts.length < 2) continue;
+    // An end that stops short of the stage road (OSM joins the way to the road's raw line; the drawn road is smoothed
+    // and can run metres away on a bend, and a slanted way's square end leaves one corner out on the verge) runs on
+    // until both corners of its end are well under the stage ribbon, so no verge shows between them.
+    const under = (x: number, z: number) => {
+      world.road.query(x, z, rq);
+      return rq.found && rq.distance < rq.halfWidth - 0.3;
+    };
+    for (const atEnd of [false, true]) {
+      const [ex, ez, ed] = atEnd ? pts[pts.length - 1] : pts[0];
+      const [px, pz] = atEnd ? pts[pts.length - 2] : pts[1];
+      world.road.query(ex, ez, rq);
+      if (!rq.found || rq.distance > rq.halfWidth + 12) continue;
+      const l = Math.hypot(ex - px, ez - pz) || 1;
+      const dx = (ex - px) / l;
+      const dz = (ez - pz) / l;
+      const hw = p.width / 2;
+      const ok = (d: number) => {
+        const x = ex + dx * d;
+        const z = ez + dz * d;
+        return (
+          under(x + dz * hw, z - dx * hw) && under(x - dz * hw, z + dx * hw)
+        );
+      };
+      if (ok(0)) continue;
+      let reach = 0;
+      for (let d = 0.5; d <= 16; d += 0.5)
+        if (ok(d)) {
+          reach = d;
+          break;
+        }
+      // Rows every half metre, so the sink follows the stage road's edge across the run.
+      for (let d = 0.5; d <= reach; d += 0.5) {
+        const row: [number, number, number] = [
+          ex + dx * d,
+          ez + dz * d,
+          atEnd ? ed + d : ed - d,
+        ];
+        if (atEnd) pts.push(row);
+        else pts.unshift(row);
+      }
+    }
     const mid = pts[pts.length >> 1];
     // A lane in the highway's cut (MapDef.parkwayLanes) is a carriageway: lane markings, no centre line.
     const tex = world.gen.isParkwayLane(world.gen.paths!.paths.indexOf(p))
@@ -368,7 +424,9 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
     const onTop = !world.gen.isCarriageway(pi);
     for (let r = 0; r < pts.length; r++) {
       // Lane drops / gains taper (the width meets the continuing way's), see PathNetwork.halfWidthAt.
-      const hw = net.halfWidthAt(pi, pts[r][2]);
+      // (clamped: an end run on under the stage road lies past the way's own length)
+      const along = Math.min(net.lengths[pi], Math.max(0, pts[r][2]));
+      const hw = net.halfWidthAt(pi, along);
       let a: number[] = pts[Math.max(0, r - 1)];
       let b: number[] = pts[Math.min(pts.length - 1, r + 1)];
       if (r === 0) a = before ?? a;
@@ -380,7 +438,7 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
       // The street's own height line: where the land under an edge falls away (the parkway cut beside a service road,
       // a pit at a deck end, the trench under a portal slab) the ribbon stays on it - sagging with the land let the
       // terrain show through the lanes.
-      const prof = world.gen.pathHeight(pi, pts[r][2]);
+      const prof = world.gen.pathHeight(pi, along);
       for (let c = 0; c < cols; c++) {
         const lat = PATH_ACROSS[c] * hw;
         const x = pts[r][0] + tz * lat;
@@ -404,7 +462,13 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
         const sink =
           rq.found && Math.abs(world.road.at(rq.along).y - y) < 1
             ? 1 -
-              Math.min(1, Math.max(0, (rq.distance - rq.halfWidth + 0.2) / 1.0))
+              Math.min(
+                1,
+                Math.max(
+                  0,
+                  (rq.distance - rq.halfWidth + SINK_RAMP) / SINK_RAMP,
+                ),
+              )
             : 0;
         // Inside a junction plaza the plaza is the surface: a ribbon along its edge stays just under it.
         // Within a few metres of the stage road the carved shoulder folds the terrain into creases that a 3 cm lift does
@@ -503,31 +567,90 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
       let tile = tiles.get(key);
       if (!tile)
         tiles.set(key, (tile = { tex, pos: [], nor: [], uv: [], idx: [] }));
-      const v0 = tile.pos.length / 3;
       hf.normal(f.c[0], f.c[1], nTmp);
-      for (const [k, [x, z]] of [f.c, ...f.arc].entries()) {
+      // Across the side road in its widths. u is mirrored inside the plain asphalt between the edge bands (0.2..0.8,
+      // period 1.2 widths) at world scale, so the fan shows neither stretched streaks nor the band's dust and bites;
+      // triangles are cut at the mirror lines so u stays linear inside each one.
+      const lat = (x: number, z: number) =>
+        ((x - j.x) * -j.dz + (z - j.z) * j.dx) / j.width;
+      const put = (x: number, z: number, l: number, fold: number) => {
         world.road.query(x, z, rq);
         const ground = hf.height(x, z);
         const sink =
           rq.found && Math.abs(world.road.at(rq.along).y - ground) < 1
             ? 1 -
-              Math.min(1, Math.max(0, (rq.distance - rq.halfWidth + 0.2) / 1.0))
+              Math.min(
+                1,
+                Math.max(
+                  0,
+                  (rq.distance - rq.halfWidth + SINK_RAMP) / SINK_RAMP,
+                ),
+              )
             : 0;
         tile.pos.push(x, ground + 0.03 - 0.08 * sink, z);
         tile.nor.push(nTmp.x, nTmp.y, nTmp.z);
-        // The corner gets the inner edge band, the arc the outer dusty edge.
+        const m = l - fold * 0.6;
         tile.uv.push(
-          k === 0 ? 0.1 : 0.01,
+          0.2 + (fold % 2 === 0 ? m : 0.6 - m),
           ((x - j.x) * j.dx + (z - j.z) * j.dz) / texLength(tex),
         );
+      };
+      const tri = (pa: number[], pb: number[], pc: number[]) => {
+        // Clip into the strips between mirror lines, fan each convex piece, face up (+Y).
+        const ls = [pa, pb, pc].map(([x, z]) => lat(x, z));
+        const lo = Math.floor(Math.min(...ls) / 0.6);
+        const hi = Math.floor(Math.max(...ls) / 0.6);
+        for (let fold = lo; fold <= hi; fold++) {
+          let poly = [pa, pb, pc].map((pt, i) => [pt[0], pt[1], ls[i]]);
+          for (const [edge, keep] of [
+            [fold * 0.6, 1],
+            [(fold + 1) * 0.6, -1],
+          ]) {
+            const out: number[][] = [];
+            for (let i = 0; i < poly.length; i++) {
+              const p0 = poly[i];
+              const p1 = poly[(i + 1) % poly.length];
+              const d0 = (p0[2] - edge) * keep;
+              const d1 = (p1[2] - edge) * keep;
+              if (d0 >= 0) out.push(p0);
+              if (d0 >= 0 !== d1 >= 0) {
+                const t = d0 / (d0 - d1);
+                out.push(p0.map((v, k) => v + (p1[k] - v) * t));
+              }
+            }
+            poly = out;
+          }
+          if (poly.length < 3) continue;
+          let area = 0;
+          for (let i = 0; i < poly.length; i++) {
+            const q = poly[(i + 1) % poly.length];
+            area += poly[i][0] * q[1] - q[0] * poly[i][1];
+          }
+          const up = area < 0;
+          const v0 = tile.pos.length / 3;
+          for (const pt of poly) put(pt[0], pt[1], pt[2], fold);
+          for (let k = 1; k < poly.length - 1; k++)
+            if (up) tile.idx.push(v0, v0 + k, v0 + k + 1);
+            else tile.idx.push(v0, v0 + k + 1, v0 + k);
+        }
+      };
+      // Rings between the corner and the arc so the fan follows the ground (one flat triangle let the terrain poke
+      // through).
+      const ring = (t: number) =>
+        f.arc.map(([x, z]) => [
+          f.c[0] + (x - f.c[0]) * t,
+          f.c[1] + (z - f.c[1]) * t,
+        ]);
+      let prev = ring(FILLET_RINGS > 0 ? 1 / FILLET_RINGS : 1);
+      for (let k = 0; k < prev.length - 1; k++) tri(f.c, prev[k], prev[k + 1]);
+      for (let r = 2; r <= FILLET_RINGS; r++) {
+        const next = ring(r / FILLET_RINGS);
+        for (let k = 0; k < next.length - 1; k++) {
+          tri(prev[k], next[k], next[k + 1]);
+          tri(prev[k], next[k + 1], prev[k + 1]);
+        }
+        prev = next;
       }
-      // Fan from the corner; winding so the face points up (+Y) whichever side the arc runs.
-      const cross =
-        (f.arc[0][0] - f.c[0]) * (f.arc[1][1] - f.c[1]) -
-        (f.arc[0][1] - f.c[1]) * (f.arc[1][0] - f.c[0]);
-      for (let k = 1; k < f.arc.length; k++)
-        if (cross < 0) tile.idx.push(v0, v0 + k, v0 + k + 1);
-        else tile.idx.push(v0, v0 + k + 1, v0 + k);
     }
   }
   yield;

@@ -1,4 +1,4 @@
-import type { MapInfo } from '../shared/types';
+import { ASPHALT_04_SOURCE, type MapInfo } from '../shared/types';
 import data from './route.json';
 import { galichicaStages } from './stages';
 
@@ -39,6 +39,7 @@ export const galichicaInfo: MapInfo = {
       url: 'https://esa-worldcover.org/',
       note: 'land cover (oak, beech and pasture belts by altitude) - contains modified Copernicus Sentinel data (2021), CC BY 4.0',
     },
+    ASPHALT_04_SOURCE,
   ],
   stageNumber: 4,
   bounds: { minX: -6000, maxX: 5600, minZ: -3000, maxZ: 2600 },
