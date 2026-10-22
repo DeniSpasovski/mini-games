@@ -17,7 +17,7 @@ import {
   type QualityName,
   type QualitySettings,
 } from '../engine/quality';
-import { ALL_STAGES, DEFAULT_STAGE, MAPS, STAGES } from '../maps';
+import { ALL_STAGES, DEFAULT_STAGE, MAPS, STAGES, stagesOf } from '../maps';
 import { MONTH_NAMES, seasonMonth, stageSeason } from '../maps/shared/climate';
 import { slotHour, stageTemps } from '../maps/shared/day-temperature';
 import { SEASON_LABELS, SEASONS, seasonParam, type Season } from '../season';
@@ -79,6 +79,7 @@ import {
   type ObjectDistance,
   type RallySettings,
 } from './settings';
+import { SEASON_ICONS, SETUP_ICONS, TIME_ICONS } from './menu-icons';
 import { Showroom } from './showroom';
 import {
   formatTime,
@@ -149,6 +150,11 @@ const NPC_CARS: SourceLink[] = [
 const BUILT_WITH: SourceLink[] = [
   { label: 'three.js', url: 'https://threejs.org/', note: 'rendering, MIT' },
   { label: 'Rsbuild', url: 'https://rsbuild.rs/', note: 'build tooling, MIT' },
+  {
+    label: 'Barlow / Barlow Condensed',
+    url: 'https://github.com/jpt/barlow',
+    note: 'UI fonts, SIL Open Font License 1.1',
+  },
 ];
 
 /** The two base bodies of the people (THIRD-PARTY.md "People"). */
@@ -350,6 +356,7 @@ class MainMenu {
     this.root.className = 'menu-root';
     this.root.innerHTML = `
       <div class="menu-bg"></div>
+      <div class="menu-slab"></div>
       <div class="menu-panel"></div>
       <div class="menu-version">v${VERSION}</div>`;
     container.append(this.root);
@@ -478,11 +485,17 @@ class MainMenu {
         : 0;
     this.screen = screen;
     this.panel.dataset.screen = screen;
+    this.root.dataset.screen = screen;
     this.panel.replaceChildren();
     this.root
-      .querySelectorAll('.menu-times-card, .menu-side-card')
+      .querySelectorAll(
+        '.menu-times-card, .menu-side-card, .menu-plate, .setup-part',
+      )
       .forEach((el) => el.remove());
     if (screen === 'welcome') this.welcome();
+    // The stage plate (S number, name, length, surface) once a stage is being picked (not on the welcome screen).
+    if (screen === 'map' || screen === 'car' || screen === 'setup')
+      this.root.append(this.stagePlate());
     if (screen === 'options')
       this.panel.append(
         header('Options'),
@@ -519,10 +532,14 @@ class MainMenu {
           if (loadDisplayMode() === 'auto') saveDisplayMode('hdr');
         }
       });
-    // Options start on the first setting, every other screen on its primary button.
+    // Options start on the first setting, setup on its active row, every other screen on its primary button.
     this.panel
       .querySelector<HTMLElement>(
-        screen === 'options' ? '.menu-opt button.on' : '[data-primary]',
+        screen === 'options'
+          ? '.menu-opt button.on'
+          : screen === 'setup'
+            ? '.setup-tune.active .setup-tune-main'
+            : '[data-primary]',
       )
       ?.focus({ preventScroll: true });
     this.panel.scrollTop = keepScroll;
@@ -542,16 +559,17 @@ class MainMenu {
     const portal = portalUrl();
     this.panel.innerHTML = `
       <div class="menu-brand">
-        <div class="menu-title">Gravel<br>Rally</div>
-        <div class="menu-tagline">Point-to-point stages against the clock</div>
+        <div class="menu-title">Gravel<span>Rally</span></div>
+        <div class="menu-tagline">Point-to-point · against the clock</div>
       </div>
       <div class="menu-list">
-        <button class="menu-btn big" data-primary data-a="start">Start rally</button>
+        <button class="menu-btn big" data-primary data-a="start">Start rally<kbd>Enter</kbd></button>
         <button class="menu-btn" data-a="times">Stage times</button>
         <button class="menu-btn" data-a="options">Options</button>
         <button class="menu-btn" data-a="about">About</button>
         ${portal ? `<a class="menu-btn" href="${portal}">‹ All games</a>` : ''}
       </div>
+      ${stepPips(0, 'Stage · Car · Go')}
       <div class="menu-foot">↑↓ select · Enter confirm · Esc back<br>Gamepad: D-pad select · A confirm · B back</div>`;
     this.panel
       .querySelector('[data-a="start"]')!
@@ -565,6 +583,13 @@ class MainMenu {
     this.panel
       .querySelector('[data-a="about"]')!
       .addEventListener('click', () => this.show('about'));
+  }
+
+  /** The stage plate bottom right of the pre-drive screens (the loading screen has the same one). */
+  private stagePlate(): HTMLElement {
+    const plate = div('menu-plate');
+    plate.innerHTML = stagePlateHtml(this.map);
+    return plate;
   }
 
   private about(): void {
@@ -680,8 +705,7 @@ class MainMenu {
       <div class="menu-card-body">
         <div class="menu-card-title">${m.name}${testBadge(isTestStage(m.id))}</div>
         <div class="menu-tags">
-          <span>${(stageLength(m) / 1000).toFixed(1)} km</span>
-          <span>${m.timing.splits} splits</span>
+          <span>${(stageLength(m) / 1000).toFixed(1)} km · ${m.timing.splits} splits</span>
           <span>${[...new Set(m.surfaces)].map((s) => s.replace(/_/g, ' + ')).join(' → ')}</span>
         </div>
         ${showBest ? `<div class="menu-best">${best ? `Best ${formatTime(best.time)} · ${carName(best.car)}` : oldBest ? `<span class="old">Older best ${formatTime(oldBest.time)} · ${oldRunLabel(oldBest, cur)}</span>` : 'No time set yet'}</div>` : ''}
@@ -705,7 +729,7 @@ class MainMenu {
   }
 
   private mapSelect(): void {
-    this.panel.append(header('Select stage', 'Step 1 / 3'));
+    this.panel.append(header('Select stage', '', 1));
     const list = this.stageList(this.mapIndex, true, (i) => {
       if (this.mapIndex === i) return this.show('car');
       this.mapIndex = i;
@@ -739,6 +763,7 @@ class MainMenu {
       'Season',
       SEASONS.map((id) => ({ id, label: SEASON_LABELS[id] })),
       this.seasonFor(m),
+      SEASON_ICONS,
     );
     // Dropdowns left, what they give right (month, time, temperature); the right side drops below when the card is narrow.
     const picks = div('menu-when-pick');
@@ -768,6 +793,7 @@ class MainMenu {
       'Time of day',
       TIMES_OF_DAY,
       slotFor(hour).id,
+      TIME_ICONS,
       '← → keys',
     );
     info.insertAdjacentHTML(
@@ -855,7 +881,9 @@ class MainMenu {
     if (window.innerWidth < SIDE_CARD_MIN_WIDTH) return true;
     const top = this.topIn(align);
     card.style.top = `${top}px`;
-    card.style.maxHeight = `calc(100% - ${top + 24}px)`;
+    // The bottom 120 px stay free for the stage plate (hidden on short screens, where the card may run down).
+    const reserve = window.innerHeight < SHORT_SCREEN_HEIGHT ? 24 : 120;
+    card.style.maxHeight = `calc(100% - ${top + reserve}px)`;
     return true;
   }
 
@@ -871,7 +899,7 @@ class MainMenu {
   private carSelect(): void {
     const car = this.car;
     this.showSetupCar();
-    this.panel.append(header('Select car', `Step 2 / 3 · ${this.map.name}`));
+    this.panel.append(header('Select car', this.map.name, 2));
     const filter = div('menu-seg menu-filter');
     for (const f of DRIVE_FILTERS) {
       const b = document.createElement('button');
@@ -958,171 +986,207 @@ class MainMenu {
   }
 
   /**
-   * Optional setup screen: horizontal pickers - tyre compounds, suspension set-ups, gearing - as rows of boxes;
-   * tyres and springs are rendered live inside (the box is a transparent window onto the showroom canvas, see
-   * Showroom.showSetup), gearing shows a speed-per-gear chart. Cars with fixed gearing show theirs as one box with "no
-   * configuration available". Most players skip it: every row starts on the stage recommendation.
+   * Optional setup screen ("tuner slab"): the menu slab with one slanted row per setting - tyres, suspension, gearing.
+   * Up / down pick the row, left / right (or the row's arrows) change it; the active row opens a detail block
+   * (description, ratings, recommended chip). The car stays whole on the right; the part window above it shows the
+   * active row's pick live (a transparent DOM window onto the showroom canvas, see Showroom.showSetup), gearing its
+   * speed-per-gear chart. Cars with fixed gearing show "Standard" with no arrows. Most players skip it: every row starts
+   * on the stage recommendation.
    */
   private setupSelect(): void {
     const map = this.map;
     const car = this.car;
     const p = applySetup(car.physics, this.setup);
+    const fixed = !hasGearings(car.physics);
     this.panel.append(header('Setup car', `${car.name} · ${map.name}`));
-    // The car behind the pickers re-renders with the chosen tyre and suspension (ride height) on every pick.
+    // The car beside the slab re-renders with the chosen tyre and suspension (ride height) on every pick.
     this.showSetupCar();
     // The road surfaces the stage uses, in driving order.
     const surfaces = [...new Set(map.surfaces)];
-    const reco = '<em class="menu-reco">recommended</em>';
+    const reco = '<em class="menu-reco">Recommended</em>';
     const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
-    const card = (
-      key: string,
-      selected: boolean,
-      label: string,
-      onPick: () => void,
-    ): HTMLElement => {
-      const b = document.createElement('button');
-      b.className = 'setup-card';
-      b.classList.toggle('selected', selected);
-      b.innerHTML = `<div class="setup-view" data-view="${key}"></div><div class="setup-label">${label}</div>`;
-      b.addEventListener('click', onPick);
-      return b;
-    };
-    const section = (
-      row: number,
-      title: string,
-      sub: string,
-      extra?: HTMLElement,
-    ): { el: HTMLElement; grid: HTMLElement } => {
-      const el = div('setup-section');
-      const head = rowTitle(title, sub);
-      if (extra) head.append(extra);
-      const grid = div('setup-row');
-      el.classList.toggle('active', this.setupRow === row);
-      el.append(head, grid);
-      return { el, grid };
+    /** `n` slanted pips, `on` of them lit; `cls` = rating colour `r0`..`r3`, `n` = neutral amount (rebound, pull), or `at` (amber: which option is picked). */
+    const pips = (on: number, n: number, cls: string) =>
+      `<span class="setup-pips ${cls}">${Array.from({ length: n }, (_, i) => `<i${(cls === 'at' ? i === on - 1 : i < on) ? ' class="on"' : ''}></i>`).join('')}</span>`;
+
+    type Tune = {
+      key: string;
+      icon: keyof typeof SETUP_ICONS;
+      value: string;
+      /** Index of the pick among the row's options, and how many there are (no arrows when 1). */
+      at: number;
+      count: number;
+      step: (d: number) => void;
+      detail: string;
+      /** The part window: a 3D studio key, or HTML (gearing chart). */
+      view: { key: string } | { html: string };
+      caption: string;
     };
 
-    const tyres = section(0, 'Tyres', 'Tread, grip and rim size per compound');
-    TYRE_IDS.forEach((id) => {
-      const t = TYRES[id];
-      const chips = surfaces
-        .map((s) => {
-          const r = carGripRating(p, id, s);
-          return `<span class="r${r}">${SURFACES[s].name}<b>${GRIP_LABELS[r]}</b></span>`;
-        })
-        .join('');
-      tyres.grid.append(
-        card(
-          `tyre:${id}`,
-          id === this.tyre,
-          `<div class="setup-name"><i class="menu-tyre-dot" style="background:${hex(t.color)}"></i><b>${t.name}</b>${id === this.recTyre ? reco : ''}</div>
-           <small>${carTyreLabel(car.physics, id)} · ${t.blurb}</small>
-           <div class="setup-chips">${chips}</div>`,
-          () => this.setSetup({ tyre: id }, 0),
-        ),
-      );
-    });
+    const tyre = TYRES[this.tyre];
+    const tyreTune: Tune = {
+      key: 'Tyres',
+      icon: 'tyre',
+      value: `<i class="menu-tyre-dot" style="background:${hex(tyre.color)}"></i>${tyre.name}`,
+      at: TYRE_IDS.indexOf(this.tyre),
+      count: TYRE_IDS.length,
+      step: (d) => {
+        const n = TYRE_IDS.length;
+        this.setSetup(
+          { tyre: TYRE_IDS[(TYRE_IDS.indexOf(this.tyre) + d + n) % n] },
+          0,
+        );
+      },
+      detail: `<p>${carTyreLabel(car.physics, this.tyre)} · ${tyre.blurb}</p>
+        <dl>${surfaces
+          .map((s) => {
+            const r = carGripRating(p, this.tyre, s);
+            return `<dt>${SURFACES[s].name}</dt><dd>${pips(r + 1, 4, `r${r}`)}${GRIP_LABELS[r]}</dd>`;
+          })
+          .join('')}</dl>${this.tyre === this.recTyre ? reco : ''}`,
+      view: { key: `tyre:${this.tyre}` },
+      caption: `<b>${tyre.name}</b><small>${carTyreLabel(car.physics, this.tyre)}</small>`,
+    };
 
-    const susp = section(
-      1,
-      'Suspension',
-      'Springs, travel, ride height and damping',
-      this.rangeBar(),
+    const preset = car.physics.setups[this.setup];
+    const rebound = Math.min(
+      5,
+      Math.max(1, Math.round(preset.front.rebound / 1600)),
     );
-    SETUP_IDS.forEach((id) => {
-      const preset = car.physics.setups[id];
-      const c = compliance(applySetup(car.physics, id));
-      const rebound = Math.min(
-        5,
-        Math.max(1, Math.round(preset.front.rebound / 1600)),
-      );
-      // Ride height vs the car's standard one (+ = more ground clearance, higher centre of mass).
-      const rideMm = Math.round(preset.ride * 1000);
-      const ride =
-        rideMm === 0
-          ? 'standard'
-          : `${rideMm > 0 ? '+' : '−'}${Math.abs(rideMm)} mm`;
-      susp.grid.append(
-        card(
-          `susp:${id}`,
-          id === this.setup,
-          `<div class="setup-name"><i class="menu-tyre-dot spring" style="background:${hex(SETUP_COLORS[id])}"></i><b>${SETUP_NAMES[id]}</b>${id === this.recSetup ? reco : ''}</div>
-           <small>${setupCharacter(c)}</small>
-           <div class="setup-chips data">
-             <span>Travel<b>${Math.round(preset.travel * 1000)} mm</b></span>
-             <span>Ride height<b>${ride}</b></span>
-             <span>Spring<b>${Math.round(preset.front.spring / 1000)} / ${Math.round(preset.rear.spring / 1000)} N/mm</b></span>
-             <span>Rebound<b class="bars">${'●'.repeat(rebound)}<i>${'●'.repeat(5 - rebound)}</i></b></span>
-           </div>`,
-          () => this.setSetup({ setup: id }, 1),
-        ),
-      );
-    });
+    // Ride height vs the car's standard one (+ = more ground clearance, higher centre of mass).
+    const rideMm = Math.round(preset.ride * 1000);
+    const ride =
+      rideMm === 0
+        ? 'standard'
+        : `${rideMm > 0 ? '+' : '−'}${Math.abs(rideMm)} mm`;
+    const suspTune: Tune = {
+      key: 'Suspension',
+      icon: 'susp',
+      value: `<i class="menu-tyre-dot spring" style="background:${hex(SETUP_COLORS[this.setup])}"></i>${SETUP_NAMES[this.setup]}`,
+      at: SETUP_IDS.indexOf(this.setup),
+      count: SETUP_IDS.length,
+      step: (d) => {
+        const n = SETUP_IDS.length;
+        this.setSetup(
+          { setup: SETUP_IDS[(SETUP_IDS.indexOf(this.setup) + d + n) % n] },
+          1,
+        );
+      },
+      detail: `<p>${setupCharacter(compliance(p))}</p>
+        <dl>
+          <dt>Travel</dt><dd>${Math.round(preset.travel * 1000)} mm</dd>
+          <dt>Ride height</dt><dd>${ride}</dd>
+          <dt>Spring</dt><dd>${Math.round(preset.front.spring / 1000)} / ${Math.round(preset.rear.spring / 1000)} N/mm</dd>
+          <dt>Rebound</dt><dd>${pips(rebound, 5, 'n')}</dd>
+        </dl>${this.rangeBar().outerHTML}${this.setup === this.recSetup ? reco : ''}`,
+      view: { key: `susp:${this.setup}` },
+      caption: `<b>${SETUP_NAMES[this.setup]}</b><small>Travel ${Math.round(preset.travel * 1000)} mm · ride ${ride}</small>`,
+    };
 
-    const gear = section(
-      2,
-      'Gearing',
-      hasGearings(car.physics)
-        ? 'Final drive: short pulls harder, long goes faster'
-        : 'Final drive',
-    );
-    const fixed = !hasGearings(car.physics);
-    // One speed scale for the row: the longest preset's top-gear redline speed.
+    // One speed scale for every gearing: the longest preset's top-gear redline speed.
     const scale = Math.max(
       ...GEARING_IDS.map((id) =>
         Math.max(...gearTopSpeeds(applyGearing(car.physics, id), this.tyre)),
       ),
     );
-    const gearIds: GearingId[] = fixed ? ['medium'] : [...GEARING_IDS];
-    gearIds.forEach((id) => {
-      const d = applyGearing(car.physics, id);
-      const med = car.physics.gearbox.finalDrive;
-      const pull = Math.min(
-        5,
-        // Wheel torque vs medium, kept modest: the close-ratio boxes make the real 0-100 gap small.
-        Math.max(1, Math.round(3 + (d.gearbox.finalDrive / med - 1) * 5)),
+    const gid: GearingId = fixed ? 'medium' : this.gearing;
+    const d = applyGearing(car.physics, gid);
+    // Wheel torque vs medium, kept modest: the close-ratio boxes make the real 0-100 gap small.
+    const pull = Math.min(
+      5,
+      Math.max(
+        1,
+        Math.round(
+          3 + (d.gearbox.finalDrive / car.physics.gearbox.finalDrive - 1) * 5,
+        ),
+      ),
+    );
+    const gearName = fixed ? 'Standard' : GEARING_NAMES[gid];
+    const gearTune: Tune = {
+      key: 'Gearing',
+      icon: 'gear',
+      value: gearName,
+      at: fixed ? 0 : GEARING_IDS.indexOf(gid),
+      count: fixed ? 1 : GEARING_IDS.length,
+      step: (k) => {
+        const n = GEARING_IDS.length;
+        this.setSetup(
+          {
+            gearing:
+              GEARING_IDS[(GEARING_IDS.indexOf(this.gearing) + k + n) % n],
+          },
+          2,
+        );
+      },
+      detail: `<p>${fixed ? 'No configuration available - road car gearbox.' : gid === 'short' ? 'Harder pull, lower top speed.' : gid === 'long' ? 'Higher top speed, softer pull.' : 'Standard final drive.'}</p>
+        <dl>
+          <dt>Top speed</dt><dd>${Math.round(topSpeed(d, this.tyre) * 3.6)} km/h</dd>
+          <dt>Final drive</dt><dd>${d.gearbox.finalDrive.toFixed(2)}</dd>
+          <dt>Pull</dt><dd>${pips(pull, 5, 'n')}</dd>
+        </dl>${!fixed && gid === this.recGearing ? reco : ''}`,
+      view: { html: gearChart(d, scale, this.tyre) },
+      caption: `<b>${gearName} gearing</b><small>Speed at the redline per gear, km/h</small>`,
+    };
+
+    const tunes = [tyreTune, suspTune, gearTune];
+    const active = tunes[this.setupRow] ?? tyreTune;
+    const list = div('setup-tunes');
+    tunes.forEach((t, row) => {
+      const on = row === this.setupRow;
+      const el = div(`setup-tune${on ? ' active' : ''}`);
+      const arrows = t.count > 1;
+      el.innerHTML = `<button class="menu-card setup-tune-main${on ? ' selected' : ''}">
+          <span class="ic">${SETUP_ICONS[t.icon]}</span><span class="tx"><span class="k">${t.key}</span><span class="v">${t.value}</span></span>
+        </button>${arrows ? '<button class="setup-arrow" data-d="-1" aria-label="Previous">‹</button><button class="setup-arrow" data-d="1" aria-label="Next">›</button>' : ''}`;
+      // Click / Enter / A on a row makes it active; on the active row it steps to the next option.
+      el.querySelector('.setup-tune-main')!.addEventListener('click', () => {
+        if (this.setupRow === row) return arrows && t.step(1);
+        this.setupRow = row;
+        this.show('setup');
+      });
+      el.querySelectorAll<HTMLElement>('.setup-arrow').forEach((b) =>
+        b.addEventListener('click', () => t.step(Number(b.dataset.d))),
       );
-      const name = fixed ? 'Standard' : GEARING_NAMES[id];
-      const label = `<div class="setup-name"><b>${name}</b>${!fixed && id === this.recGearing ? reco : ''}</div>
-           <small>${fixed ? 'No configuration available - road car gearbox' : id === 'short' ? 'Harder pull, lower top speed' : id === 'long' ? 'Higher top speed, softer pull' : 'Standard final drive'}</small>
-           <div class="setup-chips data">
-             <span>Top speed<b>${Math.round(topSpeed(d, this.tyre) * 3.6)} km/h</b></span>
-             <span>Final drive<b>${d.gearbox.finalDrive.toFixed(2)}</b></span>
-             <span>Pull<b class="bars">${'●'.repeat(pull)}<i>${'●'.repeat(5 - pull)}</i></b></span>
-           </div>`;
-      const b = document.createElement(fixed ? 'div' : 'button');
-      b.className = 'setup-card gear-card';
-      b.classList.toggle('selected', !fixed && id === this.gearing);
-      b.classList.toggle('fixed', fixed);
-      b.innerHTML = `<div class="setup-view gear-view">${gearChart(d, scale, this.tyre)}</div><div class="setup-label">${label}</div>`;
-      if (!fixed)
-        b.addEventListener('click', () => this.setSetup({ gearing: id }, 2));
-      gear.grid.append(b);
+      list.append(el);
+      if (on) {
+        const det = div('setup-detail');
+        det.innerHTML = `${t.count > 1 ? pips(t.at + 1, t.count, 'at') : ''}${t.detail}`;
+        list.append(det);
+      }
     });
 
-    const custom = this.custom;
     this.panel.append(
-      tyres.el,
-      susp.el,
-      gear.el,
+      list,
       buttons(
         [
-          'Reset to recommended',
+          'Reset',
           () => {
             this.pick = null;
             this.show('setup');
           },
         ],
-        ['Done', () => this.show('car'), !custom],
-        ['Start stage ›', () => this.start(), custom],
+        ['Back', () => this.show('car')],
+        ['Start stage ›', () => this.start(), true],
       ),
     );
-    // The boxes exist now: point the showroom's studios at them (they change on every re-render).
+
+    // The part window over the right of the screen (where the car screen has its spec card).
+    const part = div('setup-part');
+    part.innerHTML =
+      'key' in active.view
+        ? `<div class="setup-view" data-view="${active.view.key}"></div>`
+        : `<div class="setup-view gear-view">${active.view.html}</div>`;
+    const cap = div('setup-part-caption');
+    cap.innerHTML = active.caption;
+    part.append(cap);
+    this.root.append(part);
+    // The window exists now: point the showroom's studio at it (it changes on every re-render).
     this.showroom.showSetup(
       car.id,
-      [...this.panel.querySelectorAll<HTMLElement>('[data-view]')].map(
-        (el) => ({ key: el.dataset.view!, el }),
-      ),
+      [...part.querySelectorAll<HTMLElement>('[data-view]')].map((el) => ({
+        key: el.dataset.view!,
+        el,
+      })),
     );
   }
 
@@ -1260,7 +1324,7 @@ class MainMenu {
       this.setupRow = (this.setupRow + (up ? -1 : 1) + rows) % rows;
       this.show('setup');
       this.panel
-        .querySelector('.setup-section.active')
+        .querySelector('.setup-tune.active')
         ?.scrollIntoView({ block: 'nearest' });
     } else if (s === 'setup' && (a === 'left' || a === 'right')) {
       const d = a === 'left' ? -1 : 1;
@@ -1553,6 +1617,8 @@ export function buildSectors(
 const MAX_ROWS = 10;
 /** Below this width the Select stage / car description card covers the map instead of sitting right of the list. */
 const SIDE_CARD_MIN_WIDTH = 800;
+/** Below this height (landscape phones) the stage plate is hidden on the stage / car screens (menu.css, same value). */
+const SHORT_SCREEN_HEIGHT = 560;
 /** A stage that climbs less than this (m) shows no second, colder temperature on Select stage. */
 const MIN_RISE = 50;
 
@@ -1646,18 +1712,24 @@ function pickerRow(
   label: string,
   options: readonly { id: string; label: string }[],
   selected: string,
+  icons: Record<string, string>,
   title = '',
 ): { row: HTMLLabelElement; select: HTMLSelectElement } {
   const row = document.createElement('label');
   row.className = 'menu-time';
   row.innerHTML = `<span>${label}</span>
-    <select${title ? ` title="${title}"` : ''}>${options
+    <div class="menu-select"><i>${icons[selected] ?? ''}</i><select${title ? ` title="${title}"` : ''}>${options
       .map(
         (o) =>
           `<option value="${o.id}"${o.id === selected ? ' selected' : ''}>${o.label}</option>`,
       )
-      .join('')}</select>`;
-  return { row, select: row.querySelector('select')! };
+      .join('')}</select></div>`;
+  const select = row.querySelector('select')!;
+  // The icon follows the picked option.
+  select.addEventListener('change', () => {
+    row.querySelector('.menu-select i')!.innerHTML = icons[select.value] ?? '';
+  });
+  return { row, select };
 }
 
 function div(className: string): HTMLDivElement {
@@ -1673,16 +1745,16 @@ function testBadge(test: boolean): string {
     : '';
 }
 
-function rowTitle(title: string, sub: string): HTMLElement {
-  const h = div('menu-row-title');
-  h.innerHTML = `<b>${title}</b><small>${sub}</small>`;
+function header(title: string, sub = '', step = 0): HTMLElement {
+  const h = div('menu-header');
+  h.innerHTML = `<h1>${title}</h1>${step ? stepPips(step, `Step ${step} / 3${sub ? ` · ${sub}` : ''}`) : sub ? `<div>${sub}</div>` : ''}`;
   return h;
 }
 
-function header(title: string, sub = ''): HTMLElement {
-  const h = div('menu-header');
-  h.innerHTML = `<h1>${title}</h1>${sub ? `<div>${sub}</div>` : ''}`;
-  return h;
+/** Three slanted pips (Stage / Car / Go); `step` of them lit (0 = the first, for the welcome screen), then the label. */
+function stepPips(step: number, label: string): string {
+  const on = Math.max(1, step);
+  return `<div class="menu-steps">${[1, 2, 3].map((n) => `<i${n <= on ? ' class="on"' : ''}></i>`).join('')}<span>${label}</span></div>`;
 }
 
 function buttons(
@@ -1743,6 +1815,17 @@ function cumulative(m: StageInfo): number[] {
       out[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z),
     );
   return out;
+}
+
+/** Inside of a stage plate: S number (the stage's place on its map: only a map with several stages, Galichica, goes past S1), name, map, length and surface. */
+export function stagePlateHtml(m: StageInfo): string {
+  const map = MAPS.find((x) => x.id === m.map)?.name;
+  const surfaces = [...new Set(m.surfaces)]
+    .map((s) => s.replace(/_/g, ' + '))
+    .join(' → ');
+  return `<b class="n">S${stagesOf(m.map).findIndex((x) => x.id === m.id) + 1}</b>
+    <div class="t"><b>${m.name}</b>
+    <small>${map && !m.name.includes(map) ? `${map} · ` : ''}${(stageLength(m) / 1000).toFixed(1)} km · ${surfaces}</small></div>`;
 }
 
 function stageLength(m: StageInfo): number {
@@ -1826,7 +1909,7 @@ function gearChart(def: CarPhysicsDef, scale: number, tyre: TyreId): string {
       const x = pad + i * ((w - pad * 2) / n) + 3;
       const y = h - 12 - bh;
       const top = i === n - 1;
-      return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${top ? '#f0a020' : '#5a6a7c'}"/><text x="${(x + bw / 2).toFixed(1)}" y="${h - 1}" text-anchor="middle">${i + 1}</text>${top ? `<text x="${(x + bw / 2).toFixed(1)}" y="${(y - 4).toFixed(1)}" text-anchor="middle" class="top">${Math.round(v * 3.6)}</text>` : ''}`;
+      return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="1"${top ? ' class="top"' : ''}/><text x="${(x + bw / 2).toFixed(1)}" y="${h - 1}" text-anchor="middle">${i + 1}</text>${top ? `<text x="${(x + bw / 2).toFixed(1)}" y="${(y - 4).toFixed(1)}" text-anchor="middle" class="top">${Math.round(v * 3.6)}</text>` : ''}`;
     })
     .join('');
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Speed at the redline per gear">${bars}</svg>`;
