@@ -74,6 +74,11 @@ export interface AssetMeta {
    * near the camera (up to the quality preset's `grassNear`), thinning to the rule's density further out.
    */
   nearBoost?: number;
+  /**
+   * Detail layer only: LOD 0 is for instances within this many metres of a road edge (set when placed, so nothing
+   * swaps as the car drives on); the rest start at LOD 1.
+   */
+  nearRoad?: number;
 }
 
 /** Standing fans (variants 0-23); 24-41 sit or squat (SPECTATOR_SEATED_FROM..). */
@@ -87,30 +92,22 @@ export const SPECTATOR_FLAG_COUNT = 12;
 /** Most grass the detail layer places near the camera (x the rule density; quality `grassNear` takes a share). */
 export const NEAR_GRASS = 3;
 
-/** Grass: blade strips up close (engine/grass.ts), crossed cards to 110 m. */
+/** Grass: blade strips on the verges (`nearRoad`), crossed cards to 110 m. */
 const GRASS_LODS: LodSpec[] = [
-  { maxDistance: 10, castShadow: false },
+  { maxDistance: 60, castShadow: false },
   { maxDistance: 110, castShadow: false },
 ];
+/** Grass verge with blade strips: this close to a road edge (m). */
+const GRASS_BLADES_ROAD = 3;
 
-/** Wheat: a model clump in front of the card patch within 4 m, 1 m card patches to 90 m (the parcel colour past that). */
-const WHEAT_LODS: LodSpec[] = [
-  { maxDistance: 4, castShadow: false, oneVariant: true },
-  { maxDistance: 90, castShadow: false },
-];
+/** Wheat: 1 m card patches baked from the model, to 90 m (the parcel colour past that). */
+const WHEAT_LODS: LodSpec[] = [{ maxDistance: 90, castShadow: false }];
 
 /**
- * Corn plants: the model (2.6k triangles) within 4 m, a crossed card to 35 m; the row cards (CORN_ROW_LODS) take over
- * from 30 m out to the grass range (the parcel colour past that).
+ * Corn: plant cards baked from the model along the roads (the map's rules), row cards further into the fields, both out
+ * to the grass range (the parcel colour past that).
  */
-const CORN_LODS: LodSpec[] = [
-  { maxDistance: 4, castShadow: false, oneVariant: true },
-  { maxDistance: 35, castShadow: false },
-];
-const CORN_ROW_LODS: LodSpec[] = [
-  { maxDistance: 30, castShadow: false },
-  { maxDistance: 110, castShadow: false },
-];
+const CORN_LODS: LodSpec[] = [{ maxDistance: 110, castShadow: false }];
 
 /** Vineyard rows: full detail (shadows) near, trunks + 2 cards to 220 m, the cards out to 700 m (seen across the plain). */
 const VINE_LODS: LodSpec[] = [
@@ -178,6 +175,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     variants: 2,
     lods: GRASS_LODS,
     nearBoost: NEAR_GRASS,
+    nearRoad: GRASS_BLADES_ROAD,
     tint: 0.2,
   },
   {
@@ -189,6 +187,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     variants: 2,
     lods: GRASS_LODS,
     nearBoost: NEAR_GRASS,
+    nearRoad: GRASS_BLADES_ROAD,
     tint: 0.18,
   },
   {
@@ -200,15 +199,16 @@ export const ASSET_CATALOG: AssetMeta[] = [
     variants: 2,
     lods: GRASS_LODS,
     nearBoost: NEAR_GRASS,
+    nearRoad: GRASS_BLADES_ROAD,
     tint: 0.16,
   },
-  // Field crops: the CC BY wheat / corn models up close, cards baked from them further out (engine/crops.ts).
+  // Field crops: cards baked from the CC BY wheat / corn models (engine/crops.ts).
   {
     id: 'wheat',
     name: 'Wheat (ripe)',
     category: 'vegetation',
     description:
-      'Ripe wheat clump (CC BY model) up close, baked 1 m card patches further out. Detail layer on wheat parcels.',
+      'Ripe wheat: 1 m card patches baked from the CC BY model. Detail layer on wheat parcels, denser along the roads.',
     variants: 4,
     lods: WHEAT_LODS,
     nearBoost: 2,
@@ -228,7 +228,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Corn plant',
     category: 'vegetation',
     description:
-      'Corn plant (CC BY model, cobs in husks) up close, a baked crossed card further out. Planted rows, detail layer.',
+      'Corn plant (CC BY model, cobs in husks) as a baked crossed card. Planted rows along the roads, detail layer.',
     variants: 4,
     lods: CORN_LODS,
   },
@@ -246,9 +246,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Corn row',
     category: 'vegetation',
     description:
-      'A 3 m stretch of a corn row as one baked card: the field seen from afar (nothing up close, where the plants stand).',
+      'A 3 m stretch of a corn row as one baked card: the fields away from the roads (the plants stand along them).',
     variants: 4,
-    lods: CORN_ROW_LODS,
+    lods: CORN_LODS,
   },
   {
     id: 'dry_corn_row',
@@ -256,7 +256,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     category: 'vegetation',
     description: 'A 3 m stretch of an autumn corn row as one baked card.',
     variants: 4,
-    lods: CORN_ROW_LODS,
+    lods: CORN_LODS,
   },
   {
     id: 'vine_row',

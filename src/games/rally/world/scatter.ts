@@ -94,6 +94,10 @@ export interface ScatterInstance {
   sz?: number;
   /** Drawn only within this distance (m) of the camera (a service lot far from the start: `ServiceLot.showWithin`). */
   showWithin?: number;
+  /** Detail: within its asset's `nearRoad` of a road, so drawn with the near LOD (catalog `nearRoad`). */
+  near?: boolean;
+  /** Detail: the extra grass near the roads (catalog `nearBoost`), thinned by the quality preset. */
+  extra?: boolean;
 }
 
 export interface ScatterChunk {
@@ -108,6 +112,9 @@ export interface ScatterChunk {
  * dense short-range plants (corn rows) would otherwise be built for every grass chunk out to the grass range.
  */
 export const NEAR_DETAIL_MAX = 40;
+
+/** Boosted grass (catalog `nearBoost`) is denser this close to a road edge (m). */
+export const NEAR_BOOST_ROAD = 14;
 
 const reachOf = (asset: string) => {
   const lods = getAssetMeta(asset).lods;
@@ -130,6 +137,8 @@ export class ScatterField {
   private n = new Vector3();
   /** Per rule: zone -> allowed (rules with `cover`). */
   private coverMasks = new Map<ScatterRule, Uint8Array>();
+  /** The extra rules of boosted grass (catalog `nearBoost`). */
+  private extraRules = new WeakSet<ScatterRule>();
   /** Placement index of the next hand-placed / road-side tree. */
   private fixedTrees = 0;
 
@@ -146,17 +155,25 @@ export class ScatterField {
   ) {
     this.maskNoise = new Noise2D(seed + 7);
     this.rules = scatter.filter((r) => !r.detail);
-    // Grass with a `nearBoost` is placed that much denser; the streamer thins it back away from the camera.
+    // Grass with a `nearBoost` is placed that much denser within NEAR_BOOST_ROAD of the roads (fixed, so nothing
+    // thins or fills in as the car drives on); the streamer keeps the quality preset's share of the extra.
     const detail = scatter
       .filter((r) => r.detail)
-      .map((r) => {
+      .flatMap((r) => {
         const boost = getAssetMeta(r.asset).nearBoost ?? 1;
-        return boost === 1 ? r : { ...r, density: r.density * boost };
+        if (boost === 1) return [r];
+        const extra = {
+          ...r,
+          density: r.density * (boost - 1),
+          maxRoadDist: Math.min(r.maxRoadDist ?? Infinity, NEAR_BOOST_ROAD),
+        };
+        this.extraRules.add(extra);
+        return [r, extra];
       });
     this.detailRules = detail.filter((r) => reachOf(r.asset) > NEAR_DETAIL_MAX);
     this.nearRules = detail.filter((r) => reachOf(r.asset) <= NEAR_DETAIL_MAX);
     if (ctx.landcover)
-      for (const r of scatter)
+      for (const r of [...scatter, ...detail])
         if (r.cover) this.coverMasks.set(r, ctx.landcover.zoneMask(r.cover));
   }
 
@@ -299,6 +316,8 @@ export class ScatterField {
       const solid = assetSolid(rule.asset);
       // Grass / plants never grow on other roads either (only up to their edge).
       const minPath = rule.minPathDist ?? (solid ? 1.5 : 0.4);
+      const nearRoad = tree ? undefined : getAssetMeta(rule.asset).nearRoad;
+      const extra = this.extraRules.has(rule);
       for (let i = 0; i < count; i++) {
         const x = pts ? pts[i * 2] : x0 + rng.next() * cs;
         const z = pts ? pts[i * 2 + 1] : z0 + rng.next() * cs;
@@ -378,6 +397,8 @@ export class ScatterField {
           tiltZ,
         };
         if (tree) this.poseTree(inst, hash3(cx, cz, ri * 65536 + i, 0x7ee5));
+        if (nearRoad !== undefined && rd < nearRoad) inst.near = true;
+        if (extra) inst.extra = true;
         out.push(inst);
       }
     }

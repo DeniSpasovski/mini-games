@@ -3,11 +3,8 @@ import { Rng } from '../../../../shared/rng';
 import { merge, paint, shade } from '../../engine/geo';
 import {
   cropCardMaterial,
-  cropGeometry,
-  cropMaterial,
   crossedCards,
-  SPRING_WHEAT,
-  type CropLook,
+  type CropCard,
 } from '../../engine/crops';
 import { bladeTuftGeometry, type GrassKind } from '../../engine/grass';
 import { getMaterial, type MaterialId } from '../../engine/materials';
@@ -122,52 +119,27 @@ export const tallWeeds = colouredGrass(
 
 // --- field crops (engine/crops.ts: the CC BY wheat and corn models, cards baked from them) ---
 
-/**
- * A crop: the model up close (`lod` 0), crossed cards baked from it further out. `nearCards`: the cards stay up close
- * too, behind the model (a wheat card is a patch of ~14 clumps; the model alone could never be that dense).
- */
-function crop(look: CropLook, planes: number, nearCards = false): AssetBuilder {
-  const model = look.endsWith('wheat') ? 'wheat' : 'corn';
-  return ({ seed, lod, variant }) => {
-    const cards = {
-      geometry: crossedCards(look, planes, seed, variant),
-      material: cropCardMaterial(look),
-    };
-    if (lod > 0) return { parts: [cards] };
-    const geometry = cropGeometry(model).clone();
-    if (look === 'green_wheat')
-      geometry.scale(SPRING_WHEAT, SPRING_WHEAT, SPRING_WHEAT);
-    const plant = {
-      geometry,
-      material: cropMaterial(look),
-    };
-    return { parts: nearCards ? [plant, cards] : [plant] };
-  };
-}
-
-/** Ripe wheat (summer) and green wheat (spring): a clump of the model in front of a 1 m card patch. */
-export const wheat = crop('wheat', 3, true);
-export const greenWheat = crop('green_wheat', 3, true);
-/** Corn: one plant of the model, a crossed card of it further out. */
-export const corn = crop('corn', 2);
-export const dryCorn = crop('dry_corn', 2);
-
-/** A 3 m stretch of a corn row as one card (far LOD; nothing close, where the plants stand). */
-function cornRow(card: 'corn_row' | 'dry_corn_row'): AssetBuilder {
-  return ({ seed, lod, variant }) => ({
-    parts:
-      lod === 0
-        ? []
-        : [
-            {
-              geometry: crossedCards(card, 1, seed, variant),
-              material: cropCardMaterial(card),
-            },
-          ],
+/** A crop: crossed cards baked from the model (the same at every distance, so nothing swaps near the car). */
+function crop(look: CropCard, planes: number): AssetBuilder {
+  return ({ seed, variant }) => ({
+    parts: [
+      {
+        geometry: crossedCards(look, planes, seed, variant),
+        material: cropCardMaterial(look),
+      },
+    ],
   });
 }
-export const cornRowCard = cornRow('corn_row');
-export const dryCornRowCard = cornRow('dry_corn_row');
+
+/** Ripe wheat (summer) and green wheat (spring): 1 m card patches. */
+export const wheat = crop('wheat', 3);
+export const greenWheat = crop('green_wheat', 3);
+/** Corn: a crossed card of one plant. */
+export const corn = crop('corn', 2);
+export const dryCorn = crop('dry_corn', 2);
+/** A 3 m stretch of a corn row as one card (the fields away from the roads). */
+export const cornRowCard = crop('corn_row', 1);
+export const dryCornRowCard = crop('dry_corn_row', 1);
 
 // --- vineyards (engine/vines.ts: posts, wires, trunks and painted canopy cards, per season) ---
 

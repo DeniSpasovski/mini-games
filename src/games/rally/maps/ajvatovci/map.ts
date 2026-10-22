@@ -463,7 +463,8 @@ export const ajvatovciMap: MapDef = {
       minRoadDist: 1,
       scale: [0.6, 1.1],
     },
-    // Field crops (landcover.fields.crops): wheat patches, corn planted in rows 0.75 m apart along the strips.
+    // Field crops (landcover.fields.crops): wheat patches, corn planted in rows 0.75 m apart along the strips (plant
+    // cards along the roads, 3 m row cards further in; fixed by road distance, so nothing swaps as the car drives on).
     ...(['wheat', 'green_wheat'] as const).map((crop) => ({
       asset: crop,
       cover: ['crop'],
@@ -488,6 +489,7 @@ export const ajvatovciMap: MapDef = {
           fields: true,
         },
         minRoadDist: 2.8,
+        maxRoadDist: 15,
         scale: [0.82, 1.15] as [number, number],
       },
       {
@@ -503,7 +505,7 @@ export const ajvatovciMap: MapDef = {
           keep: 1,
           fields: true,
         },
-        minRoadDist: 2.8,
+        minRoadDist: 15,
         scale: [0.92, 1.08] as [number, number],
       },
     ]),

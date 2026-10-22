@@ -28,7 +28,7 @@ import { groundLitCard } from './world-shading';
 /**
  * Field crops from two CC BY models (`assets/builders/crop-models.data.ts`, credits: THIRD-PARTY.md): a wheat clump
  * and a corn plant, their own triangles and texture. Seasons recolour the texture (green spring wheat, dry autumn
- * corn); the corn cobs wear husks cut from the model's own leaf. Further out the crops are cards: renders of the
+ * corn); the corn cobs wear husks cut from the model's own leaf. In game the crops are cards: renders of the
  * models baked once per page with the game's renderer (`bakeCropCards`), so they keep the models' look.
  */
 

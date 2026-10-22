@@ -61,9 +61,6 @@ const LAZY_BUDGET = 48 * 1024 * 1024;
 const LAZY_GRACE = 60;
 /** Instances this close to the commit focus are always drawn (m). */
 const NEAR = 60;
-/** Boosted grass is at its densest out to NEAR_GRASS_FULL m and back to the map's density by NEAR_GRASS_FADE m. */
-const NEAR_GRASS_FULL = 20;
-const NEAR_GRASS_FADE = 32;
 /** Re-pack the view window after the camera turned this far (rad). */
 const REPACK = (8 * Math.PI) / 180;
 
@@ -114,7 +111,7 @@ export interface StreamerOptions {
   lodScale: number;
   /** 0..1 fraction of detail (grass) instances kept. */
   detailDensity: number;
-  /** Grass density near the camera, x the map's (quality `grassNear`; default 1 = the map's everywhere). */
+  /** Grass density near the roads, x the map's (quality `grassNear`; default 1 = the map's everywhere). */
   grassNear?: number;
   /** Start a new rebuild after the camera moved this far (m). */
   rebuildDistance?: number;
@@ -414,29 +411,22 @@ export class InstanceStreamer {
         const dx = inst.x - focus.x;
         const dz = inst.z - focus.z;
         const dist = Math.sqrt(dx * dx + dz * dz);
-        // Boosted grass (catalog `nearBoost`): `grassNear`x the map's density out to NEAR_GRASS_FULL, the map's own
-        // density past NEAR_GRASS_FADE.
+        // The extra grass near the roads (catalog `nearBoost`): the quality preset's share of it (`grassNear`).
         const boost = d.meta.nearBoost;
-        if (detail && boost) {
-          const near = Math.min(boost, this.opts.grassNear ?? 1) / boost;
-          const t = Math.min(
-            1,
-            Math.max(
-              0,
-              (dist - NEAR_GRASS_FULL) / (NEAR_GRASS_FADE - NEAR_GRASS_FULL),
-            ),
-          );
-          const keep = near + (1 / boost - near) * t;
+        if (inst.extra && boost) {
+          const keep = (Math.min(boost, this.opts.grassNear ?? 1) - 1) / (boost - 1);
           if (
             hash3(Math.floor(inst.x * 10), Math.floor(inst.z * 10), 7) /
-              4294967296 >
+              4294967296 >=
             keep
           )
             continue;
         }
         if (dist > maxD) continue;
         let lod = -1;
-        for (let i = 0; i < lods.length; i++) {
+        // Near LOD by road distance (catalog `nearRoad`), fixed per instance: nothing swaps as the car drives on.
+        const first = d.meta.nearRoad !== undefined && !inst.near ? 1 : 0;
+        for (let i = first; i < lods.length; i++) {
           if (dist < lods[i].maxDistance * lodScale) {
             lod = i;
             break;
