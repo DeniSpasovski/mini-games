@@ -5,9 +5,11 @@ import {
   CircleGeometry,
   Color,
   CubeCamera,
+  DataUtils,
   DoubleSide,
   DirectionalLight,
   FogExp2,
+  HalfFloatType,
   HemisphereLight,
   MathUtils,
   Mesh,
@@ -19,6 +21,7 @@ import {
   Scene,
   SphereGeometry,
   type ToneMapping,
+  Vector2,
   Vector3,
   type Texture,
   WebGLCubeRenderTarget,
@@ -46,6 +49,7 @@ import {
   setWorldTime,
 } from './world-shading';
 import { displayExposure, onDisplayChange } from './display';
+import { setGrade, setGradeViewport } from './grade';
 import type { QualitySettings } from './quality';
 
 /** Tone-mapping operators a map can pick (`EnvironmentDef.toneMapping`, `?tonemap=` overrides for comparisons). */
@@ -75,7 +79,7 @@ export function sunAt(hour: number): { elevation: number; azimuth: number } {
   };
 }
 
-/** `?tod=<hours>` (try a time of day on any map with `timeOfDay`) and `?tonemap=aces|agx|neutral`. */
+/** `?tod=<hours>` (try a time of day on any map with `timeOfDay`), `?tonemap=aces|agx|neutral` and `?grade=off`. */
 function urlNumber(name: string): number | undefined {
   if (typeof location === 'undefined') return undefined;
   const v = new URLSearchParams(location.search).get(name);
@@ -135,6 +139,21 @@ export class Environment {
     // Box half-size 1500 m: keep camera.far >= ~2700 (corner distance). Drawn first, never writes depth.
     this.sky.scale.setScalar(3000);
     this.sky.renderOrder = -1;
+    // `skyBrightness`: the dome only (the env map keeps the full sky, so the world's sky light does not change).
+    const skyMat = this.sky.material;
+    skyMat.uniforms.skyGain = { value: 1 };
+    const out = 'gl_FragColor = vec4( texColor, 1.0 );';
+    if (!skyMat.fragmentShader.includes(out))
+      throw new Error('environment: Sky shader changed (three upgrade?)');
+    skyMat.fragmentShader = skyMat.fragmentShader
+      .replace('void main() {', 'uniform float skyGain;\nvoid main() {')
+      .replace(out, 'gl_FragColor = vec4( texColor * skyGain, 1.0 );');
+    // The grade's vignette needs the canvas size; the sky is drawn every day frame.
+    const size = new Vector2();
+    this.sky.onBeforeRender = (r) => {
+      r.getDrawingBufferSize(size);
+      setGradeViewport(size.x, size.y);
+    };
     scene.add(this.sky);
     scene.add(this.hemi);
 
@@ -165,7 +184,8 @@ export class Environment {
     const u = this.sky.material.uniforms;
     u.turbidity.value = def.turbidity;
     u.rayleigh.value = def.rayleigh;
-    u.mieCoefficient.value = 0.004;
+    u.mieCoefficient.value = def.mieCoefficient ?? 0.004;
+    u.skyGain.value = def.skyBrightness ?? 1;
     u.mieDirectionalG.value = 0.82;
     u.cloudCoverage.value = def.cloudCoverage ?? 0.4;
     u.cloudDensity.value = def.cloudDensity ?? 0.4;
@@ -231,13 +251,23 @@ export class Environment {
         urlString('tonemap') ??
           (this.night ? 'agx' : (def.toneMapping ?? 'aces')),
       ) ?? ACESFilmicToneMapping;
+    // Colour grade on top (engine/grade.ts): day only, never in the studio.
+    setGrade(
+      this.night || this.studio || urlString('grade') === 'off'
+        ? null
+        : def.grade,
+    );
 
     this.scene.fog = this.night
       ? new FogExp2(
           new Color(NIGHT.fogColor),
           def.fogDensity * NIGHT.fogDensity,
         )
-      : new FogExp2(new Color(def.fogColor), def.fogDensity);
+      : new FogExp2(
+          // 'sky': the sky's horizon, read once the env map is built (`rebuildEnvMap`).
+          new Color(def.fogColor === 'sky' ? '#c3c9cf' : def.fogColor),
+          def.fogDensity,
+        );
     // Cloud shadows, height fog + sun glow, foliage wind (engine/world-shading.ts).
     setWorldShading({
       sunDir: this.sunDir,
@@ -355,6 +385,8 @@ export class Environment {
     const cube = new WebGLCubeRenderTarget(32);
     new CubeCamera(0.1, 2000, cube).update(this.renderer, envScene);
     const intensity = this.scene.environmentIntensity;
+    if (!this.night && this.def.fogColor === 'sky' && this.scene.fog)
+      this.scene.fog.color.copy(this.horizonColor(envScene));
     void LightProbeGenerator.fromCubeRenderTarget(this.renderer, cube)
       .then((probe) => setTreeSky(probe.sh.coefficients, intensity))
       .finally(() => cube.dispose());
@@ -368,6 +400,42 @@ export class Environment {
       m.geometry.dispose();
       (m.material as MeshBasicMaterial).dispose();
     }
+  }
+
+  /**
+   * The sky's colour just above the horizon all round (a tiny half-float cube of the env scene: the four side faces'
+   * band up to ~11 deg), at the luminance `fogBrightness`: the sky dome is far brighter than lit ground, so fog at the
+   * sky's own radiance would turn distant hills white.
+   */
+  private horizonColor(envScene: Scene): Color {
+    const n = 16;
+    const rows = 2;
+    const cube = new WebGLCubeRenderTarget(n, { type: HalfFloatType });
+    new CubeCamera(0.1, 2000, cube).update(this.renderer, envScene);
+    const buf = new Uint16Array(n * rows * 4);
+    const sum = [0, 0, 0];
+    let count = 0;
+    // Faces +X, -X, +Z, -Z; CubeCamera's side faces are drawn upside down, so the sky is below the middle row.
+    for (const face of [0, 1, 4, 5]) {
+      this.renderer.readRenderTargetPixels(
+        cube,
+        0,
+        n / 2 - rows,
+        n,
+        rows,
+        buf,
+        face,
+      );
+      for (let i = 0; i < buf.length; i += 4) {
+        for (let c = 0; c < 3; c++)
+          sum[c] += DataUtils.fromHalfFloat(buf[i + c]);
+        count++;
+      }
+    }
+    cube.dispose();
+    const lum = 0.2126 * sum[0] + 0.7152 * sum[1] + 0.0722 * sum[2];
+    const k = (this.def.fogBrightness ?? 0.62) / Math.max(1e-6, lum);
+    return new Color().setRGB(sum[0] * k, sum[1] * k, sum[2] * k);
   }
 
   /**

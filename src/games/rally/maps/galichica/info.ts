@@ -50,11 +50,23 @@ export const galichicaInfo: MapInfo = {
     timeOfDay: 9,
     months: { spring: 5, summer: 7, autumn: 10 },
     cloudCoverage: 0.15,
-    turbidity: 3.5,
-    rayleigh: 1.4,
-    fogColor: '#c6d2dc',
+    // Crisp alpine air: a deep blue sky, little haze, blue distance.
+    turbidity: 2,
+    rayleigh: 2.2,
+    skyBrightness: 0.3,
+    fogColor: 'sky',
+    fogBrightness: 0.55,
     fogDensity: 0.00022,
-    exposure: 0.95,
+    exposure: 0.92,
+    grade: {
+      warmth: 0.05,
+      contrast: 1.15,
+      saturation: 1.1,
+      vibrance: 0.2,
+      // Shade leans blue-green instead of lavender.
+      shadowTint: { color: '#2f6f6a', amount: 0.08 },
+      vignette: 0.15,
+    },
     // Golden autumn pasture on the karst top.
     groundTint: { grass: '#a59a62', amount: 0.55 },
     groundTints: {
