@@ -228,6 +228,12 @@ export const skodaRally: CarDef = {
       matte: true,
       atlas: skodaRallyLivery,
       headBowls: true,
+      // The bulbs in the low and high beam bowls (measured on the model).
+      headBulbs: [
+        [0.465, 0.625, 1.735],
+        [0.605, 0.635, 1.61],
+        [0.625, 0.59, 1.61],
+      ],
     },
   },
 };

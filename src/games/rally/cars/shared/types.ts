@@ -184,6 +184,8 @@ export interface CarGltfDef {
    * this [|x|0, |x|1, y0, y1] box (true = the profile's front lamp box) light up with the headlights (CarModel.splitHeadBowls).
    */
   headBowls?: true | [number, number, number, number];
+  /** The head lamps' bulbs / projector lenses ([|x|, y, z] centres, left side, mirrored): the model's pieces there light up (CarModel.splitHeadBulbs). */
+  headBulbs?: [number, number, number][];
   /** Cut-outs painted another colour (wing end plates ...). */
   recolor?: CarGltfRecolor[];
   /** File name inside public/models/cars/, e.g. "skoda_rally.glb". */

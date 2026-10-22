@@ -37,6 +37,7 @@ export type PartName =
   | 'lenscover'
   | 'chrome'
   | 'headchrome'
+  | 'headbulb'
   | 'satin'
   | 'steel'
   | 'amber'
@@ -1919,7 +1920,19 @@ const BUILDERS: Record<PartName, () => Material> = {
         metalness: 1,
         envMapIntensity: 1.1,
       }),
-      1.4,
+      0.4,
+    ),
+  /** A head lamp's bulb or projector lens (`gltf.headBulbs`): polished metal / glass by day, the brightest part with the lights on. */
+  headbulb: () =>
+    headLamp(
+      new MeshPhysicalMaterial({
+        color: 0xc8ccd2,
+        emissive: 0xfff4e0,
+        roughness: 0.1,
+        metalness: 0.9,
+        envMapIntensity: 1.1,
+      }),
+      6,
     ),
   /** Brushed aluminium: window frames, roof rails. */
   satin: () =>

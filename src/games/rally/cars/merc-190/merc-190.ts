@@ -222,6 +222,11 @@ export const merc190: CarDef = {
       autoFit: false,
       atlas: merc190Livery,
       headBowls: true,
+      // The low and high beam bulbs in the reflector (measured on the model).
+      headBulbs: [
+        [0.41, 0.56, 1.69],
+        [0.585, 0.565, 1.67],
+      ],
     },
   },
 };

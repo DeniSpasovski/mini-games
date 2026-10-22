@@ -372,6 +372,9 @@ const HALO_BRAKE_DAY = 0;
 const HALO_HEAD = 1.1;
 /** How far (m) a chrome piece's centre may sit outside the profile's lamp box and still be a head lamp bowl (`gltf.headBowls`). */
 const BOWL_SLACK = 0.03;
+/** A piece is a listed bulb (`gltf.headBulbs`) when its centre is this close (m) and it is no bigger than `BULB_SIZE`. */
+const BULB_NEAR = 0.025;
+const BULB_SIZE = 0.12;
 /** A head lamp sheet piece whose centre is this far (m) behind the lamps' front is a side repeater / mirror lamp (`splitHeadExtras`). */
 const EXTRA_BEHIND = 0.4;
 /** A head lamp sheet piece wholly this far (m) below the main lamp is a fog lamp (`splitHeadExtras`). */
@@ -1133,6 +1136,7 @@ export class CarModel {
     const own = new Map<Material, MeshStandardMaterial>();
     this.root.updateWorldMatrix(true, true);
     this.splitCentreLamps();
+    this.splitHeadBulbs();
     this.splitHeadBowls();
     this.splitHeadExtras();
     const redLamps: Mesh[] = [];
@@ -1273,6 +1277,53 @@ export class CarModel {
       lamp.material = partMaterial(
         mesh.userData.partName === 'chrome' ? 'headchrome' : 'lenscover',
       )!;
+    }
+  }
+
+  /**
+   * `gltf.headBulbs`: the model's pieces (chrome, lamp housing) round each listed bulb are the bulb / projector lens, lit
+   * with the headlights; the rest of the lamp keeps its own material.
+   */
+  private splitHeadBulbs(): void {
+    const bulbs = this.def.model.gltf?.headBulbs;
+    if (!bulbs?.length) return;
+    const toBody = this.body.matrixWorld.clone().invert();
+    const meshes: Mesh[] = [];
+    this.root.traverse((o) => {
+      const mesh = o as Mesh;
+      const part = mesh.userData.partName;
+      if (
+        mesh.isMesh &&
+        mesh.visible &&
+        (part === 'chrome' || part === 'lamphousing') &&
+        !mesh.userData.bulbChecked
+      )
+        meshes.push(mesh);
+    });
+    const c = new Vector3();
+    const size = new Vector3();
+    for (const mesh of meshes) {
+      mesh.userData.bulbChecked = true;
+      const lit = splitLampPieces(
+        mesh,
+        toBody,
+        (b) => {
+          b.getCenter(c);
+          const r = Math.max(...b.getSize(size).toArray());
+          return (
+            r < BULB_SIZE &&
+            bulbs.some(
+              ([x, y, z]) =>
+                Math.hypot(Math.abs(c.x) - x, c.y - y, c.z - z) < BULB_NEAR,
+            )
+          );
+        },
+        'bulb',
+      );
+      if (!lit) continue;
+      if (lit !== mesh) this.owned.push(lit.geometry, mesh.geometry);
+      lit.userData.bulbChecked = lit.userData.extrasChecked = true;
+      lit.material = partMaterial('headbulb')!;
     }
   }
 
