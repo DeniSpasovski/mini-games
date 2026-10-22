@@ -258,6 +258,14 @@ export const bimmerM3: CarDef = {
       autoFit: false,
       // M3 ALMS livery (fitted to this mesh) + the matte black arch patch.
       atlas: bimmerM3Atlas,
+      // Twin round bowls in one lamp sheet: each lit from its own bulb.
+      headBowls: [0.38, 0.74, 0.54, 0.67],
+      headBulbs: [
+        [0.47, 0.605, 1.975],
+        [0.65, 0.6, 1.89],
+      ],
+      headScatter: ['twinlamp'],
+      bulbGlares: true,
     },
   },
 };

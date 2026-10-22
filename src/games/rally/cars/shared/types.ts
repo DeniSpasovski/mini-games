@@ -186,6 +186,10 @@ export interface CarGltfDef {
   headBowls?: true | [number, number, number, number];
   /** The head lamps' bulbs / projector lenses ([|x|, y, z] centres, left side, mirrored): the model's pieces there light up (CarModel.splitHeadBulbs). */
   headBulbs?: [number, number, number][];
+  /** Parts inside the `headBowls` box that glow from the `headBulbs` (default the chrome bowls and the lamp housing). */
+  headScatter?: string[];
+  /** One head lamp glare on each listed bulb (`headBulbs`) instead of one in the middle of each lamp (twin-bowl lamps). */
+  bulbGlares?: boolean;
   /** Cut-outs painted another colour (wing end plates ...). */
   recolor?: CarGltfRecolor[];
   /** File name inside public/models/cars/, e.g. "skoda_rally.glb". */

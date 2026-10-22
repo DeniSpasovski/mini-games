@@ -213,6 +213,14 @@ export const peugeot206: CarDef = {
         '"Peugeot 206" by Alvier, sketchfab.com/3d-models/peugeot-206-dc25a117378545e7a804c8594aa86938, CC BY 4.0 (converted + repainted)',
       autoFit: false,
       atlas: peugeot206Livery,
+      // The two ringed bowls, a bulb in each (measured on the model); the lamp's chrome back lit from them.
+      headBowls: [0.31, 0.72, 0.58, 0.76],
+      headBulbs: [
+        [0.55, 0.66, 1.435],
+        [0.62, 0.685, 1.38],
+      ],
+      headScatter: ['chrome', 'headled'],
+      bulbGlares: true,
     },
   },
 };

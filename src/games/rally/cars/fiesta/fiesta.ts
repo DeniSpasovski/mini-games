@@ -228,6 +228,11 @@ export const fiesta: CarDef = {
       autoFit: false,
       matte: false,
       atlas: fiestaLivery,
+      // The lamp's bulb (measured on the model); the cover and the lamp round it glow from it.
+      headBowls: true,
+      headBulbs: [[0.685, 0.705, 1.52]],
+      headScatter: ['lenscover', 'headlight'],
+      bulbGlares: true,
     },
   },
 };

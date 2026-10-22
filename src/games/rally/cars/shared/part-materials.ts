@@ -90,18 +90,24 @@ function headLamp<M extends Material & { emissiveIntensity: number }>(
 /**
  * The inside of a lit head lamp (reflector bowl, housing, cover) glows from its bulbs: brightest right round each bulb and
  * fading across the reflector, like the light scattered in a real lamp (a sim's painted glow map). `bulbs` are in the
- * mesh's own space; `radius` (m) is how far the glow spreads.
+ * mesh's own space; `radius` (m) is how far the glow spreads. `add` = the part's own glow stays (a lit lamp sheet) and the
+ * bulbs' glow, at this share of the part's full glow, comes on top.
  */
 export function bulbScatter<M extends Material>(
   m: M,
   bulbs: Vector3[],
   radius: number,
+  add?: number,
 ): M {
   const f = (x: number) => x.toFixed(4);
   const pts = bulbs.map((b) => `vec3(${f(b.x)}, ${f(b.y)}, ${f(b.z)})`);
-  const key = `bulbScatter ${pts.join()} ${radius}`;
+  // A lamp's own shader hook (`lampDepth`) runs first.
+  const before = m.onBeforeCompile.bind(m);
+  const ownKey = m.customProgramCacheKey();
+  const key = `${ownKey} bulbScatter ${pts.join()} ${radius} ${add}`;
   m.customProgramCacheKey = () => key;
-  m.onBeforeCompile = (shader) => {
+  m.onBeforeCompile = (shader, renderer) => {
+    before(shader, renderer);
     addWorldUniforms(shader);
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vBulbPos;')
@@ -121,7 +127,7 @@ export function bulbScatter<M extends Material>(
             vec3 d = vBulbPos - bulbs[i];
             g += exp(-dot(d, d) / ${f(radius * radius)});
           }
-          totalEmissiveRadiance *= min(g, 1.5);
+          ${add === undefined ? 'totalEmissiveRadiance *= min(g, 1.5);' : `totalEmissiveRadiance += emissive * ${f(add)} * min(g, 1.5);`}
         }`,
       );
   };

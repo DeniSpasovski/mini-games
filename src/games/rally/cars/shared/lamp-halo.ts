@@ -274,6 +274,8 @@ function maskTexture(
 /** A head lamp glare's size (m, across): the smallest lamp and the biggest. */
 const GLARE_MIN = 0.1;
 const GLARE_MAX = 0.45;
+/** A bulb's own glare (`bulbGlares`), m across. */
+const GLARE_BULB = 0.24;
 
 /**
  * Camera-facing glare (`LampHalos.addGlare`): the quad turns to the camera round its centre and steps 1/2 its size towards it
@@ -375,7 +377,12 @@ export class LampHalos {
   constructor(
     meshes: Mesh[],
     toBody: Matrix4,
-    opts: { reverse?: boolean; front?: boolean; color?: number } = {},
+    opts: {
+      reverse?: boolean;
+      front?: boolean;
+      color?: number;
+      bulbs?: [number, number, number][];
+    } = {},
   ) {
     const reverse = !!opts.reverse;
     const colour =
@@ -389,7 +396,8 @@ export class LampHalos {
     )) {
       this.boxes.push(lamp.box);
       if (opts.front) {
-        this.addGlare(lamp, colour);
+        if (!opts.bulbs || !this.addBulbGlares(lamp, colour, opts.bulbs))
+          this.addGlare(lamp, colour);
         continue;
       }
       const size = lamp.box.getSize(new Vector3());
@@ -471,6 +479,30 @@ export class LampHalos {
    * quad, which from an angle read as a lit sheet or a line). It shines when looking into the lamp and fades out by the time
    * the lamp is seen side-on, like a corona in a racing game; the lamp's own lit surface carries it from the side.
    */
+  /** A glare on each listed bulb ([|x|, y, z], body space) inside the lamp; false when none is. */
+  private addBulbGlares(
+    lamp: Lamp,
+    colour: Vector3,
+    bulbs: [number, number, number][],
+  ): boolean {
+    const side = Math.sign(lamp.box.min.x + lamp.box.max.x) || 1;
+    const box = lamp.box.clone().expandByScalar(0.03);
+    const inside = bulbs
+      .map(([x, y, z]) => new Vector3(side * x, y, z))
+      .filter((p) => box.containsPoint(p));
+    for (const p of inside) {
+      const material = glareMaterial(colour);
+      const glare = new Mesh(quad, material);
+      glare.scale.set(GLARE_BULB, GLARE_BULB, 1);
+      glare.position.set(p.x, p.y, lamp.box.max.z + SETBACK);
+      glare.renderOrder = 5;
+      glare.frustumCulled = false;
+      this.glares.push(material);
+      this.group.add(glare);
+    }
+    return inside.length > 0;
+  }
+
   private addGlare(lamp: Lamp, colour: Vector3): void {
     let area = 0;
     let x = 0;
