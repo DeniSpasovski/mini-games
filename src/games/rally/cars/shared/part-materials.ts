@@ -1910,8 +1910,8 @@ const BUILDERS: Record<PartName, () => Material> = {
       envMapIntensity: 1.1,
     }),
   /** Chrome headlamp reflector bowl (a car whose lamp is only the bowl, `gltf.remap`): polished metal by day, lit warm white with the lights on. */
-  headchrome: () =>
-    headLamp(
+  headchrome: () => {
+    const m = headLamp(
       new MeshPhysicalMaterial({
         color: 0xd8dce2,
         emissive: 0xffe9b0,
@@ -1919,8 +1919,20 @@ const BUILDERS: Record<PartName, () => Material> = {
         metalness: 1,
         envMapIntensity: 1.1,
       }),
-      1.4,
-    ),
+      1.6,
+    );
+    // A lit reflector is brightest where its surface faces the eye and dim on the walls seen edge-on, so the bowl keeps its
+    // shape instead of glowing as one flat sheet.
+    m.onBeforeCompile = (shader) => {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        totalEmissiveRadiance *= 0.35 + 0.65 * abs( dot( normal, normalize( vViewPosition ) ) );`,
+      );
+    };
+    m.customProgramCacheKey = () => 'headchrome';
+    return m;
+  },
   /** Brushed aluminium: window frames, roof rails. */
   satin: () =>
     new MeshStandardMaterial({
