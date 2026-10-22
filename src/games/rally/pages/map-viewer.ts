@@ -39,7 +39,7 @@ import { TreeLibrary } from '../trees/load';
 import { TreeStatsOverlay } from '../trees/overlay';
 import { worldToGeo } from '../world/real-data';
 import { newRoadQuery } from '../world/road';
-import { buildRoadMesh } from '../world/road-mesh';
+import { buildRoadMeshSliced } from '../world/road-mesh';
 import { getTerrainMaterial } from '../world/terrain-material';
 import { Horizon } from '../world/horizon';
 import { TerrainRenderer } from '../world/terrain-renderer';
@@ -134,7 +134,10 @@ void loadMap(state.map).then(async (map) => {
     horizon.setCutoff(size + RENDER_MARGIN * 2);
     scene.add(horizon.group);
   }
-  const road = buildRoadMesh(world);
+  const road = await buildRoadMeshSliced(
+    world,
+    () => new Promise((r) => setTimeout(r)),
+  );
   scene.add(road);
   const quality = loadQuality();
   const streamer = new InstanceStreamer(world, {

@@ -66,13 +66,14 @@ export function* plazaMeshJob(
     const ring: Vector2[] = [];
     for (let i = 0; i < p.pts.length; i += 2)
       ring.push(new Vector2(p.pts[i], p.pts[i + 1]));
-    for (const [i, j, k] of ShapeUtils.triangulateShape(ring, []))
+    for (const [i, j, k] of ShapeUtils.triangulateShape(ring, [])) {
       tri(
         [ring[i].x, ring[i].y],
         [ring[j].x, ring[j].y],
         [ring[k].x, ring[k].y],
       );
-    yield;
+      yield;
+    }
   }
   if (!pos.length) return undefined;
   const g = new BufferGeometry();
@@ -100,7 +101,7 @@ export function* plazaMeshJob(
   group.name = 'plazas';
   group.add(m);
   yield;
-  for (const mesh of islandMeshes(world)) group.add(mesh);
+  for (const mesh of yield* islandMeshes(world)) group.add(mesh);
   const cw = crosswalkMesh(world);
   if (cw) group.add(cw);
   yield;
@@ -386,7 +387,7 @@ const HATCH_TILE = 4;
  * Islands on the plazas (MapDef.plazaIslands): raised ones (traffic islands, medians, sidewalks) as a paved top
  * ISLAND_KERB over the plaza with a kerb face around the outline; painted medians as a flat pale area.
  */
-function islandMeshes(world: World): Mesh[] {
+function* islandMeshes(world: World): Generator<void, Mesh[]> {
   const plazas = world.gen.plazas;
   if (!plazas.islands.length) return [];
   const raised = {
@@ -448,8 +449,10 @@ function islandMeshes(world: World): Mesh[] {
           q.y / PAVE_TILE,
         );
     };
-    for (const [i, j, k] of ShapeUtils.triangulateShape(ring, []))
+    for (const [i, j, k] of ShapeUtils.triangulateShape(ring, [])) {
       topTri(ring[i], ring[j], ring[k]);
+      yield;
+    }
     if (il.kind === 'painted') {
       // Edge line: a 0.15 m band just inside each edge (the ring is counter-clockwise: inside is to the left).
       for (let i = 0; i < ring.length; i++) {

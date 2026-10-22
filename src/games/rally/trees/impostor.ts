@@ -17,7 +17,7 @@ import {
 } from 'three';
 import {
   ALPHA_TEST,
-  coverageMips,
+  coverageChains,
   hemiOctDecode,
   IMPOSTOR_FRAMES,
   IMPOSTOR_LAYERS,
@@ -279,9 +279,11 @@ export function impostorArray(
     data.set(px.albedo, layer * (L * i));
     data.set(px.normal, layer * (L * i + 1));
     data.set(px.thickness, layer * (L * i + 2));
-    const a = coverageMips(px.albedo, size, size, true, px.normal);
-    const b = coverageMips(px.albedo, size, size, true, px.thickness);
-    return [a.main, a.companion, b.companion];
+    const r = coverageChains(px.albedo, size, size, true, [
+      px.normal,
+      px.thickness,
+    ]);
+    return [r.main, r.companions[0], r.companions[1]];
   });
   const t = new DataArrayTexture(data, size, size, pixels.length * L);
   t.magFilter = LinearFilter;

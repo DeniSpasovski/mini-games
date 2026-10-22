@@ -115,6 +115,8 @@ interface BayCtx {
   face(bx: number, bz: number, tx: number, tz: number): number;
   /** True when nothing but a ground sheet stands within `r` m of (bx, bz). */
   clear(bx: number, bz: number, r: number): boolean;
+  /** A lean lot (`ServiceLot.mechanics`): mechanics per car, and only mechanics (no crew, drivers or guests). */
+  lean?: [number, number];
 }
 
 /**
@@ -149,6 +151,11 @@ export function serviceParkInstances(
   const rng = new Rng(hash3(5, 11, 3, seed));
   addPublicEdge(out, def, ctx, rng);
   if (def.startControl) addStartControl(out, ctx, rng);
+  // A lot that shows only up close: everything standing on it (and its tape, a few metres round it) carries the range.
+  for (const lot of def.lots)
+    if (lot.showWithin !== undefined)
+      for (const i of out.instances)
+        if (lotContains(lot, i.x, i.z, 4)) i.showWithin = lot.showWithin;
   return out;
 }
 
@@ -384,6 +391,7 @@ function buildBay(
     lotWorld(lot, uEast - bx, vBack - bz);
   const bay: BayCtx = {
     put(asset, variant, bx, bz, turn = 0, o = {}) {
+      if (lot.mechanics && LEAN_OMITS.has(asset)) return;
       const [x, z] = toWorld(bx, bz);
       if (ctx.blocked(x, z, o.r ?? 0.6, lot.paved)) {
         if (o.must) items.push(DROPPED);
@@ -404,6 +412,7 @@ function buildBay(
         must: !!o.must,
       });
     },
+    lean: lot.mechanics,
     face: (bx, bz, tx, tz) => Math.atan2(tx - bx, tz - bz),
     clear(bx, bz, r) {
       const [x, z] = toWorld(bx, bz);
@@ -433,6 +442,9 @@ function buildBay(
     centre: { x: cx, z: cz },
   };
 }
+
+/** People a lean lot (`ServiceLot.mechanics`) leaves out of its bays. */
+const LEAN_OMITS = new Set(['crew', 'driver', 'visitor']);
 
 /** Marker for a vehicle / car that could not stand: the bay is dropped. */
 const DROPPED: Item = {
@@ -565,7 +577,8 @@ function carSpot(
     must: true,
     r: 2.4,
   });
-  carCrew(bay, team, cx, cz, fwd, carVariant >= TEAM_COUNT, rng, people);
+  const crew = bay.lean ? rng.int(bay.lean[0], bay.lean[1]) : people;
+  carCrew(bay, team, cx, cz, fwd, carVariant >= TEAM_COUNT, rng, crew);
 }
 
 /** A visitor variant: any persona (ages, sizes, clothes), a pose from `firstPose` (0 = walking) to standing. */
@@ -879,7 +892,8 @@ function addPublicEdge(
       place('tape_post', 0, x, z, yawAlong(c, s), 0.2, 1.5);
     }
     // Crowd behind the tape (road side), watching the bays or the road; knots, not a line.
-    const crowd = Math.round(((def.crowd ?? 30) * lot.length) / 84);
+    const crowd =
+      lot.crowd ?? Math.round(((def.crowd ?? 30) * lot.length) / 84);
     const knots = Array.from(
       { length: 5 },
       () => rng.range(0.05, 0.95) * lot.length,
@@ -904,7 +918,8 @@ function addPublicEdge(
       }
     }
     // Press photographers just behind the tape, aiming at the bays (they follow the car when it passes).
-    const shooters = Math.max(def.ferme ? 1 : 2, Math.round(lot.length / 30));
+    const shooters =
+      lot.press ?? Math.max(def.ferme ? 1 : 2, Math.round(lot.length / 30));
     for (let i = 0; i < shooters; i++) {
       const u = rng.range(0.1, 0.9) * lot.length;
       const v = -rng.range(0.9, 2.6);
@@ -919,7 +934,9 @@ function addPublicEdge(
     // Visitors walking the aisle between the rows (a lot with one row: the walkway in front of the cars).
     const twoRows = !lot.semis && lot.width >= 2 * BAY_DEPTH + 4;
     const aisleV = lot.width / 2;
-    const visitors = Math.round(lot.length * (def.ferme ? 0.1 : 0.32));
+    const visitors = lot.mechanics
+      ? 0
+      : Math.round(lot.length * (def.ferme ? 0.1 : 0.32));
     for (let i = 0; i < visitors; i++) {
       const u = rng.range(2, lot.length - 2);
       const v = lot.parallel

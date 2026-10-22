@@ -40,6 +40,11 @@ export interface LodSpec {
   oneVariant?: boolean;
   /** One InstancedMesh per variant, never a merged variant set (heavy variants: every instance would run the vertex shader over all of them). */
   separateVariants?: boolean;
+  /**
+   * Costly to build (a person: tens of ms, ~100 ms close up): not built for every variant at load. The streamer builds
+   * it ahead of the camera, one at a time (`StreamerOptions.prefetch`), and draws the next cheaper LOD until it is there.
+   */
+  lazy?: boolean;
 }
 
 export interface AssetMeta {
@@ -59,6 +64,11 @@ export interface AssetMeta {
    * penalty (world/breakables.ts). `r` = radius and `h` = height (m, unscaled) of the hit test.
    */
   breakable?: { r: number; h: number; slow?: number };
+  /**
+   * Variants the load builds at the `lazy` LODs (default `[0]`): one per distinct set of materials, so every shader
+   * compiles behind the loading screen (a test checks that no other variant adds one).
+   */
+  warm?: number[];
 }
 
 /** Standing fans (variants 0-23); 24-41 sit or squat (SPECTATOR_SEATED_FROM..). */
@@ -81,10 +91,10 @@ const PROP_LODS: LodSpec[] = [
   { maxDistance: 260, castShadow: false },
 ];
 
-/** Figures: the base body and its clothes (~7k + ~10k triangles) close up, the same on the 2.5k mid mesh, the jointed low-poly one, a boxy body, then a two-box silhouette. */
+/** Figures: the base body and its clothes (~7k + ~10k triangles) close up, the same on the 2.5k mid mesh, the jointed low-poly one, a boxy body, then a two-box silhouette. The two detailed ones are `lazy`. */
 const PEOPLE_LODS: LodSpec[] = [
-  { maxDistance: 16, castShadow: true },
-  { maxDistance: 60, castShadow: true },
+  { maxDistance: 16, castShadow: true, lazy: true },
+  { maxDistance: 60, castShadow: true, lazy: true },
   { maxDistance: 220, castShadow: false },
   { maxDistance: 520, castShadow: false },
 ];
@@ -195,6 +205,8 @@ export const ASSET_CATALOG: AssetMeta[] = [
     variants:
       SPECTATOR_VARIANTS + SPECTATOR_SEATED_COUNT + SPECTATOR_FLAG_COUNT,
     lods: PEOPLE_LODS,
+    // The hand flag has its own material.
+    warm: [0, SPECTATOR_FLAG_FROM],
   },
   {
     id: 'mechanic',
