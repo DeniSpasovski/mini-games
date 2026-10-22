@@ -11,68 +11,93 @@ body {
   inset: 0;
 }
 
+/* HUD ("Stage Board" look, tokens in ui-tokens.css): every text group sits on a dark glass plate with the menu's 10deg
+   slant (a skewed ::before behind upright text), never bare over the sky. */
 .hud {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  color: #fff;
-  font-family: 'Segoe UI', system-ui, sans-serif;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  color: var(--ui-text);
+  font-family: var(--ui-font-body);
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.6);
   user-select: none;
+}
+.hud-top-left,
+.hud-top,
+.hud-dash,
+.hud-hints {
+  isolation: isolate;
+}
+.hud-top-left::before,
+.hud-top::before,
+.hud-dash::before,
+.hud-hints::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--ui-glass);
+  transform: skewX(var(--ui-slant));
 }
 
 .hud-top-left {
   position: absolute;
-  left: 18px;
+  left: 22px;
   top: 14px;
-  width: 240px;
+  width: 260px;
+  padding: 9px 18px 10px 20px;
+}
+.hud-top-left::before {
+  border-left: 4px solid var(--ui-accent);
 }
 .hud-test {
   display: inline-block;
   margin: 4px 0 2px;
   padding: 1px 6px;
-  border-radius: 3px;
-  background: rgba(217, 48, 79, 0.85);
-  font-size: 11px;
-  font-weight: 600;
+  border-radius: var(--ui-radius);
+  background: var(--ui-test);
+  font: 700 12px/1.3 var(--ui-font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   text-shadow: none;
 }
 .hud-title {
-  font-size: 13px;
-  letter-spacing: 1.5px;
+  font: italic 800 20px/1 var(--ui-font-display);
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  opacity: 0.85;
 }
 .hud-progress {
-  margin-top: 6px;
+  margin-top: 8px;
   height: 7px;
   display: flex;
-  gap: 3px;
+  gap: 4px;
 }
 .hud-progress .sector {
   flex-basis: 0;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
+  background: var(--ui-line);
+  transform: skewX(-30deg);
   overflow: hidden;
 }
 .hud-progress .sector div {
   height: 100%;
   width: 0;
-  background: #f0a020;
+  background: var(--ui-accent);
 }
 .hud-progress .sector.done div {
-  background: #e8e8e8;
+  background: var(--ui-text-2);
 }
 .hud-progress .sector.good div {
-  background: #3ddc6a;
+  background: var(--ui-faster);
 }
 .hud-progress .sector.bad div {
-  background: #ff4a3a;
+  background: var(--ui-slower);
 }
 .hud-dist {
-  margin-top: 3px;
-  font-size: 12px;
-  opacity: 0.8;
+  margin-top: 5px;
+  font: 600 15px/1 var(--ui-font-display);
+  letter-spacing: 0.05em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-text-2);
 }
 
 .hud-top {
@@ -80,22 +105,61 @@ body {
   top: 10px;
   left: 50%;
   transform: translateX(-50%);
+  min-width: 180px;
+  padding: 3px 24px 5px;
   text-align: center;
 }
-.hud-time {
-  font:
-    600 34px/1 'Consolas',
-    ui-monospace,
-    monospace;
-  letter-spacing: 1px;
+.hud-top::before {
+  border-bottom: 4px solid var(--ui-accent);
 }
+.hud-time {
+  font: italic 800 44px/1 var(--ui-font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+/* One chip per passed split: S1 time and its gap to the reference run (green faster, yellow slower). */
 .hud-splits {
-  margin-top: 4px;
-  font:
-    13px ui-monospace,
-    Consolas,
-    monospace;
-  opacity: 0.9;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+.hud-splits:empty {
+  display: none;
+}
+.hud-splits span {
+  position: relative;
+  isolation: isolate;
+  padding: 2px 10px;
+  font: 700 17px/1.1 var(--ui-font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+  text-shadow: none;
+}
+.hud-splits span::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--ui-raised-hover);
+  transform: skewX(var(--ui-slant));
+}
+.hud-splits span b {
+  margin-left: 6px;
+  font-weight: 800;
+}
+.hud-splits span.faster {
+  color: #fff;
+}
+.hud-splits span.faster::before {
+  background: var(--ui-faster);
+}
+.hud-splits span.slower {
+  color: var(--ui-on-accent);
+}
+.hud-splits span.slower::before {
+  background: var(--ui-slower);
 }
 
 .hud-center {
@@ -103,11 +167,10 @@ body {
   top: 30%;
   left: 50%;
   transform: translate(-50%, -50%) scale(0.9);
-  font:
-    800 56px/1 Impact,
-    'Arial Black',
-    sans-serif;
-  letter-spacing: 2px;
+  font: italic 800 72px/1 var(--ui-font-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  text-shadow: 0 3px 16px rgb(0 0 0 / 0.55);
   opacity: 0;
   transition:
     opacity 0.2s,
@@ -120,39 +183,46 @@ body {
   transform: translate(-50%, -50%) scale(1);
 }
 .hud-center.good {
-  color: #7dff8a;
+  color: var(--ui-rate-3);
 }
 .hud-center.bad {
-  color: #ff7a6a;
+  color: var(--ui-penalty);
 }
 .hud-center.small {
-  font-size: 28px;
+  font-size: 36px;
 }
 
 .hud-warn {
   position: absolute;
   top: 44%;
-  width: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 22px;
+  background: var(--ui-glass);
   text-align: center;
-  font: 700 22px system-ui;
-  color: #ffd040;
+  white-space: nowrap;
+  font: italic 800 28px/1.1 var(--ui-font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ui-slower);
+}
+.hud-warn:empty {
+  display: none;
 }
 
 .hud-warn.cut {
-  color: #ff5a3c;
-  text-shadow: 0 1px 3px #000a;
+  color: var(--ui-penalty);
+  text-shadow: none;
 }
 
 .hud-dash {
   position: absolute;
-  right: 22px;
+  right: 26px;
   bottom: 20px;
   display: flex;
   align-items: center;
   gap: 12px;
-  background: rgba(0, 0, 0, 0.35);
-  border-radius: 8px;
-  padding: 10px 12px;
+  padding: 10px 22px 10px 20px;
 }
 .hud-dash-main {
   width: 230px;
@@ -238,14 +308,14 @@ body {
 }
 .hud-rpm i {
   flex: 1;
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 1px;
+  background: var(--ui-line);
+  transform: skewX(-30deg);
 }
 .hud-rpm i.on {
-  background: #f0f0f0;
+  background: var(--ui-text);
 }
 .hud-rpm i.red {
-  background: #ff3a2a;
+  background: var(--ui-penalty);
 }
 .hud-row {
   display: flex;
@@ -254,75 +324,72 @@ body {
   margin-top: 6px;
 }
 .hud-gear {
-  font:
-    700 46px/1 Impact,
-    'Arial Black',
-    sans-serif;
-  color: #f0a020;
-  min-width: 40px;
+  font: italic 800 64px/1 var(--ui-font-display);
+  color: var(--ui-accent);
+  min-width: 44px;
 }
 .hud-speed {
-  font:
-    600 46px/1 'Consolas',
-    ui-monospace,
-    monospace;
+  font: italic 700 58px/1 var(--ui-font-display);
+  font-variant-numeric: tabular-nums;
 }
 .hud-speed small {
-  font-size: 13px;
-  margin-left: 4px;
-  opacity: 0.7;
+  font: 600 16px/1 var(--ui-font-display);
+  letter-spacing: 0.06em;
+  margin-left: 6px;
+  color: var(--ui-text-2);
 }
 .hud-flags {
   display: flex;
   gap: 8px;
-  font-size: 11px;
   margin-top: 4px;
-  opacity: 0.85;
+  font: 700 13px/1.2 var(--ui-font-display);
+  letter-spacing: 0.08em;
 }
 .hud-flags span {
-  padding: 1px 6px;
-  border: 1px solid rgba(255, 255, 255, 0.35);
-  border-radius: 3px;
-  color: rgba(255, 255, 255, 0.4);
+  padding: 1px 7px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  color: var(--ui-text-off);
+  text-shadow: none;
 }
 .hud-flags span.on {
-  color: #fff;
+  color: var(--ui-text);
 }
 .hud-flags span.active {
-  background: #f0a020;
-  color: #000;
-  text-shadow: none;
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
+  color: var(--ui-on-accent);
 }
 
 .hud-hints {
   position: absolute;
-  left: 18px;
+  left: 22px;
   bottom: 16px;
-  font-size: 12px;
+  padding: 8px 20px 8px 18px;
+  font-size: 13px;
   line-height: 1.6;
-  opacity: 0.85;
   transition: opacity 1.5s;
-  background: rgba(0, 0, 0, 0.3);
-  padding: 6px 10px;
-  border-radius: 6px;
 }
 .hud-hints.fade {
   opacity: 0;
 }
 .hud-hints b {
-  color: #f0a020;
+  color: var(--ui-accent);
 }
 
-/* --- overlays (loading / pause / results) -------------------------------- */
+/* --- overlays (loading / pause / results) --------------------------------
+   Loading and results are a centred glass box with the amber edge; the pause menu is the menu's slab, so the
+   slanted .menu-btn rows look the same in both. */
 .overlay {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(8, 10, 14, 0.72);
-  color: #eee;
-  font-family: system-ui, sans-serif;
+  background: rgb(var(--ui-glass-rgb) / 0.6);
+  color: var(--ui-text);
+  font-family: var(--ui-font-body);
+  font-weight: 500;
   z-index: 30;
 }
 .overlay.hidden {
@@ -331,84 +398,117 @@ body {
 .overlay .box {
   min-width: 320px;
   max-width: 90vw;
-  background: #161a20;
-  border: 1px solid #2c333d;
-  border-radius: 10px;
-  padding: 22px 24px;
+  background: var(--ui-glass);
+  box-shadow: inset 4px 0 0 var(--ui-accent);
+  border-radius: var(--ui-radius);
+  padding: 22px 26px 22px 30px;
 }
 .overlay h2 {
   margin: 0 0 14px;
-  font-size: 20px;
-  letter-spacing: 1px;
+  font: italic 800 36px/1 var(--ui-font-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 .overlay .bar {
   height: 8px;
-  background: #2a3038;
-  border-radius: 4px;
+  background: var(--ui-line);
+  transform: skewX(-30deg);
   overflow: hidden;
 }
 .overlay .bar div {
   height: 100%;
   width: 0;
-  background: #f0a020;
+  background: var(--ui-accent);
   transition: width 0.2s;
 }
 .overlay .status {
-  margin-top: 8px;
-  font-size: 12px;
-  color: #8b95a3;
+  margin-top: 10px;
+  font: 600 15px/1.2 var(--ui-font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ui-text-2);
 }
 .overlay .menu {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
-.overlay button,
+/* Loading: the stage card (aerial picture, set by play.ts as --card) under dark glass. */
+.overlay.loading {
+  background:
+    linear-gradient(
+      rgb(var(--ui-glass-rgb) / 0.72),
+      rgb(var(--ui-glass-rgb) / 0.72)
+    ),
+    var(--card, none) center / cover no-repeat,
+    var(--ui-glass);
+}
+/* Pause: the menu slab, full height on the left (the stage stays visible and dimmed on the right). */
+.overlay.pause {
+  align-items: stretch;
+  justify-content: flex-start;
+}
+.overlay.pause .box {
+  box-sizing: border-box;
+  width: min(496px, 100%);
+  min-width: 0;
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 24px 80px 24px 32px;
+  border-radius: 0;
+  box-shadow: none;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 56px) 100%, 0 100%);
+}
+.overlay.pause .menu-options {
+  min-width: 0;
+}
+.overlay button:not(.menu-btn),
 .overlay select,
-.overlay a.btn {
+.overlay a.btn:not(.menu-btn) {
   font: inherit;
   padding: 8px 12px;
-  border-radius: 6px;
-  border: 1px solid #333b46;
-  background: #222830;
-  color: #eee;
+  border-radius: var(--ui-radius);
+  border: 1px solid var(--ui-line);
+  background: var(--ui-raised);
+  color: var(--ui-text);
   cursor: pointer;
   text-align: left;
   text-decoration: none;
 }
-.overlay button:hover,
-.overlay button:focus-visible,
-.overlay a.btn:hover {
-  border-color: #f0a020;
+.overlay button:not(.menu-btn):hover,
+.overlay button:not(.menu-btn):focus-visible,
+.overlay a.btn:not(.menu-btn):hover {
+  border-color: var(--ui-accent);
 }
 .overlay label {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  font-size: 13px;
-  color: #aab3bf;
+  font-size: 14px;
+  color: var(--ui-text-2);
 }
 .overlay .yours {
   margin: 8px 0 14px;
   padding: 10px 14px 12px;
-  border-radius: 8px;
-  border: 2px solid #f0a020;
-  background: rgba(240, 160, 32, 0.1);
+  border-radius: var(--ui-radius);
+  background: rgb(var(--ui-accent-rgb) / 0.12);
+  box-shadow: inset 4px 0 0 var(--ui-accent);
 }
 .overlay .yours .label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font: 700 14px/1 var(--ui-font-display);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #f0a020;
+  color: var(--ui-accent);
 }
 .overlay .result {
-  font:
-    700 52px ui-monospace,
-    Consolas,
-    monospace;
-  margin: 2px 0 2px;
+  font: italic 800 64px/1 var(--ui-font-display);
+  font-variant-numeric: tabular-nums;
+  margin: 4px 0 2px;
 }
 /* Stage results: a wide two-column window - your time + buttons left, the leaderboard (with set-up columns) right;
    one column on narrow screens, scrolls when taller than the screen. */
@@ -463,7 +563,7 @@ body {
   }
 }
 .overlay .sub {
-  color: #aab3bf;
+  color: var(--ui-text-2);
   font-size: 13px;
   margin-bottom: 8px;
 }
@@ -544,7 +644,7 @@ body {
   border-color: rgba(255, 110, 90, 0.6);
 }
 .touch-btn.on {
-  background: rgba(240, 160, 32, 0.55);
+  background: rgb(var(--ui-accent-rgb) / 0.55);
   transform: scale(0.94);
 }
 .touch-pause,
