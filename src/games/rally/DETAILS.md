@@ -192,9 +192,9 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   `groundTint.moisture` sets the strength (0 = off).
 - **Field crops** (`landcover.fields.crops`, Ajvatovci): each field parcel's palette entry names the crop standing on it per
   season, and scatter rules with `crop` grow only there (`TerrainGenerator.cropAt`, not within 0.8 m of a parcel edge).
-  Wheat is green and short in spring, ripe in summer and gone in autumn (stubble tint); corn is bare sown soil in spring,
-  tall in summer and dry in autumn. Both stand at least 2 m clear of the stage road. Wheat: 1 m card patches to 90 m. Corn: rows 0.75 m
-  apart along the strips (`rows.fields`), plant cards within 15 m of a road, 3 m row cards further in, both to 110 m. The models are
+  Wheat is green and short in spring, ripe in summer and gone in autumn (stubble tint): 1 m card patches to 90 m, at
+  least 2 m clear of the stage road. Corn (assets `corn`, `corn_row`, dry versions; no stage grows it yet): rows 0.75 m
+  apart along the strips (`rows.fields`), plant cards near the roads, 3 m row cards further in. The models are
   two CC BY Sketchfab models (`THIRD-PARTY.md`) baked by `scripts/crops/bake-crops.py` into `crop-models.data.ts`; the
   cards are rendered from them once per page (`engine/crops.ts` `bakeCropCards`), 4 variants each with their own mix of
   plant heights (stacked in one texture; the asset variant picks one) so the field tops are uneven. Near detail

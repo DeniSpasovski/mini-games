@@ -116,8 +116,8 @@ export const ajvatovciMap: MapDef = {
       vineyard: [0.5, 0.5, 0, 0],
       cemetery: [0.8, 0.12, 0, 0.08],
     },
-    // Long strips running NNE like the real parcels: meadow / fodder (green), ploughed, corn (soil between the rows)
-    // and wheat (weight left unused = the season's crop tint: green in spring, golden in summer, stubble in autumn).
+    // Long strips running NNE like the real parcels: meadow / fodder (green), ploughed and wheat (weight left unused =
+    // the season's crop tint: green in spring, golden in summer, stubble in autumn).
     fields: {
       covers: ['crop'],
       angle: -1.2,
@@ -130,18 +130,18 @@ export const ajvatovciMap: MapDef = {
         [1, 0, 0, 0],
         [0.94, 0.06, 0, 0],
         [0.94, 0.06, 0, 0],
-        [0.8, 0.2, 0, 0],
+        [0, 0.04, 0, 0],
         [0.75, 0, 0, 0],
         [0.1, 0.9, 0, 0],
-        [0.3, 0.7, 0, 0],
         [0, 0.04, 0, 0],
         [0, 0.04, 0, 0],
         [0, 0.04, 0, 0],
         [0, 0.04, 0, 0],
-        [0.6, 0.4, 0, 0],
+        [0, 0.04, 0, 0],
+        [0, 0.04, 0, 0],
       ],
-      // What stands on each palette entry (index as above): winter wheat is green in April, ripe in July and cut by
-      // October (stubble); corn is only just sown in April (bare soil), tall in July, dry or harvested in October.
+      // What stands on each palette entry (index as above): winter wheat, green in April, ripe in July and cut by
+      // October (stubble). No corn here (that's the Palanka side).
       crops: {
         spring: [
           null,
@@ -150,15 +150,15 @@ export const ajvatovciMap: MapDef = {
           null,
           null,
           null,
-          null,
-          null,
+          'green_wheat',
           null,
           null,
           'green_wheat',
           'green_wheat',
           'green_wheat',
           'green_wheat',
-          null,
+          'green_wheat',
+          'green_wheat',
         ],
         summer: [
           null,
@@ -167,32 +167,15 @@ export const ajvatovciMap: MapDef = {
           null,
           null,
           null,
-          'corn',
+          'wheat',
           null,
           null,
-          'corn',
           'wheat',
           'wheat',
           'wheat',
           'wheat',
-          'corn',
-        ],
-        autumn: [
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          'dry_corn',
-          null,
-          null,
-          'dry_corn',
-          null,
-          null,
-          null,
-          null,
-          null,
+          'wheat',
+          'wheat',
         ],
       },
     },
@@ -463,8 +446,7 @@ export const ajvatovciMap: MapDef = {
       minRoadDist: 1,
       scale: [0.6, 1.1],
     },
-    // Field crops (landcover.fields.crops): wheat patches, corn planted in rows 0.75 m apart along the strips (plant
-    // cards along the roads, 3 m row cards further in; fixed by road distance, so nothing swaps as the car drives on).
+    // Field crops (landcover.fields.crops): wheat patches.
     ...(['wheat', 'green_wheat'] as const).map((crop) => ({
       asset: crop,
       cover: ['crop'],
@@ -474,41 +456,6 @@ export const ajvatovciMap: MapDef = {
       minRoadDist: 2.5,
       scale: [0.85, 1.1] as [number, number],
     })),
-    ...(['corn', 'dry_corn'] as const).flatMap((crop) => [
-      {
-        asset: crop,
-        cover: ['crop'],
-        crop,
-        density: 0,
-        detail: true,
-        rows: {
-          spacing: 0.3,
-          rowSpacing: 0.75,
-          jitter: 0.08,
-          keep: 0.95,
-          fields: true,
-        },
-        minRoadDist: 2.8,
-        maxRoadDist: 15,
-        scale: [0.82, 1.15] as [number, number],
-      },
-      {
-        asset: `${crop}_row`,
-        cover: ['crop'],
-        crop,
-        density: 0,
-        detail: true,
-        rows: {
-          spacing: 3,
-          rowSpacing: 0.75,
-          jitter: 0.04,
-          keep: 1,
-          fields: true,
-        },
-        minRoadDist: 15,
-        scale: [0.92, 1.08] as [number, number],
-      },
-    ]),
   ],
   roadside: [
     // Lamps along the hill road (as on the street-view photos).
