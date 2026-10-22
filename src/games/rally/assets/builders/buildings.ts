@@ -55,16 +55,6 @@ function tris(points: number[][], color: string, layer = -1): BufferGeometry {
   return setLayer(planarUV(paint(g, color), 0.3), layer);
 }
 
-/** Quad a-b-c-d (counter-clockwise seen from outside) as two triangles. */
-const quad = (a: number[], b: number[], c: number[], d: number[]) => [
-  a,
-  b,
-  c,
-  a,
-  c,
-  d,
-];
-
 /** Windows (and a door) on the four walls, protruding a hair from the faces. */
 function openings(
   parts: BufferGeometry[],
@@ -135,23 +125,56 @@ export const housePitched: AssetBuilder = ({ seed, variant, lod }) => {
         );
     openings(parts, rows, W, style === 3 ? '#9a9890' : '#f2f0ea', '#5b3b28');
   }
-  // Roof.
+  // Roof: a slab with a top, an underside and edges (tile thickness `T`), so it holds up from below and from the side.
   const o = 0.07; // eave overhang
+  const T = 0.02; // slab thickness (unit height)
   const y0 = W - 0.015;
   const X = 0.5 + o;
   const Z = 0.5 + o;
-  const pts: number[][] = [];
+  // Roof planes (polygons) and the outer edges of the slab (the ridge and the hip lines are shared, no edge there).
+  let planes: number[][][];
+  let outline: number[][][];
   if (style % 2 === 0) {
     // Hip: ridge along x.
     const rx = 0.24;
-    pts.push(...quad([-X, y0, Z], [X, y0, Z], [rx, 1, 0], [-rx, 1, 0]));
-    pts.push(...quad([X, y0, -Z], [-X, y0, -Z], [-rx, 1, 0], [rx, 1, 0]));
-    pts.push([X, y0, Z], [X, y0, -Z], [rx, 1, 0]);
-    pts.push([-X, y0, -Z], [-X, y0, Z], [-rx, 1, 0]);
+    const a = [-X, y0, Z];
+    const b = [X, y0, Z];
+    const c = [X, y0, -Z];
+    const d = [-X, y0, -Z];
+    const r1 = [rx, 1, 0];
+    const r0 = [-rx, 1, 0];
+    planes = [
+      [a, b, r1, r0],
+      [c, d, r0, r1],
+      [b, c, r1],
+      [d, a, r0],
+    ];
+    outline = [
+      [a, b],
+      [b, c],
+      [c, d],
+      [d, a],
+    ];
   } else {
-    // Gable: ridge along x, triangular gable walls at the ends.
-    pts.push(...quad([-X, y0, Z], [X, y0, Z], [X, 1, 0], [-X, 1, 0]));
-    pts.push(...quad([X, y0, -Z], [-X, y0, -Z], [-X, 1, 0], [X, 1, 0]));
+    // Gable: ridge along x, triangular gable walls at the ends; the roof overhangs them.
+    const a = [-X, y0, Z];
+    const b = [X, y0, Z];
+    const c = [X, y0, -Z];
+    const d = [-X, y0, -Z];
+    const r1 = [X, 1, 0];
+    const r0 = [-X, 1, 0];
+    planes = [
+      [a, b, r1, r0],
+      [c, d, r0, r1],
+    ];
+    outline = [
+      [a, b],
+      [c, d],
+      [b, r1],
+      [r1, c],
+      [d, r0],
+      [r0, a],
+    ];
     parts.push(
       tris(
         [
@@ -167,13 +190,55 @@ export const housePitched: AssetBuilder = ({ seed, variant, lod }) => {
       ),
     );
   }
-  // Soffit under the eaves (seen from the road).
-  pts.push(...quad([-X, y0, -Z], [X, y0, -Z], [X, y0, Z], [-X, y0, Z]));
-  const rg = tris(pts, roof, HOUSE_LAYER.roof);
-  shade(rg, (_x, y) =>
-    y < y0 + 0.001 ? 0.55 : 0.85 + 0.15 * ((y - y0) / (1 - y0)),
-  );
+  const down = (p: number[]) => [p[0], p[1] - T, p[2]];
+  const fan = (poly: number[][], facing: number[]): number[][] => {
+    // Triangle fan of a convex polygon, wound so its normal points along `facing`.
+    const out: number[][] = [];
+    for (let k = 1; k < poly.length - 1; k++)
+      out.push(poly[0], poly[k], poly[k + 1]);
+    const [p0, p1, p2] = out;
+    const u = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]];
+    const v = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]];
+    const n = [
+      u[1] * v[2] - u[2] * v[1],
+      u[2] * v[0] - u[0] * v[2],
+      u[0] * v[1] - u[1] * v[0],
+    ];
+    const dot = n[0] * facing[0] + n[1] * facing[1] + n[2] * facing[2];
+    if (dot >= 0) return out;
+    // Reverse every triangle.
+    const rev: number[][] = [];
+    for (let k = 0; k < out.length; k += 3)
+      rev.push(out[k], out[k + 2], out[k + 1]);
+    return rev;
+  };
+  const centre = [0, (y0 + 1) / 2, 0];
+  const top: number[][] = [];
+  const under: number[][] = [];
+  const edges: number[][] = [];
+  for (const poly of planes) {
+    top.push(...fan(poly, [0, 1, 0]));
+    under.push(...fan(poly.map(down), [0, -1, 0]));
+  }
+  for (const [p, q] of outline) {
+    const mid = [
+      (p[0] + q[0]) / 2,
+      (p[1] + q[1]) / 2 - T / 2,
+      (p[2] + q[2]) / 2,
+    ];
+    edges.push(
+      ...fan(
+        [p, q, down(q), down(p)],
+        [mid[0] - centre[0], mid[1] - centre[1], mid[2] - centre[2]],
+      ),
+    );
+  }
+  const rg = tris(top, roof, HOUSE_LAYER.roof);
+  shade(rg, (_x, y) => 0.85 + 0.15 * ((y - y0) / (1 - y0)));
   parts.push(rg);
+  // Underside (rafters, in shadow) and the thin edge of the tiles.
+  parts.push(tris(under, '#8a7666'));
+  parts.push(tris(edges, '#8c6650'));
   return {
     parts: [{ geometry: merge(parts), material: getMaterial('house') }],
   };
