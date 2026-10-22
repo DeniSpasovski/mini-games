@@ -88,6 +88,8 @@ export interface ScatterInstance {
   sx?: number;
   sy?: number;
   sz?: number;
+  /** Drawn only within this distance (m) of the camera (a service lot far from the start: `ServiceLot.showWithin`). */
+  showWithin?: number;
 }
 
 export interface ScatterChunk {

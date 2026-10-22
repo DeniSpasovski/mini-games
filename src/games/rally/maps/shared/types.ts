@@ -789,6 +789,20 @@ export interface ServiceLot {
   tow?: boolean;
   /** Where dirt links cross the verge to the road (`linkPad`): u along the lot (m); tape, crowd and press keep clear of them. */
   links?: number[];
+  /**
+   * A lean lot: each car has just this many mechanics [min, max] round it (no crew, drivers, guests or aisle visitors).
+   * Default: the full crew of a team bay.
+   */
+  mechanics?: [number, number];
+  /** Spectators along this lot's public edge (default: `ServicePark.crowd` scaled to the lot's length). */
+  crowd?: number;
+  /** Press photographers along the public edge (default: one per 30 m, at least 2). */
+  press?: number;
+  /**
+   * Drawn only within this many metres of the camera, whatever the asset's own range: a lot far from the start, seen
+   * once the player drives back (free drive), costs nothing until then.
+   */
+  showWithin?: number;
 }
 
 /** A rally service park (paddock) at a stage start: team bays on the lots, a crowd on the public edge. */
@@ -969,7 +983,7 @@ export interface CornerFansRule {
   maxRadius?: number;
   /** Share of the windows that get a group if they hold a corner (0..1, default 0.5). */
   chance?: number;
-  /** Spectators per group [min, max] (default [3, 8]). */
+  /** Spectators per group [min, max] (default [2, 5]). */
   fans?: [number, number];
   /** Share of the groups with 1-3 flags (default 0.6). */
   flagChance?: number;

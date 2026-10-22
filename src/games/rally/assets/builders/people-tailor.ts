@@ -512,9 +512,11 @@ export function split(
     }
     if (inside.idx.length) {
       // Distance to the nearest edge: what the raise slopes with.
-      const edge = field(inside, (i) =>
-        Math.min(...fs.map((fk) => fk(inside, i))),
-      );
+      const edge = field(inside, (i) => {
+        let m = Infinity;
+        for (const fk of fs) m = Math.min(m, fk(inside, i));
+        return m;
+      });
       inside = withField(inside, 'f', edge);
       if (o.raise) {
         const pos = new Float32Array(inside.a.pos);

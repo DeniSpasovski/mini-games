@@ -10,10 +10,18 @@ import {
   Vector3,
 } from 'three';
 import { ASSET_CATALOG, getAssetMeta, type AssetMeta } from '../assets/catalog';
-import { getAsset, getVariantSet } from '../assets/library';
+import {
+  canBuildAway,
+  evictAsset,
+  getAsset,
+  getVariantSet,
+  hasAsset,
+  requestAsset,
+} from '../assets/library';
 import { variantDepthMaterial } from '../engine/materials';
 import { hash3 } from '../../../shared/rng';
 import { isTreeType } from '../trees/species';
+import { BuildQueue, evictions, type Held, type Want } from './build-queue';
 import { CORNER_FAN_ASSETS } from './corner-fans';
 import { ParkCars } from './park-car-mesh';
 import { SERVICE_PARK_ASSETS } from './service-park';
@@ -40,6 +48,17 @@ import type { World } from './world';
  * Shadow casters (LOD0) are always drawn whole: things behind the camera throw shadows into the view.
  */
 const BINS = 360;
+/** Levels the workers build at once while driving (each takes the next as soon as one is done). */
+const MAX_PENDING = 4;
+/** New `lazy` buckets one rebuild may start drawing (their geometry uploads to the GPU on the first draw). */
+const MAX_FRESH = 3;
+/** Without a worker: the pause between two builds on this thread (ms), at least this many times a build's own duration. */
+const GAP_MS = 60;
+const SHARE = 3;
+/** Built `lazy` levels (their geometry, in memory and on the GPU) kept at most this many bytes: idle ones go first. */
+const LAZY_BUDGET = 48 * 1024 * 1024;
+/** A level counts as unused after this many rebuilds without an instance (one per `rebuildDistance`: ~600 m). */
+const LAZY_GRACE = 60;
 /** Instances this close to the commit focus are always drawn (m). */
 const NEAR = 60;
 /** Re-pack the view window after the camera turned this far (rad). */
@@ -64,6 +83,9 @@ interface Bucket {
   /** First committed position of each bin (0 = near, 1..BINS = angle; BINS + 2 entries), null = drawn whole. */
   binStart: Uint32Array | null;
   drawnCount: number;
+  /** A `lazy` level (people close up): built on demand, dropped when unused (`evict`); `used` = `commits` at its last use. */
+  lazy: boolean;
+  used: number;
   // Staging (filled by the job, copied on commit).
   sMat: Float32Array;
   sCol: Float32Array;
@@ -98,6 +120,12 @@ export interface StreamerOptions {
    * distance, so no tree / house stands past the streamed ground. Unset = the longest LOD distance.
    */
   maxDistance?: number;
+  /**
+   * The game: levels flagged `lazy` (people close up) are not built for every variant at load. They are built one at a
+   * time ahead of the camera (BuildQueue) and an instance draws the next cheaper LOD until its level is there; `updateNow`
+   * builds what the view needs at once. Unset (tools, tests): built where they are first needed.
+   */
+  prefetch?: boolean;
 }
 
 /** Longest last-LOD distance of any asset (power pylons, buildings): the widest chunk sweep needed. */
@@ -136,6 +164,20 @@ export class InstanceStreamer {
   private view: { yaw: number; half: number } | null = null;
   /** The service park's team cars: real car models, drawn apart from the instance buckets (`team_car` is a collider). */
   private parkCars: ParkCars | null = null;
+  /** `lazy` levels still to build (`opts.prefetch`). */
+  private queue = new BuildQueue();
+  /** Levels the worker is building, and who waits for it to finish them (loading). */
+  private pending = 0;
+  private idle: (() => void)[] = [];
+  /** A level arrived since the last rebuild; when that last was started (ms). */
+  private builtSince = false;
+  /** When the last rebuild started (ms): while the car moves they come often enough to put arrivals to use. */
+  private rebuiltAt = 0;
+  /** Without a worker: no build on this thread before this time (ms). */
+  private resumeAt = 0;
+  private evictAt = 0;
+  /** `lazy` buckets this rebuild has created so far (-Infinity: no limit, loading). */
+  private fresh = 0;
 
   constructor(
     private world: World,
@@ -192,27 +234,117 @@ export class InstanceStreamer {
     this.parkCars?.update(focus, this.filter('team_car'));
     if (!this.job) {
       const rebuild = this.opts.rebuildDistance ?? 10;
-      if (this.lastFocus.distanceToSquared(focus) < rebuild * rebuild) return;
-      this.lastFocus.copy(focus);
-      this.job = this.rebuildJob(focus.clone());
-    }
-    const t0 = performance.now();
-    const budget = this.opts.budgetMs ?? 2;
-    while (performance.now() - t0 < budget) {
-      if (this.job.next().done) {
-        this.job = null;
-        break;
+      if (this.lastFocus.distanceToSquared(focus) >= rebuild * rebuild) {
+        this.lastFocus.copy(focus);
+        this.rebuiltAt = performance.now();
+        this.builtSince = false;
+        this.job = this.rebuildJob(focus.clone());
       }
     }
+    if (this.job) {
+      const t0 = performance.now();
+      const budget = this.opts.budgetMs ?? 2;
+      while (performance.now() - t0 < budget) {
+        if (this.job.next().done) {
+          this.job = null;
+          break;
+        }
+      }
+    }
+    if (this.opts.prefetch) this.prefetch();
+  }
+
+  /**
+   * Gets the `lazy` levels built, the most urgent first: a few at a time in the worker, or (no worker) one on this
+   * thread now and then, never more than a quarter of the time. Once some have arrived, a rebuild puts them to use.
+   */
+  private prefetch(): void {
+    const now = performance.now();
+    for (let w = this.queue.next(Infinity); w; w = this.queue.next(Infinity)) {
+      if (canBuildAway(w.asset)) {
+        if (this.pending >= MAX_PENDING) break;
+        this.queue.done(w);
+        this.request(w);
+        continue;
+      }
+      if (now < this.resumeAt) break;
+      this.queue.done(w);
+      getAsset(w.asset, w.variant, w.lod);
+      const end = performance.now();
+      this.resumeAt = end + Math.max(GAP_MS, SHARE * (end - now));
+      this.builtSince = true;
+      break;
+    }
+    this.evict(now);
+    if (this.builtSince && !this.job && now - this.rebuiltAt > 1000) {
+      this.builtSince = false;
+      this.invalidate();
+    }
+  }
+
+  /** Drops detailed people nobody has drawn for a while once the built ones hold more than LAZY_BUDGET (every 2 s at most). */
+  private evict(now: number): void {
+    if (now < this.evictAt) return;
+    this.evictAt = now + 2000;
+    const held: Held[] = [];
+    for (const [key, b] of this.buckets)
+      if (b.lazy)
+        held.push({
+          key,
+          bytes: b.meshes.reduce((n, m) => n + geometryBytes(m.geometry), 0),
+          used: b.used,
+          idle: !b.count && !b.sCount,
+        });
+    for (const key of evictions(held, this.commits, LAZY_BUDGET, LAZY_GRACE)) {
+      const b = this.buckets.get(key)!;
+      for (const m of b.meshes) {
+        this.group.remove(m);
+        m.dispose();
+      }
+      this.buckets.delete(key);
+      const [id, variant, lod] = key.split(':');
+      evictAsset(id, Number(variant), Number(lod));
+    }
+  }
+
+  private request(w: Want): void {
+    this.pending++;
+    const sent = requestAsset(w.asset, w.variant, w.lod, () => {
+      this.builtSince = true;
+      if (--this.pending === 0) for (const f of this.idle.splice(0)) f();
+    });
+    if (!sent) this.pending--;
+  }
+
+  /** Resolves when the worker has built every level asked of it (loading screens: then `updateNow` stages them). */
+  whenBuilt(): Promise<void> {
+    return this.pending
+      ? new Promise((resolve) => this.idle.push(resolve))
+      : Promise.resolve();
   }
 
   /** Rebuild synchronously (loading screens, tools). */
   updateNow(focus: Vector3): void {
     this.parkCars?.update(focus, this.filter('team_car'));
     this.lastFocus.copy(focus);
-    const job = this.rebuildJob(focus.clone());
-    while (!job.next().done);
-    this.job = null;
+    // With `prefetch`: the levels the view needs (wanted at slack 0) are requested from the worker (`whenBuilt`, then
+    // stage again) or, without one, built here and staged again.
+    for (let pass = 0; pass < 3; pass++) {
+      const job = this.rebuildJob(focus.clone(), false);
+      while (!job.next().done);
+      this.job = null;
+      if (!this.opts.prefetch) break;
+      let inline = false;
+      for (let w = this.queue.next(0); w; w = this.queue.next(0)) {
+        this.queue.done(w);
+        if (canBuildAway(w.asset)) this.request(w);
+        else {
+          getAsset(w.asset, w.variant, w.lod);
+          inline = true;
+        }
+      }
+      if (!inline) break;
+    }
   }
 
   /**
@@ -231,7 +363,8 @@ export class InstanceStreamer {
     for (const b of this.buckets.values()) if (b.binStart) this.pack(b);
   }
 
-  private *rebuildJob(focus: Vector3): Generator<void> {
+  private *rebuildJob(focus: Vector3, limit = true): Generator<void> {
+    this.fresh = limit ? 0 : -Infinity;
     for (const b of this.buckets.values()) b.sCount = 0;
     for (const d of this.moved) d.staged = null;
     const scatter = this.world.scatter;
@@ -252,6 +385,12 @@ export class InstanceStreamer {
       for (const inst of list) {
         // Trees are drawn by trees/draw.ts (TreeRenderer).
         if (inst.tree || !this.filter(inst.asset)) continue;
+        // A lot that shows only up close (`ServiceLot.showWithin`).
+        if (
+          inst.showWithin !== undefined &&
+          Math.hypot(inst.x - focus.x, inst.z - focus.z) > inst.showWithin
+        )
+          continue;
         if (
           detail &&
           hash3(Math.floor(inst.x * 10), Math.floor(inst.z * 10), 3) /
@@ -273,7 +412,7 @@ export class InstanceStreamer {
           }
         }
         if (lod < 0) continue;
-        this.stage(inst, d, lod);
+        this.stage(inst, d, lod, dist);
         drawn++;
       }
     };
@@ -307,6 +446,7 @@ export class InstanceStreamer {
     if (dRange > 0) scatter.pruneDetail(focus.x, focus.z, dRange * 2 + cs);
     this.sortX = focus.x;
     this.sortZ = focus.z;
+    this.queue.swap();
     this.commit();
     this.drawn = drawn;
     this.commits++;
@@ -389,14 +529,22 @@ export class InstanceStreamer {
     return d;
   }
 
-  private stage(inst: ScatterInstance, d: InstanceData, lod: number): void {
+  private stage(
+    inst: ScatterInstance,
+    d: InstanceData,
+    lod: number,
+    dist: number,
+  ): void {
+    if (this.opts.prefetch) lod = this.built(inst, d, lod, dist);
     const key = d.keys[lod];
     let bucket = this.buckets.get(key);
     if (!bucket) {
       bucket = newBucket(key, d.meta, lod);
       this.buckets.set(key, bucket);
       this.createMeshes(bucket, inst, lod, 64);
+      if (bucket.lazy) this.fresh++;
     }
+    bucket.used = this.commits;
     const i = bucket.sCount++;
     if (this.moved.has(d)) d.staged = { bucket, i };
     if (i * 16 >= bucket.sMat.length) {
@@ -422,6 +570,47 @@ export class InstanceStreamer {
       bucket.sCol[i * 3 + 1] = t * (1 + (d.meta.tint ?? 0) * 0.15);
       bucket.sCol[i * 3 + 2] = t;
     }
+  }
+
+  /**
+   * The LOD an instance is drawn at: a `lazy` level that is not built yet is asked for (the queue builds the one
+   * nearest to being needed first) and the next cheaper level stands in. The level in front of this one is asked for
+   * ahead of time, so it is there when the instance gets close.
+   */
+  private built(
+    inst: ScatterInstance,
+    d: InstanceData,
+    lod: number,
+    dist: number,
+  ): number {
+    const lods = d.meta.lods;
+    if (lod > 0 && lods[lod - 1].lazy) this.ask(inst, d, lod - 1, dist);
+    while (lod < lods.length - 1 && lods[lod].lazy) {
+      const have = hasAsset(inst.asset, inst.variant, lod);
+      if (have && (this.buckets.has(d.keys[lod]) || this.fresh < MAX_FRESH))
+        break;
+      // Built but not drawn yet: only a few new levels per rebuild, their buffers upload in the next frames, not all at once.
+      if (have) this.builtSince = true;
+      this.ask(inst, d, lod, dist);
+      lod++;
+    }
+    return lod;
+  }
+
+  private ask(
+    inst: ScatterInstance,
+    d: InstanceData,
+    lod: number,
+    dist: number,
+  ): void {
+    if (hasAsset(inst.asset, inst.variant, lod)) return;
+    this.queue.want({
+      key: d.keys[lod],
+      asset: inst.asset,
+      variant: inst.variant,
+      lod,
+      slack: dist - d.meta.lods[lod].maxDistance * this.opts.lodScale,
+    });
   }
 
   /** Staging -> committed copy (angle-sorted for culled buckets) -> GPU buffers, uploading only the used range. */
@@ -612,6 +801,13 @@ export class InstanceStreamer {
       const meta = getAssetMeta(id);
       for (let v = 0; v < meta.variants; v++) {
         for (let lod = 0; lod < meta.lods.length; lod++) {
+          // Lazy levels: only the variants that cover every material (the rest comes through the queue).
+          if (
+            this.opts.prefetch &&
+            meta.lods[lod].lazy &&
+            !(meta.warm ?? [0]).includes(v)
+          )
+            continue;
           const set = !!getVariantSet(id, lod);
           if (v > 0 && (meta.lods[lod].oneVariant || set)) continue;
           const key = `${id}:${set ? 'v' : v}:${lod}`;
@@ -672,7 +868,7 @@ export class InstanceStreamer {
 }
 
 /** Every catalog asset the map places (tree types are not assets: trees/). */
-function assetIds(world: World): Set<string> {
+export function assetIds(world: World): Set<string> {
   const ids = new Set([
     ...world.map.scatter.map((r) => r.asset),
     ...world.map.roadside.map((r) => r.asset),
@@ -683,6 +879,13 @@ function assetIds(world: World): Set<string> {
   ]);
   for (const id of ids) if (isTreeType(id)) ids.delete(id);
   return ids;
+}
+
+/** Bytes of a geometry's buffers (what building it cost in memory, and on the GPU once drawn). */
+function geometryBytes(g: BufferGeometry): number {
+  let n = g.index ? g.index.array.byteLength : 0;
+  for (const a of Object.values(g.attributes)) n += a.array.byteLength;
+  return n;
 }
 
 let _bins = new Uint16Array(4096);
@@ -706,6 +909,8 @@ function newBucket(key: string, meta: AssetMeta, lod: number): Bucket {
     order: new Uint32Array(64),
     binStart: null,
     drawnCount: 0,
+    lazy: !!meta.lods[lod].lazy,
+    used: 0,
     sMat: new Float32Array(16 * 64),
     sCol: new Float32Array(tinted ? 3 * 64 : 0),
     sVar: new Float32Array(variants ? 64 : 0),

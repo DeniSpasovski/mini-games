@@ -412,6 +412,8 @@ function groupGlass(g: BufferGeometry): void {
 
 interface ParkCar {
   id: string;
+  /** Shown only within this distance (m): `ServiceLot.showWithin`. */
+  showWithin?: number;
   team: number;
   raised: boolean;
   x: number;
@@ -454,6 +456,7 @@ export class ParkCars {
         raised: i.variant >= TEAM_COUNT,
         x: i.x,
         z: i.z,
+        showWithin: i.showWithin,
         root,
         lods: [],
         lod: -2,
@@ -519,7 +522,7 @@ export class ParkCars {
       if (!kit) continue;
       const d = Math.hypot(c.x - this.focus.x, c.z - this.focus.z);
       let lod = -1;
-      if (this.enabled && d <= maxD)
+      if (this.enabled && d <= maxD && (c.showWithin === undefined || d <= c.showWithin))
         for (let i = 0; i < LOD_DISTANCE.length; i++)
           if (d < LOD_DISTANCE[i] * scale) {
             lod = i;

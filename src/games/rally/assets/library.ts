@@ -2,6 +2,7 @@ import { BufferAttribute, type BufferGeometry, type Material } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { hash3, hashString } from '../../../shared/rng';
 import { variantMaterial } from '../engine/materials';
+import { canRequestPerson, requestPerson } from './people-pool';
 import {
   chevronSign,
   fanFlag,
@@ -168,6 +169,50 @@ export function getAsset(id: string, variant: number, lod: number): BuiltAsset {
   return a;
 }
 
+/** True when `getAsset(id, variant, lod)` is already built (a cache hit, no build). */
+export function hasAsset(id: string, variant: number, lod: number): boolean {
+  const spec = getAssetMeta(id).lods[lod];
+  return cache.has(`${id}:${spec?.oneVariant ? 0 : variant}:${lod}`);
+}
+
+/** Drops a built level (`getAsset` builds it again when it is asked for): its geometry is freed. Materials are shared and stay. */
+export function evictAsset(id: string, variant: number, lod: number): void {
+  const key = `${id}:${variant}:${lod}`;
+  const a = cache.get(key);
+  if (!a) return;
+  for (const p of a.parts) p.geometry.dispose();
+  cache.delete(key);
+}
+
+/** True when `requestAsset` can build `id` in the background. */
+export function canBuildAway(id: string): boolean {
+  return canRequestPerson(id);
+}
+
+/**
+ * Starts `getAsset(id, variant, lod)` off the main thread (a person's detailed levels: people-pool.ts) and calls `done`
+ * once it is in the cache. false when it cannot (no worker, not a person): build it with `getAsset`.
+ */
+export function requestAsset(
+  id: string,
+  variant: number,
+  lod: number,
+  done: () => void,
+): boolean {
+  if (!canRequestPerson(id)) return false;
+  requestPerson(id, variantSeed(id, variant), variant, lod, (a) => {
+    // The worker failed on it: here, where the error shows.
+    const key = `${id}:${variant}:${lod}`;
+    if (!cache.has(key))
+      cache.set(
+        key,
+        a ?? buildAsset(id, variantSeed(id, variant), variant, lod),
+      );
+    done();
+  });
+  return true;
+}
+
 /** Uncached build with an explicit seed (asset debugger). Caller disposes geometry. */
 export function buildAsset(
   id: string,
@@ -191,7 +236,7 @@ export function cachedAssetCount(): number {
 /**
  * Every variant of (id, lod) merged per material into one geometry, each vertex tagged with `variantId`
  * (engine/materials.ts `variantMaterial`): the streamer draws all variants of an asset with ONE InstancedMesh per
- * material. null when not worth it or not possible: one variant / `oneVariant` / `separateVariants` LODs, more than
+ * material. null when not worth it or not possible: one variant / `oneVariant` / `separateVariants` / `lazy` LODs, more than
  * VARIANT_SET_TRIS (vegetation: VEGETATION_SET_TRIS) triangles in all (every instance runs the vertex shader over all
  * of them), or parts whose
  * attributes differ (cannot be merged).
@@ -206,7 +251,8 @@ export function getVariantSet(id: string, lod: number): BuiltAsset | null {
     VARIANT_SETS &&
     meta.variants > 1 &&
     !spec.oneVariant &&
-    !spec.separateVariants
+    !spec.separateVariants &&
+    !spec.lazy
   ) {
     const groups = new Map<Material, BufferGeometry[]>();
     let tris = 0;

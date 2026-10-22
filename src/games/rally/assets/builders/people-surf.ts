@@ -41,70 +41,100 @@ export function withColumn(s: Surf, name: string, v: Float32Array): Surf {
  */
 export function clip(s: Surf, f: ArrayLike<number>): Surf {
   const names = Object.keys(s.a);
-  const strides = names.map((k) => stride(s, k));
-  const cols: number[][] = names.map(() => []);
+  const nc = names.length;
+  const src = names.map((k) => s.a[k]);
+  const strides = src.map((c) => c.length / s.n);
+  const nor = names.indexOf('nor');
+  // Output columns grow by doubling; a vertex is written once, so the order (and every value) is that of a push.
+  let cap = Math.max(16, s.n);
+  let out = strides.map((st) => new Float32Array(cap * st));
   const remap = new Int32Array(s.n).fill(-1);
   const edge = new Map<number, number>();
   let count = 0;
-  const copy = (i: number): number => {
-    if (remap[i] >= 0) return remap[i];
-    names.forEach((k, c) => {
-      const st = strides[c];
-      for (let j = 0; j < st; j++) cols[c].push(s.a[k][i * st + j]);
+  const grow = (): void => {
+    cap *= 2;
+    out = out.map((o, c) => {
+      const g = new Float32Array(cap * strides[c]);
+      g.set(o);
+      return g;
     });
+  };
+  const copy = (i: number): number => {
+    const r = remap[i];
+    if (r >= 0) return r;
+    if (count === cap) grow();
+    for (let c = 0; c < nc; c++) {
+      const st = strides[c];
+      const from = src[c];
+      const to = out[c];
+      for (let j = 0, a = i * st, b = count * st; j < st; j++)
+        to[b + j] = from[a + j];
+    }
     return (remap[i] = count++);
   };
   const cut = (i: number, j: number): number => {
-    const lo = Math.min(i, j);
-    const hi = Math.max(i, j);
+    const lo = i < j ? i : j;
+    const hi = i < j ? j : i;
     const key = lo * s.n + hi;
     const hit = edge.get(key);
     if (hit !== undefined) return hit;
     const t = f[lo] / (f[lo] - f[hi]);
-    names.forEach((k, c) => {
+    if (count === cap) grow();
+    for (let c = 0; c < nc; c++) {
       const st = strides[c];
-      const col = s.a[k];
-      const at = cols[c].length;
-      for (let q = 0; q < st; q++)
-        cols[c].push(
-          col[lo * st + q] + (col[hi * st + q] - col[lo * st + q]) * t,
-        );
-      if (k === 'nor') {
-        const l =
-          Math.hypot(cols[c][at], cols[c][at + 1], cols[c][at + 2]) || 1;
-        for (let q = 0; q < 3; q++) cols[c][at + q] /= l;
-      }
-    });
+      const col = src[c];
+      const to = out[c];
+      const l0 = lo * st;
+      const h0 = hi * st;
+      const b = count * st;
+      if (c === nor) {
+        // Interpolated in double and normalised before it is stored (one rounding, as the pushed values had).
+        const x = col[l0] + (col[h0] - col[l0]) * t;
+        const y = col[l0 + 1] + (col[h0 + 1] - col[l0 + 1]) * t;
+        const z = col[l0 + 2] + (col[h0 + 2] - col[l0 + 2]) * t;
+        const l = Math.hypot(x, y, z) || 1;
+        to[b] = x / l;
+        to[b + 1] = y / l;
+        to[b + 2] = z / l;
+      } else
+        for (let q = 0; q < st; q++)
+          to[b + q] = col[l0 + q] + (col[h0 + q] - col[l0 + q]) * t;
+    }
     const id = count++;
     edge.set(key, id);
     return id;
   };
   const idx: number[] = [];
-  const poly: number[] = [];
-  for (let t = 0; t < s.idx.length; t += 3) {
-    const v = [s.idx[t], s.idx[t + 1], s.idx[t + 2]];
-    const inside = v.map((i) => f[i] >= 0);
-    const k = (inside[0] ? 1 : 0) + (inside[1] ? 1 : 0) + (inside[2] ? 1 : 0);
+  const poly = new Int32Array(8);
+  const sidx = s.idx;
+  for (let t = 0; t < sidx.length; t += 3) {
+    const v0 = sidx[t];
+    const v1 = sidx[t + 1];
+    const v2 = sidx[t + 2];
+    const in0 = f[v0] >= 0;
+    const in1 = f[v1] >= 0;
+    const in2 = f[v2] >= 0;
+    const k = (in0 ? 1 : 0) + (in1 ? 1 : 0) + (in2 ? 1 : 0);
     if (k === 0) continue;
     if (k === 3) {
-      idx.push(copy(v[0]), copy(v[1]), copy(v[2]));
+      idx.push(copy(v0), copy(v1), copy(v2));
       continue;
     }
     // Sutherland-Hodgman against the one plane: three or four corners.
-    poly.length = 0;
+    let np = 0;
     for (let e = 0; e < 3; e++) {
-      const i = v[e];
-      const j = v[(e + 1) % 3];
-      if (inside[e]) poly.push(copy(i));
+      const i = e === 0 ? v0 : e === 1 ? v1 : v2;
+      const j = e === 0 ? v1 : e === 1 ? v2 : v0;
+      if (e === 0 ? in0 : e === 1 ? in1 : in2) poly[np++] = copy(i);
       // A vertex exactly on the plane is its own crossing: no second vertex on top of it (a sliver per cut edge).
-      if ((f[i] > 0 && f[j] < 0) || (f[i] < 0 && f[j] > 0))
-        poly.push(cut(i, j));
+      const fi = f[i];
+      const fj = f[j];
+      if ((fi > 0 && fj < 0) || (fi < 0 && fj > 0)) poly[np++] = cut(i, j);
     }
-    for (let q = 1; q + 1 < poly.length; q++)
-      idx.push(poly[0], poly[q], poly[q + 1]);
+    for (let q = 1; q + 1 < np; q++) idx.push(poly[0], poly[q], poly[q + 1]);
   }
   const a: Record<string, Float32Array> = {};
-  names.forEach((k, c) => (a[k] = Float32Array.from(cols[c])));
+  names.forEach((k, c) => (a[k] = out[c].slice(0, count * strides[c])));
   return { n: count, a, idx };
 }
 
@@ -324,20 +354,24 @@ export function field(s: Surf, fn: (i: number) => number): Float32Array {
 /** Appends surfaces (the columns of the first decide which are kept). */
 export function join(list: Surf[]): Surf {
   const names = Object.keys(list[0].a);
-  const a: Record<string, number[]> = {};
-  for (const k of names) a[k] = [];
+  const out: Record<string, Float32Array> = {};
+  for (const k of names) {
+    let len = 0;
+    for (const s of list) len += s.a[k].length;
+    const col = new Float32Array(len);
+    let at = 0;
+    for (const s of list) {
+      col.set(s.a[k], at);
+      at += s.a[k].length;
+    }
+    out[k] = col;
+  }
   const idx: number[] = [];
   let n = 0;
   for (const s of list) {
-    for (const k of names) {
-      const col = s.a[k];
-      for (let i = 0; i < col.length; i++) a[k].push(col[i]);
-    }
-    for (const i of s.idx) idx.push(i + n);
+    for (let i = 0; i < s.idx.length; i++) idx.push(s.idx[i] + n);
     n += s.n;
   }
-  const out: Record<string, Float32Array> = {};
-  for (const k of names) out[k] = Float32Array.from(a[k]);
   return { n, a: out, idx };
 }
 

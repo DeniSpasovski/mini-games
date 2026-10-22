@@ -27,6 +27,16 @@ export const PEOPLE_ASSETS: readonly string[] = [
   'photographer',
 ];
 
+/**
+ * How rich a stage looks is capped: people are the costly part of a scene (triangles close up, a person built per
+ * look), and a few spots read as well as many at speed.
+ */
+const DEFAULT_FANS: [number, number] = [2, 5];
+/** Photographers beside the tape of a corner group (min, max). */
+const SHOOTERS: [number, number] = [1, 2];
+/** Photographers at each end of the stage (ten are drawn, so the random stream stays; only this many are placed). */
+const END_PHOTOGRAPHERS = 5;
+
 const VISITOR_VARIANTS = 48;
 const MARSHAL_VARIANTS = 24;
 const PHOTOGRAPHER_VARIANTS = 24;
@@ -48,7 +58,7 @@ export function cornerFanInstances(
   seed: number,
   junctions: readonly { along: number; width: number; side: 1 | -1 }[],
   blocked: (x: number, z: number) => boolean,
-  ends: { start: number; finish: number } | undefined,
+  ends: { start?: number; finish: number } | undefined,
   country: Country,
 ): ScatterInstance[] {
   const out: ScatterInstance[] = [];
@@ -63,7 +73,10 @@ export function cornerFanInstances(
     // Draw every random number for the window first, so one rejected group does not reshuffle the rest.
     const take = rng.next();
     const len = rng.range(12, 26);
-    const fans = rng.int(rule.fans?.[0] ?? 3, rule.fans?.[1] ?? 8);
+    const fans = rng.int(
+      rule.fans?.[0] ?? DEFAULT_FANS[0],
+      rule.fans?.[1] ?? DEFAULT_FANS[1],
+    );
     const flags = rng.next() < (rule.flagChance ?? 0.6) ? rng.int(1, 3) : 0;
     const sub = new Rng(hash3(Math.round(a0), 11, 5, seed));
     if (take > (rule.chance ?? 0.5)) continue;
@@ -154,7 +167,7 @@ export function cornerFanInstances(
         mix.int(0, MARSHAL_VARIANTS - 1),
         mix.range(-0.3, 0.3),
       );
-    const shooters = mix.int(2, 3);
+    const shooters = mix.int(SHOOTERS[0], SHOOTERS[1]);
     for (let i = 0; i < shooters; i++)
       place(
         'photographer',
@@ -211,15 +224,17 @@ export function cornerFanInstances(
     }
   }
 
-  // Ten photographers at the start line and ten at the finish, both sides of the road.
+  // Photographers at the start line and at the finish, both sides of the road.
   const erng = new Rng(hash3(7, 3, 3, seed ^ hashString('end-photographers')));
+  // (A line without its own photographers still draws its numbers, so the other line stays where it was.)
   for (const at of ends ? [ends.start, ends.finish] : [])
     for (let i = 0; i < 10; i++) {
-      const a = at + erng.range(-14, 10);
+      const a = (at ?? 0) + erng.range(-14, 10);
       const side: 1 | -1 = i % 2 === 0 ? 1 : -1;
       const off = 3.4 + erng.next() * 3.5;
       const variant = erng.int(0, PHOTOGRAPHER_VARIANTS - 1);
       const yaw = erng.range(-0.4, 0.4);
+      if (at === undefined || i >= END_PHOTOGRAPHERS) continue;
       if (a < 0 || a > road.length || road.bridgeAt(a)) continue;
       const p = road.at(a);
       const lat = side * (p.halfWidth + off);

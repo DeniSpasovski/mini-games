@@ -121,6 +121,35 @@ export const SPRITE_PREPASS = (() => {
 })();
 /** Share of the sprite pixels that may miss the EQUAL test before the load check turns the prepass off. */
 const PREPASS_MISS_LIMIT = 0.002;
+/** Bump when the prepass or the check changes: earlier verdicts no longer count. */
+const PREPASS_CHECK_VERSION = 1;
+
+/** The GPU + driver the verdict of `checkPrepass` belongs to. */
+function prepassVerdictKey(renderer: WebGLRenderer): string {
+  const gl = renderer.getContext();
+  const info = gl.getExtension('WEBGL_debug_renderer_info');
+  const name = info
+    ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL))
+    : String(gl.getParameter(gl.RENDERER));
+  return `rally.prepass.${PREPASS_CHECK_VERSION}.${gl.getParameter(gl.VERSION)}.${name}`;
+}
+
+function readVerdict(key: string): boolean | null {
+  try {
+    const v = localStorage.getItem(key);
+    return v === null ? null : v === '1';
+  } catch {
+    return null;
+  }
+}
+
+function writeVerdict(key: string, ok: boolean): void {
+  try {
+    localStorage.setItem(key, ok ? '1' : '0');
+  } catch {
+    // No storage: the check runs every load.
+  }
+}
 /** The shader's sprite fade window (trees/materials.ts `treeSpriteScale`). */
 const KEEP_WINDOW = 0.08;
 /**
@@ -557,6 +586,8 @@ export class TreeRenderer {
   private litSprites = new Set<InstancedMesh>();
   /** Load check of the prepass: share of sprite pixels that failed the EQUAL test (NaN = not run). */
   prepassMisses = NaN;
+  /** Sprite pixels the load check saw (0: none in view, nothing was measured). */
+  prepassCovered = 0;
   /** spread() of the tree the job is staging. */
   private jobSpread = 0;
   /** Instances drawn (main pass) this frame / trees flickering (debug view). */
@@ -1650,6 +1681,24 @@ export class TreeRenderer {
     camera: PerspectiveCamera,
   ): void {
     if (!this.prepass) return;
+    // A GPU that passed once is trusted from then on (the check renders the trees again: seconds of shader builds).
+    const gpu = prepassVerdictKey(renderer);
+    const known = readVerdict(gpu);
+    if (known !== null) {
+      if (!known) this.setPrepass(false);
+      return;
+    }
+    // Only the trees (and the lights they are lit by) are drawn for the check, not the rest of the world.
+    const hidden: Object3D[] = [];
+    for (const child of scene.children)
+      if (
+        child !== this.group &&
+        child.visible &&
+        !child.getObjectByProperty('isLight', true)
+      ) {
+        child.visible = false;
+        hidden.push(child);
+      }
     const w = 256;
     const h = 128;
     const msaa = renderer.getContext().getContextAttributes()?.antialias;
@@ -1674,10 +1723,15 @@ export class TreeRenderer {
     for (const o of lit) o.visible = true;
     const missed = magenta();
     renderer.setRenderTarget(prev);
+    for (const o of hidden) o.visible = true;
     this.debugMode = mode;
     target.dispose();
     this.prepassMisses = covered ? missed / covered : 0;
-    if (this.prepassMisses > PREPASS_MISS_LIMIT) this.setPrepass(false);
+    this.prepassCovered = covered;
+    const ok = this.prepassMisses <= PREPASS_MISS_LIMIT;
+    // A scene with no sprite in view says nothing: only a measured verdict is kept.
+    if (covered) writeVerdict(gpu, ok);
+    if (!ok) this.setPrepass(false);
   }
 
   /**

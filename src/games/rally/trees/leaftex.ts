@@ -203,6 +203,11 @@ const PINE_NEEDLES: NeedleStyle = {
 };
 
 const atlases = new Map<LeafStyle, SpriteAtlas>();
+
+/** An atlas made elsewhere (a worker) stands for `spriteAtlas(style)`. */
+export function primeSpriteAtlas(style: LeafStyle, atlas: SpriteAtlas): void {
+  atlases.set(style, atlas);
+}
 const profiles = new Map<LeafStyle, Float32Array>();
 
 const PROFILE_STEPS = 256;
