@@ -1278,7 +1278,7 @@ export class CarModel {
 
   /**
    * Pieces of an imported model's head lamp sheets that are not the head lamps: side repeaters and mirror lamps (well behind
-   * the lamps' front), fog lamps (wholly below the main lamp) and `gltf.darkHeadPieces` keep the sheet's day look but stay dark with the lights on.
+   * the lamps' front) and fog lamps (wholly below the main lamp) keep the sheet's day look but stay dark with the lights on.
    */
   private splitHeadExtras(): void {
     if (!this.def.model.gltf) return;
@@ -1311,7 +1311,6 @@ export class CarModel {
     }
     if (!main) return;
     const bottom = main.min.y;
-    const darkBoxes = this.def.model.gltf.darkHeadPieces ?? [];
     const c = new Vector3();
     for (const mesh of meshes) {
       mesh.userData.extrasChecked = true;
@@ -1320,11 +1319,7 @@ export class CarModel {
         toBody,
         (b) =>
           b.getCenter(c).z < front - EXTRA_BEHIND ||
-          b.max.y < bottom - EXTRA_BELOW ||
-          darkBoxes.some(
-            ([x0, x1, y0, y1]) =>
-              Math.abs(c.x) > x0 && Math.abs(c.x) < x1 && c.y > y0 && c.y < y1,
-          ),
+          b.max.y < bottom - EXTRA_BELOW,
         'extra',
       );
       if (!extra) continue;

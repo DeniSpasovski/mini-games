@@ -211,12 +211,6 @@ export const audiRs6: CarDef = {
         '"Audi RS 6 Avant (C8)" by Mona x Supercars, sketchfab.com/3d-models/audi-rs-6-avant-c8-99aa71f747b0453eb58334414d34397c, CC BY 4.0 (converted + repainted)',
       autoFit: false,
       atlas: audiRs6Livery,
-      // The lower row's inner and middle modules share their texture with lit bulbs (the outer square, the upper modules):
-      // of that row only the round projector and the outer square are bulbs.
-      darkHeadPieces: [
-        [0.58, 0.675, 0.6, 0.68],
-        [0.715, 0.78, 0.6, 0.68],
-      ],
     },
   },
 };
