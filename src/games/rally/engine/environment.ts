@@ -59,6 +59,80 @@ export const TONE_MAPPINGS: Record<string, ToneMapping> = {
   neutral: NeutralToneMapping,
 };
 
+/**
+ * `?look=<name>`: test variants of sky, fog and grade over the map's own settings (tuned on Galichica; `before` = its
+ * old look). For comparing in the browser only.
+ */
+const SKY_FOG: Partial<EnvironmentDef> = {
+  turbidity: 2,
+  rayleigh: 2.2,
+  skyBrightness: 0.3,
+  fogColor: 'sky',
+  fogBrightness: 0.55,
+  exposure: 0.92,
+};
+const SHADE = { color: '#2f6f6a', amount: 0.08 };
+const LOOKS: Record<string, Partial<EnvironmentDef>> = {
+  before: {
+    turbidity: 3.5,
+    rayleigh: 1.4,
+    skyBrightness: 1,
+    fogColor: '#c6d2dc',
+    exposure: 0.95,
+    grade: undefined,
+  },
+  sky: { ...SKY_FOG, grade: undefined },
+  soft: {
+    ...SKY_FOG,
+    exposure: 0.95,
+    grade: {
+      contrast: 1.1,
+      saturation: 1.08,
+      vibrance: 0.15,
+      shadowTint: SHADE,
+      vignette: 0.15,
+    },
+  },
+  crisp: {
+    ...SKY_FOG,
+    grade: {
+      warmth: 0.05,
+      contrast: 1.15,
+      saturation: 1.1,
+      vibrance: 0.2,
+      shadowTint: SHADE,
+      vignette: 0.15,
+    },
+  },
+  warm: {
+    ...SKY_FOG,
+    grade: {
+      warmth: 0.1,
+      contrast: 1.15,
+      saturation: 1.1,
+      vibrance: 0.2,
+      shadowTint: SHADE,
+      highlightTint: { color: '#ffe2b8', amount: 0.06 },
+      vignette: 0.15,
+    },
+  },
+  cool: {
+    ...SKY_FOG,
+    rayleigh: 2.4,
+    skyBrightness: 0.25,
+    fogBrightness: 0.5,
+    grade: {
+      warmth: -0.05,
+      contrast: 1.18,
+      saturation: 1.15,
+      vibrance: 0.25,
+      shadowTint: { color: '#2f6f6a', amount: 0.12 },
+      highlightTint: { color: '#ffe6c0', amount: 0.05 },
+      vignette: 0.18,
+    },
+  },
+};
+
 /** Radiance of the studio strip lights (x white; the env map is drawn at `envIntensity`, ~0.3). */
 const STUDIO_POWER = 60;
 /** Radiance of the studio room around them (linear grey). */
@@ -179,6 +253,8 @@ export class Environment {
 
   /** Re-apply settings (sun angle, fog, exposure) and rebuild the env map; `studio` = with softboxes (or keep). */
   apply(def: EnvironmentDef, studio = this.studio): void {
+    const look = ownValue(LOOKS, urlString('look') ?? '');
+    if (look) def = { ...def, ...look };
     this.def = def;
     this.studio = studio;
     const u = this.sky.material.uniforms;
