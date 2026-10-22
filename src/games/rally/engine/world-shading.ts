@@ -85,6 +85,28 @@ export function addWorldUniforms(
   Object.assign(shader.uniforms, worldUniforms);
 }
 
+/**
+ * Grass / crop cards lit like the ground under them: their normals point up, and three would turn them down on a
+ * card's back face (dark backs). No specular either: the camera sees an up-facing card at a grazing angle, where the
+ * Fresnel sky reflection whitens it like a sheet of glass (worst on tall cards: reeds, corn). `key` names the
+ * program (one per material kind).
+ */
+export function groundLitCard(m: Material, key: string): void {
+  m.onBeforeCompile = (shader) => {
+    addWorldUniforms(shader);
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <normal_fragment_begin>',
+        '#include <normal_fragment_begin>\n\tnormal = normalize( vNormal );',
+      )
+      .replace(
+        '#include <lights_fragment_end>',
+        '#include <lights_fragment_end>\n\treflectedLight.directSpecular = vec3( 0.0 );\n\treflectedLight.indirectSpecular = vec3( 0.0 );',
+      );
+  };
+  m.customProgramCacheKey = () => `ground-lit-card|${key}`;
+}
+
 export interface WorldShadingSettings {
   sunDir: Vector3;
   sunColor: Color;

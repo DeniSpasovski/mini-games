@@ -129,6 +129,18 @@ far away the people are low-poly figures built in code.
 | ["Male Base Mesh (Low Poly)"](https://sketchfab.com/3d-models/male-base-mesh-low-poly-fece8bfaefdb42cb9fc2a9492ffa18c7)     | FormForge3D (account aleenasani841, Sketchfab) | CC BY 4.0 |
 | ["Female Base Mesh (Low Poly)"](https://sketchfab.com/3d-models/female-base-mesh-low-poly-b80022fb9db94c9e83cae5361931b3c9) | FormForge3D (account aleenasani841, Sketchfab) | CC BY 4.0 |
 
+### Field crops (baked into `src/games/rally/assets/builders/crop-models.data.ts`)
+
+The wheat and corn in the Ajvatovci fields are two CC BY 4.0 models (their own triangles, normals, uvs and texture,
+scaled to metres and packed by `scripts/crops/bake-crops.py`; recoloured for green spring wheat and dry autumn corn, the
+corn cobs shown in their husks; the far cards are rendered from them in the game; the source files are not in the
+repository).
+
+| Model                                                                                                  | Author                                                      | Licence   |
+| ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- | --------- |
+| ["Realistic Wheat"](https://sketchfab.com/3d-models/realistic-wheat-50270968690441d3ad9d2a8924c7338b)  | [Graphetta](https://sketchfab.com/Graphetta) (Sketchfab)    | CC BY 4.0 |
+| ["Corn! Corn! Corn!"](https://sketchfab.com/3d-models/corn-corn-corn-10187bc37c9e42ef8770b28452ee7cd3) | [Tiia Tuulia](https://sketchfab.com/tiiatuulia) (Sketchfab) | CC BY 4.0 |
+
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 
 ## Music

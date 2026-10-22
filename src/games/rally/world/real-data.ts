@@ -128,7 +128,19 @@ export class Landcover {
   /** zone -> index into coverNames */
   readonly zoneCover: Uint8Array;
 
-  constructor(readonly def: LandcoverDef) {
+  readonly def: LandcoverDef;
+
+  constructor(base: LandcoverDef) {
+    // `paint` parcels become zones of their own after the baked ones.
+    const def = (this.def = base.paint?.length
+      ? {
+          ...base,
+          zones: [
+            ...base.zones,
+            ...base.paint.map((p) => ({ cover: p.cover, angle: p.angle })),
+          ],
+        }
+      : base);
     const n = def.cols * def.rows;
     this.zones = new Uint8Array(n);
     const bytes = base64Bytes(def.rle);
@@ -147,10 +159,46 @@ export class Landcover {
       this.zones.fill(v, o, Math.min(n, o + len));
       o += len;
     }
+    base.paint?.forEach((p, k) => this.paint(p.poly, base.zones.length + k));
     this.coverNames = [...new Set(def.zones.map((z) => z.cover))];
     this.zoneCover = new Uint8Array(
       def.zones.map((z) => this.coverNames.indexOf(z.cover)),
     );
+  }
+
+  /** Set every cell whose centre is inside `poly` (world x, z pairs) to `zone`. */
+  private paint(poly: number[], zone: number): void {
+    const d = this.def;
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    let z0 = Infinity;
+    let z1 = -Infinity;
+    for (let i = 0; i < poly.length; i += 2) {
+      x0 = Math.min(x0, poly[i]);
+      x1 = Math.max(x1, poly[i]);
+      z0 = Math.min(z0, poly[i + 1]);
+      z1 = Math.max(z1, poly[i + 1]);
+    }
+    const i0 = Math.max(0, Math.floor((x0 - d.originX) / d.cell));
+    const i1 = Math.min(d.cols - 1, Math.floor((x1 - d.originX) / d.cell));
+    const j0 = Math.max(0, Math.floor((z0 - d.originZ) / d.cell));
+    const j1 = Math.min(d.rows - 1, Math.floor((z1 - d.originZ) / d.cell));
+    for (let j = j0; j <= j1; j++)
+      for (let i = i0; i <= i1; i++) {
+        const x = d.originX + (i + 0.5) * d.cell;
+        const z = d.originZ + (j + 0.5) * d.cell;
+        let inside = false;
+        for (let a = 0, b = poly.length - 2; a < poly.length; b = a, a += 2)
+          if (
+            poly[a + 1] > z !== poly[b + 1] > z &&
+            x <
+              ((poly[b] - poly[a]) * (z - poly[a + 1])) /
+                (poly[b + 1] - poly[a + 1]) +
+                poly[a]
+          )
+            inside = !inside;
+        if (inside) this.zones[j * d.cols + i] = zone;
+      }
   }
 
   /** Zone id at a point, -1 outside the raster. */

@@ -70,11 +70,20 @@ import {
   jerseyBarrier,
 } from './builders/structures';
 import {
+  corn,
+  cornRowCard,
+  dryCorn,
+  dryCornRowCard,
   dryGrass,
   grassTuft,
+  greenWheat,
   reeds,
   springGrass,
   tallWeeds,
+  vineRowAutumn,
+  vineRowSpring,
+  vineRowSummer,
+  wheat,
 } from './builders/vegetation';
 import { getAssetMeta } from './catalog';
 import type { AssetBuilder, BuiltAsset } from './types';
@@ -84,6 +93,15 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   grass_tuft: grassTuft,
   dry_grass: dryGrass,
   spring_grass: springGrass,
+  wheat,
+  green_wheat: greenWheat,
+  corn,
+  dry_corn: dryCorn,
+  corn_row: cornRowCard,
+  dry_corn_row: dryCornRowCard,
+  vine_row: vineRowSummer,
+  vine_row_spring: vineRowSpring,
+  vine_row_autumn: vineRowAutumn,
   street_lamp: streetLamp,
   traffic_signal: trafficSignal,
   wall_lamp: wallLamp,

@@ -20,6 +20,8 @@ import { setHeadBeam, setLampGlow } from '../engine/night-glow';
 import { LampPools } from '../world/lamp-pools';
 import { PostFx, postFxFromUrl } from '../engine/post-fx';
 import type { QualitySettings } from '../engine/quality';
+import { bakeCropCards, setCropAntialias } from '../engine/crops';
+import { setVineAntialias } from '../engine/vines';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
 import { setClockTime } from '../engine/stage-sign-textures';
 import { setTextureAnisotropy } from '../engine/textures';
@@ -263,6 +265,9 @@ export class RallyGame {
     readonly opts: GameOptions,
   ) {
     this.renderer = createRenderer(container, opts.quality);
+    setCropAntialias(opts.quality.antialias);
+    setVineAntialias(opts.quality.antialias);
+    void bakeCropCards(this.renderer);
     setTextureAnisotropy(
       Math.min(8, this.renderer.capabilities.getMaxAnisotropy()),
     );
@@ -373,6 +378,7 @@ export class RallyGame {
     this.streamer = new InstanceStreamer(this.world, {
       lodScale: q.lodScale * OBJECT_DISTANCE[this.opts.settings.objectDistance],
       detailDensity: q.detailDensity,
+      grassNear: q.grassNear,
       // Nothing past the streamed terrain (it would stand on nothing).
       maxDistance: q.viewDistance,
       // People close up are built ahead of the car, not all at load.
@@ -422,6 +428,7 @@ export class RallyGame {
     this.breakables = new Breakables(this.world.scatter, (x, z) =>
       this.world.heightAt(x, z),
     );
+    await bakeCropCards(this.renderer); // field crop cards (baked once per page)
     await this.streamer.ready; // the service park's team cars
     this.people = new PeopleAnimator(this.world.scatter.fixedInstances());
     await frame();

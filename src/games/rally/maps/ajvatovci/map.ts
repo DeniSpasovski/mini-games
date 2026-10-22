@@ -83,6 +83,25 @@ export const ajvatovciMap: MapDef = {
   },
   landcover: {
     ...(data.landcover as Omit<LandcoverDef, 'splat' | 'fields'>),
+    // The big parcel north-east of the industrial zone was traced as an orchard (the zone at 0.828 rad): it is a vineyard.
+    zones: data.landcover.zones.map((z) =>
+      z.cover === 'orchard' && 'angle' in z && z.angle === 0.828
+        ? { ...z, cover: 'vineyard' }
+        : z,
+    ),
+    // Two small vineyards north of the big curve that the open data misses (traced from satellite images).
+    paint: [
+      {
+        cover: 'vineyard',
+        angle: 0.656,
+        poly: [-584, -482, -535, -546, -486, -508, -524, -441],
+      },
+      {
+        cover: 'vineyard',
+        angle: Math.PI / 2,
+        poly: [-430, -480, -310, -482, -321, -377, -437, -373],
+      },
+    ],
     // [grass, dirt, rock, gravel]
     splat: {
       grass: [0.98, 0.02, 0, 0],
@@ -97,9 +116,8 @@ export const ajvatovciMap: MapDef = {
       vineyard: [0.5, 0.5, 0, 0],
       cemetery: [0.8, 0.12, 0, 0.08],
     },
-    // Long strips running NNE like the real parcels. Spring: mostly green (young wheat,
-    // meadow), a few freshly ploughed and a few golden wheat parcels (weight left
-    // unused = ripe crop).
+    // Long strips running NNE like the real parcels: meadow / fodder (green), ploughed, corn (soil between the rows)
+    // and wheat (weight left unused = the season's crop tint: green in spring, golden in summer, stubble in autumn).
     fields: {
       covers: ['crop'],
       angle: -1.2,
@@ -117,7 +135,66 @@ export const ajvatovciMap: MapDef = {
         [0.1, 0.9, 0, 0],
         [0.3, 0.7, 0, 0],
         [0, 0.04, 0, 0],
+        [0, 0.04, 0, 0],
+        [0, 0.04, 0, 0],
+        [0, 0.04, 0, 0],
+        [0.6, 0.4, 0, 0],
       ],
+      // What stands on each palette entry (index as above): winter wheat is green in April, ripe in July and cut by
+      // October (stubble); corn is only just sown in April (bare soil), tall in July, dry or harvested in October.
+      crops: {
+        spring: [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          'green_wheat',
+          'green_wheat',
+          'green_wheat',
+          'green_wheat',
+          null,
+        ],
+        summer: [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          'corn',
+          null,
+          null,
+          'corn',
+          'wheat',
+          'wheat',
+          'wheat',
+          'wheat',
+          'corn',
+        ],
+        autumn: [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          'dry_corn',
+          null,
+          null,
+          'dry_corn',
+          null,
+          null,
+          null,
+          null,
+          null,
+        ],
+      },
     },
   },
   paths: [
@@ -361,6 +438,75 @@ export const ajvatovciMap: MapDef = {
       minRoadDist: 1,
       scale: [0.7, 1.3],
     },
+    // Vineyards: 6 m row segments 2.4 m apart along each parcel's rows, the look of the map's season.
+    ...(
+      [
+        ['vine_row_spring', 'spring'],
+        ['vine_row', 'summer'],
+        ['vine_row_autumn', 'autumn'],
+      ] as const
+    ).map(([asset, season]) => ({
+      asset,
+      cover: ['vineyard'],
+      density: 0,
+      rows: { spacing: 6, rowSpacing: 2.4, jitter: 0, keep: 1, face: true },
+      season: [season],
+      minRoadDist: 3,
+      minPathDist: 1.5,
+      scale: [0.97, 1.03] as [number, number],
+    })),
+    {
+      asset: 'spring_grass',
+      cover: ['vineyard'],
+      density: 90,
+      detail: true,
+      minRoadDist: 1,
+      scale: [0.6, 1.1],
+    },
+    // Field crops (landcover.fields.crops): wheat patches, corn planted in rows 0.75 m apart along the strips.
+    ...(['wheat', 'green_wheat'] as const).map((crop) => ({
+      asset: crop,
+      cover: ['crop'],
+      crop,
+      density: crop === 'wheat' ? 1600 : 2000,
+      detail: true,
+      minRoadDist: 2.5,
+      scale: [0.85, 1.1] as [number, number],
+    })),
+    ...(['corn', 'dry_corn'] as const).flatMap((crop) => [
+      {
+        asset: crop,
+        cover: ['crop'],
+        crop,
+        density: 0,
+        detail: true,
+        rows: {
+          spacing: 0.3,
+          rowSpacing: 0.75,
+          jitter: 0.08,
+          keep: 0.95,
+          fields: true,
+        },
+        minRoadDist: 2.8,
+        scale: [0.82, 1.15] as [number, number],
+      },
+      {
+        asset: `${crop}_row`,
+        cover: ['crop'],
+        crop,
+        density: 0,
+        detail: true,
+        rows: {
+          spacing: 3,
+          rowSpacing: 0.75,
+          jitter: 0.04,
+          keep: 1,
+          fields: true,
+        },
+        minRoadDist: 2.8,
+        scale: [0.92, 1.08] as [number, number],
+      },
+    ]),
   ],
   roadside: [
     // Lamps along the hill road (as on the street-view photos).

@@ -69,6 +69,11 @@ export interface AssetMeta {
    * compiles behind the loading screen (a test checks that no other variant adds one).
    */
   warm?: number[];
+  /**
+   * Detail layer only: the scatter places this many times the rule's density and the streamer keeps all of them
+   * near the camera (up to the quality preset's `grassNear`), thinning to the rule's density further out.
+   */
+  nearBoost?: number;
 }
 
 /** Standing fans (variants 0-23); 24-41 sit or squat (SPECTATOR_SEATED_FROM..). */
@@ -78,6 +83,41 @@ export const SPECTATOR_SEATED_COUNT = 18;
 /** Fans waving a hand flag (from variant 42): 6 outfits of North Macedonia, then 6 of the USA. */
 export const SPECTATOR_FLAG_FROM = 42;
 export const SPECTATOR_FLAG_COUNT = 12;
+
+/** Most grass the detail layer places near the camera (x the rule density; quality `grassNear` takes a share). */
+export const NEAR_GRASS = 3;
+
+/** Grass: blade strips up close (engine/grass.ts), crossed cards to 110 m. */
+const GRASS_LODS: LodSpec[] = [
+  { maxDistance: 10, castShadow: false },
+  { maxDistance: 110, castShadow: false },
+];
+
+/** Wheat: a model clump in front of the card patch within 4 m, 1 m card patches to 90 m (the parcel colour past that). */
+const WHEAT_LODS: LodSpec[] = [
+  { maxDistance: 4, castShadow: false, oneVariant: true },
+  { maxDistance: 90, castShadow: false },
+];
+
+/**
+ * Corn plants: the model (2.6k triangles) within 4 m, a crossed card to 35 m; the row cards (CORN_ROW_LODS) take over
+ * from 30 m out to the grass range (the parcel colour past that).
+ */
+const CORN_LODS: LodSpec[] = [
+  { maxDistance: 4, castShadow: false, oneVariant: true },
+  { maxDistance: 35, castShadow: false },
+];
+const CORN_ROW_LODS: LodSpec[] = [
+  { maxDistance: 30, castShadow: false },
+  { maxDistance: 110, castShadow: false },
+];
+
+/** Vineyard rows: full detail (shadows) near, trunks + 2 cards to 220 m, the cards out to 700 m (seen across the plain). */
+const VINE_LODS: LodSpec[] = [
+  { maxDistance: 60, castShadow: true },
+  { maxDistance: 220, castShadow: false },
+  { maxDistance: 700, castShadow: false },
+];
 
 /** Service park vehicles built from boxes + wheels, a plain body far away. */
 const VEHICLE_LODS: LodSpec[] = [
@@ -134,9 +174,10 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Grass tuft',
     category: 'vegetation',
     description:
-      'Alpha-tested crossed cards. Detail layer, only drawn close to the camera.',
+      'Blade strips up close, alpha-tested crossed cards further out. Detail layer, only drawn close to the camera.',
     variants: 2,
-    lods: [{ maxDistance: 110, castShadow: false }],
+    lods: GRASS_LODS,
+    nearBoost: NEAR_GRASS,
     tint: 0.2,
   },
   {
@@ -146,7 +187,8 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'Golden summer grass cards (detail layer). Same construction as grass_tuft.',
     variants: 2,
-    lods: [{ maxDistance: 110, castShadow: false }],
+    lods: GRASS_LODS,
+    nearBoost: NEAR_GRASS,
     tint: 0.18,
   },
   {
@@ -156,9 +198,92 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'Fresh bright green grass cards (detail layer) for maps with a green ground tint. Same construction as grass_tuft.',
     variants: 2,
-    lods: [{ maxDistance: 110, castShadow: false }],
+    lods: GRASS_LODS,
+    nearBoost: NEAR_GRASS,
     tint: 0.16,
   },
+  // Field crops: the CC BY wheat / corn models up close, cards baked from them further out (engine/crops.ts).
+  {
+    id: 'wheat',
+    name: 'Wheat (ripe)',
+    category: 'vegetation',
+    description:
+      'Ripe wheat clump (CC BY model) up close, baked 1 m card patches further out. Detail layer on wheat parcels.',
+    variants: 4,
+    lods: WHEAT_LODS,
+    nearBoost: 2,
+  },
+  {
+    id: 'green_wheat',
+    name: 'Wheat (spring)',
+    category: 'vegetation',
+    description:
+      'Young green wheat: the wheat model recoloured green, shorter (set by the map rule). Detail layer.',
+    variants: 4,
+    lods: WHEAT_LODS,
+    nearBoost: 2,
+  },
+  {
+    id: 'corn',
+    name: 'Corn plant',
+    category: 'vegetation',
+    description:
+      'Corn plant (CC BY model, cobs in husks) up close, a baked crossed card further out. Planted rows, detail layer.',
+    variants: 4,
+    lods: CORN_LODS,
+  },
+  {
+    id: 'dry_corn',
+    name: 'Corn plant (dry)',
+    category: 'vegetation',
+    description:
+      'Autumn corn: the corn model recoloured straw-tan. Planted rows, detail layer.',
+    variants: 4,
+    lods: CORN_LODS,
+  },
+  {
+    id: 'corn_row',
+    name: 'Corn row',
+    category: 'vegetation',
+    description:
+      'A 3 m stretch of a corn row as one baked card: the field seen from afar (nothing up close, where the plants stand).',
+    variants: 4,
+    lods: CORN_ROW_LODS,
+  },
+  {
+    id: 'dry_corn_row',
+    name: 'Corn row (dry)',
+    category: 'vegetation',
+    description: 'A 3 m stretch of an autumn corn row as one baked card.',
+    variants: 4,
+    lods: CORN_ROW_LODS,
+  },
+  {
+    id: 'vine_row',
+    name: 'Vineyard row',
+    category: 'vegetation',
+    description:
+      'A 6 m stretch of a vineyard row (post, wires, five trunks on the cordon, a leaf hedge with grapes). Planted rows.',
+    variants: 2,
+    lods: VINE_LODS,
+  },
+  {
+    id: 'vine_row_spring',
+    name: 'Vineyard row (spring)',
+    category: 'vegetation',
+    description: 'The vineyard row in April: young shoots along the cordon.',
+    variants: 2,
+    lods: VINE_LODS,
+  },
+  {
+    id: 'vine_row_autumn',
+    name: 'Vineyard row (autumn)',
+    category: 'vegetation',
+    description: 'The vineyard row in October: yellow and rust leaves, picked.',
+    variants: 2,
+    lods: VINE_LODS,
+  },
+
   // --- rocks -------------------------------------------------------------------
   {
     id: 'rock_boulder',

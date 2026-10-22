@@ -25,7 +25,7 @@ import { BuildQueue, evictions, type Held, type Want } from './build-queue';
 import { CORNER_FAN_ASSETS } from './corner-fans';
 import { ParkCars } from './park-car-mesh';
 import { SERVICE_PARK_ASSETS } from './service-park';
-import type { ScatterInstance } from './scatter';
+import { NEAR_DETAIL_MAX, type ScatterInstance } from './scatter';
 import type { World } from './world';
 
 /**
@@ -61,6 +61,9 @@ const LAZY_BUDGET = 48 * 1024 * 1024;
 const LAZY_GRACE = 60;
 /** Instances this close to the commit focus are always drawn (m). */
 const NEAR = 60;
+/** Boosted grass is at its densest out to NEAR_GRASS_FULL m and back to the map's density by NEAR_GRASS_FADE m. */
+const NEAR_GRASS_FULL = 20;
+const NEAR_GRASS_FADE = 32;
 /** Re-pack the view window after the camera turned this far (rad). */
 const REPACK = (8 * Math.PI) / 180;
 
@@ -111,6 +114,8 @@ export interface StreamerOptions {
   lodScale: number;
   /** 0..1 fraction of detail (grass) instances kept. */
   detailDensity: number;
+  /** Grass density near the camera, x the map's (quality `grassNear`; default 1 = the map's everywhere). */
+  grassNear?: number;
   /** Start a new rebuild after the camera moved this far (m). */
   rebuildDistance?: number;
   /** Max ms per frame spent on a rebuild job. */
@@ -148,6 +153,8 @@ export class InstanceStreamer {
   private lastFocus = new Vector3(Infinity, 0, 0);
   private maxRange: number;
   private detailRange: number;
+  /** Reach of the short-range detail assets (ScatterField `nearDetail`). */
+  private nearDetailRange: number;
   private job: Iterator<void> | null = null;
   /** Per instance list (a scatter chunk): the longest last-LOD distance in it, to skip far chunks wholesale. */
   private reach = new WeakMap<ScatterInstance[], number>();
@@ -187,15 +194,18 @@ export class InstanceStreamer {
     const metas = assetIds(world);
     let max = 0;
     let detail = 0;
+    let nearDetail = 0;
     for (const id of metas) {
       const m = getAssetMeta(id);
       const d = m.lods[m.lods.length - 1].maxDistance;
-      if (world.map.scatter.some((r) => r.asset === id && r.detail))
-        detail = Math.max(detail, d);
-      else max = Math.max(max, d);
+      if (!world.map.scatter.some((r) => r.asset === id && r.detail))
+        max = Math.max(max, d);
+      else if (d > NEAR_DETAIL_MAX) detail = Math.max(detail, d);
+      else nearDetail = Math.max(nearDetail, d);
     }
     this.maxRange = max;
     this.detailRange = detail;
+    this.nearDetailRange = nearDetail;
     const cars =
       typeof document === 'undefined'
         ? []
@@ -378,6 +388,7 @@ export class InstanceStreamer {
       Math.max(this.maxRange, LONGEST_LOD) * lodScale,
     );
     const dRange = Math.min(maxD, this.detailRange * lodScale);
+    const nRange = Math.min(maxD, this.nearDetailRange * lodScale);
     const b = this.world.map.bounds;
     let drawn = 0;
 
@@ -403,6 +414,26 @@ export class InstanceStreamer {
         const dx = inst.x - focus.x;
         const dz = inst.z - focus.z;
         const dist = Math.sqrt(dx * dx + dz * dz);
+        // Boosted grass (catalog `nearBoost`): `grassNear`x the map's density out to NEAR_GRASS_FULL, the map's own
+        // density past NEAR_GRASS_FADE.
+        const boost = d.meta.nearBoost;
+        if (detail && boost) {
+          const near = Math.min(boost, this.opts.grassNear ?? 1) / boost;
+          const t = Math.min(
+            1,
+            Math.max(
+              0,
+              (dist - NEAR_GRASS_FULL) / (NEAR_GRASS_FADE - NEAR_GRASS_FULL),
+            ),
+          );
+          const keep = near + (1 / boost - near) * t;
+          if (
+            hash3(Math.floor(inst.x * 10), Math.floor(inst.z * 10), 7) /
+              4294967296 >
+            keep
+          )
+            continue;
+        }
         if (dist > maxD) continue;
         let lod = -1;
         for (let i = 0; i < lods.length; i++) {
@@ -434,16 +465,18 @@ export class InstanceStreamer {
         if (near <= this.reachOf(list) * lodScale) visit(list, false);
         // Grass needs the 1 m heightfield; skip until terrain streaming has built it.
         if (
-          dRange > 0 &&
           this.opts.detailDensity > 0 &&
-          near < dRange &&
+          (near < dRange || near < nRange) &&
           this.world.heightfield.hasChunk(cx, cz)
-        )
-          visit(scatter.detail(cx, cz), true);
+        ) {
+          if (near < dRange) visit(scatter.detail(cx, cz), true);
+          if (near < nRange) visit(scatter.nearDetail(cx, cz), true);
+        }
         yield;
       }
     }
-    if (dRange > 0) scatter.pruneDetail(focus.x, focus.z, dRange * 2 + cs);
+    if (dRange > 0 || nRange > 0)
+      scatter.pruneDetail(focus.x, focus.z, dRange * 2 + cs, nRange * 2 + cs);
     this.sortX = focus.x;
     this.sortZ = focus.z;
     this.queue.swap();

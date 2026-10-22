@@ -190,6 +190,15 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   (`world/terrain-gen.ts`, `real-data.ts`). Grass moisture: greener in hollows and along water, straw on ridges and steep
   slopes - a baked map texture (`world/ground-moisture.ts`, `World.moisture`) + the slope in the terrain shader;
   `groundTint.moisture` sets the strength (0 = off).
+- **Field crops** (`landcover.fields.crops`, Ajvatovci): each field parcel's palette entry names the crop standing on it per
+  season, and scatter rules with `crop` grow only there (`TerrainGenerator.cropAt`, not within 0.8 m of a parcel edge).
+  Wheat is green and short in spring, ripe in summer and gone in autumn (stubble tint); corn is bare sown soil in spring,
+  tall in summer and dry in autumn. Both stand at least 2 m clear of the stage road. Wheat: 1 m card patches with a model clump in front within 4 m. Corn: rows 0.75 m
+  apart along the strips (`rows.fields`), the model within 4 m, plant cards to 35 m, 3 m row cards to 110 m. The models are
+  two CC BY Sketchfab models (`THIRD-PARTY.md`) baked by `scripts/crops/bake-crops.py` into `crop-models.data.ts`; the
+  cards are rendered from them once per page (`engine/crops.ts` `bakeCropCards`), 4 variants each with their own mix of
+  plant heights (stacked in one texture; the asset variant picks one) so the field tops are uneven. Detail assets that reach no further
+  than 40 m (corn plants) are generated only near the camera (`ScatterField.nearDetail`).
 - **Horizon backdrop** (`horizon`, real maps): the land ~25 km around the map (terrain + land cover from Terrarium /
   WorldCover, no roads or buildings), baked by `scripts/realmap/horizon.py` into `<map>/horizon.json`, drawn behind
   everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain). A grid may be

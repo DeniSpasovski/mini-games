@@ -148,6 +148,19 @@ const NPC_CARS: SourceLink[] = [
   },
 ];
 
+const PLANTS: SourceLink[] = [
+  {
+    label: 'Realistic Wheat (Graphetta, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/realistic-wheat-50270968690441d3ad9d2a8924c7338b',
+    note: 'wheat fields, green in spring - CC BY 4.0',
+  },
+  {
+    label: 'Corn! Corn! Corn! (Tiia Tuulia, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/corn-corn-corn-10187bc37c9e42ef8770b28452ee7cd3',
+    note: 'corn fields, dry in autumn - CC BY 4.0',
+  },
+];
+
 const BUILT_WITH: SourceLink[] = [
   { label: 'three.js', url: 'https://threejs.org/', note: 'rendering, MIT' },
   { label: 'Rsbuild', url: 'https://rsbuild.rs/', note: 'build tooling, MIT' },
@@ -627,6 +640,9 @@ class MainMenu {
       ${links(NPC_CARS, '')}
       <h2>People</h2>
       ${links(PEOPLE_CREDITS, '')}
+      <h2>Plants</h2>
+      <p>Trees, bushes and grass are generated in code.</p>
+      ${links(PLANTS, '')}
       <h2>Physics</h2>
       <h3>Tyres</h3>
       ${links(TYRE_RESEARCH, '')}
