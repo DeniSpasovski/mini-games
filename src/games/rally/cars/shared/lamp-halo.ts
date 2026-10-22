@@ -4,7 +4,6 @@ import {
   Color,
   DataTexture,
   DoubleSide,
-  FrontSide,
   Group,
   LinearFilter,
   Matrix4,
@@ -319,25 +318,17 @@ function glareMaterial(colour: Vector3): ShaderMaterial {
   });
 }
 
-function haloMaterial(
-  mask: DataTexture,
-  colour: Vector3,
-  front: boolean,
-): ShaderMaterial {
+function haloMaterial(mask: DataTexture, colour: Vector3): ShaderMaterial {
   return new ShaderMaterial({
     uniforms: {
       uMask: { value: mask },
       uLevel: { value: 0 },
       uColour: { value: colour },
     },
-    // Head lamps: the glow gathers round the lit parts (mask squared) and fades out before the quad's edges, so a wide
-    // white lamp gives a soft glow instead of a lit box.
-    defines: front ? { HEAD: '' } : {},
     transparent: true,
     depthWrite: false,
     fog: false,
-    // A head lamp's glow faces forwards only: from behind it would shine through the car's windows.
-    side: front ? FrontSide : DoubleSide,
+    side: DoubleSide,
     blending: AdditiveBlending,
     vertexShader: /* glsl */ `
       varying vec2 vUv;
@@ -352,10 +343,6 @@ function haloMaterial(
       varying vec2 vUv;
       void main() {
         float a = texture2D( uMask, vUv ).r;
-        #ifdef HEAD
-          vec2 e = min( vUv, 1.0 - vUv );
-          a *= a * smoothstep( 0.0, 0.2, e.x ) * smoothstep( 0.0, 0.2, e.y );
-        #endif
         gl_FragColor = vec4( uColour * ( uLevel * a ), 1.0 );
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -365,7 +352,7 @@ function haloMaterial(
 
 /**
  * Soft glow round a car's red tail lamps: for each lamp (its pieces joined) one additive quad just behind it whose
- * shape is the lamp's own silhouette from behind, blurred (head lamps: just in front, see the constructor). Lit by `setLevel`.
+ * shape is the lamp's own silhouette from behind, blurred (head lamps: a camera-facing glare, `addGlare`). Lit by `setLevel`.
  */
 export class LampHalos {
   /** Children of the car body: the quads, in body space. */
@@ -382,8 +369,8 @@ export class LampHalos {
 
   /**
    * `meshes` = the red lamp meshes, `toBody` = world -> body matrix (the matrix worlds must be current). `reverse` = the glow
-   * of the white reversing lens (its `reverseGlow` map) instead, in warm white. `front` = head lamps: the quad sits just in
-   * front of each lamp, in `color` (sRGB hex, the beam's).
+   * of the white reversing lens (its `reverseGlow` map) instead, in warm white. `front` = head lamps: a glare in front of each
+   * lamp (`addGlare`), in `color` (sRGB hex, the beam's).
    */
   constructor(
     meshes: Mesh[],
@@ -420,14 +407,13 @@ export class LampHalos {
         const material = haloMaterial(
           maskTexture(piece, x0, y0, w, h, radius),
           colour,
-          !!opts.front,
         );
         const halo = new Mesh(quad, material);
         halo.scale.set(w * TEXEL, h * TEXEL, 1);
         halo.position.set(
           x0 + (w * TEXEL) / 2,
           y0 + (h * TEXEL) / 2,
-          opts.front ? lamp.box.max.z + SETBACK : lamp.box.min.z - SETBACK,
+          lamp.box.min.z - SETBACK,
         );
         halo.renderOrder = 5;
         halo.frustumCulled = false;

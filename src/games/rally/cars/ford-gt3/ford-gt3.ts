@@ -227,7 +227,6 @@ export const fordGt3: CarDef = {
         '"2024 Ford Mustang GT3" by kevin, sketchfab.com/3d-models/2024-ford-mustang-gt3-d2b7823f48f147e99e857ee825d089cc, CC BY 4.0 (converted + repainted)',
       autoFit: false,
       atlas: fordGt3Livery,
-      headBowls: true,
       // Red wing end plates (cut out of the black trim; blade and struts stay black).
       recolor: [
         {
