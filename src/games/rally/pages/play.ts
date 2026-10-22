@@ -34,6 +34,9 @@ import { SETUP_FOR_TYRE, SETUP_IDS } from '../physics/car-setup';
 import { isGearingId } from '../physics/gearing';
 import { parseTyre } from '../physics/tyres';
 import { paramInt } from '../../../shared/url-params';
+import { stageSeason } from '../maps/shared/climate';
+import { seasonParam } from '../season';
+import { stageCardImageUrl } from '../tools/stage-card';
 
 /**
  * /games/rally/                -> main menu (welcome -> stage -> car, options)
@@ -125,6 +128,17 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
     <div class="stage-plate">${stagePlateHtml(info)}</div>`,
     'loading',
   );
+  // The stage's baked card (aerial picture) behind the loading box, in the season the stage runs in; none = plain glass.
+  void stageCardImageUrl(
+    info.map,
+    info.id,
+    seasonParam(
+      new URLSearchParams(location.search).get('season'),
+      stageSeason(info),
+    ),
+  ).then((url) => {
+    if (url) loading.style.setProperty('--card', `url("${url}")`);
+  });
   const tyre = parseTyre(params.tyre, info.tyre);
   const setup =
     SETUP_IDS.find((s) => s === params.susp) ?? SETUP_FOR_TYRE[tyre];

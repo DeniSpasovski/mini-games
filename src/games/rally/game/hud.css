@@ -105,15 +105,15 @@ body {
   top: 10px;
   left: 50%;
   transform: translateX(-50%);
-  min-width: 230px;
-  padding: 4px 30px 6px;
+  min-width: 180px;
+  padding: 3px 24px 5px;
   text-align: center;
 }
 .hud-top::before {
   border-bottom: 4px solid var(--ui-accent);
 }
 .hud-time {
-  font: italic 800 58px/1 var(--ui-font-display);
+  font: italic 800 44px/1 var(--ui-font-display);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
 }
@@ -432,6 +432,16 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+/* Loading: the stage card (aerial picture, set by play.ts as --card) under dark glass. */
+.overlay.loading {
+  background:
+    linear-gradient(
+      rgb(var(--ui-glass-rgb) / 0.72),
+      rgb(var(--ui-glass-rgb) / 0.72)
+    ),
+    var(--card, none) center / cover no-repeat,
+    var(--ui-glass);
 }
 /* Pause: the menu slab, full height on the left (the stage stays visible and dimmed on the right). */
 .overlay.pause {

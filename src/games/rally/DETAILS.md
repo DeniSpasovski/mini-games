@@ -366,13 +366,14 @@ surface x compound x tyre size / grade x set-up. Details and tuning workflow: [P
 **Setup screen** (`game/menu.ts` `setupSelect`, `game/setup-bench.ts`, `Showroom.renderBoxes`): optional; most players never
 open it.
 
-- Rows of boxes: **Tyres** (five: soft and hard tarmac, mixed, hard and soft gravel; on the car's own rim, grip chip per surface
-  of the stage; the boxes shrink to fit), **Suspension** (the car's coil-over,
-  travel, ride height, spring, rebound), **Gearing** (speed-per-gear chart, race cars only). `RECOMMENDED` marks the pick.
-- Click, or arrows + Enter, Esc / B back. Choices are not saved (they reset with the stage or car); the URL and the leaderboard
-  carry them.
-- Each box is a transparent DOM element; `renderBoxes` draws the showroom, then each part's studio camera into its box. Call
-  `showSetup(carId, boxes)` again after the menu re-renders. Styles: `game/menu.css` "setup screen".
+- The menu slab with one row per setting: **Tyres** (five: soft and hard tarmac, mixed, hard and soft gravel; grip pips per
+  surface of the stage), **Suspension** (travel, ride height, spring, rebound, the car's soft-stiff range), **Gearing** (top speed,
+  final drive, pull; race cars only, else "Standard"). `RECOMMENDED` marks the stage's pick.
+- ↑↓ / D-pad pick the row, ←→ or the row's arrows change it, Enter / A on the active row steps to the next option, Esc / B back.
+  Choices are not saved (they reset with the stage or car); the URL and the leaderboard carry them.
+- The part window top right shows the active row's pick: a transparent DOM element; `renderBoxes` draws the showroom, then the
+  part's studio camera (`setup-bench.ts`) into it; gearing shows its speed-per-gear chart there. Call `showSetup(carId, boxes)`
+  again after the menu re-renders. Styles: `game/menu.css` "Setup screen".
 - In game: no set-up HUD; a "hold on!" line at GO for a poor tyre pick; the dash shows the four tyre temperatures
   and a disc mark per wheel (PHYSICS.md "Tyre temperature" / "Brakes"); `F2` shows tyre, set-up, per-wheel grip, tyre and disc temperature.
 
