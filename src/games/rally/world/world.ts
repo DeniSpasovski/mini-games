@@ -501,7 +501,14 @@ export class World implements GroundProvider {
       if (bd.kind) {
         // Mesh building (building-mesh.ts draws it): only its collider goes into the scatter chunks.
         this.scatter.addFixedCollider(buildingCollider(bd, this.analytic));
-      } else this.scatter.addFixed(buildingInstance(bd, this.analytic));
+      } else
+        this.scatter.addFixed(
+          buildingInstance(
+            bd,
+            this.analytic,
+            map.id === 'galichica' || map.id === 'petralica',
+          ),
+        );
     }
 
     for (const landmark of this.landmarks) {

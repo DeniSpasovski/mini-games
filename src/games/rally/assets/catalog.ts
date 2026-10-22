@@ -352,8 +352,8 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'House (sloped roof)',
     category: 'buildings',
     description:
-      'Placeholder village house: rendered / brick walls, red tile hip or gable roof. Unit 1x1x1, scaled to the real footprint. Variants 0-3 one floor, 4-7 two floors.',
-    variants: 8,
+      'Placeholder village house: rendered / brick walls, red tile hip or gable roof. Unit 1x1x1, scaled to the real footprint. Variants 0-5 one floor (0-2 render, 3 clay brick, 4-5 stone), 6-11 two floors.',
+    variants: 12,
     lods: [
       { maxDistance: 160, castShadow: true },
       { maxDistance: 2600, castShadow: false },

@@ -3,6 +3,7 @@ import { Rng } from '../../../../shared/rng';
 import { merge, paint, planarUV, shade } from '../../engine/geo';
 import { getMaterial } from '../../engine/materials';
 import { HOUSE_WALL_FRACTION } from '../catalog';
+import { HOUSE_LAYER } from '../../engine/house-walls';
 import type { AssetBuilder } from '../types';
 
 /**
@@ -17,6 +18,16 @@ import type { AssetBuilder } from '../types';
 /** Wall top of the sloped-roof house as a fraction of its total height (roof = the rest). */
 const HOUSE_WALL = HOUSE_WALL_FRACTION;
 
+/** Texture-array layer of every vertex (-1 = detail map x vertex colour; see engine/house-walls.ts). */
+function setLayer(g: BufferGeometry, layer: number): BufferGeometry {
+  const n = g.getAttribute('position').count;
+  g.setAttribute(
+    'layer',
+    new BufferAttribute(new Float32Array(n).fill(layer), 1),
+  );
+  return g;
+}
+
 const box = (
   w: number,
   h: number,
@@ -26,21 +37,22 @@ const box = (
   z: number,
   color: string,
   rng?: Rng,
+  layer = -1,
 ) => {
   const g = new BoxGeometry(w, h, d);
   g.translate(x, y, z);
-  return planarUV(paint(g, color, rng, rng ? 0.03 : 0), 0.3);
+  return setLayer(planarUV(paint(g, color, rng, rng ? 0.03 : 0), 0.3), layer);
 };
 
 /** Triangles (flat shaded) from a flat list of [x,y,z] triples. */
-function tris(points: number[][], color: string): BufferGeometry {
+function tris(points: number[][], color: string, layer = -1): BufferGeometry {
   const g = new BufferGeometry();
   g.setAttribute(
     'position',
     new BufferAttribute(new Float32Array(points.flat()), 3),
   );
   g.computeVertexNormals();
-  return planarUV(paint(g, color), 0.3);
+  return setLayer(planarUV(paint(g, color), 0.3), layer);
 }
 
 /** Quad a-b-c-d (counter-clockwise seen from outside) as two triangles. */
@@ -83,19 +95,36 @@ function openings(
   parts.push(box(0.1, dh, 0.01, 0, dh / 2, e, door));
 }
 
-const WALLS = ['#e7e1d3', '#e6d0a3', '#d8a47a', '#a65a3e'];
-const ROOFS = ['#a4462e', '#b5532f', '#8f3f2b', '#9d4a33'];
+// Styles: 0-2 render in three paints, 3 unfinished red clay brick, 4 / 5 lime-plastered rubble stone (hip / gable).
+const WALLS = [
+  '#f0ece2',
+  '#e6d6a6',
+  '#e0b49a',
+  '#f4f0ea',
+  '#f4f0ea',
+  '#f4f0ea',
+];
+const WALL_LAYER = [
+  HOUSE_LAYER.render,
+  HOUSE_LAYER.render,
+  HOUSE_LAYER.render,
+  HOUSE_LAYER.clay,
+  HOUSE_LAYER.rubble,
+  HOUSE_LAYER.rubble,
+];
+// Multiplied onto the roof-tile scan: near white keeps the terracotta, the rest weathers it.
+const ROOFS = ['#ffffff', '#f1e3da', '#e2cfc2', '#f7ebe3'];
 
 /** House with a sloped red-tile roof: hip (even styles) or gable (odd styles). */
 export const housePitched: AssetBuilder = ({ seed, variant, lod }) => {
   const rng = new Rng(seed);
-  const style = variant % 4;
-  const rows = variant >= 4 ? 2 : 1;
+  const style = variant % 6;
+  const rows = variant >= 6 ? 2 : 1;
   const wall = WALLS[style];
   const roof = rng.pick(ROOFS);
   const W = HOUSE_WALL;
   const parts: BufferGeometry[] = [];
-  parts.push(box(1, W, 1, 0, W / 2, 0, wall, rng));
+  parts.push(box(1, W, 1, 0, W / 2, 0, wall, rng, WALL_LAYER[style]));
   if (lod === 0) {
     parts.push(box(1.012, 0.05, 1.012, 0, 0.025, 0, '#8e8a82'));
     // Unfinished brick houses: grey concrete slabs at the floor lines.
@@ -134,18 +163,19 @@ export const housePitched: AssetBuilder = ({ seed, variant, lod }) => {
           [-0.5, 1 - 0.02, 0],
         ],
         wall,
+        WALL_LAYER[style],
       ),
     );
   }
   // Soffit under the eaves (seen from the road).
   pts.push(...quad([-X, y0, -Z], [X, y0, -Z], [X, y0, Z], [-X, y0, Z]));
-  const rg = tris(pts, roof);
+  const rg = tris(pts, roof, HOUSE_LAYER.roof);
   shade(rg, (_x, y) =>
     y < y0 + 0.001 ? 0.55 : 0.85 + 0.15 * ((y - y0) / (1 - y0)),
   );
   parts.push(rg);
   return {
-    parts: [{ geometry: merge(parts), material: getMaterial('props') }],
+    parts: [{ geometry: merge(parts), material: getMaterial('house') }],
   };
 };
 
@@ -159,8 +189,14 @@ export const buildingFlat: AssetBuilder = ({ seed, variant, lod }) => {
   const rows = variant >= 4 ? 2 : 1;
   const parts: BufferGeometry[] = [];
   const top = 0.965;
-  const body = ['#d9dcdc', '#b9bdbf', '#a85d40', '#e4ddce'][style];
-  parts.push(box(1, top, 1, 0, top / 2, 0, body, rng));
+  const body = ['#f0f2f2', '#d6dadb', '#f4f0ea', '#f0e9da'][style];
+  const layer = [
+    HOUSE_LAYER.sheet,
+    HOUSE_LAYER.sheet,
+    HOUSE_LAYER.clay,
+    HOUSE_LAYER.render,
+  ][style];
+  parts.push(box(1, top, 1, 0, top / 2, 0, body, rng, layer));
   // Parapet / roof edge and roof membrane.
   const cap = style < 2 ? '#7d8287' : style === 2 ? '#8f8c86' : '#a7a29a';
   parts.push(box(1.01, 1 - top, 1.01, 0, (top + 1) / 2, 0, cap));
@@ -188,6 +224,6 @@ export const buildingFlat: AssetBuilder = ({ seed, variant, lod }) => {
     }
   }
   return {
-    parts: [{ geometry: merge(parts), material: getMaterial('props') }],
+    parts: [{ geometry: merge(parts), material: getMaterial('house') }],
   };
 };
