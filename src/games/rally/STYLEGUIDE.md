@@ -23,19 +23,21 @@ and `hud.css` use `var(--ui-*)` only, so a change of look starts there.
 
 ## Colour
 
-| Token                               | Value                         | Use                                                                 |
-| ----------------------------------- | ----------------------------- | ------------------------------------------------------------------- |
-| `--ui-accent` (`-rgb`)              | `#f0a020`                     | brand: primary button, selected edge, active row, route line        |
-| `--ui-on-accent`                    | `#0e0d0b`                     | text on an accent fill                                              |
-| `--ui-glass` (`--ui-glass-rgb`)     | `#0a0b0d` at 90%              | panels, slab, plates                                                |
-| `--ui-raised` / `-hover` / `-solid` | white 7% / 13% / `#26282c`    | button and card fills (`-solid` where text scrolls beneath)         |
-| `--ui-line`                         | white 14%                     | hairlines, outlines                                                 |
-| `--ui-text` / `-2` / `-off`         | `#f4f1ea` `#b4bcc6` `#8a939f` | primary, secondary, disabled / hints (each at least 4.5:1 on glass) |
-| `--ui-best`                         | `#9b4dff` purple              | personal or overall best                                            |
-| `--ui-faster` / `--ui-slower`       | `#18a94a` / `#e6b400`         | faster / slower than the reference run                              |
-| `--ui-penalty`                      | `#ff5a48`                     | penalties, warnings, redline                                        |
-| `--ui-test`                         | `#e04fb3`                     | test-only car / stage badge (dev server)                            |
-| `--ui-rate-0` .. `-3`               | red, orange, lime, green      | grip and quality ratings (not timing)                               |
+![Palette: brand and surfaces, timing, ratings](styleguide/palette.svg)
+
+|                                                | Token                               | Value                                   | Use                                                                 |
+| ---------------------------------------------- | ----------------------------------- | --------------------------------------- | ------------------------------------------------------------------- |
+| ![accent](styleguide/accent.svg)               | `--ui-accent` (`-rgb`)              | `#f0a020`                               | brand: primary button, selected edge, active row, route line        |
+| ![on-accent](styleguide/on-accent.svg)         | `--ui-on-accent`                    | `#0e0d0b`                               | text on an accent fill                                              |
+| ![glass](styleguide/glass.svg)                 | `--ui-glass` (`--ui-glass-rgb`)     | `#0a0b0d` at 90%                        | panels, slab, plates                                                |
+| ![raised](styleguide/raised.svg)               | `--ui-raised` / `-hover` / `-solid` | white 7% / 13% / `#26282c`              | button and card fills (`-solid` where text scrolls beneath)         |
+| ![line](styleguide/line.svg)                   | `--ui-line`                         | white 14%                               | hairlines, outlines                                                 |
+| ![text](styleguide/text.svg)                   | `--ui-text` / `-2` / `-off`         | `#f4f1ea` `#b4bcc6` `#8a939f`           | primary, secondary, disabled / hints (each at least 4.5:1 on glass) |
+| ![best](styleguide/best.svg)                   | `--ui-best`                         | `#9b4dff` purple                        | personal or overall best                                            |
+| ![faster-slower](styleguide/faster-slower.svg) | `--ui-faster` / `--ui-slower`       | `#18a94a` / `#e6b400`                   | faster / slower than the reference run                              |
+| ![penalty](styleguide/penalty.svg)             | `--ui-penalty`                      | `#ff5a48`                               | penalties, warnings, redline                                        |
+| ![test](styleguide/test.svg)                   | `--ui-test`                         | `#e04fb3`                               | test-only car / stage badge (dev server)                            |
+| ![rate](styleguide/rate.svg)                   | `--ui-rate-0` .. `-3`               | `#e0584f` `#f08a24` `#b9d86a` `#5fd08a` | grip and quality ratings, worst to best (not timing)                |
 
 Amber is the brand and never means "good" or "bad": timing meaning only comes from the purple / green / yellow / red set,
 ratings from the `--ui-rate-*` set (its orange is not the accent). "Recommended" is a white hairline chip, not green.
@@ -109,5 +111,6 @@ The menu slab with one slanted row per setting (`.setup-tune`: white icon, label
 1. Take colours, fonts, the slant and the radius from `ui-tokens.css`; add a token before adding a literal.
 2. Check contrast of new text colours against `--ui-glass`.
 3. Check 1280x720 and 915x412 screenshots, and keyboard, pad and touch focus.
-4. Update this file when a token or a component changes; retake the screenshots above when a screen's look changes
+4. Update this file when a token or a component changes (a colour token: also its swatch in [`styleguide/`](styleguide/), the
+   `fill` in the SVG, and `palette.svg`); retake the screenshots above when a screen's look changes
    (`screenshots/ui-*.jpg`, 1280x720, taken in game with `?mute=1`).
