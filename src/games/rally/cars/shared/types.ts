@@ -67,6 +67,8 @@ export interface CarSoundDef {
   cam: number;
   /** Cylinder-to-cylinder variation (default 0.05): a tired engine is rougher. */
   roughness?: number;
+  /** Misfires (0 = none .. 1 = constant): the engine skips firings and spits through the carburettor, most at idle and on a low-rpm tip-in. */
+  sputter?: number;
 }
 
 /**

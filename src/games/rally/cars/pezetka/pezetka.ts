@@ -112,6 +112,7 @@ export const pezetka: CarDef = {
     gearbox: 'manual',
     cam: 0.05,
     roughness: 0.12,
+    sputter: 0.6,
   },
   physics: {
     noTractionControl: true,

@@ -140,11 +140,14 @@ export interface CarSoundFrame {
 }
 
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
+/** 1 at idle with the pedal up, 0 from 1.8 x idle rpm or on the throttle. */
+const idle0 = (rpm: number, idleRpm: number, throttle: number): number =>
+  clamp01(1 - (rpm - idleRpm) / (idleRpm * 0.8)) * (1 - throttle);
 
 /**
  * Synthesised car audio (no sample files), tuned per car by `CarDef.sound` (cars/shared/types.ts):
  *  - engine: the firing-order wave (engine-sound.ts) at rpm / 120 Hz through a waveshaper + throttle-driven
- *    low-pass, plus exhaust rasp and intake roar (noise pulsed by the same wave), idle lope of a race cam
+ *    low-pass, plus exhaust rasp and intake roar (noise pulsed by the same wave), misfires (`sputter`), idle lope of a race cam
  *  - turbo: whistle + spool hiss; anti-lag bangs or a wastegate flutter on a lift; overrun pops; shift clunks
  *    and ignition cuts (sequential box), straight-cut gear whine; rev limiter stutter
  *  - wind, tarmac roll, gravel crunch, tyre slide (loose ground = crackling scrub + rumble, tarmac = squeal),
@@ -216,6 +219,9 @@ export class CarAudio {
   private gear = 0;
   /** Seconds left of the ignition cut of a shift. */
   private shiftCut = 0;
+  /** Seconds left of a misfire (`CarSoundDef.sputter`). */
+  private misfire = 0;
+  private lastThrottle = 0;
   /** Seconds since the pedal was lifted (Infinity while on it). */
   private offTime = Infinity;
   private pedalUp = false;
@@ -559,19 +565,42 @@ export class CarAudio {
     if (als && Math.random() < 8 * dt)
       this.bang(0.55 + 0.45 * Math.random(), 0.75);
 
+    // Misfires of a tired, carburetted engine: a skipped firing or two (the level drops for 1-2 cycles), now and then
+    // a spit back through the carburettor. Most at idle and when the throttle opens at low rpm.
+    const sputter = snd.sputter ?? 0;
+    this.misfire = Math.max(0, this.misfire - dt);
+    if (sputter > 0 && rpm > 300) {
+      const lowRpm = clamp01(1 - rpm / (this.redline * 0.5));
+      const tipIn =
+        Math.max(0, throttle - this.lastThrottle) / Math.max(dt, 1e-3);
+      const rate =
+        sputter *
+        (0.6 +
+          3 * idle0(rpm, this.idleRpm, throttle) +
+          Math.min(6, tipIn * 0.8) * lowRpm);
+      if (this.misfire === 0 && Math.random() < rate * dt) {
+        this.misfire = ((1 + Math.random()) * 120) / rpm;
+        if (Math.random() < 0.3)
+          this.bang((0.08 + 0.12 * Math.random()) * sputter, 0.35);
+      }
+    }
+    this.lastThrottle = throttle;
+
     // Idle lope of a race cam + a little combustion jitter everywhere.
     this.lope += (Math.random() * 2 - 1 - this.lope) * Math.min(1, dt * 7);
-    const idle =
-      clamp01(1 - (rpm - this.idleRpm) / (this.idleRpm * 0.8)) * (1 - throttle);
+    const idle = idle0(rpm, this.idleRpm, throttle);
     const wob = this.lope * (0.004 + snd.cam * 0.05 * idle);
-    const cycle = (rpm / 120) * (1 + wob);
+    const cycle = (rpm / 120) * (1 + wob) * (this.misfire > 0 ? 0.985 : 1);
     this.oscA.frequency.setTargetAtTime(cycle, t, 0.02);
     this.oscB!.frequency.setTargetAtTime(cycle, t, 0.02);
 
     // Engine level and tone: bigger engines and open exhausts are louder and darker at rest, brighter on load.
     // Loudness follows displacement: a 1.3 l is ~60% of a 4 l V8.
     const size = 0.5 + 0.22 * snd.displacement;
-    const cut = (this.shiftCut > 0 ? 0.3 : 1) * (limiter ? 0.45 : 1);
+    const cut =
+      (this.shiftCut > 0 ? 0.3 : 1) *
+      (limiter ? 0.45 : 1) *
+      (this.misfire > 0 ? 0.3 : 1);
     const lope = 1 + snd.cam * 0.35 * this.lope * idle;
     this.engineGain!.gain.setTargetAtTime(
       (0.12 + 0.13 * throttle + 0.05 * rpmN) *
