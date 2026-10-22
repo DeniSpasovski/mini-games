@@ -24,7 +24,12 @@ import { streetDetailMeshJob } from './street-detail-mesh';
 import { newRoadQuery } from './road';
 import { gantryMeshJob } from './gantry-mesh';
 import { goreMeshJob } from './gore-mesh';
-import { junctionFillets } from './junctions';
+import {
+  type Junction,
+  type JunctionFillet,
+  junctionFillets,
+  junctionMouth,
+} from './junctions';
 import { plazaMeshJob } from './plaza-mesh';
 import { stageSignMeshJob } from './stage-sign-mesh';
 import { buildingMeshJob } from './building-mesh';
@@ -157,6 +162,45 @@ export async function buildRoadMeshSliced(
   return r.value;
 }
 
+/**
+ * Junctions of plain tarmac side roads (`road_tarmac`) with their rounded corners and the stretch of stage edge their
+ * mouth takes. City maps (kerbs, sidewalks, plazas, markings) have none.
+ */
+function tarmacJunctions(
+  world: World,
+): { j: Junction; fillets: JunctionFillet[]; from: number; to: number }[] {
+  if (world.map.cityStreets) return [];
+  return (
+    world.gen.junctions
+      .filter(
+        (j) =>
+          j.surface === 'tarmac' &&
+          pathTexture(j.kind, j.width, false) === 'road_tarmac',
+      )
+      // Two ways joining at the same spot (a doubled way in the map data): one set of corners, or the fans overlap.
+      .filter(
+        (j, i, all) =>
+          !all
+            .slice(0, i)
+            .some(
+              (o) =>
+                o.side === j.side && Math.hypot(o.x - j.x, o.z - j.z) < o.width,
+            ),
+      )
+      .map((j) => {
+        const s0 = world.road.at(j.along);
+        const edge = (d: number): [number, number] => {
+          const s = world.road.at(j.along + d);
+          const lat = j.side * s.halfWidth;
+          return [s.x + s.tz * lat, s.z - s.tx * lat];
+        };
+        const fillets = junctionFillets(j, s0.tx, s0.tz, edge);
+        const [lo, hi] = junctionMouth(j, s0.tx, s0.tz, fillets);
+        return { j, fillets, from: j.along + lo, to: j.along + hi };
+      })
+  );
+}
+
 /** buildRoadMesh as a time-sliced job: yields after every road segment / side road. */
 export function* roadMeshJob(world: World): Generator<void, Group> {
   const group = new Group();
@@ -180,6 +224,8 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
       }
     i = end;
   }
+  // Junction mouths: no dusty edge band across them (it runs round the fillets instead).
+  const mouths = tarmacJunctions(world);
   for (const [si, start] of starts.entries()) {
     const end = starts[si + 1] ?? samples.length - 1;
     const rows = end - start + 1;
@@ -209,6 +255,16 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
         nor[v * 3 + 1] = nTmp.y;
         nor[v * 3 + 2] = nTmp.z;
         uv[v * 2] = 1 - (ACROSS[c] + 1.04) / 2.08;
+        // Outer column across a mouth: mirrored back over the next column (plain asphalt, same scale).
+        const side = Math.sign(ACROSS[c]);
+        if (
+          segTex === 'road_tarmac' &&
+          (c === 0 || c === cols - 1) &&
+          mouths.some(
+            (m) => m.j.side === side && s.dist >= m.from && s.dist <= m.to,
+          )
+        )
+          uv[v * 2] = 2 * (1 - (ACROSS[c - side] + 1.04) / 2.08) - uv[v * 2];
         uv[v * 2 + 1] = s.dist / texLength(segTex);
       }
     }
@@ -306,6 +362,7 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
   const nTmp = new Vector3();
   const rq = newRoadQuery();
   const pqOther = newPathQuery();
+  const pqEdge = newPathQuery();
   const hasJoiners = paths.some((q) => q.joinsUnder);
   const tiles = new Map<
     string,
@@ -422,6 +479,8 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
     const pi = net.paths.indexOf(p);
     // (the carriageways / parkway lanes run down in the trench under a plaza: drawn)
     const onTop = !world.gen.isCarriageway(pi);
+    // Rows overlapping an earlier paved way (a fork's shared start, a way doubled in the map data) lie 1 cm under it:
+    // two ribbons at one height flickered between their textures.
     for (let r = 0; r < pts.length; r++) {
       // Lane drops / gains taper (the width meets the continuing way's), see PathNetwork.halfWidthAt.
       // (clamped: an end run on under the stage road lies past the way's own length)
@@ -439,6 +498,12 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
       // a pit at a deck end, the trench under a portal slab) the ribbon stays on it - sagging with the land let the
       // terrain show through the lanes.
       const prof = world.gen.pathHeight(pi, along);
+      let under = 0;
+      if (tex === 'road_tarmac') {
+        net.query(pts[r][0], pts[r][1], pqEdge, 'tarmac', (i) => i < pi);
+        if (pqEdge.found && pqEdge.distance < pqEdge.halfWidth + hw)
+          under = 0.01;
+      }
       for (let c = 0; c < cols; c++) {
         const lat = PATH_ACROSS[c] * hw;
         const x = pts[r][0] + tz * lat;
@@ -524,10 +589,18 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
               ? ph + 0.02
               : Math.min(top, ph + 0.01);
         }
-        tile.pos.push(x, top, z);
+        tile.pos.push(x, top - under, z);
         // One normal per row (taken at the centre): the ribbons are flat roads, and this saves four height samples per vertex.
         tile.nor.push(nTmp.x, nTmp.y, nTmp.z);
-        tile.uv.push(1 - (PATH_ACROSS[c] + 1) / 2, pts[r][2] / texLength(tex));
+        let u = 1 - (PATH_ACROSS[c] + 1) / 2;
+        // An edge lying on another paved way (a fork, a crossing): no dusty edge band in the middle of the paving -
+        // mirrored back over the next column instead (plain asphalt, same scale).
+        if (tex === 'road_tarmac' && (c === 0 || c === cols - 1)) {
+          net.query(x, z, pqEdge, 'tarmac', (i) => i !== pi);
+          if (pqEdge.found && pqEdge.distance < pqEdge.halfWidth - 0.2)
+            u = 2 * (1 - (PATH_ACROSS[c === 0 ? 1 : c - 1] + 1) / 2) - u;
+        }
+        tile.uv.push(u, pts[r][2] / texLength(tex));
       }
       if (r % 256 === 255) yield;
     }
@@ -551,18 +624,11 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
   }
   // Rounded corners at the junction mouths of plain tarmac side roads (junctions.ts `junctionFillets`): the same
   // tiles / material as the ribbons (no extra draws) and the ribbon's height rule (sunk under the stage road's edge).
-  // Textured with the dusty edge band of `road_tarmac`. City maps (kerbs, sidewalks, plazas, markings) are left out.
-  for (const j of world.map.cityStreets ? [] : world.gen.junctions) {
-    if (j.surface !== 'tarmac') continue;
-    const tex = pathTexture(j.kind, j.width, !!world.map.cityStreets);
-    if (tex !== 'road_tarmac') continue;
-    const s0 = world.road.at(j.along);
-    const edge = (d: number): [number, number] => {
-      const s = world.road.at(j.along + d);
-      const lat = j.side * s.halfWidth;
-      return [s.x + s.tz * lat, s.z - s.tx * lat];
-    };
-    for (const f of junctionFillets(j, s0.tx, s0.tz, edge)) {
+  // Plain asphalt, with the dusty edge band of `road_tarmac` running round the curve (not along the side road's edge
+  // or the stage road's edge across the mouth, which would leave dust in the middle of the paved area).
+  const tex = 'road_tarmac';
+  for (const { j, fillets } of tarmacJunctions(world)) {
+    for (const f of fillets) {
       const key = `${tex}:${Math.floor(f.c[0] / PATH_TILE)},${Math.floor(f.c[1] / PATH_TILE)}`;
       let tile = tiles.get(key);
       if (!tile)
@@ -573,7 +639,7 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
       // triangles are cut at the mirror lines so u stays linear inside each one.
       const lat = (x: number, z: number) =>
         ((x - j.x) * -j.dz + (z - j.z) * j.dx) / j.width;
-      const put = (x: number, z: number, l: number, fold: number) => {
+      const put = (x: number, z: number, u: number, v: number) => {
         world.road.query(x, z, rq);
         const ground = hf.height(x, z);
         const sink =
@@ -587,14 +653,18 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
                 ),
               )
             : 0;
-        tile.pos.push(x, ground + 0.03 - 0.08 * sink, z);
+        // The side road ribbon's crease lift near the stage road, plus 1.5 cm: the fan covers its edge band along the
+        // corner.
+        const crease =
+          rq.found && rq.distance > rq.halfWidth
+            ? Math.max(0, 1 - (rq.distance - rq.halfWidth) / 8)
+            : 0;
+        tile.pos.push(x, ground + 0.045 + 0.05 * crease - 0.08 * sink, z);
         tile.nor.push(nTmp.x, nTmp.y, nTmp.z);
-        const m = l - fold * 0.6;
-        tile.uv.push(
-          0.2 + (fold % 2 === 0 ? m : 0.6 - m),
-          ((x - j.x) * j.dx + (z - j.z) * j.dz) / texLength(tex),
-        );
+        tile.uv.push(u, v);
       };
+      const along = (x: number, z: number) =>
+        ((x - j.x) * j.dx + (z - j.z) * j.dz) / texLength(tex);
       const tri = (pa: number[], pb: number[], pc: number[]) => {
         // Clip into the strips between mirror lines, fan each convex piece, face up (+Y).
         const ls = [pa, pb, pc].map(([x, z]) => lat(x, z));
@@ -628,21 +698,68 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
           }
           const up = area < 0;
           const v0 = tile.pos.length / 3;
-          for (const pt of poly) put(pt[0], pt[1], pt[2], fold);
+          for (const [x, z, l] of poly) {
+            const m = l - fold * 0.6;
+            put(x, z, 0.2 + (fold % 2 === 0 ? m : 0.6 - m), along(x, z));
+          }
           for (let k = 1; k < poly.length - 1; k++)
             if (up) tile.idx.push(v0, v0 + k, v0 + k + 1);
             else tile.idx.push(v0, v0 + k + 1, v0 + k);
         }
       };
-      // Rings between the corner and the arc so the fan follows the ground (one flat triangle let the terrain poke
+      // Dust band round the curve: a strip from the arc (u 0, the texture's edge) to `band` metres inside it, at the
+      // side road's scale; the plain fan fills from there to the corner and over the side road's own edge band.
+      const band = 0.18 * j.width;
+      const n = f.arc.length;
+      const [mx, mz] = [
+        (f.arc[0][0] + f.arc[n - 1][0]) / 2,
+        (f.arc[0][1] + f.arc[n - 1][1]) / 2,
+      ];
+      const inner = f.arc.map(([x, z], k) => {
+        const [ax, az] = f.arc[Math.max(0, k - 1)];
+        const [bx, bz] = f.arc[Math.min(n - 1, k + 1)];
+        const tl = Math.hypot(bx - ax, bz - az) || 1;
+        let nx = -(bz - az) / tl;
+        let nz = (bx - ax) / tl;
+        // Inside = away from the chord's middle (the curve bows from the chord towards the corner).
+        if (nx * (mx - x) + nz * (mz - z) > 0) [nx, nz] = [-nx, -nz];
+        return [x + nx * band, z + nz * band];
+      });
+      let dist = 0;
+      for (let k = 0; k < n - 1; k++) {
+        const [px, pz] = f.arc[k];
+        const [qx, qz] = f.arc[k + 1];
+        const step = Math.hypot(qx - px, qz - pz) / texLength(tex);
+        const v0 = tile.pos.length / 3;
+        put(px, pz, 0, dist);
+        put(qx, qz, 0, dist + step);
+        put(inner[k + 1][0], inner[k + 1][1], band / j.width, dist + step);
+        put(inner[k][0], inner[k][1], band / j.width, dist);
+        const up =
+          (qx - px) * (inner[k][1] - pz) - (qz - pz) * (inner[k][0] - px) < 0;
+        if (up) tile.idx.push(v0, v0 + 1, v0 + 2, v0, v0 + 2, v0 + 3);
+        else tile.idx.push(v0, v0 + 2, v0 + 1, v0, v0 + 3, v0 + 2);
+        dist += step;
+      }
+      // Plain fan from the corner moved `band` into the side road, so it also covers the side road's edge band up to
+      // B; rings between it and the boundary so the fan follows the ground (one flat triangle let the terrain poke
       // through).
+      const ox = j.x + ((f.c[0] - j.x) * j.dx + (f.c[1] - j.z) * j.dz) * j.dx;
+      const oz = j.z + ((f.c[0] - j.x) * j.dx + (f.c[1] - j.z) * j.dz) * j.dz;
+      const il = Math.hypot(ox - f.c[0], oz - f.c[1]) || 1;
+      const centre = [
+        f.c[0] + ((ox - f.c[0]) / il) * band,
+        f.c[1] + ((oz - f.c[1]) / il) * band,
+      ];
+      const edgeLine = [f.c, ...inner];
       const ring = (t: number) =>
-        f.arc.map(([x, z]) => [
-          f.c[0] + (x - f.c[0]) * t,
-          f.c[1] + (z - f.c[1]) * t,
+        edgeLine.map(([x, z]) => [
+          centre[0] + (x - centre[0]) * t,
+          centre[1] + (z - centre[1]) * t,
         ]);
-      let prev = ring(FILLET_RINGS > 0 ? 1 / FILLET_RINGS : 1);
-      for (let k = 0; k < prev.length - 1; k++) tri(f.c, prev[k], prev[k + 1]);
+      let prev = ring(1 / FILLET_RINGS);
+      for (let k = 0; k < prev.length - 1; k++)
+        tri(centre, prev[k], prev[k + 1]);
       for (let r = 2; r <= FILLET_RINGS; r++) {
         const next = ring(r / FILLET_RINGS);
         for (let k = 0; k < next.length - 1; k++) {
