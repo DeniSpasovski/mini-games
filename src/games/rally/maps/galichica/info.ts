@@ -67,6 +67,13 @@ export const galichicaInfo: MapInfo = {
       shadowTint: { color: '#2f6f6a', amount: 0.08 },
       vignette: 0.15,
     },
+    // Summer: warmer, golden highlights.
+    grades: {
+      summer: {
+        warmth: 0.1,
+        highlightTint: { color: '#ffe2b8', amount: 0.06 },
+      },
+    },
     // Golden autumn pasture on the karst top.
     groundTint: { grass: '#a59a62', amount: 0.55 },
     groundTints: {
