@@ -184,7 +184,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   where the slope asks), two ropes in a sag parabola, cabins running the loop (`world/aerialway.ts` pure layout + `cabinPose`, test;
   `aerialway-mesh.ts` one instanced mesh moved when drawn; asset `gondola_pylon`).
 - **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
-  spectators (some waving their map's own hand flag - `MapDef.country` - or a plain colour flag, never another country's) + visitors, a marshal, 2-3 photographers, flags; marshals at every side-road mouth, 10 photographers each at start and finish
+  spectators (some waving their map's own hand flag - `MapDef.country` - or a plain colour flag, never another country's) + visitors, a marshal, 1-2 photographers, flags; marshals at every side-road mouth, 5 photographers each at start and finish (people are capped on purpose: `DEFAULT_FANS`, `SHOOTERS`, `END_PHOTOGRAPHERS` in corner-fans.ts)
   (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`). People animate (`world/people-anim.ts`, run by `RallyGame.frame`): within 45 m they turn to watch the car, photographers (75 m) keep it centred, via `InstanceStreamer.setMatrix`; hand flags wave in the `people_flag` shader (`engine/materials.ts`, own mesh from `markFlag` in people.ts).
 - **Service park** (stage `servicePark`; `world/service-park.ts`, `World.servicePark`; assets `assets/builders/service.ts` + `teams.ts`;
   per map `maps/<id>/service-park.ts`; tests `service-park`, `parc-ferme`): team bays on levelled gravel lots - truck / van, team cars on
@@ -194,7 +194,13 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
     `maps/shared/service-lot.ts`; its `apron` levels the strip to the road, `level` fixes a flat field). `cars` = team cars wanted
     (a works bay holds two), `semis` = team lorries (`service_semi`, the baked lorry model) across the gravel behind one row of bays,
     `links` = dirt links across the verge (`linkPad`: gravel ramp up to the road, 5 m wide; tape, crowd and press keep off them).
-  - **Ajvatovci**: 4 cars at the start lot, 6 in the west park (field beside the factory road, 5 lorries behind the bays, 3 links).
+  - People per lot: `mechanics` [min, max] makes a lean lot (the cars with just that many mechanics each, no crew / drivers / guests /
+    aisle visitors), `crowd` and `press` set the spectators and photographers along the edge, `showWithin` draws everything on the
+    lot (and its park cars) only within that many metres of the camera (`ScatterInstance.showWithin`, checked by `InstanceStreamer`
+    and `ParkCars`).
+  - **Ajvatovci**: the start lot is lean (4 cars, 2-3 mechanics each, 20 spectators, 5 photographers, none at the start line itself); the
+    west park (field beside the factory road, 6 cars, 5 lorries behind the bays, 3 links) is a full paddock with a crowd of 40, drawn
+    only within 90 m (seen when driving back in free drive).
   - **Parc fermé** (`ferme`): a row of team cars, noses to the tape, on a lay-by behind the start (`ServiceLot.bays` per lot): Test 4,
     Galichica West 6, Galichica East / Prespa-Ohrid 5. Each car has its crew and, on a lot 12.5 m deep (`TENT_DEPTH`), its team tent
     and tool chest. On a street (The Jackie 5 + 5, Vodno 6 on its side street) the lot lies over the road (`paved`, no pad) and
@@ -215,7 +221,11 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   coverall, hi-vis vest, gloves; team shirt patterns), `people-hair.ts` (scalp cut from the head + curtains, buns, ponytails, hats),
   `people-shoes.ts` (lofts on the foot bones; the base legs end at the ankle). Each person gets a hairstyle from `pickHair` (people.ts) by
   gender, length, age; `Outfit.topKind` / `legKind` / `pattern` / `hairStyle` / `shoeKind` override the defaults. LOD 2 / 3 stay code-built
-  (jointed figure, boxy body, silhouette). Variants are built at load (one InstancedMesh each; `getVariantSet` stops at its cap).
+  (jointed figure, boxy body, silhouette). The two detailed levels are `lazy` (`LodSpec.lazy`, tens of ms per person): they are built in
+  workers (`people-worker.ts`, `people-pool.ts`: geometry only, each part tagged with its material's look, `withLooks` in people.ts), not
+  per variant at load. The load builds what the spawn view needs (`world/people-warm.ts`, started with the load) and one warm variant per
+  material (`AssetMeta.warm`; a test checks no other variant adds a shader); while driving `InstanceStreamer` (`prefetch`) asks for the
+  levels ahead of the car, nearest to being needed first (`world/build-queue.ts`), and draws the next cheaper LOD until one is there. Built levels are capped (`LAZY_BUDGET`, 48 MB): idle ones the car left ~600 m behind are dropped, least recently used first (`evictions`, `InstanceStreamer.evict`) and built again if needed.
   Roles: `spectator` (24 standing + 18 sitting / squatting + 12 flag wavers), `mechanic`, `crew`, `driver`, `marshal`, `photographer`,
   `visitor` (12 personas: ages, sizes, skirts, kids); test `people`. A new look = a field in `Outfit`, a new pose = `POSES`.
 - **Guard rails** (`barriers`): continuous swept rails / Jersey walls by distance; `hairpinRails` (`maps/shared/real-map.ts`)
@@ -239,7 +249,8 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   a ground way under 15 m anchored at both ends is one straight ramp (`SHORT_JOINT`). Paved mouths on rural
   maps get rounded corners (`junctionFillets`, drawn with the street ribbons in `road-mesh.ts`; not on `cityStreets` maps).
 - **Water:** canals / drains / rivers (`paths` surface `water`) and `lakes`, with real banks and water physics
-  (`world/lakes.ts`, `water-mesh.ts`).
+  (`world/lakes.ts`, `water-mesh.ts`). `Lakes.query` reads only the outline edges near the point (a 16 m grid per outline): exact `sd` within
+  `LAKE_REACH` of the shore, `-LAKE_REACH` further inside (every user stops at `LAKE_SHELF`); test `lakes-index`.
 - **Railways:** OSM tracks as `rail` paths with a drivable ballast hump, rails and catenary (`world/railways.ts`, `rail-mesh.ts`).
 - **Buildings:** placeholder boxes with stable ids (`buildings.csv`, viewer `?building=N`) or mesh buildings from the real
   footprints (`world/building-mesh.ts`).
@@ -255,7 +266,9 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   `maps/vodno/landmarks/car-parks.ts` + `lots.ts`, its gate `gate.ts`, the two flats and their wall on the start street `start-blocks.ts`, `start-wall.ts`, and the brick hotel behind the side street at the first crossroad (building on its own terrace, forecourt on the road) `hotel.ts`: its own `lot_brick` texture, fixed `street_car` variants 16 / 17). A `PathDef.bare` street gets no kerbs / sidewalks / lamps inside `cityStreets` reach.
 - **City maps** (`jackie`): one-way carriageways, bridges and decks, portals, junction plazas, parkway lanes, continuous
   barriers, retaining walls, gores, overhead signs, kerbs / crosswalks / lamps, parked vehicles (`world/bridge-mesh.ts`,
-  `portals.ts`, `plazas.ts`, `parkway-lanes.ts`, `barriers.ts`, `cut-wall-mesh.ts`, `street-detail.ts`).
+  `portals.ts`, `plazas.ts`, `parkway-lanes.ts`, `barriers.ts`, `cut-wall-mesh.ts`, `street-detail.ts`). Plaza queries look
+  only at the plazas listed on a 16 m candidate grid (`Plazas.candidates`); same answers as a loop over all
+  (`tests/rally/plaza-index.test.ts`).
 
 City-map rules (streets keep their own height line, no terrain through decks, bug-fix workflow): rally-maps skill "Bridges and
 underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-roads`, `water`, `railways`, `stage-signs`.
@@ -512,6 +525,13 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 - Loading ends with a warm-up (`RallyGame.init`): wait for the imported car, compile, render one frame with culling off - so
   shaders (incl. the shadow pass) and buffer uploads happen behind the loading screen. A material first used mid-stage
   compiles then (a hitch): add it to the scene at load.
+- Background work runs in module workers (`shared/worker-pool.ts`: 4-6 threads, least-loaded first, a failed pool makes the caller do
+  the work itself): tree variants and leaf atlases + mips (`trees/worker.ts`), people (above), procedural textures drawn on an
+  OffscreenCanvas (`engine/texture-worker.ts`; `engine/texture-prefetch.ts`: a browser remembers the textures each map used and asks for
+  those next time, `BY_MAP` seeds a first visit; text textures stay on the page). `__rally.loadTimings` splits the load by phase.
+- Shader programs of the main pass compile in parallel (`compileAsync`); the shadow-pass ones compile in the first render. The tree
+  prepass check (`TreeRenderer.checkPrepass`) draws only the trees and keeps its verdict per GPU in localStorage (it used to draw the
+  whole scene into a target: 70 more programs, ~5 s on a cold shader cache).
 - Long synchronous steps (world build, road, props, shader compile) set their label and `paint()` first, so the bar never
   sits unlabelled at 0%. The car's GLB starts downloading before the map data (`preloadCarModel`).
 - Car select: a "Loading model" spinner (`Showroom.loadCue`) shows while a car's GLB downloads (the car stays hidden until then).
@@ -562,6 +582,7 @@ colder at the top. Select stage shows "At the top" for climbs of 50 m or more (`
 
 ## Known limitations
 
-- Generation runs on the main thread (time-sliced); very large maps would need a Web Worker for heightfield and scatter.
+- Generation runs on the main thread, time-sliced: the load builds the road mesh in ~25 ms slices (`buildRoadMeshSliced`);
+  terrain and scatter stream within per-frame budgets. On city maps the load cost is the road mesh and `new World` (one task).
 - Real-world map data is not lazy-loaded; a bare-earth DEM would help where the elevation model includes trees.
 - Not done: tyre relaxation length, co-driver pace notes, car damage.

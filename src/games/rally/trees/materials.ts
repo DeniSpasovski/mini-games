@@ -19,7 +19,13 @@ import {
   type WebGLProgramParametersWithUniforms,
 } from 'three';
 import { addWorldUniforms } from '../engine/world-shading';
-import { ALPHA_TEST, spriteAtlas, type LeafStyle } from './leaftex';
+import {
+  ALPHA_TEST,
+  primeSpriteAtlas,
+  spriteAtlas,
+  type LeafStyle,
+  type SpriteAtlas,
+} from './leaftex';
 import { mix32, unit } from './math';
 import {
   FAR_RAMP,
@@ -484,6 +490,22 @@ export function barkTexture(kind: BarkTexture): Texture {
   return t;
 }
 
+/** Mip chains made elsewhere (a worker: trees/worker.ts), by leaf style. */
+const primedMips = new Map<
+  LeafStyle,
+  { main: MipLevel[]; companion: MipLevel[] }
+>();
+
+/** The atlas and mips of a style, made in a worker: `spriteTextures` uses them. */
+export function primeSpriteTextures(
+  style: LeafStyle,
+  atlas: SpriteAtlas,
+  mips: { main: MipLevel[]; companion: MipLevel[] },
+): void {
+  primeSpriteAtlas(style, atlas);
+  primedMips.set(style, mips);
+}
+
 /**
  * The sprite atlas textures of a leaf style (pixels from trees/leaftex.ts): albedo + alpha (sRGB) and normal +
  * thickness (linear, half the albedo's size), both with coverage-preserving mipmaps (the normal map follows the
@@ -497,13 +519,9 @@ export function spriteTextures(style: LeafStyle): {
   const hit = textures.get(`${key}:a`);
   if (hit) return { albedo: hit, normal: textures.get(`${key}:n`)! };
   const atlas = spriteAtlas(style);
-  const mips = coverageMips(
-    atlas.albedo,
-    atlas.width,
-    atlas.height,
-    false,
-    atlas.normal,
-  );
+  const mips =
+    primedMips.get(style) ??
+    coverageMips(atlas.albedo, atlas.width, atlas.height, false, atlas.normal);
   const make = (levels: MipLevel[], srgb: boolean) => {
     const t = new DataTexture(
       levels[0].data,
@@ -546,30 +564,58 @@ export function coverageMips(
   premultiplied: boolean,
   companion?: Uint8Array,
 ): { main: MipLevel[]; companion: MipLevel[] } {
+  const r = coverageChains(
+    data,
+    width,
+    height,
+    premultiplied,
+    companion ? [companion] : [],
+  );
+  return { main: r.main, companion: r.companions[0] ?? [] };
+}
+
+/** `coverageMips` with several companion textures (the impostor's normal and thickness atlases) in one pass. */
+export function coverageChains(
+  data: Uint8Array,
+  width: number,
+  height: number,
+  premultiplied: boolean,
+  companions: Uint8Array[],
+): { main: MipLevel[]; companions: MipLevel[][] } {
   const thr = ALPHA_TEST * 255;
-  const coverage = (d: Uint8Array, s: number) => {
-    let n = 0;
-    for (let i = 3; i < d.length; i += 4) if (d[i] * s >= thr) n++;
-    return n / (d.length / 4);
+  // Texels passing the alpha test after a scale: counted per alpha value, not per texel.
+  const hist = new Uint32Array(256);
+  const coverage = (n: number, s: number) => {
+    let c = 0;
+    for (let a = 0; a < 256; a++) if (a * s >= thr) c += hist[a];
+    return c / n;
   };
-  const target = coverage(data, 1);
+  const count = (d: Uint8Array) => {
+    hist.fill(0);
+    for (let i = 3; i < d.length; i += 4) hist[d[i]]++;
+  };
+  count(data);
+  const target = coverage(data.length / 4, 1);
   const main: MipLevel[] = [{ data, width, height }];
-  const comp: MipLevel[] = companion
-    ? [{ data: companion, width, height }]
-    : [];
+  const comps: MipLevel[][] = companions.map((c) => [
+    { data: c, width, height },
+  ]);
+  const nc = comps.length;
+  const cacc = new Float64Array(4);
   let w = width;
   let h = height;
   while (w > 1 || h > 1) {
     const nw = Math.max(1, w >> 1);
     const nh = Math.max(1, h >> 1);
     const src = main[main.length - 1].data;
-    const csrc = comp.length ? comp[comp.length - 1].data : null;
     const out = new Uint8Array(nw * nh * 4);
-    const cout = csrc ? new Uint8Array(nw * nh * 4) : null;
+    const couts = comps.map(() => new Uint8Array(nw * nh * 4));
     for (let y = 0; y < nh; y++)
       for (let x = 0; x < nw; x++) {
-        const acc = [0, 0, 0, 0];
-        const cacc = [0, 0, 0, 0];
+        let a0 = 0;
+        let a1 = 0;
+        let a2 = 0;
+        let a3 = 0;
         let n = 0;
         for (let dy = 0; dy < 2; dy++)
           for (let dx = 0; dx < 2; dx++) {
@@ -578,30 +624,45 @@ export function coverageMips(
             const k = (sy * w + sx) * 4;
             const a = src[k + 3];
             const wt = premultiplied ? 1 : a;
-            for (let c = 0; c < 3; c++) acc[c] += src[k + c] * wt;
-            acc[3] += a;
-            if (csrc) for (let c = 0; c < 4; c++) cacc[c] += csrc[k + c];
+            a0 += src[k] * wt;
+            a1 += src[k + 1] * wt;
+            a2 += src[k + 2] * wt;
+            a3 += a;
             n++;
           }
         const o = (y * nw + x) * 4;
-        const wsum = premultiplied ? n : acc[3];
-        for (let c = 0; c < 3; c++)
-          out[o + c] =
-            wsum > 0
-              ? Math.round(acc[c] / wsum)
-              : src[
-                  (Math.min(h - 1, y * 2) * w + Math.min(w - 1, x * 2)) * 4 + c
-                ];
-        out[o + 3] = Math.round(acc[3] / n);
-        if (cout)
-          for (let c = 0; c < 4; c++) cout[o + c] = Math.round(cacc[c] / n);
+        const wsum = premultiplied ? n : a3;
+        if (wsum > 0) {
+          out[o] = Math.round(a0 / wsum);
+          out[o + 1] = Math.round(a1 / wsum);
+          out[o + 2] = Math.round(a2 / wsum);
+        } else {
+          const k = (Math.min(h - 1, y * 2) * w + Math.min(w - 1, x * 2)) * 4;
+          out[o] = src[k];
+          out[o + 1] = src[k + 1];
+          out[o + 2] = src[k + 2];
+        }
+        out[o + 3] = Math.round(a3 / n);
+        for (let q = 0; q < nc; q++) {
+          const csrc = comps[q][comps[q].length - 1].data;
+          cacc.fill(0);
+          for (let dy = 0; dy < 2; dy++)
+            for (let dx = 0; dx < 2; dx++) {
+              const sx = Math.min(w - 1, x * 2 + dx);
+              const sy = Math.min(h - 1, y * 2 + dy);
+              const k = (sy * w + sx) * 4;
+              for (let c = 0; c < 4; c++) cacc[c] += csrc[k + c];
+            }
+          for (let c = 0; c < 4; c++) couts[q][o + c] = Math.round(cacc[c] / n);
+        }
       }
     // Alpha scale that restores the level-0 coverage (binary search).
+    count(out);
     let lo = 0.5;
     let hi = 16;
     for (let i = 0; i < 24; i++) {
       const mid = (lo + hi) / 2;
-      if (coverage(out, mid) < target) lo = mid;
+      if (coverage(out.length / 4, mid) < target) lo = mid;
       else hi = mid;
     }
     const s = (lo + hi) / 2;
@@ -613,18 +674,20 @@ export function coverageMips(
         const k = na / a;
         for (let c = 0; c < 3; c++)
           out[i + c] = Math.min(255, Math.round(out[i + c] * k));
-        if (cout)
+        for (const cout of couts)
           for (let c = 0; c < 4; c++)
             cout[i + c] = Math.min(255, Math.round(cout[i + c] * k));
       }
       out[i + 3] = Math.round(na);
     }
     main.push({ data: out, width: nw, height: nh });
-    if (cout) comp.push({ data: cout, width: nw, height: nh });
+    couts.forEach((cout, q) =>
+      comps[q].push({ data: cout, width: nw, height: nh }),
+    );
     w = nw;
     h = nh;
   }
-  return { main, companion: comp };
+  return { main, companions: comps };
 }
 
 // --- materials -------------------------------------------------------------------------------------------------

@@ -17,6 +17,7 @@ import {
   barkMaterial,
   barkTexture,
   impostorMaterial,
+  primeSpriteTextures,
   spriteMaterial,
   spriteTextures,
 } from './materials';
@@ -33,7 +34,9 @@ import {
   type GeneratedVariant,
   type TreeVariantInfo,
 } from './variants';
-import type { GenerateRequest } from './worker';
+import type { AtlasRequest, AtlasResult, GenerateRequest } from './worker';
+import { WorkerPool } from '../../../shared/worker-pool';
+import type { LeafStyle } from './leaftex';
 import { meshBuffers } from './mesh';
 import { crownProxy, quadSprites } from './proxy';
 import type { TreeLoadStats } from './stats';
@@ -114,93 +117,61 @@ function spriteGeometry(s: SpriteData): BufferGeometry {
 }
 
 /**
- * Generates variants in a worker (or inline where there are no workers). A worker that fails (script load error,
- * a throw inside it) is dropped and its pending variants are generated inline, so the stage load never hangs.
+ * Generates variants in workers (or inline where there are none): a failed worker is dropped and its pending variants
+ * are generated inline, so the stage load never hangs (shared/worker-pool.ts). The leaf atlases of the styles in use
+ * are made in the workers too.
  */
-class Generator {
-  private worker: Worker | null = null;
-  private pending = new Map<
-    number,
-    {
-      def: SpeciesDef;
-      index: number;
-      resolve: (g: Timed) => void;
-      reject: (e: unknown) => void;
-    }
-  >();
-  private next = 0;
+type TreeAnswer = (Timed & { id: number }) | AtlasResult;
 
-  constructor() {
-    if (typeof Worker === 'undefined') return;
-    try {
-      this.worker = new Worker(new URL('./worker.ts', import.meta.url), {
-        type: 'module',
-      });
-      this.worker.onmessage = (
-        e: MessageEvent<
-          (Timed & { id: number }) | { id: number; error: string }
-        >,
-      ) => {
-        const job = this.pending.get(e.data.id);
-        if (!job) return;
-        this.pending.delete(e.data.id);
-        if ('error' in e.data) this.inline(job);
-        else job.resolve(e.data);
-      };
-      const fail = (e: Event) => {
-        console.warn('[trees] generator worker failed, generating inline', e);
-        this.fallback();
-      };
-      this.worker.onerror = fail;
-      this.worker.onmessageerror = fail;
-    } catch {
-      this.worker = null;
-    }
-  }
+class Generator {
+  private pool = new WorkerPool<TreeAnswer>(
+    () =>
+      new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' }),
+    undefined,
+    'trees',
+  );
 
   /** A variant and the ms its derivation + meshing took. */
   generate(def: SpeciesDef, index: number): Promise<Timed> {
     return new Promise((resolve, reject) => {
-      const job = { def, index, resolve, reject };
-      if (!this.worker) return this.inline(job);
-      const id = this.next++;
-      this.pending.set(id, job);
-      const req: GenerateRequest = {
-        id,
+      const inline = () => {
+        try {
+          const t0 = performance.now();
+          const g = generateVariant(def, index);
+          resolve({ ...g, ms: performance.now() - t0 });
+        } catch (e) {
+          reject(e);
+        }
+      };
+      const req: Omit<GenerateRequest, 'id'> = {
         species: def.name,
         index,
         season: seasonOf(def),
       };
-      this.worker.postMessage(req);
+      const sent = this.pool.post(req, [], (r) =>
+        r ? resolve(r as Timed) : inline(),
+      );
+      if (!sent) inline();
     });
   }
 
-  private inline(job: {
-    def: SpeciesDef;
-    index: number;
-    resolve: (g: Timed) => void;
-    reject: (e: unknown) => void;
-  }): void {
-    try {
-      const t0 = performance.now();
-      const g = generateVariant(job.def, job.index);
-      job.resolve({ ...g, ms: performance.now() - t0 });
-    } catch (e) {
-      job.reject(e);
-    }
-  }
-
-  /** Drop the worker; everything still pending is generated inline. */
-  private fallback(): void {
-    this.worker?.terminate();
-    this.worker = null;
-    const jobs = [...this.pending.values()];
-    this.pending.clear();
-    for (const job of jobs) this.inline(job);
-  }
-
-  dispose(): void {
-    this.worker?.terminate();
+  /** Makes the atlas + mips of every style in a worker and primes `spriteTextures` with them. */
+  atlases(styles: LeafStyle[]): Promise<void> {
+    return Promise.all(
+      styles.map(
+        (style) =>
+          new Promise<void>((resolve) => {
+            const req: Omit<AtlasRequest, 'id'> = { atlas: style };
+            const sent = this.pool.post(req, [], (r) => {
+              // Without the worker `spriteTextures` makes them itself.
+              if (r && 'atlas' in r)
+                primeSpriteTextures(style, r.atlas, r.mips);
+              resolve();
+            });
+            if (!sent) resolve();
+          }),
+      ),
+    ).then(() => undefined);
   }
 }
 
@@ -245,6 +216,10 @@ export class TreeLibrary {
     const st = lib.stats;
     const t0 = performance.now();
     const gen = new Generator();
+    // The leaf atlases are made beside the variants (the pool's workers take them first).
+    const atlases = gen.atlases([
+      ...new Set(species.map((def) => def.foliage.leaf)),
+    ]);
     const jobs = species.flatMap((def) =>
       variantsOf(def).map((i) => ({ def, i })),
     );
@@ -263,7 +238,7 @@ export class TreeLibrary {
         return { def, i, key, g, impostor: undefined };
       }),
     );
-    gen.dispose();
+    await atlases;
     const allPixels: ImpostorPixels[] = [];
     const spheres: { cy: number; r: number }[] = [];
     const bounds: [number, number, number, number][] = [];

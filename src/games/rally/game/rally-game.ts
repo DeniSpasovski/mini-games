@@ -36,6 +36,8 @@ import { getAssetMeta } from '../assets/catalog';
 import { Breakables } from '../world/breakables';
 import { PeopleAnimator } from '../world/people-anim';
 import { DistanceCull } from '../world/distance-cull';
+import { prefetchTextures, rememberTextures } from '../engine/texture-prefetch';
+import { warmLevels } from '../world/people-warm';
 import { InstanceStreamer } from '../world/instance-streamer';
 import { TreeRenderer } from '../trees/draw';
 import { TreeLibrary } from '../trees/load';
@@ -53,7 +55,7 @@ import {
   type SpikeFrame,
   type TreeBenchReport,
 } from './tree-bench';
-import { buildRoadMesh } from '../world/road-mesh';
+import { buildRoadMeshSliced } from '../world/road-mesh';
 import { TerrainRenderer } from '../world/terrain-renderer';
 import { setTerrainRelief } from '../world/terrain-material';
 import { CanopyShadows } from '../world/canopy-shadows';
@@ -277,6 +279,18 @@ export class RallyGame {
     const map = this.world.map;
     const q = this.opts.quality;
     const loadStart = performance.now();
+    // Textures and the people the first frame needs are made by workers while the rest loads.
+    prefetchTextures(map.id);
+    const objectScale =
+      q.lodScale * OBJECT_DISTANCE[this.opts.settings.objectDistance];
+    const spawnAt = this.world.spawn(this.opts.spawn).position;
+    const people = warmLevels(
+      this.world,
+      spawnAt.x,
+      spawnAt.z,
+      objectScale,
+      q.viewDistance,
+    );
     // Phase timings (ms) for load-time tuning: __rally.loadTimings
     let phase = '';
     let t = performance.now();
@@ -305,7 +319,12 @@ export class RallyGame {
 
     progress(0.15, 'Road');
     await paint();
-    const road = buildRoadMesh(this.world);
+    // The bar creeps towards the terrain step (the job's length is not known up front).
+    let slices = 0;
+    const road = await buildRoadMeshSliced(this.world, () => {
+      progress(0.15 + 0.14 * (1 - 20 / (20 + ++slices)), 'Road');
+      return frame();
+    });
     this.scene.add(road);
     this.roadGroup = road;
     // Whole-map meshes: nothing past the streamed terrain (no ground under them there).
@@ -350,6 +369,8 @@ export class RallyGame {
       detailDensity: q.detailDensity,
       // Nothing past the streamed terrain (it would stand on nothing).
       maxDistance: q.viewDistance,
+      // People close up are built ahead of the car, not all at load.
+      prefetch: true,
     });
     this.scene.add(this.streamer.group);
     this.streamer.updateNow(spawn.position);
@@ -512,7 +533,7 @@ export class RallyGame {
     // Warm up so the first frames don't hitch: wait for the imported car (hidden until then, so compile()
     // would skip it), then render one frame with culling off - compile() covers neither the shadow pass nor
     // the buffer uploads, and a culled render uploads only what the spawn camera sees.
-    progress(0.95, 'Compiling shaders');
+    progress(0.93, 'Car model');
     await this.model.ready;
     await paint();
     this.model.updateFromVehicle(this.vehicle, 1);
@@ -532,10 +553,17 @@ export class RallyGame {
       this.model.root.position,
       this.camera.getWorldDirection(this.camDir),
     );
+    progress(0.94, 'People');
+    await people;
+    await this.streamer.whenBuilt();
+    progress(0.95, 'Batching');
+    this.streamer.updateNow(spawn.position);
     this.streamer.prewarm();
     this.trees.updateNow(this.camera, this.rig.steady);
     this.trees.prewarm(this.camera);
-    this.renderer.compile(this.scene, this.camera);
+    progress(0.96, 'Compiling shaders');
+    await this.renderer.compileAsync(this.scene, this.camera);
+    progress(0.98, 'First frame');
     const culled: Object3D[] = [];
     this.scene.traverse((o) => {
       if (o.frustumCulled) culled.push(o);
@@ -549,6 +577,7 @@ export class RallyGame {
     // One real frame behind the loading screen: the settled batches' full instance buffers upload now, not in the
     // first frame of the stage, and the canvas shows the real scene (not the warm-up render) when the screen goes.
     this.frame(0);
+    rememberTextures(map.id);
     this.loadMs = performance.now() - loadStart;
     progress(1, 'Ready');
   }
