@@ -43,7 +43,8 @@ export interface CarHeadlightsDef {
 }
 
 /** Cylinder layout = firing pattern (game/engine-sound.ts). `v8` is cross-plane (American burble), `v8flat` flat-plane (BMW M / Ferrari howl); `flat4` has unequal headers. */
-export type EngineLayout = 'i4' | 'i5' | 'i6' | 'v8' | 'v8flat' | 'flat4';
+export type EngineLayout =
+  'i2' | 'i4' | 'i5' | 'i6' | 'v8' | 'v8flat' | 'flat4';
 
 /** How the car sounds; game/audio.ts synthesises it from these (no samples). Levels are 0..1. */
 export interface CarSoundDef {

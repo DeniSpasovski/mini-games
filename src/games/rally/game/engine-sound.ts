@@ -24,6 +24,8 @@ const even = (n: number): number[] =>
   Array.from({ length: n }, (_, i) => (i * 720) / n);
 
 const FIRING: Record<EngineLayout, Firing> = {
+  // Parallel twin on a 360° crank (Fiat 126p): a firing every half turn, one pipe.
+  i2: { angles: even(2), banks: [0, 0], pipes: [[1, 0]] },
   i4: { angles: even(4), banks: [0, 0, 0, 0], pipes: [[1, 0]] },
   i5: { angles: even(5), banks: [0, 0, 0, 0, 0], pipes: [[1, 0]] },
   i6: { angles: even(6), banks: [0, 0, 0, 0, 0, 0], pipes: [[1, 0]] },

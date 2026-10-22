@@ -367,6 +367,21 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   grille bars / badge islands are `whole` + `islandTris` boxes. Badges go to `logo` (dropped).
 - `tests/rally/hull-fit.test.ts` spread a whole vertex array into `Math.min`: a 100k-triangle model with a cockpit overflowed the stack (now `reduce`).
 
+## Lessons from `cars/pezetka/` (Fiat 126p, CC BY Sketchfab GLB with 35 textures, 27 MB, 2026-10-22)
+
+- **A big textured GLB shrinks by itself**: the STL route drops every texture (flat paint at runtime), so only what `srcParts` keeps ships.
+  `srcParts.textures[].size` (e.g. 512) shrinks a kept sheet to that many px and 256 colours (the game draws sheets at 512 anyway):
+  27 MB -> body 3.5 MB + rim 0.3 MB + two sheets of 0.2 / 0.1 MB.
+- **Textured but flat-coloured parts**: a bumper with its own weathered base colour = `src:int:<file>` (matt sheet); a headlamp whose
+  reflector art is the sheet = `src:lamp:<file>`; indicator lenses (`amber`), the lower red tail lens (`brakecover`) and the reflector
+  behind it (`lampcup`) are stock parts. A tail lamp that is one primitive with an amber top and a red bottom is split by a `y` box rule.
+- **Rippled panels** (a dense hand-modelled mesh whose own normals were smoothed by the artist): computing normals from the geometry
+  shows waves on bonnets and aprons. `normalSmooth: { "iterations": 8, "creaseDeg": 25 }` in `model.source.json` relaxes the face
+  normals before the vertex normals are built (`stl-to-glb.mjs`); keep the triangle budget near the source's count (~100k) so the
+  surface itself is not simplified.
+- **A car too slow for the 100 km/h tests** (23 hp): `vehicle.test.ts` `BANDS` take `target` / `limit` (0-90 km/h in 40 s here), and
+  `car-setup.test.ts` / `water-physics.test.ts` have a 126p exception. Vintage car = `physics.noAbs` + `noTractionControl`.
+
 ## Viewer and tooling gotchas (cost real time this session)
 
 - **Mute the game**: any URL you open that can start the game (`/games/rally/?car=...`) gets `&mute=1` (AGENTS.md "Sound while testing"). The car viewer has no audio.

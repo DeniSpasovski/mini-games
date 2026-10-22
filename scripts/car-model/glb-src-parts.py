@@ -8,7 +8,8 @@ copies those primitives from the source GLB as they are (node transforms + the c
 normals and TEXCOORD_0) and writes the source images they use next to the GLB. Config block:
 
     "srcParts": {
-      "textures": [{"material": "lights", "out": "public/models/cars/<car>_lamps.png"}],  # source materials whose base colour images ship
+      "textures": [{"material": "lights", "out": "public/models/cars/<car>_lamps.png", "size": 512}],  # source materials whose base colour images ship
+                                                                                      # (`size` = shrink to that many px square + 256 colours: the game draws sheets at 512)
       "parts": [                                                                      # in draw order: what sits behind first
         {"node": "<primitive name>", "material": "src:lamp:<car>_lamps.png"},
         {"node": "<primitive name>", "z": [-3, 0], "material": "src:tail:<car>_lamps.png"}   # optional x / y / z box on triangle centres;
@@ -195,5 +196,17 @@ for tx in sp['textures']:
     png = bins[bv.get('buffer', 0)][bv.get('byteOffset', 0):bv.get('byteOffset', 0) + bv['byteLength']]
     if img.get('mimeType') != 'image/png':
         raise SystemExit(f'texture is {img.get("mimeType")}, expected image/png')
+    if tx.get('size'):
+        import io
+
+        from PIL import Image
+
+        im = Image.open(io.BytesIO(png))
+        im = im.convert('RGBA' if 'A' in im.getbands() or im.mode == 'P' and 'transparency' in im.info else 'RGB')
+        im = im.resize((tx['size'], tx['size']), Image.LANCZOS)
+        im = im.quantize(256, method=Image.Quantize.FASTOCTREE if im.mode == 'RGBA' else Image.Quantize.MEDIANCUT)
+        out = io.BytesIO()
+        im.save(out, 'PNG', optimize=True)
+        png = out.getvalue()
     open(tx['out'], 'wb').write(png)
     print(f'wrote {tx["out"]} ({len(png) / 1e3:.0f} kB)')

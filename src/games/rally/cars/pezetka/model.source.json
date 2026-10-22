@@ -1,0 +1,106 @@
+{
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/pezetka/model-01-polski-fiat-126p.glb = 'Polski Fiat (Fiat 126p)' by Martin Trafas (page account TinoD2, the file's metadata says Bexxie; CC BY 4.0), metres, +x left, +y up, +z nose, 1.843 m wheelbase (front wheels modelled turned ~20 deg). Mapped by material; tyres, rims, the plates, the badges and the lettering are dropped (the game builds its own wheels, the rim is the model's: pezetka_wheel.glb); the bumpers keep the model's own texture and the headlamp reflectors their own sheet (srcParts). The offset puts the front hub (model z 0.98) on physics front.z 1.106 (rear engine, 40 : 60) and the hubs (model y 0.2496) at the tyre radius 0.2504. The atlas block is also read by livery.ts at runtime - edit it only here.",
+  "source": "sources/cars/pezetka/model-01-polski-fiat-126p.glb -> glb-to-parts-stl.py -> sources/cars/pezetka/pezetka-parts.stl",
+  "output": "public/models/cars/pezetka.glb",
+  "axes": ["x", "y", "z"],
+  "scale": 1.0,
+  "offset": [0, 0, 0.126],
+  "groundAtMin": false,
+  "targetTriangles": 100000,
+  "creaseDeg": 40,
+  "normalSmooth": { "iterations": 8, "creaseDeg": 25 },
+  "wheels": {
+    "$comment": "the wheels are separate nodes (dropped below) - nothing to cut",
+    "radius": 0,
+    "minAbsX": 9,
+    "centres": []
+  },
+  "atlas": {
+    "pxPerMetre": 256,
+    "width": 3.3,
+    "height": 7.7,
+    "bounds": {
+      "x": [-0.8, 0.8],
+      "y": [0, 1.4],
+      "z": [-1.5, 1.7]
+    },
+    "charts": {
+      "left": [0, 0],
+      "right": [0, 1.45],
+      "top": [0, 2.9],
+      "front": [0, 4.55],
+      "rear": [1.7, 4.55],
+      "bottom": [0, 6.0]
+    }
+  },
+  "gltf": {
+    "drop": ["Object_4"],
+    "parts": [
+      { "mat": "Fiat_126P_Rim", "material": "drop" },
+      { "mat": "Fiat_126P_Tire", "material": "drop" },
+      { "mat": "Fiat_126P_License_plate", "material": "logo" },
+      { "mat": "Fiat_126P_Fiat_Front_Emblem", "material": "logo" },
+      { "mat": "Fiat_126P_Rear_Emblem", "material": "logo" },
+      { "mat": "Fiat_126P_Car_paint", "material": "body" },
+      { "mat": "Fiat_126P_Shadow", "material": "interior:2s" },
+      { "mat": "Fiat_126P_Plastic", "material": "trim:2s" },
+      { "mat": "Fiat_126P_Windshield_wipers", "material": "trim" },
+      { "mat": "Fiat_126P_Windows", "material": "glass" },
+      { "mat": "Fiat_126P_Mirror", "material": "mirror" },
+      { "mat": "Fiat_126P_Exhaust", "material": "steel" },
+      { "mat": "Fiat_126P_Turnsignal_Glass", "material": "amber" },
+      { "mat": "Fiat_126P_Headlight_Glass", "material": "lenscover" },
+      { "mat": "Fiat_126P_Brake_Lights", "y": [0.533, 1], "material": "amber" },
+      { "mat": "Fiat_126P_Brake_Lights", "material": "brakecover" },
+      { "mat": "Fiat_126P_Reflector_Brake", "material": "lampcup" },
+      { "mat": "Fiat_126P_Reflector_Headlight", "material": "drop" },
+      {
+        "mat": "Fiat_126P_Reflector_Turnsignal_Left",
+        "material": "lamphousing"
+      },
+      {
+        "mat": "Fiat_126P_Reflector_Turnsignal_Right",
+        "material": "lamphousing"
+      },
+      { "mat": "Fiat_126P_Metal", "material": "drop" }
+    ],
+    "default": "trim"
+  },
+  "parts": {
+    "materials": [
+      "body",
+      "trim",
+      "trim:2s",
+      "glass",
+      "interior:2s",
+      "mirror",
+      "steel",
+      "amber",
+      "lenscover",
+      "brakecover",
+      "lampcup",
+      "lamphousing",
+      "logo",
+      "drop"
+    ],
+    "drop": ["logo", "drop"]
+  },
+  "srcParts": {
+    "textures": [
+      {
+        "material": "Fiat_126P_Metal",
+        "out": "public/models/cars/pezetka_metal.png",
+        "size": 512
+      },
+      {
+        "material": "Fiat_126P_Reflector_Headlight",
+        "out": "public/models/cars/pezetka_lamps.png",
+        "size": 512
+      }
+    ],
+    "parts": [
+      { "node": "Object_8", "material": "src:int:pezetka_metal.png" },
+      { "node": "Object_20", "material": "src:lamp:pezetka_lamps.png" }
+    ]
+  }
+}
