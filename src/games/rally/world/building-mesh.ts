@@ -28,6 +28,7 @@ import type { World } from './world';
 const TILE = 192;
 const BAY = 3.2;
 const PARAPET = 0.6;
+const ROOF_T = 0.12; // gable roof slab thickness
 
 const FACADE: Record<NonNullable<BuildingDef['kind']>, FacadeId> = {
   house: 'facade_stucco',
@@ -106,6 +107,22 @@ function tri(
     a.uv.push(...(uv ? uv[i] : [0, 0]));
   });
   for (let i = 0; i < p.length - 2; i++) a.idx.push(v0, v0 + i + 1, v0 + i + 2);
+}
+
+/** Quad/polygon `p` wound so its front faces along `n` (roof undersides and edges). */
+function face(
+  a: Acc,
+  p: [number, number, number][],
+  n: [number, number, number],
+  c: [number, number, number],
+): void {
+  const e1 = [p[1][0] - p[0][0], p[1][1] - p[0][1], p[1][2] - p[0][2]];
+  const e2 = [p[2][0] - p[0][0], p[2][1] - p[0][1], p[2][2] - p[0][2]];
+  const cx = e1[1] * e2[2] - e1[2] * e2[1];
+  const cy = e1[2] * e2[0] - e1[0] * e2[2];
+  const cz = e1[0] * e2[1] - e1[1] * e2[0];
+  const q = cx * n[0] + cy * n[1] + cz * n[2] < 0 ? [...p].reverse() : p;
+  tri(a, q, n, q.map(() => c));
 }
 
 /** Facade wall quad a-b-c-d (outward normal (nx, nz)); bottom edge darker (fake AO). */
@@ -330,6 +347,17 @@ export function* buildingMeshJob(
         const col = side > 0 ? rc : rc2;
         const quad = flip ? [a, d, c, bb] : [a, bb, c, d];
         tri(roof, quad, nn, [col, col, col, col]);
+        // Underside and edges so the roof is a slab, not a single sheet.
+        const dn = (q: [number, number, number]): [number, number, number] => [
+          q[0],
+          q[1] - ROOF_T,
+          q[2],
+        ];
+        const edge = rgb(pick(GABLE_ROOF, h >>> 9), 0.55);
+        face(roof, [a, bb, c, d].map(dn), [-nn[0], -nn[1], -nn[2]], edge);
+        face(roof, [a, bb, dn(bb), dn(a)], [-sa * side, 0, ca * side], edge);
+        face(roof, [a, d, dn(d), dn(a)], [-ca, 0, -sa], edge);
+        face(roof, [bb, c, dn(c), dn(bb)], [ca, 0, sa], edge);
       }
       // Gable end triangles (wall colour).
       const wc = rgb(tint, 0.9);
