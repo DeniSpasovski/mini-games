@@ -117,9 +117,9 @@ The car liveries, parts, physics, door plates and every other asset are original
 
 ## Road textures
 
-| File (`src/games/rally/engine/asphalt/`)          | Source                                                                                                                                                                                                                    | Licence |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `road_tarmac.*.webp`, `road_tarmac_kerbed.*.webp` | [Asphalt 04](https://polyhaven.com/a/asphalt_04) by Sergej Majboroda and Jenelle van Heerden (Poly Haven; colour, height and roughness maps resampled, with cracks and tyre marks painted on by `scripts/asphalt/gen.js`) | CC0     |
+| File (`src/games/rally/engine/asphalt/`)                                         | Source                                                                                                                                                                                                                    | Licence |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `road_tarmac.*.webp`, `road_tarmac_kerbed.*.webp`, `road_tarmac_junction.*.webp` | [Asphalt 04](https://polyhaven.com/a/asphalt_04) by Sergej Majboroda and Jenelle van Heerden (Poly Haven; colour, height and roughness maps resampled, with cracks and tyre marks painted on by `scripts/asphalt/gen.js`) | CC0     |
 
 The other asphalt textures are painted procedurally by the same script. The scan itself is not committed (`sources/textures/`).
 

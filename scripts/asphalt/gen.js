@@ -92,13 +92,29 @@
    *   shoulder (patchy dust, gravel-coloured stones) and that many gravel bites break its line (1024 px);
    * photo / photoM / photoLum: a scanned base instead of the drawn stones (bake.mjs `PHOTOS`), its size in metres and
    *   the mean brightness it is scaled to (sRGB luma); photoFlat: how much of its slow blotches to remove (0-1);
-   *   across: metres the tile spans across the road (default 6).
+   *   across: metres the tile spans across the road (default 6; a square tile, across = len, wraps both ways).
    */
   const PRESETS = {
     /** Ajvatovci's newer road (also Galichica, Petralica): Poly Haven Asphalt 04 at real scale, its own neutral grey. */
     road_tarmac: { ...AJVATOVCI, len: 7 },
     /** The same road along Ajvatovci's kerbed start street (to the canal bridge): no grit at the edges. */
     road_tarmac_kerbed: { ...AJVATOVCI, len: 7, dust: 0, crumble: 0 },
+    /**
+     * The same road where a side road joins it (the junction mouth and its rounded corners, laid flat in world space):
+     * a square tile that wraps both ways, no wheel paths or edges, cracks and oil drips in any direction.
+     */
+    road_tarmac_junction: {
+      ...AJVATOVCI,
+      len: 7,
+      across: 7,
+      polish: 0,
+      dust: 0,
+      edgeBlend: false,
+      crumble: 0,
+      cracks: 12,
+      oil: 10,
+      anyDir: true,
+    },
     road_tarmac_lines: {
       ...VODNO,
       len: 7,
@@ -226,7 +242,9 @@
         ox: prng.next() * pw,
         oy: prng.next() * ph,
       }));
-      // Mask: smooth value noise on a lattice of ~1.2 m cells, periodic along v so the tile still wraps.
+      // Mask: smooth value noise on a lattice of ~1.2 m cells, periodic along v so the tile still wraps (and across on
+      // a square tile).
+      const wrapU = o.across === o.len;
       const gx = Math.max(2, Math.round((o.across ?? 6) / 1.2));
       const gy = Math.max(2, Math.round(o.len / 1.2));
       const nodes = layers.map(() =>
@@ -246,7 +264,8 @@
           const e = [];
           for (let k = 0; k < 3; k++) {
             const n = nodes[k];
-            const at = (i, j) => n[(j % gy) * (gx + 1) + Math.min(i, gx)];
+            const at = (i, j) =>
+              n[(j % gy) * (gx + 1) + (wrapU ? i % gx : Math.min(i, gx))];
             const v =
               (at(ix, iy) * (1 - tx) + at(ix + 1, iy) * tx) * (1 - ty) +
               (at(ix, iy + 1) * (1 - tx) + at(ix + 1, iy + 1) * tx) * ty;
@@ -294,13 +313,15 @@
       if (flat > 0) {
         const r = Math.round(0.35 * (w / (o.across ?? 6)));
         const tall = document.createElement('canvas');
-        tall.width = w;
+        const nx = wrapU ? 3 : 1;
+        tall.width = w * nx;
         tall.height = h * 3;
         const tx_ = tall.getContext('2d');
-        for (let j = 0; j < 3; j++) tx_.drawImage(color, 0, j * h);
+        for (let i = 0; i < nx; i++)
+          for (let j = 0; j < 3; j++) tx_.drawImage(color, i * w, j * h);
         const [bc, bx] = canvas(size);
         bx.filter = `blur(${r}px)`;
-        bx.drawImage(tall, 0, -h);
+        bx.drawImage(tall, wrapU ? -w : 0, -h);
         const blur = bx.getImageData(0, 0, w, h).data;
         bc.width = bc.height = tall.width = tall.height = 0;
         const img = cx.getImageData(0, 0, w, h);
@@ -446,23 +467,30 @@
 
     // Oil and tyre stains: long, faint, mostly on the wheel paths.
     for (let i = 0; i < (o.oil ?? 0); i++) {
-      const u = rng.chance(0.7)
-        ? rng.pick([0.28, 0.72]) + rng.range(-0.05, 0.05)
-        : rng.range(0.1, 0.9);
+      // (a junction: drips anywhere, round-ish, wrapped both ways)
+      const u = o.anyDir
+        ? rng.next()
+        : rng.chance(0.7)
+          ? rng.pick([0.28, 0.72]) + rng.range(-0.05, 0.05)
+          : rng.range(0.1, 0.9);
       const y = rng.next() * h;
       const len = rng.range(50, 240) * S;
-      const wid = rng.range(7, 20) * S;
-      for (const oy of [-h, 0, h]) {
-        const g = cx.createRadialGradient(u * w, y + oy, 0, u * w, y + oy, len);
-        g.addColorStop(0, `rgba(60,48,36,${rng.range(0.07, 0.16)})`);
+      const wid = o.anyDir ? len * rng.range(0.3, 0.7) : rng.range(7, 20) * S;
+      const a0 = o.anyDir ? rng.range(0.07, 0.16) : 0;
+      for (const [ox, oy] of (o.anyDir ? [-w, 0, w] : [0]).flatMap((ox) =>
+        [-h, 0, h].map((oy) => [ox, oy]),
+      )) {
+        const x = u * w + ox;
+        const g = cx.createRadialGradient(x, y + oy, 0, x, y + oy, len);
+        g.addColorStop(0, `rgba(60,48,36,${a0 || rng.range(0.07, 0.16)})`);
         g.addColorStop(1, 'rgba(60,48,36,0)');
         cx.save();
-        cx.translate(u * w, y + oy);
+        cx.translate(x, y + oy);
         cx.scale(wid / len, 1);
-        cx.translate(-u * w, -(y + oy));
+        cx.translate(-x, -(y + oy));
         cx.fillStyle = g;
         cx.beginPath();
-        cx.arc(u * w, y + oy, len, 0, Math.PI * 2);
+        cx.arc(x, y + oy, len, 0, Math.PI * 2);
         cx.fill();
         cx.restore();
       }

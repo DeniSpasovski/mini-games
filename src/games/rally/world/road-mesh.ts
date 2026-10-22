@@ -479,8 +479,8 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
     const pi = net.paths.indexOf(p);
     // (the carriageways / parkway lanes run down in the trench under a plaza: drawn)
     const onTop = !world.gen.isCarriageway(pi);
-    // Rows overlapping an earlier paved way (a fork's shared start, a way doubled in the map data) lie 1 cm under it:
-    // two ribbons at one height flickered between their textures.
+    // Where a paved way overlaps an earlier one (a fork's shared start, a way doubled in the map data) it lies 1.5 cm
+    // under it: two ribbons at one height flickered between their textures.
     for (let r = 0; r < pts.length; r++) {
       // Lane drops / gains taper (the width meets the continuing way's), see PathNetwork.halfWidthAt.
       // (clamped: an end run on under the stage road lies past the way's own length)
@@ -498,11 +498,10 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
       // a pit at a deck end, the trench under a portal slab) the ribbon stays on it - sagging with the land let the
       // terrain show through the lanes.
       const prof = world.gen.pathHeight(pi, along);
-      let under = 0;
+      let near = false;
       if (tex === 'road_tarmac') {
         net.query(pts[r][0], pts[r][1], pqEdge, 'tarmac', (i) => i < pi);
-        if (pqEdge.found && pqEdge.distance < pqEdge.halfWidth + hw)
-          under = 0.01;
+        near = pqEdge.found && pqEdge.distance < pqEdge.halfWidth + hw;
       }
       for (let c = 0; c < cols; c++) {
         const lat = PATH_ACROSS[c] * hw;
@@ -589,6 +588,12 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
               ? ph + 0.02
               : Math.min(top, ph + 0.01);
         }
+        let under = 0;
+        if (near) {
+          net.query(x, z, pqEdge, 'tarmac', (i) => i < pi);
+          if (pqEdge.found && pqEdge.distance < pqEdge.halfWidth + 0.3)
+            under = 0.015;
+        }
         tile.pos.push(x, top - under, z);
         // One normal per row (taken at the centre): the ribbons are flat roads, and this saves four height samples per vertex.
         tile.nor.push(nTmp.x, nTmp.y, nTmp.z);
@@ -622,94 +627,84 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
     }
     yield;
   }
-  // Rounded corners at the junction mouths of plain tarmac side roads (junctions.ts `junctionFillets`): the same
-  // tiles / material as the ribbons (no extra draws) and the ribbon's height rule (sunk under the stage road's edge).
-  // Plain asphalt, with the dusty edge band of `road_tarmac` running round the curve (not along the side road's edge
-  // or the stage road's edge across the mouth, which would leave dust in the middle of the paved area).
-  const tex = 'road_tarmac';
+  // Rounded corners at the junction mouths of plain tarmac side roads (junctions.ts `junctionFillets`), on the ribbons'
+  // height rule (sunk under the stage road's edge). The corner itself is `road_tarmac_junction`, a square tile laid flat
+  // in world space (no wheel paths, no edges, no folds or stretch whatever the corner's shape); the dusty edge band of
+  // `road_tarmac` runs round the curve (not along the side road's edge or the stage road's edge across the mouth, which
+  // would leave dust in the middle of the paved area).
+  const edgeTex = 'road_tarmac';
+  const padTex = 'road_tarmac_junction';
+  const tileFor = (tex: RoadTexture, x: number, z: number) => {
+    const key = `${tex}:${Math.floor(x / PATH_TILE)},${Math.floor(z / PATH_TILE)}`;
+    let tile = tiles.get(key);
+    if (!tile)
+      tiles.set(key, (tile = { tex, pos: [], nor: [], uv: [], idx: [] }));
+    return tile;
+  };
   for (const { j, fillets } of tarmacJunctions(world)) {
+    const edgeTile = tileFor(edgeTex, j.x, j.z);
+    const pad = tileFor(padTex, j.x, j.z);
+    hf.normal(j.x, j.z, nTmp);
+    const put = (
+      tile: typeof pad,
+      x: number,
+      z: number,
+      u: number,
+      v: number,
+    ) => {
+      world.road.query(x, z, rq);
+      const ground = hf.height(x, z);
+      const sink =
+        rq.found && Math.abs(world.road.at(rq.along).y - ground) < 1
+          ? 1 -
+            Math.min(
+              1,
+              Math.max(0, (rq.distance - rq.halfWidth + SINK_RAMP) / SINK_RAMP),
+            )
+          : 0;
+      // The side road ribbon's crease lift near the stage road, plus 1.5 cm: the pad covers the side road's mouth.
+      const crease =
+        rq.found && rq.distance > rq.halfWidth
+          ? Math.max(0, 1 - (rq.distance - rq.halfWidth) / 8)
+          : 0;
+      // (and, like a side road ribbon where another way joins it, over the highest ground round the vertex: the
+      // junction's carve folds the terrain, and ribbons lifted over it showed through the pad)
+      const top = Math.max(
+        ground,
+        hf.height(x + 1.5, z),
+        hf.height(x - 1.5, z),
+        hf.height(x, z + 1.5),
+        hf.height(x, z - 1.5),
+      );
+      tile.pos.push(
+        x,
+        ground + (top - ground) * crease + 0.045 + 0.05 * crease - 0.08 * sink,
+        z,
+      );
+      tile.nor.push(nTmp.x, nTmp.y, nTmp.z);
+      tile.uv.push(u, v);
+    };
+    // One pad triangle, face up (+Y), world-space UVs.
+    const padLen = texLength(padTex);
+    const tri = (pa: number[], pb: number[], pc: number[]) => {
+      const up =
+        (pb[0] - pa[0]) * (pc[1] - pa[1]) - (pb[1] - pa[1]) * (pc[0] - pa[0]) <
+        0;
+      const v0 = pad.pos.length / 3;
+      for (const [x, z] of [pa, pb, pc]) put(pad, x, z, x / padLen, z / padLen);
+      if (up) pad.idx.push(v0, v0 + 1, v0 + 2);
+      else pad.idx.push(v0, v0 + 2, v0 + 1);
+    };
+    // Dust band round each curve: a strip from the arc (u 0, the texture's edge) to `band` metres inside it, at the
+    // side road's scale. The pad fills everything inside.
+    const band = 0.18 * j.width;
+    const radius = Math.min(8, Math.max(4, j.width * 1.4));
+    const nx0 = -j.dz;
+    const nz0 = j.dx;
+    // Each side's pad edge, from the stage road up the side road: the inner edge of its dust strip, or (no fillet)
+    // the side road's edge `band` inside, so its own dusty edge still shows.
+    const sides = new Map<number, number[][]>();
     for (const f of fillets) {
-      const key = `${tex}:${Math.floor(f.c[0] / PATH_TILE)},${Math.floor(f.c[1] / PATH_TILE)}`;
-      let tile = tiles.get(key);
-      if (!tile)
-        tiles.set(key, (tile = { tex, pos: [], nor: [], uv: [], idx: [] }));
-      hf.normal(f.c[0], f.c[1], nTmp);
-      // Across the side road in its widths. u is mirrored inside the plain asphalt between the edge bands (0.2..0.8,
-      // period 1.2 widths) at world scale, so the fan shows neither stretched streaks nor the band's dust and bites;
-      // triangles are cut at the mirror lines so u stays linear inside each one.
-      const lat = (x: number, z: number) =>
-        ((x - j.x) * -j.dz + (z - j.z) * j.dx) / j.width;
-      const put = (x: number, z: number, u: number, v: number) => {
-        world.road.query(x, z, rq);
-        const ground = hf.height(x, z);
-        const sink =
-          rq.found && Math.abs(world.road.at(rq.along).y - ground) < 1
-            ? 1 -
-              Math.min(
-                1,
-                Math.max(
-                  0,
-                  (rq.distance - rq.halfWidth + SINK_RAMP) / SINK_RAMP,
-                ),
-              )
-            : 0;
-        // The side road ribbon's crease lift near the stage road, plus 1.5 cm: the fan covers its edge band along the
-        // corner.
-        const crease =
-          rq.found && rq.distance > rq.halfWidth
-            ? Math.max(0, 1 - (rq.distance - rq.halfWidth) / 8)
-            : 0;
-        tile.pos.push(x, ground + 0.045 + 0.05 * crease - 0.08 * sink, z);
-        tile.nor.push(nTmp.x, nTmp.y, nTmp.z);
-        tile.uv.push(u, v);
-      };
-      const along = (x: number, z: number) =>
-        ((x - j.x) * j.dx + (z - j.z) * j.dz) / texLength(tex);
-      const tri = (pa: number[], pb: number[], pc: number[]) => {
-        // Clip into the strips between mirror lines, fan each convex piece, face up (+Y).
-        const ls = [pa, pb, pc].map(([x, z]) => lat(x, z));
-        const lo = Math.floor(Math.min(...ls) / 0.6);
-        const hi = Math.floor(Math.max(...ls) / 0.6);
-        for (let fold = lo; fold <= hi; fold++) {
-          let poly = [pa, pb, pc].map((pt, i) => [pt[0], pt[1], ls[i]]);
-          for (const [edge, keep] of [
-            [fold * 0.6, 1],
-            [(fold + 1) * 0.6, -1],
-          ]) {
-            const out: number[][] = [];
-            for (let i = 0; i < poly.length; i++) {
-              const p0 = poly[i];
-              const p1 = poly[(i + 1) % poly.length];
-              const d0 = (p0[2] - edge) * keep;
-              const d1 = (p1[2] - edge) * keep;
-              if (d0 >= 0) out.push(p0);
-              if (d0 >= 0 !== d1 >= 0) {
-                const t = d0 / (d0 - d1);
-                out.push(p0.map((v, k) => v + (p1[k] - v) * t));
-              }
-            }
-            poly = out;
-          }
-          if (poly.length < 3) continue;
-          let area = 0;
-          for (let i = 0; i < poly.length; i++) {
-            const q = poly[(i + 1) % poly.length];
-            area += poly[i][0] * q[1] - q[0] * poly[i][1];
-          }
-          const up = area < 0;
-          const v0 = tile.pos.length / 3;
-          for (const [x, z, l] of poly) {
-            const m = l - fold * 0.6;
-            put(x, z, 0.2 + (fold % 2 === 0 ? m : 0.6 - m), along(x, z));
-          }
-          for (let k = 1; k < poly.length - 1; k++)
-            if (up) tile.idx.push(v0, v0 + k, v0 + k + 1);
-            else tile.idx.push(v0, v0 + k + 1, v0 + k);
-        }
-      };
-      // Dust band round the curve: a strip from the arc (u 0, the texture's edge) to `band` metres inside it, at the
-      // side road's scale; the plain fan fills from there to the corner and over the side road's own edge band.
-      const band = 0.18 * j.width;
       const n = f.arc.length;
       const [mx, mz] = [
         (f.arc[0][0] + f.arc[n - 1][0]) / 2,
@@ -729,52 +724,62 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
       for (let k = 0; k < n - 1; k++) {
         const [px, pz] = f.arc[k];
         const [qx, qz] = f.arc[k + 1];
-        const step = Math.hypot(qx - px, qz - pz) / texLength(tex);
-        const v0 = tile.pos.length / 3;
-        put(px, pz, 0, dist);
-        put(qx, qz, 0, dist + step);
-        put(inner[k + 1][0], inner[k + 1][1], band / j.width, dist + step);
-        put(inner[k][0], inner[k][1], band / j.width, dist);
+        const step = Math.hypot(qx - px, qz - pz) / texLength(edgeTex);
+        const v0 = edgeTile.pos.length / 3;
+        const ub = band / j.width;
+        put(edgeTile, px, pz, 0, dist);
+        put(edgeTile, qx, qz, 0, dist + step);
+        put(edgeTile, inner[k + 1][0], inner[k + 1][1], ub, dist + step);
+        put(edgeTile, inner[k][0], inner[k][1], ub, dist);
         const up =
           (qx - px) * (inner[k][1] - pz) - (qz - pz) * (inner[k][0] - px) < 0;
-        if (up) tile.idx.push(v0, v0 + 1, v0 + 2, v0, v0 + 2, v0 + 3);
-        else tile.idx.push(v0, v0 + 2, v0 + 1, v0, v0 + 3, v0 + 2);
+        if (up) edgeTile.idx.push(v0, v0 + 1, v0 + 2, v0, v0 + 2, v0 + 3);
+        else edgeTile.idx.push(v0, v0 + 2, v0 + 1, v0, v0 + 3, v0 + 2);
         dist += step;
       }
-      // Plain fan from the corner moved `band` into the side road, so it also covers the side road's edge band up to
-      // B; rings between it and the boundary so the fan follows the ground (one flat triangle let the terrain poke
-      // through).
-      const ox = j.x + ((f.c[0] - j.x) * j.dx + (f.c[1] - j.z) * j.dz) * j.dx;
-      const oz = j.z + ((f.c[0] - j.x) * j.dx + (f.c[1] - j.z) * j.dz) * j.dz;
-      const il = Math.hypot(ox - f.c[0], oz - f.c[1]) || 1;
-      const centre = [
-        f.c[0] + ((ox - f.c[0]) / il) * band,
-        f.c[1] + ((oz - f.c[1]) / il) * band,
-      ];
-      const edgeLine = [f.c, ...inner];
-      const ring = (t: number) =>
-        edgeLine.map(([x, z]) => [
-          centre[0] + (x - centre[0]) * t,
-          centre[1] + (z - centre[1]) * t,
-        ]);
-      let prev = ring(1 / FILLET_RINGS);
-      for (let k = 0; k < prev.length - 1; k++)
-        tri(centre, prev[k], prev[k + 1]);
-      for (let r = 2; r <= FILLET_RINGS; r++) {
-        const next = ring(r / FILLET_RINGS);
-        for (let k = 0; k < next.length - 1; k++) {
-          tri(prev[k], next[k], next[k + 1]);
-          tri(prev[k], next[k + 1], prev[k + 1]);
-        }
-        prev = next;
+      const s = (f.c[0] - j.x) * nx0 + (f.c[1] - j.z) * nz0 >= 0 ? 1 : -1;
+      sides.set(s, inner);
+    }
+    for (const s of [1, -1])
+      if (!sides.has(s)) {
+        const e = (s * j.width) / 2 - s * band;
+        const ex = j.x + nx0 * e;
+        const ez = j.z + nz0 * e;
+        const line: number[][] = [];
+        for (let d = -2; d <= radius + 1e-6; d += radius / 4)
+          line.push([ex + j.dx * d, ez + j.dz * d]);
+        sides.set(s, line);
       }
+    // The pad: one polygon over the whole mouth (both corners and the side road's first metres, where its wheel paths
+    // and edges would otherwise run straight into the stage road), fanned from a point in the mouth with rings so it
+    // follows the ground (one flat triangle let the terrain poke through).
+    const outline = [...sides.get(1)!, ...[...sides.get(-1)!].reverse()];
+    const centre = [j.x + j.dx * radius * 0.4, j.z + j.dz * radius * 0.4];
+    const ring = (t: number) =>
+      [...outline, outline[0]].map(([x, z]) => [
+        centre[0] + (x - centre[0]) * t,
+        centre[1] + (z - centre[1]) * t,
+      ]);
+    let prev = ring(1 / FILLET_RINGS);
+    for (let k = 0; k < prev.length - 1; k++) tri(centre, prev[k], prev[k + 1]);
+    for (let r = 2; r <= FILLET_RINGS; r++) {
+      const next = ring(r / FILLET_RINGS);
+      for (let k = 0; k < next.length - 1; k++) {
+        tri(prev[k], next[k], next[k + 1]);
+        tri(prev[k], next[k + 1], prev[k + 1]);
+      }
+      prev = next;
     }
   }
   yield;
   const group = new Group();
   group.name = 'paths';
   for (const t of tiles.values()) {
-    const mat = getRoadMaterial(t.tex, t.tex === 'road_parkway' ? 2 : 1);
+    // (layer 2 also puts a junction pad over the side road ribbons it covers)
+    const mat = getRoadMaterial(
+      t.tex,
+      t.tex === 'road_parkway' || t.tex === 'road_tarmac_junction' ? 2 : 1,
+    );
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(new Float32Array(t.pos), 3));
     g.setAttribute('normal', new BufferAttribute(new Float32Array(t.nor), 3));

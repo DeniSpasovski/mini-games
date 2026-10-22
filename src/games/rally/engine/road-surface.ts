@@ -24,6 +24,7 @@ import { getTexture } from './textures';
 export type RoadSurfaceId =
   | 'road_tarmac'
   | 'road_tarmac_kerbed'
+  | 'road_tarmac_junction'
   | 'road_tarmac_lines'
   | 'road_tarmac_plain'
   | 'road_city'
@@ -36,6 +37,7 @@ export type RoadSurfaceId =
 export const ROAD_SURFACE_LEN: Record<RoadSurfaceId, number> = {
   road_tarmac: 7,
   road_tarmac_kerbed: 7,
+  road_tarmac_junction: 7,
   road_tarmac_lines: 7,
   road_tarmac_plain: 7,
   road_city: 8,
@@ -52,6 +54,10 @@ export const ROAD_SURFACE_LEN: Record<RoadSurfaceId, number> = {
 const PATCHES: Partial<Record<RoadSurfaceId, number>> = {
   road_tarmac_lines: 1,
   road_tarmac_plain: 1,
+};
+/** Metres per tile across (default 6): the junction corner tile is square, laid flat in world space. */
+const ACROSS_M: Partial<Record<RoadSurfaceId, number>> = {
+  road_tarmac_junction: 7,
 };
 /** Strength of the 9 m / 3 m blotches (1 = default): a calmer tone where the real road is even. */
 const TONE: Partial<Record<RoadSurfaceId, number>> = {
@@ -155,7 +161,7 @@ export function loadRoadSurface(
 
 /** The sets a map draws: its stage road, the paved side roads, and the city street kinds. Others load on demand. */
 export function roadSurfaceIds(map: MapDef): RoadSurfaceId[] {
-  const ids = new Set<RoadSurfaceId>(['road_tarmac']);
+  const ids = new Set<RoadSurfaceId>(['road_tarmac', 'road_tarmac_junction']);
   const add = (t?: string) => {
     if (t && isRoadSurface(t)) ids.add(t);
   };
@@ -204,7 +210,9 @@ export function applyRoadSurface(
     m.normalScale = new Vector2(1, 1);
     m.roughness = 1;
     m.color.setScalar(1);
-    const scale = { value: new Vector2(6, ROAD_SURFACE_LEN[id]) };
+    const scale = {
+      value: new Vector2(ACROSS_M[id] ?? 6, ROAD_SURFACE_LEN[id]),
+    };
     const patch = { value: PATCHES[id] ?? 0 };
     const tone = { value: TONE[id] ?? 1 };
     m.onBeforeCompile = (shader, renderer) => {

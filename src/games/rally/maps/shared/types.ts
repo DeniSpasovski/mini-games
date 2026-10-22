@@ -562,6 +562,8 @@ export type RoadTexture =
   | 'road'
   | 'road_tarmac'
   | 'road_tarmac_kerbed'
+  /** Junction corners of `road_tarmac` side roads (laid in world space; not a stage road texture). */
+  | 'road_tarmac_junction'
   | 'road_tarmac_lines'
   | 'road_tarmac_plain'
   | 'road_parkway'
