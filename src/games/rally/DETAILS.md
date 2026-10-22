@@ -452,7 +452,8 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 - Never clone geometry or materials per instance: everything goes through `getAsset(id, variant, lod)` -> `InstancedMesh`,
   materials from `engine/materials.ts`.
 - Streaming stays time-sliced: terrain (`terrain.update(pos, budgetMs)`), the 1 m heightfield (`Heightfield.prepare`) and
-  instance re-bucketing (`InstanceStreamer`, ~2 ms per frame). Whole-map work uses `world.analytic`, not the 1 m cache.
+  instance re-bucketing (`InstanceStreamer`; in game the time the frame rate leaves over, 1-8 ms per frame,
+  `RallyGame.streamBudget`). Whole-map work uses `world.analytic`, not the 1 m cache.
 - Whole-map set-up loops use a spatial grid, never all-against-all (a town map has ~900 roads, ~2000 way ends).
 
 **Draw calls**

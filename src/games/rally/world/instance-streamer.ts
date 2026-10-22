@@ -237,7 +237,8 @@ export class InstanceStreamer {
   }
 
   /** Call every frame. Starts / continues a time-sliced rebuild. */
-  update(focus: Vector3): void {
+  /** `budgetMs`: this frame's share of time for a rebuild job (default the `budgetMs` option). */
+  update(focus: Vector3, budgetMs?: number): void {
     this.parkCars?.update(focus, this.filter('team_car'));
     if (!this.job) {
       const rebuild = this.opts.rebuildDistance ?? 10;
@@ -250,7 +251,7 @@ export class InstanceStreamer {
     }
     if (this.job) {
       const t0 = performance.now();
-      const budget = this.opts.budgetMs ?? 2;
+      const budget = budgetMs ?? this.opts.budgetMs ?? 2;
       while (performance.now() - t0 < budget) {
         if (this.job.next().done) {
           this.job = null;

@@ -72,6 +72,8 @@ import {
 import {
   corn,
   cornRowCard,
+  wheatBlock,
+  greenWheatBlock,
   dryCorn,
   dryCornRowCard,
   dryGrass,
@@ -95,6 +97,8 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   spring_grass: springGrass,
   wheat,
   green_wheat: greenWheat,
+  wheat_block: wheatBlock,
+  green_wheat_block: greenWheatBlock,
   corn,
   dry_corn: dryCorn,
   corn_row: cornRowCard,

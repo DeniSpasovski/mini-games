@@ -224,6 +224,23 @@ export const ASSET_CATALOG: AssetMeta[] = [
     nearBoost: 2,
   },
   {
+    id: 'wheat_block',
+    name: 'Wheat field block',
+    category: 'vegetation',
+    description:
+      'A 3 x 2 m block of ripe wheat as one instance: the card patch repeated along strips both ways. Fields away from the road.',
+    variants: 4,
+    lods: WHEAT_LODS,
+  },
+  {
+    id: 'green_wheat_block',
+    name: 'Wheat field block (spring)',
+    category: 'vegetation',
+    description: 'A 3 x 2 m block of young green wheat as one instance.',
+    variants: 4,
+    lods: WHEAT_LODS,
+  },
+  {
     id: 'corn',
     name: 'Corn plant',
     category: 'vegetation',

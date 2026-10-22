@@ -11,6 +11,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshNormalMaterial,
+  RepeatWrapping,
   MeshStandardMaterial,
   OrthographicCamera,
   PlaneGeometry,
@@ -367,6 +368,8 @@ export function bakeCropCards(renderer: WebGLRenderer): Promise<void> {
       t.image = { data, width: px, height: rows };
       t.mipmaps = mips.main;
       t.generateMipmaps = false;
+      // Repeats across (`cropBlock` strips run several cards long); the variants are stacked the other way.
+      t.wrapS = RepeatWrapping;
       t.magFilter = LinearFilter;
       t.minFilter = LinearMipmapLinearFilter;
       t.colorSpace = SRGBColorSpace;
@@ -463,6 +466,56 @@ export function crossedCards(
     for (let k = 0; k < uv.count; k++) uv.setY(k, v0 + uv.getY(k) * dv);
     parts.push(g.index ? g.toNonIndexed() : g);
   }
+  return mergeCards(parts);
+}
+
+/** Size of a `cropBlock` (m): along the field strips x across them. */
+export const CROP_BLOCK: [number, number] = [3, 2];
+
+/**
+ * A block of a field as one geometry (one instance instead of a dozen card patches): cards running the block's length
+ * every `gap` m, more across it, the card texture repeated along each (wrapS) and every strip its own variant, so the
+ * tops stay uneven. Long axis = local x (rows face along the field strips).
+ */
+export function cropBlock(
+  card: CropCard,
+  seed: number,
+  variant: number,
+  gap = 0.4,
+): BufferGeometry {
+  const [w, h] = CROP_CARD_SIZE[card];
+  const { py, slot, rows } = cardLayout(card);
+  const [len, wide] = CROP_BLOCK;
+  const rng = new Rng(seed * 31 + variant);
+  const parts: BufferGeometry[] = [];
+  const strip = (l: number, across: boolean, at: number) => {
+    const g = new PlaneGeometry(l, h * rng.range(0.92, 1.06));
+    g.translate(rng.range(-0.15, 0.15), (h * rng.range(0.92, 1.06)) / 2, 0);
+    if (across) g.rotateY(Math.PI / 2 + rng.range(-0.08, 0.08));
+    else g.rotateY(rng.range(-0.04, 0.04));
+    g.translate(across ? at : 0, 0, across ? 0 : at);
+    const n = g.getAttribute('normal') as BufferAttribute;
+    for (let k = 0; k < n.count; k++) n.setXYZ(k, 0, 1, 0);
+    const v =
+      (variant + Math.floor(rng.next() * CARD_VARIANTS)) % CARD_VARIANTS;
+    const u0 = rng.next();
+    const uv = g.getAttribute('uv') as BufferAttribute;
+    for (let k = 0; k < uv.count; k++)
+      uv.setXY(
+        k,
+        u0 + (uv.getX(k) * l) / w,
+        (v * slot) / rows + (uv.getY(k) * py) / rows,
+      );
+    parts.push(g.toNonIndexed());
+  };
+  for (let z = -wide / 2 + gap / 2; z < wide / 2; z += gap)
+    strip(len, false, z);
+  for (let x = -len / 2 + gap / 2; x < len / 2; x += gap) strip(wide, true, x);
+  return mergeCards(parts);
+}
+
+/** Non-indexed card quads (position, normal, uv) as one geometry. */
+function mergeCards(parts: BufferGeometry[]): BufferGeometry {
   const out = new BufferGeometry();
   for (const name of ['position', 'normal', 'uv']) {
     const arrs = parts.map((p) => p.getAttribute(name).array as Float32Array);

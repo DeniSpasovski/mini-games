@@ -1227,6 +1227,20 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     lap('render');
   }
 
+  /** Smoothed time between frames and CPU time of a frame without the object streaming (ms; streamBudget). */
+  private frameInterval = 1000 / 60;
+  private frameWork = 8;
+
+  /**
+   * Time the object streaming may take this frame (ms): what the frame rate leaves over (85 % of the time between
+   * frames, less the rest of the frame's work), 1-8 ms. A fast device catches up in a frame or two, a busy one keeps
+   * its frame rate; the driving speed plays no part.
+   */
+  private streamBudget(dt: number): number {
+    if (dt > 0) this.frameInterval += (dt * 1000 - this.frameInterval) * 0.1;
+    return Math.min(8, Math.max(1, this.frameInterval * 0.85 - this.frameWork));
+  }
+
   private frame(dt: number): void {
     const t0 = performance.now();
     const v = this.vehicle;
@@ -1313,7 +1327,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.terrain.update(camPos, 2.5);
     this.roadCull.update(camPos);
     const tTerrain = performance.now();
-    this.streamer.update(camPos);
+    this.streamer.update(camPos, this.streamBudget(dt));
     const tObjects = performance.now();
     this.trees.update(this.camera, this.rig.steady);
     const tTrees = performance.now();
@@ -1414,6 +1428,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     else this.renderer.render(this.scene, this.camera);
     this.perf?.gpuEnd();
     const tRender = performance.now();
+    // The frame's own work, the object streaming left out (it fills the time left over: streamBudget).
+    this.frameWork += (tRender - t0 - (tObjects - tTerrain) - this.frameWork) * 0.1;
     this.perf?.frame({
       physics: tPhysics - t0,
       'car + camera': tCamera - tPhysics,

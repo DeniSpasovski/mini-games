@@ -2,6 +2,7 @@ import { BufferAttribute, PlaneGeometry, type BufferGeometry } from 'three';
 import { Rng } from '../../../../shared/rng';
 import { merge, paint, shade } from '../../engine/geo';
 import {
+  cropBlock,
   cropCardMaterial,
   crossedCards,
   type CropCard,
@@ -134,6 +135,19 @@ function crop(look: CropCard, planes: number): AssetBuilder {
 /** Ripe wheat (summer) and green wheat (spring): 1 m card patches. */
 export const wheat = crop('wheat', 3);
 export const greenWheat = crop('green_wheat', 3);
+/** A 3 x 2 m block of a wheat field as one instance (engine/crops.ts `cropBlock`): the fields away from the road. */
+function cropBlockAsset(look: 'wheat' | 'green_wheat'): AssetBuilder {
+  return ({ seed, variant }) => ({
+    parts: [
+      {
+        geometry: cropBlock(look, seed, variant),
+        material: cropCardMaterial(look),
+      },
+    ],
+  });
+}
+export const wheatBlock = cropBlockAsset('wheat');
+export const greenWheatBlock = cropBlockAsset('green_wheat');
 /** Corn: a crossed card of one plant. */
 export const corn = crop('corn', 2);
 export const dryCorn = crop('dry_corn', 2);

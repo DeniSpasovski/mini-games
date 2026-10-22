@@ -446,16 +446,30 @@ export const ajvatovciMap: MapDef = {
       minRoadDist: 1,
       scale: [0.6, 1.1],
     },
-    // Field crops (landcover.fields.crops): wheat patches.
-    ...(['wheat', 'green_wheat'] as const).map((crop) => ({
-      asset: crop,
-      cover: ['crop'],
-      crop,
-      density: crop === 'wheat' ? 1600 : 2000,
-      detail: true,
-      minRoadDist: 2.5,
-      scale: [0.85, 1.1] as [number, number],
-    })),
+    // Field crops (landcover.fields.crops): wheat. 1 m card patches along the road edge, 3 x 2 m blocks (one instance
+    // each) further into the fields.
+    ...(['wheat', 'green_wheat'] as const).flatMap((crop) => [
+      {
+        asset: crop,
+        cover: ['crop'],
+        crop,
+        density: crop === 'wheat' ? 1600 : 2000,
+        detail: true,
+        minRoadDist: 2.5,
+        maxRoadDist: 6,
+        scale: [0.85, 1.1] as [number, number],
+      },
+      {
+        asset: `${crop}_block`,
+        cover: ['crop'],
+        crop,
+        density: 0,
+        detail: true,
+        rows: { spacing: 3, rowSpacing: 2, jitter: 0.1, keep: 1, fields: true },
+        minRoadDist: 5,
+        scale: [0.92, 1.08] as [number, number],
+      },
+    ]),
   ],
   roadside: [
     // Lamps along the hill road (as on the street-view photos).
