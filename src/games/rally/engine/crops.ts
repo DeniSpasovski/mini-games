@@ -171,17 +171,17 @@ function recolour(
   if (look === 'corn' || look === 'dry_corn') husk(ctx, w, h);
   if (look === 'corn') return;
   const img = ctx.getImageData(0, 0, w, h);
-  // Ripe wheat: the model's texture is a sunlit photo (albedo ~0.5, twice real straw): toned to dry straw at ~0.25
-  // (a field in the sun reads pale beige, not yellow; at its own colour it glowed against the graded ground).
+  // Ripe wheat: the model's own gold, a little richer (photos of ripe fields: warm gold, saturation ~0.5-0.7). The glow
+  // came from the flat unshaded cards and the leaf translucency, not the colour (`canopyShade`, `THROUGH`).
   if (look === 'wheat') {
-    tone(img.data, 0.62, 0.85);
+    tone(img.data, 1.1, 0.95);
     ctx.putImageData(img, 0, 0);
     return;
   }
-  // Spring wheat: green stalks, leaves and ears. Dry corn: warm straw-tan leaves and husks (October field corn is
+  // Spring wheat: blue-green (waxy) stalks, leaves and ears, lighter at the ears. Dry corn: warm straw-tan leaves and husks (October field corn is
   // buff, not grey: the dark end stays brown).
   if (look === 'green_wheat')
-    ramp(img.data, [52, 86, 26], [168, 200, 96], 0.35, 0.9);
+    ramp(img.data, [80, 112, 78], [184, 218, 156], 0.35, 0.9);
   else ramp(img.data, [118, 86, 46], [218, 188, 126], 0.15, 0.6);
   ctx.putImageData(img, 0, 0);
 }
