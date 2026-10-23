@@ -201,8 +201,8 @@ export const pezetka: CarDef = {
     ]),
   },
   model: {
-    // The model's own paint is a pale grey; ours is the period 126p orange.
-    paint: '#ff6010',
+    // The model's own paint is a pale grey; ours is a period 126p blue-grey.
+    paint: '#7a8594',
     // The model's own steel rim (pezetka_wheel.glb), de-cambered and centred on the hub.
     rim: { color: '#9aa0a6', spokes: 4, style: 'steel', caliper: false },
     wheelModel: 'pezetka_wheel.glb',
