@@ -464,6 +464,8 @@ export class RallyGame {
         tailLightMount(this.car.physics),
         need,
       );
+      // The beam starts at the model's own lamps once they are known.
+      this.model.onHeadlamps((m) => this.headlights?.moveTo(m));
     }
     if (q.name === 'high' && this.env.lightNeed >= LIGHTS_MIN_NEED)
       this.bloom = new NightBloom(

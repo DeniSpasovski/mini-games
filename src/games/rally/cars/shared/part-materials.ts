@@ -6,6 +6,7 @@ import {
   RepeatWrapping,
   SRGBColorSpace,
   type Material,
+  type Vector3,
 } from 'three';
 import { addWorldUniforms } from '../../engine/world-shading';
 
@@ -35,7 +36,11 @@ export type PartName =
   | 'mirror'
   | 'lens'
   | 'lenscover'
+  | 'lampback'
+  | 'lensclear'
   | 'chrome'
+  | 'headchrome'
+  | 'headbulb'
   | 'satin'
   | 'steel'
   | 'amber'
@@ -70,14 +75,80 @@ export type PartName =
 
 const cache = new Map<string, Material>();
 
-/** Headlight (CarModel.setLamps): emissive from its idle value to `on` with the lights on (night). */
+/**
+ * Headlight (CarModel.setLamps): emissive from `off` (lights off: the bulbs dark, the reflector shows by its own map) to
+ * `on` with the lights on (night). `CarModel` also builds a halo round it and aims the beam from it.
+ */
 function headLamp<M extends Material & { emissiveIntensity: number }>(
   m: M,
   on: number,
+  off = HEAD_OFF,
 ): M {
-  m.userData.headLamp = { off: m.emissiveIntensity, on };
+  m.emissiveIntensity = off;
+  m.userData.headLamp = { off, on };
   return m;
 }
+
+/**
+ * The inside of a lit head lamp (reflector bowl, housing, cover) glows from its bulbs: brightest right round each bulb and
+ * fading across the reflector, like the light scattered in a real lamp (a sim's painted glow map). `bulbs` are in the
+ * mesh's own space; `radius` (m) is how far the glow spreads. `add` = the part's own glow stays (a lit lamp sheet) and the
+ * bulbs' glow, at this share of the part's full glow, comes on top.
+ */
+export function bulbScatter<M extends Material>(
+  m: M,
+  bulbs: Vector3[],
+  radius: number,
+  add?: number,
+): M {
+  const f = (x: number) => x.toFixed(4);
+  const pts = bulbs.map((b) => `vec3(${f(b.x)}, ${f(b.y)}, ${f(b.z)})`);
+  // A lamp's own shader hook (`lampDepth`) runs first.
+  const before = m.onBeforeCompile.bind(m);
+  const ownKey = m.customProgramCacheKey();
+  const key = `${ownKey} bulbScatter ${pts.join()} ${radius} ${add}`;
+  m.customProgramCacheKey = () => key;
+  m.onBeforeCompile = (shader, renderer) => {
+    before(shader, renderer);
+    addWorldUniforms(shader);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vBulbPos;')
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvBulbPos = transformed;',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vBulbPos;')
+      .replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+        {
+          const vec3 bulbs[${pts.length}] = vec3[](${pts.join(', ')});
+          float g = 0.0;
+          for (int i = 0; i < ${pts.length}; i++) {
+            vec3 d = vBulbPos - bulbs[i];
+            g += exp(-dot(d, d) / ${f(radius * radius)});
+          }
+          ${add === undefined ? 'totalEmissiveRadiance *= min(g, 1.5);' : `totalEmissiveRadiance += emissive * ${f(add)} * min(g, 1.5);`}
+        }`,
+      );
+  };
+  return m;
+}
+
+/** A copy of an imported model's lamp part that glows white with the headlights (its day look unchanged). */
+export function headLampOf(m: MeshStandardMaterial): MeshStandardMaterial {
+  const c = m.clone();
+  c.emissive.set(0xfff6ea);
+  c.emissiveMap = null;
+  return headLamp(c, HEAD_SCATTER_ON);
+}
+
+/** `headLampOf` parts' glow with the lights on, right at a bulb (`bulbScatter` fades it out from there). */
+const HEAD_SCATTER_ON = 2.5;
+
+/** A headlamp's glow with the lights off: almost dark (a hint of the lens catching the light, not a lit bulb). */
+const HEAD_OFF = 0.04;
 
 /** A lamp's emissive intensities with the lights fully on (night): idle (running lamp) and the brake pedal down. */
 export interface LampNight {
@@ -255,6 +326,22 @@ const REVERSE_HALO = new Set([
   'subie_wrx_sti_lamps.png',
   'subie_22b_lamps.png',
 ]);
+/**
+ * Head lamp sheet areas [u0, v0, u1, v1, glow colour] (v down, painted in order) drawn as flat swatches: a bulb / projector
+ * lens lit full white, or housing / trim kept dark.
+ */
+const HEAD_SWATCHES: Record<
+  string,
+  [number, number, number, number, string][]
+> = {
+  // RS6: its three bulbs light (the two upper modules and the big lower module); the grey housing
+  // and outline swatches (bottom left of the sheet) stay dark.
+  'audi_rs6_lamps.png': [
+    [0, 455 / 512, 36 / 512, 493 / 512, '#000'],
+    [10 / 512, 282 / 512, 215 / 512, 412 / 512, '#fff'],
+    [50 / 512, 420 / 512, 215 / 512, 505 / 512, '#fff'],
+  ],
+};
 /** Sheets whose third brake light is a speckled texture (only some pixels strong red): it glows by the sheet's own red instead. */
 const SOLID_CENTRE = new Set(['lancer_evo_6_lamps.png']);
 /** A sheet pixel of a strong red (a bar or reflector), and of a pale red lens body (pink: green and blue about equal). */
@@ -301,7 +388,7 @@ function lensRegion(
 /**
  * A part that keeps the source model's own texture and UVs (scripts/car-model/glb-src-parts.py): material name
  * `src:<kind>:<file in public/models/cars/>`. `int` = the sheet as it is (seat fabric, cockpit), matt, back faces dark; `shell` (no file) = dark plastic;
- * `lamp` = the sheet, its bright pixels glow (head lamps, indicators); `tail` = brake lamp (setBrake): the red pixels glow, the bright neutral ones light in reverse
+ * `lamp` = head lamp: the sheet, its bright neutral pixels glow with the lights on (`headLamp`); `tail` = brake lamp (setBrake): the red pixels glow, the bright neutral ones light in reverse
  * (`src:tail:<file>:<x>,<y>` = only the lens around that sheet pixel, when the clear ribbed trim behind the red cover must stay dark). The maps
  * stay dark until the sheet has loaded. Alpha comes from the sheet (clear lens areas show the reflector behind them).
  */
@@ -402,7 +489,27 @@ function srcPart(name: string): Material {
             ? 1
             : 0,
         );
-      } else paint(glow, (r, gr, b) => lum(r, gr, b) ** 2);
+      }
+      // Head lamp: the neutral pixels (bulb, reflector, clear lens) light up, the amber indicator stays dark. A lit lamp fills
+      // its whole lens, so the darker reflector / projector greys glow too (`** 0.4`), the black housing hardly.
+      else {
+        paint(glow, (r, gr, b) =>
+          Math.max(r, gr, b) - Math.min(r, gr, b) < 60
+            ? lum(r, gr, b) ** 0.4
+            : 0,
+        );
+        // Bulbs / housings drawn as flat swatches: their own glow.
+        const gc = (glow.image as HTMLCanvasElement).getContext('2d')!;
+        for (const [u0, v0, u1, v1, colour] of HEAD_SWATCHES[file] ?? []) {
+          gc.fillStyle = colour;
+          gc.fillRect(
+            u0 * SRC_SIZE,
+            v0 * SRC_SIZE,
+            (u1 - u0) * SRC_SIZE,
+            (v1 - v0) * SRC_SIZE,
+          );
+        }
+      }
       map.needsUpdate = true;
     })
     .catch(() => {}); // no sheet: the dark placeholder stays
@@ -418,9 +525,9 @@ function srcPart(name: string): Material {
     clearcoat: 1,
     clearcoatRoughness: 0.05,
   });
-  if (kind !== 'tail') return m;
   // The glow map is painted once the sheet has loaded: `CarModel` builds the lamp halos after that.
   m.userData.lampLoaded = loaded;
+  if (kind !== 'tail') return headLamp(m, 6);
   m.userData.reverseHalo = REVERSE_HALO.has(file);
   m.userData.srcUv = REVERSE_HALO.has(file);
   lamp(
@@ -563,6 +670,8 @@ function headlightMaps(): { map: CanvasTexture; glow: CanvasTexture } {
     '#98a2ad',
   ];
 
+  /** Each module's LED emitter (canvas px), filled in while the map is drawn. */
+  const leds: [number, number][] = [];
   const map = canvas(W, H, (g) => {
     g.fillStyle = '#050607';
     g.fillRect(0, 0, W, H);
@@ -573,6 +682,7 @@ function headlightMaps(): { map: CanvasTexture; glow: CanvasTexture } {
       // Faceted reflector: a fan of flat chrome facets around the LED.
       const cx = ((m[0][0] + m[1][0]) / 2 + lean * 0.4) * W;
       const cy = ((m[0][1] + m[3][1]) / 2 + 0.06) * H;
+      leds.push([cx, cy]);
       const R = W * 0.25;
       const n = 11;
       for (let i = 0; i < n; i++) {
@@ -636,9 +746,25 @@ function headlightMaps(): { map: CanvasTexture; glow: CanvasTexture } {
     g.fillStyle = '#ffffff';
     g.fill();
   });
+  // Lights on: the low-beam LEDs blaze, their reflector modules light round them, the light guide glows.
   const glow = canvas(W, H, (g) => {
     g.fillStyle = '#000000';
     g.fillRect(0, 0, W, H);
+    modules.forEach((m, k) => {
+      g.save();
+      path(g, m);
+      g.clip();
+      g.fillStyle = '#4a4e54';
+      g.fillRect(0, 0, W, H);
+      const [cx, cy] = leds[k];
+      const led = g.createRadialGradient(cx, cy, 1, cx, cy, H * 0.14);
+      led.addColorStop(0, '#ffffff');
+      led.addColorStop(0.45, '#d8dce2');
+      led.addColorStop(1, 'rgba(74, 78, 84, 0)');
+      g.fillStyle = led;
+      g.fillRect(0, 0, W, H);
+      g.restore();
+    });
     path(g, guide);
     g.fillStyle = '#3a3f46';
     g.fill();
@@ -1543,10 +1669,21 @@ function twinLampMaps(): { map: CanvasTexture; glow: CanvasTexture } {
     g.fillStyle = hl;
     g.fillRect(0, 0, W, 0.3 * H);
   });
+  // Lights on: both ring lights, and the low-beam projector in the outer bowl (the inner one is the high beam: dark).
   const glow = canvas(W, H, (g) => {
     g.fillStyle = '#000000';
     g.fillRect(0, 0, W, H);
     for (const b of TWIN.bowls) atBowl(g, b, () => ring(g));
+    atBowl(g, TWIN.bowls[1], () => {
+      const lens = g.createRadialGradient(0, 0, R * 0.05, 0, 0, R * 0.7);
+      lens.addColorStop(0, '#ffffff');
+      lens.addColorStop(0.55, '#c9ced6');
+      lens.addColorStop(1, 'rgba(60, 64, 70, 0)');
+      g.fillStyle = lens;
+      g.beginPath();
+      g.arc(0, 0, R * 0.7, 0, Math.PI * 2);
+      g.fill();
+    });
   });
   return { map, glow };
 }
@@ -1765,7 +1902,6 @@ const BUILDERS: Record<PartName, () => Material> = {
         map,
         emissive: 0xffffff,
         emissiveMap: glow,
-        emissiveIntensity: 0.6,
         roughness: 0.22,
         metalness: 0.12,
         clearcoat: 1,
@@ -1781,14 +1917,13 @@ const BUILDERS: Record<PartName, () => Material> = {
       map,
       emissive: 0xffffff,
       emissiveMap: glow,
-      emissiveIntensity: 0.7,
       roughness: 0.18,
       metalness: 0.25,
       clearcoat: 1,
       clearcoatRoughness: 0.03,
     });
     lampDepth(m, TWIN_BOWLS);
-    return m;
+    return headLamp(m, 4);
   },
   /** Painted coil-over spring (a model's own suspension in the wheel well), the 'sti' yellow of the setup screen. */
   coilover: () =>
@@ -1828,6 +1963,19 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoatRoughness: 0.02,
       envMapIntensity: 1.8,
     }),
+  /** Clear polycarbonate head lamp cover (no smoke): the black inside and the reflectors read through it. */
+  lensclear: () =>
+    new MeshPhysicalMaterial({
+      color: 0xffffff,
+      roughness: 0.02,
+      metalness: 0,
+      transparent: true,
+      opacity: 0.12,
+      depthWrite: false,
+      clearcoat: 1,
+      clearcoatRoughness: 0.02,
+      envMapIntensity: 1,
+    }),
   /** Bright polished metal: lamp reflector bowls and projector bodies. */
   chrome: () =>
     new MeshPhysicalMaterial({
@@ -1836,6 +1984,30 @@ const BUILDERS: Record<PartName, () => Material> = {
       metalness: 1,
       envMapIntensity: 1.1,
     }),
+  /** Chrome headlamp reflector bowl (a car whose lamp is only the bowl, `gltf.remap`): polished metal by day, lit warm white with the lights on. */
+  headchrome: () =>
+    headLamp(
+      new MeshPhysicalMaterial({
+        color: 0xd8dce2,
+        emissive: 0xffe9b0,
+        roughness: 0.14,
+        metalness: 1,
+        envMapIntensity: 1.1,
+      }),
+      0.4,
+    ),
+  /** A head lamp's bulb or projector lens (`gltf.headBulbs`): polished metal / glass by day, the brightest part with the lights on. */
+  headbulb: () =>
+    headLamp(
+      new MeshPhysicalMaterial({
+        color: 0xc8ccd2,
+        emissive: 0xfff4e0,
+        roughness: 0.1,
+        metalness: 0.9,
+        envMapIntensity: 1.1,
+      }),
+      6,
+    ),
   /** Brushed aluminium: window frames, roof rails. */
   satin: () =>
     new MeshStandardMaterial({
@@ -1953,6 +2125,16 @@ const BUILDERS: Record<PartName, () => Material> = {
       RED_NIGHT,
     );
   },
+  /** Black inside of a head lamp modelled in the body mesh (`gltf.lampBody`): glossy black plastic round the reflectors. */
+  lampback: () =>
+    new MeshPhysicalMaterial({
+      color: 0x0c0d0f,
+      roughness: 0.3,
+      metalness: 0.2,
+      clearcoat: 0.5,
+      clearcoatRoughness: 0.15,
+      envMapIntensity: 0.5,
+    }),
   /** Dark metal lamp housing / bezel of a modelled (3D) lamp. */
   lamphousing: () =>
     new MeshPhysicalMaterial({
@@ -1963,15 +2145,19 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoatRoughness: 0.1,
       envMapIntensity: 0.8,
     }),
-  /** Modelled headlight LED ring / DRL: warm white, always glowing. */
+  /**
+   * Modelled headlight LED ring / bulb / light guide: frosted clear plastic, so it reads grey by day (not a lit white ring)
+   * and glows warm white with the lights on.
+   */
   headled: () =>
     headLamp(
       new MeshPhysicalMaterial({
-        color: 0xfff4d6,
+        color: 0x8f9194,
         emissive: 0xffe9b0,
-        emissiveIntensity: 1.2,
-        roughness: 0.3,
+        roughness: 0.35,
         metalness: 0,
+        clearcoat: 1,
+        clearcoatRoughness: 0.08,
       }),
       4,
     ),
