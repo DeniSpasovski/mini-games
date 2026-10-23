@@ -462,7 +462,7 @@ export class Menu {
         el(
           'p',
           'hg-variant',
-          `${mc.noun === 'store' ? 'Store' : 'Island'} #${s.seed}`,
+          `${mc.noun[0].toUpperCase()}${mc.noun.slice(1)} #${s.seed}`,
         ),
         step(
           '',

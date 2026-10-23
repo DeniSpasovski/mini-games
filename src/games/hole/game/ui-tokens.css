@@ -103,6 +103,15 @@
   --hg-warn: #c61f1f;
   --hg-warn-bg: #ffe1dd;
   --hg-sky: #bfe3f5;
+  --hg-white: #fff;
+  --hg-scrim: rgba(20, 40, 70, 0.45);
+  --hg-version-bg: rgba(29, 43, 58, 0.62);
+  --hg-track: rgba(29, 43, 58, 0.16);
+  --hg-pip-off: rgba(29, 43, 58, 0.2);
+  --hg-img-empty: rgba(255, 255, 255, 0.25);
+  --hg-joy-ring: rgba(255, 255, 255, 0.55);
+  --hg-joy-fill: rgba(255, 255, 255, 0.12);
+  --hg-joy-dot: rgba(255, 255, 255, 0.8);
 
   /* buttons: a deep fill (white text, at least 4.5:1) and a same-hue lip */
   --hg-on-fill: #fff;
@@ -135,6 +144,21 @@
   --hg-radius: 18px;
   --hg-radius-card: 28px;
   --hg-shadow: 0 6px 0 rgba(20, 30, 50, 0.28);
+  --hg-shadow-card:
+    0 10px 0 rgba(20, 30, 50, 0.28), 0 18px 40px rgba(0, 0, 0, 0.25);
+  --hg-shadow-dot: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --hg-shadow-swatch:
+    inset 0 -8px 0 rgba(0, 0, 0, 0.25), 0 4px 0 rgba(0, 0, 0, 0.2);
+  --hg-text-shadow-pop: 0 2px 0 rgba(0, 0, 0, 0.35), 0 0 6px rgba(0, 0, 0, 0.3);
+  --hg-text-shadow-count: 0 8px 0 rgba(0, 0, 0, 0.25);
+
+  /* debug HUD and labels (F2 / F4, dev only) */
+  --hg-debug-bg: rgba(0, 0, 0, 0.65);
+  --hg-debug-fg: #cfe;
+  --hg-debug-good: #7dff8c;
+  --hg-debug-bad: #ff8a80;
+  --hg-debug-line: #5a7;
+  --hg-debug-on: #2a6b3a;
   --hg-font-display: 'Fredoka', 'Trebuchet MS', system-ui, sans-serif;
   --hg-font:
     'Nunito', 'Trebuchet MS', 'Segoe UI', system-ui, -apple-system, sans-serif;

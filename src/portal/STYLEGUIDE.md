@@ -49,7 +49,10 @@ checks 4.5:1). `--pt-accent` is only the fallback for a game without one.
 - **Play** (`.play`): radius 8 px, the game's accent fill, on-accent text, a small play triangle. Its `::after` covers the card.
 - **Tools** (`.tools-toggle`, `.tools-list`): a text button that reveals the game's tool pages as text links (map viewer, car viewer ...).
 - **Mark** (`.portal-bars`): three bars, one per game in its accent, in front of the wordmark.
-- **Footer:** the site tagline with the owner, the licence and map-data line, and "Privacy & cookies" where the banner is on.
+- **Picture:** `thumbnail.jpg` (1280x720) with `thumbnail-640.jpg` (640x360) as its `srcset`; F9 in the game saves both.
+- **Footer:** the site tagline with the owner; About (the README), Source and the licence as links, and "Privacy & cookies" where the banner is on.
+- **Cookie banner** (`shared/consent.css`): the portal tokens, with the same values as fallbacks on game pages (which do not load them).
+- **Link preview:** `public/og-image.jpg`, 1200x630, the shelf without footer; retake it with `scripts/portal/og-image.mjs` when the look changes.
 
 ## Behaviour
 
@@ -59,5 +62,5 @@ checks 4.5:1). `--pt-accent` is only the fallback for a game without one.
 ## Adding a game
 
 1. `game.json`: `genre`, `inputs`, `version`, a one-line `description`, and `accent` / `onAccent` (check contrast: 6:1 on the shelf, 4.5:1 for the text on the accent).
-2. `thumbnail.jpg` (F9 in the game) and a `wordmark.svg` in the game's own title face; add its colours to the palette image above.
+2. `thumbnail.jpg` + `thumbnail-640.jpg` (F9 in the game) and a `wordmark.svg` in the game's own title face; add its colours to the palette image above.
 3. Check 1280x720 and 915x412, and keyboard and pad focus.

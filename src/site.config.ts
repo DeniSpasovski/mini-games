@@ -18,6 +18,8 @@ export const SITE = {
   /** Where to send people who load a copy from another domain. */
   canonicalUrl: 'https://deni.io',
   owner: 'Deni S.',
+  /** Public repository: the portal footer links About (its README), Source and the licence here. */
+  sourceUrl: 'https://github.com/DeniSpasovski/mini-games',
   tagline: 'This site was made using AI agents under direction of Deni S.',
   /**
    * Google Analytics 4 measurement ID, read from the untracked env file
