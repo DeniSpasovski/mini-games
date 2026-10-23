@@ -253,8 +253,9 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   The baker splits an OSM way where it folds back (> 120 deg) or revisits one of its nodes (two ways meeting there);
   a ground way under 15 m anchored at both ends is one straight ramp (`SHORT_JOINT`). Paved mouths on rural
   maps get rounded corners (`junctionFillets`, drawn with the street ribbons in `road-mesh.ts`; not on `cityStreets` maps):
-  plain `road_tarmac` mouths are one pad of `road_tarmac_junction` (a square tile laid flat in world space, no wheel paths
-  or edges) with the dusty edge band running round each curve; the stage road's edge band is left out across the mouth.
+  at plain `road_tarmac` mouths every surface (stage road edge, side road, a pad over the corners) blends within 6 m into
+  one world-aligned asphalt, `road_tarmac_junction` (square tile, no wheel paths or edges, sampled by world XZ in the road
+  shader, weight in the mesh's `jw` attribute; `junctionMouths`), with the dusty edge band running round each curve.
 - **Water:** canals / drains / rivers (`paths` surface `water`) and `lakes`, with real banks and water physics
   (`world/lakes.ts`, `water-mesh.ts`). `Lakes.query` reads only the outline edges near the point (a 16 m grid per outline): exact `sd` within
   `LAKE_REACH` of the shore, `-LAKE_REACH` further inside (every user stops at `LAKE_SHELF`); test `lakes-index`.

@@ -150,8 +150,6 @@ export function connectPaths(
 export interface JunctionFillet {
   c: [number, number];
   arc: [number, number][];
-  /** Where A is along the stage road, from the junction (m). */
-  along: number;
 }
 
 /** Arc points of a fillet (incl. both ends). */
@@ -208,30 +206,7 @@ export function junctionFillets(
       const b = t * t;
       arc.push([a * ax + m * cx + b * bx, a * az + m * cz + b * bz]);
     }
-    out.push({ c: [cx, cz], arc, along: v + sv * radius });
+    out.push({ c: [cx, cz], arc });
   }
   return out;
-}
-
-/**
- * The stretch of the stage road's edge a junction mouth takes (m along the stage road, from the junction): from one
- * fillet's A to the other's, or to where the side road's edge meets the stage edge on a side without a fillet. The
- * stage ribbon leaves out its dusty edge band there (the dust runs round the fillets instead).
- */
-export function junctionMouth(
-  j: Junction,
-  tx: number,
-  tz: number,
-  fillets: JunctionFillet[],
-): [number, number] {
-  const ends = fillets.map((f) => f.along);
-  const det = j.dx * -tz - j.dz * -tx;
-  if (Math.abs(det) >= 1e-6)
-    for (const s of [1, -1]) {
-      const ex = s * (j.width / 2) * -j.dz;
-      const ez = s * (j.width / 2) * j.dx;
-      const lim = 3 * j.width;
-      ends.push(Math.max(-lim, Math.min(lim, (j.dx * -ez + j.dz * ex) / det)));
-    }
-  return [Math.min(...ends), Math.max(...ends)];
 }

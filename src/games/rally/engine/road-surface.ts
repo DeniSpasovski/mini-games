@@ -5,6 +5,7 @@ import {
   Material,
   RepeatWrapping,
   RGBAFormat,
+  ShaderChunk,
   SRGBColorSpace,
   Texture,
   Vector2,
@@ -55,10 +56,11 @@ const PATCHES: Partial<Record<RoadSurfaceId, number>> = {
   road_tarmac_lines: 1,
   road_tarmac_plain: 1,
 };
-/** Metres per tile across (default 6): the junction corner tile is square, laid flat in world space. */
-const ACROSS_M: Partial<Record<RoadSurfaceId, number>> = {
-  road_tarmac_junction: 7,
-};
+/**
+ * Roads that blend into the world-aligned junction asphalt (`road_tarmac_junction`, sampled by world XZ) by the mesh's
+ * `jw` attribute: plain tarmac side road mouths (world/road-mesh.ts `junctionMouths`).
+ */
+const BLENDS = new Set<RoadSurfaceId>(['road_tarmac', 'road_tarmac_kerbed']);
 /** Strength of the 9 m / 3 m blotches (1 = default): a calmer tone where the real road is even. */
 const TONE: Partial<Record<RoadSurfaceId, number>> = {
   road_tarmac_lines: 0.6,
@@ -194,7 +196,8 @@ export function applyRoadSurface(
   m: MeshStandardMaterial,
   id: RoadSurfaceId,
 ): void {
-  const configure = (s: Surface | undefined) => {
+  const blend = BLENDS.has(id);
+  const configure = (s: Surface | undefined, js?: Surface) => {
     if (!s) {
       // Not available: the procedural tile of the same id (engine/textures.ts).
       m.map = getTexture(id);
@@ -210,9 +213,8 @@ export function applyRoadSurface(
     m.normalScale = new Vector2(1, 1);
     m.roughness = 1;
     m.color.setScalar(1);
-    const scale = {
-      value: new Vector2(ACROSS_M[id] ?? 6, ROAD_SURFACE_LEN[id]),
-    };
+    const scale = { value: new Vector2(6, ROAD_SURFACE_LEN[id]) };
+    const jLen = { value: ROAD_SURFACE_LEN.road_tarmac_junction };
     const patch = { value: PATCHES[id] ?? 0 };
     const tone = { value: TONE[id] ?? 1 };
     m.onBeforeCompile = (shader, renderer) => {
@@ -221,6 +223,30 @@ export function applyRoadSurface(
       shader.uniforms.rsScale = scale;
       shader.uniforms.rsPatch = patch;
       shader.uniforms.rsTone = tone;
+      // Junction blend: the same asphalt laid by world XZ, mixed in by `jw` (colour, normal, roughness, tone).
+      const j = !!js;
+      if (js) {
+        shader.uniforms.jMap = { value: js.map };
+        shader.uniforms.jNormal = { value: js.normal };
+        shader.uniforms.jLen = jLen;
+        shader.vertexShader = shader.vertexShader
+          .replace(
+            '#include <common>',
+            `#include <common>
+            attribute float jw;
+            varying float vJw;
+            varying vec2 vJXZ;`,
+          )
+          .replace(
+            '#include <project_vertex>',
+            `#include <project_vertex>
+            vJw = jw;
+            vJXZ = ( modelMatrix * vec4( transformed, 1.0 ) ).xz;`,
+          );
+      }
+      const nSample = j
+        ? 'mix( texture2D( normalMap, vNormalMapUv ), texture2D( jNormal, vJXZ / jLen ), vJw )'
+        : 'texture2D( normalMap, vNormalMapUv )';
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
@@ -228,6 +254,7 @@ export function applyRoadSurface(
           uniform vec2 rsScale;
           uniform float rsPatch;
           uniform float rsTone;
+          ${j ? 'uniform sampler2D jMap; uniform sampler2D jNormal; uniform float jLen; varying float vJw; varying vec2 vJXZ;' : ''}
           float rsHash( vec2 p ) { p = fract( p * vec2( 123.34, 456.21 ) ); p += dot( p, p + 45.32 ); return fract( p.x * p.y ); }
           float rsNoise( vec2 p ) {
             vec2 i = floor( p ); vec2 f = fract( p ); f = f * f * ( 3.0 - 2.0 * f );
@@ -241,7 +268,17 @@ export function applyRoadSurface(
             vec2 rsM = vMapUv * rsScale;
             float rsT = 0.6 * rsNoise( rsM / 9.0 ) + 0.4 * rsNoise( rsM / 2.7 + 7.1 );
             float rsS = rsNoise( vec2( rsM.x * 1.6, rsM.y / 22.0 ) + 3.3 );
-            diffuseColor.rgb *= 1.03 + rsTone * ( 0.5 * rsT - 0.25 + 0.22 * ( rsS - 0.5 ) );
+            float rsK = 0.5 * rsT - 0.25 + 0.22 * ( rsS - 0.5 );
+            ${
+              j
+                ? `if ( vJw > 0.0 ) {
+              diffuseColor.rgb = mix( diffuseColor.rgb, texture2D( jMap, vJXZ / jLen ).rgb, vJw );
+              float rsJ = 0.6 * rsNoise( vJXZ / 9.0 ) + 0.4 * rsNoise( vJXZ / 2.7 + 7.1 );
+              rsK = mix( rsK, 0.5 * rsJ - 0.25, vJw );
+            }`
+                : ''
+            }
+            diffuseColor.rgb *= 1.03 + rsTone * rsK;
             if ( rsPatch > 0.0 ) {
               float rsCi = floor( rsM.y / 10.0 );
               float rsFy = rsM.y - rsCi * 10.0;
@@ -268,15 +305,29 @@ export function applyRoadSurface(
         // Roughness rides in the normal map's alpha.
         .replace(
           '#include <roughnessmap_fragment>',
-          'float roughnessFactor = roughness * texture2D( normalMap, vNormalMapUv ).a;',
+          `float roughnessFactor = roughness * ${nSample}.a;`,
+        )
+        .replace(
+          '#include <normal_fragment_maps>',
+          ShaderChunk.normal_fragment_maps
+            .split('texture2D( normalMap, vNormalMapUv )')
+            .join(nSample),
         );
     };
+    // (the blended shader is different code: its own program)
+    m.customProgramCacheKey = () =>
+      Material.prototype.customProgramCacheKey.call(m) +
+      (js ? ':junction' : '');
     m.needsUpdate = true;
   };
   const s = surfaces.get(id);
-  if (s) return configure(s);
+  const js = blend ? surfaces.get('road_tarmac_junction') : undefined;
+  if (s && (!blend || js)) return configure(s, js);
   // Placeholder until the set arrives: a plain dark asphalt grey.
   m.color.setRGB(0.1, 0.1, 0.1);
   m.roughness = 0.9;
-  void loadRoadSurface(id).then(configure);
+  void Promise.all([
+    loadRoadSurface(id),
+    blend ? loadRoadSurface('road_tarmac_junction') : undefined,
+  ]).then(([a, b]) => configure(a, b));
 }
