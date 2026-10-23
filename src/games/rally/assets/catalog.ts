@@ -92,9 +92,9 @@ export const SPECTATOR_FLAG_COUNT = 12;
 /** Most grass the detail layer places near the camera (x the rule density; quality `grassNear` takes a share). */
 export const NEAR_GRASS = 3;
 
-/** Grass: blade strips on the verges (`nearRoad`), crossed cards to 110 m. */
+/** Grass: blade strips on the verges (`nearRoad`) to 35 m (past that a tuft is a few pixels: cards look the same), crossed cards to 110 m. */
 const GRASS_LODS: LodSpec[] = [
-  { maxDistance: 60, castShadow: false },
+  { maxDistance: 35, castShadow: false },
   { maxDistance: 110, castShadow: false },
 ];
 /** Grass verge with blade strips: this close to a road edge (m). */
@@ -109,11 +109,11 @@ const WHEAT_LODS: LodSpec[] = [{ maxDistance: 90, castShadow: false }];
  */
 const CORN_LODS: LodSpec[] = [{ maxDistance: 110, castShadow: false }];
 
-/** Vineyard rows: full detail (shadows) near, trunks + 2 cards to 220 m, the cards out to 700 m (seen across the plain). */
+/** Vineyard rows: full detail (shadows) near, trunks + 2 cards to 160 m, the cards out to 450 m (seen across the plain). */
 const VINE_LODS: LodSpec[] = [
   { maxDistance: 60, castShadow: true },
-  { maxDistance: 220, castShadow: false },
-  { maxDistance: 700, castShadow: false },
+  { maxDistance: 160, castShadow: false },
+  { maxDistance: 450, castShadow: false },
 ];
 
 /** Service park vehicles built from boxes + wheels, a plain body far away. */

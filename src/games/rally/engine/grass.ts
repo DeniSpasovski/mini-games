@@ -382,9 +382,13 @@ export function bladeTuftGeometry(
         col.push(lin(c[0] * l), lin(c[1] * l), lin(c[2] * l));
         nrm.push(0, 1, 0);
       }
-      if (i < seg) {
+      // The tip is 5 % of the base width: its segment is one triangle (to the left tip vertex), not a quad.
+      if (i < seg - 1) {
         const a = base + i * 2;
         idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+      } else if (i === seg - 1) {
+        const a = base + i * 2;
+        idx.push(a, a + 1, a + 2);
       }
     }
   }
