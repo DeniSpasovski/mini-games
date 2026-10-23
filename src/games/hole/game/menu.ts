@@ -19,6 +19,7 @@ import {
   type Difficulty,
 } from '../sim/progression';
 import { button, el, fmtTime } from './dom';
+import type { IconName } from './icons';
 import { MAP_SCORING_VERSIONS, TOP_N, type ScoreEntry } from './scores';
 import type { HoleSettings } from './settings';
 
@@ -182,19 +183,21 @@ export class Menu {
     if (!url) return [];
     return [
       button(
-        '‹ All games',
+        'All games',
         cls,
         this.click(() => (location.href = url)),
+        'back',
       ),
     ];
   }
 
-  private back(label = '‹ Back'): HTMLButtonElement {
+  private back(label = 'Back', iconName: IconName = 'back'): HTMLButtonElement {
     return mark(
       button(
         label,
         'gray small',
         this.click(() => this.welcome()),
+        iconName,
       ),
       'back',
     );
@@ -203,6 +206,14 @@ export class Menu {
   // ------------------------------------------------------------------ welcome
   welcome(): void {
     const card = el('div', 'hg-card');
+    const mc = this.api.maps.find((m) => m.id === this.api.mapId());
+    const ribbon = mc
+      ? el(
+          'div',
+          'hg-ribbon',
+          mc.seeded ? `${mc.name} · #${this.api.settings.seed}` : mc.name,
+        )
+      : null;
     card.append(
       el('h1', 'hg-title', 'HOLE ISLAND'),
       el(
@@ -212,11 +223,12 @@ export class Menu {
       ),
       mark(
         button(
-          '▶  PLAY',
+          'Play',
           '',
           this.click(() =>
             this.api.maps.length > 1 ? this.mapScreen() : this.difficulty(true),
           ),
+          'play',
         ),
         'primary',
         'start',
@@ -247,8 +259,9 @@ export class Menu {
       ),
       ...this.portal(),
     );
-    // Version just under the menu card.
+    // Map ribbon on top, version just under the menu card.
     const stack = el('div', 'hg-stack');
+    if (ribbon) stack.append(ribbon);
     stack.append(card, el('div', 'hg-version', `v${VERSION}`));
     this.mount(stack);
   }
@@ -275,7 +288,7 @@ export class Menu {
         `Hole Island is a mini game by ${SITE.owner}.`,
         `Version ${VERSION}.`,
         SITE.tagline + '.',
-        'Every model, the island and the sounds are generated in code. Rendering by three.js.',
+        'Every model, the island and the sounds are generated in code. Rendering by three.js. Fonts: Fredoka and Nunito (SIL Open Font License).',
       ]),
       this.back(),
     );
@@ -309,13 +322,17 @@ export class Menu {
       });
       grid.append(s);
     }
-    card.append(el('h2', 'hg-h2', 'Hole colour'), grid, this.back('✓ Done'));
+    card.append(
+      el('h2', 'hg-h2', 'Hole colour'),
+      grid,
+      this.back('Done', 'check'),
+    );
     this.mount(card, false, true);
   }
 
   // ------------------------------------------------------------------ map
   mapScreen(): void {
-    const card = el('div', 'hg-card');
+    const card = el('div', 'hg-card picker');
     const list = el('div', 'hg-maps');
     for (const m of this.api.maps) {
       const b = el(
@@ -339,9 +356,9 @@ export class Menu {
         b.classList.add('pic');
         b.append(img);
       }
+      b.title = m.blurb;
       b.append(
         el('b', '', m.name),
-        el('span', '', m.blurb),
         el('em', '', best ? `Best ${best}` : 'No score yet'),
       );
       b.addEventListener(
@@ -371,9 +388,14 @@ export class Menu {
       const b = el('button', `hg-diff ${d.id}`, '', { type: 'button' });
       if (d.id === this.api.settings.difficulty) mark(b, 'primary', 'start');
       const best = this.api.best(mapId, d.id);
+      const pips = el('span', 'hg-pips');
+      pips.setAttribute('aria-hidden', 'true');
+      for (let i = 0; i < DIFFICULTIES.length; i++)
+        pips.append(el('i', i <= DIFFICULTIES.indexOf(d) ? 'on' : ''));
       b.append(
+        pips,
         el('b', '', d.label),
-        el('span', '', `${fmtTime(d.seconds)} · ${d.seconds} s`),
+        el('span', '', fmtTime(d.seconds)),
         el('span', '', best ? `Best ${best}` : 'No score yet'),
       );
       b.addEventListener(
@@ -390,9 +412,10 @@ export class Menu {
       this.api.maps.length > 1
         ? mark(
             button(
-              '‹ Back',
+              'Back',
               'gray small',
               this.click(() => this.mapScreen()),
+              'back',
             ),
             'back',
           )
@@ -415,22 +438,26 @@ export class Menu {
         cls: string,
         to: () => number,
         title: string,
+        iconName: IconName,
       ) => {
         const b = button(
           label,
           cls,
           this.refresh(() => again(to())),
+          iconName,
         );
         b.title = title;
+        b.setAttribute('aria-label', title);
         return b;
       };
       const stepper = el('div', 'hg-seed');
       stepper.append(
         step(
-          '‹',
+          '',
           'gray hg-arrow',
           () => (s.seed <= 1 ? 999 : s.seed - 1),
           'Previous island',
+          'back',
         ),
         el(
           'p',
@@ -438,21 +465,21 @@ export class Menu {
           `${mc.noun === 'store' ? 'Store' : 'Island'} #${s.seed}`,
         ),
         step(
-          '›',
+          '',
           'gray hg-arrow',
           () => (s.seed >= 999 ? 1 : s.seed + 1),
           'Next island',
+          'next',
         ),
-      );
-      return [
-        stepper,
         step(
-          '🎲 Random',
+          'Random',
           'gray small hg-random',
           () => 1 + Math.floor(Math.random() * 999),
           'Random island',
+          'dice',
         ),
-      ];
+      );
+      return [stepper];
     }
     return [];
   }
@@ -522,7 +549,7 @@ export class Menu {
     const head = el('tr');
     for (const h of ['#', 'SCORE', 'LEVEL', 'EATEN', 'DONE'])
       head.append(el('th', '', h));
-    table.append(head);
+    if (list.length || extra) table.append(head);
     const isOld = (e: ScoreEntry) =>
       e.ver !== undefined && e.ver !== currentVer;
     const row = (e: ScoreEntry, rank: string, me: boolean) => {
@@ -609,9 +636,10 @@ export class Menu {
       fromPause
         ? mark(
             button(
-              '‹ Back',
+              'Back',
               'gray small',
               this.click(() => this.pause()),
+              'back',
             ),
             'back',
           )
@@ -627,9 +655,10 @@ export class Menu {
       el('h2', 'hg-h2', 'Paused'),
       mark(
         button(
-          '▶  Resume',
+          'Resume',
           '',
           this.click(() => this.api.onResume()),
+          'play',
         ),
         'primary',
         'back',
@@ -663,18 +692,22 @@ export class Menu {
   results(r: ResultData): void {
     const card = el('div', 'hg-card wide hg-scroll');
     const newBest = r.rank === 1;
+    const noun = r.noun.toUpperCase();
+    const pct = Math.round(r.pct * 100);
+    // the headline follows the run: cleared, most of the map, or just out of time
+    const head = r.cleared
+      ? `${noun} CLEARED!`
+      : pct >= 50
+        ? `${pct}% OF THE ${noun}!`
+        : "TIME'S UP!";
     card.append(
-      el(
-        'h2',
-        'hg-h2',
-        r.cleared ? `${r.noun.toUpperCase()} CLEARED!` : 'TIME IS UP!',
-      ),
+      el('h2', 'hg-result-head', head),
       el('div', 'hg-big', String(r.score)),
       el(
         'p',
         'hg-sub',
         newBest
-          ? '★ New best score! ★'
+          ? 'New best score!'
           : r.rank
             ? `#${r.rank} on the ${r.difficulty.label} top 10`
             : `Not in the ${r.difficulty.label} top 10 yet`,
@@ -684,7 +717,7 @@ export class Menu {
     for (const [v, l] of [
       [`${r.level}/${r.maxLevel}`, 'LEVEL'],
       [String(r.eaten), 'ITEMS EATEN'],
-      [`${Math.round(r.pct * 100)}%`, `OF THE ${r.noun.toUpperCase()}`],
+      [`${pct}%`, `OF THE ${noun}`],
     ]) {
       const s = el('div', 'hg-stat');
       s.append(el('b', '', v), el('span', '', l));
@@ -693,38 +726,15 @@ export class Menu {
     card.append(stats);
     if (r.cleared)
       card.append(el('p', 'hg-sub', `Time bonus +${r.clearBonus}`));
-    // items eaten per size tier
-    const max = Math.max(1, ...r.perTier);
-    const bars = el('div', 'hg-bars');
-    for (let l = 1; l <= TIER_COUNT; l++) {
-      const b = el('i');
-      b.style.height = `${Math.max(4, ((r.perTier[l] ?? 0) / max) * 100)}%`;
-      b.style.opacity = r.perTier[l] ? '1' : '0.25';
-      // one hue per tier (blue -> violet -> red) so the 25 bars stay apart; every fifth bar is darker
-      b.style.background = `hsl(${205 + ((l - 1) * 150) / (TIER_COUNT - 1)}deg 78% ${l % 5 === 0 ? 42 : 56}%)`;
-      b.title = `Size tier ${l}: ${r.perTier[l] ?? 0}`;
-      bars.append(b);
-    }
-    const axis = el('div', 'hg-bars-axis');
-    axis.append(
-      el('span', '', 'tier 1 · small'),
-      el('span', '', 'big · tier 25'),
-    );
-    card.append(el('p', 'hg-sub', 'Items eaten by size tier'), bars, axis);
+    // actions first, the table and the chart below
     card.append(
-      el('h2', 'hg-h2', `${r.mapName} · ${r.difficulty.label} · Top 10`),
-      this.scoreTable(
-        r.list,
-        r.rank,
-        r.entry.ver,
-        r.rank === 0 ? r.entry : undefined,
-      ),
       this.row(
         mark(
           button(
             'Play again',
             '',
             this.click(() => this.api.onAgain()),
+            'play',
           ),
           'primary',
           'start',
@@ -736,7 +746,34 @@ export class Menu {
         ),
       ),
       ...this.portal(),
+      el('h2', 'hg-h2', `${r.mapName} · ${r.difficulty.label} · Top 10`),
+      this.scoreTable(
+        r.list,
+        r.rank,
+        r.entry.ver,
+        r.rank === 0 ? r.entry : undefined,
+      ),
     );
+    // items eaten per size tier: only worth a chart once the run reached a few tiers
+    if (r.perTier.filter((n) => n > 0).length >= 3) {
+      const max = Math.max(1, ...r.perTier);
+      const bars = el('div', 'hg-bars');
+      for (let l = 1; l <= TIER_COUNT; l++) {
+        const b = el('i');
+        b.style.height = `${Math.max(4, ((r.perTier[l] ?? 0) / max) * 100)}%`;
+        b.style.opacity = r.perTier[l] ? '1' : '0.25';
+        // one hue per tier (blue -> violet -> red) so the 25 bars stay apart; every fifth bar is darker
+        b.style.background = `hsl(${205 + ((l - 1) * 150) / (TIER_COUNT - 1)}deg 78% ${l % 5 === 0 ? 42 : 56}%)`;
+        b.title = `Size tier ${l}: ${r.perTier[l] ?? 0}`;
+        bars.append(b);
+      }
+      const axis = el('div', 'hg-bars-axis');
+      axis.append(
+        el('span', '', 'tier 1 · small'),
+        el('span', '', 'big · tier 25'),
+      );
+      card.append(el('p', 'hg-sub', 'Items eaten by size tier'), bars, axis);
+    }
     this.mount(card, true);
   }
 }

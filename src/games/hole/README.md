@@ -17,6 +17,10 @@ npm run dev     # then open http://localhost:3000/games/hole/
 
 Pick a difficulty and a hole colour, then drag to steer. Add `?map=toy` for the toy store, `?map=animal` for Animal Island or `?map=construction` for the Construction Site.
 
+UI look and rules: [STYLEGUIDE.md](STYLEGUIDE.md).
+
+[![Pick a map](screenshots/ui-maps.jpg)](STYLEGUIDE.md)
+
 ## Maps
 
 |                                                       |                                                      |
@@ -50,6 +54,7 @@ Pick a difficulty and a hole colour, then drag to steer. Add `?map=toy` for the 
 | Doc                                            | Content                                                                                     |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | [`DETAILS.md`](DETAILS.md)                     | rules, level / size tables, scoring, item catalog, map generator, debug tools, architecture |
+| [`STYLEGUIDE.md`](STYLEGUIDE.md)               | UI look: tokens, type, components, the per-map accent                                       |
 | [`TOY-STORE.md`](TOY-STORE.md)                 | second map: design, asset roster, open tasks                                                |
 | [`CONSTRUCTION-SITE.md`](CONSTRUCTION-SITE.md) | fourth map (test): design, roster, open tasks                                               |
 

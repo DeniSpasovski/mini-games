@@ -1,3 +1,5 @@
+import { icon, type IconName } from './icons';
+
 /** Tiny DOM helper used by the HUD and menus. */
 export function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -12,12 +14,16 @@ export function el<K extends keyof HTMLElementTagNameMap>(
   return e;
 }
 
+/** A press-down button; `iconName` puts an icon in front of the label (just the icon with an empty label). */
 export function button(
   label: string,
   cls: string,
   onClick: () => void,
+  iconName?: IconName,
 ): HTMLButtonElement {
-  const b = el('button', `hg-btn ${cls}`.trim(), label, { type: 'button' });
+  const b = el('button', `hg-btn ${cls}`.trim(), '', { type: 'button' });
+  if (iconName) b.append(icon(iconName));
+  if (label) b.append(document.createTextNode(label));
   b.addEventListener('click', onClick);
   return b;
 }
