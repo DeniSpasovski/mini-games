@@ -171,10 +171,10 @@ function recolour(
   if (look === 'corn' || look === 'dry_corn') husk(ctx, w, h);
   if (look === 'corn') return;
   const img = ctx.getImageData(0, 0, w, h);
-  // Ripe wheat: the model's golden texture toned to dry straw (a field in the sun reads pale beige, not yellow; at its
-  // own colour it glowed against the graded ground).
+  // Ripe wheat: the model's texture is a sunlit photo (albedo ~0.5, twice real straw): toned to dry straw at ~0.25
+  // (a field in the sun reads pale beige, not yellow; at its own colour it glowed against the graded ground).
   if (look === 'wheat') {
-    tone(img.data, 0.62, 0.9);
+    tone(img.data, 0.62, 0.85);
     ctx.putImageData(img, 0, 0);
     return;
   }
@@ -223,6 +223,8 @@ const materials = new Map<string, MeshStandardMaterial>();
 
 /** Wind sway per m² of height (engine/world-shading.ts RALLY_WIND): wheat nods, the tall corn sways less per metre. */
 const WIND: Record<'wheat' | 'corn', number> = { wheat: 0.12, corn: 0.03 };
+/** Light through the plant against the sun (`RALLY_FOLIAGE`): corn leaves like grass, dry wheat straw much less. */
+const THROUGH: Record<'wheat' | 'corn', number> = { wheat: 0.08, corn: 0.25 };
 
 /** The model's material (opaque, both sides, its own texture). */
 export function cropMaterial(look: CropLook): MeshStandardMaterial {
@@ -237,7 +239,7 @@ export function cropMaterial(look: CropLook): MeshStandardMaterial {
   m.name = `crop ${look}`;
   m.defines = {
     RALLY_WIND: WIND[MODEL_OF[look]],
-    RALLY_FOLIAGE: 0.25,
+    RALLY_FOLIAGE: THROUGH[MODEL_OF[look]],
     RALLY_GROUND: 1,
   };
   materials.set(key, m);
@@ -270,7 +272,11 @@ export function cropCardMaterial(card: CropCard): MeshStandardMaterial {
   m.name = `crop card ${card}`;
   groundLitCard(m, 'crop');
   const model = MODEL_OF[lookOf(card)];
-  m.defines = { RALLY_WIND: WIND[model], RALLY_FOLIAGE: 0.25, RALLY_GROUND: 1 };
+  m.defines = {
+    RALLY_WIND: WIND[model],
+    RALLY_FOLIAGE: THROUGH[model],
+    RALLY_GROUND: 1,
+  };
   materials.set(key, m);
   return m;
 }
@@ -372,6 +378,7 @@ export function bakeCropCards(renderer: WebGLRenderer): Promise<void> {
           renderer.readRenderTargetPixels(rn, 0, 0, px, py, n);
           leafShade(one, n, card === lookOf(card) ? 1 : 0.85);
         }
+        if (MODEL_OF[lookOf(card)] === 'wheat') canopyShade(one, px, py);
         // Variant v fills rows v * slot .. + py (row 0 = the bottom, uv v = 0).
         data.set(one, v * slot * px * 4);
       }
@@ -414,6 +421,23 @@ function leafShade(d: Uint8Array, n: Uint8Array, row: number) {
     d[i] *= k;
     d[i + 1] *= k;
     d[i + 2] *= k;
+  }
+}
+
+/**
+ * Darken a wheat card toward its base (rows from the bottom): inside a dense field the stalks shade each other, only
+ * the ears on top take the full sun. Without it the card is one flat sheet of lit straw and the field glows.
+ */
+function canopyShade(d: Uint8Array, w: number, h: number) {
+  for (let y = 0; y < h; y++) {
+    const t = Math.min(1, y / (0.85 * h));
+    const k = 0.62 + 0.38 * t * t * (3 - 2 * t);
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      d[i] *= k;
+      d[i + 1] *= k;
+      d[i + 2] *= k;
+    }
   }
 }
 
