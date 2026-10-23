@@ -16,7 +16,7 @@ import {
   tapePost,
   villageSign,
 } from './builders/props';
-import { buildingFlat, housePitched } from './builders/buildings';
+import { buildingFlat, housePitched, houseStone } from './builders/buildings';
 import {
   crew,
   driver,
@@ -104,6 +104,7 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   marker_post: markerPost,
   chevron_sign: chevronSign,
   house_pitched: housePitched,
+  house_stone: houseStone,
   building_flat: buildingFlat,
   concrete_block: concreteBlock,
   jersey_barrier: jerseyBarrier,

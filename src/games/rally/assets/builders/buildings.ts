@@ -4,7 +4,7 @@ import { merge, paint, planarUV, shade } from '../../engine/geo';
 import { getMaterial } from '../../engine/materials';
 import { HOUSE_WALL_FRACTION } from '../catalog';
 import { HOUSE_LAYER } from '../../engine/house-walls';
-import type { AssetBuilder } from '../types';
+import type { AssetBuilder, BuiltAsset } from '../types';
 
 /**
  * Placeholder buildings for real-world maps. UNIT footprint: x (long side / width) and
@@ -105,11 +105,21 @@ const WALL_LAYER = [
 // Multiplied onto the roof-tile scan: near white keeps the terracotta, the rest weathers it.
 const ROOFS = ['#ffffff', '#f1e3da', '#e2cfc2', '#f7ebe3'];
 
-/** House with a sloped red-tile roof: hip (even styles) or gable (odd styles). */
-export const housePitched: AssetBuilder = ({ seed, variant, lod }) => {
+/** House with a sloped red-tile roof: hip (even styles) or gable (odd styles). Variants 0-3 one floor, 4-7 two. */
+export const housePitched: AssetBuilder = ({ seed, variant, lod }) =>
+  houseBuilder(seed, variant % 4, variant >= 4 ? 2 : 1, lod);
+
+/** Lime-plastered rubble stone house (hip, gable), its own asset so the render houses' variant set stays small. */
+export const houseStone: AssetBuilder = ({ seed, variant, lod }) =>
+  houseBuilder(seed, 4 + (variant % 2), variant >= 2 ? 2 : 1, lod);
+
+function houseBuilder(
+  seed: number,
+  style: number,
+  rows: number,
+  lod: number,
+): BuiltAsset {
   const rng = new Rng(seed);
-  const style = variant % 6;
-  const rows = variant >= 6 ? 2 : 1;
   const wall = WALLS[style];
   const roof = rng.pick(ROOFS);
   const W = HOUSE_WALL;
@@ -236,13 +246,15 @@ export const housePitched: AssetBuilder = ({ seed, variant, lod }) => {
   const rg = tris(top, roof, HOUSE_LAYER.roof);
   shade(rg, (_x, y) => 0.85 + 0.15 * ((y - y0) / (1 - y0)));
   parts.push(rg);
-  // Underside (rafters, in shadow) and the thin edge of the tiles.
-  parts.push(tris(under, '#8a7666'));
-  parts.push(tris(edges, '#8c6650'));
+  // Underside (rafters, in shadow) and the thin edge of the tiles: only near, the far houses stay as light as before.
+  if (lod === 0) {
+    parts.push(tris(under, '#8a7666'));
+    parts.push(tris(edges, '#8c6650'));
+  }
   return {
     parts: [{ geometry: merge(parts), material: getMaterial('house') }],
   };
-};
+}
 
 /**
  * Flat-roofed building. Styles: 0/1 industrial hall (no windows, band, roller door),

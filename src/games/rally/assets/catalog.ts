@@ -364,8 +364,22 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'House (sloped roof)',
     category: 'buildings',
     description:
-      'Placeholder village house: rendered / brick walls, red tile hip or gable roof. Unit 1x1x1, scaled to the real footprint. Variants 0-5 one floor (0-2 render, 3 clay brick, 4-5 stone), 6-11 two floors.',
-    variants: 12,
+      'Placeholder village house: rendered / brick walls, red tile hip or gable roof. Unit 1x1x1, scaled to the real footprint. Variants 0-3 one floor (0-2 render, 3 clay brick; hip on even, gable on odd), 4-7 two floors.',
+    variants: 8,
+    lods: [
+      { maxDistance: 160, castShadow: true },
+      { maxDistance: 2600, castShadow: false },
+    ],
+    colliders: [{ kind: 'box', hx: 0.5, hz: 0.5, h: 1, r: 0.71 }],
+    tint: 0.06,
+  },
+  {
+    id: 'house_stone',
+    name: 'House (rubble stone)',
+    category: 'buildings',
+    description:
+      'Old mountain-village house in lime-plastered rubble stone, red tile roof (a separate asset so the render houses stay a small variant set). Variants 0 hip / 1 gable one floor, 2-3 two floors.',
+    variants: 4,
     lods: [
       { maxDistance: 160, castShadow: true },
       { maxDistance: 2600, castShadow: false },
