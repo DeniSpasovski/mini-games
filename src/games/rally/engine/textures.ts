@@ -32,6 +32,7 @@ export type TextureId =
   | 'road_tarmac'
   | 'road_tarmac_kerbed'
   | 'road_tarmac_junction'
+  | 'road_tarmac_plain_junction'
   | 'road_tarmac_lines'
   | 'road_tarmac_plain'
   | 'road_paint'
@@ -1083,6 +1084,14 @@ const DEFS: Record<TextureId, TexDef> = {
   },
   road_tarmac_plain: {
     name: 'Old tarmac without lines (where the road paint lies over it): the surface of road_tarmac_lines',
+    size: [512, 512],
+    color: true,
+    draw(ctx, w, h) {
+      DEFS.road_tarmac.draw(ctx, w, h);
+    },
+  },
+  road_tarmac_plain_junction: {
+    name: 'Old tarmac at a junction mouth (no wheel paths, edges or lines): the surface of road_tarmac_lines',
     size: [512, 512],
     color: true,
     draw(ctx, w, h) {

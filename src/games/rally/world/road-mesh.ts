@@ -6,7 +6,13 @@ import {
   MeshStandardMaterial,
   Vector3,
 } from 'three';
-import { applyRoadSurface, isRoadSurface } from '../engine/road-surface';
+import {
+  applyRoadSurface,
+  isRoadSurface,
+  JUNCTION_OF,
+  ROAD_SURFACE_LEN,
+  type RoadSurfaceId,
+} from '../engine/road-surface';
 import { getTexture } from '../engine/textures';
 import {
   type PathDef,
@@ -24,11 +30,7 @@ import { streetDetailMeshJob } from './street-detail-mesh';
 import { newRoadQuery } from './road';
 import { gantryMeshJob } from './gantry-mesh';
 import { goreMeshJob } from './gore-mesh';
-import {
-  type Junction,
-  type JunctionFillet,
-  junctionFillets,
-} from './junctions';
+import { type Junction, type JunctionFillet, mouthFillets } from './junctions';
 import { plazaMeshJob } from './plaza-mesh';
 import { stageSignMeshJob } from './stage-sign-mesh';
 import { buildingMeshJob } from './building-mesh';
@@ -90,8 +92,9 @@ const roadMaterials = new Map<string, MeshStandardMaterial>();
 export function getRoadMaterial(
   texture: RoadTexture = 'road',
   layer = 0,
+  junction?: RoadSurfaceId,
 ): MeshStandardMaterial {
-  const key = `${texture}:${layer}`;
+  const key = `${texture}:${layer}:${junction ?? ''}`;
   let m = roadMaterials.get(key);
   if (!m) {
     const baked = isRoadSurface(texture);
@@ -113,7 +116,7 @@ export function getRoadMaterial(
     });
     // Canopy shadows beyond the shadow map (engine/world-shading.ts).
     m.defines = { RALLY_GROUND: 1 };
-    if (baked) applyRoadSurface(m, texture);
+    if (baked) applyRoadSurface(m, texture, junction ?? JUNCTION_OF[texture]);
     roadMaterials.set(key, m);
   }
   return m;
@@ -171,18 +174,34 @@ interface Mouth {
   band: number;
   /** The pad: both corners and the side road's first metres, from one stage edge up the side road and back. */
   outline: number[][];
-  /** Bounding box of the outline grown by `BLEND_FADE`. */
+  /** The side road's texture. */
+  tex: RoadTexture;
+  /** Metres over which the surfaces round the pad fade back to their own texture. */
+  fade: number;
+  /** Bounding box of the outline grown by `fade`. */
   box: [number, number, number, number];
 }
 
 /**
  * Metres over which the road surfaces blend from the world-aligned junction asphalt back to their own texture (over
- * two side road rows, PATH_STEP).
+ * two side road rows, PATH_STEP). Painted lines (a lined stage road, a street's centre line) end within LINE_FADE, as
+ * real lines stop at a mouth instead of wearing away.
  */
 const BLEND_FADE = 6;
+const LINE_FADE = 2;
+/** Side road textures that get a junction mouth: plain tarmac and the city streets. */
+const MOUTH_TEX = new Set<RoadTexture>([
+  'road_tarmac',
+  'road_city',
+  'road_street',
+  'road_street4',
+]);
+/** Stage road textures with painted lines. */
+const LINED = new Set<RoadTexture>(['road_tarmac_lines']);
 
 /**
- * Junction mouths of plain tarmac side roads (`road_tarmac`). City maps (kerbs, sidewalks, plazas, markings) have none.
+ * Junction mouths of plain tarmac side roads and city streets (`MOUTH_TEX`) on the stage road (not on a plaza, which
+ * is the junction box of its own streets). Exported for the kerb returns round the corners (street-detail-mesh.ts).
  *
  * How the mouth is surfaced (the usual answer for spline roads: one surface the crossing roads blend into, as terrain
  * virtual texturing / blend masks do it): every road surface there (stage road edge, side road, corners) fades within
@@ -190,86 +209,108 @@ const BLEND_FADE = 6;
  * shader, weight in the `jw` attribute), so where they meet they are one continuous surface with no seams, folds or
  * wheel paths running into the stage road. The gravel dust runs round each curve.
  */
-function junctionMouths(world: World): Mouth[] {
-  if (world.map.cityStreets) return [];
-  return (
-    world.gen.junctions
-      .filter(
-        (j) =>
-          j.surface === 'tarmac' &&
-          pathTexture(j.kind, j.width, false) === 'road_tarmac',
-      )
-      // Two ways joining at the same spot (a doubled way in the map data): one mouth.
-      .filter(
-        (j, i, all) =>
-          !all
-            .slice(0, i)
-            .some(
-              (o) =>
-                o.side === j.side && Math.hypot(o.x - j.x, o.z - j.z) < o.width,
-            ),
-      )
-      .map((j) => {
-        const s0 = world.road.at(j.along);
-        const edge = (d: number): [number, number] => {
-          const s = world.road.at(j.along + d);
-          const lat = j.side * s.halfWidth;
-          return [s.x + s.tz * lat, s.z - s.tx * lat];
-        };
-        const fillets = junctionFillets(j, s0.tx, s0.tz, edge);
-        const band = 0.18 * j.width;
-        const radius = Math.min(8, Math.max(4, j.width * 1.4));
-        const nx0 = -j.dz;
-        const nz0 = j.dx;
-        const inners: number[][][] = [];
-        // Each side's pad edge, from the stage road up the side road: the inner edge of its dust strip, or (no fillet)
-        // the side road's edge `band` inside, so its own dusty edge still shows.
-        const sides = new Map<number, number[][]>();
-        for (const f of fillets) {
-          const n = f.arc.length;
-          const [mx, mz] = [
-            (f.arc[0][0] + f.arc[n - 1][0]) / 2,
-            (f.arc[0][1] + f.arc[n - 1][1]) / 2,
-          ];
-          const inner = f.arc.map(([x, z], k) => {
-            const [ax, az] = f.arc[Math.max(0, k - 1)];
-            const [bx, bz] = f.arc[Math.min(n - 1, k + 1)];
-            const tl = Math.hypot(bx - ax, bz - az) || 1;
-            let nx = -(bz - az) / tl;
-            let nz = (bx - ax) / tl;
-            // Inside = away from the chord's middle (the curve bows from the chord towards the corner).
-            if (nx * (mx - x) + nz * (mz - z) > 0) [nx, nz] = [-nx, -nz];
-            return [x + nx * band, z + nz * band];
-          });
-          inners.push(inner);
-          const sd = (f.c[0] - j.x) * nx0 + (f.c[1] - j.z) * nz0 >= 0 ? 1 : -1;
-          sides.set(sd, inner);
-        }
-        for (const sd of [1, -1])
-          if (!sides.has(sd)) {
-            const e = (sd * j.width) / 2 - sd * band;
-            const ex = j.x + nx0 * e;
-            const ez = j.z + nz0 * e;
-            const line: number[][] = [];
-            for (let d = -2; d <= radius + 1e-6; d += radius / 4)
-              line.push([ex + j.dx * d, ez + j.dz * d]);
-            sides.set(sd, line);
-          }
-        const outline = [...sides.get(1)!, ...[...sides.get(-1)!].reverse()];
-        const xs = outline.map((q) => q[0]);
-        const zs = outline.map((q) => q[1]);
-        const box: Mouth['box'] = [
-          Math.min(...xs) - BLEND_FADE,
-          Math.min(...zs) - BLEND_FADE,
-          Math.max(...xs) + BLEND_FADE,
-          Math.max(...zs) + BLEND_FADE,
+const mouthCache = new WeakMap<World, Mouth[]>();
+export function junctionMouths(world: World): Mouth[] {
+  const cached = mouthCache.get(world);
+  if (cached) return cached;
+  const city = !!world.map.cityStreets;
+  const mouths = world.gen.junctions
+    .filter(
+      (j) =>
+        j.surface === 'tarmac' &&
+        MOUTH_TEX.has(pathTexture(j.kind, j.width, city)) &&
+        // (a stage road with its own junction asphalt: a parkway stage has ramps, not mouths)
+        !!JUNCTION_OF[
+          roadSurfaceAt(world.map.road, j.along).texture as RoadSurfaceId
+        ] &&
+        !world.gen.isParkwayLane(j.path) &&
+        !world.gen.plazas.inside(j.x, j.z, 2),
+    )
+    // Two ways joining at the same spot (a doubled way in the map data): one mouth.
+    .filter(
+      (j, i, all) =>
+        !all
+          .slice(0, i)
+          .some(
+            (o) =>
+              o.side === j.side && Math.hypot(o.x - j.x, o.z - j.z) < o.width,
+          ),
+    )
+    .map((j) => {
+      const fillets = mouthFillets(j, world.road);
+      const band = 0.18 * j.width;
+      const radius = Math.min(8, Math.max(4, j.width * 1.4));
+      const nx0 = -j.dz;
+      const nz0 = j.dx;
+      const inners: number[][][] = [];
+      // Each side's pad edge, from the stage road up the side road: the inner edge of its dust strip, or (no fillet)
+      // the side road's edge `band` inside, so its own dusty edge still shows.
+      const sides = new Map<number, number[][]>();
+      for (const f of fillets) {
+        const n = f.arc.length;
+        const [mx, mz] = [
+          (f.arc[0][0] + f.arc[n - 1][0]) / 2,
+          (f.arc[0][1] + f.arc[n - 1][1]) / 2,
         ];
-        return { j, fillets, inners, band, outline, box };
-      })
+        const inner = f.arc.map(([x, z], k) => {
+          const [ax, az] = f.arc[Math.max(0, k - 1)];
+          const [bx, bz] = f.arc[Math.min(n - 1, k + 1)];
+          const tl = Math.hypot(bx - ax, bz - az) || 1;
+          let nx = -(bz - az) / tl;
+          let nz = (bx - ax) / tl;
+          // Inside = away from the chord's middle (the curve bows from the chord towards the corner).
+          if (nx * (mx - x) + nz * (mz - z) > 0) [nx, nz] = [-nx, -nz];
+          return [x + nx * band, z + nz * band];
+        });
+        inners.push(inner);
+        const sd = (f.c[0] - j.x) * nx0 + (f.c[1] - j.z) * nz0 >= 0 ? 1 : -1;
+        sides.set(sd, inner);
+      }
+      for (const sd of [1, -1])
+        if (!sides.has(sd)) {
+          const e = (sd * j.width) / 2 - sd * band;
+          const ex = j.x + nx0 * e;
+          const ez = j.z + nz0 * e;
+          const line: number[][] = [];
+          for (let d = -2; d <= radius + 1e-6; d += radius / 4)
+            line.push([ex + j.dx * d, ez + j.dz * d]);
+          sides.set(sd, line);
+        }
+      const outline = [...sides.get(1)!, ...[...sides.get(-1)!].reverse()];
+      const xs = outline.map((q) => q[0]);
+      const zs = outline.map((q) => q[1]);
+      const tex = pathTexture(j.kind, j.width, city);
+      const fade =
+        tex === 'road_tarmac' &&
+        !LINED.has(roadSurfaceAt(world.map.road, j.along).texture)
+          ? BLEND_FADE
+          : LINE_FADE;
+      const box: Mouth['box'] = [
+        Math.min(...xs) - fade,
+        Math.min(...zs) - fade,
+        Math.max(...xs) + fade,
+        Math.max(...zs) + fade,
+      ];
+      return { j, fillets, inners, band, outline, tex, fade, box };
+    });
+  mouthCache.set(world, mouths);
+  return mouths;
+}
+
+/** The point lies within `pad` m of a mouth's box (the junction's carve round it folds the terrain). */
+function nearMouth(
+  mouths: Mouth[],
+  x: number,
+  z: number,
+  pad: number,
+): boolean {
+  return mouths.some(
+    ({ box: [x0, z0, x1, z1] }) =>
+      x > x0 - pad && x < x1 + pad && z > z0 - pad && z < z1 + pad,
   );
 }
 
-/** Weight of the world-aligned junction asphalt at a point: 1 on a pad, fading to 0 `BLEND_FADE` away from it. */
+/** Weight of the world-aligned junction asphalt at a point: 1 on a pad, fading to 0 `fade` away from it. */
 function junctionBlend(mouths: Mouth[], x: number, z: number): number {
   let w = 0;
   for (const m of mouths) {
@@ -292,7 +333,7 @@ function junctionBlend(mouths: Mouth[], x: number, z: number): number {
       d2 = Math.min(d2, (ax + ex * t - x) ** 2 + (az + ez * t - z) ** 2);
     }
     if (inside) return 1;
-    const f = Math.max(0, 1 - Math.sqrt(d2) / BLEND_FADE);
+    const f = Math.max(0, 1 - Math.sqrt(d2) / m.fade);
     w = Math.max(w, f * f * (3 - 2 * f));
   }
   return w;
@@ -330,7 +371,7 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
     const nor = new Float32Array(rows * cols * 3);
     const uv = new Float32Array(rows * cols * 2);
     const jw = new Float32Array(rows * cols);
-    const blends = segTex === 'road_tarmac' || segTex === 'road_tarmac_kerbed';
+    const blends = !!JUNCTION_OF[segTex as RoadSurfaceId];
     for (let r = 0; r < rows; r++) {
       const s = samples[start + r];
       const onBridge = !!world.road.bridgeAt(s.dist);
@@ -445,6 +486,10 @@ const PATH_TILE = 256; // m, one merged mesh per tile
 function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
   // Bridge decks are drawn by bridge-mesh at their own height.
   const tracks = !!world.map.trackRibbons;
+  // The map's junction asphalt (the stage road's surface laid flat): mouths and the side roads fading into it.
+  const junctionTex =
+    JUNCTION_OF[(world.map.road.texture ?? 'road') as RoadSurfaceId] ??
+    'road_tarmac_junction';
   const paths = world.gen.paths?.paths.filter(
     (p) =>
       (p.surface === 'tarmac' || (tracks && p.surface === 'dirt')) && !p.bridge,
@@ -662,7 +707,14 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
               );
           }
         }
-        // (where a joining way's carve folds the terrain, the ribbon covers the highest ground round the vertex)
+        // (where a joining way's or a junction mouth's carve folds the terrain, the ribbon covers the highest ground round
+        // the vertex: the terrain showed through a street in pale patches up its mouth)
+        if (
+          MOUTH_TEX.has(tex) &&
+          (!rq.found || rq.distance > rq.halfWidth + 1) &&
+          nearMouth(mouths, x, z, 4)
+        )
+          creaseOther = Math.max(creaseOther, crease > 0 ? 1 - crease : 1);
         let yTop = y;
         if (creaseOther > 0)
           yTop = Math.max(
@@ -694,7 +746,7 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
             under = 0.015;
         }
         tile.pos.push(x, top - under, z);
-        tile.jw.push(tex === 'road_tarmac' ? junctionBlend(mouths, x, z) : 0);
+        tile.jw.push(MOUTH_TEX.has(tex) ? junctionBlend(mouths, x, z) : 0);
         // One normal per row (taken at the centre): the ribbons are flat roads, and this saves four height samples per vertex.
         tile.nor.push(nTmp.x, nTmp.y, nTmp.z);
         let u = 1 - (PATH_ACROSS[c] + 1) / 2;
@@ -729,9 +781,8 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
   }
   // Junction mouths (`junctionMouths`): the pad (fully the world-aligned junction asphalt) and a dust strip round each
   // curve, in the side road ribbons' tiles / material, on their height rule (sunk under the stage road's edge).
-  const tex: RoadTexture = 'road_tarmac';
-  const padLen = texLength('road_tarmac_junction');
-  for (const { j, fillets, inners, band, outline } of mouths) {
+  const padLen = ROAD_SURFACE_LEN[junctionTex];
+  for (const { j, fillets, inners, band, outline, tex } of mouths) {
     const key = `${tex}:${Math.floor(j.x / PATH_TILE)},${Math.floor(j.z / PATH_TILE)}`;
     let tile = tiles.get(key);
     if (!tile)
@@ -829,7 +880,11 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
   const group = new Group();
   group.name = 'paths';
   for (const t of tiles.values()) {
-    const mat = getRoadMaterial(t.tex, t.tex === 'road_parkway' ? 2 : 1);
+    const mat = getRoadMaterial(
+      t.tex,
+      t.tex === 'road_parkway' ? 2 : 1,
+      MOUTH_TEX.has(t.tex) ? junctionTex : undefined,
+    );
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(new Float32Array(t.pos), 3));
     g.setAttribute('normal', new BufferAttribute(new Float32Array(t.nor), 3));

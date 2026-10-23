@@ -1,4 +1,5 @@
 import type { PathDef } from '../maps/shared/types';
+import type { PathNetwork } from './real-data';
 import { newRoadQuery, type Road } from './road';
 
 /**
@@ -28,7 +29,20 @@ export interface Junction {
   along: number;
   /** Side of the stage road it joins: +1 left of travel, -1 right. */
   side: 1 | -1;
+  /** Index of the side road in the path list. */
+  path: number;
 }
+
+/**
+ * The world-aligned junction asphalt (sampled by world XZ, engine/road-surface.ts) each stage road surface blends into
+ * at side road mouths: the same asphalt as the road, laid flat. A stage road without one (a parkway) has no mouths.
+ */
+export const JUNCTION_ASPHALT: Readonly<Record<string, string>> = {
+  road_tarmac: 'road_tarmac_junction',
+  road_tarmac_kerbed: 'road_tarmac_junction',
+  road_tarmac_lines: 'road_tarmac_plain_junction',
+  road_tarmac_plain: 'road_tarmac_plain_junction',
+};
 
 /** How far a side road end may be from the stage road edge and still be joined (m). */
 const MAX_GAP = 20;
@@ -138,6 +152,7 @@ export function connectPaths(
         kind: p.kind,
         along: q.along,
         side: q.lateral >= 0 ? 1 : -1,
+        path: pi,
       });
     }
     return pts === p.pts ? p : { ...p, pts };
@@ -207,6 +222,96 @@ export function junctionFillets(
       arc.push([a * ax + m * cx + b * bx, a * az + m * cz + b * bz]);
     }
     out.push({ c: [cx, cz], arc });
+  }
+  return out;
+}
+
+/** A junction's fillets on the real stage road edge (the curved edge, not its tangent at the junction). */
+export function mouthFillets(j: Junction, road: Road): JunctionFillet[] {
+  const s0 = road.at(j.along);
+  const edge = (d: number): [number, number] => {
+    const s = road.at(j.along + d);
+    const lat = j.side * s.halfWidth;
+    return [s.x + s.tz * lat, s.z - s.tx * lat];
+  };
+  return junctionFillets(j, s0.tx, s0.tz, edge);
+}
+
+/**
+ * A rounded corner seen from the side road's sidewalk on that side: the kerb leaves the street edge at `along` (B)
+ * and follows `arc` (B -> A, ending on the stage road edge) round the corner `c`.
+ */
+export interface MouthCorner {
+  path: number;
+  /** Side of the path (+1 = left of its direction). */
+  side: 1 | -1;
+  /** The junction is at the path's end (else at its start). */
+  atEnd: boolean;
+  along: number;
+  c: [number, number];
+  arc: [number, number][];
+}
+
+/** The rounded corners of every junction, per side road side (kerb returns for the sidewalks, street-detail.ts). */
+export function mouthCorners(
+  junctions: readonly Junction[],
+  road: Road,
+  net: PathNetwork,
+): MouthCorner[] {
+  const out: MouthCorner[] = [];
+  const q = newRoadQuery();
+  const pt = { x: 0, z: 0 };
+  const nx = { x: 0, z: 0 };
+  for (const j of junctions) {
+    const L = net.lengths[j.path];
+    if (L === undefined) continue;
+    net.pointAt(j.path, 0, pt);
+    net.pointAt(j.path, L, nx);
+    const atEnd =
+      Math.hypot(nx.x - j.x, nx.z - j.z) < Math.hypot(pt.x - j.x, pt.z - j.z);
+    const fillets = mouthFillets(j, road);
+    const corners = fillets.map((f) => ({ c: f.c, arc: [...f.arc].reverse() }));
+    // A side without a rounded corner (the open side of a slanted junction): the kerb runs on straight along the side
+    // road's edge to the stage road edge.
+    const w = j.width / 2;
+    const radius = Math.min(8, Math.max(4, j.width * 1.4));
+    for (const sd of [1, -1]) {
+      const has = fillets.some(
+        (f) => (f.c[0] - j.x) * -j.dz + (f.c[1] - j.z) * j.dx >= 0 === sd > 0,
+      );
+      if (has) continue;
+      const ex = j.x - j.dz * sd * w;
+      const ez = j.z + j.dx * sd * w;
+      let t = radius;
+      while (t > -6) {
+        road.query(ex + j.dx * t, ez + j.dz * t, q);
+        if (q.found && q.distance <= q.halfWidth) break;
+        t -= 0.25;
+      }
+      if (t <= -6 || t >= radius - 1) continue;
+      const arc: [number, number][] = [];
+      for (let k = 0; k <= 4; k++) {
+        const d = radius + ((t - radius) * k) / 4;
+        arc.push([ex + j.dx * d, ez + j.dz * d]);
+      }
+      corners.push({ c: [j.x + j.dx * radius, j.z + j.dz * radius], arc });
+    }
+    for (const f of corners) {
+      const arc = f.arc;
+      const [bx, bz] = arc[0];
+      // Along of B: the side road's way runs into the stage road along -(dx, dz) at its end, (dx, dz) from its start.
+      const end = atEnd ? L : 0;
+      net.pointAt(j.path, end, pt);
+      const back = (bx - pt.x) * j.dx + (bz - pt.z) * j.dz;
+      const along = atEnd ? L - back : back;
+      if (along <= 0 || along >= L) continue;
+      // Path direction (start -> end) at the junction: -(dx, dz) at its end, (dx, dz) at its start.
+      const tx = atEnd ? -j.dx : j.dx;
+      const tz = atEnd ? -j.dz : j.dz;
+      // left = (tz, -tx)
+      const side = (bx - pt.x) * tz - (bz - pt.z) * tx >= 0 ? 1 : -1;
+      out.push({ path: j.path, side, atEnd, along, c: f.c, arc });
+    }
   }
   return out;
 }

@@ -126,6 +126,18 @@
     },
     /** The same surface without lines (Vodno's crossroad, where the road paint lies over it). */
     road_tarmac_plain: { ...VODNO, len: 7 },
+    /** Vodno's junction mouths (like `road_tarmac_junction`): a square world-aligned tile of the same old road. */
+    road_tarmac_plain_junction: {
+      ...VODNO,
+      len: 7,
+      across: 7,
+      polish: 0,
+      dust: 0,
+      edgeBlend: false,
+      crumble: 0,
+      cracks: 12,
+      anyDir: true,
+    },
     road_city: {
       seed: 11,
       len: 8,

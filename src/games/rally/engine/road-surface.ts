@@ -1,3 +1,4 @@
+import { JUNCTION_ASPHALT } from '../world/junctions';
 import {
   DataTexture,
   LinearFilter,
@@ -26,6 +27,7 @@ export type RoadSurfaceId =
   | 'road_tarmac'
   | 'road_tarmac_kerbed'
   | 'road_tarmac_junction'
+  | 'road_tarmac_plain_junction'
   | 'road_tarmac_lines'
   | 'road_tarmac_plain'
   | 'road_city'
@@ -39,6 +41,7 @@ export const ROAD_SURFACE_LEN: Record<RoadSurfaceId, number> = {
   road_tarmac: 7,
   road_tarmac_kerbed: 7,
   road_tarmac_junction: 7,
+  road_tarmac_plain_junction: 7,
   road_tarmac_lines: 7,
   road_tarmac_plain: 7,
   road_city: 8,
@@ -56,11 +59,10 @@ const PATCHES: Partial<Record<RoadSurfaceId, number>> = {
   road_tarmac_lines: 1,
   road_tarmac_plain: 1,
 };
-/**
- * Roads that blend into the world-aligned junction asphalt (`road_tarmac_junction`, sampled by world XZ) by the mesh's
- * `jw` attribute: plain tarmac side road mouths (world/road-mesh.ts `junctionMouths`).
- */
-const BLENDS = new Set<RoadSurfaceId>(['road_tarmac', 'road_tarmac_kerbed']);
+/** The junction asphalt each stage road surface blends into at side road mouths (world/junctions.ts). */
+export const JUNCTION_OF = JUNCTION_ASPHALT as Partial<
+  Record<RoadSurfaceId, RoadSurfaceId>
+>;
 /** Strength of the 9 m / 3 m blotches (1 = default): a calmer tone where the real road is even. */
 const TONE: Partial<Record<RoadSurfaceId, number>> = {
   road_tarmac_lines: 0.6,
@@ -165,7 +167,11 @@ export function loadRoadSurface(
 export function roadSurfaceIds(map: MapDef): RoadSurfaceId[] {
   const ids = new Set<RoadSurfaceId>(['road_tarmac', 'road_tarmac_junction']);
   const add = (t?: string) => {
-    if (t && isRoadSurface(t)) ids.add(t);
+    if (t && isRoadSurface(t)) {
+      ids.add(t);
+      const j = JUNCTION_OF[t];
+      if (j) ids.add(j);
+    }
   };
   add(map.road.texture);
   for (const s of map.road.sections ?? []) add(s.texture);
@@ -195,8 +201,8 @@ export async function preloadRoadSurfaces(map: MapDef): Promise<void> {
 export function applyRoadSurface(
   m: MeshStandardMaterial,
   id: RoadSurfaceId,
+  junction: RoadSurfaceId | undefined = JUNCTION_OF[id],
 ): void {
-  const blend = BLENDS.has(id);
   const configure = (s: Surface | undefined, js?: Surface) => {
     if (!s) {
       // Not available: the procedural tile of the same id (engine/textures.ts).
@@ -214,7 +220,7 @@ export function applyRoadSurface(
     m.roughness = 1;
     m.color.setScalar(1);
     const scale = { value: new Vector2(6, ROAD_SURFACE_LEN[id]) };
-    const jLen = { value: ROAD_SURFACE_LEN.road_tarmac_junction };
+    const jLen = { value: junction ? ROAD_SURFACE_LEN[junction] : 1 };
     const patch = { value: PATCHES[id] ?? 0 };
     const tone = { value: TONE[id] ?? 1 };
     m.onBeforeCompile = (shader, renderer) => {
@@ -321,13 +327,13 @@ export function applyRoadSurface(
     m.needsUpdate = true;
   };
   const s = surfaces.get(id);
-  const js = blend ? surfaces.get('road_tarmac_junction') : undefined;
-  if (s && (!blend || js)) return configure(s, js);
+  const js = junction ? surfaces.get(junction) : undefined;
+  if (s && (!junction || js)) return configure(s, js);
   // Placeholder until the set arrives: a plain dark asphalt grey.
   m.color.setRGB(0.1, 0.1, 0.1);
   m.roughness = 0.9;
   void Promise.all([
     loadRoadSurface(id),
-    blend ? loadRoadSurface('road_tarmac_junction') : undefined,
+    junction ? loadRoadSurface(junction) : undefined,
   ]).then(([a, b]) => configure(a, b));
 }

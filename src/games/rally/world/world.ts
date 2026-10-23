@@ -1,6 +1,7 @@
 import { Vector3 } from 'three';
 import { hashString } from '../../../shared/rng';
 import type { BuildingDef, MapDef, StageDef } from '../maps/shared/types';
+import { roadSurfaceAt } from '../maps/shared/types';
 import { SURFACES, type SurfaceId } from '../physics/surfaces';
 import type {
   GroundProvider,
@@ -44,6 +45,7 @@ import {
   RAIL_KIND,
   type CatenaryMast,
 } from './railways';
+import { JUNCTION_ASPHALT, mouthCorners } from './junctions';
 import { streetDetail, type StreetDetail } from './street-detail';
 import { goreCushions, goreWedges } from './gore';
 import { streetDressingInstances } from './street-dressing';
@@ -460,6 +462,16 @@ export class World implements GroundProvider {
           ? undefined
           : (x, z, pad) => this.gen.plazas.inside(x, z, pad),
         plazaCrosswalks: !!map.plazaCrosswalks?.length,
+        corners: mouthCorners(
+          this.gen.junctions.filter(
+            (j) =>
+              j.surface === 'tarmac' &&
+              !!JUNCTION_ASPHALT[roadSurfaceAt(map.road, j.along).texture] &&
+              !this.gen.plazas.inside(j.x, j.z, 2),
+          ),
+          this.road,
+          this.gen.paths,
+        ),
       });
     }
     if (map.streetDressing)

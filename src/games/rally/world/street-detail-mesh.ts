@@ -80,56 +80,37 @@ export function* streetDetailMeshJob(
     });
     return count === 1 ? hit : undefined;
   };
-  let n = 0;
-  for (const run of detail.runs) {
-    const PL = net.lengths[run.path];
-    const c0 = run.from <= 0.01 ? cont(run.path, false) : undefined;
-    const c1 = run.to >= PL - 0.01 ? cont(run.path, true) : undefined;
-    const rows: {
-      x: number;
-      z: number;
-      y: number;
-      /** Sidewalk top above `y`: the kerb height, more where the land beside the street rises over it. */
-      top: number;
-      tx: number;
-      tz: number;
-      d: number;
-    }[] = [];
-    for (let a = run.from; ; a += STEP) {
-      const d = Math.min(a, run.to);
-      net.pointAt(run.path, Math.max(0, d - 1.5), pt);
-      net.pointAt(run.path, Math.min(net.lengths[run.path], d + 1.5), nx);
-      const tl = Math.hypot(nx.x - pt.x, nx.z - pt.z) || 1;
-      let tx = (nx.x - pt.x) / tl;
-      let tz = (nx.z - pt.z) / tl;
-      const j = d <= 0.01 ? c0 : d >= PL - 0.01 ? c1 : undefined;
-      if (j) {
-        tx = (tx + j[0]) / 2;
-        tz = (tz + j[1]) / 2;
-        const l = Math.hypot(tx, tz) || 1;
-        tx /= l;
-        tz /= l;
-      }
-      net.pointAt(run.path, d, pt);
-      const hw = net.halfWidthAt(run.path, d);
-      const lat = run.side * hw;
-      const x = pt.x + tz * lat;
-      const z = pt.z - tx * lat;
-      // Street surface height at the edge (the ribbon / deck surface sits 3 cm above its ground / profile).
-      const y = surfaceY(run.path, d, x, z);
-      // A bank beside the street (the land blends back up from the edge) buried the flat sidewalk: lift it clear.
-      let land = -Infinity;
-      if (!onDeck(run.path))
-        for (const o of [KERB_W + W * 0.5, KERB_W + W])
-          land = Math.max(
-            land,
-            hf.height(x + tz * run.side * o, z - tx * run.side * o),
-          );
-      const top = KERB_H + Math.min(0.6, Math.max(0, land + 0.02 - y - KERB_H));
-      rows.push({ x, z, y, top, tx, tz, d });
-      if (d >= run.to) break;
-    }
-    if (rows.length < 2) continue;
+  type Row = {
+    x: number;
+    z: number;
+    y: number;
+    /** Sidewalk top above `y`: the kerb height, more where the land beside the street rises over it. */
+    top: number;
+    tx: number;
+    tz: number;
+    d: number;
+  };
+  // A bank beside the street (the land blends back up from the edge) buried the flat sidewalk: lift it clear.
+  const row = (
+    x: number,
+    z: number,
+    y: number,
+    tx: number,
+    tz: number,
+    d: number,
+    side: number,
+    deck: boolean,
+  ): Row => {
+    let land = -Infinity;
+    if (!deck)
+      for (const o of [KERB_W + W * 0.5, KERB_W + W])
+        land = Math.max(land, hf.height(x + tz * side * o, z - tx * side * o));
+    const top = KERB_H + Math.min(0.6, Math.max(0, land + 0.02 - y - KERB_H));
+    return { x, z, y, top, tx, tz, d };
+  };
+  // Kerb face, kerb top, sidewalk and a buried outer face swept along the rows.
+  const sweep = (rows: Row[], side: number) => {
+    if (rows.length < 2) return;
     const acc = tileOf(rows[0].x, rows[0].z);
     // Profile: (outward offset from the street edge, height above it); outward = away from the street centre.
     const prof: [number, number][] = [
@@ -152,8 +133,8 @@ export function* streetDetailMeshJob(
       const [o1, y1] = prof[s + 1];
       for (const r of rows) {
         // left = (tz, -tx); outward for the left side is +left.
-        const ox = r.tz * run.side;
-        const oz = -r.tx * run.side;
+        const ox = r.tz * side;
+        const oz = -r.tx * side;
         for (const [o, dy] of [
           [o0, y0],
           [o1, y1],
@@ -174,11 +155,78 @@ export function* streetDetailMeshJob(
       // and the right-hand sidewalk of every street rendered black).
       for (let i = 0; i < rows.length - 1; i++) {
         const q = v0 + i * 2;
-        if (run.side > 0) acc.idx.push(q, q + 2, q + 3, q, q + 3, q + 1);
+        if (side > 0) acc.idx.push(q, q + 2, q + 3, q, q + 3, q + 1);
         else acc.idx.push(q, q + 3, q + 2, q, q + 1, q + 3);
       }
     }
+  };
+  let n = 0;
+  for (const run of detail.runs) {
+    const PL = net.lengths[run.path];
+    const c0 = run.from <= 0.01 ? cont(run.path, false) : undefined;
+    const c1 = run.to >= PL - 0.01 ? cont(run.path, true) : undefined;
+    const rows: Row[] = [];
+    for (let a = run.from; ; a += STEP) {
+      const d = Math.min(a, run.to);
+      net.pointAt(run.path, Math.max(0, d - 1.5), pt);
+      net.pointAt(run.path, Math.min(net.lengths[run.path], d + 1.5), nx);
+      const tl = Math.hypot(nx.x - pt.x, nx.z - pt.z) || 1;
+      let tx = (nx.x - pt.x) / tl;
+      let tz = (nx.z - pt.z) / tl;
+      const j = d <= 0.01 ? c0 : d >= PL - 0.01 ? c1 : undefined;
+      if (j) {
+        tx = (tx + j[0]) / 2;
+        tz = (tz + j[1]) / 2;
+        const l = Math.hypot(tx, tz) || 1;
+        tx /= l;
+        tz /= l;
+      }
+      net.pointAt(run.path, d, pt);
+      const hw = net.halfWidthAt(run.path, d);
+      const lat = run.side * hw;
+      const x = pt.x + tz * lat;
+      const z = pt.z - tx * lat;
+      // Street surface height at the edge (the ribbon / deck surface sits 3 cm above its ground / profile).
+      const y = surfaceY(run.path, d, x, z);
+      rows.push(row(x, z, y, tx, tz, d, run.side, onDeck(run.path)));
+      if (d >= run.to) break;
+    }
+    sweep(rows, run.side);
     if (++n % 40 === 0) yield;
+  }
+  // Kerb returns: the sidewalk follows each rounded junction corner from the street edge (B) onto the stage road
+  // edge (A), its kerb dropping to the road there (no step left standing at the stage road).
+  for (const c of detail.returns) {
+    const arc = c.arc;
+    const [mx, mz] = arc[arc.length >> 1];
+    let dist = c.along;
+    let total = 0;
+    for (let k = 1; k < arc.length; k++)
+      total += Math.hypot(arc[k][0] - arc[k - 1][0], arc[k][1] - arc[k - 1][1]);
+    let run = 0;
+    let side: 1 | -1 = 1;
+    const rows: Row[] = [];
+    for (let k = 0; k < arc.length; k++) {
+      const [x, z] = arc[k];
+      const [ax, az] = arc[Math.max(0, k - 1)];
+      const [bx, bz] = arc[Math.min(arc.length - 1, k + 1)];
+      const tl = Math.hypot(bx - ax, bz - az) || 1;
+      const tx = (bx - ax) / tl;
+      const tz = (bz - az) / tl;
+      // Outward (away from the street) = away from the corner C, which the tarmac fills.
+      if (k === 0) side = tz * (mx - c.c[0]) - tx * (mz - c.c[1]) >= 0 ? 1 : -1;
+      if (k > 0) {
+        const step = Math.hypot(x - arc[k - 1][0], z - arc[k - 1][1]);
+        dist += step;
+        run += step;
+      }
+      const r = row(x, z, hf.height(x, z) + 0.03, tx, tz, dist, side, false);
+      // The last third drops to a flush kerb at the stage road edge.
+      const f = Math.min(1, (total - run) / (total / 3));
+      r.top = 0.02 + (r.top - 0.02) * f;
+      rows.push(r);
+    }
+    sweep(rows, side);
   }
   const group = new Group();
   group.name = 'street-detail';

@@ -251,11 +251,14 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   height-line smoothing / grade per OSM kind (`PATH_PROFILE`); coarse terrain tiles paint them at least ~a vertex step wide (`splat` `minPathHw`) so
   they stay lines from afar.
   The baker splits an OSM way where it folds back (> 120 deg) or revisits one of its nodes (two ways meeting there);
-  a ground way under 15 m anchored at both ends is one straight ramp (`SHORT_JOINT`). Paved mouths on rural
-  maps get rounded corners (`junctionFillets`, drawn with the street ribbons in `road-mesh.ts`; not on `cityStreets` maps):
-  at plain `road_tarmac` mouths every surface (stage road edge, side road, a pad over the corners) blends within 6 m into
-  one world-aligned asphalt, `road_tarmac_junction` (square tile, no wheel paths or edges, sampled by world XZ in the road
-  shader, weight in the mesh's `jw` attribute; `junctionMouths`), with the dusty edge band running round each curve.
+  a ground way under 15 m anchored at both ends is one straight ramp (`SHORT_JOINT`). Paved mouths (plain tarmac
+  side roads and city streets, not on a plaza) get rounded corners (`junctionFillets`, drawn with the street ribbons in
+  `road-mesh.ts`): every surface there (stage road edge, side road, a pad over the corners) blends into one world-aligned
+  asphalt, the stage road's own surface laid flat (`JUNCTION_ASPHALT` in `junctions.ts`: `road_tarmac_junction`, Vodno's
+  `road_tarmac_plain_junction`; square tile, no wheel paths, edges or lines, sampled by world XZ in the road shader, weight
+  in the mesh's `jw` attribute; `junctionMouths`), within 6 m, or 2 m where painted lines end at the mouth (Vodno's edge
+  lines, a street's centre line), with the dusty edge band running round each curve. On `cityStreets` maps the sidewalk
+  turns round each corner onto the stage road edge, its kerb dropping flush there (`mouthCorners`, `StreetDetail.returns`).
 - **Water:** canals / drains / rivers (`paths` surface `water`) and `lakes`, with real banks and water physics
   (`world/lakes.ts`, `water-mesh.ts`). `Lakes.query` reads only the outline edges near the point (a 16 m grid per outline): exact `sd` within
   `LAKE_REACH` of the shore, `-LAKE_REACH` further inside (every user stops at `LAKE_SHELF`); test `lakes-index`.

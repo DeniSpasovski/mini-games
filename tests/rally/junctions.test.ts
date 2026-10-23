@@ -69,6 +69,7 @@ describe('junction fillets', () => {
     kind: 'residential',
     along: 0,
     side: 1,
+    path: 0,
   };
 
   test('square junction: two corners at the side road edges, arcs from the stage edge to the side edge', () => {
