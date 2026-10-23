@@ -25,9 +25,10 @@ const manifestCtx = import.meta.webpackContext('../games', {
   recursive: true,
   regExp: /[\\/]game\.json$/,
 });
+/** `thumbnail.jpg` (1280x720) and its 640x360 copy `thumbnail-640.jpg`, both saved by F9 (shared/thumbnail.ts). */
 const thumbCtx = import.meta.webpackContext('../games', {
   recursive: true,
-  regExp: /[\\/]thumbnail\.(jpg|png)$/,
+  regExp: /[\\/]thumbnail(-640)?\.(jpg|png)$/,
 });
 
 const wordmarkCtx = import.meta.webpackContext('../games', {
@@ -44,6 +45,7 @@ function orderRank(id: string): number {
 interface GameEntry {
   manifest: GameManifest;
   thumbnail?: string;
+  thumbnailSmall?: string;
   /** The game's title in its own face (wordmark.svg); the plain title when missing. */
   wordmark?: string;
 }
@@ -53,8 +55,12 @@ const assetUrl = (mod: unknown) =>
 
 function loadGames(): GameEntry[] {
   const thumbs = new Map<string, string>();
+  const thumbsSmall = new Map<string, string>();
   for (const key of thumbCtx.keys())
-    thumbs.set(key.split('/')[1], assetUrl(thumbCtx(key)));
+    (key.includes('thumbnail-640.') ? thumbsSmall : thumbs).set(
+      key.split('/')[1],
+      assetUrl(thumbCtx(key)),
+    );
   const wordmarks = new Map<string, string>();
   for (const key of wordmarkCtx.keys())
     if (key.split('/').length === 3)
@@ -67,6 +73,7 @@ function loadGames(): GameEntry[] {
       return {
         manifest,
         thumbnail: thumbs.get(manifest.id),
+        thumbnailSmall: thumbsSmall.get(manifest.id),
         wordmark: wordmarks.get(manifest.id),
       };
     })
@@ -87,7 +94,16 @@ function escapeHtml(s: string): string {
 const PLAY_ICON =
   '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 1l7 4-7 4z" fill="currentColor"/></svg>';
 
-function renderCard({ manifest, thumbnail, wordmark }: GameEntry): string {
+/** Cover picture width: one column on phones, three in the 1320 px shelf above. */
+const COVER_SIZES =
+  '(max-width: 600px) calc(100vw - 32px), (max-width: 1400px) 33vw, 440px';
+
+function renderCard({
+  manifest,
+  thumbnail,
+  thumbnailSmall,
+  wordmark,
+}: GameEntry): string {
   const pages = manifest.pages.map((p) => resolveGamePage(manifest.id, p));
   const play = pages.find((p) => p.id === 'play') ?? pages[0];
   const tools = pages.filter((p) => p.dev && !(p.hideInProd && RELEASE_BUILD));
@@ -96,8 +112,11 @@ function renderCard({ manifest, thumbnail, wordmark }: GameEntry): string {
     manifest.accent && manifest.onAccent
       ? ` style="--ga:${escapeHtml(manifest.accent)};--ga-on:${escapeHtml(manifest.onAccent)}"`
       : '';
+  const srcset = thumbnailSmall
+    ? ` srcset="${thumbnailSmall} 640w, ${thumbnail} 1280w" sizes="${COVER_SIZES}"`
+    : '';
   const shot = thumbnail
-    ? `<img class="shot" src="${thumbnail}" alt="" loading="lazy" />`
+    ? `<img class="shot" src="${thumbnail}"${srcset} width="1280" height="720" alt="" loading="lazy" />`
     : `<div class="no-shot"></div>`;
   const heading = wordmark ? `<img src="${wordmark}" alt="${title}" />` : title;
   const label = [manifest.genre, manifest.inputs].filter(Boolean).join(' · ');
@@ -147,7 +166,7 @@ if (root) {
     <main class="shelf">${games.map(renderCard).join('')}</main>
     <footer class="portal-footer">
       <p>${escapeHtml(SITE.tagline)} · © ${new Date().getFullYear()} ${escapeHtml(SITE.owner)}</p>
-      <p>PolyForm Noncommercial · map data © OpenStreetMap contributors (ODbL)${
+      <p><a href="${SITE.sourceUrl}#readme">About</a> · <a href="${SITE.sourceUrl}">Source</a> · <a href="${SITE.sourceUrl}/blob/main/LICENSE">PolyForm Noncommercial</a>${
         consentEnabled()
           ? ' · <button type="button" class="link-btn" data-privacy>Privacy &amp; cookies</button>'
           : ''

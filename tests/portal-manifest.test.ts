@@ -35,6 +35,22 @@ function contrast(a: string, b: string): number {
 }
 const SHELF = '#101216'; // --pt-shelf, src/portal/ui-tokens.css
 
+/** Width and height of a JPEG from its first SOF (start of frame) segment. */
+function jpegSize(file: string): [number, number] {
+  const b = fs.readFileSync(file);
+  for (let i = 2; i + 9 < b.length;) {
+    const marker = b[i + 1];
+    if (
+      marker >= 0xc0 &&
+      marker <= 0xcf &&
+      ![0xc4, 0xc8, 0xcc].includes(marker)
+    )
+      return [b.readUInt16BE(i + 7), b.readUInt16BE(i + 5)];
+    i += 2 + b.readUInt16BE(i + 2);
+  }
+  throw new Error(`no JPEG frame in ${file}`);
+}
+
 const readManifest = (id: string) =>
   JSON.parse(
     fs.readFileSync(path.join(gamesDir, id, 'game.json'), 'utf8'),
@@ -129,13 +145,14 @@ for (const id of gameIds) {
     expect(play.hideInProd).toBeFalsy();
   });
 
-  // A game with `hideInProd` in GAME_LIST gets its thumbnail (F9 on the dev server) when it is released.
-  test(`game (${id}) has a portal thumbnail`, () => {
+  // A game with `hideInProd` in GAME_LIST gets its thumbnails (F9 on the dev server) when it is released:
+  // thumbnail.jpg 1280x720 + thumbnail-640.jpg 640x360, the cover's srcset.
+  test(`game (${id}) has portal thumbnails`, () => {
     if (!isReleased(GAME_LIST, id)) return;
-    const has = ['jpg', 'png'].some((e) =>
-      fs.existsSync(path.join(gamesDir, id, `thumbnail.${e}`)),
-    );
-    expect(has).toBe(true);
+    const big = path.join(gamesDir, id, 'thumbnail.jpg');
+    const small = path.join(gamesDir, id, 'thumbnail-640.jpg');
+    expect(jpegSize(big)).toEqual([1280, 720]);
+    expect(jpegSize(small)).toEqual([640, 360]);
   });
 }
 
@@ -160,4 +177,8 @@ test('PWA manifest: required fields and icon files exist', () => {
   expect(
     wm.icons.some((i: { purpose: string }) => i.purpose === 'maskable'),
   ).toBe(true);
+});
+
+test('link preview image is 1200x630', () => {
+  expect(jpegSize(path.join(root, 'public/og-image.jpg'))).toEqual([1200, 630]);
 });

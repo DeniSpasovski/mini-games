@@ -51,7 +51,7 @@ No central registry needs editing.
    - `rng.ts` / `noise.ts` for anything procedural (seeded!)
 4. Portal screenshot: in the play page call
    `installThumbnailCapture('<id>', () => { renderer.render(scene, camera); return renderer.domElement; })`,
-   run `npm run dev`, open the game, press **F9** -> writes `src/games/<id>/thumbnail.jpg`.
+   run `npm run dev`, open the game, press **F9** -> writes `src/games/<id>/thumbnail.jpg` (1280x720) and `thumbnail-640.jpg` (the cover's srcset).
    - Title face: a `wordmark.svg` next to `thumbnail.jpg` (`scripts/portal/wordmarks.py <font.woff2> "Title" src/games/<id>/wordmark.svg`); without one the cover shows the plain title.
    - Audio: the game's audio class (WebAudio / `Audio`) must start silent when `isMutedByUrl()` (`src/shared/mute-param.ts`, `?mute=1`) is true. **When you open the game in the browser pane to test, always add `mute=1` to the URL** - no sound while creating / editing, unless the task is a sound fix (then no param, low volume).
 5. Add the game to `GAME_LIST` in `src/portal/release.ts` (card order). Work in progress? Give it `hideInProd: true` there: the release build gives the game no portal card but still builds it, so people with the link (`games/<id>/`) can play it. The dev server and `build:test` list it. Remove the flag to release.

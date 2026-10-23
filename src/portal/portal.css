@@ -242,6 +242,13 @@ body {
 .portal-footer p {
   margin: 0;
 }
+.portal-footer a {
+  color: inherit;
+}
+.portal-footer a:hover,
+.link-btn:hover {
+  color: var(--pt-text);
+}
 .link-btn {
   padding: 0;
   border: 0;

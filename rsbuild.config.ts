@@ -110,6 +110,28 @@ const appleTouchIcon = {
   attrs: { rel: 'apple-touch-icon', href: 'icons/apple-touch-icon.png' },
 };
 
+/**
+ * Link previews (Open Graph) for the portal. Crawlers want absolute URLs, so they point at the public site
+ * (README); `public/og-image.jpg` is a 1200x630 shot of the home page (retake it when the look changes).
+ */
+const PORTAL_URL = 'https://games.deni.io/';
+const PORTAL_DESCRIPTION =
+  'Browser games built with three.js: a gravel rally on real roads, a hole that swallows a toy city and an animal demolition arena. Free to play, no accounts, no ads.';
+const og = (property: string, content: string) => ({ property, content });
+const portalMeta = {
+  ...baseMeta,
+  description: PORTAL_DESCRIPTION,
+  'og:type': og('og:type', 'website'),
+  'og:site_name': og('og:site_name', 'Mini Games'),
+  'og:title': og('og:title', 'Mini Games'),
+  'og:description': og('og:description', PORTAL_DESCRIPTION),
+  'og:url': og('og:url', PORTAL_URL),
+  'og:image': og('og:image', `${PORTAL_URL}og-image.jpg`),
+  'og:image:width': og('og:image:width', '1200'),
+  'og:image:height': og('og:image:height', '630'),
+  'twitter:card': 'summary_large_image',
+};
+
 const portalEnvironment: EnvironmentConfig = {
   source: { entry: { index: './src/portal/index.ts' } },
   output: {
@@ -119,13 +141,16 @@ const portalEnvironment: EnvironmentConfig = {
     copy: [
       { from: 'public/icons', to: 'icons' },
       { from: 'public/manifest.webmanifest' },
+      { from: 'public/og-image.jpg' },
       // Service worker at the root so its scope covers the games too (src/shared/offline.ts).
       { from: 'public/sw.js' },
     ],
   },
   html: {
-    title: 'Mini Game Portal',
-    meta: baseMeta,
+    title: 'Mini Games',
+    // Only adds <html lang="en"> to Rsbuild's default template.
+    template: './src/portal/index.html',
+    meta: portalMeta,
     // PWA manifest + iOS home-screen icon. Rsbuild turns these into page-relative
     // URLs (assetPrefix 'auto'), so they work from any sub-folder.
     tags: [
@@ -266,7 +291,12 @@ export default defineConfig(({ envMode }) => ({
         req.on('end', () => {
           const body = Buffer.concat(chunks).toString('utf8');
           const b64 = body.replace(/^data:image\/\w+;base64,/, '');
-          const out = path.join(gamesDir, game, 'thumbnail.jpg');
+          // `size=640`: the small srcset copy (src/shared/thumbnail.ts saves both).
+          const name =
+            url.searchParams.get('size') === '640'
+              ? 'thumbnail-640.jpg'
+              : 'thumbnail.jpg';
+          const out = path.join(gamesDir, game, name);
           fs.writeFileSync(out, Buffer.from(b64, 'base64'));
           res.end(`saved ${path.relative(root, out)}`);
         });
