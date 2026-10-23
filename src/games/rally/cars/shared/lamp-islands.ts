@@ -100,6 +100,39 @@ export function splitLampPieces(
       w.corner(t, 1),
       w.corner(t, 2),
     );
+  return carve(mesh, mine, rest, suffix);
+}
+
+/** Triangles of `mesh` (corners in body space) that pass `test` move to a new mesh beside it, like `splitLampPieces`. */
+export function splitLampTriangles(
+  mesh: Mesh,
+  toBody: Matrix4,
+  test: (a: Vector3, b: Vector3, c: Vector3) => boolean,
+  suffix: string,
+): Mesh | null {
+  const w = weld(mesh, toBody);
+  const p = [new Vector3(), new Vector3(), new Vector3()];
+  const mine: number[] = [];
+  const rest: number[] = [];
+  for (let t = 0; t < w.count; t++) {
+    const tri = [w.corner(t, 0), w.corner(t, 1), w.corner(t, 2)];
+    tri.forEach((k, c) =>
+      p[c].set(w.xyz[k * 3], w.xyz[k * 3 + 1], w.xyz[k * 3 + 2]),
+    );
+    (test(p[0], p[1], p[2]) ? mine : rest).push(...tri);
+  }
+  if (!mine.length) return null;
+  if (!rest.length) return mesh;
+  return carve(mesh, mine, rest, suffix);
+}
+
+/** `mesh` keeps the `rest` triangles; a new mesh beside it (same transform, material and flags) gets `mine`. */
+function carve(
+  mesh: Mesh,
+  mine: number[],
+  rest: number[],
+  suffix: string,
+): Mesh {
   const part = new Mesh(subset(mesh.geometry, mine), mesh.material);
   part.name = `${mesh.name}_${suffix}`;
   part.position.copy(mesh.position);

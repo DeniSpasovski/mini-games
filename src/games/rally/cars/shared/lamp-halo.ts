@@ -490,11 +490,16 @@ export class LampHalos {
     const inside = bulbs
       .map(([x, y, z]) => new Vector3(side * x, y, z))
       .filter((p) => box.containsPoint(p));
+    const placed: Vector3[] = [];
     for (const p of inside) {
+      // Two listed pieces of one light (a projector's lens and bezel) share a glare.
+      if (placed.some((q) => q.distanceTo(p) < GLARE_BULB / 4)) continue;
+      placed.push(p);
       const material = glareMaterial(colour);
       const glare = new Mesh(quad, material);
       glare.scale.set(GLARE_BULB, GLARE_BULB, 1);
-      glare.position.set(p.x, p.y, lamp.box.max.z + SETBACK);
+      // At the bulb itself (a lamp that wraps round the corner has bulbs well behind its front).
+      glare.position.set(p.x, p.y, p.z + SETBACK);
       glare.renderOrder = 5;
       glare.frustumCulled = false;
       this.glares.push(material);

@@ -21,6 +21,7 @@ import {
   MeshStandardMaterial,
   Path,
   Quaternion,
+  Ray,
   RepeatWrapping,
   Shape,
   SRGBColorSpace,
@@ -54,6 +55,8 @@ import {
   splitBootLamp,
   splitCentreLamp,
   splitLampPieces,
+  splitLampTriangles,
+  weld,
 } from './lamp-islands';
 import {
   bulbScatter,
@@ -1145,6 +1148,7 @@ export class CarModel {
     const own = new Map<Material, MeshStandardMaterial>();
     this.root.updateWorldMatrix(true, true);
     this.splitCentreLamps();
+    this.swapLampParts();
     this.splitHeadBulbs();
     this.splitHeadBowls();
     this.splitHeadExtras();
@@ -1246,6 +1250,110 @@ export class CarModel {
    * boot lid): it lights with the brake and white in reverse gear, while only the outer half is the running lamp.
    */
   /**
+   * `gltf.lampParts`: lamp parts drawn with another part's material. `gltf.lampBody`: the body mesh's triangles behind a
+   * head lamp's cover (the lamp's insides, modelled in the body) become the dark lamp housing instead of paint.
+   */
+  private swapLampParts(): void {
+    const gltf = this.def.model.gltf;
+    if (!gltf?.lampParts && !gltf?.lampBody) return;
+    const cover: Vector3[] = [];
+    const box = new Box3();
+    const bodies: Mesh[] = [];
+    const lamp = this.def.model.profile?.lamps.front;
+    const inLamp = (v: Vector3): boolean =>
+      !!lamp &&
+      v.z > 0 &&
+      Math.abs(v.x) > lamp[0] - BOWL_SLACK &&
+      Math.abs(v.x) < lamp[1] + BOWL_SLACK &&
+      v.y > lamp[2] - BOWL_SLACK &&
+      v.y < lamp[3] + BOWL_SLACK;
+    const toBody = this.body.matrixWorld.clone().invert();
+    this.root.traverse((o) => {
+      const mesh = o as Mesh;
+      if (!mesh.isMesh || !mesh.visible) return;
+      const part = mesh.userData.partName as string;
+      const to = gltf.lampParts?.[part];
+      if (to) {
+        mesh.material = partMaterial(to)!;
+        mesh.userData.partName = to;
+      }
+      if (gltf.lampBody && part === 'body') bodies.push(mesh);
+      // The cover: the lens part, and the cockpit glass part where the model drew some of the lens with it (in the lamp box).
+      if (
+        gltf.lampBody &&
+        (part === 'lenscover' || (part === 'glass' && lamp))
+      ) {
+        const w = weld(mesh, toBody);
+        const p = [new Vector3(), new Vector3(), new Vector3()];
+        for (let t = 0; t < w.count; t++) {
+          for (let c = 0; c < 3; c++) {
+            const k = w.corner(t, c) * 3;
+            p[c].set(w.xyz[k], w.xyz[k + 1], w.xyz[k + 2]);
+          }
+          if (part === 'glass' && !p.every(inLamp)) continue;
+          for (const v of p) {
+            cover.push(v.clone());
+            box.expandByPoint(v);
+          }
+        }
+      }
+    });
+    if (!cover.length) return;
+    // A body triangle is inside the lamp when its cover is ahead of it: straight ahead, or ahead and out / up (the lamp
+    // wraps round the corner of the car).
+    const ray = new Ray();
+    const hit = new Vector3();
+    const dirs = [
+      new Vector3(0, 0, 1),
+      new Vector3(0.6, 0, 0.8),
+      new Vector3(0, 0.6, 0.8),
+    ];
+    const ahead = (o: Vector3): boolean => {
+      // Only near the lamp (the ray test is the real one): beside the cover, anywhere behind it.
+      if (
+        o.x < box.min.x ||
+        o.x > box.max.x ||
+        o.y < box.min.y ||
+        o.y > box.max.y ||
+        o.z > box.max.z
+      )
+        return false;
+      ray.origin.copy(o);
+      return dirs.some((d) => {
+        ray.direction.set(Math.sign(o.x) * d.x, d.y, d.z);
+        for (let i = 0; i < cover.length; i += 3)
+          if (
+            ray.intersectTriangle(
+              cover[i],
+              cover[i + 1],
+              cover[i + 2],
+              false,
+              hit,
+            )
+          )
+            return true;
+        return false;
+      });
+    };
+    // The centre or a corner (pulled a little in) of the triangle: a big wall triangle reaches past the cover's edge.
+    const mid = new Vector3();
+    const p = new Vector3();
+    const behindCover = (a: Vector3, b: Vector3, c: Vector3): boolean => {
+      mid.copy(a).add(b).add(c).divideScalar(3);
+      return (
+        ahead(mid) || [a, b, c].some((v) => ahead(p.copy(v).lerp(mid, 0.1)))
+      );
+    };
+    for (const mesh of bodies) {
+      const inside = splitLampTriangles(mesh, toBody, behindCover, 'lampbody');
+      if (!inside) continue;
+      if (inside !== mesh) this.owned.push(inside.geometry, mesh.geometry);
+      inside.material = partMaterial('lamphousing')!;
+      inside.userData.partName = 'lamphousing';
+    }
+  }
+
+  /**
    * `gltf.headBowls`: the chrome reflector bowls of the head lamps get a lamp material, and the cockpit glass over them
    * (models that share one glass material) the clear lamp cover, so the lit bowl shows through it. With `gltf.headBulbs`
    * the bowls and the lamp housing keep their own look and glow white from the bulbs out (`bulbScatter`).
@@ -1318,6 +1426,8 @@ export class CarModel {
         const m = own.userData.headLamp
           ? bulbScatter(own.clone(), pts, r, SCATTER_ADD)
           : bulbScatter(headLampOf(own), pts, r);
+        const level = this.def.model.gltf?.scatterLevel;
+        if (level) (m.userData.headLamp as { on: number }).on *= level;
         this.owned.push(m);
         lamp.material = m;
       }

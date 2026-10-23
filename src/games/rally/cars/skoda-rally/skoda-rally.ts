@@ -234,6 +234,8 @@ export const skodaRally: CarDef = {
         [0.605, 0.635, 1.61],
         [0.625, 0.59, 1.61],
       ],
+      // One glare on each light, not one between them.
+      bulbGlares: true,
     },
   },
 };

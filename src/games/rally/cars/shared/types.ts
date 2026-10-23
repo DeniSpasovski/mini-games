@@ -188,8 +188,14 @@ export interface CarGltfDef {
   headBulbs?: [number, number, number][];
   /** Parts inside the `headBowls` box that glow from the `headBulbs` (default the chrome bowls and the lamp housing). */
   headScatter?: string[];
+  /** How bright the `headScatter` parts glow (1 = default; a big open reflector needs less to show its shading). */
+  scatterLevel?: number;
   /** One head lamp glare on each listed bulb (`headBulbs`) instead of one in the middle of each lamp (twin-bowl lamps). */
   bulbGlares?: boolean;
+  /** Lamp parts drawn with another part's material instead (a drawn reflector map as plain chrome). */
+  lampParts?: Record<string, string>;
+  /** Body pieces wholly inside a head lamp cover are the lamp's housing (dark), not paint. */
+  lampBody?: boolean;
   /** Cut-outs painted another colour (wing end plates ...). */
   recolor?: CarGltfRecolor[];
   /** File name inside public/models/cars/, e.g. "skoda_rally.glb". */

@@ -233,6 +233,8 @@ export const fordGt3: CarDef = {
         [0.74, 0.615, 2.035],
         [0.82, 0.62, 1.95],
       ],
+      // One glare on each light, not one between them.
+      bulbGlares: true,
       // Red wing end plates (cut out of the black trim; blade and struts stay black).
       recolor: [
         {
