@@ -271,6 +271,38 @@ for (let t = 0; t < nTri; t++)
     incident.get(v).push(t);
   }
 const cosCrease = Math.cos((cfg.creaseDeg * Math.PI) / 180);
+/**
+ * `normalSmooth: { iterations, creaseDeg }`: the vertex normals use RELAXED face normals - each face takes the area-weighted
+ * average of the faces round its corners (within `creaseDeg` of its own source normal), `iterations` times. A source mesh that
+ * is a little wavy under hand-smoothed normals (cars/pezetka/'s bonnet and apron) shows ripples when its normals are computed
+ * from the geometry alone; this irons them out without touching the vertices or the creases of real edges.
+ */
+const smoothCfg = cfg.normalSmooth;
+let sfn = fn;
+if (smoothCfg) {
+  const cosSmooth = Math.cos((smoothCfg.creaseDeg * Math.PI) / 180);
+  for (let it = 0; it < smoothCfg.iterations; it++) {
+    const next = new Float32Array(nTri * 3);
+    for (let t = 0; t < nTri; t++) {
+      const seen = new Set();
+      const sum = [0, 0, 0];
+      for (let k = 0; k < 3; k++)
+        for (const u of incident.get(simple[t * 3 + k])) {
+          if (seen.has(u)) continue;
+          seen.add(u);
+          const d =
+            fn[u * 3] * fn[t * 3] +
+            fn[u * 3 + 1] * fn[t * 3 + 1] +
+            fn[u * 3 + 2] * fn[t * 3 + 2];
+          if (d < cosSmooth) continue;
+          for (let j = 0; j < 3; j++) sum[j] += sfn[u * 3 + j] * area[u];
+        }
+      const l = Math.hypot(...sum) || 1;
+      for (let j = 0; j < 3; j++) next[t * 3 + j] = sum[j] / l;
+    }
+    sfn = next;
+  }
+}
 const A = cfg.atlas;
 /** Wheel-arch triangles (inside `wheels.arch.faceRadius` of a hub, or `radius` and facing along the car) -> matte black texel. */
 const isArch = (t) => {
@@ -442,7 +474,7 @@ for (let t = 0; t < nTri; t++) {
         fn[f * 3 + 1] * fn[t * 3 + 1] +
         fn[f * 3 + 2] * fn[t * 3 + 2];
       if (d < cosCrease) continue;
-      for (let j = 0; j < 3; j++) n[j] += fn[f * 3 + j] * area[f];
+      for (let j = 0; j < 3; j++) n[j] += sfn[f * 3 + j] * area[f];
     }
     const l = Math.hypot(...n) || 1;
     const nn = n.map((c) => c / l);

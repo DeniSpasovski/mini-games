@@ -68,6 +68,7 @@ export type PartName =
   | 'flagwhite'
   | 'flagred'
   | 'interior'
+  | 'interiorgrey'
   | 'cage'
   | 'coilover'
   | 'lampcup'
@@ -2097,6 +2098,9 @@ const BUILDERS: Record<PartName, () => Material> = {
   flagred: () => new MeshStandardMaterial({ color: 0xd3202c, roughness: 0.4 }),
   /** Modelled cockpit of an imported body (seats, dash, door cards): dark, matte - without it the cockpit got the livery. */
   interior: () => new MeshStandardMaterial({ color: 0x2a2c30, roughness: 0.9 }),
+  /** The same cockpit in a lighter grey-beige (Fiat 126p): the seats and floor read through tinted glass. */
+  interiorgrey: () =>
+    new MeshStandardMaterial({ color: 0x7a766d, roughness: 0.9 }),
   /** Roll cage of an imported cockpit: light grey like the procedural cars' cage (car-model.ts cageMat). */
   cage: () =>
     new MeshStandardMaterial({

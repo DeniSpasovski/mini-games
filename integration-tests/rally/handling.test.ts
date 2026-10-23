@@ -35,7 +35,7 @@ import {
  *  - step steer (80 km/h): yaw-rate response time + overshoot
  *  - from a steady corner (60 / 85 % of the limit): lift-off, full throttle (TC on / off), full / half brake ->
  *    sideslip growth
- *  - handbrake turn (50 km/h), slalom (90 km/h), keyboard full lock (60 / 100 / 140 km/h, the in-game steer limit)
+ *  - handbrake turn (50 km/h), slalom (90 km/h; 60 for the Fiat 126p), keyboard full lock (60 / 100 / 140 km/h, the in-game steer limit)
  *  - straight line: 0-100, 100-0 (full and 60 % brake), which axle locks first, heading drift under braking
  *  - ride: 0.5 / 1 m drop (bump stop, settle time), 1 m jump landing at 80 km/h (body scrapes, speed kept), rough
  *    road (wheel load variation, contact loss, grip kept)
@@ -84,7 +84,8 @@ describe('handling matrix (flat ground)', () => {
           brakeHalf: cornerEvent(cfg, s, r60.maxG, 'brakeHalf'),
         };
         const hb = handbrakeTurn(cfg, s);
-        const sl = slalom(cfg, s);
+        // The 23 hp Fiat 126p tops out near 100 km/h, so its slalom is run at 60.
+        const sl = slalom(cfg, s, cfg.car === 'pezetka' ? 60 : 90);
         const kb = [60, 100, 140].map((k) => keyboardLock(cfg, s, k));
         const st = straight(cfg, s);
         per[s] = { r60, r100, step, ev, hb, sl, kb, st };

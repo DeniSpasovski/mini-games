@@ -43,7 +43,8 @@ export interface CarHeadlightsDef {
 }
 
 /** Cylinder layout = firing pattern (game/engine-sound.ts). `v8` is cross-plane (American burble), `v8flat` flat-plane (BMW M / Ferrari howl); `flat4` has unequal headers. */
-export type EngineLayout = 'i4' | 'i5' | 'i6' | 'v8' | 'v8flat' | 'flat4';
+export type EngineLayout =
+  'i2' | 'i4' | 'i5' | 'i6' | 'v8' | 'v8flat' | 'flat4';
 
 /** How the car sounds; game/audio.ts synthesises it from these (no samples). Levels are 0..1. */
 export interface CarSoundDef {
@@ -66,6 +67,8 @@ export interface CarSoundDef {
   cam: number;
   /** Cylinder-to-cylinder variation (default 0.05): a tired engine is rougher. */
   roughness?: number;
+  /** Misfires (0 = none .. 1 = constant): the engine skips firings and spits through the carburettor, most at idle and on a low-rpm tip-in. */
+  sputter?: number;
 }
 
 /**

@@ -60,13 +60,18 @@ function run(
 
 const kmh = (v: Vehicle) => v.speed * 3.6;
 
-/** Plausible performance bands per car: [min, max]. Adjust deliberately when retuning. */
+/**
+ * Plausible performance bands per car: [min, max]. Adjust deliberately when retuning. A car that is too slow for 100 km/h in
+ * 15 s (the 126p) sets `target` (km/h) and `limit` (s): "0-100" and "brake100" then mean 0-target and target-0.
+ */
 const BANDS: Record<
   string,
   {
     zeroTo100: [number, number];
     brake100: [number, number];
     top: [number, number];
+    target?: number;
+    limit?: number;
   }
 > = {
   skoda_rally: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
@@ -79,6 +84,13 @@ const BANDS: Record<
   fiesta: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
   lancer_evo_6: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
   merc_190: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
+  pezetka: {
+    zeroTo100: [10, 35],
+    brake100: [25, 75],
+    top: [90, 125],
+    target: 90,
+    limit: 40,
+  },
   subie_wrx_sti: { zeroTo100: [3, 10], brake100: [25, 75], top: [180, 260] },
   audi_rs6: { zeroTo100: [2.5, 10], brake100: [25, 75], top: [200, 330] },
   ford_gt3: { zeroTo100: [3, 10], brake100: [25, 75], top: [120, 290] },
@@ -100,9 +112,9 @@ describe.each(ALL_CARS.map((c) => c.id))('%s', (carId) => {
   test('accelerates 0-100 km/h in a plausible time on gravel', () => {
     const v = makeCar(carId);
     v.controls.throttle = 1;
-    const t = run(v, 15, () => kmh(v) >= 100);
+    const t = run(v, band.limit ?? 15, () => kmh(v) >= (band.target ?? 100));
     console.info(
-      `[${carId}] 0-100 gravel: ${t.toFixed(2)}s, gear ${v.drivetrain.gear}`,
+      `[${carId}] 0-${band.target ?? 100} gravel: ${t.toFixed(2)}s, gear ${v.drivetrain.gear}`,
     );
     expect(t).toBeGreaterThan(band.zeroTo100[0]);
     expect(t).toBeLessThan(band.zeroTo100[1]);
@@ -112,7 +124,7 @@ describe.each(ALL_CARS.map((c) => c.id))('%s', (carId) => {
   test('brakes from 100 km/h in a reasonable distance', () => {
     const v = makeCar(carId);
     v.controls.throttle = 1;
-    run(v, 15, () => kmh(v) >= 100);
+    run(v, band.limit ?? 15, () => kmh(v) >= (band.target ?? 100));
     v.controls.throttle = 0;
     v.controls.brake = 1;
     const z0 = v.position.z;

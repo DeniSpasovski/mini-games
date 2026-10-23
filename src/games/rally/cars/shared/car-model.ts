@@ -412,6 +412,7 @@ const RECESS_SHADE = 0.12;
 /** Imported-model parts that never cast a shadow (hidden by the body's own shadow or too small to show). */
 const NO_SHADOW_PARTS = new Set([
   'interior',
+  'interiorgrey',
   'cage',
   'glass',
   'lamphousing',

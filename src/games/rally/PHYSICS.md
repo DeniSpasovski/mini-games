@@ -26,7 +26,7 @@ slip angle into forces using the **surface the wheel stands on** (`surfaces.ts`:
 Driver aids: traction / stability control (`T`, `Vehicle.tractionAssist`: trims throttle above
 combined slip 1.15 on driven rear tyres, 2.0 on driven front tyres - `TC_REAR_SLIP` / `TC_FRONT_SLIP`), ABS (`B`, `Vehicle.absPass`: per wheel, eases the
 foot brake off past 1.3x the surface's peak slip ratio above ~11 km/h, so the fronts keep steering; the handbrake is
-untouched; `physics.noAbs` = not fitted, the Zastava), auto reverse, keyboard steering ramp + speed limit
+untouched; `physics.noAbs` = not fitted, the Zastava and the Fiat 126p), auto reverse, keyboard steering ramp + speed limit
 (`keyboardSteerLimit` in `game/input.ts`, close to the steering that gives peak grip).
 
 ## Tuning guide
