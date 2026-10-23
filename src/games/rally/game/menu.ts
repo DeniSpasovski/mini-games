@@ -126,7 +126,7 @@ const NPC_CARS: SourceLink[] = [
   },
   {
     label:
-      'Fire engine/Fire truck low poly game asset (FixedShark554, Sketchfab)',
+      'Fire engine/Fire truck low poly game asset (Have a name, Sketchfab)',
     url: 'https://sketchfab.com/3d-models/fire-enginefire-truck-low-poly-game-asset-2f663c7477374d30af9f80c528fff55c',
     note: 'fire engine of the Macedonian maps - CC BY 4.0',
   },
