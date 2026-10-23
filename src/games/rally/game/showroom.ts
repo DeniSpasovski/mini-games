@@ -56,9 +56,9 @@ import {
  * Car screens (welcome, car select, setup): the car's screen shift (fraction of the width, + = right) - the same on all
  * of them, so the car doesn't move when the screen changes.
  */
-const CAR_SHIFT = 0.1;
-/** Orbit distance of the turntable car on every car screen (< 1: larger car, may run behind the spec card). */
-const CAR_DIST_SCALE = 0.9;
+const CAR_SHIFT = 0.07;
+/** Orbit distance of the turntable car on every car screen: leaves room for the spec card docked on the right. */
+const CAR_DIST_SCALE = 1.05;
 const CAR_ENV = { ...testMap.environment, fogDensity: 0.02, sunElevation: 24 };
 /** Map view: camera height angle over the stage (rad), ~36 deg. */
 const ORBIT_ELEVATION = Math.atan2(0.7, 0.95);

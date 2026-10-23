@@ -280,6 +280,22 @@ export async function loadStageRise(
   return top - stage[1];
 }
 
+/** URL of one season's card image (lazy chunk per map); null when that season was not baked. */
+export async function stageCardImageUrl(
+  mapId: string,
+  stageId: string,
+  season: Season,
+): Promise<string | null> {
+  try {
+    const jpg = await import(
+      `../maps/${mapId}/preview/${cardImageName(stageId, season)}.jpg`
+    );
+    return (jpg.default ?? jpg) as string;
+  } catch {
+    return null;
+  }
+}
+
 /** One season's image of a card; null when that season was not baked. */
 async function loadSeasonImage(
   mapId: string,

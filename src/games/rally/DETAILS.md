@@ -73,7 +73,7 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 **On a stage** (`game/stage.ts`):
 
 - **Hold:** a stopped car with no pedal pressed is held (HUD `HOLD`); throttle releases it.
-- **Sectors:** one bar segment per sector, amber while running, green / red against your best run.
+- **Sectors:** one bar segment per sector, amber while running, green / yellow against your best run (faster / slower).
 - **Cutting** (`StageTimer.updateCut`): up to `CUT_WARN` (20 m off the road edge) is allowed. Past it the HUD shows `OFF STAGE`
   and a grace timer runs; when it ends, or past `CUT_MAX`, or on a later part of the road, the car is put back where it left.
 - **Penalties:** manual reset +2 s (+10 s when flipped), forced reset +5 s. Knocked-over marker posts are free, chevron signs only slow the car a bit
@@ -86,6 +86,10 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
   current runs, dimmed, behind a divider; the bumped stage's / car's per-car bests move into the leaderboard as old runs. Times saved before per-stage / per-car versions show as `v0`. Each run also stores `season` + `hour`; runs without them show Summer and the stage's own time of day (`runConditions`). Stage road change = bump that stage (a map's road change bumps every stage on it); a car's
   handling change = bump that car; a shared physics change = bump every car. Livery / model fixes never bump. Agents bump
   them as part of the change (AGENTS.md).
+
+## UI style
+
+Tokens, type, shapes, components and rules: [STYLEGUIDE.md](STYLEGUIDE.md). Code: `game/ui-tokens.css`, `menu.css`, `hud.css`, `menu-icons.ts`; the stage plate is `stagePlateHtml` in `game/menu.ts`.
 
 ## Look (`engine/environment.ts`, `engine/world-shading.ts`)
 
@@ -253,7 +257,9 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   `LAKE_REACH` of the shore, `-LAKE_REACH` further inside (every user stops at `LAKE_SHELF`); test `lakes-index`.
 - **Railways:** OSM tracks as `rail` paths with a drivable ballast hump, rails and catenary (`world/railways.ts`, `rail-mesh.ts`).
 - **Buildings:** placeholder boxes with stable ids (`buildings.csv`, viewer `?building=N`) or mesh buildings from the real
-  footprints (`world/building-mesh.ts`).
+  footprints (`world/building-mesh.ts`). Box houses take wall / roof scans from one texture array (`engine/house-walls.ts`, UVs from the
+  instance scale in the shader; tiles in `engine/facades/`, `scripts/facades/bake.py`); on Galichica / Petralica the share of rubble-stone houses
+  grows with height (`buildingInstance`).
 - **Stage signs:** start / finish gantries and split boards from the stage's `timing`, along the stage road (`world/stage-signs.ts`).
 - **Terrain by hand:** `terrain.pads` level the land round a lot (along the road: `frontage` + `lift`) or a house on a slope (a terrace:
   `PadDef.level`); the road's carve wins near the road. `road.cutWalls.range` limits the sheer, walled cut to one stretch of the stage
@@ -364,13 +370,14 @@ surface x compound x tyre size / grade x set-up. Details and tuning workflow: [P
 **Setup screen** (`game/menu.ts` `setupSelect`, `game/setup-bench.ts`, `Showroom.renderBoxes`): optional; most players never
 open it.
 
-- Rows of boxes: **Tyres** (five: soft and hard tarmac, mixed, hard and soft gravel; on the car's own rim, grip chip per surface
-  of the stage; the boxes shrink to fit), **Suspension** (the car's coil-over,
-  travel, ride height, spring, rebound), **Gearing** (speed-per-gear chart, race cars only). `RECOMMENDED` marks the pick.
-- Click, or arrows + Enter, Esc / B back. Choices are not saved (they reset with the stage or car); the URL and the leaderboard
-  carry them.
-- Each box is a transparent DOM element; `renderBoxes` draws the showroom, then each part's studio camera into its box. Call
-  `showSetup(carId, boxes)` again after the menu re-renders. Styles: `game/menu.css` "setup screen".
+- The menu slab with one row per setting: **Tyres** (five: soft and hard tarmac, mixed, hard and soft gravel; grip pips per
+  surface of the stage), **Suspension** (travel, ride height, spring, rebound, the car's soft-stiff range), **Gearing** (top speed,
+  final drive, pull; race cars only, else "Standard"). `RECOMMENDED` marks the stage's pick.
+- ↑↓ / D-pad pick the row, ←→ or the row's arrows change it, Enter / A on the active row steps to the next option, Esc / B back.
+  Choices are not saved (they reset with the stage or car); the URL and the leaderboard carry them.
+- The part window top right shows the active row's pick: a transparent DOM element; `renderBoxes` draws the showroom, then the
+  part's studio camera (`setup-bench.ts`) into it; gearing shows its speed-per-gear chart there. Call `showSetup(carId, boxes)`
+  again after the menu re-renders. Styles: `game/menu.css` "Setup screen".
 - In game: no set-up HUD; a "hold on!" line at GO for a poor tyre pick; the dash shows the four tyre temperatures
   and a disc mark per wheel (PHYSICS.md "Tyre temperature" / "Brakes"); `F2` shows tyre, set-up, per-wheel grip, tyre and disc temperature.
 

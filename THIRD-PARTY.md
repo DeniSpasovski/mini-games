@@ -20,9 +20,15 @@ README files carry the same information in more detail. Keep this file current w
 
 3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party: its critters, arenas, effects and sounds are original and procedural.
 
-No fonts, sounds or music files are bundled: audio is synthesised with WebAudio and text uses system fonts. Most textures
+The only bundled font files are Gravel Rally's UI faces (below); sounds are synthesised with WebAudio and no music file is committed. Most textures
 are painted on canvases at runtime; the only texture files that ship are the car lamp, seat, fabric and cab textures (listed
 with their licences in `public/models/CREDITS.md`) and the truck textures (listed under "Parked trucks" below).
+
+## Fonts (Gravel Rally UI)
+
+| Font                                                                                                      | Licence                                        | Files                                  |
+| --------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | -------------------------------------- |
+| Barlow and Barlow Condensed (The Barlow Project Authors; woff2 latin + latin-ext subsets from Fontsource) | SIL Open Font License 1.1, `OFL.txt` alongside | `src/games/rally/assets/fonts/*.woff2` |
 
 ## Map data (baked into `src/games/rally/maps/<id>/`)
 
@@ -87,6 +93,10 @@ files are not in the repository).
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------- | --------- |
 | ["Fire engine/Fire truck low poly game asset"](https://sketchfab.com/3d-models/fire-enginefire-truck-low-poly-game-asset-2f663c7477374d30af9f80c528fff55c) | [FixedShark554](https://sketchfab.com/FixedShark554) (Sketchfab)                   | the Macedonian maps (`fire_truck_mk`) | CC BY 4.0 |
 | ["Fire Truck"](https://sketchfab.com/3d-models/fire-truck-4a0d8c5bfca643d2aaa9b113ff752c26)                                                                | amongus ([holedonutdriveout](https://sketchfab.com/holedonutdriveout)) (Sketchfab) | the USA map (`fire_truck`)            | CC BY 4.0 |
+
+### Building textures (baked into `src/games/rally/engine/facades/`)
+
+CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/facades/bake.py`: Painted Plaster Wall (Amal Kumar), Brick Wall 006 (Jan Burghardt), Red Brick (Rob Tuytel), Plaster Stone Wall 02 (Charlotte Baglioni), Concrete Wall 007 (Dario Barresi, Rico Cilliers, Charlotte Baglioni), Corrugated Iron 03 (Charlotte Baglioni), Concrete Slab Wall (Dimitrios Savva), Sandstone Blocks 05 (Rob Tuytel), White Planks Clean (Rob Tuytel), Clay Roof Tiles 03 (Amal Kumar). No credit is required.
 
 ### Parked trucks (baked into `src/games/rally/maps/ajvatovci/start-row/build/truck-models.data.ts`)
 
