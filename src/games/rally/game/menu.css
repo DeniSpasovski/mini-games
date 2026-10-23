@@ -844,12 +844,14 @@ html.touch .menu-btn.big kbd {
    The pause and results overlays sit outside .menu-root and share the same buttons. */
 [data-input='pad'] :is(.menu-root, .overlay) .menu-btn:focus,
 [data-input='pad'] :is(.menu-root, .overlay) .menu-card:focus,
-[data-input='pad'] :is(.menu-root, .overlay) .menu-seg button:focus {
+[data-input='pad'] :is(.menu-root, .overlay) .menu-seg button:focus,
+[data-input='pad'] .menu-root .setup-arrow:focus {
   outline: none;
 }
 [data-input='pad'] :is(.menu-root, .overlay) .menu-btn:focus::before,
 [data-input='pad'] :is(.menu-root, .overlay) .menu-card:focus::before,
-[data-input='pad'] :is(.menu-root, .overlay) .menu-seg button:focus::before {
+[data-input='pad'] :is(.menu-root, .overlay) .menu-seg button:focus::before,
+[data-input='pad'] .menu-root .setup-arrow:focus::before {
   border-left-color: var(--ui-accent);
   box-shadow: 0 0 0 2px var(--ui-text);
 }
@@ -1298,6 +1300,9 @@ html.touch .menu-btn.big kbd {
 .setup-arrow:focus-visible::before {
   background: var(--ui-raised-hover);
   border-left-color: var(--ui-accent);
+}
+.setup-arrow:focus-visible::before {
+  box-shadow: 0 0 0 2px var(--ui-text);
 }
 .setup-detail {
   display: flex;
