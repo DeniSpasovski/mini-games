@@ -471,7 +471,7 @@ body {
 .overlay.pause .menu-options {
   min-width: 0;
 }
-.overlay button:not(.menu-btn),
+.overlay button:not(.menu-btn, .menu-seg button),
 .overlay select,
 .overlay a.btn:not(.menu-btn) {
   font: inherit;
@@ -484,8 +484,8 @@ body {
   text-align: left;
   text-decoration: none;
 }
-.overlay button:not(.menu-btn):hover,
-.overlay button:not(.menu-btn):focus-visible,
+.overlay button:not(.menu-btn, .menu-seg button):hover,
+.overlay button:not(.menu-btn, .menu-seg button):focus-visible,
 .overlay a.btn:not(.menu-btn):hover {
   border-color: var(--ui-accent);
 }
