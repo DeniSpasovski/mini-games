@@ -515,6 +515,7 @@ export class RallyGame {
         ? [TEST_NOTE]
         : [],
     );
+    this.hud.setFreeDrive(this.freeDrive);
     this.telemetry = new Telemetry(this.container);
     this.stage = new StageTimer(
       this.world,

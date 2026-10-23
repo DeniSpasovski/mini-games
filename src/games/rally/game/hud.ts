@@ -188,6 +188,11 @@ export class Hud {
     });
   }
 
+  /** Free drive has no clock and no stage progress: hide the centre timer and the sector bar. */
+  setFreeDrive(on: boolean): void {
+    this.el.classList.toggle('free', on);
+  }
+
   setDistance(text: string): void {
     this.set('dist', text);
   }
