@@ -64,6 +64,17 @@
         "material": "body"
       },
       {
+        "$comment": "the flat lid the model lays over the cabin at sill height (it hid the seats' lower half and read as a line through the windows)",
+        "mat": "Fiat_126P_Shadow",
+        "x": [-0.7, 0.7],
+        "y": [0.66, 0.74],
+        "z": [-1.3, 0.6],
+        "facing": {
+          "|y|": [0.95, 1]
+        },
+        "material": "drop"
+      },
+      {
         "mat": "Fiat_126P_Shadow",
         "material": "interiorgrey:2s"
       },
@@ -240,6 +251,94 @@
           [0.3428, -0.8139]
         ],
         "w": [-0.64, -0.628]
+      },
+      {
+        "$comment": "driver seat cushion (ours): the model only has the backrests, hovering over a flat lid that is dropped",
+        "material": "interiorgrey:2s",
+        "poly": [
+          [0.07, 0.5],
+          [0.37, 0.5],
+          [0.37, 0.68],
+          [0.07, 0.68]
+        ],
+        "w": [-0.08, 0.4],
+        "bevel": 0.03
+      },
+      {
+        "$comment": "driver seat frame",
+        "material": "trim",
+        "poly": [
+          [0.11000000000000001, 0.18],
+          [0.33, 0.18],
+          [0.33, 0.5],
+          [0.11000000000000001, 0.5]
+        ],
+        "w": [0.0, 0.3]
+      },
+      {
+        "$comment": "passenger seat cushion (ours): the model only has the backrests, hovering over a flat lid that is dropped",
+        "material": "interiorgrey:2s",
+        "poly": [
+          [-0.37, 0.5],
+          [-0.07, 0.5],
+          [-0.07, 0.68],
+          [-0.37, 0.68]
+        ],
+        "w": [-0.08, 0.4],
+        "bevel": 0.03
+      },
+      {
+        "$comment": "passenger seat frame",
+        "material": "trim",
+        "poly": [
+          [-0.33, 0.18],
+          [-0.11000000000000001, 0.18],
+          [-0.11000000000000001, 0.5],
+          [-0.33, 0.5]
+        ],
+        "w": [0.0, 0.3]
+      }
+    ],
+    "fills": [
+      {
+        "$comment": "door card (ours): the model's doors have no inner skin, so from inside you saw through them",
+        "material": "interiorgrey:2s",
+        "poly": [
+          [0.565, 0.12, -0.65],
+          [0.565, 0.12, 0.66],
+          [0.565, 0.8, 0.66],
+          [0.565, 0.8, -0.65]
+        ]
+      },
+      {
+        "$comment": "door card, right side",
+        "material": "interiorgrey:2s",
+        "poly": [
+          [-0.565, 0.12, -0.65],
+          [-0.565, 0.12, 0.66],
+          [-0.565, 0.8, 0.66],
+          [-0.565, 0.8, -0.65]
+        ]
+      },
+      {
+        "$comment": "front bulkhead (ours): the footwell was open to the front boot and the road",
+        "material": "interiorgrey:2s",
+        "poly": [
+          [-0.565, 0.12, 0.66],
+          [0.565, 0.12, 0.66],
+          [0.565, 0.7, 0.66],
+          [-0.565, 0.7, 0.66]
+        ]
+      },
+      {
+        "$comment": "rear bulkhead (ours): under the parcel shelf the cabin was open to the engine bay and the road",
+        "material": "interiorgrey:2s",
+        "poly": [
+          [-0.5, 0.12, -1.0],
+          [0.5, 0.12, -1.0],
+          [0.5, 0.9, -1.0],
+          [-0.5, 0.9, -1.0]
+        ]
       }
     ]
   },
