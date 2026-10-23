@@ -17,8 +17,11 @@ No central registry needs editing.
      "id": "<id>",
      "title": "My Game",
      "version": "0.1.0",
-     "description": "One or two sentences for the portal card.",
-     "tags": ["three.js"],
+     "description": "One short sentence for the portal cover.",
+     "genre": "Arcade",
+     "inputs": "keyboard, touch",
+     "accent": "#4fc27a",
+     "onAccent": "#0b1a10",
      "pages": [
        {
          "id": "play",
@@ -37,7 +40,8 @@ No central registry needs editing.
    }
    ```
    - `play` is served at `/games/<id>/`; other pages at `/games/<id>/<page-id>.html`.
-   - `dev: true` pages show as tool buttons on the portal card.
+   - `dev: true` pages show as text links under the card's "Tools" toggle.
+   - `accent` / `onAccent` colour the game's cover (Play, hover outline): 6:1 against `#101216`, 4.5:1 for the text on the accent. Rules: `src/portal/STYLEGUIDE.md`.
    - Links must be relative (the build may be hosted in a sub-folder): portal = `../../`, sibling page = `<page-id>.html`, main page = `./`. Never use a leading `/`.
    - The game builds into its own self-contained `dist/games/<id>/` (own Rsbuild environment, picked up automatically). Load runtime files relative to the page (`new URL('models/x.glb', location.href)`) or import them, never from the portal root; a game-only file in the root `public/` needs a `gamePublicFiles` entry in `rsbuild.config.ts`.
    - The play page's main menu (and pause / results screens) must offer an **All games** button when `portalUrl()` (`src/shared/portal-link.ts`) is not null - installed as a PWA there is no browser back button.
@@ -48,6 +52,7 @@ No central registry needs editing.
 4. Portal screenshot: in the play page call
    `installThumbnailCapture('<id>', () => { renderer.render(scene, camera); return renderer.domElement; })`,
    run `npm run dev`, open the game, press **F9** -> writes `src/games/<id>/thumbnail.jpg`.
+   - Title face: a `wordmark.svg` next to `thumbnail.jpg` (`scripts/portal/wordmarks.py <font.woff2> "Title" src/games/<id>/wordmark.svg`); without one the cover shows the plain title.
    - Audio: the game's audio class (WebAudio / `Audio`) must start silent when `isMutedByUrl()` (`src/shared/mute-param.ts`, `?mute=1`) is true. **When you open the game in the browser pane to test, always add `mute=1` to the URL** - no sound while creating / editing, unless the task is a sound fix (then no param, low volume).
 5. Add the game to `GAME_LIST` in `src/portal/release.ts` (card order). Work in progress? Give it `hideInProd: true` there: the release build gives the game no portal card but still builds it, so people with the link (`games/<id>/`) can play it. The dev server and `build:test` list it. Remove the flag to release.
 6. Restart `npm run dev` after adding a new game folder / page (entries are read at startup).

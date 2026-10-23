@@ -2,8 +2,11 @@
   "id": "kaboom",
   "title": "3, 2, 1 Kabooom",
   "version": "0.3.5",
-  "description": "Chubby animal demolition workers on a floating clay diorama: light the fuse, blast the crates and be the last critter standing.",
-  "tags": ["three.js", "arena", "bots"],
+  "description": "Animal demolition crew on a clay diorama. Light the fuse, outlast the bots.",
+  "genre": "Arena",
+  "inputs": "vs bots",
+  "accent": "#ff6b4a",
+  "onAccent": "#2a1a10",
   "pages": [
     {
       "id": "play",

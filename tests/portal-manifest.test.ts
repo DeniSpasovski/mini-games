@@ -21,6 +21,20 @@ const gameIds = fs
   )
   .map((d) => d.name);
 
+/** WCAG contrast ratio of two #rrggbb colours. */
+function contrast(a: string, b: string): number {
+  const lum = (hex: string) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => {
+      const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+const SHELF = '#101216'; // --pt-shelf, src/portal/ui-tokens.css
+
 const readManifest = (id: string) =>
   JSON.parse(
     fs.readFileSync(path.join(gamesDir, id, 'game.json'), 'utf8'),
@@ -100,6 +114,14 @@ for (const id of gameIds) {
       expect(p.title).toBeTruthy();
       expect(p.label).toBeTruthy();
       expect(fs.existsSync(path.join(gamesDir, id, p.entry))).toBe(true);
+    }
+    // Cover colours (src/portal/STYLEGUIDE.md): both or none, the accent readable on the shelf, the text on the accent.
+    expect(!!m.accent).toBe(!!m.onAccent);
+    if (m.accent && m.onAccent) {
+      expect(m.accent).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(m.onAccent).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(contrast(m.accent, SHELF)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(m.onAccent, m.accent)).toBeGreaterThanOrEqual(4.5);
     }
     // Play is the main page; it must not be a hidden dev tool.
     const play = m.pages.find((p) => p.id === 'play')!;
