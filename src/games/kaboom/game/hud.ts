@@ -9,10 +9,14 @@ import {
 } from '../sim/rules';
 import type { KaboomSim } from '../sim/types';
 import { el, fmtTime, title } from './dom';
-import { bundleIcon, stickIcon } from './icons';
+import { bundleIcon, pauseIcon, starIcon, stickIcon } from './icons';
 
 /** Blast levels as players see them: range 2 = level 1 ... (levels 4 and 5 turn corners). */
 const MAX_BLAST_LEVEL = MAX_POWER_LEVEL + 1;
+/** The logo's balls: 3 red, 2 blue, 1 green (team colours 0-2). */
+const ballColor = (n: number): string =>
+  `#${TEAM_COLORS[3 - n].toString(16).padStart(6, '0')}`;
+
 const CORNER_LEVEL = CORNER_FROM_RANGE - START_RANGE + 1;
 
 /**
@@ -31,7 +35,8 @@ export class Hud {
   private readonly banner = el('div', 'kb-banner');
   private readonly sub = el('div', 'kb-sub');
   private readonly hint = el('div', 'kb-hint');
-  private chipEls: { root: HTMLElement; wins: HTMLElement }[] = [];
+  private chipEls: { root: HTMLElement; wins: HTMLElement; name: string }[] =
+    [];
   private last = {
     timer: '',
     round: '',
@@ -48,10 +53,11 @@ export class Hud {
     onPause: () => void,
     private readonly portrait: PortraitFn,
   ) {
-    const pause = el('button', 'kb-pause', 'II', {
+    const pause = el('button', 'kb-btn round kb-pause', '', {
       type: 'button',
       'aria-label': 'Pause',
     });
+    pause.innerHTML = pauseIcon();
     pause.addEventListener('click', onPause);
     const top = el('div', 'kb-topcenter');
     top.append(this.timer, this.round);
@@ -93,9 +99,10 @@ export class Hud {
       const wins = el('div', 'kb-chip-wins');
       root.append(img, wins);
       if (p.id === 0) root.classList.add('you');
-      root.title = p.id === 0 ? `${title(p.critter)} (you)` : title(p.critter);
+      const name = p.id === 0 ? `${title(p.critter)} (you)` : title(p.critter);
+      root.title = name;
       this.chips.append(root);
-      return { root, wins };
+      return { root, wins, name };
     });
     this.last.chips = '';
   }
@@ -150,8 +157,14 @@ export class Hud {
       sim.players.forEach((p, i) => {
         const c = this.chipEls[i];
         if (!c) return;
-        c.root.classList.toggle('out', p.state === 'ko');
-        c.wins.textContent = p.wins > 0 ? '★'.repeat(Math.min(5, p.wins)) : '';
+        const out = p.state === 'ko';
+        c.root.classList.toggle('out', out);
+        c.root.title = out ? `${c.name}, out` : c.name;
+        c.wins.innerHTML = starIcon(true, 11).repeat(Math.min(5, p.wins));
+        c.wins.setAttribute(
+          'aria-label',
+          p.wins > 0 ? `${p.wins} round wins` : '',
+        );
       });
     }
     if (this.hintUntil && performance.now() > this.hintUntil) {
@@ -169,8 +182,13 @@ export class Hud {
     const key = `${kind}|${text}`;
     if (key !== this.last.banner) {
       this.last.banner = key;
-      this.banner.textContent = text;
-      this.banner.className = `kb-banner ${kind}${text ? ' show' : ''}`;
+      const t = el('span', 'kb-banner-t', text);
+      // the 3, 2, 1 count is a clay ball in a team colour of the logo
+      const count = /^[1-3]$/.test(text);
+      if (count)
+        this.banner.style.setProperty('--ball', ballColor(Number(text)));
+      this.banner.replaceChildren(t);
+      this.banner.className = `kb-banner ${kind}${count ? ' ball' : ''}${text ? ' show' : ''}`;
       // restart the pop animation for a new text
       void this.banner.offsetWidth;
     }

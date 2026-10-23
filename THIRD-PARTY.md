@@ -18,19 +18,20 @@ README files carry the same information in more detail. Keep this file current w
 | [three.js](https://threejs.org/)                                                | MIT              | rendering (runtime)               |
 | Rsbuild, Rspack, Rstest, Rslint, TypeScript, Prettier, happy-dom, meshoptimizer | MIT / Apache-2.0 | build and test tooling (dev only) |
 
-3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party: its critters, arenas, effects and sounds are original and procedural.
+3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party except its UI fonts (below): its critters, arenas, effects and sounds are original and procedural.
 
-The only bundled font files are the UI faces of Gravel Rally and Hole Island and the portal's (below); sounds are synthesised with WebAudio and no music file is committed. Most textures
+The only bundled font files are the UI faces of Gravel Rally, Hole Island and 3, 2, 1 Kabooom and the portal's (below); sounds are synthesised with WebAudio and no music file is committed. Most textures
 are painted on canvases at runtime; the only texture files that ship are the car lamp, seat, fabric and cab textures (listed
 with their licences in `public/models/CREDITS.md`) and the truck textures (listed under "Parked trucks" below).
 
 ## Fonts (game UIs)
 
-| Font                                                                                                                           | Licence                                        | Files                                  |
-| ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- | -------------------------------------- |
-| Barlow and Barlow Condensed (The Barlow Project Authors; woff2 latin + latin-ext subsets from Fontsource)                      | SIL Open Font License 1.1, `OFL.txt` alongside | `src/games/rally/assets/fonts/*.woff2` |
-| Fredoka (The Fredoka Project Authors) and Nunito (The Nunito Project Authors); woff2 latin + latin-ext subsets from Fontsource | SIL Open Font License 1.1, `OFL.txt` alongside | `src/games/hole/assets/fonts/*.woff2`  |
-| Atkinson Hyperlegible (Braille Institute of America) and IBM Plex Mono (IBM Corp.); woff2 latin subsets from Fontsource        | SIL Open Font License 1.1, `OFL.txt` alongside | `src/portal/fonts/*.woff2`             |
+| Font                                                                                                                                     | Licence                                        | Files                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | --------------------------------------- |
+| Barlow and Barlow Condensed (The Barlow Project Authors; woff2 latin + latin-ext subsets from Fontsource)                                | SIL Open Font License 1.1, `OFL.txt` alongside | `src/games/rally/assets/fonts/*.woff2`  |
+| Fredoka (The Fredoka Project Authors) and Nunito (The Nunito Project Authors); woff2 latin + latin-ext subsets from Fontsource           | SIL Open Font License 1.1, `OFL.txt` alongside | `src/games/hole/assets/fonts/*.woff2`   |
+| Grandstander (The Grandstander Project Authors) and Nunito (The Nunito Project Authors); woff2 latin + latin-ext subsets from Fontsource | SIL Open Font License 1.1, `OFL.txt` alongside | `src/games/kaboom/assets/fonts/*.woff2` |
+| Atkinson Hyperlegible (Braille Institute of America) and IBM Plex Mono (IBM Corp.); woff2 latin subsets from Fontsource                  | SIL Open Font License 1.1, `OFL.txt` alongside | `src/portal/fonts/*.woff2`              |
 
 The portal and game-cover `wordmark.svg` files are title text outlined from Archivo, Barlow Condensed, Fredoka and Grandstander (all SIL OFL 1.1, which allows this); the files hold only paths.
 

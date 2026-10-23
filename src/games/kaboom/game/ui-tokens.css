@@ -1,0 +1,144 @@
+/* UI tokens + fonts for menu, HUD and overlays (the "Claymation" look): kaboom.css uses var(--kb-*) only, so a change of look starts here.
+   Values and rules: ../STYLEGUIDE.md */
+
+/* Grandstander + Nunito (SIL OFL 1.1, assets/fonts/OFL.txt), self-hosted: latin + latin-ext subsets. */
+@font-face {
+  font-family: 'Grandstander';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('../assets/fonts/grandstander-latin-800-normal.woff2')
+    format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Grandstander';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('../assets/fonts/grandstander-latin-ext-800-normal.woff2')
+    format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../assets/fonts/nunito-latin-700-normal.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../assets/fonts/nunito-latin-ext-700-normal.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('../assets/fonts/nunito-latin-800-normal.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('../assets/fonts/nunito-latin-ext-800-normal.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  /* clay: text and outlines (ink), cards, buttons */
+  --kb-ink: #3b2418;
+  --kb-ink-2: #6e5240;
+  --kb-card: #f3e2c4;
+  --kb-card-edge: #d9c29c;
+  --kb-btn: #f8ecd6;
+  --kb-btn-off: #e2cfac;
+  --kb-accent: #f6c23e;
+  --kb-on-accent: var(--kb-ink);
+  --kb-you: #ffe1b5;
+  --kb-win: #17663a;
+  --kb-lose: #b42318;
+  --kb-star: var(--kb-accent);
+  --kb-tnt: #d8362f;
+  --kb-cream: #fff6e6;
+
+  /* logo and headline letters only (always ink-outlined) */
+  --kb-clay-1: #e8553d;
+  --kb-clay-2: #f6c23e;
+  --kb-clay-3: #4b8fe0;
+  --kb-clay-4: #6cc070;
+  --kb-clay-5: #9a66d2;
+
+  --kb-sudden: #ff5a3a;
+  --kb-sudden-2: #ffd23f;
+  --kb-page: #bfdcea;
+  --kb-banner-go: #7dff9c;
+  --kb-banner-win: #ffd23f;
+  --kb-banner-lose: #ff8a80;
+  --kb-banner-warn: #ff6a3a;
+
+  /* shape and finish */
+  --kb-outline: 3px;
+  --kb-radius: 14px;
+  --kb-edge: 5px;
+  --kb-highlight:
+    inset 0 2px 0 rgb(255 255 255 / 0.6), inset 0 -3px 0 rgb(59 36 24 / 0.12);
+  --kb-gloss: linear-gradient(
+    rgb(255 255 255 / 0.42),
+    rgb(255 255 255 / 0) 48%
+  );
+  --kb-sheen: radial-gradient(
+    ellipse at 30% 20%,
+    rgb(255 255 255 / 0.55),
+    transparent 45%
+  );
+  --kb-thumb: repeating-radial-gradient(
+    ellipse at 72% 28%,
+    rgb(59 36 24 / 0.045) 0 2px,
+    transparent 2px 6px
+  );
+  --kb-shine: rgb(255 255 255 / 0.5);
+  --kb-shade: rgb(59 36 24 / 0.18);
+  --kb-spring: 120ms cubic-bezier(0.3, 1.6, 0.5, 1);
+  --kb-drop: rgb(0 0 0 / 0.3);
+  --kb-dim-1: rgb(59 36 24 / 0);
+  --kb-dim-2: rgb(59 36 24 / 0.5);
+  --kb-veil: rgb(243 226 196 / 0.94);
+  --kb-ring-1: rgb(255 255 255 / 0.7);
+  --kb-ring-2: rgb(255 255 255 / 0.85);
+
+  --kb-font:
+    'Nunito', 'Trebuchet MS', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --kb-display: 'Grandstander', 'Nunito', 'Arial Black', sans-serif;
+
+  --kb-top: env(safe-area-inset-top, 0px);
+  --kb-right: env(safe-area-inset-right, 0px);
+  --kb-bottom: env(safe-area-inset-bottom, 0px);
+  --kb-left: env(safe-area-inset-left, 0px);
+}

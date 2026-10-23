@@ -1,6 +1,7 @@
 import {
   AmbientLight,
   Color,
+  type Camera,
   DirectionalLight,
   Group,
   HemisphereLight,
@@ -15,7 +16,9 @@ import {
   Scene,
   ShaderMaterial,
   SRGBColorSpace,
+  Vector2,
   Vector3,
+  Vector4,
   WebGLRenderTarget,
   type WebGLRenderer,
 } from 'three';
@@ -23,6 +26,7 @@ import { hash3, Rng } from '../../../shared/rng';
 import { CRITTERS, type PlayerView } from '../sim/types';
 import { treadHeight, treadMidD, TIERS, warpedRing } from './bowl';
 import type { CrowdLayout } from './themes/theme';
+import { boardMask } from './card-stunt';
 
 /** The rocky bowl's seating (Quarry, Green Valley): warped rings, swelling terraces. */
 const BOWL_LAYOUT: CrowdLayout = { ring: warpedRing, height: treadHeight };
@@ -70,6 +74,13 @@ const SHOULDER_Y = 0.6;
 /** The flag layer is drawn this far towards the camera so it never sinks into its fan's sprite. */
 const FLAG_LIFT = 0.25;
 
+/** The card display: a lattice of cards over the far stand in screen space; card size relative to its cell, the seconds a card takes to rise and the ripple across the stand. */
+const CARD_FILL = 0.88;
+const CARD_RISE_S = 0.35;
+const CARD_RIPPLE_S = 0.6;
+/** Most cards a board has (9 rows by up to 60 columns). */
+const CARD_MAX = 9 * 60;
+
 const tileIndex = (species: number, facing: number, color: number): number =>
   (species * FACINGS + facing) * COLORS + color;
 
@@ -113,6 +124,22 @@ export class Crowd {
   private readonly flagColor: InstancedBufferAttribute;
   private readonly flagMaterial: ShaderMaterial;
   private readonly holders: number[] = [];
+  /** The far stand's fans (facing the camera): each holds one card in a stunt. */
+  private readonly cardFans: number[] = [];
+  private readonly cards: InstancedMesh;
+  private readonly cardMaterial: ShaderMaterial;
+  private readonly cardCell: InstancedBufferAttribute;
+  private readonly cardColor: InstancedBufferAttribute;
+  private readonly cardLit: InstancedBufferAttribute;
+  private stunt: {
+    text: string | null;
+    color: number;
+    color2: number | null;
+    camera: Camera;
+    still: boolean;
+    until: number;
+  } | null = null;
+  private clock = 0;
   private readonly tilePx: number;
   private readonly cols: number;
   private atlas: WebGLRenderTarget | null = null;
@@ -243,6 +270,33 @@ export class Crowd {
     this.flags.frustumCulled = false;
     this.flags.visible = false;
     this.group.add(this.flags);
+
+    this.spectators.forEach((sp, k) => {
+      if (sp.facing === 0) this.cardFans.push(k);
+    });
+    const cardGeo = new PlaneGeometry(1, 1);
+    this.cardCell = new InstancedBufferAttribute(
+      new Float32Array(CARD_MAX * 2),
+      2,
+    );
+    this.cardColor = new InstancedBufferAttribute(
+      new Float32Array(CARD_MAX * 3),
+      3,
+    );
+    this.cardLit = new InstancedBufferAttribute(
+      new Float32Array(CARD_MAX * 2),
+      2,
+    );
+    cardGeo.setAttribute('aCell', this.cardCell);
+    cardGeo.setAttribute('aColor', this.cardColor);
+    cardGeo.setAttribute('aLit', this.cardLit);
+    this.cardMaterial = this.makeCardMaterial();
+    this.cards = new InstancedMesh(cardGeo, this.cardMaterial, CARD_MAX);
+    this.cards.count = 0;
+    this.cards.frustumCulled = false;
+    this.cards.renderOrder = 10;
+    this.cards.visible = false; // until a stunt
+    this.group.add(this.cards);
     this.place(0, 0);
   }
 
@@ -346,13 +400,179 @@ export class Crowd {
     });
   }
 
+  /**
+   * The card display: a lattice of cards laid over the far stand in screen space (one InstancedMesh, one draw call, no depth
+   * test), each card cream or the stunt colour with an ink edge, popping up in a ripple. The lattice cell of card `i` comes
+   * in `aCell`; the board's place on screen (NDC) in `uBoard`.
+   */
+  private makeCardMaterial(): ShaderMaterial {
+    return new ShaderMaterial({
+      uniforms: {
+        uT: { value: 0 },
+        uRise: { value: 1 },
+        uBoard: { value: new Vector4(-1, 1, 2, -2) },
+        uGrid: { value: new Vector2(1, 1) },
+        uInk: { value: new Color(0x3b2418) },
+        uCream: { value: new Color(0xf8ecd6) },
+      },
+      depthTest: false,
+      depthWrite: false,
+      transparent: true,
+      vertexShader: /* glsl */ `
+        attribute vec2 aCell;
+        attribute vec3 aColor;
+        attribute vec2 aLit;
+        uniform float uT;
+        uniform float uRise;
+        uniform vec4 uBoard;
+        uniform vec2 uGrid;
+        varying vec2 vUv;
+        varying vec3 vColor;
+        varying float vLit;
+        varying float vP;
+        void main() {
+          vUv = uv;
+          vColor = aColor;
+          vLit = aLit.x;
+          float p = uRise > 0.5 ? clamp( ( uT - aLit.y ) / ${CARD_RISE_S.toFixed(2)}, 0.0, 1.0 ) : 1.0;
+          vP = p;
+          // pop up with a little overshoot
+          float k = p - 1.0;
+          float pop = p >= 1.0 ? 1.0 : 1.0 + 2.5 * k * k * k + 1.5 * k * k;
+          vec2 size = abs( uBoard.zw ) / uGrid;
+          vec2 centre = uBoard.xy + ( aCell + 0.5 ) * uBoard.zw / uGrid;
+          vec2 pos = centre + position.xy * size * ${CARD_FILL.toFixed(2)} * max( pop, 0.0 );
+          gl_Position = vec4( pos, 0.0, 1.0 );
+        }`,
+      fragmentShader: /* glsl */ `
+        uniform vec3 uInk;
+        uniform vec3 uCream;
+        varying vec2 vUv;
+        varying vec3 vColor;
+        varying float vLit;
+        varying float vP;
+        void main() {
+          if ( vP <= 0.001 ) discard;
+          float e = min( min( vUv.x, 1.0 - vUv.x ), min( vUv.y, 1.0 - vUv.y ) );
+          vec3 col = e < 0.12 ? uInk : ( vLit > 0.5 ? vColor : uCream );
+          gl_FragColor = vec4( col, 1.0 );
+          #include <colorspace_fragment>
+        }`,
+    });
+  }
+
+  /**
+   * Stunt: the fans of the far stand hold up a card display: cards in a lattice over the stand, lit ones in team colour
+   * `color` spelling `text`, or all lit when `text` is null (a round win: a wave of colour, in two colours when `color2` is
+   * given). The cards pop up in a ripple from left to right unless `still`; with `seconds` they go down again, otherwise they
+   * stay until `endStunt`. Needs the final camera (call it after the view is fitted).
+   */
+  cardStunt(
+    text: string | null,
+    color: number,
+    opts: {
+      camera: Camera;
+      color2?: number;
+      still?: boolean;
+      seconds?: number;
+    },
+  ): string {
+    this.stunt = {
+      text,
+      color,
+      color2: opts.color2 ?? null,
+      camera: opts.camera,
+      still: !!opts.still,
+      until: opts.seconds === undefined ? Infinity : this.clock + opts.seconds,
+    };
+    return this.layCards();
+  }
+
+  /** The cards go down (the next match builds a new crowd anyway; this is for a card closing while the view stays). */
+  endStunt(): void {
+    this.stunt = null;
+    this.cards.visible = false;
+  }
+
+  /** The text on the cards now ('' = no stunt or a wave). */
+  get stuntText(): string {
+    return this.stunt?.text ?? '';
+  }
+
+  /** A running stunt, laid over the stand again for the camera as it is now (the window was resized). */
+  refreshStunt(): void {
+    if (this.stunt) this.layCards();
+  }
+
+  private readonly cardTmp = new Vector3();
+
+  /** Where the far stand is on screen (NDC), and the cards that fill it. */
+  private layCards(): string {
+    const st = this.stunt!;
+    const cam = st.camera;
+    cam.updateMatrixWorld();
+    const t = this.cardTmp;
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    let y0 = Infinity;
+    let y1 = -Infinity;
+    for (const k of this.cardFans) {
+      const sp = this.spectators[k];
+      t.set(sp.x, sp.y + 1.0 * sp.scale, sp.z).project(cam);
+      x0 = Math.min(x0, t.x);
+      x1 = Math.max(x1, t.x);
+      y0 = Math.min(y0, t.y);
+      y1 = Math.max(y1, t.y);
+    }
+    if (!isFinite(x0)) {
+      this.cards.visible = false;
+      return '';
+    }
+    // a little more than the fans' heads: the cards cover the stand
+    const pad = 0.04;
+    x0 -= pad;
+    x1 += pad;
+    y0 -= pad;
+    y1 += pad * 1.5;
+    const board = boardMask(st.text);
+    const { cols, rows } = board;
+    const n = cols * rows;
+    const c1 = new Color().setHex(TEAM_COLORS[st.color % COLORS]);
+    const c2 = new Color().setHex(
+      TEAM_COLORS[(st.color2 ?? st.color) % COLORS],
+    );
+    for (let i = 0; i < n; i++) {
+      const col = i % cols;
+      const row = (i - col) / cols;
+      this.cardCell.setXY(i, col, rows - 1 - row);
+      const c = st.color2 !== null && Math.floor(col / 3) % 2 === 1 ? c2 : c1;
+      this.cardColor.setXYZ(i, c.r, c.g, c.b);
+      // the ripple runs left to right across the board
+      this.cardLit.setXY(
+        i,
+        board.lit[i],
+        this.clock + (st.still ? 0 : (col / cols) * CARD_RIPPLE_S),
+      );
+    }
+    this.cardCell.needsUpdate = true;
+    this.cardColor.needsUpdate = true;
+    this.cardLit.needsUpdate = true;
+    const u = this.cardMaterial.uniforms;
+    u.uBoard.value.set(x0, y0, x1 - x0, y1 - y0);
+    u.uGrid.value.set(cols, rows);
+    u.uRise.value = st.still ? 0 : 1;
+    this.cards.count = n;
+    this.cards.visible = true;
+    return board.text;
+  }
+
   get count(): number {
     return this.spectators.length;
   }
 
   /** Draw calls for the whole crowd. */
   get drawCalls(): number {
-    return 2; // the sprites + the flags
+    return 3; // the sprites, the flags and the stunt cards (hidden until a stunt)
   }
 
   /**
@@ -527,7 +747,10 @@ export class Crowd {
   }
 
   update(t: number, dt: number): void {
+    this.clock = t;
     this.flagMaterial.uniforms.uTime.value = t;
+    this.cardMaterial.uniforms.uT.value = t;
+    if (this.stunt && t > this.stunt.until) this.endStunt();
     if (this.excitement <= 0.01) this.excitement = 0;
     else this.excitement *= Math.exp(-dt * 1.6);
     this.place(t, this.excitement);
@@ -587,6 +810,9 @@ export class Crowd {
     this.flags.geometry.dispose();
     this.flags.dispose();
     this.flagMaterial.dispose();
+    this.cards.geometry.dispose();
+    this.cards.dispose();
+    this.cardMaterial.dispose();
     this.atlas?.dispose();
     this.crews?.forEach(({ crew }) => crew.dispose());
   }

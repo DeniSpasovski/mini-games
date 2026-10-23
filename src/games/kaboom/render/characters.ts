@@ -115,6 +115,17 @@ const hex6 = (c: number): number => TEAM_COLORS[c % TEAM_COLORS.length];
 /** Centre height of the torso the shared vest geometry is built round (`vestGeometry`). */
 const VEST_CY = 0.36;
 
+/** A critter standing on the results podium: where (world), and whether it hops (the winner). */
+export interface PodiumSpot {
+  id: number;
+  x: number;
+  y: number;
+  z: number;
+  hop: boolean;
+}
+/** Seconds of the winner's hop loop. */
+const HOP_S = 1.1;
+
 /** Per-player animation state. */
 interface Vis {
   phase: number;
@@ -225,6 +236,8 @@ export class Crew {
   private readonly geos: BufferGeometry[] = [];
   private readonly rng = new Rng(8);
   private clock = 0;
+  /** Critters on the results podium (by slot); the caller moves their `y` as the steps rise. */
+  private readonly podium: (PodiumSpot | null)[] = [];
   /** The human's slot: a bobbing arrow over their head (-1 = none). */
   private youId = -1;
   private readonly arrow: Mesh;
@@ -363,6 +376,27 @@ export class Crew {
     if (id >= 0 && id < this.vis.length)
       this.arrowMat.color.setHex(hex6(this.players[id].color));
     else this.arrow.visible = false;
+  }
+
+  /**
+   * Stand these critters on the results podium, facing the camera and clean (a knocked-out one comes back); the winner hops.
+   * The spots stay live: change their `y` each frame as the steps rise. `null` sends everyone back to the sim.
+   */
+  setPodium(spots: PodiumSpot[] | null): void {
+    this.podium.length = 0;
+    for (const s of spots ?? []) {
+      this.podium[s.id] = s;
+      const v = this.vis[s.id];
+      if (!v) continue;
+      v.ko = -1;
+      v.cheer = -1;
+      v.fly = -1;
+      v.drop = -1;
+      v.out = false;
+      v.place = 9;
+      this.mats[s.id].color.setHex(0xffffff);
+      this.furMats[s.id].color.setHex(0xffffff);
+    }
   }
 
   /** Back to the start of a round: everyone upright, clean and not cheering. */
@@ -551,6 +585,25 @@ export class Crew {
         this.stepHat(v, dt);
       }
 
+      const spot = this.podium[i];
+      if (spot) {
+        // on the podium: facing the camera, still (the winner hops in a loop)
+        x = spot.x;
+        z = spot.z;
+        y = spot.y;
+        yaw = 0;
+        roll = 0;
+        pitch = 0;
+        visible = 1;
+        v.walk = 0;
+        if (spot.hop) {
+          const hop = Math.sin(((this.clock % HOP_S) / HOP_S) * Math.PI);
+          y += 0.3 * hop;
+          sy = 0.9 + 0.16 * hop;
+          sx = sz = 1.08 - 0.13 * hop;
+        }
+      }
+
       o.position.set(x, y, z);
       o.rotation.set(pitch, yaw, roll, 'YXZ');
       const k = visible * CRITTER_SCALE;
@@ -611,6 +664,7 @@ export class Crew {
     // the arrow over the human's hat
     const you = this.youId;
     const showArrow =
+      this.podium.length === 0 &&
       you >= 0 &&
       you < this.vis.length &&
       this.vis[you].ko < 0 &&
