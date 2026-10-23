@@ -5,6 +5,7 @@ import {
   Mesh,
   type Vector3,
 } from 'three';
+import { farShadowCaster } from './far-shadow';
 import { CHUNK_CELLS } from './heightfield';
 import type { TerrainGenerator } from './terrain-gen';
 import {
@@ -79,6 +80,8 @@ export interface TerrainOptions {
   viewDistance: number;
   /** Distance thresholds between LODs (m). */
   lodDistances?: [number, number, number];
+  /** Tiles cast sun shadows (both shadow maps: `farShadowCaster`). */
+  castShadow?: boolean;
 }
 
 export class TerrainRenderer {
@@ -459,6 +462,10 @@ export class TerrainRenderer {
     const mesh = new Mesh(geometry, getTerrainMaterial(w.lod > 0));
     mesh.position.set(w.cx * this.cs, 0, w.cz * this.cs);
     mesh.receiveShadow = true;
+    if (this.opts.castShadow) {
+      mesh.castShadow = true;
+      farShadowCaster(mesh);
+    }
     mesh.matrixAutoUpdate = false;
     mesh.updateMatrix();
     mesh.name = `terrain ${w.cx},${w.cz}${w.span > 1 ? ` x${w.span}` : ''}`;

@@ -12,6 +12,7 @@ import { hash3 } from '../../../shared/rng';
 import { layeredMaterial, textureArray } from '../engine/texture-array';
 import { facadePhotosReady, type FacadeId } from '../engine/facade-textures';
 import type { BuildingDef } from '../maps/shared/types';
+import { farShadowCaster } from './far-shadow';
 import type { World } from './world';
 
 /**
@@ -543,6 +544,7 @@ function toMesh(parts: [Acc, number][], mat: MeshStandardMaterial): Mesh {
   g.computeBoundingSphere();
   const m = new Mesh(g, mat);
   m.castShadow = true;
+  farShadowCaster(m);
   m.receiveShadow = true;
   m.matrixAutoUpdate = false;
   return m;

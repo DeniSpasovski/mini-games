@@ -97,7 +97,18 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 
 - **Light:** the sun follows `timeOfDay` (or `sunElevation` / `sunAzimuth`); a lower sun is warmer and dimmer (raise `exposure`).
   Cool sky fill + warm ground bounce; a PMREM of the sky gives paint, glass and water reflections.
-- **Shadows:** one shadow map ahead of the camera, snapped to texels so edges do not crawl.
+- **Shadows:** three layers, each taking over where the one before ends, blended in `engine/world-shading.ts`
+  (`SUN_TERMS`, `SUN_SHADOW`):
+  - the sun's shadow map ahead of the camera (`quality.shadowExtent`, snapped to texels), every frame. Trees cast into
+    it within `quality.treeShadowDistance`; it fades out before a tree past that could shade the ground
+    (`setNearShadowFade`, from `RallyGame.placeShadows`: the distance minus a crown shadow's reach at this sun height);
+  - the far shadow map (`world/far-shadow.ts`, `quality.farShadow*`, ~4x the box): terrain, static meshes
+    (`farShadowCaster`) and one hashed ellipsoid per tree crown, re-drawn only when its snapped box moves (~every
+    25 m), from inside the main render (`trigger`). Covers only the disc where it has crowns (`setFarShadowDisc`);
+    tree materials look it up at their shadow lookup point (out of their own crown, as in the sun's map). It fades in
+    `SHADOW_OVERLAP` m before the sun's map fades out; over that band the darker of the two wins;
+  - past both, the baked canopy shadows (World shading below).
+  - Terrain casts into both maps (`TerrainOptions.castShadow`): hills shade the valleys.
 - **Night** (`engine/night.ts`, `?tod=<hours>` from 19:30 to 04:30 on any map; not in the studio): the moon is the directional light
   (dim, blue, `moonAt`), the sky is a dark dome with a town glow, moon and stars (`NightSky`), fog is dark, tone mapping AgX at a
   fixed exposure; the env map and the tree ambient (`setTreeSky`) are rebuilt from the night sky. The car's lights fade in with the dark (`lightNeed`, from the sun height: off by day, ~0.6 at the 17:30 evening, 1 at night; scales lamps, beam, cones and dust glow). They switch on
@@ -125,9 +136,9 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 - **Car reflections:** three.js draws a material without its own env map at `scene.environmentIntensity` (0.3), so car
   materials are flagged `carEnv` (engine/world-shading.ts): their specular env lookup uses their own `envMapIntensity`
   (scaled with the scene's), the diffuse sky light stays the scene's.
-- **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark outside the
-  shadow box (`world/canopy-shadows.ts`: a coarse whole-map texture plus a 1.5 m local window of 768 m around the camera,
-  rebuilt from the generated scatter chunks every 64 m, so the road gets tree shadows far past the shadow map), height fog
+- **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark where
+  neither shadow map reaches (`world/canopy-shadows.ts`: a coarse whole-map texture plus a 1.5 m local window of 768 m
+  around the camera, rebuilt from the generated scatter chunks every 64 m), height fog
   warming towards the sun, wind, leaf translucency. Custom shaders must call `addWorldUniforms(shader)`. Flag cloth
   (`defines.RALLY_FLAG`: materials `flag` = the printed flag of North Macedonia, texture `flag_mk`; `fan_flag`) turns downwind
   and ripples; print the pattern on the cloth, never lay geometry over it (the wind shader moves vertices, not surfaces).
@@ -486,9 +497,9 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   caster only when its bounding sphere can reach the sun's shadow box (`shadowExtent`, light space, re-packed with
   the view). Sprites cast no shadow: the crown proxy does (`trees/proxy.ts` `crownProxy`, a ~100-triangle lathe
   through the sprites' reach, drawn in the shadow pass only, leafy holes from a world-space noise); a sprite looks
-  its shadow up most of the way out of its crown's ellipsoid towards the sun (`SELF_SHADOW`). Trees cast real
-  shadows within 60 m only (`TREE_SHADOW_DISTANCE`, game/rally-game.ts); the canopy shadows fade in over its last
-  15 m (`setCanopyFade`).
+  its shadow up most of the way out of its crown's ellipsoid towards the sun (`SELF_SHADOW`). Every level casts LOD1 +
+  the crown proxy, the impostor too (a shadow never pops with the level). Trees cast real shadows within
+  `quality.treeShadowDistance` only (see Shadows above).
 - Tree occlusion (`trees/occlusion.ts`): the job builds a terrain horizon map from the camera (1024 rays over a lazy 8 m
   height grid) and leaves out trees beyond 140 m that a hill hides from every camera position in its window; margins
   cover a 9 m move, a 35 % grade, 0.5 slopes. CPU, not the spec's GPU depth pyramid (WebGL2 has no compute / indirect

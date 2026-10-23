@@ -59,12 +59,13 @@ import { buildRoadMeshSliced } from '../world/road-mesh';
 import { TerrainRenderer } from '../world/terrain-renderer';
 import { setTerrainRelief } from '../world/terrain-material';
 import { CanopyShadows } from '../world/canopy-shadows';
+import { FarShadow } from '../world/far-shadow';
 import { Horizon } from '../world/horizon';
 import {
-  setCanopyFade,
   setCanopyLocalMap,
   setCanopyShadows,
   setForest,
+  setNearShadowFade,
 } from '../engine/world-shading';
 import { World } from '../world/world';
 import { CarAudio } from './audio';
@@ -137,8 +138,8 @@ export interface GameOptions {
 }
 
 const STEP = 1 / PHYSICS_HZ;
-/** Trees cast real shadows within this distance (m); the baked canopy shadows fade in over its last quarter. */
-const TREE_SHADOW_DISTANCE = 60;
+/** The far shadow map fades in this far (m) before the sun's fades out: both draw over the band (`placeShadows`). */
+const SHADOW_OVERLAP = 25;
 /** Trees farther than this from the stage road (m) are only ever impostors (trees/draw.ts `fakeFrom`). */
 const FAKE_TREES_FROM = 250;
 
@@ -178,6 +179,8 @@ export class RallyGame {
   model!: CarModel;
   env!: Environment;
   terrain!: TerrainRenderer;
+  /** The far shadow map past the sun's (world/far-shadow.ts); null on quality presets without one. */
+  far: FarShadow | null = null;
   /** Hides road-group meshes beyond the terrain view distance (world/distance-cull.ts). */
   roadCull!: DistanceCull;
   contactShadow!: ContactShadow;
@@ -345,6 +348,8 @@ export class RallyGame {
         number,
         number,
       ],
+      // Hills shade the valleys (both shadow maps): the low morning / evening sun on the passes.
+      castShadow: true,
     });
     this.scene.add(this.terrain.group);
     // Far land beyond the streamed terrain (real maps): a backdrop drawn behind everything, ~2 draws.
@@ -385,8 +390,8 @@ export class RallyGame {
         q.treeLodScale * OBJECT_DISTANCE[this.opts.settings.objectDistance],
       maxDistance: q.viewDistance,
       forestDistance: q.forestDistance,
-      // Real tree shadows only near the camera; the baked canopy shadows take over from there (setCanopyFade).
-      shadowDistance: TREE_SHADOW_DISTANCE,
+      // Real tree shadows near the camera; the far shadow map's crowns, then the baked canopy shadows, take over.
+      shadowDistance: q.treeShadowDistance,
       shadowExtent: q.shadowExtent,
       fakeFrom: FAKE_TREES_FROM,
     });
@@ -417,7 +422,15 @@ export class RallyGame {
       map.environment.canopyShadow ?? 0.6,
       { texture: this.canopy.local, map: this.canopy.localMap },
     );
-    setCanopyFade(TREE_SHADOW_DISTANCE * 0.75, TREE_SHADOW_DISTANCE);
+    if (q.farShadowSize > 0)
+      this.far = new FarShadow(
+        this.renderer,
+        this.scene,
+        this.world,
+        this.env.sunDir,
+        q.farShadowSize,
+        q.farShadowExtent,
+      );
     setForest(forestColor(this.treeLibrary), q.forestDistance);
     this.breakables = new Breakables(this.world.scatter, (x, z) =>
       this.world.heightAt(x, z),
@@ -560,7 +573,7 @@ export class RallyGame {
       this.renderFwd,
       this.renderUp,
     );
-    this.env.update(
+    this.placeShadows(
       this.model.root.position,
       this.camera.getWorldDirection(this.camDir),
     );
@@ -1212,7 +1225,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       yaw: Math.atan2(dir.z, dir.x),
       half: halfFov + VIEW_MARGIN,
     });
-    this.env.update(cam.position, dir);
+    this.placeShadows(cam.position, dir);
     this.env.follow(cam.position);
     this.updateCanopy();
     lap('env');
@@ -1323,7 +1336,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         : null,
     );
     // Shadow box ahead of the camera (where the player looks), not centred on the car.
-    this.env.update(this.renderPos, dir);
+    this.placeShadows(this.renderPos, dir);
     this.env.follow(camPos);
     this.updateCanopy();
 
@@ -1431,6 +1444,24 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       `${this.dust.aliveCount} dust  ${this.gravel.aliveCount} gravel  ${this.haze?.aliveCount ?? 0} haze`,
     );
     this.stats.end();
+  }
+
+  /**
+   * The sun's shadow map and the far one ahead of the camera, and where the sun's fades out: before a tree just past
+   * `treeShadowDistance` (not in it) could shade the ground - its crown top's shadow reaches ~20 m at a high sun,
+   * more at a low one (the far map's crowns cover that band). The far map fades in SHADOW_OVERLAP m closer, so the two
+   * overlap instead of handing over in one line.
+   */
+  private placeShadows(focus: Vector3, forward: Vector3): void {
+    this.env.update(focus, forward);
+    this.far?.update(focus, forward, this.env.sun.castShadow);
+    const s = this.env.sunDir.y;
+    const reach = Math.min(
+      25,
+      (18 * Math.sqrt(Math.max(0, 1 - s * s))) / Math.max(0.05, s),
+    );
+    const end = this.opts.quality.treeShadowDistance - reach;
+    setNearShadowFade(end - 15, end, SHADOW_OVERLAP);
   }
 
   /** Canopy shadows (global map + the local window around the camera). */
