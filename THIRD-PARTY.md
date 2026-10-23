@@ -21,8 +21,8 @@ README files carry the same information in more detail. Keep this file current w
 3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party except its UI fonts (below): its critters, arenas, effects and sounds are original and procedural.
 
 The only bundled font files are the UI faces of Gravel Rally, Hole Island and 3, 2, 1 Kabooom and the portal's (below); sounds are synthesised with WebAudio and no music file is committed. Most textures
-are painted on canvases at runtime; the only texture files that ship are the car lamp, seat, fabric and cab textures (listed
-with their licences in `public/models/CREDITS.md`) and the truck textures (listed under "Parked trucks" below).
+are painted on canvases at runtime; the texture files that ship are listed with their licences below (building tiles,
+background-car, fire-engine and truck textures) and in `public/models/CREDITS.md` (the car lamp, seat, fabric, cab, metal and dash textures).
 
 ## Fonts (game UIs)
 
@@ -98,7 +98,7 @@ files are not in the repository).
 
 | Model                                                                                                                                                      | Author                                                                             | Used for                              | Licence   |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------- | --------- |
-| ["Fire engine/Fire truck low poly game asset"](https://sketchfab.com/3d-models/fire-enginefire-truck-low-poly-game-asset-2f663c7477374d30af9f80c528fff55c) | [FixedShark554](https://sketchfab.com/FixedShark554) (Sketchfab)                   | the Macedonian maps (`fire_truck_mk`) | CC BY 4.0 |
+| ["Fire engine/Fire truck low poly game asset"](https://sketchfab.com/3d-models/fire-enginefire-truck-low-poly-game-asset-2f663c7477374d30af9f80c528fff55c) | Have a name ([FixedShark554](https://sketchfab.com/FixedShark554)) (Sketchfab)     | the Macedonian maps (`fire_truck_mk`) | CC BY 4.0 |
 | ["Fire Truck"](https://sketchfab.com/3d-models/fire-truck-4a0d8c5bfca643d2aaa9b113ff752c26)                                                                | amongus ([holedonutdriveout](https://sketchfab.com/holedonutdriveout)) (Sketchfab) | the USA map (`fire_truck`)            | CC BY 4.0 |
 
 ### Building textures (baked into `src/games/rally/engine/facades/`)

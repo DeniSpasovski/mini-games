@@ -32,6 +32,7 @@ import {
   type Material,
   type Texture,
 } from 'three';
+import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { autoHull, type Vehicle } from '../../physics/vehicle';
 import type { CarPartGeometry } from './car-parts';
@@ -70,7 +71,7 @@ import {
   type BadgeTarget,
   type RallyBadge,
 } from './rally-badge';
-import type { CarAtlas, CarDef } from './types';
+import type { CarAtlas, CarDef, CarGltfDef } from './types';
 import { carEnv } from '../../engine/world-shading';
 
 /**
@@ -1310,6 +1311,7 @@ export class CarModel {
       }
     });
     if (!cover.length) return;
+    if (gltf.lampShell) this.addLampShell(cover, gltf.lampShell);
     // A body triangle is inside the lamp when its cover is ahead of it: straight ahead, or ahead and out / up (the lamp
     // wraps round the corner of the car).
     const ray = new Ray();
@@ -1361,6 +1363,43 @@ export class CarModel {
       if (inside !== mesh) this.owned.push(inside.geometry, mesh.geometry);
       inside.material = partMaterial('lampback')!;
       inside.userData.partName = 'lamphousing';
+    }
+  }
+
+  /**
+   * `gltf.lampShell`: a dark housing closing the back of each head lamp, for a model whose lamp opens into the engine bay
+   * (the damper and the roll cage show through the lens). The convex hull of the lens (`cover`, body space) and of the same
+   * outline moved back by `back` (|x| mirrored per side) and pulled in to `shrink` of its size; its inside is drawn.
+   */
+  private addLampShell(
+    cover: Vector3[],
+    opt: NonNullable<CarGltfDef['lampShell']>,
+  ): void {
+    // Matte black plastic: a glossy inside would mirror the sky as a pale sheet behind the lens.
+    const mat = new MeshStandardMaterial({
+      color: 0x08090a,
+      roughness: 0.65,
+      metalness: 0,
+      envMapIntensity: 0.15,
+      side: BackSide,
+    });
+    this.owned.push(mat);
+    for (const side of [1, -1]) {
+      const lens = cover.filter((v) => v.x * side > 0);
+      if (!lens.length) continue;
+      const mid = new Vector3();
+      for (const v of lens) mid.add(v);
+      mid.divideScalar(lens.length);
+      const back = new Vector3(opt.back[0] * side, opt.back[1], opt.back[2]);
+      const pts = [
+        ...lens,
+        ...lens.map((v) =>
+          v.clone().sub(mid).multiplyScalar(opt.shrink).add(mid).add(back),
+        ),
+      ];
+      const mesh = this.addMesh(new ConvexGeometry(pts), mat, false);
+      mesh.name = 'lampshell';
+      mesh.userData.partName = 'lampshell';
     }
   }
 
