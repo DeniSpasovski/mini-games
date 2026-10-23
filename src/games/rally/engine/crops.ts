@@ -143,6 +143,14 @@ function ramp(
   }
 }
 
+/** Keep `sat` of each pixel's colour away from its grey and scale it by `gain` (the model's own detail stays). */
+function tone(d: Uint8ClampedArray, sat: number, gain: number) {
+  for (let i = 0; i < d.length; i += 4) {
+    const l = 0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2];
+    for (let k = 0; k < 3; k++) d[i + k] = (l + (d[i + k] - l) * sat) * gain;
+  }
+}
+
 /**
  * The corn texture: leaf on the left (x 0-0.23), the cob in the middle (0.23-0.54). Husks: the cob's strip is
  * painted over with the leaf, squeezed to its width, a little lighter (field corn never shows its kernels).
@@ -161,8 +169,15 @@ function recolour(
   h: number,
 ) {
   if (look === 'corn' || look === 'dry_corn') husk(ctx, w, h);
-  if (look === 'wheat' || look === 'corn') return;
+  if (look === 'corn') return;
   const img = ctx.getImageData(0, 0, w, h);
+  // Ripe wheat: the model's golden texture toned to dry straw (a field in the sun reads pale beige, not yellow; at its
+  // own colour it glowed against the graded ground).
+  if (look === 'wheat') {
+    tone(img.data, 0.62, 0.9);
+    ctx.putImageData(img, 0, 0);
+    return;
+  }
   // Spring wheat: green stalks, leaves and ears. Dry corn: warm straw-tan leaves and husks (October field corn is
   // buff, not grey: the dark end stays brown).
   if (look === 'green_wheat')
