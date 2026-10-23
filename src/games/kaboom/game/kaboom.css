@@ -721,6 +721,10 @@ body {
   padding: 3px 12px;
   box-shadow: none;
 }
+/* single-round matches have no round counter */
+.kb-pill.kb-round:empty {
+  display: none;
+}
 .kb-timer.sudden {
   background: var(--kb-sudden);
   color: var(--kb-ink);

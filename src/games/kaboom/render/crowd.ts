@@ -534,6 +534,12 @@ export class Crowd {
     x1 += pad;
     y0 -= pad;
     y1 += pad * 1.5;
+    // the stand can reach past the screen edge (the top on a wide screen): keep every card in view
+    const edge = 0.97;
+    x0 = Math.max(x0, -edge);
+    x1 = Math.min(x1, edge);
+    y0 = Math.max(y0, -edge);
+    y1 = Math.min(y1, edge);
     const board = boardMask(st.text);
     const { cols, rows } = board;
     const n = cols * rows;
