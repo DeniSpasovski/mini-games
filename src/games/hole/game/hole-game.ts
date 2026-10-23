@@ -121,7 +121,7 @@ export class HoleGame {
   private blendFrom = { pos: new Vector3(), target: new Vector3() };
   readonly params: URLSearchParams;
 
-  constructor(root: HTMLElement) {
+  constructor(private root: HTMLElement) {
     this.params = new URLSearchParams(location.search);
     migrateScores(this.store); // scoring rules changed -> old high scores are tagged with their version and kept
     this.settings = loadSettings(this.store);
@@ -254,6 +254,7 @@ export class HoleGame {
     this.env.setMood(def.mood);
     this.puffs.setKind(def.puffs);
     this.hud.setNoun(def.noun);
+    this.root.dataset.map = def.id; // the UI's map accent (ui-tokens.css)
   }
 
   // ------------------------------------------------------------------ run control
@@ -787,10 +788,7 @@ export class HoleGame {
         this.holeMesh.pulse();
         this.sfx.levelUp();
       } else if (e.type === 'cleared') {
-        this.hud.banner(
-          `${this.mapDef.noun.toUpperCase()} CLEARED!`,
-          this.mapDef.id,
-        );
+        this.hud.banner(`${this.mapDef.noun.toUpperCase()} CLEARED!`);
       }
     }
   }

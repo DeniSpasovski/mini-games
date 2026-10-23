@@ -74,7 +74,7 @@ into `DETAILS.md`, never up.
   `TODO.md`; `maps/shared/` = format + helpers
 - Rally cars: `cars/<car>/` = `<car>.ts`, README, local-only DETAILS (build notes + sources); `cars/shared/` = code for every car
 - 3, 2, 1 Kabooom (`src/games/kaboom/`): `DETAILS.md` (rules, bots, architecture, performance, contract in `sim/types.ts`), `TASKS.md` (open work, local)
-- Hole Island: `src/games/hole/DETAILS.md` (rules, levels, tiers, catalog, generator, debug, architecture), `TASKS.md`,
+- Hole Island: `src/games/hole/STYLEGUIDE.md` (UI look: tokens, type, components; read before UI work), `DETAILS.md` (rules, levels, tiers, catalog, generator, debug, architecture), `TASKS.md`,
   `TOY-STORE.md`, `ANIMAL-ISLAND.md`, `CONSTRUCTION-SITE.md` (map design, roster, open tasks)
 - `sources/cars/<car>/`, `sources/maps/<map>/` - files the user shared, git-ignored, never served. Models / data / licence files
   get a row in that folder's `DETAILS.md`; reference photos only in the local `NOTES.md`.
