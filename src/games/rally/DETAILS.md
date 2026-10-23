@@ -162,7 +162,7 @@ and the autopilot.
 
 | map id      | name            | notes                                                                                                                                                          |
 | ----------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `test`      | Test Map        | procedural 1.7 km forest gravel stage, hairpin, crest jump, test pad                                                                                           |
+| `test`      | Forest Rally    | procedural 1.7 km forest gravel stage, hairpin, crest jump, test pad                                                                                           |
 | `ajvatovci` | Ajvatovci Hill  | real world (Ilinden, North Macedonia), 4.5 km old tarmac                                                                                                       |
 | `petralica` | Petralica       | real world (North Macedonia), 9.6 km mountain stage, 560 m of climb                                                                                            |
 | `jackie`    | The Jackie      | real world (New York), 7.3 km parkway with bridges and portals                                                                                                 |
