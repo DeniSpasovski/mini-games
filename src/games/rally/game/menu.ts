@@ -371,6 +371,15 @@ class MainMenu {
       () =>
         this.panel.getBoundingClientRect().right -
         bg.getBoundingClientRect().left,
+      // The detail card docked beside the list (not the phone layout, where it covers the subject above the buttons).
+      () => {
+        const card = this.root.querySelector<HTMLElement>(
+          '.menu-side-card, .menu-times-card',
+        );
+        return card && window.innerWidth >= SIDE_CARD_MIN_WIDTH
+          ? card.getBoundingClientRect().right - bg.getBoundingClientRect().left
+          : 0;
+      },
     );
     this.showroom.setCar(this.car.id, this.livery, this.badge);
     window.addEventListener('keydown', this.onKey);
@@ -871,7 +880,7 @@ class MainMenu {
   }
 
   /**
-   * Description card of Select stage / Select car (`.menu-side-card`): it floats over the map: right of the list with its top
+   * Description card of Select stage / Select car (`.menu-side-card`): it docks beside the list (left aligned, the map / car is the background to its right) with its top
    * level with `align` (the header height depends on the font) on screens >= `SIDE_CARD_MIN_WIDTH` px wide, above the
    * buttons on phones. Always returns true.
    */

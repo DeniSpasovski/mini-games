@@ -930,12 +930,13 @@ html.touch .menu-btn.big kbd {
   }
 }
 
-/* Select stage / Select car: the description card sits right of the list (wide screens). */
+/* Select stage / Select car / Stage times: the detail card docks beside the list, left aligned to the slab (wide
+   screens); the map / car is the background to its right. */
 .menu-side-card {
   position: absolute;
   z-index: 41;
   top: 40px;
-  right: 28px;
+  left: 540px;
   width: min(360px, calc(100% - 540px));
   max-height: calc(100% - 64px);
   box-sizing: border-box;
@@ -1049,11 +1050,12 @@ html.touch .menu-btn.big kbd {
   outline-offset: 1px;
 }
 
-/* Stage times: the saved runs float over the map view, right of the stage list. */
+/* Stage times: the saved runs dock beside the stage list, over the map view (same place as the description card). */
 .menu-times-card {
   position: absolute;
+  z-index: 41;
   top: 40px;
-  right: 28px;
+  left: 540px;
   max-height: calc(100% - 64px);
   width: min(560px, calc(100% - 540px));
   box-sizing: border-box;
@@ -1071,7 +1073,7 @@ html.touch .menu-btn.big kbd {
   letter-spacing: 0.01em;
   text-transform: uppercase;
 }
-@media (max-width: 760px) {
+@media (max-width: 799px) {
   .menu-times-card {
     top: auto !important;
     left: 16px;
