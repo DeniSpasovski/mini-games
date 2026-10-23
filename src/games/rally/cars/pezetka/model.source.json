@@ -1,5 +1,5 @@
 {
-  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/pezetka/model-01-polski-fiat-126p.glb = 'Polski Fiat (Fiat 126p)' by Martin Trafas (page account TinoD2, the file's metadata says Bexxie; CC BY 4.0), metres, +x left, +y up, +z nose, 1.843 m wheelbase (front wheels modelled turned ~20 deg). Mapped by material; tyres, rims, the plates, the badges and the lettering are dropped (the game builds its own wheels, the rim is the model's: pezetka_wheel.glb); the bumpers keep the model's own texture and the headlamp reflectors their own sheet (srcParts). The offset puts the front hub (model z 0.98) on physics front.z 1.106 (rear engine, 40 : 60) and the hubs (model y 0.2496) at the tyre radius 0.2504. The atlas block is also read by livery.ts at runtime - edit it only here.",
+  "$comment": "Input for scripts/car-model/glb-to-parts-stl.py + stl-to-glb.mjs (see .claude/skills/rally-car-import). Source: sources/cars/pezetka/model-01-polski-fiat-126p.glb = 'Polski Fiat (Fiat 126p)' by Martin Trafas (page account TinoD2, the file's metadata says Bexxie; CC BY 4.0), metres, +x left, +y up, +z nose, 1.843 m wheelbase (front wheels modelled turned ~20 deg). Mapped by material; tyres, rims, the plates, the badges and the lettering are dropped (the game builds its own wheels, the rim is the model's: pezetka_wheel.glb); the bumpers keep the model's own texture and the headlamp reflectors their own sheet (srcParts). Its cockpit is a flat lid with the seat backs through it, so the interior comes from a second model (srcParts.from). The offset puts the front hub (model z 0.98) on physics front.z 1.106 (rear engine, 40 : 60) and the hubs (model y 0.2496) at the tyre radius 0.2504. The atlas block is also read by livery.ts at runtime - edit it only here.",
   "source": "sources/cars/pezetka/model-01-polski-fiat-126p.glb -> glb-to-parts-stl.py -> sources/cars/pezetka/pezetka-parts.stl",
   "output": "public/models/cars/pezetka.glb",
   "axes": ["x", "y", "z"],
@@ -64,14 +64,51 @@
         "material": "body"
       },
       {
-        "$comment": "the flat lid the model lays over the cabin at sill height (it hid the seats' lower half and read as a line through the windows)",
+        "$comment": "... the seat backs above the lid",
+        "mat": "Fiat_126P_Shadow",
+        "x": [-0.45, 0.45],
+        "y": [0.5, 1.15],
+        "z": [-0.35, 0.05],
+        "material": "drop"
+      },
+      {
+        "$comment": "... the steering wheel",
+        "mat": "Fiat_126P_Shadow",
+        "x": [0.08, 0.5],
+        "y": [0.6, 1.05],
+        "z": [0.2, 0.62],
+        "material": "drop"
+      },
+      {
+        "$comment": "... and the lid's front edge under the windscreen",
+        "mat": "Fiat_126P_Shadow",
+        "x": [-0.5, 0.5],
+        "y": [0.5, 0.95],
+        "z": [0.55, 0.8],
+        "material": "drop"
+      },
+      {
+        "$comment": "... and the footwell floor under the dash, short of the front arch liners",
+        "mat": "Fiat_126P_Shadow",
+        "x": [-0.47, 0.47],
+        "y": [0.1, 0.5],
+        "z": [0.6, 0.8],
+        "material": "drop"
+      },
+      {
+        "$comment": "... and the footwell's front wall",
+        "mat": "Fiat_126P_Shadow",
+        "x": [-0.56, 0.56],
+        "y": [0.1, 0.56],
+        "z": [0.6, 0.86],
+        "material": "drop"
+      },
+      {
+        "$comment": "the model's cockpit below the sills (a flat lid with the seat backs poking through, the floor tub): the interior comes from the second model (srcParts.from); the sills, pillar trims and headliner stay",
         "mat": "Fiat_126P_Shadow",
         "x": [-0.7, 0.7],
-        "y": [0.66, 0.74],
-        "z": [-1.3, 0.6],
-        "facing": {
-          "|y|": [0.95, 1]
-        },
+        "y": [0, 0.8],
+        "z": [-1.0, 0.62],
         "material": "drop"
       },
       {
@@ -157,187 +194,45 @@
       "drop"
     ],
     "drop": ["logo", "drop"],
-    "solids": [
-      {
-        "$comment": "Dash (ours, the model has none; after the Zastava 101's): flat padded dash under the windscreen. Frame tilt 180: u = x, v = -y, w = -z, front face towards the cabin.",
-        "material": "trim",
-        "frame": {
-          "origin": [0, 0, 0],
-          "tilt": 180
-        },
-        "poly": [
-          [-0.48, -0.82],
-          [0.48, -0.82],
-          [0.48, -0.66],
-          [-0.48, -0.66]
-        ],
-        "w": [-0.8, -0.66],
-        "bevel": 0.012
-      },
-      {
-        "$comment": "instrument pod in front of the driver (left-hand drive, +x)",
-        "material": "trim",
-        "frame": {
-          "origin": [0, 0, 0],
-          "tilt": 180
-        },
-        "poly": [
-          [0.17, -0.86],
-          [0.43, -0.86],
-          [0.43, -0.74],
-          [0.17, -0.74]
-        ],
-        "w": [-0.74, -0.635],
-        "bevel": 0.01
-      },
-      {
-        "$comment": "speedometer bezel",
-        "material": "steel",
-        "frame": {
-          "origin": [0, 0, 0],
-          "tilt": 180
-        },
-        "poly": [
-          [0.352, -0.8],
-          [0.3495, -0.7839],
-          [0.3421, -0.7694],
-          [0.3306, -0.7579],
-          [0.3161, -0.7505],
-          [0.3, -0.748],
-          [0.2839, -0.7505],
-          [0.2694, -0.7579],
-          [0.2579, -0.7694],
-          [0.2505, -0.7839],
-          [0.248, -0.8],
-          [0.2505, -0.8161],
-          [0.2579, -0.8306],
-          [0.2694, -0.8421],
-          [0.2839, -0.8495],
-          [0.3, -0.852],
-          [0.3161, -0.8495],
-          [0.3306, -0.8421],
-          [0.3421, -0.8306],
-          [0.3495, -0.8161]
-        ],
-        "w": [-0.64, -0.631]
-      },
-      {
-        "$comment": "speedometer glass",
-        "material": "lenscover",
-        "frame": {
-          "origin": [0, 0, 0],
-          "tilt": 180
-        },
-        "poly": [
-          [0.345, -0.8],
-          [0.3428, -0.7861],
-          [0.3364, -0.7735],
-          [0.3265, -0.7636],
-          [0.3139, -0.7572],
-          [0.3, -0.755],
-          [0.2861, -0.7572],
-          [0.2735, -0.7636],
-          [0.2636, -0.7735],
-          [0.2572, -0.7861],
-          [0.255, -0.8],
-          [0.2572, -0.8139],
-          [0.2636, -0.8265],
-          [0.2735, -0.8364],
-          [0.2861, -0.8428],
-          [0.3, -0.845],
-          [0.3139, -0.8428],
-          [0.3265, -0.8364],
-          [0.3364, -0.8265],
-          [0.3428, -0.8139]
-        ],
-        "w": [-0.64, -0.628]
-      },
-      {
-        "$comment": "driver seat cushion (ours): the model only has the backrests, hovering over a flat lid that is dropped",
-        "material": "interiorgrey:2s",
-        "poly": [
-          [0.07, 0.5],
-          [0.37, 0.5],
-          [0.37, 0.68],
-          [0.07, 0.68]
-        ],
-        "w": [-0.08, 0.4],
-        "bevel": 0.03
-      },
-      {
-        "$comment": "driver seat frame",
-        "material": "trim",
-        "poly": [
-          [0.11000000000000001, 0.18],
-          [0.33, 0.18],
-          [0.33, 0.5],
-          [0.11000000000000001, 0.5]
-        ],
-        "w": [0.0, 0.3]
-      },
-      {
-        "$comment": "passenger seat cushion (ours): the model only has the backrests, hovering over a flat lid that is dropped",
-        "material": "interiorgrey:2s",
-        "poly": [
-          [-0.37, 0.5],
-          [-0.07, 0.5],
-          [-0.07, 0.68],
-          [-0.37, 0.68]
-        ],
-        "w": [-0.08, 0.4],
-        "bevel": 0.03
-      },
-      {
-        "$comment": "passenger seat frame",
-        "material": "trim",
-        "poly": [
-          [-0.33, 0.18],
-          [-0.11000000000000001, 0.18],
-          [-0.11000000000000001, 0.5],
-          [-0.33, 0.5]
-        ],
-        "w": [0.0, 0.3]
-      }
-    ],
     "fills": [
       {
-        "$comment": "door card (ours): the model's doors have no inner skin, so from inside you saw through them",
-        "material": "interiorgrey:2s",
+        "$comment": "door cards + rear side trim (ours, black vinyl): the model's doors are one-sided skins, from inside you saw through them",
+        "material": "trim:2s",
         "poly": [
-          [0.565, 0.12, -0.65],
-          [0.565, 0.12, 0.66],
-          [0.565, 0.8, 0.66],
-          [0.565, 0.8, -0.65]
+          [0.565, 0.15, -0.95],
+          [0.565, 0.15, 0.7],
+          [0.565, 0.83, 0.7],
+          [0.565, 0.83, -0.95]
+        ]
+      },
+      {
+        "$comment": "kick panel ahead of the door, up to the dash (ours)",
+        "material": "trim:2s",
+        "poly": [
+          [0.565, 0.15, 0.7],
+          [0.565, 0.15, 0.9],
+          [0.565, 0.72, 0.9],
+          [0.565, 0.72, 0.7]
         ]
       },
       {
         "$comment": "door card, right side",
-        "material": "interiorgrey:2s",
+        "material": "trim:2s",
         "poly": [
-          [-0.565, 0.12, -0.65],
-          [-0.565, 0.12, 0.66],
-          [-0.565, 0.8, 0.66],
-          [-0.565, 0.8, -0.65]
+          [-0.565, 0.15, -0.95],
+          [-0.565, 0.15, 0.7],
+          [-0.565, 0.83, 0.7],
+          [-0.565, 0.83, -0.95]
         ]
       },
       {
-        "$comment": "front bulkhead (ours): the footwell was open to the front boot and the road",
-        "material": "interiorgrey:2s",
+        "$comment": "kick panel ahead of the door, up to the dash (ours)",
+        "material": "trim:2s",
         "poly": [
-          [-0.565, 0.12, 0.66],
-          [0.565, 0.12, 0.66],
-          [0.565, 0.7, 0.66],
-          [-0.565, 0.7, 0.66]
-        ]
-      },
-      {
-        "$comment": "rear bulkhead (ours): under the parcel shelf the cabin was open to the engine bay and the road",
-        "material": "interiorgrey:2s",
-        "poly": [
-          [-0.5, 0.12, -1.0],
-          [0.5, 0.12, -1.0],
-          [0.5, 0.9, -1.0],
-          [-0.5, 0.9, -1.0]
+          [-0.565, 0.15, 0.7],
+          [-0.565, 0.15, 0.9],
+          [-0.565, 0.72, 0.9],
+          [-0.565, 0.72, 0.7]
         ]
       }
     ]
@@ -363,6 +258,81 @@
       {
         "node": "Object_20",
         "material": "src:lamp:pezetka_lamps.png"
+      }
+    ],
+    "from": [
+      {
+        "$comment": "the interior: 'fiat 126p' by subishi (Sketchfab, CC BY 4.0), sources/cars/pezetka/model-02-interior.glb. Same wheelbase (1.842 m) but a 5% wider body and a 3.5 cm higher scuttle, so the cockpit is narrowed to our doors and squashed in height to keep its floor on ours and its dash under our windscreen, turned 0.62 deg straight.",
+        "source": "sources/cars/pezetka/model-02-interior.glb",
+        "yawDeg": -0.623,
+        "scale": [0.95, 0.91, 1],
+        "offset": [0, -0.005, 0.015],
+        "textures": [
+          {
+            "material": "carpet",
+            "out": "public/models/cars/pezetka_seats.png",
+            "size": 512
+          },
+          {
+            "material": "plastico",
+            "out": "public/models/cars/pezetka_dash.png",
+            "size": 512
+          },
+          {
+            "material": "cromado",
+            "out": "public/models/cars/pezetka_chrome.png",
+            "size": 256
+          },
+          {
+            "material": "assoalho",
+            "out": "public/models/cars/pezetka_floor.png",
+            "size": 512
+          }
+        ],
+        "parts": [
+          {
+            "node": "assoalho_assoalho_0",
+            "x": [-0.6, 0.6],
+            "z": [-1.0, 0.95],
+            "material": "src:int:pezetka_floor.png"
+          },
+          {
+            "node": "painel_plastico_0",
+            "material": "src:int:pezetka_dash.png"
+          },
+          {
+            "node": "seta_plastico_0",
+            "material": "src:int:pezetka_dash.png"
+          },
+          {
+            "node": "coluna_dire*_cromado_0",
+            "material": "src:int:pezetka_chrome.png"
+          },
+          {
+            "node": "volante_cromado_0",
+            "material": "src:int:pezetka_chrome.png"
+          },
+          {
+            "node": "cambio_cromado_0",
+            "material": "src:int:pezetka_chrome.png"
+          },
+          {
+            "node": "guia_assento_cromado_0",
+            "material": "src:int:pezetka_chrome.png"
+          },
+          {
+            "node": "volante_carpet_0",
+            "material": "src:int:pezetka_seats.png"
+          },
+          {
+            "node": "bancos_carpet_0",
+            "material": "src:int:pezetka_seats.png"
+          },
+          {
+            "node": "banco_traseiro_carpet_0",
+            "material": "src:int:pezetka_seats.png"
+          }
+        ]
       }
     ]
   }

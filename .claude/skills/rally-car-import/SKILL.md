@@ -380,6 +380,11 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
   shows waves on bonnets and aprons. `normalSmooth: { "iterations": 8, "creaseDeg": 25 }` in `model.source.json` relaxes the face
   normals before the vertex normals are built (`stl-to-glb.mjs`); keep the triangle budget near the source's count (~100k) so the
   surface itself is not simplified.
+- **A body model with no real cockpit** (a flat lid at sill height with seat backs poking through): take the interior from a
+  second model of the same car with `srcParts.from` (`glb-src-parts.py`: its own `source`, `yawDeg`, per-axis `scale`, `offset`,
+  textures and parts). Line the two up on the wheel centres, then fit the dash under your windscreen and the floor on yours
+  (here x 0.95, y 0.91), drop the old cockpit by box rules and close one-sided doors from inside (`parts.fills`, `trim:2s`).
+  Check for holes with rays from seat positions, not only screenshots: a back-facing body triangle is a window to the road.
 - **A car too slow for the 100 km/h tests** (23 hp): `vehicle.test.ts` `BANDS` take `target` / `limit` (0-90 km/h in 40 s here), and
   `car-setup.test.ts` / `water-physics.test.ts` have a 126p exception. Vintage car = `physics.noAbs` + `noTractionControl`.
 

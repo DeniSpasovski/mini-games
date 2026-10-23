@@ -92,6 +92,11 @@ export const pezetka: CarDef = {
       url: 'https://sketchfab.com/3d-models/polski-fiat-fiat-126p-edc1b9d866484e048b4c54d917cca900',
       note: 'imported body, lamps, bumpers and rim (converted + repainted), CC BY 4.0',
     },
+    {
+      label: '"fiat 126p" by subishi (Sketchfab)',
+      url: 'https://sketchfab.com/3d-models/fiat-126p-f44214026ca1454ea4d75755d74334bf',
+      note: 'imported interior: dash, steering wheel, seats, rear bench and floor (fitted to the body), CC BY 4.0',
+    },
   ],
   // Night headlights: dim, warm halogen.
   headlights: {
@@ -212,7 +217,7 @@ export const pezetka: CarDef = {
       driven: ['rear'],
       inboard: false,
     },
-    // The model carries its own cockpit shell: see-through glass shows it.
+    // The cockpit (from a second model, see model.source.json) shows through the glass.
     glass: { color: 0x141c24, opacity: 0.6 },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
@@ -220,7 +225,7 @@ export const pezetka: CarDef = {
     gltf: {
       file: 'pezetka.glb',
       credit:
-        '"Polski Fiat (Fiat 126p)" by Martin Trafas (account TinoD2), sketchfab.com/3d-models/polski-fiat-fiat-126p-edc1b9d866484e048b4c54d917cca900, CC BY 4.0 (converted + repainted)',
+        '"Polski Fiat (Fiat 126p)" by Martin Trafas (account TinoD2), sketchfab.com/3d-models/polski-fiat-fiat-126p-edc1b9d866484e048b4c54d917cca900, CC BY 4.0 (converted + repainted); interior from "fiat 126p" by subishi, sketchfab.com/3d-models/fiat-126p-f44214026ca1454ea4d75755d74334bf, CC BY 4.0',
       autoFit: false,
       atlas: pezetkaLivery,
     },

@@ -12,9 +12,10 @@ rear axle, 4-speed, **no ABS and no traction control**. Test car (hidden in the 
   256 colours). Body 100k triangles, kept at the model's own detail; `normalSmooth` in `model.source.json` irons out the
   ripples that the model's hand-smoothed normals hide.
 - **Paint (ours):** one flat white, other seeds recolour it.
-- **Cabin (ours):** the model's cockpit is a flat lid at sill height with the seat backs poking through. The lid is
-  dropped; a plain black dash with an instrument pod and speedometer (after the Zastava 101's), seat cushions and frames,
-  door cards and front / rear bulkheads are built in code (`parts.solids`, `parts.fills`).
+- **Interior (second model):** the body model's cockpit is only a flat lid at sill height with the seat backs poking
+  through, so the dash, steering column and wheel, gear lever, seats, seat rails, rear bench and floor come from
+  "fiat 126p" by subishi, with their own textures. Same wheelbase; it is narrowed 5% and lowered to sit under our
+  windscreen (`srcParts.from` in `model.source.json`). The black door cards and kick panels are ours (the doors are one-sided skins).
 
 ![Front three-quarter](screenshots/front-34.jpg)
 
@@ -53,8 +54,10 @@ Power, torque, mass and size follow the published 652 cc figures; gearing, grip 
 | What                               | Source                                                                                                                                                   | Licence        |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
 | Body, cockpit, lamps, bumpers, rim | ["Polski Fiat (Fiat 126p)" by Martin Trafas (TinoD2), Sketchfab](https://sketchfab.com/3d-models/polski-fiat-fiat-126p-edc1b9d866484e048b4c54d917cca900) | **CC BY 4.0**  |
+| Interior                           | ["fiat 126p" by subishi, Sketchfab](https://sketchfab.com/3d-models/fiat-126p-f44214026ca1454ea4d75755d74334bf)                                          | **CC BY 4.0**  |
 | Specification                      | [Fiat 126, Wikipedia](https://en.wikipedia.org/wiki/Fiat_126)                                                                                            | reference only |
 
 Converted and repainted by us (attribution in `CarDef.credit`, `THIRD-PARTY.md`, `public/models/CREDITS.md`). The downloaded GLB
 itself is not in the repository (`sources/` is git-ignored); only the converted `pezetka.glb`, `pezetka_wheel.glb`,
-`pezetka_metal.png` and `pezetka_lamps.png` ship.
+`pezetka_metal.png`, `pezetka_lamps.png` and the interior sheets (`pezetka_seats.png`, `pezetka_dash.png`, `pezetka_chrome.png`,
+`pezetka_floor.png`) ship.
