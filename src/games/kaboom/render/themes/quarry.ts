@@ -13,10 +13,11 @@ import { PALETTE } from '../materials';
 import {
   boulderGeometry,
   decorGeometry,
+  flagTileGeometry,
   floorGeometry,
-  moundGeometry,
   postGeometry,
-  tileGeometry,
+  potsGeometry,
+  rimRockGeometry,
   woodCrateGeometry,
 } from '../parts';
 import { shared } from './cache';
@@ -42,7 +43,7 @@ function rimRocks(
       if (rng.chance(0.45)) spots.push([pts[i], pts[i + 1], d]);
   }
   const mesh = new InstancedMesh(
-    shared('boulder', boulderGeometry),
+    shared('rim-rock', rimRockGeometry),
     mat,
     Math.max(1, spots.length),
   );
@@ -70,7 +71,7 @@ function scenery({ w, h, hx, hz, rng, flat }: SceneryCtx) {
   };
 }
 
-/** The first level: a sandstone quarry, a rocky bowl, granite and timber (DETAILS.md "Style"). */
+/** The first level: a sandstone quarry, a rocky bowl, granite, cut sandstone and timber (DETAILS.md "Style"). */
 export const QUARRY_THEME: LevelTheme = {
   id: 'quarry',
   sky: [PALETTE.skyTop, PALETTE.skyMid, PALETTE.skyLow],
@@ -80,25 +81,23 @@ export const QUARRY_THEME: LevelTheme = {
     sky: 0xcfe6ff,
     ground: 0x9a7a55,
     fill: 1.25,
+    env: 0.15,
   },
   fx: QUARRY_FX,
   warnColor: 0xff4a2a,
   fall: 'wall',
   wallVariants: [0, 1],
   tiles: {
-    colors: PALETTE.tiles,
-    geometry: tileGeometry,
-    vertexColors: false,
-    rotate: false,
-    tint(x, y, r, out) {
-      out.set(PALETTE.tiles[Math.floor(r.next() * PALETTE.tiles.length)]);
-      out
-        .multiplyScalar((x + y) & 1 ? 1 : 0.93)
-        .multiplyScalar(r.range(0.95, 1.05));
+    colors: PALETTE.flags,
+    geometry: flagTileGeometry,
+    vertexColors: true,
+    rotate: 'any',
+    tint(_x, _y, r, out) {
+      out.setScalar(r.range(0.93, 1.04));
     },
   },
   hard: [boulderGeometry, postGeometry],
-  crate: [woodCrateGeometry, moundGeometry],
+  crate: [() => woodCrateGeometry(), potsGeometry],
   floor: floorGeometry,
   decor: decorGeometry,
   scenery,

@@ -5,7 +5,7 @@
 > **Released** (listed in `GAME_LIST`, `src/portal/release.ts`).
 
 An arena game in a tilted 3D view: you and up to 7 bots walk a grid, place TNT, blow up crates and each other. The last
-one standing wins the round. three.js, procedural art only (no model / texture / sound files).
+one standing wins the round. three.js, procedural art (no model or sound files; one small HDRI per level lights it on High).
 
 ## Pillars
 
@@ -13,15 +13,30 @@ one standing wins the round. three.js, procedural art only (no model / texture /
    materials or allocations. Every feature names its frame cost.
 2. **Readable at a glance.** The camera tilt, the colours and the flame shapes show who, where and when. Danger is
    always visible (TNT count, flame tiles, fuse sparks).
-3. **Our own look.** Original characters, art, sounds and level layouts, all procedural; no third-party model, texture or sound files (the UI fonts aside). See "Style".
+3. **Our own look.** Original characters, art, sounds and level layouts, all procedural; no third-party model or sound files. The UI fonts and one small CC0 HDRI per level (environment light) are the only files from elsewhere; baked-down CC0 textures may follow, models stay reference only. See "Style".
 4. **Short loop.** Pick bots, map size, go. Rounds of about 2 minutes; best of 3 by default.
 
 ## Style
 
 **Look: "clay diorama".** In the Quarry each arena sits on the floor of a rocky bowl, a gladiator arena (the other levels: "Levels"): a low wall, four sandstone
 terraces for the crowd, then a cliff up to a flat rim with boulders (`render/bowl.ts`: rings are the floor grown by an
-offset, bent by slow noise and carved by finer noise (crumbling step edges, lumpy treads, a rough cliff) so it reads as 3D rock, one tile of sand margin round the battle zone). Rounded blocks, matte grain over Lambert shading, warm key light + cool
-fill, one soft static sun shadow. Deliberately different from Hole Island's sharp blocky toys.
+offset, bent by slow noise and carved by finer noise (crumbling step edges, lumpy treads, a rough cliff) so it reads as 3D rock, one tile of sand margin round the battle zone).
+Deliberately different from Hole Island's sharp blocky toys.
+
+**Mid-poly stylised** (the art direction): real objects built from their real parts, every edge bevelled, medium-scale detail,
+saturated natural colour under soft filmic light; straight true shapes, no bending or swelling.
+
+- **Parts and bevels** (`render/parts.ts`): an object is the pieces it is made of (a pillar is cut stones on a mortar core with
+  a timber brace, the floor is separate flags); `bbox` bevels every edge by `BEVEL` (0.04 m), `flagstone` cuts a chamfered
+  stone or plank from an outline. Rocks are welded (`smooth`) with cut faces, cracks and a flat base. About 1,500
+  triangles per block variant on High (`__kaboomBench.triangles()`); a model may take a lighter Low version (`BlockModel`).
+- **Painted look** (`part()`): vertex colours with lighter tops and bevelled edges, warm above and cool below, darker
+  undersides, hollows and cracks; no grain texture on the arena. `footShade` darkens every block towards the floor and
+  `ContactShade` (`render/shadows.ts`, one instanced draw) lays a soft multiply patch round each block and crate.
+- **Light** (`render/renderer.ts`, `materials.ts`, `environment.ts`): ACES filmic tone mapping; warm sun with one soft static
+  shadow, a cool hemisphere fill. High: `MeshStandardMaterial` with the roughness `part()` stores per vertex (`ROUGH`: wood
+  0.85, stone 0.75, iron 0.45 ...) and the level's HDRI as environment light (the fill is cut to 45 %); Low: Lambert
+  plus a faint cool rim. Each theme sets its sun, fill and `env` strength.
 
 **Crowd** (`render/crowd.ts`): about 250-400 spectators on the terraces, the same eight animals as the crew, drawn as
 **sprites**. The camera never turns, so each animal is rendered once with the crew renderer (fur, face, a plain sleeved fan shirt from `fanShirtGeometry`, no hard hat)
@@ -72,8 +87,8 @@ hazard-stripe borders showing **3 -> 2 -> 1** (digit atlas, picked per instance 
 (`fusePoint`) the spark rides down in a soft glow; it pulses faster and blinks white-hot in the last half second.
 A comic **KABOOOM!** / **BOOM!** / **KA-POW!** word pops over blasts (throttled).
 
-**Readability**: slate-blue pillars, grey-brown boulders, warm wood crates and brown dirt mounds are four distinct
-families; critters are drawn 14 % bigger than their hitbox; a bobbing arrow in the team colour marks the human.
+**Readability**: light flagged floor, mid-value stone (banded sandstone pillars with dark joints, grey boulders), warm
+breakables (wood crates, terracotta pots); critters are drawn 14 % bigger than their hitbox; a bobbing arrow in the team colour marks the human.
 
 ## UI style
 
@@ -101,7 +116,7 @@ only with more than one level, and `sanitizeSettings`). Pick it in the setup men
 
 | Level        | Floor and blocks                                                                                              | Surroundings                                                                                                                        | Sudden death                    |
 | ------------ | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| Quarry       | sandstone tiles; granite boulders / timber-propped pillars; wooden crates, dirt mounds; rails, barrels        | rocky bowl, sandstone terraces, rim rocks                                                                                           | a wall lands                    |
+| Quarry       | sandstone flags; granite boulders / sandstone pillars with a timber brace; wooden crates, clay pots; rails    | rocky bowl, sandstone terraces, rim rocks                                                                                           | a wall lands                    |
 | Green Valley | mown-grass tiles, tufts, dirt patches; mossy boulders / cairns; wooden crates, hay bales; stream, fence, cart | a low hedge, flat meadow ground all round (the crowd stands in three rows on it, no terraces), trees in the background, its own sky | a boulder lands                 |
 | Sea Deck     | plank tiles on a raft; iron bollards / capstans; cargo barrels, wooden crates; ropes, lanterns, lifebuoys     | open sea (`render/sea.ts` shader plane), the crowd on moored boats (`render/boats.ts`), a bobbing raft                              | the tile sinks (`fall: 'tile'`) |
 
@@ -222,7 +237,7 @@ What usually kills FPS in these games, and our rule for each:
 | Chain resolved in one frame           | The sim spreads a chain over the 0.08 s chain delay; blasts only set fuses, never explode each other inside one tick.                                                                                                      |
 | Block removal rebuilding geometry     | One InstancedMesh per crate variant; removal swaps with the last instance and shrinks `count`.                                                                                                                             |
 | Hitch at a round change               | A new round builds a new `Arena`, but its merged geometry, the grain texture and the sun (with its 2048 shadow map) are shared module-level, so it costs well under a millisecond.                                         |
-| Draw calls                            | Arena ~11, crowd 2 (sprites + flags), crew bodies + fur + 3 shared (hats / vests / feet) + the you-arrow, TNT 3, blob shadows 1, FX 10 (budget below).                                                                     |
+| Draw calls                            | Arena ~12 (incl. the contact patches), crowd 2 (sprites + flags), crew bodies + fur + 3 shared (hats / vests / feet) + the you-arrow, TNT 3, blob shadows 1, FX 10 (budget below).                                         |
 | Garbage collection                    | Sim state in preallocated typed arrays; events are pooled objects in a reused array; render code allocates nothing per frame.                                                                                              |
 | Audio                                 | Max 4 blast voices; blasts within 50 ms merge; procedural WebAudio.                                                                                                                                                        |
 

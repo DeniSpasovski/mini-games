@@ -14,8 +14,10 @@ import { Rng, hash3 } from '../../../../shared/rng';
 import { boatAt, boatsGeometry } from '../boats';
 import { ringPoints, treadY } from '../bowl';
 import { Sea } from '../sea';
+import { ROUGH } from '../materials';
 import {
   box,
+  flagstone,
   merge,
   part,
   rbox,
@@ -38,6 +40,8 @@ const S = {
   ironLight: 0x65686f,
   ironDark: 0x2c2e33,
   rope: 0xc9b58a,
+  gap: 0x2a2219,
+  nail: 0x45403a,
   crate: 0xc8955a,
   crateBand: 0x9a6b3a,
   crateDark: 0x6e4a28,
@@ -68,19 +72,45 @@ const FX: FxTint = {
 
 /** One tile = four planks with hairline gaps (the sea shows through when it falls). Top on y = 0. */
 function plankTile(): BufferGeometry {
-  const p: BufferGeometry[] = [];
-  for (let i = 0; i < 4; i++)
+  // a dark bed under the planks: the gaps read as shadow, not as water (neighbouring beds meet; it sinks with its tile)
+  const p: BufferGeometry[] = [
+    part(box(1, 0.04, 1), S.gap, { y: -0.17, tint: 0, rough: ROUGH.wood }),
+  ];
+  const w = 0.232;
+  for (let i = 0; i < 4; i++) {
+    const x = (i - 1.5) * 0.2425;
+    const lift = [0, -0.005, 0.004, -0.002][i];
     p.push(
-      part(box(0.232, 0.2, 0.97), S.plank[i], {
-        x: (i - 1.5) * 0.2425,
-        y: -0.1,
-        tint: 0.12,
-      }),
+      part(
+        flagstone(
+          [
+            [-w / 2, -0.485],
+            [w / 2, -0.485],
+            [w / 2, 0.485],
+            [-w / 2, 0.485],
+          ],
+          0.15,
+          0.018,
+        ),
+        S.plank[i],
+        { x, y: -0.15 + lift, tint: 0.12, rough: ROUGH.wood },
+      ),
     );
+    // a nail head near each end
+    for (const z of [-0.42, 0.42])
+      p.push(
+        part(box(0.03, 0.012, 0.03), S.nail, {
+          x: x + (i & 1 ? 0.04 : -0.04),
+          z,
+          y: lift + 0.003,
+          tint: 0,
+          rough: ROUGH.iron,
+        }),
+      );
+  }
   return merge(p);
 }
 
-/** The margin round the playing field: a plank deck with a hole where the tiles go, plank seams drawn on it. */
 function floor(w: number, h: number, pad: number): BufferGeometry {
   const hw = w / 2;
   const hh = h / 2;
@@ -387,10 +417,11 @@ export const SEA_THEME: LevelTheme = {
   sky: [S.skyTop, S.skyMid, S.skyLow],
   light: {
     key: 0xffe9c8,
-    keyIntensity: 2.4,
+    keyIntensity: 2.5,
     sky: 0xbfdcf5,
     ground: 0x4a8aa0,
     fill: 1.3,
+    env: 0.2,
   },
   fx: FX,
   warnColor: 0xff5a2a,

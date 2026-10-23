@@ -1,5 +1,12 @@
 import { FUR_SHELLS } from './fur';
-import { Group, Scene, Vector3, type Texture, type WebGLRenderer } from 'three';
+import {
+  Group,
+  Scene,
+  Vector3,
+  type Object3D,
+  type Texture,
+  type WebGLRenderer,
+} from 'three';
 import type { LevelId } from '../game/levels';
 import { MAX_PLAYERS, MAX_TNT } from '../sim/rules';
 import type { KaboomSim, SimEvent } from '../sim/types';
@@ -12,6 +19,7 @@ import { Podium, STEP_D, STEP_W } from './podium';
 import { Fx } from './fx/fx';
 import { ItemRenderer } from './items';
 import { GlowGrid } from './fx/glow-grid';
+import { levelEnvironment } from './environment';
 import { makeSkyTexture } from './materials';
 import { levelTheme } from './themes';
 import type { LevelTheme, PlatformPose } from './themes/theme';
@@ -76,6 +84,7 @@ export class WorldView {
   /** Jump the follow camera onto the player at the next update (a new round, a camera change) instead of gliding. */
   private snapCamera = true;
   private mapRef;
+  private envAsked = false;
 
   constructor(
     private readonly sim: KaboomSim,
@@ -309,7 +318,27 @@ export class WorldView {
     return true;
   }
 
+  /**
+   * High quality: light the scene with the level's HDRI as well (the arena materials are physically based there). Loads
+   * once; until it is there, the hemisphere fill alone lights the shade. Call before drawing (no-op after the first call).
+   */
+  prepareEnvironment(renderer: WebGLRenderer): Promise<void> {
+    if (this.quality.name !== 'high' || this.envAsked) return Promise.resolve();
+    this.envAsked = true;
+    return levelEnvironment(renderer, this.theme.id).then((env) => {
+      if (!env) return;
+      let top: Object3D = this.root;
+      while (top.parent) top = top.parent;
+      for (const s of new Set([this.scene, top]))
+        if ((s as Scene).isScene) {
+          (s as Scene).environment = env;
+          (s as Scene).environmentIntensity = this.theme.light.env;
+        }
+    });
+  }
+
   render(renderer: WebGLRenderer, scene: Scene = this.scene): void {
+    void this.prepareEnvironment(renderer);
     this.crowd.prepare(renderer);
     if (this.takeShadowUpdate()) renderer.shadowMap.needsUpdate = true;
     renderer.render(scene, this.rig.camera);
@@ -323,6 +352,7 @@ export class WorldView {
     renderer: WebGLRenderer,
     scene: Scene = this.scene,
   ): Promise<void> {
+    await this.prepareEnvironment(renderer);
     this.crowd.prepare(renderer, true);
     await renderer.compileAsync(scene, this.rig.camera);
     this.shadowAge = SHADOW_REDRAW_S; // the first shadow draw belongs here, not to the first frame of play

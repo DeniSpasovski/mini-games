@@ -1,5 +1,5 @@
 import {
-  NoToneMapping,
+  ACESFilmicToneMapping,
   PCFShadowMap,
   PerspectiveCamera,
   SRGBColorSpace,
@@ -57,7 +57,9 @@ export function createRenderer(
     Math.min(window.devicePixelRatio, quality.maxPixelRatio),
   );
   renderer.outputColorSpace = SRGBColorSpace;
-  renderer.toneMapping = NoToneMapping;
+  // filmic curve (DETAILS.md "Style"): bright sand keeps its colour instead of clipping to white
+  renderer.toneMapping = ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 0.55; // three's ACES divides by 0.6: this is about 0.9
   renderer.shadowMap.enabled = quality.shadows;
   renderer.shadowMap.type = PCFShadowMap;
   // The arena shadow map is static: the game sets `needsUpdate` when a crate breaks (Arena.consumeShadowDirty).

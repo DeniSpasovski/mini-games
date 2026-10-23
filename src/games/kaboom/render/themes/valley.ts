@@ -28,6 +28,7 @@ import {
   woodCrateGeometry,
   type DecorParts,
 } from '../parts';
+import { ROUGH } from '../materials';
 import type { FxTint, LevelTheme, SceneryCtx } from './theme';
 import { shared } from './cache';
 
@@ -87,20 +88,25 @@ const FX: FxTint = {
 /** Hard block 0: a boulder with a cap of moss on one shoulder and two small rocks at its feet. */
 function mossyBoulder(): BufferGeometry {
   return merge([
-    part(rock(0.55, 2), V.boulder, {
+    part(rock(0.55, 5), V.boulder, {
       y: 0.46,
       sy: 0.92,
+      smooth: true,
       lumpy: 0.09,
+      base: 0.02,
       tint: 0.12,
+      rough: ROUGH.stone,
     }),
-    part(rock(0.3, 1), V.moss, {
+    part(rock(0.3, 3), V.moss, {
       x: -0.12,
       y: 0.84,
       z: 0.08,
       sy: 0.4,
       sx: 1.15,
+      smooth: true,
       lumpy: 0.06,
       tint: 0.18,
+      rough: ROUGH.grass,
     }),
     part(rock(0.2, 0), V.boulderDark, {
       x: 0.36,
@@ -757,10 +763,11 @@ export const VALLEY_THEME: LevelTheme = {
   sky: [V.skyTop, V.skyMid, V.skyLow],
   light: {
     key: 0xfff1d6,
-    keyIntensity: 2.4,
+    keyIntensity: 2.5,
     sky: 0xcfe6ff,
     ground: 0x7ea060,
     fill: 1.2,
+    env: 0.2,
   },
   fx: FX,
   warnColor: 0xff4a2a,

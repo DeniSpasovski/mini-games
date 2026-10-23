@@ -334,6 +334,7 @@ export class Crowd {
           vec4 t = texture2D( uMap, vUv );
           if ( t.a < 0.45 ) discard;
           gl_FragColor = vec4( t.rgb, 1.0 );
+          #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`,
     });
@@ -395,6 +396,7 @@ export class Crowd {
           }
           if ( !hit ) discard;
           gl_FragColor = vec4( col, 1.0 );
+          #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`,
     });

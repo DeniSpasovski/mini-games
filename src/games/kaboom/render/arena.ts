@@ -17,8 +17,9 @@ import { gridToWorldX, gridToWorldZ } from '../sim/grid';
 import { Terrain, type MapData } from '../sim/types';
 import { SLAB_PAD } from './camera-rig';
 import { GlowGrid } from './fx/glow-grid';
-import { clayMaterial, makeGrainTexture } from './materials';
-import type { DataTexture } from 'three';
+import { arenaMaterial } from './materials';
+import { footShade } from './parts';
+import { ContactShade } from './shadows';
 import { shared, sharedValue } from './themes/cache';
 import { levelTheme } from './themes';
 import type { LevelTheme, Scenery } from './themes/theme';
@@ -41,10 +42,8 @@ interface Removable {
 }
 
 let sharedSun: DirectionalLight | null = null;
-let sharedGrainTex: DataTexture | null = null;
-function sharedGrain(): DataTexture {
-  return (sharedGrainTex ??= makeGrainTexture());
-}
+/** Share of the hemisphere fill kept on High, where the level's HDRI lights the shade too. */
+const ENV_FILL = 0.45;
 
 /**
  * The arena diorama (DETAILS.md "Style" / "Levels"): a floor of tiles, hard blocks and crates (one InstancedMesh per
@@ -83,7 +82,8 @@ export class Arena {
   private readonly crateKind: Int8Array;
   private shadowDirty = true;
   private readonly materials: Material[] = [];
-  private readonly grain = sharedGrain();
+  /** Soft dark patches on the floor round every block (contact shading). */
+  private readonly contact: ContactShade;
   private readonly level: Scenery;
   private readonly q = new Quaternion();
   private readonly q2 = new Quaternion();
@@ -110,12 +110,12 @@ export class Arena {
       this.materials.push(m);
       return m;
     };
-    const flat = mat(clayMaterial(this.grain, { vertexColors: true }));
+    const flat = mat(arenaMaterial(quality, { vertexColors: true }));
     const lit = mat(
-      clayMaterial(this.grain, { vertexColors: true, glow: glow.uniforms }),
+      arenaMaterial(quality, { vertexColors: true, glow: glow.uniforms }),
     );
     const tileMat = mat(
-      clayMaterial(this.grain, {
+      arenaMaterial(quality, {
         glow: glow.uniforms,
         vertexColors: theme.tiles.vertexColors,
       }),
@@ -155,13 +155,17 @@ export class Arena {
     }
     this.group.add(tiles);
 
-    // --- hard blocks (two variants) and crates (two variants)
+    // --- hard blocks (two variants) and crates (two variants), darker at the foot; a contact patch under each
+    const low = quality.name === 'low';
+    const q = low ? '-low' : '';
     const hardGeos = theme.hard.map((build, v) =>
-      shared(`${id}-hard${v}`, build),
+      shared(`${id}-hard${v}${q}`, () => footShade(build(low))),
     );
     const crateGeos = theme.crate.map((build, v) =>
-      shared(`${id}-crate${v}`, build),
+      shared(`${id}-crate${v}${q}`, () => footShade(build(low))),
     );
+    this.contact = new ContactShade(w * h, theme.contact ?? 0.5);
+    this.group.add(this.contact.mesh);
     const hardCount = [0, 0];
     const crateCount = [0, 0];
     for (let i = 0; i < map.terrain.length; i++) {
@@ -216,6 +220,7 @@ export class Arena {
         target.setMatrixAt(slot, m4);
         tint.setScalar(r.range(0.92, 1.05));
         target.setColorAt(slot, tint);
+        this.contact.add(i, pos.x, pos.z);
         if (t === Terrain.Crate) {
           this.crates[v]!.cells.push(i);
           this.crateSlot[i] = slot;
@@ -279,7 +284,7 @@ export class Arena {
       new HemisphereLight(
         theme.light.sky,
         theme.light.ground,
-        theme.light.fill,
+        theme.light.fill * (quality.name === 'high' ? ENV_FILL : 1),
       ),
     );
   }
@@ -298,7 +303,13 @@ export class Arena {
     out: Matrix4,
   ): Matrix4 {
     const { w, h } = this.map;
-    const yaw = this.theme.tiles.rotate && (x + y) & 1 ? Math.PI / 2 : 0;
+    const turn = this.theme.tiles.rotate;
+    const yaw =
+      turn === 'any'
+        ? (hash3(x, y, this.map.seed, 5) & 3) * (Math.PI / 2)
+        : turn && (x + y) & 1
+          ? Math.PI / 2
+          : 0;
     const q = this.q.setFromAxisAngle(UP, yaw);
     if (tilt) {
       this.axis.set(Math.cos(axis), 0, Math.sin(axis));
@@ -337,6 +348,10 @@ export class Arena {
       f.mesh.setMatrixAt(f.slot, m);
       f.mesh.instanceMatrix.needsUpdate = true;
       if (left <= -0.16) {
+        const { w, h } = this.map;
+        const cx = Math.round(f.x + w / 2 - 0.5);
+        const cy = Math.round(f.z + h / 2 - 0.5);
+        this.contact.add(cy * w + cx, f.x, f.z);
         this.falling.splice(i, 1);
         this.shadowDirty = true;
       }
@@ -415,6 +430,7 @@ export class Arena {
     const cell = y * w + x;
     if (this.sunk[cell]) return;
     this.sunk[cell] = 1;
+    this.contact.remove(cell);
     let crate: Matrix4 | null = null;
     const slot = this.crateSlot[cell];
     if (slot >= 0) {
@@ -487,6 +503,7 @@ export class Arena {
     if (r.mesh.instanceColor) r.mesh.instanceColor.needsUpdate = true;
     this.crateSlot[cell] = -1;
     this.crateKind[cell] = -1;
+    this.contact.remove(cell);
     this.shadowDirty = true;
     return true;
   }
@@ -515,8 +532,18 @@ export class Arena {
         mesh.getMatrixAt(i, m);
         const wx = m.elements[12];
         const wz = m.elements[14];
-        if (wx >= x0 && wx <= x1 && wz >= z0 && wz <= z1 && m.elements[13] < 5)
+        if (
+          wx >= x0 &&
+          wx <= x1 &&
+          wz >= z0 &&
+          wz <= z1 &&
+          m.elements[13] < 5
+        ) {
           mesh.setMatrixAt(i, gone);
+          const cx = Math.round(wx + w / 2 - 0.5);
+          const cy = Math.round(wz + h / 2 - 0.5);
+          this.contact.remove(cy * w + cx);
+        }
       }
       mesh.instanceMatrix.needsUpdate = true;
     }
@@ -549,6 +576,7 @@ export class Arena {
 
   dispose(): void {
     for (const m of this.materials) m.dispose();
+    this.contact.dispose();
     this.level.dispose?.();
   }
 }

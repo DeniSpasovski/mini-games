@@ -60,7 +60,7 @@ The Large arena (up to 8 players) is bigger than the screen: the camera follows 
 
 ## Credits and licence
 
-All art, code and sound are original and procedural; the only third-party files are the UI fonts (SIL Open Font License, see [THIRD-PARTY.md](../../../THIRD-PARTY.md)). Code, procedural art and sound, docs and
+All art, code and sound are original and procedural; the only third-party files are the UI fonts (SIL Open Font License) and one small CC0 Poly Haven HDRI per level for the environment light (see [THIRD-PARTY.md](../../../THIRD-PARTY.md)). Code, procedural art and sound, docs and
 screenshots: [PolyForm Noncommercial 1.0.0](../../../LICENSE).
 
 Details (rules, architecture, performance): [DETAILS.md](DETAILS.md).

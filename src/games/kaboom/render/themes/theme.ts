@@ -64,13 +64,15 @@ export interface PlatformPose {
   rz: number;
 }
 
+export type BlockModel = (low?: boolean) => BufferGeometry;
+
 export interface TileLook {
   colors: readonly number[];
   geometry(): BufferGeometry;
   /** The geometry carries its own vertex colours (planks). */
   vertexColors: boolean;
-  /** Turn every second tile a quarter, so planks run both ways. */
-  rotate: boolean;
+  /** Turn every second tile a quarter, so planks run both ways (`true`), or each tile a random quarter (`'any'`). */
+  rotate: boolean | 'any';
   /** Tint of one tile (instance colour). */
   tint(x: number, y: number, r: Rng, out: Color): void;
 }
@@ -82,13 +84,17 @@ export interface TileLook {
 export interface LevelTheme {
   id: LevelId;
   sky: readonly [string, string, string];
+  /** Sun (key) and hemisphere fill; on High the fill is cut and the level's HDRI (`env` = its intensity) lights the shade. */
   light: {
     key: number;
     keyIntensity: number;
     sky: number;
     ground: number;
     fill: number;
+    env: number;
   };
+  /** How dark the floor gets at a block's foot, 0..1 (contact shading; default 0.5). */
+  contact?: number;
   fx: FxTint;
   /** Colour of the squares that mark where the next sudden-death cell falls. */
   warnColor: number;
@@ -97,8 +103,9 @@ export interface LevelTheme {
   /** Hard-block variants a falling wall may use. */
   wallVariants: readonly number[];
   tiles: TileLook;
-  hard: readonly [() => BufferGeometry, () => BufferGeometry];
-  crate: readonly [() => BufferGeometry, () => BufferGeometry];
+  /** Hard-block and crate models; `low` asks for the Low-quality version (fewer triangles) where a model has one. */
+  hard: readonly [BlockModel, BlockModel];
+  crate: readonly [BlockModel, BlockModel];
   floor(w: number, h: number, pad: number): BufferGeometry;
   decor(w: number, h: number, pad: number): DecorParts;
   /** Extra meshes that ride on the platform (grass tufts, the raft's frame and barrels). */

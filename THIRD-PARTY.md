@@ -105,6 +105,10 @@ files are not in the repository).
 
 CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/facades/bake.py`: Painted Plaster Wall (Amal Kumar), Brick Wall 006 (Jan Burghardt), Red Brick (Rob Tuytel), Plaster Stone Wall 02 (Charlotte Baglioni), Concrete Wall 007 (Dario Barresi, Rico Cilliers, Charlotte Baglioni), Corrugated Iron 03 (Charlotte Baglioni), Concrete Slab Wall (Dimitrios Savva), Sandstone Blocks 05 (Rob Tuytel), White Planks Clean (Rob Tuytel), Clay Roof Tiles 03 (Amal Kumar). No credit is required.
 
+### Kaboom environment light (baked into `src/games/kaboom/assets/hdri/`)
+
+CC0 HDRIs from Poly Haven, shrunk to 128 x 64 with the sun clipped out by `scripts/kaboom/bake-hdri.py`: Goegap (Greg Zaal) for the Quarry, Meadow 2 (Sergej Majboroda) for Green Valley, Small Harbour Morning (Greg Zaal, Jarod Guest) for Sea Deck. No credit is required.
+
 ### Parked trucks (baked into `src/games/rally/maps/ajvatovci/start-row/build/truck-models.data.ts`)
 
 The tractor units, trailers, box-truck cabs and dump trucks parked at Ajvatovci are recoloured copies of two CC BY 4.0
