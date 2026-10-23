@@ -71,6 +71,7 @@ import {
   type RallyBadge,
 } from './rally-badge';
 import type { CarAtlas, CarDef } from './types';
+import { carEnv } from '../../engine/world-shading';
 
 /**
  * Car model built from CarDef.model.
@@ -810,6 +811,14 @@ export class CarModel {
     this.debug.visible = false;
     this.root.add(this.debug);
     this.buildDebug();
+    // Paint, glass and chrome reflect at their own envMapIntensity (engine/world-shading.ts `carEnv`).
+    const flag = () =>
+      this.root.traverse((o) => {
+        const m = (o as Mesh).material;
+        if (m) for (const x of Array.isArray(m) ? m : [m]) carEnv(x);
+      });
+    flag();
+    void this.ready.then(flag);
   }
 
   /**
@@ -826,6 +835,7 @@ export class CarModel {
       if (this.disposed || this.badgeKey !== key) return;
       this.clearBadge();
       const mat = badgeMaterial(badge);
+      carEnv(mat);
       for (const side of [1, -1] as const) {
         const g = buildBadgeGeometry(targets, this.def, side);
         if (!g.getAttribute('position')?.count) {

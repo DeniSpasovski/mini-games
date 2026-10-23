@@ -8,6 +8,7 @@ import {
   type Texture,
   type WebGLProgramParametersWithUniforms,
 } from 'three';
+import { gradeUniforms } from './grade';
 
 /**
  * World shading shared by every material of the rally pages, installed once when this module is imported
@@ -70,6 +71,8 @@ export const worldUniforms = {
   wsHeadDir: { value: new Vector3(0, 0, 1) },
   /** 0..1: how much the street lamps glow (`Environment.lightNeed`). */
   wsLamp: { value: 0 },
+  // Colour grade (engine/grade.ts), declared in the tone-mapping chunk.
+  ...gradeUniforms,
 };
 // Dev: tweak live from the console (`__worldShading.wsCloud.value.x = 1`).
 (globalThis as { __worldShading?: typeof worldUniforms }).__worldShading =
@@ -426,12 +429,57 @@ function install(): void {
     lights.slice(at + info.length, lineEnd) +
     FOLIAGE_TERM +
     lights.slice(lineEnd);
+  // Car reflections: the specular env lookup at the material's own `envMapIntensity` (see `carEnv`).
+  const ibl = chunks.envmap_physical_pars_fragment;
+  const radiance = 'return envMapColor.rgb * envMapIntensity;';
+  const rAt = ibl.indexOf(radiance, ibl.indexOf('getIBLRadiance'));
+  if (rAt < 0)
+    throw new Error(
+      'world-shading: ShaderChunk.envmap_physical_pars_fragment changed (three upgrade?)',
+    );
+  chunks.envmap_physical_pars_fragment =
+    '#ifdef RALLY_CAR_ENV\n\tuniform float wsEnvSpec;\n#endif\n' +
+    ibl.slice(0, rAt) +
+    '#ifdef RALLY_CAR_ENV\n\t\t\treturn envMapColor.rgb * envMapIntensity * wsEnvSpec;\n\t\t\t#endif\n\t\t\t' +
+    ibl.slice(rAt);
   // Default hook for every material without its own: share the world uniforms.
   Material.prototype.onBeforeCompile = function (
+    this: Material,
     shader: WebGLProgramParametersWithUniforms,
   ) {
     Object.assign(shader.uniforms, worldUniforms);
+    if (this.userData.carEnv) {
+      const mat = this as Material & { envMapIntensity?: number };
+      shader.fragmentShader = '#define RALLY_CAR_ENV\n' + shader.fragmentShader;
+      shader.uniforms.wsEnvSpec = {
+        get value() {
+          return (mat.envMapIntensity ?? 1) / DAY_ENV_INTENSITY;
+        },
+      };
+    }
   };
+  const key = Material.prototype.customProgramCacheKey;
+  Material.prototype.customProgramCacheKey = function (this: Material) {
+    return key.call(this) + (this.userData.carEnv ? '|carEnv' : '');
+  };
+}
+
+/**
+ * The scene env map intensity the car materials' `envMapIntensity` values are written for (`Environment`'s day
+ * default). three.js draws every material without its own env map at `scene.environmentIntensity`, so a car's
+ * 1.8 paint clearcoat would show at 0.3 like the ground.
+ */
+const DAY_ENV_INTENSITY = 0.3;
+
+/**
+ * Car materials: reflections (the specular env lookup) at their own `envMapIntensity`, scaled with the scene's env
+ * intensity (night, studio), while the diffuse sky light stays the scene's like on every other surface. Flag set in
+ * `userData` (survives `clone()`); needs a recompile, so call before the first draw or it sets `needsUpdate`.
+ */
+export function carEnv(material: Material): void {
+  if (material.userData.carEnv) return;
+  material.userData.carEnv = true;
+  material.needsUpdate = true;
 }
 
 install();

@@ -62,6 +62,8 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
     uMoistMap: { value: new Vector4(0, 0, 1, 1) },
     /** Moisture tint strength (0 = off, `groundTint.moisture`). */
     uMoist: { value: 1 },
+    /** Meadow colour patches (0 = off, `groundTint.variety`). */
+    uVariety: { value: 0 },
     /** Bump strength (0 = flat, `setTerrainRelief`). */
     uRelief: { value: 1 },
   };
@@ -96,6 +98,7 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         uniform float uDebugSplat;
         uniform vec3 uTintGrass;
         uniform float uTintAmount;
+        uniform float uVariety;
         uniform vec3 uTintCrop;
         uniform float uRelief;
         uniform sampler2D tMoist;
@@ -153,6 +156,10 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         // Recolour (0.09 = mean linear luminance of the grass texture).
         float grassLum = dot(cGrass, vec3(0.2126, 0.7152, 0.0722)) / 0.09;
         cGrass = mix(cGrass, uTintGrass * grassLum, uTintAmount);
+        // Meadow patches: deeper green and yellow-green drifts tens of metres across, so a tinted meadow is not one flat colour.
+        float pv = texture2D(tMacro, wp * 0.019 + 0.21).r * 0.6 + texture2D(tMacro, wp * 0.083 + 0.53).r * 0.4;
+        vec3 cPatch = mix(cGrass * vec3(0.55, 0.8, 0.45), cGrass * vec3(1.35, 1.2, 0.6), smoothstep(0.38, 0.62, pv));
+        cGrass = mix(cGrass, cPatch, uVariety);
         // Moisture -1 (dry) .. 1 (wet): baked hollows / banks, minus steepness, plus slow noise.
         float wet = texture2D(tMoist, (wp - uMoistMap.xy) * uMoistMap.zw).r * 2.0 - 1.0;
         wet -= smoothstep(0.04, 0.25, 1.0 - vUpY) * 0.7;
@@ -193,7 +200,7 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
       );
   };
   mat.customProgramCacheKey = () =>
-    far ? 'rally-terrain-far-v1' : 'rally-terrain-v4';
+    far ? 'rally-terrain-far-v2' : 'rally-terrain-v5';
   if (far) sharedFar = mat;
   else shared = mat;
   return mat;
@@ -211,6 +218,7 @@ export function setGroundTint(tint: EnvironmentDef['groundTint']): void {
   u.uTintAmount.value = tint ? (tint.amount ?? 0.85) : 0;
   u.uTintCrop.value.set(tint?.crop ?? DEFAULT_CROP);
   u.uMoist.value = tint?.moisture ?? 1;
+  u.uVariety.value = tint?.variety ?? 0;
 }
 
 /** Map-wide ground moisture (world/ground-moisture.ts, `World.moisture`); null = neutral (slope + noise only). */
