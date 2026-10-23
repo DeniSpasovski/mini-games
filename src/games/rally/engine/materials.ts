@@ -9,6 +9,7 @@ import {
 } from 'three';
 import { getTexture } from './textures';
 import { addNightGlow } from './night-glow';
+import { houseMaterial } from './house-walls';
 
 /**
  * Shared material library. Assets reference materials by id so thousands of
@@ -20,6 +21,7 @@ export type MaterialId =
   | 'foliage_card_spring'
   | 'rock'
   | 'props'
+  | 'house'
   | 'people'
   | 'people_flag'
   | 'flag'
@@ -172,6 +174,9 @@ export function getMaterial(id: MaterialId): Material {
         map: getTexture('detail'),
         roughness: 0.7,
       });
+      break;
+    case 'house':
+      m = houseMaterial();
       break;
     case 'people':
       // Figures: vertex colour x the people atlas (weave, denim, skin, hair, painted face).

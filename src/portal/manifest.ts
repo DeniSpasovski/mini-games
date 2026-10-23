@@ -24,8 +24,12 @@ export interface GameManifest {
   /** Semantic version, 0.x.y while in development (minor = feature, patch = fix). Shown in the game's menu + About. */
   version?: string;
   description: string;
-  /** Free-form tags shown on the card, e.g. ["three.js", "racing"]. */
-  tags?: string[];
+  /** Card label line, "<genre> · <inputs>" (e.g. "Rally" · "keyboard, pad, touch"). */
+  genre?: string;
+  inputs?: string;
+  /** The game's colour on its card (Play, hover and focus outline) and the text colour on it; 4.5:1 or better. */
+  accent?: string;
+  onAccent?: string;
   pages: GamePageManifest[];
 }
 

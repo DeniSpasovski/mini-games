@@ -241,8 +241,11 @@ export function buildRestaurant(
       for (const [ya, yb] of rows)
         pane(axis, c, s, a0 + step * (i + 0.5), ya, yb, w);
   };
-  const sheet = (pts: V3[], want: V3, color: string): void =>
-    l.fan('sheet', pts, color, want, (p) => [p[0] + p[2], p[1]]);
+  const sheet = (pts: V3[], want: V3, color: string): void => {
+    const uv = (p: V3): [number, number] => [p[0] + p[2], p[1]];
+    l.fan('sheet', pts, color, want, uv);
+    l.slab(pts, want, uv, { soffit: '#6b6e6c', fascia: '#5d605e' });
+  };
 
   // ---- The last building: R1 (the block behind, two storeys from the plaza level) and R2W (the stem on the front, three) ----
   const rows: [number, number][] = [-1, 0, 1, 2].map((k) => [

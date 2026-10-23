@@ -237,6 +237,14 @@ export const citroenC4: CarDef = {
       autoFit: false,
       matte: false,
       atlas: citroenC4Livery,
+      // The lamp wraps from beside the grille round the corner (the profile box is only its outer end).
+      headBowls: [0.2, 0.85, 0.6, 0.95],
+      // The three halogen bulbs in the bowls (measured on the model).
+      headBulbs: [
+        [0.515, 0.735, 1.8],
+        [0.645, 0.735, 1.76],
+        [0.705, 0.775, 1.7],
+      ],
     },
   },
 };

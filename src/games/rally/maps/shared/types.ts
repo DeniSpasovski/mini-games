@@ -1057,7 +1057,14 @@ export interface EnvironmentDef {
   fogSunGlow?: number;
   turbidity: number;
   rayleigh: number;
+  /** Mie haze around the sun (default 0.004). */
+  mieCoefficient?: number;
+  /** Brightness of the visible sky dome (default 1; lower = a deeper blue that does not burn out to white). */
+  skyBrightness?: number;
+  /** FogExp2 colour: a colour, or 'sky' = the hue of the sky just above the horizon (read from the env map). */
   fogColor: string;
+  /** With `fogColor: 'sky'`: the fog's linear luminance (default 0.62, about that of a light grey fog). */
+  fogBrightness?: number;
   /** FogExp2 density. */
   fogDensity: number;
   exposure: number;
@@ -1074,6 +1081,37 @@ export interface EnvironmentDef {
    * the season's tint into `groundTint`, so every consumer reads one field.
    */
   groundTints?: Partial<Record<Season, GroundTint>>;
+  /**
+   * Colour grade after tone mapping (engine/grade.ts); missing = none (the plain tone-mapped image). Off at night and
+   * in the studio; `?grade=off` turns it off for comparisons.
+   */
+  grade?: ColorGrade;
+  /**
+   * Evening golden hour (`isGoldenHour`, 17:00 till night): these settings replace the day ones (sky, fog, exposure,
+   * grade ...), e.g. a warmer grade and a pink / purple sky.
+   */
+  goldenHour?: Partial<Omit<EnvironmentDef, 'goldenHour'>>;
+  /** Grade changes for other seasons, merged field by field over `grade` (`mapInSeason` puts the result in `grade`). */
+  grades?: Partial<Record<Season, ColorGrade>>;
+}
+
+/** A colour grade (`EnvironmentDef.grade`); every field defaults to "no change". */
+export interface ColorGrade {
+  /** White balance: + warmer (more red, less blue), - cooler; about -1..1 (default 0). */
+  warmth?: number;
+  /** White balance: + magenta, - green; about -1..1 (default 0). */
+  tint?: number;
+  /** Contrast around mid grey (default 1). */
+  contrast?: number;
+  /** Saturation (default 1). */
+  saturation?: number;
+  /** Extra saturation for dull colours, less for strong ones, 0..1 (default 0). */
+  vibrance?: number;
+  /** Shadows / highlights lean towards this colour by `amount` (0..1, default none). */
+  shadowTint?: { color: string; amount: number };
+  highlightTint?: { color: string; amount: number };
+  /** Corner darkening, 0..1 (default 0). */
+  vignette?: number;
 }
 
 /** Recolour of the terrain grass and crop parcels (`EnvironmentDef.groundTint`). */
@@ -1082,6 +1120,8 @@ export interface GroundTint {
   amount?: number;
   crop?: string;
   moisture?: number;
+  /** Meadow colour patches: deeper green and yellow-green drifts, 0..1 (default 0). */
+  variety?: number;
 }
 
 /**

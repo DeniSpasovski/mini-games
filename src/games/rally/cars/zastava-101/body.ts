@@ -267,6 +267,7 @@ export function buildZastavaBody(): {
   const meshParts: BufferGeometry[] = [];
   const painted = new Soup();
   const chrome = new Soup();
+  const headDish = new Soup();
   const lens = new Soup();
   const amberSoup = new Soup();
   const lightSoup = new Soup();
@@ -765,7 +766,7 @@ export function buildZastavaBody(): {
     walls(chrome, nose, bezel, -0.007, -0.005);
     face(chrome, nose, bezel, [bezelIn], -0.005);
     walls(chrome, nose, bezelIn, -0.005, -0.014, true);
-    dish(chrome, nose, ca, gC, 0.162, 0.142, 0.02, -0.014, 0.028);
+    dish(headDish, nose, ca, gC, 0.162, 0.142, 0.02, -0.014, 0.028);
     lightParts.push(bulb(nose, ca, gC, -0.03, 0.013));
     slab(
       lens,
@@ -1068,6 +1069,7 @@ export function buildZastavaBody(): {
       cage: mergeAll(bright),
       lining: lining.geometry(),
       chrome: mergeAll([chrome.geometry(30), ...chromeParts]),
+      headReflector: headDish.geometry(30),
       lens: lens.geometry(30),
       redReflector: redRefl.geometry(20),
       redLens: redLens.geometry(30),

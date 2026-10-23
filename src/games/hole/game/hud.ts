@@ -1,4 +1,5 @@
 import { el, fmtTime } from './dom';
+import { icon } from './icons';
 import { ITEM_LEVELS, maxEdibleSize } from '../sim/progression';
 
 /** In-run HUD: timer, score, level badge + progress ring, pause button, pop-ups, banners. */
@@ -31,10 +32,11 @@ export class Hud {
     this.badge.append(this.badgeNum);
     const level = el('div', 'hg-level');
     level.append(this.badge, this.eats);
-    const pause = el('button', 'hg-pause', 'II', {
+    const pause = el('button', 'hg-pause', '', {
       type: 'button',
       'aria-label': 'Pause',
     });
+    pause.append(icon('pause'));
     pause.addEventListener('click', onPause);
     // island completion next to the score: percent of the map's points eaten
     const bar = el('div', 'hg-donebar');
@@ -122,16 +124,9 @@ export class Hud {
     });
   }
 
-  /** Big centre banner; `kind` (a map id) picks the colour (store pink, Animal Island green, City gold). */
-  banner(text: string, kind = ''): void {
-    const b = el(
-      'div',
-      'hg-banner' +
-        (kind === 'toy' || kind === 'animal' || kind === 'construction'
-          ? ` ${kind}`
-          : ''),
-      text,
-    );
+  /** Big centre banner in the current map's accent colour. */
+  banner(text: string): void {
+    const b = el('div', 'hg-banner', text);
     this.el.append(b);
     b.addEventListener('animationend', () => b.remove());
   }

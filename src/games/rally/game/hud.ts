@@ -1,3 +1,4 @@
+import './ui-tokens.css';
 import './hud.css';
 import { CUT_GRACE, formatDelta, formatTime, type StageTimer } from './stage';
 import { TyreGauge, type TyreGaugeState } from './tyre-gauge';
@@ -110,13 +111,20 @@ export class Hud {
     if (this.gauge.el.hidden !== !s.tyres) this.gauge.el.hidden = !s.tyres;
     this.set('time', formatTime(stage.time));
     this.updateSectors(stage);
+    // One chip per passed split, coloured by the gap to the reference run (faster green, slower yellow).
     const splits = stage.splitTimes
       .map((t, i) => {
         const b = stage.reference?.splits[i];
-        return `S${i + 1} ${formatTime(t)}${b !== undefined ? ` (${formatDelta(t - b)})` : ''}`;
+        const gap = b !== undefined ? `<b>${formatDelta(t - b)}</b>` : '';
+        const cls =
+          b === undefined ? '' : t <= b ? ' class="faster"' : ' class="slower"';
+        return `<span${cls}>S${i + 1} ${formatTime(t)}${gap}</span>`;
       })
-      .join('   ');
-    this.set('splits', splits);
+      .join('');
+    if (this.cache.splits !== splits) {
+      this.cache.splits = splits;
+      this.refs.splits.innerHTML = splits;
+    }
     const cut = stage.cutWarning && stage.phase === 'running';
     this.set(
       'warn',
@@ -178,6 +186,11 @@ export class Hud {
         s.el.title = done && ref ? formatDelta(times[i] - ref[i]) : '';
       }
     });
+  }
+
+  /** Free drive has no clock and no stage progress: hide the centre timer and the sector bar. */
+  setFreeDrive(on: boolean): void {
+    this.el.classList.toggle('free', on);
   }
 
   setDistance(text: string): void {

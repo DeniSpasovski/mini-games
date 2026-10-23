@@ -228,6 +228,18 @@ export const fiesta: CarDef = {
       autoFit: false,
       matte: false,
       atlas: fiestaLivery,
+      // The real lamp is a dark housing with two lights, not the drawn map: the outer bulb in its chrome reflector and the
+      // inner module (just ahead of its chrome face, so the face is lit from it rather than a flat lit plate).
+      lampParts: { headlight: 'chrome', lenscover: 'lensclear' },
+      lampBody: true,
+      headBowls: true,
+      headBulbs: [
+        [0.697, 0.705, 1.497],
+        [0.6, 0.655, 1.69],
+      ],
+      headScatter: ['chrome'],
+      scatterLevel: 0.3,
+      bulbGlares: true,
     },
   },
 };

@@ -73,7 +73,7 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 **On a stage** (`game/stage.ts`):
 
 - **Hold:** a stopped car with no pedal pressed is held (HUD `HOLD`); throttle releases it.
-- **Sectors:** one bar segment per sector, amber while running, green / red against your best run.
+- **Sectors:** one bar segment per sector, amber while running, green / yellow against your best run (faster / slower).
 - **Cutting** (`StageTimer.updateCut`): up to `CUT_WARN` (20 m off the road edge) is allowed. Past it the HUD shows `OFF STAGE`
   and a grace timer runs; when it ends, or past `CUT_MAX`, or on a later part of the road, the car is put back where it left.
 - **Penalties:** manual reset +2 s (+10 s when flipped), forced reset +5 s. Knocked-over marker posts are free, chevron signs only slow the car a bit
@@ -87,6 +87,10 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
   handling change = bump that car; a shared physics change = bump every car. Livery / model fixes never bump. Agents bump
   them as part of the change (AGENTS.md).
 
+## UI style
+
+Tokens, type, shapes, components and rules: [STYLEGUIDE.md](STYLEGUIDE.md). Code: `game/ui-tokens.css`, `menu.css`, `hud.css`, `menu-icons.ts`; the stage plate is `stagePlateHtml` in `game/menu.ts`.
+
 ## Look (`engine/environment.ts`, `engine/world-shading.ts`)
 
 Per-map settings live in `MapDef.environment`; everything has a default.
@@ -99,17 +103,31 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   fixed exposure; the env map and the tree ambient (`setTreeSky`) are rebuilt from the night sky. The car's lights fade in with the dark (`lightNeed`, from the sun height: off by day, ~0.6 at the 17:30 evening, 1 at night; scales lamps, beam, cones and dust glow). They switch on
   (`CarModel.setLamps(level)`: head / tail lamp materials, `userData.headLamp`) and `game/headlights.ts` (strength, colour and beam shape per car: `CarDef.headlights`) adds a low-beam spot, a wide
   spill spot and two soft beam cones; dust, spray and haze glow inside the beam (`ParticleSystem.setHeadlight`). Shadows: the low
-  beam and the moon cast them on high quality only. No map has a night stage yet. Road side (`engine/night-glow.ts`, shared `ws*` uniforms): marker-post reflectors and chevron boards
+  beam and the moon cast them on high quality only. Head lamps (`part-materials.ts` `headLamp`) are nearly dark with the lights
+  off and get a halo in the beam colour when on (`LampHalos` `front`); the beam starts at the model's own lamps
+  (`CarModel.onHeadlamps` -> `Headlights.moveTo`), and its cones fade when seen from in front (glare, not a lit wall). No map has a night stage yet. Road side (`engine/night-glow.ts`, shared `ws*` uniforms): marker-post reflectors and chevron boards
   light up in the car's beam (`retro`), street lamp lenses glow with `lightNeed` and `world/lamp-pools.ts` lays a soft light pool under
   each lamp. High quality adds bloom (`engine/night-bloom.ts`, threshold far above the lit ground, so lenses and reflectors are
   emissive well over it). Not done: high / low beam key.
 - **Sky / tone mapping:** drifting clouds (`cloudCoverage`, `cloudSpeed`); ACES, or `toneMapping: 'agx' | 'neutral'` per map.
+  `skyBrightness` dims the visible dome only (deeper blue; the env map keeps the full sky, so the world's light is unchanged).
+  `fogColor: 'sky'` takes the hue of the sky just above the horizon (a tiny half-float cube of the env scene) at the
+  luminance `fogBrightness`, so distant hills fade into the sky's colour.
+- **Colour grade** (`engine/grade.ts`, `EnvironmentDef.grade`, season changes in `grades`): white balance, contrast round
+  mid grey, saturation, vibrance, shadow / highlight tint, vignette, inside the tone-mapping chunk (wraps the ACES / AgX /
+  Neutral functions: no extra pass, MSAA kept). No `grade` = the plain tone-mapped image. Off at night and in the studio;
+  `goldenHour` replaces sky, fog, exposure and grade in the evening (`isGoldenHour`: 17:00 till night).
+  `?grade=off` to compare, `?look=before|sky|soft|crisp|warm|cool|vodno-before|forest|forest-haze` to try test variants (`LOOKS` in environment.ts), `__grade.set({...})` to tune live. `gradeColor` mirrors the shader for tests.
+- **Car reflections:** three.js draws a material without its own env map at `scene.environmentIntensity` (0.3), so car
+  materials are flagged `carEnv` (engine/world-shading.ts): their specular env lookup uses their own `envMapIntensity`
+  (scaled with the scene's), the diffuse sky light stays the scene's.
 - **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark outside the
   shadow box (`world/canopy-shadows.ts`: a coarse whole-map texture plus a 1.5 m local window of 768 m around the camera,
   rebuilt from the generated scatter chunks every 64 m, so the road gets tree shadows far past the shadow map), height fog
   warming towards the sun, wind, leaf translucency. Custom shaders must call `addWorldUniforms(shader)`. Flag cloth
   (`defines.RALLY_FLAG`: materials `flag` = the printed flag of North Macedonia, texture `flag_mk`; `fan_flag`) turns downwind
   and ripples; print the pattern on the cloth, never lay geometry over it (the wind shader moves vertices, not surfaces).
+  `groundTint.variety` adds deeper-green / yellow-green meadow patches to the tinted grass (spring).
   Levelled gardens / park strips: `terrain.lawns` (flat world polygons) paints the terrain itself pure grass (splat) and wet
   (`world/ground-moisture.ts`, lush green) - do not lay a green decal over terrain.
 - **Surfaces:** bump relief on roads, rocks and terrain (off on low); grass cards use alpha-to-coverage with MSAA.
@@ -251,7 +269,9 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   `LAKE_REACH` of the shore, `-LAKE_REACH` further inside (every user stops at `LAKE_SHELF`); test `lakes-index`.
 - **Railways:** OSM tracks as `rail` paths with a drivable ballast hump, rails and catenary (`world/railways.ts`, `rail-mesh.ts`).
 - **Buildings:** placeholder boxes with stable ids (`buildings.csv`, viewer `?building=N`) or mesh buildings from the real
-  footprints (`world/building-mesh.ts`).
+  footprints (`world/building-mesh.ts`). Box houses take wall / roof scans from one texture array (`engine/house-walls.ts`, UVs from the
+  instance scale in the shader; tiles in `engine/facades/`, `scripts/facades/bake.py`); on Galichica / Petralica the share of rubble-stone houses
+  grows with height (`buildingInstance`).
 - **Stage signs:** start / finish gantries and split boards from the stage's `timing`, along the stage road (`world/stage-signs.ts`).
 - **Terrain by hand:** `terrain.pads` level the land round a lot (along the road: `frontage` + `lift`) or a house on a slope (a terrace:
   `PadDef.level`); the road's carve wins near the road. `road.cutWalls.range` limits the sheer, walled cut to one stretch of the stage
@@ -363,13 +383,14 @@ surface x compound x tyre size / grade x set-up. Details and tuning workflow: [P
 **Setup screen** (`game/menu.ts` `setupSelect`, `game/setup-bench.ts`, `Showroom.renderBoxes`): optional; most players never
 open it.
 
-- Rows of boxes: **Tyres** (five: soft and hard tarmac, mixed, hard and soft gravel; on the car's own rim, grip chip per surface
-  of the stage; the boxes shrink to fit), **Suspension** (the car's coil-over,
-  travel, ride height, spring, rebound), **Gearing** (speed-per-gear chart, race cars only). `RECOMMENDED` marks the pick.
-- Click, or arrows + Enter, Esc / B back. Choices are not saved (they reset with the stage or car); the URL and the leaderboard
-  carry them.
-- Each box is a transparent DOM element; `renderBoxes` draws the showroom, then each part's studio camera into its box. Call
-  `showSetup(carId, boxes)` again after the menu re-renders. Styles: `game/menu.css` "setup screen".
+- The menu slab with one row per setting: **Tyres** (five: soft and hard tarmac, mixed, hard and soft gravel; grip pips per
+  surface of the stage), **Suspension** (travel, ride height, spring, rebound, the car's soft-stiff range), **Gearing** (top speed,
+  final drive, pull; race cars only, else "Standard"). `RECOMMENDED` marks the stage's pick.
+- ↑↓ / D-pad pick the row, ←→ or the row's arrows change it, Enter / A on the active row steps to the next option, Esc / B back.
+  Choices are not saved (they reset with the stage or car); the URL and the leaderboard carry them.
+- The part window top right shows the active row's pick: a transparent DOM element; `renderBoxes` draws the showroom, then the
+  part's studio camera (`setup-bench.ts`) into it; gearing shows its speed-per-gear chart there. Call `showSetup(carId, boxes)`
+  again after the menu re-renders. Styles: `game/menu.css` "Setup screen".
 - In game: no set-up HUD; a "hold on!" line at GO for a poor tyre pick; the dash shows the four tyre temperatures
   and a disc mark per wheel (PHYSICS.md "Tyre temperature" / "Brakes"); `F2` shows tyre, set-up, per-wheel grip, tyre and disc temperature.
 

@@ -1,4 +1,54 @@
 import { Rng } from '../../../shared/rng';
+import renderUrl from './facades/render.webp';
+import clayUrl from './facades/clay_brick.webp';
+import brickUrl from './facades/brick_red.webp';
+import rubbleUrl from './facades/rubble.webp';
+import blockUrl from './facades/block.webp';
+import sheetUrl from './facades/sheet.webp';
+import slabUrl from './facades/slab.webp';
+import ashlarUrl from './facades/ashlar.webp';
+import sidingUrl from './facades/siding.webp';
+
+/** One 3.2 m bay of a Poly Haven (CC0) scan, 512 px, neutralised where the vertex colour supplies the paint. */
+const PHOTO_URLS = {
+  render: renderUrl,
+  clay: clayUrl,
+  brick: brickUrl,
+  rubble: rubbleUrl,
+  block: blockUrl,
+  sheet: sheetUrl,
+  slab: slabUrl,
+  ashlar: ashlarUrl,
+  siding: sidingUrl,
+};
+type PhotoId = keyof typeof PHOTO_URLS;
+const photos = new Map<PhotoId, HTMLImageElement>();
+export let facadePhotosReady = false;
+Promise.all(
+  (Object.keys(PHOTO_URLS) as PhotoId[]).map(async (id) => {
+    const img = new Image();
+    img.src = PHOTO_URLS[id];
+    await img.decode();
+    photos.set(id, img);
+  }),
+).then(
+  () => (facadePhotosReady = true),
+  () => (facadePhotosReady = true),
+);
+
+function photo(
+  ctx: CanvasRenderingContext2D,
+  id: PhotoId,
+  w: number,
+  h: number,
+): void {
+  const img = photos.get(id);
+  if (img) ctx.drawImage(img, 0, 0, w, h);
+  else {
+    ctx.fillStyle = '#c9c4bb';
+    ctx.fillRect(0, 0, w, h);
+  }
+}
 
 /**
  * Building facade textures: ONE bay (3.2 m wide) x ONE floor (3.2 m tall) per tile, repeated across a
@@ -14,7 +64,11 @@ export type FacadeId =
   | 'facade_industrial'
   | 'facade_stone'
   | 'facade_plainstone'
-  | 'facade_garage';
+  | 'facade_garage'
+  | 'facade_clay'
+  | 'facade_rubble'
+  | 'facade_block'
+  | 'facade_siding';
 
 export interface FacadeDef {
   name: string;
@@ -43,24 +97,6 @@ function speckle(
       rng.range(1, 3),
     );
   }
-}
-
-/** Running-bond brick coursing over the whole tile (light mortar, per-brick shade). */
-function bricks(ctx: Ctx, w: number, h: number, seed: number): void {
-  const rng = new Rng(seed);
-  const bh = 4.5;
-  const bw = 14;
-  ctx.fillStyle = '#c9c4bb';
-  ctx.fillRect(0, 0, w, h);
-  for (let row = 0, y = 0; y < h; row++, y += bh) {
-    const off = row % 2 ? bw / 2 : 0;
-    for (let x = -off; x < w; x += bw) {
-      const k = rng.range(0.9, 1.07);
-      ctx.fillStyle = `rgb(${232 * k},${226 * k},${216 * k})`;
-      ctx.fillRect(x + 0.6, y + 0.6, bw - 1.2, bh - 1.2);
-    }
-  }
-  speckle(ctx, w, h, seed + 1, 1);
 }
 
 function glass(ctx: Ctx, x: number, y: number, w: number, h: number): void {
@@ -115,43 +151,41 @@ function floorLine(
 export const FACADE_DEFS: Record<FacadeId, FacadeDef> = {
   facade_brick: {
     name: 'Facade: brick row house (tint with vertex colour)',
-    size: [192, 192],
+    size: [512, 512],
     color: true,
-    draw(ctx, w, h) {
-      bricks(ctx, w, h, 301);
+    draw(ctx, W, H) {
+      ctx.scale(W / 192, H / 192);
+      const w = 192;
+      const h = 192;
+      photo(ctx, 'brick', w, h);
       window2(ctx, w / 2, 40, 62, 82, '#f1eee6', true, true);
       floorLine(ctx, w, h);
     },
   },
   facade_stucco: {
     name: 'Facade: stucco / siding house',
-    size: [192, 192],
+    size: [512, 512],
     color: true,
-    draw(ctx, w, h) {
-      ctx.fillStyle = '#e6e2d8';
-      ctx.fillRect(0, 0, w, h);
-      speckle(ctx, w, h, 311, 1.6);
-      // Faint horizontal siding laps.
-      ctx.fillStyle = 'rgba(0,0,0,0.05)';
-      for (let y = 6; y < h; y += 9) ctx.fillRect(0, y, w, 1.5);
+    draw(ctx, W, H) {
+      ctx.scale(W / 192, H / 192);
+      const w = 192;
+      const h = 192;
+      photo(ctx, 'render', w, h);
       window2(ctx, w / 2, 48, 54, 74, '#fbfaf6', true, false);
-      // Shutters.
-      ctx.fillStyle = 'rgba(40,60,70,0.55)';
-      ctx.fillRect(w / 2 - 54 / 2 - 17, 48, 13, 74);
-      ctx.fillRect(w / 2 + 54 / 2 + 4, 48, 13, 74);
       floorLine(ctx, w, h, 'rgba(0,0,0,0.1)');
     },
   },
   facade_concrete: {
     name: 'Facade: concrete apartment block (window band)',
-    size: [192, 192],
+    size: [512, 512],
     color: true,
-    draw(ctx, w, h) {
-      ctx.fillStyle = '#d6d3cb';
-      ctx.fillRect(0, 0, w, h);
-      speckle(ctx, w, h, 321, 1.2);
-      // Slab edge + spandrel panel, then a ribbon window with mullions.
-      ctx.fillStyle = '#c2beb4';
+    draw(ctx, W, H) {
+      ctx.scale(W / 192, H / 192);
+      const w = 192;
+      const h = 192;
+      photo(ctx, 'slab', w, h);
+      // Spandrel panel, then a ribbon window with mullions.
+      ctx.fillStyle = 'rgba(0,0,0,0.08)';
       ctx.fillRect(0, h * 0.7, w, h * 0.3);
       glass(ctx, 12, 34, w - 24, 78);
       ctx.fillStyle = '#e4e1da';
@@ -163,9 +197,12 @@ export const FACADE_DEFS: Record<FacadeId, FacadeDef> = {
   },
   facade_commercial: {
     name: 'Facade: commercial / institutional (large glazing)',
-    size: [192, 192],
+    size: [512, 512],
     color: true,
-    draw(ctx, w, h) {
+    draw(ctx, W, H) {
+      ctx.scale(W / 192, H / 192);
+      const w = 192;
+      const h = 192;
       ctx.fillStyle = '#dcd9d1';
       ctx.fillRect(0, 0, w, h);
       speckle(ctx, w, h, 331, 1.2);
@@ -180,14 +217,13 @@ export const FACADE_DEFS: Record<FacadeId, FacadeDef> = {
   },
   facade_industrial: {
     name: 'Facade: industrial hall (corrugated cladding)',
-    size: [192, 192],
+    size: [512, 512],
     color: true,
-    draw(ctx, w, h) {
-      for (let x = 0; x < w; x += 6) {
-        ctx.fillStyle = x % 12 ? '#cfd2d3' : '#bfc3c5';
-        ctx.fillRect(x, 0, 6, h);
-      }
-      speckle(ctx, w, h, 341, 1.4);
+    draw(ctx, W, H) {
+      ctx.scale(W / 192, H / 192);
+      const w = 192;
+      const h = 192;
+      photo(ctx, 'sheet', w, h);
       // High strip window.
       glass(ctx, 22, 18, w - 44, 22);
       ctx.fillStyle = '#9da2a5';
@@ -198,10 +234,13 @@ export const FACADE_DEFS: Record<FacadeId, FacadeDef> = {
   },
   facade_stone: {
     name: 'Facade: stone (church) with an arched window',
-    size: [192, 192],
+    size: [512, 512],
     color: true,
-    draw(ctx, w, h) {
-      ashlar(ctx, w, h, 351);
+    draw(ctx, W, H) {
+      ctx.scale(W / 192, H / 192);
+      const w = 192;
+      const h = 192;
+      photo(ctx, 'ashlar', w, h);
       const cx = w / 2;
       ctx.fillStyle = '#ece8de';
       ctx.beginPath();
@@ -223,52 +262,75 @@ export const FACADE_DEFS: Record<FacadeId, FacadeDef> = {
   },
   facade_plainstone: {
     name: 'Facade: plain stone blocks (mausoleum)',
-    size: [192, 192],
+    size: [512, 512],
     color: true,
-    draw(ctx, w, h) {
-      ashlar(ctx, w, h, 361);
+    draw(ctx, W, H) {
+      ctx.scale(W / 192, H / 192);
+      const w = 192;
+      const h = 192;
+      photo(ctx, 'ashlar', w, h);
     },
   },
   facade_garage: {
     name: 'Facade: garage (block wall + roll-up door)',
-    size: [192, 192],
+    size: [512, 512],
     color: true,
-    draw(ctx, w, h) {
-      const rng = new Rng(371);
-      ctx.fillStyle = '#c8c5bd';
-      ctx.fillRect(0, 0, w, h);
-      for (let y = 0; y < h; y += 12)
-        for (let x = (y / 12) % 2 ? -12 : 0; x < w; x += 24) {
-          const k = rng.range(0.93, 1.05);
-          ctx.fillStyle = `rgb(${214 * k},${211 * k},${203 * k})`;
-          ctx.fillRect(x + 0.8, y + 0.8, 22.4, 10.4);
-        }
+    draw(ctx, W, H) {
+      ctx.scale(W / 192, H / 192);
+      const w = 192;
+      const h = 192;
+      photo(ctx, 'block', w, h);
       // Roll-up door.
       ctx.fillStyle = '#8f969b';
       ctx.fillRect(28, 46, w - 56, 140);
       ctx.fillStyle = 'rgba(0,0,0,0.22)';
       for (let y = 52; y < 186; y += 11) ctx.fillRect(28, y, w - 56, 1.5);
-      speckle(ctx, w, h, 372, 1);
+    },
+  },
+  facade_clay: {
+    name: 'Facade: unfinished red clay brick house',
+    size: [512, 512],
+    color: true,
+    draw(ctx, W, H) {
+      ctx.scale(W / 192, H / 192);
+      photo(ctx, 'clay', 192, 192);
+      window2(ctx, 96, 48, 54, 74, '#f1eee6', true, false);
+      floorLine(ctx, 192, 192, 'rgba(0,0,0,0.12)');
+    },
+  },
+  facade_rubble: {
+    name: 'Facade: lime-plastered rubble stone house',
+    size: [512, 512],
+    color: true,
+    draw(ctx, W, H) {
+      ctx.scale(W / 192, H / 192);
+      photo(ctx, 'rubble', 192, 192);
+      window2(ctx, 96, 52, 46, 66, '#e8e4da', true, true);
+      floorLine(ctx, 192, 192, 'rgba(0,0,0,0.1)');
+    },
+  },
+  facade_block: {
+    name: 'Facade: bare concrete block wall (shed, no door)',
+    size: [512, 512],
+    color: true,
+    draw(ctx, W, H) {
+      ctx.scale(W / 192, H / 192);
+      photo(ctx, 'block', 192, 192);
+      floorLine(ctx, 192, 192, 'rgba(0,0,0,0.12)');
+    },
+  },
+  facade_siding: {
+    name: 'Facade: clapboard / vinyl siding house',
+    size: [512, 512],
+    color: true,
+    draw(ctx, W, H) {
+      ctx.scale(W / 192, H / 192);
+      photo(ctx, 'siding', 192, 192);
+      window2(ctx, 96, 48, 54, 74, '#fbfaf6', true, false);
+      ctx.fillStyle = 'rgba(40,60,70,0.5)';
+      ctx.fillRect(96 - 27 - 17, 48, 13, 74);
+      ctx.fillRect(96 + 27 + 4, 48, 13, 74);
+      floorLine(ctx, 192, 192, 'rgba(0,0,0,0.1)');
     },
   },
 };
-
-function ashlar(ctx: Ctx, w: number, h: number, seed: number): void {
-  const rng = new Rng(seed);
-  ctx.fillStyle = '#b5b1a7';
-  ctx.fillRect(0, 0, w, h);
-  let y = 0;
-  while (y < h) {
-    const bh = rng.pick([22, 28, 34]);
-    let x = -rng.range(0, 30);
-    while (x < w) {
-      const bw = rng.range(30, 58);
-      const k = rng.range(0.9, 1.08);
-      ctx.fillStyle = `rgb(${225 * k},${221 * k},${212 * k})`;
-      ctx.fillRect(x + 1, y + 1, bw - 2, bh - 2);
-      x += bw;
-    }
-    y += bh;
-  }
-  speckle(ctx, w, h, seed + 1, 1.5);
-}

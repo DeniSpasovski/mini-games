@@ -1,6 +1,7 @@
 import { installThumbnailCapture } from '../../../shared/thumbnail';
 import { HoleGame } from '../game/hole-game';
 import { installMobileGuards } from '../game/ios';
+import '../game/ui-tokens.css';
 import '../game/hole.css';
 
 installMobileGuards();

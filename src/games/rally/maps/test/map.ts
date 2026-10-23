@@ -40,12 +40,12 @@ const TEMPS: StageTemps = {
  */
 export const testMap: MapDef = {
   id: 'test',
-  name: 'Test Map',
+  name: 'Forest Rally',
   country: 'mk',
   stages: [
     {
       id: 'test',
-      name: 'Test Map',
+      name: 'Forest Rally',
       year: 2026,
       temps: TEMPS,
       /** Recommended tyre (pre-selected on the car screen; see ../../PHYSICS.md). */

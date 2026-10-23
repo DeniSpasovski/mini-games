@@ -90,9 +90,9 @@ const TEXT_TEXTURES = new Set<TextureId>([
   'lot_sign_station',
 ]);
 
-/** Whether a worker may draw this texture (engine/texture-prefetch.ts). */
+/** Whether a worker may draw this texture (engine/texture-prefetch.ts): not text, and not the facades (they draw decoded scans). */
 export const drawableInWorker = (id: TextureId): boolean =>
-  !TEXT_TEXTURES.has(id);
+  !TEXT_TEXTURES.has(id) && !(id in FACADE_DEFS);
 
 export const textureSize = (id: TextureId): [number, number] => DEFS[id].size;
 

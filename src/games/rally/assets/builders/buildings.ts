@@ -3,7 +3,8 @@ import { Rng } from '../../../../shared/rng';
 import { merge, paint, planarUV, shade } from '../../engine/geo';
 import { getMaterial } from '../../engine/materials';
 import { HOUSE_WALL_FRACTION } from '../catalog';
-import type { AssetBuilder } from '../types';
+import { HOUSE_LAYER } from '../../engine/house-walls';
+import type { AssetBuilder, BuiltAsset } from '../types';
 
 /**
  * Placeholder buildings for real-world maps. UNIT footprint: x (long side / width) and
@@ -17,6 +18,16 @@ import type { AssetBuilder } from '../types';
 /** Wall top of the sloped-roof house as a fraction of its total height (roof = the rest). */
 const HOUSE_WALL = HOUSE_WALL_FRACTION;
 
+/** Texture-array layer of every vertex (-1 = detail map x vertex colour; see engine/house-walls.ts). */
+function setLayer(g: BufferGeometry, layer: number): BufferGeometry {
+  const n = g.getAttribute('position').count;
+  g.setAttribute(
+    'layer',
+    new BufferAttribute(new Float32Array(n).fill(layer), 1),
+  );
+  return g;
+}
+
 const box = (
   w: number,
   h: number,
@@ -26,32 +37,23 @@ const box = (
   z: number,
   color: string,
   rng?: Rng,
+  layer = -1,
 ) => {
   const g = new BoxGeometry(w, h, d);
   g.translate(x, y, z);
-  return planarUV(paint(g, color, rng, rng ? 0.03 : 0), 0.3);
+  return setLayer(planarUV(paint(g, color, rng, rng ? 0.03 : 0), 0.3), layer);
 };
 
 /** Triangles (flat shaded) from a flat list of [x,y,z] triples. */
-function tris(points: number[][], color: string): BufferGeometry {
+function tris(points: number[][], color: string, layer = -1): BufferGeometry {
   const g = new BufferGeometry();
   g.setAttribute(
     'position',
     new BufferAttribute(new Float32Array(points.flat()), 3),
   );
   g.computeVertexNormals();
-  return planarUV(paint(g, color), 0.3);
+  return setLayer(planarUV(paint(g, color), 0.3), layer);
 }
-
-/** Quad a-b-c-d (counter-clockwise seen from outside) as two triangles. */
-const quad = (a: number[], b: number[], c: number[], d: number[]) => [
-  a,
-  b,
-  c,
-  a,
-  c,
-  d,
-];
 
 /** Windows (and a door) on the four walls, protruding a hair from the faces. */
 function openings(
@@ -83,19 +85,46 @@ function openings(
   parts.push(box(0.1, dh, 0.01, 0, dh / 2, e, door));
 }
 
-const WALLS = ['#e7e1d3', '#e6d0a3', '#d8a47a', '#a65a3e'];
-const ROOFS = ['#a4462e', '#b5532f', '#8f3f2b', '#9d4a33'];
+// Styles: 0-2 render in three paints, 3 unfinished red clay brick, 4 / 5 lime-plastered rubble stone (hip / gable).
+const WALLS = [
+  '#f0ece2',
+  '#e6d6a6',
+  '#e0b49a',
+  '#f4f0ea',
+  '#f4f0ea',
+  '#f4f0ea',
+];
+const WALL_LAYER = [
+  HOUSE_LAYER.render,
+  HOUSE_LAYER.render,
+  HOUSE_LAYER.render,
+  HOUSE_LAYER.clay,
+  HOUSE_LAYER.rubble,
+  HOUSE_LAYER.rubble,
+];
+// Multiplied onto the roof-tile scan: near white keeps the terracotta, the rest weathers it.
+const ROOFS = ['#ffffff', '#f1e3da', '#e2cfc2', '#f7ebe3'];
 
-/** House with a sloped red-tile roof: hip (even styles) or gable (odd styles). */
-export const housePitched: AssetBuilder = ({ seed, variant, lod }) => {
+/** House with a sloped red-tile roof: hip (even styles) or gable (odd styles). Variants 0-3 one floor, 4-7 two. */
+export const housePitched: AssetBuilder = ({ seed, variant, lod }) =>
+  houseBuilder(seed, variant % 4, variant >= 4 ? 2 : 1, lod);
+
+/** Lime-plastered rubble stone house (hip, gable), its own asset so the render houses' variant set stays small. */
+export const houseStone: AssetBuilder = ({ seed, variant, lod }) =>
+  houseBuilder(seed, 4 + (variant % 2), variant >= 2 ? 2 : 1, lod);
+
+function houseBuilder(
+  seed: number,
+  style: number,
+  rows: number,
+  lod: number,
+): BuiltAsset {
   const rng = new Rng(seed);
-  const style = variant % 4;
-  const rows = variant >= 4 ? 2 : 1;
   const wall = WALLS[style];
   const roof = rng.pick(ROOFS);
   const W = HOUSE_WALL;
   const parts: BufferGeometry[] = [];
-  parts.push(box(1, W, 1, 0, W / 2, 0, wall, rng));
+  parts.push(box(1, W, 1, 0, W / 2, 0, wall, rng, WALL_LAYER[style]));
   if (lod === 0) {
     parts.push(box(1.012, 0.05, 1.012, 0, 0.025, 0, '#8e8a82'));
     // Unfinished brick houses: grey concrete slabs at the floor lines.
@@ -106,23 +135,56 @@ export const housePitched: AssetBuilder = ({ seed, variant, lod }) => {
         );
     openings(parts, rows, W, style === 3 ? '#9a9890' : '#f2f0ea', '#5b3b28');
   }
-  // Roof.
+  // Roof: a slab with a top, an underside and edges (tile thickness `T`), so it holds up from below and from the side.
   const o = 0.07; // eave overhang
+  const T = 0.02; // slab thickness (unit height)
   const y0 = W - 0.015;
   const X = 0.5 + o;
   const Z = 0.5 + o;
-  const pts: number[][] = [];
+  // Roof planes (polygons) and the outer edges of the slab (the ridge and the hip lines are shared, no edge there).
+  let planes: number[][][];
+  let outline: number[][][];
   if (style % 2 === 0) {
     // Hip: ridge along x.
     const rx = 0.24;
-    pts.push(...quad([-X, y0, Z], [X, y0, Z], [rx, 1, 0], [-rx, 1, 0]));
-    pts.push(...quad([X, y0, -Z], [-X, y0, -Z], [-rx, 1, 0], [rx, 1, 0]));
-    pts.push([X, y0, Z], [X, y0, -Z], [rx, 1, 0]);
-    pts.push([-X, y0, -Z], [-X, y0, Z], [-rx, 1, 0]);
+    const a = [-X, y0, Z];
+    const b = [X, y0, Z];
+    const c = [X, y0, -Z];
+    const d = [-X, y0, -Z];
+    const r1 = [rx, 1, 0];
+    const r0 = [-rx, 1, 0];
+    planes = [
+      [a, b, r1, r0],
+      [c, d, r0, r1],
+      [b, c, r1],
+      [d, a, r0],
+    ];
+    outline = [
+      [a, b],
+      [b, c],
+      [c, d],
+      [d, a],
+    ];
   } else {
-    // Gable: ridge along x, triangular gable walls at the ends.
-    pts.push(...quad([-X, y0, Z], [X, y0, Z], [X, 1, 0], [-X, 1, 0]));
-    pts.push(...quad([X, y0, -Z], [-X, y0, -Z], [-X, 1, 0], [X, 1, 0]));
+    // Gable: ridge along x, triangular gable walls at the ends; the roof overhangs them.
+    const a = [-X, y0, Z];
+    const b = [X, y0, Z];
+    const c = [X, y0, -Z];
+    const d = [-X, y0, -Z];
+    const r1 = [X, 1, 0];
+    const r0 = [-X, 1, 0];
+    planes = [
+      [a, b, r1, r0],
+      [c, d, r0, r1],
+    ];
+    outline = [
+      [a, b],
+      [c, d],
+      [b, r1],
+      [r1, c],
+      [d, r0],
+      [r0, a],
+    ];
     parts.push(
       tris(
         [
@@ -134,20 +196,65 @@ export const housePitched: AssetBuilder = ({ seed, variant, lod }) => {
           [-0.5, 1 - 0.02, 0],
         ],
         wall,
+        WALL_LAYER[style],
       ),
     );
   }
-  // Soffit under the eaves (seen from the road).
-  pts.push(...quad([-X, y0, -Z], [X, y0, -Z], [X, y0, Z], [-X, y0, Z]));
-  const rg = tris(pts, roof);
-  shade(rg, (_x, y) =>
-    y < y0 + 0.001 ? 0.55 : 0.85 + 0.15 * ((y - y0) / (1 - y0)),
-  );
-  parts.push(rg);
-  return {
-    parts: [{ geometry: merge(parts), material: getMaterial('props') }],
+  const down = (p: number[]) => [p[0], p[1] - T, p[2]];
+  const fan = (poly: number[][], facing: number[]): number[][] => {
+    // Triangle fan of a convex polygon, wound so its normal points along `facing`.
+    const out: number[][] = [];
+    for (let k = 1; k < poly.length - 1; k++)
+      out.push(poly[0], poly[k], poly[k + 1]);
+    const [p0, p1, p2] = out;
+    const u = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]];
+    const v = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]];
+    const n = [
+      u[1] * v[2] - u[2] * v[1],
+      u[2] * v[0] - u[0] * v[2],
+      u[0] * v[1] - u[1] * v[0],
+    ];
+    const dot = n[0] * facing[0] + n[1] * facing[1] + n[2] * facing[2];
+    if (dot >= 0) return out;
+    // Reverse every triangle.
+    const rev: number[][] = [];
+    for (let k = 0; k < out.length; k += 3)
+      rev.push(out[k], out[k + 2], out[k + 1]);
+    return rev;
   };
-};
+  const centre = [0, (y0 + 1) / 2, 0];
+  const top: number[][] = [];
+  const under: number[][] = [];
+  const edges: number[][] = [];
+  for (const poly of planes) {
+    top.push(...fan(poly, [0, 1, 0]));
+    under.push(...fan(poly.map(down), [0, -1, 0]));
+  }
+  for (const [p, q] of outline) {
+    const mid = [
+      (p[0] + q[0]) / 2,
+      (p[1] + q[1]) / 2 - T / 2,
+      (p[2] + q[2]) / 2,
+    ];
+    edges.push(
+      ...fan(
+        [p, q, down(q), down(p)],
+        [mid[0] - centre[0], mid[1] - centre[1], mid[2] - centre[2]],
+      ),
+    );
+  }
+  const rg = tris(top, roof, HOUSE_LAYER.roof);
+  shade(rg, (_x, y) => 0.85 + 0.15 * ((y - y0) / (1 - y0)));
+  parts.push(rg);
+  // Underside (rafters, in shadow) and the thin edge of the tiles: only near, the far houses stay as light as before.
+  if (lod === 0) {
+    parts.push(tris(under, '#8a7666'));
+    parts.push(tris(edges, '#8c6650'));
+  }
+  return {
+    parts: [{ geometry: merge(parts), material: getMaterial('house') }],
+  };
+}
 
 /**
  * Flat-roofed building. Styles: 0/1 industrial hall (no windows, band, roller door),
@@ -159,8 +266,14 @@ export const buildingFlat: AssetBuilder = ({ seed, variant, lod }) => {
   const rows = variant >= 4 ? 2 : 1;
   const parts: BufferGeometry[] = [];
   const top = 0.965;
-  const body = ['#d9dcdc', '#b9bdbf', '#a85d40', '#e4ddce'][style];
-  parts.push(box(1, top, 1, 0, top / 2, 0, body, rng));
+  const body = ['#f0f2f2', '#d6dadb', '#f4f0ea', '#f0e9da'][style];
+  const layer = [
+    HOUSE_LAYER.sheet,
+    HOUSE_LAYER.sheet,
+    HOUSE_LAYER.clay,
+    HOUSE_LAYER.render,
+  ][style];
+  parts.push(box(1, top, 1, 0, top / 2, 0, body, rng, layer));
   // Parapet / roof edge and roof membrane.
   const cap = style < 2 ? '#7d8287' : style === 2 ? '#8f8c86' : '#a7a29a';
   parts.push(box(1.01, 1 - top, 1.01, 0, (top + 1) / 2, 0, cap));
@@ -188,6 +301,6 @@ export const buildingFlat: AssetBuilder = ({ seed, variant, lod }) => {
     }
   }
   return {
-    parts: [{ geometry: merge(parts), material: getMaterial('props') }],
+    parts: [{ geometry: merge(parts), material: getMaterial('house') }],
   };
 };

@@ -244,6 +244,14 @@ export const bimmerGt2: CarDef = {
         'Body: "E92 Barnfind" by Tushar Singh (Sketchfab, CC BY 4.0), converted + repainted',
       autoFit: false,
       atlas: bimmerGt2Livery,
+      // Twin angel-eye bowls, a projector in each lighting its bowl (the housing round them stays dark).
+      headBowls: [0.42, 0.79, 0.51, 0.65],
+      headBulbs: [
+        [0.535, 0.575, 1.89],
+        [0.675, 0.585, 1.78],
+      ],
+      headScatter: ['chrome'],
+      bulbGlares: true,
     },
   },
 };
