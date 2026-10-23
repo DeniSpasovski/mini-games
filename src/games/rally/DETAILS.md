@@ -116,6 +116,7 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 - **Colour grade** (`engine/grade.ts`, `EnvironmentDef.grade`, season changes in `grades`): white balance, contrast round
   mid grey, saturation, vibrance, shadow / highlight tint, vignette, inside the tone-mapping chunk (wraps the ACES / AgX /
   Neutral functions: no extra pass, MSAA kept). No `grade` = the plain tone-mapped image. Off at night and in the studio;
+  `goldenHour` replaces sky, fog, exposure and grade in the evening (`isGoldenHour`: 17:00 till night).
   `?grade=off` to compare, `?look=before|sky|soft|crisp|warm|cool` to try test variants (`LOOKS` in environment.ts), `__grade.set({...})` to tune live. `gradeColor` mirrors the shader for tests.
 - **Car reflections:** three.js draws a material without its own env map at `scene.environmentIntensity` (0.3), so car
   materials are flagged `carEnv` (engine/world-shading.ts): their specular env lookup uses their own `envMapIntensity`
@@ -126,6 +127,7 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   warming towards the sun, wind, leaf translucency. Custom shaders must call `addWorldUniforms(shader)`. Flag cloth
   (`defines.RALLY_FLAG`: materials `flag` = the printed flag of North Macedonia, texture `flag_mk`; `fan_flag`) turns downwind
   and ripples; print the pattern on the cloth, never lay geometry over it (the wind shader moves vertices, not surfaces).
+  `groundTint.variety` adds deeper-green / yellow-green meadow patches to the tinted grass (spring).
   Levelled gardens / park strips: `terrain.lawns` (flat world polygons) paints the terrain itself pure grass (splat) and wet
   (`world/ground-moisture.ts`, lush green) - do not lay a green decal over terrain.
 - **Surfaces:** bump relief on roads, rocks and terrain (off on low); grass cards use alpha-to-coverage with MSAA.

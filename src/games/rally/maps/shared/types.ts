@@ -1086,6 +1086,11 @@ export interface EnvironmentDef {
    * in the studio; `?grade=off` turns it off for comparisons.
    */
   grade?: ColorGrade;
+  /**
+   * Evening golden hour (`isGoldenHour`, 17:00 till night): these settings replace the day ones (sky, fog, exposure,
+   * grade ...), e.g. a warmer grade and a pink / purple sky.
+   */
+  goldenHour?: Partial<Omit<EnvironmentDef, 'goldenHour'>>;
   /** Grade changes for other seasons, merged field by field over `grade` (`mapInSeason` puts the result in `grade`). */
   grades?: Partial<Record<Season, ColorGrade>>;
 }
@@ -1115,6 +1120,8 @@ export interface GroundTint {
   amount?: number;
   crop?: string;
   moisture?: number;
+  /** Meadow colour patches: deeper green and yellow-green drifts, 0..1 (default 0). */
+  variety?: number;
 }
 
 /**

@@ -74,10 +74,28 @@ export const galichicaInfo: MapInfo = {
         highlightTint: { color: '#ffe2b8', amount: 0.06 },
       },
     },
+    // Evening: golden light on the pass, a soft violet haze.
+    goldenHour: {
+      turbidity: 3,
+      rayleigh: 3,
+      skyBrightness: 0.45,
+      fogColor: '#a39aa6',
+      exposure: 1.25,
+      grade: {
+        warmth: 0.18,
+        tint: 0.1,
+        contrast: 1.12,
+        saturation: 1.1,
+        vibrance: 0.2,
+        shadowTint: { color: '#2f6f6a', amount: 0.06 },
+        highlightTint: { color: '#ffd09a', amount: 0.08 },
+        vignette: 0.18,
+      },
+    },
     // Golden autumn pasture on the karst top.
     groundTint: { grass: '#a59a62', amount: 0.55 },
     groundTints: {
-      spring: { grass: '#7fa04a', amount: 0.65 },
+      spring: { grass: '#7fa04a', amount: 0.65, variety: 1 },
       autumn: { grass: '#876b3e', amount: 0.65 },
     },
   },

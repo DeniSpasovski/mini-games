@@ -153,6 +153,12 @@ export function sunAt(hour: number): { elevation: number; azimuth: number } {
   };
 }
 
+/** Evening golden hour: from 17:00 (sun below ~12 deg in the west) until night. */
+export function isGoldenHour(hour: number): boolean {
+  const h = ((hour % 24) + 24) % 24;
+  return h >= 17 && !isNightHour(h);
+}
+
 /** `?tod=<hours>` (try a time of day on any map with `timeOfDay`), `?tonemap=aces|agx|neutral` and `?grade=off`. */
 function urlNumber(name: string): number | undefined {
   if (typeof location === 'undefined') return undefined;
@@ -253,6 +259,13 @@ export class Environment {
 
   /** Re-apply settings (sun angle, fog, exposure) and rebuild the env map; `studio` = with softboxes (or keep). */
   apply(def: EnvironmentDef, studio = this.studio): void {
+    // Evening golden hour (~17:00 till night): the map's `goldenHour` look over its day look.
+    const at =
+      def.timeOfDay !== undefined
+        ? (urlNumber('tod') ?? def.timeOfDay)
+        : undefined;
+    if (def.goldenHour && !studio && at !== undefined && isGoldenHour(at))
+      def = { ...def, ...def.goldenHour };
     const look = ownValue(LOOKS, urlString('look') ?? '');
     if (look) def = { ...def, ...look };
     this.def = def;
