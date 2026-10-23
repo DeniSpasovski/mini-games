@@ -2,6 +2,7 @@ import {
   BufferAttribute,
   BufferGeometry,
   Group,
+  Material,
   Mesh,
   MeshStandardMaterial,
   Vector3,
@@ -15,6 +16,7 @@ import {
 } from '../engine/road-surface';
 import { getTexture } from '../engine/textures';
 import {
+  type CityStreets,
   type PathDef,
   roadSurfaceAt,
   type RoadTexture,
@@ -30,7 +32,12 @@ import { streetDetailMeshJob } from './street-detail-mesh';
 import { newRoadQuery } from './road';
 import { gantryMeshJob } from './gantry-mesh';
 import { goreMeshJob } from './gore-mesh';
-import { type Junction, type JunctionFillet, mouthFillets } from './junctions';
+import {
+  type Junction,
+  type JunctionFillet,
+  MERGE_ANGLE,
+  mouthFillets,
+} from './junctions';
 import { plazaMeshJob } from './plaza-mesh';
 import { stageSignMeshJob } from './stage-sign-mesh';
 import { buildingMeshJob } from './building-mesh';
@@ -70,16 +77,18 @@ const CITY_KINDS = new Set([
 export const pathTexture = (
   kind: string,
   width: number,
-  city = false,
+  city?: CityStreets,
 ): RoadTexture =>
   (kind === 'motorway' || kind === 'trunk') && width >= 5.5
     ? 'road_parkway'
     : city && CITY_KINDS.has(kind)
-      ? width >= 12
-        ? 'road_street4'
-        : width >= 6.4
-          ? 'road_street'
-          : 'road_city'
+      ? city.asphalt
+        ? city.asphalt
+        : width >= 12
+          ? 'road_street4'
+          : width >= 6.4
+            ? 'road_street'
+            : 'road_city'
       : 'road_tarmac';
 const SEGMENT = 64; // samples per mesh
 
@@ -120,6 +129,141 @@ export function getRoadMaterial(
     roadMaterials.set(key, m);
   }
   return m;
+}
+
+/** Metres of asphalt next to a gravel section that cars have dusted with gravel (more along the wheel paths). */
+const DIRT_LEN = 16;
+const DIRT_WHEEL_LEN = 26;
+
+/**
+ * Where the stage road changes between baked asphalt and gravel, a layer of the gravel texture (same UVs as the gravel
+ * ribbon, so it carries on without a seam) over the last metres of asphalt: patchy, densest at the change and
+ * fading out, furthest along the wheel paths, like the gravel and dust cars drag onto the tarmac.
+ */
+function surfaceFadeMesh(world: World): Mesh | null {
+  const road = world.map.road;
+  const changes: { at: number; dir: 1 | -1 }[] = [];
+  for (const sec of road.sections ?? []) {
+    const before = roadSurfaceAt(road, sec.from - 0.01).texture;
+    const after = roadSurfaceAt(road, sec.from).texture;
+    // dir: which way the asphalt lies from the change
+    if (before === 'road' && isRoadSurface(after))
+      changes.push({ at: sec.from, dir: 1 });
+    else if (after === 'road' && isRoadSurface(before))
+      changes.push({ at: sec.from, dir: -1 });
+  }
+  if (!changes.length) return null;
+  const hf = world.analytic;
+  const nTmp = new Vector3();
+  const cols = ACROSS.length;
+  const pos: number[] = [];
+  const nor: number[] = [];
+  const uv: number[] = [];
+  const dw: number[] = [];
+  const idx: number[] = [];
+  const STEP = 0.5;
+  for (const { at, dir } of changes) {
+    const rows = Math.ceil((DIRT_WHEEL_LEN + 1) / STEP) + 1;
+    const base = pos.length / 3;
+    for (let r = 0; r < rows; r++) {
+      // from 1 m into the gravel to the end of the dust on the asphalt
+      const t = -1 + r * STEP;
+      const d = at + dir * t;
+      const s = world.road.at(d);
+      const onBridge = !!world.road.bridgeAt(d);
+      for (const a of ACROSS) {
+        const lat = a * s.halfWidth;
+        const x = s.x + s.tz * lat;
+        const z = s.z - s.tx * lat;
+        const deck = onBridge ? world.gen.deckHeightAt(x, z) : NaN;
+        pos.push(x, (Number.isNaN(deck) ? hf.height(x, z) : deck) + 0.025, z);
+        hf.normal(x, z, nTmp);
+        nor.push(nTmp.x, nTmp.y, nTmp.z);
+        uv.push(1 - (a + 1.04) / 2.08, d / texLength('road'));
+        // wheel paths at about a third of the width either side of the centre
+        const wheel = Math.max(0, 1 - Math.abs(Math.abs(a) - 0.45) / 0.3);
+        const len = DIRT_LEN + (DIRT_WHEEL_LEN - DIRT_LEN) * wheel;
+        const f = Math.max(0, 1 - Math.max(0, t) / len);
+        dw.push(f);
+      }
+    }
+    for (let r = 0; r < rows - 1; r++)
+      for (let c = 0; c < cols - 1; c++) {
+        const a = base + r * cols + c;
+        const b = a + 1;
+        const d = a + cols;
+        const e = d + 1;
+        // rows run against the road's direction where the asphalt lies behind the change
+        if (dir > 0) idx.push(a, d, e, a, e, b);
+        else idx.push(a, e, d, a, b, e);
+      }
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  g.setAttribute('normal', new BufferAttribute(new Float32Array(nor), 3));
+  g.setAttribute('uv', new BufferAttribute(new Float32Array(uv), 2));
+  g.setAttribute('dw', new BufferAttribute(new Float32Array(dw), 1));
+  g.setIndex(idx);
+  g.computeBoundingSphere();
+  const m = new MeshStandardMaterial({
+    map: getTexture('road'),
+    bumpMap: getTexture('road'),
+    bumpScale: 2.2,
+    roughness: 0.93,
+    metalness: 0,
+    transparent: true,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -8,
+  });
+  m.defines = { RALLY_GROUND: 1 };
+  m.onBeforeCompile = (shader, renderer) => {
+    Material.prototype.onBeforeCompile.call(m, shader, renderer);
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        attribute float dw;
+        varying float vDw;
+        varying vec2 vDXZ;`,
+      )
+      .replace(
+        '#include <project_vertex>',
+        `#include <project_vertex>
+        vDw = dw;
+        vDXZ = ( modelMatrix * vec4( transformed, 1.0 ) ).xz;`,
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        varying float vDw;
+        varying vec2 vDXZ;
+        float dfHash( vec2 p ) { p = fract( p * vec2( 123.34, 456.21 ) ); p += dot( p, p + 45.32 ); return fract( p.x * p.y ); }
+        float dfNoise( vec2 p ) {
+          vec2 i = floor( p ); vec2 f = fract( p ); f = f * f * ( 3.0 - 2.0 * f );
+          return mix( mix( dfHash( i ), dfHash( i + vec2( 1.0, 0.0 ) ), f.x ), mix( dfHash( i + vec2( 0.0, 1.0 ) ), dfHash( i + vec2( 1.0, 1.0 ) ), f.x ), f.y );
+        }`,
+      )
+      .replace(
+        '#include <map_fragment>',
+        `#include <map_fragment>
+        {
+          // patches (2 m), ragged at the stone scale (0.3 m)
+          float n = 0.65 * dfNoise( vDXZ / 2.0 ) + 0.35 * dfNoise( vDXZ / 0.3 + 5.0 );
+          float cover = smoothstep( n - 0.12, n + 0.12, vDw * 1.15 );
+          // a thin film of dust between the patches
+          diffuseColor.a *= max( cover, 0.5 * vDw );
+        }`,
+      );
+  };
+  const mesh = new Mesh(g, m);
+  mesh.name = 'surfaceFade';
+  mesh.receiveShadow = true;
+  mesh.matrixAutoUpdate = false;
+  mesh.renderOrder = 1;
+  return mesh;
 }
 
 /** Milliseconds each road mesh job took (diagnostics, also on `globalThis.__roadJobMs`). */
@@ -192,6 +336,7 @@ const LINE_FADE = 2;
 /** Side road textures that get a junction mouth: plain tarmac and the city streets. */
 const MOUTH_TEX = new Set<RoadTexture>([
   'road_tarmac',
+  'road_tarmac_plain_kerbed',
   'road_city',
   'road_street',
   'road_street4',
@@ -213,7 +358,7 @@ const mouthCache = new WeakMap<World, Mouth[]>();
 export function junctionMouths(world: World): Mouth[] {
   const cached = mouthCache.get(world);
   if (cached) return cached;
-  const city = !!world.map.cityStreets;
+  const city = world.map.cityStreets;
   const mouths = world.gen.junctions
     .filter(
       (j) =>
@@ -224,6 +369,8 @@ export function junctionMouths(world: World): Mouth[] {
           roadSurfaceAt(world.map.road, j.along).texture as RoadSurfaceId
         ] &&
         !world.gen.isParkwayLane(j.path) &&
+        // (a shallow merge runs into the edge like a slip road: no rounded corners or pad)
+        !shallowMerge(j, world) &&
         !world.gen.plazas.inside(j.x, j.z, 2),
     )
     // Two ways joining at the same spot (a doubled way in the map data): one mouth.
@@ -307,6 +454,20 @@ function nearMouth(
   return mouths.some(
     ({ box: [x0, z0, x1, z1] }) =>
       x > x0 - pad && x < x1 + pad && z > z0 - pad && z < z1 + pad,
+  );
+}
+
+/** A side road meeting the stage road within MERGE_ANGLE of its line: a merge, not a mouth. */
+function shallowMerge(j: Junction, world: World): boolean {
+  const s = world.road.at(j.along);
+  return Math.abs(j.dx * s.tx + j.dz * s.tz) > Math.cos(MERGE_ANGLE);
+}
+
+/** The point lies in the box of a straight-on mouth (`Junction.through`). */
+function nearThrough(mouths: Mouth[], x: number, z: number): boolean {
+  return mouths.some(
+    ({ j, box: [x0, z0, x1, z1] }) =>
+      j.through && x > x0 && x < x1 && z > z0 && z < z1,
   );
 }
 
@@ -430,6 +591,8 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
     group.add(mesh);
     yield;
   }
+  const dirt = surfaceFadeMesh(world);
+  if (dirt) group.add(dirt);
   const paths = yield* timed('paths', pathMeshesJob(world));
   if (paths) group.add(paths);
   const barriers = yield* timed('barriers', barrierMeshJob(world));
@@ -473,6 +636,9 @@ const PATH_ACROSS = [-1, -0.5, 0, 0.5, 1];
  * past it): sinking at or outside the edge let the verge show through the side road at the mouth.
  */
 const SINK_RAMP = 0.8;
+/** A road query's point lies beside the stage road, not out past its start or finish (clamped to an end). */
+const onStageSpan = (world: World, along: number): boolean =>
+  along > 0.05 && along < world.road.length - 0.05;
 /** Rings of a junction fillet fan from its corner to its arc. */
 const FILLET_RINGS = 4;
 const PATH_STEP = 3; // m between ribbon rows
@@ -607,7 +773,7 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
       ? 'road_parkway'
       : p.surface === 'dirt'
         ? 'road'
-        : pathTexture(p.kind, p.width, !!world.map.cityStreets);
+        : pathTexture(p.kind, p.width, world.map.cityStreets);
     const key = `${tex}:${Math.floor(mid[0] / PATH_TILE)},${Math.floor(mid[1] / PATH_TILE)}`;
     let tile = tiles.get(key);
     if (!tile)
@@ -667,8 +833,11 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
           (ground > prof - 3 || world.gen.portals.inside(x, z))
             ? prof
             : ground;
+        // (not past the stage road's start / finish: the street carrying on from it is the only surface there)
         const sink =
-          rq.found && Math.abs(world.road.at(rq.along).y - y) < 1
+          rq.found &&
+          onStageSpan(world, rq.along) &&
+          Math.abs(world.road.at(rq.along).y - y) < 1
             ? 1 -
               Math.min(
                 1,
@@ -715,6 +884,13 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
           nearMouth(mouths, x, z, 4)
         )
           creaseOther = Math.max(creaseOther, crease > 0 ? 1 - crease : 1);
+        // (off the stage road's start / finish the street carrying on from it covers the carve's creases the same way)
+        if (
+          rq.found &&
+          !onStageSpan(world, rq.along) &&
+          rq.distance < rq.halfWidth + 4
+        )
+          creaseOther = 1;
         let yTop = y;
         if (creaseOther > 0)
           yTop = Math.max(
@@ -746,7 +922,13 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
             under = 0.015;
         }
         tile.pos.push(x, top - under, z);
-        tile.jw.push(MOUTH_TEX.has(tex) ? junctionBlend(mouths, x, z) : 0);
+        // (a straight-on road keeps its own wheel paths through the mouth: only its edges blend)
+        tile.jw.push(
+          MOUTH_TEX.has(tex) &&
+            !(Math.abs(PATH_ACROSS[c]) < 0.75 && nearThrough(mouths, x, z))
+            ? junctionBlend(mouths, x, z)
+            : 0,
+        );
         // One normal per row (taken at the centre): the ribbons are flat roads, and this saves four height samples per vertex.
         tile.nor.push(nTmp.x, nTmp.y, nTmp.z);
         let u = 1 - (PATH_ACROSS[c] + 1) / 2;
@@ -795,7 +977,9 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
       world.road.query(x, z, rq);
       const ground = hf.height(x, z);
       const sink =
-        rq.found && Math.abs(world.road.at(rq.along).y - ground) < 1
+        rq.found &&
+        onStageSpan(world, rq.along) &&
+        Math.abs(world.road.at(rq.along).y - ground) < 1
           ? 1 -
             Math.min(
               1,
@@ -817,7 +1001,13 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
       );
       t.pos.push(
         x,
-        ground + (top - ground) * crease + 0.045 + 0.05 * crease - 0.08 * sink,
+        ground +
+          (top - ground) * crease +
+          0.045 +
+          0.05 * crease -
+          0.08 * sink -
+          // (under a straight-on road's ribbon: the pad only fills the corners, the road runs over it)
+          (j.through ? 0.04 : 0),
         z,
       );
       // (its own ground normal: one for the whole mouth lit the pad unlike the ribbons round it on a slope)

@@ -18,6 +18,8 @@ import { GroundTerrain } from './heightfield';
 
 const TILE = 256;
 const STEP = 4;
+/** Length of a dropped kerb at a sidewalk's free end (m). */
+const DROP = 1.5;
 
 class Acc {
   pos: number[] = [];
@@ -27,7 +29,7 @@ class Acc {
   idx: number[] = [];
 }
 
-const KERB: [number, number, number] = [0.82, 0.8, 0.77];
+const KERB: [number, number, number] = [0.66, 0.65, 0.62];
 const WALK: [number, number, number] = [0.9, 0.89, 0.86];
 const EARTH: [number, number, number] = [0.32, 0.29, 0.25];
 
@@ -165,9 +167,29 @@ export function* streetDetailMeshJob(
     const PL = net.lengths[run.path];
     const c0 = run.from <= 0.01 ? cont(run.path, false) : undefined;
     const c1 = run.to >= PL - 0.01 ? cont(run.path, true) : undefined;
+    // A run end that meets no corner return or continuing way is a dropped kerb (a crossing, a driveway): the kerb
+    // and the sidewalk slope down to the street over DROP m instead of ending in a cut slab.
+    const turns = (atEnd: boolean) =>
+      detail.returns.some(
+        (c) =>
+          c.path === run.path &&
+          c.side === run.side &&
+          c.atEnd === atEnd &&
+          Math.abs(c.along - (atEnd ? run.to : run.from)) < 0.05,
+      );
+    const free0 = !c0 && !turns(false);
+    const free1 = !c1 && !turns(true);
+    const len = run.to - run.from;
+    const drop = Math.min(DROP, len / 3);
+    const at: number[] = [];
+    for (let a = run.from; a < run.to; a += STEP) at.push(a);
+    at.push(run.to);
+    if (free0) at.push(run.from + drop);
+    if (free1) at.push(run.to - drop);
+    at.sort((p, q) => p - q);
     const rows: Row[] = [];
-    for (let a = run.from; ; a += STEP) {
-      const d = Math.min(a, run.to);
+    for (const [i, d] of at.entries()) {
+      if (i > 0 && d - at[i - 1] < 0.05) continue;
       net.pointAt(run.path, Math.max(0, d - 1.5), pt);
       net.pointAt(run.path, Math.min(net.lengths[run.path], d + 1.5), nx);
       const tl = Math.hypot(nx.x - pt.x, nx.z - pt.z) || 1;
@@ -188,8 +210,14 @@ export function* streetDetailMeshJob(
       const z = pt.z - tx * lat;
       // Street surface height at the edge (the ribbon / deck surface sits 3 cm above its ground / profile).
       const y = surfaceY(run.path, d, x, z);
-      rows.push(row(x, z, y, tx, tz, d, run.side, onDeck(run.path)));
-      if (d >= run.to) break;
+      const r = row(x, z, y, tx, tz, d, run.side, onDeck(run.path));
+      const f = Math.min(
+        1,
+        free0 ? (d - run.from) / drop : 1,
+        free1 ? (run.to - d) / drop : 1,
+      );
+      r.top = 0.02 + (r.top - 0.02) * f;
+      rows.push(r);
     }
     sweep(rows, run.side);
     if (++n % 40 === 0) yield;

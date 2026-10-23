@@ -66,15 +66,18 @@
   /** Vodno's old mountain road: lighter, finer stones, no baked patches (the shader draws them, road-surface.ts); the lines and plain tiles share it, so they join. */
   const VODNO = {
     seed: 7,
-    polish: 0.4,
-    exposed: 0.55,
-    cracks: 30,
-    grain: 0.75,
+    polish: 0.3,
+    exposed: 0.35,
+    cracks: 20,
+    grain: 0.65,
+    tone: 0.18,
     patches: 0,
     dust: 0.7,
     age: 0.7,
-    lift: 0.45,
-    relief: 0.6,
+    // a soft, light grey (the road reads calm from the driver's seat)
+    lift: 0.62,
+    warmTarget: [142, 140, 135],
+    relief: 0.45,
     crackW: 0.7,
   };
   /**
@@ -126,6 +129,8 @@
     },
     /** The same surface without lines (Vodno's crossroad, where the road paint lies over it). */
     road_tarmac_plain: { ...VODNO, len: 7 },
+    /** The same road along Vodno's kerbed city streets: no grit at the edges. */
+    road_tarmac_plain_kerbed: { ...VODNO, len: 7, dust: 0, crumble: 0 },
     /** Vodno's junction mouths (like `road_tarmac_junction`): a square world-aligned tile of the same old road. */
     road_tarmac_plain_junction: {
       ...VODNO,

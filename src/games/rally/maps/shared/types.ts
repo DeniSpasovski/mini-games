@@ -430,6 +430,12 @@ export interface PathDef {
    * runs into the other road's edge like a lane merge instead of ending in a square cut (`PathNetwork.halfWidthAt`).
    */
   mergeTaper?: number;
+  /**
+   * Set by world/junctions.ts `connectPaths`: this end widens to the stage road's width (`width`) over its last metres,
+   * where the real road runs straight on and only the stage road turns (the straight road reads as the one that
+   * continues), or where the way carries on from the stage road's start / finish.
+   */
+  widenEnd?: { atEnd: boolean; width: number };
   /** No kerbs / sidewalks / lamps / crosswalks on this street (a country road inside the city-street reach, MapDef.cityStreets). */
   bare?: boolean;
   junction?: boolean;
@@ -567,6 +573,8 @@ export type RoadTexture =
   | 'road_tarmac_plain_junction'
   | 'road_tarmac_lines'
   | 'road_tarmac_plain'
+  /** Vodno's road along kerbed city streets (no edge grit). */
+  | 'road_tarmac_plain_kerbed'
   | 'road_parkway'
   | 'road_street'
   | 'road_street4'
@@ -898,6 +906,8 @@ export interface CityStreets {
   sidewalk?: number;
   /** Lamp spacing along the streets (m, 0 = none). */
   lampEvery?: number;
+  /** One asphalt for every city street (default: city asphalt, centre lines by width; world/road-mesh.ts pathTexture). */
+  asphalt?: RoadTexture;
 }
 
 /**

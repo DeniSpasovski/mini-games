@@ -786,7 +786,7 @@ function* pathDecks(
     yield;
     const p = net.paths[pi];
     const L = net.lengths[pi];
-    const tex = pathTexture(p.kind, p.width, !!world.map.cityStreets);
+    const tex = pathTexture(p.kind, p.width, world.map.cityStreets);
     const roadMat = getRoadMaterial(tex, tex === 'road_parkway' ? 2 : 1);
     const edge = (r: Row, side: number) => ({
       x: r.x + r.tz * (r.hw + 0.2) * side,

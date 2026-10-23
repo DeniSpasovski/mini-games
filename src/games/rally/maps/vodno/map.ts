@@ -182,7 +182,13 @@ export const vodnoMap: MapDef = {
     },
   ],
   // Kerbs, sidewalks and lamps on the streets round the stage road (the Vodno neighbourhood at the start).
-  cityStreets: { reach: 320, sidewalk: 1.4, lampEvery: 38 },
+  cityStreets: {
+    reach: 320,
+    sidewalk: 1.4,
+    lampEvery: 38,
+    // the side streets in the stage road's own asphalt
+    asphalt: 'road_tarmac_plain_kerbed',
+  },
   road: {
     // Salvador Aljende street at the start, then the narrow hillside road, then the R2138 regional road.
     width: 6,

@@ -31,6 +31,8 @@ export interface Junction {
   side: 1 | -1;
   /** Index of the side road in the path list. */
   path: number;
+  /** The side road runs straight on from the stage road, which turns here (the real road continues straight). */
+  through?: boolean;
 }
 
 /**
@@ -42,6 +44,7 @@ export const JUNCTION_ASPHALT: Readonly<Record<string, string>> = {
   road_tarmac_kerbed: 'road_tarmac_junction',
   road_tarmac_lines: 'road_tarmac_plain_junction',
   road_tarmac_plain: 'road_tarmac_plain_junction',
+  road_tarmac_plain_kerbed: 'road_tarmac_plain_junction',
 };
 
 /** How far a side road end may be from the stage road edge and still be joined (m). */
@@ -52,12 +55,23 @@ const MAX_RAY = 45;
 const REF_BACK = 8;
 /** The extended end stops this far past the stage road edge (hidden under its ribbon, m). */
 const OVERSHOOT = 1;
+/** A junction is straight on when the stage road turns more than THROUGH_TURN between its arms THROUGH_ARM m either
+ * side, and the side road leaves within THROUGH_STRAIGHT of one arm's line (radians, m). */
+const THROUGH_TURN = (30 * Math.PI) / 180;
+const THROUGH_ARM = 15;
+const THROUGH_STRAIGHT = (25 * Math.PI) / 180;
+/** A side road joining within this angle of the stage road's line is a merge, not a mouth (radians). */
+export const MERGE_ANGLE = (35 * Math.PI) / 180;
+/** Length over which a merging road bends onto the stage road's line (m). */
+const MERGE_RUN = 12;
 /** Way ends closer than this are one node of the street network (m). */
 const SHARED_END = 2.5;
 
 export function connectPaths(
   paths: PathDef[],
   road: Road,
+  /** Widen straight-on roads to the stage road's width (not on city maps: their streets keep kerbs at their own width). */
+  widenThrough = true,
 ): { paths: PathDef[]; junctions: Junction[] } {
   const junctions: Junction[] = [];
   const q = newRoadQuery();
@@ -105,6 +119,7 @@ export function connectPaths(
     // (that would put a junction barrier across its lanes). Ramps (`*_link`) still are.
     if (p.kind === 'motorway' || p.kind === 'trunk') return p;
     let pts = p.pts;
+    let widen: PathDef['widenEnd'];
     for (const atEnd of [false, true]) {
       const n = pts.length / 2;
       if (n < 2) continue;
@@ -122,6 +137,24 @@ export function connectPaths(
       const dz = (ez - vz(k)) / len;
       road.query(ex, ez, q);
       if (!q.found || q.distance <= q.halfWidth) continue;
+      // Off the stage road's start / finish (the street the stage road carries on from): the way runs on to the stage
+      // road's end and a metre under its ribbon, end to end - no junction mouth, kerb returns or barrier.
+      const atStart = q.along < 0.5;
+      const e0 = road.at(atStart ? 0 : road.length);
+      const e1 = road.at(atStart ? 1 : road.length - 1);
+      if (
+        (atStart || q.along > road.length - 0.5) &&
+        Math.hypot(ex - e0.x, ez - e0.z) < MAX_GAP &&
+        // heading into the stage road, not past its end
+        dx * (e1.x - e0.x) + dz * (e1.z - e0.z) > 0.5
+      ) {
+        // (widening to the stage road's width: no corner of the stage road's end left over the verge)
+        if (p.surface === 'tarmac') widen = { atEnd, width: e0.halfWidth * 2 };
+        pts = atEnd
+          ? [...pts, e0.x, e0.z, e1.x, e1.z]
+          : [e1.x, e1.z, e0.x, e0.z, ...pts];
+        continue;
+      }
       const start = q.distance;
       if (start - q.halfWidth > MAX_GAP) continue;
       let hit = -1;
@@ -139,9 +172,50 @@ export function connectPaths(
       // sunken parkway inside its portal): the way ends where it ends.
       if (spans.some((sp) => q.along >= sp.from - 8 && q.along <= sp.to + 8))
         continue;
-      const reach = hit + OVERSHOOT;
-      const added = [ex + dx * reach, ez + dz * reach];
-      pts = atEnd ? [...pts, ...added] : [...added, ...pts];
+      // Straight on: the side road carries on the line the stage road arrives on, and the stage road turns off it there by
+      // more than THROUGH_TURN (the rally route leaves the real road; where it joins one from a side road, that road is
+      // already the stage road's next arm).
+      const s0 = road.at(q.along - THROUGH_ARM);
+      const s1 = road.at(q.along + THROUGH_ARM);
+      const through =
+        s0.tx * s1.tx + s0.tz * s1.tz < Math.cos(THROUGH_TURN) &&
+        -dx * s0.tx - dz * s0.tz > Math.cos(THROUGH_STRAIGHT);
+      const wide = through && p.surface === 'tarmac' && widenThrough;
+      if (wide) widen = { atEnd, width: road.at(q.along).halfWidth * 2 };
+      // A shallow merge (within MERGE_ANGLE of the stage road's line) bends onto the stage road's line over MERGE_RUN m and
+      // ends inside it, its outer edge running into the stage road's edge like a fork, instead of a square cut across the verge.
+      const sj = road.at(q.along);
+      const cosA = dx * sj.tx + dz * sj.tz;
+      let added: number[];
+      if (
+        !wide &&
+        p.surface === 'tarmac' &&
+        Math.abs(cosA) > Math.cos(MERGE_ANGLE)
+      ) {
+        const dir = Math.sign(cosA);
+        const side = q.lateral >= 0 ? 1 : -1;
+        const inset = Math.max(0, sj.halfWidth - p.width / 2) * side;
+        added = [];
+        for (const f of [0.5, 1]) {
+          const a = road.at(q.along + dir * MERGE_RUN * f);
+          const lat = side * a.halfWidth + (inset - side * a.halfWidth) * f;
+          // the stage road's normal: (tz, -tx) is +lateral
+          added.push(a.x + a.tz * lat, a.z - a.tx * lat);
+        }
+      } else {
+        // (a straight-on road runs on across the stage road, under its ribbon: its full width meets the stage road's edge
+        // where that edge bends away, no sliver of verge between them)
+        const reach =
+          hit + (wide ? road.at(q.along).halfWidth * 0.8 : OVERSHOOT);
+        added = [ex + dx * reach, ez + dz * reach];
+      }
+      if (atEnd) pts = [...pts, ...added];
+      else {
+        const rev: number[] = [];
+        for (let i = added.length - 2; i >= 0; i -= 2)
+          rev.push(added[i], added[i + 1]);
+        pts = [...rev, ...pts];
+      }
       junctions.push({
         x: ex + dx * hit,
         z: ez + dz * hit,
@@ -153,8 +227,10 @@ export function connectPaths(
         along: q.along,
         side: q.lateral >= 0 ? 1 : -1,
         path: pi,
+        through,
       });
     }
+    if (widen) return { ...p, pts, widenEnd: widen };
     return pts === p.pts ? p : { ...p, pts };
   });
   junctions.sort((a, b) => a.along - b.along);

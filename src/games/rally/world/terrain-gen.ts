@@ -388,6 +388,7 @@ export class TerrainGenerator {
           ),
         ),
         this.road,
+        !map.cityStreets,
       );
       // Junction path indices into the network (without the water ways).
       const index: number[] = [];

@@ -31,6 +31,7 @@ export type TextureId =
   | 'road'
   | 'road_tarmac'
   | 'road_tarmac_kerbed'
+  | 'road_tarmac_plain_kerbed'
   | 'road_tarmac_junction'
   | 'road_tarmac_plain_junction'
   | 'road_tarmac_lines'
@@ -1072,6 +1073,14 @@ const DEFS: Record<TextureId, TexDef> = {
     color: true,
     draw(ctx, w, h) {
       DEFS.road_tarmac.draw(ctx, w, h);
+    },
+  },
+  road_tarmac_plain_kerbed: {
+    name: 'Vodno tarmac along a kerbed city street: the surface of road_tarmac_plain',
+    size: [512, 512],
+    color: true,
+    draw(ctx, w, h) {
+      DEFS.road_tarmac_plain.draw(ctx, w, h);
     },
   },
   road_tarmac_junction: {

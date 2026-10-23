@@ -30,6 +30,7 @@ export type RoadSurfaceId =
   | 'road_tarmac_plain_junction'
   | 'road_tarmac_lines'
   | 'road_tarmac_plain'
+  | 'road_tarmac_plain_kerbed'
   | 'road_city'
   | 'road_street'
   | 'road_street4'
@@ -44,6 +45,7 @@ export const ROAD_SURFACE_LEN: Record<RoadSurfaceId, number> = {
   road_tarmac_plain_junction: 7,
   road_tarmac_lines: 7,
   road_tarmac_plain: 7,
+  road_tarmac_plain_kerbed: 7,
   road_city: 8,
   road_street: 8,
   road_street4: 12,
@@ -58,6 +60,7 @@ export const ROAD_SURFACE_LEN: Record<RoadSurfaceId, number> = {
 const PATCHES: Partial<Record<RoadSurfaceId, number>> = {
   road_tarmac_lines: 1,
   road_tarmac_plain: 1,
+  road_tarmac_plain_kerbed: 0.6,
 };
 /** The junction asphalt each stage road surface blends into at side road mouths (world/junctions.ts). */
 export const JUNCTION_OF = JUNCTION_ASPHALT as Partial<
@@ -67,6 +70,7 @@ export const JUNCTION_OF = JUNCTION_ASPHALT as Partial<
 const TONE: Partial<Record<RoadSurfaceId, number>> = {
   road_tarmac_lines: 0.6,
   road_tarmac_plain: 0.6,
+  road_tarmac_plain_kerbed: 0.6,
 };
 
 export const isRoadSurface = (id: string): id is RoadSurfaceId =>
@@ -175,6 +179,7 @@ export function roadSurfaceIds(map: MapDef): RoadSurfaceId[] {
   };
   add(map.road.texture);
   for (const s of map.road.sections ?? []) add(s.texture);
+  add(map.cityStreets?.asphalt);
   if (map.cityStreets)
     for (const t of [
       'road_city',
