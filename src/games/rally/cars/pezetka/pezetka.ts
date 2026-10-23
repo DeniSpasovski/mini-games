@@ -201,8 +201,8 @@ export const pezetka: CarDef = {
     ]),
   },
   model: {
-    // The model's own paint is a pale grey; ours is a Polish-era white.
-    paint: '#e9e6dd',
+    // The model's own paint is a pale grey; ours is the period 126p orange.
+    paint: '#ff6010',
     // The model's own steel rim (pezetka_wheel.glb), de-cambered and centred on the hub.
     rim: { color: '#9aa0a6', spokes: 4, style: 'steel', caliper: false },
     wheelModel: 'pezetka_wheel.glb',
@@ -221,7 +221,7 @@ export const pezetka: CarDef = {
     glass: { color: 0x141c24, opacity: 0.6 },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
-    doorBadge: { z: 0.17, y: 0.66 },
+    doorBadge: { z: 0.27, y: 0.61 },
     gltf: {
       file: 'pezetka.glb',
       credit:

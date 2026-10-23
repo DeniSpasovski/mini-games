@@ -11,7 +11,7 @@ rear axle, 4-speed, **no ABS and no traction control**. Test car (hidden in the 
 - **Shrunk:** the source is 27 MB (35 textures); the game uses flat paint, so only the bumper and head lamp sheets ship (512 px,
   256 colours). Body 100k triangles, kept at the model's own detail; `normalSmooth` in `model.source.json` irons out the
   ripples that the model's hand-smoothed normals hide.
-- **Paint (ours):** one flat white, other seeds recolour it.
+- **Paint (ours):** one flat period orange, other seeds recolour it.
 - **Interior (second model):** the body model's cockpit is only a flat lid at sill height with the seat backs poking
   through, so the dash, steering column and wheel, gear lever, seats, seat rails, rear bench and floor come from
   "fiat 126p" by subishi, with their own textures. Same wheelbase; it is narrowed 5% and lowered to sit under our
