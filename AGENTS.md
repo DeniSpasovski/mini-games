@@ -67,6 +67,7 @@ into `DETAILS.md`, never up.
 
 - `README.md` / `DETAILS.md` - portal; `THIRD-PARTY.md` - every third-party source + licence status (keep current)
 - `src/site.config.ts` - allowed hosts (domain lock), owner, portal tagline
+- Portal: `src/portal/STYLEGUIDE.md` (home page look: tokens, type, covers; read before portal UI work); each game's `game.json` brings `accent` / `onAccent` and a `wordmark.svg`
 - Games live in `src/games/<id>/`, registered only by `game.json` (auto-discovered). Default engine: three.js.
 - Rally: `STYLEGUIDE.md` (UI look: tokens, type, components; read before UI work), `DETAILS.md` (architecture, URLs, keys, menus, roadmap), `PHYSICS.md` (model, tuning, tyres, suspension), `TASKS.md`
   (open work, local)
@@ -86,6 +87,7 @@ into `DETAILS.md`, never up.
   sheet), `glb-meshopt.mjs` (the build's GLB compression), `side-profile.mjs` (boxy profile from a GLB: fallback body + street cars);
   the GLB import steps (`glb-to-parts-stl.py`, `glb-orient.py`, `glb-src-parts.py` ...) are in the `rally-car-import` skill; the street-car
   and truck bakes (`street-pack-extract.py`, `bake-street-textures.py`, `bake-street-cars.mjs`, `bake-fire-trucks.mjs`, `bake-trucks.mjs`) are in rally `DETAILS.md`
+- `scripts/portal/wordmarks.py`: a title in a font -> white outlined `wordmark.svg` (portal header and the game covers; usage in its header)
 - `scripts/facades/bake.py`: the wall and roof tiles of the rally buildings (`engine/facades/*.webp`) from Poly Haven scans (ids and tuning in the script)
 - `scripts/people/`: `extract-base.py` (a base body GLB -> json with the face uv), `skin-map.py` (paints the face onto the skin map), `bake-base.mjs`
   (simplifies, packs both bodies into `engine/people-base.data.ts`; run order in its header)

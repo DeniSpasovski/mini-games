@@ -2,8 +2,11 @@
   "id": "hole",
   "title": "Hole Island",
   "version": "0.6.4",
-  "description": "Steer a hole around a toy-city island, a giant toy store or an island of animals and swallow everything that fits before time runs out.",
-  "tags": ["three.js", "casual", "touch"],
+  "description": "Swallow a toy city, a toy store or an animal island before time runs out.",
+  "genre": "Casual",
+  "inputs": "touch first",
+  "accent": "#4fc27a",
+  "onAccent": "#0b1a10",
   "pages": [
     {
       "id": "play",
