@@ -13,7 +13,7 @@ one standing wins the round. three.js, procedural art only (no model / texture /
    materials or allocations. Every feature names its frame cost.
 2. **Readable at a glance.** The camera tilt, the colours and the flame shapes show who, where and when. Danger is
    always visible (TNT count, flame tiles, fuse sparks).
-3. **Our own look.** Original characters, art, sounds and level layouts, all procedural; no third-party files. See "Style".
+3. **Our own look.** Original characters, art, sounds and level layouts, all procedural; no third-party model, texture or sound files (the UI fonts aside). See "Style".
 4. **Short loop.** Pick bots, map size, go. Rounds of about 2 minutes; best of 3 by default.
 
 ## Style
@@ -74,6 +74,21 @@ A comic **KABOOOM!** / **BOOM!** / **KA-POW!** word pops over blasts (throttled)
 
 **Readability**: slate-blue pillars, grey-brown boulders, warm wood crates and brown dirt mounds are four distinct
 families; critters are drawn 14 % bigger than their hitbox; a bobbing arrow in the team colour marks the human.
+
+## UI style
+
+Tokens, type, components and rules: [STYLEGUIDE.md](STYLEGUIDE.md) ("Claymation"). Code: `game/ui-tokens.css` (every colour, the clay
+finish and the self-hosted Grandstander / Nunito faces from `assets/fonts/`), `game/kaboom.css` (`var(--kb-*)` only, no literal
+colours), `game/icons.ts`. One button shape (`.kb-btn`); the boil filter (`#kb-boil`, injected by `Menu`) is only ever on a card's
+`::before` or the logo, never on a control; the HUD hides under pause and results; setup fits 1280x720 and the action buttons
+and the version label stay visible at 915x412.
+
+**Finale** (`WorldView.finale`, called from `KaboomGame.endMatch`): the camera pulls back to the whole stand (`dock` shifts the
+view clear of the results card), `Arena.clearArea` removes the crates and hard blocks in the middle, a `Podium` (`render/podium.ts`)
+rises and `Crew.setPodium` puts the top three on it (the winner hops). `Crowd.cardStunt` lays a board of cards over the far stand
+in screen space (`render/card-stunt.ts`: a 5x7 letter bitmap, 9 rows, one instanced mesh, no depth test; text null = every card
+lit, two colours for a tie); `refreshStunt` re-lays it after a resize. The results card opens `RESULTS_DELAY_S` (1.2 s) after the
+match ends. A round win runs a one-second card wave. Tests: `tests/kaboom/podium.test.ts`, `crowd.test.ts`.
 
 ## Levels
 

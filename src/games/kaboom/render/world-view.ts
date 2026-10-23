@@ -4,10 +4,11 @@ import type { LevelId } from '../game/levels';
 import { MAX_PLAYERS, MAX_TNT } from '../sim/rules';
 import type { KaboomSim, SimEvent } from '../sim/types';
 import { Arena } from './arena';
-import { CameraRig, SLAB_PAD } from './camera-rig';
+import { CAM_PITCH_DEG, CameraRig, SLAB_PAD } from './camera-rig';
 import { treadMidD, TIERS } from './bowl';
 import { Crowd } from './crowd';
-import { Crew } from './characters';
+import { Crew, type PodiumSpot } from './characters';
+import { Podium, STEP_D, STEP_W } from './podium';
 import { Fx } from './fx/fx';
 import { ItemRenderer } from './items';
 import { GlowGrid } from './fx/glow-grid';
@@ -67,7 +68,11 @@ export class WorldView {
   controlCamera = true;
   /** Player the camera follows on big arenas / portrait (-1 = none, e.g. the menu background). */
   followId = 0;
-  private readonly followCamera: boolean;
+  private followCamera: boolean;
+  /** The results podium (`finale`), its critters and where the results card leaves room for it. */
+  private podium: Podium | null = null;
+  private podiumSpots: { spot: PodiumSpot; place: number }[] = [];
+  private dock: 'left' | 'up' | null = null;
   /** Jump the follow camera onto the player at the next update (a new round, a camera change) instead of gliding. */
   private snapCamera = true;
   private mapRef;
@@ -132,6 +137,70 @@ export class WorldView {
         1.02,
         SLAB_PAD + treadMidD(TIERS - 1) + 0.8,
       );
+    this.applyDock();
+    this.crowd.refreshStunt();
+  }
+
+  /** The results card covers the left of a wide screen (or the bottom of a phone): move the view so the podium stays clear of it. */
+  private applyDock(): void {
+    if (!this.dock) return;
+    const cam = this.rig.camera;
+    const visH = 2 * this.rig.distance * Math.tan((cam.fov * Math.PI) / 360);
+    if (this.dock === 'left') this.rig.target.x -= visH * cam.aspect * 0.18;
+    else
+      this.rig.target.z +=
+        (visH * 0.27) / Math.sin((CAM_PITCH_DEG * Math.PI) / 180);
+    this.rig.update();
+  }
+
+  /**
+   * The match is over: the camera pulls back to the whole stand, a clay podium rises from the floor and the crew in `order`
+   * (best first; up to three) climb on it, the winner hopping. With `stunt` the fans in the far stand hold up cards that
+   * spell the winner. `dock`: which part of the screen the results card covers.
+   */
+  finale(
+    order: readonly number[],
+    opts: {
+      dock?: 'left' | 'up';
+      stunt?: { text: string | null; color: number; color2?: number };
+      still?: boolean;
+    } = {},
+  ): void {
+    const ids = order.slice(0, 3);
+    if (ids.length === 0) return;
+    this.podium = new Podium(ids.length, (x, z) => this.fx.land(x, z));
+    this.platform.add(this.podium.group);
+    const half = (this.podium.places.length * (STEP_W + 0.1)) / 2 + 0.3;
+    this.arena.clearArea(-half, half, -(STEP_D / 2 + 0.2), STEP_D / 2 + 0.2);
+    this.podiumSpots = ids.map((id, rank) => ({
+      spot: { id, x: 0, y: -2, z: 0, hop: rank === 0 },
+      place: this.podium!.places.findIndex((p) => p.rank === rank),
+    }));
+    this.syncPodium();
+    this.crew.setPodium(this.podiumSpots.map((p) => p.spot));
+    this.followCamera = false;
+    this.dock = opts.dock ?? null;
+    this.fit();
+    if (opts.stunt)
+      this.crowd.cardStunt(opts.stunt.text, opts.stunt.color, {
+        camera: this.rig.camera,
+        color2: opts.stunt.color2,
+        still: opts.still,
+      });
+  }
+
+  /** The critters follow their steps as they rise. */
+  private syncPodium(): void {
+    if (!this.podium) return;
+    for (const { spot, place } of this.podiumSpots) {
+      spot.x = this.podium.x(place);
+      spot.y = this.podium.topY(place);
+    }
+  }
+
+  /** Who stands on the podium, best first (for tests). */
+  get podiumOrder(): number[] {
+    return this.podiumSpots.map((p) => p.spot.id);
   }
 
   /** The sim started a new round (new map): rebuild the arena, clean the crew and FX. */
@@ -175,6 +244,10 @@ export class WorldView {
   update(alpha: number, dt: number): void {
     if (this.sim.map !== this.mapRef) this.newRound();
     this.shadowAge += dt;
+    if (this.podium) {
+      this.podium.update(dt);
+      this.syncPodium();
+    }
     this.crew.update(alpha, dt);
     this.tnt.update(this.sim.tnts, dt, this.sim.fuseS);
     this.items.update(this.sim.items, dt);

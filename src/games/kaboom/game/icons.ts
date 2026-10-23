@@ -4,11 +4,25 @@
  * turn corners, `walkBlast`) get little flames either side.
  */
 
-const RED = '#d8362f';
-const SHADE = '#a5241f';
-const CREAM = '#f4dcae';
-const INK = '#2b1d17';
-const SPARK = '#ffc247';
+/** The icon colours: the clay tokens of `ui-tokens.css` (`--kb-tnt`, `--kb-ink`, `--kb-card`, `--kb-accent`) as plain values, since SVG strings are built DOM-free. */
+export const ICON_COLORS = {
+  red: '#d8362f',
+  shade: '#a5241f',
+  paper: '#f3e2c4',
+  ink: '#3b2418',
+  spark: '#f6c23e',
+  sparkCore: '#fff3c4',
+  flame: '#ff8a1c',
+  flameEdge: '#c4410f',
+  starOff: '#6e5240',
+} as const;
+const {
+  red: RED,
+  shade: SHADE,
+  paper: CREAM,
+  ink: INK,
+  spark: SPARK,
+} = ICON_COLORS;
 
 /** One stick standing at `x` (left), its top at `y`, `h` tall, 7 wide: paper wrap, printed rings, crimped cap. */
 function stick(x: number, y: number, h: number): string {
@@ -27,7 +41,7 @@ function fuse(x: number, y: number, lit: boolean): string {
   return (
     `<path d="M${x} ${y} q0 -4 3 -6" fill="none" stroke="${INK}" stroke-width="1.4" stroke-linecap="round"/>` +
     (lit
-      ? `<circle cx="${x + 3}" cy="${y - 6}" r="2.1" fill="${SPARK}" stroke="#fff3c4" stroke-width="0.8"/>`
+      ? `<circle cx="${x + 3}" cy="${y - 6}" r="2.1" fill="${SPARK}" stroke="${ICON_COLORS.sparkCore}" stroke-width="0.8"/>`
       : '')
   );
 }
@@ -65,7 +79,7 @@ export function bundleIcon(level: number): string {
   let fire = '';
   if (flames) {
     const flame = (x: number, flip: number) =>
-      `<path d="M${x} 28 c${-3 * flip} -3 ${-2 * flip} -7 0 -10 c0 3 ${2.5 * flip} 3 ${2 * flip} 6 c${1.5 * flip} -1 ${1.5 * flip} -3 ${1 * flip} -4 c${2.5 * flip} 3 ${1.5 * flip} 7 ${-3 * flip} 8 z" fill="#ff8a1c" stroke="#c4410f" stroke-width="0.8"/>`;
+      `<path d="M${x} 28 c${-3 * flip} -3 ${-2 * flip} -7 0 -10 c0 3 ${2.5 * flip} 3 ${2 * flip} 6 c${1.5 * flip} -1 ${1.5 * flip} -3 ${1 * flip} -4 c${2.5 * flip} 3 ${1.5 * flip} 7 ${-3 * flip} 8 z" fill="${ICON_COLORS.flame}" stroke="${ICON_COLORS.flameEdge}" stroke-width="0.8"/>`;
     fire = flame(5, 1) + flame(w - 5, -1);
     if (n === 5) fire += flame(3, 1) + flame(w - 3, -1);
   }
@@ -75,4 +89,18 @@ export function bundleIcon(level: number): string {
     body +
     `</svg>`
   );
+}
+
+/** A five-point star for round wins: accent fill and ink stroke; an empty one is an ink-2 outline at 45%. */
+export function starIcon(filled: boolean, size = 18): string {
+  const pts =
+    '12 2.6 14.9 8.7 21.5 9.5 16.6 14 17.9 20.6 12 17.3 6.1 20.6 7.4 14 2.5 9.5 9.1 8.7';
+  return filled
+    ? `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" class="kb-star"><polygon points="${pts}" fill="${SPARK}" stroke="${INK}" stroke-width="2.2" stroke-linejoin="round"/></svg>`
+    : `<svg viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true" class="kb-star off"><polygon points="${pts}" fill="none" stroke="${ICON_COLORS.starOff}" stroke-opacity="0.45" stroke-width="2" stroke-linejoin="round"/></svg>`;
+}
+
+/** The pause button's two bars (currentColor, 20 px grid). */
+export function pauseIcon(): string {
+  return `<svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true"><rect x="4" y="3" width="4" height="14" rx="1.5" fill="currentColor"/><rect x="12" y="3" width="4" height="14" rx="1.5" fill="currentColor"/></svg>`;
 }
