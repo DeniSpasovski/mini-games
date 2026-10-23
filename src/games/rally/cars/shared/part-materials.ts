@@ -36,6 +36,8 @@ export type PartName =
   | 'mirror'
   | 'lens'
   | 'lenscover'
+  | 'lampback'
+  | 'lensclear'
   | 'chrome'
   | 'headchrome'
   | 'headbulb'
@@ -1961,6 +1963,19 @@ const BUILDERS: Record<PartName, () => Material> = {
       clearcoatRoughness: 0.02,
       envMapIntensity: 1.8,
     }),
+  /** Clear polycarbonate head lamp cover (no smoke): the black inside and the reflectors read through it. */
+  lensclear: () =>
+    new MeshPhysicalMaterial({
+      color: 0xffffff,
+      roughness: 0.02,
+      metalness: 0,
+      transparent: true,
+      opacity: 0.12,
+      depthWrite: false,
+      clearcoat: 1,
+      clearcoatRoughness: 0.02,
+      envMapIntensity: 1,
+    }),
   /** Bright polished metal: lamp reflector bowls and projector bodies. */
   chrome: () =>
     new MeshPhysicalMaterial({
@@ -2110,6 +2125,16 @@ const BUILDERS: Record<PartName, () => Material> = {
       RED_NIGHT,
     );
   },
+  /** Black inside of a head lamp modelled in the body mesh (`gltf.lampBody`): glossy black plastic round the reflectors. */
+  lampback: () =>
+    new MeshPhysicalMaterial({
+      color: 0x0c0d0f,
+      roughness: 0.3,
+      metalness: 0.2,
+      clearcoat: 0.5,
+      clearcoatRoughness: 0.15,
+      envMapIntensity: 0.5,
+    }),
   /** Dark metal lamp housing / bezel of a modelled (3D) lamp. */
   lamphousing: () =>
     new MeshPhysicalMaterial({

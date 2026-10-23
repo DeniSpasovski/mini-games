@@ -1251,7 +1251,7 @@ export class CarModel {
    */
   /**
    * `gltf.lampParts`: lamp parts drawn with another part's material. `gltf.lampBody`: the body mesh's triangles behind a
-   * head lamp's cover (the lamp's insides, modelled in the body) become the dark lamp housing instead of paint.
+   * head lamp's cover (the lamp's insides, modelled in the body) become the lamp's black inside instead of paint.
    */
   private swapLampParts(): void {
     const gltf = this.def.model.gltf;
@@ -1348,7 +1348,7 @@ export class CarModel {
       const inside = splitLampTriangles(mesh, toBody, behindCover, 'lampbody');
       if (!inside) continue;
       if (inside !== mesh) this.owned.push(inside.geometry, mesh.geometry);
-      inside.material = partMaterial('lamphousing')!;
+      inside.material = partMaterial('lampback')!;
       inside.userData.partName = 'lamphousing';
     }
   }
