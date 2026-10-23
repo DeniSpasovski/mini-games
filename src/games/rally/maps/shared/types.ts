@@ -1067,6 +1067,11 @@ export interface EnvironmentDef {
   fogBrightness?: number;
   /** FogExp2 density. */
   fogDensity: number;
+  /**
+   * Car body paint look (engine/world-shading.ts `setPaintLook`, day only), over the default in environment.ts
+   * `CAR_PAINT`: `saturation` of the paint colour, `rim` = soft edge light, `gloss` = clearcoat reflections x.
+   */
+  carPaint?: { saturation?: number; rim?: number; gloss?: number };
   exposure: number;
   /**
    * Recolour the terrain grass (keeps the texture's light/dark detail), e.g. golden dry

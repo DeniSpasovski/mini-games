@@ -71,7 +71,7 @@ import {
   type RallyBadge,
 } from './rally-badge';
 import type { CarAtlas, CarDef } from './types';
-import { carEnv } from '../../engine/world-shading';
+import { carEnv, carPaint } from '../../engine/world-shading';
 
 /**
  * Car model built from CarDef.model.
@@ -528,6 +528,7 @@ export class CarModel {
       clearcoat: satin ? 0.25 : 1,
       clearcoatRoughness: satin ? 0.45 : 0.1,
     });
+    carPaint(plainMat);
     const carGlass = def.model.glass
       ? new MeshStandardMaterial({
           color: def.model.glass.color,
@@ -683,6 +684,7 @@ export class CarModel {
                 clearcoat: 1,
                 clearcoatRoughness: 0.1,
               });
+              carPaint(paintMat);
               this.owned.push(paintMat);
               const from: Mesh[] = [];
               obj.traverse((o) => {
@@ -885,6 +887,7 @@ export class CarModel {
     map.flipY = false; // glTF UV convention
     map.anisotropy = 8;
     const mat = new MeshPhysicalMaterial({ map, ...paintParams(finish) });
+    carPaint(mat);
     if (atlas.matteRect && !matte) {
       // Matte patch (wheel arches): rough + no clearcoat where the atlas says so.
       const [rx, ry, rw, rh] = atlas.matteRect;

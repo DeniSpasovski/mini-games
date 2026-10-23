@@ -450,17 +450,42 @@ function install(): void {
     Object.assign(shader.uniforms, worldUniforms);
     if (this.userData.carEnv) {
       const mat = this as Material & { envMapIntensity?: number };
+      const paint = !!this.userData.carPaint;
       shader.fragmentShader = '#define RALLY_CAR_ENV\n' + shader.fragmentShader;
       shader.uniforms.wsEnvSpec = {
         get value() {
-          return (mat.envMapIntensity ?? 1) / DAY_ENV_INTENSITY;
+          return (
+            ((mat.envMapIntensity ?? 1) / DAY_ENV_INTENSITY) *
+            (paint ? paintLook.gloss : 1)
+          );
         },
       };
+      if (paint) {
+        shader.uniforms.wsPaintSat = paintSaturation;
+        shader.uniforms.wsPaintRim = paintRim;
+        shader.fragmentShader = shader.fragmentShader
+          .replace(
+            'void main() {',
+            'uniform float wsPaintSat;\nuniform vec3 wsPaintRim;\nvoid main() {',
+          )
+          .replace(
+            '#include <map_fragment>',
+            '#include <map_fragment>\n' + PAINT_SATURATION,
+          )
+          .replace(
+            '#include <opaque_fragment>',
+            PAINT_RIM + '#include <opaque_fragment>',
+          );
+      }
     }
   };
   const key = Material.prototype.customProgramCacheKey;
   Material.prototype.customProgramCacheKey = function (this: Material) {
-    return key.call(this) + (this.userData.carEnv ? '|carEnv' : '');
+    return (
+      key.call(this) +
+      (this.userData.carEnv ? '|carEnv' : '') +
+      (this.userData.carPaint ? '|carPaint' : '')
+    );
   };
 }
 
@@ -470,6 +495,38 @@ function install(): void {
  * 1.8 paint clearcoat would show at 0.3 like the ground.
  */
 const DAY_ENV_INTENSITY = 0.3;
+
+/**
+ * Body paint look (`EnvironmentDef.carPaint`, flagged `carPaint` on top of `carEnv`): `saturation` of the paint colour
+ * before lighting (ACES washes bright saturated colours out), `rim` = a soft sky-coloured edge light on the car only,
+ * `gloss` = clearcoat reflections x. Neutral (1, 0, 1) leaves the shader's result as it was.
+ */
+const paintLook = { saturation: 1, rim: 0, gloss: 1 };
+const paintSaturation = { value: 1 };
+export function setPaintLook(
+  look: Partial<typeof paintLook>,
+  rimColor = new Color(1, 1, 1),
+): void {
+  Object.assign(paintLook, { saturation: 1, rim: 0, gloss: 1 }, look);
+  paintSaturation.value = paintLook.saturation;
+  paintRim.value.copy(rimColor).multiplyScalar(paintLook.rim);
+}
+const paintRim = { value: new Color(0, 0, 0) };
+const PAINT_SATURATION = /* glsl */ `
+  diffuseColor.rgb = max( vec3( 0.0 ), mix( vec3( dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ), diffuseColor.rgb, wsPaintSat ) );
+`;
+const PAINT_RIM = /* glsl */ `
+  // Edge light: grows towards grazing angles, tinted mostly by the paint (a lit edge, not a white outline).
+  float wsRim = pow( 1.0 - saturate( dot( normal, geometryViewDir ) ), 3.0 );
+  outgoingLight += wsPaintRim * wsRim * mix( vec3( 1.0 ), diffuseColor.rgb, 0.85 );
+`;
+
+/** Car body paint: `carEnv` plus the paint look (`setPaintLook`). */
+export function carPaint(material: Material): void {
+  material.userData.carPaint = true;
+  material.needsUpdate = true;
+  carEnv(material);
+}
 
 /**
  * Car materials: reflections (the specular env lookup) at their own `envMapIntensity`, scaled with the scene's env

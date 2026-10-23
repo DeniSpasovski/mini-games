@@ -121,10 +121,14 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   mid grey, saturation, vibrance, shadow / highlight tint, vignette, inside the tone-mapping chunk (wraps the ACES / AgX /
   Neutral functions: no extra pass, MSAA kept). No `grade` = the plain tone-mapped image. Off at night and in the studio;
   `goldenHour` replaces sky, fog, exposure and grade in the evening (`isGoldenHour`: 17:00 till night).
-  `?grade=off` to compare, `?look=before|sky|soft|crisp|warm|cool|vodno-before|forest|forest-haze` to try test variants (`LOOKS` in environment.ts), `__grade.set({...})` to tune live. `gradeColor` mirrors the shader for tests.
+  `?grade=off` to compare, `?look=before|sky|soft|crisp|warm|cool|vodno-before|forest|forest-haze|paint-plain` to try test variants (`LOOKS` in environment.ts), `__grade.set({...})` to tune live. `gradeColor` mirrors the shader for tests.
 - **Car reflections:** three.js draws a material without its own env map at `scene.environmentIntensity` (0.3), so car
   materials are flagged `carEnv` (engine/world-shading.ts): their specular env lookup uses their own `envMapIntensity`
   (scaled with the scene's), the diffuse sky light stays the scene's.
+- **Car paint** (slightly stylised): body paint materials are flagged `carPaint` (world-shading.ts `setPaintLook`, day only):
+  richer colour, a soft edge light tinted by the paint, stronger clearcoat (`CAR_PAINT` in environment.ts, per map
+  `carPaint`). The reflected ground stays dark on purpose: a bright one washes deep blue / red paint pale.
+  `?look=paint-plain` shows the unstyled paint.
 - **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark outside the
   shadow box (`world/canopy-shadows.ts`: a coarse whole-map texture plus a 1.5 m local window of 768 m around the camera,
   rebuilt from the generated scatter chunks every 64 m, so the road gets tree shadows far past the shadow map), height fog

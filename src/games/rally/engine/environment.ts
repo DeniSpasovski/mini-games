@@ -47,6 +47,7 @@ import {
   setShadowBox,
   setWorldShading,
   setWorldTime,
+  setPaintLook,
 } from './world-shading';
 import { displayExposure, onDisplayChange } from './display';
 import { setGrade, setGradeViewport } from './grade';
@@ -73,6 +74,8 @@ const SKY_FOG: Partial<EnvironmentDef> = {
 };
 const SHADE = { color: '#2f6f6a', amount: 0.08 };
 const LOOKS: Record<string, Partial<EnvironmentDef>> = {
+  // Car paint without the `CAR_PAINT` styling, to compare.
+  'paint-plain': { carPaint: { saturation: 1, rim: 0, gloss: 1 } },
   before: {
     turbidity: 3.5,
     rayleigh: 1.4,
@@ -170,6 +173,15 @@ const LOOKS: Record<string, Partial<EnvironmentDef>> = {
     },
   },
 };
+
+/**
+ * Default car paint look (`EnvironmentDef.carPaint`): a little stylised, so liveries pop like in a racing game: richer
+ * colour, a soft edge light tinted by the paint, stronger clearcoat reflections.
+ */
+const CAR_PAINT = { saturation: 1.4, rim: 1, gloss: 1.2 };
+
+/** Linear luminance of a colour. */
+const lum = (c: Color): number => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
 
 /** Radiance of the studio strip lights (x white; the env map is drawn at `envIntensity`, ~0.3). */
 const STUDIO_POWER = 60;
@@ -441,6 +453,9 @@ export class Environment {
       nightDome.renderOrder = -2;
       envScene.add(nightDome);
     } else if (!this.studio) envScene.add(sky);
+    // The sky just above the horizon (day): fog colour and the paint's edge light.
+    const horizon =
+      !this.night && !this.studio ? this.horizonRadiance(envScene) : null;
     // Ground under the sky: paint, glass and water reflect earth below the horizon, not more sky. Its radiance
     // ~ albedo x (sun + sky), in the map's ground colour, a little warm.
     const groundCol = new Color(this.def.groundTint?.grass ?? '#7a6a48')
@@ -512,8 +527,17 @@ export class Environment {
     const cube = new WebGLCubeRenderTarget(32);
     new CubeCamera(0.1, 2000, cube).update(this.renderer, envScene);
     const intensity = this.scene.environmentIntensity;
-    if (!this.night && this.def.fogColor === 'sky' && this.scene.fog)
-      this.scene.fog.color.copy(this.horizonColor(envScene));
+    if (horizon && this.def.fogColor === 'sky' && this.scene.fog) {
+      const k = (this.def.fogBrightness ?? 0.62) / Math.max(1e-6, lum(horizon));
+      this.scene.fog.color.copy(horizon).multiplyScalar(k);
+    }
+    // Car paint look (day only; plain at night and in the studio): edge light in the horizon sky's hue.
+    setPaintLook(
+      horizon ? { ...CAR_PAINT, ...this.def.carPaint } : {},
+      horizon
+        ? horizon.clone().multiplyScalar(0.6 / Math.max(1e-6, lum(horizon)))
+        : undefined,
+    );
     void LightProbeGenerator.fromCubeRenderTarget(this.renderer, cube)
       .then((probe) => setTreeSky(probe.sh.coefficients, intensity))
       .finally(() => cube.dispose());
@@ -530,11 +554,11 @@ export class Environment {
   }
 
   /**
-   * The sky's colour just above the horizon all round (a tiny half-float cube of the env scene: the four side faces'
-   * band up to ~11 deg), at the luminance `fogBrightness`: the sky dome is far brighter than lit ground, so fog at the
-   * sky's own radiance would turn distant hills white.
+   * The sky's linear radiance just above the horizon all round (a tiny half-float cube of the env scene before the
+   * ground is added: the four side faces' band up to ~11 deg). Fog takes its hue at the luminance `fogBrightness`: the
+   * sky dome is far brighter than lit ground, so fog at the sky's own radiance would turn distant hills white.
    */
-  private horizonColor(envScene: Scene): Color {
+  private horizonRadiance(envScene: Scene): Color {
     const n = 16;
     const rows = 2;
     const cube = new WebGLCubeRenderTarget(n, { type: HalfFloatType });
@@ -560,9 +584,7 @@ export class Environment {
       }
     }
     cube.dispose();
-    const lum = 0.2126 * sum[0] + 0.7152 * sum[1] + 0.0722 * sum[2];
-    const k = (this.def.fogBrightness ?? 0.62) / Math.max(1e-6, lum);
-    return new Color().setRGB(sum[0] * k, sum[1] * k, sum[2] * k);
+    return new Color().setRGB(sum[0] / count, sum[1] / count, sum[2] / count);
   }
 
   /**
