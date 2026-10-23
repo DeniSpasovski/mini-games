@@ -40,6 +40,11 @@ body {
   transform: skewX(var(--ui-slant));
 }
 
+.hud.free .hud-top,
+.hud.free .hud-progress {
+  display: none;
+}
+
 .hud-top-left {
   position: absolute;
   left: 22px;
