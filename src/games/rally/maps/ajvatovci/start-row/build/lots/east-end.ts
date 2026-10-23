@@ -131,6 +131,18 @@ export function gableRoof(
         [0, Math.hypot(half + over, rise + drop)],
       ],
     );
+    // The slab: an underside and the two rake edges, so the overhang is closed from below and the sides.
+    const t = 0.1;
+    const top: [number, number, number][] = [
+      [-over, h - drop, over],
+      [L + over, h - drop, over],
+      [L + over, h + rise, -half],
+      [-over, h + rise, -half],
+    ];
+    const low = top.map(([u, y, v]): [number, number, number] => [u, y - t, v]);
+    w.quad('paint', [low[3], low[2], low[1], low[0]], '#d9dbda');
+    w.quad('paint', [top[0], top[3], low[3], low[0]], '#d9dbda');
+    w.quad('paint', [top[2], top[1], low[1], low[2]], '#d9dbda');
     // Its underside at the eaves, and a fascia board.
     w.paint(
       [-over, L + over],
