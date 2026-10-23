@@ -232,7 +232,6 @@ export const fiesta: CarDef = {
       // inner module (just ahead of its chrome face, so the face is lit from it rather than a flat lit plate).
       lampParts: { headlight: 'chrome', lenscover: 'lensclear' },
       lampBody: true,
-      lampShell: { back: [-0.12, -0.02, -0.3], shrink: 0.6 },
       headBowls: true,
       headBulbs: [
         [0.697, 0.705, 1.497],
