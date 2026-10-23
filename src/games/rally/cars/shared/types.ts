@@ -194,6 +194,8 @@ export interface CarGltfDef {
   bulbGlares?: boolean;
   /** Lamp parts drawn with another part's material instead (a drawn reflector map as plain chrome). */
   lampParts?: Record<string, string>;
+  /** A dark housing behind each head lamp lens: the lens outline moved back by `back` ([|x|, y, z] m, mirrored) and pulled in to `shrink`. */
+  lampShell?: { back: [number, number, number]; shrink: number };
   /** Body pieces wholly inside a head lamp cover are the lamp's housing (dark), not paint. */
   lampBody?: boolean;
   /** Cut-outs painted another colour (wing end plates ...). */
