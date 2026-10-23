@@ -840,15 +840,16 @@ html.touch .menu-btn.big kbd {
   outline: 2px solid var(--ui-accent);
   outline-offset: 2px;
 }
-/* The slanted buttons draw their focus on the skewed fill instead (an outline would be a straight box). */
-[data-input='pad'] .menu-root .menu-btn:focus,
-[data-input='pad'] .menu-root .menu-card:focus,
-[data-input='pad'] .menu-root .menu-seg button:focus {
+/* The slanted buttons draw their focus on the skewed fill instead (an outline would be a straight box).
+   The pause and results overlays sit outside .menu-root and share the same buttons. */
+[data-input='pad'] :is(.menu-root, .overlay) .menu-btn:focus,
+[data-input='pad'] :is(.menu-root, .overlay) .menu-card:focus,
+[data-input='pad'] :is(.menu-root, .overlay) .menu-seg button:focus {
   outline: none;
 }
-[data-input='pad'] .menu-root .menu-btn:focus::before,
-[data-input='pad'] .menu-root .menu-card:focus::before,
-[data-input='pad'] .menu-root .menu-seg button:focus::before {
+[data-input='pad'] :is(.menu-root, .overlay) .menu-btn:focus::before,
+[data-input='pad'] :is(.menu-root, .overlay) .menu-card:focus::before,
+[data-input='pad'] :is(.menu-root, .overlay) .menu-seg button:focus::before {
   border-left-color: var(--ui-accent);
   box-shadow: 0 0 0 2px var(--ui-text);
 }
