@@ -107,8 +107,12 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   off and get a halo in the beam colour when on (`LampHalos` `front`); the beam starts at the model's own lamps
   (`CarModel.onHeadlamps` -> `Headlights.moveTo`), and its cones fade when seen from in front (glare, not a lit wall). No map has a night stage yet. Road side (`engine/night-glow.ts`, shared `ws*` uniforms): marker-post reflectors and chevron boards
   light up in the car's beam (`retro`), street lamp lenses glow with `lightNeed` and `world/lamp-pools.ts` lays a soft light pool under
-  each lamp. High quality adds bloom (`engine/night-bloom.ts`, threshold far above the lit ground, so lenses and reflectors are
+  each lamp. High quality adds bloom (`engine/post-fx.ts`, threshold far above the lit ground, so lenses and reflectors are
   emissive well over it). Not done: high / low beam key.
+- **Post effects (High):** `engine/post-fx.ts`, options **Bloom** (off / soft / strong, `BLOOM_MIX` in `game/settings.ts`) and
+  **Ambient occlusion** (off by default). Bloom: the whole picture, no threshold, mixed back at a few percent, worked on an HDR
+  estimate of the finished picture, so with it off the image is unchanged. AO: GTAO from the depth at half resolution.
+  Test links: `?bloom=<mix>` (0 = off), `?ao=0|1`; console `__rally.post.set({ day: 0.04, ao: true })`.
 - **Sky / tone mapping:** drifting clouds (`cloudCoverage`, `cloudSpeed`); ACES, or `toneMapping: 'agx' | 'neutral'` per map.
   `skyBrightness` dims the visible dome only (deeper blue; the env map keeps the full sky, so the world's light is unchanged).
   `fogColor: 'sky'` takes the hue of the sky just above the horizon (a tiny half-float cube of the env scene) at the
