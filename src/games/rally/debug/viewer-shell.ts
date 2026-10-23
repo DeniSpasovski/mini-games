@@ -11,7 +11,8 @@ import { DebugPanel, type PanelSection } from '../../../shared/debug-panel';
 import { StatsOverlay } from '../../../shared/stats-overlay';
 import { Environment } from '../engine/environment';
 import { LIGHTS_MIN_NEED } from '../engine/night';
-import { NightBloom } from '../engine/night-bloom';
+import { PostFx, postFxFromUrl } from '../engine/post-fx';
+import { BLOOM_MIX, loadSettings } from '../game/settings';
 import { loadQuality, type QualitySettings } from '../engine/quality';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
 import { getTexture, setTextureAnisotropy } from '../engine/textures';
@@ -68,7 +69,7 @@ export class ViewerShell {
   readonly ground?: Mesh;
   readonly grid: GridHelper;
   private callbacks: ((dt: number) => void)[] = [];
-  private bloom?: NightBloom;
+  private bloom?: PostFx;
   envDef: EnvironmentDef;
 
   constructor(opts: ShellOptions) {
@@ -118,7 +119,7 @@ export class ViewerShell {
       for (const cb of this.callbacks) cb(dt);
       this.env.update(this.controls.target);
       this.env.follow(this.camera.position);
-      if (this.bloom) this.bloom.render();
+      if (this.bloom?.active) this.bloom.render();
       else this.renderer.render(this.scene, this.camera);
       this.stats.end();
     };
@@ -137,14 +138,19 @@ export class ViewerShell {
     this.envDef.timeOfDay = hour;
     this.env.apply(this.envDef);
     this.bloom?.dispose();
+    const settings = loadSettings();
     this.bloom =
-      this.quality.name === 'high' && this.env.lightNeed >= LIGHTS_MIN_NEED
-        ? new NightBloom(
+      this.quality.name === 'high'
+        ? new PostFx(
             this.renderer,
             this.scene,
             this.camera,
             this.quality.antialias,
-            this.env.lightNeed,
+            postFxFromUrl(
+              this.env.lightNeed >= LIGHTS_MIN_NEED ? this.env.lightNeed : 0,
+              BLOOM_MIX[settings.bloom],
+              settings.ao,
+            ),
           )
         : undefined;
   }

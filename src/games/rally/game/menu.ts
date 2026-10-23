@@ -76,6 +76,7 @@ import { MenuTick } from '../../../shared/menu-tick';
 import {
   loadSettings,
   saveSettings,
+  type BloomLevel,
   type ObjectDistance,
   type RallySettings,
 } from './settings';
@@ -1487,6 +1488,31 @@ export function buildOptions(opts: {
       (m) => saveDisplayMode(m),
     )),
     `HDR screens look washed out otherwise · auto = ${isHdrDisplay() ? 'HDR' : 'SDR'} here`,
+  );
+  row(
+    'Bloom',
+    choice(
+      [
+        ['off', 'Off'],
+        ['soft', 'Soft'],
+        ['strong', 'Strong'],
+      ] as [BloomLevel, string][],
+      s.bloom,
+      (v) => set({ bloom: v }),
+    ),
+    'glow from the sun and bright sky · High graphics only',
+  );
+  row(
+    'Ambient occlusion',
+    choice(
+      [
+        [false, 'Off'],
+        [true, 'On'],
+      ],
+      s.ao,
+      (v) => set({ ao: v }),
+    ),
+    'soft shadows in corners and under cars · High graphics only · costs GPU',
   );
   const vol = document.createElement('input');
   vol.type = 'range';

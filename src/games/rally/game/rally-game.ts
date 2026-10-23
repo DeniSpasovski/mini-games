@@ -18,7 +18,7 @@ import { Environment } from '../engine/environment';
 import { LIGHTS_MIN_NEED } from '../engine/night';
 import { setHeadBeam, setLampGlow } from '../engine/night-glow';
 import { LampPools } from '../world/lamp-pools';
-import { NightBloom } from '../engine/night-bloom';
+import { PostFx, postFxFromUrl } from '../engine/post-fx';
 import type { QualitySettings } from '../engine/quality';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
 import { setClockTime } from '../engine/stage-sign-textures';
@@ -81,7 +81,12 @@ import { ParticleSystem } from './dust';
 import { TyreMarks } from './tyre-marks';
 import { Hud } from './hud';
 import { InputController, type InputAction } from './input';
-import { OBJECT_DISTANCE, type RallySettings, saveSettings } from './settings';
+import {
+  BLOOM_MIX,
+  OBJECT_DISTANCE,
+  type RallySettings,
+  saveSettings,
+} from './settings';
 import {
   bestKey,
   formatDelta,
@@ -180,7 +185,8 @@ export class RallyGame {
   private headlights?: Headlights;
   private tailLight?: TailLight;
   /** High quality at night / dusk: glow around lamps and reflectors. */
-  private bloom?: NightBloom;
+  /** High quality post effects (bloom, AO); `__rally.post.set({ ... })` from the console. */
+  post?: PostFx;
   private readonly lampColor = new Color();
   private lampPos = new Vector3();
   private lampDir = new Vector3();
@@ -467,13 +473,17 @@ export class RallyGame {
       // The beam starts at the model's own lamps once they are known.
       this.model.onHeadlamps((m) => this.headlights?.moveTo(m));
     }
-    if (q.name === 'high' && this.env.lightNeed >= LIGHTS_MIN_NEED)
-      this.bloom = new NightBloom(
+    if (q.name === 'high')
+      this.post = new PostFx(
         this.renderer,
         this.scene,
         this.camera,
         q.antialias,
-        this.env.lightNeed,
+        postFxFromUrl(
+          this.env.lightNeed >= LIGHTS_MIN_NEED ? this.env.lightNeed : 0,
+          BLOOM_MIX[this.opts.settings.bloom],
+          this.opts.settings.ao,
+        ),
       );
     setLampGlow(this.env.lightNeed);
     if (this.env.lightNeed >= LIGHTS_MIN_NEED) {
@@ -585,6 +595,7 @@ export class RallyGame {
 
   /** Apply player options; safe to call while driving (pause-menu options). */
   applySettings(s: RallySettings): void {
+    const old = this.opts.settings;
     this.opts.settings = s;
     this.audio.setVolume(s.volume);
     this.vehicle.drivetrain.automatic = s.automatic;
@@ -600,6 +611,9 @@ export class RallyGame {
       this.opts.quality.treeLodScale * OBJECT_DISTANCE[s.objectDistance];
     if (this.trees.lodScale !== treeLodScale)
       this.trees.setOptions({ lodScale: treeLodScale });
+    // Bloom / AO (High only): only a change in the options, so a test link's `?bloom=` / `?ao=` keeps its pick.
+    if (old.bloom !== s.bloom) this.post?.set({ day: BLOOM_MIX[s.bloom] });
+    if (old.ao !== s.ao) this.post?.set({ ao: s.ao });
     this.model.setBadge({
       number: s.carNumber,
       rally: rallyName(this.world.stageDef.name),
@@ -1389,7 +1403,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
 
     const tFx = performance.now();
     this.perf?.gpuBegin();
-    if (this.bloom) this.bloom.render();
+    if (this.post?.active) this.post.render();
     else this.renderer.render(this.scene, this.camera);
     this.perf?.gpuEnd();
     const tRender = performance.now();
