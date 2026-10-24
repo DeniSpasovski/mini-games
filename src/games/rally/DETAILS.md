@@ -135,7 +135,8 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   `?grade=off` to compare, `?look=before|sky|soft|crisp|warm|cool|vodno-before|forest|forest-haze` to try test variants (`LOOKS` in environment.ts), `__grade.set({...})` to tune live. `gradeColor` mirrors the shader for tests.
 - **Car reflections:** three.js draws a material without its own env map at `scene.environmentIntensity` (0.3), so car
   materials are flagged `carEnv` (engine/world-shading.ts): their specular env lookup uses their own `envMapIntensity`
-  (scaled with the scene's), the diffuse sky light stays the scene's.
+  relative to `CAR_ENV_REF` (0.6: by day 1 = 1.67x the world's, a street sheen, not a studio mirror), the diffuse
+  sky light stays the scene's.
 - **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark where
   neither shadow map reaches (`world/canopy-shadows.ts`: a coarse whole-map texture plus a 1.5 m local window of 768 m
   around the camera, rebuilt from the generated scatter chunks every 64 m), height fog
@@ -472,7 +473,10 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   materials from `engine/materials.ts`.
 - Streaming stays time-sliced: terrain (`terrain.update(pos, budgetMs)`), the 1 m heightfield (`Heightfield.prepare`) and
   instance re-bucketing (`InstanceStreamer`; in game the time the frame rate leaves over, 1-8 ms per frame,
-  `RallyGame.streamBudget`). Whole-map work uses `world.analytic`, not the 1 m cache.
+  `RallyGame.streamBudget`). Whole-map work uses `world.analytic`, not the 1 m cache. A grass chunk is generated inside
+  that slice too (`ScatterField.detailSteps`, yields every 256 candidates: one dense chunk took up to ~30 ms), and the
+  canopy shadow map splats new chunks for at most 1 ms a frame and writes its texel bytes as it splats (no conversion
+  pass before the 1.5 s upload).
 - Whole-map set-up loops use a spatial grid, never all-against-all (a town map has ~900 roads, ~2000 way ends).
 
 **Draw calls**
@@ -592,6 +596,8 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   the work itself): tree variants and leaf atlases + mips (`trees/worker.ts`), people (above), procedural textures drawn on an
   OffscreenCanvas (`engine/texture-worker.ts`; `engine/texture-prefetch.ts`: a browser remembers the textures each map used and asks for
   those next time, `BY_MAP` seeds a first visit; text textures stay on the page). `__rally.loadTimings` splits the load by phase.
+  The main thread waits for the leaf atlases, so `TreeLibrary.load` makes the cached impostors' mip chains
+  (`impostorChains`) in that wait.
 - Shader programs of the main pass compile in parallel (`compileAsync`); the shadow-pass ones compile in the first render. The tree
   prepass check (`TreeRenderer.checkPrepass`) draws only the trees and keeps its verdict per GPU in localStorage (it used to draw the
   whole scene into a target: 70 more programs, ~5 s on a cold shader cache).

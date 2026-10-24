@@ -442,9 +442,16 @@ export class Environment {
       envScene.add(nightDome);
     } else if (!this.studio) envScene.add(sky);
     // Ground under the sky: paint, glass and water reflect earth below the horizon, not more sky. Its radiance
-    // ~ albedo x (sun + sky), in the map's ground colour, a little warm.
-    const groundCol = new Color(this.def.groundTint?.grass ?? '#7a6a48')
-      .lerp(new Color('#6b5a3e'), 0.5)
+    // ~ albedo x (sun + sky), in the map's ground colour, a little warm, mostly greyed: road, shade and fields
+    // mixed (a full grass green turned grey paint olive on green maps).
+    const groundCol = new Color(this.def.groundTint?.grass ?? '#7a6a48').lerp(
+      new Color('#6b5a3e'),
+      0.5,
+    );
+    const grey =
+      0.2126 * groundCol.r + 0.7152 * groundCol.g + 0.0722 * groundCol.b;
+    groundCol
+      .lerp(new Color(grey, grey, grey), 0.65)
       .multiplyScalar(
         this.night
           ? 0.012
