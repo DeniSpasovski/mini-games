@@ -64,7 +64,7 @@ const BRAKES: BrakeSet = {
 };
 
 /**
- * Subaru WRX STI 22B (`subie_22b`) - a 1998 blue coupe with the side star livery: 2.2 l turbo flat-four, five-speed box,
+ * Subaru WRX STI 22B (`subie_22b`) - a 1998 blue coupe: 2.2 l turbo flat-four, five-speed box,
  * permanent AWD, 1,270 kg. Body: a CC BY Sketchfab 22B, split by material and converted by stl-to-glb.mjs (settings:
  * model.source.json); the raw download stays out of git.
  */
@@ -209,7 +209,7 @@ export const subie22b: CarDef = {
     },
     // Fallback body if the GLB can't load: profile.ts.
     profile,
-    // Rally plate on the front door (front = +z), over the crescent graphic.
+    // Rally plate on the front door (front = +z).
     doorBadge: { z: 0.22, y: 0.64 },
     gltf: {
       file: 'subie_22b.glb',
