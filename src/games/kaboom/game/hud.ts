@@ -13,7 +13,7 @@ import { bundleIcon, pauseIcon, starIcon, stickIcon } from './icons';
 
 /** Blast levels as players see them: range 2 = level 1 ... (levels 4 and 5 turn corners). */
 const MAX_BLAST_LEVEL = MAX_POWER_LEVEL + 1;
-/** The logo's balls: 3 red, 2 blue, 1 green (team colours 0-2). */
+/** The logo's number blocks: 3 red, 2 blue, 1 green (team colours 0-2). */
 const ballColor = (n: number): string =>
   `#${TEAM_COLORS[3 - n].toString(16).padStart(6, '0')}`;
 
@@ -183,7 +183,8 @@ export class Hud {
     if (key !== this.last.banner) {
       this.last.banner = key;
       const t = el('span', 'kb-banner-t', text);
-      // the 3, 2, 1 count is a clay ball in a team colour of the logo
+      // the 3, 2, 1 count is a 3D number in the colour of its block in the logo
+
       const count = /^[1-3]$/.test(text);
       if (count)
         this.banner.style.setProperty('--ball', ballColor(Number(text)));

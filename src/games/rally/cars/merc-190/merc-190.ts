@@ -72,7 +72,7 @@ const BRAKES: BrakeSet = {
 
 /**
  * Mercedes 190E (`merc_190`) - the 2.5-16 Evolution homologation saloon: a CC BY Sketchfab model kept as it is (flat paint, own
- * cockpit, lamps and rim), mapped to game parts by material only (model.source.json); its badges are removed. Test car (release.ts).
+ * cockpit, lamps and rim), mapped to game parts by material only (model.source.json); its badges are removed.
  */
 export const merc190: CarDef = {
   id: 'merc_190',

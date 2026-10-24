@@ -68,7 +68,7 @@ const BRAKES: BrakeSet = {
 
 /**
  * Peugeot 206 (`peugeot_206`) - a tuned widebody 206 GTi: a CC BY Sketchfab model kept as it is (own cockpit, lamps and rim,
- * flat paint), mapped to game parts by material only (model.source.json). Test car (release.ts).
+ * flat paint), mapped to game parts by material only (model.source.json).
  */
 export const peugeot206: CarDef = {
   id: 'peugeot_206',

@@ -2,7 +2,7 @@
 
 A Polish-built Fiat 126p ("Maluch", pronounced "pe-zet-ka") from a **CC BY Sketchfab model**, used as it comes: the model has no
 livery, so it is mapped to game parts by material. In game it is **Fiat 126p**: RWD, 600 kg, a 652 cc two-cylinder behind the
-rear axle, 4-speed, **no ABS and no traction control**. Test car (hidden in the published build).
+rear axle, 4-speed, **no ABS and no traction control**.
 
 - **Kept from the model:** the whole body and cockpit shell (flat colours), the bumpers with their own weathered texture, the
   head lamps with their own reflector sheet, the amber indicators, the two-colour tail lamps (faceted lens) and the steel rim (de-cambered,
