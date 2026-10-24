@@ -317,8 +317,8 @@ class MainMenu {
   private carIndex: number;
   /** Drivetrain filter on the car screen (not remembered: the menu opens on All). */
   private driveFilter: DriveFilter = 'all';
-  /** Select stage / Select car: the list is folded away, leaving the description card (`.menu-fold`). */
-  private folded = false;
+  /** The detail card (`.menu-side-card` / `.menu-times-card`) is minimized to its tab, kept while moving between screens. */
+  private cardMin = false;
   private livery: number;
   /** Setup screen choices for one map + car (anything else resets to the stage recommendation, nothing is saved). */
   private pick: {
@@ -370,8 +370,9 @@ class MainMenu {
     this.showroom = new Showroom(
       bg,
       quality,
-      // Layout width (not the bounding box): the folded panel slides away without moving the subject.
-      () => this.panel.offsetLeft + this.panel.offsetWidth,
+      () =>
+        this.panel.getBoundingClientRect().right -
+        bg.getBoundingClientRect().left,
     );
     this.showroom.setCar(this.car.id, this.livery, this.badge);
     window.addEventListener('keydown', this.onKey);
@@ -491,13 +492,9 @@ class MainMenu {
     this.panel.replaceChildren();
     this.root
       .querySelectorAll(
-        '.menu-times-card, .menu-side-card, .menu-plate, .setup-part, .menu-fold',
+        '.menu-times-card, .menu-side-card, .menu-plate, .setup-part',
       )
       .forEach((el) => el.remove());
-    // The list folds away on the two screens with a description card (wide screens).
-    const foldable = screen === 'map' || screen === 'car';
-    this.root.classList.toggle('folded', foldable && this.folded);
-    if (foldable) this.root.append(this.foldButton());
     if (screen === 'welcome') this.welcome();
     // The stage plate (S number, name, length, surface) once a stage is being picked (not on the welcome screen).
     if (screen === 'map' || screen === 'car' || screen === 'setup')
@@ -678,6 +675,7 @@ class MainMenu {
             }</table>`
           : '<p class="menu-none">No time set yet - drive this stage!</p>'
       }</div>`;
+    card.prepend(this.minimizer(card, 'Times'));
     this.root.append(card);
     const list = this.stageList(this.timesMap, false, (i) => {
       this.timesMap = i;
@@ -876,12 +874,13 @@ class MainMenu {
   }
 
   /**
-   * Description card of Select stage / Select car (`.menu-side-card`): it docks beside the list (left aligned, the map / car is the background to its right) with its top
+   * Description card of Select stage / Select car (`.menu-side-card`): it docks beside the list (left aligned, minimizable, the map / car stays full size behind it) with its top
    * level with `align` (the header height depends on the font) on screens >= `SIDE_CARD_MIN_WIDTH` px wide, above the
    * buttons on phones. Always returns true.
    */
   private sideCard(card: HTMLElement, align: HTMLElement): boolean {
     card.classList.add('menu-side-card');
+    card.prepend(this.minimizer(card, 'Details'));
     this.root.append(card);
     // Phones: the card covers the map / car above the buttons (CSS), no alignment needed.
     if (window.innerWidth < SIDE_CARD_MIN_WIDTH) return true;
@@ -893,25 +892,20 @@ class MainMenu {
     return true;
   }
 
-  /** Button that folds the list away (and back) on Select stage / Select car, so the description card and the view stand alone. */
-  private foldButton(): HTMLElement {
+  /** Tab at the top of a detail card that minimizes it to just the tab (and back), so the map / car behind it shows in full. */
+  private minimizer(card: HTMLElement, label: string): HTMLButtonElement {
     const b = document.createElement('button');
-    b.className = 'menu-fold';
-    const sync = () => {
-      b.textContent = this.folded ? 'Show list' : 'Hide list';
-      b.setAttribute('aria-expanded', String(!this.folded));
+    b.className = 'menu-card-min';
+    b.textContent = label;
+    const apply = () => {
+      card.classList.toggle('min', this.cardMin);
+      b.setAttribute('aria-expanded', String(!this.cardMin));
+      b.title = this.cardMin ? 'Show details' : 'Minimize details';
     };
-    sync();
+    apply();
     b.addEventListener('click', () => {
-      this.folded = !this.folded;
-      this.root.classList.toggle('folded', this.folded);
-      sync();
-      // Keep the keyboard / pad on the list: the folded one is out of reach, so focus the toggle itself.
-      if (this.folded) b.focus({ preventScroll: true });
-      else
-        this.panel
-          .querySelector<HTMLElement>('[data-primary]')
-          ?.focus({ preventScroll: true });
+      this.cardMin = !this.cardMin;
+      apply();
     });
     return b;
   }
