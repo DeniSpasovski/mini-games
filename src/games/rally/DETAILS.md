@@ -146,8 +146,13 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   Levelled gardens / park strips: `terrain.lawns` (flat world polygons) paints the terrain itself pure grass (splat) and wet
   (`world/ground-moisture.ts`, lush green) - do not lay a green decal over terrain.
 - **Surfaces:** bump relief on roads, rocks and terrain (off on low); grass cards use alpha-to-coverage with MSAA.
+  Terrain ground = Poly Haven scans in one texture array (`engine/ground-textures.ts`, tiles in `engine/ground/`,
+  `scripts/ground/bake.py`): grass per season, soil, gravel, rock, leaf litter, stubble under crops. The splat channels blend by
+  height (scan brightness), a blurred rotated second tap breaks the tiling, unused layers are not sampled. Leaf litter lies where
+  the canopy texture has crowns (`wsCanopyCover`; strength per season, `groundTint.litter`), fresh coloured leaves in autumn.
+  The meadow scans carry the old tile's olive hue so each map's `groundTint` keeps its look.
   Terrain chunks beyond the first LOD band use the cheaper `TERRAIN_FAR` material (`world/terrain-material.ts`): no relief, one
-  texture octave per layer, no specular environment lookup.
+  tap per layer, no specular environment lookup.
 - **Effects:** dust, gravel spray and haze (`game/dust.ts`), tyre marks (`game/tyre-marks.ts`), a contact shadow under the car,
   brake and reversing lamps (`CarModel.setBrake(level, reversing)`; a lamp's `userData.brakeLamp.reverseGlow` map lights its
   white section in gear R, in R the throttle key is the brake pedal; car viewer `lamps=brake|reverse`). With the lights off a lamp

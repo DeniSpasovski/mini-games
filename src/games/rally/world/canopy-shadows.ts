@@ -2,7 +2,7 @@ import {
   DataTexture,
   LinearFilter,
   LinearMipmapLinearFilter,
-  RedFormat,
+  RGFormat,
   UnsignedByteType,
   type Vector3,
 } from 'three';
@@ -30,6 +30,9 @@ const LOCAL_MOVE = 64;
 const LOCAL_BUDGET = 1.5;
 /** Shadow density of one crown in the local window (overlaps add up to 1). */
 const LOCAL_DENSITY = 0.85;
+/** Leaf litter (the G channel): straight under the crown, out to this x its radius, this dense at the trunk. */
+const LITTER_REACH = 1.35;
+const LITTER_DENSITY = 0.9;
 const smooth = (a: number, b: number, x: number): number => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
@@ -56,13 +59,16 @@ export class CanopyShadows {
     invW: 1 / (LOCAL_N * LOCAL_RES),
     invD: 1 / (LOCAL_N * LOCAL_RES),
   };
-  private localData = new Uint8Array(LOCAL_N * LOCAL_N);
+  /** R = shadow, G = leaf litter under the crowns (`wsCanopyCover`). */
+  private localData = new Uint8Array(LOCAL_N * LOCAL_N * 2);
   private localJob: Generator<void> | null = null;
   private localAt = { x: Infinity, z: Infinity };
   private localStale = true;
   /** x0, z0 (m) and 1 / width, 1 / depth (1/m) of the texture on the ground. */
   readonly map = { x0: 0, z0: 0, invW: 0, invD: 0 };
   private grid: Float32Array;
+  private litter: Float32Array;
+  /** R = shadow, G = leaf litter under the crowns (`wsCanopyCover`). */
   private data: Uint8Array;
   private nx: number;
   private nz: number;
@@ -100,7 +106,8 @@ export class CanopyShadows {
     this.nx = Math.ceil(w / this.res);
     this.nz = Math.ceil(d / this.res);
     this.grid = new Float32Array(this.nx * this.nz);
-    this.data = new Uint8Array(this.nx * this.nz);
+    this.litter = new Float32Array(this.nx * this.nz);
+    this.data = new Uint8Array(this.nx * this.nz * 2);
     this.map.x0 = x0;
     this.map.z0 = z0;
     this.map.invW = 1 / (this.nx * this.res);
@@ -128,13 +135,13 @@ export class CanopyShadows {
       this.data,
       this.nx,
       this.nz,
-      RedFormat,
+      RGFormat,
       UnsignedByteType,
     );
     t.magFilter = LinearFilter;
     t.minFilter = LinearMipmapLinearFilter;
     t.generateMipmaps = true;
-    t.unpackAlignment = 1; // rows of nx bytes
+    t.unpackAlignment = 2; // rows of 2 nx bytes
     t.name = 'canopy-shadows';
     t.needsUpdate = true;
     this.texture = t;
@@ -142,12 +149,12 @@ export class CanopyShadows {
       this.localData,
       LOCAL_N,
       LOCAL_N,
-      RedFormat,
+      RGFormat,
       UnsignedByteType,
     );
     l.magFilter = LinearFilter;
     l.minFilter = LinearFilter;
-    l.unpackAlignment = 1;
+    l.unpackAlignment = 2;
     l.name = 'canopy-shadows-local';
     l.needsUpdate = true;
     this.local = l;
@@ -164,7 +171,10 @@ export class CanopyShadows {
         this.cursor++;
         continue;
       }
-      for (const inst of chunk.instances) this.splat(inst);
+      for (const inst of chunk.instances) {
+        this.splat(inst);
+        this.splatLitter(inst);
+      }
       this.localStale = true;
       // Swap-remove: the last pending key takes this slot (looked at next).
       this.todoCount--;
@@ -175,7 +185,10 @@ export class CanopyShadows {
     if (this.dirtyMin >= 0 && now - this.lastUpload >= UPLOAD_EVERY) {
       const a = this.dirtyMin * this.nx;
       const b = (this.dirtyMax + 1) * this.nx;
-      for (let k = a; k < b; k++) this.data[k] = Math.round(this.grid[k] * 255);
+      for (let k = a; k < b; k++) {
+        this.data[k * 2] = Math.round(this.grid[k] * 255);
+        this.data[k * 2 + 1] = Math.round(this.litter[k] * 255);
+      }
       this.texture.needsUpdate = true;
       this.dirtyMin = this.dirtyMax = -1;
       this.lastUpload = now;
@@ -206,6 +219,7 @@ export class CanopyShadows {
 
   private lastLocal = -Infinity;
   private localGrid?: Float32Array;
+  private localLitter?: Float32Array;
   private localBytes?: Uint8Array;
 
   private *localRebuild(fx: number, fz: number): Generator<void> {
@@ -215,24 +229,30 @@ export class CanopyShadows {
     const z0 = Math.round((fz - span / 2) / LOCAL_RES) * LOCAL_RES;
     // Reused (one job at a time): a fresh 1 MB array every rebuild was garbage-collection pauses at speed.
     const grid = (this.localGrid ??= new Float32Array(LOCAL_N * LOCAL_N));
+    const litter = (this.localLitter ??= new Float32Array(LOCAL_N * LOCAL_N));
     grid.fill(0);
+    litter.fill(0);
     const cs = this.world.scatter.chunkSize;
     for (let cz = Math.floor(z0 / cs); cz * cs <= z0 + span; cz++) {
       for (let cx = Math.floor(x0 / cs); cx * cs <= x0 + span; cx++) {
         const chunk = this.world.scatter.cachedChunk(cx, cz);
         if (!chunk) continue;
-        for (const inst of chunk.instances)
+        for (const inst of chunk.instances) {
           this.splat(inst, grid, LOCAL_N, LOCAL_N, LOCAL_RES, x0, z0, 0.6);
+          this.splatLitter(inst, litter, LOCAL_N, LOCAL_N, LOCAL_RES, x0, z0);
+        }
         // Per chunk, not per row: a row of forest chunks overran the time slice.
         yield;
       }
     }
     // Into the texture's bytes in slices too (the upload below swaps the whole window at once).
-    const bytes = (this.localBytes ??= new Uint8Array(LOCAL_N * LOCAL_N));
+    const bytes = (this.localBytes ??= new Uint8Array(LOCAL_N * LOCAL_N * 2));
     for (let row = 0; row < LOCAL_N; row += 64) {
       const end = (row + 64) * LOCAL_N;
-      for (let k = row * LOCAL_N; k < end; k++)
-        bytes[k] = Math.round(grid[k] * 255);
+      for (let k = row * LOCAL_N; k < end; k++) {
+        bytes[k * 2] = Math.round(grid[k] * 255);
+        bytes[k * 2 + 1] = Math.round(litter[k] * 255);
+      }
       yield;
     }
     this.localData.set(bytes);
@@ -292,6 +312,46 @@ export class CanopyShadows {
       }
     }
     if (!global) return;
+    this.dirtyMin = this.dirtyMin < 0 ? j0 : Math.min(this.dirtyMin, j0);
+    this.dirtyMax = Math.max(this.dirtyMax, j1);
+  }
+
+  /**
+   * Leaf litter: a round patch straight under the crown (not moved with the sun like the shadow), densest at the trunk.
+   * Global rows touched are marked dirty by `splat` of the same instance (its shadow covers the crown at noon too).
+   */
+  private splatLitter(
+    inst: ScatterInstance,
+    grid = this.litter,
+    nx = this.nx,
+    nz = this.nz,
+    res = this.res,
+    x0 = this.map.x0,
+    z0 = this.map.z0,
+  ): void {
+    if (!isVegetation(inst.asset)) return;
+    const r = canopyOf(inst.asset).radius * inst.scale * LITTER_REACH;
+    // Trees only: bushes drop too little to show.
+    if (r < 1.2) return;
+    const i0 = Math.max(0, Math.floor((inst.x - r - x0) / res));
+    const i1 = Math.min(nx - 1, Math.ceil((inst.x + r - x0) / res));
+    const j0 = Math.max(0, Math.floor((inst.z - r - z0) / res));
+    const j1 = Math.min(nz - 1, Math.ceil((inst.z + r - z0) / res));
+    if (i0 > i1 || j0 > j1) return;
+    for (let j = j0; j <= j1; j++) {
+      const pz = (z0 + (j + 0.5) * res - inst.z) / r;
+      for (let i = i0; i <= i1; i++) {
+        const px = (x0 + (i + 0.5) * res - inst.x) / r;
+        const q = px * px + pz * pz;
+        if (q >= 1) continue;
+        const k = j * nx + i;
+        grid[k] = Math.min(
+          1,
+          grid[k] + LITTER_DENSITY * (1 - smooth(0.3, 1, q)),
+        );
+      }
+    }
+    if (grid !== this.litter) return;
     this.dirtyMin = this.dirtyMin < 0 ? j0 : Math.min(this.dirtyMin, j0);
     this.dirtyMax = Math.max(this.dirtyMax, j1);
   }
