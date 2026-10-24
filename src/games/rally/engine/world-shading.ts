@@ -1,8 +1,8 @@
 import {
   Color,
   Material,
+  Matrix4,
   ShaderChunk,
-  Vector2,
   Vector3,
   Vector4,
   type Texture,
@@ -16,9 +16,10 @@ import { gradeUniforms } from './grade';
  *
  * - **Cloud shadows:** the sun's direct light is dimmed under drifting clouds (world-space noise from the `macro`
  *   texture, projected along the sun onto a cloud layer). Every lit material (standard / physical / lambert).
+ * - **Sun shadows:** three's lookup in the sun's shadow map is blended with the far shadow map (world/far-shadow.ts)
+ *   by how much the sun's covers the fragment (`wsNearWeight`: its box edge and `wsNear` from the camera).
  * - **Canopy shadows:** ground materials (`defines.RALLY_GROUND`: terrain, roads, grass cards) lose the sun under a
- *   baked top-down tree-shadow texture (world/canopy-shadows.ts) - only outside the sun's shadow-map box, which
- *   already draws the real tree shadows near the car.
+ *   baked top-down tree-shadow texture (world/canopy-shadows.ts) - only where neither shadow map reaches.
  * - **Height fog + sun glow:** `FogExp2` whose density falls off with height above the focus point (valleys hazier,
  *   hill tops and aerial views clearer) and a fog colour that warms towards the sun. Every material with `fog`
  *   (incl. the dust).
@@ -56,10 +57,19 @@ export const worldUniforms = {
   /** Shadow-map box on the ground: centre x, z, half extent (m), canopy shadow strength (0 = off). */
   wsShadowBox: { value: new Vector4(0, 0, 60, 0) },
   /**
-   * Canopy shadows fade in between these distances from the camera (m; y = 0: at the shadow box's edge instead):
-   * where the trees stop casting real shadows (`setCanopyFade`).
+   * The sun's shadow map fades out between these distances from the camera (m; y = 0: only at its box's edge), so it
+   * is gone before trees stop casting into it; z: how much closer the far map fades in (`setNearShadowFade`).
    */
-  wsCanopyFade: { value: new Vector2(0, 0) },
+  wsNear: { value: new Vector3(0, 0, 0) },
+  /**
+   * The far shadow map (engine/far-shadow.ts, `setFarShadow`): x strength (0 = off), y texel size (uv), z normal
+   * offset (m), w depth bias; its world -> [0, 1] matrix and depth texture.
+   */
+  wsFar: { value: new Vector4(0, 0, 0, 0) },
+  /** Where the far map has its crowns (a disc on the ground): centre x, z, fade-out start / end radius (m). */
+  wsFarDisc: { value: new Vector4(0, 0, 0, 1e9) },
+  wsFarMatrix: { value: new Matrix4() },
+  wsFarShadow: { value: null as Texture | null },
   /**
    * The far forest painted on the ground (`setForest`): canopy colour (linear) and the distance (m) where the trees
    * end; the ground under the canopy texture turns this colour over the last quarter before it (w = 0: off).
@@ -148,14 +158,48 @@ export function setCanopyLocalMap(map: {
   worldUniforms.wsCanopyLocalMap.value.set(map.x0, map.z0, map.invW, map.invD);
 }
 
-/** Canopy shadows fade in from `start` to `end` m from the camera (where trees stop casting real shadows). */
-export function setCanopyFade(start: number, end: number): void {
-  worldUniforms.wsCanopyFade.value.set(start, end);
+/** The sun's shadow map fades out from `start` to `end` m from the camera (0, 0 = only at its box's edge). */
+export function setNearShadowFade(
+  start: number,
+  end: number,
+  overlap: number,
+): void {
+  worldUniforms.wsNear.value.set(start, end, overlap);
+}
+
+/**
+ * The far shadow map (engine/far-shadow.ts; null = off): depth texture, world -> [0, 1] matrix, strength, texel size
+ * (uv), normal offset (m) and depth bias.
+ */
+export function setFarShadow(
+  texture: Texture | null,
+  matrix?: Matrix4,
+  o: { strength: number; texel: number; normalOffset: number; bias: number } = {
+    strength: 0,
+    texel: 0,
+    normalOffset: 0,
+    bias: 0,
+  },
+): void {
+  const u = worldUniforms;
+  u.wsFarShadow.value = texture;
+  if (matrix) u.wsFarMatrix.value.copy(matrix);
+  u.wsFar.value.set(texture ? o.strength : 0, o.texel, o.normalOffset, o.bias);
 }
 
 /** The far forest on the ground: canopy colour (linear) and where the trees end (m; 0 = off). */
 export function setForest(color: Color, distance: number): void {
   worldUniforms.wsForest.value.set(color.r, color.g, color.b, distance);
+}
+
+/** The ground disc where the far shadow map has its crowns (it fades out towards `end`, m). */
+export function setFarShadowDisc(
+  x: number,
+  z: number,
+  start: number,
+  end: number,
+): void {
+  worldUniforms.wsFarDisc.value.set(x, z, start, end);
 }
 
 /** Where the sun's shadow map is (canopy shadows fade in outside it; call every frame). */
@@ -328,7 +372,11 @@ uniform vec4 wsCanopyMap;
 uniform sampler2D wsCanopyLocal;
 uniform vec4 wsCanopyLocalMap;
 uniform vec4 wsShadowBox;
-uniform vec2 wsCanopyFade;
+uniform vec3 wsNear;
+uniform vec4 wsFar;
+uniform vec4 wsFarDisc;
+uniform mat4 wsFarMatrix;
+uniform sampler2D wsFarShadow;
 uniform vec4 wsForest;
 vec3 wsWorldPos( vec3 viewPos ) {
 	return ${WORLD_FROM_VIEW.replace('%v', 'viewPos')};
@@ -342,12 +390,55 @@ float wsCloudShadow( vec3 wp ) {
 	float t = 0.72 - wsCloud.y * 0.4;
 	return 1.0 - wsCloud.x * smoothstep( t - 0.05, t + 0.07, n );
 }
-/** Sun visibility under the baked tree shadows, faded in outside the shadow-map box, 1 = clear. */
-float wsCanopyShadow( vec3 wp ) {
+/**
+ * Weight of the sun's shadow map at a fragment (its shadow coordinate): 1 inside the box, 0 at its edge and past
+ * wsNear from the camera (where trees stop casting into it). \`inner\` = 1: the same fade moved in by the overlap
+ * (wsNear.z m, a fifth of the box): where the far map starts, so both draw over that band.
+ */
+float wsNearWeight( vec4 coord, vec3 wp, float inner ) {
+	vec2 e = abs( coord.xy / coord.w - 0.5 ) * 2.0;
+	float w = 1.0 - smoothstep( 0.82 - 0.2 * inner, 0.96 - 0.2 * inner, max( e.x, e.y ) );
+	float shift = wsNear.z * inner;
+	if ( wsNear.y > 0.0 ) w *= 1.0 - smoothstep( wsNear.x - shift, wsNear.y - shift, length( wp.xz - cameraPosition.xz ) );
+	return w;
+}
+/**
+ * Sun visibility in the far shadow map (engine/far-shadow.ts), 1 = clear; \`cover\` = how much of the fragment it
+ * covers (fades out at its edge). A plain sampler2D (see world/far-shadow.ts): 2x2 texel compares, bilinear weights.
+ */
+float wsFarLit( vec2 uv, float z ) {
+	return step( z, texture2D( wsFarShadow, uv ).r );
+}
+float wsFarSun( vec3 wp, vec3 wn, out float cover ) {
+	cover = 0.0;
+	if ( wsFar.x <= 0.0 ) return 1.0;
+	vec4 c = wsFarMatrix * vec4( wp + wn * wsFar.z, 1.0 );
+	vec2 e = abs( c.xy - 0.5 ) * 2.0;
+	if ( c.z >= 1.0 ) return 1.0;
+	cover = ( 1.0 - smoothstep( 0.86, 0.97, max( e.x, e.y ) ) )
+		* ( 1.0 - smoothstep( wsFarDisc.z, wsFarDisc.w, length( wp.xz - wsFarDisc.xy ) ) );
+	if ( cover <= 0.0 ) return 1.0;
+	float z = c.z - wsFar.w;
+	float t = wsFar.y;
+	// The four texels around the lookup, bilinear weights (far pixels are small on screen: 4 reads are enough).
+	vec2 p = c.xy / t - 0.5;
+	vec2 f = fract( p );
+	vec2 b = ( floor( p ) + 0.5 ) * t;
+	float s = mix(
+		mix( wsFarLit( b, z ), wsFarLit( b + vec2( t, 0.0 ), z ), f.x ),
+		mix( wsFarLit( b + vec2( 0.0, t ), z ), wsFarLit( b + vec2( t, t ), z ), f.x ),
+		f.y
+	);
+	return mix( 1.0, s, cover * wsFar.x );
+}
+/**
+ * Sun visibility under the baked tree shadows, 1 = clear. \`cover\`: how much real shadow maps cover the fragment
+ * (the baked shadows fill in only where they end).
+ */
+float wsCanopyShadow( vec3 wp, float cover ) {
 	if ( wsShadowBox.w <= 0.0 ) return 1.0;
-	float fade = wsCanopyFade.y > 0.0
-		? smoothstep( wsCanopyFade.x, wsCanopyFade.y, length( wp.xz - cameraPosition.xz ) )
-		: smoothstep( wsShadowBox.z * 0.65, wsShadowBox.z * 0.95, length( wp.xz - wsShadowBox.xy ) );
+	float fade = 1.0 - cover;
+	if ( fade <= 0.0 ) return 1.0;
 	float d = texture2D( wsCanopy, ( wp.xz - wsCanopyMap.xy ) * wsCanopyMap.zw ).r;
 	float str = wsShadowBox.w;
 	// The finer window around the camera (blended out over its outer fifth).
@@ -363,12 +454,43 @@ float wsCanopyShadow( vec3 wp ) {
 }
 `;
 
-/** Inserted after `getDirectionalLightInfo` (before the shadow map term). */
+/**
+ * Tree materials (TREE_FULL) look the far map up at their shadow lookup point, as the sun's map does (sprites: moved
+ * out of their own crown towards the sun, trees/materials.ts `SELF_SHADOW`) - at the fragment itself a crown would
+ * sit inside its own far-map proxy and go dark.
+ */
+const TREE_SHADOW_WP_DECL = /* glsl */ `
+#if defined( TREE_FULL ) && defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0 && ! defined( WS_TREE_SHADOW_WP )
+#define WS_TREE_SHADOW_WP
+varying vec3 wsShadowWP;
+#endif
+`;
+
+/**
+ * Inserted after `getDirectionalLightInfo` (before the shadow map term): clouds, the near / far shadow map weights
+ * (`wsNearW` / `wsFarIn` / `wsFarV`, read by the shadow term, see `SUN_SHADOW`) and the canopy where neither map reaches.
+ */
 const SUN_TERMS = /* glsl */ `
 		vec3 wsWP = wsWorldPos( geometryPosition );
 		directLight.color *= wsCloudShadow( wsWP );
+		float wsNearW = 0.0;
+		float wsFarIn = 1.0;
+		float wsFarV = 1.0;
+		float wsFarW = 0.0;
+		#if defined( USE_SHADOWMAP ) && ( UNROLLED_LOOP_INDEX < NUM_DIR_LIGHT_SHADOWS )
+			wsNearW = wsNearWeight( vDirectionalShadowCoord[ i ], wsWP, 0.0 );
+			wsFarIn = 1.0 - wsNearWeight( vDirectionalShadowCoord[ i ], wsWP, 1.0 );
+			// Near the car the sun's map covers everything: no far lookup (most of the screen's pixels).
+			if ( wsFarIn > 0.0 ) {
+				#ifdef TREE_FULL
+					wsFarV = wsFarSun( wsShadowWP, normalize( ( vec4( geometryNormal, 0.0 ) * viewMatrix ).xyz ), wsFarW );
+				#else
+					wsFarV = wsFarSun( wsWP, normalize( ( vec4( geometryNormal, 0.0 ) * viewMatrix ).xyz ), wsFarW );
+				#endif
+			}
+		#endif
 		#ifdef RALLY_GROUND
-			directLight.color *= wsCanopyShadow( wsWP );
+			directLight.color *= wsCanopyShadow( wsWP, max( wsNearW, wsFarW ) );
 			// The far forest (no trees drawn there): the ground under the canopy takes the canopy's colour.
 			if ( wsForest.w > 0.0 && wsShadowBox.w > 0.0 ) {
 				float wsFd = texture2D( wsCanopy, ( wsWP.xz - wsCanopyMap.xy ) * wsCanopyMap.zw ).r;
@@ -381,6 +503,14 @@ const SUN_TERMS = /* glsl */ `
 				#endif
 			}
 		#endif`;
+
+/**
+ * The sun's shadow-map lookup in three's directional loop, replaced by `min( mix( 1, <it>, wsNearW ), mix( 1, wsFarV,
+ * wsFarIn ) )`: the near map inside its box, the far map past it, both over an overlap band before the near one fades
+ * (the darker wins: one shadow in both maps is not doubled; 1 where neither reaches, the canopy takes over there).
+ */
+const SUN_SHADOW =
+  'getShadow( directionalShadowMap[ i ], directionalLightShadow.shadowMapSize, directionalLightShadow.shadowIntensity, directionalLightShadow.shadowBias, directionalLightShadow.shadowRadius, vDirectionalShadowCoord[ i ] )';
 
 /** Inserted after the directional `RE_Direct` (after the shadow map: shaded leaves stay dark). */
 const FOLIAGE_TERM = /* glsl */ `
@@ -412,7 +542,18 @@ function install(): void {
   chunks.begin_vertex = BEGIN_VERTEX;
   chunks.beginnormal_vertex = chunks.beginnormal_vertex + FLAG_NORMAL;
   chunks.common = WORLD_SHADING_DECL + chunks.common;
-  chunks.lights_pars_begin = chunks.lights_pars_begin + LIGHTS_PARS;
+  chunks.lights_pars_begin =
+    chunks.lights_pars_begin + TREE_SHADOW_WP_DECL + LIGHTS_PARS;
+  // Tree materials: their shadow lookup point (worldpos_vertex; sprites move it out of their own crown) for the far map.
+  chunks.shadowmap_pars_vertex =
+    chunks.shadowmap_pars_vertex + TREE_SHADOW_WP_DECL;
+  chunks.shadowmap_vertex =
+    chunks.shadowmap_vertex +
+    /* glsl */ `
+#ifdef WS_TREE_SHADOW_WP
+	wsShadowWP = worldPosition.xyz;
+#endif
+`;
   // Directional light loop only (the point / spot loops call RE_Direct too).
   const lights = chunks.lights_fragment_begin;
   const info = 'getDirectionalLightInfo( directionalLight, directLight );';
@@ -423,10 +564,17 @@ function install(): void {
       'world-shading: ShaderChunk.lights_fragment_begin changed (three upgrade?)',
     );
   const lineEnd = lights.indexOf('\n', direct);
+  const shadow = lights.indexOf(SUN_SHADOW, at);
+  if (shadow < 0 || shadow > direct)
+    throw new Error(
+      'world-shading: the directional shadow term changed (three upgrade?)',
+    );
   chunks.lights_fragment_begin =
     lights.slice(0, at + info.length) +
     SUN_TERMS +
-    lights.slice(at + info.length, lineEnd) +
+    lights.slice(at + info.length, shadow) +
+    `min( mix( 1.0, ${SUN_SHADOW}, wsNearW ), mix( 1.0, wsFarV, wsFarIn ) )` +
+    lights.slice(shadow + SUN_SHADOW.length, lineEnd) +
     FOLIAGE_TERM +
     lights.slice(lineEnd);
   // Car reflections: the specular env lookup at the material's own `envMapIntensity` (see `carEnv`).

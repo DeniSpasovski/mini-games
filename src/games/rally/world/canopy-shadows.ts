@@ -36,11 +36,11 @@ const smooth = (a: number, b: number, x: number): number => {
 };
 
 /**
- * Tree shadows on the ground BEYOND the sun's shadow map (which only covers ~50-75 m around the car): every
+ * Tree shadows on the ground BEYOND both shadow maps (the sun's and the far one, world/far-shadow.ts): every
  * vegetation instance is splatted into one top-down density texture over the map as a soft ellipse, moved away
  * from the sun by its canopy height and stretched along the sun's azimuth (low sun = long shadows). The world
  * shading (engine/world-shading.ts `setCanopyShadows`) dims the sun on ground materials with it, fading in where
- * the real shadow box ends - so forests read as forests at 100-2000 m.
+ * the shadow maps stop covering - so forests read as forests out to 2000 m.
  *
  * Incremental and hitch-free: `update()` only takes scatter chunks the instance streamer has ALREADY generated
  * (generating one costs 50-200 ms) - i.e. everything within its draw distance - and re-uploads the texture at
@@ -205,25 +205,37 @@ export class CanopyShadows {
   }
 
   private lastLocal = -Infinity;
+  private localGrid?: Float32Array;
+  private localBytes?: Uint8Array;
 
   private *localRebuild(fx: number, fz: number): Generator<void> {
     const span = LOCAL_N * LOCAL_RES;
     // Texel-aligned so the shadows do not swim while the window moves.
     const x0 = Math.round((fx - span / 2) / LOCAL_RES) * LOCAL_RES;
     const z0 = Math.round((fz - span / 2) / LOCAL_RES) * LOCAL_RES;
-    const grid = new Float32Array(LOCAL_N * LOCAL_N);
+    // Reused (one job at a time): a fresh 1 MB array every rebuild was garbage-collection pauses at speed.
+    const grid = (this.localGrid ??= new Float32Array(LOCAL_N * LOCAL_N));
+    grid.fill(0);
     const cs = this.world.scatter.chunkSize;
     for (let cz = Math.floor(z0 / cs); cz * cs <= z0 + span; cz++) {
       for (let cx = Math.floor(x0 / cs); cx * cs <= x0 + span; cx++) {
         const chunk = this.world.scatter.cachedChunk(cx, cz);
-        if (chunk)
-          for (const inst of chunk.instances)
-            this.splat(inst, grid, LOCAL_N, LOCAL_N, LOCAL_RES, x0, z0, 0.6);
+        if (!chunk) continue;
+        for (const inst of chunk.instances)
+          this.splat(inst, grid, LOCAL_N, LOCAL_N, LOCAL_RES, x0, z0, 0.6);
+        // Per chunk, not per row: a row of forest chunks overran the time slice.
+        yield;
       }
+    }
+    // Into the texture's bytes in slices too (the upload below swaps the whole window at once).
+    const bytes = (this.localBytes ??= new Uint8Array(LOCAL_N * LOCAL_N));
+    for (let row = 0; row < LOCAL_N; row += 64) {
+      const end = (row + 64) * LOCAL_N;
+      for (let k = row * LOCAL_N; k < end; k++)
+        bytes[k] = Math.round(grid[k] * 255);
       yield;
     }
-    const data = this.localData;
-    for (let k = 0; k < data.length; k++) data[k] = Math.round(grid[k] * 255);
+    this.localData.set(bytes);
     this.localMap.x0 = x0;
     this.localMap.z0 = z0;
     this.local.needsUpdate = true;
