@@ -19,6 +19,7 @@ import {
   SRGBColorSpace,
   ShaderMaterial,
   UnsignedByteType,
+  Vector2,
   Vector3,
   type Material,
   type Texture,
@@ -32,145 +33,192 @@ import {
   tntBandGeometry,
   tntBodyGeometry,
 } from './crew-parts';
+import { dynamiteTextures } from './dynamite-texture';
 import type { Quality } from './renderer';
 
 type Shader = Parameters<Material['onBeforeCompile']>[0];
 
 /**
  * The paper label with a bold 1 / 2 / 3 in three cells side by side and a fourth plain cell for the rest of the band
- * (browser only: uses a canvas): aged paper with speckles, a hazard-stripe border top and bottom (its pattern runs on
- * across the cells), and the digit in a dark ring.
+ * (browser only: uses a canvas): aged paper (grain, fibres, a few stains, darker worn edges), worn hazard stripes top
+ * and bottom (their pattern runs on across the cells), the digit in a dark ring, and small print either side of it
+ * ("DANGER / EXPLOSIVE", a warning triangle, "KEEP AWAY FROM FIRE"); the plain cell carries "HIGH EXPLOSIVE".
  */
 export function makeDigitAtlas(): CanvasTexture {
   // each cell three band heights wide (`tntBandGeometry`), so the digit and its ring come out round
-  const cell = 128;
+  const cell = 256;
   const cw = cell * 3;
   const c = document.createElement('canvas');
   c.width = cw * 4;
   c.height = cell;
   const g = c.getContext('2d')!;
+  const rnd = (k: number) => {
+    const s = Math.sin(k * 12.9898) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  const stripe = 20;
+  const tri = (x: number, y: number, s: number) => {
+    g.beginPath();
+    g.moveTo(x, y - s * 0.55);
+    g.lineTo(x + s * 0.6, y + s * 0.5);
+    g.lineTo(x - s * 0.6, y + s * 0.5);
+    g.closePath();
+    g.fillStyle = '#f2b81c';
+    g.fill();
+    g.lineWidth = s * 0.09;
+    g.strokeStyle = '#231a14';
+    g.stroke();
+    g.fillStyle = '#231a14';
+    g.font = `900 ${Math.round(s * 0.62)}px "Arial Black", Impact, sans-serif`;
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('!', x, y + s * 0.12);
+  };
   for (let i = 0; i < 4; i++) {
     const x0 = i * cw;
     const paper = g.createLinearGradient(0, 0, 0, cell);
-    paper.addColorStop(0, '#efd8a6');
-    paper.addColorStop(0.5, '#f7e6bf');
-    paper.addColorStop(1, '#e6cc96');
+    paper.addColorStop(0, '#e2c48c');
+    paper.addColorStop(0.2, '#f1dcae');
+    paper.addColorStop(0.5, '#f6e5bf');
+    paper.addColorStop(0.8, '#efd7a6');
+    paper.addColorStop(1, '#dcbb80');
     g.fillStyle = paper;
     g.fillRect(x0, 0, cw, cell);
-    // speckles and fibres
-    for (let k = 0; k < 400; k++) {
-      const a = (Math.sin(k * 12.9898 + i * 78.233) * 43758.5453) % 1;
-      const b = (Math.sin(k * 39.346 + i * 11.135) * 24634.6345) % 1;
-      g.fillStyle = k % 3 ? 'rgba(120,80,40,0.10)' : 'rgba(255,255,255,0.25)';
-      g.fillRect(x0 + Math.abs(a) * cw, Math.abs(b) * cell, 3, 1);
+    // a few faint stains
+    for (let k = 0; k < 4; k++) {
+      const sx = x0 + rnd(k * 7.1 + i * 3.3) * cw;
+      const sy = rnd(k * 3.7 + i * 9.1) * cell;
+      const sr = 30 + rnd(k * 5.3 + i) * 70;
+      const st = g.createRadialGradient(sx, sy, sr * 0.2, sx, sy, sr);
+      st.addColorStop(0, 'rgba(150,100,45,0.10)');
+      st.addColorStop(0.8, 'rgba(150,100,45,0.05)');
+      st.addColorStop(1, 'rgba(150,100,45,0)');
+      g.fillStyle = st;
+      g.fillRect(sx - sr, sy - sr, sr * 2, sr * 2);
     }
-    // hazard stripes along the top and the bottom edge
-    for (const y of [0, cell - 10]) {
+    // fibres
+    for (let k = 0; k < 1400; k++) {
+      const a = rnd(k * 1.37 + i * 78.233);
+      const b = rnd(k * 2.91 + i * 11.135);
+      g.fillStyle = k % 3 ? 'rgba(110,70,30,0.10)' : 'rgba(255,255,255,0.22)';
+      g.fillRect(x0 + a * cw, b * cell, 2 + (k % 5), 1);
+    }
+    // worn hazard stripes along the top and the bottom edge
+    for (const y of [0, cell - 22]) {
       g.save();
       g.beginPath();
-      g.rect(x0, y, cw, 10);
+      g.rect(x0, y, cw, 22);
       g.clip();
-      g.fillStyle = '#f2b81c';
-      g.fillRect(x0, y, cw, 10);
+      g.fillStyle = '#eeb21c';
+      g.fillRect(x0, y, cw, 22);
       g.fillStyle = '#231a14';
-      for (let sx = -16; sx < cw + 16; sx += 16) {
+      for (let sx = -stripe * 2; sx < cw + stripe * 2; sx += stripe * 2) {
         g.beginPath();
-        g.moveTo(x0 + sx, y + 16);
-        g.lineTo(x0 + sx + 8, y + 16);
-        g.lineTo(x0 + sx + 16, y);
-        g.lineTo(x0 + sx + 8, y);
+        g.moveTo(x0 + sx, y + 26);
+        g.lineTo(x0 + sx + stripe, y + 26);
+        g.lineTo(x0 + sx + stripe * 2, y - 4);
+        g.lineTo(x0 + sx + stripe, y - 4);
         g.closePath();
         g.fill();
       }
+      // scuffs: the paper shows through
+      for (let k = 0; k < 40; k++) {
+        g.fillStyle = 'rgba(240,222,180,0.55)';
+        g.fillRect(
+          x0 + rnd(k * 4.7 + i * 2.1 + y) * cw,
+          y + rnd(k * 8.3 + y) * 22,
+          3 + rnd(k * 1.9) * 9,
+          1 + rnd(k * 2.7) * 2,
+        );
+      }
       g.restore();
     }
-    if (i === 3) continue;
-    // the count in a ring
-    g.strokeStyle = '#4a1d12';
-    g.lineWidth = 7;
-    g.beginPath();
-    g.arc(x0 + cw / 2, cell / 2, 50, 0, Math.PI * 2);
-    g.stroke();
-    g.fillStyle = '#3b140c';
-    g.font = '900 98px "Arial Black", Impact, sans-serif';
+    g.fillStyle = '#5a2414';
     g.textAlign = 'center';
     g.textBaseline = 'middle';
-    g.fillText(String(i + 1), x0 + cw / 2, cell / 2 + 4);
+    if (i === 3) {
+      g.font = '900 46px "Arial Black", Impact, sans-serif';
+      g.fillText('HIGH EXPLOSIVE', x0 + cw / 2, cell / 2 + 2);
+      tri(x0 + 70, cell / 2, 64);
+      tri(x0 + cw - 70, cell / 2, 64);
+      continue;
+    }
+    // the count in a ring
+    const cx = x0 + cw / 2;
+    g.fillStyle = 'rgba(255,248,226,0.55)';
+    g.beginPath();
+    g.arc(cx, cell / 2, 98, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = '#4a1d12';
+    g.lineWidth = 13;
+    g.beginPath();
+    g.arc(cx, cell / 2, 98, 0, Math.PI * 2);
+    g.stroke();
+    g.fillStyle = '#3b140c';
+    g.font = '900 190px "Arial Black", Impact, sans-serif';
+    g.fillText(String(i + 1), cx, cell / 2 + 8);
+    // small print either side
+    g.fillStyle = '#5a2414';
+    g.font = '900 52px "Arial Black", Impact, sans-serif';
+    g.fillText('DANGER', x0 + 150, cell / 2 - 26);
+    g.font = '800 30px "Arial Narrow", Arial, sans-serif';
+    g.fillText('EXPLOSIVE', x0 + 150, cell / 2 + 28);
+    tri(x0 + cw - 190, cell / 2 - 4, 76);
+    g.font = '800 22px "Arial Narrow", Arial, sans-serif';
+    g.fillText('KEEP AWAY', x0 + cw - 92, cell / 2 - 16);
+    g.fillText('FROM FIRE', x0 + cw - 92, cell / 2 + 12);
   }
   const t = new CanvasTexture(c);
   t.colorSpace = SRGBColorSpace;
+  t.anisotropy = 8;
   return t;
 }
 
-let stickPaper: DataTexture | null = null;
+let crinkle: DataTexture | null = null;
 
-/**
- * The dynamite stick paper (shared by every TNT and the power-up models): red wrap with fibres, a spiral seam, waxed
- * darker ends and printed cream rings with pinstripes near both ends. u = round the stick, v = along it. The strip at
- * u > 0.97 is plain white for parts that only want their vertex colour (`plainUV` in `crew-parts.ts`). Generated once,
- * no DOM (works in node).
- */
-export function stickPaperTexture(): DataTexture {
-  if (stickPaper) return stickPaper;
-  const W = 256;
-  const H = 256;
-  const data = new Uint8Array(W * H * 4);
-  const noise = new Noise2D(808);
-  for (let y = 0; y < H; y++)
-    for (let x = 0; x < W; x++) {
-      const o = (y * W + x) * 4;
-      const u = (x + 0.5) / W;
-      const v = (y + 0.5) / H;
-      let r: number;
-      let g: number;
-      let b: number;
-      if (u > 0.97) {
-        r = g = b = 255;
-      } else {
-        const uu = u / 0.97;
-        const fibre =
-          noise.noise2(uu * 40, v * 6) * 0.5 +
-          noise.noise2(uu * 140, v * 24) * 0.3;
-        let k = 1 + 0.08 * fibre;
-        // the wrap's spiral seam: a dark line with a lighter overlap beside it
-        const seam = (((uu + v * 0.35) % 1) + 1) % 1;
-        if (Math.abs(seam - 0.5) < 0.006) k *= 0.72;
-        else if (seam > 0.506 && seam < 0.52) k *= 1.08;
-        // waxed ends
-        const end = Math.min(v, 1 - v);
-        if (end < 0.06) k *= 0.78 + (end / 0.06) * 0.22;
-        r = 196 * k;
-        g = 42 * k;
-        b = 36 * k;
-        // printed cream rings with dark pinstripes near both ends
-        const ring = (lo: number, hi: number) => v > lo && v < hi;
-        if (ring(0.1, 0.17) || ring(0.83, 0.9)) {
-          r = 236 * k;
-          g = 214 * k;
-          b = 168 * k;
-        }
-        if (
-          Math.abs(v - 0.1) < 0.005 ||
-          Math.abs(v - 0.17) < 0.005 ||
-          Math.abs(v - 0.83) < 0.005 ||
-          Math.abs(v - 0.9) < 0.005
-        )
-          r = g = b = 40;
-      }
-      data[o] = Math.max(0, Math.min(255, r));
-      data[o + 1] = Math.max(0, Math.min(255, g));
-      data[o + 2] = Math.max(0, Math.min(255, b));
+/** A small tiling normal map of crinkled paper for the label (no DOM). */
+function labelCrinkle(): DataTexture {
+  if (crinkle) return crinkle;
+  const N = 128;
+  const noise = new Noise2D(31);
+  // tiling noise: four offset samples blended across the tile
+  const tile = (x: number, y: number, f: number) => {
+    const u = x / N;
+    const v = y / N;
+    const n = (a: number, b: number) => noise.noise2(a * f, b * f);
+    return (
+      n(u, v) * (1 - u) * (1 - v) +
+      n(u - 1, v) * u * (1 - v) +
+      n(u, v - 1) * (1 - u) * v +
+      n(u - 1, v - 1) * u * v
+    );
+  };
+  const hgt = new Float32Array(N * N);
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++)
+      hgt[y * N + x] = Math.abs(tile(x, y, 4)) * 0.8 + tile(x, y, 11) * 0.1;
+  const data = new Uint8Array(N * N * 4);
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++) {
+      const at = (xx: number, yy: number) =>
+        hgt[((yy + N) % N) * N + ((xx + N) % N)];
+      const nx = -(at(x + 1, y) - at(x - 1, y)) * 3;
+      const ny = -(at(x, y + 1) - at(x, y - 1)) * 3;
+      const l = Math.hypot(nx, ny, 1);
+      const o = (y * N + x) * 4;
+      data[o] = Math.round(((nx / l) * 0.5 + 0.5) * 255);
+      data[o + 1] = Math.round(((ny / l) * 0.5 + 0.5) * 255);
+      data[o + 2] = Math.round(((1 / l) * 0.5 + 0.5) * 255);
       data[o + 3] = 255;
     }
-  const t = new DataTexture(data, W, H, RGBAFormat, UnsignedByteType);
-  t.colorSpace = SRGBColorSpace;
-  t.wrapS = RepeatWrapping;
+  const t = new DataTexture(data, N, N, RGBAFormat, UnsignedByteType);
+  t.wrapS = t.wrapT = RepeatWrapping;
   t.generateMipmaps = true;
   t.minFilter = LinearMipmapLinearFilter;
   t.magFilter = LinearFilter;
-  t.anisotropy = 4;
+  t.repeat.set(7, 2.5);
   t.needsUpdate = true;
-  stickPaper = t;
+  crinkle = t;
   return t;
 }
 
@@ -187,7 +235,7 @@ const LEVEL_PICK = `#include <begin_vertex>
 /**
  * The body's own shader bits: the level pick, the fuse burning down (past the spark, `aBurn` per TNT, the cord shrinks
  * to grey ash: `aFuseT` / `aFuseC` in `crew-parts.ts`), a warm rim light so the sticks stand off the floor, and on High
- * the per-vertex roughness `part()` wrote (waxed paper, brass cap, rope).
+ * the per-vertex roughness `part()` wrote (waxed paper, brass cap, rope) times the atlas's own (normal map alpha).
  */
 function patchBody(shader: Shader, high: boolean): void {
   shader.vertexShader = shader.vertexShader
@@ -222,7 +270,8 @@ function patchBody(shader: Shader, high: boolean): void {
       .replace('#include <common>', '#include <common>\nvarying float vGloss;')
       .replace(
         '#include <roughnessmap_fragment>',
-        'float roughnessFactor = roughness * ( 1.0 - vGloss );',
+        // the atlas normal map carries a roughness multiplier in alpha (waxed ends, worn paper, hemp)
+        'float roughnessFactor = roughness * ( 1.0 - vGloss ) * texture2D( normalMap, vNormalMapUv ).a * 1.5;',
       );
 }
 
@@ -398,20 +447,27 @@ export class TntRenderer {
     bodyGeo.setAttribute('aBurn', this.burn);
 
     const high = quality?.name === 'high';
+    const dyn = dynamiteTextures();
     const bodyMat = high
       ? new MeshStandardMaterial({
           vertexColors: true,
-          map: stickPaperTexture(),
+          map: dyn.map,
+          normalMap: dyn.normal,
           roughness: 1,
           metalness: 0,
         })
       : new MeshLambertMaterial({
           vertexColors: true,
-          map: stickPaperTexture(),
+          map: dyn.map,
+          normalMap: dyn.normal,
         });
     bodyMat.onBeforeCompile = (shader) => patchBody(shader, high);
     bodyMat.customProgramCacheKey = () => `kaboom-tnt-body-${high}`;
-    const bandMat = new MeshLambertMaterial({ map: atlas });
+    const bandMat = new MeshLambertMaterial({
+      map: atlas,
+      normalMap: labelCrinkle(),
+      normalScale: new Vector2(0.2, 0.2),
+    });
     // uv.x runs round the band in atlas cells (`tntBandGeometry`): the cell round the front shows the digit, the rest
     // the plain cell; sampled with the unwrapped gradients so the cell seams take no mip jump
     bandMat.onBeforeCompile = (shader) => {

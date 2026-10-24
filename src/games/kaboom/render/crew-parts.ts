@@ -14,6 +14,7 @@ import {
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { ATLAS, PLEATS, ROPE_M } from './dynamite-texture';
 import { ROUGH } from './materials';
 import { bbox, merge, part, strut } from './parts';
 
@@ -253,25 +254,44 @@ export function footGeometry(): BufferGeometry {
 }
 
 /**
- * Where a part samples the stick texture when it only wants its vertex colour: the plain white strip at its right
- * edge (`stickPaperTexture` in `tnt.ts`).
+ * Where a part samples the dynamite atlas when it only wants its vertex colour: its plain white strip
+ * (`dynamiteTextures` in `dynamite-texture.ts`).
  */
-const PLAIN_U = 0.99;
-/** The paper side of a stick samples u = 0 ... PAPER_U of the stick texture (well clear of the plain strip at 0.97, mipmaps included). */
-const PAPER_U = 0.9;
+const PLAIN_U = 0.993;
 function plainUV<T extends BufferGeometry>(g: T): T {
   const uv = g.getAttribute('uv');
   for (let i = 0; i < uv.count; i++) uv.setXY(i, PLAIN_U, 0.5);
   return g;
 }
 
-/** Parts that sample the stick paper (the tubes); everything else in a TNT or pickup model takes the plain strip. */
-const paperParts = new WeakSet<BufferGeometry>();
+/** Parts mapped onto the atlas (paper, crimps, cords); everything else in a TNT or pickup model takes the plain strip. */
+const atlasParts = new WeakSet<BufferGeometry>();
 
-/** Merge a model that uses the stick texture: every part but the paper tubes samples its plain strip. */
+/** Merge a model that uses the dynamite atlas: every part not mapped onto it samples its plain strip. */
 function mergePaper(p: BufferGeometry[]): BufferGeometry {
-  for (const g of p) if (!paperParts.has(g)) plainUV(g);
+  for (const g of p) if (!atlasParts.has(g)) plainUV(g);
   return merge(p);
+}
+
+/**
+ * Map a cord-shaped part onto the atlas rope (three twisted strands): `along` = the uv axis that runs along it, `len` =
+ * its length in metres (rounded to whole strand lays, so a closed loop shows no seam).
+ */
+function ropeUV<T extends BufferGeometry>(
+  g: T,
+  along: 'x' | 'y',
+  len: number,
+): T {
+  const uv = g.getAttribute('uv');
+  const w = ATLAS.rope[1] - ATLAS.rope[0];
+  const lays = Math.max(1, Math.round((len / ROPE_M) * 18)) / 18;
+  for (let i = 0; i < uv.count; i++) {
+    const a = along === 'x' ? uv.getX(i) : uv.getY(i);
+    const r = along === 'x' ? uv.getY(i) : uv.getX(i);
+    uv.setXY(i, ATLAS.rope[0] + r * w, a * lays);
+  }
+  atlasParts.add(g);
+  return g;
 }
 
 /** Where and how a stick stands: base centre, yaw of its wrap, lean (radians round x and z). */
@@ -288,59 +308,68 @@ const stickM = new Matrix4();
 const stickR = new Matrix4();
 
 /**
- * A dynamite stick, `h` tall to its shoulder and `r` thick: a paper tube with bevelled shoulders (textured: red wrap,
- * seam, printed rings, waxed ends) and the wrap folded over the top in a six-pleat crimp that dips to a dimple (pleats
- * shaded in vertex colour). Its open bottom stands on the floor (never seen).
+ * A dynamite stick, `h` tall to its shoulder and `r` thick: a paper tube with rounded shoulders (the atlas paper: red
+ * wrap, creases, seam, print, waxed ends) and the wrap folded over the top in a crimp of `PLEATS` folds dipping to a
+ * dimple (the atlas crimp, mapped from above so its creases sit on the folds). Its open bottom stands on the floor.
  */
 function stick(h: number, r: number, pose: StickPose): BufferGeometry[] {
-  const b = r * 0.16;
+  const b = r * 0.2;
   const tube = new LatheGeometry(
     [
       new Vector2(r * 0.95, 0),
       new Vector2(r, b),
       new Vector2(r, h - b),
-      new Vector2(r * 0.95, h),
+      new Vector2(r * 0.985, h - b * 0.35),
+      new Vector2(r * 0.93, h),
     ],
-    14,
+    20,
   );
-  // u round the stick (the paper part of the texture only), v along it
+  // u round the stick across the atlas paper, v along it
   const tuv = tube.getAttribute('uv');
   const tpos = tube.getAttribute('position');
+  const pw = ATLAS.paper[1] - ATLAS.paper[0];
   for (let i = 0; i < tuv.count; i++)
-    tuv.setXY(i, tuv.getX(i) * PAPER_U, tpos.getY(i) / h);
-  const side = part(tube, 0xffffff, { tint: 0.02, rough: 0.5 });
-  paperParts.add(side);
+    tuv.setXY(i, ATLAS.paper[0] + tuv.getX(i) * pw, tpos.getY(i) / h);
+  const side = part(tube, 0xffffff, { tint: 0.03, rough: 0.68 });
+  atlasParts.add(side);
 
   // the crimp: a low dome of folded paper, its radius and height rippled into pleats
-  const PLEATS = 6;
   const crimp = new LatheGeometry(
     [
-      new Vector2(r * 0.95, 0),
-      new Vector2(r * 0.82, r * 0.17),
+      new Vector2(r * 0.93, 0),
+      new Vector2(r * 0.8, r * 0.17),
       new Vector2(r * 0.45, r * 0.25),
-      new Vector2(0, r * 0.13),
+      new Vector2(0, r * 0.12),
     ],
     PLEATS * 4,
   );
   const cpos = crimp.getAttribute('position');
+  const cuv = crimp.getAttribute('uv');
+  const cu = (ATLAS.crimp.u0 + ATLAS.crimp.u1) / 2;
+  const cv = (ATLAS.crimp.v0 + ATLAS.crimp.v1) / 2;
+  const hu = (ATLAS.crimp.u1 - ATLAS.crimp.u0) / 2;
+  const hv = (ATLAS.crimp.v1 - ATLAS.crimp.v0) / 2;
   for (let i = 0; i < cpos.count; i++) {
     const x = cpos.getX(i);
     const z = cpos.getZ(i);
     const rr = Math.hypot(x, z);
     const fold = 0.5 + 0.5 * Math.cos(Math.atan2(z, x) * PLEATS);
-    const amp = 0.14 * Math.sin(Math.PI * Math.min(1, rr / (r * 0.95)));
+    const amp = 0.16 * Math.sin(Math.PI * Math.min(1, rr / (r * 0.93)));
     const k = 1 - amp * fold;
-    cpos.setXYZ(i, x * k, cpos.getY(i) - amp * fold * r * 0.35 + h, z * k);
+    cpos.setXYZ(i, x * k, cpos.getY(i) - amp * fold * r * 0.4 + h, z * k);
+    // seen from above, the dome's footprint fills the atlas crimp square
+    cuv.setXY(i, cu + (x / r) * hu, cv + (z / r) * hv);
   }
   crimp.computeVertexNormals();
-  const cap = plainUV(part(crimp, 0xe6cb98, { tint: 0, rough: 0.6 }));
+  const cap = part(crimp, 0xffffff, { tint: 0, rough: 0.7 });
+  atlasParts.add(cap);
   // shade the folds: valleys darker
   const pos = cap.getAttribute('position');
   const col = cap.getAttribute('color');
   for (let i = 0; i < pos.count; i++) {
     const fold =
       0.5 + 0.5 * Math.cos(Math.atan2(pos.getZ(i), pos.getX(i)) * PLEATS);
-    const k = 1.04 - 0.22 * fold;
+    const k = 1.03 - 0.16 * fold;
     col.setXYZ(i, col.getX(i) * k, col.getY(i) * k, col.getZ(i) * k);
   }
 
@@ -444,53 +473,53 @@ function rope(
   knot: number,
 ): BufferGeometry[] {
   const R = 0.013;
-  const SEG = 24;
-  const SIDES = 6;
   const pts = hullOutline(sticks, r + R * 0.45, 28).map(
     (p) => new Vector3(p.x, y, p.z),
   );
-  const cord = part(
-    new TubeGeometry(new CatmullRomCurve3(pts, true), SEG, R, SIDES, true),
-    0xa2804f,
-    { tint: 0.08, rough: ROUGH.rope },
+  const loop = new CatmullRomCurve3(pts, true);
+  // the twisted strands come from the atlas rope
+  const cord = ropeUV(
+    part(new TubeGeometry(loop, 26, R, 6, true), 0xffffff, {
+      tint: 0.06,
+      rough: ROUGH.rope,
+    }),
+    'x',
+    loop.getLength(),
   );
-  // twisted strands: light and dark alternate round and along the cord, so they run in a spiral
-  const uv = cord.getAttribute('uv');
-  const col = cord.getAttribute('color');
-  for (let i = 0; i < uv.count; i++) {
-    const k =
-      (Math.round(uv.getX(i) * SEG) + Math.round(uv.getY(i) * SIDES)) % 2
-        ? 0.78
-        : 1.08;
-    col.setXYZ(i, col.getX(i) * k, col.getY(i) * k, col.getZ(i) * k);
-  }
   const p: BufferGeometry[] = [cord];
   const kp = hullOutline(sticks, r + R * 1.2, 64)[
     Math.round(((knot / (Math.PI * 2)) % 1) * 64 + 64) % 64
   ];
-  p.push(
-    part(new SphereGeometry(0.022, 7, 5), 0x9a7848, {
-      x: kp.x,
-      y,
-      z: kp.z,
-      sx: 1.25,
-      sy: 0.9,
-      tint: 0.06,
-      rough: ROUGH.rope,
-    }),
-  );
+  // the knot: two turns of cord wrapped round the rope, crossing
+  const yaw = Math.atan2(kp.nx, kp.nz);
+  for (const tilt of [0.5, -0.5])
+    p.push(
+      ropeUV(
+        part(
+          new TorusGeometry(0.016, 0.009, 4, 8)
+            .rotateY(Math.PI / 2)
+            .rotateZ(tilt)
+            .rotateY(yaw),
+          0xe8e0d4,
+          { x: kp.x, y, z: kp.z, tint: 0.06, rough: ROUGH.rope },
+        ),
+        'x',
+        0.1,
+      ),
+    );
   // two loose ends hanging down out of the knot
   for (const s of [-1, 1]) {
     const ex = kp.x + kp.nx * 0.014 - kp.nz * s * 0.018;
     const ez = kp.z + kp.nz * 0.014 + kp.nx * s * 0.018;
     p.push(
-      part(
-        strut([kp.x, y, kp.z], [ex, y - 0.065, ez], 0.009, 5, 0.007),
-        0xa2804f,
-        {
-          tint: 0.06,
-          rough: ROUGH.rope,
-        },
+      ropeUV(
+        part(
+          strut([kp.x, y, kp.z], [ex, y - 0.065, ez], 0.009, 5, 0.007),
+          0xffffff,
+          { tint: 0.06, rough: ROUGH.rope },
+        ),
+        'y',
+        0.07,
       ),
     );
   }
@@ -624,7 +653,11 @@ export function tntBodyGeometry(): BufferGeometry {
     { length: cord.getAttribute('uv').count },
     (_, i) => cord.getAttribute('uv').getX(i),
   );
-  const fuse = part(cord, 0x3a2c22, { tint: 0.1, rough: 0.9 });
+  const fuse = ropeUV(
+    part(cord, 0x55402e, { tint: 0.1, rough: 0.9 }),
+    'x',
+    FUSE.getLength(),
+  );
   // part() de-indexed the tube: carry its along-the-fuse coordinate over
   const idx = cord.index!.array;
   p.push(
@@ -657,7 +690,7 @@ export function tntBodyGeometry(): BufferGeometry {
     );
   }
   for (const g of p) {
-    if (!paperParts.has(g)) plainUV(g);
+    if (!atlasParts.has(g)) plainUV(g);
     if (!g.getAttribute('aFuseT')) fuseTag(g);
   }
   return merge(p);
@@ -789,12 +822,16 @@ export function dynamitesItemGeometry(): BufferGeometry {
   // rope handles on the short sides
   for (const s of [-1, 1])
     p.push(
-      part(arch(0.045, 0.009, Math.PI).rotateY(Math.PI / 2), 0xb48d5a, {
-        x: s * (W / 2 + 0.006),
-        y: 0.1,
-        tint: 0.05,
-        rough: ROUGH.rope,
-      }),
+      ropeUV(
+        part(arch(0.045, 0.009, Math.PI).rotateY(Math.PI / 2), 0xffffff, {
+          x: s * (W / 2 + 0.006),
+          y: 0.1,
+          tint: 0.05,
+          rough: ROUGH.rope,
+        }),
+        'x',
+        0.14,
+      ),
     );
   const sticks: [number, number, number, number, number][] = [
     // x, z, height, lean round z, lean round x

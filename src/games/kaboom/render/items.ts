@@ -16,7 +16,7 @@ import { PowerUp } from '../sim/powerups';
 import { dynamitesItemGeometry, sticksItemGeometry } from './crew-parts';
 import { ROUGH } from './materials';
 import { bbox, merge, part } from './parts';
-import { stickPaperTexture } from './tnt';
+import { dynamiteTextures } from './dynamite-texture';
 
 const UP = new Vector3(0, 1, 0);
 /** Most power-ups that can lie around at once (`powerUpTotal` for 8 players is 22, never all uncovered at once). */
@@ -102,7 +102,8 @@ export class ItemRenderer {
   private readonly plinthMaterial = tintedMaterial();
   private readonly material = new MeshLambertMaterial({
     vertexColors: true,
-    map: stickPaperTexture(),
+    map: dynamiteTextures().map,
+    normalMap: dynamiteTextures().normal,
     emissive: 0x555555,
   });
   /** Clock time each cell's item was first seen (-1 = none). */

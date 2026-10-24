@@ -100,11 +100,13 @@ levels), and pops the one that grew.
 
 **TNT = "the counter".** As many paper sticks as its blast level: 1 at level 1 ... 5 at level 5, so you can read how far a
 TNT will reach (`TNT_LAYOUTS` in `crew-parts.ts`; all five in one geometry, each TNT shows its own: `aLevel` in
-`tnt.ts`). Sticks (`stickPaperTexture` in `render/tnt.ts`: red wrap with fibres, a spiral seam,
-printed rings, waxed ends; generated, shared with the pickups) are lathed with bevelled shoulders and a six-pleat paper
-crimp on top, a hair apart in height; on High they are physically based (waxed-paper sheen from the per-vertex
-roughness). Two turns of chunky twisted rope with a knot and the paper label hug the bundle's outline (`hullBand`); the
-label prints **3 -> 2 -> 1** once on the front (uv.x runs round the band in atlas cells, a plain fourth cell elsewhere;
+`tnt.ts`). Everything in it samples one generated atlas (`render/dynamite-texture.ts`, shared with the pickups): a
+1024 x 512 colour map plus a normal map whose alpha is a roughness multiplier, with regions for the stick wrap (red
+paper, wrinkles, sparse creases, a spiral seam, printed rings and a line of print, waxed ends, dust at the foot), the
+crimped end seen from above and three twisted rope strands (`ATLAS`, `ropeUV` in `crew-parts.ts`). Sticks are lathed
+with rounded shoulders and an eight-fold crimp, a hair apart in height; on High they are physically based. Two turns of
+rope with a knot and the paper label hug the bundle's outline (`hullBand`); the label (aged paper, worn hazard stripes,
+"DANGER" / warning print, a crinkle normal map) prints **3 -> 2 -> 1** once on the front (uv.x runs round the band in atlas cells, a plain fourth cell elsewhere;
 digit picked per instance). The fuse leaves a brass blasting cap, curls forward and frays at its tip (`fusePoint`); the
 spark (a star burst with embers, all in its shader) rides down it and the cord behind turns to grey ash (`aFuseT` /
 `aBurn`). It pulses faster as it burns and blinks white-hot in the last half second.
