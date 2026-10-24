@@ -94,6 +94,9 @@
    * filmA: strength of the wheel-path film (0.8 = dark tyre bands, 0.5 = faint tyre marks);
    * crackDark / crackA: grey level and opacity of the cracks (12 / 1 = black, 60 / 0.45 = hairline grey);
    * snakes / joints: counts of tar-filled snakes and transverse joints (default cracks / 8 and 2);
+   *   snakeAt: u positions the snakes run along (default anywhere); snakeLen: [min, max] snake length in 7 px steps;
+   *   snakeW: scales the snake width;
+   * edgeDark: darkens the outer bands past the edge lines (0..1);
    * oil: faint oil stains; tone: strength of the slow tone variation; edgeBlend / crumble: the edge melts into a gravel
    *   shoulder (patchy dust, gravel-coloured stones) and that many gravel bites break its line (1024 px);
    * chips: light stone chips drawn over the base (count per 1024 px tile);
@@ -200,8 +203,16 @@
       patches: 4,
       dust: 0.1,
       age: 0.1,
-      // a little lighter than fresh black asphalt, same texture
+      // a worn, sun-bleached mid grey (Deni's references: light lanes, darker shoulders, long sealed seams)
       gain: 1.15,
+      lift: 0.55,
+      warmTarget: [150, 147, 138],
+      edgeDark: 0.45,
+      tone: 0.25,
+      snakes: 7,
+      snakeAt: [0.47, 0.53, 0.3, 0.7, 0.9],
+      snakeLen: [80, 160],
+      snakeW: 1.5,
       lines: [
         { u: 0.045, w: 10, color: '#d9b43a' },
         { u: 0.955, w: 10, color: WHITE },
@@ -553,15 +564,33 @@
       }
     }
 
+    // `edgeDark`: the outer bands (past the edge lines, where no wheels run) stay darker than the worn, bleached lanes.
+    if (o.edgeDark)
+      for (const [u0, u1] of [
+        [0, 0.12],
+        [1, 0.88],
+      ]) {
+        const g = cx.createLinearGradient(u0 * w, 0, u1 * w, 0);
+        g.addColorStop(0, `rgba(40,40,42,${o.edgeDark})`);
+        g.addColorStop(0.45, `rgba(40,40,42,${o.edgeDark * 0.8})`);
+        g.addColorStop(1, 'rgba(40,40,42,0)');
+        cx.fillStyle = g;
+        cx.fillRect(Math.min(u0, u1) * w, 0, 0.12 * w, h);
+      }
+
     // Cracks (thin, dark, recessed, branching) and tar-filled snakes (wider, glossy).
     const crack = (x, y, a, steps, lw, snake, depth = 0) => {
       const pts = [[x, y]];
+      // (a sealed seam along a long snake runs nearly straight, with small wiggles)
+      const turn = snake && o.snakeLen ? 0.32 : 0.55;
+      const a0 = a;
       for (let k = 0; k < steps; k++) {
-        a += rng.range(-0.55, 0.55);
+        a += rng.range(-turn, turn);
+        if (turn < 0.5) a += (a0 - a) * 0.25;
         x += Math.cos(a) * 7 * S;
         y += Math.sin(a) * 7 * S;
         pts.push([x, y]);
-        if (depth < 2 && rng.chance(0.05))
+        if (depth < 2 && turn > 0.5 && rng.chance(0.05))
           crack(
             x,
             y,
@@ -622,12 +651,17 @@
       const a = o.anyDir
         ? rng.range(0, Math.PI * 2)
         : Math.PI / 2 + rng.range(-0.3, 0.3);
+      // (`snakeAt`: the sealed seams run beside these lines, u across the tile; `snakeLen`: steps of 7 px)
+      const u = o.snakeAt
+        ? rng.pick(o.snakeAt) + rng.range(-0.02, 0.02)
+        : rng.next();
+      const [s0, s1] = o.snakeLen ?? [40, 90];
       crack(
-        rng.next() * w,
+        u * w,
         rng.next() * h,
         a,
-        rng.int(40, 90),
-        rng.range(3, 5),
+        rng.int(s0, s1),
+        rng.range(3, 5) * (o.snakeW ?? 1),
         true,
       );
     }
