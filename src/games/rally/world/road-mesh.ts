@@ -524,6 +524,10 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
     i = end;
   }
   const mouths = junctionMouths(world);
+  const net = world.gen.paths;
+  const runOn = new Set<number>();
+  net?.paths.forEach((p, i) => p.widenEnd && runOn.add(i));
+  const rpq = newPathQuery();
   for (const [si, start] of starts.entries()) {
     const end = starts[si + 1] ?? samples.length - 1;
     const rows = end - start + 1;
@@ -557,8 +561,21 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
         uv[v * 2] = 1 - (ACROSS[c] + 1.04) / 2.08;
         // Across a junction mouth the edge band fades into the junction asphalt (only the outer columns, out to
         // where the side road's pad dips under: the stage road's own wheel paths run on through the junction).
-        if (blends && Math.abs(ACROSS[c]) > 0.5)
+        if (blends && Math.abs(ACROSS[c]) > 0.5) {
           jw[v] = junctionBlend(mouths, x, z);
+          // A way running on from the stage road (`PathDef.widenEnd`) is one surface with it: no edge band across it.
+          if (runOn.size) {
+            net!.query(x, z, rpq, 'tarmac', (i) => runOn.has(i));
+            if (rpq.found)
+              jw[v] = Math.max(
+                jw[v],
+                Math.min(
+                  1,
+                  Math.max(0, (rpq.halfWidth + 1 - rpq.distance) / 1.5),
+                ),
+              );
+          }
+        }
         uv[v * 2 + 1] = s.dist / texLength(segTex);
       }
     }

@@ -60,6 +60,9 @@ const OVERSHOOT = 1;
 const THROUGH_TURN = (30 * Math.PI) / 180;
 const THROUGH_ARM = 15;
 const THROUGH_STRAIGHT = (25 * Math.PI) / 180;
+/** Length of the stage road's arm a straight-on road runs on down before it lies on that arm's line (m). */
+const THROUGH_RUN = 24;
+const THROUGH_EDGE = 0.5;
 /** A side road joining within this angle of the stage road's line is a merge, not a mouth (radians). */
 export const MERGE_ANGLE = (35 * Math.PI) / 180;
 /** Length over which a merging road bends onto the stage road's line (m). */
@@ -208,6 +211,19 @@ export function connectPaths(
         const reach =
           hit + (wide ? road.at(q.along).halfWidth * 0.8 : OVERSHOOT);
         added = [ex + dx * reach, ez + dz * reach];
+        // ... and on down the stage road's arm it carries straight on from, its outer edge THROUGH_EDGE x the stage
+        // road's half width outside that arm's edge at the junction, easing in over THROUGH_RUN m: the edge runs on
+        // straight past the junction instead of stepping in to the stage edge.
+        if (wide) {
+          const side = q.lateral >= 0 ? 1 : -1;
+          for (let k = 1; k <= 4; k++) {
+            // (the arm before the junction: `through` is tested on it)
+            const a = road.at(q.along - (THROUGH_RUN * k) / 4);
+            const lat =
+              side * a.halfWidth * THROUGH_EDGE * (1 - (k / 4) * (k / 4));
+            added.push(a.x + a.tz * lat, a.z - a.tx * lat);
+          }
+        }
       }
       if (atEnd) pts = [...pts, ...added];
       else {
@@ -304,7 +320,9 @@ export function junctionFillets(
 
 /** A junction's fillets on the real stage road edge (the curved edge, not its tangent at the junction). */
 export function mouthFillets(j: Junction, road: Road): JunctionFillet[] {
-  const s0 = road.at(j.along);
+  // (straight on: the corner to round is the one into the arm the stage road turns onto, past the junction - the
+  // tangent at the junction point is halfway round the turn and put the corner metres off)
+  const s0 = road.at(j.along + (j.through ? THROUGH_ARM * 0.7 : 0));
   const edge = (d: number): [number, number] => {
     const s = road.at(j.along + d);
     const lat = j.side * s.halfWidth;

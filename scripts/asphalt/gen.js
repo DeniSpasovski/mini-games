@@ -46,8 +46,8 @@
     seed: 7,
     photo: 'asphalt_04',
     photoM: 4.04,
-    photoLum: 150,
-    photoFlat: 0.6,
+    photoLum: 128,
+    photoFlat: 0.35,
     relief: 1,
     polish: 0.7,
     filmA: 0.3,
@@ -62,6 +62,7 @@
     dust: 0.6,
     edgeBlend: true,
     crumble: 140,
+    chips: 55000,
   };
   /** Vodno's old mountain road: lighter, finer stones, no baked patches (the shader draws them, road-surface.ts); the lines and plain tiles share it, so they join. */
   const VODNO = {
@@ -93,6 +94,7 @@
    * snakes / joints: counts of tar-filled snakes and transverse joints (default cracks / 8 and 2);
    * oil: faint oil stains; tone: strength of the slow tone variation; edgeBlend / crumble: the edge melts into a gravel
    *   shoulder (patchy dust, gravel-coloured stones) and that many gravel bites break its line (1024 px);
+   * chips: light stone chips drawn over a photo base (count per 1024 px tile);
    * photo / photoM / photoLum: a scanned base instead of the drawn stones (bake.mjs `PHOTOS`), its size in metres and
    *   the mean brightness it is scaled to (sRGB luma); photoFlat: how much of its slow blotches to remove (0-1);
    *   across: metres the tile spans across the road (default 6; a square tile, across = len, wraps both ways).
@@ -363,6 +365,37 @@
         for (let c = 0; c < 3; c++)
           img.data[i + c] = Math.min(255, img.data[i + c] * k);
       cx.putImageData(img, 0, 0);
+    }
+
+    // Light stone chips over a photo base (`chips` = count per 1024 px tile): the white and pale grey aggregate that
+    // shows in a worn road's surface, each with a little relief.
+    if (photo && o.chips) {
+      const cr = new Rng(o.seed + 41);
+      const n = Math.round(o.chips * S * S);
+      for (let i = 0; i < n; i++) {
+        const x = cr.next() * w;
+        const y = cr.next() * h;
+        const r = Math.max(0.5, cr.range(0.5, 1.4) * S * coarse);
+        // (one in three a dark stone: the chips are mixed aggregate, not just white specks)
+        const v = Math.round(
+          cr.next() < 0.33 ? cr.range(28, 60) : cr.range(135, 225),
+        );
+        const fill = `rgba(${v},${v - 2},${v - 6},${cr.range(0.4, 0.85).toFixed(2)})`;
+        const sx = r * cr.range(0.6, 1.4);
+        const ang = cr.next() * Math.PI;
+        for (const ox of [-w, 0, w])
+          for (const oy of [-h, 0, h]) {
+            if (
+              x + ox + r < 0 ||
+              x + ox - r > w ||
+              y + oy + r < 0 ||
+              y + oy - r > h
+            )
+              continue;
+            ell(cx, x + ox, y + oy, sx, r, ang, fill);
+            ell(hx, x + ox, y + oy, sx, r, ang, grey(185));
+          }
+      }
     }
 
     // Bitumen base.

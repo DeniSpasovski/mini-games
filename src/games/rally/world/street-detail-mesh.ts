@@ -88,6 +88,8 @@ export function* streetDetailMeshJob(
     y: number;
     /** Sidewalk top above `y`: the kerb height, more where the land beside the street rises over it. */
     top: number;
+    /** Bottom of the outer face below `y`: under the ground beside the sidewalk, however far that falls away. */
+    foot: number;
     tx: number;
     tz: number;
     d: number;
@@ -108,7 +110,14 @@ export function* streetDetailMeshJob(
       for (const o of [KERB_W + W * 0.5, KERB_W + W])
         land = Math.max(land, hf.height(x + tz * side * o, z - tx * side * o));
     const top = KERB_H + Math.min(0.6, Math.max(0, land + 0.02 - y - KERB_H));
-    return { x, z, y, top, tx, tz, d };
+    const o = KERB_W + W;
+    const foot = deck
+      ? -0.3
+      : Math.min(
+          -0.3,
+          hf.height(x + tz * side * o, z - tx * side * o) - y - 0.1,
+        );
+    return { x, z, y, top, foot, tx, tz, d };
   };
   // Kerb face, kerb top, sidewalk and a buried outer face swept along the rows.
   const sweep = (rows: Row[], side: number) => {
@@ -143,7 +152,7 @@ export function* streetDetailMeshJob(
         ]) {
           acc.pos.push(
             r.x + ox * o,
-            r.y + (dy === KERB_H ? r.top : dy),
+            r.y + (dy === KERB_H ? r.top : dy === -0.3 ? r.foot : dy),
             r.z + oz * o,
           );
           // The kerb face looks at the street (-outward), the tops up, the buried face outward.
@@ -160,6 +169,29 @@ export function* streetDetailMeshJob(
         if (side > 0) acc.idx.push(q, q + 2, q + 3, q, q + 3, q + 1);
         else acc.idx.push(q, q + 3, q + 2, q, q + 1, q + 3);
       }
+    }
+    // End caps: the sweep is a closed solid (an open end showed the inside of the kerb, see-through).
+    for (const [r, dir] of [
+      [rows[0], -1],
+      [rows[rows.length - 1], 1],
+    ] as const) {
+      const ox = r.tz * side;
+      const oz = -r.tx * side;
+      const v0 = acc.pos.length / 3;
+      for (const [o, dy] of [
+        [0, r.foot],
+        [0, r.top],
+        [KERB_W + W, r.top],
+        [KERB_W + W, r.foot],
+      ]) {
+        acc.pos.push(r.x + ox * o, r.y + dy, r.z + oz * o);
+        acc.nor.push(r.tx * dir, 0, r.tz * dir);
+        acc.col.push(...WALK);
+        acc.uv.push(o / 3, dy / 3);
+      }
+      // (foot, top, outer top) winds to face -side x tangent: flipped where that is not `dir`
+      if (side * dir < 0) acc.idx.push(v0, v0 + 1, v0 + 2, v0, v0 + 2, v0 + 3);
+      else acc.idx.push(v0, v0 + 2, v0 + 1, v0, v0 + 3, v0 + 2);
     }
   };
   let n = 0;
