@@ -36,12 +36,26 @@ export const LOT_POLYGON: V2[] = [
 const westEdge = (z: number): number =>
   1575.2 + ((z + 1146) / (1146 - 1097.5)) * (1571.7 - 1575.2);
 
+/** Just outside the stage road's edge line, where the asphalt starts (world x, z), from the polygon's north-west corner south. */
+const WEST: V2[] = [
+  [1573.6, -1146],
+  [1573.5, -1137],
+  [1572.9, -1129.8],
+  [1572.65, -1124.6],
+  [1572.1, -1119.4],
+  [1570.9, -1114.3],
+  [1569.6, -1109.1],
+  [1567.75, -1103.9],
+  [1565.2, -1097.5],
+];
+
 /** Stage road points along the lot's west side (the pad follows its height, level across it). */
 const FRONTAGE = [1570.4, -1137.5, 1568.3, -1117.6, 1561.1, -1099.2];
 
 export const START_LOT_PAD: PadDef = {
   name: 'start-lot',
-  polygon: LOT_POLYGON.flat(),
+  // The lot's outline, its west side out to the road's edge line (the asphalt strip there lies on level ground too).
+  polygon: [...LOT_POLYGON.slice(0, -1), ...[...WEST].reverse()].flat(),
   blend: 3.5,
   frontage: FRONTAGE,
   surface: 'tarmac',
@@ -61,12 +75,24 @@ const LAWN_H = 0.13;
 const LAWN = '#8a9a52';
 const CONCRETE = '#c9c6bd';
 
+/**
+ * The asphalt lies this far above the analytic ground over the lot's west half: the drawn terrain rises above it in places (it
+ * showed through as patches at 3 cm). Towards the side street's sidewalk it eases down to 3 cm, under the sidewalk's top.
+ */
+const ASPHALT_LIFT = 0.14;
+const liftAt = (x: number): number => {
+  const t = Math.min(1, Math.max(0, (x - 1588) / 6));
+  return ASPHALT_LIFT - (ASPHALT_LIFT - 0.03) * t * t * (3 - 2 * t);
+};
+
 /** The cars (variants of `street_car`, local x, z, turn from +x): along the west side nose to tail, a row at the south end. */
 export const START_LOT_CARS: {
   variant: number;
   x: number;
   z: number;
   turn: number;
+  /** Up on the asphalt, so the tyres stand on it. */
+  lift: number;
 }[] = [
   ...Array.from({ length: 8 }, (_, k) => {
     const z = -1139.5 + k * 5.2;
@@ -75,6 +101,7 @@ export const START_LOT_CARS: {
       x: westEdge(z) + 1.9 - START_LOT.x,
       z: z - START_LOT.z,
       turn: (k * 5) % 3 === 0 ? -Math.PI / 2 : Math.PI / 2,
+      lift: liftAt(westEdge(z) + 1.9),
     };
   }),
   ...Array.from({ length: 4 }, (_, k) => ({
@@ -82,6 +109,7 @@ export const START_LOT_CARS: {
     x: 1581 + k * 5.4 - START_LOT.x,
     z: -1100.9 - START_LOT.z,
     turn: k % 2 ? 0 : Math.PI,
+    lift: liftAt(1581 + k * 5.4),
   })),
 ];
 
@@ -174,25 +202,41 @@ export function startLotAsphalt(
   const pos: number[] = [];
   const uv: number[] = [];
   const CELL = 2;
+  const tri = (a: V2, b: V2, c: V2): void => {
+    const up =
+      (b[1] - a[1]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[1] - a[1]) > 0;
+    // Wound to face up (+Y).
+    for (const [px, pz] of up ? [a, b, c] : [a, c, b]) {
+      pos.push(px, ground(px, pz) + liftAt(px), pz);
+      uv.push(px / TILE, pz / TILE);
+    }
+  };
   for (let x = 1572; x < 1606; x += CELL)
     for (let z = -1147; z < -1097; z += CELL) {
       const piece = clip(LOT_POLYGON, x, z, x + CELL, z + CELL);
-      for (let i = 1; i + 1 < piece.length; i++) {
-        const a = piece[0];
-        const up =
-          (piece[i][1] - a[1]) * (piece[i + 1][0] - a[0]) -
-            (piece[i][0] - a[0]) * (piece[i + 1][1] - a[1]) >
-          0;
-        // Wound to face up (+Y).
-        const tri = up
-          ? [a, piece[i], piece[i + 1]]
-          : [a, piece[i + 1], piece[i]];
-        for (const [px, pz] of tri) {
-          pos.push(px, ground(px, pz) + 0.03, pz);
-          uv.push(px / TILE, pz / TILE);
-        }
-      }
+      for (let i = 1; i + 1 < piece.length; i++)
+        tri(piece[0], piece[i], piece[i + 1]);
     }
+  // The strip between the polygon's west side and the stage road (the polygon keeps off the road's edge, and the road
+  // curves away from it): laid out to the road's edge line so no terrain shows between.
+  for (let k = 0; k + 1 < WEST.length; k++) {
+    const [w0, w1] = [WEST[k], WEST[k + 1]];
+    const n = Math.ceil((w1[1] - w0[1]) / CELL);
+    for (let i = 0; i < n; i++) {
+      const [t0, t1] = [i / n, (i + 1) / n];
+      const at = (t: number): [V2, V2] => {
+        const z = w0[1] + (w1[1] - w0[1]) * t;
+        return [
+          [w0[0] + (w1[0] - w0[0]) * t, z],
+          [westEdge(z) + 0.5, z],
+        ];
+      };
+      const [a0, b0] = at(t0);
+      const [a1, b1] = at(t1);
+      tri(a0, b0, b1);
+      tri(a0, b1, a1);
+    }
+  }
   const g = new BufferGeometry();
   g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
   g.setAttribute('uv', new BufferAttribute(new Float32Array(uv), 2));

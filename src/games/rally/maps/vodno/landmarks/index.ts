@@ -139,6 +139,8 @@ interface Plant {
   /** A fixed variant / heading (rad) for a placed prop (a parked car); a tree or plant gets a seeded one. */
   variant?: number;
   rotY?: number;
+  /** Metres above the ground (a car on a raised paving). */
+  lift?: number;
 }
 
 interface Spec {
@@ -181,7 +183,7 @@ function landmark(spec: Spec): Landmark {
             p.variant ??
             (isTreeType(p.asset) ? 0 : h % getAssetMeta(p.asset).variants),
           x,
-          y: ground.height(x, z),
+          y: ground.height(x, z) + (p.lift ?? 0),
           z,
           rotY: p.rotY ?? ((h >>> 8) % 628) / 100,
           scale: p.scale,
@@ -560,13 +562,14 @@ export const startLotLandmark = landmark({
   areas: START_LOT_AREAS,
   colliders: () => [],
   plants: [
-    ...START_LOT_CARS.map(({ variant, x, z, turn }) => ({
+    ...START_LOT_CARS.map(({ variant, x, z, turn, lift }) => ({
       asset: 'street_car',
       site: START_LOT,
       x,
       z,
       scale: 1,
       variant,
+      lift,
       // The car model faces +x: turned `turn` from the site's x axis (three.js yaws the other way round).
       rotY: -turn,
     })),
