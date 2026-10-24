@@ -215,7 +215,8 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   cards are rendered from them once per page (`engine/crops.ts` `bakeCropCards`), 4 variants each with their own mix of
   plant heights (stacked in one texture; the asset variant picks one) so the field tops are uneven. Near detail
   is fixed by road distance, never by camera distance (catalog `nearRoad`, `nearBoost`): grass is denser within 14 m of a road
-  and blade strips within 3 m, so nothing swaps or fills in as the car drives on.
+  (crossed cards at every distance: blade strips by the road read as bare ground next to them), so nothing swaps or
+  fills in as the car drives on.
 - **Horizon backdrop** (`horizon`, real maps): the land ~25 km around the map (terrain + land cover from Terrarium /
   WorldCover, no roads or buildings), baked by `scripts/realmap/horizon.py` into `<map>/horizon.json`, drawn behind
   everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain). A grid may be
