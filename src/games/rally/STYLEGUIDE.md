@@ -36,12 +36,12 @@ and `hud.css` use `var(--ui-*)` only, so a change of look starts there.
 | ![line](styleguide/line.svg)                   | `--ui-line`                         | white 14%                               | hairlines, outlines                                                 |
 | ![text](styleguide/text.svg)                   | `--ui-text` / `-2` / `-off`         | `#f4f1ea` `#b4bcc6` `#8a939f`           | primary, secondary, disabled / hints (each at least 4.5:1 on glass) |
 | ![best](styleguide/best.svg)                   | `--ui-best`                         | `#9b4dff` purple                        | personal or overall best                                            |
-| ![faster-slower](styleguide/faster-slower.svg) | `--ui-faster` / `--ui-slower`       | `#18a94a` / `#e6b400`                   | faster / slower than the reference run                              |
+| ![faster-slower](styleguide/faster-slower.svg) | `--ui-faster` / `--ui-slower`       | `#18a94a` / `#d9302a`                   | faster / slower than the reference run                              |
 | ![penalty](styleguide/penalty.svg)             | `--ui-penalty`                      | `#ff5a48`                               | penalties, warnings, redline                                        |
 | ![test](styleguide/test.svg)                   | `--ui-test`                         | `#e04fb3`                               | test-only car / stage badge (dev server)                            |
 | ![rate](styleguide/rate.svg)                   | `--ui-rate-0` .. `-3`               | `#e0584f` `#f08a24` `#b9d86a` `#5fd08a` | grip and quality ratings, worst to best (not timing)                |
 
-Amber is the brand and never means "good" or "bad": timing meaning only comes from the purple / green / yellow / red set,
+Amber is the brand and never means "good" or "bad": timing meaning only comes from the purple / green / red set,
 ratings from the `--ui-rate-*` set (its orange is not the accent). "Recommended" is a white hairline chip, not green.
 
 ## Type
@@ -96,8 +96,8 @@ The menu slab with one slanted row per setting (`.setup-tune`: white icon, label
 
 ## HUD
 
-- Stage timer: italic time on a plate, amber underline; split chips under it, green when faster than the reference, yellow when slower.
-- Top left: stage name, sector bar (amber running, green / yellow when done), distance, on a plate with an amber edge.
+- Stage timer: italic time on a plate, amber underline; split chips under it, green when faster than the reference, red when slower.
+- Top left: stage name, sector bar (amber running, green / red when done), distance, on a plate with an amber edge.
 - Bottom right: dash plate with rev bars, gear (amber italic), speed, TC / ABS flags (amber when active).
 - Centre messages and the off-stage warning use the display face on a plate or a text shadow.
 

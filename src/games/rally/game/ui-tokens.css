@@ -163,8 +163,10 @@
   /* timing semantics (also the HUD splits): best = personal / overall best, faster / slower than the reference */
   --ui-best: #9b4dff;
   --ui-faster: #18a94a;
-  --ui-slower: #e6b400;
+  --ui-slower: #d9302a;
   --ui-penalty: #ff5a48;
+  /* yellow for the setup range bar and the off-stage warning (not timing) */
+  --ui-yellow: #e6b400;
   /* test-only car / stage badge (dev server) */
   --ui-test: #e04fb3;
   /* grip / quality ratings, worst to best */
