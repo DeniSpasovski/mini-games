@@ -54,11 +54,11 @@ Conventions: body +Z forward, +Y up, **+X left**; steer input +1 = right; 240 Hz
      Fx/Fy, surface), `F4` force vectors + hull.
    - For a specific stage spot: `?spawn=<metres along road>`.
 2. For behaviour over a whole stage write a throwaway trace test (see git history / the pattern in
-   `integration-tests/rally/stage.test.ts`): run `Autopilot` + `Vehicle` headless and log speed, sideslip
+   `integration-tests/rally/stage-harness.ts`): run `Autopilot` + `Vehicle` headless and log speed, sideslip
    (`atan2(v·right, v·forward)`), `up.y`, wheel loads every 0.05 s around the event. Delete it afterwards.
 3. Change one knob at a time (table in the rally DETAILS.md). Keep surface `bump` wavelengths long - short bumps
    become damper spikes because wheels are single rays with no unsprung mass.
-4. Validate: `npm run test` (`vehicle.test.ts` bands) and `npm run test:integration:rally` (`stage.test.ts`: every car finishes every map,
+4. Validate: `npm run test` (`vehicle.test.ts` bands) and `npm run test:integration:rally` (`stage-*.test.ts`: every car finishes every map,
    `up.y` stays > 0.5). If you intentionally change a band, update the test and say why.
 5. Feel-check on keyboard AND (if available) gamepad.
 
