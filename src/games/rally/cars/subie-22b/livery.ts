@@ -13,83 +13,56 @@ const A = source.atlas;
 const { K, B, CH, Painter, sidePx, frontPx, rearPx } = atlasKit(A);
 
 const YELLOW = '#e8f03a';
-/** Sketch px (x right, y down) -> body side (z, y): the nose end is on the left of the sketch, the tails run back. */
-const Z_FRONT = -0.08;
-const Y_TOP = 0.86;
-const SX = 0.0043; // m per sketch px along the car
-const SY = 0.0034; // m per sketch px in height
-const at = ([x, y]: Pt): Pt => [
-  Z_FRONT - (x - 122) * SX,
-  Y_TOP - (y - 25) * SY,
-];
 
-/** One line of the swoosh: centre line in sketch px, width in metres, and how much its two ends taper (0 = blunt). */
-interface Stroke {
-  pts: Pt[];
+/**
+ * The swoosh: one smooth guide curve on the body side (z, y in metres), from a low tip at the front of the door, round a wide
+ * bulge and back along the rear quarter, rising with the shoulder line. The three lines are this curve and two parallel
+ * copies inside it; the inner two are cut by a gap behind the bulge.
+ */
+const GUIDE: Pt[] = [
+  [-1.12, 0.3],
+  [-0.88, 0.39],
+  [-0.7, 0.5],
+  [-0.62, 0.63],
+  [-0.66, 0.74],
+  [-0.8, 0.82],
+  [-1.05, 0.86],
+  [-1.4, 0.88],
+  [-1.75, 0.9],
+  [-2.05, 0.92],
+];
+/** Where the guide's bulge is, as a fraction of its length: the outer line is twice as thick here. */
+const BULGE_AT = 0.3;
+const OUTER_WIDTH = 0.07;
+
+interface Line {
+  /** Distance inside the guide (m). */
+  offset: number;
+  /** Width (m) away from the bulge. */
   width: number;
-  taper: [number, number];
+  /** Pieces of the guide, as length fractions; each end tapers to a point unless it sits at 0 / 1 of the whole guide. */
+  pieces: [number, number][];
 }
-const STROKES: Stroke[] = [
+const LINES: Line[] = [
+  { offset: 0, width: OUTER_WIDTH, pieces: [[0, 1]] },
   {
-    pts: [
-      [185, 193],
-      [160, 165],
-      [135, 135],
-      [122, 105],
-      [128, 88],
-      [150, 76],
-      [200, 64],
-      [300, 48],
-      [420, 36],
-      [542, 25],
-    ],
-    width: 0.095,
-    taper: [0.85, 0.6],
-  },
-  {
-    pts: [
-      [190, 160],
-      [165, 135],
-      [157, 115],
-      [170, 100],
-      [217, 89],
-    ],
-    width: 0.06,
-    taper: [0.7, 0],
-  },
-  {
-    pts: [
-      [260, 85],
-      [400, 68],
-      [538, 52],
-    ],
-    width: 0.06,
-    taper: [0, 0.6],
-  },
-  {
-    pts: [
-      [198, 143],
-      [192, 125],
-      [200, 113],
-      [230, 108],
-    ],
+    offset: 0.12,
     width: 0.045,
-    taper: [0.6, 0],
+    pieces: [
+      [0.1, 0.4],
+      [0.46, 1],
+    ],
   },
   {
-    pts: [
-      [270, 106],
-      [400, 89],
-      [536, 72],
-    ],
-    width: 0.045,
-    taper: [0, 0.6],
+    offset: 0.21,
+    width: 0.035,
+    pieces: [[0.34, 1]],
   },
 ];
 
-/** Catmull-Rom curve through the points, resampled. */
-function curve(pts: Pt[], per = 14): Pt[] {
-  const out: Pt[] = [];
+/** Catmull-Rom curve through the points, resampled, then rounded off by corner cutting. */
+function curve(pts: Pt[], per = 16): Pt[] {
+  let out: Pt[] = [];
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = pts[Math.max(i - 1, 0)];
     const p1 = pts[i];
@@ -107,35 +80,64 @@ function curve(pts: Pt[], per = 14): Pt[] {
     }
   }
   out.push(pts[pts.length - 1]);
+  for (let r = 0; r < 2; r++) {
+    const q: Pt[] = [out[0]];
+    for (let i = 0; i < out.length - 1; i++) {
+      const [x0, y0] = out[i];
+      const [x1, y1] = out[i + 1];
+      q.push(
+        [x0 * 0.75 + x1 * 0.25, y0 * 0.75 + y1 * 0.25],
+        [x0 * 0.25 + x1 * 0.75, y0 * 0.25 + y1 * 0.75],
+      );
+    }
+    q.push(out[out.length - 1]);
+    out = q;
+  }
   return out;
 }
 
-/** A stroke as a closed (z, y) outline: its centre line offset both ways, thinner towards a tapered end. */
-function ribbon({ pts, width, taper }: Stroke): Pt[] {
-  const c = curve(pts).map(at);
-  const n = c.length;
-  const w = (i: number) => {
-    const t = i / (n - 1);
-    const e0 = taper[0] ? Math.min(1, t / 0.25) : 1;
-    const e1 = taper[1] ? Math.min(1, (1 - t) / 0.4) : 1;
-    return (
-      (width / 2) *
-      (1 - taper[0] * (1 - e0 * e0 * (3 - 2 * e0))) *
-      (1 - taper[1] * (1 - e1 * e1 * (3 - 2 * e1)))
+const smoothstep = (t: number) => t * t * (3 - 2 * t);
+
+/** Outline (z, y) of one piece of a line: the guide offset inwards, widened at the bulge, pointed at cut ends. */
+function ribbon(guide: Pt[], line: Line, [t0, t1]: [number, number]): Pt[] {
+  const n = guide.length;
+  const len = [0];
+  for (let i = 1; i < n; i++)
+    len.push(
+      len[i - 1] +
+        Math.hypot(
+          guide[i][0] - guide[i - 1][0],
+          guide[i][1] - guide[i - 1][1],
+        ),
     );
-  };
+  const total = len[n - 1];
   const left: Pt[] = [];
   const right: Pt[] = [];
   for (let i = 0; i < n; i++) {
-    const a = c[Math.max(i - 1, 0)];
-    const b = c[Math.min(i + 1, n - 1)];
-    const dz = b[0] - a[0];
-    const dy = b[1] - a[1];
-    const len = Math.hypot(dz, dy) || 1;
-    const nz = -dy / len;
-    const ny = dz / len;
-    left.push([c[i][0] + nz * w(i), c[i][1] + ny * w(i)]);
-    right.push([c[i][0] - nz * w(i), c[i][1] - ny * w(i)]);
+    const s = len[i] / total;
+    if (s < t0 || s > t1) continue;
+    const a = guide[Math.max(i - 1, 0)];
+    const b = guide[Math.min(i + 1, n - 1)];
+    const d = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    const tz = (b[0] - a[0]) / d;
+    const ty = (b[1] - a[1]) / d;
+    // Inside normal (towards the centre of the bulge, below the tail).
+    const cz = guide[i][0] - ty * line.offset;
+    const cy = guide[i][1] + tz * line.offset;
+    let w = line.width;
+    if (line.offset === 0) {
+      const k = (s - BULGE_AT) / 0.2;
+      w *= 1 + 0.9 * Math.exp(-k * k);
+    }
+    // Pointed where the piece is cut or the line ends;
+    const e =
+      smoothstep(Math.min(1, (s - t0) / 0.1)) *
+      smoothstep(Math.min(1, (t1 - s) / (t1 < 1 ? 0.08 : 0.3)));
+    w *= 0.15 + 0.85 * e;
+    const nz = -ty;
+    const ny = tz;
+    left.push([cz + nz * (w / 2), cy + ny * (w / 2)]);
+    right.push([cz - nz * (w / 2), cy - ny * (w / 2)]);
   }
   return [...left, ...right.reverse()];
 }
@@ -208,7 +210,9 @@ function paint(
   ctx.fillRect(bx * K, by * K, (B.z[1] - B.z[0]) * K, (B.x[1] - B.x[0]) * K);
 
   const p = new Painter(ctx);
-  for (const stroke of STROKES) p.side(ribbon(stroke), YELLOW);
+  const guide = curve(GUIDE);
+  for (const line of LINES)
+    for (const piece of line.pieces) p.side(ribbon(guide, line, piece), YELLOW);
   weather(ctx, seed); // over the graphic too: the yellow gets dusty like the paint
 }
 
