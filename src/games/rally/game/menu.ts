@@ -675,7 +675,6 @@ class MainMenu {
             }</table>`
           : '<p class="menu-none">No time set yet - drive this stage!</p>'
       }</div>`;
-    card.prepend(this.minimizer(card, 'Times'));
     this.root.append(card);
     const list = this.stageList(this.timesMap, false, (i) => {
       this.timesMap = i;

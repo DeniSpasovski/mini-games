@@ -967,7 +967,7 @@ html.touch .menu-btn.big kbd {
     max-height: 40%;
   }
 }
-/* Minimize: the card shrinks to a small tab (its label + a chevron) so the map / car behind it shows in full. */
+/* Minimize: the card shrinks to its description (stage / car), so the map / car behind it shows more. */
 .menu-card-min {
   display: block;
   margin: -8px -12px 4px auto;
@@ -991,24 +991,19 @@ html.touch .menu-btn.big kbd {
   outline: 2px solid var(--ui-accent);
   outline-offset: -2px;
 }
-.menu-side-card.min,
-.menu-times-card.min {
-  width: auto;
-  padding: 0;
-  overflow: visible;
+.menu-side-card .menu-card-min + p {
+  margin-top: 0;
 }
-.menu-side-card.min > :not(.menu-card-min),
-.menu-times-card.min > :not(.menu-card-min) {
+.menu-side-card.min > :not(.menu-card-min, p) {
   display: none;
 }
-.menu-side-card.min .menu-card-min,
-.menu-times-card.min .menu-card-min {
-  margin: 0;
-  padding: 10px 16px 10px 20px;
+.menu-side-card.min p:last-child {
+  margin-bottom: 0;
+}
+.menu-side-card.min .menu-card-min {
   color: var(--ui-text);
 }
-.menu-side-card.min .menu-card-min::after,
-.menu-times-card.min .menu-card-min::after {
+.menu-side-card.min .menu-card-min::after {
   content: ' ▾';
 }
 @media (max-width: 799px) {
