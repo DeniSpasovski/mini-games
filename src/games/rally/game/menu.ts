@@ -317,6 +317,8 @@ class MainMenu {
   private carIndex: number;
   /** Drivetrain filter on the car screen (not remembered: the menu opens on All). */
   private driveFilter: DriveFilter = 'all';
+  /** Select stage / Select car: the list is folded away, leaving the description card (`.menu-fold`). */
+  private folded = false;
   private livery: number;
   /** Setup screen choices for one map + car (anything else resets to the stage recommendation, nothing is saved). */
   private pick: {
@@ -368,18 +370,8 @@ class MainMenu {
     this.showroom = new Showroom(
       bg,
       quality,
-      () =>
-        this.panel.getBoundingClientRect().right -
-        bg.getBoundingClientRect().left,
-      // The detail card docked beside the list (not the phone layout, where it covers the subject above the buttons).
-      () => {
-        const card = this.root.querySelector<HTMLElement>(
-          '.menu-side-card, .menu-times-card',
-        );
-        return card && window.innerWidth >= SIDE_CARD_MIN_WIDTH
-          ? card.getBoundingClientRect().right - bg.getBoundingClientRect().left
-          : 0;
-      },
+      // Layout width (not the bounding box): the folded panel slides away without moving the subject.
+      () => this.panel.offsetLeft + this.panel.offsetWidth,
     );
     this.showroom.setCar(this.car.id, this.livery, this.badge);
     window.addEventListener('keydown', this.onKey);
@@ -499,9 +491,13 @@ class MainMenu {
     this.panel.replaceChildren();
     this.root
       .querySelectorAll(
-        '.menu-times-card, .menu-side-card, .menu-plate, .setup-part',
+        '.menu-times-card, .menu-side-card, .menu-plate, .setup-part, .menu-fold',
       )
       .forEach((el) => el.remove());
+    // The list folds away on the two screens with a description card (wide screens).
+    const foldable = screen === 'map' || screen === 'car';
+    this.root.classList.toggle('folded', foldable && this.folded);
+    if (foldable) this.root.append(this.foldButton());
     if (screen === 'welcome') this.welcome();
     // The stage plate (S number, name, length, surface) once a stage is being picked (not on the welcome screen).
     if (screen === 'map' || screen === 'car' || screen === 'setup')
@@ -895,6 +891,29 @@ class MainMenu {
     const reserve = window.innerHeight < SHORT_SCREEN_HEIGHT ? 24 : 120;
     card.style.maxHeight = `calc(100% - ${top + reserve}px)`;
     return true;
+  }
+
+  /** Button that folds the list away (and back) on Select stage / Select car, so the description card and the view stand alone. */
+  private foldButton(): HTMLElement {
+    const b = document.createElement('button');
+    b.className = 'menu-fold';
+    const sync = () => {
+      b.textContent = this.folded ? 'Show list' : 'Hide list';
+      b.setAttribute('aria-expanded', String(!this.folded));
+    };
+    sync();
+    b.addEventListener('click', () => {
+      this.folded = !this.folded;
+      this.root.classList.toggle('folded', this.folded);
+      sync();
+      // Keep the keyboard / pad on the list: the folded one is out of reach, so focus the toggle itself.
+      if (this.folded) b.focus({ preventScroll: true });
+      else
+        this.panel
+          .querySelector<HTMLElement>('[data-primary]')
+          ?.focus({ preventScroll: true });
+    });
+    return b;
   }
 
   /** Top of `el` inside the menu as if the panel were not scrolled (it keeps its scroll while the screen is rebuilt). */

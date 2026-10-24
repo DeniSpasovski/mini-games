@@ -14,7 +14,8 @@ and `hud.css` use `var(--ui-*)` only, so a change of look starts there.
 
 - **The 3D view is the hero.** No card over the middle of the screen on the stage, car and setup screens: the spec card sits
   right beside the menu list (left aligned, never far across the screen) and is narrow, the setup part window docks to the
-  right edge, the menu slab stays on the left. The map or car is the background and moves into the room right of the card.
+  right edge, the menu slab stays on the left. The map or car keeps its full size and place; the card may cover a corner of
+  it, so Select stage and Select car have a **Hide list** button that slides the list away and leaves the card.
 - **One primary action per screen**, a solid amber button. Everything else is a raised glass row.
 - **Calm menus, loud moments.** Menus stay flat and dark; the energy goes into the start, the splits and the results.
 - **Text sits on a plate.** Every HUD text group has a dark glass plate, never bare text over the sky.
@@ -66,10 +67,12 @@ ratings from the `--ui-rate-*` set (its orange is not the accent). "Recommended"
 - **Segmented control** (`.menu-seg`): slanted chips, the active one amber.
 - **Step pips**: three slanted bars (Stage, Car, Go) under the screen title.
 - **Spec card** (`.menu-side-card`, `.menu-times-card`): the glass detail card of Select stage, Select car and Stage times,
-  docked at the slab's edge with the amber left bar. Select car, Select stage and Stage times share one placement, so a new
-  menu screen with a detail card reuses the class. On screens at least 800 px wide the map or car is centred in the room
-  right of the card when that room is wide enough (about 25% of the width for the car, 40% for a map); on narrower
-  windows it stays behind the card. Phones lay the card over the view above the buttons.
+  docked at the slab's edge with the amber left bar. The three screens share one placement, so a new menu screen with a
+  detail card reuses the class. The map or car behind it never resizes or moves for it. Phones lay the card over the view
+  above the buttons.
+- **Hide list** (`.menu-fold`): slanted glass chip at the top of the slab on Select stage and Select car (wide screens). It
+  slides the list and slab off to the left and the card follows to the left edge; the chip stays and reads "Show list".
+  The choice is kept while moving between the two screens, arrow keys still step through the list.
 - **Stage plate** (`.menu-plate`): bottom right on the stage, car and setup screens and while loading: `S<n>` on amber (the
   stage's place on its map, so only a map with several stages goes past S1), then name, length and surface on glass.
 - **Dropdown** (`.menu-select`): native `<select>` (keyboard and phone friendly) with the picked option's amber line icon in

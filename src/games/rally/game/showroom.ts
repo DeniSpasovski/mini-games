@@ -59,14 +59,6 @@ import {
 const CAR_SHIFT = 0.07;
 /** Orbit distance of the turntable car on every car screen: leaves room for the spec card docked on the right. */
 const CAR_DIST_SCALE = 1.05;
-/** Detail card docked beside the list: the subject moves into the room right of it, if that is at least this share of the width. */
-const DOCK_MIN_FREE = 0.25;
-/** Same for the stage view: the whole route has to fit there, so it needs more room before it leaves the middle. */
-const DOCK_MIN_FREE_MAP = 0.4;
-/** Gap between the docked card and the subject's room (px). */
-const DOCK_GAP = 16;
-/** Largest extra back-off of the turntable car so it fits in the room right of the docked card. */
-const DOCK_MAX_BACKOFF = 2.2;
 const CAR_ENV = { ...testMap.environment, fogDensity: 0.02, sunElevation: 24 };
 /** Map view: camera height angle over the stage (rad), ~36 deg. */
 const ORBIT_ELEVATION = Math.atan2(0.7, 0.95);
@@ -170,8 +162,6 @@ export class Showroom {
    * centred in the screen area right of the menu panel (`panelRight`, the stage view).
    */
   private fixedShift: number | null = CAR_SHIFT;
-  /** Eased screen shift of the car screens (`CAR_SHIFT`, or the room beside the docked card). */
-  private carShift = CAR_SHIFT;
   private env: Environment;
   /** Car screens: shallow depth of field on the turntable car (off on low quality). */
   private dof?: DepthOfField;
@@ -211,8 +201,6 @@ export class Showroom {
     private quality: QualitySettings,
     /** Right edge of the menu panel (CSS px from the canvas' left edge); 0 = no panel. */
     private panelRight: () => number = () => 0,
-    /** Right edge of the detail card docked beside the list (CSS px from the canvas' left edge); 0 = none. */
-    private cardRight: () => number = () => 0,
   ) {
     this.renderer = createRenderer(container, quality);
     this.loadCue = document.createElement('div');
@@ -513,17 +501,9 @@ export class Showroom {
     }
     const cw = this.renderer.domElement.clientWidth;
     this.loadCue.style.left = `${(0.5 + (w > h ? this.shift() : 0)) * cw}px`;
-    // Ease the car beside the docked detail card (and back), backing off so it still fits there.
-    const dock = this.dockEdge();
-    const want = dock ? dock / (2 * (cw || 1)) : CAR_SHIFT;
-    this.carShift += (want - this.carShift) * Math.min(1, dt * 8);
-    const back = Math.min(
-      DOCK_MAX_BACKOFF,
-      Math.max(1, (0.85 * (1 - 2 * CAR_SHIFT)) / (1 - 2 * this.carShift)),
-    );
     this.angle += dt * 0.18;
     // Back off on narrow windows so the car still fits beside the panel.
-    const dist = 8.2 * Math.max(1, 1.7 / (w / h)) * CAR_DIST_SCALE * back;
+    const dist = 8.2 * Math.max(1, 1.7 / (w / h)) * CAR_DIST_SCALE;
     const cam = this.camera;
     cam.position.set(
       Math.sin(this.angle) * dist,
@@ -548,25 +528,10 @@ export class Showroom {
    * the screen): none.
    */
   private shift(): number {
-    if (this.fixedShift !== null) return this.carShift;
+    if (this.fixedShift !== null) return this.fixedShift;
     const width = this.renderer.domElement.clientWidth || 1;
-    const dock = this.dockEdge();
-    if (dock) return dock / (2 * width);
     const panel = this.panelRight();
     return panel > width * 0.6 ? 0 : panel / (2 * width);
-  }
-
-  /**
-   * Right edge (plus a small gap) of the detail card docked beside the list, or 0 when there is none or too little room
-   * right of it: the subject then stays where it is and the card floats over it.
-   */
-  private dockEdge(): number {
-    const width = this.renderer.domElement.clientWidth || 1;
-    const card = this.cardRight();
-    const min = this.mapView ? DOCK_MIN_FREE_MAP : DOCK_MIN_FREE;
-    return card > 0 && width - card - DOCK_GAP >= width * min
-      ? card + DOCK_GAP
-      : 0;
   }
 
   private aim(cam: PerspectiveCamera, v: MapView, aspect: number): void {

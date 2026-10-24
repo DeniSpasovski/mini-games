@@ -967,6 +967,75 @@ html.touch .menu-btn.big kbd {
     max-height: 40%;
   }
 }
+/* Hide list: on Select stage / Select car the list slides away so the description card and the view stand alone. */
+.menu-slab,
+.menu-panel {
+  transition: transform 0.25s ease;
+}
+.menu-side-card {
+  transition: left 0.25s ease;
+}
+.menu-root.folded .menu-slab,
+.menu-root.folded .menu-panel {
+  transform: translateX(-102%);
+  visibility: hidden;
+  transition:
+    transform 0.25s ease,
+    visibility 0s 0.25s;
+}
+.menu-root.folded .menu-side-card {
+  left: 28px;
+}
+.menu-fold {
+  position: absolute;
+  z-index: 42;
+  top: 44px;
+  left: 372px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: var(--ui-radius);
+  background: transparent;
+  color: var(--ui-text);
+  font: italic 700 15px/1 var(--ui-font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: left 0.25s ease;
+}
+.menu-fold::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--ui-glass);
+  box-shadow: inset 3px 0 0 var(--ui-accent);
+  transform: skewX(var(--ui-slant));
+}
+.menu-fold:hover::before {
+  background: var(--ui-raised-solid);
+}
+.menu-fold:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 2px;
+}
+.menu-root.folded .menu-fold {
+  left: 28px;
+  top: 28px;
+}
+@media (max-width: 799px) {
+  /* Phones: the list stays, the card sits over the view above the buttons. */
+  .menu-fold {
+    display: none;
+  }
+  .menu-root.folded .menu-slab,
+  .menu-root.folded .menu-panel {
+    transform: none;
+    visibility: visible;
+  }
+  .menu-root.folded .menu-side-card {
+    left: 16px;
+  }
+}
 /* Select stage: Season and Time of day dropdowns left, month / time / temperature right (wraps below on narrow cards). */
 .menu-when {
   display: flex;
