@@ -59,7 +59,7 @@ import {
 } from './tree-bench';
 import { buildRoadMeshSliced } from '../world/road-mesh';
 import { TerrainRenderer } from '../world/terrain-renderer';
-import { setTerrainRelief } from '../world/terrain-material';
+import { setTerrainDetail, setTerrainRelief } from '../world/terrain-material';
 import { CanopyShadows } from '../world/canopy-shadows';
 import { FarShadow } from '../world/far-shadow';
 import { Horizon } from '../world/horizon';
@@ -366,6 +366,8 @@ export class RallyGame {
     }
     // Terrain bump relief: medium / high only (derivative noise + cost on weak GPUs).
     setTerrainRelief(q.name === 'low' ? 0 : 1);
+    // Second ground-scan taps + relief: a 45 m ring on high, 20 m on medium, none on low.
+    setTerrainDetail(q.name === 'high' ? 45 : q.name === 'medium' ? 20 : 0);
     progress(0.3, 'Terrain');
     // Load everything near the start synchronously-ish (time sliced).
     for (let i = 0; i < 400; i++) {
@@ -1442,7 +1444,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.perf?.gpuEnd();
     const tRender = performance.now();
     // The frame's own work, the object streaming left out (it fills the time left over: streamBudget).
-    this.frameWork += (tRender - t0 - (tObjects - tTerrain) - this.frameWork) * 0.1;
+    this.frameWork +=
+      (tRender - t0 - (tObjects - tTerrain) - this.frameWork) * 0.1;
     this.perf?.frame({
       physics: tPhysics - t0,
       'car + camera': tCamera - tPhysics,

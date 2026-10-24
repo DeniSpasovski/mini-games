@@ -124,7 +124,7 @@ export async function bakeStageCard(
   worldUniforms.wsWind.value.z = 0;
   scene.fog = null;
   env.sky.visible = false;
-  setGroundTint(map.environment.groundTint);
+  setGroundTint(map.environment.groundTint, mapSeason(map.environment));
   setGroundMoisture(world.moisture);
 
   const content = new Group();

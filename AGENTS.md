@@ -89,6 +89,7 @@ into `DETAILS.md`, never up.
   and truck bakes (`street-pack-extract.py`, `bake-street-textures.py`, `bake-street-cars.mjs`, `bake-fire-trucks.mjs`, `bake-trucks.mjs`) are in rally `DETAILS.md`
 - `scripts/portal/wordmarks.py`: a title in a font -> white outlined `wordmark.svg` (portal header and the game covers; usage in its header);
   `og-image.mjs`: retakes the portal's 1200x630 link preview `public/og-image.jpg` (dev server running)
+- `scripts/ground/bake.py`: the rally terrain tiles (`engine/ground/*.webp`) from Poly Haven scans (ids and tuning in the script)
 - `scripts/facades/bake.py`: the wall and roof tiles of the rally buildings (`engine/facades/*.webp`) from Poly Haven scans (ids and tuning in the script)
 - `scripts/people/`: `extract-base.py` (a base body GLB -> json with the face uv), `skin-map.py` (paints the face onto the skin map), `bake-base.mjs`
   (simplifies, packs both bodies into `engine/people-base.data.ts`; run order in its header)

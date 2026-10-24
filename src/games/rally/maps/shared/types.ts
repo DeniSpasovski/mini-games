@@ -1140,6 +1140,8 @@ export interface GroundTint {
   moisture?: number;
   /** Meadow colour patches: deeper green and yellow-green drifts, 0..1 (default 0). */
   variety?: number;
+  /** Leaf litter under the tree crowns, 0..1 (default by season: spring 0.3, summer 0.45, autumn 1). */
+  litter?: number;
 }
 
 /**
