@@ -450,7 +450,7 @@ export class Showroom {
   /** The shown map's grass tint (the terrain material is shared: another map or season may have set it) and sky. */
   private applyMapLook(view: MapView): void {
     const env = this.stageEnv(view.id);
-    setGroundTint(env.groundTint);
+    setGroundTint(env.groundTint, mapSeason(env));
     setGroundMoisture(null);
     this.env.apply({ ...env, fogDensity: 0.25 / view.size }, false);
     this.env.update(view.center);
@@ -618,7 +618,7 @@ export class Showroom {
     const prevEnv = this.env.def;
     const prevStudio = this.env.studio;
     if (!shown) this.env.apply({ ...env, fogDensity: 0 }, false);
-    setGroundTint(env.groundTint);
+    setGroundTint(env.groundTint, mapSeason(env));
     setGroundMoisture(null);
     const fog = this.scene.fog;
     this.scene.fog = null;
@@ -657,7 +657,10 @@ export class Showroom {
     this.env.sky.visible = true;
     this.scene.fog = fog;
     if (!shown) this.env.apply(prevEnv, prevStudio);
-    if (this.mapView) setGroundTint(this.stageEnv(this.mapView.id).groundTint);
+    if (this.mapView) {
+      const env = this.stageEnv(this.mapView.id);
+      setGroundTint(env.groundTint, mapSeason(env));
+    }
   }
 
   /**

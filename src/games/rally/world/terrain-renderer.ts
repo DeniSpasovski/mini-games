@@ -5,6 +5,7 @@ import {
   Mesh,
   type Vector3,
 } from 'three';
+import { mapSeason } from '../maps/shared/climate';
 import { farShadowCaster } from './far-shadow';
 import { CHUNK_CELLS } from './heightfield';
 import type { TerrainGenerator } from './terrain-gen';
@@ -117,7 +118,10 @@ export class TerrainRenderer {
       z0: Math.floor((b.minZ - RENDER_MARGIN) / cs),
       z1: Math.floor((b.maxZ + RENDER_MARGIN) / cs),
     };
-    setGroundTint(world.map.environment.groundTint);
+    setGroundTint(
+      world.map.environment.groundTint,
+      mapSeason(world.map.environment),
+    );
     setGroundMoisture(world.moisture);
   }
 
