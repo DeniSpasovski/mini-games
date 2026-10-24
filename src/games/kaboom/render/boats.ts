@@ -103,6 +103,19 @@ function profile(): Pt[] {
 const noiseOf = (a: number, b: number): number =>
   ((hash3(a, b, 0x51, 9) % 1000) / 1000 - 0.5) * 2;
 
+/** Waterline outline of every boat (`[x0, z0, x1, z1, ...]`, inner hull then outer hull back): where the sea foams. */
+export function fleetOutlines(hx: number, hz: number): number[][] {
+  const n = ringSize(hx, hz);
+  const inner = ringPoints(hx, hz, WALL_D);
+  const outer = ringPoints(hx, hz, WALL_D + TREAD_D * TIERS);
+  return boatsFor(n).map(({ a, b }) => {
+    const out: number[] = [];
+    for (let i = a; i <= b; i++) out.push(inner[i * 2], inner[i * 2 + 1]);
+    for (let i = b; i >= a; i--) out.push(outer[i * 2], outer[i * 2 + 1]);
+    return out;
+  });
+}
+
 /** The fleet for a floor of half extents `hx`, `hz`. */
 export function boatsGeometry(hx: number, hz: number): BufferGeometry {
   const n = ringSize(hx, hz);
@@ -228,21 +241,6 @@ export function boatsGeometry(hx: number, hz: number): BufferGeometry {
           y0 = y1;
         }
       }
-    }
-    // foam round the outer hull at the waterline
-    dr = dg = 0;
-    const outer = prof.length - 1;
-    const foamOut = ringPoints(hx, hz, prof[outer][0] + 0.4);
-    c.set(0xdff1f3);
-    for (let i = boat.a; i < boat.b; i++) {
-      const j = i + 1;
-      const y = WATER_Y + 0.035;
-      const a = [rings[outer][i * 2], y, rings[outer][i * 2 + 1]];
-      const a1 = [rings[outer][j * 2], y, rings[outer][j * 2 + 1]];
-      const b = [foamOut[i * 2], y, foamOut[i * 2 + 1]];
-      const b1 = [foamOut[j * 2], y, foamOut[j * 2 + 1]];
-      tri(a, a1, b1, c, [0, 1, 0]);
-      tri(a, b1, b, c, [0, 1, 0]);
     }
   });
 

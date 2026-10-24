@@ -143,7 +143,7 @@ only with more than one level, and `sanitizeSettings`). Pick it in the setup men
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
 | Quarry       | sandstone flags; granite boulders / sandstone pillars with a timber brace; wooden crates, clay pots; rails                                              | rocky bowl: ashlar wall, terraces with coping stones, scree, banded cliff, sandstone rim boulders                                                                                                                                                                                                                                        | a wall lands                    |
 | Green Valley | turf tiles mown in stripes along the rows, tufts, dirt patches; mossy boulders / cairns; apple crates, round hay bales; stream, fence, cart             | a hedge of rounded bushes on a stone footing, a meadow with lush / dry patches, grass clumps and drifts of wildflowers (baked into the meadow's draw), the crowd in three rows on it, groves of spruces and oaks (leaf clusters) close behind, its own sky; the stream on the front margin has a wet bed, stones, reeds and a footbridge | a boulder lands                 |
-| Sea Deck     | plank tiles on a raft; painted iron bollards (rope coil) / capstans (whelps, bar sockets); cargo barrels, tarp-lashed cargo; ropes, lanterns, lifebuoys | open sea (`render/sea.ts` shader plane: turquoise shallows, light on the bottom, wind streaks), the crowd on moored barges (`render/boats.ts`: planked hulls and transoms, plank decks, rub rails, a railing with a lifebuoy, tyre fenders, a mast with stays and a pennant), a bobbing raft                                             | the tile sinks (`fall: 'tile'`) |
+| Sea Deck     | plank tiles on a raft; painted iron bollards (rope coil) / capstans (whelps, bar sockets); cargo barrels, tarp-lashed cargo; ropes, lanterns, lifebuoys | open sea (`render/sea.ts`, below), the crowd on moored barges (`render/boats.ts`: planked hulls and transoms, plank decks, rub rails, a railing with a lifebuoy, tyre fenders, a mast with stays and a pennant), a bobbing raft                                                                                                          | the tile sinks (`fall: 'tile'`) |
 
 - **What a theme holds**: sky, light, `fx` tint (dust / splinter / scorch colours as uniforms of the shared particle shaders), warning colour,
   `fall`, tile / hard-block / crate / floor / decor geometry, `scenery` (static things: bowl, water, boats, trees; `update`, `ripple`,
@@ -152,10 +152,16 @@ only with more than one level, and `sanitizeSettings`). Pick it in the setup men
 - **Sea Deck sudden death** reuses `blockFell`: `Arena.sinkTile` shakes the tile `SINK_DELAY_S` = 0.2 s, drops and tilts it, scales it
   away under the water; the splash (`Fx.splash`, `Sea.ripple`) comes `TILE_SPLASH_S` = 0.6 s after the event. A crate on the cell
   rides down; a critter KO'd on a sunk cell (`Arena.isSunk`) gets a splash, not dust and stars. The sim already treats the cell as hard.
+- **The sea** (`render/sea.ts`, one shader plane, no tiling texture): three long swells move the vertices; six shorter chop waves
+  (fanned round `WIND`, uneven wavelengths, on a noise-warped grid, faded where a pixel is wider than the wave) only bend the normals.
+  Fresnel mixes the water colour with the sky's reflection (the level's sky colours; on High the level's HDRI once it has loaded,
+  `Sea.mesh.onBeforeRender`). `contactField` bakes the distance to the raft and every hull (`fleetOutlines`) into a small R8 texture
+  once per raft size: the water is lighter teal near the fleet, darker in a band against the wood, calmer there, and foam breaks along
+  every hull and the raft's edge; wavelets lap outwards (High). Slow noise patches vary the chop and the colour far out.
 - **Sounds** (`game/audio.ts`): `Sfx.level` picks the ambience (birds in the valley, a gull and water on the sea) and the fall sound
   (`splash` on the sea). The sudden-death banner's second line is `LEVELS[id].closing`.
 - **Budgets hold per level**: draw calls <= 60 in the 40-TNT chain, the arena a handful (`tests/kaboom/levels.test.ts` checks every theme).
-  Low quality: a coarser water plane, no glitter / glint, no bob, fewer trees and one row less of spectators.
+  Low quality: a coarser water plane with half the chop, no sun glint, HDRI or lapping wavelets, no bob, fewer trees and one row less of spectators.
 - **New level**: add the id to `LEVEL_IDS` / `LEVELS`, a `LEVELS_LIST` entry (`hideInProd` first, remove it to ship), a theme file and its line in `themes/index.ts`.
 
 ## Rules (`sim/rules.ts` holds every number)
