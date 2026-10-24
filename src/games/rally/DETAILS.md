@@ -201,6 +201,16 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   (`world/terrain-gen.ts`, `real-data.ts`). Grass moisture: greener in hollows and along water, straw on ridges and steep
   slopes - a baked map texture (`world/ground-moisture.ts`, `World.moisture`) + the slope in the terrain shader;
   `groundTint.moisture` sets the strength (0 = off).
+- **Field crops** (`landcover.fields.crops`, Ajvatovci): each field parcel's palette entry names the crop standing on it per
+  season, and scatter rules with `crop` grow only there (`TerrainGenerator.cropAt`, not within 0.8 m of a parcel edge).
+  Wheat is green and short in spring, ripe in summer and gone in autumn (stubble tint): 1 m card patches to 90 m, at
+  least 2 m clear of the stage road. Corn (assets `corn`, `corn_row`, dry versions; no stage grows it yet): rows 0.75 m
+  apart along the strips (`rows.fields`), plant cards near the roads, 3 m row cards further in. The models are
+  two CC BY Sketchfab models (`THIRD-PARTY.md`) baked by `scripts/crops/bake-crops.py` into `crop-models.data.ts`; the
+  cards are rendered from them once per page (`engine/crops.ts` `bakeCropCards`), 4 variants each with their own mix of
+  plant heights (stacked in one texture; the asset variant picks one) so the field tops are uneven. Near detail
+  is fixed by road distance, never by camera distance (catalog `nearRoad`, `nearBoost`): grass is denser within 14 m of a road
+  and blade strips within 3 m, so nothing swaps or fills in as the car drives on.
 - **Horizon backdrop** (`horizon`, real maps): the land ~25 km around the map (terrain + land cover from Terrarium /
   WorldCover, no roads or buildings), baked by `scripts/realmap/horizon.py` into `<map>/horizon.json`, drawn behind
   everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain). A grid may be
@@ -453,7 +463,8 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 - Never clone geometry or materials per instance: everything goes through `getAsset(id, variant, lod)` -> `InstancedMesh`,
   materials from `engine/materials.ts`.
 - Streaming stays time-sliced: terrain (`terrain.update(pos, budgetMs)`), the 1 m heightfield (`Heightfield.prepare`) and
-  instance re-bucketing (`InstanceStreamer`, ~2 ms per frame). Whole-map work uses `world.analytic`, not the 1 m cache.
+  instance re-bucketing (`InstanceStreamer`; in game the time the frame rate leaves over, 1-8 ms per frame,
+  `RallyGame.streamBudget`). Whole-map work uses `world.analytic`, not the 1 m cache.
 - Whole-map set-up loops use a spatial grid, never all-against-all (a town map has ~900 roads, ~2000 way ends).
 
 **Draw calls**

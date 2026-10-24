@@ -41,7 +41,16 @@ const box = (
 ) => {
   const g = new BoxGeometry(w, h, d);
   g.translate(x, y, z);
-  return setLayer(planarUV(paint(g, color, rng, rng ? 0.03 : 0), 0.3), layer);
+  const out = planarUV(paint(g, color, rng, rng ? 0.03 : 0), 0.3);
+  // Tops and bottoms on x / z: the wall mapping has a constant v there, which smeared one line of the detail noise
+  // into diagonal streaks across big flat roofs.
+  const p = out.getAttribute('position');
+  const n = out.getAttribute('normal');
+  const uv = out.getAttribute('uv');
+  for (let i = 0; i < p.count; i++)
+    if (Math.abs(n.getY(i)) > 0.5)
+      uv.setXY(i, p.getX(i) * 0.3, p.getZ(i) * 0.3);
+  return setLayer(out, layer);
 };
 
 /** Triangles (flat shaded) from a flat list of [x,y,z] triples. */

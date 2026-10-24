@@ -384,7 +384,17 @@ export interface LandcoverDef {
     width: [number, number];
     length: [number, number];
     palette: [number, number, number, number][];
+    /**
+     * The crop standing on a parcel per season, by palette entry (null / missing = nothing standing: meadow, ploughed,
+     * stubble). Scatter rules with `crop` grow only there (world/terrain-gen.ts `cropAt`).
+     */
+    crops?: Partial<Record<Season, (string | null)[]>>;
   };
+  /**
+   * Hand-drawn parcels painted over the baked raster (cells whose centre is inside `poly`, world x, z pairs): land the
+   * open data gets wrong (vineyards mapped as orchard or missing). Each becomes a zone of its own with `angle`.
+   */
+  paint?: { cover: string; angle?: number; poly: number[] }[];
 }
 
 /** Standing water: closed polygon (world x/z, not repeating the first point). */
@@ -854,7 +864,15 @@ export interface ScatterRule {
     rowSpacing: number;
     jitter?: number;
     keep?: number;
+    /** Rows along the field strips (`landcover.fields.angle`) instead of the zone's angle; turned to face along them. */
+    fields?: boolean;
+    /** Turn each instance to face along its row (zone angle; e.g. vineyard row segments). */
+    face?: boolean;
   };
+  /** Only in these seasons (the map's season; e.g. per-season looks of the same plant). */
+  season?: Season[];
+  /** Only on field parcels growing this crop in the map's season (`landcover.fields.crops`). */
+  crop?: string;
   /** Keep away from `paths` (other roads / canals) edges (m). Default 1.5 for solid assets, 0.4 otherwise. */
   minPathDist?: number;
   /** Only this far from the EDGE of a canal / drain / river [min, max] (m, max <= 10): willows, reeds. */

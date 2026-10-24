@@ -9,6 +9,8 @@ import {
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DebugPanel, type PanelSection } from '../../../shared/debug-panel';
 import { StatsOverlay } from '../../../shared/stats-overlay';
+import { bakeCropCards, setCropAntialias } from '../engine/crops';
+import { setVineAntialias } from '../engine/vines';
 import { Environment } from '../engine/environment';
 import { LIGHTS_MIN_NEED } from '../engine/night';
 import { PostFx, postFxFromUrl } from '../engine/post-fx';
@@ -76,6 +78,9 @@ export class ViewerShell {
     this.panel = new DebugPanel({ title: opts.title, links: TOOL_LINKS });
     const quality = (this.quality = loadQuality());
     this.renderer = createRenderer(this.panel.viewport, quality);
+    setCropAntialias(quality.antialias);
+    setVineAntialias(quality.antialias);
+    void bakeCropCards(this.renderer);
     setTextureAnisotropy(
       Math.min(8, this.renderer.capabilities.getMaxAnisotropy()),
     );

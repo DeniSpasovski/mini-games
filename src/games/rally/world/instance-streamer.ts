@@ -25,7 +25,7 @@ import { BuildQueue, evictions, type Held, type Want } from './build-queue';
 import { CORNER_FAN_ASSETS } from './corner-fans';
 import { ParkCars } from './park-car-mesh';
 import { SERVICE_PARK_ASSETS } from './service-park';
-import type { ScatterInstance } from './scatter';
+import { NEAR_DETAIL_MAX, type ScatterInstance } from './scatter';
 import type { World } from './world';
 
 /**
@@ -111,6 +111,8 @@ export interface StreamerOptions {
   lodScale: number;
   /** 0..1 fraction of detail (grass) instances kept. */
   detailDensity: number;
+  /** Grass density near the roads, x the map's (quality `grassNear`; default 1 = the map's everywhere). */
+  grassNear?: number;
   /** Start a new rebuild after the camera moved this far (m). */
   rebuildDistance?: number;
   /** Max ms per frame spent on a rebuild job. */
@@ -148,6 +150,8 @@ export class InstanceStreamer {
   private lastFocus = new Vector3(Infinity, 0, 0);
   private maxRange: number;
   private detailRange: number;
+  /** Reach of the short-range detail assets (ScatterField `nearDetail`). */
+  private nearDetailRange: number;
   private job: Iterator<void> | null = null;
   /** Per instance list (a scatter chunk): the longest last-LOD distance in it, to skip far chunks wholesale. */
   private reach = new WeakMap<ScatterInstance[], number>();
@@ -187,15 +191,18 @@ export class InstanceStreamer {
     const metas = assetIds(world);
     let max = 0;
     let detail = 0;
+    let nearDetail = 0;
     for (const id of metas) {
       const m = getAssetMeta(id);
       const d = m.lods[m.lods.length - 1].maxDistance;
-      if (world.map.scatter.some((r) => r.asset === id && r.detail))
-        detail = Math.max(detail, d);
-      else max = Math.max(max, d);
+      if (!world.map.scatter.some((r) => r.asset === id && r.detail))
+        max = Math.max(max, d);
+      else if (d > NEAR_DETAIL_MAX) detail = Math.max(detail, d);
+      else nearDetail = Math.max(nearDetail, d);
     }
     this.maxRange = max;
     this.detailRange = detail;
+    this.nearDetailRange = nearDetail;
     const cars =
       typeof document === 'undefined'
         ? []
@@ -230,7 +237,8 @@ export class InstanceStreamer {
   }
 
   /** Call every frame. Starts / continues a time-sliced rebuild. */
-  update(focus: Vector3): void {
+  /** `budgetMs`: this frame's share of time for a rebuild job (default the `budgetMs` option). */
+  update(focus: Vector3, budgetMs?: number): void {
     this.parkCars?.update(focus, this.filter('team_car'));
     if (!this.job) {
       const rebuild = this.opts.rebuildDistance ?? 10;
@@ -243,7 +251,7 @@ export class InstanceStreamer {
     }
     if (this.job) {
       const t0 = performance.now();
-      const budget = this.opts.budgetMs ?? 2;
+      const budget = budgetMs ?? this.opts.budgetMs ?? 2;
       while (performance.now() - t0 < budget) {
         if (this.job.next().done) {
           this.job = null;
@@ -378,6 +386,7 @@ export class InstanceStreamer {
       Math.max(this.maxRange, LONGEST_LOD) * lodScale,
     );
     const dRange = Math.min(maxD, this.detailRange * lodScale);
+    const nRange = Math.min(maxD, this.nearDetailRange * lodScale);
     const b = this.world.map.bounds;
     let drawn = 0;
 
@@ -403,9 +412,22 @@ export class InstanceStreamer {
         const dx = inst.x - focus.x;
         const dz = inst.z - focus.z;
         const dist = Math.sqrt(dx * dx + dz * dz);
+        // The extra grass near the roads (catalog `nearBoost`): the quality preset's share of it (`grassNear`).
+        const boost = d.meta.nearBoost;
+        if (inst.extra && boost) {
+          const keep = (Math.min(boost, this.opts.grassNear ?? 1) - 1) / (boost - 1);
+          if (
+            hash3(Math.floor(inst.x * 10), Math.floor(inst.z * 10), 7) /
+              4294967296 >=
+            keep
+          )
+            continue;
+        }
         if (dist > maxD) continue;
         let lod = -1;
-        for (let i = 0; i < lods.length; i++) {
+        // Near LOD by road distance (catalog `nearRoad`), fixed per instance: nothing swaps as the car drives on.
+        const first = d.meta.nearRoad !== undefined && !inst.near ? 1 : 0;
+        for (let i = first; i < lods.length; i++) {
           if (dist < lods[i].maxDistance * lodScale) {
             lod = i;
             break;
@@ -434,16 +456,18 @@ export class InstanceStreamer {
         if (near <= this.reachOf(list) * lodScale) visit(list, false);
         // Grass needs the 1 m heightfield; skip until terrain streaming has built it.
         if (
-          dRange > 0 &&
           this.opts.detailDensity > 0 &&
-          near < dRange &&
+          (near < dRange || near < nRange) &&
           this.world.heightfield.hasChunk(cx, cz)
-        )
-          visit(scatter.detail(cx, cz), true);
+        ) {
+          if (near < dRange) visit(scatter.detail(cx, cz), true);
+          if (near < nRange) visit(scatter.nearDetail(cx, cz), true);
+        }
         yield;
       }
     }
-    if (dRange > 0) scatter.pruneDetail(focus.x, focus.z, dRange * 2 + cs);
+    if (dRange > 0 || nRange > 0)
+      scatter.pruneDetail(focus.x, focus.z, dRange * 2 + cs, nRange * 2 + cs);
     this.sortX = focus.x;
     this.sortZ = focus.z;
     this.queue.swap();

@@ -20,6 +20,8 @@ import { setHeadBeam, setLampGlow } from '../engine/night-glow';
 import { LampPools } from '../world/lamp-pools';
 import { PostFx, postFxFromUrl } from '../engine/post-fx';
 import type { QualitySettings } from '../engine/quality';
+import { bakeCropCards, setCropAntialias } from '../engine/crops';
+import { setVineAntialias } from '../engine/vines';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
 import { setClockTime } from '../engine/stage-sign-textures';
 import { setTextureAnisotropy } from '../engine/textures';
@@ -266,6 +268,9 @@ export class RallyGame {
     readonly opts: GameOptions,
   ) {
     this.renderer = createRenderer(container, opts.quality);
+    setCropAntialias(opts.quality.antialias);
+    setVineAntialias(opts.quality.antialias);
+    void bakeCropCards(this.renderer);
     setTextureAnisotropy(
       Math.min(8, this.renderer.capabilities.getMaxAnisotropy()),
     );
@@ -378,6 +383,7 @@ export class RallyGame {
     this.streamer = new InstanceStreamer(this.world, {
       lodScale: q.lodScale * OBJECT_DISTANCE[this.opts.settings.objectDistance],
       detailDensity: q.detailDensity,
+      grassNear: q.grassNear,
       // Nothing past the streamed terrain (it would stand on nothing).
       maxDistance: q.viewDistance,
       // People close up are built ahead of the car, not all at load.
@@ -435,6 +441,7 @@ export class RallyGame {
     this.breakables = new Breakables(this.world.scatter, (x, z) =>
       this.world.heightAt(x, z),
     );
+    await bakeCropCards(this.renderer); // field crop cards (baked once per page)
     await this.streamer.ready; // the service park's team cars
     this.people = new PeopleAnimator(this.world.scatter.fixedInstances());
     await frame();
@@ -1233,6 +1240,20 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     lap('render');
   }
 
+  /** Smoothed time between frames and CPU time of a frame without the object streaming (ms; streamBudget). */
+  private frameInterval = 1000 / 60;
+  private frameWork = 8;
+
+  /**
+   * Time the object streaming may take this frame (ms): what the frame rate leaves over (85 % of the time between
+   * frames, less the rest of the frame's work), 1-8 ms. A fast device catches up in a frame or two, a busy one keeps
+   * its frame rate; the driving speed plays no part.
+   */
+  private streamBudget(dt: number): number {
+    if (dt > 0) this.frameInterval += (dt * 1000 - this.frameInterval) * 0.1;
+    return Math.min(8, Math.max(1, this.frameInterval * 0.85 - this.frameWork));
+  }
+
   private frame(dt: number): void {
     const t0 = performance.now();
     const v = this.vehicle;
@@ -1319,7 +1340,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.terrain.update(camPos, 2.5);
     this.roadCull.update(camPos);
     const tTerrain = performance.now();
-    this.streamer.update(camPos);
+    this.streamer.update(camPos, this.streamBudget(dt));
     const tObjects = performance.now();
     this.trees.update(this.camera, this.rig.steady);
     const tTrees = performance.now();
@@ -1420,6 +1441,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     else this.renderer.render(this.scene, this.camera);
     this.perf?.gpuEnd();
     const tRender = performance.now();
+    // The frame's own work, the object streaming left out (it fills the time left over: streamBudget).
+    this.frameWork += (tRender - t0 - (tObjects - tTerrain) - this.frameWork) * 0.1;
     this.perf?.frame({
       physics: tPhysics - t0,
       'car + camera': tCamera - tPhysics,

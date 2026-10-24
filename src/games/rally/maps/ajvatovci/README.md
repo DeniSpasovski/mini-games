@@ -9,7 +9,7 @@ narrow tarmac with a loose gravel film, in spring colours. Map id `ajvatovci`, s
 |                                                 |                                         |
 | ----------------------------------------------- | --------------------------------------- |
 | ![Farmland road](screenshots/farmland-road.jpg) | ![Hill road](screenshots/hill-road.jpg) |
-| the farmland road (orchards, power lines)       | switchbacks up Ajvatovci Hill           |
+| the farmland road (vineyards, power lines)      | switchbacks up Ajvatovci Hill           |
 
 The first ~500 m, the **start street**, is hand-modelled: lots with real window and door openings, yards, fences,
 kerbs, sidewalks, power poles and about 100 parked vehicles (`start-row/`); the car bounces off its kerbs and stops at fences. At the finish, the hilltop
@@ -26,17 +26,18 @@ npm run dev     # /games/rally/?stage=ajvatovci&spawn=200      (drive from 200 m
 
 ## Data and credits
 
-| What                                         | Source                                                                                                                     | Licence                                                                          |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Stage route                                  | [Google Maps route (start -> Ajvatovci Hill)](https://www.google.com/maps/dir/42.0001365,21.5777226/42.0085904,21.6141518) | stage waypoints only                                                             |
-| Roads, railways, land use, buildings, pylons | [OpenStreetMap](https://www.openstreetmap.org/copyright)                                                                   | ODbL, © OpenStreetMap contributors                                               |
-| Building footprints (where OSM has none)     | [Microsoft Global ML Building Footprints](https://github.com/microsoft/GlobalMLBuildingFootprints)                         | ODbL                                                                             |
-| Roads (where OSM has none)                   | [Microsoft ML Road Detections](https://github.com/microsoft/RoadDetections)                                                | ODbL, © Microsoft                                                                |
-| Land cover                                   | [ESA WorldCover 2021](https://esa-worldcover.org/)                                                                         | CC BY 4.0                                                                        |
-| Elevation                                    | [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (SRTM / EU-DEM based)                                    | [attributions](https://github.com/tilezen/joerd/blob/master/docs/attribution.md) |
+| What                                         | Source                                                                                                                         | Licence                                                                          |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Stage route                                  | [Google Maps route (start -> Ajvatovci Hill)](https://www.google.com/maps/dir/42.0001365,21.5777226/42.0085904,21.6141518)     | stage waypoints only                                                             |
+| Roads, railways, land use, buildings, pylons | [OpenStreetMap](https://www.openstreetmap.org/copyright)                                                                       | ODbL, © OpenStreetMap contributors                                               |
+| Building footprints (where OSM has none)     | [Microsoft Global ML Building Footprints](https://github.com/microsoft/GlobalMLBuildingFootprints)                             | ODbL                                                                             |
+| Roads (where OSM has none)                   | [Microsoft ML Road Detections](https://github.com/microsoft/RoadDetections)                                                    | ODbL, © Microsoft                                                                |
+| Land cover                                   | [ESA WorldCover 2021](https://esa-worldcover.org/)                                                                             | CC BY 4.0                                                                        |
+| Wheat model                                  | ["Realistic Wheat"](https://sketchfab.com/3d-models/realistic-wheat-50270968690441d3ad9d2a8924c7338b) by Graphetta (Sketchfab) | CC BY 4.0                                                                        |
+| Elevation                                    | [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (SRTM / EU-DEM based)                                        | [attributions](https://github.com/tilezen/joerd/blob/master/docs/attribution.md) |
 
 The baked map files (`*.json`, `buildings.csv`, stage card) are a derived database of the ODbL sources above and stay under the ODbL (attribution +
-share-alike). A few shapes (the orchard outline and the lot positions of the start street) were traced by eye from
+share-alike). A few shapes (the vineyard outlines and the lot positions of the start street) were traced by eye from
 satellite / street-level screenshots; no imagery is shipped. The start street's buildings are original models, not
 copies of the real ones, and the company sign on one building belongs to a friend's company and is used with the owners' approval. The hilltop church, bell
 tower and court are original procedural models made from reference photos (not shipped).

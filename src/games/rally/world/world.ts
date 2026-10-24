@@ -1,5 +1,6 @@
 import { Vector3 } from 'three';
 import { hashString } from '../../../shared/rng';
+import { mapSeason } from '../maps/shared/climate';
 import type { BuildingDef, MapDef, StageDef } from '../maps/shared/types';
 import { SURFACES, type SurfaceId } from '../physics/surfaces';
 import type {
@@ -228,7 +229,10 @@ export class World implements GroundProvider {
       this.analytic,
       this.road,
       map.seed,
-      map.scatter,
+      // Rules for other seasons (`season`) are left out.
+      map.scatter.filter(
+        (r) => !r.season || r.season.includes(mapSeason(map.environment)),
+      ),
       (x, z) =>
         x > b.minX - m && x < b.maxX + m && z > b.minZ - m && z < b.maxZ + m,
       (x, z) =>
@@ -247,6 +251,8 @@ export class World implements GroundProvider {
         paths: this.gen.paths,
         channels: this.gen.channels,
         lakes: this.gen.lakes,
+        cropAt: (x, z) => this.gen.cropAt(x, z),
+        fieldAngle: map.landcover?.fields?.angle,
         stageId: map.id,
         treeSetback: map.treeSetback,
       },

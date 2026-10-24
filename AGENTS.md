@@ -92,6 +92,7 @@ into `DETAILS.md`, never up.
 - `scripts/facades/bake.py`: the wall and roof tiles of the rally buildings (`engine/facades/*.webp`) from Poly Haven scans (ids and tuning in the script)
 - `scripts/people/`: `extract-base.py` (a base body GLB -> json with the face uv), `skin-map.py` (paints the face onto the skin map), `bake-base.mjs`
   (simplifies, packs both bodies into `engine/people-base.data.ts`; run order in its header)
+- `scripts/crops/bake-crops.py` - the CC BY wheat / corn models (`sources/maps/ajvatovci/`) -> rally `crop-models.data.ts`
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
   `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `plaza_islands.py` (city junction
   `junction.json`), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from

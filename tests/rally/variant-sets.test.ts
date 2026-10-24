@@ -2,10 +2,17 @@ import { describe, expect, rs, test } from '@rstest/core';
 import { Texture } from 'three';
 import { ASSET_CATALOG } from '../../src/games/rally/assets/catalog';
 import { getAsset, getVariantSet } from '../../src/games/rally/assets/library';
+import * as grass from '../../src/games/rally/engine/grass' with {
+  rstest: 'importActual',
+};
 
 // Materials draw their textures on a canvas (no DOM here).
 rs.mock('../../src/games/rally/engine/textures', () => ({
   getTexture: () => new Texture(),
+}));
+rs.mock('../../src/games/rally/engine/grass', () => ({
+  ...grass,
+  grassSheet: () => new Texture(),
 }));
 
 /**
