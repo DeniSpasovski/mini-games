@@ -68,7 +68,7 @@ const BRAKES: BrakeSet = {
 
 /**
  * Subaru WRX STI (`subie_wrx_sti`) - the 2019 STI: a CC BY Sketchfab model kept as it is (own cockpit, lamps and rim, flat
- * paint), mapped to game parts by material (model.source.json). Test car (release.ts).
+ * paint), mapped to game parts by material (model.source.json).
  */
 export const subieWrxSti: CarDef = {
   id: 'subie_wrx_sti',

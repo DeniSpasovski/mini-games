@@ -74,7 +74,7 @@ const BRAKES: BrakeSet = {
 
 /**
  * Ford Mustang GT3 (`ford_gt3`) - the 2024 customer GT3 racer: a CC BY Sketchfab model kept as it is (flat paint, own cockpit,
- * lamps and rim), mapped to game parts by material only (model.source.json). Test car (release.ts).
+ * lamps and rim), mapped to game parts by material only (model.source.json).
  */
 export const fordGt3: CarDef = {
   id: 'ford_gt3',
