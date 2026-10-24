@@ -1,3 +1,4 @@
+import type { Light } from 'three';
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { paramOneOf } from '../../../shared/url-params';
 import { ViewerShell } from '../debug/viewer-shell';
@@ -94,6 +95,8 @@ const shell = new ViewerShell('Kabooom · Crew viewer');
 const glow = new GlowGrid(STAGE_W, STAGE_H);
 const arena = new Arena(stageMap, shell.quality, glow);
 shell.scene.add(arena.group);
+// the arena's sun and fill live with its scenery (the bowl, not wanted here): take just the lights
+shell.scene.add(...arena.scenery.children.filter((o) => (o as Light).isLight));
 shell.setGameCamera(false);
 shell.rig.camera.position.set(0, 5.5, 13);
 shell.orbit.target.set(0, 0.6, 0.5);

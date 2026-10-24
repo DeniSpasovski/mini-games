@@ -20,6 +20,7 @@ import { ringPoints, treadY } from '../bowl';
 import { Sea } from '../sea';
 import { ROUGH } from '../materials';
 import {
+  bbox,
   box,
   flagstone,
   merge,
@@ -27,7 +28,6 @@ import {
   rbox,
   rock,
   strut,
-  woodCrateGeometry,
   type DecorParts,
 } from '../parts';
 import { shared, sharedValue } from './cache';
@@ -51,6 +51,9 @@ const S = {
   ironLight: 0x65686f,
   ironDark: 0x2c2e33,
   rope: 0xc9b58a,
+  /** Tanbark canvas over the deck cargo (red-brown, like old sails: nothing on the deck is sea-green). */
+  tarp: 0x9a5a43,
+  tarpDark: 0x7a4534,
   ropeDark: 0x7a6a4c,
   gap: 0x2a2219,
   nail: 0x45403a,
@@ -433,6 +436,88 @@ function capstan(): BufferGeometry {
   return merge(p);
 }
 
+/** Crate 0: cargo under a weathered canvas tarp on a pallet, lashed with rope both ways and knotted on top. */
+function tarpCargo(): BufferGeometry {
+  const p: BufferGeometry[] = [];
+  // the pallet: three runners and a deck of boards
+  for (const x of [-0.32, 0, 0.32])
+    p.push(
+      part(bbox(0.1, 0.08, 0.84, 0.015), S.crateDark, {
+        x,
+        y: 0.04,
+        rough: ROUGH.wood,
+      }),
+    );
+  for (const z of [-0.32, -0.1, 0.12, 0.34])
+    p.push(
+      part(bbox(0.86, 0.035, 0.17, 0.01), S.crateBand, {
+        z,
+        y: 0.1,
+        rough: ROUGH.wood,
+      }),
+    );
+  // the tarp: a soft rounded block, sagging a little between the ropes
+  p.push(
+    part(rbox(0.8, 0.66, 0.8, 0.12, 3), S.tarp, {
+      y: 0.45,
+      lumpy: 0.025,
+      smooth: true,
+      tint: 0.16,
+      rough: ROUGH.rope,
+    }),
+  );
+  // a skirt where it hangs over the pallet
+  p.push(
+    part(rbox(0.84, 0.08, 0.84, 0.035, 1), S.tarpDark, {
+      y: 0.15,
+      tint: 0.1,
+      rough: ROUGH.rope,
+    }),
+  );
+  // rope lashing: two loops each way over the top and down the sides
+  for (const t of [-0.18, 0.18])
+    for (const along of [0, 1]) {
+      const ry = along ? Math.PI / 2 : 0;
+      const at = (x: number, z: number): [number, number] =>
+        along ? [z, -x] : [x, z];
+      const [tx, tz] = at(t, 0);
+      p.push(
+        part(box(0.035, 0.035, 0.82), S.rope, {
+          x: tx,
+          z: tz,
+          y: 0.785,
+          ry,
+          tint: 0.15,
+          rough: ROUGH.rope,
+        }),
+      );
+      for (const sd of [-1, 1]) {
+        const [sx, sz] = at(t, sd * 0.41);
+        p.push(
+          part(box(0.035, 0.62, 0.035), S.rope, {
+            x: sx,
+            z: sz,
+            y: 0.48,
+            ry,
+            tint: 0.15,
+            rough: ROUGH.rope,
+          }),
+        );
+      }
+    }
+  // the knot where the ropes cross
+  p.push(
+    part(rock(0.05, 0), S.rope, {
+      y: 0.8,
+      x: 0.18,
+      z: 0.18,
+      tint: 0.15,
+      rough: ROUGH.rope,
+    }),
+  );
+  return merge(p);
+}
+
 /** Crate 1: a cargo barrel with iron hoops and a dark lid. */
 function cargoBarrel(): BufferGeometry {
   const prof = [0, 0.3, 0.37, 0.39, 0.37, 0.3, 0].map(
@@ -743,15 +828,7 @@ export const SEA_THEME: LevelTheme = {
     },
   },
   hard: [bollard, capstan],
-  crate: [
-    () =>
-      woodCrateGeometry({
-        crate: S.crate,
-        band: S.crateBand,
-        dark: S.crateDark,
-      }),
-    cargoBarrel,
-  ],
+  crate: [tarpCargo, cargoBarrel],
   floor,
   decor,
   platformExtras: ({ w, h, flat }) => [

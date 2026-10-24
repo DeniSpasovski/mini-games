@@ -31,7 +31,6 @@ import {
   rbox,
   rock,
   strut,
-  woodCrateGeometry,
   type DecorParts,
 } from '../parts';
 import { ROUGH } from '../materials';
@@ -263,6 +262,76 @@ function turfGeometry(): BufferGeometry {
     rough: ROUGH.grass,
     detail: [1, 0],
   });
+}
+
+/** Crate 0: a slatted apple crate, boards with gaps on every side, heaped with red and green apples. */
+function appleCrate(): BufferGeometry {
+  const H = 0.7;
+  const p: BufferGeometry[] = [
+    // the dark inside seen between the boards
+    part(
+      box(0.74, H - 0.06, 0.74),
+      new Color(V.crateDark).multiplyScalar(0.6).getHex(),
+      {
+        y: H / 2,
+        paint: 0,
+        tint: 0,
+      },
+    ),
+  ];
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1])
+      p.push(
+        part(bbox(0.1, H, 0.1, 0.02), V.crateBand, {
+          x: sx * 0.4,
+          z: sz * 0.4,
+          y: H / 2,
+          tint: 0.14,
+          rough: ROUGH.wood,
+        }),
+      );
+  // three boards a side with gaps between them, each a slightly different shade
+  const r = new Rng(7311);
+  for (const [nx, nz] of [
+    [0, 1],
+    [0, -1],
+    [1, 0],
+    [-1, 0],
+  ] as const)
+    for (let k = 0; k < 3; k++)
+      p.push(
+        part(bbox(0.72, 0.17, 0.04, 0.012), V.crate, {
+          x: nx * 0.4,
+          z: nz * 0.4,
+          y: 0.11 + k * 0.235,
+          ry: nx ? Math.PI / 2 : 0,
+          tint: 0.18,
+          rough: ROUGH.wood,
+          paint: 1,
+        }),
+      );
+  // apples heaped above the rim
+  const red = [0xc7372c, 0xb52e26, 0xd2492f];
+  const green = [0x8fb440, 0x9cbf4a];
+  for (let i = 0; i < 16; i++) {
+    const ring = i < 10 ? 0.28 : i < 15 ? 0.14 : 0;
+    const a =
+      (i < 10 ? i / 10 : (i - 10) / 5) * Math.PI * 2 + r.range(-0.15, 0.15);
+    const y = H - 0.02 + (i < 10 ? 0 : i < 15 ? 0.06 : 0.12);
+    const c = r.chance(0.2) ? green[r.int(0, 1)] : red[r.int(0, 2)];
+    p.push(
+      part(rock(0.085, 1), c, {
+        x: Math.cos(a) * ring,
+        z: Math.sin(a) * ring,
+        y,
+        sy: 0.9,
+        smooth: true,
+        tint: 0.1,
+        rough: ROUGH.paint,
+      }),
+    );
+  }
+  return merge(p);
 }
 
 /** One crossed bunch of grass blades, standing on y = 0. */
@@ -1241,15 +1310,7 @@ export const VALLEY_THEME: LevelTheme = {
     },
   },
   hard: [mossyBoulder, cairn],
-  crate: [
-    () =>
-      woodCrateGeometry({
-        crate: V.crate,
-        band: V.crateBand,
-        dark: V.crateDark,
-      }),
-    hayBale,
-  ],
+  crate: [appleCrate, hayBale],
   floor,
   decor,
   platformExtras: (ctx) => [tufts(ctx)],

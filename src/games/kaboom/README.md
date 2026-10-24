@@ -42,7 +42,7 @@ The Large arena (up to 8 players) is bigger than the screen: the camera follows 
   (tall and slim to low and broad), real shell-rendered fur, hard hats and hi-vis vests in their team colour, animated
   by code.
 - **Levels**: Quarry (sandstone pit), Green Valley (sunny meadow) and Sea Deck (a raft at sea, the crowd on boats). Same
-  rules; only the look, the sounds and the sudden-death fall differ (walls land, or planks sink). The last two are dev / test builds only for now.
+  rules; only the look, the sounds and the sudden-death fall differ (walls land, or planks sink).
 - **A gladiator-style bowl** (Quarry): the arena sits at the bottom of a rocky pit; the stands are full of the same animals (pre-rendered
   sprites, fur and all) in shirts, in blocks of fans cheering in the colours of the players in the match, some waving flags, who cheer in turn, do the wave and jump when things blow up.
 - **Power-ups** hidden in crates, two kinds up to level 5: more dynamites to place at once, more sticks for a longer
