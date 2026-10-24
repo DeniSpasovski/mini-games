@@ -68,7 +68,7 @@ const BRAKES: BrakeSet = {
 
 /**
  * Audi RS6 (`audi_rs6`) - the C8 RS6 Avant: a CC BY Sketchfab model kept as it is (own cockpit, lamps and rim, flat paint),
- * mapped to game parts by material (model.source.json). Test car (release.ts).
+ * mapped to game parts by material (model.source.json).
  */
 export const audiRs6: CarDef = {
   id: 'audi_rs6',

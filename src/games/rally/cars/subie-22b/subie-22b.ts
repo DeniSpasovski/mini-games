@@ -73,7 +73,7 @@ export const subie22b: CarDef = {
   name: 'Subaru WRX STI 22B',
   className: 'Group A · AWD',
   description:
-    'Blue 90s turbo coupe with the works star livery: flat-four boxer rumble, grippy AWD, a little heavy on the nose.',
+    'Blue 90s turbo coupe: flat-four boxer rumble, grippy AWD, a little heavy on the nose.',
   sources: [
     {
       label: '"1998 Subaru Impreza 22B STi" by 007 (Sketchfab)',
