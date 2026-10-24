@@ -16,29 +16,35 @@ const { K, B, CH, Painter, sidePx, frontPx, rearPx } = atlasKit(A);
 const YELLOW = '#f4c51c';
 
 /**
- * The swoosh: one smooth guide curve on the body side (z, y in metres), from a low tip at the front of the door, round a round
- * bulge and back along the rear quarter, rising with the shoulder line. The three lines are this curve and two
- * copies inside it that close in on it along the tails.
+ * The swoosh: one guide curve on the body side (z, y in metres): a round arc in front of the rear door seam, from low on the
+ * door up round the front and over, then a straight line back along the rear quarter, rising with the shoulder. The three
+ * lines are this curve and two copies inside it that close in on it along the tails.
  */
-/** Whole graphic moved (z, y) from where it was first placed: 20 cm forward, 10 cm lower. */
-const SHIFT: Pt = [0.2, -0.1];
-const GUIDE: Pt[] = (
-  [
-    [-0.95, 0.26],
-    [-0.8, 0.31],
-    [-0.69, 0.39],
-    [-0.62, 0.52],
-    [-0.64, 0.67],
-    [-0.72, 0.78],
-    [-0.85, 0.85],
-    [-1.05, 0.86],
-    [-1.4, 0.88],
-    [-1.75, 0.9],
-    [-2.05, 0.92],
-  ] as Pt[]
-).map(([z, y]) => [z + SHIFT[0], y + SHIFT[1]]);
-/** Where the guide's bulge is, as a fraction of its length: the outer line is twice as thick here. */
-const BULGE_AT = 0.3;
+const CENTRE: Pt = [-0.7, 0.47];
+/** Arc radius above / below the centre: the lower half is a little flatter so its low end stays above the sill crease. */
+const R_TOP = 0.28;
+const R_LOW = 0.22;
+/** Rear end of the straight top line. */
+const TAIL_END: Pt = [-1.85, 0.82];
+const GUIDE: Pt[] = [
+  ...[-95, -80, -65, -50, -35, -20, -5, 10, 25, 40, 55, 70].map((deg): Pt => {
+    const a = (deg * Math.PI) / 180;
+    return [
+      CENTRE[0] + R_TOP * Math.cos(a),
+      CENTRE[1] + (a < 0 ? R_LOW : R_TOP) * Math.sin(a),
+    ];
+  }),
+  // The straight line, evenly spaced so the curve through the points stays straight (uneven spacing kinks it).
+  ...[0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1].map((t): Pt => {
+    const top: Pt = [CENTRE[0], CENTRE[1] + R_TOP];
+    return [
+      top[0] + (TAIL_END[0] - top[0]) * t,
+      top[1] + (TAIL_END[1] - top[1]) * t,
+    ];
+  }),
+];
+/** Where the front of the arc is, as a fraction of the guide's length: the outer line is twice as thick here. */
+const BULGE_AT = 0.22;
 const OUTER_WIDTH = 0.07;
 /** How much of their offset the inner lines lose by the tail end. */
 const TAIL_RISE = 0.35;
@@ -51,11 +57,26 @@ interface Line {
   /** Pieces of the guide, as length fractions. */
   pieces: [number, number][];
 }
+/** The inner two lines are cut just behind the top of the arc: the arc piece ends in a point, the tail starts square. */
+const CUT: [number, number] = [0.46, 0.53];
 const LINES: Line[] = [
-  // Each line starts a little further along the guide than the one outside it, so the low ends step up and stay short.
-  { offset: 0, width: OUTER_WIDTH, pieces: [[0.13, 1]] },
-  { offset: 0.11, width: 0.045, pieces: [[0.17, 1]] },
-  { offset: 0.19, width: 0.035, pieces: [[0.21, 1]] },
+  { offset: 0, width: OUTER_WIDTH, pieces: [[0, 1]] },
+  {
+    offset: 0.11,
+    width: 0.045,
+    pieces: [
+      [0, CUT[0]],
+      [CUT[1], 1],
+    ],
+  },
+  {
+    offset: 0.19,
+    width: 0.035,
+    pieces: [
+      [0, CUT[0]],
+      [CUT[1], 1],
+    ],
+  },
 ];
 
 /** Catmull-Rom curve through the points, resampled, then rounded off by corner cutting. */
@@ -128,13 +149,16 @@ function ribbon(guide: Pt[], line: Line, [t0, t1]: [number, number]): Pt[] {
     const cy = guide[i][1] + tz * off;
     let w = line.width;
     if (line.offset === 0) {
-      const k = (s - BULGE_AT) / 0.25;
+      const k = (s - BULGE_AT) / 0.15;
       w *= 1 + 0.9 * Math.exp(-k * k);
     }
-    // Clean ends: a cut end stays blunt, the outer line's low tip and the tails narrow a little and end square.
-    const e0 = line.offset === 0 ? smoothstep(Math.min(1, (s - t0) / 0.15)) : 1;
-    const e1 = t1 === 1 ? smoothstep(Math.min(1, (1 - s) / 0.35)) : 1;
-    w *= (0.55 + 0.45 * e0) * (0.5 + 0.5 * e1);
+    // Ends: every line's low end and the arc pieces' cut ends run out to a point, the tail pieces start square and the
+    // tails narrow a little and end square.
+    const tip = (d: number, l: number) =>
+      0.08 + 0.92 * smoothstep(Math.min(1, d / l));
+    if (t0 === 0) w *= tip(s, 0.12);
+    if (t1 < 1) w *= tip(t1 - s, 0.08);
+    if (t1 === 1) w *= 0.5 + 0.5 * smoothstep(Math.min(1, (1 - s) / 0.35));
     const nz = -ty;
     const ny = tz;
     left.push([cz + nz * (w / 2), cy + ny * (w / 2)]);
