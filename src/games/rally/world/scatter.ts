@@ -175,6 +175,45 @@ export class ScatterField {
       }
   }
 
+  /**
+   * The tree rules that can grow a tree at (x, z), with their density (per m^2) and mean scale: the far forest's
+   * estimate where no chunk is generated (world/far-forest.ts). Land cover, noise mask and bounds only - the per-tree
+   * tests (roads, paths, slope) matter near the road, never at a mountain kilometres away. Roadside and orchard rules
+   * are left out.
+   */
+  treeRulesAt(
+    x: number,
+    z: number,
+    visit: (asset: string, perM2: number, scale: number) => void,
+  ): void {
+    if (!this.inBounds(x, z) || this.excluded(x, z)) return;
+    const lc = this.ctx.landcover;
+    const zone = lc ? lc.zoneAt(x, z) : -1;
+    for (let ri = 0; ri < this.rules.length; ri++) {
+      const rule = this.rules[ri];
+      if (!isTreeType(rule.asset) || rule.rows || rule.density <= 0) continue;
+      if (rule.maxRoadDist !== undefined) continue;
+      const cover = this.coverMasks.get(rule);
+      if (cover && lc && (zone < 0 || !cover[zone])) continue;
+      if (rule.mask) {
+        const m = this.maskNoise.fbm(
+          x / rule.mask.scale + ri * 3.1,
+          z / rule.mask.scale,
+          3,
+        );
+        if (
+          rule.mask.invert ? m > rule.mask.threshold : m < rule.mask.threshold
+        )
+          continue;
+      }
+      visit(
+        rule.asset,
+        rule.density / 1000,
+        (rule.scale[0] + rule.scale[1]) / 2,
+      );
+    }
+  }
+
   /** A chunk only if it was generated already (never generates: for background jobs that must not hitch). */
   cachedChunk(cx: number, cz: number): ScatterChunk | undefined {
     return this.chunks.get(key(cx, cz));

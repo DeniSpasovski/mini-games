@@ -65,6 +65,31 @@ export interface LoadedVariant {
   proxy: BufferGeometry | null;
   /** Slot of its impostor in the library's shared texture array (`TreeLibrary.impostors`). */
   slot: number;
+  /** The crown's mean albedo as drawn (linear, from its impostor's views): world/far-forest.ts paints the canopy with it. */
+  canopyColor: [number, number, number];
+}
+
+/** Coverage-weighted mean of an impostor's albedo over all its views, sRGB decoded (linear). */
+function meanAlbedo(px: ImpostorPixels): [number, number, number] {
+  const lin = (v: number) => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const a = px.albedo;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let w = 0;
+  // Every 3rd texel: plenty for a mean.
+  for (let i = 0; i < a.length; i += 12) {
+    const cover = a[i + 3] / 255;
+    if (cover < 0.5) continue;
+    r += lin(a[i]) * cover;
+    g += lin(a[i + 1]) * cover;
+    b += lin(a[i + 2]) * cover;
+    w += cover;
+  }
+  return w > 0 ? [r / w, g / w, b / w] : [0.05, 0.08, 0.03];
 }
 
 function geometry(m: MeshData): BufferGeometry {
@@ -343,6 +368,7 @@ export class TreeLibrary {
         quadEnds: quads.ends,
         proxy: crownProxy(meshes.sprites),
         slot: -1,
+        canopyColor: meanAlbedo(pixels),
       },
       pixels,
     };
