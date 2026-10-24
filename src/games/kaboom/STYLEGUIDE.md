@@ -116,7 +116,6 @@ text`), the side is four drop-shadows stepping down-right and the outline four m
 1. Take colours, fonts and radii from `ui-tokens.css`; add a token before adding a literal colour in `kaboom.css`.
 2. Check contrast of new text colours against `--kb-card-lo` (4.5:1).
 3. Use `.kb-btn` for anything you press, and the tile finish for anything that sits on the world.
-
 4. Check 1280x720 and 915x412 screenshots, and keyboard, pad and touch focus.
 5. Update this file when a token or a component changes (a colour token: also its swatch in [`styleguide/`](styleguide/));
    retake the screenshots above when a screen's look changes (`screenshots/ui-*.jpg`, 1280x720, taken in game with `?mute=1`).

@@ -72,7 +72,7 @@
 }
 
 :root {
-  /* sandstone: text and outlines (ink), cards, buttons */
+  /* sandstone: text and the 3D letters' outline (ink), cards, buttons */
   --kb-ink: #2e1606;
   --kb-ink-2: #5a3a20;
   --kb-card: #e2c491;

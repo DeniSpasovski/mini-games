@@ -570,7 +570,7 @@ body {
 .kb-actions {
   display: flex;
   flex-direction: column;
-  /* the lip and its ink line take 7 px of each gap */
+  /* room for each tile's soft shadow below it */
   gap: 14px;
   margin-top: 4px;
   /* stays in view while a tall card scrolls */
