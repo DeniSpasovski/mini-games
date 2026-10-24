@@ -20,34 +20,34 @@ const YELLOW = '#f4c51c';
  * door up round the front and over, then a straight line back along the rear quarter, rising with the shoulder. The three
  * lines are this curve and two copies inside it that close in on it along the tails.
  */
-const CENTRE: Pt = [-0.7, 0.47];
-/** Arc radius above / below the centre: the lower half is a little flatter so its low end stays above the sill crease. */
-const R_TOP = 0.28;
-const R_LOW = 0.22;
+const CENTRE: Pt = [-0.7, 0.51];
+/** Arc radius: the lines are concentric circles round CENTRE (a circle's offset is a circle), so every arc stays round. */
+const R = 0.25;
 /** Rear end of the straight top line. */
 const TAIL_END: Pt = [-1.85, 0.82];
 const GUIDE: Pt[] = [
   ...[-95, -80, -65, -50, -35, -20, -5, 10, 25, 40, 55, 70].map((deg): Pt => {
     const a = (deg * Math.PI) / 180;
-    return [
-      CENTRE[0] + R_TOP * Math.cos(a),
-      CENTRE[1] + (a < 0 ? R_LOW : R_TOP) * Math.sin(a),
-    ];
+    return [CENTRE[0] + R * Math.cos(a), CENTRE[1] + R * Math.sin(a)];
   }),
   // The straight line, evenly spaced so the curve through the points stays straight (uneven spacing kinks it).
   ...[0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1].map((t): Pt => {
-    const top: Pt = [CENTRE[0], CENTRE[1] + R_TOP];
+    const top: Pt = [CENTRE[0], CENTRE[1] + R];
     return [
       top[0] + (TAIL_END[0] - top[0]) * t,
       top[1] + (TAIL_END[1] - top[1]) * t,
     ];
   }),
 ];
-/** Where the front of the arc is, as a fraction of the guide's length: the outer line is twice as thick here. */
+/** Where the front of the arc is, as a fraction of the guide's length: the outer line is thickest here. */
 const BULGE_AT = 0.22;
 const OUTER_WIDTH = 0.07;
 /** How much of their offset the inner lines lose by the tail end. */
 const TAIL_RISE = 0.35;
+/** Guide fraction where that starts: the start of the tail pieces, so they line up with the arc pieces' ends. */
+const TAIL_RISE_FROM = 0.53;
+/** How much wider than its tail the outer line gets at the front of the arc. */
+const BELLY = 1.6;
 
 interface Line {
   /** Distance inside the guide (m). */
@@ -62,7 +62,7 @@ const CUT: [number, number] = [0.46, 0.53];
 const LINES: Line[] = [
   { offset: 0, width: OUTER_WIDTH, pieces: [[0, 1]] },
   {
-    offset: 0.11,
+    offset: 0.1,
     width: 0.045,
     pieces: [
       [0, CUT[0]],
@@ -70,7 +70,7 @@ const LINES: Line[] = [
     ],
   },
   {
-    offset: 0.19,
+    offset: 0.18,
     width: 0.035,
     pieces: [
       [0, CUT[0]],
@@ -140,23 +140,29 @@ function ribbon(guide: Pt[], line: Line, [t0, t1]: [number, number]): Pt[] {
     const d = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
     const tz = (b[0] - a[0]) / d;
     const ty = (b[1] - a[1]) / d;
-    // Inside normal (towards the centre of the bulge, below the tail).
-    // Behind the bulge the inner lines close in on the outer one, so their tails angle up.
-    const off =
+    // Inside normal (towards the centre of the arc, below the tail). Behind the top of the arc the inner lines close in on
+    // the outer one, so their tails angle up; the tails start level with where their arc pieces end.
+    let off =
       line.offset *
-      (1 - TAIL_RISE * smoothstep(Math.max(0, (s - 0.45) / 0.55)));
-    const cz = guide[i][0] - ty * off;
-    const cy = guide[i][1] + tz * off;
+      (1 -
+        TAIL_RISE *
+          smoothstep(Math.max(0, (s - TAIL_RISE_FROM) / (1 - TAIL_RISE_FROM))));
     let w = line.width;
     if (line.offset === 0) {
-      const k = (s - BULGE_AT) / 0.15;
-      w *= 1 + 0.9 * Math.exp(-k * k);
+      // The belly: the outer line swells round the front of the arc, outwards only so the gap to the next line stays.
+      const k = (s - BULGE_AT) / 0.18;
+      const extra = line.width * BELLY * Math.exp(-k * k);
+      w += extra;
+      off -= extra / 2;
     }
-    // Ends: every line's low end and the arc pieces' cut ends run out to a point, the tail pieces start square and the
+    const cz = guide[i][0] - ty * off;
+    const cy = guide[i][1] + tz * off;
+    // Ends: every line's low end and the arc pieces' cut ends run out to a point, the tail pieces start thin and the
     // tails narrow a little and end square.
     const tip = (d: number, l: number) =>
       0.08 + 0.92 * smoothstep(Math.min(1, d / l));
     if (t0 === 0) w *= tip(s, 0.12);
+    else w *= 0.3 + 0.7 * smoothstep(Math.min(1, (s - t0) / 0.15));
     if (t1 < 1) w *= tip(t1 - s, 0.08);
     if (t1 === 1) w *= 0.5 + 0.5 * smoothstep(Math.min(1, (1 - s) / 0.35));
     const nz = -ty;
