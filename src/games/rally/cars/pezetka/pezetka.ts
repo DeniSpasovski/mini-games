@@ -71,8 +71,7 @@ const BRAKES: BrakeSet = {
 
 /**
  * Fiat 126p "Maluch" (`pezetka`, the Polish "pe-zet-ka") - the 652 cc rear-engined city car: a CC BY Sketchfab model kept as it
- * is (own cockpit shell, lamps, bumpers and rim, flat paint), mapped to game parts by material (model.source.json). Test car
- * (release.ts).
+ * is (own cockpit shell, lamps, bumpers and rim, flat paint), mapped to game parts by material (model.source.json).
  */
 export const pezetka: CarDef = {
   id: 'pezetka',

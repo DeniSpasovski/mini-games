@@ -120,8 +120,8 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   light up in the car's beam (`retro`), street lamp lenses glow with `lightNeed` and `world/lamp-pools.ts` lays a soft light pool under
   each lamp. High quality adds bloom (`engine/post-fx.ts`, threshold far above the lit ground, so lenses and reflectors are
   emissive well over it). Not done: high / low beam key.
-- **Post effects (High):** `engine/post-fx.ts`, options **Bloom** (off / soft / strong, `BLOOM_MIX` in `game/settings.ts`) and
-  **Ambient occlusion** (on by default, bloom off). Bloom: the whole picture, no threshold, mixed back at a few percent, worked on an HDR
+- **Post effects (High):** `engine/post-fx.ts`, options **Bloom** (off / soft / strong, default off, `BLOOM_MIX` in `game/settings.ts`) and
+  **Ambient occlusion** (default on). Bloom: the whole picture, no threshold, mixed back at a few percent, worked on an HDR
   estimate of the finished picture, so with it off the image is unchanged. AO: GTAO from the depth at half resolution.
   Test links: `?bloom=<mix>` (0 = off), `?ao=0|1`; console `__rally.post.set({ day: 0.04, ao: true })`.
 - **Sky / tone mapping:** drifting clouds (`cloudCoverage`, `cloudSpeed`); ACES, or `toneMapping: 'agx' | 'neutral'` per map.
@@ -327,19 +327,19 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
 | ----------------- | ------------------ | ----- | --------------------------------------------------------------------------------------------------------------------- |
 | `skoda_rally`     | Skoda Rally        | AWD   | Rally2-class hatch from a CC BY Fabia R5 model, own livery                                                            |
 | `bimmer_m3`       | Bimmer M3          | RWD   | lowered E46 coupe from a CC BY print model, own livery                                                                |
-| `bimmer_gt2`      | Bimmer GT2         | RWD   | wide-body E92 GT2 racer from a CC BY Sketchfab model, clean livery (test only)                                        |
-| `subie_22b`       | Subaru WRX STI 22B | AWD   | 1998 22B coupe from a CC BY Sketchfab model, crescent / stars graphic                                       |
+| `bimmer_gt2`      | Bimmer GT2         | RWD   | wide-body E92 GT2 racer from a CC BY Sketchfab model, clean livery                                                    |
+| `subie_22b`       | Subaru WRX STI 22B | AWD   | 1998 22B coupe from a CC BY Sketchfab model, crescent / stars graphic                                                 |
 | `zastava_101`     | Zastava 101        | FWD   | stock "Stojadin", body hand-built from dimensions and a blueprint                                                     |
-| `fiesta`          | Fiesta WRC         | AWD   | World Rally Car from a CC BY model with its cockpit, own rim and livery, test car                                     |
-| `citroen_c4`      | Citroen C4 WRC     | AWD   | 2007 World Rally Car from a CC BY model with its cockpit, own rim and livery, test car                                |
-| `lancer_evo_6`    | Lancer EVO VI      | AWD   | 1999-style Lancer from a CC BY model with its cockpit, own rim and livery, test car                                   |
+| `fiesta`          | Fiesta WRC         | AWD   | World Rally Car from a CC BY model with its cockpit, own rim and livery                                               |
+| `citroen_c4`      | Citroen C4 WRC     | AWD   | 2007 World Rally Car from a CC BY model with its cockpit, own rim and livery                                          |
+| `lancer_evo_6`    | Lancer EVO VI      | AWD   | 1999-style Lancer from a CC BY model with its cockpit, own rim and livery                                             |
 | `ford_gt3`        | Ford Mustang GT3   | RWD   | 2024 GT3 racer from a CC BY model kept as is (own cockpit, lamps, rim), flat dark blue paint                          |
 | `merc_190`        | Mercedes 190E      | RWD   | 2.5-16 Evolution saloon from a CC BY model kept as is (own cockpit, lamps, rim), badges removed, flat dark grey paint |
 | `peugeot_206`     | Peugeot 206        | FWD   | tuned widebody 206 from a CC BY model kept as is (own cockpit, lamps, rim), flat paint                                |
 | `audi_rs6`        | Audi RS6           | AWD   | C8 RS6 Avant from a CC BY model kept as is (own cockpit, lamps, rim), flat grey paint                                 |
 | `porsche_911_930` | Porsche 911 (930)  | RWD   | 1975 911 Turbo from a CC BY model kept as is (own lamps, rim, no interior), flat yellow paint, test car               |
 | `subie_wrx_sti`   | Subaru WRX STI     | AWD   | 2019 STI saloon from a CC BY model kept as is (own cockpit, lamps, rim), flat blue paint, released                    |
-| `pezetka`         | Fiat 126p          | RWD   | 1970s rear-engined city car from a CC BY model kept as is (own cockpit, lamps, rim), blue-grey paint                 |
+| `pezetka`         | Fiat 126p          | RWD   | 1970s rear-engined city car from a CC BY model kept as is (own cockpit, lamps, rim), blue-grey paint                  |
 
 - A car is `cars/<car>/<car>.ts` (a `CarDef`: physics + model + sound) with its README. A GLB in `public/models/cars/` replaces the
   car's own body (`cars/shared/car-gltf.ts`; credits in `public/models/CREDITS.md`). Imports: rally-car-import skill.

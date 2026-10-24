@@ -32,6 +32,7 @@
   (git-ignored); never copy or ship it. Trace only from OpenStreetMap-compatible imagery (`trace_route.py` on a route
   screenshot = waypoints only) and disclose any tracing in the map README + `THIRD-PARTY.md`.
 - **No trademarks:** no manufacturer, sponsor, series or agency logos / wordmarks in liveries, signs or decals; generic names.
+  The one exception is the 22B's crescent-and-stars side graphic (shapes only, no lettering, at the owner's request; see THIRD-PARTY.md).
   Car makes / models only identify the car (trademark note in `THIRD-PARTY.md`).
 - **No secrets or personal data** in code, docs or history. Publish from this folder only, never the parent monorepo.
 - A source or licence change updates `DETAILS.md`, the README, `THIRD-PARTY.md`, `public/models/CREDITS.md` and the in-game

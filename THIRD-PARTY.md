@@ -181,7 +181,7 @@ Papers and articles read to tune the rally tyre types, tyre temperature, suspens
 Skoda, Fabia, BMW, M3, Ford, Fiesta, Subaru, Impreza, WRX, STI, Citroen, C4, Mitsubishi, Lancer Evolution, Zastava and other make or model names are trademarks of their owners and appear only to
 identify the car that inspired a model. The liveries use no manufacturer, sponsor or series logos. Emergency vehicles
 in the Jackie map carry only generic lettering ("POLICE", "FIRE DEPT", "AMBULANCE") and no agency names, logos or badges; the two fire engine models carry none.
-The Subaru WRX STI 22B (test car) carries a crescent-and-stars side graphic redrawn as shapes after a reference picture of
+The Subaru WRX STI 22B carries a crescent-and-stars side graphic redrawn as shapes after a reference picture of
 the manufacturer's motorsport emblem, at the owner's request; it is not the picture and has no lettering, but it is the one
 exception to "no manufacturer logos" - `cars/subie-22b/livery.ts` drops it.
 The signs on the Ajvatovci are approved to be used by owners.

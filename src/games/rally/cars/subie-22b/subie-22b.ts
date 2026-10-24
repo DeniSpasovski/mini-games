@@ -66,7 +66,7 @@ const BRAKES: BrakeSet = {
 /**
  * Subaru WRX STI 22B (`subie_22b`) - a 1998 blue coupe with the side star livery: 2.2 l turbo flat-four, five-speed box,
  * permanent AWD, 1,270 kg. Body: a CC BY Sketchfab 22B, split by material and converted by stl-to-glb.mjs (settings:
- * model.source.json); the raw download stays out of git. Test only (release.ts).
+ * model.source.json); the raw download stays out of git.
  */
 export const subie22b: CarDef = {
   id: 'subie_22b',
@@ -207,7 +207,7 @@ export const subie22b: CarDef = {
       topIn: { front: 0.2, rear: 0.2 },
       driven: ['front', 'rear'],
     },
-    // Fallback body if the GLB can't load: profile.ts. Not a city street car while the 22B is a test car.
+    // Fallback body if the GLB can't load: profile.ts.
     profile,
     // Rally plate on the front door (front = +z), over the crescent graphic.
     doorBadge: { z: 0.22, y: 0.64 },
