@@ -67,7 +67,7 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
   there), starts on the first click / key (autoplay rule), shows "now playing" bottom right, pauses with the tab. Main-menu
   Options slider `musicVolume` (0 = off, 100% plays at half of full volume); `?mute=1` silences it. Add a track = file + `MENU_TRACKS` row (+ `THIRD-PARTY.md`).
 - **Pause** (`Esc`): resume, restart, free-drive pad <-> stage, options, main menu.
-- **Stage times** (welcome menu): stage list on the left (↑↓), the selected stage's saved runs over its map view on the right; current versions first, older ones dimmed below.
+- **Stage times** (welcome menu): stage list on the left (↑↓), the selected stage's saved runs over its map view in a card docked beside the list (`.menu-times-card`); current versions first, older ones dimmed below.
 - **About:** every external source per map (`MapDef.sources` + its stages' `StageDef.sources`) and car (`CarDef.sources`), menu music credits, plus `version` from `game.json`.
 
 **On a stage** (`game/stage.ts`):
@@ -201,6 +201,16 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   (`world/terrain-gen.ts`, `real-data.ts`). Grass moisture: greener in hollows and along water, straw on ridges and steep
   slopes - a baked map texture (`world/ground-moisture.ts`, `World.moisture`) + the slope in the terrain shader;
   `groundTint.moisture` sets the strength (0 = off).
+- **Field crops** (`landcover.fields.crops`, Ajvatovci): each field parcel's palette entry names the crop standing on it per
+  season, and scatter rules with `crop` grow only there (`TerrainGenerator.cropAt`, not within 0.8 m of a parcel edge).
+  Wheat is green and short in spring, ripe in summer and gone in autumn (stubble tint): 1 m card patches to 90 m, at
+  least 2 m clear of the stage road. Corn (assets `corn`, `corn_row`, dry versions; no stage grows it yet): rows 0.75 m
+  apart along the strips (`rows.fields`), plant cards near the roads, 3 m row cards further in. The models are
+  two CC BY Sketchfab models (`THIRD-PARTY.md`) baked by `scripts/crops/bake-crops.py` into `crop-models.data.ts`; the
+  cards are rendered from them once per page (`engine/crops.ts` `bakeCropCards`), 4 variants each with their own mix of
+  plant heights (stacked in one texture; the asset variant picks one) so the field tops are uneven. Near detail
+  is fixed by road distance, never by camera distance (catalog `nearRoad`, `nearBoost`): grass is denser within 14 m of a road
+  and blade strips within 3 m, so nothing swaps or fills in as the car drives on.
 - **Horizon backdrop** (`horizon`, real maps): the land ~25 km around the map (terrain + land cover from Terrarium /
   WorldCover, no roads or buildings), baked by `scripts/realmap/horizon.py` into `<map>/horizon.json`, drawn behind
   everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain). A grid may be
@@ -455,7 +465,8 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
 - Never clone geometry or materials per instance: everything goes through `getAsset(id, variant, lod)` -> `InstancedMesh`,
   materials from `engine/materials.ts`.
 - Streaming stays time-sliced: terrain (`terrain.update(pos, budgetMs)`), the 1 m heightfield (`Heightfield.prepare`) and
-  instance re-bucketing (`InstanceStreamer`, ~2 ms per frame). Whole-map work uses `world.analytic`, not the 1 m cache.
+  instance re-bucketing (`InstanceStreamer`; in game the time the frame rate leaves over, 1-8 ms per frame,
+  `RallyGame.streamBudget`). Whole-map work uses `world.analytic`, not the 1 m cache.
 - Whole-map set-up loops use a spatial grid, never all-against-all (a town map has ~900 roads, ~2000 way ends).
 
 **Draw calls**
@@ -582,7 +593,7 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   sits unlabelled at 0%. The car's GLB starts downloading before the map data (`preloadCarModel`).
 - Car select: a "Loading model" spinner (`Showroom.loadCue`) shows while a car's GLB downloads (the car stays hidden until then).
 - Car select: All / AWD / RWD / FWD filter row on top (`driveGroup` from the car's `drivetrain.frontSplit`, not remembered); up from the first car or the pad focuses it, left / right switch.
-- Car select (screens >= 800 px wide): the description / stats / livery sit in a wide card right of the list (`.menu-side-card`, `MainMenu.sideCard`, shared with Select stage); the showroom car keeps its shared place and size (`CAR_SHIFT`, `CAR_DIST_SCALE`) and may run behind the card. Narrower screens (< 800 px) lay the same card over the map above the buttons.
+- Car select (screens >= 800 px wide): the description / stats / livery sit in a card docked beside the list (`.menu-side-card`, `MainMenu.sideCard`, shared with Select stage; Stage times uses the same placement). The showroom car keeps its shared place and size (`CAR_SHIFT`, `CAR_DIST_SCALE`) and may run behind the card; its **Details** tab (`MainMenu.minimizer`, class `min` on the card, shared with Select stage) minimizes the card to its description (the Stage times card has no tab). Narrower screens (< 800 px) lay the same card over the map above the buttons.
 - Select stage: the stage's description (`StageDef.description`: what the drive is like for the player, no data sources or build details), recommended set-up and a **Time of day** dropdown sit in the same card (phones: under the selected stage), with a **Season** dropdown (spring / summer / autumn, above the time) and the **Month** it is driven in in front. Left / right (or the pad) step the time; the list cards keep the route, tags and best time.
 - Time of day (`game/time-of-day.ts`, the one config): early morning 07:00, mid day 12:00, afternoon 15:30, evening 17:30, night 01:00 (dropdown order) - each is a `?tod=<hours>` hour, so any stage of a map with `environment.timeOfDay` takes any of them. A stage's own default hour stays exact on its nearest slot (Jackie opens on "Early morning · 08:00") and a stage can move a slot (`StageDef.slotHours`: Vodno's early morning is 08:00); a pick applies to every stage until changed and is not remembered; the menu mirrors it into the URL (`tod=`), a stage without `timeOfDay` shows no dropdown. Under it the card shows the clock time and the air / road temperature at that hour (`StageDef.temps`, the numbers the tyres run with, see PHYSICS.md). Times are saved per stage, not per time of day.
 - Season (`season.ts`): spring / summer / autumn, the one the stage opens in (`StageDef.season`, else the map's `environment.season`, default summer; `stageSeason`) or `?season=`; the stage screen's pick is mirrored into the URL (`season=`, none = the stage's own) and shown on every stage including the test map. It sets the tree leaf colours (`trees/seasons.ts`), the ground (`environment.groundTints`, below) and the stage's air / road temperatures (`StageDef.temps`, "Temperatures" below). The stage card lists the **Month** the stage is driven in that season (`environment.months`, default April / July / October: e.g. Ajvatovci spring April, Jackie spring May).

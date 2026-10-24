@@ -930,12 +930,13 @@ html.touch .menu-btn.big kbd {
   }
 }
 
-/* Select stage / Select car: the description card sits right of the list (wide screens). */
+/* Select stage / Select car / Stage times: the detail card docks beside the list, left aligned to the slab (wide
+   screens); the map / car stays full size behind it and the card can be minimized. */
 .menu-side-card {
   position: absolute;
   z-index: 41;
   top: 40px;
-  right: 28px;
+  left: 540px;
   width: min(360px, calc(100% - 540px));
   max-height: calc(100% - 64px);
   box-sizing: border-box;
@@ -964,6 +965,51 @@ html.touch .menu-btn.big kbd {
     bottom: 112px;
     width: auto;
     max-height: 40%;
+  }
+}
+/* Minimize: the card shrinks to its description (stage / car), so the map / car behind it shows more. */
+.menu-card-min {
+  display: block;
+  margin: -8px -12px 4px auto;
+  padding: 6px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-2);
+  font: italic 700 13px/1 var(--ui-font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.menu-card-min::after {
+  content: ' ▴';
+}
+.menu-card-min:hover,
+.menu-card-min:focus-visible {
+  color: var(--ui-text);
+}
+.menu-card-min:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: -2px;
+}
+.menu-side-card .menu-card-min + p {
+  margin-top: 0;
+}
+.menu-side-card.min > :not(.menu-card-min, p) {
+  display: none;
+}
+.menu-side-card.min p:last-child {
+  margin-bottom: 0;
+}
+.menu-side-card.min .menu-card-min {
+  color: var(--ui-text);
+}
+.menu-side-card.min .menu-card-min::after {
+  content: ' ▾';
+}
+@media (max-width: 799px) {
+  /* Phones: the card sits over the view above the buttons and stays open. */
+  .menu-card-min {
+    display: none;
   }
 }
 /* Select stage: Season and Time of day dropdowns left, month / time / temperature right (wraps below on narrow cards). */
@@ -1049,11 +1095,12 @@ html.touch .menu-btn.big kbd {
   outline-offset: 1px;
 }
 
-/* Stage times: the saved runs float over the map view, right of the stage list. */
+/* Stage times: the saved runs dock beside the stage list, over the map view (same place as the description card). */
 .menu-times-card {
   position: absolute;
+  z-index: 41;
   top: 40px;
-  right: 28px;
+  left: 540px;
   max-height: calc(100% - 64px);
   width: min(560px, calc(100% - 540px));
   box-sizing: border-box;
@@ -1071,7 +1118,7 @@ html.touch .menu-btn.big kbd {
   letter-spacing: 0.01em;
   text-transform: uppercase;
 }
-@media (max-width: 760px) {
+@media (max-width: 799px) {
   .menu-times-card {
     top: auto !important;
     left: 16px;

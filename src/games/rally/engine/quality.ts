@@ -32,6 +32,8 @@ export interface QualitySettings {
   forestDistance: number;
   /** Multiplies detail-layer (grass) density, 0 disables it. */
   detailDensity: number;
+  /** Grass density near the camera (x the map's, up to catalog `NEAR_GRASS`), back to 1x by world/instance-streamer.ts `NEAR_GRASS_FADE`. */
+  grassNear: number;
   /** Max dust particles alive. */
   particles: number;
 }
@@ -53,6 +55,7 @@ export const QUALITY: Record<QualityName, QualitySettings> = {
     treeLodScale: 0.35,
     forestDistance: 400,
     detailDensity: 0.35,
+    grassNear: 1,
     particles: 600,
   },
   medium: {
@@ -69,6 +72,7 @@ export const QUALITY: Record<QualityName, QualitySettings> = {
     treeLodScale: 0.5,
     forestDistance: 500,
     detailDensity: 0.7,
+    grassNear: 2,
     particles: 1200,
   },
   high: {
@@ -85,6 +89,7 @@ export const QUALITY: Record<QualityName, QualitySettings> = {
     treeLodScale: 1.3,
     forestDistance: 600,
     detailDensity: 1,
+    grassNear: 3,
     particles: 2000,
   },
 };

@@ -75,10 +75,10 @@ export const ajvatovciInfo: MapInfo = {
       highlightTint: { color: '#ffd08a', amount: 0.12 },
       vignette: 0.15,
     },
-    // Spring: fresh green meadows and young crops, golden wheat parcels.
-    groundTint: { grass: '#65952f', amount: 0.8, crop: '#c49c36' },
+    // Summer: green meadows, wheat parcels the dull straw of the ground between the stalks (not yellow).
+    groundTint: { grass: '#65952f', amount: 0.8, crop: '#b38a4c' },
     groundTints: {
-      spring: { grass: '#5fae2e', amount: 0.85, crop: '#7fa63c', variety: 1 },
+      spring: { grass: '#5fae2e', amount: 0.85, crop: '#6c9550', variety: 1 },
       autumn: { grass: '#847636', amount: 0.85, crop: '#7e5f2e' },
     },
   },

@@ -148,6 +148,19 @@ const NPC_CARS: SourceLink[] = [
   },
 ];
 
+const PLANTS: SourceLink[] = [
+  {
+    label: 'Realistic Wheat (Graphetta, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/realistic-wheat-50270968690441d3ad9d2a8924c7338b',
+    note: 'wheat fields, green in spring - CC BY 4.0',
+  },
+  {
+    label: 'Corn! Corn! Corn! (Tiia Tuulia, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/corn-corn-corn-10187bc37c9e42ef8770b28452ee7cd3',
+    note: 'corn fields, dry in autumn - CC BY 4.0',
+  },
+];
+
 const BUILT_WITH: SourceLink[] = [
   { label: 'three.js', url: 'https://threejs.org/', note: 'rendering, MIT' },
   { label: 'Rsbuild', url: 'https://rsbuild.rs/', note: 'build tooling, MIT' },
@@ -317,6 +330,8 @@ class MainMenu {
   private carIndex: number;
   /** Drivetrain filter on the car screen (not remembered: the menu opens on All). */
   private driveFilter: DriveFilter = 'all';
+  /** The detail card (`.menu-side-card` / `.menu-times-card`) is minimized to its tab, kept while moving between screens. */
+  private cardMin = false;
   private livery: number;
   /** Setup screen choices for one map + car (anything else resets to the stage recommendation, nothing is saved). */
   private pick: {
@@ -627,6 +642,9 @@ class MainMenu {
       ${links(NPC_CARS, '')}
       <h2>People</h2>
       ${links(PEOPLE_CREDITS, '')}
+      <h2>Plants</h2>
+      <p>Trees, bushes and grass are generated in code.</p>
+      ${links(PLANTS, '')}
       <h2>Physics</h2>
       <h3>Tyres</h3>
       ${links(TYRE_RESEARCH, '')}
@@ -871,12 +889,13 @@ class MainMenu {
   }
 
   /**
-   * Description card of Select stage / Select car (`.menu-side-card`): it floats over the map: right of the list with its top
+   * Description card of Select stage / Select car (`.menu-side-card`): it docks beside the list (left aligned, minimizable, the map / car stays full size behind it) with its top
    * level with `align` (the header height depends on the font) on screens >= `SIDE_CARD_MIN_WIDTH` px wide, above the
    * buttons on phones. Always returns true.
    */
   private sideCard(card: HTMLElement, align: HTMLElement): boolean {
     card.classList.add('menu-side-card');
+    card.prepend(this.minimizer(card, 'Details'));
     this.root.append(card);
     // Phones: the card covers the map / car above the buttons (CSS), no alignment needed.
     if (window.innerWidth < SIDE_CARD_MIN_WIDTH) return true;
@@ -886,6 +905,24 @@ class MainMenu {
     const reserve = window.innerHeight < SHORT_SCREEN_HEIGHT ? 24 : 120;
     card.style.maxHeight = `calc(100% - ${top + reserve}px)`;
     return true;
+  }
+
+  /** Tab at the top of a detail card that minimizes it to just the tab (and back), so the map / car behind it shows in full. */
+  private minimizer(card: HTMLElement, label: string): HTMLButtonElement {
+    const b = document.createElement('button');
+    b.className = 'menu-card-min';
+    b.textContent = label;
+    const apply = () => {
+      card.classList.toggle('min', this.cardMin);
+      b.setAttribute('aria-expanded', String(!this.cardMin));
+      b.title = this.cardMin ? 'Show details' : 'Minimize details';
+    };
+    apply();
+    b.addEventListener('click', () => {
+      this.cardMin = !this.cardMin;
+      apply();
+    });
+    return b;
   }
 
   /** Top of `el` inside the menu as if the panel were not scrolled (it keeps its scroll while the screen is rebuilt). */

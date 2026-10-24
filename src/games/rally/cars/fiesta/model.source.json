@@ -6,7 +6,7 @@
   "scale": 1.0,
   "offset": [0, 0.131, -0.062],
   "groundAtMin": false,
-  "targetTriangles": 75000,
+  "targetTriangles": 76000,
   "creaseDeg": 40,
   "wheels": {
     "$comment": "the wheels are separate nodes (dropped below) - nothing to cut",
@@ -33,10 +33,15 @@
     }
   },
   "gltf": {
-    "$comment": "material / node -> part; first matching rule wins. Wheels, discs, calipers, light-glow polygons, plate, spare wheel and dash display bits are dropped (the game builds its own wheels / brakes).",
+    "$comment": "material / node -> part; first matching rule wins. Wheels, discs, calipers, light-glow polygons, tail lamp trays, plate, spare wheel and dash display bits are dropped (the game builds its own wheels / brakes).",
     "drop": [
       "EXT_PLATE",
-      "FIESTA17_DYNAMIC",
+      "FARI_FIESTA17_DYNAMIC_0",
+      "DAYLIGHTS_FIESTA17_DYNAMIC_0",
+      "FLASH_FIESTA17_DYNAMIC_0",
+      "STOPFRENI_FIESTA17_DYNAMIC_0",
+      "STOPFRENI2_FIESTA17_DYNAMIC_0",
+      "POSIZIONI POST_FIESTA17_DYNAMIC_0",
       "FIESTA17_LCD",
       "FIESTA17_SPARETRAP",
       "FIESTA17_SPAREWHEEL",
@@ -67,6 +72,16 @@
       "e_lightglass_lb_SUB1_WCWINDOW_0"
     ],
     "parts": [
+      {
+        "$comment": "the front head lamp housings (the source's tray with the projector bores and the two boxes behind each lens): the model's own lamp insides, dark metal. The rear half of the same mesh (tail lamp trays) stays dropped",
+        "node": "fiesta17_body_sub03_FIESTA17_DYNAMIC_0",
+        "z": [0.5, 3],
+        "material": "lamphousing"
+      },
+      {
+        "node": "fiesta17_body_sub03_FIESTA17_DYNAMIC_0",
+        "material": "logo"
+      },
       {
         "node": "e_lightglass_lf_WCWINDOW_0",
         "material": "lenscover"
@@ -492,7 +507,8 @@
       "wingblue",
       "winggreen",
       "mirror",
-      "cage"
+      "cage",
+      "lamphousing"
     ],
     "wrap": {
       "headlight": "corner",

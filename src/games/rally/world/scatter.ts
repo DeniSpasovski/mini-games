@@ -33,6 +33,10 @@ export interface ScatterContext {
   stageId?: string;
   /** `MapDef.treeSetback`: the verge the trees keep clear along the stage road. */
   treeSetback?: MapDef['treeSetback'];
+  /** The crop standing at a point (rules with `crop`; world/terrain-gen.ts `cropAt`). */
+  cropAt?: (x: number, z: number) => string | undefined;
+  /** Direction of the field strips (rad, `landcover.fields.angle`): `rows.fields` rules run along it. */
+  fieldAngle?: number;
 }
 
 /** Distance from the road edge (m) the trees keep clear at `along`: the largest of the setbacks there, eased at their ends. */
@@ -90,6 +94,10 @@ export interface ScatterInstance {
   sz?: number;
   /** Drawn only within this distance (m) of the camera (a service lot far from the start: `ServiceLot.showWithin`). */
   showWithin?: number;
+  /** Detail: within its asset's `nearRoad` of a road, so drawn with the near LOD (catalog `nearRoad`). */
+  near?: boolean;
+  /** Detail: the extra grass near the roads (catalog `nearBoost`), thinned by the quality preset. */
+  extra?: boolean;
 }
 
 export interface ScatterChunk {
@@ -99,20 +107,38 @@ export interface ScatterChunk {
   breakables: ScatterInstance[];
 }
 
+/**
+ * Detail assets drawn no further than this (m, last LOD) are generated per chunk only near the camera (`nearDetail`):
+ * dense short-range plants (corn rows) would otherwise be built for every grass chunk out to the grass range.
+ */
+export const NEAR_DETAIL_MAX = 40;
+
+/** Boosted grass (catalog `nearBoost`) is denser this close to a road edge (m). */
+export const NEAR_BOOST_ROAD = 14;
+
+const reachOf = (asset: string) => {
+  const lods = getAssetMeta(asset).lods;
+  return lods[lods.length - 1].maxDistance;
+};
+
 export class ScatterField {
   private chunks = new Map<number, ScatterChunk>();
   private details = new Map<number, ScatterInstance[]>();
+  private nearDetails = new Map<number, ScatterInstance[]>();
   private fixed = new Map<number, ScatterInstance[]>();
   /** Colliders of things that are drawn elsewhere (mesh buildings), registered in every chunk they overlap. */
   private fixedColliders = new Map<number, StaticCollider[]>();
   private maskNoise: Noise2D;
   private rules: ScatterRule[];
   private detailRules: ScatterRule[];
+  private nearRules: ScatterRule[];
   private q = newRoadQuery();
   private pq = newPathQuery();
   private n = new Vector3();
   /** Per rule: zone -> allowed (rules with `cover`). */
   private coverMasks = new Map<ScatterRule, Uint8Array>();
+  /** The extra rules of boosted grass (catalog `nearBoost`). */
+  private extraRules = new WeakSet<ScatterRule>();
   /** Placement index of the next hand-placed / road-side tree. */
   private fixedTrees = 0;
 
@@ -129,9 +155,25 @@ export class ScatterField {
   ) {
     this.maskNoise = new Noise2D(seed + 7);
     this.rules = scatter.filter((r) => !r.detail);
-    this.detailRules = scatter.filter((r) => r.detail);
+    // Grass with a `nearBoost` is placed that much denser within NEAR_BOOST_ROAD of the roads (fixed, so nothing
+    // thins or fills in as the car drives on); the streamer keeps the quality preset's share of the extra.
+    const detail = scatter
+      .filter((r) => r.detail)
+      .flatMap((r) => {
+        const boost = getAssetMeta(r.asset).nearBoost ?? 1;
+        if (boost === 1) return [r];
+        const extra = {
+          ...r,
+          density: r.density * (boost - 1),
+          maxRoadDist: Math.min(r.maxRoadDist ?? Infinity, NEAR_BOOST_ROAD),
+        };
+        this.extraRules.add(extra);
+        return [r, extra];
+      });
+    this.detailRules = detail.filter((r) => reachOf(r.asset) > NEAR_DETAIL_MAX);
+    this.nearRules = detail.filter((r) => reachOf(r.asset) <= NEAR_DETAIL_MAX);
     if (ctx.landcover)
-      for (const r of scatter)
+      for (const r of [...scatter, ...detail])
         if (r.cover) this.coverMasks.set(r, ctx.landcover.zoneMask(r.cover));
   }
 
@@ -250,15 +292,32 @@ export class ScatterField {
     return d;
   }
 
-  /** Drop detail data far from (x,z) to bound memory on large maps. */
-  pruneDetail(x: number, z: number, radius: number): void {
-    const cs = this.chunkSize;
-    for (const k of this.details.keys()) {
-      const cx = Math.floor(k / 65536) - 32768;
-      const cz = (k % 65536) - 32768;
-      if (Math.hypot((cx + 0.5) * cs - x, (cz + 0.5) * cs - z) > radius)
-        this.details.delete(k);
+  /** The short-range detail rules' instances (`NEAR_DETAIL_MAX`); only asked for near the camera. */
+  nearDetail(cx: number, cz: number): ScatterInstance[] {
+    const k = key(cx, cz);
+    let d = this.nearDetails.get(k);
+    if (!d) {
+      d = this.nearRules.length
+        ? this.generate(cx, cz, this.nearRules, 2000)
+        : [];
+      this.nearDetails.set(k, d);
     }
+    return d;
+  }
+
+  /** Drop detail data far from (x,z) to bound memory on large maps (the near layer past `nearRadius`). */
+  pruneDetail(x: number, z: number, radius: number, nearRadius = radius): void {
+    const cs = this.chunkSize;
+    for (const [map, r] of [
+      [this.details, radius],
+      [this.nearDetails, nearRadius],
+    ] as const)
+      for (const k of map.keys()) {
+        const cx = Math.floor(k / 65536) - 32768;
+        const cz = (k % 65536) - 32768;
+        if (Math.hypot((cx + 0.5) * cs - x, (cz + 0.5) * cs - z) > r)
+          map.delete(k);
+      }
   }
 
   private generate(
@@ -267,8 +326,8 @@ export class ScatterField {
     rules: ScatterRule[],
     salt: number,
   ): ScatterInstance[] {
-    // Detail (salt 1000) is only generated near the camera -> use the cached heightfield.
-    const ground = salt === 1000 ? this.near : this.hf;
+    // Detail (salt 1000, near detail 2000) is only generated near the camera -> use the cached heightfield.
+    const ground = salt >= 1000 ? this.near : this.hf;
     const out: ScatterInstance[] = [];
     const cs = this.chunkSize;
     const area = cs * cs;
@@ -296,6 +355,8 @@ export class ScatterField {
       const solid = assetSolid(rule.asset);
       // Grass / plants never grow on other roads either (only up to their edge).
       const minPath = rule.minPathDist ?? (solid ? 1.5 : 0.4);
+      const nearRoad = tree ? undefined : getAssetMeta(rule.asset).nearRoad;
+      const extra = this.extraRules.has(rule);
       for (let i = 0; i < count; i++) {
         const x = pts ? pts[i * 2] : x0 + rng.next() * cs;
         const z = pts ? pts[i * 2 + 1] : z0 + rng.next() * cs;
@@ -303,12 +364,24 @@ export class ScatterField {
           const zone = lc.zoneAt(x, z);
           if (zone < 0 || !coverMask[zone]) continue;
         }
+        if (rule.crop && this.ctx.cropAt?.(x, z) !== rule.crop) continue;
         const variant =
           rule.asset === 'spectator'
             ? fanVariant(rng.next(), undefined)
             : Math.floor(rng.next() * variants);
         const scale = rng.range(rule.scale[0], rule.scale[1]);
-        const rotY = rng.next() * Math.PI * 2;
+        // Field rows face along the strips (either way round, a little off line); `face` rows exactly along their
+        // zone's rows (vineyard segments join up).
+        const rotY = rule.rows?.fields
+          ? -(this.ctx.fieldAngle ?? 0) +
+            (rng.next() < 0.5 ? 0 : Math.PI) +
+            (rng.next() - 0.5) * 0.25
+          : rule.rows?.face && this.ctx.landcover
+            ? -(
+                this.ctx.landcover.def.zones[this.ctx.landcover.zoneAt(x, z)]
+                  ?.angle ?? 0
+              ) + (rng.next() < 0.5 ? 0 : Math.PI)
+            : rng.next() * Math.PI * 2;
         const tiltA = rng.next() * Math.PI * 2;
         const tiltM = ((rule.tilt ?? 0) * Math.PI) / 180;
         if (rule.mask) {
@@ -363,6 +436,8 @@ export class ScatterField {
           tiltZ,
         };
         if (tree) this.poseTree(inst, hash3(cx, cz, ri * 65536 + i, 0x7ee5));
+        if (nearRoad !== undefined && rd < nearRoad) inst.near = true;
+        if (extra) inst.extra = true;
         out.push(inst);
       }
     }
@@ -442,7 +517,9 @@ export class ScatterField {
     const jit = rows.jitter ?? 0.3;
     const keep = rows.keep ?? 0.93;
     for (const zone of zones) {
-      const a = lc.def.zones[zone].angle ?? 0;
+      const a = rows.fields
+        ? (this.ctx.fieldAngle ?? 0)
+        : (lc.def.zones[zone].angle ?? 0);
       const ca = Math.cos(a);
       const sa = Math.sin(a);
       // Chunk corners in the (along, across) lattice frame.

@@ -3,13 +3,13 @@ import { ajvatovciMap } from '../../src/games/rally/maps/ajvatovci/map';
 import { World } from '../../src/games/rally/world/world';
 
 /**
- * Ajvatovci Hill round 2 (2026-10-04): the traced orchard, the canal bridge, power lines, A2 barriers,
+ * Ajvatovci Hill round 2 (2026-10-04): the traced vineyard (was an orchard), the canal bridge, power lines, A2 barriers,
  * village dressing.
  */
 const world = new World(ajvatovciMap);
 
 describe('ajvatovci', () => {
-  test('the dense orchard south of the farmland road is orchard land cover (~60 ha)', () => {
+  test('the big vineyard south of the farmland road (mapped as an orchard) + two small plots are vineyard (~60 ha)', () => {
     const lc = world.gen.landcover!;
     const d = lc.def;
     // Only the stage area (the land cover extent before the Ilinden / Marino background was added).
@@ -20,10 +20,10 @@ describe('ajvatovci', () => {
         const x = d.originX + (i + 0.5) * d.cell;
         const z = d.originZ + (j + 0.5) * d.cell;
         if (x < x0 || x > x1 || z < z0 || z > z1) continue;
-        if (lc.coverAt(x, z) === 'orchard') cells++;
+        if (lc.coverAt(x, z) === 'vineyard') cells++;
       }
     const ha = (cells * d.cell * d.cell) / 1e4;
-    console.info(`[ajvatovci] orchard ${ha.toFixed(0)} ha`);
+    console.info(`[ajvatovci] vineyard ${ha.toFixed(0)} ha`);
     expect(ha).toBeGreaterThan(50);
     expect(ha).toBeLessThan(90);
   });
