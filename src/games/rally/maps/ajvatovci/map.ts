@@ -5,6 +5,7 @@ import type {
   LandcoverDef,
   MapDef,
   PathDef,
+  ScatterRule,
 } from '../shared/types';
 import data from './data.json';
 import horizon from './horizon.json';
@@ -46,6 +47,16 @@ const WILD = [
   'cemetery',
   'industrial',
   'urban',
+];
+
+/**
+ * Grass detail by season: fresh spring grass in spring and summer; in autumn the olive meadow grass and a good share of
+ * dry stalks (October on the plain: green low down, straw on top).
+ */
+const seasonalGrass = (r: ScatterRule): ScatterRule[] => [
+  { ...r, season: ['spring', 'summer'] },
+  { ...r, asset: 'grass_tuft', density: r.density * 0.65, season: ['autumn'] },
+  { ...r, asset: 'dry_grass', density: r.density * 0.35, season: ['autumn'] },
 ];
 
 export const ajvatovciMap: MapDef = {
@@ -387,7 +398,7 @@ export const ajvatovciMap: MapDef = {
       sink: 0.35,
     },
     // Detail: fresh spring grass everywhere, a few of last year's dry stalks in the wild.
-    {
+    ...seasonalGrass({
       asset: 'spring_grass',
       cover: WILD,
       density: 280,
@@ -395,7 +406,7 @@ export const ajvatovciMap: MapDef = {
       minRoadDist: 1,
       maxSlope: 0.5,
       scale: [0.7, 1.4],
-    },
+    }),
     {
       asset: 'dry_grass',
       cover: WILD,
@@ -405,22 +416,22 @@ export const ajvatovciMap: MapDef = {
       maxSlope: 0.5,
       scale: [0.7, 1.3],
     },
-    {
+    ...seasonalGrass({
       asset: 'spring_grass',
       cover: ['crop'],
       density: 45,
       detail: true,
       minRoadDist: 1,
       scale: [0.6, 1.1],
-    },
-    {
+    }),
+    ...seasonalGrass({
       asset: 'spring_grass',
       cover: ['orchard', 'trees', 'water', 'urban'],
       density: 160,
       detail: true,
       minRoadDist: 1,
       scale: [0.7, 1.3],
-    },
+    }),
     // Vineyards: 6 m row segments 2.4 m apart along each parcel's rows, the look of the map's season.
     ...(
       [
@@ -438,14 +449,14 @@ export const ajvatovciMap: MapDef = {
       minPathDist: 1.5,
       scale: [0.97, 1.03] as [number, number],
     })),
-    {
+    ...seasonalGrass({
       asset: 'spring_grass',
       cover: ['vineyard'],
       density: 90,
       detail: true,
       minRoadDist: 1,
       scale: [0.6, 1.1],
-    },
+    }),
     // Field crops (landcover.fields.crops): wheat. 1 m card patches along the road edge, 3 x 2 m blocks (one instance
     // each) further into the fields.
     ...(['wheat', 'green_wheat'] as const).flatMap((crop) => [

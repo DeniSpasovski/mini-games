@@ -474,6 +474,16 @@ float wsCanopyShadow( vec3 wp, float cover ) {
 	}
 	return 1.0 - str * fade * d;
 }
+/** Where tree crowns stand over the ground (0..1; G of the baked canopy textures: under the crowns, not their shadow): leaf litter. */
+float wsCanopyCover( vec2 xz ) {
+	float d = texture2D( wsCanopy, ( xz - wsCanopyMap.xy ) * wsCanopyMap.zw ).g;
+	if ( wsCanopyLocalMap.z > 0.0 ) {
+		vec2 lu = ( xz - wsCanopyLocalMap.xy ) * wsCanopyLocalMap.zw;
+		float lw = 1.0 - smoothstep( 0.38, 0.48, max( abs( lu.x - 0.5 ), abs( lu.y - 0.5 ) ) );
+		if ( lw > 0.0 ) d = mix( d, texture2D( wsCanopyLocal, lu ).g, lw );
+	}
+	return d;
+}
 `;
 
 /**
