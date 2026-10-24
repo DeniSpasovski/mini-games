@@ -200,6 +200,8 @@
       patches: 4,
       dust: 0.1,
       age: 0.1,
+      // a little lighter than fresh black asphalt, same texture
+      gain: 1.15,
       lines: [
         { u: 0.045, w: 10, color: '#d9b43a' },
         { u: 0.955, w: 10, color: WHITE },
