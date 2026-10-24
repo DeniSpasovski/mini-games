@@ -200,7 +200,8 @@
       exposed: 0.35,
       cracks: 8,
       grain: 0.6,
-      patches: 4,
+      patches: 0,
+      joints: 0,
       dust: 0.1,
       age: 0.1,
       // a worn, sun-bleached mid grey (Deni's references: light lanes, darker shoulders, long sealed seams)
