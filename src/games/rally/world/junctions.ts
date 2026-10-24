@@ -60,15 +60,73 @@ const OVERSHOOT = 1;
 const THROUGH_TURN = (30 * Math.PI) / 180;
 const THROUGH_ARM = 15;
 const THROUGH_STRAIGHT = (25 * Math.PI) / 180;
-/** Length of the stage road's arm a straight-on road runs on down before it lies on that arm's line (m). */
-const THROUGH_RUN = 24;
-const THROUGH_EDGE = 0.5;
+/** A straight-on road eases from the line of the stage road's arm onto its own line over this many metres (m). */
+const THROUGH_BLEND = 90;
 /** A side road joining within this angle of the stage road's line is a merge, not a mouth (radians). */
 export const MERGE_ANGLE = (35 * Math.PI) / 180;
 /** Length over which a merging road bends onto the stage road's line (m). */
 const MERGE_RUN = 12;
 /** Way ends closer than this are one node of the street network (m). */
 const SHARED_END = 2.5;
+
+/**
+ * A road the stage road turns off (`Junction.through`), rebuilt from its end: it carries on the line of the stage road's
+ * arm before the junction and eases onto its own line over THROUGH_BLEND m, starting a few metres back down that arm
+ * under the stage ribbon. The real road reads as the one running straight on, the stage road as the one turning off
+ * (the map's stage line cuts the corner, so the way's own end sat metres off the arm's line, a jog at the junction).
+ */
+function straightOn(
+  pts: number[],
+  atEnd: boolean,
+  road: Road,
+  along: number,
+  ex: number,
+  ez: number,
+): number[] {
+  const n = pts.length / 2;
+  // The way's points from its end outward.
+  const out: [number, number][] = [];
+  for (let i = 0; i < n; i++) {
+    const k = atEnd ? n - 1 - i : i;
+    out.push([pts[k * 2], pts[k * 2 + 1]]);
+  }
+  const cum = [0];
+  for (let i = 1; i < n; i++)
+    cum.push(
+      cum[i - 1] +
+        Math.hypot(out[i][0] - out[i - 1][0], out[i][1] - out[i - 1][1]),
+    );
+  const at = (d: number): [number, number] => {
+    let i = 1;
+    while (i < n - 1 && cum[i] < d) i++;
+    const t = Math.min(
+      1,
+      Math.max(0, (d - cum[i - 1]) / (cum[i] - cum[i - 1] || 1)),
+    );
+    return [
+      out[i - 1][0] + (out[i][0] - out[i - 1][0]) * t,
+      out[i - 1][1] + (out[i][1] - out[i - 1][1]) * t,
+    ];
+  };
+  const a0 = road.at(along - THROUGH_ARM);
+  const t0 = (ex - a0.x) * a0.tx + (ez - a0.z) * a0.tz;
+  const blend = Math.min(THROUGH_BLEND, cum[n - 1] * 0.5);
+  const next: [number, number][] = [
+    [a0.x - a0.tx * 3, a0.z - a0.tz * 3],
+    [a0.x, a0.z],
+  ];
+  for (let d = 0; d <= blend + 1e-6; d += 3) {
+    const w = d / blend;
+    const f = w * w * (3 - 2 * w);
+    const [bx, bz] = at(d);
+    const lx = a0.x + a0.tx * (t0 + d);
+    const lz = a0.z + a0.tz * (t0 + d);
+    next.push([lx + (bx - lx) * f, lz + (bz - lz) * f]);
+  }
+  for (let i = 0; i < n; i++) if (cum[i] > blend + 1.5) next.push(out[i]);
+  if (atEnd) next.reverse();
+  return next.flat();
+}
 
 export function connectPaths(
   paths: PathDef[],
@@ -211,21 +269,9 @@ export function connectPaths(
         const reach =
           hit + (wide ? road.at(q.along).halfWidth * 0.8 : OVERSHOOT);
         added = [ex + dx * reach, ez + dz * reach];
-        // ... and on down the stage road's arm it carries straight on from, its outer edge THROUGH_EDGE x the stage
-        // road's half width outside that arm's edge at the junction, easing in over THROUGH_RUN m: the edge runs on
-        // straight past the junction instead of stepping in to the stage edge.
-        if (wide) {
-          const side = q.lateral >= 0 ? 1 : -1;
-          for (let k = 1; k <= 4; k++) {
-            // (the arm before the junction: `through` is tested on it)
-            const a = road.at(q.along - (THROUGH_RUN * k) / 4);
-            const lat =
-              side * a.halfWidth * THROUGH_EDGE * (1 - (k / 4) * (k / 4));
-            added.push(a.x + a.tz * lat, a.z - a.tx * lat);
-          }
-        }
       }
-      if (atEnd) pts = [...pts, ...added];
+      if (wide) pts = straightOn(pts, atEnd, road, q.along, ex, ez);
+      else if (atEnd) pts = [...pts, ...added];
       else {
         const rev: number[] = [];
         for (let i = added.length - 2; i >= 0; i -= 2)
