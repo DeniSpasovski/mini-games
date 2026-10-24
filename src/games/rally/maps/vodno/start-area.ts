@@ -1,4 +1,4 @@
-import type { BuildingDef, PathDef } from '../shared/types';
+import type { BuildingDef, PathDef, SidewalkLink } from '../shared/types';
 
 /**
  * The first stretch of the road, by the embassies on Todor Aleksandrov street (world x 1550-1620, z -1150 to -1060): the main
@@ -65,4 +65,24 @@ const SOUTH_BLOCK: BuildingDef = {
 export const startBuildings = (buildings: BuildingDef[]): BuildingDef[] => [
   ...buildings.filter((b) => !DROPPED_BUILDINGS.has(b.id)),
   SOUTH_BLOCK,
+];
+
+/**
+ * The sidewalks at the side street's mouth (the street detail stops each run short of the other street's ribbon): the main
+ * street's east sidewalk turns round the corner into the side street's north one (a curve between the two run ends, the
+ * kerb lines read from the engine), and the side street's south sidewalk runs on to the main street's edge.
+ */
+export const START_SIDEWALKS: SidewalkLink[] = [
+  {
+    side: 1,
+    pts: [
+      1567.31, -1154.74, 1567.55, -1154.1, 1567.95, -1153.65, 1568.8, -1153.35,
+      1569.88, -1153.55,
+    ],
+  },
+  {
+    side: -1,
+    dropStart: true,
+    pts: [1569.7, -1148.72, 1571, -1148.77, 1572.38, -1148.81],
+  },
 ];

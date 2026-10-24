@@ -6,14 +6,16 @@ import {
 } from 'three';
 import { applyRoadSurface } from '../../../engine/road-surface';
 import type { PadDef } from '../../shared/types';
+import { KERB_W } from '../../../world/street-detail';
+import type { World } from '../../../world/world';
 import type { Local, V2, V3 } from './common';
 import type { Area, Site } from './sites';
 
 /**
  * The car park between the main street and the side street behind the start of the run-up (OSM way 1394445478, a car
- * every few metres along its west side and its south end, a tree island by the side street). Plain worn asphalt level with the
- * main street's sidewalk, open to the side street on the north (no kerb there); the island is a kerbed oval of lawn with
- * three trees. World outline below (convex, clockwise from the north-west); the site is its centre, `yaw` 0 (local = world offset).
+ * every few metres along its west side and its south end, a tree strip by the side street). Plain worn asphalt level with the
+ * main street's sidewalk, open to the side street on the north (no kerb there); the strip is a 2 m kerbed lawn along the side
+ * street's sidewalk with three trees. World outline below (convex, clockwise from the north-west); the site is its centre, `yaw` 0 (local = world offset).
  */
 export const START_LOT: Site = { x: 1587, z: -1121, yaw: 0 };
 
@@ -50,10 +52,12 @@ export const START_LOT_AREAS: Area[] = [
   { site: START_LOT, rect: [-16, 18, -26, 24] },
 ];
 
-/** The tree island (world centre, semi-axes x / z). */
-const ISLAND = { x: 1597.6, z: -1121, a: 4, b: 9.5 };
-const ISLAND_KERB = 0.35;
+/** The lawn strip beside the side street's sidewalk: world z range it covers, its width and the kerb on the lot side (m). */
+const STRIP = { z0: -1133.5, z1: -1109.5, x0: 1595, width: 2, kerb: 0.3 };
+const LIFT = 0.03;
 const KERB_H = 0.15;
+/** The lawn lies a little under the sidewalk's top, the kerb level with it. */
+const LAWN_H = 0.13;
 const LAWN = '#8a9a52';
 const CONCRETE = '#c9c6bd';
 
@@ -81,18 +85,43 @@ export const START_LOT_CARS: {
   })),
 ];
 
-/** Island trees / bushes (local x, z). */
+/** Trees / bushes on the lawn strip (local x, z). */
 export const START_LOT_PLANTS: {
   asset: string;
   x: number;
   z: number;
   scale: number;
 }[] = [
-  { asset: 'oak_tree', x: ISLAND.x - START_LOT.x, z: -6.2, scale: 1 },
-  { asset: 'oak_tree', x: ISLAND.x - START_LOT.x + 0.4, z: 0.3, scale: 1.1 },
-  { asset: 'oak_tree', x: ISLAND.x - START_LOT.x - 0.3, z: 6.4, scale: 0.9 },
-  { asset: 'bush', x: ISLAND.x - START_LOT.x + 1.6, z: -3, scale: 0.7 },
-  { asset: 'bush', x: ISLAND.x - START_LOT.x - 1.4, z: 3.4, scale: 0.6 },
+  {
+    asset: 'oak_tree',
+    x: 1598 - START_LOT.x,
+    z: -1127.6 - START_LOT.z,
+    scale: 1,
+  },
+  {
+    asset: 'oak_tree',
+    x: 1602 - START_LOT.x,
+    z: -1121.6 - START_LOT.z,
+    scale: 1.1,
+  },
+  {
+    asset: 'oak_tree',
+    x: 1603.4 - START_LOT.x,
+    z: -1114.5 - START_LOT.z,
+    scale: 0.9,
+  },
+  {
+    asset: 'bush',
+    x: 1600 - START_LOT.x,
+    z: -1124.6 - START_LOT.z,
+    scale: 0.7,
+  },
+  {
+    asset: 'bush',
+    x: 1603 - START_LOT.x,
+    z: -1117.8 - START_LOT.z,
+    scale: 0.6,
+  },
 ];
 
 /** A convex polygon clipped to an axis-aligned cell (Sutherland-Hodgman). */
@@ -186,10 +215,11 @@ export function startLotAsphalt(
   return m;
 }
 
-/** Everything else of the lot (the island), as the landmark's `build`. */
+/** Everything else of the lot (the lawn strip), as the landmark's `build`. */
 export function buildStartLot(
   at: (site: Site, tile: string) => Local,
   ground: (x: number, z: number) => number,
+  world: World,
 ): void {
   const l = at(START_LOT, 'start-lot');
   const base = ground(START_LOT.x, START_LOT.z);
@@ -200,47 +230,96 @@ export function buildStartLot(
     z - START_LOT.z,
   ];
 
-  // The island: a kerb ring and its lawn.
-  const N = 28;
-  const ring = (a: number, b: number, i: number): V2 => {
-    const t = (i / N) * Math.PI * 2;
-    return [ISLAND.x + Math.cos(t) * a, ISLAND.z + Math.sin(t) * b];
-  };
-  const out = (i: number): V2 =>
-    ring(ISLAND.a + ISLAND_KERB, ISLAND.b + ISLAND_KERB, i);
-  const inn = (i: number): V2 => ring(ISLAND.a, ISLAND.b, i);
-  for (let i = 0; i < N; i++) {
-    const [o0, o1, i0, i1] = [out(i), out(i + 1), inn(i), inn(i + 1)];
-    l.fan(
-      'concrete',
-      [o0, o1, i1, i0].map(([x, z]) => gp(x, z, 0.03 + KERB_H)),
-      CONCRETE,
-      UP,
-      uv,
-    );
-    // The road-side face of the kerb.
-    const mid = ring(1, 1, i + 0.5);
+  // The side street (its way starts at the mouth) and its sidewalk's outer edge: the strip lies against it.
+  const net = world.gen.paths;
+  const pi = net?.paths.findIndex(
+    (p) =>
+      p.kind === 'residential' &&
+      Math.hypot(p.pts[0] - 1566.2, p.pts[1] + 1150.6) < 0.5,
+  );
+  if (!net || pi === undefined || pi < 0) return;
+  const walk = (world.map.cityStreets?.sidewalk ?? 1.5) + KERB_W;
+  const pt = { x: 0, z: 0 };
+  const nx = { x: 0, z: 0 };
+  /** Rows of the strip: the street's centre point, its lot-side normal (west of the travel direction) and the sidewalk's outer offset. */
+  const rows: { x: number; z: number; nx: number; nz: number; o: number }[] =
+    [];
+  for (let a = 0; a <= net.lengths[pi]; a += 0.5) {
+    net.pointAt(pi, a, pt);
+    if (pt.z < STRIP.z0 || pt.z > STRIP.z1 || pt.x < STRIP.x0) continue;
+    net.pointAt(pi, Math.max(0, a - 1), nx);
+    const [px, pz] = [nx.x, nx.z];
+    net.pointAt(pi, a + 1, nx);
+    const tl = Math.hypot(nx.x - px, nx.z - pz) || 1;
+    const tx = (nx.x - px) / tl;
+    const tz = (nx.z - pz) / tl;
+    rows.push({
+      x: pt.x,
+      z: pt.z,
+      nx: -tz,
+      nz: tx,
+      o: net.halfWidthAt(pi, a) + walk + 0.02,
+    });
+  }
+  const edge = (r: (typeof rows)[number], d: number): [number, number] => [
+    r.x + r.nx * (r.o + d),
+    r.z + r.nz * (r.o + d),
+  ];
+  const { width, kerb } = STRIP;
+  for (let i = 0; i + 1 < rows.length; i++) {
+    const [r0, r1] = [rows[i], rows[i + 1]];
+    const quad = (
+      key: 'lawn' | 'concrete',
+      d0: number,
+      d1: number,
+      h: number,
+      color: string,
+    ): void =>
+      l.fan(
+        key,
+        [edge(r0, d0), edge(r1, d0), edge(r1, d1), edge(r0, d1)].map(([x, z]) =>
+          gp(x, z, h),
+        ),
+        color,
+        UP,
+        uv,
+      );
+    quad('lawn', 0, width, LIFT + LAWN_H, LAWN);
+    quad('concrete', width, width + kerb, LIFT + KERB_H, CONCRETE);
+    // The kerb's face towards the lot.
+    const [a0, a1] = [edge(r0, width + kerb), edge(r1, width + kerb)];
     l.fan(
       'concrete',
       [
-        gp(o0[0], o0[1], 0.03),
-        gp(o1[0], o1[1], 0.03),
-        gp(o1[0], o1[1], 0.03 + KERB_H),
-        gp(o0[0], o0[1], 0.03 + KERB_H),
+        gp(a0[0], a0[1], LIFT),
+        gp(a1[0], a1[1], LIFT),
+        gp(a1[0], a1[1], LIFT + KERB_H),
+        gp(a0[0], a0[1], LIFT + KERB_H),
       ],
       CONCRETE,
-      [mid[0] - ISLAND.x, 0, mid[1] - ISLAND.z],
+      [r0.nx, 0, r0.nz],
       (p) => [p[0] + p[2], p[1]],
     );
   }
-  l.fan(
-    'lawn',
-    Array.from({ length: N }, (_, i) => {
-      const [x, z] = inn(i);
-      return gp(x, z, 0.03 + KERB_H - 0.02);
-    }),
-    LAWN,
-    UP,
-    uv,
-  );
+  // The strip's two ends: a kerb across, so the lawn does not run off into the lot.
+  for (const [r, dir] of [
+    [rows[0], -1],
+    [rows[rows.length - 1], 1],
+  ] as const) {
+    const [i0, o0] = [edge(r, 0), edge(r, width + kerb)];
+    const along = [-r.nz * dir, r.nx * dir];
+    const face = [along[0], 0, along[1]] as V3;
+    l.fan(
+      'concrete',
+      [
+        gp(i0[0], i0[1], LIFT),
+        gp(o0[0], o0[1], LIFT),
+        gp(o0[0], o0[1], LIFT + KERB_H),
+        gp(i0[0], i0[1], LIFT + KERB_H),
+      ],
+      CONCRETE,
+      face,
+      (p) => [p[0] + p[2], p[1]],
+    );
+  }
 }

@@ -898,6 +898,20 @@ export interface BarrierRule {
   rusty?: boolean;
 }
 
+/**
+ * A stretch of kerb and sidewalk the street detail cannot derive from the street ways: it joins two sidewalk runs round
+ * a corner where one street meets another (the runs stop short of the other street's ribbon), or runs a sidewalk on to a
+ * road edge. `pts` = the kerb line (the street edge, flat [x0, z0, ...]) in travel order, `side` = which side of it the
+ * sidewalk lies on (+1 = left of travel). A run of a street ending within 0.3 m of an end of the link carries on into it
+ * (no dropped kerb there); `dropStart` / `dropEnd` slope the kerb down flush where the link ends on a road.
+ */
+export interface SidewalkLink {
+  pts: number[];
+  side: 1 | -1;
+  dropStart?: boolean;
+  dropEnd?: boolean;
+}
+
 /** Street detail along the other roads near the stage road. */
 export interface CityStreets {
   /** Streets within this distance of the stage road get kerbs, sidewalks, crosswalks and lamps (m). */
@@ -908,6 +922,8 @@ export interface CityStreets {
   lampEvery?: number;
   /** One asphalt for every city street (default: city asphalt, centre lines by width; world/road-mesh.ts pathTexture). */
   asphalt?: RoadTexture;
+  /** Sidewalk stretches added by hand (corners and road ends the ways do not give). */
+  links?: SidewalkLink[];
 }
 
 /**

@@ -158,6 +158,7 @@ interface Spec {
   build: (
     at: (site: Site, tile: string) => Local,
     ground: (x: number, z: number) => number,
+    world: World,
   ) => void;
 }
 
@@ -192,7 +193,7 @@ function landmark(spec: Spec): Landmark {
       const bucket = new Bucket();
       const at = (site: Site, tile: string) =>
         new Local(bucket, tile, site, world.analytic.height(site.x, site.z));
-      spec.build(at, (x, z) => world.analytic.height(x, z));
+      spec.build(at, (x, z) => world.analytic.height(x, z), world);
       yield;
       const group = bucket.build(spec.id);
       for (const m of spec.meshes?.((x, z) => world.analytic.height(x, z)) ??

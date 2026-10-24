@@ -33,7 +33,7 @@ import {
 } from './crossroad';
 import { countryRoad, dropLotAisles, LAWNS, LOT_PADS } from './lots';
 import { SKYLINE } from './skyline';
-import { startBuildings, startStreets } from './start-area';
+import { START_SIDEWALKS, startBuildings, startStreets } from './start-area';
 import { START_LOT_PAD } from './landmarks/start-lot';
 import { FINISH, START } from './stages';
 
@@ -191,6 +191,7 @@ export const vodnoMap: MapDef = {
     lampEvery: 38,
     // the side streets in the stage road's own asphalt
     asphalt: 'road_tarmac_plain_kerbed',
+    links: START_SIDEWALKS,
   },
   road: {
     // Salvador Aljende street at the start, then the narrow hillside road, then the R2138 regional road.
