@@ -1,4 +1,4 @@
-import type { Group } from 'three';
+import type { Group, Object3D } from 'three';
 import { getAssetMeta } from '../../../assets/catalog';
 import { isTreeType } from '../../../trees/species';
 import { hash3 } from '../../../../../shared/rng';
@@ -85,6 +85,14 @@ import {
   startWallColliders,
   wallAreas,
 } from './start-wall';
+import {
+  buildStartLot,
+  START_LOT,
+  startLotAsphalt,
+  START_LOT_AREAS,
+  START_LOT_CARS,
+  START_LOT_PLANTS,
+} from './start-lot';
 import { buildStation } from './station';
 import { buildLodge, buildPlatform } from './summit';
 import {
@@ -144,6 +152,8 @@ interface Spec {
   surfaceAt?: (x: number, z: number) => SurfaceId | undefined;
   /** The raised ground the car drives on (NaN elsewhere): a slab's top. */
   groundOverride?: Landmark['groundOverride'];
+  /** Meshes of their own (a ground surface with its own material), added beside the bucket's. */
+  meshes?: (ground: (x: number, z: number) => number) => Object3D[];
   /** Writes the structures into the bucket, `at` = a structure's frame on the ground under its site. */
   build: (
     at: (site: Site, tile: string) => Local,
@@ -185,6 +195,9 @@ function landmark(spec: Spec): Landmark {
       spec.build(at, (x, z) => world.analytic.height(x, z));
       yield;
       const group = bucket.build(spec.id);
+      for (const m of spec.meshes?.((x, z) => world.analytic.height(x, z)) ??
+        [])
+        group.add(m);
       group.userData.stats = {
         triangles: bucket.triangles,
         meshes: group.children.length,
@@ -540,6 +553,28 @@ export const hotelLandmark = landmark({
   build: buildHotelSite,
 });
 
+/** The car park between the main street and the side street at the start of the run-up: asphalt, the tree island, the parked cars. */
+export const startLotLandmark = landmark({
+  id: 'vodno-start-lot',
+  areas: START_LOT_AREAS,
+  colliders: () => [],
+  plants: [
+    ...START_LOT_CARS.map(({ variant, x, z, turn }) => ({
+      asset: 'street_car',
+      site: START_LOT,
+      x,
+      z,
+      scale: 1,
+      variant,
+      // The car model faces +x: turned `turn` from the site's x axis (three.js yaws the other way round).
+      rotY: -turn,
+    })),
+    ...START_LOT_PLANTS.map((p) => ({ ...p, site: START_LOT })),
+  ],
+  meshes: (ground) => [startLotAsphalt(ground)],
+  build: buildStartLot,
+});
+
 /** The roadside gazebo near 1000 m: it stands on baked box 2688 (7.1 m wide) and replaces it. */
 const ROADSIDE_GAZEBO: Site = { x: 2106, z: -428.6, yaw: 0.346 };
 const ROADSIDE_GAZEBO_APOTHEM = 3.4;
@@ -576,6 +611,7 @@ export const VODNO_LANDMARKS: Landmark[] = [
   gateLandmark,
   startBlocksLandmark,
   hotelLandmark,
+  startLotLandmark,
   roadsideGazeboLandmark,
 ];
 export { VODNO_FLATS } from './sites';
