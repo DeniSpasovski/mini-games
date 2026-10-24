@@ -20,6 +20,15 @@ const TILE = 256;
 const STEP = 4;
 /** Length of a dropped kerb at a sidewalk's free end (m). */
 const DROP = 1.5;
+/** A run end this close to the end of a link (m) carries on into it; spacing of a link's rows (m). */
+const LINK_REACH = 0.3;
+const LINK_STEP = 0.5;
+const total = (line: [number, number][]): number =>
+  line.reduce(
+    (s, p, i) =>
+      i ? s + Math.hypot(p[0] - line[i - 1][0], p[1] - line[i - 1][1]) : 0,
+    0,
+  );
 
 class Acc {
   pos: number[] = [];
@@ -209,8 +218,23 @@ export function* streetDetailMeshJob(
           c.atEnd === atEnd &&
           Math.abs(c.along - (atEnd ? run.to : run.from)) < 0.05,
       );
-    const free0 = !c0 && !turns(false);
-    const free1 = !c1 && !turns(true);
+    // ... or one a hand-placed link (`CityStreets.links`) carries on from.
+    const linked = (d: number): boolean => {
+      net.pointAt(run.path, Math.max(0, d - 1.5), pt);
+      net.pointAt(run.path, Math.min(PL, d + 1.5), nx);
+      const tl = Math.hypot(nx.x - pt.x, nx.z - pt.z) || 1;
+      net.pointAt(run.path, d, pt);
+      const lat = run.side * net.halfWidthAt(run.path, d);
+      const x = pt.x + ((nx.z - pt.z) / tl) * lat;
+      const z = pt.z - ((nx.x - pt.x) / tl) * lat;
+      return detail.links.some((l) =>
+        [0, l.pts.length - 2].some(
+          (k) => Math.hypot(l.pts[k] - x, l.pts[k + 1] - z) < LINK_REACH,
+        ),
+      );
+    };
+    const free0 = !c0 && !turns(false) && !linked(run.from);
+    const free1 = !c1 && !turns(true) && !linked(run.to);
     const len = run.to - run.from;
     const drop = Math.min(DROP, len / 3);
     const at: number[] = [];
@@ -287,6 +311,47 @@ export function* streetDetailMeshJob(
       rows.push(r);
     }
     sweep(rows, side);
+  }
+  // Hand-placed links: the kerb line resampled, a dropped kerb at an end on a road.
+  for (const l of detail.links) {
+    const line: [number, number][] = [];
+    for (let i = 0; i + 3 < l.pts.length; i += 2) {
+      const [ax, az, bx, bz] = l.pts.slice(i, i + 4);
+      const k = Math.max(
+        1,
+        Math.ceil(Math.hypot(bx - ax, bz - az) / LINK_STEP),
+      );
+      for (let j = 0; j < k; j++)
+        line.push([ax + ((bx - ax) * j) / k, az + ((bz - az) * j) / k]);
+    }
+    line.push([l.pts[l.pts.length - 2], l.pts[l.pts.length - 1]]);
+    const rows: Row[] = [];
+    let dist = 0;
+    for (let i = 0; i < line.length; i++) {
+      const [x, z] = line[i];
+      const [ax, az] = line[Math.max(0, i - 1)];
+      const [bx, bz] = line[Math.min(line.length - 1, i + 1)];
+      const tl = Math.hypot(bx - ax, bz - az) || 1;
+      if (i > 0) dist += Math.hypot(x - line[i - 1][0], z - line[i - 1][1]);
+      const r = row(
+        x,
+        z,
+        hf.height(x, z) + 0.03,
+        (bx - ax) / tl,
+        (bz - az) / tl,
+        dist,
+        l.side,
+        false,
+      );
+      const f = Math.min(
+        1,
+        l.dropStart ? dist / DROP : 1,
+        l.dropEnd ? (total(line) - dist) / DROP : 1,
+      );
+      r.top = 0.02 + (r.top - 0.02) * f;
+      rows.push(r);
+    }
+    sweep(rows, l.side);
   }
   const group = new Group();
   group.name = 'street-detail';

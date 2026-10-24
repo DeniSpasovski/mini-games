@@ -1,4 +1,4 @@
-import type { CityStreets } from '../maps/shared/types';
+import type { CityStreets, SidewalkLink } from '../maps/shared/types';
 import { newPathQuery, type PathNetwork } from './real-data';
 import type { MouthCorner } from './junctions';
 import { newRoadQuery, type Road } from './road';
@@ -48,6 +48,8 @@ export interface StreetDetail {
   crossings: Crossing[];
   /** Rounded junction corners a sidewalk reaches: its kerb follows the corner round onto the stage road edge. */
   returns: MouthCorner[];
+  /** Hand-placed kerb and sidewalk (`CityStreets.links`). */
+  links: readonly SidewalkLink[];
 }
 
 export interface StreetContext {
@@ -244,5 +246,5 @@ export function streetDetail(
       });
     }
   });
-  return { runs, crossings, returns };
+  return { runs, crossings, returns, links: cfg.links ?? [] };
 }
