@@ -242,7 +242,8 @@ export function connectPaths(
         s0.tx * s1.tx + s0.tz * s1.tz < Math.cos(THROUGH_TURN) &&
         -dx * s0.tx - dz * s0.tz > Math.cos(THROUGH_STRAIGHT);
       const wide = through && p.surface === 'tarmac' && widenThrough;
-      if (wide) widen = { atEnd, width: road.at(q.along).halfWidth * 2 };
+      if (wide)
+        widen = { atEnd, width: road.at(q.along).halfWidth * 2, over: true };
       // A shallow merge (within MERGE_ANGLE of the stage road's line) bends onto the stage road's line over MERGE_RUN m and
       // ends inside it, its outer edge running into the stage road's edge like a fork, instead of a square cut across the verge.
       const sj = road.at(q.along);

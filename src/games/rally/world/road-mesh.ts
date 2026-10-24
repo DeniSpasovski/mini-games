@@ -96,7 +96,8 @@ const roadMaterials = new Map<string, MeshStandardMaterial>();
 
 /**
  * Shared road material per texture. `layer` 0 = stage road, 2 = mainline highway ribbons (lane
- * markings), 1 = other roads: where ribbons overlap (junctions, merging ramps) the lower number wins.
+ * markings), 1 = other roads: where ribbons overlap (junctions, merging ramps) the lower number wins. 3 = a road
+ * drawn over the stage road (the real road running straight on where the stage road turns off it).
  */
 export function getRoadMaterial(
   texture: RoadTexture = 'road',
@@ -120,8 +121,10 @@ export function getRoadMaterial(
           }),
       metalness: 0,
       polygonOffset: true,
-      polygonOffsetFactor: layer === 0 ? -3 : layer === 2 ? -2 : -1,
-      polygonOffsetUnits: layer === 0 ? -6 : layer === 2 ? -4 : -2,
+      polygonOffsetFactor:
+        layer === 3 ? -4 : layer === 0 ? -3 : layer === 2 ? -2 : -1,
+      polygonOffsetUnits:
+        layer === 3 ? -8 : layer === 0 ? -6 : layer === 2 ? -4 : -2,
     });
     // Canopy shadows beyond the shadow map (engine/world-shading.ts).
     m.defines = { RALLY_GROUND: 1 };
@@ -526,7 +529,27 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
   const mouths = junctionMouths(world);
   const net = world.gen.paths;
   const runOn = new Set<number>();
-  net?.paths.forEach((p, i) => p.widenEnd && runOn.add(i));
+  // Start of each road drawn over the stage road (`widenEnd.over`), from its end out past the junction: the stage
+  // road beside it is the junction asphalt (its own wheel paths start where it turns off).
+  const overArms: { pts: [number, number][]; hw: number }[] = [];
+  net?.paths.forEach((p, i) => {
+    if (!p.widenEnd) return;
+    runOn.add(i);
+    if (!p.widenEnd.over) return;
+    // (pts is flat x, z pairs)
+    const n = p.pts.length / 2;
+    const pt = (k: number): [number, number] => {
+      const j = p.widenEnd!.atEnd ? n - 1 - k : k;
+      return [p.pts[j * 2], p.pts[j * 2 + 1]];
+    };
+    const arm: [number, number][] = [pt(0)];
+    for (let k = 1, d = 0; k < n && d < OVER_ARM + OVER_FADE; k++) {
+      const q = pt(k);
+      d += Math.hypot(q[0] - arm[k - 1][0], q[1] - arm[k - 1][1]);
+      arm.push(q);
+    }
+    overArms.push({ pts: arm, hw: p.widenEnd.width / 2 });
+  });
   const rpq = newPathQuery();
   for (const [si, start] of starts.entries()) {
     const end = starts[si + 1] ?? samples.length - 1;
@@ -561,8 +584,13 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
         uv[v * 2] = 1 - (ACROSS[c] + 1.04) / 2.08;
         // Across a junction mouth the edge band fades into the junction asphalt (only the outer columns, out to
         // where the side road's pad dips under: the stage road's own wheel paths run on through the junction).
+        if (blends)
+          for (const a of overArms) {
+            const f = overArmBlend(a.pts, a.hw, x, z);
+            if (f > 0) jw[v] = Math.max(jw[v], f);
+          }
         if (blends && Math.abs(ACROSS[c]) > 0.5) {
-          jw[v] = junctionBlend(mouths, x, z);
+          jw[v] = Math.max(jw[v], junctionBlend(mouths, x, z));
           // A way running on from the stage road (`PathDef.widenEnd`) is one surface with it: no edge band across it.
           if (runOn.size) {
             net!.query(x, z, rpq, 'tarmac', (i) => runOn.has(i));
@@ -653,6 +681,39 @@ const PATH_ACROSS = [-1, -0.5, 0, 0.5, 1];
  * past it): sinking at or outside the edge let the verge show through the side road at the mouth.
  */
 const SINK_RAMP = 0.8;
+/** A road drawn over the stage road fades from the junction asphalt into its own wheel paths over this many metres. */
+const OVER_FADE = 9;
+/** How far a road drawn over the stage road runs on it from its end to the junction (junctions.ts THROUGH_ARM + 3). */
+const OVER_ARM = 18;
+/** Lift of a road drawn over the stage road where it covers it (the stage road's camber pokes through otherwise). */
+const OVER_LIFT = 0.06;
+/** Junction-asphalt weight of a stage road point beside the start of a road drawn over it (`arm` from its end). */
+function overArmBlend(
+  arm: [number, number][],
+  hw: number,
+  x: number,
+  z: number,
+): number {
+  let best = Infinity;
+  let at = 0;
+  for (let k = 1, d = 0; k < arm.length; k++) {
+    const [ax, az] = arm[k - 1];
+    const dx = arm[k][0] - ax;
+    const dz = arm[k][1] - az;
+    const l2 = dx * dx + dz * dz || 1;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+    const dist = Math.hypot(x - ax - dx * t, z - az - dz * t);
+    if (dist < best) {
+      best = dist;
+      at = d + Math.sqrt(l2) * t;
+    }
+    d += Math.sqrt(l2);
+  }
+  const along = Math.min(1, Math.max(0, 1 - (at - OVER_ARM) / OVER_FADE));
+  const across = Math.min(1, Math.max(0, (hw * 2.5 - best) / 2));
+  const f = along * across;
+  return f * f * (3 - 2 * f);
+}
 /** A road query's point lies beside the stage road, not out past its start or finish (clamped to an end). */
 const onStageSpan = (world: World, along: number): boolean =>
   along > 0.05 && along < world.road.length - 0.05;
@@ -689,6 +750,8 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
     string,
     {
       tex: RoadTexture;
+      /** Drawn over the stage road (`PathDef.widenEnd.over`). */
+      over?: boolean;
       pos: number[];
       nor: number[];
       uv: number[];
@@ -791,12 +854,13 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
       : p.surface === 'dirt'
         ? 'road'
         : pathTexture(p.kind, p.width, world.map.cityStreets);
-    const key = `${tex}:${Math.floor(mid[0] / PATH_TILE)},${Math.floor(mid[1] / PATH_TILE)}`;
+    const over = !!p.widenEnd?.over;
+    const key = `${tex}:${over ? 'over:' : ''}${Math.floor(mid[0] / PATH_TILE)},${Math.floor(mid[1] / PATH_TILE)}`;
     let tile = tiles.get(key);
     if (!tile)
       tiles.set(
         key,
-        (tile = { tex, pos: [], nor: [], uv: [], jw: [], idx: [] }),
+        (tile = { tex, over, pos: [], nor: [], uv: [], jw: [], idx: [] }),
       );
     const v0 = tile.pos.length / 3;
     const plazas = world.gen.plazas;
@@ -851,7 +915,8 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
             ? prof
             : ground;
         // (not past the stage road's start / finish: the street carrying on from it is the only surface there)
-        const sink =
+        // (a road drawn over the stage road lies on it instead: lifted clear of its camber and verges)
+        const cover =
           rq.found &&
           onStageSpan(world, rq.along) &&
           Math.abs(world.road.at(rq.along).y - y) < 1
@@ -864,6 +929,7 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
                 ),
               )
             : 0;
+        const sink = over ? 0 : cover;
         // Inside a junction plaza the plaza is the surface: a ribbon along its edge stays just under it.
         // Within a few metres of the stage road the carved shoulder folds the terrain into creases that a 3 cm lift does
         // not clear (the end of a side road showed the terrain through it): the ribbon rises up to 5 cm more there.
@@ -938,13 +1004,28 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
           if (pqEdge.found && pqEdge.distance < pqEdge.halfWidth + 0.3)
             under = 0.015;
         }
-        tile.pos.push(x, top - under, z);
+        tile.pos.push(
+          x,
+          top -
+            under +
+            (over && rq.found && onStageSpan(world, rq.along)
+              ? OVER_LIFT *
+                Math.min(1, Math.max(0, (rq.halfWidth + 6 - rq.distance) / 3))
+              : 0),
+          z,
+        );
         // (a straight-on road keeps its own wheel paths through the mouth: only its edges blend)
+        // Over the stage road its start is the junction asphalt (as is the stage road there), fading into its own
+        // wheel paths: no seam where the two textures meet.
+        const fromEnd = p.widenEnd?.atEnd ? net.lengths[pi] - along : along;
         tile.jw.push(
-          MOUTH_TEX.has(tex) &&
-            !(Math.abs(PATH_ACROSS[c]) < 0.75 && nearThrough(mouths, x, z))
-            ? junctionBlend(mouths, x, z)
-            : 0,
+          Math.max(
+            MOUTH_TEX.has(tex) &&
+              !(Math.abs(PATH_ACROSS[c]) < 0.75 && nearThrough(mouths, x, z))
+              ? junctionBlend(mouths, x, z)
+              : 0,
+            over ? Math.min(1, Math.max(0, 1 - (fromEnd - 3) / OVER_FADE)) : 0,
+          ),
         );
         // One normal per row (taken at the centre): the ribbons are flat roads, and this saves four height samples per vertex.
         tile.nor.push(nTmp.x, nTmp.y, nTmp.z);
@@ -1089,7 +1170,7 @@ function* pathMeshesJob(world: World): Generator<void, Group | undefined> {
   for (const t of tiles.values()) {
     const mat = getRoadMaterial(
       t.tex,
-      t.tex === 'road_parkway' ? 2 : 1,
+      t.over ? 3 : t.tex === 'road_parkway' ? 2 : 1,
       MOUTH_TEX.has(t.tex) ? junctionTex : undefined,
     );
     const g = new BufferGeometry();

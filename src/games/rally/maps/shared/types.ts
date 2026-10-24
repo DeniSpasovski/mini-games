@@ -435,7 +435,12 @@ export interface PathDef {
    * where the real road runs straight on and only the stage road turns (the straight road reads as the one that
    * continues), or where the way carries on from the stage road's start / finish.
    */
-  widenEnd?: { atEnd: boolean; width: number };
+  widenEnd?: {
+    atEnd: boolean;
+    width: number;
+    /** The real road running straight on where the stage road turns off: drawn over the stage road through the junction. */
+    over?: boolean;
+  };
   /** No kerbs / sidewalks / lamps / crosswalks on this street (a country road inside the city-street reach, MapDef.cityStreets). */
   bare?: boolean;
   junction?: boolean;
