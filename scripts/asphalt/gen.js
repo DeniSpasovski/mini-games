@@ -80,6 +80,8 @@
     warmTarget: [142, 140, 135],
     relief: 0.45,
     crackW: 0.7,
+    // the white and dark aggregate showing in the surface, as on Ajvatovci's road
+    chips: 55000,
   };
   /**
    * len = metres per tile along the road (must match `texLength` in world/road-mesh.ts).
@@ -94,7 +96,7 @@
    * snakes / joints: counts of tar-filled snakes and transverse joints (default cracks / 8 and 2);
    * oil: faint oil stains; tone: strength of the slow tone variation; edgeBlend / crumble: the edge melts into a gravel
    *   shoulder (patchy dust, gravel-coloured stones) and that many gravel bites break its line (1024 px);
-   * chips: light stone chips drawn over a photo base (count per 1024 px tile);
+   * chips: light stone chips drawn over the base (count per 1024 px tile);
    * photo / photoM / photoLum: a scanned base instead of the drawn stones (bake.mjs `PHOTOS`), its size in metres and
    *   the mean brightness it is scaled to (sRGB luma); photoFlat: how much of its slow blotches to remove (0-1);
    *   across: metres the tile spans across the road (default 6; a square tile, across = len, wraps both ways).
@@ -367,9 +369,9 @@
       cx.putImageData(img, 0, 0);
     }
 
-    // Light stone chips over a photo base (`chips` = count per 1024 px tile): the white and pale grey aggregate that
-    // shows in a worn road's surface, each with a little relief.
-    if (photo && o.chips) {
+    // Light stone chips (`chips` = count per 1024 px tile): the white and pale grey aggregate that shows in a worn
+    // road's surface, each with a little relief. Over a photo base under the wheel-path film, over drawn stones after them.
+    const drawChips = () => {
       const cr = new Rng(o.seed + 41);
       const n = Math.round(o.chips * S * S);
       for (let i = 0; i < n; i++) {
@@ -396,7 +398,8 @@
             ell(hx, x + ox, y + oy, sx, r, ang, grey(185));
           }
       }
-    }
+    };
+    if (photo && o.chips) drawChips();
 
     // Bitumen base.
     const warm = o.age;
@@ -494,6 +497,8 @@
       cx.drawImage(lo, 0, 0, w, h);
       cx.restore();
     }
+
+    if (!photo && o.chips) drawChips();
 
     // Patches: straight-edged repairs, darker, with a sealed edge.
     for (let i = 0; i < o.patches; i++) {
