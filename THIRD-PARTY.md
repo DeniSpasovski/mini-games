@@ -21,8 +21,8 @@ README files carry the same information in more detail. Keep this file current w
 3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party except its UI fonts and the CC0 Poly Haven environment light and detail textures (below): its critters, arenas, effects and sounds are original and procedural.
 
 The only bundled font files are the UI faces of Gravel Rally, Hole Island and 3, 2, 1 Kabooom and the portal's (below); sounds are synthesised with WebAudio and no music file is committed. Most textures
-are painted on canvases at runtime; the texture files that ship are listed with their licences below (building tiles,
-background-car, fire-engine and truck textures) and in `public/models/CREDITS.md` (the car lamp, seat, fabric, cab, metal and dash textures).
+are painted on canvases at runtime; the texture files that ship are listed with their licences below (building tiles, road
+asphalt, background-car, fire-engine and truck textures) and in `public/models/CREDITS.md` (the car lamp, seat, fabric, cab, metal and dash textures).
 
 ## Fonts (game UIs)
 
@@ -159,6 +159,14 @@ repository).
 | ["Corn! Corn! Corn!"](https://sketchfab.com/3d-models/corn-corn-corn-10187bc37c9e42ef8770b28452ee7cd3) | [Tiia Tuulia](https://sketchfab.com/tiiatuulia) (Sketchfab) | CC BY 4.0 |
 
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
+
+## Road textures
+
+| File (`src/games/rally/engine/asphalt/`)                                         | Source                                                                                                                                                                                                                    | Licence |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `road_tarmac.*.webp`, `road_tarmac_kerbed.*.webp`, `road_tarmac_junction.*.webp` | [Asphalt 04](https://polyhaven.com/a/asphalt_04) by Sergej Majboroda and Jenelle van Heerden (Poly Haven; colour, height and roughness maps resampled, with cracks and tyre marks painted on by `scripts/asphalt/gen.js`) | CC0     |
+
+The other asphalt textures are painted procedurally by the same script. The scan itself is not committed (`sources/textures/`).
 
 ## Music
 

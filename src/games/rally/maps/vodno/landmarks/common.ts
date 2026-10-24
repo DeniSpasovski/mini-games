@@ -25,6 +25,8 @@ export const FOOT = -1.6;
 /** Roof tiles sit this far over the wall tops. */
 export const LIFT = 0.1;
 
+/** Tint of the car park / plaza asphalt (the `lot_asphalt` texture): the real lots are only a little darker than the road. */
+export const LOT_ASPHALT = '#e8e8e3';
 export const STONE = '#ffffff';
 export const PLINTH = '#d8cfc0';
 export const TRIM = '#45484b';

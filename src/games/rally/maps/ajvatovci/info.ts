@@ -1,4 +1,4 @@
-import type { MapInfo } from '../shared/types';
+import { ASPHALT_04_SOURCE, type MapInfo } from '../shared/types';
 import data from './route.json';
 import { ajvatovciStages } from './stages';
 
@@ -46,6 +46,7 @@ export const ajvatovciInfo: MapInfo = {
       url: 'https://github.com/microsoft/RoadDetections',
       note: 'tracks and lanes OpenStreetMap does not have, detected in Bing Maps imagery - (c) Microsoft, ODbL',
     },
+    ASPHALT_04_SOURCE,
   ],
   stageNumber: 1,
   // Stage + free-drive background: Ilinden town / A2 (west, south-west) and Marino (south). The baked
@@ -83,5 +84,5 @@ export const ajvatovciInfo: MapInfo = {
     },
   },
   route: data.route,
-  surfaces: ['tarmac_gravel'],
+  surfaces: ['tarmac_gravel', 'tarmac_gravel'],
 };

@@ -1,4 +1,4 @@
-import type { MapInfo } from '../shared/types';
+import { ASPHALT_04_SOURCE, type MapInfo } from '../shared/types';
 import data from './route.json';
 import { petralicaStages } from './stages';
 
@@ -46,6 +46,7 @@ export const petralicaInfo: MapInfo = {
       url: 'https://esa-worldcover.org/',
       note: 'land cover + built-up areas used to place the houses - contains modified Copernicus Sentinel data (2021), CC BY 4.0',
     },
+    ASPHALT_04_SOURCE,
   ],
   stageNumber: 2,
   bounds: { minX: -2400, maxX: 2400, minZ: -4800, maxZ: 4800 },

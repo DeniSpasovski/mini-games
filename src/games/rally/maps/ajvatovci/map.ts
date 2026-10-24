@@ -217,7 +217,15 @@ export const ajvatovciMap: MapDef = {
     smoothing: 60,
     maxGrade: 0.13,
     surface: 'tarmac_gravel',
-    texture: 'road_tarmac',
+    // Kerbed start street to the canal bridge: no edge grit; the open road after it.
+    texture: 'road_tarmac_kerbed',
+    sections: [
+      {
+        from: data.routeSpans[0].to,
+        surface: 'tarmac_gravel',
+        texture: 'road_tarmac',
+      },
+    ],
     points: routePoints(data.route, widthAt),
     // The Aracinovo canal bridge (OSM bridge=yes): a deck over the lowered channel, abutments + parapets.
     spans: routeSpans(data.routeSpans),

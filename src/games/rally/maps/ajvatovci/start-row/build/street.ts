@@ -42,14 +42,15 @@ export function buildStreet(b: Build): void {
     const line = roadLine(0, x0, x1);
     if (line.length < 2) continue;
     const f = frameAt((x0 + x1) / 2);
+    // Swept westbound, so the kerb face (walls face the left of the sweep) looks at the road, not into the sidewalk.
     f.sweep(
       'concrete',
-      line,
+      [...line].reverse(),
       [
-        [half, 0.0],
-        [half, KERB],
-        [half + curb, KERB],
-        [half + curb, SIDEWALK],
+        [-half, 0.0],
+        [-half, KERB],
+        [-half - curb, KERB],
+        [-half - curb, SIDEWALK],
       ],
       '#d9d6cf',
       { lift: road },
