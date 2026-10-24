@@ -58,7 +58,7 @@ UI look and rules: [STYLEGUIDE.md](STYLEGUIDE.md).
 | [Skoda Rally](cars/skoda-rally/)           | AWD   | Fabia R5 from a CC BY Sketchfab model, own livery                              |
 | [Bimmer M3](cars/bimmer-m3/)               | RWD   | E46 coupe from a CC BY print STL                                               |
 | [Bimmer GT2](cars/bimmer-gt2/)             | RWD   | E92 GT2 racer from a CC BY Sketchfab GLB                                       |
-| [Subaru WRX STI 22B](cars/subie-22b/)      | AWD   | 1998 22B coupe from a CC BY Sketchfab GLB                                      |
+| [Subaru WRX STI 22B](cars/subie-22b/)      | AWD   | 1998 22B coupe from a CC BY Sketchfab GLB, yellow side swoosh                  |
 | [Zastava 101](cars/zastava-101/)           | FWD   | hand-built from a blueprint                                                    |
 | [Fiesta WRC](cars/fiesta/)                 | AWD   | WRC Fiesta with a visible cockpit                                              |
 | [Citroen C4 WRC](cars/citroen-c4/)         | AWD   | 2007 WRC C4 with a visible cockpit                                             |
