@@ -7,6 +7,7 @@ import {
   QUARRY_FX,
   applyTint,
   makeTint,
+  packColor,
   type ParticleKind,
   type TimeUniform,
 } from './particles';
@@ -71,6 +72,8 @@ export class Fx {
   readonly shake = new Shake();
   /** Sea Deck: a sudden-death cell is a tile sinking into the sea (a splash) instead of a wall landing (dust). */
   sea = false;
+  /** Is cell `(x, y)` a hard block? A blast arm that stops against one throws stone chips off it. */
+  hardAt: ((x: number, y: number) => boolean) | null = null;
   private readonly pools: ParticleSystem[];
   private readonly rng = new Rng(31337);
 
@@ -138,6 +141,11 @@ export class Fx {
               k === len ? TIPS[d] : d < 2 ? FlameType.ArmX : FlameType.ArmZ;
             this.flames.add(t, cx + dx * k, cz + dz * k, type);
           }
+          // the arm stopped against a hard block: chips and a puff off its face
+          const hx = e.x + dx * (len + 1);
+          const hy = e.y + dz * (len + 1);
+          if (rich === 1 && this.hardAt?.(hx, hy))
+            this.chips(cx + dx * (len + 0.55), cz + dz * (len + 0.55), dx, dz);
           if (len === 0) continue;
           // a fireball racing down the arm, and smoke curling up where it ends
           const sp = len * 2.6 + 0.8;
@@ -326,7 +334,42 @@ export class Fx {
       case 'blockBroken': {
         const x = this.wx(e.x);
         const z = this.wz(e.y);
-        for (let i = 0; i < 8; i++) {
+        // big bevelled chunks of the crate: they tumble, land, lie still for a second and shrink away
+        for (let i = 0; i < 4; i++) {
+          const a = r.range(0, 6.283);
+          const sp = r.range(0.8, 2);
+          this.splinters.emit(
+            t,
+            x + Math.cos(a) * 0.15,
+            0.35,
+            z + Math.sin(a) * 0.15,
+            Math.cos(a) * sp,
+            r.range(2.6, 4),
+            Math.sin(a) * sp,
+            r.range(1.7, 2.1),
+            r.range(0.32, 0.42),
+            r.next(),
+            r.range(-8, 8),
+            16,
+          );
+        }
+        // and a short ring of dust along the floor
+        for (let i = 0; i < 7; i++) {
+          const a = (i / 7) * 6.283 + r.range(-0.3, 0.3);
+          this.dust.emit(
+            t + 0.05,
+            x,
+            0.1,
+            z,
+            Math.cos(a) * 2,
+            r.range(0.1, 0.3),
+            Math.sin(a) * 2,
+            r.range(0.45, 0.65),
+            r.range(0.16, 0.22),
+            r.next(),
+          );
+        }
+        for (let i = 0; i < 6; i++) {
           const a = r.range(0, 6.283);
           const sp = r.range(1.2, 3.2);
           this.splinters.emit(
@@ -442,12 +485,66 @@ export class Fx {
     }
   }
 
-  /** A player was knocked out at cell position `(x, y)`: a poof of dust and a burst of sparkly stars. */
-  onKo(x: number, y: number): void {
+  /** Stone chips and a grey puff thrown back off the face of a hard block at world `(x, z)`, the blast coming along `(dx, dz)`. */
+  private chips(x: number, z: number, dx: number, dz: number): void {
+    const t = this.time.value;
+    const r = this.rng;
+    for (let i = 0; i < 4; i++) {
+      const sp = r.range(1.2, 2.6);
+      this.splinters.emit(
+        t,
+        x,
+        r.range(0.3, 0.6),
+        z,
+        -dx * sp + r.range(-1, 1) * (dz !== 0 ? 1.2 : 0.3),
+        r.range(1.6, 3.2),
+        -dz * sp + r.range(-1, 1) * (dx !== 0 ? 1.2 : 0.3),
+        r.range(0.9, 1.2),
+        -r.range(0.07, 0.11),
+        r.next(),
+        r.range(-14, 14),
+        16,
+      );
+    }
+    this.smoke.emit(
+      t + 0.05,
+      x,
+      0.45,
+      z,
+      -dx * 0.5,
+      r.range(0.3, 0.6),
+      -dz * 0.5,
+      r.range(0.7, 0.9),
+      r.range(0.22, 0.3),
+      r.next(),
+      0,
+      -0.2,
+    );
+  }
+
+  /**
+   * A player was knocked out at cell position `(x, y)`: a ring flash in their team colour (`color`, 0xRRGGBB), a poof of
+   * dust and a burst of sparkly stars.
+   */
+  onKo(x: number, y: number, color = 0xffffff): void {
     const t = this.time.value;
     const r = this.rng;
     const wx = x - this.w / 2;
     const wz = y - this.h / 2;
+    for (let i = 0; i < 2; i++)
+      this.ring.emit(
+        t + i * 0.08,
+        wx,
+        0.04,
+        wz,
+        0,
+        0,
+        0,
+        0.5,
+        1.4 - i * 0.4,
+        r.next(),
+        packColor(color),
+      );
     for (let i = 0; i < 9; i++) {
       const a = r.range(0, 6.283);
       const sp = r.range(0.6, 1.8);

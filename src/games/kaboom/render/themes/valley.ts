@@ -9,6 +9,9 @@ import {
   PlaneGeometry,
   Quaternion,
   SphereGeometry,
+  TorusGeometry,
+  LatheGeometry,
+  Vector2,
   Vector3,
   BufferGeometry,
   type Material,
@@ -19,6 +22,7 @@ import { gridToWorldX, gridToWorldZ } from '../../sim/grid';
 import { Terrain } from '../../sim/types';
 import { WALL_D, ringPoints } from '../bowl';
 import {
+  bbox,
   box,
   merge,
   part,
@@ -63,6 +67,10 @@ const V = {
   hedge: 0x5aa03f,
   hedgeSide: 0x4a8a35,
   hedgeDark: 0x376a2a,
+  mill: 0xebe3d0,
+  millCap: 0x7a5434,
+  millWin: 0x3c4a52,
+  sail: 0xe9dfc8,
   meadow: [0x86b95d, 0x7aae55],
   trodden: 0x9dc66a,
   haze: 0xc9dcae,
@@ -149,26 +157,87 @@ function cairn(): BufferGeometry {
   return merge(p);
 }
 
-/** Crate 1: a round-edged hay bale with two twine bands and a few straws sticking out. */
+/** Crate 1: a round hay bale on its side, rolled end to the camera, with two twine bands and loose straws. */
 function hayBale(): BufferGeometry {
+  const R = 0.4;
+  const L = 0.84;
+  const e = 0.09;
+  // a lathed drum with rounded shoulders, axis along x (turned at the end)
+  const prof: Vector2[] = [new Vector2(0, -L / 2)];
+  for (let i = 0; i <= 4; i++) {
+    const a = (i / 4) * (Math.PI / 2);
+    prof.push(
+      new Vector2(R - e + Math.sin(a) * e, -L / 2 + e - Math.cos(a) * e),
+    );
+  }
+  for (let i = 0; i <= 4; i++) {
+    const a = (i / 4) * (Math.PI / 2);
+    prof.push(
+      new Vector2(R - e + Math.cos(a) * e, L / 2 - e + Math.sin(a) * e),
+    );
+  }
+  prof.push(new Vector2(0, L / 2));
+  const lie = (g: BufferGeometry) => g.rotateZ(Math.PI / 2);
   const p: BufferGeometry[] = [
-    part(rbox(0.92, 0.72, 0.8, 0.1, 2), V.hay, { y: 0.38, tint: 0.14 }),
-    part(rbox(0.07, 0.76, 0.84, 0.02), V.hayBand, { x: -0.22, y: 0.38 }),
-    part(rbox(0.07, 0.76, 0.84, 0.02), V.hayBand, { x: 0.22, y: 0.38 }),
-    part(rbox(0.8, 0.1, 0.66, 0.04), V.hayDark, { y: 0.76, tint: 0.2 }),
+    part(lie(new LatheGeometry(prof, 18)), V.hay, {
+      y: R,
+      smooth: true,
+      lumpy: 0.02,
+      tint: 0.16,
+      rough: ROUGH.grass,
+    }),
   ];
-  const r = new Rng(2210);
-  for (let i = 0; i < 9; i++)
+  // the rolled ends: rings of darker and lighter straw, a little proud of the face
+  for (const sx of [-1, 1])
+    for (const [r, c] of [
+      [0.3, V.hayDark],
+      [0.21, V.hay],
+      [0.12, V.hayDark],
+    ] as const)
+      p.push(
+        part(lie(new CylinderGeometry(r, r, 0.02, 16)), c, {
+          x: sx * (L / 2 + 0.005 + (0.3 - r) * 0.04),
+          y: R,
+          tint: 0.2,
+          rough: ROUGH.grass,
+        }),
+      );
+  // two twine bands round the drum
+  for (const x of [-0.2, 0.2])
     p.push(
-      part(new ConeGeometry(0.025, 0.2, 3), V.hayDark, {
-        x: r.range(-0.4, 0.4),
-        z: r.range(-0.36, 0.36),
-        y: r.range(0.15, 0.7),
-        ry: r.range(0, 3),
+      part(
+        new TorusGeometry(R + 0.006, 0.014, 4, 24).rotateY(Math.PI / 2),
+        V.hayBand,
+        {
+          x,
+          y: R,
+          tint: 0,
+          rough: ROUGH.rope,
+        },
+      ),
+    );
+  // loose straws sticking out of the ends and the drum
+  const r = new Rng(2210);
+  for (let i = 0; i < 22; i++) {
+    const end = i < 10;
+    const a = r.range(0, Math.PI * 2);
+    const rr = end ? r.range(0.08, 0.36) : R;
+    const straw = new ConeGeometry(0.012, r.range(0.12, 0.2), 3);
+    if (end)
+      straw.rotateZ(((i & 1 ? 1 : -1) * Math.PI) / 2 + r.range(-0.5, 0.5));
+    else straw.rotateX(Math.PI / 2 - a);
+    p.push(
+      part(straw, i % 3 ? V.hayDark : V.hay, {
+        x: end ? (i & 1 ? -1 : 1) * (L / 2 + 0.03) : r.range(-0.3, 0.3),
+        y: R + Math.sin(a) * rr,
+        z: Math.cos(a) * rr,
         tint: 0.2,
+        rough: ROUGH.grass,
       }),
     );
-  return merge(p);
+  }
+  // the rolled end faces the camera: the bale reads at a glance
+  return merge(p).rotateY(Math.PI / 2);
 }
 
 /** One crossed bunch of grass blades, standing on y = 0. */
@@ -515,93 +584,94 @@ const smooth = (a: number, b: number, x: number): number => {
   return t * t * (3 - 2 * t);
 };
 
-/** A low clipped hedge round the pitch, a ring strip with a lumpy top: vertex colours, flat faces. */
-function hedgeGeometry(hx: number, hz: number): BufferGeometry {
-  const a = ringPoints(hx, hz, WALL_D);
-  const b = ringPoints(hx, hz, WALL_D + HEDGE_W);
-  const n = a.length / 2;
-  const pos: number[] = [];
-  const col: number[] = [];
-  const top = new Color(V.hedge);
-  const side = new Color(V.hedgeSide);
-  const dark = new Color(V.hedgeDark);
-  const c = new Color();
-  const lump = (x: number, z: number): number =>
-    HEDGE_H + 0.07 * meadowNoise.noise2(x * 1.3, z * 1.3);
-  type P = [number, number, number];
-  /** One quad, wound so its normal faces `want` (the material is single-sided). */
-  const quad = (
-    q: [P, P, P, P],
-    colors: [Color, Color, Color, Color],
-    want: P,
-  ): void => {
-    const [p0, p1, p2] = q;
-    const u: P = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]];
-    const v: P = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]];
-    const nx = u[1] * v[2] - u[2] * v[1];
-    const ny = u[2] * v[0] - u[0] * v[2];
-    const nz = u[0] * v[1] - u[1] * v[0];
-    const order =
-      nx * want[0] + ny * want[1] + nz * want[2] >= 0
-        ? [0, 1, 2, 0, 2, 3]
-        : [0, 2, 1, 0, 3, 2];
-    for (const k of order) {
-      pos.push(...q[k]);
-      c.copy(colors[k]).multiplyScalar(1 + 0.06 * (((k * 7) % 3) - 1));
-      col.push(c.r, c.g, c.b);
-    }
-  };
+/**
+ * The hedge round the pitch: rounded bushes of leaf clusters in two greens along the ring, a few flowers on top and a
+ * footing of stones on the pitch side. `low` = fewer faces.
+ */
+function hedgeGeometry(hx: number, hz: number, low: boolean): BufferGeometry {
+  const ring = ringPoints(hx, hz, WALL_D + HEDGE_W / 2);
+  const n = ring.length / 2;
+  const r = new Rng(hash3(Math.round(hx * 2), Math.round(hz * 2), 0x4ed, 6));
+  const p: BufferGeometry[] = [];
+  const detail = low ? 0 : 1;
+  const STEP = 0.42;
+  let carry = 0;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    const ax = a[i * 2];
-    const az = a[i * 2 + 1];
-    const bx = b[i * 2];
-    const bz = b[i * 2 + 1];
-    const jax = a[j * 2];
-    const jaz = a[j * 2 + 1];
-    const jbx = b[j * 2];
-    const jbz = b[j * 2 + 1];
-    const hi = lump(ax, az);
-    const hj = lump(jax, jaz);
-    const ol = Math.hypot(bx - ax, bz - az) || 1;
-    const out: P = [(bx - ax) / ol, 0, (bz - az) / ol];
-    const g = GROUND_Y;
-    quad(
-      [
-        [ax, g, az],
-        [jax, g, jaz],
-        [jax, hj, jaz],
-        [ax, hi, az],
-      ],
-      [dark, dark, side, side],
-      [-out[0], 0, -out[2]],
-    );
-    quad(
-      [
-        [ax, hi, az],
-        [jax, hj, jaz],
-        [jbx, hj, jbz],
-        [bx, hi, bz],
-      ],
-      [top, top, top, top],
-      [0, 1, 0],
-    );
-    quad(
-      [
-        [bx, hi, bz],
-        [jbx, hj, jbz],
-        [jbx, g, jbz],
-        [bx, g, bz],
-      ],
-      [side, side, dark, dark],
-      out,
-    );
+    const ax = ring[i * 2];
+    const az = ring[i * 2 + 1];
+    const dx = ring[j * 2] - ax;
+    const dz = ring[j * 2 + 1] - az;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-6) continue;
+    // inward normal (towards the pitch): the ring runs counter-clockwise seen from above
+    const ix = -dz / len;
+    const iz = dx / len;
+    const inx = ix * (ax * ix + az * iz < 0 ? 1 : -1);
+    const inz = iz * (ax * ix + az * iz < 0 ? 1 : -1);
+    for (let t = carry; t < len; t += STEP) {
+      const x = ax + (dx * t) / len;
+      const z = az + (dz * t) / len;
+      const big = r.range(0.24, 0.31);
+      const green = r.chance(0.5) ? V.hedge : V.hedgeSide;
+      p.push(
+        part(rock(big, detail), green, {
+          x: x + r.range(-0.04, 0.04),
+          z: z + r.range(-0.04, 0.04),
+          y: GROUND_Y + HEDGE_H * 0.5,
+          sy: r.range(0.95, 1.15),
+          smooth: true,
+          lumpy: 0.05,
+          tint: 0.2,
+          rough: ROUGH.grass,
+        }),
+      );
+      // a smaller, lighter cluster on top
+      if (r.chance(0.6))
+        p.push(
+          part(rock(big * 0.62, detail), V.leaf[r.int(0, 2)], {
+            x: x + r.range(-0.1, 0.1),
+            z: z + r.range(-0.08, 0.08),
+            y: GROUND_Y + HEDGE_H * 0.5 + big * 0.75,
+            smooth: true,
+            lumpy: 0.03,
+            tint: 0.2,
+            rough: ROUGH.grass,
+          }),
+        );
+      if (r.chance(0.16)) {
+        const flower = [0xf4f0e2, 0xf2d24a, 0xe58fb0][r.int(0, 2)];
+        for (let k = 0; k < 3; k++)
+          p.push(
+            part(rock(0.028, 0), flower, {
+              x: x + r.range(-0.15, 0.15),
+              z: z + r.range(-0.12, 0.12),
+              y: GROUND_Y + HEDGE_H * 0.5 + big * r.range(0.75, 0.95),
+              tint: 0,
+              rough: ROUGH.grass,
+            }),
+          );
+      }
+      // stone footing on the pitch side
+      p.push(
+        part(
+          rock(r.range(0.1, 0.14), 0),
+          r.chance(0.5) ? V.cairn : V.cairnDark,
+          {
+            x: x + inx * (HEDGE_W / 2 + 0.02),
+            z: z + inz * (HEDGE_W / 2 + 0.02),
+            y: GROUND_Y + 0.04,
+            sy: 0.6,
+            ry: r.range(0, 3),
+            tint: 0.15,
+            rough: ROUGH.stone,
+          },
+        ),
+      );
+    }
+    carry = (((carry - len) % STEP) + STEP) % STEP;
   }
-  const g = new BufferGeometry();
-  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
-  g.setAttribute('color', new Float32BufferAttribute(col, 3));
-  g.computeVertexNormals();
-  return g;
+  return merge(p);
 }
 
 /**
@@ -637,10 +707,138 @@ function groundGeometry(hx: number, hz: number, low: boolean): BufferGeometry {
     col[i * 3 + 2] = c.b;
   }
   g.setAttribute('color', new Float32BufferAttribute(col, 3));
-  return g.toNonIndexed();
+  const flat = g.toNonIndexed();
+  // the attributes `part()` gives, so the hedge and the mill merge into the same draw (matte, no texture)
+  const n = flat.getAttribute('position').count;
+  flat.setAttribute(
+    'aGloss',
+    new Float32BufferAttribute(new Float32Array(n), 1),
+  );
+  flat.setAttribute(
+    'uv',
+    new Float32BufferAttribute(new Float32Array(n * 2), 2),
+  );
+  return flat;
 }
 
 /** Trees well behind the crowd, in loose clusters; none close to the camera's side (it would stand in the picture). */
+/** The windmill stands left of the pitch, behind the crowd, towards the back. */
+const MILL_X = (hx: number) => -hx - 5.4;
+const MILL_Z = (hz: number) => -hz + 0.5;
+const MILL_HUB_Y = 5.6;
+const MILL_YAW = 0.6;
+
+/** The story prop: a whitewashed tower mill with a thatch-brown cap, a door and windows (its sails are separate). */
+function millGeometry(): BufferGeometry {
+  const tower = [
+    [1.45, 0],
+    [1.38, 1.5],
+    [1.22, 3.5],
+    [1.08, 5.0],
+    [1.1, 5.12],
+  ].map(([x, y]) => new Vector2(x, y));
+  const cap = [
+    [1.28, 0],
+    [1.22, 0.3],
+    [0.95, 0.85],
+    [0.5, 1.25],
+    [0.1, 1.42],
+    [0, 1.44],
+  ].map(([x, y]) => new Vector2(x, y));
+  const p: BufferGeometry[] = [
+    part(new CylinderGeometry(1.62, 1.7, 0.3, 16), V.cairnDark, {
+      y: 0.15,
+      tint: 0.15,
+      rough: ROUGH.stone,
+    }),
+    part(new LatheGeometry(tower, 18), V.mill, {
+      y: 0.3,
+      smooth: true,
+      tint: 0.08,
+      rough: ROUGH.clay,
+    }),
+    part(new LatheGeometry(cap, 18), V.millCap, {
+      y: 5.4,
+      smooth: true,
+      tint: 0.16,
+      rough: ROUGH.wood,
+    }),
+    // gallery band under the cap
+    part(new CylinderGeometry(1.2, 1.2, 0.12, 18), V.fenceDark, {
+      y: 5.36,
+      rough: ROUGH.wood,
+    }),
+    // door and two windows on the side facing the pitch
+    part(bbox(0.55, 0.95, 0.12, 0.03), V.fenceDark, {
+      y: 0.78,
+      z: 1.42,
+      rough: ROUGH.wood,
+    }),
+    part(bbox(0.34, 0.42, 0.1, 0.02), V.millWin, {
+      y: 2.6,
+      z: 1.32,
+      rough: ROUGH.paint,
+    }),
+    part(bbox(0.3, 0.38, 0.1, 0.02), V.millWin, {
+      y: 4.1,
+      z: 1.16,
+      x: 0.15,
+      rough: ROUGH.paint,
+    }),
+    // the windshaft sticking out of the cap
+    part(
+      new CylinderGeometry(0.12, 0.14, 0.7, 8).rotateX(Math.PI / 2),
+      V.trunk,
+      {
+        y: MILL_HUB_Y,
+        z: 1.2,
+        rough: ROUGH.wood,
+      },
+    ),
+  ];
+  return merge(p);
+}
+
+/** Four lattice sails round a hub, centred on the origin in the x-y plane (they turn round z). */
+function millSailsGeometry(): BufferGeometry {
+  const p: BufferGeometry[] = [
+    part(
+      new CylinderGeometry(0.2, 0.2, 0.2, 10).rotateX(Math.PI / 2),
+      V.fenceDark,
+      {
+        rough: ROUGH.wood,
+      },
+    ),
+  ];
+  for (let i = 0; i < 4; i++) {
+    const blade: BufferGeometry[] = [
+      part(box(0.1, 3.4, 0.08), V.trunk, { y: 1.75, rough: ROUGH.wood }),
+      part(box(0.04, 2.7, 0.04), V.fenceDark, {
+        y: 2.1,
+        x: 0.5,
+        rough: ROUGH.wood,
+      }),
+      part(box(0.42, 2.6, 0.02), V.sail, {
+        y: 2.1,
+        x: 0.27,
+        z: -0.02,
+        tint: 0.08,
+        rough: ROUGH.rope,
+      }),
+    ];
+    for (let k = 0; k < 6; k++)
+      blade.push(
+        part(box(0.56, 0.035, 0.035), V.fenceDark, {
+          y: 0.9 + k * 0.48,
+          x: 0.25,
+          rough: ROUGH.wood,
+        }),
+      );
+    p.push(merge(blade).rotateZ((i * Math.PI) / 2));
+  }
+  return merge(p);
+}
+
 function meadowTrees(
   hx: number,
   hz: number,
@@ -660,6 +858,7 @@ function meadowTrees(
       const x = pts[i];
       const z = pts[i + 1];
       if (z > hz + 1 && d < 22) continue;
+      if (Math.hypot(x - MILL_X(hx), z - MILL_Z(hz)) < 3.2) continue;
       const cluster = Math.min(
         1,
         Math.max(0, 0.5 + meadowNoise.noise2(x * 0.08 + 3, z * 0.08) * 0.9),
@@ -744,11 +943,30 @@ function tufts({ map, w, h, lit }: SceneryCtx): InstancedMesh {
 function scenery(ctx: SceneryCtx) {
   const { w, h, hx, hz, rng, flat, quality } = ctx;
   const low = quality.name === 'low';
+  // the mill (turned towards the camera and the pitch, so the sails read face on) is baked into the ground's draw;
+  // only its sails are a mesh of their own, turning
+  const mx = MILL_X(hx);
+  const mz = MILL_Z(hz);
+  const sails = new Mesh(shared('valley-mill-sails', millSailsGeometry), flat);
+  sails.position.set(
+    mx + Math.sin(MILL_YAW) * 1.62,
+    GROUND_Y + MILL_HUB_Y,
+    mz + Math.cos(MILL_YAW) * 1.62,
+  );
+  sails.rotation.set(0, MILL_YAW, 0, 'YXZ');
   return {
+    update(t: number) {
+      sails.rotation.z = -t * 0.6;
+    },
     objects: [
+      sails,
       new Mesh(
         shared(`valley-meadow${w}x${h}${low ? 'l' : ''}`, () =>
-          merge([hedgeGeometry(hx, hz), groundGeometry(hx, hz, low)]),
+          merge([
+            groundGeometry(hx, hz, low),
+            hedgeGeometry(hx, hz, low),
+            millGeometry().rotateY(MILL_YAW).translate(mx, GROUND_Y, mz),
+          ]),
         ),
         flat,
       ),

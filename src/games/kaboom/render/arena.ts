@@ -9,7 +9,11 @@ import {
   Matrix4,
   Mesh,
   MeshBasicMaterial,
+  CustomBlending,
+  OneFactor,
+  OneMinusSrcAlphaFactor,
   Quaternion,
+  ShaderMaterial,
   Vector3,
 } from 'three';
 import { hash3, Rng } from '../../../shared/rng';
@@ -78,6 +82,7 @@ export class Arena {
   private readonly tiles: InstancedMesh;
   private readonly sunk: Uint8Array;
   private readonly warn: InstancedMesh;
+  private readonly warnTime = { value: 0 };
   private readonly crateSlot: Int32Array;
   private readonly crateKind: Int8Array;
   private shadowDirty = true;
@@ -242,15 +247,44 @@ export class Arena {
 
     // --- warning squares on the floor where the next walls will land
     const warnGeo = shared('warn', () =>
-      new PlaneGeometry(0.92, 0.92).rotateX(-Math.PI / 2),
+      new PlaneGeometry(0.98, 0.98).rotateX(-Math.PI / 2),
     );
     const warnMat = mat(
-      new MeshBasicMaterial({
-        color: theme.warnColor,
+      new ShaderMaterial({
+        uniforms: {
+          uColor: { value: new Color(theme.warnColor) },
+          uTime: this.warnTime,
+        },
+        vertexShader: /* glsl */ `
+          varying vec2 vUv;
+          varying float vP;
+          void main() {
+            vUv = uv * 2.0 - 1.0;
+            vP = instanceMatrix[1][1]; // how close the wall is to landing, 0..1 (see setWarnings)
+            gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+          }`,
+        fragmentShader: /* glsl */ `
+          uniform vec3 uColor;
+          uniform float uTime;
+          varying vec2 vUv;
+          varying float vP;
+          void main() {
+            // a pulsing outline that beats faster as the wall comes, a faint fill, and the wall's shadow growing
+            float e = max(abs(vUv.x), abs(vUv.y));
+            float beat = 0.5 + 0.5 * sin(uTime * (9.0 + 16.0 * vP));
+            float line = smoothstep(0.74, 0.82, e) * (1.0 - smoothstep(0.93, 0.99, e));
+            float aLine = line * (0.55 + 0.45 * beat) + (1.0 - line) * 0.12 * step(e, 0.82);
+            float s = mix(0.25, 0.85, vP);
+            float aShade = (1.0 - smoothstep(s * 0.6, s, length(vUv))) * 0.6 * vP;
+            float a = aLine + aShade * (1.0 - aLine);
+            gl_FragColor = vec4(uColor * aLine * (1.0 + 0.4 * beat), a);
+            #include <colorspace_fragment>
+          }`,
         transparent: true,
-        opacity: 0.55,
         depthWrite: false,
-        toneMapped: false,
+        blending: CustomBlending,
+        blendSrc: OneFactor,
+        blendDst: OneMinusSrcAlphaFactor,
       }),
     );
     this.warn = new InstancedMesh(warnGeo, warnMat, 16);
@@ -451,18 +485,29 @@ export class Arena {
     return this.sunk[y * this.map.w + x] === 1;
   }
 
-  /** Mark the cells where walls are about to land (at most 16 are drawn); call every frame, `n = 0` hides them. */
-  setWarnings(cells: Int16Array, n: number, t: number): void {
+  /**
+   * Mark the cells where walls are about to land (at most 16 are drawn); call every frame, `n = 0` hides them. `secs` =
+   * seconds until each lands, out of `warnS`: the outline beats faster and the shadow grows as it comes.
+   */
+  setWarnings(
+    cells: Int16Array,
+    n: number,
+    t: number,
+    secs?: Float32Array,
+    warnS = 1,
+  ): void {
     const { w, h } = this.map;
     const m = new Matrix4();
     const count = Math.min(n, this.warn.instanceMatrix.count);
+    this.warnTime.value = t;
     const planks = this.theme.fall === 'tile';
     for (let k = 0; k < count; k++) {
       const c = cells[k];
       const x = c % w;
       const y = (c - x) / w;
-      const pulse = 0.85 + 0.15 * Math.sin(t * 18);
-      m.makeScale(pulse, 1, pulse);
+      // the y scale of a flat square changes nothing on screen: it carries the progress to the shader
+      const p = secs ? 1 - Math.min(1, Math.max(0, secs[k] / warnS)) : 0.5;
+      m.makeScale(1, Math.max(0.001, p), 1);
       m.setPosition(gridToWorldX(w, x + 0.5), 0.03, gridToWorldZ(h, y + 0.5));
       this.warn.setMatrixAt(k, m);
       if (planks) {

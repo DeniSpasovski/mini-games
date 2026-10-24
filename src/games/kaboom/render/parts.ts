@@ -6,7 +6,9 @@ import {
   Float32BufferAttribute,
   IcosahedronGeometry,
   LatheGeometry,
+  Quaternion,
   TorusGeometry,
+  Vector3,
   Vector2,
 } from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
@@ -252,6 +254,27 @@ export const rbox = (w: number, h: number, d: number, r: number, seg = 1) =>
   new RoundedBoxGeometry(w, h, d, seg, r);
 export const rock = (r: number, detail = 1) =>
   new IcosahedronGeometry(r, detail);
+
+const up = new Vector3(0, 1, 0);
+const dir = new Vector3();
+const quat = new Quaternion();
+
+/** A round rod (rope, stay, spar) from `a` to `b`, `r` thick: a cylinder turned and placed between the two points. */
+export function strut(
+  a: readonly [number, number, number],
+  b: readonly [number, number, number],
+  r: number,
+  sides = 5,
+  r1 = r,
+): BufferGeometry {
+  dir.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+  const len = dir.length();
+  const g = new CylinderGeometry(r1, r, len, sides, 1, true);
+  quat.setFromUnitVectors(up, dir.divideScalar(len));
+  g.applyQuaternion(quat);
+  g.translate((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+  return g;
+}
 
 /** Edge rule of the mid-poly look: bevels of about 4 % of a block (0.04 m), never more than 45 % of the thinnest side. */
 export const BEVEL = 0.04;
@@ -688,8 +711,8 @@ export function decorGeometry(w: number, h: number, pad: number): DecorParts {
   // barrels + rocks on the back and side margins
   const back = -hh - pad * 0.5;
   for (const [x, z, s] of [
-    [-hw * 0.5, back, 1],
-    [-hw * 0.5 + 0.42, back + 0.05, 0.85],
+    [hw * 0.1, back, 1],
+    [hw * 0.1 + 0.42, back + 0.05, 0.85],
     [hw * 0.55, back, 1],
   ] as const)
     p.push(
@@ -719,6 +742,96 @@ export function decorGeometry(w: number, h: number, pad: number): DecorParts {
         lumpy: r * 0.2,
       }),
     );
+
+  // the story prop: a timber derrick on the back margin, its boom swung out along the wall with a cut block on the hook
+  {
+    const x0 = -hw * 0.82;
+    const z0 = back - 0.1;
+    const top = 4.4;
+    const tip: [number, number, number] = [x0 + 2.7, 3.1, z0 + 0.05];
+    p.push(
+      part(bbox(0.62, 0.3, 0.62), PALETTE.sandstone[1], {
+        x: x0,
+        z: z0,
+        y: 0.15,
+        rough: ROUGH.stone,
+      }),
+      part(bbox(0.28, top, 0.28, 0.04), PALETTE.timber, {
+        x: x0,
+        z: z0,
+        y: 0.3 + top / 2,
+        rough: ROUGH.wood,
+      }),
+      part(bbox(0.3, 0.1, 0.3, 0.02), PALETTE.rail, {
+        x: x0,
+        z: z0,
+        y: 0.3 + top,
+        rough: ROUGH.iron,
+      }),
+      // the boom, from the mast's foot up and out
+      part(
+        strut([x0 + 0.1, 0.55, z0], tip, 0.1, 6, 0.08),
+        PALETTE.timberLight,
+        {
+          rough: ROUGH.wood,
+        },
+      ),
+      // stays: two back into the stands, the topping lift from the masthead to the boom tip
+      part(
+        strut([x0, 0.3 + top, z0], [x0 - 2.2, 2.4, z0 - 3.4], 0.02),
+        PALETTE.rope,
+        {
+          tint: 0,
+          rough: ROUGH.rope,
+        },
+      ),
+      part(
+        strut([x0, 0.3 + top, z0], [x0 + 1.8, 2.4, z0 - 3.4], 0.02),
+        PALETTE.rope,
+        {
+          tint: 0,
+          rough: ROUGH.rope,
+        },
+      ),
+      part(strut([x0, 0.25 + top, z0], tip, 0.02), PALETTE.rope, {
+        tint: 0,
+        rough: ROUGH.rope,
+      }),
+      // the hoist rope, the hook block and a cut sandstone block on two slings
+      part(strut(tip, [tip[0], 1.95, tip[2]], 0.018), PALETTE.rope, {
+        tint: 0,
+        rough: ROUGH.rope,
+      }),
+      part(bbox(0.14, 0.2, 0.1, 0.03), PALETTE.rail, {
+        x: tip[0],
+        z: tip[2],
+        y: 1.85,
+        rough: ROUGH.iron,
+      }),
+      part(
+        strut([tip[0], 1.78, tip[2]], [tip[0] - 0.25, 1.38, tip[2]], 0.015),
+        PALETTE.rope,
+        {
+          tint: 0,
+          rough: ROUGH.rope,
+        },
+      ),
+      part(
+        strut([tip[0], 1.78, tip[2]], [tip[0] + 0.25, 1.38, tip[2]], 0.015),
+        PALETTE.rope,
+        {
+          tint: 0,
+          rough: ROUGH.rope,
+        },
+      ),
+      part(bbox(0.62, 0.36, 0.42, 0.04), PALETTE.sandstone[2], {
+        x: tip[0],
+        z: tip[2],
+        y: 1.2,
+        rough: ROUGH.stone,
+      }),
+    );
+  }
 
   // lantern posts at the four corners of the margin
   for (const sx of [-1, 1])

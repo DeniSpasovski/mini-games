@@ -1,6 +1,8 @@
 import {
   BufferGeometry,
+  CatmullRomCurve3,
   Color,
+  ConeGeometry,
   CylinderGeometry,
   ExtrudeGeometry,
   LatheGeometry,
@@ -8,7 +10,9 @@ import {
   Shape,
   SphereGeometry,
   TorusGeometry,
+  TubeGeometry,
   Vector2,
+  Vector3,
 } from 'three';
 import { Rng, hash3 } from '../../../../shared/rng';
 import { boatAt, boatsGeometry } from '../boats';
@@ -22,6 +26,7 @@ import {
   part,
   rbox,
   rock,
+  strut,
   woodCrateGeometry,
   type DecorParts,
 } from '../parts';
@@ -37,9 +42,16 @@ const S = {
   barrel: [0x8a5a2e, 0x7a4e26],
   hoop: 0x3a3d42,
   iron: 0x4a4d52,
+  /** Painted iron of the bollards and capstans: weathered blue-grey, a darker cap, bare metal where it chipped. */
+  paint: 0x7f939c,
+  paintDark: 0x5b6a72,
+  plate: 0x68747b,
+  chip: 0xa7a59c,
+  brass: 0xc29a4a,
   ironLight: 0x65686f,
   ironDark: 0x2c2e33,
   rope: 0xc9b58a,
+  ropeDark: 0x7a6a4c,
   gap: 0x2a2219,
   nail: 0x45403a,
   crate: 0xc8955a,
@@ -223,41 +235,201 @@ function frame(w: number, h: number, pad: number): BufferGeometry {
 const torus = (r: number, tube: number, arc = Math.PI * 2) =>
   new TorusGeometry(r, tube, 6, 14, arc).rotateX(Math.PI / 2);
 
-/** Hard block 0: an iron mooring bollard on a riveted plate, rope wound round its neck. */
-function bollard(): BufferGeometry {
-  return merge([
-    part(rbox(0.92, 0.1, 0.92, 0.03), S.ironDark, { y: 0.05 }),
-    part(new CylinderGeometry(0.3, 0.36, 0.8, 10), S.iron, {
-      y: 0.5,
-      tint: 0.1,
-    }),
-    part(new CylinderGeometry(0.42, 0.34, 0.16, 10), S.ironLight, { y: 0.98 }),
-    part(torus(0.35, 0.05), S.rope, { y: 0.34, tint: 0.2 }),
-    part(torus(0.34, 0.05), S.rope, { y: 0.5, tint: 0.2 }),
-    part(torus(0.33, 0.05), S.rope, { y: 0.66, tint: 0.2 }),
-  ]);
+/** A coil of rope: `turns` real turns of a tube round the y axis from `y0` up `rise` per turn, radius `r`. */
+function ropeCoil(
+  r: number,
+  y0: number,
+  turns: number,
+  rise: number,
+  tube = 0.04,
+): BufferGeometry {
+  const pts: Vector3[] = [];
+  const n = Math.round(turns * 16);
+  for (let i = 0; i <= n; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    pts.push(
+      new Vector3(Math.cos(a) * r, y0 + (i / 16) * rise, Math.sin(a) * r),
+    );
+  }
+  return new TubeGeometry(new CatmullRomCurve3(pts), n * 2, tube, 6, false);
 }
 
-/** Hard block 1: a capstan with spokes and a coil of anchor chain at its foot. */
-function capstan(): BufferGeometry {
+/** A mushroom cap: lathed, a bold overhang with a rounded lip. */
+function capLathe(r: number, h: number): LatheGeometry {
+  const prof = [
+    [0, h],
+    [r * 0.7, h],
+    [r * 0.93, h * 0.9],
+    [r, h * 0.62],
+    [r * 0.97, h * 0.3],
+    [r * 0.8, 0.0],
+    [r * 0.6, 0.0],
+  ]
+    .reverse()
+    .map(([x, y]) => new Vector2(x, y));
+  return new LatheGeometry(prof, 18);
+}
+
+/**
+ * Hard block 0: a painted iron mooring bollard on a riveted plate, a bold mushroom cap with chipped paint on its rim,
+ * three real turns of rope round its neck and the tail lying on the deck.
+ */
+function bollard(): BufferGeometry {
+  const col = [
+    [0.33, 0.1],
+    [0.3, 0.3],
+    [0.27, 0.55],
+    [0.28, 0.72],
+    [0.31, 0.8],
+  ].map(([x, y]) => new Vector2(x, y));
   const p: BufferGeometry[] = [
-    part(rbox(0.95, 0.1, 0.95, 0.03), S.ironDark, { y: 0.05 }),
-    part(new CylinderGeometry(0.34, 0.4, 0.7, 10), S.iron, {
-      y: 0.45,
-      tint: 0.1,
+    part(rbox(0.9, 0.1, 0.9, 0.035, 2), S.plate, {
+      y: 0.05,
+      rough: ROUGH.iron,
     }),
-    part(new CylinderGeometry(0.46, 0.46, 0.1, 10), S.ironLight, { y: 0.85 }),
-    part(torus(0.42, 0.07), S.ironDark, { y: 0.15 }),
-    part(torus(0.4, 0.07), S.hoop, { y: 0.24 }),
+    part(new LatheGeometry(col, 18), S.paint, {
+      smooth: true,
+      tint: 0.08,
+      rough: ROUGH.paint,
+    }),
+    part(capLathe(0.42, 0.2), S.paintDark, {
+      y: 0.8,
+      smooth: true,
+      tint: 0.06,
+      rough: ROUGH.paint,
+    }),
+    // worn bare iron where ropes rub the rim
+    part(
+      new TorusGeometry(0.415, 0.018, 4, 18, 2.2).rotateX(Math.PI / 2),
+      S.chip,
+      {
+        y: 0.87,
+        ry: 0.6,
+        tint: 0,
+        rough: ROUGH.iron,
+      },
+    ),
+    part(ropeCoil(0.32, 0.28, 3, 0.085), S.rope, {
+      tint: 0.2,
+      rough: ROUGH.rope,
+    }),
+    // the tail: down off the coil and along the deck
+    part(
+      new TubeGeometry(
+        new CatmullRomCurve3([
+          new Vector3(0.32, 0.535, 0),
+          new Vector3(0.36, 0.3, 0.12),
+          new Vector3(0.38, 0.13, 0.3),
+          new Vector3(0.3, 0.12, 0.42),
+        ]),
+        12,
+        0.04,
+        6,
+      ),
+      S.rope,
+      { tint: 0.2, rough: ROUGH.rope },
+    ),
   ];
-  for (let i = 0; i < 4; i++)
+  for (const [x, z] of [
+    [-0.36, -0.36],
+    [0.36, -0.36],
+    [-0.36, 0.36],
+    [0.36, 0.36],
+  ])
     p.push(
-      part(box(0.86, 0.07, 0.07), S.rope, {
-        y: 0.97,
-        ry: (i * Math.PI) / 4,
-        tint: 0.15,
+      part(
+        new SphereGeometry(0.03, 6, 3, 0, Math.PI * 2, 0, Math.PI / 2),
+        S.paintDark,
+        {
+          x,
+          z,
+          y: 0.1,
+          tint: 0,
+          rough: ROUGH.iron,
+        },
+      ),
+    );
+  return merge(p);
+}
+
+/**
+ * Hard block 1: a painted capstan: a waisted drum with whelps (vertical ribs) for the rope to grip, a domed head with
+ * square sockets for the bars, and a coil of anchor chain at its foot.
+ */
+function capstan(): BufferGeometry {
+  const drum = [
+    [0.38, 0.12],
+    [0.33, 0.24],
+    [0.29, 0.45],
+    [0.31, 0.64],
+    [0.36, 0.7],
+  ].map(([x, y]) => new Vector2(x, y));
+  const p: BufferGeometry[] = [
+    part(rbox(0.95, 0.12, 0.95, 0.04, 2), S.plate, {
+      y: 0.06,
+      rough: ROUGH.iron,
+    }),
+    part(new LatheGeometry(drum, 16), S.paint, {
+      smooth: true,
+      tint: 0.08,
+      rough: ROUGH.paint,
+    }),
+    part(capLathe(0.44, 0.22), S.paintDark, {
+      y: 0.68,
+      smooth: true,
+      tint: 0.06,
+      rough: ROUGH.paint,
+    }),
+    part(
+      new TorusGeometry(0.435, 0.018, 4, 18, 1.8).rotateX(Math.PI / 2),
+      S.chip,
+      {
+        y: 0.78,
+        ry: 2.4,
+        tint: 0,
+        rough: ROUGH.iron,
+      },
+    ),
+    part(
+      new SphereGeometry(0.16, 12, 5, 0, Math.PI * 2, 0, Math.PI / 2),
+      S.brass,
+      {
+        y: 0.9,
+        sy: 0.6,
+        tint: 0,
+        rough: ROUGH.iron,
+      },
+    ),
+    part(torus(0.42, 0.06), S.ironDark, { y: 0.15, rough: ROUGH.iron }),
+    part(torus(0.4, 0.06), S.hoop, { y: 0.23, ry: 0.3, rough: ROUGH.iron }),
+  ];
+  // whelps round the drum
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    p.push(
+      part(rbox(0.07, 0.42, 0.07, 0.02), S.paint, {
+        x: Math.cos(a) * 0.3,
+        z: Math.sin(a) * 0.3,
+        y: 0.45,
+        ry: -a,
+        rough: ROUGH.paint,
       }),
     );
+  }
+  // bar sockets: dark square holes round the head
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + 0.26;
+    p.push(
+      part(box(0.09, 0.08, 0.04), S.gap, {
+        x: Math.cos(a) * 0.43,
+        z: Math.sin(a) * 0.43,
+        y: 0.8,
+        ry: Math.PI / 2 - a,
+        tint: 0,
+        paint: 0,
+      }),
+    );
+  }
   return merge(p);
 }
 
@@ -375,9 +547,142 @@ function decor(w: number, h: number, pad: number): DecorParts {
         ),
       );
   }
-  p.push(part(box(0.07, 2.6, 0.07), S.beam, { x: 0, z: backZ, y: 1.3 }));
-  p.push(part(box(0.7, 0.4, 0.02), S.red, { x: 0.36, z: backZ, y: 2.4 }));
-  p.push(part(box(0.7, 0.14, 0.021), S.white, { x: 0.36, z: backZ, y: 2.4 }));
+  // the story prop: a ship's mast at the back, a furled sail on its yard, a crow's nest, shrouds down to the deck and
+  // a pennant at the top
+  {
+    const x0 = -hw * 0.6;
+    const z0 = backZ;
+    const top = 5.2;
+    const mast = [
+      [0.13, 0],
+      [0.12, 2],
+      [0.095, 4],
+      [0.07, top],
+    ].map(([x, y]) => new Vector2(x, y));
+    p.push(
+      part(rbox(0.5, 0.14, 0.5, 0.04), S.paintDark, {
+        x: x0,
+        z: z0,
+        y: 0.07,
+        rough: ROUGH.paint,
+      }),
+      part(new LatheGeometry(mast, 10), S.beam, {
+        x: x0,
+        z: z0,
+        smooth: true,
+        rough: ROUGH.wood,
+      }),
+      part(new SphereGeometry(0.1, 8, 5), S.paintDark, {
+        x: x0,
+        z: z0,
+        y: top + 0.04,
+        rough: ROUGH.paint,
+      }),
+      // the yard and the sail furled along it
+      part(
+        strut([x0 - 1.5, 3.3, z0 + 0.12], [x0 + 1.5, 3.3, z0 + 0.12], 0.05, 6),
+        S.beam,
+        { rough: ROUGH.wood },
+      ),
+      part(
+        strut(
+          [x0 - 1.35, 3.2, z0 + 0.16],
+          [x0 + 1.35, 3.2, z0 + 0.16],
+          0.1,
+          8,
+          0.1,
+        ),
+        S.white,
+        {
+          tint: 0.08,
+          rough: ROUGH.rope,
+        },
+      ),
+      // the crow's nest: a little railed platform
+      part(new CylinderGeometry(0.4, 0.34, 0.08, 12), S.beam, {
+        x: x0,
+        z: z0,
+        y: 4.1,
+        rough: ROUGH.wood,
+      }),
+      part(torus(0.4, 0.03), S.beam, {
+        x: x0,
+        z: z0,
+        y: 4.42,
+        rough: ROUGH.wood,
+      }),
+      part(
+        new TorusGeometry(0.39, 0.12, 3, 12)
+          .rotateX(Math.PI / 2)
+          .scale(1, 2, 1),
+        S.white,
+        {
+          x: x0,
+          z: z0,
+          y: 4.25,
+          tint: 0.05,
+          rough: ROUGH.rope,
+        },
+      ),
+    );
+    // shrouds: from under the crow's nest down to the deck's back corners and out to its sides, a few ratlines
+    for (const sx of [-1, 1]) {
+      const foot: [number, number, number] = [x0 + sx * 2.4, 0.05, z0 - 0.2];
+      const head: [number, number, number] = [x0 + sx * 0.12, 4.05, z0];
+      p.push(
+        part(strut(head, foot, 0.018), S.ropeDark, {
+          tint: 0,
+          rough: ROUGH.rope,
+        }),
+        part(
+          strut(
+            [x0 + sx * 0.1, top - 0.1, z0],
+            [x0 + sx * 1.45, 3.3, z0 + 0.12],
+            0.014,
+          ),
+          S.ropeDark,
+          {
+            tint: 0,
+            rough: ROUGH.rope,
+          },
+        ),
+      );
+      for (let k = 1; k <= 5; k++) {
+        const t = k / 6;
+        const y = 0.05 + t * 4;
+        const x = foot[0] + (head[0] - foot[0]) * t;
+        p.push(
+          part(
+            strut(
+              [x, y, z0 - 0.2 * (1 - t)],
+              [x0 + (x - x0) * 0.4, y, z0 - 0.2 * (1 - t)],
+              0.012,
+              4,
+            ),
+            S.ropeDark,
+            {
+              tint: 0,
+              rough: ROUGH.rope,
+            },
+          ),
+        );
+      }
+    }
+    // the pennant, two-coloured, streaming out from the masthead
+    p.push(
+      part(
+        new ConeGeometry(0.16, 1.1, 3).rotateZ(Math.PI / 2).scale(1, 1, 0.12),
+        S.red,
+        {
+          x: x0 + 0.6,
+          z: z0,
+          y: top - 0.15,
+          tint: 0,
+          rough: ROUGH.rope,
+        },
+      ),
+    );
+  }
   for (let i = 0; i < 6; i++)
     bulbs.push(
       part(
