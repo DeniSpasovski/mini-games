@@ -245,7 +245,11 @@ function mix(a: RGB, b: RGB, t: number): RGB {
 }
 
 /** Pushes colour into transparent texels (so filtering never pulls in black), flips rows for a DataTexture. */
-export function dilateAndFlip(d: Uint8ClampedArray, w: number, h: number): Uint8Array {
+export function dilateAndFlip(
+  d: Uint8ClampedArray,
+  w: number,
+  h: number,
+): Uint8Array {
   const src = new Uint8Array(d);
   for (let pass = 0; pass < 8; pass++) {
     const prev = src.slice();
@@ -317,15 +321,15 @@ export function grassSheet(kind: GrassKind): Texture {
 }
 
 /**
- * Near LOD: real blade strips (no alpha test, no card edges from any side), fanned out of 3 crowns, curved and
- * tapered, vertex colour root -> tip. blades * 6 triangles (one-sided strips, the material is DoubleSide).
+ * Near LOD: real blade strips (no alpha test, no card edges from any side), fanned out of 5 crowns, curved and
+ * tapered, vertex colour root -> tip. blades * 5 triangles (one-sided strips, the material is DoubleSide).
  */
 export function bladeTuftGeometry(
   seed: number,
   kind: GrassKind,
   width: number,
   height: number,
-  blades = 56,
+  blades = 72,
 ): BufferGeometry {
   const p = PALETTES[kind];
   const rng = new Rng(seed);
@@ -335,22 +339,24 @@ export function bladeTuftGeometry(
   const nrm: number[] = [];
   const idx: number[] = [];
   const lin = (c: number) => Math.pow(c / 255, 2.2);
-  const crowns = Array.from({ length: 3 }, () => [
-    rng.range(-0.18, 0.18) * width,
-    rng.range(-0.18, 0.18) * width,
+  // Crowns spread over the card tuft's footprint (a tight clump reads as bare ground from a few metres).
+  const crowns = Array.from({ length: 5 }, () => [
+    rng.range(-0.32, 0.32) * width,
+    rng.range(-0.32, 0.32) * width,
   ]);
   for (let b = 0; b < blades; b++) {
     const [ox, oz] = crowns[b % crowns.length];
     // Root spread inside the crown; the blade leans away from the crown centre (a fountain, not a brush).
     const ra = rng.range(0, Math.PI * 2);
-    const rr = Math.sqrt(rng.next()) * 0.07;
+    const rr = Math.sqrt(rng.next()) * 0.1;
     const cx = ox + Math.cos(ra) * rr;
     const cz = oz + Math.sin(ra) * rr;
     const yaw = ra + rng.range(-0.5, 0.5);
-    const outer = rr / 0.07;
+    const outer = rr / 0.1;
     const lean = 0.15 + outer * 0.75 + rng.range(-0.1, 0.15);
     const len = height * rng.range(0.55, 1.1) * (1 - outer * 0.3);
-    const bw = rng.range(0.012, 0.022);
+    // 2-3.5 cm: narrower blades fall between the pixels a few metres away.
+    const bw = rng.range(0.02, 0.035);
     const tipC =
       rng.next() < 0.07
         ? p.dead
