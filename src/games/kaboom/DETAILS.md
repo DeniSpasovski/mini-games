@@ -88,19 +88,26 @@ meshes placed per critter by its fit (`hatY` / `hatZ` / `hatScale` / `hatTilt`, 
 (`render/characters.ts`): waddle + bob, squash when placing TNT, hop when winning. A KO is family friendly: the critter
 shrinks into a puff of dust and stars, the hard hat bounces away, and the sooty critter sits dazed on the slab edge.
 
-**Power-ups** (`render/items.ts`, models in `crew-parts.ts`): _more dynamites_ = two full dynamite bundles on a cyan
-pad, _more sticks_ = one fat bundle of seven sticks tied with a golden band on a gold pad. They hover, spin and pop in
-when a crate breaks, over a stone plinth with a glow ring in their pad's colour (both hidden while nothing lies on the
-floor: an empty instanced mesh still costs a draw), and a ring of that colour flashes over the floor as one appears; the HUD shows the stock as dynamite (`game/icons.ts`): one stick per TNT you can hold (lit = ready,
+**Power-ups** (`render/items.ts`, models in `crew-parts.ts`): _more dynamites_ = a small open wooden crate (planks,
+corner posts, rope handles, a cyan stencilled band) with five crimped sticks leaning out, under a cyan plus; _more sticks_
+= one tall bundle of seven crimped sticks in two gold straps with a buckle and a fuse, under a gold up arrow (wide and low
+vs tall and narrow, cyan vs gold). They hover, spin and pop in when a crate breaks, over a stone plinth whose inlay plate
+takes the kind's colour (`aTint`, the instance colour) and a glow ring of that colour (both hidden while nothing lies on
+the floor: an empty instanced mesh still costs a draw; `showForCompile` lets `WorldView.warmUp` compile them anyway), and
+a ring of that colour flashes over the floor as one appears; the HUD shows the stock as dynamite (`game/icons.ts`): one stick per TNT you can hold (lit = ready,
 faded = out on the field) and the blast level as a bundle of 1-5 sticks (flames either side at 4 and 5, the corner
 levels), and pops the one that grew.
 
 **TNT = "the counter".** As many paper sticks as its blast level: 1 at level 1 ... 5 at level 5, so you can read how far a
 TNT will reach (`TNT_LAYOUTS` in `crew-parts.ts`; all five in one geometry, each TNT shows its own: `aLevel` in
 `tnt.ts`). Sticks (`stickPaperTexture` in `render/tnt.ts`: red wrap with fibres, a spiral seam,
-printed rings, waxed ends; generated, shared with the pickups) with crimped caps, two turns of twine, a paper label with
-hazard-stripe borders showing **3 -> 2 -> 1** (digit atlas, picked per instance in the vertex shader) and a curling fuse
-(`fusePoint`) the spark rides down in a soft glow; it pulses faster and blinks white-hot in the last half second.
+printed rings, waxed ends; generated, shared with the pickups) are lathed with bevelled shoulders and a six-pleat paper
+crimp on top, a hair apart in height; on High they are physically based (waxed-paper sheen from the per-vertex
+roughness). Two turns of chunky twisted rope with a knot and the paper label hug the bundle's outline (`hullBand`); the
+label prints **3 -> 2 -> 1** once on the front (uv.x runs round the band in atlas cells, a plain fourth cell elsewhere;
+digit picked per instance). The fuse leaves a brass blasting cap, curls forward and frays at its tip (`fusePoint`); the
+spark (a star burst with embers, all in its shader) rides down it and the cord behind turns to grey ash (`aFuseT` /
+`aBurn`). It pulses faster as it burns and blinks white-hot in the last half second.
 A comic **KABOOOM!** / **BOOM!** / **KA-POW!** word pops over blasts (throttled): chunky 3D lettering painted into the word
 atlas (`fx/word-burst.ts`: an outline round the block, an extruded side, a bevelled gradient face; Grandstander once loaded).
 
@@ -262,7 +269,7 @@ What usually kills FPS in these games, and our rule for each:
 | Chain resolved in one frame           | The sim spreads a chain over the 0.08 s chain delay; blasts only set fuses, never explode each other inside one tick.                                                                                                                                    |
 | Block removal rebuilding geometry     | One InstancedMesh per crate variant; removal swaps with the last instance and shrinks `count`.                                                                                                                                                           |
 | Hitch at a round change               | A new round builds a new `Arena`, but its merged geometry, the grain texture and the sun (with its 2048 shadow map) are shared module-level, so it costs well under a millisecond.                                                                       |
-| Draw calls                            | Arena ~12 (incl. the contact patches), crowd 2 (sprites + flags), crew bodies + fur + 3 shared (hats / vests / feet) + the team rings + the you-arrow, TNT 3, power-ups 2 (+ plinths and glows while any lie out), blob shadows 1, FX 10 (budget below). |
+| Draw calls                            | Arena ~12 (incl. the contact patches), crowd 2 (sprites + flags), crew bodies + fur + 3 shared (hats / vests / feet) + the team rings + the you-arrow, TNT 4, power-ups 2 (+ plinths and glows while any lie out), blob shadows 1, FX 10 (budget below). |
 | Garbage collection                    | Sim state in preallocated typed arrays; events are pooled objects in a reused array; render code allocates nothing per frame.                                                                                                                            |
 | Audio                                 | Max 4 blast voices; blasts within 50 ms merge; procedural WebAudio.                                                                                                                                                                                      |
 
