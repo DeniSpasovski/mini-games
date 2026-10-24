@@ -35,7 +35,7 @@ Everything is in `cars/<car>/<car>.ts` (`physics`), `physics/surfaces.ts`, `phys
 and `physics/car-setup.ts`. Workflow:
 
 1. `npm run test` + `npm run test:integration:rally` - `tests/rally/vehicle.test.ts` prints 0-100, 100-0, top speed, lateral g (no tyre fitted = raw
-   surfaces); `integration-tests/rally/stage.test.ts` drives every car through every map with the autopilot. Every car has its own
+   surfaces); `integration-tests/rally/stage-*.test.ts` drive every car through every map with the autopilot. Every car has its own
    expected ranges (`BANDS` in `vehicle.test.ts`) - add one for a new car. Tyre / set-up tests: see "Tests" below.
 2. Drive it: `/games/rally/?car=<id>&spawn=pad&tyre=<tyre>&susp=<preset>`, press `F2` (per-wheel load, slip, forces,
    tyre, set-up, effective `mu`) and `F4` (force vectors + hull).
@@ -463,11 +463,11 @@ character: the GT2 (slicks) is quickest on tarmac, the M3 and the rally cars are
 | File                                         | What it holds                                                                                                                                                                                                                            |
 | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tests/rally/vehicle.test.ts`                | per-car bands (0-100, braking, top speed), lateral g ranks per surface - no tyre fitted (raw surfaces)                                                                                                                                   |
-| `integration-tests/rally/stage.test.ts`      | every car finishes every map with the autopilot, upright (raw surfaces)                                                                                                                                                                  |
+| `integration-tests/rally/stage-*.test.ts`    | one file per map (`stage-harness.ts`): every car under test finishes every stage on the recommended pick (climate on), upright, tyres < 150 °C, discs < 1300 °C, home tyre warm, stops after the line                                    |
 | `integration-tests/rally/tyres.test.ts`      | tyre data complete; the home family is best on its surface, mixed never best / worst; careful + limit driver per stage with the stage climate (the recommended tyre is within 0.5 % of the fastest)                                      |
 | `tests/rally/tyre-types.test.ts`             | five tyres in three families, hard vs soft windows, tyre grade (road < rally < slick, loose ground keeps 40 %), M3 mass                                                                                                                  |
 | `tests/rally/car-setup.test.ts`              | sizes fit `wheelRadius` per axle; presets: damping, ride height per preset (body, wheels), compliance range per car; width effects; car vs car lateral g; straight launch on loose ground (every car reaches 100 km/h pointing straight) |
-| `integration-tests/rally/car-matrix.test.ts` | every car x stage on the recommended pick (climate on) finishes upright, tyres < 150 °C, discs < 1300 °C, home tyre warm; the worst pick gets over steep hills flat out; cars rank by character; set-up alone is worth time              |
+| `integration-tests/rally/car-matrix.test.ts` | the worst pick gets over steep hills flat out (cars under test); cars rank by character; set-up alone is worth time                                                                                                                      |
 | `tests/rally/tyre-mesh.test.ts`              | tyre geometry: budget, size, tread depth order, rim switch (rendering, but sized from the physics data)                                                                                                                                  |
 | `tests/rally/suspension-mesh.test.ts`        | coil-over geometry: length by travel, coils / wire by rate, one style per car                                                                                                                                                            |
 | `tests/rally/water-physics.test.ts`          | dry / shallow / deep acceleration per car                                                                                                                                                                                                |
@@ -479,7 +479,9 @@ character: the GT2 (slicks) is quickest on tarmac, the M3 and the rally cars are
 | `integration-tests/rally/handling.test.ts`   | whole-car handling per car x tyre x set-up x surface (`handling-harness.ts`): ramp / step steer, lift / power / brake mid-corner, handbrake, slalom, keyboard lock, braking, drops, jump landing, ruts                                   |
 
 `tyres.test.ts` and `car-matrix.test.ts` import the four stages directly (`test`, `petralica`, `jackie`, `ajvatovci`) - add a
-new map there. The "worst pick" in `car-matrix.test.ts` is tarmac tyres on a gravel stage, gravel tyres on a tarmac or
+new map there, and give it a `stage-<map>.test.ts` (`tests/rally/stage-playtests.test.ts` fails without one). Cars under test
+(`cars-under-test.ts`): every car by default and on pushes to main; on a PR the five representative cars plus the cars it
+changed (`RALLY_CARS`, from `scripts/ci-affected.mjs`). `RALLY_CARS=all` runs every car, `RALLY_CARS=fiesta` adds one. The "worst pick" in `car-matrix.test.ts` is tarmac tyres on a gravel stage, gravel tyres on a tarmac or
 dusty-tarmac stage; it is only driven over `hillSpots` (a few of each stage's steepest hills and tightest hairpin climbs,
 from a 50 km/h rolling start, flat out but lifting off for bends - 20 km/h in the tightest hairpin; the autopilot only
 steers), never at rally pace: a wrong tyre flies off there by physics. Ajvatovci has its own margin test: Mixed ahead of Tarmac and Gravel by > 1.5 % (limit driver).
@@ -538,7 +540,7 @@ cars short stubby coil-overs with a piggyback reservoir, adjuster knob and helpe
       `{ setup }` + `setSetup`, spring length from the live compression). Bimmer / Zastava stay without (closed wells / none).
 - [ ] **Asset debugger**: tyre + set-up pickers for `car:<id>` in `pages/asset-debug.ts`; `?susp=` in the car viewer.
 - [ ] **Optional emergent roughness**: raise `bump` on loose surfaces (gravel 6 -> ~15 mm, long wavelengths) so stiff
-      short-travel set-ups really skip - only with a rough-strip test and green `stage.test.ts`; back it out if the soft
+      short-travel set-ups really skip - only with a rough-strip test and green stage tests; back it out if the soft
       cars get twitchy.
 - [ ] **Tyre look in motion**: check the three tread patterns can be told apart at chase-cam distance; mud / wear vertex
       colours; fewer segments (80) if the triangle count matters on phones.

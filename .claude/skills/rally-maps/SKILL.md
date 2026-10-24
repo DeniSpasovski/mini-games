@@ -63,7 +63,7 @@ generated deterministically from it. There is no map editor on purpose — edit 
 
 1. `npm run test -- tests/rally/world.test.ts` — prints road length, max grade, control-point distances (use
    these to place `at:` props), checks the road is flat/gravel and no solid scatter is on the road.
-2. `npm run test:integration -- integration-tests/rally/stage.test.ts` — the autopilot must finish the stage with every car without rolling.
+2. `npx rstest integration-tests/rally/stage-<map>.test.ts` (new map: add that file, `describeStages(<map>)`) — the autopilot must finish the stage with every car without rolling.
    If it fails, trace the failing distance (lower `maxGrade`, widen a hairpin, move a crest out of a corner).
 3. Look: `/games/rally/map-viewer.html?map=<id>&stage=<id>` (one stage of the map, default the first; oblique overview, `grid=1` chunk grid, `splat=1` surfaces,
    click terrain -> "Drive from here").
@@ -271,8 +271,8 @@ OSM ways reprojected with the baker's `Proj`, one `Local` frame per structure (`
 Copy `maps/test/` to `maps/<id>/` (fill in its `DETAILS.md` sources), change `id`, `name`, `seed`, `bounds`, `road.points` and
 its `stages` (one or more `StageDef`: id, name, tyre, `timing`, `reverse` for a stage driven the other way along the road,
 `closures`, `cornerFans`); add to `ENTRIES` in `maps/index.ts` (a real map with baked data: put the menu fields + `stages.ts` in
-`<id>/info.ts`, load `map.ts` with a dynamic import, see rally DETAILS.md "Lazy loading"); the stage test picks every stage up
-automatically. Several stages on one road: measure each stage end's distance along the road in node (bake `meta.waypointsAlong`
+`<id>/info.ts`, load `map.ts` with a dynamic import, see rally DETAILS.md "Lazy loading"); add `integration-tests/rally/stage-<id>.test.ts`
+(`describeStages(<map>)` drives every stage; `tests/rally/stage-playtests.test.ts` fails without it). Several stages on one road: measure each stage end's distance along the road in node (bake `meta.waypointsAlong`
 is along the baked polyline, the game road differs by metres) and hard-code `timing`. **Add every stage to `STAGES_LIST` with
 `hideInProd: true`** in `src/games/rally/release.ts` (`tests/rally/release.test.ts` fails for an unlisted stage): it is then
 dev server only (TEST badge) and out of the published build. Remove the flag to release it (or set it again to pull it).

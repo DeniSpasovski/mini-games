@@ -1,5 +1,7 @@
 // CI: which integration tests does this change affect?
 //   node scripts/ci-affected.mjs <base-ref>   -> prints one line per game: <game>=<test files, space separated>
+//   plus rally_cars=<car ids changed under src/games/rally/cars/, comma separated> (`all` without a diff): the rally
+//   per-car playtests drive those on top of their representative cars (integration-tests/rally/cars-under-test.ts).
 // A test is affected when a changed file is in its import closure (relative imports, incl. json / data files).
 // Files that can change every test (package files, test / ts config, workflows, this script, src/shared) run everything.
 // Without a base ref (push to main, manual run) or when the diff fails, everything runs.
@@ -98,3 +100,12 @@ for (const g of GAMES) {
   );
   console.log(`${g}=${hit.map((t) => relative(root, t)).join(' ')}`);
 }
+
+// A car's folder is its id with dashes (cars/skoda-rally -> skoda_rally); shared car code changes no single car.
+const cars = new Set(
+  (changed ?? [])
+    .map((f) => f.match(/^src\/games\/rally\/cars\/([^/]+)\//)?.[1])
+    .filter((d) => d && d !== 'shared')
+    .map((d) => d.replace(/-/g, '_')),
+);
+console.log(`rally_cars=${changed ? [...cars].join(',') : 'all'}`);
