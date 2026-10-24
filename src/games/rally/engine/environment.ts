@@ -43,6 +43,7 @@ import {
 import type { EnvironmentDef } from '../maps/shared/types';
 import { getTexture } from './textures';
 import {
+  setCarEnvSun,
   setFogBase,
   setShadowBox,
   setWorldShading,
@@ -332,6 +333,7 @@ export class Environment {
       azimuth = s.azimuth;
     }
     this.sunElevation = elevation;
+    setCarEnvSun(elevation, this.night);
     this.lightNeed = this.studio ? 0 : lightNeed(elevation);
     this.sunAzimuth = azimuth;
     const lamp = this.night && hour !== undefined ? moonAt(hour) : null;

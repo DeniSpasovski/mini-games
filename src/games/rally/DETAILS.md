@@ -135,8 +135,9 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   `?grade=off` to compare, `?look=before|sky|soft|crisp|warm|cool|vodno-before|forest|forest-haze` to try test variants (`LOOKS` in environment.ts), `__grade.set({...})` to tune live. `gradeColor` mirrors the shader for tests.
 - **Car reflections:** three.js draws a material without its own env map at `scene.environmentIntensity` (0.3), so car
   materials are flagged `carEnv` (engine/world-shading.ts): their specular env lookup uses their own `envMapIntensity`
-  relative to `CAR_ENV_REF` (0.6: by day 1 = 1.67x the world's, a street sheen, not a studio mirror), the diffuse
-  sky light stays the scene's.
+  relative to `CAR_ENV_DAY` (0.6: by day 1 = 1.67x the world's, a street sheen, not a studio mirror; `setCarEnvSun`
+  eases it to 0.3 with the sun below ~18 deg and at night, where the reflection is what shows a car's shape), the
+  diffuse sky light stays the scene's.
 - **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark where
   neither shadow map reaches (`world/canopy-shadows.ts`: a coarse whole-map texture plus a 1.5 m local window of 768 m
   around the camera, rebuilt from the generated scatter chunks every 64 m), height fog
