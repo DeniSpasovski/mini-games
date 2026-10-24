@@ -12,23 +12,25 @@ import source from './model.source.json';
 const A = source.atlas;
 const { K, B, CH, Painter, sidePx, frontPx, rearPx } = atlasKit(A);
 
-const YELLOW = '#e8f03a';
+/** Warm gold-yellow of the classic works blue-and-yellow rally scheme. */
+const YELLOW = '#f4c51c';
 
 /**
- * The swoosh: one smooth guide curve on the body side (z, y in metres), from a low tip at the front of the door, round a wide
- * bulge and back along the rear quarter, rising with the shoulder line. The three lines are this curve and two parallel
- * copies inside it; the inner two are cut by a gap behind the bulge.
+ * The swoosh: one smooth guide curve on the body side (z, y in metres), from a low tip at the front of the door, round a round
+ * bulge and back along the rear quarter, rising with the shoulder line. The three lines are this curve and two
+ * copies inside it that close in on it along the tails.
  */
 /** Whole graphic moved (z, y) from where it was first placed: 20 cm forward, 10 cm lower. */
 const SHIFT: Pt = [0.2, -0.1];
 const GUIDE: Pt[] = (
   [
-    [-1.12, 0.3],
-    [-0.88, 0.39],
-    [-0.7, 0.5],
-    [-0.62, 0.63],
-    [-0.66, 0.74],
-    [-0.8, 0.82],
+    [-0.95, 0.26],
+    [-0.8, 0.31],
+    [-0.69, 0.39],
+    [-0.62, 0.52],
+    [-0.64, 0.67],
+    [-0.72, 0.78],
+    [-0.85, 0.85],
     [-1.05, 0.86],
     [-1.4, 0.88],
     [-1.75, 0.9],
@@ -38,31 +40,22 @@ const GUIDE: Pt[] = (
 /** Where the guide's bulge is, as a fraction of its length: the outer line is twice as thick here. */
 const BULGE_AT = 0.3;
 const OUTER_WIDTH = 0.07;
+/** How much of their offset the inner lines lose by the tail end. */
+const TAIL_RISE = 0.35;
 
 interface Line {
   /** Distance inside the guide (m). */
   offset: number;
   /** Width (m) away from the bulge. */
   width: number;
-  /** Pieces of the guide, as length fractions; each end tapers to a point unless it sits at 0 / 1 of the whole guide. */
+  /** Pieces of the guide, as length fractions. */
   pieces: [number, number][];
 }
 const LINES: Line[] = [
-  // The outer line starts a little way along the guide so its low tip stays above the sill crease.
-  { offset: 0, width: OUTER_WIDTH, pieces: [[0.07, 1]] },
-  {
-    offset: 0.12,
-    width: 0.045,
-    pieces: [
-      [0.1, 0.36],
-      [0.46, 1],
-    ],
-  },
-  {
-    offset: 0.21,
-    width: 0.035,
-    pieces: [[0.34, 1]],
-  },
+  // Each line starts a little further along the guide than the one outside it, so the low ends step up and stay short.
+  { offset: 0, width: OUTER_WIDTH, pieces: [[0.13, 1]] },
+  { offset: 0.11, width: 0.045, pieces: [[0.17, 1]] },
+  { offset: 0.19, width: 0.035, pieces: [[0.21, 1]] },
 ];
 
 /** Catmull-Rom curve through the points, resampled, then rounded off by corner cutting. */
@@ -127,8 +120,12 @@ function ribbon(guide: Pt[], line: Line, [t0, t1]: [number, number]): Pt[] {
     const tz = (b[0] - a[0]) / d;
     const ty = (b[1] - a[1]) / d;
     // Inside normal (towards the centre of the bulge, below the tail).
-    const cz = guide[i][0] - ty * line.offset;
-    const cy = guide[i][1] + tz * line.offset;
+    // Behind the bulge the inner lines close in on the outer one, so their tails angle up.
+    const off =
+      line.offset *
+      (1 - TAIL_RISE * smoothstep(Math.max(0, (s - 0.45) / 0.55)));
+    const cz = guide[i][0] - ty * off;
+    const cy = guide[i][1] + tz * off;
     let w = line.width;
     if (line.offset === 0) {
       const k = (s - BULGE_AT) / 0.25;
