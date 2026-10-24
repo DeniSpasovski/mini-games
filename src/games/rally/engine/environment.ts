@@ -75,7 +75,9 @@ const SKY_FOG: Partial<EnvironmentDef> = {
 const SHADE = { color: '#2f6f6a', amount: 0.08 };
 const LOOKS: Record<string, Partial<EnvironmentDef>> = {
   // Car paint without the `CAR_PAINT` styling, to compare.
-  'paint-plain': { carPaint: { saturation: 1, rim: 0, gloss: 1 } },
+  'paint-plain': {
+    carPaint: { saturation: 1, rim: 0, gloss: 1, whiteGloss: 1 },
+  },
   before: {
     turbidity: 3.5,
     rayleigh: 1.4,
@@ -176,9 +178,10 @@ const LOOKS: Record<string, Partial<EnvironmentDef>> = {
 
 /**
  * Default car paint look (`EnvironmentDef.carPaint`): a little stylised, so liveries pop like in a racing game: richer
- * colour, a soft edge light tinted by the paint, stronger clearcoat reflections.
+ * colour, a soft edge light tinted by the paint, stronger clearcoat reflections; white paint keeps its shading and
+ * reflects less (bright paint under a bright sky washes out).
  */
-const CAR_PAINT = { saturation: 1.4, rim: 1, gloss: 1.2 };
+const CAR_PAINT = { saturation: 1.4, rim: 1, gloss: 1.2, whiteGloss: 0.7 };
 
 /** Linear luminance of a colour. */
 const lum = (c: Color): number => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;

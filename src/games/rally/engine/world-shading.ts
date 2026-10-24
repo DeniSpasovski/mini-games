@@ -454,23 +454,25 @@ function install(): void {
       shader.fragmentShader = '#define RALLY_CAR_ENV\n' + shader.fragmentShader;
       shader.uniforms.wsEnvSpec = {
         get value() {
-          return (
-            ((mat.envMapIntensity ?? 1) / DAY_ENV_INTENSITY) *
-            (paint ? paintLook.gloss : 1)
-          );
+          return (mat.envMapIntensity ?? 1) / DAY_ENV_INTENSITY;
         },
       };
       if (paint) {
         shader.uniforms.wsPaintSat = paintSaturation;
         shader.uniforms.wsPaintRim = paintRim;
+        shader.uniforms.wsPaintGloss = paintGloss;
         shader.fragmentShader = shader.fragmentShader
           .replace(
             'void main() {',
-            'uniform float wsPaintSat;\nuniform vec3 wsPaintRim;\nvoid main() {',
+            'uniform float wsPaintSat;\nuniform vec3 wsPaintRim;\nuniform vec2 wsPaintGloss;\nvoid main() {',
           )
           .replace(
             '#include <map_fragment>',
             '#include <map_fragment>\n' + PAINT_SATURATION,
+          )
+          .replace(
+            '#include <lights_fragment_end>',
+            PAINT_GLOSS + '#include <lights_fragment_end>',
           )
           .replace(
             '#include <opaque_fragment>',
@@ -498,26 +500,46 @@ const DAY_ENV_INTENSITY = 0.3;
 
 /**
  * Body paint look (`EnvironmentDef.carPaint`, flagged `carPaint` on top of `carEnv`): `saturation` of the paint colour
- * before lighting (ACES washes bright saturated colours out), `rim` = a soft sky-coloured edge light on the car only,
- * `gloss` = clearcoat reflections x. Neutral (1, 0, 1) leaves the shader's result as it was.
+ * before lighting (ACES washes bright saturated colours out), `rim` = a soft sky-coloured edge light on coloured paint,
+ * `gloss` / `whiteGloss` = reflections x on coloured / white paint. Neutral (1, 0, 1, 1) leaves the shader's result as
+ * it was.
  */
-const paintLook = { saturation: 1, rim: 0, gloss: 1 };
+const paintLook = { saturation: 1, rim: 0, gloss: 1, whiteGloss: 1 };
 const paintSaturation = { value: 1 };
 export function setPaintLook(
   look: Partial<typeof paintLook>,
   rimColor = new Color(1, 1, 1),
 ): void {
-  Object.assign(paintLook, { saturation: 1, rim: 0, gloss: 1 }, look);
+  Object.assign(
+    paintLook,
+    { saturation: 1, rim: 0, gloss: 1, whiteGloss: 1 },
+    look,
+  );
   paintSaturation.value = paintLook.saturation;
+  paintGloss.value.set(paintLook.gloss, paintLook.whiteGloss);
   paintRim.value.copy(rimColor).multiplyScalar(paintLook.rim);
 }
 const paintRim = { value: new Color(0, 0, 0) };
+const paintGloss = { value: new Vector2(1, 1) };
+/** How white the paint is (linear luminance): white and light paint keep their shading, no edge light, own gloss. */
+const PAINT_WHITE = /* glsl */ `smoothstep( 0.35, 0.75, dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) )`;
+const PAINT_GLOSS = /* glsl */ `
+  {
+    // Reflections x: gloss on coloured paint, whiteGloss on white (bright paint plus a bright sky washes out).
+    float wsG = mix( wsPaintGloss.x, wsPaintGloss.y, ${PAINT_WHITE} );
+    radiance *= wsG;
+    #ifdef USE_CLEARCOAT
+      clearcoatRadiance *= wsG;
+    #endif
+  }
+`;
 const PAINT_SATURATION = /* glsl */ `
   diffuseColor.rgb = max( vec3( 0.0 ), mix( vec3( dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ), diffuseColor.rgb, wsPaintSat ) );
 `;
 const PAINT_RIM = /* glsl */ `
-  // Edge light: grows towards grazing angles, tinted mostly by the paint (a lit edge, not a white outline).
-  float wsRim = pow( 1.0 - saturate( dot( normal, geometryViewDir ) ), 3.0 );
+  // Edge light on coloured paint: grows towards grazing angles, tinted mostly by the paint (a lit edge, not a white
+  // outline); none on white, where it would fill in the panel shading.
+  float wsRim = pow( 1.0 - saturate( dot( normal, geometryViewDir ) ), 3.0 ) * ( 1.0 - ${PAINT_WHITE} );
   outgoingLight += wsPaintRim * wsRim * mix( vec3( 1.0 ), diffuseColor.rgb, 0.85 );
 `;
 

@@ -126,7 +126,7 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   materials are flagged `carEnv` (engine/world-shading.ts): their specular env lookup uses their own `envMapIntensity`
   (scaled with the scene's), the diffuse sky light stays the scene's.
 - **Car paint** (slightly stylised): body paint materials are flagged `carPaint` (world-shading.ts `setPaintLook`, day only):
-  richer colour, a soft edge light tinted by the paint, stronger clearcoat (`CAR_PAINT` in environment.ts, per map
+  richer colour, a soft edge light tinted by the paint and stronger clearcoat on coloured paint; white keeps its shading and reflects less (`CAR_PAINT` in environment.ts, per map
   `carPaint`). The reflected ground stays dark on purpose: a bright one washes deep blue / red paint pale.
   `?look=paint-plain` shows the unstyled paint.
 - **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark outside the
