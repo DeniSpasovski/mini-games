@@ -92,13 +92,16 @@ export const SPECTATOR_FLAG_COUNT = 12;
 /** Most grass the detail layer places near the camera (x the rule density; quality `grassNear` takes a share). */
 export const NEAR_GRASS = 3;
 
-/** Grass: blade strips on the verges (`nearRoad`) to 35 m (past that a tuft is a few pixels: cards look the same), crossed cards to 110 m. */
+/** Grass: blade strips (`nearRoad`, none at present) to 35 m, crossed cards to 110 m. */
 const GRASS_LODS: LodSpec[] = [
   { maxDistance: 35, castShadow: false },
   { maxDistance: 110, castShadow: false },
 ];
-/** Grass verge with blade strips: this close to a road edge (m). */
-const GRASS_BLADES_ROAD = 3;
+/**
+ * Grass verge with blade strips: this close to a road edge (m). 0 = none: next to the cards further out the blade
+ * tufts read as bare ground, so the verge looked empty as the car came close.
+ */
+const GRASS_BLADES_ROAD = 0;
 
 /** Wheat: 1 m card patches baked from the model, to 90 m (the parcel colour past that). */
 const WHEAT_LODS: LodSpec[] = [{ maxDistance: 90, castShadow: false }];
