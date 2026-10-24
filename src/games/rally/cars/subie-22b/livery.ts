@@ -19,18 +19,22 @@ const YELLOW = '#e8f03a';
  * bulge and back along the rear quarter, rising with the shoulder line. The three lines are this curve and two parallel
  * copies inside it; the inner two are cut by a gap behind the bulge.
  */
-const GUIDE: Pt[] = [
-  [-1.12, 0.3],
-  [-0.88, 0.39],
-  [-0.7, 0.5],
-  [-0.62, 0.63],
-  [-0.66, 0.74],
-  [-0.8, 0.82],
-  [-1.05, 0.86],
-  [-1.4, 0.88],
-  [-1.75, 0.9],
-  [-2.05, 0.92],
-];
+/** Whole graphic moved (z, y) from where it was first placed: 20 cm forward, 10 cm lower. */
+const SHIFT: Pt = [0.2, -0.1];
+const GUIDE: Pt[] = (
+  [
+    [-1.12, 0.3],
+    [-0.88, 0.39],
+    [-0.7, 0.5],
+    [-0.62, 0.63],
+    [-0.66, 0.74],
+    [-0.8, 0.82],
+    [-1.05, 0.86],
+    [-1.4, 0.88],
+    [-1.75, 0.9],
+    [-2.05, 0.92],
+  ] as Pt[]
+).map(([z, y]) => [z + SHIFT[0], y + SHIFT[1]]);
 /** Where the guide's bulge is, as a fraction of its length: the outer line is twice as thick here. */
 const BULGE_AT = 0.3;
 const OUTER_WIDTH = 0.07;
@@ -44,12 +48,13 @@ interface Line {
   pieces: [number, number][];
 }
 const LINES: Line[] = [
-  { offset: 0, width: OUTER_WIDTH, pieces: [[0, 1]] },
+  // The outer line starts a little way along the guide so its low tip stays above the sill crease.
+  { offset: 0, width: OUTER_WIDTH, pieces: [[0.07, 1]] },
   {
     offset: 0.12,
     width: 0.045,
     pieces: [
-      [0.1, 0.4],
+      [0.1, 0.36],
       [0.46, 1],
     ],
   },
@@ -126,14 +131,13 @@ function ribbon(guide: Pt[], line: Line, [t0, t1]: [number, number]): Pt[] {
     const cy = guide[i][1] + tz * line.offset;
     let w = line.width;
     if (line.offset === 0) {
-      const k = (s - BULGE_AT) / 0.2;
+      const k = (s - BULGE_AT) / 0.25;
       w *= 1 + 0.9 * Math.exp(-k * k);
     }
-    // Pointed where the piece is cut or the line ends;
-    const e =
-      smoothstep(Math.min(1, (s - t0) / 0.1)) *
-      smoothstep(Math.min(1, (t1 - s) / (t1 < 1 ? 0.08 : 0.3)));
-    w *= 0.15 + 0.85 * e;
+    // Clean ends: a cut end stays blunt, the outer line's low tip and the tails narrow a little and end square.
+    const e0 = line.offset === 0 ? smoothstep(Math.min(1, (s - t0) / 0.15)) : 1;
+    const e1 = t1 === 1 ? smoothstep(Math.min(1, (1 - s) / 0.35)) : 1;
+    w *= (0.55 + 0.45 * e0) * (0.5 + 0.5 * e1);
     const nz = -ty;
     const ny = tz;
     left.push([cz + nz * (w / 2), cy + ny * (w / 2)]);
