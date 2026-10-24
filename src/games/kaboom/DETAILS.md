@@ -117,11 +117,10 @@ pennant at the back of the Sea Deck.
 
 ## UI style
 
-Tokens, type, components and rules: [STYLEGUIDE.md](STYLEGUIDE.md) ("Claymation"). Code: `game/ui-tokens.css` (every colour, the clay
-finish and the self-hosted Grandstander / Nunito faces from `assets/fonts/`), `game/kaboom.css` (`var(--kb-*)` only, no literal
-colours), `game/icons.ts`. One button shape (`.kb-btn`); the boil filter (`#kb-boil`, injected by `Menu`) is only ever on a card's
-`::before` or the logo, never on a control; the HUD hides under pause and results; setup fits 1280x720 and the action buttons
-and the version label stay visible at 915x412.
+Tokens, type, components and rules: [STYLEGUIDE.md](STYLEGUIDE.md) ("Sandstone"). Code: `game/ui-tokens.css` (every colour, the
+stone finish and the self-hosted Grandstander / Nunito faces from `assets/fonts/`), `game/kaboom.css` (`var(--kb-*)` only, no
+literal colours; the 3D letters rule shared by logo, headings and banners), `game/icons.ts`. One button shape (`.kb-btn`); the HUD
+hides under pause and results; setup fits 1280x720 and the action buttons and the version label stay visible at 915x412.
 
 **Finale** (`WorldView.finale`, called from `KaboomGame.endMatch`): the camera pulls back to the whole stand (`dock` shifts the
 view clear of the results card), `Arena.clearArea` removes the crates and hard blocks in the middle, a `Podium` (`render/podium.ts`: cut stone courses, a

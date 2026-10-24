@@ -1,4 +1,4 @@
-/* UI tokens + fonts for menu, HUD and overlays (the "Claymation" look): kaboom.css uses var(--kb-*) only, so a change of look starts here.
+/* UI tokens + fonts for menu, HUD and overlays (the "Sandstone" look): kaboom.css uses var(--kb-*) only, so a change of look starts here.
    Values and rules: ../STYLEGUIDE.md */
 
 /* Grandstander + Nunito (SIL OFL 1.1, assets/fonts/OFL.txt), self-hosted: latin + latin-ext subsets. */
@@ -72,64 +72,146 @@
 }
 
 :root {
-  /* clay: text and outlines (ink), cards, buttons */
-  --kb-ink: #3b2418;
-  --kb-ink-2: #6e5240;
-  --kb-card: #f3e2c4;
-  --kb-card-edge: #d9c29c;
-  --kb-btn: #f8ecd6;
-  --kb-btn-off: #e2cfac;
-  --kb-accent: #f6c23e;
+  /* sandstone: text and the 3D letters' outline (ink), cards, buttons */
+  --kb-ink: #2e1606;
+  --kb-ink-2: #5a3a20;
+  --kb-card: #e2c491;
+  --kb-card-hi: #eed6aa;
+  --kb-card-lo: #d9b47e;
+  --kb-card-edge: #9a6631;
+  --kb-btn: #f6e8cb;
+  --kb-btn-mid: #e9cf9f;
+  --kb-btn-lo: #d8b67f;
+  --kb-btn-off: #cdb08a;
+  --kb-accent-hi: #ffe36a;
+  --kb-accent: #ffd640;
+  --kb-accent-lo: #ff9a22;
+  /* the chamfer round a tile, lit from the top left: light, mid, shade */
+  --kb-chamfer-1: #fff6e2;
+  --kb-chamfer-2: #e2c48f;
+  --kb-chamfer-3: #a07444;
+  --kb-chamfer-accent-1: #fff4b0;
+  --kb-chamfer-accent-2: #ffbe3a;
+  --kb-chamfer-accent-3: #c25a16;
+  --kb-chamfer-card-1: #fbecc8;
+  --kb-chamfer-card-2: #d9b682;
+  --kb-chamfer-card-3: #8c5f2e;
   --kb-on-accent: var(--kb-ink);
-  --kb-you: #ffe1b5;
-  --kb-win: #17663a;
-  --kb-lose: #b42318;
+  --kb-you: #ffe3a8;
   --kb-star: var(--kb-accent);
   --kb-tnt: #d8362f;
   --kb-cream: #fff6e6;
 
-  /* logo and headline letters only (always ink-outlined) */
-  --kb-clay-1: #e8553d;
-  --kb-clay-2: #f6c23e;
-  --kb-clay-3: #4b8fe0;
-  --kb-clay-4: #6cc070;
-  --kb-clay-5: #9a66d2;
+  /* 3D letters (logo, headings, banners, the count), like the blast words: face top / middle / bottom, the side
+     front and back, outline = ink. A banner kind or a count number swaps these. */
+  --kb-face-1: #fffad0;
+  --kb-face-2: #ffd640;
+  --kb-face-3: #ffa126;
+  --kb-side-1: #e8701c;
+  --kb-side-2: #a8420f;
+  --kb-lose-1: #ffe0d4;
+  --kb-lose-2: #ff8a6a;
+  --kb-lose-3: #e0452c;
+  --kb-lose-side-1: #a83020;
+  --kb-lose-side-2: #6e1a10;
+  --kb-go-1: #f0ffd8;
+  --kb-go-2: #8ef07a;
+  --kb-go-3: #3fbf4a;
+  --kb-go-side-1: #2a8a30;
+  --kb-go-side-2: #145a1c;
 
   --kb-sudden: #ff5a3a;
   --kb-sudden-2: #ffd23f;
-  --kb-page: #bfdcea;
-  --kb-banner-go: #7dff9c;
-  --kb-banner-win: #ffd23f;
-  --kb-banner-lose: #ff8a80;
-  --kb-banner-warn: #ff6a3a;
+  --kb-page: #c9a878;
 
-  /* shape and finish */
-  --kb-outline: 3px;
-  --kb-radius: 14px;
+  /* shape and finish: mid-poly tiles, no ink outline. A tile is a convex face inside a chamfer frame that runs round all
+     four sides (a border-box gradient), a thin rim and a soft contact shadow that --kb-lip lifts and the press drops */
+  --kb-radius: 12px;
+  --kb-chamfer: 4px;
   --kb-edge: 5px;
-  --kb-highlight:
-    inset 0 2px 0 rgb(255 255 255 / 0.6), inset 0 -3px 0 rgb(59 36 24 / 0.12);
+  --kb-rim: rgb(70 36 12 / 0.55);
+  --kb-rim-accent: rgb(140 50 6 / 0.6);
+  --kb-contact: rgb(46 22 6 / 0.42);
+  /* the crease where the chamfer meets the face */
+  --kb-bevel:
+    inset 0 1px 0 rgb(255 255 245 / 0.7), inset 0 -1px 1px rgb(120 70 28 / 0.35);
+  --kb-bevel-accent:
+    inset 0 1px 0 rgb(255 254 225 / 0.8), inset 0 -1px 1px rgb(190 80 10 / 0.4);
+  --kb-slab-bevel:
+    inset 0 1px 0 rgb(255 250 230 / 0.6), inset 0 -2px 2px rgb(120 70 28 / 0.3);
+  /* a ball or block in any colour (swatches, the logo blocks, chips): the same chamfer, neutral */
+  --kb-block-bevel:
+    inset 0 3px 2px rgb(255 255 255 / 0.55),
+    inset 2px 0 3px rgb(255 255 255 / 0.25), inset 0 -4px 5px rgb(0 0 0 / 0.25);
   --kb-gloss: linear-gradient(
-    rgb(255 255 255 / 0.42),
-    rgb(255 255 255 / 0) 48%
+    rgb(255 255 255 / 0.35),
+    rgb(255 255 255 / 0) 50%
   );
   --kb-sheen: radial-gradient(
-    ellipse at 30% 20%,
-    rgb(255 255 255 / 0.55),
-    transparent 45%
+    130% 100% at 35% 10%,
+    rgb(255 255 248 / 0.6),
+    transparent 60%
   );
-  --kb-thumb: repeating-radial-gradient(
-    ellipse at 72% 28%,
-    rgb(59 36 24 / 0.045) 0 2px,
-    transparent 2px 6px
+  --kb-sheen-accent: radial-gradient(
+    130% 100% at 35% 10%,
+    rgb(255 255 225 / 0.7),
+    transparent 60%
   );
+  /* stone grain and strata (SVG noise, tiled) */
+  --kb-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.4 0 0 0 0 0.3 0 0 0 0.55 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  --kb-strata: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.004 0.06' numOctaves='3' seed='9'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.3 0 0 0 0 0.15 0 0 0 0.45 0'/%3E%3C/filter%3E%3Crect width='400' height='240' filter='url(%23n)'/%3E%3C/svg%3E");
+  /* a button or HUD plate, the primary button, a card: the face (padding-box) inside its chamfer (border-box) */
+  --kb-stone:
+    var(--kb-sheen) padding-box, var(--kb-grain) padding-box,
+    linear-gradient(var(--kb-btn), var(--kb-btn-mid) 65%, var(--kb-btn-lo))
+      padding-box,
+    linear-gradient(
+        155deg,
+        var(--kb-chamfer-1),
+        var(--kb-chamfer-2) 45%,
+        var(--kb-chamfer-3)
+      )
+      border-box;
+  --kb-gold:
+    var(--kb-sheen-accent) padding-box,
+    linear-gradient(
+        var(--kb-accent-hi),
+        var(--kb-accent) 55%,
+        var(--kb-accent-lo)
+      )
+      padding-box,
+    linear-gradient(
+        155deg,
+        var(--kb-chamfer-accent-1),
+        var(--kb-chamfer-accent-2) 45%,
+        var(--kb-chamfer-accent-3)
+      )
+      border-box;
+
+  --kb-slab:
+    var(--kb-grain) padding-box, var(--kb-strata) padding-box,
+    linear-gradient(
+        170deg,
+        var(--kb-card-hi),
+        var(--kb-card) 55%,
+        var(--kb-card-lo)
+      )
+      padding-box,
+    linear-gradient(
+        155deg,
+        var(--kb-chamfer-card-1),
+        var(--kb-chamfer-card-2) 45%,
+        var(--kb-chamfer-card-3)
+      )
+      border-box;
+
   --kb-shine: rgb(255 255 255 / 0.5);
-  --kb-shade: rgb(59 36 24 / 0.18);
+  --kb-shade: rgb(46 22 6 / 0.18);
   --kb-spring: 120ms cubic-bezier(0.3, 1.6, 0.5, 1);
-  --kb-drop: rgb(0 0 0 / 0.3);
-  --kb-dim-1: rgb(59 36 24 / 0);
-  --kb-dim-2: rgb(59 36 24 / 0.5);
-  --kb-veil: rgb(243 226 196 / 0.94);
+  --kb-drop: rgb(0 0 0 / 0.45);
+  --kb-dim-1: rgb(46 22 6 / 0);
+  --kb-dim-2: rgb(46 22 6 / 0.5);
+  --kb-veil: rgb(226 196 145 / 0.95);
   --kb-ring-1: rgb(255 255 255 / 0.7);
   --kb-ring-2: rgb(255 255 255 / 0.85);
 

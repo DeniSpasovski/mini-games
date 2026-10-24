@@ -55,7 +55,7 @@ The Large arena (up to 8 players) is bigger than the screen: the camera follows 
   particles with a heat texture instead of lights - a 40-TNT chain costs about as much as one blast.
 - **Camera**: a close view that follows you by default; switch to the whole arena in Options or with `C`.
 - Touch, keyboard and gamepad; phone-friendly with a follow camera on big arenas.
-- **A clay UI**: cream clay cards, chunky buttons, a podium and a card-holding crowd when a match ends ([STYLEGUIDE.md](STYLEGUIDE.md)).
+- **A sandstone UI**: carved stone cards, bevelled mid-poly buttons, chunky 3D titles, a podium and a card-holding crowd when a match ends ([STYLEGUIDE.md](STYLEGUIDE.md)).
 - Tool pages: map viewer, crew viewer, bench.
 
 ## Credits and licence

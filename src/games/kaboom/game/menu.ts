@@ -94,8 +94,6 @@ export interface MenuApi {
   onTick(): void;
   /** The live 3D critter for the setup's picker; null (or missing) = show the portrait instead (no WebGL, tests). */
   makeStage?(): CritterStage | null;
-  /** Low graphics tier: the card edges hold still instead of boiling. */
-  lowQuality?: boolean;
 }
 
 /** A live critter on a little turntable (`render/critter-preview.ts`). */
@@ -107,13 +105,6 @@ export interface CritterStage {
 
 const hexOf = (i: number): string =>
   `#${(TEAM_COLORS[(i | 0) % TEAM_COLORS.length] ?? TEAM_COLORS[0]).toString(16).padStart(6, '0')}`;
-
-/** The boil filter (`.kb-card::before`): turbulence displacing the clay edge, its seed stepped like stop-motion frames. */
-/** Letter colours of the logo (`--kb-clay-N`). */
-const LOGO_CLAY = [2, 1, 3, 4, 2, 5, 1];
-
-const BOIL_FRAME_MS = 125;
-const BOIL_SEEDS = 4;
 
 /** A segmented button's chosen state, for the look (`.on`) and for assistive tech. */
 const setOn = (b: HTMLElement, on: boolean): void => {
@@ -150,52 +141,13 @@ export class Menu {
       el('div', '', 'Packing the TNT...'),
     );
     this.loadingEl.style.display = 'none';
-    root.append(this.boilFilter(), this.layer, this.loadingEl);
+    root.append(this.layer, this.loadingEl);
   }
 
   hide(): void {
     this.dropStage();
     this.layer.replaceChildren();
     this.layer.style.display = 'none';
-    this.boil(false);
-  }
-
-  private boilNoise: Element | null = null;
-  private boilTimer = 0;
-
-  /** A 0x0 SVG holding the filter the clay cards use; it never touches text or buttons. */
-  private boilFilter(): SVGSVGElement {
-    const ns = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(ns, 'svg');
-    svg.setAttribute('width', '0');
-    svg.setAttribute('height', '0');
-    svg.setAttribute('aria-hidden', 'true');
-    svg.style.position = 'absolute';
-    svg.innerHTML =
-      '<filter id="kb-boil" x="-12%" y="-12%" width="124%" height="140%">' +
-      '<feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="1"/>' +
-      '<feDisplacementMap in="SourceGraphic" scale="1.5"/></filter>';
-    this.boilNoise = svg.querySelector('feTurbulence');
-    return svg;
-  }
-
-  /** Step the seed while a card is up; still under reduced motion and on the low graphics tier. */
-  private boil(on: boolean): void {
-    const still =
-      this.api.lowQuality ||
-      (typeof matchMedia === 'function' &&
-        matchMedia('(prefers-reduced-motion: reduce)').matches);
-    if (!on || still) {
-      clearInterval(this.boilTimer);
-      this.boilTimer = 0;
-      return;
-    }
-    if (this.boilTimer) return;
-    let seed = 1;
-    this.boilTimer = window.setInterval(() => {
-      seed = (seed % BOIL_SEEDS) + 1;
-      this.boilNoise?.setAttribute('seed', String(seed));
-    }, BOIL_FRAME_MS);
   }
 
   loading(on: boolean): void {
@@ -222,7 +174,6 @@ export class Menu {
       'sheet',
       !!card?.classList.contains('kb-sheet'),
     );
-    this.boil(true);
     return card;
   }
 
@@ -274,11 +225,7 @@ export class Menu {
       balls.append(b);
     });
     const word = el('div', 'kb-word', '', { 'aria-hidden': 'true' });
-    [...'Kabooom'].forEach((ch, i) => {
-      const l = el('span', '', ch);
-      l.style.setProperty('--c', `var(--kb-clay-${LOGO_CLAY[i]})`);
-      word.append(l);
-    });
+    for (const ch of 'Kabooom') word.append(el('span', '', ch));
     h.append(balls, word);
     return h;
   }
