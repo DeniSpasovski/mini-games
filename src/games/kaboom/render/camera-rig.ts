@@ -2,7 +2,7 @@ import { PerspectiveCamera, Vector3 } from 'three';
 
 /** Tilted diorama view: narrow FOV, steep pitch, fixed yaw (looking north, grid +y = screen down). DETAILS.md "Camera". */
 export const CAM_FOV = 30;
-export const CAM_PITCH_DEG = 58;
+export const CAM_PITCH_DEG = 54;
 
 /** What must stay on screen: the slab (half-extent padding, depth under the floor) and the tallest thing on it. */
 export const SLAB_PAD = 1.9;

@@ -5,7 +5,7 @@
 > **Released** (listed in `GAME_LIST`, `src/portal/release.ts`).
 
 An arena game in a tilted 3D view: you and up to 7 bots walk a grid, place TNT, blow up crates and each other. The last
-one standing wins the round. three.js, procedural art only (no model / texture / sound files).
+one standing wins the round. three.js, procedural art (no model or sound files; one small HDRI and one detail tile per level from Poly Haven).
 
 ## Pillars
 
@@ -13,15 +13,38 @@ one standing wins the round. three.js, procedural art only (no model / texture /
    materials or allocations. Every feature names its frame cost.
 2. **Readable at a glance.** The camera tilt, the colours and the flame shapes show who, where and when. Danger is
    always visible (TNT count, flame tiles, fuse sparks).
-3. **Our own look.** Original characters, art, sounds and level layouts, all procedural; no third-party model, texture or sound files (the UI fonts aside). See "Style".
+3. **Our own look.** Original characters, art, sounds and level layouts, all procedural; no third-party model or sound files. The UI fonts, one small CC0 HDRI per level (environment light) and one baked-down CC0 detail tile per level are the only files from elsewhere; models stay reference only. See "Style".
 4. **Short loop.** Pick bots, map size, go. Rounds of about 2 minutes; best of 3 by default.
 
 ## Style
 
-**Look: "clay diorama".** In the Quarry each arena sits on the floor of a rocky bowl, a gladiator arena (the other levels: "Levels"): a low wall, four sandstone
-terraces for the crowd, then a cliff up to a flat rim with boulders (`render/bowl.ts`: rings are the floor grown by an
-offset, bent by slow noise and carved by finer noise (crumbling step edges, lumpy treads, a rough cliff) so it reads as 3D rock, one tile of sand margin round the battle zone). Rounded blocks, matte grain over Lambert shading, warm key light + cool
-fill, one soft static sun shadow. Deliberately different from Hole Island's sharp blocky toys.
+**The bowl** (Quarry; the other levels: "Levels"): each arena sits on the floor of a rocky bowl, a gladiator arena: a low
+wall faced with ashlar (High), four sandstone terraces for the crowd, each riser faced with big cut blocks (High) under a
+course of coping stones, scree at
+the foot of a banded cliff, then a flat rim with sandstone boulders (`render/bowl.ts`: rings are the floor grown by an offset,
+bent by slow noise and carved by finer noise; smooth shading inside each face, hard creases at the step edges, painted per
+vertex; one tile of sand margin round the battle zone). Deliberately different from Hole Island's sharp blocky toys.
+
+**Mid-poly stylised** (the art direction): real objects built from their real parts, every edge bevelled, medium-scale detail,
+saturated natural colour under soft filmic light; straight true shapes, no bending or swelling.
+
+- **Parts and bevels** (`render/parts.ts`): an object is the pieces it is made of (a pillar is cut stones on a mortar core with
+  an iron band and a capstone, the floor is separate flags, a crate is posts, rails, a criss-cross lattice of slats, boards and nails); `bbox` bevels every edge by `BEVEL` (0.04 m), `flagstone` cuts a chamfered
+  stone or plank from an outline. Rocks are welded (`smooth`) with cut faces, cracks and a flat base. At most about 1,500
+  triangles per block variant on High (a crate about 600: there can be a hundred) (`__kaboomBench.triangles()`); a model may take a lighter Low version (`BlockModel`).
+- **Painted look** (`part()`): vertex colours with lighter tops and bevelled edges, warm above and cool below, darker
+  undersides, hollows and cracks; no grain texture on the arena. `footShade` darkens every block towards the floor and
+  `ContactShade` (`render/shadows.ts`, one instanced draw) lays a soft multiply patch round each block and crate.
+- **Detail texture** (`render/detail.ts`, baked by `scripts/kaboom/bake-textures.py`): one grey 512 px tile per level, red =
+  the ground (gravelly sand, grass, deck wood), green = the second surface (rock, dry soil, weathered hull paint). The scenery
+  material projects it in world space from three sides (no UVs) and scales the paint by it where a vertex asks
+  (`aDetail`, `part({ detail })`): the Quarry's margin, terraces, rim, cliff and cut stones, the Valley's meadow,
+  margin and turf tiles (a brown dirt tile takes the soil channel: `soil` in `arenaMaterial`), the Sea's decks, hulls and
+  rails. The rest of the arena stays untextured paint.
+- **Light** (`render/renderer.ts`, `materials.ts`, `environment.ts`): ACES filmic tone mapping; warm sun with one soft static
+  shadow, a cool hemisphere fill. High: `MeshStandardMaterial` with the roughness `part()` stores per vertex (`ROUGH`: wood
+  0.85, stone 0.75, iron 0.45 ...) and the level's HDRI as environment light (the fill is cut to 36 %); Low: Lambert
+  plus a faint cool rim. Each theme sets its sun, fill and `env` strength.
 
 **Crowd** (`render/crowd.ts`): about 250-400 spectators on the terraces, the same eight animals as the crew, drawn as
 **sprites**. The camera never turns, so each animal is rendered once with the crew renderer (fur, face, a plain sleeved fan shirt from `fanShirtGeometry`, no hard hat)
@@ -33,12 +56,19 @@ bots do not count): `setPlayers` re-deals them when that set changes. Fans sit i
 that share a colour; about half the blocks wave flags (second instanced mesh, one shader draws arm, pole and flag in the
 shirt colour, moving with the game clock). Never frozen: everyone breathes and sways, each block cheers on its own slow rhythm (jumping in step), a stadium wave
 runs round every terrace every ~34 s, and a blast or a KO makes everyone jump (`excite`, decays in about a second); all
-of it is a pure function of the clock in `Crowd.place`. Low quality drops the top terrace and thins the rest.
+of it is a pure function of the clock in `Crowd.place`. Low quality drops the top terrace and thins the rest. The crowd
+steps back so the arena leads (`RECEDE_VERT` / `RECEDE_FRAG`): sprites and flags a touch darker and less saturated than the
+crew, rows further from the arena fading a little towards the sky.
 
 **Blasts** (`render/fx/`): soft camera-facing fire puffs from one generated noise flipbook (`fx/puff-atlas.ts`) that grow,
 swirl, rise and cool from white-hot to deep red, overlapping into a roaring jet along each arm (`fx/flames.ts`); a white
-flash, a shockwave ring over the floor, spark streaks, a skirt of dust, wood splinters, a column of smoke that lingers
-about 2 s and a scorch mark that fades over 6 s. Fire blends premultiplied and mostly additive (it glows but keeps some
+flash, a shockwave ring over the floor, spark streaks, a skirt of dust, wood splinters, a low ring of dark purple-grey billows
+born with the blast that engulf the fireball (the fire glows through them while they are young, strongest underneath),
+then a column of them rising (lit on top, darker underneath, shrinking as they thin) that lingers about 2 s and a cracked scorch mark (embers glowing in it for a moment) that fades over 6 s. A
+broken crate throws big plank chunks that land, lie still for a second and shrink away, with a ring of dust; an arm that
+stops against a hard block throws stone chips and a grey puff back off its face. A KO holds the whole picture still for
+70 ms (hit-stop) and flashes a ring in the critter's team colour. The cells where sudden-death walls will land show a
+pulsing outline that beats faster, and the wall's shadow growing, as it comes. Fire blends premultiplied and mostly additive (it glows but keeps some
 body); deep in a chain the extras thin out so the screen never drowns in smoke.
 
 **Cast: "the Boom Crew"** - 8 furry animal demolition workers (`render/critters.ts`), each its own build so they read
@@ -60,7 +90,8 @@ shrinks into a puff of dust and stars, the hard hat bounces away, and the sooty 
 
 **Power-ups** (`render/items.ts`, models in `crew-parts.ts`): _more dynamites_ = two full dynamite bundles on a cyan
 pad, _more sticks_ = one fat bundle of seven sticks tied with a golden band on a gold pad. They hover, spin and pop in
-when a crate breaks; the HUD shows the stock as dynamite (`game/icons.ts`): one stick per TNT you can hold (lit = ready,
+when a crate breaks, over a stone plinth with a glow ring in their pad's colour (both hidden while nothing lies on the
+floor: an empty instanced mesh still costs a draw), and a ring of that colour flashes over the floor as one appears; the HUD shows the stock as dynamite (`game/icons.ts`): one stick per TNT you can hold (lit = ready,
 faded = out on the field) and the blast level as a bundle of 1-5 sticks (flames either side at 4 and 5, the corner
 levels), and pops the one that grew.
 
@@ -70,10 +101,19 @@ TNT will reach (`TNT_LAYOUTS` in `crew-parts.ts`; all five in one geometry, each
 printed rings, waxed ends; generated, shared with the pickups) with crimped caps, two turns of twine, a paper label with
 hazard-stripe borders showing **3 -> 2 -> 1** (digit atlas, picked per instance in the vertex shader) and a curling fuse
 (`fusePoint`) the spark rides down in a soft glow; it pulses faster and blinks white-hot in the last half second.
-A comic **KABOOOM!** / **BOOM!** / **KA-POW!** word pops over blasts (throttled).
+A comic **KABOOOM!** / **BOOM!** / **KA-POW!** word pops over blasts (throttled): chunky 3D lettering painted into the word
+atlas (`fx/word-burst.ts`: an outline round the block, an extruded side, a bevelled gradient face; Grandstander once loaded).
 
-**Readability**: slate-blue pillars, grey-brown boulders, warm wood crates and brown dirt mounds are four distinct
-families; critters are drawn 14 % bigger than their hitbox; a bobbing arrow in the team colour marks the human.
+**Readability**: light flagged floor, mid-value cool stone (blue-grey pillars taller than a crate, grey boulders), warm
+breakables (wood crates, terracotta pots with a tall amphora); a hard block never shares the breakables' warm hue; critters are drawn 14 % bigger than their hitbox, hard hats 15 % bigger than
+the models fit them, vests glow a little in their own colour, and a warm rim light sets critters and TNT off the floor.
+Every critter stands on a ring in its team colour (one instanced draw); the human's ring is thicker and pulses, and a
+chunky bevelled arrow (team colour in a white outline) bounces over their head. The 3D view gets a soft vignette and, on
+High, a gentle warm grade per level (`.kb-finish`, CSS over the canvas).
+
+**Story props** (one big landmark per level): a timber derrick on the Quarry's back margin with a cut block on its hook,
+a whitewashed windmill with turning sails off the Valley's left side, a ship's mast with a furled sail, shrouds and a
+pennant at the back of the Sea Deck.
 
 ## UI style
 
@@ -84,8 +124,8 @@ colours), `game/icons.ts`. One button shape (`.kb-btn`); the boil filter (`#kb-b
 and the version label stay visible at 915x412.
 
 **Finale** (`WorldView.finale`, called from `KaboomGame.endMatch`): the camera pulls back to the whole stand (`dock` shifts the
-view clear of the results card), `Arena.clearArea` removes the crates and hard blocks in the middle, a `Podium` (`render/podium.ts`)
-rises and `Crew.setPodium` puts the top three on it (the winner hops). `Crowd.cardStunt` lays a board of cards over the far stand
+view clear of the results card), `Arena.clearArea` removes the crates and hard blocks in the middle, a `Podium` (`render/podium.ts`: cut stone courses, a
+capstone, a gold / silver / bronze band) rises and `Crew.setPodium` puts the top three on it (the winner hops). `Crowd.cardStunt` lays a board of cards over the far stand
 in screen space (`render/card-stunt.ts`: a 5x7 letter bitmap, 9 rows, one instanced mesh, no depth test; text null = every card
 lit, two colours for a tie); `refreshStunt` re-lays it after a resize. The results card opens `RESULTS_DELAY_S` (1.2 s) after the
 match ends. A round win runs a one-second card wave. Tests: `tests/kaboom/podium.test.ts`, `crowd.test.ts`.
@@ -99,11 +139,11 @@ how a sudden-death cell falls differ. `game/levels.ts` = ids, labels, the banner
 only with more than one level, and `sanitizeSettings`). Pick it in the setup menu (`settings.level`) or with `?level=quarry|valley|sea`
 (skips the menu like `size`); the map viewer and the bench take it too.
 
-| Level        | Floor and blocks                                                                                              | Surroundings                                                                                                                        | Sudden death                    |
-| ------------ | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| Quarry       | sandstone tiles; granite boulders / timber-propped pillars; wooden crates, dirt mounds; rails, barrels        | rocky bowl, sandstone terraces, rim rocks                                                                                           | a wall lands                    |
-| Green Valley | mown-grass tiles, tufts, dirt patches; mossy boulders / cairns; wooden crates, hay bales; stream, fence, cart | a low hedge, flat meadow ground all round (the crowd stands in three rows on it, no terraces), trees in the background, its own sky | a boulder lands                 |
-| Sea Deck     | plank tiles on a raft; iron bollards / capstans; cargo barrels, wooden crates; ropes, lanterns, lifebuoys     | open sea (`render/sea.ts` shader plane), the crowd on moored boats (`render/boats.ts`), a bobbing raft                              | the tile sinks (`fall: 'tile'`) |
+| Level        | Floor and blocks                                                                                                                                        | Surroundings                                                                                                                                                                                                                                                                                                                             | Sudden death                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| Quarry       | sandstone flags; granite boulders / sandstone pillars with a timber brace; wooden crates, clay pots; rails                                              | rocky bowl: ashlar wall, terraces with coping stones, scree, banded cliff, sandstone rim boulders                                                                                                                                                                                                                                        | a wall lands                    |
+| Green Valley | turf tiles mown in stripes along the rows, tufts, dirt patches; mossy boulders / cairns; apple crates, round hay bales; stream, fence, cart             | a hedge of rounded bushes on a stone footing, a meadow with lush / dry patches, grass clumps and drifts of wildflowers (baked into the meadow's draw), the crowd in three rows on it, groves of spruces and oaks (leaf clusters) close behind, its own sky; the stream on the front margin has a wet bed, stones, reeds and a footbridge | a boulder lands                 |
+| Sea Deck     | plank tiles on a raft; painted iron bollards (rope coil) / capstans (whelps, bar sockets); cargo barrels, tarp-lashed cargo; ropes, lanterns, lifebuoys | open sea (`render/sea.ts` shader plane: turquoise shallows, light on the bottom, wind streaks), the crowd on moored barges (`render/boats.ts`: planked hulls and transoms, plank decks, rub rails, a railing with a lifebuoy, tyre fenders, a mast with stays and a pennant), a bobbing raft                                             | the tile sinks (`fall: 'tile'`) |
 
 - **What a theme holds**: sky, light, `fx` tint (dust / splinter / scorch colours as uniforms of the shared particle shaders), warning colour,
   `fall`, tile / hard-block / crate / floor / decor geometry, `scenery` (static things: bowl, water, boats, trees; `update`, `ripple`,
@@ -158,7 +198,7 @@ only with more than one level, and `sanitizeSettings`). Pick it in the setup men
 
 ## Camera
 
-Perspective, FOV 30 deg, pitch 58 deg, fixed yaw (looking north, grid +y = screen down): a tilted diorama. Two views
+Perspective, FOV 30 deg, pitch 54 deg (tested 52-58: lower shows the blocks' sides, higher keeps cells behind tall blocks visible), fixed yaw (looking north, grid +y = screen down): a tilted diorama. Two views
 (`CameraRig.view`, the Camera option, `C` in a match, `?camera=follow|full`): **follow** (default) always frames a window of
 about 14 x 11 cells (9 x 12 in portrait) that `followTo` moves with the human; **full** is the framing below.
 In full, `CameraRig.fitView` frames the whole slab (bisecting the distance on the real projection of its corners) for Small and
@@ -210,21 +250,21 @@ suicides) and checks that harder bots catch an idle or wandering human more ofte
 
 What usually kills FPS in these games, and our rule for each:
 
-| Cause                                 | Rule                                                                                                                                                                                                                       |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| New mesh / material / light per blast | Never. Fixed pools created at load; a blast writes a few attribute slots.                                                                                                                                                  |
-| Dynamic point lights                  | None. **Glow grid** (`fx/glow-grid.ts`): a w x h texture of flame heat sampled by the floor and block shaders. Any number of blasts = one tiny upload.                                                                     |
-| CPU particle updates                  | **GPU particles** (`fx/particles.ts`): ring buffer per kind (fire, smoke, dust, splinter, spark, flash, ring, scorch), motion / size / colour / death in the vertex shader from one clock. Only ever-used slots are drawn. |
-| Flame meshes per blast                | `fx/flames.ts`: one InstancedMesh, a ring-buffer slot per burning tile (three puff quads), animated in the shader.                                                                                                         |
-| Fur                                   | Shells are one instanced draw per critter; the fur geometry keeps only triangles that grow hair (none under the vest).                                                                                                     |
-| Shader compile + upload hitch         | `WorldView.warmUp`: `compileAsync`, then one frame with every pool primed (`Fx.prime`) and the first shadow draw.                                                                                                          |
-| Shadow map redrawn every frame        | Static sun shadow (`shadowMap.autoUpdate = false`), redrawn when a crate breaks but at most every 0.15 s (`WorldView.takeShadowUpdate`); movers use `BlobShadows`.                                                         |
-| Chain resolved in one frame           | The sim spreads a chain over the 0.08 s chain delay; blasts only set fuses, never explode each other inside one tick.                                                                                                      |
-| Block removal rebuilding geometry     | One InstancedMesh per crate variant; removal swaps with the last instance and shrinks `count`.                                                                                                                             |
-| Hitch at a round change               | A new round builds a new `Arena`, but its merged geometry, the grain texture and the sun (with its 2048 shadow map) are shared module-level, so it costs well under a millisecond.                                         |
-| Draw calls                            | Arena ~11, crowd 2 (sprites + flags), crew bodies + fur + 3 shared (hats / vests / feet) + the you-arrow, TNT 3, blob shadows 1, FX 10 (budget below).                                                                     |
-| Garbage collection                    | Sim state in preallocated typed arrays; events are pooled objects in a reused array; render code allocates nothing per frame.                                                                                              |
-| Audio                                 | Max 4 blast voices; blasts within 50 ms merge; procedural WebAudio.                                                                                                                                                        |
+| Cause                                 | Rule                                                                                                                                                                                                                                                     |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| New mesh / material / light per blast | Never. Fixed pools created at load; a blast writes a few attribute slots.                                                                                                                                                                                |
+| Dynamic point lights                  | None. **Glow grid** (`fx/glow-grid.ts`): a w x h texture of flame heat sampled by the floor and block shaders. Any number of blasts = one tiny upload.                                                                                                   |
+| CPU particle updates                  | **GPU particles** (`fx/particles.ts`): ring buffer per kind (fire, smoke, dust, splinter, spark, flash, ring, scorch), motion / size / colour / death in the vertex shader from one clock. Only ever-used slots are drawn.                               |
+| Flame meshes per blast                | `fx/flames.ts`: one InstancedMesh, a ring-buffer slot per burning tile (three puff quads), animated in the shader.                                                                                                                                       |
+| Fur                                   | Shells are one instanced draw per critter; the fur geometry keeps only triangles that grow hair (none under the vest).                                                                                                                                   |
+| Shader compile + upload hitch         | `WorldView.warmUp`: `compileAsync`, then one frame with every pool primed (`Fx.prime`) and the first shadow draw.                                                                                                                                        |
+| Shadow map redrawn every frame        | Static sun shadow (`shadowMap.autoUpdate = false`), redrawn when a crate breaks but at most every 0.15 s (`WorldView.takeShadowUpdate`); movers use `BlobShadows`.                                                                                       |
+| Chain resolved in one frame           | The sim spreads a chain over the 0.08 s chain delay; blasts only set fuses, never explode each other inside one tick.                                                                                                                                    |
+| Block removal rebuilding geometry     | One InstancedMesh per crate variant; removal swaps with the last instance and shrinks `count`.                                                                                                                                                           |
+| Hitch at a round change               | A new round builds a new `Arena`, but its merged geometry, the grain texture and the sun (with its 2048 shadow map) are shared module-level, so it costs well under a millisecond.                                                                       |
+| Draw calls                            | Arena ~12 (incl. the contact patches), crowd 2 (sprites + flags), crew bodies + fur + 3 shared (hats / vests / feet) + the team rings + the you-arrow, TNT 3, power-ups 2 (+ plinths and glows while any lie out), blob shadows 1, FX 10 (budget below). |
+| Garbage collection                    | Sim state in preallocated typed arrays; events are pooled objects in a reused array; render code allocates nothing per frame.                                                                                                                            |
+| Audio                                 | Max 4 blast voices; blasts within 50 ms merge; procedural WebAudio.                                                                                                                                                                                      |
 
 **Budgets**: draw calls <= 60, frame <= 4 ms on desktop / <= 12 ms on a mid phone in the stress scenes, sim tick worst case
 < 0.5 ms. Checked by the bench page (`__kaboomBench.run(scene, frames)`: avg / p95 / worst, sim time, draw calls, slowest

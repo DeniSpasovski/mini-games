@@ -250,6 +250,12 @@ export class TntRenderer {
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', `#include <common>\n${LEVEL_ATTRS}`)
         .replace('#include <begin_vertex>', LEVEL_PICK);
+      // a warm rim light along the outline: the sticks stand off the floor
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <opaque_fragment>',
+        `outgoingLight += vec3(1.0, 0.9, 0.75) * 0.3 * pow(1.0 - abs(dot(normalize(normal), normalize(vViewPosition))), 3.0);
+        #include <opaque_fragment>`,
+      );
     };
     bodyMat.customProgramCacheKey = () => 'kaboom-tnt-body';
     const bandMat = new MeshLambertMaterial({ map: atlas });

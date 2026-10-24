@@ -118,6 +118,7 @@ const VERT = /* glsl */ `
   varying float vK;
   varying float vSeed;
   varying vec3 vColor;
+  varying float vUp;
 
   vec3 rotateAround(vec3 v, vec3 axis, float a) {
     float c = cos(a);
@@ -131,7 +132,8 @@ const VERT = /* glsl */ `
     #elif KIND == 1
       return 0.55 + 0.75 * smoothstep(0.0, 0.7, k);
     #elif KIND == 4
-      return 0.5 + 1.3 * (1.0 - exp(-2.2 * k));
+      // billows out, then shrinks a little as it thins away
+      return (0.5 + 1.3 * (1.0 - exp(-2.2 * k))) * (1.0 - 0.3 * smoothstep(0.55, 1.0, k));
     #elif KIND == 5
       return 0.7 + 0.5 * k;
     #elif KIND == 6
@@ -163,22 +165,37 @@ const VERT = /* glsl */ `
       vec3 p = aSpawn.xyz + aVel.xyz * age;
     #endif
     p.y -= 0.5 * aMisc.w * age * age;
-    float size = aMisc.x * sizeCurve(k);
+    float size = abs(aMisc.x) * sizeCurve(k);
+    vUp = 0.0;
 
     #if KIND == 2
-      // splinter: a tumbling board, lit by a fixed sun so it reads as 3D
+      // splinter / plank chunk (size > 0) or stone chip (size < 0): tumbles, lands, slides a little and lies still
+      float floorY = 0.02 + size * 0.3;
+      float g = max(aMisc.w, 1e-3);
+      float land = (aVel.y + sqrt(max(aVel.y * aVel.y + 2.0 * g * (aSpawn.y - floorY), 0.0))) / g;
+      float t = age;
+      if (age > land) {
+        float rest = age - land;
+        t = land + 0.12 * (1.0 - exp(-rest * 8.0));
+        p = aSpawn.xyz + aVel.xyz * t;
+      }
       vec3 axis = normalize(vec3(sin(seed * 12.9), cos(seed * 7.3) + 0.2, sin(seed * 5.1)));
-      float a = aMisc.y * age + seed * 6.0;
+      float a = aMisc.y * t + seed * 6.0;
       vec3 local = rotateAround(position * size, axis, a);
       vec3 n = rotateAround(normal, axis, a);
-      float t = fract(seed * 3.7);
-      vec3 wood = t < 0.34 ? uWood0 : (t < 0.67 ? uWood1 : uWood2);
+      float pick = fract(seed * 3.7);
+      vec3 wood = pick < 0.34 ? uWood0 : (pick < 0.67 ? uWood1 : uWood2);
+      if (aMisc.x < 0.0) wood = vec3(0.55, 0.53, 0.5) * (0.85 + 0.3 * pick);
       vColor = wood * (0.55 + 0.6 * max(dot(n, normalize(vec3(-0.4, 0.85, 0.35))), 0.0));
-      p.y = max(p.y, 0.02 + size * 0.3);
+      p.y = max(p.y, floorY);
       gl_Position = projectionMatrix * viewMatrix * vec4(p + local, 1.0);
     #elif KIND == 6 || KIND == 7
-      // flat on the floor
+      // flat on the floor; a ring's spin slot can carry a colour (0xRRGGBB, packColor), 0 = the blast's own
       vUv = position.xy + 0.5;
+      if (aMisc.y > 0.0) {
+        float cv = aMisc.y;
+        vColor = vec3(floor(cv / 65536.0), mod(floor(cv / 256.0), 256.0), mod(cv, 256.0)) / 255.0;
+      } else vColor = vec3(1.0, 0.82, 0.55);
       float r = seed * 6.2832;
       vec2 c = mat2(cos(r), -sin(r), sin(r), cos(r)) * position.xy * size * 2.0;
       gl_Position = projectionMatrix * viewMatrix * vec4(p.x + c.x, p.y, p.z + c.y, 1.0);
@@ -202,6 +219,7 @@ const VERT = /* glsl */ `
       float r = seed * 6.2832 + aMisc.y * age;
       vec2 c = mat2(cos(r), -sin(r), sin(r), cos(r)) * position.xy;
       vUv = position.xy + 0.5;
+      vUp = c.y; // screen-space up across the sprite, for smoke lit from above
       if (fract(seed * 7.13) > 0.5) vUv.x = 1.0 - vUv.x;
       mv.xy += c * size * 2.0;
       gl_Position = projectionMatrix * mv;
@@ -215,6 +233,7 @@ const FRAG = /* glsl */ `
   varying float vK;
   varying float vSeed;
   varying vec3 vColor;
+  varying float vUp;
   ${PUFF_GLSL}
 
   void main() {
@@ -231,19 +250,32 @@ const FRAG = /* glsl */ `
       // premultiplied, mostly additive: it glows over the floor but still has some body
       gl_FragColor = vec4(c * a, a * 0.75);
     #elif KIND == 1 || KIND == 4
-      vec2 pf = puffAt(vUv, 0.08 + k * 0.4);
+      vec2 pf = puffAt(vUv, KIND == 4 ? 0.03 + k * 0.28 : 0.08 + k * 0.4);
       #if KIND == 1
         vec3 dark = uDustDark;
         vec3 light = uDustLight;
         float strength = 0.75;
       #else
-        vec3 dark = vec3(0.24, 0.22, 0.21);
-        vec3 light = vec3(0.66, 0.63, 0.6);
-        float strength = 0.62;
+        // sooty purple-grey: a dark billow, lit on top
+        vec3 dark = vec3(0.13, 0.11, 0.14);
+        vec3 light = vec3(0.6, 0.56, 0.6);
+        float strength = 0.8;
       #endif
-      vec3 c = mix(dark, light, pf.g);
-      float a = pf.r * strength * smoothstep(0.0, 0.08, k) * (1.0 - smoothstep(0.5, 1.0, k));
-      gl_FragColor = vec4(c * a, a);
+      #if KIND == 4
+        // a round billow: lit on top, darker underneath, the edge softened into a ball; while young the fire inside
+        // glows through it, strongest on the underside and in the dense middle, and dies out as it rises
+        float lit = clamp(pf.g * 0.55 + smoothstep(-0.45, 0.4, vUp) * 0.6, 0.0, 1.0);
+        vec3 c = mix(dark, light, lit);
+        float ball = 1.0 - smoothstep(0.55, 1.0, length(vUv - 0.5) * 2.0);
+        float a = pf.r * ball * strength * smoothstep(0.0, 0.05, k) * (1.0 - smoothstep(0.5, 1.0, k));
+        float glow = (1.0 - smoothstep(0.04, 0.32, k)) * (1.0 - lit * 0.7) * smoothstep(0.25, 0.8, pf.r);
+        vec3 ember = fireRamp(0.35 + 0.4 * glow) * 1.4;
+        gl_FragColor = vec4(c * a * (1.0 - glow) + ember * glow * a, a * (1.0 - 0.35 * glow));
+      #else
+        vec3 c = mix(dark, light, pf.g);
+        float a = pf.r * strength * smoothstep(0.0, 0.08, k) * (1.0 - smoothstep(0.5, 1.0, k));
+        gl_FragColor = vec4(c * a, a);
+      #endif
     #elif KIND == 3
       // spark streak: a hot core line, fading along its tail
       float across = 1.0 - abs(vUv.y - 0.5) * 2.0;
@@ -261,17 +293,27 @@ const FRAG = /* glsl */ `
       float r = length(vUv - 0.5) * 2.0;
       float band = smoothstep(0.62, 0.9, r) * (1.0 - smoothstep(0.9, 1.0, r));
       float fade = pow(1.0 - k, 1.6);
-      gl_FragColor = vec4(vec3(1.0, 0.82, 0.55) * band * fade * 1.1, band * fade * 0.25);
+      gl_FragColor = vec4(vColor * band * fade * 1.1, band * fade * 0.25);
     #else
-      // scorch: a sooty blotch with a ragged edge, fading away slowly
-      float r = length(vUv - 0.5) * 2.0;
+      // scorch: a sooty blotch with a ragged edge and cracks running out of it, glowing like embers for its first
+      // moments, fading away slowly
+      vec2 p = vUv - 0.5;
+      float r = length(p) * 2.0;
       float fine = texture2D(uPuff, vUv * 0.25 + vec2(0.5, 0.5)).b;
       float a = (1.0 - smoothstep(0.3, 0.95, r + (fine - 0.5) * 0.5)) * 0.78;
-      a *= smoothstep(0.0, 0.05, k) * (1.0 - smoothstep(0.55, 1.0, k));
-      gl_FragColor = vec4(uScorch * a, a);
+      float ang = atan(p.y, p.x);
+      float crack = pow(abs(sin(ang * 3.5 + vSeed * 6.283 + fine * 2.5)), 26.0);
+      a = max(a, crack * smoothstep(1.0, 0.45, r) * smoothstep(0.15, 0.4, r) * 0.7);
+      float life = smoothstep(0.0, 0.05, k) * (1.0 - smoothstep(0.55, 1.0, k));
+      a *= life;
+      float ember = (1.0 - smoothstep(0.02, 0.12, k)) * smoothstep(0.2, 0.7, a) * fine;
+      gl_FragColor = vec4(uScorch * a + vec3(1.0, 0.35, 0.06) * ember * 0.9, a);
     #endif
   }
 `;
+
+/** A colour as a ring's spin value (see the ring shader): 0xRRGGBB, + 0 never (0 = the default colour). */
+export const packColor = (hex: number): number => Math.max(1, hex & 0xffffff);
 
 function geometryFor(kind: ParticleKind): BufferGeometry {
   if (kind === 'splinter') return new BoxGeometry(1, 0.3, 0.16);

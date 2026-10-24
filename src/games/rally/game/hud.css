@@ -161,7 +161,7 @@ body {
   background: var(--ui-faster);
 }
 .hud-splits span.slower {
-  color: var(--ui-on-accent);
+  color: #fff;
 }
 .hud-splits span.slower::before {
   background: var(--ui-slower);
@@ -209,7 +209,7 @@ body {
   font: italic 800 28px/1.1 var(--ui-font-display);
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--ui-slower);
+  color: var(--ui-yellow);
 }
 .hud-warn:empty {
   display: none;

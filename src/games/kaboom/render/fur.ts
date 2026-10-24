@@ -60,10 +60,14 @@ const COMMON_FRAG = /* glsl */ `
   }
 `;
 
-/** Lambert-lit sheen at grazing angles: fur and velvety skin glow softly along the outline. */
+/**
+ * Lambert-lit sheen at grazing angles: fur and velvety skin glow softly along the outline, and a warm rim light on top
+ * sets the critter off the floor behind it.
+ */
 const RIM = /* glsl */ `
   float furRim = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));
   outgoingLight += diffuseColor.rgb * pow(furRim, 3.0) * RIM_STRENGTH;
+  outgoingLight += vec3(1.0, 0.93, 0.8) * pow(furRim, 4.0) * RIM_LIGHT;
 `;
 
 /**
@@ -90,7 +94,7 @@ export function skinMaterial(grain: DataTexture): MeshLambertMaterial {
       )
       .replace(
         '#include <opaque_fragment>',
-        `#define RIM_STRENGTH 0.25\n${RIM}\n#include <opaque_fragment>`,
+        `#define RIM_STRENGTH 0.25\n#define RIM_LIGHT 0.22\n${RIM}\n#include <opaque_fragment>`,
       );
   };
   m.customProgramCacheKey = () => 'kaboom-skin';
@@ -176,6 +180,7 @@ export function furMaterial(
       .replace(
         '#include <opaque_fragment>',
         `#define RIM_STRENGTH (0.2 + 0.4 * vShellH)
+        #define RIM_LIGHT (0.35 * vShellH)
         ${RIM}
         #include <opaque_fragment>
         gl_FragColor.a = ${smooth ? 'furCov' : '1.0'};`,

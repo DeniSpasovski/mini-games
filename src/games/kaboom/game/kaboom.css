@@ -28,6 +28,37 @@ body {
   inset: 0;
 }
 
+/* The screen finish over the 3D view: a soft vignette, and on High a gentle per-level colour grade (soft light). */
+.kb-finish {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 75% 70% at 50% 48%,
+    transparent 58%,
+    rgb(28 16 8 / 0.34) 100%
+  );
+}
+.kb-finish::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  mix-blend-mode: soft-light;
+  opacity: 0;
+}
+.kb-finish[data-grade='on']::after {
+  opacity: 1;
+}
+.kb-finish[data-level='quarry']::after {
+  background: rgb(255 176 96 / 0.3);
+}
+.kb-finish[data-level='valley']::after {
+  background: rgb(255 214 140 / 0.22);
+}
+.kb-finish[data-level='sea']::after {
+  background: rgb(255 196 150 / 0.2);
+}
+
 /* ------------------------------------------------------------------ buttons */
 
 /* One shape for every button: a clay lump with a gloss, an ink outline and an ink edge underneath (--kb-lip) that the press squashes. */
