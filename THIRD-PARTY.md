@@ -109,6 +109,15 @@ CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/facades/bake.py`:
 
 CC0 HDRIs from Poly Haven, shrunk to 128 x 64 with the sun clipped out by `scripts/kaboom/bake-hdri.py`: Goegap (Greg Zaal) for the Quarry, Meadow 2 (Sergej Majboroda) for Green Valley, Small Harbour Morning (Greg Zaal, Jarod Guest) for Sea Deck. No credit is required.
 
+### Kaboom detail textures (baked into `src/games/kaboom/assets/textures/`)
+
+CC0 textures from Poly Haven, made grey, softened and shrunk to one 512 px tile per level by `scripts/kaboom/bake-textures.py`:
+[Gravelly Sand](https://polyhaven.com/a/gravelly_sand) (Dario Barresi) and [Rock Face](https://polyhaven.com/a/rock_face)
+(Greg Zaal, Dario Barresi) for the Quarry, [Leafy Grass](https://polyhaven.com/a/leafy_grass) (Charlotte Baglioni) and
+[Brown Mud Dry](https://polyhaven.com/a/brown_mud_dry) (Rob Tuytel) for Green Valley, [Fine Grained Wood](https://polyhaven.com/a/fine_grained_wood) (Rob Tuytel) and
+[Wood Peeling Paint Weathered](https://polyhaven.com/a/wood_peeling_paint_weathered) (Rob Tuytel, Dimitrios Savva) for Sea
+Deck. No credit is required.
+
 ### Parked trucks (baked into `src/games/rally/maps/ajvatovci/start-row/build/truck-models.data.ts`)
 
 The tractor units, trailers, box-truck cabs and dump trucks parked at Ajvatovci are recoloured copies of two CC BY 4.0

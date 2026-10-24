@@ -45,6 +45,26 @@ import { Player } from '../sim/state';
  * Shirts only come in colours that are on screen (`setPlayers`). The crowd is still until something blows up, then it jumps.
  */
 
+/**
+ * The crowd steps back so the arena leads (DETAILS.md "Style"): every spectator and flag is a touch darker and less
+ * saturated than the crew, and the rows further from the arena fade a little towards the sky (`uHalf` = the floor's half
+ * extents incl. its margin).
+ */
+const RECEDE_VERT = /* glsl */ `
+  uniform vec2 uHalf;
+  varying float vFar;
+  void recede() {
+    vec4 w = modelMatrix * instanceMatrix * vec4( 0.0, 0.0, 0.0, 1.0 );
+    vFar = smoothstep( 0.5, 6.0, length( max( abs( w.xz ) - uHalf, 0.0 ) ) );
+  }`;
+const RECEDE_FRAG = /* glsl */ `
+  varying float vFar;
+  vec3 recede( vec3 c ) {
+    c = mix( c, vec3( dot( c, vec3( 0.3, 0.59, 0.11 ) ) ), 0.12 + 0.1 * vFar );
+    c *= mix( 0.9, 0.8, vFar );
+    return mix( c, vec3( 0.6, 0.7, 0.78 ), 0.14 * vFar );
+  }`;
+
 /** World size of a sprite (square) at scale 1, and the height its look-at point sits above the animal's feet. */
 const SPRITE = 1.5;
 const SPRITE_MID = 0.45;
@@ -245,7 +265,7 @@ export class Crowd {
     const geo = new PlaneGeometry(1, 1);
     this.tileAttr = new InstancedBufferAttribute(new Float32Array(n), 1);
     geo.setAttribute('aTile', this.tileAttr);
-    this.material = this.makeMaterial();
+    this.material = this.makeMaterial(hx, hz);
     this.mesh = new InstancedMesh(geo, this.material, n);
     this.mesh.count = this.spectators.length;
     this.mesh.frustumCulled = false;
@@ -264,7 +284,7 @@ export class Crowd {
     });
     flagGeo.setAttribute('aSide', new InstancedBufferAttribute(side, 1));
     flagGeo.setAttribute('aPhase', new InstancedBufferAttribute(phase, 1));
-    this.flagMaterial = this.makeFlagMaterial();
+    this.flagMaterial = this.makeFlagMaterial(hx, hz);
     this.flags = new InstancedMesh(flagGeo, this.flagMaterial, f);
     this.flags.count = this.holders.length;
     this.flags.frustumCulled = false;
@@ -306,7 +326,7 @@ export class Crowd {
     return per * TILE_PX[q.name];
   }
 
-  private makeMaterial(): ShaderMaterial {
+  private makeMaterial(hx: number, hz: number): ShaderMaterial {
     const side = this.cols * this.tilePx;
     return new ShaderMaterial({
       uniforms: {
@@ -314,6 +334,7 @@ export class Crowd {
         uCols: { value: this.cols },
         uCell: { value: this.tilePx / side },
         uPad: { value: 1.5 / this.tilePx },
+        uHalf: { value: new Vector2(hx, hz) },
       },
       vertexShader: /* glsl */ `
         attribute float aTile;
@@ -321,19 +342,22 @@ export class Crowd {
         uniform float uCell;
         uniform float uPad;
         varying vec2 vUv;
+        ${RECEDE_VERT}
         void main() {
           float col = mod( aTile, uCols );
           float row = floor( aTile / uCols );
           vUv = ( vec2( col, row ) + mix( vec2( uPad ), vec2( 1.0 - uPad ), uv ) ) * uCell;
+          recede();
           gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4( position, 1.0 );
         }`,
       fragmentShader: /* glsl */ `
         uniform sampler2D uMap;
         varying vec2 vUv;
+        ${RECEDE_FRAG}
         void main() {
           vec4 t = texture2D( uMap, vUv );
           if ( t.a < 0.45 ) discard;
-          gl_FragColor = vec4( t.rgb, 1.0 );
+          gl_FragColor = vec4( recede( t.rgb ), 1.0 );
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`,
@@ -341,9 +365,9 @@ export class Crowd {
   }
 
   /** The waving flags: arm (shirt sleeve, then paw), pole and flag drawn in one billboard, moving with the shader's clock. */
-  private makeFlagMaterial(): ShaderMaterial {
+  private makeFlagMaterial(hx: number, hz: number): ShaderMaterial {
     return new ShaderMaterial({
-      uniforms: { uTime: { value: 0 } },
+      uniforms: { uTime: { value: 0 }, uHalf: { value: new Vector2(hx, hz) } },
       vertexShader: /* glsl */ `
         attribute vec3 aColor;
         attribute float aSide;
@@ -352,11 +376,13 @@ export class Crowd {
         varying vec3 vColor;
         varying float vSide;
         varying float vPhase;
+        ${RECEDE_VERT}
         void main() {
           vUv = uv;
           vColor = aColor;
           vSide = aSide;
           vPhase = aPhase;
+          recede();
           gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4( position, 1.0 );
         }`,
       fragmentShader: /* glsl */ `
@@ -365,6 +391,7 @@ export class Crowd {
         varying vec3 vColor;
         varying float vSide;
         varying float vPhase;
+        ${RECEDE_FRAG}
         float seg( vec2 p, vec2 a, vec2 b, out float t ) {
           vec2 pa = p - a;
           vec2 ba = b - a;
@@ -395,7 +422,7 @@ export class Crowd {
             hit = true;
           }
           if ( !hit ) discard;
-          gl_FragColor = vec4( col, 1.0 );
+          gl_FragColor = vec4( recede( col ), 1.0 );
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`,

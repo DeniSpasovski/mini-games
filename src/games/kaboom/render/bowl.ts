@@ -1,11 +1,13 @@
 import { BufferGeometry, Color, Float32BufferAttribute } from 'three';
 import { Noise2D } from '../../../shared/noise';
-import { PALETTE } from './materials';
+import { Rng, hash3 } from '../../../shared/rng';
+import { ROUGH } from './materials';
+import { bbox, flagstone, merge, part, rock } from './parts';
 
 /**
  * The rocky bowl round the arena floor (DETAILS.md "Style"): a low wall, `TIERS` terraces for the spectators, then a
  * cliff up to a flat rim. Every ring is the floor rectangle grown by an offset `d` (a rounded rectangle), so the stands
- * curve round the corners like a gladiator arena. One merged, flat-shaded geometry in vertex colours: one draw call.
+ * curve round the corners like a gladiator arena. One merged geometry in vertex colours (`bowlGeometry`): one draw call.
  */
 export const TIERS = 4;
 /** Depth of one terrace and the height of its step. */
@@ -84,9 +86,13 @@ function subdivide(prof: ProfilePoint[]): { pts: ProfilePoint[]; t: number[] } {
     const [d0, y0] = prof[i - 1];
     const [d1, y1, kind] = prof[i];
     const len = Math.hypot(d1 - d0, y1 - y0);
+    // the rim is coarser (it is far away), but fine enough near the cliff top that the finale's wide view shows no
+    // big flat quads
     const n =
-      kind === 'rim' && len > 20
-        ? 6
+      kind === 'rim'
+        ? len > 30
+          ? 6
+          : Math.max(1, Math.ceil(len / 1.5))
         : Math.max(1, Math.ceil(len / PROFILE_STEP));
     for (let k = 1; k <= n; k++) {
       const f = k / n;
@@ -118,6 +124,8 @@ function profile(): ProfilePoint[] {
     [d0 + 2.2, y0 + 5.8, 'cliff'],
     [d0 + 2.7, RIM_H, 'cliff'],
     [d0 + 5, RIM_H + 0.1, 'rim'],
+    [d0 + 12, RIM_H + 0.25, 'rim'],
+    [d0 + 24, RIM_H, 'rim'],
     [d0 + 90, RIM_H, 'rim'],
   );
   return p;
@@ -174,11 +182,15 @@ export function treadHeight(i: number, x: number, z: number): number {
   );
 }
 
-/** Colours of the bowl's faces: the wall at the arena, the stands (treads + risers), the cliff strata (high to low) and the rim. */
+/**
+ * Colours of the bowl: the wall at the arena, the stands (treads + risers), the cut stones (coping on every terrace lip
+ * and the wall's facing), the cliff strata (high to low) and the rim.
+ */
 export interface BowlColors {
   wall: Color;
   treads: Color[];
   riser: Color;
+  stones: Color[];
   strata: Color[];
   rim: Color;
 }
@@ -187,30 +199,62 @@ const colors = (c: {
   wall: number;
   treads: number[];
   riser: number;
+  stones: number[];
   strata: number[];
   rim: number;
 }): BowlColors => ({
   wall: new Color(c.wall),
   treads: c.treads.map((x) => new Color(x)),
   riser: new Color(c.riser),
+  stones: c.stones.map((x) => new Color(x)),
   strata: c.strata.map((x) => new Color(x)),
   rim: new Color(c.rim),
 });
 
-// carved rock, darker than the floor tiles so the arena reads apart from the stands
+// carved rock, darker than the floor tiles so the arena reads apart from the stands; cut stones a shade lighter
 export const QUARRY_BOWL: BowlColors = colors({
-  wall: 0xb4875a,
-  treads: [0xc2a47c, 0xb99b73, 0xb09169],
-  riser: 0x9b6f48,
-  strata: [...PALETTE.slab],
-  rim: 0xcaa670,
+  wall: 0xa97d55,
+  treads: [0xc6a77c, 0xbb9b71, 0xb08f67],
+  riser: 0x936846,
+  stones: [0xd7b98a, 0xcdae7f, 0xdfc396, 0xc4a374],
+  strata: [0xdcb27a, 0xc28e58, 0xa47459, 0x80695a],
+  rim: 0xcca671,
 });
 
-/** The bowl for a floor of half extents `hx`, `hz` (world units, centred on the origin). */
+const KINDS: readonly Kind[] = ['wall', 'tread', 'riser', 'cliff', 'rim'];
+/** Weights of the level's detail texture per face kind (`detail.ts`: red = gravelly sand, green = rock). */
+const DETAIL: Record<Kind, readonly [number, number]> = {
+  wall: [0.2, 0.8],
+  tread: [1, 0],
+  riser: [0.25, 0.85],
+  cliff: [0, 1],
+  rim: [1, 0.15],
+};
+/** How far the step edges crumble in and out (the coping stones sit on them, so they stay close to the ring). */
+const CRUMBLE = 0.1;
+
+const smooth01 = (x: number): number => {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
+};
+
+/** Height of the stands at `(x, z)` on a ring at offset `d` (the swell `bowlGeometry` gives every tread). */
+function standY(tier: number, x: number, z: number, d: number): number {
+  const grow = Math.min(1, (d - WALL_D) / 1.2);
+  return treadY(tier) + (treadHeight(0, x, z) - treadY(0)) * grow;
+}
+
+/**
+ * The bowl for a floor of half extents `hx`, `hz` (world units, centred on the origin), mid-poly (DETAILS.md "Style"):
+ * carved rock with smooth shading inside each face and hard creases at the step edges, painted per vertex (strata, darker
+ * crevices, lighter lips), a course of cut coping stones on every terrace lip, scree at the foot of the cliff and (High)
+ * an ashlar facing on the arena wall. One merged geometry with the attributes of `part()`: one draw call.
+ */
 export function bowlGeometry(
   hx: number,
   hz: number,
   pal: BowlColors = QUARRY_BOWL,
+  low = false,
 ): BufferGeometry {
   const { pts: prof, t: along } = subdivide(profile());
   const n = ringSize(hx, hz);
@@ -231,7 +275,7 @@ export function bowlGeometry(
       }
       if (kind === 'riser' || kind === 'tread') {
         // carved faces: the step edge crumbles in and out, the tread is lumpy
-        const k = noise.fbm(x * 1.1 + y, z * 1.1, 2) * 0.3 * grow;
+        const k = noise.fbm(x * 1.1 + y, z * 1.1, 2) * CRUMBLE * grow;
         x += ox * k;
         z += oz * k;
       }
@@ -251,56 +295,340 @@ export function bowlGeometry(
     return out;
   });
 
-  const pos: number[] = [];
-  const col: number[] = [];
-  const c = new Color();
-  const push = (a: number[], b: number[], cc: number[], color: Color): void => {
-    pos.push(...a, ...b, ...cc);
-    for (let i = 0; i < 3; i++) col.push(color.r, color.g, color.b);
+  // normals: averaged over the faces of one kind that meet at a vertex (smooth rock), split between kinds (creases)
+  const K = KINDS.length;
+  const kindOf = prof.map(([, , kind]) => KINDS.indexOf(kind));
+  const vn = new Float32Array(prof.length * n * K * 3);
+  const slot = (s: number, i: number, k: number) => ((s * n + i) * K + k) * 3;
+  const addN = (
+    k: number,
+    v: readonly (readonly [number, number])[],
+    p0: number[],
+    p1: number[],
+    p2: number[],
+  ): void => {
+    const ux = p1[0] - p0[0];
+    const uy = p1[1] - p0[1];
+    const uz = p1[2] - p0[2];
+    const wx = p2[0] - p0[0];
+    const wy = p2[1] - p0[1];
+    const wz = p2[2] - p0[2];
+    const nx = uy * wz - uz * wy;
+    const ny = uz * wx - ux * wz;
+    const nz = ux * wy - uy * wx;
+    for (const [s, i] of v) {
+      const o = slot(s, i, k);
+      vn[o] += nx;
+      vn[o + 1] += ny;
+      vn[o + 2] += nz;
+    }
   };
   for (let s = 1; s < prof.length; s++) {
-    const kind = prof[s][2];
     const a = rings[s - 1];
     const b = rings[s];
+    const k = kindOf[s];
     for (let i = 0; i < n; i++) {
       const j = (i + 1) % n;
-      const mid = (a[i][1] + b[j][1]) / 2;
-      // colour patches follow the ground, not the ring index
-      const r =
-        noise.noise2((a[i][0] + b[j][0]) * 0.5, (a[i][2] + b[j][2]) * 0.5) *
-          0.9 +
-        0.1 * noise.noise2(i * 3.3, s * 5.1);
-      if (kind === 'wall') c.copy(pal.wall).multiplyScalar(0.94 + r * 0.08);
-      else if (kind === 'tread')
-        c.copy(pal.treads[1]).lerp(
-          pal.treads[r > 0 ? 0 : 2],
-          Math.abs(r) * 1.4,
-        );
-      else if (kind === 'riser')
-        c.copy(pal.riser).multiplyScalar(0.93 + r * 0.1);
-      else if (kind === 'cliff') {
-        const band = Math.max(
-          0,
-          Math.min(
-            pal.strata.length - 1,
-            Math.floor(mid / 3.2 + r * 0.8 - 0.4),
-          ),
-        );
-        c.copy(pal.strata[pal.strata.length - 1 - band]).multiplyScalar(
-          0.9 + r * 0.14,
-        );
-      } else c.copy(pal.rim).multiplyScalar(0.96 + r * 0.06);
-      // crevices: the foot of a riser or cliff is darker, its top edge catches the light
-      if (kind === 'riser' || kind === 'cliff' || kind === 'wall')
-        c.multiplyScalar(0.8 + 0.28 * along[s]);
-      // two triangles per quad; wound so the face looks outward (up for treads, towards the arena for walls)
-      push(a[i], b[j], b[i], c);
-      push(a[i], a[j], b[j], c);
+      addN(
+        k,
+        [
+          [s - 1, i],
+          [s, j],
+          [s, i],
+        ],
+        a[i],
+        b[j],
+        b[i],
+      );
+      addN(
+        k,
+        [
+          [s - 1, i],
+          [s - 1, j],
+          [s, j],
+        ],
+        a[i],
+        a[j],
+        b[j],
+      );
     }
   }
-  const g = new BufferGeometry();
-  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
-  g.setAttribute('color', new Float32BufferAttribute(col, 3));
-  g.computeVertexNormals();
-  return g;
+
+  // painted colour of a vertex of a face of kind `kind` (`at` = how far up its face, 0 foot .. 1 top edge)
+  const paint = (kind: Kind, p: number[], at: number, out: Color): Color => {
+    const [x, y, z] = p;
+    const r =
+      noise.noise2(x * 0.5, z * 0.5) * 0.7 +
+      noise.noise2(x * 1.7 + 3, z * 1.7 + y) * 0.3;
+    if (kind === 'wall') out.copy(pal.wall).multiplyScalar(0.94 + r * 0.1);
+    else if (kind === 'tread')
+      out
+        .copy(pal.treads[1])
+        .lerp(pal.treads[r > 0 ? 0 : 2], Math.min(1, Math.abs(r) * 1.4));
+    else if (kind === 'riser')
+      out.copy(pal.riser).multiplyScalar(0.92 + r * 0.12);
+    else if (kind === 'cliff') {
+      // strata: wavy bands that follow the height, a light seam on top of each and a dark one under it
+      const f = y / 2.6 + noise.noise2(x * 0.2, z * 0.2) * 0.7;
+      const band = Math.floor(f);
+      const t = f - band;
+      const m = pal.strata.length;
+      out.copy(pal.strata[((band % m) + m) % m]).multiplyScalar(0.9 + r * 0.14);
+      if (t > 0.9) out.multiplyScalar(1.12);
+      else if (t < 0.08) out.multiplyScalar(0.86);
+    } else out.copy(pal.rim).multiplyScalar(0.95 + r * 0.08);
+    // crevices: the foot of a riser, wall or cliff is darker, its top edge catches the light
+    if (kind === 'riser' || kind === 'cliff' || kind === 'wall')
+      out.multiplyScalar(0.72 + 0.4 * smooth01(at));
+    // warm above, cool below (the painted look of `part()`)
+    out.r *= 1.02;
+    out.b *= 0.97 + 0.04 * (1 - at);
+    return out;
+  };
+
+  const pos: number[] = [];
+  const nor: number[] = [];
+  const col: number[] = [];
+  const det: number[] = [];
+  const c = new Color();
+  for (let s = 1; s < prof.length; s++) {
+    const a = rings[s - 1];
+    const b = rings[s];
+    const k = kindOf[s];
+    const kind = KINDS[k];
+    // detail texture: gravelly sand on the treads and the rim, rock on the wall, the risers and the cliff
+    const [dr, dg] = DETAIL[kind];
+    // where on its face each ring sits: the upper ring at `along[s]`, the lower one a step below (0 at a face's foot)
+    const hi = along[s];
+    const lo = kindOf[s - 1] === k ? along[s - 1] : 0;
+    const put = (ss: number, ii: number, p: number[]): void => {
+      const o = slot(ss, ii, k);
+      const l = Math.hypot(vn[o], vn[o + 1], vn[o + 2]) || 1;
+      pos.push(p[0], p[1], p[2]);
+      nor.push(vn[o] / l, vn[o + 1] / l, vn[o + 2] / l);
+      paint(kind, p, ss === s ? hi : lo, c);
+      col.push(c.r, c.g, c.b);
+      det.push(dr, dg);
+    };
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      put(s - 1, i, a[i]);
+      put(s, j, b[j]);
+      put(s, i, b[i]);
+      put(s - 1, i, a[i]);
+      put(s - 1, j, a[j]);
+      put(s, j, b[j]);
+    }
+  }
+
+  const ground = new BufferGeometry();
+  const count = pos.length / 3;
+  ground.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  ground.setAttribute('normal', new Float32BufferAttribute(nor, 3));
+  ground.setAttribute('color', new Float32BufferAttribute(col, 3));
+  ground.setAttribute(
+    'aGloss',
+    new Float32BufferAttribute(
+      new Float32Array(count).fill(1 - ROUGH.stone),
+      1,
+    ),
+  );
+  ground.setAttribute(
+    'uv',
+    new Float32BufferAttribute(new Float32Array(count * 2), 2),
+  );
+  ground.setAttribute('aDetail', new Float32BufferAttribute(det, 2));
+  return merge([ground, ...cutStones(hx, hz, pal, low)]);
+}
+
+/** Cumulative lengths along the closed ring `pts` (`[x0, z0, ...]`), one more entry than points. */
+function cumulative(pts: number[]): number[] {
+  const n = pts.length / 2;
+  const cum = [0];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    cum.push(
+      cum[i] +
+        Math.hypot(pts[j * 2] - pts[i * 2], pts[j * 2 + 1] - pts[i * 2 + 1]),
+    );
+  }
+  return cum;
+}
+
+/** Point and unit tangent at arc length `s` along the closed ring `pts` (`cum` from `cumulative`). */
+function alongRing(
+  pts: number[],
+  cum: number[],
+  s: number,
+): [number, number, number, number] {
+  const total = cum[cum.length - 1];
+  s = ((s % total) + total) % total;
+  let k = 0;
+  while (k < cum.length - 2 && cum[k + 1] < s) k++;
+  const n = pts.length / 2;
+  const a = k % n;
+  const b = (k + 1) % n;
+  const seg = cum[k + 1] - cum[k] || 1;
+  const t = (s - cum[k]) / seg;
+  const ax = pts[a * 2];
+  const az = pts[a * 2 + 1];
+  const dx = pts[b * 2] - ax;
+  const dz = pts[b * 2 + 1] - az;
+  return [ax + dx * t, az + dz * t, dx / seg, dz / seg];
+}
+
+/**
+ * The bowl's cut stones: coping blocks of random length on every terrace lip (chamfered slabs, some with a corner
+ * knocked off), scree at the foot of the cliff and, on High, two courses of ashlar in running bond on the arena wall.
+ */
+function cutStones(
+  hx: number,
+  hz: number,
+  pal: BowlColors,
+  low: boolean,
+): BufferGeometry[] {
+  const r = new Rng(hash3(Math.round(hx * 4), Math.round(hz * 4), 0xc0b, 2));
+  const out: BufferGeometry[] = [];
+  const stone = (): number =>
+    pal.stones[r.int(0, pal.stones.length - 1)]
+      .clone()
+      .multiplyScalar(r.range(0.94, 1.05))
+      .getHex();
+  // coping on every terrace lip; the first course caps the arena wall
+  for (let t = 0; t < TIERS; t++) {
+    // flush with the ashlar on the wall and the risers (0.15 m proud of the rock), reaching back over the tread
+    const dMid = WALL_D + TREAD_D * t + 0.06;
+    const pts = warpedRing(hx, hz, dMid);
+    const cum = cumulative(pts);
+    const total = cum[cum.length - 1];
+    let s = r.range(0, 0.6);
+    const end = s + total;
+    while (s < end - 0.5) {
+      const len = Math.min(r.range(0.75, 1.3), end - s);
+      const [x, z, tx, tz] = alongRing(pts, cum, s + len / 2);
+      const L = len / 2 - 0.025;
+      // counter-clockwise from above; one corner in three knocked off
+      const outline: [number, number][] = [
+        [-L, 0.21],
+        [L, 0.21],
+        [L, -0.21],
+        [-L, -0.21],
+      ];
+      if (r.chance(0.3)) {
+        const k = r.int(0, 3);
+        const [cx, cz] = outline[k];
+        const [px, pz] = outline[(k + 3) % 4];
+        const [qx, qz] = outline[(k + 1) % 4];
+        const cut = 0.08;
+        const lp = Math.hypot(px - cx, pz - cz);
+        const lq = Math.hypot(qx - cx, qz - cz);
+        outline.splice(
+          k,
+          1,
+          [cx + ((px - cx) / lp) * cut, cz + ((pz - cz) / lp) * cut],
+          [cx + ((qx - cx) / lq) * cut, cz + ((qz - cz) / lq) * cut],
+        );
+      }
+      out.push(
+        part(flagstone(outline, 0.15 + r.range(0, 0.035), 0.035), stone(), {
+          x,
+          z,
+          y: standY(t, x, z, dMid) - 0.05,
+          ry: Math.atan2(-tz, tx) + r.range(-0.025, 0.025),
+          tint: 0.14,
+          rough: ROUGH.stone,
+          detail: [0, 0.45],
+        }),
+      );
+      s += len;
+    }
+  }
+  // scree: fallen rocks along the foot of the cliff, behind the top terrace's crowd
+  {
+    const dFoot = WALL_D + TREAD_D * TIERS - 0.12;
+    const pts = warpedRing(hx, hz, dFoot);
+    const cum = cumulative(pts);
+    const total = cum[cum.length - 1];
+    for (let s = 0; s < total; s += r.range(0.9, 1.8)) {
+      if (!r.chance(0.6)) continue;
+      const [x, z] = alongRing(pts, cum, s);
+      const rad = r.range(0.14, 0.34);
+      const y0 = standY(TIERS - 1, x, z, dFoot);
+      out.push(
+        part(rock(rad, low ? 0 : 1), pal.strata[r.int(1, 3)].getHex(), {
+          x,
+          z,
+          y: y0 + rad * 0.3,
+          sy: r.range(0.6, 0.85),
+          ry: r.range(0, 6.28),
+          smooth: !low,
+          lumpy: rad * 0.2,
+          base: y0 - 0.02,
+          tint: 0.14,
+          rough: ROUGH.stone,
+          detail: [0, 0.7],
+        }),
+      );
+    }
+  }
+  // ashlar on the risers (High): one course of big cut blocks under each terrace's coping, so the stands read as built
+  // masonry like the arena wall
+  if (!low)
+    for (let t = 1; t < TIERS; t++) {
+      const dFace = WALL_D + TREAD_D * t - 0.075;
+      const pts = warpedRing(hx, hz, dFace);
+      const cum = cumulative(pts);
+      const total = cum[cum.length - 1];
+      let s = r.range(0, 0.5);
+      const end = s + total;
+      while (s < end - 0.4) {
+        const len = Math.min(r.range(0.85, 1.3), end - s);
+        const [x, z, tx, tz] = alongRing(pts, cum, s + len / 2);
+        const y0 = standY(t - 1, x, z, dFace) - 0.08;
+        const y1 = standY(t, x, z, dFace) - 0.05;
+        out.push(
+          part(bbox(len - 0.035, y1 - y0, 0.15, 0.035), stone(), {
+            x,
+            z,
+            y: (y0 + y1) / 2,
+            ry: Math.atan2(-tz, tx) + r.range(-0.015, 0.015),
+            tint: 0.12,
+            rough: ROUGH.stone,
+            detail: [0, 0.45],
+          }),
+        );
+        s += len;
+      }
+    }
+  // ashlar on the arena wall (High): two courses in running bond, bevelled blocks standing proud of the rock
+  if (!low) {
+    const dFace = WALL_D - 0.075;
+    const pts = ringPoints(hx, hz, dFace);
+    const cum = cumulative(pts);
+    const total = cum[cum.length - 1];
+    for (const [y0, y1, shift] of [
+      [-0.05, 0.42, 0],
+      [0.42, WALL_H - 0.04, 0.45],
+    ] as const) {
+      let s = shift;
+      const end = s + total;
+      while (s < end - 0.4) {
+        const len = Math.min(r.range(0.8, 1.15), end - s);
+        const [x, z, tx, tz] = alongRing(pts, cum, s + len / 2);
+        out.push(
+          part(bbox(len - 0.035, y1 - y0 - 0.03, 0.15, 0.03), stone(), {
+            x,
+            z,
+            y: (y0 + y1) / 2,
+            ry: Math.atan2(-tz, tx),
+            tint: 0.12,
+            rough: ROUGH.stone,
+            detail: [0, 0.45],
+          }),
+        );
+        s += len;
+      }
+    }
+  }
+  return out;
 }

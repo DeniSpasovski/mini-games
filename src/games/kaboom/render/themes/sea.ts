@@ -722,8 +722,8 @@ export const SEA_THEME: LevelTheme = {
   sky: [S.skyTop, S.skyMid, S.skyLow],
   light: {
     key: 0xffe9c8,
-    keyIntensity: 2.5,
-    sky: 0xbfdcf5,
+    keyIntensity: 2.75,
+    sky: 0xaccff2,
     ground: 0x4a8aa0,
     fill: 1.3,
     env: 0.2,

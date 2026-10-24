@@ -256,21 +256,26 @@ const FRAG = /* glsl */ `
         vec3 light = uDustLight;
         float strength = 0.75;
       #else
-        vec3 dark = vec3(0.2, 0.19, 0.19);
-        vec3 light = vec3(0.74, 0.71, 0.67);
-        float strength = 0.66;
+        // sooty purple-grey: a dark billow, lit on top
+        vec3 dark = vec3(0.13, 0.11, 0.14);
+        vec3 light = vec3(0.6, 0.56, 0.6);
+        float strength = 0.8;
       #endif
       #if KIND == 4
-        // a round billow: lit on top, darker underneath, the edge softened into a ball
+        // a round billow: lit on top, darker underneath, the edge softened into a ball; while young the fire inside
+        // glows through it, strongest on the underside and in the dense middle, and dies out as it rises
         float lit = clamp(pf.g * 0.55 + smoothstep(-0.45, 0.4, vUp) * 0.6, 0.0, 1.0);
         vec3 c = mix(dark, light, lit);
         float ball = 1.0 - smoothstep(0.55, 1.0, length(vUv - 0.5) * 2.0);
-        float a = pf.r * ball * strength * smoothstep(0.0, 0.08, k) * (1.0 - smoothstep(0.5, 1.0, k));
+        float a = pf.r * ball * strength * smoothstep(0.0, 0.05, k) * (1.0 - smoothstep(0.5, 1.0, k));
+        float glow = (1.0 - smoothstep(0.04, 0.32, k)) * (1.0 - lit * 0.7) * smoothstep(0.25, 0.8, pf.r);
+        vec3 ember = fireRamp(0.35 + 0.4 * glow) * 1.4;
+        gl_FragColor = vec4(c * a * (1.0 - glow) + ember * glow * a, a * (1.0 - 0.35 * glow));
       #else
         vec3 c = mix(dark, light, pf.g);
         float a = pf.r * strength * smoothstep(0.0, 0.08, k) * (1.0 - smoothstep(0.5, 1.0, k));
+        gl_FragColor = vec4(c * a, a);
       #endif
-      gl_FragColor = vec4(c * a, a);
     #elif KIND == 3
       // spark streak: a hot core line, fading along its tail
       float across = 1.0 - abs(vUv.y - 0.5) * 2.0;
@@ -290,12 +295,19 @@ const FRAG = /* glsl */ `
       float fade = pow(1.0 - k, 1.6);
       gl_FragColor = vec4(vColor * band * fade * 1.1, band * fade * 0.25);
     #else
-      // scorch: a sooty blotch with a ragged edge, fading away slowly
-      float r = length(vUv - 0.5) * 2.0;
+      // scorch: a sooty blotch with a ragged edge and cracks running out of it, glowing like embers for its first
+      // moments, fading away slowly
+      vec2 p = vUv - 0.5;
+      float r = length(p) * 2.0;
       float fine = texture2D(uPuff, vUv * 0.25 + vec2(0.5, 0.5)).b;
       float a = (1.0 - smoothstep(0.3, 0.95, r + (fine - 0.5) * 0.5)) * 0.78;
-      a *= smoothstep(0.0, 0.05, k) * (1.0 - smoothstep(0.55, 1.0, k));
-      gl_FragColor = vec4(uScorch * a, a);
+      float ang = atan(p.y, p.x);
+      float crack = pow(abs(sin(ang * 3.5 + vSeed * 6.283 + fine * 2.5)), 26.0);
+      a = max(a, crack * smoothstep(1.0, 0.45, r) * smoothstep(0.15, 0.4, r) * 0.7);
+      float life = smoothstep(0.0, 0.05, k) * (1.0 - smoothstep(0.55, 1.0, k));
+      a *= life;
+      float ember = (1.0 - smoothstep(0.02, 0.12, k)) * smoothstep(0.2, 0.7, a) * fine;
+      gl_FragColor = vec4(uScorch * a + vec3(1.0, 0.35, 0.06) * ember * 0.9, a);
     #endif
   }
 `;

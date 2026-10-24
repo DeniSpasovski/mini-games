@@ -1,5 +1,6 @@
 import { Group, type Texture } from 'three';
 import { Rng } from '../../../../shared/rng';
+import { PowerUp } from '../../sim/powerups';
 import type { SimEvent } from '../../sim/types';
 import { FlameType, FlameField } from './flames';
 import {
@@ -164,7 +165,7 @@ export class Fx {
             -0.6,
           );
           this.smoke.emit(
-            t + r.range(0.25, 0.4),
+            t + r.range(0.12, 0.25),
             cx + dx * len,
             0.45,
             cz + dz * len,
@@ -262,12 +263,33 @@ export class Fx {
             -1.2,
           );
         }
+        // a low ring of dark billows born with the blast, engulfing the fireball (the fire glows through them), then
+        // the column that rises
+        const nCloud = Math.round(5 * rich);
+        for (let i = 0; i < nCloud; i++) {
+          const a = (i / Math.max(1, nCloud)) * 6.283 + r.range(-0.4, 0.4);
+          const sp = r.range(0.5, 1.0);
+          this.smoke.emit(
+            t + r.range(0.0, 0.06),
+            cx + Math.cos(a) * 0.3,
+            0.45,
+            cz + Math.sin(a) * 0.3,
+            Math.cos(a) * sp,
+            r.range(0.3, 0.7),
+            Math.sin(a) * sp,
+            r.range(1.1, 1.5),
+            r.range(0.65, 0.9),
+            r.next(),
+            r.range(-0.8, 0.8),
+            -0.2,
+          );
+        }
         const nSmoke = Math.round(5 * rich);
         for (let i = 0; i < nSmoke; i++) {
           const a = r.range(0, 6.283);
           const sp = r.range(0.2, 0.7);
           this.smoke.emit(
-            t + r.range(0.15, 0.35),
+            t + r.range(0.04, 0.2),
             cx + Math.cos(a) * 0.15,
             0.6,
             cz + Math.sin(a) * 0.15,
@@ -436,10 +458,25 @@ export class Fx {
       }
       case 'itemAppeared':
       case 'itemTaken': {
-        // a burst of golden sparkles: small when a crate reveals a power-up, a ring of them when somebody grabs it
+        // a burst of golden sparkles: small when a crate reveals a power-up, a ring of them when somebody grabs it; a
+        // crate that reveals one also flashes a ring over the floor in the power-up's own colour (its pad)
         const x = this.wx(e.x);
         const z = this.wz(e.y);
-        const n = e.type === 'itemTaken' ? 12 : 7;
+        const n = e.type === 'itemTaken' ? 12 : 10;
+        if (e.type === 'itemAppeared')
+          this.ring.emit(
+            t,
+            x,
+            0.05,
+            z,
+            0,
+            0,
+            0,
+            0.45,
+            0.9,
+            r.next(),
+            packColor(e.kind === PowerUp.Dynamites ? 0x38c6ff : 0xffb020),
+          );
         for (let i = 0; i < n; i++) {
           const a = r.range(0, 6.283);
           const sp = r.range(0.8, e.type === 'itemTaken' ? 2.6 : 1.6);

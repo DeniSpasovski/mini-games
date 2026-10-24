@@ -55,11 +55,21 @@ const FRAG = /* glsl */ `
     vec3 N = normalize(vN);
     float fres = pow(1.0 - max(dot(N, V), 0.0), 3.0);
     float d = sdBox(vWorld.xz, uHalf);
-    vec3 shallow = vec3(0.04, 0.30, 0.38);
-    vec3 deep = vec3(0.012, 0.115, 0.2);
-    vec3 col = mix(shallow, deep, smoothstep(0.0, 28.0, d));
+    // turquoise shallows round the raft and the boats, deepening to blue-green and then navy far out
+    vec3 lagoon = vec3(0.07, 0.42, 0.44);
+    vec3 shallow = vec3(0.035, 0.28, 0.36);
+    vec3 deep = vec3(0.012, 0.11, 0.2);
+    vec3 col = mix(lagoon, shallow, smoothstep(0.0, 7.0, d));
+    col = mix(col, deep, smoothstep(6.0, 34.0, d));
     col = mix(col, vec3(0.45, 0.7, 0.8), fres * 0.4);
     #ifndef LOW
+    // light dancing on the shallow bottom, fading out with depth
+    vec2 q = vWorld.xz * 1.6;
+    float ca = abs(sin(q.x + sin(q.y * 0.9 + uTime * 0.9)) * sin(q.y + sin(q.x * 1.1 - uTime * 0.7)));
+    col += vec3(0.25, 0.4, 0.35) * pow(ca, 7.0) * 0.5 * (1.0 - smoothstep(0.0, 8.0, d));
+    // long soft streaks of wind on the surface
+    float wind = sin(dot(vWorld.xz, vec2(0.32, 0.95)) * 1.7 + uTime * 0.6 + 1.6 * sin(vWorld.x * 0.21 + uTime * 0.25));
+    col += vec3(0.05, 0.08, 0.09) * smoothstep(0.82, 1.0, wind);
     // fine glitter that drifts with the swell, and the sun's glint (skipped on the low tier: fill rate)
     float g = sin(vWorld.x * 3.1 + uTime * 1.3) * sin(vWorld.z * 2.7 - uTime * 1.1)
             + sin((vWorld.x - vWorld.z) * 4.3 + uTime * 1.9);

@@ -52,6 +52,8 @@ interface PartOpts {
   paint?: number;
   /** Highlight the bevelled edges (faces that are neither flat side nor top); default for boxes and `flagstone`. */
   edges?: boolean;
+  /** Weights of the level's detail texture (`detail.ts`): red = ground, green = second surface; default none. */
+  detail?: readonly [number, number];
 }
 
 export interface Crack {
@@ -212,6 +214,7 @@ export function part(
   }
   g.setAttribute('color', new Float32BufferAttribute(colors, 3));
   g.setAttribute('aGloss', new Float32BufferAttribute(gloss, 1));
+  g.setAttribute('aDetail', detailAttr(pos2.count, o.detail));
   // welded rocks and flagstones carry no UVs; give them empty ones so every part merges with every other
   if (!g.getAttribute('uv'))
     g.setAttribute(
@@ -219,6 +222,20 @@ export function part(
       new Float32BufferAttribute(new Float32Array(pos2.count * 2), 2),
     );
   return g;
+}
+
+/** The `aDetail` attribute for `count` vertices, every one with the weights `w` (none = untouched by the texture). */
+export function detailAttr(
+  count: number,
+  w: readonly [number, number] = [0, 0],
+): Float32BufferAttribute {
+  const a = new Float32Array(count * 2);
+  if (w[0] || w[1])
+    for (let i = 0; i < count; i++) {
+      a[i * 2] = w[0];
+      a[i * 2 + 1] = w[1];
+    }
+  return new Float32BufferAttribute(a, 2);
 }
 
 /**
@@ -458,38 +475,48 @@ export function boulderGeometry(low = false): BufferGeometry {
   ]);
 }
 
-/** The rocks on the Quarry rim: the boulder's look at a fraction of its triangles (there are a hundred of them). */
+/**
+ * The boulders on the Quarry rim: weathered sandstone, smooth with a few cut faces and a crack, flat where they sit, in a
+ * pale base colour the instance colour warms (there are a hundred of them, so a fraction of the hard boulder's triangles).
+ */
 export function rimRockGeometry(): BufferGeometry {
-  return part(rock(0.55, 2), PALETTE.granite, {
+  return part(rock(0.55, 2), 0xe6d2b0, {
     y: 0.44,
     sy: 0.9,
     smooth: true,
-    lumpy: 0.09,
-    base: 0,
-    tint: 0.12,
+    lumpy: 0.07,
+    cuts: [
+      [0.3, 1, 0.2, 0.4],
+      [1, 0.3, 0.2, 0.44],
+      [-0.6, 0.4, -0.8, 0.44],
+    ],
+    cracks: [{ p: [0.1, 0.5, 0], n: [0.9, 0.2, 0.4], w: 0.05 }],
+    base: 0.02,
+    tint: 0.16,
     rough: ROUGH.stone,
   });
 }
 
 /**
- * Hard block 1: a pillar of four cut sandstone blocks with dark mortar joints between them, a timber brace on two sides
- * (an upright and a cross beam lashed with rope) and rubble at its foot.
+ * Hard block 1: a pillar of four cut blue-grey stone courses on dark mortar, an iron band round the second joint, a wider
+ * chamfered capstone and rubble at its foot. Cool, mid-value and taller than a crate (1.3 m against 0.86 m), so it never
+ * reads as one of the warm breakables.
  */
 export function postGeometry(): BufferGeometry {
-  const s = PALETTE.sandstone;
+  const s = PALETTE.pillar;
   const p: BufferGeometry[] = [
-    part(bbox(0.74, 1.06, 0.74), PALETTE.mortar, {
-      y: 0.53,
+    part(bbox(0.74, 1.12, 0.74), PALETTE.mortar, {
+      y: 0.56,
       rough: ROUGH.stone,
       paint: 0,
     }),
   ];
   // [height, width, depth, dx, dz, yaw, shade]
   const courses: [number, number, number, number, number, number, number][] = [
-    [0.31, 0.88, 0.86, 0.01, -0.005, 0.02, 0],
-    [0.29, 0.84, 0.86, -0.014, 0.008, -0.04, 1],
-    [0.29, 0.86, 0.83, 0.008, 0.012, 0.035, 0],
-    [0.29, 0.82, 0.84, -0.008, -0.01, -0.02, 2],
+    [0.31, 0.88, 0.86, 0.01, -0.005, 0.02, 1],
+    [0.28, 0.84, 0.86, -0.014, 0.008, -0.04, 0],
+    [0.28, 0.86, 0.83, 0.008, 0.012, 0.035, 2],
+    [0.28, 0.82, 0.84, -0.008, -0.01, -0.02, 0],
   ];
   let y = 0;
   for (const [h, w, d, dx, dz, ry, shade] of courses) {
@@ -499,46 +526,50 @@ export function postGeometry(): BufferGeometry {
         z: dz,
         y: y + h / 2,
         ry,
-        tint: 0.16,
+        tint: 0.14,
         rough: ROUGH.stone,
+        cracks:
+          shade === 2
+            ? [{ p: [0.2, y + h / 2, 0], n: [0.85, 0.3, 0.42], w: 0.025 }]
+            : undefined,
       }),
     );
     y += h;
   }
-  // timber brace on the front and back: a centred upright and a cross beam, lashed with rope where they cross
-  for (const sz of [-1, 1]) {
-    const z = sz * 0.465;
-    p.push(
-      part(bbox(0.15, 0.96, 0.08, 0.02), PALETTE.timber, {
-        x: 0.04 * sz,
-        z,
-        y: 0.56,
-        tint: 0.16,
-        rough: ROUGH.wood,
-      }),
-      part(bbox(0.96, 0.13, 0.08, 0.02), PALETTE.timberLight, {
-        z: z + sz * 0.06,
-        y: 0.78,
-        tint: 0.16,
-        rough: ROUGH.wood,
-      }),
-    );
-    for (const dy of [-0.035, 0.035])
+  // the capstone: wider than the shaft, a chipped chamfer catching the light on top
+  p.push(
+    part(bbox(0.96, 0.14, 0.96, 0.05, 2), PALETTE.pillarCap, {
+      y: y + 0.07,
+      ry: 0.03,
+      tint: 0.1,
+      rough: ROUGH.stone,
+      cracks: [{ p: [-0.3, y + 0.14, 0.3], n: [0.7, 0, 0.7], w: 0.02 }],
+    }),
+  );
+  // an iron band round the joint over the first course, with two rivets a side
+  p.push(
+    part(bbox(0.92, 0.07, 0.92, 0.015), PALETTE.ironBand, {
+      y: 0.31,
+      rough: ROUGH.iron,
+      tint: 0.06,
+    }),
+  );
+  for (const [nx, nz] of [
+    [0, 1],
+    [0, -1],
+    [1, 0],
+    [-1, 0],
+  ] as const)
+    for (const t of [-0.22, 0.22])
       p.push(
-        part(
-          new TorusGeometry(0.1, 0.016, 5, 10).rotateY(Math.PI / 4),
-          PALETTE.rope,
-          {
-            x: 0.04 * sz,
-            z: z + sz * 0.035,
-            y: 0.78 + dy,
-            sz: 0.7,
-            tint: 0.08,
-            rough: ROUGH.rope,
-          },
-        ),
+        part(box(0.035, 0.035, 0.035), PALETTE.rail, {
+          x: nx * 0.465 + nz * t,
+          z: nz * 0.465 + nx * t,
+          y: 0.31,
+          rough: ROUGH.iron,
+          tint: 0,
+        }),
       );
-  }
   // rubble at the foot
   for (const [x, z, r] of [
     [0.44, 0.3, 0.09],
@@ -546,7 +577,7 @@ export function postGeometry(): BufferGeometry {
     [-0.36, 0.44, 0.06],
   ] as const)
     p.push(
-      part(rock(r, 1), s[2], {
+      part(rock(r, 1), s[1], {
         x,
         z,
         y: r * 0.5,
@@ -576,42 +607,86 @@ const POT = [
   [0.09, 0.44],
 ].map(([r, y]) => new Vector2(r, y));
 
-/** Crate 1 (Quarry): three terracotta storage pots, rope tied round their necks. */
+/**
+ * Crate 1 (Quarry): a tall amphora and two squat storage pots in terracotta, each with a lighter lip, a dark open mouth
+ * and a rope tied round the neck; the amphora stands about as tall as a crate so the cell reads as blocked.
+ */
 export function potsGeometry(): BufferGeometry {
   const p: BufferGeometry[] = [];
+  // [x, z, width scale, height scale, shade]
   const pots = [
-    [-0.15, -0.12, 1.12, 0],
-    [0.2, -0.04, 0.95, 1],
-    [-0.02, 0.24, 0.85, 2],
+    [-0.13, -0.1, 1.38, 1.62, 0],
+    [0.22, 0.02, 1.08, 1.1, 1],
+    [-0.04, 0.27, 0.95, 0.98, 2],
   ] as const;
-  for (const [x, z, k, shade] of pots) {
+  for (const [x, z, k, ky, shade] of pots) {
     p.push(
-      part(new LatheGeometry(POT, 14), PALETTE.pots[shade], {
+      part(new LatheGeometry(POT, 16), PALETTE.pots[shade], {
         x,
         z,
         sx: k,
-        sy: k,
+        sy: ky,
         sz: k,
+        smooth: true,
         tint: 0.1,
         rough: ROUGH.clay,
       }),
-      // a dark mouth
+      // the lip, a shade lighter (worn and sun-bleached)
+      part(ring(0.135, 0.022, 6, 16), PALETTE.potRim, {
+        x,
+        z,
+        y: 0.488 * ky,
+        sx: k,
+        sz: k,
+        tint: 0.06,
+        rough: ROUGH.clay,
+      }),
+      // a dark mouth, a little sunk
       part(
-        new CylinderGeometry(0.09 * k, 0.09 * k, 0.01, 12),
+        new CylinderGeometry(0.11 * k, 0.11 * k, 0.01, 14),
         PALETTE.potMouth,
-        {
-          x,
-          z,
-          y: 0.475 * k,
-          paint: 0,
-        },
+        { x, z, y: 0.47 * ky, paint: 0 },
       ),
+      // rope round the neck
+      part(ring(0.122, 0.014, 5, 14), PALETTE.rope, {
+        x,
+        z,
+        y: 0.425 * ky,
+        sx: k,
+        sz: k,
+        tint: 0.06,
+        rough: ROUGH.rope,
+      }),
     );
   }
   return merge(p);
 }
 
-/** Crate 0: a wooden crate with corner posts, bands and a cross plank. */
+/** A torus lying flat (round the y axis), for lips, hoops and ropes. */
+const ring = (r: number, tube: number, rad = 6, seg = 16) =>
+  new TorusGeometry(r, tube, rad, seg).rotateX(Math.PI / 2);
+
+/**
+ * A rectangular slab `w x d`, `h` tall, centred on the origin, with only its top edges chamfered (`flagstone`): the edges
+ * the camera sees catch the light at a fifth of the triangles of `bbox`.
+ */
+const slab = (w: number, h: number, d: number, bevel: number) =>
+  flagstone(
+    [
+      [-w / 2, -d / 2],
+      [w / 2, -d / 2],
+      [w / 2, d / 2],
+      [-w / 2, d / 2],
+    ],
+    h,
+    bevel,
+  ).translate(0, -h / 2, 0);
+
+/**
+ * Crate 0: a slatted wooden crate. Chamfered corner posts, a top and a bottom rail round every side, a criss-cross lattice
+ * of slats between them with the dark inside showing through, three top boards and a nail at each rail end. About 600
+ * triangles: there can be a hundred on the floor.
+ */
 export function woodCrateGeometry(
   wood: { crate: number; band: number; dark: number } = {
     crate: PALETTE.crate,
@@ -619,22 +694,100 @@ export function woodCrateGeometry(
     dark: PALETTE.crateDark,
   },
 ): BufferGeometry {
+  const H = 0.84;
   const p: BufferGeometry[] = [
-    part(rbox(0.8, 0.8, 0.8, 0.06), wood.crate, { y: 0.42, tint: 0.1 }),
-    part(box(0.88, 0.1, 0.88), wood.band, { y: 0.2 }),
-    part(box(0.88, 0.1, 0.88), wood.band, { y: 0.64 }),
-    part(box(0.07, 0.08, 0.7), wood.dark, { y: 0.83, x: 0.12 }),
-    part(box(0.07, 0.08, 0.7), wood.dark, { y: 0.83, x: -0.12 }),
+    // the dark inside seen through the lattice
+    part(
+      box(0.72, H - 0.04, 0.72),
+      new Color(wood.dark).multiplyScalar(0.6).getHex(),
+      {
+        y: H / 2,
+        paint: 0,
+        tint: 0,
+      },
+    ),
   ];
+  // corner posts
   for (const sx of [-1, 1])
     for (const sz of [-1, 1])
       p.push(
-        part(box(0.11, 0.84, 0.11), wood.dark, {
-          x: sx * 0.4,
-          z: sz * 0.4,
-          y: 0.42,
+        part(slab(0.12, H, 0.12, 0.025), wood.band, {
+          x: sx * 0.39,
+          z: sz * 0.39,
+          y: H / 2,
+          tint: 0.14,
+          rough: ROUGH.wood,
+          edges: true,
         }),
       );
+  // every side: a rail at the top and the bottom, and a lattice of slats crossing at 45 degrees between them
+  const sides = [
+    [0, 1],
+    [0, -1],
+    [1, 0],
+    [-1, 0],
+  ] as const;
+  const span = 0.56; // height of the opening between the rails (the slats cross a square of this size)
+  sides.forEach(([nx, nz], k) => {
+    const yaw = nx ? Math.PI / 2 : 0;
+    const out = 0.395;
+    for (const y of [0.075, H - 0.075])
+      p.push(
+        part(box(0.7, 0.13, 0.05), wood.band, {
+          x: nx * out,
+          z: nz * out,
+          y,
+          ry: yaw,
+          tint: 0.14,
+          rough: ROUGH.wood,
+        }),
+      );
+    for (const t of [-0.3, 0.3])
+      p.push(
+        part(box(0.03, 0.03, 0.03), PALETTE.rail, {
+          x: nx * (out + 0.03) + nz * t,
+          z: nz * (out + 0.03) + nx * t,
+          y: H - 0.075,
+          tint: 0,
+          rough: ROUGH.iron,
+        }),
+      );
+    const shade = new Color(wood.crate)
+      .multiplyScalar(0.96 + 0.03 * k)
+      .getHex();
+    for (const dir of [1, -1])
+      for (const o of [-0.15, 0, 0.15]) {
+        // a slat across the open square, offset `o` from its diagonal, cut to the square
+        const len = span * Math.SQRT2 - 2 * Math.abs(o) * Math.SQRT2;
+        const slat = part(box(len, 0.07, 0.035), shade, {
+          tint: 0.16,
+          rough: ROUGH.wood,
+        });
+        // in the side's own plane (x across, y up), then turned to face out
+        slat
+          .rotateZ((dir * Math.PI) / 4)
+          // across the slat (not along it), so the three stay parallel; the second set sits a little proud
+          .translate(o, H / 2 - dir * o, dir > 0 ? 0 : 0.012)
+          .rotateY(
+            nx ? (nx > 0 ? Math.PI / 2 : -Math.PI / 2) : nz > 0 ? 0 : Math.PI,
+          )
+          .translate(nx * 0.37, 0, nz * 0.37);
+        p.push(slat);
+      }
+  });
+  // three top boards with gaps
+  for (const [x, f] of [
+    [-0.25, 1.02],
+    [0, 0.96],
+    [0.25, 1.05],
+  ] as const)
+    p.push(
+      part(
+        slab(0.235, 0.05, 0.84, 0.018),
+        new Color(wood.crate).multiplyScalar(f * 1.04).getHex(),
+        { x, y: H - 0.02, tint: 0.14, rough: ROUGH.wood, edges: true },
+      ),
+    );
   return merge(p);
 }
 
@@ -648,6 +801,7 @@ export function floorGeometry(
     part(rbox(w + pad * 2, 0.5, h + pad * 2, 0.18), PALETTE.slab[0], {
       y: -0.1 - 0.25,
       tint: 0.18,
+      detail: [1, 0],
     }),
   ]);
 }

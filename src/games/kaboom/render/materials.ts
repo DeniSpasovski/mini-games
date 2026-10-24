@@ -13,6 +13,7 @@ import {
   UnsignedByteType,
 } from 'three';
 import { Noise2D } from '../../../shared/noise';
+import type { DetailUniforms } from './detail';
 import type { GlowUniforms } from './fx/glow-grid';
 import type { Quality } from './renderer';
 
@@ -24,16 +25,21 @@ export const PALETTE = {
   postCap: 0xaeb7c9,
   timber: 0x7a4c28,
   timberLight: 0x8f5d33,
-  // the pillar: cut ochre sandstone, a shade darker and greyer than the floor flags, on dark mortar
+  // cut ochre sandstone (the derrick's load); the pillar is cool blue-grey stone on dark mortar, so a hard block never
+  // shares the warm hue of the breakable wood and clay
   sandstone: [0xc49a66, 0xb48a5a, 0xcfa873],
-  mortar: 0x3f3026,
+  pillar: [0x8592a6, 0x76849a, 0x929eb0],
+  pillarCap: 0xa9b4c4,
+  mortar: 0x2c2f38,
+  ironBand: 0x3b3f47,
   rope: 0xc8b083,
   // floor flags and the grit in their joints
   flags: [0xe2c99a, 0xd8bd8b, 0xe8d3a6],
   grit: 0x8a7052,
   // Quarry breakables 2: terracotta pots
-  pots: [0xc4643a, 0xb35733, 0xcf7448],
-  potMouth: 0x3a2418,
+  pots: [0xd06c3c, 0xbd5d36, 0xdb7d4c],
+  potRim: 0xeaa274,
+  potMouth: 0x24150e,
   crate: 0xd09b56,
   crateBand: 0xb07a3c,
   crateDark: 0x8d5d2c,
@@ -161,16 +167,93 @@ function addGlow(shader: Shader, glow: GlowUniforms): void {
 }
 
 /**
+ * The detail texture (`detail.ts`): world-space, projected from three sides and blended by the normal, so terraces,
+ * cliffs, decks and hulls all get it without UVs; each channel scales the paint by 2 x its value, as far as the vertex's
+ * `aDetail` (red, green weights) and the level's strength allow. Geometry without `aDetail` reads (0, 0): untouched.
+ */
+function addDetail(
+  shader: Shader,
+  detail: DetailUniforms,
+  soil: boolean,
+): void {
+  Object.assign(shader.uniforms, detail);
+  if (soil)
+    shader.fragmentShader = `#define DETAIL_SOIL\n${shader.fragmentShader}`;
+  shader.vertexShader = shader.vertexShader
+    .replace(
+      '#include <common>',
+      `#include <common>
+      attribute vec2 aDetail;
+      varying vec2 vDetail;
+      varying vec3 vDetailPos;
+      varying vec3 vDetailN;`,
+    )
+    .replace(
+      '#include <project_vertex>',
+      `#include <project_vertex>
+      vec4 detailP = vec4( transformed, 1.0 );
+      vec3 detailN = objectNormal;
+      #ifdef USE_INSTANCING
+        detailP = instanceMatrix * detailP;
+        detailN = mat3( instanceMatrix ) * detailN;
+      #endif
+      vDetailPos = ( modelMatrix * detailP ).xyz;
+      vDetailN = mat3( modelMatrix ) * detailN;
+      vDetail = aDetail;`,
+    );
+  shader.fragmentShader = shader.fragmentShader
+    .replace(
+      '#include <common>',
+      `#include <common>
+      uniform sampler2D uDetail;
+      uniform float uDetailTile;
+      uniform float uDetailK;
+      varying vec2 vDetail;
+      varying vec3 vDetailPos;
+      varying vec3 vDetailN;`,
+    )
+    .replace(
+      '#include <color_fragment>',
+      `#include <color_fragment>
+      if ( vDetail.x + vDetail.y > 0.003 ) {
+        vec3 tw = pow( abs( normalize( vDetailN ) ), vec3( 4.0 ) );
+        tw /= tw.x + tw.y + tw.z;
+        vec3 tp = vDetailPos / uDetailTile;
+        vec2 tex = texture2D( uDetail, tp.zy ).rg * tw.x
+                 + texture2D( uDetail, tp.xz ).rg * tw.y
+                 + texture2D( uDetail, tp.xy ).rg * tw.z;
+        vec2 dw = vDetail;
+        #ifdef DETAIL_SOIL
+          // a warm (brown) instance is bare soil: its ground weight moves to the second channel
+          float soil = clamp( ( vColor.r - vColor.g ) * 6.0 + 0.5, 0.0, 1.0 );
+          dw = vec2( dw.x * ( 1.0 - soil ), dw.y + dw.x * soil );
+        #endif
+        diffuseColor.rgb *= 1.0 + dot( 2.0 * tex - 1.0, dw ) * uDetailK;
+      }`,
+    );
+}
+
+/**
  * Material of the arena and its scenery (vertex colours = the painted look, no grain). High: physically based, with the
  * roughness `part()` wrote per vertex (`aGloss` = 1 - roughness; geometry without it is fully matte) and the level's
- * HDRI as environment light. Low: Lambert plus a faint cool rim so the forms still read without the environment.
+ * HDRI as environment light. Low: Lambert plus a faint cool rim so the forms still read without the environment. With
+ * `detail` the level's detail texture is laid over the vertices that ask for it (the scenery and the margin).
  */
 export function arenaMaterial(
   quality: Quality,
-  opts: { vertexColors?: boolean; glow?: GlowUniforms } = {},
+  opts: {
+    vertexColors?: boolean;
+    glow?: GlowUniforms;
+    detail?: DetailUniforms;
+    /** Warm-tinted instances take the detail's second channel (bare soil on a lawn). */
+    soil?: boolean;
+  } = {},
 ): MeshStandardMaterial | MeshLambertMaterial {
   const glow = opts.glow;
+  const detail = opts.detail;
   const vertexColors = opts.vertexColors ?? false;
+  const soil = opts.soil ?? false;
+  const key = `${glow ? '-glow' : ''}${detail ? '-detail' : ''}${soil ? '-soil' : ''}`;
   if (quality.name === 'high') {
     const m = new MeshStandardMaterial({
       vertexColors,
@@ -197,8 +280,9 @@ export function arenaMaterial(
           'float roughnessFactor = roughness * ( 1.0 - vGloss );',
         );
       if (glow) addGlow(shader, glow);
+      if (detail) addDetail(shader, detail, soil);
     };
-    m.customProgramCacheKey = () => `kaboom-arena-high${glow ? '-glow' : ''}`;
+    m.customProgramCacheKey = () => `kaboom-arena-high${key}`;
     return m;
   }
   const m = new MeshLambertMaterial({ vertexColors });
@@ -209,7 +293,8 @@ export function arenaMaterial(
       #include <opaque_fragment>`,
     );
     if (glow) addGlow(shader, glow);
+    if (detail) addDetail(shader, detail, soil);
   };
-  m.customProgramCacheKey = () => `kaboom-arena-low${glow ? '-glow' : ''}`;
+  m.customProgramCacheKey = () => `kaboom-arena-low${key}`;
   return m;
 }

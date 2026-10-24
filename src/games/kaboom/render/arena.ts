@@ -21,6 +21,7 @@ import { gridToWorldX, gridToWorldZ } from '../sim/grid';
 import { Terrain, type MapData } from '../sim/types';
 import { SLAB_PAD } from './camera-rig';
 import { GlowGrid } from './fx/glow-grid';
+import { levelDetail } from './detail';
 import { arenaMaterial } from './materials';
 import { footShade } from './parts';
 import { ContactShade } from './shadows';
@@ -47,7 +48,7 @@ interface Removable {
 
 let sharedSun: DirectionalLight | null = null;
 /** Share of the hemisphere fill kept on High, where the level's HDRI lights the shade too. */
-const ENV_FILL = 0.45;
+const ENV_FILL = 0.36;
 
 /**
  * The arena diorama (DETAILS.md "Style" / "Levels"): a floor of tiles, hard blocks and crates (one InstancedMesh per
@@ -115,14 +116,20 @@ export class Arena {
       this.materials.push(m);
       return m;
     };
-    const flat = mat(arenaMaterial(quality, { vertexColors: true }));
+    // the scenery and the margin carry the level's detail texture (only where a vertex asks for it: `aDetail`)
+    const flat = mat(
+      arenaMaterial(quality, { vertexColors: true, detail: levelDetail(id) }),
+    );
     const lit = mat(
       arenaMaterial(quality, { vertexColors: true, glow: glow.uniforms }),
     );
+    // tiles may carry the detail texture too (the Valley's turf; a brown dirt tile takes its soil channel)
     const tileMat = mat(
       arenaMaterial(quality, {
         glow: glow.uniforms,
         vertexColors: theme.tiles.vertexColors,
+        detail: levelDetail(id),
+        soil: true,
       }),
     );
 
