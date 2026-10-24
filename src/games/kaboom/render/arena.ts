@@ -9,7 +9,11 @@ import {
   Matrix4,
   Mesh,
   MeshBasicMaterial,
+  CustomBlending,
+  OneFactor,
+  OneMinusSrcAlphaFactor,
   Quaternion,
+  ShaderMaterial,
   Vector3,
 } from 'three';
 import { hash3, Rng } from '../../../shared/rng';
@@ -17,8 +21,10 @@ import { gridToWorldX, gridToWorldZ } from '../sim/grid';
 import { Terrain, type MapData } from '../sim/types';
 import { SLAB_PAD } from './camera-rig';
 import { GlowGrid } from './fx/glow-grid';
-import { clayMaterial, makeGrainTexture } from './materials';
-import type { DataTexture } from 'three';
+import { levelDetail } from './detail';
+import { arenaMaterial } from './materials';
+import { footShade } from './parts';
+import { ContactShade } from './shadows';
 import { shared, sharedValue } from './themes/cache';
 import { levelTheme } from './themes';
 import type { LevelTheme, Scenery } from './themes/theme';
@@ -41,10 +47,8 @@ interface Removable {
 }
 
 let sharedSun: DirectionalLight | null = null;
-let sharedGrainTex: DataTexture | null = null;
-function sharedGrain(): DataTexture {
-  return (sharedGrainTex ??= makeGrainTexture());
-}
+/** Share of the hemisphere fill kept on High, where the level's HDRI lights the shade too. */
+const ENV_FILL = 0.36;
 
 /**
  * The arena diorama (DETAILS.md "Style" / "Levels"): a floor of tiles, hard blocks and crates (one InstancedMesh per
@@ -79,11 +83,13 @@ export class Arena {
   private readonly tiles: InstancedMesh;
   private readonly sunk: Uint8Array;
   private readonly warn: InstancedMesh;
+  private readonly warnTime = { value: 0 };
   private readonly crateSlot: Int32Array;
   private readonly crateKind: Int8Array;
   private shadowDirty = true;
   private readonly materials: Material[] = [];
-  private readonly grain = sharedGrain();
+  /** Soft dark patches on the floor round every block (contact shading). */
+  private readonly contact: ContactShade;
   private readonly level: Scenery;
   private readonly q = new Quaternion();
   private readonly q2 = new Quaternion();
@@ -110,14 +116,20 @@ export class Arena {
       this.materials.push(m);
       return m;
     };
-    const flat = mat(clayMaterial(this.grain, { vertexColors: true }));
-    const lit = mat(
-      clayMaterial(this.grain, { vertexColors: true, glow: glow.uniforms }),
+    // the scenery and the margin carry the level's detail texture (only where a vertex asks for it: `aDetail`)
+    const flat = mat(
+      arenaMaterial(quality, { vertexColors: true, detail: levelDetail(id) }),
     );
+    const lit = mat(
+      arenaMaterial(quality, { vertexColors: true, glow: glow.uniforms }),
+    );
+    // tiles may carry the detail texture too (the Valley's turf; a brown dirt tile takes its soil channel)
     const tileMat = mat(
-      clayMaterial(this.grain, {
+      arenaMaterial(quality, {
         glow: glow.uniforms,
         vertexColors: theme.tiles.vertexColors,
+        detail: levelDetail(id),
+        soil: true,
       }),
     );
 
@@ -155,13 +167,17 @@ export class Arena {
     }
     this.group.add(tiles);
 
-    // --- hard blocks (two variants) and crates (two variants)
+    // --- hard blocks (two variants) and crates (two variants), darker at the foot; a contact patch under each
+    const low = quality.name === 'low';
+    const q = low ? '-low' : '';
     const hardGeos = theme.hard.map((build, v) =>
-      shared(`${id}-hard${v}`, build),
+      shared(`${id}-hard${v}${q}`, () => footShade(build(low))),
     );
     const crateGeos = theme.crate.map((build, v) =>
-      shared(`${id}-crate${v}`, build),
+      shared(`${id}-crate${v}${q}`, () => footShade(build(low))),
     );
+    this.contact = new ContactShade(w * h, theme.contact ?? 0.5);
+    this.group.add(this.contact.mesh);
     const hardCount = [0, 0];
     const crateCount = [0, 0];
     for (let i = 0; i < map.terrain.length; i++) {
@@ -216,6 +232,7 @@ export class Arena {
         target.setMatrixAt(slot, m4);
         tint.setScalar(r.range(0.92, 1.05));
         target.setColorAt(slot, tint);
+        this.contact.add(i, pos.x, pos.z);
         if (t === Terrain.Crate) {
           this.crates[v]!.cells.push(i);
           this.crateSlot[i] = slot;
@@ -237,15 +254,44 @@ export class Arena {
 
     // --- warning squares on the floor where the next walls will land
     const warnGeo = shared('warn', () =>
-      new PlaneGeometry(0.92, 0.92).rotateX(-Math.PI / 2),
+      new PlaneGeometry(0.98, 0.98).rotateX(-Math.PI / 2),
     );
     const warnMat = mat(
-      new MeshBasicMaterial({
-        color: theme.warnColor,
+      new ShaderMaterial({
+        uniforms: {
+          uColor: { value: new Color(theme.warnColor) },
+          uTime: this.warnTime,
+        },
+        vertexShader: /* glsl */ `
+          varying vec2 vUv;
+          varying float vP;
+          void main() {
+            vUv = uv * 2.0 - 1.0;
+            vP = instanceMatrix[1][1]; // how close the wall is to landing, 0..1 (see setWarnings)
+            gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+          }`,
+        fragmentShader: /* glsl */ `
+          uniform vec3 uColor;
+          uniform float uTime;
+          varying vec2 vUv;
+          varying float vP;
+          void main() {
+            // a pulsing outline that beats faster as the wall comes, a faint fill, and the wall's shadow growing
+            float e = max(abs(vUv.x), abs(vUv.y));
+            float beat = 0.5 + 0.5 * sin(uTime * (9.0 + 16.0 * vP));
+            float line = smoothstep(0.74, 0.82, e) * (1.0 - smoothstep(0.93, 0.99, e));
+            float aLine = line * (0.55 + 0.45 * beat) + (1.0 - line) * 0.12 * step(e, 0.82);
+            float s = mix(0.25, 0.85, vP);
+            float aShade = (1.0 - smoothstep(s * 0.6, s, length(vUv))) * 0.6 * vP;
+            float a = aLine + aShade * (1.0 - aLine);
+            gl_FragColor = vec4(uColor * aLine * (1.0 + 0.4 * beat), a);
+            #include <colorspace_fragment>
+          }`,
         transparent: true,
-        opacity: 0.55,
         depthWrite: false,
-        toneMapped: false,
+        blending: CustomBlending,
+        blendSrc: OneFactor,
+        blendDst: OneMinusSrcAlphaFactor,
       }),
     );
     this.warn = new InstancedMesh(warnGeo, warnMat, 16);
@@ -279,7 +325,7 @@ export class Arena {
       new HemisphereLight(
         theme.light.sky,
         theme.light.ground,
-        theme.light.fill,
+        theme.light.fill * (quality.name === 'high' ? ENV_FILL : 1),
       ),
     );
   }
@@ -298,7 +344,13 @@ export class Arena {
     out: Matrix4,
   ): Matrix4 {
     const { w, h } = this.map;
-    const yaw = this.theme.tiles.rotate && (x + y) & 1 ? Math.PI / 2 : 0;
+    const turn = this.theme.tiles.rotate;
+    const yaw =
+      turn === 'any'
+        ? (hash3(x, y, this.map.seed, 5) & 3) * (Math.PI / 2)
+        : turn && (x + y) & 1
+          ? Math.PI / 2
+          : 0;
     const q = this.q.setFromAxisAngle(UP, yaw);
     if (tilt) {
       this.axis.set(Math.cos(axis), 0, Math.sin(axis));
@@ -337,6 +389,10 @@ export class Arena {
       f.mesh.setMatrixAt(f.slot, m);
       f.mesh.instanceMatrix.needsUpdate = true;
       if (left <= -0.16) {
+        const { w, h } = this.map;
+        const cx = Math.round(f.x + w / 2 - 0.5);
+        const cy = Math.round(f.z + h / 2 - 0.5);
+        this.contact.add(cy * w + cx, f.x, f.z);
         this.falling.splice(i, 1);
         this.shadowDirty = true;
       }
@@ -415,6 +471,7 @@ export class Arena {
     const cell = y * w + x;
     if (this.sunk[cell]) return;
     this.sunk[cell] = 1;
+    this.contact.remove(cell);
     let crate: Matrix4 | null = null;
     const slot = this.crateSlot[cell];
     if (slot >= 0) {
@@ -435,18 +492,29 @@ export class Arena {
     return this.sunk[y * this.map.w + x] === 1;
   }
 
-  /** Mark the cells where walls are about to land (at most 16 are drawn); call every frame, `n = 0` hides them. */
-  setWarnings(cells: Int16Array, n: number, t: number): void {
+  /**
+   * Mark the cells where walls are about to land (at most 16 are drawn); call every frame, `n = 0` hides them. `secs` =
+   * seconds until each lands, out of `warnS`: the outline beats faster and the shadow grows as it comes.
+   */
+  setWarnings(
+    cells: Int16Array,
+    n: number,
+    t: number,
+    secs?: Float32Array,
+    warnS = 1,
+  ): void {
     const { w, h } = this.map;
     const m = new Matrix4();
     const count = Math.min(n, this.warn.instanceMatrix.count);
+    this.warnTime.value = t;
     const planks = this.theme.fall === 'tile';
     for (let k = 0; k < count; k++) {
       const c = cells[k];
       const x = c % w;
       const y = (c - x) / w;
-      const pulse = 0.85 + 0.15 * Math.sin(t * 18);
-      m.makeScale(pulse, 1, pulse);
+      // the y scale of a flat square changes nothing on screen: it carries the progress to the shader
+      const p = secs ? 1 - Math.min(1, Math.max(0, secs[k] / warnS)) : 0.5;
+      m.makeScale(1, Math.max(0.001, p), 1);
       m.setPosition(gridToWorldX(w, x + 0.5), 0.03, gridToWorldZ(h, y + 0.5));
       this.warn.setMatrixAt(k, m);
       if (planks) {
@@ -487,6 +555,7 @@ export class Arena {
     if (r.mesh.instanceColor) r.mesh.instanceColor.needsUpdate = true;
     this.crateSlot[cell] = -1;
     this.crateKind[cell] = -1;
+    this.contact.remove(cell);
     this.shadowDirty = true;
     return true;
   }
@@ -515,8 +584,18 @@ export class Arena {
         mesh.getMatrixAt(i, m);
         const wx = m.elements[12];
         const wz = m.elements[14];
-        if (wx >= x0 && wx <= x1 && wz >= z0 && wz <= z1 && m.elements[13] < 5)
+        if (
+          wx >= x0 &&
+          wx <= x1 &&
+          wz >= z0 &&
+          wz <= z1 &&
+          m.elements[13] < 5
+        ) {
           mesh.setMatrixAt(i, gone);
+          const cx = Math.round(wx + w / 2 - 0.5);
+          const cy = Math.round(wz + h / 2 - 0.5);
+          this.contact.remove(cy * w + cx);
+        }
       }
       mesh.instanceMatrix.needsUpdate = true;
     }
@@ -549,6 +628,7 @@ export class Arena {
 
   dispose(): void {
     for (const m of this.materials) m.dispose();
+    this.contact.dispose();
     this.level.dispose?.();
   }
 }

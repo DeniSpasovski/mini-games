@@ -206,9 +206,7 @@ test('blob shadows: one draw call, capped at its capacity', () => {
 test('crew: the you-arrow follows the human and disappears when they are out', () => {
   const ps = players(2);
   const crew = new Crew(ps, W, H);
-  const arrow = crew.group.children.find(
-    (c) => (c as Mesh).geometry?.type === 'ConeGeometry',
-  ) as Mesh;
+  const arrow = crew.group.getObjectByName('you-arrow') as Mesh;
   crew.update(1, 1 / 60);
   expect(arrow.visible).toBe(false); // nobody marked yet
   crew.setYou(0);

@@ -1,20 +1,21 @@
 import {
   BufferGeometry,
   CanvasTexture,
-  DataTexture,
   Group,
   Mesh,
   MeshLambertMaterial,
   PlaneGeometry,
   SRGBColorSpace,
 } from 'three';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { clayMaterial, makeGrainTexture } from './materials';
+import { ROUGH } from './materials';
+import { bbox, merge, part } from './parts';
 
 /**
- * The results podium: three rounded clay boxes (heights 3 : 2 : 1.4, order 2 - 1 - 3) with the place pressed into the front,
- * raised from under the arena floor when the match ends. Geometry, material and number decals are built once per page and
- * shared (`dispose` only lets go of the scene graph). Fewer than three players: only the steps that are needed.
+ * The results podium (heights 3 : 2 : 1.4, order 2 - 1 - 3), mid-poly (DETAILS.md "Style"): each step a plinth of pale cut
+ * stone courses with dark joints, a chamfered capstone overhanging it and a band in its medal's colour (gold, silver,
+ * bronze) under the cap, the place pressed into the front; raised from under the arena floor when the match ends.
+ * Geometry, material and number decals are built once per page and shared (`dispose` only lets go of the scene graph).
+ * Fewer than three players: only the steps that are needed.
  */
 
 /** Step size in cells (the arena's unit) and the unit height of the 3 : 2 : 1.4 ratio. */
@@ -31,13 +32,16 @@ export const STEP_H = [
 const BELOW = 1.2;
 const RISE_S = 0.5;
 const RISE_STAGGER_S = 0.14;
-const RADIUS = 0.14;
+/** Stone of the courses (alternating), the capstone, and the medal bands by rank. */
+const STONE = [0xe6d8be, 0xdccdb1];
+const CAP = 0xf2e8d4;
+const MEDAL = [0xe2ab2e, 0xc9ced6, 0xc27b46];
+const COURSE = 0.36;
 
 /** Left to right: second, first, third. */
 const ORDER = [1, 0, 2] as const;
 
 let shared: {
-  grain: DataTexture;
   steps: BufferGeometry[];
   material: MeshLambertMaterial;
   decalGeo: PlaneGeometry;
@@ -63,18 +67,49 @@ function digitMaterial(n: number): MeshLambertMaterial | null {
   return new MeshLambertMaterial({ map: tex, transparent: true });
 }
 
+/** One step `h` tall (top on y = h), reaching `BELOW` under the floor; `rank` 0 = the winner's. */
+function stepGeometry(h: number, rank: number): BufferGeometry {
+  const capH = 0.12;
+  const p: BufferGeometry[] = [];
+  // courses of cut stone from the bottom up to the cap, a dark joint between each (the gap shows the darker core)
+  p.push(
+    part(bbox(STEP_W - 0.04, h + BELOW - capH, STEP_D - 0.04, 0.02), 0x8f8270, {
+      y: (h - capH - BELOW) / 2,
+      paint: 0,
+      tint: 0,
+    }),
+  );
+  let k = 0;
+  for (let y0 = h - capH; y0 > -BELOW; y0 -= COURSE, k++) {
+    const y1 = Math.max(-BELOW, y0 - COURSE);
+    p.push(
+      part(bbox(STEP_W, y0 - y1 - 0.025, STEP_D, 0.03), STONE[k & 1], {
+        y: (y0 + y1) / 2,
+        tint: 0.08,
+        rough: ROUGH.stone,
+      }),
+    );
+  }
+  // the medal band just under the cap, and the overhanging capstone
+  p.push(
+    part(bbox(STEP_W + 0.03, 0.08, STEP_D + 0.03, 0.02), MEDAL[rank], {
+      y: h - capH - 0.06,
+      tint: 0.04,
+      rough: ROUGH.iron,
+    }),
+    part(bbox(STEP_W + 0.14, capH, STEP_D + 0.14, 0.04, 2), CAP, {
+      y: h - capH / 2,
+      tint: 0.06,
+      rough: ROUGH.stone,
+    }),
+  );
+  return merge(p);
+}
+
 function build(): NonNullable<typeof shared> {
-  const grain = makeGrainTexture();
   return {
-    grain,
-    steps: STEP_H.map((h) =>
-      new RoundedBoxGeometry(STEP_W, h + BELOW, STEP_D, 3, RADIUS).translate(
-        0,
-        (h - BELOW) / 2,
-        0,
-      ),
-    ),
-    material: clayMaterial(grain, { color: 0xf3e2c4 }),
+    steps: STEP_H.map((h, rank) => stepGeometry(h, rank)),
+    material: new MeshLambertMaterial({ vertexColors: true }),
     decalGeo: new PlaneGeometry(0.9, 0.9),
     decals: [1, 2, 3].map(digitMaterial),
   };
@@ -116,7 +151,8 @@ export class Podium {
       const decal = s.decals[p.rank];
       if (decal) {
         const d = new Mesh(s.decalGeo, decal);
-        d.position.set(0, p.height * 0.5, STEP_D / 2 + 0.003);
+        // in front of the medal band, which stands a little proud of the stone
+        d.position.set(0, p.height * 0.42, STEP_D / 2 + 0.02);
         d.scale.setScalar(Math.min(0.9, p.height * 0.75) / 0.9);
         step.add(d);
       }

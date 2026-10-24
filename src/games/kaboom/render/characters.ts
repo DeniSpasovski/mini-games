@@ -1,15 +1,19 @@
 import {
+  BufferAttribute,
   BufferGeometry,
   Color,
-  ConeGeometry,
   DoubleSide,
+  ExtrudeGeometry,
   Group,
+  InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
   Mesh,
-  MeshBasicMaterial,
   MeshLambertMaterial,
   Object3D,
+  PlaneGeometry,
+  ShaderMaterial,
+  Shape,
   Vector2,
   Vector3,
   type Camera,
@@ -17,8 +21,9 @@ import {
   type PerspectiveCamera,
   type WebGLRenderer,
 } from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Rng } from '../../../shared/rng';
-import { SLAB_PAD } from './camera-rig';
+import { CAM_PITCH_DEG, SLAB_PAD } from './camera-rig';
 import {
   buildCritter,
   footGeometry,
@@ -70,8 +75,13 @@ const GRAVITY = 14;
  * Gear materials: the instance (team) colour tints everything except the parts marked `aPlain` (reflective stripes,
  * the hat's inner band), which keep their own paint.
  */
-function gearMaterial(m: MeshLambertMaterial): MeshLambertMaterial {
+function gearMaterial(m: MeshLambertMaterial, glow = 0): MeshLambertMaterial {
   m.onBeforeCompile = (shader) => {
+    if (glow > 0)
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * ${glow.toFixed(2)};`,
+      );
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -82,7 +92,126 @@ function gearMaterial(m: MeshLambertMaterial): MeshLambertMaterial {
         '#include <color_vertex>\nvColor.rgb = mix(vColor.rgb, color.rgb, aPlain);',
       );
   };
-  m.customProgramCacheKey = () => 'kaboom-gear-' + m.side;
+  m.customProgramCacheKey = () => `kaboom-gear-${m.side}-${glow}`;
+  return m;
+}
+
+/** Hard hats are drawn this much bigger than the critter models fit them: the team colour reads from across the arena. */
+const HAT_BOOST = 1.15;
+/** Vests glow a little in their own colour, so the team reads even on the shaded side. */
+const VEST_GLOW = 0.18;
+
+/**
+ * Team rings on the floor under every critter, one instanced draw: a soft band in the team colour round a faint disc.
+ * `aYou` = 1 makes the human's band thicker and slowly pulsing.
+ */
+function ringMaterial(time: { value: number }): ShaderMaterial {
+  return new ShaderMaterial({
+    uniforms: { uTime: time },
+    vertexShader: /* glsl */ `
+      attribute float aYou;
+      varying vec2 vUv;
+      varying vec3 vCol;
+      varying float vYou;
+      void main() {
+        vUv = uv;
+        vCol = instanceColor;
+        vYou = aYou;
+        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uTime;
+      varying vec2 vUv;
+      varying vec3 vCol;
+      varying float vYou;
+      void main() {
+        float r = length(vUv - 0.5) * 2.0;
+        float inner = mix(0.72, 0.6, vYou);
+        float band = smoothstep(inner - 0.05, inner, r) * (1.0 - smoothstep(0.9, 0.97, r));
+        float pulse = 1.0 + vYou * 0.25 * sin(uTime * 5.0);
+        float a = band * 0.9 * min(1.0, pulse) + (1.0 - smoothstep(inner - 0.1, inner, r)) * 0.14;
+        vec3 c = vCol * mix(1.0, 1.25, band) * pulse;
+        gl_FragColor = vec4(c, a);
+        #include <colorspace_fragment>
+      }`,
+    transparent: true,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+  });
+}
+
+/** The human's marker: a chunky bevelled arrow pointing down, team colour (`aFill` = 1) inside a white outline. */
+function markerGeometry(): BufferGeometry {
+  const arrow = (k: number) => {
+    const s = new Shape();
+    const pts = [
+      [0, -0.3],
+      [0.27, 0.0],
+      [0.1, 0.0],
+      [0.1, 0.24],
+      [-0.1, 0.24],
+      [-0.1, 0.0],
+      [-0.27, 0.0],
+    ];
+    pts.forEach(([x, y], i) =>
+      i ? s.lineTo(x * k, y * k + 0.02) : s.moveTo(x * k, y * k + 0.02),
+    );
+    s.closePath();
+    return s;
+  };
+  const layer = (k: number, depth: number, z: number, fill: number) => {
+    const g = new ExtrudeGeometry(arrow(k), {
+      depth,
+      bevelEnabled: true,
+      bevelThickness: 0.035,
+      bevelSize: 0.03,
+      bevelSegments: 2,
+      curveSegments: 1,
+    })
+      .translate(0, 0, z - depth / 2)
+      .toNonIndexed();
+    g.deleteAttribute('uv');
+    const n = g.getAttribute('position').count;
+    g.setAttribute(
+      'aFill',
+      new BufferAttribute(new Float32Array(n).fill(fill), 1),
+    );
+    return g;
+  };
+  return mergeGeometries([layer(1.32, 0.06, -0.03, 0), layer(1, 0.1, 0.02, 1)]);
+}
+
+/** Lambert, but lit from within: the marker stays bright on the shaded side; white outline, team-colour fill. */
+function markerMaterial(): MeshLambertMaterial {
+  const m = new MeshLambertMaterial({ color: 0xffffff });
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uFill = { value: m.userData.fill };
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nattribute float aFill;\nvarying float vFill;',
+      )
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvFill = aFill;',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nuniform vec3 uFill;\nvarying float vFill;',
+      )
+      .replace(
+        '#include <color_fragment>',
+        '#include <color_fragment>\ndiffuseColor.rgb *= mix(vec3(1.0), uFill, vFill);',
+      )
+      .replace(
+        '#include <emissivemap_fragment>',
+        '#include <emissivemap_fragment>\ntotalEmissiveRadiance += diffuseColor.rgb * 0.5;',
+      );
+  };
+  m.userData.fill = new Color(0xffffff);
+  m.customProgramCacheKey = () => 'kaboom-marker';
   return m;
 }
 
@@ -238,10 +367,14 @@ export class Crew {
   private clock = 0;
   /** Critters on the results podium (by slot); the caller moves their `y` as the steps rise. */
   private readonly podium: (PodiumSpot | null)[] = [];
-  /** The human's slot: a bobbing arrow over their head (-1 = none). */
+  /** The human's slot: a bouncing arrow over their head and a thicker ring (-1 = none). */
   private youId = -1;
   private readonly arrow: Mesh;
-  private readonly arrowMat = new MeshBasicMaterial({ toneMapped: false });
+  private readonly arrowMat = markerMaterial();
+  /** Team rings on the floor (match view only), and which one is the human's. */
+  private readonly rings: InstancedMesh | null = null;
+  private readonly ringYou: InstancedBufferAttribute | null = null;
+  private readonly ringTime = { value: 0 };
   // scratch
   private readonly o = new Object3D();
   private readonly body = new Matrix4();
@@ -257,7 +390,12 @@ export class Crew {
     private readonly players: readonly PlayerView[],
     private readonly w: number,
     private readonly h: number,
-    fur: { shells: number; smooth: boolean; fan?: boolean } = {
+    fur: {
+      shells: number;
+      smooth: boolean;
+      fan?: boolean;
+      rings?: boolean;
+    } = {
       shells: FUR_SHELLS.high,
       smooth: true,
     },
@@ -301,12 +439,25 @@ export class Crew {
       this.vis[i].yaw = 0;
     });
 
-    const arrowGeo = new ConeGeometry(0.17, 0.34, 4).rotateX(Math.PI);
+    const arrowGeo = markerGeometry();
     this.geos.push(arrowGeo);
     this.arrow = new Mesh(arrowGeo, this.arrowMat);
+    this.arrow.name = 'you-arrow';
     this.arrow.visible = false;
     this.arrow.frustumCulled = false;
     this.group.add(this.arrow);
+
+    if (fur.rings) {
+      const ringGeo = new PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+      this.ringYou = new InstancedBufferAttribute(new Float32Array(n), 1);
+      ringGeo.setAttribute('aYou', this.ringYou);
+      this.geos.push(ringGeo);
+      const ringMat = ringMaterial(this.ringTime);
+      this.rings = new InstancedMesh(ringGeo, ringMat, n);
+      this.rings.frustumCulled = false;
+      this.rings.renderOrder = 1;
+      this.group.add(this.rings);
+    }
 
     const hatGeo = hatGeometry();
     const vestGeo = fur.fan ? fanShirtGeometry() : vestGeometry();
@@ -321,6 +472,7 @@ export class Crew {
         vertexColors: true,
         side: DoubleSide,
       }),
+      VEST_GLOW,
     );
     this.mats.push(teamMat, vestMat);
     this.hats = new InstancedMesh(hatGeo, teamMat, n);
@@ -349,7 +501,15 @@ export class Crew {
     this.vests.setColorAt(i, this.color);
     if (this.hats.instanceColor) this.hats.instanceColor.needsUpdate = true;
     if (this.vests.instanceColor) this.vests.instanceColor.needsUpdate = true;
-    if (i === this.youId) this.arrowMat.color.setHex(hex6(c));
+    if (this.rings) {
+      this.rings.setColorAt(i, this.color);
+      if (this.rings.instanceColor) this.rings.instanceColor.needsUpdate = true;
+    }
+    if (i === this.youId) this.markerColor(c);
+  }
+
+  private markerColor(c: number): void {
+    (this.arrowMat.userData.fill as Color).setHex(hex6(c));
   }
 
   /** A critter already benched when the crew is (re)built is simply gone: no launch. */
@@ -362,7 +522,7 @@ export class Crew {
   /** Top of critter `id`'s hard hat above the floor (world units): portraits frame by it. */
   topOf(id: number): number {
     const m = this.models[id];
-    return (m.hatY + 0.19 * m.hatScale) * CRITTER_SCALE;
+    return (m.hatY + 0.19 * m.hatScale * HAT_BOOST) * CRITTER_SCALE;
   }
 
   /** Show or hide the shared hard hats (the crowd's sprites are drawn without them). */
@@ -370,12 +530,17 @@ export class Crew {
     this.hats.visible = on;
   }
 
-  /** Mark player `id` (the human) with a bobbing arrow in their team colour; -1 removes it. */
+  /** Mark player `id` (the human) with a bouncing arrow in their team colour and a thicker ring; -1 removes it. */
   setYou(id: number): void {
     this.youId = id;
     if (id >= 0 && id < this.vis.length)
-      this.arrowMat.color.setHex(hex6(this.players[id].color));
+      this.markerColor(this.players[id].color);
     else this.arrow.visible = false;
+    if (this.ringYou) {
+      for (let i = 0; i < this.ringYou.count; i++)
+        this.ringYou.setX(i, i === id ? 1 : 0);
+      this.ringYou.needsUpdate = true;
+    }
   }
 
   /**
@@ -632,7 +797,7 @@ export class Crew {
       if (alive) {
         this.local
           .makeRotationX(model.hatTilt)
-          .scale(this.hatSize.setScalar(model.hatScale))
+          .scale(this.hatSize.setScalar(model.hatScale * HAT_BOOST))
           .setPosition(0, model.hatY, model.hatZ);
         this.tmp.multiplyMatrices(this.body, this.local);
         this.hats.setMatrixAt(i, this.tmp);
@@ -640,7 +805,7 @@ export class Crew {
         const h = v.hat;
         o.position.set(h.x, h.y, h.z);
         o.rotation.set(h.rx, 0, h.rz);
-        o.scale.setScalar(model.hatScale);
+        o.scale.setScalar(model.hatScale * HAT_BOOST);
         o.updateMatrix();
         this.hats.setMatrixAt(i, o.matrix);
       }
@@ -660,7 +825,16 @@ export class Crew {
         .setPosition(model.feet.spread, r, 0.04 - swing);
       this.tmp.multiplyMatrices(this.body, this.local);
       this.feet.setMatrixAt(i * 2 + 1, this.tmp);
+
+      // the team ring on the floor: under the critter while it plays, gone with a KO, off on the podium
+      if (this.rings) {
+        const r = alive && !spot && v.fly < 0 ? visible * 0.98 : 0;
+        this.local.makeScale(r, 1, r).setPosition(x, 0.015, z);
+        this.rings.setMatrixAt(i, this.local);
+      }
     }
+    this.ringTime.value = this.clock;
+    if (this.rings) this.rings.instanceMatrix.needsUpdate = true;
     // the arrow over the human's hat
     const you = this.youId;
     const showArrow =
@@ -671,14 +845,22 @@ export class Crew {
       !this.vis[you].out;
     this.arrow.visible = showArrow;
     if (showArrow) {
+      // a bounce: up in a stretch, down into a little squash, tilted back so it faces the camera
       const p = this.players[you];
+      const b = Math.abs(Math.sin(this.clock * 4.2));
+      const squash = b < 0.25 ? 1 - (0.25 - b) * 0.6 : 1 + (b - 0.25) * 0.08;
       this.arrow.position.set(
         p.px + (p.x - p.px) * alpha - this.w / 2,
-        (this.models[you].hatY + 0.5) * CRITTER_SCALE +
-          Math.sin(this.clock * 5) * 0.07,
+        (this.models[you].hatY + 0.62) * CRITTER_SCALE + b * 0.16,
         p.py + (p.y - p.py) * alpha - this.h / 2,
       );
-      this.arrow.rotation.y += dt * 2.5;
+      this.arrow.rotation.set(
+        -((CAM_PITCH_DEG - 15) * Math.PI) / 180,
+        Math.sin(this.clock * 1.7) * 0.35,
+        0,
+        'YXZ',
+      );
+      this.arrow.scale.set(2 - squash, squash, 1);
     }
     this.hats.instanceMatrix.needsUpdate = true;
     this.vests.instanceMatrix.needsUpdate = true;
@@ -715,6 +897,10 @@ export class Crew {
     for (const m of this.mats) m.dispose();
     for (const m of this.furMats) m.dispose();
     this.arrowMat.dispose();
+    if (this.rings) {
+      (this.rings.material as ShaderMaterial).dispose();
+      this.rings.dispose();
+    }
     this.grain.dispose();
     this.hats.dispose();
     this.vests.dispose();

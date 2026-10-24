@@ -9,6 +9,10 @@ import {
   PlaneGeometry,
   Quaternion,
   SphereGeometry,
+  TorusGeometry,
+  LatheGeometry,
+  OctahedronGeometry,
+  Vector2,
   Vector3,
   BufferGeometry,
   type Material,
@@ -19,15 +23,17 @@ import { gridToWorldX, gridToWorldZ } from '../../sim/grid';
 import { Terrain } from '../../sim/types';
 import { WALL_D, ringPoints } from '../bowl';
 import {
+  bbox,
   box,
+  detailAttr,
   merge,
   part,
   rbox,
   rock,
-  tileGeometry,
-  woodCrateGeometry,
+  strut,
   type DecorParts,
 } from '../parts';
+import { ROUGH } from '../materials';
 import type { FxTint, LevelTheme, SceneryCtx } from './theme';
 import { shared } from './cache';
 
@@ -50,8 +56,13 @@ const V = {
   hayBand: 0xa9822f,
   fence: 0x9a6b3c,
   fenceDark: 0x7a5230,
-  stream: 0x58aee0,
-  streamDark: 0x3f8fc2,
+  stream: 0x5cb8e4,
+  streamDark: 0x2f7fae,
+  glint: 0xe6f6fb,
+  bank: 0x6b5a3e,
+  reed: 0x5c8a3a,
+  cattail: 0x6a4630,
+  flowers: [0xf4f0e2, 0xf2d24a, 0xe58fb0, 0xb79ae8, 0xf29a4a],
   trunk: 0x6a4a2c,
   pine: [0x2f6b3a, 0x3a7a42, 0x4a8f4c],
   bush: 0x3f7d3a,
@@ -62,7 +73,13 @@ const V = {
   hedge: 0x5aa03f,
   hedgeSide: 0x4a8a35,
   hedgeDark: 0x376a2a,
+  mill: 0xebe3d0,
+  millCap: 0x7a5434,
+  millWin: 0x3c4a52,
+  sail: 0xe9dfc8,
   meadow: [0x86b95d, 0x7aae55],
+  lush: 0x5f9a40,
+  dry: 0xb3bf6a,
   trodden: 0x9dc66a,
   haze: 0xc9dcae,
   leaf: [0x4f9a3f, 0x5fae48, 0x3f8a38],
@@ -70,6 +87,8 @@ const V = {
   skyMid: '#d8ecf7',
   skyLow: '#f4f0d6',
 } as const;
+
+const TILE_GREENS = V.tiles.map((c) => new Color(c));
 
 const FX: FxTint = {
   dustDark: [0.5, 0.48, 0.32],
@@ -87,20 +106,25 @@ const FX: FxTint = {
 /** Hard block 0: a boulder with a cap of moss on one shoulder and two small rocks at its feet. */
 function mossyBoulder(): BufferGeometry {
   return merge([
-    part(rock(0.55, 2), V.boulder, {
+    part(rock(0.55, 5), V.boulder, {
       y: 0.46,
       sy: 0.92,
+      smooth: true,
       lumpy: 0.09,
+      base: 0.02,
       tint: 0.12,
+      rough: ROUGH.stone,
     }),
-    part(rock(0.3, 1), V.moss, {
+    part(rock(0.3, 3), V.moss, {
       x: -0.12,
       y: 0.84,
       z: 0.08,
       sy: 0.4,
       sx: 1.15,
+      smooth: true,
       lumpy: 0.06,
       tint: 0.18,
+      rough: ROUGH.grass,
     }),
     part(rock(0.2, 0), V.boulderDark, {
       x: 0.36,
@@ -143,25 +167,170 @@ function cairn(): BufferGeometry {
   return merge(p);
 }
 
-/** Crate 1: a round-edged hay bale with two twine bands and a few straws sticking out. */
+/** Crate 1: a round hay bale on its side, rolled end to the camera, with two twine bands and loose straws. */
 function hayBale(): BufferGeometry {
+  const R = 0.4;
+  const L = 0.84;
+  const e = 0.09;
+  // a lathed drum with rounded shoulders, axis along x (turned at the end)
+  const prof: Vector2[] = [new Vector2(0, -L / 2)];
+  for (let i = 0; i <= 4; i++) {
+    const a = (i / 4) * (Math.PI / 2);
+    prof.push(
+      new Vector2(R - e + Math.sin(a) * e, -L / 2 + e - Math.cos(a) * e),
+    );
+  }
+  for (let i = 0; i <= 4; i++) {
+    const a = (i / 4) * (Math.PI / 2);
+    prof.push(
+      new Vector2(R - e + Math.cos(a) * e, L / 2 - e + Math.sin(a) * e),
+    );
+  }
+  prof.push(new Vector2(0, L / 2));
+  const lie = (g: BufferGeometry) => g.rotateZ(Math.PI / 2);
   const p: BufferGeometry[] = [
-    part(rbox(0.92, 0.72, 0.8, 0.1, 2), V.hay, { y: 0.38, tint: 0.14 }),
-    part(rbox(0.07, 0.76, 0.84, 0.02), V.hayBand, { x: -0.22, y: 0.38 }),
-    part(rbox(0.07, 0.76, 0.84, 0.02), V.hayBand, { x: 0.22, y: 0.38 }),
-    part(rbox(0.8, 0.1, 0.66, 0.04), V.hayDark, { y: 0.76, tint: 0.2 }),
+    part(lie(new LatheGeometry(prof, 18)), V.hay, {
+      y: R,
+      smooth: true,
+      lumpy: 0.02,
+      tint: 0.16,
+      rough: ROUGH.grass,
+    }),
   ];
-  const r = new Rng(2210);
-  for (let i = 0; i < 9; i++)
+  // the rolled ends: rings of darker and lighter straw, a little proud of the face
+  for (const sx of [-1, 1])
+    for (const [r, c] of [
+      [0.3, V.hayDark],
+      [0.21, V.hay],
+      [0.12, V.hayDark],
+    ] as const)
+      p.push(
+        part(lie(new CylinderGeometry(r, r, 0.02, 16)), c, {
+          x: sx * (L / 2 + 0.005 + (0.3 - r) * 0.04),
+          y: R,
+          tint: 0.2,
+          rough: ROUGH.grass,
+        }),
+      );
+  // two twine bands round the drum
+  for (const x of [-0.2, 0.2])
     p.push(
-      part(new ConeGeometry(0.025, 0.2, 3), V.hayDark, {
-        x: r.range(-0.4, 0.4),
-        z: r.range(-0.36, 0.36),
-        y: r.range(0.15, 0.7),
-        ry: r.range(0, 3),
+      part(
+        new TorusGeometry(R + 0.006, 0.014, 4, 24).rotateY(Math.PI / 2),
+        V.hayBand,
+        {
+          x,
+          y: R,
+          tint: 0,
+          rough: ROUGH.rope,
+        },
+      ),
+    );
+  // loose straws sticking out of the ends and the drum
+  const r = new Rng(2210);
+  for (let i = 0; i < 22; i++) {
+    const end = i < 10;
+    const a = r.range(0, Math.PI * 2);
+    const rr = end ? r.range(0.08, 0.36) : R;
+    const straw = new ConeGeometry(0.012, r.range(0.12, 0.2), 3);
+    if (end)
+      straw.rotateZ(((i & 1 ? 1 : -1) * Math.PI) / 2 + r.range(-0.5, 0.5));
+    else straw.rotateX(Math.PI / 2 - a);
+    p.push(
+      part(straw, i % 3 ? V.hayDark : V.hay, {
+        x: end ? (i & 1 ? -1 : 1) * (L / 2 + 0.03) : r.range(-0.3, 0.3),
+        y: R + Math.sin(a) * rr,
+        z: Math.cos(a) * rr,
         tint: 0.2,
+        rough: ROUGH.grass,
       }),
     );
+  }
+  // the rolled end faces the camera: the bale reads at a glance
+  return merge(p).rotateY(Math.PI / 2);
+}
+
+/**
+ * A floor tile of turf: a slab almost the full cell (the lawn reads as one surface, the mown stripes as rows) with soft
+ * edges, carrying the grass of the detail texture. White: the instance colour paints it (`tiles.tint`).
+ */
+function turfGeometry(): BufferGeometry {
+  return part(bbox(0.995, 0.16, 0.995, 0.02), 0xffffff, {
+    y: -0.08,
+    tint: 0,
+    paint: 0,
+    rough: ROUGH.grass,
+    detail: [1, 0],
+  });
+}
+
+/** Crate 0: a slatted apple crate, boards with gaps on every side, heaped with red and green apples. */
+function appleCrate(): BufferGeometry {
+  const H = 0.7;
+  const p: BufferGeometry[] = [
+    // the dark inside seen between the boards
+    part(
+      box(0.74, H - 0.06, 0.74),
+      new Color(V.crateDark).multiplyScalar(0.6).getHex(),
+      {
+        y: H / 2,
+        paint: 0,
+        tint: 0,
+      },
+    ),
+  ];
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1])
+      p.push(
+        part(bbox(0.1, H, 0.1, 0.02), V.crateBand, {
+          x: sx * 0.4,
+          z: sz * 0.4,
+          y: H / 2,
+          tint: 0.14,
+          rough: ROUGH.wood,
+        }),
+      );
+  // three boards a side with gaps between them, each a slightly different shade
+  const r = new Rng(7311);
+  for (const [nx, nz] of [
+    [0, 1],
+    [0, -1],
+    [1, 0],
+    [-1, 0],
+  ] as const)
+    for (let k = 0; k < 3; k++)
+      p.push(
+        part(bbox(0.72, 0.17, 0.04, 0.012), V.crate, {
+          x: nx * 0.4,
+          z: nz * 0.4,
+          y: 0.11 + k * 0.235,
+          ry: nx ? Math.PI / 2 : 0,
+          tint: 0.18,
+          rough: ROUGH.wood,
+          paint: 1,
+        }),
+      );
+  // apples heaped above the rim
+  const red = [0xc7372c, 0xb52e26, 0xd2492f];
+  const green = [0x8fb440, 0x9cbf4a];
+  for (let i = 0; i < 16; i++) {
+    const ring = i < 10 ? 0.28 : i < 15 ? 0.14 : 0;
+    const a =
+      (i < 10 ? i / 10 : (i - 10) / 5) * Math.PI * 2 + r.range(-0.15, 0.15);
+    const y = H - 0.02 + (i < 10 ? 0 : i < 15 ? 0.06 : 0.12);
+    const c = r.chance(0.2) ? green[r.int(0, 1)] : red[r.int(0, 2)];
+    p.push(
+      part(rock(0.085, 1), c, {
+        x: Math.cos(a) * ring,
+        z: Math.sin(a) * ring,
+        y,
+        sy: 0.9,
+        smooth: true,
+        tint: 0.1,
+        rough: ROUGH.paint,
+      }),
+    );
+  }
   return merge(p);
 }
 
@@ -190,47 +359,88 @@ function tuftGeometry(): BufferGeometry {
   return merge(p);
 }
 
-/** A pine: trunk and three stacked cones (low poly; the rim is far from the camera). */
+/**
+ * A spruce: a tapering trunk with a root flare under five tiers of drooping boughs, each tier a cone whose rim is pushed
+ * down and in by noise so it reads as layered branches, darker inside and lighter at the tips.
+ */
 function pineGeometry(): BufferGeometry {
-  return merge([
-    part(new CylinderGeometry(0.1, 0.16, 0.8, 5), V.trunk, { y: 0.4 }),
-    part(new ConeGeometry(0.95, 1.5, 6), V.pine[0], { y: 1.45, tint: 0.1 }),
-    part(new ConeGeometry(0.74, 1.3, 6), V.pine[1], {
-      y: 2.3,
-      ry: 0.5,
-      tint: 0.1,
+  const p: BufferGeometry[] = [
+    part(new CylinderGeometry(0.07, 0.17, 1.1, 7), V.trunk, {
+      y: 0.55,
+      tint: 0.12,
+      rough: ROUGH.wood,
     }),
-    part(new ConeGeometry(0.5, 1.15, 6), V.pine[2], { y: 3.1, tint: 0.1 }),
-  ]);
+    part(new ConeGeometry(0.26, 0.18, 7), V.trunk, {
+      y: 0.09,
+      tint: 0.12,
+      rough: ROUGH.wood,
+    }),
+  ];
+  const tiers = [
+    [1.05, 1.0, 0.95, 0],
+    [0.9, 0.95, 1.55, 1],
+    [0.74, 0.88, 2.1, 0],
+    [0.56, 0.8, 2.6, 2],
+    [0.36, 0.75, 3.05, 1],
+  ] as const;
+  tiers.forEach(([r, h, y, shade], k) => {
+    p.push(
+      part(new ConeGeometry(r, h, 9, 2), V.pine[shade], {
+        y: y + h / 2,
+        ry: k * 0.7,
+        smooth: true,
+        lumpy: r * 0.09,
+        tint: 0.14,
+        rough: ROUGH.grass,
+      }),
+    );
+  });
+  return merge(p);
 }
 
-/** A broadleaf tree: a short trunk under three lumpy crowns. */
+/**
+ * A broadleaf tree: a trunk that forks into two limbs, under a crown of seven leaf clusters in three greens (smooth,
+ * lumpy, the lower ones darker), so the canopy has clumps and holes instead of one ball.
+ */
 function oakGeometry(): BufferGeometry {
-  return merge([
-    part(new CylinderGeometry(0.13, 0.2, 1.0, 6), V.trunk, { y: 0.5 }),
-    part(rock(0.85, 1), V.leaf[0], {
-      y: 1.65,
-      sy: 0.85,
-      lumpy: 0.12,
-      tint: 0.12,
+  const p: BufferGeometry[] = [
+    part(new CylinderGeometry(0.11, 0.21, 1.15, 7), V.trunk, {
+      y: 0.57,
+      tint: 0.14,
+      rough: ROUGH.wood,
     }),
-    part(rock(0.62, 1), V.leaf[1], {
-      x: 0.45,
-      y: 1.4,
-      z: 0.2,
-      sy: 0.85,
-      lumpy: 0.1,
-      tint: 0.12,
+    part(strut([0, 1.0, 0], [0.38, 1.7, 0.12], 0.085, 6, 0.05), V.trunk, {
+      tint: 0.14,
+      rough: ROUGH.wood,
     }),
-    part(rock(0.58, 1), V.leaf[2], {
-      x: -0.4,
-      y: 1.5,
-      z: -0.25,
-      sy: 0.85,
-      lumpy: 0.1,
-      tint: 0.12,
+    part(strut([0, 1.0, 0], [-0.32, 1.75, -0.18], 0.08, 6, 0.05), V.trunk, {
+      tint: 0.14,
+      rough: ROUGH.wood,
     }),
-  ]);
+  ];
+  const clusters = [
+    [0, 2.05, 0, 0.72, 1],
+    [0.5, 1.75, 0.22, 0.55, 0],
+    [-0.48, 1.8, -0.2, 0.56, 2],
+    [0.18, 1.62, -0.48, 0.5, 0],
+    [-0.22, 1.6, 0.46, 0.5, 2],
+    [0.3, 2.35, -0.12, 0.45, 1],
+    [-0.3, 2.3, 0.2, 0.42, 1],
+  ] as const;
+  for (const [x, y, z, r, shade] of clusters)
+    p.push(
+      part(rock(r, 2), V.leaf[shade], {
+        x,
+        y,
+        z,
+        sy: 0.86,
+        smooth: true,
+        lumpy: r * 0.16,
+        tint: 0.14,
+        rough: ROUGH.grass,
+      }),
+    );
+  return merge(p);
 }
 
 /** A round bush with berries or flowers painted in (the unlit flower heads are in `bulbs`). */
@@ -260,6 +470,7 @@ function floor(w: number, h: number, pad: number): BufferGeometry {
     part(rbox(w + pad * 2, 0.5, h + pad * 2, 0.18), V.margin, {
       y: -0.35,
       tint: 0.2,
+      detail: [1, 0],
     }),
   ]);
 }
@@ -278,54 +489,131 @@ function decor(w: number, h: number, pad: number): DecorParts {
   const backZ = -hh - pad * 0.55;
   const sideX = hw + pad * 0.55;
 
-  // the stream along the front margin, pebbles on its banks, a plank bridge
+  // the stream along the front margin: a wet earth bed, glossy water with a lighter current down the middle and
+  // glints, smooth stones on both banks, reeds and cattails, and a plank footbridge
+  const len = w + pad * 1.9;
   p.push(
-    part(box(w + pad * 1.9, 0.05, 0.52), V.stream, {
+    part(box(len, 0.05, 0.8), V.bank, {
       z: frontZ,
-      y: -0.075,
-      tint: 0.1,
-    }),
-  );
-  p.push(
-    part(box(w + pad * 1.9, 0.04, 0.2), V.streamDark, {
-      z: frontZ + 0.05,
-      y: -0.07,
+      y: -0.09,
       tint: 0.2,
+      rough: ROUGH.clay,
+    }),
+    part(box(len, 0.03, 0.58), V.streamDark, {
+      z: frontZ,
+      y: -0.07,
+      tint: 0.08,
+      rough: 0.15,
+    }),
+    part(box(len, 0.03, 0.24), V.stream, {
+      z: frontZ - 0.02,
+      y: -0.066,
+      tint: 0.12,
+      rough: 0.1,
     }),
   );
-  for (let x = -hw - pad * 0.8; x < hw + pad * 0.8; x += 0.7) {
+  for (let x = -len / 2 + 0.3; x < len / 2 - 0.3; x += r.range(0.6, 1.4))
     p.push(
-      part(rock(r.range(0.05, 0.1), 0), V.boulderDark, {
-        x: x + r.range(-0.2, 0.2),
-        z: frontZ + (r.chance(0.5) ? 0.3 : -0.3) + r.range(-0.04, 0.04),
-        y: 0.02,
-        sy: 0.7,
+      part(box(r.range(0.25, 0.55), 0.01, 0.025), V.glint, {
+        x,
+        z: frontZ + r.range(-0.18, 0.18),
+        y: -0.05,
+        tint: 0,
+        paint: 0,
+        rough: 0.05,
+      }),
+    );
+  for (let x = -len / 2 + 0.1; x < len / 2 - 0.1; x += r.range(0.28, 0.5))
+    for (const side of [-1, 1]) {
+      if (!r.chance(0.75)) continue;
+      const rad = r.range(0.05, 0.12);
+      p.push(
+        part(rock(rad, 1), [V.boulder, V.boulderDark, V.cairn][r.int(0, 2)], {
+          x: x + r.range(-0.1, 0.1),
+          z: frontZ + side * r.range(0.3, 0.4),
+          y: rad * 0.25 - 0.06,
+          sy: r.range(0.55, 0.8),
+          smooth: true,
+          lumpy: rad * 0.2,
+          base: -0.07,
+          tint: 0.14,
+          rough: ROUGH.stone,
+        }),
+      );
+    }
+  // reeds and cattails in clumps along the far bank
+  for (let x = -len / 2 + 0.6; x < len / 2 - 0.6; x += r.range(1.2, 2.6)) {
+    const z0 = frontZ + 0.42 * (r.chance(0.7) ? 1 : -1);
+    for (let k = 0; k < 6; k++) {
+      const hgt = r.range(0.32, 0.6);
+      const rx = x + r.range(-0.18, 0.18);
+      const rz = z0 + r.range(-0.05, 0.05);
+      const lean = r.range(-0.15, 0.15);
+      const reed = part(new ConeGeometry(0.018, hgt, 4), V.reed, {
+        y: hgt / 2,
+        tint: 0.15,
+        rough: ROUGH.grass,
+      });
+      reed.rotateZ(lean).translate(rx, -0.06, rz);
+      p.push(reed);
+      if (k < 2) {
+        const head = part(
+          new CylinderGeometry(0.025, 0.025, 0.11, 6),
+          V.cattail,
+          {
+            y: hgt * 0.8,
+            tint: 0.1,
+            rough: ROUGH.rope,
+          },
+        );
+        head.rotateZ(lean).translate(rx, -0.06, rz);
+        p.push(head);
+      }
+    }
+  }
+  // the footbridge: two stringers, seven planks over a gentle hump, four posts and two handrails
+  const bx = -hw * 0.4;
+  for (const dx of [-0.3, 0.3])
+    p.push(
+      part(bbox(0.08, 0.1, 1.15, 0.02), V.fenceDark, {
+        x: bx + dx,
+        z: frontZ,
+        y: 0.0,
+        rough: ROUGH.wood,
+      }),
+    );
+  for (let i = 0; i < 7; i++) {
+    const t = (i - 3) / 3;
+    p.push(
+      part(bbox(0.82, 0.05, 0.145, 0.015), V.fence, {
+        x: bx + r.range(-0.02, 0.02),
+        z: frontZ + t * 0.48,
+        y: 0.08 + 0.05 * (1 - t * t),
+        ry: r.range(-0.03, 0.03),
+        tint: 0.18,
+        rough: ROUGH.wood,
       }),
     );
   }
-  const bx = -hw * 0.4;
-  for (let i = 0; i < 5; i++)
-    p.push(
-      part(box(0.17, 0.05, 0.96), V.fence, {
-        x: bx + (i - 2) * 0.19,
-        z: frontZ,
-        y: 0.0,
-        tint: 0.2,
-      }),
-    );
-  for (const dx of [-0.46, 0.46])
-    for (const dz of [-0.44, 0.44])
+  for (const dx of [-0.42, 0.42]) {
+    for (const dz of [-0.5, 0.5])
       p.push(
-        part(box(0.07, 0.38, 0.07), V.fenceDark, {
+        part(bbox(0.07, 0.5, 0.07, 0.015), V.fenceDark, {
           x: bx + dx,
           z: frontZ + dz,
-          y: 0.2,
+          y: 0.22,
+          rough: ROUGH.wood,
         }),
       );
-  for (const dz of [-0.44, 0.44])
     p.push(
-      part(box(1.0, 0.05, 0.05), V.fence, { x: bx, z: frontZ + dz, y: 0.36 }),
+      part(bbox(0.05, 0.05, 1.08, 0.012), V.fence, {
+        x: bx + dx,
+        z: frontZ,
+        y: 0.46,
+        rough: ROUGH.wood,
+      }),
     );
+  }
 
   // a split-rail fence along the back, open in the middle
   for (let x = -hw - pad * 0.6; x <= hw + pad * 0.6; x += 1.4) {
@@ -509,93 +797,94 @@ const smooth = (a: number, b: number, x: number): number => {
   return t * t * (3 - 2 * t);
 };
 
-/** A low clipped hedge round the pitch, a ring strip with a lumpy top: vertex colours, flat faces. */
-function hedgeGeometry(hx: number, hz: number): BufferGeometry {
-  const a = ringPoints(hx, hz, WALL_D);
-  const b = ringPoints(hx, hz, WALL_D + HEDGE_W);
-  const n = a.length / 2;
-  const pos: number[] = [];
-  const col: number[] = [];
-  const top = new Color(V.hedge);
-  const side = new Color(V.hedgeSide);
-  const dark = new Color(V.hedgeDark);
-  const c = new Color();
-  const lump = (x: number, z: number): number =>
-    HEDGE_H + 0.07 * meadowNoise.noise2(x * 1.3, z * 1.3);
-  type P = [number, number, number];
-  /** One quad, wound so its normal faces `want` (the material is single-sided). */
-  const quad = (
-    q: [P, P, P, P],
-    colors: [Color, Color, Color, Color],
-    want: P,
-  ): void => {
-    const [p0, p1, p2] = q;
-    const u: P = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]];
-    const v: P = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]];
-    const nx = u[1] * v[2] - u[2] * v[1];
-    const ny = u[2] * v[0] - u[0] * v[2];
-    const nz = u[0] * v[1] - u[1] * v[0];
-    const order =
-      nx * want[0] + ny * want[1] + nz * want[2] >= 0
-        ? [0, 1, 2, 0, 2, 3]
-        : [0, 2, 1, 0, 3, 2];
-    for (const k of order) {
-      pos.push(...q[k]);
-      c.copy(colors[k]).multiplyScalar(1 + 0.06 * (((k * 7) % 3) - 1));
-      col.push(c.r, c.g, c.b);
-    }
-  };
+/**
+ * The hedge round the pitch: rounded bushes of leaf clusters in two greens along the ring, a few flowers on top and a
+ * footing of stones on the pitch side. `low` = fewer faces.
+ */
+function hedgeGeometry(hx: number, hz: number, low: boolean): BufferGeometry {
+  const ring = ringPoints(hx, hz, WALL_D + HEDGE_W / 2);
+  const n = ring.length / 2;
+  const r = new Rng(hash3(Math.round(hx * 2), Math.round(hz * 2), 0x4ed, 6));
+  const p: BufferGeometry[] = [];
+  const detail = low ? 0 : 1;
+  const STEP = 0.42;
+  let carry = 0;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    const ax = a[i * 2];
-    const az = a[i * 2 + 1];
-    const bx = b[i * 2];
-    const bz = b[i * 2 + 1];
-    const jax = a[j * 2];
-    const jaz = a[j * 2 + 1];
-    const jbx = b[j * 2];
-    const jbz = b[j * 2 + 1];
-    const hi = lump(ax, az);
-    const hj = lump(jax, jaz);
-    const ol = Math.hypot(bx - ax, bz - az) || 1;
-    const out: P = [(bx - ax) / ol, 0, (bz - az) / ol];
-    const g = GROUND_Y;
-    quad(
-      [
-        [ax, g, az],
-        [jax, g, jaz],
-        [jax, hj, jaz],
-        [ax, hi, az],
-      ],
-      [dark, dark, side, side],
-      [-out[0], 0, -out[2]],
-    );
-    quad(
-      [
-        [ax, hi, az],
-        [jax, hj, jaz],
-        [jbx, hj, jbz],
-        [bx, hi, bz],
-      ],
-      [top, top, top, top],
-      [0, 1, 0],
-    );
-    quad(
-      [
-        [bx, hi, bz],
-        [jbx, hj, jbz],
-        [jbx, g, jbz],
-        [bx, g, bz],
-      ],
-      [side, side, dark, dark],
-      out,
-    );
+    const ax = ring[i * 2];
+    const az = ring[i * 2 + 1];
+    const dx = ring[j * 2] - ax;
+    const dz = ring[j * 2 + 1] - az;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-6) continue;
+    // inward normal (towards the pitch): the ring runs counter-clockwise seen from above
+    const ix = -dz / len;
+    const iz = dx / len;
+    const inx = ix * (ax * ix + az * iz < 0 ? 1 : -1);
+    const inz = iz * (ax * ix + az * iz < 0 ? 1 : -1);
+    for (let t = carry; t < len; t += STEP) {
+      const x = ax + (dx * t) / len;
+      const z = az + (dz * t) / len;
+      const big = r.range(0.24, 0.31);
+      const green = r.chance(0.5) ? V.hedge : V.hedgeSide;
+      p.push(
+        part(rock(big, detail), green, {
+          x: x + r.range(-0.04, 0.04),
+          z: z + r.range(-0.04, 0.04),
+          y: GROUND_Y + HEDGE_H * 0.5,
+          sy: r.range(0.95, 1.15),
+          smooth: true,
+          lumpy: 0.05,
+          tint: 0.2,
+          rough: ROUGH.grass,
+        }),
+      );
+      // a smaller, lighter cluster on top
+      if (r.chance(0.6))
+        p.push(
+          part(rock(big * 0.62, detail), V.leaf[r.int(0, 2)], {
+            x: x + r.range(-0.1, 0.1),
+            z: z + r.range(-0.08, 0.08),
+            y: GROUND_Y + HEDGE_H * 0.5 + big * 0.75,
+            smooth: true,
+            lumpy: 0.03,
+            tint: 0.2,
+            rough: ROUGH.grass,
+          }),
+        );
+      if (r.chance(0.16)) {
+        const flower = [0xf4f0e2, 0xf2d24a, 0xe58fb0][r.int(0, 2)];
+        for (let k = 0; k < 3; k++)
+          p.push(
+            part(rock(0.028, 0), flower, {
+              x: x + r.range(-0.15, 0.15),
+              z: z + r.range(-0.12, 0.12),
+              y: GROUND_Y + HEDGE_H * 0.5 + big * r.range(0.75, 0.95),
+              tint: 0,
+              rough: ROUGH.grass,
+            }),
+          );
+      }
+      // stone footing on the pitch side
+      p.push(
+        part(
+          rock(r.range(0.1, 0.14), 0),
+          r.chance(0.5) ? V.cairn : V.cairnDark,
+          {
+            x: x + inx * (HEDGE_W / 2 + 0.02),
+            z: z + inz * (HEDGE_W / 2 + 0.02),
+            y: GROUND_Y + 0.04,
+            sy: 0.6,
+            ry: r.range(0, 3),
+            tint: 0.15,
+            rough: ROUGH.stone,
+          },
+        ),
+      );
+    }
+    carry = (((carry - len) % STEP) + STEP) % STEP;
   }
-  const g = new BufferGeometry();
-  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
-  g.setAttribute('color', new Float32BufferAttribute(col, 3));
-  g.computeVertexNormals();
-  return g;
+  return merge(p);
 }
 
 /**
@@ -613,6 +902,8 @@ function groundGeometry(hx: number, hz: number, low: boolean): BufferGeometry {
   const c = new Color();
   const trodden = new Color(V.trodden);
   const haze = new Color(V.haze);
+  const lush = new Color(V.lush);
+  const dry = new Color(V.dry);
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const z = pos.getZ(i);
@@ -624,17 +915,151 @@ function groundGeometry(hx: number, hz: number, low: boolean): BufferGeometry {
       meadowNoise.noise2(x * 0.09, z * 0.09) * 0.6 +
       meadowNoise.noise2(x * 0.31 + 9, z * 0.31) * 0.4;
     c.set(V.meadow[0]).lerp(c.clone().set(V.meadow[1]), n * 0.5 + 0.5);
-    c.lerp(trodden, (1 - smooth(4.8, 7.5, dd)) * 0.75);
+    // patches of lush and of sun-dried grass
+    const patch = meadowNoise.noise2(x * 0.21 - 7, z * 0.21 + 5);
+    if (patch > 0) c.lerp(lush, Math.min(1, patch * 1.3) * 0.6);
+    else c.lerp(dry, Math.min(1, -patch * 1.3) * 0.45);
+    c.lerp(trodden, (1 - smooth(4.8, 7.5, dd)) * 0.6);
     c.lerp(haze, smooth(30, 115, dd) * 0.6);
     col[i * 3] = c.r;
     col[i * 3 + 1] = c.g;
     col[i * 3 + 2] = c.b;
   }
   g.setAttribute('color', new Float32BufferAttribute(col, 3));
-  return g.toNonIndexed();
+  const flat = g.toNonIndexed();
+  // the attributes `part()` gives, so the hedge and the mill merge into the same draw (matte, no texture)
+  const n = flat.getAttribute('position').count;
+  flat.setAttribute(
+    'aGloss',
+    new Float32BufferAttribute(new Float32Array(n), 1),
+  );
+  flat.setAttribute(
+    'uv',
+    new Float32BufferAttribute(new Float32Array(n * 2), 2),
+  );
+  // the whole meadow takes the grass of the detail texture
+  flat.setAttribute('aDetail', detailAttr(n, [1, 0]));
+  return flat;
 }
 
 /** Trees well behind the crowd, in loose clusters; none close to the camera's side (it would stand in the picture). */
+/** The windmill stands left of the pitch, behind the crowd, towards the back. */
+const MILL_X = (hx: number) => -hx - 5.4;
+const MILL_Z = (hz: number) => -hz + 0.5;
+const MILL_HUB_Y = 5.6;
+const MILL_YAW = 0.6;
+
+/** The story prop: a whitewashed tower mill with a thatch-brown cap, a door and windows (its sails are separate). */
+function millGeometry(): BufferGeometry {
+  const tower = [
+    [1.45, 0],
+    [1.38, 1.5],
+    [1.22, 3.5],
+    [1.08, 5.0],
+    [1.1, 5.12],
+  ].map(([x, y]) => new Vector2(x, y));
+  const cap = [
+    [1.28, 0],
+    [1.22, 0.3],
+    [0.95, 0.85],
+    [0.5, 1.25],
+    [0.1, 1.42],
+    [0, 1.44],
+  ].map(([x, y]) => new Vector2(x, y));
+  const p: BufferGeometry[] = [
+    part(new CylinderGeometry(1.62, 1.7, 0.3, 16), V.cairnDark, {
+      y: 0.15,
+      tint: 0.15,
+      rough: ROUGH.stone,
+    }),
+    part(new LatheGeometry(tower, 18), V.mill, {
+      y: 0.3,
+      smooth: true,
+      tint: 0.08,
+      rough: ROUGH.clay,
+    }),
+    part(new LatheGeometry(cap, 18), V.millCap, {
+      y: 5.4,
+      smooth: true,
+      tint: 0.16,
+      rough: ROUGH.wood,
+    }),
+    // gallery band under the cap
+    part(new CylinderGeometry(1.2, 1.2, 0.12, 18), V.fenceDark, {
+      y: 5.36,
+      rough: ROUGH.wood,
+    }),
+    // door and two windows on the side facing the pitch
+    part(bbox(0.55, 0.95, 0.12, 0.03), V.fenceDark, {
+      y: 0.78,
+      z: 1.42,
+      rough: ROUGH.wood,
+    }),
+    part(bbox(0.34, 0.42, 0.1, 0.02), V.millWin, {
+      y: 2.6,
+      z: 1.32,
+      rough: ROUGH.paint,
+    }),
+    part(bbox(0.3, 0.38, 0.1, 0.02), V.millWin, {
+      y: 4.1,
+      z: 1.16,
+      x: 0.15,
+      rough: ROUGH.paint,
+    }),
+    // the windshaft sticking out of the cap
+    part(
+      new CylinderGeometry(0.12, 0.14, 0.7, 8).rotateX(Math.PI / 2),
+      V.trunk,
+      {
+        y: MILL_HUB_Y,
+        z: 1.2,
+        rough: ROUGH.wood,
+      },
+    ),
+  ];
+  return merge(p);
+}
+
+/** Four lattice sails round a hub, centred on the origin in the x-y plane (they turn round z). */
+function millSailsGeometry(): BufferGeometry {
+  const p: BufferGeometry[] = [
+    part(
+      new CylinderGeometry(0.2, 0.2, 0.2, 10).rotateX(Math.PI / 2),
+      V.fenceDark,
+      {
+        rough: ROUGH.wood,
+      },
+    ),
+  ];
+  for (let i = 0; i < 4; i++) {
+    const blade: BufferGeometry[] = [
+      part(box(0.1, 3.4, 0.08), V.trunk, { y: 1.75, rough: ROUGH.wood }),
+      part(box(0.04, 2.7, 0.04), V.fenceDark, {
+        y: 2.1,
+        x: 0.5,
+        rough: ROUGH.wood,
+      }),
+      part(box(0.42, 2.6, 0.02), V.sail, {
+        y: 2.1,
+        x: 0.27,
+        z: -0.02,
+        tint: 0.08,
+        rough: ROUGH.rope,
+      }),
+    ];
+    for (let k = 0; k < 6; k++)
+      blade.push(
+        part(box(0.56, 0.035, 0.035), V.fenceDark, {
+          y: 0.9 + k * 0.48,
+          x: 0.25,
+          rough: ROUGH.wood,
+        }),
+      );
+    p.push(merge(blade).rotateZ((i * Math.PI) / 2));
+  }
+  return merge(p);
+}
+
 function meadowTrees(
   hx: number,
   hz: number,
@@ -648,17 +1073,20 @@ function meadowTrees(
   const scl = new Vector3();
   const pines: [number, number][] = [];
   const oaks: [number, number][] = [];
-  for (const d of [7.5, 10, 13, 17, 22, 28, 35]) {
+  // the first rings stand just behind the crowd, so the wide view shows groves on the back and the sides
+  for (const d of [5, 6.3, 7.5, 10, 13, 17, 22, 28, 35]) {
     const pts = ringPoints(hx, hz, d);
     for (let i = 0; i < pts.length; i += 2) {
       const x = pts[i];
       const z = pts[i + 1];
       if (z > hz + 1 && d < 22) continue;
+      if (Math.hypot(x - MILL_X(hx), z - MILL_Z(hz)) < 3.4) continue;
       const cluster = Math.min(
         1,
         Math.max(0, 0.5 + meadowNoise.noise2(x * 0.08 + 3, z * 0.08) * 0.9),
       );
-      if (!rng.chance(cluster * (low ? 0.03 : 0.075))) continue;
+      const near = d < 8 ? 3.2 : 1;
+      if (!rng.chance(cluster * near * (low ? 0.03 : 0.075))) continue;
       (rng.chance(0.5) ? pines : oaks).push([x, z]);
     }
   }
@@ -695,6 +1123,84 @@ function meadowTrees(
     make('valley-pine', pineGeometry, pines, 1.3, 2.3),
     make('valley-oak', oakGeometry, oaks, 1.2, 1.9),
   ];
+}
+
+/** A clump of wildflowers: five dark green stems with round heads in `color` (low poly: there are hundreds). */
+function flowerGeometry(color: number): BufferGeometry {
+  const r = new Rng(4242);
+  const p: BufferGeometry[] = [];
+  for (let i = 0; i < 5; i++) {
+    const a = r.range(0, 6.28);
+    const d = r.range(0.02, 0.12);
+    const hgt = r.range(0.16, 0.3);
+    const x = Math.cos(a) * d;
+    const z = Math.sin(a) * d;
+    p.push(
+      part(new CylinderGeometry(0.008, 0.01, hgt, 3, 1, true), 0x3f6a2a, {
+        x,
+        z,
+        y: hgt / 2,
+        tint: 0,
+        paint: 0,
+        rough: ROUGH.grass,
+      }),
+      part(new OctahedronGeometry(0.05, 0), color, {
+        x,
+        z,
+        y: hgt,
+        sy: 0.7,
+        tint: 0.08,
+        rough: ROUGH.grass,
+      }),
+    );
+  }
+  return merge(p);
+}
+
+/**
+ * Grass clumps and wildflowers on the meadow beyond the crowd (none where the spectators stand or under the mill), seeded,
+ * thinner on low quality. Baked into the meadow's merged geometry: hundreds of plants, no draw call of their own. The
+ * flowers grow in drifts of one colour.
+ */
+function meadowPlants(hx: number, hz: number, low: boolean): BufferGeometry[] {
+  const rng = new Rng(hash3(Math.round(hx * 2), Math.round(hz * 2), 0xf10, 3));
+  const m4 = new Matrix4();
+  const quat = new Quaternion();
+  const pos = new Vector3();
+  const scl = new Vector3();
+  const tuft = tuftGeometry();
+  const blooms = V.flowers.map((c) => flowerGeometry(c));
+  const out: BufferGeometry[] = [];
+  for (let d = 4; d < 24; d += 0.7) {
+    const pts = ringPoints(hx, hz, d);
+    const keep = (low ? 0.16 : 0.42) * (1 - d / 30);
+    for (let i = 0; i < pts.length; i += 2) {
+      if (!rng.chance(keep)) continue;
+      const x = pts[i] + rng.range(-0.35, 0.35);
+      const z = pts[i + 1] + rng.range(-0.35, 0.35);
+      if (Math.hypot(x - MILL_X(hx), z - MILL_Z(hz)) < 2.2) continue;
+      const patch = meadowNoise.noise2(x * 0.15 - 4, z * 0.15 + 2);
+      const flower = patch > 0.1 && rng.chance(0.7);
+      const s = flower ? rng.range(0.9, 1.4) : rng.range(1.3, 2.4);
+      m4.compose(
+        pos.set(x, GROUND_Y, z),
+        quat.setFromAxisAngle(UP, rng.range(0, 6.28)),
+        scl.set(s, s * (flower ? 1 : rng.range(0.8, 1.3)), s),
+      );
+      let base = tuft;
+      if (flower) {
+        const drift = Math.floor(
+          (meadowNoise.noise2(x * 0.09 + 11, z * 0.09) * 0.5 + 0.5) *
+            blooms.length,
+        );
+        base = blooms[Math.min(blooms.length - 1, Math.max(0, drift))];
+      }
+      out.push(base.clone().applyMatrix4(m4));
+    }
+  }
+  tuft.dispose();
+  for (const g of blooms) g.dispose();
+  return out;
 }
 
 /** Grass tufts on the floor that is empty at the start of the round: one instanced mesh, lit by the blasts. */
@@ -738,11 +1244,31 @@ function tufts({ map, w, h, lit }: SceneryCtx): InstancedMesh {
 function scenery(ctx: SceneryCtx) {
   const { w, h, hx, hz, rng, flat, quality } = ctx;
   const low = quality.name === 'low';
+  // the mill (turned towards the camera and the pitch, so the sails read face on) is baked into the ground's draw;
+  // only its sails are a mesh of their own, turning
+  const mx = MILL_X(hx);
+  const mz = MILL_Z(hz);
+  const sails = new Mesh(shared('valley-mill-sails', millSailsGeometry), flat);
+  sails.position.set(
+    mx + Math.sin(MILL_YAW) * 1.62,
+    GROUND_Y + MILL_HUB_Y,
+    mz + Math.cos(MILL_YAW) * 1.62,
+  );
+  sails.rotation.set(0, MILL_YAW, 0, 'YXZ');
   return {
+    update(t: number) {
+      sails.rotation.z = -t * 0.6;
+    },
     objects: [
+      sails,
       new Mesh(
         shared(`valley-meadow${w}x${h}${low ? 'l' : ''}`, () =>
-          merge([hedgeGeometry(hx, hz), groundGeometry(hx, hz, low)]),
+          merge([
+            groundGeometry(hx, hz, low),
+            hedgeGeometry(hx, hz, low),
+            millGeometry().rotateY(MILL_YAW).translate(mx, GROUND_Y, mz),
+            ...meadowPlants(hx, hz, low),
+          ]),
         ),
         flat,
       ),
@@ -757,10 +1283,11 @@ export const VALLEY_THEME: LevelTheme = {
   sky: [V.skyTop, V.skyMid, V.skyLow],
   light: {
     key: 0xfff1d6,
-    keyIntensity: 2.4,
-    sky: 0xcfe6ff,
+    keyIntensity: 2.75,
+    sky: 0xbcd6ff,
     ground: 0x7ea060,
     fill: 1.2,
+    env: 0.2,
   },
   fx: FX,
   warnColor: 0xff4a2a,
@@ -769,28 +1296,21 @@ export const VALLEY_THEME: LevelTheme = {
   wallVariants: [0],
   tiles: {
     colors: V.tiles,
-    geometry: tileGeometry,
+    geometry: turfGeometry,
     vertexColors: false,
     rotate: false,
-    tint(x, y, r, out) {
-      out.set(V.tiles[Math.floor(r.next() * V.tiles.length)]);
-      // mown stripes, a few bare patches
+    tint(_x, y, r, out) {
+      // one lawn green with a little variety (half way to a random one of the three), so the stripes lead
       out
-        .multiplyScalar((x + y) & 1 ? 1 : 0.92)
-        .multiplyScalar(r.range(0.96, 1.05));
+        .set(V.tiles[0])
+        .lerp(TILE_GREENS[Math.floor(r.next() * TILE_GREENS.length)], 0.5);
+      // mown stripes along the rows, a few bare patches (brown: the shader gives them the soil texture)
+      out.multiplyScalar(y & 1 ? 1 : 0.9).multiplyScalar(r.range(0.96, 1.05));
       if (r.chance(0.07)) out.set(V.dirt).multiplyScalar(r.range(0.92, 1.05));
     },
   },
   hard: [mossyBoulder, cairn],
-  crate: [
-    () =>
-      woodCrateGeometry({
-        crate: V.crate,
-        band: V.crateBand,
-        dark: V.crateDark,
-      }),
-    hayBale,
-  ],
+  crate: [appleCrate, hayBale],
   floor,
   decor,
   platformExtras: (ctx) => [tufts(ctx)],

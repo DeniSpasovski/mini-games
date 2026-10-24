@@ -91,6 +91,8 @@ into `DETAILS.md`, never up.
   `og-image.mjs`: retakes the portal's 1200x630 link preview `public/og-image.jpg` (dev server running)
 - `scripts/ground/bake.py`: the rally terrain tiles (`engine/ground/*.webp`) from Poly Haven scans (ids and tuning in the script)
 - `scripts/facades/bake.py`: the wall and roof tiles of the rally buildings (`engine/facades/*.webp`) from Poly Haven scans (ids and tuning in the script)
+- `scripts/kaboom/bake-hdri.py`: the small environment-light HDRIs of the Kaboom levels (`src/games/kaboom/assets/hdri/<level>.hdr`) from Poly Haven 1k HDRIs (ids in the script);
+  `bake-textures.py`: their detail tiles (`assets/textures/<level>.webp`) from Poly Haven 1k scans (ids in the script)
 - `scripts/people/`: `extract-base.py` (a base body GLB -> json with the face uv), `skin-map.py` (paints the face onto the skin map), `bake-base.mjs`
   (simplifies, packs both bodies into `engine/people-base.data.ts`; run order in its header)
 - `scripts/crops/bake-crops.py` - the CC BY wheat / corn models (`sources/maps/ajvatovci/`) -> rally `crop-models.data.ts`

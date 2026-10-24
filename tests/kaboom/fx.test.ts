@@ -111,7 +111,7 @@ test('fx: a blast lights its cross with fire, a flash, a shockwave, smoke, spark
 
   fx.onEvent({ type: 'blockBroken', x: 3, y: 3 });
   fx.update(0);
-  expect(fx.splinters.mesh.count).toBe(8);
+  expect(fx.splinters.mesh.count).toBe(4 + 6); // big plank chunks + splinters
 
   fx.onKo(4.5, 4.5);
   fx.update(0);
