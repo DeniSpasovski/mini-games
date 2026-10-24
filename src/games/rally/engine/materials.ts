@@ -8,7 +8,10 @@ import {
   type WebGLRenderer,
 } from 'three';
 import { getTexture } from './textures';
+import { grassSheet } from './grass';
 import { addNightGlow } from './night-glow';
+import { houseMaterial } from './house-walls';
+import { groundLitCard } from './world-shading';
 
 /**
  * Shared material library. Assets reference materials by id so thousands of
@@ -18,8 +21,10 @@ export type MaterialId =
   | 'foliage_card'
   | 'foliage_card_dry'
   | 'foliage_card_spring'
+  | 'grass_blade'
   | 'rock'
   | 'props'
+  | 'house'
   | 'people'
   | 'people_flag'
   | 'flag'
@@ -133,8 +138,8 @@ export function getMaterial(id: MaterialId): Material {
     case 'foliage_card':
       m = new MeshStandardMaterial({
         vertexColors: true,
-        map: getTexture('grass_card'),
-        alphaTest: 0.45,
+        map: grassSheet('green'),
+        alphaTest: 0.5,
         side: DoubleSide,
         roughness: 1,
       });
@@ -142,8 +147,8 @@ export function getMaterial(id: MaterialId): Material {
     case 'foliage_card_dry':
       m = new MeshStandardMaterial({
         vertexColors: true,
-        map: getTexture('grass_card_dry'),
-        alphaTest: 0.45,
+        map: grassSheet('dry'),
+        alphaTest: 0.5,
         side: DoubleSide,
         roughness: 1,
       });
@@ -151,8 +156,16 @@ export function getMaterial(id: MaterialId): Material {
     case 'foliage_card_spring':
       m = new MeshStandardMaterial({
         vertexColors: true,
-        map: getTexture('grass_card_spring'),
-        alphaTest: 0.45,
+        map: grassSheet('spring'),
+        alphaTest: 0.5,
+        side: DoubleSide,
+        roughness: 1,
+      });
+      break;
+    case 'grass_blade':
+      // The near grass LOD: opaque blade strips (engine/grass.ts), vertex coloured.
+      m = new MeshStandardMaterial({
+        vertexColors: true,
         side: DoubleSide,
         roughness: 1,
       });
@@ -172,6 +185,9 @@ export function getMaterial(id: MaterialId): Material {
         map: getTexture('detail'),
         roughness: 0.7,
       });
+      break;
+    case 'house':
+      m = houseMaterial();
       break;
     case 'people':
       // Figures: vertex colour x the people atlas (weave, denim, skin, hair, painted face).
@@ -239,6 +255,11 @@ export function getMaterial(id: MaterialId): Material {
   if (FOLIAGE.includes(id)) {
     m.alphaToCoverage = foliageA2C;
     m.defines = { ...CARD_DEFINES };
+    groundLitCard(m, 'foliage');
+  }
+  if (id === 'grass_blade') {
+    m.defines = { ...CARD_DEFINES };
+    groundLitCard(m, 'blade');
   }
   if (id === 'flag') m.defines = { RALLY_FLAG: 1 };
   if (id === 'fan_flag') m.defines = { RALLY_FLAG: 0.4 };

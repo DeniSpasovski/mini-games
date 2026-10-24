@@ -10,8 +10,9 @@ import {
 } from 'three';
 import { hash3 } from '../../../shared/rng';
 import { layeredMaterial, textureArray } from '../engine/texture-array';
-import type { FacadeId } from '../engine/facade-textures';
+import { facadePhotosReady, type FacadeId } from '../engine/facade-textures';
 import type { BuildingDef } from '../maps/shared/types';
+import { farShadowCaster } from './far-shadow';
 import type { World } from './world';
 
 /**
@@ -28,6 +29,7 @@ import type { World } from './world';
 const TILE = 192;
 const BAY = 3.2;
 const PARAPET = 0.6;
+const ROOF_T = 0.12; // gable roof slab thickness
 
 const FACADE: Record<NonNullable<BuildingDef['kind']>, FacadeId> = {
   house: 'facade_stucco',
@@ -108,6 +110,22 @@ function tri(
   for (let i = 0; i < p.length - 2; i++) a.idx.push(v0, v0 + i + 1, v0 + i + 2);
 }
 
+/** Quad/polygon `p` wound so its front faces along `n` (roof undersides and edges). */
+function face(
+  a: Acc,
+  p: [number, number, number][],
+  n: [number, number, number],
+  c: [number, number, number],
+): void {
+  const e1 = [p[1][0] - p[0][0], p[1][1] - p[0][1], p[1][2] - p[0][2]];
+  const e2 = [p[2][0] - p[0][0], p[2][1] - p[0][1], p[2][2] - p[0][2]];
+  const cx = e1[1] * e2[2] - e1[2] * e2[1];
+  const cy = e1[2] * e2[0] - e1[0] * e2[2];
+  const cz = e1[0] * e2[1] - e1[1] * e2[0];
+  const q = cx * n[0] + cy * n[1] + cz * n[2] < 0 ? [...p].reverse() : p;
+  tri(a, q, n, q.map(() => c));
+}
+
 /** Facade wall quad a-b-c-d (outward normal (nx, nz)); bottom edge darker (fake AO). */
 function wall(
   a: Acc,
@@ -181,11 +199,60 @@ function footprint(b: BuildingDef): number[][] {
 
 const pick = (list: string[], h: number): string => list[h % list.length];
 
+// Macedonian renders: whites, creams, pale yellows, ochre, salmon, the odd pale green.
+const MK_RENDER = [
+  '#f2efe6',
+  '#f2efe6',
+  '#f2efe6',
+  '#ebe2c8',
+  '#ebe2c8',
+  '#e8d8a4',
+  '#dcbd7c',
+  '#e2b8a2',
+  '#d6d4cc',
+  '#cdd6bc',
+];
+const WHITE = ['#ffffff', '#f4f1ec', '#e9e5df', '#fbf8f2'];
+const MK_MAPS = new Set(['ajvatovci', 'vodno', 'galichica', 'petralica']);
+const MOUNTAIN_MAPS = new Set(['galichica', 'petralica']);
+
+/** Macedonian maps: houses are mostly render, many unfinished red clay brick, stone in the mountains. */
+function macedonianStyle(
+  kind: NonNullable<BuildingDef['kind']>,
+  h: number,
+  mountain: boolean,
+): { facade: FacadeId; tint: string } | undefined {
+  const r = (h >>> 12) % 100;
+  if (kind === 'house') {
+    const stone = mountain ? 40 : 0;
+    if (r < stone)
+      return { facade: 'facade_rubble', tint: pick(WHITE, h >>> 4) };
+    if (r < stone + (mountain ? 12 : 26))
+      return { facade: 'facade_clay', tint: pick(WHITE, h >>> 4) };
+    return { facade: 'facade_stucco', tint: pick(MK_RENDER, h >>> 4) };
+  }
+  if (kind === 'garage')
+    return r < 45
+      ? { facade: 'facade_clay', tint: pick(WHITE, h >>> 4) }
+      : { facade: 'facade_block', tint: pick(WHITE, h >>> 4) };
+  if (kind === 'row')
+    return r < 50
+      ? { facade: 'facade_stucco', tint: pick(MK_RENDER, h >>> 4) }
+      : { facade: 'facade_clay', tint: pick(WHITE, h >>> 4) };
+  if (kind === 'apartment')
+    return {
+      facade: 'facade_concrete',
+      tint: pick(['#e8e4da', '#d8d4c8', '#efe9d8', '#d9c9a6'], h >>> 4),
+    };
+  return undefined;
+}
+
 export function* buildingMeshJob(
   world: World,
 ): Generator<void, Group | undefined> {
   const list = world.buildings.buildings.filter((b) => b.kind);
   if (!list.length) return undefined;
+  while (!facadePhotosReady) yield;
   const tiles = new Map<string, { walls: Map<FacadeId, Acc>; roof: Acc }>();
   const ground = world.analytic;
   let n = 0;
@@ -206,13 +273,22 @@ export function* buildingMeshJob(
     let tile = tiles.get(tk);
     if (!tile) tiles.set(tk, (tile = { walls: new Map(), roof: newAcc() }));
     // Tall slab blocks read as glass-and-concrete towers.
-    const style: FacadeId =
-      kind === 'apartment' && b.h > 30 && h % 3 === 0
+    const mk = MK_MAPS.has(world.map.id)
+      ? macedonianStyle(kind, h, MOUNTAIN_MAPS.has(world.map.id))
+      : undefined;
+    const jackie = world.map.id === 'jackie';
+    let style: FacadeId =
+      mk?.facade ??
+      (kind === 'apartment' && b.h > 30 && h % 3 === 0
         ? 'facade_commercial'
-        : FACADE[kind];
+        : FACADE[kind]);
+    if (jackie && kind === 'house' && (h >>> 12) % 100 < 60)
+      style = 'facade_siding';
     let acc = tile.walls.get(style);
     if (!acc) tile.walls.set(style, (acc = newAcc()));
-    const tint = pick(PALETTE[kind], h >>> 4);
+    let tint = mk?.tint ?? pick(PALETTE[kind], h >>> 4);
+    if (style === 'facade_brick')
+      tint = pick(['#ffffff', '#f0e4dc', '#e4d4c8', '#d8b8a0'], h >>> 4);
     const floors = Math.max(1, b.floors);
     const gable = b.roof === 'gable' && !b.poly;
     const flatTop = yw - (gable ? 0 : PARAPET);
@@ -272,6 +348,17 @@ export function* buildingMeshJob(
         const col = side > 0 ? rc : rc2;
         const quad = flip ? [a, d, c, bb] : [a, bb, c, d];
         tri(roof, quad, nn, [col, col, col, col]);
+        // Underside and edges so the roof is a slab, not a single sheet.
+        const dn = (q: [number, number, number]): [number, number, number] => [
+          q[0],
+          q[1] - ROOF_T,
+          q[2],
+        ];
+        const edge = rgb(pick(GABLE_ROOF, h >>> 9), 0.55);
+        face(roof, [a, bb, c, d].map(dn), [-nn[0], -nn[1], -nn[2]], edge);
+        face(roof, [a, bb, dn(bb), dn(a)], [-sa * side, 0, ca * side], edge);
+        face(roof, [a, d, dn(d), dn(a)], [-ca, 0, -sa], edge);
+        face(roof, [bb, c, dn(c), dn(bb)], [ca, 0, sa], edge);
       }
       // Gable end triangles (wall colour).
       const wc = rgb(tint, 0.9);
@@ -405,10 +492,18 @@ export function* buildingMeshJob(
   return group;
 }
 
-const FACADES = [...new Set(Object.values(FACADE))];
+const FACADES: FacadeId[] = [
+  ...new Set([
+    ...Object.values(FACADE),
+    'facade_clay',
+    'facade_rubble',
+    'facade_block',
+    'facade_siding',
+  ] as FacadeId[]),
+];
 let material: MeshStandardMaterial | undefined;
 function buildingMaterial(): MeshStandardMaterial {
-  return (material ??= layeredMaterial(textureArray(FACADES, 192), 'facades', {
+  return (material ??= layeredMaterial(textureArray(FACADES, 512), 'facades', {
     roughness: 0.9,
     metalness: 0,
   }));
@@ -449,6 +544,7 @@ function toMesh(parts: [Acc, number][], mat: MeshStandardMaterial): Mesh {
   g.computeBoundingSphere();
   const m = new Mesh(g, mat);
   m.castShadow = true;
+  farShadowCaster(m);
   m.receiveShadow = true;
   m.matrixAutoUpdate = false;
   return m;

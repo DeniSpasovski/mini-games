@@ -53,6 +53,7 @@ import { paramInt } from '../../../shared/url-params';
 /** Longest frame the loop catches up on (tab was in the background): drop the rest instead of a spiral of ticks. */
 const MAX_FRAME_S = 0.1;
 /** How long the result of a round stays on screen before the next round / the results card. */
+const RESULTS_DELAY_S = 1.2;
 const ROUND_HOLD_S = 2.8;
 const ATTRACT_HOLD_S = 2;
 /** The sim runs this much faster while the human is out and only bots are left. */
@@ -96,6 +97,9 @@ export class KaboomGame {
   private clock = 0;
   /** Real-time clock when the round ended (-1 = running). */
   private roundEndedAt = -1;
+  /** The results card opens `RESULTS_DELAY_S` after the match ends, so the podium has its moment. */
+  private pendingResults: MatchSummary | null = null;
+  private resultsAt = -1;
   /** Booms per player slot this match: knock-outs of another player by their TNT (self booms don't count). */
   private booms: number[] = [];
   private roundBanner: {
@@ -165,8 +169,12 @@ export class KaboomGame {
       onResume: () => this.resume(),
       onRestart: () => void this.startMatch(this.setup ?? this.currentSetup()),
       onMainMenu: () => this.toMenu(),
+      onSetup: () => {
+        if (this.phase === 'results') this.startAttract();
+      },
       onClick: () => this.sfx.click(),
       onTick: () => this.sfx.tick(),
+      lowQuality: this.quality.name === 'low',
       makeStage: () => {
         try {
           return new CritterPreview();
@@ -275,6 +283,8 @@ export class KaboomGame {
    */
   private startAttract(): void {
     this.disposeView();
+    this.resultsAt = -1;
+    this.pendingResults = null;
     const size = this.settings.size;
     const cfg: MatchConfig = {
       seed: rand(),
@@ -400,6 +410,7 @@ export class KaboomGame {
     if (this.phase !== 'play') return;
     this.phase = 'paused';
     this.controls.setEnabled(false);
+    this.hud.hide(); // nothing of the HUD shows through a card
     this.menu.pause();
   }
 
@@ -407,6 +418,7 @@ export class KaboomGame {
     if (this.phase !== 'paused') return;
     this.phase = 'play';
     this.menu.hide();
+    this.hud.show();
     this.controls.setEnabled(true);
   }
 
@@ -466,6 +478,11 @@ export class KaboomGame {
       this.alpha = this.acc / STEP;
     }
     this.afterTicks(sim);
+    if (this.pendingResults && this.clock >= this.resultsAt) {
+      const sum = this.pendingResults;
+      this.pendingResults = null;
+      if (this.phase === 'results') this.menu.results(sum);
+    }
     this.sfx.level = view.theme.id;
     if (this.phase !== 'paused' && this.phase !== 'loading')
       this.sfx.ambient(dt);
@@ -513,6 +530,13 @@ export class KaboomGame {
           : { text: 'Draw!', sub: 'Nobody made it out', kind: '' };
         if (youWon) this.sfx.win();
         else if (w) this.sfx.lose();
+        if (!sim.matchOver && !this.rig.following && this.view)
+          this.view.crowd.cardStunt(null, (w ?? sim.players[0]).color, {
+            camera: this.rig.camera,
+            color2: w ? undefined : sim.players[1]?.color,
+            still: this.calm(),
+            seconds: 1,
+          });
       }
     }
   }
@@ -559,20 +583,60 @@ export class KaboomGame {
       recordMatch(this.store, sim.players[0].critter, outcome === 'win');
     this.trackEnd(outcome === 'win');
     this.hud.setBanner('');
-    this.menu.results({
+    this.hud.hide();
+    const standings = sim.players.map((p) => ({
+      critter: p.critter,
+      color: p.color,
+      wins: p.wins,
+      booms: this.booms[p.id] ?? 0,
+      you: p.id === 0,
+      slot: p.id,
+    }));
+    this.pendingResults = {
       outcome,
       headline,
       rounds: sim.config.rounds,
-      standings: sim.players.map((p) => ({
-        critter: p.critter,
-        color: p.color,
-        wins: p.wins,
-        booms: this.booms[p.id] ?? 0,
-        you: p.id === 0,
-        slot: p.id,
-      })),
+      standings,
+    };
+    this.resultsAt = this.clock + RESULTS_DELAY_S;
+    // the podium: best first by round wins, then blasts; the match winner always on top
+    const order = sim.players
+      .filter((p) => p.state !== 'out')
+      .map((p) => p.id)
+      .sort(
+        (a, b) =>
+          Number(b === winner) - Number(a === winner) ||
+          standings[b].wins - standings[a].wins ||
+          standings[b].booms - standings[a].booms ||
+          a - b,
+      );
+    const top = sim.players[order[0]];
+    const second = sim.players[order[1]];
+    this.view?.finale(order, {
+      dock: matchMedia('(max-width: 520px) and (orientation: portrait)').matches
+        ? 'up'
+        : matchMedia('(min-width: 900px) and (orientation: landscape)').matches
+          ? 'left'
+          : undefined,
+      stunt:
+        outcome === 'tie'
+          ? { text: null, color: top.color, color2: second?.color }
+          : {
+              text:
+                outcome === 'win' ? 'YOU!' : title(top.critter).toUpperCase(),
+              color: top.color,
+            },
+      still: this.calm(),
     });
     if (outcome === 'win') this.sfx.win();
+  }
+
+  /** Reduced motion or the low graphics tier: effects switch at once instead of rippling. */
+  private calm(): boolean {
+    return (
+      this.quality.name === 'low' ||
+      matchMedia('(prefers-reduced-motion: reduce)').matches
+    );
   }
 
   /** HUD text for this frame: countdown, GO, sudden death, the round result, "you're out". */

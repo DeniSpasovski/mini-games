@@ -51,15 +51,52 @@ export const galichicaInfo: MapInfo = {
     timeOfDay: 9,
     months: { spring: 5, summer: 7, autumn: 10 },
     cloudCoverage: 0.15,
-    turbidity: 3.5,
-    rayleigh: 1.4,
-    fogColor: '#c6d2dc',
+    // Crisp alpine air: a deep blue sky, little haze, blue distance.
+    turbidity: 2,
+    rayleigh: 2.2,
+    skyBrightness: 0.3,
+    fogColor: 'sky',
+    fogBrightness: 0.55,
     fogDensity: 0.00022,
-    exposure: 0.95,
+    exposure: 0.92,
+    grade: {
+      warmth: 0.05,
+      contrast: 1.15,
+      saturation: 1.1,
+      vibrance: 0.2,
+      // Shade leans blue-green instead of lavender.
+      shadowTint: { color: '#2f6f6a', amount: 0.08 },
+      vignette: 0.15,
+    },
+    // Summer: warmer, golden highlights.
+    grades: {
+      summer: {
+        warmth: 0.1,
+        highlightTint: { color: '#ffe2b8', amount: 0.06 },
+      },
+    },
+    // Evening: golden light on the pass, a soft violet haze.
+    goldenHour: {
+      turbidity: 3,
+      rayleigh: 3,
+      skyBrightness: 0.45,
+      fogColor: '#a39aa6',
+      exposure: 1.25,
+      grade: {
+        warmth: 0.18,
+        tint: 0.1,
+        contrast: 1.12,
+        saturation: 1.1,
+        vibrance: 0.2,
+        shadowTint: { color: '#2f6f6a', amount: 0.06 },
+        highlightTint: { color: '#ffd09a', amount: 0.08 },
+        vignette: 0.18,
+      },
+    },
     // Golden autumn pasture on the karst top.
     groundTint: { grass: '#a59a62', amount: 0.55 },
     groundTints: {
-      spring: { grass: '#7fa04a', amount: 0.65 },
+      spring: { grass: '#7fa04a', amount: 0.65, variety: 1 },
       autumn: { grass: '#876b3e', amount: 0.65 },
     },
   },

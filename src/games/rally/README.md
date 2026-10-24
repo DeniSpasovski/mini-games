@@ -14,6 +14,10 @@ npm run dev     # then open http://localhost:3000/games/rally/
 
 Menu: select stage (with its time of day: night to evening) -> select car -> (optional) car set-up -> drive. Keyboard, gamepad and touch controls are supported.
 
+UI look and rules: [STYLEGUIDE.md](STYLEGUIDE.md).
+
+[![Select car](screenshots/ui-car.jpg)](STYLEGUIDE.md) [![Setup car](screenshots/ui-setup.jpg)](STYLEGUIDE.md)
+
 | Keys                |                                                    |
 | ------------------- | -------------------------------------------------- |
 | `W` / `S`           | throttle / brake (hold `S` when stopped = reverse) |
@@ -41,7 +45,7 @@ Menu: select stage (with its time of day: night to evening) -> select car -> (op
 | [Petralica](maps/petralica/)            | North Macedonia (mountains) | 9.6 km       | gravel + tarmac | playable      |
 | [Ajvatovci Hill](maps/ajvatovci/)       | Ilinden, North Macedonia    | 4.5 km       | old tarmac      | playable      |
 | [Jackie Robinson Parkway](maps/jackie/) | New York City               | 7.3 km       | tarmac, bridges | playable      |
-| [Test Map](maps/test/)                  | procedural forest           | 1.7 km       | gravel          | physics       |
+| [Forest Rally](maps/test/)              | procedural forest           | 1.7 km       | gravel          | physics       |
 | [Galichica](maps/galichica/) (3 stages) | Lake Ohrid - Lake Prespa    | 12.7-27.4 km | mountain tarmac | West playable |
 | [Vodno Hillclimb](maps/vodno/)          | Skopje, North Macedonia     | 4.0 km       | mountain tarmac | playable      |
 
@@ -49,22 +53,23 @@ Menu: select stage (with its time of day: night to evening) -> select car -> (op
 
 ## Cars
 
-| Car                                        | Drive | Notes                                                                                                   |
-| ------------------------------------------ | ----- | ------------------------------------------------------------------------------------------------------- |
-| [Skoda Rally](cars/skoda-rally/)           | AWD   | Fabia R5 from a CC BY Sketchfab model, own livery                                                       |
-| [Bimmer M3](cars/bimmer-m3/)               | RWD   | E46 coupe from a CC BY print STL                                                                        |
-| [Bimmer GT2](cars/bimmer-gt2/)             | RWD   | E92 GT2 racer from a CC BY Sketchfab GLB                                                                |
-| [Subaru WRX STI 22B](cars/subie-22b/)      | AWD   | 1998 22B coupe from a CC BY Sketchfab GLB, crescent / stars graphic (test)                              |
-| [Zastava 101](cars/zastava-101/)           | FWD   | hand-built from a blueprint                                                                             |
-| [Fiesta WRC](cars/fiesta/)                 | AWD   | WRC Fiesta with a visible cockpit                                                                       |
-| [Citroen C4 WRC](cars/citroen-c4/)         | AWD   | 2007 WRC C4 with a visible cockpit                                                                      |
-| [Lancer EVO VI](cars/lancer-evo-6/)        | AWD   | 1999-style Lancer with a visible cockpit                                                                |
-| [Ford Mustang GT3](cars/ford-gt3/)         | RWD   | 2024 GT3 racer from a CC BY Sketchfab GLB, kept as is                                                   |
-| [Mercedes 190E](cars/merc-190/)            | RWD   | 2.5-16 Evolution saloon from a CC BY Sketchfab GLB, kept as is, badges removed                          |
-| [Peugeot 206](cars/peugeot-206/)           | FWD   | tuned 206 hot hatch from a CC BY Sketchfab GLB, kept as is                                              |
-| [Audi RS6](cars/audi-rs6/)                 | AWD   | C8 RS6 Avant from a CC BY Sketchfab GLB, kept as is                                                     |
-| [Porsche 911 (930)](cars/porsche-911-930/) | RWD   | 1975 911 Turbo from a CC BY Sketchfab GLB, kept as is (test)                                            |
-| [Subaru WRX STI](cars/subie-wrx-sti/)      | AWD   | 2019 STI saloon from a CC BY Sketchfab GLB, kept as is                                                  |
+| Car                                        | Drive | Notes                                                                          |
+| ------------------------------------------ | ----- | ------------------------------------------------------------------------------ |
+| [Skoda Rally](cars/skoda-rally/)           | AWD   | Fabia R5 from a CC BY Sketchfab model, own livery                              |
+| [Bimmer M3](cars/bimmer-m3/)               | RWD   | E46 coupe from a CC BY print STL                                               |
+| [Bimmer GT2](cars/bimmer-gt2/)             | RWD   | E92 GT2 racer from a CC BY Sketchfab GLB                                       |
+| [Subaru WRX STI 22B](cars/subie-22b/)      | AWD   | 1998 22B coupe from a CC BY Sketchfab GLB, crescent / stars graphic (test)     |
+| [Zastava 101](cars/zastava-101/)           | FWD   | hand-built from a blueprint                                                    |
+| [Fiesta WRC](cars/fiesta/)                 | AWD   | WRC Fiesta with a visible cockpit                                              |
+| [Citroen C4 WRC](cars/citroen-c4/)         | AWD   | 2007 WRC C4 with a visible cockpit                                             |
+| [Lancer EVO VI](cars/lancer-evo-6/)        | AWD   | 1999-style Lancer with a visible cockpit                                       |
+| [Ford Mustang GT3](cars/ford-gt3/)         | RWD   | 2024 GT3 racer from a CC BY Sketchfab GLB, kept as is                          |
+| [Mercedes 190E](cars/merc-190/)            | RWD   | 2.5-16 Evolution saloon from a CC BY Sketchfab GLB, kept as is, badges removed |
+| [Peugeot 206](cars/peugeot-206/)           | FWD   | tuned 206 hot hatch from a CC BY Sketchfab GLB, kept as is                     |
+| [Audi RS6](cars/audi-rs6/)                 | AWD   | C8 RS6 Avant from a CC BY Sketchfab GLB, kept as is                            |
+| [Porsche 911 (930)](cars/porsche-911-930/) | RWD   | 1975 911 Turbo from a CC BY Sketchfab GLB, kept as is (test)                   |
+| [Subaru WRX STI](cars/subie-wrx-sti/)      | AWD   | 2019 STI saloon from a CC BY Sketchfab GLB, kept as is                         |
+| [Fiat 126p](cars/pezetka/)                 | RWD   | 1970s rear-engined "Maluch" from a CC BY Sketchfab GLB, kept as is (test)      |
 
 [![Skoda Rally](cars/skoda-rally/screenshots/front-34.jpg)](cars/skoda-rally/) [![Zastava](cars/zastava-101/screenshots/front-34.jpg)](cars/zastava-101/)
 

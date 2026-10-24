@@ -445,7 +445,7 @@ Swallow puffs: dust on City Island, **confetti** in the store (`MapDef.puffs`), 
 
 The menu's map cards show a picture each (`screenshots/menu-city.jpg`, `menu-toy.jpg`, `menu-animal.jpg`: 640 x 360 in-game shots, taken
 with the game camera through the dev thumbnail endpoint, see "Debug tools"); the results screen colours the 25 tier bars
-blue -> red, and the "CLEARED!" banner is pink in the store, green on Animal Island and gold on City Island (`.hg-banner.<map id>` in `hole.css`).
+blue -> red, and the "CLEARED!" banner takes the map's accent colour (`data-map` on the root, `--hg-map` in `game/ui-tokens.css`).
 
 ## Map: Animal Island
 
@@ -698,13 +698,14 @@ y = -0.9 and would otherwise show through the opening and hide the walls below, 
 Below y = 0 they are hidden by the ground everywhere except over the opening, so falling items look like they drop into
 the hole. The renderer is created with `stencil: true` (off by default in three.js).
 
-### UI assets
+### UI
 
-All done in DOM + CSS (`game/hud.ts`, `game/menu.ts`, `game/hole.css`, no images): placeholder logo text, welcome /
-difficulty / colour / scores / options / how-to-play + credits / pause / results panels, top-10 table, HUD (timer, score with the **island completion** next to it - percent of the map's points eaten plus a small bar, stacked under the score on narrow screens - level badge with
-progress ring and "eats up to" label, pause button), joystick ring, countdown digits, "+N" pop-ups, "LEVEL UP" and
-"ISLAND CLEARED" banners. Chunky rounded cards, large touch targets. The colour screen puts its card at the bottom and flies the menu camera down to the
-demo hole, so you pick a colour on the real 3D hole.
+DOM + CSS only (`game/hud.ts`, `game/menu.ts`, `game/hole.css`, tokens and fonts in `game/ui-tokens.css`, SVG icons in `game/icons.ts`). Look and
+rules: [STYLEGUIDE.md](STYLEGUIDE.md). Screens: welcome (map ribbon), 2x2 map picker, time picker (difficulty pips), colour, top 10,
+options, how to play + credits, pause, results (headline, score, stats, actions, then the table). HUD: timer, score, **island
+completion** (percent of the map's points eaten plus a bar; stacked under the score on narrow screens), level badge with progress
+ring and "eats up to" label, pause button, joystick ring, countdown digits, "+N" pop-ups, "LEVEL N" and "CLEARED!" banners. The
+colour screen puts its card at the bottom and flies the menu camera down to the demo hole, so you pick a colour on the real 3D hole.
 
 ### Audio (simple WebAudio synth, no files in v0)
 
@@ -865,7 +866,7 @@ src/games/hole/
   game/
     hole-game.ts         menu <-> run loop, fixed step + interpolation, events -> HUD / audio
     input.ts, stick.ts   floating joystick + keyboard; the maths is separate and tested
-    hud.ts, menu.ts, dom.ts, hole.css
+    hud.ts, menu.ts, dom.ts, icons.ts, hole.css, ui-tokens.css
     scores.ts, settings.ts, storage.ts   localStorage with an in-memory fallback
     audio.ts, ios.ts
   debug/                 viewer-shell.ts, station.ts (item + hole running the real sim)

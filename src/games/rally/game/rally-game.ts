@@ -18,8 +18,10 @@ import { Environment } from '../engine/environment';
 import { LIGHTS_MIN_NEED } from '../engine/night';
 import { setHeadBeam, setLampGlow } from '../engine/night-glow';
 import { LampPools } from '../world/lamp-pools';
-import { NightBloom } from '../engine/night-bloom';
+import { PostFx, postFxFromUrl } from '../engine/post-fx';
 import type { QualitySettings } from '../engine/quality';
+import { bakeCropCards, setCropAntialias } from '../engine/crops';
+import { setVineAntialias } from '../engine/vines';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
 import { setClockTime } from '../engine/stage-sign-textures';
 import { setTextureAnisotropy } from '../engine/textures';
@@ -57,14 +59,15 @@ import {
 } from './tree-bench';
 import { buildRoadMeshSliced } from '../world/road-mesh';
 import { TerrainRenderer } from '../world/terrain-renderer';
-import { setTerrainRelief } from '../world/terrain-material';
+import { setTerrainDetail, setTerrainRelief } from '../world/terrain-material';
 import { CanopyShadows } from '../world/canopy-shadows';
+import { FarShadow } from '../world/far-shadow';
 import { Horizon } from '../world/horizon';
 import {
-  setCanopyFade,
   setCanopyLocalMap,
   setCanopyShadows,
   setForest,
+  setNearShadowFade,
 } from '../engine/world-shading';
 import { World } from '../world/world';
 import { CarAudio } from './audio';
@@ -81,7 +84,12 @@ import { ParticleSystem } from './dust';
 import { TyreMarks } from './tyre-marks';
 import { Hud } from './hud';
 import { InputController, type InputAction } from './input';
-import { OBJECT_DISTANCE, type RallySettings, saveSettings } from './settings';
+import {
+  BLOOM_MIX,
+  OBJECT_DISTANCE,
+  type RallySettings,
+  saveSettings,
+} from './settings';
 import {
   bestKey,
   formatDelta,
@@ -132,8 +140,8 @@ export interface GameOptions {
 }
 
 const STEP = 1 / PHYSICS_HZ;
-/** Trees cast real shadows within this distance (m); the baked canopy shadows fade in over its last quarter. */
-const TREE_SHADOW_DISTANCE = 60;
+/** The far shadow map fades in this far (m) before the sun's fades out: both draw over the band (`placeShadows`). */
+const SHADOW_OVERLAP = 25;
 /** Trees farther than this from the stage road (m) are only ever impostors (trees/draw.ts `fakeFrom`). */
 const FAKE_TREES_FROM = 250;
 
@@ -173,6 +181,8 @@ export class RallyGame {
   model!: CarModel;
   env!: Environment;
   terrain!: TerrainRenderer;
+  /** The far shadow map past the sun's (world/far-shadow.ts); null on quality presets without one. */
+  far: FarShadow | null = null;
   /** Hides road-group meshes beyond the terrain view distance (world/distance-cull.ts). */
   roadCull!: DistanceCull;
   contactShadow!: ContactShadow;
@@ -180,7 +190,8 @@ export class RallyGame {
   private headlights?: Headlights;
   private tailLight?: TailLight;
   /** High quality at night / dusk: glow around lamps and reflectors. */
-  private bloom?: NightBloom;
+  /** High quality post effects (bloom, AO); `__rally.post.set({ ... })` from the console. */
+  post?: PostFx;
   private readonly lampColor = new Color();
   private lampPos = new Vector3();
   private lampDir = new Vector3();
@@ -257,6 +268,9 @@ export class RallyGame {
     readonly opts: GameOptions,
   ) {
     this.renderer = createRenderer(container, opts.quality);
+    setCropAntialias(opts.quality.antialias);
+    setVineAntialias(opts.quality.antialias);
+    void bakeCropCards(this.renderer);
     setTextureAnisotropy(
       Math.min(8, this.renderer.capabilities.getMaxAnisotropy()),
     );
@@ -339,6 +353,8 @@ export class RallyGame {
         number,
         number,
       ],
+      // Hills shade the valleys (both shadow maps): the low morning / evening sun on the passes.
+      castShadow: true,
     });
     this.scene.add(this.terrain.group);
     // Far land beyond the streamed terrain (real maps): a backdrop drawn behind everything, ~2 draws.
@@ -350,6 +366,8 @@ export class RallyGame {
     }
     // Terrain bump relief: medium / high only (derivative noise + cost on weak GPUs).
     setTerrainRelief(q.name === 'low' ? 0 : 1);
+    // Second ground-scan taps + relief: a 45 m ring on high, 20 m on medium, none on low.
+    setTerrainDetail(q.name === 'high' ? 45 : q.name === 'medium' ? 20 : 0);
     progress(0.3, 'Terrain');
     // Load everything near the start synchronously-ish (time sliced).
     for (let i = 0; i < 400; i++) {
@@ -367,6 +385,7 @@ export class RallyGame {
     this.streamer = new InstanceStreamer(this.world, {
       lodScale: q.lodScale * OBJECT_DISTANCE[this.opts.settings.objectDistance],
       detailDensity: q.detailDensity,
+      grassNear: q.grassNear,
       // Nothing past the streamed terrain (it would stand on nothing).
       maxDistance: q.viewDistance,
       // People close up are built ahead of the car, not all at load.
@@ -379,8 +398,8 @@ export class RallyGame {
         q.treeLodScale * OBJECT_DISTANCE[this.opts.settings.objectDistance],
       maxDistance: q.viewDistance,
       forestDistance: q.forestDistance,
-      // Real tree shadows only near the camera; the baked canopy shadows take over from there (setCanopyFade).
-      shadowDistance: TREE_SHADOW_DISTANCE,
+      // Real tree shadows near the camera; the far shadow map's crowns, then the baked canopy shadows, take over.
+      shadowDistance: q.treeShadowDistance,
       shadowExtent: q.shadowExtent,
       fakeFrom: FAKE_TREES_FROM,
     });
@@ -411,11 +430,20 @@ export class RallyGame {
       map.environment.canopyShadow ?? 0.6,
       { texture: this.canopy.local, map: this.canopy.localMap },
     );
-    setCanopyFade(TREE_SHADOW_DISTANCE * 0.75, TREE_SHADOW_DISTANCE);
+    if (q.farShadowSize > 0)
+      this.far = new FarShadow(
+        this.renderer,
+        this.scene,
+        this.world,
+        this.env.sunDir,
+        q.farShadowSize,
+        q.farShadowExtent,
+      );
     setForest(forestColor(this.treeLibrary), q.forestDistance);
     this.breakables = new Breakables(this.world.scatter, (x, z) =>
       this.world.heightAt(x, z),
     );
+    await bakeCropCards(this.renderer); // field crop cards (baked once per page)
     await this.streamer.ready; // the service park's team cars
     this.people = new PeopleAnimator(this.world.scatter.fixedInstances());
     await frame();
@@ -464,14 +492,20 @@ export class RallyGame {
         tailLightMount(this.car.physics),
         need,
       );
+      // The beam starts at the model's own lamps once they are known.
+      this.model.onHeadlamps((m) => this.headlights?.moveTo(m));
     }
-    if (q.name === 'high' && this.env.lightNeed >= LIGHTS_MIN_NEED)
-      this.bloom = new NightBloom(
+    if (q.name === 'high')
+      this.post = new PostFx(
         this.renderer,
         this.scene,
         this.camera,
         q.antialias,
-        this.env.lightNeed,
+        postFxFromUrl(
+          this.env.lightNeed >= LIGHTS_MIN_NEED ? this.env.lightNeed : 0,
+          BLOOM_MIX[this.opts.settings.bloom],
+          this.opts.settings.ao,
+        ),
       );
     setLampGlow(this.env.lightNeed);
     if (this.env.lightNeed >= LIGHTS_MIN_NEED) {
@@ -515,6 +549,7 @@ export class RallyGame {
         ? [TEST_NOTE]
         : [],
     );
+    this.hud.setFreeDrive(this.freeDrive);
     this.telemetry = new Telemetry(this.container);
     this.stage = new StageTimer(
       this.world,
@@ -547,7 +582,7 @@ export class RallyGame {
       this.renderFwd,
       this.renderUp,
     );
-    this.env.update(
+    this.placeShadows(
       this.model.root.position,
       this.camera.getWorldDirection(this.camDir),
     );
@@ -582,6 +617,7 @@ export class RallyGame {
 
   /** Apply player options; safe to call while driving (pause-menu options). */
   applySettings(s: RallySettings): void {
+    const old = this.opts.settings;
     this.opts.settings = s;
     this.audio.setVolume(s.volume);
     this.vehicle.drivetrain.automatic = s.automatic;
@@ -597,6 +633,9 @@ export class RallyGame {
       this.opts.quality.treeLodScale * OBJECT_DISTANCE[s.objectDistance];
     if (this.trees.lodScale !== treeLodScale)
       this.trees.setOptions({ lodScale: treeLodScale });
+    // Bloom / AO (High only): only a change in the options, so a test link's `?bloom=` / `?ao=` keeps its pick.
+    if (old.bloom !== s.bloom) this.post?.set({ day: BLOOM_MIX[s.bloom] });
+    if (old.ao !== s.ao) this.post?.set({ ao: s.ao });
     this.model.setBadge({
       number: s.carNumber,
       rally: rallyName(this.world.stageDef.name),
@@ -1195,12 +1234,26 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       yaw: Math.atan2(dir.z, dir.x),
       half: halfFov + VIEW_MARGIN,
     });
-    this.env.update(cam.position, dir);
+    this.placeShadows(cam.position, dir);
     this.env.follow(cam.position);
     this.updateCanopy();
     lap('env');
     this.renderer.render(this.scene, cam);
     lap('render');
+  }
+
+  /** Smoothed time between frames and CPU time of a frame without the object streaming (ms; streamBudget). */
+  private frameInterval = 1000 / 60;
+  private frameWork = 8;
+
+  /**
+   * Time the object streaming may take this frame (ms): what the frame rate leaves over (85 % of the time between
+   * frames, less the rest of the frame's work), 1-8 ms. A fast device catches up in a frame or two, a busy one keeps
+   * its frame rate; the driving speed plays no part.
+   */
+  private streamBudget(dt: number): number {
+    if (dt > 0) this.frameInterval += (dt * 1000 - this.frameInterval) * 0.1;
+    return Math.min(8, Math.max(1, this.frameInterval * 0.85 - this.frameWork));
   }
 
   private frame(dt: number): void {
@@ -1289,7 +1342,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.terrain.update(camPos, 2.5);
     this.roadCull.update(camPos);
     const tTerrain = performance.now();
-    this.streamer.update(camPos);
+    this.streamer.update(camPos, this.streamBudget(dt));
     const tObjects = performance.now();
     this.trees.update(this.camera, this.rig.steady);
     const tTrees = performance.now();
@@ -1306,7 +1359,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         : null,
     );
     // Shadow box ahead of the camera (where the player looks), not centred on the car.
-    this.env.update(this.renderPos, dir);
+    this.placeShadows(this.renderPos, dir);
     this.env.follow(camPos);
     this.updateCanopy();
 
@@ -1386,10 +1439,13 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
 
     const tFx = performance.now();
     this.perf?.gpuBegin();
-    if (this.bloom) this.bloom.render();
+    if (this.post?.active) this.post.render();
     else this.renderer.render(this.scene, this.camera);
     this.perf?.gpuEnd();
     const tRender = performance.now();
+    // The frame's own work, the object streaming left out (it fills the time left over: streamBudget).
+    this.frameWork +=
+      (tRender - t0 - (tObjects - tTerrain) - this.frameWork) * 0.1;
     this.perf?.frame({
       physics: tPhysics - t0,
       'car + camera': tCamera - tPhysics,
@@ -1414,6 +1470,24 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       `${this.dust.aliveCount} dust  ${this.gravel.aliveCount} gravel  ${this.haze?.aliveCount ?? 0} haze`,
     );
     this.stats.end();
+  }
+
+  /**
+   * The sun's shadow map and the far one ahead of the camera, and where the sun's fades out: before a tree just past
+   * `treeShadowDistance` (not in it) could shade the ground - its crown top's shadow reaches ~20 m at a high sun,
+   * more at a low one (the far map's crowns cover that band). The far map fades in SHADOW_OVERLAP m closer, so the two
+   * overlap instead of handing over in one line.
+   */
+  private placeShadows(focus: Vector3, forward: Vector3): void {
+    this.env.update(focus, forward);
+    this.far?.update(focus, forward, this.env.sun.castShadow);
+    const s = this.env.sunDir.y;
+    const reach = Math.min(
+      25,
+      (18 * Math.sqrt(Math.max(0, 1 - s * s))) / Math.max(0.05, s),
+    );
+    const end = this.opts.quality.treeShadowDistance - reach;
+    setNearShadowFade(end - 15, end, SHADOW_OVERLAP);
   }
 
   /** Canopy shadows (global map + the local window around the camera). */

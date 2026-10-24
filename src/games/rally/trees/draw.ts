@@ -65,8 +65,8 @@ import {
  *   the species' fixed time; changing back reverses it; a third level waits; at most MAX_FADES fade at once. The fade
  *   is one number per tree (`treeFade.x`). Sprites never fade between LOD0 and LOD1 (they are the same); towards the
  *   impostor they fade out against it.
- * - **Shadows** (Lod.md#shadows): the branches one level coarser than the settled level (LOD1) and the sprites, never
- *   the impostor, never dithered, switched when a fade ends, within `shadowDistance` only.
+ * - **Shadows** (Lod.md#shadows): LOD1 branches and the crown proxy for every settled level (the impostor's too, so a
+ *   shadow never pops with the level), never dithered, within `shadowDistance` only.
  * - **Batches:** a tree that is settled and keeps its level and shadow for every camera position and zoom until the
  *   next job sits in static batches, refilled by a time-sliced job every `rebuildDistance` of camera travel; every
  *   other tree is "active" and re-selected every frame into the dynamic batches. Far instances outside the
@@ -433,9 +433,12 @@ function staged(): Staged {
   };
 }
 
-/** Branch level casting the shadow of a settled level (one coarser, never the impostor); -1 = none. */
-function shadowLevel(level: number): number {
-  return level >= IMPOSTOR ? -1 : 1;
+/**
+ * Branch level casting the shadow of a settled level: LOD1 (+ the crown proxy) for every level, the impostor's too -
+ * a tree's shadow never pops when it turns into an impostor inside the shadow distance.
+ */
+function shadowLevel(_level: number): number {
+  return 1;
 }
 
 /** Per-tree fade state (trees/Lod.md#transition): from `from` to `to`, `dir` -1 = reversing. Settled: from = to. */
@@ -973,8 +976,22 @@ export class TreeRenderer {
             // May come within the shadow distance: carries its shadow, which the shader keeps within tlShadowD (and
             // drawn whatever the view, for the shadows of trees behind the camera).
             const near = dMin < shadowD;
-            if (l === IMPOSTOR) this.stageImpostor(st, angle);
-            else {
+            if (l === IMPOSTOR) {
+              this.stageImpostor(st, angle);
+              if (near) {
+                this.stageStatic(st, 1, SHADOW_ONLY, true, true, angle, 0);
+                if (st.lv.proxy)
+                  this.stageStatic(
+                    st,
+                    PROXY_PART,
+                    SHADOW_ONLY,
+                    true,
+                    true,
+                    angle,
+                    0,
+                  );
+              }
+            } else {
               const sh = near ? shadowLevel(l) : -1;
               this.stageStatic(st, l, SOLID, sh === l, near, angle, l);
               if (sh >= 0 && sh !== l)
@@ -1171,7 +1188,7 @@ export class TreeRenderer {
           (isFading ? st.from : st.to) + code,
         );
       }
-      if (role >= 0 && sh >= 0 && st.lv.proxy)
+      if (sh >= 0 && st.lv.proxy)
         this.emit(st, PROXY_PART, SHADOW_ONLY, 1, true, 0);
     }
     for (const b of this.dynamic.values()) this.upload(b, b.count);

@@ -168,6 +168,8 @@ describe.each(
         const q = net.query(inst.x, inst.z, pq);
         if (q.found && q.distance < q.halfWidth) onRoad++;
       }
+      // Keep only the detail near this point (dense crop fields would fill the heap over a whole map).
+      world.scatter.pruneDetail(pt.x, pt.z, cs * 2);
     });
     console.info(
       `[${map.id}] side roads: ${checked} scatter instances checked, ${onRoad} on a road`,

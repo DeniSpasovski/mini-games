@@ -20,6 +20,7 @@ import {
   type RoundCount,
 } from '../sim/types';
 import { button, el, title } from './dom';
+import { starIcon, stickIcon } from './icons';
 import {
   DIFFICULTIES,
   CAMERAS,
@@ -83,6 +84,8 @@ export interface MenuApi {
   onQuality(q: QualitySetting): void;
   /** The camera view changed in the options (the game applies it right away). */
   onCamera(c: CameraSetting): void;
+  /** "Change setup" on the results card: the finished match behind it goes (the setup shows the bots' arena). */
+  onSetup?(): void;
   onResume(): void;
   onRestart(): void;
   onMainMenu(): void;
@@ -91,6 +94,8 @@ export interface MenuApi {
   onTick(): void;
   /** The live 3D critter for the setup's picker; null (or missing) = show the portrait instead (no WebGL, tests). */
   makeStage?(): CritterStage | null;
+  /** Low graphics tier: the card edges hold still instead of boiling. */
+  lowQuality?: boolean;
 }
 
 /** A live critter on a little turntable (`render/critter-preview.ts`). */
@@ -99,6 +104,22 @@ export interface CritterStage {
   show(critter: CritterId, color: number): void;
   dispose(): void;
 }
+
+const hexOf = (i: number): string =>
+  `#${(TEAM_COLORS[(i | 0) % TEAM_COLORS.length] ?? TEAM_COLORS[0]).toString(16).padStart(6, '0')}`;
+
+/** The boil filter (`.kb-card::before`): turbulence displacing the clay edge, its seed stepped like stop-motion frames. */
+/** Letter colours of the logo (`--kb-clay-N`). */
+const LOGO_CLAY = [2, 1, 3, 4, 2, 5, 1];
+
+const BOIL_FRAME_MS = 125;
+const BOIL_SEEDS = 4;
+
+/** A segmented button's chosen state, for the look (`.on`) and for assistive tech. */
+const setOn = (b: HTMLElement, on: boolean): void => {
+  b.classList.toggle('on', on);
+  b.setAttribute('aria-pressed', String(on));
+};
 
 const SIZE_BLURB: Record<MapSizeId, string> = {
   s: 'Quick duels',
@@ -129,13 +150,52 @@ export class Menu {
       el('div', '', 'Packing the TNT...'),
     );
     this.loadingEl.style.display = 'none';
-    root.append(this.layer, this.loadingEl);
+    root.append(this.boilFilter(), this.layer, this.loadingEl);
   }
 
   hide(): void {
     this.dropStage();
     this.layer.replaceChildren();
     this.layer.style.display = 'none';
+    this.boil(false);
+  }
+
+  private boilNoise: Element | null = null;
+  private boilTimer = 0;
+
+  /** A 0x0 SVG holding the filter the clay cards use; it never touches text or buttons. */
+  private boilFilter(): SVGSVGElement {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('width', '0');
+    svg.setAttribute('height', '0');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.style.position = 'absolute';
+    svg.innerHTML =
+      '<filter id="kb-boil" x="-12%" y="-12%" width="124%" height="140%">' +
+      '<feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="1"/>' +
+      '<feDisplacementMap in="SourceGraphic" scale="1.5"/></filter>';
+    this.boilNoise = svg.querySelector('feTurbulence');
+    return svg;
+  }
+
+  /** Step the seed while a card is up; still under reduced motion and on the low graphics tier. */
+  private boil(on: boolean): void {
+    const still =
+      this.api.lowQuality ||
+      (typeof matchMedia === 'function' &&
+        matchMedia('(prefers-reduced-motion: reduce)').matches);
+    if (!on || still) {
+      clearInterval(this.boilTimer);
+      this.boilTimer = 0;
+      return;
+    }
+    if (this.boilTimer) return;
+    let seed = 1;
+    this.boilTimer = window.setInterval(() => {
+      seed = (seed % BOIL_SEEDS) + 1;
+      this.boilNoise?.setAttribute('seed', String(seed));
+    }, BOIL_FRAME_MS);
   }
 
   loading(on: boolean): void {
@@ -158,6 +218,11 @@ export class Menu {
     this.onBack = null;
     const card = children[0];
     card?.classList.add('kb-in');
+    this.layer.classList.toggle(
+      'sheet',
+      !!card?.classList.contains('kb-sheet'),
+    );
+    this.boil(true);
     return card;
   }
 
@@ -202,21 +267,19 @@ export class Menu {
   private logo(): HTMLElement {
     const h = el('h1', 'kb-logo');
     h.setAttribute('aria-label', '3, 2, 1 Kabooom');
-    const hex = (i: number) =>
-      `#${TEAM_COLORS[i].toString(16).padStart(6, '0')}`;
-    const num = (n: string, i: number) => {
-      const s = el('span', 'kb-num', n);
-      s.style.color = hex(i);
-      return s;
-    };
-    h.append(
-      num('3', 0),
-      el('i', '', ','),
-      num('2', 1),
-      el('i', '', ','),
-      num('1', 2),
-      el('b', '', 'Kabooom'),
-    );
+    const balls = el('div', 'kb-balls');
+    ['3', '2', '1'].forEach((n, i) => {
+      const b = el('span', 'kb-ball', n, { 'aria-hidden': 'true' });
+      b.style.setProperty('--ball', hexOf(i));
+      balls.append(b);
+    });
+    const word = el('div', 'kb-word', '', { 'aria-hidden': 'true' });
+    [...'Kabooom'].forEach((ch, i) => {
+      const l = el('span', '', ch);
+      l.style.setProperty('--c', `var(--kb-clay-${LOGO_CLAY[i]})`);
+      word.append(l);
+    });
+    h.append(balls, word);
     return h;
   }
 
@@ -246,11 +309,16 @@ export class Menu {
 
   setup(): void {
     const s = this.api.settings;
-    const card = el('div', 'kb-card kb-setup');
+    const card = el('div', 'kb-card kb-setup kb-sheet');
     card.append(el('h2', '', 'New match'));
+    const cols = el('div', 'kb-cols');
+    const you = el('div', 'kb-col');
+    const match = el('div', 'kb-col');
+    cols.append(you, match);
+    card.append(cols);
 
     // critter: one at a time, live in 3D on a turntable (a portrait without WebGL), arrows to flip through
-    card.append(el('h3', '', 'Your critter'));
+    you.append(el('h3', '', 'Your critter'));
     this.dropStage();
     this.stage = this.api.makeStage?.() ?? null;
     const view = el('div', 'kb-stage');
@@ -273,7 +341,7 @@ export class Menu {
     next.setAttribute('aria-label', 'Next critter');
     const picker = el('div', 'kb-picker');
     picker.append(prev, view, next);
-    card.append(picker, name);
+    you.append(picker, name);
     const showCritter = () => {
       name.textContent = title(s.critter);
       portrait.src = this.api.portrait(s.critter, s.color);
@@ -286,8 +354,6 @@ export class Menu {
       role: 'radiogroup',
       'aria-label': 'Team colour',
     });
-    const hexOf = (i: number) =>
-      `#${TEAM_COLORS[i].toString(16).padStart(6, '0')}`;
     const swatchBtns = TEAM_COLORS.map((_, i) => {
       const b = el('button', 'kb-swatch', '', {
         type: 'button',
@@ -318,12 +384,10 @@ export class Menu {
       card.style.setProperty('--kb-team', hexOf(s.color));
     };
     paint();
-    const colorRow = el('div', 'kb-row');
-    colorRow.append(el('span', 'kb-rowlabel', 'Team colour'), swatches);
-    card.append(colorRow);
+    you.append(el('h3', '', 'Team colour'), swatches);
 
     // arena size + bots
-    card.append(el('h3', '', 'Arena'));
+    match.append(el('h3', '', 'Arena'));
     const sizes = el('div', 'kb-seg');
     const sizeBtns = new Map<MapSizeId, HTMLButtonElement>();
     for (const id of MAP_SIZE_IDS) {
@@ -344,13 +408,41 @@ export class Menu {
       sizeBtns.set(id, b);
       sizes.append(b);
     }
-    card.append(sizes);
+    match.append(sizes);
+
+    const botsRow = el('div', 'kb-row kb-botrow');
+    const botsLabel = el('span', 'kb-botlabel');
+    const minus = this.btn('−', 'round', () => bump(-1));
+    const plus = this.btn('+', 'round', () => bump(1));
+    minus.setAttribute('aria-label', 'Fewer bots');
+    plus.setAttribute('aria-label', 'More bots');
+    const stepper = el('div', 'kb-stepper');
+    stepper.append(minus, botsLabel, plus);
+    botsRow.append(el('span', 'kb-rowlabel', 'Bot opponents'), stepper);
+    match.append(botsRow);
+    const bump = (d: number) => {
+      const before = s.bots;
+      s.bots = clampBots(s.size, s.bots + d);
+      this.api.onSettings();
+      refresh();
+      if (s.bots !== before) this.api.onLineup();
+    };
+
+    // the match rules: folded behind one row on a phone held upright
+    const rules = el('div', 'kb-rules');
+    const more = this.btn('Match rules ›', 'ghost kb-more', () => {
+      const open = rules.classList.toggle('open');
+      more.setAttribute('aria-expanded', String(open));
+      more.textContent = open ? 'Match rules ‹' : 'Match rules ›';
+    });
+    more.setAttribute('aria-expanded', 'false');
+    match.append(more, rules);
 
     // level (the look): only when this build offers more than the Quarry
     const levels = offeredLevels();
     const levelBtns = new Map<LevelId, HTMLButtonElement>();
     if (levels.length > 1) {
-      card.append(el('h3', '', 'Level'));
+      rules.append(el('h3', '', 'Level'));
       const seg = el('div', 'kb-seg');
       for (const id of levels) {
         const b = el('button', 'kb-segbtn', '', { type: 'button' });
@@ -371,29 +463,10 @@ export class Menu {
         levelBtns.set(id, b);
         seg.append(b);
       }
-      card.append(seg);
+      rules.append(seg);
     }
 
-    const botsRow = el('div', 'kb-row');
-    const botsLabel = el('span', 'kb-botlabel');
-    const minus = this.btn('−', 'round', () => bump(-1));
-    const plus = this.btn('+', 'round', () => bump(1));
-    botsRow.append(
-      el('span', 'kb-rowlabel', 'Bot opponents'),
-      minus,
-      botsLabel,
-      plus,
-    );
-    card.append(botsRow);
-    const bump = (d: number) => {
-      const before = s.bots;
-      s.bots = clampBots(s.size, s.bots + d);
-      this.api.onSettings();
-      refresh();
-      if (s.bots !== before) this.api.onLineup();
-    };
-
-    card.append(
+    rules.append(
       this.segRow(
         'Bot skill',
         DIFFICULTIES.map(String),
@@ -404,8 +477,6 @@ export class Menu {
         },
         title,
       ),
-    );
-    card.append(
       this.segRow(
         'Rounds',
         ROUND_COUNTS.map(String),
@@ -419,8 +490,8 @@ export class Menu {
     );
 
     const refresh = () => {
-      sizeBtns.forEach((b, id) => b.classList.toggle('on', id === s.size));
-      levelBtns.forEach((b, id) => b.classList.toggle('on', id === s.level));
+      sizeBtns.forEach((b, id) => setOn(b, id === s.size));
+      levelBtns.forEach((b, id) => setOn(b, id === s.level));
       botsLabel.textContent = String(s.bots);
       (minus as HTMLButtonElement).disabled = s.bots <= 1;
       (plus as HTMLButtonElement).disabled = s.bots >= clampBots(s.size, 99);
@@ -441,7 +512,7 @@ export class Menu {
     // The pad starts on the critter picker, not on Start! (Start button = go).
     startBtn.removeAttribute('data-primary');
     startBtn.setAttribute('data-start', '');
-    card.append(
+    cols.append(
       this.actions(
         startBtn,
         this.btn('Back', 'ghost', () => this.welcome()),
@@ -467,13 +538,13 @@ export class Menu {
         'click',
         this.click(() => {
           onPick(v);
-          btns.forEach((x, i) => x.classList.toggle('on', values[i] === v));
+          btns.forEach((x, i) => setOn(x, values[i] === v));
         }),
       );
       seg.append(b);
       return b;
     });
-    btns.forEach((x, i) => x.classList.toggle('on', values[i] === current));
+    btns.forEach((x, i) => setOn(x, values[i] === current));
     row.append(el('span', 'kb-rowlabel', label), seg);
     return row;
   }
@@ -560,32 +631,45 @@ export class Menu {
   }
 
   results(sum: MatchSummary): void {
-    const card = el('div', `kb-card kb-results ${sum.outcome}`);
+    const card = el('div', `kb-card kb-results kb-sheet ${sum.outcome}`);
     card.append(el('h2', '', sum.headline));
     const list = el('ol', 'kb-standings');
-    for (const row of [...sum.standings].sort(
-      (a, b) => b.wins - a.wins || a.slot - b.slot,
-    )) {
+    const rows = [...sum.standings].sort(
+      (a, b) => b.wins - a.wins || b.booms - a.booms || a.slot - b.slot,
+    );
+    rows.forEach((row, rank) => {
       const li = el('li', row.you ? 'you' : '');
+      const img = el('img', '', '', {
+        src: this.api.portrait(row.critter, row.color),
+        alt: '',
+      });
+      li.style.setProperty('--team', hexOf(row.color));
+      const stars = el('span', 'stars', '', {
+        role: 'img',
+        'aria-label': `${row.wins} round ${row.wins === 1 ? 'win' : 'wins'}`,
+      });
+      stars.innerHTML =
+        row.wins > 0
+          ? starIcon(true).repeat(Math.min(5, row.wins))
+          : starIcon(false);
+      const booms = el('span', 'booms', String(row.booms), {
+        role: 'img',
+        'aria-label': `${row.booms} ${row.booms === 1 ? 'blast' : 'blasts'}`,
+      });
+      booms.insertAdjacentHTML('afterbegin', stickIcon(true));
       li.append(
-        el('img', '', '', {
-          src: this.api.portrait(row.critter, row.color),
-          alt: '',
-        }),
+        el('span', 'rank', String(rank + 1)),
+        img,
         el(
           'span',
           'name',
           row.you ? `${title(row.critter)} (you)` : title(row.critter),
         ),
-        el(
-          'span',
-          'stars',
-          row.wins > 0 ? '★'.repeat(Math.min(5, row.wins)) : '–',
-        ),
-        el('span', 'booms', `💥 ${row.booms}`),
+        stars,
+        booms,
       );
       list.append(li);
-    }
+    });
     card.append(
       list,
       el(
@@ -593,10 +677,17 @@ export class Menu {
         'kb-small',
         `${sum.rounds > 1 ? `Best of ${sum.rounds}` : 'Single round'}`,
       ),
+    );
+    const actions = el('div', 'kb-actions');
+    actions.append(
       this.btn('Play again', 'primary big', () => this.api.onRestart()),
-      this.btn('Change setup', '', () => this.setup()),
+      this.btn('Change setup', '', () => {
+        this.api.onSetup?.();
+        this.setup();
+      }),
       this.btn('Main menu', '', () => this.api.onMainMenu()),
     );
+    card.append(actions);
     this.allGames(card);
     this.show(card);
   }

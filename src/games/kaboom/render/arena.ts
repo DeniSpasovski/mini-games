@@ -491,6 +491,38 @@ export class Arena {
     return true;
   }
 
+  /**
+   * Clear everything standing in the world rectangle `x0..x1` x `z0..z1` (crates, hard blocks, walls): the results podium
+   * rises there. Only for the end of a match (the next match builds a new arena).
+   */
+  clearArea(x0: number, x1: number, z0: number, z1: number): void {
+    const { w, h } = this.map;
+    for (const r of this.crates) {
+      if (!r) continue;
+      for (const cell of [...r.cells]) {
+        const x = cell % w;
+        const y = (cell - x) / w;
+        const wx = gridToWorldX(w, x + 0.5);
+        const wz = gridToWorldZ(h, y + 0.5);
+        if (wx >= x0 && wx <= x1 && wz >= z0 && wz <= z1)
+          this.removeCrate(x, y);
+      }
+    }
+    const m = new Matrix4();
+    const gone = new Matrix4().makeScale(0, 0, 0);
+    for (const mesh of this.hardMeshes) {
+      for (let i = 0; i < mesh.count; i++) {
+        mesh.getMatrixAt(i, m);
+        const wx = m.elements[12];
+        const wz = m.elements[14];
+        if (wx >= x0 && wx <= x1 && wz >= z0 && wz <= z1 && m.elements[13] < 5)
+          mesh.setMatrixAt(i, gone);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+    this.shadowDirty = true;
+  }
+
   /** Crates still standing. */
   get crateCount(): number {
     return (

@@ -18,12 +18,22 @@ README files carry the same information in more detail. Keep this file current w
 | [three.js](https://threejs.org/)                                                | MIT              | rendering (runtime)               |
 | Rsbuild, Rspack, Rstest, Rslint, TypeScript, Prettier, happy-dom, meshoptimizer | MIT / Apache-2.0 | build and test tooling (dev only) |
 
-3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party: its critters, arenas, effects and sounds are original and procedural.
+3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party except its UI fonts (below): its critters, arenas, effects and sounds are original and procedural.
 
-No fonts, sounds or music files are bundled: audio is synthesised with WebAudio and text uses system fonts. Most textures
-are painted on canvases at runtime; the only texture files that ship are the car lamp, seat, fabric and cab textures (listed
-with their licences in `public/models/CREDITS.md`), the truck textures (listed under "Parked trucks" below) and the road
-asphalt textures (`src/games/rally/engine/asphalt/`, listed under "Road textures" below).
+The only bundled font files are the UI faces of Gravel Rally, Hole Island and 3, 2, 1 Kabooom and the portal's (below); sounds are synthesised with WebAudio and no music file is committed. Most textures
+are painted on canvases at runtime; the texture files that ship are listed with their licences below (building tiles, road
+asphalt, background-car, fire-engine and truck textures) and in `public/models/CREDITS.md` (the car lamp, seat, fabric, cab, metal and dash textures).
+
+## Fonts (game UIs)
+
+| Font                                                                                                                                     | Licence                                        | Files                                   |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | --------------------------------------- |
+| Barlow and Barlow Condensed (The Barlow Project Authors; woff2 latin + latin-ext subsets from Fontsource)                                | SIL Open Font License 1.1, `OFL.txt` alongside | `src/games/rally/assets/fonts/*.woff2`  |
+| Fredoka (The Fredoka Project Authors) and Nunito (The Nunito Project Authors); woff2 latin + latin-ext subsets from Fontsource           | SIL Open Font License 1.1, `OFL.txt` alongside | `src/games/hole/assets/fonts/*.woff2`   |
+| Grandstander (The Grandstander Project Authors) and Nunito (The Nunito Project Authors); woff2 latin + latin-ext subsets from Fontsource | SIL Open Font License 1.1, `OFL.txt` alongside | `src/games/kaboom/assets/fonts/*.woff2` |
+| Atkinson Hyperlegible (Braille Institute of America) and IBM Plex Mono (IBM Corp.); woff2 latin subsets from Fontsource                  | SIL Open Font License 1.1, `OFL.txt` alongside | `src/portal/fonts/*.woff2`              |
+
+The portal and game-cover `wordmark.svg` files are title text outlined from Archivo, Barlow Condensed, Fredoka and Grandstander (all SIL OFL 1.1, which allows this); the files hold only paths.
 
 ## Map data (baked into `src/games/rally/maps/<id>/`)
 
@@ -63,6 +73,8 @@ Some roads, properties and outlines were added or traced by hand on top of the o
 | `audi_rs6.glb`, `audi_rs6_wheel.glb`, `audi_rs6_lamps.png`                               | "Audi RS 6 Avant (C8)" by Mona x Supercars (Sketchfab; split by material and converted, tyres + discs + calipers + engine bay dropped, rings, badges, lettering and plate removed; rim extracted; lamp texture kept; flat paint at runtime)                                                        | CC BY 4.0                 |
 | `porsche_911_930.glb`, `porsche_911_930_wheel.glb`, `porsche_911_930_lamp.png`           | "Porsche 911 (930) Turbo 1975" by Lexyc16 (Sketchfab; split by material and converted, wheels dropped, rear light wordmark replaced by a flat lens; rim extracted, nuts dropped, recoloured two-tone; headlamp texture kept; flat paint at runtime)                                                | CC BY 4.0                 |
 | `subie_wrx_sti.glb`, `subie_wrx_sti_wheel.glb`, `subie_wrx_sti_lamps.png`                | "2019 Rowen Subaru WRX STI" by Car design (Sketchfab; split by material and converted, tyres + discs + calipers + engine bay dropped, badges, lettering and plates removed; rim extracted; lamp texture kept; cockpit simplified; flat paint at runtime)                                           | CC BY 4.0                 |
+| `pezetka.glb`, `pezetka_wheel.glb`, `pezetka_metal.png`, `pezetka_lamps.png`             | "Polski Fiat (Fiat 126p)" by Martin Trafas (account TinoD2) (Sketchfab; split by material and converted, tyres + plates + badges + lettering dropped; rim extracted; bumper and headlamp textures kept, shrunk to 512 px; flat paint at runtime)                                                   | CC BY 4.0                 |
+| `pezetka.glb` (interior), `pezetka_{seats,dash,chrome,floor}.png`                        | "fiat 126p" by subishi (Sketchfab; interior only: dash, steering wheel, seats, rear bench and floor, fitted to the body above; textures kept, shrunk to 512 px)                                                                                                                                    | CC BY 4.0                 |
 | `lancer_evo_6.glb`, `lancer_evo_6_wheel.glb`, `lancer_evo_6_{lamps,seat,fabric,cab}.png` | "Mitsubishi Lancer Evolution 6" by vecarz (Sketchfab; converted and repainted, badges + plate removed; lamp and seat textures kept)                                                                                                                                                                | CC BY 4.0                 |
 | `<car>_park.glb` (the nine cars above that the service park shows)                       | low-detail copies of the matching model and its rim, simplified by `scripts/car-model/park-lods.mjs`                                                                                                                                                                                               | as that model (CC BY 4.0) |
 
@@ -86,8 +98,16 @@ files are not in the repository).
 
 | Model                                                                                                                                                      | Author                                                                             | Used for                              | Licence   |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------- | --------- |
-| ["Fire engine/Fire truck low poly game asset"](https://sketchfab.com/3d-models/fire-enginefire-truck-low-poly-game-asset-2f663c7477374d30af9f80c528fff55c) | [FixedShark554](https://sketchfab.com/FixedShark554) (Sketchfab)                   | the Macedonian maps (`fire_truck_mk`) | CC BY 4.0 |
+| ["Fire engine/Fire truck low poly game asset"](https://sketchfab.com/3d-models/fire-enginefire-truck-low-poly-game-asset-2f663c7477374d30af9f80c528fff55c) | Have a name ([FixedShark554](https://sketchfab.com/FixedShark554)) (Sketchfab)     | the Macedonian maps (`fire_truck_mk`) | CC BY 4.0 |
 | ["Fire Truck"](https://sketchfab.com/3d-models/fire-truck-4a0d8c5bfca643d2aaa9b113ff752c26)                                                                | amongus ([holedonutdriveout](https://sketchfab.com/holedonutdriveout)) (Sketchfab) | the USA map (`fire_truck`)            | CC BY 4.0 |
+
+### Ground textures (baked into `src/games/rally/engine/ground/`)
+
+CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/ground/bake.py`: Forest Ground 01 (Rob Tuytel), Grass Ground (Charlotte Baglioni), Leafy Grass (Charlotte Baglioni), Brown Mud Dry (Rob Tuytel), Rocky Trail (Amal Kumar), Rock Boulder Dry (Dimitrios Savva, Rico Cilliers), Forest Leaves 04 (Rob Tuytel), Leaves Forest Ground (Dimitrios Savva, Dario Barresi), Withered Grass (Charlotte Baglioni). No credit is required.
+
+### Building textures (baked into `src/games/rally/engine/facades/`)
+
+CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/facades/bake.py`: Painted Plaster Wall (Amal Kumar), Brick Wall 006 (Jan Burghardt), Red Brick (Rob Tuytel), Plaster Stone Wall 02 (Charlotte Baglioni), Concrete Wall 007 (Dario Barresi, Rico Cilliers, Charlotte Baglioni), Corrugated Iron 03 (Charlotte Baglioni), Concrete Slab Wall (Dimitrios Savva), Sandstone Blocks 05 (Rob Tuytel), White Planks Clean (Rob Tuytel), Clay Roof Tiles 03 (Amal Kumar). No credit is required.
 
 ### Parked trucks (baked into `src/games/rally/maps/ajvatovci/start-row/build/truck-models.data.ts`)
 
@@ -112,6 +132,18 @@ far away the people are low-poly figures built in code.
 | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | --------- |
 | ["Male Base Mesh (Low Poly)"](https://sketchfab.com/3d-models/male-base-mesh-low-poly-fece8bfaefdb42cb9fc2a9492ffa18c7)     | FormForge3D (account aleenasani841, Sketchfab) | CC BY 4.0 |
 | ["Female Base Mesh (Low Poly)"](https://sketchfab.com/3d-models/female-base-mesh-low-poly-b80022fb9db94c9e83cae5361931b3c9) | FormForge3D (account aleenasani841, Sketchfab) | CC BY 4.0 |
+
+### Field crops (baked into `src/games/rally/assets/builders/crop-models.data.ts`)
+
+The wheat and corn in the Ajvatovci fields are two CC BY 4.0 models (their own triangles, normals, uvs and texture,
+scaled to metres and packed by `scripts/crops/bake-crops.py`; recoloured for green spring wheat and dry autumn corn, the
+corn cobs shown in their husks; the far cards are rendered from them in the game; the source files are not in the
+repository).
+
+| Model                                                                                                  | Author                                                      | Licence   |
+| ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- | --------- |
+| ["Realistic Wheat"](https://sketchfab.com/3d-models/realistic-wheat-50270968690441d3ad9d2a8924c7338b)  | [Graphetta](https://sketchfab.com/Graphetta) (Sketchfab)    | CC BY 4.0 |
+| ["Corn! Corn! Corn!"](https://sketchfab.com/3d-models/corn-corn-corn-10187bc37c9e42ef8770b28452ee7cd3) | [Tiia Tuulia](https://sketchfab.com/tiiatuulia) (Sketchfab) | CC BY 4.0 |
 
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 

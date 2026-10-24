@@ -1,6 +1,7 @@
 import type { Vector3 } from 'three';
 import { Noise2D, smoothstep } from '../../../shared/noise';
 import { hash3 } from '../../../shared/rng';
+import { mapSeason } from '../maps/shared/climate';
 import { roadSurfaceAt, type MapDef } from '../maps/shared/types';
 import type { SurfaceId } from '../physics/surfaces';
 import {
@@ -340,9 +341,9 @@ export class TerrainGenerator {
     this.detailNoise = new Noise2D(map.seed + 101);
     if (map.terrain.heightmap)
       this.real = new RealHeight(map.terrain.heightmap);
-    const lcDef = map.landcover;
-    if (lcDef) {
-      const lc = (this.landcover = new Landcover(lcDef));
+    if (map.landcover) {
+      const lc = (this.landcover = new Landcover(map.landcover));
+      const lcDef = lc.def; // with the painted zones
       const table = (this.coverSplatTable = new Float32Array(
         lcDef.zones.length * 4,
       ));
@@ -2570,8 +2571,12 @@ export class TerrainGenerator {
   }
 
   private fieldTmp = [0, 0, 0, 0];
-  /** Patchwork of long field strips; each parcel picks a palette entry, with weedy margins. */
-  private fieldSplat(x: number, z: number): number[] {
+  private parcelTmp = { entry: 0, edge: 0 };
+  /**
+   * The field parcel at a point: its palette entry and the distance to its edge (m). Long field strips: bands across
+   * the strips split into 1-3 strips each, strip lengths and ends staggered per strip.
+   */
+  private parcelAt(x: number, z: number): { entry: number; edge: number } {
     const f = this.map.landcover!.fields!;
     const ca = Math.cos(f.angle);
     const sa = Math.sin(f.angle);
@@ -2594,16 +2599,38 @@ export class TerrainGenerator {
     const vv = v / L + h01(col, sub, 7);
     const row = Math.floor(vv);
     const fv = vv - row;
-    const p = f.palette[hash3(col * 4 + sub, row, 11, seed) % f.palette.length];
+    const o = this.parcelTmp;
+    o.entry = hash3(col * 4 + sub, row, 11, seed) % f.palette.length;
+    o.edge = Math.min(fu * w, (1 - fu) * w, fv * L, (1 - fv) * L);
+    return o;
+  }
+
+  /** Patchwork of long field strips; each parcel picks a palette entry, with weedy margins. */
+  private fieldSplat(x: number, z: number): number[] {
+    const { entry, edge } = this.parcelAt(x, z);
+    const p = this.map.landcover!.fields!.palette[entry];
     const o = this.fieldTmp;
     // Weedy grass margins between parcels (~1 m).
-    const edge = Math.min(fu * w, (1 - fu) * w, fv * L, (1 - fv) * L);
     const m = (1 - smoothstep(0.3, 1.4, edge)) * 0.8;
     o[0] = p[0] + (1 - p[0]) * m;
     o[1] = p[1] * (1 - m);
     o[2] = p[2] * (1 - m);
     o[3] = p[3] * (1 - m);
     return o;
+  }
+
+  /**
+   * The crop growing at a point in the map's season (`landcover.fields.crops`), undefined off the field parcels,
+   * on bare / meadow parcels and within `margin` m of a parcel's edge (the weedy strip between parcels).
+   */
+  cropAt(x: number, z: number, margin = 0.8): string | undefined {
+    const f = this.map.landcover?.fields;
+    const crops = f?.crops?.[mapSeason(this.map.environment)];
+    if (!crops || !this.landcover) return undefined;
+    const zone = this.landcover.zoneAt(x, z);
+    if (zone < 0 || !this.fieldZones![zone]) return undefined;
+    const { entry, edge } = this.parcelAt(x, z);
+    return edge < margin ? undefined : (crops[entry] ?? undefined);
   }
 
   /** Physics surface at a point (road edge is exact, terrain from splat weights). */

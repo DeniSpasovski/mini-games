@@ -43,7 +43,8 @@ export interface CarHeadlightsDef {
 }
 
 /** Cylinder layout = firing pattern (game/engine-sound.ts). `v8` is cross-plane (American burble), `v8flat` flat-plane (BMW M / Ferrari howl); `flat4` has unequal headers. */
-export type EngineLayout = 'i4' | 'i5' | 'i6' | 'v8' | 'v8flat' | 'flat4';
+export type EngineLayout =
+  'i2' | 'i4' | 'i5' | 'i6' | 'v8' | 'v8flat' | 'flat4';
 
 /** How the car sounds; game/audio.ts synthesises it from these (no samples). Levels are 0..1. */
 export interface CarSoundDef {
@@ -66,6 +67,8 @@ export interface CarSoundDef {
   cam: number;
   /** Cylinder-to-cylinder variation (default 0.05): a tired engine is rougher. */
   roughness?: number;
+  /** Misfires (0 = none .. 1 = constant): the engine skips firings and spits through the carburettor, most at idle and on a low-rpm tip-in. */
+  sputter?: number;
 }
 
 /**
@@ -179,6 +182,23 @@ export interface CarGltfDef {
    * dark as a running lamp, lit with the brake and white in reverse gear (CarModel.splitCentreLamps).
    */
   bootLamps?: number;
+  /**
+   * The head lamps are the model's chrome bowls (no separate bulb): chrome pieces in front of the centre of mass and inside
+   * this [|x|0, |x|1, y0, y1] box (true = the profile's front lamp box) light up with the headlights (CarModel.splitHeadBowls); with `headBulbs` they glow from the bulbs out.
+   */
+  headBowls?: true | [number, number, number, number];
+  /** The head lamps' bulbs / projector lenses ([|x|, y, z] centres, left side, mirrored): the model's pieces there light up (CarModel.splitHeadBulbs). */
+  headBulbs?: [number, number, number][];
+  /** Parts inside the `headBowls` box that glow from the `headBulbs` (default the chrome bowls and the lamp housing). */
+  headScatter?: string[];
+  /** How bright the `headScatter` parts glow (1 = default; a big open reflector needs less to show its shading). */
+  scatterLevel?: number;
+  /** One head lamp glare on each listed bulb (`headBulbs`) instead of one in the middle of each lamp (twin-bowl lamps). */
+  bulbGlares?: boolean;
+  /** Lamp parts drawn with another part's material instead (a drawn reflector map as plain chrome). */
+  lampParts?: Record<string, string>;
+  /** Body pieces wholly inside a head lamp cover are the lamp's housing (dark), not paint. */
+  lampBody?: boolean;
   /** Cut-outs painted another colour (wing end plates ...). */
   recolor?: CarGltfRecolor[];
   /** File name inside public/models/cars/, e.g. "skoda_rally.glb". */

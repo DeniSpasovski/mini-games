@@ -48,13 +48,13 @@ The levels are nested, so every segment in a coarser level is also in every fine
 
 ## Shadows
 
-- Shadows use one level coarser than the one drawn, and never the impostor within the near shadow cascade.
-- Trees cast real shadows only within 60 m of the camera; past that the baked canopy shadow on the ground takes over, faded in over the last 15 m.
+- Shadows use LOD1 and the crown proxy whatever level is drawn, the impostor included, so a tree's shadow never pops when its level changes.
+- Trees cast real shadows only within the quality preset's tree shadow distance of the camera. The sun's shadow map fades out before a tree past it could shade the ground; past that the far shadow map's crown ellipsoids take over, then the baked canopy shadow on the ground.
 - Foliage casts its shadow through a crown proxy, not its sprites: a closed lathe of about 100 triangles through the reach of the crown's sprites, so a cone crown casts a cone and a round one a ball, with leafy holes cut by a world-space noise so light still falls through in dapples. Each sprite looks up its shadow from a point moved most of the way out of its own crown towards the sun, so the proxy does not darken the crown's sunlit side while its inside stays shaded.
 - Only the nearest shadow cascade draws trees with wind and every sprite. Farther cascades draw trees as LOD1 with thinned sprites, or the impostor, with no wind, and re-render their tree casters every fourth frame, the cascades staggered so no two re-render on the same frame.
 - Shadow casters are culled per cascade, on the GPU, like the main pass.
 - A tree casts only when its bounding sphere can reach the sun's shadow box, which sits ahead of the camera; a tree whose shadow falls where no shadow map is costs nothing in the shadow pass.
-- Shadow casters are never dithered. A tree's shadow level switches once, when its fade finishes, so its shadow does not flicker while the tree fades.
+- Shadow casters are never dithered; with one shadow level for every level, a fade never changes a tree's shadow.
 
 ## Budget
 

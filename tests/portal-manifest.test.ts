@@ -21,6 +21,36 @@ const gameIds = fs
   )
   .map((d) => d.name);
 
+/** WCAG contrast ratio of two #rrggbb colours. */
+function contrast(a: string, b: string): number {
+  const lum = (hex: string) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => {
+      const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+const SHELF = '#101216'; // --pt-shelf, src/portal/ui-tokens.css
+
+/** Width and height of a JPEG from its first SOF (start of frame) segment. */
+function jpegSize(file: string): [number, number] {
+  const b = fs.readFileSync(file);
+  for (let i = 2; i + 9 < b.length;) {
+    const marker = b[i + 1];
+    if (
+      marker >= 0xc0 &&
+      marker <= 0xcf &&
+      ![0xc4, 0xc8, 0xcc].includes(marker)
+    )
+      return [b.readUInt16BE(i + 7), b.readUInt16BE(i + 5)];
+    i += 2 + b.readUInt16BE(i + 2);
+  }
+  throw new Error(`no JPEG frame in ${file}`);
+}
+
 const readManifest = (id: string) =>
   JSON.parse(
     fs.readFileSync(path.join(gamesDir, id, 'game.json'), 'utf8'),
@@ -101,19 +131,28 @@ for (const id of gameIds) {
       expect(p.label).toBeTruthy();
       expect(fs.existsSync(path.join(gamesDir, id, p.entry))).toBe(true);
     }
+    // Cover colours (src/portal/STYLEGUIDE.md): both or none, the accent readable on the shelf, the text on the accent.
+    expect(!!m.accent).toBe(!!m.onAccent);
+    if (m.accent && m.onAccent) {
+      expect(m.accent).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(m.onAccent).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(contrast(m.accent, SHELF)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(m.onAccent, m.accent)).toBeGreaterThanOrEqual(4.5);
+    }
     // Play is the main page; it must not be a hidden dev tool.
     const play = m.pages.find((p) => p.id === 'play')!;
     expect(play.dev).toBeFalsy();
     expect(play.hideInProd).toBeFalsy();
   });
 
-  // A game with `hideInProd` in GAME_LIST gets its thumbnail (F9 on the dev server) when it is released.
-  test(`game (${id}) has a portal thumbnail`, () => {
+  // A game with `hideInProd` in GAME_LIST gets its thumbnails (F9 on the dev server) when it is released:
+  // thumbnail.jpg 1280x720 + thumbnail-640.jpg 640x360, the cover's srcset.
+  test(`game (${id}) has portal thumbnails`, () => {
     if (!isReleased(GAME_LIST, id)) return;
-    const has = ['jpg', 'png'].some((e) =>
-      fs.existsSync(path.join(gamesDir, id, `thumbnail.${e}`)),
-    );
-    expect(has).toBe(true);
+    const big = path.join(gamesDir, id, 'thumbnail.jpg');
+    const small = path.join(gamesDir, id, 'thumbnail-640.jpg');
+    expect(jpegSize(big)).toEqual([1280, 720]);
+    expect(jpegSize(small)).toEqual([640, 360]);
   });
 }
 
@@ -138,4 +177,8 @@ test('PWA manifest: required fields and icon files exist', () => {
   expect(
     wm.icons.some((i: { purpose: string }) => i.purpose === 'maskable'),
   ).toBe(true);
+});
+
+test('link preview image is 1200x630', () => {
+  expect(jpegSize(path.join(root, 'public/og-image.jpg'))).toEqual([1200, 630]);
 });

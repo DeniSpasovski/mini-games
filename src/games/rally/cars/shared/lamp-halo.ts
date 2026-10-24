@@ -1,6 +1,7 @@
 import {
   AdditiveBlending,
   Box3,
+  Color,
   DataTexture,
   DoubleSide,
   Group,
@@ -23,7 +24,7 @@ const BLUR_MAX = 7;
 const BLUR_MIN = 3;
 /** Lamp pieces closer than this (x / y, metres) belong to one lamp. */
 const JOIN = 0.05;
-/** The glow quad sits this far behind the lamp (metres). */
+/** The glow quad sits this far outside the lamp (behind a tail lamp, in front of a head lamp; metres). */
 const SETBACK = 0.04;
 /** A faint lamp (a thin LED strip) is boosted towards the same peak (`peak ** -0.6`), up to this factor. */
 const MAX_BOOST = 4;
@@ -270,6 +271,55 @@ function maskTexture(
   return tex;
 }
 
+/** A head lamp glare's size (m, across): the smallest lamp and the biggest. */
+const GLARE_MIN = 0.1;
+const GLARE_MAX = 0.45;
+/** A bulb's own glare (`bulbGlares`), m across. */
+const GLARE_BULB = 0.24;
+
+/**
+ * Camera-facing glare (`LampHalos.addGlare`): the quad turns to the camera round its centre and steps 1/2 its size towards it
+ * (so the lamp's own lens and bezel do not cut it), and its level follows how straight the camera looks into the lamp (body
+ * +z): full ahead, half at ~45 degrees, gone side-on.
+ */
+function glareMaterial(colour: Vector3): ShaderMaterial {
+  return new ShaderMaterial({
+    uniforms: { uLevel: { value: 0 }, uColour: { value: colour } },
+    transparent: true,
+    depthWrite: false,
+    fog: false,
+    blending: AdditiveBlending,
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      varying float vFacing;
+      void main() {
+        vUv = uv;
+        vec4 centre = modelViewMatrix * vec4( 0.0, 0.0, 0.0, 1.0 );
+        vec3 axis = normalize( ( modelViewMatrix * vec4( 0.0, 0.0, 1.0, 0.0 ) ).xyz );
+        vec3 toCam = normalize( -centre.xyz );
+        vFacing = max( dot( axis, toCam ), 0.0 );
+        float size = length( ( modelViewMatrix * vec4( 1.0, 0.0, 0.0, 0.0 ) ).xyz );
+        centre.xyz += toCam * size * 0.5;
+        centre.xy += position.xy * size;
+        gl_Position = projectionMatrix * centre;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uLevel;
+      uniform vec3 uColour;
+      varying vec2 vUv;
+      varying float vFacing;
+      void main() {
+        float r = length( vUv - 0.5 ) * 2.0;
+        // A small hot core and a faint wide skirt (a corona, not a lit disc), gone at the quad's edge.
+        float a = ( 0.8 * exp( -r * r * 40.0 ) + 0.2 * exp( -r * r * 7.0 ) ) * ( 1.0 - smoothstep( 0.7, 1.0, r ) );
+        float facing = smoothstep( 0.15, 1.0, vFacing );
+        gl_FragColor = vec4( uColour * ( uLevel * a * facing * facing ), 1.0 );
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
+}
+
 function haloMaterial(mask: DataTexture, colour: Vector3): ShaderMaterial {
   return new ShaderMaterial({
     uniforms: {
@@ -303,8 +353,8 @@ function haloMaterial(mask: DataTexture, colour: Vector3): ShaderMaterial {
 }
 
 /**
- * Soft red glow round a car's red tail lamps: for each lamp (its pieces joined) one additive quad just behind it whose
- * shape is the lamp's own silhouette from behind, blurred. Pure red, so night tone mapping keeps it red. Lit by `setLevel`.
+ * Soft glow round a car's red tail lamps: for each lamp (its pieces joined) one additive quad just behind it whose
+ * shape is the lamp's own silhouette from behind, blurred (head lamps: a camera-facing glare, `addGlare`). Lit by `setLevel`.
  */
 export class LampHalos {
   /** Children of the car body: the quads, in body space. */
@@ -312,18 +362,44 @@ export class LampHalos {
   private readonly materials: ShaderMaterial[] = [];
   /** The quads of the third brake lights: they glow only with the brake. */
   private readonly brakeOnly: ShaderMaterial[] = [];
+  /** Each lamp's box (body space). */
+  private readonly boxes: Box3[] = [];
   /** Running pieces of a lamp that also has brake-only ones: their glow gives way to the whole lamp's with the brake. */
   private readonly runningOnly: ShaderMaterial[] = [];
+  /** Head lamp glares (`front`). */
+  private readonly glares: ShaderMaterial[] = [];
 
   /**
    * `meshes` = the red lamp meshes, `toBody` = world -> body matrix (the matrix worlds must be current). `reverse` = the glow
-   * of the white reversing lens (its `reverseGlow` map) instead, in warm white.
+   * of the white reversing lens (its `reverseGlow` map) instead, in warm white. `front` = head lamps: a glare in front of each
+   * lamp (`addGlare`), in `color` (sRGB hex, the beam's).
    */
-  constructor(meshes: Mesh[], toBody: Matrix4, reverse = false) {
-    const colour = reverse ? REVERSE_COLOUR : RED_COLOUR;
+  constructor(
+    meshes: Mesh[],
+    toBody: Matrix4,
+    opts: {
+      reverse?: boolean;
+      front?: boolean;
+      color?: number;
+      bulbs?: [number, number, number][];
+    } = {},
+  ) {
+    const reverse = !!opts.reverse;
+    const colour =
+      opts.color !== undefined
+        ? new Vector3(...new Color(opts.color).toArray())
+        : reverse
+          ? REVERSE_COLOUR
+          : RED_COLOUR;
     for (const lamp of lamps(
       meshes.flatMap((m) => pieces(m, toBody, reverse)),
     )) {
+      this.boxes.push(lamp.box);
+      if (opts.front) {
+        if (!opts.bulbs || !this.addBulbGlares(lamp, colour, opts.bulbs))
+          this.addGlare(lamp, colour);
+        continue;
+      }
       const size = lamp.box.getSize(new Vector3());
       const radius = Math.max(
         BLUR_MIN,
@@ -372,8 +448,109 @@ export class LampHalos {
     }
   }
 
+  /**
+   * Where the lamps sit, through `bodyTo` (body -> the space wanted): x = half their spacing and y = their height (lamp
+   * faces seen from the front, weighted by size), z = the foremost lamp face (+z); null without lamps.
+   */
+  mount(bodyTo: Matrix4): { x: number; y: number; z: number } | null {
+    let area = 0;
+    let x = 0;
+    let y = 0;
+    let z = -Infinity;
+    const c = new Vector3();
+    const size = new Vector3();
+    for (const b of this.boxes) {
+      b.getCenter(c);
+      b.getSize(size);
+      const a = Math.max(1e-4, size.x * size.y);
+      area += a;
+      x += Math.abs(c.x) * a;
+      y += c.y * a;
+      z = Math.max(z, b.max.z);
+    }
+    if (!area) return null;
+    const p = new Vector3(x / area, y / area, z).applyMatrix4(bodyTo);
+    return { x: p.x, y: p.y, z: p.z };
+  }
+
   /** Glow strength of the lamps (0 = off) and of the brake-only ones (a third brake light). */
+  /**
+   * A head lamp's glare: a soft round glow facing the camera, centred on the lamp's lit area and as big as it (not a flat
+   * quad, which from an angle read as a lit sheet or a line). It shines when looking into the lamp and fades out by the time
+   * the lamp is seen side-on, like a corona in a racing game; the lamp's own lit surface carries it from the side.
+   */
+  /** A glare on each listed bulb ([|x|, y, z], body space) inside the lamp; false when none is. */
+  private addBulbGlares(
+    lamp: Lamp,
+    colour: Vector3,
+    bulbs: [number, number, number][],
+  ): boolean {
+    const side = Math.sign(lamp.box.min.x + lamp.box.max.x) || 1;
+    const box = lamp.box.clone().expandByScalar(0.03);
+    const inside = bulbs
+      .map(([x, y, z]) => new Vector3(side * x, y, z))
+      .filter((p) => box.containsPoint(p));
+    const placed: Vector3[] = [];
+    for (const p of inside) {
+      // Two listed pieces of one light (a projector's lens and bezel) share a glare.
+      if (placed.some((q) => q.distanceTo(p) < GLARE_BULB / 4)) continue;
+      placed.push(p);
+      const material = glareMaterial(colour);
+      const glare = new Mesh(quad, material);
+      glare.scale.set(GLARE_BULB, GLARE_BULB, 1);
+      // At the bulb itself (a lamp that wraps round the corner has bulbs well behind its front).
+      glare.position.set(p.x, p.y, p.z + SETBACK);
+      glare.renderOrder = 5;
+      glare.frustumCulled = false;
+      this.glares.push(material);
+      this.group.add(glare);
+    }
+    return inside.length > 0;
+  }
+
+  private addGlare(lamp: Lamp, colour: Vector3): void {
+    let area = 0;
+    let x = 0;
+    let y = 0;
+    const t = lamp.tris;
+    for (let k = 0, tri = 0; k < t.length; k += 12, tri++) {
+      const a =
+        Math.abs(
+          (t[k + 4] - t[k]) * (t[k + 9] - t[k + 1]) -
+            (t[k + 8] - t[k]) * (t[k + 5] - t[k + 1]),
+        ) / 2;
+      const glow = lamp.glows[tri];
+      const lit =
+        a *
+        (glow
+          ? glow(
+              (t[k + 2] + t[k + 6] + t[k + 10]) / 3,
+              (t[k + 3] + t[k + 7] + t[k + 11]) / 3,
+            )
+          : 1);
+      area += lit;
+      x += (lit * (t[k] + t[k + 4] + t[k + 8])) / 3;
+      y += (lit * (t[k + 1] + t[k + 5] + t[k + 9])) / 3;
+    }
+    if (area <= 0) return;
+    const size = lamp.box.getSize(new Vector3());
+    const material = glareMaterial(colour);
+    const glare = new Mesh(quad, material);
+    // About twice the lamp's lit size across, so the glow spills a little past the lens.
+    const r = Math.min(
+      GLARE_MAX,
+      Math.max(GLARE_MIN, 2 * Math.sqrt(area), Math.min(size.x, size.y)),
+    );
+    glare.scale.set(r, r, 1);
+    glare.position.set(x / area, y / area, lamp.box.max.z + SETBACK);
+    glare.renderOrder = 5;
+    glare.frustumCulled = false;
+    this.glares.push(material);
+    this.group.add(glare);
+  }
+
   setLevel(level: number, brakeOnly: number): void {
+    for (const m of this.glares) m.uniforms.uLevel.value = level;
     for (const m of this.materials) m.uniforms.uLevel.value = level;
     for (const m of this.brakeOnly) m.uniforms.uLevel.value = brakeOnly;
     for (const m of this.runningOnly)
@@ -383,6 +560,7 @@ export class LampHalos {
 
   dispose(): void {
     this.group.removeFromParent();
+    for (const m of this.glares) m.dispose();
     for (const m of [
       ...this.materials,
       ...this.brakeOnly,

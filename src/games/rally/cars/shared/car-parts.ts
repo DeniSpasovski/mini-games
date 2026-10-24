@@ -31,6 +31,8 @@ export interface CarPartGeometry {
   lining: BufferGeometry;
   /** Polished chrome (lamp reflectors, bezels) - optional, hand-built bodies. */
   chrome?: BufferGeometry;
+  /** Chrome headlamp reflector bowls that light up with the headlights - optional, hand-built bodies. */
+  headReflector?: BufferGeometry;
   /** Clear lamp glass - optional, hand-built bodies. */
   lens?: BufferGeometry;
   /** Tinted lamps (hand-built bodies): faceted coloured reflector seen through a tinted clear lens. */

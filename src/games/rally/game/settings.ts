@@ -23,6 +23,10 @@ export interface RallySettings {
   camera: CameraMode;
   /** How far trees, buildings and props are drawn (multiplies the graphics preset's LOD distances). */
   objectDistance: ObjectDistance;
+  /** Daytime bloom (High graphics only): soft light spread from the sun, sky and bright paint. */
+  bloom: BloomLevel;
+  /** Screen-space ambient occlusion (High graphics only): contact darkening in corners, under cars and plants. */
+  ao: boolean;
   /** Last selection in the menu, preselected next time. */
   map: string;
   car: string;
@@ -38,6 +42,8 @@ export const DEFAULT_SETTINGS: RallySettings = {
   carNumber: 7,
   camera: 'chase',
   objectDistance: 'normal',
+  bloom: 'soft',
+  ao: false,
   map: '',
   car: '',
   livery: 0,
@@ -52,10 +58,20 @@ export const OBJECT_DISTANCE: Record<ObjectDistance, number> = {
   max: 2,
 };
 
+export type BloomLevel = 'off' | 'soft' | 'strong';
+
+/** Bloom option -> how much of the blurred picture is mixed back in (engine/post-fx.ts). */
+export const BLOOM_MIX: Record<BloomLevel, number> = {
+  off: 0,
+  soft: 0.02,
+  strong: 0.04,
+};
+
 const KEY = 'rally.settings';
 
 const CAMERAS: readonly CameraMode[] = ['chase', 'chase_far', 'hood', 'bumper'];
 const DISTANCES = Object.keys(OBJECT_DISTANCE) as ObjectDistance[];
+const BLOOMS = Object.keys(BLOOM_MIX) as BloomLevel[];
 
 function oneOf<T extends string>(v: unknown, allowed: readonly T[], def: T): T {
   return allowed.includes(v as T) ? (v as T) : def;
@@ -87,6 +103,8 @@ export function sanitizeSettings(raw: unknown): RallySettings {
         : d.carNumber,
     camera: oneOf(o.camera, CAMERAS, d.camera),
     objectDistance: oneOf(o.objectDistance, DISTANCES, d.objectDistance),
+    bloom: oneOf(o.bloom, BLOOMS, d.bloom),
+    ao: bool(o.ao, d.ao),
     map: typeof o.map === 'string' ? o.map : d.map,
     car: typeof o.car === 'string' ? o.car : d.car,
     livery:

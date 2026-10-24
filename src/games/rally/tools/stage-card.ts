@@ -142,7 +142,13 @@ const NOT_ON_CARD = new Set([
 
 /** The environment as drawn: not the months nor the other seasons' tints (the card is one season's picture). */
 function drawnEnvironment(env: MapDef['environment']): unknown {
-  const { months: _m, groundTints: _g, ...drawn } = env;
+  const {
+    months: _m,
+    groundTints: _g,
+    grades: _gr,
+    goldenHour: _gh,
+    ...drawn
+  } = env;
   return drawn;
 }
 
@@ -278,6 +284,22 @@ export async function loadStageRise(
   let top = stage[1];
   for (let i = 4; i < stage.length; i += 3) top = Math.max(top, stage[i]);
   return top - stage[1];
+}
+
+/** URL of one season's card image (lazy chunk per map); null when that season was not baked. */
+export async function stageCardImageUrl(
+  mapId: string,
+  stageId: string,
+  season: Season,
+): Promise<string | null> {
+  try {
+    const jpg = await import(
+      `../maps/${mapId}/preview/${cardImageName(stageId, season)}.jpg`
+    );
+    return (jpg.default ?? jpg) as string;
+  } catch {
+    return null;
+  }
 }
 
 /** One season's image of a card; null when that season was not baked. */

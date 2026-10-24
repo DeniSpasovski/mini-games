@@ -56,9 +56,9 @@ import {
  * Car screens (welcome, car select, setup): the car's screen shift (fraction of the width, + = right) - the same on all
  * of them, so the car doesn't move when the screen changes.
  */
-const CAR_SHIFT = 0.1;
-/** Orbit distance of the turntable car on every car screen (< 1: larger car, may run behind the spec card). */
-const CAR_DIST_SCALE = 0.9;
+const CAR_SHIFT = 0.07;
+/** Orbit distance of the turntable car on every car screen: leaves room for the spec card docked on the right. */
+const CAR_DIST_SCALE = 1.05;
 const CAR_ENV = { ...testMap.environment, fogDensity: 0.02, sunElevation: 24 };
 /** Map view: camera height angle over the stage (rad), ~36 deg. */
 const ORBIT_ELEVATION = Math.atan2(0.7, 0.95);
@@ -450,7 +450,7 @@ export class Showroom {
   /** The shown map's grass tint (the terrain material is shared: another map or season may have set it) and sky. */
   private applyMapLook(view: MapView): void {
     const env = this.stageEnv(view.id);
-    setGroundTint(env.groundTint);
+    setGroundTint(env.groundTint, mapSeason(env));
     setGroundMoisture(null);
     this.env.apply({ ...env, fogDensity: 0.25 / view.size }, false);
     this.env.update(view.center);
@@ -618,7 +618,7 @@ export class Showroom {
     const prevEnv = this.env.def;
     const prevStudio = this.env.studio;
     if (!shown) this.env.apply({ ...env, fogDensity: 0 }, false);
-    setGroundTint(env.groundTint);
+    setGroundTint(env.groundTint, mapSeason(env));
     setGroundMoisture(null);
     const fog = this.scene.fog;
     this.scene.fog = null;
@@ -657,7 +657,10 @@ export class Showroom {
     this.env.sky.visible = true;
     this.scene.fog = fog;
     if (!shown) this.env.apply(prevEnv, prevStudio);
-    if (this.mapView) setGroundTint(this.stageEnv(this.mapView.id).groundTint);
+    if (this.mapView) {
+      const env = this.stageEnv(this.mapView.id);
+      setGroundTint(env.groundTint, mapSeason(env));
+    }
   }
 
   /**

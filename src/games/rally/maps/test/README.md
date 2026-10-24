@@ -1,4 +1,4 @@
-# Test Map
+# Forest Rally
 
 ![Forest stage](screenshots/forest-stage.jpg)
 

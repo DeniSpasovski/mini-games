@@ -206,6 +206,13 @@ export const audiRs6: CarDef = {
     profile,
     doorBadge: { z: 0.2, y: 0.7 },
     gltf: {
+      // The three main light units of the lamp sheet (two top, the big bottom square; picked on the model): a glare on each.
+      headBulbs: [
+        [0.691, 0.71, 1.835],
+        [0.772, 0.722, 1.778],
+        [0.735, 0.653, 1.797],
+      ],
+      bulbGlares: true,
       file: 'audi_rs6.glb',
       credit:
         '"Audi RS 6 Avant (C8)" by Mona x Supercars, sketchfab.com/3d-models/audi-rs-6-avant-c8-99aa71f747b0453eb58334414d34397c, CC BY 4.0 (converted + repainted)',

@@ -417,6 +417,8 @@ function rebuild(): void {
   model.root.position.y = def.physics.comHeight + model.tyreLift;
   model.debug.visible = state.hull;
   scene.add(model.root);
+  // The beam starts at the model's own lamps once they are known.
+  model.onHeadlamps((m) => headlights?.moveTo(m));
   if (!state.paint) paintCtl.set(model.livery.base);
   applyBadge();
   applyWire();
@@ -444,7 +446,7 @@ function applyLights(): void {
     if (state.beam)
       headlights = new Headlights(
         model.root,
-        headlightMount(model.def.physics),
+        model.headlampMount ?? headlightMount(model.def.physics),
         shell.quality.name,
         model.def.headlights,
         need,

@@ -1,0 +1,184 @@
+/* UI tokens + fonts for menu, HUD and overlays (the "Toy Box" look): hole.css uses var(--hg-*) only, so a change of look starts here.
+   Values and rules: ../STYLEGUIDE.md */
+
+/* Fredoka + Nunito (SIL OFL 1.1, assets/fonts/OFL.txt), self-hosted: latin + latin-ext subsets. */
+@font-face {
+  font-family: 'Fredoka';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/fredoka-latin-600-normal.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Fredoka';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../assets/fonts/fredoka-latin-ext-600-normal.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Fredoka';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../assets/fonts/fredoka-latin-700-normal.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Fredoka';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../assets/fonts/fredoka-latin-ext-700-normal.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../assets/fonts/nunito-latin-700-normal.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../assets/fonts/nunito-latin-ext-700-normal.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('../assets/fonts/nunito-latin-800-normal.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212,
+    U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Nunito';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('../assets/fonts/nunito-latin-ext-800-normal.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
+    U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
+    U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  /* surfaces and text (each text colour is at least 4.5:1 on --hg-card) */
+  --hg-ink: #1d2b3a;
+  --hg-text-2: #55606d;
+  --hg-card: #fffaf0;
+  --hg-card-2: #f1e7d0;
+  --hg-card-2-lip: #cdbf9e;
+  --hg-plate: rgba(255, 250, 240, 0.94);
+  --hg-you: #fff1b8;
+  --hg-warn: #c61f1f;
+  --hg-warn-bg: #ffe1dd;
+  --hg-sky: #bfe3f5;
+  --hg-white: #fff;
+  --hg-scrim: rgba(20, 40, 70, 0.45);
+  --hg-version-bg: rgba(29, 43, 58, 0.62);
+  --hg-track: rgba(29, 43, 58, 0.16);
+  --hg-pip-off: rgba(29, 43, 58, 0.2);
+  --hg-img-empty: rgba(255, 255, 255, 0.25);
+  --hg-joy-ring: rgba(255, 255, 255, 0.55);
+  --hg-joy-fill: rgba(255, 255, 255, 0.12);
+  --hg-joy-dot: rgba(255, 255, 255, 0.8);
+
+  /* buttons: a deep fill (white text, at least 4.5:1) and a same-hue lip */
+  --hg-on-fill: #fff;
+  --hg-go: #1b7f47;
+  --hg-go-lip: #105a31;
+  --hg-blue: #2f68c8;
+  --hg-blue-lip: #1f4a93;
+  --hg-orange: #c2560f;
+  --hg-orange-lip: #8a3c08;
+  --hg-gray: #5a6676;
+  --hg-gray-lip: #3d4754;
+
+  /* one accent per map; --hg-map* follow the current map (data-map on the root) */
+  --hg-city: #1f6fc0;
+  --hg-city-lip: #14497f;
+  --hg-city-on: #fff;
+  --hg-toy: #c2367a;
+  --hg-toy-lip: #86224f;
+  --hg-toy-on: #fff;
+  --hg-animal: #2a7f3e;
+  --hg-animal-lip: #1b5628;
+  --hg-animal-on: #fff;
+  --hg-construction: #f5b70a;
+  --hg-construction-lip: #b07f00;
+  --hg-construction-on: var(--hg-ink);
+  --hg-map: var(--hg-city);
+  --hg-map-lip: var(--hg-city-lip);
+  --hg-on-map: var(--hg-city-on);
+
+  --hg-radius: 18px;
+  --hg-radius-card: 28px;
+  --hg-shadow: 0 6px 0 rgba(20, 30, 50, 0.28);
+  --hg-shadow-card:
+    0 10px 0 rgba(20, 30, 50, 0.28), 0 18px 40px rgba(0, 0, 0, 0.25);
+  --hg-shadow-dot: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --hg-shadow-swatch:
+    inset 0 -8px 0 rgba(0, 0, 0, 0.25), 0 4px 0 rgba(0, 0, 0, 0.2);
+  --hg-text-shadow-pop: 0 2px 0 rgba(0, 0, 0, 0.35), 0 0 6px rgba(0, 0, 0, 0.3);
+  --hg-text-shadow-count: 0 8px 0 rgba(0, 0, 0, 0.25);
+
+  /* debug HUD and labels (F2 / F4, dev only) */
+  --hg-debug-bg: rgba(0, 0, 0, 0.65);
+  --hg-debug-fg: #cfe;
+  --hg-debug-good: #7dff8c;
+  --hg-debug-bad: #ff8a80;
+  --hg-debug-line: #5a7;
+  --hg-debug-on: #2a6b3a;
+  --hg-font-display: 'Fredoka', 'Trebuchet MS', system-ui, sans-serif;
+  --hg-font:
+    'Nunito', 'Trebuchet MS', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --hg-top: env(safe-area-inset-top, 0px);
+  --hg-right: env(safe-area-inset-right, 0px);
+  --hg-bottom: env(safe-area-inset-bottom, 0px);
+  --hg-left: env(safe-area-inset-left, 0px);
+}
+[data-map='toy'] {
+  --hg-map: var(--hg-toy);
+  --hg-map-lip: var(--hg-toy-lip);
+  --hg-on-map: var(--hg-toy-on);
+}
+[data-map='animal'] {
+  --hg-map: var(--hg-animal);
+  --hg-map-lip: var(--hg-animal-lip);
+  --hg-on-map: var(--hg-animal-on);
+}
+[data-map='construction'] {
+  --hg-map: var(--hg-construction);
+  --hg-map-lip: var(--hg-construction-lip);
+  --hg-on-map: var(--hg-construction-on);
+}

@@ -295,9 +295,11 @@ test('straight-line launch on loose ground: every car gets to 100 km/h pointing 
       v.controls.throttle = 1;
       let t100 = Infinity;
       let heading = 0;
-      for (let i = 0; i < 20 * PHYSICS_HZ && t100 === Infinity; i++) {
+      // The 23 hp 126p tops out near 100 km/h: for it "100" is 80 km/h, in a minute.
+      const [target, limit] = c.id === 'pezetka' ? [80, 60] : [100, 20];
+      for (let i = 0; i < limit * PHYSICS_HZ && t100 === Infinity; i++) {
         v.step(DT);
-        if (v.speed * 3.6 >= 100) {
+        if (v.speed * 3.6 >= target) {
           t100 = i * DT;
           heading = Math.atan2(v.forward.x, v.forward.z);
         }
@@ -308,7 +310,13 @@ test('straight-line launch on loose ground: every car gets to 100 km/h pointing 
       // The ~85 hp Zastava (0-100 ~12-14 s on loose gravel, band in vehicle.test.ts) and the 180 hp 206 (~9 s) are slow by
       // design; this test is about getting there pointing straight.
       expect(t100).toBeLessThan(
-        c.id === 'zastava_101' ? 16 : c.id === 'peugeot_206' ? 10 : 8,
+        c.id === 'pezetka'
+          ? 50
+          : c.id === 'zastava_101'
+            ? 16
+            : c.id === 'peugeot_206'
+              ? 10
+              : 8,
       );
       expect(Math.abs(heading)).toBeLessThan((30 * Math.PI) / 180);
     }

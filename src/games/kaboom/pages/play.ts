@@ -1,3 +1,4 @@
+import '../game/ui-tokens.css';
 import { installThumbnailCapture } from '../../../shared/thumbnail';
 import { KaboomGame } from '../game/kaboom-game';
 import { installMobileGuards } from '../game/ios';

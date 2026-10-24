@@ -75,7 +75,8 @@ describe.each(ALL_CARS.map((c) => c.id))('water %s', (carId) => {
     console.info(
       `[${carId}] into 0.5 m water at ${entry.toFixed(0)} km/h -> ${after.toFixed(0)} km/h after 2 s (depth ${v.waterDepth.toFixed(2)} m, engine ${(v.engineWater * 100).toFixed(0)}%, min up.y ${minUp.toFixed(2)})`,
     );
-    expect(entry).toBeGreaterThan(60);
+    // The 23 hp 126p only gets to ~45 km/h in the 60 m run-up.
+    expect(entry).toBeGreaterThan(carId === 'pezetka' ? 35 : 60);
     expect(after).toBeLessThan(entry * 0.5);
     expect(v.waterDepth).toBeGreaterThan(0.3);
     expect(minUp).toBeGreaterThan(0.7);

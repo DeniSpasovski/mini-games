@@ -2,6 +2,7 @@ import { CornerSuspension } from './corner-suspension';
 import {
   AxesHelper,
   BackSide,
+  Box3,
   BoxGeometry,
   BufferGeometry,
   CanvasTexture,
@@ -20,6 +21,7 @@ import {
   MeshStandardMaterial,
   Path,
   Quaternion,
+  Ray,
   RepeatWrapping,
   Shape,
   SRGBColorSpace,
@@ -49,8 +51,19 @@ import {
 } from './stl-wheel';
 import { buildTyre, rimRadius } from './tyre-mesh';
 import { LampHalos } from './lamp-halo';
-import { splitBootLamp, splitCentreLamp } from './lamp-islands';
-import { type LampNight, partMaterial } from './part-materials';
+import {
+  splitBootLamp,
+  splitCentreLamp,
+  splitLampPieces,
+  splitLampTriangles,
+  weld,
+} from './lamp-islands';
+import {
+  bulbScatter,
+  headLampOf,
+  type LampNight,
+  partMaterial,
+} from './part-materials';
 import {
   badgeMaterial,
   buildBadgeGeometry,
@@ -58,6 +71,7 @@ import {
   type RallyBadge,
 } from './rally-badge';
 import type { CarAtlas, CarDef } from './types';
+import { carEnv } from '../../engine/world-shading';
 
 /**
  * Car model built from CarDef.model.
@@ -363,6 +377,30 @@ const TAIL_NIGHT_GLOW = 1;
 const HALO_IDLE = 0.11;
 const HALO_BRAKE_NIGHT = 0.26;
 const HALO_BRAKE_DAY = 0;
+/** Halo strength round the head lamps with the lights fully on (night). */
+const HALO_HEAD = 1.1;
+/** How far (m) a chrome piece's centre may sit outside the profile's lamp box and still be a head lamp bowl (`gltf.headBowls`). */
+const BOWL_SLACK = 0.03;
+/** A piece is a listed bulb (`gltf.headBulbs`) when its centre is this close (m) and it is no bigger than `BULB_SIZE`. */
+const BULB_NEAR = 0.025;
+/** How far (m) a lit reflector bowl's glow spreads from its bulbs (`bulbScatter`). */
+const SCATTER_RADIUS = 0.07;
+/** A lit lamp part's added bulb glow (`gltf.headScatter`), as a share of its own full glow. */
+const SCATTER_ADD = 0.12;
+const BULB_SIZE = 0.105;
+/** A head lamp sheet piece whose centre is this far (m) behind the lamps' front is a side repeater / mirror lamp (`splitHeadExtras`). */
+const EXTRA_BEHIND = 0.4;
+/** A head lamp sheet piece wholly this far (m) below the main lamp is a fog lamp (`splitHeadExtras`). */
+const EXTRA_BELOW = 0.02;
+/** Halo colour of a car without its own `headlights` def (`DEFAULT_HEADLIGHTS` in game/headlights.ts). */
+const HEAD_HALO_COLOR = 0xfff1cf;
+
+/** Where a car's head lamps are, in car-root space: x = half their spacing, y = their height, z = their front face. */
+export interface HeadlampMount {
+  x: number;
+  y: number;
+  z: number;
+}
 /** Halo of a reversing lens (`LampHalos` `reverse`) by day and at night. */
 const HALO_REVERSE_DAY = 0.1;
 const HALO_REVERSE_NIGHT = 0.2;
@@ -374,6 +412,7 @@ const RECESS_SHADE = 0.12;
 /** Imported-model parts that never cast a shadow (hidden by the body's own shadow or too small to show). */
 const NO_SHADOW_PARTS = new Set([
   'interior',
+  'interiorgrey',
   'cage',
   'glass',
   'lamphousing',
@@ -415,6 +454,12 @@ export class CarModel {
   private halos?: LampHalos;
   private reverseHalos?: LampHalos;
   private haloBuild = 0;
+  /** Glow round the head lamps (`collectLamps`), lit by `setLamps`. */
+  private headHalos?: LampHalos;
+  private headBuild = 0;
+  /** The modelled head lamps' position (once they are known), see `onHeadlamps`. */
+  headlampMount: HeadlampMount | null = null;
+  private headlampListeners: ((m: HeadlampMount) => void)[] = [];
   /** Lights on (night): headlamps glow, tail lamps keep a steady glow under the brake light. */
   /** 0..1 lights level (`setLamps`). */
   private lampsOn = 0;
@@ -517,6 +562,9 @@ export class CarModel {
       this.addMesh(g.cage, cageMat),
       this.addMesh(g.lining, liningMat, false),
       ...(g.chrome ? [this.addMesh(g.chrome, chromeMat)] : []),
+      ...(g.headReflector
+        ? [this.addMesh(g.headReflector, partMaterial('headchrome')!)]
+        : []),
       ...(g.lens ? [this.addMesh(g.lens, lensMat, false)] : []),
       ...(g.redReflector
         ? [this.addMesh(g.redReflector, redReflectorMat)]
@@ -608,6 +656,7 @@ export class CarModel {
                     ? (recess ??= this.recessMaterial(mat))
                     : partMaterial(name);
                 // A car with its own glass tint (and a modelled cockpit) gets see-through windows.
+                mesh.userData.partName = name;
                 mesh.material =
                   name === 'glass' && def.model.glass
                     ? carGlass
@@ -763,6 +812,14 @@ export class CarModel {
     this.debug.visible = false;
     this.root.add(this.debug);
     this.buildDebug();
+    // Paint, glass and chrome reflect at their own envMapIntensity (engine/world-shading.ts `carEnv`).
+    const flag = () =>
+      this.root.traverse((o) => {
+        const m = (o as Mesh).material;
+        if (m) for (const x of Array.isArray(m) ? m : [m]) carEnv(x);
+      });
+    flag();
+    void this.ready.then(flag);
   }
 
   /**
@@ -779,6 +836,7 @@ export class CarModel {
       if (this.disposed || this.badgeKey !== key) return;
       this.clearBadge();
       const mat = badgeMaterial(badge);
+      carEnv(mat);
       for (const side of [1, -1] as const) {
         const g = buildBadgeGeometry(targets, this.def, side);
         if (!g.getAttribute('position')?.count) {
@@ -1101,7 +1159,12 @@ export class CarModel {
     const own = new Map<Material, MeshStandardMaterial>();
     this.root.updateWorldMatrix(true, true);
     this.splitCentreLamps();
+    this.swapLampParts();
+    this.splitHeadBulbs();
+    this.splitHeadBowls();
+    this.splitHeadExtras();
     const redLamps: Mesh[] = [];
+    const headMeshes: Mesh[] = [];
     this.root.traverse((o) => {
       const mesh = o as Mesh;
       if (!mesh.isMesh) return;
@@ -1115,6 +1178,8 @@ export class CarModel {
       if (m.userData.brakeLamp?.night) {
         redLamps.push(mesh);
       }
+      // Hidden procedural lamps (the fallback body while the model loads) get no halo.
+      if (m.userData.headLamp && mesh.visible) headMeshes.push(mesh);
       if (m.userData.brakeOwner === this) {
         own.set(m, m);
         return;
@@ -1135,8 +1200,58 @@ export class CarModel {
     this.brakeLamps = all.filter((m) => m.userData.brakeLamp);
     this.headLamps = all.filter((m) => m.userData.headLamp);
     this.addHalos(redLamps);
+    this.addHeadHalos(headMeshes);
     this.brakeLevel = -1;
     this.applyHeadLamps();
+  }
+
+  /** Calls `f` with the head lamps' position whenever it is known or changes (the imported model's own lamps). */
+  onHeadlamps(f: (m: HeadlampMount) => void): void {
+    this.headlampListeners.push(f);
+    if (this.headlampMount) f(this.headlampMount);
+  }
+
+  /** The glow in front of the head lamps and where they are (the beam starts there), once their glow maps have loaded. */
+  private addHeadHalos(meshes: Mesh[]): void {
+    this.headHalos?.dispose();
+    this.headHalos = undefined;
+    const build = this.headBuild + 1;
+    this.headBuild = build;
+    if (!meshes.length) return;
+    const loads = meshes
+      .map(
+        (m) =>
+          (m.material as Material).userData.lampLoaded as
+            Promise<unknown> | undefined,
+      )
+      .filter((p) => p);
+    const add = (): void => {
+      if (this.disposed || build !== this.headBuild) return;
+      this.root.updateWorldMatrix(true, true);
+      this.headHalos = new LampHalos(
+        meshes,
+        this.body.matrixWorld.clone().invert(),
+        {
+          front: true,
+          color: this.def.headlights?.color ?? HEAD_HALO_COLOR,
+          bulbs: this.def.model.gltf?.bulbGlares
+            ? this.def.model.gltf.headBulbs
+            : undefined,
+        },
+      );
+      this.body.add(this.headHalos.group);
+      this.applyHeadLamps();
+      const mount = this.headHalos.mount(this.body.matrix);
+      if (mount) {
+        this.headlampMount = mount;
+        for (const f of this.headlampListeners) f(mount);
+      }
+    };
+    if (loads.length)
+      Promise.all(loads)
+        .then(add)
+        .catch(() => {});
+    else add();
   }
 
   /**
@@ -1145,6 +1260,295 @@ export class CarModel {
    * the brake pedal (`brakeOnly`). A car with `gltf.bootLamps` does the same with the inner half of a split tail lamp (on the
    * boot lid): it lights with the brake and white in reverse gear, while only the outer half is the running lamp.
    */
+  /**
+   * `gltf.lampParts`: lamp parts drawn with another part's material. `gltf.lampBody`: the body mesh's triangles behind a
+   * head lamp's cover (the lamp's insides, modelled in the body) become the lamp's black inside instead of paint.
+   */
+  private swapLampParts(): void {
+    const gltf = this.def.model.gltf;
+    if (!gltf?.lampParts && !gltf?.lampBody) return;
+    const cover: Vector3[] = [];
+    const box = new Box3();
+    const bodies: Mesh[] = [];
+    const lamp = this.def.model.profile?.lamps.front;
+    const inLamp = (v: Vector3): boolean =>
+      !!lamp &&
+      v.z > 0 &&
+      Math.abs(v.x) > lamp[0] - BOWL_SLACK &&
+      Math.abs(v.x) < lamp[1] + BOWL_SLACK &&
+      v.y > lamp[2] - BOWL_SLACK &&
+      v.y < lamp[3] + BOWL_SLACK;
+    const toBody = this.body.matrixWorld.clone().invert();
+    this.root.traverse((o) => {
+      const mesh = o as Mesh;
+      if (!mesh.isMesh || !mesh.visible) return;
+      const part = mesh.userData.partName as string;
+      const to = gltf.lampParts?.[part];
+      if (to) {
+        mesh.material = partMaterial(to)!;
+        mesh.userData.partName = to;
+      }
+      if (gltf.lampBody && part === 'body') bodies.push(mesh);
+      // The cover: the lens part, and the cockpit glass part where the model drew some of the lens with it (in the lamp box).
+      if (
+        gltf.lampBody &&
+        (part === 'lenscover' || (part === 'glass' && lamp))
+      ) {
+        const w = weld(mesh, toBody);
+        const p = [new Vector3(), new Vector3(), new Vector3()];
+        for (let t = 0; t < w.count; t++) {
+          for (let c = 0; c < 3; c++) {
+            const k = w.corner(t, c) * 3;
+            p[c].set(w.xyz[k], w.xyz[k + 1], w.xyz[k + 2]);
+          }
+          if (part === 'glass' && !p.every(inLamp)) continue;
+          for (const v of p) {
+            cover.push(v.clone());
+            box.expandByPoint(v);
+          }
+        }
+      }
+    });
+    if (!cover.length) return;
+    // A body triangle is inside the lamp when its cover is ahead of it: straight ahead, or ahead and out / up (the lamp
+    // wraps round the corner of the car).
+    const ray = new Ray();
+    const hit = new Vector3();
+    const dirs = [
+      new Vector3(0, 0, 1),
+      new Vector3(0.6, 0, 0.8),
+      new Vector3(0, 0.6, 0.8),
+    ];
+    const ahead = (o: Vector3): boolean => {
+      // Only near the lamp (the ray test is the real one): beside the cover, anywhere behind it.
+      if (
+        o.x < box.min.x ||
+        o.x > box.max.x ||
+        o.y < box.min.y ||
+        o.y > box.max.y ||
+        o.z > box.max.z
+      )
+        return false;
+      ray.origin.copy(o);
+      return dirs.some((d) => {
+        ray.direction.set(Math.sign(o.x) * d.x, d.y, d.z);
+        for (let i = 0; i < cover.length; i += 3)
+          if (
+            ray.intersectTriangle(
+              cover[i],
+              cover[i + 1],
+              cover[i + 2],
+              false,
+              hit,
+            )
+          )
+            return true;
+        return false;
+      });
+    };
+    // The centre or a corner (pulled a little in) of the triangle: a big wall triangle reaches past the cover's edge.
+    const mid = new Vector3();
+    const p = new Vector3();
+    const behindCover = (a: Vector3, b: Vector3, c: Vector3): boolean => {
+      mid.copy(a).add(b).add(c).divideScalar(3);
+      return (
+        ahead(mid) || [a, b, c].some((v) => ahead(p.copy(v).lerp(mid, 0.1)))
+      );
+    };
+    for (const mesh of bodies) {
+      const inside = splitLampTriangles(mesh, toBody, behindCover, 'lampbody');
+      if (!inside) continue;
+      if (inside !== mesh) this.owned.push(inside.geometry, mesh.geometry);
+      inside.material = partMaterial('lampback')!;
+      inside.userData.partName = 'lamphousing';
+    }
+  }
+
+  /**
+   * `gltf.headBowls`: the chrome reflector bowls of the head lamps get a lamp material, and the cockpit glass over them
+   * (models that share one glass material) the clear lamp cover, so the lit bowl shows through it. With `gltf.headBulbs`
+   * the bowls and the lamp housing keep their own look and glow white from the bulbs out (`bulbScatter`).
+   */
+  private splitHeadBowls(): void {
+    const opt = this.def.model.gltf?.headBowls;
+    const box = opt === true ? this.def.model.profile?.lamps.front : opt;
+    if (!box) return;
+    const [x0, x1, y0, y1] = box;
+    const bulbs = this.def.model.gltf?.headBulbs;
+    const scatter = new Set<string>(
+      bulbs?.length
+        ? (this.def.model.gltf?.headScatter ?? ['chrome', 'lamphousing'])
+        : [],
+    );
+    const toBody = this.body.matrixWorld.clone().invert();
+    const meshes: Mesh[] = [];
+    this.root.traverse((o) => {
+      const mesh = o as Mesh;
+      const part = mesh.userData.partName;
+      if (
+        mesh.isMesh &&
+        mesh.visible &&
+        (part === 'chrome' || part === 'glass' || scatter.has(part)) &&
+        !mesh.userData.bowlChecked
+      )
+        meshes.push(mesh);
+    });
+    const c = new Vector3();
+    for (const mesh of meshes) {
+      mesh.userData.bowlChecked = true;
+      const lamp = splitLampPieces(
+        mesh,
+        toBody,
+        (b) => {
+          b.getCenter(c);
+          const x = Math.abs(c.x);
+          return (
+            c.z > 0 &&
+            x > x0 - BOWL_SLACK &&
+            x < x1 + BOWL_SLACK &&
+            c.y > y0 - BOWL_SLACK &&
+            c.y < y1 + BOWL_SLACK
+          );
+        },
+        'lamp',
+      );
+      if (!lamp) continue;
+      if (lamp !== mesh) this.owned.push(lamp.geometry, mesh.geometry);
+      lamp.userData.bowlChecked = true;
+      const part = mesh.userData.partName as string;
+      if (part === 'glass') lamp.material = partMaterial('lenscover')!;
+      else if (!bulbs?.length || !scatter.has(part))
+        lamp.material = partMaterial('headchrome')!;
+      else {
+        // The bowl glows out from its bulbs (both sides), in the mesh's own space.
+        const toLocal = lamp.matrixWorld
+          .clone()
+          .invert()
+          .multiply(this.body.matrixWorld);
+        const pts = bulbs.flatMap(([x, y, z]) => [
+          new Vector3(x, y, z).applyMatrix4(toLocal),
+          new Vector3(-x, y, z).applyMatrix4(toLocal),
+        ]);
+        // The part keeps its own day look (chrome bowl, the housing's lens texture) and glows white with the lights on; a
+        // part that is already a lit lamp (an LED ring, a lamp sheet) keeps its own glow and gains the bulbs' on top.
+        const own = lamp.material as MeshStandardMaterial;
+        // The radius in the mesh's own units (a model scaled at import).
+        const r = SCATTER_RADIUS * toLocal.getMaxScaleOnAxis();
+        const m = own.userData.headLamp
+          ? bulbScatter(own.clone(), pts, r, SCATTER_ADD)
+          : bulbScatter(headLampOf(own), pts, r);
+        const level = this.def.model.gltf?.scatterLevel;
+        if (level) (m.userData.headLamp as { on: number }).on *= level;
+        this.owned.push(m);
+        lamp.material = m;
+      }
+    }
+  }
+
+  /**
+   * `gltf.headBulbs`: the model's pieces (chrome, lamp housing) round each listed bulb are the bulb / projector lens, lit
+   * with the headlights; the rest of the lamp keeps its own material.
+   */
+  private splitHeadBulbs(): void {
+    const bulbs = this.def.model.gltf?.headBulbs;
+    if (!bulbs?.length) return;
+    const toBody = this.body.matrixWorld.clone().invert();
+    const meshes: Mesh[] = [];
+    this.root.traverse((o) => {
+      const mesh = o as Mesh;
+      const part = mesh.userData.partName;
+      if (
+        mesh.isMesh &&
+        mesh.visible &&
+        (part === 'chrome' || part === 'lamphousing') &&
+        !mesh.userData.bulbChecked
+      )
+        meshes.push(mesh);
+    });
+    const c = new Vector3();
+    const size = new Vector3();
+    for (const mesh of meshes) {
+      mesh.userData.bulbChecked = true;
+      const lit = splitLampPieces(
+        mesh,
+        toBody,
+        (b) => {
+          b.getCenter(c);
+          const r = Math.max(...b.getSize(size).toArray());
+          return (
+            r < BULB_SIZE &&
+            bulbs.some(
+              ([x, y, z]) =>
+                Math.hypot(Math.abs(c.x) - x, c.y - y, c.z - z) < BULB_NEAR,
+            )
+          );
+        },
+        'bulb',
+      );
+      if (!lit) continue;
+      if (lit !== mesh) this.owned.push(lit.geometry, mesh.geometry);
+      lit.userData.bulbChecked = lit.userData.extrasChecked = true;
+      lit.material = partMaterial('headbulb')!;
+    }
+  }
+
+  /**
+   * Pieces of an imported model's head lamp sheets that are not the head lamps: side repeaters and mirror lamps (well behind
+   * the lamps' front) and fog lamps (wholly below the main lamp) keep the sheet's day look but stay dark with the lights on.
+   */
+  private splitHeadExtras(): void {
+    if (!this.def.model.gltf) return;
+    const toBody = this.body.matrixWorld.clone().invert();
+    const meshes: Mesh[] = [];
+    this.root.traverse((o) => {
+      const mesh = o as Mesh;
+      const m = mesh.isMesh && (mesh.material as Material);
+      if (
+        m &&
+        m.userData.headLamp &&
+        mesh.visible &&
+        !mesh.userData.extrasChecked
+      )
+        meshes.push(mesh);
+    });
+    if (!meshes.length) return;
+    // First pass: every piece's box, for the main lamp (the biggest piece) and the foremost lamp face.
+    const boxes: Box3[] = [];
+    for (const mesh of meshes)
+      splitLampPieces(mesh, toBody, (b) => (boxes.push(b.clone()), false), '');
+    const size = new Vector3();
+    let main: Box3 | undefined;
+    let mainArea = 0;
+    let front = -Infinity;
+    for (const b of boxes) {
+      b.getSize(size);
+      if (size.x * size.y > mainArea) [main, mainArea] = [b, size.x * size.y];
+      front = Math.max(front, b.max.z);
+    }
+    if (!main) return;
+    const bottom = main.min.y;
+    const c = new Vector3();
+    for (const mesh of meshes) {
+      mesh.userData.extrasChecked = true;
+      const extra = splitLampPieces(
+        mesh,
+        toBody,
+        (b) =>
+          b.getCenter(c).z < front - EXTRA_BEHIND ||
+          b.max.y < bottom - EXTRA_BELOW,
+        'extra',
+      );
+      if (!extra) continue;
+      if (extra !== mesh) this.owned.push(extra.geometry, mesh.geometry);
+      extra.userData.extrasChecked = true;
+      const dark = (mesh.material as MeshStandardMaterial).clone();
+      dark.userData = { ...dark.userData };
+      delete dark.userData.headLamp;
+      this.owned.push(dark);
+      extra.material = dark;
+    }
+  }
+
   private splitCentreLamps(): void {
     const toBody = this.body.matrixWorld.clone().invert();
     const bootX = this.def.model.gltf?.bootLamps;
@@ -1247,7 +1651,7 @@ export class CarModel {
         this.reverseHalos = new LampHalos(
           white,
           this.body.matrixWorld.clone().invert(),
-          true,
+          { reverse: true },
         );
         this.body.add(this.reverseHalos.group);
       }
@@ -1278,6 +1682,7 @@ export class CarModel {
       const { off, on } = m.userData.headLamp as { off: number; on: number };
       m.emissiveIntensity = off + (on - off) * this.lampsOn;
     }
+    this.headHalos?.setLevel(HALO_HEAD * this.lampsOn, 0);
   }
 
   /** Lights on / off (night): headlamps glow, tail lamps stay lit (brake light still brighter). */
@@ -1349,6 +1754,8 @@ export class CarModel {
   dispose(): void {
     this.disposed = true;
     this.halos?.dispose();
+    this.headHalos?.dispose();
+    this.headlampListeners = [];
     this.reverseHalos?.dispose();
     for (const g of this.wheelGroups) for (const geo of g.geoms) geo.dispose();
     this.clearBadge();

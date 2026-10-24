@@ -12,6 +12,7 @@ import { getTexture } from '../engine/textures';
 import { ISLAND_KERB } from './plazas';
 import { newPathQuery } from './real-data';
 import { STREET_KINDS } from './street-detail';
+import { farShadowCaster } from './far-shadow';
 import type { World } from './world';
 
 /** Longest triangle edge of the plaza surface (m): it follows the slab top's slope. */
@@ -531,6 +532,7 @@ function* islandMeshes(world: World): Generator<void, Mesh[]> {
     );
     m.receiveShadow = true;
     m.castShadow = true;
+    farShadowCaster(m);
     m.matrixAutoUpdate = false;
     out.push(m);
   }

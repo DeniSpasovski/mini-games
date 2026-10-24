@@ -23,6 +23,7 @@ import { getRoadMaterial, pathTexture, texLength } from './road-mesh';
 import { STREET_KINDS } from './street-detail';
 import { DECK_DEPTH, UNDERPASS_WALL } from './terrain-gen';
 import { TWIN_OVERLAP, twinAt } from './twin-decks';
+import { farShadowCaster } from './far-shadow';
 import type { World } from './world';
 
 /**
@@ -245,6 +246,7 @@ export class Builder {
     g.computeBoundingSphere();
     const m = new Mesh(g, mat);
     m.castShadow = true;
+    farShadowCaster(m);
     m.receiveShadow = true;
     m.matrixAutoUpdate = false;
     return m;

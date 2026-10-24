@@ -7,6 +7,7 @@ import {
 } from 'three';
 import { hash3, Rng } from '../../../shared/rng';
 import { FACADE_DEFS, type FacadeId } from './facade-textures';
+import { drawTuftSheet } from './grass';
 import { LOT_DEFS, type LotTextureId } from './lot-textures';
 import {
   drawPeopleAtlas,
@@ -95,9 +96,9 @@ const TEXT_TEXTURES = new Set<TextureId>([
   'lot_sign_station',
 ]);
 
-/** Whether a worker may draw this texture (engine/texture-prefetch.ts). */
+/** Whether a worker may draw this texture (engine/texture-prefetch.ts): not text, and not the facades (they draw decoded scans). */
 export const drawableInWorker = (id: TextureId): boolean =>
-  !TEXT_TEXTURES.has(id);
+  !TEXT_TEXTURES.has(id) && !(id in FACADE_DEFS);
 
 export const textureSize = (id: TextureId): [number, number] => DEFS[id].size;
 
@@ -292,42 +293,6 @@ function stones(
       );
       ctx.fill();
     });
-  }
-}
-
-/** Alpha grass blades (bottom = root colour, top = tip colour), optional seed heads. */
-function grassBlades(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  seed: number,
-  root: RGB,
-  tip: RGB,
-  heads: boolean,
-): void {
-  ctx.clearRect(0, 0, w, h);
-  const rng = new Rng(seed);
-  for (let i = 0; i < 110; i++) {
-    const x = rng.range(0.08, 0.92) * w;
-    const top = rng.range(0.05, 0.6) * h;
-    const bend = rng.range(-18, 18);
-    const l = rng.range(0.7, 1.25);
-    const g = ctx.createLinearGradient(0, h, 0, top);
-    g.addColorStop(0, `rgb(${root[0] * l},${root[1] * l},${root[2] * l})`);
-    g.addColorStop(1, `rgb(${tip[0] * l},${tip[1] * l},${tip[2] * l})`);
-    ctx.fillStyle = g;
-    const bw = rng.range(2, 4.5);
-    ctx.beginPath();
-    ctx.moveTo(x - bw, h);
-    ctx.quadraticCurveTo(x + bend * 0.3, (h + top) / 2, x + bend, top);
-    ctx.quadraticCurveTo(x + bend * 0.3 + bw * 0.3, (h + top) / 2, x + bw, h);
-    ctx.fill();
-    if (heads && rng.chance(0.35)) {
-      ctx.fillStyle = `rgb(${tip[0] * l},${tip[1] * l * 0.95},${tip[2] * l * 0.85})`;
-      ctx.beginPath();
-      ctx.ellipse(x + bend, top + 4, 2.2, 7, bend * 0.02, 0, Math.PI * 2);
-      ctx.fill();
-    }
   }
 }
 
@@ -1304,28 +1269,29 @@ const DEFS: Record<TextureId, TexDef> = {
       );
     },
   },
+  // Preview only (asset-debug): the game uses engine/grass.ts `grassSheet` (same drawing, coverage mipmaps).
   grass_card: {
     name: 'Grass card (alpha)',
-    size: [256, 128],
+    size: [512, 256],
     color: true,
     draw(ctx, w, h) {
-      grassBlades(ctx, w, h, 81, [40, 52, 22], [130, 140, 70], false);
+      drawTuftSheet(ctx, w, h, 'green');
     },
   },
   grass_card_dry: {
     name: 'Dry grass card (alpha)',
-    size: [256, 128],
+    size: [512, 256],
     color: true,
     draw(ctx, w, h) {
-      grassBlades(ctx, w, h, 82, [96, 78, 44], [232, 208, 150], true);
+      drawTuftSheet(ctx, w, h, 'dry');
     },
   },
   grass_card_spring: {
     name: 'Spring grass card (alpha)',
-    size: [256, 128],
+    size: [512, 256],
     color: true,
     draw(ctx, w, h) {
-      grassBlades(ctx, w, h, 83, [74, 112, 34], [150, 192, 76], false);
+      drawTuftSheet(ctx, w, h, 'spring');
     },
   },
   bark_pine: {

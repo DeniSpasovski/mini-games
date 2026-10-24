@@ -424,6 +424,20 @@ function pyramidRoof(
       [0, -1, 0],
       (p) => [p[0], p[2]],
     );
+    // The eave edge, so the roof is a slab.
+    const out: V3 = [(a[0] + b[0]) / 2 - c[0], 0, (a[1] + b[1]) / 2 - c[1]];
+    l.fan(
+      'paint',
+      [
+        [a[0], y0, a[1]],
+        [b[0], y0, b[1]],
+        [b[0], y0 - 0.1, b[1]],
+        [a[0], y0 - 0.1, a[1]],
+      ],
+      under,
+      out,
+      () => [0, 0],
+    );
   }
 }
 

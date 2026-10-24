@@ -67,14 +67,15 @@ into `DETAILS.md`, never up.
 
 - `README.md` / `DETAILS.md` - portal; `THIRD-PARTY.md` - every third-party source + licence status (keep current)
 - `src/site.config.ts` - allowed hosts (domain lock), owner, portal tagline
+- Portal: `src/portal/STYLEGUIDE.md` (home page look: tokens, type, covers; read before portal UI work); each game's `game.json` brings `accent` / `onAccent` and a `wordmark.svg`
 - Games live in `src/games/<id>/`, registered only by `game.json` (auto-discovered). Default engine: three.js.
-- Rally: `DETAILS.md` (architecture, URLs, keys, menus, roadmap), `PHYSICS.md` (model, tuning, tyres, suspension), `TASKS.md`
+- Rally: `STYLEGUIDE.md` (UI look: tokens, type, components; read before UI work), `DETAILS.md` (architecture, URLs, keys, menus, roadmap), `PHYSICS.md` (model, tuning, tyres, suspension), `TASKS.md`
   (open work, local)
 - Rally maps: `maps/<id>/` = `info.ts` (menus, credits), `map.ts` (the world), `stages.ts` (its stages), baked data, README; local-only DETAILS (every source) +
   `TODO.md`; `maps/shared/` = format + helpers
 - Rally cars: `cars/<car>/` = `<car>.ts`, README, local-only DETAILS (build notes + sources); `cars/shared/` = code for every car
-- 3, 2, 1 Kabooom (`src/games/kaboom/`): `DETAILS.md` (rules, bots, architecture, performance, contract in `sim/types.ts`), `TASKS.md` (open work, local)
-- Hole Island: `src/games/hole/DETAILS.md` (rules, levels, tiers, catalog, generator, debug, architecture), `TASKS.md`,
+- 3, 2, 1 Kabooom (`src/games/kaboom/`): `STYLEGUIDE.md` (UI look: tokens, type, components; read before UI work), `DETAILS.md` (rules, bots, architecture, performance, contract in `sim/types.ts`), `TASKS.md` (open work, local)
+- Hole Island: `src/games/hole/STYLEGUIDE.md` (UI look: tokens, type, components; read before UI work), `DETAILS.md` (rules, levels, tiers, catalog, generator, debug, architecture), `TASKS.md`,
   `TOY-STORE.md`, `ANIMAL-ISLAND.md`, `CONSTRUCTION-SITE.md` (map design, roster, open tasks)
 - `sources/cars/<car>/`, `sources/maps/<map>/` - files the user shared, git-ignored, never served. Models / data / licence files
   get a row in that folder's `DETAILS.md`; reference photos only in the local `NOTES.md`.
@@ -87,8 +88,13 @@ into `DETAILS.md`, never up.
   the GLB import steps (`glb-to-parts-stl.py`, `glb-orient.py`, `glb-src-parts.py` ...) are in the `rally-car-import` skill; the street-car
   and truck bakes (`street-pack-extract.py`, `bake-street-textures.py`, `bake-street-cars.mjs`, `bake-fire-trucks.mjs`, `bake-trucks.mjs`) are in rally `DETAILS.md`
 - `scripts/asphalt/`: `bake.mjs` + `gen.js` (the baked road asphalt tiles, `src/games/rally/engine/asphalt/`; `DETAILS.md` -> Road textures)
+- `scripts/portal/wordmarks.py`: a title in a font -> white outlined `wordmark.svg` (portal header and the game covers; usage in its header);
+  `og-image.mjs`: retakes the portal's 1200x630 link preview `public/og-image.jpg` (dev server running)
+- `scripts/ground/bake.py`: the rally terrain tiles (`engine/ground/*.webp`) from Poly Haven scans (ids and tuning in the script)
+- `scripts/facades/bake.py`: the wall and roof tiles of the rally buildings (`engine/facades/*.webp`) from Poly Haven scans (ids and tuning in the script)
 - `scripts/people/`: `extract-base.py` (a base body GLB -> json with the face uv), `skin-map.py` (paints the face onto the skin map), `bake-base.mjs`
   (simplifies, packs both bodies into `engine/people-base.data.ts`; run order in its header)
+- `scripts/crops/bake-crops.py` - the CC BY wheat / corn models (`sources/maps/ajvatovci/`) -> rally `crop-models.data.ts`
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
   `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `plaza_islands.py` (city junction
   `junction.json`), `trace_route.py` (road parts OSM lacks, from a route screenshot), `dem_stream.py` (a stream OSM lacks, from

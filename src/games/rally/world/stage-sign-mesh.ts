@@ -32,6 +32,7 @@ import {
   type BoardPlan,
   type GantryPlan,
 } from './stage-signs';
+import { farShadowCaster } from './far-shadow';
 import type { World } from './world';
 
 /**
@@ -324,6 +325,7 @@ function board(b: BoardPlan): {
 
 function shadowed(m: Mesh): Mesh {
   m.castShadow = true;
+  farShadowCaster(m);
   m.receiveShadow = true;
   m.matrixAutoUpdate = false;
   return m;

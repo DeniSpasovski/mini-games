@@ -20,13 +20,36 @@ export function installThumbnailCapture(
   });
 }
 
+/**
+ * Saves `thumbnail.jpg` (1280x720) and `thumbnail-640.jpg` (640x360): the portal cover's srcset picks one by screen
+ * width and pixel density. The centre of the canvas is cropped to 16:9.
+ */
 export async function saveThumbnail(
   gameId: string,
   source: HTMLCanvasElement,
 ): Promise<string> {
-  // Downscale to 16:9 640px wide to keep the portal light.
-  const w = 640;
-  const h = 360;
+  // Both sizes before the first await: a WebGL canvas is cleared after this task.
+  const files = [
+    { query: '', data: thumbnailJpeg(source, 1280, 0.82) },
+    { query: '&size=640', data: thumbnailJpeg(source, 640, 0.85) },
+  ];
+  const results: string[] = [];
+  for (const f of files) {
+    const r = await fetch(
+      `/__dev/thumbnail?game=${encodeURIComponent(gameId)}${f.query}`,
+      { method: 'POST', body: f.data },
+    );
+    results.push(await r.text());
+  }
+  return results.join(', ');
+}
+
+function thumbnailJpeg(
+  source: HTMLCanvasElement,
+  w: number,
+  quality: number,
+): string {
+  const h = (w * 9) / 16;
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
@@ -48,12 +71,7 @@ export async function saveThumbnail(
     w,
     h,
   );
-  const data = c.toDataURL('image/jpeg', 0.85);
-  const r = await fetch(`/__dev/thumbnail?game=${encodeURIComponent(gameId)}`, {
-    method: 'POST',
-    body: data,
-  });
-  return r.text();
+  return c.toDataURL('image/jpeg', quality);
 }
 
 /**

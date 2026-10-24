@@ -1,21 +1,38 @@
-/* --- main menu (game/menu.ts) + options form (also used in the pause menu) --- */
+/* --- main menu (game/menu.ts) + options form (also used in the pause menu) ---
+   "Stage Board" look: a dark slab with a diagonal right edge, condensed italic type, one 10deg slant for buttons /
+   chips / plates (a skewed ::before behind upright text). Colours, fonts and the slant come from ui-tokens.css. */
 .menu-root {
   position: absolute;
   inset: 0;
   z-index: 40;
-  color: #eee;
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: var(--ui-text);
+  font-family: var(--ui-font-body);
+  font-weight: 500;
 }
 .menu-bg {
   position: absolute;
   inset: 0;
+}
+/* The glass behind the panel: its right edge leans like the slanted buttons. The panel scrolls, the slab does not. */
+.menu-slab {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: min(526px, 100%);
+  background: var(--ui-glass);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 56px) 100%, 0 100%);
+  pointer-events: none;
+}
+.menu-root[data-screen='about'] .menu-slab {
+  width: min(616px, 100%);
 }
 .menu-panel {
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  width: min(440px, 100%);
+  width: min(470px, 100%);
   box-sizing: border-box;
   padding: 40px 32px 24px;
   display: flex;
@@ -24,12 +41,8 @@
   overflow-y: auto;
   /* scrollIntoView keeps its target clear of the sticky button row */
   scroll-padding-bottom: 90px;
-  background: linear-gradient(
-    90deg,
-    rgba(8, 10, 14, 0.92) 0%,
-    rgba(8, 10, 14, 0.8) 75%,
-    rgba(8, 10, 14, 0) 100%
-  );
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-line) transparent;
 }
 .menu-panel[data-screen='welcome'] {
   justify-content: center;
@@ -39,21 +52,21 @@
   margin-bottom: 18px;
 }
 .menu-title {
-  font:
-    800 64px/0.92 Impact,
-    'Arial Black',
-    sans-serif;
-  letter-spacing: 3px;
+  font: italic 800 80px/0.86 var(--ui-font-display);
+  letter-spacing: -0.01em;
   text-transform: uppercase;
-  text-shadow: 0 3px 18px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 3px 18px rgb(0 0 0 / 0.5);
 }
-.menu-title::first-line {
-  color: #f0a020;
+.menu-title span {
+  display: block;
+  color: var(--ui-accent);
 }
 .menu-tagline {
-  margin-top: 10px;
-  color: #aab3bf;
-  font-size: 14px;
+  margin-top: 12px;
+  color: var(--ui-text-2);
+  font: 500 14px/1.3 var(--ui-font-display);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
 }
 .menu-version {
   /* game.json version, bottom left over every menu screen (in the panel's bottom padding) */
@@ -61,8 +74,8 @@
   left: 10px;
   bottom: 6px;
   z-index: 3;
-  font-size: 11px;
-  color: #6f7986;
+  font-size: 12px;
+  color: var(--ui-text-off);
   pointer-events: none;
 }
 .menu-now-playing {
@@ -73,10 +86,10 @@
   z-index: 3;
   max-width: 60vw;
   padding: 5px 10px;
-  border-radius: 14px;
-  background: rgba(0, 0, 0, 0.45);
-  font-size: 12px;
-  color: #cfd6de;
+  border-radius: var(--ui-radius);
+  background: rgb(0 0 0 / 0.45);
+  font-size: 13px;
+  color: var(--ui-text-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -84,24 +97,56 @@
 }
 .menu-foot {
   margin-top: 18px;
-  font-size: 12px;
-  color: #6f7986;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ui-text-off);
+}
+
+/* Step pips (Stage / Car / Go) under the title of the flow screens and at the foot of the welcome slab. */
+.menu-steps {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font: 600 13px/1 var(--ui-font-display);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ui-text-2);
+}
+.menu-steps i {
+  width: 28px;
+  height: 5px;
+  background: var(--ui-line);
+  transform: skewX(-30deg);
+}
+.menu-steps i.on {
+  background: var(--ui-accent);
+}
+.menu-steps span {
+  margin-left: 7px;
+}
+.menu-panel[data-screen='welcome'] .menu-steps {
+  margin-top: 6px;
 }
 
 .menu-header h1 {
   margin: 0;
-  font:
-    800 32px/1 Impact,
-    'Arial Black',
-    sans-serif;
-  letter-spacing: 2px;
+  font: italic 800 44px/1 var(--ui-font-display);
+  letter-spacing: 0.01em;
   text-transform: uppercase;
 }
-.menu-header div {
+.menu-header .menu-steps {
+  margin-top: 8px;
+  color: var(--ui-accent);
+}
+.menu-header .menu-steps i {
+  width: 24px;
+  height: 4px;
+}
+.menu-header div:not(.menu-steps) {
   margin-top: 6px;
-  color: #f0a020;
-  font-size: 12px;
-  letter-spacing: 1px;
+  color: var(--ui-accent);
+  font: 600 13px/1 var(--ui-font-display);
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
@@ -113,60 +158,101 @@
 .menu-list.compact {
   gap: 6px;
 }
+/* Buttons, cards and chips: the fill is a skewed ::before, so the text and the focus state stay upright. */
 .menu-btn,
 .menu-card,
 .menu-seg button {
+  position: relative;
+  isolation: isolate;
   font: inherit;
-  color: #eee;
-  background: rgba(34, 40, 48, 0.85);
-  border: 1px solid #333b46;
-  border-radius: 6px;
+  color: var(--ui-text);
+  background: none;
+  border: 0;
+  border-radius: 0;
   cursor: pointer;
   text-align: left;
   text-decoration: none;
   outline: none;
 }
+.menu-btn::before,
+.menu-card::before,
+.menu-seg button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--ui-raised);
+  border-left: 4px solid transparent;
+  transform: skewX(var(--ui-slant));
+  transition:
+    background var(--ui-move),
+    border-color var(--ui-move);
+}
 .menu-btn {
-  padding: 10px 14px;
-  font-size: 15px;
+  padding: 11px 22px;
+  font: 700 21px/1.1 var(--ui-font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 .menu-btn.big {
-  padding: 14px 18px;
-  font-size: 19px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
+  padding: 14px 22px;
+  font-size: 26px;
+}
+.menu-btn.big kbd {
+  float: right;
+  margin-top: 4px;
+  padding: 3px 6px;
+  border: 1px solid currentColor;
+  border-radius: var(--ui-radius);
+  font: 600 11px/1 var(--ui-font-body);
+  letter-spacing: 0.04em;
+  text-transform: none;
+  opacity: 0.7;
+}
+html.touch .menu-btn.big kbd {
+  display: none;
 }
 .menu-btn.small {
-  padding: 2px 10px;
+  padding: 3px 14px;
+  font-size: 17px;
 }
-.menu-btn:hover,
-.menu-btn:focus-visible,
-.menu-card:hover,
-.menu-card:focus-visible,
-.menu-seg button:hover,
-.menu-seg button:focus-visible {
-  border-color: #f0a020;
+.menu-btn:hover::before,
+.menu-btn:focus-visible::before,
+.menu-card:hover::before,
+.menu-card:focus-visible::before,
+.menu-seg button:hover::before,
+.menu-seg button:focus-visible::before {
+  background: var(--ui-raised-hover);
+  border-left-color: var(--ui-accent);
+}
+.menu-btn.primary::before,
+.menu-btn.big[data-primary]::before {
+  background: var(--ui-accent);
+  border-left-color: var(--ui-text);
 }
 .menu-btn.primary,
 .menu-btn.big[data-primary] {
-  background: #f0a020;
-  border-color: #f0a020;
-  color: #111;
-  font-weight: 600;
+  color: var(--ui-on-accent);
 }
-.menu-btn.primary:focus-visible,
-.menu-btn.big[data-primary]:focus-visible {
-  box-shadow: 0 0 0 2px #fff;
+.menu-btn.primary:hover::before,
+.menu-btn.big[data-primary]:hover::before {
+  background: var(--ui-accent);
+  filter: brightness(1.08);
 }
-.menu-btn.selected,
-.menu-card.selected {
-  border-color: #f0a020;
-  background: rgba(240, 160, 32, 0.14);
+.menu-btn:focus-visible::before,
+.menu-card:focus-visible::before,
+.menu-seg button:focus-visible::before {
+  box-shadow: 0 0 0 2px var(--ui-text);
+}
+.menu-btn.selected::before,
+.menu-card.selected::before {
+  border-left-color: var(--ui-accent);
+  background: rgb(var(--ui-accent-rgb) / 0.2);
 }
 
 .menu-buttons {
   display: flex;
-  gap: 10px;
+  gap: 14px;
   margin-top: auto;
   padding-top: 8px;
   /* action row stays in view; only the content above it scrolls (panel is the scroller) */
@@ -175,15 +261,21 @@
   z-index: 2;
   padding-bottom: 32px; /* room for the version / now-playing labels under the buttons */
   margin-bottom: -24px;
+  /* opaque under the buttons (no list text shows through), fading out above them */
   background: linear-gradient(
     0deg,
-    rgba(8, 10, 14, 0.95) 70%,
-    rgba(8, 10, 14, 0)
+    rgb(var(--ui-glass-rgb)) 70%,
+    rgb(var(--ui-glass-rgb) / 0)
   );
+}
+.menu-buttons .menu-btn:not(.primary)::before {
+  background: var(--ui-raised-solid);
 }
 .menu-buttons .menu-btn {
   flex: 1;
+  font-size: 19px;
   text-align: center;
+  white-space: nowrap;
 }
 
 /* map cards */
@@ -195,14 +287,14 @@
 .menu-card {
   display: flex;
   gap: 16px;
-  padding: 12px;
+  padding: 12px 16px 12px 18px;
   align-items: flex-start;
 }
 .menu-route {
-  flex: 0 0 92px;
-  height: 92px;
-  background: rgba(0, 0, 0, 0.35);
-  border-radius: 4px;
+  flex: 0 0 84px;
+  height: 84px;
+  background: rgb(0 0 0 / 0.35);
+  border-radius: var(--ui-radius);
 }
 .menu-route polyline {
   fill: none;
@@ -210,46 +302,59 @@
   stroke-linecap: round;
 }
 .menu-route .all {
-  stroke: rgba(255, 255, 255, 0.25);
+  stroke: rgb(255 255 255 / 0.25);
   stroke-width: 1.6;
 }
 .menu-route .stage {
-  stroke: #f0a020;
+  stroke: var(--ui-accent);
   stroke-width: 2.6;
 }
 .menu-route .start {
-  fill: #3ddc6a;
+  fill: var(--ui-faster);
 }
 .menu-route .finish {
-  fill: #ff4a3a;
+  fill: var(--ui-penalty);
 }
 .menu-card-body {
+  min-width: 0;
   align-self: stretch;
   display: flex;
   flex-direction: column;
 }
 .menu-card-title {
-  font-size: 17px;
-  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 700 24px/1.1 var(--ui-font-display);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 .menu-tags {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
   margin-top: auto;
   padding-top: 8px;
 }
 .menu-tags span {
-  font-size: 11px;
-  padding: 1px 7px;
-  border: 1px solid #3a434f;
-  border-radius: 3px;
-  color: #cfd6de;
+  font: 600 14px/1.2 var(--ui-font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 8px;
+  white-space: nowrap;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  color: var(--ui-text-2);
 }
 .menu-best {
   margin-top: 6px;
-  font-size: 12px;
-  color: #f0a020;
+  font: 600 15px/1.2 var(--ui-font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+  color: var(--ui-accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* tyre select */
@@ -264,34 +369,34 @@
 }
 .menu-tyre small {
   display: block;
-  font-size: 11px;
-  color: #8b95a3;
+  font-size: 12px;
+  color: var(--ui-text-off);
 }
 .menu-tyre-dot {
   flex: none;
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 4px rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 4px rgb(0 0 0 / 0.35);
 }
+/* Recommended pick: a white hairline chip, no fill (amber = selected, green = faster / good rating). */
 .menu-reco {
-  margin-left: 8px;
-  padding: 0 5px;
-  border-radius: 3px;
-  background: #2f7d4f;
-  color: #fff;
-  font-size: 10px;
+  align-self: flex-start;
+  padding: 2px 7px;
+  border: 1px solid var(--ui-text);
+  border-radius: var(--ui-radius);
+  color: var(--ui-text);
+  font: 700 12px/1.2 var(--ui-font-display);
   font-style: normal;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 .menu-tyre-grip {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 11px;
-  color: #8b95a3;
+  font-size: 12px;
+  color: var(--ui-text-off);
   text-align: right;
 }
 .menu-tyre-grip b {
@@ -301,166 +406,31 @@
   font-weight: 700;
 }
 .menu-tyre-grip .r3 b {
-  color: #5fd08a;
+  color: var(--ui-rate-3);
 }
 .menu-tyre-grip .r2 b {
-  color: #b9d86a;
+  color: var(--ui-rate-2);
 }
 .menu-tyre-grip .r1 b {
-  color: #f0a020;
+  color: var(--ui-rate-1);
 }
 .menu-tyre-grip .r0 b {
-  color: #e0584f;
+  color: var(--ui-rate-0);
 }
 
-.menu-panel[data-screen='setup'] .menu-header {
-  align-self: flex-start;
-  padding: 4px 14px 6px;
-  border-radius: 8px;
-  background: rgba(8, 10, 14, 0.72);
-}
-/* setup screen: two rows of big picker boxes, each a transparent window onto the showroom canvas */
-.menu-panel[data-screen='setup'] .menu-buttons {
-  justify-content: flex-start;
-  gap: 12px;
-}
-.menu-panel[data-screen='setup'] .menu-buttons .menu-btn {
-  flex: none;
-  min-width: 150px;
-  padding: 15px 28px;
-}
-.menu-panel[data-screen='setup'] {
-  width: 100%;
-  padding: 18px 40px 16px;
-  gap: 10px;
-  background: none;
-}
-.menu-row-title {
-  display: flex;
-  align-items: center;
-  padding: 6px 14px;
-  border-radius: 6px;
-  background: rgba(8, 10, 14, 0.72);
-}
-.menu-row-title b {
-  font-size: 20px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #f0a020;
-}
-.menu-row-title small {
-  font-size: 13px;
-  color: #aab3bf;
-}
-/* a section is as wide as its row of fixed-size boxes (room to add more on the right); the active one has an amber edge */
-.setup-section {
-  flex: none;
-  width: fit-content;
-  max-width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.setup-section.active .menu-row-title {
-  box-shadow: inset 4px 0 0 #f0a020;
-}
-.setup-row {
-  display: flex;
-}
-.setup-card {
-  display: flex;
-  flex-direction: column;
-  /* 270 px when the row fits, narrower (five tyres) when it does not */
-  flex: 0 1 270px;
-  min-width: 0;
-  min-height: 0;
-  padding: 0;
-  overflow: hidden;
-  cursor: pointer;
-  font: inherit;
-  color: #eee;
-  text-align: left;
-  border: 2px solid rgba(255, 255, 255, 0.28);
-  border-radius: 10px;
-  /* no background: the .setup-view area is a window onto the 3D canvas behind the panel */
-  background: none;
-}
-.setup-card:hover,
-.setup-card:focus-visible {
-  border-color: #5a6a7c;
-  outline: none;
-}
-.setup-card.selected {
-  border-color: #f0a020;
-  box-shadow:
-    0 0 0 2px rgba(240, 160, 32, 0.3),
-    0 0 26px rgba(240, 160, 32, 0.28);
-}
-.setup-view {
-  flex: none;
-  height: clamp(96px, 16vh, 170px);
-  /* 40% mid-dark grey over the 3D window: lifts the part off the ground, lighter than the main menu darks */
-  background: rgba(60, 66, 76, 0.4);
-}
-.setup-label {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 8px 12px 10px;
-  background: rgba(10, 13, 18, 0.8);
-  backdrop-filter: blur(6px);
-}
-.setup-name {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px 8px;
-  font-size: 16px;
-}
-.setup-label small {
-  font-size: 11px;
-  line-height: 1.3;
-  color: #8b95a3;
-}
-.setup-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px 14px;
-  font-size: 11px;
-  color: #8b95a3;
-}
-.setup-chips b {
-  margin-left: 5px;
-  font-weight: 700;
-  color: #eee;
-}
-.setup-chips .r3 b {
-  color: #5fd08a;
-}
-.setup-chips .r2 b {
-  color: #b9d86a;
-}
-.setup-chips .r1 b {
-  color: #f0a020;
-}
-.setup-chips .r0 b {
-  color: #e0584f;
-}
 .menu-tyre-dot.spring {
-  border-radius: 3px;
+  border-radius: var(--ui-radius);
   width: 10px;
   height: 22px;
-  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.3);
+  box-shadow: inset 0 0 0 2px rgb(0 0 0 / 0.3);
 }
-.setup-chips .bars,
 .menu-tyre-grip .bars {
   letter-spacing: 1px;
-  color: #eee;
+  color: var(--ui-text);
 }
-.setup-chips .bars i,
 .menu-tyre-grip .bars i {
   font-style: normal;
-  color: #3a434f;
+  color: var(--ui-line);
 }
 .menu-range {
   margin-left: auto;
@@ -468,8 +438,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 10px;
-  color: #8b95a3;
+  font-size: 11px;
+  color: var(--ui-text-off);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -477,43 +447,57 @@
   position: relative;
   flex: 1;
   height: 8px;
-  border-radius: 4px;
-  background: linear-gradient(90deg, #f2c230, #f08a24, #e0413a);
+  border-radius: var(--ui-radius);
+  background: linear-gradient(
+    90deg,
+    var(--ui-slower),
+    var(--ui-accent),
+    var(--ui-penalty)
+  );
   opacity: 0.35;
 }
 .menu-range > div i {
   position: absolute;
   top: -2px;
   bottom: -2px;
-  border-radius: 5px;
-  border: 2px solid #fff;
-  background: rgba(255, 255, 255, 0.25);
+  border-radius: var(--ui-radius);
+  border: 2px solid var(--ui-text);
+  background: rgb(255 255 255 / 0.25);
   box-sizing: border-box;
 }
 .menu-range > div {
   opacity: 1;
   background:
-    linear-gradient(90deg, rgba(8, 10, 14, 0.55), rgba(8, 10, 14, 0.55)),
-    linear-gradient(90deg, #f2c230, #f08a24, #e0413a);
+    linear-gradient(
+      90deg,
+      rgb(var(--ui-glass-rgb) / 0.55),
+      rgb(var(--ui-glass-rgb) / 0.55)
+    ),
+    linear-gradient(
+      90deg,
+      var(--ui-slower),
+      var(--ui-accent),
+      var(--ui-penalty)
+    );
   background-blend-mode: normal;
 }
 .menu-setup-line {
   margin-top: 10px;
   padding: 6px 8px;
-  border-left: 3px solid #2f7d4f;
-  background: rgba(47, 125, 79, 0.12);
-  font-size: 12px;
-  color: #cfe9d8;
+  border-left: 3px solid var(--ui-text-2);
+  background: var(--ui-raised);
+  font-size: 13px;
+  color: var(--ui-text-2);
 }
 .menu-setup-line.custom {
-  border-left-color: #f0a020;
-  background: rgba(240, 160, 32, 0.12);
-  color: #f3dcb2;
+  border-left-color: var(--ui-accent);
+  background: rgb(var(--ui-accent-rgb) / 0.12);
+  color: var(--ui-text-2);
 }
 .menu-setup-line em {
   margin-left: 6px;
   font-style: normal;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -525,19 +509,19 @@
   display: inline-block;
   margin-left: 6px;
   padding: 0 5px;
-  border-radius: 3px;
-  background: #d9304f;
-  color: #fff;
-  font-size: 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-test);
+  color: var(--ui-text);
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.06em;
   vertical-align: 2px;
 }
 .menu-specs p.menu-test-note {
   padding: 6px 8px;
-  border-left: 3px solid #d9304f;
-  background: rgba(217, 48, 79, 0.12);
-  color: #f3c3cc;
+  border-left: 3px solid var(--ui-test);
+  background: rgb(224 79 179 / 0.14);
+  color: var(--ui-text-2);
 }
 
 /* car list + specs */
@@ -548,31 +532,29 @@
 }
 .menu-car small {
   display: block;
-  font-size: 11px;
-  color: #8b95a3;
+  font-size: 12px;
+  color: var(--ui-text-off);
 }
 .menu-car-best {
-  font:
-    13px ui-monospace,
-    Consolas,
-    monospace;
-  color: #f0a020;
+  font: 600 15px/1.2 var(--ui-font-display);
+  font-variant-numeric: tabular-nums;
+  color: var(--ui-accent);
 }
 .menu-specs p {
   margin: 0 0 10px;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
-  color: #aab3bf;
+  color: var(--ui-text-2);
 }
 .menu-specs dl {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 4px 16px;
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
 }
 .menu-specs dt {
-  color: #8b95a3;
+  color: var(--ui-text-off);
 }
 .menu-specs dd {
   margin: 0;
@@ -586,8 +568,8 @@
   align-items: center;
   gap: 10px;
   margin-top: 12px;
-  font-size: 13px;
-  color: #8b95a3;
+  font-size: 14px;
+  color: var(--ui-text-off);
 }
 .menu-livery-label {
   margin-left: 8px;
@@ -595,7 +577,7 @@
 .menu-livery b {
   min-width: 20px;
   text-align: center;
-  color: #eee;
+  color: var(--ui-text);
 }
 .menu-number {
   display: flex;
@@ -606,7 +588,7 @@
   min-width: 28px;
   text-align: center;
   font-size: 18px;
-  color: #eee;
+  color: var(--ui-text);
 }
 
 /* options */
@@ -614,38 +596,45 @@
   display: flex;
   flex-direction: column;
   flex: 1;
+  gap: 10px;
 }
 .menu-opt {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 13px;
-  color: #cfd6de;
+  font-size: 14px;
+  color: var(--ui-text-2);
 }
 .menu-opt small {
   margin-left: 8px;
-  font-size: 11px;
-  color: #6f7986;
+  font-size: 12px;
+  color: var(--ui-text-off);
 }
 .menu-seg {
   display: flex;
   gap: 4px;
 }
+.menu-seg {
+  gap: 8px;
+}
 .menu-seg button {
   flex: 1;
   padding: 7px 6px;
-  font-size: 13px;
+  font: 700 16px/1.1 var(--ui-font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   text-align: center;
 }
 .menu-seg button.on {
-  background: #f0a020;
-  border-color: #f0a020;
-  color: #111;
-  font-weight: 600;
+  color: var(--ui-on-accent);
+}
+.menu-seg button.on::before {
+  background: var(--ui-accent);
+  border-left-color: #fff;
 }
 .menu-opt input[type='range'] {
   width: 100%;
-  accent-color: #f0a020;
+  accent-color: var(--ui-accent);
 }
 
 /* pause menu: options inside the overlay box */
@@ -658,27 +647,27 @@
   width: min(560px, 100%);
 }
 .menu-about {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
-  color: #cfd6de;
+  color: var(--ui-text-2);
 }
 .menu-about p {
   margin: 0 0 10px;
 }
 .menu-about .menu-keys b {
-  color: #f0a020;
+  color: var(--ui-accent);
 }
 .menu-about h2 {
   margin: 18px 0 4px;
-  font-size: 12px;
+  font-size: 13px;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: #f0a020;
+  color: var(--ui-accent);
 }
 .menu-about h3 {
   margin: 10px 0 2px;
   font-size: 14px;
-  color: #eee;
+  color: var(--ui-text);
 }
 .menu-about ul {
   margin: 0;
@@ -688,17 +677,17 @@
   margin: 3px 0;
 }
 .menu-about a {
-  color: #7ab8ff;
+  color: var(--ui-link);
 }
 .menu-about small {
   display: block;
-  font-size: 11px;
-  color: #8b95a3;
+  font-size: 12px;
+  color: var(--ui-text-off);
 }
 .menu-none {
   margin: 0;
-  font-size: 12px;
-  color: #8b95a3;
+  font-size: 13px;
+  color: var(--ui-text-off);
 }
 
 /* stage results leaderboard */
@@ -710,83 +699,75 @@
   width: 100%;
   margin-top: 8px;
   border-collapse: collapse;
-  font:
-    13px ui-monospace,
-    Consolas,
-    monospace;
+  font: 600 15px/1.2 var(--ui-font-display);
+  font-variant-numeric: tabular-nums;
 }
 .menu-board td {
   padding: 3px 6px;
-  border-bottom: 1px solid #232a33;
+  border-bottom: 1px solid var(--ui-line);
 }
 .menu-board td:first-child {
-  color: #8b95a3;
+  color: var(--ui-text-off);
   width: 22px;
   white-space: nowrap;
 }
 .menu-board td:last-child {
   text-align: right;
-  color: #8b95a3;
+  color: var(--ui-text-off);
 }
 .menu-board th {
   padding: 2px 6px 6px;
-  font:
-    700 11px system-ui,
-    sans-serif;
+  font: 700 12px/1.2 var(--ui-font-display);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #6f7986;
+  color: var(--ui-text-off);
   text-align: left;
-  border-bottom: 1px solid #2c333d;
+  border-bottom: 1px solid var(--ui-line);
 }
 .menu-board th:last-child {
   text-align: right;
 }
 /* Set-up columns (tyres / suspension / gearing): a quieter sans so the times stay the focus. */
 .menu-board td.set {
-  font:
-    13px system-ui,
-    sans-serif;
-  color: #aab3bf;
+  font: 500 14px/1.3 var(--ui-font-body);
+  color: var(--ui-text-2);
   white-space: nowrap;
 }
 .menu-board tr.me td.set {
-  color: #111;
+  color: var(--ui-on-accent);
 }
 .menu-board .when {
   display: block;
-  font:
-    12px system-ui,
-    sans-serif;
-  color: #8a94a1;
+  font: 500 12px/1.3 var(--ui-font-body);
+  color: var(--ui-text-off);
 }
 .menu-board tr.me .when {
-  color: #4a3206;
+  color: var(--ui-on-accent-2);
 }
 .menu-board tr.sec .when {
   display: inline;
   margin-left: 0.9em;
 }
 .menu-board .na {
-  color: #4b5562;
+  color: var(--ui-text-off);
 }
 .menu-board tr.me .na {
-  color: #5a3d08;
+  color: var(--ui-on-accent-2);
 }
 /* Car column never wraps ("YOU Skoda Rally #1" on the highlighted row). */
 .menu-board tr:not(.sec) td:nth-child(3) {
   white-space: nowrap;
 }
 .menu-board td small {
-  color: #6f7986;
+  color: var(--ui-text-off);
 }
 .menu-board tr.me td {
-  color: #111;
-  background: #f0a020;
+  color: var(--ui-on-accent);
+  background: var(--ui-accent);
   font-weight: 700;
 }
 .menu-board tr.me td small {
-  color: #5a3d08;
+  color: var(--ui-on-accent-2);
 }
 /* sector line under each row: no divider between it and its row */
 .menu-board tr:has(+ tr.sec) td {
@@ -795,12 +776,12 @@
 }
 .menu-board tr.sec td {
   padding-top: 0;
-  font-size: 11px;
-  color: #8b95a3;
+  font-size: 12px;
+  color: var(--ui-text-off);
   text-align: left;
 }
 .menu-board tr.me.sec td {
-  color: #4a3208;
+  color: var(--ui-on-accent-2);
   font-weight: 400;
 }
 .menu-board tr.me:not(.sec) td {
@@ -808,7 +789,7 @@
 }
 .menu-board .pen,
 .yours .pen {
-  color: #ff4a3a;
+  color: var(--ui-penalty);
   font-size: 0.55em;
   font-weight: 600;
 }
@@ -822,22 +803,20 @@
 }
 .menu-sectors div {
   padding: 3px 8px;
-  border-radius: 5px;
-  background: #1c222a;
-  font:
-    13px ui-monospace,
-    Consolas,
-    monospace;
+  border-radius: var(--ui-radius);
+  background: var(--ui-raised);
+  font: 600 15px/1.2 var(--ui-font-display);
+  font-variant-numeric: tabular-nums;
 }
 .menu-sectors .good {
-  color: #3ddc6a;
+  color: var(--ui-rate-3);
 }
 .menu-sectors .bad {
-  color: #ff4a3a;
+  color: var(--ui-penalty);
 }
 .menu-sectors span {
   margin-right: 6px;
-  color: #f0a020;
+  color: var(--ui-accent);
   font-weight: 700;
 }
 .menu-board tr.gap td {
@@ -850,7 +829,7 @@
   overflow-y: auto;
 }
 .menu-about .menu-credit {
-  color: #f0a020;
+  color: var(--ui-accent);
   font-weight: 600;
 }
 
@@ -858,48 +837,53 @@
    :focus-visible, so mark the focused control explicitly. */
 [data-input='pad'] .menu-root :focus,
 [data-input='pad'] .overlay :focus {
-  outline: 2px solid #f0a020;
+  outline: 2px solid var(--ui-accent);
   outline-offset: 2px;
 }
-
-/* Gearing row: a speed-per-gear chart instead of a 3D part (setup screen). */
-.setup-view.gear-view {
-  /* the chart needs less height than a 3D part: keeps the three rows shorter */
-  height: clamp(72px, 11vh, 120px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px 10px;
+/* The slanted buttons draw their focus on the skewed fill instead (an outline would be a straight box).
+   The pause and results overlays sit outside .menu-root and share the same buttons. */
+[data-input='pad'] :is(.menu-root, .overlay) .menu-btn:focus,
+[data-input='pad'] :is(.menu-root, .overlay) .menu-card:focus,
+[data-input='pad'] :is(.menu-root, .overlay) .menu-seg button:focus,
+[data-input='pad'] .menu-root .setup-arrow:focus {
+  outline: none;
 }
+[data-input='pad'] :is(.menu-root, .overlay) .menu-btn:focus::before,
+[data-input='pad'] :is(.menu-root, .overlay) .menu-card:focus::before,
+[data-input='pad'] :is(.menu-root, .overlay) .menu-seg button:focus::before,
+[data-input='pad'] .menu-root .setup-arrow:focus::before {
+  border-left-color: var(--ui-accent);
+  box-shadow: 0 0 0 2px var(--ui-text);
+}
+
 .gear-view svg {
   width: 100%;
   height: 100%;
 }
+.gear-view rect {
+  fill: var(--ui-text-off);
+}
+.gear-view rect.top {
+  fill: var(--ui-accent);
+}
 .gear-view text {
-  font-size: 10px;
-  fill: #8b95a3;
+  font-size: 11px;
+  fill: var(--ui-text-off);
 }
 .gear-view text.top {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
-  fill: #eee;
+  fill: var(--ui-text);
 }
-.setup-card.fixed {
-  cursor: default;
-  opacity: 0.85;
-}
-
 /* Runs from an older physics version: below every current run, dimmer, behind a divider. */
 .menu-board tr.divider td {
   padding: 10px 6px 4px;
-  border-top: 2px solid #4b5562;
+  border-top: 2px solid var(--ui-text-off);
   border-bottom: none;
-  font:
-    700 11px system-ui,
-    sans-serif;
+  font: 700 12px/1.2 var(--ui-font-display);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #8b95a3;
+  color: var(--ui-text-off);
   text-align: center;
 }
 .menu-board tr.old td,
@@ -907,11 +891,11 @@
 .menu-board tr.old td.set,
 .menu-board tr.old td:first-child,
 .menu-board tr.old td:last-child {
-  color: #5d6672;
+  color: var(--ui-text-off);
 }
 .menu-best .old,
 .menu-car-best.old {
-  color: #c4ccd6;
+  color: var(--ui-text-2);
 }
 
 /* Car select: shown while a car's model downloads. */
@@ -923,11 +907,8 @@
   display: none;
   align-items: center;
   gap: 10px;
-  color: #ddd;
-  font:
-    600 13px 'Segoe UI',
-    system-ui,
-    sans-serif;
+  color: var(--ui-text);
+  font: 600 15px/1.2 var(--ui-font-display);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   pointer-events: none;
@@ -938,8 +919,8 @@
 .car-loading i {
   width: 16px;
   height: 16px;
-  border: 3px solid rgba(255, 255, 255, 0.25);
-  border-top-color: #fff;
+  border: 3px solid rgb(255 255 255 / 0.25);
+  border-top-color: var(--ui-text);
   border-radius: 50%;
   animation: car-loading-spin 0.8s linear infinite;
 }
@@ -949,23 +930,31 @@
   }
 }
 
-/* Select stage / Select car: the description card sits right of the list (wide screens). */
+/* Select stage / Select car / Stage times: the detail card docks beside the list, left aligned to the slab (wide
+   screens); the map / car stays full size behind it and the card can be minimized. */
 .menu-side-card {
   position: absolute;
   z-index: 41;
   top: 40px;
-  left: 472px;
-  width: min(600px, calc(100% - 504px));
+  left: 540px;
+  width: min(360px, calc(100% - 540px));
   max-height: calc(100% - 64px);
   box-sizing: border-box;
-  padding: 18px 20px;
+  padding: 16px 20px 18px;
   overflow-y: auto;
-  border-radius: 12px;
-  background: rgba(8, 10, 14, 0.78);
-  backdrop-filter: blur(6px);
+  border-radius: var(--ui-radius);
+  background: var(--ui-glass);
+  box-shadow: inset 4px 0 0 var(--ui-accent);
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-line) transparent;
 }
 .menu-side-card p:first-child {
   margin-top: 0;
+}
+@media (max-width: 1100px) {
+  .menu-side-card {
+    width: min(320px, calc(100% - 540px));
+  }
 }
 /* Phones: the description covers the map / car, above the buttons. */
 @media (max-width: 799px) {
@@ -976,6 +965,51 @@
     bottom: 112px;
     width: auto;
     max-height: 40%;
+  }
+}
+/* Minimize: the card shrinks to its description (stage / car), so the map / car behind it shows more. */
+.menu-card-min {
+  display: block;
+  margin: -8px -12px 4px auto;
+  padding: 6px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--ui-text-2);
+  font: italic 700 13px/1 var(--ui-font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.menu-card-min::after {
+  content: ' ▴';
+}
+.menu-card-min:hover,
+.menu-card-min:focus-visible {
+  color: var(--ui-text);
+}
+.menu-card-min:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: -2px;
+}
+.menu-side-card .menu-card-min + p {
+  margin-top: 0;
+}
+.menu-side-card.min > :not(.menu-card-min, p) {
+  display: none;
+}
+.menu-side-card.min p:last-child {
+  margin-bottom: 0;
+}
+.menu-side-card.min .menu-card-min {
+  color: var(--ui-text);
+}
+.menu-side-card.min .menu-card-min::after {
+  content: ' ▾';
+}
+@media (max-width: 799px) {
+  /* Phones: the card sits over the view above the buttons and stays open. */
+  .menu-card-min {
+    display: none;
   }
 }
 /* Select stage: Season and Time of day dropdowns left, month / time / temperature right (wraps below on narrow cards). */
@@ -1005,45 +1039,86 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  color: #8b95a3;
+  font-size: 14px;
+  color: var(--ui-text-off);
 }
 .menu-time span {
   min-width: 5.4em;
 }
+/* Dropdown with the picked option's line icon in front and our own chevron. */
+.menu-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.menu-select i {
+  position: absolute;
+  left: 10px;
+  display: flex;
+  color: var(--ui-accent);
+  pointer-events: none;
+}
+.menu-select::after {
+  content: '';
+  position: absolute;
+  right: 12px;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--ui-text-2);
+  border-bottom: 2px solid var(--ui-text-2);
+  transform: translateY(-2px) rotate(45deg);
+  pointer-events: none;
+}
 .menu-time select {
   width: auto;
-  padding: 6px 8px;
-  border: 1px solid #3a434f;
-  border-radius: 6px;
-  background: rgba(8, 10, 14, 0.85);
-  color: #eee;
-  font: inherit;
+  min-width: 11em;
+  padding: 7px 32px 7px 38px;
+  appearance: none;
+  border: 0;
+  border-left: 3px solid var(--ui-accent);
+  border-radius: 0;
+  background: var(--ui-raised-hover);
+  color: var(--ui-text);
+  font: 700 17px/1.2 var(--ui-font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.menu-time select option {
+  background: var(--ui-raised-solid);
+  color: var(--ui-text);
+  font: 500 15px var(--ui-font-body);
+  text-transform: none;
 }
 .menu-time select:focus-visible {
-  outline: 2px solid #f0a020;
+  outline: 2px solid var(--ui-accent);
   outline-offset: 1px;
 }
 
-/* Stage times: the saved runs float over the map view, right of the stage list. */
+/* Stage times: the saved runs dock beside the stage list, over the map view (same place as the description card). */
 .menu-times-card {
   position: absolute;
+  z-index: 41;
   top: 40px;
-  left: 472px;
+  left: 540px;
   max-height: calc(100% - 64px);
-  width: min(520px, calc(100% - 504px));
+  width: min(560px, calc(100% - 540px));
   box-sizing: border-box;
   padding: 20px 24px;
   overflow-y: auto;
-  border-radius: 12px;
-  background: rgba(8, 10, 14, 0.78);
-  backdrop-filter: blur(6px);
+  border-radius: var(--ui-radius);
+  background: var(--ui-glass);
+  box-shadow: inset 4px 0 0 var(--ui-accent);
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-line) transparent;
 }
 .menu-times-card h2 {
   margin: 0 0 12px;
-  font-size: 22px;
+  font: italic 800 30px/1 var(--ui-font-display);
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
 }
-@media (max-width: 760px) {
+@media (max-width: 799px) {
   .menu-times-card {
     top: auto !important;
     left: 16px;
@@ -1063,4 +1138,354 @@
 }
 .menu-times-card .menu-board th {
   padding: 4px 10px 10px;
+}
+
+/* Stage plate (bottom right of the pre-drive screens and the loading screen): S number, name, length, surface. */
+.menu-plate,
+.overlay .stage-plate {
+  position: absolute;
+  right: 36px;
+  bottom: 44px;
+  z-index: 41;
+  display: flex;
+  align-items: stretch;
+  max-width: min(460px, calc(100% - 520px));
+  color: var(--ui-text);
+  pointer-events: none;
+}
+.menu-plate > *,
+.overlay .stage-plate > * {
+  position: relative;
+  isolation: isolate;
+}
+.menu-plate > *::before,
+.overlay .stage-plate > *::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  transform: skewX(var(--ui-slant));
+}
+.menu-plate .n,
+.overlay .stage-plate .n {
+  display: flex;
+  align-items: center;
+  padding: 8px 20px 8px 18px;
+  color: var(--ui-on-accent);
+  font: italic 800 38px/1 var(--ui-font-display);
+}
+.menu-plate .n::before,
+.overlay .stage-plate .n::before {
+  background: var(--ui-accent);
+}
+.menu-plate .t,
+.overlay .stage-plate .t {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 9px 22px 9px 22px;
+}
+.menu-plate .t::before,
+.overlay .stage-plate .t::before {
+  background: var(--ui-glass);
+}
+.menu-plate .t b,
+.overlay .stage-plate .t b {
+  font: italic 800 26px/1 var(--ui-font-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.menu-plate .t small,
+.overlay .stage-plate .t small {
+  font: 600 14px/1.1 var(--ui-font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ui-text-2);
+}
+/* Short landscape phones: the plate shrinks and sits lower so it keeps clear of the description card. */
+@media (max-height: 559px) {
+  .menu-plate {
+    right: 20px;
+    bottom: 36px;
+    transform: scale(0.78);
+    transform-origin: bottom right;
+  }
+  .menu-root[data-screen='map'] .menu-plate,
+  .menu-root[data-screen='car'] .menu-plate {
+    display: none;
+  }
+  /* Welcome fits above the buttons: smaller logo, no step pips / key hints. */
+  .menu-panel {
+    padding-top: 20px;
+  }
+  .menu-brand {
+    margin-bottom: 6px;
+  }
+  .menu-title {
+    font-size: 52px;
+  }
+  .menu-tagline {
+    margin-top: 6px;
+    font-size: 12px;
+  }
+  .menu-list {
+    gap: 6px;
+  }
+  .menu-btn {
+    padding: 8px 22px;
+    font-size: 19px;
+  }
+  .menu-btn.big {
+    padding: 10px 22px;
+    font-size: 22px;
+  }
+  .menu-panel[data-screen='welcome'] .menu-steps,
+  .menu-foot {
+    display: none;
+  }
+  .menu-header h1 {
+    font-size: 34px;
+  }
+  .menu-header .menu-steps {
+    margin-top: 4px;
+  }
+}
+
+/* --- Setup screen ("tuner slab", menu.ts setupSelect): one slanted row per setting on the slab, the active row's detail
+   under it, the part window top right (a transparent window onto the showroom canvas, Showroom.showSetup). --- */
+.setup-tunes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.setup-tune {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.setup-tune-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px 11px 20px;
+}
+/* Row icon: white line icon (menu-icons.ts SETUP_ICONS), larger than the dropdown ones. */
+.setup-tune-main .ic {
+  flex: none;
+  display: flex;
+  color: var(--ui-text);
+}
+.setup-tune-main .ic svg {
+  width: 30px;
+  height: 30px;
+}
+.setup-tune-main .tx {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.setup-tune-main .k {
+  font: 600 13px/1 var(--ui-font-display);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ui-text-2);
+}
+.setup-tune.active .setup-tune-main .k {
+  color: var(--ui-accent);
+}
+.setup-tune-main .v {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  white-space: nowrap;
+  font: italic 800 26px/1 var(--ui-font-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.setup-tune-main .menu-tyre-dot {
+  width: 20px;
+  height: 20px;
+  box-shadow: inset 0 0 0 3px rgb(0 0 0 / 0.35);
+}
+.setup-tune-main .menu-tyre-dot.spring {
+  width: 8px;
+  height: 20px;
+}
+.setup-arrow {
+  position: relative;
+  isolation: isolate;
+  flex: none;
+  width: 46px;
+  font: 800 28px/1 var(--ui-font-display);
+  color: var(--ui-text-2);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  outline: none;
+}
+.setup-arrow::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--ui-raised);
+  border-left: 4px solid transparent;
+  transform: skewX(var(--ui-slant));
+  transition:
+    background var(--ui-move),
+    border-color var(--ui-move);
+}
+.setup-tune.active .setup-arrow {
+  color: var(--ui-text);
+}
+.setup-arrow:hover::before,
+.setup-arrow:focus-visible::before {
+  background: var(--ui-raised-hover);
+  border-left-color: var(--ui-accent);
+}
+.setup-arrow:focus-visible::before {
+  box-shadow: 0 0 0 2px var(--ui-text);
+}
+.setup-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 4px 18px;
+  padding: 4px 0 4px 16px;
+  border-left: 2px solid var(--ui-line);
+}
+.setup-detail p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--ui-text-2);
+}
+.setup-detail dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  margin: 0;
+  align-items: center;
+}
+.setup-detail dt {
+  font: 600 13px/1.2 var(--ui-font-display);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ui-text-off);
+}
+.setup-detail dd {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.setup-detail .menu-range {
+  margin-left: 0;
+  width: 100%;
+}
+/* Pips: four grip bars lit in the rating colour, five neutral ones for an amount (rebound, pull); `.at` = which option is picked. */
+.setup-pips {
+  display: inline-flex;
+  gap: 4px;
+}
+.setup-pips i {
+  width: 16px;
+  height: 7px;
+  background: var(--ui-line);
+  transform: skewX(-30deg);
+}
+.setup-pips.r0 i.on {
+  background: var(--ui-rate-0);
+}
+.setup-pips.r1 i.on {
+  background: var(--ui-rate-1);
+}
+.setup-pips.r2 i.on {
+  background: var(--ui-rate-2);
+}
+.setup-pips.r3 i.on {
+  background: var(--ui-rate-3);
+}
+.setup-pips.n i.on {
+  background: var(--ui-text);
+}
+.setup-pips.at i {
+  width: 24px;
+  height: 4px;
+}
+.setup-pips.at i.on {
+  background: var(--ui-accent);
+}
+.setup-part {
+  position: absolute;
+  z-index: 41;
+  top: 40px;
+  right: 28px;
+  width: min(340px, calc(100% - 540px));
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+.setup-part .setup-view {
+  height: clamp(150px, 30vh, 260px);
+  /* glass at half strength: the car behind dims, the part in the window reads */
+  background: rgb(var(--ui-glass-rgb) / 0.5);
+}
+.setup-part .gear-view {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 20px 12px;
+  background: rgb(var(--ui-glass-rgb) / 0.85);
+}
+.setup-part-caption {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 18px 12px;
+  background: var(--ui-glass);
+  box-shadow: inset 4px 0 0 var(--ui-accent);
+}
+.setup-part-caption b {
+  font: italic 800 24px/1 var(--ui-font-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.setup-part-caption small {
+  font: 600 13px/1.2 var(--ui-font-display);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ui-text-2);
+}
+/* Short landscape phones: the part window shrinks, the stage plate goes, the detail tightens (its text stays). */
+@media (max-height: 559px) {
+  .setup-part {
+    top: 16px;
+  }
+  .setup-part .setup-view {
+    height: 32vh;
+  }
+  .menu-root[data-screen='setup'] .menu-plate {
+    display: none;
+  }
+  .setup-tune-main {
+    padding: 7px 14px 8px 18px;
+  }
+  .setup-tune-main .v {
+    font-size: 22px;
+  }
+  .setup-detail {
+    gap: 6px;
+  }
+  .setup-detail dl {
+    gap: 3px 12px;
+  }
 }

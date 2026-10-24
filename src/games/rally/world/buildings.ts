@@ -106,6 +106,7 @@ function key(x: number, z: number): number {
 export function buildingInstance(
   b: BuildingDef,
   ground: TerrainSampler,
+  stone = false,
 ): ScatterInstance {
   const c = Math.cos(b.angle);
   const s = Math.sin(b.angle);
@@ -127,16 +128,25 @@ export function buildingInstance(
   const sink = 0.15;
   const walls = b.h + (hi - lo) + sink;
   const house = b.type === 'house';
-  // Variants: style (0..3) + 4 for two floors of windows. Flat: 0/1 halls, 2/3 blocks.
+  // Houses: variant = style 0-2 render, 3 clay brick (+ 4 for two floors); rubble stone is its own asset (0 hip, 1 gable,
+  // + 2 for two floors). Flat: 0/1 halls, 2/3 blocks (+ 4 for two floors).
   const two = b.floors >= 2 ? 4 : 0;
+  const base = (b.id * 7) % 4;
+  // Mountain villages: lime-plastered rubble stone, more of it the higher up the hill (the old houses): about a
+  // quarter at the bottom, nine in ten from 75 m above it.
+  const roll = ((b.id * 2654435761) >>> 0) / 4294967296;
+  const stoneShare = Math.min(0.9, Math.max(0.25, 0.25 + lo * 0.0087));
+  const rubble = house && stone && roll < stoneShare;
   const style = house
-    ? (b.id * 7) % 4
+    ? rubble
+      ? b.id % 2
+      : base
     : b.w * b.d > 300
       ? b.id % 2
       : 2 + (b.id % 2);
   return {
-    asset: house ? 'house_pitched' : 'building_flat',
-    variant: style + two,
+    asset: rubble ? 'house_stone' : house ? 'house_pitched' : 'building_flat',
+    variant: style + (rubble && two ? 2 : two),
     x: b.x,
     y: lo - sink,
     z: b.z,

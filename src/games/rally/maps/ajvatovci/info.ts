@@ -60,15 +60,26 @@ export const ajvatovciInfo: MapInfo = {
     timeOfDay: 7.5,
     months: { spring: 4, summer: 6, autumn: 10 },
     cloudCoverage: 0.1,
-    turbidity: 6,
-    rayleigh: 1.5,
-    fogColor: '#c3c9cf',
+    // Golden farmland morning: light warm haze, pale blue sky above, warm light.
+    turbidity: 4,
+    rayleigh: 1.9,
+    skyBrightness: 0.4,
+    fogColor: '#d6cbb4',
     fogDensity: 0.00042,
-    exposure: 0.88,
-    // Spring: fresh green meadows and young crops, golden wheat parcels.
-    groundTint: { grass: '#65952f', amount: 0.8, crop: '#c49c36' },
+    exposure: 0.92,
+    grade: {
+      warmth: 0.3,
+      contrast: 1.1,
+      saturation: 1.08,
+      vibrance: 0.15,
+      shadowTint: { color: '#2f6f6a', amount: 0.05 },
+      highlightTint: { color: '#ffd08a', amount: 0.12 },
+      vignette: 0.15,
+    },
+    // Summer: green meadows, wheat parcels the dull straw of the ground between the stalks (not yellow).
+    groundTint: { grass: '#65952f', amount: 0.8, crop: '#b38a4c' },
     groundTints: {
-      spring: { grass: '#5fae2e', amount: 0.85, crop: '#7fa63c' },
+      spring: { grass: '#5fae2e', amount: 0.85, crop: '#6c9550', variety: 1 },
       autumn: { grass: '#847636', amount: 0.85, crop: '#7e5f2e' },
     },
   },

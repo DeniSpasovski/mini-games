@@ -18,6 +18,7 @@ import {
   type GantryPlan,
 } from './overhead-signs';
 import type { RoadSample } from './road';
+import { farShadowCaster } from './far-shadow';
 import type { World } from './world';
 
 /**
@@ -121,6 +122,7 @@ function gantry(g: GantryPlan): {
 
 function shadowed(m: Mesh): Mesh {
   m.castShadow = true;
+  farShadowCaster(m);
   m.receiveShadow = true;
   m.matrixAutoUpdate = false;
   return m;

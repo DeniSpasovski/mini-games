@@ -8,7 +8,8 @@ copies those primitives from the source GLB as they are (node transforms + the c
 normals and TEXCOORD_0) and writes the source images they use next to the GLB. Config block:
 
     "srcParts": {
-      "textures": [{"material": "lights", "out": "public/models/cars/<car>_lamps.png"}],  # source materials whose base colour images ship
+      "textures": [{"material": "lights", "out": "public/models/cars/<car>_lamps.png", "size": 512}],  # source materials whose base colour images ship
+                                                                                      # (`size` = shrink to that many px square + 256 colours: the game draws sheets at 512)
       "parts": [                                                                      # in draw order: what sits behind first
         {"node": "<primitive name>", "material": "src:lamp:<car>_lamps.png"},
         {"node": "<primitive name>", "z": [-3, 0], "material": "src:tail:<car>_lamps.png"}   # optional x / y / z box on triangle centres;
@@ -16,6 +17,14 @@ normals and TEXCOORD_0) and writes the source images they use next to the GLB. C
       ],
       "shells": [{"nodes": [...], "x": [..], "y": [..], "z": [..], "mirror": true, "material": "src:shell"}]  # optional
     }
+
+`from`: parts taken from OTHER source files (an interior from a second model of the same car), appended the same way:
+
+    "from": [{"source": "sources/cars/<car>/<other>.glb", "yawDeg": 0.62, "scale": [0.94, 0.97, 1], "offset": [0, -0.01, 0.03],
+              "textures": [...], "parts": [...], "shells": [...]}]     # same keys as above; "node" may hold * wildcards
+
+Its vertices are turned about y by `yawDeg`, scaled per axis by `scale` and moved by `offset` - straight into the output's
+coordinates (the top-level `scale` / `offset` do not apply).
 
 `shells`: a closed back for open source shells (a seat that is one sheet seen from the front): the rear-facing faces of the
 convex hull of those nodes' vertices in the box (`mirror` = also the box mirrored in x), drawn as dark plastic (`src:shell`).
@@ -45,86 +54,110 @@ if cfg.get('axes', ['x', 'y', 'z']) != ['x', 'y', 'z']:
 scale = float(cfg.get('scale', 1))
 offset = np.array(cfg.get('offset', [0, 0, 0]), float)
 
-g, bins = g2s.load_glb(src_path)
-
-# --- every source primitive by name: positions, normals, UVs, indices in world space ---------------------------------
-prims = {}
-
-
-def walk(i, M):
-    n = g['nodes'][i]
-    M = M @ g2s.node_matrix(n)
-    if 'mesh' in n:
-        for p in g['meshes'][n['mesh']]['primitives']:
-            a = p['attributes']
-            P = g2s.accessor(g, bins, a['POSITION'])
-            P = (M[:3, :3] @ P.T).T + M[:3, 3]
-            N = g2s.accessor(g, bins, a['NORMAL']) @ np.linalg.inv(M[:3, :3])  # inverse transpose
-            N /= np.linalg.norm(N, axis=1)[:, None] + 1e-20
-            if 'TEXCOORD_0' not in a:  # untextured primitives (flat colours) are never source parts
-                continue
-            UV = g2s.accessor(g, bins, a['TEXCOORD_0'])
-            I = g2s.accessor(g, bins, p['indices']).astype(np.int64).ravel() if 'indices' in p else np.arange(len(P))
-            prims[n.get('name', f'node{i}')] = (P * scale + offset, N, UV, I.reshape(-1, 3), p.get('material'))
-    for c in n.get('children', []):
-        walk(c, M)
-
-
-for s in g['scenes'][g.get('scene', 0)]['nodes']:
-    walk(s, np.eye(4))
-
-# --- group by material ------------------------------------------------------------------------------------------------
 groups = {}
-for r in sp['parts']:
-    if r['node'] not in prims:
-        raise SystemExit(f'no primitive named {r["node"]}')
-    P, N, UV, T, _ = prims[r['node']]
-    c = P[T].mean(1)
-    keep = np.ones(len(T), bool)
-    for ax, k in (('x', 0), ('y', 1), ('z', 2)):
-        if ax in r:
-            keep &= (c[:, k] >= r[ax][0]) & (c[:, k] <= r[ax][1])
-    T = T[keep]
-    used = np.unique(T)
-    remap = np.full(len(P), -1)
-    remap[used] = np.arange(len(used))
-    groups.setdefault(r['material'], []).append((P[used], N[used], UV[used], remap[T]))
 
-# --- closed backs: rear-facing faces of a convex hull round open shells (a source seat is one sheet seen from the front) ---
-for sh in sp.get('shells', []):
-    from scipy.spatial import ConvexHull
 
-    for side in (1, -1) if sh.get('mirror') else (1,):
-        V = []
-        for nm in sh['nodes']:
-            P, _, _, T, _ = prims[nm]
-            q = P[np.unique(T)]
-            m = np.ones(len(q), bool)
-            for ax, k in (('x', 0), ('y', 1), ('z', 2)):
-                if ax in sh:
-                    lo, hi = sh[ax]
-                    if k == 0 and side < 0:
-                        lo, hi = -hi, -lo
-                    m &= (q[:, k] >= lo) & (q[:, k] <= hi)
-            V.append(q[m])
-        V = np.concatenate(V)
-        hull = ConvexHull(V)
-        F = []
-        for f, eq in zip(hull.simplices, hull.equations):
-            if eq[2] < -sh.get('minBack', 0.3):  # outward normal towards the rear
-                a, b, c = V[f]
-                F.append(f if np.dot(np.cross(b - a, c - a), eq[:3]) > 0 else f[[0, 2, 1]])
-        F = np.array(F)
-        used = np.unique(F)
-        remap = np.full(len(V), -1)
+def collect(src_path, block, place):
+    """Source primitives of `block['parts']` / `block['shells']` into `groups`; place(P, N) -> output coordinates."""
+    import fnmatch
+
+    g, bins = g2s.load_glb(src_path)
+    prims = {}
+
+    def walk(i, M):
+        n = g['nodes'][i]
+        M = M @ g2s.node_matrix(n)
+        if 'mesh' in n:
+            for p in g['meshes'][n['mesh']]['primitives']:
+                a = p['attributes']
+                P = g2s.accessor(g, bins, a['POSITION'])
+                P = (M[:3, :3] @ P.T).T + M[:3, 3]
+                N = g2s.accessor(g, bins, a['NORMAL']) @ np.linalg.inv(M[:3, :3])  # inverse transpose
+                N /= np.linalg.norm(N, axis=1)[:, None] + 1e-20
+                if 'TEXCOORD_0' not in a:  # untextured primitives (flat colours) are never source parts
+                    continue
+                UV = g2s.accessor(g, bins, a['TEXCOORD_0'])
+                I = g2s.accessor(g, bins, p['indices']).astype(np.int64).ravel() if 'indices' in p else np.arange(len(P))
+                P, N = place(P, N)
+                prims[n.get('name', f'node{i}')] = (P, N, UV, I.reshape(-1, 3), p.get('material'))
+        for c in n.get('children', []):
+            walk(c, M)
+
+    for sc in g['scenes'][g.get('scene', 0)]['nodes']:
+        walk(sc, np.eye(4))
+
+    def named(nm):
+        hits = [k for k in prims if fnmatch.fnmatchcase(k, nm)] if '*' in nm else [nm] if nm in prims else []
+        if len(hits) != 1:
+            raise SystemExit(f'{src_path}: {len(hits)} primitives match {nm}')
+        return hits[0]
+
+    # --- group by material ----------------------------------------------------------------------------------------
+    for r in block['parts']:
+        P, N, UV, T, _ = prims[named(r['node'])]
+        c = P[T].mean(1)
+        keep = np.ones(len(T), bool)
+        for ax, k in (('x', 0), ('y', 1), ('z', 2)):
+            if ax in r:
+                keep &= (c[:, k] >= r[ax][0]) & (c[:, k] <= r[ax][1])
+        T = T[keep]
+        used = np.unique(T)
+        remap = np.full(len(P), -1)
         remap[used] = np.arange(len(used))
-        Pv = V[used]
-        # vertex normals: area-weighted face normals; pulled 3 mm in so the shell sits just under the source's own back
-        Nv = np.zeros_like(Pv)
-        for f in remap[F]:
-            Nv[f] += np.cross(Pv[f[1]] - Pv[f[0]], Pv[f[2]] - Pv[f[0]])
-        Nv /= np.linalg.norm(Nv, axis=1)[:, None] + 1e-20
-        groups.setdefault(sh['material'], []).append((Pv - Nv * 0.003, Nv, np.zeros((len(Pv), 2)), remap[F]))
+        groups.setdefault(r['material'], []).append((P[used], N[used], UV[used], remap[T]))
+
+    # --- closed backs: rear-facing faces of a convex hull round open shells (a source seat is one sheet seen from the front)
+    for sh in block.get('shells', []):
+        from scipy.spatial import ConvexHull
+
+        for side in (1, -1) if sh.get('mirror') else (1,):
+            V = []
+            for nm in sh['nodes']:
+                P, _, _, T, _ = prims[named(nm)]
+                q = P[np.unique(T)]
+                m = np.ones(len(q), bool)
+                for ax, k in (('x', 0), ('y', 1), ('z', 2)):
+                    if ax in sh:
+                        lo, hi = sh[ax]
+                        if k == 0 and side < 0:
+                            lo, hi = -hi, -lo
+                        m &= (q[:, k] >= lo) & (q[:, k] <= hi)
+                V.append(q[m])
+            V = np.concatenate(V)
+            hull = ConvexHull(V)
+            F = []
+            for f, eq in zip(hull.simplices, hull.equations):
+                if eq[2] < -sh.get('minBack', 0.3):  # outward normal towards the rear
+                    a, b, c = V[f]
+                    F.append(f if np.dot(np.cross(b - a, c - a), eq[:3]) > 0 else f[[0, 2, 1]])
+            F = np.array(F)
+            used = np.unique(F)
+            remap = np.full(len(V), -1)
+            remap[used] = np.arange(len(used))
+            Pv = V[used]
+            # vertex normals: area-weighted face normals; pulled 3 mm in so the shell sits just under the source's own back
+            Nv = np.zeros_like(Pv)
+            for f in remap[F]:
+                Nv[f] += np.cross(Pv[f[1]] - Pv[f[0]], Pv[f[2]] - Pv[f[0]])
+            Nv /= np.linalg.norm(Nv, axis=1)[:, None] + 1e-20
+            groups.setdefault(sh['material'], []).append((Pv - Nv * 0.003, Nv, np.zeros((len(Pv), 2)), remap[F]))
+    return g, bins
+
+
+main = collect(src_path, sp, lambda P, N: (P * scale + offset, N))
+others = []
+for fr in sp.get('from', []):
+    th = np.radians(fr.get('yawDeg', 0))
+    R = np.array([[np.cos(th), 0, np.sin(th)], [0, 1, 0], [-np.sin(th), 0, np.cos(th)]])
+    S = np.array(fr.get('scale', [1, 1, 1]), float)
+    off = np.array(fr.get('offset', [0, 0, 0]), float)
+
+    def place(P, N, R=R, S=S, off=off):
+        N = (N @ R.T) / S
+        return (P @ R.T) * S + off, N / (np.linalg.norm(N, axis=1)[:, None] + 1e-20)
+
+    others.append((fr, collect(fr['source'], fr, place)))
+
 
 # --- append to the converted GLB ---------------------------------------------------------------------------------------
 out = cfg['output']
@@ -188,12 +221,25 @@ open(out, 'wb').write(glb)
 print(f'wrote {out} ({len(glb) / 1e6:.2f} MB)')
 
 # --- the textures ----------------------------------------------------------------------------------------------------
-for tx in sp['textures']:
-    mat = next(m for m in g['materials'] if m.get('name') == tx['material'])
-    img = g['images'][g['textures'][mat['pbrMetallicRoughness']['baseColorTexture']['index']]['source']]
-    bv = g['bufferViews'][img['bufferView']]
-    png = bins[bv.get('buffer', 0)][bv.get('byteOffset', 0):bv.get('byteOffset', 0) + bv['byteLength']]
-    if img.get('mimeType') != 'image/png':
-        raise SystemExit(f'texture is {img.get("mimeType")}, expected image/png')
-    open(tx['out'], 'wb').write(png)
-    print(f'wrote {tx["out"]} ({len(png) / 1e3:.0f} kB)')
+for (g, bins), txs in [(main, sp['textures'])] + [(gb, fr.get('textures', [])) for fr, gb in others]:
+    for tx in txs:
+        mat = next(m for m in g['materials'] if m.get('name') == tx['material'])
+        img = g['images'][g['textures'][mat['pbrMetallicRoughness']['baseColorTexture']['index']]['source']]
+        bv = g['bufferViews'][img['bufferView']]
+        png = bins[bv.get('buffer', 0)][bv.get('byteOffset', 0):bv.get('byteOffset', 0) + bv['byteLength']]
+        if img.get('mimeType') != 'image/png':
+            raise SystemExit(f'texture is {img.get("mimeType")}, expected image/png')
+        if tx.get('size'):
+            import io
+
+            from PIL import Image
+
+            im = Image.open(io.BytesIO(png))
+            im = im.convert('RGBA' if 'A' in im.getbands() or im.mode == 'P' and 'transparency' in im.info else 'RGB')
+            im = im.resize((tx['size'], tx['size']), Image.LANCZOS)
+            im = im.quantize(256, method=Image.Quantize.FASTOCTREE if im.mode == 'RGBA' else Image.Quantize.MEDIANCUT)
+            out = io.BytesIO()
+            im.save(out, 'PNG', optimize=True)
+            png = out.getvalue()
+        open(tx['out'], 'wb').write(png)
+        print(f'wrote {tx["out"]} ({len(png) / 1e3:.0f} kB)')

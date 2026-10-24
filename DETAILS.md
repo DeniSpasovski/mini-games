@@ -28,17 +28,19 @@ src/
   site.config.ts       allowed hosts (domain lock), owner, portal tagline
   portal/              the landing page (lists every game automatically)
     manifest.ts        game.json schema, shared with rsbuild.config.ts
+    STYLEGUIDE.md      the home page look (Game Shelf): tokens, type, covers
   shared/              cross-game helpers (no game logic)
     debug-panel.ts     left-side tool menu (lists, sliders, toggles, seeds)
     url-state.ts       typed query-string state for bookmarkable tool views
     portal-link.ts     "All games" URL when a game runs inside the portal (games/<id>/)
     stats-overlay.ts   FPS / draw calls / triangles (F3)
-    thumbnail.ts       dev-only "F9 = save portal screenshot"
+    thumbnail.ts       dev-only "F9 = save portal thumbnails" (1280 + 640 px)
     consent.ts         cookie banner + Google Analytics loader (every page)
     rng.ts, noise.ts   seeded random + simplex noise
   games/<id>/          one folder per game, self-contained
-    game.json          title, description, pages -> picked up by build + portal
-    thumbnail.jpg      portal screenshot (press F9 in the game during `npm run dev`)
+    game.json          title, description, genre, inputs, accent, pages -> picked up by build + portal
+    thumbnail.jpg      portal picture, 1280x720, + thumbnail-640.jpg (press F9 in the game during `npm run dev`)
+    wordmark.svg       the title in the game's own face, over the portal cover
 tests/                 rstest tests (per game sub-folder)
 .claude/skills/        workflows for agents: new game, maps, content, physics tuning
 ```
@@ -106,7 +108,9 @@ The links + home-screen meta tags are added to every page in `rsbuild.config.ts`
 On iPad: open the site in Safari -> Share -> **Add to Home Screen**.
 Standalone mode has no back button, so each game's main menu, pause and results screens show **All games** when the
 page runs inside the portal (`games/<id>/`, detected by `src/shared/portal-link.ts`); a game hosted on its own hides it.
-Home-screen app name = `apple-mobile-web-app-title` ("Mini Games"). Replace the icons in `public/icons/` to change the artwork.
+App name everywhere = "Mini Games" (tab title, manifest `name` / `short_name`, `apple-mobile-web-app-title`). The portal page
+also has `lang="en"` (`src/portal/index.html`), a description and Open Graph / Twitter tags with absolute URLs to
+`https://games.deni.io/` and `og-image.jpg` (`portalMeta` in `rsbuild.config.ts`). Replace the icons in `public/icons/` to change the artwork.
 
 ## Offline play
 
@@ -119,7 +123,7 @@ bundles) and reloads once.
 
 ## Portal footer
 
-The portal page shows `SITE.tagline` ("This site was made using AI agents under direction of ...") with
+The portal's look is in `src/portal/STYLEGUIDE.md`. The page shows `SITE.tagline` ("This site was made using AI agents under direction of ...") with
 `SITE.owner` and "Copyright <current year>" - both in `src/site.config.ts`.
 
 ## Adding a game
@@ -127,7 +131,7 @@ The portal page shows `SITE.tagline` ("This site was made using AI agents under 
 1. Create `src/games/<id>/game.json` (copy `src/games/rally/game.json`) and the entry files it lists.
 2. `npm run dev` — pages are discovered automatically: `play` -> `/games/<id>/`, others -> `/games/<id>/<page>.html`.
 3. Add the game to `GAME_LIST` in `src/portal/release.ts` (card order). A game under construction gets `hideInProd: true` there: the release build (`npm run build`) gives it no portal card but still builds it, so the direct link `games/<id>/` works; the dev server and `npm run build:test` (the Pages workflow's default) list it. Remove the flag to release it (and add its `thumbnail.jpg`). `hideInProd` is the one release flag everywhere: on a game in `GAME_LIST`, on a car / stage / map row in a game's `release.ts` (`CARS_LIST` / `STAGES_LIST`, hole `MAPS_LIST`), on a tool page in `game.json`; the shared check is `RELEASE_BUILD` in `src/shared/release.ts`.
-4. Press **F9** in-game (dev server only) to save `thumbnail.jpg` for the portal card (call `installThumbnailCapture` once in your play page).
+4. Press **F9** in-game (dev server only) to save `thumbnail.jpg` + `thumbnail-640.jpg` for the portal card (call `installThumbnailCapture` once in your play page). Add `genre`, `inputs`, `accent` and `onAccent` to `game.json` and a `wordmark.svg` (`scripts/portal/wordmarks.py`).
 
 See `.claude/skills/new-minigame/SKILL.md` for the full checklist.
 

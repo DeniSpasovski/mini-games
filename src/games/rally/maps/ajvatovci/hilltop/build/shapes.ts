@@ -268,6 +268,30 @@ export class Local {
     const n = norm(cross(e, up));
     const nUp: V3 = n[1] >= 0 ? n : [-n[0], -n[1], -n[2]];
     this.fan('tiles', pts, o.color ?? '#ffffff', nUp, uvOf);
+    this.slab(pts, nUp, uvOf, o);
+  }
+
+  /**
+   * Closes a roof plane `pts` (facing `nUp`) from below and round its edges so it is a slab, not a sheet:
+   * a soffit `under` m lower, a dark fascia board on the `trim` edges, a flush strip on the others.
+   */
+  slab(
+    pts: V3[],
+    nUp: V3,
+    uvOf: (p: V3) => V2,
+    o: {
+      trim?: number[];
+      under?: number;
+      soffit?: ColorRepresentation;
+      fascia?: ColorRepresentation;
+    } = {},
+  ): void {
+    const centre = pts
+      .reduce(
+        (s, p) => [s[0] + p[0], s[1] + p[1], s[2] + p[2]] as V3,
+        [0, 0, 0],
+      )
+      .map((v) => v / pts.length) as V3;
     const under = o.under ?? 0.12;
     const low = pts.map((p): V3 => [p[0], p[1] - under, p[2]]);
     this.fan(
@@ -277,7 +301,10 @@ export class Local {
       [-nUp[0], -nUp[1], -nUp[2]],
       uvOf,
     );
-    for (const i of o.trim ?? []) {
+    // Every edge is closed (a slab, not a sheet): trimmed edges get a dark fascia board that stands a
+    // little proud, the others a flush strip (joints between planes and edges against walls stay hidden).
+    const trimmed = new Set(o.trim ?? []);
+    for (let i = 0; i < pts.length; i++) {
       const a = pts[i];
       const b = pts[(i + 1) % pts.length];
       const out = norm(
@@ -286,7 +313,8 @@ export class Local {
           [centre[0], 0, centre[2]],
         ),
       );
-      const t = 0.03;
+      const fascia = trimmed.has(i);
+      const t = fascia ? 0.03 : 0;
       const f = (p: V3, dy: number): V3 => [
         p[0] + out[0] * t,
         p[1] + dy,
@@ -294,7 +322,9 @@ export class Local {
       ];
       this.fan(
         'paint',
-        [f(a, 0.04), f(b, 0.04), f(b, -under - 0.1), f(a, -under - 0.1)],
+        fascia
+          ? [f(a, 0.04), f(b, 0.04), f(b, -under - 0.1), f(a, -under - 0.1)]
+          : [f(a, 0), f(b, 0), f(b, -under), f(a, -under)],
         o.fascia ?? '#45484b',
         out,
         () => [0, 0],
