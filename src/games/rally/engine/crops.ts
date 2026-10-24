@@ -443,8 +443,11 @@ function canopyShade(d: Uint8Array, w: number, h: number) {
 
 /** Push colour into transparent texels so filtering never pulls in black at the card edges. */
 function bleed(d: Uint8Array, w: number, h: number) {
+  // Same result as averaging the filled 4-neighbours of every empty texel per pass, without per-texel allocations.
+  const prev = new Uint8Array(d.length);
   for (let pass = 0; pass < 6; pass++) {
-    const prev = d.slice();
+    prev.set(d);
+    let changed = false;
     for (let y = 0; y < h; y++)
       for (let x = 0; x < w; x++) {
         const i = (y * w + x) * 4;
@@ -454,29 +457,27 @@ function bleed(d: Uint8Array, w: number, h: number) {
         let g = 0;
         let b = 0;
         let n = 0;
-        for (const [dx, dy] of [
-          [1, 0],
-          [-1, 0],
-          [0, 1],
-          [0, -1],
-        ]) {
-          const xx = x + dx;
-          const yy = y + dy;
-          if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
-          const j = (yy * w + xx) * 4;
+        const take = (j: number) => {
           if (prev[j + 3] === 0 && prev[j] + prev[j + 1] + prev[j + 2] === 0)
-            continue;
+            return;
           r += prev[j];
           g += prev[j + 1];
           b += prev[j + 2];
           n++;
-        }
+        };
+        if (x + 1 < w) take(i + 4);
+        if (x > 0) take(i - 4);
+        if (y + 1 < h) take(i + w * 4);
+        if (y > 0) take(i - w * 4);
         if (n) {
           d[i] = r / n;
           d[i + 1] = g / n;
           d[i + 2] = b / n;
+          changed = true;
         }
       }
+    // Nothing filled: the later passes would not either.
+    if (!changed) break;
   }
 }
 

@@ -11,6 +11,7 @@ import {
   bakeImpostor,
   impostorArray,
   impostorBounds,
+  impostorChains,
   type ImpostorPixels,
 } from './impostor';
 import {
@@ -20,6 +21,7 @@ import {
   primeSpriteTextures,
   spriteMaterial,
   spriteTextures,
+  type MipLevel,
 } from './materials';
 import type { Crown, MeshData, SpriteData, VariantMeshes } from './mesh';
 import { allSeasons, seasonal, seasonOf } from './seasons';
@@ -263,6 +265,10 @@ export class TreeLibrary {
         return { def, i, key, g, impostor: undefined };
       }),
     );
+    // The cached impostors' mip chains while the workers finish the leaf atlases (this thread waits for them anyway).
+    const chains = new Map<ImpostorPixels, MipLevel[][]>();
+    for (const r of results)
+      if (r.impostor) chains.set(r.impostor, impostorChains(r.impostor));
     await atlases;
     const allPixels: ImpostorPixels[] = [];
     const spheres: { cy: number; r: number }[] = [];
@@ -299,7 +305,7 @@ export class TreeLibrary {
       report(++done / jobs.length);
     }
     if (allPixels.length) {
-      const atlas = impostorArray(renderer, allPixels);
+      const atlas = impostorArray(renderer, allPixels, chains);
       lib.impostors = {
         atlas,
         material: impostorMaterial(atlas, spheres, bounds),
