@@ -154,7 +154,7 @@ export class ViewerShell {
             postFxFromUrl(
               this.env.lightNeed >= LIGHTS_MIN_NEED ? this.env.lightNeed : 0,
               BLOOM_MIX[settings.bloom],
-              settings.ao,
+              settings.ambientOcclusion,
             ),
           )
         : undefined;

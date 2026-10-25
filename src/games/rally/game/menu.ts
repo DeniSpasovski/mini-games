@@ -1544,8 +1544,8 @@ export function buildOptions(opts: {
         [false, 'Off'],
         [true, 'On'],
       ],
-      s.ao,
-      (v) => set({ ao: v }),
+      s.ambientOcclusion,
+      (v) => set({ ambientOcclusion: v }),
     ),
     'soft shadows in corners and under cars · High graphics only · costs GPU',
   );
