@@ -12,15 +12,15 @@ import source from './model.source.json';
 const A = source.atlas;
 const { K, B, CH, sidePx, frontPx, rearPx } = atlasKit(A);
 
-/** Warm gold-yellow of the classic works blue-and-yellow rally scheme, and the darker gold of its outline. */
+/** Warm gold-yellow of the classic works blue-and-yellow rally scheme, and the darker gold of the line under it. */
 const YELLOW = '#f4c51c';
 const EDGE = '#a8780c';
-/** Outline width (m). */
+/** Width of that line (m). */
 const EDGE_W = 0.01;
 
 /**
  * The swoosh, drawn after the owner's sketch: a crescent whose belly sits low on the door and whose tail runs back and up
- * along the rear quarter, with two stripes inside it, all outlined in dark gold. Shapes are in sketch px (x right = towards the rear, y down), mapped onto the body side by `at`.
+ * along the rear quarter, with two stripes inside it; a dark gold line runs along the underside of each. Shapes are in sketch px (x right = towards the rear, y down), mapped onto the body side by `at`.
  */
 const Z_FRONT = -0.42; // front of the belly (sketch x 75)
 const Y_TOP = 0.8; // tail tip (sketch y 25)
@@ -111,33 +111,41 @@ function offset(pts: Pt[], d: number | ((i: number) => number)): Pt[] {
   });
 }
 
-/** Shapes with a dark gold outline: each one stroked wide, then filled, so the outline sits round its edge. */
-function outlined(ctx: CanvasRenderingContext2D, shapes: Pt[][]): void {
+/**
+ * Yellow shapes with a dark gold edge on some of their sides: those edges are stroked wide first and the shape filled over
+ * them, so only the outer half of the stroke shows, as a clean line along the edge.
+ */
+function edged(
+  ctx: CanvasRenderingContext2D,
+  shapes: { fill: Pt[]; edges: Pt[][] }[],
+): void {
   const size: Pt = [B.z[1] - B.z[0], B.y[1] - B.y[0]];
   for (const s of ['left', 'right'] as const) {
     ctx.save();
     ctx.beginPath();
     ctx.rect(CH[s][0] * K, CH[s][1] * K, size[0] * K, size[1] * K);
     ctx.clip();
-    const path = (pts: Pt[]) => {
-      ctx.beginPath();
+    const path = (pts: Pt[]) =>
       pts.forEach(([z, y], i) => {
         const [x, v] = sidePx(s, z, y);
         if (i) ctx.lineTo(x, v);
         else ctx.moveTo(x, v);
       });
-      ctx.closePath();
-    };
     ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     ctx.lineWidth = EDGE_W * 2 * K;
     ctx.strokeStyle = EDGE;
-    for (const pts of shapes) {
-      path(pts);
-      ctx.stroke();
-    }
+    for (const { edges } of shapes)
+      for (const e of edges) {
+        ctx.beginPath();
+        path(e);
+        ctx.stroke();
+      }
     ctx.fillStyle = YELLOW;
-    for (const pts of shapes) {
-      path(pts);
+    for (const { fill } of shapes) {
+      ctx.beginPath();
+      path(fill);
+      ctx.closePath();
       ctx.fill();
     }
     ctx.restore();
@@ -146,7 +154,6 @@ function outlined(ctx: CanvasRenderingContext2D, shapes: Pt[][]): void {
 
 function swoosh(ctx: CanvasRenderingContext2D): void {
   const inner = curve(CRESCENT_IN.map(at)); // tail -> low end
-  const crescent = [...curve(CRESCENT_OUT.map(at)), ...inner];
   // The top line for the stripes: the inner edge from the stripes' rear end forward, ordered front -> rear.
   const zEnd = at([STRIPES_END, 0])[0];
   const top = (frontX: number) => {
@@ -167,10 +174,15 @@ function swoosh(ctx: CanvasRenderingContext2D): void {
   const loLower = offset(loTop, d0 + STRIPE_LO.width).filter(
     ([z]) => z <= loTop[0][0] - STRIPE_LO.slant,
   );
-  outlined(ctx, [
-    crescent,
-    [...hiUpper, ...hiLower.reverse()],
-    [...loUpper, ...loLower.reverse()],
+  // Dark gold only underneath: the crescent's inner edge and low end, each stripe's front and underside.
+  const outer = curve(CRESCENT_OUT.map(at));
+  edged(ctx, [
+    { fill: [...outer, ...inner], edges: [[...inner, outer[0]]] },
+    { fill: [...hiUpper, ...[...hiLower].reverse()], edges: [hiLower] },
+    {
+      fill: [...loUpper, ...[...loLower].reverse()],
+      edges: [[loUpper[0], ...loLower]],
+    },
   ]);
 }
 
