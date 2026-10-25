@@ -521,7 +521,7 @@ export class RallyGame {
         postFxFromUrl(
           this.env.lightNeed >= LIGHTS_MIN_NEED ? this.env.lightNeed : 0,
           BLOOM_MIX[this.opts.settings.bloom],
-          this.opts.settings.ao,
+          this.opts.settings.ambientOcclusion,
         ),
       );
     setLampGlow(this.env.lightNeed);
@@ -655,7 +655,8 @@ export class RallyGame {
       this.trees.setOptions({ lodScale: treeLodScale });
     // Bloom / AO (High only): only a change in the options, so a test link's `?bloom=` / `?ao=` keeps its pick.
     if (old.bloom !== s.bloom) this.post?.set({ day: BLOOM_MIX[s.bloom] });
-    if (old.ao !== s.ao) this.post?.set({ ao: s.ao });
+    if (old.ambientOcclusion !== s.ambientOcclusion)
+      this.post?.set({ ao: s.ambientOcclusion });
     this.model.setBadge({
       number: s.carNumber,
       rally: rallyName(this.world.stageDef.name),

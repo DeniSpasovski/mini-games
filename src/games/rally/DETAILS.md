@@ -121,7 +121,7 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   each lamp. High quality adds bloom (`engine/post-fx.ts`, threshold far above the lit ground, so lenses and reflectors are
   emissive well over it). Not done: high / low beam key.
 - **Post effects (High):** `engine/post-fx.ts`, options **Bloom** (off / soft / strong, default off, `BLOOM_MIX` in `game/settings.ts`) and
-  **Ambient occlusion** (default on). Bloom: the whole picture, no threshold, mixed back at a few percent, worked on an HDR
+  **Ambient occlusion** (default off). Bloom: the whole picture, no threshold, mixed back at a few percent, worked on an HDR
   estimate of the finished picture, so with it off the image is unchanged. AO: GTAO from the depth at half resolution.
   Test links: `?bloom=<mix>` (0 = off), `?ao=0|1`; console `__rally.post.set({ day: 0.04, ao: true })`.
 - **Sky / tone mapping:** drifting clouds (`cloudCoverage`, `cloudSpeed`); ACES, or `toneMapping: 'agx' | 'neutral'` per map.
