@@ -1,9 +1,10 @@
 # Hole Island (working title)
 
-A simple game in which you play the role of gravity hole eating the world around you, built with three.js to learn the
-library. You steer a gravity hole around a blocky island and swallow everything that fits; every item you eat makes the hole
-bigger, from trash cans and flowers up to skyscrapers. You play against the clock and the score goes on a top-10 list
-per difficulty. It is a touch-first game (one finger steers), with keyboard, mouse and gamepad support.
+A simple game in which you play a gravity hole eating the world around you, built with three.js to learn the library.
+Steer the hole and swallow everything that fits; every item you eat makes it bigger. Four maps: a city island (trash
+cans to skyscrapers), a giant toy store, an island of animals with a secret lab, and a construction site with an
+open-pit mine. You play against the clock, and each map keeps a top 10 for each time limit. It is a touch-first game
+(one finger steers), with keyboard, mouse and gamepad support.
 
 All art is original, procedural and made from boxes, and the name is a placeholder.
 
@@ -47,7 +48,7 @@ UI look and rules: [STYLEGUIDE.md](STYLEGUIDE.md).
 - Moving items: cars drive, people stroll, animals walk, hop, swim and flee, trucks haul.
 - Scripted falling / tipping (no physics engine), growth levels with a pulse and a camera that pulls back.
 - Every item is built once as procedural geometry; all items of a material are one `BatchedMesh` (a few draw calls per frame for thousands of items).
-- Menus, countdown, results and a top-10 list per difficulty, all usable by touch or a controller.
+- Menus, countdown, results and a top 10 per map and time limit, all usable by touch or a controller.
 - Tool pages: item viewer, map viewer, balance charts with headless bot runs (dev server).
 
 ## Documentation
