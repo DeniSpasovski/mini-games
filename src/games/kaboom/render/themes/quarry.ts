@@ -51,7 +51,10 @@ function rimRocks(
     Math.max(1, spots.length),
   );
   spots.forEach(([x, z], k) => {
-    const sc = rng.range(1.2, 2.8);
+    // the camera looks north from high over the front (+z) rim: rocks there sit right under the wide menu / finale view
+    // and would fill its bottom edge, so they shrink towards the front
+    const front = Math.min(1, Math.max(0, (z - hz * 0.3) / (hz * 0.7 + 6)));
+    const sc = rng.range(1.2, 2.8) * (1 - 0.6 * front);
     m4.compose(
       pos.set(x, RIM_H - 0.2, z),
       quat.setFromAxisAngle(UP, rng.range(0, 6.28)),

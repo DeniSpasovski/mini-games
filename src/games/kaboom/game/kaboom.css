@@ -596,6 +596,49 @@ body {
   margin-bottom: 8px;
 }
 
+.kb-minor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* about */
+.kb-about-body {
+  text-align: left;
+  font-weight: 700;
+  line-height: 1.45;
+}
+.kb-about-body p {
+  margin: 0 0 10px;
+}
+.kb-about-body .about-credit {
+  font-weight: 800;
+}
+.kb-about-body h3 {
+  margin: 14px 0 6px;
+}
+.kb-about-body ul {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+.kb-about-body li {
+  margin-bottom: 6px;
+}
+.kb-about-body small {
+  display: block;
+  font-size: 12px;
+  color: var(--kb-ink-2);
+}
+.kb-about-body a {
+  color: inherit;
+}
+/* the text scrolls under the action row on every screen size: the row gets the card's backing so it never touches the text */
+.kb-about .kb-actions {
+  background: var(--kb-grain), var(--kb-card);
+  mask-image: linear-gradient(transparent, black 14px);
+  padding-top: 16px;
+}
+
 /* results */
 .kb-standings {
   margin: 0;
@@ -1069,6 +1112,15 @@ body {
   }
   .kb-btn.primary {
     min-height: 52px;
+  }
+  .kb-minor {
+    flex-direction: row;
+    gap: 8px;
+  }
+  .kb-minor .kb-btn {
+    flex: 1;
+    padding-inline: 8px;
+    font-size: 15px;
   }
   /* the card may scroll here: the action row gets a backing so the content slides under it */
   .kb-actions {

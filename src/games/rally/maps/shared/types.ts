@@ -1,3 +1,4 @@
+import type { SourceLink } from '../../../../shared/about';
 import type { TimeOfDayId } from '../../game/time-of-day';
 import type { GearingId } from '../../physics/types';
 import type { SurfaceId } from '../../physics/surfaces';
@@ -12,13 +13,8 @@ import type { Season } from '../../season';
  * World axes: +X east, +Z SOUTH (north = -Z), +Y up. Units: metres.
  * (three.js is right-handed: with +Z north a real-world map would be mirrored.)
  */
-/** An external resource used by a map or car: data set, model, reference. */
-export interface SourceLink {
-  label: string;
-  url?: string;
-  /** What it was used for / licence. */
-  note?: string;
-}
+/** An external resource used by a map or car: data set, model, reference (shared with the other games' About screens). */
+export type { SourceLink };
 
 export interface PlazaIsland {
   kind: 'island' | 'painted' | 'sidewalk';
