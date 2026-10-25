@@ -1,6 +1,7 @@
 import {
   Color,
   Material,
+  MathUtils,
   Matrix4,
   ShaderChunk,
   Vector3,
@@ -633,7 +634,7 @@ function install(): void {
       shader.fragmentShader = '#define RALLY_CAR_ENV\n' + shader.fragmentShader;
       shader.uniforms.wsEnvSpec = {
         get value() {
-          return (mat.envMapIntensity ?? 1) / DAY_ENV_INTENSITY;
+          return (mat.envMapIntensity ?? 1) / carEnvRef;
         },
       };
     }
@@ -645,11 +646,26 @@ function install(): void {
 }
 
 /**
- * The scene env map intensity the car materials' `envMapIntensity` values are written for (`Environment`'s day
- * default). three.js draws every material without its own env map at `scene.environmentIntensity`, so a car's
- * 1.8 paint clearcoat would show at 0.3 like the ground.
+ * The scene env map intensity at which a car material reflects at its own `envMapIntensity`. three.js draws every
+ * material without its own env map at `scene.environmentIntensity` (day 0.3). By day 0.6: a value of 1 reflects the
+ * sky 1.67x the world's strength, a sheen like a car on the street, not a studio mirror (0.3 washed paint out to
+ * white). With the sun low and at night it eases back to 0.3 (`setCarEnvSun`): with little direct light the sky
+ * reflection is what shows a car's shape, and dark paint went flat black without it.
  */
-const DAY_ENV_INTENSITY = 0.3;
+const CAR_ENV_DAY = 0.6;
+const CAR_ENV_LOW = 0.3;
+let carEnvRef = CAR_ENV_DAY;
+
+/** Sun elevation (deg) and night flag of the environment -> the car reflection strength (`CAR_ENV_DAY`). */
+export function setCarEnvSun(elevation: number, night: boolean): void {
+  carEnvRef = night
+    ? CAR_ENV_LOW
+    : MathUtils.lerp(
+        CAR_ENV_LOW,
+        CAR_ENV_DAY,
+        MathUtils.smoothstep(elevation, 3, 18),
+      );
+}
 
 /**
  * Car materials: reflections (the specular env lookup) at their own `envMapIntensity`, scaled with the scene's env

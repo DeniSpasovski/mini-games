@@ -88,19 +88,28 @@ meshes placed per critter by its fit (`hatY` / `hatZ` / `hatScale` / `hatTilt`, 
 (`render/characters.ts`): waddle + bob, squash when placing TNT, hop when winning. A KO is family friendly: the critter
 shrinks into a puff of dust and stars, the hard hat bounces away, and the sooty critter sits dazed on the slab edge.
 
-**Power-ups** (`render/items.ts`, models in `crew-parts.ts`): _more dynamites_ = two full dynamite bundles on a cyan
-pad, _more sticks_ = one fat bundle of seven sticks tied with a golden band on a gold pad. They hover, spin and pop in
-when a crate breaks, over a stone plinth with a glow ring in their pad's colour (both hidden while nothing lies on the
-floor: an empty instanced mesh still costs a draw), and a ring of that colour flashes over the floor as one appears; the HUD shows the stock as dynamite (`game/icons.ts`): one stick per TNT you can hold (lit = ready,
+**Power-ups** (`render/items.ts`, models in `crew-parts.ts`): _more dynamites_ = a small open wooden crate (planks,
+corner posts, rope handles, a cyan stencilled band) with five crimped sticks leaning out, under a cyan plus; _more sticks_
+= one tall bundle of seven crimped sticks in two gold straps with a buckle and a fuse, under a gold up arrow (wide and low
+vs tall and narrow, cyan vs gold). They hover, spin and pop in when a crate breaks, over a stone plinth whose inlay plate
+takes the kind's colour (`aTint`, the instance colour) and a glow ring of that colour (both hidden while nothing lies on
+the floor: an empty instanced mesh still costs a draw; `showForCompile` lets `WorldView.warmUp` compile them anyway), and
+a ring of that colour flashes over the floor as one appears; the HUD shows the stock as dynamite (`game/icons.ts`): one stick per TNT you can hold (lit = ready,
 faded = out on the field) and the blast level as a bundle of 1-5 sticks (flames either side at 4 and 5, the corner
 levels), and pops the one that grew.
 
 **TNT = "the counter".** As many paper sticks as its blast level: 1 at level 1 ... 5 at level 5, so you can read how far a
 TNT will reach (`TNT_LAYOUTS` in `crew-parts.ts`; all five in one geometry, each TNT shows its own: `aLevel` in
-`tnt.ts`). Sticks (`stickPaperTexture` in `render/tnt.ts`: red wrap with fibres, a spiral seam,
-printed rings, waxed ends; generated, shared with the pickups) with crimped caps, two turns of twine, a paper label with
-hazard-stripe borders showing **3 -> 2 -> 1** (digit atlas, picked per instance in the vertex shader) and a curling fuse
-(`fusePoint`) the spark rides down in a soft glow; it pulses faster and blinks white-hot in the last half second.
+`tnt.ts`). Everything in it samples one generated atlas (`render/dynamite-texture.ts`, shared with the pickups): a
+1024 x 512 colour map plus a normal map whose alpha is a roughness multiplier, with regions for the stick wrap (red
+paper, wrinkles, sparse creases, a spiral seam, printed rings and a line of print, waxed ends, dust at the foot), the
+crimped end seen from above and three twisted rope strands (`ATLAS`, `ropeUV` in `crew-parts.ts`). Sticks are lathed
+with rounded shoulders and an eight-fold crimp, a hair apart in height; on High they are physically based. Two turns of
+rope with a knot and the paper label hug the bundle's outline (`hullBand`); the label (aged paper, worn hazard stripes,
+"DANGER" / warning print, a crinkle normal map) prints **3 -> 2 -> 1** once on the front (uv.x runs round the band in atlas cells, a plain fourth cell elsewhere;
+digit picked per instance). The fuse leaves a brass blasting cap, curls forward and frays at its tip (`fusePoint`); the
+spark (a star burst with embers, all in its shader) rides down it and the cord behind turns to grey ash (`aFuseT` /
+`aBurn`). It pulses faster as it burns and blinks white-hot in the last half second.
 A comic **KABOOOM!** / **BOOM!** / **KA-POW!** word pops over blasts (throttled): chunky 3D lettering painted into the word
 atlas (`fx/word-burst.ts`: an outline round the block, an extruded side, a bevelled gradient face; Grandstander once loaded).
 
@@ -142,7 +151,7 @@ only with more than one level, and `sanitizeSettings`). Pick it in the setup men
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
 | Quarry       | sandstone flags; granite boulders / sandstone pillars with a timber brace; wooden crates, clay pots; rails                                              | rocky bowl: ashlar wall, terraces with coping stones, scree, banded cliff, sandstone rim boulders                                                                                                                                                                                                                                        | a wall lands                    |
 | Green Valley | turf tiles mown in stripes along the rows, tufts, dirt patches; mossy boulders / cairns; apple crates, round hay bales; stream, fence, cart             | a hedge of rounded bushes on a stone footing, a meadow with lush / dry patches, grass clumps and drifts of wildflowers (baked into the meadow's draw), the crowd in three rows on it, groves of spruces and oaks (leaf clusters) close behind, its own sky; the stream on the front margin has a wet bed, stones, reeds and a footbridge | a boulder lands                 |
-| Sea Deck     | plank tiles on a raft; painted iron bollards (rope coil) / capstans (whelps, bar sockets); cargo barrels, tarp-lashed cargo; ropes, lanterns, lifebuoys | open sea (`render/sea.ts` shader plane: turquoise shallows, light on the bottom, wind streaks), the crowd on moored barges (`render/boats.ts`: planked hulls and transoms, plank decks, rub rails, a railing with a lifebuoy, tyre fenders, a mast with stays and a pennant), a bobbing raft                                             | the tile sinks (`fall: 'tile'`) |
+| Sea Deck     | plank tiles on a raft; painted iron bollards (rope coil) / capstans (whelps, bar sockets); cargo barrels, tarp-lashed cargo; ropes, lanterns, lifebuoys | open sea (`render/sea.ts`, below), the crowd on moored barges (`render/boats.ts`: planked hulls and transoms, plank decks, rub rails, a railing with a lifebuoy, tyre fenders, a mast with stays and a pennant), a bobbing raft                                                                                                          | the tile sinks (`fall: 'tile'`) |
 
 - **What a theme holds**: sky, light, `fx` tint (dust / splinter / scorch colours as uniforms of the shared particle shaders), warning colour,
   `fall`, tile / hard-block / crate / floor / decor geometry, `scenery` (static things: bowl, water, boats, trees; `update`, `ripple`,
@@ -151,10 +160,16 @@ only with more than one level, and `sanitizeSettings`). Pick it in the setup men
 - **Sea Deck sudden death** reuses `blockFell`: `Arena.sinkTile` shakes the tile `SINK_DELAY_S` = 0.2 s, drops and tilts it, scales it
   away under the water; the splash (`Fx.splash`, `Sea.ripple`) comes `TILE_SPLASH_S` = 0.6 s after the event. A crate on the cell
   rides down; a critter KO'd on a sunk cell (`Arena.isSunk`) gets a splash, not dust and stars. The sim already treats the cell as hard.
+- **The sea** (`render/sea.ts`, one shader plane, no tiling texture): three long swells move the vertices; six shorter chop waves
+  (fanned round `WIND`, uneven wavelengths, on a noise-warped grid, faded where a pixel is wider than the wave) only bend the normals.
+  Fresnel mixes the water colour with the sky's reflection (the level's sky colours; on High the level's HDRI once it has loaded,
+  `Sea.mesh.onBeforeRender`). `contactField` bakes the distance to the raft and every hull (`fleetOutlines`) into a small R8 texture
+  once per raft size: the water is lighter teal near the fleet, darker in a band against the wood, calmer there, and foam breaks along
+  every hull and the raft's edge; wavelets lap outwards (High). Slow noise patches vary the chop and the colour far out.
 - **Sounds** (`game/audio.ts`): `Sfx.level` picks the ambience (birds in the valley, a gull and water on the sea) and the fall sound
   (`splash` on the sea). The sudden-death banner's second line is `LEVELS[id].closing`.
 - **Budgets hold per level**: draw calls <= 60 in the 40-TNT chain, the arena a handful (`tests/kaboom/levels.test.ts` checks every theme).
-  Low quality: a coarser water plane, no glitter / glint, no bob, fewer trees and one row less of spectators.
+  Low quality: a coarser water plane with half the chop, no sun glint, HDRI or lapping wavelets, no bob, fewer trees and one row less of spectators.
 - **New level**: add the id to `LEVEL_IDS` / `LEVELS`, a `LEVELS_LIST` entry (`hideInProd` first, remove it to ship), a theme file and its line in `themes/index.ts`.
 
 ## Rules (`sim/rules.ts` holds every number)
@@ -261,7 +276,7 @@ What usually kills FPS in these games, and our rule for each:
 | Chain resolved in one frame           | The sim spreads a chain over the 0.08 s chain delay; blasts only set fuses, never explode each other inside one tick.                                                                                                                                    |
 | Block removal rebuilding geometry     | One InstancedMesh per crate variant; removal swaps with the last instance and shrinks `count`.                                                                                                                                                           |
 | Hitch at a round change               | A new round builds a new `Arena`, but its merged geometry, the grain texture and the sun (with its 2048 shadow map) are shared module-level, so it costs well under a millisecond.                                                                       |
-| Draw calls                            | Arena ~12 (incl. the contact patches), crowd 2 (sprites + flags), crew bodies + fur + 3 shared (hats / vests / feet) + the team rings + the you-arrow, TNT 3, power-ups 2 (+ plinths and glows while any lie out), blob shadows 1, FX 10 (budget below). |
+| Draw calls                            | Arena ~12 (incl. the contact patches), crowd 2 (sprites + flags), crew bodies + fur + 3 shared (hats / vests / feet) + the team rings + the you-arrow, TNT 4, power-ups 2 (+ plinths and glows while any lie out), blob shadows 1, FX 10 (budget below). |
 | Garbage collection                    | Sim state in preallocated typed arrays; events are pooled objects in a reused array; render code allocates nothing per frame.                                                                                                                            |
 | Audio                                 | Max 4 blast voices; blasts within 50 ms merge; procedural WebAudio.                                                                                                                                                                                      |
 
