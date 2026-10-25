@@ -219,7 +219,8 @@ export const fiesta: CarDef = {
     glass: { color: 0x141c24, opacity: 0.6 },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
-    doorBadge: { z: 0.2, y: 0.6 },
+    // Door plate by the rule (scripts/car-model/door-plate.py): the mirror sits mid-window on a stalk, so the front edge is set by hand (23 cm behind the door shut line).
+    doorBadge: { z: 0.25, y: 0.59, tilt: 4.1 },
     // No procedural suspension: the model carries its own arms and dampers (trim).
     gltf: {
       file: 'fiesta.glb',

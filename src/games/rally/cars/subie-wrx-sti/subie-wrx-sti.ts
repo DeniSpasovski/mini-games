@@ -209,7 +209,8 @@ export const subieWrxSti: CarDef = {
     glass: { color: 0x141c24, opacity: 0.6 },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
-    doorBadge: { z: 0.2, y: 0.66, tilt: 1.5 },
+    // Door plate by the rule (scripts/car-model/door-plate.py).
+    doorBadge: { z: 0.1, y: 0.67, tilt: 2.8 },
     gltf: {
       file: 'subie_wrx_sti.glb',
       credit:

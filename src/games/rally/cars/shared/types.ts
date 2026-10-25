@@ -137,12 +137,15 @@ export interface CarModelDef {
   suspensionStyle: SuspensionStyle;
   /**
    * Rally door plate (car number + rally name, cars/shared/rally-badge.ts) - centre on the front door in
-   * model space (m); the plate size is the same on every car (0.6 m wide).
+   * model space (m); the plate size is the same on every car (0.6 m wide). Placed by the rule in
+   * scripts/car-model/door-plate.py: parallel to the window line, top 10 cm under it, front edge under the mirror.
    */
   doorBadge: {
     z: number;
     y: number;
     /** Roll in the door plane, degrees, + = front edge down (a car whose lines slope). */ tilt?: number;
+    /** Imported parts the plate also covers (material names, e.g. a `trim` moulding running across the door). */
+    over?: string[];
   };
   /**
    * Hand-built body (see cars/zastava-101/body.ts). A car needs this or `profile`: it is the body when there is

@@ -248,8 +248,8 @@ export const bimmerM3: CarDef = {
     },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
-    // Rally plate on the door (door shut lines z -0.33 .. 0.83, front = +z), above the side moulding.
-    doorBadge: { z: 0.2, y: 0.635 },
+    // Door plate by the rule (scripts/car-model/door-plate.py).
+    doorBadge: { z: 0.27, y: 0.62, tilt: 3.4 },
     // No `suspension`: the mesh models its own arms / hubs inside closed wheel wells.
     gltf: {
       file: 'bimmer_m3.glb',
