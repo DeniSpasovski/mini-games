@@ -1,3 +1,4 @@
+import { sourceListHtml } from '../../../shared/about';
 import { carName, CARS, DEFAULT_CAR } from '../cars';
 import {
   clampCarNumber,
@@ -610,14 +611,7 @@ class MainMenu {
 
   private about(): void {
     const links = (sources: SourceLink[] | undefined, none: string) =>
-      sources?.length
-        ? `<ul>${sources
-            .map(
-              (s) =>
-                `<li>${s.url ? `<a href="${s.url}" target="_blank" rel="noopener">${s.label}</a>` : s.label}${s.note ? `<small>${s.note}</small>` : ''}</li>`,
-            )
-            .join('')}</ul>`
-        : `<p class="menu-none">${none}</p>`;
+      sourceListHtml(sources, none, 'menu-none');
     const body = div('menu-about');
     body.innerHTML = `
       <p class="menu-credit">This game was made using AI agents under direction of Deni S.</p>

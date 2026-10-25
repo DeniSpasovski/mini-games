@@ -8,8 +8,8 @@ import {
   moveFocus,
   type NavAction,
 } from '../../../shared/pad-nav';
+import { aboutHtml } from '../../../shared/about';
 import { portalUrl } from '../../../shared/portal-link';
-import { SITE } from '../../../site.config';
 import gameManifest from '../game.json';
 import { HOLE_COLORS } from '../render/hole-mesh';
 import {
@@ -254,6 +254,11 @@ export class Menu {
         button(
           'How to play',
           'gray small',
+          this.click(() => this.howTo()),
+        ),
+        button(
+          'About',
+          'gray small',
           this.click(() => this.about()),
         ),
       ),
@@ -266,32 +271,30 @@ export class Menu {
     this.mount(stack);
   }
 
+  // ------------------------------------------------------------------ how to play
+  howTo(): void {
+    const card = el('div', 'hg-card wide hg-scroll');
+    const ul = el('ul', 'hg-list');
+    for (const t of [
+      'Touch and drag anywhere to steer the hole (arrow keys / WASD on a keyboard, left stick or d-pad on a controller).',
+      'Swallow anything smaller than the hole. Bigger things lean over the edge but stay put.',
+      `Eat enough to level up: the hole grows, up to level ${MAX_LEVEL}, and can swallow bigger things.`,
+      'Eat the whole island before the time runs out for a bonus on the seconds you have left.',
+      'Pause with the II button, Esc, P or Start.',
+    ])
+      ul.append(el('li', '', t));
+    card.append(el('h2', 'hg-h2', 'How to play'), ul, this.back());
+    this.mount(card);
+  }
+
   // ------------------------------------------------------------------ about
   about(): void {
     const card = el('div', 'hg-card wide hg-scroll');
-    const list = (items: string[]) => {
-      const ul = el('ul', 'hg-list');
-      for (const t of items) ul.append(el('li', '', t));
-      return ul;
-    };
-    card.append(
-      el('h2', 'hg-h2', 'How to play'),
-      list([
-        'Touch and drag anywhere to steer the hole (arrow keys / WASD on a keyboard, left stick or d-pad on a controller).',
-        'Swallow anything smaller than the hole. Bigger things lean over the edge but stay put.',
-        `Eat enough to level up: the hole grows, up to level ${MAX_LEVEL}, and can swallow bigger things.`,
-        'Eat the whole island before the time runs out for a bonus on the seconds you have left.',
-        'Pause with the II button, Esc, P or Start.',
-      ]),
-      el('h2', 'hg-h2', 'Credits'),
-      list([
-        `Hole Island is a mini game by ${SITE.owner}.`,
-        `Version ${VERSION}.`,
-        SITE.tagline + '.',
-        'Every model, the island and the sounds are generated in code. Rendering by three.js. Fonts: Fredoka and Nunito (SIL Open Font License).',
-      ]),
-      this.back(),
+    const body = el('div', 'hg-about');
+    body.innerHTML = aboutHtml(
+      'Hole Island: swallow the world. Start tiny, finish with the biggest thing in sight.',
     );
+    card.append(el('h2', 'hg-h2', 'About'), body, this.back());
     this.mount(card);
   }
 

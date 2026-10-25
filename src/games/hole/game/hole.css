@@ -674,6 +674,20 @@ body {
 .hg-list li {
   margin-bottom: 6px;
 }
+.hg-about {
+  margin: 0 0 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.hg-about p {
+  margin: 0 0 10px;
+}
+.hg-about .about-by {
+  opacity: 0.75;
+}
+.hg-about a {
+  color: inherit;
+}
 .hg-tabs {
   display: flex;
   gap: 8px;

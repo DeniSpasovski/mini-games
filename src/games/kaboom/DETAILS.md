@@ -222,7 +222,7 @@ the background. While the human is out and the round is still on, the sim runs a
   recolours in place (`Sim.setTeamColor`); only another arena size rebuilds the scene.
 - **Menus** (`game/menu.ts`): welcome, setup (one live critter turning on a stage in the team colour with arrows to flip through: `render/critter-preview.ts`,
   its own small renderer while the card is up, a portrait without WebGL; team colour, arena, bots 1-7 limited by the arena, bot skill, rounds), how
-  to play, options (volume, graphics: Auto / Low / High, reloads), pause, match results. An **All games** button appears when
+  to play, about (creator and the Poly Haven credit, text from `shared/about.ts`), options (volume, graphics: Auto / Low / High, reloads), pause, match results. An **All games** button appears when
   `portalUrl()` is not null.
 - **HUD** (`game/hud.ts`): a chip per player (portrait, team colour, round wins, out), timer (blinks in sudden death), round,
   pause, TNT stock and blast level as dynamite icons, centre banners; it only touches the DOM when something changes.

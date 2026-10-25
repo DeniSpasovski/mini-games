@@ -47,8 +47,8 @@ not.
 
 ## Game flow
 
-- **Welcome** shows Play, Hole colour, Top scores and Options (plus the game version from `game.json`, just under the
-  card; also on How to play) over a slowly orbiting aerial view of the island, where a
+- **Welcome** shows Play, Hole colour, Top scores, Options, How to play and About (plus the game version from `game.json`, just under the
+  card) over a slowly orbiting aerial view of the island, where a
   bot-driven hole is already eating its way around.
 - **Hole colour**: pick from 8 preset swatches (CSS preview of the hole; the in-world hole changes too). Saved, and
   pre-selected next time.
