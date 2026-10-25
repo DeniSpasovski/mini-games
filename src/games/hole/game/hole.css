@@ -675,6 +675,7 @@ body {
   margin-bottom: 6px;
 }
 .hg-about {
+  text-align: left;
   margin: 0 0 14px;
   font-weight: 700;
   line-height: 1.4;
@@ -682,7 +683,25 @@ body {
 .hg-about p {
   margin: 0 0 10px;
 }
-.hg-about .about-by {
+.hg-about .about-credit {
+  font-weight: 800;
+}
+.hg-about h3 {
+  margin: 14px 0 4px;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.hg-about ul {
+  margin: 0 0 8px;
+  padding-left: 22px;
+}
+.hg-about li {
+  margin-bottom: 6px;
+}
+.hg-about small {
+  display: block;
+  font-size: 12px;
   opacity: 0.75;
 }
 .hg-about a {

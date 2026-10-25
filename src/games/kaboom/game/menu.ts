@@ -531,10 +531,19 @@ export class Menu {
     const card = el('div', 'kb-card kb-about');
     card.append(el('h2', '', 'About'));
     const body = el('div', 'kb-about-body');
-    body.innerHTML = aboutHtml(
-      'Light the fuse, blast the crates and outlast the bots: an arena game of animal demolition crews on a clay diorama.',
-      `Environment light and textures from ${POLY_HAVEN_HTML}, CC0.`,
-    );
+    body.innerHTML = aboutHtml({
+      version: VERSION,
+      description:
+        'A party game for you and up to seven bots. A crew of chubby animal demolition workers is dropped into an arena with a cheering crowd: light the fuse, watch the band count 3, 2, 1, blast the crates and be the last critter standing. A tilted 3D arena, three arena sizes, bots in three skill levels, and chain reactions that stay smooth.',
+      assets: `The critters, arenas, effects and sounds are made in code. Environment light and textures from ${POLY_HAVEN_HTML}, CC0.`,
+      builtWith: [
+        { label: 'three.js', note: 'rendering, MIT' },
+        {
+          label: 'Grandstander and Nunito',
+          note: 'UI fonts, SIL Open Font License 1.1',
+        },
+      ],
+    });
     card.append(
       body,
       this.actions(this.btn('Back', 'primary', () => this.welcome())),

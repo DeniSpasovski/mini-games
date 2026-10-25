@@ -604,16 +604,29 @@ body {
 
 /* about */
 .kb-about-body {
+  text-align: left;
   font-weight: 700;
   line-height: 1.45;
 }
 .kb-about-body p {
   margin: 0 0 10px;
 }
+.kb-about-body .about-credit {
+  font-weight: 800;
+}
 .kb-about-body h3 {
   margin: 14px 0 6px;
 }
-.kb-about-body .about-by {
+.kb-about-body ul {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+.kb-about-body li {
+  margin-bottom: 6px;
+}
+.kb-about-body small {
+  display: block;
+  font-size: 12px;
   color: var(--kb-ink-2);
 }
 .kb-about-body a {

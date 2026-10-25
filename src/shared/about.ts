@@ -9,11 +9,33 @@ export interface SourceLink {
   note?: string;
 }
 
-/** The simple About body (Kaboom, Hole Island): what the game is, who made it, optional asset credits (HTML, trusted strings). */
-export function aboutHtml(intro: string, assets?: string): string {
-  return `<p>${intro}</p>
-    <p class="about-by">By ${SITE.owner}</p>${assets ? `<h3>Assets</h3><p>${assets}</p>` : ''}`;
+/** The game's creator, listed under Contributors (the rally About adds its links and a second contributor). */
+export const CREATOR: SourceLink = {
+  label: 'Deni Spasovski',
+  note: 'Agent Orchestrator',
+};
+
+export interface AboutContent {
+  version: string;
+  /** What the game is, in a few sentences (HTML, trusted strings). */
+  description: string;
+  /** Where the assets come from (HTML), or what was generated; a heading "Assets" over it. */
+  assets: string;
+  builtWith: SourceLink[];
 }
+
+/** The About body of Kaboom and Hole Island, laid out like the rally one: credit line, version, description, contributors, assets, built with. */
+export function aboutHtml(c: AboutContent): string {
+  return `<p class="about-credit">${MADE_WITH_AGENTS}</p>
+    <p class="about-credit">Version ${c.version}</p>
+    <p>${c.description}</p>
+    <h3>Contributors</h3>${sourceListHtml([CREATOR])}
+    <h3>Assets</h3><p>${c.assets}</p>
+    <h3>Built with</h3>${sourceListHtml(c.builtWith)}`;
+}
+
+/** The "made using AI agents" line of every About screen. */
+export const MADE_WITH_AGENTS = `This game was made using AI agents under direction of ${SITE.owner}`;
 
 /** Poly Haven (CC0 scans), linked once as the source. */
 export const POLY_HAVEN_HTML =
