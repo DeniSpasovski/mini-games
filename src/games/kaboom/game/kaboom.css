@@ -636,7 +636,9 @@ body {
 .kb-about .kb-actions {
   background: var(--kb-grain), var(--kb-card);
   mask-image: linear-gradient(transparent, black 14px);
-  padding-top: 16px;
+  /* room for the focus ring and the button shadow, which the mask would clip square */
+  padding: 16px 18px 20px;
+  margin-inline: -18px;
 }
 
 /* results */
