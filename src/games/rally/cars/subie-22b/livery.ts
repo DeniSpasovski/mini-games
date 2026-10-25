@@ -58,9 +58,24 @@ const CRESCENT_IN: Pt[] = [
  * from a point at the front, the lower one from a slanted cut further back. Distances in metres.
  */
 const STRIPE_HI = { gap: 0.04, width: 0.045, front: 380 }; // front: sketch x of the front tip
-const STRIPE_LO = { gap: 0.035, width: 0.04, front: 490, slant: 0.03 }; // slant: how far back the cut's bottom corner sits
-/** Rear end of both stripes (sketch x), a little short of the crescent's tail tip. */
-const STRIPES_END = 1118;
+const STRIPE_LO = { gap: 0.035, width: 0.04, front: 480 }; // front: where its (straight) top line starts
+/** The lower stripe's front is cut along this curve (sketch px), rising forwards from its underside. */
+const STRIPE_LO_FRONT: Pt[] = [
+  [600, 250],
+  [570, 222],
+  [552, 200],
+  [536, 186],
+  [510, 176],
+  [470, 170],
+];
+/** All three tails end on one smooth cut (sketch px, top to bottom), the middle one shortest. */
+const REAR_CUT: Pt[] = [
+  [1127, 10],
+  [1106, 48],
+  [1093, 78],
+  [1096, 100],
+  [1106, 122],
+];
 
 /** Catmull-Rom curve through the points, resampled, then rounded off by corner cutting. */
 function curve(pts: Pt[], per = 16): Pt[] {
@@ -111,77 +126,145 @@ function offset(pts: Pt[], d: number | ((i: number) => number)): Pt[] {
   });
 }
 
+interface Edged {
+  fill: Pt[];
+  /** Extra regions the fill is clipped to. */
+  fillClip?: Pt[][];
+  edges: Pt[][];
+  /** Regions the dark lines are clipped to. */
+  edgeClip?: Pt[][];
+}
+
 /**
- * Yellow shapes with a dark gold edge on some of their sides: those edges are stroked wide first and the shape filled over
- * them, so only the outer half of the stroke shows, as a clean line along the edge.
+ * Yellow shapes with a dark gold line on some edges: the lines are stroked wide first and the shapes filled over them, so
+ * only the outer half of each stroke shows. Everything is clipped to `keep` (the rear cut).
  */
 function edged(
   ctx: CanvasRenderingContext2D,
-  shapes: { fill: Pt[]; edges: Pt[][] }[],
+  keep: Pt[],
+  shapes: Edged[],
 ): void {
   const size: Pt = [B.z[1] - B.z[0], B.y[1] - B.y[0]];
   for (const s of ['left', 'right'] as const) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(CH[s][0] * K, CH[s][1] * K, size[0] * K, size[1] * K);
-    ctx.clip();
     const path = (pts: Pt[]) =>
       pts.forEach(([z, y], i) => {
         const [x, v] = sidePx(s, z, y);
         if (i) ctx.lineTo(x, v);
         else ctx.moveTo(x, v);
       });
-    ctx.lineJoin = 'round';
-    ctx.lineCap = 'round';
-    ctx.lineWidth = EDGE_W * 2 * K;
-    ctx.strokeStyle = EDGE;
-    for (const { edges } of shapes)
+    const clip = (pts: Pt[]) => {
+      ctx.beginPath();
+      path(pts);
+      ctx.closePath();
+      ctx.clip();
+    };
+    const pass = (draw: (sh: Edged) => void) => {
+      for (const sh of shapes) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(CH[s][0] * K, CH[s][1] * K, size[0] * K, size[1] * K);
+        ctx.clip();
+        clip(keep);
+        draw(sh);
+        ctx.restore();
+      }
+    };
+    pass(({ edges, edgeClip }) => {
+      for (const c of edgeClip ?? []) clip(c);
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.lineWidth = EDGE_W * 2 * K;
+      ctx.strokeStyle = EDGE;
       for (const e of edges) {
         ctx.beginPath();
         path(e);
         ctx.stroke();
       }
-    ctx.fillStyle = YELLOW;
-    for (const { fill } of shapes) {
+    });
+    pass(({ fill, fillClip }) => {
+      for (const c of fillClip ?? []) clip(c);
+      ctx.fillStyle = YELLOW;
       ctx.beginPath();
       path(fill);
       ctx.closePath();
       ctx.fill();
-    }
-    ctx.restore();
+    });
   }
 }
 
+/** Region on one side of a cut curve: the curve, then two far corners (sketch px) closing it. */
+const region = (cut: Pt[], far: Pt[]): Pt[] => [
+  ...curve(cut.map(at)),
+  ...far.map(at),
+];
+
 function swoosh(ctx: CanvasRenderingContext2D): void {
   const inner = curve(CRESCENT_IN.map(at)); // tail -> low end
-  // The top line for the stripes: the inner edge from the stripes' rear end forward, ordered front -> rear.
-  const zEnd = at([STRIPES_END, 0])[0];
+  const outer = curve(CRESCENT_OUT.map(at)); // low end -> tail
+  // The top line for the stripes: the crescent's inner edge, ordered front -> rear; the rear cut trims all the tails.
   const top = (frontX: number) => {
     const zFront = at([frontX, 0])[0];
-    return inner.filter(([z]) => z <= zFront && z >= zEnd).reverse();
+    return inner.filter(([z]) => z <= zFront).reverse();
   };
+  const forwardOfRearCut = region(REAR_CUT, [
+    [1106, 600],
+    [-400, 600],
+    [-400, -300],
+    [1127, -300],
+  ]);
   // Going front -> rear, the offset normal points down the car side, away from the crescent.
   const hiTop = top(STRIPE_HI.front);
   const n = hiTop.length;
-  const hiUpper = offset(hiTop, STRIPE_HI.gap);
-  const hiLower = offset(hiTop, (i) => {
+  const hiWidth = (i: number) => {
     const t = Math.min(1, i / (n * 0.3)); // widens from a point at the front over its first 30%
-    return STRIPE_HI.gap + STRIPE_HI.width * t * t * (3 - 2 * t);
-  });
+    return STRIPE_HI.width * t * t * (3 - 2 * t);
+  };
+  const hiUpper = offset(hiTop, STRIPE_HI.gap);
+  const hiLower = offset(hiTop, (i) => STRIPE_HI.gap + hiWidth(i));
+  const hiBand = offset(
+    hiTop,
+    (i) => STRIPE_HI.gap + hiWidth(i) + EDGE_W * 1.5,
+  );
   const loTop = top(STRIPE_LO.front);
   const d0 = STRIPE_HI.gap + STRIPE_HI.width + STRIPE_LO.gap;
   const loUpper = offset(loTop, d0);
-  const loLower = offset(loTop, d0 + STRIPE_LO.width).filter(
-    ([z]) => z <= loTop[0][0] - STRIPE_LO.slant,
-  );
-  // Dark gold only underneath: the crescent's inner edge and low end, each stripe's front and underside.
-  const outer = curve(CRESCENT_OUT.map(at));
-  edged(ctx, [
-    { fill: [...outer, ...inner], edges: [[...inner, outer[0]]] },
-    { fill: [...hiUpper, ...[...hiLower].reverse()], edges: [hiLower] },
+  const loLower = offset(loTop, d0 + STRIPE_LO.width);
+  const loBand = offset(loTop, d0 + STRIPE_LO.width + EDGE_W * 1.5);
+  const rearOfLoFront = region(STRIPE_LO_FRONT, [
+    [470, -300],
+    [2000, -300],
+    [2000, 600],
+    [600, 600],
+  ]);
+  // The crescent's dark line never shows outside its outer edge: clip it to the side of the outer edge facing the hollow.
+  const insideOuter: Pt[] = [
+    ...outer,
+    ...(
+      [
+        [2000, 25],
+        [2000, 600],
+        [205, 600],
+      ] as Pt[]
+    ).map(at),
+  ];
+  // Dark gold only underneath: the crescent's inner edge and low end, each stripe's front and underside. Each line is
+  // clipped to between its shape's top edge and just below its underside, so it never runs onto a top edge.
+  edged(ctx, forwardOfRearCut, [
+    {
+      fill: [...outer, ...inner],
+      edges: [[...inner, outer[0]]],
+      edgeClip: [insideOuter],
+    },
+    {
+      fill: [...hiUpper, ...[...hiLower].reverse()],
+      edges: [hiLower],
+      edgeClip: [[...hiUpper, ...[...hiBand].reverse()]],
+    },
     {
       fill: [...loUpper, ...[...loLower].reverse()],
-      edges: [[loUpper[0], ...loLower]],
+      fillClip: [rearOfLoFront],
+      edges: [curve(STRIPE_LO_FRONT.map(at)), loLower],
+      edgeClip: [[...loUpper, ...[...loBand].reverse()]],
     },
   ]);
 }
