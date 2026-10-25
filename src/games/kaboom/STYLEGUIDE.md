@@ -95,7 +95,7 @@ text`), the side is four drop-shadows stepping down-right and the outline four m
 
 - **Pause** is a card over the paused arena (no HUD) with Resume first. **Results** is a card with the headline (red letters
   when a bot won), a row per player (rank, portrait on a team ring, name, stars, blasts), then Play again, Change setup and
-  Main menu.
+  Main menu. **About** is a card with the creator and the credits (text from `src/shared/about.ts`).
 - **The finale** (`WorldView.finale`): the camera pulls back to the whole stand, the arena floor clears, a podium
   (`render/podium.ts`, 2 - 1 - 3, the place pressed into the front) rises and the crew climbs it, the winner hopping. The far
   stand holds up a board of cards that spells "YOU!" or the winner's name in their team colour (`render/card-stunt.ts`; a tie

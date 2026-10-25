@@ -1,8 +1,7 @@
 # 3, 2, 1 Kabooom - details
 
-> **Status:** playable end to end (menus, bots, HUD, touch / keyboard / gamepad, audio, sudden death); polish and a real-device
-> pass remain (`TASKS.md`, local).
-> **Released** (listed in `GAME_LIST`, `src/portal/release.ts`).
+> **Status: released** (`GAME_LIST` in `src/portal/release.ts`), playable end to end; polish and a real-device pass remain
+> (`TASKS.md`, local).
 
 An arena game in a tilted 3D view: you and up to 7 bots walk a grid, place TNT, blow up crates and each other. The last
 one standing wins the round. three.js, procedural art (no model or sound files; one small HDRI and one detail tile per level from Poly Haven).
@@ -13,7 +12,8 @@ one standing wins the round. three.js, procedural art (no model or sound files; 
    materials or allocations. Every feature names its frame cost.
 2. **Readable at a glance.** The camera tilt, the colours and the flame shapes show who, where and when. Danger is
    always visible (TNT count, flame tiles, fuse sparks).
-3. **Our own look.** Original characters, art, sounds and level layouts, all procedural; no third-party model or sound files. The UI fonts, one small CC0 HDRI per level (environment light) and one baked-down CC0 detail tile per level are the only files from elsewhere; models stay reference only. See "Style".
+3. **Our own look.** Original characters, art, sounds and level layouts, all procedural; the only outside files are the UI
+   fonts and, per level, one small CC0 HDRI and one CC0 detail tile (README "Credits"). See "Style".
 4. **Short loop.** Pick bots, map size, go. Rounds of about 2 minutes; best of 3 by default.
 
 ## Style
@@ -83,7 +83,7 @@ pattern in critter space (no UVs), darker roots, lighter tips, a rim sheen, grav
 part has a fur length (velvet mole .. shaggy raccoon); bald parts (eyes, noses, teeth, claws, quills, shells) and the
 gear clear the fur around them; patterns (raccoon mask, badger face, otter chest) are painted into the fur colour. Team
 colour = hard hat (ribbed dome, rolled brim, front peak) + hi-vis vest (open front, straps, hems, pockets, silver
-reflective stripes that keep their colour: `aPlain`) (`render/crew-parts.ts`, `TEAM_COLORS`); both are shared instanced
+reflective stripes that keep their colour: `aPlain`) (`render/crew-parts.ts`; colours `TEAM_COLORS` in `characters.ts`); both are shared instanced
 meshes placed per critter by its fit (`hatY` / `hatZ` / `hatScale` / `hatTilt`, `vest`, `feet`). Animated by code
 (`render/characters.ts`): waddle + bob, squash when placing TNT, hop when winning. A KO is family friendly: the critter
 shrinks into a puff of dust and stars, the hard hat bounces away, and the sooty critter sits dazed on the slab edge.
@@ -203,13 +203,16 @@ only with more than one level, and `sanitizeSettings`). Pick it in the setup men
 
 ## Camera
 
-Perspective, FOV 30 deg, pitch 54 deg (tested 52-58: lower shows the blocks' sides, higher keeps cells behind tall blocks visible), fixed yaw (looking north, grid +y = screen down): a tilted diorama. Two views
-(`CameraRig.view`, the Camera option, `C` in a match, `?camera=follow|full`): **follow** (default) always frames a window of
-about 14 x 11 cells (9 x 12 in portrait) that `followTo` moves with the human; **full** is the framing below.
-In full, `CameraRig.fitView` frames the whole slab (bisecting the distance on the real projection of its corners) for Small and
-Medium arenas on a landscape screen; for Large arenas and portrait phones it frames a window of about 14 x 11 cells (9 x 13 in
-portrait) that `followTo` moves with the human, clamped at the slab edge. The bot match behind the home menu pulls back
-further (`WorldView.fit`) so the whole crowd shows. `Shake` (one capped trauma accumulator) is added on top.
+Perspective, `CAM_FOV` 30°, `CAM_PITCH_DEG` 54° (lower shows the blocks' sides, higher hides cells behind tall blocks),
+fixed yaw (looking north, grid +y = screen down): a tilted diorama (`render/camera-rig.ts`). Two views (`CameraRig.view`, the
+Camera option, `C` in a match, `?camera=follow|full`):
+
+- **follow** (default): a window of about 14 x 11 cells (9 x 12 in portrait) that `followTo` moves with the human.
+- **full**: `fitView` frames the whole slab for Small and Medium arenas on a landscape screen; Large arenas and portrait
+  phones get a slightly larger follow window (14 x 11, 9 x 13), clamped at the slab edge.
+
+The bot match behind the menus pulls back further (`WorldView.fit`) so the crowd shows. `Shake` (one capped trauma
+accumulator) is added on top.
 
 ## Game flow (`game/kaboom-game.ts`)
 
@@ -266,7 +269,7 @@ What usually kills FPS in these games, and our rule for each:
 | Shadow map redrawn every frame        | Static sun shadow (`shadowMap.autoUpdate = false`), redrawn when a crate breaks but at most every 0.15 s (`WorldView.takeShadowUpdate`); movers use `BlobShadows`.                                                                                       |
 | Chain resolved in one frame           | The sim spreads a chain over the 0.08 s chain delay; blasts only set fuses, never explode each other inside one tick.                                                                                                                                    |
 | Block removal rebuilding geometry     | One InstancedMesh per crate variant; removal swaps with the last instance and shrinks `count`.                                                                                                                                                           |
-| Hitch at a round change               | A new round builds a new `Arena`, but its merged geometry, the grain texture and the sun (with its 2048 shadow map) are shared module-level, so it costs well under a millisecond.                                                                       |
+| Hitch at a round change               | A new round builds a new `Arena`, but its geometry (`themes/cache.ts`) and the sun (with its 2048 shadow map) are shared module-level, so it costs well under a millisecond.                                                                             |
 | Draw calls                            | Arena ~12 (incl. the contact patches), crowd 2 (sprites + flags), crew bodies + fur + 3 shared (hats / vests / feet) + the team rings + the you-arrow, TNT 3, power-ups 2 (+ plinths and glows while any lie out), blob shadows 1, FX 10 (budget below). |
 | Garbage collection                    | Sim state in preallocated typed arrays; events are pooled objects in a reused array; render code allocates nothing per frame.                                                                                                                            |
 | Audio                                 | Max 4 blast voices; blasts within 50 ms merge; procedural WebAudio.                                                                                                                                                                                      |
@@ -284,17 +287,21 @@ Same split as Hole Island: DOM-free `sim/` + `map/` (tested in node), three.js `
 
 ```
 src/games/kaboom/
-  game.json  release.ts (the levels' release list)  README.md  DETAILS.md  TASKS.md (local)  thumbnail.jpg  screenshots/
+  game.json  release.ts (the levels' release list)  README.md  DETAILS.md  STYLEGUIDE.md  TASKS.md (local)  screenshots/
+  assets/  fonts/ hdri/ textures/ (baked by scripts/kaboom/)
   sim/     types.ts rules.ts grid.ts (the contract)  state.ts movement.ts blast.ts sim.ts danger.ts bot.ts powerups.ts
   map/     sizes.ts blank.ts generate.ts spawns.ts safety.ts styles.ts
   render/  renderer.ts camera-rig.ts materials.ts parts.ts arena.ts critters.ts fur.ts crew-parts.ts characters.ts tnt.ts
-           bowl.ts crowd.ts shadows.ts portraits.ts critter-preview.ts items.ts world-view.ts sea.ts boats.ts
+           bowl.ts crowd.ts card-stunt.ts podium.ts shadows.ts portraits.ts critter-preview.ts items.ts world-view.ts
+           sea.ts boats.ts detail.ts environment.ts
            themes/ theme.ts index.ts cache.ts quarry.ts valley.ts sea.ts
            fx/ glow-grid.ts puff-atlas.ts particles.ts flames.ts word-burst.ts shake.ts fx.ts
   game/    kaboom-game.ts levels.ts menu.ts hud.ts icons.ts input.ts input-map.ts audio.ts settings.ts storage.ts dom.ts ios.ts
-           kaboom.css
+           kaboom.css ui-tokens.css
   debug/   viewer-shell.ts
   pages/   play.ts map-viewer.ts crew-viewer.ts bench.ts
+tests/kaboom/                  fast node tests (sim, map safety, bots, danger, powerups, camera, crowd, levels, fx budgets ...)
+integration-tests/kaboom/      bots.test.ts: headless bot rounds per difficulty
 ```
 
 - **Fixed step**: sim at 60 Hz, render interpolates positions with `alpha` (pattern: `src/games/rally/game/rally-game.ts`).
