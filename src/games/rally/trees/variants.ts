@@ -17,7 +17,10 @@ import {
  * the registry holds the summaries placement and drawing read, filled when a stage loads (trees/load.ts).
  */
 
-/** Bump when generated output changes for the same species and seed: cached variants regenerate. */
+/**
+ * Bump when generated output changes for the same species and seed, or the leaf atlases change (trees/leaftex.ts,
+ * `coverageMips`): cached variants and atlases regenerate.
+ */
 export const GENERATOR_VERSION = 12;
 
 export interface TreeVariantInfo {

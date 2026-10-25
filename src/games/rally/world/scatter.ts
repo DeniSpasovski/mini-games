@@ -309,7 +309,9 @@ export class ScatterField {
     const k = key(cx, cz);
     let d = this.details.get(k);
     if (!d) {
-      d = yield* this.generateSteps(cx, cz, this.detailRules, 1000);
+      const made = yield* this.generateSteps(cx, cz, this.detailRules, 1000);
+      // Made meanwhile by a plain `detail` call: keep that one (callers may hold it).
+      d = this.details.get(k) ?? made;
       this.details.set(k, d);
     }
     return d;
@@ -320,9 +322,10 @@ export class ScatterField {
     const k = key(cx, cz);
     let d = this.nearDetails.get(k);
     if (!d) {
-      d = this.nearRules.length
+      const made = this.nearRules.length
         ? yield* this.generateSteps(cx, cz, this.nearRules, 2000)
         : [];
+      d = this.nearDetails.get(k) ?? made;
       this.nearDetails.set(k, d);
     }
     return d;
