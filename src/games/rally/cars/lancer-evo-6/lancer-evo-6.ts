@@ -229,7 +229,7 @@ export const lancerEvo6: CarDef = {
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Door plate by the rule (scripts/car-model/door-plate.py).
-    doorBadge: { z: 0.26, y: 0.64, tilt: 3.4 },
+    doorBadge: { z: 0.26, y: 0.65, tilt: 2.3 },
     // No procedural suspension: the chassis keeps its own parts (trim).
     gltf: {
       file: 'lancer_evo_6.glb',

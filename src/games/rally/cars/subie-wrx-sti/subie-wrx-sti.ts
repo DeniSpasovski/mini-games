@@ -210,7 +210,7 @@ export const subieWrxSti: CarDef = {
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Door plate by the rule (scripts/car-model/door-plate.py).
-    doorBadge: { z: 0.1, y: 0.67, tilt: 2.8 },
+    doorBadge: { z: 0.1, y: 0.64, tilt: 1.4 },
     gltf: {
       file: 'subie_wrx_sti.glb',
       credit:

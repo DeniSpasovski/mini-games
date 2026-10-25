@@ -216,7 +216,7 @@ export const skodaRally: CarDef = {
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Door plate by the rule (scripts/car-model/door-plate.py).
-    doorBadge: { z: 0.31, y: 0.64, tilt: 3.3 },
+    doorBadge: { z: 0.31, y: 0.64, tilt: 2.4 },
     // No procedural suspension: the imported model carries its own springs, dampers and arms (trim).
     // Imported body:
     // "Skoda Fabia R5 Rally Car" by SenturyUK, CC BY 4.0, converted by glb-to-parts-stl.py + stl-to-glb.mjs

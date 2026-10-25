@@ -230,7 +230,7 @@ export const porsche911930: CarDef = {
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Door plate by the rule (scripts/car-model/door-plate.py).
-    doorBadge: { z: 0.37, y: 0.6 },
+    doorBadge: { z: 0.37, y: 0.62 },
     gltf: {
       file: 'porsche_911_930.glb',
       credit:

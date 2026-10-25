@@ -215,7 +215,7 @@ export const merc190: CarDef = {
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Door plate by the rule (scripts/car-model/door-plate.py).
-    doorBadge: { z: 0.18, y: 0.58, tilt: 3.7 },
+    doorBadge: { z: 0.18, y: 0.6, tilt: 2.7 },
     gltf: {
       file: 'merc_190.glb',
       credit:

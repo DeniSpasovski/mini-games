@@ -229,7 +229,7 @@ export const citroenC4: CarDef = {
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Door plate by the rule (scripts/car-model/door-plate.py).
-    doorBadge: { z: 0.25, y: 0.73, tilt: 1.3 },
+    doorBadge: { z: 0.25, y: 0.71, tilt: 0.6 },
     // No procedural suspension: the model carries its own arms and dampers (trim).
     gltf: {
       file: 'citroen_c4.glb',

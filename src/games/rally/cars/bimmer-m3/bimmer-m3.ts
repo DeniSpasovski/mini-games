@@ -249,7 +249,7 @@ export const bimmerM3: CarDef = {
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Door plate by the rule (scripts/car-model/door-plate.py).
-    doorBadge: { z: 0.27, y: 0.62, tilt: 3.4 },
+    doorBadge: { z: 0.27, y: 0.61, tilt: 1.9 },
     // No `suspension`: the mesh models its own arms / hubs inside closed wheel wells.
     gltf: {
       file: 'bimmer_m3.glb',

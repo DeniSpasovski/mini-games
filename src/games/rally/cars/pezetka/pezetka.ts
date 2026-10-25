@@ -221,7 +221,7 @@ export const pezetka: CarDef = {
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Door plate by the rule (scripts/car-model/door-plate.py).
-    doorBadge: { z: 0.36, y: 0.58 },
+    doorBadge: { z: 0.36, y: 0.6, tilt: 0.6 },
     gltf: {
       file: 'pezetka.glb',
       credit:

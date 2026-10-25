@@ -210,7 +210,7 @@ export const subie22b: CarDef = {
     // Fallback body if the GLB can't load: profile.ts.
     profile,
     // Door plate by the rule (scripts/car-model/door-plate.py).
-    doorBadge: { z: 0.18, y: 0.6, tilt: 1.8 },
+    doorBadge: { z: 0.18, y: 0.6, tilt: 0.4 },
     gltf: {
       file: 'subie_22b.glb',
       credit:

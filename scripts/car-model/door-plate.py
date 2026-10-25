@@ -5,8 +5,11 @@
 The rule (real rally door panels: on the front door's leading part, horizontal along the body, top 7 - 10 cm
 under the window - FIA rally sporting regulations, "front door panels"):
 - window line = top of the door paint under the front side window (glass + its seal, seen from the side);
-- tilt = the window line's slope over the plate's length, so the plate runs parallel to it;
-- height: the plate's top edge sits GAP (10 cm) under the window line;
+  door bottom = lowest outer body (sill) under the same span;
+- tilt = the mean slope of the window line and the door bottom: the plate sits between the two, so it follows the
+  door's middle line (the window line alone rises more on wedge-shaped cars and over-tilts the plate);
+- height: the plate's centre at DOOR_FRAC (64 %) of the door's height from the bottom, which puts its top edge
+  ~10 cm under the window on a usual door (lower on a tall door, higher on a short one);
 - front edge: FRONT_K (5 cm) behind the front of the door mirror, so the plate starts under the mirror.
   `--front z` sets the front edge instead (a car whose mirror is not on the door's front corner).
 Then look at both sides in the car viewer and nudge only for the car's own lines (a moulding, a handle, a crease).
@@ -24,7 +27,7 @@ from gltfio import load_glb, primitives  # noqa: E402
 # Plate size: cars/shared/rally-badge.ts (BADGE_WIDTH 0.6 m, canvas 768 x 416).
 W = 0.6
 H = W * 416 / 768
-GAP = 0.10
+DOOR_FRAC = 0.64
 FRONT_K = 0.05
 STEP = 0.01
 
@@ -90,6 +93,14 @@ def window_line(zs, ys, MAT, NX, names):
     return belt
 
 
+def door_bottom(zs, ys, X, MAT, names):
+    """Per z: the lowest painted cell on the door skin (within 6 cm of it) - the sill line."""
+    body = names.index('body')
+    skin = np.median(X[(ys > 0.5) & (ys < 0.75)][:, (zs > -0.3) & (zs < 0.3)])
+    on = (MAT == body) & (X > skin - 0.06) & (ys[:, None] > 0.03) & (ys[:, None] < 0.6)
+    return np.array([ys[np.argmax(c)] if c.any() else np.nan for c in on.T])
+
+
 def mirror_front(zs, ys, X, belt):
     """z of the mirror's front: the part sticking out past the door skin and reaching above the window line."""
     skin = np.median(X[(ys > 0.5) & (ys < 0.75)][:, (zs > -0.3) & (zs < 0.3)])
@@ -129,10 +140,14 @@ def main():
     zc = front - W / 2
     span = (zs <= front) & (zs >= front - W) & ~np.isnan(belt)
     a, s = fit_line(zs[span], belt[span])
-    yc = a + s * zc - GAP - H / 2
-    # + tilt = front edge down (the window line rises towards the rear).
-    tilt = -np.degrees(np.arctan(s))
-    print(f'mirror front z {mf}, window line at the plate centre y {a + s * zc:.3f}, slope {s:+.3f}')
+    low = door_bottom(zs, ys, X, MAT, names)
+    ok = (zs <= front) & (zs >= front - W) & ~np.isnan(low)
+    a2, s2 = fit_line(zs[ok], low[ok])
+    top, bottom = a + s * zc, a2 + s2 * zc
+    yc = bottom + DOOR_FRAC * (top - bottom)
+    # + tilt = front edge down (the lines rise towards the rear).
+    tilt = -np.degrees(np.arctan((s + s2) / 2))
+    print(f'mirror front z {mf}, window line y {top:.3f} slope {s:+.3f}, door bottom y {bottom:.3f} slope {s2:+.3f}')
     print(f'doorBadge: {{ z: {zc:.2f}, y: {yc:.2f}, tilt: {tilt:.1f} }}')
     if '--png' in opts:
         from PIL import Image, ImageDraw
@@ -153,7 +168,10 @@ def main():
         if mf is not None:
             dr.line([px(mf, 0.5), px(mf, 1.3)], fill=(255, 0, 255))
         corners = [(front, 1), (front - W, 1), (front - W, 0), (front, 0)]
-        dr.polygon([px(z, a + s * z - GAP - H * (1 - t)) for z, t in corners], outline=(0, 255, 0))
+        for z in zs[ok]:
+            dr.point(px(z, a2 + s2 * z), fill=(255, 255, 0))
+        k2 = np.tan(np.radians(tilt))
+        dr.polygon([px(z, yc - (z - zc) * k2 + H * (t - 0.5)) for z, t in corners], outline=(0, 255, 0))
         im.save(opts['--png'])
 
 

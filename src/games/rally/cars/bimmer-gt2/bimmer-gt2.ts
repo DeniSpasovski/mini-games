@@ -233,7 +233,7 @@ export const bimmerGt2: CarDef = {
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Door plate by the rule (scripts/car-model/door-plate.py).
-    doorBadge: { z: 0.28, y: 0.59, tilt: 3.0 },
+    doorBadge: { z: 0.28, y: 0.63, tilt: 2.5 },
     // No `suspension`: the wheel wells are closed by the liner (model.source.json `wheels`).
     gltf: {
       // E92 tail lamps: the outer half on the wing is the running lamp, the inner half on the boot lid lights with the

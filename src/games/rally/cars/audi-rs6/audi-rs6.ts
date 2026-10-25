@@ -205,7 +205,7 @@ export const audiRs6: CarDef = {
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
     // Door plate by the rule (scripts/car-model/door-plate.py).
-    doorBadge: { z: 0.15, y: 0.71, tilt: 3.5 },
+    doorBadge: { z: 0.15, y: 0.7, tilt: 2.6 },
     gltf: {
       // The three main light units of the lamp sheet (two top, the big bottom square; picked on the model): a glare on each.
       headBulbs: [
