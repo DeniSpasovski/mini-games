@@ -10,18 +10,17 @@ import source from './model.source.json';
  * swoosh (three cut-out yellow lines, outer one thickest, drawn after a sketch from the owner; no lettering, no logo) and dust.
  */
 const A = source.atlas;
-const { K, B, CH, Painter, sidePx, frontPx, rearPx } = atlasKit(A);
+const { K, B, CH, sidePx, frontPx, rearPx } = atlasKit(A);
 
-/** Warm gold-yellow of the classic works blue-and-yellow rally scheme, and the darker gold of the edge lines under it. */
+/** Warm gold-yellow of the classic works blue-and-yellow rally scheme, and the darker gold of its outline. */
 const YELLOW = '#f4c51c';
 const EDGE = '#a8780c';
-/** Edge line width (m). */
-const EDGE_W = 0.02;
+/** Outline width (m). */
+const EDGE_W = 0.01;
 
 /**
  * The swoosh, drawn after the owner's sketch: a crescent whose belly sits low on the door and whose tail runs back and up
- * along the rear quarter, with two straight stripes inside it; a dark gold line runs under the crescent's inner edge and
- * under each stripe. Shapes are in sketch px (x right = towards the rear, y down), mapped onto the body side by `at`.
+ * along the rear quarter, with two stripes inside it, all outlined in dark gold. Shapes are in sketch px (x right = towards the rear, y down), mapped onto the body side by `at`.
  */
 const Z_FRONT = -0.42; // front of the belly (sketch x 75)
 const Y_TOP = 0.8; // tail tip (sketch y 25)
@@ -54,32 +53,14 @@ const CRESCENT_IN: Pt[] = [
   [325, 284],
   [355, 318],
 ];
-/** Upper stripe: its front end curves down along the crescent; lower stripe: front end cut on a slant. */
-const STRIPE_HI_FRONT: Pt[] = [
-  [378, 155],
-  [440, 162],
-  [482, 180],
-];
-const STRIPE_HI: { top: Pt[]; bottom: Pt[] } = {
-  top: [
-    [378, 155],
-    [1120, 55],
-  ],
-  bottom: [
-    [482, 180],
-    [1120, 73],
-  ],
-};
-const STRIPE_LO: { top: Pt[]; bottom: Pt[] } = {
-  top: [
-    [488, 188],
-    [1112, 86],
-  ],
-  bottom: [
-    [510, 222],
-    [1112, 102],
-  ],
-};
+/**
+ * The two stripes run parallel to the crescent's inner edge (the top line), each an even distance below it: the upper one
+ * from a point at the front, the lower one from a slanted cut further back. Distances in metres.
+ */
+const STRIPE_HI = { gap: 0.04, width: 0.045, front: 380 }; // front: sketch x of the front tip
+const STRIPE_LO = { gap: 0.035, width: 0.04, front: 490, slant: 0.03 }; // slant: how far back the cut's bottom corner sits
+/** Rear end of both stripes (sketch x), a little short of the crescent's tail tip. */
+const STRIPES_END = 1118;
 
 /** Catmull-Rom curve through the points, resampled, then rounded off by corner cutting. */
 function curve(pts: Pt[], per = 16): Pt[] {
@@ -118,44 +99,79 @@ function curve(pts: Pt[], per = 16): Pt[] {
   return out;
 }
 
-/** A line of width `w` (m) along body-side points, laid on one side of them (+1 / -1 picks the side). */
-function band(pts: Pt[], w: number, side: 1 | -1): Pt[] {
+/** Body-side points offset by `d` (m) along the normal (-dy, dz) of their direction of travel. */
+function offset(pts: Pt[], d: number | ((i: number) => number)): Pt[] {
   const n = pts.length;
-  const off: Pt[] = pts.map((p, i) => {
+  return pts.map((p, i) => {
     const a = pts[Math.max(i - 1, 0)];
     const b = pts[Math.min(i + 1, n - 1)];
-    const d = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-    return [
-      p[0] - ((b[1] - a[1]) / d) * w * side,
-      p[1] + ((b[0] - a[0]) / d) * w * side,
-    ];
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    const di = typeof d === 'number' ? d : d(i);
+    return [p[0] - ((b[1] - a[1]) / l) * di, p[1] + ((b[0] - a[0]) / l) * di];
   });
-  return [...pts, ...off.reverse()];
 }
 
-/** Straight segment, resampled so band() has points along it. */
-const line = ([a, b]: Pt[], n = 24): Pt[] =>
-  Array.from({ length: n + 1 }, (_, i): Pt => [
-    a[0] + ((b[0] - a[0]) * i) / n,
-    a[1] + ((b[1] - a[1]) * i) / n,
-  ]);
+/** Shapes with a dark gold outline: each one stroked wide, then filled, so the outline sits round its edge. */
+function outlined(ctx: CanvasRenderingContext2D, shapes: Pt[][]): void {
+  const size: Pt = [B.z[1] - B.z[0], B.y[1] - B.y[0]];
+  for (const s of ['left', 'right'] as const) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(CH[s][0] * K, CH[s][1] * K, size[0] * K, size[1] * K);
+    ctx.clip();
+    const path = (pts: Pt[]) => {
+      ctx.beginPath();
+      pts.forEach(([z, y], i) => {
+        const [x, v] = sidePx(s, z, y);
+        if (i) ctx.lineTo(x, v);
+        else ctx.moveTo(x, v);
+      });
+      ctx.closePath();
+    };
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = EDGE_W * 2 * K;
+    ctx.strokeStyle = EDGE;
+    for (const pts of shapes) {
+      path(pts);
+      ctx.stroke();
+    }
+    ctx.fillStyle = YELLOW;
+    for (const pts of shapes) {
+      path(pts);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
 
-function swoosh(p: InstanceType<typeof Painter>): void {
-  const inner = curve(CRESCENT_IN.map(at));
-  p.side([...curve(CRESCENT_OUT.map(at)), ...inner], YELLOW);
-  const hiFront = curve(STRIPE_HI_FRONT.map(at));
-  const hiBottom = line(STRIPE_HI.bottom.map(at));
-  p.side(
-    [...hiFront, ...hiBottom, ...line(STRIPE_HI.top.map(at)).reverse()],
-    YELLOW,
+function swoosh(ctx: CanvasRenderingContext2D): void {
+  const inner = curve(CRESCENT_IN.map(at)); // tail -> low end
+  const crescent = [...curve(CRESCENT_OUT.map(at)), ...inner];
+  // The top line for the stripes: the inner edge from the stripes' rear end forward, ordered front -> rear.
+  const zEnd = at([STRIPES_END, 0])[0];
+  const top = (frontX: number) => {
+    const zFront = at([frontX, 0])[0];
+    return inner.filter(([z]) => z <= zFront && z >= zEnd).reverse();
+  };
+  // Going front -> rear, the offset normal points down the car side, away from the crescent.
+  const hiTop = top(STRIPE_HI.front);
+  const n = hiTop.length;
+  const hiUpper = offset(hiTop, STRIPE_HI.gap);
+  const hiLower = offset(hiTop, (i) => {
+    const t = Math.min(1, i / (n * 0.3)); // widens from a point at the front over its first 30%
+    return STRIPE_HI.gap + STRIPE_HI.width * t * t * (3 - 2 * t);
+  });
+  const loTop = top(STRIPE_LO.front);
+  const d0 = STRIPE_HI.gap + STRIPE_HI.width + STRIPE_LO.gap;
+  const loUpper = offset(loTop, d0);
+  const loLower = offset(loTop, d0 + STRIPE_LO.width).filter(
+    ([z]) => z <= loTop[0][0] - STRIPE_LO.slant,
   );
-  const lo = [STRIPE_LO.top[0], STRIPE_LO.bottom[0]].map(at);
-  const loBottom = line(STRIPE_LO.bottom.map(at));
-  p.side([...loBottom, ...line(STRIPE_LO.top.map(at)).reverse()], YELLOW);
-  // Edge lines under the yellow: the crescent's inner edge, each stripe's front and underside.
-  p.side(band(inner, EDGE_W, 1), EDGE);
-  p.side(band([...hiFront, ...hiBottom], EDGE_W, 1), EDGE);
-  p.side(band([...line(lo, 6), ...loBottom], EDGE_W, 1), EDGE);
+  outlined(ctx, [
+    crescent,
+    [...hiUpper, ...hiLower.reverse()],
+    [...loUpper, ...loLower.reverse()],
+  ]);
 }
 
 /** Dust and mud on the lower body: a fade towards the sills on every chart, plus road-spray speckle round the arches. */
@@ -225,8 +241,7 @@ function paint(
   ctx.fillStyle = '#2a2c2f';
   ctx.fillRect(bx * K, by * K, (B.z[1] - B.z[0]) * K, (B.x[1] - B.x[0]) * K);
 
-  const p = new Painter(ctx);
-  swoosh(p);
+  swoosh(ctx);
   weather(ctx, seed); // over the graphic too: the yellow gets dusty like the paint
 }
 
