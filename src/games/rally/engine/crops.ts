@@ -344,13 +344,9 @@ let baking: Promise<void> | undefined;
 export function bakeCropCards(renderer: WebGLRenderer): Promise<void> {
   if (baking) return baking;
   (Object.keys(MODEL_OF) as CropLook[]).forEach((l) => cropTexture(l));
-  baking = Promise.all(loaded).then(() => {
-    const prevTarget = renderer.getRenderTarget();
-    const prevColor = renderer.getClearColor(new Color());
-    const prevAlpha = renderer.getClearAlpha();
-    const prevTone = renderer.toneMapping;
-    renderer.toneMapping = 0;
-    renderer.setClearColor(0x000000, 0);
+  // Card by card, yielding in between: one long task (~1 s) would hold up the stage load's workers, which only
+  // start once this thread is free.
+  baking = Promise.all(loaded).then(async () => {
     for (const card of Object.keys(CROP_CARD_SIZE) as CropCard[]) {
       const [w, h] = CROP_CARD_SIZE[card];
       const { px, py, slot, rows } = cardLayout(card);
@@ -360,6 +356,12 @@ export function bakeCropCards(renderer: WebGLRenderer): Promise<void> {
       const cam = new OrthographicCamera(-w / 2, w / 2, h, 0, -10, 10);
       cam.position.set(0, 0, 5);
       cam.lookAt(0, 0, 0);
+      const prevTarget = renderer.getRenderTarget();
+      const prevColor = renderer.getClearColor(new Color());
+      const prevAlpha = renderer.getClearAlpha();
+      const prevTone = renderer.toneMapping;
+      renderer.toneMapping = 0;
+      renderer.setClearColor(0x000000, 0);
       for (let v = 0; v < CARD_VARIANTS; v++) {
         const scene = new Scene();
         scene.add(cardScene(card, v));
@@ -384,7 +386,12 @@ export function bakeCropCards(renderer: WebGLRenderer): Promise<void> {
       }
       rt.dispose();
       rn.dispose();
+      renderer.setRenderTarget(prevTarget);
+      renderer.setClearColor(prevColor, prevAlpha);
+      renderer.toneMapping = prevTone;
+      await yieldTask();
       bleed(data, px, rows);
+      await yieldTask();
       const t = cards.get(card) ?? emptyCard();
       const mips = coverageMips(data, px, rows, false);
       t.image = { data, width: px, height: rows };
@@ -397,13 +404,14 @@ export function bakeCropCards(renderer: WebGLRenderer): Promise<void> {
       t.colorSpace = SRGBColorSpace;
       t.needsUpdate = true;
       cards.set(card, t);
+      await yieldTask();
     }
-    renderer.setRenderTarget(prevTarget);
-    renderer.setClearColor(prevColor, prevAlpha);
-    renderer.toneMapping = prevTone;
   });
   return baking;
 }
+
+/** A new task (not a microtask): the browser runs what waits on this thread first. */
+const yieldTask = () => new Promise<void>((r) => setTimeout(r, 0));
 
 const normals = new MeshNormalMaterial({ side: DoubleSide });
 

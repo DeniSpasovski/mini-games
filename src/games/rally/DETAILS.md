@@ -595,8 +595,10 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   the work itself): tree variants and leaf atlases + mips (`trees/worker.ts`), people (above), procedural textures drawn on an
   OffscreenCanvas (`engine/texture-worker.ts`; `engine/texture-prefetch.ts`: a browser remembers the textures each map used and asks for
   those next time, `BY_MAP` seeds a first visit; text textures stay on the page). `__rally.loadTimings` splits the load by phase.
-  The main thread waits for the leaf atlases, so `TreeLibrary.load` makes the cached impostors' mip chains
-  (`impostorChains`) in that wait.
+  The tree workers also read the IndexedDB cache (variants + their impostors' mip chains, and the leaf atlases + mips,
+  keyed `atlas:<style>:v<GENERATOR_VERSION>`), so a warm Trees phase does no pixel work on the main thread.
+- Workers only start while the main thread is free: a long load-time task holds every pool up. `bakeCropCards` yields
+  between cards for that reason; keep other once-per-page bakes sliced the same way.
 - Shader programs of the main pass compile in parallel (`compileAsync`); the shadow-pass ones compile in the first render. The tree
   prepass check (`TreeRenderer.checkPrepass`) draws only the trees and keeps its verdict per GPU in localStorage (it used to draw the
   whole scene into a target: 70 more programs, ~5 s on a cold shader cache).

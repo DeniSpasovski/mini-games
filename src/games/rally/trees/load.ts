@@ -6,7 +6,7 @@ import {
   type WebGLRenderer,
 } from 'three';
 import { DEFAULT_SEASON, type Season } from '../season';
-import { getCached, pruneCached, putCached } from './cache';
+import { getCached, pruneCached, putCached, type CachedVariant } from './cache';
 import {
   bakeImpostor,
   impostorArray,
@@ -28,6 +28,7 @@ import { allSeasons, seasonal, seasonOf } from './seasons';
 import { isTreeType, speciesOfType, type SpeciesDef } from './species';
 import { headingAt, packSprite } from './sprite-attr';
 import {
+  atlasCacheKey,
   cacheKey,
   generateVariant,
   registerVariant,
@@ -36,9 +37,15 @@ import {
   type GeneratedVariant,
   type TreeVariantInfo,
 } from './variants';
-import type { AtlasRequest, AtlasResult, GenerateRequest } from './worker';
+import type {
+  AtlasRequest,
+  AtlasResult,
+  CachedRequest,
+  CachedResult,
+  GenerateRequest,
+} from './worker';
 import { WorkerPool } from '../../../shared/worker-pool';
-import type { LeafStyle } from './leaftex';
+import { LEAF_STYLES, type LeafStyle } from './leaftex';
 import { meshBuffers } from './mesh';
 import { crownProxy, quadSprites } from './proxy';
 import type { TreeLoadStats } from './stats';
@@ -148,7 +155,7 @@ function spriteGeometry(s: SpriteData): BufferGeometry {
  * are generated inline, so the stage load never hangs (shared/worker-pool.ts). The leaf atlases of the styles in use
  * are made in the workers too.
  */
-type TreeAnswer = (Timed & { id: number }) | AtlasResult;
+type TreeAnswer = (Timed & { id: number }) | AtlasResult | CachedResult;
 
 class Generator {
   private pool = new WorkerPool<TreeAnswer>(
@@ -179,6 +186,24 @@ class Generator {
         r ? resolve(r as Timed) : inline(),
       );
       if (!sent) inline();
+    });
+  }
+
+  /** A variant from the disk cache, read in a worker with its impostor's mip chains (inline: the read alone). */
+  cached(
+    key: string,
+  ): Promise<
+    { variant: CachedVariant; chains: MipLevel[][] | undefined } | undefined
+  > {
+    const inline = () =>
+      getCached(key).then((v) => v && { variant: v, chains: undefined });
+    return new Promise((resolve) => {
+      const req: Omit<CachedRequest, 'id'> = { key };
+      const sent = this.pool.post(req, [], (r) => {
+        if (r && 'hit' in r) resolve(r.hit ?? undefined);
+        else void inline().then(resolve);
+      });
+      if (!sent) void inline().then(resolve);
     });
   }
 
@@ -251,24 +276,27 @@ export class TreeLibrary {
       variantsOf(def).map((i) => ({ def, i })),
     );
     let done = 0;
-    // Cache lookups / worker generation run in parallel; baking (GPU) one after another as results arrive.
+    // Cache reads (with their impostors' mip chains) / generation run in the workers, in parallel; baking (GPU)
+    // one after another once all are in.
     const results = await Promise.all(
       jobs.map(async ({ def, i }) => {
         const key = cacheKey(def, variantSeed(def, i));
-        const cached = await getCached(key);
-        if (cached) {
+        const hit = await gen.cached(key);
+        if (hit) {
           st.cached++;
-          return { def, i, key, g: cached, impostor: cached.impostor };
+          const impostor = hit.variant.impostor;
+          return { def, i, key, g: hit.variant, impostor, chains: hit.chains };
         }
         const g = await gen.generate(def, i);
         st.generateMs += g.ms;
-        return { def, i, key, g, impostor: undefined };
+        return { def, i, key, g, impostor: undefined, chains: undefined };
       }),
     );
-    // The cached impostors' mip chains while the workers finish the leaf atlases (this thread waits for them anyway).
+    // Chains the workers did not make (no workers): here, while they finish the leaf atlases.
     const chains = new Map<ImpostorPixels, MipLevel[][]>();
     for (const r of results)
-      if (r.impostor) chains.set(r.impostor, impostorChains(r.impostor));
+      if (r.impostor)
+        chains.set(r.impostor, r.chains ?? impostorChains(r.impostor));
     await atlases;
     const allPixels: ImpostorPixels[] = [];
     const spheres: { cy: number; r: number }[] = [];
@@ -333,6 +361,8 @@ export class TreeLibrary {
           ),
         ),
       );
+    // Leaf atlases of an older generator version.
+    void pruneCached('atlas', new Set(LEAF_STYLES.map(atlasCacheKey)));
     return lib;
   }
 
