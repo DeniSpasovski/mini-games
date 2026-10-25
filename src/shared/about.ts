@@ -9,12 +9,6 @@ export interface SourceLink {
   note?: string;
 }
 
-/** The game's creator, listed under Contributors (the rally About adds its links and a second contributor). */
-export const CREATOR: SourceLink = {
-  label: 'Deni Spasovski',
-  note: 'Agent Orchestrator',
-};
-
 export interface AboutContent {
   version: string;
   /** What the game is, in a few sentences (HTML, trusted strings). */
@@ -24,12 +18,11 @@ export interface AboutContent {
   builtWith: SourceLink[];
 }
 
-/** The About body of Kaboom and Hole Island, laid out like the rally one: credit line, version, description, contributors, assets, built with. */
+/** The About body of Kaboom and Hole Island, laid out like the rally one: credit line, version, description, assets, built with. */
 export function aboutHtml(c: AboutContent): string {
   return `<p class="about-credit">${MADE_WITH_AGENTS}</p>
     <p class="about-credit">Version ${c.version}</p>
     <p>${c.description}</p>
-    <h3>Contributors</h3>${sourceListHtml([CREATOR])}
     <h3>Assets</h3><p>${c.assets}</p>
     <h3>Built with</h3>${sourceListHtml(c.builtWith)}`;
 }

@@ -632,6 +632,12 @@ body {
 .kb-about-body a {
   color: inherit;
 }
+/* the text scrolls under the action row on every screen size: the row gets the card's backing so it never touches the text */
+.kb-about .kb-actions {
+  background: var(--kb-grain), var(--kb-card);
+  mask-image: linear-gradient(transparent, black 14px);
+  padding-top: 16px;
+}
 
 /* results */
 .kb-standings {
