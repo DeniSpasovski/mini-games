@@ -613,6 +613,7 @@ export class RallyGame {
     this.trees.prewarm(this.camera);
     // Every chunk the trees' first job generated, into the canopy map now (not grown in during the countdown).
     this.farForest.fillNow(this.camera.position);
+    this.canopy.update(performance.now(), undefined, Infinity);
     progress(0.96, 'Compiling shaders');
     await this.renderer.compileAsync(this.scene, this.camera);
     progress(0.98, 'First frame');
