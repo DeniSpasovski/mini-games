@@ -1,16 +1,19 @@
 /** Paint finishes of the body (`atlasMaterial`; the service park's copies of the cars share them). */
 export type PaintFinish = 'gloss' | 'satin' | 'matte' | 'metallic';
 
-/** MeshPhysicalMaterial parameters of a paint finish. */
+/**
+ * MeshPhysicalMaterial parameters of a paint finish ('gloss' = street paint: no metal, a soft thin clearcoat;
+ * 'metallic' = a thin but sharp clearcoat over the flake, so the sky edge reads crisp without washing the roof white).
+ */
 export function paintParams(finish: PaintFinish) {
   const matte = finish === 'matte';
   const satin = finish === 'satin';
   const metallic = finish === 'metallic';
   return {
-    metalness: matte ? 0 : satin ? 0.1 : metallic ? 0.35 : 0.2,
-    roughness: matte ? 0.88 : satin ? 0.58 : metallic ? 0.34 : 0.45,
-    clearcoat: matte ? 0 : satin ? 0.35 : metallic ? 0.65 : 1,
-    clearcoatRoughness: satin ? 0.4 : metallic ? 0.04 : 0.12,
+    metalness: matte ? 0 : satin ? 0.1 : metallic ? 0.3 : 0.05,
+    roughness: matte ? 0.88 : satin ? 0.58 : metallic ? 0.4 : 0.5,
+    clearcoat: matte ? 0 : satin ? 0.35 : metallic ? 0.5 : 0.6,
+    clearcoatRoughness: satin ? 0.4 : metallic ? 0.08 : 0.2,
     envMapIntensity: 1,
   };
 }

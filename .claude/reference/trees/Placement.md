@@ -13,6 +13,7 @@ Trees are placed where the game's existing stage data places trees today. Each p
 ## Caching
 
 - Generated variants are cached on disk keyed by the species hash, the variant seed and the generator version, and are regenerated whenever any of them changes.
+- The leaf atlases (and their mipmaps) are cached beside them, keyed by leaf style and generator version. The cache is read in the generator workers, which also make the cached impostors' mipmaps, so the main thread only uploads.
 - The game's build generates every variant and impostor of every shipped species and ships the cache, so a player's stage load only reads it. Generation at load only happens for a species or generator changed since the build, as in development or a mod.
 - A tree load always finishes. If the generator worker fails to start or a variant fails in it, the remaining variants are generated on the main thread; if the cache cannot be opened in time or is blocked by another tab, the stage loads without it.
 

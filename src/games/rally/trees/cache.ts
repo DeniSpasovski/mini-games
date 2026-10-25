@@ -1,4 +1,6 @@
 import type { ImpostorPixels } from './impostor';
+import type { SpriteAtlas } from './leaftex';
+import type { MipLevel } from './materials';
 import type { VariantMeshes } from './mesh';
 import type { TreeVariantInfo } from './variants';
 
@@ -46,17 +48,24 @@ function request<T>(r: IDBRequest<T>): Promise<T | undefined> {
   });
 }
 
-export async function getCached(
-  key: string,
-): Promise<CachedVariant | undefined> {
-  const d = await open();
-  if (!d) return undefined;
-  return request<CachedVariant>(
-    d.transaction(STORE).objectStore(STORE).get(key),
-  );
+/** A leaf style's atlas and its mip chains (trees/worker.ts), keyed `atlas:<style>:v<GENERATOR_VERSION>`. */
+export interface CachedAtlas {
+  atlas: SpriteAtlas;
+  mips: { main: MipLevel[]; companion: MipLevel[] };
 }
 
-export async function putCached(key: string, v: CachedVariant): Promise<void> {
+export async function getCached<T = CachedVariant>(
+  key: string,
+): Promise<T | undefined> {
+  const d = await open();
+  if (!d) return undefined;
+  return request<T>(d.transaction(STORE).objectStore(STORE).get(key));
+}
+
+export async function putCached(
+  key: string,
+  v: CachedVariant | CachedAtlas,
+): Promise<void> {
   const d = await open();
   if (!d) return;
   await request(

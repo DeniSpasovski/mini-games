@@ -17,6 +17,8 @@ const MAX_SIDE = 2048;
 const DENSITY = 0.75;
 /** Scatter chunk keys looked at per `update()` (a cheap Map lookup each). */
 const SCAN = 1500;
+/** Time per `update()` for splatting new chunks (ms; at least one chunk). */
+const SPLAT_BUDGET = 1;
 /** Minimum time between texture uploads (ms). */
 const UPLOAD_EVERY = 1500;
 /**
@@ -160,9 +162,17 @@ export class CanopyShadows {
     this.local = l;
   }
 
-  /** Splat newly generated scatter chunks; upload when due. Cheap (~0.1 ms) once everything near is in. */
-  update(now = performance.now(), focus?: { x: number; z: number }): void {
+  /**
+   * Splat newly generated scatter chunks; upload when due. Cheap (~0.1 ms) once everything near is in; splatting takes
+   * at most `budget` ms (at least one chunk; loading passes Infinity).
+   */
+  update(
+    now = performance.now(),
+    focus?: { x: number; z: number },
+    budget = SPLAT_BUDGET,
+  ): void {
     const scatter = this.world.scatter;
+    const t0 = performance.now();
     for (let n = 0; n < SCAN && this.todoCount > 0; n++) {
       if (this.cursor >= this.todoCount) this.cursor = 0;
       const i = this.cursor * 2;
@@ -180,15 +190,12 @@ export class CanopyShadows {
       this.todoCount--;
       this.todo[i] = this.todo[this.todoCount * 2];
       this.todo[i + 1] = this.todo[this.todoCount * 2 + 1];
+      // Many chunks can come in at once (a streamer rebuild): the rest wait for the next frames.
+      if (performance.now() - t0 > budget) break;
     }
     if (focus) this.updateLocal(focus, now);
+    // The texels' bytes are written as they are splatted (converting the dirty rows here took ~10 ms every upload).
     if (this.dirtyMin >= 0 && now - this.lastUpload >= UPLOAD_EVERY) {
-      const a = this.dirtyMin * this.nx;
-      const b = (this.dirtyMax + 1) * this.nx;
-      for (let k = a; k < b; k++) {
-        this.data[k * 2] = Math.round(this.grid[k] * 255);
-        this.data[k * 2 + 1] = Math.round(this.litter[k] * 255);
-      }
       this.texture.needsUpdate = true;
       this.dirtyMin = this.dirtyMax = -1;
       this.lastUpload = now;
@@ -309,6 +316,7 @@ export class CanopyShadows {
               ? DENSITY * (1 - q) * (1 - q)
               : this.tune.density * (1 - smooth(0.55, 1, q))),
         );
+        if (global) this.data[k * 2] = Math.round(grid[k] * 255);
       }
     }
     if (!global) return;
@@ -349,6 +357,8 @@ export class CanopyShadows {
           1,
           grid[k] + LITTER_DENSITY * (1 - smooth(0.3, 1, q)),
         );
+        if (grid === this.litter)
+          this.data[k * 2 + 1] = Math.round(grid[k] * 255);
       }
     }
     if (grid !== this.litter) return;

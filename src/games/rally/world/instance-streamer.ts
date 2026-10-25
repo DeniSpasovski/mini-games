@@ -415,7 +415,8 @@ export class InstanceStreamer {
         // The extra grass near the roads (catalog `nearBoost`): the quality preset's share of it (`grassNear`).
         const boost = d.meta.nearBoost;
         if (inst.extra && boost) {
-          const keep = (Math.min(boost, this.opts.grassNear ?? 1) - 1) / (boost - 1);
+          const keep =
+            (Math.min(boost, this.opts.grassNear ?? 1) - 1) / (boost - 1);
           if (
             hash3(Math.floor(inst.x * 10), Math.floor(inst.z * 10), 7) /
               4294967296 >=
@@ -460,8 +461,9 @@ export class InstanceStreamer {
           (near < dRange || near < nRange) &&
           this.world.heightfield.hasChunk(cx, cz)
         ) {
-          if (near < dRange) visit(scatter.detail(cx, cz), true);
-          if (near < nRange) visit(scatter.nearDetail(cx, cz), true);
+          if (near < dRange) visit(yield* scatter.detailSteps(cx, cz), true);
+          if (near < nRange)
+            visit(yield* scatter.nearDetailSteps(cx, cz), true);
         }
         yield;
       }
