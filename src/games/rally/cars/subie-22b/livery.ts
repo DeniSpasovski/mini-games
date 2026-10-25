@@ -12,75 +12,78 @@ import source from './model.source.json';
 const A = source.atlas;
 const { K, B, CH, Painter, sidePx, frontPx, rearPx } = atlasKit(A);
 
-/** Warm gold-yellow of the classic works blue-and-yellow rally scheme. */
+/** Warm gold-yellow of the classic works blue-and-yellow rally scheme, and the darker gold of the edge lines under it. */
 const YELLOW = '#f4c51c';
+const EDGE = '#a8780c';
+/** Edge line width (m). */
+const EDGE_W = 0.02;
 
 /**
- * The swoosh: one guide curve on the body side (z, y in metres): a round arc in front of the rear door seam, from low on the
- * door up round the front and over, then a straight line back along the rear quarter, rising with the shoulder. The three
- * lines are this curve and two copies inside it that close in on it along the tails.
+ * The swoosh, drawn after the owner's sketch: a crescent whose belly sits low on the door and whose tail runs back and up
+ * along the rear quarter, with two straight stripes inside it; a dark gold line runs under the crescent's inner edge and
+ * under each stripe. Shapes are in sketch px (x right = towards the rear, y down), mapped onto the body side by `at`.
  */
-const CENTRE: Pt = [-0.7, 0.51];
-/** Arc radius: the lines are concentric circles round CENTRE (a circle's offset is a circle), so every arc stays round. */
-const R = 0.25;
-/** Rear end of the straight top line. */
-const TAIL_END: Pt = [-1.85, 0.82];
-const GUIDE: Pt[] = [
-  ...[-95, -80, -65, -50, -35, -20, -5, 10, 25, 40, 55, 70].map((deg): Pt => {
-    const a = (deg * Math.PI) / 180;
-    return [CENTRE[0] + R * Math.cos(a), CENTRE[1] + R * Math.sin(a)];
-  }),
-  // The straight line, evenly spaced so the curve through the points stays straight (uneven spacing kinks it).
-  ...[0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1].map((t): Pt => {
-    const top: Pt = [CENTRE[0], CENTRE[1] + R];
-    return [
-      top[0] + (TAIL_END[0] - top[0]) * t,
-      top[1] + (TAIL_END[1] - top[1]) * t,
-    ];
-  }),
-];
-/** Where the front of the arc is, as a fraction of the guide's length: the outer line is thickest here. */
-const BULGE_AT = 0.22;
-const OUTER_WIDTH = 0.07;
-/** How much of their offset the inner lines lose by the tail end. */
-const TAIL_RISE = 0.35;
-/** Guide fraction where that starts: the start of the tail pieces, so they line up with the arc pieces' ends. */
-const TAIL_RISE_FROM = 0.53;
-/** How much wider than its tail the outer line gets at the front of the arc. */
-const BELLY = 1.6;
+const Z_FRONT = -0.42; // front of the belly (sketch x 75)
+const Y_TOP = 0.8; // tail tip (sketch y 25)
+const SX = 0.00136; // m per sketch px along the car
+const SY = 0.0017; // m per sketch px in height
+const at = ([x, y]: Pt): Pt => [Z_FRONT - (x - 75) * SX, Y_TOP - (y - 25) * SY];
 
-interface Line {
-  /** Distance inside the guide (m). */
-  offset: number;
-  /** Width (m) away from the bulge. */
-  width: number;
-  /** Pieces of the guide, as length fractions. */
-  pieces: [number, number][];
-}
-/** The inner two lines are cut just behind the top of the arc: the arc piece ends in a point, the tail starts square. */
-const CUT: [number, number] = [0.46, 0.53];
-const LINES: Line[] = [
-  { offset: 0, width: OUTER_WIDTH, pieces: [[0, 1]] },
-  {
-    offset: 0.1,
-    width: 0.045,
-    pieces: [
-      [0, CUT[0]],
-      [CUT[1], 1],
-    ],
-  },
-  {
-    offset: 0.18,
-    width: 0.035,
-    pieces: [
-      [0, CUT[0]],
-      [CUT[1], 1],
-    ],
-  },
+/** Crescent: outer edge from its low end round the belly to the tail tip, inner edge from the tail back down. */
+const CRESCENT_OUT: Pt[] = [
+  [205, 318],
+  [125, 262],
+  [82, 205],
+  [86, 165],
+  [130, 130],
+  [230, 96],
+  [400, 68],
+  [600, 49],
+  [850, 35],
+  [1140, 25],
 ];
+const CRESCENT_IN: Pt[] = [
+  [1127, 44],
+  [900, 62],
+  [700, 81],
+  [500, 102],
+  [385, 126],
+  [322, 156],
+  [292, 196],
+  [300, 240],
+  [325, 284],
+  [355, 318],
+];
+/** Upper stripe: its front end curves down along the crescent; lower stripe: front end cut on a slant. */
+const STRIPE_HI_FRONT: Pt[] = [
+  [378, 155],
+  [440, 162],
+  [482, 180],
+];
+const STRIPE_HI: { top: Pt[]; bottom: Pt[] } = {
+  top: [
+    [378, 155],
+    [1120, 55],
+  ],
+  bottom: [
+    [482, 180],
+    [1120, 73],
+  ],
+};
+const STRIPE_LO: { top: Pt[]; bottom: Pt[] } = {
+  top: [
+    [488, 188],
+    [1112, 86],
+  ],
+  bottom: [
+    [510, 222],
+    [1112, 102],
+  ],
+};
 
 /** Catmull-Rom curve through the points, resampled, then rounded off by corner cutting. */
 function curve(pts: Pt[], per = 16): Pt[] {
+  if (pts.length < 3) return pts;
   let out: Pt[] = [];
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = pts[Math.max(i - 1, 0)];
@@ -115,62 +118,44 @@ function curve(pts: Pt[], per = 16): Pt[] {
   return out;
 }
 
-const smoothstep = (t: number) => t * t * (3 - 2 * t);
-
-/** Outline (z, y) of one piece of a line: the guide offset inwards, widened at the bulge, pointed at cut ends. */
-function ribbon(guide: Pt[], line: Line, [t0, t1]: [number, number]): Pt[] {
-  const n = guide.length;
-  const len = [0];
-  for (let i = 1; i < n; i++)
-    len.push(
-      len[i - 1] +
-        Math.hypot(
-          guide[i][0] - guide[i - 1][0],
-          guide[i][1] - guide[i - 1][1],
-        ),
-    );
-  const total = len[n - 1];
-  const left: Pt[] = [];
-  const right: Pt[] = [];
-  for (let i = 0; i < n; i++) {
-    const s = len[i] / total;
-    if (s < t0 || s > t1) continue;
-    const a = guide[Math.max(i - 1, 0)];
-    const b = guide[Math.min(i + 1, n - 1)];
+/** A line of width `w` (m) along body-side points, laid on one side of them (+1 / -1 picks the side). */
+function band(pts: Pt[], w: number, side: 1 | -1): Pt[] {
+  const n = pts.length;
+  const off: Pt[] = pts.map((p, i) => {
+    const a = pts[Math.max(i - 1, 0)];
+    const b = pts[Math.min(i + 1, n - 1)];
     const d = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-    const tz = (b[0] - a[0]) / d;
-    const ty = (b[1] - a[1]) / d;
-    // Inside normal (towards the centre of the arc, below the tail). Behind the top of the arc the inner lines close in on
-    // the outer one, so their tails angle up; the tails start level with where their arc pieces end.
-    let off =
-      line.offset *
-      (1 -
-        TAIL_RISE *
-          smoothstep(Math.max(0, (s - TAIL_RISE_FROM) / (1 - TAIL_RISE_FROM))));
-    let w = line.width;
-    if (line.offset === 0) {
-      // The belly: the outer line swells round the front of the arc, outwards only so the gap to the next line stays.
-      const k = (s - BULGE_AT) / 0.18;
-      const extra = line.width * BELLY * Math.exp(-k * k);
-      w += extra;
-      off -= extra / 2;
-    }
-    const cz = guide[i][0] - ty * off;
-    const cy = guide[i][1] + tz * off;
-    // Ends: every line's low end and the arc pieces' cut ends run out to a point, the tail pieces start thin and the
-    // tails narrow a little and end square.
-    const tip = (d: number, l: number) =>
-      0.08 + 0.92 * smoothstep(Math.min(1, d / l));
-    if (t0 === 0) w *= tip(s, 0.12);
-    else w *= 0.3 + 0.7 * smoothstep(Math.min(1, (s - t0) / 0.15));
-    if (t1 < 1) w *= tip(t1 - s, 0.08);
-    if (t1 === 1) w *= 0.5 + 0.5 * smoothstep(Math.min(1, (1 - s) / 0.35));
-    const nz = -ty;
-    const ny = tz;
-    left.push([cz + nz * (w / 2), cy + ny * (w / 2)]);
-    right.push([cz - nz * (w / 2), cy - ny * (w / 2)]);
-  }
-  return [...left, ...right.reverse()];
+    return [
+      p[0] - ((b[1] - a[1]) / d) * w * side,
+      p[1] + ((b[0] - a[0]) / d) * w * side,
+    ];
+  });
+  return [...pts, ...off.reverse()];
+}
+
+/** Straight segment, resampled so band() has points along it. */
+const line = ([a, b]: Pt[], n = 24): Pt[] =>
+  Array.from({ length: n + 1 }, (_, i): Pt => [
+    a[0] + ((b[0] - a[0]) * i) / n,
+    a[1] + ((b[1] - a[1]) * i) / n,
+  ]);
+
+function swoosh(p: InstanceType<typeof Painter>): void {
+  const inner = curve(CRESCENT_IN.map(at));
+  p.side([...curve(CRESCENT_OUT.map(at)), ...inner], YELLOW);
+  const hiFront = curve(STRIPE_HI_FRONT.map(at));
+  const hiBottom = line(STRIPE_HI.bottom.map(at));
+  p.side(
+    [...hiFront, ...hiBottom, ...line(STRIPE_HI.top.map(at)).reverse()],
+    YELLOW,
+  );
+  const lo = [STRIPE_LO.top[0], STRIPE_LO.bottom[0]].map(at);
+  const loBottom = line(STRIPE_LO.bottom.map(at));
+  p.side([...loBottom, ...line(STRIPE_LO.top.map(at)).reverse()], YELLOW);
+  // Edge lines under the yellow: the crescent's inner edge, each stripe's front and underside.
+  p.side(band(inner, EDGE_W, 1), EDGE);
+  p.side(band([...hiFront, ...hiBottom], EDGE_W, 1), EDGE);
+  p.side(band([...line(lo, 6), ...loBottom], EDGE_W, 1), EDGE);
 }
 
 /** Dust and mud on the lower body: a fade towards the sills on every chart, plus road-spray speckle round the arches. */
@@ -241,9 +226,7 @@ function paint(
   ctx.fillRect(bx * K, by * K, (B.z[1] - B.z[0]) * K, (B.x[1] - B.x[0]) * K);
 
   const p = new Painter(ctx);
-  const guide = curve(GUIDE);
-  for (const line of LINES)
-    for (const piece of line.pieces) p.side(ribbon(guide, line, piece), YELLOW);
+  swoosh(p);
   weather(ctx, seed); // over the graphic too: the yellow gets dusty like the paint
 }
 
