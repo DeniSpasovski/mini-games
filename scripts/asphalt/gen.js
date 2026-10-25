@@ -41,8 +41,6 @@
 
   const WHITE = '#dcdcd4';
   const YELLOW = '#d2a82a';
-  /** Weathered white paint (Jackie): greyer than fresh lines. */
-  const WORN_WHITE = '#b8b8b0';
   /** Ajvatovci's road surface, shared by its two presets. */
   const AJVATOVCI = {
     seed: 7,
@@ -208,7 +206,7 @@
       age: 0.1,
       // a worn, sun-bleached mid grey (Deni's references: light lanes, darker shoulders, long sealed seams)
       gain: 1.15,
-      lift: 0.55,
+      lift: 0.42,
       warmTarget: [150, 147, 138],
       edgeDark: 0.45,
       tone: 0.25,
@@ -218,8 +216,8 @@
       snakeW: 1.5,
       lines: [
         { u: 0.045, w: 10, color: '#d9b43a' },
-        { u: 0.955, w: 10, color: WORN_WHITE },
-        { u: 0.5, w: 8, color: WORN_WHITE, dash: [3, 9] },
+        { u: 0.955, w: 10, color: WHITE },
+        { u: 0.5, w: 8, color: WHITE, dash: [3, 9] },
       ],
     },
     /** City junction box: no wheel paths, any direction, so cracks run every way. */
