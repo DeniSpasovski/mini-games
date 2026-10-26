@@ -204,8 +204,8 @@ export const audiRs6: CarDef = {
     glass: { color: 0x141c24, opacity: 0.6 },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
-    // Door plate by the rule (scripts/car-model/door-plate.py).
-    doorBadge: { z: 0.15, y: 0.7, tilt: 2.6 },
+    // Door plate by the rule (scripts/car-model/door-plate.py), 5 cm forward by eye.
+    doorBadge: { z: 0.2, y: 0.7, tilt: 2.6 },
     gltf: {
       // The three main light units of the lamp sheet (two top, the big bottom square; picked on the model): a glare on each.
       headBulbs: [

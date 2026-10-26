@@ -220,8 +220,8 @@ export const fordGt3: CarDef = {
     glass: { color: 0x141c24, opacity: 0.6 },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
-    // Door plate by the rule (scripts/car-model/door-plate.py).
-    doorBadge: { z: 0.13, y: 0.65 },
+    // Door plate by the rule (scripts/car-model/door-plate.py), 5 cm lower by eye.
+    doorBadge: { z: 0.13, y: 0.6 },
     gltf: {
       file: 'ford_gt3.glb',
       credit:
