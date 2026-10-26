@@ -121,7 +121,7 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   each lamp. High quality adds bloom (`engine/post-fx.ts`, threshold far above the lit ground, so lenses and reflectors are
   emissive well over it). Not done: high / low beam key.
 - **Post effects (High):** `engine/post-fx.ts`, options **Bloom** (off / soft / strong, default off, `BLOOM_MIX` in `game/settings.ts`) and
-  **Ambient occlusion** (default on). Bloom: the whole picture, no threshold, mixed back at a few percent, worked on an HDR
+  **Ambient occlusion** (default off). Bloom: the whole picture, no threshold, mixed back at a few percent, worked on an HDR
   estimate of the finished picture, so with it off the image is unchanged. AO: GTAO from the depth at half resolution.
   Test links: `?bloom=<mix>` (0 = off), `?ao=0|1`; console `__rally.post.set({ day: 0.04, ao: true })`.
 - **Sky / tone mapping:** drifting clouds (`cloudCoverage`, `cloudSpeed`); ACES, or `toneMapping: 'agx' | 'neutral'` per map.
@@ -474,7 +474,10 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   materials from `engine/materials.ts`.
 - Streaming stays time-sliced: terrain (`terrain.update(pos, budgetMs)`), the 1 m heightfield (`Heightfield.prepare`) and
   instance re-bucketing (`InstanceStreamer`; in game the time the frame rate leaves over, 1-8 ms per frame,
-  `RallyGame.streamBudget`). Whole-map work uses `world.analytic`, not the 1 m cache.
+  `RallyGame.streamBudget`). Whole-map work uses `world.analytic`, not the 1 m cache. A grass chunk is generated inside
+  that slice too (`ScatterField.detailSteps`, yields every 256 candidates: one dense chunk took up to ~30 ms), and the
+  canopy shadow map splats new chunks for at most 1 ms a frame and writes its texel bytes as it splats (no conversion
+  pass before the 1.5 s upload).
 - Whole-map set-up loops use a spatial grid, never all-against-all (a town map has ~900 roads, ~2000 way ends).
 
 **Draw calls**
@@ -594,12 +597,17 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   the work itself): tree variants and leaf atlases + mips (`trees/worker.ts`), people (above), procedural textures drawn on an
   OffscreenCanvas (`engine/texture-worker.ts`; `engine/texture-prefetch.ts`: a browser remembers the textures each map used and asks for
   those next time, `BY_MAP` seeds a first visit; text textures stay on the page). `__rally.loadTimings` splits the load by phase.
+  The tree workers also read the IndexedDB cache (variants + their impostors' mip chains, and the leaf atlases + mips,
+  keyed `atlas:<style>:v<GENERATOR_VERSION>`), so a warm Trees phase does no pixel work on the main thread.
+- Workers only start while the main thread is free: a long load-time task holds every pool up. `bakeCropCards` yields
+  between cards for that reason; keep other once-per-page bakes sliced the same way.
 - Shader programs of the main pass compile in parallel (`compileAsync`); the shadow-pass ones compile in the first render. The tree
   prepass check (`TreeRenderer.checkPrepass`) draws only the trees and keeps its verdict per GPU in localStorage (it used to draw the
   whole scene into a target: 70 more programs, ~5 s on a cold shader cache).
 - Long synchronous steps (world build, road, props, shader compile) set their label and `paint()` first, so the bar never
   sits unlabelled at 0%. The car's GLB starts downloading before the map data (`preloadCarModel`).
 - Car select: a "Loading model" spinner (`Showroom.loadCue`) shows while a car's GLB downloads (the car stays hidden until then).
+- Last picked stage, car and livery are remembered (`rally.settings`, saved on Start); a car that is hidden in the build or unknown falls back to the default car and livery 1.
 - Car select: All / AWD / RWD / FWD filter row on top (`driveGroup` from the car's `drivetrain.frontSplit`, not remembered); up from the first car or the pad focuses it, left / right switch.
 - Car select (screens >= 800 px wide): the description / stats / livery sit in a card docked beside the list (`.menu-side-card`, `MainMenu.sideCard`, shared with Select stage; Stage times uses the same placement). The showroom car keeps its shared place and size (`CAR_SHIFT`, `CAR_DIST_SCALE`) and may run behind the card; its **Details** tab (`MainMenu.minimizer`, class `min` on the card, shared with Select stage) minimizes the card to its description (the Stage times card has no tab). Narrower screens (< 800 px) lay the same card over the map above the buttons.
 - Select stage: the stage's description (`StageDef.description`: what the drive is like for the player, no data sources or build details), recommended set-up and a **Time of day** dropdown sit in the same card (phones: under the selected stage), with a **Season** dropdown (spring / summer / autumn, above the time) and the **Month** it is driven in in front. Left / right (or the pad) step the time; the list cards keep the route, tags and best time.

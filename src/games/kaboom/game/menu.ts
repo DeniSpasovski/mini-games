@@ -7,6 +7,7 @@ import {
   moveFocus,
   type NavAction,
 } from '../../../shared/pad-nav';
+import { aboutHtml, POLY_HAVEN_HTML } from '../../../shared/about';
 import { goToPortal, portalUrl } from '../../../shared/portal-link';
 import manifest from '../game.json';
 import { MAP_SIZES, MAP_SIZE_IDS } from '../map/sizes';
@@ -210,6 +211,13 @@ export class Menu {
     return a;
   }
 
+  /** The secondary buttons of the welcome card: stacked, or side by side on a short landscape screen. */
+  private minor(...kids: HTMLElement[]): HTMLElement {
+    const m = el('div', 'kb-minor');
+    m.append(...kids);
+    return m;
+  }
+
   private allGames(card: HTMLElement): void {
     if (portalUrl())
       card.append(this.btn('All games', 'ghost', () => goToPortal()));
@@ -239,8 +247,11 @@ export class Menu {
       this.logo(),
       el('p', 'kb-tag', 'Light the fuse. Blast the crates. Outwit the crew.'),
       this.btn('Play', 'primary big', () => this.setup()),
-      this.btn('How to play', '', () => this.howTo()),
-      this.btn('Options', '', () => this.options(() => this.welcome())),
+      this.minor(
+        this.btn('How to play', '', () => this.howTo()),
+        this.btn('Options', '', () => this.options(() => this.welcome())),
+        this.btn('About', '', () => this.about()),
+      ),
     );
     if (stats.matches > 0)
       card.append(
@@ -511,6 +522,31 @@ export class Menu {
     card.append(
       list,
       this.actions(this.btn('Got it', 'primary', () => this.welcome())),
+    );
+    this.show(card);
+    this.onBack = () => this.click(() => this.welcome())();
+  }
+
+  about(): void {
+    const card = el('div', 'kb-card kb-about');
+    card.append(el('h2', '', 'About'));
+    const body = el('div', 'kb-about-body');
+    body.innerHTML = aboutHtml({
+      version: VERSION,
+      description:
+        'A party game for you and up to seven bots. A crew of chubby animal demolition workers is dropped into an arena with a cheering crowd: light the fuse, watch the band count 3, 2, 1, blast the crates and be the last critter standing. A tilted 3D arena, three arena sizes, bots in three skill levels, and chain reactions that stay smooth.',
+      assets: `The critters, arenas, effects and sounds are made in code. Environment light and textures from ${POLY_HAVEN_HTML}, CC0.`,
+      builtWith: [
+        { label: 'three.js', note: 'rendering, MIT' },
+        {
+          label: 'Grandstander and Nunito',
+          note: 'UI fonts, SIL Open Font License 1.1',
+        },
+      ],
+    });
+    card.append(
+      body,
+      this.actions(this.btn('Back', 'primary', () => this.welcome())),
     );
     this.show(card);
     this.onBack = () => this.click(() => this.welcome())();

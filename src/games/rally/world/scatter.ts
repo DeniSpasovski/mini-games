@@ -116,6 +116,16 @@ export const NEAR_DETAIL_MAX = 40;
 /** Boosted grass (catalog `nearBoost`) is denser this close to a road edge (m). */
 export const NEAR_BOOST_ROAD = 14;
 
+/** Candidate points `ScatterField.generateSteps` tests between yields. */
+const SLICE = 256;
+
+/** Runs a generator to its end and returns its result. */
+function drain<T>(g: Generator<void, T>): T {
+  let r = g.next();
+  while (!r.done) r = g.next();
+  return r.value;
+}
+
 const reachOf = (asset: string) => {
   const lods = getAssetMeta(asset).lods;
   return lods[lods.length - 1].maxDistance;
@@ -283,23 +293,39 @@ export class ScatterField {
   }
 
   detail(cx: number, cz: number): ScatterInstance[] {
+    return drain(this.detailSteps(cx, cz));
+  }
+
+  /** The short-range detail rules' instances (`NEAR_DETAIL_MAX`); only asked for near the camera. */
+  nearDetail(cx: number, cz: number): ScatterInstance[] {
+    return drain(this.nearDetailSteps(cx, cz));
+  }
+
+  /**
+   * `detail` a slice at a time (the streamer's time-sliced job: one dense grass chunk took up to ~30 ms); yields
+   * only while the chunk is not generated yet, the result is the same.
+   */
+  *detailSteps(cx: number, cz: number): Generator<void, ScatterInstance[]> {
     const k = key(cx, cz);
     let d = this.details.get(k);
     if (!d) {
-      d = this.generate(cx, cz, this.detailRules, 1000);
+      const made = yield* this.generateSteps(cx, cz, this.detailRules, 1000);
+      // Made meanwhile by a plain `detail` call: keep that one (callers may hold it).
+      d = this.details.get(k) ?? made;
       this.details.set(k, d);
     }
     return d;
   }
 
-  /** The short-range detail rules' instances (`NEAR_DETAIL_MAX`); only asked for near the camera. */
-  nearDetail(cx: number, cz: number): ScatterInstance[] {
+  /** `nearDetail` a slice at a time (`detailSteps`). */
+  *nearDetailSteps(cx: number, cz: number): Generator<void, ScatterInstance[]> {
     const k = key(cx, cz);
     let d = this.nearDetails.get(k);
     if (!d) {
-      d = this.nearRules.length
-        ? this.generate(cx, cz, this.nearRules, 2000)
+      const made = this.nearRules.length
+        ? yield* this.generateSteps(cx, cz, this.nearRules, 2000)
         : [];
+      d = this.nearDetails.get(k) ?? made;
       this.nearDetails.set(k, d);
     }
     return d;
@@ -326,6 +352,16 @@ export class ScatterField {
     rules: ScatterRule[],
     salt: number,
   ): ScatterInstance[] {
+    return drain(this.generateSteps(cx, cz, rules, salt));
+  }
+
+  /** `generate`, yielding every `SLICE` candidate points. */
+  private *generateSteps(
+    cx: number,
+    cz: number,
+    rules: ScatterRule[],
+    salt: number,
+  ): Generator<void, ScatterInstance[]> {
     // Detail (salt 1000, near detail 2000) is only generated near the camera -> use the cached heightfield.
     const ground = salt >= 1000 ? this.near : this.hf;
     const out: ScatterInstance[] = [];
@@ -358,6 +394,7 @@ export class ScatterField {
       const nearRoad = tree ? undefined : getAssetMeta(rule.asset).nearRoad;
       const extra = this.extraRules.has(rule);
       for (let i = 0; i < count; i++) {
+        if (i % SLICE === SLICE - 1) yield;
         const x = pts ? pts[i * 2] : x0 + rng.next() * cs;
         const z = pts ? pts[i * 2 + 1] : z0 + rng.next() * cs;
         if (coverMask && lc) {

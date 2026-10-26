@@ -35,7 +35,6 @@ no company logos on hoardings or cabins.
 | --- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | D1  | Id / name        | `construction` / "Construction Site", noun "site" (HUD: "SITE CLEARED!"), blurb "Bricks first, mining trucks and tower cranes last."                                                                   |
 | D2  | Shape            | a **fenced rectangle** (`MapData.bounds`, like the toy store) under an open sky: 540 x 420 m, hoarding on all four sides, low on the camera side with the site gate                                    |
-| D3  | Release          | **released**: `release.ts` lists it in `MAPS_LIST` without `hideInProd` |
 | D4  | Point total      | **21 000** (more than 2 x `cumulativeXp(15)` = 17 110 so Easy can clear it; level 25 needs ~96 % of the map, like Animal Island); tuned by the bot through floor size and clustering, not the XP curve |
 | D5  | Scale            | real 1:1 scale (a brick is 24 cm, a haul truck 15.6 m); **one fantasy piece**: the 25 m "titan" haul truck, a prototype twice the real size, the boss of the mine                                      |
 | D6  | Seeded           | yes: the menu seed stepper ("Site #7"), every seed holds exactly 21 000 points                                                                                                                         |
@@ -106,8 +105,8 @@ deterministic per seed.
 
 ## 6. Roster (117 types, `items/catalog-construction.ts`)
 
-Groups (new `ItemGroup`s) and triangle budgets (`tests/hole/construction-items.test.ts`): `material` 300, `tools` 300,
-`crew` 140, `site` 600, `heaps` 300, `plant` 900, `trucks` 900, `structures` 1600, `cranes` 1200, `mining` 1600.
+Groups: `material`, `tools`, `crew`, `site`, `heaps`, `plant`, `trucks`, `structures`, `cranes`, `mining` (triangle
+budgets in `tests/hole/construction-items.test.ts`).
 Size = max(w, d, h x 0.25); tier, level and points are derived. Vehicles run along X, workers and signs face +Z.
 
 | T   | Id (w x d x h m)                                                                                                                                                                                                                                                                                                                                                          |
@@ -152,7 +151,7 @@ Every tier has 3+ types (tier 21 is the thinnest with 3). Heaps (`heap_*`, `spoi
 
 ## 8. Open tasks
 
-- [ ] Pace: with 21 000 points the good bot reaches level 10-13 on Hard (band 10-22), level 25 on Medium and clears Easy in ~230 s; retune `TIER_FRACTION` if feel on a device differs.
+- [ ] Pace: retune `TIER_FRACTION` if the feel on a device differs from the bot bands (`construction-map` test).
 - [ ] Real-device check (draw calls and triangles at levels 1 / 8 / 15; the cranes and high-rises are the heaviest items).
 - [ ] Ideas for later: crane hooks that swing, a conveyor that moves rocks, night shift with site lights, blasting in the
       mine as a timed event.
