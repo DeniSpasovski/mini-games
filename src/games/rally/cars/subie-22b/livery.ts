@@ -58,15 +58,17 @@ const CRESCENT_IN: Pt[] = [
  * from a point at the front, the lower one from a slanted cut further back. Distances in metres.
  */
 const STRIPE_HI = { gap: 0.04, width: 0.045, front: 380 }; // front: sketch x of the front tip
-const STRIPE_LO = { gap: 0.035, width: 0.04, front: 480 }; // front: where its (straight) top line starts
+// front: where its top line starts, behind the bend of the crescent's inner edge (offsetting the bend folds the lines)
+const STRIPE_LO = { gap: 0.035, width: 0.04, front: 520 };
 /** The lower stripe's front is cut along this curve (sketch px), rising forwards from its underside. */
 const STRIPE_LO_FRONT: Pt[] = [
-  [600, 250],
-  [570, 222],
-  [552, 200],
-  [536, 186],
-  [510, 176],
-  [470, 170],
+  [606, 215],
+  [600, 196],
+  [588, 184],
+  [570, 174],
+  [548, 168],
+  [520, 165],
+  [495, 164],
 ];
 /** All three tails end on one smooth cut (sketch px, top to bottom), the middle one shortest. */
 const REAR_CUT: Pt[] = [
@@ -192,6 +194,18 @@ function edged(
   }
 }
 
+/** Even-odd point-in-polygon test (body-side metres). */
+function inside([z, y]: Pt, poly: Pt[]): boolean {
+  let hit = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [zi, yi] = poly[i];
+    const [zj, yj] = poly[j];
+    if (yi > y !== yj > y && z < ((zj - zi) * (y - yi)) / (yj - yi) + zi)
+      hit = !hit;
+  }
+  return hit;
+}
+
 /** Region on one side of a cut curve: the curve, then two far corners (sketch px) closing it. */
 const region = (cut: Pt[], far: Pt[]): Pt[] => [
   ...curve(cut.map(at)),
@@ -231,10 +245,10 @@ function swoosh(ctx: CanvasRenderingContext2D): void {
   const loLower = offset(loTop, d0 + STRIPE_LO.width);
   const loBand = offset(loTop, d0 + STRIPE_LO.width + EDGE_W * 1.5);
   const rearOfLoFront = region(STRIPE_LO_FRONT, [
-    [470, -300],
+    [495, -300],
     [2000, -300],
     [2000, 600],
-    [600, 600],
+    [606, 600],
   ]);
   // The crescent's dark line never shows outside its outer edge: clip it to the side of the outer edge facing the hollow.
   const insideOuter: Pt[] = [
@@ -263,7 +277,10 @@ function swoosh(ctx: CanvasRenderingContext2D): void {
     {
       fill: [...loUpper, ...[...loLower].reverse()],
       fillClip: [rearOfLoFront],
-      edges: [curve(STRIPE_LO_FRONT.map(at)), loLower],
+      edges: [
+        curve(STRIPE_LO_FRONT.map(at)),
+        loLower.filter((q) => inside(q, rearOfLoFront)),
+      ],
       edgeClip: [[...loUpper, ...[...loBand].reverse()]],
     },
   ]);
