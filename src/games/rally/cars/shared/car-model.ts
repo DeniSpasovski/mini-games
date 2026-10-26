@@ -697,6 +697,14 @@ export class CarModel {
             }
             // Plate targets in body space (obj has no parent yet, so matrixWorld = obj -> body).
             obj.updateMatrixWorld(true);
+            // Parts the plate is stuck over as well (a side moulding across the door, `doorBadge.over`).
+            const over = def.model.doorBadge.over ?? [];
+            if (over.length)
+              obj.traverse((o) => {
+                const m = o as Mesh;
+                if (m.isMesh && over.includes(m.userData.partName as string))
+                  painted.push(m);
+              });
             this.importedPaint = painted.map((m) => ({
               geometry: m.geometry,
               matrix: m.matrixWorld.clone(),
