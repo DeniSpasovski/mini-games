@@ -728,6 +728,22 @@ export function buildBody(spec: BodySpec): BodyMesh {
   };
 }
 
+/** Query fields by the shapes' content: builders ask many questions of the same solids (and edit them in place). */
+const fields = new Map<string, Field>();
+
+/** The field of `shapes` for surface queries (cell 0.02), built once per distinct set of solids. */
+function queryField(shapes: readonly Shape[]): Field {
+  const key = JSON.stringify(shapes);
+  let f = fields.get(key);
+  if (!f) {
+    // a page builds eight critters: keep the cache small
+    if (fields.size > 32) fields.clear();
+    f = new Field(shapes, 0.02);
+    fields.set(key, f);
+  }
+  return f;
+}
+
 /**
  * Half-widths of the solids `shapes` (only those) at height `y`: how far the surface reaches along +x and +z from the
  * axis. For fitting the vest and the belt.
@@ -737,7 +753,7 @@ export function extentAt(
   y: number,
   z0 = 0,
 ): { x: number; z: number } {
-  const f = new Field(shapes, 0.02);
+  const f = queryField(shapes);
   const march = (dx: number, dz: number) => {
     let t = 0;
     while (t < 1 && f.value(dx * t, y, z0 + dz * t) < 0) t += 0.003;
@@ -755,7 +771,7 @@ export function reachAt(
   y: number,
   dirs: readonly (readonly [number, number])[],
 ): number[] {
-  const f = new Field(shapes, 0.02);
+  const f = queryField(shapes);
   return dirs.map(([dx, dz]) => {
     // from outside in: the first point inside is the outermost surface
     let t = 0.8;
@@ -771,7 +787,7 @@ export function surfaceZ(
   y: number,
   fallback = 0,
 ): number {
-  const f = new Field(shapes, 0.02);
+  const f = queryField(shapes);
   for (let z = 0.8; z > -0.8; z -= 0.002) if (f.value(x, y, z) < 0) return z;
   return fallback;
 }
@@ -783,14 +799,14 @@ export function surfaceY(
   z: number,
   fallback = 0,
 ): number {
-  const f = new Field(shapes, 0.02);
+  const f = queryField(shapes);
   for (let y = 1.4; y > 0; y -= 0.002) if (f.value(x, y, z) < 0) return y;
   return fallback;
 }
 
 /** Where a ray from `o` (inside) along the unit vector `d` leaves the solids `shapes`. */
 export function surfaceRay(shapes: readonly Shape[], o: V3, d: V3): V3 {
-  const f = new Field(shapes, 0.02);
+  const f = queryField(shapes);
   let t = 0;
   while (
     t < 1 &&

@@ -18,6 +18,8 @@ import { ATLAS, PLEATS, ROPE_M } from './dynamite-texture';
 import { ROUGH } from './materials';
 import { bbox, merge, part, strut } from './parts';
 
+import { VEST_FOLD } from './critters';
+
 export { buildCritter, type CritterModel } from './critters';
 
 /** Gear, TNT and pickups built from primitives (the critters themselves: `critters.ts`). Local space as the critters. */
@@ -140,7 +142,8 @@ export function vestGeometry(): BufferGeometry {
       const fold =
         Math.sin(phi * 7 + Math.sin(phi * 3.1) * 0.8) * 0.65 +
         Math.sin(phi * 13 + 1.7) * 0.35;
-      const k = 1 + 0.05 * fold * (0.35 + 0.65 * v) * hems * Math.max(0, edges);
+      const k =
+        1 + VEST_FOLD * fold * (0.35 + 0.65 * v) * hems * Math.max(0, edges);
       pos.setXYZ(i, x * k, y, z * k);
     }
     g.computeVertexNormals();

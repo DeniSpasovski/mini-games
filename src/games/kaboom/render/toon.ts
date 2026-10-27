@@ -1,11 +1,13 @@
 import {
   Color,
+  DataTexture,
   Euler,
+  FloatType,
   Matrix3,
   Matrix4,
   MeshStandardMaterial,
-  Vector3,
-  Vector4,
+  NearestFilter,
+  RGBAFormat,
   type IUniform,
 } from 'three';
 import type { V3 } from './sdf-body';
@@ -54,58 +56,62 @@ export interface ToonPaint {
 /** Most marks one critter can have. */
 export const TOON_MARKS = 32;
 
-/** GLSL: the paint (`toonColor(p)`) and its texture (`toonTexture(p)`), `p` = bind-pose position. */
+/**
+ * The marks go to the shader as a small float texture, a row per mark (texels: centre + cone flag, radii + blink
+ * travel, cone end + zig amplitude, the three columns of the turn + zig teeth, colour, cut plane, rings, the minus
+ * ellipsoid's centre and radii), so the program needs only a few uniforms on any GPU.
+ */
+const TEXELS = 11;
+
+/** GLSL: the paint (`toonColor(p, w)`, `w` = the pixel's size in bind-pose units) and its texture (`toonTexture`). */
 const FRAG = /* glsl */ `
   #define TOON_N ${TOON_MARKS}
+  uniform highp sampler2D uToonMarks;
   uniform int uToonN;
   uniform vec3 uToonBase;
   uniform float uToonTex;
   uniform float uBlink;
-  uniform vec3 uTC2[TOON_N];
-  uniform vec3 uTR2[TOON_N];
-  uniform vec3 uTC[TOON_N];
-  uniform vec3 uTR[TOON_N];
-  uniform vec3 uTB[TOON_N];
-  uniform mat3 uTM[TOON_N];
-  uniform vec3 uTCol[TOON_N];
-  // zig amplitude, zig frequency, cone (1) or ellipsoid (0), blink travel of the cut
-  uniform vec4 uTZ[TOON_N];
-  uniform vec4 uTCut[TOON_N];
-  // rings: per unit, share, phase
-  uniform vec3 uTX[TOON_N];
+  #define TM(k) texelFetch(uToonMarks, ivec2(k, i), 0)
   float toonDist(int i, vec3 p, out float along, out float axis) {
-    if (uTZ[i].z > 0.5) {
-      vec3 a = uTC[i];
-      vec3 ba = uTB[i] - a;
+    vec4 t0 = TM(0);
+    vec4 t1 = TM(1);
+    if (t0.w > 0.5) {
+      vec3 a = t0.xyz;
+      vec3 ba = TM(2).xyz - a;
       float t = clamp(dot(p - a, ba) / dot(ba, ba), 0.0, 1.0);
       along = p.x + p.z;
       axis = dot(p - a, ba) / length(ba);
-      return length(p - a - ba * t) - mix(uTR[i].x, uTR[i].y, t);
+      return length(p - a - ba * t) - mix(t1.x, t1.y, t);
     }
-    vec3 q = uTM[i] * (p - uTC[i]);
+    mat3 m = mat3(TM(3).xyz, TM(4).xyz, TM(5).xyz);
+    vec3 q = m * (p - t0.xyz);
     along = q.x;
     axis = q.x;
-    float d = (length(q / uTR[i]) - 1.0) * min(uTR[i].x, min(uTR[i].y, uTR[i].z));
-    if (uTR2[i].x > 0.0) {
-      vec3 q2 = uTM[i] * (p - uTC2[i]);
-      d = max(d, -(length(q2 / uTR2[i]) - 1.0) * min(uTR2[i].x, min(uTR2[i].y, uTR2[i].z)));
+    vec3 r = t1.xyz;
+    float d = (length(q / r) - 1.0) * min(r.x, min(r.y, r.z));
+    vec3 r2 = TM(10).xyz;
+    if (r2.x > 0.0) {
+      vec3 q2 = m * (p - TM(9).xyz);
+      d = max(d, -(length(q2 / r2) - 1.0) * min(r2.x, min(r2.y, r2.z)));
     }
-    return max(d, dot(q, uTCut[i].xyz) - uTCut[i].w - uTZ[i].w * uBlink);
+    vec4 cut = TM(7);
+    return max(d, dot(q, cut.xyz) - cut.w - t1.w * uBlink);
   }
-  vec3 toonColor(vec3 p) {
+  vec3 toonColor(vec3 p, float w) {
     vec3 col = uToonBase;
     for (int i = 0; i < TOON_N; i++) {
       if (i >= uToonN) break;
       float along;
       float axis;
       float d = toonDist(i, p, along, axis);
-      if (uTZ[i].x > 0.0) d += uTZ[i].x * (abs(fract(along * uTZ[i].y) - 0.5) * 2.0 - 0.5);
-      if (uTX[i].x > 0.0) {
-        float u = fract(axis * uTX[i].x + uTX[i].z);
-        d = max(d, (abs(u - uTX[i].y * 0.5) - uTX[i].y * 0.5) / uTX[i].x);
+      float zig = TM(2).w;
+      if (zig > 0.0) d += zig * (abs(fract(along * TM(3).w) - 0.5) * 2.0 - 0.5);
+      vec3 x = TM(8).xyz;
+      if (x.x > 0.0) {
+        float u = fract(axis * x.x + x.z);
+        d = max(d, (abs(u - x.y * 0.5) - x.y * 0.5) / x.x);
       }
-      float w = max(fwidth(d), 1e-4);
-      col = mix(col, uTCol[i], 1.0 - smoothstep(-w, w, d));
+      col = mix(col, TM(6).rgb, 1.0 - smoothstep(-w, w, d));
     }
     return col;
   }
@@ -137,82 +143,55 @@ const FRAG = /* glsl */ `
   }
 `;
 
-const toLinear = (hex: number, out = new Vector3()): Vector3 => {
-  const c = new Color().setHex(hex);
-  return out.set(c.r, c.g, c.b);
-};
-
-/** The uniforms of a paint (`FRAG` reads them). */
-function toonUniforms(
-  paint: ToonPaint,
-  blink: IUniform<number>,
-): Record<string, IUniform> {
-  const n = Math.min(TOON_MARKS, paint.marks.length);
-  const C = Array.from({ length: TOON_MARKS }, () => new Vector3());
-  const R = Array.from({ length: TOON_MARKS }, () => new Vector3(1, 1, 1));
-  const B = Array.from({ length: TOON_MARKS }, () => new Vector3());
-  const M = Array.from({ length: TOON_MARKS }, () => new Matrix3());
-  const Col = Array.from({ length: TOON_MARKS }, () => new Vector3());
-  const Z = Array.from({ length: TOON_MARKS }, () => new Vector4());
-  const Cut = Array.from(
-    { length: TOON_MARKS },
-    () => new Vector4(0, 1, 0, 1e3),
-  );
-  const X = Array.from({ length: TOON_MARKS }, () => new Vector3());
-  const C2 = Array.from({ length: TOON_MARKS }, () => new Vector3());
-  const R2 = Array.from({ length: TOON_MARKS }, () => new Vector3());
+/** The marks of a paint as the shader's float texture (`TEXELS` x `TOON_MARKS`). */
+function marksTexture(paint: ToonPaint): DataTexture {
+  const data = new Float32Array(TEXELS * TOON_MARKS * 4);
+  const c = new Color();
   const m4 = new Matrix4();
-  paint.marks.slice(0, n).forEach((mk, i) => {
-    toLinear(mk.color, Col[i]);
+  const m3 = new Matrix3();
+  paint.marks.slice(0, TOON_MARKS).forEach((mk, i) => {
+    const put = (k: number, x: number, y: number, z: number, w = 0) =>
+      data.set([x, y, z, w], (i * TEXELS + k) * 4);
     if (mk.a && mk.b) {
-      C[i].fromArray(mk.a);
-      B[i].fromArray(mk.b);
-      R[i].set(mk.ra ?? 0.05, mk.rb ?? 0.05, 1);
-      Z[i].z = 1;
+      put(0, ...mk.a, 1);
+      put(1, mk.ra ?? 0.05, mk.rb ?? 0.05, 1, mk.blink ?? 0);
+      put(2, ...mk.b, mk.zig?.[0] ?? 0);
     } else {
-      C[i].fromArray(mk.c ?? [0, 0, 0]);
-      R[i].fromArray(mk.r ?? [0.1, 0.1, 0.1]);
-      const [x, y, z] = mk.rot ?? [0, 0, 0];
-      // world -> local: the transpose of the solid's rotation (Ry Rx Rz)
-      m4.makeRotationFromEuler(new Euler(x, y, z, 'YXZ'));
-      M[i].setFromMatrix4(m4).transpose();
+      put(0, ...(mk.c ?? [0, 0, 0]), 0);
+      put(1, ...(mk.r ?? [0.1, 0.1, 0.1]), mk.blink ?? 0);
+      put(2, 0, 0, 0, mk.zig?.[0] ?? 0);
     }
-    if (mk.zig) {
-      Z[i].x = mk.zig[0];
-      Z[i].y = mk.zig[1];
-    }
-    if (mk.cut) Cut[i].fromArray(mk.cut);
-    Z[i].w = mk.blink ?? 0;
-    if (mk.bands) X[i].set(mk.bands[0], mk.bands[1], mk.bands[2] ?? 0);
+    // world -> local: the transpose of the solid's rotation (Ry Rx Rz), stored by columns
+    const [rx, ry, rz] = mk.rot ?? [0, 0, 0];
+    m4.makeRotationFromEuler(new Euler(rx, ry, rz, 'YXZ'));
+    const e = m3.setFromMatrix4(m4).transpose().elements;
+    put(3, e[0], e[1], e[2], mk.zig?.[1] ?? 0);
+    put(4, e[3], e[4], e[5]);
+    put(5, e[6], e[7], e[8]);
+    c.setHex(mk.color);
+    put(6, c.r, c.g, c.b);
+    put(7, ...(mk.cut ?? [0, 1, 0, 1e3]));
+    put(8, mk.bands?.[0] ?? 0, mk.bands?.[1] ?? 0, mk.bands?.[2] ?? 0);
     if (mk.minus) {
-      C2[i].fromArray(mk.minus.c);
-      R2[i].fromArray(mk.minus.r);
+      put(9, ...mk.minus.c);
+      put(10, ...mk.minus.r);
     }
   });
-  return {
-    uToonN: { value: n },
-    uToonBase: { value: toLinear(paint.base) },
-    uToonTex: { value: paint.texture ?? 0 },
-    uBlink: blink,
-    uTC2: { value: C2 },
-    uTR2: { value: R2 },
-    uTC: { value: C },
-    uTR: { value: R },
-    uTB: { value: B },
-    uTM: { value: M },
-    uTCol: { value: Col },
-    uTZ: { value: Z },
-    uTCut: { value: Cut },
-    uTX: { value: X },
-  };
+  const tex = new DataTexture(data, TEXELS, TOON_MARKS, RGBAFormat, FloatType);
+  tex.magFilter = tex.minFilter = NearestFilter;
+  tex.needsUpdate = true;
+  return tex;
 }
 
 /**
  * The body material of a toon critter: physically based like the arena (the level HDRI lights it), paint per pixel
  * (`vBind` = the bind-pose position). `userData.blink` (0 open .. 1 shut) closes the painted lids; `characters.ts` sets
- * it with each blink.
+ * it with each blink. `low`: no painted texture (Low quality, cheaper pixels).
  */
-export function toonMaterial(paint: ToonPaint): MeshStandardMaterial {
+export function toonMaterial(
+  paint: ToonPaint,
+  low = false,
+): MeshStandardMaterial {
   const m = new MeshStandardMaterial({
     vertexColors: true,
     roughness: 0.62,
@@ -220,8 +199,17 @@ export function toonMaterial(paint: ToonPaint): MeshStandardMaterial {
   });
   const blink: IUniform<number> = { value: 0 };
   m.userData.blink = blink;
+  const marks = marksTexture(paint);
+  m.addEventListener('dispose', () => marks.dispose());
+  const base = new Color().setHex(paint.base);
   m.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, toonUniforms(paint, blink));
+    Object.assign(shader.uniforms, {
+      uToonMarks: { value: marks },
+      uToonN: { value: Math.min(TOON_MARKS, paint.marks.length) },
+      uToonBase: { value: base },
+      uToonTex: { value: low ? 0 : (paint.texture ?? 0) },
+      uBlink: blink,
+    });
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -238,9 +226,12 @@ export function toonMaterial(paint: ToonPaint): MeshStandardMaterial {
       )
       .replace(
         '#include <color_fragment>',
-        // the body: its paint (and texture) times the baked shading; rigid parts keep their own colour
+        // the body: its paint (and texture) times the baked shading; rigid parts keep their own colour and skip the
+        // paint (the pixel size is taken outside the branch: derivatives need every pixel of the quad)
         `#include <color_fragment>
-        diffuseColor.rgb = mix(diffuseColor.rgb, toonTexture(toonColor(vBind), vBind) * diffuseColor.rgb, vToon);`,
+        float toonW = max(length(fwidth(vBind)), 1e-4);
+        if (vToon > 0.5)
+          diffuseColor.rgb *= toonTexture(toonColor(vBind, toonW), vBind);`,
       )
       .replace(
         '#include <opaque_fragment>',

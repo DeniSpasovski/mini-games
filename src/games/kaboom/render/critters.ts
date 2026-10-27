@@ -71,6 +71,8 @@ export interface VestFit {
 /** The vest geometry's own torso (`vestGeometry` in `crew-parts.ts`): centre y and shell radius. */
 export const VEST_CY = 0.36;
 export const VEST_R = 0.352;
+/** How deep the vest's draped folds dip into its shell (share of the radius, `vestGeometry`): the fit leaves room. */
+export const VEST_FOLD = 0.05;
 /** Polar angles (radians from the top) where the vest shell starts and ends. */
 const VEST_TOP = 0.92;
 const VEST_BOTTOM = 1.96;
@@ -556,8 +558,9 @@ function finish(kit: Kit, o: Finish): CritterModel {
   let grow = 1;
   for (let th = VEST_TOP; th <= VEST_BOTTOM; th += 0.08) {
     const y = vest.cy + Math.cos(th) * VEST_R * 1.05 * vest.sy;
-    const rx = VEST_R * vest.sx * Math.sin(th);
-    const rz = VEST_R * 0.97 * vest.sz * Math.sin(th);
+    // the deepest fold valley, not the shell, must clear the torso
+    const rx = VEST_R * vest.sx * Math.sin(th) * (1 - VEST_FOLD);
+    const rz = VEST_R * 0.97 * vest.sz * Math.sin(th) * (1 - VEST_FOLD);
     reachAt(torso, y, dirs).forEach((r, i) => {
       if (r <= 0) return;
       const [dx, dz] = dirs[i];
@@ -610,7 +613,7 @@ function finish(kit: Kit, o: Finish): CritterModel {
     occluders: [
       {
         c: [0, vest.cy, 0],
-        r: [VEST_R * vest.sx, VEST_R * 1.05 * vest.sy, VEST_R * vest.sz],
+        r: [vax, vay, vaz],
         cuts: [
           [0, 1, 0, 0.6],
           [0, -1, 0, 0.38],
@@ -746,14 +749,22 @@ function toonize(k: Kit, up: number, hs: number, hc: V3): ToonFrame {
     if (s.ra) s.ra *= hs;
     if (s.rb) s.rb *= hs;
   }
+  // a part's vest rule moves with it (a quill and its tip share one rule: move each rule once)
+  const moved = new Set<VestRule>();
   for (const p of k.parts) {
     if (LEG_BONES.includes(p.bone)) continue;
+    const onHead = HEAD_BONES.includes(p.bone);
     p.g.translate(0, up, 0);
-    if (HEAD_BONES.includes(p.bone))
+    if (onHead)
       p.g
         .translate(-c[0], -c[1], -c[2])
         .scale(hs, hs, hs)
         .translate(c[0], c[1], c[2]);
+    const rule = p.vest;
+    if (rule && rule !== 'over' && !moved.has(rule)) {
+      moved.add(rule);
+      rule.base = onHead ? head(rule.base) : lift(rule.base);
+    }
   }
   const j = k.j;
   for (const key of [
@@ -1281,18 +1292,9 @@ const BUILDERS: Record<CritterId, () => CritterModel> = {
           bone,
         );
       }
-      // pink skin from the wrist down, a tufted fur edge round the wrist
-      hands.push({
-        a: at(pc, 0, 0, 0.065),
-        b: at(pc, 0, 0, 0.2),
-        ra: 0.125,
-        rb: 0.11,
-        color: pink,
-        zig: [0.012, 34],
-      });
-      // the back of the hand furred like the arm, a tufted edge where the bare digits start; the mark's own frame has
-      // its x across the hand (the tufts run along it)
-      const back = new Euler().setFromRotationMatrix(
+      // the marks live in the hand's own frame (x across it, y up its length, z through it) and stay thin through it,
+      // so they paint the hand and never the flank next to it
+      const frame = new Euler().setFromRotationMatrix(
         new Matrix4().makeBasis(
           new Vector3(...u),
           new Vector3(-d[0], -d[1], -d[2]),
@@ -1300,10 +1302,20 @@ const BUILDERS: Record<CritterId, () => CritterModel> = {
         ),
         'YXZ',
       );
+      const rot: V3 = [frame.x, frame.y, frame.z];
+      // pink skin from the wrist down (palm and digits), a tufted fur edge round the wrist
       hands.push({
-        c: at(pc, 0, -0.036, -0.006),
-        r: [0.128, 0.094, 0.05],
-        rot: [back.x, back.y, back.z],
+        c: at(pc, 0, 0, 0.05),
+        r: [0.13, 0.12, 0.055],
+        rot,
+        color: pink,
+        zig: [0.012, 34],
+      });
+      // the back of the hand furred like the arm, a tufted edge where the bare digits start
+      hands.push({
+        c: at(pc, 0, -0.03, -0.006),
+        r: [0.128, 0.094, 0.03],
+        rot,
         color: fur,
         zig: [0.01, 46],
       });
@@ -1722,8 +1734,8 @@ const BUILDERS: Record<CritterId, () => CritterModel> = {
         p[2] + out.z * len,
       ];
       const bone = onHead ? BONE.head : BONE.spine;
-      // the vest covers the middle of the back: no quills poking through it (their base is placed after the lift)
-      const vr: VestRule = { base: [p[0], p[1] + 0.05, p[2]] };
+      // the vest covers the middle of the back: no quills poking through it
+      const vr: VestRule = { base: p };
       k.rigid(spike(a, b, 0.026, quill, 5), bone, vr).rigid(
         spike(
           [
@@ -2571,12 +2583,12 @@ const BUILDERS: Record<CritterId, () => CritterModel> = {
 
 const cache = new Map<CritterId, CritterModel>();
 
-/** A critter's model (generated once per page, then copied: every crew owns and disposes its own geometry). */
+/** A critter's model, generated once per page and shared by every crew (one asset: never dispose its geometry). */
 export function buildCritter(id: CritterId): CritterModel {
   let m = cache.get(id);
   if (!m) {
     m = BUILDERS[id]();
     cache.set(id, m);
   }
-  return { ...m, geometry: m.geometry.clone() };
+  return m;
 }

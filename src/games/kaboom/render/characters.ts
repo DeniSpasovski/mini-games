@@ -422,13 +422,14 @@ export class Crew {
 
   /**
    * `w`, `h` = the arena size in cells (for world mapping and the dazed seats on the slab edge). `opts.fan`: fan
-   * shirts instead of vests (the crowd); `opts.rings`: team rings on the floor (the match).
+   * shirts instead of vests (the crowd); `opts.rings`: team rings on the floor (the match); `opts.low`: Low quality
+   * (no painted texture on the bodies).
    */
   constructor(
     private readonly players: readonly PlayerView[],
     private readonly w: number,
     private readonly h: number,
-    opts: { fan?: boolean; rings?: boolean } = {},
+    opts: { fan?: boolean; rings?: boolean; low?: boolean } = {},
   ) {
     const n = Math.min(players.length, MAX_PLAYERS);
     this.models = players.slice(0, n).map((p) => buildCritter(p.critter));
@@ -442,10 +443,10 @@ export class Crew {
     this.vis = players.slice(0, n).map(fresh);
 
     this.models.forEach((m, i) => {
-      this.geos.push(m.geometry);
+      // the body geometry is the shared cached model (`buildCritter`): never disposed here
       const rig = new Rig(m.joints);
       this.rigs.push(rig);
-      const mat = toonMaterial(m.paint);
+      const mat = toonMaterial(m.paint, opts.low);
       const mesh = new SkinnedMesh(m.geometry, mat);
       mesh.bindMode = DetachedBindMode;
       mesh.bind(rig.skeleton, this.bindIdentity);
@@ -1009,6 +1010,7 @@ export class Crew {
   dispose(): void {
     for (const g of this.geos) g.dispose();
     for (const m of this.mats) m.dispose();
+    for (const r of this.rigs) r.skeleton.dispose();
     this.arrowMat.dispose();
     if (this.rings) {
       (this.rings.material as ShaderMaterial).dispose();

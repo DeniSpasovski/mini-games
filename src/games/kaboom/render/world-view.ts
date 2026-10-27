@@ -100,7 +100,10 @@ export class WorldView {
     if (bg) this.scene.background = bg;
     this.mapRef = sim.map;
     const { w, h } = sim.map;
-    this.crew = new Crew(sim.players, w, h, { rings: true });
+    this.crew = new Crew(sim.players, w, h, {
+      rings: true,
+      low: quality.name === 'low',
+    });
     this.crew.onLaunch = (x, z) => this.fx.launch(x, z);
     this.crew.onLand = (x, z) => this.fx.land(x, z);
     this.tnt = new TntRenderer(w, h, opts.digitAtlas, quality);
