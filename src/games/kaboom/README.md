@@ -39,12 +39,13 @@ The Large arena (up to 8 players) is bigger than the screen: the camera follows 
 ## Features
 
 - **The Boom Crew**: Mole, Badger, Beaver, Hedgehog, Armadillo, Raccoon, Capybara and Otter, each with its own build
-  (tall and slim to low and broad), real shell-rendered fur, hard hats and hi-vis vests in their team colour, animated
-  by code.
+  (tall and slim to low and broad): one seamless generated body each in a crisp toon paint (graphic colour blocks with
+  tufted edges, sculpted fur tufts), painted faces that blink and smile, hard hats and hi-vis vests in their team colour, work gloves, tool belts and boots, skinned and animated by
+  code (arm swing, steps, reaching to place TNT, cheering).
 - **Levels**: Quarry (sandstone pit), Green Valley (sunny meadow) and Sea Deck (a raft at sea, the crowd on boats). Same
   rules; only the look, the sounds and the sudden-death fall differ (walls land, or planks sink).
 - **A gladiator-style bowl** (Quarry): the arena sits at the bottom of a rocky pit; the stands are full of the same animals (pre-rendered
-  sprites, fur and all) in shirts, in blocks of fans cheering in the colours of the players in the match, some waving flags, who cheer in turn, do the wave and jump when things blow up.
+  sprites, faces and all) in shirts, in blocks of fans cheering in the colours of the players in the match, some waving flags, who cheer in turn, do the wave and jump when things blow up.
 - **Power-ups** hidden in crates, two kinds up to level 5: more dynamites to place at once, more sticks for a longer
   blast. Drops scale with the player count (6 + 2 per player), one always close to you; to max out you have to win some from the others.
 - **Arenas**: Small / Medium / Large from a seed, mirrored so every spawn is fair, with a proven safe start (room to drop

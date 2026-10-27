@@ -11,7 +11,6 @@ import {
 import { Player } from '../sim/state';
 import type { CritterId } from '../sim/types';
 import { Crew } from './characters';
-import { FUR_SHELLS } from './fur';
 import { BlobShadows } from './shadows';
 
 /** Turns per second of the turntable. */
@@ -19,7 +18,7 @@ const SPIN = 0.12;
 
 /**
  * The setup screen's critter picker: ONE critter, live in 3D, turning slowly on a little stage in the player's team
- * colour (hat and vest), fur and all. It has its own small renderer that lives only while the setup card is open
+ * colour (hat and vest), face and all. It has its own small renderer that lives only while the setup card is open
  * (`dispose` frees the GL context); `show` swaps the critter (with a happy squash) or recolours it in place.
  * Browser only.
  */
@@ -68,10 +67,7 @@ export class CritterPreview {
       const p = new Player(0, critter, false, color);
       p.x = p.px = p.y = p.py = 0;
       this.player = p;
-      this.crew = new Crew([p], 0, 0, {
-        shells: FUR_SHELLS.high,
-        smooth: true,
-      });
+      this.crew = new Crew([p], 0, 0);
       this.stage.add(this.crew.group);
       this.crew.onEvent({ type: 'tntPlaced', x: 0, y: 0, owner: 0 });
     }

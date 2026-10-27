@@ -1,9 +1,10 @@
-import type { Light } from 'three';
+import { Box3, Vector2, Vector3, type Light, type Mesh } from 'three';
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { paramOneOf } from '../../../shared/url-params';
 import { ViewerShell } from '../debug/viewer-shell';
 import { Arena } from '../render/arena';
 import { Crew } from '../render/characters';
+import { levelEnvironment } from '../render/environment';
 import { Fx } from '../render/fx/fx';
 import { GlowGrid } from '../render/fx/glow-grid';
 import { ItemRenderer } from '../render/items';
@@ -97,6 +98,12 @@ const arena = new Arena(stageMap, shell.quality, glow);
 shell.scene.add(arena.group);
 // the arena's sun and fill live with its scenery (the bowl, not wanted here): take just the lights
 shell.scene.add(...arena.scenery.children.filter((o) => (o as Light).isLight));
+// and its HDRI on High, as in the game (`WorldView.prepareEnvironment`)
+if (shell.quality.name === 'high')
+  void levelEnvironment(shell.renderer, arena.theme.id).then((env) => {
+    shell.scene.environment = env;
+    shell.scene.environmentIntensity = arena.theme.light.env;
+  });
 shell.setGameCamera(false);
 shell.rig.camera.position.set(0, 5.5, 13);
 shell.orbit.target.set(0, 0.6, 0.5);
@@ -378,6 +385,64 @@ shell.onFrame(frame);
     return crew;
   },
   players: () => players,
+  /**
+   * Dev: load a GLB (a reference model to compare against the crew) standing at world `x`, `z`, scaled to `height`
+   * world units; returns its triangle count. Calls again replace it.
+   */
+  async loadGlb(url: string, x = 0, z = 0, height = 1) {
+    const { GLTFLoader } =
+      await import('three/examples/jsm/loaders/GLTFLoader.js');
+    const gltf = await new GLTFLoader().loadAsync(url);
+    const old = shell.scene.getObjectByName('reference-glb');
+    if (old) shell.scene.remove(old);
+    const root = gltf.scene;
+    root.name = 'reference-glb';
+    const box = new Box3().setFromObject(root);
+    const size = box.getSize(new Vector3());
+    const k = height / size.y;
+    root.scale.setScalar(k);
+    root.position.set(
+      x - ((box.min.x + box.max.x) / 2) * k,
+      -box.min.y * k,
+      z - ((box.min.z + box.max.z) / 2) * k,
+    );
+    let tris = 0;
+    root.traverse((o) => {
+      const m = o as Mesh;
+      if (!m.isMesh) return;
+      m.castShadow = true;
+      const g = m.geometry;
+      tris += (g.index ? g.index.count : g.getAttribute('position').count) / 3;
+    });
+    shell.scene.add(root);
+    return tris;
+  },
+  /** Place the orbit camera at `pos` looking at `target` (repeatable close-ups). */
+  look(pos: [number, number, number], target: [number, number, number]) {
+    shell.rig.camera.position.set(...pos);
+    shell.orbit.target.set(...target);
+    shell.orbit.update();
+  },
+  /** Dev: render at w x h and POST it to the dev server as screenshots/<name>.jpg (move review shots to sources/). */
+  async screenshot(name: string, w = 1536, h = 864) {
+    // imported first: the canvas must be read in the same task as the render
+    const { saveScreenshot } = await import('../../../shared/thumbnail');
+    const r = shell.renderer;
+    const size = r.getSize(new Vector2());
+    const ratio = r.getPixelRatio();
+    const cam = shell.rig.camera;
+    r.setPixelRatio(1);
+    r.setSize(w, h, false);
+    cam.aspect = w / h;
+    cam.updateProjectionMatrix();
+    r.render(shell.scene, cam);
+    const saved = saveScreenshot('kaboom', name, r.domElement);
+    r.setPixelRatio(ratio);
+    r.setSize(size.x, size.y, false);
+    cam.aspect = size.x / size.y;
+    cam.updateProjectionMatrix();
+    return saved;
+  },
 };
 
 rebuild();

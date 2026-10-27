@@ -1,4 +1,3 @@
-import { FUR_SHELLS } from './fur';
 import {
   Group,
   Scene,
@@ -101,11 +100,7 @@ export class WorldView {
     if (bg) this.scene.background = bg;
     this.mapRef = sim.map;
     const { w, h } = sim.map;
-    this.crew = new Crew(sim.players, w, h, {
-      shells: FUR_SHELLS[quality.name],
-      rings: true,
-      smooth: quality.antialias,
-    });
+    this.crew = new Crew(sim.players, w, h, { rings: true });
     this.crew.onLaunch = (x, z) => this.fx.launch(x, z);
     this.crew.onLand = (x, z) => this.fx.land(x, z);
     this.tnt = new TntRenderer(w, h, opts.digitAtlas);

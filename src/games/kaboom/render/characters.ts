@@ -2,6 +2,7 @@ import {
   BufferAttribute,
   BufferGeometry,
   Color,
+  DetachedBindMode,
   DoubleSide,
   ExtrudeGeometry,
   Group,
@@ -10,16 +11,14 @@ import {
   Matrix4,
   Mesh,
   MeshLambertMaterial,
+  type MeshStandardMaterial,
   Object3D,
   PlaneGeometry,
   ShaderMaterial,
   Shape,
-  Vector2,
+  SkinnedMesh,
   Vector3,
-  type Camera,
   type DataTexture,
-  type PerspectiveCamera,
-  type WebGLRenderer,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Rng } from '../../../shared/rng';
@@ -32,15 +31,10 @@ import {
   vestGeometry,
   type CritterModel,
 } from './crew-parts';
-import {
-  FUR_LEN,
-  FUR_SHELLS,
-  furMaterial,
-  shellGeometry,
-  shellsFor,
-  skinMaterial,
-} from './fur';
 import { clayMaterial, makeGrainTexture } from './materials';
+import { toonMaterial } from './toon';
+import { BONE } from './critters';
+import { Rig } from './crew-rig';
 import { MAX_PLAYERS } from '../sim/rules';
 import type { PlayerView, SimEvent } from '../sim/types';
 
@@ -72,10 +66,43 @@ const KO_SEAT_AT = 0.38;
 const GRAVITY = 14;
 
 /**
- * Gear materials: the instance (team) colour tints everything except the parts marked `aPlain` (reflective stripes,
- * the hat's inner band), which keep their own paint.
+ * Cotton (the vest): a fine canvas weave and soft wrinkles in the cloth's own space (`vCloth` = the vertex position
+ * before instancing, so the pattern rides each vest), shaded as a bump: the wrinkles catch the light.
  */
-function gearMaterial(m: MeshLambertMaterial, glow = 0): MeshLambertMaterial {
+const CLOTH = /* glsl */ `
+  varying vec3 vCloth;
+  float clothHash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+  float clothNoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+      mix(clothHash(i), clothHash(i + vec2(1.0, 0.0)), f.x),
+      mix(clothHash(i + vec2(0.0, 1.0)), clothHash(i + vec2(1.0, 1.0)), f.x),
+      f.y);
+  }
+  // the cloth surface: wrinkles (long, mostly running down) as height; the weave (fine, paint only) beside it
+  float clothHeight(vec3 p, out float weave) {
+    // round the body; the wrap's seam falls in the vest's open front (+z)
+    vec2 q = vec2(atan(-p.x, -p.z) * 0.35, p.y);
+    float wrinkle = clothNoise(q * vec2(16.0, 4.5)) * 0.75 + clothNoise(q * vec2(40.0, 11.0)) * 0.25;
+    vec2 w = q * 1400.0;
+    weave = (sin(w.x) * 0.5 + 0.5) * (sin(w.y) * 0.5 + 0.5);
+    return wrinkle * 0.011;
+  }
+`;
+
+/**
+ * Gear materials: the instance (team) colour tints everything except the parts marked `aPlain` (reflective stripes,
+ * the hat's inner band), which keep their own paint. `cloth` = cotton (`CLOTH`).
+ */
+function gearMaterial(
+  m: MeshLambertMaterial,
+  glow = 0,
+  cloth = false,
+): MeshLambertMaterial {
   m.onBeforeCompile = (shader) => {
     if (glow > 0)
       shader.fragmentShader = shader.fragmentShader.replace(
@@ -85,21 +112,47 @@ function gearMaterial(m: MeshLambertMaterial, glow = 0): MeshLambertMaterial {
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
-        '#include <common>\nattribute float aPlain;',
+        `#include <common>\nattribute float aPlain;${cloth ? '\nvarying vec3 vCloth;' : ''}`,
       )
       .replace(
         '#include <color_vertex>',
-        '#include <color_vertex>\nvColor.rgb = mix(vColor.rgb, color.rgb, aPlain);',
+        `#include <color_vertex>\nvColor.rgb = mix(vColor.rgb, color.rgb, aPlain);${cloth ? '\nvCloth = position;' : ''}`,
       );
+    if (cloth)
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>\n${CLOTH}`)
+        .replace(
+          '#include <normal_fragment_maps>',
+          `#include <normal_fragment_maps>
+          // bump the normal by the cloth height (surface gradient from screen-space derivatives)
+          float weave;
+          float ch = clothHeight(vCloth, weave);
+          vec3 dpx = dFdx(-vViewPosition);
+          vec3 dpy = dFdy(-vViewPosition);
+          vec3 r1 = cross(dpy, normal);
+          vec3 r2 = cross(normal, dpx);
+          float det = dot(dpx, r1);
+          vec3 grad = sign(det) * (dFdx(ch) * r1 + dFdy(ch) * r2);
+          normal = normalize(abs(det) * normal - grad);`,
+        )
+        .replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>
+          float wv;
+          float h = clothHeight(vCloth, wv);
+          // the weave reads as a fine texture, the folds a little darker deep in
+          diffuseColor.rgb *= (0.96 + 0.06 * wv) * (0.9 + 9.0 * h);`,
+        );
   };
-  m.customProgramCacheKey = () => `kaboom-gear-${m.side}-${glow}`;
+  m.customProgramCacheKey = () =>
+    `kaboom-gear-${m.side}-${glow}-${cloth ? 1 : 0}`;
   return m;
 }
 
 /** Hard hats are drawn this much bigger than the critter models fit them: the team colour reads from across the arena. */
 const HAT_BOOST = 1.15;
 /** Vests glow a little in their own colour, so the team reads even on the shaded side. */
-const VEST_GLOW = 0.18;
+const VEST_GLOW = 0.1;
 
 /**
  * Team rings on the floor under every critter, one instanced draw: a soft band in the team colour round a faint disc.
@@ -215,25 +268,6 @@ function markerMaterial(): MeshLambertMaterial {
   return m;
 }
 
-const tmpPos = new Vector3();
-const tmpSize = new Vector2();
-
-/** How many pixels tall a critter (about 1.2 units with its hat) is on screen; 0 when unknown (not a perspective camera). */
-function critterPixels(
-  renderer: WebGLRenderer,
-  camera: Camera,
-  mesh: Mesh,
-): number {
-  const cam = camera as PerspectiveCamera;
-  if (!cam.isPerspectiveCamera) return 0;
-  tmpPos.setFromMatrixPosition(mesh.matrixWorld);
-  const dist = tmpPos.distanceTo(camera.position);
-  if (dist <= 0) return 0;
-  const h = renderer.getDrawingBufferSize(tmpSize).y;
-  const unitPx = h / (2 * dist * Math.tan((cam.fov * Math.PI) / 360));
-  return 1.2 * CRITTER_SCALE * unitPx;
-}
-
 /** A benched critter is launched into the sky over this long; a returning one drops from `DROP_H` in `DROP_S`. */
 const FLY_S = 0.9;
 const DROP_S = 0.55;
@@ -335,20 +369,24 @@ const angleDelta = (a: number, b: number): number => {
   return d;
 };
 
+/** Seconds a blink takes, and between blinks (plus a little per critter, so they never blink together). */
+const BLINK_S = 0.16;
+const BLINK_EVERY = 2.9;
+
 /**
- * The Boom Crew on screen: one body mesh and one shell-fur mesh (`fur.ts`) per player, plus ONE shared InstancedMesh
- * each for hats, vests and feet (so the whole crew is about 4 + 2n draw calls). Everything is animated by code from the sim's `PlayerView`s (interpolated with
- * `alpha`): waddle + bob, squash when placing TNT, hat bounce + dazed seat on the slab edge when KO, hop when winning.
- * No allocation per frame.
+ * The Boom Crew on screen: one skinned body mesh per player (toon paint, `toon.ts`) on its own skeleton (`Rig`), plus
+ * ONE shared InstancedMesh each for hats, vests and boots that ride the head, chest and shin bones (so the whole crew is
+ * about 4 + n draw calls). Everything is animated by code from the sim's `PlayerView`s
+ * (interpolated with `alpha`): the whole body waddles, bobs, squashes and hops, the bones swing arms and legs, turn and
+ * bob the head, lean and reach to place TNT, throw the arms up to cheer, wag tails, flick ears and blink; KO is a hat
+ * bounce and a dazed seat on the slab edge. No allocation per frame.
  */
 export class Crew {
   readonly group = new Group();
-  private readonly bodies: Mesh[] = [];
-  private readonly furs: Mesh[] = [];
-  /** Per critter: the fur tips' lag (critter space), fed to its fur material. */
-  private readonly sways: Vector3[] = [];
-  private readonly mats: MeshLambertMaterial[] = [];
-  private readonly furMats: MeshLambertMaterial[] = [];
+  private readonly bodies: SkinnedMesh[] = [];
+  private readonly rigs: Rig[] = [];
+  private readonly bindIdentity = new Matrix4();
+  private readonly mats: (MeshLambertMaterial | MeshStandardMaterial)[] = [];
   private readonly models: CritterModel[];
   private readonly vestFit: Matrix4[];
   private readonly hatSize = new Vector3();
@@ -383,22 +421,14 @@ export class Crew {
   private readonly color = new Color();
 
   /**
-   * `w`, `h` = the arena size in cells (for world mapping and the dazed seats on the slab edge). `fur`: shells per
-   * critter (quality) and whether the canvas has MSAA (soft hair edges).
+   * `w`, `h` = the arena size in cells (for world mapping and the dazed seats on the slab edge). `opts.fan`: fan
+   * shirts instead of vests (the crowd); `opts.rings`: team rings on the floor (the match).
    */
   constructor(
     private readonly players: readonly PlayerView[],
     private readonly w: number,
     private readonly h: number,
-    fur: {
-      shells: number;
-      smooth: boolean;
-      fan?: boolean;
-      rings?: boolean;
-    } = {
-      shells: FUR_SHELLS.high,
-      smooth: true,
-    },
+    opts: { fan?: boolean; rings?: boolean } = {},
   ) {
     const n = Math.min(players.length, MAX_PLAYERS);
     this.models = players.slice(0, n).map((p) => buildCritter(p.critter));
@@ -412,30 +442,18 @@ export class Crew {
     this.vis = players.slice(0, n).map(fresh);
 
     this.models.forEach((m, i) => {
-      const shells = shellGeometry(m.furGeometry, fur.shells);
-      this.geos.push(m.geometry, m.furGeometry, shells);
-      const mat = skinMaterial(this.grain);
-      const mesh = new Mesh(m.geometry, mat);
+      this.geos.push(m.geometry);
+      const rig = new Rig(m.joints);
+      this.rigs.push(rig);
+      const mat = toonMaterial(m.paint);
+      const mesh = new SkinnedMesh(m.geometry, mat);
+      mesh.bindMode = DetachedBindMode;
+      mesh.bind(rig.skeleton, this.bindIdentity);
       mesh.matrixAutoUpdate = false;
       mesh.frustumCulled = false;
       this.mats.push(mat);
       this.bodies.push(mesh);
       this.group.add(mesh);
-      const coat = furMaterial(this.grain, fur.shells, fur.smooth);
-      const furMesh = new Mesh(shells, coat.material);
-      furMesh.matrixAutoUpdate = false;
-      furMesh.frustumCulled = false;
-      // level of detail: as many shells as the critter's size on screen is worth, decided right before it is drawn
-      furMesh.onBeforeRender = (renderer, _scene, camera) => {
-        const px = critterPixels(renderer, camera, furMesh);
-        const n = px > 0 ? shellsFor(px, fur.shells) : fur.shells;
-        shells.instanceCount = n;
-        coat.drawn.value = n;
-      };
-      this.furMats.push(coat.material);
-      this.sways.push(coat.sway);
-      this.furs.push(furMesh);
-      this.group.add(furMesh);
       this.vis[i].yaw = 0;
     });
 
@@ -447,7 +465,7 @@ export class Crew {
     this.arrow.frustumCulled = false;
     this.group.add(this.arrow);
 
-    if (fur.rings) {
+    if (opts.rings) {
       const ringGeo = new PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
       this.ringYou = new InstancedBufferAttribute(new Float32Array(n), 1);
       ringGeo.setAttribute('aYou', this.ringYou);
@@ -460,7 +478,7 @@ export class Crew {
     }
 
     const hatGeo = hatGeometry();
-    const vestGeo = fur.fan ? fanShirtGeometry() : vestGeometry();
+    const vestGeo = opts.fan ? fanShirtGeometry() : vestGeometry();
     const footGeo = footGeometry();
     this.geos.push(hatGeo, vestGeo, footGeo);
     const teamMat = gearMaterial(
@@ -473,6 +491,7 @@ export class Crew {
         side: DoubleSide,
       }),
       VEST_GLOW,
+      true,
     );
     this.mats.push(teamMat, vestMat);
     this.hats = new InstancedMesh(hatGeo, teamMat, n);
@@ -486,9 +505,6 @@ export class Crew {
     for (let i = 0; i < n; i++) {
       this.applyColor(i);
       this.syncOut(i);
-      this.color.setHex(this.models[i].foot);
-      this.feet.setColorAt(i * 2, this.color);
-      this.feet.setColorAt(i * 2 + 1, this.color);
     }
   }
 
@@ -560,7 +576,6 @@ export class Crew {
       v.out = false;
       v.place = 9;
       this.mats[s.id].color.setHex(0xffffff);
-      this.furMats[s.id].color.setHex(0xffffff);
     }
   }
 
@@ -570,7 +585,6 @@ export class Crew {
       this.vis[i] = fresh();
       this.syncOut(i);
       this.mats[i].color.setHex(0xffffff);
-      this.furMats[i].color.setHex(0xffffff);
     });
   }
 
@@ -636,7 +650,6 @@ export class Crew {
     hat.rx = hat.rz = 0;
     hat.rest = false;
     this.mats[id].color.setHex(SOOT);
-    this.furMats[id].color.setHex(SOOT);
   }
 
   /** Pose everything for this frame. `dt` in seconds. */
@@ -769,8 +782,18 @@ export class Crew {
         }
       }
 
+      const rig = this.rigs[i];
+      this.pose(i, v, rig, alive && !spot, s);
+      if (spot?.hop) {
+        // the winner on the podium throws the arms up with each hop
+        const hop = Math.sin(((this.clock % HOP_S) / HOP_S) * Math.PI);
+        rig.turn(BONE.armL, 0, 0, 1.6 + hop * 0.9);
+        rig.turn(BONE.armR, 0, 0, -1.6 - hop * 0.9);
+      }
+      rig.solve();
+
       o.position.set(x, y, z);
-      o.rotation.set(pitch, yaw, roll, 'YXZ');
+      o.rotation.set(pitch, yaw, roll * 0.5, 'YXZ');
       const k = visible * CRITTER_SCALE;
       o.scale.set(sx * k, sy * k, sz * k);
       o.updateMatrix();
@@ -778,19 +801,9 @@ export class Crew {
       const mesh = this.bodies[i];
       mesh.matrix.copy(this.body);
       mesh.matrixWorldNeedsUpdate = true;
-      const furMesh = this.furs[i];
-      furMesh.matrix.copy(this.body);
-      furMesh.matrixWorldNeedsUpdate = true;
-      furMesh.visible = visible > 0.01;
-      // the fur lags the waddle: pushed back while walking, flung down by a squash, swinging with each step
-      this.sways[i]
-        .set(
-          Math.cos(v.phase) * 0.35 * v.walk,
-          -Math.abs(Math.sin(v.phase)) * 0.45 * v.walk - s * 2.5,
-          -0.8 * v.walk,
-        )
-        .multiplyScalar(FUR_LEN);
-      this.tmp.multiplyMatrices(this.body, this.vestFit[i]);
+      this.tmp
+        .multiplyMatrices(this.body, rig.skin[BONE.spine])
+        .multiply(this.vestFit[i]);
       this.vests.setMatrixAt(i, this.tmp);
 
       // hat: on the head while alive, ballistic after the KO
@@ -799,7 +812,9 @@ export class Crew {
           .makeRotationX(model.hatTilt)
           .scale(this.hatSize.setScalar(model.hatScale * HAT_BOOST))
           .setPosition(0, model.hatY, model.hatZ);
-        this.tmp.multiplyMatrices(this.body, this.local);
+        this.tmp
+          .multiplyMatrices(this.body, rig.skin[BONE.head])
+          .multiply(this.local);
         this.hats.setMatrixAt(i, this.tmp);
       } else {
         const h = v.hat;
@@ -810,20 +825,17 @@ export class Crew {
         this.hats.setMatrixAt(i, o.matrix);
       }
 
-      // feet: alternate lift + swing
-      const l = Math.max(0, Math.sin(v.phase)) * 0.09 * v.walk;
-      const r = Math.max(0, -Math.sin(v.phase)) * 0.09 * v.walk;
-      const swing = Math.cos(v.phase) * 0.07 * v.walk;
+      // boots on the shins
       const fs = model.feet.scale;
-      this.local
-        .makeScale(fs, fs, fs)
-        .setPosition(-model.feet.spread, l, 0.04 + swing);
-      this.tmp.multiplyMatrices(this.body, this.local);
+      this.local.makeScale(fs, fs, fs).setPosition(-model.feet.spread, 0, 0.04);
+      this.tmp
+        .multiplyMatrices(this.body, rig.skin[BONE.shinR])
+        .multiply(this.local);
       this.feet.setMatrixAt(i * 2, this.tmp);
-      this.local
-        .makeScale(fs, fs, fs)
-        .setPosition(model.feet.spread, r, 0.04 - swing);
-      this.tmp.multiplyMatrices(this.body, this.local);
+      this.local.makeScale(fs, fs, fs).setPosition(model.feet.spread, 0, 0.04);
+      this.tmp
+        .multiplyMatrices(this.body, rig.skin[BONE.shinL])
+        .multiply(this.local);
       this.feet.setMatrixAt(i * 2 + 1, this.tmp);
 
       // the team ring on the floor: under the critter while it plays, gone with a KO, off on the podium
@@ -867,6 +879,108 @@ export class Crew {
     this.feet.instanceMatrix.needsUpdate = true;
   }
 
+  /**
+   * The bones for this frame: idle breathing and looking round, the walk (arms swing against the legs, knees lift the
+   * boots, hips waddle, the tail wags), the lean and two-handed reach of placing a TNT (`squash` != 0 while it lasts),
+   * arms up for a cheer, a dazed slump after a KO, and blinks.
+   */
+  private pose(
+    i: number,
+    v: Vis,
+    rig: Rig,
+    alive: boolean,
+    squash: number,
+  ): void {
+    rig.rest();
+    const t = this.clock + i * 1.37;
+    const w = v.walk;
+    const sn = Math.sin(v.phase);
+    const cs = Math.cos(v.phase);
+    const idle = 1 - w;
+    // a blink now and then (never two critters together); half shut when dazed, a happy squint when cheering
+    const every = BLINK_EVERY + ((i * 0.618) % 1) * 1.8;
+    const bt = t % every;
+    let lid = bt < BLINK_S ? Math.sin((bt / BLINK_S) * Math.PI) : 0;
+    // the tail wags, more while walking
+    const wag = 0.18 + 0.3 * w;
+    rig.turn(BONE.tail0, -0.05, Math.sin(t * 3.1) * wag, 0);
+    rig.turn(BONE.tail1, 0.05, Math.sin(t * 3.1 - 0.7) * wag * 1.2, 0);
+    rig.turn(BONE.tail2, 0.08, Math.sin(t * 3.1 - 1.4) * wag * 1.4, 0);
+    // an ear flick every few seconds
+    const ef = (t * 0.27) % 1;
+    const flick = ef < 0.06 ? Math.sin((ef / 0.06) * Math.PI) * 0.35 : 0;
+    rig.turn(BONE.earL, 0, 0, -flick);
+    rig.turn(BONE.earR, 0, 0, flick * 0.4);
+
+    if (v.ko >= 0) {
+      // dazed on the slab edge: legs out in front, arms limp, the head lolling, eyes half shut
+      const u = Math.max(0, v.ko - KO_SEAT_AT);
+      rig.turn(BONE.spine, 0.18, 0, 0);
+      rig.turn(
+        BONE.head,
+        0.15,
+        Math.sin(u * 2.1) * 0.25,
+        Math.sin(u * 3.2) * 0.22,
+      );
+      rig.turn(BONE.legL, -1.25, 0, 0.15);
+      rig.turn(BONE.legR, -1.25, 0, -0.15);
+      rig.turn(BONE.armL, -0.15, 0, 0.55);
+      rig.turn(BONE.armR, -0.15, 0, -0.55);
+      rig.turn(BONE.earL, 0, 0, -0.35);
+      rig.turn(BONE.earR, 0, 0, 0.35);
+      lid = Math.max(lid, 0.55);
+    } else {
+      // breathing, looking round when standing, a counter-sway to the waddle when walking
+      const look = alive ? idle : 0;
+      rig.turn(BONE.hips, 0.05 * w, 0, sn * 0.07 * w);
+      rig.turn(
+        BONE.spine,
+        0.025 * Math.sin(t * 2.1) * idle + 0.06 * w,
+        0,
+        -sn * 0.05 * w,
+      );
+      rig.turn(
+        BONE.head,
+        0.05 * Math.sin(t * 0.7) * look + 0.05 * Math.abs(cs) * w,
+        (Math.sin(t * 0.43) * 0.32 + Math.sin(t * 1.13) * 0.08) * look,
+        -sn * 0.04 * w,
+      );
+      // arms swing against the legs; the knee lifts the boot on the way forward
+      const out = 0.1 + 0.03 * Math.sin(t * 2.1) * idle;
+      rig.turn(BONE.armL, sn * 0.6 * w, 0, out);
+      rig.turn(BONE.armR, -sn * 0.6 * w, 0, -out);
+      rig.turn(BONE.foreL, -0.2 - 0.25 * w, 0, 0);
+      rig.turn(BONE.foreR, -0.2 - 0.25 * w, 0, 0);
+      rig.turn(BONE.legL, -sn * 0.5 * w, 0, 0);
+      rig.turn(BONE.legR, sn * 0.5 * w, 0, 0);
+      rig.turn(BONE.shinL, Math.max(0, cs) * 0.7 * w, 0, 0);
+      rig.turn(BONE.shinR, Math.max(0, -cs) * 0.7 * w, 0, 0);
+      // placing a TNT: lean in, look down, both hands reach forward and down
+      if (v.place < 0.6 && squash !== 0) {
+        const c = Math.sin(Math.min(1, v.place / 0.55) * Math.PI);
+        rig.turn(BONE.spine, 0.32 * c, 0, 0);
+        rig.turn(BONE.head, 0.25 * c, 0, 0);
+        rig.turn(BONE.armL, -1.05 * c, 0, -0.05 * c);
+        rig.turn(BONE.armR, -1.05 * c, 0, 0.05 * c);
+        rig.turn(BONE.foreL, -0.35 * c, 0, 0);
+        rig.turn(BONE.foreR, -0.35 * c, 0, 0);
+      }
+      if (v.cheer >= 0) {
+        // arms up and waving, head back, a happy squint
+        const k = Math.min(1, v.cheer * 6);
+        const wave = Math.sin(v.cheer * 14) * 0.25;
+        rig.turn(BONE.armL, 0, 0, (2.5 + wave) * k);
+        rig.turn(BONE.armR, 0, 0, (-2.5 + wave) * k);
+        rig.turn(BONE.foreL, 0, 0, 0.3 * k);
+        rig.turn(BONE.foreR, 0, 0, -0.3 * k);
+        rig.turn(BONE.head, -0.25 * k, 0, 0);
+        lid = Math.max(lid, 0.65 * k);
+      }
+    }
+    // the painted lids close in the shader
+    (this.mats[i].userData.blink as { value: number }).value = lid;
+  }
+
   private stepHat(v: Vis, dt: number): void {
     const h = v.hat;
     if (h.rest) return;
@@ -895,7 +1009,6 @@ export class Crew {
   dispose(): void {
     for (const g of this.geos) g.dispose();
     for (const m of this.mats) m.dispose();
-    for (const m of this.furMats) m.dispose();
     this.arrowMat.dispose();
     if (this.rings) {
       (this.rings.material as ShaderMaterial).dispose();
