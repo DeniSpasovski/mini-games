@@ -231,7 +231,10 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         // Scans of the layers in use only (a = weight + height, -1 = unused; r = relief height).
         vec3 cGrass = vec3(0.0), cDirt = vec3(0.0), cRock = vec3(0.0), cGravel = vec3(0.0), cLit = vec3(0.0), cCrop = vec3(0.0);
         float aG = -1.0, aD = -1.0, aR = -1.0, aV = -1.0, aL = -1.0, aC = -1.0;
-        float rG = 0.0, rD = 0.0, rR = 0.0, rV = 0.0, rL = 0.0, rC = 0.0;
+        // Relief height per layer: its scale at the scan's mean height (h.y = 1) unless sampled, so a layer crossing wCut
+        // (sampled on one pixel, skipped on its neighbour) does not make the height jump: that jump made a row of dark
+        // pixels along splat edges (the gravel at a bank top or a road side).
+        float rG = 0.12, rD = 0.35, rR = 0.5, rV = 0.5, rL = 0.4, rC = 0.1;
         vec2 h = vec2(1.0);
         // Second taps (tiling breakup, relief, fresh leaves) only within uDetail m (0 = never: medium / low quality).
         #ifdef TERRAIN_FAR
@@ -245,7 +248,7 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         if (w.x > wCut) {
           cGrass = gVar(uGroundLook.x, wp, 1.0 / uGroundLook.y, GM_GRASS, dpx, dpy, near, h);
           aG = w.x + HB_K * (h.x - 1.0);
-          rG = h.y * 0.12;
+          rG = 0.12 * mix(1.0, h.y, smoothstep(wCut, wCut + 0.15, w.x));
           // Recolour (0.09 = mean linear luminance of the grass scans).
           float grassLum = dot(cGrass, LUMA) / 0.09;
           cGrass = mix(cGrass, uTintGrass * grassLum, uTintAmount);
@@ -260,17 +263,17 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         if (w.y > wCut) {
           cDirt = gVar(GY_SOIL, wp, GS_SOIL, GM_SOIL, dpx, dpy, near, h);
           aD = w.y + HB_K * (h.x - 1.0);
-          rD = h.y * 0.35;
+          rD = 0.35 * mix(1.0, h.y, smoothstep(wCut, wCut + 0.15, w.y));
         }
         if (w.z > wCut) {
           cRock = gVar(GY_ROCK, wp, GS_ROCK, GM_ROCK, dpx, dpy, near, h);
           aR = w.z + 0.05 + HB_K * (h.x - 1.0);
-          rR = h.y * 0.5;
+          rR = 0.5 * mix(1.0, h.y, smoothstep(wCut, wCut + 0.15, w.z));
         }
         if (w.w > wCut) {
           cGravel = gVar(GY_GRAVEL, wp, GS_GRAVEL, GM_GRAVEL, dpx, dpy, near, h);
           aV = w.w + 0.1 + HB_K * (h.x - 1.0);
-          rV = h.y * 0.5;
+          rV = 0.5 * mix(1.0, h.y, smoothstep(wCut, wCut + 0.15, w.w));
         }
         if (lit > wCut) {
           cLit = gVar(GY_LITTER, wp, GS_LITTER, GM_LITTER, dpx, dpy, near, h);
@@ -281,13 +284,13 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
             cLit = mix(cLit, cLeaf, lp * 0.9);
           }
           aL = lit + 0.1 + HB_K * (h.x - 1.0);
-          rL = h.y * 0.4;
+          rL = 0.4 * mix(1.0, h.y, smoothstep(wCut, wCut + 0.15, lit));
         }
         if (crop > wCut) {
           float sl = dot(gVar(GY_STUBBLE, wp, GS_STUBBLE, GM_STUBBLE, dpx, dpy, near, h), LUMA) / 0.09;
           cCrop = uTintCrop * mix(0.8, 1.15, clamp(sl, 0.0, 2.0) * 0.5) * (0.85 + macro2 * 0.3);
           aC = crop + HB_K * (h.x - 1.0);
-          rC = h.y * 0.1;
+          rC = 0.1 * mix(1.0, h.y, smoothstep(wCut, wCut + 0.15, crop));
         }
         // Height blend: a layer shows through where it stands higher than its neighbours (band HB_D).
         float ma = max(max(max(aG, aD), max(aR, aV)), max(aL, aC));
