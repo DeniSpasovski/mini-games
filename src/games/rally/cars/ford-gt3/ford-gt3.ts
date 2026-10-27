@@ -74,7 +74,7 @@ const BRAKES: BrakeSet = {
 
 /**
  * Ford Mustang GT3 (`ford_gt3`) - the 2024 customer GT3 racer: a CC BY Sketchfab model kept as it is (flat paint, own cockpit,
- * lamps and rim), mapped to game parts by material only (model.source.json). Test car (release.ts).
+ * lamps and rim), mapped to game parts by material only (model.source.json).
  */
 export const fordGt3: CarDef = {
   id: 'ford_gt3',
@@ -220,7 +220,8 @@ export const fordGt3: CarDef = {
     glass: { color: 0x141c24, opacity: 0.6 },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
-    doorBadge: { z: 0.25, y: 0.6 },
+    // Door plate by the rule (scripts/car-model/door-plate.py), 5 cm lower by eye.
+    doorBadge: { z: 0.13, y: 0.6 },
     gltf: {
       file: 'ford_gt3.glb',
       credit:

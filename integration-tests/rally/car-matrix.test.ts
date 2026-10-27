@@ -12,20 +12,21 @@ import {
   applySetup,
   SETUP_FOR_TYRE,
 } from '../../src/games/rally/physics/car-setup';
-import { TYRES, type TyreId } from '../../src/games/rally/physics/tyres';
+import type { TyreId } from '../../src/games/rally/physics/tyres';
 import type { SetupId } from '../../src/games/rally/physics/types';
 import { PHYSICS_HZ, Vehicle } from '../../src/games/rally/physics/vehicle';
 import { World } from '../../src/games/rally/world/world';
+import { carsUnderTest } from './cars-under-test';
 import { launch } from './handling-harness';
 
 /**
- * Every car on every stage (autopilot, careful driver unless noted) with its recommended tyre + set-up, tyre + brake
- * temperatures on (the stage's climate, as in game): finishes upright, tyres and discs stay in a sane range, the home
- * tyre is warm at the finish. The worst pick (tarmac tyres on gravel, gravel tyres on tarmac) is not driven at rally
- * pace - on the wrong tyre that is a flying lesson, by physics - only over a few of the stage's steepest hills and
- * tightest hairpin climbs, flat out from a 50 km/h rolling start (traction control on, lifting off for bends): it must
- * get over every one, with at most one reset. Plus what a set-up alone is worth (Fabia, same tyre; no climate). Tyres +
- * set-ups: physics/tyres.ts, physics/car-setup.ts, src/games/rally/PHYSICS.md.
+ * The recommended tyre + set-up over whole stages is the stage tests' job (stage-harness.ts, climate on). Here: the
+ * cars under test (cars-under-test.ts) on the worst pick, the cars' ranking and what a set-up alone is worth. The worst
+ * pick (tarmac tyres on gravel, gravel tyres on tarmac) is not driven at rally pace - on the wrong tyre that is a flying
+ * lesson, by physics - only over a few of the stage's steepest hills and tightest hairpin climbs, flat out from a
+ * 50 km/h rolling start (traction control on, lifting off for bends): it must get over every one, with at most one
+ * reset. Set-up alone: Fabia, same tyre, no climate. Tyres + set-ups: physics/tyres.ts, physics/car-setup.ts,
+ * src/games/rally/PHYSICS.md.
  */
 const DT = 1 / PHYSICS_HZ;
 const STAGES: MapDef[] = [testMap, petralicaMap, jackieMap, ajvatovciMap];
@@ -194,32 +195,7 @@ function drive(
   };
 }
 
-/** Recommended-pick stage time per `car/map`, filled by the matrix below (tests in a file run in order). */
-const best = new Map<string, number>();
-
-describe.each(ALL_CARS.map((c) => c.id))('%s', (carId) => {
-  test.each(STAGES.map((m) => m.id))(
-    '%s: finishes upright on the recommended pick',
-    (mapId) => {
-      const rec = STAGES.find((m) => m.id === mapId)!.stages[0].tyre;
-      const a = drive(carId, mapId, rec, SETUP_FOR_TYRE[rec], false, true);
-      best.set(`${carId}/${mapId}`, a.t);
-      console.info(
-        `[${carId} / ${mapId}] ${rec}+${SETUP_FOR_TYRE[rec]} ${a.t.toFixed(1)}s (up ${a.minUp.toFixed(2)}, finish ${a.finish.toFixed(0)}°C, max ${a.hottest.toFixed(0)}°C, discs ${a.hottestDisc.toFixed(0)}°C)`,
-      );
-      expect(a.finished).toBe(true);
-      expect(a.minUp).toBeGreaterThan(0.5);
-      expect(a.hottest).toBeLessThan(150);
-      // Brakes (physics/brakes.ts): hot, but not cooked - the autopilot plans with the brakes it has.
-      expect(a.hottestDisc).toBeLessThan(1300);
-      // A stuck car gets a reset, as a player would; the careful run on the right tyre needs at most one and ends warm
-      // (at most 10 °C under the window).
-      expect(a.resets).toBeLessThanOrEqual(1);
-      expect(a.finish).toBeGreaterThan(TYRES[rec].temp.lo - 10);
-    },
-    600000,
-  );
-
+describe.each(carsUnderTest().map((c) => c.id))('%s', (carId) => {
   // The worst pick, with its matching set-up: tarmac tyres on a gravel stage, gravel tyres on a tarmac or dusty-tarmac
   // (mixed) stage. At rally pace it flies off by physics; flat out (lifting off for bends) it must go over every hill with
   // at most one reset (a player presses R after a stall, as on the recommended pick; the Porsche 911 needs one in the 10 m
@@ -257,14 +233,22 @@ describe.each(ALL_CARS.map((c) => c.id))('%s', (carId) => {
 // No "Fabia wins the gravel test map" check: the AWD car should feel better on gravel, but a car with more power may be
 // quicker over the stage (by design, src/games/rally/PHYSICS.md "Stage times").
 test('cars rank by character: Bimmer wins on tarmac, Zastava is slowest', () => {
-  const t = (car: string, map: string) => best.get(`${car}/${map}`)!;
+  // The recommended pick (careful driver, climate on), as the stage tests drive it.
+  const t = (car: string, map: string) => {
+    const rec = STAGES.find((m) => m.id === map)!.stages[0].tyre;
+    return drive(car, map, rec, SETUP_FOR_TYRE[rec], false, true).t;
+  };
   const [fabia, bimmer, zastava] = ['skoda_rally', 'bimmer_m3', 'zastava_101'];
-  expect(t(bimmer, 'jackie')).toBeLessThan(t(fabia, 'jackie'));
   for (const map of ['test', 'petralica', 'jackie']) {
-    expect(t(zastava, map)).toBeGreaterThan(t(fabia, map));
-    expect(t(zastava, map)).toBeGreaterThan(t(bimmer, map));
+    const [f, b, z] = [t(fabia, map), t(bimmer, map), t(zastava, map)];
+    console.info(
+      `[rank ${map}] fabia ${f.toFixed(1)}s, bimmer ${b.toFixed(1)}s, zastava ${z.toFixed(1)}s`,
+    );
+    if (map === 'jackie') expect(b).toBeLessThan(f);
+    expect(z).toBeGreaterThan(f);
+    expect(z).toBeGreaterThan(b);
   }
-});
+}, 600000);
 
 test('fabia, same tyre: the right set-up alone is faster (limit driver) - soft on gravel, stiff on tarmac', () => {
   const car = 'skoda_rally';

@@ -258,6 +258,13 @@ body {
   box-shadow: 0 0 4px rgba(0, 0, 0, 0.35);
   transition: background-color 0.3s;
 }
+/* The front tyres steer: on their own layer they turn as a texture, and the gauge is a layer of its own so the
+   colour changes around them never re-layer the page. Drawn rotated in the page, a tyre's shadow needs a shader the
+   GPU compiles on the first steer, a 1-2 s freeze on Windows (ANGLE / D3D11). */
+.hud-tyres .car,
+.hud-tyres .car i:nth-of-type(-n + 2) {
+  will-change: transform;
+}
 .hud-tyres .car i:nth-of-type(1) {
   left: 0;
   top: 6px;

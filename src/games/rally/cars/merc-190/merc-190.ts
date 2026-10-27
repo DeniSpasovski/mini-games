@@ -72,7 +72,7 @@ const BRAKES: BrakeSet = {
 
 /**
  * Mercedes 190E (`merc_190`) - the 2.5-16 Evolution homologation saloon: a CC BY Sketchfab model kept as it is (flat paint, own
- * cockpit, lamps and rim), mapped to game parts by material only (model.source.json); its badges are removed. Test car (release.ts).
+ * cockpit, lamps and rim), mapped to game parts by material only (model.source.json); its badges are removed.
  */
 export const merc190: CarDef = {
   id: 'merc_190',
@@ -214,7 +214,8 @@ export const merc190: CarDef = {
     glass: { color: 0x141c24, opacity: 0.6 },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
-    doorBadge: { z: 0.1, y: 0.55 },
+    // Door plate by the rule (scripts/car-model/door-plate.py).
+    doorBadge: { z: 0.18, y: 0.6, tilt: 2.7 },
     gltf: {
       file: 'merc_190.glb',
       credit:

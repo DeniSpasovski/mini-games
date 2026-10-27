@@ -1,6 +1,7 @@
 import {
   AdditiveBlending,
   Color,
+  Float32BufferAttribute,
   Group,
   InstancedMesh,
   Matrix4,
@@ -15,7 +16,7 @@ import { PowerUp } from '../sim/powerups';
 import { dynamitesItemGeometry, sticksItemGeometry } from './crew-parts';
 import { ROUGH } from './materials';
 import { bbox, merge, part } from './parts';
-import { stickPaperTexture } from './tnt';
+import { dynamiteTextures } from './dynamite-texture';
 
 const UP = new Vector3(0, 1, 0);
 /** Most power-ups that can lie around at once (`powerUpTotal` for 8 players is 22, never all uncovered at once). */
@@ -23,12 +24,15 @@ const CAPACITY = 24;
 /** Power-ups are drawn bigger than their cell content suggests: they are small on a whole-arena view. */
 const ITEM_SCALE = 1.55;
 
-/** Glow colour under each kind: the colour of its pad (cyan = more dynamites, gold = more sticks). */
+/** Colour of each kind (cyan = more dynamites, gold = more sticks): the glow under it and the inlay on its plinth. */
 const GLOW = [new Color(0x38c6ff), new Color(0xffb020)];
 
-/** The plinth a power-up hovers over: a bevelled stone slab with a lighter chamfered top and a dark inlay ring. */
+/**
+ * The plinth a power-up hovers over: a bevelled stone slab with a lighter chamfered top and a painted inlay plate in the
+ * kind's colour (`aTint` = 1 on the inlay: only it takes the instance colour).
+ */
 function pedestalGeometry(): BufferGeometry {
-  return merge([
+  const parts = [
     part(bbox(0.74, 0.07, 0.74, 0.025), 0x8d8a84, {
       y: 0.035,
       tint: 0.1,
@@ -40,14 +44,46 @@ function pedestalGeometry(): BufferGeometry {
       tint: 0.08,
       rough: ROUGH.stone,
     }),
-  ]);
+    part(bbox(0.36, 0.014, 0.36, 0.006), 0xf4f4f4, {
+      y: 0.104,
+      ry: Math.PI / 4,
+      tint: 0,
+      rough: ROUGH.paint,
+    }),
+  ];
+  parts.forEach((g, k) => {
+    const n = g.getAttribute('position').count;
+    g.setAttribute(
+      'aTint',
+      new Float32BufferAttribute(new Float32Array(n).fill(k === 2 ? 1 : 0), 1),
+    );
+  });
+  return merge(parts);
+}
+
+/** Lambert with vertex colours where the instance colour only reaches the parts tagged `aTint` (the inlay). */
+function tintedMaterial(): MeshLambertMaterial {
+  const m = new MeshLambertMaterial({ vertexColors: true });
+  m.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float aTint;')
+      .replace(
+        '#include <color_vertex>',
+        `#include <color_vertex>
+        #ifdef USE_INSTANCING_COLOR
+          vColor.rgb = color.rgb * mix(vec3(1.0), instanceColor.rgb, aTint);
+        #endif`,
+      );
+  };
+  m.customProgramCacheKey = () => 'kaboom-plinth';
+  return m;
 }
 
 const easeOutBack = (t: number): number =>
   1 + 2.70158 * Math.pow(t - 1, 3) + 1.70158 * Math.pow(t - 1, 2);
 
 /**
- * The power-ups lying on the floor: two InstancedMeshes (twin dynamite bundles / one fat bundle of sticks) that hover, spin
+ * The power-ups lying on the floor: two InstancedMeshes (a crate of dynamite / one fat strapped bundle of sticks) that hover, spin
  * and pop in when they appear. Stateless apart from the pop-in clock: it just reads `sim.items` every frame.
  */
 export class ItemRenderer {
@@ -63,12 +99,11 @@ export class ItemRenderer {
     blending: AdditiveBlending,
     depthWrite: false,
   });
-  private readonly plinthMaterial = new MeshLambertMaterial({
-    vertexColors: true,
-  });
+  private readonly plinthMaterial = tintedMaterial();
   private readonly material = new MeshLambertMaterial({
     vertexColors: true,
-    map: stickPaperTexture(),
+    map: dynamiteTextures().map,
+    normalMap: dynamiteTextures().normal,
     emissive: 0x555555,
   });
   /** Clock time each cell's item was first seen (-1 = none). */
@@ -108,6 +143,7 @@ export class ItemRenderer {
       this.group.add(m);
     }
     this.plinths.receiveShadow = true;
+    this.plinths.setColorAt(0, GLOW[0]);
     this.glows.renderOrder = 1;
     this.seen = new Float32Array(w * h).fill(-1);
   }
@@ -151,6 +187,10 @@ export class ItemRenderer {
           this.scl.set(ps, ps, ps),
         );
         this.plinths.setMatrixAt(under, this.m);
+        this.plinths.setColorAt(
+          under,
+          GLOW[kind === PowerUp.Dynamites ? 0 : 1],
+        );
         const gs = ps * (0.92 + 0.1 * Math.sin(t * 4 + i));
         this.m.compose(
           this.pos.set(cx, 0.11, cz),
@@ -172,6 +212,13 @@ export class ItemRenderer {
     this.plinths.instanceMatrix.needsUpdate = true;
     this.glows.instanceMatrix.needsUpdate = true;
     if (this.glows.instanceColor) this.glows.instanceColor.needsUpdate = true;
+    if (this.plinths.instanceColor)
+      this.plinths.instanceColor.needsUpdate = true;
+  }
+
+  /** Show the hidden plinths and glows for a warm-up compile (`WorldView.warmUp`); the next `update` hides them again. */
+  showForCompile(): void {
+    this.plinths.visible = this.glows.visible = true;
   }
 
   /** Items drawn last frame (tests). */

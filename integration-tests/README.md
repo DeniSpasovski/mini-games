@@ -5,7 +5,7 @@ Everything fast (unit, data and content checks) stays in `tests/`.
 
 | Folder                      | What                                                                                         |
 | --------------------------- | -------------------------------------------------------------------------------------------- |
-| `integration-tests/rally/`  | `stage` (autopilot finishes every map), `car-matrix`, `tyres`, `gearing`, `handling`         |
+| `integration-tests/rally/`  | `stage-<map>` (autopilot finishes every stage), `car-matrix`, `tyres`, `gearing`, `handling` |
 | `integration-tests/hole/`   | `city-movers` (traffic / walkers over time), `balance` (good bot on every map)               |
 | `integration-tests/kaboom/` | `bots` (200 headless bot-only rounds per difficulty: end in time, no suicides, no idle bots) |
 

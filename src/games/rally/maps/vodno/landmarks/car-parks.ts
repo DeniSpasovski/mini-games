@@ -364,20 +364,35 @@ const inPolygon = (poly: V2[], lx: number, lz: number): boolean => {
   return inside;
 };
 
-const outlines = new Map<Lot, V2[]>();
-const slabOutline = (lot: Lot): V2[] => {
-  let poly = outlines.get(lot);
-  if (!poly) {
+/** A lot's slab outline (local frame) and its world bounding box [minX, minZ, maxX, maxZ]. */
+interface SlabOutline {
+  poly: V2[];
+  box: [number, number, number, number];
+}
+const outlines = new Map<Lot, SlabOutline>();
+const slabOutline = (lot: Lot): SlabOutline => {
+  let o = outlines.get(lot);
+  if (!o) {
     const { left, right } = lotShape(lot);
-    outlines.set(lot, (poly = [...left, ...right.slice().reverse()]));
+    const poly = [...left, ...right.slice().reverse()];
+    const world = poly.map(([px, pz]) => toWorld(lot.site, px, pz));
+    const xs = world.map((p) => p[0]);
+    const zs = world.map((p) => p[1]);
+    o = {
+      poly,
+      box: [Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)],
+    };
+    outlines.set(lot, o);
   }
-  return poly;
+  return o;
 };
 
-/** True when the world point lies on the lot's slab. */
+/** True when the world point lies on the lot's slab. Runs for every ground sample on Vodno: the box rejects most. */
 export function onLot(lot: Lot, x: number, z: number): boolean {
+  const { poly, box } = slabOutline(lot);
+  if (x < box[0] || z < box[1] || x > box[2] || z > box[3]) return false;
   const [lx, lz] = toLocal(lot.site, x, z);
-  return inPolygon(slabOutline(lot), lx, lz);
+  return inPolygon(poly, lx, lz);
 }
 
 /** One run of a lot's rock wall: the outline's points, the unit normal to the outer side at each, and whether it carries the railing. */

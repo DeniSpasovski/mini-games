@@ -183,7 +183,6 @@ export class KaboomGame {
       },
       onClick: () => this.sfx.click(),
       onTick: () => this.sfx.tick(),
-      lowQuality: this.quality.name === 'low',
       makeStage: () => {
         try {
           return new CritterPreview();

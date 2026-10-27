@@ -68,7 +68,7 @@ const BRAKES: BrakeSet = {
 
 /**
  * Peugeot 206 (`peugeot_206`) - a tuned widebody 206 GTi: a CC BY Sketchfab model kept as it is (own cockpit, lamps and rim,
- * flat paint), mapped to game parts by material only (model.source.json). Test car (release.ts).
+ * flat paint), mapped to game parts by material only (model.source.json).
  */
 export const peugeot206: CarDef = {
   id: 'peugeot_206',
@@ -206,7 +206,9 @@ export const peugeot206: CarDef = {
     glass: { color: 0x141c24, opacity: 0.6 },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
-    doorBadge: { z: 0.1, y: 0.62 },
+    // Door plate by the rule (scripts/car-model/door-plate.py): stuck over the black side moulding, like a sticker,
+    // 4 cm further back so it sits in the door's flat middle.
+    doorBadge: { z: 0.04, y: 0.66, tilt: 2.5, over: ['trim'] },
     gltf: {
       file: 'peugeot_206.glb',
       credit:

@@ -68,7 +68,7 @@ const BRAKES: BrakeSet = {
 
 /**
  * Subaru WRX STI (`subie_wrx_sti`) - the 2019 STI: a CC BY Sketchfab model kept as it is (own cockpit, lamps and rim, flat
- * paint), mapped to game parts by material (model.source.json). Test car (release.ts).
+ * paint), mapped to game parts by material (model.source.json).
  */
 export const subieWrxSti: CarDef = {
   id: 'subie_wrx_sti',
@@ -209,7 +209,8 @@ export const subieWrxSti: CarDef = {
     glass: { color: 0x141c24, opacity: 0.6 },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
-    doorBadge: { z: 0.2, y: 0.66, tilt: 1.5 },
+    // Door plate by the rule (scripts/car-model/door-plate.py).
+    doorBadge: { z: 0.1, y: 0.64, tilt: 1.4 },
     gltf: {
       file: 'subie_wrx_sti.glb',
       credit:

@@ -103,7 +103,7 @@ export class WorldView {
     this.crew = new Crew(sim.players, w, h, { rings: true });
     this.crew.onLaunch = (x, z) => this.fx.launch(x, z);
     this.crew.onLand = (x, z) => this.fx.land(x, z);
-    this.tnt = new TntRenderer(w, h, opts.digitAtlas);
+    this.tnt = new TntRenderer(w, h, opts.digitAtlas, quality);
     this.items = new ItemRenderer(w, h);
     this.fx = new Fx(w, h, opts.wordAtlas, this.theme.fx);
     this.fx.sea = this.theme.fall === 'tile';
@@ -367,6 +367,7 @@ export class WorldView {
   ): Promise<void> {
     await this.prepareEnvironment(renderer);
     this.crowd.prepare(renderer, true);
+    this.items.showForCompile();
     await renderer.compileAsync(scene, this.rig.camera);
     this.shadowAge = SHADOW_REDRAW_S; // the first shadow draw belongs here, not to the first frame of play
     this.fx.prime();

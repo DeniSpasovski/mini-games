@@ -120,8 +120,8 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   light up in the car's beam (`retro`), street lamp lenses glow with `lightNeed` and `world/lamp-pools.ts` lays a soft light pool under
   each lamp. High quality adds bloom (`engine/post-fx.ts`, threshold far above the lit ground, so lenses and reflectors are
   emissive well over it). Not done: high / low beam key.
-- **Post effects (High):** `engine/post-fx.ts`, options **Bloom** (off / soft / strong, `BLOOM_MIX` in `game/settings.ts`) and
-  **Ambient occlusion** (off by default). Bloom: the whole picture, no threshold, mixed back at a few percent, worked on an HDR
+- **Post effects (High):** `engine/post-fx.ts`, options **Bloom** (off / soft / strong, default off, `BLOOM_MIX` in `game/settings.ts`) and
+  **Ambient occlusion** (default off). Bloom: the whole picture, no threshold, mixed back at a few percent, worked on an HDR
   estimate of the finished picture, so with it off the image is unchanged. AO: GTAO from the depth at half resolution.
   Test links: `?bloom=<mix>` (0 = off), `?ao=0|1`; console `__rally.post.set({ day: 0.04, ao: true })`.
 - **Sky / tone mapping:** drifting clouds (`cloudCoverage`, `cloudSpeed`); ACES, or `toneMapping: 'agx' | 'neutral'` per map.
@@ -135,7 +135,9 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   `?grade=off` to compare, `?look=before|sky|soft|crisp|warm|cool|vodno-before|forest|forest-haze` to try test variants (`LOOKS` in environment.ts), `__grade.set({...})` to tune live. `gradeColor` mirrors the shader for tests.
 - **Car reflections:** three.js draws a material without its own env map at `scene.environmentIntensity` (0.3), so car
   materials are flagged `carEnv` (engine/world-shading.ts): their specular env lookup uses their own `envMapIntensity`
-  (scaled with the scene's), the diffuse sky light stays the scene's.
+  relative to `CAR_ENV_DAY` (0.6: by day 1 = 1.67x the world's, a street sheen, not a studio mirror; `setCarEnvSun`
+  eases it to 0.3 with the sun below ~18 deg and at night, where the reflection is what shows a car's shape), the
+  diffuse sky light stays the scene's.
 - **World shading** (tune live with `__worldShading`): cloud shadows, a canopy shadow texture that keeps woods dark where
   neither shadow map reaches (`world/canopy-shadows.ts`: a coarse whole-map texture plus a 1.5 m local window of 768 m
   around the camera, rebuilt from the generated scatter chunks every 64 m), height fog
@@ -215,7 +217,8 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   cards are rendered from them once per page (`engine/crops.ts` `bakeCropCards`), 4 variants each with their own mix of
   plant heights (stacked in one texture; the asset variant picks one) so the field tops are uneven. Near detail
   is fixed by road distance, never by camera distance (catalog `nearRoad`, `nearBoost`): grass is denser within 14 m of a road
-  and blade strips within 3 m, so nothing swaps or fills in as the car drives on.
+  (crossed cards at every distance: blade strips by the road read as bare ground next to them), so nothing swaps or
+  fills in as the car drives on.
 - **Horizon backdrop** (`horizon`, real maps): the land ~25 km around the map (terrain + land cover from Terrarium /
   WorldCover, no roads or buildings), baked by `scripts/realmap/horizon.py` into `<map>/horizon.json`, drawn behind
   everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain). A grid may be
@@ -329,19 +332,19 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
 | ----------------- | ------------------ | ----- | --------------------------------------------------------------------------------------------------------------------- |
 | `skoda_rally`     | Skoda Rally        | AWD   | Rally2-class hatch from a CC BY Fabia R5 model, own livery                                                            |
 | `bimmer_m3`       | Bimmer M3          | RWD   | lowered E46 coupe from a CC BY print model, own livery                                                                |
-| `bimmer_gt2`      | Bimmer GT2         | RWD   | wide-body E92 GT2 racer from a CC BY Sketchfab model, clean livery (test only)                                        |
-| `subie_22b`       | Subaru WRX STI 22B | AWD   | 1998 22B coupe from a CC BY Sketchfab model, crescent / stars graphic (test only)                                     |
+| `bimmer_gt2`      | Bimmer GT2         | RWD   | wide-body E92 GT2 racer from a CC BY Sketchfab model, clean livery                                                    |
+| `subie_22b`       | Subaru WRX STI 22B | AWD   | 1998 22B coupe from a CC BY Sketchfab model, side swoosh                                                              |
 | `zastava_101`     | Zastava 101        | FWD   | stock "Stojadin", body hand-built from dimensions and a blueprint                                                     |
-| `fiesta`          | Fiesta WRC         | AWD   | World Rally Car from a CC BY model with its cockpit, own rim and livery, test car                                     |
-| `citroen_c4`      | Citroen C4 WRC     | AWD   | 2007 World Rally Car from a CC BY model with its cockpit, own rim and livery, test car                                |
-| `lancer_evo_6`    | Lancer EVO VI      | AWD   | 1999-style Lancer from a CC BY model with its cockpit, own rim and livery, test car                                   |
+| `fiesta`          | Fiesta WRC         | AWD   | World Rally Car from a CC BY model with its cockpit, own rim and livery                                               |
+| `citroen_c4`      | Citroen C4 WRC     | AWD   | 2007 World Rally Car from a CC BY model with its cockpit, own rim and livery                                          |
+| `lancer_evo_6`    | Lancer EVO VI      | AWD   | 1999-style Lancer from a CC BY model with its cockpit, own rim and livery                                             |
 | `ford_gt3`        | Ford Mustang GT3   | RWD   | 2024 GT3 racer from a CC BY model kept as is (own cockpit, lamps, rim), flat dark blue paint                          |
 | `merc_190`        | Mercedes 190E      | RWD   | 2.5-16 Evolution saloon from a CC BY model kept as is (own cockpit, lamps, rim), badges removed, flat dark grey paint |
 | `peugeot_206`     | Peugeot 206        | FWD   | tuned widebody 206 from a CC BY model kept as is (own cockpit, lamps, rim), flat paint                                |
 | `audi_rs6`        | Audi RS6           | AWD   | C8 RS6 Avant from a CC BY model kept as is (own cockpit, lamps, rim), flat grey paint                                 |
 | `porsche_911_930` | Porsche 911 (930)  | RWD   | 1975 911 Turbo from a CC BY model kept as is (own lamps, rim, no interior), flat yellow paint, test car               |
 | `subie_wrx_sti`   | Subaru WRX STI     | AWD   | 2019 STI saloon from a CC BY model kept as is (own cockpit, lamps, rim), flat blue paint, released                    |
-| `pezetka`         | Fiat 126p          | RWD   | 1970s rear-engined city car from a CC BY model kept as is (own cockpit, lamps, rim), flat white paint, test car       |
+| `pezetka`         | Fiat 126p          | RWD   | 1970s rear-engined city car from a CC BY model kept as is (own cockpit, lamps, rim), blue-grey paint                  |
 
 - A car is `cars/<car>/<car>.ts` (a `CarDef`: physics + model + sound) with its README. A GLB in `public/models/cars/` replaces the
   car's own body (`cars/shared/car-gltf.ts`; credits in `public/models/CREDITS.md`). Imports: rally-car-import skill.
@@ -471,7 +474,10 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   materials from `engine/materials.ts`.
 - Streaming stays time-sliced: terrain (`terrain.update(pos, budgetMs)`), the 1 m heightfield (`Heightfield.prepare`) and
   instance re-bucketing (`InstanceStreamer`; in game the time the frame rate leaves over, 1-8 ms per frame,
-  `RallyGame.streamBudget`). Whole-map work uses `world.analytic`, not the 1 m cache.
+  `RallyGame.streamBudget`). Whole-map work uses `world.analytic`, not the 1 m cache. A grass chunk is generated inside
+  that slice too (`ScatterField.detailSteps`, yields every 256 candidates: one dense chunk took up to ~30 ms), and the
+  canopy shadow map splats new chunks for at most 1 ms a frame and writes its texel bytes as it splats (no conversion
+  pass before the 1.5 s upload).
 - Whole-map set-up loops use a spatial grid, never all-against-all (a town map has ~900 roads, ~2000 way ends).
 
 **Draw calls**
@@ -591,12 +597,17 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   the work itself): tree variants and leaf atlases + mips (`trees/worker.ts`), people (above), procedural textures drawn on an
   OffscreenCanvas (`engine/texture-worker.ts`; `engine/texture-prefetch.ts`: a browser remembers the textures each map used and asks for
   those next time, `BY_MAP` seeds a first visit; text textures stay on the page). `__rally.loadTimings` splits the load by phase.
+  The tree workers also read the IndexedDB cache (variants + their impostors' mip chains, and the leaf atlases + mips,
+  keyed `atlas:<style>:v<GENERATOR_VERSION>`), so a warm Trees phase does no pixel work on the main thread.
+- Workers only start while the main thread is free: a long load-time task holds every pool up. `bakeCropCards` yields
+  between cards for that reason; keep other once-per-page bakes sliced the same way.
 - Shader programs of the main pass compile in parallel (`compileAsync`); the shadow-pass ones compile in the first render. The tree
   prepass check (`TreeRenderer.checkPrepass`) draws only the trees and keeps its verdict per GPU in localStorage (it used to draw the
   whole scene into a target: 70 more programs, ~5 s on a cold shader cache).
 - Long synchronous steps (world build, road, props, shader compile) set their label and `paint()` first, so the bar never
   sits unlabelled at 0%. The car's GLB starts downloading before the map data (`preloadCarModel`).
 - Car select: a "Loading model" spinner (`Showroom.loadCue`) shows while a car's GLB downloads (the car stays hidden until then).
+- Last picked stage, car and livery are remembered (`rally.settings`, saved on Start); a car that is hidden in the build or unknown falls back to the default car and livery 1.
 - Car select: All / AWD / RWD / FWD filter row on top (`driveGroup` from the car's `drivetrain.frontSplit`, not remembered); up from the first car or the pad focuses it, left / right switch.
 - Car select (screens >= 800 px wide): the description / stats / livery sit in a card docked beside the list (`.menu-side-card`, `MainMenu.sideCard`, shared with Select stage; Stage times uses the same placement). The showroom car keeps its shared place and size (`CAR_SHIFT`, `CAR_DIST_SCALE`) and may run behind the card; its **Details** tab (`MainMenu.minimizer`, class `min` on the card, shared with Select stage) minimizes the card to its description (the Stage times card has no tab). Narrower screens (< 800 px) lay the same card over the map above the buttons.
 - Select stage: the stage's description (`StageDef.description`: what the drive is like for the player, no data sources or build details), recommended set-up and a **Time of day** dropdown sit in the same card (phones: under the selected stage), with a **Season** dropdown (spring / summer / autumn, above the time) and the **Month** it is driven in in front. Left / right (or the pad) step the time; the list cards keep the route, tags and best time.

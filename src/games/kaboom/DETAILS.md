@@ -1,8 +1,7 @@
 # 3, 2, 1 Kabooom - details
 
-> **Status:** playable end to end (menus, bots, HUD, touch / keyboard / gamepad, audio, sudden death); polish and a real-device
-> pass remain (`TASKS.md`, local).
-> **Released** (listed in `GAME_LIST`, `src/portal/release.ts`).
+> **Status: released** (`GAME_LIST` in `src/portal/release.ts`), playable end to end; polish and a real-device pass remain
+> (`TASKS.md`, local).
 
 An arena game in a tilted 3D view: you and up to 7 bots walk a grid, place TNT, blow up crates and each other. The last
 one standing wins the round. three.js, procedural art (no model or sound files; one small HDRI and one detail tile per level from Poly Haven).
@@ -13,7 +12,8 @@ one standing wins the round. three.js, procedural art (no model or sound files; 
    materials or allocations. Every feature names its frame cost.
 2. **Readable at a glance.** The camera tilt, the colours and the flame shapes show who, where and when. Danger is
    always visible (TNT count, flame tiles, fuse sparks).
-3. **Our own look.** Original characters, art, sounds and level layouts, all procedural; no third-party model or sound files. The UI fonts, one small CC0 HDRI per level (environment light) and one baked-down CC0 detail tile per level are the only files from elsewhere; models stay reference only. See "Style".
+3. **Our own look.** Original characters, art, sounds and level layouts, all procedural; the only outside files are the UI
+   fonts and, per level, one small CC0 HDRI and one CC0 detail tile (README "Credits"). See "Style".
 4. **Short loop.** Pick bots, map size, go. Rounds of about 2 minutes; best of 3 by default.
 
 ## Style
@@ -95,35 +95,45 @@ same hitbox.
 - **Faces** (`toonFace`): painted almond eyes (outline, white, big iris, pupil, two highlights) under an upper lid that a
   blink brings down (`blink`, driven by `material.userData.blink`), brow strokes, a line from the nose into a crescent smile
   with the tongue. Species parts stay rigid on a bone: nose pads, star-nose feelers, beaver teeth, quills, shell bands,
-  whiskers, spade hands.
+  whiskers. The mole's spade hands are body solids (furred back, pink palm and digits) with rigid claws.
 - **Skeleton** (`BONE`, the same 19 bones for everyone, bind positions per critter): hips, spine, head, arms and forearms,
   thighs and shins, three tail bones, ears, lids. Skin weights from the solids each vertex lies on, smoothed over the mesh;
-  rigid parts and the gear on the body (finger gloves with claws, the mole's leather cuffs, tool belt with buckle, pouch and
-  hammer) ride one bone. The body is a `SkinnedMesh` on its own skeleton (`render/crew-rig.ts`: bones posed by code, bound
+  rigid parts and the gear on the body (finger gloves with claws, tool belt with buckle, pouch and hammer) ride one bone. The body is a `SkinnedMesh` on its own skeleton (`render/crew-rig.ts`: bones posed by code, bound
   detached so the whole-body transforms stay on the mesh).
 
 Team colour = hard hat (flat crown, centre ridge, thick chamfered brim with a front peak, lamp clip) + hi-vis vest (open
-front, straps, hems, pockets, silver reflective stripes that keep their colour: `aPlain`) (`render/crew-parts.ts`,
-`TEAM_COLORS`); both, and the work boots, are shared instanced meshes placed per critter by its fit (`hatY` / `hatZ` /
+front, straps, hems, pockets, silver reflective stripes that keep their colour: `aPlain`; cotton: draped folds in the
+shell, a fine weave and wrinkles in its shader; widened until the torso stays inside it over its whole height, and gear
+it meets is dropped where it covers it, `{ base }`, or pushed out over it, `'over'`: `VestRule` in `finish`) (`render/crew-parts.ts`; colours
+`TEAM_COLORS` in `characters.ts`); both, and the work boots, are shared instanced meshes placed per critter by its fit (`hatY` / `hatZ` /
 `hatScale` / `hatTilt`, `vest`, `feet`) and carried by the head, spine and shin bones. Animated by code (`render/characters.ts`
 `Crew.pose`): waddle + bob, breathing and looking round, arms swinging against the legs and knees lifting the boots, a lean
 and two-handed reach when placing TNT, arms up and a happy squint when cheering, tail wag, ear flicks, blinks, hop when
 winning. A KO is family friendly: the critter shrinks into a puff of dust and stars, the hard hat bounces away, and the
 sooty critter sits dazed on the slab edge, legs out, head lolling.
 
-**Power-ups** (`render/items.ts`, models in `crew-parts.ts`): _more dynamites_ = two full dynamite bundles on a cyan
-pad, _more sticks_ = one fat bundle of seven sticks tied with a golden band on a gold pad. They hover, spin and pop in
-when a crate breaks, over a stone plinth with a glow ring in their pad's colour (both hidden while nothing lies on the
-floor: an empty instanced mesh still costs a draw), and a ring of that colour flashes over the floor as one appears; the HUD shows the stock as dynamite (`game/icons.ts`): one stick per TNT you can hold (lit = ready,
+**Power-ups** (`render/items.ts`, models in `crew-parts.ts`): _more dynamites_ = a small open wooden crate (planks,
+corner posts, rope handles, a cyan stencilled band) with five crimped sticks leaning out, under a cyan plus; _more sticks_
+= one tall bundle of seven crimped sticks in two gold straps with a buckle and a fuse, under a gold up arrow (wide and low
+vs tall and narrow, cyan vs gold). They hover, spin and pop in when a crate breaks, over a stone plinth whose inlay plate
+takes the kind's colour (`aTint`, the instance colour) and a glow ring of that colour (both hidden while nothing lies on
+the floor: an empty instanced mesh still costs a draw; `showForCompile` lets `WorldView.warmUp` compile them anyway), and
+a ring of that colour flashes over the floor as one appears; the HUD shows the stock as dynamite (`game/icons.ts`): one stick per TNT you can hold (lit = ready,
 faded = out on the field) and the blast level as a bundle of 1-5 sticks (flames either side at 4 and 5, the corner
 levels), and pops the one that grew.
 
 **TNT = "the counter".** As many paper sticks as its blast level: 1 at level 1 ... 5 at level 5, so you can read how far a
 TNT will reach (`TNT_LAYOUTS` in `crew-parts.ts`; all five in one geometry, each TNT shows its own: `aLevel` in
-`tnt.ts`). Sticks (`stickPaperTexture` in `render/tnt.ts`: red wrap with fibres, a spiral seam,
-printed rings, waxed ends; generated, shared with the pickups) with crimped caps, two turns of twine, a paper label with
-hazard-stripe borders showing **3 -> 2 -> 1** (digit atlas, picked per instance in the vertex shader) and a curling fuse
-(`fusePoint`) the spark rides down in a soft glow; it pulses faster and blinks white-hot in the last half second.
+`tnt.ts`). Everything in it samples one generated atlas (`render/dynamite-texture.ts`, shared with the pickups): a
+1024 x 512 colour map plus a normal map whose alpha is a roughness multiplier, with regions for the stick wrap (red
+paper, wrinkles, sparse creases, a spiral seam, printed rings and a line of print, waxed ends, dust at the foot), the
+crimped end seen from above and three twisted rope strands (`ATLAS`, `ropeUV` in `crew-parts.ts`). Sticks are lathed
+with rounded shoulders and an eight-fold crimp, a hair apart in height; on High they are physically based. Two turns of
+rope with a knot and the paper label hug the bundle's outline (`hullBand`); the label (aged paper, worn hazard stripes,
+"DANGER" / warning print, a crinkle normal map) prints **3 -> 2 -> 1** once on the front (uv.x runs round the band in atlas cells, a plain fourth cell elsewhere;
+digit picked per instance). The fuse leaves a brass blasting cap, curls forward and frays at its tip (`fusePoint`); the
+spark (a star burst with embers, all in its shader) rides down it and the cord behind turns to grey ash (`aFuseT` /
+`aBurn`). It pulses faster as it burns and blinks white-hot in the last half second.
 A comic **KABOOOM!** / **BOOM!** / **KA-POW!** word pops over blasts (throttled): chunky 3D lettering painted into the word
 atlas (`fx/word-burst.ts`: an outline round the block, an extruded side, a bevelled gradient face; Grandstander once loaded).
 
@@ -140,11 +150,10 @@ pennant at the back of the Sea Deck.
 
 ## UI style
 
-Tokens, type, components and rules: [STYLEGUIDE.md](STYLEGUIDE.md) ("Claymation"). Code: `game/ui-tokens.css` (every colour, the clay
-finish and the self-hosted Grandstander / Nunito faces from `assets/fonts/`), `game/kaboom.css` (`var(--kb-*)` only, no literal
-colours), `game/icons.ts`. One button shape (`.kb-btn`); the boil filter (`#kb-boil`, injected by `Menu`) is only ever on a card's
-`::before` or the logo, never on a control; the HUD hides under pause and results; setup fits 1280x720 and the action buttons
-and the version label stay visible at 915x412.
+Tokens, type, components and rules: [STYLEGUIDE.md](STYLEGUIDE.md) ("Sandstone"). Code: `game/ui-tokens.css` (every colour, the
+stone finish and the self-hosted Grandstander / Nunito faces from `assets/fonts/`), `game/kaboom.css` (`var(--kb-*)` only, no
+literal colours; the 3D letters rule shared by logo, headings and banners), `game/icons.ts`. One button shape (`.kb-btn`); the HUD
+hides under pause and results; setup fits 1280x720 and the action buttons and the version label stay visible at 915x412.
 
 **Finale** (`WorldView.finale`, called from `KaboomGame.endMatch`): the camera pulls back to the whole stand (`dock` shifts the
 view clear of the results card), `Arena.clearArea` removes the crates and hard blocks in the middle, a `Podium` (`render/podium.ts`: cut stone courses, a
@@ -164,9 +173,9 @@ only with more than one level, and `sanitizeSettings`). Pick it in the setup men
 
 | Level        | Floor and blocks                                                                                                                                        | Surroundings                                                                                                                                                                                                                                                                                                                             | Sudden death                    |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| Quarry       | sandstone flags; granite boulders / sandstone pillars with a timber brace; wooden crates, clay pots; rails                                              | rocky bowl: ashlar wall, terraces with coping stones, scree, banded cliff, sandstone rim boulders                                                                                                                                                                                                                                        | a wall lands                    |
+| Quarry       | sandstone flags; granite boulders / blue-grey stone pillars with an iron band; wooden crates, clay pots; rails                                          | rocky bowl: ashlar wall, terraces with coping stones, scree, banded cliff, sandstone rim boulders                                                                                                                                                                                                                                        | a wall lands                    |
 | Green Valley | turf tiles mown in stripes along the rows, tufts, dirt patches; mossy boulders / cairns; apple crates, round hay bales; stream, fence, cart             | a hedge of rounded bushes on a stone footing, a meadow with lush / dry patches, grass clumps and drifts of wildflowers (baked into the meadow's draw), the crowd in three rows on it, groves of spruces and oaks (leaf clusters) close behind, its own sky; the stream on the front margin has a wet bed, stones, reeds and a footbridge | a boulder lands                 |
-| Sea Deck     | plank tiles on a raft; painted iron bollards (rope coil) / capstans (whelps, bar sockets); cargo barrels, tarp-lashed cargo; ropes, lanterns, lifebuoys | open sea (`render/sea.ts` shader plane: turquoise shallows, light on the bottom, wind streaks), the crowd on moored barges (`render/boats.ts`: planked hulls and transoms, plank decks, rub rails, a railing with a lifebuoy, tyre fenders, a mast with stays and a pennant), a bobbing raft                                             | the tile sinks (`fall: 'tile'`) |
+| Sea Deck     | plank tiles on a raft; painted iron bollards (rope coil) / capstans (whelps, bar sockets); cargo barrels, tarp-lashed cargo; ropes, lanterns, lifebuoys | open sea (`render/sea.ts`, below), the crowd on moored barges (`render/boats.ts`: planked hulls and transoms, plank decks, rub rails, a railing with a lifebuoy, tyre fenders, a mast with stays and a pennant), a bobbing raft                                                                                                          | the tile sinks (`fall: 'tile'`) |
 
 - **What a theme holds**: sky, light, `fx` tint (dust / splinter / scorch colours as uniforms of the shared particle shaders), warning colour,
   `fall`, tile / hard-block / crate / floor / decor geometry, `scenery` (static things: bowl, water, boats, trees; `update`, `ripple`,
@@ -175,10 +184,16 @@ only with more than one level, and `sanitizeSettings`). Pick it in the setup men
 - **Sea Deck sudden death** reuses `blockFell`: `Arena.sinkTile` shakes the tile `SINK_DELAY_S` = 0.2 s, drops and tilts it, scales it
   away under the water; the splash (`Fx.splash`, `Sea.ripple`) comes `TILE_SPLASH_S` = 0.6 s after the event. A crate on the cell
   rides down; a critter KO'd on a sunk cell (`Arena.isSunk`) gets a splash, not dust and stars. The sim already treats the cell as hard.
+- **The sea** (`render/sea.ts`, one shader plane, no tiling texture): three long swells move the vertices; six shorter chop waves
+  (fanned round `WIND`, uneven wavelengths, on a noise-warped grid, faded where a pixel is wider than the wave) only bend the normals.
+  Fresnel mixes the water colour with the sky's reflection (the level's sky colours; on High the level's HDRI once it has loaded,
+  `Sea.mesh.onBeforeRender`). `contactField` bakes the distance to the raft and every hull (`fleetOutlines`) into a small R8 texture
+  once per raft size: the water is lighter teal near the fleet, darker in a band against the wood, calmer there, and foam breaks along
+  every hull and the raft's edge; wavelets lap outwards (High). Slow noise patches vary the chop and the colour far out.
 - **Sounds** (`game/audio.ts`): `Sfx.level` picks the ambience (birds in the valley, a gull and water on the sea) and the fall sound
   (`splash` on the sea). The sudden-death banner's second line is `LEVELS[id].closing`.
 - **Budgets hold per level**: draw calls <= 60 in the 40-TNT chain, the arena a handful (`tests/kaboom/levels.test.ts` checks every theme).
-  Low quality: a coarser water plane, no glitter / glint, no bob, fewer trees and one row less of spectators.
+  Low quality: a coarser water plane with half the chop, no sun glint, HDRI or lapping wavelets, no bob, fewer trees and one row less of spectators.
 - **New level**: add the id to `LEVEL_IDS` / `LEVELS`, a `LEVELS_LIST` entry (`hideInProd` first, remove it to ship), a theme file and its line in `themes/index.ts`.
 
 ## Rules (`sim/rules.ts` holds every number)
@@ -221,13 +236,16 @@ only with more than one level, and `sanitizeSettings`). Pick it in the setup men
 
 ## Camera
 
-Perspective, FOV 30 deg, pitch 54 deg (tested 52-58: lower shows the blocks' sides, higher keeps cells behind tall blocks visible), fixed yaw (looking north, grid +y = screen down): a tilted diorama. Two views
-(`CameraRig.view`, the Camera option, `C` in a match, `?camera=follow|full`): **follow** (default) always frames a window of
-about 14 x 11 cells (9 x 12 in portrait) that `followTo` moves with the human; **full** is the framing below.
-In full, `CameraRig.fitView` frames the whole slab (bisecting the distance on the real projection of its corners) for Small and
-Medium arenas on a landscape screen; for Large arenas and portrait phones it frames a window of about 14 x 11 cells (9 x 13 in
-portrait) that `followTo` moves with the human, clamped at the slab edge. The bot match behind the home menu pulls back
-further (`WorldView.fit`) so the whole crowd shows. `Shake` (one capped trauma accumulator) is added on top.
+Perspective, `CAM_FOV` 30°, `CAM_PITCH_DEG` 54° (lower shows the blocks' sides, higher hides cells behind tall blocks),
+fixed yaw (looking north, grid +y = screen down): a tilted diorama (`render/camera-rig.ts`). Two views (`CameraRig.view`, the
+Camera option, `C` in a match, `?camera=follow|full`):
+
+- **follow** (default): a window of about 14 x 11 cells (9 x 12 in portrait) that `followTo` moves with the human.
+- **full**: `fitView` frames the whole slab for Small and Medium arenas on a landscape screen; Large arenas and portrait
+  phones get a slightly larger follow window (14 x 11, 9 x 13), clamped at the slab edge.
+
+The bot match behind the menus pulls back further (`WorldView.fit`) so the crowd shows. `Shake` (one capped trauma
+accumulator) is added on top.
 
 ## Game flow (`game/kaboom-game.ts`)
 
@@ -240,7 +258,7 @@ the background. While the human is out and the round is still on, the sim runs a
   recolours in place (`Sim.setTeamColor`); only another arena size rebuilds the scene.
 - **Menus** (`game/menu.ts`): welcome, setup (one live critter turning on a stage in the team colour with arrows to flip through: `render/critter-preview.ts`,
   its own small renderer while the card is up, a portrait without WebGL; team colour, arena, bots 1-7 limited by the arena, bot skill, rounds), how
-  to play, options (volume, graphics: Auto / Low / High, reloads), pause, match results. An **All games** button appears when
+  to play, about (creator and the Poly Haven credit, text from `shared/about.ts`), options (volume, graphics: Auto / Low / High, reloads), pause, match results. An **All games** button appears when
   `portalUrl()` is not null.
 - **HUD** (`game/hud.ts`): a chip per player (portrait, team colour, round wins, out), timer (blinks in sudden death), round,
   pause, TNT stock and blast level as dynamite icons, centre banners; it only touches the DOM when something changes.
@@ -283,8 +301,8 @@ What usually kills FPS in these games, and our rule for each:
 | Shadow map redrawn every frame        | Static sun shadow (`shadowMap.autoUpdate = false`), redrawn when a crate breaks but at most every 0.15 s (`WorldView.takeShadowUpdate`); movers use `BlobShadows`.                                                                                             |
 | Chain resolved in one frame           | The sim spreads a chain over the 0.08 s chain delay; blasts only set fuses, never explode each other inside one tick.                                                                                                                                          |
 | Block removal rebuilding geometry     | One InstancedMesh per crate variant; removal swaps with the last instance and shrinks `count`.                                                                                                                                                                 |
-| Hitch at a round change               | A new round builds a new `Arena`, but its merged geometry, the grain texture and the sun (with its 2048 shadow map) are shared module-level, so it costs well under a millisecond.                                                                             |
-| Draw calls                            | Arena ~12 (incl. the contact patches), crowd 2 (sprites + flags), crew bodies (one each) + 3 shared (hats / vests / boots) + the team rings + the you-arrow, TNT 3, power-ups 2 (+ plinths and glows while any lie out), blob shadows 1, FX 10 (budget below). |
+| Hitch at a round change               | A new round builds a new `Arena`, but its geometry (`themes/cache.ts`) and the sun (with its 2048 shadow map) are shared module-level, so it costs well under a millisecond.                                                                                   |
+| Draw calls                            | Arena ~12 (incl. the contact patches), crowd 2 (sprites + flags), crew bodies (one each) + 3 shared (hats / vests / boots) + the team rings + the you-arrow, TNT 4, power-ups 2 (+ plinths and glows while any lie out), blob shadows 1, FX 10 (budget below). |
 | Garbage collection                    | Sim state in preallocated typed arrays; events are pooled objects in a reused array; render code allocates nothing per frame.                                                                                                                                  |
 | Audio                                 | Max 4 blast voices; blasts within 50 ms merge; procedural WebAudio.                                                                                                                                                                                            |
 
@@ -301,17 +319,21 @@ Same split as Hole Island: DOM-free `sim/` + `map/` (tested in node), three.js `
 
 ```
 src/games/kaboom/
-  game.json  release.ts (the levels' release list)  README.md  DETAILS.md  TASKS.md (local)  thumbnail.jpg  screenshots/
+  game.json  release.ts (the levels' release list)  README.md  DETAILS.md  STYLEGUIDE.md  TASKS.md (local)  screenshots/
+  assets/  fonts/ hdri/ textures/ (baked by scripts/kaboom/)
   sim/     types.ts rules.ts grid.ts (the contract)  state.ts movement.ts blast.ts sim.ts danger.ts bot.ts powerups.ts
   map/     sizes.ts blank.ts generate.ts spawns.ts safety.ts styles.ts
   render/  renderer.ts camera-rig.ts materials.ts parts.ts arena.ts critters.ts sdf-body.ts crew-rig.ts toon.ts crew-parts.ts characters.ts tnt.ts
-           bowl.ts crowd.ts shadows.ts portraits.ts critter-preview.ts items.ts world-view.ts sea.ts boats.ts
+           bowl.ts crowd.ts card-stunt.ts podium.ts shadows.ts portraits.ts critter-preview.ts items.ts world-view.ts
+           sea.ts boats.ts detail.ts environment.ts
            themes/ theme.ts index.ts cache.ts quarry.ts valley.ts sea.ts
            fx/ glow-grid.ts puff-atlas.ts particles.ts flames.ts word-burst.ts shake.ts fx.ts
   game/    kaboom-game.ts levels.ts menu.ts hud.ts icons.ts input.ts input-map.ts audio.ts settings.ts storage.ts dom.ts ios.ts
-           kaboom.css
+           kaboom.css ui-tokens.css
   debug/   viewer-shell.ts
   pages/   play.ts map-viewer.ts crew-viewer.ts bench.ts
+tests/kaboom/                  fast node tests (sim, map safety, bots, danger, powerups, camera, crowd, levels, fx budgets ...)
+integration-tests/kaboom/      bots.test.ts: headless bot rounds per difficulty
 ```
 
 - **Fixed step**: sim at 60 Hz, render interpolates positions with `alpha` (pattern: `src/games/rally/game/rally-game.ts`).

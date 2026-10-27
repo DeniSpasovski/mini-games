@@ -21,12 +21,17 @@ import {
   SINK_DELAY_S,
   TILE_SPLASH_S,
 } from '../../src/games/kaboom/render/arena';
-import { boatAt, boatsFor } from '../../src/games/kaboom/render/boats';
+import {
+  boatAt,
+  boatsFor,
+  fleetOutlines,
+} from '../../src/games/kaboom/render/boats';
 import { SLAB_PAD } from '../../src/games/kaboom/render/camera-rig';
 import { Crowd } from '../../src/games/kaboom/render/crowd';
 import { Fx } from '../../src/games/kaboom/render/fx/fx';
 import { GlowGrid } from '../../src/games/kaboom/render/fx/glow-grid';
 import { QUALITY } from '../../src/games/kaboom/render/renderer';
+import { contactField } from '../../src/games/kaboom/render/sea';
 import { levelTheme } from '../../src/games/kaboom/render/themes';
 import { WorldView } from '../../src/games/kaboom/render/world-view';
 import { STEP } from '../../src/games/kaboom/sim/rules';
@@ -148,6 +153,35 @@ test('sea: the water ripples where a tile goes in (a ring buffer, never grows)',
   arena.update(2);
   arena.update(8);
   expect(draws(arena.scenery)).toBeGreaterThan(0);
+});
+
+test('sea: the contact field is 0 on the raft and the hulls and grows across open water', () => {
+  const hx = 9.5;
+  const hz = 7.5;
+  const outlines = fleetOutlines(hx, hz);
+  const { texture, box } = contactField(hx, hz, outlines);
+  const { data, width, height } = texture.image as {
+    data: Uint8Array;
+    width: number;
+    height: number;
+  };
+  const at = (x: number, z: number) =>
+    data[
+      Math.floor((z - box.y) * box.w * height) * width +
+        Math.floor((x - box.x) * box.z * width)
+    ];
+  expect(at(0, 0)).toBe(0); // the raft
+  // the middle of a boat, halfway between its inner and outer hull
+  const o = outlines[0];
+  const mid = (o.length / 4) & ~1;
+  expect(
+    at(
+      (o[mid] + o[o.length - 2 - mid]) / 2,
+      (o[mid + 1] + o[o.length - 1 - mid]) / 2,
+    ),
+  ).toBe(0);
+  expect(at(box.x + 0.01, box.y + 0.01)).toBe(255); // the field's corner: open sea, out of reach
+  expect(contactField(hx, hz, outlines).texture.image).toEqual(texture.image); // deterministic
 });
 
 // ------------------------------------------------------------------ Sea Deck: boats and crowd

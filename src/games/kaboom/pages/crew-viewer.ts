@@ -219,7 +219,7 @@ function rebuildTnt(): void {
     tntRenderer = null;
   }
   if (state.tnt) {
-    tntRenderer = new TntRenderer(STAGE_W, STAGE_H);
+    tntRenderer = new TntRenderer(STAGE_W, STAGE_H, undefined, shell.quality);
     shell.scene.add(tntRenderer.group);
   }
   writeUrlState({ ...state }, DEFAULTS);
@@ -381,6 +381,9 @@ shell.onFrame(frame);
   advance(seconds: number) {
     for (let t = 0; t < seconds; t += 1 / 60) frame(1 / 60);
   },
+  /** Draw now (captures: `canvas.toDataURL` right after works even while rAF is paused). */
+  render: () => shell.renderer.render(shell.scene, shell.rig.camera),
+  orbit: shell.orbit,
   get crew() {
     return crew;
   },

@@ -184,7 +184,7 @@ export const skodaRally: CarDef = {
     },
     drivetrain: {
       // Mechanical diffs. A stiffer fixed-split centre (lock 220, split 0.45) was tried and made the
-      // autopilot fail the Jackie stage (integration-tests/rally/stage.test.ts) - kept the proven numbers.
+      // autopilot fail the Jackie stage (integration-tests/rally/stage-jackie.test.ts) - kept the proven numbers.
       frontSplit: 0.42,
       centerLock: 120,
       frontDiffLock: 80,
@@ -215,7 +215,8 @@ export const skodaRally: CarDef = {
     glass: { color: 0x141c24, opacity: 0.6 },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
-    doorBadge: { z: 0.27, y: 0.59 },
+    // Door plate by the rule (scripts/car-model/door-plate.py), tilt flattened by eye (the rule gives 2.4 deg).
+    doorBadge: { z: 0.31, y: 0.64, tilt: 1 },
     // No procedural suspension: the imported model carries its own springs, dampers and arms (trim).
     // Imported body:
     // "Skoda Fabia R5 Rally Car" by SenturyUK, CC BY 4.0, converted by glb-to-parts-stl.py + stl-to-glb.mjs

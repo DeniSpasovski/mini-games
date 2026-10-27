@@ -26,7 +26,8 @@ export interface RallySettings {
   /** Daytime bloom (High graphics only): soft light spread from the sun, sky and bright paint. */
   bloom: BloomLevel;
   /** Screen-space ambient occlusion (High graphics only): contact darkening in corners, under cars and plants. */
-  ao: boolean;
+  /** Stored under its own key: an old `ao` was often just the old default, so only a pick made here counts. */
+  ambientOcclusion: boolean;
   /** Last selection in the menu, preselected next time. */
   map: string;
   car: string;
@@ -42,8 +43,8 @@ export const DEFAULT_SETTINGS: RallySettings = {
   carNumber: 7,
   camera: 'chase',
   objectDistance: 'normal',
-  bloom: 'soft',
-  ao: false,
+  bloom: 'off',
+  ambientOcclusion: false,
   map: '',
   car: '',
   livery: 0,
@@ -104,7 +105,7 @@ export function sanitizeSettings(raw: unknown): RallySettings {
     camera: oneOf(o.camera, CAMERAS, d.camera),
     objectDistance: oneOf(o.objectDistance, DISTANCES, d.objectDistance),
     bloom: oneOf(o.bloom, BLOOMS, d.bloom),
-    ao: bool(o.ao, d.ao),
+    ambientOcclusion: bool(o.ambientOcclusion, d.ambientOcclusion),
     map: typeof o.map === 'string' ? o.map : d.map,
     car: typeof o.car === 'string' ? o.car : d.car,
     livery:

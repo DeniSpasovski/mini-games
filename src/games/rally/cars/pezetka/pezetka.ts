@@ -71,8 +71,7 @@ const BRAKES: BrakeSet = {
 
 /**
  * Fiat 126p "Maluch" (`pezetka`, the Polish "pe-zet-ka") - the 652 cc rear-engined city car: a CC BY Sketchfab model kept as it
- * is (own cockpit shell, lamps, bumpers and rim, flat paint), mapped to game parts by material (model.source.json). Test car
- * (release.ts).
+ * is (own cockpit shell, lamps, bumpers and rim, flat paint), mapped to game parts by material (model.source.json).
  */
 export const pezetka: CarDef = {
   id: 'pezetka',
@@ -221,7 +220,8 @@ export const pezetka: CarDef = {
     glass: { color: 0x141c24, opacity: 0.6 },
     // Fallback body if the GLB can't load (and the street car of the city maps): profile.ts.
     profile,
-    doorBadge: { z: 0.27, y: 0.61 },
+    // Door plate by the rule (scripts/car-model/door-plate.py).
+    doorBadge: { z: 0.36, y: 0.6, tilt: 0.6 },
     gltf: {
       file: 'pezetka.glb',
       credit:

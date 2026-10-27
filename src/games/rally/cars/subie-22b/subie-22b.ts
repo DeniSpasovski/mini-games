@@ -64,16 +64,16 @@ const BRAKES: BrakeSet = {
 };
 
 /**
- * Subaru WRX STI 22B (`subie_22b`) - a 1998 blue coupe with the side star livery: 2.2 l turbo flat-four, five-speed box,
+ * Subaru WRX STI 22B (`subie_22b`) - a 1998 blue coupe: 2.2 l turbo flat-four, five-speed box,
  * permanent AWD, 1,270 kg. Body: a CC BY Sketchfab 22B, split by material and converted by stl-to-glb.mjs (settings:
- * model.source.json); the raw download stays out of git. Test only (release.ts).
+ * model.source.json); the raw download stays out of git.
  */
 export const subie22b: CarDef = {
   id: 'subie_22b',
   name: 'Subaru WRX STI 22B',
   className: 'Group A · AWD',
   description:
-    'Blue 90s turbo coupe with the works star livery: flat-four boxer rumble, grippy AWD, a little heavy on the nose.',
+    'Blue 90s turbo coupe: flat-four boxer rumble, grippy AWD, a little heavy on the nose.',
   sources: [
     {
       label: '"1998 Subaru Impreza 22B STi" by 007 (Sketchfab)',
@@ -207,10 +207,10 @@ export const subie22b: CarDef = {
       topIn: { front: 0.2, rear: 0.2 },
       driven: ['front', 'rear'],
     },
-    // Fallback body if the GLB can't load: profile.ts. Not a city street car while the 22B is a test car.
+    // Fallback body if the GLB can't load: profile.ts.
     profile,
-    // Rally plate on the front door (front = +z), over the crescent graphic.
-    doorBadge: { z: 0.22, y: 0.64 },
+    // Door plate by the rule (scripts/car-model/door-plate.py).
+    doorBadge: { z: 0.18, y: 0.6, tilt: 0.4 },
     gltf: {
       file: 'subie_22b.glb',
       credit:

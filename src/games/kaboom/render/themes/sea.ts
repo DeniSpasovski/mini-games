@@ -15,9 +15,9 @@ import {
   Vector3,
 } from 'three';
 import { Rng, hash3 } from '../../../../shared/rng';
-import { boatAt, boatsGeometry } from '../boats';
+import { boatAt, boatsGeometry, fleetOutlines } from '../boats';
 import { ringPoints, treadY } from '../bowl';
-import { Sea } from '../sea';
+import { Sea, contactField } from '../sea';
 import { ROUGH } from '../materials';
 import {
   bbox,
@@ -788,7 +788,14 @@ function decor(w: number, h: number, pad: number): DecorParts {
 
 function scenery(ctx: SceneryCtx) {
   const { w, h, hx, hz, flat, quality } = ctx;
-  const sea = new Sea(hx, hz, quality.name === 'low');
+  const field = sharedValue(`sea-contact${w}x${h}`, () =>
+    contactField(hx, hz, fleetOutlines(hx, hz)),
+  );
+  const sea = new Sea(hx, hz, quality.name === 'low', field, [
+    S.skyTop,
+    S.skyMid,
+    S.skyLow,
+  ]);
   const boats = new Mesh(
     shared(`sea-boats${w}x${h}`, () => boatsGeometry(hx, hz)),
     flat,

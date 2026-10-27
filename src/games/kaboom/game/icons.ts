@@ -4,17 +4,17 @@
  * turn corners, `walkBlast`) get little flames either side.
  */
 
-/** The icon colours: the clay tokens of `ui-tokens.css` (`--kb-tnt`, `--kb-ink`, `--kb-card`, `--kb-accent`) as plain values, since SVG strings are built DOM-free. */
+/** The icon colours: the tokens of `ui-tokens.css` (`--kb-tnt`, `--kb-ink`, `--kb-btn`, `--kb-accent`, `--kb-ink-2`) as plain values, since SVG strings are built DOM-free. */
 export const ICON_COLORS = {
   red: '#d8362f',
   shade: '#a5241f',
-  paper: '#f3e2c4',
-  ink: '#3b2418',
-  spark: '#f6c23e',
+  paper: '#f6e6c6',
+  ink: '#2e1606',
+  spark: '#ffd640',
   sparkCore: '#fff3c4',
   flame: '#ff8a1c',
   flameEdge: '#c4410f',
-  starOff: '#6e5240',
+  starOff: '#5a3a20',
 } as const;
 const {
   red: RED,
