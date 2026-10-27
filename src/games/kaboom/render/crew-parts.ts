@@ -18,7 +18,7 @@ import { ATLAS, PLEATS, ROPE_M } from './dynamite-texture';
 import { ROUGH } from './materials';
 import { bbox, merge, part, strut } from './parts';
 
-import { VEST_FOLD } from './critters';
+import { VEST_BOTTOM, VEST_CY, VEST_FOLD, VEST_R, VEST_TOP } from './critters';
 
 export { buildCritter, type CritterModel } from './critters';
 
@@ -118,11 +118,12 @@ export function hatGeometry(): BufferGeometry {
  * pockets and two silver reflective stripes. Team colour per instance, the stripes stay silver.
  */
 export function vestGeometry(): BufferGeometry {
-  // the shell: a band of sphere round the torso (centre y 0.36), with a gap of OPEN radians at the front (+z)
+  // the shell: a band of sphere round the torso (centre `VEST_CY`, radius `VEST_R`, polar angles `VEST_TOP` ..
+  // `VEST_BOTTOM`: the fit in `critters.ts` measures the same vest), with a gap of OPEN radians at the front (+z)
   const OPEN = 0.62;
-  const R = 0.352;
-  const top = 0.92;
-  const bottom = 1.96;
+  const R = VEST_R;
+  const top = VEST_TOP;
+  const bottom = VEST_BOTTOM;
   const phi0 = Math.PI / 2 + OPEN / 2;
   const phiLen = Math.PI * 2 - OPEN;
   // the patch pockets either side of the opening (vest space), and where that is on the shell: the angle from the
@@ -132,7 +133,7 @@ export function vestGeometry(): BufferGeometry {
   const PZ = 0.3;
   const POCKET = {
     phi: Math.atan2(PZ / 0.97, -PX) - phi0,
-    y: (PY - 0.36) / 1.05 / R,
+    y: (PY - VEST_CY) / 1.05 / R,
   };
   // cloth, not a barrel: soft vertical folds hanging from the shoulders, deeper towards the hem, fading out at the hems
   // and the front edges (the trims sit there); the stripes ride the same folds
@@ -172,10 +173,10 @@ export function vestGeometry(): BufferGeometry {
   };
   const band = (t0: number, t1: number, r: number) =>
     drape(new SphereGeometry(r, 64, 10, phi0, phiLen, t0, t1 - t0), r);
-  const yAt = (t: number, r = R) => 0.36 + Math.cos(t) * r * 1.05;
+  const yAt = (t: number, r = R) => VEST_CY + Math.cos(t) * r * 1.05;
   const parts: BufferGeometry[] = [
     part(band(top, bottom, R), 0xffffff, {
-      y: 0.36,
+      y: VEST_CY,
       sy: 1.05,
       sz: 0.97,
       tint: 0,
@@ -186,7 +187,7 @@ export function vestGeometry(): BufferGeometry {
     parts.push(
       plain(
         part(band(t - 0.055, t + 0.055, R + 0.004), 0xd9dde3, {
-          y: 0.36,
+          y: VEST_CY,
           sy: 1.05,
           sz: 0.97,
           tint: 0,
@@ -211,7 +212,7 @@ export function vestGeometry(): BufferGeometry {
           .rotateZ(Math.PI / 2 - bottom)
           .rotateY(Math.PI + phi),
         0xeeeeee,
-        { y: 0.36, sy: 1.05, sz: 0.97, tint: 0 },
+        { y: VEST_CY, sy: 1.05, sz: 0.97, tint: 0 },
       ),
     );
   // shoulder straps from the front edge over the shoulder to the back
@@ -240,17 +241,17 @@ export function vestGeometry(): BufferGeometry {
 
 /**
  * Fan shirt (the crowd's sprites): a closed single-colour T-shirt with short sleeves, built on the vest's torso (`VEST_CY`
- * 0.36, radius 0.352) so the same per-critter fit applies. No stripes, hems or straps.
+ * `VEST_CY`, `VEST_R`) so the same per-critter fit applies. No stripes, hems or straps.
  */
 export function fanShirtGeometry(): BufferGeometry {
-  const R = 0.352;
+  const R = VEST_R;
   const top = 0.9;
   const bottom = 2.0;
   const parts: BufferGeometry[] = [
     part(
       new SphereGeometry(R, 30, 5, 0, Math.PI * 2, top, bottom - top),
       0xffffff,
-      { y: 0.36, sy: 1.05, sz: 0.97, tint: 0 },
+      { y: VEST_CY, sy: 1.05, sz: 0.97, tint: 0 },
     ),
   ];
   // sleeves: short tapered tubes from the shoulder out and down, capped by a rounded shoulder

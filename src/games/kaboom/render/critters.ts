@@ -602,8 +602,24 @@ function finish(kit: Kit, o: Finish): CritterModel {
   const hatY = surfaceY(head, 0, o.hat.z) - (o.hat.sink ?? 0.035);
   // the belt sits just under the vest's hem
   const beltY = vest.cy + (0.21 - VEST_CY) * vest.sy - 0.025;
+  // a closed ring: fitted at the front and side, then widened until the torso stays inside it all round (a wide back
+  // or hips would otherwise swallow the back of the belt), over the band's height
   const bx = extentAt(torso, beltY);
-  toolBelt(kit, beltY, bx.x + 0.015, bx.z + 0.015);
+  const ring: [number, number][] = [];
+  for (let a = 0; a < Math.PI * 2; a += Math.PI / 12)
+    ring.push([Math.sin(a), Math.cos(a)]);
+  let belt = 1;
+  for (const y of [beltY - 0.027, beltY, beltY + 0.027])
+    reachAt(torso, y, ring).forEach((r, i) => {
+      if (r <= 0) return;
+      const [dx, dz] = ring[i];
+      const need = Math.hypot(
+        ((r + 0.012) * dx) / (bx.x + 0.015),
+        ((r + 0.012) * dz) / (bx.z + 0.015),
+      );
+      belt = Math.max(belt, need);
+    });
+  toolBelt(kit, beltY, (bx.x + 0.015) * belt, (bx.z + 0.015) * belt);
 
   // the vest and the hat brim shade what is under and next to them
   const brim = 0.264 * hatScale * 1.15;
@@ -729,19 +745,24 @@ function toonize(k: Kit, up: number, hs: number, hc: V3): ToonFrame {
     c[2] + (v[2] - c[2]) * hs,
   ];
   const head = (v: V3): V3 => shrink(lift(v));
+  // new shape objects, never edited in place: a list taken before (and its cached query field) keeps meaning the body
+  // as it was
   k.changed();
-  for (const s of k.shapes) {
-    if (LEG_BONES.includes(s.bone)) continue;
+  k.shapes.forEach((s, i) => {
+    if (LEG_BONES.includes(s.bone)) return;
     const onHead = HEAD_BONES.includes(s.bone);
     const f = onHead ? head : lift;
-    if (s.c) s.c = f(s.c);
-    if (s.a) s.a = f(s.a);
-    if (s.b) s.b = f(s.b);
-    if (!onHead) continue;
-    if (s.r) s.r = [s.r[0] * hs, s.r[1] * hs, s.r[2] * hs];
-    if (s.ra) s.ra *= hs;
-    if (s.rb) s.rb *= hs;
-  }
+    const k2 = onHead ? hs : 1;
+    k.shapes[i] = {
+      ...s,
+      c: s.c && f(s.c),
+      a: s.a && f(s.a),
+      b: s.b && f(s.b),
+      r: s.r && [s.r[0] * k2, s.r[1] * k2, s.r[2] * k2],
+      ra: s.ra && s.ra * k2,
+      rb: s.rb && s.rb * k2,
+    };
+  });
   // a part's vest rule moves with it (a quill and its tip share one rule: move each rule once)
   const moved = new Set<VestRule>();
   for (const p of k.parts) {

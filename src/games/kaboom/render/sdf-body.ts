@@ -729,8 +729,8 @@ export function buildBody(spec: BodySpec): BodyMesh {
 }
 
 /**
- * Query fields per shape list (by identity: a builder asks many questions of the same list; a list it changes in place
- * must be a new array, `Kit.solids` does that). Weak: a field goes with its list.
+ * Query fields per shape list, by identity (a builder asks many questions of the same list). Shapes are never edited in
+ * place (`toonize` makes new ones), so a cached field always matches its list. Weak: a field goes with its list.
  */
 const fields = new WeakMap<readonly Shape[], Field>();
 

@@ -72,45 +72,23 @@ pulsing outline that beats faster, and the wall's shadow growing, as it comes. F
 body); deep in a chain the extras thin out so the screen never drowns in smoke.
 
 **Cast: "the Boom Crew"** - 8 animal demolition workers in a toon look (`render/critters.ts`), each its own build so they
-read apart by silhouette: Otter (tallest, slim, thick tail, whiskers, cream front), Raccoon (tall and lean, mask, pointed ears,
-ringed bushy tail), Beaver (pear-shaped, orange teeth, scaly paddle tail), Capybara (barrel, long blunt head), Badger (compact,
-wedge head, striped face), Mole (short, wide, neckless, pink star nose, spade hands), Hedgehog (small, round, two-tone quills),
-Armadillo (hunched under a banded shell, ringed tail). Visual only: every critter stands on the same footprint and has the
-same hitbox.
+read apart by silhouette: Otter (tallest, slim, whiskers), Raccoon (mask, ringed tail), Beaver (pear-shaped, teeth, paddle
+tail), Capybara (barrel, blunt head), Badger (striped wedge head), Mole (short, wide, star nose, spade hands), Hedgehog
+(round, quills), Armadillo (banded shell). Visual only: every critter has the same footprint and hitbox.
 
-- **Proportions** (a cartoon-mascot look): the head about a third of the height, legs that show above the boots. Each
-  builder draws its solids, then `toonize` lifts everything above the legs (`up`) and shrinks the head about its centre
-  (`hs`); paint and joints go through the same frame.
-- **One seamless body** (`render/sdf-body.ts`, DOM-free): a species is a list of solids - ellipsoids pressed flat by cut
-  planes (flat chest, back and flanks, a carved skull, cheekbones, brow ridges, a wedge snout) and round cones (neck, limbs,
-  tails, sculpted fur tufts: cheek ruffs, elbows, tail tips) - joined by smooth unions with a blend radius per joint, ear
-  bowls carved out. Surface nets on a `CELL` grid, vertices pulled onto the true surface, normals from the field's
-  gradient: no seams. Occlusion sampled along the normal (the vest and hat brim count) darkens creases; warm above, cool
-  below. Built live once per page and cached (`buildCritter`; a bake to data was weighed and left out: ~1 MB).
-- **Paint** (`render/toon.ts`, per pixel from marks in the bind pose, so edges stay crisp at any zoom and ride the skin): the
-  body solids are white and carry only the shading; colour comes from `ToonMark`s - graphic blocks with zig-zag tufted
-  edges (`zig`: trousers, sleeves, faces, bellies), ringed parts (`bands`: raccoon and armadillo tails, beaver paddle
-  scales), cut planes and crescents (`cut`, `minus`) - over a painted texture of mottling and fur strokes (`texture`). At
-  most `TOON_MARKS` marks per critter.
-- **Faces** (`toonFace`): painted almond eyes (outline, white, big iris, pupil, two highlights) under an upper lid that a
-  blink brings down (`blink`, driven by `material.userData.blink`), brow strokes, a line from the nose into a crescent smile
-  with the tongue. Species parts stay rigid on a bone: nose pads, star-nose feelers, beaver teeth, quills, shell bands,
-  whiskers. The mole's spade hands are body solids (furred back, pink palm and digits) with rigid claws.
-- **Skeleton** (`BONE`, the same 17 bones for everyone, bind positions per critter): hips, spine, head, arms and forearms,
-  thighs and shins, three tail bones, ears (the lids are painted). Skin weights from the solids each vertex lies on, smoothed over the mesh;
-  rigid parts and the gear on the body (finger gloves with claws, tool belt with buckle, pouch and hammer) ride one bone. The body is a `SkinnedMesh` on its own skeleton (`render/crew-rig.ts`: bones posed by code, bound
-  detached so the whole-body transforms stay on the mesh).
-
-Team colour = hard hat (flat crown, centre ridge, thick chamfered brim with a front peak, lamp clip) + hi-vis vest (open
-front, straps, hems, pockets, silver reflective stripes that keep their colour: `aPlain`; cotton: draped folds in the
-shell, a fine weave and wrinkles in its shader; widened until the torso stays inside it over its whole height, and gear
-it meets is dropped where it covers it, `{ base }`, or pushed out over it, `'over'`: `VestRule` in `finish`) (`render/crew-parts.ts`; colours
-`TEAM_COLORS` in `characters.ts`); both, and the work boots, are shared instanced meshes placed per critter by its fit (`hatY` / `hatZ` /
-`hatScale` / `hatTilt`, `vest`, `feet`) and carried by the head, spine and shin bones. Animated by code (`render/characters.ts`
-`Crew.pose`): waddle + bob, breathing and looking round, arms swinging against the legs and knees lifting the boots, a lean
-and two-handed reach when placing TNT, arms up and a happy squint when cheering, tail wag, ear flicks, blinks, hop when
-winning. A KO is family friendly: the critter shrinks into a puff of dust and stars, the hard hat bounces away, and the
-sooty critter sits dazed on the slab edge, legs out, head lolling.
+- **Body** (`render/sdf-body.ts`): one seamless surface per critter from smooth-unioned solids (cut ellipsoids, round
+  cones; sculpted tufts), baked occlusion; `toonize` gives the mascot proportions (longer legs, smaller head). Built live
+  once per page and shared by every crew (`buildCritter`), not baked to data.
+- **Paint** (`render/toon.ts`): colour per pixel from `ToonMark`s in the bind pose (crisp blocks, tufted edges, rings,
+  crescents) plus a painted texture (off on Low); faces by `toonFace`: painted eyes that blink (`userData.blink`), brows, a
+  smile. Hard bits (noses, teeth, quills, shell bands, claws, gloves, belt) are rigid parts on one bone.
+- **Rig** (`BONE`, `render/crew-rig.ts`): the same skeleton for everyone, posed by code in `Crew.pose` (walk, idle, place,
+  cheer, KO); the body is a `SkinnedMesh`.
+- **Gear**: team-coloured hard hat and cotton hi-vis vest (`render/crew-parts.ts`; colours `TEAM_COLORS` in
+  `characters.ts`) and work boots are shared instanced meshes riding the head, spine and shin bones. `finish` fits the vest
+  round the whole torso (folds included, `VEST_FOLD`) and drops or pushes out gear it meets (`VestRule`).
+- **KO** is family friendly: the critter shrinks into a puff of dust and stars, the hat bounces away, and the sooty critter
+  sits dazed on the slab edge.
 
 **Power-ups** (`render/items.ts`, models in `crew-parts.ts`): _more dynamites_ = a small open wooden crate (planks,
 corner posts, rope handles, a cyan stencilled band) with five crimped sticks leaning out, under a cyan plus; _more sticks_
