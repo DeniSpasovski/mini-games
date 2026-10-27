@@ -342,6 +342,19 @@ export const ASSET_CATALOG: AssetMeta[] = [
     colliders: [{ kind: 'sphere', r: 0.7, y: 0.6 }],
   },
   {
+    id: 'hay_bale_square',
+    name: 'Square hay bales',
+    category: 'props',
+    description:
+      'Stack of three small square straw bales (two side by side, one on top), 1 m long along local X, 0.72 m high. Protects the outside of tight corners.',
+    variants: 2,
+    lods: [
+      { maxDistance: 120, castShadow: true },
+      { maxDistance: 700, castShadow: false },
+    ],
+    colliders: [{ kind: 'box', hx: 0.52, hz: 0.47, h: 0.72, r: 0.71 }],
+  },
+  {
     id: 'spectator',
     name: 'Spectator',
     category: 'props',

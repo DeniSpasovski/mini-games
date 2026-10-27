@@ -522,13 +522,15 @@ export const ajvatovciMap: MapDef = {
       faceRoad: true,
     },
     {
-      asset: 'hay_bale',
+      // Small square bales, stacked, as at the local rallies (round bales on the other maps).
+      asset: 'hay_bale_square',
       every: 12,
       maxRadius: 22,
       side: 'outside',
       offset: 2,
       count: 2,
       spread: 3,
+      faceRoad: true,
     },
     // Crowds: canal bridge corner, the junction onto the Ajvatovci road, village, hairpin.
     {
@@ -579,6 +581,6 @@ export const ajvatovciMap: MapDef = {
     })),
     // The bale of the corner rule (roadside above) that stands in the mouth of the side road joined in `paths`:
     // the rule drops solids on a road, so it is placed by hand to keep the way straight on blocked.
-    { asset: 'hay_bale', along: 3703.5, lateral: -4.6, variant: 0 },
+    { asset: 'hay_bale_square', along: 3703.5, lateral: -4.6, variant: 0 },
   ],
 };

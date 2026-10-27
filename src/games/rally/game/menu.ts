@@ -163,6 +163,14 @@ const PLANTS: SourceLink[] = [
   },
 ];
 
+const PROPS: SourceLink[] = [
+  {
+    label: 'Hay bales (Abby Crawford, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/hay-bales-9a9f28d0e59a43e49d860912c47b8767',
+    note: 'straw of the hay bales - CC BY 4.0',
+  },
+];
+
 const BUILT_WITH: SourceLink[] = [
   { label: 'three.js', url: 'https://threejs.org/', note: 'rendering, MIT' },
   { label: 'Rsbuild', url: 'https://rsbuild.rs/', note: 'build tooling, MIT' },
@@ -644,6 +652,8 @@ class MainMenu {
       <h2>Plants</h2>
       <p>Trees, bushes and grass are generated in code.</p>
       ${links(PLANTS, '')}
+      <h2>Props</h2>
+      ${links(PROPS, '')}
       <h2>Physics</h2>
       <h3>Tyres</h3>
       ${links(TYRE_RESEARCH, '')}

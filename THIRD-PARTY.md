@@ -162,6 +162,15 @@ repository).
 | ["Realistic Wheat"](https://sketchfab.com/3d-models/realistic-wheat-50270968690441d3ad9d2a8924c7338b)  | [Graphetta](https://sketchfab.com/Graphetta) (Sketchfab)    | CC BY 4.0 |
 | ["Corn! Corn! Corn!"](https://sketchfab.com/3d-models/corn-corn-corn-10187bc37c9e42ef8770b28452ee7cd3) | [Tiia Tuulia](https://sketchfab.com/tiiatuulia) (Sketchfab) | CC BY 4.0 |
 
+### Straw texture (`src/games/rally/engine/props/straw.webp`)
+
+The hay bales wear a tile cut from the photo texture of a CC BY 4.0 scan (one bale side, made to repeat and levelled by
+`scripts/props/bake-straw.py`; the bales themselves are built in code; the source file is not in the repository).
+
+| Model                                                                                     | Author                                                  | Licence   |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------- | --------- |
+| ["Hay bales"](https://sketchfab.com/3d-models/hay-bales-9a9f28d0e59a43e49d860912c47b8767) | [Abby Crawford](https://sketchfab.com/abby) (Sketchfab) | CC BY 4.0 |
+
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 
 ## Road textures

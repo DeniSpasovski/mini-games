@@ -4,6 +4,7 @@ import {
   MeshDepthMaterial,
   MeshStandardMaterial,
   Vector2,
+  type Texture,
   type WebGLProgramParametersWithUniforms,
   type WebGLRenderer,
 } from 'three';
@@ -12,7 +13,9 @@ import { grassSheet } from './grass';
 import { addNightGlow } from './night-glow';
 import { houseMaterial } from './house-walls';
 import { groundLitCard } from './world-shading';
-import { GROUND_MEAN, groundScan } from './ground-textures';
+import { groundScan } from './ground-textures';
+import { imageTexture } from './image-texture';
+import strawUrl from './props/straw.webp';
 
 /**
  * Shared material library. Assets reference materials by id so thousands of
@@ -38,6 +41,15 @@ export type MaterialId =
   | 'village_sign';
 
 const cache = new Map<MaterialId, Material>();
+
+let straw: Texture | undefined;
+/** The hay bales' straw tile (repeat it every `STRAW_SIZE` metres). */
+export function strawTexture(): Texture {
+  straw ??= imageTexture(strawUrl, 512, 256, 'straw');
+  return straw;
+}
+/** Size of the straw tile on a bale (m): width, height. */
+export const STRAW_SIZE: [number, number] = [0.94, 0.55];
 
 /** Seconds, shared by every waving hand flag (`people_flag`); a free-running clock so tools animate it too. */
 const FLAG_TIME = { value: 0 };
@@ -184,16 +196,14 @@ export function getMaterial(id: MaterialId): Material {
       });
       break;
     case 'hay':
-      // Straw: the stubble scan (desaturated, mean brightness GROUND_MEAN.stubble) lifted to 1 on average, so the
-      // vertex colour sets the straw colour and the scan gives the fibres.
+      // Straw: a bale side from a photo scan (engine/props/straw.webp, scripts/props/bake-straw.py), ~0.94 x 0.55 m.
       m = new MeshStandardMaterial({
         vertexColors: true,
-        map: groundScan('stubble'),
-        bumpMap: groundScan('stubble'),
-        bumpScale: 1.5,
+        map: strawTexture(),
+        bumpMap: strawTexture(),
+        bumpScale: 0.8,
         roughness: 0.95,
       });
-      (m as MeshStandardMaterial).color.setScalar(0.5 / GROUND_MEAN.stubble);
       break;
     case 'props':
       m = new MeshStandardMaterial({

@@ -8,11 +8,12 @@ import {
   LatheGeometry,
   PlaneGeometry,
   Vector2,
+  Vector3,
 } from 'three';
+import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
 import { Rng } from '../../../../shared/rng';
 import { cylindricalUV, merge, paint, planarUV, shade } from '../../engine/geo';
-import { GROUND_SCAN } from '../../engine/ground-textures';
-import { getMaterial } from '../../engine/materials';
+import { getMaterial, STRAW_SIZE } from '../../engine/materials';
 import type { AssetBuilder } from '../types';
 
 /** Road-side props. Front of every prop faces +Z. */
@@ -34,7 +35,7 @@ const box = (
 
 /**
  * Round straw bale (1.2 m wide, ~1.3 m across) lying on its side: a lathe with rounded rim edges and slightly domed
- * ends that show the rolled layers, on the straw material (the stubble scan at its real scale).
+ * ends that show the rolled layers, on the straw material (a scanned bale side at its real scale).
  */
 export const hayBale: AssetBuilder = ({ seed, lod }) => {
   const rng = new Rng(seed);
@@ -61,7 +62,7 @@ export const hayBale: AssetBuilder = ({ seed, lod }) => {
     prof.map(([x, y]) => new Vector2(Math.max(x, 1e-4), y)),
     segs,
   );
-  // Straw at its real size: u around the bale (metres / 2 m scan), v along the profile.
+  // Straw at its real size: u around the bale, v along the profile (metres / tile size).
   const uv = g.getAttribute('uv');
   let len = 0;
   const along = prof.map((pt, i) => {
@@ -73,13 +74,13 @@ export const hayBale: AssetBuilder = ({ seed, lod }) => {
     const k = i % prof.length;
     uv.setXY(
       i,
-      ((ring / segs) * Math.PI * 2 * r) / GROUND_SCAN.stubble,
-      along[k] / GROUND_SCAN.stubble,
+      ((ring / segs) * Math.PI * 2 * r) / STRAW_SIZE[0],
+      along[k] / STRAW_SIZE[1],
     );
   }
   g.rotateZ(Math.PI / 2);
   g.translate(0, r, 0);
-  const p = paint(g, '#d9b65e', rng, 0.05);
+  const p = paint(g, rng.pick(['#f6d898', '#efcf8c']), rng, 0.05);
   // Rolled layers on the ends (rings of light and dark straw), darker underside.
   shade(p, (x, y, z) => {
     const end = Math.abs(x) > hw - 0.01;
@@ -91,6 +92,75 @@ export const hayBale: AssetBuilder = ({ seed, lod }) => {
   });
   return { parts: [{ geometry: p, material: getMaterial('hay') }] };
 };
+
+/**
+ * Stack of small square straw bales (1.0 x 0.46 x 0.36 m each, long side along X): two side by side, one on top
+ * (variant 1 turns the top one a little). Chamfered edges, the straw tile at its real size on every face.
+ */
+export const hayBaleSquare: AssetBuilder = ({ seed, variant, lod }) => {
+  const rng = new Rng(seed);
+  const [L, W, H] = [1.0, 0.46, 0.36];
+  const bale = (x: number, y: number, z: number, turn: number) => {
+    const g =
+      lod === 0
+        ? chamferBox(L, H, W, 0.018)
+        : new BoxGeometry(L, H, W).toNonIndexed();
+    g.rotateY(turn);
+    g.translate(x, y + H / 2, z);
+    const p = paint(g, rng.pick(['#f6d898', '#efcf8c', '#f8deaa']), rng, 0.04);
+    // Box-mapped straw: each face projected along its main axis, the tile's long side along the bale.
+    const pos = p.getAttribute('position');
+    const n = p.getAttribute('normal');
+    const uv = p.getAttribute('uv');
+    for (let i = 0; i < pos.count; i++) {
+      const [ax, ay, az] = [
+        Math.abs(n.getX(i)),
+        Math.abs(n.getY(i)),
+        Math.abs(n.getZ(i)),
+      ];
+      const [px, py, pz] = [pos.getX(i), pos.getY(i), pos.getZ(i)];
+      if (ay >= ax && ay >= az)
+        uv.setXY(i, px / STRAW_SIZE[0], pz / STRAW_SIZE[1]);
+      else if (ax >= az) uv.setXY(i, pz / STRAW_SIZE[0], py / STRAW_SIZE[1]);
+      else uv.setXY(i, px / STRAW_SIZE[0], py / STRAW_SIZE[1]);
+    }
+    return p;
+  };
+  const parts = [
+    bale(0, 0, -W / 2 - 0.01, rng.range(-0.04, 0.04)),
+    bale(0.03, 0, W / 2 + 0.01, rng.range(-0.04, 0.04)),
+    bale(
+      rng.range(-0.06, 0.06),
+      H,
+      rng.range(-0.05, 0.05),
+      variant === 1 ? rng.range(0.15, 0.3) : rng.range(-0.05, 0.05),
+    ),
+  ];
+  const g = merge(parts);
+  // Darker underside and inner faces.
+  shade(g, (_x, y) => 0.75 + 0.25 * Math.min(1, y / (H * 1.5)));
+  return { parts: [{ geometry: g, material: getMaterial('hay') }] };
+};
+
+/** Box (w along X, h, d along Z) centred on the origin with its edges cut at 45 degrees by `c`, flat-shaded. */
+function chamferBox(
+  w: number,
+  h: number,
+  d: number,
+  c: number,
+): BufferGeometry {
+  const pts: Vector3[] = [];
+  const [a, b, e] = [w / 2, h / 2, d / 2];
+  for (const sx of [-1, 1])
+    for (const sy of [-1, 1])
+      for (const sz of [-1, 1])
+        pts.push(
+          new Vector3(sx * a, sy * (b - c), sz * (e - c)),
+          new Vector3(sx * (a - c), sy * b, sz * (e - c)),
+          new Vector3(sx * (a - c), sy * (b - c), sz * e),
+        );
+  return new ConvexGeometry(pts);
+}
 
 /**
  * Both faces of a one-sided sheet (the props material is front-side): the sheet + a copy with every triangle's

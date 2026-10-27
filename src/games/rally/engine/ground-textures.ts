@@ -4,8 +4,9 @@ import {
   LinearMipmapLinearFilter,
   RepeatWrapping,
   SRGBColorSpace,
-  Texture,
+  type Texture,
 } from 'three';
+import { imageTexture } from './image-texture';
 import grassSpringUrl from './ground/grass_spring.webp';
 import grassSummerUrl from './ground/grass_summer.webp';
 import grassAutumnUrl from './ground/grass_autumn.webp';
@@ -120,37 +121,12 @@ export function groundArray(): DataArrayTexture {
 }
 
 const scans = new Map<GroundLayer, Texture>();
-/**
- * One scan as a plain repeating texture, for meshes that wear a ground material (the rocks, the hay bales). Mid grey
- * until its image decodes.
- */
+/** One scan as a plain repeating texture, for meshes that wear a ground material (the rocks). */
 export function groundScan(id: GroundLayer): Texture {
   let tex = scans.get(id);
-  if (tex) return tex;
-  const canvas = document.createElement('canvas');
-  // Tile size: the image later replaces it in the same (immutable) GPU texture.
-  canvas.width = canvas.height = SIZE;
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    ctx.fillStyle = '#6e6e6e';
-    ctx.fillRect(0, 0, SIZE, SIZE);
+  if (!tex) {
+    tex = imageTexture(URLS[GROUND_LAYER[id]], SIZE, SIZE, `ground:${id}`);
+    scans.set(id, tex);
   }
-  tex = new Texture(canvas);
-  tex.colorSpace = SRGBColorSpace;
-  tex.wrapS = tex.wrapT = RepeatWrapping;
-  tex.anisotropy = 4;
-  tex.name = `ground:${id}`;
-  tex.needsUpdate = true;
-  scans.set(id, tex);
-  if (typeof Image === 'undefined') return tex;
-  const img = new Image();
-  img.src = URLS[GROUND_LAYER[id]];
-  img.decode().then(
-    () => {
-      tex.image = img;
-      tex.needsUpdate = true;
-    },
-    () => undefined,
-  );
   return tex;
 }
