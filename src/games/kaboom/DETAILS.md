@@ -96,8 +96,8 @@ same hitbox.
   blink brings down (`blink`, driven by `material.userData.blink`), brow strokes, a line from the nose into a crescent smile
   with the tongue. Species parts stay rigid on a bone: nose pads, star-nose feelers, beaver teeth, quills, shell bands,
   whiskers. The mole's spade hands are body solids (furred back, pink palm and digits) with rigid claws.
-- **Skeleton** (`BONE`, the same 19 bones for everyone, bind positions per critter): hips, spine, head, arms and forearms,
-  thighs and shins, three tail bones, ears, lids. Skin weights from the solids each vertex lies on, smoothed over the mesh;
+- **Skeleton** (`BONE`, the same 17 bones for everyone, bind positions per critter): hips, spine, head, arms and forearms,
+  thighs and shins, three tail bones, ears (the lids are painted). Skin weights from the solids each vertex lies on, smoothed over the mesh;
   rigid parts and the gear on the body (finger gloves with claws, tool belt with buckle, pouch and hammer) ride one bone. The body is a `SkinnedMesh` on its own skeleton (`render/crew-rig.ts`: bones posed by code, bound
   detached so the whole-body transforms stay on the mesh).
 

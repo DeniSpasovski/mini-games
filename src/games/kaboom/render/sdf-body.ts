@@ -728,18 +728,18 @@ export function buildBody(spec: BodySpec): BodyMesh {
   };
 }
 
-/** Query fields by the shapes' content: builders ask many questions of the same solids (and edit them in place). */
-const fields = new Map<string, Field>();
+/**
+ * Query fields per shape list (by identity: a builder asks many questions of the same list; a list it changes in place
+ * must be a new array, `Kit.solids` does that). Weak: a field goes with its list.
+ */
+const fields = new WeakMap<readonly Shape[], Field>();
 
-/** The field of `shapes` for surface queries (cell 0.02), built once per distinct set of solids. */
+/** The field of `shapes` for surface queries (cell 0.02), built once per list. */
 function queryField(shapes: readonly Shape[]): Field {
-  const key = JSON.stringify(shapes);
-  let f = fields.get(key);
+  let f = fields.get(shapes);
   if (!f) {
-    // a page builds eight critters: keep the cache small
-    if (fields.size > 32) fields.clear();
     f = new Field(shapes, 0.02);
-    fields.set(key, f);
+    fields.set(shapes, f);
   }
   return f;
 }

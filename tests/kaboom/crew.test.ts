@@ -6,7 +6,14 @@ import {
   TEAM_COLORS,
 } from '../../src/games/kaboom/render/characters';
 import { buildCritter } from '../../src/games/kaboom/render/crew-parts';
-import { BONE_COUNT } from '../../src/games/kaboom/render/critters';
+import {
+  BONE,
+  BONE_COUNT,
+  VEST_BOTTOM,
+  VEST_FOLD,
+  VEST_R,
+  VEST_TOP,
+} from '../../src/games/kaboom/render/critters';
 import { TOON_MARKS } from '../../src/games/kaboom/render/toon';
 import { BlobShadows } from '../../src/games/kaboom/render/shadows';
 import { TntRenderer, tntLevel } from '../../src/games/kaboom/render/tnt';
@@ -78,6 +85,33 @@ test('every critter is painted: its marks fit the shader, the skin is tagged for
     for (let i = 0; i < tag.count; i++) if (tag.getX(i) > 0.5) painted++;
     expect(painted).toBeGreaterThan(3000); // the skin
     expect(painted).toBeLessThan(tag.count); // eyes are paint, but noses, gloves and the belt are parts
+  }
+});
+
+test('no critter pokes through its vest: the torso skin stays inside the shell, folds included', () => {
+  for (const id of CRITTERS) {
+    const m = buildCritter(id);
+    const g = m.geometry;
+    const p = g.getAttribute('position');
+    const tag = g.getAttribute('aToon');
+    const si = g.getAttribute('skinIndex');
+    const v = m.vest;
+    let out = 0;
+    for (let i = 0; i < p.count; i++) {
+      // the torso's skin only (arms come out of the vest like armholes; rigid parts have their own rules)
+      const b = si.getX(i);
+      if (tag.getX(i) < 0.5 || (b !== BONE.hips && b !== BONE.spine)) continue;
+      const x = p.getX(i) / (VEST_R * v.sx);
+      const z = p.getZ(i) / (VEST_R * 0.97 * v.sz);
+      // the shell: a band of ellipsoid round the fitted centre, open at the front
+      const ny = (p.getY(i) - v.cy) / (v.sy * VEST_R * 1.05);
+      if (ny > Math.cos(VEST_TOP) || ny < Math.cos(VEST_BOTTOM)) continue;
+      if (Math.abs(Math.atan2(x, z)) < 0.36) continue;
+      const ring = Math.sqrt(1 - ny * ny);
+      // inside the deepest fold valley, with a hair for the fit's sampling
+      if (Math.hypot(x, z) / ring > (1 - VEST_FOLD) * 1.01) out++;
+    }
+    expect(out, id).toBe(0);
   }
 });
 

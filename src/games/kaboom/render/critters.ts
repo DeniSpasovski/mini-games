@@ -74,8 +74,8 @@ export const VEST_R = 0.352;
 /** How deep the vest's draped folds dip into its shell (share of the radius, `vestGeometry`): the fit leaves room. */
 export const VEST_FOLD = 0.05;
 /** Polar angles (radians from the top) where the vest shell starts and ends. */
-const VEST_TOP = 0.92;
-const VEST_BOTTOM = 1.96;
+export const VEST_TOP = 0.92;
+export const VEST_BOTTOM = 1.96;
 
 /** The crew's skeleton: the same bones for everyone (L = the critter's left, +x). */
 export const BONE = {
@@ -96,18 +96,14 @@ export const BONE = {
   tail2: 14,
   earL: 15,
   earR: 16,
-  lidL: 17,
-  lidR: 18,
 } as const;
-export const BONE_COUNT = 19;
+export const BONE_COUNT = 17;
 /** Parent of each bone (-1 = none). */
 export const BONE_PARENT: readonly number[] = [
-  -1, 0, 1, 2, 2, 4, 2, 6, 1, 8, 1, 10, 1, 12, 13, 3, 3, 3, 3,
+  -1, 0, 1, 2, 2, 4, 2, 6, 1, 8, 1, 10, 1, 12, 13, 3, 3,
 ];
 /** The same bone on the other side. */
-const MIRROR = [
-  0, 1, 2, 3, 6, 7, 4, 5, 10, 11, 8, 9, 12, 13, 14, 16, 15, 18, 17,
-];
+const MIRROR = [0, 1, 2, 3, 6, 7, 4, 5, 10, 11, 8, 9, 12, 13, 14, 16, 15];
 
 /** Grid cell of the body surface (critter units). */
 const CELL = 0.022;
@@ -174,8 +170,8 @@ type Body = Omit<Shape, 'color'> & { color?: number };
 class Kit {
   readonly shapes: Shape[] = [];
   readonly parts: { g: BufferGeometry; bone: number; vest?: VestRule }[] = [];
-  /** Where the eyes are (left; the lid bone), set by `toonFace`. */
-  eye: V3 = [0.08, 0.6, 0.2];
+  /** The solids (no carving) as one list for surface queries; dropped whenever the shapes change. */
+  private solidList: Shape[] | null = null;
 
   constructor(readonly j: Joints) {}
 
@@ -183,6 +179,7 @@ class Kit {
   add(b: Body, both = false): this {
     const s: Shape = { color: W, ...b };
     this.shapes.push(s);
+    this.changed();
     if (both) this.shapes.push({ ...mirrored(s), bone: MIRROR[s.bone] });
     return this;
   }
@@ -193,13 +190,15 @@ class Kit {
     return this;
   }
 
+  /** The shapes were added to or moved: the next query builds a fresh list (and field). */
+  changed(): void {
+    this.solidList = null;
+  }
+
   /** The front of the body at (x, y) (before anything is carved). */
   front(x: number, y: number): number {
-    return surfaceZ(
-      this.shapes.filter((s) => !s.sub),
-      x,
-      y,
-    );
+    this.solidList ??= this.shapes.filter((s) => !s.sub);
+    return surfaceZ(this.solidList, x, y);
   }
 
   /** Upper arm, forearm, thigh and shin of both sides as tapered round cones (radii at the joints). */
@@ -666,7 +665,6 @@ function finish(kit: Kit, o: Finish): CritterModel {
   put(BONE.tail1, j.tail[1]);
   put(BONE.tail2, j.tail[2]);
   put(BONE.earL, j.ear);
-  put(BONE.lidL, kit.eye);
   return {
     geometry,
     joints,
@@ -707,13 +705,7 @@ const LEG_BONES: readonly number[] = [
   BONE.legR,
   BONE.shinR,
 ];
-const HEAD_BONES: readonly number[] = [
-  BONE.head,
-  BONE.earL,
-  BONE.earR,
-  BONE.lidL,
-  BONE.lidR,
-];
+const HEAD_BONES: readonly number[] = [BONE.head, BONE.earL, BONE.earR];
 
 /** Where things drawn before `toonize` ended up: points and paint on the body (lifted) and on the head (also shrunk). */
 interface ToonFrame {
@@ -737,6 +729,7 @@ function toonize(k: Kit, up: number, hs: number, hc: V3): ToonFrame {
     c[2] + (v[2] - c[2]) * hs,
   ];
   const head = (v: V3): V3 => shrink(lift(v));
+  k.changed();
   for (const s of k.shapes) {
     if (LEG_BONES.includes(s.bone)) continue;
     const onHead = HEAD_BONES.includes(s.bone);
@@ -836,7 +829,6 @@ function toonFace(k: Kit, f: ToonFrame, o: Face): ToonMark[] {
   const s = (o.eye.size ?? 1) * f.hs;
   const [ex, ey] = f.head([o.eye.x, o.eye.y, 0]);
   const ez = k.front(ex, ey);
-  k.eye = [ex, ey, ez - 0.03];
   const rot = o.eye.rot ?? [0, 0.32, -0.12];
   const open = o.eye.open ?? 0.032;
   const depth = Math.max(1, s / f.hs);
@@ -1248,7 +1240,8 @@ const BUILDERS: Record<CritterId, () => CritterModel> = {
     for (const s of [1, -1]) {
       const bone = s > 0 ? BONE.foreL : BONE.foreR;
       const w = k.j.wrist;
-      const pc: V3 = [s * (w[0] + 0.03), w[1] - 0.065, w[2] + 0.035];
+      // held out from the hips by more than its blend, so the hand never melts into the flank
+      const pc: V3 = [s * (w[0] + 0.06), w[1] - 0.065, w[2] + 0.04];
       // the hand's frame: `n` = the palm's normal (out, a little back and down), `d` = down along the digits, `u` =
       // across its width; the back of the hand (-n) faces up and in, to the camera
       const turn = new Euler(0, s * 0.455, -s * 0.5, 'YXZ');
@@ -1269,7 +1262,7 @@ const BUILDERS: Record<CritterId, () => CritterModel> = {
         r: [0.042, 0.085, 0.115],
         rot: [turn.x, turn.y, turn.z],
         bone,
-        blend: 0.045,
+        blend: 0.03,
       });
       for (let i = 0; i < 5; i++) {
         const t = (i / 4) * 2 - 1;

@@ -125,6 +125,15 @@ export function vestGeometry(): BufferGeometry {
   const bottom = 1.96;
   const phi0 = Math.PI / 2 + OPEN / 2;
   const phiLen = Math.PI * 2 - OPEN;
+  // the patch pockets either side of the opening (vest space), and where that is on the shell: the angle from the
+  // front edge and the height as a share of the radius
+  const PX = 0.17;
+  const PY = 0.31;
+  const PZ = 0.3;
+  const POCKET = {
+    phi: Math.atan2(PZ / 0.97, -PX) - phi0,
+    y: (PY - 0.36) / 1.05 / R,
+  };
   // cloth, not a barrel: soft vertical folds hanging from the shoulders, deeper towards the hem, fading out at the hems
   // and the front edges (the trims sit there); the stripes ride the same folds
   const drape = (g: BufferGeometry, r: number): BufferGeometry => {
@@ -139,11 +148,23 @@ export function vestGeometry(): BufferGeometry {
       const v = (t - top) / (bottom - top);
       const hems = Math.sin(Math.PI * Math.min(1, Math.max(0, v)));
       const edges = Math.min(1, phi / 0.3, (phiLen - phi) / 0.3);
+      // flat under the patch pockets (`POCKET`: their angle from the front edge and height in the band)
+      const toPocket = Math.hypot(
+        (Math.min(phi, phiLen - phi) - POCKET.phi) / 0.26,
+        (y / r - POCKET.y) / 0.26,
+      );
+      const pockets = Math.min(1, Math.max(0, (toPocket - 0.75) / 0.35));
       const fold =
         Math.sin(phi * 7 + Math.sin(phi * 3.1) * 0.8) * 0.65 +
         Math.sin(phi * 13 + 1.7) * 0.35;
       const k =
-        1 + VEST_FOLD * fold * (0.35 + 0.65 * v) * hems * Math.max(0, edges);
+        1 +
+        VEST_FOLD *
+          fold *
+          (0.35 + 0.65 * v) *
+          hems *
+          Math.max(0, edges) *
+          pockets;
       pos.setXYZ(i, x * k, y, z * k);
     }
     g.computeVertexNormals();
@@ -207,9 +228,9 @@ export function vestGeometry(): BufferGeometry {
   for (const s of [-1, 1])
     parts.push(
       part(rbox(0.1, 0.08, 0.02, 0.008), 0xeaeaea, {
-        x: s * 0.17,
-        y: 0.31,
-        z: 0.3,
+        x: s * PX,
+        y: PY,
+        z: PZ,
         ry: s * 0.5,
         tint: 0,
       }),
