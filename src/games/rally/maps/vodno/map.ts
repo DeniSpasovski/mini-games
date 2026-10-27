@@ -1,3 +1,4 @@
+import { greenInSpring } from '../shared/seasonal-grass';
 import {
   buildingsFromData,
   hairpinRails,
@@ -486,8 +487,8 @@ export const vodnoMap: MapDef = {
       tilt: 4,
       sink: 0.1,
     },
-    // Detail: dry grass in the open, green tufts in the woods.
-    {
+    // Detail: dry grass in the open (green in spring), green tufts in the woods.
+    ...greenInSpring({
       asset: 'dry_grass',
       cover: DRY,
       density: 240,
@@ -495,7 +496,7 @@ export const vodnoMap: MapDef = {
       minRoadDist: 1,
       maxSlope: 0.55,
       scale: [0.7, 1.4],
-    },
+    }),
     {
       asset: 'grass_tuft',
       cover: [...WOODS, 'trees', 'orchard'],
