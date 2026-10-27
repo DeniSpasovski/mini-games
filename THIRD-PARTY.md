@@ -108,6 +108,10 @@ files are not in the repository).
 
 CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/ground/bake.py`: Forest Ground 01 (Rob Tuytel), Grass Ground (Charlotte Baglioni), Leafy Grass (Charlotte Baglioni), Brown Mud Dry (Rob Tuytel), Rocky Trail (Amal Kumar), Rock Boulder Dry (Dimitrios Savva, Rico Cilliers), Forest Leaves 04 (Rob Tuytel), Leaves Forest Ground (Dimitrios Savva, Dario Barresi), Withered Grass (Charlotte Baglioni). No credit is required.
 
+### Rocks (baked into `src/games/rally/assets/builders/rock-models.data.ts` and `src/games/rally/engine/props/`)
+
+CC0 scan from Poly Haven, simplified by `scripts/rocks/bake-rocks.mjs`: Rock Moss Set 01 (Kless Gyzen). No credit is required.
+
 ### Building textures (baked into `src/games/rally/engine/facades/`)
 
 CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/facades/bake.py`: Painted Plaster Wall (Amal Kumar), Brick Wall 006 (Jan Burghardt), Red Brick (Rob Tuytel), Plaster Stone Wall 02 (Charlotte Baglioni), Concrete Wall 007 (Dario Barresi, Rico Cilliers, Charlotte Baglioni), Corrugated Iron 03 (Charlotte Baglioni), Concrete Slab Wall (Dimitrios Savva), Sandstone Blocks 05 (Rob Tuytel), White Planks Clean (Rob Tuytel), Clay Roof Tiles 03 (Amal Kumar). No credit is required.

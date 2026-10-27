@@ -13,8 +13,9 @@ import { grassSheet } from './grass';
 import { addNightGlow } from './night-glow';
 import { houseMaterial } from './house-walls';
 import { groundLitCard } from './world-shading';
-import { groundScan } from './ground-textures';
 import { imageTexture } from './image-texture';
+import rockColorUrl from './props/rocks.color.webp';
+import rockNormalUrl from './props/rocks.normal.webp';
 import strawUrl from './props/straw.webp';
 
 /**
@@ -184,17 +185,27 @@ export function getMaterial(id: MaterialId): Material {
         roughness: 1,
       });
       break;
-    case 'rock':
-      // The terrain's rock scan (engine/ground/rock.webp), so a boulder matches the rock on the ground beside it;
-      // vertex colour only varies it (and adds the moss).
+    case 'rock': {
+      // Scanned stones (Poly Haven "Rock Moss Set 01", engine/props/rocks.*.webp, scripts/rocks/bake-rocks.mjs): the
+      // set's own colour and normal maps; vertex colour only varies the tone between stones.
+      const map = imageTexture(rockColorUrl, 1024, 1024, 'rocks');
+      const normalMap = imageTexture(
+        rockNormalUrl,
+        1024,
+        1024,
+        'rocks:normal',
+        '#8080ff',
+        false,
+      );
+      for (const t of [map, normalMap]) t.flipY = false; // glTF UVs
       m = new MeshStandardMaterial({
         vertexColors: true,
-        map: groundScan('rock'),
-        bumpMap: groundScan('rock'),
-        bumpScale: 2,
-        roughness: 0.88,
+        map,
+        normalMap,
+        roughness: 0.9,
       });
       break;
+    }
     case 'hay':
       // Straw: a bale side from a photo scan (engine/props/straw.webp, scripts/props/bake-straw.py), ~0.94 x 0.55 m.
       m = new MeshStandardMaterial({

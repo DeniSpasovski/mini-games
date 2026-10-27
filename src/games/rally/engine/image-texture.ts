@@ -9,17 +9,20 @@ export function imageTexture(
   w: number,
   h: number,
   name: string,
+  /** Placeholder colour; a normal map passes '#8080ff' (flat) and `srgb` false. */
+  fill = '#6e6e6e',
+  srgb = true,
 ): Texture {
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d');
   if (ctx) {
-    ctx.fillStyle = '#6e6e6e';
+    ctx.fillStyle = fill;
     ctx.fillRect(0, 0, w, h);
   }
   const tex: Texture = new Texture(canvas);
-  tex.colorSpace = SRGBColorSpace;
+  if (srgb) tex.colorSpace = SRGBColorSpace;
   tex.wrapS = tex.wrapT = RepeatWrapping;
   tex.anisotropy = 4;
   tex.name = name;

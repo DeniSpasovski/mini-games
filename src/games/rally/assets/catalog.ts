@@ -309,7 +309,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'rock_boulder',
     name: 'Boulder',
     category: 'rocks',
-    description: 'Large displaced-icosphere boulder. Solid.',
+    description: 'Large scanned mossy boulder. Solid.',
     variants: 4,
     lods: [
       { maxDistance: 110, castShadow: true },
