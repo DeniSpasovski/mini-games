@@ -17,8 +17,6 @@ import {
 const BY_MAP: Record<string, TextureId[]> = {
   ajvatovci: [
     'barrier_jersey',
-    'bridge_concrete',
-    'bridge_stone',
     'chevron',
     'detail',
     'dirt',
@@ -58,8 +56,6 @@ const BY_MAP: Record<string, TextureId[]> = {
   ],
   vodno: [
     'barrier_jersey',
-    'bridge_concrete',
-    'bridge_stone',
     'chevron',
     'crosswalk',
     'detail',
@@ -112,8 +108,6 @@ const BY_MAP: Record<string, TextureId[]> = {
   ],
   petralica: [
     'barrier_jersey',
-    'bridge_concrete',
-    'bridge_stone',
     'chevron',
     'detail',
     'dirt',
@@ -153,8 +147,6 @@ const BY_MAP: Record<string, TextureId[]> = {
   ],
   jackie: [
     'barrier_jersey',
-    'bridge_concrete',
-    'bridge_stone',
     'chevron',
     'crosswalk',
     'detail',
