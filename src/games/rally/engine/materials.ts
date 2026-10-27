@@ -277,7 +277,7 @@ export function getMaterial(id: MaterialId): Material {
         roughness: 0.55,
       });
       // Reflective sheeting: lights up in the car's low beam at night.
-      addNightGlow(m as MeshStandardMaterial, 'retro');
+      addNightGlow(m as MeshStandardMaterial, 'sheeting');
       break;
     case 'reflector':
       m = new MeshStandardMaterial({ vertexColors: true, roughness: 0.4 });
