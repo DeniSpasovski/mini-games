@@ -342,35 +342,107 @@ export const flagpole: AssetBuilder = ({ lod }) => {
   };
 };
 
+/** Clip a convex polygon (x, y pairs) to the half-plane `nx * x + ny * y <= c`. */
+function clip(
+  poly: [number, number][],
+  nx: number,
+  ny: number,
+  c: number,
+): [number, number][] {
+  const out: [number, number][] = [];
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i];
+    const q = poly[(i + 1) % poly.length];
+    const dp = nx * p[0] + ny * p[1] - c;
+    const dq = nx * q[0] + ny * q[1] - c;
+    if (dp <= 0) out.push(p);
+    if (dp * dq < 0) {
+      const t = dp / (dp - dq);
+      out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]);
+    }
+  }
+  return out;
+}
+
 /**
- * Police / marshal road-closed barrier: two red-white striped rails on A-frame legs.
- * 2.2 m long along local X, front (+Z) faces the stage road.
+ * A board L x h (m), t thick, centred on x, bottom at y: red / white stripes at 45 degrees on both faces (`w` m apart
+ * along the board), white edges. Non-indexed, vertex coloured.
+ */
+function stripedBoard(
+  L: number,
+  h: number,
+  t: number,
+  y: number,
+  w: number,
+): BufferGeometry {
+  const pos: number[] = [];
+  const col: number[] = [];
+  const red = new Color('#c8231b');
+  const white = new Color('#f1f0ea');
+  const rect: [number, number][] = [
+    [-L / 2, 0],
+    [L / 2, 0],
+    [L / 2, h],
+    [-L / 2, h],
+  ];
+  for (let i = -1; (i - 1) * w - h <= L; i++) {
+    // Band i: c0 <= x - y + L / 2 <= c0 + w.
+    const c0 = i * w;
+    let poly = clip(rect, -1, 1, -(c0 - L / 2));
+    poly = clip(poly, 1, -1, c0 + w - L / 2);
+    if (poly.length < 3) continue;
+    const c = i % 2 ? white : red;
+    for (const side of [1, -1])
+      for (let k = 1; k < poly.length - 1; k++) {
+        const tri = side > 0 ? [0, k, k + 1] : [0, k + 1, k];
+        for (const j of tri) {
+          pos.push(poly[j][0], y + poly[j][1], (side * t) / 2);
+          col.push(c.r, c.g, c.b);
+        }
+      }
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  g.setAttribute('color', new BufferAttribute(new Float32Array(col), 3));
+  g.setAttribute(
+    'uv',
+    new BufferAttribute(new Float32Array((pos.length / 3) * 2), 2),
+  );
+  g.computeVertexNormals();
+  // Edges: thin white top and bottom, the ends capped.
+  return merge([
+    g,
+    box(L, 0.012, t, 0, y + h - 0.006, 0, '#f1f0ea'),
+    box(L, 0.012, t, 0, y + 0.006, 0, '#f1f0ea'),
+    box(0.012, h, t, -L / 2 + 0.006, y + h / 2, 0, '#f1f0ea'),
+    box(0.012, h, t, L / 2 - 0.006, y + h / 2, 0, '#f1f0ea'),
+  ]);
+}
+
+/**
+ * Police / marshal road-closed barrier: two boards striped red and white at 45 degrees, bolted to galvanised tube legs
+ * standing in flat steel feet. 2.2 m long along local X, front (+Z) faces the stage road.
  */
 export const roadBarrier: AssetBuilder = ({ lod }) => {
   const L = 2.2;
-  const stripes = lod === 0 ? 8 : 4;
-  const w = L / stripes;
-  const parts: BufferGeometry[] = [];
-  for (const [y, h] of [
-    [0.88, 0.2],
-    [0.52, 0.2],
-  ]) {
-    for (let i = 0; i < stripes; i++)
-      parts.push(
-        box(
-          w,
-          h,
-          0.05,
-          -L / 2 + w * (i + 0.5),
-          y,
-          0,
-          i % 2 ? '#f3f3ee' : '#d4261c',
-        ),
-      );
-  }
-  for (const x of [-L / 2 + 0.12, L / 2 - 0.12]) {
-    parts.push(box(0.06, 1.05, 0.06, x, 0.525, 0, '#3c3f44'));
-    parts.push(box(0.06, 0.05, 0.6, x, 0.025, 0, '#3c3f44'));
+  const seg = lod === 0 ? 8 : 5;
+  const parts: BufferGeometry[] = [
+    stripedBoard(L, 0.25, 0.03, 0.75, 0.25),
+    stripedBoard(L, 0.2, 0.03, 0.38, 0.25),
+  ];
+  for (const x of [-L / 2 + 0.18, L / 2 - 0.18]) {
+    const leg = new CylinderGeometry(0.024, 0.024, 1.0, seg, 1);
+    leg.translate(x, 0.53, -0.04);
+    parts.push(cylindricalUV(paint(leg, '#a4a8ac'), 0.3));
+    const cap = new CylinderGeometry(0.03, 0.03, 0.02, seg, 1);
+    cap.translate(x, 1.04, -0.04);
+    parts.push(paint(cap, '#2b2b2b'));
+    // Foot: a flat bar across the barrier with a short socket.
+    parts.push(box(0.08, 0.035, 0.62, x, 0.018, -0.04, '#3c3f44'));
+    parts.push(box(0.07, 0.1, 0.07, x, 0.08, -0.04, '#3c3f44'));
+    // Clamps where the boards meet the leg.
+    for (const y of [0.875, 0.48])
+      parts.push(box(0.07, 0.05, 0.02, x, y, -0.025, '#8d9196'));
   }
   return {
     parts: [{ geometry: merge(parts), material: getMaterial('props') }],
@@ -516,28 +588,46 @@ export const markerPost: AssetBuilder = () => {
   };
 };
 
-export const chevronSign: AssetBuilder = ({ variant }) => {
-  const posts = merge([
-    box(0.07, 1.6, 0.07, -0.5, 0.8, -0.03, '#2a2a2a'),
-    box(0.07, 1.6, 0.07, 0.5, 0.8, -0.03, '#2a2a2a'),
-  ]);
-  const front = new PlaneGeometry(1.3, 0.62);
+/**
+ * Corner chevron board: a 1.3 x 0.62 m aluminium sign plate with its edge folded back, riveted to two horizontal
+ * omega rails that clamp to a pair of galvanised tube posts. Sheeting on the front only; the back is bare metal.
+ */
+export const chevronSign: AssetBuilder = ({ variant, lod }) => {
+  const [W, H, Y] = [1.3, 0.62, 1.3];
+  const seg = lod === 0 ? 8 : 5;
+  const metal: BufferGeometry[] = [];
+  for (const x of [-0.42, 0.42]) {
+    const post = new CylinderGeometry(0.03, 0.03, 1.66, seg, 1);
+    post.translate(x, 0.83, -0.075);
+    metal.push(cylindricalUV(paint(post, '#a7abaf'), 0.3));
+    const cap = new CylinderGeometry(0.034, 0.034, 0.03, seg, 1);
+    cap.translate(x, 1.67, -0.075);
+    metal.push(paint(cap, '#3a3a3a'));
+    // U-bolt clamps round the post on each rail.
+    for (const y of [Y - 0.2, Y + 0.2])
+      metal.push(box(0.085, 0.05, 0.075, x, y, -0.075, '#8e9297'));
+  }
+  // Omega rails across the back, and the plate's back with its folded rim.
+  for (const y of [Y - 0.2, Y + 0.2])
+    metal.push(box(W - 0.08, 0.06, 0.03, 0, y, -0.03, '#b9bcbf'));
+  metal.push(box(W, H, 0.004, 0, Y, -0.004, '#c4c6c8'));
+  for (const [w, h, x, y] of [
+    [W, 0.02, 0, Y + H / 2 - 0.01],
+    [W, 0.02, 0, Y - H / 2 + 0.01],
+    [0.02, H, -W / 2 + 0.01, Y],
+    [0.02, H, W / 2 - 0.01, Y],
+  ] as const)
+    metal.push(box(w, h, 0.018, x, y, -0.011, '#b2b5b8'));
+  const front = new PlaneGeometry(W, H);
   if (variant === 1) {
     const uv = front.getAttribute('uv');
     for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i));
   }
-  front.translate(0, 1.3, 0.01);
-  const back = new PlaneGeometry(1.3, 0.62);
-  back.rotateY(Math.PI);
-  back.translate(0, 1.3, -0.01);
-  // Back of the board shows a darkened corner of the texture (grey-ish).
-  const buv = back.getAttribute('uv');
-  for (let i = 0; i < buv.count; i++) buv.setXY(i, 0.005, 0.005);
-  const board = merge([front.toNonIndexed(), back.toNonIndexed()]);
+  front.translate(0, Y, 0.001);
   return {
     parts: [
-      { geometry: posts, material: getMaterial('props') },
-      { geometry: board, material: getMaterial('chevron') },
+      { geometry: merge(metal), material: getMaterial('props') },
+      { geometry: front.toNonIndexed(), material: getMaterial('chevron') },
     ],
   };
 };

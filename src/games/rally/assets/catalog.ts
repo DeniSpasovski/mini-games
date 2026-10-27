@@ -457,7 +457,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Road barrier',
     category: 'props',
     description:
-      'Police / marshal road-closed barrier (red-white striped rails, 2.2 m long, front faces +Z). Closes side-road mouths (MapDef.junctionBarriers). Solid.',
+      'Police / marshal road-closed barrier (boards striped red-white at 45 degrees on tube legs, 2.2 m long, front faces +Z). Closes side-road mouths (MapDef.junctionBarriers). Solid.',
     variants: 1,
     lods: [
       { maxDistance: 250, castShadow: true },
