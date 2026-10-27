@@ -4,8 +4,12 @@ import { tempLevel, type TempWindow } from '../physics/tyre-temp';
  * HUD tyre temperatures: four translucent tyres in a top-down car (left of the gear / speed in the dash), white
  * (cold) -> green (in the window) -> yellow -> red (overheated), plus the air / track temperature. A thin disc mark
  * beside each tyre shows the brake: white cold, green biting, yellow fading, red at the fade floor. Styles in hud.css
- * (`.hud-tyres`). Only touches the DOM when a colour bucket, the steering or a number changes.
+ * (`.hud-tyres`). Only touches the DOM when a colour bucket, the steering or a number changes; colours and numbers
+ * at most `COLOUR_HZ` times a second (every DOM change repaints the gauge on the GPU, in the WebGL frame's way).
  */
+
+/** Colour / number refreshes per second (temperatures move slowly; the steering follows every frame). */
+const COLOUR_HZ = 10;
 
 type Rgb = readonly [number, number, number];
 const WHITE: Rgb = [238, 240, 242];
@@ -56,6 +60,7 @@ export class TyreGauge {
   private air: HTMLElement;
   private track: HTMLElement;
   private cache: string[] = [];
+  private nextColours = 0;
 
   constructor() {
     this.el = document.createElement('div');
@@ -78,6 +83,14 @@ export class TyreGauge {
   }
 
   update(s: TyreGaugeState): void {
+    const steer = Math.round((-s.steer * 180) / Math.PI);
+    this.put(4, String(steer), () => {
+      for (const el of this.tyres.slice(0, 2))
+        el.style.transform = `rotate(${steer}deg)`;
+    });
+    const now = performance.now();
+    if (now < this.nextColours) return;
+    this.nextColours = now + 1000 / COLOUR_HZ;
     s.temps.forEach((t, i) => {
       const level = Math.round(tempLevel(t, s.window) * 20) / 20;
       const el = this.tyres[i];
@@ -95,11 +108,6 @@ export class TyreGauge {
         el.style.backgroundColor = `rgba(${r}, ${g}, ${bl}, 0.85)`;
         el.title = `${Math.round(s.discs[i])}°C`;
       });
-    });
-    const steer = Math.round((-s.steer * 180) / Math.PI);
-    this.put(4, String(steer), () => {
-      for (const el of this.tyres.slice(0, 2))
-        el.style.transform = `rotate(${steer}deg)`;
     });
     const air = `${Math.round(s.air)}°`;
     this.put(5, air, () => (this.air.textContent = air));
