@@ -82,6 +82,7 @@ import {
 } from './headlights';
 import { CameraRig } from './camera-rig';
 import { ParticleSystem } from './dust';
+import { GravelStones } from './gravel-stones';
 import { TyreMarks } from './tyre-marks';
 import { Hud } from './hud';
 import { InputController, type InputAction } from './input';
@@ -222,7 +223,7 @@ export class RallyGame {
   /** Ruts / skid marks behind the wheels. */
   tyreMarks!: TyreMarks;
   /** Small dark stones flung from loose surfaces (bounce on the terrain). */
-  gravel!: ParticleSystem;
+  gravel!: GravelStones;
   /** Big faint dust that hangs over the road for a while (medium / high quality). */
   haze?: ParticleSystem;
   private gravelAcc = [0, 0, 0, 0];
@@ -554,10 +555,8 @@ export class RallyGame {
     this.scene.add(this.tyreMarks.mesh);
     this.dust = new ParticleSystem(q.particles);
     this.dust.material.uniforms.uLight.value.setScalar(1.7);
-    this.gravel = new ParticleSystem(
-      Math.round(q.particles / 6),
-      false,
-      (x, z) => this.world.heightAt(x, z),
+    this.gravel = new GravelStones(Math.round(q.particles / 6), (x, z) =>
+      this.world.heightAt(x, z),
     );
     if (q.name !== 'low') {
       this.haze = new ParticleSystem(Math.round(q.particles / 8));
