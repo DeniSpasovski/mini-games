@@ -63,7 +63,6 @@ export type TextureId =
   | 'bark_pine'
   | 'bark_birch'
   | 'chevron'
-  | 'dust'
   | 'water_normal'
   | FacadeId
   | LotTextureId;
@@ -1362,27 +1361,6 @@ const DEFS: Record<TextureId, TexDef> = {
       ctx.strokeStyle = '#111';
       ctx.lineWidth = 6;
       ctx.strokeRect(3, 3, w - 6, h - 6);
-    },
-  },
-  dust: {
-    name: 'Dust puff (alpha)',
-    size: [64, 64],
-    color: false,
-    draw(ctx, w, h) {
-      const n = tileNoise(w, h, 4, 3, 111);
-      const img = ctx.createImageData(w, h);
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          const dx = (x + 0.5) / w - 0.5;
-          const dy = (y + 0.5) / h - 0.5;
-          const d = Math.sqrt(dx * dx + dy * dy) * 2;
-          const a = Math.max(0, 1 - d) ** 1.6 * (0.55 + 0.45 * n[y * w + x]);
-          const i = (y * w + x) * 4;
-          img.data[i] = img.data[i + 1] = img.data[i + 2] = 255;
-          img.data[i + 3] = a * 255;
-        }
-      }
-      ctx.putImageData(img, 0, 0);
     },
   },
   vehicle_decals: {

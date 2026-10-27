@@ -2,16 +2,36 @@ import {
   AdditiveBlending,
   BufferAttribute,
   BufferGeometry,
+  ClampToEdgeWrapping,
   Color,
   NormalBlending,
   Points,
+  type Texture,
   ShaderMaterial,
   UniformsLib,
   UniformsUtils,
   Vector3,
 } from 'three';
-import { getTexture } from '../engine/textures';
+import { imageTexture } from '../engine/image-texture';
+import dustUrl from '../engine/particles/dust.webp';
 import { WORLD_SHADING_DECL, worldUniforms } from '../engine/world-shading';
+
+let dustTex: Texture | undefined;
+/** The puff atlas: 2 x 2 smoke sprites from Kenney's Particle Pack (CC0; scripts/particles/bake-dust.py), alpha only. */
+function dustTexture(): Texture {
+  if (!dustTex) {
+    dustTex = imageTexture(
+      dustUrl,
+      512,
+      512,
+      'dust',
+      'rgba(255,255,255,0)',
+      false,
+    );
+    dustTex.wrapS = dustTex.wrapT = ClampToEdgeWrapping;
+  }
+  return dustTex;
+}
 
 /**
  * Pooled GPU point-sprite particles for dust clouds / gravel spray.
@@ -34,6 +54,7 @@ export class ParticleSystem {
   private baseAlpha: Float32Array;
   private spin: Float32Array;
   private spinRate: Float32Array;
+  private frame: Float32Array;
   private next = 0;
   private alive = 0;
   readonly material: ShaderMaterial;
@@ -54,17 +75,19 @@ export class ParticleSystem {
     this.baseAlpha = new Float32Array(max);
     this.spin = new Float32Array(max);
     this.spinRate = new Float32Array(max);
+    this.frame = new Float32Array(max);
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(this.pos, 3));
     g.setAttribute('color', new BufferAttribute(this.col, 3));
     g.setAttribute('size', new BufferAttribute(this.size, 1));
     g.setAttribute('alpha', new BufferAttribute(this.alpha, 1));
     g.setAttribute('spin', new BufferAttribute(this.spin, 1));
+    g.setAttribute('frame', new BufferAttribute(this.frame, 1));
     this.material = new ShaderMaterial({
       uniforms: UniformsUtils.merge([
         UniformsLib.fog,
         {
-          map: { value: getTexture('dust') },
+          map: { value: dustTexture() },
           uScale: { value: 600 },
           uLight: { value: new Color(1, 1, 1) },
           // Unlit until setLight (ambient 1, no sun) = the old flat look.
@@ -83,9 +106,11 @@ export class ParticleSystem {
         attribute float size;
         attribute float alpha;
         attribute float spin;
+        attribute float frame;
         attribute vec3 color;
         varying float vAlpha;
         varying float vSpin;
+        varying vec2 vCell;
         varying vec3 vColor;
         varying vec3 vRay;
         varying vec3 vWorld;
@@ -94,6 +119,7 @@ export class ParticleSystem {
         void main() {
           vAlpha = alpha;
           vSpin = spin;
+          vCell = vec2( mod( frame, 2.0 ), floor( frame / 2.0 ) ) * 0.5;
           vColor = color;
           vWorld = ( modelMatrix * vec4( position, 1.0 ) ).xyz;
           vRay = vWorld - cameraPosition;
@@ -115,6 +141,7 @@ export class ParticleSystem {
         ${WORLD_SHADING_DECL}
         varying float vAlpha;
         varying float vSpin;
+        varying vec2 vCell;
         varying vec3 vColor;
         varying vec3 vRay;
         varying vec3 vWorld;
@@ -122,7 +149,8 @@ export class ParticleSystem {
         void main() {
           float c = cos( vSpin ), s = sin( vSpin );
           vec2 pc = mat2( c, s, -s, c ) * ( gl_PointCoord - 0.5 ) + 0.5;
-          float a = texture2D( map, clamp( pc, 0.0, 1.0 ) ).a * vAlpha;
+          // This particle's puff in the 2 x 2 atlas (each cell fades to 0 at its border).
+          float a = texture2D( map, vCell + clamp( pc, 0.0, 1.0 ) * 0.5 ).a * vAlpha;
           if (a < 0.01) discard;
           // Forward scattering towards the camera when it looks at the sun through the dust.
           float toSun = max( dot( normalize( vRay ), wsSunDir ), 0.0 );
@@ -209,6 +237,7 @@ export class ParticleSystem {
     this.alpha[i] = 0;
     this.spin[i] = Math.random() * Math.PI * 2;
     this.spinRate[i] = (Math.random() - 0.5) * 1.2;
+    this.frame[i] = Math.floor(Math.random() * 4);
   }
 
   update(dt: number, drag = 1.6, gravity = -0.3): void {
@@ -256,6 +285,7 @@ export class ParticleSystem {
     g.getAttribute('alpha').needsUpdate = true;
     g.getAttribute('color').needsUpdate = true;
     g.getAttribute('spin').needsUpdate = true;
+    g.getAttribute('frame').needsUpdate = true;
   }
 
   get aliveCount(): number {
