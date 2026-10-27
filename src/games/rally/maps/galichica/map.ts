@@ -305,6 +305,7 @@ export const galichicaMap: MapDef = {
       every: 50,
       side: 'both',
       offset: 1.4,
+      alongRoad: true,
     },
   ],
   // Steel guard rails on the outside of the hairpins (the drop on the switchbacks), as on the real road.

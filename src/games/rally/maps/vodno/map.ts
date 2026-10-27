@@ -521,6 +521,7 @@ export const vodnoMap: MapDef = {
       side: 'both',
       offset: 1.4,
       from: START + 400,
+      alongRoad: true,
     },
     // Lamps along Salvador Aljende street at the start (the run-up and the first stretch of the climb).
     {

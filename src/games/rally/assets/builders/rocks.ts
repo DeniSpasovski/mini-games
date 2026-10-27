@@ -1,10 +1,14 @@
 import { Color, IcosahedronGeometry, type BufferGeometry } from 'three';
 import { Rng } from '../../../../shared/rng';
 import { displaceRadial, paint } from '../../engine/geo';
+import { GROUND_SCAN } from '../../engine/ground-textures';
 import { getMaterial } from '../../engine/materials';
 import type { AssetBuilder } from '../types';
 
-/** Displaced icospheres, faceted shading, moss on upward faces. */
+/** Rock scan size (m): the texture keeps the scale it has on the ground. */
+const SCAN = GROUND_SCAN.rock;
+
+/** Displaced icospheres wearing the terrain's rock scan, faceted shading, moss on upward faces. */
 function rock(
   seed: number,
   radius: number,
@@ -34,12 +38,13 @@ function rock(
       p.setY(i, -radius * 0.25 + (y + radius * 0.25) * 0.25);
   }
   g.computeVertexNormals();
-  const out = paint(g, rng.pick(['#9a978f', '#8c887e', '#a39d90']), rng, 0.06);
-  // Moss tint on up-facing faces, spherical-ish UVs for the rock texture.
+  // Near white: the scan carries the rock colour, the vertex colour only varies it.
+  const out = paint(g, rng.pick(['#f2f0ea', '#e6e2d8', '#fbf6ec']), rng, 0.06);
+  // Moss tint on up-facing faces; box-mapped UVs (each face projected along its main axis, so the scan never stretches).
   const n = out.getAttribute('normal');
   const c = out.getAttribute('color');
   const uv = out.getAttribute('uv');
-  const mossC = new Color('#56683a');
+  const mossC = new Color('#8fa05a');
   for (let i = 0; i < n.count; i++) {
     const up = Math.max(0, n.getY(i) - 0.55) / 0.45;
     const k = up * moss;
@@ -52,7 +57,12 @@ function rock(
     const px = p.getX(i);
     const py = p.getY(i);
     const pz = p.getZ(i);
-    uv.setXY(i, (px + pz * 0.6) / radius, (py + pz * 0.4) / radius);
+    const ax = Math.abs(n.getX(i));
+    const ay = Math.abs(n.getY(i));
+    const az = Math.abs(n.getZ(i));
+    if (ay >= ax && ay >= az) uv.setXY(i, px / SCAN, pz / SCAN);
+    else if (ax >= az) uv.setXY(i, pz / SCAN, py / SCAN);
+    else uv.setXY(i, px / SCAN, py / SCAN);
   }
   return out;
 }
@@ -68,6 +78,6 @@ export const rockBoulder: AssetBuilder = ({ seed, lod }) => ({
 
 export const rockSmall: AssetBuilder = ({ seed }) => ({
   parts: [
-    { geometry: rock(seed, 0.22, 0, 0.2), material: getMaterial('rock') },
+    { geometry: rock(seed, 0.22, 1, 0.2), material: getMaterial('rock') },
   ],
 });

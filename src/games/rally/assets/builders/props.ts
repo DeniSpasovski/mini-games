@@ -1,13 +1,17 @@
 import {
   BoxGeometry,
+  BufferAttribute,
   Color,
   CylinderGeometry,
   BufferGeometry,
   IcosahedronGeometry,
+  LatheGeometry,
   PlaneGeometry,
+  Vector2,
 } from 'three';
 import { Rng } from '../../../../shared/rng';
 import { cylindricalUV, merge, paint, planarUV, shade } from '../../engine/geo';
+import { GROUND_SCAN } from '../../engine/ground-textures';
 import { getMaterial } from '../../engine/materials';
 import type { AssetBuilder } from '../types';
 
@@ -28,21 +32,64 @@ const box = (
   return planarUV(paint(g, color, rng, rng ? 0.04 : 0), 1.3);
 };
 
+/**
+ * Round straw bale (1.2 m wide, ~1.3 m across) lying on its side: a lathe with rounded rim edges and slightly domed
+ * ends that show the rolled layers, on the straw material (the stubble scan at its real scale).
+ */
 export const hayBale: AssetBuilder = ({ seed, lod }) => {
   const rng = new Rng(seed);
   const r = rng.range(0.6, 0.7);
-  const g = new CylinderGeometry(r, r, 1.2, lod === 0 ? 16 : 8, 1);
+  const hw = 0.6;
+  const e = 0.09; // rim rounding
+  // Profile (radius, axial position) from the centre of one end, over the rim, along the barrel to the other end.
+  const prof: [number, number][] = [];
+  const rings = lod === 0 ? 3 : 1;
+  for (let i = 0; i <= rings; i++) {
+    const t = i / rings;
+    prof.push([t * (r - e), -hw - 0.02 * (1 - t * t)]);
+  }
+  const arc = lod === 0 ? 2 : 1;
+  for (let i = 1; i <= arc; i++) {
+    const a = (i / (arc + 1)) * (Math.PI / 2);
+    prof.push([r - e + Math.sin(a) * e, -hw + e - Math.cos(a) * e]);
+  }
+  const mid = prof.length;
+  for (let i = mid - 1; i >= 0; i--) prof.push([prof[i][0], -prof[i][1]]);
+  prof.splice(mid, 0, [r, -hw + e], [r, hw - e]);
+  const segs = lod === 0 ? 16 : 10;
+  const g = new LatheGeometry(
+    prof.map(([x, y]) => new Vector2(Math.max(x, 1e-4), y)),
+    segs,
+  );
+  // Straw at its real size: u around the bale (metres / 2 m scan), v along the profile.
+  const uv = g.getAttribute('uv');
+  let len = 0;
+  const along = prof.map((pt, i) => {
+    if (i) len += Math.hypot(pt[0] - prof[i - 1][0], pt[1] - prof[i - 1][1]);
+    return len;
+  });
+  for (let i = 0; i < uv.count; i++) {
+    const ring = Math.floor(i / prof.length);
+    const k = i % prof.length;
+    uv.setXY(
+      i,
+      ((ring / segs) * Math.PI * 2 * r) / GROUND_SCAN.stubble,
+      along[k] / GROUND_SCAN.stubble,
+    );
+  }
   g.rotateZ(Math.PI / 2);
   g.translate(0, r, 0);
-  const p = paint(g, '#c4a050', rng, 0.08);
-  cylindricalUV(p, 2, 4);
-  // Lighter spiral ends, darker underside.
-  shade(
-    p,
-    (x, y) =>
-      (Math.abs(x) > 0.59 ? 1.12 : 1) * (0.7 + 0.3 * Math.min(1, y / r)),
-  );
-  return { parts: [{ geometry: merge([p]), material: getMaterial('props') }] };
+  const p = paint(g, '#d9b65e', rng, 0.05);
+  // Rolled layers on the ends (rings of light and dark straw), darker underside.
+  shade(p, (x, y, z) => {
+    const end = Math.abs(x) > hw - 0.01;
+    const rr = Math.hypot(y - r, z) / r;
+    const layers = end
+      ? 0.9 + 0.1 * Math.cos(Math.PI * Math.round((rr * rings * r) / (r - e)))
+      : 1;
+    return layers * (0.72 + 0.28 * Math.min(1, y / r));
+  });
+  return { parts: [{ geometry: p, material: getMaterial('hay') }] };
 };
 
 /**
@@ -98,11 +145,12 @@ export const tapePost: AssetBuilder = ({ lod }) => {
   colourTriangles(tape, (x) =>
     Math.floor((x + 2.6) / (5.2 / n)) % 2 ? TAPE_WHITE : TAPE_RED,
   );
-  // Sags a little between the posts.
+  // Hangs in a shallow curve from post to post: lowest (8 cm) half way to the next post, where this stub meets the
+  // next post's stub level and flat, so the line runs on without a kink.
   const tp = tape.getAttribute('position');
   for (let i = 0; i < tp.count; i++) {
     const u = Math.abs(tp.getX(i)) / 2.6;
-    tp.setY(i, tp.getY(i) + 0.92 - 0.06 * Math.sin(u * Math.PI));
+    tp.setY(i, tp.getY(i) + 0.92 - 0.08 * u * (2 - u));
   }
   return {
     parts: [
@@ -259,20 +307,141 @@ export const roadBarrier: AssetBuilder = ({ lod }) => {
   };
 };
 
+/**
+ * Road-edge delineator: a white post 1.05 m tall with a rounded-triangle section (apex towards the road, local -X),
+ * a top cut sloping down to the road, a black band under it and a reflector set into the band on each sloping face.
+ * Placed along the road (scatter.ts `alongRoad`), so the faces look up and down the road.
+ */
+const POST_PROFILE: [number, number][] = (() => {
+  // Corners of the triangle (x across the road, z along it) and their rounding radius.
+  const corners: [number, number][] = [
+    [-0.07, 0],
+    [0.05, 0.055],
+    [0.05, -0.055],
+  ];
+  const r = 0.014;
+  const out: [number, number][] = [];
+  corners.forEach(([cx, cz], i) => {
+    const [px, pz] = corners[(i + 2) % 3];
+    const [nx, nz] = corners[(i + 1) % 3];
+    // Pull the corner in along both edges and round it with three points.
+    const a = Math.atan2(pz - cz, px - cx);
+    const b = Math.atan2(nz - cz, nx - cx);
+    const pa: [number, number] = [
+      cx + Math.cos(a) * r * 1.6,
+      cz + Math.sin(a) * r * 1.6,
+    ];
+    const pb: [number, number] = [
+      cx + Math.cos(b) * r * 1.6,
+      cz + Math.sin(b) * r * 1.6,
+    ];
+    const mid: [number, number] = [
+      ((pa[0] + pb[0]) / 2) * 0.6 + cx * 0.4,
+      ((pa[1] + pb[1]) / 2) * 0.6 + cz * 0.4,
+    ];
+    out.push(pa, mid, pb);
+  });
+  return out;
+})();
+
 export const markerPost: AssetBuilder = () => {
-  const parts = [
-    box(0.1, 1.05, 0.1, 0, 0.52, 0, '#f4f4f0'),
-    box(0.105, 0.2, 0.105, 0, 0.82, 0, '#151515'),
+  const top = (x: number) => 1.0 + (x + 0.07) * 0.42; // 1.0 m at the road side, 1.05 m at the back
+  // Heights of the ring bands: white shaft, black band (20 cm under the top), white cap strip.
+  const bands: [(x: number) => number, (x: number) => number, string][] = [
+    [() => 0, (x) => top(x) - 0.25, '#f4f4f0'],
+    [(x) => top(x) - 0.25, (x) => top(x) - 0.04, '#151515'],
+    [(x) => top(x) - 0.04, top, '#f4f4f0'],
   ];
-  // Reflectors: their own material, so they light up in the car's low beam at night.
-  const reflectors = [
-    box(0.06, 0.1, 0.02, 0, 0.82, 0.055, '#ff8a00'),
-    box(0.06, 0.1, 0.02, 0, 0.82, -0.055, '#ff2a00'),
-  ];
+  const n = POST_PROFILE.length;
+  const pos: number[] = [];
+  const nor: number[] = [];
+  const col: number[] = [];
+  const normalAt = (i: number): [number, number] => {
+    // Smooth normal: average of the two edge normals at a profile point (profile runs clockwise seen from above).
+    const [x0, z0] = POST_PROFILE[(i + n - 1) % n];
+    const [x1, z1] = POST_PROFILE[i];
+    const [x2, z2] = POST_PROFILE[(i + 1) % n];
+    const e1 = [z1 - z0, -(x1 - x0)];
+    const e2 = [z2 - z1, -(x2 - x1)];
+    const l1 = Math.hypot(e1[0], e1[1]) || 1;
+    const l2 = Math.hypot(e2[0], e2[1]) || 1;
+    const nx = e1[0] / l1 + e2[0] / l2;
+    const nz = e1[1] / l1 + e2[1] / l2;
+    const l = Math.hypot(nx, nz) || 1;
+    return [nx / l, nz / l];
+  };
+  // Outward sign: the centroid must sit on the inner side of the first edge.
+  const [ax, az] = POST_PROFILE[0];
+  const [bx, bz] = POST_PROFILE[1];
+  const flip = (bz - az) * (0 - ax) - (bx - ax) * (0 - az) > 0 ? -1 : 1;
+  for (const [lo, hi, hex] of bands) {
+    const c = new Color(hex);
+    for (let i = 0; i < n; i++) {
+      const j = (i + 1) % n;
+      const [x0, z0] = POST_PROFILE[i];
+      const [x1, z1] = POST_PROFILE[j];
+      const n0 = normalAt(i).map((v) => v * flip);
+      const n1 = normalAt(j).map((v) => v * flip);
+      const v = [
+        [x0, lo(x0), z0, n0],
+        [x1, lo(x1), z1, n1],
+        [x1, hi(x1), z1, n1],
+        [x0, hi(x0), z0, n0],
+      ] as [number, number, number, number[]][];
+      const quad = flip > 0 ? [0, 2, 1, 0, 3, 2] : [0, 1, 2, 0, 2, 3];
+      for (const k of quad) {
+        const [x, y, z, nn] = v[k];
+        pos.push(x, y, z);
+        nor.push(nn[0], 0, nn[1]);
+        col.push(c.r, c.g, c.b);
+      }
+    }
+  }
+  // Sloping top cap (fan), facing up.
+  const capC = new Color('#e8e8e4');
+  for (let i = 1; i < n - 1; i++) {
+    const tri = flip > 0 ? [0, i + 1, i] : [0, i, i + 1];
+    for (const k of tri) {
+      const [x, z] = POST_PROFILE[k];
+      pos.push(x, top(x), z);
+      nor.push(-0.39, 0.92, 0);
+      col.push(capC.r, capC.g, capC.b);
+    }
+  }
+  const post = new BufferGeometry();
+  post.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  post.setAttribute('normal', new BufferAttribute(new Float32Array(nor), 3));
+  post.setAttribute('color', new BufferAttribute(new Float32Array(col), 3));
+  post.setAttribute(
+    'uv',
+    new BufferAttribute(new Float32Array((pos.length / 3) * 2), 2),
+  );
+  planarUV(post, 1.3);
+  // Reflectors: set into the black band on the two sloping faces (their own material, so they light up in the car's
+  // low beam at night). Amber faces +Z, red faces -Z.
+  const reflector = (side: 1 | -1, hex: string) => {
+    const [x0, z0] = [-0.07, 0];
+    const [x1, z1] = [0.05, 0.055 * side];
+    const g = new BoxGeometry(0.045, 0.1, 0.006);
+    // Face normal of the sloping face, pointing out (away from the post's centre).
+    const fx = -(z1 - z0) * side;
+    const fz = (x1 - x0) * side;
+    const fl = Math.hypot(fx, fz);
+    g.rotateY(Math.atan2(fx, fz));
+    g.translate(
+      (x0 + x1) / 2 + (fx / fl) * 0.001,
+      top(0) - 0.145,
+      (z0 + z1) / 2 + (fz / fl) * 0.001,
+    );
+    return planarUV(paint(g, hex), 1.3);
+  };
   return {
     parts: [
-      { geometry: merge(parts), material: getMaterial('props') },
-      { geometry: merge(reflectors), material: getMaterial('reflector') },
+      { geometry: post, material: getMaterial('props') },
+      {
+        geometry: merge([reflector(1, '#ff8a00'), reflector(-1, '#ff2a00')]),
+        material: getMaterial('reflector'),
+      },
     ],
   };
 };

@@ -12,6 +12,7 @@ import { grassSheet } from './grass';
 import { addNightGlow } from './night-glow';
 import { houseMaterial } from './house-walls';
 import { groundLitCard } from './world-shading';
+import { GROUND_MEAN, groundScan } from './ground-textures';
 
 /**
  * Shared material library. Assets reference materials by id so thousands of
@@ -23,6 +24,7 @@ export type MaterialId =
   | 'foliage_card_spring'
   | 'grass_blade'
   | 'rock'
+  | 'hay'
   | 'props'
   | 'house'
   | 'people'
@@ -171,13 +173,27 @@ export function getMaterial(id: MaterialId): Material {
       });
       break;
     case 'rock':
+      // The terrain's rock scan (engine/ground/rock.webp), so a boulder matches the rock on the ground beside it;
+      // vertex colour only varies it (and adds the moss).
       m = new MeshStandardMaterial({
         vertexColors: true,
-        map: getTexture('rock'),
-        bumpMap: getTexture('rock'),
+        map: groundScan('rock'),
+        bumpMap: groundScan('rock'),
         bumpScale: 2,
         roughness: 0.88,
       });
+      break;
+    case 'hay':
+      // Straw: the stubble scan (desaturated, mean brightness GROUND_MEAN.stubble) lifted to 1 on average, so the
+      // vertex colour sets the straw colour and the scan gives the fibres.
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: groundScan('stubble'),
+        bumpMap: groundScan('stubble'),
+        bumpScale: 1.5,
+        roughness: 0.95,
+      });
+      (m as MeshStandardMaterial).color.setScalar(0.5 / GROUND_MEAN.stubble);
       break;
     case 'props':
       m = new MeshStandardMaterial({
