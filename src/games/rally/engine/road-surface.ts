@@ -17,13 +17,14 @@ import { loadQuality } from './quality';
 import { getTexture } from './textures';
 
 /**
- * Baked asphalt for the paved roads: a colour map plus a normal map with the roughness packed in its alpha, per road
- * type and per size (`./asphalt/<id>.<size>.{color,normal,rough}.webp`, drawn by `scripts/asphalt/bake.mjs`).
- * High loads the 1024 px set, Medium and Low their own 512 px set. The road material (`world/road-mesh.ts`
- * `getRoadMaterial`) takes the maps from here; until a set has loaded it is a plain dark surface, and a set that
- * fails to load falls back to the procedural tile of the same id (`engine/textures.ts`).
+ * Baked road surfaces: a colour map plus a normal map with the roughness packed in its alpha, per road type and per
+ * size (`./asphalt/<id>.<size>.{color,normal,rough}.webp`; asphalt drawn by `scripts/asphalt/bake.mjs`, the gravel
+ * `road` by `scripts/gravel/bake.py`). High loads the 1024 px set, Medium and Low their own 512 px set. The road
+ * material (`world/road-mesh.ts` `getRoadMaterial`) takes the maps from here; until a set has loaded it is a plain dark
+ * surface, and a set that fails to load falls back to the procedural tile of the same id (`engine/textures.ts`).
  */
 export type RoadSurfaceId =
+  | 'road'
   | 'road_tarmac'
   | 'road_tarmac_kerbed'
   | 'road_tarmac_junction'
@@ -37,8 +38,9 @@ export type RoadSurfaceId =
   | 'road_parkway'
   | 'junction_asphalt';
 
-/** Metres per tile along the road: the baked tiles' `len` (scripts/asphalt/gen.js presets) and `texLength` (world/road-mesh.ts). */
+/** Metres per tile along the road: the baked tiles' `len` (scripts/asphalt/gen.js presets, scripts/gravel/bake.py `LEN`) and `texLength` (world/road-mesh.ts). */
 export const ROAD_SURFACE_LEN: Record<RoadSurfaceId, number> = {
+  road: 6,
   road_tarmac: 7,
   road_tarmac_kerbed: 7,
   road_tarmac_junction: 7,
@@ -180,7 +182,7 @@ export function roadSurfaceIds(map: MapDef): RoadSurfaceId[] {
       if (j) ids.add(j);
     }
   };
-  add(map.road.texture);
+  add(map.road.texture ?? 'road');
   for (const s of map.road.sections ?? []) add(s.texture);
   add(map.cityStreets?.asphalt);
   if (map.cityStreets)

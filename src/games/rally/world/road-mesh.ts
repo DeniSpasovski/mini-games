@@ -56,11 +56,13 @@ import { newPathQuery } from './real-data';
 const ACROSS = [-1.04, -0.66, -0.33, 0, 0.33, 0.66, 1.04];
 /** Metres of road per texture repeat (the parkway tile holds one 3 m dash + 9 m gap of the lane line). */
 export const texLength = (t: RoadTexture): number =>
-  t === 'road_parkway' || t === 'road_street4'
-    ? 12
-    : t === 'road_street' || t === 'road_city'
-      ? 8
-      : 7;
+  t === 'road'
+    ? 6
+    : t === 'road_parkway' || t === 'road_street4'
+      ? 12
+      : t === 'road_street' || t === 'road_city'
+        ? 8
+        : 7;
 /** City streets (OSM kinds) that get city asphalt on maps with `cityStreets`. */
 const CITY_KINDS = new Set([
   'primary',
