@@ -112,6 +112,10 @@ CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/ground/bake.py`: 
 
 CC0 scan from Poly Haven, simplified by `scripts/rocks/bake-rocks.mjs`: Rock Moss Set 01 (Kless Gyzen). No credit is required.
 
+### Tree bark (baked into `src/games/rally/trees/bark/`)
+
+CC0 scans from Poly Haven, made grey by `scripts/trees/bake-bark.py`: Jolcham Oak Bark 01 (Charlotte Baglioni), Pine Bark (Dimitrios Savva), Chinese Hackberry Bark (Charlotte Baglioni) for beech and hornbeam, Bark Platanus (Dimitrios Savva). No credit is required.
+
 ### Building textures (baked into `src/games/rally/engine/facades/`)
 
 CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/facades/bake.py`: Painted Plaster Wall (Amal Kumar), Brick Wall 006 (Jan Burghardt), Red Brick (Rob Tuytel), Plaster Stone Wall 02 (Charlotte Baglioni), Concrete Wall 007 (Dario Barresi, Rico Cilliers, Charlotte Baglioni), Corrugated Iron 03 (Charlotte Baglioni), Concrete Slab Wall (Dimitrios Savva), Sandstone Blocks 05 (Rob Tuytel), White Planks Clean (Rob Tuytel), Clay Roof Tiles 03 (Amal Kumar). No credit is required.

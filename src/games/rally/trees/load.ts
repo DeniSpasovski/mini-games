@@ -15,6 +15,7 @@ import {
   type ImpostorPixels,
 } from './impostor';
 import {
+  barkKind,
   barkMaterial,
   barkTexture,
   impostorMaterial,
@@ -393,13 +394,13 @@ export class TreeLibrary {
       bakeImpostor(
         renderer,
         [
-          { geometry: levels[0], map: barkTexture(def.bark.texture) },
+          { geometry: levels[0], map: barkTexture(barkKind(def)) },
           { geometry: sprites, map: tex.albedo, normalMap: tex.normal },
         ],
         info.sphere,
       );
     // Materials are shared per bark / foliage kind; created here so they exist before the first frame.
-    barkMaterial(def.bark.texture);
+    barkMaterial(barkKind(def));
     spriteMaterial(def.foliage.leaf);
     return {
       loaded: {

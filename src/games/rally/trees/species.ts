@@ -101,7 +101,10 @@ export const ROAD_REACH: Reach = {
 };
 export const ROAD_REACH_FLAG = 0.25;
 
+/** Bark detail tile: 'furrowed' is a scanned oak bark, 'smooth' a procedural one (birch, shrubs). */
 export type BarkTexture = 'furrowed' | 'smooth';
+/** A species' own scanned bark tile (trees/bark/, scripts/trees/bake-bark.py) in place of its `texture`. */
+export type BarkScan = 'pine' | 'beech' | 'plane';
 export type FoliageKind = 'needles' | 'broadleaf';
 
 export interface SpeciesDef {
@@ -124,6 +127,8 @@ export interface SpeciesDef {
   bark: {
     color: string;
     texture: BarkTexture;
+    /** Own scanned tile; not part of the variant seed (trees/variants.ts), so it does not regrow the trees. */
+    scan?: BarkScan;
     /** repeats per metre of branch */ tiling: number;
   };
   foliage: {
@@ -333,7 +338,7 @@ export const PINE: SpeciesDef = {
   radiusDecay: 0.8,
   tropism: [0, -1, 0],
   tropismStrength: 0.08,
-  bark: { color: '#5e4a3a', texture: 'furrowed', tiling: 1.2 },
+  bark: { color: '#5e4a3a', texture: 'furrowed', scan: 'pine', tiling: 1.2 },
   foliage: {
     kind: 'needles',
     spriteSize: 1.3,
@@ -411,7 +416,7 @@ export const BLACK_PINE: SpeciesDef = {
   radiusDecay: 0.8,
   tropism: [0, -1, 0],
   tropismStrength: 0.1,
-  bark: { color: '#4a4039', texture: 'furrowed', tiling: 1.2 },
+  bark: { color: '#4a4039', texture: 'furrowed', scan: 'pine', tiling: 1.2 },
   foliage: {
     kind: 'needles',
     spriteSize: 1.5,
@@ -504,7 +509,7 @@ export const BEECH = broadleaf({
   iterations: 10,
   baseRadius: 0.3,
   tropismStrength: 0.05,
-  bark: { color: '#9c9c94', texture: 'smooth', tiling: 0.8 },
+  bark: { color: '#9c9c94', texture: 'smooth', scan: 'beech', tiling: 0.8 },
   foliage: {
     kind: 'broadleaf',
     spriteSize: 1.8,
@@ -529,7 +534,7 @@ export const HORNBEAM = broadleaf({
   iterations: 10,
   baseRadius: 0.15,
   tropismStrength: 0.03,
-  bark: { color: '#8c8a80', texture: 'smooth', tiling: 1 },
+  bark: { color: '#8c8a80', texture: 'smooth', scan: 'beech', tiling: 1 },
   foliage: {
     kind: 'broadleaf',
     spriteSize: 1.65,
@@ -599,7 +604,7 @@ export const PLANE = broadleaf({
   iterations: 10,
   baseRadius: 0.3,
   tropismStrength: 0.04,
-  bark: { color: '#bdb8ac', texture: 'smooth', tiling: 0.6 },
+  bark: { color: '#bdb8ac', texture: 'smooth', scan: 'plane', tiling: 0.6 },
   foliage: {
     kind: 'broadleaf',
     spriteSize: 1.6,
