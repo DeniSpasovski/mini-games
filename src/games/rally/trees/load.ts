@@ -6,11 +6,12 @@ import {
   type WebGLRenderer,
 } from 'three';
 import { DEFAULT_SEASON, type Season } from '../season';
-import { getCached, pruneCached, putCached } from './cache';
+import { getCached, pruneCached, putCached, type CachedVariant } from './cache';
 import {
   bakeImpostor,
   impostorArray,
   impostorBounds,
+  impostorChains,
   type ImpostorPixels,
 } from './impostor';
 import {
@@ -20,12 +21,14 @@ import {
   primeSpriteTextures,
   spriteMaterial,
   spriteTextures,
+  type MipLevel,
 } from './materials';
 import type { Crown, MeshData, SpriteData, VariantMeshes } from './mesh';
 import { allSeasons, seasonal, seasonOf } from './seasons';
 import { isTreeType, speciesOfType, type SpeciesDef } from './species';
 import { headingAt, packSprite } from './sprite-attr';
 import {
+  atlasCacheKey,
   cacheKey,
   generateVariant,
   registerVariant,
@@ -34,9 +37,15 @@ import {
   type GeneratedVariant,
   type TreeVariantInfo,
 } from './variants';
-import type { AtlasRequest, AtlasResult, GenerateRequest } from './worker';
+import type {
+  AtlasRequest,
+  AtlasResult,
+  CachedRequest,
+  CachedResult,
+  GenerateRequest,
+} from './worker';
 import { WorkerPool } from '../../../shared/worker-pool';
-import type { LeafStyle } from './leaftex';
+import { LEAF_STYLES, type LeafStyle } from './leaftex';
 import { meshBuffers } from './mesh';
 import { crownProxy, quadSprites } from './proxy';
 import type { TreeLoadStats } from './stats';
@@ -65,6 +74,31 @@ export interface LoadedVariant {
   proxy: BufferGeometry | null;
   /** Slot of its impostor in the library's shared texture array (`TreeLibrary.impostors`). */
   slot: number;
+  /** The crown's mean albedo as drawn (linear, from its impostor's views): world/far-forest.ts paints the canopy with it. */
+  canopyColor: [number, number, number];
+}
+
+/** Coverage-weighted mean of an impostor's albedo over all its views, sRGB decoded (linear). */
+function meanAlbedo(px: ImpostorPixels): [number, number, number] {
+  const lin = (v: number) => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const a = px.albedo;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let w = 0;
+  // Every 3rd texel: plenty for a mean.
+  for (let i = 0; i < a.length; i += 12) {
+    const cover = a[i + 3] / 255;
+    if (cover < 0.5) continue;
+    r += lin(a[i]) * cover;
+    g += lin(a[i + 1]) * cover;
+    b += lin(a[i + 2]) * cover;
+    w += cover;
+  }
+  return w > 0 ? [r / w, g / w, b / w] : [0.05, 0.08, 0.03];
 }
 
 function geometry(m: MeshData): BufferGeometry {
@@ -121,7 +155,7 @@ function spriteGeometry(s: SpriteData): BufferGeometry {
  * are generated inline, so the stage load never hangs (shared/worker-pool.ts). The leaf atlases of the styles in use
  * are made in the workers too.
  */
-type TreeAnswer = (Timed & { id: number }) | AtlasResult;
+type TreeAnswer = (Timed & { id: number }) | AtlasResult | CachedResult;
 
 class Generator {
   private pool = new WorkerPool<TreeAnswer>(
@@ -152,6 +186,24 @@ class Generator {
         r ? resolve(r as Timed) : inline(),
       );
       if (!sent) inline();
+    });
+  }
+
+  /** A variant from the disk cache, read in a worker with its impostor's mip chains (inline: the read alone). */
+  cached(
+    key: string,
+  ): Promise<
+    { variant: CachedVariant; chains: MipLevel[][] | undefined } | undefined
+  > {
+    const inline = () =>
+      getCached(key).then((v) => v && { variant: v, chains: undefined });
+    return new Promise((resolve) => {
+      const req: Omit<CachedRequest, 'id'> = { key };
+      const sent = this.pool.post(req, [], (r) => {
+        if (r && 'hit' in r) resolve(r.hit ?? undefined);
+        else void inline().then(resolve);
+      });
+      if (!sent) void inline().then(resolve);
     });
   }
 
@@ -224,20 +276,27 @@ export class TreeLibrary {
       variantsOf(def).map((i) => ({ def, i })),
     );
     let done = 0;
-    // Cache lookups / worker generation run in parallel; baking (GPU) one after another as results arrive.
+    // Cache reads (with their impostors' mip chains) / generation run in the workers, in parallel; baking (GPU)
+    // one after another once all are in.
     const results = await Promise.all(
       jobs.map(async ({ def, i }) => {
         const key = cacheKey(def, variantSeed(def, i));
-        const cached = await getCached(key);
-        if (cached) {
+        const hit = await gen.cached(key);
+        if (hit) {
           st.cached++;
-          return { def, i, key, g: cached, impostor: cached.impostor };
+          const impostor = hit.variant.impostor;
+          return { def, i, key, g: hit.variant, impostor, chains: hit.chains };
         }
         const g = await gen.generate(def, i);
         st.generateMs += g.ms;
-        return { def, i, key, g, impostor: undefined };
+        return { def, i, key, g, impostor: undefined, chains: undefined };
       }),
     );
+    // Chains the workers did not make (no workers): here, while they finish the leaf atlases.
+    const chains = new Map<ImpostorPixels, MipLevel[][]>();
+    for (const r of results)
+      if (r.impostor)
+        chains.set(r.impostor, r.chains ?? impostorChains(r.impostor));
     await atlases;
     const allPixels: ImpostorPixels[] = [];
     const spheres: { cy: number; r: number }[] = [];
@@ -274,7 +333,7 @@ export class TreeLibrary {
       report(++done / jobs.length);
     }
     if (allPixels.length) {
-      const atlas = impostorArray(renderer, allPixels);
+      const atlas = impostorArray(renderer, allPixels, chains);
       lib.impostors = {
         atlas,
         material: impostorMaterial(atlas, spheres, bounds),
@@ -302,6 +361,8 @@ export class TreeLibrary {
           ),
         ),
       );
+    // Leaf atlases of an older generator version.
+    void pruneCached('atlas', new Set(LEAF_STYLES.map(atlasCacheKey)));
     return lib;
   }
 
@@ -343,6 +404,7 @@ export class TreeLibrary {
         quadEnds: quads.ends,
         proxy: crownProxy(meshes.sprites),
         slot: -1,
+        canopyColor: meanAlbedo(pixels),
       },
       pixels,
     };

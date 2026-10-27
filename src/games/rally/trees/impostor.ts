@@ -18,6 +18,7 @@ import {
 import {
   ALPHA_TEST,
   coverageChains,
+  type MipLevel,
   hemiOctDecode,
   IMPOSTOR_FRAMES,
   IMPOSTOR_LAYERS,
@@ -267,9 +268,20 @@ export function impostorBounds(
   return [c(x0 - 1), c(y0 - 1), c(x1 + 2), c(y1 + 2)];
 }
 
+/** The mip chains of one impostor's layers (albedo, normal, thickness; `impostorArray`). */
+export function impostorChains(px: ImpostorPixels): MipLevel[][] {
+  const r = coverageChains(px.albedo, px.size, px.size, true, [
+    px.normal,
+    px.thickness,
+  ]);
+  return [r.main, r.companions[0], r.companions[1]];
+}
+
+/** `ready`: chains made ahead (`impostorChains`) by impostor; the rest are made here. */
 export function impostorArray(
   renderer: WebGLRenderer,
   pixels: ImpostorPixels[],
+  ready?: Map<ImpostorPixels, MipLevel[][]>,
 ): DataArrayTexture {
   const size = pixels[0].size;
   const layer = size * size * 4;
@@ -279,11 +291,7 @@ export function impostorArray(
     data.set(px.albedo, layer * (L * i));
     data.set(px.normal, layer * (L * i + 1));
     data.set(px.thickness, layer * (L * i + 2));
-    const r = coverageChains(px.albedo, size, size, true, [
-      px.normal,
-      px.thickness,
-    ]);
-    return [r.main, r.companions[0], r.companions[1]];
+    return ready?.get(px) ?? impostorChains(px);
   });
   const t = new DataArrayTexture(data, size, size, pixels.length * L);
   t.magFilter = LinearFilter;

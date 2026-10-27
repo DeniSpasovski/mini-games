@@ -84,7 +84,7 @@ into `DETAILS.md`, never up.
   `assemble-kit.py` (model kit on a sprue -> one body STL), `segment-stl.py` (labels body parts: seeds, regions, boxes, tubes),
   `stl-to-glb.mjs` (STL -> game GLB with livery-atlas UVs), `stl-wheel-extract.py` + `wheel-stl-to-glb.mjs` (a print model's own
   rim; `stl-flatten-cap.py` flattens an emblem on its centre cap; `--two-sided` / `--bridge` close a one-sided rim barrel), `chart-probe.py` (atlas chart per triangle, livery debugging), `bake-lamp-sheet.py` (a GLB's own lamp textures -> lamp
-  sheet), `glb-meshopt.mjs` (the build's GLB compression), `side-profile.mjs` (boxy profile from a GLB: fallback body + street cars);
+  sheet), `glb-meshopt.mjs` (the build's GLB compression), `side-profile.mjs` (boxy profile from a GLB: fallback body + street cars), `door-plate.py` (rally door-plate position from a GLB: window line + mirror);
   the GLB import steps (`glb-to-parts-stl.py`, `glb-orient.py`, `glb-src-parts.py` ...) are in the `rally-car-import` skill; the street-car
   and truck bakes (`street-pack-extract.py`, `bake-street-textures.py`, `bake-street-cars.mjs`, `bake-fire-trucks.mjs`, `bake-trucks.mjs`) are in rally `DETAILS.md`
 - `scripts/asphalt/`: `bake.mjs` + `gen.js` (the baked road asphalt tiles, `src/games/rally/engine/asphalt/`; `DETAILS.md` -> Road textures)
@@ -92,6 +92,8 @@ into `DETAILS.md`, never up.
   `og-image.mjs`: retakes the portal's 1200x630 link preview `public/og-image.jpg` (dev server running)
 - `scripts/ground/bake.py`: the rally terrain tiles (`engine/ground/*.webp`) from Poly Haven scans (ids and tuning in the script)
 - `scripts/facades/bake.py`: the wall and roof tiles of the rally buildings (`engine/facades/*.webp`) from Poly Haven scans (ids and tuning in the script)
+- `scripts/kaboom/bake-hdri.py`: the small environment-light HDRIs of the Kaboom levels (`src/games/kaboom/assets/hdri/<level>.hdr`) from Poly Haven 1k HDRIs (ids in the script);
+  `bake-textures.py`: their detail tiles (`assets/textures/<level>.webp`) from Poly Haven 1k scans (ids in the script)
 - `scripts/people/`: `extract-base.py` (a base body GLB -> json with the face uv), `skin-map.py` (paints the face onto the skin map), `bake-base.mjs`
   (simplifies, packs both bodies into `engine/people-base.data.ts`; run order in its header)
 - `scripts/crops/bake-crops.py` - the CC BY wheat / corn models (`sources/maps/ajvatovci/`) -> rally `crop-models.data.ts`

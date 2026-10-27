@@ -7,6 +7,7 @@ import {
   moveFocus,
   type NavAction,
 } from '../../../shared/pad-nav';
+import { aboutHtml, POLY_HAVEN_HTML } from '../../../shared/about';
 import { goToPortal, portalUrl } from '../../../shared/portal-link';
 import manifest from '../game.json';
 import { MAP_SIZES, MAP_SIZE_IDS } from '../map/sizes';
@@ -94,8 +95,6 @@ export interface MenuApi {
   onTick(): void;
   /** The live 3D critter for the setup's picker; null (or missing) = show the portrait instead (no WebGL, tests). */
   makeStage?(): CritterStage | null;
-  /** Low graphics tier: the card edges hold still instead of boiling. */
-  lowQuality?: boolean;
 }
 
 /** A live critter on a little turntable (`render/critter-preview.ts`). */
@@ -107,13 +106,6 @@ export interface CritterStage {
 
 const hexOf = (i: number): string =>
   `#${(TEAM_COLORS[(i | 0) % TEAM_COLORS.length] ?? TEAM_COLORS[0]).toString(16).padStart(6, '0')}`;
-
-/** The boil filter (`.kb-card::before`): turbulence displacing the clay edge, its seed stepped like stop-motion frames. */
-/** Letter colours of the logo (`--kb-clay-N`). */
-const LOGO_CLAY = [2, 1, 3, 4, 2, 5, 1];
-
-const BOIL_FRAME_MS = 125;
-const BOIL_SEEDS = 4;
 
 /** A segmented button's chosen state, for the look (`.on`) and for assistive tech. */
 const setOn = (b: HTMLElement, on: boolean): void => {
@@ -150,52 +142,13 @@ export class Menu {
       el('div', '', 'Packing the TNT...'),
     );
     this.loadingEl.style.display = 'none';
-    root.append(this.boilFilter(), this.layer, this.loadingEl);
+    root.append(this.layer, this.loadingEl);
   }
 
   hide(): void {
     this.dropStage();
     this.layer.replaceChildren();
     this.layer.style.display = 'none';
-    this.boil(false);
-  }
-
-  private boilNoise: Element | null = null;
-  private boilTimer = 0;
-
-  /** A 0x0 SVG holding the filter the clay cards use; it never touches text or buttons. */
-  private boilFilter(): SVGSVGElement {
-    const ns = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(ns, 'svg');
-    svg.setAttribute('width', '0');
-    svg.setAttribute('height', '0');
-    svg.setAttribute('aria-hidden', 'true');
-    svg.style.position = 'absolute';
-    svg.innerHTML =
-      '<filter id="kb-boil" x="-12%" y="-12%" width="124%" height="140%">' +
-      '<feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="1"/>' +
-      '<feDisplacementMap in="SourceGraphic" scale="1.5"/></filter>';
-    this.boilNoise = svg.querySelector('feTurbulence');
-    return svg;
-  }
-
-  /** Step the seed while a card is up; still under reduced motion and on the low graphics tier. */
-  private boil(on: boolean): void {
-    const still =
-      this.api.lowQuality ||
-      (typeof matchMedia === 'function' &&
-        matchMedia('(prefers-reduced-motion: reduce)').matches);
-    if (!on || still) {
-      clearInterval(this.boilTimer);
-      this.boilTimer = 0;
-      return;
-    }
-    if (this.boilTimer) return;
-    let seed = 1;
-    this.boilTimer = window.setInterval(() => {
-      seed = (seed % BOIL_SEEDS) + 1;
-      this.boilNoise?.setAttribute('seed', String(seed));
-    }, BOIL_FRAME_MS);
   }
 
   loading(on: boolean): void {
@@ -222,7 +175,6 @@ export class Menu {
       'sheet',
       !!card?.classList.contains('kb-sheet'),
     );
-    this.boil(true);
     return card;
   }
 
@@ -259,6 +211,13 @@ export class Menu {
     return a;
   }
 
+  /** The secondary buttons of the welcome card: stacked, or side by side on a short landscape screen. */
+  private minor(...kids: HTMLElement[]): HTMLElement {
+    const m = el('div', 'kb-minor');
+    m.append(...kids);
+    return m;
+  }
+
   private allGames(card: HTMLElement): void {
     if (portalUrl())
       card.append(this.btn('All games', 'ghost', () => goToPortal()));
@@ -274,11 +233,7 @@ export class Menu {
       balls.append(b);
     });
     const word = el('div', 'kb-word', '', { 'aria-hidden': 'true' });
-    [...'Kabooom'].forEach((ch, i) => {
-      const l = el('span', '', ch);
-      l.style.setProperty('--c', `var(--kb-clay-${LOGO_CLAY[i]})`);
-      word.append(l);
-    });
+    for (const ch of 'Kabooom') word.append(el('span', '', ch));
     h.append(balls, word);
     return h;
   }
@@ -292,8 +247,11 @@ export class Menu {
       this.logo(),
       el('p', 'kb-tag', 'Light the fuse. Blast the crates. Outwit the crew.'),
       this.btn('Play', 'primary big', () => this.setup()),
-      this.btn('How to play', '', () => this.howTo()),
-      this.btn('Options', '', () => this.options(() => this.welcome())),
+      this.minor(
+        this.btn('How to play', '', () => this.howTo()),
+        this.btn('Options', '', () => this.options(() => this.welcome())),
+        this.btn('About', '', () => this.about()),
+      ),
     );
     if (stats.matches > 0)
       card.append(
@@ -564,6 +522,31 @@ export class Menu {
     card.append(
       list,
       this.actions(this.btn('Got it', 'primary', () => this.welcome())),
+    );
+    this.show(card);
+    this.onBack = () => this.click(() => this.welcome())();
+  }
+
+  about(): void {
+    const card = el('div', 'kb-card kb-about');
+    card.append(el('h2', '', 'About'));
+    const body = el('div', 'kb-about-body');
+    body.innerHTML = aboutHtml({
+      version: VERSION,
+      description:
+        'A party game for you and up to seven bots. A crew of chubby animal demolition workers is dropped into an arena with a cheering crowd: light the fuse, watch the band count 3, 2, 1, blast the crates and be the last critter standing. A tilted 3D arena, three arena sizes, bots in three skill levels, and chain reactions that stay smooth.',
+      assets: `The critters, arenas, effects and sounds are made in code. Environment light and textures from ${POLY_HAVEN_HTML}, CC0.`,
+      builtWith: [
+        { label: 'three.js', note: 'rendering, MIT' },
+        {
+          label: 'Grandstander and Nunito',
+          note: 'UI fonts, SIL Open Font License 1.1',
+        },
+      ],
+    });
+    card.append(
+      body,
+      this.actions(this.btn('Back', 'primary', () => this.welcome())),
     );
     this.show(card);
     this.onBack = () => this.click(() => this.welcome())();

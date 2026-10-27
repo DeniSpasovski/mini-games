@@ -35,7 +35,7 @@ display face and one accent colour per map. All values live in [`game/ui-tokens.
 | ![go](styleguide/go.svg)                     | `--hg-go` / `-lip`                   | `#1b7f47` / `#105a31`         | Play, Resume, Play again; the level ring        |
 | ![blue](styleguide/blue.svg)                 | `--hg-blue` / `-lip`                 | `#2f68c8` / `#1f4a93`         | Hole colour, Options                            |
 | ![orange](styleguide/orange.svg)             | `--hg-orange` / `-lip`               | `#c2560f` / `#8a3c08`         | Top scores, Restart                             |
-| ![gray](styleguide/gray.svg)                 | `--hg-gray` / `-lip`                 | `#5a6676` / `#3d4754`         | Back, Options, How to play, arrows              |
+| ![gray](styleguide/gray.svg)                 | `--hg-gray` / `-lip`                 | `#5a6676` / `#3d4754`         | Back, Options, How to play, About, arrows       |
 | ![city](styleguide/city.svg)                 | `--hg-city` / `-lip` / `-on`         | `#1f6fc0` / `#14497f` / white | City Island: sea blue                           |
 | ![toy](styleguide/toy.svg)                   | `--hg-toy` / `-lip` / `-on`          | `#c2367a` / `#86224f` / white | Toy Emporium: toy pink                          |
 | ![animal](styleguide/animal.svg)             | `--hg-animal` / `-lip` / `-on`       | `#2a7f3e` / `#1b5628` / white | Animal Island: leaf green                       |

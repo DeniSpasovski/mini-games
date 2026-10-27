@@ -28,7 +28,7 @@ export interface QualitySettings {
    * than the other assets; the full-detail distance (trees/species.ts) never moves.
    */
   treeLodScale: number;
-  /** Trees are drawn up to this distance (m); past it the forest is painted on the ground (canopy texture). */
+  /** Trees are drawn up to this distance (m); past it the canopy shell (world/far-forest.ts). */
   forestDistance: number;
   /** Multiplies detail-layer (grass) density, 0 disables it. */
   detailDensity: number;
@@ -53,7 +53,7 @@ export const QUALITY: Record<QualityName, QualitySettings> = {
     viewDistance: 1100,
     lodScale: 0.7,
     treeLodScale: 0.35,
-    forestDistance: 450,
+    forestDistance: 400,
     detailDensity: 0.35,
     grassNear: 1,
     particles: 600,
@@ -70,7 +70,7 @@ export const QUALITY: Record<QualityName, QualitySettings> = {
     viewDistance: 1700,
     lodScale: 1,
     treeLodScale: 0.5,
-    forestDistance: 700,
+    forestDistance: 500,
     detailDensity: 0.7,
     grassNear: 2,
     particles: 1200,
@@ -87,7 +87,7 @@ export const QUALITY: Record<QualityName, QualitySettings> = {
     viewDistance: 2400,
     lodScale: 1.3,
     treeLodScale: 1.3,
-    forestDistance: 1100,
+    forestDistance: 600,
     detailDensity: 1,
     grassNear: 3,
     particles: 2000,

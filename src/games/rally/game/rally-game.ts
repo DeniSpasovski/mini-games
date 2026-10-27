@@ -61,6 +61,7 @@ import { buildRoadMeshSliced } from '../world/road-mesh';
 import { TerrainRenderer } from '../world/terrain-renderer';
 import { setTerrainDetail, setTerrainRelief } from '../world/terrain-material';
 import { CanopyShadows } from '../world/canopy-shadows';
+import { canopyTone, FarForest } from '../world/far-forest';
 import { FarShadow } from '../world/far-shadow';
 import { Horizon } from '../world/horizon';
 import {
@@ -224,6 +225,7 @@ export class RallyGame {
   private gravelAcc = [0, 0, 0, 0];
   /** Far tree shadows, filled in as the streamer generates scatter (world/canopy-shadows.ts). */
   private canopy!: CanopyShadows;
+  private farForest!: FarForest;
   private hazeAcc = 0;
   audio: CarAudio;
   telemetry!: Telemetry;
@@ -239,6 +241,7 @@ export class RallyGame {
   /** Scene parts the perf panel switches. */
   roadGroup?: Object3D;
   horizonGroup?: Object3D;
+  private horizon?: Horizon;
   /** Called on pause / finish so the page can show menus. */
   onPauseChange?: (paused: boolean) => void;
   onFinish?: (
@@ -363,6 +366,7 @@ export class RallyGame {
       horizon.setCutoff(q.viewDistance);
       this.scene.add(horizon.group);
       this.horizonGroup = horizon.group;
+      this.horizon = horizon;
     }
     // Terrain bump relief: medium / high only (derivative noise + cost on weak GPUs).
     setTerrainRelief(q.name === 'low' ? 0 : 1);
@@ -423,6 +427,19 @@ export class RallyGame {
       }
     });
     this.canopy = new CanopyShadows(this.world, this.env.sunDir);
+    // The canopy shell past the forest distance; with the trees (the tree benchmark hides both).
+    this.farForest = new FarForest(
+      this.world,
+      this.treeLibrary,
+      q.forestDistance,
+      q.viewDistance,
+    );
+    this.trees.group.add(this.farForest.mesh);
+    // The land beyond: its woods in the stage's crown colour, inside the map the canopy map's.
+    this.horizon?.setForest(
+      canopyTone(this.treeLibrary, this.world),
+      this.farForest.canopy,
+    );
     this.updateCanopy();
     setCanopyShadows(
       this.canopy.texture,
@@ -504,7 +521,7 @@ export class RallyGame {
         postFxFromUrl(
           this.env.lightNeed >= LIGHTS_MIN_NEED ? this.env.lightNeed : 0,
           BLOOM_MIX[this.opts.settings.bloom],
-          this.opts.settings.ao,
+          this.opts.settings.ambientOcclusion,
         ),
       );
     setLampGlow(this.env.lightNeed);
@@ -594,6 +611,9 @@ export class RallyGame {
     this.streamer.prewarm();
     this.trees.updateNow(this.camera, this.rig.steady);
     this.trees.prewarm(this.camera);
+    // Every chunk the trees' first job generated, into the canopy map now (not grown in during the countdown).
+    this.farForest.fillNow(this.camera.position);
+    this.canopy.update(performance.now(), undefined, Infinity);
     progress(0.96, 'Compiling shaders');
     await this.renderer.compileAsync(this.scene, this.camera);
     progress(0.98, 'First frame');
@@ -635,7 +655,8 @@ export class RallyGame {
       this.trees.setOptions({ lodScale: treeLodScale });
     // Bloom / AO (High only): only a change in the options, so a test link's `?bloom=` / `?ao=` keeps its pick.
     if (old.bloom !== s.bloom) this.post?.set({ day: BLOOM_MIX[s.bloom] });
-    if (old.ao !== s.ao) this.post?.set({ ao: s.ao });
+    if (old.ambientOcclusion !== s.ambientOcclusion)
+      this.post?.set({ ao: s.ambientOcclusion });
     this.model.setBadge({
       number: s.carNumber,
       rally: rallyName(this.world.stageDef.name),
@@ -1495,6 +1516,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     const p = this.camera.position;
     this.canopy.update(performance.now(), p);
     setCanopyLocalMap(this.canopy.localMap);
+    this.farForest?.update(p);
   }
 
   /** Show / hide the perf panel (created on first use; its switches stay applied while it exists). */

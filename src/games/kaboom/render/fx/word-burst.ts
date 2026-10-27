@@ -15,40 +15,85 @@ export const WORDS = ['KABOOOM!', 'BOOM!', 'KA-POW!'] as const;
 const CELL_W = 512;
 const CELL_H = 192;
 
-/** Outlined comic lettering, three words side by side (browser only: uses a canvas). */
+/** Depth of the extruded letters in atlas pixels (down and a little right), and the lettering's font stack. */
+const DEPTH = 15;
+const FONT = '"Grandstander", "Arial Black", Impact, sans-serif';
+
+/**
+ * Chunky 3D comic lettering, three words side by side (browser only: uses a canvas): a dark outline round the whole
+ * block, an extruded side stepping down and right in deep orange to brown, and a bevelled face (yellow to orange, a light
+ * edge top-left, a shaded edge bottom-right), like letters cut from a slab. Drawn with the UI's Grandstander once it has
+ * loaded (the texture is redrawn then), a system face before.
+ */
 export function makeWordAtlas(): CanvasTexture {
   const c = document.createElement('canvas');
   c.width = CELL_W * WORDS.length;
   c.height = CELL_H;
-  const g = c.getContext('2d')!;
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.lineJoin = 'round';
-  WORDS.forEach((word, i) => {
-    // fit the lettering to its cell (the outline needs about 24 px each side)
-    let size = 150;
-    g.font = `900 italic ${size}px "Arial Black", Impact, sans-serif`;
-    const width = g.measureText(word).width;
-    size = Math.min(
-      150,
-      Math.floor((size * (CELL_W - 48)) / Math.max(1, width)),
-    );
-    g.font = `900 italic ${size}px "Arial Black", Impact, sans-serif`;
-    const x = i * CELL_W + CELL_W / 2;
-    const y = CELL_H / 2 + 6;
-    g.lineWidth = 22;
-    g.strokeStyle = '#3a1608';
-    g.strokeText(word, x, y);
-    const grad = g.createLinearGradient(0, y - size / 2, 0, y + size / 2);
-    grad.addColorStop(0, '#fff3a6');
-    grad.addColorStop(0.5, '#ffc12e');
-    grad.addColorStop(1, '#ff6a1a');
-    g.fillStyle = grad;
-    g.fillText(word, x, y);
-  });
   const t = new CanvasTexture(c);
   t.colorSpace = SRGBColorSpace;
+  drawWords(c);
+  document.fonts
+    ?.load(`800 120px ${FONT}`)
+    .then(() => {
+      drawWords(c);
+      t.needsUpdate = true;
+    })
+    .catch(() => {});
   return t;
+}
+
+function drawWords(c: HTMLCanvasElement): void {
+  const g = c.getContext('2d')!;
+  g.clearRect(0, 0, c.width, c.height);
+  // the face is drawn on its own layer so its bevel stays inside the letters
+  const face = document.createElement('canvas');
+  face.width = CELL_W;
+  face.height = CELL_H;
+  const f = face.getContext('2d')!;
+  for (const ctx of [g, f]) {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+  }
+  WORDS.forEach((word, i) => {
+    // fit the lettering to its cell (outline and depth need about 30 px)
+    let size = 132;
+    g.font = `800 ${size}px ${FONT}`;
+    const width = g.measureText(word).width;
+    size = Math.min(
+      132,
+      Math.floor((size * (CELL_W - 64)) / Math.max(1, width)),
+    );
+    const font = `800 ${size}px ${FONT}`;
+    g.font = f.font = font;
+    const x = i * CELL_W + CELL_W / 2 - 6;
+    const y = CELL_H / 2 - DEPTH / 2 + 4;
+    // outline round the face and the whole extrusion
+    g.lineWidth = 18;
+    g.strokeStyle = '#2e1206';
+    for (let d = 0; d <= DEPTH; d += 3) g.strokeText(word, x + d * 0.35, y + d);
+    // the extruded side: back to front, a deep orange that darkens a little towards the back
+    for (let d = DEPTH; d >= 1; d--) {
+      const k = d / DEPTH;
+      g.fillStyle = `rgb(${Math.round(232 - 60 * k)}, ${Math.round(112 - 46 * k)}, ${Math.round(28 - 12 * k)})`;
+      g.fillText(word, x + d * 0.35, y + d);
+    }
+    // the face: a bright gradient, then a light bevel edge up-left kept inside the letters (the side does the shading)
+    f.clearRect(0, 0, CELL_W, CELL_H);
+    const fx = CELL_W / 2 - 6;
+    const grad = f.createLinearGradient(0, y - size / 2, 0, y + size / 2);
+    grad.addColorStop(0, '#fffad0');
+    grad.addColorStop(0.4, '#ffd640');
+    grad.addColorStop(1, '#ffa126');
+    f.fillStyle = grad;
+    f.fillText(word, fx, y);
+    f.globalCompositeOperation = 'source-atop';
+    f.lineWidth = 5;
+    f.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+    f.strokeText(word, fx - 2, y - 2);
+    f.globalCompositeOperation = 'source-over';
+    g.drawImage(face, i * CELL_W, 0);
+  });
 }
 
 const VERT = /* glsl */ `

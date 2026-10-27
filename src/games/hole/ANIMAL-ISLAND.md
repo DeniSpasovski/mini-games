@@ -6,7 +6,7 @@ giant** animals that a secret laboratory has bred: a 16 m rabbit, a 30 m crocodi
 island has small hills you can eat and rivers you cross. In a hidden corner, behind the jungle, the **secret zoo and the
 laboratory** where the giants are made.
 
-> **Status: built and playable** (menu map picker, `?map=animal`). The moving-items engine, the 190-type catalog with
+> **Status: built and playable** (menu map picker, `?map=animal`). The moving-items engine, the 192-type catalog with
 > builders, the generator (biomes, rivers, hills, farm, the secret zoo + laboratory, 37 giants) and the ground all work
 > and are tested; how it works now is in [`DETAILS.md`](DETAILS.md) ("Moving items", "Map: Animal Island"). This file
 > keeps the design, the roster (section 6) and the **open** tasks (section 7). The game rules (size ladder, eat rule,
@@ -38,25 +38,24 @@ Status marks: `[ ]` todo · `[~]` in progress · `[x]` done (done items move int
 
 ## 2. Decisions
 
-Confirmed with the user on 2026-10-04 (D2, D4, D7, D8, D14 answered by the user; the rest are the recommended defaults,
-not objected to).
+Settled with the user; change any of them by saying so.
 
-| #   | Question                                | Recommended default                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| --- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D1  | Map id / name                           | `animal` / "Animal Island", noun "island", menu blurb "Ants first, giant elephants last. Find the secret zoo."                                                                                                                                                                                                                                                                                                                            |
-| D2  | Point total                             | **21 000** (user; first 20 000, raised so level 25 is reachable). Fewer items than the other maps (City 30 000, toy 21 000) keeps the moving instances down. More than 2 x `cumulativeXp(15)` = 17 110, so Easy can clear it, and more than the 20 155 XP to level 25 (section 5.7)                                                                                                                                                       |
-| D3  | Island shape                            | round island like City Island (coast table + headlands / inlets), radius **210 m** (user asked for a smaller map, "7 x 7"; at 168 m the whole island clears in ~100 s and Hard reaches level 25, so 210 m is the smallest size that keeps the difficulty bands; tuned by the bot: density = pace). Seeded: the menu seed stepper works like City Island                                                                                   |
-| D4  | Scale of the bugs                       | **User: yes.** Bugs are drawn **~10x life size** (ant 15 cm, beetle 30 cm) so they read at the level 1 camera (10 m), the same trick as the toy store's 5x. Lore: "the lab's growth serum leaked into the soil"                                                                                                                                                                                                                           |
-| D5  | How many giants                         | **37 instances of 16 giant types** (tiers 20-25, ~1 065 points = ~5 % of the map, like the toy store's 5 % for tiers 20-25). 14 in the zoo paddock, 23 roaming their biome. Section 5.6                                                                                                                                                                                                                                                   |
-| D6  | Animal orientation                      | animals face **+X** (like vehicles), so heading = yaw. Pivot at the ground centre                                                                                                                                                                                                                                                                                                                                                         |
-| D7  | Do edible animals flee from the hole?   | **User: yes, gently - but insects never flee** (group `bugs`: ants, beetles, ladybugs, snails ... stay on their path, so the first minute is easy). Behind a flag: other animals flee only when the hole can eat them and is within 1.5 D, at most **50 % of the hole speed**, for at most 2 s, then they calm down. Too-big animals ignore the hole, stop walking and teeter when it is under them. Bot pace is measured with fleeing on |
-| D8  | Can things stand ON hills?              | **User: no.** Hills are just other static items. Their decoration (trees, rocks, flowers, a burrow) is part of the hill mesh, nothing stands on them, animals walk around them. No cargo / parent-child items                                                                                                                                                                                                                             |
-| D9  | Leg animation                           | v1: whole-body motion in the instance matrix (bob, waddle roll, hop arc, insect jitter). v1.1: a vertex-shader leg swing driven by a per-vertex limb mask + per-instance phase (AI-15). No skinned meshes                                                                                                                                                                                                                                 |
-| D10 | Do far-away animals move?               | **Only "awake" animals move**: within an awake radius of the hole that grows with the camera distance, and big enough to be seen from there (section 4.4). Asleep animals stand still (they look like they are grazing). Deterministic: depends only on the hole, never on the camera                                                                                                                                                     |
-| D11 | Is movement in the sim (deterministic)? | **Yes.** Mover state lives in `sim/` (DOM-free, seeded per item), stepped at the fixed sim rate, so the bot, the balance page and the tests see the same animals as the player                                                                                                                                                                                                                                                            |
-| D12 | Swallow puffs                           | new `MapDef.puffs: 'fur'` palette (brown / white / grey tufts + a few leaves); feathers for birds is P2                                                                                                                                                                                                                                                                                                                                   |
-| D13 | Difficulty times                        | the shared 480 / 240 / 120 s. Revisit only if real play shows the island is much slower than City Island (moving targets)                                                                                                                                                                                                                                                                                                                 |
-| D14 | Shapes                                  | **User: use balls and egg shapes** to make the animals less blocky. New low-poly `ball()` / egg / dome primitive in the Mesher, flat shaded (faceted, so it still matches the blocky art); bodies, heads, eyes, shells, wool, some tree crowns, boulders and the hills use it, legs / horns / buildings stay boxes. Section 6.3; built (AI-29, see DETAILS.md "Round parts")                                                              |
+| #   | Question                                | Decision                                                                                                                                                                                                                                                                                                                                      |
+| --- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | Map id / name                           | `animal` / "Animal Island", noun "island", menu blurb "Ants first, giant elephants last. Find the secret zoo."                                                                                                                                                                                                                                |
+| D2  | Point total                             | **21 000**: fewer items than City Island (30 000) keeps the moving instances down; more than 2 x `cumulativeXp(15)` = 17 110, so Easy can clear it, and more than the 20 155 XP to level 25, so level 25 is the reward for a near-clear                                                                                                       |
+| D3  | Island shape                            | round island like City Island (coast table + headlands / inlets), radius **210 m**: the smallest island that keeps the difficulty bands (density = pace, tuned with the bot). Seeded like City Island                                                                                                                                         |
+| D4  | Scale of the bugs                       | **User: yes.** Bugs are drawn **~10x life size** (ant 15 cm, beetle 30 cm) so they read at the level 1 camera (10 m), the same trick as the toy store's 5x. Lore: "the lab's growth serum leaked into the soil"                                                                                                                               |
+| D5  | How many giants                         | **37 instances of 16 giant types** (tiers 20-25, ~1 065 points = ~5 % of the map, like the toy store's 5 % for tiers 20-25). 14 in the zoo paddock, 23 roaming their biome. Section 5.6                                                                                                                                                       |
+| D6  | Animal orientation                      | animals face **+X** (like vehicles), so heading = yaw. Pivot at the ground centre                                                                                                                                                                                                                                                             |
+| D7  | Do edible animals flee from the hole?   | **Yes, gently - but bugs and giants never flee** (so the first minute is easy). Only when the hole can eat them, never faster than the speed cap, for a short time (`FLEE` in `sim/movers.ts`). Too-big animals stop and teeter when the hole is under them. Bot pace is measured with fleeing on                                             |
+| D8  | Can things stand ON hills?              | **User: no.** Hills are just other static items. Their decoration (trees, rocks, flowers, a burrow) is part of the hill mesh, nothing stands on them, animals walk around them. No cargo / parent-child items                                                                                                                                 |
+| D9  | Leg animation                           | whole-body motion in the instance matrix (bob, hop arc, lift). Later: a vertex-shader leg swing (AI-15). No skinned meshes                                                                                                                                                                                                                    |
+| D10 | Do far-away animals move?               | **Only "awake" animals move**: within an awake radius of the hole that grows with the camera distance, and big enough to be seen from there (DETAILS.md "Moving items"). Asleep animals stand still (they look like they are grazing). Deterministic: depends only on the hole, never on the camera                                           |
+| D11 | Is movement in the sim (deterministic)? | **Yes.** Mover state lives in `sim/` (DOM-free, seeded per item), stepped at the fixed sim rate, so the bot, the balance page and the tests see the same animals as the player                                                                                                                                                                |
+| D12 | Swallow puffs                           | new `MapDef.puffs: 'fur'` palette (brown / white / grey tufts + a few leaves); feathers for birds is P2                                                                                                                                                                                                                                       |
+| D13 | Difficulty times                        | the shared 480 / 240 / 120 s. Revisit only if real play shows the island is much slower than City Island (moving targets)                                                                                                                                                                                                                     |
+| D14 | Shapes                                  | **User: use balls and egg shapes** to make the animals less blocky. New low-poly `ball()` / egg / dome primitive in the Mesher, flat shaded (faceted, so it still matches the blocky art); bodies, heads, eyes, shells, wool, some tree crowns, boulders and the hills use it, legs / horns / buildings stay boxes (DETAILS.md "Round parts") |
 
 ## 3. The size ladder in animal-island terms
 
@@ -82,97 +81,18 @@ T22 22.7 · T23 26.5 · T24 30.9 · T25 36.
 | 14         | 30.9 m     | giant crocodile, giant ape, growth reactor                                                                                                                                     |
 | 15         | 36 m       | **giant elephant** (final boss), the laboratory HQ, the great hill                                                                                                             |
 
-## 4. The new mechanic: moving animals - can we handle many objects moving?
+## 4. Moving animals
 
-**Short answer: yes, a few thousand, with four rules.** The engine was built for static items (`sim/world.ts` says
-"items never move on the ground"), but nothing in it is hard to change, and the expensive part is the GPU, not the CPU.
+How movers work (behaviours, walk grid, awake set, flee, speed cap, rendering) is in [`DETAILS.md`](DETAILS.md) ("Moving
+items"). The map's rules on top of it:
 
-### 4.1 What the engine does today
-
-- `World` keeps every item in struct-of-arrays form (`x`, `z`, `rot`, ...) and a **static** 8 m spatial hash that is
-  built once (`query()` is how the hole finds items near it).
-- `ItemInstances` draws every item through a few `BatchedMesh`es (one per material style + shadow flag), culled per
-  **64 m map cell** (32 m with movers) and per item at the frustum edge, so the camera and the shadow only draw what
-  they see (DETAILS.md "Performance"). Matrices are written once; afterwards only `world.active` items (teetering /
-  tipping / falling) and moved movers are rewritten. (This section was written for the older one-`InstancedMesh`-per-
-  type-and-cell renderer; the rules below still hold.)
-- One sim tick costs 0.03-0.11 ms; triangles per frame are 70k (level 1) to 164k (level 15) on City Island.
-
-### 4.2 Measured cost of moving items (node, dev PC, throw-away benchmark)
-
-A struct-of-arrays wander step (seek a target inside a leash circle, wait, pick a new target), dynamic re-bucketing in
-the 8 m hash, plus composing a yaw + bob matrix per mover:
-
-| Movers | Sim step per tick | Matrix compose per frame | Hash re-buckets per tick | GPU upload per frame |
-| ------ | ----------------- | ------------------------ | ------------------------ | -------------------- |
-| 1 000  | 0.03 ms           | 0.05 ms                  | 4                        | 62 KB                |
-| 2 500  | 0.10 ms           | 0.12 ms                  | 9                        | 156 KB               |
-| 5 000  | 0.21 ms           | 0.26 ms                  | 18                       | 312 KB               |
-| 10 000 | 0.51 ms           | 0.55 ms                  | 35                       | 625 KB               |
-
-A phone is roughly 4-6x slower than the dev PC: 2 500 movers ~1-1.5 ms of a 16.7 ms frame. **CPU is fine.** The real
-costs are:
-
-1. **Triangles.** 2 500 animals x 300 triangles = 750k triangles if they were all drawn, plus the shadow pass. That is
-   why culling must keep working while things move (rule 1) and why animals get tight triangle budgets (section 6.5).
-2. **Culling breaks if movers leave their cell.** A mesh's bounding sphere is computed once; an animal that walks out of
-   it would pop out of view.
-3. **Matrix uploads** of a whole `InstancedMesh` buffer every frame for every mesh that has a mover in it.
-
-### 4.3 The four rules
-
-1. **Leashed home ranges.** Every mover has a home point and a leash radius (bugs 2-6 m, critters 6-15 m, herds 20-40 m,
-   giants 40-70 m, swimmers: a stretch of river). It never leaves it. Movers are grouped by type + variant + **home**
-   cell, and that mesh's bounding sphere gets `cell + leash + size` instead of `+14 m`. Culling keeps working.
-2. **Separate meshes for movers.** Static items keep today's write-once meshes. Mover meshes are rewritten every frame
-   (only the awake ones, see 3), so the per-frame upload never touches the 6 000 static items.
-3. **Awake set.** Only movers within `awakeRadius(D) = 1.6 x cameraDistance(D)` of the hole **and** big enough to be
-   seen from there (`size / distance > ~1/150`) move; the rest stand still. At level 1 that is ~20 m and a few dozen
-   animals; at level 15 ~215 m, but by then the tiny ones are eaten or too small to matter. Target: **<= 600 awake**.
-   Uses only the hole position and diameter, so it is deterministic (no camera in `sim/`).
-4. **Matrix-only animation.** Walking is done with the instance matrix (yaw, bob, roll, hop arc, jitter), later a
-   vertex-shader leg swing (D9). Never skinned meshes, never a clone per animal (repo rule).
-
-Budgets: **~2 500 movers per map**, <= 600 awake, mover sim + compose <= 1.5 ms on a phone. `tests/hole/movers.test.ts` times a
-2 500-mover tick in node as a guard (headroom over the budget).
-
-### 4.4 Behaviours (`motion` column of the roster)
-
-| Motion    | Who                                    | What it does                                                                                                                                                     |
-| --------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-`       | static                                 | does not move (trees, hills, buildings, owls)                                                                                                                    |
-| `wander`  | most animals                           | pick a walkable target inside the leash, walk there at `speed`, idle 1-5 s (graze / look around), repeat                                                         |
-| `herd`    | sheep, goats, deer, zebras, elephants  | the herd shares a moving centre (its own wander), members keep an offset + a little separation; calves / lambs / ducklings follow their parent                   |
-| `hop`     | rabbits, frogs, kangaroos, grasshopper | wander in jumps: a parabola in `y` + forward burst, then a pause                                                                                                 |
-| `crawl`   | snails, tortoises, caterpillars        | wander at a tiny speed (snail_giant: the slowest thing on the island)                                                                                            |
-| `skitter` | beetles, mice, crabs, ladybugs         | short fast dashes with jitter; crabs move along their local Z (sideways)                                                                                         |
-| `trail`   | ants                                   | follow a closed loop path from an anthill to a food item and back, spaced in a column; ant_big has its own column near the lab                                   |
-| `flutter` | butterflies, bees, dragonflies         | wander with a `y` bob 0.3-1 m above the ground; bees circle a beehive                                                                                            |
-| `swim`    | ducks, otters, crocodiles, hippos      | move along a river polyline (arc length `s`, side offset), turn at the ends of their stretch; hippos / crocs sit lower (half under water)                        |
-| `patrol`  | scientists, keepers, jeeps, trucks     | loop along a fixed path in the compound (lab doors, pens, the loop road)                                                                                         |
-| `roam`    | giants                                 | slow wander with a big leash, long idles; turn in place before walking (big things should feel heavy). P2: footstep thumps + camera shake when close to the hole |
-
-Shared rules: speed of an animal <= **0.5 x the full speed of the first hole level that can eat it** (so a level-4 hole
-always catches a rhino); walkers never step into water, off the island, into a hill footprint or a building (a 2 m
-**walkable grid** baked by the generator, checked when a target is picked and along the straight line to it); swimmers
-never leave water. A mover that commits to falling freezes where it is and falls as today (`fallPose` from its current
-position). A too-big animal with the hole under it **stops** and teeters, and walks on when the hole leaves.
-
-### 4.5 Code changes (shared engine)
-
-- `sim/world.ts`: dynamic hash (bucket index per item, swap-remove, re-bucket only when an item crosses a cell); `prevX`
-  / `prevZ` / `prevRot` for render interpolation; mover arrays (home, leash, target, speed, wait, behaviour, herd /
-  path id) or a separate `Movers` struct indexed by item.
-- `sim/movers.ts` (new, DOM-free): behaviours above, per-item `Rng` from `world.seed`, awake set, flee (D7), walkable
-  grid lookup. Called from `Sim.step` before `commitItems`.
-- `sim/sim.ts`: commit uses the current position (it already reads `world.x / z`); teeter stops the mover.
-- `sim/bot.ts`: leads moving targets (`Bot.intercept`, aim at `x + vx * t`).
-- `map/types.ts`: `Placement.move?` (home / leash / path / herd id, written by the generator), `MapData.rivers?`,
-  `ponds?`, `biomes?` (grid), `walkable?` (bitset), `paths?` (ant trails, patrol loops).
-- `render/item-instances.ts`: mover meshes grouped by home cell with leash-sized bounds, rewritten per frame from the
-  interpolated pose; bob / roll / hop from the behaviour state; static meshes unchanged.
-- `render/materials.ts` (v1.1): leg-swing patch (per-vertex limb mask attribute from the Mesher, per-instance phase
-  attribute), the same way the `paint` / `glow` patch works.
+- **Budget**: about 2 500 movers per map (ants are the bulk), only a few hundred awake; `tests/hole/movers.test.ts` times
+  a 2 500-mover tick in node as a guard. The CPU cost is small; triangles are the real cost, hence tight rigs.
+- **Leashes** keep every mover near its home (bugs a few metres, herds tens, giants the most), so culling cells stay valid
+  and animals never run into empty ground.
+- **Who moves how** is the `Moves` column of the roster (section 6.2): herds share a home and leash, ants `trail` from
+  anthills, staff and lab vehicles `patrol` the compound, giants `roam`, swimmers stay on water cells.
+- A too-big animal with the hole under it stops and teeters; a mover that commits to falling freezes and falls.
 
 ## 5. Special map logic
 
@@ -207,8 +127,8 @@ ladybugs, mushrooms). `pickStart` works as on the other maps (rejects spots on w
 - Zone `water` (distance to a river polyline < half width, or inside a pond): only `River` / `ponds` items may stand
   there (lily pads, beaver dams, log bridges, swimmers). Zone `bank` (a 3 m strip on each side): reeds, cattails, logs,
   ducks, frogs.
-- Render: river ribbons + banks (mud / sand strip) + pond discs as stencil-cut ground, the ripple texture of
-  `render/water.ts` scrolled along the river direction (flow), foam where the river meets the sea.
+- Render: river ribbons with mud banks and pond discs as stencil-cut ground (`render/animal-ground.ts`); flowing ripples
+  and foam at the mouths are an open task.
 - Crossings: `log_bridge` items (edible, 8.8 m) on the streams; the main river has none (the hole does not need bridges,
   walking animals stay on their side).
 
@@ -231,25 +151,19 @@ ladybugs, mushrooms). `pickStart` works as on the other maps (rejects spots on w
 
 ### 5.4 The secret zoo and the laboratory
 
-A fenced compound (~140 x 100 m, rotated to face the coast) in the north-east, hidden in the jungle. Generated from a
-small hand-made layout (like the toy store floor plans) placed by the seed:
+A fenced compound on the sector between jungle and savanna, built from a hand-made layout (`buildCompound` in
+`map/animal/generate.ts`, positions scaled by `COMP_K`, item sizes not), mirrored so the giant paddock is on the far side
+and the electric lab fence faces the island:
 
-- **Perimeter**: `lab_fence` panels (electric, glowing top wire) with a gate on the jungle side, `watchtower`s on the
-  corners, `camera_pole`s, `warning_sign`s; a jungle belt (jungle trees, bamboo) around it so it is hidden from the
-  meadow.
-- **Laboratory** (south half): `lab_hq` (T25, 1 copy) in the middle, `lab_wing`, `lab_block`, `lab_hangar`, `lab_dome`,
-  `biodome`, `lab_tower`, `growth_reactor` aiming its ring at the giant pen, rows of `growth_vat`s and `growth_chamber`s
-  (glowing tanks with an animal inside: the "where giants are made" story at a glance), `serum_barrel` stacks,
-  `lab_crate`s, `container`s, a helipad (render-only decal) with the `helicopter`, a jetty (render-only, like the City
-  pier) on the coast.
-- **Secret zoo** (north half): pens built from `zoo_fence` rows for the lab-stage-1 animals (`rabbit_big`,
-  `frog_big`, `tortoise_big`, `gorilla_big`, `panda_big`, `elephant_big`, `tiger_big`) and **giant pens** built from
-  `cage_bars` rows (9 m tall bars) for the giants, with `feeding_station`s, `giant_carrot`s, `hay_bale`s, `keeper_hut`s, an `aviary`, a hippo pool
-  (pond) and a croc channel.
-- **Life**: `scientist`s patrol between lab doors, `zookeeper`s between pens, `research_jeep`s and the
-  `transport_truck` drive the loop road (render-only road decal, patrol path).
-- Zoo giants are leashed to their pen (leash = pen radius). P2 (AI-63): when every `cage_bars` piece of a pen is eaten,
-  its giant's leash grows and it "escapes".
+- **Perimeter**: `lab_fence` panels (glowing top wire), `watchtower`s, `camera_pole`s, `warning_sign`s, a jungle belt.
+- **Secret zoo**: pens from `zoo_fence` rows for the lab-stage-1 animals (`rabbit_big`, `frog_big`, `tortoise_big`,
+  `gorilla_big`, `panda_big`, `elephant_big`, `tiger_big`), sheds, an `aviary`, a hippo pool, and the **paddock** behind
+  `cage_bars` (9 m bars) with 14 giants, `feeding_station`s and `giant_carrot`s.
+- **Laboratory**: `lab_hq` (T25, 1 copy), `lab_wing`, `lab_block`, `lab_hangar`, `lab_dome`, `biodome`, `lab_tower`,
+  `growth_reactor`, rows of `growth_vat`s and `growth_chamber`s (glowing tanks with an animal inside), `serum_barrel`s,
+  `lab_crate`s, `container`s and the `helicopter`.
+- **Life**: `scientist`s and `zookeeper`s patrol, `research_jeep`s and the `transport_truck` drive a loop.
+- Zoo giants are leashed to the paddock. P2 (AI-63): eating every `cage_bars` piece lets them escape.
 
 ### 5.5 Generator order (`map/animal/generate.ts`)
 
@@ -293,25 +207,14 @@ would crowd the zoo and the wild biomes. Tune within 30-45 with the bot.
 
 ### 5.7 Points and pacing
 
-21 000 points, about 4 900 items (1 880 of them tier 1), of which about 2 500 move (ants are the bulk). Pace targets are the same as the other
-maps (good bot: Hard 120 s level >= 10, Medium 240 s level >= 15, Easy 480 s clears > 95 %), measured **with movement
-and fleeing on**; `tests/hole/animal-map.test.ts` keeps the bands on three seeds (Hard level 10-20, Medium >= 15, Easy
-cleared in 110-400 s). Measured (good bot that leads moving targets, seeds 1-3): Hard level 15-18, Medium level 25, Easy cleared at 143-151 s
-(without the lead: Hard 14-16, Easy 154-163 s).
-What decided the pace (the XP curve was not touched): the **island radius** (210 m; the point split between tiers hardly
-matters once the island is small), the per-tier share of the points (`TIER_FRACTION`, tiers 1-10 hold ~55 %, tier 1 7.5 %),
-**hotspots** (80 % of the small and mid items gather around ~50 spots, `HOT_SHARE`), the 50-hill cap, and the flee knobs
-(`FLEE` in `sim/movers.ts`; with the first guess, 1.7 x speed, the bot only reached level 5 in 100 s before it learned to
-lead moving targets: `Bot.intercept` aims at `p + v * t`, lead capped at 1.5 s, velocity from `World.mVx / mVz`). Radius sweep (seed 1, Hard level / Easy clear time): 168 m L25 / 98 s, 190 m L20 / 143 s, 210 m
-L14 / 153 s, 240 m L8-12 / ~200 s.
+21 000 points, about 4 900 items, about half of them movers. Pace targets are the same as the other maps (good bot: Hard
+120 s level >= 10, Medium reaches level 15, Easy clears the island), measured **with movement and fleeing on**;
+`tests/hole/animal-map.test.ts` keeps the bands. What sets the pace (the XP curve is not touched): the island radius, the
+per-tier share of the points (`TIER_FRACTION`), hotspots (`HOT_SHARE`), the 50-hill cap and the flee knobs (`FLEE`). The
+bot leads moving targets (`Bot.intercept`).
 
-**Reachability.** An item must be far enough from the coast for the biggest hole to eat it (the hole centre stops
-0.5 D inside the coast): `tryPut` keeps `3 + 0.15 x size` m from the shore, and walkers keep off the shoreline strip of
-the walk grid. Without it ~120 items near the coast could not be eaten and the island could not be cleared.
-
-**Why 21 000 and not 20 000.** Levels 16-25 only grow the hole and are fed by the points on the map: the cumulative XP
-to level 25 is 20 155. At 20 000 a full clear would end at level 24; at 21 000 level 25 needs ~96 % of the island, so it
-is the reward for a near-clear (Easy), like on the other maps.
+**Reachability.** The hole centre stops 0.5 D inside the coast, so `tryPut` keeps items `3 + 0.15 x size` m from the
+shore and walkers keep off the shoreline strip of the walk grid; otherwise items near the coast could not be eaten.
 
 ## 6. Asset list
 
@@ -343,13 +246,12 @@ part) so "made in the lab" reads at a glance; giants also get a lab number patch
 
 ### 6.2 Edible catalog (192 types)
 
-Dimensions are the proposal (animals: w = length along +X). Tier, points and level were derived with the rules of
-`sim/progression.ts` by a throw-away script; **re-derive them with the real catalog code and the tests before trusting
-them** (several items sit right under a tier edge: 1.2, 1.4, 8.8 m - builders must not grow past it). Priority: **P0** =
-first playable (104 types, every tier 1-25 and level 1-15 has >= 2 P0 types) · **P1** = full v1 (81) · **P2** = polish
-(5). Moves = behaviour (section 4.4). Zone = where the generator places it. `paint` = tinted per instance.
+`items/catalog-animal.ts` is the source; tier, points and level are derived from the size (animals: w = length along
++X). Several items sit right under a tier edge (1.2, 1.4, 8.8 m): builders must not grow past it. Priority: **P0** = the
+core set (104 types, every tier 1-25 and level 1-15 has >= 2 P0 types) · **P1** (83) · **P2** = polish (5). Moves =
+behaviour (DETAILS.md "Moving items"). Zone = where the generator places it. `paint` = tinted per instance.
 
-Coverage (all 190): tier 1 has 58 types, the thinnest tiers are 18 and 19 (3 types) and 25 (3); level 9 has 3 types,
+Coverage (all 192): tier 1 has 58 types, the thinnest tiers are 18 and 19 (3 types) and 25 (3); level 9 has 3 types,
 level 15 has 3. P0 alone: tiers 9, 12, 14, 16-19, 23-25 and levels 9, 13-15 have exactly 2 - **protect those when
 cutting items**. 97 of the 192 types move.
 
@@ -565,12 +467,8 @@ mane, trunk, shell, antlers, comb). Sizes are fractions of the catalog size, so 
 | `slug`      | snail, caterpillar                                                                                                                                                                                                                               |
 | `crab`      | crab (sideways)                                                                                                                                                                                                                                  |
 
-**Round shapes (D14).** The Mesher has one new primitive (built), `ball(x, y, z, rx, ry, rz, opts)`: a low-poly UV ellipsoid,
-flat shaded (faceted), vertex colour + `paint` / `glow` like `box()`, through `xf()` transforms. Options: `seg` (around)
-and `rings`, `taper` (the top half narrower = an **egg**), `half` (a **dome** with no bottom face, for things on the
-ground), `jitter` (seeded vertex noise for boulders). Triangles = 2 x seg x (rings - 1): 6 x 4 = 36, 8 x 5 = 64,
-10 x 6 = 100, 12 x 8 = 168; a dome is half. Detail by size with one helper (bugs 6 x 3-4, critters 6-8 x 4, animals 8 x 5,
-giants 10-12 x 6-8), so small things stay cheap.
+**Round shapes (D14)** use the Mesher's `ball()` (DETAILS.md "Round parts"), with detail by size so small things stay
+cheap:
 
 | Shape                 | Used for                                                                                                                        |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -580,50 +478,26 @@ giants 10-12 x 6-8), so small things stay cheap.
 | jittered ball         | boulders, rocks, pebbles, bush and some tree crowns (oak, acacia flattened, jungle tree)                                        |
 | box / cylinder (stay) | legs, horns, antlers, tails of big animals, necks (giraffe: a tapered box), every building, fence, vehicle and crate            |
 
-Every leg / wing part is marked as a **limb** in the Mesher (front-left, front-right, back-left, back-right, wing) for the
-v1.1 leg-swing shader (D9). Giants use the same rig with a higher detail level (more segments in tails, toes, ears).
-
 ### 6.4 Non-edible assets (render-only, derived from the map data)
 
-| Asset                    | Notes                                                                                                                                       |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Island ground            | one merged mesh, stencil-cut: **per-biome grass tint** (vertex colours from the biome grid, blended at the borders), sand band, coast skirt |
-| Rivers / streams / ponds | ribbon + disc meshes, stencil-cut, flowing ripple texture, mud / sand banks, foam at the mouth                                              |
-| Waterfall                | P2: a short drop where the spring leaves the great hill (animated texture strip)                                                            |
-| Compound ground          | concrete pads, packed-earth pens, loop road + helipad decal (stencil-cut, like City Island rects)                                           |
-| Jetty                    | plank pier at the compound coast (reuse the City pier builder)                                                                              |
-| Coast rocks              | reuse the City Island rock ring                                                                                                             |
-| Sky / mood               | warmer tropical sky (`skyTop`), sun slightly lower and warmer than City Island                                                              |
-| Puffs                    | `fur` palette (D12)                                                                                                                         |
+`render/animal-ground.ts`: a base fan coloured per coast segment, 10 m biome cells (two greens per biome), the sand ring,
+the compound's flat rects, river ribbons with mud banks (one mitered ribbon per river) and ponds, the sea. Mood: a warmer
+tropical sky (`skyTop`). Puffs: the `fur` palette (D12). A jetty, coast rocks, a waterfall and a visible loop road are open
+tasks.
 
-### 6.5 Geometry budgets (to enforce in `tests/hole/animal-items.test.ts`)
+### 6.5 Geometry budgets
 
-bugs 120 · critters 300 · animals 500 (700 for elephant / giraffe / rhino / hippo / lab-stage-1) · giants 1 600 · flora
-300 · rocks 150 · hills 300 (incl. baked decoration) · zoo 500 · farm 600 · lab 900 (lab_hq / growth_reactor 1 400) ·
-staff 80 · labveh 600. The balls and eggs (D14) cost more than boxes, so the animal budgets are higher than City Island's
-props; to keep the frame cheap, the renderer hides tiny types (size < 1 m) in map cells far from the camera (AI-13).
+Per group in `tests/hole/animal-items.test.ts`. Balls and eggs cost more than boxes, so the animal budgets are higher than
+City Island's props; the renderer's level of detail (`TINY_K`) hides tiny items far from the camera.
 
 ## 7. Open tasks
 
-Conventions for every task: follow the DETAILS.md rules (determinism through `src/shared/rng.ts`; DOM-free `sim/` and
-`map/`; never clone geometry or materials per instance; vertex colours + `paint` / `glow`; no clipping). Definition of
-done = `npx tsc --noEmit -p tsconfig.json`, `npm run lint`, `npm run test` green; the relevant viewer checked with a
-screenshot (the preview pane is slow and throttles `requestAnimationFrame`: drive the game with `__hole.advance(seconds)`,
-open it with `mute=1`); docs updated in the same change. Changing animal item sizes, the point total or map content
-needs a bump of `MAP_SCORING_VERSIONS.animal`.
-
-**What is done** (all documented in the DETAILS.md): AI-00 decisions, AI-10 .. AI-14 (dynamic spatial hash, mover
-behaviours, awake set, flee, leash-free mover culling, map data for movers), AI-20 / AI-21 / AI-22 (registry, fur puffs,
-group sounds), AI-29 / AI-30 .. AI-39 (round primitive, every builder: animals, bugs, giants, hills, flora, zoo, lab, the
-round City greenery), AI-40 .. AI-46 (coast, biomes, rivers, compound, hills, zone rules, fill plan, walk grid), AI-50 /
-AI-51 / AI-52 (ground, rivers and ponds, mood), AI-60 (item viewer, map viewer and balance page know the map), AI-61
-(pace bands, `animal-map` tests).
+Workflow and definition of done: the `hole-content` skill. Changing animal item sizes, the point total or map content
+bumps `MAP_SCORING_VERSIONS.animal`.
 
 ### Product and polish
 
-- [ ] **AI-01 Real-device pass**: since the item batching the map draws in 23-26 calls with 24k / 108k / 321k
-      triangles at level 1 / 8 / 15 (dev PC, shadows on; was 165 / 578 / 1 739 calls). Measure `__hole.benchmark(240)`
-      on an iPad and a phone (high / low). If too slow, in this order: raise `TINY_K` / `SHADOW_TINY_K` in
+- [ ] **AI-01 Real-device pass**: measure `__hole.benchmark(240)` on an iPad and a phone (high / low). If too slow, in this order: raise `TINY_K` / `SHADOW_TINY_K` in
       `render/item-instances.ts`, cheaper animal rigs (`roundDetail` in `items/kit.ts`).
 - [ ] **Item art pass** in `item-viewer.html?map=animal&mode=lineup&gamecam=1`: giraffe, the long-necked birds, the
       aviary (open rib dome), the biodome / lab dome / greenhouse (glass, see `DETAILS.md` "Glass") and hooves (deer, horse,
@@ -643,8 +517,8 @@ AI-51 / AI-52 (ground, rivers and ponds, mood), AI-60 (item viewer, map viewer a
 
 ## 8. Risks and things to watch
 
-- **Moving targets on touch.** Fleeing animals can feel unfair with a finger. Keep flee behind a flag, cap the speed
-  (D7) and test on a device before tuning anything else.
+- **Moving targets on touch.** Fleeing animals can feel unfair with a finger. Keep the speed cap (D7) and test on a
+  device before tuning anything else.
 - **Pace.** Movement and fleeing slow the bot down; leashes keep animals from running into empty ground. Re-run the
   bands after every behaviour change.
 - **Triangles.** Draw calls no longer grow with types x cells (items are batched), but triangles still do: measure with

@@ -41,6 +41,7 @@ import { worldToGeo } from '../world/real-data';
 import { newRoadQuery } from '../world/road';
 import { buildRoadMeshSliced } from '../world/road-mesh';
 import { getTerrainMaterial } from '../world/terrain-material';
+import { canopyTone } from '../world/far-forest';
 import { Horizon } from '../world/horizon';
 import { TerrainRenderer } from '../world/terrain-renderer';
 import { RENDER_MARGIN, World } from '../world/world';
@@ -129,8 +130,9 @@ void loadMap(state.map).then(async (map) => {
     lodDistances: [120, 260, 520],
   });
   scene.add(terrain.group);
+  let horizon: Horizon | undefined;
   if (map.horizon) {
-    const horizon = new Horizon(world, map.horizon);
+    horizon = new Horizon(world, map.horizon);
     horizon.setCutoff(size + RENDER_MARGIN * 2);
     scene.add(horizon.group);
   }
@@ -152,6 +154,8 @@ void loadMap(state.map).then(async (map) => {
     TreeLibrary.speciesOf(world.placedAssets(), season),
     renderer,
   );
+  // The land beyond the map: its woods in the stage's crown colour.
+  horizon?.setForest(canopyTone(treeLibrary, world));
   const trees = new TreeRenderer(world, treeLibrary, {
     // The game's tree levels (their thresholds already reach far: trees/species.ts DEFAULT_LOD).
     lodScale: quality.lodScale,

@@ -1,17 +1,25 @@
 import { FUR_SHELLS } from './fur';
-import { Group, Scene, Vector3, type Texture, type WebGLRenderer } from 'three';
+import {
+  Group,
+  Scene,
+  Vector3,
+  type Object3D,
+  type Texture,
+  type WebGLRenderer,
+} from 'three';
 import type { LevelId } from '../game/levels';
 import { MAX_PLAYERS, MAX_TNT } from '../sim/rules';
-import type { KaboomSim, SimEvent } from '../sim/types';
+import { Terrain, type KaboomSim, type SimEvent } from '../sim/types';
 import { Arena } from './arena';
 import { CAM_PITCH_DEG, CameraRig, SLAB_PAD } from './camera-rig';
 import { treadMidD, TIERS } from './bowl';
 import { Crowd } from './crowd';
-import { Crew, type PodiumSpot } from './characters';
+import { Crew, TEAM_COLORS, type PodiumSpot } from './characters';
 import { Podium, STEP_D, STEP_W } from './podium';
 import { Fx } from './fx/fx';
 import { ItemRenderer } from './items';
 import { GlowGrid } from './fx/glow-grid';
+import { levelEnvironment } from './environment';
 import { makeSkyTexture } from './materials';
 import { levelTheme } from './themes';
 import type { LevelTheme, PlatformPose } from './themes/theme';
@@ -35,7 +43,7 @@ export interface WorldViewOptions {
 
 const shakeOffset = new Vector3();
 /** Seconds ahead of a falling wall that its landing cell is marked. */
-const WARN_S = 1.2;
+const WARN_S = 1.5;
 /** Seconds between two redraws of the static shadow map while crates keep breaking. */
 const SHADOW_REDRAW_S = 0.15;
 
@@ -76,6 +84,7 @@ export class WorldView {
   /** Jump the follow camera onto the player at the next update (a new round, a camera change) instead of gliding. */
   private snapCamera = true;
   private mapRef;
+  private envAsked = false;
 
   constructor(
     private readonly sim: KaboomSim,
@@ -94,14 +103,25 @@ export class WorldView {
     const { w, h } = sim.map;
     this.crew = new Crew(sim.players, w, h, {
       shells: FUR_SHELLS[quality.name],
+      rings: true,
       smooth: quality.antialias,
     });
     this.crew.onLaunch = (x, z) => this.fx.launch(x, z);
     this.crew.onLand = (x, z) => this.fx.land(x, z);
-    this.tnt = new TntRenderer(w, h, opts.digitAtlas);
+    this.tnt = new TntRenderer(w, h, opts.digitAtlas, quality);
     this.items = new ItemRenderer(w, h);
     this.fx = new Fx(w, h, opts.wordAtlas, this.theme.fx);
     this.fx.sea = this.theme.fall === 'tile';
+    this.fx.hardAt = (x, y) => {
+      const m = this.sim.map;
+      return (
+        x >= 0 &&
+        y >= 0 &&
+        x < m.w &&
+        y < m.h &&
+        m.terrain[y * m.w + x] === Terrain.Hard
+      );
+    };
     this.crowd = new Crowd(w, h, SLAB_PAD, quality, this.theme.crowd);
     this.crowd.setPlayers(sim.players);
     this.buildArena();
@@ -229,7 +249,8 @@ export class WorldView {
         if (p) {
           if (this.arena.isSunk(Math.floor(p.x), Math.floor(p.y)))
             this.fx.onKoSplash(p.x, p.y);
-          else this.fx.onKo(p.x, p.y);
+          else
+            this.fx.onKo(p.x, p.y, TEAM_COLORS[p.color % TEAM_COLORS.length]);
         }
       }
       if (e.type === 'tntExploded')
@@ -277,7 +298,13 @@ export class WorldView {
     this.crowd.setPlayers(players);
     this.crowd.update(this.fx.time.value, dt);
     const falls = this.sim.upcomingFalls(WARN_S, this.fallCells, this.fallSecs);
-    this.arena.setWarnings(this.fallCells, falls, this.fx.time.value);
+    this.arena.setWarnings(
+      this.fallCells,
+      falls,
+      this.fx.time.value,
+      this.fallSecs,
+      WARN_S,
+    );
 
     if (this.controlCamera) {
       if (
@@ -309,7 +336,27 @@ export class WorldView {
     return true;
   }
 
+  /**
+   * High quality: light the scene with the level's HDRI as well (the arena materials are physically based there). Loads
+   * once; until it is there, the hemisphere fill alone lights the shade. Call before drawing (no-op after the first call).
+   */
+  prepareEnvironment(renderer: WebGLRenderer): Promise<void> {
+    if (this.quality.name !== 'high' || this.envAsked) return Promise.resolve();
+    this.envAsked = true;
+    return levelEnvironment(renderer, this.theme.id).then((env) => {
+      if (!env) return;
+      let top: Object3D = this.root;
+      while (top.parent) top = top.parent;
+      for (const s of new Set([this.scene, top]))
+        if ((s as Scene).isScene) {
+          (s as Scene).environment = env;
+          (s as Scene).environmentIntensity = this.theme.light.env;
+        }
+    });
+  }
+
   render(renderer: WebGLRenderer, scene: Scene = this.scene): void {
+    void this.prepareEnvironment(renderer);
     this.crowd.prepare(renderer);
     if (this.takeShadowUpdate()) renderer.shadowMap.needsUpdate = true;
     renderer.render(scene, this.rig.camera);
@@ -323,7 +370,9 @@ export class WorldView {
     renderer: WebGLRenderer,
     scene: Scene = this.scene,
   ): Promise<void> {
+    await this.prepareEnvironment(renderer);
     this.crowd.prepare(renderer, true);
+    this.items.showForCompile();
     await renderer.compileAsync(scene, this.rig.camera);
     this.shadowAge = SHADOW_REDRAW_S; // the first shadow draw belongs here, not to the first frame of play
     this.fx.prime();

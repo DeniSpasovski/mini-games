@@ -450,7 +450,7 @@ html.touch .menu-btn.big kbd {
   border-radius: var(--ui-radius);
   background: linear-gradient(
     90deg,
-    var(--ui-slower),
+    var(--ui-yellow),
     var(--ui-accent),
     var(--ui-penalty)
   );
@@ -475,7 +475,7 @@ html.touch .menu-btn.big kbd {
     ),
     linear-gradient(
       90deg,
-      var(--ui-slower),
+      var(--ui-yellow),
       var(--ui-accent),
       var(--ui-penalty)
     );

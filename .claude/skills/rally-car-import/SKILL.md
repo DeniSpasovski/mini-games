@@ -431,7 +431,11 @@ whenever the GLB is regenerated.
 
 1. Bake it from the plain GLB (axle z and wheel radius from the car's physics):
    `node scripts/car-model/side-profile.mjs public/models/cars/<file>.glb --axles <front z>,<rear z> --wheel <radius> > src/games/rally/cars/<car>/profile.ts`
-2. `<car>.ts`: `import { profile } from './profile';` and `model.profile: profile`; an explicit `model.doorBadge`.
+2. `<car>.ts`: `import { profile } from './profile';` and `model.profile: profile`; an explicit `model.doorBadge` from
+   `python scripts/car-model/door-plate.py public/models/cars/<file>.glb --png <scratch>/plate.png` (the door-plate rule,
+   after real FIA door panels: tilt = mean of the window line and the sill line, centre at 64 % of the door's height (top
+   ~10 cm under the window), front edge 5 cm behind the mirror's front; `--front <z>` when the mirror is not on the door's front corner, `over: ['trim']` when a side moulding crosses the
+   plate). Check both sides in the car viewer (`&num=7`) before calling it done.
 3. `<car>/livery.ts`: `layout: A` (the `model.source.json` atlas block) on the `CarAtlas`, so the box wears the livery.
 4. Append the profile to `SHAPES` in `assets/builders/vehicles.ts` (append: `FIXED_CARS` and placed props use the
    indices) and name it in the `street_car` description in `assets/catalog.ts`, so the car also parks on the city maps

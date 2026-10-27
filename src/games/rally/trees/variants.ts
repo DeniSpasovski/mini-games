@@ -1,4 +1,5 @@
 import { derive } from './grammar';
+import type { LeafStyle } from './leaftex';
 import { mix32, type V3 } from './math';
 import { buildMeshes, type Crown, type VariantMeshes } from './mesh';
 import { buildSkeleton, type Skeleton } from './skeleton';
@@ -16,7 +17,10 @@ import {
  * the registry holds the summaries placement and drawing read, filled when a stage loads (trees/load.ts).
  */
 
-/** Bump when generated output changes for the same species and seed: cached variants regenerate. */
+/**
+ * Bump when generated output changes for the same species and seed, or the leaf atlases change (trees/leaftex.ts,
+ * `coverageMips`): cached variants and atlases regenerate.
+ */
 export const GENERATOR_VERSION = 12;
 
 export interface TreeVariantInfo {
@@ -49,6 +53,11 @@ export function variantSeed(def: SpeciesDef, index: number): number {
 
 export function cacheKey(def: SpeciesDef, seed: number): string {
   return `${def.name}:${speciesHash(def).toString(16)}:${seed.toString(16)}:v${GENERATOR_VERSION}`;
+}
+
+/** The disk cache key of a leaf style's atlas + mips (trees/worker.ts). */
+export function atlasCacheKey(style: LeafStyle): string {
+  return `atlas:${style}:v${GENERATOR_VERSION}`;
 }
 
 /** Trunk and first-order limb segments at least `collisionRadius` thick, as capsules (trees/Placement.md#collision). */

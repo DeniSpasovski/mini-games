@@ -31,23 +31,22 @@ them).
 5. **Pace and score stay comparable.** 9 000 points total (City Island has 30 000), the same three difficulties, the same
    top 10 per difficulty - kept in a separate list per map.
 
-## 2. Decisions to settle first (recommended defaults)
+## 2. Decisions
 
-The agent that picks up the first task should confirm these with the user, or take the default and write the answer
-here.
+Settled with the user; change any of them by saying so.
 
-| #   | Question                | Recommended default                                                                                                                                                                                                                                                                                                |
-| --- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| D1  | Scale of the world      | **Toy scale ~5x**: a brick is 16 cm, a "small" panda 1.1 m, a ride-on car 3.2 m, a robot 14 m. Hole sizes and camera stay exactly as in City Island. A brick (0.16 m) reads like the soda can (0.12 m).                                                                                                            |
-| D2  | "rafts" in the brief    | Read as **inflatable pool rafts and floats** (raft, family raft, swan, flamingo, unicorn, whale). If the user meant shelf **racks**, those exist too (`shelf_run`, `aisle_shelf_double`).                                                                                                                          |
-| D3  | Items on shelves        | **Baked into the shelf mesh.** The sim is 2D (every item stands on the floor), so a gondola shelf is one edible item with its stock painted on. No parent / child items in v1 (carrying items with a table would be a sim change).                                                                                 |
-| D4  | Boundary                | **Rectangle** (store floor), not an island. Add a `Bounds` abstraction (TS-01). No interior solid walls: everything inside the hall is edible or flat floor decoration, because the hole is never blocked.                                                                                                         |
-| D5  | Floor size              | **Decided: 220 x 160 m** (the floor plan is drawn at 240 x 160 m and built to `FLOOR_X` x `FLOOR_Z` in `map/toy/layouts.ts`). At 240 x 160 m the bot reached level 15 in 5 s per level (5x City Island's density); 300 x 200 -> L15 at 30 s; 456 x 304 -> 60 s; 600 x 400 -> 90 s (target 120-160 s like City Island). |
-| D6  | Points per map          | **9 000** (fewer than City Island's 30 000; below ~21 000 layout C loses a cardboard-box type), filled exactly by `balancePoints` using the toy filler items (`brick_pile`, `packing_peanuts`, `confetti_pile`, `puzzle_piece`, `bouncy_ball`, `brick_2x2`).                                                       |
-| D7  | Eat rule, tiers, points | **Unchanged.** The toy catalog is derived from dimensions like every item; never hand-pick points. Tall-but-thin items (giraffe plush, rocket, robots) are cheap on purpose: size is `max(w, d, h x 0.25)`.                                                                                                        |
-| D8  | Scoring version         | **Done:** per map (`MAP_SCORING_VERSIONS` in `game/scores.ts`), so adding this map does not wipe City Island scores.                                                                                                                                                                                               |
-| D9  | Plush rig               | **One parametric plush builder** (head ratio, ears, snout, tail, arm pose, palette) driving every family and size, not 40 hand-written builders.                                                                                                                                                                   |
-| D10 | Mascot / landmark       | **Big Ted**: a giant brown-bear plush sitting on a stack of colour blocks, the signature landmark (tier 25, one copy). `mascot_standee` is its small cut-out.                                                                                                                                                      |
+| #   | Question                | Decision                                                                                                                                                                                                                                         |
+| --- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| D1  | Scale of the world      | **Toy scale ~5x**: a brick is 16 cm, a "small" panda 1.1 m, a ride-on car 3.2 m, a robot 14 m. Hole sizes and camera stay exactly as in City Island. A brick (0.16 m) reads like the soda can (0.12 m).                                          |
+| D2  | "rafts" in the brief    | Read as **inflatable pool rafts and floats** (raft, family raft, swan, flamingo, unicorn, whale). If the user meant shelf **racks**, those exist too (`shelf_run`, `aisle_shelf_double`).                                                        |
+| D3  | Items on shelves        | **Baked into the shelf mesh.** The sim is 2D (every item stands on the floor), so a gondola shelf is one edible item with its stock painted on. No parent / child items in v1 (carrying items with a table would be a sim change).               |
+| D4  | Boundary                | **Rectangle** (store floor), not an island. Add a `Bounds` abstraction (TS-01). No interior solid walls: everything inside the hall is edible or flat floor decoration, because the hole is never blocked.                                       |
+| D5  | Floor size              | **220 x 160 m** (the floor plan is drawn at 240 x 160 m and built to `FLOOR_X` x `FLOOR_Z` in `map/toy/layouts.ts`). Density decides the pace; tuned with the bot together with the type quotas and the very-big-item caps.                      |
+| D6  | Points per map          | **9 000**: just covers the XP to level 15, the hole's cap on this map (`maxLevel`), filled exactly by `balancePoints` using the toy filler items (`brick_pile`, `packing_peanuts`, `confetti_pile`, `puzzle_piece`, `bouncy_ball`, `brick_2x2`). |
+| D7  | Eat rule, tiers, points | **Unchanged.** The toy catalog is derived from dimensions like every item; never hand-pick points. Tall-but-thin items (giraffe plush, rocket, robots) are cheap on purpose: size is `max(w, d, h x 0.25)`.                                      |
+| D8  | Scoring version         | Per map (`MAP_SCORING_VERSIONS` in `game/scores.ts`), so a toy change never touches City Island scores.                                                                                                                                          |
+| D9  | Plush rig               | **One parametric plush builder** (head ratio, ears, snout, tail, arm pose, palette) driving every family and size, not 40 hand-written builders.                                                                                                 |
+| D10 | Mascot / landmark       | **Big Ted**: a giant brown-bear plush sitting on a stack of colour blocks, the signature landmark (tier 25, one copy). `mascot_standee` is its small cut-out.                                                                                    |
 
 ## 3. The size ladder in toy-store terms
 
@@ -332,33 +331,16 @@ vary the proportions a bit (XS has the biggest head: cuter). Optional bow / scar
 
 ### 4.3 Non-edible assets (map furniture)
 
-| Asset              | Status | Notes                                                                                                                                                     |
-| ------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Store floor        | todo   | rectangle slab (stencil-cut like the island ground), big pastel checker tiles (10 m), skirt below so the hole walls have something to cut through         |
-| Zone mats          | todo   | one flat `GroundRect` per department in its colour (see layouts), slightly different height per layer like the city lots                                  |
-| Aisle markings     | todo   | floor tape lines, arrows, painted footprints that lead from the entrance to each department, big painted department names (readable from the game camera) |
-| Perimeter walls    | todo   | non-edible, 3 sides tall with banners / shelves painted on, the **south (camera-side) wall low** or drawn with the existing dither fade (`FADE_FRAGMENT`) |
-| Entrance           | todo   | glass double door gap in the south wall, door mat, checkout lanes drawn as floor decals                                                                   |
-| Void outside       | todo   | pavement / parking lot grey beyond the walls (no water here); the hole cannot leave the floor                                                             |
-| Sky / fog / lights | todo   | warm, bright "indoor" palette: sun key light + hemisphere, fog colour matches the void; no tone mapping (flat colours stay flat)                          |
-| Decals             | todo   | "SALE" stickers, price tags, wet-floor sign decals (flat, 1-3 cm above the floor)                                                                         |
+Floor, zone mats, walls, entrance, wayfinding (floor names, chevron trails, wall banners) and the indoor mood are built:
+[`DETAILS.md`](DETAILS.md) "Map: Toy Emporium". Not built: "SALE" stickers, price tags and wet-floor decals.
 
-Everything that is not in the table above and sits on the floor must be an **edible catalog item** (D4).
+Everything else that sits on the floor must be an **edible catalog item** (D4).
 
-### 4.4 Geometry budgets (enforced by `tests/hole/toy-items.test.ts`)
+### 4.4 Geometry budgets
 
-| Group   | Max triangles | Group    | Max triangles |
-| ------- | ------------- | -------- | ------------- |
-| bricks  | 500           | toyveh   | 900           |
-| figures | 450           | robots   | 900           |
-| toys    | 250           | games    | 450           |
-| plush   | 700           | outdoor  | 600           |
-| dolls   | 450           | store    | 1000          |
-|         |               | landmark | 1400          |
-
-Each item is built once and every placement is an instance of it in a `BatchedMesh` (repo rule). Plush sizes are **separate
-catalog ids** (different proportions), not a runtime scale of one geometry. Measured (shadows on, layout A, after the
-item batching): 22k / 55k / 171k triangles and 28 / 30 / 36 draw calls at level 1 / 8 / 15 (DETAILS.md "Performance").
+Per group in `tests/hole/toy-items.test.ts`. Each item is built once and every placement is an instance of it in a
+`BatchedMesh` (repo rule). Plush sizes are **separate catalog ids** (different proportions), not a runtime scale of one
+geometry.
 
 ## 5. Floor plan
 
@@ -366,7 +348,7 @@ All use world axes +X east, +Z south, the camera looks north-up from the south, 
 (bottom of the screen) wall**. Coordinates are metres from the floor centre. Zone shares are a target for the points
 (each map totals 9 000); if a zone is too dense, grow the zone before cutting items.
 
-### Grand Hall (drawn 240 x 160 m, built 600 x 400 m)
+### Grand Hall (drawn 240 x 160 m, built 220 x 160 m)
 
 One floor plan. The stockroom (north, the outdoor dock) and the atrium (middle) are fixed; the **eight departments and the
 checkout are dealt onto their nine slots at random per seed** (`shuffledLayout` in `map/toy/layouts.ts`). The checkout, the
@@ -405,7 +387,7 @@ Splash Zone -> Figure Falls, then the Atrium for the last levels (the player can
 | Stockroom / Loading dock | -120..120, -80..-55   | concrete       | semi trailer, shipping containers, delivery trucks                                  | 1-19       | 4 %          |
 | Robot Factory            | -120..-60, -55..-25   | teal / steel   | rocket_big, spaceship, mech walker                                                  | 1-24       | 11 %         |
 | Game Room                | 60..120, -55..-25     | purple         | ball pit, arcade rows, foosball / air hockey                                        | 1-16       | 6 %          |
-| Plush Meadow             | -120..-60, -25..20    | pink           | plush throne, panda / bear / rabbit XL lined up, plush pyramids                     | 1-22       | 20 %         |
+| Plush Meadow             | -120..-60, -25..20    | pink           | plush throne, panda / bear / rabbit XL lined up, plush pyramids                     | 1-22       | 18 %         |
 | Vroom Row                | 60..120, -25..5       | red race mat   | race track loop, kiddie train, ride-on cars, model railway                          | 1-25       | 9 %          |
 | Splash Zone              | 60..120, 5..50        | sky blue       | rafts, pool floats (flamingo / swan / whale), bounce house                          | 1-19       | 9 %          |
 | Doll House Lane          | -120..-60, 20..50     | lilac          | dollhouse mansion, play castle, tea parties                                         | 1-18       | 7 %          |
@@ -425,21 +407,8 @@ that are "too big yet" and teeter. The first 20 s must never starve the player (
 
 ## 6. Open tasks
 
-Conventions for every task: follow the DETAILS.md rules (determinism through `src/shared/rng.ts`; DOM-free `sim/` and
-`map/`; never clone geometry or materials per instance; vertex colours + `paint`; no clipping). Definition of done =
-`npx tsc --noEmit -p tsconfig.json`, `npm run lint`, `npm run test` green; the relevant viewer checked with a screenshot
-(the dev preview pane is slow and throttles `requestAnimationFrame`, so drive the game with `__hole.advance(seconds)`);
-README updated in the same change. Workflow: `.claude/skills/hole-content/SKILL.md`. Changing toy item sizes, the point
-total or map content needs a bump of `MAP_SCORING_VERSIONS.toy`.
-
-**What is done** (all documented in the DETAILS.md): TS-00 decisions, TS-01 bounds (`MapData.bounds`), TS-02 map registry,
-TS-03 per-map catalog, TS-04 per-map scoring version, TS-10 toy kit, TS-11 .. TS-22 all builders (210 types incl. the
-panda / brown bear / gray rabbit ladders and 10 more plush families, rafts and floats, robots, rides, landmarks),
-TS-23 item viewer (`map=toy`, `family=`), TS-30 .. TS-36 generator, random department slots, reachability test, TS-40 .. TS-42
-floor / walls / mood, TS-50 / TS-51 map picker and per-map results, TS-52 sounds, TS-60 / TS-61 / TS-62 tests, balance
-and map viewer, TS-63 / TS-64 docs and the `hole-content` skill, TS-65 toy score version 1, TS-66 materials / FX (emissive `glow` parts, per-map swallow puffs), results chart colours + per-map cleared banner, map card pictures, wayfinding (floor
-names, chevron trails, wall banners, stockroom carton racks, entrance header sign), the spread-out atrium with Ferris
-wheel / carousel pairs (toy score version 3), the menu floor-plan picker.
+Workflow and definition of done: the `hole-content` skill. Changing toy item sizes, the point total or map content
+bumps `MAP_SCORING_VERSIONS.toy`.
 
 ### Art and look
 
@@ -450,10 +419,9 @@ wheel / carousel pairs (toy score version 3), the menu floor-plan picker.
 ### Product
 
 - [ ] **Per-map difficulty times** if real play shows the store is easier / harder than the island (today both use
-      Easy 480 / Medium 240 / Hard 120 s; the good bot clears the store in ~195 s vs City Island ~155 s, so ~20 % longer).
-      Pace target: level 15 at 120-160 s (now ~110-120 s).
-- [ ] **Real-device pass** on iPad / phone for the toy store: 600 x 400 m floor, 9 600 items, camera framing at level 15
-      near the walls, adaptive resolution (see TASKS.md real-device pass).
+      Easy 480 / Medium 240 / Hard 120 s).
+- [ ] **Real-device pass** on iPad / phone for the toy store: camera framing at level 15 near the walls, adaptive
+      resolution (see TASKS.md real-device pass).
 
 ### Phase G - After the first playable (nice to have)
 
@@ -470,7 +438,8 @@ wheel / carousel pairs (toy score version 3), the menu floor-plan picker.
 - **Density = pace.** Points per m2 decide how fast the bot levels (see D5). Any change to item counts, the floor scale or
   the clustering (`CLUSTER_AREA`, `CLUSTER_SIGMA` in `map/toy/generate.ts`) changes the pace: re-run the bot
   (`balance.html?map=toy`, `tests/hole/toy-map.test.ts` bands).
-- **Draw calls.** More types x variants x map cells; re-measure after adding items (`__hole.game.renderer.info.render`).
+- **Triangles.** Items are batched, so draw calls stay flat, but triangles grow with every item; re-measure after adding
+  items (`__hole.game.renderer.info.render`).
 - **Thin tiers.** Tiers 17, 20, 21 and 23 and levels 10, 11, 13 have only 2 types; the first item cut there breaks the
   "at least 2 per tier / level" tests.
 - **Items at the wall.** The toy hole centre may go to `0.15 x D` from the wall (`bounds.inset`); `toy-map.test.ts`
@@ -480,5 +449,3 @@ wheel / carousel pairs (toy score version 3), the menu floor-plan picker.
 - **Silhouettes at distance.** Plush and robots must read from the game camera, not just in the viewer: always check
   with `gamecam=1` at the item's first hole level.
 - **Trademarks.** Generic names only (see the note at the top).
-- **Parallel sessions.** Other agents edit this tree: `grep` before adding shared helpers (`kit.ts`, `catalog.ts`,
-  `generate.ts`), and re-read a file right before editing it.

@@ -18,7 +18,7 @@ README files carry the same information in more detail. Keep this file current w
 | [three.js](https://threejs.org/)                                                | MIT              | rendering (runtime)               |
 | Rsbuild, Rspack, Rstest, Rslint, TypeScript, Prettier, happy-dom, meshoptimizer | MIT / Apache-2.0 | build and test tooling (dev only) |
 
-3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party except its UI fonts (below): its critters, arenas, effects and sounds are original and procedural.
+3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party except its UI fonts and the CC0 Poly Haven environment light and detail textures (below): its critters, arenas, effects and sounds are original and procedural.
 
 The only bundled font files are the UI faces of Gravel Rally, Hole Island and 3, 2, 1 Kabooom and the portal's (below); sounds are synthesised with WebAudio and no music file is committed. Most textures
 are painted on canvases at runtime; the texture files that ship are listed with their licences below (building tiles, road
@@ -109,6 +109,19 @@ CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/ground/bake.py`: 
 
 CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/facades/bake.py`: Painted Plaster Wall (Amal Kumar), Brick Wall 006 (Jan Burghardt), Red Brick (Rob Tuytel), Plaster Stone Wall 02 (Charlotte Baglioni), Concrete Wall 007 (Dario Barresi, Rico Cilliers, Charlotte Baglioni), Corrugated Iron 03 (Charlotte Baglioni), Concrete Slab Wall (Dimitrios Savva), Sandstone Blocks 05 (Rob Tuytel), White Planks Clean (Rob Tuytel), Clay Roof Tiles 03 (Amal Kumar). No credit is required.
 
+### Kaboom environment light (baked into `src/games/kaboom/assets/hdri/`)
+
+CC0 HDRIs from Poly Haven, shrunk to 128 x 64 with the sun clipped out by `scripts/kaboom/bake-hdri.py`: Goegap (Greg Zaal) for the Quarry, Meadow 2 (Sergej Majboroda) for Green Valley, Small Harbour Morning (Greg Zaal, Jarod Guest) for Sea Deck. No credit is required.
+
+### Kaboom detail textures (baked into `src/games/kaboom/assets/textures/`)
+
+CC0 textures from Poly Haven, made grey, softened and shrunk to one 512 px tile per level by `scripts/kaboom/bake-textures.py`:
+[Gravelly Sand](https://polyhaven.com/a/gravelly_sand) (Dario Barresi) and [Rock Face](https://polyhaven.com/a/rock_face)
+(Greg Zaal, Dario Barresi) for the Quarry, [Leafy Grass](https://polyhaven.com/a/leafy_grass) (Charlotte Baglioni) and
+[Brown Mud Dry](https://polyhaven.com/a/brown_mud_dry) (Rob Tuytel) for Green Valley, [Fine Grained Wood](https://polyhaven.com/a/fine_grained_wood) (Rob Tuytel) and
+[Wood Peeling Paint Weathered](https://polyhaven.com/a/wood_peeling_paint_weathered) (Rob Tuytel, Dimitrios Savva) for Sea
+Deck. No credit is required.
+
 ### Parked trucks (baked into `src/games/rally/maps/ajvatovci/start-row/build/truck-models.data.ts`)
 
 The tractor units, trailers, box-truck cabs and dump trucks parked at Ajvatovci are recoloured copies of two CC BY 4.0
@@ -189,7 +202,4 @@ Papers and articles read to tune the rally tyre types, tyre temperature, suspens
 Skoda, Fabia, BMW, M3, Ford, Fiesta, Subaru, Impreza, WRX, STI, Citroen, C4, Mitsubishi, Lancer Evolution, Zastava and other make or model names are trademarks of their owners and appear only to
 identify the car that inspired a model. The liveries use no manufacturer, sponsor or series logos. Emergency vehicles
 in the Jackie map carry only generic lettering ("POLICE", "FIRE DEPT", "AMBULANCE") and no agency names, logos or badges; the two fire engine models carry none.
-The Subaru WRX STI 22B (test car) carries a crescent-and-stars side graphic redrawn as shapes after a reference picture of
-the manufacturer's motorsport emblem, at the owner's request; it is not the picture and has no lettering, but it is the one
-exception to "no manufacturer logos" - `cars/subie-22b/livery.ts` drops it.
 The signs on the Ajvatovci are approved to be used by owners.

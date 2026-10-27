@@ -17,7 +17,7 @@ import {
 } from 'three';
 import { worldUniforms } from '../engine/world-shading';
 import type { RoadQuery } from '../world/road';
-import type { ScatterInstance } from '../world/scatter';
+import type { ScatterChunk, ScatterInstance } from '../world/scatter';
 import type { World } from '../world/world';
 import type { LoadedVariant, TreeLibrary } from './load';
 import {
@@ -68,8 +68,9 @@ import {
  * - **Shadows** (Lod.md#shadows): LOD1 branches and the crown proxy for every settled level (the impostor's too, so a
  *   shadow never pops with the level), never dithered, within `shadowDistance` only.
  * - **Batches:** a tree that is settled and keeps its level and shadow for every camera position and zoom until the
- *   next job sits in static batches, refilled by a time-sliced job every `rebuildDistance` of camera travel; every
- *   other tree is "active" and re-selected every frame into the dynamic batches. Far instances outside the
+ *   next job is static, refilled by a time-sliced job every `rebuildDistance` of camera travel; every other tree is
+ *   "active", re-selected every frame into a room of the same batch (one draw call per variant and part). Trees far
+ *   from the road (`fakeFrom`) are staged per scatter chunk as ready blocks of impostors. Far instances outside the
  *   horizontal view are left out of the GPU buffers.
  * - **Debug view** (Lod.md#debug-view, Drawing.md#debug): `debugMode` 1 = level tint, fades, flickering trees
  *   (flashing red, `flickering` counts them); 2 = lighting only; 3 = normals only; 4 = depth; 5 = sprite pixels the
@@ -91,6 +92,11 @@ const REPACK = (8 * Math.PI) / 180;
 const ZOOM_MARGIN = 1.004;
 /** Camera jump (m) between two jobs that counts as a cut: every tree snaps to its level, nothing queues to fade. */
 const CUT_DISTANCE = 50;
+/**
+ * The jobs within this (m) of a horizon's eye reuse it (trees/occlusion.ts: built with this much more margin), instead
+ * of tracing 1024 rays every job: it was most of a job's time on a forest map.
+ */
+const HORIZON_REUSE = 30;
 /** Roles in `treeFade.y` (trees/materials.ts). */
 const SOLID = 0;
 const OUTGOING = 1;
@@ -300,13 +306,48 @@ interface TreeState extends FadeState {
   visible: boolean;
   /** Job that last put it in a static batch. */
   staticJob: number;
-  /** Its variant's dynamic batches: LOD0, LOD1 branches, then the sprite buckets (KEEP). */
-  batches: Batch[];
+  /** Its variant's batches: LOD0, LOD1 branches, then the sprite buckets (KEEP), the crown proxy. */
+  batches: StaticBatch[];
   budget: Budget;
   /** Farther than `fakeFrom` from the road: always a static impostor. */
   faked: boolean;
   /** Its detail zones: the first row (within ROADSIDE_EDGE of the road) reaches farther than the forest behind. */
   reach: Reach;
+  /** Its scatter chunk's sorted trees (`chunkTrees`). */
+  home: ChunkTrees | null;
+}
+
+/**
+ * A scatter chunk's trees, sorted once: the ones near the road (selected per tree by every job) and the faked ones
+ * (`fakeFrom`), which are always static impostors away from the camera, so a job stages them as one ready block of
+ * instances instead of tree by tree (most of a forest map's trees are faked).
+ */
+interface ChunkTrees {
+  near: TreeState[];
+  faked: TreeState[];
+  /** The faked trees' impostor instances (STATIC_IMPOSTOR), in the batch layout. */
+  mat: Float32Array;
+  inst: Float32Array;
+  fade: Float32Array;
+  lod: Float32Array;
+  /** Chunk square (world, m): x0, z0 and size; its faked crowns' bounding sphere (centre y, radius). */
+  x0: number;
+  z0: number;
+  size: number;
+  cy: number;
+  r: number;
+  /** Last job that staged the block (a faked tree back on the per-tree path is not new then). */
+  job: number;
+  /** `blockVersion` its instances were built for (budgets change with the quality setting). */
+  version: number;
+}
+
+/** The blocks of faked trees a job staged: the chunk, the view angle from the job's focus and the half-angle it covers. */
+interface StagedBlocks {
+  list: ChunkTrees[];
+  angle: Float32Array;
+  spread: Float32Array;
+  count: number;
 }
 
 /** Horizontal half-angle a tree (bounding radius r) at distance d covers beyond its centre's direction. */
@@ -334,11 +375,28 @@ interface Batch {
   casters: number;
 }
 
-/** A batch filled by the job: staged / committed instances, packed for the view window at commit or repack. */
+/**
+ * A variant's batch of one part, ONE mesh set (one draw call) for its settled and its active trees: filled by the job
+ * (staged / committed instances, packed for the view window at commit or repack) and every frame by the active trees,
+ * as [static shadow casters | room for the active trees | the other static instances]. The shadow pass draws up to
+ * the end of the room (`casters`); room slots no active tree uses are collapsed (COLLAPSED).
+ */
 interface StaticBatch extends Batch {
   level: number;
   s: Staged;
   c: Staged;
+  /** The room: first instance and size; active trees in it this frame / last frame / most since the last commit. */
+  dynAt: number;
+  dynCap: number;
+  dyn: number;
+  dynLast: number;
+  dynPeak: number;
+  /** Active instances the main pass draws (not shadow-only). */
+  dynSolid: number;
+  /** Static instances after the room. */
+  rest: number;
+  /** Collapse the whole room this frame (re-packed or grown: it holds stale instances). */
+  clearRoom: boolean;
 }
 
 interface Staged {
@@ -359,12 +417,17 @@ interface Staged {
 interface ImpostorBatch extends Batch {
   s: Staged;
   c: Staged;
+  /** Blocks of faked trees: staged by the running job / committed. */
+  sb: StagedBlocks;
+  cb: StagedBlocks;
   packed: number;
   dirty: boolean;
 }
 
 /** treeFade of a static impostor: solid, no shadow, debug level 2. */
 const STATIC_IMPOSTOR = [1, SOLID, 0, IMPOSTOR];
+/** treeFade of an unused room slot: drawn by no pass (it collapses in the vertex shader). */
+const COLLAPSED = [0, SHADOW_ONLY, 0, 0];
 
 const _m = new Matrix4();
 const _q = new Quaternion();
@@ -431,6 +494,22 @@ function staged(): Staged {
     sphere: f(),
     count: 0,
   };
+}
+
+function stagedBlocks(): StagedBlocks {
+  return {
+    list: [],
+    angle: new Float32Array(0),
+    spread: new Float32Array(0),
+    count: 0,
+  };
+}
+
+/** Horizontal distance (m) from (x, z) to the nearest point of a chunk square. */
+function chunkDistance(ct: ChunkTrees, x: number, z: number): number {
+  const dx = Math.max(ct.x0 - x, 0, x - ct.x0 - ct.size);
+  const dz = Math.max(ct.z0 - z, 0, z - ct.z0 - ct.size);
+  return Math.hypot(dx, dz);
 }
 
 /**
@@ -547,8 +626,7 @@ export function spriteRole(st: FadeState): number {
 
 export class TreeRenderer {
   readonly group = new Group();
-  /** Dynamic batches (refilled every frame) and static batches per variant: branch levels and sprites. */
-  private dynamic = new Map<string, Batch>();
+  /** Batches per variant and part (branch levels, sprites, crown proxy): settled + active trees. */
   private statics = new Map<string, StaticBatch>();
   private impostors: ImpostorBatch | null = null;
   /** Static impostors past IMPOSTOR_FLAT_FROM: the far program (no baked depth), static only. */
@@ -558,8 +636,11 @@ export class TreeRenderer {
   /** Far sprite batches' sizing (they hold the far share, `setFarSprites`). */
   private farResize: (() => void)[] = [];
   private partOf = new WeakMap<InstancedMesh, TreePart>();
-  private dynamicOf = new WeakMap<LoadedVariant, Batch[]>();
+  private batchesByVariant = new WeakMap<LoadedVariant, StaticBatch[]>();
   private states = new WeakMap<ScatterInstance, TreeState | null>();
+  private chunks = new WeakMap<ScatterChunk, ChunkTrees>();
+  /** Bumped when the budgets change: every chunk's block of faked trees is rebuilt at its next job. */
+  private blockVersion = 0;
   private active: TreeState[] = [];
   private nextActive: TreeState[] = [];
   private job: Iterator<void> | null = null;
@@ -677,6 +758,9 @@ export class TreeRenderer {
       const lv = this.library.all().find((v) => v.def.name === name);
       if (lv) Object.assign(b, this.makeBudget(lv));
     }
+    this.blockVersion++;
+    // Its reach follows the forest distance.
+    this.horizon = null;
     this.lastFocus.set(Infinity, 0, 0);
   }
 
@@ -826,6 +910,7 @@ export class TreeRenderer {
       budget: this.budget(lv),
       faked: this.farFromRoad(inst.x, inst.z),
       reach,
+      home: null,
     };
     this.states.set(inst, st);
     return st;
@@ -846,6 +931,61 @@ export class TreeRenderer {
     return !q.found || q.distance > d;
   }
 
+  /** A chunk's trees sorted into near / faked, with the faked ones' block of impostor instances (cached). */
+  private chunkTrees(
+    chunk: ScatterChunk,
+    cx: number,
+    cz: number,
+    cs: number,
+  ): ChunkTrees {
+    let ct = this.chunks.get(chunk);
+    if (ct && ct.version === this.blockVersion) return ct;
+    if (!ct) {
+      const near: TreeState[] = [];
+      const faked: TreeState[] = [];
+      for (const inst of chunk.instances) {
+        if (!inst.tree) continue;
+        const st = this.stateOf(inst);
+        if (st) (st.faked ? faked : near).push(st);
+      }
+      const n = faked.length;
+      ct = {
+        near,
+        faked,
+        mat: new Float32Array(n * 16),
+        inst: new Float32Array(n * 4),
+        fade: new Float32Array(n * 4),
+        lod: new Float32Array(n * 4),
+        x0: cx * cs,
+        z0: cz * cs,
+        size: cs,
+        cy: 0,
+        r: 0,
+        job: -1,
+        version: -1,
+      };
+      for (const st of near) st.home = ct;
+      for (const st of faked) st.home = ct;
+      this.chunks.set(chunk, ct);
+    }
+    let lo = Infinity;
+    let hi = -Infinity;
+    let r = 0;
+    ct.faked.forEach((st, i) => {
+      ct.mat.set(st.m, i * 16);
+      ct.inst.set(st.inst, i * 4);
+      ct.fade.set(STATIC_IMPOSTOR, i * 4);
+      this.lodOf(st, ct.lod, i * 4);
+      lo = Math.min(lo, st.cy);
+      hi = Math.max(hi, st.cy);
+      r = Math.max(r, st.diameter / 2);
+    });
+    ct.cy = ct.faked.length ? (lo + hi) / 2 : 0;
+    ct.r = cs * Math.SQRT1_2 + (ct.faked.length ? (hi - lo) / 2 : 0) + r;
+    ct.version = this.blockVersion;
+    return ct;
+  }
+
   /** treeLod of a tree: sphere centre rise, diameter, thinning and impostor thresholds (the sprite shader's input). */
   private lodOf(st: TreeState, out: Float32Array, i: number): void {
     out[i] = st.rise;
@@ -862,7 +1002,9 @@ export class TreeRenderer {
   private *rebuild(focus: Vector3, px: number, cut: boolean): Generator<void> {
     const job = ++this.jobId;
     for (const b of this.statics.values()) b.s.count = 0;
-    this.impostorBatch().s.count = 0;
+    const ib = this.impostorBatch();
+    ib.s.count = 0;
+    ib.sb.count = 0;
     this.nextActive.length = 0;
     const scatter = this.world.scatter;
     const cs = scatter.chunkSize;
@@ -871,7 +1013,10 @@ export class TreeRenderer {
     const shadowD = this.opts.shadowDistance;
     const move = (this.opts.rebuildDistance ?? 5) + 4;
     const bounds = this.world.map.bounds;
-    // Terrain occlusion (trees/occlusion.ts): the horizon from this focus, a few rays per slice.
+    // Trees past this from the focus are drawn nowhere (the shader dissolves them up to forestD).
+    const farD = Math.min(maxD, forestD + move);
+    // Terrain occlusion (trees/occlusion.ts): the horizon out to farD, a few rays per slice; built for a camera
+    // anywhere within HORIZON_REUSE + move of its eye, so the next jobs within HORIZON_REUSE reuse it.
     let horizon: Horizon | null = null;
     if (this.occlusion) {
       this.heights ??= new HeightGrid(
@@ -883,11 +1028,26 @@ export class TreeRenderer {
           maxZ: bounds.maxZ + 300,
         },
       );
-      horizon = new Horizon(this.heights, focus, move, maxD);
-      while (!horizon.step(64)) yield;
-      this.horizon = horizon;
+      horizon = this.horizon;
+      const e = horizon?.eye;
+      if (
+        !horizon ||
+        !e ||
+        Math.hypot(e.x - focus.x, e.y - focus.y, e.z - focus.z) >
+          HORIZON_REUSE ||
+        horizon.move < move + HORIZON_REUSE
+      ) {
+        horizon = new Horizon(this.heights, focus, move + HORIZON_REUSE, farD);
+        while (!horizon.step(64)) yield;
+        this.horizon = horizon;
+      }
     }
     // Trees nearer than this always draw (they cast shadows and fill the full-detail distance).
+    const occludeFrom = (r: Reach) => Math.max(shadowD, r.full) + move;
+    // A chunk this far away stages its faked trees as one block: none of them can leave the impostor for any camera
+    // in the job's window (the per-tree rule below).
+    const blockFrom = IMPOSTOR_FROM * 1.15 + move;
+    const sb = ib.sb;
     let cells = 0;
     let occluded = 0;
     const x0 = Math.floor(Math.max(bounds.minX - 300, focus.x - maxD) / cs);
@@ -904,83 +1064,150 @@ export class TreeRenderer {
           continue;
         this.current.cellsChecked++;
         cells++;
-        for (const inst of scatter.chunk(cx, cz).instances) {
-          if (!inst.tree) continue;
-          const st = this.stateOf(inst);
-          if (!st) continue;
-          const dx = st.cx - focus.x;
-          const dy = st.cy - focus.y;
-          const dz = st.cz - focus.z;
-          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-          // Past the forest edge (+ the job's move: the shader dissolves trees up to it).
-          if (dist > maxD || dist > forestD + move) continue;
+        // Generated out to maxD even past the forest: the canopy texture paints the far forest from the chunks.
+        const cached = scatter.cachedChunk(cx, cz);
+        const chunk = cached ?? scatter.chunk(cx, cz);
+        // Every tree of the chunk is at least this far from the focus.
+        const dNear = Math.hypot(
+          Math.max(cx * cs - focus.x, 0, focus.x - (cx + 1) * cs),
+          Math.max(cz * cs - focus.z, 0, focus.z - (cz + 1) * cs),
+        );
+        if (dNear > farD) {
+          if (!cached) yield;
+          continue;
+        }
+        const ct = this.chunkTrees(chunk, cx, cz, cs);
+        const block = ct.faked.length > 0 && dNear >= blockFrom;
+        if (block) {
+          const bx = ct.x0 + cs / 2 - focus.x;
+          const bz = ct.z0 + cs / 2 - focus.z;
           if (
             horizon &&
-            dist > Math.max(shadowD, st.reach.full) + move &&
-            horizon.hides(st.cx, st.cy, st.cz, st.diameter / 2)
+            dNear > occludeFrom(FOREST_REACH) &&
+            horizon.hides(ct.x0 + cs / 2, ct.cy, ct.z0 + cs / 2, ct.r)
           ) {
-            this.current.occluded++;
-            occluded++;
-            continue;
+            this.current.occluded += ct.faked.length;
+            occluded += ct.faked.length;
+          } else {
+            const i = sb.count++;
+            sb.list[i] = ct;
+            sb.angle = grow(sb.angle, i + 1);
+            sb.spread = grow(sb.spread, i + 1);
+            sb.angle[i] = Math.atan2(bz, bx);
+            sb.spread[i] = spread(ct.r + move, Math.hypot(bx, bz));
           }
-          // Far from the road: always a static impostor, unless it is near the camera (IMPOSTOR_FROM) - the trees
-          // just beyond the first rows are what the driver sees across the fields.
-          if (st.faked && dist - move >= IMPOSTOR_FROM * 1.15) {
-            st.from = st.to = IMPOSTOR;
-            st.fade = 1;
-            st.dir = 1;
+          ct.job = job;
+        }
+        for (let k = 0; k < (block ? 1 : 2); k++)
+          for (const st of k ? ct.faked : ct.near) {
+            const dx = st.cx - focus.x;
+            const dy = st.cy - focus.y;
+            const dz = st.cz - focus.z;
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            // Past the forest edge (+ the job's move: the shader dissolves trees up to it).
+            if (dist > farD) continue;
+            if (
+              horizon &&
+              dist > occludeFrom(st.reach) &&
+              horizon.hides(st.cx, st.cy, st.cz, st.diameter / 2)
+            ) {
+              this.current.occluded++;
+              occluded++;
+              continue;
+            }
+            // Far from the road: always a static impostor, unless it is near the camera (IMPOSTOR_FROM) - the trees
+            // just beyond the first rows are what the driver sees across the fields.
+            if (st.faked && dist - move >= IMPOSTOR_FROM * 1.15) {
+              st.from = st.to = IMPOSTOR;
+              st.fade = 1;
+              st.dir = 1;
+              st.seen = this.frame;
+              this.jobSpread = spread(st.diameter / 2 + move, dist);
+              this.stageImpostor(st, Math.atan2(dz, dx));
+              st.staticJob = job;
+              continue;
+            }
+            const { t, hysteresis: margin } = st.budget;
+            const unseen =
+              st.seen < this.frame - 1 && st.staticJob !== this.committedJob;
+            // Drawn in its chunk's block of faked trees by the last job: a settled impostor, as a static one.
+            if (
+              unseen &&
+              st.faked &&
+              st.home?.job === this.committedJob &&
+              !cut
+            ) {
+              st.from = st.to = IMPOSTOR;
+              st.fade = 1;
+              st.dir = 1;
+            } else if (cut || unseen) {
+              // Neither drawn last frame nor in the last static batches (or a cut): new, it takes its level at once.
+              st.from = st.to = selectLevel(
+                (st.diameter * px) / Math.max(dist, 0.5),
+                IMPOSTOR,
+                t,
+                0,
+                dist,
+                st.reach.full,
+              );
+              st.fade = 1;
+              st.dir = 1;
+            }
             st.seen = this.frame;
+            const dMin = Math.max(dist - move, 0.5);
+            const dMax = dist + move;
+            const hMin = (st.diameter * px) / (ZOOM_MARGIN * dMax);
+            const hMax = (st.diameter * px * ZOOM_MARGIN) / dMin;
+            const l = st.to;
+            // Settled at l for every camera in the window: LOD0 only inside the tree's full-detail distance (`selectLevel`);
+            // LOD1 the whole window outside it and above the impostor threshold; the impostor the whole window outside
+            // it and inside its hysteresis band.
+            const steadyLevel =
+              st.from === l &&
+              (l === 0
+                ? dMax < st.reach.full
+                : dMin >= st.reach.full &&
+                  (l === IMPOSTOR
+                    ? hMax <= t[l - 1] * (1 + margin) &&
+                      dMin >= IMPOSTOR_FROM * (1 + margin)
+                    : hMin >= t[l] || dMax < IMPOSTOR_FROM));
+            const angle = Math.atan2(dz, dx);
             this.jobSpread = spread(st.diameter / 2 + move, dist);
-            this.stageImpostor(st, Math.atan2(dz, dx));
-            st.staticJob = job;
-            continue;
-          }
-          const { t, hysteresis: margin } = st.budget;
-          // Neither drawn last frame nor in the last static batches (or a cut): new, it takes its level at once.
-          if (
-            cut ||
-            (st.seen < this.frame - 1 && st.staticJob !== this.committedJob)
-          ) {
-            st.from = st.to = selectLevel(
-              (st.diameter * px) / Math.max(dist, 0.5),
-              IMPOSTOR,
-              t,
-              0,
-              dist,
-              st.reach.full,
-            );
-            st.fade = 1;
-            st.dir = 1;
-          }
-          st.seen = this.frame;
-          const dMin = Math.max(dist - move, 0.5);
-          const dMax = dist + move;
-          const hMin = (st.diameter * px) / (ZOOM_MARGIN * dMax);
-          const hMax = (st.diameter * px * ZOOM_MARGIN) / dMin;
-          const l = st.to;
-          // Settled at l for every camera in the window: LOD0 only inside the tree's full-detail distance (`selectLevel`);
-          // LOD1 the whole window outside it and above the impostor threshold; the impostor the whole window outside
-          // it and inside its hysteresis band.
-          const steadyLevel =
-            st.from === l &&
-            (l === 0
-              ? dMax < st.reach.full
-              : dMin >= st.reach.full &&
-                (l === IMPOSTOR
-                  ? hMax <= t[l - 1] * (1 + margin) &&
-                    dMin >= IMPOSTOR_FROM * (1 + margin)
-                  : hMin >= t[l] || dMax < IMPOSTOR_FROM));
-          const angle = Math.atan2(dz, dx);
-          this.jobSpread = spread(st.diameter / 2 + move, dist);
-          if (steadyLevel) {
-            // May come within the shadow distance: carries its shadow, which the shader keeps within tlShadowD (and
-            // drawn whatever the view, for the shadows of trees behind the camera).
-            const near = dMin < shadowD;
-            if (l === IMPOSTOR) {
-              this.stageImpostor(st, angle);
-              if (near) {
-                this.stageStatic(st, 1, SHADOW_ONLY, true, true, angle, 0);
-                if (st.lv.proxy)
+            if (steadyLevel) {
+              // May come within the shadow distance: carries its shadow, which the shader keeps within tlShadowD (and
+              // drawn whatever the view, for the shadows of trees behind the camera).
+              const near = dMin < shadowD;
+              if (l === IMPOSTOR) {
+                this.stageImpostor(st, angle);
+                if (near) {
+                  this.stageStatic(st, 1, SHADOW_ONLY, true, true, angle, 0);
+                  if (st.lv.proxy)
+                    this.stageStatic(
+                      st,
+                      PROXY_PART,
+                      SHADOW_ONLY,
+                      true,
+                      true,
+                      angle,
+                      0,
+                    );
+                }
+              } else {
+                const sh = near ? shadowLevel(l) : -1;
+                this.stageStatic(st, l, SOLID, sh === l, near, angle, l);
+                if (sh >= 0 && sh !== l)
+                  this.stageStatic(st, sh, SHADOW_ONLY, true, true, angle, 0);
+                // Sprites cast no shadow: the crown proxy does (trees/proxy.ts).
+                this.stageStatic(
+                  st,
+                  spritePart(dMin, st.reach),
+                  SOLID,
+                  false,
+                  false,
+                  angle,
+                  l,
+                );
+                if (near && st.lv.proxy)
                   this.stageStatic(
                     st,
                     PROXY_PART,
@@ -991,47 +1218,21 @@ export class TreeRenderer {
                     0,
                   );
               }
+              st.staticJob = job;
             } else {
-              const sh = near ? shadowLevel(l) : -1;
-              this.stageStatic(st, l, SOLID, sh === l, near, angle, l);
-              if (sh >= 0 && sh !== l)
-                this.stageStatic(st, sh, SHADOW_ONLY, true, true, angle, 0);
-              // Sprites cast no shadow: the crown proxy does (trees/proxy.ts).
-              this.stageStatic(
-                st,
-                spritePart(dMin, st.reach),
-                SOLID,
-                false,
-                false,
-                angle,
-                l,
-              );
-              if (near && st.lv.proxy)
-                this.stageStatic(
-                  st,
-                  PROXY_PART,
-                  SHADOW_ONLY,
-                  true,
-                  true,
-                  angle,
-                  0,
-                );
+              this.nextActive.push(st);
             }
-            st.staticJob = job;
-          } else {
-            this.nextActive.push(st);
           }
-        }
         yield;
       }
     [this.active, this.nextActive] = [this.nextActive, this.active];
     this.committedJob = job;
     for (const b of this.statics.values()) {
       [b.c, b.s] = [b.s, b.c];
-      this.packStatic(b);
+      this.packStatic(b, true);
     }
-    const ib = this.impostorBatch();
     [ib.c, ib.s] = [ib.s, ib.c];
+    [ib.cb, ib.sb] = [ib.sb, ib.cb];
     this.packImpostors();
     this.packedView = this.view && { ...this.view };
     this.commits++;
@@ -1091,12 +1292,12 @@ export class TreeRenderer {
     );
   }
 
-  /** Every frame: select, fade and write every active tree into the dynamic batches. */
+  /** Every frame: select, fade and write every active tree into its batches' room. */
   private drawActive(px: number, dt: number): void {
     this.frame++;
-    for (const b of this.dynamic.values()) {
-      b.count = 0;
-      b.solid = 0;
+    for (const b of this.statics.values()) {
+      b.dyn = 0;
+      b.dynSolid = 0;
     }
     const ib = this.impostorBatch();
     ib.count = ib.packed;
@@ -1191,20 +1392,19 @@ export class TreeRenderer {
       if (sh >= 0 && st.lv.proxy)
         this.emit(st, PROXY_PART, SHADOW_ONLY, 1, true, 0);
     }
-    for (const b of this.dynamic.values()) this.upload(b, b.count);
     // Impostors: the whole buffer after a re-pack, else only this frame's dynamic part.
     this.upload(ib, ib.count, ib.dirty ? 0 : ib.packed);
     ib.dirty = false;
     const fb = this.farImpostorBatch();
     let statics = ib.packed + fb.count;
     let sprites = 0;
-    for (const b of this.dynamic.values()) sprites += b.solid * b.sprites;
     for (const b of this.statics.values()) {
+      this.finishRoom(b);
       if (b.level < IMPOSTOR) {
         levels[b.level] += b.solid;
         statics += b.solid;
       }
-      sprites += b.solid * b.sprites;
+      sprites += (b.solid + b.dynSolid) * b.sprites;
     }
     levels[IMPOSTOR] += ib.packed + fb.count;
     this.current.sprites = sprites;
@@ -1227,12 +1427,20 @@ export class TreeRenderer {
     shadow: boolean,
     debug: number,
   ): void {
-    const b =
-      part === IMPOSTOR
-        ? this.impostorBatch()
-        : st.batches[part < IMPOSTOR ? part : part - 1];
-    const i = b.count++;
-    if (b.count > b.capacity) this.ensureCapacity(b, b.count);
+    let b: Batch;
+    let i: number;
+    if (part === IMPOSTOR) {
+      b = this.impostorBatch();
+      i = b.count++;
+      if (b.count > b.capacity) this.ensureCapacity(b, b.count);
+      if (role !== SHADOW_ONLY) b.solid++;
+    } else {
+      const vb = st.batches[part < IMPOSTOR ? part : part - 1];
+      if (vb.dyn >= vb.dynCap) this.growRoom(vb);
+      i = vb.dynAt + vb.dyn++;
+      if (role !== SHADOW_ONLY) vb.dynSolid++;
+      b = vb;
+    }
     b.mat.set(st.m, i * 16);
     b.inst.set(st.inst, i * 4);
     b.fade[i * 4] = fade;
@@ -1240,16 +1448,63 @@ export class TreeRenderer {
     b.fade[i * 4 + 2] = shadow ? 1 : 0;
     b.fade[i * 4 + 3] = debug;
     this.lodOf(st, b.lod, i * 4);
-    if (role !== SHADOW_ONLY) b.solid++;
   }
 
-  /** A variant's dynamic batches: LOD0, LOD1 branches, the sprite buckets (cached on the state). */
-  private batchesOf(lv: LoadedVariant): Batch[] {
-    let list = this.dynamicOf.get(lv);
+  /** More room for a batch's active trees: the static instances after it move up (and upload again). */
+  private growRoom(b: StaticBatch): void {
+    const cap = Math.max(8, b.dynCap * 2);
+    const from = b.dynAt + b.dynCap;
+    const total = b.dynAt + cap + b.rest;
+    this.ensureCapacity(b, total);
+    for (const [a, size] of [
+      [b.mat, 16],
+      [b.inst, 4],
+      [b.fade, 4],
+      [b.lod, 4],
+    ] as const)
+      a.copyWithin((b.dynAt + cap) * size, from * size, (from + b.rest) * size);
+    b.dynCap = cap;
+    b.count = total;
+    b.casters = b.dynAt + cap;
+    b.clearRoom = true;
+    this.uploadRange(b, b.dynAt, total);
+  }
+
+  /**
+   * After this frame's emits: collapse the room's slots the active trees no longer use, upload what changed, set the
+   * draw counts (the room is drawn only when static instances follow it).
+   */
+  private finishRoom(b: StaticBatch): void {
+    const used = b.dyn;
+    const clear = b.clearRoom ? b.dynCap : Math.max(b.dynLast, used);
+    for (let i = used; i < clear; i++) b.fade.set(COLLAPSED, (b.dynAt + i) * 4);
+    if (clear > 0) this.uploadRange(b, b.dynAt, b.dynAt + clear);
+    b.clearRoom = false;
+    b.dynLast = used;
+    b.dynPeak = Math.max(b.dynPeak, used);
+    const n = b.rest > 0 ? b.count : b.dynAt + used;
+    for (const mesh of b.meshes) {
+      mesh.count = n;
+      mesh.visible = this.shows(mesh, b.dynAt + used + b.rest);
+    }
+  }
+
+  /** Add instances [from, to) to this frame's upload (on top of a pack's). */
+  private uploadRange(b: Batch, from: number, to: number): void {
+    this.current.uploadBytes += (to - from) * 28 * 4;
+    for (const a of [b.aMat!, b.aInst!, b.aFade!, b.aLod!]) {
+      a.addUpdateRange(from * a.itemSize, (to - from) * a.itemSize);
+      a.needsUpdate = true;
+    }
+  }
+
+  /** A variant's batches: LOD0, LOD1 branches, the sprite buckets, the crown proxy (cached on the state). */
+  private batchesOf(lv: LoadedVariant): StaticBatch[] {
+    let list = this.batchesByVariant.get(lv);
     if (!list)
-      this.dynamicOf.set(
+      this.batchesByVariant.set(
         lv,
-        (list = PARTS.map((p) => this.dynamicBatch(lv, p))),
+        (list = PARTS.map((p) => this.staticBatch(lv, p))),
       );
     return list;
   }
@@ -1261,6 +1516,8 @@ export class TreeRenderer {
       ...this.newBatch(),
       s: staged(),
       c: staged(),
+      sb: stagedBlocks(),
+      cb: stagedBlocks(),
       packed: 0,
       dirty: false,
     };
@@ -1287,24 +1544,25 @@ export class TreeRenderer {
     return b;
   }
 
-  private dynamicBatch(lv: LoadedVariant, part: number): Batch {
-    const key = `${lv.info.species}#${lv.info.index}:${part}`;
-    let b = this.dynamic.get(key);
-    if (!b) {
-      b = this.newBatch();
-      this.createMeshes(b, lv, part, `dyn ${part}`);
-      this.ensureCapacity(b, 64);
-      this.dynamic.set(key, b);
-    }
-    return b;
-  }
-
   private staticBatch(lv: LoadedVariant, part: number): StaticBatch {
     const key = `${lv.info.species}#${lv.info.index}:${part}`;
     let b = this.statics.get(key);
     if (!b) {
-      b = { ...this.newBatch(), level: part, s: staged(), c: staged() };
-      this.createMeshes(b, lv, part, `static ${part}`);
+      b = {
+        ...this.newBatch(),
+        level: part,
+        s: staged(),
+        c: staged(),
+        dynAt: 0,
+        dynCap: 0,
+        dyn: 0,
+        dynLast: 0,
+        dynPeak: 0,
+        dynSolid: 0,
+        rest: 0,
+        clearRoom: false,
+      };
+      this.createMeshes(b, lv, part, `${part}`);
       this.ensureCapacity(b, 64);
       this.statics.set(key, b);
     }
@@ -1353,16 +1611,20 @@ export class TreeRenderer {
     this.packImpostors();
   }
 
-  /** Committed static instances -> GPU (from `at`): the ones in the view window, plus the always-drawn ones. */
+  /**
+   * Committed static instances -> GPU (from `at`): the ones in the view window, plus the always-drawn ones. The
+   * shadow casters first, then `gap` slots left free (a batch's room for its active trees), then the rest.
+   */
   private pack(
     b: Batch,
     c: Staged,
     at: number,
     keep?: (i: number) => boolean,
+    gap = 0,
   ): number {
     this.current.repacks++;
     const v = this.packedView ?? this.view;
-    this.ensureCapacity(b, at + c.count + Math.max(0, b.count - at));
+    this.ensureCapacity(b, at + c.count + gap + Math.max(0, b.count - at));
     let n = at;
     let solid = 0;
     const box = this.shadowBox(v);
@@ -1387,7 +1649,10 @@ export class TreeRenderer {
         if (c.fade[i * 4 + 1] !== SHADOW_ONLY) solid++;
         n++;
       }
-      if (casters) b.casters = n - at;
+      if (casters) {
+        n += gap;
+        b.casters = n - at;
+      }
     }
     b.solid = solid;
     return n;
@@ -1433,8 +1698,16 @@ export class TreeRenderer {
     };
   }
 
-  private packStatic(b: StaticBatch): void {
-    b.count = this.pack(b, b.c, 0);
+  /** `commit`: a job's new instances, the room is sized again for the most active trees since the last one. */
+  private packStatic(b: StaticBatch, commit = false): void {
+    if (commit) {
+      b.dynCap = Math.max(4, Math.ceil(Math.max(b.dynPeak, b.dyn) * 1.25));
+      b.dynPeak = 0;
+    }
+    b.count = this.pack(b, b.c, 0, undefined, b.dynCap);
+    b.dynAt = b.casters - b.dynCap;
+    b.rest = b.count - b.casters;
+    b.clearRoom = true;
     this.upload(b, b.count);
   }
 
@@ -1452,11 +1725,57 @@ export class TreeRenderer {
     const far = (i: number) =>
       (m[i * 16 + 12] - p.x) ** 2 + (m[i * 16 + 14] - p.z) ** 2 >
       IMPOSTOR_FLAT_FROM * IMPOSTOR_FLAT_FROM;
-    b.packed = this.pack(b, b.c, 0, (i) => !far(i));
+    b.packed = this.packBlocks(
+      b,
+      b.cb,
+      this.pack(b, b.c, 0, (i) => !far(i)),
+      false,
+    );
     b.count = b.packed;
     b.dirty = true;
-    f.count = this.pack(f, b.c, 0, far);
+    f.count = this.packBlocks(f, b.cb, this.pack(f, b.c, 0, far), true);
     this.upload(f, f.count);
+  }
+
+  /**
+   * Committed blocks of faked trees -> a batch from `at`: those in the view window, the near or the far ones (the
+   * chunk's nearest point past IMPOSTOR_FLAT_FROM). Whole blocks are copied, no per-tree work.
+   */
+  private packBlocks(
+    b: Batch,
+    k: StagedBlocks,
+    at: number,
+    far: boolean,
+  ): number {
+    const v = this.packedView ?? this.view;
+    const p = this.steadyPos;
+    const shown = (i: number) => {
+      const ct = k.list[i];
+      if (chunkDistance(ct, p.x, p.z) > IMPOSTOR_FLAT_FROM !== far)
+        return false;
+      if (!v) return true;
+      let a = Math.abs(k.angle[i] - v.yaw) % (2 * Math.PI);
+      if (a > Math.PI) a = 2 * Math.PI - a;
+      return a <= v.half + REPACK + k.spread[i];
+    };
+    let need = at;
+    for (let i = 0; i < k.count; i++)
+      if (shown(i)) need += k.list[i].faked.length;
+    if (need === at) return at;
+    b.count = at;
+    this.ensureCapacity(b, need);
+    let n = at;
+    for (let i = 0; i < k.count; i++) {
+      if (!shown(i)) continue;
+      const ct = k.list[i];
+      b.mat.set(ct.mat, n * 16);
+      b.inst.set(ct.inst, n * 4);
+      b.fade.set(ct.fade, n * 4);
+      b.lod.set(ct.lod, n * 4);
+      n += ct.faked.length;
+    }
+    b.solid += n - at;
+    return n;
   }
 
   private farImpostorBatch(): Batch {
@@ -1778,21 +2097,18 @@ export class TreeRenderer {
       }
     };
     for (const lv of this.library.all())
-      for (const part of PARTS) {
-        one(this.dynamicBatch(lv, part));
-        one(this.staticBatch(lv, part));
-      }
+      for (const part of PARTS) one(this.staticBatch(lv, part));
     one(this.impostorBatch());
     one(this.farImpostorBatch());
   }
 
   /** Re-apply visibility after prewarm / compile. */
   settle(): void {
-    for (const b of this.dynamic.values()) {
-      b.count = 0;
-      this.upload(b, 0);
+    for (const b of this.statics.values()) {
+      b.dyn = 0;
+      this.packStatic(b);
+      this.finishRoom(b);
     }
-    for (const b of this.statics.values()) this.packStatic(b);
     this.packImpostors();
     this.upload(this.impostorBatch(), this.impostorBatch().count);
   }
@@ -1819,7 +2135,6 @@ export class TreeRenderer {
       }
       for (const m of b.meshes) m.dispose();
     }
-    this.dynamic.clear();
     this.statics.clear();
     this.impostors = null;
     this.group.clear();
@@ -1827,7 +2142,6 @@ export class TreeRenderer {
 
   private batches(): Batch[] {
     return [
-      ...this.dynamic.values(),
       ...this.statics.values(),
       ...(this.impostors ? [this.impostors] : []),
       ...(this.farImpostors ? [this.farImpostors] : []),

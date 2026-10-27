@@ -1,6 +1,6 @@
 ---
 name: hole-content
-description: Add content to Hole Island - a new edible item (catalog row + procedural builder + tests + lineup check) or a whole new map (bounds, zones, point budget, registry entry, per-map scores version). Use for any request about Hole Island items, plush, toys, buildings, maps, the toy store (Toy Emporium) or the City Island generator.
+description: Add content to Hole Island - a new edible item (catalog row + procedural builder + tests + lineup check) or a whole new map (bounds, zones, point budget, registry entry, per-map scores version). Use for any request about Hole Island items, plush, toys, animals, machines, buildings, maps (City Island, Toy Emporium, Animal Island, Construction Site) or their generators.
 ---
 
 # Hole Island content workflow
@@ -30,7 +30,7 @@ so bump that map's scoring version (below).
 3. **Tests.** `npx rstest run tests/hole` - City: `items`, `clip`; Toy: `toy-items` (size within 15 % footprint / 10 %
    height, on the ground, paint list, triangle budget per group), `toy-clip` (z-fighting, mostly-buried parts; the
    failure names the builder `file:line`), `toy-map`. Every size tier 1-25 and hole level 1-15 needs >= 2 types per
-   catalog: **protect the thin tiers** (toy: 17, 20, 21, 23).
+   catalog: **protect the thin tiers** (cutting one of the last two types of a tier fails the test).
 4. **Look at it.** `item-viewer.html?map=toy&mode=lineup&family=plush_panda&gamecam=1` (and `mode=compare` for the tier
    boundary). It has to read at game-camera distance at the item's first hole level, not just in the viewer.
 5. **Place it.** City: add its `SPAWN` row in `map/spawn.ts` (zones its centre may be in; only vehicles may list `road`, see
@@ -47,20 +47,26 @@ so bump that map's scoring version (below).
    rig with a glowing collar), or a recipe in `build-nature.ts` / `build-zoo.ts`. Recipes run in `Mesher.fitted`, so design by
    proportion; use `ball()` for round parts. Parts closer than 4 mm to a neighbour's face fail the clip test.
 3. The generator places it by itself from its biomes and priority (`planCounts`); giants and compound items are listed in
-   `GIANTS` and `buildCompound` of `map/animal/generate.ts`. Bump `MAP_SCORING_VERSIONS.animal` once the map is released.
+   `GIANTS` and `buildCompound` of `map/animal/generate.ts`. Bump `MAP_SCORING_VERSIONS.animal`.
 4. Look: `item-viewer.html?map=animal&mode=lineup&family=<id part>`; pace: `tests/hole/animal-map.test.ts` bands.
+
+## Add a construction item (Construction Site)
+
+Row in `items/catalog-construction.ts` (homes = districts or `everywhere`, motion), builder in `build-site.ts` (materials,
+tools, crew, site furniture, heaps) or `build-machines.ts` (plant, trucks, cranes, mining, buildings) with the `kit-site.ts`
+helpers; recipes in fractions, `Mesher.decoplanar`. Tests: `construction-items`, `construction-clip`, `construction-map`.
+Bump `MAP_SCORING_VERSIONS.construction`.
 
 ## Add a map
 
 1. A generator `map/<id>/generate.ts` returning `MapData` (`map/types.ts`): `placements`, `rects` (flat floor patches),
    `start`, and either `coast` (island) or `bounds` (`hx`, `hz`, `inset`, `door`) for a closed rectangle. Deterministic
    (`src/shared/rng.ts`), DOM-free.
-2. **Exact point total** per map (City Island 30 000, Toy Emporium 22 000): fill, then trim small items / top up with 1-point fillers
+2. **Exact point total** per map (City Island 30 000, Toy Emporium 9 000, Animal Island and Construction Site 21 000): fill, then trim small items / top up with 1-point fillers
    (`balancePoints` in `map/generate.ts` and `map/toy/generate.ts`). Every tier 1-25 and level 1-15 has >= 2 types placed,
-   every type up to tier 20 is placed, the start has > 15 tier 1-3 items within 25 m, total >= 2 x `cumulativeXp(15)`.
+   every type up to tier 20 is placed, the start is busy with tier 1-3 items, total >= 2 x `cumulativeXp(15)`.
 3. **Pace it with the bot** (`sim/bot.ts`, `balance.html?map=<id>`): good bot, Hard 120 s reaches level >= 10, Medium
-   240 s level 15, Easy 480 s clears > 95 %. Density (points per m2) decides the pace: the toy store needed a 600 x 400 m
-   floor. Tune floor size and clustering, **not** the XP curve.
+   240 s level 15, Easy 480 s clears > 95 %. Density (points per m2) decides the pace: tune floor size and clustering, **not** the XP curve.
 4. **Ground + mood.** A ground builder in `render/` (use the stencil-cut `createGroundMaterial()` for everything the hole
    cuts) and wire it in `render/map-ground.ts`; walls use `getItemMaterials().prop` so the building fade dithers them.
 5. **Register** a `MapDef` in `map/registry.ts` (name, blurb, noun for the HUD, points, mood colours, menu camera) and
@@ -72,7 +78,7 @@ so bump that map's scoring version (below).
 
 ## Testing in the browser
 
-Open the game with `mute=1` (`/games/hole/?map=toy&mute=1`): no sound while creating / editing (AGENTS.md "Sound while testing"). Drop it only when the task is a sound fix in `game/audio.ts`.
+Open the game with `mute=1` (`/games/hole/?map=toy&mute=1`): no sound while creating / editing (AGENTS.md "Conventions"). Drop it only when the task is a sound fix in `game/audio.ts`.
 
 ## Scoring version rule
 

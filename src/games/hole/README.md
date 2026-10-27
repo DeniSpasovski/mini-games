@@ -1,9 +1,10 @@
 # Hole Island (working title)
 
-A simple game in which you play the role of gravity hole eating the world around you, built with three.js to learn the
-library. You steer a gravity hole around a blocky island and swallow everything that fits; every item you eat makes the hole
-bigger, from trash cans and flowers up to skyscrapers. You play against the clock and the score goes on a top-10 list
-per difficulty. It is a touch-first game (one finger steers), with keyboard, mouse and gamepad support.
+A simple game in which you play a gravity hole eating the world around you, built with three.js to learn the library.
+Steer the hole and swallow everything that fits; every item you eat makes it bigger. Four maps: a city island (trash
+cans to skyscrapers), a giant toy store, an island of animals with a secret lab, and a construction site with an
+open-pit mine. You play against the clock, and each map keeps a top 10 for each time limit. It is a touch-first game
+(one finger steers), with keyboard, mouse and gamepad support.
 
 All art is original, procedural and made from boxes, and the name is a placeholder.
 
@@ -15,7 +16,7 @@ All art is original, procedural and made from boxes, and the name is a placehold
 npm run dev     # then open http://localhost:3000/games/hole/
 ```
 
-Pick a difficulty and a hole colour, then drag to steer. Add `?map=toy` for the toy store, `?map=animal` for Animal Island or `?map=construction` for the Construction Site.
+Pick a map, a time and a hole colour, then drag to steer. Add `?map=toy`, `?map=animal` or `?map=construction` to jump to a map.
 
 UI look and rules: [STYLEGUIDE.md](STYLEGUIDE.md).
 
@@ -42,11 +43,12 @@ UI look and rules: [STYLEGUIDE.md](STYLEGUIDE.md).
 
 ## Features
 
-- Seeded map generators (districts, roads, parks, beach; Animal Island with biomes, rivers, hills and a secret zoo + lab) and hand-placed toy-store floor plans.
-- **Animal Island** (third map, 190 item types): animals walk, hop, swim and flee, hills are edible, 37 giant animals made in a secret laboratory. Details in [`ANIMAL-ISLAND.md`](ANIMAL-ISLAND.md).
+- Seeded map generators: city districts, roads and beach; a toy store with shuffled departments; an animal island with
+  biomes, rivers, edible hills and a secret zoo + lab; a building site with an open-pit mine.
+- Moving items: cars drive, people stroll, animals walk, hop, swim and flee, trucks haul.
 - Scripted falling / tipping (no physics engine), growth levels with a pulse and a camera that pulls back.
 - Every item is built once as procedural geometry; all items of a material are one `BatchedMesh` (a few draw calls per frame for thousands of items).
-- Menus, countdown, results and a top-10 list per difficulty, all usable by touch or a controller.
+- Menus, countdown, results and a top 10 per map and time limit, all usable by touch or a controller.
 - Tool pages: item viewer, map viewer, balance charts with headless bot runs (dev server).
 
 ## Documentation
@@ -55,7 +57,8 @@ UI look and rules: [STYLEGUIDE.md](STYLEGUIDE.md).
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | [`DETAILS.md`](DETAILS.md)                     | rules, level / size tables, scoring, item catalog, map generator, debug tools, architecture |
 | [`STYLEGUIDE.md`](STYLEGUIDE.md)               | UI look: tokens, type, components, the per-map accent                                       |
-| [`TOY-STORE.md`](TOY-STORE.md)                 | second map: design, asset roster, open tasks                                                |
-| [`CONSTRUCTION-SITE.md`](CONSTRUCTION-SITE.md) | fourth map (test): design, roster, open tasks                                               |
+| [`TOY-STORE.md`](TOY-STORE.md)                 | Toy Emporium: design, roster, open tasks                                                    |
+| [`ANIMAL-ISLAND.md`](ANIMAL-ISLAND.md)         | Animal Island: design, roster, open tasks                                                   |
+| [`CONSTRUCTION-SITE.md`](CONSTRUCTION-SITE.md) | Construction Site: design, roster, open tasks                                               |
 
 Educational, non-commercial project; see the repository root for credits.

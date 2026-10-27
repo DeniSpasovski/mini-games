@@ -13,6 +13,7 @@ import {
   PerspectiveCamera,
   Vector4,
   type Camera,
+  type Texture,
   type WebGLRenderer,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -46,11 +47,19 @@ const FADE = 700;
 export class Horizon {
   readonly group = new Group();
   private material: MeshLambertMaterial;
+  /** The land grids' material: the same, plus LAND_DETAIL (forest edges, crowns, rock). */
+  private landMaterial: MeshLambertMaterial;
   private uniforms = {
     uHorizonProj: { value: new Matrix4() },
     /** Streamed area: minX, minZ, maxX, maxZ. */
     uHorizonRect: { value: new Vector4() },
     uHorizonCut: { value: 1e9 },
+    /** The forest's colour (linear; the stage's crowns, `setForest`). */
+    uHzForest: { value: new Color('#2f4626') },
+    /** The far forest's canopy map (world/far-forest.ts `canopy`): forest cover and colour inside the map. */
+    ffShape: { value: null as Texture | null },
+    ffTint: { value: null as Texture | null },
+    ffMap: { value: new Vector4(0, 0, 0, 0) },
   };
   private projCam = new PerspectiveCamera(60, 1, 5, FAR);
 
@@ -66,6 +75,7 @@ export class Horizon {
       b.maxZ + m,
     );
     this.material = this.createMaterial();
+    this.landMaterial = this.createMaterial(true);
     const lift = map.terrain.baseHeight - (map.terrain.heightmap?.offset ?? 0);
     const palette = horizonPalette(map.environment.groundTint);
     const inner = def.grids[0];
@@ -73,7 +83,10 @@ export class Horizon {
       // The outer grid skips cells inside the inner one (a band of up to one cell overlaps; pushed back below).
       const hole = k > 0 && inner ? inner : undefined;
       const geo = gridGeometry(g, lift - (k > 0 ? 2 : 0), palette, hole);
-      const mesh = new Mesh(geo, k > 0 ? this.outerMaterial() : this.material);
+      const mesh = new Mesh(
+        geo,
+        k > 0 ? this.outerMaterial() : this.landMaterial,
+      );
       mesh.name = `horizon ${g.cell} m`;
       mesh.frustumCulled = false;
       mesh.matrixAutoUpdate = false;
@@ -132,6 +145,23 @@ export class Horizon {
     }
   }
 
+  /**
+   * The forest's colour (linear): the stage's crowns (season), for the land's woods; `canopy` = the far forest's map
+   * (world/far-forest.ts), so the woods inside the map are the map's own, not the baked land cover's.
+   */
+  setForest(
+    color: Color,
+    canopy?: { shape: Texture; tint: Texture; map: Vector4 },
+  ): void {
+    const u = this.uniforms;
+    u.uHzForest.value.copy(color);
+    if (canopy) {
+      u.ffShape.value = canopy.shape;
+      u.ffTint.value = canopy.tint;
+      u.ffMap.value.copy(canopy.map);
+    }
+  }
+
   /** Cut the backdrop away inside the streamed area within this distance of the camera (the terrain view distance). */
   setCutoff(viewDistance: number): void {
     this.uniforms.uHorizonCut.value = Math.max(0, viewDistance - CUT_MARGIN);
@@ -149,8 +179,9 @@ export class Horizon {
     this.uniforms.uHorizonProj.value.copy(c.projectionMatrix);
   }
 
-  private createMaterial(): MeshLambertMaterial {
+  private createMaterial(land = false): MeshLambertMaterial {
     const mat = new MeshLambertMaterial({ vertexColors: true });
+    if (land) mat.defines = { HZ_LAND: '' };
     const u = this.uniforms;
     mat.onBeforeCompile = (shader) => {
       addWorldUniforms(shader);
@@ -162,7 +193,11 @@ export class Horizon {
           uniform mat4 uHorizonProj;
           uniform vec4 uHorizonRect;
           uniform float uHorizonCut;
-          varying vec3 vHorizonWorld;`,
+          varying vec3 vHorizonWorld;
+          #ifdef HZ_LAND
+          attribute float hzTree;
+          varying float vHzTree;
+          #endif`,
         )
         .replace(
           '#include <begin_vertex>',
@@ -171,7 +206,10 @@ export class Horizon {
           bool hzIn = all( greaterThan( transformed.xz, uHorizonRect.xy ) ) && all( lessThan( transformed.xz, uHorizonRect.zw ) );
           float hzD = distance( transformed.xz, cameraPosition.xz );
           if ( hzIn ) transformed.y -= ${SINK.toFixed(1)} * ( 1.0 - smoothstep( uHorizonCut, uHorizonCut + ${FADE.toFixed(1)}, hzD ) );
-          vHorizonWorld = transformed;`,
+          vHorizonWorld = transformed;
+          #ifdef HZ_LAND
+          vHzTree = hzTree;
+          #endif`,
         )
         .replace(
           '#include <project_vertex>',
@@ -184,7 +222,12 @@ export class Horizon {
           `#include <common>
           uniform vec4 uHorizonRect;
           uniform float uHorizonCut;
-          varying vec3 vHorizonWorld;`,
+          varying vec3 vHorizonWorld;
+          ${LAND_PARS}`,
+        )
+        .replace(
+          '#include <color_fragment>',
+          `#include <color_fragment>\n${LAND_DETAIL}`,
         )
         .replace(
           'void main() {',
@@ -193,13 +236,13 @@ export class Horizon {
             && distance( vHorizonWorld.xz, cameraPosition.xz ) < uHorizonCut ) discard;`,
         );
     };
-    mat.customProgramCacheKey = () => 'rally-horizon-v1';
+    mat.customProgramCacheKey = () => `rally-horizon-v2${land ? '-land' : ''}`;
     return mat;
   }
 
   /** The outer grid: same shader, depth pushed back so the inner grid wins where they overlap. */
   private outerMaterial(): MeshLambertMaterial {
-    const m = this.createMaterial();
+    const m = this.createMaterial(true);
     m.polygonOffset = true;
     m.polygonOffsetFactor = 2;
     m.polygonOffsetUnits = 8;
@@ -254,6 +297,7 @@ function gridGeometry(
   const n = cols * rows;
   const pos = new Float32Array(n * 3);
   const col = new Float32Array(n * 3);
+  const treeAt = new Float32Array(n);
   const c = new Color();
   for (let j = 0; j < rows; j++)
     for (let i = 0; i < cols; i++) {
@@ -268,11 +312,12 @@ function gridGeometry(
       const crop = ((v >> 4) & 15) / 15;
       const built = ((v >> 8) & 15) / 15;
       const water = ((v >> 12) & 15) / 15;
-      const grass = Math.max(0, 1 - tree - crop - built - water);
+      // The trees are the shader's (LAND_DETAIL: their colour, edges, crowns); the colour is the ground under them.
+      treeAt[k] = tree;
+      const grass = Math.max(0, 1 - crop - built - water);
       c.setRGB(0, 0, 0);
       for (const [p, w] of [
         [pal.grass, grass],
-        [pal.tree, tree],
         [pal.crop, crop],
         [pal.built, built],
         [pal.water, water],
@@ -304,6 +349,7 @@ function gridGeometry(
   const geo = new BufferGeometry();
   geo.setAttribute('position', new BufferAttribute(pos, 3));
   geo.setAttribute('color', new BufferAttribute(col, 3));
+  geo.setAttribute('hzTree', new BufferAttribute(treeAt, 1));
   geo.setIndex(idx);
   geo.computeVertexNormals();
   geo.computeBoundingSphere();
@@ -553,3 +599,76 @@ function skylineGeometry(
   geo.computeBoundingSphere();
   return geo;
 }
+
+/** Fragment declarations of the land grids' detail (HZ_LAND). */
+const LAND_PARS = /* glsl */ `
+#ifdef HZ_LAND
+uniform vec3 uHzForest;
+uniform sampler2D ffShape;
+uniform sampler2D ffTint;
+uniform vec4 ffMap;
+varying float vHzTree;
+float hzHash( vec2 p ) {
+	return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
+}
+/** Value noise 0..1. */
+float hzNoise( vec2 p ) {
+	vec2 i = floor( p );
+	vec2 f = fract( p );
+	f = f * f * ( 3.0 - 2.0 * f );
+	return mix( mix( hzHash( i ), hzHash( i + vec2( 1.0, 0.0 ) ), f.x ), mix( hzHash( i + vec2( 0.0, 1.0 ) ), hzHash( i + 1.0 ), f.x ), f.y );
+}
+/** Noise at scale s (m), faded to its mean once a cell is under ~2 px (no shimmer far away). */
+float hzDetail( vec2 p, float s ) {
+	float n = hzNoise( p / s );
+	float px = length( fwidth( p ) ) / s;
+	return mix( n, 0.5, smoothstep( 0.25, 0.6, px ) );
+}
+#endif
+`;
+
+/**
+ * After color_fragment on the land grids: the backdrop's 100 / 300 m cells as land, not blobs - woods in the stage's
+ * crown colour (inside the map from the far forest's canopy map, outside from the baked tree cover) with noisy, crisp
+ * edges, tone patches and crown speckle; mottled open ground; bare rock on steep slopes. No geometry, a few noise reads.
+ */
+const LAND_DETAIL = /* glsl */ `
+#ifdef HZ_LAND
+	{
+		vec2 hzP = vHorizonWorld.xz;
+		float hzTreeF = vHzTree;
+		// Crowns lit from above shade each other: from afar a wood is darker and less saturated than its leaves (the
+		// canopy map's colour inside the map is already the far shell's, so the two meet without a seam).
+		vec3 hzForest = mix( uHzForest, vec3( dot( uHzForest, vec3( 0.3, 0.59, 0.11 ) ) ), 0.25 ) * 0.68;
+		float hzJ1 = hzNoise( hzP / 37.0 );
+		float hzJ2 = hzNoise( hzP / 37.0 + 17.3 );
+		if ( ffMap.z > 0.0 ) {
+			// Looked up ~25 m off at random: the estimate's 32 m blocks never show as squares.
+			vec2 hzUV = ( hzP + ( vec2( hzJ1, hzJ2 ) - 0.5 ) * 50.0 - ffMap.xy ) * ffMap.zw;
+			if ( all( greaterThan( hzUV, vec2( 0.0 ) ) ) && all( lessThan( hzUV, vec2( 1.0 ) ) ) ) {
+				vec4 hzS = texture2D( ffShape, hzUV );
+				hzTreeF = clamp( hzS.g * 1.4, 0.0, 1.0 );
+				vec3 hzT = texture2D( ffTint, hzUV ).rgb;
+				if ( hzS.g > 0.05 ) hzForest = hzT * hzT * 0.86;
+			}
+		}
+		float hzN1 = hzDetail( hzP, 260.0 );
+		float hzN2 = hzDetail( hzP, 70.0 );
+		float hzN3 = hzDetail( hzP, 18.0 );
+		float hzN4 = hzDetail( hzP, 6.0 );
+		// Edges: the smooth cover thresholded with noise (clearings, ragged margins).
+		float hzWood = smoothstep( 0.4, 0.6, hzTreeF + ( hzN2 - 0.5 ) * 0.45 + ( hzN3 - 0.5 ) * 0.2 );
+		// A wood seen from afar is mostly shade between the crowns: darker than its leaves, in patches.
+		vec3 hzW = mix( hzForest * 0.55, hzForest * 0.82, smoothstep( 0.2, 0.8, hzN1 ) );
+		hzW *= mix( 0.72, 1.12, hzN3 ) * mix( 0.8, 1.08, hzN4 );
+		// Open ground: the baked cover colour, a little greyer and darker (it read brighter than the streamed terrain).
+		vec3 hzG = mix( diffuseColor.rgb, vec3( dot( diffuseColor.rgb, vec3( 0.3, 0.59, 0.11 ) ) ), 0.3 ) * 0.82;
+		hzG *= mix( 0.88, 1.08, hzN2 ) * mix( 0.94, 1.04, hzN4 );
+		// Bare rock on steep ground (the coarse grid's own slope).
+		vec3 hzN = normalize( cross( dFdx( vHorizonWorld ), dFdy( vHorizonWorld ) ) );
+		float hzRock = smoothstep( 0.32, 0.5, 1.0 - abs( hzN.y ) ) * ( 0.6 + 0.4 * hzN3 );
+		hzG = mix( hzG, vec3( 0.42, 0.4, 0.37 ) * mix( 0.85, 1.1, hzN2 ), hzRock );
+		diffuseColor.rgb = mix( hzG, hzW, hzWood * ( 1.0 - hzRock * 0.7 ) );
+	}
+#endif
+`;

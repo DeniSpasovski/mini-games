@@ -58,6 +58,8 @@ const ROUND_HOLD_S = 2.8;
 const ATTRACT_HOLD_S = 2;
 /** The sim runs this much faster while the human is out and only bots are left. */
 const SPECTATE_SPEED = 2;
+/** Seconds the whole picture holds still on a knock-out (hit-stop): the KO lands. */
+const KO_FREEZE_S = 0.07;
 
 type Phase = 'menu' | 'loading' | 'play' | 'paused' | 'results';
 const rand = (): number => (Math.random() * 1e6) | 0;
@@ -92,6 +94,10 @@ export class KaboomGame {
   private readonly humanIn: PlayerInput = { dx: 0, dy: 0, place: false };
   private readonly inputBuf: PlayerInput[] = [];
   private acc = 0;
+  /** Seconds of hit-stop left (`KO_FREEZE_S`): the sim and the view hold still. */
+  private freeze = 0;
+  /** Vignette + per-level grade over the canvas (`.kb-finish`). */
+  private readonly finish = document.createElement('div');
   private alpha = 1;
   private last = performance.now();
   private clock = 0;
@@ -131,6 +137,9 @@ export class KaboomGame {
     root.classList.add('kb-root');
     this.renderer = createRenderer(root, this.quality);
     bindCameraAspect(this.renderer, this.rig.camera, () => this.view?.fit());
+    this.finish.className = 'kb-finish';
+    this.finish.dataset.grade = qName === 'high' ? 'on' : 'off';
+    this.renderer.domElement.after(this.finish);
     // a restored WebGL context starts with an empty shadow map, and the arena only redraws it when a crate breaks
     this.renderer.domElement.addEventListener('webglcontextrestored', () => {
       this.view?.arena.markShadowDirty();
@@ -174,7 +183,6 @@ export class KaboomGame {
       },
       onClick: () => this.sfx.click(),
       onTick: () => this.sfx.tick(),
-      lowQuality: this.quality.name === 'low',
       makeStage: () => {
         try {
           return new CritterPreview();
@@ -469,7 +477,9 @@ export class KaboomGame {
     let speed = 1;
     if (this.mode === 'match' && sim.players[0].state === 'ko' && !sim.over)
       speed = SPECTATE_SPEED;
-    if (running && this.phase !== 'loading') {
+    const frozen = this.freeze > 0;
+    if (frozen) this.freeze -= dt;
+    if (running && this.phase !== 'loading' && !frozen) {
       this.acc += dt * speed;
       while (this.acc >= STEP) {
         this.tick(sim, view);
@@ -484,12 +494,15 @@ export class KaboomGame {
       if (this.phase === 'results') this.menu.results(sum);
     }
     this.sfx.level = view.theme.id;
+    if (this.finish.dataset.level !== view.theme.id)
+      this.finish.dataset.level = view.theme.id;
     if (this.phase !== 'paused' && this.phase !== 'loading')
       this.sfx.ambient(dt);
-    view.update(this.alpha, this.phase === 'paused' ? 0 : dt * speed);
+    view.update(this.alpha, this.phase === 'paused' || frozen ? 0 : dt * speed);
     if (this.mode === 'match' && this.phase !== 'loading') this.updateHud(sim);
     if (draw) {
       if (view.takeShadowUpdate()) this.renderer.shadowMap.needsUpdate = true;
+      void view.prepareEnvironment(this.renderer); // High: the level's HDRI (loads once)
       view.crowd.prepare(this.renderer); // sprite tiles for new shirt colours (the menu's bot match too)
       this.renderer.render(view.scene, this.rig.camera);
     }
@@ -507,6 +520,8 @@ export class KaboomGame {
   }
 
   private onEvent(sim: Sim, e: SimEvent): void {
+    if (e.type === 'playerKo' && this.mode === 'match')
+      this.freeze = KO_FREEZE_S;
     if (
       e.type === 'playerKo' &&
       this.mode === 'match' &&

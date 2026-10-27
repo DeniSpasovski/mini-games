@@ -36,7 +36,9 @@ same change, otherwise it silently never runs.
 
 Integration jobs are selective: `scripts/ci-affected.mjs` (job `changes`) runs only the test files whose import closure contains a
 changed file; a game with none is skipped. Changes to `src/shared/`, package / test / ts config, workflows or that script run all;
-pushes to `main` run all; docs and assets run none. Run the matching script before pushing; after touching physics or a map also
+pushes to `main` run all; docs and assets run none. Rally per-car playtests (`stage-<map>`, `car-matrix` worst pick) drive
+the five representative cars plus the cars a PR changed (`rally_cars` output -> `RALLY_CARS`, `cars-under-test.ts`); pushes to
+`main` and local runs drive every car. A playtest file per map lets the maps run side by side (rstest runs files in parallel). Run the matching script before pushing; after touching physics or a map also
 run `npm run test:integration:rally`.
 
 ## Gotchas

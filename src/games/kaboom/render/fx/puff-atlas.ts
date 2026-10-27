@@ -100,11 +100,12 @@ export const PUFF_GLSL = /* glsl */ `
     vec2 b = texture2D(uPuff, (c1 + uv) / n).rg;
     return mix(a, b, fract(f));
   }
-  // white-hot -> yellow -> orange -> deep red -> soot, by temperature t in [0, 1]
+  // white-hot -> yellow -> orange -> deep red -> soot, by temperature t in [0, 1]; a little more saturated than real fire
+  // (DETAILS.md "Style"), with a clean bright core
   vec3 fireRamp(float t) {
-    vec3 c = mix(vec3(0.22, 0.05, 0.03), vec3(0.85, 0.2, 0.05), smoothstep(0.0, 0.3, t));
-    c = mix(c, vec3(1.0, 0.55, 0.12), smoothstep(0.25, 0.55, t));
-    c = mix(c, vec3(1.0, 0.86, 0.42), smoothstep(0.5, 0.8, t));
-    return mix(c, vec3(1.0, 0.98, 0.9), smoothstep(0.8, 1.0, t));
+    vec3 c = mix(vec3(0.22, 0.04, 0.02), vec3(0.92, 0.19, 0.03), smoothstep(0.0, 0.3, t));
+    c = mix(c, vec3(1.0, 0.5, 0.06), smoothstep(0.25, 0.55, t));
+    c = mix(c, vec3(1.0, 0.8, 0.3), smoothstep(0.5, 0.78, t));
+    return mix(c, vec3(1.0, 0.97, 0.86), smoothstep(0.78, 0.96, t));
   }
 `;
