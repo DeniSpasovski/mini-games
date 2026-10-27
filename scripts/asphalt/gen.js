@@ -197,7 +197,7 @@
       seed: 21,
       len: 12,
       polish: 0.85,
-      exposed: 0.35,
+      exposed: 0.25,
       cracks: 8,
       grain: 0.6,
       patches: 3,
@@ -206,7 +206,7 @@
       age: 0.1,
       // a worn, sun-bleached mid grey (Deni's references: light lanes, darker shoulders, long sealed seams)
       gain: 1.15,
-      lift: 0.42,
+      lift: 0.22,
       warmTarget: [150, 147, 138],
       edgeDark: 0.45,
       tone: 0.25,
