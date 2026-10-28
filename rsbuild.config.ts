@@ -18,6 +18,7 @@ import { resolveGamePage, type GameManifest } from './src/portal/manifest';
  * `npm run build -- --environment rally` only rewrites dist/games/rally/.
  *
  * Adding a game = drop a folder with a game.json into src/games. No edits here.
+ * A game with a `url` is hosted elsewhere: only its portal card, no environment.
  */
 const root = path.dirname(fileURLToPath(import.meta.url));
 const gamesDir = path.resolve(root, 'src/games');
@@ -209,7 +210,9 @@ function gameEnvironment(m: GameManifest): EnvironmentConfig {
 export default defineConfig(({ envMode }) => ({
   environments: {
     portal: portalEnvironment,
-    ...Object.fromEntries(manifests.map((m) => [m.id, gameEnvironment(m)])),
+    ...Object.fromEntries(
+      manifests.filter((m) => !m.url).map((m) => [m.id, gameEnvironment(m)]),
+    ),
   },
   source: {
     // Domain lock (allowed hosts in src/site.config.ts) runs before every page,

@@ -11,7 +11,7 @@ face, accent colour and picture; the portal adds none of its own except the thre
 - **One primary action per cover.** Play is the only button; the whole cover is its click target. Developer tools sit behind a quiet "Tools" toggle.
 - **Dark first.** Every game opens on a dark screen, so the page never flashes white between portal and game.
 - **Never hide an explanation by screen size.** A phone shows one cover per row and keeps the blurb; a phone held sideways
-  shows all three covers and the Play buttons without scrolling (check 915x412 and 1280x720).
+  shows every cover in one row and the Play buttons without scrolling (check 915x412 and 1280x720).
 
 ## Colour
 
@@ -24,6 +24,7 @@ face, accent colour and picture; the portal adds none of its own except the thre
 | ![rally](styleguide/rally.svg)   | `--ga` / `--ga-on` (Gravel Rally)   | `#f0a020` / `#0e0d0b`         | amber: Play, hover outline, first bar of the mark               |
 | ![hole](styleguide/hole.svg)     | Hole Island                         | `#4fc27a` / `#0b1a10`         | green                                                           |
 | ![kaboom](styleguide/kaboom.svg) | 3, 2, 1 Kabooom                     | `#ff6b4a` / `#2a1a10`         | tomato                                                          |
+| ![chess](styleguide/chess.svg)   | Ballistic Chess                     | `#4cc9ff` / `#0c121a`         | cyan                                                            |
 | ![focus](styleguide/focus.svg)   | `--pt-ring` / `--pt-halo`           | `#ffffff` / `#000000`         | focus ring: white with a black halo, visible on any fill        |
 
 A game's accent is set in its `game.json` (`accent`, `onAccent`) and lands on its card as `--ga` / `--ga-on`. Each accent
@@ -36,7 +37,8 @@ checks 4.5:1). `--pt-accent` is only the fallback for a game without one.
 - **Labels:** IBM Plex Mono 500, uppercase, small letter-spacing: the "genre · inputs" line and the version.
 - **Titles:** not live text but outlined SVGs, so the portal loads no game fonts: the portal's own
   [`wordmark.svg`](wordmark.svg) (Archivo 800, width 125), and per game `src/games/<id>/wordmark.svg` next to `thumbnail.jpg`
-  (Gravel Rally: Barlow Condensed 800 italic; Hole Island: Fredoka 700; 3, 2, 1 Kabooom: Grandstander 800).
+  (Gravel Rally: Barlow Condensed 800 italic; Hole Island: Fredoka 700; 3, 2, 1 Kabooom: Grandstander 800; Ballistic Chess:
+  Chakra Petch 700, upper case).
   `scripts/portal/wordmarks.py` makes them; a game without one shows its plain title.
 - Fonts are self-hosted (latin woff2, [`fonts/`](fonts/), SIL Open Font License, see [`THIRD-PARTY.md`](../../THIRD-PARTY.md)).
 - Sizes: cover title 30-40 px (24 px sideways on a phone), body 15 px, buttons 16 px, labels 12 px, footer 13 px. Nothing below 10 px.
@@ -48,7 +50,8 @@ checks 4.5:1). `--pt-accent` is only the fallback for a game without one.
   3 px outline in the game's accent; nothing moves under `prefers-reduced-motion`.
 - **Play** (`.play`): radius 8 px, the game's accent fill, on-accent text, a small play triangle. Its `::after` covers the card.
 - **Tools** (`.tools-toggle`, `.tools-list`): a text button that reveals the game's tool pages as text links (map viewer, car viewer ...).
-- **Mark** (`.portal-bars`): three bars, one per game in its accent, in front of the wordmark.
+- **Mark** (`.portal-bars`): one bar per game in its accent, in front of the wordmark.
+- **Outside game** (`url` in `game.json`): the same cover; Play opens the game's own site in a new tab and ends in ↗.
 - **Picture:** `thumbnail.jpg` (1280x720) with `thumbnail-640.jpg` (640x360) as its `srcset`; F9 in the game saves both.
 - **Footer:** the site tagline with the owner; About (the README), Source and the licence as links, and "Privacy & cookies" where the banner is on.
 - **Cookie banner** (`shared/consent.css`): the portal tokens, with the same values as fallbacks on game pages (which do not load them).

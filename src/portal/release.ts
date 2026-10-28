@@ -14,4 +14,5 @@ export const GAME_LIST: readonly ReleaseEntry[] = [
   { id: 'rally' },
   { id: 'hole' },
   { id: 'kaboom' },
+  { id: 'ballistic-chess' },
 ];
