@@ -19,6 +19,8 @@ only lists it on the portal shelf (`url` in [`game.json`](game.json): Play opens
 
 ## Credits and licence
 
-By Deni S. Board and piece textures from [Poly Haven](https://polyhaven.com/) (CC0). The cover and screenshots here are
+By Deni S. 
+
+Board and piece textures from [Poly Haven](https://polyhaven.com/) (CC0). The cover and screenshots here are
 under the repo's [PolyForm Noncommercial](../../../LICENSE) licence; the title in `wordmark.svg` is outlined from
 Chakra Petch (SIL OFL 1.1).
