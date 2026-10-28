@@ -120,8 +120,13 @@ export class Arena {
     const flat = mat(
       arenaMaterial(quality, { vertexColors: true, detail: levelDetail(id) }),
     );
+    // blocks and crates: lit by the flames, and the boulders take the detail texture's rock
     const lit = mat(
-      arenaMaterial(quality, { vertexColors: true, glow: glow.uniforms }),
+      arenaMaterial(quality, {
+        vertexColors: true,
+        glow: glow.uniforms,
+        detail: levelDetail(id),
+      }),
     );
     // tiles may carry the detail texture too (the Valley's turf; a brown dirt tile takes its soil channel)
     const tileMat = mat(

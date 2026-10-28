@@ -43,11 +43,13 @@ const V = {
   dirt: 0xa88c5c,
   margin: 0x5f9a45,
   moss: 0x4f8a3c,
+  lichen: 0xa9b28a,
   boulder: 0x8f9088,
   boulderDark: 0x777871,
   cairn: 0x9a9690,
   cairnCap: 0xb6b1a6,
   cairnDark: 0x7c7973,
+  cairnWarm: 0xa59a8a,
   crate: 0xd9a65f,
   crateBand: 0xb9833f,
   crateDark: 0x8d5d2c,
@@ -103,67 +105,181 @@ const FX: FxTint = {
 
 // ------------------------------------------------------------------ models
 
-/** Hard block 0: a boulder with a cap of moss on one shoulder and two small rocks at its feet. */
+/**
+ * Hard block 0: a weathered field boulder, smooth with a few cut faces and a crack, flat where it sits. Its moss is a
+ * shell of the same rock a hair larger, cut off along a tilted line, so it grows over the shoulder and follows every
+ * bump instead of sitting on top; moss clumps and grass at the foot, two smooth stones beside it.
+ */
 function mossyBoulder(): BufferGeometry {
-  return merge([
+  const rockOpts = {
+    y: 0.46,
+    sy: 0.92,
+    smooth: true,
+    lumpy: 0.08,
+    // chiselled planes all round, so the outline is faceted rock, not a blob
+    cuts: [
+      [1, 0.35, 0.1, 0.44],
+      [-0.6, 0.3, -0.8, 0.44],
+      [0.2, 1, -0.3, 0.43],
+      [0.5, 0.15, -1, 0.46],
+      [-1, 0.25, 0.45, 0.47],
+      [-0.2, 0.3, 1, 0.47],
+    ],
+    base: 0.02,
+  } as const;
+  const p: BufferGeometry[] = [
     part(rock(0.55, 5), V.boulder, {
-      y: 0.46,
-      sy: 0.92,
+      ...rockOpts,
+      tint: 0.14,
+      rough: ROUGH.stone,
+      cracks: [{ p: [0.1, 0.45, 0], n: [0.9, 0.2, 0.38], w: 0.05 }],
+      detail: [0, 0, 1],
+    }),
+    // the moss: everything of the shell below a tilted plane is pressed flat inside the rock (hidden)
+    part(rock(0.557, 5), V.moss, {
+      ...rockOpts,
+      cuts: [...rockOpts.cuts, [0.7, -1, 0.45, -0.3]],
+      tint: 0.22,
+      rough: ROUGH.grass,
+      detail: [1, 0],
+    }),
+  ];
+  for (const [x, z, r] of [
+    [0.4, 0.32, 0.17],
+    [-0.42, 0.28, 0.12],
+  ] as const)
+    p.push(
+      part(rock(r, 2), V.boulderDark, {
+        x,
+        z,
+        y: r * 0.45,
+        sy: 0.7,
+        smooth: true,
+        lumpy: r * 0.15,
+        base: 0,
+        tint: 0.12,
+        rough: ROUGH.stone,
+      }),
+    );
+  // moss clumps and grass blades where the rock meets the turf
+  for (const [x, z] of [
+    [-0.18, 0.44],
+    [0.46, -0.05],
+    [-0.44, -0.3],
+  ] as const)
+    p.push(
+      part(rock(0.09, 1), V.moss, {
+        x,
+        z,
+        y: 0.03,
+        sy: 0.45,
+        smooth: true,
+        tint: 0.2,
+        rough: ROUGH.grass,
+      }),
+      part(new ConeGeometry(0.035, 0.2, 4), V.leaf[1], {
+        x: x + 0.05,
+        z: z + 0.03,
+        y: 0.1,
+        tint: 0.15,
+        rough: ROUGH.grass,
+      }),
+    );
+  return merge(p);
+}
+
+/**
+ * Hard block 1: a large weathered boulder in warmer stone than the mossy one, broad and a little flat-topped, smooth with
+ * a few cut faces and a crack, a smaller stone resting against it, a few lichen spots, a stone and grass at the foot.
+ */
+function largeBoulder(): BufferGeometry {
+  const p: BufferGeometry[] = [
+    part(rock(0.58, 5), V.cairnWarm, {
+      y: 0.44,
+      sx: 1.04,
+      sy: 0.86,
+      ry: 0.5,
       smooth: true,
-      lumpy: 0.09,
+      lumpy: 0.07,
+      cuts: [
+        [0.1, 1, 0.15, 0.4],
+        [1, 0.2, 0.3, 0.46],
+        [-0.7, 0.3, -0.7, 0.46],
+        [0.4, 0.5, -1, 0.47],
+        [-1, 0.4, 0.5, 0.48],
+        [0.6, 0.45, 1, 0.48],
+      ],
       base: 0.02,
+      tint: 0.15,
+      rough: ROUGH.stone,
+      detail: [0, 0, 1],
+      cracks: [
+        { p: [0.05, 0.5, 0.05], n: [0.85, 0.25, 0.46], w: 0.045 },
+        { p: [-0.1, 0.62, -0.1], n: [0.3, 0.5, -0.81], w: 0.035 },
+      ],
+    }),
+    part(rock(0.24, 4), V.cairn, {
+      x: -0.34,
+      z: 0.3,
+      y: 0.17,
+      sy: 0.78,
+      smooth: true,
+      lumpy: 0.04,
+      cuts: [
+        [0.6, 0.8, 0.2, 0.18],
+        [-0.8, 0.3, 0.5, 0.2],
+      ],
+      base: 0,
+      tint: 0.14,
+      rough: ROUGH.stone,
+      detail: [0, 0, 1],
+    }),
+  ];
+  // lichen on the shoulders
+  for (const [x, y, z] of [
+    [-0.32, 0.72, 0.18],
+    [0.3, 0.62, -0.26],
+    [0.12, 0.86, 0.12],
+  ] as const)
+    p.push(
+      part(rock(0.055, 1), V.lichen, {
+        x,
+        y,
+        z,
+        sy: 0.35,
+        smooth: true,
+        tint: 0.1,
+        rough: ROUGH.grass,
+      }),
+    );
+  // a stone that broke off, and grass where the rock meets the turf
+  p.push(
+    part(rock(0.14, 2), V.cairnDark, {
+      x: 0.42,
+      z: 0.36,
+      y: 0.06,
+      sy: 0.7,
+      smooth: true,
+      lumpy: 0.02,
+      base: 0,
       tint: 0.12,
       rough: ROUGH.stone,
     }),
-    part(rock(0.3, 3), V.moss, {
-      x: -0.12,
-      y: 0.84,
-      z: 0.08,
-      sy: 0.4,
-      sx: 1.15,
-      smooth: true,
-      lumpy: 0.06,
-      tint: 0.18,
-      rough: ROUGH.grass,
-    }),
-    part(rock(0.2, 0), V.boulderDark, {
-      x: 0.36,
-      y: 0.14,
-      z: 0.34,
-      lumpy: 0.04,
-    }),
-    part(rock(0.15, 0), V.boulderDark, {
-      x: -0.38,
-      y: 0.1,
-      z: 0.3,
-      lumpy: 0.03,
-    }),
-  ]);
-}
-
-/** Hard block 1: a cairn of five flat stones, wider at the foot, with a tuft of grass. */
-function cairn(): BufferGeometry {
-  const stones: [number, number, number, number, number][] = [
-    // width, height, depth, y, turn
-    [0.92, 0.26, 0.86, 0.13, 0.1],
-    [0.78, 0.24, 0.74, 0.37, -0.35],
-    [0.66, 0.22, 0.62, 0.59, 0.5],
-    [0.52, 0.2, 0.5, 0.79, -0.2],
-    [0.36, 0.16, 0.34, 0.96, 0.7],
-  ];
-  const p = stones.map(([w, h, d, y, ry], i) =>
-    part(rbox(w, h, d, 0.07, 2), i % 2 ? V.cairn : V.cairnCap, {
-      y,
-      ry,
-      tint: 0.14,
-    }),
   );
-  p.push(part(rbox(0.96, 0.08, 0.9, 0.03), V.cairnDark, { y: 0.04 }));
   for (const [x, z] of [
-    [0.42, 0.3],
-    [-0.4, -0.34],
-  ])
-    p.push(part(new ConeGeometry(0.05, 0.22, 5), V.moss, { x, z, y: 0.12 }));
+    [-0.46, 0.3],
+    [0.48, -0.18],
+    [-0.1, 0.5],
+  ] as const)
+    p.push(
+      part(new ConeGeometry(0.04, 0.22, 4), V.leaf[1], {
+        x,
+        z,
+        y: 0.11,
+        tint: 0.15,
+        rough: ROUGH.grass,
+      }),
+    );
   return merge(p);
 }
 
@@ -1292,8 +1408,7 @@ export const VALLEY_THEME: LevelTheme = {
   fx: FX,
   warnColor: 0xff4a2a,
   fall: 'wall',
-  // the cairn would look wrong dropping out of the sky: only boulders fall
-  wallVariants: [0],
+  wallVariants: [0, 1],
   tiles: {
     colors: V.tiles,
     geometry: turfGeometry,
@@ -1309,7 +1424,7 @@ export const VALLEY_THEME: LevelTheme = {
       if (r.chance(0.07)) out.set(V.dirt).multiplyScalar(r.range(0.92, 1.05));
     },
   },
-  hard: [mossyBoulder, cairn],
+  hard: [mossyBoulder, largeBoulder],
   crate: [appleCrate, hayBale],
   floor,
   decor,

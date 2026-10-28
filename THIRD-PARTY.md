@@ -118,7 +118,8 @@ CC0 HDRIs from Poly Haven, shrunk to 128 x 64 with the sun clipped out by `scrip
 CC0 textures from Poly Haven, made grey, softened and shrunk to one 512 px tile per level by `scripts/kaboom/bake-textures.py`:
 [Gravelly Sand](https://polyhaven.com/a/gravelly_sand) (Dario Barresi) and [Rock Face](https://polyhaven.com/a/rock_face)
 (Greg Zaal, Dario Barresi) for the Quarry, [Leafy Grass](https://polyhaven.com/a/leafy_grass) (Charlotte Baglioni) and
-[Brown Mud Dry](https://polyhaven.com/a/brown_mud_dry) (Rob Tuytel) for Green Valley, [Fine Grained Wood](https://polyhaven.com/a/fine_grained_wood) (Rob Tuytel) and
+[Brown Mud Dry](https://polyhaven.com/a/brown_mud_dry) (Rob Tuytel) and [Rock Boulder Dry](https://polyhaven.com/a/rock_boulder_dry)
+(Dimitrios Savva, Rico Cilliers) for Green Valley, [Fine Grained Wood](https://polyhaven.com/a/fine_grained_wood) (Rob Tuytel) and
 [Wood Peeling Paint Weathered](https://polyhaven.com/a/wood_peeling_paint_weathered) (Rob Tuytel, Dimitrios Savva) for Sea
 Deck. No credit is required.
 
