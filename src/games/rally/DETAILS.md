@@ -479,6 +479,8 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   canopy shadow map splats new chunks for at most 1 ms a frame and writes its texel bytes as it splats (no conversion
   pass before the 1.5 s upload).
 - Whole-map set-up loops use a spatial grid, never all-against-all (a town map has ~900 roads, ~2000 way ends).
+- Generated scatter chunks past 1.25 x the view distance are dropped (`ScatterField.pruneChunks`, called by the streamer), so a long
+  stage's memory stays flat; the radius must cover every reader (the tree job reads chunks out to the view distance).
 
 **Draw calls**
 

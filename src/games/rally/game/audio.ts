@@ -517,7 +517,9 @@ export class CarAudio {
 
   update(s: CarSoundFrame): void {
     const ctx = this.ctx;
-    if (!ctx || !this.oscA) return;
+    // A suspended context (pause, hidden tab, sound blocked) keeps currentTime still: every setTargetAtTime would
+    // pile up in the params' timelines and each call gets slower (ms per frame after a few minutes).
+    if (!ctx || !this.oscA || ctx.state !== 'running') return;
     const t = ctx.currentTime;
     const dt = Math.min(0.1, Math.max(0, t - this.lastT));
     this.lastT = t;
