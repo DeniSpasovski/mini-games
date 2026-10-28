@@ -389,8 +389,17 @@ export class TerrainGenerator {
           ),
         ),
         this.road,
+        !map.cityStreets,
       );
-      this.junctions = joined.junctions;
+      // Junction path indices into the network (without the water ways).
+      const index: number[] = [];
+      let kept = 0;
+      for (const p of joined.paths)
+        index.push(p.surface === 'water' ? -1 : kept++);
+      this.junctions = joined.junctions.map((j) => ({
+        ...j,
+        path: index[j.path],
+      }));
       this.paths = new PathNetwork(
         joined.paths.filter((p) => p.surface !== 'water'),
       );

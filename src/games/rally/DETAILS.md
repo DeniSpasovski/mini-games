@@ -284,9 +284,16 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Scatter area** (`MapDef.scatterBounds`): narrows where trees / bushes / rocks are generated (any side of `bounds`) - for land no
   camera can see (Vodno: nothing south of the ridge). A way merging into another at a shallow angle sets `PathDef.mergeTaper` (its end
   narrows to a point) and `joinsUnder` (its ribbon lies under the other's).
-- **Road textures** (`RoadDef.texture`, per stretch in `sections`): gravel `road`, worn `road_tarmac`, `road_tarmac_lines` (the
-  same with white edge and centre lines), `road_parkway`, the
-  city asphalts.
+- **Road textures** (`RoadDef.texture`, per stretch in `sections`): gravel `road`, `road_tarmac` (light neutral grey asphalt from the Poly Haven Asphalt 04 scan, CC0, with hairline cracks and faint tyre / oil marks: Ajvatovci, Galichica, Petralica; the scan goes in `sources/textures/asphalt_04/`, listed in `PHOTOS` in `scripts/asphalt/bake.mjs`), `road_tarmac_kerbed` (the same without edge grit: Ajvatovci's kerbed start street up to the canal bridge), `road_tarmac_lines` (the
+  same with white edge and centre lines), `road_tarmac_plain` (the same surface without lines: Vodno's crossroad, where the road
+  paint lies over it), `road_parkway`, the city asphalts (`road_city`, `road_street`, `road_street4`, `junction_asphalt`).
+  The asphalts are baked images, not drawn at load: `engine/asphalt/<id>.<size>.{color,normal,rough}.webp`, made by
+  `scripts/asphalt/bake.mjs` (tiles drawn by `gen.js` in headless Chromium; the output is committed, rerun after changing
+  `gen.js`). High loads the 1024 px set, Medium / Low their own 512 px set. `engine/road-surface.ts` loads them (the play page
+  preloads the map's sets), `getRoadMaterial` puts them on the road: colour + normal map with the roughness packed in its alpha
+  (one sampler) + a tone shader (blotches and streaks that never repeat; Vodno's tiles also get pale repair patches there, more of
+  them higher up the road). A new asphalt id = a `gen.js` preset, `ROAD_SURFACE_LEN` (same `len` as `texLength`, a test checks),
+  a rebake.
 - **Road paint** (`RoadDef.markings`): lane lines (solid or dashed) and left / straight arrows as thin meshes over the road
   (`world/road-markings.ts`: `roadPaint` is the pure geometry, `roadMarkingsMesh` the meshes; textures `road_paint`,
   `road_arrow_left`, `road_arrow_straight`). Positions are measured from the road's left or right edge, so a lane keeps its
@@ -297,8 +304,14 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   height-line smoothing / grade per OSM kind (`PATH_PROFILE`); coarse terrain tiles paint them at least ~a vertex step wide (`splat` `minPathHw`) so
   they stay lines from afar.
   The baker splits an OSM way where it folds back (> 120 deg) or revisits one of its nodes (two ways meeting there);
-  a ground way under 15 m anchored at both ends is one straight ramp (`SHORT_JOINT`). Paved mouths on rural
-  maps get rounded corners (`junctionFillets`, drawn with the street ribbons in `road-mesh.ts`; not on `cityStreets` maps).
+  a ground way under 15 m anchored at both ends is one straight ramp (`SHORT_JOINT`). Paved mouths (plain tarmac
+  side roads and city streets, not on a plaza) get rounded corners (`junctionFillets`, drawn with the street ribbons in
+  `road-mesh.ts`): every surface there (stage road edge, side road, a pad over the corners) blends into one world-aligned
+  asphalt, the stage road's own surface laid flat (`JUNCTION_ASPHALT` in `junctions.ts`: `road_tarmac_junction`, Vodno's
+  `road_tarmac_plain_junction`; square tile, no wheel paths, edges or lines, sampled by world XZ in the road shader, weight
+  in the mesh's `jw` attribute; `junctionMouths`), within 6 m, or 2 m where painted lines end at the mouth (Vodno's edge
+  lines, a street's centre line), with the dusty edge band running round each curve. On `cityStreets` maps the sidewalk
+  turns round each corner onto the stage road edge, its kerb dropping flush there (`mouthCorners`, `StreetDetail.returns`).
 - **Water:** canals / drains / rivers (`paths` surface `water`) and `lakes`, with real banks and water physics
   (`world/lakes.ts`, `water-mesh.ts`). `Lakes.query` reads only the outline edges near the point (a 16 m grid per outline): exact `sd` within
   `LAKE_REACH` of the shore, `-LAKE_REACH` further inside (every user stops at `LAKE_SHELF`); test `lakes-index`.

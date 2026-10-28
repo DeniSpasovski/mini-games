@@ -1,5 +1,6 @@
-import type { CityStreets } from '../maps/shared/types';
+import type { CityStreets, SidewalkLink } from '../maps/shared/types';
 import { newPathQuery, type PathNetwork } from './real-data';
+import type { MouthCorner } from './junctions';
 import { newRoadQuery, type Road } from './road';
 
 /**
@@ -45,6 +46,10 @@ export interface Crossing {
 export interface StreetDetail {
   runs: SidewalkRun[];
   crossings: Crossing[];
+  /** Rounded junction corners a sidewalk reaches: its kerb follows the corner round onto the stage road edge. */
+  returns: MouthCorner[];
+  /** Hand-placed kerb and sidewalk (`CityStreets.links`). */
+  links: readonly SidewalkLink[];
 }
 
 export interface StreetContext {
@@ -67,6 +72,8 @@ export interface StreetContext {
    * the roads beneath it are no obstacle.
    */
   deck?: (path: number) => boolean;
+  /** Rounded corners of the stage road junctions (junctions.ts `mouthCorners`): the sidewalk turns round them. */
+  corners?: readonly MouthCorner[];
 }
 
 export function streetDetail(
@@ -77,6 +84,7 @@ export function streetDetail(
   const W = cfg.sidewalk ?? 1.5;
   const runs: SidewalkRun[] = [];
   const crossings: Crossing[] = [];
+  const returns: MouthCorner[] = [];
   const rq = newRoadQuery();
   const pq = newPathQuery();
   const pt = { x: 0, z: 0 };
@@ -125,9 +133,17 @@ export function streetDetail(
     if (!eligible(pi)) return;
     const L = net.lengths[pi];
     const hw = p.width / 2;
-    const lo = joint(pi, false) ? -1 : 3;
-    const hi = joint(pi, true) ? L + 1 : L - 3;
     for (const side of [1, -1] as const) {
+      // A rounded corner at an end: the sidewalk runs to where its kerb leaves the street edge (B), then round it.
+      const c0 = ctx.corners?.find(
+        (c) => c.path === pi && c.side === side && !c.atEnd,
+      );
+      const c1 = ctx.corners?.find(
+        (c) => c.path === pi && c.side === side && c.atEnd,
+      );
+      const lo = c0 ? c0.along - 0.01 : joint(pi, false) ? -1 : 3;
+      const hi = c1 ? c1.along + 0.01 : joint(pi, true) ? L + 1 : L - 3;
+      const first = runs.length;
       let start = -1;
       for (let a = 0; a <= L + 1e-6; a += STEP) {
         net.pointAt(pi, Math.max(0, a - 1.5), pt);
@@ -176,6 +192,17 @@ export function streetDetail(
           start = -1;
         }
       }
+      // Runs that reach a corner (within one sample) end exactly at its B and turn round it.
+      for (const r of runs.slice(first)) {
+        if (c0 && r.from <= c0.along + STEP + 0.01) {
+          r.from = c0.along;
+          returns.push(c0);
+        }
+        if (c1 && r.to >= c1.along - STEP - 0.01) {
+          r.to = c1.along;
+          returns.push(c1);
+        }
+      }
     }
     // Crosswalks where the street enters a junction plaza: just outside its edge (the plaza is the junction box).
     if (ctx.plaza && !ctx.plazaCrosswalks) {
@@ -219,5 +246,5 @@ export function streetDetail(
       });
     }
   });
-  return { runs, crossings };
+  return { runs, crossings, returns, links: cfg.links ?? [] };
 }

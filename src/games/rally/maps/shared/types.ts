@@ -16,6 +16,13 @@ import type { Season } from '../../season';
 /** An external resource used by a map or car: data set, model, reference (shared with the other games' About screens). */
 export type { SourceLink };
 
+/** The scanned asphalt under the `road_tarmac` texture (Ajvatovci, Galichica, Petralica). */
+export const ASPHALT_04_SOURCE: SourceLink = {
+  label: 'Asphalt 04 (Poly Haven)',
+  url: 'https://polyhaven.com/a/asphalt_04',
+  note: 'road asphalt - by Sergej Majboroda and Jenelle van Heerden, CC0',
+};
+
 export interface PlazaIsland {
   kind: 'island' | 'painted' | 'sidewalk';
   pts: number[];
@@ -429,6 +436,17 @@ export interface PathDef {
    * runs into the other road's edge like a lane merge instead of ending in a square cut (`PathNetwork.halfWidthAt`).
    */
   mergeTaper?: number;
+  /**
+   * Set by world/junctions.ts `connectPaths`: this end widens to the stage road's width (`width`) over its last metres,
+   * where the real road runs straight on and only the stage road turns (the straight road reads as the one that
+   * continues), or where the way carries on from the stage road's start / finish.
+   */
+  widenEnd?: {
+    atEnd: boolean;
+    width: number;
+    /** The real road running straight on where the stage road turns off: drawn over the stage road through the junction. */
+    over?: boolean;
+  };
   /** No kerbs / sidewalks / lamps / crosswalks on this street (a country road inside the city-street reach, MapDef.cityStreets). */
   bare?: boolean;
   junction?: boolean;
@@ -560,7 +578,14 @@ export type RoadPoint =
 export type RoadTexture =
   | 'road'
   | 'road_tarmac'
+  | 'road_tarmac_kerbed'
+  /** Junction corners of `road_tarmac` side roads (laid in world space; not a stage road texture). */
+  | 'road_tarmac_junction'
+  | 'road_tarmac_plain_junction'
   | 'road_tarmac_lines'
+  | 'road_tarmac_plain'
+  /** Vodno's road along kerbed city streets (no edge grit). */
+  | 'road_tarmac_plain_kerbed'
   | 'road_parkway'
   | 'road_street'
   | 'road_street4'
@@ -892,6 +917,20 @@ export interface BarrierRule {
   rusty?: boolean;
 }
 
+/**
+ * A stretch of kerb and sidewalk the street detail cannot derive from the street ways: it joins two sidewalk runs round
+ * a corner where one street meets another (the runs stop short of the other street's ribbon), or runs a sidewalk on to a
+ * road edge. `pts` = the kerb line (the street edge, flat [x0, z0, ...]) in travel order, `side` = which side of it the
+ * sidewalk lies on (+1 = left of travel). A run of a street ending within 0.3 m of an end of the link carries on into it
+ * (no dropped kerb there); `dropStart` / `dropEnd` slope the kerb down flush where the link ends on a road.
+ */
+export interface SidewalkLink {
+  pts: number[];
+  side: 1 | -1;
+  dropStart?: boolean;
+  dropEnd?: boolean;
+}
+
 /** Street detail along the other roads near the stage road. */
 export interface CityStreets {
   /** Streets within this distance of the stage road get kerbs, sidewalks, crosswalks and lamps (m). */
@@ -900,6 +939,10 @@ export interface CityStreets {
   sidewalk?: number;
   /** Lamp spacing along the streets (m, 0 = none). */
   lampEvery?: number;
+  /** One asphalt for every city street (default: city asphalt, centre lines by width; world/road-mesh.ts pathTexture). */
+  asphalt?: RoadTexture;
+  /** Sidewalk stretches added by hand (corners and road ends the ways do not give). */
+  links?: SidewalkLink[];
 }
 
 /**

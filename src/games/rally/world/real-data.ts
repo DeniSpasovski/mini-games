@@ -238,6 +238,8 @@ export function newPathQuery(): PathQuery {
 }
 
 const PCELL = 32;
+/** Length over which a way running on from the stage road widens to its width (`PathDef.widenEnd`, m). */
+const WIDEN_LEN = 30;
 /** Length of a lane-drop taper (m). */
 const TAPER_LEN = 45;
 /** Paths affect terrain at most this far beyond their edge (m). */
@@ -374,6 +376,16 @@ export class PathNetwork {
         this.endHw[i * 2 + (atEnd ? 1 : 0)] = (p.width + q.width) / 4;
         this.taper[i] = Math.max(this.taper[i], Math.min(TAPER_LEN, L * 0.45));
       }
+    }
+    // A way running on from the stage road (`PathDef.widenEnd`: straight on where it turns, or off its start / finish): the stage road's width.
+    for (let i = 0; i < n; i++) {
+      const w = this.paths[i].widenEnd;
+      if (!w) continue;
+      this.endHw[i * 2 + (w.atEnd ? 1 : 0)] = w.width / 2;
+      this.taper[i] = Math.max(
+        this.taper[i],
+        Math.min(WIDEN_LEN, this.lengths[i] * 0.45),
+      );
     }
     // A way that merges into another (`PathDef.mergeTaper`): its end narrows to a point.
     for (let i = 0; i < n; i++) {

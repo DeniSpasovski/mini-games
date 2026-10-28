@@ -247,6 +247,7 @@ describe('vodno landmarks (churches, platform, stations, towers)', () => {
     'vodno-gate',
     'vodno-start-blocks',
     'vodno-crossroad-hotel',
+    'vodno-start-lot',
     'vodno-roadside-gazebo',
   ];
 
@@ -761,7 +762,7 @@ describe('vodno car park surroundings', () => {
     // Edge and centre lines all along (the run-up street too), edge lines only where the crossroad's own paint is.
     expect(map.road.texture).toBe('road_tarmac_lines');
     expect(map.road.sections?.map((s) => [s.texture, s.from])).toEqual([
-      ['road_tarmac', WIDE_FROM],
+      ['road_tarmac_plain', WIDE_FROM],
       ['road_tarmac_lines', WIDE_TO],
     ]);
   });

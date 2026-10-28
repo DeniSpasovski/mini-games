@@ -33,6 +33,8 @@ import {
 } from './crossroad';
 import { countryRoad, dropLotAisles, LAWNS, LOT_PADS } from './lots';
 import { SKYLINE } from './skyline';
+import { START_SIDEWALKS, startBuildings, startStreets } from './start-area';
+import { START_LOT_PAD } from './landmarks/start-lot';
 import { FINISH, START } from './stages';
 
 /**
@@ -112,7 +114,7 @@ const props: PropPlacement[] = [
 export const vodnoMap: MapDef = {
   ...info,
   country: 'mk',
-  buildings: buildingsFromData(data.buildings),
+  buildings: startBuildings(buildingsFromData(data.buildings)),
   horizon: horizon as HorizonDef,
   skyline: SKYLINE,
   terrain: {
@@ -133,6 +135,7 @@ export const vodnoMap: MapDef = {
       GATE_PAD,
       HOTEL_PAD,
       BUILDING_PAD,
+      START_LOT_PAD,
     ],
     lawns: LAWNS,
   },
@@ -160,7 +163,7 @@ export const vodnoMap: MapDef = {
       cemetery: [0.7, 0.2, 0, 0.1],
     },
   },
-  paths: countryRoad(dropLotAisles(data.paths as PathDef[])),
+  paths: startStreets(countryRoad(dropLotAisles(data.paths as PathDef[]))),
   // The side roads are streets and forest tracks: tracks are gravel ribbons (objects), streets city asphalt.
   trackRibbons: true,
   // Tracks over steep pine woods: a longer height window than the default track (25 m) keeps them smooth.
@@ -182,7 +185,14 @@ export const vodnoMap: MapDef = {
     },
   ],
   // Kerbs, sidewalks and lamps on the streets round the stage road (the Vodno neighbourhood at the start).
-  cityStreets: { reach: 320, sidewalk: 1.4, lampEvery: 38 },
+  cityStreets: {
+    reach: 320,
+    sidewalk: 1.4,
+    lampEvery: 38,
+    // the side streets in the stage road's own asphalt
+    asphalt: 'road_tarmac_plain_kerbed',
+    links: START_SIDEWALKS,
+  },
   road: {
     // Salvador Aljende street at the start, then the narrow hillside road, then the R2138 regional road.
     width: 6,
@@ -206,7 +216,7 @@ export const vodnoMap: MapDef = {
     // Old tarmac with white edge and centre lines all along; at the first crossroad every line is paint (`markings`).
     texture: 'road_tarmac_lines',
     sections: [
-      { from: WIDE_FROM, surface: 'tarmac', texture: 'road_tarmac' },
+      { from: WIDE_FROM, surface: 'tarmac', texture: 'road_tarmac_plain' },
       { from: WIDE_TO, surface: 'tarmac', texture: 'road_tarmac_lines' },
     ],
     markings: MARKINGS,
@@ -628,6 +638,7 @@ export const vodnoMap: MapDef = {
     'vodno-gate',
     'vodno-start-blocks',
     'vodno-crossroad-hotel',
+    'vodno-start-lot',
     'vodno-roadside-gazebo',
   ],
 };
