@@ -85,6 +85,13 @@ export const IMPOSTOR = 2;
 /** Re-pack the static view window after the camera turned this far (rad). */
 const REPACK = (8 * Math.PI) / 180;
 /**
+ * Free caster slots a whole pack leaves (share of the casters), so new casters fit without a re-pack. Kept small: an
+ * empty slot is drawn collapsed, but its vertices still run the vertex shader.
+ */
+const HEADROOM = 0.1;
+/** A static batch is packed whole again once its empty slots pass this share of the used ones. */
+const HOLES = 0.15;
+/**
  * Static membership is conservative over this much zoom (px ratio) before the next job, which starts once the field
  * of view moved half of it. Tiny: at the far threshold (~370 m) every 1% is a 4 m ring of per-frame trees, and the
  * field of view only changes with a camera switch (trees/Lod.md#active-set).
@@ -399,6 +406,10 @@ interface StaticBatch extends Batch {
   clearRoom: boolean;
   /** The room as last uploaded, 28 floats a slot (`uploadRoom`); null = upload it whole next. */
   sent?: Float32Array | null;
+  /** Tree slots (`packStatic`); null = pack whole next. */
+  slots?: Slots | null;
+  /** Trees in its slots (casters + rest; holes left out): drawn only with some, or an active one. */
+  live?: number;
 }
 
 interface Staged {
@@ -412,7 +423,34 @@ interface Staged {
   always: Float32Array;
   /** Bounding sphere: centre (world) and radius (m). */
   sphere: Float32Array;
+  /** The tree of each instance (slot-stable packing keys on it). */
+  owner: TreeState[];
   count: number;
+}
+
+/**
+ * Where a static batch's trees sit (`packStatic`): a slot per tree in the shadow-caster region [0, cCap) and in the
+ * rest after the room, kept from pack to pack; freed slots are collapsed and reused.
+ */
+interface Slots {
+  c: Map<TreeState, number>;
+  r: Map<TreeState, number>;
+  cFree: number[];
+  rFree: number[];
+  cLen: number;
+  rLen: number;
+  cCap: number;
+}
+
+/** Slots of an impostor batch (`packRuns`): single impostors, then a run per chunk block. */
+interface RunSlots {
+  s: Map<TreeState, number>;
+  sFree: number[];
+  sLen: number;
+  sCap: number;
+  k: Map<ChunkTrees, { at: number; len: number; version: number }>;
+  kFree: { at: number; len: number }[];
+  kLen: number;
 }
 
 /** The one impostor batch: static instances (packed at commit / repack) first, then this frame's dynamic ones. */
@@ -494,6 +532,7 @@ function staged(): Staged {
     spread: f(),
     always: f(),
     sphere: f(),
+    owner: [],
     count: 0,
   };
 }
@@ -645,9 +684,12 @@ export class TreeRenderer {
   private blockVersion = 0;
   private active: TreeState[] = [];
   private nextActive: TreeState[] = [];
-  private job: Iterator<void> | null = null;
+  /** The time-sliced job; it yields `true` to end the frame's slice (the commit then starts the next one). */
+  private job: Iterator<boolean | void> | null = null;
   private jobId = 0;
   private committedJob = -1;
+  /** Impostor batch slots (`packRuns`). */
+  private runs = new Map<Batch, RunSlots>();
   private lastFocus = new Vector3(Infinity, 0, 0);
   private lastPx = 0;
   private frame = 0;
@@ -789,11 +831,15 @@ export class TreeRenderer {
     if (this.job) {
       const t0 = performance.now();
       const budget = this.opts.budgetMs ?? 1.5;
-      while (performance.now() - t0 < budget)
-        if (this.job.next().done) {
+      while (performance.now() - t0 < budget) {
+        const step = this.job.next();
+        if (step.done) {
           this.job = null;
           break;
         }
+        // The commit waits for the next frame's slice.
+        if (step.value === true) break;
+      }
       this.current.jobMs = performance.now() - t0;
     }
     this.setView(camera);
@@ -1001,7 +1047,11 @@ export class TreeRenderer {
    * that is settled and keeps its level and shadow over every camera position and zoom until the next job (within
    * `rebuildDistance` + a margin) needs no per-frame selection.
    */
-  private *rebuild(focus: Vector3, px: number, cut: boolean): Generator<void> {
+  private *rebuild(
+    focus: Vector3,
+    px: number,
+    cut: boolean,
+  ): Generator<boolean | void> {
     const job = ++this.jobId;
     for (const b of this.statics.values()) b.s.count = 0;
     const ib = this.impostorBatch();
@@ -1227,6 +1277,8 @@ export class TreeRenderer {
           }
         yield;
       }
+    // The commit (every batch re-packed) in a slice of its own, not stacked on the job's last one.
+    yield true;
     [this.active, this.nextActive] = [this.nextActive, this.active];
     this.committedJob = job;
     for (const b of this.statics.values()) {
@@ -1269,6 +1321,7 @@ export class TreeRenderer {
     b.sphere[i * 4 + 1] = st.cy;
     b.sphere[i * 4 + 2] = st.cz;
     b.sphere[i * 4 + 3] = st.diameter / 2;
+    b.owner[i] = st;
   }
 
   private stageImpostor(st: TreeState, angle: number): void {
@@ -1401,8 +1454,15 @@ export class TreeRenderer {
       if (sh >= 0 && st.lv.proxy)
         this.emit(st, PROXY_PART, SHADOW_ONLY, 1, true, 0);
     }
-    // Impostors: the whole buffer after a re-pack, else only this frame's dynamic part.
-    this.upload(ib, ib.count, ib.dirty ? 0 : ib.packed);
+    // Impostors: this frame's dynamic part on top of what a pack queued (the whole buffer when marked dirty).
+    if (ib.dirty) this.upload(ib, ib.count);
+    else {
+      if (ib.count > ib.packed) this.uploadRange(ib, ib.packed, ib.count);
+      for (const mesh of ib.meshes) {
+        mesh.count = ib.count;
+        mesh.visible = this.shows(mesh, ib.count);
+      }
+    }
     ib.dirty = false;
     const fb = this.farImpostorBatch();
     let statics = ib.packed + fb.count;
@@ -1494,7 +1554,7 @@ export class TreeRenderer {
     const n = b.rest > 0 ? b.count : b.dynAt + used;
     for (const mesh of b.meshes) {
       mesh.count = n;
-      mesh.visible = this.shows(mesh, b.dynAt + used + b.rest);
+      mesh.visible = this.shows(mesh, (b.live ?? b.dynAt + b.rest) + used);
     }
   }
 
@@ -1676,53 +1736,6 @@ export class TreeRenderer {
   }
 
   /**
-   * Committed static instances -> GPU (from `at`): the ones in the view window, plus the always-drawn ones. The
-   * shadow casters first, then `gap` slots left free (a batch's room for its active trees), then the rest.
-   */
-  private pack(
-    b: Batch,
-    c: Staged,
-    at: number,
-    keep?: (i: number) => boolean,
-    gap = 0,
-  ): number {
-    this.current.repacks++;
-    const v = this.packedView ?? this.view;
-    this.ensureCapacity(b, at + c.count + gap + Math.max(0, b.count - at));
-    let n = at;
-    let solid = 0;
-    const box = this.shadowBox(v);
-    const casts = (i: number) =>
-      c.fade[i * 4 + 2] > 0.5 && (!box || box.reaches(c.sphere, i * 4));
-    // Shadow casters first (the shadow pass draws only them), then the rest in the view window.
-    for (const casters of [true, false]) {
-      for (let i = 0; i < c.count; i++) {
-        if (casts(i) !== casters || (keep && !keep(i))) continue;
-        // A shadow-only level whose shadow cannot reach the box: nothing to draw.
-        if (!casters && c.fade[i * 4 + 1] === SHADOW_ONLY) continue;
-        // Kept while the view turns up to REPACK from the packed one and the camera stays in the job's window.
-        if (v && !c.always[i]) {
-          let a = Math.abs(c.angle[i] - v.yaw) % (2 * Math.PI);
-          if (a > Math.PI) a = 2 * Math.PI - a;
-          if (a > v.half + REPACK + c.spread[i]) continue;
-        }
-        b.mat.set(c.mat.subarray(i * 16, i * 16 + 16), n * 16);
-        b.inst.set(c.inst.subarray(i * 4, i * 4 + 4), n * 4);
-        b.fade.set(c.fade.subarray(i * 4, i * 4 + 4), n * 4);
-        b.lod.set(c.lod.subarray(i * 4, i * 4 + 4), n * 4);
-        if (c.fade[i * 4 + 1] !== SHADOW_ONLY) solid++;
-        n++;
-      }
-      if (casters) {
-        n += gap;
-        b.casters = n - at;
-      }
-    }
-    b.solid = solid;
-    return n;
-  }
-
-  /**
    * The sun's shadow box in light space for a pack (opts.shadowExtent; null = unset or no view): centred half a box
    * ahead of the camera along the view (as engine/environment.ts places it), widened by how far the camera can move
    * and turn before the next pack (a job or a REPACK).
@@ -1762,84 +1775,376 @@ export class TreeRenderer {
     };
   }
 
-  /** `commit`: a job's new instances, the room is sized again for the most active trees since the last one. */
+  /**
+   * `commit`: a job's new instances (the room grows for the most active trees since the last one). Slot-stable: a tree
+   * keeps its slot from pack to pack, so a commit or a view turn writes and uploads only the trees that came, went or
+   * changed (a whole re-pack + upload of every batch every 5 m was most of the p99 frames). Whole again when a region
+   * runs out of room, the room grows, or the holes pass HOLES of the slots.
+   */
   private packStatic(b: StaticBatch, commit = false): void {
+    let dynCap = b.dynCap;
     if (commit) {
-      b.dynCap = Math.max(4, Math.ceil(Math.max(b.dynPeak, b.dyn) * 1.25));
+      dynCap = Math.max(
+        dynCap,
+        4,
+        Math.ceil(Math.max(b.dynPeak, b.dyn) * 1.25),
+      );
       b.dynPeak = 0;
     }
-    b.count = this.pack(b, b.c, 0, undefined, b.dynCap);
-    b.dynAt = b.casters - b.dynCap;
-    b.rest = b.count - b.casters;
+    if (dynCap !== b.dynCap || !b.slots || !this.packDelta(b))
+      this.packWhole(b, dynCap);
+  }
+
+  /** Region of staged instance `i`: 0 not drawn, 1 shadow caster, 2 the rest (the same tests as `pack`). */
+  private regionOf(
+    c: Staged,
+    i: number,
+    v: { yaw: number; half: number } | null,
+    box: ReturnType<TreeRenderer['shadowBox']>,
+  ): number {
+    const casts =
+      c.fade[i * 4 + 2] > 0.5 && (!box || box.reaches(c.sphere, i * 4));
+    if (!casts && c.fade[i * 4 + 1] === SHADOW_ONLY) return 0;
+    if (v && !c.always[i]) {
+      let a = Math.abs(c.angle[i] - v.yaw) % (2 * Math.PI);
+      if (a > Math.PI) a = 2 * Math.PI - a;
+      if (a > v.half + REPACK + c.spread[i]) return 0;
+    }
+    return casts ? 1 : 2;
+  }
+
+  /** Staged instance `i` -> batch slot `n`, only where it differs; true when it changed. */
+  private writeSlot(b: Batch, n: number, c: Staged, i: number): boolean {
+    let changed = false;
+    for (const [dst, src, size] of [
+      [b.mat, c.mat, 16],
+      [b.inst, c.inst, 4],
+      [b.fade, c.fade, 4],
+      [b.lod, c.lod, 4],
+    ] as const)
+      for (let k = 0; k < size; k++)
+        if (dst[n * size + k] !== src[i * size + k]) {
+          dst[n * size + k] = src[i * size + k];
+          changed = true;
+        }
+    return changed;
+  }
+
+  /** Empty slot `n` (drawn as nothing, like an unused room slot); true when it changed. */
+  private collapseSlot(b: Batch, n: number): boolean {
+    let changed = false;
+    for (let k = 0; k < 4; k++)
+      if (b.fade[n * 4 + k] !== COLLAPSED[k]) {
+        b.fade[n * 4 + k] = COLLAPSED[k];
+        changed = true;
+      }
+    return changed;
+  }
+
+  /** Every tree into a fresh layout [casters + HEADROOM free | room | rest]; uploads it all. */
+  private packWhole(b: StaticBatch, dynCap: number): void {
+    this.current.repacks++;
+    const v = this.packedView ?? this.view;
+    const box = this.shadowBox(v);
+    const c = b.c;
+    const cs: number[] = [];
+    const rs: number[] = [];
+    for (let i = 0; i < c.count; i++) {
+      const r = this.regionOf(c, i, v, box);
+      if (r === 1) cs.push(i);
+      else if (r === 2) rs.push(i);
+    }
+    const cCap =
+      cs.length +
+      (cs.length ? Math.max(2, Math.ceil(cs.length * HEADROOM)) : 0);
+    const total = cCap + dynCap + rs.length;
+    this.ensureCapacity(b, total);
+    const slots: Slots = {
+      c: new Map(),
+      r: new Map(),
+      cFree: [],
+      rFree: [],
+      cLen: cs.length,
+      rLen: rs.length,
+      cCap,
+    };
+    let solid = 0;
+    cs.forEach((i, k) => {
+      this.writeSlot(b, k, c, i);
+      slots.c.set(c.owner[i], k);
+      if (c.fade[i * 4 + 1] !== SHADOW_ONLY) solid++;
+    });
+    for (let k = cs.length; k < cCap; k++) this.collapseSlot(b, k);
+    const base = cCap + dynCap;
+    rs.forEach((i, k) => {
+      this.writeSlot(b, base + k, c, i);
+      slots.r.set(c.owner[i], k);
+      solid++;
+    });
+    b.slots = slots;
+    b.solid = solid;
+    b.live = cs.length + rs.length;
+    b.dynCap = dynCap;
+    b.dynAt = cCap;
+    b.casters = cCap + dynCap;
+    b.count = total;
+    b.rest = rs.length;
     b.clearRoom = true;
     this.upload(b, b.count);
   }
 
-  /** Static impostors -> the front of the impostor batch (the dynamic ones follow each frame). */
+  /** This pack's changes into the kept slots, uploading only those; false = a whole pack is due. */
+  private packDelta(b: StaticBatch): boolean {
+    const s = b.slots!;
+    const v = this.packedView ?? this.view;
+    const box = this.shadowBox(v);
+    const c = b.c;
+    const nextC = new Map<TreeState, number>();
+    const nextR = new Map<TreeState, number>();
+    for (let i = 0; i < c.count; i++) {
+      const r = this.regionOf(c, i, v, box);
+      if (r === 1) nextC.set(c.owner[i], i);
+      else if (r === 2) nextR.set(c.owner[i], i);
+    }
+    // Changed slot ranges, caster region / rest region (relative to their region).
+    const dirty = [Infinity, -1, Infinity, -1];
+    const mark = (r: number, k: number) => {
+      dirty[r * 2] = Math.min(dirty[r * 2], k);
+      dirty[r * 2 + 1] = Math.max(dirty[r * 2 + 1], k);
+    };
+    const base = s.cCap + b.dynCap;
+    // Frees first (a tree moving between regions frees its old slot), then the new trees into free slots.
+    for (const [o, k] of s.c)
+      if (!nextC.has(o)) {
+        s.c.delete(o);
+        s.cFree.push(k);
+        if (this.collapseSlot(b, k)) mark(0, k);
+      }
+    for (const [o, k] of s.r)
+      if (!nextR.has(o)) {
+        s.r.delete(o);
+        s.rFree.push(k);
+        if (this.collapseSlot(b, base + k)) mark(1, k);
+      }
+    for (const [o, i] of nextC) {
+      let k = s.c.get(o);
+      if (k === undefined) {
+        k = s.cFree.pop() ?? s.cLen++;
+        if (k >= s.cCap) return false;
+        s.c.set(o, k);
+      }
+      if (this.writeSlot(b, k, c, i)) mark(0, k);
+    }
+    let adds = 0;
+    for (const o of nextR.keys()) if (!s.r.has(o)) adds++;
+    const need = base + s.rLen + Math.max(0, adds - s.rFree.length);
+    // Bigger buffers (count = the old layout, all kept): new attributes, uploaded whole on their first draw.
+    const grown = need > b.capacity;
+    if (grown) this.ensureCapacity(b, need);
+    for (const [o, i] of nextR) {
+      let k = s.r.get(o);
+      if (k === undefined) {
+        k = s.rFree.pop() ?? s.rLen++;
+        s.r.set(o, k);
+      }
+      if (this.writeSlot(b, base + k, c, i)) mark(1, k);
+    }
+    // Free slots at the end of the rest are dropped (not drawn).
+    if (s.rFree.length) {
+      const free = new Set(s.rFree);
+      while (s.rLen > 0 && free.delete(s.rLen - 1)) s.rLen--;
+      s.rFree = [...free];
+    }
+    if (s.cFree.length + s.rFree.length > HOLES * (s.c.size + s.r.size) + 4)
+      return false;
+    b.count = base + s.rLen;
+    b.live = s.c.size + s.r.size;
+    b.rest = s.rLen;
+    b.solid = s.c.size + s.r.size;
+    if (!grown) {
+      if (dirty[1] >= 0) this.uploadRange(b, dirty[0], dirty[1] + 1);
+      if (dirty[3] >= 0)
+        this.uploadRange(b, base + dirty[2], base + dirty[3] + 1);
+    }
+    for (const mesh of b.meshes) {
+      mesh.count = b.count;
+      mesh.visible = this.shows(mesh, b.live + b.dyn);
+    }
+    return true;
+  }
+
   /**
    * Static impostors -> the front of the impostor batch (the dynamic ones follow each frame), those past
    * IMPOSTOR_FLAT_FROM of the camera into the far batch instead (its program writes no baked depth: the early depth
-   * test then rejects their hidden pixels, and at that distance the baked depth changes next to nothing).
+   * test then rejects their hidden pixels, and at that distance the baked depth changes next to nothing). Slot-stable
+   * like the static batches (`packRuns`): a commit uploads only the impostors that came or went.
    */
   private packImpostors(): void {
     const b = this.impostorBatch();
     const f = this.farImpostorBatch();
     const p = this.steadyPos;
-    const m = b.c.mat;
-    const far = (i: number) =>
-      (m[i * 16 + 12] - p.x) ** 2 + (m[i * 16 + 14] - p.z) ** 2 >
-      IMPOSTOR_FLAT_FROM * IMPOSTOR_FLAT_FROM;
-    b.packed = this.packBlocks(
-      b,
-      b.cb,
-      this.pack(b, b.c, 0, (i) => !far(i)),
-      false,
-    );
+    const v = this.packedView ?? this.view;
+    const c = b.c;
+    const m = c.mat;
+    const inView = (angle: number, spread: number) => {
+      if (!v) return true;
+      let a = Math.abs(angle - v.yaw) % (2 * Math.PI);
+      if (a > Math.PI) a = 2 * Math.PI - a;
+      return a <= v.half + REPACK + spread;
+    };
+    const near: number[] = [];
+    const farS: number[] = [];
+    for (let i = 0; i < c.count; i++) {
+      if (!c.always[i] && !inView(c.angle[i], c.spread[i])) continue;
+      const far =
+        (m[i * 16 + 12] - p.x) ** 2 + (m[i * 16 + 14] - p.z) ** 2 >
+        IMPOSTOR_FLAT_FROM * IMPOSTOR_FLAT_FROM;
+      (far ? farS : near).push(i);
+    }
+    const k = b.cb;
+    const nearK: ChunkTrees[] = [];
+    const farK: ChunkTrees[] = [];
+    for (let i = 0; i < k.count; i++) {
+      if (!inView(k.angle[i], k.spread[i])) continue;
+      const ct = k.list[i];
+      (chunkDistance(ct, p.x, p.z) > IMPOSTOR_FLAT_FROM ? farK : nearK).push(
+        ct,
+      );
+    }
+    b.packed = this.packRuns(b, c, near, nearK);
+    b.solid = b.packed;
     b.count = b.packed;
-    b.dirty = true;
-    f.count = this.packBlocks(f, b.cb, this.pack(f, b.c, 0, far), true);
-    this.upload(f, f.count);
+    f.count = this.packRuns(f, c, farS, farK);
+    f.solid = f.count;
+    for (const mesh of f.meshes) {
+      mesh.count = f.count;
+      mesh.visible = this.shows(mesh, f.count);
+    }
   }
 
   /**
-   * Committed blocks of faked trees -> a batch from `at`: those in the view window, the near or the far ones (the
-   * chunk's nearest point past IMPOSTOR_FLAT_FROM). Whole blocks are copied, no per-tree work.
+   * Single impostors (staged `idx`) into slots [0, sCap) and whole chunk blocks into runs after them, each kept from
+   * pack to pack; what left is collapsed and its slots reused; only the changed slots upload. Returns the packed
+   * count. Whole again when the singles outgrow their region or the holes pass HOLES.
    */
-  private packBlocks(
+  private packRuns(
     b: Batch,
-    k: StagedBlocks,
-    at: number,
-    far: boolean,
+    c: Staged,
+    idx: readonly number[],
+    blocks: readonly ChunkTrees[],
   ): number {
-    const v = this.packedView ?? this.view;
-    const p = this.steadyPos;
-    const shown = (i: number) => {
-      const ct = k.list[i];
-      if (chunkDistance(ct, p.x, p.z) > IMPOSTOR_FLAT_FROM !== far)
-        return false;
-      if (!v) return true;
-      let a = Math.abs(k.angle[i] - v.yaw) % (2 * Math.PI);
-      if (a > Math.PI) a = 2 * Math.PI - a;
-      return a <= v.half + REPACK + k.spread[i];
+    let s = this.runs.get(b);
+    if (s && this.runsDelta(b, s, c, idx, blocks)) return s.sCap + s.kLen;
+    // Whole: singles, headroom, then the blocks back to back.
+    const sCap = idx.length + Math.max(16, Math.ceil(idx.length * HEADROOM));
+    let kLen = 0;
+    for (const ct of blocks) kLen += ct.faked.length;
+    this.ensureCapacity(b, sCap + kLen + 64);
+    s = {
+      s: new Map(),
+      sFree: [],
+      sLen: idx.length,
+      sCap,
+      k: new Map(),
+      kFree: [],
+      kLen: 0,
     };
-    let need = at;
-    for (let i = 0; i < k.count; i++)
-      if (shown(i)) need += k.list[i].faked.length;
-    if (need === at) return at;
-    b.count = at;
-    this.ensureCapacity(b, need);
-    let n = at;
-    for (let i = 0; i < k.count; i++) {
-      if (!shown(i)) continue;
-      const ct = k.list[i];
-      b.mat.set(ct.mat, n * 16);
-      b.inst.set(ct.inst, n * 4);
-      b.fade.set(ct.fade, n * 4);
-      b.lod.set(ct.lod, n * 4);
-      n += ct.faked.length;
+    idx.forEach((i, n) => {
+      this.writeSlot(b, n, c, i);
+      s!.s.set(c.owner[i], n);
+    });
+    for (let n = idx.length; n < sCap; n++) this.collapseSlot(b, n);
+    for (const ct of blocks) {
+      const at = sCap + s.kLen;
+      this.writeBlock(b, at, ct);
+      s.k.set(ct, { at, len: ct.faked.length, version: ct.version });
+      s.kLen += ct.faked.length;
     }
-    b.solid += n - at;
-    return n;
+    this.runs.set(b, s);
+    this.current.repacks++;
+    this.upload(b, sCap + s.kLen);
+    return sCap + s.kLen;
+  }
+
+  private runsDelta(
+    b: Batch,
+    s: RunSlots,
+    c: Staged,
+    idx: readonly number[],
+    blocks: readonly ChunkTrees[],
+  ): boolean {
+    let lo = Infinity;
+    let hi = -1;
+    const mark = (a: number, z: number) => {
+      lo = Math.min(lo, a);
+      hi = Math.max(hi, z);
+    };
+    const next = new Map<TreeState, number>();
+    for (const i of idx) next.set(c.owner[i], i);
+    for (const [o, n] of s.s)
+      if (!next.has(o)) {
+        s.s.delete(o);
+        s.sFree.push(n);
+        if (this.collapseSlot(b, n)) mark(n, n);
+      }
+    for (const [o, i] of next) {
+      let n = s.s.get(o);
+      if (n === undefined) {
+        n = s.sFree.pop() ?? s.sLen++;
+        if (n >= s.sCap) return false;
+        s.s.set(o, n);
+      }
+      if (this.writeSlot(b, n, c, i)) mark(n, n);
+    }
+    // Blocks: a run per chunk; a changed one (re-staged, other size) is freed and placed again.
+    const want = new Set(blocks);
+    for (const [ct, r] of s.k)
+      if (!want.has(ct) || r.version !== ct.version || r.len !== ct.faked.length) {
+        s.k.delete(ct);
+        s.kFree.push({ at: r.at, len: r.len });
+        for (let n = r.at; n < r.at + r.len; n++)
+          if (this.collapseSlot(b, n)) mark(n, n);
+      }
+    let adds = 0;
+    for (const ct of blocks) if (!s.k.has(ct)) adds += ct.faked.length;
+    const need = s.sCap + s.kLen + adds + 64;
+    // Bigger buffers (the packed slots kept): new attributes, uploaded whole on their first draw.
+    const grown = need > b.capacity;
+    if (grown) {
+      b.count = s.sCap + s.kLen;
+      this.ensureCapacity(b, need);
+    }
+    for (const ct of blocks) {
+      if (s.k.has(ct)) continue;
+      const len = ct.faked.length;
+      let at = -1;
+      const f = s.kFree.findIndex((r) => r.len >= len);
+      if (f >= 0) {
+        const r = s.kFree[f];
+        at = r.at;
+        if (r.len === len) s.kFree.splice(f, 1);
+        else (r.at += len), (r.len -= len);
+      } else {
+        at = s.sCap + s.kLen;
+        s.kLen += len;
+      }
+      this.writeBlock(b, at, ct);
+      s.k.set(ct, { at, len, version: ct.version });
+      mark(at, at + len - 1);
+    }
+    let holes = s.sFree.length;
+    for (const r of s.kFree) holes += r.len;
+    if (holes > HOLES * (s.s.size + s.kLen) + 64) return false;
+    if (!grown && hi >= 0) this.uploadRange(b, lo, hi + 1);
+    return true;
+  }
+
+  /** A chunk's block of faked trees -> slots [at, at + its trees). */
+  private writeBlock(b: Batch, at: number, ct: ChunkTrees): void {
+    b.mat.set(ct.mat, at * 16);
+    b.inst.set(ct.inst, at * 4);
+    b.fade.set(ct.fade, at * 4);
+    b.lod.set(ct.lod, at * 4);
   }
 
   private farImpostorBatch(): Batch {
@@ -2161,7 +2466,14 @@ export class TreeRenderer {
       }
     };
     for (const lv of this.library.all())
-      for (const part of PARTS) one(this.staticBatch(lv, part));
+      for (const part of PARTS) {
+        const b = this.staticBatch(lv, part);
+        // Slot 0 is overwritten: `settle` packs the batch whole.
+        b.slots = null;
+        one(b);
+      }
+    // Slot 0 is overwritten: `settle` packs the impostors whole.
+    this.runs.clear();
     one(this.impostorBatch());
     one(this.farImpostorBatch());
   }

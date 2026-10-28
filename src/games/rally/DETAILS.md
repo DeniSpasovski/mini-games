@@ -541,8 +541,11 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   that keeps its level for any camera within 9 m into static batches; only trees near a switching boundary, fading or
   waiting for a fade slot are re-selected per frame (a few hundred), into a room of the same batch: one mesh set per
   variant and part, laid out [shadow casters | room | rest] (`StaticBatch`), so one draw call each. A room re-fills every
-  frame but uploads only the slots and attributes that changed (`uploadRoom`): one `bufferSubData` per attribute and
-  batch was ~450 calls a frame, ~2 ms on ANGLE / D3D11. The job sorts each
+  frame but uploads only the slots and attributes that changed (`uploadRoom`; a `bufferSubData` per attribute and
+  batch was ~450 calls a frame, ~2 ms on ANGLE / D3D11). Static trees and impostors keep their slot from job to job
+  (`packStatic` / `packRuns`: a tree that left is collapsed, a new one takes a free slot), so a job or a view turn
+  uploads only what came or went; a whole re-pack only when a region overflows or a third of the slots are holes. The
+  per-frame impostor tail upload adds its range to the pack's (never clears it). The job sorts each
   scatter chunk's trees once (`chunkTrees`): the faked ones of a chunk farther than ~100 m go in as one ready block of
   impostors, and chunks past the forest distance are only generated (for the canopy texture), not walked. A camera
   jump > 50 m is a cut: every tree takes its level at once. The shadow distance is tested per instance in the shader
