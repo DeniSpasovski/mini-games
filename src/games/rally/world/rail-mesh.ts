@@ -7,7 +7,11 @@ import {
   Mesh,
   MeshStandardMaterial,
 } from 'three';
+import gravelUrl from '../engine/ground/gravel.webp';
+import { GROUND_MEAN, GROUND_SCAN } from '../engine/ground-textures';
+import { imageTexture } from '../engine/image-texture';
 import { getTexture } from '../engine/textures';
+import { addWorldUniforms } from '../engine/world-shading';
 import { newPathQuery } from './real-data';
 import {
   BALLAST_H,
@@ -59,7 +63,22 @@ let bedMat: MeshStandardMaterial | undefined;
 let railMat: MeshStandardMaterial | undefined;
 
 function materials(): [MeshStandardMaterial, MeshStandardMaterial] {
-  bedMat ??= Object.assign(
+  bedMat ??= ballastMaterial();
+  railMat ??= new MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.42,
+    metalness: 0.55,
+  });
+  return [bedMat, railMat];
+}
+
+/**
+ * The track bed: the `rail_track` canvas (sleepers, rust under the rails, the ballast's tone) with the stones of the
+ * gravel ground scan (engine/ground/gravel.webp, its brightness only: ballast is grey) between the sleepers.
+ */
+function ballastMaterial(): MeshStandardMaterial {
+  const scan = imageTexture(gravelUrl, 512, 512, 'rail:ballast');
+  const m = Object.assign(
     new MeshStandardMaterial({
       map: getTexture('rail_track'),
       bumpMap: getTexture('rail_track'),
@@ -71,12 +90,33 @@ function materials(): [MeshStandardMaterial, MeshStandardMaterial] {
     }),
     { defines: { RALLY_GROUND: 1 } },
   );
-  railMat ??= new MeshStandardMaterial({
-    vertexColors: true,
-    roughness: 0.42,
-    metalness: 0.55,
-  });
-  return [bedMat, railMat];
+  m.onBeforeCompile = (shader) => {
+    addWorldUniforms(shader);
+    shader.uniforms.uBallast = { value: scan };
+    // uv: u across the 2 BED_HALF bed, v = TEX_V m along; the scan at its real size.
+    const across = (2 * BED_HALF) / GROUND_SCAN.gravel;
+    const along = TEX_V / GROUND_SCAN.gravel;
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <map_pars_fragment>',
+        '#include <map_pars_fragment>\nuniform sampler2D uBallast;',
+      )
+      .replace(
+        '#include <map_fragment>',
+        /* glsl */ `
+        vec4 sampledDiffuseColor = texture2D( map, vMapUv );
+        // Sleepers (canvas: 2.6 x 0.24 m, two per ${TEX_V} m) keep the canvas; the ballast takes the scan's stones.
+        float acrossM = vMapUv.x * ${(2 * BED_HALF).toFixed(2)};
+        float alongM = fract( vMapUv.y ) * ${TEX_V.toFixed(2)};
+        float sleeper = step( abs( acrossM - ${BED_HALF.toFixed(2)} ), 1.3 )
+          * step( abs( mod( alongM, ${(TEX_V / 2).toFixed(2)} ) - ${(TEX_V / 4).toFixed(2)} ), 0.12 );
+        vec3 stone = texture2D( uBallast, vMapUv * vec2( ${across.toFixed(3)}, ${along.toFixed(3)} ) ).rgb;
+        float lum = dot( stone, vec3( 0.2126, 0.7152, 0.0722 ) ) / ${GROUND_MEAN.gravel.toFixed(3)};
+        diffuseColor *= vec4( sampledDiffuseColor.rgb * mix( lum, 1.0, sleeper ), sampledDiffuseColor.a );`,
+      );
+  };
+  m.customProgramCacheKey = () => 'rail-ballast';
+  return m;
 }
 
 export function* railMeshJob(world: World): Generator<void, Group | undefined> {

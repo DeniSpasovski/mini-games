@@ -5,6 +5,7 @@ import {
   routePoints,
   routeSpans,
 } from '../shared/real-map';
+import { greenInSpring } from '../shared/seasonal-grass';
 import type {
   HeightmapDef,
   HorizonDef,
@@ -333,8 +334,8 @@ export const petralicaMap: MapDef = {
       alignToGround: true,
       sink: 0.35,
     },
-    // Detail: dry grass on the open slopes, greener tufts under trees and in gardens.
-    {
+    // Detail: dry grass on the open slopes and field edges (green in spring), greener tufts under trees and in gardens.
+    ...greenInSpring({
       asset: 'dry_grass',
       cover: DRY,
       density: 280,
@@ -342,15 +343,15 @@ export const petralicaMap: MapDef = {
       minRoadDist: 1,
       maxSlope: 0.5,
       scale: [0.7, 1.4],
-    },
-    {
+    }),
+    ...greenInSpring({
       asset: 'dry_grass',
       cover: ['crop'],
       density: 45,
       detail: true,
       minRoadDist: 1,
       scale: [0.6, 1.1],
-    },
+    }),
     {
       asset: 'grass_tuft',
       cover: ['orchard', 'trees', 'pine', 'water'],

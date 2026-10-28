@@ -389,14 +389,6 @@ function wornPaint(
 
 // --- definitions ---------------------------------------------------------------------
 
-/** Crushed granite of a railway's ballast: blue-grey, a few rusty stones. */
-const BALLAST_PALETTE: RGB[] = [
-  [128, 128, 126],
-  [104, 104, 104],
-  [150, 148, 142],
-  [86, 86, 88],
-  [124, 112, 98],
-];
 const GRAVEL_PALETTE: RGB[] = [
   [150, 140, 125],
   [128, 120, 108],
@@ -503,7 +495,8 @@ const DEFS: Record<TextureId, TexDef> = {
     },
   },
   rail_track: {
-    // u (x) across the ballast bed (4.8 m, toe to toe), v (y) along it (1.2 m: two concrete sleepers).
+    // u (x) across the ballast bed (4.8 m, toe to toe), v (y) along it (1.2 m: two concrete sleepers). The stones
+    // between the sleepers come from the gravel scan (world/rail-mesh.ts); this is their tone.
     name: 'Railway track bed',
     size: [512, 256],
     color: true,
@@ -516,7 +509,6 @@ const DEFS: Record<TextureId, TexDef> = {
         8,
         71,
       );
-      stones(ctx, w, h, 4200, [1.4, 3.4], 72, BALLAST_PALETTE);
       const pxU = w / 4.8;
       const pxV = h / 1.2;
       // Rust-stained ballast under the rails (brake dust).

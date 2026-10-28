@@ -40,6 +40,8 @@ function dustTexture(): Texture {
  * Lit like the world: `setLight(sun, ambient)` -> ambient + sun, brighter (and the sun's colour) when the camera
  * looks towards the sun through the particle (forward scattering: backlit dust glows). Each sprite spins slowly.
  * `ground` (optional): particles bounce off it and stay down (gravel); otherwise they fly through the terrain.
+ * `floor` (optional): the surface each sprite fades into (soft edge, per pixel) instead of being cut off by it; sampled
+ * at emit and every few frames after.
  */
 export class ParticleSystem {
   readonly points: Points;
@@ -55,7 +57,9 @@ export class ParticleSystem {
   private spin: Float32Array;
   private spinRate: Float32Array;
   private frame: Float32Array;
+  private floorY: Float32Array;
   private next = 0;
+  private tick = 0;
   private alive = 0;
   readonly material: ShaderMaterial;
 
@@ -63,6 +67,7 @@ export class ParticleSystem {
     readonly max: number,
     additive = false,
     private ground?: (x: number, z: number) => number,
+    private floor?: (x: number, z: number) => number,
   ) {
     this.pos = new Float32Array(max * 3);
     this.vel = new Float32Array(max * 3);
@@ -76,6 +81,7 @@ export class ParticleSystem {
     this.spin = new Float32Array(max);
     this.spinRate = new Float32Array(max);
     this.frame = new Float32Array(max);
+    this.floorY = new Float32Array(max).fill(-1e6);
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(this.pos, 3));
     g.setAttribute('color', new BufferAttribute(this.col, 3));
@@ -83,6 +89,7 @@ export class ParticleSystem {
     g.setAttribute('alpha', new BufferAttribute(this.alpha, 1));
     g.setAttribute('spin', new BufferAttribute(this.spin, 1));
     g.setAttribute('frame', new BufferAttribute(this.frame, 1));
+    g.setAttribute('floorY', new BufferAttribute(this.floorY, 1));
     this.material = new ShaderMaterial({
       uniforms: UniformsUtils.merge([
         UniformsLib.fog,
@@ -107,8 +114,12 @@ export class ParticleSystem {
         attribute float alpha;
         attribute float spin;
         attribute float frame;
+        attribute float floorY;
         attribute vec3 color;
         varying float vAlpha;
+        varying float vFloor;
+        varying float vSize;
+        varying vec2 vUpY;
         varying float vSpin;
         varying vec2 vCell;
         varying vec3 vColor;
@@ -122,6 +133,10 @@ export class ParticleSystem {
           vCell = vec2( mod( frame, 2.0 ), floor( frame / 2.0 ) ) * 0.5;
           vColor = color;
           vWorld = ( modelMatrix * vec4( position, 1.0 ) ).xyz;
+          // Height of the centre above its floor, and how far the sprite's x / y axes (camera right / up) rise.
+          vSize = size;
+          vFloor = vWorld.y - floorY;
+          vUpY = vec2( viewMatrix[ 1 ][ 0 ], viewMatrix[ 1 ][ 1 ] );
           vRay = vWorld - cameraPosition;
           vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
           gl_PointSize = size * uScale / max(0.5, -mvPosition.z);
@@ -140,6 +155,9 @@ export class ParticleSystem {
         uniform vec3 uTailPos;
         ${WORLD_SHADING_DECL}
         varying float vAlpha;
+        varying float vFloor;
+        varying float vSize;
+        varying vec2 vUpY;
         varying float vSpin;
         varying vec2 vCell;
         varying vec3 vColor;
@@ -151,6 +169,9 @@ export class ParticleSystem {
           vec2 pc = mat2( c, s, -s, c ) * ( gl_PointCoord - 0.5 ) + 0.5;
           // This particle's puff in the 2 x 2 atlas (each cell fades to 0 at its border).
           float a = texture2D( map, vCell + clamp( pc, 0.0, 1.0 ) * 0.5 ).a * vAlpha;
+          // Soft edge on the floor: this pixel's height above it on the camera-facing sprite (point y runs down).
+          vec2 q = ( gl_PointCoord - 0.5 ) * vSize;
+          a *= smoothstep( 0.0, min( 0.3 * vSize, 0.8 ), vFloor + q.x * vUpY.x - q.y * vUpY.y );
           if (a < 0.01) discard;
           // Forward scattering towards the camera when it looks at the sun through the dust.
           float toSun = max( dot( normalize( vRay ), wsSunDir ), 0.0 );
@@ -238,10 +259,13 @@ export class ParticleSystem {
     this.spin[i] = Math.random() * Math.PI * 2;
     this.spinRate[i] = (Math.random() - 0.5) * 1.2;
     this.frame[i] = Math.floor(Math.random() * 4);
+    this.floorY[i] = this.floor ? this.floor(p.x, p.z) : -1e6;
   }
 
   update(dt: number, drag = 1.6, gravity = -0.3): void {
     const damp = Math.exp(-drag * dt);
+    // An eighth of the pool re-samples its floor per frame (they drift slowly).
+    const slot = this.tick++ & 7;
     let alive = 0;
     for (let i = 0; i < this.max; i++) {
       if (this.life[i] <= 0) continue;
@@ -272,6 +296,8 @@ export class ParticleSystem {
           this.vel[k + 2] *= 0.45;
         }
       }
+      if (this.floor && (i & 7) === slot)
+        this.floorY[i] = this.floor(this.pos[k], this.pos[k + 2]);
       this.spin[i] += this.spinRate[i] * dt;
       this.size[i] += this.grow[i] * dt * (1 - t);
       // Quick fade in, long fade out.
@@ -286,6 +312,7 @@ export class ParticleSystem {
     g.getAttribute('color').needsUpdate = true;
     g.getAttribute('spin').needsUpdate = true;
     g.getAttribute('frame').needsUpdate = true;
+    g.getAttribute('floorY').needsUpdate = true;
   }
 
   get aliveCount(): number {
