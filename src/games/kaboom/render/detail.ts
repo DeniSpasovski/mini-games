@@ -13,7 +13,8 @@ import type { LevelId } from '../game/levels';
 /**
  * Each level's detail tile (DETAILS.md "Style"): 512 px, baked from Poly Haven (CC0) scans by
  * `scripts/kaboom/bake-textures.py` (sources and credits: THIRD-PARTY.md). Red = the ground (terraces, rim, margin,
- * meadow, decks), green = the second surface (cliff and walls, hulls), both grey around 0.5. The scenery material
+ * meadow, decks), green = the second surface (cliff and walls, bare soil, hulls), blue = boulders (Valley), all grey
+ * around 0.5. The scenery material
  * multiplies its painted vertex colours by them, projected in world space from three sides, where a vertex asks for it
  * (`aDetail`, written by `part()`). `tile` = metres per tile (the bake's number), `strength` = how far the texture may
  * lighten or darken the paint.

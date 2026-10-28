@@ -169,7 +169,7 @@ function addGlow(shader: Shader, glow: GlowUniforms): void {
 /**
  * The detail texture (`detail.ts`): world-space, projected from three sides and blended by the normal, so terraces,
  * cliffs, decks and hulls all get it without UVs; each channel scales the paint by 2 x its value, as far as the vertex's
- * `aDetail` (red, green weights) and the level's strength allow. Geometry without `aDetail` reads (0, 0): untouched.
+ * `aDetail` (red, green, blue weights) and the level's strength allow. Geometry without `aDetail` reads 0: untouched.
  */
 function addDetail(
   shader: Shader,
@@ -183,8 +183,8 @@ function addDetail(
     .replace(
       '#include <common>',
       `#include <common>
-      attribute vec2 aDetail;
-      varying vec2 vDetail;
+      attribute vec3 aDetail;
+      varying vec3 vDetail;
       varying vec3 vDetailPos;
       varying vec3 vDetailN;`,
     )
@@ -208,25 +208,25 @@ function addDetail(
       uniform sampler2D uDetail;
       uniform float uDetailTile;
       uniform float uDetailK;
-      varying vec2 vDetail;
+      varying vec3 vDetail;
       varying vec3 vDetailPos;
       varying vec3 vDetailN;`,
     )
     .replace(
       '#include <color_fragment>',
       `#include <color_fragment>
-      if ( vDetail.x + vDetail.y > 0.003 ) {
+      if ( vDetail.x + vDetail.y + vDetail.z > 0.003 ) {
         vec3 tw = pow( abs( normalize( vDetailN ) ), vec3( 4.0 ) );
         tw /= tw.x + tw.y + tw.z;
         vec3 tp = vDetailPos / uDetailTile;
-        vec2 tex = texture2D( uDetail, tp.zy ).rg * tw.x
-                 + texture2D( uDetail, tp.xz ).rg * tw.y
-                 + texture2D( uDetail, tp.xy ).rg * tw.z;
-        vec2 dw = vDetail;
+        vec3 tex = texture2D( uDetail, tp.zy ).rgb * tw.x
+                 + texture2D( uDetail, tp.xz ).rgb * tw.y
+                 + texture2D( uDetail, tp.xy ).rgb * tw.z;
+        vec3 dw = vDetail;
         #ifdef DETAIL_SOIL
           // a warm (brown) instance is bare soil: its ground weight moves to the second channel
           float soil = clamp( ( vColor.r - vColor.g ) * 6.0 + 0.5, 0.0, 1.0 );
-          dw = vec2( dw.x * ( 1.0 - soil ), dw.y + dw.x * soil );
+          dw = vec3( dw.x * ( 1.0 - soil ), dw.y + dw.x * soil, dw.z );
         #endif
         diffuseColor.rgb *= 1.0 + dot( 2.0 * tex - 1.0, dw ) * uDetailK;
       }`,

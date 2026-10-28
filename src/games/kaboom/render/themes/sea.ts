@@ -456,61 +456,76 @@ function tarpCargo(): BufferGeometry {
         rough: ROUGH.wood,
       }),
     );
-  // the tarp: a soft rounded block, sagging a little between the ropes
+  // the tarp over two loads: a big one and a smaller one on top, so the canvas steps; folds pressed in where it drapes
+  const folds = [
+    { p: [-0.2, 0.4, 0] as const, n: [1, 0, 0.25] as const, w: 0.035 },
+    { p: [0.17, 0.4, 0] as const, n: [1, 0, -0.2] as const, w: 0.03 },
+    { p: [0, 0.4, 0.12] as const, n: [0.2, 0, 1] as const, w: 0.03 },
+    { p: [0, 0.4, -0.22] as const, n: [-0.15, 0, 1] as const, w: 0.03 },
+  ];
   p.push(
-    part(rbox(0.8, 0.66, 0.8, 0.12, 3), S.tarp, {
-      y: 0.45,
-      lumpy: 0.025,
+    part(rbox(0.8, 0.5, 0.8, 0.1, 3), S.tarp, {
+      y: 0.37,
+      lumpy: 0.02,
       smooth: true,
-      tint: 0.16,
+      cracks: folds,
+      tint: 0.18,
+      rough: ROUGH.rope,
+    }),
+    part(rbox(0.64, 0.22, 0.62, 0.09, 3), S.tarp, {
+      y: 0.68,
+      x: 0.02,
+      lumpy: 0.02,
+      smooth: true,
+      cracks: folds.slice(0, 2),
+      tint: 0.18,
       rough: ROUGH.rope,
     }),
   );
-  // a skirt where it hangs over the pallet
+  // a skirt where it hangs over the pallet, and a crate corner showing under its hem
   p.push(
     part(rbox(0.84, 0.08, 0.84, 0.035, 1), S.tarpDark, {
       y: 0.15,
       tint: 0.1,
       rough: ROUGH.rope,
     }),
+    part(bbox(0.2, 0.14, 0.12, 0.015), S.crate, {
+      x: -0.33,
+      z: 0.38,
+      y: 0.18,
+      tint: 0.12,
+      rough: ROUGH.wood,
+    }),
   );
-  // rope lashing: two loops each way over the top and down the sides
-  for (const t of [-0.18, 0.18])
+  // rope lashing: two lines each way, over the top, down the step and the sides, knotted at the crossing
+  const top = 0.8;
+  const step = 0.62;
+  for (const t of [-0.17, 0.17])
     for (const along of [0, 1]) {
-      const ry = along ? Math.PI / 2 : 0;
-      const at = (x: number, z: number): [number, number] =>
-        along ? [z, -x] : [x, z];
-      const [tx, tz] = at(t, 0);
-      p.push(
-        part(box(0.035, 0.035, 0.82), S.rope, {
-          x: tx,
-          z: tz,
-          y: 0.785,
-          ry,
-          tint: 0.15,
-          rough: ROUGH.rope,
-        }),
-      );
-      for (const sd of [-1, 1]) {
-        const [sx, sz] = at(t, sd * 0.41);
+      const at = (u: number, v: number, y: number): [number, number, number] =>
+        along ? [v, y, -u] : [u, y, v];
+      const pts: [number, number, number][] = [
+        at(t, -0.42, 0.16),
+        at(t, -0.42, step),
+        at(t, -0.31, top),
+        at(t, 0.31, top),
+        at(t, 0.42, step),
+        at(t, 0.42, 0.16),
+      ];
+      for (let i = 1; i < pts.length; i++)
         p.push(
-          part(box(0.035, 0.62, 0.035), S.rope, {
-            x: sx,
-            z: sz,
-            y: 0.48,
-            ry,
-            tint: 0.15,
+          part(strut(pts[i - 1], pts[i], 0.018, 5), S.rope, {
+            tint: 0.12,
             rough: ROUGH.rope,
           }),
         );
-      }
     }
-  // the knot where the ropes cross
   p.push(
-    part(rock(0.05, 0), S.rope, {
-      y: 0.8,
-      x: 0.18,
-      z: 0.18,
+    part(rock(0.05, 1), S.rope, {
+      y: top + 0.01,
+      x: 0.17,
+      z: 0.17,
+      smooth: true,
       tint: 0.15,
       rough: ROUGH.rope,
     }),
@@ -518,18 +533,83 @@ function tarpCargo(): BufferGeometry {
   return merge(p);
 }
 
-/** Crate 1: a cargo barrel with iron hoops and a dark lid. */
+/**
+ * Crate 1: a cargo barrel: sixteen staves with dark seams between them (grooves at the lathe's own columns), three iron
+ * hoops, a rim at the top, a lid of three boards and a bung on its belly.
+ */
 function cargoBarrel(): BufferGeometry {
-  const prof = [0, 0.3, 0.37, 0.39, 0.37, 0.3, 0].map(
-    (r, i) => new Vector2(i === 0 || i === 6 ? 0 : r, 0.1 + (i / 6) * 0.78),
+  const prof = [
+    [0, 0.06],
+    [0.3, 0.06],
+    [0.33, 0.12],
+    [0.37, 0.3],
+    [0.39, 0.47],
+    [0.37, 0.64],
+    [0.33, 0.82],
+    [0.3, 0.88],
+    [0, 0.88],
+  ].map(([r, y]) => new Vector2(r, y));
+  const seams = Array.from({ length: 8 }, (_, k) => {
+    const a = (k * Math.PI) / 8;
+    return {
+      p: [0, 0.47, 0] as const,
+      n: [Math.cos(a), 0, Math.sin(a)] as const,
+      w: 0.012,
+    };
+  });
+  const p: BufferGeometry[] = [
+    part(new LatheGeometry(prof, 16), S.cargo, {
+      smooth: true,
+      cracks: seams,
+      tint: 0.16,
+      rough: ROUGH.wood,
+      detail: [0.6, 0],
+    }),
+    // the rim (chime) round the top, and the lid boards inside it
+    part(torus(0.3, 0.025), S.cargoLid, { y: 0.875, rough: ROUGH.wood }),
+  ];
+  for (const [x, w, len, f] of [
+    [-0.17, 0.16, 0.3, 0.95],
+    [0, 0.17, 0.52, 1.05],
+    [0.17, 0.16, 0.3, 0.9],
+  ] as const)
+    p.push(
+      part(bbox(w - 0.012, 0.03, len, 0.008), S.cargoLid, {
+        x,
+        y: 0.87,
+        tint: 0.12 * f,
+        rough: ROUGH.wood,
+      }),
+    );
+  // iron hoops: at the chimes and either side of the belly
+  for (const [y, r] of [
+    [0.15, 0.345],
+    [0.36, 0.38],
+    [0.58, 0.38],
+    [0.79, 0.345],
+  ] as const)
+    p.push(
+      part(torus(r, 0.022), S.hoop, {
+        y,
+        tint: 0.06,
+        rough: ROUGH.iron,
+      }),
+    );
+  // the bung, a dark plug on the belly
+  p.push(
+    part(
+      new CylinderGeometry(0.04, 0.04, 0.03, 8).rotateX(Math.PI / 2),
+      S.cargoLid,
+      {
+        y: 0.47,
+        z: 0.39,
+        tint: 0,
+        paint: 0,
+        rough: ROUGH.wood,
+      },
+    ),
   );
-  return merge([
-    part(new LatheGeometry(prof, 12), S.cargo, { tint: 0.14 }),
-    part(new CylinderGeometry(0.29, 0.29, 0.04, 12), S.cargoLid, { y: 0.89 }),
-    part(new CylinderGeometry(0.33, 0.33, 0.05, 12), S.hoop, { y: 0.26 }),
-    part(new CylinderGeometry(0.385, 0.385, 0.05, 12), S.hoop, { y: 0.49 }),
-    part(new CylinderGeometry(0.33, 0.33, 0.05, 12), S.hoop, { y: 0.72 }),
-  ]);
+  return merge(p);
 }
 
 // ------------------------------------------------------------------ decor
