@@ -18,6 +18,8 @@ import { ATLAS, PLEATS, ROPE_M } from './dynamite-texture';
 import { ROUGH } from './materials';
 import { bbox, merge, part, strut } from './parts';
 
+import { VEST_BOTTOM, VEST_CY, VEST_FOLD, VEST_R, VEST_TOP } from './critters';
+
 export { buildCritter, type CritterModel } from './critters';
 
 /** Gear, TNT and pickups built from primitives (the critters themselves: `critters.ts`). Local space as the critters. */
@@ -61,82 +63,120 @@ function arch(
 }
 
 /**
- * Hard hat: a smooth dome with three crown ribs, a brim that curves down to a rolled edge and runs out into a front
- * peak, and the dark suspension band underneath. White paint = tinted by the team colour per instance.
+ * Hard hat: a dome with a flat crown and a raised centre ridge, a thick chamfered brim running out into a front peak,
+ * a lamp clip on the front and the dark suspension band underneath. White paint = tinted by the team colour per
+ * instance.
  */
 export function hatGeometry(): BufferGeometry {
-  // brim profile (radius, height), lathed round: flat at the dome, curving down to a rolled lip
+  // brim profile (radius, height), lathed round: a thick slab with chamfered edges
   const brim = [
-    [0.17, 0.012],
-    [0.205, 0.008],
-    [0.235, -0.002],
-    [0.258, -0.016],
-    [0.268, -0.03],
-    [0.262, -0.04],
-    [0.25, -0.034],
-    [0.225, -0.02],
-    [0.19, -0.012],
-    [0.17, -0.008],
+    [0.16, 0.016],
+    [0.245, 0.006],
+    [0.262, -0.004],
+    [0.264, -0.022],
+    [0.252, -0.032],
+    [0.16, -0.022],
   ].map(([r, y]) => new Vector2(r, y));
-  const parts: BufferGeometry[] = [
+  return mergeGear([
     part(
-      new SphereGeometry(0.205, 28, 9, 0, Math.PI * 2, 0, Math.PI / 2),
+      new SphereGeometry(0.2, 16, 7, 0, Math.PI * 2, 0, Math.PI / 2),
       0xffffff,
-      { sy: 0.86, tint: 0.02 },
+      { sy: 0.78, tint: 0.02, smooth: true, cuts: [[0, 1, 0, 0.145]] },
     ),
     // the brim, stretched forward into a peak
-    part(new LatheGeometry(brim, 30), 0xf2f2f2, {
-      sz: 1.2,
+    part(new LatheGeometry(brim, 24), 0xf0f0f0, {
+      sz: 1.18,
       z: 0.03,
       tint: 0,
+      edges: true,
     }),
-    // crown ribs: one over the middle, a lower one each side
-    part(arch(0.2, 0.018, Math.PI * 0.9).rotateY(Math.PI / 2), 0xe2e2e2, {
-      sy: 0.86,
+    // the raised centre ridge, front to back
+    part(arch(0.19, 0.026, Math.PI * 0.9).rotateY(Math.PI / 2), 0xe6e6e6, {
+      sy: 0.8,
       tint: 0,
+      edges: true,
     }),
-  ];
-  for (const s of [-1, 1])
-    parts.push(
-      part(arch(0.19, 0.011, Math.PI * 0.8).rotateY(Math.PI / 2), 0xe8e8e8, {
-        x: s * 0.07,
-        sy: 0.8,
+    plain(
+      part(bbox(0.07, 0.05, 0.03, 0.01), 0x3a3633, {
+        y: 0.075,
+        z: 0.19,
         tint: 0,
       }),
-    );
-  parts.push(
+    ),
     plain(
       part(
-        new TorusGeometry(0.19, 0.012, 4, 28).rotateX(Math.PI / 2),
+        new TorusGeometry(0.19, 0.014, 4, 24).rotateX(Math.PI / 2),
         0x3a3633,
-        {
-          y: -0.004,
-          tint: 0,
-        },
+        { y: -0.004, tint: 0 },
       ),
     ),
-  );
-  return mergeGear(parts);
+  ]);
 }
 
 /**
- * Hi-vis vest: a shaped shell round the torso, open at the front (the belly fur shows), shoulder straps, a hem, two
- * pockets and two silver reflective stripes. Team colour per instance, the stripes stay silver. It sits on the fur.
+ * Hi-vis vest: a shaped shell round the torso, open at the front (the belly shows), shoulder straps, a hem, two
+ * pockets and two silver reflective stripes. Team colour per instance, the stripes stay silver.
  */
 export function vestGeometry(): BufferGeometry {
-  // the shell: a band of sphere round the torso (centre y 0.36), with a gap of OPEN radians at the front (+z)
+  // the shell: a band of sphere round the torso (centre `VEST_CY`, radius `VEST_R`, polar angles `VEST_TOP` ..
+  // `VEST_BOTTOM`: the fit in `critters.ts` measures the same vest), with a gap of OPEN radians at the front (+z)
   const OPEN = 0.62;
-  const R = 0.352;
-  const top = 0.92;
-  const bottom = 1.96;
+  const R = VEST_R;
+  const top = VEST_TOP;
+  const bottom = VEST_BOTTOM;
   const phi0 = Math.PI / 2 + OPEN / 2;
   const phiLen = Math.PI * 2 - OPEN;
+  // the patch pockets either side of the opening (vest space), and where that is on the shell: the angle from the
+  // front edge and the height as a share of the radius
+  const PX = 0.17;
+  const PY = 0.31;
+  const PZ = 0.3;
+  const POCKET = {
+    phi: Math.atan2(PZ / 0.97, -PX) - phi0,
+    y: (PY - VEST_CY) / 1.05 / R,
+  };
+  // cloth, not a barrel: soft vertical folds hanging from the shoulders, deeper towards the hem, fading out at the hems
+  // and the front edges (the trims sit there); the stripes ride the same folds
+  const drape = (g: BufferGeometry, r: number): BufferGeometry => {
+    const pos = g.getAttribute('position');
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+      const t = Math.acos(Math.max(-1, Math.min(1, y / r)));
+      let phi = Math.atan2(z, -x) - phi0;
+      phi = ((phi % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      const v = (t - top) / (bottom - top);
+      const hems = Math.sin(Math.PI * Math.min(1, Math.max(0, v)));
+      const edges = Math.min(1, phi / 0.3, (phiLen - phi) / 0.3);
+      // flat under the patch pockets (`POCKET`: their angle from the front edge and height in the band)
+      const toPocket = Math.hypot(
+        (Math.min(phi, phiLen - phi) - POCKET.phi) / 0.26,
+        (y / r - POCKET.y) / 0.26,
+      );
+      const pockets = Math.min(1, Math.max(0, (toPocket - 0.75) / 0.35));
+      const fold =
+        Math.sin(phi * 7 + Math.sin(phi * 3.1) * 0.8) * 0.65 +
+        Math.sin(phi * 13 + 1.7) * 0.35;
+      const k =
+        1 +
+        VEST_FOLD *
+          fold *
+          (0.35 + 0.65 * v) *
+          hems *
+          Math.max(0, edges) *
+          pockets;
+      pos.setXYZ(i, x * k, y, z * k);
+    }
+    g.computeVertexNormals();
+    return g;
+  };
   const band = (t0: number, t1: number, r: number) =>
-    new SphereGeometry(r, 30, 4, phi0, phiLen, t0, t1 - t0);
-  const yAt = (t: number, r = R) => 0.36 + Math.cos(t) * r * 1.05;
+    drape(new SphereGeometry(r, 64, 10, phi0, phiLen, t0, t1 - t0), r);
+  const yAt = (t: number, r = R) => VEST_CY + Math.cos(t) * r * 1.05;
   const parts: BufferGeometry[] = [
     part(band(top, bottom, R), 0xffffff, {
-      y: 0.36,
+      y: VEST_CY,
       sy: 1.05,
       sz: 0.97,
       tint: 0,
@@ -147,7 +187,7 @@ export function vestGeometry(): BufferGeometry {
     parts.push(
       plain(
         part(band(t - 0.055, t + 0.055, R + 0.004), 0xd9dde3, {
-          y: 0.36,
+          y: VEST_CY,
           sy: 1.05,
           sz: 0.97,
           tint: 0,
@@ -172,7 +212,7 @@ export function vestGeometry(): BufferGeometry {
           .rotateZ(Math.PI / 2 - bottom)
           .rotateY(Math.PI + phi),
         0xeeeeee,
-        { y: 0.36, sy: 1.05, sz: 0.97, tint: 0 },
+        { y: VEST_CY, sy: 1.05, sz: 0.97, tint: 0 },
       ),
     );
   // shoulder straps from the front edge over the shoulder to the back
@@ -189,9 +229,9 @@ export function vestGeometry(): BufferGeometry {
   for (const s of [-1, 1])
     parts.push(
       part(rbox(0.1, 0.08, 0.02, 0.008), 0xeaeaea, {
-        x: s * 0.17,
-        y: 0.31,
-        z: 0.3,
+        x: s * PX,
+        y: PY,
+        z: PZ,
         ry: s * 0.5,
         tint: 0,
       }),
@@ -201,17 +241,17 @@ export function vestGeometry(): BufferGeometry {
 
 /**
  * Fan shirt (the crowd's sprites): a closed single-colour T-shirt with short sleeves, built on the vest's torso (`VEST_CY`
- * 0.36, radius 0.352) so the same per-critter fit applies. No stripes, hems or straps.
+ * `VEST_CY`, `VEST_R`) so the same per-critter fit applies. No stripes, hems or straps.
  */
 export function fanShirtGeometry(): BufferGeometry {
-  const R = 0.352;
+  const R = VEST_R;
   const top = 0.9;
   const bottom = 2.0;
   const parts: BufferGeometry[] = [
     part(
       new SphereGeometry(R, 30, 5, 0, Math.PI * 2, top, bottom - top),
       0xffffff,
-      { y: 0.36, sy: 1.05, sz: 0.97, tint: 0 },
+      { y: VEST_CY, sy: 1.05, sz: 0.97, tint: 0 },
     ),
   ];
   // sleeves: short tapered tubes from the shoulder out and down, capped by a rounded shoulder
@@ -229,28 +269,71 @@ export function fanShirtGeometry(): BufferGeometry {
   return mergeGear(parts);
 }
 
-/** One foot (instanced twice per player, coloured per critter): a rounded paw with three toes. */
+/**
+ * One work boot (instanced twice per player): a thin rubber sole, a round leather shaft with a padded collar, a rounded
+ * toe and laces. It keeps its own paint (`aPlain`), the same for the whole crew.
+ */
 export function footGeometry(): BufferGeometry {
-  const p = [
-    part(new SphereGeometry(0.09, 14, 9), 0xffffff, {
-      y: 0.045,
-      z: 0.02,
-      sy: 0.55,
-      sz: 1.3,
-      tint: 0.03,
-    }),
-  ];
-  for (const k of [-1, 0, 1])
-    p.push(
-      part(new SphereGeometry(0.034, 10, 7), 0xf2f2f2, {
-        x: k * 0.048,
-        y: 0.032,
-        z: 0.125 - Math.abs(k) * 0.015,
-        sy: 0.8,
-        tint: 0,
+  const leather = 0x9c6838;
+  const toe = 0x87552c;
+  return mergeGear([
+    // the sole: an oval following the footprint (round heel, round toe), tucked just inside the upper, its edge rounded
+    plain(
+      part(new SphereGeometry(1, 20, 8), 0x3b2e26, {
+        y: 0.016,
+        z: 0.04,
+        sx: 0.056,
+        sy: 0.03,
+        sz: 0.1,
+        tint: 0.03,
+        smooth: true,
+        cuts: [
+          [0, -1, 0, 0.016],
+          [0, 1, 0, 0.012],
+        ],
       }),
-    );
-  return mergeGear(p);
+    ),
+    // the shaft, round and a little narrower at the top
+    plain(
+      part(new CylinderGeometry(0.052, 0.058, 0.1, 16), leather, {
+        y: 0.074,
+        z: -0.008,
+        sz: 0.95,
+        tint: 0.04,
+      }),
+    ),
+    // the rounded toe
+    plain(
+      part(new SphereGeometry(1, 16, 10), toe, {
+        y: 0.046,
+        z: 0.07,
+        sx: 0.06,
+        sy: 0.042,
+        sz: 0.075,
+        tint: 0.04,
+        smooth: true,
+        cuts: [[0, -1, 0, 0.022]],
+      }),
+    ),
+    // padded collar round the top
+    plain(
+      part(
+        new TorusGeometry(0.052, 0.012, 6, 18).rotateX(Math.PI / 2),
+        0x5e3c20,
+        { y: 0.126, z: -0.008, sz: 0.95, tint: 0.03 },
+      ),
+    ),
+    // laces up the front of the shaft
+    ...[0.064, 0.088, 0.11].map((y) =>
+      plain(
+        part(bbox(0.044, 0.007, 0.01, 0.003), 0xe8dcc0, {
+          y,
+          z: 0.05,
+          tint: 0,
+        }),
+      ),
+    ),
+  ]);
 }
 
 /**

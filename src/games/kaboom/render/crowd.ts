@@ -32,13 +32,12 @@ import { boardMask } from './card-stunt';
 const BOWL_LAYOUT: CrowdLayout = { ring: warpedRing, height: treadHeight };
 import { CAM_PITCH_DEG } from './camera-rig';
 import { Crew, TEAM_COLORS } from './characters';
-import { FUR_SHELLS } from './fur';
 import type { Quality } from './renderer';
 import { Player } from '../sim/state';
 
 /**
  * The spectators in the stands (DETAILS.md "Style"): the same eight animals as the crew, drawn as SPRITES. The camera never
- * turns, so each animal is rendered once, with the game's own crew renderer (fur, face, vest, no hard hat), from the game
+ * turns, so each animal is rendered once, with the game's own crew renderer (paint, face, vest, no hard hat), from the game
  * camera's pitch into an atlas: 8 animals x 4 facings x 8 team colours. A spectator is then one instanced billboard that
  * picks its tile: a few hundred spectators cost one draw call and a handful of vertices each, and look as good as the crew.
  * Tiles are drawn on demand (`prepare`): only the colours of the players in the match, and a new colour later costs 32 tiles.
@@ -181,7 +180,7 @@ export class Crowd {
     w: number,
     h: number,
     pad: number,
-    private readonly quality: Quality,
+    quality: Quality,
     layout: CrowdLayout = BOWL_LAYOUT,
   ) {
     const hx = w / 2 + pad;
@@ -752,11 +751,7 @@ export class Crowd {
     return CRITTERS.map((id) => {
       const player = new Player(0, id, false, 0);
       player.x = player.px = player.y = player.py = 0;
-      const crew = new Crew([player], 0, 0, {
-        shells: FUR_SHELLS[this.quality.name],
-        smooth: false,
-        fan: true,
-      });
+      const crew = new Crew([player], 0, 0, { fan: true });
       crew.setHatsVisible(false);
       return { crew, player };
     });

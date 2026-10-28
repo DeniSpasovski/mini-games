@@ -6,6 +6,15 @@ import {
   TEAM_COLORS,
 } from '../../src/games/kaboom/render/characters';
 import { buildCritter } from '../../src/games/kaboom/render/crew-parts';
+import {
+  BONE,
+  BONE_COUNT,
+  VEST_BOTTOM,
+  VEST_FOLD,
+  VEST_R,
+  VEST_TOP,
+} from '../../src/games/kaboom/render/critters';
+import { TOON_MARKS } from '../../src/games/kaboom/render/toon';
 import { BlobShadows } from '../../src/games/kaboom/render/shadows';
 import { TntRenderer, tntLevel } from '../../src/games/kaboom/render/tnt';
 import { TNT_LAYOUTS } from '../../src/games/kaboom/render/crew-parts';
@@ -65,34 +74,63 @@ test('the crew differ in build: heights and widths spread, a slim tall one and a
   expect(mole.w).toBeGreaterThan(otter.w + 0.15);
 });
 
-test('every critter has fur: a fur length per vertex, cleared around bald parts and under the gear, light enough to shell', () => {
+test('every critter is painted: its marks fit the shader, the skin is tagged for the paint, the rigid parts not', () => {
   for (const id of CRITTERS) {
     const m = buildCritter(id);
-    const fur = m.furGeometry.getAttribute('fur');
-    expect(fur).toBeDefined();
-    expect(m.geometry.getAttribute('fur')).toBeDefined(); // the skin darkens the undercoat
-    let bare = 0;
-    let long = 0;
-    for (let i = 0; i < fur.count; i++) {
-      const f = fur.getX(i);
-      expect(f).toBeGreaterThanOrEqual(0);
-      expect(f).toBeLessThanOrEqual(1.6);
-      if (f === 0) bare++;
-      if (f > 0.1) long++;
-    }
-    expect(bare).toBeGreaterThan(0); // eyes, nose, hat and vest clear it
-    expect(long).toBeGreaterThan(200); // the vest and the armadillo shell hide a lot, the rest is furry
-    // every shell redraws these: keep them modest
-    expect(m.furGeometry.getAttribute('position').count).toBeLessThan(16000);
-    // nothing grows under the fitted vest, round the back of the torso
-    const pos = m.furGeometry.getAttribute('position');
+    expect(m.paint.marks.length).toBeGreaterThan(10);
+    expect(m.paint.marks.length).toBeLessThanOrEqual(TOON_MARKS);
+    const tag = m.geometry.getAttribute('aToon');
+    expect(tag.count).toBe(m.geometry.getAttribute('position').count);
+    let painted = 0;
+    for (let i = 0; i < tag.count; i++) if (tag.getX(i) > 0.5) painted++;
+    expect(painted).toBeGreaterThan(3000); // the skin
+    expect(painted).toBeLessThan(tag.count); // eyes are paint, but noses, gloves and the belt are parts
+  }
+});
+
+test('no critter pokes through its vest: the torso skin stays inside the shell, folds included', () => {
+  for (const id of CRITTERS) {
+    const m = buildCritter(id);
+    const g = m.geometry;
+    const p = g.getAttribute('position');
+    const tag = g.getAttribute('aToon');
+    const si = g.getAttribute('skinIndex');
     const v = m.vest;
-    for (let i = 0; i < pos.count; i++) {
-      const xc = pos.getX(i) / v.sx;
-      const yc = (pos.getY(i) - v.cy) / v.sy + 0.36;
-      const zc = pos.getZ(i) / v.sz;
-      if (Math.abs(yc - 0.4) < 0.15 && zc < -0.15 && Math.hypot(xc, zc) < 0.3)
-        expect(fur.getX(i)).toBe(0);
+    let out = 0;
+    for (let i = 0; i < p.count; i++) {
+      // the torso's skin only (arms come out of the vest like armholes; rigid parts have their own rules)
+      const b = si.getX(i);
+      if (tag.getX(i) < 0.5 || (b !== BONE.hips && b !== BONE.spine)) continue;
+      const x = p.getX(i) / (VEST_R * v.sx);
+      const z = p.getZ(i) / (VEST_R * 0.97 * v.sz);
+      // the shell: a band of ellipsoid round the fitted centre, open at the front
+      const ny = (p.getY(i) - v.cy) / (v.sy * VEST_R * 1.05);
+      if (ny > Math.cos(VEST_TOP) || ny < Math.cos(VEST_BOTTOM)) continue;
+      if (Math.abs(Math.atan2(x, z)) < 0.36) continue;
+      const ring = Math.sqrt(1 - ny * ny);
+      // inside the deepest fold valley, with a hair for the fit's sampling
+      if (Math.hypot(x, z) / ring > (1 - VEST_FOLD) * 1.01) out++;
+    }
+    expect(out, id).toBe(0);
+  }
+});
+
+test('every critter is skinned: weights summing to 1 on real bones', () => {
+  for (const id of CRITTERS) {
+    const m = buildCritter(id);
+    expect(m.joints.length).toBe(BONE_COUNT * 3);
+    for (const g of [m.geometry]) {
+      const si = g.getAttribute('skinIndex');
+      const sw = g.getAttribute('skinWeight');
+      expect(si.count).toBe(g.getAttribute('position').count);
+      for (let i = 0; i < si.count; i += 7) {
+        let sum = 0;
+        for (let k = 0; k < 4; k++) {
+          expect(si.getComponent(i, k)).toBeLessThan(BONE_COUNT);
+          sum += sw.getComponent(i, k);
+        }
+        expect(Math.abs(sum - 1)).toBeLessThan(1e-3);
+      }
     }
   }
 });
@@ -102,13 +140,13 @@ test('team colours: one per player slot, all different', () => {
   expect(new Set(TEAM_COLORS).size).toBe(TEAM_COLORS.length);
 });
 
-test('crew: few draw calls however many players (bodies + fur + hats + vests + feet + the you-arrow)', () => {
+test('crew: few draw calls however many players (bodies + hats + vests + feet + the you-arrow)', () => {
   const crew = new Crew(players(8), W, H);
   let meshes = 0;
   crew.group.traverse((o) => {
     if ((o as Mesh).isMesh) meshes++;
   });
-  expect(meshes).toBe(8 * 2 + 3 + 1); // body + fur each, + the arrow over the human
+  expect(meshes).toBe(8 + 3 + 1); // a body each, + the arrow over the human
 });
 
 test('crew: a KO sends the critter to a seat on the slab edge, a reset brings it back', () => {
@@ -231,7 +269,7 @@ test('crew: a benched critter is launched into the sky and gone; back in, it dro
   crew.onLaunch = () => launched++;
   crew.onLand = (x) => landed.push(x);
   crew.update(1, 1 / 60);
-  const body = crew.group.children[2] as Mesh; // player 1's body (body, fur per player)
+  const body = crew.group.children[1] as Mesh; // player 1's body (one mesh per player)
   (ps[1] as { state: string }).state = 'out';
   for (let t = 0; t < 12; t++) crew.update(1, 1 / 60);
   expect(launched).toBe(1);
@@ -255,7 +293,7 @@ test('crew: a critter that is already benched when the crew is built is simply n
   crew.onLaunch = () => launched++;
   crew.update(1, 1 / 60);
   expect(launched).toBe(0);
-  const body = crew.group.children[2] as Mesh;
+  const body = crew.group.children[1] as Mesh;
   expect(body.matrix.elements[5]).toBeCloseTo(0);
 });
 

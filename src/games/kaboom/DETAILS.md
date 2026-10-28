@@ -47,7 +47,7 @@ saturated natural colour under soft filmic light; straight true shapes, no bendi
   plus a faint cool rim. Each theme sets its sun, fill and `env` strength.
 
 **Crowd** (`render/crowd.ts`): about 250-400 spectators on the terraces, the same eight animals as the crew, drawn as
-**sprites**. The camera never turns, so each animal is rendered once with the crew renderer (fur, face, a plain sleeved fan shirt from `fanShirtGeometry`, no hard hat)
+**sprites**. The camera never turns, so each animal is rendered once with the crew renderer (paint, face, a plain sleeved fan shirt from `fanShirtGeometry`, no hard hat)
 from the game camera's pitch into an atlas (8 animals x 4 facings x 8 team colours, 112 px tiles, 72 on low), and a
 spectator is one instanced billboard picking its tile: the sprites are one draw call. Tiles are drawn on demand
 (`prepare`, from `WorldView.warmUp` / `render`): every colour of the match at load, a new colour later (the colour
@@ -71,22 +71,24 @@ stops against a hard block throws stone chips and a grey puff back off its face.
 pulsing outline that beats faster, and the wall's shadow growing, as it comes. Fire blends premultiplied and mostly additive (it glows but keeps some
 body); deep in a chain the extras thin out so the screen never drowns in smoke.
 
-**Cast: "the Boom Crew"** - 8 furry animal demolition workers (`render/critters.ts`), each its own build so they read
-apart by silhouette: Otter (tallest, slim, thick tail), Raccoon (tall and lean, mask, ringed tail), Beaver (pear-shaped,
-paddle tail), Capybara (barrel, long blunt head), Badger (low and broad, wedge head, striped face), Mole (short, wide,
-neckless, star nose, spade hands), Hedgehog (small, round, quills), Armadillo (hunched under a banded shell). Visual only:
-every critter stands on the same footprint and has the same hitbox. Built from a kit: a turned torso profile, ellipsoids,
-tapered limbs, eyes and ears placed on the head surface. **Fur** (`render/fur.ts`): shell fur, the furry parts redrawn in
-shells by one instanced draw, as many as the critter's size on screen is worth (`shellsFor` in the fur mesh's
-`onBeforeRender`: about 5 on the whole-arena view, up to `FUR_SHELLS` = 14 high / 7 low close up); hairs from a 3D strand
-pattern in critter space (no UVs), darker roots, lighter tips, a rim sheen, gravity and a lag behind the waddle. Every
-part has a fur length (velvet mole .. shaggy raccoon); bald parts (eyes, noses, teeth, claws, quills, shells) and the
-gear clear the fur around them; patterns (raccoon mask, badger face, otter chest) are painted into the fur colour. Team
-colour = hard hat (ribbed dome, rolled brim, front peak) + hi-vis vest (open front, straps, hems, pockets, silver
-reflective stripes that keep their colour: `aPlain`) (`render/crew-parts.ts`; colours `TEAM_COLORS` in `characters.ts`); both are shared instanced
-meshes placed per critter by its fit (`hatY` / `hatZ` / `hatScale` / `hatTilt`, `vest`, `feet`). Animated by code
-(`render/characters.ts`): waddle + bob, squash when placing TNT, hop when winning. A KO is family friendly: the critter
-shrinks into a puff of dust and stars, the hard hat bounces away, and the sooty critter sits dazed on the slab edge.
+**Cast: "the Boom Crew"** - 8 animal demolition workers in a toon look (`render/critters.ts`), each its own build so they
+read apart by silhouette: Otter (tallest, slim, whiskers), Raccoon (mask, ringed tail), Beaver (pear-shaped, teeth, paddle
+tail), Capybara (barrel, blunt head), Badger (striped wedge head), Mole (short, wide, star nose, spade hands), Hedgehog
+(round, quills), Armadillo (banded shell). Visual only: every critter has the same footprint and hitbox.
+
+- **Body** (`render/sdf-body.ts`): one seamless surface per critter from smooth-unioned solids (cut ellipsoids, round
+  cones; sculpted tufts), baked occlusion; `toonize` gives the mascot proportions (longer legs, smaller head). Built live
+  once per page and shared by every crew (`buildCritter`), not baked to data.
+- **Paint** (`render/toon.ts`): colour per pixel from `ToonMark`s in the bind pose (crisp blocks, tufted edges, rings,
+  crescents) plus a painted texture (off on Low); faces by `toonFace`: painted eyes that blink (`userData.blink`), brows, a
+  smile. Hard bits (noses, teeth, quills, shell bands, claws, gloves, belt) are rigid parts on one bone.
+- **Rig** (`BONE`, `render/crew-rig.ts`): the same skeleton for everyone, posed by code in `Crew.pose` (walk, idle, place,
+  cheer, KO); the body is a `SkinnedMesh`.
+- **Gear**: team-coloured hard hat and cotton hi-vis vest (`render/crew-parts.ts`; colours `TEAM_COLORS` in
+  `characters.ts`) and work boots are shared instanced meshes riding the head, spine and shin bones. `finish` fits the vest
+  round the whole torso (folds included, `VEST_FOLD`) and drops or pushes out gear it meets (`VestRule`).
+- **KO** is family friendly: the critter shrinks into a puff of dust and stars, the hat bounces away, and the sooty critter
+  sits dazed on the slab edge.
 
 **Power-ups** (`render/items.ts`, models in `crew-parts.ts`): _more dynamites_ = a small open wooden crate (planks,
 corner posts, rope handles, a cyan stencilled band) with five crimped sticks leaning out, under a cyan plus; _more sticks_
@@ -267,27 +269,26 @@ suicides) and checks that harder bots catch an idle or wandering human more ofte
 
 What usually kills FPS in these games, and our rule for each:
 
-| Cause                                 | Rule                                                                                                                                                                                                                                                     |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| New mesh / material / light per blast | Never. Fixed pools created at load; a blast writes a few attribute slots.                                                                                                                                                                                |
-| Dynamic point lights                  | None. **Glow grid** (`fx/glow-grid.ts`): a w x h texture of flame heat sampled by the floor and block shaders. Any number of blasts = one tiny upload.                                                                                                   |
-| CPU particle updates                  | **GPU particles** (`fx/particles.ts`): ring buffer per kind (fire, smoke, dust, splinter, spark, flash, ring, scorch), motion / size / colour / death in the vertex shader from one clock. Only ever-used slots are drawn.                               |
-| Flame meshes per blast                | `fx/flames.ts`: one InstancedMesh, a ring-buffer slot per burning tile (three puff quads), animated in the shader.                                                                                                                                       |
-| Fur                                   | Shells are one instanced draw per critter; the fur geometry keeps only triangles that grow hair (none under the vest).                                                                                                                                   |
-| Shader compile + upload hitch         | `WorldView.warmUp`: `compileAsync`, then one frame with every pool primed (`Fx.prime`) and the first shadow draw.                                                                                                                                        |
-| Shadow map redrawn every frame        | Static sun shadow (`shadowMap.autoUpdate = false`), redrawn when a crate breaks but at most every 0.15 s (`WorldView.takeShadowUpdate`); movers use `BlobShadows`.                                                                                       |
-| Chain resolved in one frame           | The sim spreads a chain over the 0.08 s chain delay; blasts only set fuses, never explode each other inside one tick.                                                                                                                                    |
-| Block removal rebuilding geometry     | One InstancedMesh per crate variant; removal swaps with the last instance and shrinks `count`.                                                                                                                                                           |
-| Hitch at a round change               | A new round builds a new `Arena`, but its geometry (`themes/cache.ts`) and the sun (with its 2048 shadow map) are shared module-level, so it costs well under a millisecond.                                                                             |
-| Draw calls                            | Arena ~12 (incl. the contact patches), crowd 2 (sprites + flags), crew bodies + fur + 3 shared (hats / vests / feet) + the team rings + the you-arrow, TNT 4, power-ups 2 (+ plinths and glows while any lie out), blob shadows 1, FX 10 (budget below). |
-| Garbage collection                    | Sim state in preallocated typed arrays; events are pooled objects in a reused array; render code allocates nothing per frame.                                                                                                                            |
-| Audio                                 | Max 4 blast voices; blasts within 50 ms merge; procedural WebAudio.                                                                                                                                                                                      |
+| Cause                                 | Rule                                                                                                                                                                                                                                                           |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| New mesh / material / light per blast | Never. Fixed pools created at load; a blast writes a few attribute slots.                                                                                                                                                                                      |
+| Dynamic point lights                  | None. **Glow grid** (`fx/glow-grid.ts`): a w x h texture of flame heat sampled by the floor and block shaders. Any number of blasts = one tiny upload.                                                                                                         |
+| CPU particle updates                  | **GPU particles** (`fx/particles.ts`): ring buffer per kind (fire, smoke, dust, splinter, spark, flash, ring, scorch), motion / size / colour / death in the vertex shader from one clock. Only ever-used slots are drawn.                                     |
+| Flame meshes per blast                | `fx/flames.ts`: one InstancedMesh, a ring-buffer slot per burning tile (three puff quads), animated in the shader.                                                                                                                                             |
+| Shader compile + upload hitch         | `WorldView.warmUp`: `compileAsync`, then one frame with every pool primed (`Fx.prime`) and the first shadow draw.                                                                                                                                              |
+| Shadow map redrawn every frame        | Static sun shadow (`shadowMap.autoUpdate = false`), redrawn when a crate breaks but at most every 0.15 s (`WorldView.takeShadowUpdate`); movers use `BlobShadows`.                                                                                             |
+| Chain resolved in one frame           | The sim spreads a chain over the 0.08 s chain delay; blasts only set fuses, never explode each other inside one tick.                                                                                                                                          |
+| Block removal rebuilding geometry     | One InstancedMesh per crate variant; removal swaps with the last instance and shrinks `count`.                                                                                                                                                                 |
+| Hitch at a round change               | A new round builds a new `Arena`, but its geometry (`themes/cache.ts`) and the sun (with its 2048 shadow map) are shared module-level, so it costs well under a millisecond.                                                                                   |
+| Draw calls                            | Arena ~12 (incl. the contact patches), crowd 2 (sprites + flags), crew bodies (one each) + 3 shared (hats / vests / boots) + the team rings + the you-arrow, TNT 4, power-ups 2 (+ plinths and glows while any lie out), blob shadows 1, FX 10 (budget below). |
+| Garbage collection                    | Sim state in preallocated typed arrays; events are pooled objects in a reused array; render code allocates nothing per frame.                                                                                                                                  |
+| Audio                                 | Max 4 blast voices; blasts within 50 ms merge; procedural WebAudio.                                                                                                                                                                                            |
 
 **Budgets**: draw calls <= 60, frame <= 4 ms on desktop / <= 12 ms on a mid phone in the stress scenes, sim tick worst case
 < 0.5 ms. Checked by the bench page (`__kaboomBench.run(scene, frames)`: avg / p95 / worst, sim time, draw calls, slowest
 frames; scenes `chain40`, `grid-all`, `8bots` = two minutes of eight hard bots) and by `tests/kaboom/` (sim tick time, draw-call
 count in a 40-TNT chain, pools never overflow). Quality `low | high`: low has no shadow map and a lower pixel ratio (Auto picks
-Low on small touch screens; low also halves the fur shells). Triangle counts per part: `__kaboomBench.triangles()`.
+Low on small touch screens). Triangle counts per part: `__kaboomBench.triangles()`.
 Headless Chromium (SwiftShader) queues frames and stalls once the queue fills, so its ms are meaningless: there read only `callsMax` / `trisMax`.
 
 ## Architecture
@@ -300,7 +301,7 @@ src/games/kaboom/
   assets/  fonts/ hdri/ textures/ (baked by scripts/kaboom/)
   sim/     types.ts rules.ts grid.ts (the contract)  state.ts movement.ts blast.ts sim.ts danger.ts bot.ts powerups.ts
   map/     sizes.ts blank.ts generate.ts spawns.ts safety.ts styles.ts
-  render/  renderer.ts camera-rig.ts materials.ts parts.ts arena.ts critters.ts fur.ts crew-parts.ts characters.ts tnt.ts
+  render/  renderer.ts camera-rig.ts materials.ts parts.ts arena.ts critters.ts sdf-body.ts crew-rig.ts toon.ts crew-parts.ts characters.ts tnt.ts
            bowl.ts crowd.ts card-stunt.ts podium.ts shadows.ts portraits.ts critter-preview.ts items.ts world-view.ts
            sea.ts boats.ts detail.ts environment.ts
            themes/ theme.ts index.ts cache.ts quarry.ts valley.ts sea.ts
@@ -348,5 +349,5 @@ integration-tests/kaboom/      bots.test.ts: headless bot rounds per difficulty
 | Bench       | `/games/kaboom/bench.html?scene=chain40&level=sea`                             | `chain40`, `grid-all`, `8bots`; live or `__kaboomBench.run`; link hidden in the release build (`hideInProd`)                                                                     |
 
 Debug hooks (the browser pane throttles frames, so these step the scene): `__kaboom.advance(s)` / `.benchmark()` /
-`.screenshot(name)` (play; the last saves `screenshots/<name>.jpg` through the dev server), `__crew.advance(s)` (crew viewer),
+`.screenshot(name)` (play; the last saves `screenshots/<name>.jpg` through the dev server), `__crew.advance(s)` / `.look(pos, target)` / `.screenshot(name, w, h)` / `.loadGlb(url, x, z, height)` (a reference GLB beside the crew) (crew viewer),
 `__kaboomBench.advance(s)` / `.triangles()` (bench).
