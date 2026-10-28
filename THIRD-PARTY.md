@@ -21,7 +21,7 @@ README files carry the same information in more detail. Keep this file current w
 3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party except its UI fonts and the CC0 Poly Haven environment light and detail textures (below): its critters, arenas, effects and sounds are original and procedural.
 
 Ballistic Chess (`src/games/ballistic-chess/`) is built and hosted elsewhere; this repo holds only its card and
-screenshots (the owner's own game; the board textures in them are CC0 Poly Haven scans).
+screenshots. The game is by Deni S.; the board textures in the screenshots are CC0 Poly Haven scans.
 
 The only bundled font files are the UI faces of Gravel Rally, Hole Island and 3, 2, 1 Kabooom and the portal's (below); sounds are synthesised with WebAudio and no music file is committed. Most textures
 are painted on canvases at runtime; the texture files that ship are listed with their licences below (building tiles,
