@@ -490,7 +490,8 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   `RallyGame.streamBudget`). Whole-map work uses `world.analytic`, not the 1 m cache. A grass chunk is generated inside
   that slice too (`ScatterField.detailSteps`, yields every 256 candidates: one dense chunk took up to ~30 ms), and the
   canopy shadow map splats new chunks for at most 1 ms a frame and writes its texel bytes as it splats (no conversion
-  pass before the 1.5 s upload).
+  pass before the 1.5 s upload, which sends only the changed rows: `copyTextureToTexture`, not the whole ~8 MB texture).
+- Gantry clocks are redrawn (a canvas texture upload) only while the car is within `CLOCK_NEAR` of them along the road.
 - Whole-map set-up loops use a spatial grid, never all-against-all (a town map has ~900 roads, ~2000 way ends).
 - Generated scatter chunks past 1.25 x the view distance are dropped (`ScatterField.pruneChunks`, called by the streamer), so a long
   stage's memory stays flat; the radius must cover every reader (the tree job reads chunks out to the view distance).
@@ -532,7 +533,8 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   caps it, game/rally-game.ts) are static impostors (`fakeFrom`), except within `IMPOSTOR_FROM` (80 m,
   `trees/species.ts`) of the camera: no tree is an impostor up close, whatever the quality (it reads as a blotchy blob;
   medium and low bring the impostor in to about 50 m for a small tree). Level changes
-  are a fixed 0.3 s fade per tree (8x8 ordered dither, one fade value per tree, at most 32 at once), selected from the
+  are a fixed 0.3 s fade per tree (8x8 ordered dither, one fade value per tree, at most 32 at once; a finer level a distance rule demands - no impostor inside
+  `IMPOSTOR_FROM`, LOD0 inside the full-detail ring - never waits for a slot), selected from the
   camera before shake (`CameraRig.steady`) with 15 % hysteresis. A batching job (every 5 m of travel) puts every tree
   that keeps its level for any camera within 9 m into static batches; only trees near a switching boundary, fading or
   waiting for a fade slot are re-selected per frame (a few hundred), into a room of the same batch: one mesh set per
@@ -596,6 +598,8 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   group is distance-culled by `world/distance-cull.ts`. Far scatter chunks of short-range assets are skipped wholesale.
 - Knobs: `engine/quality.ts`, LOD distances in `assets/catalog.ts`, `TERRAIN_LODS` in `game/rally-game.ts`, map `fogDensity`,
   and the **Object distance** option (x1 / x1.5 / x2 on objects only, `OBJECT_DISTANCE` in `game/settings.ts`).
+- **Render scale** option (100 / 85 / 70 %, `RENDER_SCALE`): multiplies the pixel ratio. A DPR 1.5 screen renders ~4.2 Mpx
+  on High; there the GPU is the limit and the frame-time spikes grow with the pixel count.
 
 **Shadows**
 

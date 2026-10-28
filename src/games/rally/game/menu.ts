@@ -79,6 +79,7 @@ import {
   saveSettings,
   type BloomLevel,
   type ObjectDistance,
+  type RenderScale,
   type RallySettings,
 } from './settings';
 import { SEASON_ICONS, SETUP_ICONS, TIME_ICONS } from './menu-icons';
@@ -1511,6 +1512,19 @@ export function buildOptions(opts: {
       (v) => set({ objectDistance: v }),
     )),
     'trees, houses and props pop in further away · Max costs GPU',
+  );
+  row(
+    'Render scale',
+    choice(
+      [
+        ['100', '100%'],
+        ['85', '85%'],
+        ['70', '70%'],
+      ] as [RenderScale, string][],
+      s.renderScale,
+      (v) => set({ renderScale: v }),
+    ),
+    'fewer pixels, more frames per second · for sharp (high-DPI) screens',
   );
   row(
     'Display',

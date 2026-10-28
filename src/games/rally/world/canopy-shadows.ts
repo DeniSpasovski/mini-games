@@ -1,10 +1,13 @@
 import {
+  Box2,
   DataTexture,
   LinearFilter,
   LinearMipmapLinearFilter,
   RGFormat,
   UnsignedByteType,
+  Vector2,
   type Vector3,
+  type WebGLRenderer,
 } from 'three';
 import { canopyOf, isVegetation } from './aerial-trees';
 import type { ScatterInstance } from './scatter';
@@ -48,11 +51,17 @@ const smooth = (a: number, b: number, x: number): number => {
  * the shadow maps stop covering - so forests read as forests out to 2000 m.
  *
  * Incremental and hitch-free: `update()` only takes scatter chunks the instance streamer has ALREADY generated
- * (generating one costs 50-200 ms) - i.e. everything within its draw distance - and re-uploads the texture at
- * most every 1.5 s while new chunks come in. The texture exists from the first `update()` on (empty = no shadow).
+ * (generating one costs 50-200 ms) - i.e. everything within its draw distance - and uploads the changed rows at
+ * most every 1.5 s while new chunks come in (`renderer` set; else the whole texture: ~8 MB, a 2-3 ms frame). The
+ * texture exists from the first `update()` on (empty = no shadow).
  */
 export class CanopyShadows {
   readonly texture: DataTexture;
+  /** Uploads only the changed rows into `texture` when set (`copyTextureToTexture` from `rows`, the same bytes). */
+  renderer: WebGLRenderer | null = null;
+  private rows: DataTexture;
+  private band = new Box2(new Vector2(), new Vector2());
+  private bandAt = new Vector2();
   /** The local window texture and its ground mapping (x0, z0, 1 / width, 1 / depth), moved with the camera. */
   readonly local: DataTexture;
   readonly localMap = {
@@ -147,6 +156,14 @@ export class CanopyShadows {
     t.name = 'canopy-shadows';
     t.needsUpdate = true;
     this.texture = t;
+    this.rows = new DataTexture(
+      this.data,
+      this.nx,
+      this.nz,
+      RGFormat,
+      UnsignedByteType,
+    );
+    this.rows.unpackAlignment = 2;
     const l = new DataTexture(
       this.localData,
       LOCAL_N,
@@ -196,7 +213,17 @@ export class CanopyShadows {
     if (focus) this.updateLocal(focus, now);
     // The texels' bytes are written as they are splatted (converting the dirty rows here took ~10 ms every upload).
     if (this.dirtyMin >= 0 && now - this.lastUpload >= UPLOAD_EVERY) {
-      this.texture.needsUpdate = true;
+      if (this.renderer) {
+        this.band.min.set(0, this.dirtyMin);
+        this.band.max.set(this.nx, this.dirtyMax + 1);
+        this.bandAt.set(0, this.dirtyMin);
+        this.renderer.copyTextureToTexture(
+          this.rows,
+          this.texture,
+          this.band,
+          this.bandAt,
+        );
+      } else this.texture.needsUpdate = true;
       this.dirtyMin = this.dirtyMax = -1;
       this.lastUpload = now;
     }

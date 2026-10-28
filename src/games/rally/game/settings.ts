@@ -23,6 +23,8 @@ export interface RallySettings {
   camera: CameraMode;
   /** How far trees, buildings and props are drawn (multiplies the graphics preset's LOD distances). */
   objectDistance: ObjectDistance;
+  /** Share of the screen's pixels the game renders (sharp high-DPI screens: fewer pixels, more frames per second). */
+  renderScale: RenderScale;
   /** Daytime bloom (High graphics only): soft light spread from the sun, sky and bright paint. */
   bloom: BloomLevel;
   /** Screen-space ambient occlusion (High graphics only): contact darkening in corners, under cars and plants. */
@@ -43,6 +45,7 @@ export const DEFAULT_SETTINGS: RallySettings = {
   carNumber: 7,
   camera: 'chase',
   objectDistance: 'normal',
+  renderScale: '100',
   bloom: 'off',
   ambientOcclusion: false,
   map: '',
@@ -59,6 +62,15 @@ export const OBJECT_DISTANCE: Record<ObjectDistance, number> = {
   max: 2,
 };
 
+export type RenderScale = '100' | '85' | '70';
+
+/** Render scale option -> multiplier on the pixel ratio (`RallyGame.applySettings`). */
+export const RENDER_SCALE: Record<RenderScale, number> = {
+  '100': 1,
+  '85': 0.85,
+  '70': 0.7,
+};
+
 export type BloomLevel = 'off' | 'soft' | 'strong';
 
 /** Bloom option -> how much of the blurred picture is mixed back in (engine/post-fx.ts). */
@@ -73,6 +85,7 @@ const KEY = 'rally.settings';
 const CAMERAS: readonly CameraMode[] = ['chase', 'chase_far', 'hood', 'bumper'];
 const DISTANCES = Object.keys(OBJECT_DISTANCE) as ObjectDistance[];
 const BLOOMS = Object.keys(BLOOM_MIX) as BloomLevel[];
+const SCALES = Object.keys(RENDER_SCALE) as RenderScale[];
 
 function oneOf<T extends string>(v: unknown, allowed: readonly T[], def: T): T {
   return allowed.includes(v as T) ? (v as T) : def;
@@ -104,6 +117,7 @@ export function sanitizeSettings(raw: unknown): RallySettings {
         : d.carNumber,
     camera: oneOf(o.camera, CAMERAS, d.camera),
     objectDistance: oneOf(o.objectDistance, DISTANCES, d.objectDistance),
+    renderScale: oneOf(o.renderScale, SCALES, d.renderScale),
     bloom: oneOf(o.bloom, BLOOMS, d.bloom),
     ambientOcclusion: bool(o.ambientOcclusion, d.ambientOcclusion),
     map: typeof o.map === 'string' ? o.map : d.map,

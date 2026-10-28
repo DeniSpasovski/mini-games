@@ -1340,7 +1340,14 @@ export class TreeRenderer {
       // Culled (keeps its state) or coming into view: its selected level at once, no fade.
       const snap = !visible || !st.visible || fresh || dt === 0;
       const wasFading = st.from !== st.to;
-      if (stepFade(st, sel, snap, dt, lod.fadeTime, fading < MAX_FADES))
+      // A finer level a distance rule demands (no impostor inside IMPOSTOR_FROM, LOD0 inside the full-detail ring)
+      // never waits for a slot: with the slots taken (medium quality crosses many more trees) the impostor stayed to 10 m.
+      const urgent =
+        sel < st.to &&
+        (st.to === IMPOSTOR ? dist < IMPOSTOR_FROM : dist < st.reach.full);
+      if (
+        stepFade(st, sel, snap, dt, lod.fadeTime, fading < MAX_FADES || urgent)
+      )
         this.changed(st);
       const isFading = st.from !== st.to;
       if (isFading !== wasFading) fading += isFading ? 1 : -1;
