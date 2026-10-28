@@ -56,6 +56,17 @@ const readManifest = (id: string) =>
     fs.readFileSync(path.join(gamesDir, id, 'game.json'), 'utf8'),
   ) as GameManifest;
 
+/** Cover colours (src/portal/STYLEGUIDE.md): both or none, the accent readable on the shelf, the text on the accent. */
+function checkAccent(m: GameManifest) {
+  expect(!!m.accent).toBe(!!m.onAccent);
+  if (m.accent && m.onAccent) {
+    expect(m.accent).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(m.onAccent).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(contrast(m.accent, SHELF)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(m.onAccent, m.accent)).toBeGreaterThanOrEqual(4.5);
+  }
+}
+
 test('resolveGamePage: the play page is the game root', () => {
   const page = {
     id: 'play',
@@ -121,6 +132,14 @@ for (const id of gameIds) {
     expect(m.title).toBeTruthy();
     expect(m.description).toBeTruthy();
     if (m.version) expect(m.version).toMatch(/^\d+\.\d+\.\d+$/);
+    checkAccent(m);
+
+    // Hosted on its own site: only the link, no pages to build.
+    if (m.url) {
+      expect(m.url).toMatch(/^https:\/\/[^\s"'<>]+$/);
+      expect(m.pages).toEqual([]);
+      return;
+    }
 
     const ids = m.pages.map((p) => p.id);
     expect(ids).toContain('play');
@@ -130,14 +149,6 @@ for (const id of gameIds) {
       expect(p.title).toBeTruthy();
       expect(p.label).toBeTruthy();
       expect(fs.existsSync(path.join(gamesDir, id, p.entry))).toBe(true);
-    }
-    // Cover colours (src/portal/STYLEGUIDE.md): both or none, the accent readable on the shelf, the text on the accent.
-    expect(!!m.accent).toBe(!!m.onAccent);
-    if (m.accent && m.onAccent) {
-      expect(m.accent).toMatch(/^#[0-9a-f]{6}$/i);
-      expect(m.onAccent).toMatch(/^#[0-9a-f]{6}$/i);
-      expect(contrast(m.accent, SHELF)).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(m.onAccent, m.accent)).toBeGreaterThanOrEqual(4.5);
     }
     // Play is the main page; it must not be a hidden dev tool.
     const play = m.pages.find((p) => p.id === 'play')!;

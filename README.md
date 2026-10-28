@@ -7,11 +7,12 @@ played and modified locally.
 
 **Play it in the browser: [games.deni.io](https://games.deni.io)**
 
-| Game                                 | What it is                                                                                                |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| [Gravel Rally](src/games/rally/)     | Point-to-point rally on real-world roads (OpenStreetMap + elevation data), custom raycast-vehicle physics |
-| [Hole Island](src/games/hole/)       | Touch-first "swallow everything" game on a blocky toy city and a giant toy store                          |
-| [3, 2, 1 Kabooom](src/games/kaboom/) | Tilted-3D arena game: animal demolition crew, TNT chain reactions, bots                                   |
+| Game                                          | What it is                                                                                                                     |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| [Gravel Rally](src/games/rally/)              | Point-to-point rally on real-world roads (OpenStreetMap + elevation data), custom raycast-vehicle physics                      |
+| [Hole Island](src/games/hole/)                | Touch-first "swallow everything" game on a blocky toy city and a giant toy store                                               |
+| [3, 2, 1 Kabooom](src/games/kaboom/)          | Tilted-3D arena game: animal demolition crew, TNT chain reactions, bots                                                        |
+| [Ballistic Chess](src/games/ballistic-chess/) | Chess where any piece may shoot instead of moving; a link to its own site, [ballistic-chess.com](https://ballistic-chess.com/) |
 
 [![Gravel Rally - Zastava at the Ajvatovci start](src/games/rally/screenshots/start.jpg)](src/games/rally/)
 
