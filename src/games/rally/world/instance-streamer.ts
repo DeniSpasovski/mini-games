@@ -470,6 +470,12 @@ export class InstanceStreamer {
     }
     if (dRange > 0 || nRange > 0)
       scatter.pruneDetail(focus.x, focus.z, dRange * 2 + cs, nRange * 2 + cs);
+    // Generated chunks stay out to past the view distance: the tree job (trees/draw.ts) reads them that far.
+    scatter.pruneChunks(
+      focus.x,
+      focus.z,
+      (Number.isFinite(maxD) ? maxD : range) * 1.25 + cs,
+    );
     this.sortX = focus.x;
     this.sortZ = focus.z;
     this.queue.swap();

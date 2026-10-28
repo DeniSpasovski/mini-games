@@ -331,6 +331,17 @@ export class ScatterField {
     return d;
   }
 
+  /** Drop generated chunks farther than `radius` from (x,z): a long stage keeps only what is near (regenerated on return). */
+  pruneChunks(x: number, z: number, radius: number): void {
+    const cs = this.chunkSize;
+    for (const k of this.chunks.keys()) {
+      const cx = Math.floor(k / 65536) - 32768;
+      const cz = (k % 65536) - 32768;
+      if (Math.hypot((cx + 0.5) * cs - x, (cz + 0.5) * cs - z) > radius)
+        this.chunks.delete(k);
+    }
+  }
+
   /** Drop detail data far from (x,z) to bound memory on large maps (the near layer past `nearRadius`). */
   pruneDetail(x: number, z: number, radius: number, nearRadius = radius): void {
     const cs = this.chunkSize;
