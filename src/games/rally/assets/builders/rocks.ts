@@ -65,14 +65,19 @@ function rock(
   return g;
 }
 
+/** Boulders: the scan's 700 / 120 / 40 triangle levels (catalog `rock_boulder` lods). */
 export const rockBoulder: AssetBuilder = ({ seed, lod }) => ({
   parts: [
     { geometry: rock(seed, lod, 1.05, 1.1), material: getMaterial('rock') },
   ],
 });
 
-export const rockSmall: AssetBuilder = ({ seed }) => ({
+/** Small rocks (a hand across): the 120 triangle level near the road, 40 further out. */
+export const rockSmall: AssetBuilder = ({ seed, lod }) => ({
   parts: [
-    { geometry: rock(seed, 1, 0.25, 0.22), material: getMaterial('rock') },
+    {
+      geometry: rock(seed, lod === 0 ? 1 : 2, 0.25, 0.22),
+      material: getMaterial('rock'),
+    },
   ],
 });

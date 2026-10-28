@@ -312,8 +312,9 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description: 'Large scanned mossy boulder. Solid.',
     variants: 4,
     lods: [
-      { maxDistance: 110, castShadow: true },
-      { maxDistance: 1000, castShadow: false },
+      { maxDistance: 60, castShadow: true },
+      { maxDistance: 160, castShadow: true },
+      { maxDistance: 1000, castShadow: false, oneVariant: true },
     ],
     colliders: [{ kind: 'sphere', r: 0.85, y: 0.35 }],
     tint: 0.1,
@@ -325,7 +326,10 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'Fist-to-football sized rocks scattered on verges. No collision.',
     variants: 4,
-    lods: [{ maxDistance: 220, castShadow: false }],
+    lods: [
+      { maxDistance: 40, castShadow: false },
+      { maxDistance: 220, castShadow: false, oneVariant: true },
+    ],
     tint: 0.12,
   },
   // --- props ---------------------------------------------------------------------

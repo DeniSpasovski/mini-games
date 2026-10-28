@@ -7,7 +7,9 @@
  *
  * The source folder holds the 1k glTF download (rock_moss_set_01_1k.gltf + .bin + textures/). Each of the six stones is
  * simplified (meshoptimizer) to the triangle budgets in `LODS`, centred, its lowest 8 % sunk below y = 0, and scaled to
- * a unit footprint (largest horizontal half-extent 1); the builder (assets/builders/rocks.ts) scales it per asset.
+ * a unit footprint (largest horizontal half-extent 1); the builder (assets/builders/rocks.ts) scales it per asset. The
+ * last (far) level is simplified from the one before, or vertex-clustered where the simplifier stops short (open
+ * scans keep their borders).
  *
  * Packed mesh (little endian, base64): u16 vertex count, u16 0, then per vertex i16 x3 position (/ 16384, unit
  * footprint), i8 x3 normal, u16 x2 uv (/ 65535), then u16 indices.
@@ -22,7 +24,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
 const src = path.resolve(process.argv[2] ?? 'sources/rally/rocks');
 /** Triangle budget per level of detail. */
-const LODS = [700, 120];
+const LODS = [700, 120, 40];
 const SINK = 0.08;
 
 await MeshoptSimplifier.ready;
@@ -97,6 +99,73 @@ function pack(pos, nor, uv, idx) {
   return { b64: buf.toString('base64'), tris: ni.length / 3 };
 }
 
+/**
+ * Vertex clustering on a `res`^3 grid over the mesh's box: corners move to their cell's first vertex but keep their own
+ * normal and uv (so seams stay clean); collapsed and repeated triangles drop out.
+ */
+function cluster(pos, nor, uv, idx, res) {
+  const lo = [Infinity, Infinity, Infinity];
+  const hi = [-Infinity, -Infinity, -Infinity];
+  for (let v = 0; v < pos.length / 3; v++)
+    for (let c = 0; c < 3; c++) {
+      lo[c] = Math.min(lo[c], pos[v * 3 + c]);
+      hi[c] = Math.max(hi[c], pos[v * 3 + c]);
+    }
+  const cell = new Map();
+  const rep = new Uint32Array(pos.length / 3);
+  for (let v = 0; v < rep.length; v++) {
+    const k = [0, 1, 2]
+      .map((c) =>
+        Math.min(
+          res - 1,
+          Math.floor(((pos[v * 3 + c] - lo[c]) / (hi[c] - lo[c] || 1)) * res),
+        ),
+      )
+      .join(',');
+    if (!cell.has(k)) cell.set(k, v);
+    rep[v] = cell.get(k);
+  }
+  const [P, N, U, I] = [[], [], [], []];
+  const corners = new Map();
+  const seen = new Set();
+  const corner = (v) => {
+    const k = `${rep[v]}:${v}`;
+    if (!corners.has(k)) {
+      corners.set(k, P.length / 3);
+      P.push(...pos.subarray(rep[v] * 3, rep[v] * 3 + 3));
+      N.push(...nor.subarray(v * 3, v * 3 + 3));
+      U.push(...uv.subarray(v * 2, v * 2 + 2));
+    }
+    return corners.get(k);
+  };
+  for (let t = 0; t < idx.length; t += 3) {
+    const [a, b, c] = [idx[t], idx[t + 1], idx[t + 2]];
+    if (rep[a] === rep[b] || rep[b] === rep[c] || rep[a] === rep[c]) continue;
+    const key = [rep[a], rep[b], rep[c]].sort((x, y) => x - y).join(',');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    I.push(corner(a), corner(b), corner(c));
+  }
+  return [
+    Float32Array.from(P),
+    Float32Array.from(N),
+    Float32Array.from(U),
+    Uint32Array.from(I),
+  ];
+}
+
+/** The far level from the level before it: simplified, or clustered where the simplifier stops short. */
+function farLod(prev, unit, nor, uv, tris) {
+  let [out] = MeshoptSimplifier.simplify(prev, unit, 3, tris * 3, 0.05, []);
+  for (const err of [0.2, 1])
+    if (out.length > tris * 3 * 1.3)
+      [out] = MeshoptSimplifier.simplify(prev, unit, 3, tris * 3, err, []);
+  let mesh = [unit, nor, uv, out];
+  for (let res = 12; mesh[3].length > tris * 3 * 1.5 && res >= 2; res--)
+    mesh = cluster(unit, nor, uv, prev, res);
+  return mesh;
+}
+
 const rocks = [];
 for (const node of g.nodes) {
   if (node.mesh === undefined) continue;
@@ -132,11 +201,15 @@ for (const node of g.nodes) {
     unit[k + 1] = (pos[k + 1] - base) * s;
     unit[k + 2] = (pos[k + 2] - cz) * s;
   }
-  const lods = LODS.map((tris) => {
+  let prev;
+  const lods = LODS.map((tris, k) => {
+    if (k === LODS.length - 1 && prev)
+      return pack(...farLod(prev, unit, nor, uv, tris));
     let [out] = MeshoptSimplifier.simplify(idx, unit, 3, tris * 3, 0.05, []);
     for (const err of [0.2, 1])
       if (out.length > tris * 3 * 1.3)
         [out] = MeshoptSimplifier.simplify(idx, unit, 3, tris * 3, err, []);
+    prev = out;
     return pack(unit, nor, uv, out);
   });
   rocks.push({ name: node.name, height: (y1 - base) * s, lods });
