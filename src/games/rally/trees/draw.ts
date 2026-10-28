@@ -397,6 +397,8 @@ interface StaticBatch extends Batch {
   rest: number;
   /** Collapse the whole room this frame (re-packed or grown: it holds stale instances). */
   clearRoom: boolean;
+  /** The room as last uploaded, 28 floats a slot (`uploadRoom`); null = upload it whole next. */
+  sent?: Float32Array | null;
 }
 
 interface Staged {
@@ -1485,7 +1487,7 @@ export class TreeRenderer {
     const used = b.dyn;
     const clear = b.clearRoom ? b.dynCap : Math.max(b.dynLast, used);
     for (let i = used; i < clear; i++) b.fade.set(COLLAPSED, (b.dynAt + i) * 4);
-    if (clear > 0) this.uploadRange(b, b.dynAt, b.dynAt + clear);
+    if (clear > 0) this.uploadRoom(b, clear);
     b.clearRoom = false;
     b.dynLast = used;
     b.dynPeak = Math.max(b.dynPeak, used);
@@ -1494,6 +1496,61 @@ export class TreeRenderer {
       mesh.count = n;
       mesh.visible = this.shows(mesh, b.dynAt + used + b.rest);
     }
+  }
+
+  /**
+   * Upload the room's first `n` slots, only the ones that changed since the last upload: a room is re-filled every
+   * frame, but a tree's instance changes only while it fades or the active set changes, and each upload is a
+   * `bufferSubData` per attribute (hundreds a frame cost ~2 ms on ANGLE / D3D11). Whole after a re-pack or grow.
+   */
+  private uploadRoom(b: StaticBatch, n: number): void {
+    const at = b.dynAt;
+    if (b.clearRoom || !b.sent || b.sent.length < b.dynCap * 28) {
+      const sent = (b.sent = new Float32Array(b.dynCap * 28));
+      for (let j = 0; j < n; j++) this.copySlot(b, at + j, sent, j);
+      this.uploadRange(b, at, at + n);
+      return;
+    }
+    // Per attribute (mat, inst, fade, lod): a fading tree changes only its fade, one upload instead of four.
+    const sent = b.sent;
+    const parts = [
+      [b.mat, 16, 0],
+      [b.inst, 4, 16],
+      [b.fade, 4, 20],
+      [b.lod, 4, 24],
+    ] as const;
+    const attrs = [b.aMat!, b.aInst!, b.aFade!, b.aLod!];
+    for (let p = 0; p < 4; p++) {
+      const [a, size, off] = parts[p];
+      let lo = -1;
+      let hi = -1;
+      for (let j = 0; j < n; j++) {
+        const i = (at + j) * size;
+        const o = j * 28 + off;
+        let same = true;
+        for (let k = 0; k < size; k++)
+          if (a[i + k] !== sent[o + k]) {
+            same = false;
+            sent[o + k] = a[i + k];
+          }
+        if (same) continue;
+        if (lo < 0) lo = j;
+        hi = j;
+      }
+      if (lo < 0) continue;
+      const attr = attrs[p];
+      this.current.uploadBytes += (hi - lo + 1) * size * 4;
+      attr.addUpdateRange((at + lo) * size, (hi - lo + 1) * size);
+      attr.needsUpdate = true;
+    }
+  }
+
+  /** Instance `i` of `b` -> slot `j` of a 28-float-a-slot copy (mat, inst, fade, lod). */
+  private copySlot(b: Batch, i: number, out: Float32Array, j: number): void {
+    out.set(b.mat.subarray(i * 16, i * 16 + 16), j * 28);
+    out.set(b.inst.subarray(i * 4, i * 4 + 4), j * 28 + 16);
+    out.set(b.fade.subarray(i * 4, i * 4 + 4), j * 28 + 20);
+    out.set(b.lod.subarray(i * 4, i * 4 + 4), j * 28 + 24);
   }
 
   /** Add instances [from, to) to this frame's upload (on top of a pack's). */

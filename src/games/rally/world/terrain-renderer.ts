@@ -31,6 +31,8 @@ import { RENDER_MARGIN, type World } from './world';
  *  - Index buffers are shared per grid size (same topology for every tile).
  *  - Work is time-sliced: `update()` builds tiles until its ms budget is used.
  *    A replaced tile stays until every tile covering its area is built.
+ *  - Released tile geometries are kept (`spare`, the last SPARE_TILES): driving on, tiles merge / split / change LOD back
+ *    and forth, and a tile wanted again takes its old geometry (no build, no GPU upload).
  */
 const STEPS = [1, 2, 4, 8];
 /** Merged tile sizes (chunks per side) -> the lowest LOD that merges at that size. */
@@ -42,6 +44,8 @@ const MERGE_SLACK = 2;
 const SLICE_ABOVE = 33;
 /** Metres of camera travel before the tile plan is redone (well inside the 10% LOD hysteresis). */
 const REPLAN = 8;
+/** Released tile geometries kept for reuse, oldest dropped first. */
+const SPARE_TILES = 96;
 
 interface Tile {
   /** Origin chunk (a multiple of `span`) and size in chunks. */
@@ -88,6 +92,8 @@ export interface TerrainOptions {
 export class TerrainRenderer {
   readonly group = new Group();
   private tiles = new Map<number, Tile>();
+  /** Released geometries by tile key + LOD (insertion order = least recently released first). */
+  private spare = new Map<string, BufferGeometry>();
   private indexCache = new Map<number, BufferAttribute>();
   private lodDistances: [number, number, number];
   private cs: number;
@@ -164,6 +170,11 @@ export class TerrainRenderer {
     for (; this.next < todo.length; this.next++) {
       const w = todo[this.next];
       if (this.tiles.get(key(w.cx, w.cz, w.span))?.lod === w.lod) continue;
+      // Kept from earlier: no build, no deadline.
+      if (this.spare.has(spareKey(w))) {
+        this.buildTile(w);
+        continue;
+      }
       if (built > 0 && performance.now() > deadline) break;
       // LOD0 needs the 1 m heightfield: generate it time-sliced, build the mesh when ready.
       if (w.lod === 0 && !this.world.heightfield.prepare(w.cx, w.cz, deadline))
@@ -455,9 +466,12 @@ export class TerrainRenderer {
   private buildTile(w: Want, sampled?: Vertices): void {
     const k = key(w.cx, w.cz, w.span);
     const old = this.tiles.get(k);
-    const geometry = this.buildGeometry(w.cx, w.cz, w.span, w.lod, sampled);
+    const sk = spareKey(w);
+    let geometry = this.spare.get(sk);
+    if (geometry) this.spare.delete(sk);
+    else geometry = this.buildGeometry(w.cx, w.cz, w.span, w.lod, sampled);
     if (old) {
-      releaseGeometry(old.mesh.geometry);
+      this.keep(old);
       old.mesh.geometry = geometry;
       old.mesh.material = getTerrainMaterial(w.lod > 0);
       old.lod = w.lod;
@@ -591,11 +605,30 @@ export class TerrainRenderer {
 
   private disposeTile(t: Tile): void {
     this.group.remove(t.mesh);
-    releaseGeometry(t.mesh.geometry);
+    this.keep(t);
+  }
+
+  /** Keep a released tile geometry for reuse (`spare`); past SPARE_TILES the oldest is freed. */
+  private keep(t: Tile): void {
+    const sk = spareKey(t);
+    const had = this.spare.get(sk);
+    if (had && had !== t.mesh.geometry) releaseGeometry(had);
+    this.spare.delete(sk);
+    this.spare.set(sk, t.mesh.geometry);
+    while (this.spare.size > SPARE_TILES) {
+      const [oldest, g] = this.spare.entries().next().value!;
+      this.spare.delete(oldest);
+      releaseGeometry(g);
+    }
   }
 
   dispose(): void {
-    for (const t of this.tiles.values()) this.disposeTile(t);
+    for (const t of this.tiles.values()) {
+      this.group.remove(t.mesh);
+      releaseGeometry(t.mesh.geometry);
+    }
+    for (const g of this.spare.values()) releaseGeometry(g);
+    this.spare.clear();
     this.tiles.clear();
     this.job = null;
   }
@@ -688,6 +721,11 @@ export class TerrainGrid {
 function releaseGeometry(g: BufferGeometry): void {
   g.setIndex(null);
   g.dispose();
+}
+
+/** `spare` key: tile + LOD. */
+function spareKey(t: { cx: number; cz: number; span: number; lod: number }): string {
+  return `${key(t.cx, t.cz, t.span)}:${t.lod}`;
 }
 
 function key(cx: number, cz: number, span: number): number {

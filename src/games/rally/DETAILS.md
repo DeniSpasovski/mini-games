@@ -502,6 +502,8 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   `blockLod` bands never make a chunk coarser than unmerged, `MERGE_SLACK` stops tiles fragmenting along band edges; big tiles
   are sampled in slices). Merged tiles keep the vertex grid of their LOD; a tile that splits or merges at the same LOD copies
   its vertices from the tiles it replaces (`reuse`), so streaming while driving does not resample the generator. The plan is redone after 8 m of travel.
+  Released tile geometries are kept (`SPARE_TILES`): tiles merge / split / change LOD back and forth as the car drives on,
+  and one wanted again takes its old geometry (no build, no GPU upload).
 - Whole-map meshes are merged per tile, never per object. Many materials = many draws: use a texture array
   (`engine/texture-array.ts` `layeredMaterial`; mesh buildings = one mesh per 192 m tile, start-row lots = 3 material groups
   per 128 m tile). A custom shader must scale `envMapIntensity` (it carries `scene.environmentIntensity`), never replace it.
@@ -538,7 +540,9 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   camera before shake (`CameraRig.steady`) with 15 % hysteresis. A batching job (every 5 m of travel) puts every tree
   that keeps its level for any camera within 9 m into static batches; only trees near a switching boundary, fading or
   waiting for a fade slot are re-selected per frame (a few hundred), into a room of the same batch: one mesh set per
-  variant and part, laid out [shadow casters | room | rest] (`StaticBatch`), so one draw call each. The job sorts each
+  variant and part, laid out [shadow casters | room | rest] (`StaticBatch`), so one draw call each. A room re-fills every
+  frame but uploads only the slots and attributes that changed (`uploadRoom`): one `bufferSubData` per attribute and
+  batch was ~450 calls a frame, ~2 ms on ANGLE / D3D11. The job sorts each
   scatter chunk's trees once (`chunkTrees`): the faked ones of a chunk farther than ~100 m go in as one ready block of
   impostors, and chunks past the forest distance are only generated (for the canopy texture), not walked. A camera
   jump > 50 m is a cut: every tree takes its level at once. The shadow distance is tested per instance in the shader
