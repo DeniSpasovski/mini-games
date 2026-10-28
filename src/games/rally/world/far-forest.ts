@@ -166,6 +166,9 @@ export class FarForest {
   readonly mesh: Mesh;
   /** The far trees: impostors the vertex shader places from the canopy map (null: no impostors loaded). */
   readonly farTrees: Mesh | null = null;
+  private ftTiles: DataTexture | null = null;
+  /** Where the far trees start (m): just inside the forest distance. */
+  private ftNear = { value: 0 };
   private shapeData: Uint16Array;
   private tintData: Uint8Array;
   private shape: DataTexture;
@@ -213,6 +216,8 @@ export class FarForest {
     private library: TreeLibrary,
     forestDistance: number,
     viewDistance: number,
+    /** The shape map's mips need a renderable half-float format (`EXT_color_buffer_float` / `_half_float`). */
+    mipmaps = true,
   ) {
     const b = world.map.bounds;
     const pad = 300;
@@ -257,8 +262,8 @@ export class FarForest {
     );
     // Mipmapped: the shell's coarse rings sample it at their own scale (`ffHeightAt`).
     shape.magFilter = LinearFilter;
-    shape.minFilter = LinearMipmapLinearFilter;
-    shape.generateMipmaps = true;
+    shape.minFilter = mipmaps ? LinearMipmapLinearFilter : LinearFilter;
+    shape.generateMipmaps = mipmaps;
     shape.name = 'far-forest-shape';
     this.encode(0, this.nx - 1, 0, this.nz - 1);
     shape.needsUpdate = true;
@@ -602,6 +607,7 @@ export class FarForest {
       FloatType,
     );
     tiles.name = 'far-trees-tiles';
+    this.ftTiles = tiles;
     const material = impostorMaterial(
       imp.atlas,
       imp.spheres,
@@ -615,7 +621,7 @@ export class FarForest {
           ffMap: this.uniforms.ffMap,
           ffBase: this.uniforms.ffBase,
           ftReach: { value: reach },
-          ftNear: { value: forestDistance * 0.8 },
+          ftNear: this.ftNear,
           ftHeights: { value: imp.heights },
           ftTiles: { value: tiles },
         },
@@ -628,10 +634,15 @@ export class FarForest {
     mesh.name = 'far trees';
     mesh.frustumCulled = false;
     mesh.matrixAutoUpdate = false;
-    const near = forestDistance * 0.8;
+    this.ftNear.value = forestDistance * 0.8;
     mesh.onBeforeRender = (_r, _s, camera) =>
-      this.pickTiles(camera, g, tiles, near, reach);
+      this.pickTiles(camera, g, tiles, this.ftNear.value, reach);
     return mesh;
+  }
+
+  /** Forest distance changed at run time (perf panel): the far trees start where the trees now end. */
+  setForestDistance(forestDistance: number): void {
+    this.ftNear.value = forestDistance * 0.8;
   }
 
   /** Per tile: its ground's height range (+ the tallest trees), from a few terrain samples. */
@@ -654,10 +665,17 @@ export class FarForest {
     const w = FAR_TILE * FAR_CELL;
     const data = tiles.image.data as Float32Array;
     let n = 0;
-    for (let tz = Math.floor((p.z - reach) / w); tz * w <= p.z + reach; tz++)
+    // Only tiles over the canopy map (cells outside it have no trees).
+    const x1 = Math.min(p.x + reach, this.x0 + this.nx * this.res);
+    const z1 = Math.min(p.z + reach, this.z0 + this.nz * this.res);
+    for (
+      let tz = Math.floor(Math.max(p.z - reach, this.z0) / w);
+      tz * w <= z1;
+      tz++
+    )
       for (
-        let tx = Math.floor((p.x - reach) / w);
-        tx * w <= p.x + reach;
+        let tx = Math.floor(Math.max(p.x - reach, this.x0) / w);
+        tx * w <= x1;
         tx++
       ) {
         const x0 = tx * w;
@@ -723,9 +741,15 @@ export class FarForest {
     this.mesh.geometry.dispose();
     (this.mesh.material as MeshLambertMaterial).dispose();
     if (this.farTrees) {
-      this.farTrees.geometry.dispose();
+      // The quad's buffers are shared with the tree impostor batches (`impostorQuad`): keep them.
+      const g = this.farTrees.geometry;
+      for (const name of Object.keys(g.attributes)) g.deleteAttribute(name);
+      g.setIndex(null);
+      g.dispose();
       (this.farTrees.material as MeshLambertMaterial).dispose();
+      this.ftTiles?.dispose();
     }
+    this.uniforms.ffCrown.value.dispose();
     this.shape.dispose();
     this.tint.dispose();
   }
@@ -1040,8 +1064,8 @@ const FAR_TREE_MAIN = /* glsl */ `
 		treeFade = vec4( 0.0 );
 		instanceMatrix = mat4( 1.0 );
 		tgOut = 0.0;
-		if ( ftD > ftNear && ftD < ftReach ) {
-			vec2 ftUV = ( ftXZ - ffMap.xy ) * ffMap.zw;
+		vec2 ftUV = ( ftXZ - ffMap.xy ) * ffMap.zw;
+		if ( ftD > ftNear && ftD < ftReach && all( greaterThanEqual( ftUV, vec2( 0.0 ) ) ) && all( lessThan( ftUV, vec2( 1.0 ) ) ) ) {
 			vec4 ftTint = texelFetch( ffTint, ivec2( ftUV * vec2( textureSize( ffTint, 0 ) ) ), 0 );
 			int ftSlot = int( ftTint.a * 255.0 + 0.5 ) - 1;
 			vec4 ftShape = textureLod( ffShape, ftUV, 0.0 );

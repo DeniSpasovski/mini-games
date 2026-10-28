@@ -146,7 +146,7 @@ const STEP = 1 / PHYSICS_HZ;
 const SHADOW_OVERLAP = 25;
 /** Trees farther than this from the stage road (m) are only ever impostors (trees/draw.ts `fakeFrom`). */
 const FAKE_TREES_FROM = 250;
-/** A gantry clock is redrawn only while the car is this close to it along the road (m): each redraw uploads a texture. */
+/** A gantry clock is redrawn only while the camera is this close to it (m): each redraw uploads a texture. */
 const CLOCK_NEAR = 400;
 
 /** The far forest's colour on the ground: the stage's foliage, darker (a canopy seen from afar is mostly shade). */
@@ -228,7 +228,8 @@ export class RallyGame {
   private gravelAcc = [0, 0, 0, 0];
   /** Far tree shadows, filled in as the streamer generates scatter (world/canopy-shadows.ts). */
   private canopy!: CanopyShadows;
-  private farForest!: FarForest;
+  /** The canopy shell and far trees (world/far-forest.ts); the perf panel moves their forest distance. */
+  farForest!: FarForest;
   private hazeAcc = 0;
   audio: CarAudio;
   telemetry!: Telemetry;
@@ -437,6 +438,8 @@ export class RallyGame {
       this.treeLibrary,
       q.forestDistance,
       q.viewDistance,
+      this.renderer.extensions.has('EXT_color_buffer_float') ||
+        this.renderer.extensions.has('EXT_color_buffer_half_float'),
     );
     this.trees.group.add(this.farForest.mesh);
     if (this.farForest.farTrees) this.trees.group.add(this.farForest.farTrees);
@@ -1449,11 +1452,14 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     // finish clock stops on the stage time (penalties included) once the car crosses the line.
     if (!this.freeDrive) {
       const st = this.world.stage;
-      const at = this.stage.progress;
-      if (Math.abs(at - st.start) < CLOCK_NEAR)
-        setClockTime('start', this.stage.time);
-      if (Math.abs(at - st.finish) < CLOCK_NEAR)
-        setClockTime('finish', this.stage.time);
+      const cam = this.camera.position;
+      // Straight-line distance: a gantry seen across a hairpin keeps running.
+      const near = (along: number): boolean => {
+        const g = this.world.road.at(along);
+        return Math.hypot(g.x - cam.x, g.z - cam.z) < CLOCK_NEAR;
+      };
+      if (near(st.start)) setClockTime('start', this.stage.time);
+      if (near(st.finish)) setClockTime('finish', this.stage.time);
     }
     this.hud.update(
       dt,

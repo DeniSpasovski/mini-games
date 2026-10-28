@@ -198,6 +198,10 @@ const VERTEX_MAIN = /* glsl */ `
 	#else
 		float tRole = treeFade.y;
 		vTreeKeep = tRole < 0.5 ? vec2( 0.0, 2.0 ) : tRole < 1.5 ? vec2( treeFade.x, 2.0 ) : tRole < 2.5 ? vec2( 0.0, treeFade.x ) : vec2( 1.0, 0.0 );
+		#ifdef TREE_IMPOSTOR_GRID
+			// No forest edge: no far trees (an empty cell must never fall back to the solid default).
+			vTreeKeep = vec2( 1.0, 0.0 );
+		#endif
 		// The forest edge (trees/draw.ts forestDistance): trees dissolve in with the same dither, never pop.
 		if ( tlForest > 0.0 ) {
 			float tEdge = 1.0 - smoothstep( tlForest * 0.85, tlForest, distance( tOrigin.xz, tlCam.xz ) );

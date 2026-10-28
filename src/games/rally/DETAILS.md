@@ -553,7 +553,7 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
     frame but uploads only the slots and attributes that changed (`uploadRoom`; a `bufferSubData` per attribute and
     batch was ~450 calls a frame, ~2 ms on ANGLE / D3D11). Static trees and impostors keep their slot from job to job
     (`packStatic` / `packRuns`: a tree that left is collapsed, a new one takes a free slot), so a job or a view turn
-    uploads only what came or went; a whole re-pack only when a region overflows or a third of the slots are holes. The
+    uploads only what came or went; a whole re-pack only when a region overflows, the room is resized (grows, or shrinks under half use) or holes pass 15 % of the slots. The
     per-frame impostor tail upload adds its range to the pack's (never clears it). The job sorts each
     scatter chunk's trees once (`chunkTrees`): the faked ones of a chunk farther than ~100 m go in as one ready block of
     impostors, and chunks past the forest distance are only generated (for the canopy texture), not walked. A camera

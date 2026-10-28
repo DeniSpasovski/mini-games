@@ -266,6 +266,7 @@ const SLIDERS: Slider[] = [
     value: (g) => g.opts.quality.forestDistance,
     set: (g, v) => {
       g.trees.setOptions({ forestDistance: v });
+      g.farForest.setForestDistance(v);
       worldUniforms.wsForest.value.w = v;
     },
   },

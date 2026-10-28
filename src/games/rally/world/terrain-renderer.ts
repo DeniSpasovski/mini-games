@@ -165,6 +165,7 @@ export class TerrainRenderer {
 
     const todo = this.todo;
     let built = 0;
+    let reused = 0;
     // Always allow ~1 ms of progress so streaming never stalls.
     const deadline = Math.max(t0 + budgetMs, performance.now() + 1);
     for (; this.next < todo.length; this.next++) {
@@ -173,6 +174,7 @@ export class TerrainRenderer {
       // Kept from earlier: no build, no deadline.
       if (this.spare.has(spareKey(w))) {
         this.buildTile(w);
+        reused++;
         continue;
       }
       if (built > 0 && performance.now() > deadline) break;
@@ -195,7 +197,7 @@ export class TerrainRenderer {
       built++;
     }
     this.pending = todo.length - this.next;
-    if (moved || built > 0) this.unloadReplaced();
+    if (moved || built > 0 || reused > 0) this.unloadReplaced();
     this.world.heightfield.tick();
     return this.pending === 0;
   }

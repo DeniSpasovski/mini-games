@@ -1779,16 +1779,15 @@ export class TreeRenderer {
    * `commit`: a job's new instances (the room grows for the most active trees since the last one). Slot-stable: a tree
    * keeps its slot from pack to pack, so a commit or a view turn writes and uploads only the trees that came, went or
    * changed (a whole re-pack + upload of every batch every 5 m was most of the p99 frames). Whole again when a region
-   * runs out of room, the room grows, or the holes pass HOLES of the slots.
+   * runs out of room, the room is resized (grows, or shrinks under half use), or the holes pass HOLES of the slots.
    */
   private packStatic(b: StaticBatch, commit = false): void {
     let dynCap = b.dynCap;
     if (commit) {
-      dynCap = Math.max(
-        dynCap,
-        4,
-        Math.ceil(Math.max(b.dynPeak, b.dyn) * 1.25),
-      );
+      // Grows at once; shrinks (a whole pack) only below half, so a cut or a dense stretch does not leave idle
+      // room slots running the vertex shader for the rest of the stage.
+      const want = Math.max(4, Math.ceil(Math.max(b.dynPeak, b.dyn) * 1.25));
+      if (want > dynCap || want * 2 < dynCap) dynCap = want;
       b.dynPeak = 0;
     }
     if (dynCap !== b.dynCap || !b.slots || !this.packDelta(b))
