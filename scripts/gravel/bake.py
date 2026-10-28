@@ -23,6 +23,7 @@ RUT_HALF = 0.085  # half width of a rut (fraction of the road)
 LUM = 0.233  # mean linear luminance of the colour tile: the ground gravel layer's (GROUND_MEAN.gravel), so road and verge match
 SAT = 0.85  # colour kept: the ground gravel layer's (scripts/ground/bake.py), the road and the verge are one gravel
 CONTRAST = 1.0  # stones against the fines, around the mean: as the ground gravel layer
+ROUGH = 0.96  # roughness of the terrain's ground (world/terrain-material.ts): the road is as matte as the verge
 SIZES = (1024, 512)
 LUMA = np.array([0.2126, 0.7152, 0.0722])
 
@@ -99,7 +100,9 @@ def main():
         col = col * (LUM / (col @ LUMA).mean())
         nor[..., :2] *= (1 - rut * 0.6)
         nor[..., 2] = np.sqrt(np.clip(1 - nor[..., 0] ** 2 - nor[..., 1] ** 2, 0, 1))
-        rough = np.clip(rough * (1 - rut * 0.2), 0, 1)
+        # As matte as the terrain's gravel (roughness 0.96 in world/terrain-material.ts): the scan's own roughness has bright
+        # sky glints that made the road read cooler and greyer than the verge. A little variation and the ruts a touch shinier.
+        rough = np.clip(ROUGH + (rough - rough.mean()) * 0.25 - rut * 0.04, 0.8, 1)
         Image.fromarray((srgb(np.clip(col, 0, 1)) * 255 + 0.5).astype(np.uint8)).save(
             os.path.join(out, f'road.{size}.color.webp'), quality=85, method=6)
         Image.fromarray(((nor * 0.5 + 0.5) * 255 + 0.5).clip(0, 255).astype(np.uint8)).save(
