@@ -67,6 +67,11 @@ const PATCHES: Partial<Record<RoadSurfaceId, number>> = {
 };
 /** Roads whose patches are dark, square-cut repairs (Jackie) instead of pale rounded ones, at an even density. */
 const DARK_PATCHES = new Set<RoadSurfaceId>(['road_parkway']);
+/**
+ * Roads whose edges dissolve into the ground beside them (alpha, ragged at the stone scale) instead of ending on a line:
+ * the gravel road lies in a verge of the same gravel (the terrain's gravel layer), so only its relief changes.
+ */
+const EDGE_FADE = new Set<RoadSurfaceId>(['road']);
 /** The junction asphalt each stage road surface blends into at side road mouths (world/junctions.ts). */
 export const JUNCTION_OF = JUNCTION_ASPHALT as Partial<
   Record<RoadSurfaceId, RoadSurfaceId>
@@ -213,6 +218,12 @@ export function applyRoadSurface(
   id: RoadSurfaceId,
   junction: RoadSurfaceId | undefined = JUNCTION_OF[id],
 ): void {
+  const fade = EDGE_FADE.has(id);
+  if (fade) {
+    // Blended over the terrain, which the ribbon sits 2 cm above: no depth write, so the edge never hides what follows.
+    m.transparent = true;
+    m.depthWrite = false;
+  }
   const configure = (s: Surface | undefined, js?: Surface) => {
     if (!s) {
       // Not available: the procedural tile of the same id (engine/textures.ts).
@@ -298,6 +309,16 @@ export function applyRoadSurface(
                 : ''
             }
             diffuseColor.rgb *= 1.03 + rsTone * rsK;
+            ${
+              fade
+                ? `{
+              // Edge: from the road's edge (u 0.02 / 0.98) the stones thin out into the verge, ragged at 0.3 m / 1.5 m.
+              float rsE = min( vMapUv.x, 1.0 - vMapUv.x );
+              float rsR = 0.6 * rsNoise( rsM / 1.5 + 11.0 ) + 0.4 * rsNoise( rsM / 0.3 + 3.0 );
+              diffuseColor.a *= smoothstep( 0.0, 1.0, ( rsE - 0.012 ) / 0.075 + 0.55 * ( rsR - 0.5 ) );
+            }`
+                : ''
+            }
             if ( rsPatch > 0.0 ) {
               float rsCi = floor( rsM.y / 10.0 );
               float rsFy = rsM.y - rsCi * 10.0;
@@ -337,7 +358,8 @@ export function applyRoadSurface(
     // (the blended shader is different code: its own program)
     m.customProgramCacheKey = () =>
       Material.prototype.customProgramCacheKey.call(m) +
-      (js ? ':junction' : '');
+      (js ? ':junction' : '') +
+      (fade ? ':fade' : '');
     m.needsUpdate = true;
   };
   const s = surfaces.get(id);
