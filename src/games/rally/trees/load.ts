@@ -235,6 +235,10 @@ export class TreeLibrary {
     material: MeshLambertMaterial;
     /** The far impostors' material: no baked depth (trees/draw.ts IMPOSTOR_FLAT_FROM). */
     farMaterial: MeshLambertMaterial;
+    /** Per slot: bounding sphere, frame bounds, height (m): world/far-forest.ts makes its own impostor material. */
+    spheres: { cy: number; r: number }[];
+    bounds: [number, number, number, number][];
+    heights: number[];
   } | null = null;
   /** What loading cost (trees/Performance.md#counters). */
   stats: TreeLoadStats = {
@@ -301,6 +305,7 @@ export class TreeLibrary {
     const allPixels: ImpostorPixels[] = [];
     const spheres: { cy: number; r: number }[] = [];
     const bounds: [number, number, number, number][] = [];
+    const heights: number[] = [];
     for (const { def, i, key, g, impostor } of results) {
       const b0 = performance.now();
       const v = lib.build(def, g.info, g.meshes, impostor, renderer);
@@ -329,6 +334,7 @@ export class TreeLibrary {
       v.loaded.slot = allPixels.length;
       allPixels.push(v.pixels);
       spheres.push(g.info.sphere);
+      heights.push(g.info.height);
       bounds.push(impostorBounds(v.pixels));
       report(++done / jobs.length);
     }
@@ -338,6 +344,9 @@ export class TreeLibrary {
         atlas,
         material: impostorMaterial(atlas, spheres, bounds),
         farMaterial: impostorMaterial(atlas, spheres, bounds, true),
+        spheres,
+        bounds,
+        heights,
       };
     }
     // Shared bark / leaf textures (RGBA8 + mips).

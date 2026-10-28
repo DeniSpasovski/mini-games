@@ -119,8 +119,16 @@ const float TREE_FULL_ROAD = ${ROAD_REACH.full.toFixed(1)};
 const float TREE_FAR_RAMP_ROAD = ${ROAD_REACH.ramp.toFixed(1)};
 /** Wind fades out towards this distance (m): past it a sway is under a pixel, so its vertex maths is skipped. */
 const float TREE_WIND_FAR = 110.0;
+#ifdef TREE_IMPOSTOR_GRID
+// Placed by the vertex shader itself (world/far-forest.ts FAR_TREES), not instance attributes.
+vec4 treeInst;
+vec4 treeFade;
+mat4 instanceMatrix;
+float tgOut;
+#else
 attribute vec4 treeInst;
 attribute vec4 treeFade;
+#endif
 #ifndef TREE_IMPOSTOR
 attribute vec4 treeWind;
 #endif
@@ -193,7 +201,12 @@ const VERTEX_MAIN = /* glsl */ `
 		// The forest edge (trees/draw.ts forestDistance): trees dissolve in with the same dither, never pop.
 		if ( tlForest > 0.0 ) {
 			float tEdge = 1.0 - smoothstep( tlForest * 0.85, tlForest, distance( tOrigin.xz, tlCam.xz ) );
-			if ( tEdge < 1.0 ) vTreeKeep.y = min( vTreeKeep.y, tEdge );
+			#ifdef TREE_IMPOSTOR_GRID
+				// The far trees take the other side of the same dither: in where the trees dissolve out.
+				vTreeKeep = vec2( tEdge, tgOut );
+			#else
+				if ( tEdge < 1.0 ) vTreeKeep.y = min( vTreeKeep.y, tEdge );
+			#endif
 		}
 	#endif
 	vTreeDebug = vec2( treeFade.w, treeFade.x );
@@ -1020,6 +1033,15 @@ const IMPOSTOR_FRAGMENT = /* glsl */ `
 	diffuseColor.a = 1.0;
 `;
 
+/** An impostor material whose vertex shader places its own trees (world/far-forest.ts): it sets `treeInst`,
+ * `treeFade`, `instanceMatrix` and `tgOut` (the far end of its dither) before the tree code runs. */
+export interface ImpostorGrid {
+  uniforms: Record<string, { value: unknown }>;
+  pars: string;
+  main: string;
+  key: string;
+}
+
 /**
  * The ONE impostor material of every variant of every species (trees/Performance.md#mitigations): the texture array
  * of trees/impostor.ts `impostorArray` and each variant's bounding sphere (cy, r), picked per instance by
@@ -1031,6 +1053,7 @@ export function impostorMaterial(
   spheres: { cy: number; r: number }[],
   bounds: [number, number, number, number][],
   flat = false,
+  grid?: ImpostorGrid,
 ): MeshLambertMaterial {
   // Lambert: impostors are far trees (diffuse only, like the sprites); their meshes receive no shadow (beyond the
   // shadow box), so the shadow map is not read either (trees/draw.ts).
@@ -1038,6 +1061,7 @@ export function impostorMaterial(
   m.name = flat ? 'tree impostors far' : 'tree impostors';
   m.defines = {
     ...(flat ? { TREE_IMPOSTOR_FLAT: 1 } : {}),
+    ...(grid ? { TREE_IMPOSTOR_GRID: 1 } : {}),
     TREE_IMPOSTOR: 1,
     TREE_SKY: 1,
     TREE_VIEW_Z: '-tiView.z',
@@ -1059,7 +1083,19 @@ export function impostorMaterial(
   };
   m.onBeforeCompile = (shader) => {
     addWorldUniforms(shader);
-    Object.assign(shader.uniforms, treeUniforms, uniforms);
+    Object.assign(shader.uniforms, treeUniforms, uniforms, grid?.uniforms);
+    if (grid)
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+${grid.pars}`,
+        )
+        .replace(
+          '#include <begin_vertex>',
+          `${grid.main}
+#include <begin_vertex>`,
+        );
     const vary = /* glsl */ `
 varying vec2 vTiFrame;
 varying vec2 vTiWeight;
@@ -1124,6 +1160,6 @@ varying float vTiLayer;
       );
   };
   m.customProgramCacheKey = () =>
-    `tree-impostor-v10-${spheres.length}${flat ? '-flat' : ''}`;
+    `tree-impostor-v10-${spheres.length}${flat ? '-flat' : ''}${grid ? `-${grid.key}` : ''}`;
   return m;
 }

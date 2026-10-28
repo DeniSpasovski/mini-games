@@ -724,7 +724,12 @@ function releaseGeometry(g: BufferGeometry): void {
 }
 
 /** `spare` key: tile + LOD. */
-function spareKey(t: { cx: number; cz: number; span: number; lod: number }): string {
+function spareKey(t: {
+  cx: number;
+  cz: number;
+  span: number;
+  lod: number;
+}): string {
   return `${key(t.cx, t.cz, t.span)}:${t.lod}`;
 }
 

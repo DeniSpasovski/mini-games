@@ -22,6 +22,7 @@ import { getAssetMeta } from '../assets/catalog';
 import { getAsset } from '../assets/library';
 import { addWorldUniforms } from '../engine/world-shading';
 import type { HorizonDef } from '../maps/shared/types';
+import { TINT_RANGE } from './far-forest';
 import { base64Bytes } from './real-data';
 import { RENDER_MARGIN, type World } from './world';
 
@@ -649,7 +650,7 @@ const LAND_DETAIL = /* glsl */ `
 				vec4 hzS = texture2D( ffShape, hzUV );
 				hzTreeF = clamp( hzS.g * 1.4, 0.0, 1.0 );
 				vec3 hzT = texture2D( ffTint, hzUV ).rgb;
-				if ( hzS.g > 0.05 ) hzForest = hzT * hzT * 0.86;
+				if ( hzS.g > 0.05 ) hzForest = hzT * hzT * ${(TINT_RANGE * 0.86).toFixed(3)};
 			}
 		}
 		float hzN1 = hzDetail( hzP, 260.0 );

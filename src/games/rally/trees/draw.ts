@@ -487,7 +487,7 @@ const _dir = new Vector3();
 
 let quad: BufferGeometry | null = null;
 /** Impostor billboard: corners (-1..1)^2, the shader places it. */
-function impostorQuad(): BufferGeometry {
+export function impostorQuad(): BufferGeometry {
   if (quad) return quad;
   quad = new BufferGeometry();
   quad.setAttribute(
@@ -2099,7 +2099,11 @@ export class TreeRenderer {
     // Blocks: a run per chunk; a changed one (re-staged, other size) is freed and placed again.
     const want = new Set(blocks);
     for (const [ct, r] of s.k)
-      if (!want.has(ct) || r.version !== ct.version || r.len !== ct.faked.length) {
+      if (
+        !want.has(ct) ||
+        r.version !== ct.version ||
+        r.len !== ct.faked.length
+      ) {
         s.k.delete(ct);
         s.kFree.push({ at: r.at, len: r.len });
         for (let n = r.at; n < r.at + r.len; n++)
@@ -2117,13 +2121,16 @@ export class TreeRenderer {
     for (const ct of blocks) {
       if (s.k.has(ct)) continue;
       const len = ct.faked.length;
-      let at = -1;
+      let at: number;
       const f = s.kFree.findIndex((r) => r.len >= len);
       if (f >= 0) {
         const r = s.kFree[f];
         at = r.at;
         if (r.len === len) s.kFree.splice(f, 1);
-        else (r.at += len), (r.len -= len);
+        else {
+          r.at += len;
+          r.len -= len;
+        }
       } else {
         at = s.sCap + s.kLen;
         s.kLen += len;

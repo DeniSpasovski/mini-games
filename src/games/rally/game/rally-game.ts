@@ -439,6 +439,7 @@ export class RallyGame {
       q.viewDistance,
     );
     this.trees.group.add(this.farForest.mesh);
+    if (this.farForest.farTrees) this.trees.group.add(this.farForest.farTrees);
     // The land beyond: its woods in the stage's crown colour, inside the map the canopy map's.
     this.horizon?.setForest(
       canopyTone(this.treeLibrary, this.world),
