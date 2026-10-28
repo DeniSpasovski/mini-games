@@ -1,7 +1,7 @@
 {
   "id": "kaboom",
   "title": "3, 2, 1 Kabooom",
-  "version": "0.4.3",
+  "version": "0.5.1",
   "description": "Animal demolition crew in a packed arena. Light the fuse, outlast the bots.",
   "genre": "Arena",
   "inputs": "vs bots",
