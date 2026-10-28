@@ -54,14 +54,17 @@ export const ROAD_SURFACE_LEN: Record<RoadSurfaceId, number> = {
 };
 
 /**
- * Roads with pale repair patches (a shader effect, so they never repeat): Vodno's mountain road. The number scales their
- * count; they are rare near the start and come more often up the road (`rsPatch` in `applyRoadSurface`).
+ * Roads with repair patches (a shader effect, so they never repeat): Vodno's mountain road (pale, rare near the start and
+ * more often up the road) and Jackie (dark, square-cut, even). The number scales their count (`rsPatch` in `applyRoadSurface`).
  */
 const PATCHES: Partial<Record<RoadSurfaceId, number>> = {
   road_tarmac_lines: 1,
   road_tarmac_plain: 1,
   road_tarmac_plain_kerbed: 0.6,
+  road_parkway: 0.45,
 };
+/** Roads whose patches are dark, square-cut repairs (Jackie) instead of pale rounded ones, at an even density. */
+const DARK_PATCHES = new Set<RoadSurfaceId>(['road_parkway']);
 /** The junction asphalt each stage road surface blends into at side road mouths (world/junctions.ts). */
 export const JUNCTION_OF = JUNCTION_ASPHALT as Partial<
   Record<RoadSurfaceId, RoadSurfaceId>
@@ -227,12 +230,14 @@ export function applyRoadSurface(
     const scale = { value: new Vector2(6, ROAD_SURFACE_LEN[id]) };
     const jLen = { value: junction ? ROAD_SURFACE_LEN[junction] : 1 };
     const patch = { value: PATCHES[id] ?? 0 };
+    const patchDark = { value: DARK_PATCHES.has(id) ? 1 : 0 };
     const tone = { value: TONE[id] ?? 1 };
     m.onBeforeCompile = (shader, renderer) => {
       // World shading (canopy / cloud shadows) hooks the default `onBeforeCompile`: keep it.
       Material.prototype.onBeforeCompile.call(m, shader, renderer);
       shader.uniforms.rsScale = scale;
       shader.uniforms.rsPatch = patch;
+      shader.uniforms.rsPatchDark = patchDark;
       shader.uniforms.rsTone = tone;
       // Junction blend: the same asphalt laid by world XZ, mixed in by `jw` (colour, normal, roughness, tone).
       const j = !!js;
@@ -264,6 +269,7 @@ export function applyRoadSurface(
           `#include <common>
           uniform vec2 rsScale;
           uniform float rsPatch;
+          uniform float rsPatchDark;
           uniform float rsTone;
           ${j ? 'uniform sampler2D jMap; uniform sampler2D jNormal; uniform float jLen; varying float vJw; varying vec2 vJXZ;' : ''}
           float rsHash( vec2 p ) { p = fract( p * vec2( 123.34, 456.21 ) ); p += dot( p, p + 45.32 ); return fract( p.x * p.y ); }
@@ -293,23 +299,24 @@ export function applyRoadSurface(
             if ( rsPatch > 0.0 ) {
               float rsCi = floor( rsM.y / 10.0 );
               float rsFy = rsM.y - rsCi * 10.0;
-              float rsDens = rsPatch * mix( 0.25, 0.8, smoothstep( 250.0, 3500.0, rsM.y ) );
+              float rsDens = rsPatch * mix( mix( 0.25, 0.8, smoothstep( 250.0, 3500.0, rsM.y ) ), 1.0, rsPatchDark );
               float rsCov = 0.0;
               for ( int k = 0; k < 2; k ++ ) {
                 vec2 id = vec2( rsCi, float( k ) * 17.0 + 1.0 );
                 if ( rsHash( id ) < rsDens * ( k == 0 ? 1.0 : 0.35 ) ) {
-                  float hl = 0.8 + 1.9 * pow( rsHash( id + 3.7 ), 2.0 );
-                  float hw = 0.25 + 0.7 * rsHash( id + 7.3 );
+                  // (dark square repairs: 0.8 - 2.8 m across, 1.2 - 6 m long)
+                  float hl = mix( 0.8 + 1.9 * pow( rsHash( id + 3.7 ), 2.0 ), 0.6 + 2.4 * rsHash( id + 3.7 ), rsPatchDark );
+                  float hw = mix( 0.25 + 0.7 * rsHash( id + 7.3 ), 0.4 + 1.0 * rsHash( id + 7.3 ), rsPatchDark );
                   float cy = hl + 0.2 + ( 9.6 - 2.0 * hl ) * rsHash( id + 11.9 );
                   float rsX = rsHash( id + 19.1 );
                   float cx = rsX < 0.5 ? 1.7 + 2.6 * step( 0.25, rsX ) + 0.5 * ( rsHash( id + 23.3 ) - 0.5 ) : 0.9 + 4.2 * rsHash( id + 29.9 );
                   vec2 q = vec2( ( rsM.x - cx ) / hw, ( rsFy - cy ) / hl );
-                  q += 0.1 * ( vec2( rsNoise( rsM * 2.3 ), rsNoise( rsM * 2.3 + 9.0 ) ) - 0.5 );
-                  float d = pow( pow( abs( q.x ), 3.0 ) + pow( abs( q.y ), 3.0 ), 1.0 / 3.0 );
+                  q += mix( 0.1, 0.02, rsPatchDark ) * ( vec2( rsNoise( rsM * 2.3 ), rsNoise( rsM * 2.3 + 9.0 ) ) - 0.5 );
+                  float d = rsPatchDark > 0.5 ? max( abs( q.x ), abs( q.y ) ) : pow( pow( abs( q.x ), 3.0 ) + pow( abs( q.y ), 3.0 ), 1.0 / 3.0 );
                   rsCov = max( rsCov, 1.0 - smoothstep( 0.95, 1.0, d ) );
                 }
               }
-              diffuseColor.rgb *= 1.0 + 0.6 * rsCov * ( 0.75 + 0.25 * rsNoise( rsM * 9.0 ) );
+              diffuseColor.rgb *= 1.0 + mix( 0.6, -0.35, rsPatchDark ) * rsCov * ( 0.75 + 0.25 * rsNoise( rsM * 9.0 ) );
             }
           }`,
         )

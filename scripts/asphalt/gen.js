@@ -200,7 +200,8 @@
       exposed: 0.25,
       cracks: 8,
       grain: 0.6,
-      patches: 3,
+      // (its repair squares are drawn by the shader, road-surface.ts: a baked one repeats every tile)
+      patches: 0,
       joints: 0,
       dust: 0.1,
       age: 0.1,
