@@ -909,6 +909,7 @@ export function assetIds(world: World): Set<string> {
     ...world.map.props.map((p) => p.asset),
     ...(world.stageDef.props ?? []).map((p) => p.asset),
   ]);
+  if (ids.has('tape_post')) ids.add('tape_span');
   for (const id of ids) if (isTreeType(id)) ids.delete(id);
   return ids;
 }

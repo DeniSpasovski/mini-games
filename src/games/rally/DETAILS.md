@@ -235,7 +235,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Cable cars** (`aerialways`): a gondola line from a polyline - pylons on its vertices (`pylonsAtVertices`) or evenly spaced (taller
   where the slope asks), two ropes in a sag parabola, cabins running the loop (`world/aerialway.ts` pure layout + `cabinPose`, test;
   `aerialway-mesh.ts` one instanced mesh moved when drawn; asset `gondola_pylon`).
-- **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape,
+- **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape (always a chain: posts ~5 m apart, a `tape_span` tied from each to the next, tilted to the slope; a blocked post splits the run and a post left alone is dropped, `world/tape.ts`; the roadside `tape_post` rules and service-park lots use the same),
   spectators (some waving their map's own hand flag - `MapDef.country` - or a plain colour flag, never another country's) + visitors, a marshal, 1-2 photographers, flags; marshals at every side-road mouth, 5 photographers each at start and finish (people are capped on purpose: `DEFAULT_FANS`, `SHOOTERS`, `END_PHOTOGRAPHERS` in corner-fans.ts)
   (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`). People animate (`world/people-anim.ts`, run by `RallyGame.frame`): within 45 m they turn to watch the car, photographers (75 m) keep it centred, via `InstanceStreamer.setMatrix`; hand flags wave in the `people_flag` shader (`engine/materials.ts`, own mesh from `markFlag` in people.ts).
 - **Service park** (stage `servicePark`; `world/service-park.ts`, `World.servicePark`; assets `assets/builders/service.ts` + `teams.ts`;
