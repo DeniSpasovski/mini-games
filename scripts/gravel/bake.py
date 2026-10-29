@@ -24,6 +24,11 @@ LUM = 0.233  # mean linear luminance of the colour tile: the ground gravel layer
 SAT = 0.85  # colour kept: the ground gravel layer's (scripts/ground/bake.py), the road and the verge are one gravel
 CONTRAST = 1.35  # stones against the fines, around the mean (the ground gravel layer has the same relative detail)
 ROUGH = 0.94  # roughness of the terrain's ground (world/terrain-material.ts): the road is as matte as the verge
+DETAIL = 1.0  # unsharp mask on the colour (stones 2 - 8 cm): the scan's stones are 1 - 3 px from the chase camera and mip away
+DETAIL_R = 0.03  # its blur radius (m)
+RELIEF = 1.8  # the scan's normal map strength (stones stand out more; the ruts flatten it again below)
+RUT_DARK = 0.24  # the packed ruts a little darker than the loose gravel (the verge stays the same colour)
+STREAKS = 0.14  # tyre streaks along the ruts (fraction of brightness)
 SIZES = (1024, 512)
 LUMA = np.array([0.2126, 0.7152, 0.0722])
 
@@ -41,12 +46,12 @@ def load(src, part, n):
     return np.asarray(im, dtype=np.float64) / 255
 
 
-def blur(a, sigma):
-    """Gaussian blur of an (h, w, c) array, wrapping round the tile edges."""
-    r = int(np.ceil(sigma * 3))
-    k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma) ** 2)
-    k /= k.sum()
-    for axis in (0, 1):
+def blur(a, sigma, sigma_y=None):
+    """Gaussian blur of an (h, w, c) array, wrapping round the tile edges (`sigma_y` along the rows, default the same)."""
+    for axis, sg in ((0, sigma if sigma_y is None else sigma_y), (1, sigma)):
+        r = int(np.ceil(sg * 3))
+        k = np.exp(-0.5 * (np.arange(-r, r + 1) / sg) ** 2)
+        k /= k.sum()
         a = sum(w * np.roll(a, i - r, axis=axis) for i, w in enumerate(k))
     return a
 
@@ -97,8 +102,16 @@ def main():
         # Packed ruts: the loose stones blurred away (linear light, wrapping: the mean colour stays), the same colour as
         # the loose gravel around them; only the stones' relief goes.
         col = col * (1 - rut * 0.85) + blur(col, size / 160) * rut * 0.85
+        # Stones that survive the mip levels at a distance: sharpen the colour a little (not in the ruts), the relief a lot.
+        col = np.maximum(col + (col - blur(col, DETAIL_R * size / WIDTH_M)) * DETAIL * (1 - rut), 0)
+        # Driven ruts: a little darker, with tyre streaks along them.
+        streak = blur(np.random.default_rng(5).standard_normal((size, size, 1)), size / 700, size / 12)
+        streak = streak / streak.std()
+        col = col * (1 - RUT_DARK * rut) * (1 + STREAKS * np.clip(streak, -2, 2) * rut)
         col = col * (LUM / (col @ LUMA).mean())
-        nor[..., :2] *= (1 - rut * 0.6)
+        nor[..., :2] *= RELIEF * (1 - rut * 0.6)
+        xy = np.sqrt(nor[..., 0] ** 2 + nor[..., 1] ** 2)[..., None]
+        nor[..., :2] *= np.minimum(1, 0.95 / np.maximum(xy, 1e-6))
         nor[..., 2] = np.sqrt(np.clip(1 - nor[..., 0] ** 2 - nor[..., 1] ** 2, 0, 1))
         # As matte as the terrain's gravel (roughness 0.96 in world/terrain-material.ts): the scan's own roughness has bright
         # sky glints that made the road read cooler and greyer than the verge. Some of its variation stays (the stones' glints) and the ruts are a touch shinier.
