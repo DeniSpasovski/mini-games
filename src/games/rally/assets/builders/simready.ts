@@ -2,7 +2,6 @@ import {
   BufferAttribute,
   BufferGeometry,
   Color,
-  CylinderGeometry,
   LatheGeometry,
   Vector2,
 } from 'three';
@@ -103,8 +102,8 @@ export const floorJack: AssetBuilder = ({ lod }) =>
 /** Rack cradles (m): the front and back rails of each shelf are this far either side of the middle, at these heights. */
 const RAIL_Z = 0.24;
 const SHELVES = [0.2, 0.8];
-const TYRE_R = 0.3;
-const TYRE_W = 0.205;
+export const TYRE_R = 0.3;
+export const TYRE_W = 0.205;
 /** Tyres per shelf (lower, upper) by variant: full, half, a few. */
 const FILL: [number, number][] = [
   [4, 4],
@@ -128,26 +127,42 @@ function tyre(seg: number): BufferGeometry {
   return new LatheGeometry(profile, seg).rotateZ(Math.PI / 2);
 }
 
+/** An alloy rim (axis along X): a barrel with both faces dished in to a small hub. */
+function rim(seg: number): BufferGeometry {
+  const h = (TYRE_W - 0.05) / 2;
+  const face = [
+    [0, 0.04],
+    [0.05, 0.04],
+    [0.065, 0.06],
+    [0.17, 0.065],
+    [0.2, h],
+  ];
+  const profile = [
+    ...face.map(([r, y]) => new Vector2(r, -y)),
+    ...face.reverse().map(([r, y]) => new Vector2(r, y)),
+  ];
+  return new LatheGeometry(profile, seg).rotateZ(Math.PI / 2);
+}
+
+/** A rally tyre on its alloy rim (axis along X, origin in the middle): the tyres of the rack, the stack and the trailer. */
+export function tyreOnRim(lod: number): BufferGeometry[] {
+  return [
+    solid(tyre(lod ? 14 : 24), '#1c1c1e'),
+    // The alloy rim, set in from the sidewalls, its faces dished towards the hub.
+    solid(rim(lod ? 8 : 16), '#c4c8ce'),
+  ];
+}
+
 /** Wire tyre rack with rally tyres standing in its two cradles (variant = how full, `FILL`). */
 export const tyreRack: AssetBuilder = ({ variant, lod }) => {
   const parts = [model('tyre_rack', lod)];
-  const seg = lod ? 10 : 24;
   // A tyre in a cradle sits with its middle this far above the rails.
   const lift = Math.sqrt(TYRE_R * TYRE_R - RAIL_Z * RAIL_Z);
   FILL[variant % FILL.length].forEach((n, s) => {
     for (let i = 0; i < n; i++) {
       const x = (i - 1.5) * (TYRE_W + 0.06);
       const y = SHELVES[s] + lift;
-      parts.push(solid(tyre(seg).translate(x, y, 0), '#1c1c1e'));
-      // The alloy rim, set in from the sidewalls.
-      parts.push(
-        solid(
-          new CylinderGeometry(0.2, 0.2, TYRE_W - 0.05, lod ? 8 : 16)
-            .rotateZ(Math.PI / 2)
-            .translate(x, y, 0),
-          '#c4c8ce',
-        ),
-      );
+      for (const g of tyreOnRim(lod)) parts.push(g.translate(x, y, 0));
     }
   });
   return finish(parts);

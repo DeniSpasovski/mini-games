@@ -35,4 +35,4 @@ npm run dev     # /games/rally/?stage=jackie&spawn=1000
 | Service park kit                             | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) (tool chest, tyre rack, trolley jack)                                                                   | CC BY 4.0                                                                        |
 
 The baked map files (`*.json`, `buildings.csv`, stage card) are a derived database of OpenStreetMap and stay under the ODbL. The emergency vehicles carry short
-generic lettering ("POLICE", "FIRE DEPT", "AMBULANCE") and no logos or badges.
+generic lettering ("POLICE", "AMBULANCE") and no logos or badges.

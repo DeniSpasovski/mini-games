@@ -1356,34 +1356,46 @@ const DEFS: Record<TextureId, TexDef> = {
     },
   },
   vehicle_decals: {
-    name: 'Vehicle decals atlas (plain white, POLICE lettering, FIRE DEPT lettering, AMBULANCE)',
+    name: 'Vehicle decals atlas (plain white, POLICE lettering, Star of Life, AMBULANCE lettering)',
     size: [768, 128],
     color: true,
     draw(ctx, w, h) {
       // u 0 .. 0.067: plain white (every painted face of a vehicle samples it, the colour is the vertex colour).
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, w, h);
-      // u 0.067 .. 0.367: POLICE, navy letters on white.
-      const text = (
-        t: string,
-        x0: number,
-        x1: number,
-        bg: string,
-        fg: string,
-      ) => {
-        ctx.fillStyle = bg;
-        ctx.fillRect(x0, 0, x1 - x0, h);
+      // u 0.067 .. 0.367: POLICE, navy letters.
+      const text = (t: string, x0: number, x1: number, fg: string) => {
+        // Transparent behind the letters (the vehicle material cuts it out): they sit on the paint itself.
+        ctx.clearRect(x0, 0, x1 - x0, h);
         ctx.fillStyle = fg;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.font = `bold ${Math.round(h * 0.74)}px Arial, Helvetica, sans-serif`;
         ctx.fillText(t, (x0 + x1) / 2, h * 0.54, x1 - x0 - 16);
       };
-      text('POLICE', w * 0.067, w * 0.367, '#f4f4f1', '#14306b');
-      // u 0.367 .. 0.667: FIRE DEPT, white letters on engine red.
-      text('FIRE DEPT', w * 0.367, w * 0.667, '#b3121a', '#fbfbf8');
-      // u 0.667 .. 1.0: AMBULANCE, red letters on white (generic words only, no agency names).
-      text('AMBULANCE', w * 0.667, w, '#f4f4f1', '#c8161d');
+      text('POLICE', w * 0.067, w * 0.367, '#14306b');
+      // u 0.367 .. 0.667: Star of Life (blue six-armed star, staff cut out).
+      const sx0 = w * 0.367;
+      const sw = w * 0.3;
+      ctx.clearRect(sx0, 0, sw, h);
+      ctx.save();
+      ctx.translate(sx0 + sw / 2, h / 2);
+      ctx.fillStyle = '#1d57b3';
+      for (let i = 0; i < 3; i++) {
+        ctx.rotate(Math.PI / 3);
+        ctx.fillRect(-h * 0.07, -h * 0.46, h * 0.14, h * 0.92);
+      }
+      ctx.restore();
+      // The staff and its snake loop are cut out of the star.
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.fillRect(sx0 + sw / 2 - h * 0.025, h * 0.2, h * 0.05, h * 0.6);
+      ctx.beginPath();
+      ctx.arc(sx0 + sw / 2, h * 0.35, h * 0.1, 0, Math.PI * 2);
+      ctx.lineWidth = h * 0.035;
+      ctx.stroke();
+      ctx.globalCompositeOperation = 'source-over';
+      // u 0.667 .. 1.0: AMBULANCE, red letters (generic word, no agency names).
+      text('AMBULANCE', w * 0.667, w, '#c8161d');
     },
   },
   village_sign: {

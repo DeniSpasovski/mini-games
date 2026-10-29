@@ -16,6 +16,7 @@ import {
   recoveryTruck,
   teamSemi,
 } from '../../maps/ajvatovci/start-row/build/vehicles';
+import { tyreOnRim, TYRE_W } from './simready';
 import { box, EXTRAS_LOD, finish, solid, wheel, withExtras } from './vehicles';
 
 /**
@@ -150,22 +151,48 @@ export const serviceVan: AssetBuilder = ({ variant, lod }) => {
   );
 };
 
-/** Flat car trailer (5.5 m) with a tow bar to +X, the ramp folded at -X. Variant 0 grey, 1 dark. */
+/**
+ * Flat car trailer (5.5 m): deck with side rails and a ramp folded onto its back, round wheels outside the deck under
+ * fenders, an A-frame tow bar with a coupler and jockey wheel to +X. Variant 0 grey, 1 dark.
+ */
 export const carTrailer: AssetBuilder = ({ variant, lod }) => {
   const deck = variant ? '#3b3e44' : '#8d9096';
   const parts: BufferGeometry[] = [
-    box(5.2, 0.12, 2.1, 0, 0.7, 0, deck),
-    box(5.2, 0.1, 0.1, 0, 0.62, 0.8, DARK),
-    box(5.2, 0.1, 0.1, 0, 0.62, -0.8, DARK),
-    box(1.6, 0.08, 0.12, 3.3, 0.62, 0, DARK),
-    box(0.1, 0.18, 2.1, 2.6, 0.82, 0, deck),
+    box(5.2, 0.1, 2.1, 0, 0.72, 0, deck),
+    box(5.2, 0.12, 0.1, 0, 0.61, 0.85, DARK),
+    box(5.2, 0.12, 0.1, 0, 0.61, -0.85, DARK),
+    // Tow bar: two bars of the A-frame meeting at the coupler.
+    solid(
+      new BoxGeometry(2.0, 0.08, 0.08).rotateY(0.3).translate(3.05, 0.62, 0.4),
+      DARK,
+    ),
+    solid(
+      new BoxGeometry(2.0, 0.08, 0.08)
+        .rotateY(-0.3)
+        .translate(3.05, 0.62, -0.4),
+      DARK,
+    ),
+    box(0.3, 0.14, 0.2, 4.05, 0.62, 0, DARK),
+    // Ramp folded flat onto the back of the deck.
+    box(1.1, 0.05, 1.9, -2.0, 0.795, 0, deck),
   ];
-  for (const z of [1.15, -1.15])
-    parts.push(
-      lod === 0
-        ? wheel(0.33, 0.2, -0.3, z)
-        : box(0.66, 0.5, 0.2, -0.3, 0.33, z, DARK),
-    );
+  for (const z of [1.05, -1.05]) {
+    parts.push(box(5.2, 0.08, 0.06, 0, 0.8, z, deck));
+    parts.push(box(0.1, 0.12, 2.0, 2.55, 0.82, 0, deck));
+  }
+  for (const z of [1.17, -1.17]) {
+    parts.push(box(0.95, 0.05, 0.3, -0.3, 0.74, z, deck));
+    if (lod < 2)
+      for (const g of tyreOnRim(lod))
+        parts.push(
+          g
+            .scale(1.1, 1.1, 1.1)
+            .rotateY(Math.PI / 2)
+            .translate(-0.3, 0.33, z),
+        );
+    else parts.push(box(0.66, 0.5, 0.22, -0.3, 0.33, z, DARK));
+  }
+  if (lod <= EXTRAS_LOD) parts.push(post(3.6, 0, 0.5, 0.04, DARK, 6));
   return finish(parts);
 };
 
@@ -224,32 +251,15 @@ export const teamCar: AssetBuilder = () =>
 
 // --- props ---------------------------------------------------------------------------------------
 
-/** Stack of 2-4 tyres (variant + 2). */
+/** Stack of 2-4 tyres (variant + 2): the rack's rally tyres on their rims, lying on each other. */
 export const tyreStack: AssetBuilder = ({ variant, lod }) => {
   const n = 2 + (variant % 3);
   const parts: BufferGeometry[] = [];
   for (let i = 0; i < n; i++)
-    parts.push(
-      solid(
-        new CylinderGeometry(0.33, 0.33, 0.22, lod ? 6 : 9).translate(
-          0,
-          0.11 + i * 0.22,
-          0,
-        ),
-        '#1c1c1e',
-      ),
-    );
-  if (lod === 0)
-    parts.push(
-      solid(
-        new CylinderGeometry(0.2, 0.2, 0.012, 8).translate(
-          0,
-          n * 0.22 + 0.006,
-          0,
-        ),
-        '#9aa0a8',
-      ),
-    );
+    for (const g of tyreOnRim(lod > 1 ? 0 : lod))
+      parts.push(
+        g.rotateZ(Math.PI / 2).translate(0, TYRE_W / 2 + i * TYRE_W, 0),
+      );
   return finish(parts);
 };
 
