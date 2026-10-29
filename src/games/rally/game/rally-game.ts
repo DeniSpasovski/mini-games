@@ -88,6 +88,7 @@ import { InputController, type InputAction } from './input';
 import {
   BLOOM_MIX,
   OBJECT_DISTANCE,
+  RENDER_SCALE,
   type RallySettings,
   saveSettings,
 } from './settings';
@@ -145,6 +146,8 @@ const STEP = 1 / PHYSICS_HZ;
 const SHADOW_OVERLAP = 25;
 /** Trees farther than this from the stage road (m) are only ever impostors (trees/draw.ts `fakeFrom`). */
 const FAKE_TREES_FROM = 250;
+/** A gantry clock is redrawn only while the camera is this close to it (m): each redraw uploads a texture. */
+const CLOCK_NEAR = 400;
 
 /** The far forest's colour on the ground: the stage's foliage, darker (a canopy seen from afar is mostly shade). */
 function forestColor(lib: TreeLibrary): Color {
@@ -225,7 +228,8 @@ export class RallyGame {
   private gravelAcc = [0, 0, 0, 0];
   /** Far tree shadows, filled in as the streamer generates scatter (world/canopy-shadows.ts). */
   private canopy!: CanopyShadows;
-  private farForest!: FarForest;
+  /** The canopy shell and far trees (world/far-forest.ts); the perf panel moves their forest distance. */
+  farForest!: FarForest;
   private hazeAcc = 0;
   audio: CarAudio;
   telemetry!: Telemetry;
@@ -427,14 +431,18 @@ export class RallyGame {
       }
     });
     this.canopy = new CanopyShadows(this.world, this.env.sunDir);
+    this.canopy.renderer = this.renderer;
     // The canopy shell past the forest distance; with the trees (the tree benchmark hides both).
     this.farForest = new FarForest(
       this.world,
       this.treeLibrary,
       q.forestDistance,
       q.viewDistance,
+      this.renderer.extensions.has('EXT_color_buffer_float') ||
+        this.renderer.extensions.has('EXT_color_buffer_half_float'),
     );
     this.trees.group.add(this.farForest.mesh);
+    if (this.farForest.farTrees) this.trees.group.add(this.farForest.farTrees);
     // The land beyond: its woods in the stage's crown colour, inside the map the canopy map's.
     this.horizon?.setForest(
       canopyTone(this.treeLibrary, this.world),
@@ -653,6 +661,16 @@ export class RallyGame {
       this.opts.quality.treeLodScale * OBJECT_DISTANCE[s.objectDistance];
     if (this.trees.lodScale !== treeLodScale)
       this.trees.setOptions({ lodScale: treeLodScale });
+    // Render scale: fewer pixels on a sharp screen (the post effects and particles follow the 'resized' event).
+    const scale = RENDER_SCALE[s.renderScale];
+    if (this.renderScale !== scale) {
+      this.renderScale = scale;
+      this.renderer.setPixelRatio(
+        Math.min(window.devicePixelRatio, this.opts.quality.maxPixelRatio) *
+          scale,
+      );
+      this.renderer.domElement.dispatchEvent(new CustomEvent('resized'));
+    }
     // Bloom / AO (High only): only a change in the options, so a test link's `?bloom=` / `?ao=` keeps its pick.
     if (old.bloom !== s.bloom) this.post?.set({ day: BLOOM_MIX[s.bloom] });
     if (old.ambientOcclusion !== s.ambientOcclusion)
@@ -662,6 +680,9 @@ export class RallyGame {
       rally: rallyName(this.world.stageDef.name),
     });
   }
+
+  /** Render scale applied to the pixel ratio (`applySettings`). */
+  private renderScale = 1;
 
   private updateParticleScale(): void {
     this.lastFov = this.camera.fov;
@@ -1430,8 +1451,15 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     // Gantry clocks run from GO whether or not the car has moved (a forgotten start shows); the
     // finish clock stops on the stage time (penalties included) once the car crosses the line.
     if (!this.freeDrive) {
-      setClockTime('start', this.stage.time);
-      setClockTime('finish', this.stage.time);
+      const st = this.world.stage;
+      const cam = this.camera.position;
+      // Straight-line distance: a gantry seen across a hairpin keeps running.
+      const near = (along: number): boolean => {
+        const g = this.world.road.at(along);
+        return Math.hypot(g.x - cam.x, g.z - cam.z) < CLOCK_NEAR;
+      };
+      if (near(st.start)) setClockTime('start', this.stage.time);
+      if (near(st.finish)) setClockTime('finish', this.stage.time);
     }
     this.hud.update(
       dt,

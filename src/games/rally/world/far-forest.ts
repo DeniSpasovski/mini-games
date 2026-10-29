@@ -1,20 +1,31 @@
 import {
   BufferAttribute,
+  Box3,
   BufferGeometry,
+  type Camera,
   Color,
   DataTexture,
   DataUtils,
+  FloatType,
+  Frustum,
   HalfFloatType,
+  InstancedBufferGeometry,
   LinearFilter,
+  LinearMipmapLinearFilter,
+  Matrix4,
   Mesh,
   MeshLambertMaterial,
+  RepeatWrapping,
   RGBAFormat,
   UnsignedByteType,
   Vector2,
   Vector4,
   type Vector3,
 } from 'three';
+import { hash3 } from '../../../shared/rng';
 import { addWorldUniforms } from '../engine/world-shading';
+import { impostorQuad } from '../trees/draw';
+import { impostorMaterial } from '../trees/materials';
 import { speciesOfType } from '../trees/species';
 import type { TreeLibrary } from '../trees/load';
 import type { ScatterInstance } from './scatter';
@@ -41,6 +52,23 @@ const LIFT = 0.15;
 const CROWN = 6.5;
 /** How far (m) the shell reaches past the view distance: the terrain's tiles end up to that far out. */
 const OVERHANG = 160;
+/** Crowns along a side of the crown tile (crownTexture) and its size (px). */
+const CROWN_TILE = 8;
+const CROWN_TEX = 256;
+/**
+ * The far trees (`farTrees`): one candidate tree per FAR_CELL m cell out to FAR_REACH m (and FAR_MARGIN short of the
+ * view distance: the shell takes over before the horizon); a cell grows its tree with chance cover x FAR_FILL.
+ */
+const FAR_CELL = 6;
+const FAR_REACH = 1500;
+const FAR_MARGIN = 200;
+const FAR_FILL = 1.2;
+/**
+ * The far trees are drawn by tiles of FAR_TILE x FAR_TILE cells (world-fixed): each frame only the tiles in the view
+ * and the trees' ring (at most MAX_TILES) get instances, so the vertex shader runs for few cells off screen.
+ */
+const FAR_TILE = 32;
+const MAX_TILES = 256;
 /** Cells between the samples of the load-time ground (refined per chunk as its trees come in). */
 const COARSE = 4;
 /**
@@ -48,6 +76,8 @@ const COARSE = 4;
  * trees/materials.ts) is brighter than the shell's plain Lambert; matched by eye at the handover.
  */
 const GAIN = 1.7;
+/** The tint map holds colour / TINT_RANGE (world/horizon.ts reads it too). */
+export const TINT_RANGE = 2;
 
 /**
  * The far forest (spec: trees/Performance.md#mitigations "Far forest"): past the forest distance, where no tree is
@@ -63,8 +93,11 @@ const GAIN = 1.7;
  *   coarsest ring's spacing (no swimming); the vertex shader lifts each vertex to the canopy, edge vertices of a
  *   finer ring average their coarser neighbours (no cracks). Fragments: the cover dithers the forest's edge and gaps,
  *   a crown pattern (CROWN m) shades domes and dark gaps while it is larger than a few pixels.
- * - **Handover:** the trees dissolve over the last 15 % of the forest distance (`tlForest`); the shell dissolves in
- *   over the same band with the complementary 8x8 dither (trees/materials.ts `treeDither`).
+ * - **Far trees** (`farTrees`): between the forest distance and FAR_REACH, real impostors the vertex shader places from
+ *   the canopy map, so a far slope shows trees, not a texture; the shell starts where they end.
+ * - **Handover:** the trees dissolve over the last 15 % of the forest distance (`tlForest`) and the far trees in with
+ *   the other side of the same 8x8 dither (trees/materials.ts `treeDither`); the shell takes the other side of the far
+ *   trees' dissolve the same way.
  */
 /**
  * The stage's mean crown colour as the far forest draws it (linear): for the land beyond the map (world/horizon.ts
@@ -108,7 +141,7 @@ function crownOf(
   if (k !== undefined) return k;
   const name = speciesOfType(asset).name;
   let n = 0;
-  k = { area: 0, height: 0, color: [0, 0, 0] };
+  k = { area: 0, height: 0, color: [0, 0, 0], slots: [] };
   for (let v = 0; ; v++) {
     const lv = library.variant(name, v);
     if (!lv) break;
@@ -116,6 +149,7 @@ function crownOf(
     k.area += Math.PI * r * r;
     k.height += lv.info.height * scale * TOP;
     for (let c = 0; c < 3; c++) k.color[c] += lv.canopyColor[c];
+    k.slots.push(lv.slot);
     n++;
   }
   if (!n) k = null;
@@ -130,6 +164,11 @@ function crownOf(
 
 export class FarForest {
   readonly mesh: Mesh;
+  /** The far trees: impostors the vertex shader places from the canopy map (null: no impostors loaded). */
+  readonly farTrees: Mesh | null = null;
+  private ftTiles: DataTexture | null = null;
+  /** Where the far trees start (m): just inside the forest distance. */
+  private ftNear = { value: 0 };
   private shapeData: Uint16Array;
   private tintData: Uint8Array;
   private shape: DataTexture;
@@ -140,6 +179,9 @@ export class FarForest {
   private rgb: Float32Array;
   private ground: Float32Array;
   private splatted: Uint8Array;
+  /** Per cell: one tree's impostor slot + 1 (0 = none), picked by crown area; the summed area so far. */
+  private kind: Uint8Array;
+  private kindArea: Float32Array;
   private nx: number;
   private nz: number;
   private res: number;
@@ -159,6 +201,7 @@ export class FarForest {
   private uniforms = {
     ffShape: { value: null as DataTexture | null },
     ffTint: { value: null as DataTexture | null },
+    ffCrown: { value: crownTexture() },
     ffMap: { value: new Vector4() },
     ffCentre: { value: new Vector2() },
     ffBase: { value: 0 },
@@ -173,6 +216,8 @@ export class FarForest {
     private library: TreeLibrary,
     forestDistance: number,
     viewDistance: number,
+    /** The shape map's mips need a renderable half-float format (`EXT_color_buffer_float` / `_half_float`). */
+    mipmaps = true,
   ) {
     const b = world.map.bounds;
     const pad = 300;
@@ -189,6 +234,8 @@ export class FarForest {
     this.rgb = new Float32Array(n * 3);
     this.ground = new Float32Array(n);
     this.splatted = new Uint8Array(n);
+    this.kind = new Uint8Array(n);
+    this.kindArea = new Float32Array(n);
     this.base = world.analytic.height(
       (b.minX + b.maxX) / 2,
       (b.minZ + b.maxZ) / 2,
@@ -213,7 +260,10 @@ export class FarForest {
       RGBAFormat,
       HalfFloatType,
     );
-    shape.magFilter = shape.minFilter = LinearFilter;
+    // Mipmapped: the shell's coarse rings sample it at their own scale (`ffHeightAt`).
+    shape.magFilter = LinearFilter;
+    shape.minFilter = mipmaps ? LinearMipmapLinearFilter : LinearFilter;
+    shape.generateMipmaps = mipmaps;
     shape.name = 'far-forest-shape';
     this.encode(0, this.nx - 1, 0, this.nz - 1);
     shape.needsUpdate = true;
@@ -240,10 +290,16 @@ export class FarForest {
       1 / (this.nz * this.res),
     );
     u.ffBase.value = this.base;
-    u.ffFrom.value = forestDistance;
     u.ffTo.value = viewDistance;
 
-    const { geometry, snap } = shellGeometry(forestDistance, viewDistance);
+    // The far trees reach past the trees; the shell starts where they end.
+    const reach = Math.min(FAR_REACH, viewDistance - FAR_MARGIN);
+    const shellFrom =
+      library.impostors && reach > forestDistance ? reach : forestDistance;
+    u.ffFrom.value = shellFrom;
+    if (shellFrom > forestDistance)
+      this.farTrees = this.farTreeMesh(forestDistance, reach);
+    const { geometry, snap } = shellGeometry(shellFrom, viewDistance);
     this.snap = snap;
     const material = new MeshLambertMaterial({ color: 0xffffff });
     material.name = 'far forest';
@@ -378,6 +434,8 @@ export class FarForest {
       for (let k = j * this.nx + i0; k <= j * this.nx + i1; k++) {
         if (this.splatted[k]) continue;
         this.splatted[k] = 1;
+        this.kind[k] = 0;
+        this.kindArea[k] = 0;
         this.area[k] = 0;
         this.top[k] = 0;
         this.rgb[k * 3] = this.rgb[k * 3 + 1] = this.rgb[k * 3 + 2] = 0;
@@ -394,6 +452,12 @@ export class FarForest {
       const a = Math.PI * r * r;
       this.area[k] += a;
       this.top[k] += a * (inst.y + lv.info.height * inst.scale * TOP);
+      // The cell's tree: each tree takes it with chance (its area / the area so far), so species keep their mix.
+      this.kindArea[k] += a;
+      const pick =
+        hash3(Math.floor(inst.x * 16), Math.floor(inst.z * 16), 7, 0xfa7) /
+        4294967296;
+      if (pick * this.kindArea[k] < a) this.kind[k] = lv.slot + 1;
       const c = treeHue(lv.canopyColor, inst.tree.hue);
       const v = inst.tree.value * a;
       this.rgb[k * 3] += c[0] * v;
@@ -421,10 +485,12 @@ export class FarForest {
     let a = 0;
     let h = 0;
     const rgb = [0, 0, 0];
+    const rules: { k: Kind; w: number }[] = [];
     const visit = (asset: string, perM2: number, scale: number) => {
       const k = kindOf(asset, scale);
       if (!k) return;
       const w = perM2 * k.area;
+      if (k.slots.length) rules.push({ k, w });
       a += w;
       h += w * k.height;
       for (let c = 0; c < 3; c++) rgb[c] += w * k.color[c];
@@ -432,6 +498,7 @@ export class FarForest {
     for (let j = 0; j < this.nz; j += step)
       for (let i = 0; i < this.nx; i += step) {
         a = h = rgb[0] = rgb[1] = rgb[2] = 0;
+        rules.length = 0;
         this.world.scatter.treeRulesAt(
           this.x0 + (i + step / 2) * res,
           this.z0 + (j + step / 2) * res,
@@ -445,6 +512,18 @@ export class FarForest {
             this.area[k] = ca;
             this.top[k] = ca * (this.ground[k] + h / a);
             for (let c = 0; c < 3; c++) this.rgb[k * 3 + c] = (ca * rgb[c]) / a;
+            // A rule by its share of the crowns, then one of its variants (hashed per cell).
+            const hc = hash3(ii, jj, 11, 0xfa7);
+            let r = ((hc & 0xffff) / 65536) * a;
+            let rule = rules[0];
+            for (const x of rules)
+              if ((r -= x.w) < 0) {
+                rule = x;
+                break;
+              }
+            this.kind[k] = rule
+              ? rule.k.slots[(hc >>> 16) % rule.k.slots.length] + 1
+              : 0;
           }
       }
   }
@@ -493,14 +572,168 @@ export class FarForest {
         this.shapeData[o + 2] = half(g - this.base);
         this.shapeData[o + 3] = half(this.splatted[k]);
         if (a > 0) {
-          // sqrt: dark greens keep their steps in 8 bits (the shader squares it back).
+          // sqrt: dark greens keep their steps in 8 bits (the shader squares it back); / TINT_RANGE: bright autumn
+          // reds times GAIN pass 1 (clipped, they turned yellow-green next to the far trees).
           for (let c = 0; c < 3; c++)
             this.tintData[o + c] = Math.round(
-              Math.sqrt(Math.min(1, (this.rgb[k * 3 + c] / a) * GAIN)) * 255,
+              Math.sqrt(
+                Math.min(1, ((this.rgb[k * 3 + c] / a) * GAIN) / TINT_RANGE),
+              ) * 255,
             );
-          this.tintData[o + 3] = 255;
+          // The cell's tree for the far trees (exact: read with texelFetch).
+          this.tintData[o + 3] = Math.min(255, this.kind[k]);
         }
       }
+  }
+
+  /**
+   * The far trees: the trees' own far impostors (their material, so the same look as the last trees) on a
+   * camera-centred grid of FAR_CELL m cells; the vertex shader picks each cell's tree from the canopy map (variant,
+   * height, cover), so the CPU never touches them. In over the trees' dissolve band, out towards `reach`.
+   */
+  private farTreeMesh(forestDistance: number, reach: number): Mesh {
+    const imp = this.library.impostors!;
+    const q = impostorQuad();
+    const g = new InstancedBufferGeometry();
+    for (const [name, a] of Object.entries(q.attributes))
+      g.setAttribute(name, a);
+    g.setIndex(q.index);
+    g.instanceCount = 0;
+    const tiles = new DataTexture(
+      new Float32Array(MAX_TILES * 4),
+      MAX_TILES,
+      1,
+      RGBAFormat,
+      FloatType,
+    );
+    tiles.name = 'far-trees-tiles';
+    this.ftTiles = tiles;
+    const material = impostorMaterial(
+      imp.atlas,
+      imp.spheres,
+      imp.bounds,
+      true,
+      {
+        key: 'far-trees-v1',
+        uniforms: {
+          ffShape: this.uniforms.ffShape,
+          ffTint: this.uniforms.ffTint,
+          ffMap: this.uniforms.ffMap,
+          ffBase: this.uniforms.ffBase,
+          ftReach: { value: reach },
+          ftNear: this.ftNear,
+          ftHeights: { value: imp.heights },
+          ftTiles: { value: tiles },
+        },
+        pars: farTreePars(imp.heights.length),
+        main: FAR_TREE_MAIN,
+      },
+    );
+    material.name = 'far trees';
+    const mesh = new Mesh(g, material);
+    mesh.name = 'far trees';
+    mesh.frustumCulled = false;
+    mesh.matrixAutoUpdate = false;
+    this.ftNear.value = forestDistance * 0.8;
+    mesh.onBeforeRender = (_r, _s, camera) =>
+      this.pickTiles(camera, g, tiles, this.ftNear.value, reach);
+    return mesh;
+  }
+
+  /** Forest distance changed at run time (perf panel): the far trees start where the trees now end. */
+  setForestDistance(forestDistance: number): void {
+    this.ftNear.value = forestDistance * 0.8;
+  }
+
+  /** Per tile: its ground's height range (+ the tallest trees), from a few terrain samples. */
+  private tileY = new Map<number, [number, number]>();
+  private lastTiles = new Float32Array(MAX_TILES * 4);
+  private lastCount = -1;
+  /** Warned once that the view held more tiles than MAX_TILES (the rest are dropped). */
+  private tilesFull = false;
+
+  /** The tiles in `camera`'s view between `near` and `reach` -> the tile texture and the instance count. */
+  private pickTiles(
+    camera: Camera,
+    g: InstancedBufferGeometry,
+    tiles: DataTexture,
+    near: number,
+    reach: number,
+  ): void {
+    _frustum.setFromProjectionMatrix(
+      _vp.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse),
+    );
+    const p = camera.position;
+    const w = FAR_TILE * FAR_CELL;
+    const data = tiles.image.data as Float32Array;
+    let n = 0;
+    // Only tiles over the canopy map (cells outside it have no trees).
+    const x1 = Math.min(p.x + reach, this.x0 + this.nx * this.res);
+    const z1 = Math.min(p.z + reach, this.z0 + this.nz * this.res);
+    for (
+      let tz = Math.floor(Math.max(p.z - reach, this.z0) / w);
+      tz * w <= z1;
+      tz++
+    )
+      for (
+        let tx = Math.floor(Math.max(p.x - reach, this.x0) / w);
+        tx * w <= x1;
+        tx++
+      ) {
+        const x0 = tx * w;
+        const z0 = tz * w;
+        const dx = Math.max(x0 - p.x, 0, p.x - x0 - w);
+        const dz = Math.max(z0 - p.z, 0, p.z - z0 - w);
+        if (Math.hypot(dx, dz) > reach) continue;
+        const fx = Math.max(Math.abs(x0 - p.x), Math.abs(x0 + w - p.x));
+        const fz = Math.max(Math.abs(z0 - p.z), Math.abs(z0 + w - p.z));
+        if (Math.hypot(fx, fz) < near) continue;
+        const y = this.tileHeights(tx, tz, w);
+        _box.min.set(x0, y[0], z0);
+        _box.max.set(x0 + w, y[1], z0 + w);
+        if (!_frustum.intersectsBox(_box)) continue;
+        if (n >= MAX_TILES) {
+          if (!this.tilesFull)
+            console.warn('far trees: more tiles in view than MAX_TILES');
+          this.tilesFull = true;
+          continue;
+        }
+        data[n * 4] = tx;
+        data[n * 4 + 1] = tz;
+        n++;
+      }
+    g.instanceCount = n * FAR_TILE * FAR_TILE;
+    // Upload only when the list changed (most frames it does not).
+    const last = this.lastTiles;
+    let same = n === this.lastCount;
+    for (let i = 0; same && i < n * 4; i += 4)
+      same = last[i] === data[i] && last[i + 1] === data[i + 1];
+    if (!same) {
+      last.set(data.subarray(0, n * 4));
+      this.lastCount = n;
+      tiles.needsUpdate = true;
+    }
+  }
+
+  private tileHeights(tx: number, tz: number, w: number): [number, number] {
+    const k = tx * 65536 + tz;
+    let y = this.tileY.get(k);
+    if (y) return y;
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let j = 0; j <= 4; j++)
+      for (let i = 0; i <= 4; i++) {
+        const h = this.world.analytic.height(
+          tx * w + (i * w) / 4,
+          tz * w + (j * w) / 4,
+        );
+        lo = Math.min(lo, h);
+        hi = Math.max(hi, h);
+      }
+    // Slack for the ground between the samples, then the trees on it.
+    y = [lo - 15, hi + 60];
+    this.tileY.set(k, y);
+    return y;
   }
 
   /** The canopy map, for the horizon's woods inside the map (world/horizon.ts `setForest`). */
@@ -515,6 +748,16 @@ export class FarForest {
   dispose(): void {
     this.mesh.geometry.dispose();
     (this.mesh.material as MeshLambertMaterial).dispose();
+    if (this.farTrees) {
+      // The quad's buffers are shared with the tree impostor batches (`impostorQuad`): keep them.
+      const g = this.farTrees.geometry;
+      for (const name of Object.keys(g.attributes)) g.deleteAttribute(name);
+      g.setIndex(null);
+      g.dispose();
+      (this.farTrees.material as MeshLambertMaterial).dispose();
+      this.ftTiles?.dispose();
+    }
+    this.uniforms.ffCrown.value.dispose();
     this.shape.dispose();
     this.tint.dispose();
   }
@@ -525,7 +768,13 @@ interface Kind {
   area: number;
   height: number;
   color: number[];
+  /** Its variants' impostor slots (`LoadedVariant.slot`). */
+  slots: number[];
 }
+
+const _frustum = new Frustum();
+const _vp = new Matrix4();
+const _box = new Box3();
 
 const _hue: [number, number, number] = [0, 0, 0];
 /** A tree's colour turned by its hue shift (a fraction of a turn), as trees/materials.ts `treeHue` does it. */
@@ -628,37 +877,52 @@ uniform float ffBase;
 attribute vec3 ffInfo;
 varying vec2 vFfXZ;
 varying float vFfY;
+varying vec3 vFfN;
 /** Canopy surface height at xz: the ground where the cover thins out, the canopy where it is closed. */
 float ffHeight( vec2 xz ) {
 	vec4 t = texture2D( ffShape, ( xz - ffMap.xy ) * ffMap.zw );
+	return ffBase + mix( t.b, t.r, smoothstep( 0.0, 0.35, t.g ) );
+}
+/**
+ * The canopy height averaged over about four grid spacings s (the shape map's mip level for it): a coarse ring's vertex
+ * must not land on one cell's crown or gap (a sawtooth of ground / canopy heights: big facets lit each its own way).
+ */
+float ffHeightAt( vec2 xz, float s ) {
+	vec2 uv = ( xz - ffMap.xy ) * ffMap.zw;
+	float cell = 1.0 / ( ffMap.z * float( textureSize( ffShape, 0 ).x ) );
+	vec4 t = textureLod( ffShape, uv, max( 0.0, log2( 4.0 * s / cell ) ) );
 	return ffBase + mix( t.b, t.r, smoothstep( 0.0, 0.35, t.g ) );
 }
 `;
 
 const VERTEX_SHAPE = /* glsl */ `
 	vec2 ffXZ = position.xz + ffCentre;
-	float ffH = ffInfo.x != 0.0 || ffInfo.y != 0.0
-		? 0.5 * ( ffHeight( ffXZ - ffInfo.xy ) + ffHeight( ffXZ + ffInfo.xy ) )
-		: ffHeight( ffXZ );
 	float ffS = ffInfo.z;
+	// An odd edge vertex filters at the coarser ring's size (its two neighbours are that ring's vertices).
+	float ffH = ffInfo.x != 0.0 || ffInfo.y != 0.0
+		? 0.5 * ( ffHeightAt( ffXZ - ffInfo.xy, 2.0 * ffS ) + ffHeightAt( ffXZ + ffInfo.xy, 2.0 * ffS ) )
+		: ffHeightAt( ffXZ, ffS );
 	vec3 ffPos = vec3( ffXZ.x, ffH + ffS * ${LIFT.toFixed(3)}, ffXZ.y );
 	vec3 ffNormal = normalize( vec3(
-		ffHeight( ffXZ - vec2( ffS, 0.0 ) ) - ffHeight( ffXZ + vec2( ffS, 0.0 ) ),
+		ffHeightAt( ffXZ - vec2( ffS, 0.0 ), ffS ) - ffHeightAt( ffXZ + vec2( ffS, 0.0 ), ffS ),
 		2.0 * ffS,
-		ffHeight( ffXZ - vec2( 0.0, ffS ) ) - ffHeight( ffXZ + vec2( 0.0, ffS ) )
+		ffHeightAt( ffXZ - vec2( 0.0, ffS ), ffS ) - ffHeightAt( ffXZ + vec2( 0.0, ffS ), ffS )
 	) );
 	vFfXZ = ffXZ;
 	vFfY = ffPos.y;
+	vFfN = ffNormal;
 `;
 
 const FRAGMENT_PARS = /* glsl */ `
 uniform sampler2D ffShape;
 uniform sampler2D ffTint;
+uniform sampler2D ffCrown;
 uniform vec4 ffMap;
 uniform float ffFrom;
 uniform float ffTo;
 varying vec2 vFfXZ;
 varying float vFfY;
+varying vec3 vFfN;
 /** 8x8 ordered (Bayer) dither, 0..1: trees/materials.ts treeDither (the same tile, for a complementary handover). */
 float ffDither() {
 	int x = int( mod( gl_FragCoord.x, 8.0 ) );
@@ -666,27 +930,6 @@ float ffDither() {
 	int xy = x ^ y;
 	int b = ( ( xy & 1 ) << 5 ) | ( ( x & 1 ) << 4 ) | ( ( xy & 2 ) << 2 ) | ( ( x & 2 ) << 1 ) | ( ( xy & 4 ) >> 1 ) | ( ( x & 4 ) >> 2 );
 	return ( float( b ) + 0.5 ) / 64.0;
-}
-vec2 ffHash( vec2 p ) {
-	p = vec2( dot( p, vec2( 127.1, 311.7 ) ), dot( p, vec2( 269.5, 183.3 ) ) );
-	return fract( sin( p ) * 43758.5453 );
-}
-/** Crown pattern: (offset from the nearest crown centre in crowns, that crown's random value). */
-vec3 ffCrowns( vec2 p ) {
-	vec2 c = floor( p );
-	vec2 f = fract( p );
-	float best = 8.0;
-	vec2 off = vec2( 0.0 );
-	float id = 0.0;
-	for ( int y = -1; y <= 1; y++ )
-		for ( int x = -1; x <= 1; x++ ) {
-			vec2 g = vec2( float( x ), float( y ) );
-			vec2 h = ffHash( c + g );
-			vec2 d = g + 0.15 + 0.7 * h - f;
-			float e = dot( d, d );
-			if ( e < best ) { best = e; off = d; id = h.x; }
-		}
-	return vec3( off, id );
 }
 `;
 
@@ -699,29 +942,158 @@ const FRAGMENT_COLOR = /* glsl */ `
 	// past it), where the horizon backdrop (world/horizon.ts) has the same woods.
 	float ffIn = smoothstep( ffFrom * 0.85, ffFrom, ffDist ) * ( 1.0 - smoothstep( ffTo + ${(OVERHANG * 0.4).toFixed(1)}, ffTo + ${OVERHANG.toFixed(1)}, ffDist ) );
 	float ffKeep = smoothstep( 0.12, 0.5, ffT.g ) * ffIn;
-	if ( ffDither() >= ffKeep ) discard;
+	// The other side of the far trees' dither (they keep < 1 - in).
+	if ( ffDither() < 1.0 - ffKeep ) discard;
 	vec3 ffC = texture2D( ffTint, ffUV ).rgb;
-	diffuseColor.rgb = ffC * ffC;
-	// Crowns: domes lit from above, darker gaps; faded out once a crown is a few pixels wide. Steep faces (a forest's
-	// edge seen side-on) take the pattern along the face and up, not from above (it would streak down them).
-	vec3 ffW = vec3( vFfXZ.x, vFfY, vFfXZ.y );
-	vec3 ffN = normalize( cross( dFdx( ffW ), dFdy( ffW ) ) );
-	vec2 ffAcross = normalize( ffN.xz + vec2( 1e-5 ) );
-	vec2 ffP = ( abs( ffN.y ) < 0.6
-		? vec2( dot( vFfXZ, vec2( -ffAcross.y, ffAcross.x ) ), vFfY )
-		: vFfXZ ) / ${CROWN.toFixed(2)};
-	vec3 ffCr = ffCrowns( ffP );
-	float ffFoot = length( fwidth( ffP ) );
-	float ffAmp = 1.0 - smoothstep( 0.15, 0.45, ffFoot );
-	float ffD = clamp( length( ffCr.xy ) * 1.6, 0.0, 1.0 );
-	float ffShade = mix( 0.68, 1.0, ( 1.0 - ffD * ffD ) ) * mix( 0.92, 1.08, ffCr.z );
-	diffuseColor.rgb *= mix( 0.86, ffShade, ffAmp );
+	diffuseColor.rgb = ffC * ffC * ${TINT_RANGE.toFixed(1)};
+	// Crowns: domes lit from above, darker gaps; faded out once a crown is a few pixels wide. Triplanar on fixed world
+	// axes, weighted by the shell's smooth normal: steep faces (a forest's edge side-on, a mountainside) take the
+	// pattern along the face and up, not from above (it would streak down them), and the weights never switch per
+	// triangle (a facet of its own pattern each read as boxes on a far slope).
+	vec3 ffN = normalize( vFfN );
+	vec3 ffWt = pow( abs( ffN ), vec3( 4.0 ) );
+	ffWt /= ffWt.x + ffWt.y + ffWt.z;
+	// The crown tile (crownTexture): r = the crown's shade, gb = the offset from its centre; mipmapped, so a far slope
+	// keeps its crowns down to about a pixel each and then their mean tone, never a flat blanket.
+	float ffShade = 0.0;
+	// The crown's offset back on the world axes of its face (the dome's bend of the normal).
+	vec3 ffBend = vec3( 0.0 );
+	if ( ffWt.y > 0.02 ) {
+		vec4 c = texture2D( ffCrown, vFfXZ / ${(CROWN * CROWN_TILE).toFixed(2)} ); vec2 o = c.gb * 2.0 - 1.0;
+		ffShade += c.r * ffWt.y; ffBend += vec3( o.x, 0.0, o.y ) * ffWt.y;
+	}
+	if ( ffWt.x > 0.02 ) {
+		vec4 c = texture2D( ffCrown, vec2( vFfXZ.y, vFfY ) / ${(CROWN * CROWN_TILE).toFixed(2)} ); vec2 o = c.gb * 2.0 - 1.0;
+		ffShade += c.r * ffWt.x; ffBend += vec3( 0.0, o.y, o.x ) * ffWt.x;
+	}
+	if ( ffWt.z > 0.02 ) {
+		vec4 c = texture2D( ffCrown, vec2( vFfXZ.x, vFfY ) / ${(CROWN * CROWN_TILE).toFixed(2)} ); vec2 o = c.gb * 2.0 - 1.0;
+		ffShade += c.r * ffWt.z; ffBend += vec3( o.x, o.y, 0.0 ) * ffWt.z;
+	}
+	diffuseColor.rgb *= ffShade * 1.25;
 `;
 
 /** After normal_fragment_maps: the crown domes bend the shell's normal (view space). */
 const FRAGMENT_NORMAL = /* glsl */ `
 	{
-		vec3 ffBend = vec3( -ffCr.x, 0.0, -ffCr.y ) * ( 0.45 * ffAmp );
-		normal = normalize( normal + ( viewMatrix * vec4( ffBend, 0.0 ) ).xyz );
+		normal = normalize( normal + ( viewMatrix * vec4( -ffBend * 0.45, 0.0 ) ).xyz );
+	}
+`;
+
+/**
+ * The crown tile: CROWN_TILE x CROWN_TILE crowns (one jittered crown per cell, wrapping), per texel r = the shade of
+ * the shell's crown pattern (dome lit from above, darker gaps, a tone per crown; x 0.8 to fit a byte) and gb = the
+ * offset from the nearest crown centre (crowns, 0.5 = none). Mipmapped and anisotropic: its mean is the far tone.
+ */
+function crownTexture(): DataTexture {
+  const n = CROWN_TEX;
+  const px = n / CROWN_TILE;
+  const wrap = (c: number) => ((c % CROWN_TILE) + CROWN_TILE) % CROWN_TILE;
+  const jitter = (cx: number, cz: number, k: number) =>
+    hash3(wrap(cx), wrap(cz), k, 0x5eed) / 4294967296;
+  const data = new Uint8Array(n * n * 4);
+  for (let y = 0; y < n; y++)
+    for (let x = 0; x < n; x++) {
+      const p = (x + 0.5) / px;
+      const q = (y + 0.5) / px;
+      const cx = Math.floor(p);
+      const cz = Math.floor(q);
+      let best = 8;
+      let ox = 0;
+      let oz = 0;
+      let id = 0;
+      for (let j = -1; j <= 1; j++)
+        for (let i = -1; i <= 1; i++) {
+          const hx = jitter(cx + i, cz + j, 0);
+          const dx = cx + i + 0.15 + 0.7 * hx - p;
+          const dz = cz + j + 0.15 + 0.7 * jitter(cx + i, cz + j, 1) - q;
+          const e = dx * dx + dz * dz;
+          if (e < best) {
+            best = e;
+            ox = dx;
+            oz = dz;
+            id = hx;
+          }
+        }
+      const d = Math.min(1, Math.hypot(ox, oz) * 1.6);
+      const shade = (0.68 + 0.32 * (1 - d * d)) * (0.92 + 0.16 * id);
+      const k = (y * n + x) * 4;
+      data[k] = Math.round(Math.min(1, shade * 0.8) * 255);
+      data[k + 1] = Math.round(
+        (Math.max(-1, Math.min(1, ox)) * 0.5 + 0.5) * 255,
+      );
+      data[k + 2] = Math.round(
+        (Math.max(-1, Math.min(1, oz)) * 0.5 + 0.5) * 255,
+      );
+      data[k + 3] = 255;
+    }
+  const t = new DataTexture(data, n, n, RGBAFormat, UnsignedByteType);
+  t.wrapS = t.wrapT = RepeatWrapping;
+  t.magFilter = LinearFilter;
+  t.minFilter = LinearMipmapLinearFilter;
+  t.generateMipmaps = true;
+  t.anisotropy = 8;
+  t.name = 'far-forest-crowns';
+  t.needsUpdate = true;
+  return t;
+}
+
+function farTreePars(variants: number): string {
+  return /* glsl */ `
+uniform sampler2D ffShape;
+uniform sampler2D ffTint;
+uniform vec4 ffMap;
+uniform float ffBase;
+uniform float ftReach;
+uniform float ftNear;
+uniform float ftHeights[ ${Math.max(1, variants)} ];
+/** The tiles drawn (x = tile x, y = tile z): instance i is cell i % FT_TILE^2 of tile i / FT_TILE^2. */
+uniform highp sampler2D ftTiles;
+const int FT_TILE = ${FAR_TILE};
+const float FT_CELL = ${FAR_CELL.toFixed(1)};
+uint ftHash( ivec2 c, uint k ) {
+	uint h = uint( c.x ) * 0x8da6b343u ^ uint( c.y ) * 0xd8163841u ^ k * 0xcb1ab31fu;
+	h ^= h >> 15; h *= 0x2c1b3c6du; h ^= h >> 12; h *= 0x297a2d39u; h ^= h >> 15;
+	return h;
+}
+float ftRand( ivec2 c, uint k ) { return float( ftHash( c, k ) >> 8 ) / 16777216.0; }
+`;
+}
+
+/** Before the tree code: this instance's cell -> its tree, or none (tgOut = 0 collapses it). */
+const FAR_TREE_MAIN = /* glsl */ `
+	{
+		int ftI = gl_InstanceID / ( FT_TILE * FT_TILE );
+		int ftK = gl_InstanceID - ftI * FT_TILE * FT_TILE;
+		ivec2 ftC = ivec2( texelFetch( ftTiles, ivec2( ftI, 0 ), 0 ).xy ) * FT_TILE + ivec2( ftK % FT_TILE, ftK / FT_TILE );
+		vec2 ftXZ = ( vec2( ftC ) + 0.15 + 0.7 * vec2( ftRand( ftC, 0u ), ftRand( ftC, 1u ) ) ) * FT_CELL;
+		float ftD = distance( ftXZ, tlCam.xz );
+		treeInst = vec4( 0.0 );
+		treeFade = vec4( 0.0 );
+		instanceMatrix = mat4( 1.0 );
+		tgOut = 0.0;
+		vec2 ftUV = ( ftXZ - ffMap.xy ) * ffMap.zw;
+		if ( ftD > ftNear && ftD < ftReach && all( greaterThanEqual( ftUV, vec2( 0.0 ) ) ) && all( lessThan( ftUV, vec2( 1.0 ) ) ) ) {
+			vec4 ftTint = texelFetch( ffTint, ivec2( ftUV * vec2( textureSize( ffTint, 0 ) ) ), 0 );
+			int ftSlot = int( ftTint.a * 255.0 + 0.5 ) - 1;
+			vec4 ftShape = textureLod( ffShape, ftUV, 0.0 );
+			float ftH = ( ftShape.r - ftShape.b ) / ${TOP.toFixed(2)} * ( 0.85 + 0.3 * ftRand( ftC, 3u ) );
+			if ( ftSlot >= 0 && ftRand( ftC, 2u ) < ftShape.g * ${FAR_FILL.toFixed(2)} && ftH > 2.0 ) {
+				float ftGround = ffBase + ftShape.b;
+				// Off screen (its centre, padded by its height): skipped.
+				vec4 ftClip = projectionMatrix * viewMatrix * vec4( ftXZ.x, ftGround + ftH * 0.5, ftXZ.y, 1.0 );
+				vec2 ftPad = vec2( projectionMatrix[ 0 ][ 0 ], projectionMatrix[ 1 ][ 1 ] ) * ftH;
+				if ( ftClip.w > - ftH && all( lessThan( abs( ftClip.xy ) - ftPad, vec2( ftClip.w ) ) ) ) {
+					float ftS = ftH / ftHeights[ ftSlot ];
+					float ftA = ftRand( ftC, 4u ) * 6.2832;
+					float ftCos = cos( ftA ) * ftS;
+					float ftSin = sin( ftA ) * ftS;
+					instanceMatrix = mat4( ftCos, 0.0, - ftSin, 0.0, 0.0, ftS, 0.0, 0.0, ftSin, 0.0, ftCos, 0.0, ftXZ.x, ftGround, ftXZ.y, 1.0 );
+					// As trees/placement.ts poses a tree: hue, value, sway phase; the variant slot.
+					treeInst = vec4( ( ftRand( ftC, 5u ) - 0.5 ) * 0.06, 0.86 + 0.26 * ftRand( ftC, 6u ), ftRand( ftC, 7u ) * 6.2832, float( ftSlot ) );
+					tgOut = 1.0 - smoothstep( ftReach * 0.85, ftReach, ftD );
+				}
+			}
+		}
 	}
 `;
