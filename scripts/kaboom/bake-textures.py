@@ -5,8 +5,8 @@ usage: python3 scripts/kaboom/bake-textures.py <dir with <id>_diff_1k.jpg> [out 
 One 512 px tile covers the level's tile size in m (`LEVELS`, the same number as the theme's `detail.tile`). Each scan is made grey (the vertex colours supply the paint), softened so
 detail finer than the game camera shows is gone, given a little more mid-scale contrast, and set to mean 0.5: the
 shader multiplies the paint by 2 x the channel, so the colour stays what the palette says (DETAILS.md "Style").
-Red = the ground (terraces, rim, meadow and pitch, decks), green = the second surface (cliff and walls, bare soil, hulls);
-blue unused.
+Red = the ground (terraces, rim, meadow and pitch, decks), green = the second surface (cliff and walls, bare soil, hulls),
+blue = boulders (Valley; grey 0.5 = no detail where a level has none).
 """
 import os
 import sys
@@ -15,11 +15,11 @@ import numpy as np
 from PIL import Image, ImageFilter
 
 SZ = 512
-# level: (tile size m, red: (Poly Haven id, scan size m, contrast), green: same or None)
+# level: (tile size m, red: (Poly Haven id, scan size m, contrast), green: same or None, blue: same or None)
 LEVELS = {
-    'quarry': (2.4, ('gravelly_sand', 2.48, 0.17), ('rock_face', 2.38, 0.2)),
-    'valley': (2.0, ('leafy_grass', 2.0, 0.17), ('brown_mud_dry', 1.3, 0.18)),
-    'sea': (1.5, ('fine_grained_wood', 0.6, 0.14), ('wood_peeling_paint_weathered', 0.76, 0.2)),
+    'quarry': (2.4, ('gravelly_sand', 2.48, 0.17), ('rock_face', 2.38, 0.2), None),
+    'valley': (2.0, ('leafy_grass', 2.0, 0.17), ('brown_mud_dry', 1.3, 0.18), ('rock_boulder_dry', 1.8, 0.2)),
+    'sea': (1.5, ('fine_grained_wood', 0.6, 0.14), ('wood_peeling_paint_weathered', 0.76, 0.2), None),
 }
 
 
@@ -54,8 +54,8 @@ def main():
     src = sys.argv[1]
     out = sys.argv[2] if len(sys.argv) > 2 else 'src/games/kaboom/assets/textures'
     os.makedirs(out, exist_ok=True)
-    for level, (tile, red, green) in LEVELS.items():
-        rgb = np.stack([channel(src, red, tile), channel(src, green, tile), np.full((SZ, SZ), 0.5, np.float32)], 2)
+    for level, (tile, red, green, blue) in LEVELS.items():
+        rgb = np.stack([channel(src, red, tile), channel(src, green, tile), channel(src, blue, tile)], 2)
         path = os.path.join(out, f'{level}.webp')
         Image.fromarray((rgb * 255 + 0.5).astype(np.uint8)).save(path, quality=85, method=6)
         print(level, red[0], green[0] if green else '-', os.path.getsize(path), 'bytes')

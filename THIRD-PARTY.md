@@ -20,6 +20,9 @@ README files carry the same information in more detail. Keep this file current w
 
 3, 2, 1 Kabooom (`src/games/kaboom/`) uses nothing third-party except its UI fonts and the CC0 Poly Haven environment light and detail textures (below): its critters, arenas, effects and sounds are original and procedural.
 
+Ballistic Chess (`src/games/ballistic-chess/`) is built and hosted elsewhere; this repo holds only its card and
+screenshots. The game is by Deni S.; the board textures in the screenshots are CC0 Poly Haven scans.
+
 The only bundled font files are the UI faces of Gravel Rally, Hole Island and 3, 2, 1 Kabooom and the portal's (below); sounds are synthesised with WebAudio and no music file is committed. Most textures
 are painted on canvases at runtime; the texture files that ship are listed with their licences below (building tiles, road
 asphalt, background-car, fire-engine and truck textures) and in `public/models/CREDITS.md` (the car lamp, seat, fabric, cab, metal and dash textures).
@@ -33,7 +36,7 @@ asphalt, background-car, fire-engine and truck textures) and in `public/models/C
 | Grandstander (The Grandstander Project Authors) and Nunito (The Nunito Project Authors); woff2 latin + latin-ext subsets from Fontsource | SIL Open Font License 1.1, `OFL.txt` alongside | `src/games/kaboom/assets/fonts/*.woff2` |
 | Atkinson Hyperlegible (Braille Institute of America) and IBM Plex Mono (IBM Corp.); woff2 latin subsets from Fontsource                  | SIL Open Font License 1.1, `OFL.txt` alongside | `src/portal/fonts/*.woff2`              |
 
-The portal and game-cover `wordmark.svg` files are title text outlined from Archivo, Barlow Condensed, Fredoka and Grandstander (all SIL OFL 1.1, which allows this); the files hold only paths.
+The portal and game-cover `wordmark.svg` files are title text outlined from Archivo, Barlow Condensed, Chakra Petch, Fredoka and Grandstander (all SIL OFL 1.1, which allows this); the files hold only paths.
 
 ## Map data (baked into `src/games/rally/maps/<id>/`)
 
@@ -118,7 +121,8 @@ CC0 HDRIs from Poly Haven, shrunk to 128 x 64 with the sun clipped out by `scrip
 CC0 textures from Poly Haven, made grey, softened and shrunk to one 512 px tile per level by `scripts/kaboom/bake-textures.py`:
 [Gravelly Sand](https://polyhaven.com/a/gravelly_sand) (Dario Barresi) and [Rock Face](https://polyhaven.com/a/rock_face)
 (Greg Zaal, Dario Barresi) for the Quarry, [Leafy Grass](https://polyhaven.com/a/leafy_grass) (Charlotte Baglioni) and
-[Brown Mud Dry](https://polyhaven.com/a/brown_mud_dry) (Rob Tuytel) for Green Valley, [Fine Grained Wood](https://polyhaven.com/a/fine_grained_wood) (Rob Tuytel) and
+[Brown Mud Dry](https://polyhaven.com/a/brown_mud_dry) (Rob Tuytel) and [Rock Boulder Dry](https://polyhaven.com/a/rock_boulder_dry)
+(Dimitrios Savva, Rico Cilliers) for Green Valley, [Fine Grained Wood](https://polyhaven.com/a/fine_grained_wood) (Rob Tuytel) and
 [Wood Peeling Paint Weathered](https://polyhaven.com/a/wood_peeling_paint_weathered) (Rob Tuytel, Dimitrios Savva) for Sea
 Deck. No credit is required.
 

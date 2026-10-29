@@ -48,7 +48,8 @@ body {
 }
 .portal-bars {
   display: inline-grid;
-  grid-template-columns: repeat(3, 9px);
+  grid-auto-flow: column;
+  grid-auto-columns: 9px;
   gap: 3px;
 }
 .portal-bars s {
@@ -293,6 +294,7 @@ body {
     font-size: 13px;
   }
   .shelf {
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
     gap: 16px;
     padding: 4px 0 12px;
   }

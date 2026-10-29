@@ -30,6 +30,8 @@ export interface GameManifest {
   /** The game's colour on its card (Play, hover and focus outline) and the text colour on it; 4.5:1 or better. */
   accent?: string;
   onAccent?: string;
+  /** A game hosted on its own site: Play opens this URL in a new tab, `pages` stays empty and nothing is built. */
+  url?: string;
   pages: GamePageManifest[];
 }
 

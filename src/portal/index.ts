@@ -105,7 +105,19 @@ function renderCard({
   wordmark,
 }: GameEntry): string {
   const pages = manifest.pages.map((p) => resolveGamePage(manifest.id, p));
-  const play = pages.find((p) => p.id === 'play') ?? pages[0];
+  // A game hosted on its own site (`url`) opens there in a new tab; the ↗ says so.
+  const play = manifest.url
+    ? {
+        href: escapeHtml(manifest.url),
+        label: 'Play',
+        attrs: ' target="_blank" rel="noopener"',
+        mark: '<span aria-hidden="true"> ↗</span>',
+      }
+    : {
+        ...(pages.find((p) => p.id === 'play') ?? pages[0]),
+        attrs: '',
+        mark: '',
+      };
   const tools = pages.filter((p) => p.dev && !(p.hideInProd && RELEASE_BUILD));
   const title = escapeHtml(manifest.title);
   const style =
@@ -128,7 +140,7 @@ function renderCard({
         <div class="cover-meta"><span>${escapeHtml(label)}</span><span>${manifest.version ? `v${escapeHtml(manifest.version)}` : ''}</span></div>
         <p>${escapeHtml(manifest.description)}</p>
         <div class="cover-actions">
-          <a class="play" data-primary href="${play.href}" aria-label="${escapeHtml(play.label)} ${title}">${PLAY_ICON}${escapeHtml(play.label)}</a>
+          <a class="play" data-primary href="${play.href}"${play.attrs} aria-label="${escapeHtml(play.label)} ${title}${manifest.url ? ' (opens its own site)' : ''}">${PLAY_ICON}${escapeHtml(play.label)}${play.mark}</a>
           ${
             tools.length
               ? `<button type="button" class="tools-toggle" aria-expanded="false" aria-controls="${toolsId}">Tools ▾</button>`

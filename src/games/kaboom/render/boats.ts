@@ -153,7 +153,7 @@ export function boatsGeometry(hx: number, hz: number): BufferGeometry {
     pos.push(...a, ...b, ...cc);
     for (let i = 0; i < 3; i++) {
       col.push(color.r, color.g, color.b);
-      det.push(dr, dg);
+      det.push(dr, dg, 0);
     }
   };
   const at = (s: number, i: number, y?: number): number[] => [
@@ -261,7 +261,7 @@ export function boatsGeometry(hx: number, hz: number): BufferGeometry {
     'uv',
     new Float32BufferAttribute(new Float32Array(count * 2), 2),
   );
-  g.setAttribute('aDetail', new Float32BufferAttribute(det, 2));
+  g.setAttribute('aDetail', new Float32BufferAttribute(det, 3));
   return merge([g, ...fittings(hx, hz, boats, prof)]);
 }
 

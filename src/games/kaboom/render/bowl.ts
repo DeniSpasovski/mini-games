@@ -408,7 +408,7 @@ export function bowlGeometry(
       nor.push(vn[o] / l, vn[o + 1] / l, vn[o + 2] / l);
       paint(kind, p, ss === s ? hi : lo, c);
       col.push(c.r, c.g, c.b);
-      det.push(dr, dg);
+      det.push(dr, dg, 0);
     };
     for (let i = 0; i < n; i++) {
       const j = (i + 1) % n;
@@ -437,7 +437,7 @@ export function bowlGeometry(
     'uv',
     new Float32BufferAttribute(new Float32Array(count * 2), 2),
   );
-  ground.setAttribute('aDetail', new Float32BufferAttribute(det, 2));
+  ground.setAttribute('aDetail', new Float32BufferAttribute(det, 3));
   return merge([ground, ...cutStones(hx, hz, pal, low)]);
 }
 

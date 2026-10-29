@@ -1,0 +1,12 @@
+{
+  "id": "ballistic-chess",
+  "title": "Ballistic Chess",
+  "version": "0.7.1",
+  "description": "Chess, until someone decides to shoot. Every piece can move or fire along its own lines.",
+  "genre": "Chess",
+  "inputs": "vs bot, 2 players",
+  "accent": "#4cc9ff",
+  "onAccent": "#0c121a",
+  "url": "https://ballistic-chess.com/",
+  "pages": []
+}

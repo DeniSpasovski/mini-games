@@ -52,8 +52,8 @@ interface PartOpts {
   paint?: number;
   /** Highlight the bevelled edges (faces that are neither flat side nor top); default for boxes and `flagstone`. */
   edges?: boolean;
-  /** Weights of the level's detail texture (`detail.ts`): red = ground, green = second surface; default none. */
-  detail?: readonly [number, number];
+  /** Weights of the level's detail texture (`detail.ts`): red = ground, green = second surface, blue = rock; default none. */
+  detail?: readonly [number, number] | readonly [number, number, number];
 }
 
 export interface Crack {
@@ -227,15 +227,17 @@ export function part(
 /** The `aDetail` attribute for `count` vertices, every one with the weights `w` (none = untouched by the texture). */
 export function detailAttr(
   count: number,
-  w: readonly [number, number] = [0, 0],
+  w: readonly number[] = [0, 0, 0],
 ): Float32BufferAttribute {
-  const a = new Float32Array(count * 2);
-  if (w[0] || w[1])
+  const a = new Float32Array(count * 3);
+  const [r = 0, g = 0, b = 0] = w;
+  if (r || g || b)
     for (let i = 0; i < count; i++) {
-      a[i * 2] = w[0];
-      a[i * 2 + 1] = w[1];
+      a[i * 3] = r;
+      a[i * 3 + 1] = g;
+      a[i * 3 + 2] = b;
     }
-  return new Float32BufferAttribute(a, 2);
+  return new Float32BufferAttribute(a, 3);
 }
 
 /**
@@ -445,6 +447,7 @@ export function boulderGeometry(low = false): BufferGeometry {
       base: 0.02,
       tint: 0.18,
       rough: ROUGH.stone,
+      detail: [0, 0.8, 0],
       cracks: [
         { p: [0.05, 0.5, 0], n: [0.94, 0.15, 0.3], w: 0.06 },
         { p: [0, 0.62, -0.1], n: [0.2, 0.55, -0.81], w: 0.05 },
@@ -494,6 +497,7 @@ export function rimRockGeometry(): BufferGeometry {
     base: 0.02,
     tint: 0.16,
     rough: ROUGH.stone,
+    detail: [0, 0.7, 0],
   });
 }
 
