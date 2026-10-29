@@ -19,7 +19,7 @@ import { LIGHTS_MIN_NEED } from '../engine/night';
 import { setHeadBeam, setLampGlow } from '../engine/night-glow';
 import { LampPools } from '../world/lamp-pools';
 import { PostFx, postFxFromUrl } from '../engine/post-fx';
-import type { QualitySettings } from '../engine/quality';
+import type { QualityName, QualitySettings } from '../engine/quality';
 import { bakeCropCards, setCropAntialias } from '../engine/crops';
 import { setVineAntialias } from '../engine/vines';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
@@ -84,6 +84,7 @@ import {
 import { CameraRig } from './camera-rig';
 import { ParticleSystem } from './dust';
 import { GravelStones } from './gravel-stones';
+import { Rain } from './rain';
 import { TyreMarks } from './tyre-marks';
 import { Hud } from './hud';
 import { InputController, type InputAction } from './input';
@@ -195,6 +196,14 @@ const MAX_FRAME = MAX_STEPS * STEP;
 const SCALE_VIEWPORT =
   typeof location === 'undefined' ||
   new URLSearchParams(location.search).get('scalevp') !== '0';
+/** Rain drops around the camera per quality tier (game/rain.ts). */
+const RAIN_DROPS: Record<QualityName, number> = {
+  low: 3000,
+  medium: 6000,
+  high: 12000,
+};
+/** Road spray on hard ground (lit like the dust). */
+const SPRAY_COLOR = 0xd4d9de;
 
 export class RallyGame {
   readonly scene = new Scene();
@@ -248,8 +257,13 @@ export class RallyGame {
   haze?: ParticleSystem;
   /** Water thrown up by the wheels in fords and canals. */
   splash!: ParticleSystem;
+  /** Falling rain around the camera (rain weathers only, `weather.ts`). */
+  rain?: Rain;
   private gravelAcc = [0, 0, 0, 0];
   private splashAcc = [0, 0, 0, 0];
+  private sprayAcc = [0, 0, 0, 0];
+  private sprayColor = new Color();
+  private sprayPos = new Vector3();
   /** Far tree shadows, filled in as the streamer generates scatter (world/canopy-shadows.ts). */
   private canopy!: CanopyShadows;
   /** The canopy shell and far trees (world/far-forest.ts); the perf panel moves their forest distance. */
@@ -614,6 +628,11 @@ export class RallyGame {
       this.haze.material.uniforms.uLight.value.setScalar(1.7);
       this.scene.add(this.haze.points);
     }
+    const rainRate = this.env.weatherLook.rain;
+    if (rainRate > 0) {
+      this.rain = new Rain(RAIN_DROPS[q.name], rainRate, new Color());
+      this.scene.add(this.rain.mesh);
+    }
     this.lightParticles();
     this.scene.add(
       this.dust.points,
@@ -848,6 +867,13 @@ export class RallyGame {
           .multiplyScalar(0.65);
     for (const p of [this.dust, this.splash, this.gravel, this.haze])
       p?.setLight(sun, ambient);
+    // Drops show the grey of the sky and the rain-filled air around them.
+    if (this.rain && this.scene.fog)
+      this.rain.setLight(
+        this.scene.fog.color
+          .clone()
+          .multiplyScalar(this.env.night ? 0.5 : 1.15),
+      );
   }
 
   /**
@@ -1177,6 +1203,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         ...(e.penalty ? { penalty: e.penalty } : {}),
         season: this.season,
         ...(this.env.hour !== undefined ? { hour: this.env.hour } : {}),
+        ...(this.env.weather !== 'dry' ? { weather: this.env.weather } : {}),
         ver: timesVersion(this.world.stageDef.id),
         carVer: carTimesVersion(this.car.id),
         date: Date.now(),
@@ -1559,6 +1586,15 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     // Shadow box ahead of the camera (where the player looks), not centred on the car.
     this.placeShadows(this.renderPos, dir);
     this.env.follow(camPos);
+    if (this.rain) {
+      this.rain.update(camPos, dt);
+      // No rain falls in a tunnel.
+      this.rain.mesh.visible = !this.world.tunnelAt(
+        camPos.x,
+        camPos.y,
+        camPos.z,
+      );
+    }
     const tCanopy = performance.now();
     this.updateCanopy(this.slack);
     const canopyMs = performance.now() - tCanopy;
@@ -1590,6 +1626,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       if (w.contact)
         surfaces[w.surface.id] = (surfaces[w.surface.id] ?? 0) + 0.25;
     this.audio.setListener(this.rig.mode);
+    this.audio.setWeather(this.env.weatherLook.rain, this.env.weatherLook.wet);
     this.audio.update({
       rpm: v.drivetrain.rpm,
       throttle: v.drivetrain.effectiveThrottle,
@@ -1771,11 +1808,17 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     const v = this.vehicle;
     const quality = this.opts.quality.particles / 2000;
     const p = new Vector3();
+    // A wet road throws spray instead of dust (`weather.ts`).
+    const wet = this.env.weatherLook.wet;
+    const dry = 1 - 0.95 * wet;
     for (let i = 0; i < 4; i++) {
       const w = v.wheels[i];
-      if (w.contact) this.emitSplash(w, i, quality, dt, p);
-      if (!w.contact || w.surface.dust <= 0) continue;
+      if (!w.contact) continue;
+      this.emitSplash(w, i, quality, dt, p);
+      if (wet > 0) this.emitSpray(i, wet, quality, dt);
+      if (w.surface.dust <= 0) continue;
       const rate =
+        dry *
         w.surface.dust *
         (w.contactSpeed * 1.6 + w.slideSpeed * 5) *
         quality *
@@ -1824,7 +1867,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
           p.y += 0.1;
           this.gravelColor
             .copy(this.dustColor)
-            .multiplyScalar(0.45 + Math.random() * 0.2);
+            .multiplyScalar((0.45 + Math.random() * 0.2) * (1 - 0.35 * wet));
           this.gravel.emit(
             p,
             v.velocity.x * 0.55 - v.forward.x * back + v.right.x * side,
@@ -1844,7 +1887,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       (v.wheels[2].contact ? v.wheels[2].surface.dust : 0) +
       (v.wheels[3].contact ? v.wheels[3].surface.dust : 0);
     const speed = Math.abs(v.speed);
-    if (this.haze && rearDust > 0 && speed > 6) {
+    if (this.haze && rearDust > 0 && speed > 6 && wet < 0.3) {
       this.hazeAcc += rearDust * 2.2 * Math.min(1, speed / 25) * quality * dt;
       this.dustColor.setHex(v.wheels[2].surface.dustColor);
       while (this.hazeAcc >= 1) {
@@ -1906,6 +1949,51 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         0.7 + Math.random() * 0.5,
         this.splashColor,
         0.9,
+      );
+    }
+  }
+
+  /**
+   * Wet road spray behind wheel `i`: a mist plume that rises and hangs for about a second, more with speed, grey-white
+   * on hard ground, muddy on loose (the tyre throws the ground's own colour in the water).
+   */
+  private emitSpray(i: number, wet: number, quality: number, dt: number): void {
+    const v = this.vehicle;
+    const w = v.wheels[i];
+    const speed = w.contactSpeed;
+    if (speed < 4) return;
+    this.sprayAcc[i] +=
+      wet * (speed - 4) * 2 * quality * (i >= 2 ? 1 : 0.6) * dt;
+    if (this.sprayAcc[i] < 1) return;
+    const muddy = Math.min(1, w.surface.loose + w.surface.dust * 0.5);
+    this.sprayColor
+      .setHex(SPRAY_COLOR)
+      .lerp(
+        this.dustColor.setHex(w.surface.dustColor).multiplyScalar(0.6),
+        0.6 * muddy,
+      );
+    const p = this.sprayPos;
+    while (this.sprayAcc[i] >= 1) {
+      this.sprayAcc[i] -= 1;
+      const r = () => (Math.random() - 0.5) * 2;
+      p.copy(w.contactPoint).addScaledVector(
+        v.forward,
+        -0.3 - Math.random() * 0.4,
+      );
+      p.y += 0.15;
+      const carry = 0.5 + Math.random() * 0.2;
+      // Thrown up and out by the tread, then left behind the car.
+      const out = (w.isLeft ? -1 : 1) * Math.random() * 1.2;
+      this.dust.emit(
+        p,
+        v.velocity.x * carry + v.right.x * out + r() * 0.8,
+        0.8 + Math.random() * 1.4 + speed * 0.02,
+        v.velocity.z * carry + v.right.z * out + r() * 0.8,
+        0.35 + Math.random() * 0.35,
+        1.6 + Math.random() * 1.6,
+        0.7 + Math.random() * 0.6,
+        this.sprayColor,
+        (0.16 + 0.08 * Math.min(1, speed / 30)) * wet,
       );
     }
   }

@@ -94,9 +94,19 @@ const LISTENER: Record<
     intake: number;
     whine: number;
     wind: number;
+    /** Rain on the roof and the road around (on board: drumming on the roof). */
+    rain: number;
   }
 > = {
-  chase: { all: 1, exhaust: 1, tone: 1, intake: 1, whine: 1, wind: 1 },
+  chase: {
+    all: 1,
+    exhaust: 1,
+    tone: 1,
+    intake: 1,
+    whine: 1,
+    wind: 1,
+    rain: 1,
+  },
   chase_far: {
     all: 0.75,
     exhaust: 1,
@@ -104,8 +114,17 @@ const LISTENER: Record<
     intake: 0.6,
     whine: 0.5,
     wind: 0.7,
+    rain: 0.9,
   },
-  hood: { all: 1, exhaust: 0.7, tone: 0.7, intake: 1.7, whine: 1.8, wind: 1.3 },
+  hood: {
+    all: 1,
+    exhaust: 0.7,
+    tone: 0.7,
+    intake: 1.7,
+    whine: 1.8,
+    wind: 1.3,
+    rain: 1.7,
+  },
   bumper: {
     all: 1,
     exhaust: 0.6,
@@ -113,6 +132,7 @@ const LISTENER: Record<
     intake: 1.5,
     whine: 1.3,
     wind: 1.5,
+    rain: 1.2,
   },
 };
 
@@ -150,6 +170,7 @@ const idle0 = (rpm: number, idleRpm: number, throttle: number): number =>
  *    low-pass, plus exhaust rasp and intake roar (noise pulsed by the same wave), misfires (`sputter`), idle lope of a race cam
  *  - turbo: whistle + spool hiss; anti-lag bangs or a wastegate flutter on a lift; overrun pops; shift clunks
  *    and ignition cuts (sequential box), straight-cut gear whine; rev limiter stutter
+ *  - rain (setWeather): a bed of drop ticks, drumming on the roof on board, wet tyre hiss in place of the tarmac roll
  *  - wind, tarmac roll, gravel crunch, tyre slide (loose ground = crackling scrub + rumble, tarmac = squeal),
  *    locked-wheel squeal / plough, impact thumps
  *  - tunnels (setEnclosure): bass build-up, stereo slap echo off each wall, a diffuse tail that grows with the
@@ -195,6 +216,13 @@ export class CarAudio {
   private lockSquealGain?: GainNode;
   private lockSquealFilter?: BiquadFilterNode;
   private ploughGain?: GainNode;
+  private rainGain?: GainNode;
+  private roofGain?: GainNode;
+  private hissGain?: GainNode;
+  private hissFilter?: BiquadFilterNode;
+  /** Rain rate (mm/h) and how wet the road is 0..1 (`setWeather`). */
+  private rain = 0;
+  private wet = 0;
   /** Tunnel: low-mid build-up on the dry mix, the send to the echo, its tail level and the two wall slaps. */
   private tunnelEq?: BiquadFilterNode;
   private tunnelSend?: GainNode;
@@ -490,8 +518,36 @@ export class CarAudio {
       .connect(filter('lowpass', 520))
       .connect(ploughAm)
       .connect(this.ploughGain);
+
+    // Rain: a dense field of tiny drop impacts (each a click that dies in ~1 ms), bright around the car, duller and
+    // lower on the roof; wet tyres hiss (high band noise).
+    const ticks = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
+    const tk = ticks.getChannelData(0);
+    let drop = 0;
+    for (let i = 0; i < tk.length; i++) {
+      if (Math.random() < 1 / 40) drop = 0.3 + Math.random() * 0.7;
+      drop *= 0.93;
+      tk[i] = (Math.random() * 2 - 1) * (0.05 + drop);
+    }
+    const tickSrc = ctx.createBufferSource();
+    tickSrc.buffer = ticks;
+    tickSrc.loop = true;
+    tickSrc.start();
+    this.rainGain = silent();
+    tickSrc.connect(filter('highpass', 1800, 0.5)).connect(this.rainGain);
+    this.roofGain = silent();
+    tickSrc.connect(filter('bandpass', 700, 0.6)).connect(this.roofGain);
+    this.hissFilter = filter('highpass', 2500, 0.6);
+    this.hissGain = silent();
+    loop().connect(this.hissFilter).connect(this.hissGain);
     this.lastT = ctx.currentTime;
     this.sync();
+  }
+
+  /** Rain rate (mm/h, 0 = none falling) and how wet the road is (0..1); `weather.ts`. */
+  setWeather(rain: number, wet: number): void {
+    this.rain = rain;
+    this.wet = wet;
   }
 
   setVolume(v: number): void {
@@ -718,7 +774,10 @@ export class CarAudio {
     );
     this.windFilter!.frequency.setTargetAtTime(400 + speed * 14, t, 0.1);
     this.rollGain!.gain.setTargetAtTime(
-      Math.min(0.09, speed * 0.0025) * (1 - s.loose) * lis.all,
+      Math.min(0.09, speed * 0.0025) *
+        (1 - s.loose) *
+        (1 - 0.6 * this.wet) *
+        lis.all,
       t,
       0.1,
     );
@@ -729,6 +788,25 @@ export class CarAudio {
       0.08,
     );
     this.gravelFilter!.frequency.setTargetAtTime(500 + speed * 25, t, 0.1);
+    // Rain: louder the harder it falls (~2 mm/h light, ~8 heavy); the roof drums mostly on board.
+    const pour = Math.min(1, Math.sqrt(this.rain / 8));
+    const onBoard = lis.rain > 1.1 ? 1 : 0;
+    this.rainGain!.gain.setTargetAtTime(
+      0.05 * pour * lis.rain * lis.all,
+      t,
+      0.3,
+    );
+    this.roofGain!.gain.setTargetAtTime(
+      0.09 * pour * (0.25 + onBoard) * lis.all,
+      t,
+      0.3,
+    );
+    this.hissGain!.gain.setTargetAtTime(
+      Math.min(0.12, speed * 0.004) * this.wet * (1 - 0.5 * s.loose) * lis.all,
+      t,
+      0.1,
+    );
+    this.hissFilter!.frequency.setTargetAtTime(1800 + speed * 30, t, 0.1);
 
     // Blend the slide sound profile of the surfaces under the wheels (weights sum to ~1).
     const p = { scrub: 0, freq: 0, freqSpeed: 0, q: 0, rumble: 0, squeal: 0 };

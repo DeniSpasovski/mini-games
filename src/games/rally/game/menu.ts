@@ -82,7 +82,18 @@ import {
   type RenderScale,
   type RallySettings,
 } from './settings';
-import { SEASON_ICONS, SETUP_ICONS, TIME_ICONS } from './menu-icons';
+import {
+  SEASON_ICONS,
+  SETUP_ICONS,
+  TIME_ICONS,
+  WEATHER_ICONS,
+} from './menu-icons';
+import {
+  WEATHER_LABELS,
+  WEATHERS,
+  weatherParam,
+  type Weather,
+} from '../weather';
 import { Showroom } from './showroom';
 import {
   formatTime,
@@ -308,6 +319,8 @@ export interface MenuResult {
   tod?: number;
   /** Season picked on the stage screen (`?season=`); missing = the stage's own. */
   season?: Season;
+  /** Weather picked on the stage screen (`?weather=`); missing = dry. */
+  weather?: Weather;
 }
 
 type Screen =
@@ -334,6 +347,10 @@ class MainMenu {
   private time?: TimeOfDayId;
   /** Season picked on the stage screen (not remembered); missing = each stage's own. */
   private season?: Season;
+  /** Weather picked on the stage screen (not remembered); starts from `?weather=` (dev), else dry. */
+  private weather: Weather = weatherParam(
+    new URLSearchParams(location.search).get('weather'),
+  );
   /** `?season=` on the menu URL (dev): the season of every stage until one is picked. */
   private readonly urlSeason = paramOneOf(
     new URLSearchParams(location.search).get('season'),
@@ -806,6 +823,15 @@ class MainMenu {
     // Dropdowns left, what they give right (month, time, temperature); the right side drops below when the card is narrow.
     const picks = div('menu-when-pick');
     picks.append(seasonRow.row);
+    const weatherRow = pickerRow(
+      'Weather',
+      WEATHERS.map((id) => ({ id, label: WEATHER_LABELS[id] })),
+      this.weather,
+      WEATHER_ICONS,
+    );
+    weatherRow.select.addEventListener('change', (e) => {
+      this.weather = (e.target as HTMLSelectElement).value as Weather;
+    });
     const info = document.createElement('dl');
     info.innerHTML = `<dt>Month</dt><dd></dd>`;
     // The month the stage is driven in that season (`EnvironmentDef.months`).
@@ -825,6 +851,7 @@ class MainMenu {
     };
     if (hour === undefined) {
       seasonRow.select.addEventListener('change', onSeason);
+      picks.append(weatherRow.row);
       return card;
     }
     const timeRow = pickerRow(
@@ -869,7 +896,7 @@ class MainMenu {
       this.time = (e.target as HTMLSelectElement).value as TimeOfDayId;
       show(this.hourFor(m) ?? hour);
     });
-    picks.append(timeRow.row);
+    picks.append(timeRow.row, weatherRow.row);
     return card;
   }
 
@@ -1328,6 +1355,7 @@ class MainMenu {
       gearing: this.gearing,
       tod: hour === this.map.environment.timeOfDay ? undefined : hour,
       season: season === stageSeason(this.map) ? undefined : season,
+      weather: this.weather === 'dry' ? undefined : this.weather,
     };
     saveSettings({ map: r.stage, car: r.car, livery: r.livery });
     this.done(r);

@@ -28,6 +28,10 @@ import { gradeUniforms } from './grade';
  *   origin; foliage materials in `engine/materials.ts`), phase from the instance position.
  * - **Flags:** cloth materials with `defines.RALLY_FLAG` fly downwind and ripple (`FLAG_VERTEX`).
  * - **Leaf translucency:** materials with `defines.RALLY_FOLIAGE` glow a little when the sun is behind them.
+ * - **Wet surfaces (rain):** `setWet`. Every lit standard / physical material gets a water film: porous (rough,
+ *   non-metal) surfaces darken, roughness drops and bumps flatten under the film, most on surfaces facing up (water
+ *   runs off walls); lambert foliage darkens a little. The method of Lagarde ("Water drop 3b - physically based wet
+ *   surfaces").
  *
  * How: ShaderChunk overrides (fog, begin_vertex, lights) that read the `ws*` uniforms below, and a default
  * `Material.onBeforeCompile` that hands those uniforms (shared objects) to every program. Materials with their own
@@ -82,6 +86,8 @@ export const worldUniforms = {
   wsHeadDir: { value: new Vector3(0, 0, 1) },
   /** 0..1: how much the street lamps glow (`Environment.lightNeed`). */
   wsLamp: { value: 0 },
+  /** x how wet the world is 0..1 (0 = dry, off), y rain rate (mm/h; 0 = not raining). */
+  wsWet: { value: new Vector4(0, 0, 0, 0) },
   // Colour grade (engine/grade.ts), declared in the tone-mapping chunk.
   ...gradeUniforms,
 };
@@ -236,6 +242,11 @@ export function setShadowBox(x: number, z: number, halfExtent: number): void {
 /** Height where the fog has its nominal density (the ground at the focus point; call every frame). */
 export function setFogBase(height: number): void {
   worldUniforms.wsFogBase.value = height;
+}
+
+/** How wet the surfaces are (0..1, 0 = dry) and the rain rate (mm/h, 0 = none falling); `weather.ts`. */
+export function setWet(wet: number, rain: number): void {
+  worldUniforms.wsWet.value.set(wet, rain, 0, 0);
 }
 
 /** Seconds, drives cloud drift and foliage sway (call every frame). */
@@ -401,6 +412,7 @@ uniform vec4 wsFarDisc;
 uniform mat4 wsFarMatrix;
 uniform sampler2D wsFarShadow;
 uniform vec4 wsForest;
+uniform vec4 wsWet;
 vec3 wsWorldPos( vec3 viewPos ) {
 	return ${WORLD_FROM_VIEW.replace('%v', 'viewPos')};
 }
@@ -562,6 +574,36 @@ const FOLIAGE_TERM = /* glsl */ `
 			#endif
 		#endif`;
 
+/**
+ * Wet surfaces, before three fills the physical material (prepended to `lights_physical_fragment`): a water film
+ * darkens porous surfaces (rough non-metals: road, earth, wood; Lagarde's albedo^ darkening approximated as a scale
+ * down to ~0.45) and takes their roughness down to the film's gloss, flattening bumps where water stands. A face up
+ * holds the most water, a wall a thin film. The gloss per material is `defines.RALLY_WET` (the roughness a soaked face
+ * up reaches: tarmac ~0.15, gravel ~0.4); without it 0.55, a damp sheen (earth, grass, walls, wood). Smooth paint and
+ * metal keep their own.
+ */
+const WET_PHYSICAL = /* glsl */ `
+	if ( wsWet.x > 0.0 ) {
+		#ifdef RALLY_WET
+			float wsGloss = float( RALLY_WET );
+		#else
+			float wsGloss = 0.55;
+		#endif
+		vec3 wsUpV = normalize( ( viewMatrix * vec4( 0.0, 1.0, 0.0, 0.0 ) ).xyz );
+		float wsUp = smoothstep( 0.1, 0.85, dot( nonPerturbedNormal, wsUpV ) );
+		float wsW = wsWet.x * mix( 0.3, 1.0, wsUp );
+		float wsPorous = smoothstep( 0.35, 0.9, roughnessFactor ) * ( 1.0 - metalnessFactor );
+		diffuseColor.rgb *= 1.0 - 0.55 * wsPorous * wsW;
+		roughnessFactor = mix( roughnessFactor, min( roughnessFactor, mix( 0.6, wsGloss, wsUp ) ), wsW );
+		normal = normalize( mix( normal, nonPerturbedNormal, ( 1.0 - wsGloss ) * 0.8 * wsW * wsUp ) );
+	}
+`;
+
+/** Wet foliage and other lambert materials: a little darker (prepended to `lights_lambert_fragment`). */
+const WET_LAMBERT = /* glsl */ `
+	diffuseColor.rgb *= 1.0 - 0.18 * wsWet.x;
+`;
+
 let installed = false;
 
 function install(): void {
@@ -573,6 +615,9 @@ function install(): void {
   chunks.fog_pars_fragment = FOG_PARS_FRAGMENT;
   chunks.fog_fragment = FOG_FRAGMENT;
   chunks.begin_vertex = BEGIN_VERTEX;
+  chunks.lights_physical_fragment =
+    WET_PHYSICAL + chunks.lights_physical_fragment;
+  chunks.lights_lambert_fragment = WET_LAMBERT + chunks.lights_lambert_fragment;
   chunks.beginnormal_vertex = chunks.beginnormal_vertex + FLAG_NORMAL;
   chunks.common = WORLD_SHADING_DECL + chunks.common;
   chunks.lights_pars_begin =

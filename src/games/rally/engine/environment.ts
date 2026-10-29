@@ -46,6 +46,7 @@ import {
   setCarEnvSun,
   setFogBase,
   setShadowBox,
+  setWet,
   setWorldShading,
   setWorldTime,
 } from './world-shading';
@@ -53,6 +54,12 @@ import { displayExposure, onDisplayChange } from './display';
 import { setGrade, setGradeViewport } from './grade';
 import type { QualitySettings } from './quality';
 import { shadowCasterLayers } from './layers';
+import {
+  WEATHER_LOOKS,
+  weatherParam,
+  type Weather,
+  type WeatherLook,
+} from '../weather';
 
 /** Tone-mapping operators a map can pick (`EnvironmentDef.toneMapping`, `?tonemap=` overrides for comparisons). */
 export const TONE_MAPPINGS: Record<string, ToneMapping> = {
@@ -199,6 +206,82 @@ export function isGoldenHour(hour: number): boolean {
   return h >= 17 && !isNightHour(h);
 }
 
+/**
+ * A weather's look over a map's environment (`weather.ts`): cloud cover, the sun dimmed under it, a soft grey sky
+ * light in place of the blue fill, the air's visibility as fog density (FogExp2 reaches 98 % at 1.98 / density) and
+ * a duller, cooler grade. Dry returns the map's own. The sun itself is dimmed in `Environment.apply` (`WeatherLook.sun`).
+ */
+export function weatherEnv(
+  def: EnvironmentDef,
+  w: WeatherLook,
+): EnvironmentDef {
+  if (w.clouds === null) return def;
+  // 0 = overcast / breaking cloud, 1 = heavy rain.
+  const dark = 1 - w.sun;
+  const g = def.grade ?? {};
+  const out: EnvironmentDef = {
+    ...def,
+    cloudCoverage: Math.max(def.cloudCoverage ?? 0.4, w.clouds),
+    cloudDensity: Math.max(def.cloudDensity ?? 0.4, 0.4 + 0.5 * w.clouds),
+    cloudShadow: w.clouds >= 1 ? 0 : (def.cloudShadow ?? 0.5),
+    turbidity: def.turbidity + 8 * dark,
+    rayleigh: def.rayleigh * (1 - 0.9 * dark),
+    mieCoefficient: 0.004 + 0.02 * dark,
+    skyBrightness: (def.skyBrightness ?? 1) * (1 - 0.35 * dark),
+    fogSunGlow: (def.fogSunGlow ?? 0.45) * w.sun,
+    fillSky: dark > 0.5 ? '#c4cad1' : (def.fillSky ?? '#9fb8e6'),
+    // The sky carries the light under cloud: more fill as the sun goes.
+    fillIntensity: (def.fillIntensity ?? 0.26) + 0.5 * dark,
+    wind: (def.wind ?? 1) * (w.rain > 0 ? 1.6 : 1.2),
+    // The eye (and a camera) opens up under a dark sky.
+    exposure: def.exposure * (1 + 0.3 * dark),
+    grade: {
+      ...g,
+      warmth: (g.warmth ?? 0) * w.sun - 0.04 * dark,
+      contrast: 1 + ((g.contrast ?? 1) - 1) * w.sun - 0.04 * dark,
+      saturation: (g.saturation ?? 1) * (1 - 0.25 * dark),
+      vibrance: (g.vibrance ?? 0) * w.sun,
+      highlightTint: dark > 0.5 ? undefined : g.highlightTint,
+      vignette: Math.max(g.vignette ?? 0, 0.12 * dark),
+    },
+  };
+  if (w.visibility !== null) {
+    out.fogDensity = Math.max(def.fogDensity, 1.98 / w.visibility);
+    // Rain fills the air at every height (the height falloff is for clear-day haze in the valleys).
+    out.fogFalloff = (def.fogFalloff ?? 0.004) * (w.rain > 0 ? 0.25 : 1);
+    if (dark > 0.5) {
+      out.fogColor = w.rain > 4 ? '#8f969d' : '#a1a7ad';
+      out.fogBrightness = undefined;
+    }
+  }
+  return out;
+}
+
+/**
+ * Two additions to three's Sky shader: `skyGain` (`skyBrightness`: the dome only; the env map keeps the full sky, so
+ * the world's sky light does not change) and `skyOvercast` (rgb = a cloud deck's zenith colour, a = how much of the
+ * sky it hides): an overcast sky twice as bright overhead as at the horizon (the CIE overcast sky has 3x; rain-filled
+ * air lightens the horizon), over the clear sky and its clouds.
+ */
+function patchSky(sky: Sky): Sky {
+  const mat = sky.material;
+  mat.uniforms.skyGain = { value: 1 };
+  mat.uniforms.skyOvercast = { value: new Vector4(0, 0, 0, 0) };
+  const out = 'gl_FragColor = vec4( texColor, 1.0 );';
+  if (!mat.fragmentShader.includes(out))
+    throw new Error('environment: Sky shader changed (three upgrade?)');
+  mat.fragmentShader = mat.fragmentShader
+    .replace(
+      'void main() {',
+      'uniform float skyGain;\nuniform vec4 skyOvercast;\nvoid main() {',
+    )
+    .replace(
+      out,
+      'texColor = mix( texColor, skyOvercast.rgb * ( 0.5 + 0.5 * max( direction.y, 0.0 ) ), skyOvercast.a );\n\t\t\tgl_FragColor = vec4( texColor * skyGain, 1.0 );',
+    );
+  return sky;
+}
+
 /** `?tod=<hours>` (try a time of day on any map with `timeOfDay`), `?tonemap=aces|agx|neutral` and `?grade=off`. */
 function urlNumber(name: string): number | undefined {
   if (typeof location === 'undefined') return undefined;
@@ -228,8 +311,11 @@ export class Environment {
   sunAzimuth = 0;
   /** True from ~19:30 to ~04:30 (`timeOfDay` / `?tod=`, not in the studio): moon, stars, dark fog; cars switch their lights on. */
   night = false;
-  /** 0..1: how much the car's lights are needed (1 at night, fading in through dusk and dawn). */
+  /** 0..1: how much the car's lights are needed (1 at night, fading in through dusk and dawn, some in the rain). */
   lightNeed = 0;
+  /** Weather of the run (`?weather=`, dry by default; never in the studio) and what it does (`weather.ts`). */
+  weather: Weather = 'dry';
+  weatherLook: WeatherLook = WEATHER_LOOKS.dry;
   private nightSky: NightSky;
   private quality: QualitySettings;
   private target = new Object3D();
@@ -263,14 +349,7 @@ export class Environment {
     this.sky.scale.setScalar(3000);
     this.sky.renderOrder = 100;
     // `skyBrightness`: the dome only (the env map keeps the full sky, so the world's sky light does not change).
-    const skyMat = this.sky.material;
-    skyMat.uniforms.skyGain = { value: 1 };
-    const out = 'gl_FragColor = vec4( texColor, 1.0 );';
-    if (!skyMat.fragmentShader.includes(out))
-      throw new Error('environment: Sky shader changed (three upgrade?)');
-    skyMat.fragmentShader = skyMat.fragmentShader
-      .replace('void main() {', 'uniform float skyGain;\nvoid main() {')
-      .replace(out, 'gl_FragColor = vec4( texColor * skyGain, 1.0 );');
+    patchSky(this.sky);
     // The grade's vignette needs the canvas size; the sky is drawn every day frame.
     // The viewport drawn into (a render scale draws the scene into part of the post target).
     const size = new Vector4();
@@ -313,6 +392,9 @@ export class Environment {
       def = { ...def, ...def.goldenHour };
     const look = ownValue(LOOKS, urlString('look') ?? '');
     if (look) def = { ...def, ...look };
+    this.weather = studio ? 'dry' : weatherParam(urlString('weather'));
+    this.weatherLook = WEATHER_LOOKS[this.weather];
+    def = weatherEnv(def, this.weatherLook);
     this.def = def;
     this.studio = studio;
     const u = this.sky.material.uniforms;
@@ -323,6 +405,9 @@ export class Environment {
     u.mieDirectionalG.value = 0.82;
     u.cloudCoverage.value = def.cloudCoverage ?? 0.4;
     u.cloudDensity.value = def.cloudDensity ?? 0.4;
+    // A solid cloud deck (rain, overcast): the dome turns the deck's grey.
+    const w = this.weatherLook;
+    u.skyOvercast.value.set(w.deck, w.deck, w.deck * 1.04, w.deck > 0 ? 1 : 0);
 
     // Time of day (map default, `?tod=` to try others) or the fixed angles. Night: the moon is the light.
     let elevation = def.sunElevation;
@@ -340,7 +425,18 @@ export class Environment {
     }
     this.sunElevation = elevation;
     setCarEnvSun(elevation, this.night);
-    this.lightNeed = this.studio ? 0 : lightNeed(elevation);
+    // Rain darkens the day: rally crews drive with their lights on.
+    this.lightNeed = this.studio
+      ? 0
+      : Math.max(
+          lightNeed(elevation),
+          this.weatherLook.rain > 4
+            ? 0.35
+            : this.weatherLook.rain > 0
+              ? 0.2
+              : 0,
+        );
+    setWet(this.weatherLook.wet, this.weatherLook.rain);
     this.sunAzimuth = azimuth;
     const lamp = this.night && hour !== undefined ? moonAt(hour) : null;
     const phi = MathUtils.degToRad(90 - (lamp?.elevation ?? elevation));
@@ -358,7 +454,8 @@ export class Environment {
       // Moon: dim and blue; the headlights' own shadow map (game/headlights.ts) carries the scene, so the moon casts
       // shadows on high quality only. Cool sky fill, almost no ground bounce.
       this.sun.color.set(NIGHT.moonColor);
-      this.sun.intensity = NIGHT.moonIntensity;
+      this.sun.intensity =
+        NIGHT.moonIntensity * Math.max(0.3, this.weatherLook.sun);
       this.sun.castShadow = this.quality.name === 'high';
       this.hemi.color.set(NIGHT.hemiSky);
       this.hemi.groundColor.set(NIGHT.hemiGround);
@@ -368,7 +465,8 @@ export class Environment {
       const low = MathUtils.clamp(1 - elevation / 40, 0, 1);
       if (def.sunColor) this.sun.color.set(def.sunColor);
       else this.sun.color.setRGB(1, 0.93 - low * 0.2, 0.84 - low * 0.38);
-      this.sun.intensity = def.sunIntensity ?? 3.1 - low * 1.1;
+      this.sun.intensity =
+        (def.sunIntensity ?? 3.1 - low * 1.1) * this.weatherLook.sun;
       this.sun.castShadow = true;
 
       // Fill: cool sky light in the shadows, warm bounce from the map's ground.
@@ -428,7 +526,7 @@ export class Environment {
   private rebuildEnvMap(): void {
     const envScene = new Scene();
     const nightDome = this.night ? dome(this.sunDir, 40) : null;
-    const sky = new Sky();
+    const sky = patchSky(new Sky());
     sky.scale.setScalar(1000);
     const src = this.sky.material.uniforms;
     const dst = sky.material.uniforms;
@@ -444,6 +542,7 @@ export class Environment {
     ] as const)
       dst[k].value = src[k].value;
     dst.sunPosition.value.copy(src.sunPosition.value);
+    dst.skyOvercast.value.copy(src.skyOvercast.value);
     // Studio: a dim grey room instead of the sky, so the strip lights below dominate the reflections.
     if (nightDome) {
       nightDome.renderOrder = -2;
