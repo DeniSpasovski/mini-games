@@ -203,31 +203,34 @@ function colourTriangles(
 const TAPE_RED = new Color('#d8231b');
 const TAPE_WHITE = new Color('#f2f2ee');
 
-/** Post with red / white tape running 2.6 m either way along local X (posts 5.2 m apart make a continuous line). */
-export const tapePost: AssetBuilder = ({ lod }) => {
+/** Thin post, 1.05 m: the tape (`tapeSpan`) ties to its top. */
+export const tapePost: AssetBuilder = () => {
   const post = new CylinderGeometry(0.025, 0.03, 1.05, 5, 3);
   post.translate(0, 0.52, 0);
   const pp = paint(post, '#f2f2f2');
   shade(pp, (_x, y) => (Math.floor(y * 4) % 2 ? 1 : 0.25));
-  // 26 stripes of 20 cm over both stubs (13 at the far LOD: 40 cm, still reads as striped).
-  const n = lod === 0 ? 26 : 13;
-  const tape = paint(new PlaneGeometry(5.2, 0.08, n, 1), '#ffffff');
+  return { parts: [{ geometry: pp, material: getMaterial('props') }] };
+};
+
+/**
+ * One run of red / white tape from post to post: 1 m long along local X, scaled to the gap (world/tape.ts) and tilted
+ * to the slope. Origin at the post tops (0.92 m up); it hangs 8 cm at the middle.
+ */
+export const tapeSpan: AssetBuilder = ({ lod }) => {
+  // 24 stripes (about 20 cm at a 5 m gap; 12 at the far LOD, still reads as striped).
+  const n = lod === 0 ? 24 : 12;
+  const tape = paint(new PlaneGeometry(1, 0.08, n, 1), '#ffffff');
   colourTriangles(tape, (x) =>
-    Math.floor((x + 2.6) / (5.2 / n)) % 2 ? TAPE_WHITE : TAPE_RED,
+    Math.floor((x + 0.5) * n) % 2 ? TAPE_WHITE : TAPE_RED,
   );
-  // Hangs in a shallow curve from post to post: lowest (8 cm) half way to the next post, where this stub meets the
-  // next post's stub level and flat, so the line runs on without a kink.
   const tp = tape.getAttribute('position');
   for (let i = 0; i < tp.count; i++) {
-    const u = Math.abs(tp.getX(i)) / 2.6;
-    tp.setY(i, tp.getY(i) + 0.92 - 0.08 * u * (2 - u));
+    const u = Math.abs(tp.getX(i)) * 2;
+    tp.setY(i, tp.getY(i) - 0.08 * (1 - u * u));
   }
   return {
     parts: [
-      {
-        geometry: merge([pp, ...twoSided(tape)]),
-        material: getMaterial('props'),
-      },
+      { geometry: merge(twoSided(tape)), material: getMaterial('props') },
     ],
   };
 };

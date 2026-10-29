@@ -19,6 +19,30 @@ describe.each(
     expect(n('fan_flag')).toBeGreaterThan(0);
   });
 
+  test('every tape span ties two posts, every post carries tape', () => {
+    const posts = fans.filter((i) => i.asset === 'tape_post');
+    const spans = fans.filter((i) => i.asset === 'tape_span');
+    expect(spans.length).toBeGreaterThan(5);
+    const at = (x: number, z: number) =>
+      posts.filter((p) => Math.hypot(p.x - x, p.z - z) < 0.05).length;
+    const used = new Set<number>();
+    for (const s of spans) {
+      // Ends of the span: its middle +- half its (flat) length along the heading.
+      const half = ((s.sx ?? 1) * Math.cos(s.tiltZ)) / 2;
+      const ends = [-1, 1].map((k) => [
+        s.x + k * half * Math.cos(s.rotY),
+        s.z - k * half * Math.sin(s.rotY),
+      ]);
+      for (const [x, z] of ends) {
+        expect(at(x, z)).toBeGreaterThan(0);
+        posts.forEach((p, i) => {
+          if (Math.hypot(p.x - x, p.z - z) < 0.05) used.add(i);
+        });
+      }
+    }
+    expect(used.size).toBe(posts.length);
+  });
+
   test('off the road and out of buildings', () => {
     const q = newRoadQuery();
     const bad = fans

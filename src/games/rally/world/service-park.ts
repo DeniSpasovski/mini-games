@@ -10,6 +10,7 @@ import type { Country, ServiceLot, ServicePark } from '../maps/shared/types';
 import { fanVariant } from './fan-variants';
 import { newRoadQuery, type Road } from './road';
 import type { ScatterInstance } from './scatter';
+import { splitRuns, tapeRun } from './tape';
 
 /** Every asset a service park uses (the streamer's prewarm / view distance). */
 export const SERVICE_PARK_ASSETS = [
@@ -41,6 +42,7 @@ export const SERVICE_PARK_ASSETS = [
   'visitor',
   'spectator',
   'tape_post',
+  'tape_span',
   'ambulance',
   'fire_truck',
   'fire_truck_mk',
@@ -882,15 +884,25 @@ function addPublicEdge(
     // The dirt links across the verge stay open: no tape, crowd or press on them.
     const inLink = (u: number, pad: number): boolean =>
       !!lot.links?.some((l) => Math.abs(u - l) < LINK_WIDTH / 2 + pad);
-    // Tape along the public edge; the lot's own outer lines are open.
+    // Tape along the public edge; the lot's own outer lines are open. One run between the dirt links (a link splits it).
     const posts = Math.max(2, Math.round(lot.length / 5) + 1);
+    const slots: ({ x: number; z: number } | null)[] = [];
+    let prevU = 0;
     for (let i = 0; i < posts; i++) {
       const pu = (i / (posts - 1)) * lot.length;
-      // (a post's tape reaches 2.6 m to either side)
-      if (inLink(pu, 2.6)) continue;
+      // (a link between this post and the last one cuts the line there)
+      if (i > 0 && lot.links?.some((l) => l > prevU && l < pu))
+        slots.push(null);
+      prevU = pu;
       const [x, z] = lotWorld(lot, pu, -0.4);
-      place('tape_post', 0, x, z, yawAlong(c, s), 0.2, 1.5);
+      slots.push(
+        inLink(pu, 0.3) || ctx.blocked(x, z, 0.2, paved) || onRoad(x, z, 1.5)
+          ? null
+          : { x, z },
+      );
     }
+    for (const run of splitRuns(slots))
+      out.instances.push(...tapeRun(run, ctx.height));
     // Crowd behind the tape (road side), watching the bays or the road; knots, not a line.
     const crowd =
       lot.crowd ?? Math.round(((def.crowd ?? 30) * lot.length) / 84);

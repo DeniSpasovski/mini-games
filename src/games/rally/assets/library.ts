@@ -15,6 +15,7 @@ import {
   trafficSignal,
   wallLamp,
   tapePost,
+  tapeSpan,
   villageSign,
 } from './builders/props';
 import { buildingFlat, housePitched, houseStone } from './builders/buildings';
@@ -122,6 +123,7 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   photographer,
   visitor,
   tape_post: tapePost,
+  tape_span: tapeSpan,
   fan_flag: fanFlag,
   flagpole,
   road_barrier: roadBarrier,

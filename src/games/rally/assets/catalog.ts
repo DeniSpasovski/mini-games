@@ -428,7 +428,16 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'tape_post',
     name: 'Tape post',
     category: 'props',
-    description: 'Thin post with red/white spectator tape stub.',
+    description: 'Thin post the spectator tape ties to.',
+    variants: 1,
+    lods: [{ maxDistance: 300, castShadow: false }],
+  },
+  {
+    id: 'tape_span',
+    name: 'Tape span',
+    category: 'props',
+    description:
+      'Red / white spectator tape, 1 m long along X: scaled (sx) to the gap between two tape posts and tilted to the slope (world/tape.ts).',
     variants: 1,
     lods: [{ maxDistance: 300, castShadow: false }],
   },
