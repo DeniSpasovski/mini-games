@@ -25,7 +25,7 @@ import {
 /**
  * Street vehicles for city maps: parked cars (`street_car`: the CC BY pack models in `street-car-models.ts` with their
  * own textures, in a few paints), the yellow `taxi`, the `police_car` (white, navy band, light bar, "POLICE" on the
- * doors), the `ambulance` (its high-roof van in white, red stripe, "FIRE DEPT" + "AMBULANCE" on the sides) and the two fire
+ * doors), the `ambulance` (its high-roof van in white, red stripe, "AMBULANCE" and the Star of Life on the sides) and the two fire
  * engines (`fire_truck` for the USA, `fire_truck_mk` for North Macedonia: their own models and textures,
  * `fire-truck-models.ts`). The lettering is generic words on purpose (no real agency names, badges or exact liveries). Every vehicle is one draw call in the shared
  * `streetCarMaterial` (atlas + paint tint), its add-ons (taxi sign, light bar, ladder, stripes, lettering) a second one in
@@ -37,7 +37,7 @@ import {
 const PLAIN: [number, number] = [0.03, 0.5];
 /** Atlas regions (u0, u1) of the lettering (engine/textures.ts `vehicle_decals`). */
 const PD: [number, number] = [0.067, 0.367];
-const FD: [number, number] = [0.367, 0.667];
+const STAR: [number, number] = [0.367, 0.667];
 const AMB: [number, number] = [0.667, 1];
 
 function plain(g: BufferGeometry): BufferGeometry {
@@ -85,7 +85,7 @@ export const wheel = (
   z: number,
 ): BufferGeometry =>
   solid(
-    new CylinderGeometry(r, r, w, 9).rotateX(Math.PI / 2).translate(x, r, z),
+    new CylinderGeometry(r, r, w, 20).rotateX(Math.PI / 2).translate(x, r, z),
     '#1b1b1d',
   );
 
@@ -223,19 +223,30 @@ export const fireTruck: AssetBuilder = fireEngine('fire_truck');
 /** The fire engine of the Macedonian maps (start control): its own model and livery. */
 export const fireTruckMk: AssetBuilder = fireEngine('fire_truck_mk');
 
-/** Ambulance: the high-roof van model in white with a red stripe, light bar, "FIRE DEPT" + "AMBULANCE" on the sides. */
+/** Ambulance: the high-roof van model in white with a red stripe, light bar, "AMBULANCE" and the Star of Life on the sides, the star on the back. */
 export const ambulance: AssetBuilder = ({ lod }) => {
   const m = serviceVehicleModel('van_high', lod);
   const parts: BufferGeometry[] = [];
   if (lod <= EXTRAS_LOD) {
     const z = m.sideZ + 0.012;
-    for (const side of [1, -1]) {
-      parts.push(box(3.7, 0.22, 0.02, -0.9, 1.15, side * z, '#c8161d'));
-      parts.push(box(3.7, 0.08, 0.02, -0.9, 0.97, side * z, '#1f3f8f'));
-    }
+    for (const side of [1, -1])
+      parts.push(
+        box(3.7, 0.22, 0.06, -0.9, 1.15, side * (z + 0.02), '#c8161d'),
+      );
     parts.push(box(0.5, 0.14, 1.4, 0, m.height + 0.07, 0, '#c8161d'));
-    parts.push(...decal(AMB, 2.4, 0.33, -1.2, 1.72, z + 0.012));
-    parts.push(...decal(FD, 1.2, 0.33, -1.2, 2.15, z + 0.012));
+    parts.push(...decal(AMB, 2.3, 0.32, -1.5, 1.72, z + 0.012));
+    parts.push(...decal(STAR, 1.08, 0.6, 0.3, 1.72, z + 0.012));
+    // Star of Life on the back doors (faces -X).
+    const back = new PlaneGeometry(1.08, 0.6);
+    const uv = back.getAttribute('uv');
+    for (let i = 0; i < uv.count; i++)
+      uv.setXY(i, STAR[0] + uv.getX(i) * (STAR[1] - STAR[0]), uv.getY(i));
+    parts.push(
+      paint(
+        back.rotateY(-Math.PI / 2).translate(-m.length / 2 - 0.01, 1.5, 0),
+        '#ffffff',
+      ),
+    );
   }
   return withExtras(m.geometry('#f3f3f0'), parts);
 };

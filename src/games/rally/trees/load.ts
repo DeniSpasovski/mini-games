@@ -15,8 +15,12 @@ import {
   type ImpostorPixels,
 } from './impostor';
 import {
+  barkGain,
+  barkKind,
   barkMaterial,
+  barkReady,
   barkTexture,
+  barkTileSize,
   impostorMaterial,
   primeSpriteTextures,
   spriteMaterial,
@@ -235,6 +239,10 @@ export class TreeLibrary {
     material: MeshLambertMaterial;
     /** The far impostors' material: no baked depth (trees/draw.ts IMPOSTOR_FLAT_FROM). */
     farMaterial: MeshLambertMaterial;
+    /** Per slot: bounding sphere, frame bounds, height (m): world/far-forest.ts makes its own impostor material. */
+    spheres: { cy: number; r: number }[];
+    bounds: [number, number, number, number][];
+    heights: number[];
   } | null = null;
   /** What loading cost (trees/Performance.md#counters). */
   stats: TreeLoadStats = {
@@ -272,6 +280,8 @@ export class TreeLibrary {
     const atlases = gen.atlases([
       ...new Set(species.map((def) => def.foliage.leaf)),
     ]);
+    // The bark scans decode meanwhile: an impostor baked before would keep the placeholder grey in the disk cache.
+    const barks = barkReady(species.map(barkKind));
     const jobs = species.flatMap((def) =>
       variantsOf(def).map((i) => ({ def, i })),
     );
@@ -297,10 +307,11 @@ export class TreeLibrary {
     for (const r of results)
       if (r.impostor)
         chains.set(r.impostor, r.chains ?? impostorChains(r.impostor));
-    await atlases;
+    await Promise.all([atlases, barks]);
     const allPixels: ImpostorPixels[] = [];
     const spheres: { cy: number; r: number }[] = [];
     const bounds: [number, number, number, number][] = [];
+    const heights: number[] = [];
     for (const { def, i, key, g, impostor } of results) {
       const b0 = performance.now();
       const v = lib.build(def, g.info, g.meshes, impostor, renderer);
@@ -329,6 +340,7 @@ export class TreeLibrary {
       v.loaded.slot = allPixels.length;
       allPixels.push(v.pixels);
       spheres.push(g.info.sphere);
+      heights.push(g.info.height);
       bounds.push(impostorBounds(v.pixels));
       report(++done / jobs.length);
     }
@@ -338,18 +350,19 @@ export class TreeLibrary {
         atlas,
         material: impostorMaterial(atlas, spheres, bounds),
         farMaterial: impostorMaterial(atlas, spheres, bounds, true),
+        spheres,
+        bounds,
+        heights,
       };
     }
     // Shared bark / leaf textures (RGBA8 + mips).
-    const textures = new Set<string>();
+    const texels = new Map<string, number>();
     for (const def of species) {
-      textures.add(`bark:${def.bark.texture}`);
-      textures.add(`leaf:${def.foliage.kind}`);
+      const [w, h] = barkTileSize(barkKind(def));
+      texels.set(`bark:${barkKind(def)}`, w * h);
+      texels.set(`leaf:${def.foliage.kind}`, 256 * 128);
     }
-    for (const t of textures)
-      st.gpuBytes += Math.round(
-        ((t.startsWith('bark') ? 64 * 128 : 256 * 128) * 4 * 4) / 3,
-      );
+    for (const n of texels.values()) st.gpuBytes += Math.round((n * 4 * 4) / 3);
     st.totalMs = performance.now() - t0;
     // The other seasons' variants stay cached.
     for (const def of species)
@@ -384,13 +397,17 @@ export class TreeLibrary {
       bakeImpostor(
         renderer,
         [
-          { geometry: levels[0], map: barkTexture(def.bark.texture) },
+          {
+            geometry: levels[0],
+            map: barkTexture(barkKind(def)),
+            gain: barkGain(barkKind(def)),
+          },
           { geometry: sprites, map: tex.albedo, normalMap: tex.normal },
         ],
         info.sphere,
       );
     // Materials are shared per bark / foliage kind; created here so they exist before the first frame.
-    barkMaterial(def.bark.texture);
+    barkMaterial(barkKind(def));
     spriteMaterial(def.foliage.leaf);
     return {
       loaded: {

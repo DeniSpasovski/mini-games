@@ -22,6 +22,7 @@ import { newLakeQuery, type Lakes } from './lakes';
 import { newPathQuery, type Landcover, type PathNetwork } from './real-data';
 import { newRoadQuery, type Road } from './road';
 import { fanVariant } from './fan-variants';
+import { splitRuns, tapeRun } from './tape';
 
 /** Real-world map data the scatter respects (land cover classes, other roads, canals). */
 export interface ScatterContext {
@@ -675,6 +676,21 @@ export function roadsideInstances(
           )
         )
           continue;
+        if (rule.asset === 'tape_post') {
+          // One chained run of tape, a post about every 5 m over `spread` (`count` only sets the rule's weight).
+          const spread = rule.spread ?? 0;
+          const posts = Math.max(2, Math.round(spread / 5) + 1);
+          const slots = Array.from({ length: posts }, (_, i) => {
+            const p = road.at(along + (i / (posts - 1) - 0.5) * spread);
+            const lat = side * (p.halfWidth + rule.offset);
+            const x = p.x + p.tz * lat;
+            const z = p.z - p.tx * lat;
+            return onPath(x, z) ? null : { x, z };
+          });
+          for (const run of splitRuns(slots))
+            out.push(...tapeRun(run, (x, z) => hf.height(x, z)));
+          continue;
+        }
         const count = rule.count ?? 1;
         for (let i = 0; i < count; i++) {
           const da =
@@ -689,7 +705,9 @@ export function roadsideInstances(
           const heading = Math.atan2(p.tx, p.tz);
           const rotY = rule.faceRoad
             ? heading + (side > 0 ? -Math.PI / 2 : Math.PI / 2)
-            : rng.next() * Math.PI * 2;
+            : rule.alongRoad
+              ? heading + (side > 0 ? 0 : Math.PI)
+              : rng.next() * Math.PI * 2;
           const sc = rule.scale ? rng.range(rule.scale[0], rule.scale[1]) : 1;
           // Chevrons: variant 0 points left, 1 points right (as seen by the driver).
           const variant =

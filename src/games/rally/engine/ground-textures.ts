@@ -4,7 +4,9 @@ import {
   LinearMipmapLinearFilter,
   RepeatWrapping,
   SRGBColorSpace,
+  type Texture,
 } from 'three';
+import { imageTexture } from './image-texture';
 import grassSpringUrl from './ground/grass_spring.webp';
 import grassSummerUrl from './ground/grass_summer.webp';
 import grassAutumnUrl from './ground/grass_autumn.webp';
@@ -115,5 +117,16 @@ export function groundArray(): DataArrayTexture {
     },
     () => undefined,
   );
+  return tex;
+}
+
+const scans = new Map<GroundLayer, Texture>();
+/** One scan as a plain repeating texture, for meshes that wear a ground material (the rocks). */
+export function groundScan(id: GroundLayer): Texture {
+  let tex = scans.get(id);
+  if (!tex) {
+    tex = imageTexture(URLS[GROUND_LAYER[id]], SIZE, SIZE, `ground:${id}`);
+    scans.set(id, tex);
+  }
   return tex;
 }

@@ -26,6 +26,7 @@ import {
   type LeafStyle,
   type SpriteAtlas,
 } from './leaftex';
+import { imageReady, imageTexture } from '../engine/image-texture';
 import { mix32, unit } from './math';
 import {
   FAR_RAMP,
@@ -33,8 +34,14 @@ import {
   FULL_DETAIL_DISTANCE,
   NEAR_SPRITES,
   ROAD_REACH,
+  type BarkScan,
   type BarkTexture,
+  type SpeciesDef,
 } from './species';
+import furrowedUrl from './bark/furrowed.webp';
+import pineUrl from './bark/pine.webp';
+import beechUrl from './bark/beech.webp';
+import planeUrl from './bark/plane.webp';
 import { TREE_SPRITE_AXES } from './sprite-attr';
 
 /**
@@ -119,8 +126,16 @@ const float TREE_FULL_ROAD = ${ROAD_REACH.full.toFixed(1)};
 const float TREE_FAR_RAMP_ROAD = ${ROAD_REACH.ramp.toFixed(1)};
 /** Wind fades out towards this distance (m): past it a sway is under a pixel, so its vertex maths is skipped. */
 const float TREE_WIND_FAR = 110.0;
+#ifdef TREE_IMPOSTOR_GRID
+// Placed by the vertex shader itself (world/far-forest.ts FAR_TREES), not instance attributes.
+vec4 treeInst;
+vec4 treeFade;
+mat4 instanceMatrix;
+float tgOut;
+#else
 attribute vec4 treeInst;
 attribute vec4 treeFade;
+#endif
 #ifndef TREE_IMPOSTOR
 attribute vec4 treeWind;
 #endif
@@ -190,10 +205,19 @@ const VERTEX_MAIN = /* glsl */ `
 	#else
 		float tRole = treeFade.y;
 		vTreeKeep = tRole < 0.5 ? vec2( 0.0, 2.0 ) : tRole < 1.5 ? vec2( treeFade.x, 2.0 ) : tRole < 2.5 ? vec2( 0.0, treeFade.x ) : vec2( 1.0, 0.0 );
+		#ifdef TREE_IMPOSTOR_GRID
+			// No forest edge: no far trees (an empty cell must never fall back to the solid default).
+			vTreeKeep = vec2( 1.0, 0.0 );
+		#endif
 		// The forest edge (trees/draw.ts forestDistance): trees dissolve in with the same dither, never pop.
 		if ( tlForest > 0.0 ) {
 			float tEdge = 1.0 - smoothstep( tlForest * 0.85, tlForest, distance( tOrigin.xz, tlCam.xz ) );
-			if ( tEdge < 1.0 ) vTreeKeep.y = min( vTreeKeep.y, tEdge );
+			#ifdef TREE_IMPOSTOR_GRID
+				// The far trees take the other side of the same dither: in where the trees dissolve out.
+				vTreeKeep = vec2( tEdge, tgOut );
+			#else
+				if ( tEdge < 1.0 ) vTreeKeep.y = min( vTreeKeep.y, tEdge );
+			#endif
 		}
 	#endif
 	vTreeDebug = vec2( treeFade.w, treeFade.x );
@@ -453,10 +477,53 @@ function noise2(
 
 const textures = new Map<string, Texture>();
 
+/** Scanned bark tiles (trees/bark/<kind>.webp, scripts/trees/bake-bark.py; 256 x 512). */
+const BARK_URLS: Partial<Record<BarkTexture | BarkScan, string>> = {
+  furrowed: furrowedUrl,
+  pine: pineUrl,
+  beech: beechUrl,
+  plane: planeUrl,
+};
+/** Lifts a scanned tile (its own contrast) to the procedural tiles' mean brightness; printed by the baker. */
+const BARK_GAIN: Partial<Record<BarkTexture | BarkScan, number>> = {
+  furrowed: 2.67,
+  pine: 1.34,
+  beech: 1.38,
+  plane: 1.48,
+};
+
+/** A species' bark tile: its own scan, else its kind. */
+export function barkKind(def: SpeciesDef): BarkTexture | BarkScan {
+  return def.bark.scan ?? def.bark.texture;
+}
+
+/** The bark material's colour over its tile (`BARK_GAIN`); the impostor bake applies the same. */
+export function barkGain(kind: BarkTexture | BarkScan): number {
+  return BARK_GAIN[kind] ?? 1;
+}
+
+/** Side of a bark tile (px): a scan or the procedural one. */
+export function barkTileSize(kind: BarkTexture | BarkScan): [number, number] {
+  return BARK_URLS[kind] ? [256, 512] : [64, 128];
+}
+
+/** Resolves when these bark tiles hold their scans: the impostor bake reads them once (trees/load.ts). */
+export function barkReady(kinds: (BarkTexture | BarkScan)[]): Promise<void> {
+  return Promise.all(
+    [...new Set(kinds)].map((k) => imageReady(barkTexture(k))),
+  ).then(() => undefined);
+}
+
 /** Grey bark detail (multiplies the bark vertex colour): u around the branch, v along it. */
-export function barkTexture(kind: BarkTexture): Texture {
+export function barkTexture(kind: BarkTexture | BarkScan): Texture {
   let t = textures.get(`bark:${kind}`);
   if (t) return t;
+  const url = BARK_URLS[kind];
+  if (url) {
+    t = imageTexture(url, 256, 512, `bark:${kind}`, '#9a9a9a');
+    textures.set(`bark:${kind}`, t);
+    return t;
+  }
   const w = 64;
   const h = 128;
   const data = new Uint8Array(w * h * 4);
@@ -711,7 +778,9 @@ export function setTreeFoliageAntialias(on: boolean): void {
     }
 }
 
-export function barkMaterial(kind: BarkTexture): MeshStandardMaterial {
+export function barkMaterial(
+  kind: BarkTexture | BarkScan,
+): MeshStandardMaterial {
   const key = `bark:${kind}`;
   let m = materials.get(key) as MeshStandardMaterial | undefined;
   if (m) return m;
@@ -720,6 +789,7 @@ export function barkMaterial(kind: BarkTexture): MeshStandardMaterial {
     map: barkTexture(kind),
     roughness: 0.95,
   });
+  m.color.setScalar(barkGain(kind));
   m.name = `tree ${key}`;
   m.defines = {
     TREE_FULL: FULL_DETAIL_DISTANCE.toFixed(1),
@@ -1020,6 +1090,15 @@ const IMPOSTOR_FRAGMENT = /* glsl */ `
 	diffuseColor.a = 1.0;
 `;
 
+/** An impostor material whose vertex shader places its own trees (world/far-forest.ts): it sets `treeInst`,
+ * `treeFade`, `instanceMatrix` and `tgOut` (the far end of its dither) before the tree code runs. */
+export interface ImpostorGrid {
+  uniforms: Record<string, { value: unknown }>;
+  pars: string;
+  main: string;
+  key: string;
+}
+
 /**
  * The ONE impostor material of every variant of every species (trees/Performance.md#mitigations): the texture array
  * of trees/impostor.ts `impostorArray` and each variant's bounding sphere (cy, r), picked per instance by
@@ -1031,6 +1110,7 @@ export function impostorMaterial(
   spheres: { cy: number; r: number }[],
   bounds: [number, number, number, number][],
   flat = false,
+  grid?: ImpostorGrid,
 ): MeshLambertMaterial {
   // Lambert: impostors are far trees (diffuse only, like the sprites); their meshes receive no shadow (beyond the
   // shadow box), so the shadow map is not read either (trees/draw.ts).
@@ -1038,6 +1118,7 @@ export function impostorMaterial(
   m.name = flat ? 'tree impostors far' : 'tree impostors';
   m.defines = {
     ...(flat ? { TREE_IMPOSTOR_FLAT: 1 } : {}),
+    ...(grid ? { TREE_IMPOSTOR_GRID: 1 } : {}),
     TREE_IMPOSTOR: 1,
     TREE_SKY: 1,
     TREE_VIEW_Z: '-tiView.z',
@@ -1059,7 +1140,19 @@ export function impostorMaterial(
   };
   m.onBeforeCompile = (shader) => {
     addWorldUniforms(shader);
-    Object.assign(shader.uniforms, treeUniforms, uniforms);
+    Object.assign(shader.uniforms, treeUniforms, uniforms, grid?.uniforms);
+    if (grid)
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+${grid.pars}`,
+        )
+        .replace(
+          '#include <begin_vertex>',
+          `${grid.main}
+#include <begin_vertex>`,
+        );
     const vary = /* glsl */ `
 varying vec2 vTiFrame;
 varying vec2 vTiWeight;
@@ -1124,6 +1217,6 @@ varying float vTiLayer;
       );
   };
   m.customProgramCacheKey = () =>
-    `tree-impostor-v10-${spheres.length}${flat ? '-flat' : ''}`;
+    `tree-impostor-v10-${spheres.length}${flat ? '-flat' : ''}${grid ? `-${grid.key}` : ''}`;
   return m;
 }

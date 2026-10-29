@@ -108,6 +108,18 @@ files are not in the repository).
 
 CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/ground/bake.py`: Forest Ground 01 (Rob Tuytel), Grass Ground (Charlotte Baglioni), Leafy Grass (Charlotte Baglioni), Brown Mud Dry (Rob Tuytel), Rocky Trail (Amal Kumar), Rock Boulder Dry (Dimitrios Savva, Rico Cilliers), Forest Leaves 04 (Rob Tuytel), Leaves Forest Ground (Dimitrios Savva, Dario Barresi), Withered Grass (Charlotte Baglioni). No credit is required.
 
+### Rocks (baked into `src/games/rally/assets/builders/rock-models.data.ts` and `src/games/rally/engine/props/`)
+
+CC0 scan from Poly Haven, simplified by `scripts/rocks/bake-rocks.mjs`: Rock Moss Set 01 (Kless Gyzen). No credit is required.
+
+### Tree bark (baked into `src/games/rally/trees/bark/`)
+
+CC0 scans from Poly Haven, made grey by `scripts/trees/bake-bark.py`: Jolcham Oak Bark 01 (Charlotte Baglioni), Pine Bark (Dimitrios Savva), Chinese Hackberry Bark (Charlotte Baglioni) for beech and hornbeam, Bark Platanus (Dimitrios Savva). No credit is required.
+
+### Dust (baked into `src/games/rally/engine/particles/dust.webp`)
+
+Four smoke sprites from Particle Pack 1.1 by Kenney (kenney.nl, CC0; the copy at github.com/Calinou/kenney-particle-pack), made into one atlas by `scripts/particles/bake-dust.py`. No credit is required.
+
 ### Building textures (baked into `src/games/rally/engine/facades/`)
 
 CC0 scans from Poly Haven, resized to 512 px tiles by `scripts/facades/bake.py`: Painted Plaster Wall (Amal Kumar), Brick Wall 006 (Jan Burghardt), Red Brick (Rob Tuytel), Plaster Stone Wall 02 (Charlotte Baglioni), Concrete Wall 007 (Dario Barresi, Rico Cilliers, Charlotte Baglioni), Corrugated Iron 03 (Charlotte Baglioni), Concrete Slab Wall (Dimitrios Savva), Sandstone Blocks 05 (Rob Tuytel), White Planks Clean (Rob Tuytel), Clay Roof Tiles 03 (Amal Kumar). No credit is required.
@@ -161,6 +173,27 @@ repository).
 | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- | --------- |
 | ["Realistic Wheat"](https://sketchfab.com/3d-models/realistic-wheat-50270968690441d3ad9d2a8924c7338b)  | [Graphetta](https://sketchfab.com/Graphetta) (Sketchfab)    | CC BY 4.0 |
 | ["Corn! Corn! Corn!"](https://sketchfab.com/3d-models/corn-corn-corn-10187bc37c9e42ef8770b28452ee7cd3) | [Tiia Tuulia](https://sketchfab.com/tiiatuulia) (Sketchfab) | CC BY 4.0 |
+
+### Straw texture (`src/games/rally/engine/props/straw.webp`)
+
+The hay bales wear a tile cut from the photo texture of a CC BY 4.0 scan (one bale side, made to repeat and levelled by
+`scripts/props/bake-straw.py`; the bales themselves are built in code; the source file is not in the repository).
+
+| Model                                                                                     | Author                                                  | Licence   |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------- | --------- |
+| ["Hay bales"](https://sketchfab.com/3d-models/hay-bales-9a9f28d0e59a43e49d860912c47b8767) | [Abby Crawford](https://sketchfab.com/abby) (Sketchfab) | CC BY 4.0 |
+
+### Service park kit (baked into `src/games/rally/assets/builders/simready-models.data.ts`)
+
+The tool chest, tyre rack and trolley jack of the service park: CC BY 4.0 models from NVIDIA SimReady Assets, coloured
+per part, decimated and packed by `scripts/props/bake-simready.py` (the tyres on the rack and the team paint are added in
+code; the source files are not in the repository).
+
+| Model                                                                                                                                                               | Author                                                                           | Licence   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | --------- |
+| ["equipment_rolling_tool_chest_cabinet_combo_d01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/equipment_rolling_tool_chest_cabinet_combo_d01) | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["storage_tire_rack_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/storage_tire_rack_a01)                                                   | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["vehicleSupport_floor_jack_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/vehicleSupport_floor_jack_a01)                                   | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
 
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 

@@ -82,12 +82,14 @@ import {
 } from './headlights';
 import { CameraRig } from './camera-rig';
 import { ParticleSystem } from './dust';
+import { GravelStones } from './gravel-stones';
 import { TyreMarks } from './tyre-marks';
 import { Hud } from './hud';
 import { InputController, type InputAction } from './input';
 import {
   BLOOM_MIX,
   OBJECT_DISTANCE,
+  RENDER_SCALE,
   type RallySettings,
   saveSettings,
 } from './settings';
@@ -145,6 +147,8 @@ const STEP = 1 / PHYSICS_HZ;
 const SHADOW_OVERLAP = 25;
 /** Trees farther than this from the stage road (m) are only ever impostors (trees/draw.ts `fakeFrom`). */
 const FAKE_TREES_FROM = 250;
+/** A gantry clock is redrawn only while the camera is this close to it (m): each redraw uploads a texture. */
+const CLOCK_NEAR = 400;
 
 /** The far forest's colour on the ground: the stage's foliage, darker (a canopy seen from afar is mostly shade). */
 function forestColor(lib: TreeLibrary): Color {
@@ -219,13 +223,17 @@ export class RallyGame {
   /** Ruts / skid marks behind the wheels. */
   tyreMarks!: TyreMarks;
   /** Small dark stones flung from loose surfaces (bounce on the terrain). */
-  gravel!: ParticleSystem;
+  gravel!: GravelStones;
   /** Big faint dust that hangs over the road for a while (medium / high quality). */
   haze?: ParticleSystem;
+  /** Water thrown up by the wheels in fords and canals. */
+  splash!: ParticleSystem;
   private gravelAcc = [0, 0, 0, 0];
+  private splashAcc = [0, 0, 0, 0];
   /** Far tree shadows, filled in as the streamer generates scatter (world/canopy-shadows.ts). */
   private canopy!: CanopyShadows;
-  private farForest!: FarForest;
+  /** The canopy shell and far trees (world/far-forest.ts); the perf panel moves their forest distance. */
+  farForest!: FarForest;
   private hazeAcc = 0;
   audio: CarAudio;
   telemetry!: Telemetry;
@@ -261,6 +269,7 @@ export class RallyGame {
   private emitAcc = [0, 0, 0, 0];
   private dustColor = new Color();
   private gravelColor = new Color();
+  private splashColor = new Color('#d6dedb');
   private lastCount = -1;
   private finishPilot?: Autopilot;
   private lastFov = 0;
@@ -427,14 +436,18 @@ export class RallyGame {
       }
     });
     this.canopy = new CanopyShadows(this.world, this.env.sunDir);
+    this.canopy.renderer = this.renderer;
     // The canopy shell past the forest distance; with the trees (the tree benchmark hides both).
     this.farForest = new FarForest(
       this.world,
       this.treeLibrary,
       q.forestDistance,
       q.viewDistance,
+      this.renderer.extensions.has('EXT_color_buffer_float') ||
+        this.renderer.extensions.has('EXT_color_buffer_half_float'),
     );
     this.trees.group.add(this.farForest.mesh);
+    if (this.farForest.farTrees) this.trees.group.add(this.farForest.farTrees);
     // The land beyond: its woods in the stage's crown colour, inside the map the canopy map's.
     this.horizon?.setForest(
       canopyTone(this.treeLibrary, this.world),
@@ -544,20 +557,41 @@ export class RallyGame {
     this.scene.add(this.contactShadow.mesh);
     this.tyreMarks = new TyreMarks(this.vehicle);
     this.scene.add(this.tyreMarks.mesh);
-    this.dust = new ParticleSystem(q.particles);
+    // Dust and spray fade into the ground (or the water over it) instead of being cut off.
+    const floor = (x: number, z: number) => {
+      const h = this.world.heightAt(x, z);
+      const w = this.world.waterLevel(x, z);
+      return w > h ? w : h;
+    };
+    this.dust = new ParticleSystem(q.particles, false, undefined, floor);
     this.dust.material.uniforms.uLight.value.setScalar(1.7);
-    this.gravel = new ParticleSystem(
-      Math.round(q.particles / 6),
+    this.splash = new ParticleSystem(
+      Math.round(q.particles / 4),
       false,
-      (x, z) => this.world.heightAt(x, z),
+      undefined,
+      floor,
+    );
+    this.splash.material.uniforms.uLight.value.setScalar(1.7);
+    this.gravel = new GravelStones(Math.round(q.particles / 6), (x, z) =>
+      this.world.heightAt(x, z),
     );
     if (q.name !== 'low') {
-      this.haze = new ParticleSystem(Math.round(q.particles / 8));
+      this.haze = new ParticleSystem(
+        Math.round(q.particles / 8),
+        false,
+        undefined,
+        floor,
+      );
       this.haze.material.uniforms.uLight.value.setScalar(1.7);
       this.scene.add(this.haze.points);
     }
     this.lightParticles();
-    this.scene.add(this.dust.points, this.gravel.points, this.forceLines.lines);
+    this.scene.add(
+      this.dust.points,
+      this.splash.points,
+      this.gravel.points,
+      this.forceLines.lines,
+    );
     this.rig = new CameraRig(this.camera, (x, z) => this.world.heightAt(x, z));
     this.hud = new Hud(
       this.container,
@@ -653,6 +687,16 @@ export class RallyGame {
       this.opts.quality.treeLodScale * OBJECT_DISTANCE[s.objectDistance];
     if (this.trees.lodScale !== treeLodScale)
       this.trees.setOptions({ lodScale: treeLodScale });
+    // Render scale: fewer pixels on a sharp screen (the post effects and particles follow the 'resized' event).
+    const scale = RENDER_SCALE[s.renderScale];
+    if (this.renderScale !== scale) {
+      this.renderScale = scale;
+      this.renderer.setPixelRatio(
+        Math.min(window.devicePixelRatio, this.opts.quality.maxPixelRatio) *
+          scale,
+      );
+      this.renderer.domElement.dispatchEvent(new CustomEvent('resized'));
+    }
     // Bloom / AO (High only): only a change in the options, so a test link's `?bloom=` / `?ao=` keeps its pick.
     if (old.bloom !== s.bloom) this.post?.set({ day: BLOOM_MIX[s.bloom] });
     if (old.ambientOcclusion !== s.ambientOcclusion)
@@ -663,9 +707,12 @@ export class RallyGame {
     });
   }
 
+  /** Render scale applied to the pixel ratio (`applySettings`). */
+  private renderScale = 1;
+
   private updateParticleScale(): void {
     this.lastFov = this.camera.fov;
-    for (const p of [this.dust, this.gravel, this.haze])
+    for (const p of [this.dust, this.splash, this.gravel, this.haze])
       p?.setViewport(this.renderer.domElement.height, this.camera.fov);
   }
 
@@ -681,7 +728,7 @@ export class RallyGame {
           .clone()
           .lerp(new Color(1, 1, 1), 0.5)
           .multiplyScalar(0.65);
-    for (const p of [this.dust, this.gravel, this.haze])
+    for (const p of [this.dust, this.splash, this.gravel, this.haze])
       p?.setLight(sun, ambient);
   }
 
@@ -697,7 +744,7 @@ export class RallyGame {
       this.lampPos.set(0, 0.7, 2).applyMatrix4(root.matrixWorld);
       this.lampDir.set(0, -0.02, 1).transformDirection(root.matrixWorld);
       this.lampColor.copy(c).multiplyScalar(this.env.lightNeed);
-      for (const p of [this.dust, this.gravel, this.haze])
+      for (const p of [this.dust, this.splash, this.gravel, this.haze])
         p?.setHeadlight(this.lampColor, this.lampPos, this.lampDir);
       // Reflectors and reflective boards in the beam.
       setHeadBeam(this.lampColor, this.lampPos, this.lampDir);
@@ -709,7 +756,7 @@ export class RallyGame {
       this.tailColor
         .setRGB(1, 0.05, 0.03)
         .multiplyScalar(this.env.lightNeed * (0.1 + 0.9 * brake));
-      for (const p of [this.dust, this.gravel, this.haze])
+      for (const p of [this.dust, this.splash, this.gravel, this.haze])
         p?.setTaillight(this.tailColor, this.tailPos);
     }
   }
@@ -1390,6 +1437,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       this.tyreMarks.update();
     }
     this.dust.update(dt);
+    this.splash.update(dt, 0.9, -9.8);
     this.gravel.update(dt, 0.35, -9.8);
     this.haze?.update(dt, 0.12, 0.02);
     this.forceLines.update(v);
@@ -1430,8 +1478,15 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     // Gantry clocks run from GO whether or not the car has moved (a forgotten start shows); the
     // finish clock stops on the stage time (penalties included) once the car crosses the line.
     if (!this.freeDrive) {
-      setClockTime('start', this.stage.time);
-      setClockTime('finish', this.stage.time);
+      const st = this.world.stage;
+      const cam = this.camera.position;
+      // Straight-line distance: a gantry seen across a hairpin keeps running.
+      const near = (along: number): boolean => {
+        const g = this.world.road.at(along);
+        return Math.hypot(g.x - cam.x, g.z - cam.z) < CLOCK_NEAR;
+      };
+      if (near(st.start)) setClockTime('start', this.stage.time);
+      if (near(st.finish)) setClockTime('finish', this.stage.time);
     }
     this.hud.update(
       dt,
@@ -1561,6 +1616,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     const p = new Vector3();
     for (let i = 0; i < 4; i++) {
       const w = v.wheels[i];
+      if (w.contact) this.emitSplash(w, i, quality, dt, p);
       if (!w.contact || w.surface.dust <= 0) continue;
       const rate =
         w.surface.dust *
@@ -1653,6 +1709,47 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
           0.06 + Math.random() * 0.03,
         );
       }
+    }
+  }
+
+  /** Spray off a wheel driving through water (ford, canal): thrown up and out, more the deeper and faster. */
+  private emitSplash(
+    w: Vehicle['wheels'][number],
+    i: number,
+    quality: number,
+    dt: number,
+    p: Vector3,
+  ): void {
+    const level = this.world.waterLevel(w.contactPoint.x, w.contactPoint.z);
+    const depth = level - w.contactPoint.y;
+    const v = this.vehicle;
+    const speed = Math.abs(v.speed);
+    if (!(depth > 0.02) || speed < 1) {
+      this.splashAcc[i] = 0;
+      return;
+    }
+    this.splashAcc[i] +=
+      Math.min(1, depth / 0.2) * (speed * 10 + w.slideSpeed * 6) * quality * dt;
+    const out = w.isLeft ? -1 : 1;
+    while (this.splashAcc[i] >= 1) {
+      this.splashAcc[i] -= 1;
+      const r = () => (Math.random() - 0.5) * 2;
+      const side = out * (0.6 + Math.random()) * (1 + speed * 0.12);
+      p.copy(w.contactPoint);
+      p.y = level + 0.05;
+      p.x += r() * 0.2;
+      p.z += r() * 0.2;
+      this.splash.emit(
+        p,
+        v.velocity.x * 0.45 + v.right.x * side + r() * 0.6,
+        1 + Math.random() * (1 + speed * 0.2),
+        v.velocity.z * 0.45 + v.right.z * side + r() * 0.6,
+        0.35 + Math.random() * 0.35,
+        2 + Math.random() * 1.5,
+        0.7 + Math.random() * 0.5,
+        this.splashColor,
+        0.9,
+      );
     }
   }
 }

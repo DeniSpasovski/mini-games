@@ -8,26 +8,36 @@ import { worldUniforms } from './world-shading';
 
 /**
  * Night glow for road-side materials, fed by the shared world uniforms (`wsHead*`, `wsLamp`):
- * - `retro`: reflective sheeting and reflectors (marker posts, chevron boards) brighten inside the car's low beam, when
- *   they face the lamps. Bright enough for bloom to catch them.
+ * - `retro`: reflectors (marker posts) brighten inside the car's low beam, when they face the lamps. Bright enough for
+ *   bloom to catch them.
+ * - `sheeting`: reflective sign sheeting (chevron boards), the same beam test but fading with the square of the
+ *   distance like the lamp's light on it, and only a few times brighter than lit white paint up close, so the red
+ *   stays red.
  * - `lamp`: a street lamp lens glows warm with the lamps' level (`Environment.lightNeed`).
  * Both add emissive light only, so they cost nothing by day (the terms are zero).
  */
-export type NightGlow = 'retro' | 'lamp';
+export type NightGlow = 'retro' | 'sheeting' | 'lamp';
 
 const DECL = /* glsl */ `
 varying vec3 vNightW;`;
 
-const FRAG: Record<NightGlow, string> = {
-  retro: /* glsl */ `
-  {
+/** In the low beam and facing it: `inBeam * facing`, with `dHead` the distance to the lamps. */
+const BEAM = /* glsl */ `
     vec3 toHead = wsHeadPos - vNightW;
     float dHead = max( length( toHead ), 0.5 );
     vec3 lHead = toHead / dHead;
     float inBeam = smoothstep( 0.8, 0.95, dot( - lHead, wsHeadDir ) );
     float facing = max( dot( inverseTransformDirection( normal, viewMatrix ), lHead ), 0.0 );
-    float reach = 1.0 - smoothstep( 110.0, 190.0, dHead );
+    float reach = 1.0 - smoothstep( 110.0, 190.0, dHead );`;
+
+const FRAG: Record<NightGlow, string> = {
+  retro: /* glsl */ `
+  {${BEAM}
     totalEmissiveRadiance += diffuseColor.rgb * wsHead * ( inBeam * facing * reach * 70.0 / ( 1.0 + dHead * 0.02 ) );
+  }`,
+  sheeting: /* glsl */ `
+  {${BEAM}
+    totalEmissiveRadiance += diffuseColor.rgb * wsHead * ( inBeam * facing * reach * 2000.0 / ( 225.0 + dHead * dHead ) );
   }`,
   lamp: /* glsl */ `
   totalEmissiveRadiance += diffuseColor.rgb * ( wsLamp * 60.0 );`,

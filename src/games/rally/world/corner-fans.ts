@@ -8,10 +8,12 @@ import type { CornerFansRule, Country } from '../maps/shared/types';
 import { flagVariant } from './fan-variants';
 import { newRoadQuery, type Road } from './road';
 import type { ScatterInstance } from './scatter';
+import { splitRuns, tapeRun } from './tape';
 
 /** Assets a corner fan group uses (for the streamer's prewarm / view distance). */
 export const CORNER_FAN_ASSETS = [
   'tape_post',
+  'tape_span',
   'spectator',
   'visitor',
   'marshal',
@@ -106,16 +108,18 @@ export function cornerFanInstances(
       off: number,
       variant: number,
       yaw = 0,
-    ): void => {
+      push = true,
+    ): { x: number; z: number } | null => {
       const p = road.at(along + da);
       const lat = side * (p.halfWidth + off);
       const x = p.x + p.tz * lat;
       const z = p.z - p.tx * lat;
-      if (blocked(x, z)) return;
+      if (blocked(x, z)) return null;
       // Not on (or right beside) another leg of the stage road.
       const q = road.query(x, z, rq);
       if (q.found && q.distance < q.halfWidth + Math.min(off, 3.5) - 0.2)
-        return;
+        return null;
+      if (!push) return { x, z };
       const heading = Math.atan2(p.tx, p.tz);
       out.push({
         asset,
@@ -129,13 +133,17 @@ export function cornerFanInstances(
         tiltX: 0,
         tiltZ: 0,
       });
+      return { x, z };
     };
 
-    // Tape: posts 5.2 m apart (each carries 2.6 m of tape either way along its local X = along the road).
+    // Tape: posts about 5 m apart along the whole group, tape tied from each to the next (a blocked post splits
+    // the line; a post left alone is dropped).
     const tapeOff = rule.tapeOffset ?? 3.5;
-    const posts = Math.max(2, Math.round(len / 5.2) + 1);
-    for (let i = 0; i < posts; i++)
-      place('tape_post', (i / (posts - 1) - 0.5) * len, tapeOff, 0);
+    const posts = Math.max(2, Math.round(len / 5) + 1);
+    const slots = Array.from({ length: posts }, (_, i) =>
+      place('tape_post', (i / (posts - 1) - 0.5) * len, tapeOff, 0, 0, false),
+    );
+    for (const run of splitRuns(slots)) out.push(...tapeRun(run, height));
     // The mix (its own stream, so the fan spots below stay where they were): visitors, a marshal, a photographer.
     const mix = new Rng(hash3(Math.round(a0), 13, 7, seed));
     // Fans behind the tape, loosely bunched, some a row further back.

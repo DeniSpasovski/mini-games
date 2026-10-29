@@ -309,11 +309,12 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'rock_boulder',
     name: 'Boulder',
     category: 'rocks',
-    description: 'Large displaced-icosphere boulder. Solid.',
+    description: 'Large scanned mossy boulder. Solid.',
     variants: 4,
     lods: [
-      { maxDistance: 110, castShadow: true },
-      { maxDistance: 1000, castShadow: false },
+      { maxDistance: 60, castShadow: true },
+      { maxDistance: 160, castShadow: true },
+      { maxDistance: 1000, castShadow: false, oneVariant: true },
     ],
     colliders: [{ kind: 'sphere', r: 0.85, y: 0.35 }],
     tint: 0.1,
@@ -325,7 +326,10 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'Fist-to-football sized rocks scattered on verges. No collision.',
     variants: 4,
-    lods: [{ maxDistance: 220, castShadow: false }],
+    lods: [
+      { maxDistance: 40, castShadow: false },
+      { maxDistance: 220, castShadow: false, oneVariant: true },
+    ],
     tint: 0.12,
   },
   // --- props ---------------------------------------------------------------------
@@ -340,6 +344,19 @@ export const ASSET_CATALOG: AssetMeta[] = [
       { maxDistance: 700, castShadow: false },
     ],
     colliders: [{ kind: 'sphere', r: 0.7, y: 0.6 }],
+  },
+  {
+    id: 'hay_bale_square',
+    name: 'Square hay bales',
+    category: 'props',
+    description:
+      'Stack of three small square straw bales (two side by side, one on top), 1 m long along local X, 0.72 m high. Protects the outside of tight corners.',
+    variants: 2,
+    lods: [
+      { maxDistance: 120, castShadow: true },
+      { maxDistance: 700, castShadow: false },
+    ],
+    colliders: [{ kind: 'box', hx: 0.52, hz: 0.47, h: 0.72, r: 0.71 }],
   },
   {
     id: 'spectator',
@@ -411,7 +428,16 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'tape_post',
     name: 'Tape post',
     category: 'props',
-    description: 'Thin post with red/white spectator tape stub.',
+    description: 'Thin post the spectator tape ties to.',
+    variants: 1,
+    lods: [{ maxDistance: 300, castShadow: false }],
+  },
+  {
+    id: 'tape_span',
+    name: 'Tape span',
+    category: 'props',
+    description:
+      'Red / white spectator tape, 1 m long along X: scaled (sx) to the gap between two tape posts and tilted to the slope (world/tape.ts).',
     variants: 1,
     lods: [{ maxDistance: 300, castShadow: false }],
   },
@@ -444,7 +470,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Road barrier',
     category: 'props',
     description:
-      'Police / marshal road-closed barrier (red-white striped rails, 2.2 m long, front faces +Z). Closes side-road mouths (MapDef.junctionBarriers). Solid.',
+      'Police / marshal road-closed barrier (boards striped red-white at 45 degrees on tube legs, 2.2 m long, front faces +Z). Closes side-road mouths (MapDef.junctionBarriers). Solid.',
     variants: 1,
     lods: [
       { maxDistance: 250, castShadow: true },
@@ -602,7 +628,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Ambulance',
     category: 'props',
     description:
-      'White ambulance (the high-roof van model with its textures): red stripe, light bar, "FIRE DEPT" and "AMBULANCE" on the sides (generic words, no agency name or logos). Faces +X. Solid.',
+      'White ambulance (the high-roof van model with its textures): red stripe, light bar, "AMBULANCE" and the Star of Life on the sides (generic word, no agency name or logos). Faces +X. Solid.',
     variants: 1,
     lods: carLods(50, 120, 520),
     colliders: [{ kind: 'box', hx: 3.2, hz: 1.17, h: 2.8, r: 3.4 }],
@@ -657,7 +683,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Car trailer',
     category: 'props',
     description:
-      'Flat car trailer with a tow bar to +X (variant 0 grey, 1 dark). Solid.',
+      'Car trailer: deck with side rails and a ramp folded onto it, round wheels under fenders, A-frame tow bar to +X (variant 0 grey, 1 dark). Solid.',
     variants: 2,
     lods: VEHICLE_LODS,
     colliders: [{ kind: 'box', hx: 2.6, hz: 1.05, h: 0.9, r: 2.9 }],
@@ -732,10 +758,20 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Tool chest',
     category: 'props',
     description:
-      'Rolling tool chest (variant = colour). Front faces +Z. Solid.',
+      'Rolling tool chest, top box on a cabinet (SimReady scan, variant = body colour). Front faces +Z. Solid.',
     variants: 4,
     lods: PROP_LODS,
-    colliders: [{ kind: 'box', hx: 0.5, hz: 0.3, h: 1, r: 0.6 }],
+    colliders: [{ kind: 'box', hx: 0.38, hz: 0.2, h: 1.12, r: 0.45 }],
+  },
+  {
+    id: 'tyre_rack',
+    name: 'Tyre rack',
+    category: 'props',
+    description:
+      'Wire tyre rack (SimReady scan) with rally tyres in its two cradles (variant = full, half, a few). Front faces +Z. Solid.',
+    variants: 3,
+    lods: PROP_LODS,
+    colliders: [{ kind: 'box', hx: 0.64, hz: 0.31, h: 1.3, r: 0.72 }],
   },
   {
     id: 'table_chairs',
@@ -778,7 +814,8 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'trolley_jack',
     name: 'Trolley jack',
     category: 'props',
-    description: 'Red trolley jack with a long handle (-X). No collision.',
+    description:
+      'Low-profile floor jack, handle up (SimReady scan). No collision.',
     variants: 1,
     lods: PROP_LODS,
   },

@@ -79,6 +79,7 @@ import {
   saveSettings,
   type BloomLevel,
   type ObjectDistance,
+  type RenderScale,
   type RallySettings,
 } from './settings';
 import { SEASON_ICONS, SETUP_ICONS, TIME_ICONS } from './menu-icons';
@@ -159,6 +160,19 @@ const PLANTS: SourceLink[] = [
     label: 'Corn! Corn! Corn! (Tiia Tuulia, Sketchfab)',
     url: 'https://sketchfab.com/3d-models/corn-corn-corn-10187bc37c9e42ef8770b28452ee7cd3',
     note: 'corn fields, dry in autumn - CC BY 4.0',
+  },
+];
+
+const PROPS: SourceLink[] = [
+  {
+    label: 'Hay bales (Abby Crawford, Sketchfab)',
+    url: 'https://sketchfab.com/3d-models/hay-bales-9a9f28d0e59a43e49d860912c47b8767',
+    note: 'straw of the hay bales - CC BY 4.0',
+  },
+  {
+    label: 'SimReady Assets (NVIDIA)',
+    url: 'https://huggingface.co/datasets/nvidia/simready-assets',
+    note: 'service park tool chest, tyre rack and trolley jack - CC BY 4.0',
   },
 ];
 
@@ -643,6 +657,8 @@ class MainMenu {
       <h2>Plants</h2>
       <p>Trees, bushes and grass are generated in code.</p>
       ${links(PLANTS, '')}
+      <h2>Props</h2>
+      ${links(PROPS, '')}
       <h2>Physics</h2>
       <h3>Tyres</h3>
       ${links(TYRE_RESEARCH, '')}
@@ -1511,6 +1527,19 @@ export function buildOptions(opts: {
       (v) => set({ objectDistance: v }),
     )),
     'trees, houses and props pop in further away · Max costs GPU',
+  );
+  row(
+    'Render scale',
+    choice(
+      [
+        ['100', '100%'],
+        ['85', '85%'],
+        ['70', '70%'],
+      ] as [RenderScale, string][],
+      s.renderScale,
+      (v) => set({ renderScale: v }),
+    ),
+    'fewer pixels, more frames per second · for sharp (high-DPI) screens',
   );
   row(
     'Display',

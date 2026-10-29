@@ -927,19 +927,37 @@ const tintedMaterial = (part: 'paint' | 'cab'): Material => {
   return tintedMaterials[part];
 };
 
+/** Dark grey of the plastic parts (bumper, grille) of a tinted cab. */
+const PLASTIC = '#3a3d41';
+
 /**
  * A baked truck in one colour for the service park: paint and cab take `color` through the vertex colours (the model
  * is centred on the origin). LOD 1 is the two-box stand-in.
  */
-function tintedTruck(pieces: Pieces, color: string, lod: number): AssetPart[] {
+function tintedTruck(
+  pieces: Pieces,
+  color: string,
+  lod: number,
+  plastic?: (x: number, y: number, z: number) => boolean,
+): AssetPart[] {
   const tint = new Color(color);
-  /** `g` with the colour on every vertex (times `tone` per vertex when given). */
-  const colored = (g: BufferGeometry, tone?: (i: number) => number) => {
+  const grey = new Color(PLASTIC);
+  /** `g` with the colour on every vertex (times `tone` per vertex when given; `plastic` vertices stay dark grey). */
+  const colored = (
+    g: BufferGeometry,
+    tone?: (i: number) => number,
+    keepPlastic = false,
+  ) => {
     const n = g.getAttribute('position').count;
+    const pos = g.getAttribute('position');
     const c = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
       const k = tone?.(i) ?? 1;
-      c.set([tint.r * k, tint.g * k, tint.b * k], i * 3);
+      const base =
+        keepPlastic && plastic?.(pos.getX(i), pos.getY(i), pos.getZ(i))
+          ? grey
+          : tint;
+      c.set([base.r * k, base.g * k, base.b * k], i * 3);
     }
     g.setAttribute('color', new BufferAttribute(c, 3));
     return g;
@@ -958,7 +976,9 @@ function tintedTruck(pieces: Pieces, color: string, lod: number): AssetPart[] {
     const paint = slot.part === 'paint' || slot.part === 'cab';
     return [
       {
-        geometry: paint ? colored(geometry) : geometry,
+        geometry: paint
+          ? colored(geometry, undefined, slot.part === 'cab')
+          : geometry,
         material: slot.tex
           ? texturedMaterial(slot, paint)
           : paint
@@ -974,8 +994,12 @@ export const teamSemi = (color: string, lod: number): AssetPart[] =>
   tintedTruck(buildTruck('tractor'), color, lod);
 
 /** The recovery tow truck of a parc fermé (`service_tow`): the roll-back on the dump cab, one colour all over. */
-export const recoveryTruck = (color: string, lod: number): AssetPart[] =>
-  tintedTruck(buildDump('tow'), color, lod);
+export const recoveryTruck = (color: string, lod: number): AssetPart[] => {
+  const pieces = buildDump('tow');
+  // The cab model has no engine bay: close the open grille and the gap under it.
+  pieces.box('detail', [2.95, 0.6, -0.88], [3.3, 1.55, 0.88], '#17181a');
+  return tintedTruck(pieces, color, lod, (x, y) => x > 3.3 && y < 1.15);
+};
 
 /** Colours of a recovery truck (the fleet's tow palette). */
 export const RECOVERY_COLORS = BACK_PAINT.tow;

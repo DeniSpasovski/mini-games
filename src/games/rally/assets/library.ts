@@ -8,15 +8,18 @@ import {
   fanFlag,
   flagpole,
   hayBale,
+  hayBaleSquare,
   markerPost,
   roadBarrier,
   streetLamp,
   trafficSignal,
   wallLamp,
   tapePost,
+  tapeSpan,
   villageSign,
 } from './builders/props';
 import { buildingFlat, housePitched, houseStone } from './builders/buildings';
+import { floorJack, toolChest, tyreRack } from './builders/simready';
 import {
   crew,
   driver,
@@ -59,8 +62,6 @@ import {
   serviceVan,
   tableChairs,
   teamCar,
-  toolChest,
-  trolleyJack,
   tyreStack,
 } from './builders/service';
 import {
@@ -112,6 +113,7 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   rock_boulder: rockBoulder,
   rock_small: rockSmall,
   hay_bale: hayBale,
+  hay_bale_square: hayBaleSquare,
   spectator,
   mechanic,
   crew,
@@ -120,6 +122,7 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   photographer,
   visitor,
   tape_post: tapePost,
+  tape_span: tapeSpan,
   fan_flag: fanFlag,
   flagpole,
   road_barrier: roadBarrier,
@@ -149,11 +152,12 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   team_car: teamCar,
   tyre_stack: tyreStack,
   tool_chest: toolChest,
+  tyre_rack: tyreRack,
   table_chairs: tableChairs,
   generator,
   feather_flag: featherFlag,
   ground_sheet: groundSheet,
-  trolley_jack: trolleyJack,
+  trolley_jack: floorJack,
   food_truck: foodTruck,
   porta_toilet: portaToilet,
   fuel_trailer: fuelTrailer,

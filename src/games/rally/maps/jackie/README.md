@@ -32,6 +32,7 @@ npm run dev     # /games/rally/?stage=jackie&spawn=1000
 | Horizon terrain                              | [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/)                                                                                                                        | [attributions](https://github.com/tilezen/joerd/blob/master/docs/attribution.md) |
 | Kew Gardens junction surface, medians, trees | [NYC Planimetric Database, Street Tree Census](https://opendata.cityofnewyork.us/) (NYC Open Data)                                                                                       | no restrictions on use                                                           |
 | Land cover (woods, grass)                    | [ESA WorldCover 2021](https://esa-worldcover.org/)                                                                                                                                       | CC BY 4.0                                                                        |
+| Service park kit                             | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) (tool chest, tyre rack, trolley jack)                                                                   | CC BY 4.0                                                                        |
 
 The baked map files (`*.json`, `buildings.csv`, stage card) are a derived database of OpenStreetMap and stay under the ODbL. The emergency vehicles carry short
-generic lettering ("POLICE", "FIRE DEPT", "AMBULANCE") and no logos or badges.
+generic lettering ("POLICE", "AMBULANCE") and no logos or badges.

@@ -1,6 +1,7 @@
 import {
   BufferAttribute,
   BufferGeometry,
+  Color,
   DoubleSide,
   Group,
   Material,
@@ -15,7 +16,9 @@ import {
   feetInches,
   namePlateTexture,
 } from '../engine/structure-textures';
-import { getTexture } from '../engine/textures';
+import ashlarUrl from '../engine/facades/ashlar.webp';
+import blockUrl from '../engine/facades/block.webp';
+import { imageTexture } from '../engine/image-texture';
 import { DECK_OVERHANG, PARAPET_H, PARAPET_T, SLAB_T } from './portals';
 import { newPathQuery } from './real-data';
 import { newRoadQuery } from './road';
@@ -59,6 +62,15 @@ const WING_FLARE = 0.7;
 const STONE_TS = 2;
 /** Concrete texture repeat (m). */
 const CONC_TS = 4;
+/** The facade scans (engine/facades/) are one 3.2 m bay. */
+const SCAN_M = 3.2;
+
+/** A facade scan as a bridge texture: uv in `ts` m units, the scan at its real size. */
+function scan(url: string, ts: number, name: string): Texture {
+  const t = imageTexture(url, 512, 512, name);
+  t.repeat.setScalar(ts / SCAN_M);
+  return t;
+}
 
 let materials:
   | {
@@ -76,15 +88,19 @@ export function bridgeMaterials() {
       metalness: 0.55,
       side: DoubleSide,
     }),
+    // Stone-faced abutments and parapets: the sandstone ashlar scan (as the stone buildings), darkened to the old tone.
     stone: new MeshStandardMaterial({
-      map: getTexture('bridge_stone'),
+      map: scan(ashlarUrl, STONE_TS, 'bridge:stone'),
+      color: new Color().setScalar(0.8),
       vertexColors: true,
       roughness: 0.95,
       metalness: 0,
       side: DoubleSide,
     }),
+    // Decks, piers, walls: the cast-concrete scan of the concrete blocks and Jersey barriers.
     concrete: new MeshStandardMaterial({
-      map: getTexture('bridge_concrete'),
+      map: scan(blockUrl, CONC_TS, 'bridge:concrete'),
+      color: new Color().setScalar(0.52),
       vertexColors: true,
       roughness: 0.95,
       metalness: 0,

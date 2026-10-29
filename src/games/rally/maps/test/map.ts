@@ -186,7 +186,7 @@ export const testMap: MapDef = {
       every: 50,
       side: 'both',
       offset: 1.4,
-      faceRoad: true,
+      alongRoad: true,
     },
     {
       asset: 'chevron_sign',
