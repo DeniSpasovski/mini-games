@@ -128,7 +128,7 @@ run in a warmer window (see "Tyre temperature"):
 | ----------- | ------------------ | -------- |
 | Tarmac Soft | 0.95 / 0.90        | 0.80     |
 | Tarmac Hard | 1.0 / 0.92         | 0.85     |
-| Tarmac Wet  | 1.0 / 0.93         | 1.10     |
+| Tarmac Wet  | 1.0 / 0.97         | 1.00     |
 | Mixed       | 1.0 / 1.0          | 1.00     |
 | Gravel Hard | 1.06 / 1.0         | 1.15     |
 | Gravel Soft | 1.08 / 1.03        | 1.25     |
