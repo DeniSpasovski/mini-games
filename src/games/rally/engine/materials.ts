@@ -260,6 +260,7 @@ export function getMaterial(id: MaterialId): Material {
       m = new MeshStandardMaterial({
         vertexColors: true,
         map: getTexture('vehicle_decals'),
+        alphaTest: 0.5,
         roughness: 0.42,
         metalness: 0.3,
       });

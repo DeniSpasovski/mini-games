@@ -628,7 +628,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Ambulance',
     category: 'props',
     description:
-      'White ambulance (the high-roof van model with its textures): red stripe, light bar, "FIRE DEPT" and "AMBULANCE" on the sides (generic words, no agency name or logos). Faces +X. Solid.',
+      'White ambulance (the high-roof van model with its textures): red stripe, light bar, "AMBULANCE" and the Star of Life on the sides (generic word, no agency name or logos). Faces +X. Solid.',
     variants: 1,
     lods: carLods(50, 120, 520),
     colliders: [{ kind: 'box', hx: 3.2, hz: 1.17, h: 2.8, r: 3.4 }],
@@ -683,7 +683,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Car trailer',
     category: 'props',
     description:
-      'Flat car trailer with a tow bar to +X (variant 0 grey, 1 dark). Solid.',
+      'Car trailer: deck with side rails and a folded ramp, round wheels under fenders, A-frame tow bar to +X (variant 0 grey, 1 dark). Solid.',
     variants: 2,
     lods: VEHICLE_LODS,
     colliders: [{ kind: 'box', hx: 2.6, hz: 1.05, h: 0.9, r: 2.9 }],
