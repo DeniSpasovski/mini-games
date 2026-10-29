@@ -253,30 +253,6 @@ export const tyreStack: AssetBuilder = ({ variant, lod }) => {
   return finish(parts);
 };
 
-/** Rolling tool chest (variant = colour). */
-export const toolChest: AssetBuilder = ({ variant }) => {
-  const c = ['#c8321e', '#2a5fc0', '#3b3f46', '#e0a020'][variant % 4];
-  return finish([
-    box(0.95, 0.85, 0.55, 0, 0.5, 0, c),
-    box(1.0, 0.06, 0.6, 0, 0.95, 0, '#2a2d34'),
-    box(0.9, 0.04, 0.02, 0, 0.7, 0.285, '#c8cbd0'),
-    box(0.9, 0.04, 0.02, 0, 0.5, 0.285, '#c8cbd0'),
-    box(0.9, 0.04, 0.02, 0, 0.3, 0.285, '#c8cbd0'),
-    solid(
-      new CylinderGeometry(0.07, 0.07, 0.04, 6)
-        .rotateX(Math.PI / 2)
-        .translate(0.38, 0.07, 0.2),
-      DARK,
-    ),
-    solid(
-      new CylinderGeometry(0.07, 0.07, 0.04, 6)
-        .rotateX(Math.PI / 2)
-        .translate(-0.38, 0.07, 0.2),
-      DARK,
-    ),
-  ]);
-};
-
 /** Folding table with two chairs and a laptop. */
 export const tableChairs: AssetBuilder = () => {
   const parts: BufferGeometry[] = [box(1.8, 0.05, 0.8, 0, 0.75, 0, '#d9dbde')];
@@ -348,16 +324,6 @@ export const groundSheet: AssetBuilder = ({ variant }) =>
       0,
       ['#3d4f6b', '#6a6f76', '#2f5a3c', '#26282c'][variant % 4],
     ),
-  ]);
-
-/** Trolley jack (red) with a long handle. */
-export const trolleyJack: AssetBuilder = () =>
-  finish([
-    box(0.7, 0.14, 0.28, 0, 0.12, 0, '#c8321e'),
-    box(0.2, 0.18, 0.2, 0.1, 0.25, 0, '#c8321e'),
-    tilted(1.0, 0.04, 0.05, -0.65, 0.35, 0, 0, '#2a2d34'),
-    wheel(0.05, 0.05, 0.28, 0.17),
-    wheel(0.05, 0.05, 0.28, -0.17),
   ]);
 
 // --- public side and control ---------------------------------------------------------------------------

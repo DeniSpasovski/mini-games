@@ -24,6 +24,7 @@ export const SERVICE_PARK_ASSETS = [
   'gazebo_long',
   'team_car',
   'tyre_stack',
+  'tyre_rack',
   'tool_chest',
   'table_chairs',
   'generator',
@@ -639,7 +640,7 @@ function works(
   bay.put('generator', 0, 12.4, 1.5, 0, { r: 0.7 });
   bay.put('tyre_stack', 0, 2.6, 8.0, 0, { r: 0.4 });
   bay.put('tyre_stack', 1, 3.5, 8.4, 0, { r: 0.4 });
-  bay.put('tyre_stack', 2, 12.6, 9.0, 0, { r: 0.4 });
+  bay.put('tyre_rack', team % 3, 12.6, 9.0, 0, { r: 0.75 });
   bay.put('trolley_jack', 0, tx + 2.9, 6.9, rng.range(-0.4, 0.4), { r: 0.4 });
   bay.put('feather_flag', team, 0.8, 9.7, 0, { r: 0.3 });
   bay.put('feather_flag', team, w - 0.8, 9.7, 0, { r: 0.3 });
