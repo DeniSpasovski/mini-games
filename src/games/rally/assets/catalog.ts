@@ -683,7 +683,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Car trailer',
     category: 'props',
     description:
-      'Car trailer: deck with side rails and a folded ramp, round wheels under fenders, A-frame tow bar to +X (variant 0 grey, 1 dark). Solid.',
+      'Car trailer: deck with side rails and a ramp folded onto it, round wheels under fenders, A-frame tow bar to +X (variant 0 grey, 1 dark). Solid.',
     variants: 2,
     lods: VEHICLE_LODS,
     colliders: [{ kind: 'box', hx: 2.6, hz: 1.05, h: 0.9, r: 2.9 }],

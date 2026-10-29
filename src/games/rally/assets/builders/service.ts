@@ -152,7 +152,7 @@ export const serviceVan: AssetBuilder = ({ variant, lod }) => {
 };
 
 /**
- * Flat car trailer (5.5 m): deck with side rails and a folded ramp at -X, round wheels outside the deck under
+ * Flat car trailer (5.5 m): deck with side rails and a ramp folded onto its back, round wheels outside the deck under
  * fenders, an A-frame tow bar with a coupler and jockey wheel to +X. Variant 0 grey, 1 dark.
  */
 export const carTrailer: AssetBuilder = ({ variant, lod }) => {
@@ -173,11 +173,8 @@ export const carTrailer: AssetBuilder = ({ variant, lod }) => {
       DARK,
     ),
     box(0.3, 0.14, 0.2, 4.05, 0.62, 0, DARK),
-    // Folded ramp at the back.
-    solid(
-      new BoxGeometry(0.06, 0.6, 1.9).rotateZ(0.12).translate(-2.62, 1.05, 0),
-      deck,
-    ),
+    // Ramp folded flat onto the back of the deck.
+    box(1.1, 0.05, 1.9, -2.0, 0.795, 0, deck),
   ];
   for (const z of [1.05, -1.05]) {
     parts.push(box(5.2, 0.08, 0.06, 0, 0.8, z, deck));
