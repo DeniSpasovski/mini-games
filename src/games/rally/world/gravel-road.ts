@@ -19,7 +19,7 @@ import { GRAVEL_SHARP, getTerrainMaterial } from './terrain-material';
  * laid in world space with the same second tap, brightness variation and relief rule as the terrain
  * (`world/terrain-material.ts`), so road and verge are one surface and no seam shows where they meet. What makes it a
  * road: two wheel ruts (the loose stones are replaced by the blurred tap: packed, smoother, a little darker, with tyre
- * streaks along them) and, on the road ribbon, an edge that thins out into the verge (alpha) instead of ending on a line.
+ * streaks along them) and, on the road ribbon, an edge that thins out into the verge (dithered) instead of ending on a line.
  * Texture u runs across the road (0 = right edge, 1 = left edge), v along it (`texLength` metres).
  */
 const RUTS = [0.29, 0.71];
@@ -157,7 +157,10 @@ export function gravelShader(
             ? `// Edge: from the road's edge (u 0.02 / 0.98) the stones thin out into the verge, ragged at 0.3 m / 1.5 m.
         float edge = min( u, 1.0 - u );
         float rag = 0.6 * grNoise( vec2( u * 6.0, vMapUv.y * 7.0 ) / 1.5 + 11.0 ) + 0.4 * grNoise( vec2( u * 6.0, vMapUv.y * 7.0 ) / 0.3 + 3.0 );
-        diffuseColor.a *= smoothstep( 0.0, 1.0, ( edge - 0.012 ) / 0.075 + 0.55 * ( rag - 0.5 ) );`
+        float grA = smoothstep( 0.0, 1.0, ( edge - 0.012 ) / 0.075 + 0.55 * ( rag - 0.5 ) );
+        // Dithered (interleaved gradient noise) instead of blended: the ribbon stays opaque, so it is drawn first and the
+        // terrain under it is never shaded; where a pixel is dropped the terrain's own gravel shows, the same stones.
+        if ( grA < fract( 52.9829189 * fract( dot( gl_FragCoord.xy, vec2( 0.06711056, 0.00583715 ) ) ) ) ) discard;`
             : ''
         }
       }`,
@@ -173,10 +176,11 @@ export function gravelShader(
     );
 }
 
-/** A gravel road ribbon material: transparent edges, no depth write (it lies 2 cm over the terrain it blends into). */
+/**
+ * A gravel road ribbon material: opaque with a dithered edge (it lies 2 cm over the terrain it blends into; the mesh is
+ * drawn before the terrain so the terrain under it fails the depth test and is not shaded twice).
+ */
 export function setupGravelRibbon(m: Material & { defines?: object }): void {
-  m.transparent = true;
-  m.depthWrite = false;
   m.defines = { ...(m.defines ?? {}), ...GRAVEL_DEFINES };
   m.onBeforeCompile = (shader: WebGLProgramParametersWithUniforms) =>
     gravelShader(shader, true);

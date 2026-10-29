@@ -641,6 +641,8 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
     );
     mesh.receiveShadow = true;
     mesh.matrixAutoUpdate = false;
+    // Before the terrain (0): its fragments under the road fail the depth test and are never shaded.
+    mesh.renderOrder = -0.2;
     group.add(mesh);
     yield;
   }
