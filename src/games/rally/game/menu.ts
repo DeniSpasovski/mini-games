@@ -169,6 +169,11 @@ const PROPS: SourceLink[] = [
     url: 'https://sketchfab.com/3d-models/hay-bales-9a9f28d0e59a43e49d860912c47b8767',
     note: 'straw of the hay bales - CC BY 4.0',
   },
+  {
+    label: 'SimReady Assets (NVIDIA)',
+    url: 'https://huggingface.co/datasets/nvidia/simready-assets',
+    note: 'service park tool chest, tyre rack and trolley jack - CC BY 4.0',
+  },
 ];
 
 const BUILT_WITH: SourceLink[] = [

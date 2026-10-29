@@ -749,10 +749,20 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Tool chest',
     category: 'props',
     description:
-      'Rolling tool chest (variant = colour). Front faces +Z. Solid.',
+      'Rolling tool chest, top box on a cabinet (SimReady scan, variant = body colour). Front faces +Z. Solid.',
     variants: 4,
     lods: PROP_LODS,
-    colliders: [{ kind: 'box', hx: 0.5, hz: 0.3, h: 1, r: 0.6 }],
+    colliders: [{ kind: 'box', hx: 0.38, hz: 0.2, h: 1.12, r: 0.45 }],
+  },
+  {
+    id: 'tyre_rack',
+    name: 'Tyre rack',
+    category: 'props',
+    description:
+      'Wire tyre rack (SimReady scan) with rally tyres in its two cradles (variant = full, half, a few). Front faces +Z. Solid.',
+    variants: 3,
+    lods: PROP_LODS,
+    colliders: [{ kind: 'box', hx: 0.64, hz: 0.31, h: 1.3, r: 0.72 }],
   },
   {
     id: 'table_chairs',
@@ -795,7 +805,8 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'trolley_jack',
     name: 'Trolley jack',
     category: 'props',
-    description: 'Red trolley jack with a long handle (-X). No collision.',
+    description:
+      'Low-profile floor jack, handle up (SimReady scan). No collision.',
     variants: 1,
     lods: PROP_LODS,
   },

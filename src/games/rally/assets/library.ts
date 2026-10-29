@@ -18,6 +18,7 @@ import {
   villageSign,
 } from './builders/props';
 import { buildingFlat, housePitched, houseStone } from './builders/buildings';
+import { floorJack, toolChest, tyreRack } from './builders/simready';
 import {
   crew,
   driver,
@@ -60,8 +61,6 @@ import {
   serviceVan,
   tableChairs,
   teamCar,
-  toolChest,
-  trolleyJack,
   tyreStack,
 } from './builders/service';
 import {
@@ -151,11 +150,12 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   team_car: teamCar,
   tyre_stack: tyreStack,
   tool_chest: toolChest,
+  tyre_rack: tyreRack,
   table_chairs: tableChairs,
   generator,
   feather_flag: featherFlag,
   ground_sheet: groundSheet,
-  trolley_jack: trolleyJack,
+  trolley_jack: floorJack,
   food_truck: foodTruck,
   porta_toilet: portaToilet,
   fuel_trailer: fuelTrailer,

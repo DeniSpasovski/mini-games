@@ -37,6 +37,7 @@ npm run dev     # /games/rally/?stage=ajvatovci&spawn=200      (drive from 200 m
 | Wheat model                                  | ["Realistic Wheat"](https://sketchfab.com/3d-models/realistic-wheat-50270968690441d3ad9d2a8924c7338b) by Graphetta (Sketchfab) | CC BY 4.0                                                                        |
 | Elevation                                    | [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) (SRTM / EU-DEM based)                                        | [attributions](https://github.com/tilezen/joerd/blob/master/docs/attribution.md) |
 | Road asphalt                                 | [Asphalt 04 (Poly Haven)](https://polyhaven.com/a/asphalt_04), by Sergej Majboroda and Jenelle van Heerden                     | CC0                                                                              |
+| Service park kit                             | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) (tool chest, tyre rack, trolley jack)         | CC BY 4.0                                                                        |
 
 The baked map files (`*.json`, `buildings.csv`, stage card) are a derived database of the ODbL sources above and stay under the ODbL (attribution +
 share-alike). A few shapes (the vineyard outlines and the lot positions of the start street) were traced by eye from

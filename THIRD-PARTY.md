@@ -183,6 +183,18 @@ The hay bales wear a tile cut from the photo texture of a CC BY 4.0 scan (one ba
 | ----------------------------------------------------------------------------------------- | ------------------------------------------------------- | --------- |
 | ["Hay bales"](https://sketchfab.com/3d-models/hay-bales-9a9f28d0e59a43e49d860912c47b8767) | [Abby Crawford](https://sketchfab.com/abby) (Sketchfab) | CC BY 4.0 |
 
+### Service park kit (baked into `src/games/rally/assets/builders/simready-models.data.ts`)
+
+The tool chest, tyre rack and trolley jack of the service park: CC BY 4.0 models from NVIDIA SimReady Assets, coloured
+per part, decimated and packed by `scripts/props/bake-simready.py` (the tyres on the rack and the team paint are added in
+code; the source files are not in the repository).
+
+| Model                                                                                                                                                               | Author                                                                           | Licence   |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | --------- |
+| ["equipment_rolling_tool_chest_cabinet_combo_d01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/equipment_rolling_tool_chest_cabinet_combo_d01) | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["storage_tire_rack_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/storage_tire_rack_a01)                                                   | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["vehicleSupport_floor_jack_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/vehicleSupport_floor_jack_a01)                                   | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 
 ## Road textures
