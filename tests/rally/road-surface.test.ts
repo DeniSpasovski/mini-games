@@ -8,11 +8,6 @@ const gen = fs.readFileSync(
   path.resolve(__dirname, '../../scripts/asphalt/gen.js'),
   'utf8',
 );
-// The gravel road is baked from a scan by its own script.
-const gravel = fs.readFileSync(
-  path.resolve(__dirname, '../../scripts/gravel/bake.py'),
-  'utf8',
-);
 
 describe('baked road asphalt', () => {
   const ids = Object.keys(
@@ -29,11 +24,7 @@ describe('baked road asphalt', () => {
   });
 
   it('bakes the tile length the road mesh uses (metres per repeat)', () => {
-    expect(Number(gravel.match(/^LEN = ([\d.]+)/m)?.[1])).toBe(
-      ROAD_SURFACE_LEN.road,
-    );
     for (const id of ids) {
-      if (id === 'road') continue;
       const preset = gen.match(new RegExp(`${id}: \\{[^}]*?len: (\\d+)`, 's'));
       expect(Number(preset?.[1])).toBe(ROAD_SURFACE_LEN[id]);
     }

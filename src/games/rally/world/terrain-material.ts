@@ -272,6 +272,14 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         }
         if (w.w > wCut) {
           cGravel = gVar(GY_GRAVEL, wp, GS_GRAVEL, GM_GRAVEL, dpx, dpy, near, h);
+          #ifndef TERRAIN_FAR
+          // Close up the 512 px scan is magnified: a third tap at about a third of the size (the gravel road has it too, world/gravel-road.ts).
+          float gNear = 1.0 - smoothstep(6.0, 20.0, length(vWPos - cameraPosition));
+          if (gNear > 0.0) {
+            mat2 R3 = mat2(0.6, 0.8, -0.8, 0.6);
+            cGravel *= mix(1.0, clamp(dot(gTap(GY_GRAVEL, R3 * wp + 7.3, GS_GRAVEL * 3.1, R3 * dpx, R3 * dpy), LUMA) / GM_GRAVEL, 0.4, 2.2), 0.6 * gNear);
+          }
+          #endif
           aV = w.w + 0.1 + HB_K * (h.x - 1.0);
           rV = 0.5 * mix(1.0, h.y, smoothstep(wCut, wCut + 0.15, w.w));
         }
@@ -321,7 +329,7 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
       );
   };
   mat.customProgramCacheKey = () =>
-    far ? 'rally-terrain-far-v5' : 'rally-terrain-v9';
+    far ? 'rally-terrain-far-v5' : 'rally-terrain-v10';
   if (far) sharedFar = mat;
   else shared = mat;
   return mat;

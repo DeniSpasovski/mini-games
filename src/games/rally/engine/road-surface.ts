@@ -17,14 +17,13 @@ import { loadQuality } from './quality';
 import { getTexture } from './textures';
 
 /**
- * Baked road surfaces: a colour map plus a normal map with the roughness packed in its alpha, per road type and per
- * size (`./asphalt/<id>.<size>.{color,normal,rough}.webp`; asphalt drawn by `scripts/asphalt/bake.mjs`, the gravel
- * `road` by `scripts/gravel/bake.py`). High loads the 1024 px set, Medium and Low their own 512 px set. The road
- * material (`world/road-mesh.ts` `getRoadMaterial`) takes the maps from here; until a set has loaded it is a plain dark
- * surface, and a set that fails to load falls back to the procedural tile of the same id (`engine/textures.ts`).
+ * Baked asphalt for the paved roads: a colour map plus a normal map with the roughness packed in its alpha, per road
+ * type and per size (`./asphalt/<id>.<size>.{color,normal,rough}.webp`, drawn by `scripts/asphalt/bake.mjs`).
+ * High loads the 1024 px set, Medium and Low their own 512 px set. The road material (`world/road-mesh.ts`
+ * `getRoadMaterial`) takes the maps from here; until a set has loaded it is a plain dark surface, and a set that
+ * fails to load falls back to the procedural tile of the same id (`engine/textures.ts`).
  */
 export type RoadSurfaceId =
-  | 'road'
   | 'road_tarmac'
   | 'road_tarmac_kerbed'
   | 'road_tarmac_junction'
@@ -38,9 +37,8 @@ export type RoadSurfaceId =
   | 'road_parkway'
   | 'junction_asphalt';
 
-/** Metres per tile along the road: the baked tiles' `len` (scripts/asphalt/gen.js presets, scripts/gravel/bake.py `LEN`) and `texLength` (world/road-mesh.ts). */
+/** Metres per tile along the road: the baked tiles' `len` (scripts/asphalt/gen.js presets) and `texLength` (world/road-mesh.ts). */
 export const ROAD_SURFACE_LEN: Record<RoadSurfaceId, number> = {
-  road: 6,
   road_tarmac: 7,
   road_tarmac_kerbed: 7,
   road_tarmac_junction: 7,
@@ -67,11 +65,6 @@ const PATCHES: Partial<Record<RoadSurfaceId, number>> = {
 };
 /** Roads whose patches are dark, square-cut repairs (Jackie) instead of pale rounded ones, at an even density. */
 const DARK_PATCHES = new Set<RoadSurfaceId>(['road_parkway']);
-/**
- * Roads whose edges dissolve into the ground beside them (alpha, ragged at the stone scale) instead of ending on a line:
- * the gravel road lies in a verge of the same gravel (the terrain's gravel layer), so only its relief changes.
- */
-const EDGE_FADE = new Set<RoadSurfaceId>(['road']);
 /** The junction asphalt each stage road surface blends into at side road mouths (world/junctions.ts). */
 export const JUNCTION_OF = JUNCTION_ASPHALT as Partial<
   Record<RoadSurfaceId, RoadSurfaceId>
@@ -187,7 +180,7 @@ export function roadSurfaceIds(map: MapDef): RoadSurfaceId[] {
       if (j) ids.add(j);
     }
   };
-  add(map.road.texture ?? 'road');
+  add(map.road.texture);
   for (const s of map.road.sections ?? []) add(s.texture);
   add(map.cityStreets?.asphalt);
   if (map.cityStreets)
@@ -218,12 +211,6 @@ export function applyRoadSurface(
   id: RoadSurfaceId,
   junction: RoadSurfaceId | undefined = JUNCTION_OF[id],
 ): void {
-  const fade = EDGE_FADE.has(id);
-  if (fade) {
-    // Blended over the terrain, which the ribbon sits 2 cm above: no depth write, so the edge never hides what follows.
-    m.transparent = true;
-    m.depthWrite = false;
-  }
   const configure = (s: Surface | undefined, js?: Surface) => {
     if (!s) {
       // Not available: the procedural tile of the same id (engine/textures.ts).
@@ -309,16 +296,6 @@ export function applyRoadSurface(
                 : ''
             }
             diffuseColor.rgb *= 1.03 + rsTone * rsK;
-            ${
-              fade
-                ? `{
-              // Edge: from the road's edge (u 0.02 / 0.98) the stones thin out into the verge, ragged at 0.3 m / 1.5 m.
-              float rsE = min( vMapUv.x, 1.0 - vMapUv.x );
-              float rsR = 0.6 * rsNoise( rsM / 1.5 + 11.0 ) + 0.4 * rsNoise( rsM / 0.3 + 3.0 );
-              diffuseColor.a *= smoothstep( 0.0, 1.0, ( rsE - 0.012 ) / 0.075 + 0.55 * ( rsR - 0.5 ) );
-            }`
-                : ''
-            }
             if ( rsPatch > 0.0 ) {
               float rsCi = floor( rsM.y / 10.0 );
               float rsFy = rsM.y - rsCi * 10.0;
@@ -358,8 +335,7 @@ export function applyRoadSurface(
     // (the blended shader is different code: its own program)
     m.customProgramCacheKey = () =>
       Material.prototype.customProgramCacheKey.call(m) +
-      (js ? ':junction' : '') +
-      (fade ? ':fade' : '');
+      (js ? ':junction' : '');
     m.needsUpdate = true;
   };
   const s = surfaces.get(id);

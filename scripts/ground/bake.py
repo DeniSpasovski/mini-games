@@ -1,6 +1,6 @@
 """Bake the terrain tiles of the rally ground (engine/ground/*.webp) from Poly Haven (CC0) scans.
 
-usage: python3 scripts/ground/bake.py <dir with <id>_diff_1k.jpg or <id>.jpg> [out dir]
+usage: python3 scripts/ground/bake.py <dir with <id>_diff_1k.jpg or <id>.jpg> [out dir [tile names]]
 
 One 512 px tile per layer, the whole scan (its size in metres is `SCAN` in engine/ground-textures.ts). The meadow tiles
 are only a luminance / structure source: the terrain shader tints them to the season's grass colour, so they are
@@ -31,6 +31,21 @@ TILES = {
 }
 
 
+# Tiles whose stones are sharpened (unsharp mask): tile -> (amount, blur radius in m, scan size in m). The scan's own
+# stones are 1 - 3 px from the chase camera and mip away; the gravel road (world/gravel-road.ts) is this layer too.
+DETAIL = {'gravel': (0.4, 0.03, 2.0)}
+
+
+def blur(a, sigma):
+    """Gaussian blur of an (h, w, c) array, wrapping round the tile edges."""
+    r = int(np.ceil(sigma * 3))
+    k = np.exp(-0.5 * (np.arange(-r, r + 1) / sigma) ** 2)
+    k /= k.sum()
+    for axis in (0, 1):
+        a = sum(w * np.roll(a, i - r, axis=axis) for i, w in enumerate(k))
+    return a
+
+
 def find(src, pid):
     for name in (f'{pid}_diff_1k.jpg', f'{pid}.jpg'):
         p = os.path.join(src, name)
@@ -51,7 +66,10 @@ def main():
     src = sys.argv[1]
     out = sys.argv[2] if len(sys.argv) > 2 else 'src/games/rally/engine/ground'
     os.makedirs(out, exist_ok=True)
+    only = sys.argv[3:]
     for name, (pid, lum, sat, contrast, meadow) in TILES.items():
+        if only and name not in only:
+            continue
         im = Image.open(find(src, pid)).convert('RGB').resize((SZ, SZ), Image.LANCZOS)
         a = srgb_to_lin(np.asarray(im).astype(np.float32) / 255)
         L = (a * LUMA).sum(2, keepdims=True)
@@ -61,6 +79,9 @@ def main():
         if contrast != 1.0:
             m = L.mean()
             a = np.maximum((a - m) * contrast + m, 0)
+        if name in DETAIL:
+            amount, radius, scan = DETAIL[name]
+            a = np.maximum(a + (a - blur(a, radius * SZ / scan)) * amount, 0)
         if lum is not None:
             a = a * (lum / (a * LUMA).sum(2).mean())
         a = lin_to_srgb(np.clip(a, 0, 1))
