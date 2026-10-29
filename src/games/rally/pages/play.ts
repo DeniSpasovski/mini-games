@@ -80,12 +80,17 @@ if (deepLink) void play(readUrlState(DEFAULTS));
 else
   void runMenu(root).then((r) => {
     // Mirror the choice in the URL: reload = same stage, link is shareable.
-    const { setup, gearing, tod, season, ...rest } = r;
+    const { setup, gearing, tod, season, weather, ...rest } = r;
     const params = { ...DEFAULTS, ...rest, susp: setup, gear: gearing };
-    // `tod` / `season` = the time of day / season picked on the stage screen (the game reads them); none = the stage's own.
+    // `tod` / `season` / `weather` = picked on the stage screen (the game reads them); none = the stage's own / dry.
     writeUrlState(
-      { ...params, tod: tod ?? '', season: season ?? '' },
-      { ...KEEP, tod: '', season: '' },
+      {
+        ...params,
+        tod: tod ?? '',
+        season: season ?? '',
+        weather: weather ?? '',
+      },
+      { ...KEEP, tod: '', season: '', weather: '' },
     );
     void play(params);
   });

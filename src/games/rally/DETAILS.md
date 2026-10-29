@@ -30,6 +30,7 @@ gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
 | `tod=<hours>`, `tonemap=`  | all   | time of day (maps with `environment.timeOfDay`; 20-4:30 = night, see Look; the stage menu sets it), `aces / agx / neutral`                                                               |
 | `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the stage's `temps` for the season and hour)                                                                                         |
 | `season=`                  | play  | `spring / summer / autumn`: tree leaf colours, ground colour and the stage's `temps` for it (default: `StageDef.season`, else `environment.season`, summer); the map viewer takes it too |
+| `weather=`                 | all   | `dry / overcast / rain_light / rain_heavy / post_rain` (`weather.ts`; the stage menu sets it): sky, wet surfaces, rain, spray, rain audio; grip unchanged                                |
 | `perf=1`                   | play  | open the perf panel (below)                                                                                                                                                              |
 
 Perf panel (`` ` `` key in game or `perf=1`, `game/perf-panel.ts`): FPS, frame ms, CPU ms per frame step, GPU ms (timer
