@@ -689,7 +689,9 @@ export function roadsideInstances(
           const heading = Math.atan2(p.tx, p.tz);
           const rotY = rule.faceRoad
             ? heading + (side > 0 ? -Math.PI / 2 : Math.PI / 2)
-            : rng.next() * Math.PI * 2;
+            : rule.alongRoad
+              ? heading + (side > 0 ? 0 : Math.PI)
+              : rng.next() * Math.PI * 2;
           const sc = rule.scale ? rng.range(rule.scale[0], rule.scale[1]) : 1;
           // Chevrons: variant 0 points left, 1 points right (as seen by the driver).
           const variant =

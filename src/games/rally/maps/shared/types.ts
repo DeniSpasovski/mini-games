@@ -1023,6 +1023,8 @@ export interface RoadsideRule {
   depth?: number;
   /** Rotate to face the road (signs / spectators). */
   faceRoad?: boolean;
+  /** Line up with the road, local -X towards it (delineator posts). */
+  alongRoad?: boolean;
   scale?: [number, number];
   /** Skip this rule before/after these distances along the road. */
   from?: number;

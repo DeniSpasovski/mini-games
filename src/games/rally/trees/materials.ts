@@ -26,6 +26,7 @@ import {
   type LeafStyle,
   type SpriteAtlas,
 } from './leaftex';
+import { imageReady, imageTexture } from '../engine/image-texture';
 import { mix32, unit } from './math';
 import {
   FAR_RAMP,
@@ -33,8 +34,14 @@ import {
   FULL_DETAIL_DISTANCE,
   NEAR_SPRITES,
   ROAD_REACH,
+  type BarkScan,
   type BarkTexture,
+  type SpeciesDef,
 } from './species';
+import furrowedUrl from './bark/furrowed.webp';
+import pineUrl from './bark/pine.webp';
+import beechUrl from './bark/beech.webp';
+import planeUrl from './bark/plane.webp';
 import { TREE_SPRITE_AXES } from './sprite-attr';
 
 /**
@@ -470,10 +477,53 @@ function noise2(
 
 const textures = new Map<string, Texture>();
 
+/** Scanned bark tiles (trees/bark/<kind>.webp, scripts/trees/bake-bark.py; 256 x 512). */
+const BARK_URLS: Partial<Record<BarkTexture | BarkScan, string>> = {
+  furrowed: furrowedUrl,
+  pine: pineUrl,
+  beech: beechUrl,
+  plane: planeUrl,
+};
+/** Lifts a scanned tile (its own contrast) to the procedural tiles' mean brightness; printed by the baker. */
+const BARK_GAIN: Partial<Record<BarkTexture | BarkScan, number>> = {
+  furrowed: 2.67,
+  pine: 1.34,
+  beech: 1.38,
+  plane: 1.48,
+};
+
+/** A species' bark tile: its own scan, else its kind. */
+export function barkKind(def: SpeciesDef): BarkTexture | BarkScan {
+  return def.bark.scan ?? def.bark.texture;
+}
+
+/** The bark material's colour over its tile (`BARK_GAIN`); the impostor bake applies the same. */
+export function barkGain(kind: BarkTexture | BarkScan): number {
+  return BARK_GAIN[kind] ?? 1;
+}
+
+/** Side of a bark tile (px): a scan or the procedural one. */
+export function barkTileSize(kind: BarkTexture | BarkScan): [number, number] {
+  return BARK_URLS[kind] ? [256, 512] : [64, 128];
+}
+
+/** Resolves when these bark tiles hold their scans: the impostor bake reads them once (trees/load.ts). */
+export function barkReady(kinds: (BarkTexture | BarkScan)[]): Promise<void> {
+  return Promise.all(
+    [...new Set(kinds)].map((k) => imageReady(barkTexture(k))),
+  ).then(() => undefined);
+}
+
 /** Grey bark detail (multiplies the bark vertex colour): u around the branch, v along it. */
-export function barkTexture(kind: BarkTexture): Texture {
+export function barkTexture(kind: BarkTexture | BarkScan): Texture {
   let t = textures.get(`bark:${kind}`);
   if (t) return t;
+  const url = BARK_URLS[kind];
+  if (url) {
+    t = imageTexture(url, 256, 512, `bark:${kind}`, '#9a9a9a');
+    textures.set(`bark:${kind}`, t);
+    return t;
+  }
   const w = 64;
   const h = 128;
   const data = new Uint8Array(w * h * 4);
@@ -728,7 +778,9 @@ export function setTreeFoliageAntialias(on: boolean): void {
     }
 }
 
-export function barkMaterial(kind: BarkTexture): MeshStandardMaterial {
+export function barkMaterial(
+  kind: BarkTexture | BarkScan,
+): MeshStandardMaterial {
   const key = `bark:${kind}`;
   let m = materials.get(key) as MeshStandardMaterial | undefined;
   if (m) return m;
@@ -737,6 +789,7 @@ export function barkMaterial(kind: BarkTexture): MeshStandardMaterial {
     map: barkTexture(kind),
     roughness: 0.95,
   });
+  m.color.setScalar(barkGain(kind));
   m.name = `tree ${key}`;
   m.defines = {
     TREE_FULL: FULL_DETAIL_DISTANCE.toFixed(1),

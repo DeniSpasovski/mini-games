@@ -50,8 +50,6 @@ export type TextureId =
   | 'gore'
   | 'hatch'
   | 'barrier_jersey'
-  | 'bridge_stone'
-  | 'bridge_concrete'
   | 'vehicle_decals'
   | 'village_sign'
   | 'detail'
@@ -65,7 +63,6 @@ export type TextureId =
   | 'bark_pine'
   | 'bark_birch'
   | 'chevron'
-  | 'dust'
   | 'water_normal'
   | FacadeId
   | LotTextureId;
@@ -392,14 +389,6 @@ function wornPaint(
 
 // --- definitions ---------------------------------------------------------------------
 
-/** Crushed granite of a railway's ballast: blue-grey, a few rusty stones. */
-const BALLAST_PALETTE: RGB[] = [
-  [128, 128, 126],
-  [104, 104, 104],
-  [150, 148, 142],
-  [86, 86, 88],
-  [124, 112, 98],
-];
 const GRAVEL_PALETTE: RGB[] = [
   [150, 140, 125],
   [128, 120, 108],
@@ -506,7 +495,8 @@ const DEFS: Record<TextureId, TexDef> = {
     },
   },
   rail_track: {
-    // u (x) across the ballast bed (4.8 m, toe to toe), v (y) along it (1.2 m: two concrete sleepers).
+    // u (x) across the ballast bed (4.8 m, toe to toe), v (y) along it (1.2 m: two concrete sleepers). The stones
+    // between the sleepers come from the gravel scan (world/rail-mesh.ts); this is their tone.
     name: 'Railway track bed',
     size: [512, 256],
     color: true,
@@ -519,7 +509,6 @@ const DEFS: Record<TextureId, TexDef> = {
         8,
         71,
       );
-      stones(ctx, w, h, 4200, [1.4, 3.4], 72, BALLAST_PALETTE);
       const pxU = w / 4.8;
       const pxV = h / 1.2;
       // Rust-stained ballast under the rails (brake dust).
@@ -1364,119 +1353,6 @@ const DEFS: Record<TextureId, TexDef> = {
       ctx.strokeStyle = '#111';
       ctx.lineWidth = 6;
       ctx.strokeRect(3, 3, w - 6, h - 6);
-    },
-  },
-  dust: {
-    name: 'Dust puff (alpha)',
-    size: [64, 64],
-    color: false,
-    draw(ctx, w, h) {
-      const n = tileNoise(w, h, 4, 3, 111);
-      const img = ctx.createImageData(w, h);
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          const dx = (x + 0.5) / w - 0.5;
-          const dy = (y + 0.5) / h - 0.5;
-          const d = Math.sqrt(dx * dx + dy * dy) * 2;
-          const a = Math.max(0, 1 - d) ** 1.6 * (0.55 + 0.45 * n[y * w + x]);
-          const i = (y * w + x) * 4;
-          img.data[i] = img.data[i + 1] = img.data[i + 2] = 255;
-          img.data[i + 3] = a * 255;
-        }
-      }
-      ctx.putImageData(img, 0, 0);
-    },
-  },
-  bridge_stone: {
-    name: 'Bridge ashlar (stone-faced abutments / parapets, 2 x 2 m per repeat)',
-    size: [512, 512],
-    color: true,
-    draw(ctx, w, h) {
-      // u (x) along the wall, v (y) up it; four 0.5 m courses per tile, running bond, dark mortar.
-      fillNoise(
-        ctx,
-        w,
-        h,
-        (n, n2) => mix([138, 132, 122], [176, 170, 158], n * 0.6 + n2 * 0.4),
-        6,
-        141,
-      );
-      const rng = new Rng(142);
-      const courses = 4;
-      const ch = h / courses;
-      for (let c = 0; c < courses; c++) {
-        // Block lengths 0.7 - 1.3 m, the bond shifts every course.
-        let x = -rng.range(0, 0.6) * (w / 2);
-        const y0 = c * ch;
-        while (x < w) {
-          const bw = rng.range(0.7, 1.3) * (w / 2);
-          const tone = rng.range(-0.12, 0.1);
-          ctx.fillStyle = `rgba(${tone > 0 ? '255,250,240' : '30,28,24'},${Math.abs(tone)})`;
-          ctx.fillRect(x, y0, bw, ch);
-          // Joints: dark mortar on the left and the bottom edge, a lit top edge.
-          ctx.fillStyle = 'rgba(40,38,34,0.75)';
-          ctx.fillRect(x - 1.5, y0, 3, ch);
-          ctx.fillRect(x + w, y0, 3, ch);
-          ctx.fillRect(x, y0, bw, 3);
-          ctx.fillStyle = 'rgba(235,228,214,0.25)';
-          ctx.fillRect(x, y0 + 3, bw, 2);
-          x += bw;
-        }
-      }
-      // Weathering: soot streaks and pits.
-      for (let i = 0; i < 70; i++) {
-        ctx.fillStyle = `rgba(55,52,48,${rng.range(0.04, 0.12)})`;
-        ctx.fillRect(
-          rng.next() * w,
-          rng.next() * h * 0.6,
-          rng.range(1, 4),
-          rng.range(40, 200),
-        );
-      }
-      stones(ctx, w, h, 500, [0.5, 1.3], 143, [
-        [96, 92, 86],
-        [196, 190, 178],
-      ]);
-    },
-  },
-  bridge_concrete: {
-    name: 'Bridge concrete (form boards, stains; 4 x 4 m per repeat)',
-    size: [512, 512],
-    color: true,
-    draw(ctx, w, h) {
-      fillNoise(
-        ctx,
-        w,
-        h,
-        (n, n2) => mix([128, 126, 121], [170, 168, 162], n * 0.55 + n2 * 0.45),
-        8,
-        151,
-      );
-      const rng = new Rng(152);
-      // Horizontal form-board lines every 0.5 m + a tie-hole grid.
-      ctx.fillStyle = 'rgba(60,58,54,0.35)';
-      for (let y = 0; y < h; y += h / 8) ctx.fillRect(0, y, w, 2);
-      for (let y = h / 16; y < h; y += h / 4)
-        for (let x = w / 16; x < w; x += w / 4) {
-          ctx.fillStyle = 'rgba(50,48,45,0.6)';
-          ctx.beginPath();
-          ctx.arc(x, y, 2.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      // Water stains running down from the top, efflorescence.
-      for (let i = 0; i < 90; i++) {
-        ctx.fillStyle = `rgba(48,46,42,${rng.range(0.05, 0.16)})`;
-        ctx.fillRect(
-          rng.next() * w,
-          rng.next() * h * 0.5,
-          rng.range(1, 5),
-          rng.range(40, 260),
-        );
-      }
-      stones(ctx, w, h, 700, [0.5, 1.3], 153, [
-        [92, 90, 86],
-        [200, 198, 190],
-      ]);
     },
   },
   vehicle_decals: {

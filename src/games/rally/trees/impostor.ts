@@ -104,6 +104,7 @@ void main() {
 const FRAG = /* glsl */ `
 uniform sampler2D uMap;
 uniform sampler2D uNormalMap;
+uniform float uGain;
 uniform float uAlphaTest;
 uniform int uMode;
 uniform int uSprite;
@@ -128,7 +129,7 @@ void main() {
 		n = normalize( n + ( vR * tn.x + vU * tn.y ) * SPRITE_BEND );
 		thick = nt.w;
 	}
-	if ( uMode == 0 ) gl_FragColor = vec4( toSRGB( vColor * t.rgb * mix( 0.65, 1.0, vAO ) ), 1.0 );
+	if ( uMode == 0 ) gl_FragColor = vec4( toSRGB( vColor * t.rgb * uGain * mix( 0.65, 1.0, vAO ) ), 1.0 );
 	else if ( uMode == 1 ) gl_FragColor = vec4( n * 0.5 + 0.5, clamp( vDepth, 0.0, 1.0 ) );
 	else gl_FragColor = vec4( thick, thick, thick, 1.0 );
 }`;
@@ -145,6 +146,8 @@ export interface BakePart {
   map: Texture;
   /** Sprites: their normal + thickness map. */
   normalMap?: Texture;
+  /** The material colour over `map` (bark: the scan's `BARK_GAIN`); default 1. */
+  gain?: number;
 }
 
 function bakeMaterial(p: BakePart): ShaderMaterial {
@@ -159,6 +162,7 @@ function bakeMaterial(p: BakePart): ShaderMaterial {
       ...shared,
       uMap: { value: p.map },
       uNormalMap: { value: p.normalMap ?? p.map },
+      uGain: { value: p.gain ?? 1 },
       uSprite: { value: sprite ? 1 : 0 },
       uAlphaTest: { value: sprite ? ALPHA_TEST : 0 },
     },

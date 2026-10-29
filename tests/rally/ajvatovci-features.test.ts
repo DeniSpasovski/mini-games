@@ -49,7 +49,8 @@ describe('ajvatovci', () => {
     const j = world.gen.junctions.find((q) => Math.abs(q.along - 3704) < 5);
     expect(j).toBeTruthy();
     const bales = [...world.scatter.fixedInstances()].filter(
-      (i) => i.asset === 'hay_bale' && Math.hypot(i.x - j!.x, i.z - j!.z) < 8,
+      (i) =>
+        i.asset === 'hay_bale_square' && Math.hypot(i.x - j!.x, i.z - j!.z) < 8,
     );
     expect(bales.length).toBe(2);
   });

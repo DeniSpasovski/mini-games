@@ -4,6 +4,7 @@ import {
   MeshDepthMaterial,
   MeshStandardMaterial,
   Vector2,
+  type Texture,
   type WebGLProgramParametersWithUniforms,
   type WebGLRenderer,
 } from 'three';
@@ -12,6 +13,10 @@ import { grassSheet } from './grass';
 import { addNightGlow } from './night-glow';
 import { houseMaterial } from './house-walls';
 import { groundLitCard } from './world-shading';
+import { imageTexture } from './image-texture';
+import rockColorUrl from './props/rocks.color.webp';
+import rockNormalUrl from './props/rocks.normal.webp';
+import strawUrl from './props/straw.webp';
 
 /**
  * Shared material library. Assets reference materials by id so thousands of
@@ -23,6 +28,7 @@ export type MaterialId =
   | 'foliage_card_spring'
   | 'grass_blade'
   | 'rock'
+  | 'hay'
   | 'props'
   | 'house'
   | 'people'
@@ -36,6 +42,15 @@ export type MaterialId =
   | 'village_sign';
 
 const cache = new Map<MaterialId, Material>();
+
+let straw: Texture | undefined;
+/** The hay bales' straw tile (repeat it every `STRAW_SIZE` metres). */
+export function strawTexture(): Texture {
+  straw ??= imageTexture(strawUrl, 512, 256, 'straw');
+  return straw;
+}
+/** Size of the straw tile on a bale (m): width, height. */
+export const STRAW_SIZE: [number, number] = [0.94, 0.55];
 
 /** Seconds, shared by every waving hand flag (`people_flag`); a free-running clock so tools animate it too. */
 const FLAG_TIME = { value: 0 };
@@ -170,13 +185,35 @@ export function getMaterial(id: MaterialId): Material {
         roughness: 1,
       });
       break;
-    case 'rock':
+    case 'rock': {
+      // Scanned stones (Poly Haven "Rock Moss Set 01", engine/props/rocks.*.webp, scripts/rocks/bake-rocks.mjs): the
+      // set's own colour and normal maps; vertex colour only varies the tone between stones.
+      const map = imageTexture(rockColorUrl, 1024, 1024, 'rocks');
+      const normalMap = imageTexture(
+        rockNormalUrl,
+        1024,
+        1024,
+        'rocks:normal',
+        '#8080ff',
+        false,
+      );
+      for (const t of [map, normalMap]) t.flipY = false; // glTF UVs
       m = new MeshStandardMaterial({
         vertexColors: true,
-        map: getTexture('rock'),
-        bumpMap: getTexture('rock'),
-        bumpScale: 2,
-        roughness: 0.88,
+        map,
+        normalMap,
+        roughness: 0.9,
+      });
+      break;
+    }
+    case 'hay':
+      // Straw: a bale side from a photo scan (engine/props/straw.webp, scripts/props/bake-straw.py), ~0.94 x 0.55 m.
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: strawTexture(),
+        bumpMap: strawTexture(),
+        bumpScale: 0.8,
+        roughness: 0.95,
       });
       break;
     case 'props':
@@ -240,7 +277,7 @@ export function getMaterial(id: MaterialId): Material {
         roughness: 0.55,
       });
       // Reflective sheeting: lights up in the car's low beam at night.
-      addNightGlow(m as MeshStandardMaterial, 'retro');
+      addNightGlow(m as MeshStandardMaterial, 'sheeting');
       break;
     case 'reflector':
       m = new MeshStandardMaterial({ vertexColors: true, roughness: 0.4 });

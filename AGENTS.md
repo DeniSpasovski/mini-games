@@ -96,6 +96,10 @@ into `DETAILS.md`, never up.
   `bake-textures.py`: their detail tiles (`assets/textures/<level>.webp`) from Poly Haven 1k scans (ids in the script)
 - `scripts/people/`: `extract-base.py` (a base body GLB -> json with the face uv), `skin-map.py` (paints the face onto the skin map), `bake-base.mjs`
   (simplifies, packs both bodies into `engine/people-base.data.ts`; run order in its header)
+- `scripts/props/bake-straw.py` - the rally hay bales' straw tile (`engine/props/straw.webp`) from the CC BY "Hay bales" scan (`sources/rally/hay-bales/`)
+- `scripts/rocks/bake-rocks.mjs` - the rally boulders and small rocks (`assets/builders/rock-models.data.ts`, `engine/props/rocks.*.webp`) from the CC0 Poly Haven "Rock Moss Set 01" (`sources/rally/rocks/`)
+- `scripts/trees/bake-bark.py` - the rally trees' scanned bark tiles (`trees/bark/*.webp`) from CC0 Poly Haven bark scans (`sources/rally/bark/`); prints `BARK_GAIN` for trees/materials.ts
+- `scripts/particles/bake-dust.py` - the rally dust puff atlas (`engine/particles/dust.webp`) from Kenney's CC0 Particle Pack (`sources/rally/kenney/`)
 - `scripts/crops/bake-crops.py` - the CC BY wheat / corn models (`sources/maps/ajvatovci/`) -> rally `crop-models.data.ts`
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,
   `buildings.py`, `msroads.py` (Microsoft road detections), `horizon.py` (`horizon.json`), `plaza_islands.py` (city junction

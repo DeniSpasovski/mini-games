@@ -309,11 +309,12 @@ export const ASSET_CATALOG: AssetMeta[] = [
     id: 'rock_boulder',
     name: 'Boulder',
     category: 'rocks',
-    description: 'Large displaced-icosphere boulder. Solid.',
+    description: 'Large scanned mossy boulder. Solid.',
     variants: 4,
     lods: [
-      { maxDistance: 110, castShadow: true },
-      { maxDistance: 1000, castShadow: false },
+      { maxDistance: 60, castShadow: true },
+      { maxDistance: 160, castShadow: true },
+      { maxDistance: 1000, castShadow: false, oneVariant: true },
     ],
     colliders: [{ kind: 'sphere', r: 0.85, y: 0.35 }],
     tint: 0.1,
@@ -325,7 +326,10 @@ export const ASSET_CATALOG: AssetMeta[] = [
     description:
       'Fist-to-football sized rocks scattered on verges. No collision.',
     variants: 4,
-    lods: [{ maxDistance: 220, castShadow: false }],
+    lods: [
+      { maxDistance: 40, castShadow: false },
+      { maxDistance: 220, castShadow: false, oneVariant: true },
+    ],
     tint: 0.12,
   },
   // --- props ---------------------------------------------------------------------
@@ -340,6 +344,19 @@ export const ASSET_CATALOG: AssetMeta[] = [
       { maxDistance: 700, castShadow: false },
     ],
     colliders: [{ kind: 'sphere', r: 0.7, y: 0.6 }],
+  },
+  {
+    id: 'hay_bale_square',
+    name: 'Square hay bales',
+    category: 'props',
+    description:
+      'Stack of three small square straw bales (two side by side, one on top), 1 m long along local X, 0.72 m high. Protects the outside of tight corners.',
+    variants: 2,
+    lods: [
+      { maxDistance: 120, castShadow: true },
+      { maxDistance: 700, castShadow: false },
+    ],
+    colliders: [{ kind: 'box', hx: 0.52, hz: 0.47, h: 0.72, r: 0.71 }],
   },
   {
     id: 'spectator',
@@ -444,7 +461,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Road barrier',
     category: 'props',
     description:
-      'Police / marshal road-closed barrier (red-white striped rails, 2.2 m long, front faces +Z). Closes side-road mouths (MapDef.junctionBarriers). Solid.',
+      'Police / marshal road-closed barrier (boards striped red-white at 45 degrees on tube legs, 2.2 m long, front faces +Z). Closes side-road mouths (MapDef.junctionBarriers). Solid.',
     variants: 1,
     lods: [
       { maxDistance: 250, castShadow: true },

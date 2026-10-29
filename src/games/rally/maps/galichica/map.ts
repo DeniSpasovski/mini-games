@@ -1,3 +1,4 @@
+import { greenInSpring } from '../shared/seasonal-grass';
 import {
   buildingsFromData,
   hairpinRails,
@@ -271,8 +272,8 @@ export const galichicaMap: MapDef = {
       tilt: 3,
       sink: 0.2,
     },
-    // Detail: dry golden grass on the open slopes, green tufts under the trees.
-    {
+    // Detail: dry golden grass on the open slopes (green in spring), green tufts under the trees.
+    ...greenInSpring({
       asset: 'dry_grass',
       cover: DRY,
       density: 260,
@@ -280,7 +281,7 @@ export const galichicaMap: MapDef = {
       minRoadDist: 1,
       maxSlope: 0.55,
       scale: [0.7, 1.4],
-    },
+    }),
     {
       asset: 'grass_tuft',
       cover: ['trees', 'beech', 'pine', 'orchard', 'crop'],
@@ -305,6 +306,7 @@ export const galichicaMap: MapDef = {
       every: 50,
       side: 'both',
       offset: 1.4,
+      alongRoad: true,
     },
   ],
   // Steel guard rails on the outside of the hairpins (the drop on the switchbacks), as on the real road.

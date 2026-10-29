@@ -21,7 +21,7 @@ import {
  * Bump when generated output changes for the same species and seed, or the leaf atlases change (trees/leaftex.ts,
  * `coverageMips`): cached variants and atlases regenerate.
  */
-export const GENERATOR_VERSION = 12;
+export const GENERATOR_VERSION = 13;
 
 export interface TreeVariantInfo {
   species: string;
@@ -48,7 +48,18 @@ export interface GeneratedVariant {
  * season's species hashes as its summer one, so every season grows the same trees (trees/seasons.ts).
  */
 export function variantSeed(def: SpeciesDef, index: number): number {
-  return mix32(speciesHash(summerOf(def)), index + 1);
+  return mix32(shapeHash(summerOf(def)), index + 1);
+}
+
+/** The species hash without its bark scan: a new bark tile keeps the same trees (and their colliders). */
+const shapeHashes = new WeakMap<SpeciesDef, number>();
+function shapeHash(def: SpeciesDef): number {
+  let h = shapeHashes.get(def);
+  if (h === undefined) {
+    const { scan: _scan, ...bark } = def.bark;
+    shapeHashes.set(def, (h = speciesHash({ ...def, bark })));
+  }
+  return h;
 }
 
 export function cacheKey(def: SpeciesDef, seed: number): string {

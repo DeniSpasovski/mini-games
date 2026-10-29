@@ -21,6 +21,7 @@ import type { ScatterChunk, ScatterInstance } from '../world/scatter';
 import type { World } from '../world/world';
 import type { LoadedVariant, TreeLibrary } from './load';
 import {
+  barkKind,
   barkMaterial,
   setSpritePrepass,
   setSpritePrepassDebug,
@@ -2309,7 +2310,7 @@ export class TreeRenderer {
       this.addMesh(
         b,
         this.wrap(lv.levels[part]),
-        barkMaterial(lv.def.bark.texture),
+        barkMaterial(barkKind(lv.def)),
         name,
         part === 1,
         'branch',
