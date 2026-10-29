@@ -8,7 +8,11 @@ import {
   Vector2,
   Vector3,
 } from 'three';
-import { worldUniforms } from '../engine/world-shading';
+import { worldUniforms, type DryZone } from '../engine/world-shading';
+import type { World } from '../world/world';
+import { Rng } from '../../../shared/rng';
+
+const RAIN_SEED = 0x7a1d;
 
 /** The box of rain around the camera (m): drops further out are the fog's job. */
 const BOX = new Vector3(32, 20, 32);
@@ -34,8 +38,10 @@ export class Rain {
     const drop = new Float32Array(max * 4 * 4);
     const corner = new Float32Array(max * 4 * 2);
     const index = new Uint32Array(max * 6);
+    // Seeded (shared/rng.ts): the same rain field every run.
+    const rng = new Rng(RAIN_SEED);
     for (let i = 0; i < max; i++) {
-      const d = [Math.random(), Math.random(), Math.random(), i / max];
+      const d = [rng.next(), rng.next(), rng.next(), i / max];
       for (let k = 0; k < 4; k++) {
         drop.set(d, (i * 4 + k) * 4);
         corner.set([k & 1 ? 1 : -1, k >> 1], (i * 4 + k) * 2);
@@ -174,4 +180,73 @@ export class Rain {
     this.mesh.geometry.dispose();
     this.material.dispose();
   }
+}
+
+/**
+ * The stage road's roofed stretches, where no rain falls (engine/world-shading.ts `setDryZones`): its tunnels (the
+ * slab over it, dry below the slab) and the ground under its bridge decks (dry below the deck). Capsules ~12 m long
+ * along the road.
+ */
+export function roofZones(world: World): DryZone[] {
+  const out: DryZone[] = [];
+  const STEP = 12;
+  const stretch = (
+    from: number,
+    to: number,
+    roof: (along: number) => number,
+    widen: number,
+  ) => {
+    for (let d = from; d < to; d += STEP) {
+      const a = world.road.at(d);
+      const b = world.road.at(Math.min(to, d + STEP));
+      out.push({
+        ax: a.x,
+        az: a.z,
+        bx: b.x,
+        bz: b.z,
+        radius: Math.max(a.halfWidth, b.halfWidth) + widen,
+        top: roof(d),
+      });
+    }
+  };
+  for (const p of world.gen.portals.list) {
+    const rows = p.rows;
+    stretch(
+      p.from,
+      p.to,
+      (d) => {
+        const i = Math.min(
+          rows.length - 1,
+          Math.max(
+            0,
+            Math.round(((d - p.from) / (p.to - p.from)) * (rows.length - 1)),
+          ),
+        );
+        return rows[i].top - 0.3;
+      },
+      1.5,
+    );
+  }
+  for (const sp of world.road.bridges)
+    stretch(sp.from, sp.to, (d) => world.road.at(d).y - 0.4, 0.5);
+  return out;
+}
+
+/** The `n` zones nearest to (x, z), into `out` (reused). */
+export function nearestZones(
+  zones: readonly DryZone[],
+  x: number,
+  z: number,
+  n: number,
+  out: DryZone[],
+): DryZone[] {
+  const dist = (q: DryZone) =>
+    Math.hypot((q.ax + q.bx) / 2 - x, (q.az + q.bz) / 2 - z);
+  out.length = 0;
+  for (const q of zones) {
+    if (dist(q) > 200) continue;
+    out.push(q);
+  }
+  if (out.length > n) out.sort((a, b) => dist(a) - dist(b)).length = n;
+  return out;
 }

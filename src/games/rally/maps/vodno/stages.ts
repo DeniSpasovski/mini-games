@@ -61,6 +61,9 @@ export const vodnoStages: StageDef[] = [
     temps: TEMPS,
     // The early morning slot is 08:00 here (the game's default is 07:00).
     slotHours: { early: 8 },
+    // Skopje's valley fog (an autumn and winter inversion): the start is in it, the hairpins climb out of its top
+    // ~110 m up, under a clear sky (see the rain + fog plan).
+    weather: { fog: { fog: { top: 110, visibility: 140 } } },
     tyre: 'tarmac',
     gearing: 'short',
     description:

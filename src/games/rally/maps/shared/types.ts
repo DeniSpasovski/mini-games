@@ -1,3 +1,4 @@
+import type { Weather, WeatherTuning } from '../../weather';
 import type { SourceLink } from '../../../../shared/about';
 import type { TimeOfDayId } from '../../game/time-of-day';
 import type { GearingId } from '../../physics/types';
@@ -748,6 +749,11 @@ export interface StageDef {
   year: number;
   /** Air and road temperature for every season and time of day (`StageTemps`): the stage screen and the tyres use it. */
   temps: StageTemps;
+  /**
+   * This stage's own numbers for a weather over the defaults (`weather.ts` `WEATHER_LOOKS`): rain rate, wetness,
+   * visibility, fog top (m above the start) ... Missing = the defaults.
+   */
+  weather?: Partial<Record<Weather, WeatherTuning>>;
   /**
    * Hour a time-of-day slot means on this stage where it differs from game/time-of-day.ts (Vodno's early morning is
    * 08:00). The stage's own slot always sits at its own `timeOfDay`; the temperatures follow these hours.

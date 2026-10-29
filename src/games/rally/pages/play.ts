@@ -33,7 +33,8 @@ import { formatDelta, formatTime, migrateTimes } from '../game/stage';
 import { DEFAULT_STAGE, getStage, loadStage, stageLinkParams } from '../maps';
 import { SETUP_FOR_TYRE, SETUP_IDS } from '../physics/car-setup';
 import { isGearingId } from '../physics/gearing';
-import { parseTyre } from '../physics/tyres';
+import { parseTyre, TYRES, wetTyre } from '../physics/tyres';
+import { isRaining, weatherLook, weatherParam } from '../weather';
 import { paramInt } from '../../../shared/url-params';
 import { stageSeason } from '../maps/shared/climate';
 import { seasonParam } from '../season';
@@ -170,7 +171,14 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
   ).then((url) => {
     if (url) loading.style.setProperty('--card', `url("${url}")`);
   });
-  const tyre = parseTyre(params.tyre, info.tyre);
+  // In the wet the stage's tyre is its wet one, and no near-slicks start in the rain (an old link / saved pick).
+  const weather = weatherParam(
+    new URLSearchParams(location.search).get('weather'),
+  );
+  const recTyre = wetTyre(info.tyre, weatherLook(weather, info.weather).wet);
+  let tyre = parseTyre(params.tyre, recTyre);
+  if (isRaining(weather) && TYRES[tyre].dryOnly)
+    tyre = TYRES[recTyre].dryOnly ? 'mixed' : recTyre;
   const setup =
     SETUP_IDS.find((s) => s === params.susp) ?? SETUP_FOR_TYRE[tyre];
   const gearing = isGearingId(params.gear)

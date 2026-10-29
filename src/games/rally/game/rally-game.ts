@@ -30,7 +30,7 @@ import { applySetup } from '../physics/car-setup';
 import { applyGearing, hasGearings } from '../physics/gearing';
 import { carGripRating } from '../physics/car-tyres';
 import { brakeLevel } from '../physics/brakes';
-import { TYRES, type TyreId } from '../physics/tyres';
+import { TYRES, wetTyre, type TyreId } from '../physics/tyres';
 import type { GearingId, SetupId } from '../physics/types';
 import { PHYSICS_HZ, Vehicle } from '../physics/vehicle';
 import { isTestCar, isTestStage, TEST_NOTE } from '../release';
@@ -66,10 +66,13 @@ import { canopyTone, FarForest } from '../world/far-forest';
 import { FarShadow } from '../world/far-shadow';
 import { Horizon } from '../world/horizon';
 import {
+  DRY_ZONES,
   setCanopyLocalMap,
   setCanopyShadows,
+  setDryZones,
   setForest,
   setNearShadowFade,
+  type DryZone,
 } from '../engine/world-shading';
 import { World } from '../world/world';
 import { CarAudio } from './audio';
@@ -84,7 +87,7 @@ import {
 import { CameraRig } from './camera-rig';
 import { ParticleSystem } from './dust';
 import { GravelStones } from './gravel-stones';
-import { Rain } from './rain';
+import { nearestZones, Rain, roofZones } from './rain';
 import { TyreMarks } from './tyre-marks';
 import { Hud } from './hud';
 import { InputController, type InputAction } from './input';
@@ -258,6 +261,9 @@ export class RallyGame {
   private gravelAcc = [0, 0, 0, 0];
   private splashAcc = [0, 0, 0, 0];
   private sprayAcc = [0, 0, 0, 0];
+  private rainHitAcc = 0;
+  private roofs: DryZone[] = [];
+  private nearRoofs: DryZone[] = [];
   private sprayColor = new Color();
   private sprayPos = new Vector3();
   /** Far tree shadows, filled in as the streamer generates scatter (world/canopy-shadows.ts). */
@@ -361,7 +367,9 @@ export class RallyGame {
       report(f, text);
     };
     progress(0.05, 'Sky & lighting');
-    this.env = new Environment(this.scene, this.renderer, map.environment, q);
+    this.env = new Environment(this.scene, this.renderer, map.environment, q, {
+      weather: this.world.stageDef.weather,
+    });
     await frame();
 
     // Tree variants: generated in a worker (or read from the disk cache) and their impostors baked before any
@@ -526,6 +534,8 @@ export class RallyGame {
       ),
       this.world,
     );
+    // Rain and a wet road after it take grip (fog only dampens the look).
+    this.vehicle.setWet(this.env.weatherLook.wet);
     this.vehicle.setTyre(this.opts.tyre);
     // Tyre temperatures: the stage's predefined air and road for the season at the hour drawn (`?tod=`; `?air=<°C>` to
     // try other air). The table holds at the stage start; higher up the air and the road are colder.
@@ -536,7 +546,12 @@ export class RallyGame {
         this.env.hour,
         this.season,
         paramNumber(air, -60, 70, undefined),
+        this.env.weather,
       ),
+      this.world.roadSpawn(this.world.stage.start).position.y,
+    );
+    // A fog layer's top is measured from the stage start.
+    this.env.setStageBase(
       this.world.roadSpawn(this.world.stage.start).position.y,
     );
     this.model = new CarModel(this.car, {
@@ -625,6 +640,8 @@ export class RallyGame {
       this.scene.add(this.haze.points);
     }
     const rainRate = this.env.weatherLook.rain;
+    // Tunnels and the ground under bridge decks stay dry.
+    if (this.env.weatherLook.wet > 0) this.roofs = roofZones(this.world);
     if (rainRate > 0) {
       this.rain = new Rain(RAIN_DROPS[q.name], rainRate, new Color());
       this.scene.add(this.rain.mesh);
@@ -648,7 +665,7 @@ export class RallyGame {
     this.telemetry = new Telemetry(this.container);
     this.stage = new StageTimer(
       this.world,
-      bestKey(this.world.stageDef.id, this.car.id),
+      bestKey(this.world.stageDef.id, this.car.id, this.env.weather),
     );
     this.stage.on((e) => this.onStageEvent(e));
     this.input.onAction((a) => this.onAction(a));
@@ -893,7 +910,8 @@ export class RallyGame {
   /** Name of the stage surface the fitted tyre grips worst ("gravel"), or null when it is fine on all of them. */
   private wrongTyreSurface(): string | null {
     // The recommended tyre is the stage's own answer: never nag about it (it may be poor on part of the road).
-    if (this.opts.tyre === this.world.stageDef.tyre) return null;
+    const wet = this.env.weatherLook.wet;
+    if (this.opts.tyre === wetTyre(this.world.stageDef.tyre, wet)) return null;
     const road = this.world.map.road;
     let worst: SurfaceId | null = null;
     let worstRating = 2; // only "poor" (1) or "bad" (0) counts as wrong
@@ -901,7 +919,7 @@ export class RallyGame {
       road.surface,
       ...(road.sections ?? []).map((x) => x.surface),
     ])) {
-      const r = carGripRating(this.vehicle.def, this.opts.tyre, s);
+      const r = carGripRating(this.vehicle.def, this.opts.tyre, s, wet);
       if (r < worstRating) {
         worst = s;
         worstRating = r;
@@ -1571,6 +1589,10 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     // Shadow box ahead of the camera (where the player looks), not centred on the car.
     this.placeShadows(this.renderPos, dir);
     this.env.follow(camPos);
+    if (this.roofs.length)
+      setDryZones(
+        nearestZones(this.roofs, camPos.x, camPos.z, DRY_ZONES, this.nearRoofs),
+      );
     if (this.rain) {
       this.rain.update(camPos, dt);
       // No rain falls in a tunnel.
@@ -1579,6 +1601,25 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         camPos.y,
         camPos.z,
       );
+      if (!this.paused && this.rain.mesh.visible)
+        this.emitRainHits(camPos, dir, dt);
+      if (this.post) {
+        // Drops gather on the lens in the rain (the bumper and hood views take the most), dry off in a tunnel.
+        const view =
+          this.rig.mode === 'bumper'
+            ? 1
+            : this.rig.mode === 'hood'
+              ? 0.8
+              : 0.35;
+        const target = this.rain.mesh.visible
+          ? view * Math.min(1, this.env.weatherLook.rain / 8)
+          : 0;
+        const o = this.post.opts;
+        this.post.set({
+          drops: o.drops + (target - o.drops) * Math.min(1, dt * 0.5),
+          dropSpeed: Math.min(1, Math.abs(this.vehicle.speed) / 25),
+        });
+      }
     }
     const tCanopy = performance.now();
     this.updateCanopy(this.slack);
@@ -1905,8 +1946,11 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     dt: number,
     p: Vector3,
   ): void {
-    const level = this.world.waterLevel(w.contactPoint.x, w.contactPoint.z);
-    const depth = level - w.contactPoint.y;
+    // A river or ford, or a puddle on a wet road (puddles.ts): a sheet of water thrown up and out.
+    const river = this.world.waterLevel(w.contactPoint.x, w.contactPoint.z);
+    const puddle = river - w.contactPoint.y < w.puddle;
+    const level = puddle ? w.contactPoint.y + w.puddle : river;
+    const depth = puddle ? w.puddle * 4 : level - w.contactPoint.y;
     const v = this.vehicle;
     const speed = Math.abs(v.speed);
     if (!(depth > 0.02) || speed < 1) {
@@ -1934,6 +1978,40 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         0.7 + Math.random() * 0.5,
         this.splashColor,
         0.9,
+      );
+    }
+  }
+
+  /**
+   * Rain hitting the ground in front of the camera: tiny crowns that jump up and vanish in a fifth of a second, scattered
+   * 2-14 m ahead (the streaks' own box), more in harder rain.
+   */
+  private emitRainHits(cam: Vector3, dir: Vector3, dt: number): void {
+    const rate = this.env.weatherLook.rain;
+    const quality = this.opts.quality.particles / 2000;
+    this.rainHitAcc += rate * 40 * quality * dt;
+    const p = this.sprayPos;
+    const yaw = Math.atan2(dir.z, dir.x);
+    while (this.rainHitAcc >= 1) {
+      this.rainHitAcc -= 1;
+      const a = yaw + (Math.random() - 0.5) * 1.6;
+      const d = 2 + Math.random() * 12;
+      p.set(cam.x + Math.cos(a) * d, 0, cam.z + Math.sin(a) * d);
+      const ground = this.world.heightAt(p.x, p.z);
+      // Not up on a bridge deck or under the camera's own roof line.
+      if (ground > cam.y - 0.3) continue;
+      p.y = Math.max(ground, this.world.waterLevel(p.x, p.z)) + 0.02;
+      const r = () => (Math.random() - 0.5) * 0.6;
+      this.splash.emit(
+        p,
+        r(),
+        0.6 + Math.random() * 0.8,
+        r(),
+        0.03 + Math.random() * 0.03,
+        0.4,
+        0.14 + Math.random() * 0.1,
+        this.splashColor,
+        0.55,
       );
     }
   }

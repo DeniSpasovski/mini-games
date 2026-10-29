@@ -10,6 +10,7 @@ import {
   type WebGLProgramParametersWithUniforms,
 } from 'three';
 import { gradeUniforms } from './grade';
+import { PUDDLE_GLSL } from '../puddles';
 
 /**
  * World shading shared by every material of the rally pages, installed once when this module is imported
@@ -41,6 +42,9 @@ import { gradeUniforms } from './grade';
  */
 
 /** Shared uniform objects (same references in every program). */
+/** How many roofed zones the wet shading sees at once (the nearest to the camera). */
+export const DRY_ZONES = 12;
+
 export const worldUniforms = {
   wsTime: { value: 0 },
   wsSunDir: { value: new Vector3(0, 1, 0) },
@@ -86,8 +90,22 @@ export const worldUniforms = {
   wsHeadDir: { value: new Vector3(0, 0, 1) },
   /** 0..1: how much the street lamps glow (`Environment.lightNeed`). */
   wsLamp: { value: 0 },
-  /** x how wet the world is 0..1 (0 = dry, off), y rain rate (mm/h; 0 = not raining). */
+  /**
+   * x how wet the world is 0..1 (0 = dry, off), y rain rate (mm/h; 0 = not raining), z the world height (m) the wet
+   * ends at when w = 1 (fog: damp only below its top).
+   */
   wsWet: { value: new Vector4(0, 0, 0, 0) },
+  /** Fog layer (an inversion, `setFogLayer`): top (world y, m), density inside (1/m), falloff above the top (1/m), on. */
+  wsFogLayer: { value: new Vector4(0, 0, 0.05, 0) },
+  /** The layer's colour (linear). */
+  wsFogLayerColor: { value: new Color(0.6, 0.62, 0.64) },
+  /**
+   * Dry zones under a roof (tunnels, bridge decks; `setDryZones`): capsules in x / z, a (x, z) to b (x, z) in `wsDryA`,
+   * radius and the roof's height (world y; dry below it) in `wsDryB` xy. `wsDryN` of them are set.
+   */
+  wsDryA: { value: Array.from({ length: DRY_ZONES }, () => new Vector4()) },
+  wsDryB: { value: Array.from({ length: DRY_ZONES }, () => new Vector4()) },
+  wsDryN: { value: 0 },
   // Colour grade (engine/grade.ts), declared in the tone-mapping chunk.
   ...gradeUniforms,
 };
@@ -244,9 +262,87 @@ export function setFogBase(height: number): void {
   worldUniforms.wsFogBase.value = height;
 }
 
-/** How wet the surfaces are (0..1, 0 = dry) and the rain rate (mm/h, 0 = none falling); `weather.ts`. */
-export function setWet(wet: number, rain: number): void {
-  worldUniforms.wsWet.value.set(wet, rain, 0, 0);
+/**
+ * How wet the surfaces are (0..1, 0 = dry) and the rain rate (mm/h, 0 = none falling); `weather.ts`. `below`: only
+ * under this world height (m; fog leaves the ground damp under its top).
+ */
+export function setWet(wet: number, rain: number, below?: number): void {
+  wetShading(wet > 0);
+  worldUniforms.wsWet.value.set(
+    wet,
+    rain,
+    below ?? 0,
+    below === undefined ? 0 : 1,
+  );
+}
+
+/** A stretch under a roof where no rain falls: a capsule from (ax, az) to (bx, bz), dry below world height `top`. */
+export interface DryZone {
+  ax: number;
+  az: number;
+  bx: number;
+  bz: number;
+  radius: number;
+  top: number;
+}
+
+/** The roofed zones the wet shading keeps dry (at most `DRY_ZONES`: pass the nearest). */
+export function setDryZones(zones: readonly DryZone[]): void {
+  const u = worldUniforms;
+  const n = Math.min(DRY_ZONES, zones.length);
+  for (let i = 0; i < n; i++) {
+    const z = zones[i];
+    u.wsDryA.value[i].set(z.ax, z.az, z.bx, z.bz);
+    u.wsDryB.value[i].set(z.radius, z.top, 0, 0);
+  }
+  u.wsDryN.value = n;
+}
+
+/**
+ * A fog layer (null = none): dense fog up to `top` (world y, m) that thins out above it over ~`1 / falloff` m, the
+ * visibility inside setting its density (2 % contrast: 3.9 / visibility). Optical depth through it is exact along each
+ * ray (`wsLayerDepth`), so from above the valley is a flat white sea and the hill around is sharp. `layerTau` is the
+ * same on the CPU.
+ */
+export function setFogLayer(
+  layer: { top: number; visibility: number; falloff?: number } | null,
+  color?: Color,
+): void {
+  const u = worldUniforms;
+  if (!layer) {
+    u.wsFogLayer.value.w = 0;
+    return;
+  }
+  u.wsFogLayer.value.set(
+    layer.top,
+    3.9 / layer.visibility,
+    layer.falloff ?? 0.05,
+    1,
+  );
+  if (color) u.wsFogLayerColor.value.copy(color);
+}
+
+/** Optical depth along a straight ray from height `h0` to `h1` (m) of length `len` through a fog layer (see `setFogLayer`). */
+export function layerTau(
+  h0: number,
+  h1: number,
+  len: number,
+  top: number,
+  density: number,
+  falloff: number,
+): number {
+  const F = (h: number) =>
+    h <= top
+      ? density * h
+      : density * top +
+        (density / falloff) * (1 - Math.exp(-falloff * (h - top)));
+  if (Math.abs(h1 - h0) < 0.01) {
+    const h = h0;
+    return (
+      len * (h <= top ? density : density * Math.exp(-falloff * (h - top)))
+    );
+  }
+  return (len * (F(h1) - F(h0))) / (h1 - h0);
 }
 
 /** Seconds, drives cloud drift and foliage sway (call every frame). */
@@ -266,6 +362,16 @@ uniform vec4 wsCloud;
 uniform vec4 wsWind;
 uniform vec4 wsFog;
 uniform float wsFogBase;
+uniform vec4 wsFogLayer;
+uniform vec3 wsFogLayerColor;
+float wsLayerF( float h ) {
+	return h <= wsFogLayer.x ? wsFogLayer.y * h : wsFogLayer.y * wsFogLayer.x + wsFogLayer.y / wsFogLayer.z * ( 1.0 - exp( - wsFogLayer.z * ( h - wsFogLayer.x ) ) );
+}
+/** Optical depth through the fog layer along a ray from height h0 to h1 of length len (\`layerTau\` on the CPU). */
+float wsLayerDepth( float h0, float h1, float len ) {
+	if ( abs( h1 - h0 ) < 0.01 ) return len * ( h0 <= wsFogLayer.x ? wsFogLayer.y : wsFogLayer.y * exp( - wsFogLayer.z * ( h0 - wsFogLayer.x ) ) );
+	return len * ( wsLayerF( h1 ) - wsLayerF( h0 ) ) / ( h1 - h0 );
+}
 #endif
 `;
 
@@ -323,6 +429,10 @@ const FOG_FRAGMENT = /* glsl */ `
 		wsFogCol += wsFog.xyz * ( wsSunAmt * wsSunAmt * wsSunAmt * wsSunAmt * wsSunAmt * wsSunAmt );
 	}
 	gl_FragColor.rgb = mix( gl_FragColor.rgb, wsFogCol, fogFactor );
+	if ( wsFogLayer.w > 0.0 ) {
+		float wsTau = wsLayerDepth( cameraPosition.y, vFogWorld.y, length( wsFogRay ) );
+		gl_FragColor.rgb = mix( gl_FragColor.rgb, wsFogLayerColor, 1.0 - exp( - wsTau ) );
+	}
 #endif
 `;
 
@@ -413,6 +523,24 @@ uniform mat4 wsFarMatrix;
 uniform sampler2D wsFarShadow;
 uniform vec4 wsForest;
 uniform vec4 wsWet;
+uniform vec4 wsDryA[ ${DRY_ZONES} ];
+uniform vec4 wsDryB[ ${DRY_ZONES} ];
+uniform int wsDryN;
+${PUDDLE_GLSL}
+/** 1 under a roof (a tunnel, a bridge deck: \`setDryZones\`), 0 out in the rain, soft over the last metre. */
+float wsDryAt( vec3 wp ) {
+	float dry = 0.0;
+	for ( int i = 0; i < ${DRY_ZONES}; i++ ) {
+		if ( i >= wsDryN ) break;
+		vec2 a = wsDryA[ i ].xy;
+		vec2 ab = wsDryA[ i ].zw - a;
+		float t = clamp( dot( wp.xz - a, ab ) / max( dot( ab, ab ), 1e-4 ), 0.0, 1.0 );
+		float d = length( wp.xz - a - ab * t );
+		float r = wsDryB[ i ].x;
+		if ( wp.y < wsDryB[ i ].y ) dry = max( dry, 1.0 - smoothstep( r - 1.0, r, d ) );
+	}
+	return dry;
+}
 vec3 wsWorldPos( vec3 viewPos ) {
 	return ${WORLD_FROM_VIEW.replace('%v', 'viewPos')};
 }
@@ -583,7 +711,12 @@ const FOLIAGE_TERM = /* glsl */ `
  * metal keep their own.
  */
 const WET_PHYSICAL = /* glsl */ `
-	if ( wsWet.x > 0.0 ) {
+	float wsWetAmt = wsWet.x;
+	float wsPd = 0.0;
+	vec3 wsPw = wsWorldPos( - vViewPosition );
+	if ( wsWet.w > 0.5 ) wsWetAmt *= 1.0 - smoothstep( wsWet.z - 15.0, wsWet.z + 5.0, wsPw.y );
+	if ( wsWetAmt > 0.0 && wsDryN > 0 ) wsWetAmt *= 1.0 - wsDryAt( wsPw );
+	if ( wsWetAmt > 0.0 ) {
 		#ifdef RALLY_WET
 			float wsGloss = float( RALLY_WET );
 		#else
@@ -591,12 +724,41 @@ const WET_PHYSICAL = /* glsl */ `
 		#endif
 		vec3 wsUpV = normalize( ( viewMatrix * vec4( 0.0, 1.0, 0.0, 0.0 ) ).xyz );
 		float wsUp = smoothstep( 0.1, 0.85, dot( nonPerturbedNormal, wsUpV ) );
-		float wsW = wsWet.x * mix( 0.3, 1.0, wsUp );
+		float wsW = wsWetAmt * mix( 0.3, 1.0, wsUp );
 		float wsPorous = smoothstep( 0.35, 0.9, roughnessFactor ) * ( 1.0 - metalnessFactor );
 		diffuseColor.rgb *= 1.0 - 0.55 * wsPorous * wsW;
 		roughnessFactor = mix( roughnessFactor, min( roughnessFactor, mix( 0.6, wsGloss, wsUp ) ), wsW );
 		normal = normalize( mix( normal, nonPerturbedNormal, ( 1.0 - wsGloss ) * 0.8 * wsW * wsUp ) );
+		#ifdef RALLY_PUDDLES
+			// Standing water (puddles.ts, the physics' field): a dark mirror, rings from the rain falling into it.
+			wsPd = wsPuddle( wsPw.xz, wsWetAmt ) * wsUp;
+			if ( wsPd > 0.0 ) {
+				diffuseColor.rgb *= 1.0 - 0.45 * wsPd;
+				roughnessFactor = mix( roughnessFactor, 0.025, wsPd );
+				vec2 wsQ = wsPw.xz * 6.0;
+				float wsT = wsTime * 9.0;
+				vec2 wsRip = vec2( sin( wsQ.x * 1.7 + wsT + 3.0 * sin( wsQ.y * 0.9 ) ), sin( wsQ.y * 1.9 - wsT * 0.8 + 3.0 * sin( wsQ.x * 1.1 ) ) );
+				wsRip *= 0.025 * min( 1.0, wsWet.y / 4.0 );
+				vec3 wsFlat = nonPerturbedNormal + ( viewMatrix * vec4( wsRip.x, 0.0, wsRip.y, 0.0 ) ).xyz;
+				normal = normalize( mix( normal, wsFlat, wsPd ) );
+			}
+		#endif
 	}
+`;
+
+/**
+ * A puddle mirrors the sky (appended to `lights_fragment_end`): water's Fresnel reflection of the sky's horizon colour
+ * (the fog colour), bright at a grazing look along the road, dark looking down into it. The environment map alone is
+ * too dim on the ground for it.
+ */
+const PUDDLE_SKY = /* glsl */ `
+	#if defined( RALLY_PUDDLES ) && defined( USE_FOG )
+		if ( wsPd > 0.0 ) {
+			float wsCos = saturate( dot( geometryNormal, geometryViewDir ) );
+			float wsF = 0.02 + 0.98 * pow( 1.0 - wsCos, 5.0 );
+			reflectedLight.indirectSpecular += fogColor * wsF * wsPd * 0.6;
+		}
+	#endif
 `;
 
 /** Wet foliage and other lambert materials: a little darker (prepended to `lights_lambert_fragment`). */
@@ -605,6 +767,20 @@ const WET_LAMBERT = /* glsl */ `
 `;
 
 let installed = false;
+let basePhysical = '';
+let baseLambert = '';
+let baseLightsEnd = '';
+
+/**
+ * The wet shading goes into the shaders only on a wet stage: a dry one compiles without it (a weather is fixed for a
+ * page, and the programs compile at the first render after `Environment` sets it).
+ */
+function wetShading(on: boolean): void {
+  const chunks = ShaderChunk as Record<string, string>;
+  chunks.lights_physical_fragment = (on ? WET_PHYSICAL : '') + basePhysical;
+  chunks.lights_lambert_fragment = (on ? WET_LAMBERT : '') + baseLambert;
+  chunks.lights_fragment_end = baseLightsEnd + (on ? PUDDLE_SKY : '');
+}
 
 function install(): void {
   if (installed) return;
@@ -615,9 +791,9 @@ function install(): void {
   chunks.fog_pars_fragment = FOG_PARS_FRAGMENT;
   chunks.fog_fragment = FOG_FRAGMENT;
   chunks.begin_vertex = BEGIN_VERTEX;
-  chunks.lights_physical_fragment =
-    WET_PHYSICAL + chunks.lights_physical_fragment;
-  chunks.lights_lambert_fragment = WET_LAMBERT + chunks.lights_lambert_fragment;
+  basePhysical = chunks.lights_physical_fragment;
+  baseLambert = chunks.lights_lambert_fragment;
+  baseLightsEnd = chunks.lights_fragment_end;
   chunks.beginnormal_vertex = chunks.beginnormal_vertex + FLAG_NORMAL;
   chunks.common = WORLD_SHADING_DECL + chunks.common;
   chunks.lights_pars_begin =

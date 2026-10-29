@@ -38,11 +38,15 @@ const drops = (xs: number[]): string =>
 export const WEATHER_ICONS: Record<string, string> = {
   dry: svg(`<circle cx="12" cy="12" r="4"/><path d="${SUN_RAYS}"/>`),
   overcast: svg(cloud(17)),
+  // A cloud with a gust under it.
+  pre_rain: svg(cloud(13.5) + '<path d="M4 17.5h11a2 2 0 1 0-2-2M6 20.5h7"/>'),
   rain_light: svg(cloud(14.5) + drops([9, 15])),
   rain_heavy: svg(cloud(14.5) + drops([7.5, 11.5, 15.5])),
   post_rain: svg(
     '<path d="M9 8.5a3.5 3.5 0 0 1 6.6-1.6"/><path d="M12 3v1.5M17.5 5l-1 1M19.5 10H18"/><path d="M6 17h9a3.2 3.2 0 0 0 .3-6.4A4.4 4.4 0 0 0 6.9 11.2 3 3 0 0 0 6 17z"/>',
   ),
+  // Fog banks.
+  fog: svg('<path d="M3 8h13M6 12h15M3 16h12M8 20h10"/>'),
 };
 
 /** Setup car rows (white, in front of the row label). */

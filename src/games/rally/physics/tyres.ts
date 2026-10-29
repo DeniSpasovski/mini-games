@@ -11,7 +11,7 @@ import type { TempWindow } from './tyre-temp';
  * bonus over `mixed`, the wrong one is a clear penalty that a careful driver can still finish on.
  */
 export type TyreId =
-  'tarmac' | 'tarmac_hard' | 'mixed' | 'gravel_hard' | 'gravel';
+  'tarmac' | 'tarmac_hard' | 'tarmac_wet' | 'mixed' | 'gravel_hard' | 'gravel';
 /**
  * The tyre's kind: sizes (`CarPhysicsDef.tyres.byCompound`), brake kit, wheel models and the tread look follow it, not the
  * compound. The ids `tarmac` and `gravel` are the soft compounds (the names the saved set-ups already use).
@@ -37,6 +37,13 @@ export interface TyreDef {
   response: number;
   /** Temperature window (°C) and the grip left when cold / overheated (physics/tyre-temp.ts). */
   temp: TempWindow;
+  /**
+   * How much of the wet grip loss (physics/car-tyres.ts `WET`) the tyre suffers: a slick aquaplanes on the water film
+   * (> 1), a cut wet tyre clears it (< 1), a gravel tread's deep blocks clear it too.
+   */
+  wetLoss: number;
+  /** Not offered in rain (slicks): a real rally does not let them start on a wet stage. */
+  dryOnly?: boolean;
 }
 
 export const TYRES: Record<TyreId, TyreDef> = {
@@ -61,6 +68,8 @@ export const TYRES: Record<TyreId, TyreDef> = {
     slide: [0.95, 0.9],
     response: 0.8,
     temp: { lo: 66, hi: 104, cold: 0.72, hot: 0.78 },
+    wetLoss: 1.4,
+    dryOnly: true,
   },
   tarmac_hard: {
     id: 'tarmac_hard',
@@ -82,6 +91,31 @@ export const TYRES: Record<TyreId, TyreDef> = {
     slide: [1, 0.92],
     response: 0.85,
     temp: { lo: 78, hi: 120, cold: 0.7, hot: 0.86 },
+    wetLoss: 1.5,
+    dryOnly: true,
+  },
+  tarmac_wet: {
+    id: 'tarmac_wet',
+    family: 'tarmac',
+    name: 'Tarmac Wet',
+    blurb:
+      'Cut grooves that clear the water on a wet road. A soft, cool-running compound that overheats on a dry one.',
+    color: 0x2f5fd0,
+    grip: {
+      tarmac: 1.17,
+      tarmac_gravel: 1.05,
+      rock: 1,
+      gravel: 0.76,
+      gravel_loose: 0.68,
+      dirt: 0.74,
+      grass: 0.7,
+      mud: 0.62,
+      snow: 0.7,
+    },
+    slide: [1, 0.93],
+    response: 1.1,
+    temp: { lo: 38, hi: 78, cold: 0.82, hot: 0.72 },
+    wetLoss: 0.6,
   },
   mixed: {
     id: 'mixed',
@@ -103,6 +137,7 @@ export const TYRES: Record<TyreId, TyreDef> = {
     slide: [1, 1],
     response: 1,
     temp: { lo: 55, hi: 95, cold: 0.86, hot: 0.85 },
+    wetLoss: 1,
   },
   gravel_hard: {
     id: 'gravel_hard',
@@ -125,6 +160,7 @@ export const TYRES: Record<TyreId, TyreDef> = {
     slide: [1.06, 1],
     response: 1.15,
     temp: { lo: 58, hi: 98, cold: 0.86, hot: 0.88 },
+    wetLoss: 0.9,
   },
   gravel: {
     id: 'gravel',
@@ -147,6 +183,7 @@ export const TYRES: Record<TyreId, TyreDef> = {
     slide: [1.08, 1.03],
     response: 1.25,
     temp: { lo: 46, hi: 86, cold: 0.9, hot: 0.83 },
+    wetLoss: 0.85,
   },
 };
 
@@ -154,10 +191,27 @@ export const TYRES: Record<TyreId, TyreDef> = {
 export const TYRE_IDS: readonly TyreId[] = [
   'tarmac',
   'tarmac_hard',
+  'tarmac_wet',
   'mixed',
   'gravel_hard',
   'gravel',
 ];
+
+/** The tyres a run can start on: no near-slicks (`dryOnly`) while it rains. */
+export function tyreChoices(raining: boolean): readonly TyreId[] {
+  return raining ? TYRE_IDS.filter((t) => !TYRES[t].dryOnly) : TYRE_IDS;
+}
+
+/**
+ * A stage's recommended tyre on ground `wet` 0..1 (weather.ts): a tarmac stage goes to Tarmac Wet once the road is
+ * properly wet, a hard gravel tread to the soft one in a downpour (the stage turns to mud). Mixed stays Mixed (the
+ * dusty asphalt has gravel on it, where the wet tyre is poor).
+ */
+export function wetTyre(tyre: TyreId, wet: number): TyreId {
+  if (familyOf(tyre) === 'tarmac' && wet >= 0.5) return 'tarmac_wet';
+  if (tyre === 'gravel_hard' && wet >= 0.9) return 'gravel';
+  return tyre;
+}
 
 /** The tyre's kind (sizes, brake kit, wheels, tread follow it). */
 export const familyOf = (tyre: TyreId): TyreFamily => TYRES[tyre].family;

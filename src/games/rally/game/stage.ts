@@ -2,7 +2,7 @@ import { newRoadQuery, type RoadQuery } from '../world/road';
 import type { World } from '../world/world';
 import { DEFAULT_SEASON, SEASON_LABELS, type Season } from '../season';
 import { slotFor } from './time-of-day';
-import { WEATHER_LABELS, type Weather } from '../weather';
+import { WEATHER_LABELS, weatherParam, type Weather } from '../weather';
 
 /**
  * Stage timing: countdown -> running -> finished, splits and progress along
@@ -395,7 +395,9 @@ export function migrateTimes(store: Storage = localStorage): boolean {
       // Per-car bests of a bumped map / car -> old runs in the leaderboard.
       for (const k of keys) {
         if (!k.startsWith(BEST_PREFIX)) continue;
-        const [stageId, carId] = k.slice(BEST_PREFIX.length).split('.');
+        const [stageId, carId, weather] = k
+          .slice(BEST_PREFIX.length)
+          .split('.');
         if (!stageOld.has(stageId) && !carOld.has(carId)) continue;
         const best = loadBest(k, store);
         store.removeItem(k);
@@ -413,6 +415,7 @@ export function migrateTimes(store: Storage = localStorage): boolean {
           car: carId,
           livery: 0,
           splits: best.splits,
+          ...(weather ? { weather: weatherParam(weather) } : {}),
           date: 0,
         });
         store.setItem(timesKey(stageId), JSON.stringify(list));
@@ -487,9 +490,16 @@ export function compareRuns(mapVer: number) {
 const BEST_PREFIX = 'rally.best.';
 const TIMES_PREFIX = 'rally.times.';
 
-/** localStorage key of the best run per map + car. */
-export function bestKey(stageId: string, carId: string): string {
-  return `rally.best.${stageId}.${carId}`;
+/**
+ * localStorage key of the best run per map + car (the split reference), one per weather: a wet run is never compared
+ * with a dry best. Dry keeps the key it always had.
+ */
+export function bestKey(
+  stageId: string,
+  carId: string,
+  weather: Weather = 'dry',
+): string {
+  return `rally.best.${stageId}.${carId}${weather === 'dry' ? '' : `.${weather}`}`;
 }
 
 export function loadBest(

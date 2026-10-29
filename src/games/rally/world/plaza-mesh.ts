@@ -92,7 +92,7 @@ export function* plazaMeshJob(
       polygonOffsetUnits: -1,
     }),
   );
-  m.material.defines = { RALLY_GROUND: 1, RALLY_WET: 0.2 };
+  m.material.defines = { RALLY_GROUND: 1, RALLY_WET: 0.2, RALLY_PUDDLES: 1 };
   applyRoadSurface(m.material, 'junction_asphalt');
   m.receiveShadow = true;
   m.matrixAutoUpdate = false;
