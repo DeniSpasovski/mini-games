@@ -461,7 +461,23 @@ interface ImpostorBatch extends Batch {
   sb: StagedBlocks;
   cb: StagedBlocks;
   packed: number;
-  dirty: boolean;
+}
+
+/** Item `i` of `src` -> slot `n` of `dst` (`size` floats each); 1 when anything changed. */
+function copyChanged(
+  dst: Float32Array,
+  src: Float32Array,
+  n: number,
+  i: number,
+  size: number,
+): number {
+  let changed = 0;
+  for (let k = 0; k < size; k++)
+    if (dst[n * size + k] !== src[i * size + k]) {
+      dst[n * size + k] = src[i * size + k];
+      changed = 1;
+    }
+  return changed;
 }
 
 /** treeFade of a static impostor: solid, no shadow, debug level 2. */
@@ -1454,16 +1470,12 @@ export class TreeRenderer {
       if (sh >= 0 && st.lv.proxy)
         this.emit(st, PROXY_PART, SHADOW_ONLY, 1, true, 0);
     }
-    // Impostors: this frame's dynamic part on top of what a pack queued (the whole buffer when marked dirty).
-    if (ib.dirty) this.upload(ib, ib.count);
-    else {
-      if (ib.count > ib.packed) this.uploadRange(ib, ib.packed, ib.count);
-      for (const mesh of ib.meshes) {
-        mesh.count = ib.count;
-        mesh.visible = this.shows(mesh, ib.count);
-      }
+    // Impostors: this frame's dynamic part on top of what a pack queued.
+    if (ib.count > ib.packed) this.uploadRange(ib, ib.packed, ib.count);
+    for (const mesh of ib.meshes) {
+      mesh.count = ib.count;
+      mesh.visible = this.shows(mesh, ib.count);
     }
-    ib.dirty = false;
     const fb = this.farImpostorBatch();
     let statics = ib.packed + fb.count;
     let sprites = 0;
@@ -1572,37 +1584,42 @@ export class TreeRenderer {
       return;
     }
     // Per attribute (mat, inst, fade, lod): a fading tree changes only its fade, one upload instead of four.
-    const sent = b.sent;
-    const parts = [
-      [b.mat, 16, 0],
-      [b.inst, 4, 16],
-      [b.fade, 4, 20],
-      [b.lod, 4, 24],
-    ] as const;
-    const attrs = [b.aMat!, b.aInst!, b.aFade!, b.aLod!];
-    for (let p = 0; p < 4; p++) {
-      const [a, size, off] = parts[p];
-      let lo = -1;
-      let hi = -1;
-      for (let j = 0; j < n; j++) {
-        const i = (at + j) * size;
-        const o = j * 28 + off;
-        let same = true;
-        for (let k = 0; k < size; k++)
-          if (a[i + k] !== sent[o + k]) {
-            same = false;
-            sent[o + k] = a[i + k];
-          }
-        if (same) continue;
-        if (lo < 0) lo = j;
-        hi = j;
-      }
-      if (lo < 0) continue;
-      const attr = attrs[p];
-      this.current.uploadBytes += (hi - lo + 1) * size * 4;
-      attr.addUpdateRange((at + lo) * size, (hi - lo + 1) * size);
-      attr.needsUpdate = true;
+    this.roomPart(b, n, b.mat, b.aMat!, 16, 0);
+    this.roomPart(b, n, b.inst, b.aInst!, 4, 16);
+    this.roomPart(b, n, b.fade, b.aFade!, 4, 20);
+    this.roomPart(b, n, b.lod, b.aLod!, 4, 24);
+  }
+
+  /** One attribute of the room: the slots that differ from what was sent -> one update range. */
+  private roomPart(
+    b: StaticBatch,
+    n: number,
+    a: Float32Array,
+    attr: InstancedBufferAttribute,
+    size: number,
+    off: number,
+  ): void {
+    const at = b.dynAt;
+    const sent = b.sent!;
+    let lo = -1;
+    let hi = -1;
+    for (let j = 0; j < n; j++) {
+      const i = (at + j) * size;
+      const o = j * 28 + off;
+      let same = true;
+      for (let k = 0; k < size; k++)
+        if (a[i + k] !== sent[o + k]) {
+          same = false;
+          sent[o + k] = a[i + k];
+        }
+      if (same) continue;
+      if (lo < 0) lo = j;
+      hi = j;
     }
+    if (lo < 0) return;
+    this.current.uploadBytes += (hi - lo + 1) * size * 4;
+    attr.addUpdateRange((at + lo) * size, (hi - lo + 1) * size);
+    attr.needsUpdate = true;
   }
 
   /** Instance `i` of `b` -> slot `j` of a 28-float-a-slot copy (mat, inst, fade, lod). */
@@ -1643,7 +1660,6 @@ export class TreeRenderer {
       sb: stagedBlocks(),
       cb: stagedBlocks(),
       packed: 0,
-      dirty: false,
     };
     const material = this.library.impostors?.material;
     if (material) {
@@ -1814,19 +1830,14 @@ export class TreeRenderer {
 
   /** Staged instance `i` -> batch slot `n`, only where it differs; true when it changed. */
   private writeSlot(b: Batch, n: number, c: Staged, i: number): boolean {
-    let changed = false;
-    for (const [dst, src, size] of [
-      [b.mat, c.mat, 16],
-      [b.inst, c.inst, 4],
-      [b.fade, c.fade, 4],
-      [b.lod, c.lod, 4],
-    ] as const)
-      for (let k = 0; k < size; k++)
-        if (dst[n * size + k] !== src[i * size + k]) {
-          dst[n * size + k] = src[i * size + k];
-          changed = true;
-        }
-    return changed;
+    // Non-short-circuit `|`: every attribute is written.
+    return (
+      (copyChanged(b.mat, c.mat, n, i, 16) |
+        copyChanged(b.inst, c.inst, n, i, 4) |
+        copyChanged(b.fade, c.fade, n, i, 4) |
+        copyChanged(b.lod, c.lod, n, i, 4)) !==
+      0
+    );
   }
 
   /** Empty slot `n` (drawn as nothing, like an unused room slot); true when it changed. */
@@ -1925,6 +1936,7 @@ export class TreeRenderer {
         s.rFree.push(k);
         if (this.collapseSlot(b, base + k)) mark(1, k);
       }
+    let solid = nextR.size;
     for (const [o, i] of nextC) {
       let k = s.c.get(o);
       if (k === undefined) {
@@ -1933,6 +1945,7 @@ export class TreeRenderer {
         s.c.set(o, k);
       }
       if (this.writeSlot(b, k, c, i)) mark(0, k);
+      if (c.fade[i * 4 + 1] !== SHADOW_ONLY) solid++;
     }
     let adds = 0;
     for (const o of nextR.keys()) if (!s.r.has(o)) adds++;
@@ -1959,7 +1972,7 @@ export class TreeRenderer {
     b.count = base + s.rLen;
     b.live = s.c.size + s.r.size;
     b.rest = s.rLen;
-    b.solid = s.c.size + s.r.size;
+    b.solid = solid;
     if (!grown) {
       if (dirty[1] >= 0) this.uploadRange(b, dirty[0], dirty[1] + 1);
       if (dirty[3] >= 0)
@@ -2011,10 +2024,13 @@ export class TreeRenderer {
       );
     }
     b.packed = this.packRuns(b, c, near, nearK);
-    b.solid = b.packed;
     b.count = b.packed;
     f.count = this.packRuns(f, c, farS, farK);
-    f.solid = f.count;
+    // Trees, not slots: the packed extent also holds holes and headroom.
+    const trees = (idx: number[], ks: ChunkTrees[]) =>
+      ks.reduce((n, ct) => n + ct.faked.length, idx.length);
+    b.solid = trees(near, nearK);
+    f.solid = trees(farS, farK);
     for (const mesh of f.meshes) {
       mesh.count = f.count;
       mesh.visible = this.shows(mesh, f.count);

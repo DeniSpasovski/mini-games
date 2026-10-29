@@ -649,6 +649,8 @@ export class FarForest {
   private tileY = new Map<number, [number, number]>();
   private lastTiles = new Float32Array(MAX_TILES * 4);
   private lastCount = -1;
+  /** Warned once that the view held more tiles than MAX_TILES (the rest are dropped). */
+  private tilesFull = false;
 
   /** The tiles in `camera`'s view between `near` and `reach` -> the tile texture and the instance count. */
   private pickTiles(
@@ -689,7 +691,13 @@ export class FarForest {
         const y = this.tileHeights(tx, tz, w);
         _box.min.set(x0, y[0], z0);
         _box.max.set(x0 + w, y[1], z0 + w);
-        if (!_frustum.intersectsBox(_box) || n >= MAX_TILES) continue;
+        if (!_frustum.intersectsBox(_box)) continue;
+        if (n >= MAX_TILES) {
+          if (!this.tilesFull)
+            console.warn('far trees: more tiles in view than MAX_TILES');
+          this.tilesFull = true;
+          continue;
+        }
         data[n * 4] = tx;
         data[n * 4 + 1] = tz;
         n++;
