@@ -146,6 +146,11 @@ export function gravelShader(
         diffuseColor.rgb *= a * mix( 0.78, 1.16, macro );
         // Relief height as the terrain's gravel (scale 0.5 around the mean, x 4), flatter in the ruts.
         grH = 2.0 * ( hy - 1.0 ) * ( 1.0 - 0.6 * rut );
+        // Lumps and dips of the road bed (about 1.3 m and 0.45 m across; the car's own bumps are the same order in
+        // physics/vehicle.ts surfaceBump), lit by the normal and a little darker in the dips.
+        float lump = 1.6 * ( grNoise( wp / 1.3 + 17.0 ) - 0.5 ) + 1.0 * ( grNoise( wp / 0.45 + 5.0 ) - 0.5 );
+        grH += lump * ( 1.0 - 0.5 * rut );
+        diffuseColor.rgb *= 1.0 + 0.07 * lump;
         ${
           fade
             ? `// Edge: from the road's edge (u 0.02 / 0.98) the stones thin out into the verge, ragged at 0.3 m / 1.5 m.

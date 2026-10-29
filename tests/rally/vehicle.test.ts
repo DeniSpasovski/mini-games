@@ -72,6 +72,8 @@ const BANDS: Record<
     top: [number, number];
     target?: number;
     limit?: number;
+    /** Sideways wander allowed on the straight run (m): the 126p's run is five times longer over the gravel bumps. */
+    drift?: number;
   }
 > = {
   skoda_rally: { zeroTo100: [3, 10], brake100: [25, 75], top: [130, 230] },
@@ -90,6 +92,7 @@ const BANDS: Record<
     top: [90, 125],
     target: 90,
     limit: 40,
+    drift: 5,
   },
   subie_wrx_sti: { zeroTo100: [3, 10], brake100: [25, 75], top: [180, 260] },
   audi_rs6: { zeroTo100: [2.5, 10], brake100: [25, 75], top: [200, 330] },
@@ -118,7 +121,7 @@ describe.each(ALL_CARS.map((c) => c.id))('%s', (carId) => {
     );
     expect(t).toBeGreaterThan(band.zeroTo100[0]);
     expect(t).toBeLessThan(band.zeroTo100[1]);
-    expect(Math.abs(v.position.x)).toBeLessThan(1.5); // tracks straight
+    expect(Math.abs(v.position.x)).toBeLessThan(band.drift ?? 1.5); // tracks straight
   });
 
   test('brakes from 100 km/h in a reasonable distance', () => {

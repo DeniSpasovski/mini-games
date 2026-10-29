@@ -1159,7 +1159,7 @@ function applyBrake(
 }
 
 /**
- * Smooth pseudo-random undulation (~2-6 m wavelength) felt by the tyres.
+ * Smooth pseudo-random undulation (~2-6 m wavelength, plus a quarter-weight ~1.5 m ripple) felt by the tyres.
  * Keep wavelengths long: the wheel is a single ray with no unsprung mass, so
  * short bumps at speed turn into huge damper spikes.
  */
@@ -1167,7 +1167,8 @@ function surfaceBump(x: number, z: number, amp: number): number {
   if (amp <= 0) return 0;
   const b =
     Math.sin(x * 1.3 + z * 0.6) * Math.sin(z * 1.1 - x * 0.4) * 0.6 +
-    Math.sin(x * 2.3 - z * 1.7) * 0.4;
+    Math.sin(x * 2.3 - z * 1.7) * 0.4 +
+    Math.sin(x * 3.1 + z * 2.6) * Math.sin(z * 3.7 - x * 1.1) * 0.25;
   return b * amp;
 }
 
