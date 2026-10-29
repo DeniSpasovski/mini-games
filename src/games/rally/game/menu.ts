@@ -48,8 +48,9 @@ import { loadStageRise } from '../tools/stage-card';
 import {
   GRIP_LABELS,
   isTyreId,
-  TYRE_IDS,
+  tyreChoices,
   TYRES,
+  wetTyre,
   type TyreId,
 } from '../physics/tyres';
 import type { CarPhysicsDef, GearingId, SetupId } from '../physics/types';
@@ -89,8 +90,10 @@ import {
   WEATHER_ICONS,
 } from './menu-icons';
 import {
+  isRaining,
   WEATHER_LABELS,
   WEATHERS,
+  weatherLook,
   weatherParam,
   type Weather,
 } from '../weather';
@@ -491,17 +494,33 @@ class MainMenu {
     return this.pick?.map === this.map.id && this.pick.car === this.car.id;
   }
 
-  /** The stage recommended tyre / set-up (the set-up follows the tyre: gravel soft ... tarmac stiff). */
+  /** How wet the selected stage is in the picked weather (0 dry ... 1 soaked). */
+  private get wet(): number {
+    return weatherLook(this.weather, this.map.weather).wet;
+  }
+
+  /** The tyres offered: no near-slicks in the rain. */
+  private get tyreChoices(): readonly TyreId[] {
+    return tyreChoices(isRaining(this.weather));
+  }
+
+  /**
+   * The stage recommended tyre / set-up (the set-up follows the tyre: gravel soft ... tarmac stiff), its wet tyre in the
+   * wet.
+   */
   private get recTyre(): TyreId {
-    return this.map.tyre;
+    return wetTyre(this.map.tyre, this.wet);
   }
 
   private get recSetup(): SetupId {
-    return SETUP_FOR_TYRE[this.map.tyre];
+    return SETUP_FOR_TYRE[this.recTyre];
   }
 
+  /** The picked tyre, or the recommended one (also when the pick is not offered in this weather). */
   private get tyre(): TyreId {
-    return this.picked ? this.pick!.tyre : this.recTyre;
+    return this.picked && this.tyreChoices.includes(this.pick!.tyre)
+      ? this.pick!.tyre
+      : this.recTyre;
   }
 
   private get setup(): SetupId {
@@ -829,8 +848,11 @@ class MainMenu {
       this.weather,
       WEATHER_ICONS,
     );
+    // The temperatures follow the weather (set once they are shown).
+    let showTemps = () => {};
     weatherRow.select.addEventListener('change', (e) => {
       this.weather = (e.target as HTMLSelectElement).value as Weather;
+      showTemps();
     });
     const info = document.createElement('dl');
     info.innerHTML = `<dt>Month</dt><dd></dd>`;
@@ -871,15 +893,16 @@ class MainMenu {
     let rise = 0;
     const climbs = () => rise >= MIN_RISE;
     const show = (h: number) => {
-      const t = stageTemps(m, h, this.seasonFor(m));
+      const t = stageTemps(m, h, this.seasonFor(m), 0, this.weather);
       clock.textContent = formatHour(h);
       temp.textContent = `air ${Math.round(t.air)}°C / road ${Math.round(t.road)}°C`;
       topLabel.hidden = top.hidden = !climbs();
       if (!climbs()) return;
-      const u = stageTemps(m, h, this.seasonFor(m), rise);
+      const u = stageTemps(m, h, this.seasonFor(m), rise, this.weather);
       top.textContent = `air ${Math.round(u.air)}°C / road ${Math.round(u.road)}°C`;
     };
     show(hour);
+    showTemps = () => show(this.hourFor(m) ?? hour);
     void loadStageRise(m.map, m.id).then(
       (r) => {
         rise = r;
@@ -1108,23 +1131,24 @@ class MainMenu {
     };
 
     const tyre = TYRES[this.tyre];
+    const choices = this.tyreChoices;
     const tyreTune: Tune = {
       key: 'Tyres',
       icon: 'tyre',
       value: `<i class="menu-tyre-dot" style="background:${hex(tyre.color)}"></i>${tyre.name}`,
-      at: TYRE_IDS.indexOf(this.tyre),
-      count: TYRE_IDS.length,
+      at: choices.indexOf(this.tyre),
+      count: choices.length,
       step: (d) => {
-        const n = TYRE_IDS.length;
+        const n = choices.length;
         this.setSetup(
-          { tyre: TYRE_IDS[(TYRE_IDS.indexOf(this.tyre) + d + n) % n] },
+          { tyre: choices[(choices.indexOf(this.tyre) + d + n) % n] },
           0,
         );
       },
       detail: `<p>${carTyreLabel(car.physics, this.tyre)} · ${tyre.blurb}</p>
         <dl>${surfaces
           .map((s) => {
-            const r = carGripRating(p, this.tyre, s);
+            const r = carGripRating(p, this.tyre, s, this.wet);
             return `<dt>${SURFACES[s].name}</dt><dd>${pips(r + 1, 4, `r${r}`)}${GRIP_LABELS[r]}</dd>`;
           })
           .join('')}</dl>${this.tyre === this.recTyre ? reco : ''}`,
@@ -1414,9 +1438,10 @@ class MainMenu {
     } else if (s === 'setup' && (a === 'left' || a === 'right')) {
       const d = a === 'left' ? -1 : 1;
       if (this.setupRow === 0) {
-        const n = TYRE_IDS.length;
-        const k = (TYRE_IDS.indexOf(this.tyre) + d + n) % n;
-        this.setSetup({ tyre: TYRE_IDS[k] }, 0);
+        const choices = this.tyreChoices;
+        const n = choices.length;
+        const k = (choices.indexOf(this.tyre) + d + n) % n;
+        this.setSetup({ tyre: choices[k] }, 0);
       } else if (this.setupRow === 2) {
         const n = GEARING_IDS.length;
         const k = (GEARING_IDS.indexOf(this.gearing) + d + n) % n;

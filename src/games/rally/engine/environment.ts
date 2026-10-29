@@ -45,8 +45,10 @@ import { getTexture } from './textures';
 import {
   setCarEnvSun,
   setFogBase,
+  setFogLayer,
   setShadowBox,
   setWet,
+  worldUniforms,
   setWorldShading,
   setWorldTime,
 } from './world-shading';
@@ -56,9 +58,11 @@ import type { QualitySettings } from './quality';
 import { shadowCasterLayers } from './layers';
 import {
   WEATHER_LOOKS,
+  weatherLook,
   weatherParam,
   type Weather,
   type WeatherLook,
+  type WeatherTuning,
 } from '../weather';
 
 /** Tone-mapping operators a map can pick (`EnvironmentDef.toneMapping`, `?tonemap=` overrides for comparisons). */
@@ -215,7 +219,8 @@ export function weatherEnv(
   def: EnvironmentDef,
   w: WeatherLook,
 ): EnvironmentDef {
-  if (w.clouds === null) return def;
+  if (w.clouds === null)
+    return w.wind === 1 ? def : { ...def, wind: (def.wind ?? 1) * w.wind };
   // 0 = overcast / breaking cloud, 1 = heavy rain.
   const dark = 1 - w.sun;
   const g = def.grade ?? {};
@@ -232,7 +237,7 @@ export function weatherEnv(
     fillSky: dark > 0.5 ? '#c4cad1' : (def.fillSky ?? '#9fb8e6'),
     // The sky carries the light under cloud: more fill as the sun goes.
     fillIntensity: (def.fillIntensity ?? 0.26) + 0.5 * dark,
-    wind: (def.wind ?? 1) * (w.rain > 0 ? 1.6 : 1.2),
+    wind: (def.wind ?? 1) * w.wind,
     // The eye (and a camera) opens up under a dark sky.
     exposure: def.exposure * (1 + 0.3 * dark),
     grade: {
@@ -258,6 +263,20 @@ export function weatherEnv(
 }
 
 /**
+ * A fog layer over the sky dome (`skyFog`: x the layer's top above the camera (m), y density, z falloff above the top, w
+ * on): the optical depth from the camera out of the layer along the view ray (`layerTau` in closed form for an endless
+ * ray). From inside, the sky goes the fog's colour; from above, the view down onto the layer is solid fog.
+ */
+const SKY_FOG_LAYER = /* glsl */ `
+			if ( skyFog.w > 0.0 ) {
+				float dy = max( direction.y, 1e-3 );
+				float tau = skyFog.x > 0.0
+					? skyFog.y * ( skyFog.x / dy + 1.0 / ( skyFog.z * dy ) )
+					: ( direction.y <= 0.0 ? 1e3 : skyFog.y / skyFog.z * exp( skyFog.z * skyFog.x ) / dy );
+				gl_FragColor.rgb = mix( gl_FragColor.rgb, skyFogColor, 1.0 - exp( - tau ) );
+			}`;
+
+/**
  * Two additions to three's Sky shader: `skyGain` (`skyBrightness`: the dome only; the env map keeps the full sky, so
  * the world's sky light does not change) and `skyOvercast` (rgb = a cloud deck's zenith colour, a = how much of the
  * sky it hides): an overcast sky twice as bright overhead as at the horizon (the CIE overcast sky has 3x; rain-filled
@@ -267,17 +286,20 @@ function patchSky(sky: Sky): Sky {
   const mat = sky.material;
   mat.uniforms.skyGain = { value: 1 };
   mat.uniforms.skyOvercast = { value: new Vector4(0, 0, 0, 0) };
+  mat.uniforms.skyFog = { value: new Vector4(0, 0, 0.05, 0) };
+  mat.uniforms.skyFogColor = { value: new Color() };
   const out = 'gl_FragColor = vec4( texColor, 1.0 );';
   if (!mat.fragmentShader.includes(out))
     throw new Error('environment: Sky shader changed (three upgrade?)');
   mat.fragmentShader = mat.fragmentShader
     .replace(
       'void main() {',
-      'uniform float skyGain;\nuniform vec4 skyOvercast;\nvoid main() {',
+      'uniform float skyGain;\nuniform vec4 skyOvercast;\nuniform vec4 skyFog;\nuniform vec3 skyFogColor;\nvoid main() {',
     )
     .replace(
       out,
-      'texColor = mix( texColor, skyOvercast.rgb * ( 0.5 + 0.5 * max( direction.y, 0.0 ) ), skyOvercast.a );\n\t\t\tgl_FragColor = vec4( texColor * skyGain, 1.0 );',
+      'texColor = mix( texColor, skyOvercast.rgb * ( 0.5 + 0.5 * max( direction.y, 0.0 ) ), skyOvercast.a );\n\t\t\tgl_FragColor = vec4( texColor * skyGain, 1.0 );\n' +
+        SKY_FOG_LAYER,
     );
   return sky;
 }
@@ -316,6 +338,12 @@ export class Environment {
   /** Weather of the run (`?weather=`, dry by default; never in the studio) and what it does (`weather.ts`). */
   weather: Weather = 'dry';
   weatherLook: WeatherLook = WEATHER_LOOKS.dry;
+  /** The stage's own weather numbers (`StageDef.weather`). */
+  private stageWeather?: Partial<Record<Weather, WeatherTuning>>;
+  /** World height (m) of the stage start: a fog layer's top is measured from it (`setStageBase`). */
+  private stageBase = 0;
+  /** The sun's intensity before a fog layer dims it (`update`). */
+  private sunBase = 0;
   private nightSky: NightSky;
   private quality: QualitySettings;
   private target = new Object3D();
@@ -336,9 +364,13 @@ export class Environment {
     private renderer: WebGLRenderer,
     public def: EnvironmentDef,
     quality: QualitySettings,
-    opts: { studio?: boolean } = {},
+    opts: {
+      studio?: boolean;
+      weather?: Partial<Record<Weather, WeatherTuning>>;
+    } = {},
   ) {
     this.studio = opts.studio ?? false;
+    this.stageWeather = opts.weather;
     this.quality = quality;
     this.nightSky = new NightSky(this.sunDir);
     scene.add(this.nightSky.group);
@@ -393,7 +425,7 @@ export class Environment {
     const look = ownValue(LOOKS, urlString('look') ?? '');
     if (look) def = { ...def, ...look };
     this.weather = studio ? 'dry' : weatherParam(urlString('weather'));
-    this.weatherLook = WEATHER_LOOKS[this.weather];
+    this.weatherLook = weatherLook(this.weather, this.stageWeather);
     def = weatherEnv(def, this.weatherLook);
     this.def = def;
     this.studio = studio;
@@ -432,11 +464,13 @@ export class Environment {
           lightNeed(elevation),
           this.weatherLook.rain > 4
             ? 0.35
-            : this.weatherLook.rain > 0
+            : this.weatherLook.rain > 0 || this.weatherLook.fog
               ? 0.2
               : 0,
         );
-    setWet(this.weatherLook.wet, this.weatherLook.rain);
+    const fog = this.weatherLook.fog;
+    if (fog) setWet(fog.damp, 0, this.stageBase + fog.top);
+    else setWet(this.weatherLook.wet, this.weatherLook.rain);
     this.sunAzimuth = azimuth;
     const lamp = this.night && hour !== undefined ? moonAt(hour) : null;
     const phi = MathUtils.degToRad(90 - (lamp?.elevation ?? elevation));
@@ -515,6 +549,44 @@ export class Environment {
     });
     this.refreshExposure();
     this.rebuildEnvMap();
+    this.sunBase = this.sun.intensity;
+    this.applyFogLayer();
+  }
+
+  /**
+   * World height (m) of the stage start: a weather's fog top is measured from it (Vodno's valley fog sits ~110 m above
+   * its start). Call once the stage is known.
+   */
+  setStageBase(y: number): void {
+    this.stageBase = y;
+    this.applyFogLayer();
+    const fog = this.weatherLook.fog;
+    if (fog) setWet(fog.damp, 0, y + fog.top);
+  }
+
+  /** The weather's fog layer (or none): density, top and a colour lit like the day's fog (`setFogLayer`). */
+  private applyFogLayer(): void {
+    const fog = this.weatherLook.fog;
+    const sky = this.sky.material.uniforms.skyFog.value as Vector4;
+    if (!fog) {
+      setFogLayer(null);
+      sky.w = 0;
+      return;
+    }
+    // Lit from above: brighter than the haze, near white by day; dark blue-grey at night.
+    const color = this.night
+      ? new Color(NIGHT.fogColor).multiplyScalar(1.6)
+      : (this.scene.fog?.color.clone() ?? new Color(0.6, 0.62, 0.64)).lerp(
+          new Color(0.78, 0.8, 0.82),
+          0.6,
+        );
+    setFogLayer(
+      { top: this.stageBase + fog.top, visibility: fog.visibility },
+      color,
+    );
+    const u = worldUniforms.wsFogLayer.value;
+    sky.set(0, u.y, u.z, 1);
+    (this.sky.material.uniforms.skyFogColor.value as Color).copy(color);
   }
 
   /** Map exposure, scaled for the display (engine/display.ts: HDR monitors get less). */
@@ -685,6 +757,13 @@ export class Environment {
    */
   update(focus: Vector3, forward?: Vector3): void {
     setFogBase(focus.y);
+    // In a fog layer the sun comes through dimmed (the climb out of it brings the sun and hard shadows back).
+    const layer = worldUniforms.wsFogLayer.value;
+    if (layer.w > 0 && !this.night) {
+      // Most of the light still gets through, scattered: ~0.25 of the sun 100 m deep (the plan's 0.2-0.35).
+      const tau = layer.y * Math.max(0, layer.x - focus.y) * 0.5;
+      this.sun.intensity = this.sunBase * Math.max(0.2, Math.exp(-tau));
+    }
     const c = this.center.copy(focus);
     if (forward) {
       const l = Math.hypot(forward.x, forward.z);
@@ -709,6 +788,8 @@ export class Environment {
   /** Move the sky dome with the camera so it never clips; drift the clouds. */
   follow(cameraPos: Vector3): void {
     this.sky.position.copy(cameraPos);
+    const sky = this.sky.material.uniforms.skyFog.value as Vector4;
+    if (sky.w > 0) sky.x = worldUniforms.wsFogLayer.value.x - cameraPos.y;
     this.nightSky.group.position.copy(cameraPos);
     setWorldTime((performance.now() - this.t0) / 1000);
     this.sky.material.uniforms.time.value =

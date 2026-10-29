@@ -25,6 +25,7 @@ import { axleRadius, carSurfaces, drivenRadius } from './car-tyres';
 import { staticComHeight } from './car-setup';
 import { autoHull } from './hull';
 import { TYRES, type TyreId } from './tyres';
+import { PUDDLE_DEPTH, puddleDepth } from '../puddles';
 import type {
   AxleDef,
   CarPhysicsDef,
@@ -56,6 +57,16 @@ const AIR_DENSITY = 1.2;
 const WATER_DENSITY = 1000;
 /** Drag coefficients wading through water: tyre (cylinder side-on) and body (bluff box). */
 const WHEEL_WATER_CD = 1.0;
+/** Speed (m/s) a Mixed tread starts to aquaplane in a full puddle: ~90 km/h. */
+const AQUAPLANE_SPEED = 25;
+/** Surfaces puddles stand on: the road (grass soaks it up; mud and snow are their own). */
+const PUDDLE_SURFACES: ReadonlySet<SurfaceId> = new Set<SurfaceId>([
+  'tarmac',
+  'tarmac_gravel',
+  'gravel',
+  'gravel_loose',
+  'dirt',
+]);
 const BODY_WATER_CD = 1.05;
 /** Traction control stability term: combined slip (1 = peak) above which a driven wheel trims throttle. */
 const TC_REAR_SLIP = 1.15;
@@ -108,6 +119,8 @@ export interface WheelState {
   /** ABS share of the foot brake on this wheel (1 = full pressure). */
   absFactor: number;
   surface: SurfaceDef;
+  /** Puddle water under the tyre (m, puddles.ts; 0 = none): drag, and aquaplaning on asphalt at speed. */
+  puddle: number;
   /** Tyre temperature (°C) and the grip factor it gives on the current surface (1 without a climate). */
   temp: number;
   tempGrip: number;
@@ -194,6 +207,8 @@ export class Vehicle {
   /** Engine power left with water at the air intake (1 = dry intake). */
   engineWater = 1;
 
+  /** Ground wetness 0..1 (`setWet`). */
+  wet = 0;
   /** Fitted tyre (see tyres.ts); null = raw ground surfaces (tests, viewers). Set via `setTyre`. */
   tyre: TyreId | null = null;
   /** Effective surfaces per axle [front, rear] for the fitted tyre (the same table when both axles run one size). */
@@ -278,8 +293,8 @@ export class Vehicle {
     this.tyre = tyre;
     this.tyreSurfaces = tyre
       ? [
-          carSurfaces(this.def, tyre, 'front'),
-          carSurfaces(this.def, tyre, 'rear'),
+          carSurfaces(this.def, tyre, 'front', this.wet),
+          carSurfaces(this.def, tyre, 'rear', this.wet),
         ]
       : null;
     // Each size rolls on its own radius: the hubs stay put in the body, so a taller tyre lifts its end of the car.
@@ -290,6 +305,15 @@ export class Vehicle {
     const kit = brakeKit(this.def.brakes, this.def.gravelBrakes, tyre);
     for (const w of this.wheels)
       Object.assign(w, brakeFields(kit[w.isFront ? 'front' : 'rear']));
+  }
+
+  /**
+   * How wet the ground is, 0..1 (weather.ts `wet`): less grip on the fitted tyre's tables (physics/car-tyres.ts `WET`)
+   * and a water film that cools the tyres. Set before or after `setTyre`.
+   */
+  setWet(wet: number): void {
+    this.wet = Math.min(1, Math.max(0, wet));
+    if (this.tyre) this.setTyre(this.tyre);
   }
 
   /**
@@ -330,6 +354,23 @@ export class Vehicle {
     return this.climate && this.tyre
       ? tempGrip(w.temp, TYRES[this.tyre].temp, s.loose)
       : 1;
+  }
+
+  /**
+   * Grip left on a puddle (1 = none): on asphalt the tyre rides up on the water past a speed its tread sets (~90 km/h
+   * for a Mixed tread in a full puddle; a slick sooner, a cut wet tyre later), down to a quarter. Loose ground has no
+   * film to ride on: the water there only drags.
+   */
+  private aquaplane(w: WheelState, speed: number): number {
+    if (w.puddle <= 0 || w.surface.loose > 0.3) return 1;
+    const onset =
+      AQUAPLANE_SPEED / Math.sqrt(this.tyre ? TYRES[this.tyre].wetLoss : 1);
+    const film = Math.min(1, w.puddle / (0.7 * PUDDLE_DEPTH));
+    const t = Math.min(
+      1,
+      Math.max(0, (speed - onset * (1.25 - 0.25 * film)) / 12),
+    );
+    return 1 - 0.75 * film * t * t * (3 - 2 * t);
   }
 
   /** Average temperature grip factor of the four tyres on a surface (the autopilot plans with it). */
@@ -399,6 +440,7 @@ export class Vehicle {
         surface: SURFACES.gravel,
         temp: 20,
         tempGrip: 1,
+        puddle: 0,
         ...brakeFields(
           brakeKit(d.brakes, d.gravelBrakes, this.tyre)[
             isFront ? 'front' : 'rear'
@@ -811,7 +853,7 @@ export class Vehicle {
     ti.load = Math.min(w.load, w.nominalLoad * 3.5);
     ti.nominalLoad = w.nominalLoad;
     w.tempGrip = this.tempGripOf(w, w.surface);
-    ti.grip = w.axle.grip * w.tempGrip;
+    ti.grip = w.axle.grip * w.tempGrip * this.aquaplane(w, Math.abs(vx));
     ti.surface = w.surface;
 
     // Semi-implicit wheel spin: linearise Fx around the current omega so stiff
@@ -867,7 +909,8 @@ export class Vehicle {
       h.load = Math.min(w.load, w.nominalLoad * 3.5);
       h.nominalLoad = w.nominalLoad;
       h.surface = w.surface;
-      h.water = this.waterDepth;
+      // A wet road's film (a few mm) cools like shallow water.
+      h.water = Math.max(this.waterDepth, this.wet * 0.03);
       w.temp = stepTemp(h, c, dt);
     }
   }
@@ -913,16 +956,21 @@ export class Vehicle {
   private waterPass(): void {
     this.waterDepth = 0;
     const ground = this.ground;
-    if (!ground.waterLevel) {
-      this.engineWater = 1;
-      return;
-    }
     const d = this.def;
     let deepest = 0;
     for (const w of this.wheels) {
+      w.puddle = 0;
       if (!w.contact) continue;
-      const level = ground.waterLevel(w.contactPoint.x, w.contactPoint.z);
-      const depth = Math.min(level - w.contactPoint.y, 2 * w.radius);
+      // A puddle on a wet road (puddles.ts: the same water the road shows) drags like shallow water.
+      if (this.wet > 0 && PUDDLE_SURFACES.has(w.surface.id))
+        w.puddle = puddleDepth(w.contactPoint.x, w.contactPoint.z, this.wet);
+      const level = ground.waterLevel
+        ? ground.waterLevel(w.contactPoint.x, w.contactPoint.z)
+        : -Infinity;
+      const depth = Math.max(
+        Math.min(level - w.contactPoint.y, 2 * w.radius),
+        w.puddle,
+      );
       if (!(depth > 0)) continue;
       deepest = Math.max(deepest, depth);
       const r = _w3.subVectors(w.contactPoint, this.position);
@@ -938,6 +986,11 @@ export class Vehicle {
       const app = _w2.copy(w.contactPoint);
       app.y += depth / 2;
       this.applyForce(v.multiplyScalar(k), app);
+    }
+    if (!ground.waterLevel) {
+      this.waterDepth = deepest;
+      this.engineWater = 1;
+      return;
     }
     // Body: underside = lowest hull point (body frame), sampled under the centre.
     const level = ground.waterLevel(this.position.x, this.position.z);

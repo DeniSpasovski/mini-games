@@ -2,16 +2,20 @@ import { paramOneOf } from '../../shared/url-params';
 
 /**
  * Weather of a run, picked on the stage screen beside Season and Time (`?weather=`). Dry is the default and every
- * stage's own; the others lay a look over the map's environment (engine/environment.ts `weatherEnv`), wet the
- * surfaces (engine/world-shading.ts `setWet`) and, in rain, add falling rain, tyre spray and rain audio
- * (game/rain.ts, game/rally-game.ts, game/audio.ts). Grip is not changed yet.
+ * stage's own. A weather lays a look over the map's environment (engine/environment.ts `weatherEnv`), wets the
+ * surfaces (engine/world-shading.ts `setWet`) and the grip (physics/car-tyres.ts `WET`), sets the air and road
+ * temperatures (`weatherTemps`) and, in rain, adds falling rain, spray, splashes, drops on the lens and rain audio
+ * (game/rain.ts, game/rally-game.ts, engine/post-fx.ts, game/audio.ts). Fog is a layer with a top (an inversion:
+ * valley fog that clears as the road climbs out of it). A stage can retune any of it (`StageDef.weather`).
  */
 export const WEATHERS = [
   'dry',
   'overcast',
+  'pre_rain',
   'rain_light',
   'rain_heavy',
   'post_rain',
+  'fog',
 ] as const;
 export type Weather = (typeof WEATHERS)[number];
 
@@ -19,9 +23,11 @@ export type Weather = (typeof WEATHERS)[number];
 export const WEATHER_LABELS: Readonly<Record<Weather, string>> = {
   dry: 'Dry',
   overcast: 'Overcast',
+  pre_rain: 'Before the rain',
   rain_light: 'Light rain',
   rain_heavy: 'Heavy rain',
   post_rain: 'After the rain',
+  fog: 'Fog',
 };
 
 /** What a weather does to the world (dry = all zero / one). */
@@ -34,18 +40,42 @@ export interface WeatherLook {
   sun: number;
   /** Visibility (m) in the air (null = the map's own haze). */
   visibility: number | null;
-  /** How wet the surfaces are, 0..1 (darker porous ground, a water film on the road). */
+  /** How wet the surfaces and the grip are, 0..1 (darker porous ground, a water film on the road, less grip). */
   wet: number;
-  /** Rain rate (mm/h; 0 = none falling): drop count, streak length, spray, rain audio. */
+  /** Rain rate (mm/h; 0 = none falling): drop count, streak length, spray, splashes, rain audio. */
   rain: number;
+  /** Foliage sway and dust drift (x the map's wind). */
+  wind: number;
+  /** Air temperature change (deg C) from the stage's dry `temps`. */
+  air: number;
+  /** Share of the road's sun heating (its gap to the air) left under this sky, 0..1. */
+  sunHeat: number;
+  /**
+   * A fog layer (an inversion): its top in metres above the stage start, the visibility inside it (m) and how damp it
+   * leaves the ground below its top (0..1, the look; the grip stays dry). Null = none.
+   */
+  fog: { top: number; visibility: number; damp: number } | null;
 }
 
 /**
  * Starting values to tune by driving. Rain rates: meteorology calls under ~2.5 mm/h light and over ~7.6 mm/h heavy;
- * visibility in heavy rain ~300-800 m. Overcast and after the rain keep some sun through thin or breaking cloud.
+ * visibility in heavy rain ~300-800 m. Temperatures: under cloud the road sits near the air (no sun gap); rain cools the
+ * air 3-6 deg C. Fog: Skopje's autumn inversion has its top ~420-460 m (Vodno's start is at 349 m), inside it
+ * 100-200 m visibility (see the rain + fog plan).
  */
 export const WEATHER_LOOKS: Readonly<Record<Weather, WeatherLook>> = {
-  dry: { clouds: null, deck: 0, sun: 1, visibility: null, wet: 0, rain: 0 },
+  dry: {
+    clouds: null,
+    deck: 0,
+    sun: 1,
+    visibility: null,
+    wet: 0,
+    rain: 0,
+    wind: 1,
+    air: 0,
+    sunHeat: 1,
+    fog: null,
+  },
   overcast: {
     clouds: 0.9,
     deck: 1.6,
@@ -53,6 +83,22 @@ export const WEATHER_LOOKS: Readonly<Record<Weather, WeatherLook>> = {
     visibility: 6000,
     wet: 0,
     rain: 0,
+    wind: 1.2,
+    air: -3,
+    sunHeat: 0.2,
+    fog: null,
+  },
+  pre_rain: {
+    clouds: 1,
+    deck: 1.05,
+    sun: 0.18,
+    visibility: 3500,
+    wet: 0,
+    rain: 0,
+    wind: 2,
+    air: 0,
+    sunHeat: 0.3,
+    fog: null,
   },
   rain_light: {
     clouds: 1,
@@ -61,6 +107,10 @@ export const WEATHER_LOOKS: Readonly<Record<Weather, WeatherLook>> = {
     visibility: 2000,
     wet: 0.7,
     rain: 2,
+    wind: 1.6,
+    air: -4,
+    sunHeat: 0,
+    fog: null,
   },
   rain_heavy: {
     clouds: 1,
@@ -69,6 +119,10 @@ export const WEATHER_LOOKS: Readonly<Record<Weather, WeatherLook>> = {
     visibility: 600,
     wet: 1,
     rain: 8,
+    wind: 1.6,
+    air: -5,
+    sunHeat: 0,
+    fog: null,
   },
   post_rain: {
     clouds: 0.6,
@@ -77,10 +131,61 @@ export const WEATHER_LOOKS: Readonly<Record<Weather, WeatherLook>> = {
     visibility: 4000,
     wet: 0.6,
     rain: 0,
+    wind: 1.2,
+    air: -2,
+    sunHeat: 0.5,
+    fog: null,
+  },
+  fog: {
+    clouds: null,
+    deck: 0,
+    sun: 1,
+    visibility: null,
+    wet: 0,
+    rain: 0,
+    wind: 0.3,
+    air: -1,
+    sunHeat: 0.3,
+    fog: { top: 90, visibility: 150, damp: 0.25 },
   },
 };
+
+/** True for the weathers with rain falling. */
+export const isRaining = (w: Weather): boolean => WEATHER_LOOKS[w].rain > 0;
 
 /** The weather a `?weather=` value names; dry when it is missing or unknown. */
 export function weatherParam(raw: string | null | undefined): Weather {
   return paramOneOf(raw, WEATHERS, 'dry');
+}
+
+/** A stage's retuning of a weather (`StageDef.weather`): any field, the fog merged field by field. */
+export type WeatherTuning = Partial<Omit<WeatherLook, 'fog'>> & {
+  fog?: Partial<NonNullable<WeatherLook['fog']>>;
+};
+
+/** A weather's look on a stage: the defaults with the stage's own numbers over them. */
+export function weatherLook(
+  w: Weather,
+  stage?: Partial<Record<Weather, WeatherTuning>>,
+): WeatherLook {
+  const base = WEATHER_LOOKS[w];
+  const own = stage?.[w];
+  if (!own) return base;
+  return {
+    ...base,
+    ...own,
+    fog: base.fog && { ...base.fog, ...own.fog },
+  };
+}
+
+/**
+ * Air and road temperature under a weather, from the stage's dry ones: the air `look.air` warmer / colder, the road
+ * keeps `sunHeat` of its sun gap (a wet road sits at the air).
+ */
+export function weatherTemps(
+  t: { air: number; road: number },
+  look: WeatherLook,
+): { air: number; road: number } {
+  const air = t.air + look.air;
+  return { air, road: air + Math.max(0, t.road - t.air) * look.sunHeat };
 }

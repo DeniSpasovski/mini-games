@@ -1,4 +1,5 @@
 import { isMutedByUrl } from '../../../shared/mute-param';
+import { Rng } from '../../../shared/rng';
 import type { CarDef, CarSoundDef } from '../cars/shared/types';
 import type { SurfaceId } from '../physics/surfaces';
 import type { TunnelAcoustics } from '../world/world';
@@ -523,11 +524,12 @@ export class CarAudio {
     // lower on the roof; wet tyres hiss (high band noise).
     const ticks = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
     const tk = ticks.getChannelData(0);
+    const rng = new Rng(0x7a1d);
     let drop = 0;
     for (let i = 0; i < tk.length; i++) {
-      if (Math.random() < 1 / 40) drop = 0.3 + Math.random() * 0.7;
+      if (rng.next() < 1 / 40) drop = 0.3 + rng.next() * 0.7;
       drop *= 0.93;
-      tk[i] = (Math.random() * 2 - 1) * (0.05 + drop);
+      tk[i] = (rng.next() * 2 - 1) * (0.05 + drop);
     }
     const tickSrc = ctx.createBufferSource();
     tickSrc.buffer = ticks;

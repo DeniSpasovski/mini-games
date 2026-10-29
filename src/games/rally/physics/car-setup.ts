@@ -37,6 +37,7 @@ export const SETUP_FOR_TYRE: Record<TyreId, SetupId> = {
   gravel_hard: 'soft',
   mixed: 'medium',
   tarmac_hard: 'stiff',
+  tarmac_wet: 'medium',
   tarmac: 'stiff',
 };
 
