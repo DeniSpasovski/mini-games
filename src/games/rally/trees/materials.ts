@@ -26,7 +26,7 @@ import {
   type LeafStyle,
   type SpriteAtlas,
 } from './leaftex';
-import { imageTexture } from '../engine/image-texture';
+import { imageReady, imageTexture } from '../engine/image-texture';
 import { mix32, unit } from './math';
 import {
   FAR_RAMP,
@@ -497,6 +497,23 @@ export function barkKind(def: SpeciesDef): BarkTexture | BarkScan {
   return def.bark.scan ?? def.bark.texture;
 }
 
+/** The bark material's colour over its tile (`BARK_GAIN`); the impostor bake applies the same. */
+export function barkGain(kind: BarkTexture | BarkScan): number {
+  return BARK_GAIN[kind] ?? 1;
+}
+
+/** Side of a bark tile (px): a scan or the procedural one. */
+export function barkTileSize(kind: BarkTexture | BarkScan): [number, number] {
+  return BARK_URLS[kind] ? [256, 512] : [64, 128];
+}
+
+/** Resolves when these bark tiles hold their scans: the impostor bake reads them once (trees/load.ts). */
+export function barkReady(kinds: (BarkTexture | BarkScan)[]): Promise<void> {
+  return Promise.all(
+    [...new Set(kinds)].map((k) => imageReady(barkTexture(k))),
+  ).then(() => undefined);
+}
+
 /** Grey bark detail (multiplies the bark vertex colour): u around the branch, v along it. */
 export function barkTexture(kind: BarkTexture | BarkScan): Texture {
   let t = textures.get(`bark:${kind}`);
@@ -772,7 +789,7 @@ export function barkMaterial(
     map: barkTexture(kind),
     roughness: 0.95,
   });
-  m.color.setScalar(BARK_GAIN[kind] ?? 1);
+  m.color.setScalar(barkGain(kind));
   m.name = `tree ${key}`;
   m.defines = {
     TREE_FULL: FULL_DETAIL_DISTANCE.toFixed(1),
