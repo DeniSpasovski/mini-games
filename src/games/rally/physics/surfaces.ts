@@ -69,7 +69,7 @@ export const SURFACES: Record<SurfaceId, SurfaceDef> = {
     peakSlip: 0.2,
     peakAngle: 11,
     rolling: 0.045,
-    bump: 0.02,
+    bump: 0.015,
     rough: 0.75,
     heat: 0.6,
     dust: 1,
