@@ -1,7 +1,7 @@
 {
   "id": "rally",
   "title": "Gravel Rally",
-  "version": "0.26.4",
+  "version": "0.27.1",
   "description": "Point-to-point gravel stages on real roads, with raycast vehicle physics.",
   "genre": "Rally",
   "inputs": "keyboard, pad, touch",
