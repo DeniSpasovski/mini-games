@@ -3,7 +3,6 @@ import {
   BufferGeometry,
   CylinderGeometry,
   Float32BufferAttribute,
-  TorusGeometry,
 } from 'three';
 import type { AssetBuilder } from '../types';
 import { TEAM_COUNT, TEAMS } from './teams';
@@ -17,6 +16,7 @@ import {
   recoveryTruck,
   teamSemi,
 } from '../../maps/ajvatovci/start-row/build/vehicles';
+import { tyreOnRim, TYRE_W } from './simready';
 import { box, EXTRAS_LOD, finish, solid, wheel, withExtras } from './vehicles';
 
 /**
@@ -185,11 +185,15 @@ export const carTrailer: AssetBuilder = ({ variant, lod }) => {
   }
   for (const z of [1.17, -1.17]) {
     parts.push(box(0.95, 0.05, 0.3, -0.3, 0.74, z, deck));
-    parts.push(
-      lod < 2
-        ? wheel(0.33, 0.22, -0.3, z)
-        : box(0.66, 0.5, 0.22, -0.3, 0.33, z, DARK),
-    );
+    if (lod < 2)
+      for (const g of tyreOnRim(lod))
+        parts.push(
+          g
+            .scale(1.1, 1.1, 1.1)
+            .rotateY(Math.PI / 2)
+            .translate(-0.3, 0.33, z),
+        );
+    else parts.push(box(0.66, 0.5, 0.22, -0.3, 0.33, z, DARK));
   }
   if (lod <= EXTRAS_LOD) parts.push(post(3.6, 0, 0.5, 0.04, DARK, 6));
   return finish(parts);
@@ -250,19 +254,15 @@ export const teamCar: AssetBuilder = () =>
 
 // --- props ---------------------------------------------------------------------------------------
 
-/** Stack of 2-4 tyres (variant + 2): round tyres lying on each other, the wheel hole open in the middle. */
+/** Stack of 2-4 tyres (variant + 2): the rack's rally tyres on their rims, lying on each other. */
 export const tyreStack: AssetBuilder = ({ variant, lod }) => {
   const n = 2 + (variant % 3);
   const parts: BufferGeometry[] = [];
-  for (let i = 0; i < n; i++) {
-    const tyre =
-      lod > 1
-        ? new CylinderGeometry(0.33, 0.33, 0.22, 8)
-        : new TorusGeometry(0.22, 0.11, lod ? 6 : 10, lod ? 12 : 24).rotateX(
-            Math.PI / 2,
-          );
-    parts.push(solid(tyre.translate(0, 0.11 + i * 0.22, 0), '#1c1c1e'));
-  }
+  for (let i = 0; i < n; i++)
+    for (const g of tyreOnRim(lod > 1 ? 0 : lod))
+      parts.push(
+        g.rotateZ(Math.PI / 2).translate(0, TYRE_W / 2 + i * TYRE_W, 0),
+      );
   return finish(parts);
 };
 
