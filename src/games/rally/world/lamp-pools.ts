@@ -43,6 +43,8 @@ export class LampPools {
       polygonOffsetFactor: -2,
       polygonOffsetUnits: -2,
     });
+    // Fades into fog instead of taking its colour (engine/world-shading.ts).
+    mat.defines = { RALLY_ADDITIVE: 1 };
     const geo = new PlaneGeometry(POOL_DIAMETER, POOL_DIAMETER).rotateX(
       -Math.PI / 2,
     );

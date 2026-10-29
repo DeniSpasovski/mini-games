@@ -428,10 +428,20 @@ const FOG_FRAGMENT = /* glsl */ `
 		float wsSunAmt = max( dot( normalize( wsFogRay ), wsSunDir ), 0.0 );
 		wsFogCol += wsFog.xyz * ( wsSunAmt * wsSunAmt * wsSunAmt * wsSunAmt * wsSunAmt * wsSunAmt );
 	}
-	gl_FragColor.rgb = mix( gl_FragColor.rgb, wsFogCol, fogFactor );
+	// Light added over the scene (\`defines.RALLY_ADDITIVE\`, lamp pools) fades into the fog: mixed towards the fog colour
+	// it would add the fog's grey over its whole quad, a bright square in thick fog.
+	#ifdef RALLY_ADDITIVE
+		gl_FragColor.rgb *= 1.0 - fogFactor;
+	#else
+		gl_FragColor.rgb = mix( gl_FragColor.rgb, wsFogCol, fogFactor );
+	#endif
 	if ( wsFogLayer.w > 0.0 ) {
 		float wsTau = wsLayerDepth( cameraPosition.y, vFogWorld.y, length( wsFogRay ) );
-		gl_FragColor.rgb = mix( gl_FragColor.rgb, wsFogLayerColor, 1.0 - exp( - wsTau ) );
+		#ifdef RALLY_ADDITIVE
+			gl_FragColor.rgb *= exp( - wsTau );
+		#else
+			gl_FragColor.rgb = mix( gl_FragColor.rgb, wsFogLayerColor, 1.0 - exp( - wsTau ) );
+		#endif
 	}
 #endif
 `;
