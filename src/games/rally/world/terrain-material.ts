@@ -43,6 +43,8 @@ let sharedUniforms: Record<string, { value: unknown }> | undefined;
 
 /** Ripe wheat. */
 const DEFAULT_CROP = '#c2a552';
+/** Gravel is sampled this much sharper than the mip chain asks: a scan averaged out by distance reads as blur (the gravel road shares it). */
+export const GRAVEL_SHARP = 0.5;
 /** 1 x 1 neutral moisture (0.5) for pages without a baked map: only slope + macro noise vary the grass. */
 const NEUTRAL_MOISTURE = new DataTexture(
   new Uint8Array([128]),
@@ -90,6 +92,7 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
     HB_D: '0.25',
     GY_SOIL: GROUND_LAYER.soil.toFixed(1),
     GY_GRAVEL: GROUND_LAYER.gravel.toFixed(1),
+    GS_SHARP: GRAVEL_SHARP.toFixed(2),
     GY_ROCK: GROUND_LAYER.rock.toFixed(1),
     GY_LITTER: GROUND_LAYER.litter.toFixed(1),
     GY_LEAVES: GROUND_LAYER.leaves.toFixed(1),
@@ -159,7 +162,8 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         }
         // One scan tap by explicit gradients (so layers can be skipped in a branch): p world metres, s = 1 / scan size.
         vec3 gTap( float layer, vec2 p, float s, vec2 dx, vec2 dy ) {
-          return textureGrad( tGround, vec3( p * s, layer ), dx * s, dy * s ).rgb;
+          float sharp = layer == GY_GRAVEL ? GS_SHARP : 1.0;
+          return textureGrad( tGround, vec3( p * s, layer ), dx * s * sharp, dy * s * sharp ).rgb;
         }
         // The scan with its tiling broken: a rotated, blurred tap at ~1/3 the scale modulates its brightness. ml = the scan's
         // mean linear luminance (GROUND_MEAN). hh = brightness relative to that mean (1 = average): x the near tap (the
@@ -329,7 +333,7 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
       );
   };
   mat.customProgramCacheKey = () =>
-    far ? 'rally-terrain-far-v5' : 'rally-terrain-v10';
+    far ? 'rally-terrain-far-v6' : 'rally-terrain-v11';
   if (far) sharedFar = mat;
   else shared = mat;
   return mat;

@@ -12,7 +12,7 @@ import {
 } from '../engine/ground-textures';
 import { getTexture } from '../engine/textures';
 import { addWorldUniforms } from '../engine/world-shading';
-import { getTerrainMaterial } from './terrain-material';
+import { GRAVEL_SHARP, getTerrainMaterial } from './terrain-material';
 
 /**
  * The gravel road is the terrain's own gravel (`engine/ground-textures.ts`, the layer the verge beside it is made of),
@@ -48,6 +48,7 @@ export const GRAVEL_DEFINES = {
   GR_RUT_W: (1 / RUT_HALF).toFixed(3),
   GR_RUT_DARK: RUT_DARK.toFixed(3),
   GR_STREAKS: RUT_STREAKS.toFixed(3),
+  GR_SHARP: GRAVEL_SHARP.toFixed(2),
 };
 
 /** Parameters of a gravel road material (as matte as the terrain, which is 0.96). */
@@ -101,7 +102,7 @@ export function gravelShader(
       }
       // One scan tap by explicit gradients: p world metres, s = 1 / scan size (as the terrain's gTap).
       vec3 grTap( vec2 p, float s, vec2 dx, vec2 dy ) {
-        return textureGrad( tGround, vec3( p * s, GR_LAYER ), dx * s, dy * s ).rgb;
+        return textureGrad( tGround, vec3( p * s, GR_LAYER ), dx * s * GR_SHARP, dy * s * GR_SHARP ).rgb;
       }
       // Bump from a screen-space height gradient (the terrain's terrainPerturb).
       vec3 grPerturb( vec3 surf_pos, vec3 surf_norm, vec2 dHdxy, float faceDirection ) {
