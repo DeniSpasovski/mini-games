@@ -8,6 +8,8 @@ import {
   InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
+  Mesh,
+  MeshBasicMaterial,
   Quaternion,
   Vector3,
   type Material,
@@ -15,6 +17,7 @@ import {
   type PerspectiveCamera,
   type WebGLRenderer,
 } from 'three';
+import { SHADOW_ONLY_LAYER } from '../engine/layers';
 import { worldUniforms } from '../engine/world-shading';
 import type { RoadQuery } from '../world/road';
 import type { ScatterChunk, ScatterInstance } from '../world/scatter';
@@ -44,6 +47,7 @@ import {
   ROADSIDE_EDGE,
   type Reach,
 } from './species';
+import { MultiDraw, SubDraw, TreePool } from './multi-draw';
 import {
   emptyFrameStats,
   meshTriangles,
@@ -363,8 +367,14 @@ function spread(r: number, d: number): number {
   return d > r ? Math.asin(r / d) : Math.PI;
 }
 
+/** What the batch code sets on its draws: an InstancedMesh (impostors) or a sub-draw of a multi-draw. */
+interface DrawView {
+  count: number;
+  visible: boolean;
+}
+
 interface Batch {
-  meshes: InstancedMesh[];
+  meshes: DrawView[];
   geometries: BufferGeometry[];
   capacity: number;
   count: number;
@@ -381,6 +391,9 @@ interface Batch {
   solid: number;
   /** Static batches: the shadow casters are packed first, and the shadow pass draws only them (-1 = every instance). */
   casters: number;
+  /** Multi-drawn (static batches): the instances live in the tree pool from `base` (trees/multi-draw.ts). */
+  pooled: boolean;
+  base: number;
 }
 
 /**
@@ -501,6 +514,32 @@ const _rq: RoadQuery = {
 const _p = new Vector3();
 const _s = new Vector3();
 const _dir = new Vector3();
+
+/**
+ * The crown proxies are on SHADOW_ONLY_LAYER, which the main pass must not see but three's shadow pass tests against
+ * the main camera's layers too. Both passes walk the scene in order and the shadow pass runs after the main list is
+ * built: this empty mesh, first in the tree group, turns the layer on when the shadow pass reaches it and off again
+ * when the main pass draws it. (Hidden with `count = 0` in the main pass instead, ~50 proxies each cost a program and
+ * uniform set-up a frame.)
+ */
+function shadowGate(): Mesh {
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array(9), 3));
+  g.setDrawRange(0, 0);
+  const m = new Mesh(
+    g,
+    new MeshBasicMaterial({ colorWrite: false, depthWrite: false }),
+  );
+  m.name = 'tree shadow gate';
+  m.frustumCulled = false;
+  m.castShadow = true;
+  m.matrixAutoUpdate = false;
+  m.onBeforeShadow = (_r, _o, camera) =>
+    camera.layers.enable(SHADOW_ONLY_LAYER);
+  m.onBeforeRender = (_r, _s, camera) =>
+    camera.layers.disable(SHADOW_ONLY_LAYER);
+  return m;
+}
 
 let quad: BufferGeometry | null = null;
 /** Impostor billboard: corners (-1..1)^2, the shader places it. */
@@ -693,7 +732,11 @@ export class TreeRenderer {
   private hiddenParts = new Set<TreePart>();
   /** Far sprite batches' sizing (they hold the far share, `setFarSprites`). */
   private farResize: (() => void)[] = [];
-  private partOf = new WeakMap<InstancedMesh, TreePart>();
+  private partOf = new WeakMap<DrawView, TreePart>();
+  /** Per-tree data of the static batches and their multi-draws (one per material and part). */
+  private pool = new TreePool();
+  private draws = new Map<string, MultiDraw>();
+  private renderer: WebGLRenderer | null = null;
   private batchesByVariant = new WeakMap<LoadedVariant, StaticBatch[]>();
   private states = new WeakMap<ScatterInstance, TreeState | null>();
   private chunks = new WeakMap<ScatterChunk, ChunkTrees>();
@@ -718,7 +761,7 @@ export class TreeRenderer {
   private budgets = new Map<string, Budget>();
   /** Sprite depth prepass on (SPRITE_PREPASS, unless `checkPrepass` failed) and its meshes. */
   private prepass = SPRITE_PREPASS;
-  private prepassMeshes = new Set<InstancedMesh>();
+  private prepassMeshes = new Set<DrawView>();
   /** Terrain occlusion culling on (trees/occlusion.ts; `?treeocclusion=0` = its debug toggle) and its height grid. */
   occlusion =
     typeof location === 'undefined' ||
@@ -728,7 +771,7 @@ export class TreeRenderer {
   lastJob = { cells: 0, occluded: 0 };
   /** The last job's horizon (debugging, tests). */
   horizon: Horizon | null = null;
-  private litSprites = new Set<InstancedMesh>();
+  private litSprites = new Set<DrawView>();
   /** Load check of the prepass: share of sprite pixels that failed the EQUAL test (NaN = not run). */
   prepassMisses = NaN;
   /** Sprite pixels the load check saw (0: none in view, nothing was measured). */
@@ -754,6 +797,7 @@ export class TreeRenderer {
     private opts: TreeRendererOptions,
   ) {
     this.group.name = 'trees';
+    this.group.add(shadowGate());
     setSpritePrepass(this.prepass);
     treeUniforms.tlShadowD.value = opts.shadowDistance;
     treeUniforms.tlForest.value = opts.forestDistance ?? 0;
@@ -810,6 +854,11 @@ export class TreeRenderer {
     this.lastFocus.set(Infinity, 0, 0);
   }
 
+  /** The batching job's time per frame (ms): the game shares a frame budget out (cheap, unlike `setOptions`). */
+  setJobBudget(ms: number): void {
+    this.opts.budgetMs = ms;
+  }
+
   setOptions(o: Partial<TreeRendererOptions>): void {
     Object.assign(this.opts, o);
     treeUniforms.tlShadowD.value = this.opts.shadowDistance;
@@ -862,12 +911,20 @@ export class TreeRenderer {
     this.setView(camera);
     const t1 = performance.now();
     this.drawActive(px, dt);
+    this.syncDraws();
     this.current.selectMs = performance.now() - t1;
   }
 
   /** GPU timing of the tree passes needs the renderer's WebGL2 context. */
   attachRenderer(renderer: WebGLRenderer): void {
     this.timer = new TreeGpuTimer(renderer);
+    this.renderer = renderer;
+  }
+
+  /** Before a render: the changed tree data into the pool texture, each multi-draw's geometry + visibility. */
+  private syncDraws(): void {
+    this.pool.flush(this.renderer);
+    for (const d of this.draws.values()) d.sync();
   }
 
   /** The frame drawn since the last update is complete: publish its counters, start the next. */
@@ -894,6 +951,7 @@ export class TreeRenderer {
     this.job = null;
     this.setView(camera);
     this.drawActive(px, 0);
+    this.syncDraws();
   }
 
   private pxOf(camera: PerspectiveCamera): number {
@@ -1584,6 +1642,10 @@ export class TreeRenderer {
       this.uploadRange(b, at, at + n);
       return;
     }
+    if (b.pooled) {
+      this.roomPooled(b, n);
+      return;
+    }
     // Per attribute (mat, inst, fade, lod): a fading tree changes only its fade, one upload instead of four.
     this.roomPart(b, n, b.mat, b.aMat!, 16, 0);
     this.roomPart(b, n, b.inst, b.aInst!, 4, 16);
@@ -1623,6 +1685,44 @@ export class TreeRenderer {
     attr.needsUpdate = true;
   }
 
+  /** A pooled room: the slots that differ from what was sent -> one changed range (one span upload). */
+  private roomPooled(b: StaticBatch, n: number): void {
+    const at = b.dynAt;
+    const sent = b.sent!;
+    let lo = -1;
+    let hi = -1;
+    for (let j = 0; j < n; j++) {
+      const i = at + j;
+      const o = j * 28;
+      let same = true;
+      for (let k = 0; k < 16; k++)
+        if (b.mat[i * 16 + k] !== sent[o + k]) {
+          same = false;
+          sent[o + k] = b.mat[i * 16 + k];
+        }
+      for (let k = 0; k < 4; k++) {
+        if (b.inst[i * 4 + k] !== sent[o + 16 + k]) {
+          same = false;
+          sent[o + 16 + k] = b.inst[i * 4 + k];
+        }
+        if (b.fade[i * 4 + k] !== sent[o + 20 + k]) {
+          same = false;
+          sent[o + 20 + k] = b.fade[i * 4 + k];
+        }
+        if (b.lod[i * 4 + k] !== sent[o + 24 + k]) {
+          same = false;
+          sent[o + 24 + k] = b.lod[i * 4 + k];
+        }
+      }
+      if (same) continue;
+      if (lo < 0) lo = j;
+      hi = j;
+    }
+    if (lo < 0) return;
+    this.current.uploadBytes += (hi - lo + 1) * 32 * 4;
+    this.pool.mark(b, at + lo, at + hi + 1);
+  }
+
   /** Instance `i` of `b` -> slot `j` of a 28-float-a-slot copy (mat, inst, fade, lod). */
   private copySlot(b: Batch, i: number, out: Float32Array, j: number): void {
     out.set(b.mat.subarray(i * 16, i * 16 + 16), j * 28);
@@ -1634,6 +1734,10 @@ export class TreeRenderer {
   /** Add instances [from, to) to this frame's upload (on top of a pack's). */
   private uploadRange(b: Batch, from: number, to: number): void {
     this.current.uploadBytes += (to - from) * 28 * 4;
+    if (b.pooled) {
+      this.pool.mark(b, from, to);
+      return;
+    }
     for (const a of [b.aMat!, b.aInst!, b.aFade!, b.aLod!]) {
       a.addUpdateRange(from * a.itemSize, (to - from) * a.itemSize);
       a.needsUpdate = true;
@@ -1702,8 +1806,9 @@ export class TreeRenderer {
         dynSolid: 0,
         rest: 0,
         clearRoom: false,
+        pooled: true,
       };
-      this.createMeshes(b, lv, part, `${part}`);
+      this.createMeshes(b, lv, part);
       this.ensureCapacity(b, 64);
       this.statics.set(key, b);
     }
@@ -1728,6 +1833,8 @@ export class TreeRenderer {
       sprites: 0,
       solid: 0,
       casters: -1,
+      pooled: false,
+      base: -1,
     };
   }
 
@@ -2199,11 +2306,13 @@ export class TreeRenderer {
   /** Instances [from, n) changed: upload that range, draw n. */
   private upload(b: Batch, n: number, from = 0): void {
     if (n > from) this.current.uploadBytes += (n - from) * 28 * 4;
-    for (const a of [b.aMat!, b.aInst!, b.aFade!, b.aLod!]) {
-      a.clearUpdateRanges();
-      a.addUpdateRange(from * a.itemSize, (n - from) * a.itemSize);
-      a.needsUpdate = n > from;
-    }
+    if (b.pooled) this.pool.mark(b, from, n);
+    else
+      for (const a of [b.aMat!, b.aInst!, b.aFade!, b.aLod!]) {
+        a.clearUpdateRanges();
+        a.addUpdateRange(from * a.itemSize, (n - from) * a.itemSize);
+        a.needsUpdate = n > from;
+      }
     for (const mesh of b.meshes) {
       mesh.count = n;
       mesh.visible = this.shows(mesh, n);
@@ -2217,6 +2326,22 @@ export class TreeRenderer {
     let cap = Math.max(64, b.capacity);
     while (cap < n) cap *= 2;
     const keep = Math.min(b.count, cap);
+    if (b.pooled) {
+      const grow = (size: number, old: Float32Array) => {
+        const arr = new Float32Array(cap * size);
+        arr.set(old.subarray(0, keep * size));
+        return arr;
+      };
+      b.mat = grow(16, b.mat);
+      b.inst = grow(4, b.inst);
+      b.fade = grow(4, b.fade);
+      b.lod = grow(4, b.lod);
+      this.pool.release(b.base, b.capacity);
+      b.base = this.pool.alloc(cap);
+      b.capacity = cap;
+      this.pool.mark(b, 0, keep);
+      return;
+    }
     const attr = (size: number, old: Float32Array) => {
       const arr = new Float32Array(cap * size);
       arr.set(old.subarray(0, keep * size));
@@ -2233,7 +2358,7 @@ export class TreeRenderer {
     b.fade = b.aFade.array as Float32Array;
     b.lod = b.aLod.array as Float32Array;
     b.meshes.forEach((mesh, i) => {
-      mesh.instanceMatrix = b.aMat!;
+      (mesh as InstancedMesh).instanceMatrix = b.aMat!;
       const g = b.geometries[i];
       g.setAttribute('treeInst', b.aInst!);
       g.setAttribute('treeFade', b.aFade!);
@@ -2246,85 +2371,121 @@ export class TreeRenderer {
    * The meshes of a batch: a branch level (bark), a sprite part (near: outlines, depth prepass + lit; far: quads, one
    * lit pass; both drawing a prefix of the rank-ordered sprites) or the crown's shadow proxy.
    */
-  private createMeshes(
-    b: Batch,
-    lv: LoadedVariant,
-    part: number,
-    tag: string,
-  ): void {
-    const name = `tree ${lv.info.species}#${lv.info.index} ${tag}`;
+  private createMeshes(b: StaticBatch, lv: LoadedVariant, part: number): void {
     const { leaf } = lv.def.foliage;
     if (part === NEAR_PART) {
       const keep = Math.min(1, NEAR_SPRITES * (1 + KEEP_WINDOW));
       b.sprites = Math.max(1, Math.ceil(keep * lv.spriteCount));
       const end = lv.spriteEnds[Math.min(lv.spriteCount, b.sprites) - 1] ?? 0;
-      const g0 = this.wrap(lv.sprites);
-      const g1 = this.wrap(lv.sprites);
-      g0.setDrawRange(0, end);
-      g1.setDrawRange(0, end);
-      const pre = this.addMesh(
+      const pre = this.subDraw(
         b,
-        g0,
+        lv.sprites,
+        'prepass',
+        `near:${leaf}`,
         spritePrepassMaterial(leaf),
-        `${name} depth`,
         false,
         'sprite',
       );
-      pre.renderOrder = PREPASS_ORDER;
+      pre.elements = end;
       this.prepassMeshes.add(pre);
-      this.litSprites.add(
-        this.addMesh(b, g1, spriteMaterial(leaf), name, false, 'sprite'),
+      const lit = this.subDraw(
+        b,
+        lv.sprites,
+        'near',
+        `near:${leaf}`,
+        spriteMaterial(leaf),
+        false,
+        'sprite',
       );
+      lit.elements = end;
+      this.litSprites.add(lit);
     } else if (part === MID_PART || part === FAR_PART) {
-      const g = this.wrap(lv.quads);
+      const sub = this.subDraw(
+        b,
+        lv.quads,
+        'far',
+        `far:${leaf}`,
+        spriteFarMaterial(leaf),
+        false,
+        'sprite',
+      );
       const resize = () => {
         b.sprites = bucketSprites(lv, part);
-        g.setDrawRange(
-          0,
-          lv.quadEnds[Math.min(lv.spriteCount, b.sprites) - 1] ?? 0,
-        );
+        sub.elements =
+          lv.quadEnds[Math.min(lv.spriteCount, b.sprites) - 1] ?? 0;
       };
       resize();
       this.farResize.push(resize);
-      this.addMesh(b, g, spriteFarMaterial(leaf), name, false, 'sprite');
     } else if (part === PROXY_PART) {
       if (!lv.proxy) return;
-      const mesh = this.addMesh(
+      this.subDraw(
         b,
-        this.wrap(lv.proxy),
+        lv.proxy,
+        'proxy',
+        'proxy',
         proxyMaterial(),
-        `${name} shadow`,
         true,
         'proxy',
       );
-      // Shadow pass only: the main pass draws none of its instances.
-      let count = 0;
-      mesh.onBeforeRender = () => {
-        count = mesh.count;
-        mesh.count = 0;
-      };
-      mesh.onAfterRender = () => {
-        mesh.count = count;
-      };
-    } else
-      this.addMesh(
+    } else {
+      const kind = barkKind(lv.def);
+      this.subDraw(
         b,
-        this.wrap(lv.levels[part]),
-        barkMaterial(barkKind(lv.def)),
-        name,
+        lv.levels[part],
+        part === 0 ? 'lod0' : 'lod1',
+        `bark${part}:${kind}`,
+        barkMaterial(kind),
         part === 1,
         'branch',
       );
+    }
   }
 
-  /** A wrapper drawing a shared geometry's vertex buffers, to carry a batch's instance attributes. */
-  private wrap(src: BufferGeometry): BufferGeometry {
-    const g = new BufferGeometry();
-    for (const [name, a] of Object.entries(src.attributes))
-      g.setAttribute(name, a);
-    g.setIndex(src.index);
-    g.boundingSphere = src.boundingSphere;
-    return g;
+  /**
+   * A static batch's draw of one material: a sub-draw of the multi-draw of that material and part (every variant
+   * of the part in one draw call, trees/multi-draw.ts).
+   */
+  private subDraw(
+    b: StaticBatch,
+    source: BufferGeometry,
+    part: TreePart,
+    geomKey: string,
+    material: Material,
+    casts: boolean,
+    depth: TreeDepthKind,
+  ): SubDraw {
+    const key = `${part}|${geomKey}|${material.uuid}`;
+    let d = this.draws.get(key);
+    if (!d) {
+      d = new MultiDraw(this, geomKey, source, material, {
+        before: (shadow, tris) => {
+          if (shadow) {
+            this.current.shadowDraws++;
+            this.current.shadowTriangles += tris;
+          } else {
+            this.current.mainDraws++;
+            this.current.mainTriangles += tris;
+          }
+          this.timer?.begin(shadow);
+        },
+        after: () => this.timer?.end(),
+      });
+      const mesh = d.mesh;
+      mesh.name = `tree ${part} ${geomKey}`;
+      mesh.castShadow = casts;
+      mesh.receiveShadow = material.colorWrite;
+      if (casts) mesh.customDepthMaterial = treeDepthMaterial(depth);
+      if (part === 'prepass') mesh.renderOrder = PREPASS_ORDER;
+      // Crown proxies: the shadow pass only, off the main camera's layer (`shadowGate`).
+      if (part === 'proxy') mesh.layers.set(SHADOW_ONLY_LAYER);
+      this.draws.set(key, d);
+      this.group.add(mesh);
+    }
+    const sub = new SubDraw(source, b, () => b.casters);
+    d.add(sub);
+    b.meshes.push(sub);
+    this.partOf.set(sub, part);
+    return sub;
   }
 
   private addMesh(
@@ -2339,6 +2500,8 @@ export class TreeRenderer {
     mesh.count = 0;
     mesh.visible = false;
     mesh.frustumCulled = false;
+    // Never moved (the instances carry the transforms): no matrix compose every frame.
+    mesh.matrixAutoUpdate = false;
     mesh.castShadow = casts;
     mesh.receiveShadow = material.colorWrite;
     if (casts) mesh.customDepthMaterial = treeDepthMaterial(sprite);
@@ -2371,7 +2534,7 @@ export class TreeRenderer {
   }
 
   /** Whether a mesh with `n` instances draws: not empty, its prepass on, its part not hidden. */
-  private shows(mesh: InstancedMesh, n: number): boolean {
+  private shows(mesh: DrawView, n: number): boolean {
     if (n <= 0 || (!this.prepass && this.prepassMeshes.has(mesh))) return false;
     const part = this.partOf.get(mesh);
     return !part || !this.hiddenParts.has(part);
@@ -2383,6 +2546,7 @@ export class TreeRenderer {
     else this.hiddenParts.add(part);
     for (const b of this.batches())
       for (const mesh of b.meshes) mesh.visible = this.shows(mesh, mesh.count);
+    this.syncDraws();
   }
 
   /** Sprite depth prepass on / off (the debug toggle; the overlay and the benchmark report it). */
@@ -2391,6 +2555,7 @@ export class TreeRenderer {
     setSpritePrepass(on);
     for (const mesh of this.prepassMeshes)
       mesh.visible = this.shows(mesh, mesh.count);
+    this.syncDraws();
   }
 
   get prepassOn(): boolean {
@@ -2447,8 +2612,10 @@ export class TreeRenderer {
     this.debugMode = 5;
     const lit = [...this.litSprites].filter((m) => m.visible);
     for (const o of lit) o.visible = false;
+    this.syncDraws();
     const covered = magenta();
     for (const o of lit) o.visible = true;
+    this.syncDraws();
     const missed = magenta();
     renderer.setRenderTarget(prev);
     for (const o of hidden) o.visible = true;
@@ -2479,10 +2646,12 @@ export class TreeRenderer {
       b.inst.set([0, 1, 0, 0], 0);
       b.fade.set([1, SOLID, 1, 0], 0);
       b.lod.set([5, 10, 0.06, 0.01], 0);
-      for (const a of [b.aMat!, b.aInst!, b.aFade!, b.aLod!]) {
-        a.clearUpdateRanges();
-        a.needsUpdate = true;
-      }
+      if (b.pooled) this.pool.mark(b, 0, 1);
+      else
+        for (const a of [b.aMat!, b.aInst!, b.aFade!, b.aLod!]) {
+          a.clearUpdateRanges();
+          a.needsUpdate = true;
+        }
       for (const mesh of b.meshes) {
         mesh.count = 1;
         mesh.visible = true;
@@ -2499,6 +2668,9 @@ export class TreeRenderer {
     this.runs.clear();
     one(this.impostorBatch());
     one(this.farImpostorBatch());
+    // Batches double as they fill while driving: twice the load's regions keeps the pool from growing mid-run.
+    this.pool.reserve(this.pool.used * 2);
+    this.syncDraws();
   }
 
   /** Re-apply visibility after prewarm / compile. */
@@ -2510,6 +2682,7 @@ export class TreeRenderer {
     }
     this.packImpostors();
     this.upload(this.impostorBatch(), this.impostorBatch().count);
+    this.syncDraws();
   }
 
   get busy(): boolean {
@@ -2518,7 +2691,9 @@ export class TreeRenderer {
 
   get meshCount(): number {
     let n = 0;
-    for (const b of this.batches()) n += b.count > 0 ? b.meshes.length : 0;
+    for (const b of this.batches())
+      if (!b.pooled) n += b.count > 0 ? b.meshes.length : 0;
+    for (const d of this.draws.values()) if (d.mesh.visible) n++;
     return n;
   }
 
@@ -2532,8 +2707,11 @@ export class TreeRenderer {
         g.setIndex(null);
         g.dispose();
       }
-      for (const m of b.meshes) m.dispose();
+      for (const m of b.meshes) (m as InstancedMesh).dispose?.();
     }
+    for (const d of this.draws.values()) d.dispose();
+    this.draws.clear();
+    this.pool.dispose();
     this.statics.clear();
     this.impostors = null;
     this.group.clear();

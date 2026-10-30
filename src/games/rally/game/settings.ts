@@ -62,10 +62,14 @@ export const OBJECT_DISTANCE: Record<ObjectDistance, number> = {
   max: 2,
 };
 
-export type RenderScale = '100' | '85' | '70';
+export type RenderScale = 'auto' | '100' | '85' | '70';
 
-/** Render scale option -> multiplier on the pixel ratio (`RallyGame.applySettings`). */
+/**
+ * Render scale option -> multiplier on the pixel ratio (`RallyGame.applySettings`). Auto starts at full and steps
+ * down only while the GPU falls behind the frame rate (`RallyGame.adaptScale`).
+ */
 export const RENDER_SCALE: Record<RenderScale, number> = {
+  auto: 1,
   '100': 1,
   '85': 0.85,
   '70': 0.7,

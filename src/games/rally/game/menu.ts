@@ -1532,6 +1532,7 @@ export function buildOptions(opts: {
     'Render scale',
     choice(
       [
+        ['auto', 'Auto'],
         ['100', '100%'],
         ['85', '85%'],
         ['70', '70%'],
@@ -1539,7 +1540,7 @@ export function buildOptions(opts: {
       s.renderScale,
       (v) => set({ renderScale: v }),
     ),
-    'fewer pixels, more frames per second · for sharp (high-DPI) screens',
+    'fewer pixels, more frames per second · Auto drops it only while the graphics card falls behind',
   );
   row(
     'Display',

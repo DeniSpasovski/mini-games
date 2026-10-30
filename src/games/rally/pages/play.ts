@@ -2,7 +2,7 @@ import { probeScene } from '../engine/perf-probe';
 import '../game/ui-tokens.css';
 import '../game/hud.css';
 import '../game/menu.css';
-import { goToPortal, portalUrl } from '../../../shared/portal-link';
+import { portalUrl } from '../../../shared/portal-link';
 import { installThumbnailCapture } from '../../../shared/thumbnail';
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { DEFAULT_CAR, getCar } from '../cars';
@@ -102,9 +102,34 @@ function rewriteOldLink(params: URLSearchParams): URLSearchParams {
   return out;
 }
 
-/** Back to the main menu (fresh page: the stage isn't torn down in place). */
+/**
+ * Leave the stage for another page (fresh page: the stage isn't torn down in place). The browser keeps showing the old
+ * page until the new one paints (~2 s after a big stage), which looked like a frozen game: a loading screen goes up
+ * first and the page changes once it is on screen.
+ */
+function leaveTo(url: string, title: string): void {
+  const el = overlay(
+    `<div class="box"><h2>${title}</h2><div class="bar"><div></div></div></div>`,
+    'loading leaving',
+  );
+  requestAnimationFrame(() => {
+    // No real progress to show: the bar eases towards the end while the next page loads.
+    el.querySelector<HTMLElement>('.bar div')!.style.width = '90%';
+    requestAnimationFrame(() => {
+      location.href = url;
+    });
+  });
+}
+
+/** Back to the main menu. */
 function mainMenu(): void {
-  location.href = location.pathname;
+  leaveTo(location.pathname, 'Loading menu…');
+}
+
+/** To the portal (when the game is hosted there). */
+function toPortal(): void {
+  const url = portalUrl();
+  if (url) leaveTo(url, 'Loading…');
 }
 
 async function play(raw: typeof DEFAULTS): Promise<void> {
@@ -241,7 +266,7 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
     }
     if (a === 'portal') {
       game.trackQuit('portal');
-      goToPortal();
+      toPortal();
     }
   });
 
@@ -276,7 +301,7 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
       game.restart();
     }
     if (a === 'menu') mainMenu();
-    if (a === 'portal') goToPortal();
+    if (a === 'portal') toPortal();
   });
 
   let touchControls: TouchControls | undefined;

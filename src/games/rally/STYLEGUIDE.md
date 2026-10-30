@@ -106,6 +106,7 @@ The menu slab with one slanted row per setting (`.setup-tune`: white icon, label
 - **Pause** is the menu slab with the same slanted buttons.
 - **Loading** is a centred glass box with the amber edge and a slanted progress bar, over the stage's baked card (aerial picture
   under dark glass), plus the stage plate.
+  Leaving a stage (main menu, portal) shows the same box (`Loading menu…`), its bar easing on while the next page loads.
 - **Results** is a wide glass box: your time, sector chips, then the stage's best times.
 
 ## Layout rules

@@ -24,8 +24,8 @@ Rules (performance — late-2000s look must not lag):
   `RALLY_WIND` (sway, bends ~ height² above the asset origin - keep origins at ground level), `RALLY_FOLIAGE`
   (backlight glow), `RALLY_GROUND` (receives the far canopy shadows). A material with its own `onBeforeCompile` must
   call `addWorldUniforms(shader)`.
-- Trees are not catalog builders: `src/games/rally/trees/` grows them (L-system species -> skeleton -> mesh -> impostor; see the
-  "Trees" bullet in rally `DETAILS.md` and `.claude/reference/trees/`), placed by the old tree type ids (`TREE_TYPES`). For
+- Trees are not catalog builders: `src/games/rally/trees/` grows them (L-system species -> skeleton -> mesh -> impostor; see
+  `.claude/reference/trees/`), placed by the old tree type ids (`TREE_TYPES`). For
   other assets: far LODs must not cast shadows and set `oneVariant` (all variants share one bucket = one draw call).
 - Variants are cheap in draw calls: other LODs are drawn as variant sets (one draw per asset / LOD / material, see
   DETAILS.md "Draw calls"). Every variant's parts must share the same attributes (position, normal, color, uv) or the

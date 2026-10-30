@@ -1,5 +1,12 @@
-import type { InstancedMesh, Line, Mesh, Object3D, Vector3 } from 'three';
-import { Sphere } from 'three';
+import type {
+  BatchedMesh,
+  InstancedMesh,
+  Line,
+  Mesh,
+  Object3D,
+  Vector3,
+} from 'three';
+import { Matrix4, Sphere } from 'three';
 
 /**
  * Hides the whole-map meshes of a group (the road group: stage road, other roads, barriers, bridges, water,
@@ -11,7 +18,14 @@ import { Sphere } from 'three';
  * Checks run only after the camera has moved `step` metres (a few hundred bounding-sphere tests).
  */
 export class DistanceCull {
-  private items: { obj: Object3D; x: number; z: number; r: number }[] = [];
+  /** `id` >= 0: an instance of a BatchedMesh (world/static-batch.ts), shown / hidden with `setVisibleAt`. */
+  private items: {
+    obj: Object3D;
+    id: number;
+    x: number;
+    z: number;
+    r: number;
+  }[] = [];
   private lastX = Infinity;
   private lastZ = Infinity;
 
@@ -22,9 +36,26 @@ export class DistanceCull {
   ) {
     root.updateMatrixWorld(true);
     const s = new Sphere();
+    const at = new Matrix4();
     root.traverse((o) => {
       const m = o as Mesh & Partial<InstancedMesh> & Partial<Line>;
       if (!m.isMesh && !m.isLine) return;
+      const b = o as Partial<BatchedMesh>;
+      if (b.isBatchedMesh) {
+        // Per instance (a tile), not the batch.
+        for (let i = 0; i < b.instanceCount!; i++) {
+          b.getBoundingSphereAt!(b.getGeometryIdAt!(i), s);
+          s.applyMatrix4(b.getMatrixAt!(i, at)).applyMatrix4(o.matrixWorld);
+          this.items.push({
+            obj: o,
+            id: i,
+            x: s.center.x,
+            z: s.center.z,
+            r: s.radius,
+          });
+        }
+        return;
+      }
       if (m.isInstancedMesh) {
         // All instances (the geometry's own sphere covers only one).
         m.computeBoundingSphere!();
@@ -34,7 +65,13 @@ export class DistanceCull {
         s.copy(m.geometry.boundingSphere!);
       }
       s.applyMatrix4(m.matrixWorld);
-      this.items.push({ obj: o, x: s.center.x, z: s.center.z, r: s.radius });
+      this.items.push({
+        obj: o,
+        id: -1,
+        x: s.center.x,
+        z: s.center.z,
+        r: s.radius,
+      });
     });
   }
 
@@ -54,7 +91,8 @@ export class DistanceCull {
     for (const it of this.items) {
       const show =
         Math.hypot(it.x - pos.x, it.z - pos.z) - it.r <= this.maxDistance;
-      it.obj.visible = show;
+      if (it.id >= 0) (it.obj as BatchedMesh).setVisibleAt(it.id, show);
+      else it.obj.visible = show;
       if (!show) hidden++;
     }
     this.hidden = hidden;
