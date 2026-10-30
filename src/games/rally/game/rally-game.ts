@@ -733,6 +733,8 @@ export class RallyGame {
   private gpuQueries: WebGLQuery[] = [];
   private gpuMs = 0;
   private scaleSince = 0;
+  /** GPU ms when Auto last stepped down: a further step needs that one to have paid off. */
+  private stepGpuMs = Infinity;
   private gpuTimer:
     { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null | undefined;
 
@@ -761,7 +763,9 @@ export class RallyGame {
    * Render scale Auto: one step down (SCALE_STEPS) when the GPU's frame time passes 85 % of the time between frames
    * for 3 s, one step back up after 15 s with it under 60 %: each step resizes the canvas and its render targets (a
    * hitch of its own), so it moves rarely. A CPU-bound frame (most of ours) keeps full
-   * resolution: fewer pixels would not make it faster, only blurrier.
+   * resolution: fewer pixels would not make it faster, only blurrier. No further step down when the last one saved
+   * under 5 % (shadow maps and geometry do not shrink with the pixels). Called before the frame renders: a resize
+   * clears the canvas, and one after the render showed a black frame.
    */
   private adaptScale(now: number): void {
     const gl = this.renderer.getContext() as WebGL2RenderingContext;
@@ -782,14 +786,20 @@ export class RallyGame {
     const since = now - this.scaleSince;
     const i = SCALE_STEPS.indexOf(this.renderScale);
     let next = this.renderScale;
-    if (this.gpuMs > budget && since > 3000)
+    if (
+      this.gpuMs > budget &&
+      since > 3000 &&
+      this.gpuMs < this.stepGpuMs * 0.95
+    ) {
       next = SCALE_STEPS[Math.min(SCALE_STEPS.length - 1, i + 1)];
-    else if (this.gpuMs < budget * 0.6 && since > 15000)
+      if (next !== this.renderScale) this.stepGpuMs = this.gpuMs;
+    } else if (this.gpuMs < budget * 0.6 && since > 15000) {
       next = SCALE_STEPS[Math.max(0, i - 1)];
+      this.stepGpuMs = Infinity;
+    }
     if (next === this.renderScale) return;
     this.setRenderScale(next);
     this.scaleSince = now;
-    this.gpuMs = budget * 0.75;
   }
 
   private updateParticleScale(): void {
@@ -1610,6 +1620,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.telemetry.update(dt, v);
 
     const tFx = performance.now();
+    if (this.autoScale) this.adaptScale(performance.now());
     this.perf?.gpuBegin();
     const timed = this.gpuTimed();
     const gl = this.renderer.getContext() as WebGL2RenderingContext;
@@ -1622,7 +1633,6 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     else this.renderer.render(this.scene, this.camera);
     if (timed) gl.endQuery(this.gpuTimer!.TIME_ELAPSED_EXT);
     this.perf?.gpuEnd();
-    if (this.autoScale) this.adaptScale(performance.now());
     const tRender = performance.now();
     // The frame's own work, its background work left out (that fills the time left over: frameSlack).
     this.frameWork +=
