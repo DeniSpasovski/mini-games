@@ -551,9 +551,9 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
     camera before shake (`CameraRig.steady`) with 15 % hysteresis. A batching job (every 5 m of travel) puts every tree
     that keeps its level for any camera within 9 m into static batches; only trees near a switching boundary, fading or
     waiting for a fade slot are re-selected per frame (a few hundred), into a room of the same batch: one mesh set per
-    variant and part, laid out [shadow casters | room | rest] (`StaticBatch`), so one draw call each. A room re-fills every
-    frame but uploads only the slots and attributes that changed (`uploadRoom`; a `bufferSubData` per attribute and
-    batch was ~450 calls a frame, ~2 ms on ANGLE / D3D11). Static trees and impostors keep their slot from job to job
+    variant and part, laid out [shadow casters | room | rest] (`StaticBatch`), each a sub-draw of its material's
+    `MultiDraw` (`trees/multi-draw.ts`). A room re-fills every frame but uploads only the slots that changed (`uploadRoom`: one range
+    a batch; the pool sends merged ranges once a frame as texture row spans). Static trees and impostors keep their slot from job to job
     (`packStatic` / `packRuns`: a tree that left is collapsed, a new one takes a free slot), so a job or a view turn
     uploads only what came or went; a whole re-pack only when a region overflows, the room is resized (grows, or shrinks under half use) or holes pass 15 % of the slots. The
     per-frame impostor tail upload adds its range to the pack's (never clears it). The job sorts each

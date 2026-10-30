@@ -91,7 +91,33 @@ export const treeUniforms = {
   tlFar: { value: new Vector2(FAR_SPRITES[0], FAR_SPRITES[1]) },
   /** Trees end here (m; 0 = no edge): they dissolve over its last 15% (trees/draw.ts `forestDistance`). */
   tlForest: { value: 0 },
+  /** Per-tree data of the multi-drawn batches (trees/multi-draw.ts TreePool). */
+  tmData: { value: null as Texture | null },
 };
+
+/** Sub-draws per multi-draw call, in ivec4s (`tmBase`): 128 batches. */
+export const TREE_MULTI_DRAWS = 32;
+
+/** The multi-draw path (trees/multi-draw.ts) for a tree material: per-tree data from the texture, gl_DrawID. */
+/**
+ * Tree sub-draws go in one `multiDrawElementsInstancedWEBGL` per material and part (trees/multi-draw.ts);
+ * `?multidraw=0` draws them one call each (the path without WEBGL_multi_draw), for comparing.
+ */
+export const MULTI_DRAW_EXT =
+  typeof location === 'undefined' ||
+  new URLSearchParams(location.search).get('multidraw') !== '0';
+
+function multi(m: Material): void {
+  m.defines = {
+    ...m.defines,
+    TREE_MULTI: 1,
+    TREE_MULTI_DRAWS,
+    ...(MULTI_DRAW_EXT ? { TREE_MULTI_EXT: 1 } : {}),
+  };
+  (m as Material & { extensions?: Record<string, boolean> }).extensions = {
+    multiDraw: MULTI_DRAW_EXT,
+  };
+}
 
 // Dev: inspect / tweak from the console (`__treeUniforms.tlDebug.value = 2`).
 (globalThis as { __treeUniforms?: typeof treeUniforms }).__treeUniforms =
@@ -132,6 +158,36 @@ vec4 treeInst;
 vec4 treeFade;
 mat4 instanceMatrix;
 float tgOut;
+#elif defined( TREE_MULTI )
+// One multi-draw per material and part (trees/multi-draw.ts): the tree's data from the shared texture, 8 texels a
+// tree, at its batch's base (per sub-draw) + the instance. Read once, first thing in main (treeFetch).
+// The sub-draw: gl_DrawID with the extension enabled, else a uniform set per draw (GL_ANGLE_multi_draw is defined
+// whenever the GPU supports it, enabled or not: it cannot tell the two apart).
+#ifdef TREE_MULTI_EXT
+#define TREE_DRAW gl_DrawID
+#else
+uniform int tmDraw;
+#define TREE_DRAW tmDraw
+#endif
+uniform highp sampler2D tmData;
+uniform ivec4 tmBase[ TREE_MULTI_DRAWS ];
+vec4 treeInst;
+vec4 treeFade;
+mat4 tmMatrix;
+#define instanceMatrix tmMatrix
+#ifdef TREE_SPRITE
+vec4 treeLod;
+#endif
+void treeFetch() {
+	int i = tmBase[ TREE_DRAW >> 2 ][ TREE_DRAW & 3 ] + gl_InstanceID;
+	ivec2 p = ivec2( ( i & 255 ) << 3, i >> 8 );
+	tmMatrix = mat4( texelFetch( tmData, p, 0 ), texelFetch( tmData, p + ivec2( 1, 0 ), 0 ), texelFetch( tmData, p + ivec2( 2, 0 ), 0 ), texelFetch( tmData, p + ivec2( 3, 0 ), 0 ) );
+	treeInst = texelFetch( tmData, p + ivec2( 4, 0 ), 0 );
+	treeFade = texelFetch( tmData, p + ivec2( 5, 0 ), 0 );
+	#ifdef TREE_SPRITE
+		treeLod = texelFetch( tmData, p + ivec2( 6, 0 ), 0 );
+	#endif
+}
 #else
 attribute vec4 treeInst;
 attribute vec4 treeFade;
@@ -145,7 +201,9 @@ attribute float treeRank;
 /** The crown's ellipsoid (object space): centre, horizontal radius; vertical radius. */
 attribute vec4 treeCrown;
 attribute float treeCrownY;
+#ifndef TREE_MULTI
 attribute vec4 treeLod;
+#endif
 varying vec3 vSprRight;
 varying vec3 vSprUp;
 ${TREE_SPRITE_AXES}
@@ -381,6 +439,10 @@ function injectVertex(
 ): void {
   shader.vertexShader = shader.vertexShader
     .replace('#include <common>', `#include <common>\n${VERTEX_PARS}`)
+    .replace(
+      'void main() {',
+      'void main() {\n#ifdef TREE_MULTI\n\ttreeFetch();\n#endif',
+    )
     .replace(
       '#include <begin_vertex>',
       `#include <begin_vertex>\n${VERTEX_MAIN}`,
@@ -796,7 +858,8 @@ export function barkMaterial(
     TREE_KEEP_NEAR: NEAR_SPRITES.toFixed(3),
     TREE_VIEW_Z: 'vViewPosition.z',
   };
-  hookStandard(m, 'tree-bark-v7', false);
+  multi(m);
+  hookStandard(m, 'tree-bark-v8', false);
   materials.set(key, m);
   return m;
 }
@@ -893,7 +956,8 @@ function spriteLit(style: LeafStyle, depthOnly: boolean): MeshLambertMaterial {
     FALLBACK_AMBIENT: FALLBACK_AMBIENT.toFixed(2),
     RALLY_FOLIAGE: 0.45,
   };
-  hookStandard(m, 'tree-sprite-v9', true, {
+  multi(m);
+  hookStandard(m, 'tree-sprite-v10', true, {
     tlSprNormal: { value: tex.normal },
     tlDepthOnly: { value: depthOnly ? 1 : 0 },
   });
@@ -982,7 +1046,8 @@ export function treeDepthMaterial(kind: TreeDepthKind): MeshDepthMaterial {
         .replace('void main() {', `void main() {\n${PROXY_HOLES}`);
     }
   };
-  m.customProgramCacheKey = () => `tree-depth-v8-${kind}`;
+  multi(m);
+  m.customProgramCacheKey = () => `tree-depth-v9-${kind}`;
   materials.set(key, m);
   return m;
 }
