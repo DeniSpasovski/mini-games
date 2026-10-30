@@ -2344,6 +2344,8 @@ export class TreeRenderer {
     mesh.count = 0;
     mesh.visible = false;
     mesh.frustumCulled = false;
+    // Never moved (the instances carry the transforms): no matrix compose every frame.
+    mesh.matrixAutoUpdate = false;
     mesh.castShadow = casts;
     mesh.receiveShadow = material.colorWrite;
     if (casts) mesh.customDepthMaterial = treeDepthMaterial(sprite);

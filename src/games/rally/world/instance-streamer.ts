@@ -818,6 +818,8 @@ export class InstanceStreamer {
       // Buckets span the whole map, so a per-bucket frustum test almost never
       // culls anything but costs a full bounding-sphere pass after each commit.
       mesh.frustumCulled = false;
+      // Never moved (the instances carry the transforms): no matrix compose for ~500 meshes every frame.
+      mesh.matrixAutoUpdate = false;
       mesh.castShadow = bucket.castShadow;
       mesh.receiveShadow = true;
       mesh.name = `${inst.asset}#${set ? 'all' : inst.variant} lod${lod}`;
