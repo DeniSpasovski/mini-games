@@ -212,6 +212,18 @@ code; the source files are not in the repository).
 | ["vehicle_forklift_orange_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/vehicle_forklift_orange_a01)                                       | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
 | ["palletJack_heavyDuty_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/palletJack_heavyDuty_a01)                                             | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
 
+### Poly Haven props (baked by the same script into `simready-park.data.ts`)
+
+The service park table and chairs and generator, and the underpass wall lamps: CC0 models from Poly Haven, coloured per face
+from their own texture under the face, decimated and packed by `scripts/props/bake-simready.py` (the source files are not in
+the repository). No credit is required.
+
+| Model                                                                            | Author          | Licence |
+| -------------------------------------------------------------------------------- | --------------- | ------- |
+| [Outdoor Table Chair Set 01](https://polyhaven.com/a/outdoor_table_chair_set_01) | James Ray Cock  | CC0     |
+| [Portable Generator](https://polyhaven.com/a/portable_generator)                 | James Ray Cock  | CC0     |
+| [Industrial Wall Lamp](https://polyhaven.com/a/industrial_wall_lamp)             | Kuutti Siitonen | CC0     |
+
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 
 ## Road textures

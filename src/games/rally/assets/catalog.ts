@@ -522,7 +522,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Wall lamp',
     category: 'props',
     description:
-      'Underpass light fixed to a retaining wall face (z = 0), luminaire at 3.6 m over the sidewalk (+Z).',
+      'Caged bulkhead lamp (Poly Haven model) on a retaining wall face (z = 0), its middle at 3.6 m, lens towards the sidewalk (+Z).',
     variants: 1,
     lods: [
       { maxDistance: 90, castShadow: false },
@@ -778,19 +778,20 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Table and chairs',
     category: 'props',
     description:
-      'Folding table with two chairs on the +Z side and a laptop. Solid table.',
+      'Slatted bistro table with a folding chair on each side (+Z / -Z; Poly Haven model). Solid table.',
     variants: 1,
     lods: PROP_LODS,
-    colliders: [{ kind: 'box', hx: 0.95, hz: 0.45, h: 0.9, r: 1.0 }],
+    colliders: [{ kind: 'box', hx: 0.4, hz: 0.4, h: 0.75, r: 0.9 }],
   },
   {
     id: 'generator',
     name: 'Generator',
     category: 'props',
-    description: 'Petrol generator on a frame. Solid.',
+    description:
+      'Portable petrol generator in its tube frame, control panel towards +Z (Poly Haven model). Solid.',
     variants: 1,
     lods: PROP_LODS,
-    colliders: [{ kind: 'box', hx: 0.55, hz: 0.35, h: 1, r: 0.65 }],
+    colliders: [{ kind: 'box', hx: 0.41, hz: 0.29, h: 0.58, r: 0.5 }],
   },
   {
     id: 'feather_flag',

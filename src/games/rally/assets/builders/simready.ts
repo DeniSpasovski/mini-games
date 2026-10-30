@@ -226,6 +226,16 @@ export const crate = plain('crate');
 export const forklift = plain('forklift');
 export const palletJack = plain('pallet_jack');
 
+/** Poly Haven models (CC0) in the same bake: slatted bistro table with a folding chair each side (+Z / -Z), portable generator. */
+export const tableChairs = plain('table_chairs');
+export const generator = plain('generator');
+
+/** Caged bulkhead lamp (Poly Haven, CC0) on a retaining wall: back on the wall face (z = 0), its middle at 3.6 m, lens to +Z. */
+export const wallLamp: AssetBuilder = ({ lod }) => {
+  const [, h, d] = modelSize('wall_lamp');
+  return finish([model('wall_lamp', lod).translate(0, 3.6 - h / 2, d / 2)]);
+};
+
 /** Fire extinguisher standing in its orange cone stand. */
 export const extinguisherStand = plain('extinguisher_stand');
 

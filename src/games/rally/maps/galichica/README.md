@@ -39,6 +39,7 @@ npm run dev     # /games/rally/?stage=galichica_west&mute=1
 | Land cover             | [ESA WorldCover 2021](https://esa-worldcover.org/)                                                                                                                                                    | CC BY 4.0, © ESA WorldCover project 2021 / contains modified Copernicus Sentinel data (2021) |
 | Road asphalt           | [Asphalt 04 (Poly Haven)](https://polyhaven.com/a/asphalt_04), by Sergej Majboroda and Jenelle van Heerden                                                                                            | CC0                                                                                          |
 | Service park kit       | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) (service park: tool chest, tyre rack, trolley jack, flood light, extinguisher, wheelbarrow, hand truck, ladder, bin) | CC BY 4.0                                                                                    |
+| Service park props     | [Poly Haven](https://polyhaven.com/models) (service park table and chairs, generator: Outdoor Table Chair Set 01, Portable Generator)                                                                 | CC0                                                                                          |
 
 The baked map files (`*.json`, `buildings.csv`, stage cards) are a derived database of OpenStreetMap and stay under the
 ODbL.
