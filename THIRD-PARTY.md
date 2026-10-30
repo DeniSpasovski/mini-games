@@ -183,9 +183,10 @@ The hay bales wear a tile cut from the photo texture of a CC BY 4.0 scan (one ba
 | ----------------------------------------------------------------------------------------- | ------------------------------------------------------- | --------- |
 | ["Hay bales"](https://sketchfab.com/3d-models/hay-bales-9a9f28d0e59a43e49d860912c47b8767) | [Abby Crawford](https://sketchfab.com/abby) (Sketchfab) | CC BY 4.0 |
 
-### Service park kit (baked into `src/games/rally/assets/builders/simready-models.data.ts`)
+### SimReady props (baked into `src/games/rally/assets/builders/simready-<group>.data.ts`)
 
-The tool chest, tyre rack and trolley jack of the service park: CC BY 4.0 models from NVIDIA SimReady Assets, coloured
+The service park kit (tool chest, tyre rack, trolley jack, floodlight, extinguisher, wheelbarrow, hand truck, step ladder, wheelie bin) and the
+yard props (pallets, drums, IBC tank, crate, pallet stacker, pallet jack): CC BY 4.0 models from NVIDIA SimReady Assets, coloured
 per part, decimated and packed by `scripts/props/bake-simready.py` (the tyres on the rack and the team paint are added in
 code; the source files are not in the repository).
 
@@ -194,6 +195,22 @@ code; the source files are not in the repository).
 | ["equipment_rolling_tool_chest_cabinet_combo_d01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/equipment_rolling_tool_chest_cabinet_combo_d01) | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
 | ["storage_tire_rack_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/storage_tire_rack_a01)                                                   | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
 | ["vehicleSupport_floor_jack_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/vehicleSupport_floor_jack_a01)                                   | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["lighting_taskLight_tripodFlood_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/lighting_taskLight_tripodFlood_a01)                         | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["fireExtinguisher_stand_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/fireExtinguisher_stand_a01)                                         | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["construction_wheelbarrow_metal_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/construction_wheelbarrow_metal_a01)                         | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["handTruck_convertible_steel_red_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/handTruck_convertible_steel_red_a01)                       | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["ladder_step_aluminium_a06"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/ladder_step_aluminium_a06)                                           | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["trashCan_wheeled_green_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/trashCan_wheeled_green_a01)                                         | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["pallet_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/pallet_a01)                                                                         | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["pallet_block_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/pallet_block_a01)                                                             | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["pallet_wood_recycled_a05"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/pallet_wood_recycled_a05)                                             | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["drum_steel_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/drum_steel_a01)                                                                 | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["drum_plastic_blue_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/drum_plastic_blue_a01)                                                   | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["warehouse_barrel_plastic_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/warehouse_barrel_plastic_a01)                                     | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["ibcTank_a02"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/ibcTank_a02)                                                                       | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["crate_plywood_b01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/crate_plywood_b01)                                                           | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["vehicle_forklift_orange_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/vehicle_forklift_orange_a01)                                       | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["palletJack_heavyDuty_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/palletJack_heavyDuty_a01)                                             | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
 
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 

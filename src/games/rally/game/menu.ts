@@ -172,7 +172,7 @@ const PROPS: SourceLink[] = [
   {
     label: 'SimReady Assets (NVIDIA)',
     url: 'https://huggingface.co/datasets/nvidia/simready-assets',
-    note: 'service park tool chest, tyre rack and trolley jack - CC BY 4.0',
+    note: 'service park and yard props (tool chest, tyre rack, jack, flood light, bins, pallets, drums, IBC tank ...) - CC BY 4.0',
   },
 ];
 

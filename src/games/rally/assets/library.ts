@@ -19,7 +19,23 @@ import {
   villageSign,
 } from './builders/props';
 import { buildingFlat, housePitched, houseStone } from './builders/buildings';
-import { floorJack, toolChest, tyreRack } from './builders/simready';
+import {
+  crate,
+  drum,
+  extinguisherStand,
+  floorJack,
+  forklift,
+  handTruck,
+  ibcTank,
+  palletJack,
+  palletStack,
+  stepLadder,
+  toolChest,
+  tripodLight,
+  tyreRack,
+  wheelbarrow,
+  wheelieBin,
+} from './builders/simready';
 import {
   crew,
   driver,
@@ -158,6 +174,18 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   feather_flag: featherFlag,
   ground_sheet: groundSheet,
   trolley_jack: floorJack,
+  tripod_light: tripodLight,
+  extinguisher_stand: extinguisherStand,
+  wheelbarrow,
+  hand_truck: handTruck,
+  step_ladder: stepLadder,
+  wheelie_bin: wheelieBin,
+  pallet_stack: palletStack,
+  drum,
+  ibc_tank: ibcTank,
+  crate,
+  forklift,
+  pallet_jack: palletJack,
   food_truck: foodTruck,
   porta_toilet: portaToilet,
   fuel_trailer: fuelTrailer,

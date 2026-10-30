@@ -6,7 +6,12 @@ import {
   Vector2,
 } from 'three';
 import type { AssetBuilder } from '../types';
-import { SIMREADY_MODELS } from './simready-models.data';
+import { SIMREADY_PARK } from './simready-park.data';
+import {
+  SIMREADY_SERVICE,
+  type SimreadyModelData,
+} from './simready-service.data';
+import { SIMREADY_YARD } from './simready-yard.data';
 import { finish, solid } from './vehicles';
 
 /**
@@ -17,7 +22,17 @@ import { finish, solid } from './vehicles';
 
 /** u / v of the plain-white corner of the decals atlas (vehicles.ts `PLAIN`). */
 const PLAIN = [0.03, 0.5];
+/** Every baked group (`bake-simready.py <group>`), by prop name. */
+const SIMREADY_MODELS: Record<string, SimreadyModelData> = {
+  ...SIMREADY_SERVICE,
+  ...SIMREADY_PARK,
+  ...SIMREADY_YARD,
+};
 const decoded = new Map<string, BufferGeometry>();
+
+/** Bounding size (m) of model `name`: width (x), height (y), depth (z). */
+export const modelSize = (name: string): [number, number, number] =>
+  SIMREADY_MODELS[name].size;
 
 /** Level `lod` of model `name` (the last level past its end), non-indexed with linear vertex colours; a fresh copy. */
 function model(name: string, lod: number): BufferGeometry {
@@ -167,3 +182,39 @@ export const tyreRack: AssetBuilder = ({ variant, lod }) => {
   });
   return finish(parts);
 };
+
+/** A baked model as it is (the single-variant props of the park, yard and roadside kits). */
+const plain =
+  (name: string): AssetBuilder =>
+  ({ lod }) =>
+    finish([model(name, lod)]);
+
+export const tripodLight = plain('tripod_light');
+export const wheelbarrow = plain('wheelbarrow');
+export const handTruck = plain('hand_truck');
+export const stepLadder = plain('step_ladder');
+export const wheelieBin = plain('wheelie_bin');
+export const ibcTank = plain('ibc_tank');
+export const crate = plain('crate');
+export const forklift = plain('forklift');
+export const palletJack = plain('pallet_jack');
+
+/** Fire extinguisher standing in its orange cone stand. */
+export const extinguisherStand = plain('extinguisher_stand');
+
+const PALLETS = ['pallet_euro', 'pallet_block', 'pallet_plain'];
+/** Wooden pallets, one stack: variant % 3 = style, variant / 3 = pallets in the stack minus one (1-4). */
+export const palletStack: AssetBuilder = ({ variant, lod }) => {
+  const name = PALLETS[variant % 3];
+  const rise = modelSize(name)[1];
+  const n = 1 + (Math.floor(variant / 3) % 4);
+  const parts: BufferGeometry[] = [];
+  for (let i = 0; i < n; i++)
+    parts.push(model(name, lod).translate(0, i * rise, 0));
+  return finish(parts);
+};
+
+const DRUMS = ['drum_steel', 'drum_blue', 'barrel_blue'];
+/** Drums and barrels: steel drum, small blue drum, tall blue barrel (variant). */
+export const drum: AssetBuilder = ({ variant, lod }) =>
+  finish([model(DRUMS[variant % 3], lod)]);
