@@ -23,6 +23,10 @@ export const DEFAULT_HEADLIGHTS: CarHeadlightsDef = {
   penumbra: 0.55,
   spill: 0.2,
 };
+/** Daytime low beams (`day`): this share of the night beam, narrower - at full strength the road just ahead of the
+ * bumper lights up as two white puffs either side of the car, seen from behind. */
+const DAY_BEAM = 0.3;
+const DAY_ANGLE = 0.75;
 /** Visible beam length (m) and the cone's radius at its far end. */
 const CONE_LENGTH = 28;
 const CONE_RADIUS = 5.5;
@@ -45,17 +49,21 @@ export function headlightMount(p: Pick<CarPhysicsDef, 'front' | 'rear'>): {
 }
 
 /**
- * The car's headlights at night (`Environment.night`): a narrow bright low beam, a wide dim spill for the verges and
- * two soft additive cones for the beam seen in the air. Children of the car, so they follow its pitch and roll.
- * The low beam casts shadows on high quality only (one extra shadow pass over what the beam covers; medium / low
- * keep the light and drop the shadow). Created before the first compile: lights are compiled into every lit shader.
+ * The car's headlights at night (`Environment.night`): a narrow bright low beam from each lamp, a wide dim spill for
+ * the verges and two soft additive cones for the beam seen in the air. Children of the car, so they follow its pitch
+ * and roll. One low beam casts shadows on high quality only (one extra shadow pass over what the beam covers; medium /
+ * low keep the light and drop the shadow). Created before the first compile: lights are compiled into every lit shader.
+ * `day` (lights on in daytime rain / fog): the two low beams only, never shadowed - they show as a glare on the wet road
+ * ahead; the spill, the shadow pass and the air cones show nothing in daylight (a cone seen from the side reads as a
+ * glowing rod).
+ * `haze` (0..1, rain / fog in the air) brightens the cones at night: droplets scatter the beam.
  */
 export class Headlights {
   readonly group = new Group();
   private readonly cones: Mesh[] = [];
   private readonly spots: SpotLight[] = [];
-  /** Each spot light's aim: metres ahead of the lamps and the target height. */
-  private readonly aims: { ahead: number; y: number }[] = [];
+  /** Each spot light's lamp (-1 / 1 = x side x the lamp spacing, 0 = centred), aim (m ahead of the lamps) and target height. */
+  private readonly aims: { side: number; ahead: number; y: number }[] = [];
   readonly color: Color;
   private readonly beamMat = new ShaderMaterial({
     uniforms: { uTint: { value: new Color() }, uGain: { value: 1 } },
@@ -115,16 +123,17 @@ export class Headlights {
     def: CarHeadlightsDef = DEFAULT_HEADLIGHTS,
     /** 0..1 (`Environment.lightNeed`): dusk lights are weaker, so the beam and its air cones fade with it. */
     level = 1,
+    { day = false, haze = 0 }: { day?: boolean; haze?: number } = {},
   ) {
     this.color = new Color(def.color);
     this.beamMat.uniforms.uTint.value
       .copy(this.color)
       .lerp(new Color(1, 1, 1), 0.2);
-    // Brighter lamps show a stronger beam in the air, old dim ones a faint one.
+    // Brighter lamps show a stronger beam in the air, old dim ones a faint one; rain and fog light it up.
     this.beamMat.uniforms.uGain.value =
-      Math.min(1.4, 0.4 + 0.6 * def.power) * level;
+      Math.min(1.4, 0.4 + 0.6 * def.power) * level * (1 + 0.3 * haze);
     const spot = (
-      x: number,
+      side: number,
       aim: number,
       aimY: number,
       angle: number,
@@ -134,8 +143,8 @@ export class Headlights {
       shadow: boolean,
     ): void => {
       const l = new SpotLight(this.color, power, distance, angle, penumbra, 2);
-      l.position.set(x, lamp.y, lamp.z);
-      l.target.position.set(x, aimY, lamp.z + aim);
+      l.position.set(side * lamp.x, lamp.y, lamp.z);
+      l.target.position.set(side * lamp.x, aimY, lamp.z + aim);
       if (shadow) {
         l.castShadow = true;
         l.shadow.mapSize.set(2048, 2048);
@@ -145,22 +154,35 @@ export class Headlights {
         l.shadow.normalBias = 0.05;
       }
       this.spots.push(l);
-      this.aims.push({ ahead: aim, y: aimY });
+      this.aims.push({ side, ahead: aim, y: aimY });
       this.group.add(l, l.target);
     };
-    // Low beam (both lamps as one, centred), wide spill for the verges.
-    spot(
-      0,
-      60,
-      -0.9,
-      def.angle,
-      def.penumbra,
-      BEAM * def.power * level,
-      170,
-      quality === 'high',
-    );
-    spot(0, 35, -0.6, 0.85, 1, BEAM * def.power * def.spill * level, 90, false);
-    for (const side of [-1, 1]) {
+    // Low beam: one per lamp, at the lamp. One of them casts the shadow (high, night): what it hides the other lamp
+    // still lights, the half shadow a real pair of lamps throws, for one shadow pass.
+    for (const side of [-1, 1])
+      spot(
+        side,
+        60,
+        -0.9,
+        def.angle * (day ? DAY_ANGLE : 1),
+        def.penumbra,
+        (BEAM / 2) * def.power * level * (day ? DAY_BEAM : 1),
+        170,
+        side === 1 && quality === 'high' && !day,
+      );
+    // Wide spill for the verges (night only), centred.
+    if (!day)
+      spot(
+        0,
+        35,
+        -0.6,
+        0.85,
+        1,
+        BEAM * def.power * def.spill * level,
+        90,
+        false,
+      );
+    for (const side of day ? [] : [-1, 1]) {
       const geo = new ConeGeometry(
         CONE_RADIUS * (def.angle / CONE_ANGLE),
         CONE_LENGTH,
@@ -181,13 +203,14 @@ export class Headlights {
     car.add(this.group);
   }
 
-  /** Move the beam to the car's own lamps (`CarModel.onHeadlamps`): the cones start at the lamps, the light at their middle. */
+  /** Move the beams to the car's own lamps (`CarModel.onHeadlamps`): each low beam and cone at its lamp, the spill between them. */
   moveTo(lamp: { x: number; y: number; z: number }): void {
     // The light itself sits a little ahead of the lamps: at their face it would floodlight the car's own bumper lip.
     const z = lamp.z + LIGHT_AHEAD;
     this.spots.forEach((l, i) => {
-      l.position.set(0, lamp.y, z);
-      l.target.position.set(0, this.aims[i].y, z + this.aims[i].ahead);
+      const { side, ahead, y } = this.aims[i];
+      l.position.set(side * lamp.x, lamp.y, z);
+      l.target.position.set(side * lamp.x, y, z + ahead);
     });
     this.cones.forEach((c, i) =>
       c.position.set((i ? 1 : -1) * lamp.x, lamp.y, lamp.z),

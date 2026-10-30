@@ -34,7 +34,13 @@ import { DEFAULT_STAGE, getStage, loadStage, stageLinkParams } from '../maps';
 import { SETUP_FOR_TYRE, SETUP_IDS } from '../physics/car-setup';
 import { isGearingId } from '../physics/gearing';
 import { parseTyre, TYRES, wetTyre } from '../physics/tyres';
-import { isRaining, weatherLook, weatherParam } from '../weather';
+import {
+  isRaining,
+  offeredWeathers,
+  WEATHER_LOOKS,
+  weatherLook,
+  weatherParam,
+} from '../weather';
 import { paramInt } from '../../../shared/url-params';
 import { stageSeason } from '../maps/shared/climate';
 import { seasonParam } from '../season';
@@ -179,6 +185,12 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
   let tyre = parseTyre(params.tyre, recTyre);
   if (isRaining(weather) && TYRES[tyre].dryOnly)
     tyre = TYRES[recTyre].dryOnly ? 'mixed' : recTyre;
+  // Tarmac Wet is not offered while the build ships dry only (an old link).
+  if (
+    tyre === 'tarmac_wet' &&
+    !offeredWeathers().some((w) => WEATHER_LOOKS[w].wet > 0)
+  )
+    tyre = recTyre;
   const setup =
     SETUP_IDS.find((s) => s === params.susp) ?? SETUP_FOR_TYRE[tyre];
   const gearing = isGearingId(params.gear)

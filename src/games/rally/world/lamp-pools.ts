@@ -1,31 +1,31 @@
 import {
   AdditiveBlending,
+  BufferAttribute,
+  BufferGeometry,
   CanvasTexture,
   Color,
-  DynamicDrawUsage,
-  InstancedMesh,
-  Matrix4,
+  Mesh,
   MeshBasicMaterial,
-  PlaneGeometry,
-  Quaternion,
   SRGBColorSpace,
-  Vector3,
 } from 'three';
 import type { ScatterInstance } from './scatter';
 
 /** Diameter of a pool (m) and how far the lens hangs over the road from the pole (assets/builders/props.ts). */
 const POOL_DIAMETER = 12;
 const ARM_REACH = 1.4;
+/** Grid cells across a pool: ~1 m, so it follows the road camber and the verge. */
+const CELLS = 12;
 /** Lift over the ground (m): above the road surface, under everything else. */
 const LIFT = 0.1;
 
 /**
- * The light of the village street lamps on the ground at night / dusk: one soft warm disc per lamp, drawn additively
- * as a single instanced mesh (no real lights: they are compiled into every shader). Built only when the lamps are
- * needed (`Environment.lightNeed`), strength follows it.
+ * The light of the village street lamps on the ground at night / dusk: one soft warm disc per lamp, draped over the
+ * ground (a flat disc sinks into a sloped verge and shows as flickering slivers), all merged into one additive mesh
+ * (no real lights: they are compiled into every shader). Built only when the lamps are needed (`Environment.lightNeed`),
+ * strength follows it.
  */
 export class LampPools {
-  readonly mesh: InstancedMesh;
+  readonly mesh: Mesh;
 
   constructor(
     lamps: Iterable<ScatterInstance>,
@@ -45,27 +45,40 @@ export class LampPools {
     });
     // Fades into fog instead of taking its colour (engine/world-shading.ts).
     mat.defines = { RALLY_ADDITIVE: 1 };
-    const geo = new PlaneGeometry(POOL_DIAMETER, POOL_DIAMETER).rotateX(
-      -Math.PI / 2,
-    );
-    this.mesh = new InstancedMesh(geo, mat, Math.max(1, list.length));
-    this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
-    this.mesh.count = list.length;
+    const side = CELLS + 1;
+    const per = side * side;
+    const pos = new Float32Array(list.length * per * 3);
+    const uv = new Float32Array(list.length * per * 2);
+    const index = new Uint32Array(list.length * CELLS * CELLS * 6);
+    let v = 0;
+    let t = 0;
+    list.forEach((l, n) => {
+      const cx = l.x + Math.sin(l.rotY) * ARM_REACH;
+      const cz = l.z + Math.cos(l.rotY) * ARM_REACH;
+      for (let j = 0; j < side; j++)
+        for (let i = 0; i < side; i++) {
+          const x = cx + (i / CELLS - 0.5) * POOL_DIAMETER;
+          const z = cz + (j / CELLS - 0.5) * POOL_DIAMETER;
+          pos.set([x, heightAt(x, z) + LIFT, z], v * 3);
+          uv.set([i / CELLS, j / CELLS], v * 2);
+          v++;
+        }
+      const base = n * per;
+      for (let j = 0; j < CELLS; j++)
+        for (let i = 0; i < CELLS; i++) {
+          const a = base + j * side + i;
+          index.set([a, a + side, a + 1, a + 1, a + side, a + side + 1], t);
+          t += 6;
+        }
+    });
+    const geo = new BufferGeometry();
+    geo.setAttribute('position', new BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new BufferAttribute(uv, 2));
+    geo.setIndex(new BufferAttribute(index, 1));
+    geo.computeBoundingSphere();
+    this.mesh = new Mesh(geo, mat);
     this.mesh.renderOrder = 3;
     this.mesh.frustumCulled = false;
-    const m = new Matrix4();
-    const p = new Vector3();
-    const s = new Vector3(1, 1, 1);
-    const q = new Quaternion();
-    list.forEach((l, i) => {
-      const x = l.x + Math.sin(l.rotY) * ARM_REACH;
-      const z = l.z + Math.cos(l.rotY) * ARM_REACH;
-      this.mesh.setMatrixAt(
-        i,
-        m.compose(p.set(x, heightAt(x, z) + LIFT, z), q, s),
-      );
-    });
-    this.mesh.instanceMatrix.needsUpdate = true;
   }
 }
 

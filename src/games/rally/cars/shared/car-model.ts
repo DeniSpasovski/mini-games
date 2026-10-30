@@ -251,11 +251,11 @@ function markBrakeLamp<M extends Material & { emissiveIntensity: number }>(
  * Tinted lamps: a coloured metallic reflector (facets catch the sky like the cells of a real
  * lamp) under a thin glossy tinted lens - reads as translucent plastic with depth.
  */
-const tintedReflector = (color: number, glow: number) =>
+const tintedReflector = (color: number, glow: number, emissive = color) =>
   new MeshStandardMaterial({
     color,
     map: lampCellTexture(),
-    emissive: color,
+    emissive,
     emissiveIntensity: glow,
     metalness: 0.6,
     roughness: 0.32,
@@ -271,12 +271,13 @@ const tintedLens = (color: number, opacity: number) =>
     opacity,
     depthWrite: false,
   });
-const redReflectorMat = tintedReflector(0x5c0509, 0.08);
+// Glows bright red (its dark paint colour as the glow barely showed, even with the brake down); same faint glow when off.
+const redReflectorMat = tintedReflector(0x5c0509, 0.009, 0xff1a10);
 const amberReflectorMat = tintedReflector(0x9a4c06, 0.08);
 const redLensMat = tintedLens(0x8a0a14, 0.24);
 // Brake lamps: glow off / with the brake pedal down (CarModel.setBrake).
 markBrakeLamp(tailMat, 3);
-markBrakeLamp(redReflectorMat, 2.2);
+markBrakeLamp(redReflectorMat, 1.4);
 markBrakeLamp(redLensMat, 2.7);
 const amberLensMat = tintedLens(0xd88214, 0.24);
 /** Tyres: vertex colours (rubber, compound ring, road dust) - cars/shared/tyre-mesh.ts. */
@@ -373,6 +374,8 @@ function getMeshMaterial(): MeshStandardMaterial {
 
 /** Extra emissive intensity of a tail lamp with the lights on (night), up to its full brake glow. */
 const TAIL_NIGHT_GLOW = 1;
+/** Tail lamp running light by day (lights on in rain / fog, `setLamps` `day`): this share of the brake glow, so it reads in daylight. */
+const TAIL_DAY_GLOW = 0.6;
 /** Halo strength round the red tail lamps (`LampHalos`): running light at night, brake pedal at night / by day. */
 const HALO_IDLE = 0.11;
 const HALO_BRAKE_NIGHT = 0.26;
@@ -463,6 +466,8 @@ export class CarModel {
   /** Lights on (night): headlamps glow, tail lamps keep a steady glow under the brake light. */
   /** 0..1 lights level (`setLamps`). */
   private lampsOn = 0;
+  /** Lights on by day (rain / fog): the tail lamps glow brighter than their night running light. */
+  private lampsDay = false;
   private brakeLevel = 0;
   private reversing = false;
   /** Fitted compound (null = plain tyre). */
@@ -1674,7 +1679,8 @@ export class CarModel {
 
   /** Halo strength for the brake level `l` (0..1) and the lights level (`lampsOn`). */
   private applyHalos(l: number): void {
-    const night = this.lampsOn;
+    // Halos are a night glow: in daylight (lights on in rain / fog) they read as puffs round the car.
+    const night = this.lampsDay ? 0 : this.lampsOn;
     const idle = HALO_IDLE * night;
     const brake = HALO_BRAKE_DAY + (HALO_BRAKE_NIGHT - HALO_BRAKE_DAY) * night;
     this.halos?.setLevel(idle + (brake - idle) * l, brake * l);
@@ -1690,14 +1696,15 @@ export class CarModel {
       const { off, on } = m.userData.headLamp as { off: number; on: number };
       m.emissiveIntensity = off + (on - off) * this.lampsOn;
     }
-    this.headHalos?.setLevel(HALO_HEAD * this.lampsOn, 0);
+    this.headHalos?.setLevel(this.lampsDay ? 0 : HALO_HEAD * this.lampsOn, 0);
   }
 
   /** Lights on / off (night): headlamps glow, tail lamps stay lit (brake light still brighter). */
-  setLamps(on: boolean | number): void {
+  setLamps(on: boolean | number, day = false): void {
     const level = Number(on);
-    if (level === this.lampsOn) return;
+    if (level === this.lampsOn && day === this.lampsDay) return;
     this.lampsOn = level;
+    this.lampsDay = day;
     if (!this.brakeLamps) this.collectLamps();
     else {
       this.brakeLevel = -1; // the next setBrake rewrites the tail lamps
@@ -1732,9 +1739,12 @@ export class CarModel {
       m.userData.brakeGlow ??= m.emissiveMap;
       m.userData.brakeEmissive ??= m.emissive.getHex();
       // Lights off = a dark lamp; with the lights on it moves to its night glow (`LampNight`), by how dark it is.
-      const idle =
+      const nightIdle =
         (night?.idle ?? off + Math.min(on - off, TAIL_NIGHT_GLOW)) *
         this.lampsOn;
+      const idle = this.lampsDay
+        ? Math.max(nightIdle, on * TAIL_DAY_GLOW * this.lampsOn)
+        : nightIdle;
       const full = on + ((night?.on ?? on) - on) * this.lampsOn;
       const lit = idle + (full - idle) * l;
       const reverseLamp = reversing && l < 0.02;

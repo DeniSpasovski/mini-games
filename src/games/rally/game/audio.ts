@@ -256,7 +256,10 @@ export class CarAudio {
   private pedalUp = false;
   private enclosed = false;
 
-  constructor(car: CarDef) {
+  /** `weather`: rain rate (mm/h) and road wetness of the run (`weather.ts`); the rain sounds are built only when either is above 0. */
+  constructor(car: CarDef, weather = { rain: 0, wet: 0 }) {
+    this.rain = weather.rain;
+    this.wet = weather.wet;
     this.sound = car.sound;
     this.idleRpm = car.physics.engine.idleRpm;
     this.redline = car.physics.engine.redlineRpm;
@@ -521,7 +524,19 @@ export class CarAudio {
       .connect(this.ploughGain);
 
     // Rain: a dense field of tiny drop impacts (each a click that dies in ~1 ms), bright around the car, duller and
-    // lower on the roof; wet tyres hiss (high band noise).
+    // lower on the roof; wet tyres hiss (high band noise). Dry runs build none of it.
+    if (this.rain > 0 || this.wet > 0)
+      this.buildRain(ctx, loop, filter, silent);
+    this.lastT = ctx.currentTime;
+    this.sync();
+  }
+
+  private buildRain(
+    ctx: AudioContext,
+    loop: () => AudioNode,
+    filter: (type: BiquadFilterType, f: number, q?: number) => BiquadFilterNode,
+    silent: () => GainNode,
+  ): void {
     const ticks = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
     const tk = ticks.getChannelData(0);
     const rng = new Rng(0x7a1d);
@@ -542,8 +557,6 @@ export class CarAudio {
     this.hissFilter = filter('highpass', 2500, 0.6);
     this.hissGain = silent();
     loop().connect(this.hissFilter).connect(this.hissGain);
-    this.lastT = ctx.currentTime;
-    this.sync();
   }
 
   /** Rain rate (mm/h, 0 = none falling) and how wet the road is (0..1); `weather.ts`. */
@@ -791,24 +804,29 @@ export class CarAudio {
     );
     this.gravelFilter!.frequency.setTargetAtTime(500 + speed * 25, t, 0.1);
     // Rain: louder the harder it falls (~2 mm/h light, ~8 heavy); the roof drums mostly on board.
-    const pour = Math.min(1, Math.sqrt(this.rain / 8));
-    const onBoard = lis.rain > 1.1 ? 1 : 0;
-    this.rainGain!.gain.setTargetAtTime(
-      0.05 * pour * lis.rain * lis.all,
-      t,
-      0.3,
-    );
-    this.roofGain!.gain.setTargetAtTime(
-      0.09 * pour * (0.25 + onBoard) * lis.all,
-      t,
-      0.3,
-    );
-    this.hissGain!.gain.setTargetAtTime(
-      Math.min(0.12, speed * 0.004) * this.wet * (1 - 0.5 * s.loose) * lis.all,
-      t,
-      0.1,
-    );
-    this.hissFilter!.frequency.setTargetAtTime(1800 + speed * 30, t, 0.1);
+    if (this.rainGain) {
+      const pour = Math.min(1, Math.sqrt(this.rain / 8));
+      const onBoard = lis.rain > 1.1 ? 1 : 0;
+      this.rainGain.gain.setTargetAtTime(
+        0.05 * pour * lis.rain * lis.all,
+        t,
+        0.3,
+      );
+      this.roofGain!.gain.setTargetAtTime(
+        0.09 * pour * (0.25 + onBoard) * lis.all,
+        t,
+        0.3,
+      );
+      this.hissGain!.gain.setTargetAtTime(
+        Math.min(0.12, speed * 0.004) *
+          this.wet *
+          (1 - 0.5 * s.loose) *
+          lis.all,
+        t,
+        0.1,
+      );
+      this.hissFilter!.frequency.setTargetAtTime(1800 + speed * 30, t, 0.1);
+    }
 
     // Blend the slide sound profile of the surfaces under the wheels (weights sum to ~1).
     const p = { scrub: 0, freq: 0, freqSpeed: 0, q: 0, rumble: 0, squeal: 0 };

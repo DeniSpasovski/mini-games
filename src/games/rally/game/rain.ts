@@ -144,6 +144,8 @@ export class Rain {
       // The streak's side flips with the camera's view of it: draw both faces.
       side: DoubleSide,
     });
+    // The first `density` share of the drops show (the shader drops the rest): draw only those.
+    g.setDrawRange(0, Math.ceil(max * density) * 6);
     this.mesh = new Mesh(g, this.material);
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 10;

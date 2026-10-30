@@ -92,7 +92,8 @@ import {
 import {
   isRaining,
   WEATHER_LABELS,
-  WEATHERS,
+  offeredWeathers,
+  WEATHER_LOOKS,
   weatherLook,
   weatherParam,
   type Weather,
@@ -501,7 +502,10 @@ class MainMenu {
 
   /** The tyres offered: no near-slicks in the rain. */
   private get tyreChoices(): readonly TyreId[] {
-    return tyreChoices(isRaining(this.weather));
+    return tyreChoices(
+      isRaining(this.weather),
+      offeredWeathers().some((w) => WEATHER_LOOKS[w].wet > 0),
+    );
   }
 
   /**
@@ -842,9 +846,11 @@ class MainMenu {
     // Dropdowns left, what they give right (month, time, temperature); the right side drops below when the card is narrow.
     const picks = div('menu-when-pick');
     picks.append(seasonRow.row);
+    // Only dry in this build (`WEATHERS_LIST` in release.ts): no Weather row.
+    const weathers = offeredWeathers();
     const weatherRow = pickerRow(
       'Weather',
-      WEATHERS.map((id) => ({ id, label: WEATHER_LABELS[id] })),
+      weathers.map((id) => ({ id, label: WEATHER_LABELS[id] })),
       this.weather,
       WEATHER_ICONS,
     );
@@ -854,6 +860,7 @@ class MainMenu {
       this.weather = (e.target as HTMLSelectElement).value as Weather;
       showTemps();
     });
+    const weatherRows = weathers.length > 1 ? [weatherRow.row] : [];
     const info = document.createElement('dl');
     info.innerHTML = `<dt>Month</dt><dd></dd>`;
     // The month the stage is driven in that season (`EnvironmentDef.months`).
@@ -873,7 +880,7 @@ class MainMenu {
     };
     if (hour === undefined) {
       seasonRow.select.addEventListener('change', onSeason);
-      picks.append(weatherRow.row);
+      picks.append(...weatherRows);
       return card;
     }
     const timeRow = pickerRow(
@@ -919,7 +926,7 @@ class MainMenu {
       this.time = (e.target as HTMLSelectElement).value as TimeOfDayId;
       show(this.hourFor(m) ?? hour);
     });
-    picks.append(timeRow.row, weatherRow.row);
+    picks.append(timeRow.row, ...weatherRows);
     return card;
   }
 
