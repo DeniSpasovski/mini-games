@@ -6,12 +6,10 @@ import {
   Vector2,
 } from 'three';
 import type { AssetBuilder } from '../types';
-import { SIMREADY_PARK } from './simready-park.data';
 import {
   SIMREADY_SERVICE,
   type SimreadyModelData,
 } from './simready-service.data';
-import { SIMREADY_YARD } from './simready-yard.data';
 import { finish, solid } from './vehicles';
 
 /**
@@ -22,24 +20,53 @@ import { finish, solid } from './vehicles';
 
 /** u / v of the plain-white corner of the decals atlas (vehicles.ts `PLAIN`). */
 const PLAIN = [0.03, 0.5];
-/** Every baked group (`bake-simready.py <group>`), by prop name. */
+/** Every loaded baked group (`bake-simready.py <group>`), by prop name: the service group at once, the others by `loadSimready`. */
 const SIMREADY_MODELS: Record<string, SimreadyModelData> = {
   ...SIMREADY_SERVICE,
-  ...SIMREADY_PARK,
-  ...SIMREADY_YARD,
+};
+const GROUPS = {
+  park: async () => (await import('./simready-park.data')).SIMREADY_PARK,
+  yard: async () => (await import('./simready-yard.data')).SIMREADY_YARD,
+};
+export type SimreadyGroup = keyof typeof GROUPS;
+const loadedGroups = new Map<SimreadyGroup, Promise<void>>();
+
+/**
+ * Fetch the baked models of these groups (their own chunks, kept out of the game script) before anything builds their
+ * props: `loadMap` does it for a map's stages, the asset debugger for every prop.
+ */
+export async function loadSimready(...groups: SimreadyGroup[]): Promise<void> {
+  await Promise.all(
+    groups.map((g) => {
+      let p = loadedGroups.get(g);
+      if (!p) {
+        p = GROUPS[g]().then((models) => {
+          Object.assign(SIMREADY_MODELS, models);
+        });
+        loadedGroups.set(g, p);
+      }
+      return p;
+    }),
+  );
+}
+
+const modelData = (name: string): SimreadyModelData => {
+  const data = SIMREADY_MODELS[name];
+  if (!data) throw new Error(`SimReady model "${name}": group not loaded`);
+  return data;
 };
 const decoded = new Map<string, BufferGeometry>();
 
 /** Bounding size (m) of model `name`: width (x), height (y), depth (z). */
 export const modelSize = (name: string): [number, number, number] =>
-  SIMREADY_MODELS[name].size;
+  modelData(name).size;
 
 /** Level `lod` of model `name` (the last level past its end), non-indexed with linear vertex colours; a fresh copy. */
 function model(name: string, lod: number): BufferGeometry {
   const key = `${name}:${lod}`;
   const hit = decoded.get(key);
   if (hit) return hit.clone();
-  const lods = SIMREADY_MODELS[name].lods;
+  const lods = modelData(name).lods;
   const bin = Uint8Array.from(atob(lods[Math.min(lod, lods.length - 1)]), (c) =>
     c.charCodeAt(0),
   );
