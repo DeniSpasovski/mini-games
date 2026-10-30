@@ -8,6 +8,8 @@ import {
   InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
+  Mesh,
+  MeshBasicMaterial,
   Quaternion,
   Vector3,
   type Material,
@@ -15,6 +17,7 @@ import {
   type PerspectiveCamera,
   type WebGLRenderer,
 } from 'three';
+import { SHADOW_ONLY_LAYER } from '../engine/layers';
 import { worldUniforms } from '../engine/world-shading';
 import type { RoadQuery } from '../world/road';
 import type { ScatterChunk, ScatterInstance } from '../world/scatter';
@@ -502,6 +505,32 @@ const _p = new Vector3();
 const _s = new Vector3();
 const _dir = new Vector3();
 
+/**
+ * The crown proxies are on SHADOW_ONLY_LAYER, which the main pass must not see but three's shadow pass tests against
+ * the main camera's layers too. Both passes walk the scene in order and the shadow pass runs after the main list is
+ * built: this empty mesh, first in the tree group, turns the layer on when the shadow pass reaches it and off again
+ * when the main pass draws it. (Hidden with `count = 0` in the main pass instead, ~50 proxies each cost a program and
+ * uniform set-up a frame.)
+ */
+function shadowGate(): Mesh {
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array(9), 3));
+  g.setDrawRange(0, 0);
+  const m = new Mesh(
+    g,
+    new MeshBasicMaterial({ colorWrite: false, depthWrite: false }),
+  );
+  m.name = 'tree shadow gate';
+  m.frustumCulled = false;
+  m.castShadow = true;
+  m.matrixAutoUpdate = false;
+  m.onBeforeShadow = (_r, _o, camera) =>
+    camera.layers.enable(SHADOW_ONLY_LAYER);
+  m.onBeforeRender = (_r, _s, camera) =>
+    camera.layers.disable(SHADOW_ONLY_LAYER);
+  return m;
+}
+
 let quad: BufferGeometry | null = null;
 /** Impostor billboard: corners (-1..1)^2, the shader places it. */
 export function impostorQuad(): BufferGeometry {
@@ -754,6 +783,7 @@ export class TreeRenderer {
     private opts: TreeRendererOptions,
   ) {
     this.group.name = 'trees';
+    this.group.add(shadowGate());
     setSpritePrepass(this.prepass);
     treeUniforms.tlShadowD.value = opts.shadowDistance;
     treeUniforms.tlForest.value = opts.forestDistance ?? 0;
@@ -2302,15 +2332,8 @@ export class TreeRenderer {
         true,
         'proxy',
       );
-      // Shadow pass only: the main pass draws none of its instances.
-      let count = 0;
-      mesh.onBeforeRender = () => {
-        count = mesh.count;
-        mesh.count = 0;
-      };
-      mesh.onAfterRender = () => {
-        mesh.count = count;
-      };
+      // Crown proxies: the shadow pass only, off the main camera's layer (`shadowGate`).
+      mesh.layers.set(SHADOW_ONLY_LAYER);
     } else
       this.addMesh(
         b,
