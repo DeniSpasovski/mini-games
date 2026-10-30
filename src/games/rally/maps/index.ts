@@ -1,3 +1,4 @@
+import { loadSimready, type SimreadyGroup } from '../assets/builders/simready';
 import { STAGES_LIST, released } from '../release';
 import { ajvatovciInfo } from './ajvatovci/info';
 import { galichicaInfo } from './galichica/info';
@@ -41,6 +42,8 @@ export function stageInfo(map: MapInfo, stage: StageDef): StageInfo {
 interface MapEntry {
   info: MapInfo;
   load: () => Promise<MapDef>;
+  /** Baked prop models the map's world builds (`loadSimready`). */
+  models: SimreadyGroup[];
 }
 
 /**
@@ -50,26 +53,35 @@ interface MapEntry {
  * per stage to STAGES_LIST in release.ts (see .claude/skills/rally-maps).
  */
 const ENTRIES: MapEntry[] = [
-  { info: infoOf(testMap), load: async () => testMap },
+  {
+    info: infoOf(testMap),
+    load: async () => testMap,
+    models: ['park'],
+  },
   {
     info: ajvatovciInfo,
     load: async () => (await import('./ajvatovci/map')).ajvatovciMap,
+    models: ['park', 'yard'],
   },
   {
     info: vodnoInfo,
     load: async () => (await import('./vodno/map')).vodnoMap,
+    models: ['park'],
   },
   {
     info: petralicaInfo,
     load: async () => (await import('./petralica/map')).petralicaMap,
+    models: ['park'],
   },
   {
     info: galichicaInfo,
     load: async () => (await import('./galichica/map')).galichicaMap,
+    models: ['park'],
   },
   {
     info: jackieInfo,
     load: async () => (await import('./jackie/map')).jackieMap,
+    models: ['park', 'yard'],
   },
 ];
 
@@ -128,7 +140,10 @@ export function loadMap(id: string): Promise<MapDef> {
   const info = getMapInfo(id);
   let p = loading.get(info.id);
   if (!p) {
-    p = ENTRIES.find((e) => e.info.id === info.id)!.load();
+    const entry = ENTRIES.find((e) => e.info.id === info.id)!;
+    p = Promise.all([entry.load(), loadSimready(...entry.models)]).then(
+      ([map]) => map,
+    );
     loading.set(info.id, p);
   }
   return p;

@@ -6,7 +6,10 @@ import {
   Vector2,
 } from 'three';
 import type { AssetBuilder } from '../types';
-import { SIMREADY_MODELS } from './simready-models.data';
+import {
+  SIMREADY_SERVICE,
+  type SimreadyModelData,
+} from './simready-service.data';
 import { finish, solid } from './vehicles';
 
 /**
@@ -17,14 +20,53 @@ import { finish, solid } from './vehicles';
 
 /** u / v of the plain-white corner of the decals atlas (vehicles.ts `PLAIN`). */
 const PLAIN = [0.03, 0.5];
+/** Every loaded baked group (`bake-simready.py <group>`), by prop name: the service group at once, the others by `loadSimready`. */
+const SIMREADY_MODELS: Record<string, SimreadyModelData> = {
+  ...SIMREADY_SERVICE,
+};
+const GROUPS = {
+  park: async () => (await import('./simready-park.data')).SIMREADY_PARK,
+  yard: async () => (await import('./simready-yard.data')).SIMREADY_YARD,
+};
+export type SimreadyGroup = keyof typeof GROUPS;
+const loadedGroups = new Map<SimreadyGroup, Promise<void>>();
+
+/**
+ * Fetch the baked models of these groups (their own chunks, kept out of the game script) before anything builds their
+ * props: `loadMap` does it for a map's stages, the asset debugger for every prop.
+ */
+export async function loadSimready(...groups: SimreadyGroup[]): Promise<void> {
+  await Promise.all(
+    groups.map((g) => {
+      let p = loadedGroups.get(g);
+      if (!p) {
+        p = GROUPS[g]().then((models) => {
+          Object.assign(SIMREADY_MODELS, models);
+        });
+        loadedGroups.set(g, p);
+      }
+      return p;
+    }),
+  );
+}
+
+const modelData = (name: string): SimreadyModelData => {
+  const data = SIMREADY_MODELS[name];
+  if (!data) throw new Error(`SimReady model "${name}": group not loaded`);
+  return data;
+};
 const decoded = new Map<string, BufferGeometry>();
+
+/** Bounding size (m) of model `name`: width (x), height (y), depth (z). */
+export const modelSize = (name: string): [number, number, number] =>
+  modelData(name).size;
 
 /** Level `lod` of model `name` (the last level past its end), non-indexed with linear vertex colours; a fresh copy. */
 function model(name: string, lod: number): BufferGeometry {
   const key = `${name}:${lod}`;
   const hit = decoded.get(key);
   if (hit) return hit.clone();
-  const lods = SIMREADY_MODELS[name].lods;
+  const lods = modelData(name).lods;
   const bin = Uint8Array.from(atob(lods[Math.min(lod, lods.length - 1)]), (c) =>
     c.charCodeAt(0),
   );
@@ -167,3 +209,49 @@ export const tyreRack: AssetBuilder = ({ variant, lod }) => {
   });
   return finish(parts);
 };
+
+/** A baked model as it is (the single-variant props of the park, yard and roadside kits). */
+const plain =
+  (name: string): AssetBuilder =>
+  ({ lod }) =>
+    finish([model(name, lod)]);
+
+export const tripodLight = plain('tripod_light');
+export const wheelbarrow = plain('wheelbarrow');
+export const handTruck = plain('hand_truck');
+export const stepLadder = plain('step_ladder');
+export const wheelieBin = plain('wheelie_bin');
+export const ibcTank = plain('ibc_tank');
+export const crate = plain('crate');
+export const forklift = plain('forklift');
+export const palletJack = plain('pallet_jack');
+
+/** Poly Haven models (CC0) in the same bake: slatted bistro table with a folding chair each side (+Z / -Z), portable generator. */
+export const tableChairs = plain('table_chairs');
+export const generator = plain('generator');
+
+/** Caged bulkhead lamp (Poly Haven, CC0) on a retaining wall: back on the wall face (z = 0), its middle at 3.6 m, lens to +Z. */
+export const wallLamp: AssetBuilder = ({ lod }) => {
+  const [, h, d] = modelSize('wall_lamp');
+  return finish([model('wall_lamp', lod).translate(0, 3.6 - h / 2, d / 2)]);
+};
+
+/** Fire extinguisher standing in its orange cone stand. */
+export const extinguisherStand = plain('extinguisher_stand');
+
+const PALLETS = ['pallet_euro', 'pallet_block', 'pallet_plain'];
+/** Wooden pallets, one stack: variant % 3 = style, variant / 3 = pallets in the stack minus one (1-4). */
+export const palletStack: AssetBuilder = ({ variant, lod }) => {
+  const name = PALLETS[variant % 3];
+  const rise = modelSize(name)[1];
+  const n = 1 + (Math.floor(variant / 3) % 4);
+  const parts: BufferGeometry[] = [];
+  for (let i = 0; i < n; i++)
+    parts.push(model(name, lod).translate(0, i * rise, 0));
+  return finish(parts);
+};
+
+const DRUMS = ['drum_steel', 'drum_blue', 'barrel_blue'];
+/** Drums and barrels: steel drum, small blue drum, tall blue barrel (variant). */
+export const drum: AssetBuilder = ({ variant, lod }) =>
+  finish([model(DRUMS[variant % 3], lod)]);
