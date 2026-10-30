@@ -38,7 +38,9 @@ function make(
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
-  const ctx = canvas.getContext('2d')!;
+  // CPU-backed: a GPU-accelerated canvas is drawn in the GPU process and copied across into WebGL on every upload,
+  // which held the game's frames up (40-180 ms each time the gantry clock ticked, a 1-3 s freeze on a fresh profile).
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
   draw(ctx, w, h);
   t = new CanvasTexture(canvas);
   t.colorSpace = SRGBColorSpace;
