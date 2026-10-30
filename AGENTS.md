@@ -99,7 +99,7 @@ into `DETAILS.md`, never up.
 - `scripts/props/bake-straw.py` - the rally hay bales' straw tile (`engine/props/straw.webp`) from the CC BY "Hay bales" scan (`sources/rally/hay-bales/`)
 - `scripts/props/bake-simready.py` - the rally SimReady props, one group per run (`service` / `park` / `yard`, `assets/builders/simready-<group>.data.ts`: tool chest, tyre rack, jack, park kit, yard props) from CC BY NVIDIA SimReady Assets (`sources/rally/simready/`) and CC0 Poly Haven glTF models (`sources/rally/polyhaven/`; run with Blender: `blender -b --python ... -- sources/rally/simready`)
 - `scripts/rocks/bake-rocks.mjs` - the rally boulders and small rocks (`assets/builders/rock-models.data.ts`, `engine/props/rocks.*.webp`) from the CC0 Poly Haven "Rock Moss Set 01" (`sources/rally/rocks/`)
-- `scripts/trees/bake-bark.py` - the rally trees' scanned bark tiles (`trees/bark/*.webp`) from CC0 Poly Haven bark scans (`sources/rally/bark/`); prints `BARK_GAIN` for trees/materials.ts
+- `scripts/trees/bake-bark.py` - the rally trees' scanned bark tiles and their normal tiles (`trees/bark/*.webp`) from CC0 Poly Haven bark scans + normal maps (`sources/rally/bark/`); prints `BARK_GAIN` for trees/materials.ts
 - `scripts/particles/bake-dust.py` - the rally dust puff atlas (`engine/particles/dust.webp`) from Kenney's CC0 Particle Pack (`sources/rally/kenney/`)
 - `scripts/crops/bake-crops.py` - the CC BY wheat / corn models (`sources/maps/ajvatovci/`) -> rally `crop-models.data.ts`
 - `scripts/realmap/`: `bake.py` (OSM roads, land cover, elevation, buildings -> `maps/<id>/data.json`), `overpass.py`,

@@ -203,10 +203,19 @@ describe('seasons: tree leaves', () => {
     expect(seasonal(autumn, 'autumn')).toBe(autumn);
     expect(seasonOf(autumn)).toBe('autumn');
     expect(summerOf(autumn)).toBe(birch);
-    expect({ ...autumn, foliage: { ...autumn.foliage, palette: [] } }).toEqual({
-      ...birch,
-      foliage: { ...birch.foliage, palette: [] },
-    });
+    // Colours only: the palette and how it turns (ramp stage, spread, crown gradient, tree hues).
+    const shape = (d: typeof birch) => {
+      const {
+        palette: _p,
+        turn: _t,
+        stage: _s,
+        stages: _ss,
+        hueSpread: _h,
+        ...rest
+      } = d.foliage;
+      return { ...d, foliage: rest };
+    };
+    expect(shape(autumn)).toEqual(shape(birch));
   });
 
   test('a season grows the same trees under its own cache key', () => {

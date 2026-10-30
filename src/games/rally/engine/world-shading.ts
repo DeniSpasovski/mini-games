@@ -506,6 +506,9 @@ varying vec3 wsShadowWP;
 const SUN_TERMS = /* glsl */ `
 		vec3 wsWP = wsWorldPos( geometryPosition );
 		directLight.color *= wsCloudShadow( wsWP );
+		// The sun before the shadow map and how much of it the map lets through (foliage: light through the leaves).
+		vec3 wsSunC = directLight.color;
+		float wsSunVis = 1.0;
 		float wsNearW = 0.0;
 		float wsFarIn = 1.0;
 		float wsFarV = 1.0;
@@ -545,17 +548,34 @@ const SUN_TERMS = /* glsl */ `
 const SUN_SHADOW =
   'getShadow( directionalShadowMap[ i ], directionalLightShadow.shadowMapSize, directionalLightShadow.shadowIntensity, directionalLightShadow.shadowBias, directionalLightShadow.shadowRadius, vDirectionalShadowCoord[ i ] )';
 
-/** Inserted after the directional `RE_Direct` (after the shadow map: shaded leaves stay dark). */
+/** Inserted after the directional `RE_Direct` (after the shadow map; tree foliage adds the light through its leaves). */
 const FOLIAGE_TERM = /* glsl */ `
 		#ifdef RALLY_FOLIAGE
 			#if defined( TREE_SPRITE ) || defined( TREE_IMPOSTOR )
 				// Tree foliage (trees/materials.ts): a cheap wrap term for light through the leaves, weighted by the
 				// atlas / impostor thickness map (thin leaves let light through: a crown against a low sun glows).
 				float wsWrap = saturate( ( dot( - geometryNormal, directLight.direction ) + 0.5 ) / 1.5 );
-				// ... and a half-Lambert wrap on the sun's diffuse, so a crown turning from the sun darkens softly.
+				// ... and a narrow wrap on the sun's diffuse, so a clump turning from the sun darkens softly (its shaded side
+				// still dark: the crown's light and shade masses are what give it depth).
 				float wsLam = dot( geometryNormal, directLight.direction );
-				reflectedLight.directDiffuse += directLight.color * BRDF_Lambert( material.diffuseColor ) * ( saturate( ( wsLam + 0.5 ) / 1.5 ) - saturate( wsLam ) );
-				reflectedLight.directDiffuse += directLight.color * material.diffuseColor * ( float( RALLY_FOLIAGE ) * wsWrap * ( 1.0 - tlThickness ) );
+				reflectedLight.directDiffuse += directLight.color * BRDF_Lambert( material.diffuseColor ) * ( saturate( ( wsLam + 0.25 ) / 1.25 ) - saturate( wsLam ) );
+				// Seen against the sun, light through the leaves goes on forward: a lobe round the sun's direction (a
+				// leaf passes about as much light as it reflects, yellower: no blue gets through).
+				float wsFwd = saturate( dot( - geometryViewDir, directLight.direction ) );
+				wsFwd *= wsFwd;
+				wsFwd *= wsFwd;
+				reflectedLight.directDiffuse += directLight.color * material.diffuseColor * vec3( 1.0, 1.0, 0.3 ) * ( float( RALLY_FOLIAGE ) * ( wsWrap + 1.5 * wsFwd ) * ( 1.0 - tlThickness ) );
+				// A leaf's waxy top catches the sun: a glint where its bent normal halves the view and the sun (F0 ~0.04,
+				// glossy), which is most of what makes a sunlit clump read lighter than its shaded side.
+				vec3 wsH = normalize( directLight.direction + geometryViewDir );
+				float wsGlint = saturate( dot( geometryNormal, wsH ) );
+				wsGlint *= wsGlint;
+				wsGlint *= wsGlint;
+				wsGlint *= wsGlint;
+				reflectedLight.directDiffuse += directLight.color * ( 0.03 * wsGlint * saturate( dot( geometryNormal, directLight.direction ) ) );
+				// In the crown's shadow a leaf still gets the sun through the leaves above it (a leaf passes ~10 % of
+				// it, green-yellow): about as much light again as the sky gives it, so a crown's underside is not black.
+				reflectedLight.directDiffuse += wsSunC * ( ( 1.0 - wsSunVis ) * 0.04 ) * material.diffuseColor * vec3( 1.0, 1.0, 0.3 );
 			#else
 				float wsBack = saturate( dot( - geometryViewDir, directLight.direction ) );
 				reflectedLight.directDiffuse += directLight.color * material.diffuseColor * ( float( RALLY_FOLIAGE ) * wsBack * wsBack * wsBack );
@@ -606,7 +626,7 @@ function install(): void {
     lights.slice(0, at + info.length) +
     SUN_TERMS +
     lights.slice(at + info.length, shadow) +
-    `min( mix( 1.0, ${SUN_SHADOW}, wsNearW ), mix( 1.0, wsFarV, wsFarIn ) )` +
+    `( wsSunVis = min( mix( 1.0, ${SUN_SHADOW}, wsNearW ), mix( 1.0, wsFarV, wsFarIn ) ) )` +
     lights.slice(shadow + SUN_SHADOW.length, lineEnd) +
     FOLIAGE_TERM +
     lights.slice(lineEnd);

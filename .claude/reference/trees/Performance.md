@@ -45,7 +45,7 @@ The cost of the tree system is measured in the running game, not guessed. The ha
 - Culling. Each frame, instances are culled against the view frustum and against a hierarchical depth buffer built from the previous frame's terrain and trees, on the GPU, and the survivors are compacted into indirect draws. A tree hidden behind a hill or a closer stand of trees costs neither vertices nor pixels.
 - Draw calls. Every impostor of every species shares one texture array and draws in a single instanced call.
 - Foliage shading. Leaf translucency is a cheap wrap-lighting term from the atlas thickness map, not a ray march or extra light lookup; ambient occlusion stays baked. No foliage shader samples more than its three atlas textures plus the shadow map.
-- Geometry. LOD0 branches of a variant have at most 6,000 triangles for a conifer or broadleaf and 2,000 for a shrub, and a crown has at most 400 sprites for a conifer, 360 for a broadleaf and 200 for a shrub: the denser leaf bunches need fewer.
+- Geometry. LOD0 branches of a variant have at most 2,500 triangles for most trees (3,000 to 3,500 for the poplar and willow) and 1,400 for a shrub: the finest twigs drop out first, and a crown has at most 400 sprites for a conifer, 360 for a broadleaf and 200 for a shrub: the denser leaf bunches need fewer.
 - Fades. At most 32 trees fade at once; a tree whose level changes while that many are fading switches at its next free slot, still with a full fade.
 - Shadows. Tree shadow casting follows [Lod.shadows](./Lod.md#shadows).
 - Load. The cache is generated when the game is built and shipped with it ([Placement.caching](./Placement.md#caching)).

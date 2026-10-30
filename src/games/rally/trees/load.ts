@@ -355,11 +355,11 @@ export class TreeLibrary {
         heights,
       };
     }
-    // Shared bark / leaf textures (RGBA8 + mips).
+    // Shared bark (colour + normal tile) / leaf textures (RGBA8 + mips).
     const texels = new Map<string, number>();
     for (const def of species) {
       const [w, h] = barkTileSize(barkKind(def));
-      texels.set(`bark:${barkKind(def)}`, w * h);
+      texels.set(`bark:${barkKind(def)}`, w * h * 2);
       texels.set(`leaf:${def.foliage.kind}`, 256 * 128);
     }
     for (const n of texels.values()) st.gpuBytes += Math.round((n * 4 * 4) / 3);

@@ -21,7 +21,7 @@ import {
  * Bump when generated output changes for the same species and seed, or the leaf atlases change (trees/leaftex.ts,
  * `coverageMips`): cached variants and atlases regenerate.
  */
-export const GENERATOR_VERSION = 13;
+export const GENERATOR_VERSION = 18;
 
 export interface TreeVariantInfo {
   species: string;
@@ -51,13 +51,23 @@ export function variantSeed(def: SpeciesDef, index: number): number {
   return mix32(shapeHash(summerOf(def)), index + 1);
 }
 
-/** The species hash without its bark scan: a new bark tile keeps the same trees (and their colliders). */
+/**
+ * The species hash without what only shades or meshes the wood (bark tile and colours, shade, twig cut, branch
+ * budget, tip radius): those keep the same trees (and their colliders).
+ */
 const shapeHashes = new WeakMap<SpeciesDef, number>();
 function shapeHash(def: SpeciesDef): number {
   let h = shapeHashes.get(def);
   if (h === undefined) {
-    const { scan: _scan, ...bark } = def.bark;
-    shapeHashes.set(def, (h = speciesHash({ ...def, bark })));
+    const { scan: _scan, twig: _twig, foot: _foot, ...bark } = def.bark;
+    const {
+      shade: _shade,
+      twigRadius: _twigRadius,
+      maxBranchTriangles: _maxBranchTriangles,
+      tipRadius: _tipRadius,
+      ...shape
+    } = def;
+    shapeHashes.set(def, (h = speciesHash({ ...shape, bark } as SpeciesDef)));
   }
   return h;
 }
