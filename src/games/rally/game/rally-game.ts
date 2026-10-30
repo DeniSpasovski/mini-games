@@ -38,6 +38,7 @@ import { getAssetMeta } from '../assets/catalog';
 import { Breakables } from '../world/breakables';
 import { PeopleAnimator } from '../world/people-anim';
 import { DistanceCull } from '../world/distance-cull';
+import { batchStatic } from '../world/static-batch';
 import { prefetchTextures, rememberTextures } from '../engine/texture-prefetch';
 import { warmLevels } from '../world/people-warm';
 import { InstanceStreamer } from '../world/instance-streamer';
@@ -147,6 +148,20 @@ const STEP = 1 / PHYSICS_HZ;
 const SHADOW_OVERLAP = 25;
 /** Trees farther than this from the stage road (m) are only ever impostors (trees/draw.ts `fakeFrom`). */
 const FAKE_TREES_FROM = 250;
+/** Render scale Auto's steps (`RallyGame.adaptScale`): full down to the 70 % option. */
+const SCALE_STEPS = [1, 0.92, 0.85, 0.77, 0.7];
+/** Road sub-groups whose meshes never change after the build: batched (world/static-batch.ts). */
+const STATIC_ROAD_GROUPS = [
+  'paths',
+  'buildings',
+  'barriers',
+  'bridges',
+  'cut-walls',
+  'railways',
+  'street-detail',
+  'plazas',
+  'gore',
+];
 /** A gantry clock is redrawn only while the camera is this close to it (m): each redraw uploads a texture. */
 const CLOCK_NEAR = 400;
 
@@ -353,6 +368,14 @@ export class RallyGame {
     });
     this.scene.add(road);
     this.roadGroup = road;
+    // Whole-map static meshes (the stage road's chunks, path / building tiles, walls, rails ...): one multi-draw per
+    // material instead of a draw per tile (world/static-batch.ts). Not the gantries / signs / cable cars (own
+    // textures or moving parts).
+    batchStatic(road);
+    for (const name of STATIC_ROAD_GROUPS) {
+      const g = road.getObjectByName(name);
+      if (g) batchStatic(g);
+    }
     // Whole-map meshes: nothing past the streamed terrain (no ground under them there).
     this.roadCull = new DistanceCull(road, q.viewDistance);
     await frame();
@@ -446,6 +469,7 @@ export class RallyGame {
       this.renderer.extensions.has('EXT_color_buffer_float') ||
         this.renderer.extensions.has('EXT_color_buffer_half_float'),
     );
+    this.farForest.renderer = this.renderer;
     this.trees.group.add(this.farForest.mesh);
     if (this.farForest.farTrees) this.trees.group.add(this.farForest.farTrees);
     // The land beyond: its woods in the stage's crown colour, inside the map the canopy map's.
@@ -687,16 +711,10 @@ export class RallyGame {
       this.opts.quality.treeLodScale * OBJECT_DISTANCE[s.objectDistance];
     if (this.trees.lodScale !== treeLodScale)
       this.trees.setOptions({ lodScale: treeLodScale });
-    // Render scale: fewer pixels on a sharp screen (the post effects and particles follow the 'resized' event).
-    const scale = RENDER_SCALE[s.renderScale];
-    if (this.renderScale !== scale) {
-      this.renderScale = scale;
-      this.renderer.setPixelRatio(
-        Math.min(window.devicePixelRatio, this.opts.quality.maxPixelRatio) *
-          scale,
-      );
-      this.renderer.domElement.dispatchEvent(new CustomEvent('resized'));
-    }
+    // Render scale: fewer pixels on a sharp screen. Auto keeps its current step (`adaptScale`).
+    this.autoScale = s.renderScale === 'auto';
+    if (!this.autoScale || old.renderScale !== 'auto')
+      this.setRenderScale(RENDER_SCALE[s.renderScale]);
     // Bloom / AO (High only): only a change in the options, so a test link's `?bloom=` / `?ao=` keeps its pick.
     if (old.bloom !== s.bloom) this.post?.set({ day: BLOOM_MIX[s.bloom] });
     if (old.ambientOcclusion !== s.ambientOcclusion)
@@ -707,8 +725,92 @@ export class RallyGame {
     });
   }
 
-  /** Render scale applied to the pixel ratio (`applySettings`). */
+  /** Render scale applied to the pixel ratio (`applySettings`, `adaptScale`). */
   private renderScale = 1;
+  /** Render scale option Auto (`adaptScale`). */
+  private autoScale = false;
+  /** Auto render scale: GPU time queries in flight, smoothed GPU ms of a frame, when the scale last changed. */
+  private gpuQueries: WebGLQuery[] = [];
+  private gpuMs = 0;
+  private scaleSince = 0;
+  /** GPU ms when Auto last stepped down: a further step needs that one to have paid off. */
+  private stepGpuMs = Infinity;
+  /** Auto waits this long with headroom before stepping up (ms): doubles each time a step up is undone within 10 s. */
+  private upWait = 15000;
+  private lastUp = -Infinity;
+  private gpuTimer:
+    { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null | undefined;
+
+  /** Fewer pixels (the post effects and particles follow the 'resized' event). */
+  private setRenderScale(scale: number): void {
+    if (this.renderScale === scale) return;
+    this.renderScale = scale;
+    this.renderer.setPixelRatio(
+      Math.min(window.devicePixelRatio, this.opts.quality.maxPixelRatio) *
+        scale,
+    );
+    this.renderer.domElement.dispatchEvent(new CustomEvent('resized'));
+  }
+
+  /** GPU time of the frame's render (`adaptScale`); not while the perf panel or tree timer use the queries. */
+  private gpuTimed(): boolean {
+    if (!this.autoScale || this.paused || this.perf) return false;
+    if (this.trees.debug || this.trees.measure) return false;
+    this.gpuTimer ??= this.renderer
+      .getContext()
+      .getExtension('EXT_disjoint_timer_query_webgl2');
+    return !!this.gpuTimer && this.gpuQueries.length < 4;
+  }
+
+  /**
+   * Render scale Auto: one step down (SCALE_STEPS) when the GPU's frame time passes 85 % of the time between frames
+   * for 3 s, one step back up after `upWait` (15 s, longer after each step up that did not hold) with it under 60 %:
+   * each step resizes the canvas and its render targets (a
+   * hitch of its own), so it moves rarely. A CPU-bound frame (most of ours) keeps full
+   * resolution: fewer pixels would not make it faster, only blurrier. No further step down when the last one saved
+   * under 5 % (shadow maps and geometry do not shrink with the pixels). Called before the frame renders: a resize
+   * clears the canvas, and one after the render showed a black frame.
+   */
+  private adaptScale(now: number): void {
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
+    const ext = this.gpuTimer;
+    if (!ext) return;
+    while (
+      this.gpuQueries.length &&
+      gl.getQueryParameter(this.gpuQueries[0], gl.QUERY_RESULT_AVAILABLE)
+    ) {
+      const q = this.gpuQueries.shift()!;
+      if (!gl.getParameter(ext.GPU_DISJOINT_EXT)) {
+        const ms = gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6;
+        this.gpuMs += (ms - this.gpuMs) * 0.1;
+      }
+      gl.deleteQuery(q);
+    }
+    const budget = this.frameInterval * 0.85;
+    const since = now - this.scaleSince;
+    const i = SCALE_STEPS.indexOf(this.renderScale);
+    let next = this.renderScale;
+    if (
+      this.gpuMs > budget &&
+      since > 3000 &&
+      this.gpuMs < this.stepGpuMs * 0.95
+    ) {
+      next = SCALE_STEPS[Math.min(SCALE_STEPS.length - 1, i + 1)];
+      if (next !== this.renderScale) {
+        this.stepGpuMs = this.gpuMs;
+        // The step up did not hold: wait longer before the next try (up and down every 20 s was two hitches each).
+        if (now - this.lastUp < 10000)
+          this.upWait = Math.min(240000, this.upWait * 2);
+      }
+    } else if (this.gpuMs < budget * 0.6 && since > this.upWait) {
+      next = SCALE_STEPS[Math.max(0, i - 1)];
+      this.stepGpuMs = Infinity;
+      this.lastUp = now;
+    }
+    if (next === this.renderScale) return;
+    this.setRenderScale(next);
+    this.scaleSince = now;
+  }
 
   private updateParticleScale(): void {
     this.lastFov = this.camera.fov;
@@ -1310,18 +1412,24 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     lap('render');
   }
 
-  /** Smoothed time between frames and CPU time of a frame without the object streaming (ms; streamBudget). */
+  /** Smoothed time between frames and CPU time of a frame without its background work (ms; `frameSlack`). */
   private frameInterval = 1000 / 60;
-  private frameWork = 8;
+  private frameWork = 6;
+  /** This frame's time left for background work (ms), spent in order: terrain, objects, the tree job, the canopy. */
+  private slack = 0;
 
   /**
-   * Time the object streaming may take this frame (ms): what the frame rate leaves over (85 % of the time between
-   * frames, less the rest of the frame's work), 1-8 ms. A fast device catches up in a frame or two, a busy one keeps
-   * its frame rate; the driving speed plays no part.
+   * Time the frame rate leaves for background work this frame (ms): 85 % of the time between frames less the frame's
+   * own work, 0.5-8. Terrain, objects, the tree job and the canopy share it, so at 120+ fps their slices no longer
+   * add up past the frame (a fixed 2.5 ms terrain slice was the most common cause of a slow frame); each still makes
+   * a little progress, and the ground near the car is built whatever it costs (terrain-renderer `URGENT_MS`).
    */
-  private streamBudget(dt: number): number {
+  private frameSlack(dt: number): number {
     if (dt > 0) this.frameInterval += (dt * 1000 - this.frameInterval) * 0.1;
-    return Math.min(8, Math.max(1, this.frameInterval * 0.85 - this.frameWork));
+    return Math.min(
+      8,
+      Math.max(0.5, this.frameInterval * 0.85 - this.frameWork),
+    );
   }
 
   private frame(dt: number): void {
@@ -1407,13 +1515,19 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     // --- streaming ----------------------------------------------------------------------------
     const camPos = this.camera.position;
     const tCamera = performance.now();
-    this.terrain.update(camPos, 2.5);
+    this.slack = this.frameSlack(dt);
+    this.terrain.update(camPos, Math.min(2.5, this.slack));
     this.roadCull.update(camPos);
     const tTerrain = performance.now();
-    this.streamer.update(camPos, this.streamBudget(dt));
+    this.slack -= tTerrain - tCamera;
+    this.streamer.update(camPos, Math.min(8, Math.max(1, this.slack)));
     const tObjects = performance.now();
+    this.slack -= tObjects - tTerrain;
+    this.trees.setJobBudget(Math.min(1.5, Math.max(0.3, this.slack)));
     this.trees.update(this.camera, this.rig.steady);
     const tTrees = performance.now();
+    const treeJob = this.trees.current.jobMs;
+    this.slack -= treeJob;
     // Far scatter: draw only the instances inside the camera's horizontal view (+ margin for the repack step
     // and the streamer's focus lagging the camera). Looking steeply down: everything.
     const dir = this.camera.getWorldDirection(this.camDir);
@@ -1429,7 +1543,9 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     // Shadow box ahead of the camera (where the player looks), not centred on the car.
     this.placeShadows(this.renderPos, dir);
     this.env.follow(camPos);
-    this.updateCanopy();
+    const tCanopy = performance.now();
+    this.updateCanopy(this.slack);
+    const canopyMs = performance.now() - tCanopy;
 
     // --- effects / audio / HUD ------------------------------------------------------------------
     if (!this.paused) {
@@ -1514,14 +1630,29 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.telemetry.update(dt, v);
 
     const tFx = performance.now();
+    if (this.autoScale) this.adaptScale(performance.now());
     this.perf?.gpuBegin();
+    const timed = this.gpuTimed();
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
+    if (timed) {
+      const q = gl.createQuery()!;
+      gl.beginQuery(this.gpuTimer!.TIME_ELAPSED_EXT, q);
+      this.gpuQueries.push(q);
+    }
     if (this.post?.active) this.post.render();
     else this.renderer.render(this.scene, this.camera);
+    if (timed) gl.endQuery(this.gpuTimer!.TIME_ELAPSED_EXT);
     this.perf?.gpuEnd();
     const tRender = performance.now();
-    // The frame's own work, the object streaming left out (it fills the time left over: streamBudget).
+    // The frame's own work, its background work left out (that fills the time left over: frameSlack).
     this.frameWork +=
-      (tRender - t0 - (tObjects - tTerrain) - this.frameWork) * 0.1;
+      (tRender -
+        t0 -
+        (tObjects - tCamera) -
+        treeJob -
+        canopyMs -
+        this.frameWork) *
+      0.1;
     this.perf?.frame({
       physics: tPhysics - t0,
       'car + camera': tCamera - tPhysics,
@@ -1566,10 +1697,20 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     setNearShadowFade(end - 15, end, SHADOW_OVERLAP);
   }
 
-  /** Canopy shadows (global map + the local window around the camera). */
-  private updateCanopy(): void {
+  /**
+   * Canopy shadows (global map + the local window around the camera). `slack` = the frame's time left for background
+   * work (ms; `frameSlack`), none given = the canopy's own budgets.
+   */
+  private updateCanopy(slack?: number): void {
     const p = this.camera.position;
-    this.canopy.update(performance.now(), p);
+    if (slack === undefined) this.canopy.update(performance.now(), p);
+    else
+      this.canopy.update(
+        performance.now(),
+        p,
+        Math.min(1, Math.max(0.2, slack)),
+        Math.min(1.5, Math.max(0.3, slack)),
+      );
     setCanopyLocalMap(this.canopy.localMap);
     this.farForest?.update(p);
   }

@@ -234,7 +234,15 @@ export class CarAudio {
     const gestures = ['keydown', 'pointerdown', 'touchend', 'click'] as const;
     const unlock = () => {
       this.start();
-      this.sync();
+      // Started inside the gesture even while paused (loading, countdown): a context that ran once may resume later
+      // without one, and a key held from the countdown sends only repeats, which do not count as a gesture.
+      // `sync` then suspends it again if nothing should play.
+      const ctx = this.ctx;
+      if (ctx?.state === 'suspended')
+        void ctx.resume().then(
+          () => this.sync(),
+          () => {},
+        );
       if (this.ctx?.state === 'running')
         for (const g of gestures) window.removeEventListener(g, unlock, true);
     };
@@ -260,8 +268,15 @@ export class CarAudio {
     const ctx = this.ctx;
     if (!ctx || ctx.state === 'closed') return;
     const want = !this.paused && document.visibilityState === 'visible';
-    if (want && ctx.state !== 'running') void ctx.resume().catch(() => {});
-    if (!want && ctx.state === 'running') void ctx.suspend();
+    // Re-checked when a resume / suspend lands: a pause while one was under way (the pause key also being the gesture
+    // that unblocked the sound) left the engine running behind the pause menu.
+    if (want && ctx.state !== 'running')
+      void ctx.resume().then(
+        () => this.sync(),
+        () => {},
+      );
+    if (!want && ctx.state === 'running')
+      void ctx.suspend().then(() => this.sync());
   }
 
   private start(): void {

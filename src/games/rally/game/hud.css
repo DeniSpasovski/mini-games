@@ -456,6 +456,15 @@ body {
     var(--card, none) center / cover no-repeat,
     var(--ui-glass);
 }
+/* Leaving the stage (play.ts `leaveTo`): no progress to report, the bar eases on while the next page loads. */
+.overlay.leaving .bar div {
+  transition: width 2s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .overlay.leaving .bar div {
+    transition: none;
+  }
+}
 /* Pause: the menu slab, full height on the left (the stage stays visible and dimmed on the right). */
 .overlay.pause {
   align-items: stretch;

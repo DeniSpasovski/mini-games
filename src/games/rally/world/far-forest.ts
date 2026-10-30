@@ -1,4 +1,5 @@
 import {
+  Box2,
   BufferAttribute,
   Box3,
   BufferGeometry,
@@ -21,6 +22,7 @@ import {
   Vector2,
   Vector4,
   type Vector3,
+  type WebGLRenderer,
 } from 'three';
 import { hash3 } from '../../../shared/rng';
 import { addWorldUniforms } from '../engine/world-shading';
@@ -40,8 +42,13 @@ const SCAN = 600;
 const BUDGET = 1;
 /** Minimum time between texture uploads (ms): only the rows of the cells that changed (texture update ranges). */
 const UPLOAD_EVERY = 500;
-/** More row ranges than this pending: one whole upload instead (the first seconds of a stage). */
+/** More row ranges than this pending: one whole upload instead (the first seconds of a stage; no `renderer`). */
 const MAX_RANGES = 1500;
+/**
+ * With a `renderer`: rows per upload (one copy of a band of changed rows per texture), the rest the next frame. A whole
+ * upload of the half-float shape map cost 40-80 ms of GPU time on a big map (a stall right after GO).
+ */
+const BAND_ROWS = 64;
 /** The canopy surface: this share of a tree's height (the crowns' tops, between the tips). */
 const TOP = 0.88;
 /** Grid spacing of the shell's first ring (m); every ring doubles it. */
@@ -196,6 +203,15 @@ export class FarForest {
   private dirty: number[] = [];
   private ranges: number[] = [];
   private lastUpload = -Infinity;
+  /** Uploads changed rows in bands (`copyTextureToTexture` from `shapeRows` / `tintRows`, the same bytes) when set. */
+  renderer: WebGLRenderer | null = null;
+  private shapeRows: DataTexture;
+  private tintRows: DataTexture;
+  /** Rows encoded but not uploaded yet (`renderer` set), and how many. */
+  private rowDirty: Uint8Array;
+  private rowsPending = 0;
+  private band = new Box2(new Vector2(), new Vector2());
+  private bandAt = new Vector2();
   /** The coarsest ring's spacing: the grid's centre snaps to twice it. */
   private snap: number;
   private uniforms = {
@@ -279,6 +295,21 @@ export class FarForest {
     tint.name = 'far-forest-tint';
     tint.needsUpdate = true;
     this.tint = tint;
+    this.shapeRows = new DataTexture(
+      this.shapeData,
+      this.nx,
+      this.nz,
+      RGBAFormat,
+      HalfFloatType,
+    );
+    this.tintRows = new DataTexture(
+      this.tintData,
+      this.nx,
+      this.nz,
+      RGBAFormat,
+      UnsignedByteType,
+    );
+    this.rowDirty = new Uint8Array(this.nz);
 
     const u = this.uniforms;
     u.ffShape.value = shape;
@@ -353,6 +384,8 @@ export class FarForest {
       this.encode(d[r], d[r + 1], d[r + 2], d[r + 3]);
     d.length = 0;
     this.ranges.length = 0;
+    this.rowDirty.fill(0);
+    this.rowsPending = 0;
     for (const t of [this.shape, this.tint]) {
       t.clearUpdateRanges();
       t.needsUpdate = true;
@@ -388,9 +421,21 @@ export class FarForest {
       const i1 = d.pop()!;
       const i0 = d.pop()!;
       this.encode(i0, i1, j0, j1);
-      for (let j = j0; j <= j1; j++)
-        this.ranges.push((j * this.nx + i0) * 4, (i1 - i0 + 1) * 4);
+      if (this.renderer)
+        for (let j = j0; j <= j1; j++) {
+          if (!this.rowDirty[j]) this.rowsPending++;
+          this.rowDirty[j] = 1;
+        }
+      else
+        for (let j = j0; j <= j1; j++)
+          this.ranges.push((j * this.nx + i0) * 4, (i1 - i0 + 1) * 4);
     }
+    // A backlog (more than a band) goes up a band a frame; otherwise at most every UPLOAD_EVERY.
+    if (
+      this.rowsPending &&
+      (this.rowsPending > BAND_ROWS || now - this.lastUpload >= UPLOAD_EVERY)
+    )
+      this.uploadBand(now);
     if (this.ranges.length && now - this.lastUpload >= UPLOAD_EVERY) {
       const whole = this.ranges.length / 2 > MAX_RANGES;
       for (const t of [this.shape, this.tint]) {
@@ -408,6 +453,36 @@ export class FarForest {
       Math.round(camera.x / s) * s,
       Math.round(camera.z / s) * s,
     );
+  }
+
+  /** The first band of changed rows (up to BAND_ROWS) into both maps: one copy each, full width. */
+  private uploadBand(now: number): void {
+    const flags = this.rowDirty;
+    let j0 = 0;
+    while (!flags[j0]) j0++;
+    let j1 = j0;
+    for (let j = j0; j < Math.min(this.nz, j0 + BAND_ROWS); j++)
+      if (flags[j]) {
+        j1 = j;
+        flags[j] = 0;
+        this.rowsPending--;
+      }
+    this.band.min.set(0, j0);
+    this.band.max.set(this.nx, j1 + 1);
+    this.bandAt.set(0, j0);
+    this.renderer!.copyTextureToTexture(
+      this.shapeRows,
+      this.shape,
+      this.band,
+      this.bandAt,
+    );
+    this.renderer!.copyTextureToTexture(
+      this.tintRows,
+      this.tint,
+      this.band,
+      this.bandAt,
+    );
+    this.lastUpload = now;
   }
 
   /** A chunk's trees into the cells, and its cells' ground heights. */

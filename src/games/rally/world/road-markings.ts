@@ -157,6 +157,9 @@ function paintMesh(
       depthWrite: false,
       roughness: 0.8,
       side: DoubleSide,
+      // One pass: a transparent DoubleSide material is otherwise drawn back then front, and three flips its side
+      // with needsUpdate each time (two program look-ups a frame per material).
+      forceSinglePass: true,
       polygonOffset: true,
       polygonOffsetFactor: -5,
       polygonOffsetUnits: -10,
