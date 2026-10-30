@@ -66,7 +66,8 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 - **Menu music** (main menu only, none in the race): `game/menu-music.ts` loops `sources/music/*.mp3` (git-ignored, copied on build; only files present at build time play and are credited, so a CI checkout / Pages deploy is silent, no errors) (tracks + credits listed
   there), starts on the first click / key (autoplay rule), shows "now playing" bottom right, pauses with the tab. Main-menu
   Options slider `musicVolume` (0 = off, 100% plays at half of full volume); `?mute=1` silences it. Add a track = file + `MENU_TRACKS` row (+ `THIRD-PARTY.md`).
-- **Pause** (`Esc`): resume, restart, free-drive pad <-> stage, options, main menu.
+- **Pause** (`Esc`): resume, restart, free-drive pad <-> stage, options, main menu (a page reload: the loading box goes up
+  first, `leaveTo` in pages/play.ts, or the frozen stage stays on screen until the menu paints).
 - **Stage times** (welcome menu): stage list on the left (↑↓), the selected stage's saved runs over its map view in a card docked beside the list (`.menu-times-card`); current versions first, older ones dimmed below.
 - **About:** every external source per map (`MapDef.sources` + its stages' `StageDef.sources`) and car (`CarDef.sources`), menu music credits, plus `version` from `game.json`.
 - Car select: a "Loading model" spinner (`Showroom.loadCue`) shows while a car's GLB downloads (the car stays hidden until then).
@@ -426,6 +427,9 @@ All synthesised (Web Audio, no samples), tuned per car by `CarDef.sound` (`CarSo
 - **Events**: `turbo` = whistle + spool, then anti-lag bangs off throttle (`antiLag`) or a wastegate flutter on a lift; no
   `turbo` = none of it. `pops` = overrun crackle (and a crack on flat upshifts); `gearbox: 'sequential'` = clunk + ignition
   cut per shift; `gearWhine` follows road speed; rev limiter stutter.
+- **Start**: browsers block sound until a key or click. The first one unblocks it even during loading or the countdown
+  (a held throttle sends only key repeats, which do not count); pause and a hidden tab suspend it (`sync`, re-checked
+  when a resume / suspend lands).
 - **Listener** = camera mode: hood / bumper hear more intake, gearbox and wind, less exhaust; far chase is quieter and duller.
 - **Tunnels**: `World.tunnelAt` (portal slabs) -> `setEnclosure`: low-mid build-up, a slap echo per ear at each wall's
   distance (narrow = tighter flutter), a tail that grows with the tunnel length, a whump at each headwall.
@@ -534,7 +538,9 @@ ANGLE, ~5 us a draw), the GPU side mostly trees. Numbers and bench history: `sou
 - Past `forestDistance` the far forest takes over (`world/far-forest.ts`: far tree impostors to `FAR_REACH`, then the
   canopy shell).
 - Render scale option (Auto / 100 / 85 / 70 %, `RENDER_SCALE`). Auto (`adaptScale`) steps down only while the GPU falls
-  behind; not the default, as each step is a resize hitch.
+  behind, stops when a step saved under 5 % and waits longer after each step up that did not hold. A step lands before
+  the frame renders (a resize clears the canvas: after the render it showed a black frame). Not the default: each step is
+  a resize hitch.
 
 **Streaming and distances**
 
