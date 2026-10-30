@@ -16,12 +16,18 @@ const SEGMENTS = 900;
 const WIDTH = 0.21;
 /** Lift above the ground (m), plus a polygon offset over the road ribbons. */
 const LIFT = 0.025;
+/**
+ * GPU copies of the position / colour buffers, drawn in turn (one a frame). A buffer is never written while the GPU may
+ * still read it: a write into the one drawn last frame made ANGLE / D3D11 wait for the GPU (a 150-200 ms freeze where the
+ * first marks appear, then ~2.5 ms per write whenever the GPU is the bottleneck).
+ */
+const COPIES = 3;
 
 /**
  * Tyre marks: ruts on loose surfaces (always, darker when sliding) and dark rubber skid marks on hard surfaces
  * (only while sliding). One mesh for all four wheels: a ring buffer of quads per wheel, each new segment joins the
- * wheel's last mark point; only the new quad is uploaded. Unlit, transparent dark (it darkens whatever is under it),
- * soft edges across the width, fogged.
+ * wheel's last mark point; only the new quad is uploaded, into each GPU copy (COPIES) when its turn comes. Unlit,
+ * transparent dark (it darkens whatever is under it), soft edges across the width, fogged.
  */
 export class TyreMarks {
   readonly mesh: Mesh;
@@ -35,6 +41,10 @@ export class TyreMarks {
   private a = new Vector3();
   private b = new Vector3();
   private side = new Vector3();
+  /** One geometry per GPU copy (shared CPU arrays, index and uv), the quads each still has to upload, the one drawn. */
+  private geos: BufferGeometry[] = [];
+  private dirty: number[][] = [];
+  private current = 0;
 
   constructor(private vehicle: Vehicle) {
     const wheels = vehicle.wheels.length;
@@ -48,15 +58,25 @@ export class TyreMarks {
       const v = q * 4;
       idx.set([v, v + 2, v + 1, v + 1, v + 2, v + 3], q * 6);
     }
-    const g = new BufferGeometry();
-    const posAttr = new BufferAttribute(this.pos, 3).setUsage(DynamicDrawUsage);
-    const colAttr = new BufferAttribute(this.col, 4).setUsage(DynamicDrawUsage);
-    g.setAttribute('position', posAttr);
-    g.setAttribute('color', colAttr);
-    g.setAttribute('uv', new BufferAttribute(uv, 2));
-    g.setIndex(new BufferAttribute(idx, 1));
+    const uvAttr = new BufferAttribute(uv, 2);
+    const idxAttr = new BufferAttribute(idx, 1);
+    for (let k = 0; k < COPIES; k++) {
+      const g = new BufferGeometry();
+      g.setAttribute(
+        'position',
+        new BufferAttribute(this.pos, 3).setUsage(DynamicDrawUsage),
+      );
+      g.setAttribute(
+        'color',
+        new BufferAttribute(this.col, 4).setUsage(DynamicDrawUsage),
+      );
+      g.setAttribute('uv', uvAttr);
+      g.setIndex(idxAttr);
+      this.geos.push(g);
+      this.dirty.push([]);
+    }
     this.mesh = new Mesh(
-      g,
+      this.geos[0],
       new MeshBasicMaterial({
         vertexColors: true,
         map: edgeTexture(),
@@ -75,8 +95,28 @@ export class TyreMarks {
     this.lastAlpha = new Array(wheels).fill(0);
   }
 
-  /** Call after each physics step (or once per frame). */
+  /** Once per frame, before rendering. */
   update(): void {
+    this.write();
+    // The next copy (last drawn COPIES - 1 frames ago) takes the quads written since then and is drawn this frame.
+    this.current = (this.current + 1) % COPIES;
+    const g = this.geos[this.current];
+    const quads = this.dirty[this.current];
+    if (quads.length) {
+      const pa = g.getAttribute('position') as BufferAttribute;
+      const ca = g.getAttribute('color') as BufferAttribute;
+      for (const q of quads) {
+        pa.addUpdateRange(q * 12, 12);
+        ca.addUpdateRange(q * 16, 16);
+      }
+      pa.needsUpdate = true;
+      ca.needsUpdate = true;
+      quads.length = 0;
+    }
+    this.mesh.geometry = g;
+  }
+
+  private write(): void {
     const v = this.vehicle;
     const speed = Math.abs(v.speed);
     for (let i = 0; i < v.wheels.length; i++) {
@@ -162,17 +202,11 @@ export class TyreMarks {
       C[k + j * 4 + 2] = c.b;
       C[k + j * 4 + 3] = j < 2 ? a0 : a1;
     }
-    const g = this.mesh.geometry;
-    const pa = g.getAttribute('position') as BufferAttribute;
-    const ca = g.getAttribute('color') as BufferAttribute;
-    pa.addUpdateRange(o, 12);
-    ca.addUpdateRange(k, 16);
-    pa.needsUpdate = true;
-    ca.needsUpdate = true;
+    for (const d of this.dirty) d.push(q);
   }
 
   dispose(): void {
-    this.mesh.geometry.dispose();
+    for (const g of this.geos) g.dispose();
     const m = this.mesh.material as MeshBasicMaterial;
     m.map?.dispose();
     m.dispose();
