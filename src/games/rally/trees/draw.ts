@@ -810,6 +810,11 @@ export class TreeRenderer {
     this.lastFocus.set(Infinity, 0, 0);
   }
 
+  /** The batching job's time per frame (ms): the game shares a frame budget out (cheap, unlike `setOptions`). */
+  setJobBudget(ms: number): void {
+    this.opts.budgetMs = ms;
+  }
+
   setOptions(o: Partial<TreeRendererOptions>): void {
     Object.assign(this.opts, o);
     treeUniforms.tlShadowD.value = this.opts.shadowDistance;

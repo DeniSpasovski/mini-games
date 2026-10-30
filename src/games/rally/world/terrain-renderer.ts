@@ -44,6 +44,8 @@ const MERGE_SLACK = 2;
 const SLICE_ABOVE = 33;
 /** Metres of camera travel before the tile plan is redone (well inside the 10% LOD hysteresis). */
 const REPLAN = 8;
+/** Build time a tile near the car may take in a frame whatever the budget (ms): the car must never outrun it. */
+const URGENT_MS = 2.5;
 /** Released tile geometries kept for reuse, oldest dropped first. */
 const SPARE_TILES = 96;
 
@@ -166,10 +168,13 @@ export class TerrainRenderer {
     const todo = this.todo;
     let built = 0;
     let reused = 0;
-    // Always allow ~1 ms of progress so streaming never stalls.
-    const deadline = Math.max(t0 + budgetMs, performance.now() + 1);
+    // Always allow ~0.5 ms of progress so streaming never stalls; tiles in the near half of the LOD0 ring (the ground
+    // the car is about to drive on) may take URGENT_MS whatever the frame's budget.
+    const deadline0 = Math.max(t0 + budgetMs, performance.now() + 0.5);
+    const urgent = Math.max(deadline0, t0 + URGENT_MS);
     for (; this.next < todo.length; this.next++) {
       const w = todo[this.next];
+      const deadline = w.d <= this.lodDistances[0] * 0.5 ? urgent : deadline0;
       if (this.tiles.get(key(w.cx, w.cz, w.span))?.lod === w.lod) continue;
       // Kept from earlier: no build, no deadline.
       if (this.spare.has(spareKey(w))) {

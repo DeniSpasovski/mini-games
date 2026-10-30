@@ -1311,18 +1311,24 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     lap('render');
   }
 
-  /** Smoothed time between frames and CPU time of a frame without the object streaming (ms; streamBudget). */
+  /** Smoothed time between frames and CPU time of a frame without its background work (ms; `frameSlack`). */
   private frameInterval = 1000 / 60;
-  private frameWork = 8;
+  private frameWork = 6;
+  /** This frame's time left for background work (ms), spent in order: terrain, objects, the tree job, the canopy. */
+  private slack = 0;
 
   /**
-   * Time the object streaming may take this frame (ms): what the frame rate leaves over (85 % of the time between
-   * frames, less the rest of the frame's work), 1-8 ms. A fast device catches up in a frame or two, a busy one keeps
-   * its frame rate; the driving speed plays no part.
+   * Time the frame rate leaves for background work this frame (ms): 85 % of the time between frames less the frame's
+   * own work, 0.5-8. Terrain, objects, the tree job and the canopy share it, so at 120+ fps their slices no longer
+   * add up past the frame (a fixed 2.5 ms terrain slice was the most common cause of a slow frame); each still makes
+   * a little progress, and the ground near the car is built whatever it costs (terrain-renderer `URGENT_MS`).
    */
-  private streamBudget(dt: number): number {
+  private frameSlack(dt: number): number {
     if (dt > 0) this.frameInterval += (dt * 1000 - this.frameInterval) * 0.1;
-    return Math.min(8, Math.max(1, this.frameInterval * 0.85 - this.frameWork));
+    return Math.min(
+      8,
+      Math.max(0.5, this.frameInterval * 0.85 - this.frameWork),
+    );
   }
 
   private frame(dt: number): void {
@@ -1408,13 +1414,19 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     // --- streaming ----------------------------------------------------------------------------
     const camPos = this.camera.position;
     const tCamera = performance.now();
-    this.terrain.update(camPos, 2.5);
+    this.slack = this.frameSlack(dt);
+    this.terrain.update(camPos, Math.min(2.5, this.slack));
     this.roadCull.update(camPos);
     const tTerrain = performance.now();
-    this.streamer.update(camPos, this.streamBudget(dt));
+    this.slack -= tTerrain - tCamera;
+    this.streamer.update(camPos, Math.min(8, Math.max(1, this.slack)));
     const tObjects = performance.now();
+    this.slack -= tObjects - tTerrain;
+    this.trees.setJobBudget(Math.min(1.5, Math.max(0.3, this.slack)));
     this.trees.update(this.camera, this.rig.steady);
     const tTrees = performance.now();
+    const treeJob = this.trees.current.jobMs;
+    this.slack -= treeJob;
     // Far scatter: draw only the instances inside the camera's horizontal view (+ margin for the repack step
     // and the streamer's focus lagging the camera). Looking steeply down: everything.
     const dir = this.camera.getWorldDirection(this.camDir);
@@ -1430,7 +1442,9 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     // Shadow box ahead of the camera (where the player looks), not centred on the car.
     this.placeShadows(this.renderPos, dir);
     this.env.follow(camPos);
-    this.updateCanopy();
+    const tCanopy = performance.now();
+    this.updateCanopy(this.slack);
+    const canopyMs = performance.now() - tCanopy;
 
     // --- effects / audio / HUD ------------------------------------------------------------------
     if (!this.paused) {
@@ -1520,9 +1534,15 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     else this.renderer.render(this.scene, this.camera);
     this.perf?.gpuEnd();
     const tRender = performance.now();
-    // The frame's own work, the object streaming left out (it fills the time left over: streamBudget).
+    // The frame's own work, its background work left out (that fills the time left over: frameSlack).
     this.frameWork +=
-      (tRender - t0 - (tObjects - tTerrain) - this.frameWork) * 0.1;
+      (tRender -
+        t0 -
+        (tObjects - tCamera) -
+        treeJob -
+        canopyMs -
+        this.frameWork) *
+      0.1;
     this.perf?.frame({
       physics: tPhysics - t0,
       'car + camera': tCamera - tPhysics,
@@ -1567,10 +1587,20 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     setNearShadowFade(end - 15, end, SHADOW_OVERLAP);
   }
 
-  /** Canopy shadows (global map + the local window around the camera). */
-  private updateCanopy(): void {
+  /**
+   * Canopy shadows (global map + the local window around the camera). `slack` = the frame's time left for background
+   * work (ms; `frameSlack`), none given = the canopy's own budgets.
+   */
+  private updateCanopy(slack?: number): void {
     const p = this.camera.position;
-    this.canopy.update(performance.now(), p);
+    if (slack === undefined) this.canopy.update(performance.now(), p);
+    else
+      this.canopy.update(
+        performance.now(),
+        p,
+        Math.min(1, Math.max(0.2, slack)),
+        Math.min(1.5, Math.max(0.3, slack)),
+      );
     setCanopyLocalMap(this.canopy.localMap);
     this.farForest?.update(p);
   }
