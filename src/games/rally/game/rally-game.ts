@@ -446,6 +446,7 @@ export class RallyGame {
       this.renderer.extensions.has('EXT_color_buffer_float') ||
         this.renderer.extensions.has('EXT_color_buffer_half_float'),
     );
+    this.farForest.renderer = this.renderer;
     this.trees.group.add(this.farForest.mesh);
     if (this.farForest.farTrees) this.trees.group.add(this.farForest.farTrees);
     // The land beyond: its woods in the stage's crown colour, inside the map the canopy map's.
