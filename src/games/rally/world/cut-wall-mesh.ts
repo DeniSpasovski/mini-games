@@ -59,6 +59,8 @@ function chainLinkMaterial(): MeshStandardMaterial {
     roughness: 0.6,
     metalness: 0.4,
     side: DoubleSide,
+    // One pass (a flat mesh): see world/road-markings.ts.
+    forceSinglePass: true,
   }));
 }
 
