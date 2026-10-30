@@ -616,8 +616,10 @@ run 2-3x, so compare old / new **in the same page, interleaved** over several ro
   group is distance-culled by `world/distance-cull.ts`. Far scatter chunks of short-range assets are skipped wholesale.
 - Knobs: `engine/quality.ts`, LOD distances in `assets/catalog.ts`, `TERRAIN_LODS` in `game/rally-game.ts`, map `fogDensity`,
   and the **Object distance** option (x1 / x1.5 / x2 on objects only, `OBJECT_DISTANCE` in `game/settings.ts`).
-- **Render scale** option (100 / 85 / 70 %, `RENDER_SCALE`): multiplies the pixel ratio. A DPR 1.5 screen renders ~4.2 Mpx
-  on High; there the GPU is the limit and the frame-time spikes grow with the pixel count.
+- **Render scale** option (Auto / 100 / 85 / 70 %, `RENDER_SCALE`): multiplies the pixel ratio. A DPR 1.5 screen renders
+  ~4.2 Mpx on High; there the GPU is the limit and the frame-time spikes grow with the pixel count. Auto times the render on the GPU (`EXT_disjoint_timer_query_webgl2`) and steps down (`SCALE_STEPS`, to 70 %) only while
+  it takes more than 85 % of the time between frames (`RallyGame.adaptScale`): a CPU-bound frame keeps full resolution.
+  Not the default: each step resizes the canvas (a 70-180 ms hitch), so it is for GPU-bound machines only.
 
 **Shadows**
 

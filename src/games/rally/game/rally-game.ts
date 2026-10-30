@@ -148,6 +148,8 @@ const STEP = 1 / PHYSICS_HZ;
 const SHADOW_OVERLAP = 25;
 /** Trees farther than this from the stage road (m) are only ever impostors (trees/draw.ts `fakeFrom`). */
 const FAKE_TREES_FROM = 250;
+/** Render scale Auto's steps (`RallyGame.adaptScale`): full down to the 70 % option. */
+const SCALE_STEPS = [1, 0.92, 0.85, 0.77, 0.7];
 /** Road sub-groups whose meshes never change after the build: batched (world/static-batch.ts). */
 const STATIC_ROAD_GROUPS = [
   'paths',
@@ -709,16 +711,10 @@ export class RallyGame {
       this.opts.quality.treeLodScale * OBJECT_DISTANCE[s.objectDistance];
     if (this.trees.lodScale !== treeLodScale)
       this.trees.setOptions({ lodScale: treeLodScale });
-    // Render scale: fewer pixels on a sharp screen (the post effects and particles follow the 'resized' event).
-    const scale = RENDER_SCALE[s.renderScale];
-    if (this.renderScale !== scale) {
-      this.renderScale = scale;
-      this.renderer.setPixelRatio(
-        Math.min(window.devicePixelRatio, this.opts.quality.maxPixelRatio) *
-          scale,
-      );
-      this.renderer.domElement.dispatchEvent(new CustomEvent('resized'));
-    }
+    // Render scale: fewer pixels on a sharp screen. Auto keeps its current step (`adaptScale`).
+    this.autoScale = s.renderScale === 'auto';
+    if (!this.autoScale || old.renderScale !== 'auto')
+      this.setRenderScale(RENDER_SCALE[s.renderScale]);
     // Bloom / AO (High only): only a change in the options, so a test link's `?bloom=` / `?ao=` keeps its pick.
     if (old.bloom !== s.bloom) this.post?.set({ day: BLOOM_MIX[s.bloom] });
     if (old.ambientOcclusion !== s.ambientOcclusion)
@@ -729,8 +725,72 @@ export class RallyGame {
     });
   }
 
-  /** Render scale applied to the pixel ratio (`applySettings`). */
+  /** Render scale applied to the pixel ratio (`applySettings`, `adaptScale`). */
   private renderScale = 1;
+  /** Render scale option Auto (`adaptScale`). */
+  private autoScale = false;
+  /** Auto render scale: GPU time queries in flight, smoothed GPU ms of a frame, when the scale last changed. */
+  private gpuQueries: WebGLQuery[] = [];
+  private gpuMs = 0;
+  private scaleSince = 0;
+  private gpuTimer:
+    { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null | undefined;
+
+  /** Fewer pixels (the post effects and particles follow the 'resized' event). */
+  private setRenderScale(scale: number): void {
+    if (this.renderScale === scale) return;
+    this.renderScale = scale;
+    this.renderer.setPixelRatio(
+      Math.min(window.devicePixelRatio, this.opts.quality.maxPixelRatio) *
+        scale,
+    );
+    this.renderer.domElement.dispatchEvent(new CustomEvent('resized'));
+  }
+
+  /** GPU time of the frame's render (`adaptScale`); not while the perf panel or tree timer use the queries. */
+  private gpuTimed(): boolean {
+    if (!this.autoScale || this.paused || this.perf) return false;
+    if (this.trees.debug || this.trees.measure) return false;
+    this.gpuTimer ??= this.renderer
+      .getContext()
+      .getExtension('EXT_disjoint_timer_query_webgl2');
+    return !!this.gpuTimer && this.gpuQueries.length < 4;
+  }
+
+  /**
+   * Render scale Auto: one step down (SCALE_STEPS) when the GPU's frame time passes 85 % of the time between frames
+   * for 3 s, one step back up after 15 s with it under 60 %: each step resizes the canvas and its render targets (a
+   * hitch of its own), so it moves rarely. A CPU-bound frame (most of ours) keeps full
+   * resolution: fewer pixels would not make it faster, only blurrier.
+   */
+  private adaptScale(now: number): void {
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
+    const ext = this.gpuTimer;
+    if (!ext) return;
+    while (
+      this.gpuQueries.length &&
+      gl.getQueryParameter(this.gpuQueries[0], gl.QUERY_RESULT_AVAILABLE)
+    ) {
+      const q = this.gpuQueries.shift()!;
+      if (!gl.getParameter(ext.GPU_DISJOINT_EXT)) {
+        const ms = gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6;
+        this.gpuMs += (ms - this.gpuMs) * 0.1;
+      }
+      gl.deleteQuery(q);
+    }
+    const budget = this.frameInterval * 0.85;
+    const since = now - this.scaleSince;
+    const i = SCALE_STEPS.indexOf(this.renderScale);
+    let next = this.renderScale;
+    if (this.gpuMs > budget && since > 3000)
+      next = SCALE_STEPS[Math.min(SCALE_STEPS.length - 1, i + 1)];
+    else if (this.gpuMs < budget * 0.6 && since > 15000)
+      next = SCALE_STEPS[Math.max(0, i - 1)];
+    if (next === this.renderScale) return;
+    this.setRenderScale(next);
+    this.scaleSince = now;
+    this.gpuMs = budget * 0.75;
+  }
 
   private updateParticleScale(): void {
     this.lastFov = this.camera.fov;
@@ -1551,9 +1611,18 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
 
     const tFx = performance.now();
     this.perf?.gpuBegin();
+    const timed = this.gpuTimed();
+    const gl = this.renderer.getContext() as WebGL2RenderingContext;
+    if (timed) {
+      const q = gl.createQuery()!;
+      gl.beginQuery(this.gpuTimer!.TIME_ELAPSED_EXT, q);
+      this.gpuQueries.push(q);
+    }
     if (this.post?.active) this.post.render();
     else this.renderer.render(this.scene, this.camera);
+    if (timed) gl.endQuery(this.gpuTimer!.TIME_ELAPSED_EXT);
     this.perf?.gpuEnd();
+    if (this.autoScale) this.adaptScale(performance.now());
     const tRender = performance.now();
     // The frame's own work, its background work left out (that fills the time left over: frameSlack).
     this.frameWork +=
