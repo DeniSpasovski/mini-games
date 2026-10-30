@@ -10,7 +10,7 @@ import {
   type WebGLRenderer,
 } from 'three';
 import { canopyOf, isVegetation } from './aerial-trees';
-import type { ScatterInstance } from './scatter';
+import type { ScatterChunk, ScatterInstance } from './scatter';
 import type { World } from './world';
 
 /** Metres per texel (coarsened for very large maps so a side stays <= MAX_SIDE). */
@@ -42,6 +42,76 @@ const smooth = (a: number, b: number, x: number): number => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 };
+
+/**
+ * A crown's shadow into the local window grid (LOCAL_N a side, LOCAL_RES m, origin x0 / z0): an ellipse at sx / sz,
+ * `ra` along the sun's azimuth (ax, az) and `r` across, solid with a soft rim. Plain numbers and typed arrays only:
+ * as a method reading `this` it was deoptimised over and over and boxed a number per texel (~0.7 MB a frame).
+ */
+function splatEllipse(
+  grid: Float32Array,
+  x0: number,
+  z0: number,
+  sx: number,
+  sz: number,
+  r: number,
+  ra: number,
+  ax: number,
+  az: number,
+  density: number,
+): void {
+  const n = LOCAL_N;
+  const res = LOCAL_RES;
+  const reach = ra + res;
+  const i0 = Math.max(0, Math.floor((sx - reach - x0) / res));
+  const i1 = Math.min(n - 1, Math.ceil((sx + reach - x0) / res));
+  const j0 = Math.max(0, Math.floor((sz - reach - z0) / res));
+  const j1 = Math.min(n - 1, Math.ceil((sz + reach - z0) / res));
+  for (let j = j0; j <= j1; j++) {
+    const pz = z0 + (j + 0.5) * res - sz;
+    for (let i = i0; i <= i1; i++) {
+      const px = x0 + (i + 0.5) * res - sx;
+      const u = (px * ax + pz * az) / ra;
+      const v = (-px * az + pz * ax) / r;
+      const q = u * u + v * v;
+      if (q >= 1) continue;
+      const k = j * n + i;
+      const t = Math.min(1, Math.max(0, (q - 0.55) / 0.45));
+      grid[k] = Math.min(1, grid[k] + density * (1 - t * t * (3 - 2 * t)));
+    }
+  }
+}
+
+/** Leaf litter into the local window grid: a disc of radius `rl` at x / z, densest at the trunk (as `splatEllipse`). */
+function splatDisc(
+  grid: Float32Array,
+  x0: number,
+  z0: number,
+  x: number,
+  z: number,
+  rl: number,
+): void {
+  const n = LOCAL_N;
+  const res = LOCAL_RES;
+  const i0 = Math.max(0, Math.floor((x - rl - x0) / res));
+  const i1 = Math.min(n - 1, Math.ceil((x + rl - x0) / res));
+  const j0 = Math.max(0, Math.floor((z - rl - z0) / res));
+  const j1 = Math.min(n - 1, Math.ceil((z + rl - z0) / res));
+  for (let j = j0; j <= j1; j++) {
+    const pz = (z0 + (j + 0.5) * res - z) / rl;
+    for (let i = i0; i <= i1; i++) {
+      const px = (x0 + (i + 0.5) * res - x) / rl;
+      const q = px * px + pz * pz;
+      if (q >= 1) continue;
+      const k = j * n + i;
+      const t = Math.min(1, Math.max(0, (q - 0.3) / 0.7));
+      grid[k] = Math.min(
+        1,
+        grid[k] + LITTER_DENSITY * (1 - t * t * (3 - 2 * t)),
+      );
+    }
+  }
+}
 
 /**
  * Tree shadows on the ground BEYOND both shadow maps (the sun's and the far one, world/far-shadow.ts): every
@@ -187,6 +257,7 @@ export class CanopyShadows {
     now = performance.now(),
     focus?: { x: number; z: number },
     budget = SPLAT_BUDGET,
+    localBudget = LOCAL_BUDGET,
   ): void {
     const scatter = this.world.scatter;
     const t0 = performance.now();
@@ -210,7 +281,7 @@ export class CanopyShadows {
       // Many chunks can come in at once (a streamer rebuild): the rest wait for the next frames.
       if (performance.now() - t0 > budget) break;
     }
-    if (focus) this.updateLocal(focus, now);
+    if (focus) this.updateLocal(focus, now, localBudget);
     // The texels' bytes are written as they are splatted (converting the dirty rows here took ~10 ms every upload).
     if (this.dirtyMin >= 0 && now - this.lastUpload >= UPLOAD_EVERY) {
       if (this.renderer) {
@@ -230,7 +301,11 @@ export class CanopyShadows {
   }
 
   /** Start / continue the local window rebuild (one slice per call). */
-  private updateLocal(focus: { x: number; z: number }, now: number): void {
+  private updateLocal(
+    focus: { x: number; z: number },
+    now: number,
+    budget: number,
+  ): void {
     if (!this.localJob) {
       const dx = focus.x - this.localAt.x;
       const dz = focus.z - this.localAt.z;
@@ -244,7 +319,7 @@ export class CanopyShadows {
       this.localJob = this.localRebuild(focus.x, focus.z);
     }
     const t0 = performance.now();
-    while (performance.now() - t0 < LOCAL_BUDGET)
+    while (performance.now() - t0 < budget)
       if (this.localJob.next().done) {
         this.localJob = null;
         break;
@@ -271,10 +346,9 @@ export class CanopyShadows {
       for (let cx = Math.floor(x0 / cs); cx * cs <= x0 + span; cx++) {
         const chunk = this.world.scatter.cachedChunk(cx, cz);
         if (!chunk) continue;
-        for (const inst of chunk.instances) {
-          this.splat(inst, grid, LOCAL_N, LOCAL_N, LOCAL_RES, x0, z0, 0.6);
-          this.splatLitter(inst, litter, LOCAL_N, LOCAL_N, LOCAL_RES, x0, z0);
-        }
+        const v = this.localVegetation(chunk);
+        for (let o = 0; o < v.length; o += 5)
+          this.splatLocal(v, o, grid, litter, x0, z0);
         // Per chunk, not per row: a row of forest chunks overran the time slice.
         yield;
       }
@@ -293,6 +367,62 @@ export class CanopyShadows {
     this.localMap.x0 = x0;
     this.localMap.z0 = z0;
     this.local.needsUpdate = true;
+  }
+
+  /** Per scatter chunk: its vegetation as [x, z, crown radius, height, ry] (scaled), only the ones that splat. */
+  private localVeg = new WeakMap<ScatterChunk, Float32Array>();
+
+  /**
+   * A chunk's vegetation for the local window, packed once: the window walks every instance of ~20 chunks each
+   * rebuild, and reading them as objects (mixed shapes, an asset lookup each) boxed numbers by the thousand.
+   */
+  private localVegetation(chunk: ScatterChunk): Float32Array {
+    let v = this.localVeg.get(chunk);
+    if (v) return v;
+    const out: number[] = [];
+    for (const inst of chunk.instances) {
+      if (!isVegetation(inst.asset)) continue;
+      const c = canopyOf(inst.asset);
+      const r = c.radius * inst.scale;
+      // Too small for a shadow even at twice the radius tune, and for litter: skipped (as `splatLocal` would).
+      if (r * 2 < 0.6 && r * LITTER_REACH < 1.2) continue;
+      out.push(inst.x, inst.z, r, c.height * inst.scale, c.ry * inst.scale);
+    }
+    v = new Float32Array(out);
+    this.localVeg.set(chunk, v);
+    return v;
+  }
+
+  /**
+   * One packed instance (`localVegetation`, from `o`) into the local window: its shadow (the crown's true ellipse
+   * along the sun, solid profile) and its leaf litter - the maths of `splat` / `splatLitter` for the local grid.
+   */
+  private splatLocal(
+    veg: Float32Array,
+    o: number,
+    grid: Float32Array,
+    litter: Float32Array,
+    x0: number,
+    z0: number,
+  ): void {
+    const r = veg[o + 2] * this.tune.radius;
+    if (r >= 0.6) {
+      const h = veg[o + 3];
+      splatEllipse(
+        grid,
+        x0,
+        z0,
+        veg[o] + this.ox * h,
+        veg[o + 1] + this.oz * h,
+        r,
+        Math.min(r * 4, Math.hypot(r, veg[o + 4] * this.cot)),
+        this.ax,
+        this.az,
+        this.tune.density,
+      );
+    }
+    const rl = veg[o + 2] * LITTER_REACH;
+    if (rl >= 1.2) splatDisc(litter, x0, z0, veg[o], veg[o + 1], rl);
   }
 
   private splat(
