@@ -735,6 +735,9 @@ export class RallyGame {
   private scaleSince = 0;
   /** GPU ms when Auto last stepped down: a further step needs that one to have paid off. */
   private stepGpuMs = Infinity;
+  /** Auto waits this long with headroom before stepping up (ms): doubles each time a step up is undone within 10 s. */
+  private upWait = 15000;
+  private lastUp = -Infinity;
   private gpuTimer:
     { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null | undefined;
 
@@ -761,7 +764,8 @@ export class RallyGame {
 
   /**
    * Render scale Auto: one step down (SCALE_STEPS) when the GPU's frame time passes 85 % of the time between frames
-   * for 3 s, one step back up after 15 s with it under 60 %: each step resizes the canvas and its render targets (a
+   * for 3 s, one step back up after `upWait` (15 s, longer after each step up that did not hold) with it under 60 %:
+   * each step resizes the canvas and its render targets (a
    * hitch of its own), so it moves rarely. A CPU-bound frame (most of ours) keeps full
    * resolution: fewer pixels would not make it faster, only blurrier. No further step down when the last one saved
    * under 5 % (shadow maps and geometry do not shrink with the pixels). Called before the frame renders: a resize
@@ -792,10 +796,16 @@ export class RallyGame {
       this.gpuMs < this.stepGpuMs * 0.95
     ) {
       next = SCALE_STEPS[Math.min(SCALE_STEPS.length - 1, i + 1)];
-      if (next !== this.renderScale) this.stepGpuMs = this.gpuMs;
-    } else if (this.gpuMs < budget * 0.6 && since > 15000) {
+      if (next !== this.renderScale) {
+        this.stepGpuMs = this.gpuMs;
+        // The step up did not hold: wait longer before the next try (up and down every 20 s was two hitches each).
+        if (now - this.lastUp < 10000)
+          this.upWait = Math.min(240000, this.upWait * 2);
+      }
+    } else if (this.gpuMs < budget * 0.6 && since > this.upWait) {
       next = SCALE_STEPS[Math.max(0, i - 1)];
       this.stepGpuMs = Infinity;
+      this.lastUp = now;
     }
     if (next === this.renderScale) return;
     this.setRenderScale(next);
