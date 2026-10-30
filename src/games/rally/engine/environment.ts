@@ -255,9 +255,12 @@ export class Environment {
     this.quality = quality;
     this.nightSky = new NightSky(this.sunDir);
     scene.add(this.nightSky.group);
-    // Box half-size 1500 m: keep camera.far >= ~2700 (corner distance). Drawn first, never writes depth.
+    // Box half-size 1500 m: keep camera.far >= ~2700 (corner distance). Never writes depth. Drawn after every opaque
+    // object, at the far plane (three's Sky: z = w): the depth test skips each pixel something already covers (a full
+    // screen of sky shading was ~0.4 ms of GPU a frame). The horizon backdrop keeps its pixels in front of it
+    // (world/horizon.ts `depthPush`).
     this.sky.scale.setScalar(3000);
-    this.sky.renderOrder = -1;
+    this.sky.renderOrder = 100;
     // `skyBrightness`: the dome only (the env map keeps the full sky, so the world's sky light does not change).
     const skyMat = this.sky.material;
     skyMat.uniforms.skyGain = { value: 1 };

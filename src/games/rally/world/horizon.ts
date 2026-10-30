@@ -2,6 +2,7 @@ import {
   BufferAttribute,
   BufferGeometry,
   Color,
+  GreaterEqualDepth,
   Group,
   Matrix4,
   Quaternion,
@@ -11,10 +12,10 @@ import {
   Mesh,
   MeshLambertMaterial,
   PerspectiveCamera,
+  ShaderMaterial,
   Vector4,
   type Camera,
   type Texture,
-  type WebGLRenderer,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { hash3 } from '../../../shared/rng';
@@ -33,15 +34,21 @@ const CUT_MARGIN = 60;
 /** ...and sunk up to SINK m over the next FADE m, so its coarse surface never pokes above the real terrain's edge. */
 const SINK = 12;
 const FADE = 700;
+/**
+ * Window depth of the backdrop's pixels once it is drawn (4 steps of a 24-bit depth buffer short of the far plane):
+ * behind everything the game camera draws nearer than ~2.97 km, in front of the sky, drawn last at the far plane.
+ */
+const BACKDROP_DEPTH = 1 - 2 ** -22;
 
 /**
  * The land far around a real map - terrain + land cover from `MapDef.horizon` (scripts/realmap/horizon.py), no roads,
  * trees or buildings - as a backdrop beyond the streamed terrain: two coarse grid meshes (100 m to ~8 km, 300 m to
  * ~25 km), vertex-coloured by land cover, lit by the sun, fogged like the rest of the scene.
  *
- * Drawn right after the sky (`renderOrder` -0.5) with its OWN projection (far 80 km; the game camera's far plane is
- * 3 km), then it clears the depth buffer (`onAfterRender`): the scene draws over it wherever it has something, and
- * its own hills still hide each other correctly. Inside the streamed area (map bounds + RENDER_MARGIN) it is cut away
+ * Drawn first (`renderOrder` -0.5) with its OWN projection (far 80 km; the game camera's far plane is 3 km), then its
+ * pixels move back to just short of the far plane (`depthPush`, BACKDROP_DEPTH): the scene draws over it wherever it
+ * has something, its own hills still hide each other correctly, and the sky (drawn last, engine/environment.ts) fills
+ * only the pixels nothing covers. Inside the streamed area (map bounds + RENDER_MARGIN) it is cut away
  * within the terrain view distance (`setCutoff`); outside it, it reaches right up to the terrain's edge.
  * Cost: 2 draws, ~100k triangles, no shadows.
  */
@@ -91,13 +98,12 @@ export class Horizon {
       mesh.name = `horizon ${g.cell} m`;
       mesh.frustumCulled = false;
       mesh.matrixAutoUpdate = false;
-      mesh.renderOrder = -0.5 - k * 0.01; // after the sky (-1); the outer grid before the inner one
+      mesh.renderOrder = -0.5 - k * 0.01; // the outer grid before the inner one
       mesh.onBeforeRender = (_r, _s, camera) => this.project(camera);
-      // The inner grid is drawn last: it clears the depth, the scene is then drawn as if the backdrop were not there.
-      if (k === 0)
-        mesh.onAfterRender = (renderer: WebGLRenderer) => renderer.clearDepth();
       this.group.add(mesh);
     });
+    // After the inner grid: the scene is then drawn as if the backdrop were not there.
+    if (def.grids.length) this.group.add(depthPush());
     // Big landmarks (the cross, the antenna mast) stay on the skyline beyond the streamed scatter: their last LOD is drawn
     // here, with the same cut-away inside the terrain view distance where the real instances take over.
     // The city's tall buildings beyond the baked area (MapDef.skyline): extruded footprints, same pass as the landmarks.
@@ -265,6 +271,32 @@ interface Palette {
   crop: Color;
   built: Color;
   water: Color;
+}
+
+/**
+ * One full-screen triangle that writes depth only: every pixel the backdrop drew (depth below BACKDROP_DEPTH) moves to
+ * BACKDROP_DEPTH, empty ones stay at the far plane. Its corners come from gl_VertexID; the position attribute is one
+ * point, so a scene-wide override material draws nothing.
+ */
+function depthPush(): Mesh {
+  const geo = new BufferGeometry();
+  geo.setAttribute('position', new BufferAttribute(new Float32Array(9), 3));
+  const z = (BACKDROP_DEPTH * 2 - 1).toFixed(9);
+  const mat = new ShaderMaterial({
+    vertexShader: /* glsl */ `
+      void main() {
+        gl_Position = vec4( float( ( gl_VertexID & 1 ) << 2 ) - 1.0, float( ( gl_VertexID & 2 ) << 1 ) - 1.0, ${z}, 1.0 );
+      }`,
+    fragmentShader: 'void main() { gl_FragColor = vec4( 0.0 ); }',
+    depthFunc: GreaterEqualDepth,
+    colorWrite: false,
+  });
+  const mesh = new Mesh(geo, mat);
+  mesh.name = 'horizon depth push';
+  mesh.frustumCulled = false;
+  mesh.matrixAutoUpdate = false;
+  mesh.renderOrder = -0.49;
+  return mesh;
 }
 
 /** Land cover colours (linear), the grass following the map's `groundTint` like the terrain shader. */
