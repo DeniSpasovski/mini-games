@@ -43,7 +43,7 @@ Foliage is drawn as lit leaf-cluster sprites placed on the skeleton's leaf point
 
 ## Wind
 
-- Sway is hierarchical: the trunk bends, each branch sways about its parent with an amplitude that grows with branch order, and each sprite moves with the branch it hangs from and flutters by a small turn about its view axis.
+- Sway is hierarchical: the trunk bends, each branch sways about its parent with an amplitude that grows with branch order, and each sprite moves with the branch it hangs from and shimmers by a small, quick turn about its view axis (clusters do not wave).
 - Each vertex carries its branch order, its phase and its distance along its branch, baked from the skeleton, and the motion is computed on the GPU from those and a global wind direction and strength.
 - Every pass that draws a sprite, the depth pass, the lit pass and the shadow pass, computes its position with the same function from the same inputs, so their depths match exactly.
 - The impostor sways as a whole with the trunk motion, so it matches the geometry at the transition.
