@@ -197,9 +197,17 @@ export const TYRE_IDS: readonly TyreId[] = [
   'gravel',
 ];
 
-/** The tyres a run can start on: no near-slicks (`dryOnly`) while it rains. */
-export function tyreChoices(raining: boolean): readonly TyreId[] {
-  return raining ? TYRE_IDS.filter((t) => !TYRES[t].dryOnly) : TYRE_IDS;
+/**
+ * The tyres a run can start on: no near-slicks (`dryOnly`) while it rains; Tarmac Wet only where a wet weather is
+ * offered (`wetOffered`: not in a release build that ships dry only).
+ */
+export function tyreChoices(
+  raining: boolean,
+  wetOffered = true,
+): readonly TyreId[] {
+  return TYRE_IDS.filter(
+    (t) => !(raining && TYRES[t].dryOnly) && (wetOffered || t !== 'tarmac_wet'),
+  );
 }
 
 /**

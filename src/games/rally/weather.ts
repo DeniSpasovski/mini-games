@@ -1,4 +1,6 @@
 import { paramOneOf } from '../../shared/url-params';
+import { isReleased, RELEASE_BUILD } from '../../shared/release';
+import { WEATHERS_LIST } from './release';
 
 /**
  * Weather of a run, picked on the stage screen beside Season and Time (`?weather=`). Dry is the default and every
@@ -153,9 +155,19 @@ export const WEATHER_LOOKS: Readonly<Record<Weather, WeatherLook>> = {
 /** True for the weathers with rain falling. */
 export const isRaining = (w: Weather): boolean => WEATHER_LOOKS[w].rain > 0;
 
-/** The weather a `?weather=` value names; dry when it is missing or unknown. */
-export function weatherParam(raw: string | null | undefined): Weather {
-  return paramOneOf(raw, WEATHERS, 'dry');
+/** The weathers this build offers: all on the dev server and test builds, the released ones (`WEATHERS_LIST`) in the release build. */
+export function offeredWeathers(release = RELEASE_BUILD): Weather[] {
+  return release
+    ? WEATHERS.filter((w) => isReleased(WEATHERS_LIST, w))
+    : [...WEATHERS];
+}
+
+/** The weather a `?weather=` value names; dry when it is missing, unknown or not offered in this build. */
+export function weatherParam(
+  raw: string | null | undefined,
+  release = RELEASE_BUILD,
+): Weather {
+  return paramOneOf(raw, offeredWeathers(release), 'dry');
 }
 
 /** A stage's retuning of a weather (`StageDef.weather`): any field, the fog merged field by field. */

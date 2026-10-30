@@ -58,10 +58,12 @@ export function stageTemps(
   };
   const f = (h - prev.hour) / (next.hour - prev.hour);
   const mix = (i: 0 | 1) => prev.at[i] + (next.at[i] - prev.at[i]) * f;
-  const t = weatherTemps(
-    { air: mix(0), road: mix(1) },
-    weatherLook(weather, stage.weather),
-  );
+  const dry = { air: mix(0), road: mix(1) };
+  // Dry keeps the table as is (a road colder than the air at night would be lifted to it by `weatherTemps`).
+  const t =
+    weather === 'dry'
+      ? dry
+      : weatherTemps(dry, weatherLook(weather, stage.weather));
   return { air: airAtRise(t.air, rise), road: airAtRise(t.road, rise) };
 }
 

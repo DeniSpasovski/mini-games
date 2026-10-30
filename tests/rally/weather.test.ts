@@ -16,10 +16,13 @@ import {
   tyreChoices,
   wetTyre,
 } from '../../src/games/rally/physics/tyres';
+import { WEATHERS_LIST } from '../../src/games/rally/release';
+import { isReleased } from '../../src/shared/release';
 import { puddleDepth, puddleField } from '../../src/games/rally/puddles';
 import {
   WEATHER_LOOKS,
   WEATHERS,
+  offeredWeathers,
   weatherLook,
   weatherParam,
   weatherTemps,
@@ -36,6 +39,17 @@ describe('weather picker', () => {
     expect(weatherParam('')).toBe('dry');
     expect(weatherParam('snowstorm')).toBe('dry');
     expect(weatherParam('rain_heavy')).toBe('rain_heavy');
+  });
+
+  test('the release build offers only released weathers (WEATHERS_LIST); dev offers all', () => {
+    expect(offeredWeathers(false)).toEqual([...WEATHERS]);
+    const release = offeredWeathers(true);
+    expect(release).toContain('dry');
+    for (const w of WEATHERS) {
+      expect(release.includes(w)).toBe(isReleased(WEATHERS_LIST, w));
+      // A hidden weather in the URL of a release build drives dry.
+      expect(weatherParam(w, true)).toBe(release.includes(w) ? w : 'dry');
+    }
   });
 
   test('dry keeps the map its own environment', () => {
@@ -127,6 +141,9 @@ describe('wet grip', () => {
     expect(rain).not.toContain('tarmac_hard');
     expect(rain).toContain('tarmac_wet');
     expect(tyreChoices(false)).toEqual(TYRE_IDS);
+    // No wet weather offered: Tarmac Wet stays out of the menu.
+    expect(tyreChoices(false, false)).not.toContain('tarmac_wet');
+    expect(tyreChoices(false, false)).toHaveLength(TYRE_IDS.length - 1);
     for (const t of rain) expect(TYRES[t].dryOnly).toBeFalsy();
     expect(wetTyre('tarmac', WEATHER_LOOKS.rain_heavy.wet)).toBe('tarmac_wet');
     expect(wetTyre('tarmac_hard', WEATHER_LOOKS.post_rain.wet)).toBe(

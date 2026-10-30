@@ -415,7 +415,8 @@ export function migrateTimes(store: Storage = localStorage): boolean {
           car: carId,
           livery: 0,
           splits: best.splits,
-          ...(weather ? { weather: weatherParam(weather) } : {}),
+          // Every known weather, not just the released ones: a dev run in the rain must not turn into a dry time.
+          ...(weather ? { weather: weatherParam(weather, false) } : {}),
           date: 0,
         });
         store.setItem(timesKey(stageId), JSON.stringify(list));

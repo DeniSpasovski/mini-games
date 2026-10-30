@@ -88,6 +88,7 @@ import { CameraRig } from './camera-rig';
 import { ParticleSystem } from './dust';
 import { GravelStones } from './gravel-stones';
 import { nearestZones, Rain, roofZones } from './rain';
+import { weatherLook, weatherParam } from '../weather';
 import { TyreMarks } from './tyre-marks';
 import { Hud } from './hud';
 import { InputController, type InputAction } from './input';
@@ -205,6 +206,10 @@ const RAIN_DROPS: Record<QualityName, number> = {
   medium: 6000,
   high: 12000,
 };
+/** Lights level from which the car gets its full beams: spill + shadowed low beam (a rain / fog day stays under it, `Headlights` `day`). */
+const BEAM_MIN_NEED = 0.4;
+/** Lamp glow (head and tail lamp lenses, `CarModel.setLamps`) with the lights on in rain / fog by day. */
+const WEATHER_LAMPS = 0.8;
 /** Road spray on hard ground (lit like the dust). */
 const SPRAY_COLOR = 0xd4d9de;
 
@@ -268,6 +273,7 @@ export class RallyGame {
   private rainHitAcc = 0;
   private roofs: DryZone[] = [];
   private nearRoofs: DryZone[] = [];
+  private roofAt = new Vector2(Infinity, Infinity);
   private sprayColor = new Color();
   private sprayPos = new Vector3();
   /** Far tree shadows, filled in as the streamer generates scatter (world/canopy-shadows.ts). */
@@ -334,7 +340,11 @@ export class RallyGame {
     );
     this.world = new World(mapInSeason(opts.map, this.season), stage);
     this.car = getCar(opts.carId);
-    this.audio = new CarAudio(this.car);
+    const look = weatherLook(
+      weatherParam(new URLSearchParams(location.search).get('weather')),
+      stage.weather,
+    );
+    this.audio = new CarAudio(this.car, { rain: look.rain, wet: look.wet });
     // Any spawn other than the stage start (pad, ?spawn=<metres>) is free drive: no clock, no splits.
     this.freeDrive = opts.spawn !== 'start';
     this.stats = new StatsOverlay(this.renderer, container, false);
@@ -567,13 +577,27 @@ export class RallyGame {
       // Lights on (night, and fading in through dusk / dawn): lamp glow, tail lamps, two spot lights and the beam in
       // the air, all scaled by how dark it is (before the first compile).
       const need = this.env.lightNeed;
-      this.model.setLamps(need);
+      const w = this.env.weatherLook;
+      // In rain / fog the lights are switched on, not faded in with the dusk: the lamps themselves glow full (the
+      // tail lamps read red against a bright sky); the light they throw stays at `need`.
+      const weatherLights = w.rain > 0 || !!w.fog;
+      this.model.setLamps(
+        weatherLights ? Math.max(need, WEATHER_LAMPS) : need,
+        weatherLights && need < BEAM_MIN_NEED,
+      );
+      // Under BEAM_MIN_NEED (daylight lights of rain / fog) only the two unshadowed low beams: the spill, the shadow
+      // pass (~1 ms on high in every lit shader) and the beam in the air show nothing by day.
+      const haze = Math.max(
+        w.fog ? 0.6 : 0,
+        w.visibility ? Math.min(1, 600 / w.visibility) : 0,
+      );
       this.headlights = new Headlights(
         this.model.root,
         headlightMount(this.car.physics),
         q.name,
         this.car.headlights,
         need,
+        { day: need < BEAM_MIN_NEED, haze },
       );
       this.tailLight = new TailLight(
         this.model.root,
@@ -595,8 +619,11 @@ export class RallyGame {
           this.opts.settings.ambientOcclusion,
         ),
       );
-    setLampGlow(this.env.lightNeed);
-    if (this.env.lightNeed >= LIGHTS_MIN_NEED) {
+    // Street lamps light up when it is dark, not for a rainy / foggy day (their pools would draw orange smears on the road).
+    const streetLamps =
+      this.env.lightNeed >= BEAM_MIN_NEED ? this.env.lightNeed : 0;
+    setLampGlow(streetLamps);
+    if (streetLamps > 0) {
       // Street lamps: light pools on the ground under the lamps (the lens glow is the `lamp_lens` material).
       this.scene.add(
         new LampPools(
@@ -604,7 +631,7 @@ export class RallyGame {
             (i) => i.asset === 'street_lamp',
           ),
           (x, z) => this.world.heightAt(x, z),
-          this.env.lightNeed,
+          streetLamps,
         ).mesh,
       );
     }
@@ -1604,10 +1631,16 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     // Shadow box ahead of the camera (where the player looks), not centred on the car.
     this.placeShadows(this.renderPos, dir);
     this.env.follow(camPos);
-    if (this.roofs.length)
+    // The nearest roofed zones, looked up again only after the camera moved a few metres (a zone is ~12 m long).
+    if (
+      this.roofs.length &&
+      Math.hypot(camPos.x - this.roofAt.x, camPos.z - this.roofAt.y) > 4
+    ) {
+      this.roofAt.set(camPos.x, camPos.z);
       setDryZones(
         nearestZones(this.roofs, camPos.x, camPos.z, DRY_ZONES, this.nearRoofs),
       );
+    }
     if (this.rain) {
       this.rain.update(camPos, dt);
       // No rain falls in a tunnel.
@@ -1630,8 +1663,10 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
           ? view * Math.min(1, this.env.weatherLook.rain / 8)
           : 0;
         const o = this.post.opts;
+        const drops = o.drops + (target - o.drops) * Math.min(1, dt * 0.5);
         this.post.set({
-          drops: o.drops + (target - o.drops) * Math.min(1, dt * 0.5),
+          // Snaps to 0 once nearly dry: the drops pass (a full-screen pass) runs while it is above 0.
+          drops: target === 0 && drops < 0.01 ? 0 : drops,
           dropSpeed: Math.min(1, Math.abs(this.vehicle.speed) / 25),
         });
       }

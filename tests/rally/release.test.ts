@@ -4,8 +4,10 @@ import { ALL_STAGES, DEFAULT_STAGE } from '../../src/games/rally/maps';
 import {
   CARS_LIST,
   STAGES_LIST,
+  WEATHERS_LIST,
   released,
 } from '../../src/games/rally/release';
+import { WEATHERS } from '../../src/games/rally/weather';
 import { isReleased } from '../../src/shared/release';
 
 describe('release flags', () => {
@@ -34,8 +36,13 @@ describe('release flags', () => {
     );
   });
 
+  it('every weather is listed once in WEATHERS_LIST', () => {
+    expect(WEATHERS_LIST.map((e) => e.id).sort()).toEqual([...WEATHERS].sort());
+  });
+
   it('defaults are released (they are the fallback for hidden ids)', () => {
     expect(isReleased(CARS_LIST, DEFAULT_CAR)).toBe(true);
     expect(isReleased(STAGES_LIST, DEFAULT_STAGE)).toBe(true);
+    expect(isReleased(WEATHERS_LIST, 'dry')).toBe(true);
   });
 });
