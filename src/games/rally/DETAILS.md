@@ -69,6 +69,14 @@ Console: `__rally.benchmark(240)` (avg / worst ms per frame, works with the tab 
 - **Pause** (`Esc`): resume, restart, free-drive pad <-> stage, options, main menu.
 - **Stage times** (welcome menu): stage list on the left (↑↓), the selected stage's saved runs over its map view in a card docked beside the list (`.menu-times-card`); current versions first, older ones dimmed below.
 - **About:** every external source per map (`MapDef.sources` + its stages' `StageDef.sources`) and car (`CarDef.sources`), menu music credits, plus `version` from `game.json`.
+- Car select: a "Loading model" spinner (`Showroom.loadCue`) shows while a car's GLB downloads (the car stays hidden until then).
+- Last picked stage, car and livery are remembered (`rally.settings`, saved on Start); a car that is hidden in the build or unknown falls back to the default car and livery 1.
+- Car select: All / AWD / RWD / FWD filter row on top (`driveGroup` from the car's `drivetrain.frontSplit`, not remembered); up from the first car or the pad focuses it, left / right switch.
+- Car select (screens >= 800 px wide): the description / stats / livery sit in a card docked beside the list (`.menu-side-card`, `MainMenu.sideCard`, shared with Select stage; Stage times uses the same placement). The showroom car keeps its shared place and size (`CAR_SHIFT`, `CAR_DIST_SCALE`) and may run behind the card; its **Details** tab (`MainMenu.minimizer`, class `min` on the card, shared with Select stage) minimizes the card to its description (the Stage times card has no tab). Narrower screens (< 800 px) lay the same card over the map above the buttons.
+- Select stage: the stage's description (`StageDef.description`: what the drive is like for the player, no data sources or build details), recommended set-up and a **Time of day** dropdown sit in the same card (phones: under the selected stage), with a **Season** dropdown (spring / summer / autumn, above the time) and the **Month** it is driven in in front. Left / right (or the pad) step the time; the list cards keep the route, tags and best time.
+- Time of day (`game/time-of-day.ts`, the one config): early morning 07:00, mid day 12:00, afternoon 15:30, evening 17:30, night 01:00 (dropdown order) - each is a `?tod=<hours>` hour, so any stage of a map with `environment.timeOfDay` takes any of them. A stage's own default hour stays exact on its nearest slot (Jackie opens on "Early morning · 08:00") and a stage can move a slot (`StageDef.slotHours`: Vodno's early morning is 08:00); a pick applies to every stage until changed and is not remembered; the menu mirrors it into the URL (`tod=`), a stage without `timeOfDay` shows no dropdown. Under it the card shows the clock time and the air / road temperature at that hour (`StageDef.temps`, the numbers the tyres run with, see PHYSICS.md). Times are saved per stage, not per time of day.
+- Season (`season.ts`): spring / summer / autumn, the one the stage opens in (`StageDef.season`, else the map's `environment.season`, default summer; `stageSeason`) or `?season=`; the stage screen's pick is mirrored into the URL (`season=`, none = the stage's own) and shown on every stage including the test map. It sets the tree leaf colours (`trees/seasons.ts`), the ground (`environment.groundTints`, below) and the stage's air / road temperatures (`StageDef.temps`, "Temperatures" below). The stage card lists the **Month** the stage is driven in that season (`environment.months`, default April / July / October: e.g. Ajvatovci spring April, Jackie spring May).
+- Season ground: `environment.groundTint` is the map's own season (`environment.season`, the card's `season`; a stage can open in another, e.g. Galichica West in autumn, East in spring); `environment.groundTints` has the other seasons' tint (fresh green / young crops in spring, dry olive / stubble in autumn). `mapInSeason` (`maps/shared/season-map.ts`) returns the map with that season's tint as `groundTint` and `season` set, and `RallyGame` builds its `World` from it, so terrain, horizon and sky colours follow. The stage card (select stage) has one picture per season, every one `<stage id>-<season>.jpg` (`cardImageName`; the card's `season` is the map's own), the other seasons listed with their hash + floor colour in the card's `seasons`; the dropdown swaps the picture (`Showroom.setSeason`), only the shown season is fetched. A map without `groundTints` shows one picture for every season.
 
 **On a stage** (`game/stage.ts`):
 
@@ -478,181 +486,79 @@ pages/        entry points listed in game.json; debug/ = tool page shell
 
 ## Performance rules (keep these)
 
-The game is CPU bound: **draw calls cost more than triangles**. Measure with `__rally.benchmark(n)` / `__rallyProbe()` on
-`npm run dev:noreload`. Background load (other sessions, builds) and the tab (background tabs run slower) swing a single
-run 2-3x, so compare old / new **in the same page, interleaved** over several rounds (switch at runtime, e.g.
-`__setVariantSets(on)` + `__rally.streamer.reset(pos)`) and use the median; never compare runs minutes apart.
+A forest stage on high costs ~5 ms of CPU and ~6-7 ms of GPU a frame. The CPU side is mostly draw submission (three.js +
+ANGLE, ~5 us a draw), the GPU side mostly trees. Numbers and bench history: `sources/rally/PERFORMANCE.md` (local).
 
-**Instancing and streaming**
+**Measuring**
 
-- Never clone geometry or materials per instance: everything goes through `getAsset(id, variant, lod)` -> `InstancedMesh`,
-  materials from `engine/materials.ts`.
-- Streaming stays time-sliced: terrain (`terrain.update(pos, budgetMs)`), the 1 m heightfield (`Heightfield.prepare`) and
-  instance re-bucketing (`InstanceStreamer`; in game the time the frame rate leaves over, 1-8 ms per frame,
-  `RallyGame.streamBudget`). Whole-map work uses `world.analytic`, not the 1 m cache. A grass chunk is generated inside
-  that slice too (`ScatterField.detailSteps`, yields every 256 candidates: one dense chunk took up to ~30 ms), and the
-  canopy shadow map splats new chunks for at most 1 ms a frame and writes its texel bytes as it splats (no conversion
-  pass before the 1.5 s upload, which sends only the changed rows: `copyTextureToTexture`, not the whole ~8 MB texture).
-- Gantry clocks are redrawn (a canvas texture upload) only while the car is within `CLOCK_NEAR` of them along the road.
-- Whole-map set-up loops use a spatial grid, never all-against-all (a town map has ~900 roads, ~2000 way ends).
-- Generated scatter chunks past 1.25 x the view distance are dropped (`ScatterField.pruneChunks`, called by the streamer), so a long
-  stage's memory stays flat; the radius must cover every reader (the tree job reads chunks out to the view distance).
+- Compare old / new in the same page, interleaved (switch at runtime), on the median and p99. Runs minutes apart, other
+  benches or a background tab swing a result 2-3x.
+- Judge slow frames with vsync on. Uncapped, a CPU frame shorter than the GPU frame shows up as 20-40 ms back-pressure
+  spikes.
+- Tools: `__rally.benchmark(n)` / `__rallyProbe()` on `npm run dev:noreload`; the CDP benches in `sources/tools/perf-plan/`
+  (slow frames by section, garbage, GL uploads, GPU ms by pass, same-page A/B).
+
+**Frame pacing**
+
+- Background work shares one budget a frame (`RallyGame.frameSlack`), spent in order by terrain, objects, the tree job and
+  the canopy. Never give a system a fixed slice; the ground near the car is built whatever it costs (`URGENT_MS`).
+- No garbage in per-frame or per-texel loops: hot loops take plain numbers and typed arrays (`splatEllipse` in
+  world/canopy-shadows.ts).
+- Big GPU uploads go up in row bands (`copyTextureToTexture`), never whole while driving.
+- Never write into a buffer the GPU drew from last frame: rotate copies (`COPIES` in game/tyre-marks.ts).
+- Canvas textures use a CPU-backed canvas (`willReadFrequently`); gantry clocks redraw only near the car (`CLOCK_NEAR`).
 
 **Draw calls**
 
-- Terrain chunks merge per detail band into 2 x 2 (from LOD1) / 4 x 4 (from LOD2) and 8 x 8 (LOD3) meshes (`terrain-renderer.ts`: the
-  `blockLod` bands never make a chunk coarser than unmerged, `MERGE_SLACK` stops tiles fragmenting along band edges; big tiles
-  are sampled in slices). Merged tiles keep the vertex grid of their LOD; a tile that splits or merges at the same LOD copies
-  its vertices from the tiles it replaces (`reuse`), so streaming while driving does not resample the generator. The plan is redone after 8 m of travel.
-  Released tile geometries are kept (`SPARE_TILES`): tiles merge / split / change LOD back and forth as the car drives on,
-  and one wanted again takes its old geometry (no build, no GPU upload).
-- Whole-map meshes are merged per tile, never per object. Many materials = many draws: use a texture array
-  (`engine/texture-array.ts` `layeredMaterial`; mesh buildings = one mesh per 192 m tile, start-row lots = 3 material groups
-  per 128 m tile). A custom shader must scale `envMapIntensity` (it carries `scene.environmentIntensity`), never replace it.
-- Scatter view culling (`InstanceStreamer.setView`, called every frame by the game): non-shadow buckets (LOD1+) are
-  angle-sorted and only the camera's view (+ 25 deg) is drawn. LOD0 shadow casters are drawn whole.
-- Trees (`trees/`, L-system species in `trees/species.ts`): map rules place the old tree type ids, each grown as the species
-  its description names (`TREE_TYPES`: pine, plantation pine (half the sprites, for dense stands), black pine, juniper, cypress, hedge cypress, oak, locust, walnut, fruit tree, plane, birch, sapling, poplar,
-  willow, bush, scrub, hazel, thicket, bramble); 6 variants for pine / oak / bush / scrub, 4 for the rest. The map's `scale`
-  multiplies the species size.
-  Branches are tubes at two levels (LOD0 = the skeleton without twigs, LOD1 = trunk + the first-order limbs thicker than 1/120 of the tree's height), then an
-  octahedral impostor (albedo, normal + depth, thickness: lit like everything else). Foliage = one lit, camera-facing
-  cluster sprite per leaf point from the atlas of its species' leaf style (`foliage.leaf`, 8 styles x 8 images (512 px; the pine's 256 px), `trees/leaftex.ts`: albedo, normal + thickness at half size; a leaf is 4-6 % of the image;
-  broadleaf images are leafy branches (twigs with small stalked leaves, a side fork), cypress / juniper images drooping fronds, all turned in the shader to lie along their twig: `trees/sprite-attr.ts` packs the corner + heading into `treeSprite`),
-  tinted by the species palette (`foliage.palette` = summer; spring / autumn palettes in `trees/seasons.ts`, picked by the stage's season, so each season is its own cache entry and the trees themselves stay the same),
-  drawn with both branch levels; a crown draws its highest-ranked 35 % (`NEAR_SPRITES`, the rest left out, the kept
-  ones grown to the same coverage) within the full-detail distance (`FOREST_REACH.full`, 40 m: the only trees with
-  LOD0 branches; the first row within `ROADSIDE_EDGE` (9 m) of the road's edge uses `ROAD_REACH`: 80 m + 80 m ramp, flagged to the shader in the fraction of `treeInst.w`);
-  over the next 60 m (`FOREST_REACH.ramp`, smooth) it eases to the far share (`FAR_SPRITES`: 20 %), then on to 15 % at
-  the impostor (3.5 % of the screen height; perf panel sliders). Defaults at high quality:
-  `QualitySettings.treeLodScale` brings every tree distance to half on medium, about a third on low. Past
-  `QualitySettings.forestDistance` (400 / 500 / 600 m) no tree is drawn on the CPU (they dissolve out over its last 15 %,
-  `tlForest`). Everything past it comes from a canopy map of 8 m cells (`world/far-forest.ts` `FarForest`: ground, crown
-  height, cover, the crowns' drawn colour `LoadedVariant.canopyColor` and one tree's impostor slot per cell), estimated
-  at load from the land cover and tree rules (`Scatter.treeRulesAt`) and replaced by each generated chunk's real trees:
-  - **Far trees** (`farTrees`, to `FAR_REACH` 1.5 km, 200 m short of the view distance): the trees' own far impostors on
-    6 m cells; the vertex shader places each cell's tree from the map (variant, height, cover; `FAR_TREE_MAIN`, the
-    impostor material's `ImpostorGrid` hook), so the CPU only picks the 192 m tiles in view (`pickTiles`). They take the
-    other side of the trees' dissolve dither, so the handover never pops.
-  - **Canopy shell** past them, out to the view distance: one camera-centred ring grid raised to the canopy; it
-    dissolves in where the far trees dissolve out and reaches a little past the view distance, where the horizon
-    backdrop's woods take over. The tint map stores colour / `TINT_RANGE` (bright autumn reds times the gain clipped
-    to yellow-green otherwise). The canopy map is mipmapped and each
-    ring's vertices read it at four times their spacing (`ffHeightAt`: a coarse vertex on one cell's crown or gap made
-    boxy facets on far slopes); the crowns are a baked, mipmapped, anisotropic tile (`crownTexture`) mapped triplanar by
-    the shell's smooth normal, so a far slope keeps its crowns down to a pixel each. It lies over the ground that takes the forest's colour (`setForest`, engine/world-shading.ts; three's physical
-    path lights `diffuseContribution`). Trees
-    beyond the stage road's influence (half width + shoulder + 30 m, about 45 m from its edge; `FAKE_TREES_FROM` 250 m
-    caps it, game/rally-game.ts) are static impostors (`fakeFrom`), except within `IMPOSTOR_FROM` (80 m,
-    `trees/species.ts`) of the camera: no tree is an impostor up close, whatever the quality (it reads as a blotchy blob;
-    medium and low bring the impostor in to about 50 m for a small tree). Level changes
-    are a fixed 0.3 s fade per tree (8x8 ordered dither, one fade value per tree, at most 32 at once; a finer level a distance rule demands - no impostor inside
-    `IMPOSTOR_FROM`, LOD0 inside the full-detail ring - never waits for a slot), selected from the
-    camera before shake (`CameraRig.steady`) with 15 % hysteresis. A batching job (every 5 m of travel) puts every tree
-    that keeps its level for any camera within 9 m into static batches; only trees near a switching boundary, fading or
-    waiting for a fade slot are re-selected per frame (a few hundred), into a room of the same batch: one mesh set per
-    variant and part, laid out [shadow casters | room | rest] (`StaticBatch`), each a sub-draw of its material's
-    `MultiDraw` (`trees/multi-draw.ts`). A room re-fills every frame but uploads only the slots that changed (`uploadRoom`: one range
-    a batch; the pool sends merged ranges once a frame as texture row spans). Static trees and impostors keep their slot from job to job
-    (`packStatic` / `packRuns`: a tree that left is collapsed, a new one takes a free slot), so a job or a view turn
-    uploads only what came or went; a whole re-pack only when a region overflows, the room is resized (grows, or shrinks under half use) or holes pass 15 % of the slots. The
-    per-frame impostor tail upload adds its range to the pack's (never clears it). The job sorts each
-    scatter chunk's trees once (`chunkTrees`): the faked ones of a chunk farther than ~100 m go in as one ready block of
-    impostors, and chunks past the forest distance are only generated (for the canopy texture), not walked. A camera
-    jump > 50 m is a cut: every tree takes its level at once. The shadow distance is tested per instance in the shader
-    (`tlShadowD`), so it never activates a tree; the shadow pass draws only a batch's casters, and a static tree is a
-    caster only when its bounding sphere can reach the sun's shadow box (`shadowExtent`, light space, re-packed with
-    the view). Sprites cast no shadow: the crown proxy does (`trees/proxy.ts` `crownProxy`, a ~100-triangle lathe
-    through the sprites' reach, drawn in the shadow pass only, leafy holes from a world-space noise); a sprite looks
-    its shadow up most of the way out of its crown's ellipsoid towards the sun (`SELF_SHADOW`). Every level casts LOD1 +
-    the crown proxy, the impostor too (a shadow never pops with the level). Trees cast real shadows within
-    `quality.treeShadowDistance` only (see Shadows above).
-- Tree occlusion (`trees/occlusion.ts`): the job builds a terrain horizon map from the camera (1024 rays out to the
-  forest distance over a lazy 8 m height grid) and leaves out trees beyond 140 m (faked ones per chunk) that a hill
-  hides from every camera position in its window; margins cover the move (9 m + `HORIZON_REUSE` 30 m: the jobs within
-  30 m of its eye reuse it), a 35 % grade, 0.5 slopes. CPU, not the spec's GPU depth pyramid (WebGL2 has no compute /
-  indirect draws). `?treeocclusion=0` = debug toggle.
-- Tree shading: sprites (Lambert: diffuse only) / impostors go through the lit path (sun, shadows, fog); the sky's diffuse light is
-  spherical harmonics of the environment (`setTreeSky`, engine/environment.ts) instead of the env map, so they read 2
-  atlas textures + shadow map + cloud noise. Sprite normals = crown ellipsoid bent by the atlas normal map;
-  translucency = a wrap term on the thickness map; the sky light leans up and a small fill light keeps shaded crowns green. Caps: LOD0 branches <= 6,000 triangles (shrubs 2,000), <= 400
-  sprites (broadleaf 360, shrubs 200). Wind fades out by 110 m (`TREE_WIND_FAR`; past it the vertex work is skipped).
-- Tree drawing (spec `trees/Drawing`): every tree mesh is opaque, depth-tested and depth-writing; the depth buffer
-  alone decides what is in front (nothing sorted). Sprite parts (`trees/draw.ts`): crowns within
-  `Reach.near` (55 m, first row 95 m) use the tight outlines with a depth prepass, then shade where the depth is not behind it
-  (less-or-equal + a polygon offset, never EQUAL: it blinked on some GPUs; off on touch devices, `?treeprepass=0|1`; the prepass
-  draws after the horizon backdrop, which clears the depth: `PREPASS_ORDER`);
-  farther crowns use plain quads (`quadSprites`) in one lit pass: a mid batch per variant over the ramp and a far one
-  past it, each holding the share at its near end (one batch per thinning step left a few crowns per draw call);
-  both use ONE program (`spriteLit`, `tlDepthOnly` stops the prepass after the alpha test) because two programs
-  did not give bit-identical depths on ANGLE / Mesa. `checkPrepass` renders it once at load and falls back to a single
-  normal-depth pass if any pixel misses (`prepassMisses`). The impostor quad sits at the front of the tree's bounding sphere and its
-  baked depth only pushes pixels back; static impostors past `IMPOSTOR_FLAT_FROM` (350 m) use the far program (no
-  baked depth, which costs the early depth test; the quad through the centre). Impostors are Lambert, receive no
-  shadow (beyond the shadow box), read the normal from the nearest view only and are cropped to their views' coverage
-  (`impostorBounds`). Trunks are sunk by their base radius. Debug views 4 (depth) and 5 (EQUAL
-  misses, magenta) check it.
-- Tree cost (`trees/stats.ts`): `F6` (= the LOD debug view) shows the tree stats overlay (`trees/overlay.ts`): trees per
-  level / fading, re-selected / static trees, cells checked, terrain-hidden trees, draw calls, triangles and GPU ms
-  (timer queries) of the tree main and shadow passes, selection CPU ms, which mitigations are on, load time, cache
-  hits and memory. Debug view (`F6` cycles): levels (green LOD0, orange LOD1, blue impostor, magenta-white = fading, flashing
-  red = more than 2 level changes in 1 s), lighting only, normals only, depth, EQUAL misses; `?treedebug=1..5`, map
-  viewer select.
-  Benchmark: `/games/rally/?map=<id>&treebench=1` or `await __rally.treeBenchmark()` flies a fixed path (stage start,
-  600 m) with and without trees, checks the budget (`TREE_BUDGET` in `game/tree-bench.ts`: +1 ms frame and 1 %
-  low, 0.1 ms selection, 0.5 s load, no tree spike frames; `result.pass` false = failing) and downloads
-  `tree-bench-<stage>-<quality>-<res>-<date>.json` (machine, mitigations, re-selected trees, spike frames;
-  `compare: <earlier report>` adds the change in every figure). Each frame ends with `waitForGpu` (a 1-pixel
-  readback): WebGL `gl.finish()` does not wait in Chrome, so frames queued up and one in ~100 absorbed ~10 frames of GPU
-  work (the old 300-400 ms "spikes").
-- Variant sets (`getVariantSet`, `assets/library.ts`): the other LODs draw every variant with ONE `InstancedMesh` per material -
-  all variants in one geometry, the instance's `instVariant` picks one, the shader clips the rest (`variantMaterial` /
-  `variantDepthMaterial` for the shadow pass). Costs vertex work x variants, so sets are capped (vegetation 1200 triangles:
-  big tree crowns stay per variant). `?variantsets=0` turns them off; test `variant-sets`.
+- Never clone geometry or materials per instance: `getAsset(id, variant, lod)` -> `InstancedMesh`. Variant sets draw
+  every variant of an LOD in one mesh (`getVariantSet`, `?variantsets=0`).
+- Whole-map static meshes are merged per material into a `BatchedMesh` at load (`world/static-batch.ts`,
+  `STATIC_ROAD_GROUPS`); anything that changes later stays a plain mesh. No `BatchedMesh` for streamed meshes (terrain
+  tiles): writes into its shared buffers stall ANGLE / D3D11.
+- Tree batches: one `multiDrawElementsInstancedWEBGL` per material and part (`trees/multi-draw.ts`), per-tree data in a
+  float texture (`TreePool`); `?multidraw=0` draws one call per batch.
+- Terrain tiles merge per LOD band and reuse released geometry (`terrain-renderer.ts`, `SPARE_TILES`).
+- Many materials = many draws: use a texture array (`engine/texture-array.ts`). A custom shader scales
+  `envMapIntensity`, never replaces it.
+- Scatter LOD1+ buckets draw only the camera's view (`InstanceStreamer.setView`).
+- Meshes that never move set `matrixAutoUpdate = false`; transparent `DoubleSide` materials set `forceSinglePass`.
 
-**Distances**
+**GPU**
 
-- Nothing is drawn past the streamed terrain (`quality.viewDistance`): the streamer gets it as `maxDistance`, the whole-map road
-  group is distance-culled by `world/distance-cull.ts`. Far scatter chunks of short-range assets are skipped wholesale.
-- Knobs: `engine/quality.ts`, LOD distances in `assets/catalog.ts`, `TERRAIN_LODS` in `game/rally-game.ts`, map `fogDensity`,
-  and the **Object distance** option (x1 / x1.5 / x2 on objects only, `OBJECT_DISTANCE` in `game/settings.ts`).
-- **Render scale** option (Auto / 100 / 85 / 70 %, `RENDER_SCALE`): multiplies the pixel ratio. A DPR 1.5 screen renders
-  ~4.2 Mpx on High; there the GPU is the limit and the frame-time spikes grow with the pixel count. Auto times the render on the GPU (`EXT_disjoint_timer_query_webgl2`) and steps down (`SCALE_STEPS`, to 70 %) only while
-  it takes more than 85 % of the time between frames (`RallyGame.adaptScale`): a CPU-bound frame keeps full resolution.
-  Not the default: each step resizes the canvas (a 70-180 ms hitch), so it is for GPU-bound machines only.
+- The sky is drawn last, at the far plane, so covered pixels skip it. Nothing opaque may count on the sky being under it
+  (the horizon backdrop's `depthPush` in world/horizon.ts).
+- Trees are about half the GPU frame (crown-proxy shadows, impostors, leaf sprites). How they are drawn, their levels,
+  fades and shadows: the tree spec ([ProceduralTrees](../../../.claude/reference/trees/ProceduralTrees.md),
+  [Drawing](../../../.claude/reference/trees/Drawing.md), [Performance](../../../.claude/reference/trees/Performance.md)).
+  Measure with the tree overlay (`F6`) and `?treebench=1`.
+- Past `forestDistance` the far forest takes over (`world/far-forest.ts`: far tree impostors to `FAR_REACH`, then the
+  canopy shell).
+- Render scale option (Auto / 100 / 85 / 70 %, `RENDER_SCALE`). Auto (`adaptScale`) steps down only while the GPU falls
+  behind; not the default, as each step is a resize hitch.
+
+**Streaming and distances**
+
+- Streaming is time-sliced within the frame budget: terrain, the 1 m heightfield, grass chunks
+  (`ScatterField.detailSteps`), instance re-bucketing. Whole-map work uses `world.analytic` and spatial grids, never
+  all-against-all.
+- Scatter chunks past 1.25 x the view distance are dropped (`ScatterField.pruneChunks`), so memory stays flat.
+- Nothing is drawn past the streamed terrain (`quality.viewDistance`; the road group via `world/distance-cull.ts`).
+  Knobs: `engine/quality.ts`, LOD distances in `assets/catalog.ts`, `TERRAIN_LODS`, the **Object distance** option.
 
 **Shadows**
 
-- Only LOD0 casts shadows, so every LOD0 radius must reach the far edge of the shadow box: 1.5 x `quality.shadowExtent`.
-- The shadow pass is triangle bound: hidden parts do not cast (car interior, parked vehicles' glass / chrome / details). An
-  `InstancedMesh` spanning a whole area is never culled, so each of its casters draws every frame.
+- Only LOD0 casts shadows, so every LOD0 radius must reach the far edge of the shadow box (1.5 x `shadowExtent`).
+- The shadow pass is triangle bound: hidden parts do not cast, and a whole-area `InstancedMesh` is never culled.
 
 **Loading**
 
-- Loading ends with a warm-up (`RallyGame.init`): wait for the imported car, compile, render one frame with culling off - so
-  shaders (incl. the shadow pass) and buffer uploads happen behind the loading screen. A material first used mid-stage
-  compiles then (a hitch): add it to the scene at load.
-- Background work runs in module workers (`shared/worker-pool.ts`: 4-6 threads, least-loaded first, a failed pool makes the caller do
-  the work itself): tree variants and leaf atlases + mips (`trees/worker.ts`), people (above), procedural textures drawn on an
-  OffscreenCanvas (`engine/texture-worker.ts`; `engine/texture-prefetch.ts`: a browser remembers the textures each map used and asks for
-  those next time, `BY_MAP` seeds a first visit; text textures stay on the page). `__rally.loadTimings` splits the load by phase.
-  The tree workers also read the IndexedDB cache (variants + their impostors' mip chains, and the leaf atlases + mips,
-  keyed `atlas:<style>:v<GENERATOR_VERSION>`), so a warm Trees phase does no pixel work on the main thread.
-- Workers only start while the main thread is free: a long load-time task holds every pool up. `bakeCropCards` yields
-  between cards for that reason; keep other once-per-page bakes sliced the same way.
-- Shader programs of the main pass compile in parallel (`compileAsync`); the shadow-pass ones compile in the first render. The tree
-  prepass check (`TreeRenderer.checkPrepass`) draws only the trees and keeps its verdict per GPU in localStorage (it used to draw the
-  whole scene into a target: 70 more programs, ~5 s on a cold shader cache).
-- Long synchronous steps (world build, road, props, shader compile) set their label and `paint()` first, so the bar never
-  sits unlabelled at 0%. The car's GLB starts downloading before the map data (`preloadCarModel`).
-- Car select: a "Loading model" spinner (`Showroom.loadCue`) shows while a car's GLB downloads (the car stays hidden until then).
-- Last picked stage, car and livery are remembered (`rally.settings`, saved on Start); a car that is hidden in the build or unknown falls back to the default car and livery 1.
-- Car select: All / AWD / RWD / FWD filter row on top (`driveGroup` from the car's `drivetrain.frontSplit`, not remembered); up from the first car or the pad focuses it, left / right switch.
-- Car select (screens >= 800 px wide): the description / stats / livery sit in a card docked beside the list (`.menu-side-card`, `MainMenu.sideCard`, shared with Select stage; Stage times uses the same placement). The showroom car keeps its shared place and size (`CAR_SHIFT`, `CAR_DIST_SCALE`) and may run behind the card; its **Details** tab (`MainMenu.minimizer`, class `min` on the card, shared with Select stage) minimizes the card to its description (the Stage times card has no tab). Narrower screens (< 800 px) lay the same card over the map above the buttons.
-- Select stage: the stage's description (`StageDef.description`: what the drive is like for the player, no data sources or build details), recommended set-up and a **Time of day** dropdown sit in the same card (phones: under the selected stage), with a **Season** dropdown (spring / summer / autumn, above the time) and the **Month** it is driven in in front. Left / right (or the pad) step the time; the list cards keep the route, tags and best time.
-- Time of day (`game/time-of-day.ts`, the one config): early morning 07:00, mid day 12:00, afternoon 15:30, evening 17:30, night 01:00 (dropdown order) - each is a `?tod=<hours>` hour, so any stage of a map with `environment.timeOfDay` takes any of them. A stage's own default hour stays exact on its nearest slot (Jackie opens on "Early morning · 08:00") and a stage can move a slot (`StageDef.slotHours`: Vodno's early morning is 08:00); a pick applies to every stage until changed and is not remembered; the menu mirrors it into the URL (`tod=`), a stage without `timeOfDay` shows no dropdown. Under it the card shows the clock time and the air / road temperature at that hour (`StageDef.temps`, the numbers the tyres run with, see PHYSICS.md). Times are saved per stage, not per time of day.
-- Season (`season.ts`): spring / summer / autumn, the one the stage opens in (`StageDef.season`, else the map's `environment.season`, default summer; `stageSeason`) or `?season=`; the stage screen's pick is mirrored into the URL (`season=`, none = the stage's own) and shown on every stage including the test map. It sets the tree leaf colours (`trees/seasons.ts`), the ground (`environment.groundTints`, below) and the stage's air / road temperatures (`StageDef.temps`, "Temperatures" below). The stage card lists the **Month** the stage is driven in that season (`environment.months`, default April / July / October: e.g. Ajvatovci spring April, Jackie spring May).
-- Season ground: `environment.groundTint` is the map's own season (`environment.season`, the card's `season`; a stage can open in another, e.g. Galichica West in autumn, East in spring); `environment.groundTints` has the other seasons' tint (fresh green / young crops in spring, dry olive / stubble in autumn). `mapInSeason` (`maps/shared/season-map.ts`) returns the map with that season's tint as `groundTint` and `season` set, and `RallyGame` builds its `World` from it, so terrain, horizon and sky colours follow. The stage card (select stage) has one picture per season, every one `<stage id>-<season>.jpg` (`cardImageName`; the card's `season` is the map's own), the other seasons listed with their hash + floor colour in the card's `seasons`; the dropdown swaps the picture (`Showroom.setSeason`), only the shown season is fetched. A map without `groundTints` shows one picture for every season.
+- Loading ends with a warm-up (`RallyGame.init`): compile, then one render with culling off, so shaders (shadow pass
+  included) and uploads happen behind the loading screen. A material first used mid-stage compiles then (a hitch): it
+  must be in the scene at load (`assetIds` adds the world-placed assets).
+- Background work runs in module workers (`shared/worker-pool.ts`): tree variants, leaf atlases, people, procedural
+  textures; the tree workers read the IndexedDB cache. `__rally.loadTimings` splits the load by phase.
+- A long load-time task holds every worker pool up: slice once-per-page bakes (`bakeCropCards`). Long synchronous steps
+  set their label and `paint()` first.
 
 ## Temperatures (`StageDef.temps`)
 
