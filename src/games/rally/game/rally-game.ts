@@ -38,6 +38,7 @@ import { getAssetMeta } from '../assets/catalog';
 import { Breakables } from '../world/breakables';
 import { PeopleAnimator } from '../world/people-anim';
 import { DistanceCull } from '../world/distance-cull';
+import { batchStatic } from '../world/static-batch';
 import { prefetchTextures, rememberTextures } from '../engine/texture-prefetch';
 import { warmLevels } from '../world/people-warm';
 import { InstanceStreamer } from '../world/instance-streamer';
@@ -147,6 +148,18 @@ const STEP = 1 / PHYSICS_HZ;
 const SHADOW_OVERLAP = 25;
 /** Trees farther than this from the stage road (m) are only ever impostors (trees/draw.ts `fakeFrom`). */
 const FAKE_TREES_FROM = 250;
+/** Road sub-groups whose meshes never change after the build: batched (world/static-batch.ts). */
+const STATIC_ROAD_GROUPS = [
+  'paths',
+  'buildings',
+  'barriers',
+  'bridges',
+  'cut-walls',
+  'railways',
+  'street-detail',
+  'plazas',
+  'gore',
+];
 /** A gantry clock is redrawn only while the camera is this close to it (m): each redraw uploads a texture. */
 const CLOCK_NEAR = 400;
 
@@ -353,6 +366,14 @@ export class RallyGame {
     });
     this.scene.add(road);
     this.roadGroup = road;
+    // Whole-map static meshes (the stage road's chunks, path / building tiles, walls, rails ...): one multi-draw per
+    // material instead of a draw per tile (world/static-batch.ts). Not the gantries / signs / cable cars (own
+    // textures or moving parts).
+    batchStatic(road);
+    for (const name of STATIC_ROAD_GROUPS) {
+      const g = road.getObjectByName(name);
+      if (g) batchStatic(g);
+    }
     // Whole-map meshes: nothing past the streamed terrain (no ground under them there).
     this.roadCull = new DistanceCull(road, q.viewDistance);
     await frame();
