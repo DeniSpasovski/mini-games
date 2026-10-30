@@ -9,7 +9,12 @@ import {
   Quaternion,
   Vector3,
 } from 'three';
-import { ASSET_CATALOG, getAssetMeta, type AssetMeta } from '../assets/catalog';
+import {
+  ASSET_CATALOG,
+  getAssetMeta,
+  hasAsset as isCatalogAsset,
+  type AssetMeta,
+} from '../assets/catalog';
 import {
   canBuildAway,
   evictAsset,
@@ -909,6 +914,10 @@ export function assetIds(world: World): Set<string> {
     ...world.map.props.map((p) => p.asset),
     ...(world.stageDef.props ?? []).map((p) => p.asset),
   ]);
+  // Placed by the world itself (gore cushions, catenary masts, pylons, street dressing ...): `prewarm` must cover them
+  // too, or their shaders compile when the first one streams in (a 1-4 s freeze on a fresh shader cache).
+  for (const inst of world.scatter.fixedInstances())
+    if (isCatalogAsset(inst.asset)) ids.add(inst.asset);
   if (ids.has('tape_post')) ids.add('tape_span');
   for (const id of ids) if (isTreeType(id)) ids.delete(id);
   return ids;
