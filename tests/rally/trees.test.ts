@@ -16,6 +16,7 @@ import {
   type FadeState,
 } from '../../src/games/rally/trees/draw';
 import { treeUniforms } from '../../src/games/rally/trees/materials';
+import { keptLight } from '../../src/games/rally/trees/mesh';
 import {
   LEAF_STYLES,
   spriteAtlas,
@@ -49,6 +50,16 @@ import {
 
 /** Procedural L-system trees: the pure stages (grammar, skeleton, meshing, placement) run in node. */
 describe('trees', () => {
+  test('darkening terms combine without multiplying a leaf down to black', () => {
+    expect(keptLight(1, 1, 1)).toBe(1);
+    expect(keptLight(0.7)).toBeCloseTo(0.7);
+    // The strongest counts fully, the others a third: lighter than the product, never lighter than the strongest.
+    const k = keptLight(0.8, 0.7, 0.75);
+    expect(k).toBeCloseTo(0.55);
+    expect(k).toBeGreaterThan(0.8 * 0.7 * 0.75);
+    expect(k).toBeLessThan(0.7);
+  });
+
   test('the PRNG and trig are fixed integer / polynomial code', () => {
     const r = new TreeRng(12345);
     expect([r.u32(), r.u32(), r.u32()]).toEqual([
