@@ -2,6 +2,7 @@ import { hash3, Rng } from '../../../shared/rng';
 import { MAX_BENDS, explode, type BlastSink } from './blast';
 import { movePlayer, overlapsCell, updateTntPass } from './movement';
 import {
+  CHAIN_DELAY_S,
   COUNTDOWN_S,
   FUSE_BY_DIFFICULTY,
   MAX_PLAYERS,
@@ -521,8 +522,17 @@ export class Sim implements KaboomSim {
         last = p.id;
       }
     }
+    // One left but a chain is still burning: it may take them too (a draw), so let it finish before naming a winner.
+    if (present > 1 && alive === 1 && this.chainBurning()) return;
     if (present > 1 && alive <= 1) this.endRound(alive === 1 ? last : null);
     else if (this.time >= ROUND_S) this.endRound(null);
+  }
+
+  /** A TNT lit by a blast, waiting for its chain link to go off. */
+  private chainBurning(): boolean {
+    for (const t of this.s.tnts)
+      if (t.active && t.fuse <= CHAIN_DELAY_S) return true;
+    return false;
   }
 
   private endRound(winner: number | null): void {
