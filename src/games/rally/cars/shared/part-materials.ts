@@ -2179,13 +2179,15 @@ const BUILDERS: Record<PartName, () => Material> = {
         clearcoat: 1,
         clearcoatRoughness: 0.05,
       }),
-      1.2,
+      // Brighter by day than most lamps: on a red body the lit lens has to stand out from the paint.
+      4,
       reverseGlow,
       SMALL_LAMP_NIGHT,
     );
   },
   /** Modelled tail-lamp LED strip: red, idle glow, bright with the brake pedal (setBrake). */
-  tailled: () => tailLed(0xff0000, 0.3, 1.1, RED_NIGHT),
+  // LED strips are bright: by day the brake reads over a sunlit lens (night keeps RED_NIGHT).
+  tailled: () => tailLed(0xff0000, 0.3, 2.2, RED_NIGHT),
   /** Bumper corner strip: dark red reflector while off, lights like `tailled` with the brake pedal (setBrake). */
   brakestrip: () => brakeStrip(0xff0000, 1.1, STRIP_NIGHT),
   brakestripred: () => brakeStrip(0xff0000, 1.1, STRIP_NIGHT),

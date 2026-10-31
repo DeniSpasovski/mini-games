@@ -356,6 +356,11 @@ export function setWorldTime(seconds: number): void {
 export const WORLD_SHADING_DECL = /* glsl */ `
 #ifndef WS_DECL
 #define WS_DECL
+#ifdef RALLY_CAR_WET
+varying vec3 wsObjPos;
+varying vec3 wsObjX;
+varying vec3 wsObjZ;
+#endif
 uniform float wsTime;
 uniform vec3 wsSunDir;
 uniform vec4 wsCloud;
@@ -390,6 +395,11 @@ const FOG_VERTEX = /* glsl */ `
 #ifdef USE_FOG
 	vFogDepth = - mvPosition.z;
 	vFogWorld = ${WORLD_FROM_VIEW.replace('%v', 'mvPosition.xyz')};
+#endif
+#ifdef RALLY_CAR_WET
+	wsObjPos = transformed;
+	wsObjX = normalize( normalMatrix * vec3( 1.0, 0.0, 0.0 ) );
+	wsObjZ = normalize( normalMatrix * vec3( 0.0, 0.0, 1.0 ) );
 #endif
 `;
 
@@ -739,6 +749,32 @@ const WET_PHYSICAL = /* glsl */ `
 		diffuseColor.rgb *= 1.0 - 0.55 * wsPorous * wsW;
 		roughnessFactor = mix( roughnessFactor, min( roughnessFactor, mix( 0.6, wsGloss, wsUp ) ), wsW );
 		normal = normalize( mix( normal, nonPerturbedNormal, ( 1.0 - wsGloss ) * 0.8 * wsW * wsUp ) );
+		#ifdef RALLY_CAR_WET
+			// Water beading on the paint (\`wetCar\`): domed drops 2-6 mm on a ~1.6 cm grid in the car's own space (they ride
+			// with it), thick on the roof, bonnet and boot, sparse on the flanks; each a tiny lens with a sharp highlight.
+			vec2 wsBp = ( wsUp > 0.5 ? wsObjPos.xz : vec2( wsObjPos.z + wsObjPos.x, wsObjPos.y ) ) * 62.0;
+			vec2 wsBi = floor( wsBp );
+			vec2 wsBf = wsBp - wsBi;
+			vec3 wsBead = vec3( 0.0 );
+			for ( int j = -1; j <= 1; j++ ) for ( int i = -1; i <= 1; i++ ) {
+				vec2 o = vec2( float( i ), float( j ) );
+				vec2 c = wsBi + o;
+				float h1 = fract( sin( dot( c, vec2( 127.1, 311.7 ) ) ) * 43758.5453 );
+				float h2 = fract( sin( dot( c, vec2( 269.5, 183.3 ) ) ) * 43758.5453 );
+				float h3 = fract( h1 * 17.13 + h2 * 3.7 );
+				if ( h3 > mix( 0.25, 0.75, wsUp ) * wsW ) continue;
+				vec2 d = o + 0.15 + 0.7 * vec2( h1, h2 ) - wsBf;
+				float r = 0.12 + 0.26 * h3;
+				float l = length( d ) / r;
+				if ( l < 1.0 && l < 1.0 - wsBead.z ) wsBead = vec3( - d / r, 1.0 - l );
+			}
+			if ( wsBead.z > 0.0 ) {
+				float wsDome = smoothstep( 0.0, 0.25, wsBead.z );
+				vec3 wsTilt = wsUp > 0.5 ? wsObjX * wsBead.x + wsObjZ * wsBead.y : wsObjZ * wsBead.x;
+				normal = normalize( mix( normal, normalize( nonPerturbedNormal + 0.9 * wsTilt ), wsDome ) );
+				roughnessFactor = mix( roughnessFactor, 0.03, wsDome );
+			}
+		#endif
 		#ifdef RALLY_PUDDLES
 			// Standing water (puddles.ts, the physics' field): a dark mirror, rings from the rain falling into it.
 			wsPd = wsPuddle( wsPw.xz, wsWetAmt ) * wsUp;
@@ -785,6 +821,16 @@ let baseLightsEnd = '';
  * The wet shading goes into the shaders only on a wet stage: a dry one compiles without it (a weather is fixed for a
  * page, and the programs compile at the first render after `Environment` sets it).
  */
+/**
+ * A car body material that beads the rain (`RALLY_CAR_WET` in the wet shading): paint, plastics and glass. Call once per
+ * material; a dry stage never compiles the beads (they sit inside the wet shading).
+ */
+export function wetCar(m: Material): void {
+  if (m.defines?.RALLY_CAR_WET !== undefined) return;
+  m.defines = { ...m.defines, RALLY_CAR_WET: '' };
+  m.needsUpdate = true;
+}
+
 function wetShading(on: boolean): void {
   const chunks = ShaderChunk as Record<string, string>;
   chunks.lights_physical_fragment = (on ? WET_PHYSICAL : '') + basePhysical;

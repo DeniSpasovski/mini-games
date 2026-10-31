@@ -1,3 +1,4 @@
+import { wetCar } from '../../engine/world-shading';
 import { CornerSuspension } from './corner-suspension';
 import {
   AxesHelper,
@@ -382,6 +383,8 @@ const HALO_BRAKE_NIGHT = 0.26;
 const HALO_BRAKE_DAY = 0;
 /** Halo strength round the head lamps with the lights fully on (night). */
 const HALO_HEAD = 1.1;
+/** Share of the headlamp glare by day (lights on in rain / fog). */
+const HEAD_DAY_GLARE = 0.5;
 /** How far (m) a chrome piece's centre may sit outside the profile's lamp box and still be a head lamp bowl (`gltf.headBowls`). */
 const BOWL_SLACK = 0.03;
 /** A piece is a listed bulb (`gltf.headBulbs`) when its centre is this close (m) and it is no bigger than `BULB_SIZE`. */
@@ -1696,10 +1699,28 @@ export class CarModel {
       const { off, on } = m.userData.headLamp as { off: number; on: number };
       m.emissiveIntensity = off + (on - off) * this.lampsOn;
     }
-    this.headHalos?.setLevel(this.lampsDay ? 0 : HALO_HEAD * this.lampsOn, 0);
+    // By day in rain / fog the headlamps still bloom in the wet air (a softer glare than at night).
+    this.headHalos?.setLevel(
+      HALO_HEAD * this.lampsOn * (this.lampsDay ? HEAD_DAY_GLARE : 1),
+      0,
+    );
   }
 
   /** Lights on / off (night): headlamps glow, tail lamps stay lit (brake light still brighter). */
+  /**
+   * Rain on the body (engine/world-shading.ts `wetCar`): the paint, glass and lamp lenses (clear-coated materials) bead
+   * the water. Before the first compile; once the model has loaded.
+   */
+  setWet(): void {
+    void this.ready.then(() =>
+      this.root.traverse((o) => {
+        const m = (o as Mesh).material as MeshPhysicalMaterial | undefined;
+        if ((o as Mesh).isMesh && m && !Array.isArray(m) && m.clearcoat >= 0.5)
+          wetCar(m);
+      }),
+    );
+  }
+
   setLamps(on: boolean | number, day = false): void {
     const level = Number(on);
     if (level === this.lampsOn && day === this.lampsDay) return;
@@ -1742,11 +1763,16 @@ export class CarModel {
       const nightIdle =
         (night?.idle ?? off + Math.min(on - off, TAIL_NIGHT_GLOW)) *
         this.lampsOn;
-      // From the lamp's own off glow (some lamps, like the C4's, already glow a little when off).
-      const idle = this.lampsDay
-        ? Math.max(nightIdle, off + (on - off) * TAIL_DAY_GLOW * this.lampsOn)
-        : nightIdle;
-      const full = on + ((night?.on ?? on) - on) * this.lampsOn;
+      // Brake-only parts (no running glow at night: inner brake lamps, third brake light) stay dark by day too.
+      const running = (night?.idle ?? 1) > 0;
+      const idle =
+        this.lampsDay && running
+          ? Math.max(nightIdle, on * TAIL_DAY_GLOW * this.lampsOn)
+          : nightIdle;
+      // The night brake level is tuned for the dark (AgX); by day the brake keeps its full daylight glow.
+      const full = this.lampsDay
+        ? on
+        : on + ((night?.on ?? on) - on) * this.lampsOn;
       const lit = idle + (full - idle) * l;
       const reverseLamp = reversing && l < 0.02;
       m.emissive.setHex(

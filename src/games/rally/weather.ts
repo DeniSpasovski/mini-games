@@ -110,7 +110,7 @@ export const WEATHER_LOOKS: Readonly<Record<Weather, WeatherLook>> = {
   rain_light: {
     clouds: 1,
     deck: 1.2,
-    sun: 0,
+    sun: 0.2,
     visibility: 2000,
     wet: 0.7,
     rain: 2,

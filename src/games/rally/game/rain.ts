@@ -27,6 +27,8 @@ const BOX = new Vector3(32, 20, 32);
 export class Rain {
   readonly mesh: Mesh;
   private material: ShaderMaterial;
+  /** Rain beyond the drop box (`curtainMaterial`); shares the drops' uniforms. */
+  private curtainMat: ShaderMaterial;
   private lastCam = new Vector3();
   private camVel = new Vector3();
   private step = new Vector3();
@@ -149,6 +151,11 @@ export class Rain {
     this.mesh = new Mesh(g, this.material);
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 10;
+    this.curtainMat = curtainMaterial(this.material, density, rate);
+    const curtains = new Mesh(curtainGeometry(), this.curtainMat);
+    curtains.frustumCulled = false;
+    curtains.renderOrder = 9;
+    this.mesh.add(curtains);
   }
 
   /** Follow the camera (call every frame with the camera's world position). */
@@ -181,7 +188,120 @@ export class Rain {
   dispose(): void {
     this.mesh.geometry.dispose();
     this.material.dispose();
+    for (const c of this.mesh.children) (c as Mesh).geometry.dispose();
+    this.curtainMat.dispose();
   }
+}
+
+/** Rain curtains round the camera: radius (m), height (m) and strength of each (`curtainMaterial`). */
+const CURTAINS: readonly { radius: number; height: number; alpha: number }[] = [
+  { radius: 30, height: 30, alpha: 0.55 },
+  { radius: 70, height: 50, alpha: 0.45 },
+  { radius: 150, height: 90, alpha: 0.35 },
+];
+const CURTAIN_SEGMENTS = 96;
+
+/** The curtains' open cylinders: per vertex its angle, 0 / 1 bottom / top and its curtain. */
+function curtainGeometry(): BufferGeometry {
+  const n = CURTAIN_SEGMENTS + 1;
+  const cyl = new Float32Array(CURTAINS.length * n * 2 * 3);
+  const index: number[] = [];
+  CURTAINS.forEach((_, layer) => {
+    for (let i = 0; i < n; i++) {
+      const a = (i / CURTAIN_SEGMENTS) * Math.PI * 2;
+      const v = (layer * n + i) * 2;
+      cyl.set([a, 0, layer, a, 1, layer], v * 3);
+      if (i < CURTAIN_SEGMENTS)
+        index.push(v, v + 1, v + 2, v + 2, v + 1, v + 3);
+    }
+  });
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(cyl, 3));
+  g.setIndex(index);
+  return g;
+}
+
+/**
+ * Rain beyond the drop box, as rain games draw it (ATI's ToyShop: layers of scrolling streaks at a few distances round
+ * the camera): three open cylinders of falling streak lanes at 30 / 70 / 150 m, each streak sized for its distance
+ * (~6 cm wide, ~1.5 m long at 30 m) and never thinner than a pixel (fainter instead). Depth-tested, so a forest hides
+ * them and open ground shows the rain sweeping across the hills. Lit like the drops (`uColor`).
+ */
+function curtainMaterial(
+  drops: ShaderMaterial,
+  density: number,
+  rate: number,
+): ShaderMaterial {
+  const u = drops.uniforms;
+  return new ShaderMaterial({
+    uniforms: {
+      uCam: u.uCam,
+      uTime: u.uTime,
+      uFall: u.uFall,
+      uWind: u.uWind,
+      uColor: u.uColor,
+      uDensity: { value: density },
+      uAlpha: { value: 0.12 + 0.18 * Math.min(1, rate / 8) },
+      uLayers: {
+        value: CURTAINS.map((c) => new Vector3(c.radius, c.height, c.alpha)),
+      },
+    },
+    vertexShader: /* glsl */ `
+      uniform vec3 uCam;
+      uniform vec3 uLayers[ ${CURTAINS.length} ];
+      varying vec3 vWorld;
+      varying float vArc;
+      varying vec3 vLayer;
+      void main() {
+        vec3 l = uLayers[ int( position.z + 0.5 ) ];
+        vLayer = l;
+        vec3 w = uCam + vec3( cos( position.x ) * l.x, ( position.y - 0.35 ) * l.y, sin( position.x ) * l.x );
+        vWorld = w;
+        vArc = position.x * l.x;
+        gl_Position = projectionMatrix * viewMatrix * vec4( w, 1.0 );
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uCam;
+      uniform float uTime;
+      uniform float uFall;
+      uniform vec2 uWind;
+      uniform vec3 uColor;
+      uniform float uDensity;
+      uniform float uAlpha;
+      varying vec3 vWorld;
+      varying float vArc;
+      varying vec3 vLayer;
+      float hash( float n ) { return fract( sin( n * 91.3458 ) * 47453.5453 ); }
+      void main() {
+        float width = vLayer.x * 0.0018;
+        float lane = width * 7.0;
+        // Lanes slant with the wind.
+        float x = vArc + ( vWorld.y - uCam.y ) * uWind.x / uFall;
+        float id = floor( x / lane ) + vLayer.x;
+        float r1 = hash( id );
+        if ( r1 > uDensity ) discard;
+        float r2 = hash( id + 17.0 );
+        float dx = ( fract( x / lane ) - 0.2 - 0.6 * r2 ) * lane;
+        float px = fwidth( x );
+        float w = max( width, px );
+        float across = ( 1.0 - smoothstep( 0.5 * w, 0.5 * w + px, abs( dx ) ) ) * width / w;
+        float len = vLayer.x * 0.05;
+        float s = fract( ( vWorld.y + uTime * uFall * ( 0.85 + 0.3 * r2 ) ) / ( len * 3.0 ) + r1 * 7.0 );
+        float along = smoothstep( 0.0, 0.05, s ) * ( 1.0 - smoothstep( 0.2, 0.33, s ) );
+        float t = ( vWorld.y - uCam.y ) / vLayer.y + 0.35;
+        float band = smoothstep( 0.0, 0.1, t ) * ( 1.0 - smoothstep( 0.7, 1.0, t ) );
+        float a = across * along * band * uAlpha * vLayer.z;
+        if ( a < 0.002 ) discard;
+        gl_FragColor = vec4( uColor, a );
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }
+    `,
+    transparent: true,
+    depthWrite: false,
+    side: DoubleSide,
+  });
 }
 
 /**

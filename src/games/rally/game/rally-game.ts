@@ -88,6 +88,7 @@ import { CameraRig } from './camera-rig';
 import { ParticleSystem } from './dust';
 import { GravelStones } from './gravel-stones';
 import { nearestZones, Rain, roofZones } from './rain';
+import { LampReflections } from './lamp-reflections';
 import { weatherLook, weatherParam } from '../weather';
 import { TyreMarks } from './tyre-marks';
 import { Hud } from './hud';
@@ -231,6 +232,8 @@ export class RallyGame {
   /** Night only (`env.night`): the car's lights. */
   private headlights?: Headlights;
   private tailLight?: TailLight;
+  /** Lit lamps mirrored in a wet road (lamp-reflections.ts). */
+  private lampReflections?: LampReflections;
   /** High quality at night / dusk: glow around lamps and reflectors. */
   /** High quality post effects (bloom, AO); `__rally.post.set({ ... })` from the console. */
   post?: PostFx;
@@ -576,6 +579,7 @@ export class RallyGame {
     const w = this.env.weatherLook;
     // In rain / fog the lights are switched on, not faded in with the dusk (dry runs keep the plain dusk / night lights).
     const weatherLights = w.rain > 0 || !!w.fog;
+    if (w.wet > 0) this.model.setWet();
     // Daylight lights of rain / fog: under BEAM_MIN_NEED.
     const weatherDay = weatherLights && this.env.lightNeed < BEAM_MIN_NEED;
     if (this.env.lightNeed >= LIGHTS_MIN_NEED) {
@@ -609,6 +613,21 @@ export class RallyGame {
       );
       // The beam starts at the model's own lamps once they are known.
       this.model.onHeadlamps((m) => this.headlights?.moveTo(m));
+      // A wet road mirrors the lit lamps.
+      if (w.wet > 0) {
+        const lamps = weatherLights ? Math.max(need, WEATHER_LAMPS) : need;
+        this.model.onHeadlamps((m) => {
+          this.lampReflections?.dispose();
+          this.lampReflections = new LampReflections(
+            this.model.root,
+            m,
+            tailLightMount(this.car.physics),
+            -this.car.physics.comHeight,
+            w.wet,
+          );
+          this.lampReflections.setLevels(lamps, lamps, 0);
+        });
+      }
     }
     if (q.name === 'high')
       this.post = new PostFx(
@@ -939,6 +958,8 @@ export class RallyGame {
       // Reflectors and reflective boards in the beam.
       setHeadBeam(this.lampColor, this.lampPos, this.lampDir);
     }
+    this.lampReflections?.setBrake(brake);
+    this.lampReflections?.update(this.camera.position);
     if (this.tailLight) {
       this.tailLight.setBrake(brake);
       const at = tailLightMount(this.car.physics);
@@ -1928,11 +1949,12 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
           0.38 + w.surface.dust * 0.22,
         );
       }
-      // Gravel spray: stones flung back and up from loose surfaces, most when sliding / spinning.
+      // Gravel spray: stones flung back and up from loose surfaces, most when sliding / spinning. Wet, the tread also
+      // throws mud: more and bigger clumps at any speed (the rooster tail behind a rally car in the rain).
       if (w.surface.loose > 0.3) {
         this.gravelAcc[i] +=
           w.surface.loose *
-          (w.slideSpeed * 10 + w.contactSpeed * 0.5) *
+          (w.slideSpeed * 10 + w.contactSpeed * (0.5 + 2.5 * wet)) *
           quality *
           (i >= 2 ? 1 : 0.4) *
           dt;
@@ -1951,7 +1973,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
             v.velocity.x * 0.55 - v.forward.x * back + v.right.x * side,
             1.2 + Math.random() * 2.8,
             v.velocity.z * 0.55 - v.forward.z * back + v.right.z * side,
-            0.05 + Math.random() * 0.07,
+            (0.05 + Math.random() * 0.07) * (1 + 0.6 * wet),
             0,
             0.8 + Math.random() * 0.6,
             this.gravelColor,
