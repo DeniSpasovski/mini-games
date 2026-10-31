@@ -18,9 +18,9 @@ LUMA = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
 # `groundTint` (chosen against that tile) keeps its look; the scans bring the structure.
 MEADOW = np.array([0.85, 1.08, 0.30], dtype=np.float32)
 # The gravel road and verge: the scan's own colour is light tan (mean sRGB 147 128 107); a compacted road of the region reads
-# darker and browner, so its linear colour is tinted and brought to this mean luminance (the scan's own is 0.233); mean sRGB 129 109 85.
-GRAVEL_LUM = 0.17
-GRAVEL_TINT = np.array([1.0, 0.90, 0.74], dtype=np.float32)
+# darker and browner, so its linear colour is tinted and brought to this mean luminance (the scan's own is 0.233); mean sRGB 121 101 77.
+GRAVEL_LUM = 0.145
+GRAVEL_TINT = np.array([1.0, 0.88, 0.70], dtype=np.float32)
 # tile: (Poly Haven id, mean linear luminance or None, colour kept 0..1, contrast around the mean, meadow hue 0..1)
 TILES = {
     'grass_spring': ('forrest_ground_01', 0.077, 0.8, 1.0, 0.7),
