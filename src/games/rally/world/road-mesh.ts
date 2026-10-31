@@ -2,7 +2,6 @@ import {
   BufferAttribute,
   BufferGeometry,
   Group,
-  Material,
   Mesh,
   MeshStandardMaterial,
   Vector3,
@@ -15,6 +14,12 @@ import {
   type RoadSurfaceId,
 } from '../engine/road-surface';
 import { getTexture } from '../engine/textures';
+import {
+  gravelBase,
+  gravelShader,
+  GRAVEL_DEFINES,
+  setupGravelRibbon,
+} from './gravel-road';
 import {
   type CityStreets,
   type PathDef,
@@ -108,17 +113,20 @@ export function getRoadMaterial(
   let m = roadMaterials.get(key);
   if (!m) {
     const baked = isRoadSurface(texture);
+    const gravel = texture === 'road';
     m = new MeshStandardMaterial({
       // Baked asphalt (engine/road-surface.ts) brings its own normal + roughness maps and tone variation.
-      ...(baked
-        ? {}
-        : {
-            map: getTexture(texture),
-            // Relief from the texture itself: gravel stones / tarmac grain catch a low sun.
-            bumpMap: getTexture(texture),
-            bumpScale: texture === 'road' ? 2.2 : 1.2,
-            roughness: texture === 'road' ? 0.93 : 0.86,
-          }),
+      ...(gravel
+        ? gravelBase()
+        : baked
+          ? {}
+          : {
+              map: getTexture(texture),
+              // Relief from the texture itself: gravel stones / tarmac grain catch a low sun.
+              bumpMap: getTexture(texture),
+              bumpScale: texture === 'road' ? 2.2 : 1.2,
+              roughness: texture === 'road' ? 0.93 : 0.86,
+            }),
       metalness: 0,
       polygonOffset: true,
       polygonOffsetFactor:
@@ -129,6 +137,8 @@ export function getRoadMaterial(
     // Canopy shadows beyond the shadow map (engine/world-shading.ts).
     m.defines = { RALLY_GROUND: 1 };
     if (baked) applyRoadSurface(m, texture, junction ?? JUNCTION_OF[texture]);
+    // The gravel is the terrain's own (world/gravel-road.ts), blended into the verge at its edges.
+    if (gravel) setupGravelRibbon(m);
     roadMaterials.set(key, m);
   }
   return m;
@@ -209,20 +219,15 @@ function surfaceFadeMesh(world: World): Mesh | null {
   g.setIndex(idx);
   g.computeBoundingSphere();
   const m = new MeshStandardMaterial({
-    map: getTexture('road'),
-    bumpMap: getTexture('road'),
-    bumpScale: 2.2,
-    roughness: 0.93,
-    metalness: 0,
+    ...gravelBase(),
     transparent: true,
     depthWrite: false,
     polygonOffset: true,
     polygonOffsetFactor: -4,
     polygonOffsetUnits: -8,
   });
-  m.defines = { RALLY_GROUND: 1 };
-  m.onBeforeCompile = (shader, renderer) => {
-    Material.prototype.onBeforeCompile.call(m, shader, renderer);
+  m.defines = { ...GRAVEL_DEFINES };
+  m.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -260,7 +265,10 @@ function surfaceFadeMesh(world: World): Mesh | null {
           diffuseColor.a *= max( cover, 0.5 * vDw );
         }`,
       );
+    // The ribbon's gravel, so it carries on without a seam.
+    gravelShader(shader, false);
   };
+  m.customProgramCacheKey = () => 'gravel-road-fade';
   const mesh = new Mesh(g, m);
   mesh.name = 'surfaceFade';
   mesh.receiveShadow = true;
@@ -633,6 +641,8 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
     );
     mesh.receiveShadow = true;
     mesh.matrixAutoUpdate = false;
+    // Before the terrain (0): its fragments under the road fail the depth test and are never shaded.
+    mesh.renderOrder = -0.2;
     group.add(mesh);
     yield;
   }

@@ -43,6 +43,8 @@ let sharedUniforms: Record<string, { value: unknown }> | undefined;
 
 /** Ripe wheat. */
 const DEFAULT_CROP = '#c2a552';
+/** Gravel is sampled this much sharper than the mip chain asks: a scan averaged out by distance reads as blur (the gravel road shares it). */
+export const GRAVEL_SHARP = 0.5;
 /** 1 x 1 neutral moisture (0.5) for pages without a baked map: only slope + macro noise vary the grass. */
 const NEUTRAL_MOISTURE = new DataTexture(
   new Uint8Array([128]),
@@ -90,6 +92,7 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
     HB_D: '0.25',
     GY_SOIL: GROUND_LAYER.soil.toFixed(1),
     GY_GRAVEL: GROUND_LAYER.gravel.toFixed(1),
+    GS_SHARP: GRAVEL_SHARP.toFixed(2),
     GY_ROCK: GROUND_LAYER.rock.toFixed(1),
     GY_LITTER: GROUND_LAYER.litter.toFixed(1),
     GY_LEAVES: GROUND_LAYER.leaves.toFixed(1),
@@ -159,7 +162,8 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         }
         // One scan tap by explicit gradients (so layers can be skipped in a branch): p world metres, s = 1 / scan size.
         vec3 gTap( float layer, vec2 p, float s, vec2 dx, vec2 dy ) {
-          return textureGrad( tGround, vec3( p * s, layer ), dx * s, dy * s ).rgb;
+          float sharp = layer == GY_GRAVEL ? GS_SHARP : 1.0;
+          return textureGrad( tGround, vec3( p * s, layer ), dx * s * sharp, dy * s * sharp ).rgb;
         }
         // The scan with its tiling broken: a rotated, blurred tap at ~1/3 the scale modulates its brightness. ml = the scan's
         // mean linear luminance (GROUND_MEAN). hh = brightness relative to that mean (1 = average): x the near tap (the
@@ -272,6 +276,14 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         }
         if (w.w > wCut) {
           cGravel = gVar(GY_GRAVEL, wp, GS_GRAVEL, GM_GRAVEL, dpx, dpy, near, h);
+          #ifndef TERRAIN_FAR
+          // Close up the 512 px scan is magnified: a third tap at about a third of the size (the gravel road has it too, world/gravel-road.ts).
+          float gNear = 1.0 - smoothstep(6.0, 20.0, length(vWPos - cameraPosition));
+          if (gNear > 0.0) {
+            mat2 R3 = mat2(0.6, 0.8, -0.8, 0.6);
+            cGravel *= mix(1.0, clamp(dot(gTap(GY_GRAVEL, R3 * wp + 7.3, GS_GRAVEL * 3.1, R3 * dpx, R3 * dpy), LUMA) / GM_GRAVEL, 0.4, 2.2), 0.6 * gNear);
+          }
+          #endif
           aV = w.w + 0.1 + HB_K * (h.x - 1.0);
           rV = 0.5 * mix(1.0, h.y, smoothstep(wCut, wCut + 0.15, w.w));
         }
@@ -313,13 +325,15 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         diffuseColor.rgb *= col;
         #ifndef TERRAIN_FAR
         // Height for the relief: the coarse scan tap per layer (smooth), by the splat weights (not the per-pixel height blend), rock / gravel bumpiest, grass nearly flat.
-        float terrainH = (rG * w.x + rD * w.y + rR * w.z + rV * w.w + rL * lit + rC * crop) * 4.0;
+        // Centred on each layer's scale (rX - its default): the scales differ per layer, so their vertex-weighted sum is a slope
+        // across every splat transition that changes with each triangle: a one-pixel line along the triangle edges (at the road side).
+        float terrainH = ((rG - 0.12) * w.x + (rD - 0.35) * w.y + (rR - 0.5) * w.z + (rV - 0.5) * w.w + (rL - 0.4) * lit + (rC - 0.1) * crop) * 4.0;
         #endif
         `,
       );
   };
   mat.customProgramCacheKey = () =>
-    far ? 'rally-terrain-far-v5' : 'rally-terrain-v8';
+    far ? 'rally-terrain-far-v6' : 'rally-terrain-v11';
   if (far) sharedFar = mat;
   else shared = mat;
   return mat;

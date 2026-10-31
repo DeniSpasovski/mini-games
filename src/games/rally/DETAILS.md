@@ -304,6 +304,10 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   (one sampler) + a tone shader (blotches and streaks that never repeat; Vodno's tiles also get pale repair patches there, more of
   them higher up the road). A new asphalt id = a `gen.js` preset, `ROAD_SURFACE_LEN` (same `len` as `texLength`, a test checks),
   a rebake.
+  The gravel road (`road`) is not baked: it is the terrain's own gravel layer in world space (`world/gravel-road.ts`: the same
+  taps, brightness variation and relief rule as `world/terrain-material.ts`, so road and verge are one surface), with two
+  narrow wheel tracks (about 0.5 m each, 1.6 m apart; smoother, darker, tyre streaks) and an edge that thins out into the verge (dithered, the ribbon is opaque and drawn before the terrain so the terrain under it is not shaded twice). The gravel tile is darker and browner than the scan (`GRAVEL_LUM` / `GRAVEL_TINT` in `scripts/ground/bake.py`, mean sRGB 121 101 77; the scan's own is 147 128 107; `GROUND_MEAN.gravel` follows). Look at it next to the verge
+  in the map viewer (`along=300&zoom=0.2`) after changing the gravel tile or either shader. The road bed also has lumps and dips (1.3 m and 0.45 m, normal and a little shade) in the same order as the car's own bumps (`surfaceBump`, gravel 15 mm).
 - **Road paint** (`RoadDef.markings`): lane lines (solid or dashed) and left / straight arrows as thin meshes over the road
   (`world/road-markings.ts`: `roadPaint` is the pure geometry, `roadMarkingsMesh` the meshes; textures `road_paint`,
   `road_arrow_left`, `road_arrow_straight`). Positions are measured from the road's left or right edge, so a lane keeps its

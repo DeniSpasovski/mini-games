@@ -539,9 +539,8 @@ cars short stubby coil-overs with a piggyback reservoir, adjuster knob and helpe
       `buildCoilover` so the chosen set-up's spring colour shows through the open arches in game (`CarModel` option
       `{ setup }` + `setSetup`, spring length from the live compression). Bimmer / Zastava stay without (closed wells / none).
 - [ ] **Asset debugger**: tyre + set-up pickers for `car:<id>` in `pages/asset-debug.ts`; `?susp=` in the car viewer.
-- [ ] **Optional emergent roughness**: raise `bump` on loose surfaces (gravel 6 -> ~15 mm, long wavelengths) so stiff
-      short-travel set-ups really skip - only with a rough-strip test and green stage tests; back it out if the soft
-      cars get twitchy.
+- [x] **Emergent roughness**: gravel and loose gravel `bump` 6 / 10 -> 15 mm (long wavelengths, `surfaceBump`),
+      so the road is felt as well as seen; tests green (the 126p wanders further in a straight run and when braking hard on gravel).
 - [ ] **Tyre look in motion**: check the three tread patterns can be told apart at chase-cam distance; mud / wear vertex
       colours; fewer segments (80) if the triangle count matters on phones.
 - [ ] **Optional extras**: audio layers (tarmac squeal near the limit, gravel-tread hum on asphalt), co-driver style
