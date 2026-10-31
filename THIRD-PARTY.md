@@ -23,9 +23,15 @@ README files carry the same information in more detail. Keep this file current w
 Ballistic Chess (`src/games/ballistic-chess/`) is built and hosted elsewhere; this repo holds only its card and
 screenshots. The game is by Deni S.; the board textures in the screenshots are CC0 Poly Haven scans.
 
-The only bundled font files are the UI faces of Gravel Rally, Hole Island and 3, 2, 1 Kabooom and the portal's (below); sounds are synthesised with WebAudio and no music file is committed. Most textures
+The only bundled font files are the UI faces of Gravel Rally, Hole Island and 3, 2, 1 Kabooom and the portal's (below); sounds are synthesised with WebAudio except the Hole Island samples listed under Sounds, and no music file is committed. Most textures
 are painted on canvases at runtime; the texture files that ship are listed with their licences below (building tiles, road
 asphalt, background-car, fire-engine and truck textures) and in `public/models/CREDITS.md` (the car lamp, seat, fabric, cab, metal and dash textures).
+
+## Sounds
+
+| Sound                                                                                                                                                          | Licence | Files                                |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------------------------------ |
+| Kenney "Impact Sounds", 20 OGG files, unmodified, from [Boyquotes/kenney-impact-sounds-for-godot](https://github.com/Boyquotes/kenney-impact-sounds-for-godot) | CC0 1.0 | `src/games/hole/assets/sounds/*.ogg` |
 
 ## Fonts (game UIs)
 
