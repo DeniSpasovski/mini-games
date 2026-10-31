@@ -771,8 +771,13 @@ const WET_PHYSICAL = /* glsl */ `
 			if ( wsBead.z > 0.0 ) {
 				float wsDome = smoothstep( 0.0, 0.25, wsBead.z );
 				vec3 wsTilt = wsUp > 0.5 ? wsObjX * wsBead.x + wsObjZ * wsBead.y : wsObjZ * wsBead.x;
-				normal = normalize( mix( normal, normalize( nonPerturbedNormal + 0.9 * wsTilt ), wsDome ) );
+				normal = normalize( mix( normal, normalize( nonPerturbedNormal + 0.5 * wsTilt ), wsDome ) );
 				roughnessFactor = mix( roughnessFactor, 0.03, wsDome );
+				// The sky caught in the top of each drop: a small bright point (drops read as water, not dirt).
+				float wsGlint = smoothstep( 0.55, 0.85, wsBead.z ) * smoothstep( -0.2, 0.4, wsBead.y );
+				#ifdef USE_FOG
+					totalEmissiveRadiance += fogColor * 0.35 * wsGlint;
+				#endif
 			}
 		#endif
 		#ifdef RALLY_PUDDLES
