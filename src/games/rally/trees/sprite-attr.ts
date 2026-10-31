@@ -54,6 +54,9 @@ export function unpackHeading(x: number, hx: number, hz: number): V3 | null {
   return [hx, x % 2 >= 1 ? -y : y, hz];
 }
 
+/** `TREE_SPRITE_LIFT` below (share of the sprite size). */
+const SPRITE_LIFT = 0.3;
+
 /**
  * GLSL for the shaders that place a sprite (trees/materials.ts `SPRITE_PROJECT`, the impostor bake): the corner,
  * heading and "has a heading" out of `treeSprite`, and the sprite's two axes in the plane facing the camera. The
@@ -61,6 +64,9 @@ export function unpackHeading(x: number, hx: number, hz: number): V3 | null {
  * (rad) instead, and the spray shortens as it points at the viewer. `flutter` (rad) turns it a little.
  */
 export const TREE_SPRITE_AXES = /* glsl */ `
+// A sprite stands this share of its size towards the viewer (not in the shadow pass): a spray wraps round its twig, so
+// the twig it hangs on reads through its gaps instead of streaking across it.
+#define TREE_SPRITE_LIFT ${SPRITE_LIFT.toFixed(3)}
 void treeSpriteCorner( vec4 s, out vec2 corner, out vec3 heading, out float aligned ) {
 	float down = mod( s.x, 2.0 );
 	float r1 = ( s.x - down ) * 0.5;

@@ -21,7 +21,7 @@ import {
  * Bump when generated output changes for the same species and seed, or the leaf atlases change (trees/leaftex.ts,
  * `coverageMips`): cached variants and atlases regenerate.
  */
-export const GENERATOR_VERSION = 19;
+export const GENERATOR_VERSION = 20;
 
 export interface TreeVariantInfo {
   species: string;

@@ -321,7 +321,10 @@ const SPRITE_PROJECT = /* glsl */ `
 	float sprStretch;
 	treeSpriteAxes( sprRight, sprUp, tRot * sprHeading, sprAligned, treeWind.y, sprFlutter, sprR, sprU, sprStretch );
 	float sprSize = treeSprite.z * tScale * treeSpriteScale( tOrigin, treeRank );
-	vec3 sprWorld = sprCentre + ( sprR * ( sprCorner.x * sprStretch ) + sprU * sprCorner.y ) * sprSize;
+	#ifndef TREE_SHADOW_PASS
+		sprCentre += sprToCam * ( sprSize * TREE_SPRITE_LIFT );
+	#endif
+	vec3 sprWorld = sprCentre +( sprR * ( sprCorner.x * sprStretch ) + sprU * sprCorner.y ) * sprSize;
 	vec4 mvPosition = viewMatrix * vec4( sprWorld, 1.0 );
 	gl_Position = projectionMatrix * mvPosition;
 	if ( sprSize <= 0.0 ) gl_Position = vec4( 0.0, 0.0, 2.0, 1.0 );

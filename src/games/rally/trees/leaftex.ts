@@ -91,6 +91,12 @@ const SPRAY_SAG = 0.2;
 const FROND_GROW = 1.7;
 /** Chance of a side shoot forking off. */
 const SPRAY_FORK = 0.75;
+/**
+ * Shade and width (x) of a spray's stem and twigs: thin and close to the leaves' own shade. A sprite is a metre or more
+ * of branch, so a dark stem down every spray lines up along a branch into fern-like streaks across the crown.
+ */
+const STEM_VALUE = 0.48;
+const STEM_WIDTH = 0.7;
 
 interface BroadStyle {
   /** Leaf length range (px) and length / width. */
@@ -494,7 +500,15 @@ export function spriteAtlas(style: LeafStyle): SpriteAtlas {
       ];
       const frond = (arc: Arc, scale: number, salt: number) => {
         for (let t = 0; t <= 0.98; t += 0.5 / half)
-          stamp(...arc(t), (1.5 - 0.8 * t) * K, 0.32, 0, 0, 0, 0);
+          stamp(
+            ...arc(t),
+            (1.5 - 0.8 * t) * STEM_WIDTH * K,
+            STEM_VALUE,
+            0,
+            0,
+            0,
+            0,
+          );
         const n = Math.round((2 * half * scale) / (5.2 * K));
         for (let m = 0; m < n; m++) {
           const q = (k: number) => r(salt + 20 + m * 41 + k);
@@ -629,7 +643,15 @@ export function spriteAtlas(style: LeafStyle): SpriteAtlas {
        */
       const shoot = (arc: Arc, scale: number, thick: number, salt: number) => {
         for (let t = 0; t <= 0.97; t += 0.5 / half)
-          stamp(...arc(t), (thick * (1 - 0.55 * t) + 0.4) * K, 0.3, 0, 0, 0, 0);
+          stamp(
+            ...arc(t),
+            (thick * (1 - 0.55 * t) + 0.4) * STEM_WIDTH * K,
+            STEM_VALUE,
+            0,
+            0,
+            0,
+            0,
+          );
         const n = Math.max(
           3,
           Math.round(
@@ -661,7 +683,15 @@ export function spriteAtlas(style: LeafStyle): SpriteAtlas {
             ];
           };
           for (let s = 0; s <= len; s += 0.6 * K)
-            stamp(...at(s), (0.9 - 0.4 * (s / len)) * K, 0.3, 0, 0, 0, 0);
+            stamp(
+              ...at(s),
+              (0.9 - 0.4 * (s / len)) * STEM_WIDTH * K,
+              STEM_VALUE,
+              0,
+              0,
+              0,
+              0,
+            );
           const rimAt = (s: number) =>
             Math.min(1, (s + Math.abs(t - 0.5) * lmid) / reachMax + 0.15);
           const spacing = Math.max(1.5 * K, lmid * st.gap);

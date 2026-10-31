@@ -94,7 +94,7 @@ void main() {
 	treeSpriteCorner( treeSprite, corner, heading, aligned );
 	float stretch;
 	treeSpriteAxes( right, up, heading, aligned, treeWind.y, 0.0, vR, vU, stretch );
-	vec3 p = position + ( vR * ( corner.x * stretch ) + vU * corner.y ) * treeSprite.z;
+	vec3 p = position + ( uDir * TREE_SPRITE_LIFT + vR * ( corner.x * stretch ) + vU * corner.y ) * treeSprite.z;
 	vColor = color;
 	vUv = uv;
 	// Seen as far as an impostor, a sprite is lit by the crown's ellipsoid normal, not its clump's (trees/materials.ts CLUMP_FADE).
