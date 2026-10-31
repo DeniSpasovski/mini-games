@@ -17,6 +17,15 @@ A species is a data definition that the tree code reads, so adding or tuning a k
 - LOD settings that override the defaults ([Lod](./Lod.md#lod)).
 - a scale range for instances.
 
+## Builders
+
+Most species come from a family builder in trees/species.ts that writes the grammar from a few shape numbers, so a new or retuned species changes numbers, not rules:
+
+- `shrub`: stems rising from a stool (count, stool radius), upright and longest in the centre, leaning out at the rim, so the bush is a dome whose rim reaches the ground; a leaf cluster on every internode; `arch` bows the stems over (bramble canes), `crook` bends them.
+- `conifer`: a bare bole with dead stubs, then whorls of limbs whose length follows a crown shape (cone, umbrella, column) and whose angle rises up the crown; needles only on the outer limb generations (`leafFrom`), so the whorls read as layers.
+- `broadleaf`: a bole with two low limbs forking into three leaders that bifurcate; `crook` bends the limbs, `leafFrom` leaves the inner limbs bare (a crown in clumps with limbs showing), `stems` grows a coppice from one stool.
+- Poplar, cypress, hedge cypress, birch, sapling and willow keep rules of their own.
+
 ## Types
 
 - The maps place trees by the tree type ids of the old catalog, and each type grows as a species built to match the map data's description of it. A pine looks like a pine, a poplar like a poplar.
