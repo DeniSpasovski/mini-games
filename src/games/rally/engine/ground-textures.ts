@@ -54,7 +54,7 @@ export const GROUND_MEAN: Record<GroundLayer, number> = {
   grassSummer: 0.077,
   grassAutumn: 0.077,
   soil: 0.127,
-  gravel: 0.233,
+  gravel: 0.17,
   rock: 0.22,
   litter: 0.144,
   leaves: 0.128,

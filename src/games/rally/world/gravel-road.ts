@@ -22,8 +22,9 @@ import { GRAVEL_SHARP, getTerrainMaterial } from './terrain-material';
  * streaks along them) and, on the road ribbon, an edge that thins out into the verge (dithered) instead of ending on a line.
  * Texture u runs across the road (0 = right edge, 1 = left edge), v along it (`texLength` metres).
  */
-const RUTS = [0.29, 0.71];
-const RUT_HALF = 0.085;
+/** Wheel tracks about 1.6 m apart (a car's track width) and ~0.5 m wide each, on a ~6 m road (the gravel stages are 5 - 7 m). */
+const RUTS = [0.367, 0.633];
+const RUT_HALF = 0.04;
 /** The packed ruts are this much darker than the loose gravel, and their tyre streaks vary by this much. */
 const RUT_DARK = 0.3;
 const RUT_STREAKS = 0.18;

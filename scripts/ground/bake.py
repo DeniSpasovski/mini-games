@@ -17,13 +17,17 @@ LUMA = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
 # Colour of the old procedural meadow tile relative to its luminance (linear): the meadow scans take it, so every map's
 # `groundTint` (chosen against that tile) keeps its look; the scans bring the structure.
 MEADOW = np.array([0.85, 1.08, 0.30], dtype=np.float32)
+# The gravel road and verge: the scan's own colour is light tan (mean sRGB 147 128 107); a compacted road of the region reads
+# darker and browner, so its linear colour is tinted and brought to this mean luminance (the scan's own is 0.233); mean sRGB 129 109 85.
+GRAVEL_LUM = 0.17
+GRAVEL_TINT = np.array([1.0, 0.90, 0.74], dtype=np.float32)
 # tile: (Poly Haven id, mean linear luminance or None, colour kept 0..1, contrast around the mean, meadow hue 0..1)
 TILES = {
     'grass_spring': ('forrest_ground_01', 0.077, 0.8, 1.0, 0.7),
     'grass_summer': ('grass_ground', 0.077, 0.8, 1.1, 0.7),
     'grass_autumn': ('leafy_grass', 0.077, 0.8, 1.0, 0.7),
     'soil': ('brown_mud_dry', None, 0.85, 1.0, 0),
-    'gravel': ('rocky_trail', None, 0.85, 1.0, 0),
+    'gravel': ('rocky_trail', GRAVEL_LUM, 0.85, 1.0, 0),
     'rock': ('rock_boulder_dry', 0.22, 0.8, 1.0, 0),
     'litter': ('forest_leaves_04', None, 0.85, 1.0, 0),
     'leaves': ('leaves_forest_ground', None, 0.9, 1.0, 0),
@@ -79,6 +83,8 @@ def main():
         if contrast != 1.0:
             m = L.mean()
             a = np.maximum((a - m) * contrast + m, 0)
+        if name == 'gravel':
+            a = a * GRAVEL_TINT
         if name in DETAIL:
             amount, radius, scan = DETAIL[name]
             a = np.maximum(a + (a - blur(a, radius * SZ / scan)) * amount, 0)
