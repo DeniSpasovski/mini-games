@@ -252,6 +252,11 @@ export class CarAudio {
     this.start();
   }
 
+  /** AudioContext state ('none' before it exists), for the car viewer's sound debugger. */
+  get state(): string {
+    return this.ctx?.state ?? 'none';
+  }
+
   /** Pause / resume all sound (game pause menu). */
   setPaused(p: boolean): void {
     this.paused = p;

@@ -433,6 +433,9 @@ All synthesised (Web Audio, no samples), tuned per car by `CarDef.sound` (`CarSo
 - **Listener** = camera mode: hood / bumper hear more intake, gearbox and wind, less exhaust; far chase is quieter and duller.
 - **Tunnels**: `World.tunnelAt` (portal slabs) -> `setEnclosure`: low-mid build-up, a slap echo per ear at each wall's
   distance (narrow = tighter flutter), a tail that grows with the tunnel length, a whump at each headwall.
+- **Sound debugger**: car viewer "Sound" section (`debug/sound-debug.ts`) drives a `CarAudio` for the shown car: tick "Sound on"
+  (the gesture), then rpm / throttle / pedal / gear / speed / slide + surface / lock-up / impact / listener / tunnel. State in the
+  URL (`srpm`, `sthr`, `sgear`, `sspd`, `sslide`, `ssrf`, `slock`, `slis`, `stun`, `svol`); `mute=1` starts muted.
 - Ambient: wind (speed²), tyre roll on hard ground, gravel crunch, slide / lock-up per surface (`SLIDE_SOUND`), impacts. A
   compressor keeps bangs and tunnel build-up from clipping.
 
