@@ -21,8 +21,8 @@ import {
   Scene,
   SphereGeometry,
   type ToneMapping,
-  Vector2,
   Vector3,
+  Vector4,
   type Texture,
   WebGLCubeRenderTarget,
   type WebGLRenderer,
@@ -52,6 +52,7 @@ import {
 import { displayExposure, onDisplayChange } from './display';
 import { setGrade, setGradeViewport } from './grade';
 import type { QualitySettings } from './quality';
+import { shadowCasterLayers } from './layers';
 
 /** Tone-mapping operators a map can pick (`EnvironmentDef.toneMapping`, `?tonemap=` overrides for comparisons). */
 export const TONE_MAPPINGS: Record<string, ToneMapping> = {
@@ -271,10 +272,11 @@ export class Environment {
       .replace('void main() {', 'uniform float skyGain;\nvoid main() {')
       .replace(out, 'gl_FragColor = vec4( texColor * skyGain, 1.0 );');
     // The grade's vignette needs the canvas size; the sky is drawn every day frame.
-    const size = new Vector2();
+    // The viewport drawn into (a render scale draws the scene into part of the post target).
+    const size = new Vector4();
     this.sky.onBeforeRender = (r) => {
-      r.getDrawingBufferSize(size);
-      setGradeViewport(size.x, size.y);
+      r.getCurrentViewport(size);
+      setGradeViewport(size.z, size.w);
     };
     scene.add(this.sky);
     scene.add(this.hemi);
@@ -289,6 +291,7 @@ export class Environment {
     cam.near = 1;
     cam.far = 600;
     cam.updateProjectionMatrix();
+    shadowCasterLayers(cam);
     s.shadow.bias = -0.0004;
     s.shadow.normalBias = 0.04;
     s.target = this.target;

@@ -12,6 +12,7 @@ import {
 import type { QualityName } from '../engine/quality';
 import type { CarHeadlightsDef } from '../cars/shared/types';
 import type { CarPhysicsDef } from '../physics/types';
+import { shadowCasterLayers } from '../engine/layers';
 
 /** Luminous intensity of the main low beam (scene units, physical falloff). */
 const BEAM = 3200;
@@ -141,6 +142,7 @@ export class Headlights {
         l.shadow.mapSize.set(2048, 2048);
         l.shadow.camera.near = 1;
         l.shadow.camera.far = distance;
+        shadowCasterLayers(l.shadow.camera);
         l.shadow.bias = -0.0008;
         l.shadow.normalBias = 0.05;
       }

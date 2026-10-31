@@ -191,6 +191,11 @@ const MAX_FRAME = MAX_STEPS * STEP;
  *   input -> fixed-step physics + stage timing -> interpolate car model ->
  *   camera -> streaming (terrain / scatter) -> effects / audio / HUD -> render
  */
+/** Render scale as a viewport of the post target (High) instead of a canvas resize; `?scalevp=0` for the old way. */
+const SCALE_VIEWPORT =
+  typeof location === 'undefined' ||
+  new URLSearchParams(location.search).get('scalevp') !== '0';
+
 export class RallyGame {
   readonly scene = new Scene();
   readonly camera = new PerspectiveCamera(62, 1, 0.1, 3000);
@@ -745,6 +750,13 @@ export class RallyGame {
   private setRenderScale(scale: number): void {
     if (this.renderScale === scale) return;
     this.renderScale = scale;
+    // Trial (three r187): High draws the scene at a viewport of the full-size post target, no resize (`?scalevp=0`
+    // = the old canvas resize).
+    if (this.post && SCALE_VIEWPORT) {
+      this.post.setScale(scale);
+      this.updateParticleScale();
+      return;
+    }
     this.renderer.setPixelRatio(
       Math.min(window.devicePixelRatio, this.opts.quality.maxPixelRatio) *
         scale,
@@ -815,7 +827,11 @@ export class RallyGame {
   private updateParticleScale(): void {
     this.lastFov = this.camera.fov;
     for (const p of [this.dust, this.splash, this.gravel, this.haze])
-      p?.setViewport(this.renderer.domElement.height, this.camera.fov);
+      p?.setViewport(
+        this.renderer.domElement.height *
+          (this.post && SCALE_VIEWPORT ? this.renderScale : 1),
+        this.camera.fov,
+      );
   }
 
   /** Dust / gravel lit by the map's sun (warm at a low sun, glowing when backlit) and sky. */
