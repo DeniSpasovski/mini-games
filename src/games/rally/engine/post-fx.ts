@@ -63,6 +63,10 @@ const QUAD_VERT = /* glsl */ `
 const SANITIZE = /* glsl */ `
   uniform sampler2D tDiffuse;
   uniform float decode;
+  // Render scale (\`PostFx.setScale\`): the scene fills this share of the target from its corner; uv max clamps the
+  // bilinear upscale inside it.
+  uniform vec2 uvScale;
+  uniform vec2 uvMax;
   varying vec2 vUv;
   // Display mode: the target holds the finished picture (sRGB, tone mapped); back to an HDR estimate by the inverse of
   // c / (1 + max(c)) (hue kept; ENCODE undoes it exactly).
@@ -77,7 +81,8 @@ const SANITIZE = /* glsl */ `
     return max( c.r, max( c.g, c.b ) ) < 1.0e4 && min( c.r, min( c.g, c.b ) ) > - 1.0e4;
   }
   void main() {
-    vec4 c = texture2D( tDiffuse, vUv );
+    vec2 uv = min( vUv * uvScale, uvMax );
+    vec4 c = texture2D( tDiffuse, uv );
     if ( ok( c.rgb ) ) {
       gl_FragColor = vec4( min( toHdr( c.rgb ), vec3( 2000.0 ) ), c.a );
       return;
@@ -87,7 +92,7 @@ const SANITIZE = /* glsl */ `
     float n = 0.0;
     for ( int i = 0; i < 4; i++ ) {
       vec2 o = i == 0 ? vec2( px.x, 0.0 ) : i == 1 ? vec2( - px.x, 0.0 ) : i == 2 ? vec2( 0.0, px.y ) : vec2( 0.0, - px.y );
-      vec3 s = texture2D( tDiffuse, vUv + o ).rgb;
+      vec3 s = texture2D( tDiffuse, uv + o ).rgb;
       if ( ok( s ) ) { sum += s; n += 1.0; }
     }
     gl_FragColor = vec4( n > 0.0 ? min( toHdr( sum / n ), vec3( 2000.0 ) ) : vec3( 0.0 ), 1.0 );
@@ -196,7 +201,13 @@ export class PostFx {
   private readonly sanitize = quadMaterial(SANITIZE, {
     tDiffuse: { value: null },
     decode: { value: 0 },
+    uvScale: { value: new Vector2(1, 1) },
+    uvMax: { value: new Vector2(1, 1) },
   });
+  /** Render scale: the scene is drawn into this share of the full-size target (a viewport, no resize). */
+  private scale = 1;
+  /** Depth uv scale handed to the AO's shaders (`scaledDepth`). */
+  private readonly depthUvScale = { value: new Vector2(1, 1) };
   private readonly encode = quadMaterial(ENCODE, { tDiffuse: { value: null } });
   private readonly down = quadMaterial(DOWN, {
     tSrc: { value: null },
@@ -273,6 +284,8 @@ export class PostFx {
     this.gtao.setGBuffer(depthTexture);
     this.gtao.updateGtaoMaterial(AO);
     this.gtao.blendIntensity = AO_INTENSITY;
+    for (const m of [this.gtao.gtaoMaterial, this.gtao.pdMaterial])
+      scaledDepth(m, this.depthUvScale);
     // The grade lives in the tone-mapping chunk; OutputPass needs the shared uniforms or it renders ungraded.
     Object.assign(this.output.material.uniforms, gradeUniforms);
     this.set(this.opts);
@@ -280,9 +293,32 @@ export class PostFx {
     this.resize();
   }
 
-  /** True when any effect is on (else the caller renders directly). */
+  /** True when any effect is on or the scene is drawn at a render scale (else the caller renders directly). */
   get active(): boolean {
-    return this.nightOn || this.opts.day > 0 || this.opts.ao;
+    return this.nightOn || this.opts.day > 0 || this.opts.ao || this.scale < 1;
+  }
+
+  /**
+   * Render scale without a resize (three r187: a render target's viewport is in its own pixels): the scene is drawn
+   * into the corner of the full-size target and SANITIZE upscales it, the effects after it run at full size. A step
+   * only changes a viewport and a few uniforms, where resizing the canvas and every target was a 70-180 ms hitch.
+   */
+  setScale(scale: number): void {
+    this.scale = scale;
+    this.applyScale();
+  }
+
+  private applyScale(): void {
+    const t = this.scene;
+    const w = Math.max(1, Math.round(t.width * this.scale));
+    const h = Math.max(1, Math.round(t.height * this.scale));
+    t.viewport.set(0, 0, w, h);
+    t.scissor.set(0, 0, w, h);
+    t.scissorTest = this.scale < 1;
+    const u = this.sanitize.uniforms;
+    u.uvScale.value.set(w / t.width, h / t.height);
+    u.uvMax.value.set((w - 0.5) / t.width, (h - 0.5) / t.height);
+    this.depthUvScale.value.copy(u.uvScale.value);
   }
 
   private get nightOn(): boolean {
@@ -314,6 +350,7 @@ export class PostFx {
     this.nightBloom.setSize(w, h);
     this.gtao.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1));
     this.output.setSize(w, h);
+    this.applyScale();
   }
 
   private pass(
@@ -420,4 +457,22 @@ export function postFxFromUrl(
     day: Number.isFinite(bloom) ? bloom : day,
     ao: aoParam === null ? ao : aoParam === '1',
   };
+}
+
+/** GTAO / its denoise read the scene depth at full-screen uv: scaled to the part the scene was drawn into. */
+function scaledDepth(
+  m: ShaderMaterial,
+  depthUvScale: { value: Vector2 },
+): void {
+  const get = 'textureLod(tDepth, uv.xy, 0.0)';
+  const at = 'ivec2(uv * size)';
+  if (!m.fragmentShader.includes(get) || !m.fragmentShader.includes(at))
+    throw new Error('post-fx: GTAO depth lookups changed (three upgrade?)');
+  m.uniforms.depthUvScale = depthUvScale;
+  m.fragmentShader =
+    'uniform vec2 depthUvScale;\n' +
+    m.fragmentShader
+      .replace(get, 'textureLod(tDepth, uv.xy * depthUvScale, 0.0)')
+      .replace(at, 'ivec2(uv * depthUvScale * size)');
+  m.needsUpdate = true;
 }
