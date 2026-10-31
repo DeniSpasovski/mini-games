@@ -751,8 +751,8 @@ const WET_PHYSICAL = /* glsl */ `
 			roughnessFactor = mix( roughnessFactor, min( roughnessFactor, wsGloss + 0.1 ), wsRim * 0.7 );
 			if ( wsPd > 0.0 ) {
 				float wsRate = clamp( wsWet.y / 8.0, 0.0, 1.0 );
-				diffuseColor.rgb *= 1.0 - ( 0.2 + 0.3 * wsPdDeep ) * wsPd;
-				roughnessFactor = mix( roughnessFactor, mix( 0.14, 0.035, wsPdDeep ) + 0.05 * wsRate, wsPd );
+				diffuseColor.rgb *= 1.0 - ( 0.3 + 0.3 * wsPdDeep ) * wsPd;
+				roughnessFactor = mix( roughnessFactor, mix( 0.2, 0.06, wsPdDeep ) + 0.05 * wsRate, wsPd );
 				vec3 wsFlat = nonPerturbedNormal;
 				float wsNear = 1.0 - smoothstep( 8.0, 26.0, length( vViewPosition ) );
 				if ( wsRate > 0.0 && wsNear > 0.0 ) {
@@ -784,7 +784,7 @@ const PUDDLE_SKY = /* glsl */ `
 			#else
 				float wsClear = 1.0;
 			#endif
-			reflectedLight.indirectSpecular += wsSky * wsF * wsPd * mix( 0.45, 1.0, wsPdDeep ) * wsClear * 0.6;
+			reflectedLight.indirectSpecular += wsSky * wsF * wsPd * mix( 0.3, 0.75, wsPdDeep ) * wsClear * 0.4;
 		}
 	#endif
 `;
