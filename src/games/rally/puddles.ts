@@ -112,8 +112,8 @@ vec2 wsRingLayer( vec2 p, float cell, float t, float rate, float seed ) {
 	vec2 c = ( vec2( wsHash( cid ), wsHash( cid + 17.0 ) ) - 0.5 ) * 0.4 * cell;
 	vec2 v = f - c;
 	float d = length( v );
-	float x = d - ph * 0.3 * cell;
-	float amp = ( 1.0 - ph ) * ( 1.0 - ph ) * smoothstep( 0.0, 0.14, ph );
+	float x = d - ( 0.03 + ph * 0.27 * cell );
+	float amp = ( 1.0 - ph ) * ( 1.0 - ph ) * smoothstep( 0.0, 0.2, ph ) * smoothstep( 0.0, 0.05, d );
 	float s = amp * cos( x * 160.0 ) * exp( - x * x * 900.0 );
 	return v / max( d, 1e-3 ) * s;
 }
