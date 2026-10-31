@@ -57,6 +57,8 @@ export interface ShellOptions {
   ground?: boolean;
   env?: EnvironmentDef;
   far?: number;
+  /** Half size of the sun's shadow box (m; default 12: tall trees need more). */
+  shadowExtent?: number;
 }
 
 export class ViewerShell {
@@ -94,7 +96,7 @@ export class ViewerShell {
     };
     this.env = new Environment(this.scene, this.renderer, this.envDef, {
       ...quality,
-      shadowExtent: 12,
+      shadowExtent: opts.shadowExtent ?? 12,
     });
     this.stats = new StatsOverlay(this.renderer, this.panel.viewport, true);
 

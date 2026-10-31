@@ -30,12 +30,21 @@ import {
   textureName,
   type TextureId,
 } from '../engine/textures';
+import { TreeRenderer } from '../trees/draw';
+import { TreeLibrary } from '../trees/load';
+import { placeTree } from '../trees/placement';
+import { speciesOfType, TREE_TYPES, variantCount } from '../trees/species';
+import { DEFAULT_SEASON, SEASONS, seasonParam } from '../season';
+import type { RoadQuery } from '../world/road';
+import type { ScatterChunk, ScatterInstance } from '../world/scatter';
+import type { World } from '../world/world';
 
 /**
  * Asset debugger: every procedural asset, car and texture in one list.
  *   asset-debug.html?asset=rock_boulder&seed=42&lod=1&grid=10&wire=1&bounds=1&collider=1
  *   asset-debug.html?asset=tex:road&repeat=3
  *   asset-debug.html?asset=car:skoda_rally&seed=5
+ *   asset-debug.html?asset=tree:oak_tree&variant=2&season=autumn&grid=3
  * `seed=-1` uses the in-world variant seed for `variant`.
  * "Copy camera link" (Camera section) shares the exact view (`cam`, `look`, `fov`, `clean=1` hides the panel).
  */
@@ -51,13 +60,22 @@ const DEFAULTS = {
   collider: false,
   turntable: false,
   repeat: 1,
+  /** Trees: leaf colours of this season. */
+  season: DEFAULT_SEASON as string,
   // Shared camera: cam / look / fov / clean (see "Copy camera link").
   ...CAMERA_LINK_DEFAULTS,
 };
 const state = readUrlState(DEFAULTS);
+/** Half size of the sun's shadow box (m) for trees: a tall poplar and its evening shadow. */
+const TREE_SHADOW_EXTENT = 40;
 const sync = (push = false) => writeUrlState(state, DEFAULTS, push);
 
-const shell = new ViewerShell({ title: 'Asset debugger' });
+const isTree = (id: string) => id.startsWith('tree:');
+// A tree needs a bigger shadow box than a prop (set at load: switching between the two reloads the page).
+const shell = new ViewerShell({
+  title: 'Asset debugger',
+  shadowExtent: isTree(state.asset) ? TREE_SHADOW_EXTENT : 12,
+});
 const { scene, camera, controls } = shell;
 const holder = new Group();
 scene.add(holder);
@@ -77,6 +95,12 @@ const items = [
     group: 'cars',
     hint: c.description,
   })),
+  ...Object.entries(TREE_TYPES).map(([type, species]) => ({
+    id: `tree:${type}`,
+    label: species,
+    group: 'trees',
+    hint: type,
+  })),
   ...TEXTURE_IDS().map((t) => ({
     id: `tex:${t}`,
     label: textureName(t),
@@ -85,10 +109,12 @@ const items = [
   })),
 ];
 shell.panel.section('Assets').list(items, state.asset, (id) => {
+  const reload = isTree(id) !== isTree(state.asset);
   state.asset = id;
   state.lod = 0;
   ViewerShell.clearCameraLink(state); // the new asset is framed afresh
   sync(true);
+  if (reload) return location.reload();
   lodCtl.set('0');
   rebuild(true);
 });
@@ -149,6 +175,11 @@ vars.slider(
     rebuild();
   },
 );
+vars.select('Season (trees)', state.season, [...SEASONS], (v) => {
+  state.season = v;
+  sync();
+  rebuild();
+});
 vars.checkbox('Wireframe', state.wire, (v) => {
   state.wire = v;
   sync();
@@ -205,6 +236,7 @@ function rebuild(reframe = false): void {
   if (id.startsWith('tex:'))
     return showTexture(id.slice(4) as TextureId, reframe);
   if (id.startsWith('car:')) return showCar(id.slice(4), reframe);
+  if (isTree(id)) return showTree(id.slice(5), reframe);
   if (!hasAsset(id)) return;
   const meta = getAssetMeta(id);
   const lod = Math.min(state.lod, meta.lods.length - 1);
@@ -354,6 +386,122 @@ function showCar(carId: string, reframe: boolean): void {
   disposeCurrent = () => model.dispose();
 }
 
+/**
+ * A tree type as the game draws it: its species' variants grown (or read from the disk cache) by `TreeLibrary`, drawn
+ * by the game's `TreeRenderer` over a stand-in world of one chunk (flat ground, every tree in the first row), so its
+ * levels, fades, sprites, impostor and shadows are the stage's; the shell's sun and sky light it. `seed` -1: the
+ * variants in order from `variant` at the species' mean size; else hashed poses (variant, turn, size) from `seed`.
+ */
+let trees: TreeRenderer | null = null;
+let treeJob = 0;
+function showTree(type: string, reframe: boolean): void {
+  if (!(type in TREE_TYPES)) return;
+  const job = ++treeJob;
+  const season = seasonParam(state.season, DEFAULT_SEASON);
+  const def = speciesOfType(type);
+  info({ id: type, species: def.name, status: 'growing ...' });
+  desc.textContent = '';
+  const t0 = performance.now();
+  disposeCurrent = () => {
+    treeJob++;
+  };
+  void TreeLibrary.load(
+    TreeLibrary.speciesOf([type], season),
+    shell.renderer,
+  ).then((lib) => {
+    if (job !== treeJob) return lib.dispose();
+    const count = variantCount(def);
+    const n = state.grid;
+    const mean = (def.scale[0] + def.scale[1]) / 2;
+    const lv = lib.variant(def.name, state.variant % count)!;
+    const spacing = state.spacing || Math.max(3, lv.info.radius * 2.6 * mean);
+    const fixed = state.seed < 0;
+    const instances: ScatterInstance[] = [];
+    for (let i = 0; i < n * n; i++) {
+      const p = placeTree('asset-debug', Math.max(0, state.seed) + i, type);
+      instances.push({
+        asset: type,
+        variant: fixed ? (state.variant + i) % count : p.variant,
+        x: ((i % n) - (n - 1) / 2) * spacing,
+        y: 0,
+        z: (Math.floor(i / n) - (n - 1) / 2) * spacing,
+        rotY: fixed ? 0 : p.rotY,
+        scale: fixed ? mean : p.scale,
+        tiltX: 0,
+        tiltZ: 0,
+        tree: p.pose,
+      });
+    }
+    const chunk: ScatterChunk = { instances, colliders: [], breakables: [] };
+    const empty: ScatterChunk = {
+      instances: [],
+      colliders: [],
+      breakables: [],
+    };
+    const at = (cx: number, cz: number) =>
+      cx === 0 && cz === 0 ? chunk : empty;
+    const half = spacing * n + 100;
+    const world = {
+      road: {
+        query: (_x: number, _z: number, out: RoadQuery) =>
+          Object.assign(out, { found: true, distance: 0, halfWidth: 0 }),
+      },
+      scatter: { chunkSize: 4 * half, cachedChunk: at, chunk: at },
+      map: { bounds: { minX: -half, maxX: half, minZ: -half, maxZ: half } },
+      analytic: { height: () => 0 },
+    } as unknown as World;
+    const q = shell.quality;
+    const mine = new TreeRenderer(world, lib, {
+      lodScale: q.treeLodScale,
+      maxDistance: q.viewDistance,
+      forestDistance: q.forestDistance,
+      shadowDistance: q.treeShadowDistance,
+      shadowExtent: TREE_SHADOW_EXTENT,
+    });
+    trees = mine;
+    holder.add(mine.group);
+    mine.attachRenderer(shell.renderer);
+    const height = lv.info.height * mean;
+    // (After the async load: a shared camera link, applied meanwhile, still wins.)
+    if (reframe && !state.cam) {
+      // The whole stand in view from a person's height off the ground, a little above the tree's middle.
+      const d =
+        Math.max(height, spacing * (n - 1) + lv.info.radius * mean * 2) * 1.5;
+      controls.target.set(0, height * 0.45, 0);
+      camera.position.set(
+        d * 0.7,
+        Math.min(height * 0.5, 1.6 + d * 0.15),
+        d * 0.7,
+      );
+    }
+    mine.updateNow(camera);
+    mine.checkPrepass(shell.renderer, scene, camera);
+    info({
+      id: type,
+      species: def.name,
+      season,
+      variant: fixed
+        ? `${state.variant % count} / ${count}`
+        : `hashed (${count})`,
+      'height (mean size)': `${height.toFixed(1)} m`,
+      'crown radius': `${(lv.info.radius * mean).toFixed(1)} m`,
+      'tris LOD0 / LOD1': lv.levels
+        .map((g) => triCount(g).toLocaleString())
+        .join(' / '),
+      sprites: lv.spriteCount.toLocaleString(),
+      'load ms': (performance.now() - t0).toFixed(0),
+      generated: `${lib.stats.variants - lib.stats.cached} (cached ${lib.stats.cached})`,
+    });
+    desc.textContent =
+      "Drawn by the game's tree renderer: orbit out for its levels; F6 cycles the debug views (levels, lighting only, normals). Spec: .claude/reference/trees/Species.md.";
+    disposeCurrent = () => {
+      mine.dispose();
+      lib.dispose();
+      if (trees === mine) trees = null;
+    };
+  });
+}
+
 function wireCopy(m: Material): Material {
   const c = m.clone();
   (c as MeshStandardMaterial).wireframe = true;
@@ -369,6 +517,14 @@ const up = new Vector3(0, 1, 0);
 shell.onFrame((dt) => {
   if (state.turntable)
     holder.quaternion.multiply(q.setFromAxisAngle(up, dt * 0.5));
+  trees?.update(camera);
+});
+// F6: the tree debug views (off -> levels -> lighting only -> normals), as in the game.
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'F6' && trees) {
+    e.preventDefault();
+    trees.cycleDebug();
+  }
 });
 
 // The park and yard props' models are chunks of their own (`loadSimready`).
