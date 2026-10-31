@@ -20,7 +20,11 @@ import {
 } from '../engine/quality';
 import { ALL_STAGES, DEFAULT_STAGE, MAPS, STAGES, stagesOf } from '../maps';
 import { MONTH_NAMES, seasonMonth, stageSeason } from '../maps/shared/climate';
-import { slotHour, stageTemps } from '../maps/shared/day-temperature';
+import {
+  slotHour,
+  stageHumidity,
+  stageTemps,
+} from '../maps/shared/day-temperature';
 import { SEASON_LABELS, SEASONS, seasonParam, type Season } from '../season';
 import type { SourceLink, StageInfo } from '../maps/shared/types';
 import { peakPower } from '../physics/drivetrain';
@@ -48,8 +52,9 @@ import { loadStageRise } from '../tools/stage-card';
 import {
   GRIP_LABELS,
   isTyreId,
-  TYRE_IDS,
+  tyreChoices,
   TYRES,
+  wetTyre,
   type TyreId,
 } from '../physics/tyres';
 import type { CarPhysicsDef, GearingId, SetupId } from '../physics/types';
@@ -82,7 +87,21 @@ import {
   type RenderScale,
   type RallySettings,
 } from './settings';
-import { SEASON_ICONS, SETUP_ICONS, TIME_ICONS } from './menu-icons';
+import {
+  SEASON_ICONS,
+  SETUP_ICONS,
+  TIME_ICONS,
+  WEATHER_ICONS,
+} from './menu-icons';
+import {
+  isRaining,
+  WEATHER_LABELS,
+  offeredWeathers,
+  WEATHER_LOOKS,
+  weatherLook,
+  weatherParam,
+  type Weather,
+} from '../weather';
 import { Showroom } from './showroom';
 import {
   formatTime,
@@ -308,6 +327,8 @@ export interface MenuResult {
   tod?: number;
   /** Season picked on the stage screen (`?season=`); missing = the stage's own. */
   season?: Season;
+  /** Weather picked on the stage screen (`?weather=`); missing = dry. */
+  weather?: Weather;
 }
 
 type Screen =
@@ -334,6 +355,10 @@ class MainMenu {
   private time?: TimeOfDayId;
   /** Season picked on the stage screen (not remembered); missing = each stage's own. */
   private season?: Season;
+  /** Weather picked on the stage screen (not remembered); starts from `?weather=` (dev), else dry. */
+  private weather: Weather = weatherParam(
+    new URLSearchParams(location.search).get('weather'),
+  );
   /** `?season=` on the menu URL (dev): the season of every stage until one is picked. */
   private readonly urlSeason = paramOneOf(
     new URLSearchParams(location.search).get('season'),
@@ -474,17 +499,36 @@ class MainMenu {
     return this.pick?.map === this.map.id && this.pick.car === this.car.id;
   }
 
-  /** The stage recommended tyre / set-up (the set-up follows the tyre: gravel soft ... tarmac stiff). */
+  /** How wet the selected stage is in the picked weather (0 dry ... 1 soaked). */
+  private get wet(): number {
+    return weatherLook(this.weather, this.map.weather).wet;
+  }
+
+  /** The tyres offered: no near-slicks in the rain. */
+  private get tyreChoices(): readonly TyreId[] {
+    return tyreChoices(
+      isRaining(this.weather),
+      offeredWeathers().some((w) => WEATHER_LOOKS[w].wet > 0),
+    );
+  }
+
+  /**
+   * The stage recommended tyre / set-up (the set-up follows the tyre: gravel soft ... tarmac stiff), its wet tyre in the
+   * wet.
+   */
   private get recTyre(): TyreId {
-    return this.map.tyre;
+    return wetTyre(this.map.tyre, this.wet);
   }
 
   private get recSetup(): SetupId {
-    return SETUP_FOR_TYRE[this.map.tyre];
+    return SETUP_FOR_TYRE[this.recTyre];
   }
 
+  /** The picked tyre, or the recommended one (also when the pick is not offered in this weather). */
   private get tyre(): TyreId {
-    return this.picked ? this.pick!.tyre : this.recTyre;
+    return this.picked && this.tyreChoices.includes(this.pick!.tyre)
+      ? this.pick!.tyre
+      : this.recTyre;
   }
 
   private get setup(): SetupId {
@@ -806,6 +850,21 @@ class MainMenu {
     // Dropdowns left, what they give right (month, time, temperature); the right side drops below when the card is narrow.
     const picks = div('menu-when-pick');
     picks.append(seasonRow.row);
+    // Only dry in this build (`WEATHERS_LIST` in release.ts): no Weather row.
+    const weathers = offeredWeathers();
+    const weatherRow = pickerRow(
+      'Weather',
+      weathers.map((id) => ({ id, label: WEATHER_LABELS[id] })),
+      this.weather,
+      WEATHER_ICONS,
+    );
+    // The temperatures follow the weather (set once they are shown).
+    let showTemps = () => {};
+    weatherRow.select.addEventListener('change', (e) => {
+      this.weather = (e.target as HTMLSelectElement).value as Weather;
+      showTemps();
+    });
+    const weatherRows = weathers.length > 1 ? [weatherRow.row] : [];
     const info = document.createElement('dl');
     info.innerHTML = `<dt>Month</dt><dd></dd>`;
     // The month the stage is driven in that season (`EnvironmentDef.months`).
@@ -825,6 +884,7 @@ class MainMenu {
     };
     if (hour === undefined) {
       seasonRow.select.addEventListener('change', onSeason);
+      picks.append(...weatherRows);
       return card;
     }
     const timeRow = pickerRow(
@@ -836,23 +896,25 @@ class MainMenu {
     );
     info.insertAdjacentHTML(
       'beforeend',
-      `<dt>Time</dt><dd></dd><dt>Temperature</dt><dd></dd><dt hidden>At the top</dt><dd hidden></dd>`,
+      `<dt>Time</dt><dd></dd><dt>Temperature</dt><dd></dd><dt>Humidity</dt><dd></dd><dt hidden>At the top</dt><dd hidden></dd>`,
     );
-    const [, clock, temp, top] = info.querySelectorAll('dd');
+    const [, clock, temp, humid, top] = info.querySelectorAll('dd');
     const topLabel = info.querySelector('dt[hidden]') as HTMLElement;
     // The table is for the stage start; a long climb is colder (`stageTemps` `rise`), shown once the card's route is loaded.
     let rise = 0;
     const climbs = () => rise >= MIN_RISE;
     const show = (h: number) => {
-      const t = stageTemps(m, h, this.seasonFor(m));
+      const t = stageTemps(m, h, this.seasonFor(m), 0, this.weather);
       clock.textContent = formatHour(h);
       temp.textContent = `air ${Math.round(t.air)}°C / road ${Math.round(t.road)}°C`;
+      humid.textContent = `${Math.round(stageHumidity(m, h, this.seasonFor(m), 0, this.weather))} %`;
       topLabel.hidden = top.hidden = !climbs();
       if (!climbs()) return;
-      const u = stageTemps(m, h, this.seasonFor(m), rise);
+      const u = stageTemps(m, h, this.seasonFor(m), rise, this.weather);
       top.textContent = `air ${Math.round(u.air)}°C / road ${Math.round(u.road)}°C`;
     };
     show(hour);
+    showTemps = () => show(this.hourFor(m) ?? hour);
     void loadStageRise(m.map, m.id).then(
       (r) => {
         rise = r;
@@ -869,7 +931,7 @@ class MainMenu {
       this.time = (e.target as HTMLSelectElement).value as TimeOfDayId;
       show(this.hourFor(m) ?? hour);
     });
-    picks.append(timeRow.row);
+    picks.append(timeRow.row, ...weatherRows);
     return card;
   }
 
@@ -1081,23 +1143,24 @@ class MainMenu {
     };
 
     const tyre = TYRES[this.tyre];
+    const choices = this.tyreChoices;
     const tyreTune: Tune = {
       key: 'Tyres',
       icon: 'tyre',
       value: `<i class="menu-tyre-dot" style="background:${hex(tyre.color)}"></i>${tyre.name}`,
-      at: TYRE_IDS.indexOf(this.tyre),
-      count: TYRE_IDS.length,
+      at: choices.indexOf(this.tyre),
+      count: choices.length,
       step: (d) => {
-        const n = TYRE_IDS.length;
+        const n = choices.length;
         this.setSetup(
-          { tyre: TYRE_IDS[(TYRE_IDS.indexOf(this.tyre) + d + n) % n] },
+          { tyre: choices[(choices.indexOf(this.tyre) + d + n) % n] },
           0,
         );
       },
       detail: `<p>${carTyreLabel(car.physics, this.tyre)} · ${tyre.blurb}</p>
         <dl>${surfaces
           .map((s) => {
-            const r = carGripRating(p, this.tyre, s);
+            const r = carGripRating(p, this.tyre, s, this.wet);
             return `<dt>${SURFACES[s].name}</dt><dd>${pips(r + 1, 4, `r${r}`)}${GRIP_LABELS[r]}</dd>`;
           })
           .join('')}</dl>${this.tyre === this.recTyre ? reco : ''}`,
@@ -1328,6 +1391,7 @@ class MainMenu {
       gearing: this.gearing,
       tod: hour === this.map.environment.timeOfDay ? undefined : hour,
       season: season === stageSeason(this.map) ? undefined : season,
+      weather: this.weather === 'dry' ? undefined : this.weather,
     };
     saveSettings({ map: r.stage, car: r.car, livery: r.livery });
     this.done(r);
@@ -1386,9 +1450,10 @@ class MainMenu {
     } else if (s === 'setup' && (a === 'left' || a === 'right')) {
       const d = a === 'left' ? -1 : 1;
       if (this.setupRow === 0) {
-        const n = TYRE_IDS.length;
-        const k = (TYRE_IDS.indexOf(this.tyre) + d + n) % n;
-        this.setSetup({ tyre: TYRE_IDS[k] }, 0);
+        const choices = this.tyreChoices;
+        const n = choices.length;
+        const k = (choices.indexOf(this.tyre) + d + n) % n;
+        this.setSetup({ tyre: choices[k] }, 0);
       } else if (this.setupRow === 2) {
         const n = GEARING_IDS.length;
         const k = (GEARING_IDS.indexOf(this.gearing) + d + n) % n;

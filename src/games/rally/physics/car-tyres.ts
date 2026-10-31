@@ -4,6 +4,7 @@ import {
   familyOf,
   TYRE_IDS,
   TYRE_SURFACES,
+  TYRES,
   type GripRating,
   type TyreId,
 } from './tyres';
@@ -114,20 +115,45 @@ export function sizeFactors(s: TyreSize): SizeFactors {
   };
 }
 
+/**
+ * A soaked surface (wet = 1) against a dry one, for a tyre with `wetLoss` 1 (Mixed): peak grip, the grip left sliding
+ * and the dust. Wet asphalt keeps ~70-80 % of its dry friction on a treaded tyre (road research: 0.8-0.9 dry, 0.5-0.7
+ * wet); compacted gravel barely changes (the water binds the dust), clay dirt, grass and painted rock go greasy. Mud and
+ * snow are already wet. Other tyres lose `wetLoss` times as much (`TyreDef.wetLoss`), never more than the whole.
+ */
+export const WET: Readonly<
+  Record<SurfaceId, { mu: number; slide: number; dust: number }>
+> = {
+  tarmac: { mu: 0.75, slide: 0.9, dust: 0.2 },
+  tarmac_gravel: { mu: 0.78, slide: 0.92, dust: 0.2 },
+  rock: { mu: 0.72, slide: 0.88, dust: 0.2 },
+  gravel: { mu: 0.95, slide: 1, dust: 0.25 },
+  gravel_loose: { mu: 0.92, slide: 1, dust: 0.3 },
+  dirt: { mu: 0.72, slide: 0.94, dust: 0.15 },
+  grass: { mu: 0.62, slide: 0.9, dust: 0.2 },
+  mud: { mu: 0.95, slide: 1, dust: 1 },
+  snow: { mu: 0.95, slide: 1, dust: 1 },
+};
+
+/** A 0..1 share kept on a surface `wet` (0..1) for a tyre that loses `loss` times the Mixed loss. */
+const wetKeep = (keep: number, wet: number, loss: number) =>
+  Math.max(0.2, 1 - (1 - keep) * wet * loss);
+
 const cache = new Map<string, Record<SurfaceId, SurfaceDef>>();
 
 /**
- * Effective surfaces for one axle of a car (as currently set up) on a tyre compound: `table[surfaceId]`. Axles on the
- * same size share one cached table.
+ * Effective surfaces for one axle of a car (as currently set up) on a tyre compound, on ground `wet` 0..1 (weather.ts):
+ * `table[surfaceId]`. Axles on the same size share one cached table.
  */
 export function carSurfaces(
   def: CarPhysicsDef,
   tyre: TyreId,
   axle: Axle = 'front',
+  wet = 0,
 ): Record<SurfaceId, SurfaceDef> {
   const size = tyreSizeFor(def, tyre, axle);
   const c = compliance(def);
-  const key = `${tyre}|${size.width}|${size.aspect}|${size.grade ?? 1}|${c.toFixed(3)}`;
+  const key = `${tyre}|${size.width}|${size.aspect}|${size.grade ?? 1}|${c.toFixed(3)}|${wet.toFixed(2)}`;
   let table = cache.get(key);
   if (!table) {
     const f = sizeFactors(size);
@@ -142,10 +168,16 @@ export function carSurfaces(
       // driver over the test map's crest at ~870 m.
       const setupMu = 1 + 0.12 * match * rough - 0.06 * match * (1 - rough);
       const setupResponse = 1 + 0.08 * match * (1 - rough);
+      const w = WET[base.id];
+      const loss = TYRES[tyre].wetLoss;
       table[base.id] = {
         ...base,
-        mu: base.mu * sizeMu * setupMu,
-        slide: Math.min(0.95, base.slide * f.slide),
+        mu: base.mu * sizeMu * setupMu * wetKeep(w.mu, wet, loss),
+        slide: Math.min(
+          0.95,
+          base.slide * f.slide * wetKeep(w.slide, wet, loss),
+        ),
+        dust: base.dust * (1 - (1 - w.dust) * wet),
         peakSlip: base.peakSlip * f.response * setupResponse,
         peakAngle: base.peakAngle * f.response * setupResponse,
         rolling: base.rolling * (1 + (f.plough - 1) * loose),
@@ -157,17 +189,18 @@ export function carSurfaces(
 }
 
 /**
- * How the tyre does on a surface for this car (as set up), compared with the best compound there:
+ * How the tyre does on a surface for this car (as set up, on ground `wet`), compared with the best compound there:
  * 3 best, 2 good, 1 poor, 0 bad.
  */
 export function carGripRating(
   def: CarPhysicsDef,
   tyre: TyreId,
   surface: SurfaceId,
+  wet = 0,
 ): GripRating {
   const mu = (t: TyreId) =>
-    (carSurfaces(def, t, 'front')[surface].mu +
-      carSurfaces(def, t, 'rear')[surface].mu) /
+    (carSurfaces(def, t, 'front', wet)[surface].mu +
+      carSurfaces(def, t, 'rear', wet)[surface].mu) /
     2;
   const best = Math.max(...TYRE_IDS.map(mu));
   const r = mu(tyre) / best;

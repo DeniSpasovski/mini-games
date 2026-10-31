@@ -28,6 +28,8 @@ const OVERLAP = 1.18;
 /** Ripple texture size (m) and drift speed (m/s). */
 const RIPPLE = 9;
 const DRIFT = 0.12;
+/** Current (m/s) of the flowing water: the big ripples and the finer ones run at 1 and 0.6 of it. */
+const CURRENT = 0.9;
 /** Vertices across a channel ribbon (depth samples: clear at the banks, deepest mid-stream). */
 const ACROSS = 4;
 /** Depth given to lakes (m): their polygons have no inner vertices to sample the bed at. */
@@ -54,49 +56,74 @@ export function getWaterMaterial(flow = false): MeshStandardMaterial {
       roughness: 0.14,
       metalness: 0,
       normalMap,
-      envMapIntensity: 0.4,
+      envMapIntensity: flow ? 0.2 : 0.4,
       transparent: true,
     });
     material.normalScale.set(0.18, 0.18);
     material.name = flow ? 'water_flow' : 'water';
+    if (flow) material.defines = { WATER_FLOW: 1 };
     material.onBeforeCompile = (sh) => {
       addWorldUniforms(sh);
       sh.uniforms.uWaterTime = time;
       sh.vertexShader = sh.vertexShader
         .replace(
           '#include <common>',
-          '#include <common>\nattribute float waterDepth;\nvarying float vDepth;',
+          '#include <common>\nattribute float waterDepth;\nvarying float vDepth;\nvarying vec3 vWp;',
         )
         .replace(
           '#include <uv_vertex>',
-          '#include <uv_vertex>\nvDepth = waterDepth;',
+          '#include <uv_vertex>\nvDepth = waterDepth;\nvWp = ( modelMatrix * vec4( position, 1.0 ) ).xyz;',
         );
       sh.fragmentShader = sh.fragmentShader
         .replace(
           '#include <common>',
           `#include <common>
           varying float vDepth;
+          varying vec3 vWp;
           uniform float uWaterTime;`,
         )
         .replace(
           '#include <color_fragment>',
           `#include <color_fragment>
-          // Shallow: the bed shows through, tinted; deep: dark green-brown, opaque.
+          // Shallow: the wet gravel bed shows through, a bright line of foam at the bank; deep: dark green, opaque.
           float dk = smoothstep( 0.0, ${CLEAR.toFixed(2)}, vDepth );
-          diffuseColor.rgb = mix( vec3( 0.32, 0.36, 0.28 ), diffuseColor.rgb * 0.8, dk );
-          diffuseColor.a = smoothstep( 0.0, 0.12, vDepth ) * mix( 0.35, 1.0, dk );`,
-        );
-      if (flow)
-        // Two layers of ripples running downstream at different speeds, so the surface does not look like a conveyor.
-        sh.fragmentShader = sh.fragmentShader.replace(
+          vec3 wsBed = vec3( 0.30, 0.29, 0.23 );
+          diffuseColor.rgb = mix( wsBed, diffuseColor.rgb * 0.8, dk );
+          diffuseColor.a = smoothstep( 0.0, 0.12, vDepth ) * mix( 0.35, 1.0, dk );
+          #ifdef WATER_FLOW
+            // Foam: along the banks and in streaks where the stream runs shallow, stretched with the current.
+            vec2 wsFq = vec2( vNormalMapUv.x * ${RIPPLE.toFixed(1)} * 2.2, vNormalMapUv.y * ${RIPPLE.toFixed(1)} * 0.35 + uWaterTime * ${(CURRENT * 0.35).toFixed(3)} );
+            float wsFn = wsVNoise( wsFq ) * 0.6 + wsVNoise( wsFq * 2.3 + 9.1 ) * 0.4;
+            float wsFoam = ( 1.0 - smoothstep( 0.03, 0.3, vDepth ) ) * smoothstep( 0.35, 0.7, wsFn ) + ( 1.0 - smoothstep( 0.2, 0.9, vDepth ) ) * smoothstep( 0.78, 0.9, wsFn ) * 0.5;
+            diffuseColor.rgb = mix( diffuseColor.rgb, vec3( 0.78, 0.8, 0.78 ), wsFoam * 0.85 );
+            diffuseColor.a = max( diffuseColor.a, wsFoam * 0.9 );
+          #endif`,
+        )
+        .replace(
           '#include <normal_fragment_maps>',
-          `vec3 n1 = texture2D( normalMap, vNormalMapUv + vec2( 0.0, -uWaterTime * ${(DRIFT * 3).toFixed(3)} / ${RIPPLE.toFixed(1)} ) ).xyz * 2.0 - 1.0;
-          vec3 n2 = texture2D( normalMap, vNormalMapUv * 0.63 + vec2( 0.31, -uWaterTime * ${(DRIFT * 1.7).toFixed(3)} / ${RIPPLE.toFixed(1)} ) ).xyz * 2.0 - 1.0;
-          vec3 mapN = normalize( vec3( ( n1.xy + n2.xy ) * normalScale, 1.0 ) );
-          normal = normalize( tbn * mapN );`,
+          `#ifdef WATER_FLOW
+            // Two layers of ripples running downstream, stretched along the current, at different speeds, so the
+            // surface neither looks like a conveyor nor like a stamped texture.
+            vec3 n1 = texture2D( normalMap, vNormalMapUv * vec2( 1.5, 0.55 ) + vec2( 0.0, -uWaterTime * ${(CURRENT / RIPPLE).toFixed(4)} * 0.55 ) ).xyz * 2.0 - 1.0;
+            vec3 n2 = texture2D( normalMap, vNormalMapUv * vec2( 0.9, 0.35 ) + vec2( 0.31, -uWaterTime * ${(CURRENT / RIPPLE).toFixed(4)} * 0.33 ) ).xyz * 2.0 - 1.0;
+            vec3 mapN = normalize( vec3( ( n1.xy * 0.8 + n2.xy ) * normalScale, 1.0 ) );
+            normal = normalize( tbn * mapN );
+          #else
+            #include <normal_fragment_maps>
+            // Wind on a lake: a long, slow swell over the small ripples (a big pattern the texture's 9 m never repeats).
+            vec3 wsSw = texture2D( normalMap, vWp.xz / 53.0 + vec2( uWaterTime * 0.004, 0.0 ) ).xyz * 2.0 - 1.0;
+            normal = normalize( normal + tbn * vec3( wsSw.xy * 0.07, 0.0 ) );
+          #endif
+          // Rain on the water: rings from random points that grow and fade (the puddles' ones).
+          float wsRate = clamp( wsWet.y / 8.0, 0.0, 1.0 );
+          if ( wsRate > 0.0 ) {
+            float wsNear = 1.0 - smoothstep( 10.0, 40.0, length( vViewPosition ) );
+            vec2 wsRip = wsRipples( vWp.xz, wsTime, wsRate * 0.9 ) * ( 0.2 * wsNear );
+            normal = normalize( normal + ( viewMatrix * vec4( wsRip.x, 0.0, wsRip.y, 0.0 ) ).xyz );
+          }`,
         );
     };
-    material.customProgramCacheKey = () => (flow ? 'water-flow-1' : 'water-1');
+    material.customProgramCacheKey = () => (flow ? 'water-flow-2' : 'water-2');
     materials.set(flow, material);
   }
   return material;
