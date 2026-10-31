@@ -11,6 +11,11 @@ export interface QualitySettings {
   /** Half-size of the shadow camera box around the focus point (m). */
   shadowExtent: number;
   /**
+   * The sun shadow's soft edge (three's PCF: 5 taps on a disc this many texels wide, rotated per pixel): about 10-13 cm
+   * of penumbra on every tier, the sun's own half-degree blur a few metres under a crown.
+   */
+  shadowRadius: number;
+  /**
    * Trees cast into the shadow map within this distance of the camera (m); the shadow map fades out before a tree
    * past it could shade the ground (game/rally-game.ts `nearShadowFade`).
    */
@@ -47,6 +52,7 @@ export const QUALITY: Record<QualityName, QualitySettings> = {
     antialias: false,
     shadowMapSize: 1024,
     shadowExtent: 45,
+    shadowRadius: 1.5,
     treeShadowDistance: 70,
     farShadowSize: 1024,
     farShadowExtent: 160,
@@ -64,6 +70,7 @@ export const QUALITY: Record<QualityName, QualitySettings> = {
     antialias: true,
     shadowMapSize: 2048,
     shadowExtent: 60,
+    shadowRadius: 2,
     treeShadowDistance: 95,
     farShadowSize: 2048,
     farShadowExtent: 220,
@@ -81,6 +88,7 @@ export const QUALITY: Record<QualityName, QualitySettings> = {
     antialias: true,
     shadowMapSize: 4096,
     shadowExtent: 75,
+    shadowRadius: 3,
     treeShadowDistance: 100,
     farShadowSize: 2048,
     farShadowExtent: 280,

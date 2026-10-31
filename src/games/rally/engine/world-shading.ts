@@ -55,6 +55,11 @@ export const worldUniforms = {
   /** The finer canopy window following the camera (world/canopy-shadows.ts) and its ground mapping. */
   wsCanopyLocal: { value: null as Texture | null },
   wsCanopyLocalMap: { value: new Vector4(0, 0, 0, 0) },
+  /** Baked terrain light (world/terrain-light.ts: R the shadow line, G sky in view, B its penumbra), its ground mapping and strengths. */
+  wsTerrain: { value: null as Texture | null },
+  wsTerrainMap: { value: new Vector4(0, 0, 0, 0) },
+  /** x the hill shadows', y the sky light's strength (0 = off), z the heights' base (m). */
+  wsTerrainK: { value: new Vector3(0, 0, 0) },
   /** Shadow-map box on the ground: centre x, z, half extent (m), canopy shadow strength (0 = off). */
   wsShadowBox: { value: new Vector4(0, 0, 60, 0) },
   /**
@@ -179,6 +184,22 @@ export function setCanopyLocalMap(map: {
   invD: number;
 }): void {
   worldUniforms.wsCanopyLocalMap.value.set(map.x0, map.z0, map.invW, map.invD);
+}
+
+/** The baked terrain light (null = off), its ground mapping and strength (0..1, faded in once baked). */
+export function setTerrainLight(
+  texture: Texture | null,
+  map: { x0: number; z0: number; invW: number; invD: number; baseY: number },
+  strength: number,
+): void {
+  const u = worldUniforms;
+  u.wsTerrain.value = texture;
+  u.wsTerrainMap.value.set(map.x0, map.z0, map.invW, map.invD);
+  u.wsTerrainK.value.set(
+    texture ? strength : 0,
+    texture ? 0.8 * strength : 0,
+    map.baseY,
+  );
 }
 
 /** The sun's shadow map fades out from `start` to `end` m from the camera (0, 0 = only at its box's edge). */
@@ -401,8 +422,19 @@ uniform vec4 wsFarDisc;
 uniform mat4 wsFarMatrix;
 uniform sampler2D wsFarShadow;
 uniform vec4 wsForest;
+uniform sampler2D wsTerrain;
+uniform vec4 wsTerrainMap;
+uniform vec3 wsTerrainK;
 vec3 wsWorldPos( vec3 viewPos ) {
 	return ${WORLD_FROM_VIEW.replace('%v', 'viewPos')};
+}
+/** Baked terrain light at a world position (world/terrain-light.ts): x the sun past the hills at its height, y the sky in view; 1 = clear. */
+vec2 wsTerrainLight( vec3 wp ) {
+	if ( wsTerrainK.x <= 0.0 ) return vec2( 1.0 );
+	vec3 t = texture2D( wsTerrain, ( wp.xz - wsTerrainMap.xy ) * wsTerrainMap.zw ).rgb;
+	// The sun past the hills at this point's own height (a crown over a shaded slope can stand in the sun).
+	float sun = clamp( ( wp.y - wsTerrainK.z - t.r ) / t.b + 0.5, 0.0, 1.0 );
+	return mix( vec2( 1.0 ), vec2( sun, t.g ), wsTerrainK.xy );
 }
 /** Sun visibility under the clouds at a world position, 1 = clear. */
 float wsCloudShadow( vec3 wp ) {
@@ -489,8 +521,8 @@ float wsCanopyCover( vec2 xz ) {
 
 /**
  * Tree materials (TREE_FULL) look the far map up at their shadow lookup point, as the sun's map does (sprites: moved
- * out of their own crown towards the sun, trees/materials.ts `SELF_SHADOW`) - at the fragment itself a crown would
- * sit inside its own far-map proxy and go dark.
+ * out of their own crown towards the sun, trees/materials.ts `SPRITE_SHADOW_LOOKUP`) - at the fragment itself a crown
+ * would sit inside its own far-map proxy and go dark.
  */
 const TREE_SHADOW_WP_DECL = /* glsl */ `
 #if defined( TREE_FULL ) && defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0 && ! defined( WS_TREE_SHADOW_WP )
@@ -506,6 +538,15 @@ varying vec3 wsShadowWP;
 const SUN_TERMS = /* glsl */ `
 		vec3 wsWP = wsWorldPos( geometryPosition );
 		directLight.color *= wsCloudShadow( wsWP );
+		// The sun before the shadow map and how much of it the map lets through (foliage: light through the leaves).
+		vec3 wsSunC = directLight.color;
+		float wsSelfT = 1.0;
+		#if defined( TREE_SPRITE ) && ! defined( TREE_SHADOW_PASS )
+			// Its own crown's shade (trees/materials.ts SPRITE_SHADOW_LOOKUP): the maps only add the other casters'.
+			wsSelfT = vTreeSelfT;
+			directLight.color *= wsSelfT;
+		#endif
+		float wsSunVis = 1.0;
 		float wsNearW = 0.0;
 		float wsFarIn = 1.0;
 		float wsFarV = 1.0;
@@ -522,6 +563,13 @@ const SUN_TERMS = /* glsl */ `
 				#endif
 			}
 		#endif
+		// The hills' baked shadows, over the maps too: a ridge outside a map's box casts into neither, and a low sun's
+		// shadow of it runs on for a kilometre (where a map shades the same spot, both are 0 there: no double shade).
+		if ( wsTerrainK.x > 0.0 ) {
+			float wsHill = wsTerrainLight( wsWP ).x;
+			directLight.color *= wsHill;
+			wsSunC *= wsHill;
+		}
 		#ifdef RALLY_GROUND
 			directLight.color *= wsCanopyShadow( wsWP, max( wsNearW, wsFarW ) );
 			// The far forest (no trees drawn there): the ground under the canopy takes the canopy's colour.
@@ -538,24 +586,43 @@ const SUN_TERMS = /* glsl */ `
 		#endif`;
 
 /**
- * The sun's shadow-map lookup in three's directional loop, replaced by `min( mix( 1, <it>, wsNearW ), mix( 1, wsFarV,
- * wsFarIn ) )`: the near map inside its box, the far map past it, both over an overlap band before the near one fades
- * (the darker wins: one shadow in both maps is not doubled; 1 where neither reaches, the canopy takes over there).
+ * The sun's shadow-map lookup in three's directional loop, replaced by `mix( wsFarV, <it>, wsNearW )`: the near map
+ * inside its box, the far map past it, cross-faded over the band where the near one fades out (one shadow in both maps
+ * is not doubled, and neither map's darker shade wins: no brightness step where they hand over; 1 where neither
+ * reaches, the canopy takes over there).
  */
 const SUN_SHADOW =
   'getShadow( directionalShadowMap[ i ], directionalLightShadow.shadowMapSize, directionalLightShadow.shadowIntensity, directionalLightShadow.shadowBias, directionalLightShadow.shadowRadius, vDirectionalShadowCoord[ i ] )';
 
-/** Inserted after the directional `RE_Direct` (after the shadow map: shaded leaves stay dark). */
+/** Inserted after the directional `RE_Direct` (after the shadow map; tree foliage adds the light through its leaves). */
 const FOLIAGE_TERM = /* glsl */ `
 		#ifdef RALLY_FOLIAGE
 			#if defined( TREE_SPRITE ) || defined( TREE_IMPOSTOR )
 				// Tree foliage (trees/materials.ts): a cheap wrap term for light through the leaves, weighted by the
 				// atlas / impostor thickness map (thin leaves let light through: a crown against a low sun glows).
 				float wsWrap = saturate( ( dot( - geometryNormal, directLight.direction ) + 0.5 ) / 1.5 );
-				// ... and a half-Lambert wrap on the sun's diffuse, so a crown turning from the sun darkens softly.
+				// ... and a narrow wrap on the sun's diffuse, so a clump turning from the sun darkens softly (its shaded side
+				// still dark: the crown's light and shade masses are what give it depth).
 				float wsLam = dot( geometryNormal, directLight.direction );
-				reflectedLight.directDiffuse += directLight.color * BRDF_Lambert( material.diffuseColor ) * ( saturate( ( wsLam + 0.5 ) / 1.5 ) - saturate( wsLam ) );
-				reflectedLight.directDiffuse += directLight.color * material.diffuseColor * ( float( RALLY_FOLIAGE ) * wsWrap * ( 1.0 - tlThickness ) );
+				reflectedLight.directDiffuse += directLight.color * BRDF_Lambert( material.diffuseColor ) * ( saturate( ( wsLam + 0.25 ) / 1.25 ) - saturate( wsLam ) );
+				// Seen against the sun, light through the leaves goes on forward: a lobe round the sun's direction (a
+				// leaf passes about as much light as it reflects, yellower: no blue gets through).
+				float wsFwd = saturate( dot( - geometryViewDir, directLight.direction ) );
+				wsFwd *= wsFwd;
+				wsFwd *= wsFwd;
+				reflectedLight.directDiffuse += directLight.color * material.diffuseColor * vec3( 1.0, 1.0, 0.3 ) * ( float( RALLY_FOLIAGE ) * ( wsWrap + 1.5 * wsFwd ) * ( 1.0 - tlThickness ) );
+				// A leaf's waxy top catches the sun: a glint where its bent normal halves the view and the sun (F0 ~0.04,
+				// glossy), which is most of what makes a sunlit clump read lighter than its shaded side.
+				vec3 wsH = normalize( directLight.direction + geometryViewDir );
+				float wsGlint = saturate( dot( geometryNormal, wsH ) );
+				wsGlint *= wsGlint;
+				wsGlint *= wsGlint;
+				wsGlint *= wsGlint;
+				reflectedLight.directDiffuse += directLight.color * ( 0.03 * wsGlint * saturate( dot( geometryNormal, directLight.direction ) ) );
+				// In the crown's shadow a leaf still gets the sun through and off the leaves round it (a leaf passes ~10 %
+				// and reflects as much, green-yellow): more light again than the sky gives it, so a crown's underside is
+				// not black.
+				reflectedLight.directDiffuse += wsSunC * ( ( 1.0 - wsSunVis * wsSelfT ) * 0.08 ) * material.diffuseColor * vec3( 1.0, 1.0, 0.3 );
 			#else
 				float wsBack = saturate( dot( - geometryViewDir, directLight.direction ) );
 				reflectedLight.directDiffuse += directLight.color * material.diffuseColor * ( float( RALLY_FOLIAGE ) * wsBack * wsBack * wsBack );
@@ -606,10 +673,18 @@ function install(): void {
     lights.slice(0, at + info.length) +
     SUN_TERMS +
     lights.slice(at + info.length, shadow) +
-    `min( mix( 1.0, ${SUN_SHADOW}, wsNearW ), mix( 1.0, wsFarV, wsFarIn ) )` +
+    `( wsSunVis = mix( wsFarV, ${SUN_SHADOW}, wsNearW ) )` +
     lights.slice(shadow + SUN_SHADOW.length, lineEnd) +
     FOLIAGE_TERM +
     lights.slice(lineEnd);
+  // Ground: the sky light the terrain round it leaves in view (valleys, the foot of a slope).
+  chunks.lights_fragment_end =
+    chunks.lights_fragment_end +
+    /* glsl */ `
+#ifdef RALLY_GROUND
+	reflectedLight.indirectDiffuse *= wsTerrainLight( wsWorldPos( geometryPosition ) ).y;
+#endif
+`;
   // Car reflections: the specular env lookup at the material's own `envMapIntensity` (see `carEnv`).
   const ibl = chunks.envmap_physical_pars_fragment;
   const radiance = 'return envMapColor.rgb * envMapIntensity;';

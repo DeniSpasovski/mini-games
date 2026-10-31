@@ -16,6 +16,7 @@ import {
   type FadeState,
 } from '../../src/games/rally/trees/draw';
 import { treeUniforms } from '../../src/games/rally/trees/materials';
+import { keptLight } from '../../src/games/rally/trees/mesh';
 import {
   LEAF_STYLES,
   spriteAtlas,
@@ -26,6 +27,7 @@ import {
   placeTree,
   treeColliders,
 } from '../../src/games/rally/trees/placement';
+import { seasonal } from '../../src/games/rally/trees/seasons';
 import { buildSkeleton } from '../../src/games/rally/trees/skeleton';
 import {
   FOREST_REACH,
@@ -36,15 +38,28 @@ import {
   TREE_TYPES,
   getSpecies,
   speciesHash,
+  variantCount,
   type SpeciesDef,
 } from '../../src/games/rally/trees/species';
 import {
+  cacheKey,
   generateVariant,
+  VARIANT_SEEDS,
   variantSeed,
 } from '../../src/games/rally/trees/variants';
 
 /** Procedural L-system trees: the pure stages (grammar, skeleton, meshing, placement) run in node. */
 describe('trees', () => {
+  test('darkening terms combine without multiplying a leaf down to black', () => {
+    expect(keptLight(1, 1, 1)).toBe(1);
+    expect(keptLight(0.7)).toBeCloseTo(0.7);
+    // The strongest counts fully, the others a third: lighter than the product, never lighter than the strongest.
+    const k = keptLight(0.8, 0.7, 0.75);
+    expect(k).toBeCloseTo(0.55);
+    expect(k).toBeGreaterThan(0.8 * 0.7 * 0.75);
+    expect(k).toBeLessThan(0.7);
+  });
+
   test('the PRNG and trig are fixed integer / polynomial code', () => {
     const r = new TreeRng(12345);
     expect([r.u32(), r.u32(), r.u32()]).toEqual([
@@ -115,11 +130,20 @@ describe('trees', () => {
     },
   );
 
-  test('a species change gives new variant seeds', () => {
+  test('a variant keeps its seed: every species has kept seeds, a species change only re-keys the cache', () => {
+    for (const def of SPECIES) {
+      const seeds = Array.from({ length: variantCount(def) }, (_, i) =>
+        variantSeed(def, i),
+      );
+      expect(new Set(seeds).size).toBe(seeds.length);
+      // A new species or variant appends its seed to the table (no seed from its name left behind).
+      expect(seeds).toEqual(VARIANT_SEEDS[def.name]?.slice(0, seeds.length));
+    }
     const def = getSpecies('Pine');
     const changed = { ...def, angle: def.angle + 1 };
     expect(speciesHash(changed)).not.toBe(speciesHash(def));
-    expect(variantSeed(changed, 0)).not.toBe(variantSeed(def, 0));
+    expect(variantSeed(changed, 0)).toBe(variantSeed(def, 0));
+    expect(cacheKey(changed, 1)).not.toBe(cacheKey(def, 1));
   });
 
   test('every tree type maps to a species', () => {
@@ -178,12 +202,19 @@ describe('trees', () => {
     // Black pine: a bare trunk under an umbrella crown (its lowest crown point in the top third).
     const bp = v('black_pine').info;
     expect(bp.crown.c[1] - bp.crown.r[1]).toBeGreaterThan(bp.height * 0.6);
-    // Pale-barked birch and plane, white against the oak's brown.
+    // Pale-barked birch and plane, white against the oak's brown: at least twice the light (linear).
+    const light = (hex: string) =>
+      [1, 3, 5].reduce(
+        (a, i) =>
+          a +
+          ((parseInt(hex.slice(i, i + 2), 16) / 255 + 0.055) / 1.055) ** 2.4,
+        0,
+      ) / 3;
     for (const pale of ['birch_tree', 'pale_tree'])
-      expect(lum(v(pale).def.bark.color)).toBeGreaterThan(
-        lum(v('oak_tree').def.bark.color) + 0.3,
+      expect(light(v(pale).def.bark.color)).toBeGreaterThan(
+        light(v('oak_tree').def.bark.color) * 2,
       );
-    // Conifers wear needles, the rest leaves; the thicket is in autumn colours (red over green).
+    // Conifers wear needles, the rest leaves; the thicket turns red and brown in autumn (red over green).
     for (const c of [
       'pine_tree',
       'plantation_pine',
@@ -202,7 +233,8 @@ describe('trees', () => {
       'bramble_shrub',
     ])
       expect(v(c).def.foliage.kind).toBe('broadleaf');
-    for (const hex of v('thicket_shrub').def.foliage.palette)
+    for (const hex of seasonal(v('thicket_shrub').def, 'autumn').foliage
+      .palette)
       expect(parseInt(hex.slice(1, 3), 16)).toBeGreaterThan(
         parseInt(hex.slice(3, 5), 16) - 20,
       );
@@ -220,7 +252,11 @@ describe('trees', () => {
     expect(v('cypress_tree').info.height).toBeLessThan(
       v('poplar_tree').info.height,
     );
-    expect(lum(v('cypress_tree').def.foliage.palette[0])).toBeLessThan(0.25);
+    const meanLight = (pal: string[]) =>
+      pal.reduce((a, h) => a + light(h), 0) / pal.length;
+    expect(meanLight(v('cypress_tree').def.foliage.palette)).toBeLessThan(
+      meanLight(v('beech_tree').def.foliage.palette),
+    );
     // The hedge cypress is a 5-9 m screen tree, greener and lighter than the dark cypress.
     expect(v('hedge_cypress').info.height).toBeGreaterThan(5);
     expect(v('hedge_cypress').info.height).toBeLessThan(9.5);

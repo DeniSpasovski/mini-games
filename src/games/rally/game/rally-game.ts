@@ -19,6 +19,7 @@ import { LIGHTS_MIN_NEED } from '../engine/night';
 import { setHeadBeam, setLampGlow } from '../engine/night-glow';
 import { LampPools } from '../world/lamp-pools';
 import { PostFx, postFxFromUrl } from '../engine/post-fx';
+import { SunGlare } from '../engine/sun-glare';
 import type { QualitySettings } from '../engine/quality';
 import { bakeCropCards, setCropAntialias } from '../engine/crops';
 import { setVineAntialias } from '../engine/vines';
@@ -64,12 +65,14 @@ import { setTerrainDetail, setTerrainRelief } from '../world/terrain-material';
 import { CanopyShadows } from '../world/canopy-shadows';
 import { canopyTone, FarForest } from '../world/far-forest';
 import { FarShadow } from '../world/far-shadow';
+import { TerrainLight } from '../world/terrain-light';
 import { Horizon } from '../world/horizon';
 import {
   setCanopyLocalMap,
   setCanopyShadows,
   setForest,
   setNearShadowFade,
+  setTerrainLight,
 } from '../engine/world-shading';
 import { World } from '../world/world';
 import { CarAudio } from './audio';
@@ -144,8 +147,10 @@ export interface GameOptions {
 }
 
 const STEP = 1 / PHYSICS_HZ;
-/** The far shadow map fades in this far (m) before the sun's fades out: both draw over the band (`placeShadows`). */
-const SHADOW_OVERLAP = 25;
+/** The sun's shadow map cross-fades into the far one over this band (m, `placeShadows`). */
+const NEAR_FADE = 30;
+/** The far shadow map is read from this far (m) before the sun's starts fading: both are there over the band. */
+const SHADOW_OVERLAP = 35;
 /** Trees farther than this from the stage road (m) are only ever impostors (trees/draw.ts `fakeFrom`). */
 const FAKE_TREES_FROM = 250;
 /** Render scale Auto's steps (`RallyGame.adaptScale`): full down to the 70 % option. */
@@ -195,6 +200,12 @@ const MAX_FRAME = MAX_STEPS * STEP;
 const SCALE_VIEWPORT =
   typeof location === 'undefined' ||
   new URLSearchParams(location.search).get('scalevp') !== '0';
+/** The baked terrain light fades in by this much a frame once done (~1.5 s at 60 fps; world/terrain-light.ts). */
+const TERRAIN_LIGHT_FADE = 1 / 90;
+/** Sun glare (medium and high); `?glare=0` to compare without. */
+const GLARE =
+  typeof location === 'undefined' ||
+  new URLSearchParams(location.search).get('glare') !== '0';
 
 export class RallyGame {
   readonly scene = new Scene();
@@ -217,6 +228,8 @@ export class RallyGame {
   /** High quality at night / dusk: glow around lamps and reflectors. */
   /** High quality post effects (bloom, AO); `__rally.post.set({ ... })` from the console. */
   post?: PostFx;
+  /** Glare towards the sun (medium and high, by day); `__rally.glare.enabled = false` from the console. */
+  glare?: SunGlare;
   private readonly lampColor = new Color();
   private lampPos = new Vector3();
   private lampDir = new Vector3();
@@ -254,6 +267,8 @@ export class RallyGame {
   private canopy!: CanopyShadows;
   /** The canopy shell and far trees (world/far-forest.ts); the perf panel moves their forest distance. */
   farForest!: FarForest;
+  /** Hill shadows past the shadow maps and sky light in valleys, baked in the background (world/terrain-light.ts). */
+  private terrainLight?: TerrainLight;
   private hazeAcc = 0;
   audio: CarAudio;
   telemetry!: Telemetry;
@@ -489,6 +504,11 @@ export class RallyGame {
       map.environment.canopyShadow ?? 0.6,
       { texture: this.canopy.local, map: this.canopy.localMap },
     );
+    this.terrainLight = new TerrainLight(
+      (x, z) => this.world.analytic.height(x, z),
+      map.bounds,
+      this.env.sunDir,
+    );
     if (q.farShadowSize > 0)
       this.far = new FarShadow(
         this.renderer,
@@ -566,6 +586,8 @@ export class RallyGame {
           this.opts.settings.ambientOcclusion,
         ),
       );
+    if (q.name !== 'low' && GLARE)
+      this.glare = new SunGlare(this.renderer, this.scene, this.camera);
     setLampGlow(this.env.lightNeed);
     if (this.env.lightNeed >= LIGHTS_MIN_NEED) {
       // Street lamps: light pools on the ground under the lamps (the lens glow is the `lamp_lens` material).
@@ -1655,6 +1677,15 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       gl.beginQuery(this.gpuTimer!.TIME_ELAPSED_EXT, q);
       this.gpuQueries.push(q);
     }
+    // Clear skies glare most; none at night or dusk.
+    this.glare?.update(
+      dt,
+      this.env.sunDir,
+      this.env.sun.color,
+      this.env.night || this.env.lightNeed >= LIGHTS_MIN_NEED
+        ? 0
+        : 1 - 0.7 * (this.env.def.cloudCoverage ?? 0.4),
+    );
     if (this.post?.active) this.post.render();
     else this.renderer.render(this.scene, this.camera);
     if (timed) gl.endQuery(this.gpuTimer!.TIME_ELAPSED_EXT);
@@ -1698,8 +1729,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
   /**
    * The sun's shadow map and the far one ahead of the camera, and where the sun's fades out: before a tree just past
    * `treeShadowDistance` (not in it) could shade the ground - its crown top's shadow reaches ~20 m at a high sun,
-   * more at a low one (the far map's crowns cover that band). The far map fades in SHADOW_OVERLAP m closer, so the two
-   * overlap instead of handing over in one line.
+   * more at a low one (the far map's crowns cover that band). The far map is read from SHADOW_OVERLAP m closer, so the
+   * two cross-fade over the whole NEAR_FADE band instead of handing over in one line.
    */
   private placeShadows(focus: Vector3, forward: Vector3): void {
     this.env.update(focus, forward);
@@ -1710,7 +1741,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       (18 * Math.sqrt(Math.max(0, 1 - s * s))) / Math.max(0.05, s),
     );
     const end = this.opts.quality.treeShadowDistance - reach;
-    setNearShadowFade(end - 15, end, SHADOW_OVERLAP);
+    setNearShadowFade(end - NEAR_FADE, end, SHADOW_OVERLAP);
   }
 
   /**
@@ -1718,6 +1749,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
    * work (ms; `frameSlack`), none given = the canopy's own budgets.
    */
   private updateCanopy(slack?: number): void {
+    const t0 = performance.now();
     const p = this.camera.position;
     if (slack === undefined) this.canopy.update(performance.now(), p);
     else
@@ -1729,6 +1761,16 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       );
     setCanopyLocalMap(this.canopy.localMap);
     this.farForest?.update(p);
+    const tl = this.terrainLight;
+    if (tl && slack !== undefined && tl.strength < 1) {
+      // Only in the time this frame has left over (it is the last background job): it never lengthens a frame; a
+      // device without spare time keeps the plain shadow maps.
+      const left = slack - (performance.now() - t0);
+      if (!tl.done) {
+        if (left > 0.25) tl.step(Math.min(1.5, left));
+      } else tl.strength = Math.min(1, tl.strength + TERRAIN_LIGHT_FADE);
+      if (tl.done) setTerrainLight(tl.texture, tl.map, tl.strength);
+    }
   }
 
   /** Show / hide the perf panel (created on first use; its switches stay applied while it exists). */

@@ -9,9 +9,11 @@ import {
   MeshDepthMaterial,
   MeshLambertMaterial,
   MeshStandardMaterial,
+  RedFormat,
   RepeatWrapping,
   RGBADepthPacking,
   SRGBColorSpace,
+  UnsignedByteType,
   Vector2,
   Vector3,
   Vector4,
@@ -42,6 +44,14 @@ import furrowedUrl from './bark/furrowed.webp';
 import pineUrl from './bark/pine.webp';
 import beechUrl from './bark/beech.webp';
 import planeUrl from './bark/plane.webp';
+import willowUrl from './bark/willow.webp';
+import cedarUrl from './bark/cedar.webp';
+import furrowedNUrl from './bark/furrowed-n.webp';
+import pineNUrl from './bark/pine-n.webp';
+import beechNUrl from './bark/beech-n.webp';
+import planeNUrl from './bark/plane-n.webp';
+import willowNUrl from './bark/willow-n.webp';
+import cedarNUrl from './bark/cedar-n.webp';
 import { TREE_SPRITE_AXES } from './sprite-attr';
 
 /**
@@ -206,16 +216,18 @@ attribute vec4 treeLod;
 #endif
 varying vec3 vSprRight;
 varying vec3 vSprUp;
+/** Share of the sun its own crown lets through to the sprite (SPRITE_SHADOW_LOOKUP). */
+varying float vTreeSelfT;
 ${TREE_SPRITE_AXES}
 #endif
 varying vec2 vTreeKeep;
 varying vec2 vTreeTint;
 varying float vTreeAO;
 varying vec2 vTreeDebug;
-/** Trunk sway (object space metres along the wind) at height y. */
+/** Trunk sway (object space metres along the wind) at height y: light wind, a 20 m top about +-0.15 m, ~4 s a swing. */
 float treeTrunk( float y, float phase, float gust ) {
 	float hy = max( y, 0.0 );
-	return 0.0009 * hy * hy * gust * ( sin( wsTime * 0.9 + phase ) + 0.3 * sin( wsTime * 2.1 + phase * 1.7 ) );
+	return 0.0003 * hy * hy * gust * ( sin( wsTime * 1.6 + phase ) + 0.3 * sin( wsTime * 3.5 + phase * 1.7 ) );
 }
 #ifdef TREE_SPRITE
 /**
@@ -253,7 +265,7 @@ const VERTEX_MAIN = /* glsl */ `
 	#ifndef TREE_IMPOSTOR
 		// Trunk bend + limb sway (phase per limb, more for higher orders and further out). Sprites: at their centre.
 		if ( tGust > 0.0 ) {
-			float tBranch = 0.012 * tGust * ( 1.0 + 0.35 * treeWind.x ) * treeWind.z * sin( wsTime * 1.7 + treeWind.y + treeInst.z );
+			float tBranch = 0.006 * tGust * ( 1.0 + 0.35 * treeWind.x ) * treeWind.z * sin( wsTime * 3.0 + treeWind.y + treeInst.z );
 			transformed += tWind * treeTrunk( position.y, treeInst.z, tGust ) + ( tWind + vec3( 0.0, 0.3, 0.0 ) ) * tBranch;
 		}
 	#endif
@@ -302,7 +314,8 @@ const SPRITE_PROJECT = /* glsl */ `
 	float sprAligned;
 	treeSpriteCorner( treeSprite, sprCorner, sprHeading, sprAligned );
 	float sprFlutter = 0.0;
-	if ( tWindK > 0.0 ) sprFlutter = 0.12 * tWindK * sin( wsTime * 5.3 + treeWind.y * 2.7 );
+	// Leaves shimmer (a small, quick turn), clusters do not wave.
+	if ( tWindK > 0.0 ) sprFlutter = 0.04 * tWindK * sin( wsTime * 12.0 + treeWind.y * 2.7 );
 	vec3 sprR;
 	vec3 sprU;
 	float sprStretch;
@@ -318,10 +331,20 @@ const SPRITE_PROJECT = /* glsl */ `
 	#endif
 `;
 
-/** Share of the way out of its own crown (towards the sun) a sprite's shadow lookup moves. */
-const SELF_SHADOW = 0.8;
+/**
+ * Light through a sprite's own crown (Beer-Lambert, per metre of crown the sun crosses to reach it): ~0.5 m^2 of
+ * leaf per m^3 of crown, half of it facing the sun. A 3 m path keeps ~35 %, the heart of a big crown a few %.
+ */
+const CROWN_EXTINCTION = 0.35;
+/** The shadow lookup sits this far (m) past the crown's sunward surface: clear of its own shadow proxies. */
+const CROWN_EXIT = 0.6;
 
-/** Replaces worldpos_vertex for sprites: the shadow lookup point (see injectVertex). */
+/**
+ * Replaces worldpos_vertex for sprites: the shadow lookup point (see injectVertex) and the light through the sprite's
+ * own crown. The crown shades its own sprites smoothly by how deep they sit along the sun (`vTreeSelfT`), and the
+ * shadow maps are read just outside it, so they only add other crowns', the terrain's and buildings' shadows: the
+ * proxies' all-or-nothing holes never cut a crown into lit and dark patches.
+ */
 const SPRITE_SHADOW_LOOKUP = /* glsl */ `
 	vec3 tcC = ( modelMatrix * instanceMatrix * vec4( treeCrown.xyz, 1.0 ) ).xyz;
 	vec3 tcR = vec3( treeCrown.w, treeCrownY, treeCrown.w ) * tScale;
@@ -331,7 +354,23 @@ const SPRITE_SHADOW_LOOKUP = /* glsl */ `
 	float tcB = dot( tcQ, tcD );
 	float tcDisc = tcB * tcB - tcA * ( dot( tcQ, tcQ ) - 1.0 );
 	float tcOut = tcDisc > 0.0 ? max( ( - tcB + sqrt( tcDisc ) ) / tcA, 0.0 ) : 0.0;
-	vec4 worldPosition = vec4( sprWorld + wsSunDir * max( 0.35, ${SELF_SHADOW.toFixed(2)} * tcOut ), 1.0 );
+	vTreeSelfT = exp( - ${CROWN_EXTINCTION.toFixed(2)} * tcOut );
+	vec4 worldPosition = vec4( sprWorld + wsSunDir * ( tcOut + ${CROWN_EXIT.toFixed(2)} ), 1.0 );
+`;
+
+/**
+ * Sprites' lit pass, after beginnormal_vertex: the clump normal (a dome per limb, trees/mesh.ts `leafClumps`) gives a
+ * near crown its depth but reads as blotches once the clumps are a few pixels: it turns into the crown's ellipsoid
+ * normal between CLUMP_FADE metres (the impostor bake uses the far end: trees/impostor.ts).
+ */
+export const CLUMP_FADE: [number, number] = [30, 90];
+const SPRITE_CLUMP_FADE = /* glsl */ `
+	{
+		vec3 tcR2 = vec3( treeCrown.w, treeCrownY, treeCrown.w );
+		vec3 tcN = normalize( ( position - treeCrown.xyz ) / ( tcR2 * tcR2 ) );
+		float tcD = distance( ( modelMatrix * instanceMatrix * vec4( position, 1.0 ) ).xyz, tlCam );
+		objectNormal = normalize( mix( objectNormal, tcN, smoothstep( ${CLUMP_FADE[0].toFixed(1)}, ${CLUMP_FADE[1].toFixed(1)}, tcD ) ) );
+	}
 `;
 
 const VERTEX_COLLAPSE = /* glsl */ `
@@ -339,13 +378,14 @@ const VERTEX_COLLAPSE = /* glsl */ `
 `;
 
 const FRAGMENT_PARS = /* glsl */ `
-const float TREE_SKY_LEAN = 0.8;
-const float TREE_LEAF_FILL = 0.06;
+const float TREE_SKY_LEAN = 0.5;
+const float TREE_LEAF_FILL = 0.1;
 #ifdef TREE_SPRITE
 uniform sampler2D tlSprNormal;
 uniform float tlDepthOnly;
 varying vec3 vSprRight;
 varying vec3 vSprUp;
+varying float vTreeSelfT;
 #endif
 uniform float tlDebug;
 uniform vec3 tlSky[ 9 ];
@@ -389,8 +429,14 @@ const FRAGMENT_COLOR = /* glsl */ `
 	// Baked AO darkens the albedo a little (the ambient gets the rest, FRAGMENT_AMBIENT); sprites: the ambient only.
 	#ifdef TREE_SPRITE
 		diffuseColor.rgb = treeHue( diffuseColor.rgb, vTreeTint.x ) * vTreeTint.y;
+		#ifdef TREE_UNDERSIDE
+			// Seen from below, a broad leaf shows its underside: paler and greyer (~1.2 x, matte hairs and wax).
+			float tUnder = saturate( - 2.0 * dot( normalize( vViewPosition ), viewMatrix[ 1 ].xyz ) );
+			vec3 tPale = mix( diffuseColor.rgb, vec3( dot( diffuseColor.rgb, vec3( 0.2126, 0.7152, 0.0722 ) ) ), 0.1 ) * 1.2;
+			diffuseColor.rgb = mix( diffuseColor.rgb, tPale, tUnder );
+		#endif
 	#else
-		diffuseColor.rgb = treeHue( diffuseColor.rgb, vTreeTint.x ) * vTreeTint.y * mix( 0.65, 1.0, vTreeAO );
+		diffuseColor.rgb = treeHue( diffuseColor.rgb, vTreeTint.x ) * vTreeTint.y * mix( 0.85, 1.0, vTreeAO );
 	#endif
 	if ( tlDebug > 0.5 && tlDebug < 1.5 ) diffuseColor.rgb = treeDebugColor( vTreeDebug );
 	if ( tlDebug > 1.5 && tlDebug < 2.5 ) diffuseColor.rgb = vec3( 0.75 );
@@ -411,6 +457,14 @@ const FRAGMENT_AMBIENT = /* glsl */ `
 			reflectedLight.indirectDiffuse += shGetIrradianceAt( tSkyN, tlSky ) * BRDF_Lambert( material.diffuseColor ) * vTreeAO;
 		} else reflectedLight.indirectDiffuse *= FALLBACK_AMBIENT;
 	#endif
+	#if ! defined( TREE_SPRITE ) && ! defined( TREE_IMPOSTOR )
+		// Wood sees the ground and the leaves round it as much as the sky (a trunk stands upright), and under a canopy
+		// mostly those: that share of its ambient loses the sky's tint (a trunk in the shade reads grey-brown, not blue).
+		vec3 tAmb = reflectedLight.indirectDiffuse;
+		reflectedLight.indirectDiffuse = mix( vec3( dot( tAmb, vec3( 0.2126, 0.7152, 0.0722 ) ) ) * vec3( 1.0, 0.94, 0.8 ), tAmb, 0.3 * vTreeAO );
+		// The sky's sheen on rough bark (IBL specular, strong at grazing angles) is hidden by the same canopy.
+		reflectedLight.indirectSpecular *= vTreeAO;
+	#endif
 `;
 
 /** At the very end: debug 3 = the shading normal (view space) as colour. */
@@ -427,7 +481,9 @@ const NO_ENVMAP = '#undef USE_ENVMAP';
 const SPRITE_NORMAL = /* glsl */ `
 	vec4 tlNT = texture2D( tlSprNormal, vMapUv );
 	vec3 tlTN = tlNT.xyz * 2.0 - 1.0;
-	normal = normalize( normalize( vNormal ) + ( normalize( vSprRight ) * tlTN.x + normalize( vSprUp ) * tlTN.y ) * TREE_BEND );
+	// The leaf-scale bend fades out with distance: past ~20 m it only speckles the clumps' light and shade.
+	float tlBend = TREE_BEND * ( 1.0 - 0.6 * smoothstep( 20.0, 80.0, length( vViewPosition ) ) );
+	normal = normalize( normalize( vNormal ) + ( normalize( vSprRight ) * tlTN.x + normalize( vSprUp ) * tlTN.y ) * tlBend );
 	nonPerturbedNormal = normal;
 	float tlThickness = tlNT.w;
 `;
@@ -453,9 +509,7 @@ function injectVertex(
         '#include <project_vertex>',
         `${SPRITE_PROJECT}\n${VERTEX_COLLAPSE}`,
       )
-      // Shadow lookup lifted towards the sun: a sprite (facing the camera, often edge-on to the sun) does not
-      // shadow itself, and its crown's shadow proxy (trees/proxy.ts) does not swallow it: the lift is a share of
-      // the way out of the crown's ellipsoid towards the sun, so the inside still sits in some shade.
+      // Shadow lookup lifted out of its own crown towards the sun (the crown's own shade: `vTreeSelfT`).
       .replace('#include <worldpos_vertex>', SPRITE_SHADOW_LOOKUP);
   else if (project)
     shader.vertexShader = shader.vertexShader.replace(
@@ -495,7 +549,11 @@ function hookStandard(
         '#include <dithering_fragment>',
         `#include <dithering_fragment>\n${FRAGMENT_NORMALS}`,
       );
-    if (sprite)
+    if (sprite) {
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <beginnormal_vertex>',
+        `#include <beginnormal_vertex>\n${SPRITE_CLUMP_FADE}`,
+      );
       shader.fragmentShader = `${NO_ENVMAP}\n${shader.fragmentShader}`
         .replace(
           '#include <normal_fragment_begin>',
@@ -506,6 +564,7 @@ function hookStandard(
           '#include <alphatest_fragment>',
           '#include <alphatest_fragment>\n\tif ( tlDepthOnly > 0.5 ) { gl_FragColor = vec4( 1.0, 0.0, 1.0, diffuseColor.a ); return; }',
         );
+    }
   };
   m.customProgramCacheKey = () => key;
 }
@@ -539,12 +598,14 @@ function noise2(
 
 const textures = new Map<string, Texture>();
 
-/** Scanned bark tiles (trees/bark/<kind>.webp, scripts/trees/bake-bark.py; 256 x 512). */
-const BARK_URLS: Partial<Record<BarkTexture | BarkScan, string>> = {
-  furrowed: furrowedUrl,
-  pine: pineUrl,
-  beech: beechUrl,
-  plane: planeUrl,
+/** Scanned bark tiles and their normal tiles (trees/bark/<kind>.webp, <kind>-n.webp, scripts/trees/bake-bark.py; 256 x 512). */
+const BARK_URLS: Partial<Record<BarkTexture | BarkScan, [string, string]>> = {
+  furrowed: [furrowedUrl, furrowedNUrl],
+  pine: [pineUrl, pineNUrl],
+  beech: [beechUrl, beechNUrl],
+  plane: [planeUrl, planeNUrl],
+  willow: [willowUrl, willowNUrl],
+  cedar: [cedarUrl, cedarNUrl],
 };
 /** Lifts a scanned tile (its own contrast) to the procedural tiles' mean brightness; printed by the baker. */
 const BARK_GAIN: Partial<Record<BarkTexture | BarkScan, number>> = {
@@ -552,6 +613,14 @@ const BARK_GAIN: Partial<Record<BarkTexture | BarkScan, number>> = {
   pine: 1.34,
   beech: 1.38,
   plane: 1.48,
+  willow: 1.4,
+  cedar: 1.11,
+};
+/** Procedural tiles (px): the birch's lenticels need the finer one. */
+const PROCEDURAL_SIZE: Partial<
+  Record<BarkTexture | BarkScan, [number, number]>
+> = {
+  birch: [128, 256],
 };
 
 /** A species' bark tile: its own scan, else its kind. */
@@ -564,9 +633,9 @@ export function barkGain(kind: BarkTexture | BarkScan): number {
   return BARK_GAIN[kind] ?? 1;
 }
 
-/** Side of a bark tile (px): a scan or the procedural one. */
+/** Side of a bark tile (px): a scan or the procedural one; its normal tile is the same size. */
 export function barkTileSize(kind: BarkTexture | BarkScan): [number, number] {
-  return BARK_URLS[kind] ? [256, 512] : [64, 128];
+  return BARK_URLS[kind] ? [256, 512] : (PROCEDURAL_SIZE[kind] ?? [64, 128]);
 }
 
 /** Resolves when these bark tiles hold their scans: the impostor bake reads them once (trees/load.ts). */
@@ -576,46 +645,115 @@ export function barkReady(kinds: (BarkTexture | BarkScan)[]): Promise<void> {
   ).then(() => undefined);
 }
 
+/** A procedural tile's grey value (0..1) at texel x, y of a w x h tile (wraps). */
+function barkHeight(
+  kind: BarkTexture | BarkScan,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+): number {
+  if (kind === 'birch') {
+    // White papery bark: short dark horizontal lenticels, a few dark rough patches, faint peeling bands.
+    const base = noise2(x / 16, y / 16, 31, w / 16, h / 16);
+    const band = noise2(x / 64, y / 5, 32, w / 64, h / 5);
+    const len = noise2(x / 14, y / 1.6, 33, w / 14, h / 1.6);
+    const patch = noise2(x / 18, y / 12, 34, w / 18, h / 12);
+    let v = 0.86 + 0.08 * base + 0.06 * band;
+    if (len > 0.8) v -= 0.5 * Math.min(1, (len - 0.8) / 0.08);
+    if (patch > 0.84) v = Math.min(v, 0.32 + 0.2 * base);
+    return Math.max(0.15, Math.min(1, v));
+  }
+  if (kind === 'furrowed') {
+    // Vertical plates split by dark furrows.
+    const ridge = noise2(x / 6, y / 24, 11, w / 6, h / 24);
+    const plate = noise2(x / 3, y / 6, 12, w / 3, h / 6);
+    return Math.min(
+      1,
+      0.45 +
+        0.55 * Math.pow(Math.abs(ridge * 2 - 1), 0.6) * (0.75 + 0.25 * plate),
+    );
+  }
+  // Smooth bark with faint horizontal lenticels.
+  const base = noise2(x / 8, y / 8, 21, w / 8, h / 8);
+  const len = noise2(x / 10, y / 1.5, 22, w / 10, h / 1.5);
+  return Math.min(1, 0.82 + 0.14 * base - (len > 0.82 ? 0.25 : 0));
+}
+
+function dataTexture(
+  data: Uint8Array,
+  w: number,
+  h: number,
+  srgb: boolean,
+): Texture {
+  const t = new DataTexture(data, w, h);
+  t.wrapS = t.wrapT = RepeatWrapping;
+  t.magFilter = LinearFilter;
+  t.minFilter = LinearMipmapLinearFilter;
+  t.generateMipmaps = true;
+  if (srgb) t.colorSpace = SRGBColorSpace;
+  t.anisotropy = 4;
+  t.needsUpdate = true;
+  return t;
+}
+
 /** Grey bark detail (multiplies the bark vertex colour): u around the branch, v along it. */
 export function barkTexture(kind: BarkTexture | BarkScan): Texture {
   let t = textures.get(`bark:${kind}`);
   if (t) return t;
   const url = BARK_URLS[kind];
   if (url) {
-    t = imageTexture(url, 256, 512, `bark:${kind}`, '#9a9a9a');
+    t = imageTexture(url[0], 256, 512, `bark:${kind}`, '#9a9a9a');
     textures.set(`bark:${kind}`, t);
     return t;
   }
-  const w = 64;
-  const h = 128;
+  const [w, h] = barkTileSize(kind);
   const data = new Uint8Array(w * h * 4);
   for (let y = 0; y < h; y++)
     for (let x = 0; x < w; x++) {
-      let v: number;
-      if (kind === 'furrowed') {
-        // Vertical plates split by dark furrows.
-        const ridge = noise2(x / 6, y / 24, 11, w / 6, h / 24);
-        const plate = noise2(x / 3, y / 6, 12, w / 3, h / 6);
-        v =
-          0.45 +
-          0.55 * Math.pow(Math.abs(ridge * 2 - 1), 0.6) * (0.75 + 0.25 * plate);
-      } else {
-        // Smooth bark with faint horizontal lenticels.
-        const base = noise2(x / 8, y / 8, 21, w / 8, h / 8);
-        const len = noise2(x / 10, y / 1.5, 22, w / 10, h / 1.5);
-        v = 0.82 + 0.14 * base - (len > 0.82 ? 0.25 : 0);
-      }
-      const c = Math.round(Math.min(1, v) * 255);
+      const c = Math.round(barkHeight(kind, x, y, w, h) * 255);
       data.set([c, c, c, 255], (y * w + x) * 4);
     }
-  t = new DataTexture(data, w, h);
-  t.wrapS = t.wrapT = RepeatWrapping;
-  t.magFilter = LinearFilter;
-  t.minFilter = LinearMipmapLinearFilter;
-  t.generateMipmaps = true;
-  t.colorSpace = SRGBColorSpace;
-  t.needsUpdate = true;
+  t = dataTexture(data, w, h, true);
   textures.set(`bark:${kind}`, t);
+  return t;
+}
+
+/** Bark relief (tangent space, OpenGL): the scan's own normal tile, a procedural tile's from its grey value. */
+export function barkNormalTexture(kind: BarkTexture | BarkScan): Texture {
+  let t = textures.get(`bark-n:${kind}`);
+  if (t) return t;
+  const url = BARK_URLS[kind];
+  if (url) {
+    t = imageTexture(url[1], 256, 512, `bark-n:${kind}`, '#8080ff', false);
+    textures.set(`bark-n:${kind}`, t);
+    return t;
+  }
+  const [w, h] = barkTileSize(kind);
+  const data = new Uint8Array(w * h * 4);
+  const at = (x: number, y: number) =>
+    barkHeight(kind, (x + w) % w, (y + h) % h, w, h);
+  const k = 3;
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      const n = [
+        -k * (at(x + 1, y) - at(x - 1, y)),
+        -k * (at(x, y + 1) - at(x, y - 1)),
+        1,
+      ];
+      const l = Math.hypot(n[0], n[1], n[2]);
+      data.set(
+        [
+          Math.round((n[0] / l) * 127.5 + 127.5),
+          Math.round((n[1] / l) * 127.5 + 127.5),
+          Math.round((n[2] / l) * 127.5 + 127.5),
+          255,
+        ],
+        (y * w + x) * 4,
+      );
+    }
+  t = dataTexture(data, w, h, false);
+  textures.set(`bark-n:${kind}`, t);
   return t;
 }
 
@@ -849,6 +987,7 @@ export function barkMaterial(
   m = new MeshStandardMaterial({
     vertexColors: true,
     map: barkTexture(kind),
+    normalMap: barkNormalTexture(kind),
     roughness: 0.95,
   });
   m.color.setScalar(barkGain(kind));
@@ -859,7 +998,7 @@ export function barkMaterial(
     TREE_VIEW_Z: 'vViewPosition.z',
   };
   multi(m);
-  hookStandard(m, 'tree-bark-v8', false);
+  hookStandard(m, 'tree-bark-v12', false);
   materials.set(key, m);
   return m;
 }
@@ -955,9 +1094,11 @@ function spriteLit(style: LeafStyle, depthOnly: boolean): MeshLambertMaterial {
     TREE_BEND: SPRITE_BEND.toFixed(2),
     FALLBACK_AMBIENT: FALLBACK_AMBIENT.toFixed(2),
     RALLY_FOLIAGE: 0.45,
+    // Broad leaves have a pale underside; needles and scale leaves do not.
+    ...(style === 'pine' || style === 'juniper' ? {} : { TREE_UNDERSIDE: 1 }),
   };
   multi(m);
-  hookStandard(m, 'tree-sprite-v10', true, {
+  hookStandard(m, 'tree-sprite-v17', true, {
     tlSprNormal: { value: tex.normal },
     tlDepthOnly: { value: depthOnly ? 1 : 0 },
   });
@@ -988,21 +1129,35 @@ export function spritePrepassMaterial(style: LeafStyle): MeshLambertMaterial {
 
 export type TreeDepthKind = 'branch' | 'sprite' | 'proxy';
 
+/** Cells of the proxies' hole texture (a tile of value noise, one random value per texel, wrapped). */
+const PROXY_HOLE_CELLS = 64;
+/** Holes where the bilinear noise passes this: 13 % of the crown, as the old 3D value noise past 0.72. */
+const PROXY_HOLE_CUT = 0.732;
+
+/** The proxies' hole noise: one R8 texel per 0.6 m cell, bilinear in the shader (deterministic, made once). */
+function proxyHoleTexture(): Texture {
+  let t = textures.get('proxy-holes');
+  if (t) return t;
+  const n = PROXY_HOLE_CELLS;
+  const data = new Uint8Array(n * n);
+  for (let i = 0; i < n * n; i++)
+    data[i] = Math.round(unit(mix32(0x7e11, i)) * 255);
+  t = new DataTexture(data, n, n, RedFormat, UnsignedByteType);
+  t.wrapS = t.wrapT = RepeatWrapping;
+  t.magFilter = t.minFilter = LinearFilter;
+  t.needsUpdate = true;
+  textures.set('proxy-holes', t);
+  return t;
+}
+
 /**
- * Leafy holes in a crown proxy's shadow: two octaves of value noise over the world position (about 0.6 m cells),
- * so light falls through the crown in dapples that do not crawl with the camera.
+ * Leafy holes in a crown proxy's shadow: value noise over the world position (about 0.6 m cells), so light falls
+ * through the crown in dapples that do not crawl with the camera. One bilinear fetch of a 2D tile with the height
+ * folded into the offset: eight sin hashes a pixel made the proxies the dearest tree shadow part.
  */
 const PROXY_HOLES = /* glsl */ `
-	vec3 tpP = vTreeWorld * 1.7;
-	vec3 tpI = floor( tpP );
-	vec3 tpF = fract( tpP );
-	tpF = tpF * tpF * ( 3.0 - 2.0 * tpF );
-	#define TP_H( o ) fract( sin( dot( tpI + o, vec3( 127.1, 311.7, 74.7 ) ) ) * 43758.5453 )
-	float tpN = mix(
-		mix( mix( TP_H( vec3( 0, 0, 0 ) ), TP_H( vec3( 1, 0, 0 ) ), tpF.x ), mix( TP_H( vec3( 0, 1, 0 ) ), TP_H( vec3( 1, 1, 0 ) ), tpF.x ), tpF.y ),
-		mix( mix( TP_H( vec3( 0, 0, 1 ) ), TP_H( vec3( 1, 0, 1 ) ), tpF.x ), mix( TP_H( vec3( 0, 1, 1 ) ), TP_H( vec3( 1, 1, 1 ) ), tpF.x ), tpF.y ),
-		tpF.z );
-	if ( tpN > 0.72 ) discard;
+	vec2 tpP = ( vTreeWorld.xz + vTreeWorld.y * vec2( 0.37, 0.61 ) ) * ( 1.7 / ${PROXY_HOLE_CELLS.toFixed(1)} );
+	if ( texture2D( tlHoles, tpP ).r > ${PROXY_HOLE_CUT.toFixed(3)} ) discard;
 `;
 
 /**
@@ -1038,24 +1193,29 @@ export function treeDepthMaterial(kind: TreeDepthKind): MeshDepthMaterial {
           '#include <project_vertex>',
           '#include <project_vertex>\n\tvTreeWorld = ( modelMatrix * instanceMatrix * vec4( transformed, 1.0 ) ).xyz;',
         );
+      shader.uniforms.tlHoles = { value: proxyHoleTexture() };
       shader.fragmentShader = shader.fragmentShader
         .replace(
           '#include <common>',
-          '#include <common>\nvarying vec3 vTreeWorld;',
+          '#include <common>\nvarying vec3 vTreeWorld;\nuniform sampler2D tlHoles;',
         )
         .replace('void main() {', `void main() {\n${PROXY_HOLES}`);
     }
   };
   multi(m);
-  m.customProgramCacheKey = () => `tree-depth-v9-${kind}`;
+  m.customProgramCacheKey = () => `tree-depth-v10-${kind}`;
   materials.set(key, m);
   return m;
 }
 
 // --- impostor --------------------------------------------------------------------------------------------------
 
-/** Octahedral impostor atlas: N x N frames over the upper hemisphere (trees/impostor.ts bakes them). */
-export const IMPOSTOR_FRAMES = 8;
+/**
+ * Octahedral impostor atlas: N x N frames over the upper hemisphere (trees/impostor.ts bakes them). Fewer, larger frames
+ * than 8 x 8: a tree at the impostor distance is ~100+ px tall, so pixels per view matter more than views (the shader
+ * blends three).
+ */
+export const IMPOSTOR_FRAMES = 6;
 
 /** Hemi-octahedral map of a unit direction with y >= 0 -> [0, 1]^2 (the same formula as the shader). */
 export function hemiOctEncode(d: [number, number, number]): [number, number] {
@@ -1282,6 +1442,6 @@ varying float vTiLayer;
       );
   };
   m.customProgramCacheKey = () =>
-    `tree-impostor-v10-${spheres.length}${flat ? '-flat' : ''}${grid ? `-${grid.key}` : ''}`;
+    `tree-impostor-v13-${spheres.length}${flat ? '-flat' : ''}${grid ? `-${grid.key}` : ''}`;
   return m;
 }

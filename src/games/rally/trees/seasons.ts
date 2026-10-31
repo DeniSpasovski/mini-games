@@ -4,91 +4,102 @@ import type { SpeciesDef } from './species';
 /**
  * Leaf colours by season (spec: trees/Species.md#seasons). A species' own `foliage.palette` is its summer look;
  * this table gives the spring and autumn palettes of the species that change (conifers barely, the juniper never).
+ * A broadleaf's spring / autumn palette is a ramp, least to most turned (measured leaves: green, yellow-green, gold,
+ * orange, copper / red, brown): each variant stands at its own stage on it and its outer, upper leaves run ahead.
  * Only colours differ: a season's variants grow from the same seeds, so a tree is the same tree all year.
  */
-const PINE_PALETTES = {
-  spring: ['#3a5a2c', '#41662f', '#365428', '#487035'],
-  autumn: ['#2c4524', '#32502a', '#274020', '#385428'],
-};
 const PALETTES: Readonly<
   Record<string, Partial<Record<Exclude<Season, 'summer'>, string[]>>>
 > = {
-  Pine: PINE_PALETTES,
-  'Plantation pine': PINE_PALETTES,
+  Pine: {
+    spring: ['#505e44', '#566345', '#4a5841', '#4f614a'],
+    autumn: ['#495640', '#4f5b42', '#43513e', '#485946'],
+  },
+  'Plantation pine': {
+    spring: ['#506042', '#566543', '#4a5a3f', '#4f6248'],
+    autumn: ['#49583f', '#4f5d40', '#43533c', '#485b44'],
+  },
   'Black pine': {
-    spring: ['#2a4222', '#32492a', '#27391f', '#375228'],
+    spring: ['#46563b', '#4c5b3d', '#415139', '#465941'],
   },
   Oak: {
-    spring: ['#6f9a3a', '#7aa840', '#659032', '#84b248', '#709c3a'],
-    autumn: ['#8a6a2a', '#7a5a22', '#9a7430', '#6a4a1e', '#a08034'],
+    spring: ['#5c513a', '#5c5c39', '#586437', '#4f6037', '#475a37'],
+    autumn: ['#3a4f30', '#585c37', '#7e7241', '#866f4a', '#785a44', '#685444'],
   },
   Beech: {
-    spring: ['#8fbf3f', '#9bcb46', '#86b438', '#a4d04e'],
-    autumn: ['#c8861e', '#d89a26', '#b6701a', '#e0a830', '#a85c18'],
+    spring: ['#58563e', '#687e3e', '#64753a', '#5c6b38', '#516437'],
+    autumn: ['#415633', '#6f7b3a', '#9d883e', '#a3753a', '#8d603a', '#725641'],
   },
   Hornbeam: {
-    spring: ['#98c43c', '#a4cf44', '#8ab836', '#b0d44e'],
-    autumn: ['#d6a626', '#e0b82e', '#c89420', '#e8c63a', '#b8821c'],
+    spring: ['#58563e', '#687e3e', '#64753a', '#5c6b38', '#516437'],
+    autumn: ['#445833', '#72813a', '#a3923e', '#a7974a', '#8b754a', '#6f5844'],
   },
   Walnut: {
-    spring: ['#58782e', '#628436', '#4f6e28', '#6a8c3a'],
-    autumn: ['#8a7a2a', '#7a6a22', '#9a8630', '#6a5a1e'],
+    spring: ['#5c513a', '#5c5c39', '#586437', '#4f6037', '#475a37'],
+    autumn: ['#445833', '#72813a', '#a3923e', '#a7974a', '#8b754a', '#6f5844'],
   },
+  // Blossom: white and pale pink among the first leaves.
   'Fruit tree': {
-    // Blossom: pale pink and white among the first leaves.
-    spring: ['#e9dcd6', '#d9a8a8', '#8fae48', '#a6c05a', '#efe6e0'],
-    autumn: ['#a88a2a', '#b87a24', '#8a7a2c', '#c09a30'],
+    spring: ['#5c6b38', '#606f3a', '#bd9b9f', '#c5c0bd', '#cdcac5'],
+    autumn: ['#415633', '#727b3a', '#a7833a', '#ab6f37', '#9f5437', '#7e3e3a'],
   },
   Plane: {
-    spring: ['#9fbe44', '#abca4c', '#94b23c', '#b4d055'],
-    autumn: ['#c8a02a', '#d0a830', '#b88c22', '#d8b43c'],
+    spring: ['#58563e', '#687e3e', '#64753a', '#5c6b38', '#516437'],
+    autumn: ['#4a5c37', '#727b3a', '#978344', '#927b4a', '#836b4a', '#6f5844'],
   },
   Birch: {
-    spring: ['#8ab844', '#96c44c', '#7eac3c', '#a2cc54'],
-    autumn: ['#e0c030', '#ecd040', '#d4b028', '#f0d850'],
+    spring: ['#58563e', '#687e3e', '#64753a', '#5c6b38', '#516437'],
+    autumn: ['#445833', '#72813a', '#a3923e', '#a7974a', '#8b754a', '#6f5844'],
   },
   Sapling: {
-    spring: ['#9ab640', '#a8c448', '#8eaa38', '#b4cc50'],
-    autumn: ['#c0a030', '#cc9a2c', '#b08a28', '#d4b038'],
+    spring: ['#58563e', '#687e3e', '#64753a', '#5c6b38', '#516437'],
+    autumn: ['#445833', '#72813a', '#a3923e', '#a7974a', '#8b754a', '#6f5844'],
   },
   Poplar: {
-    spring: ['#6e9a38', '#78a640', '#64902f', '#82ac46'],
-    autumn: ['#c8b02c', '#d4bc34', '#b89e26', '#dcc83e'],
+    spring: ['#58563e', '#687e3e', '#64753a', '#5c6b38', '#516437'],
+    autumn: ['#445833', '#72813a', '#a3923e', '#a7974a', '#8b754a', '#6f5844'],
   },
   Willow: {
-    spring: ['#a8c850', '#b4d25a', '#9cbc48', '#bede66'],
-    autumn: ['#b8b04a', '#c4b852', '#a8a042', '#ccc05a'],
+    spring: ['#58563e', '#687e3e', '#64753a', '#5c6b38', '#516437'],
+    autumn: ['#445837', '#646f3a', '#838144', '#978d4a', '#6f5c44'],
   },
   Bush: {
-    spring: ['#5a8030', '#64883a', '#527a2c', '#6c9040'],
-    autumn: ['#7a6a2c', '#6a5a26', '#8a7430', '#5c5a2a'],
+    spring: ['#58563e', '#687e3e', '#64753a', '#5c6b38', '#516437'],
+    autumn: ['#445833', '#72813a', '#a3923e', '#a7974a', '#8b754a', '#6f5844'],
   },
   Scrub: {
-    spring: ['#5a6a34', '#647438', '#52622c', '#6c7a40'],
-    autumn: ['#6a5a30', '#74643a', '#5c4c28', '#7e6c40'],
+    spring: ['#5c513a', '#5c5c39', '#586437', '#4f6037', '#475a37'],
+    autumn: ['#3e4c35', '#444f37', '#977e3e', '#a76837', '#97443a'],
   },
   Hazel: {
-    spring: ['#78a840', '#84b448', '#6e9c38', '#8cbc50'],
-    autumn: ['#c4a42c', '#b8902a', '#d0b038', '#a88024'],
+    spring: ['#58563e', '#687e3e', '#64753a', '#5c6b38', '#516437'],
+    autumn: ['#445833', '#72813a', '#a3923e', '#a7974a', '#8b754a', '#6f5844'],
   },
+  // Blackthorn / hawthorn blossom in spring, red and brown in autumn.
   Thicket: {
-    spring: ['#6a8a34', '#78963c', '#5c7a2e', '#84a044', '#527030'],
-    autumn: ['#a06a24', '#b2561e', '#8a6a26', '#b88430', '#6a5a24'],
+    spring: ['#546438', '#5c6b3a', '#b4b3ab', '#c5c3bd'],
+    autumn: ['#415435', '#7e7241', '#977e3e', '#97643a', '#7e4a3a', '#64443e'],
   },
-  // Evergreen cypress: the same dark green all year (no entry).
+  // Evergreen cypresses and the juniper: the same colour all year (no entry).
   Locust: {
-    spring: ['#8fb84a', '#9bc452', '#86ae42', '#a6cc5a'],
-    autumn: ['#cdb82e', '#d6c236', '#bfa828', '#dcc83e'],
+    spring: ['#58563e', '#687e3e', '#64753a', '#5c6b38', '#516437'],
+    autumn: ['#445833', '#72813a', '#a3923e', '#a7974a', '#8b754a', '#6f5844'],
   },
   Bramble: {
-    spring: ['#58883a', '#639442', '#4e7c32', '#6e9c48'],
-    autumn: ['#8a6a2c', '#9a5c28', '#7a5a28', '#a87630'],
+    spring: ['#58563e', '#687e3e', '#64753a', '#5c6b38', '#516437'],
+    autumn: ['#415435', '#645c3e', '#8d583e', '#7e443e', '#643e41'],
   },
   // Its summer palette is the yellow bloom; in autumn only seed pods and green stems are left.
   Broom: {
-    autumn: ['#6e8e2c', '#5f7e26', '#7a8a30', '#8a8a34'],
+    autumn: ['#475a37', '#4c5838', '#4a4f3a', '#4a4437'],
   },
 };
+
+/** Their crowns yellow from the inside out. */
+const INSIDE_FIRST = ['Birch', 'Poplar', 'Willow'];
+/** A broadleaf's leaf cover in autumn (share of its sprites) and in spring (share, size). */
+const AUTUMN_LEAVES = 0.75;
+const SPRING_LEAVES = { leafy: 0.8, leafSize: 0.8 };
 
 /** Where a season's species came from: the summer species and the season. */
 const origins = new WeakMap<
@@ -106,8 +117,25 @@ export function seasonal(def: SpeciesDef, season: Season): SpeciesDef {
   let out = bySeason.get(season);
   if (!out) {
     const palette = PALETTES[summer.name]?.[season];
+    // Leaves turn tree by tree (a week apart in autumn, half that in spring) and from the crown's top and outside in
+    // (birch, poplar and willow from the inside); needles hardly change. Autumn crowns have shed some leaves, spring
+    // ones are not full yet and their leaves still small: the same branches show through more.
+    const broad = summer.foliage.kind === 'broadleaf';
+    const inside = INSIDE_FIRST.includes(summer.name) ? -1 : 1;
+    const change =
+      broad && season === 'autumn'
+        ? {
+            turn: 0.5 * inside,
+            stage: 0.6,
+            stages: 0.35,
+            hueSpread: 1.8,
+            leafy: AUTUMN_LEAVES,
+          }
+        : broad && season === 'spring'
+          ? { turn: 0.3, stages: 0.2, hueSpread: 1.2, ...SPRING_LEAVES }
+          : {};
     out = palette
-      ? { ...summer, foliage: { ...summer.foliage, palette } }
+      ? { ...summer, foliage: { ...summer.foliage, palette, ...change } }
       : summer;
     if (out !== summer) origins.set(out, { summer, season });
     bySeason.set(season, out);

@@ -6,9 +6,9 @@ Every variant has three levels of detail built from the same skeleton. Foliage d
 
 ## Levels
 
-- LOD0 is the full skeleton as tapered branch tubes whose radial segment count falls with branch order. Twigs below a species radius are left out; the foliage sprites cover them.
+- LOD0 is the full skeleton as tapered branch tubes whose radial segment count falls with their radius. Twigs below a species radius (about 1 cm, 2 cm in the conifers' dense needles) are left out and the last drawn one tapers to a point; the foliage sprites cover the rest. A limb flares into a collar where it leaves its parent and the trunk into a buttressed root flare.
 - LOD1 keeps only the trunk and the first-order limbs thick enough to show (at least 1/120 of the tree's height, about one pixel wide where LOD1 starts). The finer branches it drops sit inside the crown, so the sprites hide the change.
-- LOD2 is an octahedral impostor baked from LOD0 with its full foliage, with albedo, normal, depth and thickness, lit by the same lit path, sun, sky, fog and shadows as the geometry. It is never drawn with albedo alone.
+- LOD2 is an octahedral impostor baked from LOD0 with its full foliage, with albedo, normal, depth and thickness, lit by the same lit path, sun, sky, fog and shadows as the geometry. It is never drawn with albedo alone. Its atlas holds 6 x 6 views of 72 px over the upper hemisphere: where a tree becomes an impostor it is about 100 px tall, so pixels per view matter more than the number of views (three are blended).
 
 ## Nesting
 

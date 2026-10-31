@@ -181,30 +181,7 @@ export function buildSkeleton(modules: Module[], def: SpeciesDef): Skeleton {
     }
   }
 
-  // End radius = the start radius of the segment continuing the branch (a tip tapers by one more decay).
-  const next = new Int32Array(segments.length).fill(-1);
-  segments.forEach((s, i) => {
-    if (s.parent >= 0 && segments[s.parent].branch === s.branch)
-      next[s.parent] = i;
-  });
-  segments.forEach((s, i) => {
-    s.r1 =
-      next[i] >= 0
-        ? Math.min(s.r0, segments[next[i]].r0)
-        : s.r0 * def.radiusDecay;
-  });
-  // A parent is never thinner than any child leaving it (children come after their parent: walk backwards).
-  for (let i = segments.length - 1; i >= 0; i--) {
-    const s = segments[i];
-    if (s.parent < 0) continue;
-    const p = segments[s.parent];
-    p.r1 = Math.max(p.r1, s.r0);
-    p.r0 = Math.max(p.r0, p.r1);
-  }
-  // A continuing segment starts at its parent's end radius (no step in the tube).
-  for (const s of segments)
-    if (s.parent >= 0 && segments[s.parent].branch === s.branch)
-      s.r0 = segments[s.parent].r1;
+  pipeRadii(segments, leaves, def);
   // Prune priority: length x mean radius summed over the subtree.
   for (let i = segments.length - 1; i >= 0; i--) {
     const s = segments[i];
@@ -214,6 +191,55 @@ export function buildSkeleton(modules: Module[], def: SpeciesDef): Skeleton {
   let height = 0;
   for (const s of segments) height = Math.max(height, s.end[1]);
   return { segments, leaves, height };
+}
+
+/** A shoot's radius where it ends in a leaf spray (m), unless the species sets its own `tipRadius`. */
+export const TIP_RADIUS = 0.006;
+/** Bounds of the pipe model exponent (botany: 2 to 3; lower keeps a sparse skeleton's trunk thick). */
+const PIPE_EXP: [number, number] = [1.6, 3];
+
+/**
+ * Pipe model radii (trees/Grammar.md#turtle): a segment is as thick as the leaves it carries, r = tip * w^(1/e), w the
+ * leaf points on it and beyond (a bare tip counts one). e is fitted so the trunk keeps its turtle radius and the shoots
+ * end at the species' tip radius, so every branch tapers along its length and to a thin tip, and a parent is never
+ * thinner than a child. A segment ends at the radius of the one continuing its branch (no step), a tip at half.
+ */
+function pipeRadii(
+  segments: Segment[],
+  leaves: LeafPoint[],
+  def: SpeciesDef,
+): void {
+  if (!segments.length) return;
+  const w = new Float64Array(segments.length);
+  for (const l of leaves) if (l.segment >= 0) w[l.segment]++;
+  const next = new Int32Array(segments.length).fill(-1);
+  for (let i = segments.length - 1; i >= 0; i--) {
+    const s = segments[i];
+    w[i] = Math.max(w[i], 1);
+    if (s.parent < 0) continue;
+    w[s.parent] += w[i];
+    if (segments[s.parent].branch === s.branch) next[s.parent] = i;
+  }
+  const tip = def.tipRadius ?? TIP_RADIUS;
+  const base = segments[0].r0;
+  const e = Math.min(
+    PIPE_EXP[1],
+    Math.max(PIPE_EXP[0], Math.log(w[0]) / Math.log(base / tip)),
+  );
+  const k = base / (tip * w[0] ** (1 / e));
+  const r = (i: number) => k * tip * w[i] ** (1 / e);
+  segments.forEach((s, i) => {
+    s.r0 = r(i);
+    s.r1 = next[i] >= 0 ? r(next[i]) : s.r0 * 0.5;
+  });
+  // A side shoot thicker than the continuation (a fork) widens its parent's end; the continuation starts there.
+  for (let i = segments.length - 1; i > 0; i--) {
+    const s = segments[i];
+    if (s.parent >= 0)
+      segments[s.parent].r1 = Math.max(segments[s.parent].r1, s.r0);
+  }
+  for (let i = 0; i < segments.length; i++)
+    if (next[i] >= 0) segments[next[i]].r0 = segments[i].r1;
 }
 
 /** Is `seg` (or an ancestor of it) `root`? */

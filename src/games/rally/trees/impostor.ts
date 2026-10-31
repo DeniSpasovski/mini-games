@@ -34,8 +34,8 @@ import { TREE_SPRITE_AXES } from './sprite-attr';
  * by the blended coverage and lights the result like the geometry (trees/materials.ts).
  */
 
-/** Pixels per frame (the impostor only draws trees a few dozen px tall). */
-export const IMPOSTOR_FRAME_PX = 48;
+/** Pixels per frame (a tree is ~100 px tall where the impostor takes over; 72 px keeps the 6 x 6 atlas at 432 px). */
+export const IMPOSTOR_FRAME_PX = 72;
 
 export interface ImpostorPixels {
   size: number;
@@ -71,6 +71,8 @@ void main() {
 const SPRITE_VERT = /* glsl */ `
 attribute vec4 treeWind;
 attribute vec4 treeSprite;
+attribute vec4 treeCrown;
+attribute float treeCrownY;
 uniform vec3 uCenter;
 uniform vec3 uDir;
 uniform float uR;
@@ -95,7 +97,9 @@ void main() {
 	vec3 p = position + ( vR * ( corner.x * stretch ) + vU * corner.y ) * treeSprite.z;
 	vColor = color;
 	vUv = uv;
-	vN = normal;
+	// Seen as far as an impostor, a sprite is lit by the crown's ellipsoid normal, not its clump's (trees/materials.ts CLUMP_FADE).
+	vec3 cr = vec3( treeCrown.w, treeCrownY, treeCrown.w );
+	vN = normalize( ( position - treeCrown.xyz ) / ( cr * cr ) );
 	vAO = treeWind.w;
 	vDepth = 0.5 + 0.5 * dot( p - uCenter, uDir ) / uR;
 	gl_Position = projectionMatrix * modelViewMatrix * vec4( p, 1.0 );
@@ -129,7 +133,7 @@ void main() {
 		n = normalize( n + ( vR * tn.x + vU * tn.y ) * SPRITE_BEND );
 		thick = nt.w;
 	}
-	if ( uMode == 0 ) gl_FragColor = vec4( toSRGB( vColor * t.rgb * uGain * mix( 0.65, 1.0, vAO ) ), 1.0 );
+	if ( uMode == 0 ) gl_FragColor = vec4( toSRGB( vColor * t.rgb * uGain * mix( 0.85, 1.0, vAO ) ), 1.0 );
 	else if ( uMode == 1 ) gl_FragColor = vec4( n * 0.5 + 0.5, clamp( vDepth, 0.0, 1.0 ) );
 	else gl_FragColor = vec4( thick, thick, thick, 1.0 );
 }`;
@@ -157,7 +161,8 @@ function bakeMaterial(p: BakePart): ShaderMaterial {
     fragmentShader: FRAG,
     vertexColors: true,
     side: sprite ? DoubleSide : FrontSide,
-    defines: { SPRITE_BEND: '0.8' },
+    // The atlas normals' bend as the game draws it past 80 m (trees/materials.ts SPRITE_NORMAL: 0.8, x 0.4 far).
+    defines: { SPRITE_BEND: '0.32' },
     uniforms: {
       ...shared,
       uMap: { value: p.map },

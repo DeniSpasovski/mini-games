@@ -104,7 +104,8 @@ export const ROAD_REACH_FLAG = 0.25;
 /** Bark detail tile: 'furrowed' is a scanned oak bark, 'smooth' a procedural one (birch, shrubs). */
 export type BarkTexture = 'furrowed' | 'smooth';
 /** A species' own scanned bark tile (trees/bark/, scripts/trees/bake-bark.py) in place of its `texture`. */
-export type BarkScan = 'pine' | 'beech' | 'plane';
+export type BarkScan =
+  'pine' | 'beech' | 'plane' | 'willow' | 'cedar' | 'birch';
 export type FoliageKind = 'needles' | 'broadleaf';
 
 export interface SpeciesDef {
@@ -121,14 +122,21 @@ export interface SpeciesDef {
   /** Radius at the base (m) and the factor `!` multiplies it by. */
   baseRadius: number;
   radiusDecay: number;
+  /** Radius of a shoot where it ends in its leaves (m; trees/skeleton.ts `TIP_RADIUS`): the pipe model's thinnest. */
+  tipRadius?: number;
   /** Heading bends towards this vector after every segment, by `tropismStrength`. */
   tropism: [number, number, number];
   tropismStrength: number;
   bark: {
+    /** Measured albedo of the grown bark (trees/Species.md#types). */
     color: string;
     texture: BarkTexture;
-    /** Own scanned tile; not part of the variant seed (trees/variants.ts), so it does not regrow the trees. */
+    /** Own tile (a scan, or birch's procedural one) in place of `texture`. */
     scan?: BarkScan;
+    /** Young shoots' bark (default `TWIG_BARK`): a branch turns from it to `color` as it thickens (trees/mesh.ts). */
+    twig?: string;
+    /** The trunk's foot below `height` m: birch's black fissured base. */
+    foot?: { color: string; height: number };
     /** repeats per metre of branch */ tiling: number;
   };
   foliage: {
@@ -139,19 +147,35 @@ export interface SpeciesDef {
     /** The leaf style: which atlas (trees/leaftex.ts) the cluster sprites are cut from. */
     leaf: LeafStyle;
     palette: string[];
+    /**
+     * Season colours (trees/seasons.ts). With `turn` the palette is a ramp from the least to the most turned leaf
+     * (summer: shade leaf to sun leaf): each variant stands at its own stage on it (`stage`, default 0.5, +-
+     * `stages`), a crown's outer, upper leaves `turn` further along (negative: the inner ones). `hueSpread`: trees
+     * differ in hue this many times the summer's.
+     */
+    turn?: number;
+    stage?: number;
+    stages?: number;
+    hueSpread?: number;
+    /** Season leaf cover (trees/seasons.ts): the share of leaf points that still carry a sprite and their size (default 1). */
+    leafy?: number;
+    leafSize?: number;
   };
   lod?: Partial<LodSettings>;
   /** Instance scale range. */
   scale: [number, number];
   /** Branches thinner than this (m) are left out: the foliage sprites cover them (trees/Lod.md#levels). */
   twigRadius: number;
-  /** Most LOD0 branch triangles (6,000; shrubs 2,000) and sprites per crown (broadleaf 360, conifers 400; shrubs 200). */
+  /** Most LOD0 branch triangles (2,500; poplar, willow 3,000-3,500; shrubs 1,400) and sprites per crown (broadleaf 360, conifers 400; shrubs 200). */
   maxBranchTriangles: number;
   maxSprites: number;
   /** Trunk / first-order limb segments at least this thick (m) collide (trees/Placement.md#collision). */
   collisionRadius: number;
   /** Pre-generated variants (default 8). */
   variants?: number;
+  /** How much sky a closed stand's canopy takes from the wood under it and the crown's underside (0..1, trees/mesh.ts
+   * `occlusion`); not part of the variant seed, so it keeps the same trees. */
+  shade?: number;
 }
 
 /** Shared by the deciduous trees built with `broadleaf` below. */
@@ -172,6 +196,7 @@ interface BroadleafShape {
   foliage: SpeciesDef['foliage'];
   scale: [number, number];
   variants: number;
+  shade?: number;
 }
 
 /**
@@ -230,11 +255,12 @@ function broadleaf(o: BroadleafShape): SpeciesDef {
     bark: o.bark,
     foliage: o.foliage,
     scale: o.scale,
-    twigRadius: 0.048,
-    maxBranchTriangles: 6000,
+    twigRadius: 0.009,
+    maxBranchTriangles: 2500,
     maxSprites: 360,
     collisionRadius: 0.1,
     variants: o.variants,
+    shade: o.shade,
   };
 }
 
@@ -296,8 +322,8 @@ function shrub(o: ShrubShape): SpeciesDef {
     bark: o.bark,
     foliage: o.foliage,
     scale: o.scale,
-    twigRadius: 0.015,
-    maxBranchTriangles: 2000,
+    twigRadius: 0.004,
+    maxBranchTriangles: 1400,
     maxSprites: 200,
     // Thicker than any stem: bushes are drive-through.
     collisionRadius: 0.12,
@@ -306,6 +332,9 @@ function shrub(o: ShrubShape): SpeciesDef {
 }
 
 /** Scots pine / spruce: a conical, layered conifer (the forest backbone). */
+/** Broadleaf summer crowns: sun leaves outside, shade leaves inside, trees a little apart (`foliage.turn`). */
+const SUMMER_TURN = { turn: 0.25, stages: 0.15 };
+
 export const PINE: SpeciesDef = {
   name: 'Pine',
   // A straight leader A adds an internode and a whorl of five limbs per iteration; the limb apices B fork into
@@ -338,16 +367,22 @@ export const PINE: SpeciesDef = {
   radiusDecay: 0.8,
   tropism: [0, -1, 0],
   tropismStrength: 0.08,
-  bark: { color: '#5e4a3a', texture: 'furrowed', scan: 'pine', tiling: 1.2 },
+  bark: {
+    color: '#7e6b5b',
+    texture: 'furrowed',
+    scan: 'pine',
+    twig: '#9a6b48',
+    tiling: 1.2,
+  },
   foliage: {
     kind: 'needles',
     spriteSize: 1.3,
     leaf: 'pine',
-    palette: ['#2f4a26', '#355229', '#2a4322', '#3b5a2c'],
+    palette: ['#4c5a44', '#525f45', '#465541', '#4b5c4a'],
   },
   scale: [0.95, 1.35],
-  twigRadius: 0.048,
-  maxBranchTriangles: 6000,
+  twigRadius: 0.02,
+  maxBranchTriangles: 2500,
   maxSprites: 400,
   collisionRadius: 0.1,
   variants: 6,
@@ -371,8 +406,8 @@ export const PLANTATION_PINE: SpeciesDef = {
   ],
   foliage: { ...PINE.foliage, spriteSize: 1.35 },
   scale: [1, 1.4],
-  twigRadius: 0.045,
-  maxBranchTriangles: 4000,
+  twigRadius: 0.02,
+  maxBranchTriangles: 2000,
   maxSprites: 200,
   variants: 4,
 };
@@ -416,16 +451,16 @@ export const BLACK_PINE: SpeciesDef = {
   radiusDecay: 0.8,
   tropism: [0, -1, 0],
   tropismStrength: 0.1,
-  bark: { color: '#4a4039', texture: 'furrowed', scan: 'pine', tiling: 1.2 },
+  bark: { color: '#5b5753', texture: 'furrowed', scan: 'pine', tiling: 1.2 },
   foliage: {
     kind: 'needles',
     spriteSize: 1.5,
     leaf: 'pine',
-    palette: ['#22341c', '#2a3d20', '#1f3019', '#2e4423'],
+    palette: ['#44533a', '#49583b', '#3e4e38', '#43563f'],
   },
   scale: [0.9, 1.2],
-  twigRadius: 0.048,
-  maxBranchTriangles: 6000,
+  twigRadius: 0.02,
+  maxBranchTriangles: 2000,
   maxSprites: 400,
   collisionRadius: 0.1,
   variants: 4,
@@ -461,16 +496,16 @@ export const JUNIPER: SpeciesDef = {
   radiusDecay: 0.85,
   tropism: [0, 1, 0],
   tropismStrength: 0.12,
-  bark: { color: '#5a4636', texture: 'furrowed', tiling: 1.5 },
+  bark: { color: '#706055', texture: 'furrowed', scan: 'cedar', tiling: 1.5 },
   foliage: {
     kind: 'needles',
     spriteSize: 0.5,
     leaf: 'juniper',
-    palette: ['#24361f', '#2b3f26', '#1f2f1c', '#2f4129'],
+    palette: ['#535c51', '#5a6153', '#4d564e', '#525f58'],
   },
   scale: [0.85, 1.2],
-  twigRadius: 0.012,
-  maxBranchTriangles: 2000,
+  twigRadius: 0.004,
+  maxBranchTriangles: 1400,
   maxSprites: 200,
   collisionRadius: 0.12,
   variants: 4,
@@ -487,12 +522,13 @@ export const OAK = broadleaf({
   iterations: 10,
   baseRadius: 0.28,
   tropismStrength: 0.05,
-  bark: { color: '#544c43', texture: 'furrowed', tiling: 0.8 },
+  bark: { color: '#766d60', texture: 'furrowed', tiling: 0.8 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1.7,
     leaf: 'lobed',
-    palette: ['#465f28', '#52702f', '#3f5824', '#5a7832', '#4c682b'],
+    palette: ['#3b4f34', '#3f5235', '#445636', '#485937', '#4c5d37'],
   },
   scale: [0.9, 1.3],
   variants: 6,
@@ -510,11 +546,13 @@ export const BEECH = broadleaf({
   baseRadius: 0.3,
   tropismStrength: 0.05,
   bark: { color: '#9c9c94', texture: 'smooth', scan: 'beech', tiling: 0.8 },
+  shade: 0.6,
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1.8,
     leaf: 'ovate',
-    palette: ['#5c8a2a', '#6a9830', '#77a336', '#527e26'],
+    palette: ['#415637', '#475a38', '#4c5f39', '#526339'],
   },
   scale: [0.95, 1.25],
   variants: 4,
@@ -537,9 +575,10 @@ export const HORNBEAM = broadleaf({
   bark: { color: '#8c8a80', texture: 'smooth', scan: 'beech', tiling: 1 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1.65,
     leaf: 'serrate',
-    palette: ['#74a42e', '#82b236', '#68982a', '#8fbc40', '#5c8a26'],
+    palette: ['#405537', '#455838', '#495c38', '#4e6039', '#526439'],
   },
   scale: [0.85, 1.3],
   variants: 6,
@@ -556,12 +595,13 @@ export const WALNUT = broadleaf({
   iterations: 10,
   baseRadius: 0.38,
   tropismStrength: 0.06,
-  bark: { color: '#6a645a', texture: 'furrowed', tiling: 0.8 },
+  bark: { color: '#85807b', texture: 'furrowed', tiling: 0.8 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1.9,
     leaf: 'round',
-    palette: ['#36501f', '#3d5823', '#42602a', '#334a1d'],
+    palette: ['#465939', '#4c5e3a', '#52633a', '#58673a'],
   },
   scale: [0.95, 1.2],
   variants: 4,
@@ -579,17 +619,18 @@ export const FRUIT_TREE: SpeciesDef = {
     iterations: 9,
     baseRadius: 0.14,
     tropismStrength: 0.07,
-    bark: { color: '#5b5046', texture: 'furrowed', tiling: 1.2 },
+    bark: { color: '#70675d', texture: 'furrowed', tiling: 1.2 },
     foliage: {
       kind: 'broadleaf',
+      ...SUMMER_TURN,
       spriteSize: 1.1,
       leaf: 'round',
-      palette: ['#56752f', '#5f7f35', '#4d6a2a', '#68863a'],
+      palette: ['#44573c', '#495c3d', '#4f613e', '#55653e'],
     },
     scale: [0.9, 1.15],
     variants: 4,
   }),
-  maxBranchTriangles: 4000,
+  maxBranchTriangles: 2000,
   maxSprites: 400,
 };
 
@@ -607,9 +648,10 @@ export const PLANE = broadleaf({
   bark: { color: '#bdb8ac', texture: 'smooth', scan: 'plane', tiling: 0.6 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1.6,
     leaf: 'lobed',
-    palette: ['#7f9a3e', '#8ca646', '#74903a', '#97a84a'],
+    palette: ['#485b3c', '#4e603d', '#54653e', '#5a693e'],
   },
   scale: [0.95, 1.2],
   variants: 4,
@@ -642,16 +684,24 @@ export const BIRCH: SpeciesDef = {
   radiusDecay: 0.8,
   tropism: [0, -1, 0],
   tropismStrength: 0.03,
-  bark: { color: '#dad6cc', texture: 'smooth', tiling: 1 },
+  bark: {
+    color: '#dad6cc',
+    texture: 'smooth',
+    scan: 'birch',
+    twig: '#4a3530',
+    foot: { color: '#3f3c39', height: 1.2 },
+    tiling: 1,
+  },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1.1,
     leaf: 'small',
-    palette: ['#6a8a3a', '#78963f', '#5f7f34', '#829e44'],
+    palette: ['#485d39', '#4e623a', '#54673a', '#5a6b3a'],
   },
   scale: [0.9, 1.2],
-  twigRadius: 0.04,
-  maxBranchTriangles: 5000,
+  twigRadius: 0.009,
+  maxBranchTriangles: 2500,
   maxSprites: 360,
   collisionRadius: 0.1,
   variants: 4,
@@ -677,15 +727,16 @@ export const SAPLING: SpeciesDef = {
     { pred: 'B(l,o)', cond: 'o >= 3', succ: 'F(l*0.5)L' },
   ],
   baseRadius: 0.1,
-  bark: { color: '#6d6457', texture: 'smooth', tiling: 1.2 },
+  bark: { color: '#716d68', texture: 'smooth', tiling: 1.2 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1,
     leaf: 'ovate',
-    palette: ['#8a9a3a', '#9aa640', '#7b8f36', '#a8a848'],
+    palette: ['#48562f', '#4b5930', '#4f5d32', '#696530'],
   },
   scale: [0.9, 1.15],
-  maxBranchTriangles: 3000,
+  maxBranchTriangles: 1500,
   maxSprites: 400,
   // Slender, but a trunk you hit.
   collisionRadius: 0.06,
@@ -718,16 +769,17 @@ export const POPLAR: SpeciesDef = {
   radiusDecay: 0.82,
   tropism: [0, 1, 0],
   tropismStrength: 0.14,
-  bark: { color: '#6b665c', texture: 'furrowed', tiling: 1 },
+  bark: { color: '#807e76', texture: 'furrowed', tiling: 1 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1.3,
     leaf: 'round',
-    palette: ['#4f6e2c', '#5a7a32', '#47652a', '#62823a'],
+    palette: ['#465b39', '#4c603a', '#52653a', '#58693a'],
   },
   scale: [0.95, 1.25],
-  twigRadius: 0.048,
-  maxBranchTriangles: 5000,
+  twigRadius: 0.009,
+  maxBranchTriangles: 3000,
   maxSprites: 360,
   // The trunk alone: its many short limbs stay out of the physics.
   collisionRadius: 0.17,
@@ -771,16 +823,17 @@ export const WILLOW: SpeciesDef = {
   radiusDecay: 0.8,
   tropism: [0, -1, 0],
   tropismStrength: 0.03,
-  bark: { color: '#5d554a', texture: 'furrowed', tiling: 0.9 },
+  bark: { color: '#64594c', texture: 'furrowed', scan: 'willow', tiling: 0.9 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 0.9,
     leaf: 'narrow',
-    palette: ['#8ea24e', '#9cb05a', '#829a48', '#a6b864'],
+    palette: ['#4e6042', '#556643', '#5b6a44', '#626f44'],
   },
   scale: [0.9, 1.15],
-  twigRadius: 0.032,
-  maxBranchTriangles: 6000,
+  twigRadius: 0.009,
+  maxBranchTriangles: 3500,
   maxSprites: 360,
   collisionRadius: 0.1,
   variants: 4,
@@ -797,9 +850,10 @@ export const BUSH = shrub({
   bark: { color: '#5a4a3a', texture: 'smooth', tiling: 1.5 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 0.85,
     leaf: 'small',
-    palette: ['#45602a', '#3e5826', '#52702f', '#4a5f2a'],
+    palette: ['#44543c', '#49583d', '#4f5c3e', '#55613e'],
   },
   scale: [0.8, 1.3],
   variants: 6,
@@ -816,9 +870,10 @@ export const SCRUB = shrub({
   bark: { color: '#4c4036', texture: 'smooth', tiling: 1.5 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 0.75,
     leaf: 'small',
-    palette: ['#4a5230', '#535b34', '#434a2b', '#5a6038'],
+    palette: ['#394937', '#3e4d38', '#435139', '#485439'],
   },
   scale: [0.85, 1.2],
   variants: 6,
@@ -835,9 +890,10 @@ export const HAZEL = shrub({
   bark: { color: '#6b5a48', texture: 'smooth', tiling: 1.2 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1.1,
     leaf: 'serrate',
-    palette: ['#5f8a34', '#6a953a', '#557d2f', '#73a040'],
+    palette: ['#46593a', '#4c5e3b', '#52633c', '#58673c'],
   },
   scale: [0.9, 1.15],
   variants: 4,
@@ -854,9 +910,10 @@ export const THICKET = shrub({
   bark: { color: '#4f4035', texture: 'smooth', tiling: 1.5 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1,
     leaf: 'small',
-    palette: ['#8a6a2a', '#9a5a26', '#6f6a2c', '#a27a30', '#5d6a2a'],
+    palette: ['#3b4f37', '#3f5238', '#445638', '#485939', '#4c5d39'],
   },
   scale: [0.85, 1.2],
   variants: 4,
@@ -873,9 +930,10 @@ export const BROOM = shrub({
   bark: { color: '#55603a', texture: 'smooth', tiling: 1.5 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 0.6,
     leaf: 'narrow',
-    palette: ['#e2c22a', '#d6b220', '#ecd23e', '#6e8e2c', '#e8c62e'],
+    palette: ['#425730', '#bc9919', '#bf9e19', '#c4a219', '#cbaa21'],
   },
   scale: [0.8, 1.2],
   variants: 4,
@@ -908,15 +966,15 @@ export const CYPRESS: SpeciesDef = {
   radiusDecay: 0.82,
   tropism: [0, 1, 0],
   tropismStrength: 0.16,
-  bark: { color: '#5b4b3d', texture: 'furrowed', tiling: 1.2 },
+  bark: { color: '#76675d', texture: 'furrowed', scan: 'cedar', tiling: 1.2 },
   foliage: {
     kind: 'needles',
     spriteSize: 0.95,
     leaf: 'juniper',
-    palette: ['#1f3a22', '#254429', '#1b3320', '#2a4a2d'],
+    palette: ['#404e3a', '#46533b', '#3b4a38', '#40513f'],
   },
   scale: [0.85, 1.25],
-  twigRadius: 0.02,
+  twigRadius: 0.025,
   maxBranchTriangles: 4000,
   maxSprites: 400,
   // The trunk alone: its many short limbs stay out of the physics.
@@ -949,7 +1007,7 @@ export const HEDGE_CYPRESS: SpeciesDef = {
     kind: 'needles',
     spriteSize: 0.95,
     leaf: 'juniper',
-    palette: ['#35603a', '#3d6c3f', '#2f5535', '#46763f'],
+    palette: ['#46583a', '#4c5d3b', '#415238', '#465a3f'],
   },
   scale: [0.8, 1.15],
   maxBranchTriangles: 3000,
@@ -967,12 +1025,13 @@ export const LOCUST = broadleaf({
   iterations: 10,
   baseRadius: 0.2,
   tropismStrength: 0.04,
-  bark: { color: '#463d35', texture: 'furrowed', tiling: 1 },
+  bark: { color: '#766d60', texture: 'furrowed', tiling: 1 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1.15,
     leaf: 'small',
-    palette: ['#7a9a3c', '#86a644', '#6f8f36', '#93b04c', '#7fa03e'],
+    palette: ['#4a5d33', '#516234', '#576734', '#5d6b34'],
   },
   scale: [0.85, 1.2],
   variants: 4,
@@ -989,9 +1048,10 @@ export const BRAMBLE = shrub({
   bark: { color: '#4e5a34', texture: 'smooth', tiling: 1.5 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 0.7,
     leaf: 'serrate',
-    palette: ['#3f6a2a', '#4b7830', '#36601f', '#567f33'],
+    palette: ['#3c4f37', '#415438', '#465839', '#4c5c39'],
   },
   scale: [0.85, 1.3],
   variants: 4,
@@ -1094,7 +1154,7 @@ function stable(v: unknown): string {
 
 const hashes = new WeakMap<SpeciesDef, number>();
 
-/** Content hash of a species definition: any change gives new variants and invalidates cached ones. */
+/** Content hash of a species definition: any change invalidates cached variants (their seeds stay, trees/variants.ts). */
 export function speciesHash(s: SpeciesDef): number {
   let h = hashes.get(s);
   if (h === undefined) hashes.set(s, (h = hashText(stable(s))));

@@ -70,6 +70,11 @@ export interface SpriteAtlas {
   normal: Uint8Array;
   /** Per image: outline polygon (CCW, 6-8 vertices) in image coordinates (0..1)^2. */
   outlines: Outline[];
+  /**
+   * Mean linear shade of the leaf texels (alpha >= ALPHA_TEST): a sprite's vertex colour is the palette colour over
+   * this, so a cluster's mean albedo is its palette colour (trees/mesh.ts).
+   */
+  mean: number;
 }
 
 /** Polygon vertices (CCW) in image coordinates. */
@@ -237,6 +242,22 @@ export function atlasUv(i: number, u: number, v: number): [number, number] {
 }
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+
+/** Linear 0..1 -> an sRGB-encoded byte, from a table (an atlas has millions of texels). */
+const SRGB_STEPS = 4096;
+let srgbTable: Uint8Array | null = null;
+function srgb8(x: number): number {
+  if (!srgbTable) {
+    srgbTable = new Uint8Array(SRGB_STEPS + 1);
+    for (let i = 0; i <= SRGB_STEPS; i++) {
+      const v = i / SRGB_STEPS;
+      const e =
+        v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
+      srgbTable[i] = Math.round(e * 255);
+    }
+  }
+  return srgbTable[Math.round(x * SRGB_STEPS)];
+}
 
 /** The atlas of a leaf style. */
 export function spriteAtlas(style: LeafStyle): SpriteAtlas {
@@ -710,13 +731,21 @@ export function spriteAtlas(style: LeafStyle): SpriteAtlas {
   }
   const albedo = new Uint8Array(W * H * 4);
   const normal = new Uint8Array(W * H * 4);
+  const cut = ALPHA_TEST * 255;
+  let sum = 0;
+  let leaves = 0;
   for (let k = 0; k < W * H; k++) {
+    if (alpha[k] >= cut) {
+      sum += shade[k];
+      leaves++;
+    }
     const i = k * 4;
     const g = shade[k] / 255;
     const t = warm[k] / 127;
-    albedo[i] = Math.round(Math.min(1, g * (1 + 0.07 * t)) * 255);
-    albedo[i + 1] = Math.round(g * 255);
-    albedo[i + 2] = Math.round(Math.min(1, g * (1 - 0.16 * t)) * 255);
+    // The shade is a linear multiplier of the palette colour; the texture is sRGB (decoded on read), so encode it.
+    albedo[i] = srgb8(Math.min(1, g * (1 + 0.07 * t)));
+    albedo[i + 1] = srgb8(g);
+    albedo[i + 2] = srgb8(Math.min(1, g * (1 - 0.16 * t)));
     albedo[i + 3] = alpha[k];
     // Tangent-space normal from the leaf tilt + dome (z towards the viewer), thickness from the stacked leaves.
     const x = nx[k] / 64;
@@ -738,6 +767,7 @@ export function spriteAtlas(style: LeafStyle): SpriteAtlas {
     albedo,
     normal,
     outlines,
+    mean: leaves ? sum / leaves / 255 : 1,
   };
   atlases.set(style, atlas);
   return atlas;
