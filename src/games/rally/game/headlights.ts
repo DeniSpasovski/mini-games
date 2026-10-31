@@ -49,10 +49,11 @@ export function headlightMount(p: Pick<CarPhysicsDef, 'front' | 'rear'>): {
 }
 
 /**
- * The car's headlights at night (`Environment.night`): a narrow bright low beam from each lamp, a wide dim spill for
- * the verges and two soft additive cones for the beam seen in the air. Children of the car, so they follow its pitch
- * and roll. One low beam casts shadows on high quality only (one extra shadow pass over what the beam covers; medium /
- * low keep the light and drop the shadow). Created before the first compile: lights are compiled into every lit shader.
+ * The car's headlights at night (`Environment.night`): a narrow bright low beam (both lamps as one; one from each lamp
+ * with `perLamp`, the rain / fog lights), a wide dim spill for the verges and two soft additive cones for the beam seen
+ * in the air. Children of the car, so they follow its pitch and roll. One low beam casts shadows on high quality only
+ * (one extra shadow pass over what the beam covers; medium / low keep the light and drop the shadow). Created before the
+ * first compile: lights are compiled into every lit shader.
  * `day` (lights on in daytime rain / fog): the two low beams only, never shadowed - they show as a glare on the wet road
  * ahead; the spill, the shadow pass and the air cones show nothing in daylight (a cone seen from the side reads as a
  * glowing rod).
@@ -123,7 +124,11 @@ export class Headlights {
     def: CarHeadlightsDef = DEFAULT_HEADLIGHTS,
     /** 0..1 (`Environment.lightNeed`): dusk lights are weaker, so the beam and its air cones fade with it. */
     level = 1,
-    { day = false, haze = 0 }: { day?: boolean; haze?: number } = {},
+    {
+      day = false,
+      perLamp = day,
+      haze = 0,
+    }: { day?: boolean; perLamp?: boolean; haze?: number } = {},
   ) {
     this.color = new Color(def.color);
     this.beamMat.uniforms.uTint.value
@@ -157,18 +162,19 @@ export class Headlights {
       this.aims.push({ side, ahead: aim, y: aimY });
       this.group.add(l, l.target);
     };
-    // Low beam: one per lamp, at the lamp. One of them casts the shadow (high, night): what it hides the other lamp
-    // still lights, the half shadow a real pair of lamps throws, for one shadow pass.
-    for (const side of [-1, 1])
+    // Low beam: one per lamp, at the lamp (`perLamp`), one of them casting the shadow (high, night): what it hides the
+    // other lamp still lights, the half shadow a real pair of lamps throws, for one shadow pass. Else both lamps as one,
+    // centred (one spot light less in every lit shader).
+    for (const side of perLamp ? [-1, 1] : [0])
       spot(
         side,
         60,
         -0.9,
         def.angle * (day ? DAY_ANGLE : 1),
         def.penumbra,
-        (BEAM / 2) * def.power * level * (day ? DAY_BEAM : 1),
+        (perLamp ? BEAM / 2 : BEAM) * def.power * level * (day ? DAY_BEAM : 1),
         170,
-        side === 1 && quality === 'high' && !day,
+        side !== -1 && quality === 'high' && !day,
       );
     // Wide spill for the verges (night only), centred.
     if (!day)
