@@ -263,35 +263,6 @@ export const tyreStack: AssetBuilder = ({ variant, lod }) => {
   return finish(parts);
 };
 
-/** Folding table with two chairs and a laptop. */
-export const tableChairs: AssetBuilder = () => {
-  const parts: BufferGeometry[] = [box(1.8, 0.05, 0.8, 0, 0.75, 0, '#d9dbde')];
-  for (const x of [-0.82, 0.82])
-    for (const z of [-0.33, 0.33])
-      parts.push(box(0.05, 0.73, 0.05, x, 0.37, z, '#8d9096'));
-  for (const x of [-0.45, 0.45])
-    parts.push(
-      box(0.45, 0.05, 0.45, x, 0.45, 0.85, '#2a2d34'),
-      box(0.45, 0.45, 0.05, x, 0.72, 1.05, '#2a2d34'),
-      box(0.04, 0.43, 0.04, x - 0.2, 0.22, 0.68, '#8d9096'),
-      box(0.04, 0.43, 0.04, x + 0.2, 0.22, 0.68, '#8d9096'),
-    );
-  parts.push(
-    box(0.32, 0.02, 0.22, -0.3, 0.79, 0.05, '#2b2d31'),
-    box(0.5, 0.18, 0.3, 0.45, 0.85, 0, '#c8321e'),
-  );
-  return finish(parts);
-};
-
-/** Generator on a frame. */
-export const generator: AssetBuilder = () =>
-  finish([
-    box(1.0, 0.7, 0.6, 0, 0.6, 0, '#d98a1c'),
-    box(1.04, 0.06, 0.64, 0, 0.98, 0, '#2a2d34'),
-    box(1.1, 0.06, 0.7, 0, 0.22, 0, '#2a2d34'),
-    box(0.3, 0.2, 0.02, 0.2, 0.7, 0.31, '#16181c'),
-  ]);
-
 /** Feather flag on a pole (variant = team); the flag is a two-sided tapered sheet facing +Z. */
 export const featherFlag: AssetBuilder = ({ variant }) => {
   const t = team(variant);

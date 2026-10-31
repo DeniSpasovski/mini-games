@@ -31,6 +31,12 @@ export const SERVICE_PARK_ASSETS = [
   'feather_flag',
   'ground_sheet',
   'trolley_jack',
+  'tripod_light',
+  'extinguisher_stand',
+  'wheelbarrow',
+  'hand_truck',
+  'step_ladder',
+  'wheelie_bin',
   'food_truck',
   'porta_toilet',
   'fuel_trailer',
@@ -644,6 +650,12 @@ function works(
   bay.put('trolley_jack', 0, tx + 2.9, 6.9, rng.range(-0.4, 0.4), { r: 0.4 });
   bay.put('feather_flag', team, 0.8, 9.7, 0, { r: 0.3 });
   bay.put('feather_flag', team, w - 0.8, 9.7, 0, { r: 0.3 });
+  // Park kit: floodlight over the tyres, extinguisher by the work table, hand truck, ladder and a bin at the back.
+  bay.put('tripod_light', 0, 1.1, 6.0, 2.1, { r: 0.5 });
+  bay.put('extinguisher_stand', 0, 10.6, 3.2, 0, { r: 0.3 });
+  bay.put('hand_truck', 0, 13.7, 5.9, 2.7, { r: 0.4 });
+  bay.put('step_ladder', 0, 1.0, 2.4, 1.6, { r: 0.6 });
+  bay.put('wheelie_bin', 0, 0.8, 0.8, 0.3, { r: 0.6 });
   bay.put(
     'driver',
     team + TEAM_COUNT * (rng.chance(0.5) ? 1 : 0),
@@ -677,6 +689,9 @@ function privateer(
   bay.put('tyre_stack', 1, w - 1.8, 5.2, 0, { r: 0.4 });
   bay.put('tyre_stack', 2, w - 1.0, 5.8, 0, { r: 0.4 });
   bay.put('tool_chest', (team + 1) % 4, w - 1.2, 8.1, 0, { r: 0.7 });
+  bay.put('extinguisher_stand', 0, 5.6, 4.6, 0, { r: 0.3 });
+  bay.put('wheelbarrow', 0, w - 1.3, 3.0, -1.9, { r: 0.9 });
+  bay.put('wheelie_bin', 0, w - 0.7, 0.8, -0.3, { r: 0.6 });
   bay.put('feather_flag', team, w - 0.6, 10.2, 0, { r: 0.3 });
   bay.put('driver', team, 5.2, 9.6, rng.range(-0.6, 0.6), { r: 0.4 });
   bay.put('crew', team, w - 3.4, 3.2, -1.3, { r: 0.4 });
@@ -696,6 +711,7 @@ function small(
   bay.put('tyre_stack', 0, 1.0, 3.2, 0, { r: 0.4 });
   bay.put('tyre_stack', 1, 1.0, 4.0, 0, { r: 0.4 });
   bay.put('tool_chest', (team + 2) % 4, w - 1.1, 7.0, 0, { r: 0.7 });
+  bay.put('extinguisher_stand', 0, w - 3.8, 4.4, 0, { r: 0.3 });
   bay.put('feather_flag', team, 0.7, 10.3, 0, { r: 0.3 });
   bay.put('driver', team + TEAM_COUNT, w - 2.8, 9.4, rng.range(-0.6, 0.6), {
     r: 0.4,
@@ -826,6 +842,9 @@ const KEEP_OUT: Record<string, number> = {
   table_chairs: 1.4,
   generator: 0.9,
   tool_chest: 0.8,
+  wheelbarrow: 1,
+  wheelie_bin: 0.7,
+  extinguisher_stand: 0.4,
   tyre_stack: 0.6,
   ambulance: 3.2,
 };

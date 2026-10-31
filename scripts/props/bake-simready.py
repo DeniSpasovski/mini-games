@@ -1,12 +1,14 @@
 """
-Bakes NVIDIA SimReady props (CC BY 4.0, https://huggingface.co/datasets/nvidia/simready-assets) for the rally service
-park into src/games/rally/assets/builders/simready-models.data.ts.
+Bakes NVIDIA SimReady props (CC BY 4.0, https://huggingface.co/datasets/nvidia/simready-assets) and Poly Haven models
+(CC0, https://polyhaven.com, 1k glTF in sources/rally/polyhaven/<id>/) for rally, one group (ASSETS key) at a time, into
+src/games/rally/assets/builders/simready-<group>.data.ts.
 
-  blender -b --python scripts/props/bake-simready.py -- sources/rally/simready
+  blender -b --python scripts/props/bake-simready.py -- sources/rally/simready <group>
 
 Each asset folder (as downloaded, `simready_usd/sm_<name>_01.usd` + payloads + Textures) is imported, every part
 coloured by its material (the Principled base colour, or the mean of its albedo tile: the materials are generic tiles,
-so a colour per part keeps the look), joined, decimated to the triangle budgets in ASSETS, smoothed by angle and packed:
+so a colour per part keeps the look; a Poly Haven model has one baked atlas, so each face takes the atlas colour under
+its UVs instead), joined, decimated to the triangle budgets in ASSETS, smoothed by angle and packed:
 Y up, origin centred on the footprint at ground level, front along +Z (ASSETS `turn`).
 
 Packed mesh (little endian, base64): u16 vertex count, u16 0, then per vertex i16 x3 position (/ 8192 m), i8 x3
@@ -23,16 +25,43 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
-# name -> (folder, triangle budget per level, turn about the vertical (deg) so the front faces +Z).
+# group -> name -> (folder, triangle budget per level, turn about the vertical (deg) so the front faces +Z[, materials
+# whose name contains one of these are left out: printed labels, which a colour per part turns into blobs]).
 ASSETS = {
-    "tool_chest": ("equipment_rolling_tool_chest_cabinet_combo_d01", [8000, 1500], -90),
-    "tyre_rack": ("storage_tire_rack_a01", [3000, 600], 0),
-    "floor_jack": ("vehicleSupport_floor_jack_a01", [4000, 800], 0),
+    "service": {
+        "tool_chest": ("equipment_rolling_tool_chest_cabinet_combo_d01", [8000, 1500], -90),
+        "tyre_rack": ("storage_tire_rack_a01", [3000, 600], 0),
+        "floor_jack": ("vehicleSupport_floor_jack_a01", [4000, 800], 0),
+    },
+    "park": {
+        "table_chairs": ("../polyhaven/outdoor_table_chair_set_01", [3500, 700], 0),
+        "generator": ("../polyhaven/portable_generator", [4000, 800], 0),
+        "wall_lamp": ("../polyhaven/industrial_wall_lamp", [1200, 300], 0),
+        "tripod_light": ("lighting_taskLight_tripodFlood_a01", [5000, 900], -90),
+        "extinguisher_stand": ("fireExtinguisher_stand_a01", [1500, 300], 0, ("paper",)),
+        "wheelbarrow": ("construction_wheelbarrow_metal_a01", [3000, 600], 180),
+        "hand_truck": ("handTruck_convertible_steel_red_a01", [3500, 700], 0),
+        "step_ladder": ("ladder_step_aluminium_a06", [1800, 400], 0),
+        "wheelie_bin": ("trashCan_wheeled_green_a01", [2500, 500], 0),
+    },
+    "yard": {
+        "pallet_euro": ("pallet_a01", [2500, 500], 0),
+        "pallet_block": ("pallet_block_a01", [2000, 400], 0),
+        "pallet_plain": ("pallet_wood_recycled_a05", [2000, 400], 0),
+        "drum_steel": ("drum_steel_a01", [1500, 300], 0),
+        "drum_blue": ("drum_plastic_blue_a01", [1500, 300], 0),
+        "barrel_blue": ("warehouse_barrel_plastic_a01", [1500, 300], 0),
+        "ibc_tank": ("ibcTank_a02", [4000, 800], 0),
+        "crate": ("crate_plywood_b01", [1500, 300], 0),
+        "forklift": ("vehicle_forklift_orange_a01", [6000, 1200], 0),
+        "pallet_jack": ("palletJack_heavyDuty_a01", [3500, 700], 0),
+    },
 }
 SCALE = 8192
 
 args = sys.argv[sys.argv.index("--") + 1 :]
 src = os.path.abspath(args[0])
+group = args[1]
 root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
@@ -58,14 +87,47 @@ def material_colour(mat):
     return (0.5, 0.5, 0.5)
 
 
+ATLAS = 48
+
+
+def atlas(mat):
+    """Sampler (u, v) -> sRGB colour of the image feeding a material's base colour, blurred by scaling it to ATLAS px."""
+    if not mat or not mat.node_tree:
+        return None
+    for n in mat.node_tree.nodes:
+        if n.type == "BSDF_PRINCIPLED" and n.inputs["Base Color"].is_linked:
+            node = n.inputs["Base Color"].links[0].from_node
+            if node.type != "TEX_IMAGE" or not node.image:
+                return None
+            img = node.image.copy()
+            img.scale(ATLAS, ATLAS)
+            px = list(img.pixels)
+            bpy.data.images.remove(img)
+            srgb = node.image.colorspace_settings.name == "sRGB"
+
+            def sample(u, v):
+                x = min(ATLAS - 1, max(0, int((u % 1) * ATLAS)))
+                y = min(ATLAS - 1, max(0, int((v % 1) * ATLAS)))
+                i = (y * ATLAS + x) * 4
+                return tuple(px[i + c] if srgb else to_srgb(px[i + c]) for c in range(3))
+
+            return sample
+    return None
+
+
 def to_srgb(v):
     return 12.92 * v if v <= 0.0031308 else 1.055 * (v ** (1 / 2.4)) - 0.055
 
 
-def bake(name, folder, budgets, turn):
+def bake(name, folder, budgets, turn, drop=()):
     bpy.ops.wm.read_factory_settings(use_empty=True)
-    usd = [f for f in os.listdir(os.path.join(src, folder, "simready_usd")) if f.startswith("sm_") and f.endswith(".usd")][0]
-    bpy.ops.wm.usd_import(filepath=os.path.join(src, folder, "simready_usd", usd), import_materials=True)
+    base = os.path.normpath(os.path.join(src, folder))
+    gltf = [f for f in os.listdir(base) if f.endswith(".gltf")]
+    if gltf:
+        bpy.ops.import_scene.gltf(filepath=os.path.join(base, gltf[0]))
+    else:
+        usd = [f for f in os.listdir(os.path.join(base, "simready_usd")) if f.startswith("sm_") and f.endswith(".usd")][0]
+        bpy.ops.wm.usd_import(filepath=os.path.join(base, "simready_usd", usd), import_materials=True)
     # Parts are instanced (empties pointing at hidden prototype collections): make them real meshes first.
     bpy.ops.object.select_all(action="DESELECT")
     for o in bpy.context.scene.objects:
@@ -76,13 +138,32 @@ def bake(name, folder, budgets, turn):
     for o in meshes:
         if o.data.users > 1:
             o.data = o.data.copy()
+    for o in list(meshes):
+        gone = {i for i, s in enumerate(o.material_slots) if s.material and any(d in s.material.name.lower() for d in drop)}
+        if not gone:
+            continue
+        bm = bmesh.new()
+        bm.from_mesh(o.data)
+        bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in gone], context="FACES")
+        bm.to_mesh(o.data)
+        bm.free()
+        if not o.data.polygons:
+            meshes.remove(o)
+            bpy.data.objects.remove(o)
     # Colour every face by its material, then join.
     for o in meshes:
         me = o.data
         attr = me.color_attributes.new("col", "BYTE_COLOR", "CORNER")
         cols = [material_colour(s.material) for s in o.material_slots] or [(0.5, 0.5, 0.5)]
+        atlases = [atlas(s.material) if gltf else None for s in o.material_slots]
+        uv = me.uv_layers.active
         for poly in me.polygons:
-            c = cols[min(poly.material_index, len(cols) - 1)]
+            mi = min(poly.material_index, len(cols) - 1)
+            c = cols[mi]
+            if atlases and atlases[mi] and uv:
+                u = sum(uv.data[li].uv[0] for li in poly.loop_indices) / poly.loop_total
+                v = sum(uv.data[li].uv[1] for li in poly.loop_indices) / poly.loop_total
+                c = atlases[mi](u, v)
             for li in poly.loop_indices:
                 attr.data[li].color_srgb = (*c, 1.0)
     bpy.ops.object.select_all(action="DESELECT")
@@ -103,7 +184,8 @@ def bake(name, folder, budgets, turn):
     lods = []
     src_obj = obj
     for budget in budgets:
-        # Each level from the one before (the decimator stops short on a big jump); up to three passes to reach it.
+        # Each level from the one before (the decimator stops short on a big jump); up to three passes to reach it;
+        # far levels drop bigger and bigger loose parts while the decimator stays short (a part cannot shrink below a few faces).
         o = src_obj.copy()
         o.data = src_obj.data.copy()
         bpy.context.collection.objects.link(o)
@@ -112,17 +194,20 @@ def bake(name, folder, budgets, turn):
         bmesh.ops.triangulate(bm, faces=bm.faces)
         bm.to_mesh(o.data)
         bm.free()
-        if lods:
-            o = drop_small_parts(o, 0.04)
-        for _ in range(3):
-            tris = len(o.data.polygons)
-            if tris <= budget * 1.15:
+        for small in (0.04, 0.08, 0.15) if lods else (0,):
+            if small:
+                o = drop_small_parts(o, small)
+            for _ in range(3):
+                tris = len(o.data.polygons)
+                if tris <= budget * 1.15:
+                    break
+                mod = o.modifiers.new("dec", "DECIMATE")
+                mod.ratio = budget / tris
+                mod.use_collapse_triangulate = True
+                bpy.context.view_layer.objects.active = o
+                bpy.ops.object.modifier_apply(modifier="dec")
+            if len(o.data.polygons) <= budget * 1.15:
                 break
-            mod = o.modifiers.new("dec", "DECIMATE")
-            mod.ratio = budget / tris
-            mod.use_collapse_triangulate = True
-            bpy.context.view_layer.objects.active = o
-            bpy.ops.object.modifier_apply(modifier="dec")
         bpy.context.view_layer.objects.active = o
         o.select_set(True)
         bpy.ops.object.shade_smooth_by_angle(angle=math.radians(35))
@@ -187,7 +272,7 @@ def pack(me):
     return base64.b64encode(bytes(buf)).decode(), len(index) // 3
 
 
-assets = [bake(n, *spec) for n, spec in ASSETS.items()]
+assets = [bake(n, *spec) for n, spec in ASSETS[group].items()]
 ts = [
     '// Generated by scripts/props/bake-simready.py from NVIDIA SimReady Assets (CC BY 4.0). Do not edit.',
     'export interface SimreadyModelData {',
@@ -197,13 +282,13 @@ ts = [
     '  lods: string[];',
     '}',
     '',
-    'export const SIMREADY_MODELS: Record<string, SimreadyModelData> = {',
+    f'export const SIMREADY_{group.upper()}: Record<string, SimreadyModelData> = {{',
 ]
 for a in assets:
     ts.append(f"  // {a['folder']}")
     ts.append(f"  {a['name']}: {{ size: {a['size']}, lods: [{', '.join(repr(l) for l in a['lods'])}] }},")
 ts.append("};")
-out = os.path.join(root, "src", "games", "rally", "assets", "builders", "simready-models.data.ts")
+out = os.path.join(root, "src", "games", "rally", "assets", "builders", f"simready-{group}.data.ts")
 with open(out, "w", encoding="utf8", newline="\n") as f:
     f.write("\n".join(ts) + "\n")
 print("wrote", out)

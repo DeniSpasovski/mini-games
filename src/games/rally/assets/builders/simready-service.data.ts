@@ -6,7 +6,7 @@ export interface SimreadyModelData {
   lods: string[];
 }
 
-export const SIMREADY_MODELS: Record<string, SimreadyModelData> = {
+export const SIMREADY_SERVICE: Record<string, SimreadyModelData> = {
   // equipment_rolling_tool_chest_cabinet_combo_d01
   tool_chest: {
     size: [0.35, 1.09, 0.758],
