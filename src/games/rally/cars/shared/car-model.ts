@@ -1742,8 +1742,9 @@ export class CarModel {
       const nightIdle =
         (night?.idle ?? off + Math.min(on - off, TAIL_NIGHT_GLOW)) *
         this.lampsOn;
+      // From the lamp's own off glow (some lamps, like the C4's, already glow a little when off).
       const idle = this.lampsDay
-        ? Math.max(nightIdle, on * TAIL_DAY_GLOW * this.lampsOn)
+        ? Math.max(nightIdle, off + (on - off) * TAIL_DAY_GLOW * this.lampsOn)
         : nightIdle;
       const full = on + ((night?.on ?? on) - on) * this.lampsOn;
       const lit = idle + (full - idle) * l;

@@ -131,7 +131,7 @@ export class Headlights {
       .lerp(new Color(1, 1, 1), 0.2);
     // Brighter lamps show a stronger beam in the air, old dim ones a faint one; rain and fog light it up.
     this.beamMat.uniforms.uGain.value =
-      Math.min(1.4, 0.4 + 0.6 * def.power) * level * (1 + 0.3 * haze);
+      Math.min(1.4, 0.4 + 0.6 * def.power) * level * (1 + 1.2 * haze * haze);
     const spot = (
       side: number,
       aim: number,

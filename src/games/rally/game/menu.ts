@@ -20,7 +20,11 @@ import {
 } from '../engine/quality';
 import { ALL_STAGES, DEFAULT_STAGE, MAPS, STAGES, stagesOf } from '../maps';
 import { MONTH_NAMES, seasonMonth, stageSeason } from '../maps/shared/climate';
-import { slotHour, stageTemps } from '../maps/shared/day-temperature';
+import {
+  slotHour,
+  stageHumidity,
+  stageTemps,
+} from '../maps/shared/day-temperature';
 import { SEASON_LABELS, SEASONS, seasonParam, type Season } from '../season';
 import type { SourceLink, StageInfo } from '../maps/shared/types';
 import { peakPower } from '../physics/drivetrain';
@@ -892,9 +896,9 @@ class MainMenu {
     );
     info.insertAdjacentHTML(
       'beforeend',
-      `<dt>Time</dt><dd></dd><dt>Temperature</dt><dd></dd><dt hidden>At the top</dt><dd hidden></dd>`,
+      `<dt>Time</dt><dd></dd><dt>Temperature</dt><dd></dd><dt>Humidity</dt><dd></dd><dt hidden>At the top</dt><dd hidden></dd>`,
     );
-    const [, clock, temp, top] = info.querySelectorAll('dd');
+    const [, clock, temp, humid, top] = info.querySelectorAll('dd');
     const topLabel = info.querySelector('dt[hidden]') as HTMLElement;
     // The table is for the stage start; a long climb is colder (`stageTemps` `rise`), shown once the card's route is loaded.
     let rise = 0;
@@ -903,6 +907,7 @@ class MainMenu {
       const t = stageTemps(m, h, this.seasonFor(m), 0, this.weather);
       clock.textContent = formatHour(h);
       temp.textContent = `air ${Math.round(t.air)}°C / road ${Math.round(t.road)}°C`;
+      humid.textContent = `${Math.round(stageHumidity(m, h, this.seasonFor(m), 0, this.weather))} %`;
       topLabel.hidden = top.hidden = !climbs();
       if (!climbs()) return;
       const u = stageTemps(m, h, this.seasonFor(m), rise, this.weather);

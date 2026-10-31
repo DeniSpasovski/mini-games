@@ -52,6 +52,8 @@ export interface WeatherLook {
   air: number;
   /** Share of the road's sun heating (its gap to the air) left under this sky, 0..1. */
   sunHeat: number;
+  /** Relative humidity (%) the air holds at least (rain, fog); 0 = only what the season's dew point gives (`relativeHumidity`). */
+  humidity: number;
   /**
    * A fog layer (an inversion): its top in metres above the stage start, the visibility inside it (m) and how damp it
    * leaves the ground below its top (0..1, the look; the grip stays dry). Null = none.
@@ -76,6 +78,7 @@ export const WEATHER_LOOKS: Readonly<Record<Weather, WeatherLook>> = {
     wind: 1,
     air: 0,
     sunHeat: 1,
+    humidity: 0,
     fog: null,
   },
   overcast: {
@@ -88,6 +91,7 @@ export const WEATHER_LOOKS: Readonly<Record<Weather, WeatherLook>> = {
     wind: 1.2,
     air: -3,
     sunHeat: 0.2,
+    humidity: 0,
     fog: null,
   },
   pre_rain: {
@@ -100,30 +104,33 @@ export const WEATHER_LOOKS: Readonly<Record<Weather, WeatherLook>> = {
     wind: 2,
     air: 0,
     sunHeat: 0.3,
+    humidity: 70,
     fog: null,
   },
   rain_light: {
     clouds: 1,
     deck: 1.2,
-    sun: 0.12,
+    sun: 0,
     visibility: 2000,
     wet: 0.7,
     rain: 2,
     wind: 1.6,
     air: -4,
     sunHeat: 0,
+    humidity: 90,
     fog: null,
   },
   rain_heavy: {
     clouds: 1,
     deck: 0.9,
-    sun: 0.06,
-    visibility: 600,
+    sun: 0,
+    visibility: 250,
     wet: 1,
     rain: 8,
     wind: 1.6,
     air: -5,
     sunHeat: 0,
+    humidity: 97,
     fog: null,
   },
   post_rain: {
@@ -136,6 +143,7 @@ export const WEATHER_LOOKS: Readonly<Record<Weather, WeatherLook>> = {
     wind: 1.2,
     air: -2,
     sunHeat: 0.5,
+    humidity: 85,
     fog: null,
   },
   fog: {
@@ -148,7 +156,8 @@ export const WEATHER_LOOKS: Readonly<Record<Weather, WeatherLook>> = {
     wind: 0.3,
     air: -1,
     sunHeat: 0.3,
-    fog: { top: 90, visibility: 150, damp: 0.25 },
+    humidity: 100,
+    fog: { top: 300, visibility: 150, damp: 0.25 },
   },
 };
 
@@ -190,14 +199,22 @@ export function weatherLook(
   };
 }
 
+/** Relative humidity (%) of air at `air` deg C with dew point `dew` (Magnus formula), 0..100. */
+export function relativeHumidity(air: number, dew: number): number {
+  const e = (t: number) => Math.exp((17.625 * t) / (243.04 + t));
+  return Math.min(100, (100 * e(dew)) / e(air));
+}
+
 /**
  * Air and road temperature under a weather, from the stage's dry ones: the air `look.air` warmer / colder, the road
- * keeps `sunHeat` of its sun gap (a wet road sits at the air).
+ * keeps `sunHeat` of its sun gap (a wet road sits at the air). In fog the air is held at the dew point `dew`.
  */
 export function weatherTemps(
   t: { air: number; road: number },
   look: WeatherLook,
+  dew = Infinity,
 ): { air: number; road: number } {
-  const air = t.air + look.air;
+  // Fog only forms once the air has cooled to its dew point: it holds the air there.
+  const air = Math.min(t.air + look.air, look.humidity >= 100 ? dew : Infinity);
   return { air, road: air + Math.max(0, t.road - t.air) * look.sunHeat };
 }
