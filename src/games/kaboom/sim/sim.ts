@@ -523,7 +523,13 @@ export class Sim implements KaboomSim {
       }
     }
     // One left but a chain is still burning: it may take them too (a draw), so let it finish before naming a winner.
-    if (present > 1 && alive === 1 && this.chainBurning()) return;
+    if (
+      present > 1 &&
+      alive === 1 &&
+      this.time < ROUND_S &&
+      this.chainBurning()
+    )
+      return;
     if (present > 1 && alive <= 1) this.endRound(alive === 1 ? last : null);
     else if (this.time >= ROUND_S) this.endRound(null);
   }
