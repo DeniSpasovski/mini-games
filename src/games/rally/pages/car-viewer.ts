@@ -20,6 +20,7 @@ import { formatHour, TIMES_OF_DAY } from '../game/time-of-day';
 import { peakPower, sampleTorque } from '../physics/drivetrain';
 import { axleRadius, tyreSizeFor } from '../physics/car-tyres';
 import { WheelDebug } from '../debug/wheel-debug';
+import { SoundDebug } from '../debug/sound-debug';
 import { rimRadius } from '../cars/shared/tyre-mesh';
 
 /**
@@ -335,6 +336,12 @@ chart.style.cssText = 'width:100%;background:#11151a;border-radius:4px';
 specs.body.append(chart);
 const testDrive = specs.html('');
 
+const soundDebug = new SoundDebug(
+  shell.panel.section('Sound', true),
+  getCar(state.car),
+);
+shell.onFrame((dt) => soundDebug.onFrame(dt));
+
 shell.addSceneSection();
 shell.panel
   .section('Help', false)
@@ -407,6 +414,7 @@ function rebuild(): void {
   tailLight = undefined;
   model?.dispose();
   const def = getCar(state.car);
+  soundDebug?.setCar(def);
   model = new CarModel(def, {
     seed: state.seed,
     paint: state.paint || undefined,
