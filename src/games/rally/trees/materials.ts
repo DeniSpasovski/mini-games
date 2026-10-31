@@ -366,7 +366,7 @@ const VERTEX_COLLAPSE = /* glsl */ `
 
 const FRAGMENT_PARS = /* glsl */ `
 const float TREE_SKY_LEAN = 0.5;
-const float TREE_LEAF_FILL = 0.06;
+const float TREE_LEAF_FILL = 0.1;
 #ifdef TREE_SPRITE
 uniform sampler2D tlSprNormal;
 uniform float tlDepthOnly;

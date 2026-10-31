@@ -208,12 +208,36 @@ function occlusion(cr: Crown, p: V3, shade: number, up = 1): number {
   );
 }
 
-/** A sprite's: leaves in a crown's heart are shaded but not black (0.8 at the heart); its lower half less sky. */
-function spriteOcclusion(cr: Crown, p: V3, shade: number): number {
-  return (
-    (0.8 + 0.2 * smoothstep(0.1, 1.0, crownAt(cr, p).e)) *
-    (1 - 0.5 * shade * underCrown(cr, p, STAND_CANOPY))
+/**
+ * A sprite's: leaves in a crown's heart are shaded but not black (0.8 at the heart), its lower half less sky, and one
+ * deep in its clump (`clump`, 0 at the clump's heart .. 1 at its surface) a little less again.
+ */
+function spriteOcclusion(
+  cr: Crown,
+  p: V3,
+  shade: number,
+  clump: number,
+): number {
+  return keptLight(
+    0.8 + 0.2 * smoothstep(0.1, 1.0, crownAt(cr, p).e),
+    1 - 0.5 * shade * underCrown(cr, p, STAND_CANOPY),
+    0.75 + 0.25 * smoothstep(0.15, 0.9, clump),
   );
+}
+
+/**
+ * Darkening terms (each the share of light it keeps) together: the strongest counts fully and the others a third, so
+ * terms that each make sense alone do not multiply a leaf down to black.
+ */
+export function keptLight(...keep: number[]): number {
+  let max = 0;
+  let sum = 0;
+  for (const k of keep) {
+    const d = 1 - k;
+    sum += d;
+    max = Math.max(max, d);
+  }
+  return 1 - max - (sum - max) / 3;
 }
 
 /** A stand's crowns close over a tree: the canopy disc that hides the sky is this much wider than its own crown. */
@@ -630,9 +654,7 @@ function sprites(
         CLUMP_NORMAL,
       ),
     );
-    const ao =
-      spriteOcclusion(cr, centre, def.shade ?? 0) *
-      (0.75 + 0.25 * smoothstep(0.15, 0.9, dc / cl.r));
+    const ao = spriteOcclusion(cr, centre, def.shade ?? 0, dc / cl.r);
     const w = leafWind(sk, wd, l);
     const shape = atlas.outlines[image];
     const base = pos.length / 3;

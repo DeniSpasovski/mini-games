@@ -573,9 +573,10 @@ const FOLIAGE_TERM = /* glsl */ `
 				wsGlint *= wsGlint;
 				wsGlint *= wsGlint;
 				reflectedLight.directDiffuse += directLight.color * ( 0.03 * wsGlint * saturate( dot( geometryNormal, directLight.direction ) ) );
-				// In the crown's shadow a leaf still gets the sun through the leaves above it (a leaf passes ~10 % of
-				// it, green-yellow): about as much light again as the sky gives it, so a crown's underside is not black.
-				reflectedLight.directDiffuse += wsSunC * ( ( 1.0 - wsSunVis ) * 0.04 ) * material.diffuseColor * vec3( 1.0, 1.0, 0.3 );
+				// In the crown's shadow a leaf still gets the sun through and off the leaves round it (a leaf passes ~10 %
+				// and reflects as much, green-yellow): more light again than the sky gives it, so a crown's underside is
+				// not black.
+				reflectedLight.directDiffuse += wsSunC * ( ( 1.0 - wsSunVis ) * 0.08 ) * material.diffuseColor * vec3( 1.0, 1.0, 0.3 );
 			#else
 				float wsBack = saturate( dot( - geometryViewDir, directLight.direction ) );
 				reflectedLight.directDiffuse += directLight.color * material.diffuseColor * ( float( RALLY_FOLIAGE ) * wsBack * wsBack * wsBack );
