@@ -733,6 +733,7 @@ const FOLIAGE_TERM = /* glsl */ `
 const WET_PHYSICAL = /* glsl */ `
 	float wsWetAmt = wsWet.x;
 	float wsPd = 0.0;
+	float wsPdDeep = 0.0;
 	vec3 wsPw = wsWorldPos( - vViewPosition );
 	if ( wsWet.w > 0.5 ) wsWetAmt *= 1.0 - smoothstep( wsWet.z - 15.0, wsWet.z + 5.0, wsPw.y );
 	if ( wsWetAmt > 0.0 && wsDryN > 0 ) wsWetAmt *= 1.0 - wsDryAt( wsPw );
@@ -781,16 +782,24 @@ const WET_PHYSICAL = /* glsl */ `
 			}
 		#endif
 		#ifdef RALLY_PUDDLES
-			// Standing water (puddles.ts, the physics' field): a dark mirror, rings from the rain falling into it.
-			wsPd = wsPuddle( wsPw.xz, wsWetAmt ) * wsUp;
+			// Standing water (puddles.ts, the physics' field): a damp rim, a thin film at the shore, a clear dark mirror in
+			// the middle that the rain's rings run over. Over gravel the water is muddy: it keeps the ground's colour.
+			vec3 wsPv = wsPuddle( wsPw.xz, wsWetAmt );
+			wsPd = wsPv.x * wsUp;
+			wsPdDeep = wsPv.y * wsUp;
+			float wsRim = wsPv.z * wsUp;
+			diffuseColor.rgb *= 1.0 - 0.22 * wsPorous * wsRim;
+			roughnessFactor = mix( roughnessFactor, min( roughnessFactor, wsGloss + 0.1 ), wsRim * 0.7 );
 			if ( wsPd > 0.0 ) {
-				diffuseColor.rgb *= 1.0 - 0.45 * wsPd;
-				roughnessFactor = mix( roughnessFactor, 0.025, wsPd );
-				vec2 wsQ = wsPw.xz * 6.0;
-				float wsT = wsTime * 9.0;
-				vec2 wsRip = vec2( sin( wsQ.x * 1.7 + wsT + 3.0 * sin( wsQ.y * 0.9 ) ), sin( wsQ.y * 1.9 - wsT * 0.8 + 3.0 * sin( wsQ.x * 1.1 ) ) );
-				wsRip *= 0.025 * min( 1.0, wsWet.y / 4.0 );
-				vec3 wsFlat = nonPerturbedNormal + ( viewMatrix * vec4( wsRip.x, 0.0, wsRip.y, 0.0 ) ).xyz;
+				float wsRate = clamp( wsWet.y / 8.0, 0.0, 1.0 );
+				diffuseColor.rgb *= 1.0 - ( 0.2 + 0.3 * wsPdDeep ) * wsPd;
+				roughnessFactor = mix( roughnessFactor, mix( 0.14, 0.035, wsPdDeep ) + 0.05 * wsRate, wsPd );
+				vec3 wsFlat = nonPerturbedNormal;
+				float wsNear = 1.0 - smoothstep( 8.0, 26.0, length( vViewPosition ) );
+				if ( wsRate > 0.0 && wsNear > 0.0 ) {
+					vec2 wsRip = wsRipples( wsPw.xz, wsTime, wsRate * 0.9 ) * ( 0.17 * wsNear * ( 0.35 + 0.65 * wsPdDeep ) );
+					wsFlat += ( viewMatrix * vec4( wsRip.x, 0.0, wsRip.y, 0.0 ) ).xyz;
+				}
 				normal = normalize( mix( normal, wsFlat, wsPd ) );
 			}
 		#endif
@@ -798,16 +807,25 @@ const WET_PHYSICAL = /* glsl */ `
 `;
 
 /**
- * A puddle mirrors the sky (appended to `lights_fragment_end`): water's Fresnel reflection of the sky's horizon colour
- * (the fog colour), bright at a grazing look along the road, dark looking down into it. The environment map alone is
- * too dim on the ground for it.
+ * A puddle mirrors the sky (appended to `lights_fragment_end`): water's Fresnel reflection of the sky along the reflected
+ * ray (the environment map alone is too dim on the ground for it). The sky is the fog colour at the horizon, darker
+ * and darker overhead, and the forest edge below it dark; a ring in the water bends the ray, so the bright band
+ * wobbles. Muddy water over gravel mirrors less, the thin shore film less than the deep middle.
  */
 const PUDDLE_SKY = /* glsl */ `
 	#if defined( RALLY_PUDDLES ) && defined( USE_FOG )
 		if ( wsPd > 0.0 ) {
+			vec3 wsUpS = normalize( ( viewMatrix * vec4( 0.0, 1.0, 0.0, 0.0 ) ).xyz );
 			float wsCos = saturate( dot( geometryNormal, geometryViewDir ) );
 			float wsF = 0.02 + 0.98 * pow( 1.0 - wsCos, 5.0 );
-			reflectedLight.indirectSpecular += fogColor * wsF * wsPd * 0.6;
+			float wsElev = max( dot( reflect( - geometryViewDir, geometryNormal ), wsUpS ), 0.0 );
+			vec3 wsSky = fogColor * mix( 1.0, 0.3, smoothstep( 0.05, 0.8, wsElev ) ) * mix( 0.45, 1.0, smoothstep( 0.02, 0.2, wsElev ) );
+			#ifdef RALLY_WET
+				float wsClear = 1.0 - 0.5 * smoothstep( 0.2, 0.4, float( RALLY_WET ) );
+			#else
+				float wsClear = 1.0;
+			#endif
+			reflectedLight.indirectSpecular += wsSky * wsF * wsPd * mix( 0.45, 1.0, wsPdDeep ) * wsClear * 0.6;
 		}
 	#endif
 `;
