@@ -1,15 +1,19 @@
 /**
- * Puddles on a wet road: one seeded field of standing water, read by the road shader (`PUDDLE_GLSL`, a mirror-flat film
- * with rain rings, engine/world-shading.ts) and by the physics (`puddleDepth`, aquaplaning and drag,
+ * Puddles on a wet road: one seeded field of standing water, read by the road shader (`PUDDLE_GLSL`: a shallow rim, a
+ * deeper middle, rain rings, engine/world-shading.ts) and by the physics (`puddleDepth`, aquaplaning and drag,
  * physics/vehicle.ts), so a car hits the water it drives through. The field is two octaves of value noise over world
- * x / z on an integer hash (the `permute` of Ashima's GLSL noise: exact in 32-bit floats), the same on the CPU and the
- * GPU. More of it fills as the ground gets wetter (weather.ts `wet`): a few dips after light rain, long pools in a
- * downpour. Keep the two copies in step.
+ * x / z, pulled out of line by a slow domain warp so the pools have ragged, bent outlines, on an integer hash (the
+ * `permute` of Ashima's GLSL noise: exact in 32-bit floats), the same on the CPU and the GPU. More of it fills as the
+ * ground gets wetter (weather.ts `wet`): a few dips after light rain, long pools in a downpour. Keep the two copies in
+ * step.
  */
 
 /** Size (m) of the large and the small noise cell. */
 const BIG = 5.5;
 const SMALL = 1.7;
+/** Size (m) of the warp's noise cell and how far (m) it can push the field. */
+const WARP_CELL = 11;
+const WARP = 7;
 /** Noise level where water starts at wet = 0.5 / 1 (lower = more puddles). */
 const DRY_EDGE = 0.8;
 const WET_EDGE = 0.68;
@@ -44,11 +48,14 @@ function edge(wet: number): number {
     : DRY_EDGE + (WET_EDGE - DRY_EDGE) * Math.min(1, (wet - 0.5) / 0.5);
 }
 
-/** The puddle field at a point, 0..1 (0.65 big cells + 0.35 small ones). */
+/** The puddle field at a point, 0..1 (0.62 big cells + 0.38 small ones, on a warped plane). */
 export function puddleField(x: number, z: number): number {
+  const wx = x + (noise(x / WARP_CELL + 7.3, z / WARP_CELL + 2.9) - 0.5) * WARP;
+  const wz =
+    z + (noise(x / WARP_CELL + 17.1, z / WARP_CELL + 41.7) - 0.5) * WARP;
   return (
-    0.65 * noise(x / BIG, z / BIG) +
-    0.35 * noise(x / SMALL + 31.7, z / SMALL + 11.3)
+    0.62 * noise(wx / BIG, wz / BIG) +
+    0.38 * noise(wx / SMALL + 31.7, wz / SMALL + 11.3)
   );
 }
 
@@ -62,8 +69,14 @@ export function puddleDepth(x: number, z: number, wet: number): number {
 }
 
 /**
- * GLSL twin of `puddleField` / the puddle cover: `wsPuddle( xz, wet )` = 0..1, the water's cover (a soft rim) where
- * `puddleDepth` > 0.
+ * GLSL twin of `puddleField` / the puddle cover, plus the rain's rings on the water.
+ *
+ * - `wsPuddle( xz, wet )` = vec3( cover, deep, rim ), each 0..1: the water's cover (a thin film at the shore, where
+ *   `puddleDepth` starts), how deep it is (the middle of a pool: a darker, clearer mirror) and a damp ring around it.
+ *   A little fine noise (cm) breaks the shore up; it is not in the CPU copy (a cm of outline, not a different pool).
+ * - `wsRipples( xz, t, rate )` = the slope (x, z) of the water surface where drops fall: rings that grow and fade
+ *   from random points at random times, a few per square metre per second in a downpour (`rate` 0..1 = the share of
+ *   places a drop is falling at). Two layers (cells of 0.6 and 0.9 m) so they never line up in a grid.
  */
 export const PUDDLE_GLSL = /* glsl */ `
 float wsPermute( float x ) { return mod( ( x * 34.0 + 1.0 ) * x, 289.0 ); }
@@ -78,10 +91,33 @@ float wsVNoise( vec2 p ) {
 	float d = wsHash( i + vec2( 1.0, 1.0 ) );
 	return a + ( b - a ) * u.x + ( c - a ) * u.y + ( a - b - c + d ) * u.x * u.y;
 }
-float wsPuddle( vec2 xz, float wet ) {
-	if ( wet <= 0.3 ) return 0.0;
+vec3 wsPuddle( vec2 xz, float wet ) {
+	if ( wet <= 0.3 ) return vec3( 0.0 );
 	float e = ${DRY_EDGE.toFixed(3)} + ${(WET_EDGE - DRY_EDGE).toFixed(3)} * min( 1.0, ( wet - 0.5 ) / 0.5 );
-	float n = 0.65 * wsVNoise( xz / ${BIG.toFixed(3)} ) + 0.35 * wsVNoise( xz / ${SMALL.toFixed(3)} + vec2( 31.7, 11.3 ) );
-	return smoothstep( e, e + 0.04, n );
+	vec2 w = xz + ( vec2( wsVNoise( xz / ${WARP_CELL.toFixed(3)} + vec2( 7.3, 2.9 ) ), wsVNoise( xz / ${WARP_CELL.toFixed(3)} + vec2( 17.1, 41.7 ) ) ) - 0.5 ) * ${WARP.toFixed(3)};
+	float n = 0.62 * wsVNoise( w / ${BIG.toFixed(3)} ) + 0.38 * wsVNoise( w / ${SMALL.toFixed(3)} + vec2( 31.7, 11.3 ) );
+	n += ( wsVNoise( xz / 0.35 + vec2( 3.1, 5.7 ) ) - 0.5 ) * 0.03;
+	return vec3( smoothstep( e - 0.006, e + 0.02, n ), smoothstep( e + 0.015, e + 0.1, n ), smoothstep( e - 0.14, e, n ) );
+}
+vec2 wsRingLayer( vec2 p, float cell, float t, float rate, float seed ) {
+	vec2 q = p / cell;
+	vec2 id = floor( q );
+	vec2 f = ( q - id - 0.5 ) * cell;
+	float h = wsHash( id + seed );
+	float age = t * ( 0.8 + 0.5 * h ) + h * 31.0;
+	float cyc = floor( age );
+	float ph = age - cyc;
+	vec2 cid = id + vec2( cyc * 13.7, cyc * 5.3 ) + seed;
+	if ( wsHash( cid + 91.0 ) > rate ) return vec2( 0.0 );
+	vec2 c = ( vec2( wsHash( cid ), wsHash( cid + 17.0 ) ) - 0.5 ) * 0.4 * cell;
+	vec2 v = f - c;
+	float d = length( v );
+	float x = d - ph * 0.3 * cell;
+	float amp = ( 1.0 - ph ) * ( 1.0 - ph ) * smoothstep( 0.0, 0.14, ph );
+	float s = amp * cos( x * 160.0 ) * exp( - x * x * 900.0 );
+	return v / max( d, 1e-3 ) * s;
+}
+vec2 wsRipples( vec2 xz, float t, float rate ) {
+	return wsRingLayer( xz, 0.6, t, rate, 3.0 ) + wsRingLayer( xz + 5.3, 0.9, t * 0.8 + 7.0, rate, 11.0 );
 }
 `;
