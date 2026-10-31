@@ -168,6 +168,41 @@ test('flames: everybody KO in the same tick is a draw', () => {
   expect(sim.players.every((p) => p.wins === 0)).toBe(true);
 });
 
+test('flames: the last two KO by one chain a moment apart is a draw, not a win for the one that outlived the first blast', () => {
+  const sim = simOn(['###########', '#.0.....1.#', '###########']);
+  sim.plantTnt(3, 1, 0, 1, 0.05); // kills player 0 first
+  sim.plantTnt(4, 1, 0, 1, 3); // chained: goes off a moment later and kills player 1
+  sim.plantTnt(5, 1, 0, 1, 3);
+  sim.plantTnt(6, 1, 0, 1, 3);
+  sim.plantTnt(7, 1, 0, 1, 3);
+  const events: SimEvent[] = [];
+  for (let t = 0; t < 40; t++) {
+    for (const e of sim.tick(inputs(2)))
+      events.push(JSON.parse(JSON.stringify(e)));
+    if (t === 2) expect(sim.over).toBe(false); // one alive, but the chain is still burning
+  }
+  expect(
+    types(events, 'playerKo').map((e) => (e as { id: number }).id),
+  ).toEqual([0, 1]);
+  expect(types(events, 'roundOver')).toEqual([
+    { type: 'roundOver', winner: null },
+  ]);
+  expect(sim.players.every((p) => p.wins === 0)).toBe(true);
+});
+
+test('flames: a chain that cannot reach the survivor still ends the round as a win once it is over', () => {
+  const sim = simOn(['#############', '#0..#.....1.#', '#############']);
+  sim.plantTnt(1, 1, 1, 1, 0.05); // kills player 0 on its own
+  sim.plantTnt(5, 1, 1, 1, 3); // far from player 1, not part of any chain
+  const events: SimEvent[] = [];
+  for (let t = 0; t < 10; t++)
+    for (const e of sim.tick(inputs(2)))
+      events.push(JSON.parse(JSON.stringify(e)));
+  expect(types(events, 'roundOver')).toEqual([
+    { type: 'roundOver', winner: 1 },
+  ]);
+});
+
 test('match: best of 3 needs two wins, rounds restart cleanly and keep the wins', () => {
   const sim = simOn(CORRIDOR, { rounds: 3 });
   const win = () => {
