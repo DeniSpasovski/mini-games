@@ -114,8 +114,8 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   - the far shadow map (`world/far-shadow.ts`, `quality.farShadow*`, ~4x the box): terrain, static meshes
     (`farShadowCaster`) and one hashed ellipsoid per tree crown, re-drawn only when its snapped box moves (~every
     25 m), from inside the main render (`trigger`). Covers only the disc where it has crowns (`setFarShadowDisc`);
-    tree materials look it up at their shadow lookup point (out of their own crown, as in the sun's map). It fades in
-    `SHADOW_OVERLAP` m before the sun's map fades out; over that band the darker of the two wins;
+    tree materials look it up at their shadow lookup point (out of their own crown, as in the sun's map). The sun's map
+    cross-fades into it over `NEAR_FADE` m (no brightness step where they hand over);
   - past both, the baked canopy shadows (World shading below).
   - Terrain casts into both maps (`TerrainOptions.castShadow`): hills shade the valleys.
 - **Night** (`engine/night.ts`, `?tod=<hours>` from 19:30 to 04:30 on any map; not in the studio): the moon is the directional light

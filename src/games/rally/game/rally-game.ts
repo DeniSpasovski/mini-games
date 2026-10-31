@@ -144,8 +144,10 @@ export interface GameOptions {
 }
 
 const STEP = 1 / PHYSICS_HZ;
-/** The far shadow map fades in this far (m) before the sun's fades out: both draw over the band (`placeShadows`). */
-const SHADOW_OVERLAP = 25;
+/** The sun's shadow map cross-fades into the far one over this band (m, `placeShadows`). */
+const NEAR_FADE = 30;
+/** The far shadow map is read from this far (m) before the sun's starts fading: both are there over the band. */
+const SHADOW_OVERLAP = 35;
 /** Trees farther than this from the stage road (m) are only ever impostors (trees/draw.ts `fakeFrom`). */
 const FAKE_TREES_FROM = 250;
 /** Render scale Auto's steps (`RallyGame.adaptScale`): full down to the 70 % option. */
@@ -1698,8 +1700,8 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
   /**
    * The sun's shadow map and the far one ahead of the camera, and where the sun's fades out: before a tree just past
    * `treeShadowDistance` (not in it) could shade the ground - its crown top's shadow reaches ~20 m at a high sun,
-   * more at a low one (the far map's crowns cover that band). The far map fades in SHADOW_OVERLAP m closer, so the two
-   * overlap instead of handing over in one line.
+   * more at a low one (the far map's crowns cover that band). The far map is read from SHADOW_OVERLAP m closer, so the
+   * two cross-fade over the whole NEAR_FADE band instead of handing over in one line.
    */
   private placeShadows(focus: Vector3, forward: Vector3): void {
     this.env.update(focus, forward);
@@ -1710,7 +1712,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       (18 * Math.sqrt(Math.max(0, 1 - s * s))) / Math.max(0.05, s),
     );
     const end = this.opts.quality.treeShadowDistance - reach;
-    setNearShadowFade(end - 15, end, SHADOW_OVERLAP);
+    setNearShadowFade(end - NEAR_FADE, end, SHADOW_OVERLAP);
   }
 
   /**

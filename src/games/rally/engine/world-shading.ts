@@ -547,9 +547,10 @@ const SUN_TERMS = /* glsl */ `
 		#endif`;
 
 /**
- * The sun's shadow-map lookup in three's directional loop, replaced by `min( mix( 1, <it>, wsNearW ), mix( 1, wsFarV,
- * wsFarIn ) )`: the near map inside its box, the far map past it, both over an overlap band before the near one fades
- * (the darker wins: one shadow in both maps is not doubled; 1 where neither reaches, the canopy takes over there).
+ * The sun's shadow-map lookup in three's directional loop, replaced by `mix( wsFarV, <it>, wsNearW )`: the near map
+ * inside its box, the far map past it, cross-faded over the band where the near one fades out (one shadow in both maps
+ * is not doubled, and neither map's darker shade wins: no brightness step where they hand over; 1 where neither
+ * reaches, the canopy takes over there).
  */
 const SUN_SHADOW =
   'getShadow( directionalShadowMap[ i ], directionalLightShadow.shadowMapSize, directionalLightShadow.shadowIntensity, directionalLightShadow.shadowBias, directionalLightShadow.shadowRadius, vDirectionalShadowCoord[ i ] )';
@@ -633,7 +634,7 @@ function install(): void {
     lights.slice(0, at + info.length) +
     SUN_TERMS +
     lights.slice(at + info.length, shadow) +
-    `( wsSunVis = min( mix( 1.0, ${SUN_SHADOW}, wsNearW ), mix( 1.0, wsFarV, wsFarIn ) ) )` +
+    `( wsSunVis = mix( wsFarV, ${SUN_SHADOW}, wsNearW ) )` +
     lights.slice(shadow + SUN_SHADOW.length, lineEnd) +
     FOLIAGE_TERM +
     lights.slice(lineEnd);
