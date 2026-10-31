@@ -117,7 +117,11 @@ Per-map settings live in `MapDef.environment`; everything has a default.
     tree materials look it up at their shadow lookup point (out of their own crown, as in the sun's map). The sun's map
     cross-fades into it over `NEAR_FADE` m (no brightness step where they hand over);
   - past both, the baked canopy shadows (World shading below).
-  - Terrain casts into both maps (`TerrainOptions.castShadow`): hills shade the valleys.
+  - Terrain casts into both maps (`TerrainOptions.castShadow`), but only from inside their boxes; a low sun's shadow of a
+    ridge runs on for a kilometre. `world/terrain-light.ts` (8 m texels, baked in slices of the frame's slack after the
+    start, faded in) bakes the height a point must reach to see the sun past every hill (a crown or a car over a shaded
+    slope still stands in the sun) and dims the ground's sky light by the sky its surroundings leave in view (valleys,
+    the foot of a slope).
 - **Night** (`engine/night.ts`, `?tod=<hours>` from 19:30 to 04:30 on any map; not in the studio): the moon is the directional light
   (dim, blue, `moonAt`), the sky is a dark dome with a town glow, moon and stars (`NightSky`), fog is dark, tone mapping AgX at a
   fixed exposure; the env map and the tree ambient (`setTreeSky`) are rebuilt from the night sky. The car's lights fade in with the dark (`lightNeed`, from the sun height: off by day, ~0.6 at the 17:30 evening, 1 at night; scales lamps, beam, cones and dust glow). They switch on

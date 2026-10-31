@@ -65,12 +65,14 @@ import { setTerrainDetail, setTerrainRelief } from '../world/terrain-material';
 import { CanopyShadows } from '../world/canopy-shadows';
 import { canopyTone, FarForest } from '../world/far-forest';
 import { FarShadow } from '../world/far-shadow';
+import { TerrainLight } from '../world/terrain-light';
 import { Horizon } from '../world/horizon';
 import {
   setCanopyLocalMap,
   setCanopyShadows,
   setForest,
   setNearShadowFade,
+  setTerrainLight,
 } from '../engine/world-shading';
 import { World } from '../world/world';
 import { CarAudio } from './audio';
@@ -198,6 +200,8 @@ const MAX_FRAME = MAX_STEPS * STEP;
 const SCALE_VIEWPORT =
   typeof location === 'undefined' ||
   new URLSearchParams(location.search).get('scalevp') !== '0';
+/** The baked terrain light fades in by this much a frame once done (~1.5 s at 60 fps; world/terrain-light.ts). */
+const TERRAIN_LIGHT_FADE = 1 / 90;
 /** Sun glare (medium and high); `?glare=0` to compare without. */
 const GLARE =
   typeof location === 'undefined' ||
@@ -263,6 +267,8 @@ export class RallyGame {
   private canopy!: CanopyShadows;
   /** The canopy shell and far trees (world/far-forest.ts); the perf panel moves their forest distance. */
   farForest!: FarForest;
+  /** Hill shadows past the shadow maps and sky light in valleys, baked in the background (world/terrain-light.ts). */
+  private terrainLight?: TerrainLight;
   private hazeAcc = 0;
   audio: CarAudio;
   telemetry!: Telemetry;
@@ -497,6 +503,11 @@ export class RallyGame {
       this.canopy.map,
       map.environment.canopyShadow ?? 0.6,
       { texture: this.canopy.local, map: this.canopy.localMap },
+    );
+    this.terrainLight = new TerrainLight(
+      (x, z) => this.world.analytic.height(x, z),
+      map.bounds,
+      this.env.sunDir,
     );
     if (q.farShadowSize > 0)
       this.far = new FarShadow(
@@ -1738,6 +1749,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
    * work (ms; `frameSlack`), none given = the canopy's own budgets.
    */
   private updateCanopy(slack?: number): void {
+    const t0 = performance.now();
     const p = this.camera.position;
     if (slack === undefined) this.canopy.update(performance.now(), p);
     else
@@ -1749,6 +1761,16 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       );
     setCanopyLocalMap(this.canopy.localMap);
     this.farForest?.update(p);
+    const tl = this.terrainLight;
+    if (tl && slack !== undefined && tl.strength < 1) {
+      // Only in the time this frame has left over (it is the last background job): it never lengthens a frame; a
+      // device without spare time keeps the plain shadow maps.
+      const left = slack - (performance.now() - t0);
+      if (!tl.done) {
+        if (left > 0.25) tl.step(Math.min(1.5, left));
+      } else tl.strength = Math.min(1, tl.strength + TERRAIN_LIGHT_FADE);
+      if (tl.done) setTerrainLight(tl.texture, tl.map, tl.strength);
+    }
   }
 
   /** Show / hide the perf panel (created on first use; its switches stay applied while it exists). */
