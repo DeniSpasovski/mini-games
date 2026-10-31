@@ -97,6 +97,9 @@ const PALETTES: Readonly<
 
 /** Their crowns yellow from the inside out. */
 const INSIDE_FIRST = ['Birch', 'Poplar', 'Willow'];
+/** A broadleaf's leaf cover in autumn (share of its sprites) and in spring (share, size). */
+const AUTUMN_LEAVES = 0.75;
+const SPRING_LEAVES = { leafy: 0.8, leafSize: 0.8 };
 
 /** Where a season's species came from: the summer species and the season. */
 const origins = new WeakMap<
@@ -115,14 +118,21 @@ export function seasonal(def: SpeciesDef, season: Season): SpeciesDef {
   if (!out) {
     const palette = PALETTES[summer.name]?.[season];
     // Leaves turn tree by tree (a week apart in autumn, half that in spring) and from the crown's top and outside in
-    // (birch, poplar and willow from the inside); needles hardly change.
+    // (birch, poplar and willow from the inside); needles hardly change. Autumn crowns have shed some leaves, spring
+    // ones are not full yet and their leaves still small: the same branches show through more.
     const broad = summer.foliage.kind === 'broadleaf';
     const inside = INSIDE_FIRST.includes(summer.name) ? -1 : 1;
     const change =
       broad && season === 'autumn'
-        ? { turn: 0.5 * inside, stage: 0.6, stages: 0.35, hueSpread: 1.8 }
+        ? {
+            turn: 0.5 * inside,
+            stage: 0.6,
+            stages: 0.35,
+            hueSpread: 1.8,
+            leafy: AUTUMN_LEAVES,
+          }
         : broad && season === 'spring'
-          ? { turn: 0.3, stages: 0.2, hueSpread: 1.2 }
+          ? { turn: 0.3, stages: 0.2, hueSpread: 1.2, ...SPRING_LEAVES }
           : {};
     out = palette
       ? { ...summer, foliage: { ...summer.foliage, palette, ...change } }

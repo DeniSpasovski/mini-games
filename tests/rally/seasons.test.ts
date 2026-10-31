@@ -194,7 +194,7 @@ describe('seasons: tree leaves', () => {
           expect(c).toMatch(/^#[0-9a-f]{6}$/);
   });
 
-  test('summer is the species itself; spring and autumn change only the colours', () => {
+  test('summer is the species itself; spring and autumn change only the colours and leaf cover', () => {
     const birch = getSpecies('Birch');
     expect(seasonal(birch, 'summer')).toBe(birch);
     const autumn = seasonal(birch, 'autumn');
@@ -203,7 +203,7 @@ describe('seasons: tree leaves', () => {
     expect(seasonal(autumn, 'autumn')).toBe(autumn);
     expect(seasonOf(autumn)).toBe('autumn');
     expect(summerOf(autumn)).toBe(birch);
-    // Colours only: the palette and how it turns (ramp stage, spread, crown gradient, tree hues).
+    // Colours (the palette and how it turns: ramp stage, spread, crown gradient, tree hues) and leaf cover only.
     const shape = (d: typeof birch) => {
       const {
         palette: _p,
@@ -211,6 +211,8 @@ describe('seasons: tree leaves', () => {
         stage: _s,
         stages: _ss,
         hueSpread: _h,
+        leafy: _l,
+        leafSize: _ls,
         ...rest
       } = d.foliage;
       return { ...d, foliage: rest };
@@ -232,8 +234,15 @@ describe('seasons: tree leaves', () => {
       generateVariant(seasonal(birch, s as 'summer' | 'autumn'), 0),
     );
     expect(b.info.height).toBe(a.info.height);
-    expect(b.info.sphere).toEqual(a.info.sphere);
-    expect(b.meshes.sprites.count).toBe(a.meshes.sprites.count);
+    // The same crown: its bounds only lose the outermost shed sprites.
+    expect(b.info.sphere.cy).toBe(a.info.sphere.cy);
+    expect(b.info.sphere.r).toBeLessThanOrEqual(a.info.sphere.r);
+    expect(b.info.sphere.r).toBeGreaterThan(a.info.sphere.r * 0.9);
+    // Autumn has shed about a quarter of its leaves, from the same branches.
+    expect(b.meshes.sprites.count).toBeLessThan(a.meshes.sprites.count * 0.85);
+    expect(b.meshes.sprites.count).toBeGreaterThan(
+      a.meshes.sprites.count * 0.6,
+    );
     expect(b.info.foliageColor).not.toEqual(a.info.foliageColor);
   });
 

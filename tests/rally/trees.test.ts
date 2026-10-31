@@ -37,10 +37,13 @@ import {
   TREE_TYPES,
   getSpecies,
   speciesHash,
+  variantCount,
   type SpeciesDef,
 } from '../../src/games/rally/trees/species';
 import {
+  cacheKey,
   generateVariant,
+  VARIANT_SEEDS,
   variantSeed,
 } from '../../src/games/rally/trees/variants';
 
@@ -116,11 +119,20 @@ describe('trees', () => {
     },
   );
 
-  test('a species change gives new variant seeds', () => {
+  test('a variant keeps its seed: every species has kept seeds, a species change only re-keys the cache', () => {
+    for (const def of SPECIES) {
+      const seeds = Array.from({ length: variantCount(def) }, (_, i) =>
+        variantSeed(def, i),
+      );
+      expect(new Set(seeds).size).toBe(seeds.length);
+      // A new species or variant appends its seed to the table (no seed from its name left behind).
+      expect(seeds).toEqual(VARIANT_SEEDS[def.name]?.slice(0, seeds.length));
+    }
     const def = getSpecies('Pine');
     const changed = { ...def, angle: def.angle + 1 };
     expect(speciesHash(changed)).not.toBe(speciesHash(def));
-    expect(variantSeed(changed, 0)).not.toBe(variantSeed(def, 0));
+    expect(variantSeed(changed, 0)).toBe(variantSeed(def, 0));
+    expect(cacheKey(changed, 1)).not.toBe(cacheKey(def, 1));
   });
 
   test('every tree type maps to a species', () => {

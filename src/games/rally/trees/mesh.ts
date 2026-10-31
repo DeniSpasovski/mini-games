@@ -575,10 +575,18 @@ function sprites(
   // The palette is the cluster's mean albedo: the atlas shades around it (trees/leaftex.ts `mean`).
   const gain = 1 / atlas.mean;
   const order = spriteOrder(sk, seed);
-  const kept = order.slice(0, def.maxSprites);
+  const capped = order.slice(0, def.maxSprites);
+  // Season leaf cover: a seeded share of the leaf points goes bare (the same ones every load) and the rest shrink.
+  const leafy = def.foliage.leafy ?? 1;
+  const kept =
+    leafy < 1
+      ? capped.filter((li) => unit(mix32(mix32(seed, li), 7)) < leafy)
+      : capped;
   const clumps = leafClumps(sk);
-  // Fewer sprites than leaf points: each kept one grows so the crown covers the same area.
-  const grow = Math.sqrt(order.length / Math.max(1, kept.length));
+  // Fewer sprites than leaf points: each kept one grows so the crown covers the same area (not for a season's bare ones).
+  const grow =
+    Math.sqrt(order.length / Math.max(1, capped.length)) *
+    (def.foliage.leafSize ?? 1);
   const pos: number[] = [];
   const nrm: number[] = [];
   const uv: number[] = [];

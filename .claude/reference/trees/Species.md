@@ -51,7 +51,7 @@ A species is a data definition that the tree code reads, so adding or tuning a k
 
 - A stage has a season, spring, summer or autumn. A species' palette is its summer look; a table gives the species that change their own spring and autumn palettes, from measured leaves: a bright yellow-green flush in spring, blossom on the fruit tree and thicket, yellow (birch, hornbeam, walnut, locust), copper (beech), dull yellow-brown (oak) and red (scrub, thicket, bramble) in autumn. Conifers hardly change, the juniper and cypresses never do.
 - A broadleaf's spring and autumn palettes are ramps from the least to the most turned leaf, from measured leaves: beech green, yellow-green, gold, orange, copper, brown; the yellow-turners (hornbeam, birch, walnut, hazel, locust); oaks to dull ochre and russet; cherry and maple to orange-red; Cotinus, hawthorn and bramble to scarlet and crimson; a lime flush (beech, hornbeam, birch) or a bronze one (oak, walnut) in spring. Trees turn about a week apart, so each variant has its own stage (autumn wider than spring, centred near peak colour), and a crown turns from its top and outside in (birch, poplar and willow from the inside).
-- A season changes colours only. Its variants grow from the summer seeds, so a tree is the same tree all year, and the palette is part of the species hash, so each season has its own cached variants.
+- A season changes the leaves only: their colours and, on a broadleaf, their cover. Autumn crowns have shed about a quarter of their leaves; spring ones are a fifth short and their leaves a fifth smaller, so the branches show through more. Its variants grow from the summer seeds, so a tree is the same tree all year, the same leaf points go bare every time, and the season is part of the species hash, so each has its own cached variants.
 
 ## Checks
 
@@ -59,4 +59,4 @@ A species is a data definition that the tree code reads, so adding or tuning a k
 
 ## Identity
 
-A species definition has a content hash; any change to it gives new variants and invalidates anything cached from the old one.
+A species definition has a content hash; any change to it invalidates anything cached from the old one. It does not change the variant seeds ([Placement.variants](./Placement.md#variants)).

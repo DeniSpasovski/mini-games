@@ -131,10 +131,7 @@ export interface SpeciesDef {
     /** Measured albedo of the grown bark (trees/Species.md#types). */
     color: string;
     texture: BarkTexture;
-    /**
-     * Own tile (a scan, or birch's procedural one) in place of `texture`. `scan`, `twig` and `foot` are not part of
-     * the variant seed (trees/variants.ts), so they do not regrow the trees.
-     */
+    /** Own tile (a scan, or birch's procedural one) in place of `texture`. */
     scan?: BarkScan;
     /** Young shoots' bark (default `TWIG_BARK`): a branch turns from it to `color` as it thickens (trees/mesh.ts). */
     twig?: string;
@@ -160,6 +157,9 @@ export interface SpeciesDef {
     stage?: number;
     stages?: number;
     hueSpread?: number;
+    /** Season leaf cover (trees/seasons.ts): the share of leaf points that still carry a sprite and their size (default 1). */
+    leafy?: number;
+    leafSize?: number;
   };
   lod?: Partial<LodSettings>;
   /** Instance scale range. */
@@ -969,7 +969,7 @@ export const CYPRESS: SpeciesDef = {
   bark: { color: '#76675d', texture: 'furrowed', scan: 'cedar', tiling: 1.2 },
   foliage: {
     kind: 'needles',
-    spriteSize: 0.85,
+    spriteSize: 0.95,
     leaf: 'juniper',
     palette: ['#404e3a', '#46533b', '#3b4a38', '#40513f'],
   },
@@ -1154,7 +1154,7 @@ function stable(v: unknown): string {
 
 const hashes = new WeakMap<SpeciesDef, number>();
 
-/** Content hash of a species definition: any change gives new variants and invalidates cached ones. */
+/** Content hash of a species definition: any change invalidates cached variants (their seeds stay, trees/variants.ts). */
 export function speciesHash(s: SpeciesDef): number {
   let h = hashes.get(s);
   if (h === undefined) hashes.set(s, (h = hashText(stable(s))));
