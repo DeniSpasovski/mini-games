@@ -1,6 +1,7 @@
-import { describe, expect, rs, test } from '@rstest/core';
+import { beforeAll, describe, expect, rs, test } from '@rstest/core';
 import { Texture } from 'three';
 import { ASSET_CATALOG } from '../../src/games/rally/assets/catalog';
+import { loadSimready } from '../../src/games/rally/assets/builders/simready';
 import { getAsset, getVariantSet } from '../../src/games/rally/assets/library';
 import * as grass from '../../src/games/rally/engine/grass' with {
   rstest: 'importActual',
@@ -20,6 +21,8 @@ rs.mock('../../src/games/rally/engine/grass', () => ({
  * exactly the ones `getAsset` builds for it, so a variant-set mesh draws the same thing as the per-variant meshes.
  */
 describe('variant sets', () => {
+  beforeAll(() => loadSimready('park', 'yard'));
+
   const sets = ASSET_CATALOG.filter((a) => a.category !== 'textures').flatMap(
     (a) => a.lods.map((_, lod) => [a.id, lod] as const),
   );

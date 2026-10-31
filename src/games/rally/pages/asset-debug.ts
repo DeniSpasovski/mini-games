@@ -18,6 +18,7 @@ import {
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { ASSET_CATALOG, getAssetMeta, hasAsset } from '../assets/catalog';
 import { buildAsset, variantSeed } from '../assets/library';
+import { loadSimready } from '../assets/builders/simready';
 import type { BuiltAsset } from '../assets/types';
 import { CarModel } from '../cars/shared/car-model';
 import { CARS, getCar } from '../cars';
@@ -370,6 +371,9 @@ shell.onFrame((dt) => {
     holder.quaternion.multiply(q.setFromAxisAngle(up, dt * 0.5));
 });
 
-rebuild(true);
-// A shared camera link wins over the automatic framing.
-shell.applyCameraLink(state);
+// The park and yard props' models are chunks of their own (`loadSimready`).
+void loadSimready('park', 'yard').then(() => {
+  rebuild(true);
+  // A shared camera link wins over the automatic framing.
+  shell.applyCameraLink(state);
+});

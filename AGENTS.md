@@ -97,7 +97,7 @@ into `DETAILS.md`, never up.
 - `scripts/people/`: `extract-base.py` (a base body GLB -> json with the face uv), `skin-map.py` (paints the face onto the skin map), `bake-base.mjs`
   (simplifies, packs both bodies into `engine/people-base.data.ts`; run order in its header)
 - `scripts/props/bake-straw.py` - the rally hay bales' straw tile (`engine/props/straw.webp`) from the CC BY "Hay bales" scan (`sources/rally/hay-bales/`)
-- `scripts/props/bake-simready.py` - the rally service park tool chest, tyre rack and trolley jack (`assets/builders/simready-models.data.ts`) from CC BY NVIDIA SimReady Assets (`sources/rally/simready/`; run with Blender: `blender -b --python ... -- sources/rally/simready`)
+- `scripts/props/bake-simready.py` - the rally SimReady props, one group per run (`service` / `park` / `yard`, `assets/builders/simready-<group>.data.ts`: tool chest, tyre rack, jack, park kit, yard props) from CC BY NVIDIA SimReady Assets (`sources/rally/simready/`) and CC0 Poly Haven glTF models (`sources/rally/polyhaven/`; run with Blender: `blender -b --python ... -- sources/rally/simready`)
 - `scripts/rocks/bake-rocks.mjs` - the rally boulders and small rocks (`assets/builders/rock-models.data.ts`, `engine/props/rocks.*.webp`) from the CC0 Poly Haven "Rock Moss Set 01" (`sources/rally/rocks/`)
 - `scripts/trees/bake-bark.py` - the rally trees' scanned bark tiles (`trees/bark/*.webp`) from CC0 Poly Haven bark scans (`sources/rally/bark/`); prints `BARK_GAIN` for trees/materials.ts
 - `scripts/particles/bake-dust.py` - the rally dust puff atlas (`engine/particles/dust.webp`) from Kenney's CC0 Particle Pack (`sources/rally/kenney/`)

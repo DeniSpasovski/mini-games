@@ -691,19 +691,6 @@ export const trafficSignal: AssetBuilder = ({ lod }) => {
   };
 };
 
-/** Underpass wall light: back plate on the retaining wall face (z = 0), short bracket, box luminaire over the sidewalk (+Z). */
-export const wallLamp: AssetBuilder = ({ lod }) => {
-  const parts: BufferGeometry[] = [
-    box(0.3, 0.4, 0.06, 0, 3.6, 0.03, '#8f9599'),
-    box(0.06, 0.06, 0.5, 0, 3.7, 0.3, '#a9aeb2'),
-    box(0.5, 0.14, 0.32, 0, 3.66, 0.62, '#8f9599'),
-  ];
-  if (lod === 0) parts.push(box(0.42, 0.02, 0.24, 0, 3.585, 0.62, '#f4efd8'));
-  return {
-    parts: [{ geometry: merge(parts), material: getMaterial('props') }],
-  };
-};
-
 /** Maps a plane's UVs into the texture's top (v0 = 0.5) or bottom (v0 = 0) half. */
 function halfUv(g: BufferGeometry, v0: number): void {
   const uv = g.getAttribute('uv');

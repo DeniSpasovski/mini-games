@@ -6,6 +6,7 @@ import type { ScatterInstance } from '../../../world/scatter';
 import { ORIGIN, roadZ, SIDEWALK_BACK } from './frame';
 import { getLayout, MILEKS_CORNERS, ROTUNDA_DEPTH } from './layout';
 import { CYPRESS, px } from './trace';
+import { yardPropInstances } from './yard-props';
 
 /**
  * The start row's trees and shrubs: rally assets (`hedge_cypress` rows and hedges, `oak_tree`
@@ -141,5 +142,6 @@ export function startRowInstances(
       6,
     ),
   );
+  out.push(...yardPropInstances(ground));
   return out;
 }
