@@ -478,7 +478,11 @@ export class Environment {
     this.sunDir.setFromSphericalCoords(1, phi, theta);
     u.sunPosition.value.copy(this.sunDir);
     this.sky.visible = !this.night;
-    this.nightSky.visible = this.night;
+    // No stars or moon through a cloud deck, rain or fog.
+    const wl = this.weatherLook;
+    this.nightSky.visible =
+      this.night &&
+      !(wl.deck > 0 || wl.rain > 0 || wl.fog || (wl.clouds ?? 0) >= 1);
     this.nightSky.setMoon(this.sunDir);
     // Shadow camera axes (DirectionalLight looks at its target with up = +Y): x = up x dir, y = dir x x.
     this.lightRight.set(0, 1, 0).cross(this.sunDir).normalize();
@@ -488,9 +492,9 @@ export class Environment {
       // Moon: dim and blue; the headlights' own shadow map (game/headlights.ts) carries the scene, so the moon casts
       // shadows on high quality only. Cool sky fill, almost no ground bounce.
       this.sun.color.set(NIGHT.moonColor);
-      this.sun.intensity =
-        NIGHT.moonIntensity * Math.max(0.3, this.weatherLook.sun);
-      this.sun.castShadow = this.quality.name === 'high';
+      this.sun.intensity = NIGHT.moonIntensity * this.weatherLook.sun;
+      this.sun.castShadow =
+        this.quality.name === 'high' && this.sun.intensity > 0;
       this.hemi.color.set(NIGHT.hemiSky);
       this.hemi.groundColor.set(NIGHT.hemiGround);
       this.hemi.intensity = NIGHT.hemiIntensity;
@@ -501,7 +505,8 @@ export class Environment {
       else this.sun.color.setRGB(1, 0.93 - low * 0.2, 0.84 - low * 0.38);
       this.sun.intensity =
         (def.sunIntensity ?? 3.1 - low * 1.1) * this.weatherLook.sun;
-      this.sun.castShadow = true;
+      // Under a rain deck there is no sun or moon disc, only the grey sky's light (no glint on the wet road).
+      this.sun.castShadow = this.sun.intensity > 0;
 
       // Fill: cool sky light in the shadows, warm bounce from the map's ground.
       this.hemi.color.set(def.fillSky ?? '#9fb8e6');
@@ -573,12 +578,14 @@ export class Environment {
       sky.w = 0;
       return;
     }
-    // Lit from above: brighter than the haze, near white by day; dark blue-grey at night.
+    // Water droplets scatter all colours alike: white by day, lit from above and brighter than the haze (only a hint of
+    // the haze's tint, which made the fog read as smoke); dark blue-grey at night.
+    // Night fog is a grey veil (the little light about scatters in it), not black: black fog just looks like a clear night.
     const color = this.night
-      ? new Color(NIGHT.fogColor).multiplyScalar(1.6)
+      ? new Color(0.03, 0.032, 0.036)
       : (this.scene.fog?.color.clone() ?? new Color(0.6, 0.62, 0.64)).lerp(
-          new Color(0.78, 0.8, 0.82),
-          0.6,
+          new Color(0.9, 0.92, 0.94),
+          0.88,
         );
     setFogLayer(
       { top: this.stageBase + fog.top, visibility: fog.visibility },

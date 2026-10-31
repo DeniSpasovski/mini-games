@@ -588,7 +588,7 @@ export class RallyGame {
       // Under BEAM_MIN_NEED (daylight lights of rain / fog) only the two unshadowed low beams: the spill, the shadow
       // pass (~1 ms on high in every lit shader) and the beam in the air show nothing by day.
       const haze = Math.max(
-        w.fog ? 0.6 : 0,
+        w.fog ? 1 : 0,
         w.visibility ? Math.min(1, 600 / w.visibility) : 0,
       );
       this.headlights = new Headlights(

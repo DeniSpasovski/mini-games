@@ -3,7 +3,12 @@ import { airAtRise, type Climate } from '../../physics/tyre-temp';
 import { TIMES_OF_DAY, slotFor, type TimeOfDay } from '../../game/time-of-day';
 import type { Season } from '../../season';
 import { stageSeason } from './climate';
-import { weatherLook, weatherTemps, type Weather } from '../../weather';
+import {
+  relativeHumidity,
+  weatherLook,
+  weatherTemps,
+  type Weather,
+} from '../../weather';
 import type { StageInfo } from './types';
 
 /** What the temperatures need of a stage. */
@@ -63,8 +68,37 @@ export function stageTemps(
   const t =
     weather === 'dry'
       ? dry
-      : weatherTemps(dry, weatherLook(weather, stage.weather));
+      : weatherTemps(
+          dry,
+          weatherLook(weather, stage.weather),
+          DEW_POINT[season],
+        );
   return { air: airAtRise(t.air, rise), road: airAtRise(t.road, rise) };
+}
+
+/**
+ * Dew point (deg C) of the air in each season, the same all day (the humidity falls as the day warms): Skopje's monthly
+ * means (January ~0 deg C at ~80 %, April ~12 deg C at ~63 %, July ~24 deg C at ~50 %, October ~13 deg C at ~73 %).
+ */
+export const DEW_POINT: Readonly<Record<Season, number>> = {
+  spring: 5,
+  summer: 13,
+  autumn: 8,
+};
+
+/** Relative humidity (%) on a stage, as `stageTemps`: from the season's dew point, at least the weather's own. */
+export function stageHumidity(
+  stage: TempStage,
+  hour: number | undefined,
+  season: Season = stageSeason(stage),
+  rise = 0,
+  weather: Weather = 'dry',
+): number {
+  const t = stageTemps(stage, hour, season, rise, weather);
+  return Math.max(
+    weatherLook(weather, stage.weather).humidity,
+    relativeHumidity(t.air, DEW_POINT[season]),
+  );
 }
 
 /**
