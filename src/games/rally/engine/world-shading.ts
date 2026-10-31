@@ -489,8 +489,8 @@ float wsCanopyCover( vec2 xz ) {
 
 /**
  * Tree materials (TREE_FULL) look the far map up at their shadow lookup point, as the sun's map does (sprites: moved
- * out of their own crown towards the sun, trees/materials.ts `SELF_SHADOW`) - at the fragment itself a crown would
- * sit inside its own far-map proxy and go dark.
+ * out of their own crown towards the sun, trees/materials.ts `SPRITE_SHADOW_LOOKUP`) - at the fragment itself a crown
+ * would sit inside its own far-map proxy and go dark.
  */
 const TREE_SHADOW_WP_DECL = /* glsl */ `
 #if defined( TREE_FULL ) && defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0 && ! defined( WS_TREE_SHADOW_WP )
@@ -508,6 +508,12 @@ const SUN_TERMS = /* glsl */ `
 		directLight.color *= wsCloudShadow( wsWP );
 		// The sun before the shadow map and how much of it the map lets through (foliage: light through the leaves).
 		vec3 wsSunC = directLight.color;
+		float wsSelfT = 1.0;
+		#if defined( TREE_SPRITE ) && ! defined( TREE_SHADOW_PASS )
+			// Its own crown's shade (trees/materials.ts SPRITE_SHADOW_LOOKUP): the maps only add the other casters'.
+			wsSelfT = vTreeSelfT;
+			directLight.color *= wsSelfT;
+		#endif
 		float wsSunVis = 1.0;
 		float wsNearW = 0.0;
 		float wsFarIn = 1.0;
@@ -576,7 +582,7 @@ const FOLIAGE_TERM = /* glsl */ `
 				// In the crown's shadow a leaf still gets the sun through and off the leaves round it (a leaf passes ~10 %
 				// and reflects as much, green-yellow): more light again than the sky gives it, so a crown's underside is
 				// not black.
-				reflectedLight.directDiffuse += wsSunC * ( ( 1.0 - wsSunVis ) * 0.08 ) * material.diffuseColor * vec3( 1.0, 1.0, 0.3 );
+				reflectedLight.directDiffuse += wsSunC * ( ( 1.0 - wsSunVis * wsSelfT ) * 0.08 ) * material.diffuseColor * vec3( 1.0, 1.0, 0.3 );
 			#else
 				float wsBack = saturate( dot( - geometryViewDir, directLight.direction ) );
 				reflectedLight.directDiffuse += directLight.color * material.diffuseColor * ( float( RALLY_FOLIAGE ) * wsBack * wsBack * wsBack );

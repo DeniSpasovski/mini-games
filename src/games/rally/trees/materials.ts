@@ -216,6 +216,8 @@ attribute vec4 treeLod;
 #endif
 varying vec3 vSprRight;
 varying vec3 vSprUp;
+/** Share of the sun its own crown lets through to the sprite (SPRITE_SHADOW_LOOKUP). */
+varying float vTreeSelfT;
 ${TREE_SPRITE_AXES}
 #endif
 varying vec2 vTreeKeep;
@@ -329,10 +331,20 @@ const SPRITE_PROJECT = /* glsl */ `
 	#endif
 `;
 
-/** Share of the way out of its own crown (towards the sun) a sprite's shadow lookup moves: the rest is the crown's own shade. */
-const SELF_SHADOW = 0.45;
+/**
+ * Light through a sprite's own crown (Beer-Lambert, per metre of crown the sun crosses to reach it): ~0.5 m^2 of
+ * leaf per m^3 of crown, half of it facing the sun. A 3 m path keeps ~35 %, the heart of a big crown a few %.
+ */
+const CROWN_EXTINCTION = 0.35;
+/** The shadow lookup sits this far (m) past the crown's sunward surface: clear of its own shadow proxies. */
+const CROWN_EXIT = 0.6;
 
-/** Replaces worldpos_vertex for sprites: the shadow lookup point (see injectVertex). */
+/**
+ * Replaces worldpos_vertex for sprites: the shadow lookup point (see injectVertex) and the light through the sprite's
+ * own crown. The crown shades its own sprites smoothly by how deep they sit along the sun (`vTreeSelfT`), and the
+ * shadow maps are read just outside it, so they only add other crowns', the terrain's and buildings' shadows: the
+ * proxies' all-or-nothing holes never cut a crown into lit and dark patches.
+ */
 const SPRITE_SHADOW_LOOKUP = /* glsl */ `
 	vec3 tcC = ( modelMatrix * instanceMatrix * vec4( treeCrown.xyz, 1.0 ) ).xyz;
 	vec3 tcR = vec3( treeCrown.w, treeCrownY, treeCrown.w ) * tScale;
@@ -342,7 +354,8 @@ const SPRITE_SHADOW_LOOKUP = /* glsl */ `
 	float tcB = dot( tcQ, tcD );
 	float tcDisc = tcB * tcB - tcA * ( dot( tcQ, tcQ ) - 1.0 );
 	float tcOut = tcDisc > 0.0 ? max( ( - tcB + sqrt( tcDisc ) ) / tcA, 0.0 ) : 0.0;
-	vec4 worldPosition = vec4( sprWorld + wsSunDir * max( 0.35, ${SELF_SHADOW.toFixed(2)} * tcOut ), 1.0 );
+	vTreeSelfT = exp( - ${CROWN_EXTINCTION.toFixed(2)} * tcOut );
+	vec4 worldPosition = vec4( sprWorld + wsSunDir * ( tcOut + ${CROWN_EXIT.toFixed(2)} ), 1.0 );
 `;
 
 /**
@@ -372,6 +385,7 @@ uniform sampler2D tlSprNormal;
 uniform float tlDepthOnly;
 varying vec3 vSprRight;
 varying vec3 vSprUp;
+varying float vTreeSelfT;
 #endif
 uniform float tlDebug;
 uniform vec3 tlSky[ 9 ];
@@ -495,9 +509,7 @@ function injectVertex(
         '#include <project_vertex>',
         `${SPRITE_PROJECT}\n${VERTEX_COLLAPSE}`,
       )
-      // Shadow lookup lifted towards the sun: a sprite (facing the camera, often edge-on to the sun) does not
-      // shadow itself, and its crown's shadow proxy (trees/proxy.ts) does not swallow it: the lift is a share of
-      // the way out of the crown's ellipsoid towards the sun, so the inside still sits in some shade.
+      // Shadow lookup lifted out of its own crown towards the sun (the crown's own shade: `vTreeSelfT`).
       .replace('#include <worldpos_vertex>', SPRITE_SHADOW_LOOKUP);
   else if (project)
     shader.vertexShader = shader.vertexShader.replace(
