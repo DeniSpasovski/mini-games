@@ -19,6 +19,7 @@ import { LIGHTS_MIN_NEED } from '../engine/night';
 import { setHeadBeam, setLampGlow } from '../engine/night-glow';
 import { LampPools } from '../world/lamp-pools';
 import { PostFx, postFxFromUrl } from '../engine/post-fx';
+import { SunGlare } from '../engine/sun-glare';
 import type { QualitySettings } from '../engine/quality';
 import { bakeCropCards, setCropAntialias } from '../engine/crops';
 import { setVineAntialias } from '../engine/vines';
@@ -197,6 +198,10 @@ const MAX_FRAME = MAX_STEPS * STEP;
 const SCALE_VIEWPORT =
   typeof location === 'undefined' ||
   new URLSearchParams(location.search).get('scalevp') !== '0';
+/** Sun glare (medium and high); `?glare=0` to compare without. */
+const GLARE =
+  typeof location === 'undefined' ||
+  new URLSearchParams(location.search).get('glare') !== '0';
 
 export class RallyGame {
   readonly scene = new Scene();
@@ -219,6 +224,8 @@ export class RallyGame {
   /** High quality at night / dusk: glow around lamps and reflectors. */
   /** High quality post effects (bloom, AO); `__rally.post.set({ ... })` from the console. */
   post?: PostFx;
+  /** Glare towards the sun (medium and high, by day); `__rally.glare.enabled = false` from the console. */
+  glare?: SunGlare;
   private readonly lampColor = new Color();
   private lampPos = new Vector3();
   private lampDir = new Vector3();
@@ -568,6 +575,8 @@ export class RallyGame {
           this.opts.settings.ambientOcclusion,
         ),
       );
+    if (q.name !== 'low' && GLARE)
+      this.glare = new SunGlare(this.renderer, this.scene, this.camera);
     setLampGlow(this.env.lightNeed);
     if (this.env.lightNeed >= LIGHTS_MIN_NEED) {
       // Street lamps: light pools on the ground under the lamps (the lens glow is the `lamp_lens` material).
@@ -1657,6 +1666,15 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       gl.beginQuery(this.gpuTimer!.TIME_ELAPSED_EXT, q);
       this.gpuQueries.push(q);
     }
+    // Clear skies glare most; none at night or dusk.
+    this.glare?.update(
+      dt,
+      this.env.sunDir,
+      this.env.sun.color,
+      this.env.night || this.env.lightNeed >= LIGHTS_MIN_NEED
+        ? 0
+        : 1 - 0.7 * (this.env.def.cloudCoverage ?? 0.4),
+    );
     if (this.post?.active) this.post.render();
     else this.renderer.render(this.scene, this.camera);
     if (timed) gl.endQuery(this.gpuTimer!.TIME_ELAPSED_EXT);

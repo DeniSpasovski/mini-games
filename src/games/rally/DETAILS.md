@@ -133,6 +133,9 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   **Ambient occlusion** (default off). Bloom: the whole picture, no threshold, mixed back at a few percent, worked on an HDR
   estimate of the finished picture, so with it off the image is unchanged. AO: GTAO from the depth at half resolution.
   Test links: `?bloom=<mix>` (0 = off), `?ao=0|1`; console `__rally.post.set({ day: 0.04, ao: true })`.
+- **Sun glare (medium, high, by day):** `engine/sun-glare.ts`, a veiling glow round the sun and faint lens ghosts, as much
+  as the world leaves of the sun in view (occlusion queries on probe quads at the sun, eased: it flickers through a
+  crown); weaker under clouds (`cloudCoverage`). Drawn only while the sun is near the view. `?glare=0` / `__rally.glare.enabled`.
 - **Sky / tone mapping:** drifting clouds (`cloudCoverage`, `cloudSpeed`); ACES, or `toneMapping: 'agx' | 'neutral'` per map.
   `skyBrightness` dims the visible dome only (deeper blue; the env map keeps the full sky, so the world's light is unchanged).
   `fogColor: 'sky'` takes the hue of the sky just above the horizon (a tiny half-float cube of the env scene) at the
