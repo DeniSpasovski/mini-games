@@ -294,6 +294,7 @@ export class Environment {
     shadowCasterLayers(cam);
     s.shadow.bias = -0.0004;
     s.shadow.normalBias = 0.04;
+    s.shadow.radius = quality.shadowRadius;
     s.target = this.target;
     scene.add(s, this.target);
 
