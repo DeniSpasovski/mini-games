@@ -346,12 +346,13 @@ export const vodnoMap: MapDef = {
       tilt: 2,
       sink: 0.3,
     },
-    // Undergrowth: a thicket under the broadleaf, only the odd bush under the pines.
+    // Undergrowth: a thicket under the broadleaf, only the odd bush under the pines; the verges stay open (mown and
+    // cleared along the streets), so the shrubs keep a few metres off the road.
     {
       asset: 'thicket_shrub',
       cover: ['trees', 'oakwood'],
       density: 5,
-      minRoadDist: 2.2,
+      minRoadDist: 4,
       maxSlope: 0.85,
       scale: [0.8, 1.25],
       tilt: 3,
@@ -361,7 +362,7 @@ export const vodnoMap: MapDef = {
       asset: 'thicket_shrub',
       cover: ['pine', 'mixed'],
       density: 1.5,
-      minRoadDist: 2.2,
+      minRoadDist: 4,
       maxSlope: 0.85,
       scale: [0.8, 1.25],
       tilt: 3,
@@ -370,8 +371,8 @@ export const vodnoMap: MapDef = {
     {
       asset: 'bramble_shrub',
       cover: [...WOODS, 'trees', 'shrub'],
-      density: 4,
-      minRoadDist: 2,
+      density: 2.5,
+      minRoadDist: 5,
       maxSlope: 0.8,
       scale: [0.8, 1.3],
       tilt: 3,
@@ -381,7 +382,7 @@ export const vodnoMap: MapDef = {
       asset: 'juniper',
       cover: ['trees', 'oakwood', 'shrub'],
       density: 2,
-      minRoadDist: 2.5,
+      minRoadDist: 4,
       maxSlope: 0.8,
       scale: [0.7, 1.2],
       tilt: 3,
@@ -570,17 +571,21 @@ export const vodnoMap: MapDef = {
       scale: [0.9, 1.3],
       skipJunctions: 6,
     },
-    {
+    // (none on the retaining wall's terrace)
+    ...[
+      [0, WALL_RANGE[0] - 10],
+      [WALL_RANGE[1] + 10, START + 700],
+    ].map(([from, to]) => ({
       asset: 'bramble_shrub',
-      every: 10,
-      from: 0,
-      to: START + 700,
-      side: 'both',
-      offset: 2.4,
+      every: 30,
+      from,
+      to,
+      side: 'both' as const,
+      offset: 3.5,
       depth: 2,
-      scale: [0.8, 1.3],
+      scale: [0.8, 1.3] as [number, number],
       skipJunctions: 6,
-    },
+    })),
     // Crowds: the start, the hairpins above it, the Vidikovec junction, the finish at Sredno Vodno.
     {
       asset: 'spectator',
