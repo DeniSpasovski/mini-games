@@ -59,6 +59,8 @@ const DEFAULTS = {
   bounds: false,
   collider: false,
   turntable: false,
+  /** Trees: leaf sprites drawn (off: the wood alone, to see what the sprays hang on). */
+  leaves: true,
   repeat: 1,
   /** Trees: leaf colours of this season. */
   season: DEFAULT_SEASON as string,
@@ -198,6 +200,11 @@ vars.checkbox('Colliders', state.collider, (v) => {
 vars.checkbox('Turntable', state.turntable, (v) => {
   state.turntable = v;
   sync();
+});
+vars.checkbox('Leaves', state.leaves, (v) => {
+  state.leaves = v;
+  sync();
+  showLeaves();
 });
 
 shell.addCameraShare(shell.panel.section('Camera'), state, sync);
@@ -461,6 +468,7 @@ function showTree(type: string, reframe: boolean): void {
     trees = mine;
     holder.add(mine.group);
     mine.attachRenderer(shell.renderer);
+    showLeaves();
     const height = lv.info.height * mean;
     // (After the async load: a shared camera link, applied meanwhile, still wins.)
     if (reframe && !state.cam) {
@@ -500,6 +508,12 @@ function showTree(type: string, reframe: boolean): void {
       if (trees === mine) trees = null;
     };
   });
+}
+
+/** Leaf sprites on / off (the `Leaves` toggle). */
+function showLeaves(): void {
+  for (const part of ['near', 'prepass', 'far'] as const)
+    trees?.setPartVisible(part, state.leaves);
 }
 
 function wireCopy(m: Material): Material {

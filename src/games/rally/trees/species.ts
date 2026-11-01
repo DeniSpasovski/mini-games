@@ -446,11 +446,12 @@ function conifer(o: ConiferShape): SpeciesDef {
   let whorl = '';
   for (let j = 0; j < o.perWhorl; j++)
     whorl += `[&(${pitch}+rnd(-6,6))!!B(${len},0)]>(${turn.toFixed(1)}+rnd(-15,15))`;
-  // The bole in ~1 m pieces, a dead stub at each.
+  // The bole in ~1 m pieces, a dead stub at each (a short foot has none).
   let axiom = '!';
-  const pieces = Math.round(o.bole);
+  const pieces = o.bole > 0 ? Math.max(1, Math.round(o.bole)) : 0;
+  const stub = o.bole >= 1 ? '[&(rnd(70,95))!!!!!F(rnd(0.2,0.45))]' : '';
   for (let i = 0; i < pieces; i++)
-    axiom += `F(${(o.bole / pieces).toFixed(3)})[&(rnd(70,95))!!!!!F(rnd(0.2,0.45))]>(rnd(100,160))`;
+    axiom += `F(${(o.bole / pieces).toFixed(3)})${stub}>(rnd(100,160))`;
   axiom += `A(${o.step},0)`;
   const [s0, s1] = o.spray;
   const leaf = (g: number) => (g >= o.leafFrom ? 'L' : '');
@@ -463,13 +464,17 @@ function conifer(o: ConiferShape): SpeciesDef {
     },
     { pred: 'A(l,k)', cond: `k >= ${N}`, succ: 'F(l*0.8)L' },
   ];
+  // Side sprays are needle tufts off the limb (no wood of their own): the branch budget draws every limb's axis out to
+  // its needles instead of the first internodes of a thousand side shoots.
+  const spray = (g: number) =>
+    g + 2 >= o.leafFrom
+      ? `[+(rnd(${s0},${s1}))f(l*0.6)L][-(rnd(${s0},${s1}))f(l*0.6)L]`
+      : '';
   for (let g = 0; g < D; g++)
     rules.push({
       pred: 'B(l,o)',
       cond: `o == ${g}`,
-      succ:
-        `F(l)${leaf(g)}[+(rnd(${s0},${s1}))!B(l*0.6,o+2)][-(rnd(${s0},${s1}))!B(l*0.6,o+2)]` +
-        `>(rnd(-20,20))!B(l*0.82,o+1)`,
+      succ: `F(l)${leaf(g)}${spray(g)}>(rnd(-20,20))!B(l*0.82,o+1)`,
     });
   rules.push({ pred: 'B(l,o)', cond: `o >= ${D}`, succ: 'F(l*0.6)L' });
   return {
@@ -523,14 +528,15 @@ export const PINE = conifer({
   },
   foliage: {
     kind: 'needles',
-    spriteSize: 0.75,
+    spriteSize: 0.95,
     leaf: 'pine',
     palette: ['#4c5a44', '#525f45', '#465541', '#4b5c4a'],
   },
   scale: [0.95, 1.35],
   maxSprites: 400,
   maxBranchTriangles: 2500,
-  twigRadius: 0.02,
+  // Thin: the limbs the needles hang on show (the branch cap thickens it to fit).
+  twigRadius: 0.006,
   collisionRadius: 0.1,
   variants: 6,
 });
@@ -559,7 +565,8 @@ export const PLANTATION_PINE = conifer({
   scale: [1, 1.4],
   maxSprites: 200,
   maxBranchTriangles: 2000,
-  twigRadius: 0.02,
+  // Thin: the limbs the needles hang on show (the branch cap thickens it to fit).
+  twigRadius: 0.006,
   collisionRadius: 0.1,
   variants: 4,
 });
@@ -593,7 +600,8 @@ export const BLACK_PINE = conifer({
   scale: [0.9, 1.2],
   maxSprites: 400,
   maxBranchTriangles: 2000,
-  twigRadius: 0.02,
+  // Thin: the limbs the needles hang on show (the branch cap thickens it to fit).
+  twigRadius: 0.006,
   collisionRadius: 0.1,
   variants: 4,
 });
@@ -601,23 +609,25 @@ export const BLACK_PINE = conifer({
 /** Juniper: a dark, dense, narrow cone of short upswept limbs, needled to the ground, 2-3.5 m; drive-through. */
 export const JUNIPER = conifer({
   name: 'Juniper',
-  bole: 0,
+  // A short foot: the lowest sprays droop to the ground instead of sinking into it.
+  bole: 0.3,
   whorls: 16,
   step: 0.17,
   taper: 0.98,
   perWhorl: 3,
-  limb: 1.0,
+  limb: 1.25,
   shape: 'cone',
-  pitch: [32, 16],
+  pitch: [60, 22],
   spray: [25, 40],
   leafFrom: 0,
+  // Barely upturned: the low limbs keep low, so the cone is widest at the foot.
   tropism: [0, 1, 0],
-  tropismStrength: 0.1,
+  tropismStrength: 0.02,
   baseRadius: 0.07,
   bark: { color: '#706055', texture: 'furrowed', scan: 'cedar', tiling: 1.5 },
   foliage: {
     kind: 'needles',
-    spriteSize: 0.4,
+    spriteSize: 0.3,
     leaf: 'pine',
     palette: ['#535c51', '#5a6153', '#4d564e', '#525f58'],
   },
@@ -1079,27 +1089,40 @@ export const BROOM = shrub({
   variants: 4,
 });
 
+/** A cypress limb: three generations of forks, a frond on every shoot (and halfway along the long inner ones). */
+const CYPRESS_LIMBS = [
+  {
+    pred: 'B(l,o)',
+    cond: 'o < 2',
+    succ: 'F(l*0.5)LF(l*0.5)L[+(rnd(15,25))!B(l*0.6,o+1)][-(rnd(15,25))!B(l*0.55,o+1)]!B(l*0.7,o+1)',
+  },
+  {
+    pred: 'B(l,o)',
+    cond: 'o == 2',
+    succ: 'F(l)L[+(rnd(15,25))!B(l*0.6,o+1)][-(rnd(15,25))!B(l*0.55,o+1)]!B(l*0.7,o+1)',
+  },
+  { pred: 'B(l,o)', cond: 'o >= 3', succ: 'F(l*0.5)L' },
+];
+
 /** Mediterranean cypress: a tall, dark, narrow column of short limbs close to the stem (churchyards, slopes), 8-12 m. */
 export const CYPRESS: SpeciesDef = {
   name: 'Cypress',
-  // The poplar's leader with a short limb per step at the golden angle, dark needles and a shorter, fuller column.
-  axiom: '!F(0.8)A(0.7,0)',
+  // The poplar's leader with two short limbs per step at the golden angle (a full column, no gaps), dark needles. The
+  // fronds hang on the limbs only (none on the leader), each about as long as the limb end it grows from.
+  axiom: '!F(0.5)A(0.7,0)',
   rules: [
     {
       pred: 'A(l,k)',
       cond: 'k < 14',
-      succ: 'F(l)L[&(rnd(14,24))!!!B(rnd(0.5,0.85)*(1.05-k*0.045),0)]>(137.5)A(l*0.985,k+1)',
+      succ:
+        'F(l)[&(rnd(14,24))!!!B(rnd(0.5,0.85)*(1.05-k*0.045),0)]>(137.5)' +
+        '[&(rnd(14,24))!!!B(rnd(0.45,0.8)*(1.05-k*0.045),0)]>(137.5)A(l*0.985,k+1)',
     },
     { pred: 'A(l,k)', cond: 'k >= 14', succ: 'F(l*0.7)L' },
-    {
-      pred: 'B(l,o)',
-      cond: 'o < 2',
-      succ: 'F(l)L[+(rnd(15,25))!B(l*0.6,o+1)][-(rnd(15,25))!B(l*0.55,o+1)]!B(l*0.7,o+1)',
-    },
-    { pred: 'B(l,o)', cond: 'o >= 2', succ: 'F(l*0.5)L' },
+    ...CYPRESS_LIMBS,
   ],
-  iterations: 16,
-  segmentCap: 1400,
+  iterations: 19,
+  segmentCap: 1600,
   angle: 22,
   lengthScale: 1,
   baseRadius: 0.22,
@@ -1109,14 +1132,15 @@ export const CYPRESS: SpeciesDef = {
   bark: { color: '#76675d', texture: 'furrowed', scan: 'cedar', tiling: 1.2 },
   foliage: {
     kind: 'needles',
-    spriteSize: 0.95,
+    spriteSize: 0.5,
     leaf: 'juniper',
     palette: ['#404e3a', '#46533b', '#3b4a38', '#40513f'],
   },
   scale: [0.85, 1.25],
-  twigRadius: 0.025,
+  // Thin: the limbs the fronds hang on show between them.
+  twigRadius: 0.008,
   maxBranchTriangles: 4000,
-  maxSprites: 400,
+  maxSprites: 600,
   // The trunk alone: its many short limbs stay out of the physics.
   collisionRadius: 0.14,
   variants: 4,
@@ -1126,34 +1150,30 @@ export const CYPRESS: SpeciesDef = {
 export const HEDGE_CYPRESS: SpeciesDef = {
   ...CYPRESS,
   name: 'Hedge cypress',
-  // The cypress leader with two limbs per step (a full column, no gaps), longer low down (a cone, not a spire) and
-  // close to the stem higher up.
+  // The cypress leader, its limbs longer and spreading wider low down (a cone on a broad base, not a spire) and close
+  // to the stem higher up.
   axiom: '!F(0.4)A(0.43,0)',
   rules: [
     {
       pred: 'A(l,k)',
       cond: 'k < 14',
       succ:
-        'F(l)L[&(rnd(16,26))!!!B(rnd(0.55,0.8)*(1.1-k*0.055),0)]>(137.5)' +
-        '[&(rnd(18,28))!!!B(rnd(0.5,0.75)*(1.1-k*0.055),0)]>(137.5)A(l*0.985,k+1)',
+        'F(l)[&(rnd(40,52)-k*2)!!!B(rnd(0.55,0.8)*(1.3-k*0.07),0)]>(137.5)' +
+        '[&(rnd(42,54)-k*2)!!!B(rnd(0.5,0.75)*(1.3-k*0.07),0)]>(137.5)A(l*0.985,k+1)',
     },
     { pred: 'A(l,k)', cond: 'k >= 14', succ: 'F(l*0.7)L' },
-    {
-      pred: 'B(l,o)',
-      cond: 'o < 2',
-      succ: 'F(l)L[+(rnd(15,25))!B(l*0.6,o+1)][-(rnd(15,25))!B(l*0.55,o+1)]!B(l*0.7,o+1)',
-    },
-    { pred: 'B(l,o)', cond: 'o >= 2', succ: 'F(l*0.5)L' },
+    ...CYPRESS_LIMBS,
   ],
   baseRadius: 0.16,
   foliage: {
     kind: 'needles',
-    spriteSize: 1.05,
+    spriteSize: 0.5,
     leaf: 'juniper',
     palette: ['#46583a', '#4c5d3b', '#415238', '#465a3f'],
   },
   scale: [0.8, 1.15],
   maxBranchTriangles: 3000,
+  maxSprites: 600,
   collisionRadius: 0.12,
 };
 

@@ -12,7 +12,7 @@ sim-lite physics that is still fun on a keyboard.
 | Game        | `/games/rally/`                                                    | welcome -> select stage -> select car -> (set-up) -> drive                                                                                                                                            |
 | Map viewer  | `/games/rally/map-viewer.html?map=test&stage=test&grid=1&splat=1`  | a map with one of its stages (`stage=`, default the first; a stage picker lists them) in a season (`season=`, the Season picker), click terrain to inspect, "Drive from here", lat / lon on real maps |
 | Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`              | livery seed, door plate, pose, physics hull, torque chart, test drive, time of day + lights (`tod=1&lamps=brake`)                                                                                     |
-| Asset debug | `/games/rally/asset-debug.html?asset=tree:pine_tree&season=autumn` | every asset / car (`car:<id>`) / texture (`tex:<id>`) / tree type (`tree:<type>`: the game's tree renderer under the viewer's sun; `variant`, `grid`, `season`, F6 debug views): seed, variant, LOD   |
+| Asset debug | `/games/rally/asset-debug.html?asset=tree:pine_tree&season=autumn` | every asset / car (`car:<id>`) / texture (`tex:<id>`) / tree type (`tree:<type>`: the game's tree renderer under the viewer's sun; `variant`, `grid`, `season`, `leaves=0` the wood alone, F6 debug views): seed, variant, LOD   |
 
 Tool pages are dev-server only and keep their state in the URL; `H` hides the panel, `F3` shows stats, "Copy camera link"
 gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.

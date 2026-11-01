@@ -22,9 +22,9 @@ A species is a data definition that the tree code reads, so adding or tuning a k
 Most species come from a family builder in trees/species.ts that writes the grammar from a few shape numbers, so a new or retuned species changes numbers, not rules:
 
 - `shrub`: stems rising from a stool (count, stool radius), upright and longest in the centre, leaning out at the rim, so the bush is a dome whose rim reaches the ground; a leaf cluster on every internode; `arch` bows the stems over (bramble canes), `crook` bends them.
-- `conifer`: a bare bole with dead stubs, then whorls of limbs whose length follows a crown shape (cone, umbrella, column) and whose angle rises up the crown; needles only on the outer limb generations (`leafFrom`), so the whorls read as layers.
+- `conifer`: a bare bole with dead stubs, then whorls of limbs whose length follows a crown shape (cone, umbrella, column) and whose angle rises up the crown; needles only on the outer limb generations (`leafFrom`), so the whorls read as layers. Side sprays are needle tufts on the limb with no wood of their own, so the branch budget draws every limb's axis out to its needles.
 - `broadleaf`: a bole with two low limbs forking into three leaders that bifurcate; `crook` bends the limbs, `leafFrom` leaves the inner limbs bare (a crown in clumps with limbs showing), `stems` grows a coppice from one stool.
-- Poplar, cypress, hedge cypress, birch, sapling and willow keep rules of their own.
+- Poplar, cypress, hedge cypress, birch, sapling and willow keep rules of their own. The cypresses hang their fronds on the limbs only (none on the leader) and keep the limbs thin enough to draw, so every frond grows from wood.
 
 ## Types
 
@@ -32,7 +32,7 @@ Most species come from a family builder in trees/species.ts that writes the gram
 - pine_tree is a pine, a Scots or spruce style conifer: one straight leader, whorls of drooping limbs, a layered cone of needle sprays.
 - plantation_pine is a plantation pine: the pine's cone grown cheaper for dense stands, four limbs to a whorl and about half the sprites, each larger.
 - black_pine is a black pine, an Austrian black pine: a long straight trunk bare but for dead stubs, under a flat umbrella of dark needle clumps.
-- juniper is a juniper, a dark narrow cone of short upswept needled limbs, 2 to 3.5 m, drive-through.
+- juniper is a juniper, a dark dense cone of spreading needled limbs, widest near the foot and needled almost to the ground, 2 to 3.5 m, drive-through.
 - oak_tree is an oak, a broad irregular field tree with a forking trunk and a rounded crown.
 - beech_tree is a mountain beech: a tall straight smooth pale-grey trunk under a dense rounded crown.
 - walnut_tree is a walnut, a big yard tree: a thick short trunk under a dense, dark, round crown wider than it is tall.

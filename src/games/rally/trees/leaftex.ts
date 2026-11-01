@@ -489,11 +489,12 @@ export function spriteAtlas(style: LeafStyle): SpriteAtlas {
         );
       }
     } else if (style === 'juniper') {
-      // A drooping frond: a stem along the arc with branchlets alternating left and right (longest near the base, swept
-      // towards the tip), each a feathery chain of scale leaves; a second, shorter frond sometimes forks off.
+      // A curling frond: a stem along the arc with branchlets alternating left and right (longest near the base, swept
+      // towards the tip), each a feathery chain of scale leaves; a second, shorter frond sometimes forks off. Half the
+      // images curl each way: the sprite turns the image to its heading, so one-way curls would lean a column's crown.
       const half = SPRAY_HALF * K;
       const sag = (r(900) - 0.5) * 2 * SPRAY_SAG * half;
-      const droop = (r(901) + 0.2) * 0.32 * half;
+      const droop = (img % 2 ? -1 : 1) * (r(901) + 0.2) * 0.32 * half;
       const main: Arc = (t) => [
         c - half + 2 * half * t,
         c + sag * (1 - (2 * t - 1) ** 2) + droop * t * t,
