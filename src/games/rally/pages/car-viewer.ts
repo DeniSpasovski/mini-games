@@ -831,4 +831,9 @@ if (spot.surface)
   get wheels() {
     return wheelDebug?.report();
   },
+  /** `lamps=` without a reload (batch shots): off | on | brake | reverse | reverse+brake. */
+  setLamps(mode: string) {
+    state.lamps = LAMP_MODES.some((m) => m.value === mode) ? mode : 'on';
+    applyLamps();
+  },
 };
