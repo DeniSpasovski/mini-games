@@ -112,7 +112,7 @@ describe('trees', () => {
   );
 
   test.each(SPECIES.map((s) => [s.name, s] as const))(
-    '%s: LOD1 is the trunk and first-order limbs of LOD0; one sprite per leaf point (capped)',
+    '%s: LOD1 is the trunk and first-order limbs of LOD0; two crossed cards per leaf point (a pine burst one; capped)',
     (_n, def: SpeciesDef) => {
       const sk = buildSkeleton(derive(def, variantSeed(def, 3)), def);
       const { meshes } = generateVariant(def, 3);
@@ -124,7 +124,8 @@ describe('trees', () => {
       );
       expect(s1).toBeGreaterThan(0);
       expect(meshes.sprites.count).toBe(
-        Math.min(sk.leaves.length, def.maxSprites),
+        Math.min(sk.leaves.length, def.maxSprites) *
+          (def.foliage.leaf === 'pine' ? 1 : 2),
       );
       expect(meshes.sprites.count).toBeGreaterThan(30);
     },
@@ -434,7 +435,10 @@ describe('tree performance rules (trees/Performance.md#mitigations)', () => {
         expect(m.levels[0].index.length / 3).toBeLessThanOrEqual(
           def.maxBranchTriangles,
         );
-        expect(m.sprites.count).toBeLessThanOrEqual(def.maxSprites);
+        // (a leafy spray is two crossed cards, a pine burst one)
+        expect(m.sprites.count).toBeLessThanOrEqual(
+          def.maxSprites * (def.foliage.leaf === 'pine' ? 1 : 2),
+        );
       }
     },
   );
