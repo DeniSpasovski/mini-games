@@ -11,8 +11,8 @@ so a colour per part keeps the look; a Poly Haven model has one baked atlas, so 
 its UVs instead), joined, decimated to the triangle budgets in ASSETS, smoothed by angle and packed:
 Y up, origin centred on the footprint at ground level, front along +Z (ASSETS `turn`).
 
-Packed mesh (little endian, base64): u16 vertex count, u16 0, then per vertex i16 x3 position (/ 8192 m), i8 x3
-normal, u8 x3 colour (sRGB), then u16 indices.
+Packed mesh (little endian, base64): u16 vertex count, u16 shift k, then per vertex i16 x3 position (/ (8192 >> k) m:
+k = 0 up to 4 m from the origin, more for a taller model), i8 x3 normal, u8 x3 colour (sRGB), then u16 indices.
 """
 
 import base64
@@ -25,8 +25,12 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
-# group -> name -> (folder, triangle budget per level, turn about the vertical (deg) so the front faces +Z[, materials
-# whose name contains one of these are left out: printed labels, which a colour per part turns into blobs]).
+# group -> name -> (folder, triangle budget per level, turn about the vertical (deg) so the front faces +Z[, options]).
+# Options: a tuple = `drop`, or a dict of
+#   drop: materials whose name contains one of these are left out (printed labels, which a colour per part turns into blobs);
+#   keep: the only objects used (a kit: pick its pieces by name);
+#   place: {object or "*": (dx, dy, dz, sx, sy, sz)} moved by d, then scaled about the origin (assembles kit pieces);
+#   copy: {new name: (object, (dx, dy, dz, sx, sy, sz))} a second placed copy of a kit piece (a negative scale mirrors it).
 ASSETS = {
     "service": {
         "tool_chest": ("equipment_rolling_tool_chest_cabinet_combo_d01", [8000, 1500], -90),
@@ -37,12 +41,59 @@ ASSETS = {
         "table_chairs": ("../polyhaven/outdoor_table_chair_set_01", [3500, 700], 0),
         "generator": ("../polyhaven/portable_generator", [4000, 800], 0),
         "wall_lamp": ("../polyhaven/industrial_wall_lamp", [1200, 300], 0),
+        # 10 m wooden pole (the kit's 7 m pole stretched, 22 cm thick) with a steel cross arm: three insulators each way
+        # along the line with their jumpers; the arm runs along Z after the turn.
+        "power_pole": (
+            "../polyhaven/modular_electricity_poles",
+            [2500, 400],
+            90,
+            {
+                "keep": ["pole_large", "connection_large_01"],
+                "place": {
+                    "pole_large": (-5.7, 0, 0, 1.6, 1.6, 10 / 7),
+                    "connection_large_01": (-2.7, 0, 1.0, 1.6, 1.6, 1.6),
+                },
+            },
+        ),
+        "jerrycan": ("../polyhaven/metal_jerrycan_green", [800, 160], 0),
+        "jack_stand": ("vehicleSupport_jack_stand_b01", [800, 160], 0),
+        "pail": ("pail_plastic_red_a02", [600, 120], 0),
+        "tyre_rack_b": ("storage_tire_rack_b01", [1500, 300], 0),
         "tripod_light": ("lighting_taskLight_tripodFlood_a01", [5000, 900], -90),
         "extinguisher_stand": ("fireExtinguisher_stand_a01", [1500, 300], 0, ("paper",)),
         "wheelbarrow": ("construction_wheelbarrow_metal_a01", [3000, 600], 180),
         "hand_truck": ("handTruck_convertible_steel_red_a01", [3500, 700], 0),
         "step_ladder": ("ladder_step_aluminium_a06", [1800, 400], 0),
         "wheelie_bin": ("trashCan_wheeled_green_a01", [2500, 500], 0),
+    },
+    "village": {
+        "utility_box": ("../polyhaven/utility_box_01", [1500, 300], 0),
+        "utility_box_wide": ("../polyhaven/utility_box_02", [2000, 400], 0),
+        "bin": (
+            "../polyhaven/metal_trash_can",
+            [1500, 300],
+            0,
+            {"keep": ["metal_trash_can", "metal_trash_can_handle_left", "metal_trash_can_handle_right", "metal_trash_can_lid"]},
+        ),
+        "bench": (
+            "../polyhaven/modular_street_seating",
+            [2000, 400],
+            0,
+            # The kit ships its pieces apart: the end leg and arm rest move in under the seat's left end (the leg below the
+            # back upright, the arm rest down onto the leg), then a mirrored copy of both closes the right end.
+            {
+                "keep": [
+                    "seat", "seat_back", "back_support_l", "back_support_r", "arm_rest_01", "legs_single", "crossbar",
+                    "suspended_support_01",
+                ],
+                "place": {"legs_single": (0.18, 0, 0, 1, 1, 1), "arm_rest_01": (0.2, 0, -0.1, 1, 1, 1)},
+                "copy": {
+                    "legs_single_r": ("legs_single", (2.5, 0, 0, -1, 1, 1)),
+                    "arm_rest_r": ("arm_rest_01", (2.52, 0, -0.1, -1, 1, 1)),
+                },
+            },
+        ),
+        "picnic_table": ("../polyhaven/wooden_picnic_table", [2500, 500], 90),
     },
     "yard": {
         "pallet_euro": ("pallet_a01", [2500, 500], 0),
@@ -119,7 +170,9 @@ def to_srgb(v):
     return 12.92 * v if v <= 0.0031308 else 1.055 * (v ** (1 / 2.4)) - 0.055
 
 
-def bake(name, folder, budgets, turn, drop=()):
+def bake(name, folder, budgets, turn, opts=()):
+    opts = opts if isinstance(opts, dict) else {"drop": opts}
+    drop = opts.get("drop", ())
     bpy.ops.wm.read_factory_settings(use_empty=True)
     base = os.path.normpath(os.path.join(src, folder))
     gltf = [f for f in os.listdir(base) if f.endswith(".gltf")]
@@ -135,9 +188,28 @@ def bake(name, folder, budgets, turn, drop=()):
             o.select_set(True)
     bpy.ops.object.duplicates_make_real()
     meshes = [o for o in bpy.context.scene.objects if o.type == "MESH" and o.visible_get()]
+    if "keep" in opts:
+        for o in [o for o in meshes if o.name not in opts["keep"]]:
+            meshes.remove(o)
+            bpy.data.objects.remove(o)
     for o in meshes:
         if o.data.users > 1:
             o.data = o.data.copy()
+    for new, (of, p) in opts.get("copy", {}).items():
+        o = next(m for m in meshes if m.name == of).copy()
+        o.data = o.data.copy()
+        o.name = new
+        bpy.context.collection.objects.link(o)
+        m = Matrix.Diagonal((*p[3:], 1)) @ Matrix.Translation(p[:3]) @ o.matrix_world
+        o.data.transform(m)
+        if m.determinant() < 0:
+            o.data.flip_normals()
+        o.matrix_world = Matrix.Identity(4)
+        meshes.append(o)
+    for o in meshes:
+        p = opts.get("place", {}).get(o.name) or opts.get("place", {}).get("*")
+        if p:
+            o.matrix_world = Matrix.Diagonal((*p[3:], 1)) @ Matrix.Translation(p[:3]) @ o.matrix_world
     for o in list(meshes):
         gone = {i for i, s in enumerate(o.material_slots) if s.material and any(d in s.material.name.lower() for d in drop)}
         if not gone:
@@ -250,6 +322,11 @@ def pack(me):
     col = me.color_attributes["col"]
     normals = me.corner_normals
     verts, index, out = {}, [], []
+    reach = max(abs(c) for v in me.vertices for c in v.co)
+    shift = 0
+    while reach * (SCALE >> shift) > 32767:
+        shift += 1
+    scale = SCALE >> shift
     for tri in me.loop_triangles:
         for li in tri.loops:
             v = me.vertices[me.loops[li].vertex_index].co
@@ -257,7 +334,7 @@ def pack(me):
             c = col.data[li].color_srgb
             # Blender (x, y, z) -> three (x, z, -y).
             key = (
-                round(v.x * SCALE), round(v.z * SCALE), round(-v.y * SCALE),
+                round(v.x * scale), round(v.z * scale), round(-v.y * scale),
                 round(n.x * 127), round(n.z * 127), round(-n.y * 127),
                 round(c[0] * 255), round(c[1] * 255), round(c[2] * 255),
             )
@@ -265,7 +342,7 @@ def pack(me):
                 verts[key] = len(out)
                 out.append(key)
             index.append(verts[key])
-    buf = bytearray(struct.pack("<HH", len(out), 0))
+    buf = bytearray(struct.pack("<HH", len(out), shift))
     for k in out:
         buf += struct.pack("<hhhbbbBBB", *k)
     buf += struct.pack(f"<{len(index)}H", *index)
@@ -274,7 +351,7 @@ def pack(me):
 
 assets = [bake(n, *spec) for n, spec in ASSETS[group].items()]
 ts = [
-    '// Generated by scripts/props/bake-simready.py from NVIDIA SimReady Assets (CC BY 4.0). Do not edit.',
+    '// Generated by scripts/props/bake-simready.py from NVIDIA SimReady Assets (CC BY 4.0) and Poly Haven models (CC0). Do not edit.',
     'export interface SimreadyModelData {',
     '  /** Bounding size (m): width (x), height (y), depth (z). */',
     '  size: [number, number, number];',
