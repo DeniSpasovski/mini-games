@@ -29,8 +29,8 @@ Most species come from a family builder in trees/species.ts that writes the gram
 ## Types
 
 - The maps place trees by the tree type ids of the old catalog, and each type grows as a species built to match the map data's description of it. A pine looks like a pine, a poplar like a poplar.
-- pine_tree is a pine, a Scots or spruce style conifer: one straight leader, whorls of drooping limbs, a layered cone of needle sprays.
-- plantation_pine is a plantation pine: the pine's cone grown cheaper for dense stands, four limbs to a whorl and about half the sprites, each larger.
+- pine_tree is a pine, a Scots or spruce style conifer: one straight leader, whorls of drooping limbs, a layered cone of needle sprays down to a short foot.
+- plantation_pine is a plantation pine: the pine's cone grown cheaper for dense stands, four limbs to a whorl and about half the sprites, each larger; a full cone like the young planted hillside stands.
 - black_pine is a black pine, an Austrian black pine: a long straight trunk bare but for dead stubs, under a flat umbrella of dark needle clumps.
 - juniper is a juniper, a dark dense cone of spreading needled limbs, widest near the foot and needled almost to the ground, 2 to 3.5 m, drive-through.
 - oak_tree is an oak, a broad irregular field tree with a forking trunk and a rounded crown.

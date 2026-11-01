@@ -503,11 +503,11 @@ function conifer(o: ConiferShape): SpeciesDef {
 /** Broadleaf summer crowns: sun leaves outside, shade leaves inside, trees a little apart (`foliage.turn`). */
 const SUMMER_TURN = { turn: 0.25, stages: 0.15 };
 
-/** Scots pine / spruce: the forest backbone, a straight leader and layered whorls of level limbs over a cleared foot. */
+/** Scots pine / spruce: the forest backbone, a straight leader and layered whorls of level limbs down to the foot. */
 export const PINE = conifer({
   name: 'Pine',
-  bole: 2.5,
-  whorls: 10,
+  bole: 0.6,
+  whorls: 12,
   step: 0.95,
   taper: 0.97,
   perWhorl: 5,
@@ -515,7 +515,7 @@ export const PINE = conifer({
   shape: 'cone',
   pitch: [88, 62],
   spray: [38, 55],
-  leafFrom: 2,
+  leafFrom: 1,
   tropism: [0, -1, 0],
   tropismStrength: 0.12,
   baseRadius: 0.22,
@@ -543,20 +543,21 @@ export const PINE = conifer({
 
 /**
  * Plantation pine: the pine's cone for the dense stands of a mountain forest, grown cheaper: four limbs to a whorl
- * and half the sprites, each larger (a pine stand costs about a third of the GPU time per tree); a longer cleared foot.
+ * and half the sprites, each larger (a pine stand costs about a third of the GPU time per tree); a full cone on
+ * a short foot, like the planted hillside stands.
  */
 export const PLANTATION_PINE = conifer({
   name: 'Plantation pine',
-  bole: 4,
-  whorls: 9,
+  bole: 1,
+  whorls: 12,
   step: 0.95,
   taper: 0.97,
   perWhorl: 4,
-  limb: 2.5,
+  limb: 2.7,
   shape: 'cone',
   pitch: [88, 62],
   spray: [38, 55],
-  leafFrom: 2,
+  leafFrom: 1,
   tropism: [0, -1, 0],
   tropismStrength: 0.12,
   baseRadius: 0.22,
@@ -577,8 +578,8 @@ export const PLANTATION_PINE = conifer({
  */
 export const BLACK_PINE = conifer({
   name: 'Black pine',
-  bole: 7,
-  whorls: 6,
+  bole: 4.5,
+  whorls: 8,
   step: 0.55,
   taper: 0.95,
   perWhorl: 5,
