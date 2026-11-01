@@ -13,7 +13,8 @@ import { STREET_CAR_MIX } from '../assets/builders/vehicles';
 /**
  * City dressing placed from the road network (MapDef.streetDressing): parked cars along the kerbs of
  * the streets near the stage road, spectators on the overpasses and behind the closed junction mouths,
- * police cars and fire trucks at the junctions. Deterministic (seeded from the map), pure (no scene).
+ * police cars and fire trucks at the junctions, village street furniture along the stage road.
+ * Deterministic (seeded from the map), pure (no scene).
  *
  * Models face +X: to point a vehicle along (dx, dz) its yaw is `-atan2(dz, dx)` (three.js maps local
  * +X to (cos t, -sin t)); spectators face +Z: yaw `atan2(dx, dz)`.
@@ -577,5 +578,68 @@ export function streetDressingInstances(
       }
     }
   });
+  // --- village street furniture along the stage road ---------------------------------------------
+  const vq = newPathQuery();
+  const vrq = newRoadQuery();
+  (rule.village ?? []).forEach((v, vi) => {
+    const rng = new Rng(hash3(vi, 41, 7, ctx.seed));
+    const every = v.every ?? 50;
+    const offset = v.offset ?? 2.6;
+    for (
+      let a = v.from + rng.range(0, every);
+      a < v.to;
+      a += every * rng.range(0.7, 1.3)
+    ) {
+      const side = rng.chance(0.5) ? 1 : -1;
+      const roll = rng.next();
+      // Pieces: asset, variant, metres along the road from `a`, extra metres back from the edge, footprint radius.
+      const pieces: [string, number, number, number, number][] =
+        roll < 0.4
+          ? [
+              ['bench', 0, 0, 0, 1.3],
+              ['street_bin', 0, rng.chance(0.5) ? 1.8 : -1.8, -0.1, 0.4],
+            ]
+          : roll < 0.7
+            ? [['utility_box', rng.int(0, 1), 0, -0.2, 0.6]]
+            : roll < 0.88
+              ? [['street_bin', 0, 0, -0.2, 0.4]]
+              : [['picnic_table', 0, 0, 1.2, 1.7]];
+      if (
+        road.bridgeAt(a) ||
+        ctx.junctions.some(
+          (j) => j.side === side && Math.abs(j.along - a) < j.width / 2 + 6,
+        )
+      )
+        continue;
+      const spots = pieces.map(([asset, variant, da, back, r]) => {
+        const p = road.at(a + da);
+        // left = (tz, -tx)
+        const lat = side * (p.halfWidth + offset + back);
+        const x = p.x + p.tz * lat;
+        const z = p.z - p.tx * lat;
+        return { asset, variant, x, z, r, yaw: yawToward(p.x - x, p.z - z) };
+      });
+      const clear = spots.every(({ x, z, r }) => {
+        if (ctx.blocked(x, z, r)) return false;
+        road.query(x, z, vrq);
+        if (vrq.found && vrq.distance < vrq.halfWidth + r + 0.5) return false;
+        if (net) {
+          net.query(x, z, vq);
+          if (vq.found && vq.distance < vq.halfWidth + r + 0.3) return false;
+        }
+        // Level enough to stand on (village gardens on a hillside are terraced, not dressed).
+        const hs = [
+          [r, 0],
+          [-r, 0],
+          [0, r],
+          [0, -r],
+        ].map(([dx, dz]) => ctx.height(x + dx, z + dz));
+        return Math.max(...hs) - Math.min(...hs) < 0.25 + 0.2 * r;
+      });
+      if (!clear) continue;
+      for (const s of spots) place(s.asset, s.variant, s.x, s.z, s.yaw);
+    }
+  });
+
   return out;
 }

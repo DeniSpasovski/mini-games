@@ -988,6 +988,13 @@ export interface StreetDressing {
     /** Share of junctions (>= 5 m) with an ambulance. */
     ambulance?: number;
   };
+  /**
+   * Village street furniture beside the stage road between `from` and `to` (m along): a bench with a dustbin, a
+   * utility cabinet, a dustbin alone or now and then a picnic table, one about every `every` m (default 50) on a
+   * random side, `offset` m past the road edge (default 2.6). Not at side-road mouths, on bridges, on other roads,
+   * by buildings or on steep ground. Needs the map's `village` model group (maps/index.ts).
+   */
+  village?: { from: number; to: number; every?: number; offset?: number }[];
 }
 
 /**

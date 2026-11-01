@@ -27,6 +27,8 @@ const SIMREADY_MODELS: Record<string, SimreadyModelData> = {
 const GROUPS = {
   park: async () => (await import('./simready-park.data')).SIMREADY_PARK,
   yard: async () => (await import('./simready-yard.data')).SIMREADY_YARD,
+  village: async () =>
+    (await import('./simready-village.data')).SIMREADY_VILLAGE,
 };
 export type SimreadyGroup = keyof typeof GROUPS;
 const loadedGroups = new Map<SimreadyGroup, Promise<void>>();
@@ -72,6 +74,8 @@ function model(name: string, lod: number): BufferGeometry {
   );
   const dv = new DataView(bin.buffer);
   const n = dv.getUint16(0, true);
+  // Position unit: 1 / 8192 m, halved per shift step (models reaching past 4 m from the origin).
+  const unit = 8192 >> dv.getUint16(2, true);
   const pos = new Float32Array(n * 3);
   const nor = new Float32Array(n * 3);
   const col = new Float32Array(n * 3);
@@ -80,7 +84,7 @@ function model(name: string, lod: number): BufferGeometry {
   let o = 4;
   for (let i = 0; i < n; i++) {
     for (let c = 0; c < 3; c++)
-      pos[i * 3 + c] = dv.getInt16(o + c * 2, true) / 8192;
+      pos[i * 3 + c] = dv.getInt16(o + c * 2, true) / unit;
     o += 6;
     for (let c = 0; c < 3; c++) nor[i * 3 + c] = dv.getInt8(o + c) / 127;
     o += 3;
@@ -235,6 +239,61 @@ export const wallLamp: AssetBuilder = ({ lod }) => {
   const [, h, d] = modelSize('wall_lamp');
   return finish([model('wall_lamp', lod).translate(0, 3.6 - h / 2, d / 2)]);
 };
+
+/**
+ * Wooden distribution pole, 10 m, with a steel cross arm along Z and three insulators each way along the line, jumpers
+ * between them (Poly Haven kit, CC0): the wires (power.ts `POLE_WIRES`) meet at the insulators' height.
+ */
+export const powerPole = plain('power_pole');
+
+/** Steel jerrycans (Poly Haven, CC0): one, or two side by side (variant). */
+export const jerrycan: AssetBuilder = ({ variant, lod }) => {
+  const n = 1 + (variant % 2);
+  const [w] = modelSize('jerrycan');
+  return finish(
+    Array.from({ length: n }, (_, i) =>
+      model('jerrycan', lod).translate((i - (n - 1) / 2) * (w + 0.04), 0, 0),
+    ),
+  );
+};
+
+/** A pair of axle stands with a small red pail beside them (works bay floor). */
+export const jackStands: AssetBuilder = ({ lod }) =>
+  finish([
+    model('jack_stand', lod).translate(-0.3, 0, 0),
+    model('jack_stand', lod).rotateY(0.6).translate(0.15, 0, 0.05),
+    model('pail', lod).translate(0.55, 0, 0.1),
+  ]);
+
+/** Top (m) of the stillage's inner base rails, this far either side of the middle (the bake); tyres per variant. */
+const STILLAGE_RAIL_Y = 0.153;
+const STILLAGE_RAIL_Z = 0.2;
+const STILLAGE_TYRES = [6, 4, 2];
+
+/** Open steel tyre stillage (SimReady) with road tyres standing in a row on its base rails (variant = how full). */
+export const tyreStillage: AssetBuilder = ({ variant, lod }) => {
+  const parts = [model('tyre_rack_b', lod)];
+  const n = STILLAGE_TYRES[variant % STILLAGE_TYRES.length];
+  // Each tyre sits in the cradle between the two inner rails.
+  const y =
+    STILLAGE_RAIL_Y +
+    Math.sqrt(TYRE_R * TYRE_R - STILLAGE_RAIL_Z * STILLAGE_RAIL_Z);
+  for (let i = 0; i < n; i++) {
+    const x = (i - 2.5) * (TYRE_W + 0.12);
+    for (const g of tyreOnRim(lod)) parts.push(g.translate(x, y, 0));
+  }
+  return finish(parts);
+};
+
+/** Village street furniture (Poly Haven, CC0): roadside utility cabinet (variant 0 narrow, 1 wide). */
+export const utilityBox: AssetBuilder = ({ variant, lod }) =>
+  finish([model(variant % 2 ? 'utility_box_wide' : 'utility_box', lod)]);
+/** Galvanised dustbin, its lid leaning against it. */
+export const streetBin = plain('bin');
+/** Slatted bench with a back rest, seat towards +Z. */
+export const bench = plain('bench');
+/** Wooden picnic table with its two benches, the long side along X. */
+export const picnicTable = plain('picnic_table');
 
 /** Fire extinguisher standing in its orange cone stand. */
 export const extinguisherStand = plain('extinguisher_stand');

@@ -191,12 +191,12 @@ const PROPS: SourceLink[] = [
   {
     label: 'SimReady Assets (NVIDIA)',
     url: 'https://huggingface.co/datasets/nvidia/simready-assets',
-    note: 'service park and yard props (tool chest, tyre rack, jack, flood light, bins, pallets, drums, IBC tank ...) - CC BY 4.0',
+    note: 'service park and yard props (tool chest, tyre racks, jacks, axle stands, flood light, bins, pallets, drums, IBC tank ...) - CC BY 4.0',
   },
   {
     label: 'Poly Haven models',
     url: 'https://polyhaven.com/models',
-    note: 'service park table and chairs, generator, underpass wall lamps - CC0',
+    note: 'service park table and chairs, generator, jerrycans, underpass wall lamps, power poles, village benches, bins, utility cabinets, picnic tables - CC0',
   },
 ];
 
