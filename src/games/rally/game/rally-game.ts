@@ -19,7 +19,7 @@ import { LIGHTS_MIN_NEED } from '../engine/night';
 import { setHeadBeam, setLampGlow } from '../engine/night-glow';
 import { LampPools } from '../world/lamp-pools';
 import { PostFx, postFxFromUrl } from '../engine/post-fx';
-import type { QualityName, QualitySettings } from '../engine/quality';
+import type { QualitySettings } from '../engine/quality';
 import { bakeCropCards, setCropAntialias } from '../engine/crops';
 import { setVineAntialias } from '../engine/vines';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
@@ -79,6 +79,7 @@ import { CarAudio } from './audio';
 import { Autopilot, finishStopControls } from './autopilot';
 import { ContactShadow } from './contact-shadow';
 import {
+  carLights,
   Headlights,
   headlightMount,
   TailLight,
@@ -87,7 +88,7 @@ import {
 import { CameraRig } from './camera-rig';
 import { ParticleSystem } from './dust';
 import { GravelStones } from './gravel-stones';
-import { nearestZones, Rain, roofZones } from './rain';
+import { nearestZones, Rain, RAIN_DROPS, roofZones } from './rain';
 import { LampReflections } from './lamp-reflections';
 import { weatherLook, weatherParam } from '../weather';
 import { TyreMarks } from './tyre-marks';
@@ -201,16 +202,6 @@ const MAX_FRAME = MAX_STEPS * STEP;
 const SCALE_VIEWPORT =
   typeof location === 'undefined' ||
   new URLSearchParams(location.search).get('scalevp') !== '0';
-/** Rain drops around the camera per quality tier (game/rain.ts). */
-const RAIN_DROPS: Record<QualityName, number> = {
-  low: 3000,
-  medium: 6000,
-  high: 12000,
-};
-/** Lights level from which the car gets its full beams: spill + shadowed low beam (a rain / fog day stays under it, `Headlights` `day`). */
-const BEAM_MIN_NEED = 0.4;
-/** Lamp glow (head and tail lamp lenses, `CarModel.setLamps`) with the lights on in rain / fog by day. */
-const WEATHER_LAMPS = 0.8;
 /** Road spray on hard ground (lit like the dust). */
 const SPRAY_COLOR = 0xd4d9de;
 
@@ -577,34 +568,23 @@ export class RallyGame {
     });
     this.scene.add(this.model.root);
     const w = this.env.weatherLook;
-    // In rain / fog the lights are switched on, not faded in with the dusk (dry runs keep the plain dusk / night lights).
-    const weatherLights = w.rain > 0 || !!w.fog;
     if (w.wet > 0) this.model.setWet();
-    // Daylight lights of rain / fog: under BEAM_MIN_NEED.
-    const weatherDay = weatherLights && this.env.lightNeed < BEAM_MIN_NEED;
+    // Rain / fog: lights switched on, a rain / fog day under BEAM_MIN_NEED (`carLights`).
+    const lights = carLights(this.env.lightNeed, w);
     if (this.env.lightNeed >= LIGHTS_MIN_NEED) {
       // Lights on (night, and fading in through dusk / dawn): lamp glow, tail lamps, spot lights and the beam in
       // the air, all scaled by how dark it is (before the first compile).
       const need = this.env.lightNeed;
-      // In rain / fog the lamps themselves glow full (the tail lamps read red against a bright sky); the light they
-      // throw stays at `need`.
-      this.model.setLamps(
-        weatherLights ? Math.max(need, WEATHER_LAMPS) : need,
-        weatherDay,
-      );
+      this.model.setLamps(lights.lamps, lights.day);
       // A rain / fog day gets only the two unshadowed low beams: the spill, the shadow pass (~1 ms on high in every
       // lit shader) and the beam in the air show nothing by day.
-      const haze = Math.max(
-        w.fog ? 1 : 0,
-        w.visibility ? Math.min(1, 600 / w.visibility) : 0,
-      );
       this.headlights = new Headlights(
         this.model.root,
         headlightMount(this.car.physics),
         q.name,
         this.car.headlights,
         need,
-        { day: weatherDay, perLamp: weatherLights, haze },
+        lights,
       );
       this.tailLight = new TailLight(
         this.model.root,
@@ -615,7 +595,7 @@ export class RallyGame {
       this.model.onHeadlamps((m) => this.headlights?.moveTo(m));
       // A wet road mirrors the lit lamps.
       if (w.wet > 0) {
-        const lamps = weatherLights ? Math.max(need, WEATHER_LAMPS) : need;
+        const { lamps } = lights;
         this.model.onHeadlamps((m) => {
           this.lampReflections?.dispose();
           this.lampReflections = new LampReflections(
@@ -642,7 +622,7 @@ export class RallyGame {
         ),
       );
     // Street lamps light up at dusk / night, not for a rainy / foggy day (their pools would draw orange smears on the road).
-    const streetLamps = weatherDay ? 0 : this.env.lightNeed;
+    const streetLamps = lights.day ? 0 : this.env.lightNeed;
     setLampGlow(streetLamps);
     if (streetLamps >= LIGHTS_MIN_NEED) {
       // Street lamps: light pools on the ground under the lamps (the lens glow is the `lamp_lens` material).

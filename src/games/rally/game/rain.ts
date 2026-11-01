@@ -10,12 +10,20 @@ import {
 } from 'three';
 import { worldUniforms, type DryZone } from '../engine/world-shading';
 import type { World } from '../world/world';
+import type { QualityName } from '../engine/quality';
 import { Rng } from '../../../shared/rng';
 
 const RAIN_SEED = 0x7a1d;
 
 /** The box of rain around the camera (m): drops further out are the fog's job. */
 const BOX = new Vector3(32, 20, 32);
+
+/** Rain drops around the camera per quality tier. */
+export const RAIN_DROPS: Record<QualityName, number> = {
+  low: 3000,
+  medium: 6000,
+  high: 12000,
+};
 
 /**
  * Falling rain: thin streaks in a box that wraps around the camera, all moved in the vertex shader (one draw, no CPU

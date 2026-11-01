@@ -11,11 +11,16 @@ import { isTestCar, listLabel, TEST_NOTE } from '../release';
 import { parseVec3, VIEWER_HOUR, ViewerShell } from '../debug/viewer-shell';
 import { LIGHTS_MIN_NEED } from '../engine/night';
 import {
+  carLights,
   Headlights,
   headlightMount,
   TailLight,
   tailLightMount,
 } from '../game/headlights';
+import { offeredWeathers, WEATHER_LABELS } from '../weather';
+import { BACKDROPS, StageBackdrop } from '../debug/stage-backdrop';
+import { Rain, RAIN_DROPS } from '../game/rain';
+import { Color, Group } from 'three';
 import { formatHour, TIMES_OF_DAY } from '../game/time-of-day';
 import { peakPower, sampleTorque } from '../physics/drivetrain';
 import { axleRadius, tyreSizeFor } from '../physics/car-tyres';
@@ -38,6 +43,7 @@ import { rimRadius } from '../cars/shared/tyre-mesh';
  * falls back to when its GLB can't load (hand-built `custom` or the boxy side-outline `profile`).
  * `tod=<hours>` = the game's time of day (default: the test map's afternoon): 17.5 evening (lights half on), 1 night (moon,
  * dark fog, running lamps + headlights + beam (`beam=0` hides the beam), bloom on High quality), e.g. `car-viewer.html?car=audi_rs6&tod=1&lamps=brake&view=rear`.
+ * `weather=rain_heavy|fog|...` (dev / test builds): the weather's sky and light, the lights switched on as in the game (`carLights`).
  * Wheels section (debug/wheel-debug.ts): `wheels=1` overlay (fixed hub crosshair + tyre / bead circles, spin pointer, fitted
  * arch circle + offsets), `wangle=<deg>` wheel angle while not spinning, `tyres=0` / `rims=0` / `brakes=0` / `body=0` hide
  * parts, `wcam=FL|FR|RL|RR` near-orthographic camera straight along that wheel's axle, e.g.
@@ -73,6 +79,12 @@ const DEFAULTS = {
   lamps: 'on',
   /** Hour of day (`Environment`, `?tod=`): from 19:30 to 04:30 night, the car's lights come on as the sun goes down. */
   tod: VIEWER_HOUR,
+  /** Weather (`Environment`, `?weather=`): rain / fog switch the lights on by day as in the game (`carLights`). */
+  weather: 'dry',
+  /** Where the car stands (`debug/stage-backdrop.ts`): studio grass, or a spot on a real stage (road surface, sky, scenery). */
+  backdrop: 'studio',
+  /** Metres along the backdrop's stage road (0 = the backdrop's own spot). */
+  along: 0,
   /** Headlight beam (spot lights + the cones in the air) at night: off to see the car and its lamps without it. */
   beam: true,
   view: 'three-quarter',
@@ -109,9 +121,24 @@ const trackCar = () =>
   });
 trackCar();
 
-const shell = new ViewerShell({ title: 'Car viewer' });
+state.backdrop = paramOneOf(
+  state.backdrop,
+  BACKDROPS.map((b) => b.id),
+  DEFAULTS.backdrop,
+);
+const spot = BACKDROPS.find((b) => b.id === state.backdrop)!;
+const shell = new ViewerShell({ title: 'Car viewer', ground: !spot.stage });
 const { scene, camera, controls } = shell;
 let model: CarModel | undefined;
+/** The car's place: the world origin, or its spot on a stage backdrop (`shell.frame`). */
+const carFrame = new Group();
+carFrame.matrixAutoUpdate = false;
+scene.add(carFrame);
+/** A camera set in car space (views, wheel cams) moved to the car's place. */
+const toFrame = () => {
+  camera.position.applyMatrix4(shell.frame);
+  controls.target.applyMatrix4(shell.frame);
+};
 
 const VIEWS: Record<string, [number, number, number]> = {
   'three-quarter': [4.2, 1.8, 5.2],
@@ -140,6 +167,7 @@ function setWheelCam(name: string): void {
   ];
   camera.position.set(s * 20, hub[1], hub[2]);
   controls.target.set(...hub);
+  toFrame();
   camera.fov = (2 * Math.atan(0.5 / 20) * 180) / Math.PI;
   camera.updateProjectionMatrix();
 }
@@ -148,6 +176,7 @@ function setView(name: string): void {
   const p = parseVec3(state.cam) ?? VIEWS[name] ?? VIEWS['three-quarter'];
   camera.position.set(...p);
   controls.target.set(...(parseVec3(state.look) ?? [0, 0.6, 0]));
+  toFrame();
   camera.fov = state.fov > 0 ? state.fov : 45;
   camera.updateProjectionMatrix();
 }
@@ -254,6 +283,48 @@ pose.select('Camera', state.view, Object.keys(VIEWS), (v) => {
   setView(v);
 });
 shell.addCameraShare(pose, state, sync);
+
+// Weather and backdrop are fixed per page, as in the game (the wet shading compiles into the shaders): a change reloads.
+const sceneSec = shell.panel.section('Scene', true);
+const weathers = offeredWeathers();
+state.weather = paramOneOf(state.weather, weathers, DEFAULTS.weather);
+const reload = () => {
+  sync();
+  location.reload();
+};
+if (weathers.length > 1)
+  sceneSec.select(
+    'Weather',
+    state.weather,
+    weathers.map((w) => ({ value: w, label: WEATHER_LABELS[w] })),
+    (v) => {
+      state.weather = v;
+      reload();
+    },
+  );
+sceneSec.select(
+  'Backdrop',
+  state.backdrop,
+  BACKDROPS.map((b) => ({ value: b.id, label: b.label })),
+  (v) => {
+    state.backdrop = v;
+    state.along = 0;
+    reload();
+  },
+);
+if (spot.stage)
+  sceneSec.html(
+    '<label>Metres along the stage <input type="number" min="0" step="50" style="width:80px" data-ref="along"></label>',
+  );
+const alongInput =
+  document.querySelector<HTMLInputElement>('[data-ref="along"]');
+if (alongInput) {
+  alongInput.value = String(state.along || spot.along || 0);
+  alongInput.addEventListener('change', () => {
+    state.along = Math.max(0, Number(alongInput.value) || 0);
+    reload();
+  });
+}
 
 const lights = shell.panel.section(
   'Lights',
@@ -424,7 +495,8 @@ function rebuild(): void {
   // Put the car on the ground (model root is the centre of mass; taller tyres lift it).
   model.root.position.y = def.physics.comHeight + model.tyreLift;
   model.debug.visible = state.hull;
-  scene.add(model.root);
+  carFrame.add(model.root);
+  if (shell.env.weatherLook.wet > 0) model.setWet();
   // The beam starts at the model's own lamps once they are known.
   model.onHeadlamps((m) => headlights?.moveTo(m));
   if (!state.paint) paintCtl.set(model.livery.base);
@@ -458,18 +530,21 @@ function applyLights(): void {
         shell.quality.name,
         model.def.headlights,
         need,
+        carLights(need, shell.env.weatherLook),
       );
   }
   applyLamps();
 }
 
-/** `lamps=off`: every lamp dark; otherwise the lamps follow the hour of day (night = running lamps lit) plus the brake / reverse pedal. */
+/** `lamps=off`: every lamp dark; otherwise the lamps follow the hour of day and the weather (night, rain / fog = running lamps lit) plus the brake / reverse pedal. */
 function applyLamps(): void {
   const need = shell.env.lightNeed;
-  const level = need >= LIGHTS_MIN_NEED && state.lamps !== 'off' ? need : 0;
+  const on = need >= LIGHTS_MIN_NEED && state.lamps !== 'off';
+  const lit = carLights(need, shell.env.weatherLook);
+  const level = on ? need : 0;
   const brake =
     state.lamps === 'brake' || state.lamps === 'reverse+brake' ? 1 : 0;
-  model?.setLamps(level);
+  model?.setLamps(on ? lit.lamps : 0, on && lit.day);
   model?.setBrake(brake, state.lamps.startsWith('reverse'));
   tailLight?.setLevel(level);
   tailLight?.setBrake(brake);
@@ -592,9 +667,56 @@ setView(state.view);
 if (state.wcam !== 'off' && !state.cam) setWheelCam(state.wcam);
 rebuild();
 
+// Falling rain round the camera (weather.ts rain rate, game/rain.ts as in the game).
+const rainRate = shell.env.weatherLook.rain;
+if (rainRate > 0) {
+  const rain = new Rain(RAIN_DROPS[shell.quality.name], rainRate, new Color());
+  scene.add(rain.mesh);
+  shell.onFrame((dt) => {
+    if (scene.fog)
+      rain.setLight(
+        scene.fog.color.clone().multiplyScalar(shell.env.night ? 0.5 : 1.15),
+      );
+    rain.update(camera.position, dt);
+  });
+}
+
+// A stage backdrop: its map's sky and sun, the car on the road at the spot, facing along it.
+let backdrop: StageBackdrop | undefined;
+if (spot.stage) {
+  const stage = spot.stage;
+  void StageBackdrop.loadMap(stage).then(async (map) => {
+    shell.envDef = { ...map.environment };
+    shell.setHour(
+      state.tod !== VIEWER_HOUR
+        ? state.tod
+        : (map.environment.timeOfDay ?? VIEWER_HOUR),
+    );
+    backdrop = await StageBackdrop.build(
+      map,
+      stage,
+      state.along || spot.along,
+      scene,
+      shell.renderer,
+      shell.quality,
+    );
+    shell.frame.copy(backdrop.frame);
+    carFrame.matrix.copy(backdrop.frame);
+    carFrame.matrixWorldNeedsUpdate = true;
+    shell.env.setStageBase(backdrop.frame.elements[13]);
+    applyLights();
+    setView(state.view);
+    if (state.wcam !== 'off' && !state.cam) setWheelCam(state.wcam);
+    shell.onFrame(() => backdrop?.update(camera, controls.target));
+  });
+}
+
 // Console handle for debugging: __carViewer.model, __carViewer.shell
 (window as unknown as Record<string, unknown>).__carViewer = {
   shell,
+  get backdrop() {
+    return backdrop;
+  },
   get model() {
     return model;
   },

@@ -12,6 +12,7 @@ import {
 import type { QualityName } from '../engine/quality';
 import type { CarHeadlightsDef } from '../cars/shared/types';
 import type { CarPhysicsDef } from '../physics/types';
+import type { WeatherLook } from '../weather';
 import { shadowCasterLayers } from '../engine/layers';
 
 /** Luminous intensity of the main low beam (scene units, physical falloff). */
@@ -35,6 +36,33 @@ const CONE_RADIUS = 5.5;
 const LIGHT_AHEAD = 0.35;
 /** The default beam angle the cone radius is made for. */
 const CONE_ANGLE = 0.42;
+
+/** Lights level from which the car gets its full beams: spill + shadowed low beam (a rain / fog day stays under it, `Headlights` `day`). */
+export const BEAM_MIN_NEED = 0.4;
+/** Lamp glow (head and tail lamp lenses, `CarModel.setLamps`) with the lights on in rain / fog by day. */
+const WEATHER_LAMPS = 0.8;
+
+/**
+ * How the car's lights run (the game and the car viewer): `need` = `Environment.lightNeed`, `look` its weather. In rain
+ * / fog the lights are switched on, not faded in with the dusk: the lamps glow near full (`lamps`, the tail lamps read
+ * red against a bright sky) while the light they throw stays at `need`; `day` = a rain / fog day (under `BEAM_MIN_NEED`),
+ * `perLamp` / `haze` as `Headlights` takes them. Dry keeps the plain dusk / night lights.
+ */
+export function carLights(
+  need: number,
+  look: Pick<WeatherLook, 'rain' | 'fog' | 'visibility'>,
+): { lamps: number; day: boolean; perLamp: boolean; haze: number } {
+  const weather = look.rain > 0 || !!look.fog;
+  return {
+    lamps: weather ? Math.max(need, WEATHER_LAMPS) : need,
+    day: weather && need < BEAM_MIN_NEED,
+    perLamp: weather,
+    haze: Math.max(
+      look.fog ? 1 : 0,
+      look.visibility ? Math.min(1, 600 / look.visibility) : 0,
+    ),
+  };
+}
 
 /** Lamp position on a car (`Headlights`): 0.8 of the widest half-track, 0.75 m ahead of the front axle, 0.7 m up. */
 export function headlightMount(p: Pick<CarPhysicsDef, 'front' | 'rear'>): {
