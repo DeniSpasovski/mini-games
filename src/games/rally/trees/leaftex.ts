@@ -86,6 +86,8 @@ type Arc = (t: number) => [number, number];
 /** Pixel sizes below are for a 256 px image; a style's image scales them (`K`). */
 /** The shoot: half its length along x (px), its sag. */
 const SPRAY_HALF = 92;
+/** Where a spray's stem starts: this share of the image left of its centre (a leaf card's base sits on its twig). */
+export const SPRAY_BASE = SPRAY_HALF / NEEDLE_IMAGE;
 const SPRAY_SAG = 0.2;
 /** Size factor of a frond sprite (`SpriteAtlas.grow`). */
 const FROND_GROW = 1.7;

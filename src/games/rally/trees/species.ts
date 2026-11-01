@@ -166,7 +166,7 @@ export interface SpeciesDef {
   scale: [number, number];
   /** Branches thinner than this (m) are left out: the foliage sprites cover them (trees/Lod.md#levels). */
   twigRadius: number;
-  /** Most LOD0 branch triangles (2,500; poplar, willow 3,000-3,500; shrubs 1,400) and sprites per crown (broadleaf 360, conifers 400; shrubs 200). */
+  /** Most LOD0 branch triangles (2,500; poplar 3,000, willow 12,000; shrubs 1,400) and leaf points with foliage per crown (broadleaf 360, conifers 400; shrubs 200; a spray is two leaf cards). */
   maxBranchTriangles: number;
   maxSprites: number;
   /** Trunk / first-order limb segments at least this thick (m) collide (trees/Placement.md#collision). */

@@ -144,6 +144,7 @@ function spriteGeometry(s: SpriteData): BufferGeometry {
       s.sprite[v * 4 + 1],
       s.sprite[v * 4 + 2],
       headingAt(s.heading, v),
+      s.sprite[v * 4 + 3],
       packed,
       v * 4,
     );

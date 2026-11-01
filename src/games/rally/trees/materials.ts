@@ -300,8 +300,9 @@ const VERTEX_MAIN = /* glsl */ `
 `;
 
 /**
- * Replaces project_vertex for sprites (every pass): the sprite centre (`transformed`, already swayed) in the world,
- * a quad facing the camera position, its x axis along the sprite's heading (+ a small flutter), scaled by the thinning.
+ * Replaces project_vertex for sprites (every pass): the sprite centre (`transformed`, already swayed) in the world, a
+ * leaf card fixed along its heading or a billboard facing the camera position, its x axis along the sprite's heading
+ * (+ a small flutter), scaled by the thinning.
  */
 const SPRITE_PROJECT = /* glsl */ `
 	vec3 sprCentre = ( modelMatrix * instanceMatrix * vec4( transformed, 1.0 ) ).xyz;
@@ -312,17 +313,18 @@ const SPRITE_PROJECT = /* glsl */ `
 	vec2 sprCorner;
 	vec3 sprHeading;
 	float sprAligned;
-	treeSpriteCorner( treeSprite, sprCorner, sprHeading, sprAligned );
+	float sprCard;
+	treeSpriteCorner( treeSprite, sprCorner, sprHeading, sprAligned, sprCard );
 	float sprFlutter = 0.0;
 	// Leaves shimmer (a small, quick turn), clusters do not wave.
 	if ( tWindK > 0.0 ) sprFlutter = 0.04 * tWindK * sin( wsTime * 12.0 + treeWind.y * 2.7 );
 	vec3 sprR;
 	vec3 sprU;
 	float sprStretch;
-	treeSpriteAxes( sprRight, sprUp, tRot * sprHeading, sprAligned, treeWind.y, sprFlutter, sprR, sprU, sprStretch );
+	treeSpriteAxes( sprRight, sprUp, tRot * sprHeading, sprAligned, sprCard, treeCardRoll( position ), treeWind.y, sprFlutter, sprR, sprU, sprStretch );
 	float sprSize = treeSprite.z * tScale * treeSpriteScale( tOrigin, treeRank );
 	#ifndef TREE_SHADOW_PASS
-		sprCentre += sprToCam * ( sprSize * TREE_SPRITE_LIFT );
+		if ( sprCard < 0.5 ) sprCentre += sprToCam * ( sprSize * TREE_SPRITE_LIFT );
 	#endif
 	vec3 sprWorld = sprCentre +( sprR * ( sprCorner.x * sprStretch ) + sprU * sprCorner.y ) * sprSize;
 	vec4 mvPosition = viewMatrix * vec4( sprWorld, 1.0 );
@@ -1101,7 +1103,7 @@ function spriteLit(style: LeafStyle, depthOnly: boolean): MeshLambertMaterial {
     ...(style === 'pine' || style === 'juniper' ? {} : { TREE_UNDERSIDE: 1 }),
   };
   multi(m);
-  hookStandard(m, 'tree-sprite-v17', true, {
+  hookStandard(m, 'tree-sprite-v18', true, {
     tlSprNormal: { value: tex.normal },
     tlDepthOnly: { value: depthOnly ? 1 : 0 },
   });
@@ -1206,7 +1208,7 @@ export function treeDepthMaterial(kind: TreeDepthKind): MeshDepthMaterial {
     }
   };
   multi(m);
-  m.customProgramCacheKey = () => `tree-depth-v10-${kind}`;
+  m.customProgramCacheKey = () => `tree-depth-v11-${kind}`;
   materials.set(key, m);
   return m;
 }

@@ -67,7 +67,7 @@ void main() {
 	gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
 }`;
 
-/** Sprites face the bake view (the impostor is seen from that direction), turned and sized as in the game. */
+/** Billboards face the bake view (the impostor is seen from that direction); leaf cards stay fixed, as in the game. */
 const SPRITE_VERT = /* glsl */ `
 attribute vec4 treeWind;
 attribute vec4 treeSprite;
@@ -91,10 +91,12 @@ void main() {
 	vec2 corner;
 	vec3 heading;
 	float aligned;
-	treeSpriteCorner( treeSprite, corner, heading, aligned );
+	float card;
+	treeSpriteCorner( treeSprite, corner, heading, aligned, card );
 	float stretch;
-	treeSpriteAxes( right, up, heading, aligned, treeWind.y, 0.0, vR, vU, stretch );
-	vec3 p = position + ( uDir * TREE_SPRITE_LIFT + vR * ( corner.x * stretch ) + vU * corner.y ) * treeSprite.z;
+	treeSpriteAxes( right, up, heading, aligned, card, treeCardRoll( position ), treeWind.y, 0.0, vR, vU, stretch );
+	float lift = card < 0.5 ? TREE_SPRITE_LIFT : 0.0;
+	vec3 p = position + ( uDir * lift + vR * ( corner.x * stretch ) + vU * corner.y ) * treeSprite.z;
 	vColor = color;
 	vUv = uv;
 	// Seen as far as an impostor, a sprite is lit by the crown's ellipsoid normal, not its clump's (trees/materials.ts CLUMP_FADE).

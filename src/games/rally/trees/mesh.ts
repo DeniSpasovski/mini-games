@@ -1,4 +1,4 @@
-import { atlasUv, CLUSTER_IMAGES, spriteAtlas } from './leaftex';
+import { atlasUv, CLUSTER_IMAGES, SPRAY_BASE, spriteAtlas } from './leaftex';
 import {
   cross,
   GOLDEN,
@@ -27,8 +27,9 @@ import type { SpeciesDef } from './species';
  *    thinner twigs are left out, the sprites cover them. Capped at `maxBranchTriangles` (the twig radius grows until
  *    it fits).
  *  - LOD1: the trunk and the thicker first-order limbs of LOD0 (the levels nest: same segments, same place and radius).
- *  - Sprites: one per leaf point, at most `maxSprites` (the most important ones, grown to keep the crown's area),
- *    drawn with every branch level and thinned continuously with distance by the shader (trees/materials.ts).
+ *  - Sprites: a pair of crossed leaf cards (or one needle-burst billboard) per leaf point, at most `maxSprites` leaf
+ *    points (the most important ones, grown to keep the crown's area), drawn with every branch level and thinned
+ *    continuously with distance by the shader (trees/materials.ts).
  * The impostor is baked from LOD0 + the sprites (trees/impostor.ts).
  *
  * Branch vertices: position, normal, uv, color (linear), `treeWind` = (branch order, phase, distance along the
@@ -47,9 +48,10 @@ export interface MeshData {
 /**
  * Foliage sprites (trees/Foliage.md#sprites): every vertex of a sprite's outline carries the sprite's centre
  * (`position`, object space), the crown's normal there (`normal`), its atlas uv, colour, `treeWind` (as branches,
- * w = the sprite's baked AO), `treeSprite` = (outline corner x, y in sprite units -0.5..0.5, size m, - ), its
- * `heading` (the way a broadleaf spray grows, trees/sprite-attr.ts packs both) and `treeRank` (0 = kept longest ..
- * 1 = thinned first). The shader turns each into a quad facing the camera position, its x axis along the heading.
+ * w = the sprite's baked AO), `treeSprite` = (outline corner x, y in sprite units -0.5..0.5, size m, card), its
+ * `heading` (the way a spray grows, trees/sprite-attr.ts packs them) and `treeRank` (0 = kept longest .. 1 = thinned
+ * first). The shader lays a leaf card (card 1 / 2) along its heading, fixed in the tree, and turns a billboard (card
+ * 0) to face the camera position.
  */
 export interface SpriteData {
   position: Float32Array;
@@ -572,8 +574,6 @@ function leafClumps(sk: Skeleton): { of: Int32Array; list: Clump[] } {
 
 /** A broadleaf spray is longer than wide: grown so a crown covers about what round clumps did. */
 const SPRAY_GROW = 1.15;
-/** Share of the sprite size a spray's centre lies beyond its leaf point (its base sits on the twig). */
-const SPRAY_REACH = 0.2;
 /** A spray leans this far from the twig's heading, round it by the golden angle, and droops. */
 const SPRAY_SPLAY = 0.55;
 const SPRAY_DROOP = 0.18;
@@ -637,9 +637,10 @@ function sprites(
       (atlas.aligned ? SPRAY_GROW * atlas.grow : 1);
     // A spray grows along its heading from the twig; a round burst has none.
     const heading = atlas.aligned ? sprayHeading(l, r(3) - 0.5) : null;
-    // Needle sprays sit along the twig behind its tip, leaf sprays start on it and grow out, bunches around it.
+    // Needle bursts sit along the twig behind its tip; a spray's stem starts on its leaf point and grows out; bunches
+    // around it.
     const centre = heading
-      ? madd(l.pos, heading, SPRAY_REACH * size)
+      ? madd(l.pos, heading, SPRAY_BASE * size)
       : def.foliage.kind === 'needles'
         ? madd(l.pos, l.heading, -0.3 * size)
         : l.pos;
@@ -657,20 +658,24 @@ function sprites(
     const ao = spriteOcclusion(cr, centre, def.shade ?? 0, dc / cl.r);
     const w = leafWind(sk, wd, l);
     const shape = atlas.outlines[image];
-    const base = pos.length / 3;
-    for (const [u, v] of shape) {
-      pos.push(...centre);
-      nrm.push(...n);
-      uv.push(...atlasUv(image, u, v));
-      col.push(...scale(colors[li], gain));
-      wind.push(l.order, w[0], w[1], ao);
-      spr.push(u - 0.5, v - 0.5, size, 0);
-      head.push(...(heading ?? [0, 2, 0]));
-      rank.push(k / Math.max(1, kept.length));
+    // A spray is two leaf cards crossed along its heading, fixed in the tree (trees/sprite-attr.ts); a round burst one
+    // billboard. Each card is a sprite of its own, next to its pair in rank order.
+    for (const card of heading ? [1, 2] : [0]) {
+      const base = pos.length / 3;
+      for (const [u, v] of shape) {
+        pos.push(...centre);
+        nrm.push(...n);
+        uv.push(...atlasUv(image, u, v));
+        col.push(...scale(colors[li], gain));
+        wind.push(l.order, w[0], w[1], ao);
+        spr.push(u - 0.5, v - 0.5, size, card);
+        head.push(...(heading ?? [0, 2, 0]));
+        rank.push(k / Math.max(1, kept.length));
+      }
+      for (let j = 1; j + 1 < shape.length; j++)
+        idx.push(base, base + j, base + j + 1);
+      ends.push(idx.length);
     }
-    for (let j = 1; j + 1 < shape.length; j++)
-      idx.push(base, base + j, base + j + 1);
-    ends.push(idx.length);
   });
   return {
     position: new Float32Array(pos),
@@ -683,7 +688,7 @@ function sprites(
     rank: new Float32Array(rank),
     index: new Uint32Array(idx),
     ends: new Uint32Array(ends),
-    count: kept.length,
+    count: ends.length,
   };
 }
 
