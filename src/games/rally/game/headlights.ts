@@ -280,9 +280,11 @@ export function tailLightMount(
  * The tail lamps' red spill at night: one dim red spot light at the bumper aimed back and down, so it tints the road and
  * the verges behind the car (not the car's own rear), brighter with the brake. A child of the car; like the headlights
  * it exists from the first compile (lights are compiled into every lit shader), so it is created only when the lights are on.
+ * `spacing` > 0 (a wet road: `carLights` `perLamp`) = one spot behind each lamp (x = +-spacing), as a wet road mirrors
+ * each lamp: one centred spot would put its glint in the middle, under no lamp.
  */
 export class TailLight {
-  private readonly light = new SpotLight(0xff1408, 0, 6.5, 0.95, 1, 2);
+  private readonly lights: SpotLight[] = [];
   private brake = 0;
 
   /** `level` = 0..1 lights level (`Environment.lightNeed`). */
@@ -290,10 +292,15 @@ export class TailLight {
     car: Object3D,
     at: { x: number; y: number; z: number },
     private level: number,
+    spacing = 0,
   ) {
-    this.light.position.set(at.x, at.y, at.z);
-    this.light.target.position.set(at.x, at.y - 0.55, at.z - 3);
-    car.add(this.light, this.light.target);
+    for (const x of spacing > 0 ? [-spacing, spacing] : [at.x]) {
+      const light = new SpotLight(0xff1408, 0, 6.5, 0.95, 1, 2);
+      light.position.set(x, at.y, at.z);
+      light.target.position.set(x, at.y - 0.55, at.z - 3);
+      car.add(light, light.target);
+      this.lights.push(light);
+    }
     this.apply();
   }
 
@@ -310,12 +317,16 @@ export class TailLight {
   }
 
   private apply(): void {
-    this.light.intensity =
-      this.level * (TAIL_IDLE + (TAIL_BRAKE - TAIL_IDLE) * this.brake);
+    const intensity =
+      (this.level * (TAIL_IDLE + (TAIL_BRAKE - TAIL_IDLE) * this.brake)) /
+      this.lights.length;
+    for (const l of this.lights) l.intensity = intensity;
   }
 
   dispose(): void {
-    this.light.removeFromParent();
-    this.light.target.removeFromParent();
+    for (const l of this.lights) {
+      l.removeFromParent();
+      l.target.removeFromParent();
+    }
   }
 }

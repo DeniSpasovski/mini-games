@@ -375,12 +375,24 @@ function getMeshMaterial(): MeshStandardMaterial {
 
 /** Extra emissive intensity of a tail lamp with the lights on (night), up to its full brake glow. */
 const TAIL_NIGHT_GLOW = 1;
-/** Tail lamp running light by day (lights on in rain / fog, `setLamps` `day`): this share of the brake glow, so it reads in daylight. */
-const TAIL_DAY_GLOW = 0.6;
-/** Halo strength round the red tail lamps (`LampHalos`): running light at night, brake pedal at night / by day. */
+/**
+ * Tail lamps by day with the lights on (rain / fog, `setLamps` `day`): the running light glows at the lamp's own brake
+ * level (`on`, tuned for a clear day) and the brake pedal takes it `TAIL_DAY_BRAKE` times higher, so both read as lit
+ * bulbs against a bright sky and the brake stands out.
+ */
+const TAIL_DAY_GLOW = 1;
+const TAIL_DAY_BRAKE = 1.8;
+const _dayRed = new Color();
+/**
+ * By day the glow's green / blue are scaled by this: a white-emissive lamp sheet pushed bright would turn salmon under
+ * the tone mapping (AgX desaturates bright reds); a real red lens stays deep red.
+ */
+const TAIL_DAY_RED = 0.35;
+/** Halo strength round the red tail lamps (`LampHalos`): running light at night, brake pedal at night / by day (rain / fog). */
 const HALO_IDLE = 0.11;
 const HALO_BRAKE_NIGHT = 0.26;
-const HALO_BRAKE_DAY = 0;
+const HALO_IDLE_DAY = 0.05;
+const HALO_BRAKE_DAY = 0.16;
 /** Halo strength round the head lamps with the lights fully on (night). */
 const HALO_HEAD = 1.1;
 /** Share of the headlamp glare by day (lights on in rain / fog). */
@@ -1682,10 +1694,10 @@ export class CarModel {
 
   /** Halo strength for the brake level `l` (0..1) and the lights level (`lampsOn`). */
   private applyHalos(l: number): void {
-    // Halos are a night glow: in daylight (lights on in rain / fog) they read as puffs round the car.
+    // A night glow; by day only in rain / fog (the wet air round a lit lamp), softer. A clear day has none.
     const night = this.lampsDay ? 0 : this.lampsOn;
-    const idle = HALO_IDLE * night;
-    const brake = HALO_BRAKE_DAY + (HALO_BRAKE_NIGHT - HALO_BRAKE_DAY) * night;
+    const idle = this.lampsDay ? HALO_IDLE_DAY : HALO_IDLE * night;
+    const brake = this.lampsDay ? HALO_BRAKE_DAY : HALO_BRAKE_NIGHT * night;
     this.halos?.setLevel(idle + (brake - idle) * l, brake * l);
     const reverse =
       this.reversing && l < 0.02
@@ -1769,9 +1781,9 @@ export class CarModel {
         this.lampsDay && running
           ? Math.max(nightIdle, on * TAIL_DAY_GLOW * this.lampsOn)
           : nightIdle;
-      // The night brake level is tuned for the dark (AgX); by day the brake keeps its full daylight glow.
+      // The night brake level is tuned for the dark (AgX); a clear day keeps the lamp's own brake glow.
       const full = this.lampsDay
-        ? on
+        ? on * TAIL_DAY_BRAKE
         : on + ((night?.on ?? on) - on) * this.lampsOn;
       const lit = idle + (full - idle) * l;
       const reverseLamp = reversing && l < 0.02;
@@ -1780,6 +1792,8 @@ export class CarModel {
           ? reverseColor
           : (m.userData.brakeEmissive as number),
       );
+      if (this.lampsDay && !reverseLamp)
+        m.emissive.multiply(_dayRed.setRGB(1, TAIL_DAY_RED, TAIL_DAY_RED));
       if (reverseLamp && (reverseGlow || reverseColor !== undefined)) {
         // Reversing without the brake pedal: the white section only. With the brake down the white one goes dark.
         m.emissiveMap = reverseGlow ?? (m.userData.brakeGlow as Texture | null);

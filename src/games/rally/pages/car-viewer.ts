@@ -19,7 +19,9 @@ import {
 } from '../game/headlights';
 import { offeredWeathers, WEATHER_LABELS } from '../weather';
 import { BACKDROPS, StageBackdrop } from '../debug/stage-backdrop';
+import { DEFAULT_SEASON, SEASONS, SEASON_LABELS, type Season } from '../season';
 import { Rain, RAIN_DROPS } from '../game/rain';
+import { LampReflections } from '../game/lamp-reflections';
 import { Color, Group } from 'three';
 import { formatHour, TIMES_OF_DAY } from '../game/time-of-day';
 import { peakPower, sampleTorque } from '../physics/drivetrain';
@@ -83,6 +85,10 @@ const DEFAULTS = {
   weather: 'dry',
   /** Where the car stands (`debug/stage-backdrop.ts`): studio grass, or a short road of a stage surface with trees. */
   backdrop: 'studio',
+  /** Season of the backdrop's trees. */
+  season: DEFAULT_SEASON as Season,
+  /** Backdrop trees shown. */
+  trees: true,
   /** Headlight beam (spot lights + the cones in the air) at night: off to see the car and its lamps without it. */
   beam: true,
   view: 'three-quarter',
@@ -309,11 +315,6 @@ sceneSec.select(
     reload();
   },
 );
-
-const lights = shell.panel.section(
-  'Lights',
-  state.tod !== VIEWER_HOUR || state.lamps !== 'on' || !state.beam,
-);
 const todOptions = [
   { value: String(VIEWER_HOUR), label: 'Day' },
   ...TIMES_OF_DAY.map((t) => ({
@@ -323,12 +324,34 @@ const todOptions = [
 ];
 if (!todOptions.some((o) => o.value === String(state.tod)))
   todOptions.push({ value: String(state.tod), label: formatHour(state.tod) });
-lights.select('Time of day', String(state.tod), todOptions, (v) => {
+sceneSec.select('Time of day', String(state.tod), todOptions, (v) => {
   state.tod = Number(v);
   sync();
   shell.setHour(state.tod);
   applyLights();
 });
+if (spot.surface) {
+  state.season = paramOneOf(state.season, SEASONS, DEFAULT_SEASON);
+  sceneSec.select(
+    'Season',
+    state.season,
+    SEASONS.map((v) => ({ value: v, label: SEASON_LABELS[v] })),
+    (v) => {
+      state.season = v as Season;
+      reload();
+    },
+  );
+  sceneSec.checkbox('Trees', state.trees, (v) => {
+    state.trees = v;
+    sync();
+    backdrop?.showTrees(v);
+  });
+}
+
+const lights = shell.panel.section(
+  'Lights',
+  state.lamps !== 'on' || !state.beam,
+);
 lights.checkbox('Headlight beam', state.beam, (v) => {
   state.beam = v;
   sync();
@@ -467,6 +490,8 @@ function rebuild(): void {
   headlights = undefined;
   tailLight?.dispose();
   tailLight = undefined;
+  reflections?.dispose();
+  reflections = undefined;
   model?.dispose();
   const def = getCar(state.car);
   soundDebug?.setCar(def);
@@ -493,6 +518,8 @@ function rebuild(): void {
 
 let headlights: Headlights | undefined;
 let tailLight: TailLight | undefined;
+/** A wet road's mirror streaks under the lit lamps (as in the game). */
+let reflections: LampReflections | undefined;
 
 /** Lights for the hour of day (`Environment.lightNeed`, as in the game): headlamps, the beam and the tail lamps' red spill (their glow follows `applyLamps`). Before the first compile where possible. */
 function applyLights(): void {
@@ -500,12 +527,32 @@ function applyLights(): void {
   headlights = undefined;
   tailLight?.dispose();
   tailLight = undefined;
+  reflections?.dispose();
+  reflections = undefined;
   const need = shell.env.lightNeed;
+  const wet = shell.env.weatherLook.wet;
   if (model && need >= LIGHTS_MIN_NEED) {
+    const lit = carLights(need, shell.env.weatherLook);
+    if (wet > 0) {
+      const m = model;
+      m.onHeadlamps((head) => {
+        if (m !== model) return;
+        reflections?.dispose();
+        reflections = new LampReflections(
+          m.root,
+          head,
+          tailLightMount(m.def.physics),
+          -m.root.position.y,
+          wet,
+        );
+        applyLamps();
+      });
+    }
     tailLight = new TailLight(
       model.root,
       tailLightMount(model.def.physics),
       need,
+      lit.perLamp ? headlightMount(model.def.physics).x : 0,
     );
     if (state.beam)
       headlights = new Headlights(
@@ -514,7 +561,7 @@ function applyLights(): void {
         shell.quality.name,
         model.def.headlights,
         need,
-        carLights(need, shell.env.weatherLook),
+        lit,
       );
   }
   applyLamps();
@@ -525,14 +572,18 @@ function applyLamps(): void {
   const need = shell.env.lightNeed;
   const on = need >= LIGHTS_MIN_NEED && state.lamps !== 'off';
   const lit = carLights(need, shell.env.weatherLook);
-  const level = on ? need : 0;
+  // The red spill tints the road at night; by day (rain / fog) the lamps show only in the wet road's streaks.
+  const level = on && !lit.day ? need : 0;
   const brake =
     state.lamps === 'brake' || state.lamps === 'reverse+brake' ? 1 : 0;
   model?.setLamps(on ? lit.lamps : 0, on && lit.day);
   model?.setBrake(brake, state.lamps.startsWith('reverse'));
   tailLight?.setLevel(level);
   tailLight?.setBrake(brake);
+  const lamps = on ? lit.lamps : 0;
+  reflections?.setLevels(lamps, lamps, brake);
 }
+shell.onFrame(() => reflections?.update(camera.position));
 
 function applyWire(): void {
   model?.root.traverse((o) => {
@@ -670,12 +721,14 @@ let backdrop: StageBackdrop | undefined;
 if (spot.surface)
   void StageBackdrop.build(
     spot.id,
+    state.season,
     shell.envDef,
     scene,
     shell.renderer,
     shell.quality,
   ).then((b) => {
     backdrop = b;
+    b.showTrees(state.trees);
     shell.frame.copy(b.frame);
     carFrame.matrix.copy(b.frame);
     carFrame.matrixWorldNeedsUpdate = true;

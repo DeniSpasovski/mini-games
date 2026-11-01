@@ -589,7 +589,9 @@ export class RallyGame {
       this.tailLight = new TailLight(
         this.model.root,
         tailLightMount(this.car.physics),
-        need,
+        // The red spill tints the road at night; by day (rain / fog) the lamps show only in the wet road's streaks.
+        lights.day ? 0 : need,
+        lights.perLamp ? headlightMount(this.car.physics).x : 0,
       );
       // The beam starts at the model's own lamps once they are known.
       this.model.onHeadlamps((m) => this.headlights?.moveTo(m));

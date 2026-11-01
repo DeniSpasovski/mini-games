@@ -332,19 +332,24 @@ function haloMaterial(mask: DataTexture, colour: Vector3): ShaderMaterial {
     fog: false,
     side: DoubleSide,
     blending: AdditiveBlending,
+    // A flat glow seen edge-on (the car from the side) would float off the lamp as a thin bar: it fades out as it turns away.
     vertexShader: /* glsl */ `
       varying vec2 vUv;
+      varying float vFacing;
       void main() {
         vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+        vec4 mv = modelViewMatrix * vec4( position, 1.0 );
+        vFacing = smoothstep( 0.35, 0.75, abs( dot( normalize( normalMatrix * vec3( 0.0, 0.0, 1.0 ) ), normalize( -mv.xyz ) ) ) );
+        gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: /* glsl */ `
       uniform sampler2D uMask;
       uniform float uLevel;
       uniform vec3 uColour;
       varying vec2 vUv;
+      varying float vFacing;
       void main() {
-        float a = texture2D( uMask, vUv ).r;
+        float a = texture2D( uMask, vUv ).r * vFacing;
         gl_FragColor = vec4( uColour * ( uLevel * a ), 1.0 );
         #include <tonemapping_fragment>
         #include <colorspace_fragment>

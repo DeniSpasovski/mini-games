@@ -12,6 +12,7 @@ import { World } from '../world/world';
 import { TreeRenderer } from '../trees/draw';
 import { TreeLibrary } from '../trees/load';
 import type { QualitySettings } from '../engine/quality';
+import type { Season } from '../season';
 
 /**
  * What a viewer car stands on: the plain grass studio, or a short flat road (`ROAD_LENGTH` x `ROAD_WIDTH`, the car in
@@ -122,6 +123,7 @@ export class StageBackdrop {
 
   static async build(
     id: string,
+    season: Season,
     environment: MapDef['environment'],
     scene: Scene,
     renderer: WebGLRenderer,
@@ -137,7 +139,7 @@ export class StageBackdrop {
     road.getObjectByName('stage-signs')?.removeFromParent();
     scene.add(road);
     const library = await TreeLibrary.load(
-      TreeLibrary.speciesOf(world.placedAssets()),
+      TreeLibrary.speciesOf(world.placedAssets(), season),
       renderer,
     );
     const trees = new TreeRenderer(world, library, {
@@ -150,6 +152,10 @@ export class StageBackdrop {
     scene.add(trees.group);
     trees.attachRenderer(renderer);
     return new StageBackdrop(trees, s.position, s.heading);
+  }
+
+  showTrees(on: boolean): void {
+    this.trees.group.visible = on;
   }
 
   update(camera: PerspectiveCamera): void {
