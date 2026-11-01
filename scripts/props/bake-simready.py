@@ -79,17 +79,26 @@ ASSETS = {
             "../polyhaven/modular_street_seating",
             [2000, 400],
             0,
-            # The kit ships its pieces apart: the end leg and arm rest move in under the seat's left end (the leg below the
-            # back upright, the arm rest down onto the leg), then a mirrored copy of both closes the right end.
+            # The kit ships its pieces apart: the end leg moves in under the back upright and the arm rest down onto the
+            # leg, shortened so it starts in front of the upright's curve; a mirrored copy of both closes the right end. The
+            # seat slats and crossbar reach into the leg posts, the back slats end on the uprights' inner flange, and the
+            # middle support with its crossbar rises 10 cm to hold the seat. Scales are about the bench's middle (x -1.16).
             {
                 "keep": [
                     "seat", "seat_back", "back_support_l", "back_support_r", "arm_rest_01", "legs_single", "crossbar",
                     "suspended_support_01",
                 ],
-                "place": {"legs_single": (0.18, 0, 0, 1, 1, 1), "arm_rest_01": (0.2, 0, -0.1, 1, 1, 1)},
+                "place": {
+                    "legs_single": (0.18, 0, 0, 1, 1, 1),
+                    "arm_rest_01": (0.2, -0.06, -0.1, 1, 0.833, 1),
+                    "seat": (0.0307, 0, 0, 1.0272, 1, 1),
+                    "seat_back": (0.1179, 0, 0, 1.1131, 1, 1),
+                    "suspended_support_01": (0, 0, 0.1, 1, 1, 1),
+                    "crossbar": (0.035, 0, 0.1, 1.0311, 1, 1),
+                },
                 "copy": {
                     "legs_single_r": ("legs_single", (2.5, 0, 0, -1, 1, 1)),
-                    "arm_rest_r": ("arm_rest_01", (2.52, 0, -0.1, -1, 1, 1)),
+                    "arm_rest_r": ("arm_rest_01", (2.52, -0.06, -0.1, -1, 0.833, 1)),
                 },
             },
         ),
