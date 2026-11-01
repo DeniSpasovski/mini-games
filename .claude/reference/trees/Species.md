@@ -41,7 +41,7 @@ Most species come from a family builder in trees/species.ts that writes the gram
 - birch_tree is a birch: a slender white trunk to the top, short climbing limbs with drooping twigs, a light airy crown.
 - young_tree is a sapling, a slender elm or ash, its crown taller than wide and starting to yellow.
 - poplar_tree is a poplar, a Lombardy poplar: tall and columnar, short upswept limbs close to the trunk, the tallest tree.
-- willow_tree is a willow, a weeping willow: a short thick trunk, limbs arching out and long pale curtains of hanging shoots that stop above the ground.
+- willow_tree is a willow, a weeping willow: a short thick trunk, limbs arching out and long pale curtains of hanging shoots that stop above the ground. Every shoot is drawn as thin wood (they start with short internodes, so they arch over and hang at once) and carries the leaf cards along it.
 - bush is a bush, a low leafy roadside shrub.
 - scrub_bush is scrub, Mediterranean hill scrub: dark olive, low and wide.
 - hazelnut_tree is a hazel, a plantation hazelnut: a multi-stemmed upright bush with a fresh green crown, 3 to 4 m.

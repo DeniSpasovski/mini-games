@@ -33,7 +33,7 @@ A species' L-system is a parametric, stochastic, bracketed grammar: an axiom and
 
 - The turtle keeps position, an orientation frame, the current radius and the current branch order.
 - After each segment its heading bends toward the species tropism vector (gravity or light) by the branch's tropism strength, the species strength unless T changed it.
-- Radii follow the pipe model: a segment is as thick as the leaf points it carries, r = tip x w^(1/e), the exponent fitted so the trunk keeps the turtle's radius and every shoot ends at the species' tip radius. Every branch tapers along its length and to a thin tip, and a parent is never thinner than a child leaving it. "!" sets only the trunk's radius this way.
+- Radii follow the pipe model: a segment is as thick as the leaf points it carries, r = tip x w^(1/e), the exponent fitted so the trunk keeps the turtle's radius and every shoot ends at the species' tip radius. Every branch tapers along its length and to a thin tip, and a parent is never thinner than a child leaving it. Each joint eases towards the middle of its neighbouring ends, so a branch tapers along its length rather than in steps. "!" sets only the trunk's radius this way.
 
 ## Skeleton
 

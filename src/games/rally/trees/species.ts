@@ -947,11 +947,13 @@ export const WILLOW: SpeciesDef = {
         'F(l*0.6)[T(0.45)&(70)!B(rnd(0.45,0.55),10)][T(0.45)^(70)!B(rnd(0.45,0.55),10)]' +
         '[T(0.45)+(70)!B(rnd(0.42,0.52),10)]',
     },
-    // Shoots of 12 internodes, stopping a metre or so above the ground.
-    { pred: 'B(l,o)', cond: 'o >= 10 && o < 22', succ: 'F(l)L!B(l*0.97,o+1)' },
-    { pred: 'B(l,o)', cond: 'o >= 22', succ: 'F(l*0.5)L' },
+    // Shoots stopping a metre or so above the ground: three short internodes first, so they arch over and hang
+    // within half a metre (the bend is per internode) instead of standing out stiff, then 11 long ones.
+    { pred: 'B(l,o)', cond: 'o >= 10 && o < 13', succ: 'F(l*0.35)L!B(l,o+1)' },
+    { pred: 'B(l,o)', cond: 'o >= 13 && o < 24', succ: 'F(l)L!B(l*0.97,o+1)' },
+    { pred: 'B(l,o)', cond: 'o >= 24', succ: 'F(l*0.5)L' },
   ],
-  iterations: 18,
+  iterations: 20,
   segmentCap: 2400,
   angle: 30,
   lengthScale: 1,
@@ -968,9 +970,12 @@ export const WILLOW: SpeciesDef = {
     palette: ['#4e6042', '#556643', '#5b6a44', '#626f44'],
   },
   scale: [0.9, 1.15],
-  twigRadius: 0.009,
-  maxBranchTriangles: 3500,
-  maxSprites: 700,
+  // Every curtain shoot drawn, a few mm thick, so the leaf cards hang on wood (a willow is a single yard tree, not a
+  // stand: the cap fits its ~1,400 internodes).
+  tipRadius: 0.003,
+  twigRadius: 0.002,
+  maxBranchTriangles: 12000,
+  maxSprites: 1000,
   collisionRadius: 0.1,
   variants: 4,
 };

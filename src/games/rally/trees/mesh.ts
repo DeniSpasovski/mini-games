@@ -94,6 +94,8 @@ export interface VariantMeshes {
 
 /** Radius of a segment's overlap tip, as a share of its end radius (`tube`). */
 const OVERLAP_TIP = 0.75;
+/** Segments thinner than this at their end (m) draw no overlap. */
+const OVERLAP_MIN = 0.01;
 
 /** LOD1 keeps the trunk and the first-order limbs at least `height / LOD1_LIMB_DIV` thick. */
 const LOD1_LIMB_DIV = 120;
@@ -346,26 +348,37 @@ function tube(
   // Rings: centre, radius, distance along, buttress lobes.
   const rings: [V3, number, number, number][] = [];
   if (s.parent < 0) {
-    // Root flare: buttresses at the foot, round again a few radii up.
+    // Root flare: buttresses at the foot easing (squared) into the round trunk a few radii up, no shoulder.
     const h = Math.min(length * 0.5, s.r0 * ROOT_HEIGHT);
-    rings.push([s.start, s.r0 * ROOT_FLARE, 0, ROOT_LOBES[0]]);
-    rings.push([
-      madd(s.start, d, h),
-      at(h / length) * 1.06,
-      h,
-      ROOT_LOBES[0] * 0.3,
-    ]);
+    for (const t of [0, 0.3, 0.65, 1]) {
+      const f = (1 - t) * (1 - t);
+      rings.push([
+        madd(s.start, d, h * t),
+        at((h * t) / length) * (1 + (ROOT_FLARE - 1) * f),
+        h * t,
+        ROOT_LOBES[0] * f,
+      ]);
+    }
   } else if (st.collar > 0) {
     const h = Math.min(length * 0.4, st.collar * COLLAR[1]);
-    rings.push([s.start, s.r0 * COLLAR[0], 0, 0]);
+    // No wider than its parent there: a collar standing out of the bark reads as a knob.
+    rings.push([
+      s.start,
+      Math.min(s.r0 * COLLAR[0], Math.max(s.r0, st.collar * 0.9)),
+      0,
+      0,
+    ]);
     rings.push([madd(s.start, d, h), at(h / length), h, 0]);
   } else rings.push([s.start, s.r0, 0, 0]);
   if (st.continued) {
     // Overlap into the next segment: no gap on the outside of a bend. The overlap narrows to OVERLAP_TIP of the end
     // radius, so it sits inside the next segment instead of on its surface (no z-fighting, trees/Drawing.md#depth).
-    const over = Math.min(s.r1 * 0.6, length * 0.5);
+    // A twig's gap is under a pixel: no overlap, a third fewer triangles.
     rings.push([s.end, s.r1, length, 0]);
-    rings.push([madd(s.end, d, over), s.r1 * OVERLAP_TIP, length + over, 0]);
+    if (s.r1 >= OVERLAP_MIN) {
+      const over = Math.min(s.r1 * 0.6, length * 0.5);
+      rings.push([madd(s.end, d, over), s.r1 * OVERLAP_TIP, length + over, 0]);
+    }
   } else rings.push([s.end, s.r1 * 0.35, length, 0]);
   const sides = st.sides;
   const base = b.count;
@@ -463,9 +476,18 @@ function branches(
   const in1 = segs.map(
     (s, i) => in0[i] && (s.order === 0 || (s.order === 1 && s.r0 >= limb)),
   );
+  // A segment's continuation: the next one of its branch, else (a fork whose shoots all start new branches) its
+  // thickest child, so the wood runs on into it instead of ending in a point under a ring of collars.
   const next = new Int32Array(segs.length).fill(-1);
   segs.forEach((s, i) => {
-    if (s.parent >= 0 && segs[s.parent].branch === s.branch) next[s.parent] = i;
+    if (s.parent < 0) return;
+    const p = segs[s.parent];
+    const n = next[s.parent];
+    if (
+      p.branch === s.branch ||
+      (n < 0 ? true : segs[n].branch !== p.branch && s.r0 > segs[n].r0)
+    )
+      next[s.parent] = i;
   });
   // Bark wraps a whole number of times around a branch, at the tile's own aspect (1 : 2) where the branch starts.
   const around = new Map<number, number>();
@@ -486,7 +508,10 @@ function branches(
       sides: sides(lod, s.r0),
       around: around.get(s.branch)!,
       continued: next[i] >= 0 && drawn[next[i]],
-      collar: p && p.branch !== s.branch && drawn[s.parent] ? p.r1 : 0,
+      collar:
+        p && p.branch !== s.branch && drawn[s.parent] && next[s.parent] !== i
+          ? p.r1
+          : 0,
     });
     tube(b0, sk, i, style(0, in0), bc, def.bark.tiling, cr, wd, shade);
     n0++;

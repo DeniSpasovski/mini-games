@@ -238,8 +238,15 @@ function pipeRadii(
     if (s.parent >= 0)
       segments[s.parent].r1 = Math.max(segments[s.parent].r1, s.r0);
   }
-  for (let i = 0; i < segments.length; i++)
-    if (next[i] >= 0) segments[next[i]].r0 = segments[i].r1;
+  // Ease each joint towards the middle of its two neighbouring ends, so a branch tapers along its length instead of
+  // a long even pipe ending in a short cone (still never thicker than the segment before).
+  const joint = segments.map((s, i) =>
+    next[i] >= 0 ? Math.max(s.r1, (s.r0 + segments[next[i]].r1) * 0.5) : s.r1,
+  );
+  for (let i = 0; i < segments.length; i++) {
+    segments[i].r1 = joint[i];
+    if (next[i] >= 0) segments[next[i]].r0 = joint[i];
+  }
 }
 
 /** Is `seg` (or an ancestor of it) `root`? */
