@@ -81,10 +81,8 @@ const DEFAULTS = {
   tod: VIEWER_HOUR,
   /** Weather (`Environment`, `?weather=`): rain / fog switch the lights on by day as in the game (`carLights`). */
   weather: 'dry',
-  /** Where the car stands (`debug/stage-backdrop.ts`): studio grass, or a spot on a real stage (road surface, sky, scenery). */
+  /** Where the car stands (`debug/stage-backdrop.ts`): studio grass, or a short road of a stage surface with trees. */
   backdrop: 'studio',
-  /** Metres along the backdrop's stage road (0 = the backdrop's own spot). */
-  along: 0,
   /** Headlight beam (spot lights + the cones in the air) at night: off to see the car and its lamps without it. */
   beam: true,
   view: 'three-quarter',
@@ -127,10 +125,10 @@ state.backdrop = paramOneOf(
   DEFAULTS.backdrop,
 );
 const spot = BACKDROPS.find((b) => b.id === state.backdrop)!;
-const shell = new ViewerShell({ title: 'Car viewer', ground: !spot.stage });
+const shell = new ViewerShell({ title: 'Car viewer' });
 const { scene, camera, controls } = shell;
 let model: CarModel | undefined;
-/** The car's place: the world origin, or its spot on a stage backdrop (`shell.frame`). */
+/** The car's place: the world origin, or the middle of the backdrop's road (`shell.frame`). */
 const carFrame = new Group();
 carFrame.matrixAutoUpdate = false;
 scene.add(carFrame);
@@ -308,23 +306,9 @@ sceneSec.select(
   BACKDROPS.map((b) => ({ value: b.id, label: b.label })),
   (v) => {
     state.backdrop = v;
-    state.along = 0;
     reload();
   },
 );
-if (spot.stage)
-  sceneSec.html(
-    '<label>Metres along the stage <input type="number" min="0" step="50" style="width:80px" data-ref="along"></label>',
-  );
-const alongInput =
-  document.querySelector<HTMLInputElement>('[data-ref="along"]');
-if (alongInput) {
-  alongInput.value = String(state.along || spot.along || 0);
-  alongInput.addEventListener('change', () => {
-    state.along = Math.max(0, Number(alongInput.value) || 0);
-    reload();
-  });
-}
 
 const lights = shell.panel.section(
   'Lights',
@@ -681,35 +665,24 @@ if (rainRate > 0) {
   });
 }
 
-// A stage backdrop: its map's sky and sun, the car on the road at the spot, facing along it.
+// A road backdrop: the car in the middle of it, facing along it.
 let backdrop: StageBackdrop | undefined;
-if (spot.stage) {
-  const stage = spot.stage;
-  void StageBackdrop.loadMap(stage).then(async (map) => {
-    shell.envDef = { ...map.environment };
-    shell.setHour(
-      state.tod !== VIEWER_HOUR
-        ? state.tod
-        : (map.environment.timeOfDay ?? VIEWER_HOUR),
-    );
-    backdrop = await StageBackdrop.build(
-      map,
-      stage,
-      state.along || spot.along,
-      scene,
-      shell.renderer,
-      shell.quality,
-    );
-    shell.frame.copy(backdrop.frame);
-    carFrame.matrix.copy(backdrop.frame);
+if (spot.surface)
+  void StageBackdrop.build(
+    spot.id,
+    shell.envDef,
+    scene,
+    shell.renderer,
+    shell.quality,
+  ).then((b) => {
+    backdrop = b;
+    shell.frame.copy(b.frame);
+    carFrame.matrix.copy(b.frame);
     carFrame.matrixWorldNeedsUpdate = true;
-    shell.env.setStageBase(backdrop.frame.elements[13]);
-    applyLights();
     setView(state.view);
     if (state.wcam !== 'off' && !state.cam) setWheelCam(state.wcam);
-    shell.onFrame(() => backdrop?.update(camera, controls.target));
+    shell.onFrame(() => b.update(camera));
   });
-}
 
 // Console handle for debugging: __carViewer.model, __carViewer.shell
 (window as unknown as Record<string, unknown>).__carViewer = {
