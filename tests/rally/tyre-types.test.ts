@@ -34,6 +34,7 @@ describe('families and compounds', () => {
     expect(TYRE_IDS).toEqual([
       'tarmac',
       'tarmac_hard',
+      'tarmac_wet',
       'mixed',
       'gravel_hard',
       'gravel',
@@ -42,6 +43,7 @@ describe('families and compounds', () => {
 
   test('each tyre has a family; sizes follow it, not the compound', () => {
     expect(TYRE_IDS.map(familyOf)).toEqual([
+      'tarmac',
       'tarmac',
       'tarmac',
       'mixed',

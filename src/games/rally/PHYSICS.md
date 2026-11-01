@@ -94,7 +94,7 @@ then x axle.grip (per car front / rear balance, in tire.ts)
 
 ### Tyre types (`physics/tyres.ts`)
 
-Five tyres in three families, generic names after the Pirelli WRC range (tarmac hard / soft, gravel hard / soft; Mixed is the
+Six tyres in three families, generic names after the Pirelli WRC range (tarmac hard / soft, gravel hard / soft; Mixed is the
 rallycross-style all-rounder, not a WRC tyre). The **family** (tarmac, mixed, gravel) sets the car's tyre size per axle
 (`tyres.byCompound`), brake kit, rim and tread pattern; the **compound** sets grip, temperature window and character. The ids
 `tarmac` and `gravel` are the soft compounds (saved set-ups and URLs keep working). Every `MapDef` has a required `tyre` =
@@ -104,6 +104,7 @@ its recommended one.
 | ------------- | ----------- | ----------- | -------------------------- | ---------------------------------------------------------------------- |
 | `tarmac`      | Tarmac Soft | red         | `jackie`                   | sharpest and stickiest on clean tarmac, warms fast                     |
 | `tarmac_hard` | Tarmac Hard | orange      | no stage yet (a hot day)   | less peak grip, wider and hotter window, slow to warm                  |
+| `tarmac_wet`  | Tarmac Wet  | blue        | tarmac stages in the wet   | cut grooves clear the water; cool window, overheats on a dry road      |
 | `mixed`       | Mixed       | yellow      | `ajvatovci` (dusty tarmac) | all-rounder, never bad anywhere                                        |
 | `gravel_hard` | Gravel Hard | light blue  | no stage yet               | tough tread, level with soft on hard-packed gravel, less bite on loose |
 | `gravel`      | Gravel Soft | white       | `petralica`, `test`        | deep tread bites loose ground and mud, lazy on asphalt                 |
@@ -114,6 +115,7 @@ its recommended one.
 | ----------- | -------- | ------------- | ---- | -------- | ------------ | ---- | ----- | --- | ---- |
 | Tarmac Soft | **1.26** | 1.07          | 1.0  | 0.72     | 0.64         | 0.68 | 0.62  |
 | Tarmac Hard | 1.19     | 1.05          | 1.0  | 0.72     | 0.64         | 0.68 | 0.62  |
+| Tarmac Wet  | 1.17     | 1.05          | 1.0  | 0.76     | 0.68         | 0.74 | 0.70  |
 | Mixed       | 1.10     | **1.19**      | 1.0  | 0.93     | 0.90         | 0.92 | 0.90  |
 | Gravel Hard | 0.96     | 1.08          | 0.96 | 1.03     | 1.00         | 1.02 | 1.00  |
 | Gravel Soft | 0.92     | 1.03          | 0.94 | **1.04** | **1.08**     | 1.06 | 1.06  |
@@ -126,6 +128,7 @@ run in a warmer window (see "Tyre temperature"):
 | ----------- | ------------------ | -------- |
 | Tarmac Soft | 0.95 / 0.90        | 0.80     |
 | Tarmac Hard | 1.0 / 0.92         | 0.85     |
+| Tarmac Wet  | 1.0 / 0.97         | 1.00     |
 | Mixed       | 1.0 / 1.0          | 1.00     |
 | Gravel Hard | 1.06 / 1.0         | 1.15     |
 | Gravel Soft | 1.08 / 1.03        | 1.25     |
@@ -150,6 +153,41 @@ Tarmac tyres on tarmac, medium set-up, 80 km/h ramp steer:
 Rally tyre families: tarmac - wide,
 shallow tread, stiff sidewall; gravel - deep blocky tread, tall sidewall; mixed - medium blocks. Off its surface a tarmac tyre
 skates and lets go suddenly, a gravel tyre on tarmac squirms but is easy to catch.
+
+### Wet grip (`physics/car-tyres.ts` `WET`, `weather.ts`)
+
+Rain and the wet road after it (`WeatherLook.wet` 0..1; fog only dampens the look) take grip on top of the other layers: a
+`WET` table per surface (peak grip, grip left sliding, dust) for a Mixed tread on a soaked surface, and each tyre loses
+`TyreDef.wetLoss` times that loss. The tables are cached per wetness like the rest (`carSurfaces(def, tyre, axle, wet)`),
+`Vehicle.setWet` refits them. Wet is never grippier than dry (tested).
+
+| Surface     | tarmac | tarmac_gravel | rock | gravel | gravel_loose | dirt | grass | mud  | snow |
+| ----------- | ------ | ------------- | ---- | ------ | ------------ | ---- | ----- | ---- | ---- |
+| mu (soaked) | 0.75   | 0.78          | 0.72 | 0.95   | 0.92         | 0.72 | 0.62  | 0.95 | 0.95 |
+| slide       | 0.90   | 0.92          | 0.88 | 1      | 1            | 0.94 | 0.90  | 1    | 1    |
+
+| Tyre        | wetLoss | In the rain                                      |
+| ----------- | ------- | ------------------------------------------------ |
+| Tarmac Soft | 1.4     | not offered (near-slick, `dryOnly`)              |
+| Tarmac Hard | 1.5     | not offered                                      |
+| Tarmac Wet  | 0.6     | the tarmac stages' recommendation when wet ≥ 0.5 |
+| Mixed       | 1.0     |                                                  |
+| Gravel Hard | 0.9     | Gravel Soft recommended in heavy rain            |
+| Gravel Soft | 0.85    |                                                  |
+
+Wet asphalt keeps ~70-80 % of its dry friction on a treaded tyre (road friction research: ~0.8-0.9 dry, 0.5-0.7 wet);
+compacted gravel barely changes (the water binds the dust); clay dirt, grass and painted rock go greasy. A wet road's film
+cools the tyres like shallow water (`water = max(waterDepth, 0.03 wet)`), so Tarmac Wet stays in its window in the rain and
+overheats on a dry day.
+
+**Puddles** (`puddles.ts`): one seeded field of standing water on the road, read by the road shader and by the wheels, so
+the car hits the water the player sees: ~4 % of the road after light rain, ~14 % in a downpour, up to 3 cm deep. A wheel in
+one drags like shallow water (the wading drag) and, on asphalt, aquaplanes past ~90 km/h for a Mixed tread
+(`AQUAPLANE_SPEED / sqrt(wetLoss)`: a slick sooner, Tarmac Wet ~115 km/h), down to a quarter of its grip in a full puddle.
+On loose ground the water only drags.
+
+**Weather temperatures** (`weatherTemps`): a weather moves the stage's dry air (`WeatherLook.air`, rain -4 to -5 °C) and
+keeps a share of the road's sun heating (`sunHeat`; under rain the road sits at the air).
 
 ### Tyre sizes (`CarPhysicsDef.tyres`)
 
@@ -334,6 +372,7 @@ pages and the reference tests above are unchanged).
 | ----------- | --------- | --------- | --------------- |
 | Tarmac Soft | 66-104 °C |
 | Tarmac Hard | 78-120 °C |
+| Tarmac Wet  | 38-78 °C  |
 | Mixed       | 60-100 °C |
 | Gravel Hard | 58-98 °C  |
 | Gravel Soft | 46-86 °C  |

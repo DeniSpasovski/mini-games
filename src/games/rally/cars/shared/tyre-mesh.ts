@@ -15,7 +15,8 @@ import type { TyreSize } from '../../physics/types';
  * low profile one is a thin band) -> shoulder -> a tread of `TREAD_COLUMNS` columns across. The tread has real
  * relief: grid vertices (segment x column) sink into grooves, so the pattern shows in the silhouette and in the
  * flat-shaded lighting. Pattern per compound (physics/tyres.ts ids):
- *   - tarmac: near-slick, two circumferential grooves + sipes on the shoulders, ~3 mm deep (hard: blockier shoulder, 3.5 mm)
+ *   - tarmac: near-slick, two circumferential grooves + sipes on the shoulders, ~3 mm deep (hard: blockier shoulder, 3.5 mm;
+ *     wet: four grooves and slotted shoulders, 4.5 mm)
  *   - mixed : centre rib + staggered blocks, ~6 mm
  *   - gravel: big chunky staggered blocks with wide gaps and notched shoulders, ~11 mm (hard: smaller, tighter blocks, 9 mm)
  *   - null  : plain carcass (tool pages without a tyre)
@@ -44,6 +45,16 @@ const PATTERNS: Record<
     // the same two circumferential grooves, shoulder sipes every 6th segment (a stiffer, blockier shoulder).
     groove: (i, j) =>
       j === 2 || j === 5 || ((j === 0 || j === 7) && i % 6 === 0),
+  },
+  tarmac_wet: {
+    depth: 0.0045,
+    // four circumferential grooves to carry the water away, shoulder slots every 3rd segment.
+    groove: (i, j) =>
+      j === 1 ||
+      j === 3 ||
+      j === 4 ||
+      j === 6 ||
+      ((j === 0 || j === 7) && i % 3 === 0),
   },
   mixed: {
     depth: 0.006,

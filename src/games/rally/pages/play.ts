@@ -33,7 +33,14 @@ import { formatDelta, formatTime, migrateTimes } from '../game/stage';
 import { DEFAULT_STAGE, getStage, loadStage, stageLinkParams } from '../maps';
 import { SETUP_FOR_TYRE, SETUP_IDS } from '../physics/car-setup';
 import { isGearingId } from '../physics/gearing';
-import { parseTyre } from '../physics/tyres';
+import { parseTyre, TYRES, wetTyre } from '../physics/tyres';
+import {
+  isRaining,
+  offeredWeathers,
+  WEATHER_LOOKS,
+  weatherLook,
+  weatherParam,
+} from '../weather';
 import { paramInt } from '../../../shared/url-params';
 import { stageSeason } from '../maps/shared/climate';
 import { seasonParam } from '../season';
@@ -80,12 +87,17 @@ if (deepLink) void play(readUrlState(DEFAULTS));
 else
   void runMenu(root).then((r) => {
     // Mirror the choice in the URL: reload = same stage, link is shareable.
-    const { setup, gearing, tod, season, ...rest } = r;
+    const { setup, gearing, tod, season, weather, ...rest } = r;
     const params = { ...DEFAULTS, ...rest, susp: setup, gear: gearing };
-    // `tod` / `season` = the time of day / season picked on the stage screen (the game reads them); none = the stage's own.
+    // `tod` / `season` / `weather` = picked on the stage screen (the game reads them); none = the stage's own / dry.
     writeUrlState(
-      { ...params, tod: tod ?? '', season: season ?? '' },
-      { ...KEEP, tod: '', season: '' },
+      {
+        ...params,
+        tod: tod ?? '',
+        season: season ?? '',
+        weather: weather ?? '',
+      },
+      { ...KEEP, tod: '', season: '', weather: '' },
     );
     void play(params);
   });
@@ -165,7 +177,20 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
   ).then((url) => {
     if (url) loading.style.setProperty('--card', `url("${url}")`);
   });
-  const tyre = parseTyre(params.tyre, info.tyre);
+  // In the wet the stage's tyre is its wet one, and no near-slicks start in the rain (an old link / saved pick).
+  const weather = weatherParam(
+    new URLSearchParams(location.search).get('weather'),
+  );
+  const recTyre = wetTyre(info.tyre, weatherLook(weather, info.weather).wet);
+  let tyre = parseTyre(params.tyre, recTyre);
+  if (isRaining(weather) && TYRES[tyre].dryOnly)
+    tyre = TYRES[recTyre].dryOnly ? 'mixed' : recTyre;
+  // Tarmac Wet is not offered while the build ships dry only (an old link).
+  if (
+    tyre === 'tarmac_wet' &&
+    !offeredWeathers().some((w) => WEATHER_LOOKS[w].wet > 0)
+  )
+    tyre = recTyre;
   const setup =
     SETUP_IDS.find((s) => s === params.susp) ?? SETUP_FOR_TYRE[tyre];
   const gearing = isGearingId(params.gear)
