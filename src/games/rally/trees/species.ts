@@ -924,15 +924,16 @@ export const POPLAR: SpeciesDef = {
 /** Weeping willow: a short thick trunk, limbs arching out and long pale curtains of hanging shoots (canals, drains). */
 export const WILLOW: SpeciesDef = {
   name: 'Willow',
-  // Three limbs arch up and out and fork; every limb internode lets fall a hanging shoot and every limb end three
-  // (B with o >= 10), whose strong downward tropism pulls them into curtains a few metres long, leaves all along them.
+  // Three limbs rise and arch out round a central one that fills the dome's top, and fork; every limb internode lets
+  // fall a hanging shoot and every limb end three (B with o >= 10), whose strong downward tropism pulls them into
+  // curtains a few metres long, leaves all along them.
   axiom: '!F(2.0)A(1.4)',
   rules: [
     {
       pred: 'A(l)',
       succ:
-        'F(l*0.6)[&(rnd(35,50))!!B(l*1.1,0)]>(rnd(110,130))[&(rnd(35,50))!!B(l*1.1,0)]' +
-        '>(rnd(110,130))[&(rnd(18,30))!!B(l*1.2,0)]',
+        'F(l*0.6)[&(rnd(28,40))!!B(l*1.1,0)]>(rnd(110,130))[&(rnd(28,40))!!B(l*1.1,0)]' +
+        '>(rnd(110,130))[&(rnd(28,40))!!B(l*1.1,0)][&(rnd(8,16))!!B(l*1.2,0)]',
     },
     {
       pred: 'B(l,o)',
@@ -948,13 +949,18 @@ export const WILLOW: SpeciesDef = {
         'F(l*0.6)[T(0.45)&(70)!B(rnd(0.45,0.55),10)][T(0.45)^(70)!B(rnd(0.45,0.55),10)]' +
         '[T(0.45)+(70)!B(rnd(0.42,0.52),10)]',
     },
-    // Shoots stopping a metre or so above the ground: three short internodes first, so they arch over and hang
-    // within half a metre (the bend is per internode) instead of standing out stiff, then 11 long ones.
-    { pred: 'B(l,o)', cond: 'o >= 10 && o < 13', succ: 'F(l*0.35)L!B(l,o+1)' },
-    { pred: 'B(l,o)', cond: 'o >= 13 && o < 24', succ: 'F(l)L!B(l*0.97,o+1)' },
-    { pred: 'B(l,o)', cond: 'o >= 24', succ: 'F(l*0.5)L' },
+    // Shoots stopping a metre or so above the ground: two short internodes first, so they arch over and hang within
+    // half a metre (the bend is per internode) instead of standing out stiff, then 7 long ones (more shoots, each in
+    // fewer pieces: the curtains fill the dome within the triangle cap).
+    { pred: 'B(l,o)', cond: 'o >= 10 && o < 12', succ: 'F(l*0.35)L!B(l,o+1)' },
+    {
+      pred: 'B(l,o)',
+      cond: 'o >= 12 && o < 19',
+      succ: 'F(l*1.4)L!B(l*0.97,o+1)',
+    },
+    { pred: 'B(l,o)', cond: 'o >= 19', succ: 'F(l*0.6)L' },
   ],
-  iterations: 20,
+  iterations: 16,
   segmentCap: 2400,
   angle: 30,
   lengthScale: 1,
@@ -962,17 +968,24 @@ export const WILLOW: SpeciesDef = {
   radiusDecay: 0.8,
   tropism: [0, -1, 0],
   tropismStrength: 0.03,
-  bark: { color: '#64594c', texture: 'furrowed', scan: 'willow', tiling: 0.9 },
+  // Olive-yellow young shoots: a curtain strand between its leaf cards reads as a withy, not grey wire.
+  bark: {
+    color: '#64594c',
+    texture: 'furrowed',
+    scan: 'willow',
+    twig: '#7f7a44',
+    tiling: 0.9,
+  },
   foliage: {
     kind: 'broadleaf',
     ...SUMMER_TURN,
-    spriteSize: 0.5,
+    spriteSize: 0.8,
     leaf: 'narrow',
     palette: ['#4e6042', '#556643', '#5b6a44', '#626f44'],
   },
   scale: [0.9, 1.15],
   // Every curtain shoot drawn, a few mm thick, so the leaf cards hang on wood (a willow is a single yard tree, not a
-  // stand: the cap fits its ~1,400 internodes).
+  // stand: the cap fits its ~1,300 internodes).
   tipRadius: 0.003,
   twigRadius: 0.002,
   maxBranchTriangles: 12000,
