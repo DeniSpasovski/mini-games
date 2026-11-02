@@ -178,10 +178,11 @@ function recolour(
     ctx.putImageData(img, 0, 0);
     return;
   }
-  // Spring wheat: blue-green (waxy) stalks, leaves and ears, lighter at the ears. Dry corn: warm straw-tan leaves and husks (October field corn is
-  // buff, not grey: the dark end stays brown).
+  // Spring wheat: blue-green (waxy) stalks, leaves and ears, lighter at the ears; mid ramp ~ linear luminance 0.16,
+  // r / g 0.6, b / g 0.3 (the spring-flush band of the tree palettes; a paler ramp read as mint under the card glow).
+  // Dry corn: warm straw-tan leaves and husks (October field corn is buff, not grey: the dark end stays brown).
   if (look === 'green_wheat')
-    ramp(img.data, [80, 112, 78], [184, 218, 156], 0.35, 0.9);
+    ramp(img.data, [54, 80, 42], [140, 174, 100], 0.35, 0.9);
   else ramp(img.data, [118, 86, 46], [218, 188, 126], 0.15, 0.6);
   ctx.putImageData(img, 0, 0);
 }

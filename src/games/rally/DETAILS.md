@@ -292,7 +292,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   coverall, hi-vis vest, gloves; team shirt patterns), `people-hair.ts` (scalp cut from the head + curtains, buns, ponytails, hats),
   `people-shoes.ts` (lofts on the foot bones; the base legs end at the ankle). Each person gets a hairstyle from `pickHair` (people.ts) by
   gender, length, age; `Outfit.topKind` / `legKind` / `pattern` / `hairStyle` / `shoeKind` override the defaults. LOD 2 / 3 stay code-built
-  (jointed figure, boxy body, silhouette). The two detailed levels are `lazy` (`LodSpec.lazy`, tens of ms per person): they are built in
+  (`farJointedFigure` / `farCrowdFigure` at 60-220 m, `farSilhouette` at 220-520 m). The two detailed levels are `lazy` (`LodSpec.lazy`, tens of ms per person): they are built in
   workers (`people-worker.ts`, `people-pool.ts`: geometry only, each part tagged with its material's look, `withLooks` in people.ts), not
   per variant at load. The load builds what the spawn view needs (`world/people-warm.ts`, started with the load) and one warm variant per
   material (`AssetMeta.warm`; a test checks no other variant adds a shader); while driving `InstanceStreamer` (`prefetch`) asks for the
