@@ -3,7 +3,8 @@
 A small collection of browser games that I built to get familiar with [three.js](https://threejs.org/).
 It is an educational, just-for-fun project: no commercial goal, no accounts, no ads. Large parts of the code were
 written together with AI coding agents under my direction, and everything is kept readable so it can be studied,
-played and modified locally.
+played and modified locally. Every game has been playtested by me, my friends and my family. If you have an idea
+for a level, feel free to suggest it!
 
 **Play it in the browser: [games.deni.io](https://games.deni.io)**
 
