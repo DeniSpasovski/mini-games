@@ -33,7 +33,7 @@
     "@testing-library/jest-dom": "^7.0.1",
     "@types/node": "^24.13.6",
     "@types/three": "^0.187.0",
-    "happy-dom": "^20.14.5",
+    "happy-dom": "^21.0.4",
     "meshoptimizer": "^0.22.0",
     "prettier": "^3.9.6",
     "typescript": "^6.0.3"

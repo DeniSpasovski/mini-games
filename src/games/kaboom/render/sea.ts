@@ -28,6 +28,8 @@ const REACH = 4;
 const FIELD_RES = 256;
 /** The level's HDRI is brighter than the sky colours it stands in for (High quality reflects it). */
 const ENV_GAIN = 0.32;
+/** The HDRI is read at this roughness (a soft sky: the clouds, no hard edges). */
+const ENV_ROUGHNESS = 0.2;
 /** Direction the wind blows from (radians in x-z): the swells and the chop run along it, fanned out. */
 const WIND = 0.55;
 
@@ -102,9 +104,9 @@ const FRAG = /* glsl */ `
   uniform vec3 uSkyMid;
   uniform vec3 uSkyLow;
   varying vec3 vWorld;
-  #ifdef ENVMAP_TYPE_CUBE_UV
-  uniform sampler2D envMap;
-  #include <cube_uv_reflection_fragment>
+  #ifdef SEA_ENV
+  uniform samplerCube envMap;
+  uniform float uEnvMip;
   #endif
   float sdBox(vec2 p, vec2 b) {
     vec2 d = abs(p) - b;
@@ -184,9 +186,9 @@ const FRAG = /* glsl */ `
     float fres = 0.04 + 0.96 * pow(1.0 - NV, 5.0);
     fres = clamp(fres * 1.6 + 0.05, 0.0, 1.0);
     vec3 refl = sky(R.y) * 0.85;
-    #ifdef ENVMAP_TYPE_CUBE_UV
+    #ifdef SEA_ENV
     // High: the level's HDRI (its clouds) over the plain sky colours, scaled down to them
-    refl = mix(refl, textureCubeUV(envMap, vec3(R.x, abs(R.y), R.z), 0.2).rgb * ${ENV_GAIN.toFixed(2)}, 0.7);
+    refl = mix(refl, textureLod(envMap, vec3(R.x, abs(R.y), R.z), uEnvMip).rgb * ${ENV_GAIN.toFixed(2)}, 0.7);
     #endif
     vec3 col = mix(body, refl, fres);
     #ifndef LOW
@@ -417,15 +419,13 @@ export class Sea {
     this.mesh.onBeforeRender = (_r, scene) => {
       const env = scene.environment;
       if (low || !env || env === this.material.uniforms.envMap?.value) return;
-      const size = (env.image as { height: number }).height;
-      const maxMip = Math.log2(size) - 2;
+      // r187 PMREM = a cube render target; its mips are the roughness steps (three's roughnessToMip)
+      const maxLod = (env.mipmaps?.length ?? 1) - 1;
       this.material.uniforms.envMap = { value: env };
-      Object.assign(this.material.defines, {
-        ENVMAP_TYPE_CUBE_UV: '',
-        CUBEUV_TEXEL_WIDTH: 1 / (3 * Math.max(2 ** maxMip, 7 * 16)),
-        CUBEUV_TEXEL_HEIGHT: 1 / size,
-        CUBEUV_MAX_MIP: maxMip.toFixed(1),
-      });
+      this.material.uniforms.uEnvMip = {
+        value: maxLod * ENV_ROUGHNESS * (2 - ENV_ROUGHNESS),
+      };
+      this.material.defines.SEA_ENV = '';
       this.material.needsUpdate = true;
     };
   }

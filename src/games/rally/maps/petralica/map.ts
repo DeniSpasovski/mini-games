@@ -403,6 +403,8 @@ export const petralicaMap: MapDef = {
   barriers: [
     { kind: 'guardrail', side: 'both', offset: 0.9, from: 1085, to: 1147 },
   ],
+  // Benches, dustbins and utility cabinets along the street through Petralica.
+  streetDressing: { village: [{ from: VILLAGE, to: CLIMB }] },
   // Start / finish gantries, lines and split boards come from `stage` (world/stage-signs.ts).
   props: [
     // White hatchback in the yard of house 665 (stage-road side, parallel to the house): variant 10 = `STREET_CAR_FIXED`.

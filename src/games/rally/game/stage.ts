@@ -2,6 +2,7 @@ import { newRoadQuery, type RoadQuery } from '../world/road';
 import type { World } from '../world/world';
 import { DEFAULT_SEASON, SEASON_LABELS, type Season } from '../season';
 import { slotFor } from './time-of-day';
+import { WEATHER_LABELS, weatherParam, type Weather } from '../weather';
 
 /**
  * Stage timing: countdown -> running -> finished, splits and progress along
@@ -394,7 +395,9 @@ export function migrateTimes(store: Storage = localStorage): boolean {
       // Per-car bests of a bumped map / car -> old runs in the leaderboard.
       for (const k of keys) {
         if (!k.startsWith(BEST_PREFIX)) continue;
-        const [stageId, carId] = k.slice(BEST_PREFIX.length).split('.');
+        const [stageId, carId, weather] = k
+          .slice(BEST_PREFIX.length)
+          .split('.');
         if (!stageOld.has(stageId) && !carOld.has(carId)) continue;
         const best = loadBest(k, store);
         store.removeItem(k);
@@ -412,6 +415,8 @@ export function migrateTimes(store: Storage = localStorage): boolean {
           car: carId,
           livery: 0,
           splits: best.splits,
+          // Every known weather, not just the released ones: a dev run in the rain must not turn into a dry time.
+          ...(weather ? { weather: weatherParam(weather, false) } : {}),
           date: 0,
         });
         store.setItem(timesKey(stageId), JSON.stringify(list));
@@ -486,9 +491,16 @@ export function compareRuns(mapVer: number) {
 const BEST_PREFIX = 'rally.best.';
 const TIMES_PREFIX = 'rally.times.';
 
-/** localStorage key of the best run per map + car. */
-export function bestKey(stageId: string, carId: string): string {
-  return `rally.best.${stageId}.${carId}`;
+/**
+ * localStorage key of the best run per map + car (the split reference), one per weather: a wet run is never compared
+ * with a dry best. Dry keeps the key it always had.
+ */
+export function bestKey(
+  stageId: string,
+  carId: string,
+  weather: Weather = 'dry',
+): string {
+  return `rally.best.${stageId}.${carId}${weather === 'dry' ? '' : `.${weather}`}`;
 }
 
 export function loadBest(
@@ -537,19 +549,24 @@ export interface RunRecord {
   season?: Season;
   /** Hour of day (0-24) the run was driven at; missing = the stage's own hour (the only one before the picker), none on stages without a time of day. */
   hour?: number;
+  /** Weather of the run (`weather.ts`); missing = dry (all runs before the picker). */
+  weather?: Weather;
   /** ms since epoch (also the run's id); 0 = imported best from before the leaderboard existed. */
   date: number;
 }
 
-/** "Summer · Afternoon" of a run (`ownHour` = the stage's own hour, what runs without `hour` were driven at). */
+/** "Summer · Afternoon" (· "Heavy rain" when not dry) of a run (`ownHour` = the stage's own hour, what runs without `hour` were driven at). */
 export function runConditions(
-  run: Pick<RunRecord, 'season' | 'hour'>,
+  run: Pick<RunRecord, 'season' | 'hour' | 'weather'>,
   ownHour: number | undefined,
 ): string {
   const hour = run.hour ?? ownHour;
   return [
     SEASON_LABELS[run.season ?? DEFAULT_SEASON],
     ...(hour === undefined ? [] : [slotFor(hour).label]),
+    ...(run.weather && run.weather !== 'dry'
+      ? [WEATHER_LABELS[run.weather]]
+      : []),
   ].join(' · ');
 }
 

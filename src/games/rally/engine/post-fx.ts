@@ -19,6 +19,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { gradeUniforms } from './grade';
+import { worldUniforms } from './world-shading';
 
 /** Night glow strength at full darkness; scaled by the square of `Environment.lightNeed`. */
 const NIGHT_STRENGTH = 0.5;
@@ -63,6 +64,10 @@ const QUAD_VERT = /* glsl */ `
 const SANITIZE = /* glsl */ `
   uniform sampler2D tDiffuse;
   uniform float decode;
+  // Render scale (\`PostFx.setScale\`): the scene fills this share of the target from its corner; uv max clamps the
+  // bilinear upscale inside it.
+  uniform vec2 uvScale;
+  uniform vec2 uvMax;
   varying vec2 vUv;
   // Display mode: the target holds the finished picture (sRGB, tone mapped); back to an HDR estimate by the inverse of
   // c / (1 + max(c)) (hue kept; ENCODE undoes it exactly).
@@ -77,7 +82,8 @@ const SANITIZE = /* glsl */ `
     return max( c.r, max( c.g, c.b ) ) < 1.0e4 && min( c.r, min( c.g, c.b ) ) > - 1.0e4;
   }
   void main() {
-    vec4 c = texture2D( tDiffuse, vUv );
+    vec2 uv = min( vUv * uvScale, uvMax );
+    vec4 c = texture2D( tDiffuse, uv );
     if ( ok( c.rgb ) ) {
       gl_FragColor = vec4( min( toHdr( c.rgb ), vec3( 2000.0 ) ), c.a );
       return;
@@ -87,7 +93,7 @@ const SANITIZE = /* glsl */ `
     float n = 0.0;
     for ( int i = 0; i < 4; i++ ) {
       vec2 o = i == 0 ? vec2( px.x, 0.0 ) : i == 1 ? vec2( - px.x, 0.0 ) : i == 2 ? vec2( 0.0, px.y ) : vec2( 0.0, - px.y );
-      vec3 s = texture2D( tDiffuse, vUv + o ).rgb;
+      vec3 s = texture2D( tDiffuse, uv + o ).rgb;
       if ( ok( s ) ) { sum += s; n += 1.0; }
     }
     gl_FragColor = vec4( n > 0.0 ? min( toHdr( sum / n ), vec3( 2000.0 ) ) : vec3( 0.0 ), 1.0 );
@@ -158,6 +164,52 @@ const MIX = /* glsl */ `
     gl_FragColor = vec4( mix( c.rgb, b, strength ), c.a );
   }`;
 
+/**
+ * Rain drops on the lens: two layers of procedural drops (big and small cells), each drop a little lens that shows the
+ * scene behind it upside down and blurred at the rim. A drop appears, sits, runs down (or, at speed, is blown out from
+ * the centre by the air) and dries. `amount` 0..1 is how many cells hold a drop.
+ */
+const DROPS = /* glsl */ `
+  uniform sampler2D tDiffuse;
+  uniform float time;
+  uniform float amount;
+  uniform float speed;
+  uniform float aspect;
+  varying vec2 vUv;
+  float h( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
+  vec3 drop( vec2 uv, float cells, float seed, float size ) {
+    vec2 p = uv * vec2( cells * aspect, cells );
+    vec2 id = floor( p );
+    vec2 f = fract( p ) - 0.5;
+    float r1 = h( id + seed );
+    float r2 = h( id + seed + 7.31 );
+    float r3 = h( id + seed + 3.17 );
+    if ( r3 > amount ) return vec3( 0.0 );
+    float t = fract( time / ( 2.5 + 4.0 * r2 ) + r1 );
+    vec2 flow = mix( vec2( 0.0, -0.25 ), normalize( uv - 0.5 + vec2( 1e-4 ) ) * 0.5, speed );
+    vec2 c = ( vec2( r1, r2 ) - 0.5 ) * 0.3 + flow * smoothstep( 0.2, 1.0, t ) * ( 0.2 + 0.3 * speed );
+    float rad = size * ( 0.6 + 0.4 * r3 / max( amount, 1e-3 ) );
+    vec2 d = ( f - c ) / rad;
+    d.y *= 1.0 + 0.6 * smoothstep( 0.3, 1.0, t );
+    float l = length( d );
+    float fade = smoothstep( 0.0, 0.04, t ) * ( 1.0 - smoothstep( 0.6, 1.0, t ) );
+    return vec3( d, ( 1.0 - smoothstep( 0.8, 1.0, l ) ) * fade );
+  }
+  void main() {
+    vec3 a = drop( vUv, 7.0, 0.0, 0.2 );
+    vec3 b = drop( vUv, 19.0, 13.7, 0.22 );
+    vec3 d = a.z >= b.z ? a : b;
+    vec4 c = texture2D( tDiffuse, vUv );
+    if ( d.z <= 0.0 ) { gl_FragColor = c; return; }
+    float l = length( d.xy );
+    // A water lens: the view behind it flipped and squeezed, darker towards the rim (refraction out of the frame).
+    vec2 uvR = vUv - d.xy * vec2( 1.0 / aspect, 1.0 ) * 0.012;
+    vec3 r = texture2D( tDiffuse, uvR ).rgb * ( 1.0 - 0.18 * smoothstep( 0.6, 1.0, l ) );
+    // The sky's light caught at the top of the drop.
+    r += 0.05 * smoothstep( 0.35, 0.0, length( d.xy - vec2( -0.25, 0.45 ) ) );
+    gl_FragColor = vec4( mix( c.rgb, r, 0.85 * d.z ), c.a );
+  }`;
+
 function quadMaterial(
   fragmentShader: string,
   uniforms: Record<string, { value: unknown }>,
@@ -178,13 +230,18 @@ export interface PostFxOptions {
   /** Daytime bloom mix (0 = off). */
   day: number;
   ao: boolean;
+  /** Rain drops on the lens, 0..1 (0 = none). */
+  drops: number;
+  /** How hard the air blows them off (0 parked ... 1 fast), 0..1. */
+  dropSpeed: number;
 }
 
 /**
  * High quality post effects on a half-float copy of the scene (see `display` for day vs night).
  * - night bloom: lamps, reflectors and the beam glow at dusk and night (threshold bloom);
  * - day bloom: soft light spread from everything bright (soft light spread from everything bright);
- * - AO: screen-space ambient occlusion (GTAO) from the scene depth.
+ * - AO: screen-space ambient occlusion (GTAO) from the scene depth;
+ * - rain drops on the lens (`drops`, in the rain).
  * Live: `__rally.post.set({ day: 0.06, ao: true })`.
  */
 export class PostFx {
@@ -196,7 +253,13 @@ export class PostFx {
   private readonly sanitize = quadMaterial(SANITIZE, {
     tDiffuse: { value: null },
     decode: { value: 0 },
+    uvScale: { value: new Vector2(1, 1) },
+    uvMax: { value: new Vector2(1, 1) },
   });
+  /** Render scale: the scene is drawn into this share of the full-size target (a viewport, no resize). */
+  private scale = 1;
+  /** Depth uv scale handed to the AO's shaders (`scaledDepth`). */
+  private readonly depthUvScale = { value: new Vector2(1, 1) };
   private readonly encode = quadMaterial(ENCODE, { tDiffuse: { value: null } });
   private readonly down = quadMaterial(DOWN, {
     tSrc: { value: null },
@@ -213,6 +276,13 @@ export class PostFx {
     tBloom: { value: null },
     strength: { value: 0 },
     levels: { value: DAY_MIPS },
+  });
+  private readonly drops = quadMaterial(DROPS, {
+    tDiffuse: { value: null },
+    time: { value: 0 },
+    amount: { value: 0 },
+    speed: { value: 0 },
+    aspect: { value: 1 },
   });
   private readonly nightBloom: UnrealBloomPass;
   private readonly gtao: GTAOPass;
@@ -232,7 +302,14 @@ export class PostFx {
     antialias: boolean,
     opts: Partial<PostFxOptions> = {},
   ) {
-    this.opts = { night: 0, day: 0, ao: false, ...opts };
+    this.opts = {
+      night: 0,
+      day: 0,
+      ao: false,
+      drops: 0,
+      dropSpeed: 0,
+      ...opts,
+    };
     const depthTexture = new DepthTexture(1, 1);
     this.scene = new WebGLRenderTarget(1, 1, {
       type: HalfFloatType,
@@ -273,6 +350,8 @@ export class PostFx {
     this.gtao.setGBuffer(depthTexture);
     this.gtao.updateGtaoMaterial(AO);
     this.gtao.blendIntensity = AO_INTENSITY;
+    for (const m of [this.gtao.gtaoMaterial, this.gtao.pdMaterial])
+      scaledDepth(m, this.depthUvScale);
     // The grade lives in the tone-mapping chunk; OutputPass needs the shared uniforms or it renders ungraded.
     Object.assign(this.output.material.uniforms, gradeUniforms);
     this.set(this.opts);
@@ -280,9 +359,38 @@ export class PostFx {
     this.resize();
   }
 
-  /** True when any effect is on (else the caller renders directly). */
+  /** True when any effect is on or the scene is drawn at a render scale (else the caller renders directly). */
   get active(): boolean {
-    return this.nightOn || this.opts.day > 0 || this.opts.ao;
+    return (
+      this.nightOn ||
+      this.opts.day > 0 ||
+      this.opts.ao ||
+      this.opts.drops > 0 ||
+      this.scale < 1
+    );
+  }
+
+  /**
+   * Render scale without a resize (three r187: a render target's viewport is in its own pixels): the scene is drawn
+   * into the corner of the full-size target and SANITIZE upscales it, the effects after it run at full size. A step
+   * only changes a viewport and a few uniforms, where resizing the canvas and every target was a 70-180 ms hitch.
+   */
+  setScale(scale: number): void {
+    this.scale = scale;
+    this.applyScale();
+  }
+
+  private applyScale(): void {
+    const t = this.scene;
+    const w = Math.max(1, Math.round(t.width * this.scale));
+    const h = Math.max(1, Math.round(t.height * this.scale));
+    t.viewport.set(0, 0, w, h);
+    t.scissor.set(0, 0, w, h);
+    t.scissorTest = this.scale < 1;
+    const u = this.sanitize.uniforms;
+    u.uvScale.value.set(w / t.width, h / t.height);
+    u.uvMax.value.set((w - 0.5) / t.width, (h - 0.5) / t.height);
+    this.depthUvScale.value.copy(u.uvScale.value);
   }
 
   private get nightOn(): boolean {
@@ -314,6 +422,7 @@ export class PostFx {
     this.nightBloom.setSize(w, h);
     this.gtao.setSize(Math.max(1, w >> 1), Math.max(1, h >> 1));
     this.output.setSize(w, h);
+    this.applyScale();
   }
 
   private pass(
@@ -367,6 +476,17 @@ export class PostFx {
       this.swap();
     }
 
+    if (this.opts.drops > 0) {
+      const u = this.drops.uniforms;
+      u.tDiffuse.value = this.a.texture;
+      u.time.value = worldUniforms.wsTime.value;
+      u.amount.value = this.opts.drops;
+      u.speed.value = this.opts.dropSpeed;
+      u.aspect.value = this.a.width / this.a.height;
+      this.pass(this.drops, this.b);
+      this.swap();
+    }
+
     if (this.display) {
       this.encode.uniforms.tDiffuse.value = this.a.texture;
       this.pass(this.encode, null);
@@ -394,6 +514,7 @@ export class PostFx {
       this.down,
       this.up,
       this.mixer,
+      this.drops,
     ])
       m.dispose();
     this.quad.dispose();
@@ -419,5 +540,25 @@ export function postFxFromUrl(
     night,
     day: Number.isFinite(bloom) ? bloom : day,
     ao: aoParam === null ? ao : aoParam === '1',
+    drops: 0,
+    dropSpeed: 0,
   };
+}
+
+/** GTAO / its denoise read the scene depth at full-screen uv: scaled to the part the scene was drawn into. */
+function scaledDepth(
+  m: ShaderMaterial,
+  depthUvScale: { value: Vector2 },
+): void {
+  const get = 'textureLod(tDepth, uv.xy, 0.0)';
+  const at = 'ivec2(uv * size)';
+  if (!m.fragmentShader.includes(get) || !m.fragmentShader.includes(at))
+    throw new Error('post-fx: GTAO depth lookups changed (three upgrade?)');
+  m.uniforms.depthUvScale = depthUvScale;
+  m.fragmentShader =
+    'uniform vec2 depthUvScale;\n' +
+    m.fragmentShader
+      .replace(get, 'textureLod(tDepth, uv.xy * depthUvScale, 0.0)')
+      .replace(at, 'ivec2(uv * depthUvScale * size)');
+  m.needsUpdate = true;
 }

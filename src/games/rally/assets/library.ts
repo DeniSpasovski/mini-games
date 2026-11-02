@@ -19,6 +19,7 @@ import {
 } from './builders/props';
 import { buildingFlat, housePitched, houseStone } from './builders/buildings';
 import {
+  bench,
   crate,
   drum,
   extinguisherStand,
@@ -27,13 +28,20 @@ import {
   generator,
   handTruck,
   ibcTank,
+  jackStands,
+  jerrycan,
   palletJack,
   palletStack,
+  picnicTable,
+  powerPole,
   stepLadder,
+  streetBin,
   tableChairs,
   toolChest,
   tripodLight,
   tyreRack,
+  tyreStillage,
+  utilityBox,
   wallLamp,
   wheelbarrow,
   wheelieBin,
@@ -61,7 +69,7 @@ import {
   gondolaPylon,
   millenniumCross,
 } from './builders/landmarks';
-import { catenaryMast, powerPole, powerPylon } from './builders/power';
+import { catenaryMast, powerPylon } from './builders/power';
 import {
   carTrailer,
   controlBoard,
@@ -169,6 +177,9 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   tyre_stack: tyreStack,
   tool_chest: toolChest,
   tyre_rack: tyreRack,
+  tyre_stillage: tyreStillage,
+  jerrycan,
+  jack_stands: jackStands,
   table_chairs: tableChairs,
   generator,
   feather_flag: featherFlag,
@@ -180,6 +191,10 @@ export const BUILDERS: Record<string, AssetBuilder> = {
   hand_truck: handTruck,
   step_ladder: stepLadder,
   wheelie_bin: wheelieBin,
+  utility_box: utilityBox,
+  street_bin: streetBin,
+  bench,
+  picnic_table: picnicTable,
   pallet_stack: palletStack,
   drum,
   ibc_tank: ibcTank,

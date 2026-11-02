@@ -1,5 +1,5 @@
 /**
- * Release list: which cars / stages ship in the published build - the ONLY place to change this.
+ * Release list: which cars / stages / weathers ship in the published build - the ONLY place to change this.
  *
  * Every car / stage registered in `cars/index.ts` / `maps/index.ts` (each map's `stages`) is listed here exactly once.
  * `hideInProd: true` = work in progress - a NEW car / stage goes here first. A map ships when one of its stages does. Dev server and test builds only (`npm run dev`,
@@ -41,6 +41,17 @@ export const STAGES_LIST: readonly ReleaseEntry[] = [
   { id: 'galichica_east', hideInProd: true },
   { id: 'prespa_ohrid', hideInProd: true },
   { id: 'jackie' },
+];
+
+/** Weathers of the stage screen (`weather.ts`): dry always; a hidden one is offered (and read from `?weather=`) only on the dev server and test builds. */
+export const WEATHERS_LIST: readonly ReleaseEntry[] = [
+  { id: 'dry' },
+  { id: 'overcast', hideInProd: true },
+  { id: 'pre_rain', hideInProd: true },
+  { id: 'rain_light', hideInProd: true },
+  { id: 'rain_heavy', hideInProd: true },
+  { id: 'post_rain', hideInProd: true },
+  { id: 'fog', hideInProd: true },
 ];
 
 /** Not released (`hideInProd`, or by mistake not listed) - shown with a TEST badge on the dev server. */

@@ -2,6 +2,7 @@ import {
   BufferAttribute,
   BufferGeometry,
   Group,
+  Material,
   Mesh,
   MeshStandardMaterial,
   Vector3,
@@ -134,8 +135,12 @@ export function getRoadMaterial(
       polygonOffsetUnits:
         layer === 3 ? -8 : layer === 0 ? -6 : layer === 2 ? -4 : -2,
     });
-    // Canopy shadows beyond the shadow map (engine/world-shading.ts).
-    m.defines = { RALLY_GROUND: 1 };
+    // Canopy shadows beyond the shadow map; a wet tarmac film is glossier than wet gravel (engine/world-shading.ts).
+    m.defines = {
+      RALLY_GROUND: 1,
+      RALLY_WET: baked || texture === 'road' ? 0.15 : 0.4,
+      RALLY_PUDDLES: 1,
+    };
     if (baked) applyRoadSurface(m, texture, junction ?? JUNCTION_OF[texture]);
     // The gravel is the terrain's own (world/gravel-road.ts), blended into the verge at its edges.
     if (gravel) setupGravelRibbon(m);
@@ -226,8 +231,9 @@ function surfaceFadeMesh(world: World): Mesh | null {
     polygonOffsetFactor: -4,
     polygonOffsetUnits: -8,
   });
-  m.defines = { ...GRAVEL_DEFINES };
-  m.onBeforeCompile = (shader) => {
+  m.defines = { ...GRAVEL_DEFINES, RALLY_WET: 0.15, RALLY_PUDDLES: 1 };
+  m.onBeforeCompile = (shader, renderer) => {
+    Material.prototype.onBeforeCompile.call(m, shader, renderer);
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',

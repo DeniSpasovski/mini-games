@@ -1,6 +1,6 @@
 import { expect, test } from '@rstest/core';
 import { BOT_PARAMS, BotController } from '../../src/games/kaboom/sim/bot';
-import { FUSE_S, TICK_HZ } from '../../src/games/kaboom/sim/rules';
+import { FUSE_S, ROUND_S, TICK_HZ } from '../../src/games/kaboom/sim/rules';
 import type { PlayerInput, SimEvent } from '../../src/games/kaboom/sim/types';
 import { simOn } from './helpers';
 
@@ -89,4 +89,15 @@ test('bots are deterministic and idle during the countdown and after the round',
       .join('|');
   };
   expect(run()).toBe(run());
+});
+
+test('a round always ends by the timer: bots fighting on a crate arena never leave it stuck', () => {
+  for (const difficulty of ['easy', 'normal', 'hard'] as const)
+    for (let seed = 1; seed <= 12; seed++) {
+      const sim = simOn(ARENA, { bots: 1, difficulty });
+      const bots = new BotController(sim, difficulty, seed, [0, 1]);
+      play(sim, bots, ROUND_S + 2);
+      expect(sim.over).toBe(true);
+      expect(sim.time).toBeLessThanOrEqual(ROUND_S + 0.5);
+    }
 });

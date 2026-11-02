@@ -25,6 +25,9 @@ export const SERVICE_PARK_ASSETS = [
   'team_car',
   'tyre_stack',
   'tyre_rack',
+  'tyre_stillage',
+  'jerrycan',
+  'jack_stands',
   'tool_chest',
   'table_chairs',
   'generator',
@@ -648,6 +651,13 @@ function works(
   bay.put('tyre_stack', 1, 3.5, 8.4, 0, { r: 0.4 });
   bay.put('tyre_rack', team % 3, 12.6, 9.0, 0, { r: 0.75 });
   bay.put('trolley_jack', 0, tx + 2.9, 6.9, rng.range(-0.4, 0.4), { r: 0.4 });
+  // Axle stands and a pail at the other end of the car, jerrycans by the generator, a tyre stillage by the tent.
+  if (bay.clear(tx - 2.7, 7.1, 0.6))
+    bay.put('jack_stands', 0, tx - 2.7, 7.1, rng.range(-0.5, 0.5), { r: 0.4 });
+  if (bay.clear(13.6, 1.7, 0.6))
+    bay.put('jerrycan', team % 2, 13.6, 1.7, rng.range(-0.3, 0.3), { r: 0.4 });
+  if (bay.clear(19.9, 4.0, 1.3))
+    bay.put('tyre_stillage', team % 3, 19.9, 4.0, Math.PI / 2, { r: 1.2 });
   bay.put('feather_flag', team, 0.8, 9.7, 0, { r: 0.3 });
   bay.put('feather_flag', team, w - 0.8, 9.7, 0, { r: 0.3 });
   // Park kit: floodlight over the tyres, extinguisher by the work table, hand truck, ladder and a bin at the back.
@@ -1009,6 +1019,8 @@ function addPublicEdge(
       }
       [x, z] = at(lot.length - 15);
       place('fuel_trailer', 0, x, z, turn(0), 2, 0);
+      [x, z] = at(lot.length - 16, aisleV - 1.3);
+      place('jerrycan', 1, x, z, turn(0.2), 0.4, 0);
       [x, z] = at(lot.length - 15, aisleV + 2.2);
       place(
         'marshal',

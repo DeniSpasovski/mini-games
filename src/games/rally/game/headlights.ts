@@ -12,6 +12,8 @@ import {
 import type { QualityName } from '../engine/quality';
 import type { CarHeadlightsDef } from '../cars/shared/types';
 import type { CarPhysicsDef } from '../physics/types';
+import type { WeatherLook } from '../weather';
+import { shadowCasterLayers } from '../engine/layers';
 
 /** Luminous intensity of the main low beam (scene units, physical falloff). */
 const BEAM = 3200;
@@ -23,6 +25,10 @@ export const DEFAULT_HEADLIGHTS: CarHeadlightsDef = {
   penumbra: 0.55,
   spill: 0.2,
 };
+/** Daytime low beams (`day`): this share of the night beam, narrower - at full strength the road just ahead of the
+ * bumper lights up as two white puffs either side of the car, seen from behind. */
+const DAY_BEAM = 0.3;
+const DAY_ANGLE = 0.75;
 /** Visible beam length (m) and the cone's radius at its far end. */
 const CONE_LENGTH = 28;
 const CONE_RADIUS = 5.5;
@@ -30,6 +36,33 @@ const CONE_RADIUS = 5.5;
 const LIGHT_AHEAD = 0.35;
 /** The default beam angle the cone radius is made for. */
 const CONE_ANGLE = 0.42;
+
+/** Lights level from which the car gets its full beams: spill + shadowed low beam (a rain / fog day stays under it, `Headlights` `day`). */
+export const BEAM_MIN_NEED = 0.4;
+/** Lamp glow (head and tail lamp lenses, `CarModel.setLamps`) with the lights on in rain / fog by day. */
+const WEATHER_LAMPS = 0.8;
+
+/**
+ * How the car's lights run (the game and the car viewer): `need` = `Environment.lightNeed`, `look` its weather. In rain
+ * / fog the lights are switched on, not faded in with the dusk: the lamps glow near full (`lamps`, the tail lamps read
+ * red against a bright sky) while the light they throw stays at `need`; `day` = a rain / fog day (under `BEAM_MIN_NEED`),
+ * `perLamp` / `haze` as `Headlights` takes them. Dry keeps the plain dusk / night lights.
+ */
+export function carLights(
+  need: number,
+  look: Pick<WeatherLook, 'rain' | 'fog' | 'visibility'>,
+): { lamps: number; day: boolean; perLamp: boolean; haze: number } {
+  const weather = look.rain > 0 || !!look.fog;
+  return {
+    lamps: weather ? Math.max(need, WEATHER_LAMPS) : need,
+    day: weather && need < BEAM_MIN_NEED,
+    perLamp: weather,
+    haze: Math.max(
+      look.fog ? 1 : 0,
+      look.visibility ? Math.min(1, 600 / look.visibility) : 0,
+    ),
+  };
+}
 
 /** Lamp position on a car (`Headlights`): 0.8 of the widest half-track, 0.75 m ahead of the front axle, 0.7 m up. */
 export function headlightMount(p: Pick<CarPhysicsDef, 'front' | 'rear'>): {
@@ -45,17 +78,22 @@ export function headlightMount(p: Pick<CarPhysicsDef, 'front' | 'rear'>): {
 }
 
 /**
- * The car's headlights at night (`Environment.night`): a narrow bright low beam, a wide dim spill for the verges and
- * two soft additive cones for the beam seen in the air. Children of the car, so they follow its pitch and roll.
- * The low beam casts shadows on high quality only (one extra shadow pass over what the beam covers; medium / low
- * keep the light and drop the shadow). Created before the first compile: lights are compiled into every lit shader.
+ * The car's headlights at night (`Environment.night`): a narrow bright low beam (both lamps as one; one from each lamp
+ * with `perLamp`, the rain / fog lights), a wide dim spill for the verges and two soft additive cones for the beam seen
+ * in the air. Children of the car, so they follow its pitch and roll. One low beam casts shadows on high quality only
+ * (one extra shadow pass over what the beam covers; medium / low keep the light and drop the shadow). Created before the
+ * first compile: lights are compiled into every lit shader.
+ * `day` (lights on in daytime rain / fog): the two low beams only, never shadowed - they show as a glare on the wet road
+ * ahead; the spill, the shadow pass and the air cones show nothing in daylight (a cone seen from the side reads as a
+ * glowing rod).
+ * `haze` (0..1, rain / fog in the air) brightens the cones at night: droplets scatter the beam.
  */
 export class Headlights {
   readonly group = new Group();
   private readonly cones: Mesh[] = [];
   private readonly spots: SpotLight[] = [];
-  /** Each spot light's aim: metres ahead of the lamps and the target height. */
-  private readonly aims: { ahead: number; y: number }[] = [];
+  /** Each spot light's lamp (-1 / 1 = x side x the lamp spacing, 0 = centred), aim (m ahead of the lamps) and target height. */
+  private readonly aims: { side: number; ahead: number; y: number }[] = [];
   readonly color: Color;
   private readonly beamMat = new ShaderMaterial({
     uniforms: { uTint: { value: new Color() }, uGain: { value: 1 } },
@@ -115,16 +153,21 @@ export class Headlights {
     def: CarHeadlightsDef = DEFAULT_HEADLIGHTS,
     /** 0..1 (`Environment.lightNeed`): dusk lights are weaker, so the beam and its air cones fade with it. */
     level = 1,
+    {
+      day = false,
+      perLamp = day,
+      haze = 0,
+    }: { day?: boolean; perLamp?: boolean; haze?: number } = {},
   ) {
     this.color = new Color(def.color);
     this.beamMat.uniforms.uTint.value
       .copy(this.color)
       .lerp(new Color(1, 1, 1), 0.2);
-    // Brighter lamps show a stronger beam in the air, old dim ones a faint one.
+    // Brighter lamps show a stronger beam in the air, old dim ones a faint one; rain and fog light it up.
     this.beamMat.uniforms.uGain.value =
-      Math.min(1.4, 0.4 + 0.6 * def.power) * level;
+      Math.min(1.4, 0.4 + 0.6 * def.power) * level * (1 + 1.2 * haze * haze);
     const spot = (
-      x: number,
+      side: number,
       aim: number,
       aimY: number,
       angle: number,
@@ -134,33 +177,48 @@ export class Headlights {
       shadow: boolean,
     ): void => {
       const l = new SpotLight(this.color, power, distance, angle, penumbra, 2);
-      l.position.set(x, lamp.y, lamp.z);
-      l.target.position.set(x, aimY, lamp.z + aim);
+      l.position.set(side * lamp.x, lamp.y, lamp.z);
+      l.target.position.set(side * lamp.x, aimY, lamp.z + aim);
       if (shadow) {
         l.castShadow = true;
         l.shadow.mapSize.set(2048, 2048);
         l.shadow.camera.near = 1;
         l.shadow.camera.far = distance;
+        shadowCasterLayers(l.shadow.camera);
         l.shadow.bias = -0.0008;
         l.shadow.normalBias = 0.05;
       }
       this.spots.push(l);
-      this.aims.push({ ahead: aim, y: aimY });
+      this.aims.push({ side, ahead: aim, y: aimY });
       this.group.add(l, l.target);
     };
-    // Low beam (both lamps as one, centred), wide spill for the verges.
-    spot(
-      0,
-      60,
-      -0.9,
-      def.angle,
-      def.penumbra,
-      BEAM * def.power * level,
-      170,
-      quality === 'high',
-    );
-    spot(0, 35, -0.6, 0.85, 1, BEAM * def.power * def.spill * level, 90, false);
-    for (const side of [-1, 1]) {
+    // Low beam: one per lamp, at the lamp (`perLamp`), one of them casting the shadow (high, night): what it hides the
+    // other lamp still lights, the half shadow a real pair of lamps throws, for one shadow pass. Else both lamps as one,
+    // centred (one spot light less in every lit shader).
+    for (const side of perLamp ? [-1, 1] : [0])
+      spot(
+        side,
+        60,
+        -0.9,
+        def.angle * (day ? DAY_ANGLE : 1),
+        def.penumbra,
+        (perLamp ? BEAM / 2 : BEAM) * def.power * level * (day ? DAY_BEAM : 1),
+        170,
+        side !== -1 && quality === 'high' && !day,
+      );
+    // Wide spill for the verges (night only), centred.
+    if (!day)
+      spot(
+        0,
+        35,
+        -0.6,
+        0.85,
+        1,
+        BEAM * def.power * def.spill * level,
+        90,
+        false,
+      );
+    for (const side of day ? [] : [-1, 1]) {
       const geo = new ConeGeometry(
         CONE_RADIUS * (def.angle / CONE_ANGLE),
         CONE_LENGTH,
@@ -181,13 +239,14 @@ export class Headlights {
     car.add(this.group);
   }
 
-  /** Move the beam to the car's own lamps (`CarModel.onHeadlamps`): the cones start at the lamps, the light at their middle. */
+  /** Move the beams to the car's own lamps (`CarModel.onHeadlamps`): each low beam and cone at its lamp, the spill between them. */
   moveTo(lamp: { x: number; y: number; z: number }): void {
     // The light itself sits a little ahead of the lamps: at their face it would floodlight the car's own bumper lip.
     const z = lamp.z + LIGHT_AHEAD;
     this.spots.forEach((l, i) => {
-      l.position.set(0, lamp.y, z);
-      l.target.position.set(0, this.aims[i].y, z + this.aims[i].ahead);
+      const { side, ahead, y } = this.aims[i];
+      l.position.set(side * lamp.x, lamp.y, z);
+      l.target.position.set(side * lamp.x, y, z + ahead);
     });
     this.cones.forEach((c, i) =>
       c.position.set((i ? 1 : -1) * lamp.x, lamp.y, lamp.z),
@@ -221,9 +280,11 @@ export function tailLightMount(
  * The tail lamps' red spill at night: one dim red spot light at the bumper aimed back and down, so it tints the road and
  * the verges behind the car (not the car's own rear), brighter with the brake. A child of the car; like the headlights
  * it exists from the first compile (lights are compiled into every lit shader), so it is created only when the lights are on.
+ * `spacing` > 0 (a wet road: `carLights` `perLamp`) = one spot behind each lamp (x = +-spacing), as a wet road mirrors
+ * each lamp: one centred spot would put its glint in the middle, under no lamp.
  */
 export class TailLight {
-  private readonly light = new SpotLight(0xff1408, 0, 6.5, 0.95, 1, 2);
+  private readonly lights: SpotLight[] = [];
   private brake = 0;
 
   /** `level` = 0..1 lights level (`Environment.lightNeed`). */
@@ -231,10 +292,15 @@ export class TailLight {
     car: Object3D,
     at: { x: number; y: number; z: number },
     private level: number,
+    spacing = 0,
   ) {
-    this.light.position.set(at.x, at.y, at.z);
-    this.light.target.position.set(at.x, at.y - 0.55, at.z - 3);
-    car.add(this.light, this.light.target);
+    for (const x of spacing > 0 ? [-spacing, spacing] : [at.x]) {
+      const light = new SpotLight(0xff1408, 0, 6.5, 0.95, 1, 2);
+      light.position.set(x, at.y, at.z);
+      light.target.position.set(x, at.y - 0.55, at.z - 3);
+      car.add(light, light.target);
+      this.lights.push(light);
+    }
     this.apply();
   }
 
@@ -251,12 +317,16 @@ export class TailLight {
   }
 
   private apply(): void {
-    this.light.intensity =
-      this.level * (TAIL_IDLE + (TAIL_BRAKE - TAIL_IDLE) * this.brake);
+    const intensity =
+      (this.level * (TAIL_IDLE + (TAIL_BRAKE - TAIL_IDLE) * this.brake)) /
+      this.lights.length;
+    for (const l of this.lights) l.intensity = intensity;
   }
 
   dispose(): void {
-    this.light.removeFromParent();
-    this.light.target.removeFromParent();
+    for (const l of this.lights) {
+      l.removeFromParent();
+      l.target.removeFromParent();
+    }
   }
 }

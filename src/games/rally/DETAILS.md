@@ -11,7 +11,7 @@ sim-lite physics that is still fun on a keyboard.
 | ----------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Game        | `/games/rally/`                                                   | welcome -> select stage -> select car -> (set-up) -> drive                                                                                                                                            |
 | Map viewer  | `/games/rally/map-viewer.html?map=test&stage=test&grid=1&splat=1` | a map with one of its stages (`stage=`, default the first; a stage picker lists them) in a season (`season=`, the Season picker), click terrain to inspect, "Drive from here", lat / lon on real maps |
-| Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`             | livery seed, door plate, pose, physics hull, torque chart, test drive, time of day + lights (`tod=1&lamps=brake`)                                                                                     |
+| Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`             | livery seed, door plate, pose, physics hull, torque chart, test drive, time of day + lights (`tod=1&lamps=brake`), weather + road backdrop (`weather=rain_heavy&backdrop=gravel                       | tarmac | city`) |
 | Asset debug | `/games/rally/asset-debug.html?asset=pine_tree&lod=1`             | every asset / car (`car:<id>`) / texture (`tex:<id>`): seed, variant, LOD                                                                                                                             |
 
 Tool pages are dev-server only and keep their state in the URL; `H` hides the panel, `F3` shows stats, "Copy camera link"
@@ -19,18 +19,19 @@ gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
 
 **URL parameters** (any of the play ones skips the menu):
 
-| Parameter                  | Pages | Effect                                                                                                                                                                                   |
-| -------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `stage`, `car`, `livery`   | play  | stage id, car, livery seed; an old `map=<id>` link is rewritten in place to `stage=` (`stageLinkParams`; a map with several stages opens its first)                                      |
-| `tyre`, `susp`, `gear`     | play  | `tarmac / tarmac_hard / mixed / gravel_hard / gravel`, `soft / medium / stiff`, `short / medium / long` (default: the stage's pick)                                                      |
-| `spawn`                    | play  | `start`, a flat-area name (`pad`) or metres along the stage road = free drive (no clock, never ranked)                                                                                   |
-| `quality`                  | play  | `low / medium / high`                                                                                                                                                                    |
-| `mute=1`                   | play  | silent (bots and tests)                                                                                                                                                                  |
-| `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                                                                                                       |
-| `tod=<hours>`, `tonemap=`  | all   | time of day (maps with `environment.timeOfDay`; 20-4:30 = night, see Look; the stage menu sets it), `aces / agx / neutral`                                                               |
-| `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the stage's `temps` for the season and hour)                                                                                         |
-| `season=`                  | play  | `spring / summer / autumn`: tree leaf colours, ground colour and the stage's `temps` for it (default: `StageDef.season`, else `environment.season`, summer); the map viewer takes it too |
-| `perf=1`                   | play  | open the perf panel (below)                                                                                                                                                              |
+| Parameter                  | Pages | Effect                                                                                                                                                                                                                                                                       |
+| -------------------------- | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stage`, `car`, `livery`   | play  | stage id, car, livery seed; an old `map=<id>` link is rewritten in place to `stage=` (`stageLinkParams`; a map with several stages opens its first)                                                                                                                          |
+| `tyre`, `susp`, `gear`     | play  | `tarmac / tarmac_hard / mixed / gravel_hard / gravel`, `soft / medium / stiff`, `short / medium / long` (default: the stage's pick)                                                                                                                                          |
+| `spawn`                    | play  | `start`, a flat-area name (`pad`) or metres along the stage road = free drive (no clock, never ranked)                                                                                                                                                                       |
+| `quality`                  | play  | `low / medium / high`                                                                                                                                                                                                                                                        |
+| `mute=1`                   | play  | silent (bots and tests)                                                                                                                                                                                                                                                      |
+| `display=auto / sdr / hdr` | all   | lower exposure on HDR monitors (white paint glare)                                                                                                                                                                                                                           |
+| `tod=<hours>`, `tonemap=`  | all   | time of day (maps with `environment.timeOfDay`; 20-4:30 = night, see Look; the stage menu sets it), `aces / agx / neutral`                                                                                                                                                   |
+| `air=<°C>`                 | play  | air temperature for the tyre temperatures (default: the stage's `temps` for the season and hour)                                                                                                                                                                             |
+| `season=`                  | play  | `spring / summer / autumn`: tree leaf colours, ground colour and the stage's `temps` for it (default: `StageDef.season`, else `environment.season`, summer); the map viewer takes it too                                                                                     |
+| `weather=`                 | all   | `dry / overcast / pre_rain / rain_light / rain_heavy / post_rain / fog` (`weather.ts`; the stage menu sets it; dev / test only): sky, temperatures, wet surfaces and grip, puddles, rain, spray, lens drops, valley fog with a top (`StageDef.weather` retunes it per stage) |
+| `perf=1`                   | play  | open the perf panel (below)                                                                                                                                                                                                                                                  |
 
 Perf panel (`` ` `` key in game or `perf=1`, `game/perf-panel.ts`): FPS, frame ms, CPU ms per frame step, GPU ms (timer
 queries; "Wait for GPU" measures it by a readback where they are missing), draw calls, triangles; switches for every
@@ -121,13 +122,15 @@ Per-map settings live in `MapDef.environment`; everything has a default.
 - **Night** (`engine/night.ts`, `?tod=<hours>` from 19:30 to 04:30 on any map; not in the studio): the moon is the directional light
   (dim, blue, `moonAt`), the sky is a dark dome with a town glow, moon and stars (`NightSky`), fog is dark, tone mapping AgX at a
   fixed exposure; the env map and the tree ambient (`setTreeSky`) are rebuilt from the night sky. The car's lights fade in with the dark (`lightNeed`, from the sun height: off by day, ~0.6 at the 17:30 evening, 1 at night; scales lamps, beam, cones and dust glow). They switch on
-  (`CarModel.setLamps(level)`: head / tail lamp materials, `userData.headLamp`) and `game/headlights.ts` (strength, colour and beam shape per car: `CarDef.headlights`) adds a low-beam spot, a wide
-  spill spot and two soft beam cones; dust, spray and haze glow inside the beam (`ParticleSystem.setHeadlight`). Shadows: the low
-  beam and the moon cast them on high quality only. Head lamps (`part-materials.ts` `headLamp`) are nearly dark with the lights
+  (`CarModel.setLamps(level)`: head / tail lamp materials, `userData.headLamp`) and `game/headlights.ts` (strength, colour and beam shape per car: `CarDef.headlights`) adds a low-beam spot (one per lamp in rain / fog), a wide
+  spill spot and two soft beam cones; dust, spray and haze glow inside the beam (`ParticleSystem.setHeadlight`). Shadows: one low
+  beam and the moon cast them on high quality only. Rain / fog by day (`lightNeed` under `BEAM_MIN_NEED`, `rally-game.ts`): lights
+  on, lamps glow near full (`WEATHER_LAMPS`, tail lamps a day running light), only the two unshadowed low beams; no spill, cones,
+  street lamps or pools (they read as smears in daylight). Head lamps (`part-materials.ts` `headLamp`) are nearly dark with the lights
   off and get a halo in the beam colour when on (`LampHalos` `front`); the beam starts at the model's own lamps
   (`CarModel.onHeadlamps` -> `Headlights.moveTo`), and its cones fade when seen from in front (glare, not a lit wall). No map has a night stage yet. Road side (`engine/night-glow.ts`, shared `ws*` uniforms): marker-post reflectors and chevron boards
   light up in the car's beam (`retro`), street lamp lenses glow with `lightNeed` and `world/lamp-pools.ts` lays a soft light pool under
-  each lamp. High quality adds bloom (`engine/post-fx.ts`, threshold far above the lit ground, so lenses and reflectors are
+  each lamp, draped over the ground (a flat disc sinks into the verge and flickers). High quality adds bloom (`engine/post-fx.ts`, threshold far above the lit ground, so lenses and reflectors are
   emissive well over it). Not done: high / low beam key.
 - **Post effects (High):** `engine/post-fx.ts`, options **Bloom** (off / soft / strong, default off, `BLOOM_MIX` in `game/settings.ts`) and
   **Ambient occlusion** (default off). Bloom: the whole picture, no threshold, mixed back at a few percent, worked on an HDR
@@ -247,7 +250,7 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Corner fans** (stage `cornerFans`): small groups on the inside of tight corners along the whole stage - red / white tape (always a chain: posts ~5 m apart, a `tape_span` tied from each to the next, tilted to the slope; a blocked post splits the run and a post left alone is dropped, `world/tape.ts`; the roadside `tape_post` rules and service-park lots use the same),
   spectators (some waving their map's own hand flag - `MapDef.country` - or a plain colour flag, never another country's) + visitors, a marshal, 1-2 photographers, flags; marshals at every side-road mouth, 5 photographers each at start and finish (people are capped on purpose: `DEFAULT_FANS`, `SHOOTERS`, `END_PHOTOGRAPHERS` in corner-fans.ts)
   (`world/corner-fans.ts`, `World.cornerFans`; test `corner-fans`). People animate (`world/people-anim.ts`, run by `RallyGame.frame`): within 45 m they turn to watch the car, photographers (75 m) keep it centred, via `InstanceStreamer.setMatrix`; hand flags wave in the `people_flag` shader (`engine/materials.ts`, own mesh from `markFlag` in people.ts).
-- **Service park** (stage `servicePark`; `world/service-park.ts`, `World.servicePark`; assets `assets/builders/service.ts` + `teams.ts`, the SimReady scans in `simready.ts` (tool chest, tyre rack, jack, flood light, extinguisher, wheelbarrow, hand truck, ladder, bin; the Poly Haven table and chairs and generator in the same bake; an extinguisher in every bay; yard props: Ajvatovci `start-row/yard-props.ts`, Jackie industrial scatter rules);
+- **Service park** (stage `servicePark`; `world/service-park.ts`, `World.servicePark`; assets `assets/builders/service.ts` + `teams.ts`, the SimReady scans in `simready.ts` (tool chest, tyre rack and stillage, jack, axle stands with a pail, flood light, extinguisher, wheelbarrow, hand truck, ladder, bin; the Poly Haven table and chairs, generator and jerrycans in the same bake; an extinguisher in every bay; yard props: Ajvatovci `start-row/yard-props.ts`, Jackie industrial scatter rules);
   per map `maps/<id>/service-park.ts`; tests `service-park`, `parc-ferme`): team bays on levelled gravel lots - truck / van, team cars on
   ground sheets, tents, props, crew and guests - plus tape, a crowd (seated or flag-waving fans, photographers, visitors) and a start
   control. Team trucks, vans and the catering van are the background models in team paint plus side stripes.
@@ -417,7 +420,7 @@ underpasses". Tests: `tests/rally/` `bridges`, `city-maps`, `junctions`, `side-r
   (`scripts/car-model/glb-meshopt.mjs`, about half the size, same meshes; `car-glb-meshopt.test.ts` checks every file).
 - **Door plates** (`cars/shared/rally-badge.ts`): our own event plate (emblem, car number, map name) projected onto both front
   doors. Liveries carry no numbers or lettering.
-- **Release flags** (`release.ts`): `CARS_LIST` / `STAGES_LIST` list every car / stage id (a map ships when one of its stages does); `hideInProd: true` = dev server + `npm run build:test` only (TEST badge). Same flag and `RELEASE_BUILD` check (`src/shared/release.ts`) as `game.json`.
+- **Release flags** (`release.ts`): `CARS_LIST` / `STAGES_LIST` / `WEATHERS_LIST` list every car / stage / weather id (a map ships when one of its stages does; a hidden weather is left out of the Weather picker and `?weather=`); `hideInProd: true` = dev server + `npm run build:test` only (TEST badge). Same flag and `RELEASE_BUILD` check (`src/shared/release.ts`) as `game.json`.
   Unknown ids fall back to the defaults; `tests/rally/release.test.ts` guards the lists. The flag only hides - code still ships.
 
 ## Sound (`game/audio.ts`, `game/engine-sound.ts`)
@@ -437,6 +440,9 @@ All synthesised (Web Audio, no samples), tuned per car by `CarDef.sound` (`CarSo
 - **Listener** = camera mode: hood / bumper hear more intake, gearbox and wind, less exhaust; far chase is quieter and duller.
 - **Tunnels**: `World.tunnelAt` (portal slabs) -> `setEnclosure`: low-mid build-up, a slap echo per ear at each wall's
   distance (narrow = tighter flutter), a tail that grows with the tunnel length, a whump at each headwall.
+- **Sound debugger**: car viewer "Sound" section (`debug/sound-debug.ts`) drives a `CarAudio` for the shown car: tick "Sound on"
+  (the gesture), then rpm / throttle / pedal / gear / speed / slide + surface / lock-up / impact / listener / tunnel. State in the
+  URL (`srpm`, `sthr`, `sgear`, `sspd`, `sslide`, `ssrf`, `slock`, `slis`, `stun`, `svol`); `mute=1` starts muted.
 - Ambient: wind (speed²), tyre roll on hard ground, gravel crunch, slide / lock-up per surface (`SLIDE_SOUND`), impacts. A
   compressor keeps bangs and tunnel build-up from clipping.
 

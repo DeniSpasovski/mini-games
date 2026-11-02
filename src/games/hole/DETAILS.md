@@ -528,8 +528,20 @@ results headline and cleared banner use the map accent (`data-map` on the root, 
 
 ### Audio
 
-`game/audio.ts`, a WebAudio synth (no sound files): gulp pitched by size tier and voiced by item group, level-up chime,
-countdown beeps, time-up horn, UI clicks; volume slider (0 = mute). `?mute=1` never creates the audio context.
+`game/audio.ts` (`Sfx`): a WebAudio oscillator synth layered with CC0 impact samples (`assets/sounds/*.ogg`, imported
+as URLs, about 200 KB). Fetched + decoded right after the first gesture (`unlock()`); a sample that is missing or fails
+leaves its voice on the synth alone. `?mute=1` never creates the context, so no file is requested.
+
+- `gulp(tier, group)`: item group -> voice (`GROUP_VOICE` -> `VOICES`: squeak, clack, honk, grunt, thud, clank, tool,
+  heavy, boing, plain). A random sample per voice, `playbackRate` falls 6 % per tier (+-6 % random), the synth voice stays
+  underneath at `synth` x gain (0 for pure impacts). 35 ms merge as before.
+- `roar()`: three slowed impacts + the synth growl. `levelUp()`: bell sample up a major arpeggio + quiet synth chime.
+  `horn()`, `beep()`, `click()`, `tick()` are synth only (no licence-clean horn found).
+- Samples: Kenney "Impact Sounds" (CC0), 20 unmodified OGG files from the CC0 GitHub repo
+  [Boyquotes/kenney-impact-sounds-for-godot](https://github.com/Boyquotes/kenney-impact-sounds-for-godot) (licence: CC0-1.0).
+  No attribution needed; listed in `THIRD-PARTY.md`.
+- Hygiene: at most 24 sample voices at once, playback rate floored at 0.4, nodes disconnect on `ended`, the context suspends
+  while the tab is hidden, a failed sample load is retried on the next `unlock()`. Test: `tests/hole/audio.test.ts`.
 
 ## Debug tools
 

@@ -23,9 +23,15 @@ README files carry the same information in more detail. Keep this file current w
 Ballistic Chess (`src/games/ballistic-chess/`) is built and hosted elsewhere; this repo holds only its card and
 screenshots. The game is by Deni S.; the board textures in the screenshots are CC0 Poly Haven scans.
 
-The only bundled font files are the UI faces of Gravel Rally, Hole Island and 3, 2, 1 Kabooom and the portal's (below); sounds are synthesised with WebAudio and no music file is committed. Most textures
+The only bundled font files are the UI faces of Gravel Rally, Hole Island and 3, 2, 1 Kabooom and the portal's (below); sounds are synthesised with WebAudio except the Hole Island samples listed under Sounds, and no music file is committed. Most textures
 are painted on canvases at runtime; the texture files that ship are listed with their licences below (building tiles, road
 asphalt, background-car, fire-engine and truck textures) and in `public/models/CREDITS.md` (the car lamp, seat, fabric, cab, metal and dash textures).
+
+## Sounds
+
+| Sound                                                                                                                                                          | Licence | Files                                |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ------------------------------------ |
+| Kenney "Impact Sounds", 20 OGG files, unmodified, from [Boyquotes/kenney-impact-sounds-for-godot](https://github.com/Boyquotes/kenney-impact-sounds-for-godot) | CC0 1.0 | `src/games/hole/assets/sounds/*.ogg` |
 
 ## Fonts (game UIs)
 
@@ -185,7 +191,7 @@ The hay bales wear a tile cut from the photo texture of a CC BY 4.0 scan (one ba
 
 ### SimReady props (baked into `src/games/rally/assets/builders/simready-<group>.data.ts`)
 
-The service park kit (tool chest, tyre rack, trolley jack, floodlight, extinguisher, wheelbarrow, hand truck, step ladder, wheelie bin) and the
+The service park kit (tool chest, tyre racks, trolley jack, axle stands, pail, floodlight, extinguisher, wheelbarrow, hand truck, step ladder, wheelie bin) and the
 yard props (pallets, drums, IBC tank, crate, pallet stacker, pallet jack): CC BY 4.0 models from NVIDIA SimReady Assets, coloured
 per part, decimated and packed by `scripts/props/bake-simready.py` (the tyres on the rack and the team paint are added in
 code; the source files are not in the repository).
@@ -211,18 +217,29 @@ code; the source files are not in the repository).
 | ["crate_plywood_b01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/crate_plywood_b01)                                                           | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
 | ["vehicle_forklift_orange_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/vehicle_forklift_orange_a01)                                       | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
 | ["palletJack_heavyDuty_a01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/palletJack_heavyDuty_a01)                                             | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["vehicleSupport_jack_stand_b01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/vehicleSupport_jack_stand_b01)                                   | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["pail_plastic_red_a02"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/pail_plastic_red_a02)                                                     | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
+| ["storage_tire_rack_b01"](https://huggingface.co/datasets/nvidia/simready-assets/tree/main/storage_tire_rack_b01)                                                   | [NVIDIA SimReady Assets](https://huggingface.co/datasets/nvidia/simready-assets) | CC BY 4.0 |
 
 ### Poly Haven props (baked by the same script into `simready-park.data.ts`)
 
-The service park table and chairs and generator, and the underpass wall lamps: CC0 models from Poly Haven, coloured per face
+The service park table and chairs, generator and jerrycans, the underpass wall lamps, the wooden power poles and the village
+street furniture (benches, dustbins, utility cabinets, picnic tables, `simready-village.data.ts`): CC0 models from Poly Haven, coloured per face
 from their own texture under the face, decimated and packed by `scripts/props/bake-simready.py` (the source files are not in
 the repository). No credit is required.
 
-| Model                                                                            | Author          | Licence |
-| -------------------------------------------------------------------------------- | --------------- | ------- |
-| [Outdoor Table Chair Set 01](https://polyhaven.com/a/outdoor_table_chair_set_01) | James Ray Cock  | CC0     |
-| [Portable Generator](https://polyhaven.com/a/portable_generator)                 | James Ray Cock  | CC0     |
-| [Industrial Wall Lamp](https://polyhaven.com/a/industrial_wall_lamp)             | Kuutti Siitonen | CC0     |
+| Model                                                                                                   | Author             | Licence |
+| ------------------------------------------------------------------------------------------------------- | ------------------ | ------- |
+| [Outdoor Table Chair Set 01](https://polyhaven.com/a/outdoor_table_chair_set_01)                        | James Ray Cock     | CC0     |
+| [Portable Generator](https://polyhaven.com/a/portable_generator)                                        | James Ray Cock     | CC0     |
+| [Industrial Wall Lamp](https://polyhaven.com/a/industrial_wall_lamp)                                    | Kuutti Siitonen    | CC0     |
+| [Metal Jerrycan Green](https://polyhaven.com/a/metal_jerrycan_green)                                    | Ulan Cabanilla     | CC0     |
+| [Modular Electricity Poles](https://polyhaven.com/a/modular_electricity_poles) (pole and one cross arm) | James Ray Cock     | CC0     |
+| [Utility Box 01](https://polyhaven.com/a/utility_box_01)                                                | James Ray Cock     | CC0     |
+| [Utility Box 02](https://polyhaven.com/a/utility_box_02)                                                | James Ray Cock     | CC0     |
+| [Metal Trash Can](https://polyhaven.com/a/metal_trash_can) (the plain can)                              | GurJas Studios     | CC0     |
+| [Modular Street Seating](https://polyhaven.com/a/modular_street_seating) (one bench)                    | Stuart Attenborrow | CC0     |
+| [Wooden Picnic Table](https://polyhaven.com/a/wooden_picnic_table)                                      | Ulan Cabanilla     | CC0     |
 
 The car liveries, parts, physics, door plates and every other asset are original and generated in code.
 

@@ -179,7 +179,7 @@ City maps (example `maps/jackie/`, config `scripts/realmap/jackie.json`) - extra
   `road.cutWalls` (sheer cuts with a stone retaining wall; `concreteFrom` = concrete + chain-link), `goreAreas` (hatched wedge between the road and a shallow ramp), `junctionPlazas` (outline of a big junction on a portal slab: one plain asphalt box, no crossing ribbons), `junctionAreas` +
   `plazaIslands` / `plazaCrosswalks` / `plazaSignals` / `plazaTrees` (the whole street space around a junction from open
   surface data: height field, islands, markings, furniture; worked example `maps/jackie/DETAILS.md` "Kew Gardens junction"), `parkwayLanes` (streets OSM draws beside the carriageways that really run down in the cut: treated as carriageways), `cityStreets` (city asphalt, kerbs, sidewalks, crosswalks, lamps),
-  `streetDressing` (parked cars, crowds, police / ambulance / fire vehicles), `overheadSigns` (green "EXIT n" gantries from the
+  `streetDressing` (parked cars, crowds, police / ambulance / fire vehicles, `village` street furniture: add `village` to the map's `models` in `maps/index.ts`), `overheadSigns` (green "EXIT n" gantries from the
   ramps + hand-placed boards), `road.trenchFills` (pad the land where the lidar has a void beside a sunken stretch). Streets
   crossing over a tunnelled parkway (`under` spans) become bridge decks automatically (`world/under-bridges.ts`) and the span
   becomes a portal structure (`world/portals.ts`: slab, headwalls with name / clearance plates, railings, median piers; the
