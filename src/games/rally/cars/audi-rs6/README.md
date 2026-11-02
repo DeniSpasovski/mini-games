@@ -49,7 +49,3 @@ Power, torque and mass follow the published RS6 figures; gearing, grip and brake
 Converted and repainted by us (attribution in `CarDef.credit`, `THIRD-PARTY.md`, `public/models/CREDITS.md`). The downloaded GLB
 itself is not in the repository (`sources/` is git-ignored); only the converted `audi_rs6.glb`, `audi_rs6_wheel.glb` and
 `audi_rs6_lamps.png` ship.
-
-## Tail lamps
-
-Lit from the model's own lamp sheet: its pale-pink bulb pixels light too (running light = those + a dim lens); the halo follows the light guides and is tight by day in rain / fog.

@@ -35,7 +35,8 @@ function streakTexture(): DataTexture {
         (Math.exp(-(((v - 0.1) / 0.24) ** 2)) * 0.85 +
           0.15 * Math.exp(-v * 3)) *
         Math.min(1, v * 14);
-      data.set([255, 255, 255, Math.round(a * 255)], (y * w + x) * 4);
+      // Texture row 0 is the quad's far (camera) end: v = 0 is written to the last row, under the lamp.
+      data.set([255, 255, 255, Math.round(a * 255)], ((h - 1 - y) * w + x) * 4);
     }
   const t = new DataTexture(data, w, h, RGBAFormat);
   t.minFilter = t.magFilter = LinearFilter;

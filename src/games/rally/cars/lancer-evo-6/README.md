@@ -50,7 +50,3 @@ Converted and repainted by us (attribution in `CarDef.credit`, `THIRD-PARTY.md`,
 itself is not in the repository (`sources/` is git-ignored); only the converted `lancer_evo_6.glb` / `lancer_evo_6_wheel.glb` and the model's lamp and seat textures (`lancer_evo_6_lamps.png`, `_seat`, `_fabric`, `_cab`) ship.
 Mitsubishi and Lancer Evolution are trademarks of their owner and only identify the car. Our code, livery and parts: PolyForm
 Noncommercial (root `LICENSE`).
-
-## Tail lamps
-
-Lit from the model's own lamp sheet: the red lens glows, the sheet's pale-pink bulb pixels are the hot spots (running light = spots + a dim lens); its halo is lighter than the default (`gltf.tailHalo` 0.6).
