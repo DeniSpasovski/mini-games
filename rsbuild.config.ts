@@ -230,6 +230,8 @@ export default defineConfig(({ envMode }) => ({
     // (e.g. https://example.com/games/), not only the domain root.
     // In-app links are relative too - never hard-code a leading "/".
     assetPrefix: 'auto',
+    // Fonts never change: keep their file names unhashed (static/font/<name>.woff2).
+    filename: { font: '[name][ext]' },
   },
   dev: {
     hmr: envMode !== 'noreload',
