@@ -11,16 +11,18 @@ import {
   type Object3D,
 } from 'three';
 
-/** Streak length (m) at its longest and its width (m). */
+/** Streak length (m) at its longest (tail, head lamps) and its width (m). */
 const LENGTH = 4.5;
+const HEAD_LENGTH = 7;
 const WIDTH = 0.24;
-/** By day (rain / fog) the lamps are small against a bright road: the streaks are driven this much harder (the night road is dark, AgX turns a bright red salmon). */
-const DAY_GAIN = 1;
 /** How far (m) the streaks hover over the road: the gravel is lumpy, a flat sheet right on it is hidden by the bumps. */
 const LIFT = 0.05;
 
-/** Fade along the streak (strong at the lamp, gone towards the camera) and across it. */
-function streakTexture(): DataTexture {
+/**
+ * Fade along the streak (strong at the lamp, gone towards the camera) and across it: the glint peaks at `peak` (0..1 of
+ * the length) over `spread`. A head lamp's white glint is spread long and soft (a short one reads as a white patch).
+ */
+function streakTexture(peak: number, spread: number): DataTexture {
   const w = 32;
   const h = 128;
   const data = new Uint8Array(w * h * 4);
@@ -32,7 +34,7 @@ function streakTexture(): DataTexture {
       // along the view, thinning towards the camera (not strongest right under the lamp).
       const a =
         Math.max(0, 1 - u * u) ** 2 *
-        (Math.exp(-(((v - 0.1) / 0.24) ** 2)) * 0.85 +
+        (Math.exp(-(((v - peak) / spread) ** 2)) * 0.85 +
           0.15 * Math.exp(-v * 3)) *
         Math.min(1, v * 14);
       // Texture row 0 is the quad's far (camera) end: v = 0 is written to the last row, under the lamp.
@@ -64,7 +66,8 @@ export class LampReflections {
   private readonly lamps: Lamp[] = [];
   private readonly tmp = new Vector3();
   private readonly fwd = new Vector3();
-  private readonly tex = streakTexture();
+  private readonly tex = streakTexture(0.1, 0.24);
+  private readonly headTex = streakTexture(0.2, 0.5);
   private head = 0;
   private tail = 0;
   private brake = 0;
@@ -79,8 +82,6 @@ export class LampReflections {
     tail: { x: number; y: number; z: number },
     private readonly ground: number,
     private readonly wet: number,
-    /** A rain / fog day (`carLights` `day`): the streaks are the lamps' only light on the road. */
-    day = false,
   ) {
     const g = new PlaneGeometry(1, 1);
     // Flat, its near end at the origin, running along +z.
@@ -91,13 +92,13 @@ export class LampReflections {
         g,
         new Vector3(side * head.x, head.y, head.z),
         1,
-        new Color(1, 0.95, 0.85).multiplyScalar(day ? DAY_GAIN : 1),
+        new Color(1, 0.95, 0.85),
       );
       this.add(
         g,
         new Vector3(side * Math.max(0.5, head.x), tail.y, tail.z),
         -1,
-        new Color(1, 0.05, 0.02).multiplyScalar(day ? DAY_GAIN : 1),
+        new Color(1, 0.05, 0.02),
       );
     }
   }
@@ -110,7 +111,7 @@ export class LampReflections {
   ): void {
     const mat = new MeshBasicMaterial({
       color,
-      map: this.tex,
+      map: facing > 0 ? this.headTex : this.tex,
       transparent: true,
       blending: AdditiveBlending,
       depthWrite: false,
@@ -167,8 +168,12 @@ export class LampReflections {
       l.mesh.visible = a > 0.01;
       if (!l.mesh.visible) continue;
       l.mesh.rotation.set(0, Math.atan2(to.x, to.z), 0);
-      l.mesh.scale.set(WIDTH, 1, Math.min(LENGTH, d * 0.6));
-      l.mat.opacity = Math.min(1, a) * (l.facing > 0 ? 0.9 : 0.8);
+      l.mesh.scale.set(
+        WIDTH,
+        1,
+        Math.min(l.facing > 0 ? HEAD_LENGTH : LENGTH, d * 0.6),
+      );
+      l.mat.opacity = Math.min(1, a) * (l.facing > 0 ? 0.5 : 0.8);
     }
   }
 
@@ -179,5 +184,6 @@ export class LampReflections {
     }
     this.lamps[0]?.mesh.geometry.dispose();
     this.tex.dispose();
+    this.headTex.dispose();
   }
 }

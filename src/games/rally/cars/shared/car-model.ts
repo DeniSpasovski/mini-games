@@ -375,6 +375,8 @@ function getMeshMaterial(): MeshStandardMaterial {
   return meshMat;
 }
 
+/** Amber lens parts (`partMaterial` names) next to a red lamp: the red halo is cut over them (`LampHalos` `covers`). */
+const AMBER_LENSES = new Set(['amber', 'amberweave']);
 /** Extra emissive intensity of a tail lamp with the lights on (night), up to its full brake glow. */
 const TAIL_NIGHT_GLOW = 1;
 /**
@@ -384,6 +386,12 @@ const TAIL_NIGHT_GLOW = 1;
  */
 const TAIL_DAY_GLOW = 1;
 const TAIL_DAY_BRAKE = 1.8;
+/**
+ * Day brake level cap: a red pushed past it turns salmon / orange under AgX; a brighter lamp scales running + brake down
+ * alike. A lamp with a glow map (darker than its plain emissive) counts at `TAIL_DAY_MAP` of its level.
+ */
+const TAIL_DAY_MAX = 1.1;
+const TAIL_DAY_MAP = 0.6;
 /** A lamp whose running light is its hot spots alone (`idleGlow` map, a small lit area) drives them this much harder by day. */
 const DAY_SPOT = 1.8;
 const _dayRed = new Color();
@@ -391,7 +399,7 @@ const _dayRed = new Color();
  * By day the glow's green / blue are scaled by this: a white-emissive lamp sheet pushed bright would turn salmon under
  * the tone mapping (AgX desaturates bright reds); a real red lens stays deep red.
  */
-const TAIL_DAY_RED = 0.35;
+const TAIL_DAY_RED = 0.2;
 /** Halo strength round the red tail lamps (`LampHalos`): running light at night, brake pedal at night / by day (rain / fog). */
 const HALO_IDLE = 0.045;
 const HALO_BRAKE_NIGHT = 0.15;
@@ -1199,10 +1207,13 @@ export class CarModel {
     this.splitHeadExtras();
     const redLamps: Mesh[] = [];
     const headMeshes: Mesh[] = [];
+    const amberLenses: Mesh[] = [];
     this.root.traverse((o) => {
       const mesh = o as Mesh;
       if (!mesh.isMesh) return;
       const m = mesh.material as MeshStandardMaterial;
+      if (m && !Array.isArray(m) && mesh.visible && AMBER_LENSES.has(m.name))
+        amberLenses.push(mesh);
       if (
         !m ||
         Array.isArray(m) ||
@@ -1233,7 +1244,7 @@ export class CarModel {
     const all = [...new Set(own.values())];
     this.brakeLamps = all.filter((m) => m.userData.brakeLamp);
     this.headLamps = all.filter((m) => m.userData.headLamp);
-    this.addHalos(redLamps);
+    this.addHalos(redLamps, amberLenses);
     this.addHeadHalos(headMeshes);
     this.brakeLevel = -1;
     this.applyHeadLamps();
@@ -1655,7 +1666,7 @@ export class CarModel {
   }
 
   /** The glow round the red lamp meshes (own glow maps: once a lamp sheet has loaded). */
-  private addHalos(redLamps: Mesh[]): void {
+  private addHalos(redLamps: Mesh[], amberLenses: Mesh[]): void {
     this.halos?.dispose();
     this.halos = undefined;
     this.reverseHalos?.dispose();
@@ -1675,6 +1686,7 @@ export class CarModel {
       this.halos = new LampHalos(
         redLamps,
         this.body.matrixWorld.clone().invert(),
+        { covers: amberLenses },
       );
       this.body.add(this.halos.group);
       const white = redLamps.filter((m) => {
@@ -1786,16 +1798,25 @@ export class CarModel {
         this.lampsOn;
       // Brake-only parts (no running glow at night: inner brake lamps, third brake light) stay dark by day too.
       const running = (night?.idle ?? 1) > 0;
+      const dayScale = Math.min(
+        1,
+        TAIL_DAY_MAX /
+          (on * TAIL_DAY_BRAKE * (m.userData.brakeGlow ? TAIL_DAY_MAP : 1)),
+      );
       const idle =
         this.lampsDay && running
           ? Math.max(
               nightIdle,
-              on * TAIL_DAY_GLOW * this.lampsOn * (idleGlow ? DAY_SPOT : 1),
+              on *
+                dayScale *
+                TAIL_DAY_GLOW *
+                this.lampsOn *
+                (idleGlow ? DAY_SPOT : 1),
             )
           : nightIdle;
       // The night brake level is tuned for the dark (AgX); a clear day keeps the lamp's own brake glow.
       const full = this.lampsDay
-        ? on * TAIL_DAY_BRAKE
+        ? on * dayScale * TAIL_DAY_BRAKE
         : on + ((night?.on ?? on) - on) * this.lampsOn;
       const lit = idle + (full - idle) * l;
       const reverseLamp = reversing && l < 0.02;

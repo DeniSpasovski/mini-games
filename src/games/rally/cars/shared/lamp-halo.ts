@@ -482,6 +482,8 @@ export class LampHalos {
       front?: boolean;
       color?: number;
       bulbs?: [number, number, number][];
+      /** Opaque amber lenses beside the red ones: the red glow is cut over them, like over a lamp's own dark part. */
+      covers?: Mesh[];
     } = {},
   ) {
     const reverse = !!opts.reverse;
@@ -493,6 +495,14 @@ export class LampHalos {
           : RED_COLOUR;
     // Dark opaque lamp parts (x y z a corner): they hide the lit parts behind them.
     const cover: number[] = [];
+    for (const mesh of opts.covers ?? []) {
+      const { xyz, corner, count } = weld(mesh, toBody);
+      for (let t = 0; t < count; t++)
+        for (let c = 0; c < 3; c++) {
+          const i = corner(t, c);
+          cover.push(xyz[i * 3], xyz[i * 3 + 1], xyz[i * 3 + 2]);
+        }
+    }
     for (const lamp of lamps(
       meshes.flatMap((m) => pieces(m, toBody, reverse, cover)),
     )) {

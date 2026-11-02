@@ -354,11 +354,10 @@ const SRC_SIZE = 512;
 const RUNNING_BODY = new Set(['subie_22b_lamps.png']);
 const RUNNING_BODY_NIGHT: LampNight = { idle: 0.2, on: 0.6 };
 /**
- * Split tail sheets (`srcPart`: any red sheet that is not a running-body or clear-interior one): the lens glows at `LENS_LEVEL`
+ * Split tail sheets (`srcPart`: any red sheet that is not a running-body or clear-interior one): the lens glows at full
  * and the sheet's pale-pink bulb pixels (hot spots) at full; the running light (`idleGlow`) keeps `IDLE_LENS` of the lens' level
  * (a linear share: the map is sRGB, so it is painted at its 1 / 2.2 power).
  */
-const LENS_LEVEL = 1;
 const IDLE_LENS = 0.5;
 /** Night levels of a split sheet: the hot spots turn pale, the lens stays red. */
 const SPLIT_NIGHT: LampNight = { idle: 0.9, on: 0.6 };
@@ -491,10 +490,9 @@ function srcPart(name: string): Material {
   const reverseGlow = kind === 'tail' ? blank('#000') : undefined;
   const running = kind === 'tail' && RUNNING_BODY.has(file);
   const clear = kind === 'tail' && CLEAR_INTERIOR.has(file);
-  // Any other tail sheet: the deep red lens glows at `LENS_LEVEL`, its bulb / LED hot spots (the pale pink parts of the photo
+  // Any other tail sheet: the deep red lens glows, its bulb / LED hot spots (the pale pink parts of the photo
   // the sheet was made from) at full, and the running light is the hot spots alone.
   const split = kind === 'tail' && !running && !clear;
-  const lensLevel = split ? LENS_LEVEL : 1;
   const idleGlow = running || split ? blank('#000') : undefined;
   const loaded = sheetFor(file)
     .then((img) => {
@@ -545,7 +543,7 @@ function srcPart(name: string): Material {
           glow,
           (r, gr, b, n) =>
             strongRed(r, gr)
-              ? lensLevel
+              ? 1
               : (running && paleRed(r, gr, b)) || hotSpot(n)
                 ? 1
                 : clear &&
@@ -562,7 +560,7 @@ function srcPart(name: string): Material {
             (r, gr, b, n) =>
               split
                 ? strongRed(r, gr)
-                  ? lensLevel * IDLE_LENS_SRGB
+                  ? IDLE_LENS_SRGB
                   : hotSpot(n)
                     ? 1
                     : 0
