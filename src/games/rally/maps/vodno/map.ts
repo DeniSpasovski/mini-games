@@ -233,8 +233,8 @@ export const vodnoMap: MapDef = {
   // The lower road runs through open ground: grass and bushes to the verge, the forest standing 8 m and more back (the pines
   // come to the edge further up).
   treeSetback: [{ from: 250, to: 1150, dist: 8, fade: 80 }],
-  // Elsewhere the woods come to the verge; the broad oaks whose crowns would reach over the road stand a few metres back.
-  treeCrownClear: 2.5,
+  // Elsewhere the woods come to the verge; no low limb hangs over the road.
+  treeCrownClear: 1.5,
   scatter: [
     // The woods of the north face (leaf type from winter / summer satellite scenes, scripts/realmap/leaf_type.py): low
     // downy / Turkey oak and oriental hornbeam coppice (the natural forest), black pine plantations from the 1950s in

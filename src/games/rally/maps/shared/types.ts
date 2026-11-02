@@ -72,8 +72,8 @@ export interface MapDef {
    */
   treeSetback?: { from: number; to: number; dist: number; fade?: number }[];
   /**
-   * Trees (not bushes) by the stage road whose crown (its widest reach at the tree's variant and scale) would hang more
-   * than this many m over the road's edge move straight back from it, up to 4 m (world/scatter.ts CROWN_SHIFT).
+   * Trees (not bushes) whose low leaves (under 4 m above the stage road) would reach more than this many m past its edge
+   * take another pose (variant, rotation, size) that keeps them off: world/scatter.ts `lowOverRoad`.
    */
   treeCrownClear?: number;
   /** Props placed along the road (posts, signs, bales, crowds...). */
