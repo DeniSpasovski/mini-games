@@ -1,3 +1,4 @@
+import type { Weather, WeatherTuning } from '../../weather';
 import type { SourceLink } from '../../../../shared/about';
 import type { TimeOfDayId } from '../../game/time-of-day';
 import type { GearingId } from '../../physics/types';
@@ -749,6 +750,11 @@ export interface StageDef {
   /** Air and road temperature for every season and time of day (`StageTemps`): the stage screen and the tyres use it. */
   temps: StageTemps;
   /**
+   * This stage's own numbers for a weather over the defaults (`weather.ts` `WEATHER_LOOKS`): rain rate, wetness,
+   * visibility, fog top (m above the start) ... Missing = the defaults.
+   */
+  weather?: Partial<Record<Weather, WeatherTuning>>;
+  /**
    * Hour a time-of-day slot means on this stage where it differs from game/time-of-day.ts (Vodno's early morning is
    * 08:00). The stage's own slot always sits at its own `timeOfDay`; the temperatures follow these hours.
    */
@@ -982,6 +988,13 @@ export interface StreetDressing {
     /** Share of junctions (>= 5 m) with an ambulance. */
     ambulance?: number;
   };
+  /**
+   * Village street furniture beside the stage road between `from` and `to` (m along): a bench with a dustbin, a
+   * utility cabinet, a dustbin alone or now and then a picnic table, one about every `every` m (default 50) on a
+   * random side, `offset` m past the road edge (default 2.6). Not at side-road mouths, on bridges, on other roads,
+   * by buildings or on steep ground. Needs the map's `village` model group (maps/index.ts).
+   */
+  village?: { from: number; to: number; every?: number; offset?: number }[];
 }
 
 /**

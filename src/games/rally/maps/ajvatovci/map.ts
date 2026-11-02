@@ -575,7 +575,11 @@ export const ajvatovciMap: MapDef = {
   // The A2 overpasses and the small street bridges are modern concrete bridges with steel railings (not stone).
   bridgeStyle: 'concrete',
   // Marshals / onlookers behind the closed junction mouths.
-  streetDressing: { spectators: { perJunction: 4, reach: 400 } },
+  // Benches, dustbins and utility cabinets along the village street.
+  streetDressing: {
+    spectators: { perJunction: 4, reach: 400 },
+    village: [{ from: 2400, to: 3640 }],
+  },
   // Start / finish gantries, lines and split boards come from `stage` (world/stage-signs.ts).
   // Village name boards where the road enters / leaves Ajvatovci (facing the driver coming in).
   props: [

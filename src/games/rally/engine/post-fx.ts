@@ -19,6 +19,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { gradeUniforms } from './grade';
+import { worldUniforms } from './world-shading';
 
 /** Night glow strength at full darkness; scaled by the square of `Environment.lightNeed`. */
 const NIGHT_STRENGTH = 0.5;
@@ -163,6 +164,52 @@ const MIX = /* glsl */ `
     gl_FragColor = vec4( mix( c.rgb, b, strength ), c.a );
   }`;
 
+/**
+ * Rain drops on the lens: two layers of procedural drops (big and small cells), each drop a little lens that shows the
+ * scene behind it upside down and blurred at the rim. A drop appears, sits, runs down (or, at speed, is blown out from
+ * the centre by the air) and dries. `amount` 0..1 is how many cells hold a drop.
+ */
+const DROPS = /* glsl */ `
+  uniform sampler2D tDiffuse;
+  uniform float time;
+  uniform float amount;
+  uniform float speed;
+  uniform float aspect;
+  varying vec2 vUv;
+  float h( vec2 p ) { return fract( sin( dot( p, vec2( 127.1, 311.7 ) ) ) * 43758.5453 ); }
+  vec3 drop( vec2 uv, float cells, float seed, float size ) {
+    vec2 p = uv * vec2( cells * aspect, cells );
+    vec2 id = floor( p );
+    vec2 f = fract( p ) - 0.5;
+    float r1 = h( id + seed );
+    float r2 = h( id + seed + 7.31 );
+    float r3 = h( id + seed + 3.17 );
+    if ( r3 > amount ) return vec3( 0.0 );
+    float t = fract( time / ( 2.5 + 4.0 * r2 ) + r1 );
+    vec2 flow = mix( vec2( 0.0, -0.25 ), normalize( uv - 0.5 + vec2( 1e-4 ) ) * 0.5, speed );
+    vec2 c = ( vec2( r1, r2 ) - 0.5 ) * 0.3 + flow * smoothstep( 0.2, 1.0, t ) * ( 0.2 + 0.3 * speed );
+    float rad = size * ( 0.6 + 0.4 * r3 / max( amount, 1e-3 ) );
+    vec2 d = ( f - c ) / rad;
+    d.y *= 1.0 + 0.6 * smoothstep( 0.3, 1.0, t );
+    float l = length( d );
+    float fade = smoothstep( 0.0, 0.04, t ) * ( 1.0 - smoothstep( 0.6, 1.0, t ) );
+    return vec3( d, ( 1.0 - smoothstep( 0.8, 1.0, l ) ) * fade );
+  }
+  void main() {
+    vec3 a = drop( vUv, 7.0, 0.0, 0.2 );
+    vec3 b = drop( vUv, 19.0, 13.7, 0.22 );
+    vec3 d = a.z >= b.z ? a : b;
+    vec4 c = texture2D( tDiffuse, vUv );
+    if ( d.z <= 0.0 ) { gl_FragColor = c; return; }
+    float l = length( d.xy );
+    // A water lens: the view behind it flipped and squeezed, darker towards the rim (refraction out of the frame).
+    vec2 uvR = vUv - d.xy * vec2( 1.0 / aspect, 1.0 ) * 0.012;
+    vec3 r = texture2D( tDiffuse, uvR ).rgb * ( 1.0 - 0.18 * smoothstep( 0.6, 1.0, l ) );
+    // The sky's light caught at the top of the drop.
+    r += 0.05 * smoothstep( 0.35, 0.0, length( d.xy - vec2( -0.25, 0.45 ) ) );
+    gl_FragColor = vec4( mix( c.rgb, r, 0.85 * d.z ), c.a );
+  }`;
+
 function quadMaterial(
   fragmentShader: string,
   uniforms: Record<string, { value: unknown }>,
@@ -183,13 +230,18 @@ export interface PostFxOptions {
   /** Daytime bloom mix (0 = off). */
   day: number;
   ao: boolean;
+  /** Rain drops on the lens, 0..1 (0 = none). */
+  drops: number;
+  /** How hard the air blows them off (0 parked ... 1 fast), 0..1. */
+  dropSpeed: number;
 }
 
 /**
  * High quality post effects on a half-float copy of the scene (see `display` for day vs night).
  * - night bloom: lamps, reflectors and the beam glow at dusk and night (threshold bloom);
  * - day bloom: soft light spread from everything bright (soft light spread from everything bright);
- * - AO: screen-space ambient occlusion (GTAO) from the scene depth.
+ * - AO: screen-space ambient occlusion (GTAO) from the scene depth;
+ * - rain drops on the lens (`drops`, in the rain).
  * Live: `__rally.post.set({ day: 0.06, ao: true })`.
  */
 export class PostFx {
@@ -225,6 +277,13 @@ export class PostFx {
     strength: { value: 0 },
     levels: { value: DAY_MIPS },
   });
+  private readonly drops = quadMaterial(DROPS, {
+    tDiffuse: { value: null },
+    time: { value: 0 },
+    amount: { value: 0 },
+    speed: { value: 0 },
+    aspect: { value: 1 },
+  });
   private readonly nightBloom: UnrealBloomPass;
   private readonly gtao: GTAOPass;
   private readonly output = new OutputPass();
@@ -243,7 +302,14 @@ export class PostFx {
     antialias: boolean,
     opts: Partial<PostFxOptions> = {},
   ) {
-    this.opts = { night: 0, day: 0, ao: false, ...opts };
+    this.opts = {
+      night: 0,
+      day: 0,
+      ao: false,
+      drops: 0,
+      dropSpeed: 0,
+      ...opts,
+    };
     const depthTexture = new DepthTexture(1, 1);
     this.scene = new WebGLRenderTarget(1, 1, {
       type: HalfFloatType,
@@ -295,7 +361,13 @@ export class PostFx {
 
   /** True when any effect is on or the scene is drawn at a render scale (else the caller renders directly). */
   get active(): boolean {
-    return this.nightOn || this.opts.day > 0 || this.opts.ao || this.scale < 1;
+    return (
+      this.nightOn ||
+      this.opts.day > 0 ||
+      this.opts.ao ||
+      this.opts.drops > 0 ||
+      this.scale < 1
+    );
   }
 
   /**
@@ -404,6 +476,17 @@ export class PostFx {
       this.swap();
     }
 
+    if (this.opts.drops > 0) {
+      const u = this.drops.uniforms;
+      u.tDiffuse.value = this.a.texture;
+      u.time.value = worldUniforms.wsTime.value;
+      u.amount.value = this.opts.drops;
+      u.speed.value = this.opts.dropSpeed;
+      u.aspect.value = this.a.width / this.a.height;
+      this.pass(this.drops, this.b);
+      this.swap();
+    }
+
     if (this.display) {
       this.encode.uniforms.tDiffuse.value = this.a.texture;
       this.pass(this.encode, null);
@@ -431,6 +514,7 @@ export class PostFx {
       this.down,
       this.up,
       this.mixer,
+      this.drops,
     ])
       m.dispose();
     this.quad.dispose();
@@ -456,6 +540,8 @@ export function postFxFromUrl(
     night,
     day: Number.isFinite(bloom) ? bloom : day,
     ao: aoParam === null ? ao : aoParam === '1',
+    drops: 0,
+    dropSpeed: 0,
   };
 }
 

@@ -541,8 +541,8 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// The park and yard props' models are chunks of their own (`loadSimready`).
-void loadSimready('park', 'yard').then(() => {
+// The park, yard and village props' models are chunks of their own (`loadSimready`).
+void loadSimready('park', 'yard', 'village').then(() => {
   rebuild(true);
   // A shared camera link wins over the automatic framing.
   shell.applyCameraLink(state);

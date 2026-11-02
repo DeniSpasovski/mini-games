@@ -774,6 +774,34 @@ export const ASSET_CATALOG: AssetMeta[] = [
     colliders: [{ kind: 'box', hx: 0.64, hz: 0.31, h: 1.3, r: 0.72 }],
   },
   {
+    id: 'tyre_stillage',
+    name: 'Tyre stillage',
+    category: 'props',
+    description:
+      'Open steel tyre stillage (SimReady scan), 2.3 m along X, rally tyres standing on its base rails (variant = 6, 4, 2). Solid.',
+    variants: 3,
+    lods: PROP_LODS,
+    colliders: [{ kind: 'box', hx: 1.15, hz: 0.46, h: 1.03, r: 1.25 }],
+  },
+  {
+    id: 'jerrycan',
+    name: 'Jerrycan',
+    category: 'props',
+    description:
+      'Green steel jerrycan, one or two side by side along X (variant; Poly Haven model). Drive-through.',
+    variants: 2,
+    lods: PROP_LODS,
+  },
+  {
+    id: 'jack_stands',
+    name: 'Axle stands',
+    category: 'props',
+    description:
+      'Two axle stands and a small red pail on the works bay floor (SimReady scans). Drive-through.',
+    variants: 1,
+    lods: PROP_LODS,
+  },
+  {
     id: 'table_chairs',
     name: 'Table and chairs',
     category: 'props',
@@ -871,6 +899,46 @@ export const ASSET_CATALOG: AssetMeta[] = [
     variants: 1,
     lods: PROP_LODS,
     colliders: [{ kind: 'box', hx: 0.42, hz: 0.44, h: 1.1, r: 0.6 }],
+  },
+  {
+    id: 'utility_box',
+    name: 'Utility cabinet',
+    category: 'props',
+    description:
+      'Green roadside electrical cabinet, doors towards +Z (Poly Haven models; variant 0 narrow, 1 wide). Village streets. Solid.',
+    variants: 2,
+    lods: PROP_LODS,
+    colliders: [{ kind: 'box', hx: 0.46, hz: 0.22, h: 1.12, r: 0.5 }],
+  },
+  {
+    id: 'street_bin',
+    name: 'Dustbin',
+    category: 'props',
+    description:
+      'Galvanised dustbin, its lid leaning against it (Poly Haven model). Village streets. Solid.',
+    variants: 1,
+    lods: PROP_LODS,
+    colliders: [{ kind: 'cylinder', r: 0.3, h: 0.9 }],
+  },
+  {
+    id: 'bench',
+    name: 'Bench',
+    category: 'props',
+    description:
+      'Slatted bench with a back rest, seat towards +Z, 2 m along X (Poly Haven model). Village streets. Solid.',
+    variants: 1,
+    lods: PROP_LODS,
+    colliders: [{ kind: 'box', hx: 1.02, hz: 0.34, h: 0.87, r: 1.08 }],
+  },
+  {
+    id: 'picnic_table',
+    name: 'Picnic table',
+    category: 'props',
+    description:
+      'Weathered wooden picnic table with its two benches, 3 m along X (Poly Haven model). Solid.',
+    variants: 1,
+    lods: PROP_LODS,
+    colliders: [{ kind: 'box', hx: 1.5, hz: 1.1, h: 0.75, r: 1.6 }],
   },
   {
     id: 'pallet_stack',
@@ -987,13 +1055,13 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Power pole',
     category: 'structures',
     description:
-      'Wooden distribution pole, 10 m, cross arm along local Z (the line runs along local X). Solid.',
+      'Wooden distribution pole, 10 m, steel cross arm along local Z with three insulators each way along the line (the line runs along local X; Poly Haven model). Solid.',
     variants: 1,
     lods: [
       { maxDistance: 160, castShadow: true },
       { maxDistance: 900, castShadow: false },
     ],
-    colliders: [{ kind: 'cylinder', r: 0.16, h: 10 }],
+    colliders: [{ kind: 'cylinder', r: 0.14, h: 10 }],
   },
   {
     id: 'catenary_mast',

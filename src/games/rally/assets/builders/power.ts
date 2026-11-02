@@ -6,8 +6,8 @@ import { CONTACT_Y, MAST_OFFSET, MESSENGER_Y } from '../../world/railways';
 
 /**
  * Power line supports: the lattice transmission tower (`power_pylon`, 28 m, the line runs along local X,
- * the arms along Z) and the wooden distribution pole (`power_pole`, 10 m). The cables between them are a
- * line mesh (world/power-line-mesh.ts), anchored at the heights exported here.
+ * the arms along Z) and the wooden distribution pole (`power_pole`, 10 m, a baked Poly Haven model: simready.ts). The
+ * cables between them are a line mesh (world/power-line-mesh.ts), anchored at the heights exported here.
  */
 
 export const PYLON_H = 28;
@@ -18,10 +18,11 @@ export const PYLON_WIRES: [number, number][] = [
   [PYLON_H * 0.8, 3.6],
   [PYLON_H * 0.9, 0],
 ];
+/** The pole's three insulator pairs (the baked model's, simready.ts `powerPole`). */
 export const POLE_WIRES: [number, number][] = [
-  [POLE_H - 0.3, -1.05],
+  [POLE_H - 0.3, -0.72],
   [POLE_H - 0.3, 0],
-  [POLE_H - 0.3, 1.05],
+  [POLE_H - 0.3, 0.72],
 ];
 
 const GALV = '#868b91';
@@ -181,26 +182,4 @@ export const catenaryMast: AssetBuilder = ({ lod }) => {
   const g = merge(parts);
   shade(g, (_x, y) => 0.75 + 0.25 * Math.min(1, y / MAST_H));
   return { parts: [{ geometry: g, material: getMaterial('props') }] };
-};
-
-export const powerPole: AssetBuilder = ({ lod }) => {
-  const parts: BufferGeometry[] = [];
-  const pole = new CylinderGeometry(0.11, 0.17, POLE_H, lod === 0 ? 7 : 5, 1);
-  pole.translate(0, POLE_H / 2, 0);
-  parts.push(planarUV(paint(pole, '#6a5240'), 0.5));
-  parts.push(slab(0.12, 0.12, 2.5, 0, POLE_H - 0.55, 0, '#5a4636'));
-  if (lod === 0)
-    for (const [y, z] of POLE_WIRES)
-      parts.push(
-        planarUV(
-          paint(
-            new CylinderGeometry(0.05, 0.05, 0.3, 5).translate(0, y - 0.1, z),
-            '#a9a69a',
-          ),
-          0.5,
-        ),
-      );
-  return {
-    parts: [{ geometry: merge(parts), material: getMaterial('props') }],
-  };
 };

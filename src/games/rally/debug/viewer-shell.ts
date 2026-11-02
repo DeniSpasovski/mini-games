@@ -1,5 +1,6 @@
 import {
   GridHelper,
+  Matrix4,
   Mesh,
   MeshStandardMaterial,
   PerspectiveCamera,
@@ -75,6 +76,11 @@ export class ViewerShell {
   private callbacks: ((dt: number) => void)[] = [];
   private bloom?: PostFx;
   envDef: EnvironmentDef;
+  /**
+   * Where the page's subject stands in the world (car viewer on a stage backdrop): camera links (`cam` / `look`) are in
+   * its space. Identity = the world origin.
+   */
+  readonly frame = new Matrix4();
 
   constructor(opts: ShellOptions) {
     this.panel = new DebugPanel({ title: opts.title, links: TOOL_LINKS });
@@ -170,9 +176,9 @@ export class ViewerShell {
     if (state.clean) document.body.classList.add('dp-hidden');
     const p = parseVec3(state.cam);
     if (!p) return false;
-    this.camera.position.set(...p);
+    this.camera.position.set(...p).applyMatrix4(this.frame);
     const look = parseVec3(state.look);
-    if (look) this.controls.target.set(...look);
+    if (look) this.controls.target.set(...look).applyMatrix4(this.frame);
     if (state.fov > 0) {
       this.camera.fov = state.fov;
       this.camera.updateProjectionMatrix();
@@ -199,8 +205,9 @@ export class ViewerShell {
   ): void {
     const label = 'Copy camera link';
     const btn = section.button(label, () => {
-      const c = this.camera.position;
-      const t = this.controls.target;
+      const toFrame = this.frame.clone().invert();
+      const c = this.camera.position.clone().applyMatrix4(toFrame);
+      const t = this.controls.target.clone().applyMatrix4(toFrame);
       state.cam = [c.x, c.y, c.z].map(num3).join(',');
       state.look = [t.x, t.y, t.z].map(num3).join(',');
       state.fov = Math.round(this.camera.fov * 100) / 100;
