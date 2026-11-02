@@ -50,4 +50,4 @@ Tyres, suspension and gearing: [`PHYSICS.md`](../../PHYSICS.md).
 
 ## Tail lamps
 
-Tail lamp map `tailc`: one bulb hot spot above the white reversing box, the lens round it dimmer (`chamberGlow` in `cars/shared/part-materials.ts`); round core and halo.
+Tail lamp map `tailc`: one bulb hot spot above the white reversing box, the lens round it dimmer (`chamberGlow` in `cars/shared/part-materials.ts`).

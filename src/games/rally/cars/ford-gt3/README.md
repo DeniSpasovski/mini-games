@@ -30,13 +30,13 @@ npm run dev     # /games/rally/car-viewer.html?car=ford_gt3
 
 ## Files
 
-| File                | What                                                                     |
-| ------------------- | ------------------------------------------------------------------------ |
-| `ford-gt3.ts`       | `CarDef`: physics, hull fitted to the model, rim, glass tint, glTF       |
-| `profile.ts`        | boxy side profile baked from the GLB: fallback body and city street car  |
-| `livery.ts`         | body atlas painter: the livery (seed 0) over a dark underside            |
-| `fender-mask.ts`    | traced polygons of the solid fender blue (re-trace if the atlas changes) |
-| `model.source.json` | converter settings (offset, atlas) and `gltf` rules (material -> part)   |
+| File                | What                                                                    |
+| ------------------- | ----------------------------------------------------------------------- |
+| `ford-gt3.ts`       | `CarDef`: physics, hull fitted to the model, rim, glass tint, glTF      |
+| `profile.ts`        | boxy side profile baked from the GLB: fallback body and city street car |
+| `livery.ts`         | body atlas painter: the livery (seed 0) over a dark underside           |
+| `fender-mask.ts`    | traced polygons of the solid fender blue (re-trace if the atlas changes)  |
+| `model.source.json` | converter settings (offset, atlas) and `gltf` rules (material -> part)  |
 
 ## Credits and licence
 
@@ -47,7 +47,3 @@ npm run dev     # /games/rally/car-viewer.html?car=ford_gt3
 
 Converted and repainted by us (attribution in `CarDef.credit`, `THIRD-PARTY.md`, `public/models/CREDITS.md`). The downloaded GLB
 itself is not in the repository (`sources/` is git-ignored); only the converted `ford_gt3.glb` / `ford_gt3_wheel.glb` ship.
-
-## Tail lamps
-
-Four LED bars under a red cover; no round core (`tailCore: false`).

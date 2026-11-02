@@ -49,3 +49,7 @@ Power, mass and tyres are our estimates.
 
 Converted and repainted by us (attribution in `CarDef.credit`, `THIRD-PARTY.md`, `public/models/CREDITS.md`). The downloaded GLB
 itself is not in the repository (`sources/` is git-ignored); only the converted `merc_190.glb` / `merc_190_wheel.glb` ship.
+
+## Tail lamps
+
+A big flat lamp: its halo is stronger than the default (`gltf.tailHalo` 1.7), so it still reads lit in rain / fog.

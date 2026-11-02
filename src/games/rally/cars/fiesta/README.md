@@ -46,4 +46,4 @@ Fiesta are trademarks of their owner and only identify the car. Our code, livery
 
 ## Tail lamps
 
-Tail lamp map `tailc` (same as the Fabia): one bulb hot spot, dimmer lens round it; round core and halo.
+Tail lamp map `tailc` (same as the Fabia): one bulb hot spot, dimmer lens round it.

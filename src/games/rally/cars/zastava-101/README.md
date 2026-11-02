@@ -68,4 +68,4 @@ home tyre + set-up, 2026-10-04): `straight()` in `integration-tests/rally/handli
 
 ## Tail lamps
 
-Code-built bulb + reflector + lens: night levels and a halo (it had none), round core on each lamp.
+Code-built bulb + reflector + lens: night levels and a halo (it had none, so at night they turned salmon).

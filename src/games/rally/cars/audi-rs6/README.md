@@ -52,4 +52,4 @@ itself is not in the repository (`sources/` is git-ignored); only the converted 
 
 ## Tail lamps
 
-Light guides and bumper strips keep the model's own lamp sheet; no round core (`tailCore: false`), the halo follows the strips and is tight by day.
+Lit from the model's own lamp sheet: its pale-pink bulb pixels light too (running light = those + a dim lens); the halo follows the light guides and is tight by day in rain / fog.

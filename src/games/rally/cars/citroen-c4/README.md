@@ -49,7 +49,3 @@ npm run dev     # /games/rally/car-viewer.html?car=citroen_c4
 Converted and repainted by us (attribution in `CarDef.credit`, `THIRD-PARTY.md`, `public/models/CREDITS.md`). The downloaded GLB
 itself is not in the repository (`sources/` is git-ignored); only the converted `citroen_c4.glb` / `citroen_c4_wheel.glb` ship.
 Citroen and C4 are trademarks of their owner and only identify the car. Our code, livery and parts: PolyForm Noncommercial (root `LICENSE`).
-
-## Tail lamps
-
-Striped corner lamp map; no round core (`tailCore: false`), halo follows the lamp.

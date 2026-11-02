@@ -53,4 +53,4 @@ Noncommercial (root `LICENSE`).
 
 ## Tail lamps
 
-Lit from the model's own lamp sheet: the red lens glows, the sheet's pale-pink bulb pixels are the hot spots (running light = spots + a dim lens), plus the shared round core and halo (`cars/shared/lamp-halo.ts`).
+Lit from the model's own lamp sheet: the red lens glows, the sheet's pale-pink bulb pixels are the hot spots (running light = spots + a dim lens); its halo is lighter than the default (`gltf.tailHalo` 0.6).
