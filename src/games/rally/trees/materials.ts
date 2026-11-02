@@ -104,8 +104,23 @@ export const TREE_MULTI_DRAWS = 32;
  * `?multidraw=0` draws them one call each (the path without WEBGL_multi_draw), for comparing.
  */
 export const MULTI_DRAW_EXT =
-  typeof location === 'undefined' ||
-  new URLSearchParams(location.search).get('multidraw') !== '0';
+  (typeof location === 'undefined' ||
+    new URLSearchParams(location.search).get('multidraw') !== '0') &&
+  hasMultiDraw();
+
+/** Whether the browser has WEBGL_multi_draw (Firefox does not): without it the shaders have no gl_DrawID. */
+function hasMultiDraw(): boolean {
+  if (typeof document === 'undefined') return true;
+  try {
+    const gl = document.createElement('canvas').getContext('webgl2');
+    if (!gl) return true;
+    const ok = !!gl.getExtension('WEBGL_multi_draw');
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return ok;
+  } catch {
+    return false;
+  }
+}
 
 function multi(m: Material): void {
   m.defines = {
