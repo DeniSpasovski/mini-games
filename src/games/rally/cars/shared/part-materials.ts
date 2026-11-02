@@ -306,6 +306,44 @@ function canvas(
   return t;
 }
 
+/**
+ * A lit lamp is not one flat colour: the bulb (or LED) behind a red lens makes a hot spot, the lens round it glows less. Reshapes
+ * a lamp's glow canvas (the lit shape filled in red, 0 outside it): each lit pixel keeps `lens` of its level and gains up to the
+ * rest within a spot's radius (`[u, v, r]`, 0..1 of the canvas); the spot centre also turns paler (`hot`, 0..1, the bulb's own
+ * pink-white once it is driven past what the tone mapping keeps red). `spots` empty = the lens alone (a running light with no hot spot).
+ */
+function chamberGlow(
+  t: CanvasTexture,
+  spots: [number, number, number][],
+  lens: number,
+  hot = 0.35,
+): CanvasTexture {
+  const c = t.image as HTMLCanvasElement;
+  const g = c.getContext('2d')!;
+  const img = g.getImageData(0, 0, c.width, c.height);
+  const d = img.data;
+  for (let y = 0; y < c.height; y++)
+    for (let x = 0; x < c.width; x++) {
+      const i = (y * c.width + x) * 4;
+      if (d[i] + d[i + 1] + d[i + 2] === 0) continue;
+      let k = 0;
+      for (const [u, v, r] of spots) {
+        const dx = (x + 0.5) / c.width - u;
+        const dy = (y + 0.5) / c.height - v;
+        k = Math.max(k, Math.exp(-(dx * dx + dy * dy) / (2 * r * r)));
+      }
+      const level = lens + (1 - lens) * k;
+      // The spot's centre also carries green / blue: overdriven it turns pale like a real bulb, not a salmon lens.
+      const pale = hot * k * k;
+      d[i] = Math.min(255, d[i] * level);
+      d[i + 1] = Math.min(255, (d[i + 1] + 255 * pale) * level);
+      d[i + 2] = Math.min(255, (d[i + 2] + 255 * pale * 0.7) * level);
+    }
+  g.putImageData(img, 0, 0);
+  t.needsUpdate = true;
+  return t;
+}
+
 /** Sheet size of a source part's texture (maps are drawn at this size, whatever the file's). */
 const SRC_SIZE = 512;
 
@@ -315,6 +353,16 @@ const SRC_SIZE = 512;
  */
 const RUNNING_BODY = new Set(['subie_22b_lamps.png']);
 const RUNNING_BODY_NIGHT: LampNight = { idle: 0.2, on: 0.6 };
+/**
+ * Split tail sheets (`srcPart`: any red sheet that is not a running-body or clear-interior one): the lens glows at `LENS_LEVEL`
+ * and the sheet's pale-pink bulb pixels (hot spots) at full; the running light (`idleGlow`) keeps `IDLE_LENS` of the lens' level
+ * (a linear share: the map is sRGB, so it is painted at its 1 / 2.2 power).
+ */
+const LENS_LEVEL = 1;
+const IDLE_LENS = 0.5;
+/** Night levels of a split sheet: the hot spots turn pale, the lens stays red. */
+const SPLIT_NIGHT: LampNight = { idle: 0.9, on: 0.6 };
+const IDLE_LENS_SRGB = IDLE_LENS ** (1 / 2.2);
 /**
  * Tail-lamp sheets of a clear (silver, ribbed) lamp interior behind a red cover: the red light is that texture's own shading
  * painted in red, outside the reversing lens, and the lamp is dark while off.
@@ -435,8 +483,14 @@ function srcPart(name: string): Material {
   const glow = blank('#000');
   const reverseGlow = kind === 'tail' ? blank('#000') : undefined;
   const running = kind === 'tail' && RUNNING_BODY.has(file);
-  const idleGlow = running ? blank('#000') : undefined;
   const clear = kind === 'tail' && CLEAR_INTERIOR.has(file);
+  // Any other tail sheet: the deep red lens glows at `LENS_LEVEL`, its bulb / LED hot spots (the pale pink parts of the photo
+  // the sheet was made from) at full, and the running light is the hot spots alone.
+  const split = kind === 'tail' && !running && !clear;
+  const lensLevel = split ? LENS_LEVEL : 1;
+  const hotSpot = (r: number, gr: number, b: number): boolean =>
+    split && paleRed(r, gr, b) && r > 150 && gr < 0.8 * r;
+  const idleGlow = running || split ? blank('#000') : undefined;
   const loaded = sheetFor(file)
     .then((img) => {
       const g = (map.image as HTMLCanvasElement).getContext('2d')!;
@@ -467,20 +521,31 @@ function srcPart(name: string): Material {
         paint(
           glow,
           (r, gr, b, n) =>
-            strongRed(r, gr) || (running && paleRed(r, gr, b))
-              ? 1
-              : clear &&
-                  n >> 9 > CLEAR_FROM_ROW &&
-                  !lens?.[n] &&
-                  Math.max(r, gr, b) - Math.min(r, gr, b) < 70
-                ? lum(r, gr, b) ** 1.5
-                : 0,
+            strongRed(r, gr)
+              ? lensLevel
+              : (running && paleRed(r, gr, b)) || hotSpot(r, gr, b)
+                ? 1
+                : clear &&
+                    n >> 9 > CLEAR_FROM_ROW &&
+                    !lens?.[n] &&
+                    Math.max(r, gr, b) - Math.min(r, gr, b) < 70
+                  ? lum(r, gr, b) ** 1.5
+                  : 0,
           true,
         );
         if (idleGlow)
           paint(
             idleGlow,
-            (r, gr, b) => (!strongRed(r, gr) && paleRed(r, gr, b) ? 1 : 0),
+            (r, gr, b) =>
+              split
+                ? strongRed(r, gr)
+                  ? lensLevel * IDLE_LENS_SRGB
+                  : hotSpot(r, gr, b)
+                    ? 1
+                    : 0
+                : !strongRed(r, gr) && paleRed(r, gr, b)
+                  ? 1
+                  : 0,
             true,
           );
         paint(reverseGlow!, (r, gr, b, n) =>
@@ -535,7 +600,7 @@ function srcPart(name: string): Material {
     m,
     1.2,
     reverseGlow,
-    running ? RUNNING_BODY_NIGHT : LENS_NIGHT,
+    running ? RUNNING_BODY_NIGHT : split ? SPLIT_NIGHT : LENS_NIGHT,
     idleGlow,
   );
   if (SOLID_CENTRE.has(file)) m.userData.brakeLamp.solidCentre = true;
@@ -1054,6 +1119,7 @@ function tailMaps(): {
 function tailCMaps(): {
   map: CanvasTexture;
   glow: CanvasTexture;
+  idleGlow: CanvasTexture;
   reverseGlow: CanvasTexture;
 } {
   const W = 256;
@@ -1076,17 +1142,21 @@ function tailCMaps(): {
     g.fillRect(0, 0, W, H);
     box(g, '#f4f4f2');
   });
-  const glow = canvas(W, H, (g) => {
+  const lit = (g: CanvasRenderingContext2D) => {
     g.fillStyle = '#ff0000';
     g.fillRect(0, 0, W, H);
     box(g, '#000'); // brake light stays red-only: the white box has no brake glow
-  });
+  };
+  // One bulb chamber above the white box: a hot spot, the lens round it dimmer; the running light is the spot alone.
+  const spots: [number, number, number][] = [[0.5, 0.4, 0.17]];
+  const glow = chamberGlow(canvas(W, H, lit), spots, 0.62);
+  const idleGlow = chamberGlow(canvas(W, H, lit), spots, 0.48);
   const reverseGlow = canvas(W, H, (g) => {
     g.fillStyle = '#000';
     g.fillRect(0, 0, W, H);
     box(g, '#ffffff');
   });
-  return { map, glow, reverseGlow };
+  return { map, glow, idleGlow, reverseGlow };
 }
 
 type Pt = [number, number];
@@ -2110,7 +2180,7 @@ const BUILDERS: Record<PartName, () => Material> = {
     }),
   /** Fabia R5 tail lamp: even red lens + white reversing square, see tailCMaps - needs `parts.wrap` 'corner'. */
   tailc: () => {
-    const { map, glow, reverseGlow } = tailCMaps();
+    const { map, glow, idleGlow, reverseGlow } = tailCMaps();
     return lamp(
       new MeshPhysicalMaterial({
         map,
@@ -2126,7 +2196,8 @@ const BUILDERS: Record<PartName, () => Material> = {
       }),
       1.1,
       reverseGlow,
-      RED_NIGHT,
+      { idle: 1.2, on: 1.4 },
+      idleGlow,
     );
   },
   /** Black inside of a head lamp modelled in the body mesh (`gltf.lampBody`): glossy black plastic round the reflectors. */
