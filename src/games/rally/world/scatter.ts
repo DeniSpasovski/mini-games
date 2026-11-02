@@ -42,6 +42,9 @@ export interface ScatterContext {
   fieldAngle?: number;
 }
 
+/** Furthest a roadside tree moves back to keep its crown off the road (m, `MapDef.treeCrownClear`). */
+const CROWN_SHIFT = 4;
+
 /** Distance from the road edge (m) the trees keep clear at `along`: the largest of the setbacks there, eased at their ends. */
 export function setbackAt(
   setbacks: NonNullable<MapDef['treeSetback']>,
@@ -488,17 +491,21 @@ export class ScatterField {
         };
         if (tree) {
           this.poseTree(inst, hash3(cx, cz, ri * 65536 + i, 0x7ee5));
-          // Crowns stay off the road: a solid tree stands back by its posed crown's reach (variant and scale).
-          if (
-            solid &&
-            this.ctx.treeCrownClear !== undefined &&
-            q.found &&
-            rd <
+          // Crowns stay off the road: a solid tree whose posed crown (variant and scale) reaches further over the edge
+          // than `treeCrownClear` moves straight back from the road, at most CROWN_SHIFT m (it is never dropped).
+          if (solid && this.ctx.treeCrownClear !== undefined && q.found) {
+            const need =
               variantInfo(inst.tree!.species, inst.variant).radius *
                 inst.scale -
-                this.ctx.treeCrownClear
-          )
-            continue;
+              this.ctx.treeCrownClear;
+            if (rd < need)
+              this.standBack(
+                inst,
+                Math.min(need, rd + CROWN_SHIFT),
+                minPath,
+                ground,
+              );
+          }
         }
         if (nearRoad !== undefined && rd < nearRoad) inst.near = true;
         if (extra) inst.extra = true;
@@ -506,6 +513,43 @@ export class ScatterField {
       }
     }
     return out;
+  }
+
+  private bq = newRoadQuery();
+  /**
+   * Moves a placed tree straight away from the stage road until its trunk stands `dist` m from the edge; it stays where it
+   * was when the new spot is off the map, excluded or on a path.
+   */
+  private standBack(
+    inst: ScatterInstance,
+    dist: number,
+    minPath: number,
+    ground: TerrainSampler,
+  ): void {
+    let { x, z } = inst;
+    for (let k = 0; k < 3; k++) {
+      const q = this.road.query(x, z, this.bq);
+      if (!q.found) break;
+      const gap = dist - (q.distance - q.halfWidth);
+      if (gap <= 0.05) break;
+      // Away from the road: the gradient of the distance to the centreline.
+      const e = 0.5;
+      const dx =
+        this.road.query(x + e, z, this.bq).distance -
+        this.road.query(x - e, z, this.bq).distance;
+      const dz =
+        this.road.query(x, z + e, this.bq).distance -
+        this.road.query(x, z - e, this.bq).distance;
+      const len = Math.hypot(dx, dz);
+      if (len < 1e-6) return;
+      x += (dx / len) * gap;
+      z += (dz / len) * gap;
+    }
+    if (!this.inBounds(x, z) || this.excluded(x, z)) return;
+    if (this.nearPath(x, z, minPath)) return;
+    inst.y += ground.height(x, z) - ground.height(inst.x, inst.z);
+    inst.x = x;
+    inst.z = z;
   }
 
   /** Variant, rotation, scale (x the map's) and tint of a placed tree from the stage id and its placement index. */
