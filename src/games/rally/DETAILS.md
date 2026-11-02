@@ -14,8 +14,14 @@ sim-lite physics that is still fun on a keyboard.
 | Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`              | livery seed, door plate, pose, physics hull, torque chart, test drive, time of day + lights (`tod=1&lamps=brake`), weather + road backdrop (`weather=rain_heavy&backdrop=gravel                       | tarmac | city`) |
 | Asset debug | `/games/rally/asset-debug.html?asset=tree:pine_tree&season=autumn` | every asset / car (`car:<id>`) / texture (`tex:<id>`) / tree type (`tree:<type>`, as the game draws it; `season`, `leaves=0`, F6 debug views): seed, variant, LOD                                     |
 
-Tool pages are dev-server only and keep their state in the URL; `H` hides the panel, `F3` shows stats, "Copy camera link"
-gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
+Tool pages are dev-server only and keep their state in the URL; `H` (or the Panel plate) hides the panel, `F3` shows
+stats, Help lists the keys, "Copy camera link" gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`. Look and layout:
+`STYLEGUIDE.md` -> Tool pages. All three: Weather (`weather=`, reloads) and Time of day (`tod=`, live; the page's own
+hour sits in its nearest slot) from `ViewerShell.addWeatherAndTime`, a "Loading <map / car / asset>" plate while it
+builds. Map viewer: Map / Stage / Season / Weather / Time dropdowns at the top (map, stage, season and weather reload), clicking the terrain fills
+Picked point, `F6` cycles the tree debug views. Asset debugger: the Options section shows only what the picked kind uses
+(prop, tree, car, texture); its Scene section is the car viewer's without the backdrop. Car viewer: All / AWD / FWD / RWD chips over the car list (as the car menu), view preset
+buttons (an axle camera or camera link clears them), one Scene section (weather / backdrop / season reload the page).
 
 **URL parameters** (any of the play ones skips the menu):
 

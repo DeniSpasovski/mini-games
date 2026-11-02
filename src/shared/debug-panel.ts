@@ -18,6 +18,8 @@ export interface PanelLink {
 export interface PanelOptions {
   title: string;
   links?: PanelLink[];
+  /** localStorage key: remember which sections are open (per page) across reloads. */
+  rememberSections?: string;
 }
 
 export interface Control<T> {
@@ -25,19 +27,38 @@ export interface Control<T> {
   set(value: T): void;
 }
 
+export interface SliderControl extends Control<number> {
+  /** New min / max (e.g. the variant count of the picked asset). */
+  setRange(min: number, max: number): void;
+}
+
 export interface ListItem {
   id: string;
   label: string;
   group?: string;
   hint?: string;
+  /** Chip filters this row matches (`list(..., { chips })`, e.g. its drivetrain). */
+  tags?: string[];
 }
 
 export class DebugPanel {
   readonly el: HTMLElement;
   readonly viewport: HTMLElement;
   private sectionsEl: HTMLElement;
+  private remember?: string;
+  private openState: Record<string, boolean> = {};
+  private titles = new Map<string, number>();
 
   constructor(opts: PanelOptions) {
+    this.remember = opts.rememberSections;
+    if (this.remember)
+      try {
+        this.openState = JSON.parse(
+          localStorage.getItem(this.remember) ?? '{}',
+        ) as Record<string, boolean>;
+      } catch {
+        this.openState = {};
+      }
     document.body.classList.add('dp-body');
     this.el = h('aside', 'dp-panel');
     const header = h('div', 'dp-header');
@@ -66,16 +87,36 @@ export class DebugPanel {
     window.addEventListener('keydown', (e) => {
       if (
         e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLSelectElement
+        e.target instanceof HTMLSelectElement ||
+        e.target instanceof HTMLTextAreaElement
       )
         return;
-      if (e.key === 'h' || e.key === 'H')
-        document.body.classList.toggle('dp-hidden');
+      if ((e.key === 'h' || e.key === 'H') && !e.ctrlKey && !e.metaKey)
+        DebugPanel.toggle();
     });
   }
 
+  /** Hide / show the panel (the "H" key). */
+  static toggle(): void {
+    document.body.classList.toggle('dp-hidden');
+  }
+
   section(title: string, open = true): PanelSection {
-    const s = new PanelSection(title, open);
+    // Key = title (+ #n for a second section of the same title), so a remembered state follows its section.
+    const n = (this.titles.get(title) ?? 0) + 1;
+    this.titles.set(title, n);
+    const key = n > 1 ? `${title}#${n}` : title;
+    const s = new PanelSection(title, this.openState[key] ?? open);
+    const store = this.remember;
+    if (store)
+      s.el.addEventListener('toggle', () => {
+        this.openState[key] = (s.el as HTMLDetailsElement).open;
+        try {
+          localStorage.setItem(store, JSON.stringify(this.openState));
+        } catch {
+          // Storage blocked: the panel just forgets.
+        }
+      });
     this.sectionsEl.append(s.el);
     return s;
   }
@@ -97,11 +138,17 @@ export class PanelSection {
     this.body.replaceChildren();
   }
 
-  /** Grouped, filterable list. Used for "pick an asset / car / map". */
+  /**
+   * Grouped list, a filter box from 8 rows (Enter picks the first match). Used for "pick an asset / car / map".
+   * The picked row starts scrolled into view. `chips` (e.g. All / AWD / FWD / RWD, first = everything): a segmented
+   * filter on top matching `ListItem.tags`, and a flat list with each row's group in small type on its right instead
+   * of group header rows (saves the height of the headers).
+   */
   list(
     items: ListItem[],
     selected: string,
     onSelect: (id: string) => void,
+    o: { chips?: string[] } = {},
   ): Control<string> {
     const wrap = h('div', 'dp-list');
     const filter = h('input', 'dp-filter', '', {
@@ -109,18 +156,38 @@ export class PanelSection {
       placeholder: 'filter…',
     }) as HTMLInputElement;
     const ul = h('div', 'dp-list-items');
-    wrap.append(filter, ul);
+    const chips = o.chips ?? [];
+    let chip = chips[0];
+    if (chips.length) {
+      const seg = h('div', 'dp-chips');
+      for (const c of chips) {
+        const b = h('button', 'dp-chip', c, { type: 'button' });
+        b.classList.toggle('on', c === chip);
+        b.addEventListener('click', () => {
+          chip = c;
+          for (const x of seg.children) x.classList.toggle('on', x === b);
+          refresh();
+        });
+        seg.append(b);
+      }
+      wrap.append(seg);
+    }
+    if (items.length >= 8) wrap.append(filter);
+    wrap.append(ul);
     const rows = new Map<string, HTMLElement>();
+    const tagsOf = new Map<HTMLElement, string[]>();
     let lastGroup: string | undefined;
     for (const it of items) {
-      if (it.group && it.group !== lastGroup) {
+      if (!chips.length && it.group && it.group !== lastGroup) {
         ul.append(h('div', 'dp-list-group', it.group));
         lastGroup = it.group;
       }
-      const row = h('button', 'dp-list-item', it.label, {
+      const row = h('button', 'dp-list-item', chips.length ? '' : it.label, {
         type: 'button',
         title: it.hint ?? it.id,
       });
+      if (chips.length)
+        row.append(h('span', '', it.label), h('small', '', it.group ?? ''));
       row.dataset.search =
         `${it.id} ${it.label} ${it.group ?? ''}`.toLowerCase();
       row.addEventListener('click', () => {
@@ -128,18 +195,35 @@ export class PanelSection {
         onSelect(it.id);
       });
       rows.set(it.id, row);
+      tagsOf.set(row, it.tags ?? []);
       ul.append(row);
     }
-    filter.addEventListener('input', () => {
+    const refresh = () => {
       const q = filter.value.trim().toLowerCase();
       for (const row of rows.values())
-        row.style.display = !q || row.dataset.search!.includes(q) ? '' : 'none';
+        row.style.display =
+          (chip === chips[0] || tagsOf.get(row)!.includes(chip)) &&
+          (!q || row.dataset.search!.includes(q))
+            ? ''
+            : 'none';
+    };
+    filter.addEventListener('input', refresh);
+    filter.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      for (const row of rows.values())
+        if (row.style.display !== 'none') return row.click();
     });
     const set = (id: string) => {
       for (const [rid, row] of rows) row.classList.toggle('active', rid === id);
     };
     set(selected);
     this.body.append(wrap);
+    // Once laid out: the picked row in the middle of the list (a long list would open on its first group).
+    requestAnimationFrame(() => {
+      const row = rows.get(selected);
+      if (row && ul.scrollHeight > ul.clientHeight)
+        ul.scrollTop = row.offsetTop - (ul.clientHeight - row.offsetHeight) / 2;
+    });
     return { el: wrap, set };
   }
 
@@ -148,7 +232,7 @@ export class PanelSection {
     value: number,
     o: { min: number; max: number; step?: number },
     onChange: (v: number) => void,
-  ): Control<number> {
+  ): SliderControl {
     const row = this.row(label);
     const input = h('input', '', '', {
       type: 'range',
@@ -174,6 +258,31 @@ export class PanelSection {
     });
     set(value);
     row.append(input, out);
+    const setRange = (min: number, max: number) => {
+      input.min = out.min = String(min);
+      input.max = out.max = String(max);
+    };
+    return { el: row, set, setRange };
+  }
+
+  /** Plain number field (e.g. "go to building #"); `onChange` on Enter / blur. */
+  number(
+    label: string,
+    value: number,
+    onChange: (v: number) => void,
+    o: { min?: number; placeholder?: string } = {},
+  ): Control<number> {
+    const row = this.row(label);
+    const input = h('input', 'dp-field', '', {
+      type: 'number',
+      step: '1',
+      ...(o.min !== undefined && { min: String(o.min) }),
+      ...(o.placeholder && { placeholder: o.placeholder }),
+    }) as HTMLInputElement;
+    const set = (v: number) => (input.value = v ? String(v) : '');
+    input.addEventListener('change', () => onChange(Number(input.value)));
+    set(value);
+    row.append(input);
     return { el: row, set };
   }
 
@@ -205,7 +314,10 @@ export class PanelSection {
     }
     sel.value = value;
     sel.addEventListener('change', () => onChange(sel.value));
-    row.append(sel);
+    // Wrapped, so a page style can draw its own chevron (`::after`).
+    const wrap = h('span', 'dp-select');
+    wrap.append(sel);
+    row.append(wrap);
     return { el: row, set: (v) => (sel.value = v) };
   }
 
@@ -262,6 +374,39 @@ export class PanelSection {
     return { el: row, set: (v) => (input.value = String(v)) };
   }
 
+  /** Several short buttons side by side (e.g. camera presets). */
+  buttons(items: [label: string, onClick: () => void][]): HTMLButtonElement[] {
+    const row = h('div', 'dp-buttons');
+    this.body.append(row);
+    return items.map(([label, onClick]) => {
+      const b = h('button', 'dp-btn', label, {
+        type: 'button',
+      }) as HTMLButtonElement;
+      b.addEventListener('click', onClick);
+      row.append(b);
+      return b;
+    });
+  }
+
+  /** A short explanation under a control (visible text, not a tooltip). */
+  note(text: string): HTMLElement {
+    const el = h('p', 'dp-note', text);
+    this.body.append(el);
+    return el;
+  }
+
+  /** Key / mouse help, one row per binding: `['Shift drag', 'pan']` draws each word as a key. */
+  keys(rows: [keys: string, what: string][]): HTMLElement {
+    const el = h('dl', 'dp-keys');
+    for (const [k, what] of rows) {
+      const dt = h('dt', '');
+      for (const part of k.split(' ')) dt.append(h('kbd', '', part));
+      el.append(dt, h('dd', '', what));
+    }
+    this.body.append(el);
+    return el;
+  }
+
   button(label: string, onClick: () => void): HTMLButtonElement {
     const b = h('button', 'dp-btn dp-wide', label, {
       type: 'button',
@@ -271,17 +416,33 @@ export class PanelSection {
     return b;
   }
 
-  /** Read-only key/value block; call the returned function to update it. */
+  /**
+   * Read-only key/value block; call the returned function to update it. Only changed values touch the DOM, so it
+   * may run every frame.
+   */
   info(): (values: Record<string, string | number>) => void {
     const el = h('dl', 'dp-info');
     this.body.append(el);
+    let keys = '';
+    let cells: HTMLElement[] = [];
     return (values) => {
-      el.replaceChildren(
-        ...Object.entries(values).flatMap(([k, v]) => [
-          h('dt', '', k),
-          h('dd', '', String(v)),
-        ]),
-      );
+      const entries = Object.entries(values);
+      const next = entries.map(([k]) => k).join('\n');
+      if (next !== keys) {
+        keys = next;
+        cells = [];
+        el.replaceChildren(
+          ...entries.flatMap(([k]) => {
+            const dd = h('dd', '');
+            cells.push(dd);
+            return [h('dt', '', k), dd];
+          }),
+        );
+      }
+      entries.forEach(([, v], i) => {
+        const text = String(v);
+        if (cells[i].textContent !== text) cells[i].textContent = text;
+      });
     };
   }
 

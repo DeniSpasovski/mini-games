@@ -1,0 +1,504 @@
+/* Rally tool pages (map viewer, car viewer, asset debugger): the shared DebugPanel in the Stage Board look
+   (STYLEGUIDE.md -> Tool pages). Scoped to body.rv-tool; colours, fonts, slant and radius from ui-tokens.css only. */
+
+.rv-tool {
+  background: rgb(var(--ui-glass-rgb));
+  color: var(--ui-text);
+  font: 500 13px/1.4 var(--ui-font-body);
+  font-variant-numeric: tabular-nums;
+  accent-color: var(--ui-accent);
+}
+
+/* --- panel ---------------------------------------------------------------------------------------- */
+.rv-tool .dp-panel {
+  width: 300px;
+  background: rgb(var(--ui-glass-rgb));
+  border-right: 1px solid var(--ui-line);
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-line) transparent;
+}
+.rv-tool .dp-header {
+  gap: 12px;
+  padding: 12px 14px 10px;
+  border-bottom: 0;
+}
+.rv-tool .dp-header h1 {
+  font: italic 800 24px/1 var(--ui-font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.rv-tool .dp-home {
+  color: var(--ui-text-2);
+  font: 700 20px/1 var(--ui-font-display);
+  transition: color var(--ui-move);
+}
+.rv-tool .dp-home:hover,
+.rv-tool .dp-home:focus-visible {
+  color: var(--ui-accent);
+}
+
+/* Tool nav = segmented control: slanted chips, the page you are on amber. */
+.rv-tool .dp-links {
+  gap: 2px;
+  padding: 0 14px 12px;
+  border-bottom: 1px solid var(--ui-line);
+}
+.rv-tool .dp-links a {
+  position: relative;
+  z-index: 0;
+  padding: 3px 8px;
+  border-radius: 0;
+  background: none;
+  color: var(--ui-text-2);
+  font: 700 12px/1.2 var(--ui-font-display);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  text-transform: uppercase;
+  transition: color var(--ui-move);
+}
+.rv-tool .dp-links a::before,
+.rv-tool .dp-btn::before,
+.rv-toggle::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: var(--ui-radius);
+  background: var(--ui-raised);
+  transform: skewX(var(--ui-slant));
+  transition:
+    background var(--ui-move),
+    box-shadow var(--ui-move);
+}
+.rv-tool .dp-links a:hover,
+.rv-tool .dp-links a:focus-visible {
+  color: var(--ui-text);
+}
+.rv-tool .dp-links a:hover::before {
+  background: var(--ui-raised-hover);
+}
+.rv-tool .dp-links a.active {
+  color: var(--ui-on-accent);
+}
+.rv-tool .dp-links a.active::before {
+  background: var(--ui-accent);
+}
+
+/* --- sections ---------------------------------------------------------------------------------- */
+.rv-tool .dp-section {
+  border-bottom: 1px solid var(--ui-line);
+}
+.rv-tool .dp-section summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  list-style: none;
+  color: var(--ui-text-2);
+  font: 700 14px/1.2 var(--ui-font-display);
+  letter-spacing: 0.08em;
+  transition: color var(--ui-move);
+}
+.rv-tool .dp-section summary::-webkit-details-marker {
+  display: none;
+}
+.rv-tool .dp-section summary::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--ui-move);
+}
+.rv-tool .dp-section[open] > summary {
+  color: var(--ui-text);
+}
+.rv-tool .dp-section[open] > summary::before {
+  border-color: var(--ui-accent);
+  transform: translateY(-2px) rotate(45deg);
+}
+.rv-tool .dp-section summary:hover {
+  color: var(--ui-text);
+}
+.rv-tool .dp-section-body {
+  gap: 7px;
+  padding: 0 14px 14px;
+}
+
+/* --- controls ----------------------------------------------------------------------------------- */
+.rv-tool .dp-row {
+  gap: 8px;
+  min-height: 26px;
+}
+.rv-tool .dp-label {
+  width: 96px;
+  color: var(--ui-text-2);
+}
+.rv-tool .dp-check {
+  gap: 8px;
+}
+.rv-tool .dp-check input {
+  margin: 0;
+  width: 15px;
+  height: 15px;
+}
+.rv-tool .dp-num {
+  width: 58px;
+}
+/* Seed row: ‹ field › dice; the field gives way, the buttons keep their size. */
+.rv-tool .dp-seed {
+  width: 0;
+  min-width: 0;
+}
+.rv-tool .dp-row > .dp-btn {
+  flex: none;
+  padding: 4px 8px;
+}
+
+.rv-tool.dp-body input[type='number'],
+.rv-tool.dp-body input[type='search'],
+.rv-tool.dp-body select {
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-raised);
+  color: var(--ui-text);
+  padding: 4px 6px;
+  font: inherit;
+  transition: border-color var(--ui-move);
+}
+.rv-tool.dp-body input:focus-visible,
+.rv-tool.dp-body select:focus-visible {
+  outline: none;
+  border-color: var(--ui-accent);
+}
+.rv-tool input::placeholder {
+  color: var(--ui-text-off);
+}
+
+/* Dropdown: the menu's .menu-select (amber left edge, own chevron). */
+.rv-tool .dp-select {
+  position: relative;
+  align-items: center;
+}
+.rv-tool.dp-body .dp-select select {
+  appearance: none;
+  padding-right: 26px;
+  border-left: 3px solid var(--ui-accent);
+  cursor: pointer;
+}
+.rv-tool .dp-select select:disabled {
+  border-left-color: var(--ui-line);
+  color: var(--ui-text-off);
+  cursor: default;
+}
+.rv-tool .dp-select::after {
+  content: '';
+  position: absolute;
+  right: 10px;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid var(--ui-text-2);
+  border-bottom: 2px solid var(--ui-text-2);
+  transform: translateY(-2px) rotate(45deg);
+  pointer-events: none;
+}
+.rv-tool select option {
+  background: var(--ui-raised-solid);
+  color: var(--ui-text);
+}
+.rv-tool input[type='color'] {
+  width: 48px;
+  height: 24px;
+  padding: 0 2px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-raised);
+}
+
+/* Buttons: slanted raised rows, the amber bar on hover / focus (the menu's .menu-btn). */
+.rv-tool .dp-btn {
+  position: relative;
+  z-index: 0;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ui-text);
+  font: 700 13px/1.2 var(--ui-font-display);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rv-tool .dp-btn:hover::before,
+.rv-tool .dp-btn:focus-visible::before {
+  background: var(--ui-raised-hover);
+  box-shadow: inset 3px 0 var(--ui-accent);
+}
+.rv-tool .dp-btn:focus-visible {
+  outline: none;
+}
+.rv-tool .dp-buttons {
+  gap: 6px;
+}
+/* The preset in use (camera views): an amber chip, as the tool nav. */
+.rv-tool .dp-btn.active {
+  color: var(--ui-on-accent);
+}
+.rv-tool .dp-btn.active::before {
+  background: var(--ui-accent);
+}
+
+/* Lists: the selected row = card selection (amber bar + 20% amber), not a solid fill. */
+.rv-tool .dp-list-items {
+  max-height: 38vh;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-line) transparent;
+}
+.rv-tool .dp-list-group {
+  margin: 8px 0 2px;
+  color: var(--ui-text-off);
+  font: 700 12px/1.2 var(--ui-font-display);
+  letter-spacing: 0.08em;
+}
+.rv-tool .dp-list-item {
+  padding: 4px 8px;
+  border-radius: 0;
+  color: var(--ui-text);
+  transition: background var(--ui-move);
+}
+.rv-tool .dp-list-item:hover,
+.rv-tool .dp-list-item:focus-visible {
+  outline: none;
+  background: var(--ui-raised-hover);
+}
+.rv-tool .dp-list-item.active {
+  background: rgb(var(--ui-accent-rgb) / 0.2);
+  box-shadow: inset 3px 0 var(--ui-accent);
+  color: var(--ui-text);
+}
+.rv-tool .dp-list-item small {
+  color: var(--ui-text-off);
+  font: 700 11px/1.2 var(--ui-font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+/* List chips (All / AWD / FWD / RWD) = the car menu's segmented filter: slanted chips, the one on in amber. */
+.rv-tool .dp-chips {
+  gap: 4px;
+}
+.rv-tool .dp-chip {
+  position: relative;
+  z-index: 0;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ui-text-2);
+  font: 700 13px/1.2 var(--ui-font-display);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  transition: color var(--ui-move);
+}
+.rv-tool .dp-chip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: var(--ui-radius);
+  background: var(--ui-raised);
+  transform: skewX(var(--ui-slant));
+  transition: background var(--ui-move);
+}
+.rv-tool .dp-chip:hover,
+.rv-tool .dp-chip:focus-visible {
+  outline: none;
+  color: var(--ui-text);
+}
+.rv-tool .dp-chip:hover::before,
+.rv-tool .dp-chip:focus-visible::before {
+  background: var(--ui-raised-hover);
+}
+.rv-tool .dp-chip.on {
+  color: var(--ui-on-accent);
+}
+.rv-tool .dp-chip.on::before {
+  background: var(--ui-accent);
+}
+
+/* Read-outs: body face, tabular numbers, keys secondary. */
+.rv-tool .dp-info {
+  gap: 3px 12px;
+  font: inherit;
+}
+.rv-tool .dp-info dt {
+  color: var(--ui-text-2);
+}
+.rv-tool .dp-info dd {
+  overflow-wrap: anywhere;
+}
+.rv-tool .dp-note,
+.rv-tool .dp-html small {
+  color: var(--ui-text-off);
+  font-size: 12px;
+  white-space: pre-line;
+}
+.rv-tool .dp-html {
+  color: var(--ui-text-2);
+}
+.rv-tool .dp-html a {
+  color: var(--ui-accent);
+  text-decoration: none;
+}
+.rv-tool .dp-html a:hover {
+  text-decoration: underline;
+}
+.rv-tool .dp-html a.rv-ext {
+  color: var(--ui-link);
+}
+.rv-tool .dp-html code {
+  color: var(--ui-text);
+  user-select: all;
+}
+.rv-tool .dp-html small {
+  display: block;
+  margin-top: 6px;
+}
+
+/* Car viewer torque / power chart and its legend (colours = the lines drawn in car-viewer.ts drawCurve). */
+.rv-chart {
+  display: block;
+  width: 100%;
+  height: 120px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-raised);
+}
+.rv-legend {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+}
+.rv-legend span::before {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 3px;
+  margin-right: 5px;
+  vertical-align: middle;
+  background: var(--ui-accent);
+}
+.rv-legend .rv-power::before {
+  background: var(--ui-link);
+}
+.rv-legend .rv-redline::before {
+  height: 9px;
+  background: var(--ui-slower);
+  opacity: 0.3;
+}
+.rv-tool .dp-keys dd {
+  color: var(--ui-text-2);
+}
+.rv-tool kbd,
+.rv-tool .dp-keys kbd {
+  padding: 0 5px;
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-raised);
+  color: var(--ui-text);
+  font: 700 12px/1.5 var(--ui-font-display);
+  letter-spacing: 0.04em;
+}
+
+/* --- plates over the view -------------------------------------------------------------------- */
+.rv-toggle {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  z-index: 22;
+  padding: 4px 12px;
+  border: 0;
+  background: none;
+  color: var(--ui-text);
+  font: 700 13px/1.2 var(--ui-font-display);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.rv-toggle::before {
+  background: var(--ui-glass);
+}
+.rv-toggle:hover::before,
+.rv-toggle:focus-visible::before {
+  box-shadow: inset 3px 0 var(--ui-accent);
+}
+.rv-toggle:focus-visible {
+  outline: none;
+}
+.rv-clean .rv-toggle {
+  display: none;
+}
+.rv-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.rv-loading > div {
+  position: relative;
+  z-index: 0;
+  min-width: 240px;
+  padding: 14px 22px 16px;
+  border-left: 3px solid var(--ui-accent);
+  background: var(--ui-glass);
+  font: italic 700 22px/1.2 var(--ui-font-display);
+  text-transform: uppercase;
+}
+.rv-loading > div::after {
+  content: '';
+  display: block;
+  height: 4px;
+  margin-top: 10px;
+  background: linear-gradient(
+      90deg,
+      transparent,
+      var(--ui-accent) 40%,
+      transparent 60%
+    )
+    0 0 / 300% 100%;
+  transform: skewX(var(--ui-slant));
+  animation: rv-load 1.4s linear infinite;
+}
+@keyframes rv-load {
+  to {
+    background-position: -150% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rv-loading > div::after {
+    animation: none;
+    background: var(--ui-accent);
+  }
+  .rv-tool *,
+  .rv-tool *::before {
+    transition: none !important;
+  }
+}
+
+/* Small windows: a narrower panel, the view keeps the rest. */
+@media (max-width: 1000px) {
+  .rv-tool .dp-panel {
+    width: 264px;
+  }
+  .rv-tool .dp-label {
+    width: 84px;
+  }
+  .rv-tool .dp-links a {
+    padding: 3px 6px;
+    letter-spacing: 0.02em;
+  }
+}

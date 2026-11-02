@@ -9,6 +9,8 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { DebugPanel, type PanelSection } from '../../../shared/debug-panel';
+import '../game/ui-tokens.css';
+import './viewer-shell.css';
 import { StatsOverlay } from '../../../shared/stats-overlay';
 import { bakeCropCards, setCropAntialias } from '../engine/crops';
 import { setVineAntialias } from '../engine/vines';
@@ -20,11 +22,14 @@ import { loadQuality, type QualitySettings } from '../engine/quality';
 import { bindCameraAspect, createRenderer } from '../engine/renderer';
 import { getTexture, setTextureAnisotropy } from '../engine/textures';
 import { testMap } from '../maps/test/map';
+import { offeredWeathers, WEATHER_LABELS } from '../weather';
+import { formatHour, slotFor, TIMES_OF_DAY } from '../game/time-of-day';
 import type { EnvironmentDef } from '../maps/shared/types';
 
 /**
- * Shared scaffolding for the rally tool pages: left DebugPanel, renderer with
- * the SAME lighting setup as the game, orbit camera, optional ground, stats.
+ * Shared scaffolding for the rally tool pages: left DebugPanel in the Stage Board look (`viewer-shell.css`,
+ * STYLEGUIDE.md -> Tool pages), renderer with the SAME lighting setup as the game, orbit camera, optional ground,
+ * stats, the panel toggle and the Help section.
  */
 export const TOOL_LINKS = [
   { label: 'Play', href: './' },
@@ -52,6 +57,33 @@ const num3 = (n: number) => String(Math.round(n * 1000) / 1000);
 
 /** The viewers' default hour of day (the test map's): an afternoon sun. */
 export const VIEWER_HOUR = testMap.environment.timeOfDay!;
+
+/** Mouse and panel keys of every orbit-camera tool page (`addHelp` puts the page's own keys after them). */
+const ORBIT_KEYS: [string, string][] = [
+  ['Left-drag', 'orbit'],
+  ['Right-drag', 'pan'],
+  ['Wheel', 'zoom'],
+  ['H', 'hide / show the panel'],
+  ['F3', 'stats'],
+];
+
+/**
+ * A "Loading <what> ..." plate while a page builds what it shows: over the whole page before the shell exists (a map's
+ * data), or over the view (`shell.panel.viewport`: a car's model, a tree's variants). Returns the function that removes it.
+ */
+export function showViewerLoading(
+  text: string,
+  parent: HTMLElement = document.body,
+): () => void {
+  document.body.classList.add('dp-body', 'rv-tool');
+  const el = document.createElement('div');
+  el.className = 'rv-loading';
+  const box = document.createElement('div');
+  box.textContent = text;
+  el.append(box);
+  parent.append(el);
+  return () => el.remove();
+}
 
 export interface ShellOptions {
   title: string;
@@ -83,7 +115,19 @@ export class ViewerShell {
   readonly frame = new Matrix4();
 
   constructor(opts: ShellOptions) {
-    this.panel = new DebugPanel({ title: opts.title, links: TOOL_LINKS });
+    document.body.classList.add('rv-tool');
+    this.panel = new DebugPanel({
+      title: opts.title,
+      links: TOOL_LINKS,
+      rememberSections: `rally-tool-sections:${opts.title}`,
+    });
+    // The panel can always come back (H does the same); hidden on `clean=1` links (screenshots).
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'rv-toggle';
+    toggle.textContent = 'Panel · H';
+    toggle.addEventListener('click', () => DebugPanel.toggle());
+    this.panel.viewport.append(toggle);
     const quality = (this.quality = loadQuality());
     this.renderer = createRenderer(this.panel.viewport, quality);
     setCropAntialias(quality.antialias);
@@ -105,6 +149,17 @@ export class ViewerShell {
       shadowExtent: opts.shadowExtent ?? 12,
     });
     this.stats = new StatsOverlay(this.renderer, this.panel.viewport, true);
+    // The shared overlay on a glass plate (text sits on a plate, STYLEGUIDE.md).
+    Object.assign(this.stats.el.style, {
+      right: '10px',
+      top: '10px',
+      padding: '6px 10px',
+      background: 'var(--ui-glass)',
+      color: 'var(--ui-text-2)',
+      borderLeft: '3px solid var(--ui-accent)',
+      borderRadius: 'var(--ui-radius)',
+      font: '12px/1.4 ui-monospace, Consolas, monospace',
+    } satisfies Partial<CSSStyleDeclaration>);
 
     if (opts.ground !== false) {
       const tex = getTexture('grass').clone();
@@ -173,7 +228,7 @@ export class ViewerShell {
    * `clean=1` hides the panel. Returns true when a free camera was applied.
    */
   applyCameraLink(state: CameraLinkState): boolean {
-    if (state.clean) document.body.classList.add('dp-hidden');
+    if (state.clean) document.body.classList.add('dp-hidden', 'rv-clean');
     const p = parseVec3(state.cam);
     if (!p) return false;
     this.camera.position.set(...p).applyMatrix4(this.frame);
@@ -245,9 +300,66 @@ export class ViewerShell {
     });
   }
 
-  /** Standard "Scene" section: sun, fog, ground, grid toggles. */
-  addSceneSection(open = false): PanelSection {
-    const s = this.panel.section('Scene', open);
+  /**
+   * Weather and Time of day pickers (`?weather=`, `?tod=`, read by `Environment`). A weather change reloads the page (the
+   * wet shading compiles into the shaders, as in the game); the hour changes live, then `onHour`. `own` = the page's
+   * default: its `tod` value and the hour it means (none = fixed sun angles, no hour picker). Call after
+   * `state.weather` is checked against `offeredWeathers()`.
+   */
+  addWeatherAndTime(
+    section: PanelSection,
+    state: { weather: string; tod: number },
+    sync: () => void,
+    own: { tod: number; hour: number } | undefined,
+    onHour?: () => void,
+  ): void {
+    const weathers = offeredWeathers();
+    if (weathers.length > 1)
+      section.select(
+        'Weather',
+        state.weather,
+        weathers.map((w) => ({ value: w, label: WEATHER_LABELS[w] })),
+        (v) => {
+          state.weather = v;
+          sync();
+          location.reload();
+        },
+      );
+    if (!own) return;
+    // The game's slots; the one nearest the page's own hour stands for that hour (as the stage screen, `slotFor`).
+    const ownSlot = slotFor(own.hour).id;
+    const options = TIMES_OF_DAY.map((t) =>
+      t.id === ownSlot
+        ? {
+            value: String(own.tod),
+            label: `${t.label} ${formatHour(own.hour)}`,
+          }
+        : { value: String(t.hour), label: `${t.label} ${formatHour(t.hour)}` },
+    );
+    if (!options.some((o) => o.value === String(state.tod)))
+      options.push({ value: String(state.tod), label: formatHour(state.tod) });
+    section.select('Time of day', String(state.tod), options, (v) => {
+      state.tod = Number(v);
+      // The environment reads `tod` from the URL before the map's hour: write it first.
+      sync();
+      this.setHour(state.tod === own.tod ? own.hour : state.tod);
+      onHour?.();
+    });
+  }
+
+  /** The Help section (closed): mouse and panel keys, then the page's own `[keys, what]` rows and notes. */
+  addHelp(keys: [string, string][] = [], notes: string[] = []): PanelSection {
+    const s = this.panel.section('Help', false);
+    s.keys([...ORBIT_KEYS, ...keys]);
+    for (const n of notes) s.note(n);
+    return s;
+  }
+
+  /** Standard "Scene" section: sun, fog, ground, grid toggles (appended to `s` when the page has its own Scene section). */
+  addSceneSection(
+    open = false,
+    s: PanelSection = this.panel.section('Scene', open),
+  ): PanelSection {
     const apply = () => this.env.apply(this.envDef);
     s.slider(
       'Sun elevation',
