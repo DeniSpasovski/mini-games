@@ -107,7 +107,7 @@ const FX: FxTint = {
 
 /**
  * Hard block 0: a weathered field boulder, smooth with a few cut faces and a crack, flat where it sits. Its moss is a
- * shell of the same rock a hair larger, cut off along a tilted line, so it grows over the shoulder and follows every
+ * shell of the same rock a little larger, cut off along a tilted line, so it grows over the shoulder and follows every
  * bump instead of sitting on top; moss clumps and grass at the foot, two smooth stones beside it.
  */
 function mossyBoulder(): BufferGeometry {
@@ -136,9 +136,13 @@ function mossyBoulder(): BufferGeometry {
       detail: [0, 0, 1],
     }),
     // the moss: everything of the shell below a tilted plane is pressed flat inside the rock (hidden)
-    part(rock(0.557, 5), V.moss, {
+    part(rock(0.585, 5), V.moss, {
       ...rockOpts,
-      cuts: [...rockOpts.cuts, [0.7, -1, 0.45, -0.3]],
+      // the cut planes pushed out as far as the shell: moss lying in the rock's surface flickers as the camera moves
+      cuts: [
+        ...rockOpts.cuts.map(([x, y, z, d]) => [x, y, z, d + 0.03] as const),
+        [0.7, -1, 0.45, -0.3],
+      ],
       tint: 0.22,
       rough: ROUGH.grass,
       detail: [1, 0],
