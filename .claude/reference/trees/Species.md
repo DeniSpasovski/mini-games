@@ -41,7 +41,7 @@ Most species come from a family builder in trees/species.ts that writes the gram
 - birch_tree is a birch: a slender white trunk to the top, short climbing limbs with drooping twigs, a light airy crown.
 - young_tree is a sapling, a slender elm or ash, its crown taller than wide and starting to yellow.
 - poplar_tree is a poplar, a Lombardy poplar: tall and columnar, short upswept limbs close to the trunk, the tallest tree.
-- willow_tree is a willow, a weeping willow: a short thick trunk, three limbs arching out round a central one that fills the dome's top, and long curtains of hanging shoots that stop above the ground. Every shoot is drawn as thin olive wood (they start with short internodes, so they arch over and hang at once) and carries the leaf cards along it.
+- willow_tree is a willow, a weeping willow: a short thick trunk, three limbs arching out round a central one that fills the dome's top, and long curtains of hanging shoots, drawn as thin olive wood with leaf cards along them, that stop above the ground.
 - bush is a bush, a low leafy roadside shrub.
 - scrub_bush is scrub, Mediterranean hill scrub: dark olive, low and wide.
 - hazelnut_tree is a hazel, a plantation hazelnut: a multi-stemmed upright bush with a fresh green crown, 3 to 4 m.
@@ -59,7 +59,7 @@ Most species come from a family builder in trees/species.ts that writes the gram
 ## Seasons
 
 - A stage has a season, spring, summer or autumn. A species' palette is its summer look; a table gives the species that change their own spring and autumn palettes, from measured leaves: a bright yellow-green flush in spring, blossom on the fruit tree and thicket, yellow (birch, hornbeam, walnut, locust), copper (beech), dull yellow-brown (oak) and red (scrub, thicket, bramble) in autumn. Conifers hardly change, the juniper and cypresses never do.
-- A broadleaf's spring and autumn palettes are ramps from the least to the most turned leaf, from measured leaves: beech green, yellow-green, gold, orange, copper, brown; the yellow-turners (hornbeam, birch, walnut, hazel, locust); oaks to dull ochre and russet; cherry and maple to orange-red; Cotinus, hawthorn and bramble to scarlet and crimson; a lime flush (beech, hornbeam, birch) or a bronze one (oak, walnut) in spring. Trees turn about a week apart, so each variant has its own stage (autumn wider than spring, centred near peak colour), and a crown turns from its top and outside in (birch, poplar and willow from the inside).
+- A broadleaf's spring and autumn palettes are ramps from the least to the most turned leaf, from measured leaves (`trees/seasons.ts`). Trees turn about a week apart, so each variant has its own stage (autumn wider than spring, centred near peak colour), and a crown turns from its top and outside in (birch, poplar and willow from the inside).
 - A season changes the leaves only: their colours and, on a broadleaf, their cover. Autumn crowns have shed about a quarter of their leaves; spring ones are a fifth short and their leaves a fifth smaller, so the branches show through more. Its variants grow from the summer seeds, so a tree is the same tree all year, the same leaf points go bare every time, and the season is part of the species hash, so each has its own cached variants.
 
 ## Checks
