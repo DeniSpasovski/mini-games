@@ -350,12 +350,8 @@ function maskTexture(
   const scale = peak > 0 ? Math.min(MAX_BOOST, peak ** -0.6) : 0;
   const data = new Uint8Array(w * h * 4);
   for (let i = 0; i < w * h; i++) {
-    const cut =
-      dark[i] === 1
-        ? 1 - DARK_CUT
-        : dark[i] === 2
-          ? 1
-          : 1 - DARK_CUT * Math.min(1, 2 * shade[i]);
+    // Blurred, not per pixel: a photo sheet's dark specks would cut blocky holes in the glow.
+    const cut = dark[i] === 2 ? 1 : 1 - DARK_CUT * Math.min(1, 2 * shade[i]);
     const v = Math.min(255, Math.round(mask[i] * scale * cut * 255));
     data[i * 4] = data[i * 4 + 1] = data[i * 4 + 2] = v;
     data[i * 4 + 3] = 255;
