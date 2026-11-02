@@ -397,6 +397,13 @@ const SOLID_CENTRE = new Set(['lancer_evo_6_lamps.png']);
 const strongRed = (r: number, gr: number): boolean => r > 2 * gr + 40;
 const paleRed = (r: number, gr: number, b: number): boolean =>
   r > gr + 30 && b > gr * 0.85;
+/**
+ * Sheet areas (x0, y0, x1, y1, sheet pixels) with no hot spots: a part seen only as a thin rim round another lamp (Lancer: the
+ * edge of the amber blinker, else a lit red arc round it).
+ */
+const HOT_SKIP: Record<string, [number, number, number, number][]> = {
+  'lancer_evo_6_lamps.png': [[320, 240, 372, 384]],
+};
 const srcSheets = new Map<string, Promise<HTMLImageElement>>();
 
 function sheetFor(file: string): Promise<HTMLImageElement> {
@@ -488,8 +495,6 @@ function srcPart(name: string): Material {
   // the sheet was made from) at full, and the running light is the hot spots alone.
   const split = kind === 'tail' && !running && !clear;
   const lensLevel = split ? LENS_LEVEL : 1;
-  const hotSpot = (r: number, gr: number, b: number): boolean =>
-    split && paleRed(r, gr, b) && r > 150 && gr < 0.8 * r;
   const idleGlow = running || split ? blank('#000') : undefined;
   const loaded = sheetFor(file)
     .then((img) => {
@@ -497,6 +502,24 @@ function srcPart(name: string): Material {
       g.clearRect(0, 0, SRC_SIZE, SRC_SIZE);
       g.drawImage(img, 0, 0, SRC_SIZE, SRC_SIZE);
       const px = g.getImageData(0, 0, SRC_SIZE, SRC_SIZE).data;
+      const skip = HOT_SKIP[file] ?? [];
+      // A bulb / LED hot spot: a pale pink pixel of the photo the sheet was made from.
+      const hotSpot = (n: number): boolean => {
+        const r = px[n * 4];
+        const gr = px[n * 4 + 1];
+        if (
+          !split ||
+          !paleRed(r, gr, px[n * 4 + 2]) ||
+          r <= 150 ||
+          gr >= 0.8 * r
+        )
+          return false;
+        const x = n % SRC_SIZE;
+        const y = (n / SRC_SIZE) | 0;
+        return !skip.some(
+          ([x0, y0, x1, y1]) => x >= x0 && x < x1 && y >= y0 && y < y1,
+        );
+      };
       // `red` = glow in pure red at the sheet's red level (a tail lamp's sheet colour is often orange or pink once it glows).
       const paint = (
         t: CanvasTexture,
@@ -523,7 +546,7 @@ function srcPart(name: string): Material {
           (r, gr, b, n) =>
             strongRed(r, gr)
               ? lensLevel
-              : (running && paleRed(r, gr, b)) || hotSpot(r, gr, b)
+              : (running && paleRed(r, gr, b)) || hotSpot(n)
                 ? 1
                 : clear &&
                     n >> 9 > CLEAR_FROM_ROW &&
@@ -536,11 +559,11 @@ function srcPart(name: string): Material {
         if (idleGlow)
           paint(
             idleGlow,
-            (r, gr, b) =>
+            (r, gr, b, n) =>
               split
                 ? strongRed(r, gr)
                   ? lensLevel * IDLE_LENS_SRGB
-                  : hotSpot(r, gr, b)
+                  : hotSpot(n)
                     ? 1
                     : 0
                 : !strongRed(r, gr) && paleRed(r, gr, b)

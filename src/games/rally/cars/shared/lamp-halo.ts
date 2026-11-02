@@ -27,8 +27,8 @@ const JOIN = 0.05;
 /** The glow quad sits this far outside the lamp (behind a tail lamp, in front of a head lamp; metres). */
 const SETBACK = 0.04;
 /**
- * A lamp's own unlit parts (glow below `DARK_LIT`: a blinker, a reversing lens) keep this little of the red glow over them: the
- * halo sits behind the whole lamp and would otherwise tint them red.
+ * A lamp's own unlit parts (glow below `DARK_LIT`: a blinker, a reversing lens) keep this little of the red glow over them and
+ * round their outer edge: the halo sits behind the whole lamp and would otherwise tint them red.
  */
 const DARK_LIT = 0.05;
 const DARK_CUT = 0.85;
@@ -50,6 +50,21 @@ function glowOf(m: MeshStandardMaterial, reverse: boolean): Glow | null {
   const map = reverse
     ? m.userData.brakeLamp?.reverseGlow
     : (m.userData.brakeGlow ?? m.emissiveMap);
+  const read = lookup(m, map, 0);
+  return read && ((u, v) => read(u, v) ** 2);
+}
+
+/** How opaque a lamp's own texture is at a texture coordinate (its map's alpha), or null without a readable map. */
+function opacityOf(m: MeshStandardMaterial): Glow | null {
+  return lookup(m, m.map, 3);
+}
+
+/** A canvas texture of `m` read at a texture coordinate: the brightest colour channel (`channel` 0) or alpha (3), 0..1. */
+function lookup(
+  m: MeshStandardMaterial,
+  map: MeshStandardMaterial['map'] | undefined,
+  channel: 0 | 3,
+): Glow | null {
   const img = map?.image as HTMLCanvasElement | undefined;
   if (!map || !img || typeof img.getContext !== 'function') return null;
   const { width, height } = img;
@@ -63,8 +78,9 @@ function glowOf(m: MeshStandardMaterial, reverse: boolean): Glow | null {
     const row = srcUv ? v - Math.floor(v) : 1 - (v - Math.floor(v));
     const y = Math.min(height - 1, Math.floor(row * height));
     const i = (y * width + x) * 4;
-    const b = Math.max(px[i], px[i + 1], px[i + 2]) / 255;
-    return b * b;
+    return channel
+      ? px[i + 3] / 255
+      : Math.max(px[i], px[i + 1], px[i + 2]) / 255;
   };
 }
 
@@ -85,6 +101,10 @@ const COARSE: [number, number, number][] = [
 
 /** Below this glow a point counts as dark. */
 const LIT = 0.02;
+/** A dark lamp part at least this opaque (its texture's alpha) hides a lit part behind it: no glow comes through (Lancer: the amber blinker). */
+const OPAQUE = 0.8;
+/** A lit surface this much (m) behind an opaque dark part counts as hidden by it. */
+const HIDDEN = 0.003;
 
 /**
  * One lamp: its body-space box and its lit triangles, 12 numbers a triangle (x, y, u, v for each corner), `glows` = the glow map
@@ -93,6 +113,8 @@ const LIT = 0.02;
 interface Piece {
   box: Box3;
   tris: number[];
+  /** The corners' depth (body z), 3 a triangle. */
+  zs: number[];
   glows: (Glow | null)[];
   brakeOnly: boolean;
 }
@@ -107,11 +129,17 @@ interface Lamp extends Piece {
  * third brake light, so the mesh's own box would span the whole car width. Only triangles that glow somewhere count
  * (a lamp sheet's clear lens, a hidden bulb or a plate light do not).
  */
-function pieces(mesh: Mesh, toBody: Matrix4, reverse: boolean): Piece[] {
+function pieces(
+  mesh: Mesh,
+  toBody: Matrix4,
+  reverse: boolean,
+  cover: number[],
+): Piece[] {
   const uv = mesh.geometry.getAttribute('uv');
   const { xyz, find, corner, count } = weld(mesh, toBody);
   const v = new Vector3();
   const glow = glowOf(mesh.material as MeshStandardMaterial, reverse);
+  const opacity = opacityOf(mesh.material as MeshStandardMaterial);
   const out = new Map<number, Piece>();
   for (let t = 0; t < count; t++) {
     const ids = [corner(t, 0), corner(t, 1), corner(t, 2)];
@@ -124,7 +152,18 @@ function pieces(mesh: Mesh, toBody: Matrix4, reverse: boolean): Piece[] {
           (u[0] * a + u[1] * b + u[2] * c) / (a + b + c),
           (w[0] * a + w[1] * b + w[2] * c) / (a + b + c),
         ) > LIT;
-      if (!(reverse ? FINE : COARSE).some(([a, b, c]) => at(a, b, c))) continue;
+      if (!(reverse ? FINE : COARSE).some(([a, b, c]) => at(a, b, c))) {
+        // A dark, opaque part (an amber blinker): it hides the lit parts behind it from the halo (`cover`, x y z a corner).
+        const solid = (a: number, b: number, c: number): boolean =>
+          opacity!(
+            (u[0] * a + u[1] * b + u[2] * c) / (a + b + c),
+            (w[0] * a + w[1] * b + w[2] * c) / (a + b + c),
+          ) >= OPAQUE;
+        if (opacity && COARSE.every(([a, b, c]) => solid(a, b, c)))
+          for (const i of ids)
+            cover.push(xyz[i * 3], xyz[i * 3 + 1], xyz[i * 3 + 2]);
+        continue;
+      }
     }
     const r = find(ids[0]);
     let piece = out.get(r);
@@ -132,6 +171,7 @@ function pieces(mesh: Mesh, toBody: Matrix4, reverse: boolean): Piece[] {
       piece = {
         box: new Box3(),
         tris: [],
+        zs: [],
         glows: [],
         brakeOnly: !!(mesh.material as Material).userData.brakeLamp?.brakeOnly,
       };
@@ -141,6 +181,7 @@ function pieces(mesh: Mesh, toBody: Matrix4, reverse: boolean): Piece[] {
       const i = ids[c] * 3;
       piece.box.expandByPoint(v.set(xyz[i], xyz[i + 1], xyz[i + 2]));
       piece.tris.push(xyz[i], xyz[i + 1], u[c], w[c]);
+      piece.zs.push(xyz[i + 2]);
     }
     piece.glows.push(glow);
   }
@@ -153,6 +194,7 @@ function lamps(all: Piece[]): Lamp[] {
     ...p,
     box: p.box.clone(),
     tris: [...p.tris],
+    zs: [...p.zs],
     glows: [...p.glows],
     parts: [p],
   }));
@@ -172,6 +214,7 @@ function lamps(all: Piece[]): Lamp[] {
           list[i].brakeOnly &&= list[j].brakeOnly;
           list[i].parts.push(...list[j].parts);
           list[i].tris.push(...list[j].tris);
+          list[i].zs.push(...list[j].zs);
           list[i].glows.push(...list[j].glows);
           list.splice(j, 1);
           again = true;
@@ -211,11 +254,49 @@ function blur(
 }
 
 /**
+ * The pixels of triangle `k` of `tris` (`stride` numbers a corner, x y first, body space) in the `w` x `h` window at (`x0`, `y0`):
+ * `fn(pixel index, barycentric weights)`. Edge-on triangles (a lamp side wall seen from behind) cover no pixel of their own.
+ */
+function raster(
+  tris: number[],
+  k: number,
+  stride: number,
+  x0: number,
+  y0: number,
+  w: number,
+  h: number,
+  fn: (i: number, l1: number, l2: number, l3: number) => void,
+): void {
+  const ax = (tris[k] - x0) / TEXEL;
+  const ay = (tris[k + 1] - y0) / TEXEL;
+  const bx = (tris[k + stride] - x0) / TEXEL;
+  const by = (tris[k + stride + 1] - y0) / TEXEL;
+  const cx = (tris[k + 2 * stride] - x0) / TEXEL;
+  const cy = (tris[k + 2 * stride + 1] - y0) / TEXEL;
+  const det = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
+  if (Math.abs(det) < 1e-6) return;
+  const xa = Math.max(0, Math.floor(Math.min(ax, bx, cx)));
+  const xb = Math.min(w - 1, Math.ceil(Math.max(ax, bx, cx)));
+  const ya = Math.max(0, Math.floor(Math.min(ay, by, cy)));
+  const yb = Math.min(h - 1, Math.ceil(Math.max(ay, by, cy)));
+  for (let y = ya; y <= yb; y++)
+    for (let x = xa; x <= xb; x++) {
+      const px = x + 0.5;
+      const py = y + 0.5;
+      const l1 = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / det;
+      const l2 = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / det;
+      const l3 = 1 - l1 - l2;
+      if (l1 >= 0 && l2 >= 0 && l3 >= 0) fn(y * w + x, l1, l2, l3);
+    }
+}
+
+/**
  * The lamp's silhouette from behind in the `w` x `h` pixel window at (`x0`, `y0`), blurred by `radius` pixels, as a texture
  * that peaks at 1 (a faint lamp is boosted).
  */
 function maskTexture(
   lamp: Piece,
+  cover: number[],
   x0: number,
   y0: number,
   w: number,
@@ -225,53 +306,55 @@ function maskTexture(
   const mask = new Float32Array(w * h);
   // Lamp pixels that do not glow (an amber blinker, a clear reversing lens, a dark segment): the glow is cut there.
   const dark = new Uint8Array(w * h);
+  // The nearest dark opaque part seen from behind (lowest z) at each pixel: a lit part behind it is hidden.
+  const front = new Float32Array(w * h).fill(Infinity);
+  for (let k = 0; k < cover.length; k += 9)
+    raster(cover, k, 3, x0, y0, w, h, (i, l1, l2, l3) => {
+      const z = l1 * cover[k + 2] + l2 * cover[k + 5] + l3 * cover[k + 8];
+      if (z < front[i]) front[i] = z;
+      dark[i] = 1;
+    });
   const t = lamp.tris;
+  const zs = lamp.zs;
   for (let k = 0, tri = 0; k < t.length; k += 12, tri++) {
-    const ax = (t[k] - x0) / TEXEL;
-    const ay = (t[k + 1] - y0) / TEXEL;
-    const bx = (t[k + 4] - x0) / TEXEL;
-    const by = (t[k + 5] - y0) / TEXEL;
-    const cx = (t[k + 8] - x0) / TEXEL;
-    const cy = (t[k + 9] - y0) / TEXEL;
-    const det = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
-    // Edge-on triangles (a lamp side wall seen from behind) cover no pixel of their own.
-    if (Math.abs(det) < 1e-6) continue;
     const glow = lamp.glows[tri];
-    const xa = Math.max(0, Math.floor(Math.min(ax, bx, cx)));
-    const xb = Math.min(w - 1, Math.ceil(Math.max(ax, bx, cx)));
-    const ya = Math.max(0, Math.floor(Math.min(ay, by, cy)));
-    const yb = Math.min(h - 1, Math.ceil(Math.max(ay, by, cy)));
-    for (let y = ya; y <= yb; y++)
-      for (let x = xa; x <= xb; x++) {
-        const px = x + 0.5;
-        const py = y + 0.5;
-        const l1 = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / det;
-        const l2 = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / det;
-        const l3 = 1 - l1 - l2;
-        if (l1 < 0 || l2 < 0 || l3 < 0) continue;
-        // The lamp's own glow at this spot (its texture coordinate), so a clear lens or a dark segment adds nothing.
-        const lit = glow
-          ? glow(
-              l1 * t[k + 2] + l2 * t[k + 6] + l3 * t[k + 10],
-              l1 * t[k + 3] + l2 * t[k + 7] + l3 * t[k + 11],
-            )
-          : 1;
-        if (lit > mask[y * w + x]) mask[y * w + x] = lit;
-        // A lit piece in front of or behind an unlit one wins.
-        if (lit >= DARK_LIT) dark[y * w + x] = 2;
-        else if (!dark[y * w + x]) dark[y * w + x] = 1;
-      }
+    raster(t, k, 4, x0, y0, w, h, (i, l1, l2, l3) => {
+      // Behind a dark opaque part: hidden, adds no glow.
+      const z = l1 * zs[tri * 3] + l2 * zs[tri * 3 + 1] + l3 * zs[tri * 3 + 2];
+      if (z > front[i] + HIDDEN) return;
+      // The lamp's own glow at this spot (its texture coordinate), so a clear lens or a dark segment adds nothing.
+      const lit = glow
+        ? glow(
+            l1 * t[k + 2] + l2 * t[k + 6] + l3 * t[k + 10],
+            l1 * t[k + 3] + l2 * t[k + 7] + l3 * t[k + 11],
+          )
+        : 1;
+      if (lit > mask[i]) mask[i] = lit;
+      // A lit piece in front of or behind an unlit one wins.
+      if (lit >= DARK_LIT) dark[i] = 2;
+      else if (!dark[i]) dark[i] = 1;
+    });
   }
+  // The unlit parts, blurred like the glow: the glow is cut over them and round their outer edge (else a red fringe hugs a blinker).
+  const shade = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) shade[i] = dark[i] === 1 ? 1 : 0;
   for (let pass = 0; pass < 3; pass++) {
     blur(mask, w, h, false, radius);
     blur(mask, w, h, true, radius);
+    blur(shade, w, h, false, radius);
+    blur(shade, w, h, true, radius);
   }
   let peak = 0;
   for (const v of mask) peak = Math.max(peak, v);
   const scale = peak > 0 ? Math.min(MAX_BOOST, peak ** -0.6) : 0;
   const data = new Uint8Array(w * h * 4);
   for (let i = 0; i < w * h; i++) {
-    const cut = dark[i] === 1 ? 1 - DARK_CUT : 1;
+    const cut =
+      dark[i] === 1
+        ? 1 - DARK_CUT
+        : dark[i] === 2
+          ? 1
+          : 1 - DARK_CUT * Math.min(1, 2 * shade[i]);
     const v = Math.min(255, Math.round(mask[i] * scale * cut * 255));
     data[i * 4] = data[i * 4 + 1] = data[i * 4 + 2] = v;
     data[i * 4 + 3] = 255;
@@ -411,8 +494,10 @@ export class LampHalos {
         : reverse
           ? REVERSE_COLOUR
           : RED_COLOUR;
+    // Dark opaque lamp parts (x y z a corner): they hide the lit parts behind them.
+    const cover: number[] = [];
     for (const lamp of lamps(
-      meshes.flatMap((m) => pieces(m, toBody, reverse)),
+      meshes.flatMap((m) => pieces(m, toBody, reverse, cover)),
     )) {
       this.boxes.push(lamp.box);
       if (opts.front) {
@@ -433,7 +518,7 @@ export class LampHalos {
       const h = Math.ceil((size.y + 2 * margin) / TEXEL);
       const add = (piece: Piece, list: ShaderMaterial[]): void => {
         const material = haloMaterial(
-          maskTexture(piece, x0, y0, w, h, radius),
+          maskTexture(piece, cover, x0, y0, w, h, radius),
           colour,
         );
         const halo = new Mesh(quad, material);
@@ -459,6 +544,7 @@ export class LampHalos {
           {
             box: lamp.box,
             tris: running.flatMap((p) => p.tris),
+            zs: running.flatMap((p) => p.zs),
             glows: running.flatMap((p) => p.glows),
             brakeOnly: false,
           },
