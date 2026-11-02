@@ -34,6 +34,8 @@ export interface ScatterContext {
   stageId?: string;
   /** `MapDef.treeSetback`: the verge the trees keep clear along the stage road. */
   treeSetback?: MapDef['treeSetback'];
+  /** `MapDef.treeCrownClear`: how far a roadside tree's crown may reach over the stage road's edge. */
+  treeCrownClear?: MapDef['treeCrownClear'];
   /** The crop standing at a point (rules with `crop`; world/terrain-gen.ts `cropAt`). */
   cropAt?: (x: number, z: number) => string | undefined;
   /** Direction of the field strips (rad, `landcover.fields.angle`): `rows.fields` rules run along it. */
@@ -484,7 +486,20 @@ export class ScatterField {
           tiltX,
           tiltZ,
         };
-        if (tree) this.poseTree(inst, hash3(cx, cz, ri * 65536 + i, 0x7ee5));
+        if (tree) {
+          this.poseTree(inst, hash3(cx, cz, ri * 65536 + i, 0x7ee5));
+          // Crowns stay off the road: a solid tree stands back by its posed crown's reach (variant and scale).
+          if (
+            solid &&
+            this.ctx.treeCrownClear !== undefined &&
+            q.found &&
+            rd <
+              variantInfo(inst.tree!.species, inst.variant).radius *
+                inst.scale -
+                this.ctx.treeCrownClear
+          )
+            continue;
+        }
         if (nearRoad !== undefined && rd < nearRoad) inst.near = true;
         if (extra) inst.extra = true;
         out.push(inst);

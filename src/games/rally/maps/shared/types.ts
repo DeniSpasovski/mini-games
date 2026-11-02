@@ -71,6 +71,11 @@ export interface MapDef {
    * through a suburb, a forest road with the trees set back), easing in and out over `fade` m (default 30) at the ends.
    */
   treeSetback?: { from: number; to: number; dist: number; fade?: number }[];
+  /**
+   * Trees (not bushes) by the stage road stand back far enough that their crown (its widest reach at the tree's variant and
+   * scale) hangs at most this many m over the road's edge: a road kept clear of low limbs.
+   */
+  treeCrownClear?: number;
   /** Props placed along the road (posts, signs, bales, crowds...). */
   roadside: RoadsideRule[];
   /** Continuous barriers along the road (Jersey wall, guard rail): one swept mesh, not separate props. */
