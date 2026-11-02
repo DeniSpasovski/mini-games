@@ -153,13 +153,14 @@ function pieces(
           (w[0] * a + w[1] * b + w[2] * c) / (a + b + c),
         ) > LIT;
       if (!(reverse ? FINE : COARSE).some(([a, b, c]) => at(a, b, c))) {
-        // A dark, opaque part (an amber blinker): it hides the lit parts behind it from the halo (`cover`, x y z a corner).
+        // A dark, opaque part (an amber blinker): it hides the red lit parts behind it from the halo (`cover`, x y z a corner).
+        // Not for the reversing glow: the red lens round a reversing light would cut its white glow.
         const solid = (a: number, b: number, c: number): boolean =>
           opacity!(
             (u[0] * a + u[1] * b + u[2] * c) / (a + b + c),
             (w[0] * a + w[1] * b + w[2] * c) / (a + b + c),
           ) >= OPAQUE;
-        if (opacity && COARSE.every(([a, b, c]) => solid(a, b, c)))
+        if (!reverse && opacity && COARSE.every(([a, b, c]) => solid(a, b, c)))
           for (const i of ids)
             cover.push(xyz[i * 3], xyz[i * 3 + 1], xyz[i * 3 + 2]);
         continue;
