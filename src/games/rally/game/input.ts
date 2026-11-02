@@ -76,7 +76,18 @@ export class InputController {
   };
   /** Last device used, for HUD hints. */
   device: 'keyboard' | 'gamepad' | 'touch' = 'keyboard';
-  enabled = true;
+  private _enabled = true;
+  /**
+   * Off while a menu owns the pad. Turning it back on swallows the buttons still held, so the B that
+   * closed the menu isn't read as the in-game B (reset) on the next poll.
+   */
+  get enabled(): boolean {
+    return this._enabled;
+  }
+  set enabled(v: boolean) {
+    if (v && !this._enabled) this.syncPadButtons();
+    this._enabled = v;
+  }
   private keys = new Set<string>();
   private padButtons: boolean[] = [];
   private listeners: ((a: InputAction) => void)[] = [];
@@ -191,6 +202,13 @@ export class InputController {
     const rate = returning ? (counter ? 9 : 6) : 3.2;
     c.steer = ramp(c.steer, goal, rate, rate);
     return c;
+  }
+
+  private syncPadButtons(): void {
+    const pad = [...(navigator.getGamepads?.() ?? [])].find(
+      (p) => p && p.connected,
+    );
+    pad?.buttons.forEach((b, i) => (this.padButtons[i] = b.pressed));
   }
 
   private pollGamepad(): VehicleControls | null {
