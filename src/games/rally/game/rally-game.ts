@@ -626,6 +626,7 @@ export class RallyGame {
             tailLightMount(this.car.physics),
             -this.car.physics.comHeight,
             w.wet,
+            lights.day,
           );
           this.lampReflections.setLevels(lamps, lamps, 0);
         });

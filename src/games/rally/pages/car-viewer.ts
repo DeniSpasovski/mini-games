@@ -622,6 +622,7 @@ function applyLights(): void {
           tailLightMount(m.def.physics),
           -m.root.position.y,
           wet,
+          lit.day,
         );
         applyLamps();
       });
