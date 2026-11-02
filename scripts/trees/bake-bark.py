@@ -2,8 +2,8 @@
 
     python3 -I scripts/trees/bake-bark.py sources/rally/bark
 
-The source folder holds the 1k diffuse maps (<asset>_diff_1k.jpg). Each whole (seamless) scan becomes a grey
-256 x 512 tile: u once around the branch, v along it (the species' `bark.tiling` repeats per metre). Grey, because it
+The source folder holds the 1k diffuse and OpenGL normal maps (<asset>_diff_1k.jpg, <asset>_nor_gl_1k.jpg). Each
+whole (seamless) scan becomes a grey 256 x 512 tile <kind>.webp and its normal tile <kind>-n.webp: u once around the branch, v along it (the species' `bark.tiling` repeats per metre). Grey, because it
 multiplies the species' bark colour like the procedural tiles did; with its own contrast; trees/materials.ts `BARK_GAIN` (printed here) lifts it to the procedural tiles' mean brightness
 (MEAN) so the trunk keeps its colour.
 """
@@ -24,6 +24,8 @@ KINDS = {
     "pine": "pine_bark",
     "beech": "chinese_hackberry_bark",
     "plane": "bark_platanus",
+    "willow": "bark_willow",
+    "cedar": "japanese_cedar_bark",
 }
 
 
@@ -35,6 +37,8 @@ def main() -> None:
         # Brightest 0.5 % to white, the scan's own contrast kept; the material lifts it back to MEAN (`BARK_GAIN`).
         x = np.clip(np.asarray(im, dtype=np.float64) / np.percentile(im, 99.5), 0, 1)
         Image.fromarray(np.round(x * 255).astype(np.uint8)).save(OUT / f"{kind}.webp", quality=88, method=6)
+        nor = Image.open(src / f"{asset}_nor_gl_1k.jpg").convert("RGB").resize(SIZE, Image.LANCZOS)
+        nor.save(OUT / f"{kind}-n.webp", quality=90, method=6)
         # sRGB tile, linear lighting: the gain is on the linear mean.
         lin = np.where(x <= 0.04045, x / 12.92, ((x + 0.055) / 1.055) ** 2.4)
         print(f"{kind}: {MEAN ** 2.2 / lin.mean():.2f},  // {asset}")

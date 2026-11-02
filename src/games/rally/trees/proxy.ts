@@ -78,6 +78,7 @@ export function quadSprites(s: SpriteData): {
         y,
         s.sprite[v0 * 4 + 2],
         headingAt(s.heading, v0),
+        s.sprite[v0 * 4 + 3],
         spr,
         q * 4,
       );

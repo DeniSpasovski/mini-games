@@ -70,6 +70,11 @@ export interface SpriteAtlas {
   normal: Uint8Array;
   /** Per image: outline polygon (CCW, 6-8 vertices) in image coordinates (0..1)^2. */
   outlines: Outline[];
+  /**
+   * Mean linear shade of the leaf texels (alpha >= ALPHA_TEST): a sprite's vertex colour is the palette colour over
+   * this, so a cluster's mean albedo is its palette colour (trees/mesh.ts).
+   */
+  mean: number;
 }
 
 /** Polygon vertices (CCW) in image coordinates. */
@@ -81,11 +86,19 @@ type Arc = (t: number) => [number, number];
 /** Pixel sizes below are for a 256 px image; a style's image scales them (`K`). */
 /** The shoot: half its length along x (px), its sag. */
 const SPRAY_HALF = 92;
+/** Where a spray's stem starts: this share of the image left of its centre (a leaf card's base sits on its twig). */
+export const SPRAY_BASE = SPRAY_HALF / NEEDLE_IMAGE;
 const SPRAY_SAG = 0.2;
 /** Size factor of a frond sprite (`SpriteAtlas.grow`). */
 const FROND_GROW = 1.7;
 /** Chance of a side shoot forking off. */
 const SPRAY_FORK = 0.75;
+/**
+ * Shade and width (x) of a spray's stem and twigs: thin and close to the leaves' own shade. A sprite is a metre or more
+ * of branch, so a dark stem down every spray lines up along a branch into fern-like streaks across the crown.
+ */
+const STEM_VALUE = 0.48;
+const STEM_WIDTH = 0.7;
 
 interface BroadStyle {
   /** Leaf length range (px) and length / width. */
@@ -237,6 +250,22 @@ export function atlasUv(i: number, u: number, v: number): [number, number] {
 }
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+
+/** Linear 0..1 -> an sRGB-encoded byte, from a table (an atlas has millions of texels). */
+const SRGB_STEPS = 4096;
+let srgbTable: Uint8Array | null = null;
+function srgb8(x: number): number {
+  if (!srgbTable) {
+    srgbTable = new Uint8Array(SRGB_STEPS + 1);
+    for (let i = 0; i <= SRGB_STEPS; i++) {
+      const v = i / SRGB_STEPS;
+      const e =
+        v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055;
+      srgbTable[i] = Math.round(e * 255);
+    }
+  }
+  return srgbTable[Math.round(x * SRGB_STEPS)];
+}
 
 /** The atlas of a leaf style. */
 export function spriteAtlas(style: LeafStyle): SpriteAtlas {
@@ -462,18 +491,27 @@ export function spriteAtlas(style: LeafStyle): SpriteAtlas {
         );
       }
     } else if (style === 'juniper') {
-      // A drooping frond: a stem along the arc with branchlets alternating left and right (longest near the base, swept
-      // towards the tip), each a feathery chain of scale leaves; a second, shorter frond sometimes forks off.
+      // A curling frond: a stem along the arc with branchlets alternating left and right (longest near the base, swept
+      // towards the tip), each a feathery chain of scale leaves; a second, shorter frond sometimes forks off. Half the
+      // images curl each way: the sprite turns the image to its heading, so one-way curls would lean a column's crown.
       const half = SPRAY_HALF * K;
       const sag = (r(900) - 0.5) * 2 * SPRAY_SAG * half;
-      const droop = (r(901) + 0.2) * 0.32 * half;
+      const droop = (img % 2 ? -1 : 1) * (r(901) + 0.2) * 0.32 * half;
       const main: Arc = (t) => [
         c - half + 2 * half * t,
         c + sag * (1 - (2 * t - 1) ** 2) + droop * t * t,
       ];
       const frond = (arc: Arc, scale: number, salt: number) => {
         for (let t = 0; t <= 0.98; t += 0.5 / half)
-          stamp(...arc(t), (1.5 - 0.8 * t) * K, 0.32, 0, 0, 0, 0);
+          stamp(
+            ...arc(t),
+            (1.5 - 0.8 * t) * STEM_WIDTH * K,
+            STEM_VALUE,
+            0,
+            0,
+            0,
+            0,
+          );
         const n = Math.round((2 * half * scale) / (5.2 * K));
         for (let m = 0; m < n; m++) {
           const q = (k: number) => r(salt + 20 + m * 41 + k);
@@ -608,7 +646,15 @@ export function spriteAtlas(style: LeafStyle): SpriteAtlas {
        */
       const shoot = (arc: Arc, scale: number, thick: number, salt: number) => {
         for (let t = 0; t <= 0.97; t += 0.5 / half)
-          stamp(...arc(t), (thick * (1 - 0.55 * t) + 0.4) * K, 0.3, 0, 0, 0, 0);
+          stamp(
+            ...arc(t),
+            (thick * (1 - 0.55 * t) + 0.4) * STEM_WIDTH * K,
+            STEM_VALUE,
+            0,
+            0,
+            0,
+            0,
+          );
         const n = Math.max(
           3,
           Math.round(
@@ -640,7 +686,15 @@ export function spriteAtlas(style: LeafStyle): SpriteAtlas {
             ];
           };
           for (let s = 0; s <= len; s += 0.6 * K)
-            stamp(...at(s), (0.9 - 0.4 * (s / len)) * K, 0.3, 0, 0, 0, 0);
+            stamp(
+              ...at(s),
+              (0.9 - 0.4 * (s / len)) * STEM_WIDTH * K,
+              STEM_VALUE,
+              0,
+              0,
+              0,
+              0,
+            );
           const rimAt = (s: number) =>
             Math.min(1, (s + Math.abs(t - 0.5) * lmid) / reachMax + 0.15);
           const spacing = Math.max(1.5 * K, lmid * st.gap);
@@ -710,13 +764,21 @@ export function spriteAtlas(style: LeafStyle): SpriteAtlas {
   }
   const albedo = new Uint8Array(W * H * 4);
   const normal = new Uint8Array(W * H * 4);
+  const cut = ALPHA_TEST * 255;
+  let sum = 0;
+  let leaves = 0;
   for (let k = 0; k < W * H; k++) {
+    if (alpha[k] >= cut) {
+      sum += shade[k];
+      leaves++;
+    }
     const i = k * 4;
     const g = shade[k] / 255;
     const t = warm[k] / 127;
-    albedo[i] = Math.round(Math.min(1, g * (1 + 0.07 * t)) * 255);
-    albedo[i + 1] = Math.round(g * 255);
-    albedo[i + 2] = Math.round(Math.min(1, g * (1 - 0.16 * t)) * 255);
+    // The shade is a linear multiplier of the palette colour; the texture is sRGB (decoded on read), so encode it.
+    albedo[i] = srgb8(Math.min(1, g * (1 + 0.07 * t)));
+    albedo[i + 1] = srgb8(g);
+    albedo[i + 2] = srgb8(Math.min(1, g * (1 - 0.16 * t)));
     albedo[i + 3] = alpha[k];
     // Tangent-space normal from the leaf tilt + dome (z towards the viewer), thickness from the stacked leaves.
     const x = nx[k] / 64;
@@ -738,6 +800,7 @@ export function spriteAtlas(style: LeafStyle): SpriteAtlas {
     albedo,
     normal,
     outlines,
+    mean: leaves ? sum / leaves / 255 : 1,
   };
   atlases.set(style, atlas);
   return atlas;

@@ -533,7 +533,10 @@ export class FarForest {
         hash3(Math.floor(inst.x * 16), Math.floor(inst.z * 16), 7, 0xfa7) /
         4294967296;
       if (pick * this.kindArea[k] < a) this.kind[k] = lv.slot + 1;
-      const c = treeHue(lv.canopyColor, inst.tree.hue);
+      const c = treeHue(
+        lv.canopyColor,
+        inst.tree.hue * (lv.def.foliage.hueSpread ?? 1),
+      );
       const v = inst.tree.value * a;
       this.rgb[k * 3] += c[0] * v;
       this.rgb[k * 3 + 1] += c[1] * v;
@@ -683,13 +686,17 @@ export class FarForest {
     );
     tiles.name = 'far-trees-tiles';
     this.ftTiles = tiles;
+    // Per variant slot: how far its trees' hues spread (a season's turning leaves, `foliage.hueSpread`).
+    const spreads = imp.heights.map(() => 1);
+    for (const lv of this.library.all())
+      spreads[lv.slot] = lv.def.foliage.hueSpread ?? 1;
     const material = impostorMaterial(
       imp.atlas,
       imp.spheres,
       imp.bounds,
       true,
       {
-        key: 'far-trees-v1',
+        key: 'far-trees-v2',
         uniforms: {
           ffShape: this.uniforms.ffShape,
           ffTint: this.uniforms.ffTint,
@@ -698,6 +705,7 @@ export class FarForest {
           ftReach: { value: reach },
           ftNear: this.ftNear,
           ftHeights: { value: imp.heights },
+          ftSpread: { value: spreads },
           ftTiles: { value: tiles },
         },
         pars: farTreePars(imp.heights.length),
@@ -1122,6 +1130,7 @@ uniform float ffBase;
 uniform float ftReach;
 uniform float ftNear;
 uniform float ftHeights[ ${Math.max(1, variants)} ];
+uniform float ftSpread[ ${Math.max(1, variants)} ];
 /** The tiles drawn (x = tile x, y = tile z): instance i is cell i % FT_TILE^2 of tile i / FT_TILE^2. */
 uniform highp sampler2D ftTiles;
 const int FT_TILE = ${FAR_TILE};
@@ -1165,7 +1174,7 @@ const FAR_TREE_MAIN = /* glsl */ `
 					float ftSin = sin( ftA ) * ftS;
 					instanceMatrix = mat4( ftCos, 0.0, - ftSin, 0.0, 0.0, ftS, 0.0, 0.0, ftSin, 0.0, ftCos, 0.0, ftXZ.x, ftGround, ftXZ.y, 1.0 );
 					// As trees/placement.ts poses a tree: hue, value, sway phase; the variant slot.
-					treeInst = vec4( ( ftRand( ftC, 5u ) - 0.5 ) * 0.06, 0.86 + 0.26 * ftRand( ftC, 6u ), ftRand( ftC, 7u ) * 6.2832, float( ftSlot ) );
+					treeInst = vec4( ( ftRand( ftC, 5u ) - 0.5 ) * 0.06 * ftSpread[ ftSlot ], 0.86 + 0.26 * ftRand( ftC, 6u ), ftRand( ftC, 7u ) * 6.2832, float( ftSlot ) );
 					tgOut = 1.0 - smoothstep( ftReach * 0.85, ftReach, ftD );
 				}
 			}

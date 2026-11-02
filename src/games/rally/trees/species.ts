@@ -104,7 +104,8 @@ export const ROAD_REACH_FLAG = 0.25;
 /** Bark detail tile: 'furrowed' is a scanned oak bark, 'smooth' a procedural one (birch, shrubs). */
 export type BarkTexture = 'furrowed' | 'smooth';
 /** A species' own scanned bark tile (trees/bark/, scripts/trees/bake-bark.py) in place of its `texture`. */
-export type BarkScan = 'pine' | 'beech' | 'plane';
+export type BarkScan =
+  'pine' | 'beech' | 'plane' | 'willow' | 'cedar' | 'birch';
 export type FoliageKind = 'needles' | 'broadleaf';
 
 export interface SpeciesDef {
@@ -121,14 +122,21 @@ export interface SpeciesDef {
   /** Radius at the base (m) and the factor `!` multiplies it by. */
   baseRadius: number;
   radiusDecay: number;
+  /** Radius of a shoot where it ends in its leaves (m; trees/skeleton.ts `TIP_RADIUS`): the pipe model's thinnest. */
+  tipRadius?: number;
   /** Heading bends towards this vector after every segment, by `tropismStrength`. */
   tropism: [number, number, number];
   tropismStrength: number;
   bark: {
+    /** Measured albedo of the grown bark (trees/Species.md#types). */
     color: string;
     texture: BarkTexture;
-    /** Own scanned tile; not part of the variant seed (trees/variants.ts), so it does not regrow the trees. */
+    /** Own tile (a scan, or birch's procedural one) in place of `texture`. */
     scan?: BarkScan;
+    /** Young shoots' bark (default `TWIG_BARK`): a branch turns from it to `color` as it thickens (trees/mesh.ts). */
+    twig?: string;
+    /** The trunk's foot below `height` m: birch's black fissured base. */
+    foot?: { color: string; height: number };
     /** repeats per metre of branch */ tiling: number;
   };
   foliage: {
@@ -139,19 +147,35 @@ export interface SpeciesDef {
     /** The leaf style: which atlas (trees/leaftex.ts) the cluster sprites are cut from. */
     leaf: LeafStyle;
     palette: string[];
+    /**
+     * Season colours (trees/seasons.ts). With `turn` the palette is a ramp from the least to the most turned leaf
+     * (summer: shade leaf to sun leaf): each variant stands at its own stage on it (`stage`, default 0.5, +-
+     * `stages`), a crown's outer, upper leaves `turn` further along (negative: the inner ones). `hueSpread`: trees
+     * differ in hue this many times the summer's.
+     */
+    turn?: number;
+    stage?: number;
+    stages?: number;
+    hueSpread?: number;
+    /** Season leaf cover (trees/seasons.ts): the share of leaf points that still carry a sprite and their size (default 1). */
+    leafy?: number;
+    leafSize?: number;
   };
   lod?: Partial<LodSettings>;
   /** Instance scale range. */
   scale: [number, number];
   /** Branches thinner than this (m) are left out: the foliage sprites cover them (trees/Lod.md#levels). */
   twigRadius: number;
-  /** Most LOD0 branch triangles (6,000; shrubs 2,000) and sprites per crown (broadleaf 360, conifers 400; shrubs 200). */
+  /** Most LOD0 branch triangles (2,500; poplar 3,000, willow 12,000; shrubs 1,400) and leaf points with foliage per crown (broadleaf 360, conifers 400; shrubs 200; a spray is two leaf cards). */
   maxBranchTriangles: number;
   maxSprites: number;
   /** Trunk / first-order limb segments at least this thick (m) collide (trees/Placement.md#collision). */
   collisionRadius: number;
   /** Pre-generated variants (default 8). */
   variants?: number;
+  /** How much sky a closed stand's canopy takes from the wood under it and the crown's underside (0..1, trees/mesh.ts
+   * `occlusion`); not part of the variant seed, so it keeps the same trees. */
+  shade?: number;
 }
 
 /** Shared by the deciduous trees built with `broadleaf` below. */
@@ -172,20 +196,56 @@ interface BroadleafShape {
   foliage: SpeciesDef['foliage'];
   scale: [number, number];
   variants: number;
+  shade?: number;
+  /** Random bend per limb internode (deg, default 0): an oak's crooked limbs. */
+  crook?: number;
+  /**
+   * Limb generations that carry leaves: from this one on (default 0, every one). Later = the inner limbs stand bare in
+   * the crown's shade, so the foliage breaks into clumps round the limb ends and the limbs show between them.
+   */
+  leafFrom?: number;
+  /** Stems from one stool (default 1: a single trunk), each leaning out a little: a coppiced hornbeam. */
+  stems?: number;
 }
 
 /**
  * A deciduous tree: a bole with two low limbs forks into three leaders; each apex then bifurcates, throws a lateral
- * at the golden angle or just grows on, then ends in a twig spray, with leaf clusters at every node. The shape's
- * numbers make it a broad oak, a dense round walnut, a low fruit tree or a tall open plane.
+ * at the golden angle or just grows on, then ends in a twig spray, with leaf clusters at every node (from `leafFrom`).
+ * The shape's numbers make it a broad crooked oak, a dense round walnut, a low fruit tree, a tall open plane or a
+ * coppiced hornbeam.
  */
 function broadleaf(o: BroadleafShape): SpeciesDef {
   const [l0, l1] = o.limbs;
   const [d0, d1] = o.leaders;
   const [a0, a1] = o.laterals;
+  const c = crook(o.crook ?? 0);
+  const from = o.leafFrom ?? 0;
+  const stems = o.stems ?? 1;
+  let axiom = `!F(${o.bole})A(${o.lead},0)`;
+  if (stems > 1) {
+    axiom = '';
+    for (let i = 0; i < stems; i++)
+      axiom += `[>(${((i * 360) / stems).toFixed(1)}+rnd(-25,25))&(rnd(5,11))!F(${o.bole}*rnd(0.8,1.1))A(${o.lead}*0.85,0)]`;
+  }
+  // The limb rules, with leaves (generation >= from) and without.
+  const limbs = (cond: string, L: string): RuleDef[] => [
+    {
+      pred: 'B(l,o)',
+      cond,
+      p: 0.5,
+      succ: `${c}F(l)${L}>(rnd(80,140))[&(rnd(${a0},${a1}))!B(l*rnd(0.72,0.84),o+1)][^(rnd(5,18))!B(l*rnd(0.82,0.92),o+1)]`,
+    },
+    {
+      pred: 'B(l,o)',
+      cond,
+      p: 0.35,
+      succ: `${c}F(l)${L}[&(rnd(${a0 + 15},${a1 + 22}))!!B(l*0.6,o+2)]>(gold)!B(l*0.9,o+1)`,
+    },
+    { pred: 'B(l,o)', cond, p: 0.15, succ: `${c}F(l)${L}!B(l*0.94,o+1)` },
+  ];
   return {
     name: o.name,
-    axiom: `!F(${o.bole})A(${o.lead},0)`,
+    axiom,
     constants: { gold: 137.5 },
     rules: [
       {
@@ -200,19 +260,8 @@ function broadleaf(o: BroadleafShape): SpeciesDef {
           `F(l*0.8)[&(rnd(${d0},${d1}))!B(l*0.95,0)]>(rnd(110,130))[&(rnd(${d0},${d1}))!B(l*0.95,0)]` +
           `>(rnd(110,130))[&(rnd(${d0 * 0.7},${d1 * 0.75}))!B(l,0)]`,
       },
-      {
-        pred: 'B(l,o)',
-        cond: 'o < 6',
-        p: 0.5,
-        succ: `F(l)L>(rnd(80,140))[&(rnd(${a0},${a1}))!B(l*rnd(0.72,0.84),o+1)][^(rnd(5,18))!B(l*rnd(0.82,0.92),o+1)]`,
-      },
-      {
-        pred: 'B(l,o)',
-        cond: 'o < 6',
-        p: 0.35,
-        succ: `F(l)L[&(rnd(${a0 + 15},${a1 + 22}))!!B(l*0.6,o+2)]>(gold)!B(l*0.9,o+1)`,
-      },
-      { pred: 'B(l,o)', cond: 'o < 6', p: 0.15, succ: 'F(l)L!B(l*0.94,o+1)' },
+      ...(from > 0 ? limbs(`o < ${Math.min(from, 6)}`, '') : []),
+      ...limbs(from > 0 ? `o >= ${from} && o < 6` : 'o < 6', 'L'),
       {
         pred: 'B(l,o)',
         cond: 'o >= 6',
@@ -230,24 +279,40 @@ function broadleaf(o: BroadleafShape): SpeciesDef {
     bark: o.bark,
     foliage: o.foliage,
     scale: o.scale,
-    twigRadius: 0.048,
-    maxBranchTriangles: 6000,
+    twigRadius: 0.009,
+    maxBranchTriangles: 2500,
     maxSprites: 360,
     collisionRadius: 0.1,
     variants: o.variants,
+    shade: o.shade,
   };
 }
+
+/**
+ * A random bend before a segment (deg): `+(rnd(-c,c))^(rnd(-c,c))`, so limbs and stems wander instead of running dead
+ * straight (no roll: the side shoots keep their spread).
+ */
+const crook = (c: number) =>
+  c > 0 ? `+(rnd(${-c},${c}))^(rnd(${-c},${c}))` : '';
 
 /** Shared by the bushes built with `shrub` below. */
 interface ShrubShape {
   name: string;
-  /** Stem length (m) at the root and how far the stems lean out from upright (deg). */
-  stem: [number, number];
-  lean: [number, number];
-  /** Fork angle of the shoots (deg). */
-  fork: [number, number];
-  /** Generations of stems from the root (more = denser). */
+  /** Stems from the stool, and the stool's radius (m): they rise from a patch of ground, not one point. */
   stems: number;
+  stool: number;
+  /** First internode of the centre stems and of the rim ones (m). */
+  stem: [number, number];
+  /** Lean from upright of the centre stems and of the rim ones (deg): upright inside, leaning out at the rim. */
+  lean: [number, number];
+  /** Angle of the side shoots (deg). */
+  fork: [number, number];
+  /** Internodes a stem grows. */
+  depth: number;
+  /** How hard the stems arch over under their weight (tropism, default 0.08: bramble canes bow to the ground). */
+  arch?: number;
+  /** Random bend per internode (deg, default 8). */
+  crook?: number;
   baseRadius: number;
   foliage: SpeciesDef['foliage'];
   bark: SpeciesDef['bark'];
@@ -255,49 +320,66 @@ interface ShrubShape {
   variants: number;
 }
 
-/** A bush with no trunk: every iteration adds two stems of a different age from the root, which fork and arch out. */
+/**
+ * A bush with no trunk (trees/Species.md#types): `stems` stems rise from a stool, spread evenly round it (golden
+ * angle), upright and tall in the centre, shorter and leaning out at the rim, so the crown is a dome whose rim reaches
+ * the ground. They all grow `depth` internodes, each with a leaf cluster and a side shoot, a leafy spur or a fork.
+ */
 function shrub(o: ShrubShape): SpeciesDef {
   const [s0, s1] = o.stem;
   const [e0, e1] = o.lean;
   const [f0, f1] = o.fork;
+  const c = crook(o.crook ?? 8);
+  const f = (n: number) => n.toFixed(3);
+  let axiom = '';
+  for (let i = 0; i < o.stems; i++) {
+    // Centre -> rim; sqrt spreads the stems evenly over the stool's area.
+    const t = (i + 0.5) / o.stems;
+    const lean = e0 + (e1 - e0) * t;
+    const len = s0 + (s1 - s0) * t;
+    axiom +=
+      `[>(${f(i * 137.5)})&(90)f(${f(o.stool * Math.sqrt(t))})^(90)` +
+      `&(rnd(${f(lean * 0.85)},${f(lean * 1.15 + 2)}))!B(rnd(${f(len * 0.9)},${f(len * 1.1)}),0)]`;
+  }
   return {
     name: o.name,
-    axiom: 'A(0)',
+    axiom,
     rules: [
       {
-        pred: 'A(k)',
-        cond: `k < ${o.stems}`,
-        succ:
-          `[&(rnd(${e0},${e1}))!B(rnd(${s0},${s1}),0)]>(rnd(50,95))` +
-          `[&(rnd(${e0 + 8},${e1 + 6}))!B(rnd(${s0 * 0.88},${s1 * 0.9}),0)]>(rnd(60,100))A(k+1)`,
-      },
-      {
         pred: 'B(l,o)',
-        cond: 'o < 4',
-        p: 0.55,
-        succ: `F(l)L[+(rnd(${f0},${f1}))!B(l*0.75,o+1)][-(rnd(${f0},${f1}))!B(l*0.75,o+1)]`,
-      },
-      {
-        pred: 'B(l,o)',
-        cond: 'o < 4',
+        cond: `o < ${o.depth}`,
         p: 0.45,
-        succ: `F(l)L>(137.5)[&(rnd(${f0 + 5},${f1 + 5}))!B(l*0.7,o+1)]!B(l*0.9,o+1)`,
+        succ: `${c}F(l)L[+(rnd(${f0},${f1}))!B(l*0.72,o+1)]>(137.5)!B(l*0.9,o+1)`,
       },
-      { pred: 'B(l,o)', cond: 'o >= 4', succ: 'F(l*0.7)L' },
+      {
+        pred: 'B(l,o)',
+        cond: `o < ${o.depth}`,
+        p: 0.35,
+        succ: `${c}F(l)L[+(rnd(${f0},${f1}))F(l*0.45)L]>(137.5)!B(l*0.92,o+1)`,
+      },
+      {
+        pred: 'B(l,o)',
+        cond: `o < ${o.depth}`,
+        p: 0.2,
+        succ: `${c}F(l)L[+(rnd(${f0},${f1}))!B(l*0.75,o+1)][-(rnd(${f0},${f1}))!B(l*0.75,o+1)]`,
+      },
+      { pred: 'B(l,o)', cond: `o >= ${o.depth}`, succ: 'F(l*0.6)L' },
     ],
-    iterations: o.stems,
-    segmentCap: 600,
+    iterations: o.depth + 1,
+    segmentCap: 900,
     angle: 32,
     lengthScale: 1,
     baseRadius: o.baseRadius,
     radiusDecay: 0.85,
     tropism: [0, -1, 0],
-    tropismStrength: 0.08,
+    tropismStrength: o.arch ?? 0.08,
     bark: o.bark,
     foliage: o.foliage,
     scale: o.scale,
-    twigRadius: 0.015,
-    maxBranchTriangles: 2000,
+    // The thinnest twigs are left out: the leaves cover them (they streak across a bush's surface).
+    tipRadius: 0.003,
+    twigRadius: 0.006,
+    maxBranchTriangles: 1400,
     maxSprites: 200,
     // Thicker than any stem: bushes are drive-through.
     collisionRadius: 0.12,
@@ -305,197 +387,282 @@ function shrub(o: ShrubShape): SpeciesDef {
   };
 }
 
-/** Scots pine / spruce: a conical, layered conifer (the forest backbone). */
-export const PINE: SpeciesDef = {
-  name: 'Pine',
-  // A straight leader A adds an internode and a whorl of five limbs per iteration; the limb apices B fork into
-  // flat twig sprays (the needle clusters sit on the twigs) and droop under the gravity tropism, so the oldest
-  // (lowest) whorls are the longest.
-  axiom: '!F(0.8)A(0.95,0)',
-  rules: [
+/** Shared by the conifers built with `conifer` below. */
+interface ConiferShape {
+  name: string;
+  /** Bare trunk under the crown (m), with dead stubs on it (a self-pruned stem). */
+  bole: number;
+  /** Whorls of the crown, the trunk's growth between them (m) and its shrink per whorl. */
+  whorls: number;
+  step: number;
+  taper: number;
+  /** Limbs per whorl. */
+  perWhorl: number;
+  /**
+   * Limb length (m) at the crown's foot, and how it changes up the crown (t 0 = foot .. 1 = top): a `cone` shortens
+   * steadily, an `umbrella` keeps its long limbs to near the top (with rising limbs: a flat top), a `column` keeps short
+   * limbs the whole way.
+   */
+  limb: number;
+  shape: 'cone' | 'umbrella' | 'column';
+  /** Limb angle from the stem (deg) at the crown's foot and at its top: 90 = level, less = rising. */
+  pitch: [number, number];
+  /** Spread of a limb's side sprays (deg) and the limb generations that carry needles: from `leafFrom` on (0 = all). */
+  spray: [number, number];
+  leafFrom: number;
+  tropism: [number, number, number];
+  tropismStrength: number;
+  baseRadius: number;
+  bark: SpeciesDef['bark'];
+  foliage: SpeciesDef['foliage'];
+  scale: [number, number];
+  maxSprites: number;
+  maxBranchTriangles: number;
+  twigRadius: number;
+  collisionRadius: number;
+  variants: number;
+}
+
+/**
+ * A conifer (trees/Species.md#types): a straight leader, bare `bole` metres with dead stubs, then `whorls` whorls of
+ * `perWhorl` limbs, each limb's length from the crown `shape` and its angle rising up the crown. A limb is a main axis
+ * with a pair of side sprays per internode (the sides skip a generation, so they stay short and flat) and needles on
+ * its outer generations only: the inside of the crown is bare wood, the whorls read as layers.
+ */
+function conifer(o: ConiferShape): SpeciesDef {
+  const N = o.whorls;
+  const t = `(k/${N})`;
+  const env =
+    o.shape === 'cone'
+      ? `(1-0.82*${t})`
+      : o.shape === 'umbrella'
+        ? `(1-0.7*${t}*${t})`
+        : `(1-0.45*${t}*${t})`;
+  // A limb's axis is about 3x its first internode.
+  const len = `${(o.limb / 3).toFixed(3)}*${env}*rnd(0.85,1.15)`;
+  const [p0, p1] = o.pitch;
+  const pitch = `${p0}+${p1 - p0}*${t}`;
+  const turn = 360 / o.perWhorl;
+  let whorl = '';
+  for (let j = 0; j < o.perWhorl; j++)
+    whorl += `[&(${pitch}+rnd(-6,6))!!B(${len},0)]>(${turn.toFixed(1)}+rnd(-15,15))`;
+  // The bole in ~1 m pieces, a dead stub at each (a short foot has none).
+  let axiom = '!';
+  const pieces = o.bole > 0 ? Math.max(1, Math.round(o.bole)) : 0;
+  const stub = o.bole >= 1 ? '[&(rnd(70,95))!!!!!F(rnd(0.2,0.45))]' : '';
+  for (let i = 0; i < pieces; i++)
+    axiom += `F(${(o.bole / pieces).toFixed(3)})${stub}>(rnd(100,160))`;
+  axiom += `A(${o.step},0)`;
+  const [s0, s1] = o.spray;
+  const leaf = (g: number) => (g >= o.leafFrom ? 'L' : '');
+  const D = 3;
+  const rules: RuleDef[] = [
     {
       pred: 'A(l,k)',
-      succ:
-        'F(l)L![&(rnd(70,88))!!!B(l*0.5,0)]>(rnd(64,80))[&(rnd(70,88))!!!B(l*0.48,0)]>(rnd(64,80))' +
-        '[&(rnd(70,88))!!!B(l*0.5,0)]>(rnd(64,80))[&(rnd(70,88))!!!B(l*0.46,0)]>(rnd(64,80))' +
-        '[&(rnd(70,88))!!!B(l*0.48,0)]>(rnd(15,45))A(l*rnd(0.93,0.98),k+1)',
+      cond: `k < ${N}`,
+      succ: `F(l)${leaf(0)}${whorl}>(rnd(10,40))A(l*${o.taper},k+1)`,
     },
-    {
+    { pred: 'A(l,k)', cond: `k >= ${N}`, succ: 'F(l*0.8)L' },
+  ];
+  // Side sprays are needle tufts off the limb (no wood of their own): the branch budget draws every limb's axis out to
+  // its needles instead of the first internodes of a thousand side shoots.
+  const spray = (g: number) =>
+    g + 2 >= o.leafFrom
+      ? `[+(rnd(${s0},${s1}))f(l*0.6)L][-(rnd(${s0},${s1}))f(l*0.6)L]`
+      : '';
+  for (let g = 0; g < D; g++)
+    rules.push({
       pred: 'B(l,o)',
-      cond: 'o == 0',
-      p: 0.6,
-      succ: 'F(l)[+(rnd(38,55))!!!B(l*0.55,1)][-(rnd(38,55))!!!B(l*0.55,1)]!B(l*0.87,0)',
-    },
-    { pred: 'B(l,o)', cond: 'o == 0', p: 0.4, succ: 'F(l)!B(l*0.88,0)' },
-    { pred: 'B(l,o)', cond: 'o == 1', succ: 'F(l)L!B(l*0.8,2)' },
-    { pred: 'B(l,o)', cond: 'o == 2', succ: 'F(l)L' },
-  ],
-  iterations: 12,
-  segmentCap: 1800,
-  angle: 35,
-  lengthScale: 1,
-  baseRadius: 0.22,
-  radiusDecay: 0.8,
+      cond: `o == ${g}`,
+      succ: `F(l)${leaf(g)}${spray(g)}>(rnd(-20,20))!B(l*0.82,o+1)`,
+    });
+  rules.push({ pred: 'B(l,o)', cond: `o >= ${D}`, succ: 'F(l*0.6)L' });
+  return {
+    name: o.name,
+    axiom,
+    rules,
+    iterations: N + D + 2,
+    segmentCap: 2400,
+    angle: 30,
+    lengthScale: 1,
+    baseRadius: o.baseRadius,
+    radiusDecay: 0.8,
+    tropism: o.tropism,
+    tropismStrength: o.tropismStrength,
+    bark: o.bark,
+    foliage: o.foliage,
+    scale: o.scale,
+    twigRadius: o.twigRadius,
+    maxBranchTriangles: o.maxBranchTriangles,
+    maxSprites: o.maxSprites,
+    collisionRadius: o.collisionRadius,
+    variants: o.variants,
+  };
+}
+
+/** Broadleaf summer crowns: sun leaves outside, shade leaves inside, trees a little apart (`foliage.turn`). */
+const SUMMER_TURN = { turn: 0.25, stages: 0.15 };
+
+/** Scots pine / spruce: the forest backbone, a straight leader and layered whorls of level limbs down to the foot. */
+export const PINE = conifer({
+  name: 'Pine',
+  bole: 0.6,
+  whorls: 12,
+  step: 0.95,
+  taper: 0.97,
+  perWhorl: 5,
+  limb: 2.8,
+  shape: 'cone',
+  pitch: [88, 62],
+  spray: [38, 55],
+  leafFrom: 1,
   tropism: [0, -1, 0],
-  tropismStrength: 0.08,
-  bark: { color: '#5e4a3a', texture: 'furrowed', scan: 'pine', tiling: 1.2 },
+  tropismStrength: 0.12,
+  baseRadius: 0.22,
+  bark: {
+    color: '#7e6b5b',
+    texture: 'furrowed',
+    scan: 'pine',
+    twig: '#9a6b48',
+    tiling: 1.2,
+  },
+  foliage: {
+    kind: 'needles',
+    spriteSize: 0.95,
+    leaf: 'pine',
+    palette: ['#4c5a44', '#525f45', '#465541', '#4b5c4a'],
+  },
+  scale: [0.95, 1.35],
+  maxSprites: 400,
+  maxBranchTriangles: 2500,
+  // Thin: the limbs the needles hang on show (the branch cap thickens it to fit).
+  twigRadius: 0.006,
+  collisionRadius: 0.1,
+  variants: 6,
+});
+
+/**
+ * Plantation pine: the pine's cone for the dense stands of a mountain forest, grown cheaper: four limbs to a whorl
+ * and half the sprites, each larger (a pine stand costs about a third of the GPU time per tree); a full cone on
+ * a short foot, like the planted hillside stands.
+ */
+export const PLANTATION_PINE = conifer({
+  name: 'Plantation pine',
+  bole: 1,
+  whorls: 12,
+  step: 0.95,
+  taper: 0.97,
+  perWhorl: 4,
+  limb: 2.7,
+  shape: 'cone',
+  pitch: [88, 62],
+  spray: [38, 55],
+  leafFrom: 1,
+  tropism: [0, -1, 0],
+  tropismStrength: 0.12,
+  baseRadius: 0.22,
+  bark: PINE.bark,
+  foliage: { ...PINE.foliage, spriteSize: 1.3 },
+  scale: [1, 1.4],
+  maxSprites: 200,
+  maxBranchTriangles: 2000,
+  // Thin: the limbs the needles hang on show (the branch cap thickens it to fit).
+  twigRadius: 0.006,
+  collisionRadius: 0.1,
+  variants: 4,
+});
+
+/**
+ * Austrian black pine: a long straight trunk, bare but for dead stubs, under a flat umbrella of dark needle clumps:
+ * the low crown limbs rise steeply and reach out as far as the top, the needles only at their ends.
+ */
+export const BLACK_PINE = conifer({
+  name: 'Black pine',
+  bole: 4.5,
+  whorls: 8,
+  step: 0.55,
+  taper: 0.95,
+  perWhorl: 5,
+  limb: 4.6,
+  shape: 'umbrella',
+  pitch: [42, 70],
+  spray: [25, 40],
+  leafFrom: 2,
+  tropism: [0, -1, 0],
+  tropismStrength: 0.05,
+  baseRadius: 0.26,
+  bark: { color: '#4a4541', texture: 'furrowed', scan: 'pine', tiling: 1.2 },
   foliage: {
     kind: 'needles',
     spriteSize: 1.3,
     leaf: 'pine',
-    palette: ['#2f4a26', '#355229', '#2a4322', '#3b5a2c'],
-  },
-  scale: [0.95, 1.35],
-  twigRadius: 0.048,
-  maxBranchTriangles: 6000,
-  maxSprites: 400,
-  collisionRadius: 0.1,
-  variants: 6,
-};
-
-/**
- * Plantation pine: the pine's cone for the dense stands of a mountain forest, grown cheaper: four limbs to a whorl
- * and half the sprites, each larger (a pine stand costs about a third of the GPU time per tree).
- */
-export const PLANTATION_PINE: SpeciesDef = {
-  ...PINE,
-  name: 'Plantation pine',
-  rules: [
-    {
-      pred: 'A(l,k)',
-      succ:
-        'F(l)L![&(rnd(70,88))!!!B(l*0.5,0)]>(rnd(84,100))[&(rnd(70,88))!!!B(l*0.48,0)]>(rnd(84,100))' +
-        '[&(rnd(70,88))!!!B(l*0.5,0)]>(rnd(84,100))[&(rnd(70,88))!!!B(l*0.46,0)]>(rnd(15,45))A(l*rnd(0.93,0.98),k+1)',
-    },
-    ...PINE.rules.slice(1),
-  ],
-  foliage: { ...PINE.foliage, spriteSize: 1.35 },
-  scale: [1, 1.4],
-  twigRadius: 0.045,
-  maxBranchTriangles: 4000,
-  maxSprites: 200,
-  variants: 4,
-};
-
-/** Austrian black pine: a long straight trunk, bare but for dead stubs, under a flat umbrella of dark needle clumps. */
-export const BLACK_PINE: SpeciesDef = {
-  name: 'Black pine',
-  // The leader A climbs with a dead stub at each step, then opens into five limbs that rise, spread and fork into
-  // flat sprays; needle clumps only at the spray tips.
-  axiom: '!F(1.6)A(1.3,0)',
-  rules: [
-    {
-      pred: 'A(l,k)',
-      cond: 'k < 5',
-      succ: 'F(l)[&(rnd(70,90))!!!!!F(rnd(0.3,0.6))]>(rnd(110,160))A(l*0.96,k+1)',
-    },
-    {
-      pred: 'A(l,k)',
-      cond: 'k >= 5',
-      succ:
-        'F(l*0.5)[&(rnd(38,52))!!B(rnd(1.8,2.3),0)]>(rnd(66,78))[&(rnd(38,52))!!B(rnd(1.8,2.3),0)]>(rnd(66,78))' +
-        '[&(rnd(38,52))!!B(rnd(1.8,2.3),0)]>(rnd(66,78))[&(rnd(38,52))!!B(rnd(1.8,2.3),0)]>(rnd(66,78))' +
-        '[&(rnd(12,24))!!B(rnd(1.4,1.8),0)]',
-    },
-    {
-      pred: 'B(l,o)',
-      cond: 'o < 3',
-      succ: 'F(l)[+(rnd(25,40))!B(l*0.62,o+1)][-(rnd(25,40))!B(l*0.62,o+1)]!B(l*0.7,o+1)',
-    },
-    {
-      pred: 'B(l,o)',
-      cond: 'o >= 3',
-      succ: 'F(l*0.5)L[+(rnd(25,40))F(l*0.35)L][-(rnd(25,40))F(l*0.35)L]',
-    },
-  ],
-  iterations: 10,
-  segmentCap: 1600,
-  angle: 30,
-  lengthScale: 1,
-  baseRadius: 0.24,
-  radiusDecay: 0.8,
-  tropism: [0, -1, 0],
-  tropismStrength: 0.1,
-  bark: { color: '#4a4039', texture: 'furrowed', scan: 'pine', tiling: 1.2 },
-  foliage: {
-    kind: 'needles',
-    spriteSize: 1.5,
-    leaf: 'pine',
-    palette: ['#22341c', '#2a3d20', '#1f3019', '#2e4423'],
+    palette: ['#44533a', '#49583b', '#3e4e38', '#43563f'],
   },
   scale: [0.9, 1.2],
-  twigRadius: 0.048,
-  maxBranchTriangles: 6000,
   maxSprites: 400,
+  maxBranchTriangles: 2000,
+  // Thin: the limbs the needles hang on show (the branch cap thickens it to fit).
+  twigRadius: 0.006,
   collisionRadius: 0.1,
   variants: 4,
-};
+});
 
-/** Juniper / cypress: a dark, narrow cone of short upswept limbs, 2-3.5 m; drive-through. */
-export const JUNIPER: SpeciesDef = {
+/** Juniper: a dark, dense, narrow cone of short upswept limbs, needled to the ground, 2-3.5 m; drive-through. */
+export const JUNIPER = conifer({
   name: 'Juniper',
-  // A leader with two short limbs per step at the golden angle, shorter towards the top; an upward tropism keeps
-  // the limbs close to the stem.
-  axiom: 'A(0.3,0)',
-  rules: [
-    {
-      pred: 'A(l,k)',
-      cond: 'k < 10',
-      succ:
-        'F(l)L[&(rnd(28,42))!!B(rnd(0.5,0.75)*(1-k*0.08),0)]>(137.5)' +
-        '[&(rnd(28,42))!!B(rnd(0.45,0.7)*(1-k*0.08),0)]>(137.5)!A(l*0.98,k+1)',
-    },
-    { pred: 'A(l,k)', cond: 'k >= 10', succ: 'F(l*0.6)L' },
-    {
-      pred: 'B(l,o)',
-      cond: 'o < 2',
-      succ: 'F(l)L[+(rnd(25,35))!B(l*0.6,o+1)]!B(l*0.7,o+1)',
-    },
-    { pred: 'B(l,o)', cond: 'o >= 2', succ: 'F(l*0.6)L' },
-  ],
-  iterations: 11,
-  segmentCap: 600,
-  angle: 30,
-  lengthScale: 1,
-  baseRadius: 0.07,
-  radiusDecay: 0.85,
+  // A short foot: the lowest sprays droop to the ground instead of sinking into it.
+  bole: 0.3,
+  whorls: 16,
+  step: 0.17,
+  taper: 0.98,
+  perWhorl: 3,
+  limb: 1.25,
+  shape: 'cone',
+  pitch: [60, 22],
+  spray: [25, 40],
+  leafFrom: 0,
+  // Barely upturned: the low limbs keep low, so the cone is widest at the foot.
   tropism: [0, 1, 0],
-  tropismStrength: 0.12,
-  bark: { color: '#5a4636', texture: 'furrowed', tiling: 1.5 },
+  tropismStrength: 0.02,
+  baseRadius: 0.07,
+  bark: { color: '#706055', texture: 'furrowed', scan: 'cedar', tiling: 1.5 },
   foliage: {
     kind: 'needles',
-    spriteSize: 0.5,
-    leaf: 'juniper',
-    palette: ['#24361f', '#2b3f26', '#1f2f1c', '#2f4129'],
+    spriteSize: 0.3,
+    leaf: 'pine',
+    palette: ['#535c51', '#5a6153', '#4d564e', '#525f58'],
   },
   scale: [0.85, 1.2],
-  twigRadius: 0.012,
-  maxBranchTriangles: 2000,
-  maxSprites: 200,
+  maxSprites: 220,
+  maxBranchTriangles: 1400,
+  twigRadius: 0.006,
   collisionRadius: 0.12,
   variants: 4,
-};
+});
 
 /** Oak / field tree: broad and irregular, for woods, hedgerows, gullies and village edges. */
 export const OAK = broadleaf({
   name: 'Oak',
-  bole: 1.4,
-  lead: 1.1,
-  limbs: [40, 55],
-  leaders: [22, 34],
-  laterals: [25, 40],
+  bole: 1.9,
+  lead: 1.25,
+  limbs: [55, 72],
+  leaders: [34, 50],
+  laterals: [32, 50],
   iterations: 10,
-  baseRadius: 0.28,
-  tropismStrength: 0.05,
-  bark: { color: '#544c43', texture: 'furrowed', tiling: 0.8 },
+  baseRadius: 0.34,
+  tropismStrength: 0.07,
+  bark: { color: '#5e564c', texture: 'furrowed', tiling: 0.8 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1.7,
     leaf: 'lobed',
-    palette: ['#465f28', '#52702f', '#3f5824', '#5a7832', '#4c682b'],
+    palette: ['#3b4f34', '#3f5235', '#445636', '#485937', '#4c5d37'],
   },
   scale: [0.9, 1.3],
   variants: 6,
+  crook: 14,
+  leafFrom: 2,
 });
 
 /** Mountain beech (Galichica): tall straight smooth pale-grey trunk under a dense rounded crown turning bronze. */
@@ -510,11 +677,13 @@ export const BEECH = broadleaf({
   baseRadius: 0.3,
   tropismStrength: 0.05,
   bark: { color: '#9c9c94', texture: 'smooth', scan: 'beech', tiling: 0.8 },
+  shade: 0.6,
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1.8,
     leaf: 'ovate',
-    palette: ['#5c8a2a', '#6a9830', '#77a336', '#527e26'],
+    palette: ['#415637', '#475a38', '#4c5f39', '#526339'],
   },
   scale: [0.95, 1.25],
   variants: 4,
@@ -526,23 +695,26 @@ export const BEECH = broadleaf({
  */
 export const HORNBEAM = broadleaf({
   name: 'Hornbeam',
-  bole: 0.5,
-  lead: 1.5,
+  bole: 1.2,
+  lead: 1.3,
   limbs: [18, 28],
-  leaders: [14, 24],
-  laterals: [32, 50],
-  iterations: 10,
-  baseRadius: 0.15,
+  leaders: [6, 14],
+  laterals: [20, 34],
+  iterations: 8,
+  baseRadius: 0.13,
   tropismStrength: 0.03,
   bark: { color: '#8c8a80', texture: 'smooth', scan: 'beech', tiling: 1 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1.65,
     leaf: 'serrate',
-    palette: ['#74a42e', '#82b236', '#68982a', '#8fbc40', '#5c8a26'],
+    palette: ['#405537', '#455838', '#495c38', '#4e6039', '#526439'],
   },
   scale: [0.85, 1.3],
   variants: 6,
+  stems: 3,
+  crook: 6,
 });
 
 /** Walnut / mulberry yard tree: a thick short trunk under a big, dense, dark round crown. */
@@ -556,15 +728,17 @@ export const WALNUT = broadleaf({
   iterations: 10,
   baseRadius: 0.38,
   tropismStrength: 0.06,
-  bark: { color: '#6a645a', texture: 'furrowed', tiling: 0.8 },
+  bark: { color: '#85807b', texture: 'furrowed', tiling: 0.8 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1.9,
     leaf: 'round',
-    palette: ['#36501f', '#3d5823', '#42602a', '#334a1d'],
+    palette: ['#465939', '#4c5e3a', '#52633a', '#58673a'],
   },
   scale: [0.95, 1.2],
   variants: 4,
+  crook: 6,
 });
 
 /** Orchard / garden fruit tree (apple, plum): a short trunk and a low, wide, round crown. */
@@ -579,17 +753,18 @@ export const FRUIT_TREE: SpeciesDef = {
     iterations: 9,
     baseRadius: 0.14,
     tropismStrength: 0.07,
-    bark: { color: '#5b5046', texture: 'furrowed', tiling: 1.2 },
+    bark: { color: '#70675d', texture: 'furrowed', tiling: 1.2 },
     foliage: {
       kind: 'broadleaf',
+      ...SUMMER_TURN,
       spriteSize: 1.1,
       leaf: 'round',
-      palette: ['#56752f', '#5f7f35', '#4d6a2a', '#68863a'],
+      palette: ['#44573c', '#495c3d', '#4f613e', '#55653e'],
     },
     scale: [0.9, 1.15],
     variants: 4,
   }),
-  maxBranchTriangles: 4000,
+  maxBranchTriangles: 2000,
   maxSprites: 400,
 };
 
@@ -597,22 +772,24 @@ export const FRUIT_TREE: SpeciesDef = {
 export const PLANE = broadleaf({
   name: 'Plane',
   bole: 3.6,
-  lead: 1.4,
+  lead: 1.6,
   limbs: [30, 42],
   leaders: [16, 26],
-  laterals: [22, 36],
+  laterals: [26, 40],
   iterations: 10,
   baseRadius: 0.3,
   tropismStrength: 0.04,
   bark: { color: '#bdb8ac', texture: 'smooth', scan: 'plane', tiling: 0.6 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1.6,
     leaf: 'lobed',
-    palette: ['#7f9a3e', '#8ca646', '#74903a', '#97a84a'],
+    palette: ['#566a3f', '#5d6f40', '#647441', '#6b7a43'],
   },
   scale: [0.95, 1.2],
   variants: 4,
+  leafFrom: 1,
 });
 
 /** Birch: a slender white trunk to the top, short climbing limbs with drooping twigs, a light airy crown. */
@@ -642,16 +819,24 @@ export const BIRCH: SpeciesDef = {
   radiusDecay: 0.8,
   tropism: [0, -1, 0],
   tropismStrength: 0.03,
-  bark: { color: '#dad6cc', texture: 'smooth', tiling: 1 },
+  bark: {
+    color: '#dad6cc',
+    texture: 'smooth',
+    scan: 'birch',
+    twig: '#4a3530',
+    foot: { color: '#3f3c39', height: 1.2 },
+    tiling: 1,
+  },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1.1,
     leaf: 'small',
-    palette: ['#6a8a3a', '#78963f', '#5f7f34', '#829e44'],
+    palette: ['#485d39', '#4e623a', '#54673a', '#5a6b3a'],
   },
   scale: [0.9, 1.2],
-  twigRadius: 0.04,
-  maxBranchTriangles: 5000,
+  twigRadius: 0.009,
+  maxBranchTriangles: 2500,
   maxSprites: 360,
   collisionRadius: 0.1,
   variants: 4,
@@ -677,15 +862,16 @@ export const SAPLING: SpeciesDef = {
     { pred: 'B(l,o)', cond: 'o >= 3', succ: 'F(l*0.5)L' },
   ],
   baseRadius: 0.1,
-  bark: { color: '#6d6457', texture: 'smooth', tiling: 1.2 },
+  bark: { color: '#716d68', texture: 'smooth', tiling: 1.2 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1,
     leaf: 'ovate',
-    palette: ['#8a9a3a', '#9aa640', '#7b8f36', '#a8a848'],
+    palette: ['#48562f', '#4b5930', '#4f5d32', '#696530'],
   },
   scale: [0.9, 1.15],
-  maxBranchTriangles: 3000,
+  maxBranchTriangles: 1500,
   maxSprites: 400,
   // Slender, but a trunk you hit.
   collisionRadius: 0.06,
@@ -718,16 +904,17 @@ export const POPLAR: SpeciesDef = {
   radiusDecay: 0.82,
   tropism: [0, 1, 0],
   tropismStrength: 0.14,
-  bark: { color: '#6b665c', texture: 'furrowed', tiling: 1 },
+  bark: { color: '#807e76', texture: 'furrowed', tiling: 1 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1.3,
     leaf: 'round',
-    palette: ['#4f6e2c', '#5a7a32', '#47652a', '#62823a'],
+    palette: ['#465b39', '#4c603a', '#52653a', '#58693a'],
   },
   scale: [0.95, 1.25],
-  twigRadius: 0.048,
-  maxBranchTriangles: 5000,
+  twigRadius: 0.009,
+  maxBranchTriangles: 3000,
   maxSprites: 360,
   // The trunk alone: its many short limbs stay out of the physics.
   collisionRadius: 0.17,
@@ -737,51 +924,72 @@ export const POPLAR: SpeciesDef = {
 /** Weeping willow: a short thick trunk, limbs arching out and long pale curtains of hanging shoots (canals, drains). */
 export const WILLOW: SpeciesDef = {
   name: 'Willow',
-  // Three limbs arch up and out and fork; every fork and limb end lets fall hanging shoots (B with o >= 10) whose
-  // strong downward tropism pulls them into curtains, leaves all along them.
+  // Three limbs rise and arch out round a central one that fills the dome's top, and fork; every limb internode lets
+  // fall a hanging shoot and every limb end three (B with o >= 10), whose strong downward tropism pulls them into
+  // curtains a few metres long, leaves all along them.
   axiom: '!F(2.0)A(1.4)',
   rules: [
     {
       pred: 'A(l)',
       succ:
-        'F(l*0.6)[&(rnd(35,50))!!B(l*1.1,0)]>(rnd(110,130))[&(rnd(35,50))!!B(l*1.1,0)]' +
-        '>(rnd(110,130))[&(rnd(18,30))!!B(l*1.2,0)]',
+        'F(l*0.6)[&(rnd(28,40))!!B(l*1.1,0)]>(rnd(110,130))[&(rnd(28,40))!!B(l*1.1,0)]' +
+        '>(rnd(110,130))[&(rnd(28,40))!!B(l*1.1,0)][&(rnd(8,16))!!B(l*1.2,0)]',
     },
     {
       pred: 'B(l,o)',
       cond: 'o < 3',
       succ:
         'F(l)[&(rnd(22,36))!B(l*0.8,o+1)]>(rnd(100,140))[^(rnd(4,14))!B(l*0.85,o+1)]' +
-        '>(rnd(60,90))[T(0.5)&(rnd(60,85))!!B(0.6,11)]',
+        '>(rnd(60,90))[T(0.45)&(rnd(60,85))!!B(rnd(0.45,0.55),10)]',
     },
     {
       pred: 'B(l,o)',
       cond: 'o >= 3 && o < 10',
-      succ: 'F(l*0.6)[T(0.5)&(70)!B(0.6,10)][T(0.5)^(70)!B(0.6,10)][T(0.5)+(70)!B(0.55,10)]',
+      succ:
+        'F(l*0.6)[T(0.45)&(70)!B(rnd(0.45,0.55),10)][T(0.45)^(70)!B(rnd(0.45,0.55),10)]' +
+        '[T(0.45)+(70)!B(rnd(0.42,0.52),10)]',
     },
-    // Shoots stop a few metres down, above the ground.
-    { pred: 'B(l,o)', cond: 'o >= 10 && o < 15', succ: 'F(l)L!B(l*0.97,o+1)' },
-    { pred: 'B(l,o)', cond: 'o >= 15', succ: 'F(l*0.5)L' },
+    // Shoots stopping a metre or so above the ground: two short internodes first, so they arch over and hang within
+    // half a metre (the bend is per internode) instead of standing out stiff, then 7 long ones (more shoots, each in
+    // fewer pieces: the curtains fill the dome within the triangle cap).
+    { pred: 'B(l,o)', cond: 'o >= 10 && o < 12', succ: 'F(l*0.35)L!B(l,o+1)' },
+    {
+      pred: 'B(l,o)',
+      cond: 'o >= 12 && o < 19',
+      succ: 'F(l*1.4)L!B(l*0.97,o+1)',
+    },
+    { pred: 'B(l,o)', cond: 'o >= 19', succ: 'F(l*0.6)L' },
   ],
-  iterations: 12,
-  segmentCap: 1600,
+  iterations: 16,
+  segmentCap: 2400,
   angle: 30,
   lengthScale: 1,
   baseRadius: 0.36,
   radiusDecay: 0.8,
   tropism: [0, -1, 0],
   tropismStrength: 0.03,
-  bark: { color: '#5d554a', texture: 'furrowed', tiling: 0.9 },
+  // Olive-yellow young shoots: a curtain strand between its leaf cards reads as a withy, not grey wire.
+  bark: {
+    color: '#64594c',
+    texture: 'furrowed',
+    scan: 'willow',
+    twig: '#7f7a44',
+    tiling: 0.9,
+  },
   foliage: {
     kind: 'broadleaf',
-    spriteSize: 0.9,
+    ...SUMMER_TURN,
+    spriteSize: 0.8,
     leaf: 'narrow',
-    palette: ['#8ea24e', '#9cb05a', '#829a48', '#a6b864'],
+    palette: ['#4e6042', '#556643', '#5b6a44', '#626f44'],
   },
   scale: [0.9, 1.15],
-  twigRadius: 0.032,
-  maxBranchTriangles: 6000,
-  maxSprites: 360,
+  // Every curtain shoot drawn, a few mm thick, so the leaf cards hang on wood (a willow is a single yard tree, not a
+  // stand: the cap fits its ~1,300 internodes).
+  tipRadius: 0.003,
+  twigRadius: 0.002,
+  maxBranchTriangles: 12000,
+  maxSprites: 1000,
   collisionRadius: 0.1,
   variants: 4,
 };
@@ -789,17 +997,20 @@ export const WILLOW: SpeciesDef = {
 /** Low leafy roadside shrub; drive-through. */
 export const BUSH = shrub({
   name: 'Bush',
-  stem: [0.4, 0.55],
-  lean: [10, 34],
-  fork: [25, 45],
-  stems: 6,
-  baseRadius: 0.035,
+  stems: 14,
+  stool: 0.35,
+  stem: [0.5, 0.22],
+  lean: [3, 36],
+  fork: [28, 45],
+  depth: 4,
+  baseRadius: 0.02,
   bark: { color: '#5a4a3a', texture: 'smooth', tiling: 1.5 },
   foliage: {
     kind: 'broadleaf',
-    spriteSize: 0.85,
+    ...SUMMER_TURN,
+    spriteSize: 0.62,
     leaf: 'small',
-    palette: ['#45602a', '#3e5826', '#52702f', '#4a5f2a'],
+    palette: ['#44543c', '#49583d', '#4f5c3e', '#55613e'],
   },
   scale: [0.8, 1.3],
   variants: 6,
@@ -808,17 +1019,21 @@ export const BUSH = shrub({
 /** Mediterranean hill scrub (juniper / blackthorn): dark olive, low and wide; drive-through. */
 export const SCRUB = shrub({
   name: 'Scrub',
-  stem: [0.3, 0.45],
-  lean: [38, 58],
+  stems: 16,
+  stool: 0.5,
+  stem: [0.25, 0.15],
+  lean: [10, 52],
   fork: [30, 50],
-  stems: 6,
+  depth: 4,
+  crook: 12,
   baseRadius: 0.03,
   bark: { color: '#4c4036', texture: 'smooth', tiling: 1.5 },
   foliage: {
     kind: 'broadleaf',
-    spriteSize: 0.75,
+    ...SUMMER_TURN,
+    spriteSize: 0.55,
     leaf: 'small',
-    palette: ['#4a5230', '#535b34', '#434a2b', '#5a6038'],
+    palette: ['#394937', '#3e4d38', '#435139', '#485439'],
   },
   scale: [0.85, 1.2],
   variants: 6,
@@ -827,17 +1042,21 @@ export const SCRUB = shrub({
 /** Plantation hazelnut: a multi-stemmed bush, upright, with a low wide fresh-green crown, 3-4 m. */
 export const HAZEL = shrub({
   name: 'Hazel',
-  stem: [0.75, 1.0],
-  lean: [8, 24],
-  fork: [22, 38],
-  stems: 6,
+  stems: 12,
+  stool: 0.4,
+  stem: [0.72, 0.55],
+  lean: [3, 22],
+  fork: [18, 34],
+  depth: 4,
+  crook: 5,
   baseRadius: 0.05,
   bark: { color: '#6b5a48', texture: 'smooth', tiling: 1.2 },
   foliage: {
     kind: 'broadleaf',
-    spriteSize: 1.1,
+    ...SUMMER_TURN,
+    spriteSize: 0.85,
     leaf: 'serrate',
-    palette: ['#5f8a34', '#6a953a', '#557d2f', '#73a040'],
+    palette: ['#46593a', '#4c5e3b', '#52633c', '#58673c'],
   },
   scale: [0.9, 1.15],
   variants: 4,
@@ -846,17 +1065,21 @@ export const HAZEL = shrub({
 /** Hawthorn / blackthorn / elm-sucker thicket in autumn colours, 2.5-4.5 m; drive-through brush. */
 export const THICKET = shrub({
   name: 'Thicket',
-  stem: [0.65, 0.85],
-  lean: [12, 32],
-  fork: [28, 46],
-  stems: 6,
+  stems: 14,
+  stool: 0.45,
+  stem: [0.62, 0.4],
+  lean: [5, 32],
+  fork: [30, 50],
+  depth: 4,
+  crook: 12,
   baseRadius: 0.04,
   bark: { color: '#4f4035', texture: 'smooth', tiling: 1.5 },
   foliage: {
     kind: 'broadleaf',
-    spriteSize: 1,
+    ...SUMMER_TURN,
+    spriteSize: 0.75,
     leaf: 'small',
-    palette: ['#8a6a2a', '#9a5a26', '#6f6a2c', '#a27a30', '#5d6a2a'],
+    palette: ['#3b4f37', '#3f5238', '#445638', '#485939', '#4c5d39'],
   },
   scale: [0.85, 1.2],
   variants: 4,
@@ -865,60 +1088,78 @@ export const THICKET = shrub({
 /** Flowering broom (Cytisus / Spartium) on the road cuttings: upright green switches covered in yellow, 1-2 m. */
 export const BROOM = shrub({
   name: 'Broom',
-  stem: [0.38, 0.5],
-  lean: [6, 22],
-  fork: [16, 30],
-  stems: 6,
+  stems: 22,
+  stool: 0.25,
+  stem: [0.3, 0.24],
+  lean: [3, 32],
+  fork: [12, 24],
+  depth: 4,
+  crook: 4,
   baseRadius: 0.025,
   bark: { color: '#55603a', texture: 'smooth', tiling: 1.5 },
   foliage: {
     kind: 'broadleaf',
-    spriteSize: 0.6,
+    ...SUMMER_TURN,
+    spriteSize: 0.45,
     leaf: 'narrow',
-    palette: ['#e2c22a', '#d6b220', '#ecd23e', '#6e8e2c', '#e8c62e'],
+    palette: ['#425730', '#bc9919', '#bf9e19', '#c4a219', '#cbaa21'],
   },
   scale: [0.8, 1.2],
   variants: 4,
 });
 
+/** A cypress limb: three generations of forks, a frond on every shoot (and halfway along the long inner ones). */
+const CYPRESS_LIMBS = [
+  {
+    pred: 'B(l,o)',
+    cond: 'o < 2',
+    succ: 'F(l*0.5)LF(l*0.5)L[+(rnd(15,25))!B(l*0.6,o+1)][-(rnd(15,25))!B(l*0.55,o+1)]!B(l*0.7,o+1)',
+  },
+  {
+    pred: 'B(l,o)',
+    cond: 'o == 2',
+    succ: 'F(l)L[+(rnd(15,25))!B(l*0.6,o+1)][-(rnd(15,25))!B(l*0.55,o+1)]!B(l*0.7,o+1)',
+  },
+  { pred: 'B(l,o)', cond: 'o >= 3', succ: 'F(l*0.5)L' },
+];
+
 /** Mediterranean cypress: a tall, dark, narrow column of short limbs close to the stem (churchyards, slopes), 8-12 m. */
 export const CYPRESS: SpeciesDef = {
   name: 'Cypress',
-  // The poplar's leader with a short limb per step at the golden angle, dark needles and a shorter, fuller column.
-  axiom: '!F(0.8)A(0.7,0)',
+  // The poplar's leader with two short limbs per step at the golden angle (a full column, no gaps), dark needles. The
+  // fronds hang on the limbs only (none on the leader), each about as long as the limb end it grows from.
+  axiom: '!F(0.5)A(0.7,0)',
   rules: [
     {
       pred: 'A(l,k)',
       cond: 'k < 14',
-      succ: 'F(l)L[&(rnd(14,24))!!!B(rnd(0.5,0.85)*(1.05-k*0.045),0)]>(137.5)A(l*0.985,k+1)',
+      succ:
+        'F(l)[&(rnd(14,24))!!!B(rnd(0.5,0.85)*(1.05-k*0.045),0)]>(137.5)' +
+        '[&(rnd(14,24))!!!B(rnd(0.45,0.8)*(1.05-k*0.045),0)]>(137.5)A(l*0.985,k+1)',
     },
     { pred: 'A(l,k)', cond: 'k >= 14', succ: 'F(l*0.7)L' },
-    {
-      pred: 'B(l,o)',
-      cond: 'o < 2',
-      succ: 'F(l)L[+(rnd(15,25))!B(l*0.6,o+1)][-(rnd(15,25))!B(l*0.55,o+1)]!B(l*0.7,o+1)',
-    },
-    { pred: 'B(l,o)', cond: 'o >= 2', succ: 'F(l*0.5)L' },
+    ...CYPRESS_LIMBS,
   ],
-  iterations: 16,
-  segmentCap: 1400,
+  iterations: 19,
+  segmentCap: 1600,
   angle: 22,
   lengthScale: 1,
   baseRadius: 0.22,
   radiusDecay: 0.82,
   tropism: [0, 1, 0],
   tropismStrength: 0.16,
-  bark: { color: '#5b4b3d', texture: 'furrowed', tiling: 1.2 },
+  bark: { color: '#76675d', texture: 'furrowed', scan: 'cedar', tiling: 1.2 },
   foliage: {
     kind: 'needles',
-    spriteSize: 0.95,
+    spriteSize: 0.5,
     leaf: 'juniper',
-    palette: ['#1f3a22', '#254429', '#1b3320', '#2a4a2d'],
+    palette: ['#404e3a', '#46533b', '#3b4a38', '#40513f'],
   },
   scale: [0.85, 1.25],
-  twigRadius: 0.02,
+  // Thin: the limbs the fronds hang on show between them.
+  twigRadius: 0.008,
   maxBranchTriangles: 4000,
-  maxSprites: 400,
+  maxSprites: 600,
   // The trunk alone: its many short limbs stay out of the physics.
   collisionRadius: 0.14,
   variants: 4,
@@ -928,31 +1169,30 @@ export const CYPRESS: SpeciesDef = {
 export const HEDGE_CYPRESS: SpeciesDef = {
   ...CYPRESS,
   name: 'Hedge cypress',
-  // The cypress leader with longer limbs low down (a cone, not a spire) that stay close to the stem higher up.
+  // The cypress leader, its limbs longer and spreading wider low down (a cone on a broad base, not a spire) and close
+  // to the stem higher up.
   axiom: '!F(0.4)A(0.43,0)',
   rules: [
     {
       pred: 'A(l,k)',
       cond: 'k < 14',
-      succ: 'F(l)L[&(rnd(16,26))!!!B(rnd(0.5,0.75)*(1.1-k*0.055),0)]>(137.5)A(l*0.985,k+1)',
+      succ:
+        'F(l)[&(rnd(40,52)-k*2)!!!B(rnd(0.55,0.8)*(1.3-k*0.07),0)]>(137.5)' +
+        '[&(rnd(42,54)-k*2)!!!B(rnd(0.5,0.75)*(1.3-k*0.07),0)]>(137.5)A(l*0.985,k+1)',
     },
     { pred: 'A(l,k)', cond: 'k >= 14', succ: 'F(l*0.7)L' },
-    {
-      pred: 'B(l,o)',
-      cond: 'o < 2',
-      succ: 'F(l)L[+(rnd(15,25))!B(l*0.6,o+1)][-(rnd(15,25))!B(l*0.55,o+1)]!B(l*0.7,o+1)',
-    },
-    { pred: 'B(l,o)', cond: 'o >= 2', succ: 'F(l*0.5)L' },
+    ...CYPRESS_LIMBS,
   ],
   baseRadius: 0.16,
   foliage: {
     kind: 'needles',
-    spriteSize: 0.95,
+    spriteSize: 0.5,
     leaf: 'juniper',
-    palette: ['#35603a', '#3d6c3f', '#2f5535', '#46763f'],
+    palette: ['#46583a', '#4c5d3b', '#415238', '#465a3f'],
   },
   scale: [0.8, 1.15],
   maxBranchTriangles: 3000,
+  maxSprites: 600,
   collisionRadius: 0.12,
 };
 
@@ -967,31 +1207,39 @@ export const LOCUST = broadleaf({
   iterations: 10,
   baseRadius: 0.2,
   tropismStrength: 0.04,
-  bark: { color: '#463d35', texture: 'furrowed', tiling: 1 },
+  bark: { color: '#5e564c', texture: 'furrowed', tiling: 1 },
   foliage: {
     kind: 'broadleaf',
+    ...SUMMER_TURN,
     spriteSize: 1.15,
     leaf: 'small',
-    palette: ['#7a9a3c', '#86a644', '#6f8f36', '#93b04c', '#7fa03e'],
+    palette: ['#4a5d33', '#516234', '#576734', '#5d6b34'],
   },
   scale: [0.85, 1.2],
   variants: 4,
+  crook: 8,
+  leafFrom: 1,
 });
 
 /** Bramble and wild rose along the forest edge and the verges: a low arching tangle of green canes, 0.8-1.4 m. */
 export const BRAMBLE = shrub({
   name: 'Bramble',
-  stem: [0.35, 0.5],
-  lean: [48, 70],
+  stems: 12,
+  stool: 0.5,
+  stem: [0.3, 0.24],
+  lean: [24, 52],
   fork: [28, 46],
-  stems: 7,
+  depth: 5,
+  arch: 0.2,
+  crook: 10,
   baseRadius: 0.02,
   bark: { color: '#4e5a34', texture: 'smooth', tiling: 1.5 },
   foliage: {
     kind: 'broadleaf',
-    spriteSize: 0.7,
+    ...SUMMER_TURN,
+    spriteSize: 0.5,
     leaf: 'serrate',
-    palette: ['#3f6a2a', '#4b7830', '#36601f', '#567f33'],
+    palette: ['#3c4f37', '#415438', '#465839', '#4c5c39'],
   },
   scale: [0.85, 1.3],
   variants: 4,
@@ -1094,7 +1342,7 @@ function stable(v: unknown): string {
 
 const hashes = new WeakMap<SpeciesDef, number>();
 
-/** Content hash of a species definition: any change gives new variants and invalidates cached ones. */
+/** Content hash of a species definition: any change invalidates cached variants (their seeds stay, trees/variants.ts). */
 export function speciesHash(s: SpeciesDef): number {
   let h = hashes.get(s);
   if (h === undefined) hashes.set(s, (h = hashText(stable(s))));

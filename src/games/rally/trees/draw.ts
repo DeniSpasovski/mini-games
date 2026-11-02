@@ -181,8 +181,10 @@ const FAR_PART = 5;
 const SPRITE_PARTS = [NEAR_PART, MID_PART, FAR_PART];
 /** The crown's shadow caster (trees/proxy.ts): the shadow pass draws it instead of the sprites. */
 const PROXY_PART = 6;
-/** Static impostors farther than this (m) draw without their baked depth (trees/materials.ts TREE_IMPOSTOR_FLAT). */
-const IMPOSTOR_FLAT_FROM = 350;
+/** Static impostors farther than this (m) draw without their baked depth (trees/materials.ts TREE_IMPOSTOR_FLAT):
+ * writing gl_FragDepth turns off the early depth test for every pixel of the quad (~0.4-0.6 ms on a Galichica
+ * forest at 4.7 Mpx), and past ~100 m a quad through the crown's centre meets the slope and its neighbours the same. */
+const IMPOSTOR_FLAT_FROM = 120;
 /** Every batch part of a variant: branches LOD0, LOD1, the sprite parts, the shadow proxy. */
 const PARTS = [0, 1, ...SPRITE_PARTS, PROXY_PART];
 
@@ -981,7 +983,7 @@ export class TreeRenderer {
       m: new Float32Array(_m.elements),
       // w: the variant's slot in the impostor texture array + the first-row flag (the fraction, for the sprite shader).
       inst: [
-        inst.tree.hue,
+        inst.tree.hue * (lv.def.foliage.hueSpread ?? 1),
         inst.tree.value,
         inst.tree.phase,
         lv.slot + (reach === ROAD_REACH ? ROAD_REACH_FLAG : 0),
