@@ -210,8 +210,6 @@ export const peugeot206: CarDef = {
     // 4 cm further back so it sits in the door's flat middle.
     doorBadge: { z: 0.04, y: 0.66, tilt: 2.5, over: ['trim'] },
     gltf: {
-      // LED light guides / strips / rings: no round core on the lamp.
-      tailCore: false,
       file: 'peugeot_206.glb',
       credit:
         '"Peugeot 206" by Alvier, sketchfab.com/3d-models/peugeot-206-dc25a117378545e7a804c8594aa86938, CC BY 4.0 (converted + repainted)',

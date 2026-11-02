@@ -223,8 +223,6 @@ export const fordGt3: CarDef = {
     // Door plate by the rule (scripts/car-model/door-plate.py), 5 cm lower by eye.
     doorBadge: { z: 0.13, y: 0.6 },
     gltf: {
-      // LED light guides / strips / rings: no round core on the lamp.
-      tailCore: false,
       file: 'ford_gt3.glb',
       credit:
         '"2024 Ford Mustang GT3" by kevin, sketchfab.com/3d-models/2024-ford-mustang-gt3-d2b7823f48f147e99e857ee825d089cc, CC BY 4.0 (converted + repainted)',

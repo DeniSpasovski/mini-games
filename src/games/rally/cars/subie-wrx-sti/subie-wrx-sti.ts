@@ -212,8 +212,6 @@ export const subieWrxSti: CarDef = {
     // Door plate by the rule (scripts/car-model/door-plate.py).
     doorBadge: { z: 0.1, y: 0.64, tilt: 1.4 },
     gltf: {
-      // LED light guides / strips / rings: no round core on the lamp.
-      tailCore: false,
       file: 'subie_wrx_sti.glb',
       credit:
         '"2019 Rowen Subaru WRX STI" by Car design, sketchfab.com/3d-models/2019-rowen-subaru-wrx-sti-dfd3b419f6c84f52920476549c403f17, CC BY 4.0 (converted + repainted)',

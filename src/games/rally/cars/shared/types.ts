@@ -185,11 +185,6 @@ export interface CarGltfDef {
    * dark as a running lamp, lit with the brake and white in reverse gear (CarModel.splitCentreLamps).
    */
   bootLamps?: number;
-  /**
-   * `false` = the tail lamps are LED strips, light guides or rings, not a bulb behind a lens: no round core glare on them
-   * (`LampHalos` `core`). Default: a core on every lamp that is lit over most of its area.
-   */
-  tailCore?: boolean;
   /** Scales the tail lamps' halo (a big flat lamp, such as the 190E's, needs more than the default 1 to read as lit by day). */
   tailHalo?: number;
   /**

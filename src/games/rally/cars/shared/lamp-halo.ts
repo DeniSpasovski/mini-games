@@ -276,24 +276,15 @@ const GLARE_MIN = 0.1;
 const GLARE_MAX = 0.45;
 /** A bulb's own glare (`bulbGlares`), m across. */
 const GLARE_BULB = 0.24;
-/** A tail lamp's core glare (`LampHalos` `core`): size (m across) against its lit area's width, smallest and biggest. */
-const CORE_SCALE = 1.5;
-const CORE_MIN = 0.06;
-const CORE_MAX = 0.2;
-/** A lamp longer than this many times its height is a light strip: its halo follows it, a round core would sit in its middle. */
-const CORE_MAX_ASPECT = 3;
-/** ... or one whose lit area fills less than this share of its box. */
-const CORE_MIN_FILL = 0.35;
 
 /**
  * Camera-facing glare (`LampHalos.addGlare`): the quad turns to the camera round its centre and steps 1/2 its size towards it
  * (so the lamp's own lens and bezel do not cut it), and its level follows how straight the camera looks into the lamp (body
  * +z): full ahead, half at ~45 degrees, gone side-on.
  */
-function glareMaterial(colour: Vector3, rear = false): ShaderMaterial {
+function glareMaterial(colour: Vector3): ShaderMaterial {
   return new ShaderMaterial({
     uniforms: { uLevel: { value: 0 }, uColour: { value: colour } },
-    defines: rear ? { REAR: 1 } : {},
     transparent: true,
     depthWrite: false,
     fog: false,
@@ -304,12 +295,7 @@ function glareMaterial(colour: Vector3, rear = false): ShaderMaterial {
       void main() {
         vUv = uv;
         vec4 centre = modelViewMatrix * vec4( 0.0, 0.0, 0.0, 1.0 );
-        // A head lamp shines along +z of the body, a tail lamp along -z.
-        #ifdef REAR
-        vec3 axis = normalize( ( modelViewMatrix * vec4( 0.0, 0.0, -1.0, 0.0 ) ).xyz );
-        #else
         vec3 axis = normalize( ( modelViewMatrix * vec4( 0.0, 0.0, 1.0, 0.0 ) ).xyz );
-        #endif
         vec3 toCam = normalize( -centre.xyz );
         vFacing = max( dot( axis, toCam ), 0.0 );
         float size = length( ( modelViewMatrix * vec4( 1.0, 0.0, 0.0, 0.0 ) ).xyz );
@@ -390,11 +376,6 @@ export class LampHalos {
   private readonly runningOnly: ShaderMaterial[] = [];
   /** Head lamp glares (`front`). */
   private readonly glares: ShaderMaterial[] = [];
-  /** Tail lamp cores (`core`), and the ones of a third brake light / boot-lid half (`brakeOnly`). */
-  private readonly cores: ShaderMaterial[] = [];
-  private readonly coresBrake: ShaderMaterial[] = [];
-  private haloLevel = 0;
-  private coreLevel = 0;
 
   /**
    * `meshes` = the red lamp meshes, `toBody` = world -> body matrix (the matrix worlds must be current). `reverse` = the glow
@@ -409,8 +390,6 @@ export class LampHalos {
       front?: boolean;
       color?: number;
       bulbs?: [number, number, number][];
-      /** A tight camera-facing core on each tail lamp (the bulb / LED seen through the lens, `setCore`). */
-      core?: boolean;
     } = {},
   ) {
     const reverse = !!opts.reverse;
@@ -457,7 +436,6 @@ export class LampHalos {
         list.push(material);
         this.group.add(halo);
       };
-      if (opts.core && !reverse) this.addGlare(lamp, colour, true);
       const running = lamp.parts.filter((p) => !p.brakeOnly);
       if (lamp.brakeOnly) add(lamp, this.brakeOnly);
       else if (running.length === lamp.parts.length) add(lamp, this.materials);
@@ -538,9 +516,8 @@ export class LampHalos {
     return inside.length > 0;
   }
 
-  private addGlare(lamp: Lamp, colour: Vector3, rear = false): void {
+  private addGlare(lamp: Lamp, colour: Vector3): void {
     let area = 0;
-    let covered = 0;
     let x = 0;
     let y = 0;
     const t = lamp.tris;
@@ -560,38 +537,23 @@ export class LampHalos {
             )
           : 1);
       area += lit;
-      if (lit > 0.02 * a) covered += a;
       x += (lit * (t[k] + t[k + 4] + t[k + 8])) / 3;
       y += (lit * (t[k + 1] + t[k + 5] + t[k + 9])) / 3;
     }
     if (area <= 0) return;
     const size = lamp.box.getSize(new Vector3());
-    // A light strip, or a lamp lit in a few thin lines (LED bars under a dark cover): a round core would sit where nothing glows.
-    if (
-      rear &&
-      (size.x > CORE_MAX_ASPECT * size.y ||
-        covered < CORE_MIN_FILL * size.x * size.y)
-    )
-      return;
-    const material = glareMaterial(colour, rear);
+    const material = glareMaterial(colour);
     const glare = new Mesh(quad, material);
-    // About twice the lamp's lit size across, so the glow spills a little past the lens (a tail lamp's core: tighter).
-    const r = rear
-      ? Math.min(CORE_MAX, Math.max(CORE_MIN, CORE_SCALE * Math.sqrt(area)))
-      : Math.min(
-          GLARE_MAX,
-          Math.max(GLARE_MIN, 2 * Math.sqrt(area), Math.min(size.x, size.y)),
-        );
-    glare.scale.set(r, r, 1);
-    glare.position.set(
-      x / area,
-      y / area,
-      rear ? lamp.box.min.z - SETBACK : lamp.box.max.z + SETBACK,
+    // About twice the lamp's lit size across, so the glow spills a little past the lens.
+    const r = Math.min(
+      GLARE_MAX,
+      Math.max(GLARE_MIN, 2 * Math.sqrt(area), Math.min(size.x, size.y)),
     );
+    glare.scale.set(r, r, 1);
+    glare.position.set(x / area, y / area, lamp.box.max.z + SETBACK);
     glare.renderOrder = 5;
     glare.frustumCulled = false;
-    if (!rear) this.glares.push(material);
-    else (lamp.brakeOnly ? this.coresBrake : this.cores).push(material);
+    this.glares.push(material);
     this.group.add(glare);
   }
 
@@ -601,28 +563,18 @@ export class LampHalos {
       m.uniforms.uSharp.value = sharp;
   }
 
-  /** Core strength of the tail lamps (0 = off) and of the brake-only ones (a third brake light). */
-  setCore(level: number, brakeOnly: number): void {
-    for (const m of this.cores) m.uniforms.uLevel.value = level;
-    for (const m of this.coresBrake) m.uniforms.uLevel.value = brakeOnly;
-    this.coreLevel = Math.max(level, brakeOnly);
-    this.group.visible = this.haloLevel > 0.003 || this.coreLevel > 0.003;
-  }
-
   setLevel(level: number, brakeOnly: number): void {
     for (const m of this.glares) m.uniforms.uLevel.value = level;
     for (const m of this.materials) m.uniforms.uLevel.value = level;
     for (const m of this.brakeOnly) m.uniforms.uLevel.value = brakeOnly;
     for (const m of this.runningOnly)
       m.uniforms.uLevel.value = Math.max(0, level - brakeOnly);
-    this.haloLevel = Math.max(level, brakeOnly);
-    this.group.visible = this.haloLevel > 0.003 || this.coreLevel > 0.003;
+    this.group.visible = Math.max(level, brakeOnly) > 0.003;
   }
 
   dispose(): void {
     this.group.removeFromParent();
-    for (const m of [...this.glares, ...this.cores, ...this.coresBrake])
-      m.dispose();
+    for (const m of this.glares) m.dispose();
     for (const m of [
       ...this.materials,
       ...this.brakeOnly,

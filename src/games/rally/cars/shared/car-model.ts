@@ -397,11 +397,6 @@ const HALO_IDLE = 0.045;
 const HALO_BRAKE_NIGHT = 0.15;
 const HALO_IDLE_DAY = 0.08;
 const HALO_BRAKE_DAY = 0.24;
-/** Strength of the tight core on each tail lamp (`LampHalos` `core`): running light / brake pedal, at night and by day (rain / fog). */
-const CORE_IDLE = 0.25;
-const CORE_BRAKE = 0.7;
-const CORE_IDLE_DAY = 0.6;
-const CORE_BRAKE_DAY = 0.9;
 /** Halo strength round the head lamps with the lights fully on (night). */
 const HALO_HEAD = 1.1;
 /** The tail glow's tightness by day (`LampHalos.setSharp`). */
@@ -1680,7 +1675,6 @@ export class CarModel {
       this.halos = new LampHalos(
         redLamps,
         this.body.matrixWorld.clone().invert(),
-        { core: this.def.model.gltf?.tailCore !== false },
       );
       this.body.add(this.halos.group);
       const white = redLamps.filter((m) => {
@@ -1714,9 +1708,6 @@ export class CarModel {
       (this.lampsDay ? HALO_BRAKE_DAY : HALO_BRAKE_NIGHT * night) * gain;
     this.halos?.setSharp(this.lampsDay ? HALO_SHARP_DAY : 1);
     this.halos?.setLevel(idle + (brake - idle) * l, brake * l);
-    const coreIdle = this.lampsDay ? CORE_IDLE_DAY : CORE_IDLE * night;
-    const coreBrake = this.lampsDay ? CORE_BRAKE_DAY : CORE_BRAKE * night;
-    this.halos?.setCore(coreIdle + (coreBrake - coreIdle) * l, coreBrake * l);
     const reverse =
       this.reversing && l < 0.02
         ? HALO_REVERSE_DAY + (HALO_REVERSE_NIGHT - HALO_REVERSE_DAY) * night

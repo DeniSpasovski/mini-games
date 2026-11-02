@@ -252,8 +252,6 @@ export const bimmerM3: CarDef = {
     doorBadge: { z: 0.27, y: 0.61, tilt: 1.9 },
     // No `suspension`: the mesh models its own arms / hubs inside closed wheel wells.
     gltf: {
-      // LED light guides / strips / rings: no round core on the lamp.
-      tailCore: false,
       file: 'bimmer_m3.glb',
       credit:
         'Body + rims: "BMW E46 Coupe - Tuning - Model" by Doomas3D (MakerWorld, CC BY 4.0), converted + repainted',
