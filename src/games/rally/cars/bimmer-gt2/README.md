@@ -43,3 +43,7 @@ The models live in `public/models/cars/bimmer_gt2.glb` (+ `bimmer_gt2_wheel.glb`
 The converted model is a derivative (split, simplified, repainted). BMW and M3 are trademarks of BMW AG and only identify the car. The
 model's roundel logos and number plate are removed, its Gulf-style rust paint is not used; the game paints its own livery. Code and
 livery: [PolyForm Noncommercial 1.0.0](../../../../../LICENSE).
+
+## Tail lamps
+
+LED strips under a red cover, boot-lid half is the reversing lamp; no round core (`tailCore: false`), brake clearly brighter than running.

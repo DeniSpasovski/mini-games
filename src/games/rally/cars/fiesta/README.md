@@ -43,3 +43,7 @@ npm run dev     # /games/rally/car-viewer.html?car=fiesta
 Converted and repainted by us (attribution in `CarDef.credit`, `THIRD-PARTY.md`, `public/models/CREDITS.md`). The downloaded GLB
 itself is not in the repository (`sources/` is git-ignored); only the converted `fiesta.glb` / `fiesta_wheel.glb` ship. Ford and
 Fiesta are trademarks of their owner and only identify the car. Our code, livery and parts: PolyForm Noncommercial (root `LICENSE`).
+
+## Tail lamps
+
+Tail lamp map `tailc` (same as the Fabia): one bulb hot spot, dimmer lens round it; round core and halo.

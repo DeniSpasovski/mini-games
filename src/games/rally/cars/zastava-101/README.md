@@ -65,3 +65,7 @@ home tyre + set-up, 2026-10-04): `straight()` in `integration-tests/rally/handli
 - No traction control (`physics.noTractionControl`: the assist is always off, the Options row is hidden). Brake light is red
   only (no reversing lamp).
 - Tyres, suspension, gearing: [`PHYSICS.md`](../../PHYSICS.md).
+
+## Tail lamps
+
+Code-built bulb + reflector + lens: night levels and a halo (it had none), round core on each lamp.

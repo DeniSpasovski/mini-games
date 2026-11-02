@@ -53,3 +53,7 @@ Power and torque follow the 206 GTi 180 (180 hp, 202 Nm); the mass is an estimat
 
 Converted and repainted by us (attribution in `CarDef.credit`, `THIRD-PARTY.md`, `public/models/CREDITS.md`). The downloaded GLB
 itself is not in the repository (`sources/` is git-ignored); only the converted `peugeot_206.glb` / `peugeot_206_wheel.glb` ship.
+
+## Tail lamps
+
+LED tubes; no round core (`tailCore: false`), tight halo by day.

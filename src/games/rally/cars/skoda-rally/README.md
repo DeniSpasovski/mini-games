@@ -47,3 +47,7 @@ The model's manufacturer badges are removed; no brand wordmarks or sponsor logos
 of their owner and name the car only.
 
 Tyres, suspension and gearing: [`PHYSICS.md`](../../PHYSICS.md).
+
+## Tail lamps
+
+Tail lamp map `tailc`: one bulb hot spot above the white reversing box, the lens round it dimmer (`chamberGlow` in `cars/shared/part-materials.ts`); round core and halo.

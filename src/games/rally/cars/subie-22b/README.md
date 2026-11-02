@@ -36,3 +36,7 @@ conversion (`model.source.json`); the raw file stays out of git (`sources/`, loc
 | Specs | [STI Impreza 22B](https://www.sti.jp/en/roadcars/1998/impreza-22b.html)                                                                          | looked at only        |
 
 Code: PolyForm Noncommercial 1.0.0. The body paint is replaced by our livery; the model's badges, logos and number plate are dropped.
+
+## Tail lamps
+
+Pale red body = running light, strong reds = brake (`idleGlow`); round core and halo from `cars/shared/lamp-halo.ts`.

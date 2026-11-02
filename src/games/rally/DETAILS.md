@@ -211,6 +211,12 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   A lamp with a `LampNight` also gets a soft red halo (`cars/shared/lamp-halo.ts`: its silhouette from behind, blurred, on an
   additive quad), and at night `game/headlights.ts` `TailLight` adds a dim red spot behind the car (road, verges) while
   `ParticleSystem.setTaillight` tints the dust behind it; both follow the brake pedal (`rally-game.ts` `lightParticlesByLamps`).
+  How a tail lamp is lit (`LIGHTS-RESEARCH` numbers: running = the sky's luminance, brake ~10x): the lens glows red, a small hot spot
+  (the bulb / LED seen through it) is driven past red and turns pale, a tight camera-facing core (`LampHalos` `core`, 6-20 cm, `tailCore: false`
+  on LED-strip cars) sits on it, and the halo behind is tight by day in rain / fog (`uSharp` 2) and soft at night. Sheet lamps (`srcPart`)
+  light the sheet's pale-pink bulb pixels (`idleGlow`: running = spots + a dim lens); `tailc` lamps get one hot spot (`chamberGlow`); the
+  Zastava lamps have night levels and a halo. A wet road shows each lit lamp as a streak (`game/lamp-reflections.ts`, `map` with alpha;
+  tail lamps follow the brake). No extra lights or passes: one quad per round tail lamp and one more glare shader variant.
   Check lamps in the car viewer: `tod=1` (night; `tod=17.5` = evening, lights half on) with `lamps=off|on|brake|reverse` (off = every lamp dark, on = the running lamps as the hour has them), `beam=0` hides
   the headlight beam, `quality=high` adds the bloom.
 

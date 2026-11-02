@@ -50,3 +50,7 @@ Power, torque and mass follow the published STI figures; gearing, grip and brake
 Converted and repainted by us (attribution in `CarDef.credit`, `THIRD-PARTY.md`, `public/models/CREDITS.md`). The downloaded GLB
 itself is not in the repository (`sources/` is git-ignored); only the converted `subie_wrx_sti.glb`, `subie_wrx_sti_wheel.glb` and
 `subie_wrx_sti_lamps.png` ship.
+
+## Tail lamps
+
+Clear lamp interior lit red from the model's sheet; no round core (`tailCore: false`), tight halo by day in rain / fog.

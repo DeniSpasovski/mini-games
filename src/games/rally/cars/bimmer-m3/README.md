@@ -57,3 +57,7 @@ home tyre + set-up, 2026-10-04): `straight()` in `integration-tests/rally/handli
 BMW and M3 are trademarks of BMW AG; the mesh's roundels are plain unpainted discs.
 
 Tyres, suspension and gearing: [`PHYSICS.md`](../../PHYSICS.md).
+
+## Tail lamps
+
+LED-ring tail lamp map; no round core (`tailCore: false`), halo tight by day.
