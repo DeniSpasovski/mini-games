@@ -26,6 +26,12 @@ const BLUR_MIN = 3;
 const JOIN = 0.05;
 /** The glow quad sits this far outside the lamp (behind a tail lamp, in front of a head lamp; metres). */
 const SETBACK = 0.04;
+/**
+ * A lamp's own unlit parts (glow below `DARK_LIT`: a blinker, a reversing lens) keep this little of the red glow over them: the
+ * halo sits behind the whole lamp and would otherwise tint them red.
+ */
+const DARK_LIT = 0.05;
+const DARK_CUT = 0.85;
 /** A faint lamp (a thin LED strip) is boosted towards the same peak (`peak ** -0.6`), up to this factor. */
 const MAX_BOOST = 4;
 
@@ -217,6 +223,8 @@ function maskTexture(
   radius: number,
 ): DataTexture {
   const mask = new Float32Array(w * h);
+  // Lamp pixels that do not glow (an amber blinker, a clear reversing lens, a dark segment): the glow is cut there.
+  const dark = new Uint8Array(w * h);
   const t = lamp.tris;
   for (let k = 0, tri = 0; k < t.length; k += 12, tri++) {
     const ax = (t[k] - x0) / TEXEL;
@@ -249,6 +257,9 @@ function maskTexture(
             )
           : 1;
         if (lit > mask[y * w + x]) mask[y * w + x] = lit;
+        // A lit piece in front of or behind an unlit one wins.
+        if (lit >= DARK_LIT) dark[y * w + x] = 2;
+        else if (!dark[y * w + x]) dark[y * w + x] = 1;
       }
   }
   for (let pass = 0; pass < 3; pass++) {
@@ -260,7 +271,8 @@ function maskTexture(
   const scale = peak > 0 ? Math.min(MAX_BOOST, peak ** -0.6) : 0;
   const data = new Uint8Array(w * h * 4);
   for (let i = 0; i < w * h; i++) {
-    const v = Math.min(255, Math.round(mask[i] * scale * 255));
+    const cut = dark[i] === 1 ? 1 - DARK_CUT : 1;
+    const v = Math.min(255, Math.round(mask[i] * scale * cut * 255));
     data[i * 4] = data[i * 4 + 1] = data[i * 4 + 2] = v;
     data[i * 4 + 3] = 255;
   }
