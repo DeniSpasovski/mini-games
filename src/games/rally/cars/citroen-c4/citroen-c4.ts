@@ -232,6 +232,8 @@ export const citroenC4: CarDef = {
     doorBadge: { z: 0.25, y: 0.71, tilt: 0.6 },
     // No procedural suspension: the model carries its own arms and dampers (trim).
     gltf: {
+      // LED light guides / strips / rings: no round core on the lamp.
+      tailCore: false,
       file: 'citroen_c4.glb',
       credit:
         '"Citroen C4 WRC Red Bull 2007" by Max, sketchfab.com/3d-models/citroen-c4-wrc-red-bull-2007-97d128fb4b2a4558a02d65af542486dc, CC BY 4.0 (converted + repainted)',

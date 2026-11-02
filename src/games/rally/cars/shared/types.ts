@@ -186,6 +186,13 @@ export interface CarGltfDef {
    */
   bootLamps?: number;
   /**
+   * `false` = the tail lamps are LED strips, light guides or rings, not a bulb behind a lens: no round core glare on them
+   * (`LampHalos` `core`). Default: a core on every lamp that is lit over most of its area.
+   */
+  tailCore?: boolean;
+  /** Scales the tail lamps' halo (a big flat lamp, such as the 190E's, needs more than the default 1 to read as lit by day). */
+  tailHalo?: number;
+  /**
    * The head lamps are the model's chrome bowls (no separate bulb): chrome pieces in front of the centre of mass and inside
    * this [|x|0, |x|1, y0, y1] box (true = the profile's front lamp box) light up with the headlights (CarModel.splitHeadBowls); with `headBulbs` they glow from the bulbs out.
    */

@@ -236,6 +236,8 @@ export const bimmerGt2: CarDef = {
     doorBadge: { z: 0.28, y: 0.58, tilt: 2.5 },
     // No `suspension`: the wheel wells are closed by the liner (model.source.json `wheels`).
     gltf: {
+      // LED light guides / strips / rings: no round core on the lamp.
+      tailCore: false,
       // E92 tail lamps: the outer half on the wing is the running lamp, the inner half on the boot lid lights with the
       // brake and is the reversing lamp.
       bootLamps: 0.53,

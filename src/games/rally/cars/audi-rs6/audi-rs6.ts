@@ -207,6 +207,8 @@ export const audiRs6: CarDef = {
     // Door plate by the rule (scripts/car-model/door-plate.py), 5 cm forward by eye.
     doorBadge: { z: 0.2, y: 0.7, tilt: 2.6 },
     gltf: {
+      // LED light guides / strips / rings: no round core on the lamp.
+      tailCore: false,
       // The three main light units of the lamp sheet (two top, the big bottom square; picked on the model): a glare on each.
       headBulbs: [
         [0.691, 0.71, 1.835],
