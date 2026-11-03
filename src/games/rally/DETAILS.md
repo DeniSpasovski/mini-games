@@ -7,15 +7,39 @@ sim-lite physics that is still fun on a keyboard.
 
 ## Pages and URLs
 
-| Page        | URL                                                                | What it is                                                                                                                                                                                            |
-| ----------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Game        | `/games/rally/`                                                    | welcome -> select stage -> select car -> (set-up) -> drive                                                                                                                                            |
-| Map viewer  | `/games/rally/map-viewer.html?map=test&stage=test&grid=1&splat=1`  | a map with one of its stages (`stage=`, default the first; a stage picker lists them) in a season (`season=`, the Season picker), click terrain to inspect, "Drive from here", lat / lon on real maps |
-| Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`              | livery seed, door plate, pose, physics hull, torque chart, test drive, time of day + lights (`tod=1&lamps=brake`), weather + road backdrop (`weather=rain_heavy&backdrop=gravel                       | tarmac | city`) |
-| Asset debug | `/games/rally/asset-debug.html?asset=tree:pine_tree&season=autumn` | every asset / car (`car:<id>`) / texture (`tex:<id>`) / tree type (`tree:<type>`, as the game draws it; `season`, `leaves=0`, F6 debug views): seed, variant, LOD                                     |
+| Page        | URL                                                                | What it is                                                                                              |
+| ----------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| Game        | `/games/rally/`                                                    | welcome -> select stage -> select car -> (set-up) -> drive                                              |
+| Map viewer  | `/games/rally/map-viewer.html?map=test&stage=test&grid=1&splat=1`  | a map with one of its stages from above: layers, click to inspect, "Drive from here" (Tool pages below) |
+| Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`              | one car: livery, door plate, pose, wheels, lights, specs, sound, on grass or a road backdrop            |
+| Asset debug | `/games/rally/asset-debug.html?asset=tree:pine_tree&season=autumn` | every prop, car (`car:<id>`), tree type (`tree:<type>`) and texture (`tex:<id>`) as the game draws it   |
 
-Tool pages are dev-server only and keep their state in the URL; `H` hides the panel, `F3` shows stats, "Copy camera link"
-gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
+### Tool pages
+
+Dev server only (`dev: true` in `game.json`); every setting is in the URL, so a view is a link. Shell:
+`debug/viewer-shell.ts` (panel, renderer with the game's lights, orbit camera, stats); look: `debug/viewer-shell.css`
+(`STYLEGUIDE.md` -> Tool pages).
+
+- **Every page**: `H` or the "Panel · H" plate hides the panel, `F3` stats, Help = key table; sections remember open /
+  closed. "Copy camera link" -> `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1` (`clean=1` hides every plate). Weather
+  (`weather=`, reloads) and Time of day (`tod=`, live; the page's own hour sits in its nearest slot):
+  `ViewerShell.addWeatherAndTime`. A "Loading <map / car / asset>" plate while it builds (`showViewerLoading`).
+- **Map viewer** (`pages/map-viewer.ts`): Map (map, stage, season, weather, time; all but the time reload), Camera (top
+  down, oblique, start line, link), Layers (scatter, tree debug - also `F6` -, road centreline, stage route + markers,
+  chunk grid, splat, wireframe, fog), Picked point (click the terrain: position, height, slope, surface, cover; real
+  maps: lat / lon, satellite and Street View links; "Drive from here"), Buildings (real maps; `building=<id>`), Stats,
+  Credits, Scene, Help.
+  `along=<m>&zoom=<f>` flies to a spot on the stage road.
+- **Car viewer** (`pages/car-viewer.ts`): Cars (All / AWD / FWD / RWD chips as the car menu, class per row), Car (livery
+  `seed`, `paint` + livery colour, `tyre`, door plate `num` / `rally`), Camera (`view` presets; an axle camera or a link
+  clears them), Pose (`steer`, `susp`, `spin`, `turntable`), Scene (weather, time, `backdrop` studio / road with its
+  `season` and `trees`, sun), Lights (`beam`, `lamps`), Wheels (`wheels=1` overlay, `wangle`, `tyres` / `rims` /
+  `brakes` / `body`, axle camera `wcam`), Debug (`wire`, `hull`, `fallback`), Specs (numbers, torque / power chart,
+  test-drive links, model credit), Sound (`debug/sound-debug.ts`), Help. Console: `__carViewer`.
+- **Asset debugger** (`pages/asset-debug.ts`): Assets, Options (only what the picked kind uses: props seed / variant /
+  LOD / instances / gap / wire / bounds / colliders; trees seed / variant / instances / season / leaves; cars livery seed;
+  textures repeat; turntable for all; hidden ones keep their URL value), Info, Camera, Scene (the car viewer's without the
+  backdrop), Help. `F6` tree debug views.
 
 **URL parameters** (any of the play ones skips the menu):
 

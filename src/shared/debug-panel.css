@@ -184,6 +184,42 @@
 .dp-list-item:hover {
   background: #232a33;
 }
+/* Chip-filtered list: name left, group small on the right. */
+.dp-list-item:has(small) {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.dp-list-item > span {
+  flex: none;
+  white-space: nowrap;
+}
+.dp-list-item small {
+  overflow: hidden;
+  color: #6f7a88;
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.dp-chips {
+  display: flex;
+  gap: 2px;
+}
+.dp-chip {
+  flex: 1;
+  padding: 3px 0;
+  border: 1px solid #333b46;
+  border-radius: 3px;
+  background: #252c35;
+  color: #dfe3e8;
+  font: inherit;
+  cursor: pointer;
+}
+.dp-chip.on {
+  background: #f0a020;
+  color: #1a1206;
+}
 .dp-list-item.active {
   background: #f0a020;
   color: #1a1206;
@@ -214,4 +250,61 @@
   border-radius: 3px;
   padding: 0 4px;
   font-size: 11px;
+}
+
+/* `hidden` beats the rows' own display (controls a page shows only for some content). */
+.dp-panel [hidden] {
+  display: none !important;
+}
+.dp-list-items {
+  position: relative;
+}
+.dp-buttons {
+  display: flex;
+  gap: 4px;
+}
+.dp-buttons .dp-btn {
+  flex: 1;
+  min-width: 0;
+}
+.dp-field {
+  flex: 1;
+  min-width: 0;
+}
+.dp-note {
+  margin: 0;
+  color: #7f8a98;
+}
+.dp-html a {
+  color: #f0a020;
+}
+.dp-keys {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  margin: 0;
+  align-items: baseline;
+}
+.dp-keys dt {
+  white-space: nowrap;
+}
+.dp-keys dd {
+  margin: 0;
+  color: #9aa4b1;
+}
+.dp-keys kbd + kbd {
+  margin-left: 3px;
+}
+.dp-keys kbd {
+  background: #252c35;
+  border: 1px solid #333b46;
+  border-radius: 3px;
+  padding: 0 4px;
+  font: inherit;
+  font-size: 11px;
+}
+.dp-select {
+  flex: 1;
+  min-width: 0;
+  display: flex;
 }

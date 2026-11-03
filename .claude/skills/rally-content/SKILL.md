@@ -87,8 +87,8 @@ model, parts, livery, glTF import) lives in `cars/shared/`.
 
 Free camera for close-ups / screenshots: add `&cam=x,y,z&look=x,y,z&fov=10&clean=1` (model space, +z nose, +x car's left; `clean=1` hides the panel; the panel's "Copy camera link" button copies the current view). Liveries (create / fix / debug): the `rally-livery` skill + `scripts/car-model/chart-probe.py`.
 
-Iterate at `/games/rally/car-viewer.html?car=<id>&seed=<n>&view=side&hull=1&wire=1` (pose sliders for
-steer/suspension, specs + torque/power chart, "Test drive" link). Physics changes -> rally-physics-tuning skill.
+Iterate at `/games/rally/car-viewer.html?car=<id>&seed=<n>&view=side&hull=1&wire=1` (Pose: steer / suspension;
+Specs: numbers, torque / power chart, "Test drive" link; every section: rally `DETAILS.md` -> Tool pages). Physics changes -> rally-physics-tuning skill.
 Console: `__carViewer.model`.
 
 ### Hand-built bodies (`model.custom`) - example: `cars/zastava-101/`

@@ -80,7 +80,7 @@ export class SoundDebug {
     });
     const gears = car.physics.gearbox.ratios.length;
     section.select(
-      'Gear (changing = shift sound)',
+      'Gear',
       String(st.sgear),
       [
         { value: '0', label: 'N' },
@@ -94,8 +94,9 @@ export class SoundDebug {
         sync();
       },
     );
+    section.note('A gear change plays the shift sound.');
     section.slider(
-      'Speed (m/s: wind, roll, whine)',
+      'Speed m/s',
       st.sspd,
       { min: 0, max: 60, step: 0.5 },
       (v) => {
@@ -104,7 +105,7 @@ export class SoundDebug {
       },
     );
     section.slider(
-      'Slide (m/s)',
+      'Slide m/s',
       st.sslide,
       { min: 0, max: 14, step: 0.1 },
       (v) => {
@@ -128,15 +129,23 @@ export class SoundDebug {
       st.stun = v;
       sync();
     });
-    const rev = section.button('Hold to rev', () => {});
+    const [rev] = section.buttons([
+      ['Hold to rev', () => {}],
+      [
+        'Sweep',
+        () => {
+          this.sweep = 1;
+          this.sweepT = 0;
+        },
+      ],
+      ['Impact', () => (this.impact = 15000)],
+    ]);
     rev.addEventListener('pointerdown', () => (this.hold = true));
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel'])
       rev.addEventListener(ev, () => (this.hold = false));
-    section.button('Sweep idle - redline - idle', () => {
-      this.sweep = 1;
-      this.sweepT = 0;
-    });
-    section.button('Impact', () => (this.impact = 15000));
+    section.note(
+      'Speed drives wind, rolling and gear whine; Sweep revs idle - redline - idle.',
+    );
     this.info = section.info();
   }
 

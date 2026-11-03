@@ -8,7 +8,12 @@ import { CARS, DEFAULT_CAR, getCar } from '../cars';
 import { clampCarNumber, rallyName } from '../cars/shared/rally-badge';
 import { MAPS } from '../maps';
 import { isTestCar, listLabel, TEST_NOTE } from '../release';
-import { parseVec3, VIEWER_HOUR, ViewerShell } from '../debug/viewer-shell';
+import {
+  parseVec3,
+  showViewerLoading,
+  VIEWER_HOUR,
+  ViewerShell,
+} from '../debug/viewer-shell';
 import { LIGHTS_MIN_NEED } from '../engine/night';
 import {
   carLights,
@@ -17,13 +22,12 @@ import {
   TailLight,
   tailLightMount,
 } from '../game/headlights';
-import { offeredWeathers, WEATHER_LABELS } from '../weather';
+import { offeredWeathers } from '../weather';
 import { BACKDROPS, StageBackdrop } from '../debug/stage-backdrop';
 import { DEFAULT_SEASON, SEASONS, SEASON_LABELS, type Season } from '../season';
 import { Rain, RAIN_DROPS } from '../game/rain';
 import { LampReflections } from '../game/lamp-reflections';
 import { Color, Group } from 'three';
-import { formatHour, TIMES_OF_DAY } from '../game/time-of-day';
 import { peakPower, sampleTorque } from '../physics/drivetrain';
 import { axleRadius, tyreSizeFor } from '../physics/car-tyres';
 import { WheelDebug } from '../debug/wheel-debug';
@@ -185,6 +189,11 @@ function setView(name: string): void {
   camera.updateProjectionMatrix();
 }
 
+/** Drivetrain from the front torque split (the car menu's All / AWD / FWD / RWD filter). */
+function driveLabel(frontSplit: number): 'RWD' | 'FWD' | 'AWD' {
+  return frontSplit === 0 ? 'RWD' : frontSplit === 1 ? 'FWD' : 'AWD';
+}
+
 // --- panel ------------------------------------------------------------------------
 const pick = shell.panel.section('Cars');
 pick.list(
@@ -193,6 +202,7 @@ pick.list(
     label: listLabel(c.name, isTestCar(c.id)),
     group: c.className,
     hint: isTestCar(c.id) ? `${TEST_NOTE}. ${c.description}` : c.description,
+    tags: [driveLabel(c.physics.drivetrain.frontSplit)],
   })),
   state.car,
   (id) => {
@@ -201,9 +211,10 @@ pick.list(
     trackCar();
     rebuild();
   },
+  { chips: ['All', 'AWD', 'FWD', 'RWD'] },
 );
 
-const vars = shell.panel.section('Model');
+const vars = shell.panel.section('Car');
 const seedCtl = vars.seed('Livery seed', state.seed, (v) => {
   state.seed = Math.max(0, v);
   seedCtl.set(state.seed);
@@ -219,17 +230,17 @@ const paintCtl = vars.color(
     rebuild();
   },
 );
-vars.button('Reset paint to livery', () => {
+const resetPaint = document.createElement('button');
+resetPaint.type = 'button';
+resetPaint.className = 'dp-btn';
+resetPaint.textContent = 'Livery colour';
+resetPaint.title = 'Back to the livery paint';
+resetPaint.addEventListener('click', () => {
   state.paint = '';
   sync();
   rebuild();
 });
-const numCtl = vars.seed('Door plate number (0 = none)', state.num, (v) => {
-  state.num = v <= 0 ? 0 : clampCarNumber(v);
-  numCtl.set(state.num);
-  sync();
-  applyBadge();
-});
+paintCtl.el.append(resetPaint);
 vars.select('Tyre', state.tyre, [...TYRE_IDS], (v) => {
   state.tyre = v;
   sync();
@@ -237,31 +248,59 @@ vars.select('Tyre', state.tyre, [...TYRE_IDS], (v) => {
   wheelDebug?.setTyre(fittedTyre());
   updateWheelInfo();
 });
+const numCtl = vars.seed('Door plate #', state.num, (v) => {
+  state.num = v <= 0 ? 0 : clampCarNumber(v);
+  numCtl.set(state.num);
+  sync();
+  applyBadge();
+});
 vars.select(
   'Plate rally',
   state.rally,
-  MAPS.map((m) => m.id),
+  MAPS.map((m) => ({ value: m.id, label: m.name })),
   (v) => {
     state.rally = v;
     sync();
     applyBadge();
   },
 );
-vars.checkbox('Wireframe', state.wire, (v) => {
-  state.wire = v;
-  sync();
-  applyWire();
-});
-vars.checkbox('Physics hull + COM', state.hull, (v) => {
-  state.hull = v;
-  sync();
-  if (model) model.debug.visible = v;
-});
-vars.checkbox('Fallback body (no GLB)', state.fallback, (v) => {
-  state.fallback = v;
-  sync();
-  rebuild();
-});
+vars.note('Door plate # 0 = no plate.');
+
+const camSec = shell.panel.section('Camera');
+const VIEW_LABELS: Record<string, string> = {
+  'three-quarter': '3/4',
+  front: 'Front',
+  rear: 'Rear',
+  side: 'Side',
+  top: 'Top',
+  low: 'Low',
+};
+const viewNames = Object.keys(VIEWS);
+const viewButtons = [viewNames.slice(0, 3), viewNames.slice(3)].flatMap(
+  (names) =>
+    camSec.buttons(
+      names.map((v) => [
+        VIEW_LABELS[v],
+        () => {
+          state.view = v;
+          state.wcam = 'off';
+          wcamCtl.set('off');
+          ViewerShell.clearCameraLink(state);
+          sync();
+          setView(v);
+          markView();
+        },
+      ]),
+    ),
+);
+/** The preset in use is the active button (none while a camera link or an axle camera holds the view). */
+function markView(): void {
+  const on = !state.cam && state.wcam === 'off';
+  viewButtons.forEach((b, i) =>
+    b.classList.toggle('active', on && viewNames[i] === state.view),
+  );
+}
+shell.addCameraShare(camSec, state, sync);
 
 const pose = shell.panel.section('Pose');
 pose.slider('Steer', state.steer, { min: -1, max: 1, step: 0.01 }, (v) => {
@@ -272,6 +311,7 @@ pose.slider('Suspension', state.susp, { min: -1, max: 1, step: 0.01 }, (v) => {
   state.susp = v;
   sync();
 });
+pose.note('Suspension -1 = full droop, 0 = static, 1 = full bump.');
 pose.checkbox('Spin wheels', state.spin, (v) => {
   state.spin = v;
   sync();
@@ -280,32 +320,27 @@ pose.checkbox('Turntable', state.turntable, (v) => {
   state.turntable = v;
   sync();
 });
-pose.select('Camera', state.view, Object.keys(VIEWS), (v) => {
-  state.view = v;
-  ViewerShell.clearCameraLink(state);
-  sync();
-  setView(v);
-});
-shell.addCameraShare(pose, state, sync);
 
 // Weather and backdrop are fixed per page, as in the game (the wet shading compiles into the shaders): a change reloads.
-const sceneSec = shell.panel.section('Scene', true);
 const weathers = offeredWeathers();
 state.weather = paramOneOf(state.weather, weathers, DEFAULTS.weather);
+const sceneSec = shell.panel.section(
+  'Scene',
+  state.weather !== DEFAULTS.weather ||
+    state.backdrop !== DEFAULTS.backdrop ||
+    state.tod !== VIEWER_HOUR,
+);
 const reload = () => {
   sync();
   location.reload();
 };
-if (weathers.length > 1)
-  sceneSec.select(
-    'Weather',
-    state.weather,
-    weathers.map((w) => ({ value: w, label: WEATHER_LABELS[w] })),
-    (v) => {
-      state.weather = v;
-      reload();
-    },
-  );
+shell.addWeatherAndTime(
+  sceneSec,
+  state,
+  sync,
+  { tod: VIEWER_HOUR, hour: VIEWER_HOUR },
+  applyLights,
+);
 sceneSec.select(
   'Backdrop',
   state.backdrop,
@@ -315,21 +350,6 @@ sceneSec.select(
     reload();
   },
 );
-const todOptions = [
-  { value: String(VIEWER_HOUR), label: 'Day' },
-  ...TIMES_OF_DAY.map((t) => ({
-    value: String(t.hour),
-    label: `${t.label} ${formatHour(t.hour)}`,
-  })),
-];
-if (!todOptions.some((o) => o.value === String(state.tod)))
-  todOptions.push({ value: String(state.tod), label: formatHour(state.tod) });
-sceneSec.select('Time of day', String(state.tod), todOptions, (v) => {
-  state.tod = Number(v);
-  sync();
-  shell.setHour(state.tod);
-  applyLights();
-});
 if (spot.surface) {
   state.season = paramOneOf(state.season, SEASONS, DEFAULT_SEASON);
   sceneSec.select(
@@ -347,6 +367,15 @@ if (spot.surface) {
     backdrop?.showTrees(v);
   });
 }
+const reloaders = [
+  ...(weathers.length > 1 ? ['weather'] : []),
+  'backdrop',
+  ...(spot.surface ? ['season'] : []),
+];
+sceneSec.note(
+  `Changing ${reloaders.slice(0, -1).join(', ')}${reloaders.length > 1 ? ' or ' : ''}${reloaders[reloaders.length - 1]} reloads the page.`,
+);
+shell.addSceneSection(false, sceneSec);
 
 const lights = shell.panel.section(
   'Lights',
@@ -357,11 +386,14 @@ lights.checkbox('Headlight beam', state.beam, (v) => {
   sync();
   applyLights();
 });
-lights.select('Rear lamps', state.lamps, LAMP_MODES, (v) => {
+lights.select('Lamps', state.lamps, LAMP_MODES, (v) => {
   state.lamps = v;
   applyLamps();
   sync();
 });
+lights.note(
+  'Lamps: off = all dark; on = as the hour and weather have them; brake / reverse = pedal down / gear R.',
+);
 
 const wheelsSec = shell.panel.section(
   'Wheels',
@@ -373,7 +405,7 @@ wheelsSec.checkbox('Overlay: hub, radii, arch fit', state.wheels, (v) => {
   applyWheelDebug();
 });
 wheelsSec.slider(
-  'Wheel angle (deg, spin off)',
+  'Wheel angle',
   state.wangle,
   { min: 0, max: 360, step: 1 },
   (v) => {
@@ -381,6 +413,7 @@ wheelsSec.slider(
     sync();
   },
 );
+wheelsSec.note('Wheel angle in degrees, used while Spin wheels is off.');
 const partToggle = (
   label: string,
   key: 'tyres' | 'rims' | 'brakes' | 'body',
@@ -395,37 +428,73 @@ partToggle('Tyres', 'tyres');
 partToggle('Rims', 'rims');
 partToggle('Brakes', 'brakes');
 partToggle('Body', 'body');
-wheelsSec.select('Wheel camera (ortho)', state.wcam, WHEEL_CAMS, (v) => {
+const wcamCtl = wheelsSec.select('Axle camera', state.wcam, WHEEL_CAMS, (v) => {
   state.wcam = v;
   ViewerShell.clearCameraLink(state);
   sync();
   if (v === 'off') setView(state.view);
   else setWheelCam(v);
+  markView();
 });
+wheelsSec.note(
+  'Axle camera: near-orthographic, straight along that wheel’s axle.',
+);
 const wheelInfo = wheelsSec.info();
-if (state.clean) document.body.classList.add('dp-hidden');
+if (state.clean) document.body.classList.add('dp-hidden', 'rv-clean');
+
+const debugSec = shell.panel.section(
+  'Debug',
+  state.wire || state.hull || state.fallback,
+);
+debugSec.checkbox('Wireframe', state.wire, (v) => {
+  state.wire = v;
+  sync();
+  applyWire();
+});
+debugSec.checkbox('Physics hull + centre of mass', state.hull, (v) => {
+  state.hull = v;
+  sync();
+  if (model) model.debug.visible = v;
+});
+debugSec.checkbox('Fallback body (no GLB)', state.fallback, (v) => {
+  state.fallback = v;
+  sync();
+  rebuild();
+});
 
 const specs = shell.panel.section('Specs');
 const specInfo = specs.info();
 const chart = document.createElement('canvas');
-chart.width = 260;
-chart.height = 120;
-chart.style.cssText = 'width:100%;background:#11151a;border-radius:4px';
+chart.className = 'rv-chart';
 specs.body.append(chart);
+specs.html(
+  '<div class="rv-legend"><span class="rv-torque">torque</span><span class="rv-power">power</span><span class="rv-redline">redline</span></div>',
+);
 const testDrive = specs.html('');
+let specRows: Record<string, string> = {};
+// The GLB loads after `rebuild`: recount its triangles twice a second while Specs is open.
+let specClock = 0;
+shell.onFrame((dt) => {
+  specClock += dt;
+  if (specClock < 0.5 || !model || !(specs.el as HTMLDetailsElement).open)
+    return;
+  specClock = 0;
+  specRows.triangles = model.triangleCount().toLocaleString();
+  specInfo(specRows);
+});
 
 const soundDebug = new SoundDebug(
-  shell.panel.section('Sound', true),
+  shell.panel.section('Sound', false),
   getCar(state.car),
 );
 shell.onFrame((dt) => soundDebug.onFrame(dt));
 
-shell.addSceneSection();
-shell.panel
-  .section('Help', false)
-  .html(
-    '<kbd>H</kbd> hide panel · <kbd>F3</kbd> stats · drag = orbit, wheel = zoom, right-drag = pan',
-  );
+shell.addHelp(
+  [],
+  [
+    'Camera links (Copy camera link) keep the exact view; a preset or the axle camera clears them.',
+  ],
+);
 
 // --- model ------------------------------------------------------------------------------
 function applyBadge(): void {
@@ -505,6 +574,13 @@ function rebuild(): void {
   model.root.position.y = def.physics.comHeight + model.tyreLift;
   model.debug.visible = state.hull;
   carFrame.add(model.root);
+  // Its GLB and wheels download after this: name the car over the view until they are in.
+  hideLoading();
+  const done = (hideLoading = showViewerLoading(
+    `Loading ${def.name} …`,
+    shell.panel.viewport,
+  ));
+  void model.ready.then(done);
   if (shell.env.weatherLook.wet > 0) model.setWet();
   // The beam starts at the model's own lamps once they are known.
   model.onHeadlamps((m) => headlights?.moveTo(m));
@@ -516,6 +592,8 @@ function rebuild(): void {
   updateSpecs();
 }
 
+/** Removes the "Loading <car>" plate of the model being built. */
+let hideLoading = () => {};
 let headlights: Headlights | undefined;
 let tailLight: TailLight | undefined;
 /** A wet road's mirror streaks under the lit lamps (as in the game). */
@@ -601,17 +679,15 @@ function updateSpecs(): void {
   const pk = peakPower(p.engine);
   const peakT = p.engine.torqueCurve.reduce((a, b) => (b[1] > a[1] ? b : a));
   const wb = p.front.z - p.rear.z;
-  specInfo({
+  specRows = {
     mass: `${p.mass} kg`,
     power: `${pk.kw.toFixed(0)} kW / ${(pk.kw * 1.341).toFixed(0)} hp @ ${pk.rpm}`,
     torque: `${peakT[1]} Nm @ ${peakT[0]}`,
     'power/weight': `${((pk.kw * 1000) / p.mass).toFixed(0)} W/kg`,
     drive:
-      p.drivetrain.frontSplit === 0
-        ? 'RWD'
-        : p.drivetrain.frontSplit === 1
-          ? 'FWD'
-          : `AWD ${Math.round(p.drivetrain.frontSplit * 100)}/${Math.round((1 - p.drivetrain.frontSplit) * 100)}`,
+      driveLabel(p.drivetrain.frontSplit) === 'AWD'
+        ? `AWD ${Math.round(p.drivetrain.frontSplit * 100)}/${Math.round((1 - p.drivetrain.frontSplit) * 100)}`
+        : driveLabel(p.drivetrain.frontSplit),
     'weight F/R': `${Math.round((-p.rear.z / wb) * 100)} / ${Math.round((p.front.z / wb) * 100)} %`,
     wheelbase: `${wb.toFixed(2)} m`,
     gears: p.gearbox.ratios.join(' · '),
@@ -622,19 +698,27 @@ function updateSpecs(): void {
       def.model.gltf && hasImportedModel(def) && !state.fallback
         ? 'imported glTF'
         : `${def.model.custom ? 'hand-built' : 'side-outline fallback'}${def.model.gltf && !hasImportedModel(def) ? ` (drop ${def.model.gltf.file} in public/models/cars)` : ''}`,
-  });
+  };
+  specInfo(specRows);
   drawCurve(def.physics.engine);
   const credit =
     def.model.gltf && hasImportedModel(def) && !state.fallback
-      ? `<div style="margin-top:6px;font-size:10px">Model: ${def.model.gltf.credit}</div>`
+      ? `<small>Model: ${def.model.gltf.credit}</small>`
       : '';
-  testDrive.innerHTML = `<a href="./?car=${def.id}&livery=${state.seed}&spawn=pad" style="color:#f0a020">▶ Test drive on the pad</a> · <a href="./?car=${def.id}&livery=${state.seed}" style="color:#f0a020">stage</a>${credit}`;
+  testDrive.innerHTML = `<a href="./?car=${def.id}&livery=${state.seed}&spawn=pad">▶ Test drive on the pad</a> · <a href="./?car=${def.id}&livery=${state.seed}">on a stage</a>${credit}`;
 }
 
+/** Torque (amber) and power (link blue) over rpm, the redline band in red: token colours, sharp at the screen's DPR. */
 function drawCurve(eng: Parameters<typeof sampleTorque>[0]): void {
+  const css = getComputedStyle(document.body);
+  const token = (name: string) => css.getPropertyValue(name).trim();
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = chart.clientWidth || 272;
+  const H = 120;
+  chart.width = Math.round(W * dpr);
+  chart.height = Math.round(H * dpr);
   const ctx = chart.getContext('2d')!;
-  const W = chart.width;
-  const H = chart.height;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, W, H);
   const maxRpm = eng.redlineRpm + 500;
   const maxT = Math.max(...eng.torqueCurve.map((c) => c[1])) * 1.15;
@@ -653,15 +737,12 @@ function drawCurve(eng: Parameters<typeof sampleTorque>[0]): void {
     }
     ctx.stroke();
   };
-  plot((r) => sampleTorque(eng, r), maxT, '#f0a020');
-  plot((r) => sampleTorque(eng, r) * r, maxP * 1.1, '#4fb0ff');
-  ctx.fillStyle = 'rgba(255,60,40,0.25)';
+  plot((r) => sampleTorque(eng, r), maxT, token('--ui-accent'));
+  plot((r) => sampleTorque(eng, r) * r, maxP * 1.1, token('--ui-link'));
+  ctx.globalAlpha = 0.3;
+  ctx.fillStyle = token('--ui-slower');
   ctx.fillRect((eng.redlineRpm / maxRpm) * W, 0, W, H);
-  ctx.fillStyle = '#aaa';
-  ctx.font = '10px monospace';
-  ctx.fillText('torque', 6, 12);
-  ctx.fillStyle = '#4fb0ff';
-  ctx.fillText('power', 52, 12);
+  ctx.globalAlpha = 1;
 }
 
 // --- animation ---------------------------------------------------------------------------
@@ -700,6 +781,7 @@ shell.onFrame((dt) => {
 if (state.tod !== VIEWER_HOUR) shell.setHour(state.tod);
 setView(state.view);
 if (state.wcam !== 'off' && !state.cam) setWheelCam(state.wcam);
+markView();
 rebuild();
 
 // Falling rain round the camera (weather.ts rain rate, game/rain.ts as in the game).

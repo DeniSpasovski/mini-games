@@ -390,7 +390,7 @@ re-route the faces with a `chartBoxes` entry (rebuild the GLB, verify the geomet
 
 ## Viewer and tooling gotchas (cost real time this session)
 
-- **Mute the game**: any URL you open that can start the game (`/games/rally/?car=...`) gets `&mute=1` (AGENTS.md "Sound while testing"). The car viewer has no audio.
+- **Mute the game**: any URL you open that can start the game (`/games/rally/?car=...`) gets `&mute=1` (AGENTS.md "Sound while testing"). The car viewer stays silent until "Sound on" in its Sound section.
 
 - **"White undertray" from below is the ground plane**: the viewer's ground is single-sided, seen from under it renders as a
   bright sheet with the car poking through. Hide it before judging the underside (`scene.traverse`: any mesh with a bounding
