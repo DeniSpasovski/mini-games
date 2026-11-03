@@ -412,6 +412,69 @@ function glareMaterial(colour: Vector3): ShaderMaterial {
   });
 }
 
+/** A tail lamp's camera-facing glow (`corona`), m across: the smallest lamp and the biggest. */
+const CORONA_MIN = 0.15;
+const CORONA_MAX = 0.45;
+/** Its strength against the flat halo's level (`setLevel`): the halo spreads its light over a much larger area. */
+const CORONA_GAIN = 1.6;
+
+/**
+ * Camera-facing glow of a tail / reversing lamp (`LampHalos` corona): a soft round glow on the lamp that turns to the
+ * camera, so the lamp glows from any side (the flat halo fades out side-on). It steps 1/4 of its size towards the
+ * camera off the lamp's middle, so the depth test against the body cuts it where the body is in front. Strength by how
+ * the lamp faces the camera (`axis` = the lamp's outward direction, body -z for a tail lamp): full from the side, a
+ * little face-on (the flat halo carries the lamp there), none from the front of the car. A side lamp (`side` = body +-x,
+ * 0 for a centred one) seen from the car's other side at a shallow angle is behind the body: its glow, which would show
+ * past the body's outline as a ball in the air, fades out.
+ */
+function coronaMaterial(colour: Vector3, side: number): ShaderMaterial {
+  return new ShaderMaterial({
+    uniforms: {
+      uLevel: { value: 0 },
+      uColour: { value: colour },
+      uSide: { value: new Vector3(side, 0, 0) },
+    },
+    defines: { CORONA_GAIN: CORONA_GAIN.toFixed(1) },
+    transparent: true,
+    depthWrite: false,
+    fog: false,
+    blending: AdditiveBlending,
+    vertexShader: /* glsl */ `
+      uniform vec3 uSide;
+      varying vec2 vUv;
+      varying float vSide;
+      void main() {
+        vUv = uv;
+        vec4 centre = modelViewMatrix * vec4( 0.0, 0.0, 0.0, 1.0 );
+        vec3 axis = normalize( ( modelViewMatrix * vec4( 0.0, 0.0, -1.0, 0.0 ) ).xyz );
+        vec3 toCam = normalize( -centre.xyz );
+        float d = dot( axis, toCam );
+        vSide = smoothstep( -0.3, 0.2, d ) * ( 1.0 - 0.75 * smoothstep( 0.35, 0.8, d ) );
+        if ( uSide.x != 0.0 ) {
+          float outward = dot( normalize( ( modelViewMatrix * vec4( uSide, 0.0 ) ).xyz ), toCam );
+          vSide *= max( smoothstep( 0.35, 0.6, d ), smoothstep( -0.1, 0.2, outward ) );
+        }
+        float size = length( ( modelViewMatrix * vec4( 1.0, 0.0, 0.0, 0.0 ) ).xyz );
+        centre.xyz += toCam * size * 0.25;
+        centre.xy += position.xy * size;
+        gl_Position = projectionMatrix * centre;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform float uLevel;
+      uniform vec3 uColour;
+      varying vec2 vUv;
+      varying float vSide;
+      void main() {
+        float r = length( vUv - 0.5 ) * 2.0;
+        // A soft glow over the whole lit lens (sized to it), not a bright dot at its middle.
+        float a = ( 0.5 * exp( -r * r * 7.0 ) + 0.5 * exp( -r * r * 3.0 ) ) * ( 1.0 - smoothstep( 0.55, 1.0, r ) );
+        gl_FragColor = vec4( uColour * ( CORONA_GAIN * uLevel * a * vSide ), 1.0 );
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
+}
+
 function haloMaterial(mask: DataTexture, colour: Vector3): ShaderMaterial {
   return new ShaderMaterial({
     uniforms: {
@@ -425,14 +488,15 @@ function haloMaterial(mask: DataTexture, colour: Vector3): ShaderMaterial {
     fog: false,
     side: DoubleSide,
     blending: AdditiveBlending,
-    // A flat glow seen edge-on (the car from the side) would float off the lamp as a thin bar: it fades out as it turns away.
+    // A flat glow seen at an angle slides off the lamp (a bar or a blob on the body): it fades out as it turns away, the
+    // lamp's camera-facing glow (`coronaMaterial`) takes over.
     vertexShader: /* glsl */ `
       varying vec2 vUv;
       varying float vFacing;
       void main() {
         vUv = uv;
         vec4 mv = modelViewMatrix * vec4( position, 1.0 );
-        vFacing = smoothstep( 0.35, 0.75, abs( dot( normalize( normalMatrix * vec3( 0.0, 0.0, 1.0 ) ), normalize( -mv.xyz ) ) ) );
+        vFacing = smoothstep( 0.5, 0.85, abs( dot( normalize( normalMatrix * vec3( 0.0, 0.0, 1.0 ) ), normalize( -mv.xyz ) ) ) );
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: /* glsl */ `
@@ -462,12 +526,18 @@ export class LampHalos {
   private readonly materials: ShaderMaterial[] = [];
   /** The quads of the third brake lights: they glow only with the brake. */
   private readonly brakeOnly: ShaderMaterial[] = [];
-  /** Each lamp's box (body space). */
+  /** Each lamp's box (body space), brake-only ones (a centred third brake light) left out: `mount`. */
   private readonly boxes: Box3[] = [];
   /** Running pieces of a lamp that also has brake-only ones: their glow gives way to the whole lamp's with the brake. */
   private readonly runningOnly: ShaderMaterial[] = [];
   /** Head lamp glares (`front`). */
   private readonly glares: ShaderMaterial[] = [];
+  /** Camera-facing glows of the lamps (`coronaMaterial`), in the same groups as the flat halos. */
+  private readonly coronas = {
+    materials: [] as ShaderMaterial[],
+    brakeOnly: [] as ShaderMaterial[],
+    runningOnly: [] as ShaderMaterial[],
+  };
 
   /**
    * `meshes` = the red lamp meshes, `toBody` = world -> body matrix (the matrix worlds must be current). `reverse` = the glow
@@ -506,7 +576,7 @@ export class LampHalos {
     for (const lamp of lamps(
       meshes.flatMap((m) => pieces(m, toBody, reverse, cover)),
     )) {
-      this.boxes.push(lamp.box);
+      if (!lamp.brakeOnly) this.boxes.push(lamp.box);
       if (opts.front) {
         if (!opts.bulbs || !this.addBulbGlares(lamp, colour, opts.bulbs))
           this.addGlare(lamp, colour);
@@ -523,7 +593,12 @@ export class LampHalos {
       const y0 = lamp.box.min.y - margin;
       const w = Math.ceil((size.x + 2 * margin) / TEXEL);
       const h = Math.ceil((size.y + 2 * margin) / TEXEL);
-      const add = (piece: Piece, list: ShaderMaterial[]): void => {
+      const add = (
+        piece: Piece,
+        list: ShaderMaterial[],
+        coronas: ShaderMaterial[],
+      ): void => {
+        this.addCorona(piece, colour, coronas);
         const material = haloMaterial(
           maskTexture(piece, cover, x0, y0, w, h, radius),
           colour,
@@ -541,12 +616,13 @@ export class LampHalos {
         this.group.add(halo);
       };
       const running = lamp.parts.filter((p) => !p.brakeOnly);
-      if (lamp.brakeOnly) add(lamp, this.brakeOnly);
-      else if (running.length === lamp.parts.length) add(lamp, this.materials);
+      if (lamp.brakeOnly) add(lamp, this.brakeOnly, this.coronas.brakeOnly);
+      else if (running.length === lamp.parts.length)
+        add(lamp, this.materials, this.coronas.materials);
       else {
         // A lamp with brake-only pieces (a boot-lid half): the running halo round its running pieces, fading out as the
         // whole lamp's halo lights with the brake (one glow, no brighter overlap).
-        add(lamp, this.brakeOnly);
+        add(lamp, this.brakeOnly, this.coronas.brakeOnly);
         add(
           {
             box: lamp.box,
@@ -556,6 +632,7 @@ export class LampHalos {
             brakeOnly: false,
           },
           this.runningOnly,
+          this.coronas.runningOnly,
         );
       }
     }
@@ -563,9 +640,12 @@ export class LampHalos {
 
   /**
    * Where the lamps sit, through `bodyTo` (body -> the space wanted): x = half their spacing and y = their height (lamp
-   * faces seen from the front, weighted by size), z = the foremost lamp face (+z); null without lamps.
+   * faces seen from the front, weighted by size), z = the foremost lamp face (+z; `rear`: the rearmost); null without lamps.
    */
-  mount(bodyTo: Matrix4): { x: number; y: number; z: number } | null {
+  mount(
+    bodyTo: Matrix4,
+    rear = false,
+  ): { x: number; y: number; z: number } | null {
     let area = 0;
     let x = 0;
     let y = 0;
@@ -579,9 +659,10 @@ export class LampHalos {
       area += a;
       x += Math.abs(c.x) * a;
       y += c.y * a;
-      z = Math.max(z, b.max.z);
+      z = rear ? Math.max(z, -b.min.z) : Math.max(z, b.max.z);
     }
     if (!area) return null;
+    if (rear) z = -z;
     const p = new Vector3(x / area, y / area, z).applyMatrix4(bodyTo);
     return { x: p.x, y: p.y, z: p.z };
   }
@@ -662,6 +743,63 @@ export class LampHalos {
     this.group.add(glare);
   }
 
+  /** The camera-facing glow of a lamp piece: on its lit area's middle (lit-weighted, body space), as big as the lit part. */
+  private addCorona(
+    piece: Piece,
+    colour: Vector3,
+    list: ShaderMaterial[],
+  ): void {
+    let area = 0;
+    const c = new Vector3();
+    const litBox = new Box3();
+    const t = piece.tris;
+    const zs = piece.zs;
+    for (let k = 0, tri = 0; k < t.length; k += 12, tri++) {
+      const a =
+        Math.abs(
+          (t[k + 4] - t[k]) * (t[k + 9] - t[k + 1]) -
+            (t[k + 8] - t[k]) * (t[k + 5] - t[k + 1]),
+        ) / 2;
+      const glow = piece.glows[tri];
+      const lit =
+        a *
+        (glow
+          ? glow(
+              (t[k + 2] + t[k + 6] + t[k + 10]) / 3,
+              (t[k + 3] + t[k + 7] + t[k + 11]) / 3,
+            )
+          : 1);
+      area += lit;
+      if (lit > 0)
+        for (const j of [0, 4, 8])
+          litBox.expandByPoint(
+            new Vector3(t[k + j], t[k + j + 1], zs[tri * 3 + j / 4]),
+          );
+      c.x += (lit * (t[k] + t[k + 4] + t[k + 8])) / 3;
+      c.y += (lit * (t[k + 1] + t[k + 5] + t[k + 9])) / 3;
+      c.z += (lit * (zs[tri * 3] + zs[tri * 3 + 1] + zs[tri * 3 + 2])) / 3;
+    }
+    if (area <= 0) return;
+    const lit = litBox.getSize(new Vector3());
+    const r = Math.min(
+      CORONA_MAX,
+      Math.max(CORONA_MIN, 1.2 * Math.max(lit.x, lit.y, lit.z)),
+    );
+    c.divideScalar(area);
+    // A lamp off the centre line sits on one side of the car (a third brake light on neither).
+    const material = coronaMaterial(
+      colour,
+      Math.abs(c.x) > 0.25 ? Math.sign(c.x) : 0,
+    );
+    const corona = new Mesh(quad, material);
+    corona.scale.set(r, r, 1);
+    corona.position.copy(c);
+    corona.renderOrder = 5;
+    corona.frustumCulled = false;
+    list.push(material);
+    this.group.add(corona);
+  }
+
   /** How tight the glow is: 1 = soft (night), 2 = tight (a lit lens through rain / fog by day). */
   setSharp(sharp: number): void {
     for (const m of [...this.materials, ...this.brakeOnly, ...this.runningOnly])
@@ -674,12 +812,18 @@ export class LampHalos {
     for (const m of this.brakeOnly) m.uniforms.uLevel.value = brakeOnly;
     for (const m of this.runningOnly)
       m.uniforms.uLevel.value = Math.max(0, level - brakeOnly);
+    for (const m of this.coronas.materials) m.uniforms.uLevel.value = level;
+    for (const m of this.coronas.brakeOnly) m.uniforms.uLevel.value = brakeOnly;
+    for (const m of this.coronas.runningOnly)
+      m.uniforms.uLevel.value = Math.max(0, level - brakeOnly);
     this.group.visible = Math.max(level, brakeOnly) > 0.003;
   }
 
   dispose(): void {
     this.group.removeFromParent();
     for (const m of this.glares) m.dispose();
+    for (const list of Object.values(this.coronas))
+      for (const m of list) m.dispose();
     for (const m of [
       ...this.materials,
       ...this.brakeOnly,

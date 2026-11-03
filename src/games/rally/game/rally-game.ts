@@ -611,10 +611,14 @@ export class RallyGame {
         tailLightMount(this.car.physics),
         // The red spill tints the road at night; by day (rain / fog) the lamps show only in the wet road's streaks.
         lights.day ? 0 : need,
-        lights.perLamp ? headlightMount(this.car.physics).x : 0,
+        headlightMount(this.car.physics).x,
       );
-      // The beam starts at the model's own lamps once they are known.
+      // The beam and the red spill start at the model's own lamps once they are known.
       this.model.onHeadlamps((m) => this.headlights?.moveTo(m));
+      this.model.onTaillamps((m) => {
+        this.tailLight?.moveTo(m);
+        this.lampReflections?.moveTail(m);
+      });
       // A wet road mirrors the lit lamps.
       if (w.wet > 0) {
         const { lamps } = lights;
@@ -628,6 +632,8 @@ export class RallyGame {
             w.wet,
           );
           this.lampReflections.setLevels(lamps, lamps, 0);
+          if (this.model.taillampMount)
+            this.lampReflections.moveTail(this.model.taillampMount);
         });
       }
     }

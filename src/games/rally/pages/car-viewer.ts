@@ -623,6 +623,7 @@ function applyLights(): void {
           -m.root.position.y,
           wet,
         );
+        if (m.taillampMount) reflections.moveTail(m.taillampMount);
         applyLamps();
       });
     }
@@ -630,8 +631,14 @@ function applyLights(): void {
       model.root,
       tailLightMount(model.def.physics),
       need,
-      lit.perLamp ? headlightMount(model.def.physics).x : 0,
+      headlightMount(model.def.physics).x,
     );
+    const m = model;
+    model.onTaillamps((at) => {
+      if (m !== model) return;
+      tailLight?.moveTo(at);
+      reflections?.moveTail(at);
+    });
     if (state.beam)
       headlights = new Headlights(
         model.root,

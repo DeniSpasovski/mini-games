@@ -492,6 +492,9 @@ export class CarModel {
   /** The modelled head lamps' position (once they are known), see `onHeadlamps`. */
   headlampMount: HeadlampMount | null = null;
   private headlampListeners: ((m: HeadlampMount) => void)[] = [];
+  /** The modelled tail lamps' position (z = their rearmost face), see `onTaillamps`. */
+  taillampMount: HeadlampMount | null = null;
+  private taillampListeners: ((m: HeadlampMount) => void)[] = [];
   /** Lights on (night): headlamps glow, tail lamps keep a steady glow under the brake light. */
   /** 0..1 lights level (`setLamps`). */
   private lampsOn = 0;
@@ -1250,6 +1253,12 @@ export class CarModel {
     this.applyHeadLamps();
   }
 
+  /** Calls `f` with the tail lamps' position whenever it is known or changes (the imported model's own lamps). */
+  onTaillamps(f: (m: HeadlampMount) => void): void {
+    this.taillampListeners.push(f);
+    if (this.taillampMount) f(this.taillampMount);
+  }
+
   /** Calls `f` with the head lamps' position whenever it is known or changes (the imported model's own lamps). */
   onHeadlamps(f: (m: HeadlampMount) => void): void {
     this.headlampListeners.push(f);
@@ -1689,6 +1698,11 @@ export class CarModel {
         { covers: amberLenses },
       );
       this.body.add(this.halos.group);
+      const tail = this.halos.mount(this.body.matrix, true);
+      if (tail) {
+        this.taillampMount = tail;
+        for (const f of this.taillampListeners) f(tail);
+      }
       const white = redLamps.filter((m) => {
         const { userData } = m.material as Material;
         return userData.reverseHalo && userData.brakeLamp?.reverseGlow;
@@ -1848,6 +1862,7 @@ export class CarModel {
     this.halos?.dispose();
     this.headHalos?.dispose();
     this.headlampListeners = [];
+    this.taillampListeners = [];
     this.reverseHalos?.dispose();
     for (const g of this.wheelGroups) for (const geo of g.geoms) geo.dispose();
     this.clearBadge();

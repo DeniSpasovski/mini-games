@@ -209,7 +209,9 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   same for the boot-lid half of a split tail lamp, which is also its white reversing lamp (Bimmer GT2); `lamp()` `idleGlow` does
   it inside one glow map (22B: pale red body = running lamp, strong reds = brake).
   A lamp with a `LampNight` also gets a soft red halo (`cars/shared/lamp-halo.ts`: its silhouette from behind, blurred, on an
-  additive quad), and at night `game/headlights.ts` `TailLight` adds a dim red spot behind the car (road, verges) while
+  additive quad) plus a camera-facing corona per lit lens (sized to the lens, faded side-on and hidden on the far side, so a side
+  view still reads lit), and at night `game/headlights.ts` `TailLight` adds two dim red spots under the model's own tail lamps
+  (`CarModel.onTaillamps`; every quality level) while
   `ParticleSystem.setTaillight` tints the dust behind it; both follow the brake pedal (`rally-game.ts` `lightParticlesByLamps`).
   How a tail lamp is lit (running = about the sky's luminance, brake ~10x): the lens glows red and a small hot spot (the bulb / LED
   seen through it) is driven past red and turns pale; the halo behind is tight by day in rain / fog (`uSharp` 2) and soft at night,

@@ -354,6 +354,58 @@ const SRC_SIZE = 512;
 const RUNNING_BODY = new Set(['subie_22b_lamps.png']);
 const RUNNING_BODY_NIGHT: LampNight = { idle: 0.2, on: 0.6 };
 /**
+ * Tail sheets photographed with dark specks / a dark blot inside the lit lens: an unlit pixel with lit ones within
+ * `HOLE_REACH` px in all four directions glows like them (`fillHoles`), else it shows as a black hole in the lit lamp.
+ */
+const HOLE_FILL = new Set(['subie_22b_lamps.png']);
+const HOLE_REACH = 24;
+
+const HOLE_DIRS = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+];
+
+/**
+ * Fills the holes of a lamp glow (`v` per pixel, 0 = unlit) and its red level (`red`) in place: an unlit pixel enclosed by lit
+ * ones (left, right, up and down within `HOLE_REACH`) takes the mean of those four.
+ */
+function fillHoles(v: Float32Array, red: Float32Array): void {
+  const n = SRC_SIZE;
+  const v0 = v.slice();
+  const r0 = red.slice();
+  for (let y = 0; y < n; y++)
+    for (let x = 0; x < n; x++) {
+      const i = y * n + x;
+      if (v0[i] > 0) continue;
+      let sv = 0;
+      let sr = 0;
+      let hits = 0;
+      for (const [dx, dy] of HOLE_DIRS) {
+        const before = hits;
+        for (let k = 1; k <= HOLE_REACH; k++) {
+          const xx = x + dx * k;
+          const yy = y + dy * k;
+          if (xx < 0 || yy < 0 || xx >= n || yy >= n) break;
+          const j = yy * n + xx;
+          if (v0[j] > 0) {
+            sv += v0[j];
+            sr += r0[j];
+            hits++;
+            break;
+          }
+        }
+        // Open on this side: not a hole.
+        if (hits === before) break;
+      }
+      if (hits === 4) {
+        v[i] = sv / 4;
+        red[i] = sr / 4;
+      }
+    }
+}
+/**
  * Split tail sheets (`srcPart`: any red sheet that is not a running-body or clear-interior one): the lens glows at full
  * and the sheet's pale-pink bulb pixels (hot spots) at full; the running light (`idleGlow`) keeps `IDLE_LENS` of the lens' level
  * (a linear share: the map is sRGB, so it is painted at its 1 / 2.2 power).
@@ -526,11 +578,20 @@ function srcPart(name: string): Material {
       ) => {
         const c = (t.image as HTMLCanvasElement).getContext('2d')!;
         const d = c.createImageData(SRC_SIZE, SRC_SIZE);
+        const vs = new Float32Array(px.length / 4);
+        const reds = new Float32Array(px.length / 4);
         for (let i = 0; i < px.length; i += 4) {
-          const v = f(px[i], px[i + 1], px[i + 2], i >> 2) * (px[i + 3] / 255);
-          d.data[i] = px[i] * v;
-          d.data[i + 1] = (red ? px[i] * 0.03 : px[i + 1]) * v;
-          d.data[i + 2] = (red ? px[i] * 0.015 : px[i + 2]) * v;
+          vs[i >> 2] =
+            f(px[i], px[i + 1], px[i + 2], i >> 2) * (px[i + 3] / 255);
+          reds[i >> 2] = px[i];
+        }
+        if (red && HOLE_FILL.has(file)) fillHoles(vs, reds);
+        for (let i = 0; i < px.length; i += 4) {
+          const v = vs[i >> 2];
+          const r = reds[i >> 2];
+          d.data[i] = r * v;
+          d.data[i + 1] = (red ? r * 0.03 : px[i + 1]) * v;
+          d.data[i + 2] = (red ? r * 0.015 : px[i + 2]) * v;
           d.data[i + 3] = 255;
         }
         c.putImageData(d, 0, 0);
@@ -1583,12 +1644,13 @@ function tailC4Maps(): {
     }),
   );
   // Lit with SMALL_LAMP_NIGHT: the whole lens body glows dark red, the light-guide stripes and dots at full red (a lighter dot
-  // would wash out to pink), the white reversing lens stays dark.
+  // would wash out to pink), the white reversing lens stays dark. A lit light guide glows almost evenly: its stripes stay
+  // close in level (a strong light / dark stripe flickers into moire seen side-on).
   const glow = canvas(W, H, (g) =>
     draw(g, {
       base: '#b00c10',
       dark: '#000',
-      stripe: ['#ff2a1c', '#8a0a0e'],
+      stripe: ['#ff2a1c', '#e0200f'],
       dot: '#ff2a1c',
       rib: ['#7a090c', ''],
       white: '#160204',
@@ -2280,8 +2342,14 @@ const BUILDERS: Record<PartName, () => Material> = {
   /** Modelled tail-lamp LED strip: red, idle glow, bright with the brake pedal (setBrake). */
   // LED strips are bright: by day the brake reads over a sunlit lens (night keeps RED_NIGHT).
   tailled: () => tailLed(0xff0000, 0.3, 2.2, RED_NIGHT),
-  /** Bumper corner strip: dark red reflector while off, lights like `tailled` with the brake pedal (setBrake). */
-  brakestrip: () => brakeStrip(0xff0000, 1.1, STRIP_NIGHT),
+  /** Red bumper reflector strip (Audi RS6 bumper corners): passive, never lit (a real one only throws light back). */
+  brakestrip: () =>
+    new MeshPhysicalMaterial({
+      color: 0xa80f08,
+      roughness: 0.25,
+      metalness: 0.3,
+      clearcoat: 1,
+    }),
   brakestripred: () => brakeStrip(0xff0000, 1.1, STRIP_NIGHT),
   /** Modelled reversing lamp: matte white, dark until the car is in reverse gear (setBrake `reversing`), never lit by the brake. */
   reverselamp: () =>

@@ -127,6 +127,12 @@ export class LampReflections {
     this.lamps.push({ mesh, mat, at, facing, color });
   }
 
+  /** The streaks under the car's own tail lamps (`CarModel.onTaillamps`): x = half their spacing, y, z (car space). */
+  moveTail(at: { x: number; y: number; z: number }): void {
+    for (const l of this.lamps)
+      if (l.facing < 0) l.at.set(Math.sign(l.at.x) * at.x, at.y, at.z);
+  }
+
   /** Lamp levels: head 0..1, tail running 0..1, brake pedal 0..1. */
   setLevels(head: number, tail: number, brake: number): void {
     this.head = head;
