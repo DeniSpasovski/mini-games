@@ -71,6 +71,11 @@ export interface MapDef {
    * through a suburb, a forest road with the trees set back), easing in and out over `fade` m (default 30) at the ends.
    */
   treeSetback?: { from: number; to: number; dist: number; fade?: number }[];
+  /**
+   * Trees (not bushes) whose low leaves (under 4 m above the stage road) would reach more than this many m past its edge
+   * take another pose (variant, rotation, size) that keeps them off: world/scatter.ts `lowOverRoad`.
+   */
+  treeCrownClear?: number;
   /** Props placed along the road (posts, signs, bales, crowds...). */
   roadside: RoadsideRule[];
   /** Continuous barriers along the road (Jersey wall, guard rail): one swept mesh, not separate props. */

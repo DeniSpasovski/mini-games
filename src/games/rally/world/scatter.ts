@@ -16,11 +16,12 @@ import {
   type TreePose,
 } from '../trees/placement';
 import { speciesOfType, variantCount } from '../trees/species';
-import { variantInfo } from '../trees/variants';
+import { mix32 } from '../trees/math';
+import { variantFoliage, variantInfo } from '../trees/variants';
 import type { TerrainSampler } from './heightfield';
 import { newLakeQuery, type Lakes } from './lakes';
 import { newPathQuery, type Landcover, type PathNetwork } from './real-data';
-import { newRoadQuery, type Road } from './road';
+import { newRoadQuery, type Road, type RoadQuery } from './road';
 import { fanVariant } from './fan-variants';
 import { splitRuns, tapeRun } from './tape';
 
@@ -34,11 +35,17 @@ export interface ScatterContext {
   stageId?: string;
   /** `MapDef.treeSetback`: the verge the trees keep clear along the stage road. */
   treeSetback?: MapDef['treeSetback'];
+  /** `MapDef.treeCrownClear`: how far a roadside tree's crown may reach over the stage road's edge. */
+  treeCrownClear?: MapDef['treeCrownClear'];
   /** The crop standing at a point (rules with `crop`; world/terrain-gen.ts `cropAt`). */
   cropAt?: (x: number, z: number) => string | undefined;
   /** Direction of the field strips (rad, `landcover.fields.angle`): `rows.fields` rules run along it. */
   fieldAngle?: number;
 }
+
+/** `MapDef.treeCrownClear`: leaves lower than this above the road (m) count as low, and a tree tries this many other poses. */
+const LOW_CLEAR = 4;
+const REPOSE_TRIES = 8;
 
 /** Distance from the road edge (m) the trees keep clear at `along`: the largest of the setbacks there, eased at their ends. */
 export function setbackAt(
@@ -484,13 +491,76 @@ export class ScatterField {
           tiltX,
           tiltZ,
         };
-        if (tree) this.poseTree(inst, hash3(cx, cz, ri * 65536 + i, 0x7ee5));
+        if (tree) {
+          const ruleScale = inst.scale;
+          const index = hash3(cx, cz, ri * 65536 + i, 0x7ee5);
+          this.poseTree(inst, index);
+          // No low limbs over the road: a solid tree whose leaves hang low over the stage road takes another pose
+          // (variant, rotation, size) from the same hash: the one of REPOSE_TRIES that keeps them furthest off.
+          if (solid && this.ctx.treeCrownClear !== undefined && q.found) {
+            const allow = this.ctx.treeCrownClear;
+            let over = this.lowOverRoad(inst, q, rd);
+            const tries = over > allow ? REPOSE_TRIES : 0;
+            for (let k = 1; k <= tries && over > 0; k++) {
+              const v = inst.variant,
+                r = inst.rotY,
+                sc = inst.scale,
+                pose = inst.tree;
+              inst.scale = ruleScale;
+              this.poseTree(inst, mix32(index, k));
+              const o = this.lowOverRoad(inst, q, rd);
+              if (o < over) over = o;
+              else {
+                inst.variant = v;
+                inst.rotY = r;
+                inst.scale = sc;
+                inst.tree = pose;
+              }
+            }
+          }
+        }
         if (nearRoad !== undefined && rd < nearRoad) inst.near = true;
         if (extra) inst.extra = true;
         out.push(inst);
       }
     }
     return out;
+  }
+
+  private bq = newRoadQuery();
+  /**
+   * How far (m) a placed tree's low leaves (under LOW_CLEAR above the road) reach past the stage road's edge: its
+   * variant's leaf points posed (rotation, scale) and projected towards the road, plus the leaf sprites' reach.
+   */
+  private lowOverRoad(inst: ScatterInstance, q: RoadQuery, rd: number): number {
+    const f = variantFoliage(inst.tree!.species, inst.variant);
+    const k = inst.scale;
+    if (rd > variantInfo(inst.tree!.species, inst.variant).radius * k)
+      return -Infinity;
+    // Towards the road: down the gradient of the distance to its centreline.
+    const e = 0.5;
+    const dx =
+      this.road.query(inst.x + e, inst.z, this.bq).distance -
+      this.road.query(inst.x - e, inst.z, this.bq).distance;
+    const dz =
+      this.road.query(inst.x, inst.z + e, this.bq).distance -
+      this.road.query(inst.x, inst.z - e, this.bq).distance;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-6) return -Infinity;
+    const nx = -dx / len;
+    const nz = -dz / len;
+    const c = Math.cos(inst.rotY);
+    const s = Math.sin(inst.rotY);
+    const lowY = (q.height + LOW_CLEAR - inst.y) / k;
+    const p = f.points;
+    let best = -Infinity;
+    for (let i = 0; i < p.length; i += 3) {
+      if (p[i + 1] > lowY) continue;
+      const ox = p[i] * c + p[i + 2] * s;
+      const oz = -p[i] * s + p[i + 2] * c;
+      best = Math.max(best, (ox * nx + oz * nz) * k);
+    }
+    return best + f.margin * k - rd;
   }
 
   /** Variant, rotation, scale (x the map's) and tint of a placed tree from the stage id and its placement index. */
