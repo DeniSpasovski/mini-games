@@ -215,7 +215,7 @@ const PROPS: SourceLink[] = [
   {
     label: 'Poly Haven models',
     url: 'https://polyhaven.com/models',
-    note: 'service park table and chairs, generator, jerrycans, underpass wall lamps, power poles, village benches, bins, utility cabinets, picnic tables - CC0',
+    note: 'service park table and chairs, generator, jerrycans, underpass wall lamps, power poles, village benches, bins, utility cabinets, picnic tables; the grass, nettles, dandelions and reeds by the roads - CC0',
   },
 ];
 

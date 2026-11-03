@@ -1,0 +1,146 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/node_modules/three/build/three.module.js",
+          "three/addons/": "/node_modules/three/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <script type="module">
+      // The page scripts/plants/bake-plants.mjs drives: renders the scanned clumps of each cell (side view, albedo
+      // only) and packs the sheets. Every number it uses comes in with the job.
+      import * as THREE from 'three';
+      import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+      const SS = 2; // supersampling: alpha-tested at 2x, averaged down to soft coverage
+
+      const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true });
+      renderer.outputColorSpace = THREE.LinearSRGBColorSpace; // textures are passed through raw (sRGB in, sRGB out)
+      renderer.setClearColor(0x000000, 0);
+
+      const loader = new GLTFLoader();
+      const texLoader = new THREE.TextureLoader();
+      const tex = (url) =>
+        new Promise((ok, fail) =>
+          texLoader.load(url, (t) => {
+            t.flipY = false; // glTF uv
+            t.colorSpace = THREE.NoColorSpace;
+            t.generateMipmaps = false;
+            t.minFilter = THREE.LinearFilter;
+            ok(t);
+          }, undefined, fail),
+        );
+
+      const vert = /* glsl */ `
+        varying vec2 vUv;
+        void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 ); }`;
+      const frag = /* glsl */ `
+        uniform sampler2D map;
+        uniform sampler2D alphaMap;
+        uniform sampler2D arm;
+        varying vec2 vUv;
+        void main() {
+          if ( texture2D( alphaMap, vUv ).r < 0.5 ) discard;
+          vec3 c = texture2D( map, vUv ).rgb;
+          // The scan's own ambient occlusion (arm.r), half strength: the game lights the card and darkens its roots.
+          float ao = mix( 1.0, texture2D( arm, vUv ).r, 0.5 );
+          gl_FragColor = vec4( c * pow( ao, 1.0 / 2.2 ), 1.0 );
+        }`;
+
+      async function loadModels(models) {
+        const out = {};
+        for (const [id, m] of Object.entries(models)) {
+          const gltf = await loader.loadAsync(m.gltf);
+          const [diff, alpha, arm] = await Promise.all([tex(m.diff), tex(m.alpha), tex(m.arm)]);
+          const dry = m.dry ? await tex(m.dry) : diff;
+          const mats = {};
+          for (const [look, map] of Object.entries({ diff, dry }))
+            mats[look] = new THREE.ShaderMaterial({
+              uniforms: { map: { value: map }, alphaMap: { value: alpha }, arm: { value: arm } },
+              vertexShader: vert,
+              fragmentShader: frag,
+              side: THREE.DoubleSide,
+            });
+          const meshes = {};
+          gltf.scene.traverse((o) => {
+            if (!o.isMesh) return;
+            const g = o.geometry.clone();
+            g.computeBoundingBox();
+            // Stand the clump on y = 0, centred over its root.
+            const b = g.boundingBox;
+            g.translate(-(b.min.x + b.max.x) / 2, -b.min.y, -(b.min.z + b.max.z) / 2);
+            meshes[o.name] = g;
+          });
+          out[id] = { mats, meshes };
+        }
+        return out;
+      }
+
+      /** One cell: RGBA (straight alpha) at cell size, from a 2x render. */
+      function renderCell(models, cell, win, cw, ch, pitch) {
+        const scene = new THREE.Scene();
+        for (const p of cell) {
+          const m = models[p.model];
+          const mesh = new THREE.Mesh(m.meshes[p.mesh], m.mats[p.look]);
+          mesh.position.set(p.x, 0, p.z);
+          mesh.rotation.y = p.rotY;
+          mesh.scale.set(p.scale, p.scale * p.sy, p.scale);
+          scene.add(mesh);
+        }
+        const [W, H] = win;
+        // Orthographic, a little from above (the driver looks down on the verge); the ground line at z = 0 sits on the
+        // cell's bottom edge.
+        const cam = new THREE.OrthographicCamera(-W / 2, W / 2, H, 0, -10, 10);
+        cam.position.set(0, 0, 0);
+        cam.rotation.x = -pitch;
+        cam.updateMatrixWorld();
+        const rt = new THREE.WebGLRenderTarget(cw * SS, ch * SS);
+        renderer.setRenderTarget(rt);
+        renderer.clear();
+        renderer.render(scene, cam);
+        const px = new Uint8Array(cw * SS * ch * SS * 4);
+        renderer.readRenderTargetPixels(rt, 0, 0, cw * SS, ch * SS, px);
+        renderer.setRenderTarget(null);
+        rt.dispose();
+        // Down to cell size; rows flipped to top-down (image order).
+        const out = new Float32Array(cw * ch * 4);
+        for (let y = 0; y < ch; y++)
+          for (let x = 0; x < cw; x++) {
+            let r = 0, g = 0, b = 0, a = 0;
+            for (let j = 0; j < SS; j++)
+              for (let i = 0; i < SS; i++) {
+                const k = ((y * SS + j) * cw * SS + x * SS + i) * 4;
+                const w = px[k + 3] / 255;
+                r += px[k] * w; g += px[k + 1] * w; b += px[k + 2] * w; a += w;
+              }
+            const o = ((ch - 1 - y) * cw + x) * 4;
+            if (a > 0) { out[o] = r / a; out[o + 1] = g / a; out[o + 2] = b / a; }
+            out[o + 3] = (a / (SS * SS)) * 255;
+          }
+        return out;
+      }
+
+      window.bake = async (job) => {
+        renderer.setSize(8, 8);
+        const models = await loadModels(job.models);
+        const cells = [];
+        for (const c of job.cells)
+          cells.push(renderCell(models, c.placements, c.window, c.w, c.h, job.pitch));
+        // Back to the driver as base64 RGBA bytes (straight alpha), one string per cell.
+        return cells.map((c) => {
+          const u = Uint8Array.from(c, (v) => Math.max(0, Math.min(255, Math.round(v))));
+          let s = '';
+          for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000));
+          return btoa(s);
+        });
+      };
+      window.ready = true;
+    </script>
+  </body>
+</html>

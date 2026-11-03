@@ -122,6 +122,10 @@ CC0 scan from Poly Haven, simplified by `scripts/rocks/bake-rocks.mjs`: Rock Mos
 
 CC0 scans from Poly Haven, made grey (with their normal maps) by `scripts/trees/bake-bark.py`: Jolcham Oak Bark 01 (Charlotte Baglioni), Pine Bark (Dimitrios Savva), Chinese Hackberry Bark (Charlotte Baglioni) for beech and hornbeam, Bark Platanus (Dimitrios Savva), Bark Willow (Dario Barresi, Dimitrios Savva), Japanese Cedar Bark (Charlotte Baglioni) for cypress and juniper. No credit is required.
 
+### Grass, weeds and reeds (baked into `src/games/rally/engine/plants/`)
+
+CC0 plant models from Poly Haven, rendered into card atlases by `scripts/plants/bake-plants.mjs`: Grass Medium 01 (Rob Tuytel, Rico Cilliers), Grass Medium 02 (Rico Cilliers), Nettle Plant, Dandelion 01, Celandine 01, Weed Plant 02 (Rob Tuytel, Rico Cilliers). No credit is required.
+
 ### Dust (baked into `src/games/rally/engine/particles/dust.webp`)
 
 Four smoke sprites from Particle Pack 1.1 by Kenney (kenney.nl, CC0; the copy at github.com/Calinou/kenney-particle-pack), made into one atlas by `scripts/particles/bake-dust.py`. No credit is required.

@@ -304,6 +304,15 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
   is fixed by road distance, never by camera distance (catalog `nearRoad`, `nearBoost`): grass is denser within 14 m of a road
   (crossed cards at every distance: blade strips by the road read as bare ground next to them), so nothing swaps or
   fills in as the car drives on.
+- **Grass, weeds, reeds** (`engine/grass.ts`, `assets/builders/vegetation.ts`): crossed cards cut from four atlases
+  (`engine/plants/*.webp`, coverage mips) that `scripts/plants/bake-plants.mjs` renders from CC0 Poly Haven plant models:
+  green / dry / spring grass tufts (the dry sheet is the scans' own dry colour, spring the green one brought to the spring
+  band), the weed margin (dandelion, celandine; variant 2 of `grass_tuft` / `spring_grass`), nettles (`tall_weeds`) and reeds
+  (the tall grass stretched). The blade strips of the near LOD take their colours from the measured means
+  (`plant-atlas.data.ts`) and the cards' footprint, so both levels match.
+- **Vineyards** (`engine/vines.ts`): canopy cards painted per season from the trees' lobed leaf sprays (`trees/leaftex.ts`)
+  as canes rising from the cordon, colours in the trees' measured bands (`LEAF`); trunks and cordon arms wear the trees'
+  scanned cedar bark (`vineBarkMaterial`).
 - **Horizon backdrop** (`horizon`, real maps): the land ~25 km around the map (terrain + land cover from Terrarium /
   WorldCover, no roads or buildings), baked by `scripts/realmap/horizon.py` into `<map>/horizon.json`, drawn behind
   everything with its own far plane (`world/horizon.ts`; ~2 draws, cut away inside the streamed terrain). A grid may be
@@ -614,6 +623,9 @@ ANGLE, ~5 us a draw), the GPU side mostly trees. Numbers and bench history: `sou
 - Scatter LOD1+ buckets draw only the camera's view (`InstanceStreamer.setView`).
 - Empty InstancedMeshes are hidden (each still costs a draw setup). A split by camera distance runs before the render
   (the road `DistanceCull` calls `userData.beforeRender`), not in `onBeforeRender`, which needs a visible mesh.
+- Level fades (`world/lod-fade.ts`, catalog `fade`: grass, weeds, crops, vines, people): a level change at a rebuild draws
+  the instance in both buckets for 0.3 s with a per-instance `instFade` (start, role); the shared shader chunks dither the
+  two with the trees' 8 x 8 pattern (one level per pixel, never see-through). The far end of the last level fades too.
 - Meshes that never move set `matrixAutoUpdate = false`; transparent `DoubleSide` materials set `forceSinglePass`.
 
 **GPU**

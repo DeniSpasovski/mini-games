@@ -9,6 +9,12 @@ import {
   type Texture,
   type WebGLProgramParametersWithUniforms,
 } from 'three';
+import {
+  LOD_FADE_FRAGMENT,
+  LOD_FADE_PARS_FRAGMENT,
+  LOD_FADE_PARS_VERTEX,
+  LOD_FADE_VERTEX,
+} from '../world/lod-fade';
 import { gradeUniforms } from './grade';
 import { PUDDLE_GLSL } from '../puddles';
 
@@ -28,6 +34,7 @@ import { PUDDLE_GLSL } from '../puddles';
  * - **Wind:** vertex sway for materials with `defines.RALLY_WIND` (= sway per metre² of height above the asset
  *   origin; foliage materials in `engine/materials.ts`), phase from the instance position.
  * - **Flags:** cloth materials with `defines.RALLY_FLAG` fly downwind and ripple (`FLAG_VERTEX`).
+ * - **Level fades:** materials with `defines.RALLY_LOD_FADE` dither between detail levels (world/lod-fade.ts).
  * - **Leaf translucency:** materials with `defines.RALLY_FOLIAGE` glow a little when the sun is behind them.
  * - **Wet surfaces (rain):** `setWet`. Every lit standard / physical material gets a water film: porous (rough,
  *   non-metal) surfaces darken, roughness drops and bumps flatten under the film, most on surfaces facing up (water
@@ -528,7 +535,7 @@ const FLAG_NORMAL = /* glsl */ `
 #endif
 `;
 
-const BEGIN_VERTEX = /* glsl */ `
+const BEGIN_VERTEX_BASE = /* glsl */ `
 vec3 transformed = vec3( position );
 #ifdef USE_ALPHAHASH
 	vPosition = vec3( position );
@@ -549,6 +556,7 @@ vec3 transformed = vec3( position );
 	}
 #endif
 ${FLAG_VERTEX}`;
+const BEGIN_VERTEX = BEGIN_VERTEX_BASE + LOD_FADE_VERTEX;
 
 const LIGHTS_PARS = /* glsl */ `
 uniform sampler2D wsMacro;
@@ -937,6 +945,10 @@ function install(): void {
   chunks.fog_pars_fragment = FOG_PARS_FRAGMENT;
   chunks.fog_fragment = FOG_FRAGMENT;
   chunks.begin_vertex = BEGIN_VERTEX;
+  // Dithered fade between detail levels (world/lod-fade.ts): materials with `defines.RALLY_LOD_FADE`.
+  chunks.uv_pars_vertex = chunks.uv_pars_vertex + LOD_FADE_PARS_VERTEX;
+  chunks.uv_pars_fragment = chunks.uv_pars_fragment + LOD_FADE_PARS_FRAGMENT;
+  chunks.alphatest_fragment = chunks.alphatest_fragment + LOD_FADE_FRAGMENT;
   basePhysical = chunks.lights_physical_fragment;
   baseLambert = chunks.lights_lambert_fragment;
   baseLightsEnd = chunks.lights_fragment_end;

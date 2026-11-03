@@ -1,121 +1,109 @@
-import { BufferAttribute, PlaneGeometry, type BufferGeometry } from 'three';
 import { Rng } from '../../../../shared/rng';
-import { merge, paint, shade } from '../../engine/geo';
 import {
   cropBlock,
   cropCardMaterial,
   crossedCards,
   type CropCard,
 } from '../../engine/crops';
-import { bladeTuftGeometry, type GrassKind } from '../../engine/grass';
+import {
+  bladeTuftGeometry,
+  CELLS,
+  GRASS_SHEET,
+  plantCards,
+  type GrassKind,
+} from '../../engine/grass';
 import { getMaterial, type MaterialId } from '../../engine/materials';
-import { vineCanopy, vineMaterial, vineWood } from '../../engine/vines';
+import {
+  vineBarkMaterial,
+  vineCanopy,
+  vineMaterial,
+  vineWood,
+} from '../../engine/vines';
 import type { Season } from '../../season';
 import type { AssetBuilder } from '../types';
 
 /**
- * Grass / reed / weed cards (the detail layer; grass is blade strips up close). All cards of a kind are ONE merged
- * geometry with vertex colours + a shared foliage card material = one draw call per (asset, variant) for any number
- * of instances. Trees and
- * bushes are not assets: they grow from L-systems (`trees/`).
+ * Grass / weed / reed cards (the detail layer): crossed cards cut from the scanned plant atlases (engine/grass.ts),
+ * one merged geometry per variant + a shared card material = one draw call per (asset, variant) for any number of
+ * instances. Grass is blade strips up close. Trees and bushes are not assets: they grow from L-systems (`trees/`).
  */
 
-/** Near LOD of the grass assets: real blade strips (engine/grass.ts); the far LOD is the crossed cards. */
-function bladeTuft(seed: number, kind: GrassKind, height: number) {
-  return {
-    parts: [
-      {
-        geometry: bladeTuftGeometry(seed, kind, 0.9, height),
-        material: getMaterial('grass_blade'),
-      },
-    ],
-  };
-}
+/** Grass footprint (m): the blade strips and the cards cover the same width, so the levels match. */
+const GRASS_W = 0.9;
 
-export const grassTuft: AssetBuilder = ({ seed, lod }) => {
-  if (lod === 0) return bladeTuft(seed, 'green', 0.5);
-  const rng = new Rng(seed);
-  const parts: BufferGeometry[] = [];
-  const w = rng.range(0.8, 1.1);
-  const h = rng.range(0.38, 0.55);
-  for (let i = 0; i < 3; i++) {
-    const g = new PlaneGeometry(w, h);
-    g.translate(0, h / 2, 0);
-    g.rotateY((i * Math.PI) / 3 + rng.next() * 0.3);
-    const pg = paint(g, rng.pick(['#c8d0a0', '#b8c48c', '#d8d0a0']));
-    // Normals straight up: grass is lit like the ground under it (no dark backfaces).
-    const n = pg.getAttribute('normal') as BufferAttribute;
-    for (let k = 0; k < n.count; k++) n.setXYZ(k, 0, 1, 0);
-    // Darker at the roots (the sheet darkens them too).
-    shade(pg, (_x, y) => 0.7 + 0.3 * Math.min(1, y / h));
-    parts.push(pg);
-  }
-  return {
-    parts: [{ geometry: merge(parts), material: getMaterial('foliage_card') }],
-  };
+const GRASS_MATERIAL: Record<GrassKind, MaterialId> = {
+  green: 'foliage_card',
+  dry: 'foliage_card_dry',
+  spring: 'foliage_card_spring',
 };
 
 /**
- * Crossed grass cards (same construction as grass_tuft) where the card TEXTURE carries
- * the colour; the near-white vertex colours only vary it a little. `blades` = the near LOD is blade strips.
+ * Grass: blade strips (LOD 0, engine/grass.ts, the sheet's measured colours) and crossed cards of the scanned tufts
+ * (LOD 1). Variant 2 of the green and spring grass is the weed margin (dandelion, celandine, a low weed in the grass).
  */
-function colouredGrass(
-  material: MaterialId,
-  height: [number, number],
-  colors: string[],
-  blades?: GrassKind,
-): AssetBuilder {
-  return ({ seed, lod }) => {
-    if (blades && lod === 0)
-      return bladeTuft(seed, blades, (height[0] + height[1]) / 2);
+function grass(kind: GrassKind, height: [number, number]): AssetBuilder {
+  return ({ seed, variant, lod }) => {
     const rng = new Rng(seed);
-    const parts: BufferGeometry[] = [];
-    const w = rng.range(0.7, 1.05);
     const h = rng.range(height[0], height[1]);
-    for (let i = 0; i < 3; i++) {
-      const g = new PlaneGeometry(w, h);
-      g.translate(0, h / 2, 0);
-      g.rotateY((i * Math.PI) / 3 + rng.next() * 0.3);
-      const pg = paint(g, rng.pick(colors));
-      const nrm = pg.getAttribute('normal') as BufferAttribute;
-      for (let k = 0; k < nrm.count; k++) nrm.setXYZ(k, 0, 1, 0);
-      shade(pg, (_x, y) => 0.6 + 0.4 * Math.min(1, y / h));
-      parts.push(pg);
-    }
+    if (lod === 0)
+      return {
+        parts: [
+          {
+            geometry: bladeTuftGeometry(seed, kind, GRASS_W, h),
+            material: getMaterial('grass_blade'),
+          },
+        ],
+      };
+    const margin = kind !== 'dry' && variant === 2;
+    const cells =
+      kind === 'dry' ? CELLS.dryTufts : margin ? [CELLS.margin] : CELLS.tufts;
+    // A card's window is 1 x 0.5 m (scripts/plants/layout.ts): the tuft fills its width, so scale both ways.
+    const w = GRASS_W * rng.range(0.95, 1.05) * (h / 0.5) ** 0.5;
     return {
-      parts: [{ geometry: merge(parts), material: getMaterial(material) }],
+      parts: [
+        {
+          geometry: plantCards(rng, GRASS_SHEET[kind], cells, w, h),
+          material: getMaterial(GRASS_MATERIAL[kind]),
+        },
+      ],
     };
   };
 }
 
-/** Dry summer grass (golden). */
-export const dryGrass = colouredGrass(
-  'foliage_card_dry',
-  [0.45, 0.7],
-  ['#ffffff', '#f1eadb', '#e6dcc4', '#fff6e4'],
-  'dry',
-);
+export const grassTuft = grass('green', [0.38, 0.55]);
+
+/** Dry summer grass (golden): the scans' own dry colour. */
+export const dryGrass = grass('dry', [0.45, 0.7]);
 
 /** Fresh spring grass (bright green), for maps with a green `groundTint`. */
-export const springGrass = colouredGrass(
-  'foliage_card_spring',
-  [0.3, 0.5],
-  ['#ffffff', '#eef3dc', '#f6f2d4', '#e4eecf'],
-  'spring',
-);
+export const springGrass = grass('spring', [0.3, 0.5]);
 
-/** Tall golden reed cards (canal and drain banks). */
-export const reeds = colouredGrass(
-  'foliage_card_dry',
-  [1.3, 2.1],
-  ['#f1e6c4', '#e6d9b0', '#d9ca9a', '#f6eccf'],
-);
+/** Weeds and reeds: tall cards (the cells are 0.6 x 1.2 m). */
+function tallCards(
+  cells: readonly number[],
+  height: [number, number],
+): AssetBuilder {
+  return ({ seed }) => {
+    const rng = new Rng(seed);
+    const h = rng.range(height[0], height[1]);
+    return {
+      parts: [
+        {
+          geometry: plantCards(rng, 'weeds', cells, h * 0.5, h, 3, 0.75),
+          material: getMaterial('foliage_card_weeds'),
+        },
+      ],
+    };
+  };
+}
 
-/** Tall dry weeds / thistles (field margins, ditches): between grass and reeds. */
-export const tallWeeds = colouredGrass(
-  'foliage_card_dry',
-  [0.8, 1.35],
-  ['#e6dcc4', '#d9c9a5', '#efe4c8', '#cdbd95'],
+/** Golden reeds (canal and drain banks): the scanned tall grass, stretched up. */
+export const reeds = tallCards(CELLS.reeds, [1.3, 2.1]);
+
+/** Nettle stands of the field margins and ditches, green and dried. */
+export const tallWeeds = tallCards(
+  [...CELLS.nettles, ...CELLS.dryNettles],
+  [0.75, 1.15],
 );
 
 // --- field crops (engine/crops.ts: the CC BY wheat and corn models, cards baked from them) ---
@@ -155,7 +143,7 @@ export const dryCorn = crop('dry_corn', 2);
 export const cornRowCard = crop('corn_row', 1);
 export const dryCornRowCard = crop('dry_corn_row', 1);
 
-// --- vineyards (engine/vines.ts: posts, wires, trunks and painted canopy cards, per season) ---
+// --- vineyards (engine/vines.ts: posts, wires, bark trunks and leaf canopy cards, per season) ---
 
 /** A 6 m stretch of a vineyard row: full wood + canopy up close, trunks + two canopy cards, then the cards only. */
 function vineRow(season: Season): AssetBuilder {
@@ -164,8 +152,12 @@ function vineRow(season: Season): AssetBuilder {
       ...(lod < 2
         ? [
             {
-              geometry: vineWood(seed, lod === 0),
+              geometry: vineWood(seed, lod === 0, true),
               material: getMaterial('props'),
+            },
+            {
+              geometry: vineWood(seed, lod === 0, false),
+              material: vineBarkMaterial(),
             },
           ]
         : []),

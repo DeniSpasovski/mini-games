@@ -79,6 +79,11 @@ export interface AssetMeta {
    * swaps as the car drives on); the rest start at LOD 1.
    */
   nearRoad?: number;
+  /**
+   * Streamed instances dither from one level to the next and in / out at the end of the last level instead of popping
+   * (world/lod-fade.ts). Set below for the plants and the people.
+   */
+  fade?: boolean;
 }
 
 /** Standing fans (variants 0-23); 24-41 sit or squat (SPECTATOR_SEATED_FROM..). */
@@ -156,7 +161,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Reeds',
     category: 'vegetation',
     description:
-      'Tall golden reed cards for canal / drain banks (no collision, detail layer only).',
+      'Tall golden reeds for canal / drain banks: cards of scanned tall grass (no collision, detail layer only).',
     variants: 3,
     lods: [{ maxDistance: 140, castShadow: false }],
   },
@@ -165,7 +170,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Tall weeds',
     category: 'vegetation',
     description:
-      'Tall dry weeds / thistles for field margins and ditches (no collision, detail layer only).',
+      'Nettle stands, green and dried, for field margins and ditches: cards of the scanned nettle (no collision, detail layer only).',
     variants: 3,
     lods: [{ maxDistance: 120, castShadow: false }],
   },
@@ -174,8 +179,8 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Grass tuft',
     category: 'vegetation',
     description:
-      'Blade strips up close, alpha-tested crossed cards further out. Detail layer, only drawn close to the camera.',
-    variants: 2,
+      'Blade strips up close, crossed cards of scanned grass further out; variant 2 is the weed margin (dandelion, celandine). Detail layer.',
+    variants: 3,
     lods: GRASS_LODS,
     nearBoost: NEAR_GRASS,
     nearRoad: GRASS_BLADES_ROAD,
@@ -186,7 +191,7 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Dry grass',
     category: 'vegetation',
     description:
-      'Golden summer grass cards (detail layer). Same construction as grass_tuft.',
+      'Golden summer grass: the scans in their dry colour (detail layer). Same construction as grass_tuft.',
     variants: 2,
     lods: GRASS_LODS,
     nearBoost: NEAR_GRASS,
@@ -198,8 +203,8 @@ export const ASSET_CATALOG: AssetMeta[] = [
     name: 'Spring grass',
     category: 'vegetation',
     description:
-      'Fresh bright green grass cards (detail layer) for maps with a green ground tint. Same construction as grass_tuft.',
-    variants: 2,
+      'Fresh spring grass (detail layer) for maps with a green ground tint; variant 2 is the flowering dandelion margin. Same construction as grass_tuft.',
+    variants: 3,
     lods: GRASS_LODS,
     nearBoost: NEAR_GRASS,
     nearRoad: GRASS_BLADES_ROAD,
@@ -1192,6 +1197,10 @@ export const ASSET_CATALOG: AssetMeta[] = [
     breakable: { r: 0.65, h: 1.6, slow: 0.93 },
   },
 ];
+
+// Grass, weeds, crops, vines and people fade between their levels (the many small things whose pops show).
+for (const a of ASSET_CATALOG)
+  if (a.category === 'vegetation' || a.lods === PEOPLE_LODS) a.fade = true;
 
 /** house_pitched: wall top as a fraction of the total (unit) height; the roof is the rest. */
 export const HOUSE_WALL_FRACTION = 0.68;

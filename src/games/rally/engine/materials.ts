@@ -9,7 +9,7 @@ import {
   type WebGLRenderer,
 } from 'three';
 import { getTexture } from './textures';
-import { grassSheet } from './grass';
+import { plantSheet } from './grass';
 import { addNightGlow } from './night-glow';
 import { houseMaterial } from './house-walls';
 import { groundLitCard } from './world-shading';
@@ -26,6 +26,7 @@ export type MaterialId =
   | 'foliage_card'
   | 'foliage_card_dry'
   | 'foliage_card_spring'
+  | 'foliage_card_weeds'
   | 'grass_blade'
   | 'rock'
   | 'hay'
@@ -126,6 +127,7 @@ const FOLIAGE: MaterialId[] = [
   'foliage_card',
   'foliage_card_dry',
   'foliage_card_spring',
+  'foliage_card_weeds',
 ];
 let foliageA2C = false;
 
@@ -153,7 +155,7 @@ export function getMaterial(id: MaterialId): Material {
     case 'foliage_card':
       m = new MeshStandardMaterial({
         vertexColors: true,
-        map: grassSheet('green'),
+        map: plantSheet('grass-green'),
         alphaTest: 0.5,
         side: DoubleSide,
         roughness: 1,
@@ -162,7 +164,7 @@ export function getMaterial(id: MaterialId): Material {
     case 'foliage_card_dry':
       m = new MeshStandardMaterial({
         vertexColors: true,
-        map: grassSheet('dry'),
+        map: plantSheet('grass-dry'),
         alphaTest: 0.5,
         side: DoubleSide,
         roughness: 1,
@@ -171,7 +173,17 @@ export function getMaterial(id: MaterialId): Material {
     case 'foliage_card_spring':
       m = new MeshStandardMaterial({
         vertexColors: true,
-        map: grassSheet('spring'),
+        map: plantSheet('grass-spring'),
+        alphaTest: 0.5,
+        side: DoubleSide,
+        roughness: 1,
+      });
+      break;
+    case 'foliage_card_weeds':
+      // Nettles, weeds and reeds (engine/plants/weeds.webp).
+      m = new MeshStandardMaterial({
+        vertexColors: true,
+        map: plantSheet('weeds'),
         alphaTest: 0.5,
         side: DoubleSide,
         roughness: 1,
@@ -346,6 +358,16 @@ export function variantMaterial(base: Material): Material {
   m.customProgramCacheKey = () => `${baseKey}|variants`;
   variantMats.set(base, m);
   return m;
+}
+
+/**
+ * Turn on the dithered level fade (world/lod-fade.ts) in a material the instance streamer draws fading buckets with.
+ * Meshes without the `instFade` attribute draw it solid, so the shared material stays usable everywhere.
+ */
+export function lodFadeMaterial(m: Material): void {
+  if (m.defines?.RALLY_LOD_FADE !== undefined) return;
+  m.defines = { ...m.defines, RALLY_LOD_FADE: '' };
+  m.needsUpdate = true;
 }
 
 /** Shadow-pass material for variant-set meshes of `base` (`customDepthMaterial`; three copies map / alphaTest onto it). */
