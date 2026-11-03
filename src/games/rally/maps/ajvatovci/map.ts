@@ -231,22 +231,32 @@ export const ajvatovciMap: MapDef = {
     spans: routeSpans(data.routeSpans),
   },
   scatter: [
-    // Black pine plantations on the hills.
+    // The planted pine stands on the hills (the hilltop's above the church): young full cones, needled to the foot.
+    {
+      asset: 'plantation_pine',
+      cover: ['pine'],
+      density: 12,
+      minRoadDist: 4,
+      maxSlope: 0.6,
+      scale: [0.5, 0.8],
+      tilt: 2,
+      sink: 0.3,
+    },
     {
       asset: 'pine_tree',
       cover: ['pine'],
-      density: 9,
+      density: 4,
       minRoadDist: 4,
       maxSlope: 0.6,
       scale: [0.55, 0.95],
       tilt: 3,
       sink: 0.3,
     },
-    // The umbrella-crowned Austrian black pines of the plantations.
+    // A few older umbrella-crowned Austrian black pines among them.
     {
       asset: 'black_pine',
       cover: ['pine'],
-      density: 7,
+      density: 1.5,
       minRoadDist: 4,
       maxSlope: 0.6,
       scale: [0.6, 1],

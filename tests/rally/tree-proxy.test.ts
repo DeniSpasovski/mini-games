@@ -3,6 +3,7 @@ import type { SpriteData } from '../../src/games/rally/trees/mesh';
 import { crownProxy, quadSprites } from '../../src/games/rally/trees/proxy';
 import {
   packSprite,
+  unpackCard,
   unpackCorner,
   unpackHeading,
 } from '../../src/games/rally/trees/sprite-attr';
@@ -92,23 +93,24 @@ describe('tree proxies', () => {
     }
   });
 
-  test('a packed sprite vertex keeps its corner, size and heading (either side of the horizon)', () => {
+  test('a packed sprite vertex keeps its corner, size, card and heading (either side of the horizon)', () => {
     const out = new Float32Array(4);
     for (const h of [
       [0.36, 0.48, -0.8],
       [-0.6, -0.8, 0],
       [0, 1, 0],
     ] as [number, number, number][]) {
-      packSprite(-0.31, 0.5, 2.5, h, out, 0);
+      packSprite(-0.31, 0.5, 2.5, h, 2, out, 0);
       const [cx, cy] = unpackCorner(out[0]);
       expect(cx).toBeCloseTo(-0.31, 3);
       expect(cy).toBeCloseTo(0.5, 3);
       expect(out[2]).toBe(2.5);
+      expect(unpackCard(out[0])).toBe(2);
       const back = unpackHeading(out[0], out[1], out[3])!;
       h.forEach((c, i) => expect(back[i]).toBeCloseTo(c, 5));
     }
     // The largest packed value stays an exact float (the shader unpacks it with mod / floor).
-    packSprite(0.5, 0.5, 1, [0, -1, 0], out, 0);
+    packSprite(0.5, 0.5, 1, [0, -1, 0], 3, out, 0);
     expect(Number.isInteger(out[0]) && out[0] < 2 ** 24).toBe(true);
   });
 

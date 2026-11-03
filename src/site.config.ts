@@ -20,7 +20,8 @@ export const SITE = {
   owner: 'Deni S.',
   /** Public repository: the portal footer links About (its README), Source and the licence here. */
   sourceUrl: 'https://github.com/DeniSpasovski/mini-games',
-  tagline: 'This site was made using AI agents under direction of Deni S.',
+  tagline:
+    'This site was built by AI agents under direction of Deni S. and playtested by me, my friends and my family.',
   /**
    * Google Analytics 4 measurement ID, read from the untracked env file
    * (`PUBLIC_GA_MEASUREMENT_ID` in `.env.local`, template: `.env.example`). Loaded only after

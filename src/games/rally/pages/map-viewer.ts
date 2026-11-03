@@ -19,7 +19,11 @@ import {
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { paramOneOf } from '../../../shared/url-params';
 import { track } from '../../../shared/analytics';
-import { CAMERA_LINK_DEFAULTS, ViewerShell } from '../debug/viewer-shell';
+import {
+  CAMERA_LINK_DEFAULTS,
+  showViewerLoading,
+  ViewerShell,
+} from '../debug/viewer-shell';
 import {
   DEFAULT_STAGE,
   getMapInfo,
@@ -32,6 +36,7 @@ import { isTestMap, isTestStage, listLabel, TEST_NOTE } from '../release';
 import { stageSeason } from '../maps/shared/climate';
 import { mapInSeason } from '../maps/shared/season-map';
 import { SEASON_LABELS, SEASONS, seasonParam } from '../season';
+import { offeredWeathers } from '../weather';
 import { loadQuality } from '../engine/quality';
 import { InstanceStreamer } from '../world/instance-streamer';
 import { TreeRenderer } from '../trees/draw';
@@ -54,7 +59,10 @@ import { SURFACES } from '../physics/surfaces';
  * `stage` = the stage shown (its route, start / splits / finish, closures and fans; default the map's first). Old links
  * `map=<stage id>` open that stage on its map. Distances (`along`, the 250 m ticks, "Drive from here") are along the
  * stage road, in the stage's direction. `season` = spring | summer | autumn (ground, leaves; default the stage's own, as in the game).
+ * `weather=rain_heavy|fog|...` (a change reloads) and `tod=<hours>` (time of day; default the map's own hour) are read by
+ * `Environment` from the URL (pickers: `ViewerShell.addWeatherAndTime`, as in the car viewer).
  * "Copy camera link" (Camera section) shares the exact view (`cam`, `look`, `fov`, `clean`).
+ * Panel: Map (map / stage / season / weather / time pickers), Camera, Layers, Picked point, Buildings, Stats, Credits, Scene, Help.
  */
 const DEFAULTS = {
   map: DEFAULT_STAGE,
@@ -62,6 +70,9 @@ const DEFAULTS = {
   stage: '',
   /** Season shown; '' = the stage's own. */
   season: '',
+  weather: 'dry',
+  /** Hour of day; -1 = the map's own. */
+  tod: -1,
   scatter: true,
   road: true,
   grid: false,
@@ -90,8 +101,15 @@ const state = readUrlState(DEFAULTS);
   );
   if (!stagesOf(state.map).some((st) => st.id === state.stage))
     state.stage = stagesOf(state.map)[0]?.id ?? '';
+  state.weather = paramOneOf(
+    state.weather,
+    offeredWeathers(),
+    DEFAULTS.weather,
+  );
 }
 const sync = (push = false) => writeUrlState(state, DEFAULTS, push);
+/** Start / split / finish / distance labels: the display face (italic, as the HUD plates). */
+const LABEL_FONT = 'italic 700 40px "Barlow Condensed", sans-serif';
 // An old `map=<stage id>` link (or a map with several stages): the URL now names the map and its stage.
 sync();
 track('rally', 'select_content', {
@@ -100,9 +118,11 @@ track('rally', 'select_content', {
 });
 
 // The map's baked data is loaded on demand (own chunk), so the viewer body runs once it is here.
+const loaded = showViewerLoading(`Loading ${getMapInfo(state.map).name} …`);
 void loadMap(state.map).then(async (map) => {
   const b = map.bounds;
   const size = Math.max(b.maxX - b.minX, b.maxZ - b.minZ);
+  const stageDef = stagesOf(map.id).find((st) => st.id === state.stage);
   const shell = new ViewerShell({
     title: 'Map viewer',
     ground: false,
@@ -114,11 +134,11 @@ void loadMap(state.map).then(async (map) => {
     },
   });
   const { scene, camera, controls, renderer } = shell;
-  const stageDef = stagesOf(map.id).find((st) => st.id === state.stage);
-  const season = seasonParam(
-    state.season,
-    stageSeason({ season: stageDef?.season, environment: map.environment }),
-  );
+  const ownSeason = stageSeason({
+    season: stageDef?.season,
+    environment: map.environment,
+  });
+  const season = seasonParam(state.season, ownSeason);
   const world = new World(mapInSeason(map, season), state.stage || undefined);
   const center = new Vector3((b.minX + b.maxX) / 2, 0, (b.minZ + b.maxZ) / 2);
   // Mountain maps: orbit around the ground, not sea level.
@@ -176,6 +196,9 @@ void loadMap(state.map).then(async (map) => {
   // --- overlays ------------------------------------------------------------------------------
   const overlays = new Group();
   scene.add(overlays);
+  // Marker labels in the display face (STYLEGUIDE.md): loaded before they are drawn into their canvases.
+  await document.fonts.load(LABEL_FONT).catch(() => undefined);
+  const plate = `rgb(${getComputedStyle(document.documentElement).getPropertyValue('--ui-glass-rgb').trim() || '10 11 13'} / 0.85)`;
   const roadLine = buildRoadLine();
   const markers = buildMarkers();
   const chunkGrid = buildChunkGrid();
@@ -223,10 +246,12 @@ void loadMap(state.map).then(async (map) => {
     c.width = 256;
     c.height = 64;
     const ctx = c.getContext('2d')!;
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    // A glass plate with an edge in the marker's colour, as the HUD plates.
+    ctx.fillStyle = plate;
     ctx.fillRect(0, 0, 256, 64);
     ctx.fillStyle = color;
-    ctx.font = 'bold 34px system-ui';
+    ctx.fillRect(0, 0, 6, 64);
+    ctx.font = LABEL_FONT;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(text, 128, 33);
@@ -337,16 +362,18 @@ void loadMap(state.map).then(async (map) => {
   }
 
   // --- panel -----------------------------------------------------------------------------------
-  shell.panel.section('Maps').list(
+  // Map, stage and season: a change reloads the page (the world is built for one stage in one season).
+  const pick = shell.panel.section('Map');
+  pick.select(
+    'Map',
+    map.id,
     MAPS.map((m) => ({
-      id: m.id,
+      value: m.id,
       label: listLabel(
         m.stages.length > 1 ? `${m.name} (${m.stages.length} stages)` : m.name,
         isTestMap(m.stages.map((st) => st.id)),
       ),
-      hint: m.stages.map((st) => st.name).join(' · '),
     })),
-    state.map,
     (id) => {
       // Camera / focus params belong to the old map: the new one opens on its default overview.
       Object.assign(state, {
@@ -365,32 +392,60 @@ void loadMap(state.map).then(async (map) => {
   );
 
   // The stages on this map (the one shown: its route, start / finish, closures, fans).
-  shell.panel.section('Stages').list(
-    stagesOf(map.id).map((st) => ({
-      id: st.id,
-      label: listLabel(st.name, isTestStage(st.id)),
-      hint: isTestStage(st.id)
-        ? `${TEST_NOTE}. ${st.description}`
-        : st.description,
-    })),
+  const stages = stagesOf(map.id);
+  const stagePick = pick.select(
+    'Stage',
     world.stageDef.id,
+    stages.map((st) => ({
+      value: st.id,
+      label: listLabel(st.name, isTestStage(st.id)),
+    })),
     (id) => {
       Object.assign(state, { stage: id, along: DEFAULTS.along });
       sync(true);
       location.reload();
     },
   );
-
-  // The season of the ground and the leaves (the game's Season picker).
-  shell.panel.section('Season').list(
-    SEASONS.map((id) => ({ id, label: SEASON_LABELS[id] })),
+  stagePick.el.querySelector('select')!.disabled = stages.length < 2;
+  // The season of the ground and the leaves (the game's Season picker); the stage's own is marked.
+  pick.select(
+    'Season',
     season,
+    SEASONS.map((id) => ({
+      value: id,
+      label:
+        id === ownSeason ? `${SEASON_LABELS[id]} (stage)` : SEASON_LABELS[id],
+    })),
     (id) => {
       state.season = id;
       sync(true);
       location.reload();
     },
   );
+  // Maps with fixed sun angles (no `timeOfDay`) ignore `tod`: no hour picker there.
+  const ownHour = map.environment.timeOfDay;
+  shell.addWeatherAndTime(
+    pick,
+    state,
+    sync,
+    ownHour === undefined ? undefined : { tod: DEFAULTS.tod, hour: ownHour },
+  );
+  // A linked hour: re-light as a picker change does (the night bloom on High, as in the car viewer).
+  if (state.tod !== DEFAULTS.tod) shell.setHour(state.tod);
+  const shown = world.stageDef;
+  pick.note(
+    isTestStage(shown.id)
+      ? `${TEST_NOTE}. ${shown.description}`
+      : shown.description,
+  );
+
+  const view = shell.panel.section('Camera');
+  view.buttons([
+    ['Top down', () => topDown()],
+    ['Oblique', () => oblique()],
+    ['Start line', () => focusAlong(world.stage.start)],
+  ]);
+  shell.addCameraShare(view, state, sync);
 
   const layers = shell.panel.section('Layers');
   layers.checkbox('Scatter (trees, props)', state.scatter, (v) => {
@@ -399,7 +454,7 @@ void loadMap(state.map).then(async (map) => {
     trees.group.visible = v;
     sync();
   });
-  layers.select(
+  const treeDebug = layers.select(
     'Tree debug',
     String(trees.debugMode),
     [
@@ -417,16 +472,12 @@ void loadMap(state.map).then(async (map) => {
     roadLine.visible = v;
     sync();
   });
-  layers.checkbox(
-    'Stages (routes, start / splits / finish)',
-    state.labels,
-    (v) => {
-      state.labels = v;
-      markers.visible = v;
-      stageLines.visible = v;
-      sync();
-    },
-  );
+  layers.checkbox('Stage route + markers', state.labels, (v) => {
+    state.labels = v;
+    markers.visible = v;
+    stageLines.visible = v;
+    sync();
+  });
   layers.checkbox('Chunk grid (64 m)', state.grid, (v) => {
     state.grid = v;
     chunkGrid.visible = v;
@@ -449,26 +500,49 @@ void loadMap(state.map).then(async (map) => {
     sync();
   });
 
-  const view = shell.panel.section('Camera');
-  view.button('Top down (whole map)', () => topDown());
-  view.button('Oblique overview', () => oblique());
-  view.button('Start line', () => focusAlong(world.stage.start));
-  shell.addCameraShare(view, state, sync);
-
-  const stats = shell.panel.section('Map');
-  const statInfo = stats.info();
-  if (map.credits)
-    stats.html(`<small style="opacity:.7">${map.credits.join('<br>')}</small>`);
-  const roadYs = world.road.samples.map((s) => s.y);
   const pickSec = shell.panel.section('Picked point');
   const pickInfo = pickSec.info();
-  const pickLinks = pickSec.html('<i>Click the terrain…</i>');
+  const pickLinks = pickSec.html('Click the terrain to inspect it.');
+
+  if (world.buildings.buildings.length) {
+    const bsec = shell.panel.section('Buildings');
+    const counts = { house: 0, flat: 0 };
+    for (const bd of world.buildings.buildings) counts[bd.type]++;
+    bsec.info()({
+      total: world.buildings.buildings.length,
+      'sloped roof': counts.house,
+      'flat roof': counts.flat,
+    });
+    bsec.number('Go to #', state.building, (v) => focusBuilding(v), {
+      min: 1,
+      placeholder: 'building id',
+    });
+  }
+
+  const statInfo = shell.panel.section('Stats', false).info();
+  let roadMin = Infinity;
+  let roadMax = -Infinity;
+  for (const s of world.road.samples) {
+    roadMin = Math.min(roadMin, s.y);
+    roadMax = Math.max(roadMax, s.y);
+  }
+  if (map.credits)
+    shell.panel.section('Credits', false).note(map.credits.join('\n'));
   shell.addSceneSection();
-  shell.panel
-    .section('Help', false)
-    .html(
-      'Left-drag orbit · right-drag pan · wheel zoom · click terrain to inspect · <kbd>H</kbd> hide panel · <kbd>F3</kbd> stats',
-    );
+  shell.addHelp(
+    [
+      ['Click', 'inspect the terrain (and a building)'],
+      ['F6', 'next tree debug view'],
+    ],
+    [
+      'Distances (along, the 250 m ticks, Drive from here) run along the stage road in its direction.',
+    ],
+  );
+  window.addEventListener('keydown', (e) => {
+    if (e.code !== 'F6') return;
+    e.preventDefault();
+    treeDebug.set(String(trees.cycleDebug()));
+  });
 
   function topDown(): void {
     controls.target.copy(center);
@@ -520,7 +594,8 @@ void loadMap(state.map).then(async (map) => {
 
   function marchTerrain(o: Vector3, d: Vector3): Vector3 | null {
     let prev = 0;
-    for (let t = 0; t < 6000; t += 4) {
+    // As far as the camera sees (whole-map views of the long maps sit further out than 6 km).
+    for (let t = 0; t < camera.far; t += 4) {
       const p = o.clone().addScaledVector(d, t);
       if (p.y < world.gen.height(p.x, p.z)) {
         // Bisection refine between prev and t.
@@ -577,15 +652,16 @@ void loadMap(state.map).then(async (map) => {
     const along = rq.found ? Math.max(0, rq.along - 15) : null;
     pickLinks.innerHTML =
       (along !== null
-        ? `<a style="color:#f0a020" href="./?stage=${world.stageDef.id}&spawn=${along.toFixed(0)}">▶ Drive ${world.stageDef.name} from here (${along.toFixed(0)} m)</a>`
-        : '<i>Not near the road.</i>') +
+        ? `<a href="./?stage=${world.stageDef.id}&spawn=${along.toFixed(0)}">▶ Drive ${world.stageDef.name} from here (${along.toFixed(0)} m)</a>`
+        : 'Not near the road.') +
       (geo
-        ? `<br><a style="color:#7ab8ff" target="_blank" rel="noopener" href="https://www.google.com/maps/@${geo.lat.toFixed(6)},${geo.lon.toFixed(6)},250m/data=!3m1!1e3">Satellite (Google Maps)</a>` +
-          ` · <a style="color:#7ab8ff" target="_blank" rel="noopener" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${geo.lat.toFixed(6)},${geo.lon.toFixed(6)}">Street View</a>`
+        ? `<br><a class="rv-ext" target="_blank" rel="noopener" href="https://www.google.com/maps/@${geo.lat.toFixed(6)},${geo.lon.toFixed(6)},250m/data=!3m1!1e3">Satellite (Google Maps)</a>` +
+          ` · <a class="rv-ext" target="_blank" rel="noopener" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${geo.lat.toFixed(6)},${geo.lon.toFixed(6)}">Street View</a>`
         : '') +
-      (bld
-        ? `<br><code style="user-select:all">${buildingRef(bld.id)}</code>`
-        : '');
+      (bld ? `<br><code>${buildingRef(bld.id)}</code>` : '');
+    // The read-out may sit below the fold: open it and bring it into the panel's view.
+    (pickSec.el as HTMLDetailsElement).open = true;
+    pickSec.el.scrollIntoView({ block: 'nearest' });
   }
 
   /** How we refer to a building when detailing it: "stage 1 - building 12 - 42.001234, 21.581234". */
@@ -646,6 +722,7 @@ void loadMap(state.map).then(async (map) => {
   controls.addEventListener('start', groundTarget);
 
   // --- loop ----------------------------------------------------------------------------------------
+  let statsAt = 0;
   shell.onFrame(() => {
     const t = controls.target;
     const above =
@@ -661,11 +738,15 @@ void loadMap(state.map).then(async (map) => {
     streamer.update(t);
     trees.update(camera);
     treeStats.update();
+    // A few times a second (the counters change while streaming; `info` only touches changed values).
+    const now = performance.now();
+    if (now - statsAt < 250) return;
+    statsAt = now;
     statInfo({
       road: `${world.road.length.toFixed(0)} m`,
       stage: world.stageDef.name,
       'stage (start→finish)': `${(world.stage.finish - world.stage.start).toFixed(0)} m`,
-      'road height': `${Math.min(...roadYs).toFixed(0)} … ${Math.max(...roadYs).toFixed(0)} m`,
+      'road height': `${roadMin.toFixed(0)} … ${roadMax.toFixed(0)} m`,
       bounds: `${b.maxX - b.minX} × ${b.maxZ - b.minZ} m`,
       'terrain chunks': `${terrain.chunkCount} (+${terrain.pending} queued)`,
       'hf cache': `${world.heightfield.cachedChunks} chunks`,
@@ -680,23 +761,7 @@ void loadMap(state.map).then(async (map) => {
   if (state.building) focusBuilding(state.building);
   // A shared camera link wins over the default / along / building framing.
   shell.applyCameraLink(state);
-  if (world.buildings.buildings.length) {
-    const bsec = shell.panel.section('Buildings');
-    const bInfo = bsec.info();
-    const counts = { house: 0, flat: 0 };
-    for (const bd of world.buildings.buildings) counts[bd.type]++;
-    bInfo({
-      total: world.buildings.buildings.length,
-      'sloped roof': counts.house,
-      'flat roof': counts.flat,
-    });
-    bsec.html(
-      '<label>Go to building # <input type="number" min="1" style="width:70px" data-ref="bid"></label>',
-    );
-    const input = document.querySelector<HTMLInputElement>('[data-ref="bid"]')!;
-    if (state.building) input.value = String(state.building);
-    input.addEventListener('change', () => focusBuilding(Number(input.value)));
-  }
+  loaded();
   /**
    * Test hook for bots / the console (the preview pane renders one frame every few seconds): put the camera
    * somewhere and stream every terrain chunk + instance around it at once, so the next screenshot is complete.

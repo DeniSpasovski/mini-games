@@ -38,7 +38,8 @@ Rules (performance — late-2000s look must not lag):
   instance with `ScatterInstance.sx / sy / sz` (width / height / depth) and a `box` collider; keep details
   relative. `house_pitched` walls end at `HOUSE_WALL_FRACTION` of the height (roof above), `building_flat` styles
   0/1 hall, 2 brick block, 3 rendered block; variants 4-7 = two floors of windows.
-- Vegetation palette so far (trees: one L-system species each, `trees/species.ts` `TREE_TYPES`): `pine_tree`, `plantation_pine` (a cheaper pine for dense stands), `black_pine`
+- Vegetation palette so far (trees: one L-system species each, `trees/species.ts` `TREE_TYPES`, most built with
+  `shrub` / `conifer` / `broadleaf` from shape numbers, `.claude/reference/trees/Species.md#builders`; check one at `asset-debug.html?asset=tree:<type>`): `pine_tree`, `plantation_pine` (a cheaper pine for dense stands), `black_pine`
   (umbrella crown), `juniper`, `birch_tree`, `oak_tree`, `beech_tree` (mountain beech), `hornbeam_tree` (bright-green coppice), `walnut_tree`, `willow_tree` (weeping), `poplar_tree` (columnar), `cypress_tree` (dark column), `locust_tree` (black locust), `bramble_shrub`,
   `fruit_tree` (orchard rows), `hazelnut_tree` (plantation rows), `pale_tree` (tall plane / ash), `young_tree` (sapling),
   `thicket_shrub` (autumn roadside brush, drive-through), `broom_shrub` (yellow flowering broom), `bush` (green), `scrub_bush` (dark olive hill scrub), `grass_tuft`, `spring_grass`, `dry_grass`; props incl. `street_lamp`, `road_barrier` (red-white police / marshal barrier, solid, closes side-road junctions),
@@ -86,8 +87,8 @@ model, parts, livery, glTF import) lives in `cars/shared/`.
 
 Free camera for close-ups / screenshots: add `&cam=x,y,z&look=x,y,z&fov=10&clean=1` (model space, +z nose, +x car's left; `clean=1` hides the panel; the panel's "Copy camera link" button copies the current view). Liveries (create / fix / debug): the `rally-livery` skill + `scripts/car-model/chart-probe.py`.
 
-Iterate at `/games/rally/car-viewer.html?car=<id>&seed=<n>&view=side&hull=1&wire=1` (pose sliders for
-steer/suspension, specs + torque/power chart, "Test drive" link). Physics changes -> rally-physics-tuning skill.
+Iterate at `/games/rally/car-viewer.html?car=<id>&seed=<n>&view=side&hull=1&wire=1` (Pose: steer / suspension;
+Specs: numbers, torque / power chart, "Test drive" link; every section: rally `DETAILS.md` -> Tool pages). Physics changes -> rally-physics-tuning skill.
 Console: `__carViewer.model`.
 
 ### Hand-built bodies (`model.custom`) - example: `cars/zastava-101/`

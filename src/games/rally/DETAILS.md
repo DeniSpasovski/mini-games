@@ -7,15 +7,39 @@ sim-lite physics that is still fun on a keyboard.
 
 ## Pages and URLs
 
-| Page        | URL                                                               | What it is                                                                                                                                                                                            |
-| ----------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Game        | `/games/rally/`                                                   | welcome -> select stage -> select car -> (set-up) -> drive                                                                                                                                            |
-| Map viewer  | `/games/rally/map-viewer.html?map=test&stage=test&grid=1&splat=1` | a map with one of its stages (`stage=`, default the first; a stage picker lists them) in a season (`season=`, the Season picker), click terrain to inspect, "Drive from here", lat / lon on real maps |
-| Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`             | livery seed, door plate, pose, physics hull, torque chart, test drive, time of day + lights (`tod=1&lamps=brake`), weather + road backdrop (`weather=rain_heavy&backdrop=gravel                       | tarmac | city`) |
-| Asset debug | `/games/rally/asset-debug.html?asset=pine_tree&lod=1`             | every asset / car (`car:<id>`) / texture (`tex:<id>`): seed, variant, LOD                                                                                                                             |
+| Page        | URL                                                                | What it is                                                                                              |
+| ----------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| Game        | `/games/rally/`                                                    | welcome -> select stage -> select car -> (set-up) -> drive                                              |
+| Map viewer  | `/games/rally/map-viewer.html?map=test&stage=test&grid=1&splat=1`  | a map with one of its stages from above: layers, click to inspect, "Drive from here" (Tool pages below) |
+| Car viewer  | `/games/rally/car-viewer.html?car=skoda_rally&seed=5`              | one car: livery, door plate, pose, wheels, lights, specs, sound, on grass or a road backdrop            |
+| Asset debug | `/games/rally/asset-debug.html?asset=tree:pine_tree&season=autumn` | every prop, car (`car:<id>`), tree type (`tree:<type>`) and texture (`tex:<id>`) as the game draws it   |
 
-Tool pages are dev-server only and keep their state in the URL; `H` hides the panel, `F3` shows stats, "Copy camera link"
-gives `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1`.
+### Tool pages
+
+Dev server only (`dev: true` in `game.json`); every setting is in the URL, so a view is a link. Shell:
+`debug/viewer-shell.ts` (panel, renderer with the game's lights, orbit camera, stats); look: `debug/viewer-shell.css`
+(`STYLEGUIDE.md` -> Tool pages).
+
+- **Every page**: `H` or the "Panel · H" plate hides the panel, `F3` stats, Help = key table; sections remember open /
+  closed. "Copy camera link" -> `cam=x,y,z&look=x,y,z&fov=<deg>&clean=1` (`clean=1` hides every plate). Weather
+  (`weather=`, reloads) and Time of day (`tod=`, live; the page's own hour sits in its nearest slot):
+  `ViewerShell.addWeatherAndTime`. A "Loading <map / car / asset>" plate while it builds (`showViewerLoading`).
+- **Map viewer** (`pages/map-viewer.ts`): Map (map, stage, season, weather, time; all but the time reload), Camera (top
+  down, oblique, start line, link), Layers (scatter, tree debug - also `F6` -, road centreline, stage route + markers,
+  chunk grid, splat, wireframe, fog), Picked point (click the terrain: position, height, slope, surface, cover; real
+  maps: lat / lon, satellite and Street View links; "Drive from here"), Buildings (real maps; `building=<id>`), Stats,
+  Credits, Scene, Help.
+  `along=<m>&zoom=<f>` flies to a spot on the stage road.
+- **Car viewer** (`pages/car-viewer.ts`): Cars (All / AWD / FWD / RWD chips as the car menu, class per row), Car (livery
+  `seed`, `paint` + livery colour, `tyre`, door plate `num` / `rally`), Camera (`view` presets; an axle camera or a link
+  clears them), Pose (`steer`, `susp`, `spin`, `turntable`), Scene (weather, time, `backdrop` studio / road with its
+  `season` and `trees`, sun), Lights (`beam`, `lamps`), Wheels (`wheels=1` overlay, `wangle`, `tyres` / `rims` /
+  `brakes` / `body`, axle camera `wcam`), Debug (`wire`, `hull`, `fallback`), Specs (numbers, torque / power chart,
+  test-drive links, model credit), Sound (`debug/sound-debug.ts`), Help. Console: `__carViewer`.
+- **Asset debugger** (`pages/asset-debug.ts`): Assets, Options (only what the picked kind uses: props seed / variant /
+  LOD / instances / gap / wire / bounds / colliders; trees seed / variant / instances / season / leaves; cars livery seed;
+  textures repeat; turntable for all; hidden ones keep their URL value), Info, Camera, Scene (the car viewer's without the
+  backdrop), Help. `F6` tree debug views.
 
 **URL parameters** (any of the play ones skips the menu):
 
@@ -115,10 +139,14 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   - the far shadow map (`world/far-shadow.ts`, `quality.farShadow*`, ~4x the box): terrain, static meshes
     (`farShadowCaster`) and one hashed ellipsoid per tree crown, re-drawn only when its snapped box moves (~every
     25 m), from inside the main render (`trigger`). Covers only the disc where it has crowns (`setFarShadowDisc`);
-    tree materials look it up at their shadow lookup point (out of their own crown, as in the sun's map). It fades in
-    `SHADOW_OVERLAP` m before the sun's map fades out; over that band the darker of the two wins;
+    tree materials look it up at their shadow lookup point (out of their own crown, as in the sun's map). The sun's map
+    cross-fades into it over `NEAR_FADE` m (no brightness step where they hand over);
   - past both, the baked canopy shadows (World shading below).
-  - Terrain casts into both maps (`TerrainOptions.castShadow`): hills shade the valleys.
+  - Terrain casts into both maps (`TerrainOptions.castShadow`), but only from inside their boxes; a low sun's shadow of a
+    ridge runs on for a kilometre. `world/terrain-light.ts` (8 m texels, baked in slices of the frame's slack after the
+    start, faded in) bakes the height a point must reach to see the sun past every hill (a crown or a car over a shaded
+    slope still stands in the sun) and dims the ground's sky light by the sky its surroundings leave in view (valleys,
+    the foot of a slope).
 - **Night** (`engine/night.ts`, `?tod=<hours>` from 19:30 to 04:30 on any map; not in the studio): the moon is the directional light
   (dim, blue, `moonAt`), the sky is a dark dome with a town glow, moon and stars (`NightSky`), fog is dark, tone mapping AgX at a
   fixed exposure; the env map and the tree ambient (`setTreeSky`) are rebuilt from the night sky. The car's lights fade in with the dark (`lightNeed`, from the sun height: off by day, ~0.6 at the 17:30 evening, 1 at night; scales lamps, beam, cones and dust glow). They switch on
@@ -136,6 +164,9 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   **Ambient occlusion** (default off). Bloom: the whole picture, no threshold, mixed back at a few percent, worked on an HDR
   estimate of the finished picture, so with it off the image is unchanged. AO: GTAO from the depth at half resolution.
   Test links: `?bloom=<mix>` (0 = off), `?ao=0|1`; console `__rally.post.set({ day: 0.04, ao: true })`.
+- **Sun glare (medium, high, by day):** `engine/sun-glare.ts`, a veiling glow round the sun and faint lens ghosts, as much
+  as the world leaves of the sun in view (occlusion queries on probe quads at the sun, eased: it flickers through a
+  crown); weaker under clouds (`cloudCoverage`). Drawn only while the sun is near the view. `?glare=0` / `__rally.glare.enabled`.
 - **Sky / tone mapping:** drifting clouds (`cloudCoverage`, `cloudSpeed`); ACES, or `toneMapping: 'agx' | 'neutral'` per map.
   `skyBrightness` dims the visible dome only (deeper blue; the env map keeps the full sky, so the world's light is unchanged).
   `fogColor: 'sky'` takes the hue of the sky just above the horizon (a tiny half-float cube of the env scene) at the

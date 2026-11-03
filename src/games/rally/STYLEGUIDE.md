@@ -116,6 +116,23 @@ The menu slab with one slanted row per setting (`.setup-tune`: white icon, label
 - The same UI in two places shares code (options, leaderboard, buttons).
 - Motion: one 200 ms ease (`--ui-move`) for hover and focus; nothing animates under `prefers-reduced-motion`.
 
+## Tool pages
+
+The dev pages (map viewer, car viewer, asset debugger) wear the same look, denser: the shared `DebugPanel` styled by
+[`debug/viewer-shell.css`](debug/viewer-shell.css) (`body.rv-tool`, tokens only), built by `debug/viewer-shell.ts`.
+
+- **Panel** docked left (300 px, 264 px under 1000 px wide), never over the view: title in the display face, the tool nav as
+  a segmented control, collapsible sections (condensed uppercase title, amber chevron when open; open / closed remembered per page).
+- **Controls**: body 13 px, labels `--ui-text-2`; slanted buttons as `.menu-btn` (amber bar on hover), a button row for 2-3
+  short actions; selects as `.menu-select`; the picked list row as a selected card; range / checkbox in `--ui-accent`.
+- **Show only what applies**: controls the picked content ignores are hidden, not greyed; their URL value stays.
+- **Explain in text**: a note line under a control (`--ui-text-off`, 12 px), never only a tooltip; Help is a key table.
+  Labels fit their 96 px column: a short label plus a note, never a cut-off one.
+- **Long pick lists**: filter chips on top (car list: All / AWD / FWD / RWD, as the car menu's `.menu-seg`) and the group
+  in small type on each row, not group header rows; one section per subject (no two sections with the same title).
+- **Over the view**: glass plates only (panel toggle top left, stats top right, loading box); `clean=1` hides them all.
+- Read-outs update only changed values, a few times a second at most: no per-frame DOM work.
+
 ## Adding UI
 
 1. Take colours, fonts, the slant and the radius from `ui-tokens.css`; add a token before adding a literal.
