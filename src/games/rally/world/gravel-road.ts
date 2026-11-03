@@ -42,6 +42,8 @@ export const GRAVEL_DEFINES = {
   /** Metres of road per texture v (road-mesh.ts `texLength('road')`). */
   GR_TEXLEN: '7.0',
   GR_SHARP: GRAVEL_SHARP.toFixed(2),
+  /** Packed wheel tracks: fines pressed flat over the stones, this much darker than the loose gravel. */
+  GR_TRACK_TONE: '0.8',
 };
 
 /** Parameters of a gravel road material (as matte as the terrain, which is 0.96). */
@@ -165,13 +167,13 @@ export function gravelShader(
         }
         // Patchy along the road (stones kicked back in, some stretches worn harder), and height blended: the loose stones
         // (bright = high in the fine tap) still sit on a track's edge, so it ends in stones, not on a line.
-        prof *= ( 0.55 + 0.45 * grNoise( vec2( along / 2.3, x * 1.3 + 2.0 ) ) ) * ( 0.6 + 0.4 * grNoise( vec2( along / 17.0, x * 0.4 + 6.0 ) ) );
+        prof *= ( 0.75 + 0.25 * grNoise( vec2( along / 2.3, x * 1.3 + 2.0 ) ) ) * ( 0.8 + 0.2 * grNoise( vec2( along / 17.0, x * 0.4 + 6.0 ) ) );
         float hs = dot( a, vec3( 0.2126, 0.7152, 0.0722 ) ) / GR_MEAN;
-        rut = clamp( ( prof - 0.2 ) * 2.0 - 0.4 * ( hs - 1.0 ), 0.0, 1.0 );
-        // Packed: the same stones pressed flat, so the fine grain stays but its contrast drops towards the coarse tap, a
-        // shade darker, with faint tyre streaks along it.
+        rut = clamp( ( prof - 0.15 ) * 2.6 - 0.4 * ( hs - 1.0 ), 0.0, 1.0 );
+        // Packed: the stones pressed flat under a skin of fines, so only a trace of the grain stays (the coarse tap), darker
+        // (GR_TRACK_TONE) and flatter (relief below), with faint tyre streaks along it.
         float streak = grNoise( vec2( x * 28.0, along / 9.0 ) ) - 0.5;
-        a = mix( a, mix( a, b, 0.8 ) * 0.93, rut ) * ( 1.0 + 0.1 * streak * rut );
+        a = mix( a, mix( a, b * GR_TRACK_TONE, 0.88 ), rut ) * ( 1.0 + 0.1 * streak * rut );
         // Loose gravel the tyres push aside: a low ridge between the tracks and a berm along each edge (vGrX.y = metres
         // to the edge), coarser and a touch lighter (drier) than the road, broken up along it.
         float ridge = 1.0 - smoothstep( 0.18, 0.5, abs( x ) );
@@ -187,7 +189,7 @@ export function gravelShader(
         float macro = texture2D( tMacro, wp * 0.0031 ).r;
         diffuseColor.rgb *= a * mix( 0.78, 1.16, macro );
         // Relief height as the terrain's gravel (scale 0.5 around the mean, x 4), flatter in the ruts.
-        grH = 2.0 * ( hy - 1.0 ) * ( 1.0 - 0.6 * rut ) * ( 1.0 + 0.6 * loose );
+        grH = 2.0 * ( hy - 1.0 ) * ( 1.0 - 0.85 * rut ) * ( 1.0 + 0.8 * loose );
         // The tracks sit a little lower (packed): their edges catch the light.
         grH -= 0.35 * rut;
         // Lumps and dips of the road bed (about 1.3 m and 0.45 m across; the car's own bumps are the same order in
