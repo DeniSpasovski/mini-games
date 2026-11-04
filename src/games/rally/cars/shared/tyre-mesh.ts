@@ -154,6 +154,69 @@ function seamNormals(g: BufferGeometry, rings: number, m: number): void {
   }
 }
 
+/**
+ * Make the band's edges and the carcass's shoulders one surface. The carcass has fewer segments around than the band
+ * has rings, so its edge is a polygon of chords while the band's edge is (nearly) round: the sliver between them showed
+ * as a hairline of sky. The band's edge vertices go onto the carcass's chords, and both edges get the same normals (the
+ * average of the two), so there is no crack and no crease in the shading.
+ */
+function closeShoulders(
+  carcass: BufferGeometry,
+  band: BufferGeometry,
+  segments: number,
+  rings: number,
+  cm: number,
+  bm: number,
+): void {
+  const cp = carcass.getAttribute('position') as BufferAttribute;
+  const cn = carcass.getAttribute('normal') as BufferAttribute;
+  const bp = band.getAttribute('position') as BufferAttribute;
+  const bn = band.getAttribute('normal') as BufferAttribute;
+  const seg = (Math.PI * 2) / segments;
+  // Normal in the section plane (radial, axial) of a vertex.
+  const sectional = (p: BufferAttribute, n: BufferAttribute, j: number) => {
+    const r = Math.hypot(p.getY(j), p.getZ(j)) || 1;
+    return {
+      nr: (n.getY(j) * p.getY(j) + n.getZ(j) * p.getZ(j)) / r,
+      na: n.getX(j),
+    };
+  };
+  // Each side: carcass profile index, band profile index.
+  for (const [ck, bk] of [
+    [0, 0],
+    [cm - 1, bm - 1],
+  ]) {
+    const c = sectional(cp, cn, ck);
+    const b = sectional(bp, bn, bk);
+    let nr = c.nr + b.nr;
+    let na = c.na + b.na;
+    const l = Math.hypot(nr, na) || 1;
+    nr /= l;
+    na /= l;
+    const set = (p: BufferAttribute, n: BufferAttribute, j: number) => {
+      const y = p.getY(j);
+      const z = p.getZ(j);
+      const r = Math.hypot(y, z) || 1;
+      n.setXYZ(j, na, (nr * y) / r, (nr * z) / r);
+    };
+    for (let i = 0; i <= segments; i++) set(cp, cn, i * cm + ck);
+    for (let i = 0; i <= rings; i++) {
+      const j = i * bm + bk;
+      const y = bp.getY(j);
+      const z = bp.getZ(j);
+      // Onto the carcass chord this ring's angle falls in.
+      const phi = Math.atan2(z, y);
+      const off = phi - (Math.floor(phi / seg) + 0.5) * seg;
+      const s = Math.cos(seg / 2) / Math.cos(off);
+      bp.setY(j, y * s);
+      bp.setZ(j, z * s);
+      set(bp, bn, j);
+    }
+  }
+  cp.needsUpdate = true;
+  bp.needsUpdate = true;
+}
+
 /** Rubber colour relative to the material's (RUBBER: the tyre materials carry the base colour, so dust can tint it),
  * `dust` (0..1) greys it. */
 function rubber(base: number, dust: number): [number, number, number] {
@@ -304,6 +367,7 @@ export function buildTyre(o: TyreOptions): BufferGeometry {
         pos.setZ(j, pos.getZ(j) * s);
       }
   }
+  closeShoulders(carcass, band, CARCASS_SEGMENTS, rings, carcassProf.length, m);
   const tyre = mergeGeometries([carcass, band], false)!;
   carcass.dispose();
   band.dispose();
