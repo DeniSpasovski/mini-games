@@ -307,12 +307,11 @@ function rasterise(d: TreadDef): Tread {
 }
 
 const cache = new Map<TyreId, Tread>();
-/** The rasterised tread of a compound (cached; compounds sharing a pattern share it). */
+/** The rasterised tread of a compound (cached). */
 export function tread(c: TyreId): Tread {
   let t = cache.get(c);
   if (!t) {
-    const same = [...cache.entries()].find(([k]) => TREADS[k] === TREADS[c]);
-    t = same ? same[1] : rasterise(TREADS[c]);
+    t = rasterise(TREADS[c]);
     cache.set(c, t);
   }
   return t;
@@ -452,21 +451,15 @@ const materials = new Map<TyreId, MeshStandardMaterial>();
 function rubberMaterial(c: TyreId): MeshStandardMaterial {
   let m = materials.get(c);
   if (!m) {
-    const same = [...materials.entries()].find(
-      ([k]) => TREADS[k] === TREADS[c],
-    );
-    if (same) m = same[1];
-    else {
-      const maps = treadMaps(tread(c));
-      m = new MeshStandardMaterial({
-        color: rubberColor(),
-        vertexColors: true,
-        roughness: 0.93,
-        map: maps.map,
-        normalMap: maps.normal,
-      });
-      m.name = `tyre-${c}`;
-    }
+    const maps = treadMaps(tread(c));
+    m = new MeshStandardMaterial({
+      color: rubberColor(),
+      vertexColors: true,
+      roughness: 0.93,
+      map: maps.map,
+      normalMap: maps.normal,
+    });
+    m.name = `tyre-${c}`;
     materials.set(c, m);
   }
   return m;

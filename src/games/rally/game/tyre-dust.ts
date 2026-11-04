@@ -1,5 +1,5 @@
 import { Color } from 'three';
-import type { SurfaceId } from '../physics/surfaces';
+import { SURFACES, type SurfaceId } from '../physics/surfaces';
 import type { Vehicle } from '../physics/vehicle';
 
 /**
@@ -20,6 +20,8 @@ const OFF_ROAD: Partial<Record<SurfaceId, number>> = {
   mud: 4,
   snow: 2,
 };
+/** Dust colour of clean tyres' first dust (until the run has mixed in its own surfaces): gravel. */
+const FIRST_DUST = SURFACES.gravel.dustColor;
 /** Tarmac wipes dust off at this share of the distance. */
 const WIPE = 0.08;
 
@@ -28,7 +30,7 @@ export class TyreDust {
   amount = 0;
   step = 0;
   /** Linear colour of the dust on the tyres. */
-  readonly color = new Color(0xb7a58a);
+  readonly color = new Color(FIRST_DUST);
   private weight = 0;
   private readonly c = new Color();
 
@@ -36,7 +38,7 @@ export class TyreDust {
     this.amount = 0;
     this.weight = 0;
     this.step = 0;
-    this.color.setHex(0xb7a58a);
+    this.color.setHex(FIRST_DUST);
   }
 
   /** Once per simulation frame; true when the step changed. */

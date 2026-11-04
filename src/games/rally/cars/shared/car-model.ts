@@ -1145,7 +1145,6 @@ export class CarModel {
     );
   }
 
-  /** Fit another compound: new tread, ring colour and (when the size differs) rim and tyre size on the same meshes. */
   /** This car's tyre materials for the fitted compound (its own copies: the dust is per car); `fresh` rebuilds them. */
   private tyreMaterials(fresh = false): Material | Material[] {
     if (fresh || !this.dusty) {
@@ -1163,6 +1162,7 @@ export class CarModel {
     this.dusty?.set(level, color);
   }
 
+  /** Fit another compound: new tread, sidewall prints and (when the size differs) rim and tyre size on the same meshes. */
   setTyre(tyre: TyreId | null): void {
     if (tyre === this.tyre) return;
     this.tyre = tyre;
