@@ -163,6 +163,17 @@ export class StageTimer {
     return cum.map((t, i) => t - (i ? cum[i - 1] : 0));
   }
 
+  /**
+   * How much slower (+) or faster (−) sector `i` was than the reference best's same sector (s),
+   * or undefined while the sector is open or there is no reference. The HUD bar, the split chips and
+   * the split message all colour from this, so they always agree.
+   */
+  sectorDelta(i: number): number | undefined {
+    const ref = this.referenceSectorTimes();
+    const mine = this.sectorTimes();
+    return ref && i < mine.length ? mine[i] - ref[i] : undefined;
+  }
+
   /** Adds a time penalty to the running stage time (splits, HUD and result all include it). */
   addPenalty(seconds: number): void {
     this.time += seconds;
@@ -213,19 +224,14 @@ export class StageTimer {
     if (this.updateCut(dt, x, z, q)) return;
     const i = this.splitTimes.length;
     if (i < st.splits.length && this.progress >= st.splits[i]) {
-      const prev = i ? this.splitTimes[i - 1] : 0;
       this.splitTimes.push(this.time);
       const b = this.reference?.splits[i];
-      const bPrev = i ? this.reference?.splits[i - 1] : 0;
       this.emit({
         type: 'split',
         index: i,
         time: this.time,
         delta: b !== undefined ? this.time - b : undefined,
-        sectorDelta:
-          b !== undefined && bPrev !== undefined
-            ? this.time - prev - (b - bPrev)
-            : undefined,
+        sectorDelta: this.sectorDelta(i),
       });
     }
     if (this.progress >= st.finish) {
