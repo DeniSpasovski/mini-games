@@ -14,7 +14,8 @@ permissions:
 
 # Eight parallel jobs: regular tests per game, integration playtests per game
 # (integration-tests/<game>), everything else (portal / shared + typecheck + lint) and a browser smoke test
-# (scripts/smoke.mjs: a rally stage and both viewers in headless Chrome on the dev server, SwiftShader GPU).
+# (scripts/smoke.mjs: a rally stage and both viewers in headless Chrome on the dev server, SwiftShader GPU;
+# skipped when a change is docs only).
 # Integration tests are slow, so `changes` (scripts/ci-affected.mjs) picks the test files whose import closure
 # contains a changed file; a game with none is skipped (a skipped job counts as passed for required checks).
 # Pushes to main run every integration test.
@@ -28,6 +29,7 @@ jobs:
       hole: ${{ steps.pick.outputs.hole }}
       kaboom: ${{ steps.pick.outputs.kaboom }}
       rally_cars: ${{ steps.pick.outputs.rally_cars }}
+      smoke: ${{ steps.pick.outputs.smoke }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -146,6 +148,8 @@ jobs:
 
   smoke:
     name: browser smoke test
+    needs: changes
+    if: needs.changes.outputs.smoke != ''
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:

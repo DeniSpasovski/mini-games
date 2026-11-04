@@ -38,6 +38,7 @@ Chrome on the SwiftShader GPU). A new script or folder needs a CI step in the sa
 **Browser smoke** (`npm run test:smoke`, needs a dev server; `--base <url>`, `--stage`, `--car`, `--dist dist` for a build):
 loads a rally stage and drives it on autopilot, then the map and car viewer, in a fresh profile, and fails on any console
 error, exception, WebGL error or failed same-origin request. Run it before calling rendering, shader, loading or viewer work done.
+CI skips it when a change is docs only (`smoke` output of `scripts/ci-affected.mjs`).
 
 Integration jobs are selective: `scripts/ci-affected.mjs` (job `changes`) runs only the test files whose import closure contains a
 changed file; a game with none is skipped. Changes to `src/shared/`, package / test / ts config, workflows or that script run all;

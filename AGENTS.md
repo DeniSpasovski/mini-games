@@ -148,6 +148,21 @@ into `DETAILS.md`, never up.
 - Hole Island: scoring changes (points, tiers, bonus, times, map content) bump that map's `MAP_SCORING_VERSIONS` entry
   (`game/scores.ts`; `sim/` changes = every map).
 
+## Parallel sessions and git
+
+- Several sessions share this folder. Parallel work that edits files goes in its own worktree (`.claude/worktrees/<name>`);
+  never switch the main folder's branch (other sessions are on it).
+- Stage, commit or push only when the user asks in that turn. "Push" means push (CI verifies), not a command to hand over.
+  On a shared PR branch: `git fetch` and rebase onto the remote tip first; never force-push without `--force-with-lease`.
+- "Now" / "here" = inline in this session, not a background agent or scheduled task. A scheduled-task brief states the
+  absolute local date and time, the git policy, the docs to read first and a report-back step.
+- Stop what you started when done (dev / static servers, headless Chrome) by your own PIDs, never by name or pattern:
+  other projects run node too.
+- The orchestrator (the session doing the work) runs the agents in `.claude/agents/` before reporting work done:
+  `pre-report-check`, briefed with the user's exact words, the files it changed and the dev server URL; after a visual fix,
+  `visual-verify` on every camera link the user sent and the mirrored case (rear lamps, the other bridge end).
+- A small ask gets a small diff; name a bigger fix in one sentence instead of doing it.
+
 ## Pull requests and commits
 
 - **PR description: short.** One or two plain sentences on what changes for the player, then a few bullets, then which times /
