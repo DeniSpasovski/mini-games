@@ -154,40 +154,62 @@ export function gravelShader(
         float bend = clamp( abs( vGrX.z ) / 1.2, 0.0, 1.0 );
         float x = vGrX.x + ( 0.36 + 0.3 * bend ) * ( grNoise( vec2( along / 27.0, 3.1 ) ) - 0.5 ) + 0.12 * ( grNoise( vec2( along / 5.3, 8.3 ) ) - 0.5 );
         float hsp = 0.775 + 0.08 * ( grNoise( vec2( along / 37.0, 1.7 ) ) - 0.5 );
-        float w = 0.3 + 0.12 * grNoise( vec2( along / 11.0, 5.5 ) );
+        float w = 0.24 + 0.08 * grNoise( vec2( along / 11.0, 5.5 ) );
         float prof = 1.0 - smoothstep( w * 0.25, w * 1.6, min( abs( x - hsp ), abs( x + hsp ) ) );
         prof = max( prof, 0.4 * ( 1.0 - smoothstep( w * 0.3, w * 1.8, abs( abs( x + 0.1 ) - 0.95 ) ) ) );
-        // In a bend every driver takes their own line: the tracks fan out into overlapping arcs, from tighter than the
-        // average line to out wide (by up to ~1.5x as much as the line cuts in), each wandering on its own and fading in
-        // and out, widest at the apex.
+        // In a bend the average line gives way to the cars' own tracks (below), over a faint tint of where most of them
+        // run: three broad arcs from tighter than the average line to out wide, each fading in and out.
         float outM = 0.0;
+        prof *= 1.0 - 0.8 * bend;
         if ( bend > 0.0 ) {
           for ( int i = 0; i < 3; i++ ) {
             float fi = float( i );
             float k = -0.35 + 0.6 * fi + 0.3 * ( grNoise( vec2( along / ( 19.0 + 7.0 * fi ), 4.1 + fi * 3.3 ) ) - 0.5 );
             float xi = x + vGrX.z * k + 0.25 * ( grNoise( vec2( along / ( 8.0 + 3.0 * fi ), 7.7 + fi ) ) - 0.5 );
             float wi = w * ( 0.8 + 0.2 * fi );
-            float si = bend * ( 0.5 - 0.1 * fi ) * smoothstep( 0.3, 0.65, grNoise( vec2( along / ( 23.0 + 5.0 * fi ), 9.1 + fi * 2.0 ) ) );
+            float si = bend * ( 0.32 - 0.05 * fi ) * smoothstep( 0.3, 0.65, grNoise( vec2( along / ( 23.0 + 5.0 * fi ), 9.1 + fi * 2.0 ) ) );
             prof = max( prof, si * ( 1.0 - smoothstep( wi * 0.2, wi * 1.6, min( abs( xi - hsp ), abs( xi + hsp ) ) ) ) );
           }
-          // Slides: on some bends cars went through sideways, sweeping a broad band from the line out towards the outside
-          // (the side away from vGrX.z) with scuffs at an angle to the road (the car's yaw), the stones half swept away.
-          float side = -sign( vGrX.z );
-          float o = ( x - side * hsp ) * side;
-          float band = smoothstep( -0.4, 0.3, o ) * ( 1.0 - smoothstep( 0.6, 0.6 + 1.6 * bend, o ) );
-          float slide = bend * band * smoothstep( 0.4, 0.7, grNoise( vec2( along / 45.0, 21.7 ) ) );
-          float yaw = 0.45 * side;
-          float sc = grNoise( vec2( ( x * cos( yaw ) - along * sin( yaw ) ) * 9.0, ( x * sin( yaw ) + along * cos( yaw ) ) / 1.6 ) );
-          prof = max( prof, slide * ( 0.35 + 0.45 * sc ) );
           // On the outer edge of the bend (lat = x + line has the opposite sign to the cut): the slides throw gravel there.
           outM = ( vGrX.x + vGrX.z ) * vGrX.z < 0.0 ? bend : 0.0;
         }
         // Patchy along the road (stones kicked back in, some stretches worn harder).
         prof *= ( 0.75 + 0.25 * grNoise( vec2( along / 2.3, x * 1.3 + 2.0 ) ) ) * ( 0.8 + 0.2 * grNoise( vec2( along / 17.0, x * 0.4 + 6.0 ) ) );
+        // Every car's own tracks: ten tyre-width pairs (~0.2 m, ~1.5 m apart), each on its own line that drifts
+        // across the others, coming and going along the road. On a straight they keep close to the line; in a bend they
+        // spread over the road, more towards the outside (late turn-ins, running wide), and a sliding car's rear tyres run
+        // outside its fronts (four tracks). Thinner than a pixel far away, so they fade out beyond ~40 m.
+        float camD = length( vViewPosition );
+        float tyreFar = 1.0 - smoothstep( 25.0, 55.0, camD );
+        float tyres = 0.0;
+        if ( tyreFar > 0.0 ) {
+          float outS = vGrX.z == 0.0 ? 1.0 : -sign( vGrX.z );
+          float spread = 0.25 + 2.0 * bend;
+          for ( int i = 0; i < 10; i++ ) {
+            float fi = float( i );
+            float h1 = fract( sin( fi * 12.9898 + 1.3 ) * 43758.5453 );
+            float h2 = fract( sin( fi * 78.233 + 4.1 ) * 24634.6345 );
+            float h3 = fract( sin( fi * 39.425 + 7.7 ) * 13758.937 );
+            float off = outS * spread * ( mix( -0.45, 1.0, h1 ) + 0.5 * ( grNoise( vec2( along / ( 7.0 + 9.0 * h2 ), fi * 3.7 + 0.5 ) ) - 0.5 ) );
+            float xi = x - off;
+            float hp = 0.72 + 0.08 * h3;
+            float tw = 0.07 + 0.04 * h2;
+            float t = 1.0 - smoothstep( tw * 0.7, tw * 1.15, min( abs( xi - hp ), abs( xi + hp ) ) );
+            // Sliding (some cars, in bends): the rear pair out towards the outside of the bend.
+            float yawOff = outS * bend * step( 0.55, h3 ) * ( 0.25 + 0.45 * h1 );
+            float xr = xi - yawOff;
+            t = max( t, step( 0.001, abs( yawOff ) ) * 0.85 * ( 1.0 - smoothstep( tw * 0.7, tw * 1.3, min( abs( xr - hp ), abs( xr + hp ) ) ) ) );
+            float on = smoothstep( 0.5, 0.62, grNoise( vec2( along / ( 5.0 + 10.0 * h3 ), fi * 5.1 + 1.3 ) ) );
+            tyres = 1.0 - ( 1.0 - tyres ) * ( 1.0 - t * on * ( 0.5 + 0.3 * h2 ) );
+          }
+          tyres *= tyreFar * ( 0.5 + 0.5 * bend );
+        }
         // Height blended stone by stone: the loose stones (bright = high in the fine tap) stay on a track's edge, and the
         // biggest ones lie in the track too, so it ends in stones, not on a soft line.
         float hs = dot( a, vec3( 0.2126, 0.7152, 0.0722 ) ) / GR_MEAN;
-        rut = clamp( ( prof - 0.15 ) * 2.6 - 0.9 * ( hs - 1.0 ), 0.0, 1.0 );
+        rut = clamp( ( prof - 0.2 ) * 2.2 - 0.9 * ( hs - 1.0 ), 0.0, 1.0 ) * smoothstep( 0.2, 0.35, prof );
+        // The cars' own tracks are graded, not thresholded: one track is a light print, where several cross it is packed.
+        rut = max( rut, clamp( tyres - 0.35 * ( hs - 1.0 ), 0.0, 1.0 ) * smoothstep( 0.05, 0.2, tyres ) );
         rut *= 1.0 - 0.7 * smoothstep( 1.25, 1.7, hs );
         // Packed: the stones pressed flat under a skin of fines, darker (GR_TRACK_TONE) and flatter (relief below); a third
         // of the fine grain stays, with faint tyre streaks along it.
