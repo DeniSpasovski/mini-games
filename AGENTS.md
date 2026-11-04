@@ -10,6 +10,7 @@
 - `npm run build:test` - same, but the TEST cars / maps (`release.ts`) ship too (the Pages workflow's default)
 - `npm run preview` - preview the build
 - `npm run test` (rstest, fast `tests/` only; per game: `test:rally` / `test:hole` / `test:kaboom`) · `npm run test:integration` (slow playtests in `integration-tests/<game>/`) · `npm run test:watch` · `npm run lint` (rslint) · `npm run format` (Prettier)
+- `npm run test:smoke -- --base http://localhost:<port>` - headless Chrome loads a rally stage + map / car viewer, fails on any console / WebGL error (`testing` skill)
 - `npx tsc --noEmit -p tsconfig.json` - type check (the build does not)
 
 ## Public repo and licences - read before adding anything
@@ -146,6 +147,21 @@ into `DETAILS.md`, never up.
   bumps start once the flag is removed (a test checks).
 - Hole Island: scoring changes (points, tiers, bonus, times, map content) bump that map's `MAP_SCORING_VERSIONS` entry
   (`game/scores.ts`; `sim/` changes = every map).
+
+## Parallel sessions and git
+
+- Several sessions share this folder. Parallel work that edits files goes in its own worktree (`.claude/worktrees/<name>`);
+  never switch the main folder's branch (other sessions are on it).
+- Stage, commit or push only when the user asks in that turn. "Push" means push (CI verifies), not a command to hand over.
+  On a shared PR branch: `git fetch` and rebase onto the remote tip first; never force-push without `--force-with-lease`.
+- "Now" / "here" = inline in this session, not a background agent or scheduled task. A scheduled-task brief states the
+  absolute local date and time, the git policy, the docs to read first and a report-back step.
+- Stop what you started when done (dev / static servers, headless Chrome) by your own PIDs, never by name or pattern:
+  other projects run node too.
+- The orchestrator (the session doing the work) runs the agents in `.claude/agents/` before reporting work done:
+  `pre-report-check`, briefed with the user's exact words, the files it changed and the dev server URL; after a visual fix,
+  `visual-verify` on every camera link the user sent and the mirrored case (rear lamps, the other bridge end).
+- A small ask gets a small diff; name a bigger fix in one sentence instead of doing it.
 
 ## Pull requests and commits
 

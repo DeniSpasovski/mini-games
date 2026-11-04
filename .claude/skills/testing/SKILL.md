@@ -1,6 +1,6 @@
 ---
 name: testing
-description: Where a test goes (tests/ vs integration-tests/<game>), which npm script runs it and how the seven GitHub Actions jobs map to them. Use when adding, moving or running tests, or editing .github/workflows/ci.yml.
+description: Where a test goes (tests/ vs integration-tests/<game>), which npm script runs it and how the eight GitHub Actions jobs map to them. Use when adding, moving or running tests, or editing .github/workflows/ci.yml.
 ---
 
 # Testing layout
@@ -16,6 +16,7 @@ Regular tests are fast (the whole `tests/` folder runs in about a minute); integ
 | Rally playtests                                            | `integration-tests/rally/`  | `npm run test:integration:rally`  |
 | Hole playtests                                             | `integration-tests/hole/`   | `npm run test:integration:hole`   |
 | Kaboom bot playtests                                       | `integration-tests/kaboom/` | `npm run test:integration:kaboom` |
+| Browser smoke (stage + map / car viewer, console + WebGL)  | `scripts/smoke.mjs`         | `npm run test:smoke`              |
 
 `npm run test` = every regular test (no integration); `npm run test:integration` = every playtest.
 
@@ -30,9 +31,14 @@ stay next to the tests that use them. A new game gets its own `tests/<id>/`, `in
 
 ## CI (`.github/workflows/ci.yml`)
 
-Runs on pull requests and on pushes to `main`, seven parallel jobs: rally tests, rally integration tests, hole tests, kaboom tests, kaboom integration tests,
-hole integration tests, and a shared job (type check + lint + `test:shared`). A new script or folder needs a CI step in the
-same change, otherwise it silently never runs.
+Runs on pull requests and on pushes to `main`, eight parallel jobs: rally tests, rally integration tests, hole tests, kaboom tests, kaboom integration tests,
+hole integration tests, a shared job (type check + lint + `test:shared`) and the browser smoke test (dev server + headless
+Chrome on the SwiftShader GPU). A new script or folder needs a CI step in the same change, otherwise it silently never runs.
+
+**Browser smoke** (`npm run test:smoke`, needs a dev server; `--base <url>`, `--stage`, `--car`, `--dist dist` for a build):
+loads a rally stage and drives it on autopilot, then the map and car viewer, in a fresh profile, and fails on any console
+error, exception, WebGL error or failed same-origin request. Run it before calling rendering, shader, loading or viewer work done.
+CI skips it when a change is docs only (`smoke` output of `scripts/ci-affected.mjs`).
 
 Integration jobs are selective: `scripts/ci-affected.mjs` (job `changes`) runs only the test files whose import closure contains a
 changed file; a game with none is skipped. Changes to `src/shared/`, package / test / ts config, workflows or that script run all;
@@ -44,6 +50,7 @@ run `npm run test:integration:rally`.
 ## Gotchas
 
 - rstest path filters are substrings: `rstest tests/rally` would also match `integration-tests/rally`, so the regular scripts
-  pass `--exclude 'integration-tests/**'`.
+  pass `--exclude 'integration-tests/**'`. Session worktrees (`.claude/**`) are excluded in `rstest.config.ts`, but a CLI
+  `--exclude` replaces that list: a script or command that passes one adds `--exclude '.claude/**'` too.
 - Relative imports are `../../src/...` in both folders (same depth).
 - Update the doc / skill links when you move a test (`grep -rn "<test-file>" --include=*.md .`).
