@@ -538,6 +538,8 @@ export class LampHalos {
     brakeOnly: [] as ShaderMaterial[],
     runningOnly: [] as ShaderMaterial[],
   };
+  /** The last `setSharp` value (-1 = not set yet). */
+  private sharp = -1;
 
   /**
    * `meshes` = the red lamp meshes, `toBody` = world -> body matrix (the matrix worlds must be current). `reverse` = the glow
@@ -752,6 +754,7 @@ export class LampHalos {
     let area = 0;
     const c = new Vector3();
     const litBox = new Box3();
+    const p = new Vector3();
     const t = piece.tris;
     const zs = piece.zs;
     for (let k = 0, tri = 0; k < t.length; k += 12, tri++) {
@@ -771,9 +774,9 @@ export class LampHalos {
           : 1);
       area += lit;
       if (lit > 0)
-        for (const j of [0, 4, 8])
+        for (let j = 0; j < 12; j += 4)
           litBox.expandByPoint(
-            new Vector3(t[k + j], t[k + j + 1], zs[tri * 3 + j / 4]),
+            p.set(t[k + j], t[k + j + 1], zs[tri * 3 + j / 4]),
           );
       c.x += (lit * (t[k] + t[k + 4] + t[k + 8])) / 3;
       c.y += (lit * (t[k + 1] + t[k + 5] + t[k + 9])) / 3;
@@ -802,8 +805,10 @@ export class LampHalos {
 
   /** How tight the glow is: 1 = soft (night), 2 = tight (a lit lens through rain / fog by day). */
   setSharp(sharp: number): void {
-    for (const m of [...this.materials, ...this.brakeOnly, ...this.runningOnly])
-      m.uniforms.uSharp.value = sharp;
+    if (sharp === this.sharp) return;
+    this.sharp = sharp;
+    for (const list of [this.materials, this.brakeOnly, this.runningOnly])
+      for (const m of list) m.uniforms.uSharp.value = sharp;
   }
 
   setLevel(level: number, brakeOnly: number): void {

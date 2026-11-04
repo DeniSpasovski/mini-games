@@ -234,6 +234,8 @@ export class RallyGame {
   /** Night only (`env.night`): the car's lights. */
   private headlights?: Headlights;
   private tailLight?: TailLight;
+  /** Lights on: where the dust's red tint comes from (car space), the model's own tail lamps once known (`onTaillamps`). */
+  private tailTintAt?: { x: number; y: number; z: number };
   /** Lit lamps mirrored in a wet road (lamp-reflections.ts). */
   private lampReflections?: LampReflections;
   /** High quality at night / dusk: glow around lamps and reflectors. */
@@ -606,16 +608,20 @@ export class RallyGame {
         need,
         lights,
       );
-      this.tailLight = new TailLight(
-        this.model.root,
-        tailLightMount(this.car.physics),
-        // The red spill tints the road at night; by day (rain / fog) the lamps show only in the wet road's streaks.
-        lights.day ? 0 : need,
-        headlightMount(this.car.physics).x,
-      );
-      // The beam and the red spill start at the model's own lamps once they are known.
+      // The red spill tints the road at night; by day (rain / fog) it never lights (the lamps show only in the wet
+      // road's streaks), so no spot lights.
+      if (!lights.day)
+        this.tailLight = new TailLight(
+          this.model.root,
+          tailLightMount(this.car.physics),
+          need,
+          headlightMount(this.car.physics).x,
+        );
+      this.tailTintAt = tailLightMount(this.car.physics);
+      // The beam, the red spill and the dust's tint start at the model's own lamps once they are known.
       this.model.onHeadlamps((m) => this.headlights?.moveTo(m));
       this.model.onTaillamps((m) => {
+        this.tailTintAt = { x: 0, y: m.y, z: m.z };
         this.tailLight?.moveTo(m);
         this.lampReflections?.moveTail(m);
       });
@@ -970,9 +976,9 @@ export class RallyGame {
     }
     this.lampReflections?.setBrake(brake);
     this.lampReflections?.update(this.camera.position);
-    if (this.tailLight) {
-      this.tailLight.setBrake(brake);
-      const at = tailLightMount(this.car.physics);
+    const at = this.tailTintAt;
+    if (at) {
+      this.tailLight?.setBrake(brake);
       this.tailPos.set(at.x, at.y, at.z).applyMatrix4(root.matrixWorld);
       this.tailColor
         .setRGB(1, 0.05, 0.03)
@@ -1622,7 +1628,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     const reversing = v.drivetrain.gear === -1;
     const brakePedal = reversing ? v.controls.throttle : v.controls.brake;
     this.model.setBrake(brakePedal, reversing);
-    if (this.headlights || this.tailLight)
+    if (this.headlights || this.tailTintAt)
       this.lightParticlesByLamps(brakePedal);
     this.renderPos.copy(this.model.root.position);
     this.renderFwd.set(0, 0, 1).applyQuaternion(this.model.root.quaternion);

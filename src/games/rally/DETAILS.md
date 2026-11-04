@@ -210,14 +210,14 @@ Per-map settings live in `MapDef.environment`; everything has a default.
   it inside one glow map (22B: pale red body = running lamp, strong reds = brake).
   A lamp with a `LampNight` also gets a soft red halo (`cars/shared/lamp-halo.ts`: its silhouette from behind, blurred, on an
   additive quad) plus a camera-facing corona per lit lens (sized to the lens, faded side-on and hidden on the far side, so a side
-  view still reads lit), and at night `game/headlights.ts` `TailLight` adds two dim red spots under the model's own tail lamps
-  (`CarModel.onTaillamps`; every quality level) while
-  `ParticleSystem.setTaillight` tints the dust behind it; both follow the brake pedal (`rally-game.ts` `lightParticlesByLamps`).
-  How a tail lamp is lit (running = about the sky's luminance, brake ~10x): the lens glows red and a small hot spot (the bulb / LED
-  seen through it) is driven past red and turns pale; the halo behind is tight by day in rain / fog (`uSharp` 2) and soft at night,
+  view still reads lit). At night `game/headlights.ts` `TailLight` adds two dim red spots under the model's own tail lamps
+  (`CarModel.onTaillamps`; every quality level, none on a rain / fog day where they cannot light) and
+  `ParticleSystem.setTaillight` tints the dust behind them; both follow the brake pedal (`rally-game.ts` `lightParticlesByLamps`).
+  How a tail lamp is lit: the lens glows red and a small hot spot (the bulb / LED
+  seen through it) is driven past red and turns pale; the halo behind is tight by day in rain / fog and soft at night,
   scaled per car by `gltf.tailHalo`. Sheet lamps (`srcPart`) light the sheet's pale-pink bulb pixels (`idleGlow`: running = spots +
   a dim lens); `tailc` lamps get one hot spot (`chamberGlow`); the Zastava lamps have night levels and a halo. A wet road shows each
-  lit lamp as a streak (`game/lamp-reflections.ts`, a `map` with alpha; tail lamps follow the brake). No extra lights or passes.
+  lit lamp as a streak (`game/lamp-reflections.ts`, a `map` with alpha; tail lamps follow the brake).
   Check lamps in the car viewer: `tod=1` (night; `tod=17.5` = evening, lights half on) with `lamps=off|on|brake|reverse` (off = every lamp dark, on = the running lamps as the hour has them), `beam=0` hides
   the headlight beam, `quality=high` adds the bloom.
 

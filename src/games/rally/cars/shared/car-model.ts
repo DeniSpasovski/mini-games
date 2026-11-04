@@ -1253,16 +1253,22 @@ export class CarModel {
     this.applyHeadLamps();
   }
 
-  /** Calls `f` with the tail lamps' position whenever it is known or changes (the imported model's own lamps). */
-  onTaillamps(f: (m: HeadlampMount) => void): void {
+  /** Calls `f` with the tail lamps' position whenever it is known or changes (the imported model's own lamps). Returns the unsubscribe. */
+  onTaillamps(f: (m: HeadlampMount) => void): () => void {
     this.taillampListeners.push(f);
     if (this.taillampMount) f(this.taillampMount);
+    return () => {
+      this.taillampListeners = this.taillampListeners.filter((g) => g !== f);
+    };
   }
 
-  /** Calls `f` with the head lamps' position whenever it is known or changes (the imported model's own lamps). */
-  onHeadlamps(f: (m: HeadlampMount) => void): void {
+  /** Calls `f` with the head lamps' position whenever it is known or changes (the imported model's own lamps). Returns the unsubscribe. */
+  onHeadlamps(f: (m: HeadlampMount) => void): () => void {
     this.headlampListeners.push(f);
     if (this.headlampMount) f(this.headlampMount);
+    return () => {
+      this.headlampListeners = this.headlampListeners.filter((g) => g !== f);
+    };
   }
 
   /** The glow in front of the head lamps and where they are (the beam starts there), once their glow maps have loaded. */
@@ -1699,10 +1705,9 @@ export class CarModel {
       );
       this.body.add(this.halos.group);
       const tail = this.halos.mount(this.body.matrix, true);
-      if (tail) {
-        this.taillampMount = tail;
-        for (const f of this.taillampListeners) f(tail);
-      }
+      // No running lamp boxes (brake-only ones are left out): no mount, not the last build's.
+      this.taillampMount = tail;
+      if (tail) for (const f of this.taillampListeners) f(tail);
       const white = redLamps.filter((m) => {
         const { userData } = m.material as Material;
         return userData.reverseHalo && userData.brakeLamp?.reverseGlow;

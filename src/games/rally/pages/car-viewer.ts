@@ -598,9 +598,13 @@ let headlights: Headlights | undefined;
 let tailLight: TailLight | undefined;
 /** A wet road's mirror streaks under the lit lamps (as in the game). */
 let reflections: LampReflections | undefined;
+/** Unsubscribes `applyLights`' lamp listeners from the model (it runs again on every time / weather / beam change). */
+let offLampListeners: (() => void)[] = [];
 
 /** Lights for the hour of day (`Environment.lightNeed`, as in the game): headlamps, the beam and the tail lamps' red spill (their glow follows `applyLamps`). Before the first compile where possible. */
 function applyLights(): void {
+  for (const off of offLampListeners) off();
+  offLampListeners = [];
   headlights?.dispose();
   headlights = undefined;
   tailLight?.dispose();
@@ -613,7 +617,7 @@ function applyLights(): void {
     const lit = carLights(need, shell.env.weatherLook);
     if (wet > 0) {
       const m = model;
-      m.onHeadlamps((head) => {
+      const off = m.onHeadlamps((head) => {
         if (m !== model) return;
         reflections?.dispose();
         reflections = new LampReflections(
@@ -626,19 +630,24 @@ function applyLights(): void {
         if (m.taillampMount) reflections.moveTail(m.taillampMount);
         applyLamps();
       });
+      offLampListeners.push(off);
     }
-    tailLight = new TailLight(
-      model.root,
-      tailLightMount(model.def.physics),
-      need,
-      headlightMount(model.def.physics).x,
-    );
+    // By day (rain / fog) the red spill never lights: no spot lights.
+    if (!lit.day)
+      tailLight = new TailLight(
+        model.root,
+        tailLightMount(model.def.physics),
+        need,
+        headlightMount(model.def.physics).x,
+      );
     const m = model;
-    model.onTaillamps((at) => {
-      if (m !== model) return;
-      tailLight?.moveTo(at);
-      reflections?.moveTail(at);
-    });
+    offLampListeners.push(
+      model.onTaillamps((at) => {
+        if (m !== model) return;
+        tailLight?.moveTo(at);
+        reflections?.moveTail(at);
+      }),
+    );
     if (state.beam)
       headlights = new Headlights(
         model.root,
@@ -842,5 +851,6 @@ if (spot.surface)
   setLamps(mode: string) {
     state.lamps = LAMP_MODES.some((m) => m.value === mode) ? mode : 'on';
     applyLamps();
+    sync();
   },
 };

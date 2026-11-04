@@ -286,7 +286,7 @@ const TAIL_AIM_DOWN = 0.9;
  * road behind the car under each lamp (not the car's own rear), brighter with the brake. Starts at `at` +- `spacing` (from
  * the physics) and moves to the model's own tail lamps (`moveTo`, `CarModel.onTaillamps`). A child of the car; like the
  * headlights it exists from the first compile (lights are compiled into every lit shader), so it is created only when the
- * lights are on.
+ * lights are on, and not on a rain / fog day (nothing to light there).
  */
 export class TailLight {
   private readonly lights: SpotLight[] = [];
