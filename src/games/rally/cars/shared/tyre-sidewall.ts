@@ -43,6 +43,7 @@ function load(): void {
   const img = new Image();
   img.onload = () => {
     logo = img;
+    measureLogo(img);
     redraw();
   };
   img.src = wordmarkUrl;
@@ -99,21 +100,53 @@ function draw(c: TyreId, canvas: HTMLCanvasElement): void {
     for (const shift of [0, -W])
       ctx.fillRect(x0 + shift, H / 2 - band / 2, x1 - x0, band);
   }
-  // Wordmark (white in the svg) and the tyre's name in the compound colour.
+  // Wordmark (white in the svg) and the tyre's name in the compound colour, both centred on the band by their ink
+  // (not their boxes: the wordmark's letters sit high in its viewBox, caps sit high in the em box).
   if (logo) {
-    ctx.globalAlpha = 1;
-    ctx.drawImage(logo, W * 0.25 - logoW / 2, (H - logoH) / 2, logoW, logoH);
-    ctx.globalAlpha = 1;
-  } else {
-    ctx.fillStyle = paint;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('GRAVEL RALLY', W * 0.25, H / 2 + 2);
-  }
-  ctx.fillStyle = color;
+    const [top, bottom] = logoInk ?? [0, 1];
+    const y = H / 2 - logoH * ((top + bottom) / 2);
+    ctx.drawImage(logo, W * 0.25 - logoW / 2, y, logoW, logoH);
+  } else centredText(ctx, 'GRAVEL RALLY', W * 0.25, paint);
+  centredText(ctx, name, W * 0.75, color);
+}
+
+/** Text centred across the band by its ink. */
+function centredText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  fill: string,
+): void {
+  ctx.fillStyle = fill;
   ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(name, W * 0.75, H / 2 + 2);
+  ctx.textBaseline = 'alphabetic';
+  const m = ctx.measureText(text);
+  const ink = m.actualBoundingBoxAscent - m.actualBoundingBoxDescent;
+  ctx.fillText(text, x, H / 2 + ink / 2);
+}
+
+/** The wordmark's ink rows (top, bottom) as fractions of its height, measured once it has loaded. */
+let logoInk: [number, number] | null = null;
+function measureLogo(img: HTMLImageElement): void {
+  const w = 512;
+  const h = Math.round(w / LOGO_ASPECT);
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return;
+  ctx.drawImage(img, 0, 0, w, h);
+  const a = ctx.getImageData(0, 0, w, h).data;
+  let top = -1;
+  let bottom = -1;
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++)
+      if (a[(y * w + x) * 4 + 3] > 64) {
+        if (top < 0) top = y;
+        bottom = y + 1;
+        break;
+      }
+  if (top >= 0) logoInk = [top / h, bottom / h];
 }
 
 const materials = new Map<TyreId, MeshStandardMaterial>();
