@@ -1254,11 +1254,12 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       );
     }
     if (e.type === 'split') {
-      const d = e.delta !== undefined ? `\n${formatDelta(e.delta)}` : '';
+      const d =
+        e.sectorDelta !== undefined ? `\n${formatDelta(e.sectorDelta)}` : '';
       this.hud.message(
         `SPLIT ${e.index! + 1}  ${formatTime(e.time!)}${d}`,
         2.5,
-        // Colour = this sector vs the best's sector (same as the HUD bar), the number stays cumulative.
+        // Gap and colour = this sector vs the best's sector (same as the HUD bar and chips), the time is the stage clock.
         `small ${e.sectorDelta !== undefined ? (e.sectorDelta <= 0 ? 'good' : 'bad') : ''}`,
       );
     }
