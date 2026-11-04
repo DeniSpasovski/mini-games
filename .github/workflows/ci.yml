@@ -12,8 +12,9 @@ concurrency:
 permissions:
   contents: read
 
-# Seven parallel jobs: regular tests per game, integration playtests per game
-# (integration-tests/<game>), and everything else (portal / shared + typecheck + lint).
+# Eight parallel jobs: regular tests per game, integration playtests per game
+# (integration-tests/<game>), everything else (portal / shared + typecheck + lint) and a browser smoke test
+# (scripts/smoke.mjs: a rally stage and both viewers in headless Chrome on the dev server, SwiftShader GPU).
 # Integration tests are slow, so `changes` (scripts/ci-affected.mjs) picks the test files whose import closure
 # contains a changed file; a game with none is skipped (a skipped job counts as passed for required checks).
 # Pushes to main run every integration test.
@@ -142,3 +143,22 @@ jobs:
         run: npm run lint
       - name: Tests outside the game folders
         run: npm run test:shared
+
+  smoke:
+    name: browser smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Dev server
+        run: |
+          npm run dev -- --port 3000 > dev-server.log 2>&1 &
+          for i in $(seq 1 150); do curl -sf http://localhost:3000/ > /dev/null && exit 0; sleep 2; done
+          cat dev-server.log; exit 1
+      - name: Stage, map viewer and car viewer load without console / WebGL errors
+        run: npm run test:smoke

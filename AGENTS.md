@@ -10,6 +10,7 @@
 - `npm run build:test` - same, but the TEST cars / maps (`release.ts`) ship too (the Pages workflow's default)
 - `npm run preview` - preview the build
 - `npm run test` (rstest, fast `tests/` only; per game: `test:rally` / `test:hole` / `test:kaboom`) · `npm run test:integration` (slow playtests in `integration-tests/<game>/`) · `npm run test:watch` · `npm run lint` (rslint) · `npm run format` (Prettier)
+- `npm run test:smoke -- --base http://localhost:<port>` - headless Chrome loads a rally stage + map / car viewer, fails on any console / WebGL error (`testing` skill)
 - `npx tsc --noEmit -p tsconfig.json` - type check (the build does not)
 
 ## Public repo and licences - read before adding anything
