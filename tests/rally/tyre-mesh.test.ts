@@ -27,7 +27,8 @@ function stats(g: BufferGeometry, halfWidth: number) {
     if (Math.abs(pos.getX(i)) <= halfWidth * 0.67)
       minTreadR = Math.min(minTreadR, Math.hypot(pos.getY(i), pos.getZ(i)));
   }
-  return { tris: pos.count / 3, maxR, maxX, minTreadR };
+  const tris = (g.index ? g.index.count : pos.count) / 3;
+  return { tris, maxR, maxX, minTreadR };
 }
 
 describe.each(TYRE_IDS)('%s tyre', (tyre) => {
@@ -35,7 +36,7 @@ describe.each(TYRE_IDS)('%s tyre', (tyre) => {
     const size = tyreSizeFor(fabia, tyre);
     const g = buildTyre({ radius: fabia.wheelRadius, size, compound: tyre });
     const s = stats(g, size.width / 2);
-    expect(s.tris).toBeLessThan(5500);
+    expect(s.tris).toBeLessThan(13000);
     // Overall radius = the physics wheel radius; width = the section width.
     expect(s.maxR).toBeCloseTo(fabia.wheelRadius, 3);
     expect(s.maxX).toBeLessThanOrEqual(size.width / 2 + 1e-4);
@@ -45,6 +46,7 @@ describe.each(TYRE_IDS)('%s tyre', (tyre) => {
       expect(Number.isFinite(n.getX(i) + n.getY(i) + n.getZ(i))).toBe(true);
     }
     expect(g.getAttribute('color').count).toBe(n.count);
+    expect(g.getAttribute('uv').count).toBe(n.count);
     g.dispose();
   });
 });
@@ -61,18 +63,23 @@ test('tread relief is deeper from tarmac to mixed to gravel (and the plain carca
     TYRE_IDS.map((id) => [id, relief(id)]),
   ) as Record<TyreId, number>;
   expect(relief(null)).toBeLessThan(0.001);
-  // The pattern depths follow the family order, hard compounds sit between their soft sibling and the next family.
-  expect(treadDepth('tarmac')).toBeLessThan(treadDepth('tarmac_hard'));
-  expect(treadDepth('tarmac_hard')).toBeLessThan(treadDepth('mixed'));
-  expect(treadDepth('mixed')).toBeLessThan(treadDepth('gravel_hard'));
-  expect(treadDepth('gravel_hard')).toBeLessThan(treadDepth('gravel'));
-  // The measured relief follows them.
-  expect(r.tarmac).toBeGreaterThan(0.002);
-  expect(r.tarmac_hard).toBeGreaterThan(r.tarmac);
-  expect(r.mixed).toBeGreaterThan(r.tarmac_hard);
-  expect(r.gravel_hard).toBeGreaterThan(r.mixed);
-  expect(r.gravel).toBeGreaterThan(r.gravel_hard);
-  expect(r.gravel).toBeGreaterThan(0.009);
+  // Pattern depths by compound: slicks -> wet -> mixed -> gravel (12 mm, Pirelli's Scorpion AT technical data).
+  const order: TyreId[] = [
+    'tarmac',
+    'tarmac_hard',
+    'tarmac_wet',
+    'mixed',
+    'gravel_hard',
+  ];
+  for (let i = 1; i < order.length; i++)
+    expect(treadDepth(order[i])).toBeGreaterThan(treadDepth(order[i - 1]));
+  expect(treadDepth('gravel')).toBe(treadDepth('gravel_hard'));
+  expect(treadDepth('gravel')).toBeCloseTo(0.012, 4);
+  // The silhouette shows part of it (the rest is the normal map): slick < mixed < gravel.
+  expect(r.tarmac).toBeGreaterThan(0.001);
+  expect(r.mixed).toBeGreaterThan(r.tarmac);
+  expect(r.gravel).toBeGreaterThan(r.mixed);
+  expect(r.gravel).toBeGreaterThan(0.005);
 });
 
 test('rim switch: a gravel tyre sits on a smaller rim than a tarmac tyre (Fabia 15 / 18", Bimmer 16 / 18")', () => {

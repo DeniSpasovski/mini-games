@@ -6,16 +6,22 @@ import {
   DynamicDrawUsage,
   Mesh,
   MeshBasicMaterial,
+  RepeatWrapping,
   Vector3,
 } from 'three';
+import { pitchesFor, treadRubber } from '../cars/shared/tyre-mesh';
+import { tyreSizeFor } from '../physics/car-tyres';
+import type { TyreId } from '../physics/tyres';
 import type { Vehicle } from '../physics/vehicle';
 
 /** Quads per wheel in the ring buffer (oldest overwritten first). */
 const SEGMENTS = 900;
-/** Tyre mark width (m). */
-const WIDTH = 0.21;
 /** Lift above the ground (m), plus a polygon offset over the road ribbons. */
 const LIFT = 0.025;
+/** Contact patch length (m): a tyre sliding sideways sweeps it across, so the mark widens with the slip angle. */
+const PATCH_LENGTH = 0.16;
+/** Width of a loose-surface rut over the tread band: the berms of pushed-aside gravel either side. */
+const RUT_SPREAD = 1.3;
 /**
  * GPU copies of the position / colour buffers, drawn in turn (one a frame). A buffer is never written while the GPU may
  * still read it: a write into the one drawn last frame made ANGLE / D3D11 wait for the GPU (a 150-200 ms freeze where the
@@ -24,41 +30,63 @@ const LIFT = 0.025;
 const COPIES = 3;
 
 /**
- * Tyre marks: ruts on loose surfaces (always, darker when sliding) and dark rubber skid marks on hard surfaces
- * (only while sliding). One mesh for all four wheels: a ring buffer of quads per wheel, each new segment joins the
- * wheel's last mark point; only the new quad is uploaded, into each GPU copy (COPIES) when its turn comes. Unlit,
- * transparent dark (it darkens whatever is under it), soft edges across the width, fogged.
+ * Mark kinds, one tile each across the texture atlas (u), generated from the fitted compound's tread pattern:
+ *   0 rut: rolling on loose ground - the tread blocks pressed into it (darker), the gravel between them and the berms
+ *     either side pushed up (lighter);
+ *   1 slide rut: sliding / spinning on loose ground - the imprint smeared into streaks along the slide, berms as above;
+ *   2 rubber: spinning or locked on a hard surface - a dark band, with light lines where the tread has circumferential grooves;
+ *   3 scuff: sliding sideways on a hard surface - fainter, fine striations along the slide, soft edges.
+ */
+const KINDS = 4;
+const TILE_W = 64;
+const TILE_H = 128;
+/** Tread pitches per tile along the mark (the imprint repeats at the real pitch length). */
+const TILE_PITCHES = 2;
+
+/**
+ * Tyre marks: ruts on loose surfaces (always, darker and smeared when sliding) and rubber marks on hard surfaces (only
+ * while sliding). One mesh for all four wheels: a ring buffer of quads per wheel, each new segment joins the wheel's last
+ * mark point; only the new quad is uploaded, into each GPU copy (COPIES) when its turn comes. Unlit, transparent; the
+ * texture (per compound) carries the tread imprint, width = the fitted tyre's tread, wider when sliding sideways.
  */
 export class TyreMarks {
   readonly mesh: Mesh;
   private pos: Float32Array;
   private col: Float32Array;
+  private uv: Float32Array;
   private next: number[];
   /** Last mark point per wheel (null = the strip is broken). */
   private last: (Vector3 | null)[];
   private lastAlpha: number[];
+  private lastWidth: number[];
+  /** Distance along each wheel's strip (texture v). */
+  private along: number[];
   private colour = new Color();
   private a = new Vector3();
   private b = new Vector3();
   private side = new Vector3();
-  /** One geometry per GPU copy (shared CPU arrays, index and uv), the quads each still has to upload, the one drawn. */
+  /** One geometry per GPU copy (shared CPU arrays and index), the quads each still has to upload, the one drawn. */
   private geos: BufferGeometry[] = [];
   private dirty: number[][] = [];
   private current = 0;
+  private material: MeshBasicMaterial;
+  /** Compound the texture and widths are for; tread band width (m) and imprint tile length (m) per wheel. */
+  private fitted: TyreId | null | undefined = undefined;
+  private tread: number[] = [];
+  private tile: number[] = [];
 
   constructor(private vehicle: Vehicle) {
     const wheels = vehicle.wheels.length;
     const quads = SEGMENTS * wheels;
     this.pos = new Float32Array(quads * 4 * 3);
     this.col = new Float32Array(quads * 4 * 4);
-    const uv = new Float32Array(quads * 4 * 2);
+    this.uv = new Float32Array(quads * 4 * 2);
     const idx = new Uint32Array(quads * 6);
     for (let q = 0; q < quads; q++) {
-      uv.set([0, 0, 1, 0, 0, 1, 1, 1], q * 8);
       const v = q * 4;
-      idx.set([v, v + 2, v + 1, v + 1, v + 2, v + 3], q * 6);
+      // Facing up (counter-clockwise seen from above).
+      idx.set([v, v + 1, v + 2, v + 1, v + 3, v + 2], q * 6);
     }
-    const uvAttr = new BufferAttribute(uv, 2);
     const idxAttr = new BufferAttribute(idx, 1);
     for (let k = 0; k < COPIES; k++) {
       const g = new BufferGeometry();
@@ -70,33 +98,57 @@ export class TyreMarks {
         'color',
         new BufferAttribute(this.col, 4).setUsage(DynamicDrawUsage),
       );
-      g.setAttribute('uv', uvAttr);
+      g.setAttribute(
+        'uv',
+        new BufferAttribute(this.uv, 2).setUsage(DynamicDrawUsage),
+      );
       g.setIndex(idxAttr);
       this.geos.push(g);
       this.dirty.push([]);
     }
-    this.mesh = new Mesh(
-      this.geos[0],
-      new MeshBasicMaterial({
-        vertexColors: true,
-        map: edgeTexture(),
-        transparent: true,
-        depthWrite: false,
-        polygonOffset: true,
-        polygonOffsetFactor: -4,
-        polygonOffsetUnits: -8,
-      }),
-    );
+    this.material = new MeshBasicMaterial({
+      vertexColors: true,
+      transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -8,
+    });
+    this.mesh = new Mesh(this.geos[0], this.material);
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 1;
     this.mesh.name = 'tyre-marks';
     this.next = new Array(wheels).fill(0);
     this.last = new Array(wheels).fill(null);
     this.lastAlpha = new Array(wheels).fill(0);
+    this.lastWidth = new Array(wheels).fill(0);
+    this.along = new Array(wheels).fill(0);
+    this.fit();
+  }
+
+  /** (Re)build the imprint texture and the widths for the fitted compound. */
+  private fit(): void {
+    const v = this.vehicle;
+    if (this.fitted === v.tyre) return;
+    this.fitted = v.tyre;
+    const tyre = v.tyre;
+    this.tread = v.wheels.map(
+      (w) =>
+        tyreSizeFor(v.def, v.tyre, w.isFront ? 'front' : 'rear').width * 0.9,
+    );
+    this.tile = v.wheels.map(
+      (w) =>
+        ((Math.PI * 2 * w.radius) / (tyre ? pitchesFor(tyre, w.radius) : 1)) *
+        TILE_PITCHES,
+    );
+    this.material.map?.dispose();
+    this.material.map = marksTexture(v.tyre);
+    this.material.needsUpdate = true;
   }
 
   /** Once per frame, before rendering. */
   update(): void {
+    this.fit();
     this.write();
     // The next copy (last drawn COPIES - 1 frames ago) takes the quads written since then and is drawn this frame.
     this.current = (this.current + 1) % COPIES;
@@ -107,12 +159,15 @@ export class TyreMarks {
     if (!quads.length) quads.push(0);
     const pa = g.getAttribute('position') as BufferAttribute;
     const ca = g.getAttribute('color') as BufferAttribute;
+    const ua = g.getAttribute('uv') as BufferAttribute;
     for (const q of quads) {
       pa.addUpdateRange(q * 12, 12);
       ca.addUpdateRange(q * 16, 16);
+      ua.addUpdateRange(q * 8, 8);
     }
     pa.needsUpdate = true;
     ca.needsUpdate = true;
+    ua.needsUpdate = true;
     quads.length = 0;
     this.mesh.geometry = g;
   }
@@ -123,17 +178,23 @@ export class TyreMarks {
     for (let i = 0; i < v.wheels.length; i++) {
       const w = v.wheels[i];
       const s = w.surface;
+      const loose = s.loose > 0.3;
       // Loose: ruts whenever rolling, darker with slide. Hard: rubber only while sliding.
       const slide = Math.min(1, Math.max(0, (w.slideSpeed - 1.2) / 6));
       const alpha = !w.contact
         ? 0
-        : s.loose > 0.3
-          ? Math.min(0.55, s.loose * (0.16 + 0.4 * slide))
+        : loose
+          ? Math.min(0.62, s.loose * (0.22 + 0.4 * slide))
           : slide * 0.6;
       if (alpha < 0.02 || speed < 0.5) {
         this.last[i] = null;
         continue;
       }
+      // Sideways the patch sweeps across: the mark widens with the slip angle.
+      const beta = Math.min(Math.PI / 2, Math.abs(w.slipAngle));
+      const width =
+        this.tread[i] * Math.cos(beta) * (loose ? RUT_SPREAD : 1) +
+        PATCH_LENGTH * Math.sin(beta);
       const p = this.a
         .copy(w.contactPoint)
         .addScaledVector(w.contactNormal, LIFT);
@@ -141,6 +202,7 @@ export class TyreMarks {
       if (!prev) {
         this.last[i] = p.clone();
         this.lastAlpha[i] = alpha;
+        this.lastWidth[i] = width;
         continue;
       }
       const d = p.distanceTo(prev);
@@ -151,12 +213,30 @@ export class TyreMarks {
       }
       // Longer segments at speed (more track per buffer), short ones when slow / sliding.
       if (d < Math.max(0.3, speed * 0.045)) continue;
-      // Rubber is near black, ruts a darker shade of the surface's dust.
-      if (s.loose > 0.3) this.colour.setHex(s.dustColor).multiplyScalar(0.28);
+      // Kind (atlas tile): imprint while rolling, smeared while sliding / spinning; on hard ground rubber along the
+      // tyre (spin, lock) or a scuff when it slides sideways.
+      const kind = loose ? (slide > 0.3 ? 1 : 0) : beta > 0.3 ? 3 : 2;
+      // Ruts: the surface's dust colour (the texture darkens the pressed tread, lightens the berms); rubber near black.
+      if (loose) this.colour.setHex(s.dustColor);
       else this.colour.setRGB(0.02, 0.02, 0.02);
-      this.writeQuad(i, prev, p, this.lastAlpha[i], alpha);
+      const v0 = this.along[i] / this.tile[i];
+      this.along[i] = (this.along[i] + d) % (this.tile[i] * 4096);
+      const v1 = v0 + d / this.tile[i];
+      this.writeQuad(
+        i,
+        prev,
+        p,
+        this.lastAlpha[i],
+        alpha,
+        this.lastWidth[i],
+        width,
+        kind,
+        v0,
+        v1,
+      );
       prev.copy(p);
       this.lastAlpha[i] = alpha;
+      this.lastWidth[i] = width;
     }
   }
 
@@ -171,29 +251,35 @@ export class TyreMarks {
     to: Vector3,
     a0: number,
     a1: number,
+    w0: number,
+    w1: number,
+    kind: number,
+    v0: number,
+    v1: number,
   ): void {
     const q = wheel * SEGMENTS + this.next[wheel];
     this.next[wheel] = (this.next[wheel] + 1) % SEGMENTS;
     const dir = this.b.subVectors(to, from);
     // Across the track, in the ground plane.
-    this.side
-      .set(-dir.z, 0, dir.x)
-      .normalize()
-      .multiplyScalar(WIDTH / 2);
+    this.side.set(-dir.z, 0, dir.x).normalize();
+    const sx = this.side.x;
+    const sz = this.side.z;
+    const h0 = w0 / 2;
+    const h1 = w1 / 2;
     const P = this.pos;
     const o = q * 12;
-    P[o] = from.x - this.side.x;
+    P[o] = from.x - sx * h0;
     P[o + 1] = from.y;
-    P[o + 2] = from.z - this.side.z;
-    P[o + 3] = from.x + this.side.x;
+    P[o + 2] = from.z - sz * h0;
+    P[o + 3] = from.x + sx * h0;
     P[o + 4] = from.y;
-    P[o + 5] = from.z + this.side.z;
-    P[o + 6] = to.x - this.side.x;
+    P[o + 5] = from.z + sz * h0;
+    P[o + 6] = to.x - sx * h1;
     P[o + 7] = to.y;
-    P[o + 8] = to.z - this.side.z;
-    P[o + 9] = to.x + this.side.x;
+    P[o + 8] = to.z - sz * h1;
+    P[o + 9] = to.x + sx * h1;
     P[o + 10] = to.y;
-    P[o + 11] = to.z + this.side.z;
+    P[o + 11] = to.z + sz * h1;
     const C = this.col;
     const c = this.colour;
     const k = q * 16;
@@ -203,35 +289,102 @@ export class TyreMarks {
       C[k + j * 4 + 2] = c.b;
       C[k + j * 4 + 3] = j < 2 ? a0 : a1;
     }
+    const u0 = kind / KINDS;
+    const u1 = (kind + 1) / KINDS;
+    this.uv.set([u0, v0, u1, v0, u0, v1, u1, v1], q * 8);
     for (const d of this.dirty) d.push(q);
   }
 
   dispose(): void {
     for (const g of this.geos) g.dispose();
-    const m = this.mesh.material as MeshBasicMaterial;
-    m.map?.dispose();
-    m.dispose();
+    this.material.map?.dispose();
+    this.material.dispose();
   }
 }
 
-/** Soft-edged stripe across the mark (u), with a faint tread / grain pattern along it (v). */
-function edgeTexture(): CanvasTexture {
+/** Cheap hash noise in 0..1. */
+function hash(x: number, y: number): number {
+  const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+/**
+ * The mark atlas for a compound: KINDS tiles across (see KINDS), each TILE_W across the mark x TILE_H along it
+ * (TILE_PITCHES tread pitches). rgb multiplies the vertex colour, alpha the vertex alpha.
+ */
+export function marksTexture(tyre: TyreId | null): CanvasTexture {
+  const W = TILE_W * KINDS;
   const c = document.createElement('canvas');
-  c.width = 32;
-  c.height = 32;
+  c.width = W;
+  c.height = TILE_H;
   const ctx = c.getContext('2d')!;
-  const img = ctx.createImageData(32, 32);
-  for (let y = 0; y < 32; y++)
-    for (let x = 0; x < 32; x++) {
-      const u = (x + 0.5) / 32;
-      const edge = Math.min(1, Math.min(u, 1 - u) / 0.22);
-      const grain = 0.8 + 0.2 * Math.sin(y * 1.9 + x * 0.7) * Math.sin(x * 2.3);
-      const i = (y * 32 + x) * 4;
-      img.data[i] = img.data[i + 1] = img.data[i + 2] = 255;
-      img.data[i + 3] = Math.round(255 * edge * grain);
+  const img = ctx.createImageData(W, TILE_H);
+  // Plain carcass (no compound): all rubber.
+  const rubberAt = (b: number, phase: number) =>
+    tyre ? treadRubber(tyre, b, phase) : true;
+  // Share of the pitch that is rubber at b (circumferential grooves = 0): the rubber band's lines.
+  const coverage = (b: number) => {
+    let n = 0;
+    for (let k = 0; k < 32; k++) if (rubberAt(b, k / 32)) n++;
+    return n / 32;
+  };
+  const put = (x: number, y: number, v: number, a: number) => {
+    const i = (y * W + x) * 4;
+    const g = Math.round(255 * Math.min(1, Math.max(0, v)));
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = g;
+    img.data[i + 3] = Math.round(255 * Math.min(1, Math.max(0, a)));
+  };
+  for (let y = 0; y < TILE_H; y++)
+    for (let x = 0; x < TILE_W; x++) {
+      const u = (x + 0.5) / TILE_W;
+      const phase = ((y + 0.5) / TILE_H) * TILE_PITCHES;
+      const grain = hash(x, y);
+      const streak = hash(x, 0.5);
+      // Ruts: across the rut b runs past the tread (|b| > 1 = berm).
+      const br = (u * 2 - 1) * RUT_SPREAD;
+      const berm =
+        Math.abs(br) > 1
+          ? Math.max(0, 1 - (Math.abs(br) - 1) / (RUT_SPREAD - 1))
+          : 0;
+      const edge = Math.min(1, (RUT_SPREAD - Math.abs(br)) / 0.12);
+      // 0: rolling rut - blocks pressed dark, the gravel between them lighter, berms light.
+      if (Math.abs(br) <= 1) {
+        const pressed = rubberAt(br, phase);
+        put(
+          x,
+          y,
+          pressed ? 0.2 + 0.08 * grain : 0.42 + 0.1 * grain,
+          pressed ? 1 : 0.7,
+        );
+      } else put(x, y, 0.92 + 0.08 * grain, 0.55 * berm * edge);
+      // 1: slide rut - smeared along: streaks, berms.
+      if (Math.abs(br) <= 1)
+        put(TILE_W + x, y, 0.24 + 0.16 * streak + 0.04 * grain, 0.9);
+      else put(TILE_W + x, y, 0.95, 0.6 * berm * edge);
+      // 2: rubber - dark band, light lines at the circumferential grooves, soft edges.
+      const b = u * 2 - 1;
+      const soft = Math.min(1, (1 - Math.abs(b)) / 0.18);
+      const cov = coverage(b);
+      put(
+        TILE_W * 2 + x,
+        y,
+        1,
+        soft *
+          (0.15 + 0.85 * cov) *
+          (0.82 + 0.18 * grain) *
+          (0.85 + 0.15 * streak),
+      );
+      // 3: scuff - fine striations along, fainter.
+      put(
+        TILE_W * 3 + x,
+        y,
+        1,
+        soft * 0.6 * (0.45 + 0.55 * streak) * (0.85 + 0.15 * grain),
+      );
     }
   ctx.putImageData(img, 0, 0);
   const t = new CanvasTexture(c);
   t.name = 'tyre-marks';
+  t.wrapT = RepeatWrapping;
   return t;
 }

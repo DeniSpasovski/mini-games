@@ -11,7 +11,6 @@ import {
   CylinderGeometry,
   DoubleSide,
   ExtrudeGeometry,
-  FrontSide,
   Group,
   InstancedMesh,
   LatheGeometry,
@@ -50,7 +49,8 @@ import {
   RIM_UNIT_BARREL,
   wheelModelFor,
 } from './stl-wheel';
-import { buildTyre, rimRadius } from './tyre-mesh';
+import { buildTyre, rimLip, rimRadius } from './tyre-mesh';
+import { dustyTyre, tyreMaterial, type DustyTyre } from './tyre-tread';
 import { LampHalos } from './lamp-halo';
 import {
   splitBootLamp,
@@ -283,12 +283,6 @@ markBrakeLamp(tailMat, 3, { idle: 0.3, on: 0.65 });
 markBrakeLamp(redReflectorMat, 1.4, { idle: 0.3, on: 0.65 });
 markBrakeLamp(redLensMat, 2.7, { idle: 0.2, on: 0.5 });
 const amberLensMat = tintedLens(0xd88214, 0.24);
-/** Tyres: vertex colours (rubber, compound ring, road dust) - cars/shared/tyre-mesh.ts. */
-const tireVertexMat = new MeshStandardMaterial({
-  color: 0xffffff,
-  vertexColors: true,
-  roughness: 0.95,
-});
 const discMat = new MeshStandardMaterial({
   color: 0x5a5d61,
   roughness: 0.6,
@@ -315,15 +309,15 @@ export function createRimMaterial(
     roughness: satin ? 0.65 : 0.32,
     envMapIntensity: satin ? 0.5 : 1,
     vertexColors,
-    side: vertexColors ? DoubleSide : FrontSide,
+    // Both sides: many rim models have one-sided barrels / spoke shells that vanish from behind (see-through rims).
+    side: DoubleSide,
   });
 }
 
 /** The shared wheel materials (the setup screen's parts bench draws the same tyres / rims / brakes). */
 export const wheelMaterials = {
-  get tire() {
-    return tireVertexMat;
-  },
+  /** Tyres: vertex colours (rubber, compound marking, road dust) + the compound's tread maps - tyre-tread.ts. */
+  tire: tyreMaterial,
   get disc() {
     return discMat;
   },
@@ -482,6 +476,8 @@ export class CarModel {
   /** This car's own copies of its brake-lamp materials (collected on the first setBrake / after the import). */
   private brakeLamps?: MeshStandardMaterial[];
   private headLamps: MeshStandardMaterial[] = [];
+  private dusty: DustyTyre | null = null;
+  private tyreDust = { level: 0, color: new Color(0xb7a58a) };
   /** Glow round the red tail lamps (`collectLamps`), lit by `setBrake`. */
   private halos?: LampHalos;
   private reverseHalos?: LampHalos;
@@ -788,7 +784,7 @@ export class CarModel {
         geoms: wheel.disc
           ? [wheel.tire, wheel.rim, wheel.caliper, wheel.disc]
           : [wheel.tire, wheel.rim, wheel.caliper],
-        tire: this.instanced(wheel.tire, tireVertexMat, n),
+        tire: this.instanced(wheel.tire, this.tyreMaterials(), n),
         rim: this.instanced(wheel.rim, rimMat, n),
         caliper: this.instanced(wheel.caliper, this.calMat, n),
         disc:
@@ -990,7 +986,7 @@ export class CarModel {
 
   private instanced(
     g: BufferGeometry,
-    mat: Material,
+    mat: Material | Material[],
     count = 4,
   ): InstancedMesh {
     const im = new InstancedMesh(g, mat, count);
@@ -1150,6 +1146,23 @@ export class CarModel {
   }
 
   /** Fit another compound: new tread, ring colour and (when the size differs) rim and tyre size on the same meshes. */
+  /** This car's tyre materials for the fitted compound (its own copies: the dust is per car); `fresh` rebuilds them. */
+  private tyreMaterials(fresh = false): Material | Material[] {
+    if (fresh || !this.dusty) {
+      this.dusty?.dispose();
+      this.dusty = dustyTyre(this.tyre);
+      this.dusty.set(this.tyreDust.level, this.tyreDust.color);
+    }
+    return this.dusty.materials;
+  }
+
+  /** Road dust on the tyres (tyre-dust.ts: a few steps over a run), level 0..1, linear colour. */
+  setTyreDust(level: number, color: Color): void {
+    this.tyreDust.level = level;
+    this.tyreDust.color.copy(color);
+    this.dusty?.set(level, color);
+  }
+
   setTyre(tyre: TyreId | null): void {
     if (tyre === this.tyre) return;
     this.tyre = tyre;
@@ -1182,11 +1195,13 @@ export class CarModel {
   /** Rebuild tyre / rim / brake geometry for the fitted compound and swap it in (old ones are disposed). */
   private refreshWheels(): void {
     this.rimMat.color.set(rimColorFor(this.def.model, this.tyre));
+    const tyreMats = this.tyreMaterials(true);
     for (const g of this.wheelGroups) {
       const w = buildWheelSet(this.def, this.tyre, this.stlRims, g.axle);
       for (const old of g.geoms) old.dispose();
       g.geoms = [w.tire, w.rim, w.caliper];
       g.tire.geometry = w.tire;
+      g.tire.material = tyreMats;
       g.rim.geometry = w.rim;
       g.rim.material = w.rim.hasAttribute('color')
         ? this.rimColored()
@@ -1565,6 +1580,7 @@ export class CarModel {
       const m = mesh.isMesh && (mesh.material as Material);
       if (
         m &&
+        !Array.isArray(m) &&
         m.userData.headLamp &&
         mesh.visible &&
         !mesh.userData.extrasChecked
@@ -1864,6 +1880,7 @@ export class CarModel {
 
   dispose(): void {
     this.disposed = true;
+    this.dusty?.dispose();
     this.halos?.dispose();
     this.headHalos?.dispose();
     this.headlampListeners = [];
@@ -1915,12 +1932,15 @@ export function buildWheelSet(
   const p = def.physics;
   const size = tyreSizeFor(p, tyre, axle);
   const radius = axleRadius(p, tyre, axle);
-  const tire = buildTyre({
-    radius,
-    size,
-    compound: tyre,
-    dust: def.model.tyreDust,
-  });
+  // The tyre leaves the rim at the rim's own flange (measured), so the two meet with no gap on any rim model.
+  const tyreOn = (rim: BufferGeometry) =>
+    buildTyre({
+      radius,
+      size,
+      compound: tyre,
+      dust: def.model.tyreDust,
+      fit: rimLip(rim, size.width / 2) ?? undefined,
+    });
   const barrel = rimRadius(size);
   const base = def.model.wheels
     ? def.model.wheels(radius, size.width)
@@ -1934,7 +1954,7 @@ export function buildWheelSet(
   base.tire.dispose();
   const file = wheelModelFor(def.model, tyre);
   if (!hasWheelModel(file))
-    return { tire, rim: base.rim, caliper: base.caliper };
+    return { tire: tyreOn(base.rim), rim: base.rim, caliper: base.caliper };
   // Converted STL rim: its barrel (0.62 of the unit radius) = the size's rim radius; brakes follow the rim.
   const scale = barrel / RIM_UNIT_BARREL;
   const brakes = buildBrakeGeometries(scale, size.width);
@@ -1950,7 +1970,12 @@ export function buildWheelSet(
     rim = stlRim.clone();
     rim.scale(size.width, scale, scale);
   }
-  return { tire, rim, caliper: brakes.caliper, disc: brakes.disc };
+  return {
+    tire: tyreOn(rim),
+    rim,
+    caliper: brakes.caliper,
+    disc: brakes.disc,
+  };
 }
 
 const X_AXIS = new Vector3(1, 0, 0);
