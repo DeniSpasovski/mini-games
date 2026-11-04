@@ -63,7 +63,7 @@ test('tread relief is deeper from tarmac to mixed to gravel (and the plain carca
     TYRE_IDS.map((id) => [id, relief(id)]),
   ) as Record<TyreId, number>;
   expect(relief(null)).toBeLessThan(0.001);
-  // Pattern depths by compound: slicks -> wet -> mixed -> gravel (12 mm, Pirelli's Scorpion AT technical data).
+  // Pattern depths by compound: slicks -> wet -> mixed -> gravel (12 mm, a typical gravel rally tyre's published tread depth).
   const order: TyreId[] = [
     'tarmac',
     'tarmac_hard',
