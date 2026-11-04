@@ -111,13 +111,14 @@ export class Hud {
     if (this.gauge.el.hidden !== !s.tyres) this.gauge.el.hidden = !s.tyres;
     this.set('time', formatTime(stage.time));
     this.updateSectors(stage);
-    // One chip per passed split, coloured by the gap to the reference run (faster green, slower yellow).
+    // One chip per passed split: the time, and how that sector compared to the reference run's
+    // (green faster, red slower; same number and colour as the progress bar sector).
     const splits = stage.splitTimes
       .map((t, i) => {
-        const b = stage.reference?.splits[i];
-        const gap = b !== undefined ? `<b>${formatDelta(t - b)}</b>` : '';
+        const d = stage.sectorDelta(i);
+        const gap = d !== undefined ? `<b>${formatDelta(d)}</b>` : '';
         const cls =
-          b === undefined ? '' : t <= b ? ' class="faster"' : ' class="slower"';
+          d === undefined ? '' : d <= 0 ? ' class="faster"' : ' class="slower"';
         return `<span${cls}>S${i + 1} ${formatTime(t)}${gap}</span>`;
       })
       .join('');
@@ -164,8 +165,7 @@ export class Hud {
         this.sectors.push({ el, fill });
       }
     }
-    const times = stage.sectorTimes();
-    const ref = stage.referenceSectorTimes();
+    const done = stage.sectorTimes().length;
     this.sectors.forEach((s, i) => {
       const f = Math.min(
         1,
@@ -173,17 +173,18 @@ export class Hud {
       );
       const w = `${(f * 100).toFixed(1)}%`;
       if (s.fill.style.width !== w) s.fill.style.width = w;
-      const done = i < times.length;
-      const cls = !done
-        ? 'sector'
-        : !ref
-          ? 'sector done'
-          : times[i] <= ref[i]
-            ? 'sector good'
-            : 'sector bad';
+      const d = stage.sectorDelta(i);
+      const cls =
+        i >= done
+          ? 'sector'
+          : d === undefined
+            ? 'sector done'
+            : d <= 0
+              ? 'sector good'
+              : 'sector bad';
       if (s.el.className !== cls) {
         s.el.className = cls;
-        s.el.title = done && ref ? formatDelta(times[i] - ref[i]) : '';
+        s.el.title = d !== undefined ? formatDelta(d) : '';
       }
     });
   }
