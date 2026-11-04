@@ -556,8 +556,12 @@ ANGLE, ~5 us a draw), the GPU side mostly trees. Numbers and bench history: `sou
   the canopy. Never give a system a fixed slice; the ground near the car is built whatever it costs (`URGENT_MS`).
 - No garbage in per-frame or per-texel loops: hot loops take plain numbers and typed arrays (`splatEllipse` in
   world/canopy-shadows.ts).
+- Per-instance caches live on the instance (`ScatterInstance.streamed`), never in a `WeakMap` over every scatter
+  instance: one with 300k+ entries made 30-50 ms GC pauses.
 - Big GPU uploads go up in row bands (`copyTextureToTexture`), never whole while driving.
-- Never write into a buffer the GPU drew from last frame: rotate copies (`COPIES` in game/tyre-marks.ts).
+- Never write into a buffer the GPU drew from last frame: rotate copies (`COPIES` in game/tyre-marks.ts,
+  world/far-shadow.ts) and upload only the used range. A buffer drawn but never written turns static on ANGLE / D3D11 and
+  its next write waits for the GPU: the tyre marks re-upload one quad every frame.
 - Canvas textures use a CPU-backed canvas (`willReadFrequently`); gantry clocks redraw only near the car (`CLOCK_NEAR`).
 
 **Draw calls**
@@ -573,6 +577,8 @@ ANGLE, ~5 us a draw), the GPU side mostly trees. Numbers and bench history: `sou
 - Many materials = many draws: use a texture array (`engine/texture-array.ts`). A custom shader scales
   `envMapIntensity`, never replaces it.
 - Scatter LOD1+ buckets draw only the camera's view (`InstanceStreamer.setView`).
+- Empty InstancedMeshes are hidden (each still costs a draw setup). A split by camera distance runs before the render
+  (the road `DistanceCull` calls `userData.beforeRender`), not in `onBeforeRender`, which needs a visible mesh.
 - Meshes that never move set `matrixAutoUpdate = false`; transparent `DoubleSide` materials set `forceSinglePass`.
 
 **GPU**

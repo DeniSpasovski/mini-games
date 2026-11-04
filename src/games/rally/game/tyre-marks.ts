@@ -102,17 +102,18 @@ export class TyreMarks {
     this.current = (this.current + 1) % COPIES;
     const g = this.geos[this.current];
     const quads = this.dirty[this.current];
-    if (quads.length) {
-      const pa = g.getAttribute('position') as BufferAttribute;
-      const ca = g.getAttribute('color') as BufferAttribute;
-      for (const q of quads) {
-        pa.addUpdateRange(q * 12, 12);
-        ca.addUpdateRange(q * 16, 16);
-      }
-      pa.needsUpdate = true;
-      ca.needsUpdate = true;
-      quads.length = 0;
+    // Nothing new: quad 0 goes up again anyway. ANGLE / D3D11 turns a buffer that is drawn but never written into a
+    // static one, and the first marks then waited for the GPU (a 110-200 ms freeze with the GPU saturated).
+    if (!quads.length) quads.push(0);
+    const pa = g.getAttribute('position') as BufferAttribute;
+    const ca = g.getAttribute('color') as BufferAttribute;
+    for (const q of quads) {
+      pa.addUpdateRange(q * 12, 12);
+      ca.addUpdateRange(q * 16, 16);
     }
+    pa.needsUpdate = true;
+    ca.needsUpdate = true;
+    quads.length = 0;
     this.mesh.geometry = g;
   }
 

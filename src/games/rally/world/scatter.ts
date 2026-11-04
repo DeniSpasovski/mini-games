@@ -106,6 +106,11 @@ export interface ScatterInstance {
   near?: boolean;
   /** Detail: the extra grass near the roads (catalog `nearBoost`), thinned by the quality preset. */
   extra?: boolean;
+  /**
+   * The instance streamer's cached draw data (`InstanceStreamer.dataOf`). A field, not a WeakMap: a WeakMap holding
+   * every streamed instance (300k+) made 30-50 ms GC pauses while driving.
+   */
+  streamed?: unknown;
 }
 
 export interface ScatterChunk {

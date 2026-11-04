@@ -685,7 +685,8 @@ function fleetOf(
  *
  * Far LOD: the meshes span the whole row (never culled), so vehicles beyond FLEET_NEAR move to one
  * stand-in mesh per model (`proxyOf`: two boxes, ~20 triangles, no shadow - they are past the shadow
- * box). The split is redone from the camera of the frame (`onBeforeRender`) after FLEET_STEP of travel.
+ * box). The split is redone after FLEET_STEP of camera travel, before the frame renders (`userData.beforeRender`, run
+ * by the road's `DistanceCull`; tools without one: the meshes' `onBeforeRender`). Empty meshes are hidden.
  */
 export function buildFleet(b: Build): Group {
   const group = new Group();
@@ -804,8 +805,8 @@ export function buildFleet(b: Build): Group {
   let lastX = Infinity;
   let lastZ = Infinity;
   const far: number[] = [];
-  const split = (cx: number, cz: number) => {
-    if (Math.hypot(cx - lastX, cz - lastZ) < FLEET_STEP) return;
+  const split = (cx: number, cz: number): boolean => {
+    if (Math.hypot(cx - lastX, cz - lastZ) < FLEET_STEP) return false;
     lastX = cx;
     lastZ = cz;
     for (const k of kinds) {
@@ -834,7 +835,9 @@ export function buildFleet(b: Build): Group {
       });
       fill(k.proxy, far.length);
     }
+    return true;
   };
+  group.userData.beforeRender = split;
   for (const k of kinds)
     for (const m of meshesOf(k))
       m.onBeforeRender = (_r, _s, camera) =>
@@ -843,8 +846,8 @@ export function buildFleet(b: Build): Group {
 }
 
 function fill(mesh: InstancedMesh, count: number): void {
-  // Never hidden: a mesh with no instances still runs the split for the others (onBeforeRender).
   mesh.count = count;
+  mesh.visible = count > 0;
   mesh.instanceMatrix.needsUpdate = true;
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 }
