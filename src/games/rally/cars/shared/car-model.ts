@@ -1632,7 +1632,7 @@ export class CarModel {
         }
         part.material = this.brakeOnlyMaterial(
           part.material as MeshStandardMaterial,
-          i === 1,
+          i === 1 || !!this.def.model.gltf?.centreReverse,
         );
       }
     }
