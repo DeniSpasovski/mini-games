@@ -1,7 +1,8 @@
 // CI: which integration tests does this change affect?
 //   node scripts/ci-affected.mjs <base-ref>   -> prints one line per game: <game>=<test files, space separated>
 //   plus rally_cars=<car ids changed under src/games/rally/cars/, comma separated> (`all` without a diff): the rally
-//   per-car playtests drive those on top of their representative cars (integration-tests/rally/cars-under-test.ts).
+//   per-car playtests drive those on top of their representative cars (integration-tests/rally/cars-under-test.ts),
+//   and smoke=1 unless the change is docs only (the browser smoke job).
 // A test is affected when a changed file is in its import closure (relative imports, incl. json / data files).
 // Files that can change every test (package files, test / ts config, workflows, this script, src/shared) run everything.
 // Without a base ref (push to main, manual run) or when the diff fails, everything runs.
@@ -109,3 +110,8 @@ const cars = new Set(
     .map((d) => d.replace(/-/g, '_')),
 );
 console.log(`rally_cars=${changed ? [...cars].join(',') : 'all'}`);
+
+// The browser smoke test (scripts/smoke.mjs) is skipped only when every change is docs (markdown, licence, screenshots).
+const DOCS = [/\.md$/i, /^LICENSE$/, /(^|\/)screenshots\//];
+const smoke = !changed || changed.some((f) => !DOCS.some((re) => re.test(f)));
+console.log(`smoke=${smoke ? 1 : ''}`);

@@ -8,8 +8,11 @@ import {
   Vector3,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { DebugPanel } from '../../../shared/debug-panel';
+import type { DebugPanel } from '../../../shared/debug-panel';
 import { StatsOverlay } from '../../../shared/stats-overlay';
+import { toolPanel } from '../../../shared/tool-page';
+import gameManifest from '../game.json';
+import wordmark from '../wordmark.svg';
 import { applyHoleCut } from '../render/materials';
 import {
   Environment,
@@ -26,8 +29,13 @@ export const TOOL_LINKS = [
   { label: 'Balance', href: 'balance.html' },
 ];
 
+/** The page's panel in the shared tool-page look (`shared/tool-page.ts`): wordmark, green accent, remembered sections. */
+export function holeToolPanel(title: string): DebugPanel {
+  return toolPanel({ game: gameManifest, wordmark, title, links: TOOL_LINKS });
+}
+
 /**
- * Shared scaffolding for the hole tool pages: left DebugPanel, renderer and
+ * Shared scaffolding for the hole tool pages: left panel (`holeToolPanel`), renderer and
  * lights identical to the game, orbit camera, a grass ground that the hole cuts
  * (so falling items really drop in), stats (F3).
  */
@@ -45,7 +53,7 @@ export class ViewerShell {
   private beforeRender: (() => boolean) | null = null;
 
   constructor(title: string, opts: { ground?: boolean } = {}) {
-    this.panel = new DebugPanel({ title, links: TOOL_LINKS });
+    this.panel = holeToolPanel(title);
     const quality = QUALITY[defaultQuality()];
     this.renderer = createRenderer(this.panel.viewport, {
       ...quality,

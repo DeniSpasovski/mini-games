@@ -65,7 +65,7 @@ import { TEAMS } from './teams';
  * People kit. Close up (LOD 0 / 1) a figure is one of two base bodies (people-body.ts: CC BY models, credits in
  * THIRD-PARTY.md) posed by joint angles and dressed by an outfit: garments cut from the body itself (people-tailor.ts,
  * people-wear.ts), hair and hats (people-hair.ts), shoes (people-shoes.ts) and props on the posed bones. Far away
- * (LOD 2 / 3) it is the old jointed low-poly figure, a boxy body, a silhouette. Static: the poses are the animation. Front faces +Z, the origin
+ * it is a low-poly stand-in: `farJointedFigure` / `farCrowdFigure` at 60-220 m (LOD 2), `farSilhouette` at 220-520 m (LOD 3). Static: the poses are the animation. Front faces +Z, the origin
  * is on the ground between the feet (a figure is lifted so its lowest point sits there, whatever the pose).
  */
 
@@ -152,8 +152,10 @@ const POSES = {
   crossed: {
     legL: limb(0, 0.07, 0),
     legR: limb(0.1, 0.07, 0.05),
-    armL: limb(0.45, 0.05, 1.35, -1.25),
-    armR: limb(0.45, 0.05, 1.35, -1.25),
+    // Forearms level across the chest: a pitch near 0 lets ab2 swing them sideways (at a pitch near 90 deg they
+    // point forward whatever ab2 is).
+    armL: limb(0.5, 0.05, -0.25, -1.5),
+    armR: limb(0.45, 0.05, -0.15, -1.4),
   },
   wave: {
     legL: limb(0, 0.06, 0),
@@ -521,8 +523,8 @@ interface FigureOpts {
   rng: Rng;
 }
 
-/** The far figure (LOD 2 / 3 of a non-crowd person): jointed tubes and boxes. */
-function figure({
+/** Far stand-in at 60-220 m (LOD 2) of a person outside a crowd: jointed tubes and boxes in the outfit's colours. */
+function farJointedFigure({
   pose,
   outfit: o,
 }: Pick<FigureOpts, 'pose' | 'outfit'>): BufferGeometry {
@@ -955,15 +957,20 @@ function propParts(
   const [hl, hr] = hands;
   if (prop === 'tyre') {
     const at = S.clone().add(rot(0, -0.33, 0.33));
-    const t = new CylinderGeometry(0.33, 0.33, 0.21, hi ? 10 : 6);
+    const t = new CylinderGeometry(0.33, 0.33, 0.21, hi ? 20 : 6);
     t.rotateX(Math.PI / 2);
     t.translate(at.x, at.y, at.z);
     out.push(paint(t, '#1c1c1e'));
     if (hi) {
-      const r = new CylinderGeometry(0.2, 0.2, 0.225, 8);
+      // Rim faces just proud of the sidewalls, a darker centre hub.
+      const r = new CylinderGeometry(0.2, 0.2, 0.225, 16);
       r.rotateX(Math.PI / 2);
       r.translate(at.x, at.y, at.z);
       out.push(paint(r, '#9aa0a8'));
+      const hub = new CylinderGeometry(0.065, 0.065, 0.235, 8);
+      hub.rotateX(Math.PI / 2);
+      hub.translate(at.x, at.y, at.z);
+      out.push(paint(hub, '#5c6068'));
     }
   } else if (prop === 'laptop') {
     const at = hl
@@ -992,7 +999,7 @@ function propParts(
     );
   } else if (prop === 'helmet') {
     const at = hr.clone().add(v(0, -0.06, 0.02));
-    const h = new SphereGeometry(0.13, hi ? 6 : 4, hi ? 4 : 3);
+    const h = new SphereGeometry(0.13, hi ? 12 : 4, hi ? 8 : 3);
     h.translate(at.x, at.y, at.z);
     out.push(paint(h, '#e8e8ea'));
     if (hi)
@@ -1229,10 +1236,40 @@ function propParts(
   return out;
 }
 
-/** LOD 2: a box for the legs, one for the body, a box head, keeping the outfit colours. */
-function blob(o: Outfit): BufferGeometry {
+/**
+ * Far legs (boxes, legs top at 0.86 m) in the near figure's colours: skin below shorts, a skirt over the top with
+ * tights / skin under it, so the colours do not jump at the LOD switch.
+ */
+function farLegs(
+  o: Outfit,
+  xs: number[],
+  w: number,
+  d: number,
+): BufferGeometry[] {
+  const TOP = 0.86;
+  const hem = o.skirt
+    ? Math.max(0.35, 1 - (o.skirtLen ?? 0.45))
+    : o.shorts
+      ? 0.5
+      : 0;
+  const out: BufferGeometry[] = [];
+  for (const x of xs) {
+    if (hem > 0)
+      out.push(block(w, hem, d, v(x, hem / 2, 0), o.tights ?? o.skin));
+    if (!o.skirt)
+      out.push(block(w, TOP - hem, d, v(x, (TOP + hem) / 2, 0), o.legs));
+  }
+  if (o.skirt)
+    out.push(
+      block(0.36, TOP - hem, d + 0.06, v(0, (TOP + hem) / 2, 0), o.skirt),
+    );
+  return out;
+}
+
+/** Far stand-in at 220-520 m (LOD 3): a box for the legs (a skirt's colour when there is one), one for the body, a box head, keeping the outfit colours. */
+function farSilhouette(o: Outfit): BufferGeometry {
   const parts = [
-    block(0.3, 0.86, 0.2, v(0, 0.43, 0), o.legs),
+    block(0.3, 0.86, 0.2, v(0, 0.43, 0), o.skirt ?? o.legs),
     block(0.42, 0.6, 0.24, v(0, 1.17, 0), o.vest ?? o.torso),
     block(
       0.2,
@@ -1247,18 +1284,27 @@ function blob(o: Outfit): BufferGeometry {
   return g;
 }
 
-/** LOD 1 of crowds (many instances): boxy legs, body, arms (one raised when waving) and head, ~70 triangles. */
-function blocky(o: Outfit, pose: PoseName): BufferGeometry {
+/** Far stand-in at 60-220 m (LOD 2) of a crowd fan (many instances): boxy legs, body, arms (one raised when waving) and head, ~70 triangles. */
+function farCrowdFigure(o: Outfit, pose: PoseName): BufferGeometry {
   const arm = o.sleeves ?? o.torso;
   const up = pose === 'wave' || pose === 'camera';
+  // An arm 0.58 m long from the shoulder (`dir` -1 = hanging, 1 = raised); short sleeves end 0.18 m down it.
+  const armBlocks = (x: number, y0: number, z: number, dir: number) => {
+    const sleeve = o.shortSleeves ? 0.18 : 0.58;
+    const out = [
+      block(0.1, sleeve, 0.12, v(x, y0 + (dir * sleeve) / 2, z), arm),
+    ];
+    if (o.shortSleeves)
+      out.push(
+        block(0.1, 0.4, 0.12, v(x, y0 + dir * (sleeve + 0.2), z), o.skin),
+      );
+    return out;
+  };
   const parts = [
-    block(0.13, 0.86, 0.17, v(-0.09, 0.43, 0), o.legs),
-    block(0.13, 0.86, 0.17, v(0.09, 0.43, 0), o.legs),
+    ...farLegs(o, [-0.09, 0.09], 0.13, 0.17),
     block(0.42, 0.6, 0.25, v(0, 1.17, 0), o.vest ?? o.torso),
-    block(0.1, 0.58, 0.12, v(0.28, 1.15, 0), arm),
-    up
-      ? block(0.1, 0.58, 0.12, v(-0.3, 1.62, 0.05), arm)
-      : block(0.1, 0.58, 0.12, v(-0.28, 1.15, 0), arm),
+    ...armBlocks(0.28, 1.44, 0, -1),
+    ...(up ? armBlocks(-0.3, 1.33, 0.05, 1) : armBlocks(-0.28, 1.44, 0, -1)),
     block(
       0.22,
       0.24,
@@ -1294,7 +1340,7 @@ function finishFigure(
   outfit: Outfit,
   lod: number,
   rng: Rng,
-  /** Crowd figure: LOD 2 is the boxy body, not the jointed one. */
+  /** Crowd figure: LOD 2 is `farCrowdFigure`, not `farJointedFigure`. */
   crowd = false,
 ): {
   parts: {
@@ -1333,10 +1379,10 @@ function finishFigure(
   }
   const g =
     lod >= 3
-      ? blob(outfit)
+      ? farSilhouette(outfit)
       : lod === 2 && crowd
-        ? blocky(outfit, pose)
-        : figure({ pose: POSES[pose] as Pose, outfit });
+        ? farCrowdFigure(outfit, pose)
+        : farJointedFigure({ pose: POSES[pose] as Pose, outfit });
   const parts = [{ geometry: g, material: getMaterial('people') }];
   const flag = g.userData.flag as BufferGeometry | undefined;
   if (flag)

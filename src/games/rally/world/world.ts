@@ -257,6 +257,7 @@ export class World implements GroundProvider {
         fieldAngle: map.landcover?.fields?.angle,
         stageId: map.id,
         treeSetback: map.treeSetback,
+        treeCrownClear: map.treeCrownClear,
       },
     );
     const crowdQ = newPathQuery();

@@ -1,0 +1,437 @@
+/* Hole Island + Kabooom tool pages: the shared DebugPanel in the portal look (src/portal/STYLEGUIDE.md -> Tool pages).
+   Scoped to body.tp-tool; colours, fonts and radii from src/portal/ui-tokens.css, the accent from the game's game.json. */
+
+.tp-tool {
+  --tp-accent: var(--pt-accent);
+  --tp-on-accent: var(--pt-on-accent);
+  --tp-tint: color-mix(in srgb, var(--tp-accent) 18%, transparent);
+  --tp-move: 0.12s ease-out;
+  background: var(--pt-shelf);
+  color: var(--pt-text);
+  font: 400 13px/1.4 var(--pt-body);
+  font-variant-numeric: tabular-nums;
+  accent-color: var(--tp-accent);
+}
+
+/* Focus = the portal's white ring with a black halo, on every control. */
+.tp-tool :is(a, button, input, select, summary):focus-visible {
+  outline: 2px solid var(--pt-ring);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 4px var(--pt-halo);
+}
+
+/* --- panel ---------------------------------------------------------------------------------------- */
+.tp-tool .dp-panel {
+  width: 300px;
+  background: var(--pt-cover);
+  border-right: 1px solid var(--pt-line);
+  scrollbar-width: thin;
+  scrollbar-color: var(--pt-line) transparent;
+}
+.tp-tool .dp-header {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  align-items: center;
+  padding: 14px 14px 10px;
+  border-bottom: 0;
+}
+.tp-tool .dp-home {
+  grid-row: span 2;
+  color: var(--pt-text-2);
+  font: 700 20px/1 var(--pt-body);
+  transition: color var(--tp-move);
+}
+.tp-tool .dp-home:hover {
+  color: var(--tp-accent);
+}
+.tp-wordmark {
+  display: block;
+  height: 18px;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: left center;
+}
+.tp-tool .dp-header h1 {
+  color: var(--pt-text-2);
+  font: 500 12px/1.2 var(--pt-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Tool nav: one row of quiet pills, the page you are on in the game's accent (the portal's Play button). */
+.tp-tool .dp-links {
+  flex-wrap: nowrap;
+  gap: 4px;
+  padding: 0 14px 12px;
+  border-bottom: 1px solid var(--pt-line);
+}
+.tp-tool .dp-links a {
+  flex: 1 1 auto;
+  padding: 4px 6px;
+  border-radius: var(--pt-radius-btn);
+  background: var(--pt-raised);
+  color: var(--pt-text-3);
+  font: 700 12px/1.2 var(--pt-body);
+  text-align: center;
+  white-space: nowrap;
+  transition:
+    background var(--tp-move),
+    color var(--tp-move);
+}
+.tp-tool .dp-links a:hover {
+  background: var(--pt-shelf-hi);
+  color: var(--pt-text);
+  box-shadow: inset 0 0 0 1px var(--tp-accent);
+}
+.tp-tool .dp-links a.active {
+  background: var(--tp-accent);
+  color: var(--tp-on-accent);
+  box-shadow: none;
+}
+
+/* --- sections: mono labels, a chevron that turns accent when open ----------------------------------- */
+.tp-tool .dp-section {
+  border-bottom: 1px solid var(--pt-line);
+}
+.tp-tool .dp-section summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  list-style: none;
+  color: var(--pt-text-2);
+  font: 500 12px/1.2 var(--pt-mono);
+  letter-spacing: 0.08em;
+  transition: color var(--tp-move);
+}
+.tp-tool .dp-section summary::-webkit-details-marker {
+  display: none;
+}
+.tp-tool .dp-section summary::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform var(--tp-move);
+}
+.tp-tool .dp-section[open] > summary,
+.tp-tool .dp-section summary:hover {
+  color: var(--pt-text);
+}
+.tp-tool .dp-section[open] > summary::before {
+  border-color: var(--tp-accent);
+  transform: translateY(-2px) rotate(45deg);
+}
+.tp-tool .dp-section-body {
+  gap: 7px;
+  padding: 0 14px 14px;
+}
+
+/* --- controls ----------------------------------------------------------------------------------- */
+.tp-tool .dp-row {
+  gap: 8px;
+  min-height: 26px;
+}
+.tp-tool .dp-label {
+  width: 96px;
+  color: var(--pt-text-2);
+}
+.tp-tool .dp-check {
+  gap: 8px;
+}
+.tp-tool .dp-check input {
+  margin: 0;
+  width: 15px;
+  height: 15px;
+}
+.tp-tool .dp-num {
+  width: 58px;
+}
+.tp-tool .dp-seed {
+  width: 0;
+  min-width: 0;
+}
+.tp-tool .dp-row > .dp-btn {
+  flex: none;
+}
+
+.tp-tool.dp-body input[type='number'],
+.tp-tool.dp-body input[type='search'],
+.tp-tool.dp-body input[type='text'],
+.tp-tool.dp-body select {
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-btn);
+  background: var(--pt-shelf);
+  color: var(--pt-text);
+  padding: 4px 8px;
+  font: inherit;
+  transition: border-color var(--tp-move);
+}
+.tp-tool.dp-body :is(input, select):hover {
+  border-color: var(--pt-text-2);
+}
+.tp-tool input::placeholder {
+  color: var(--pt-text-2);
+}
+.tp-tool .dp-select {
+  position: relative;
+  align-items: center;
+}
+.tp-tool.dp-body .dp-select select {
+  appearance: none;
+  padding-right: 26px;
+  cursor: pointer;
+}
+.tp-tool .dp-select::after {
+  content: '';
+  position: absolute;
+  right: 11px;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid var(--pt-text-2);
+  border-bottom: 2px solid var(--pt-text-2);
+  transform: translateY(-2px) rotate(45deg);
+  pointer-events: none;
+}
+.tp-tool select option {
+  background: var(--pt-cover);
+  color: var(--pt-text);
+}
+.tp-tool input[type='color'] {
+  width: 48px;
+  height: 26px;
+  padding: 0 2px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-btn);
+  background: var(--pt-shelf);
+}
+
+/* Buttons: raised, 8 px radius; hover outlines them in the accent. The preset in use (`.active`) is filled. */
+.tp-tool .dp-btn {
+  padding: 5px 10px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-btn);
+  background: var(--pt-raised);
+  color: var(--pt-text);
+  font: 700 13px/1.2 var(--pt-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    background var(--tp-move),
+    border-color var(--tp-move);
+}
+.tp-tool .dp-btn:hover {
+  background: var(--pt-shelf-hi);
+  border-color: var(--tp-accent);
+}
+.tp-tool .dp-btn.active {
+  background: var(--tp-accent);
+  border-color: var(--tp-accent);
+  color: var(--tp-on-accent);
+}
+.tp-tool .dp-buttons {
+  gap: 6px;
+}
+
+/* Lists: the picked row = an accent bar and a tint, not a solid fill. */
+.tp-tool .dp-filter {
+  margin-bottom: 2px;
+}
+.tp-tool .dp-list-items {
+  max-height: 38vh;
+  scrollbar-width: thin;
+  scrollbar-color: var(--pt-line) transparent;
+}
+.tp-tool .dp-list-group {
+  margin: 10px 0 3px;
+  color: var(--pt-text-2);
+  font: 500 11px/1.2 var(--pt-mono);
+  letter-spacing: 0.08em;
+}
+.tp-tool .dp-list-item {
+  padding: 4px 8px;
+  border-radius: 0 var(--pt-radius-btn) var(--pt-radius-btn) 0;
+  color: var(--pt-text-3);
+  transition: background var(--tp-move);
+}
+.tp-tool .dp-list-item:hover {
+  background: var(--pt-raised);
+  color: var(--pt-text);
+}
+.tp-tool .dp-list-item.active {
+  background: var(--tp-tint);
+  box-shadow: inset 3px 0 var(--tp-accent);
+  color: var(--pt-text);
+}
+.tp-tool .dp-list-item small {
+  color: var(--pt-text-2);
+  font: 500 11px/1.2 var(--pt-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.tp-tool .dp-chips {
+  gap: 4px;
+}
+.tp-tool .dp-chip {
+  padding: 4px 0;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-btn);
+  background: var(--pt-raised);
+  color: var(--pt-text-3);
+  font: 500 12px/1.2 var(--pt-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.tp-tool .dp-chip:hover {
+  border-color: var(--tp-accent);
+  color: var(--pt-text);
+}
+.tp-tool .dp-chip.on {
+  background: var(--tp-accent);
+  border-color: var(--tp-accent);
+  color: var(--tp-on-accent);
+}
+
+/* Read-outs: body face, tabular numbers, keys secondary. */
+.tp-tool .dp-info {
+  gap: 3px 12px;
+  font: inherit;
+}
+.tp-tool .dp-info dt,
+.tp-tool .dp-keys dd {
+  color: var(--pt-text-2);
+}
+.tp-tool .dp-info dd {
+  overflow-wrap: anywhere;
+}
+.tp-tool .dp-note {
+  color: var(--pt-text-2);
+  font-size: 12px;
+  white-space: pre-line;
+}
+.tp-tool .dp-html {
+  color: var(--pt-text-3);
+}
+.tp-tool .dp-html a {
+  color: var(--tp-accent);
+  text-decoration: none;
+}
+.tp-tool .dp-html a:hover {
+  text-decoration: underline;
+}
+.tp-tool kbd,
+.tp-tool .dp-keys kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--pt-line);
+  border-radius: 6px;
+  background: var(--pt-raised);
+  color: var(--pt-text);
+  font: 500 11px/1.4 var(--pt-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* --- plates over the view -------------------------------------------------------------------- */
+.tp-toggle {
+  position: absolute;
+  left: 10px;
+  top: 10px;
+  z-index: 22;
+  padding: 5px 12px;
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius-btn);
+  background: rgb(16 18 22 / 0.85);
+  color: var(--pt-text);
+  font: 500 12px/1.2 var(--pt-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.tp-toggle:hover {
+  border-color: var(--tp-accent);
+}
+.dp-hidden .tp-toggle {
+  opacity: 0.7;
+}
+/* A page's own report in the view (hole balance): headings, tables, charts. */
+.tp-report {
+  box-sizing: border-box;
+  height: 100%;
+  overflow: auto;
+  padding: 52px 20px 20px;
+}
+.tp-report h3 {
+  margin: 0 0 10px;
+  color: var(--pt-text-2);
+  font: 500 12px/1.3 var(--pt-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.tp-report table {
+  margin-bottom: 20px;
+  border-collapse: collapse;
+}
+.tp-report :is(th, td) {
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--pt-line);
+  text-align: right;
+}
+.tp-report th {
+  color: var(--pt-text-2);
+  font-weight: 700;
+}
+.tp-report .dp-btn {
+  margin-bottom: 24px;
+}
+.tp-charts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.tp-surface {
+  border: 1px solid var(--pt-line);
+  border-radius: var(--pt-radius);
+  background: var(--pt-cover);
+}
+
+/* Name tags over the view (item viewer lineup): the page moves each child to its object. */
+.tp-view-labels {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: var(--pt-text);
+  font: 700 12px/1.3 var(--pt-body);
+}
+.tp-view-labels > * {
+  position: absolute;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgb(16 18 22 / 0.75);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tp-tool *,
+  .tp-tool *::before {
+    transition: none !important;
+  }
+}
+
+/* Small windows: a narrower panel, the view keeps the rest. */
+@media (max-width: 1000px) {
+  .tp-tool .dp-panel {
+    width: 264px;
+  }
+  .tp-tool .dp-label {
+    width: 84px;
+  }
+  .tp-tool .dp-links {
+    flex-wrap: wrap;
+  }
+}

@@ -125,6 +125,39 @@ export function generateVariant(
   };
 }
 
+/** A variant's foliage (leaf cluster points, object space x y z) and how far its sprites reach past them (m). */
+export interface VariantFoliage {
+  points: Float32Array;
+  margin: number;
+}
+
+const foliageCache = new Map<string, VariantFoliage>();
+
+/**
+ * Where a variant's leaves are (world/scatter.ts keeps low crowns off the road): its skeleton's leaf points, rebuilt
+ * on the spot (a few ms, the same deterministic tree) and kept.
+ */
+export function variantFoliage(species: string, index: number): VariantFoliage {
+  const key = `${species}#${index}`;
+  let f = foliageCache.get(key);
+  if (!f) {
+    const def = getSpecies(species);
+    const sk = buildSkeleton(derive(def, variantSeed(def, index)), def);
+    const points = new Float32Array(sk.leaves.length * 3);
+    let reach = 0;
+    sk.leaves.forEach((l, i) => {
+      points.set(l.pos, i * 3);
+      reach = Math.max(reach, Math.hypot(l.pos[0], l.pos[2]));
+    });
+    f = {
+      points,
+      margin: Math.max(0, variantInfo(species, index).radius - reach),
+    };
+    foliageCache.set(key, f);
+  }
+  return f;
+}
+
 const registry = new Map<string, TreeVariantInfo>();
 
 export function registerVariant(info: TreeVariantInfo): void {

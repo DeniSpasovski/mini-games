@@ -1,6 +1,7 @@
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { Rng } from '../../../shared/rng';
 import { ViewerShell } from '../debug/viewer-shell';
+import { addToolHelp } from '../../../shared/tool-page';
 import { generateMap } from '../map/generate';
 import { isLevelId, type LevelId } from '../game/levels';
 import { WorldView } from '../render/world-view';
@@ -32,7 +33,7 @@ if (!(SCENES as readonly string[]).includes(state.scene))
   state.scene = DEFAULTS.scene;
 if (!isLevelId(state.level)) state.level = DEFAULTS.level;
 
-const shell = new ViewerShell('Kabooom · Bench');
+const shell = new ViewerShell('Bench');
 const IDLE: PlayerInput[] = Array.from({ length: 8 }, () => ({
   dx: 0,
   dy: 0,
@@ -273,6 +274,14 @@ s.checkbox('Free camera', state.orbit, (v) => {
   shell.setGameCamera(!v);
   writeUrlState({ ...state }, DEFAULTS);
 });
+addToolHelp(
+  shell.panel,
+  [],
+  [
+    'Mouse orbit / pan / zoom with Free camera on; off = the game camera.',
+    'Results also come from __kaboomBench.run() in the console.',
+  ],
+);
 
 shell.onFrame((dt) => {
   if (running) return;

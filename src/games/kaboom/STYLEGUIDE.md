@@ -3,7 +3,8 @@
 The look of the menus, the HUD and the pause / results screens ("Sandstone"), matched to the arena's mid-poly art: cards are
 carved blocks of the quarry's sandstone, buttons and HUD plates are mid-poly tiles bevelled all round, and titles are chunky 3D
 letters like the blast words. All values live in [`game/ui-tokens.css`](game/ui-tokens.css); `kaboom.css` uses `var(--kb-*)`
-only, so a change of look starts there.
+only, so a change of look starts there. The tool pages (viewers, bench) wear the portal's tool look
+instead ([`src/portal/STYLEGUIDE.md`](../../portal/STYLEGUIDE.md) -> Tool pages).
 
 | Welcome                                | New match                              | The count                          |
 | -------------------------------------- | -------------------------------------- | ---------------------------------- |

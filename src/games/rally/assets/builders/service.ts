@@ -3,6 +3,7 @@ import {
   BufferGeometry,
   CylinderGeometry,
   Float32BufferAttribute,
+  SphereGeometry,
 } from 'three';
 import type { AssetBuilder } from '../types';
 import { TEAM_COUNT, TEAMS } from './teams';
@@ -324,14 +325,80 @@ export const foodTruck: AssetBuilder = ({ variant, lod }) => {
   );
 };
 
-/** Portable toilet cabin (variant = colour). */
-export const portaToilet: AssetBuilder = ({ variant }) => {
-  const c = ['#2f7a4a', '#2a6fd0', '#8d9096'][variant % 3];
-  return finish([
-    box(1.2, 2.3, 1.2, 0, 1.15, 0, c),
-    box(1.25, 0.06, 1.25, 0, 2.33, 0, WHITE),
-    box(0.8, 1.9, 0.03, 0, 1.0, 0.61, '#d9dbde'),
-  ]);
+/** Portable toilet colours: [walls, door and its frame moulding]. */
+const TOILET_COLORS: [string, string][] = [
+  ['#2f7a4a', '#286a40'],
+  ['#2a6fd0', '#245fb4'],
+  ['#8d9096', '#7d8086'],
+];
+
+/**
+ * Portable toilet cabin (variant = colour), 1.1 x 1.16 m, door on +Z: moulded walls with vertical ribs on a dark skid,
+ * a pale translucent roof dome on a rim, the door in a raised frame with handle and red / green lock window, a vent
+ * pipe up the back corner. No lettering.
+ */
+export const portaToilet: AssetBuilder = ({ variant, lod }) => {
+  const [c, door] = TOILET_COLORS[variant % TOILET_COLORS.length];
+  const W = 1.1;
+  const D = 1.16;
+  const TOP = 2.15;
+  const parts: BufferGeometry[] = [
+    box(W + 0.06, 0.1, D + 0.06, 0, 0.05, 0, '#2a2d30'),
+    box(W, TOP - 0.1, D, 0, (TOP + 0.1) / 2, 0, c),
+    box(W + 0.08, 0.06, D + 0.08, 0, TOP + 0.03, 0, '#d8dbde'),
+    solid(
+      new SphereGeometry(
+        0.6,
+        lod ? 8 : 14,
+        lod ? 3 : 5,
+        0,
+        Math.PI * 2,
+        0,
+        Math.PI / 2,
+      )
+        .scale(0.95, 0.32, 1)
+        .translate(0, TOP + 0.06, 0),
+      '#e9ebe6',
+    ),
+    // Door and its frame on the front face.
+    box(0.84, 1.86, 0.03, 0, 1.08, D / 2 + 0.01, door),
+    box(0.07, 1.98, 0.05, -0.47, 1.12, D / 2 + 0.02, door),
+    box(0.07, 1.98, 0.05, 0.47, 1.12, D / 2 + 0.02, door),
+    box(1.01, 0.08, 0.05, 0, 2.08, D / 2 + 0.02, door),
+    // Vent pipe up the back right corner, above the roof.
+    solid(
+      new CylinderGeometry(0.05, 0.05, 0.75, lod ? 5 : 8).translate(
+        0.4,
+        TOP - 0.05,
+        -D / 2 - 0.05,
+      ),
+      '#3a3d42',
+    ),
+  ];
+  if (lod === 0) {
+    // Ribs down the sides and the back.
+    for (const z of [-0.39, -0.13, 0.13, 0.39])
+      for (const s of [1, -1])
+        parts.push(box(0.03, 1.7, 0.07, (s * (W + 0.03)) / 2, 1.15, z, c));
+    for (const x of [-0.3, 0, 0.3])
+      parts.push(box(0.07, 1.7, 0.03, x, 1.15, -(D + 0.03) / 2, c));
+    // Handle, lock window (red = occupied / green = free), hinge plates.
+    parts.push(box(0.04, 0.16, 0.05, 0.33, 1.05, D / 2 + 0.04, '#c4c8cc'));
+    parts.push(
+      box(
+        0.1,
+        0.05,
+        0.02,
+        0.33,
+        1.2,
+        D / 2 + 0.03,
+        variant % 2 ? '#2f9a3a' : '#c8321e',
+      ),
+    );
+    for (const y of [0.45, 1.75])
+      parts.push(box(0.04, 0.12, 0.04, -0.4, y, D / 2 + 0.04, '#9a9ea4'));
+  }
+  return finish(parts);
 };
 
 /** Fuel trailer: lying tank on a two-wheel chassis, hose reel. */

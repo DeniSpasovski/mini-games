@@ -21,6 +21,7 @@ import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { paramOneOf } from '../../../shared/url-params';
 import { track } from '../../../shared/analytics';
 import { ViewerShell } from '../debug/viewer-shell';
+import { addToolHelp } from '../../../shared/tool-page';
 import { getItem } from '../items/catalog';
 import { BIOMES, BIOME_COLORS, SEA } from '../map/animal/biomes';
 import { RING_CORNERS } from '../map/city-movers';
@@ -178,8 +179,9 @@ if (!isToy) {
   slider('Coast noise (m)', 'noise', 0, 40, 1);
   slider('Parks', 'parks', 0, 10, 1);
   slider('Litter density', 'litter', 0, 3, 0.1);
-  slider('Downtown radius (m)', 'downtown', 40, 140, 5);
-  slider('Commercial radius (m)', 'commercial', 80, 200, 5);
+  slider('Downtown (m)', 'downtown', 40, 140, 5);
+  slider('Commercial (m)', 'commercial', 80, 200, 5);
+  vals.note('Downtown / commercial: district radius from the centre.');
 }
 
 const view = panel.section('View');
@@ -193,7 +195,7 @@ view.checkbox(
   },
 );
 view.slider(
-  'Show only tier (0 = all)',
+  'Only tier',
   state.tier,
   { min: 0, max: TIER_COUNT, step: 1 },
   (v) => {
@@ -203,7 +205,7 @@ view.slider(
   },
 );
 view.slider(
-  'Game camera level',
+  'Camera level',
   state.level,
   { min: 1, max: MAX_LEVEL, step: 1 },
   (v) => {
@@ -246,6 +248,11 @@ const budgetSection = panel.section('Content budget');
 const setBudget = budgetSection.info();
 const clickSection = panel.section('Clicked');
 const setClicked = clickSection.info();
+addToolHelp(
+  panel,
+  [['Click', 'inspect an item, move the red marker']],
+  ['Every value is in the URL: copy it to share the view.'],
+);
 
 function regenerate(): void {
   map = isToy
