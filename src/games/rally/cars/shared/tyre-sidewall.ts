@@ -77,12 +77,16 @@ function draw(c: TyreId, canvas: HTMLCanvasElement): void {
     .getHexString()}`;
   const paint = '#f4f4f0';
   // The two prints, centred a half turn apart: [centre, width].
-  const logoH = 58;
-  const logoW = logoH * LOGO_ASPECT;
   const fontPx = 64;
   ctx.font = `italic 800 ${fontPx}px ${fontReady ? FONT : "'Barlow Condensed', sans-serif"}`;
   const name = TYRES[c].name.toUpperCase();
-  const nameW = ctx.measureText(name).width;
+  const nm = ctx.measureText(name);
+  const nameW = nm.width;
+  // The wordmark scaled so its letters are as tall as the name's capitals.
+  const capH = nm.actualBoundingBoxAscent - nm.actualBoundingBoxDescent;
+  const [inkTop, inkBottom] = logoInk ?? [0.11, 0.81];
+  const logoH = capH / (inkBottom - inkTop);
+  const logoW = logoH * LOGO_ASPECT;
   const prints: [number, number][] = [
     [W * 0.25, logoW],
     [W * 0.75, nameW],
@@ -103,8 +107,7 @@ function draw(c: TyreId, canvas: HTMLCanvasElement): void {
   // Wordmark (white in the svg) and the tyre's name in the compound colour, both centred on the band by their ink
   // (not their boxes: the wordmark's letters sit high in its viewBox, caps sit high in the em box).
   if (logo) {
-    const [top, bottom] = logoInk ?? [0, 1];
-    const y = H / 2 - logoH * ((top + bottom) / 2);
+    const y = H / 2 - logoH * ((inkTop + inkBottom) / 2);
     ctx.drawImage(logo, W * 0.25 - logoW / 2, y, logoW, logoH);
   } else centredText(ctx, 'GRAVEL RALLY', W * 0.25, paint);
   centredText(ctx, name, W * 0.75, color);
