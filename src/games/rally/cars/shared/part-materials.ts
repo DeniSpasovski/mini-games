@@ -306,6 +306,44 @@ function canvas(
   return t;
 }
 
+/**
+ * A lit lamp is not one flat colour: the bulb (or LED) behind a red lens makes a hot spot, the lens round it glows less. Reshapes
+ * a lamp's glow canvas (the lit shape filled in red, 0 outside it): each lit pixel keeps `lens` of its level and gains up to the
+ * rest within a spot's radius (`[u, v, r]`, 0..1 of the canvas); the spot centre also turns paler (`hot`, 0..1, the bulb's own
+ * pink-white once it is driven past what the tone mapping keeps red). `spots` empty = the lens alone (a running light with no hot spot).
+ */
+function chamberGlow(
+  t: CanvasTexture,
+  spots: [number, number, number][],
+  lens: number,
+  hot = 0.35,
+): CanvasTexture {
+  const c = t.image as HTMLCanvasElement;
+  const g = c.getContext('2d')!;
+  const img = g.getImageData(0, 0, c.width, c.height);
+  const d = img.data;
+  for (let y = 0; y < c.height; y++)
+    for (let x = 0; x < c.width; x++) {
+      const i = (y * c.width + x) * 4;
+      if (d[i] + d[i + 1] + d[i + 2] === 0) continue;
+      let k = 0;
+      for (const [u, v, r] of spots) {
+        const dx = (x + 0.5) / c.width - u;
+        const dy = (y + 0.5) / c.height - v;
+        k = Math.max(k, Math.exp(-(dx * dx + dy * dy) / (2 * r * r)));
+      }
+      const level = lens + (1 - lens) * k;
+      // The spot's centre also carries green / blue: overdriven it turns pale like a real bulb, not a salmon lens.
+      const pale = hot * k * k;
+      d[i] = Math.min(255, d[i] * level);
+      d[i + 1] = Math.min(255, (d[i + 1] + 255 * pale) * level);
+      d[i + 2] = Math.min(255, (d[i + 2] + 255 * pale * 0.7) * level);
+    }
+  g.putImageData(img, 0, 0);
+  t.needsUpdate = true;
+  return t;
+}
+
 /** Sheet size of a source part's texture (maps are drawn at this size, whatever the file's). */
 const SRC_SIZE = 512;
 
@@ -315,6 +353,67 @@ const SRC_SIZE = 512;
  */
 const RUNNING_BODY = new Set(['subie_22b_lamps.png']);
 const RUNNING_BODY_NIGHT: LampNight = { idle: 0.2, on: 0.6 };
+/**
+ * Tail sheets photographed with dark specks / a dark blot inside the lit lens: an unlit pixel with lit ones within
+ * `HOLE_REACH` px in all four directions glows like them (`fillHoles`), else it shows as a black hole in the lit lamp.
+ */
+const HOLE_FILL = new Set(['subie_22b_lamps.png']);
+const HOLE_REACH = 24;
+
+const HOLE_DIRS = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+];
+
+/**
+ * Fills the holes of a lamp glow (`v` per pixel, 0 = unlit) and its red level (`red`) in place: an unlit pixel enclosed by lit
+ * ones (left, right, up and down within `HOLE_REACH`) takes the mean of those four.
+ */
+function fillHoles(v: Float32Array, red: Float32Array): void {
+  const n = SRC_SIZE;
+  const v0 = v.slice();
+  const r0 = red.slice();
+  for (let y = 0; y < n; y++)
+    for (let x = 0; x < n; x++) {
+      const i = y * n + x;
+      if (v0[i] > 0) continue;
+      let sv = 0;
+      let sr = 0;
+      let hits = 0;
+      for (const [dx, dy] of HOLE_DIRS) {
+        const before = hits;
+        for (let k = 1; k <= HOLE_REACH; k++) {
+          const xx = x + dx * k;
+          const yy = y + dy * k;
+          if (xx < 0 || yy < 0 || xx >= n || yy >= n) break;
+          const j = yy * n + xx;
+          if (v0[j] > 0) {
+            sv += v0[j];
+            sr += r0[j];
+            hits++;
+            break;
+          }
+        }
+        // Open on this side: not a hole.
+        if (hits === before) break;
+      }
+      if (hits === 4) {
+        v[i] = sv / 4;
+        red[i] = sr / 4;
+      }
+    }
+}
+/**
+ * Split tail sheets (`srcPart`: any red sheet that is not a running-body or clear-interior one): the lens glows at full
+ * and the sheet's pale-pink bulb pixels (hot spots) at full; the running light (`idleGlow`) keeps `IDLE_LENS` of the lens' level
+ * (a linear share: the map is sRGB, so it is painted at its 1 / 2.2 power).
+ */
+const IDLE_LENS = 0.5;
+/** Night levels of a split sheet: the hot spots turn pale, the lens stays red. */
+const SPLIT_NIGHT: LampNight = { idle: 0.9, on: 0.6 };
+const IDLE_LENS_SRGB = IDLE_LENS ** (1 / 2.2);
 /**
  * Tail-lamp sheets of a clear (silver, ribbed) lamp interior behind a red cover: the red light is that texture's own shading
  * painted in red, outside the reversing lens, and the lamp is dark while off.
@@ -349,6 +448,13 @@ const SOLID_CENTRE = new Set(['lancer_evo_6_lamps.png']);
 const strongRed = (r: number, gr: number): boolean => r > 2 * gr + 40;
 const paleRed = (r: number, gr: number, b: number): boolean =>
   r > gr + 30 && b > gr * 0.85;
+/**
+ * Sheet areas (x0, y0, x1, y1, sheet pixels) with no hot spots: a part seen only as a thin rim round another lamp (Lancer: the
+ * edge of the amber blinker, else a lit red arc round it).
+ */
+const HOT_SKIP: Record<string, [number, number, number, number][]> = {
+  'lancer_evo_6_lamps.png': [[320, 240, 372, 384]],
+};
 const srcSheets = new Map<string, Promise<HTMLImageElement>>();
 
 function sheetFor(file: string): Promise<HTMLImageElement> {
@@ -435,14 +541,35 @@ function srcPart(name: string): Material {
   const glow = blank('#000');
   const reverseGlow = kind === 'tail' ? blank('#000') : undefined;
   const running = kind === 'tail' && RUNNING_BODY.has(file);
-  const idleGlow = running ? blank('#000') : undefined;
   const clear = kind === 'tail' && CLEAR_INTERIOR.has(file);
+  // Any other tail sheet: the deep red lens glows, its bulb / LED hot spots (the pale pink parts of the photo
+  // the sheet was made from) at full, and the running light is the hot spots alone.
+  const split = kind === 'tail' && !running && !clear;
+  const idleGlow = running || split ? blank('#000') : undefined;
   const loaded = sheetFor(file)
     .then((img) => {
       const g = (map.image as HTMLCanvasElement).getContext('2d')!;
       g.clearRect(0, 0, SRC_SIZE, SRC_SIZE);
       g.drawImage(img, 0, 0, SRC_SIZE, SRC_SIZE);
       const px = g.getImageData(0, 0, SRC_SIZE, SRC_SIZE).data;
+      const skip = HOT_SKIP[file] ?? [];
+      // A bulb / LED hot spot: a pale pink pixel of the photo the sheet was made from.
+      const hotSpot = (n: number): boolean => {
+        const r = px[n * 4];
+        const gr = px[n * 4 + 1];
+        if (
+          !split ||
+          !paleRed(r, gr, px[n * 4 + 2]) ||
+          r <= 150 ||
+          gr >= 0.8 * r
+        )
+          return false;
+        const x = n % SRC_SIZE;
+        const y = (n / SRC_SIZE) | 0;
+        return !skip.some(
+          ([x0, y0, x1, y1]) => x >= x0 && x < x1 && y >= y0 && y < y1,
+        );
+      };
       // `red` = glow in pure red at the sheet's red level (a tail lamp's sheet colour is often orange or pink once it glows).
       const paint = (
         t: CanvasTexture,
@@ -451,11 +578,20 @@ function srcPart(name: string): Material {
       ) => {
         const c = (t.image as HTMLCanvasElement).getContext('2d')!;
         const d = c.createImageData(SRC_SIZE, SRC_SIZE);
+        const vs = new Float32Array(px.length / 4);
+        const reds = new Float32Array(px.length / 4);
         for (let i = 0; i < px.length; i += 4) {
-          const v = f(px[i], px[i + 1], px[i + 2], i >> 2) * (px[i + 3] / 255);
-          d.data[i] = px[i] * v;
-          d.data[i + 1] = (red ? px[i] * 0.03 : px[i + 1]) * v;
-          d.data[i + 2] = (red ? px[i] * 0.015 : px[i + 2]) * v;
+          vs[i >> 2] =
+            f(px[i], px[i + 1], px[i + 2], i >> 2) * (px[i + 3] / 255);
+          reds[i >> 2] = px[i];
+        }
+        if (red && HOLE_FILL.has(file)) fillHoles(vs, reds);
+        for (let i = 0; i < px.length; i += 4) {
+          const v = vs[i >> 2];
+          const r = reds[i >> 2];
+          d.data[i] = r * v;
+          d.data[i + 1] = (red ? r * 0.03 : px[i + 1]) * v;
+          d.data[i + 2] = (red ? r * 0.015 : px[i + 2]) * v;
           d.data[i + 3] = 255;
         }
         c.putImageData(d, 0, 0);
@@ -467,20 +603,31 @@ function srcPart(name: string): Material {
         paint(
           glow,
           (r, gr, b, n) =>
-            strongRed(r, gr) || (running && paleRed(r, gr, b))
+            strongRed(r, gr)
               ? 1
-              : clear &&
-                  n >> 9 > CLEAR_FROM_ROW &&
-                  !lens?.[n] &&
-                  Math.max(r, gr, b) - Math.min(r, gr, b) < 70
-                ? lum(r, gr, b) ** 1.5
-                : 0,
+              : (running && paleRed(r, gr, b)) || hotSpot(n)
+                ? 1
+                : clear &&
+                    n >> 9 > CLEAR_FROM_ROW &&
+                    !lens?.[n] &&
+                    Math.max(r, gr, b) - Math.min(r, gr, b) < 70
+                  ? lum(r, gr, b) ** 1.5
+                  : 0,
           true,
         );
         if (idleGlow)
           paint(
             idleGlow,
-            (r, gr, b) => (!strongRed(r, gr) && paleRed(r, gr, b) ? 1 : 0),
+            (r, gr, b, n) =>
+              split
+                ? strongRed(r, gr)
+                  ? IDLE_LENS_SRGB
+                  : hotSpot(n)
+                    ? 1
+                    : 0
+                : !strongRed(r, gr) && paleRed(r, gr, b)
+                  ? 1
+                  : 0,
             true,
           );
         paint(reverseGlow!, (r, gr, b, n) =>
@@ -535,7 +682,7 @@ function srcPart(name: string): Material {
     m,
     1.2,
     reverseGlow,
-    running ? RUNNING_BODY_NIGHT : LENS_NIGHT,
+    running ? RUNNING_BODY_NIGHT : split ? SPLIT_NIGHT : LENS_NIGHT,
     idleGlow,
   );
   if (SOLID_CENTRE.has(file)) m.userData.brakeLamp.solidCentre = true;
@@ -1054,6 +1201,7 @@ function tailMaps(): {
 function tailCMaps(): {
   map: CanvasTexture;
   glow: CanvasTexture;
+  idleGlow: CanvasTexture;
   reverseGlow: CanvasTexture;
 } {
   const W = 256;
@@ -1076,17 +1224,21 @@ function tailCMaps(): {
     g.fillRect(0, 0, W, H);
     box(g, '#f4f4f2');
   });
-  const glow = canvas(W, H, (g) => {
+  const lit = (g: CanvasRenderingContext2D) => {
     g.fillStyle = '#ff0000';
     g.fillRect(0, 0, W, H);
     box(g, '#000'); // brake light stays red-only: the white box has no brake glow
-  });
+  };
+  // One bulb chamber above the white box: a hot spot, the lens round it dimmer; the running light is the spot alone.
+  const spots: [number, number, number][] = [[0.5, 0.4, 0.17]];
+  const glow = chamberGlow(canvas(W, H, lit), spots, 0.62);
+  const idleGlow = chamberGlow(canvas(W, H, lit), spots, 0.48);
   const reverseGlow = canvas(W, H, (g) => {
     g.fillStyle = '#000';
     g.fillRect(0, 0, W, H);
     box(g, '#ffffff');
   });
-  return { map, glow, reverseGlow };
+  return { map, glow, idleGlow, reverseGlow };
 }
 
 type Pt = [number, number];
@@ -1492,12 +1644,13 @@ function tailC4Maps(): {
     }),
   );
   // Lit with SMALL_LAMP_NIGHT: the whole lens body glows dark red, the light-guide stripes and dots at full red (a lighter dot
-  // would wash out to pink), the white reversing lens stays dark.
+  // would wash out to pink), the white reversing lens stays dark. A lit light guide glows almost evenly: its stripes stay
+  // close in level (a strong light / dark stripe flickers into moire seen side-on).
   const glow = canvas(W, H, (g) =>
     draw(g, {
       base: '#b00c10',
       dark: '#000',
-      stripe: ['#ff2a1c', '#8a0a0e'],
+      stripe: ['#ff2a1c', '#e0200f'],
       dot: '#ff2a1c',
       rib: ['#7a090c', ''],
       white: '#160204',
@@ -2110,7 +2263,7 @@ const BUILDERS: Record<PartName, () => Material> = {
     }),
   /** Fabia R5 tail lamp: even red lens + white reversing square, see tailCMaps - needs `parts.wrap` 'corner'. */
   tailc: () => {
-    const { map, glow, reverseGlow } = tailCMaps();
+    const { map, glow, idleGlow, reverseGlow } = tailCMaps();
     return lamp(
       new MeshPhysicalMaterial({
         map,
@@ -2126,7 +2279,8 @@ const BUILDERS: Record<PartName, () => Material> = {
       }),
       1.1,
       reverseGlow,
-      RED_NIGHT,
+      { idle: 1.2, on: 1.4 },
+      idleGlow,
     );
   },
   /** Black inside of a head lamp modelled in the body mesh (`gltf.lampBody`): glossy black plastic round the reflectors. */
@@ -2188,8 +2342,14 @@ const BUILDERS: Record<PartName, () => Material> = {
   /** Modelled tail-lamp LED strip: red, idle glow, bright with the brake pedal (setBrake). */
   // LED strips are bright: by day the brake reads over a sunlit lens (night keeps RED_NIGHT).
   tailled: () => tailLed(0xff0000, 0.3, 2.2, RED_NIGHT),
-  /** Bumper corner strip: dark red reflector while off, lights like `tailled` with the brake pedal (setBrake). */
-  brakestrip: () => brakeStrip(0xff0000, 1.1, STRIP_NIGHT),
+  /** Red bumper reflector strip (Audi RS6 bumper corners): passive, never lit (a real one only throws light back). */
+  brakestrip: () =>
+    new MeshPhysicalMaterial({
+      color: 0xa80f08,
+      roughness: 0.25,
+      metalness: 0.3,
+      clearcoat: 1,
+    }),
   brakestripred: () => brakeStrip(0xff0000, 1.1, STRIP_NIGHT),
   /** Modelled reversing lamp: matte white, dark until the car is in reverse gear (setBrake `reversing`), never lit by the brake. */
   reverselamp: () =>
