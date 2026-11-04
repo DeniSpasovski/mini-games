@@ -131,7 +131,7 @@ const PROP_LODS: LodSpec[] = [
   { maxDistance: 260, castShadow: false },
 ];
 
-/** Figures: the base body and its clothes (~7k + ~10k triangles) close up, the same on the 2.5k mid mesh, the jointed low-poly one, a boxy body, then a two-box silhouette. The two detailed ones are `lazy`. */
+/** Figures: the base body and its clothes (~7k + ~10k triangles) close up, the same on the 2.5k mid mesh, then far stand-ins (people.ts `farJointedFigure` / `farCrowdFigure`, then `farSilhouette`). The two detailed ones are `lazy`. */
 const PEOPLE_LODS: LodSpec[] = [
   { maxDistance: 16, castShadow: true, lazy: true },
   { maxDistance: 60, castShadow: true, lazy: true },

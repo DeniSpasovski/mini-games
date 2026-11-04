@@ -214,7 +214,8 @@ export const tapePost: AssetBuilder = () => {
 
 /**
  * One run of red / white tape from post to post: 1 m long along local X, scaled to the gap (world/tape.ts) and tilted
- * to the slope. Origin at the post tops (0.92 m up); it hangs 8 cm at the middle.
+ * to the slope. Origin at the post tops (0.92 m up); it hangs 11 cm at the middle and turns up to ~50 deg about its
+ * length on the way (plastic tape twists between the knots), so the light catches it in bands.
  */
 export const tapeSpan: AssetBuilder = ({ lod }) => {
   // 24 stripes (about 20 cm at a 5 m gap; 12 at the far LOD, still reads as striped).
@@ -225,8 +226,16 @@ export const tapeSpan: AssetBuilder = ({ lod }) => {
   );
   const tp = tape.getAttribute('position');
   for (let i = 0; i < tp.count; i++) {
-    const u = Math.abs(tp.getX(i)) * 2;
-    tp.setY(i, tp.getY(i) - 0.08 * (1 - u * u));
+    const x = tp.getX(i);
+    const u = Math.abs(x) * 2;
+    const twist = 0.85 * Math.sin(Math.PI * (x + 0.5)) * Math.cos(5 * x);
+    const y = tp.getY(i);
+    tp.setXYZ(
+      i,
+      x,
+      y * Math.cos(twist) - 0.11 * (1 - u * u),
+      y * Math.sin(twist),
+    );
   }
   return {
     parts: [
