@@ -350,6 +350,7 @@ integration-tests/kaboom/      bots.test.ts: headless bot rounds per difficulty
 | Crew viewer | `/games/kaboom/crew-viewer.html?critter=mole&anim=walk&blast=1`                | one critter or all eight; idle / walk / place / ko / cheer; TNT (`view=tnt` = close-up); both power-ups; a looping blast of any level (`blastLevel=5`; `blastAt=0.2` freezes it) |
 | Bench       | `/games/kaboom/bench.html?scene=chain40&level=sea`                             | `chain40`, `grid-all`, `8bots`; live or `__kaboomBench.run`; link hidden in the release build (`hideInProd`)                                                                     |
 
-Debug hooks (the browser pane throttles frames, so these step the scene): `__kaboom.advance(s)` / `.benchmark()` /
+Tool pages share `debug/viewer-shell.ts` (the game's renderer and camera, an orbit camera) and the portal's tool look
+(portal `STYLEGUIDE.md` -> Tool pages). Debug hooks (the browser pane throttles frames, so these step the scene): `__kaboom.advance(s)` / `.benchmark()` /
 `.screenshot(name)` (play; the last saves `screenshots/<name>.jpg` through the dev server), `__crew.advance(s)` / `.look(pos, target)` / `.screenshot(name, w, h)` / `.loadGlb(url, x, z, height)` (a reference GLB beside the crew) (crew viewer),
 `__kaboomBench.advance(s)` / `.triangles()` (bench).

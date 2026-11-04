@@ -1,8 +1,11 @@
 import { Scene } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { DebugPanel } from '../../../shared/debug-panel';
+import type { DebugPanel } from '../../../shared/debug-panel';
 import { RELEASE_BUILD } from '../../../shared/release';
 import { StatsOverlay } from '../../../shared/stats-overlay';
+import { toolPanel } from '../../../shared/tool-page';
+import gameManifest from '../game.json';
+import wordmark from '../wordmark.svg';
 import { CameraRig } from '../render/camera-rig';
 import { makeSkyTexture } from '../render/materials';
 import {
@@ -20,7 +23,7 @@ export const TOOL_LINKS = [
 ];
 
 /**
- * Shared scaffolding for the tool pages: left DebugPanel, the game's renderer, a scene, the game camera (`rig`) and an
+ * Shared scaffolding for the tool pages: left panel (`shared/tool-page.ts` look: wordmark, tomato accent), the game's renderer, a scene, the game camera (`rig`) and an
  * orbit camera (`orbit`) you can switch to, stats (F3). `onFrame` callbacks run before each render.
  */
 export class ViewerShell {
@@ -37,7 +40,12 @@ export class ViewerShell {
   private onFit: (() => void) | null = null;
 
   constructor(title: string) {
-    this.panel = new DebugPanel({ title, links: TOOL_LINKS });
+    this.panel = toolPanel({
+      game: gameManifest,
+      wordmark,
+      title,
+      links: TOOL_LINKS,
+    });
     this.renderer = createRenderer(this.panel.viewport, this.quality);
     this.scene.background = makeSkyTexture();
     bindCameraAspect(this.renderer, this.rig.camera, () => this.onFit?.());

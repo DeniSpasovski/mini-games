@@ -2,6 +2,7 @@ import { Box3, Vector2, Vector3, type Light, type Mesh } from 'three';
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { paramOneOf } from '../../../shared/url-params';
 import { ViewerShell } from '../debug/viewer-shell';
+import { addToolHelp } from '../../../shared/tool-page';
 import { Arena } from '../render/arena';
 import { Crew } from '../render/characters';
 import { levelEnvironment } from '../render/environment';
@@ -92,7 +93,7 @@ const stageMap: MapData = {
   spawns: [],
 };
 
-const shell = new ViewerShell('Kabooom · Crew viewer');
+const shell = new ViewerShell('Crew viewer');
 const glow = new GlowGrid(STAGE_W, STAGE_H);
 const arena = new Arena(stageMap, shell.quality, glow);
 shell.scene.add(arena.group);
@@ -261,15 +262,11 @@ t.checkbox('Show TNT', state.tnt, (v) => {
   state.tnt = v;
   rebuildTnt();
 });
-t.slider(
-  'Fuse (s), -1 = counting down',
-  state.fuse,
-  { min: -1, max: FUSE_S, step: 0.05 },
-  (v) => {
-    state.fuse = v;
-    writeUrlState({ ...state }, DEFAULTS);
-  },
-);
+t.slider('Fuse (s)', state.fuse, { min: -1, max: FUSE_S, step: 0.05 }, (v) => {
+  state.fuse = v;
+  writeUrlState({ ...state }, DEFAULTS);
+});
+t.note('Fuse -1 = counting down.');
 
 const b = shell.panel.section('Blast');
 b.checkbox('Loop a blast', state.blast, (v) => {
@@ -279,7 +276,7 @@ b.checkbox('Loop a blast', state.blast, (v) => {
   writeUrlState({ ...state }, DEFAULTS);
 });
 b.slider(
-  'Freeze at (s), -1 = loop',
+  'Freeze at (s)',
   state.blastAt,
   { min: -1, max: 3, step: 0.02 },
   (v) => {
@@ -293,6 +290,12 @@ b.slider('Blast level', state.blastLevel, { min: 1, max: 5, step: 1 }, (v) => {
   blastT = -99;
   writeUrlState({ ...state }, DEFAULTS);
 });
+b.note('Freeze at -1 = loop the blast.');
+addToolHelp(
+  shell.panel,
+  [],
+  ['Every value is in the URL: copy it to share the view.'],
+);
 
 shell.orbit.autoRotate = state.turntable;
 shell.orbit.autoRotateSpeed = 2.5;

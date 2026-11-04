@@ -545,7 +545,8 @@ leaves its voice on the synth alone. `?mute=1` never creates the context, so no 
 
 ## Debug tools
 
-Every tool page uses `src/shared/debug-panel.ts` (left menu), `url-state.ts` and `stats-overlay.ts` (F3). The item and map
+Every tool page uses `src/shared/debug-panel.ts` (left menu) in the portal's tool look (`holeToolPanel`, portal
+`STYLEGUIDE.md` -> Tool pages), `url-state.ts` and `stats-overlay.ts` (F3). The item and map
 viewers share `debug/viewer-shell.ts`: renderer, lights and the stencil-cut ground are the **same** as in the game.
 
 ### Item viewer – `item-viewer.html` (items and the hole)

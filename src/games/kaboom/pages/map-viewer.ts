@@ -7,6 +7,7 @@ import {
 } from 'three';
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { ViewerShell } from '../debug/viewer-shell';
+import { addToolHelp } from '../../../shared/tool-page';
 import { generateMap } from '../map/generate';
 import {
   REACTION_S,
@@ -49,7 +50,7 @@ if (!isLevelId(state.level)) state.level = DEFAULTS.level;
 if (!(OVERLAYS as readonly string[]).includes(state.overlay))
   state.overlay = DEFAULTS.overlay;
 
-const shell = new ViewerShell('Kabooom · Map viewer');
+const shell = new ViewerShell('Map viewer');
 let map: MapData;
 let arena: Arena | null = null;
 let glow: GlowGrid | null = null;
@@ -171,9 +172,6 @@ function paintOverlay(): void {
   if (overlayMesh.instanceColor) overlayMesh.instanceColor.needsUpdate = true;
 }
 
-const infoSection = shell.panel.section('Info');
-const setInfo = infoSection.info();
-
 function updateInfo(): void {
   const { w, h } = map;
   let crates = 0;
@@ -283,6 +281,15 @@ o.checkbox('Free camera', state.orbit, (v) => {
   shell.setGameCamera(!v);
   writeUrlState({ ...state }, DEFAULTS);
 });
+const setInfo = shell.panel.section('Info').info();
+addToolHelp(
+  shell.panel,
+  [],
+  [
+    'Mouse orbit / pan / zoom with Free camera on; off = the game camera.',
+    'Every value is in the URL: copy it to share the view.',
+  ],
+);
 
 shell.onFrame((dt) => {
   clock += dt;

@@ -2,7 +2,8 @@
 
 The look of the menus, the HUD and the pause / results screens ("Toy Box"): cream cards, chunky press-down buttons, a rounded
 display face and one accent colour per map. All values live in [`game/ui-tokens.css`](game/ui-tokens.css); `hole.css` uses
-`var(--hg-*)` only, so a change of look starts there.
+`var(--hg-*)` only, so a change of look starts there. The tool pages (viewers, balance) wear the portal's tool look
+instead ([`src/portal/STYLEGUIDE.md`](../../portal/STYLEGUIDE.md) -> Tool pages).
 
 | Welcome                                | Pick a map                           | Pick your time                         |
 | -------------------------------------- | ------------------------------------ | -------------------------------------- |

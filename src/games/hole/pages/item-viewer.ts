@@ -14,6 +14,7 @@ import {
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { paramOneOf } from '../../../shared/url-params';
 import { ViewerShell } from '../debug/viewer-shell';
+import { addToolHelp } from '../../../shared/tool-page';
 import { Station } from '../debug/station';
 import {
   getItem,
@@ -129,8 +130,7 @@ let stress: InstancedMesh | null = null;
 const overlays = new Group();
 scene.add(overlays);
 const labelHost = document.createElement('div');
-labelHost.style.cssText =
-  'position:absolute;inset:0;pointer-events:none;overflow:hidden;font:11px system-ui;color:#fff';
+labelHost.className = 'tp-view-labels';
 panel.viewport.append(labelHost);
 
 const itemLevel = () =>
@@ -198,7 +198,7 @@ const modeSel = vals.select(
   },
 );
 const levelSlider = vals.slider(
-  'Hole level (0 = item level)',
+  'Hole level',
   state.level,
   { min: 0, max: MAX_LEVEL, step: 1 },
   (v) => {
@@ -248,7 +248,7 @@ vals.slider(
   },
 );
 vals.slider(
-  'Lineup tier (0 = all)',
+  'Lineup tier',
   state.tier,
   { min: 0, max: TIER_COUNT, step: 1 },
   (v) => {
@@ -257,34 +257,38 @@ vals.slider(
     sync();
   },
 );
+vals.note('Hole level 0 = the item’s own level. Lineup tier 0 = every tier.');
 
 // Size rules: preview what a different fit / height factor or a per-item size / points would do.
 // Nothing is saved: copy the numbers into sim/progression.ts (SIZE_RULES) or the catalog row.
-const rules = panel.section('Size rules (preview, not saved)', false);
+const rules = panel.section('Size rules', false);
 const rulesInfo = rules.info();
 const fitSlider = rules.slider(
-  'Fit (hole D = eat size / fit)',
+  'Fit',
   state.fit,
   { min: 0.5, max: 1, step: 0.01 },
   (v) => ((state.fit = v), applyRules(), sync()),
 );
 const hfSlider = rules.slider(
-  'Height factor (height x f counts as size)',
+  'Height factor',
   state.hf,
   { min: 0, max: 0.6, step: 0.01 },
   (v) => ((state.hf = v), applyRules(), sync()),
 );
 const sizeSlider = rules.slider(
-  'Selected item size m (0 = catalog)',
+  'Item size (m)',
   state.size,
   { min: 0, max: 40, step: 0.05 },
   (v) => ((state.size = v), applyRules(), sync()),
 );
 const ptsSlider = rules.slider(
-  'Selected item points (0 = tier points)',
+  'Item points',
   state.pts,
   { min: 0, max: 50, step: 1 },
   (v) => ((state.pts = v), applyRules(), sync()),
+);
+rules.note(
+  'Preview only, nothing is saved. Fit: the hole eats up to its diameter × fit. Height factor: height × f counts as size. Item size / points: the picked item only, 0 = catalog size / tier points.',
 );
 rules.button('Reset size rules', () => {
   state.fit = SIZE_RULES_DEFAULT.fit;
@@ -338,16 +342,12 @@ act.button('Level-up at the rim', () =>
   stations.forEach((s) => s.levelUp(itemLevel())),
 );
 act.button('Reset', () => stations.forEach((s) => s.reset()));
-act.slider(
-  'Stress test N×N (0 = off)',
-  state.stress,
-  { min: 0, max: 60, step: 1 },
-  (v) => {
-    state.stress = v;
-    buildStress();
-    sync();
-  },
-);
+act.slider('Stress N×N', state.stress, { min: 0, max: 60, step: 1 }, (v) => {
+  state.stress = v;
+  buildStress();
+  sync();
+});
+act.note('Stress: N×N copies of the item, 0 = off.');
 
 const ov = panel.section('Overlays');
 ov.checkbox('Bounds box', state.bounds, (v) => ((state.bounds = v), sync()));
@@ -401,6 +401,12 @@ panel.section('Copy', false).button('Copy item JSON', () => {
     ),
   );
 });
+
+addToolHelp(
+  panel,
+  [],
+  ['Every value is in the URL: copy it to share the view.'],
+);
 
 function syncControls(): void {
   list.set(state.mode === 'hole' ? '__hole' : state.item);
@@ -524,8 +530,6 @@ function buildLineup(reframe: boolean): void {
     const el = document.createElement('div');
     const it = getItem(placements[i].item);
     el.textContent = `${it.name} · T${it.tier} · ${it.points}pt`;
-    el.style.cssText =
-      'position:absolute;white-space:nowrap;padding:1px 4px;border-radius:3px;background:rgba(0,0,0,.55)';
     labelHost.append(el);
     labels.push(el);
   }

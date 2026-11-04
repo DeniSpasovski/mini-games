@@ -1,7 +1,7 @@
 import { readUrlState, writeUrlState } from '../../../shared/url-state';
 import { paramOneOf } from '../../../shared/url-params';
-import { DebugPanel } from '../../../shared/debug-panel';
-import { TOOL_LINKS } from '../debug/viewer-shell';
+import { addToolHelp } from '../../../shared/tool-page';
+import { holeToolPanel } from '../debug/viewer-shell';
 import { MAPS, getMapDef } from '../map/registry';
 import { BOT_SKILLS, runBot, type RunResult } from '../sim/bot';
 import {
@@ -55,7 +55,7 @@ state.skill = paramOneOf(state.skill, Object.keys(BOT_SKILLS), DEFAULTS.skill);
 const sync = () => writeUrlState(state, DEFAULTS);
 for (const k of Object.keys(TUNING) as TuningKey[]) TUNING[k] = state[`t_${k}`];
 
-const panel = new DebugPanel({ title: 'Balance', links: TOOL_LINKS });
+const panel = holeToolPanel('Balance');
 const ctl = panel.section('Run');
 ctl.select(
   'Map',
@@ -76,19 +76,22 @@ ctl.select(
   (v) => ((state.skill = v), sync()),
 );
 ctl.slider(
-  'Runs per difficulty (map seeds)',
+  'Runs',
   state.runs,
   { min: 1, max: 30, step: 1 },
   (v) => ((state.runs = v), sync()),
 );
-ctl.seed('First map seed', state.seed, (v) => ((state.seed = v), sync()));
+ctl.seed('First seed', state.seed, (v) => ((state.seed = v), sync()));
 ctl.slider(
-  'Sim steps per second',
+  'Sim steps/s',
   state.dt,
   { min: 15, max: 60, step: 5 },
   (v) => ((state.dt = v), sync()),
 );
 const runBtn = ctl.button('Run', () => void run());
+ctl.note(
+  'Runs: map seeds per difficulty, from the first seed. Sim steps/s: the bot’s tick rate.',
+);
 
 /** Slider range per `TUNING` knob (the shipped value sits inside every range). */
 const TUNING_UI: Record<
@@ -96,38 +99,38 @@ const TUNING_UI: Record<
   { label: string; min: number; max: number; step: number }
 > = {
   itemsFirst: {
-    label: 'Items to fill the bar, level 1',
+    label: 'Items, level 1',
     min: 2,
     max: 40,
     step: 1,
   },
   itemsLast: {
-    label: 'Items to fill the bar, level 14',
+    label: 'Items, level 14',
     min: 10,
     max: 150,
     step: 1,
   },
-  speedBase: { label: 'Speed base (m/s)', min: 2, max: 14, step: 0.1 },
+  speedBase: { label: 'Base speed', min: 2, max: 14, step: 0.1 },
   speedPerMetre: {
-    label: 'Speed per scaled metre',
+    label: 'Speed / metre',
     min: 0,
     max: 4,
     step: 0.05,
   },
   growthXpFirst: {
-    label: 'XP to leave level 15',
+    label: 'XP, level 15',
     min: 200,
     max: 3000,
     step: 50,
   },
   growthXpStep: {
-    label: 'XP step per growth level',
+    label: 'XP step',
     min: 0,
     max: 400,
     step: 10,
   },
 };
-const tune = panel.section('Tuning (sim/progression.ts TUNING)');
+const tune = panel.section('Tuning');
 const tuneSliders = {} as Record<TuningKey, { set: (v: number) => void }>;
 for (const k of Object.keys(TUNING) as TuningKey[]) {
   const u = TUNING_UI[k];
@@ -156,14 +159,22 @@ tune.button(
   'Copy tuning',
   () => void navigator.clipboard?.writeText(tuningText()),
 );
+tune.note(
+  'TUNING in sim/progression.ts (paste "Copy tuning" there). Items: to fill the bar at level 1 / 14. Speed: m/s, plus per scaled metre. XP: to leave level 15, then + step per growth level.',
+);
 function tuningText(): string {
   return JSON.stringify(TUNING, null, 2);
 }
 const status = panel.section('Status').info();
+addToolHelp(
+  panel,
+  [['H', 'hide / show the panel']],
+  ['Every value, the tuning too, is in the URL: copy it to share a run.'],
+  false,
+);
 
 const out = document.createElement('div');
-out.style.cssText =
-  'padding:16px;overflow:auto;height:100%;box-sizing:border-box;color:#dde;font:13px system-ui';
+out.className = 'tp-report';
 const results = document.createElement('div');
 const levelBox = document.createElement('div');
 out.append(results, levelBox);
@@ -230,7 +241,6 @@ function render(groups: Group[]): void {
     ),
   );
   const table = document.createElement('table');
-  table.style.cssText = 'border-collapse:collapse;margin-bottom:16px';
   const head = [
     'difficulty',
     'time',
@@ -257,12 +267,13 @@ function render(groups: Group[]): void {
   }
   out.append(table);
   const charts = document.createElement('div');
-  charts.style.cssText = 'display:flex;gap:16px;flex-wrap:wrap';
+  charts.className = 'tp-charts';
   for (const g of groups) {
     charts.append(chart(g, 'level', MAX_LEVEL), chart(g, 'score', 0));
   }
   out.append(charts);
   const copy = document.createElement('button');
+  copy.className = 'dp-btn';
   copy.textContent = 'Copy results as JSON';
   copy.onclick = () =>
     void navigator.clipboard?.writeText(
@@ -297,7 +308,6 @@ function renderLevelTable(): void {
   };
   levelBox.replaceChildren(h('h3', 'Level table (live TUNING)'));
   const lt = document.createElement('table');
-  lt.style.cssText = 'border-collapse:collapse';
   lt.append(
     rowOf(
       [
@@ -335,8 +345,6 @@ function rowOf(cells: string[], header = false): HTMLTableRowElement {
   for (const c of cells) {
     const td = document.createElement(header ? 'th' : 'td');
     td.textContent = c;
-    td.style.cssText =
-      'padding:3px 10px;border-bottom:1px solid #334;text-align:right';
     tr.append(td);
   }
   return tr;
@@ -353,7 +361,12 @@ function chart(
   const c = document.createElement('canvas');
   c.width = W * 2;
   c.height = H * 2;
-  c.style.cssText = `width:${W}px;height:${H}px;background:#161a22;border-radius:6px`;
+  c.className = 'tp-surface';
+  c.style.width = `${W}px`;
+  c.style.height = `${H}px`;
+  // the page's own colours (tool-page.css): grid = line, text = secondary, the median in the game's accent
+  const css = getComputedStyle(document.body);
+  const tok = (name: string) => css.getPropertyValue(name).trim();
   const ctx = c.getContext('2d')!;
   ctx.scale(2, 2);
   const n = Math.min(...g.runs.map((r) => r.timeline.length));
@@ -363,9 +376,9 @@ function chart(
   const max = fixedMax || Math.max(1, ...series.flat());
   const x = (i: number) => 36 + (i / Math.max(1, n - 1)) * (W - 48);
   const y = (v: number) => H - 22 - (v / max) * (H - 38);
-  ctx.strokeStyle = '#2a3140';
-  ctx.fillStyle = '#9aa7bd';
-  ctx.font = '10px system-ui';
+  ctx.strokeStyle = tok('--pt-line');
+  ctx.fillStyle = tok('--pt-text-2');
+  ctx.font = `11px ${tok('--pt-body')}`;
   for (let k = 0; k <= 4; k++) {
     const v = (max * k) / 4;
     ctx.beginPath();
@@ -376,7 +389,8 @@ function chart(
   }
   ctx.fillText(`${g.label} - ${key} over ${g.seconds}s`, 40, 12);
   // spread band p10..p90
-  ctx.fillStyle = 'rgba(80,160,255,0.25)';
+  ctx.fillStyle = tok('--tp-accent');
+  ctx.globalAlpha = 0.25;
   ctx.beginPath();
   series.forEach((s, i) =>
     ctx[i ? 'lineTo' : 'moveTo'](x(i), y(quantile(s, 0.9))),
@@ -384,7 +398,8 @@ function chart(
   for (let i = n - 1; i >= 0; i--)
     ctx.lineTo(x(i), y(quantile(series[i], 0.1)));
   ctx.fill();
-  ctx.strokeStyle = '#5ab0ff';
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = tok('--tp-accent');
   ctx.lineWidth = 2;
   ctx.beginPath();
   series.forEach((s, i) => ctx[i ? 'lineTo' : 'moveTo'](x(i), y(median(s))));
