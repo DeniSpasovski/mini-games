@@ -31,6 +31,7 @@ src/
     STYLEGUIDE.md      the home page look (Game Shelf): tokens, type, covers
   shared/              cross-game helpers (no game logic)
     debug-panel.ts     left-side tool menu (lists, sliders, toggles, seeds)
+    tool-page.ts       toolPanel(): that menu in the portal look, the game's wordmark + accent (hole, kaboom)
     url-state.ts       typed query-string state for bookmarkable tool views
     portal-link.ts     "All games" URL when a game runs inside the portal (games/<id>/)
     stats-overlay.ts   FPS / draw calls / triangles (F3)

@@ -57,6 +57,21 @@ checks 4.5:1). `--pt-accent` is only the fallback for a game without one.
 - **Cookie banner** (`shared/consent.css`): the portal tokens, with the same values as fallbacks on game pages (which do not load them).
 - **Link preview:** `public/og-image.jpg`, 1200x630, the shelf without footer; retake it with `scripts/portal/og-image.mjs` when the look changes.
 
+## Tool pages
+
+Hole Island and 3, 2, 1 Kabooom tool pages (map / item / crew viewers, balance, bench) wear this look, not their game's:
+`toolPanel()` in [`shared/tool-page.ts`](../shared/tool-page.ts) puts `body.tp-tool` ([`tool-page.css`](../shared/tool-page.css))
+on the shared DebugPanel. Gravel Rally keeps its Stage Board tool look (rally `STYLEGUIDE.md` -> Tool pages); both share the layout.
+
+- **Header:** ← to the portal, the game's `wordmark.svg`, the page name as a mono label; the tool nav is one row of pills, the
+  page you are on in the game's accent (`--tp-accent` / `--tp-on-accent` from `game.json`).
+- **Sections:** mono uppercase titles with a chevron (accent when open); open state remembered per page.
+- **Controls:** 8 px radius; buttons outline in the accent on hover; the picked list row is an accent bar with an 18 % tint;
+  sliders and checkboxes take the accent. Labels fit the 96 px column: a short label plus a `note()` beats a truncated one.
+- **Over the view:** a "Panel · H" plate top left; reports and charts a page draws (`.tp-report`, `.tp-surface`) use the
+  same tokens, never literal colours.
+- **Help** (`addToolHelp`): a closed section with the orbit keys, the page's own keys and notes.
+
 ## Behaviour
 
 - Arrow keys and the d-pad move focus between Play and Tools (`shared/pad-nav.ts`); the menu tick plays on those moves only, not on mouse hover.
