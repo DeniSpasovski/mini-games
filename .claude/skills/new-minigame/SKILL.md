@@ -47,7 +47,7 @@ No central registry needs editing.
    - The play page's main menu (and pause / results screens) must offer an **All games** button when `portalUrl()` (`src/shared/portal-link.ts`) is not null - installed as a PWA there is no browser back button.
 3. Entry files: the default HTML template has `<div id="root">`. Import page CSS from the entry.
    Use three.js unless the user asked otherwise. Reuse `src/shared/*`:
-   - `debug-panel.ts` (left tool menu), `url-state.ts` (bookmarkable state), `stats-overlay.ts` (F3)
+   - `tool-page.ts` (`toolPanel()`: the left tool menu in the portal look, portal `STYLEGUIDE.md` -> Tool pages), `url-state.ts` (bookmarkable state), `stats-overlay.ts` (F3)
    - `rng.ts` / `noise.ts` for anything procedural (seeded!)
 4. Portal screenshot: in the play page call
    `installThumbnailCapture('<id>', () => { renderer.render(scene, camera); return renderer.domElement; })`,

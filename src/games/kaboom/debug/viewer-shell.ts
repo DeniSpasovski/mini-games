@@ -23,8 +23,9 @@ export const TOOL_LINKS = [
 ];
 
 /**
- * Shared scaffolding for the tool pages: left panel (`shared/tool-page.ts` look: wordmark, tomato accent), the game's renderer, a scene, the game camera (`rig`) and an
- * orbit camera (`orbit`) you can switch to, stats (F3). `onFrame` callbacks run before each render.
+ * Shared scaffolding for the tool pages: left panel (`toolPanel`: wordmark, tomato accent), the game's renderer, a scene,
+ * the game camera (`rig`) and an orbit camera (`orbit`) you can switch to, stats (F3). `onFrame` callbacks run before each
+ * render.
  */
 export class ViewerShell {
   readonly panel: DebugPanel;
