@@ -30,6 +30,7 @@ import {
 } from '../maps/shared/types';
 import { barrierMeshJob } from './barrier-mesh';
 import { bridgeMeshJob } from './bridge-mesh';
+import { culvertMeshJob } from './culvert-mesh';
 import { cutWallMeshJob } from './cut-wall-mesh';
 import { rockCutMeshJob } from './rock-cut-mesh';
 import { roadMarkingsMesh } from './road-markings';
@@ -872,6 +873,8 @@ export function* roadMeshJob(world: World): Generator<void, Group> {
   if (cutWalls) group.add(cutWalls);
   const rockCuts = yield* timed('rockCuts', rockCutMeshJob(world));
   if (rockCuts) group.add(rockCuts);
+  const culverts = yield* timed('culverts', culvertMeshJob(world));
+  if (culverts) group.add(culverts);
   const markings = roadMarkingsMesh(world);
   if (markings) group.add(markings);
   const signs = yield* timed('stageSigns', stageSignMeshJob(world));

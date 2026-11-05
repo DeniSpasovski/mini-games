@@ -18,6 +18,7 @@ import type {
 import { BuildingIndex, buildingCollider, buildingInstance } from './buildings';
 import { AnalyticTerrain, Heightfield } from './heightfield';
 import { isTreeType } from '../trees/species';
+import { culvertColliders, culvertStones } from './culverts';
 import { landmarksOf, type Landmark } from './landmarks';
 import {
   barrierColliders,
@@ -254,6 +255,8 @@ export class World implements GroundProvider {
         this.landmarks.some((l) => l.occupies(x, z, 1.5)) ||
         // No trees hanging into an underpass trench.
         this.gen.inUnderpassTrench(x, z) ||
+        // Nothing grows on a culvert's walls or in its gully.
+        this.gen.nearCulvert(x, z, 2.5) ||
         // Nothing grows on a service park's level lot.
         (!!parkDef && serviceParkOccupies(parkDef, x, z, 3)),
       this.heightfield,
@@ -567,6 +570,11 @@ export class World implements GroundProvider {
       if (landmark.surfaceAt)
         this.surfaceFns.push(landmark.surfaceAt.bind(landmark));
     }
+
+    for (const c of culvertColliders(this.gen.culverts))
+      this.scatter.addFixedCollider(c);
+    for (const inst of culvertStones(this.gen.culverts, this.analytic))
+      this.scatter.addFixed(inst);
 
     this.signs = stageSigns(
       { ...map, barriers: this.barrierRules },

@@ -12,6 +12,12 @@ import {
   RealHeight,
   type PathQuery,
 } from './real-data';
+import {
+  carveCulverts,
+  nearCulvert,
+  planCulverts,
+  type CulvertSite,
+} from './culverts';
 import { connectPaths, type Junction } from './junctions';
 import { twinAt } from './twin-decks';
 import {
@@ -239,6 +245,9 @@ export class TerrainGenerator {
     this.deckFlag[pi] === 1;
   /** 1 = a deck that crosses a portal slab: a street at the structure's level, never lifted over / dipped under anything else. */
   private portalDeck = new Uint8Array(0);
+  /** Culverts (MapDef.culverts): planned on first use against the carved ground (empty while planning). */
+  private culvertSites?: CulvertSite[];
+  private readonly culvertQ = newPathQuery();
   /** Path accept filters (decks are not ground). */
   private readonly onGround = (pi: number): boolean => this.deckFlag[pi] === 0;
   /** A road on the ground, not a foot way (a trail climbs a rock cut's bank, it does not open it). */
@@ -2074,7 +2083,20 @@ export class TerrainGenerator {
       // corner).
       const hold = this.underpassHold(x, z);
       const lift = base > carved && q.distance < q.halfWidth + 1;
-      return hold > 0 && !lift ? carved + (base - carved) * hold : carved;
+      const h = hold > 0 && !lift ? carved + (base - carved) * hold : carved;
+      // Culvert gullies beside the road (never on the road or its verge: world/culverts.ts).
+      const sites = this.map.culverts ? this.culverts : undefined;
+      return sites?.length
+        ? carveCulverts(
+            sites,
+            x,
+            z,
+            h,
+            q.distance,
+            q.halfWidth,
+            this.map.road.shoulder,
+          )
+        : h;
     }
     // Under the deck: no embankment, the land drops away to clear the street (at least BRIDGE_CLEARANCE
     // under the deck) and the fill ramps down to it over BRIDGE_RAMP m from each abutment.
@@ -2443,6 +2465,34 @@ export class TerrainGenerator {
     return out
       .set(f(x - 1, z) - f(x + 1, z), 2, f(x, z - 1) - f(x, z + 1))
       .normalize();
+  }
+
+  /** The culverts under the stage road (MapDef.culverts), sized against the carved ground on first use. */
+  get culverts(): CulvertSite[] {
+    if (this.culvertSites) return this.culvertSites;
+    if (!this.map.culverts) return (this.culvertSites = []);
+    this.culvertSites = []; // no carving while planning
+    const cq = this.culvertQ;
+    this.culvertSites = planCulverts(this.map.culverts, {
+      road: this.road,
+      shoulder: this.map.road.shoulder,
+      ground: (x, z) => this.heightUncapped(x, z),
+      blocked: (x, z, r) =>
+        (!!this.paths?.query(x, z, cq, undefined, this.roadOnGround).found &&
+          cq.distance < cq.halfWidth + r) ||
+        (!!this.channels?.query(x, z, cq).found &&
+          cq.distance < cq.halfWidth + r + 2) ||
+        (!!this.lakes?.query(x, z, this.lq) && this.lq.sd < r + 2) ||
+        (!!this.pads && this.pads.apply(x, z, -1e4) !== -1e4) ||
+        this.portals.inside(x, z) ||
+        (!this.plazas.empty && this.plazas.inside(x, z)),
+    });
+    return this.culvertSites;
+  }
+
+  /** Within `margin` m of a culvert's walls or gully (scatter keeps off). */
+  nearCulvert(x: number, z: number, margin: number): boolean {
+    return !!this.map.culverts && nearCulvert(this.culverts, x, z, margin);
   }
 
   get lastRoad(): RoadQuery {

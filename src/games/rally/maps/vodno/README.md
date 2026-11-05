@@ -27,7 +27,9 @@ of flats behind one street wall on the start street, and a brick-and-concrete ho
 wall, sign boards), and the gravel trail car park at the hairpin above Sredno Vodno with the hiking trail's stone posts, a shelter and
 picnic tables under tall pines, sand and crushed-stone piles closing the side road and a gazebo on the grass island of the hairpin. Rock cuts with
 layered faces line the road where it is dug into the hill, stony fill banks and guard rails where it drops away, and the
-OpenStreetMap footpaths, benches, shelters, boards and gates near the road dot the woods. Skopje's skyline stands on the horizon: the 70 m MRT tower and the 136 m Cevahir Sky City
+OpenStreetMap footpaths, benches, shelters, boards and gates near the road dot the woods. Concrete culverts with headwalls carry
+the gullies under the road: OpenStreetMap maps none here, so they are estimated from the elevation data (where its drainage
+crosses the road in a fold, `culverts.json`). Skopje's skyline stands on the horizon: the 70 m MRT tower and the 136 m Cevahir Sky City
 slabs (extruded OpenStreetMap footprints).
 
 ```bash

@@ -129,7 +129,10 @@ scripts/realmap/<id>.json` (config `trace`: screenshot, start / end marker pixel
    `python scripts/realmap/dem_stream.py <config> --at=<x>,<z>` traces the DEM flow line through that point down to the
    next baked water way and prints a config `waterways` entry (lat / lon); the baker appends it as a `stream` path. To add
    it without the other drift of a full re-bake, bake to a temp `out` and copy only the new path (+ the buildings it drops);
-   worked example `maps/petralica/DETAILS.md` "Valley creek". Lakes /
+   worked example `maps/petralica/DETAILS.md` "Valley creek". Culverts (OSM has none on country roads):
+   `python scripts/realmap/culverts.py <config> --preview <png>` -> `maps/<id>/culverts.json` (drainage of the baked height grid,
+   a culvert where a fold's catchment peaks on the route; thresholds in its header), `culverts` in `map.ts`; check with the map
+   viewer `drain=1` and in game - the road heights must not change (rally DETAILS "Culverts"). Lakes /
    ponds / reservoirs come from the baker (`data.lakes`): set `lakes: data.lakes` in `map.ts`. To add them to an
    already baked map without renumbering its buildings, bake to a temp `out` and copy only `lakes` into its data.json. Roadside `minRadius` keeps solid props out of hairpins.
    Junctions: side roads are joined to the stage road automatically (`world/junctions.ts`); add

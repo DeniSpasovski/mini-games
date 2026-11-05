@@ -14,6 +14,7 @@ import {
   groundArray,
 } from '../engine/ground-textures';
 import { type Season } from '../season';
+import { type CulvertSite, WALL_T, WING_FLARE } from './culverts';
 import { addWorldUniforms, worldUniforms } from '../engine/world-shading';
 import type { GroundMoisture } from './ground-moisture';
 
@@ -84,6 +85,11 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
     uRelief: { value: 1 },
     /** Distance (m) of the second taps and the relief (0 = off, `setTerrainDetail`). */
     uDetail: { value: 45 },
+    /** Culvert ends near the focus (`setCulvertHoles`): 2 vec4 each, see there. */
+    uCulvertHole: {
+      value: Array.from({ length: CULVERT_HOLES * 2 }, () => new Vector4()),
+    },
+    uCulvertN: { value: 0 },
   };
   sharedUniforms = uniforms;
   mat.userData.uniforms = uniforms;
@@ -153,6 +159,8 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
         uniform sampler2D tMoist;
         uniform vec4 uMoistMap;
         uniform float uMoist;
+        uniform vec4 uCulvertHole[${CULVERT_HOLES * 2}];
+        uniform int uCulvertN;
         varying vec4 vSplat;
         varying vec3 vWPos;
         varying float vUpY;
@@ -190,6 +198,22 @@ export function getTerrainMaterial(far = false): MeshStandardMaterial {
           #endif
           return a;
         }`,
+      )
+      .replace(
+        '#include <clipping_planes_fragment>',
+        `#include <clipping_planes_fragment>
+        #ifndef TERRAIN_FAR
+        // No ground between a culvert end's wing walls (the walls, apron and headwall close the hole).
+        for (int i = 0; i < ${CULVERT_HOLES}; i++) {
+          if (i >= uCulvertN) break;
+          vec4 ca = uCulvertHole[i * 2];
+          vec4 cb = uCulvertHole[i * 2 + 1];
+          vec2 cd = vWPos.xz - ca.xy;
+          float ct = dot(cd, ca.zw);
+          float cv = abs(cd.x * ca.w - cd.y * ca.z);
+          if (ct > cb.w && ct < cb.x && cv < (ct < 0.0 ? cb.y : cb.y + ct * cb.z)) discard;
+        }
+        #endif`,
       )
       .replace(
         '#include <normal_fragment_maps>',
@@ -422,4 +446,49 @@ export function setGroundMoisture(m: GroundMoisture | null): void {
   u.tMoist.value = m?.texture ?? NEUTRAL_MOISTURE;
   if (m) u.uMoistMap.value.set(m.map.x0, m.map.z0, m.map.invW, m.map.invD);
   else u.uMoistMap.value.set(0, 0, 1, 1);
+}
+
+/** Culvert ends the near terrain cuts open at once (the nearest to the focus). */
+const CULVERT_HOLES = 8;
+const holeEnds: { id: number; d: number }[] = [];
+
+/**
+ * The terrain's 1 m grid cannot step down from the bank to a culvert's apron, so the near terrain draws no ground
+ * between the wing walls of the `CULVERT_HOLES` culvert ends nearest (`x`, `z`): from inside the headwall (the pipe
+ * looks into concrete, not ground) to the wing tips, out to the walls' inner faces. Per end: (face x, z, axis out)
+ * and (tip, half width at the face, flare, start behind the face).
+ */
+export function setCulvertHoles(
+  sites: readonly CulvertSite[],
+  x: number,
+  z: number,
+): void {
+  const u = getTerrainMaterial().userData.uniforms as {
+    uCulvertHole: { value: Vector4[] };
+    uCulvertN: { value: number };
+  };
+  holeEnds.length = 0;
+  sites.forEach((s, i) =>
+    s.ends.forEach((_e, j) =>
+      holeEnds.push({ id: i * 2 + j, d: Math.hypot(s.x - x, s.z - z) }),
+    ),
+  );
+  holeEnds.sort((a, b) => a.d - b.d);
+  const n = Math.min(CULVERT_HOLES, holeEnds.length);
+  for (let k = 0; k < n; k++) {
+    const id = holeEnds[k].id;
+    const s = sites[id >> 1];
+    const e = s.ends[id & 1];
+    const ax = s.ax * e.side;
+    const az = s.az * e.side;
+    // Wing walls' inner faces (culvert-mesh.ts) plus 2 cm into them, so no seam shows.
+    u.uCulvertHole.value[k * 2].set(s.x + ax * e.u, s.z + az * e.u, ax, az);
+    u.uCulvertHole.value[k * 2 + 1].set(
+      e.wing,
+      e.half - 0.13,
+      WING_FLARE,
+      -WALL_T + 0.02,
+    );
+  }
+  u.uCulvertN.value = n;
 }

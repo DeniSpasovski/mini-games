@@ -6,6 +6,7 @@ import {
 } from '../shared/real-map';
 import type {
   BarrierRule,
+  CulvertsDef,
   HeightmapDef,
   HorizonDef,
   LandcoverDef,
@@ -18,6 +19,7 @@ import type {
   ScatterRule,
 } from '../shared/types';
 import canopy from './canopy.json';
+import culverts from './culverts.json';
 import data from './data.json';
 import horizon from './horizon.json';
 import { vodnoInfo as info } from './info';
@@ -271,6 +273,8 @@ export const vodnoMap: MapDef = {
     path: [6, 1.5],
     footway: [6, 1.5],
   },
+  // Culverts where the elevation data says water crosses the road (scripts/realmap/culverts.py; OSM has none here).
+  culverts: culverts as CulvertsDef,
   pylons: data.pylons as [number, number][],
   powerLines: data.powerLines as number[][],
   aerialways: [

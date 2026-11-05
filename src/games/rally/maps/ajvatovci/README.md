@@ -19,6 +19,9 @@ too ([`hilltop/`](hilltop/), `?spawn=church` / `?spawn=court`).
 Around the stage, the map reaches over Ilinden town, the A2 and Marino (6.9 x 4.95 km of real roads, about 6 500
 buildings, fields and drains) to explore in free drive.
 
+Concrete culverts with headwalls carry the water under the road where the elevation data says a gully or fold crosses it
+(estimated from the drainage of the elevation data, `culverts.json`: OpenStreetMap maps none on this road).
+
 ```bash
 npm run dev     # /games/rally/?stage=ajvatovci&spawn=200      (drive from 200 m)
                 # /games/rally/map-viewer.html?map=ajvatovci (fly around the whole map)

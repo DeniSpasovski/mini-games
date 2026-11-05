@@ -26,7 +26,7 @@ Dev server only (`dev: true` in `game.json`); every setting is in the URL, so a 
   `ViewerShell.addWeatherAndTime`. A "Loading <map / car / asset>" plate while it builds (`showViewerLoading`).
 - **Map viewer** (`pages/map-viewer.ts`): Map (map, stage, season, weather, time; all but the time reload), Camera (top
   down, oblique, start line, link), Layers (scatter, tree debug - also `F6` -, road centreline, stage route + markers,
-  chunk grid, splat, wireframe, fog), Picked point (click the terrain: position, height, slope, surface, cover; real
+  chunk grid, splat, drainage lines + culverts (`drain=1`, maps with `culverts`), wireframe, fog), Picked point (click the terrain: position, height, slope, surface, cover; real
   maps: lat / lon, satellite and Street View links; "Drive from here"), Buildings (real maps; `building=<id>`), Stats,
   Credits, Scene, Help.
   `along=<m>&zoom=<f>` flies to a spot on the stage road.
@@ -397,6 +397,10 @@ eagerly: they use `route.json` too); `tests/rally/map-registry.test.ts` checks t
 - **Fill banks** (`RoadDef.fills`, `TerrainGen.carveRoad` / `paintFill`): the valley-side mirror of `rockCuts` - where the land 5 m
   past the verge lies `minDrop` m below the road, the verge holds to its rim and a straight `slope` bank of stony earth falls to the
   land (no ditch). With `dropRails` the rails stand on its rim (Vodno).
+- **Culverts** (`MapDef.culverts` = `maps/<id>/culverts.json`, baked by `scripts/realmap/culverts.py`; `world/culverts.ts`,
+  `culvert-mesh.ts`): where a drainage line of the elevation data crosses the stage road, a concrete pipe with a headwall, wing walls
+  and an apron at both ends, the gully carved to and from it (`TerrainGen` after `carveRoad`, never on the road or its verge: no
+  times bump), a few stones at the outlet. Sized and placed against the carved ground on first use (`gen.culverts`).
 - **Natural ground** (opt-in, `TerrainDef`): `talus` paints bare stony ground on natural slopes in its `slope` range (judged on
   the elevation data, `paintTalus`, cached on a 4 m lattice; coarse far terrain tiles paint the face only) and scree up to
   `reach` m below them, less under a closed canopy; `streamBeds` lists the

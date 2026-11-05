@@ -115,6 +115,12 @@ export interface MapDef {
    * catenary masts / wires on the electrified ones (world/railways.ts). Road decks crossing them clear the wires.
    */
   railways?: RailwayDef[];
+  /**
+   * Culverts under the stage road where the elevation data says water crosses it (`culverts.json`, baked by
+   * scripts/realmap/culverts.py): a pipe with a concrete headwall at both ends, a gully carved to and from it
+   * (world/culverts.ts). The road itself is never touched.
+   */
+  culverts?: CulvertsDef;
   /** City streets: city asphalt on the other roads (centre lines on the wide ones), kerbs, sidewalks, crosswalks and lamps near the stage road (world/street-detail-mesh.ts). */
   cityStreets?: CityStreets;
   /** Barriers along the OTHER carriageways (paths of the given OSM kinds): the same wall / rail as the stage road. */
@@ -541,6 +547,24 @@ export interface PathDef {
   lanes?: number;
   /** Road name (motorways / main roads). */
   name?: string;
+}
+
+/** One culvert: a point on the stage road where a drainage line crosses it. */
+export interface CulvertDef {
+  /** World point on the baked route line (the engine projects it onto the game road). */
+  x: number;
+  z: number;
+  /** Downstream flow direction (unit x, z): the pipe runs along it, at most 30 degrees off square to the road. */
+  dir: number[];
+  /** Upstream catchment (ha): sizes the pipe. */
+  area: number;
+}
+
+/** `maps/<id>/culverts.json`: the culverts and the drainage lines near the road (map viewer `drain=1`). */
+export interface CulvertsDef {
+  culverts: CulvertDef[];
+  /** Drainage lines: catchment (ha) at the lower end, flat x, z list. */
+  lines?: { area: number; pts: number[] }[];
 }
 
 /** One railway track (one OSM way: a single track). */

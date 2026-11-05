@@ -3,6 +3,7 @@ import {
   BufferGeometry,
   CanvasTexture,
   Color,
+  DoubleSide,
   CylinderGeometry,
   Group,
   Line,
@@ -55,7 +56,7 @@ import { SURFACES } from '../physics/surfaces';
 
 /**
  * Map viewer: aerial view of a whole map with one of its stages, for quick iteration.
- *   map-viewer.html?map=test&stage=test&scatter=1&road=1&grid=0&splat=0&fog=0&labels=1&along=1100&zoom=0.5
+ *   map-viewer.html?map=test&stage=test&scatter=1&road=1&grid=0&splat=0&drain=0&fog=0&labels=1&along=1100&zoom=0.5
  * `stage` = the stage shown (its route, start / splits / finish, closures and fans; default the map's first). Old links
  * `map=<stage id>` open that stage on its map. Distances (`along`, the 250 m ticks, "Drive from here") are along the
  * stage road, in the stage's direction. `season` = spring | summer | autumn (ground, leaves; default the stage's own, as in the game).
@@ -77,6 +78,8 @@ const DEFAULTS = {
   road: true,
   grid: false,
   splat: false,
+  /** Drainage lines and culverts (MapDef.culverts, scripts/realmap/culverts.py). */
+  drain: false,
   fog: false,
   labels: true,
   wire: false,
@@ -203,7 +206,9 @@ void loadMap(state.map).then(async (map) => {
   const markers = buildMarkers();
   const chunkGrid = buildChunkGrid();
   const stageLines = buildStageLines();
-  overlays.add(roadLine, stageLines, markers, chunkGrid);
+  const drainage = buildDrainage();
+  overlays.add(roadLine, stageLines, markers, chunkGrid, drainage);
+  drainage.visible = state.drain;
   stageLines.visible = state.labels;
   roadLine.visible = state.road;
   markers.visible = state.labels;
@@ -320,6 +325,87 @@ void loadMap(state.map).then(async (map) => {
       const l = label(`${d} m`, '#ffffff');
       l.scale.set(0.07, 0.0175, 1);
       l.position.set(p.x, p.y + 8, p.z);
+      g.add(l);
+    }
+    return g;
+  }
+
+  /** Drainage lines near the road (blue, darker = larger catchment) and the culverts (magenta poles, pipe axis). */
+  function buildDrainage(): Group {
+    const g = new Group();
+    const c = new Color();
+    // Flat ribbons (a line is one pixel from the overview height), wider and darker with the catchment.
+    for (const ln of map.culverts?.lines ?? []) {
+      const k = Math.min(1, Math.log10(Math.max(1, ln.area)) / 2);
+      const hw = 1.5 + 3 * k;
+      const pos: number[] = [];
+      const n = ln.pts.length / 2;
+      for (let i = 0; i < n; i++) {
+        const a = Math.max(0, i - 1);
+        const b = Math.min(n - 1, i + 1);
+        let tx = ln.pts[b * 2] - ln.pts[a * 2];
+        let tz = ln.pts[b * 2 + 1] - ln.pts[a * 2 + 1];
+        const tl = Math.hypot(tx, tz) || 1;
+        tx /= tl;
+        tz /= tl;
+        const x = ln.pts[i * 2];
+        const z = ln.pts[i * 2 + 1];
+        const y = world.gen.height(x, z) + 1.2;
+        pos.push(x - tz * hw, y, z + tx * hw, x + tz * hw, y, z - tx * hw);
+      }
+      const idx: number[] = [];
+      for (let i = 0; i < n - 1; i++)
+        idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
+      const geo = new BufferGeometry();
+      geo.setAttribute(
+        'position',
+        new BufferAttribute(new Float32Array(pos), 3),
+      );
+      geo.setIndex(idx);
+      c.setHSL(0.58, 1, 0.7 - 0.35 * k);
+      const ribbon = new Mesh(
+        geo,
+        new MeshBasicMaterial({
+          color: c.clone(),
+          depthTest: false,
+          transparent: true,
+          opacity: 0.85,
+          side: DoubleSide,
+        }),
+      );
+      ribbon.renderOrder = 10;
+      g.add(ribbon);
+    }
+    for (const s of world.gen.culverts) {
+      const [a, b] = s.ends;
+      const ends = [a, b].map((e) => [
+        s.x + s.ax * e.side * e.u,
+        e.invert + s.diameter / 2,
+        s.z + s.az * e.side * e.u,
+      ]);
+      const geo = new BufferGeometry();
+      geo.setAttribute(
+        'position',
+        new BufferAttribute(new Float32Array(ends.flat()), 3),
+      );
+      g.add(
+        new Line(
+          geo,
+          new LineBasicMaterial({ color: 0xff40ff, depthTest: false }),
+        ),
+      );
+      const pole = new Mesh(
+        new CylinderGeometry(0.6, 0.6, 20, 8),
+        new MeshBasicMaterial({ color: 0xff40ff }),
+      );
+      pole.position.set(s.x, s.y + 10, s.z);
+      g.add(pole);
+      const along = world.stageDef.reverse
+        ? world.road.length - s.along
+        : s.along;
+      const l = label(`${Math.round(along)} m ${s.area} ha`, '#ff40ff');
+      l.scale.set(0.09, 0.0225, 1);
+      l.position.set(s.x, s.y + 24, s.z);
       g.add(l);
     }
     return g;
@@ -483,6 +569,12 @@ void loadMap(state.map).then(async (map) => {
     chunkGrid.visible = v;
     sync();
   });
+  if (map.culverts)
+    layers.checkbox('Drainage + culverts', state.drain, (v) => {
+      state.drain = v;
+      drainage.visible = v;
+      sync();
+    });
   layers.checkbox('Surface splat colours', state.splat, (v) => {
     state.splat = v;
     getTerrainMaterial().userData.uniforms.uDebugSplat.value = v ? 1 : 0;
