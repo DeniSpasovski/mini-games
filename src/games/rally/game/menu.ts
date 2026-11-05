@@ -103,6 +103,22 @@ import {
   type Weather,
 } from '../weather';
 import { Showroom } from './showroom';
+import { replayUrl } from './replay/debug-export';
+import {
+  confirmButton,
+  formatBytes,
+  nameForm,
+  storageLine,
+} from './replay/manage-ui';
+import {
+  deleteReplay,
+  isNamed,
+  listReplays,
+  renameReplay,
+  REPLAYS_ENABLED,
+  type ReplayMeta,
+} from './replay/store';
+
 import {
   formatTime,
   isOldRun,
@@ -121,6 +137,9 @@ import {
   type TimeOfDay,
   type TimeOfDayId,
 } from './time-of-day';
+
+/** Auto saves listed per stage on Stage times (the rest: a count; "Delete auto saves" clears them all). */
+const AUTO_SHOWN = 8;
 
 /** Game version (game.json, semver 0.x.y), shown in the menu + About. */
 const VERSION = gameManifest.version;
@@ -735,7 +754,7 @@ class MainMenu {
     const older = times.filter((r) => isOldRun(r, cur));
     const row = (r: RunRecord, i: number) => {
       const old = isOldRun(r, cur);
-      return `<tr${old ? ' class="old"' : ''}><td>${old ? oldRunLabel(r, cur) : i + 1}</td><td>${formatTime(r.time)}${r.penalty ? ` <span class="pen">(+${r.penalty}s)</span>` : ''}</td><td>${carName(r.car)}<small class="when">${runConditions(r, m.environment.timeOfDay)}</small></td><td class="set">${isTyreId(r.tyre) ? TYRES[r.tyre].name : '–'}</td><td>${!old && i ? `+${(r.time - rows[0].time).toFixed(2)}` : ''}</td></tr>`;
+      return `<tr${old ? ' class="old"' : ''}${r.date ? ` data-date="${r.date}"` : ''}><td>${old ? oldRunLabel(r, cur) : i + 1}</td><td>${formatTime(r.time)}${r.penalty ? ` <span class="pen">(+${r.penalty}s)</span>` : ''}</td><td>${carName(r.car)}<small class="when">${runConditions(r, m.environment.timeOfDay)}</small></td><td class="set">${isTyreId(r.tyre) ? TYRES[r.tyre].name : '–'}</td><td>${!old && i ? `+${(r.time - rows[0].time).toFixed(2)}` : ''}</td></tr>`;
     };
     const card = div('menu-times-card');
     card.innerHTML = `<h2>${m.name}</h2>
@@ -755,6 +774,7 @@ class MainMenu {
           : '<p class="menu-none">No time set yet - drive this stage!</p>'
       }</div>`;
     this.root.append(card);
+    void this.addReplays(card, m);
     const list = this.stageList(this.timesMap, false, (i) => {
       this.timesMap = i;
       this.show('times');
@@ -771,6 +791,136 @@ class MainMenu {
     // The results start level with the first stage card.
     card.style.top = `${this.topIn(list)}px`;
     this.showMap(m);
+  }
+
+  /**
+   * Stage times: a watch chip on every run with a saved replay (game/replay/store.ts) and the stage's replays under the
+   * table: named saves first, then the newest auto saves; each can be named / renamed and deleted (asks once). On top
+   * the storage line with "Delete auto saves" (all stages), a notice past REPLAY_SOFT_LIMIT. A replay opens the stage in
+   * its car and conditions (`?replay=<id>`, pages/play.ts).
+   */
+  private async addReplays(card: HTMLElement, m: StageInfo): Promise<void> {
+    if (!REPLAYS_ENABLED) return;
+    const [list, storage] = await Promise.all([
+      listReplays(m.id),
+      storageLine(() => this.redrawTimes()),
+    ]);
+    if (!card.isConnected || (!list.length && !storage)) return;
+    const byDate = new Map<number, ReplayMeta>(list.map((r) => [r.date, r]));
+    card.querySelectorAll<HTMLElement>('tr[data-date]').forEach((tr) => {
+      const r = byDate.get(Number(tr.dataset.date));
+      if (r) tr.lastElementChild?.append(this.watchChip(r, ''));
+    });
+    const sec = div('menu-replays');
+    sec.append(
+      Object.assign(document.createElement('h3'), {
+        textContent: 'Replays on this device',
+      }),
+    );
+    if (storage) sec.append(storage);
+    const named = list.filter(isNamed);
+    const auto = list.filter((r) => !isNamed(r));
+    const group = (title: string, rows: ReplayMeta[], more = 0) => {
+      if (!rows.length) return;
+      sec.append(
+        Object.assign(document.createElement('h4'), { textContent: title }),
+      );
+      const ul = document.createElement('ul');
+      for (const r of rows) ul.append(this.replayRow(r));
+      sec.append(ul);
+      if (more)
+        sec.append(
+          Object.assign(document.createElement('p'), {
+            className: 'menu-replays-more',
+            textContent: `+ ${more} older auto saves on this stage`,
+          }),
+        );
+    };
+    group(`Named · ${named.length}`, named);
+    group(
+      `Auto saves · ${auto.length}`,
+      auto.slice(0, AUTO_SHOWN),
+      Math.max(0, auto.length - AUTO_SHOWN),
+    );
+    card.append(sec);
+  }
+
+  private redrawTimes(): void {
+    if (this.screen === 'times') this.show('times');
+  }
+
+  private watchChip(r: ReplayMeta, label: string): HTMLButtonElement {
+    const b = document.createElement('button');
+    b.className = 'menu-replay';
+    b.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z" fill="currentColor"/></svg>`;
+    b.append(label);
+    b.title = 'Watch replay';
+    b.addEventListener('click', () => {
+      location.href = replayUrl(r);
+    });
+    return b;
+  }
+
+  /** One saved replay: watch, name (named saves) + car / date / size, rename, delete (asks once). */
+  private replayRow(r: ReplayMeta): HTMLLIElement {
+    const li = document.createElement('li');
+    li.classList.toggle('named', isNamed(r));
+    const when = new Date(r.date).toLocaleString(undefined, {
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    const info = document.createElement('span');
+    info.className = 'menu-replay-info';
+    const facts = `${carName(r.car)} · ${when} · ${formatBytes(r.bytes)}`;
+    if (isNamed(r)) {
+      const name = document.createElement('b');
+      name.textContent = r.name!;
+      const small = document.createElement('small');
+      small.textContent = facts;
+      info.append(name, small);
+    } else info.textContent = facts;
+    const rename = document.createElement('button');
+    rename.type = 'button';
+    rename.className = 'menu-replay-act';
+    rename.textContent = isNamed(r) ? 'Rename' : 'Name';
+    rename.title = isNamed(r)
+      ? 'Rename this replay (clear the name to make it an auto save)'
+      : 'Name this replay: a named save is never deleted with the auto saves';
+    rename.addEventListener('click', () => {
+      info.replaceWith(
+        nameForm(
+          r.name ?? '',
+          async (raw) => {
+            await renameReplay(r.id, raw);
+            this.redrawTimes();
+          },
+          () => this.redrawTimes(),
+        ),
+      );
+      rename.remove();
+    });
+    const cross = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    cross.setAttribute('viewBox', '0 0 24 24');
+    cross.innerHTML =
+      '<path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.4" fill="none"/>';
+    li.append(
+      this.watchChip(r, r.time !== undefined ? formatTime(r.time) : 'run'),
+      info,
+      rename,
+      confirmButton(
+        'menu-replay-del',
+        cross,
+        'Delete?',
+        async () => {
+          await deleteReplay(r.id);
+          this.redrawTimes();
+        },
+        'Delete this replay',
+      ),
+    );
+    return li;
   }
 
   /** One stage card (route, description, tags, best time) of the stage list; `showBest` off on the Stage times screen. */

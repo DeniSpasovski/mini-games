@@ -1128,6 +1128,257 @@ html.touch .menu-btn.big kbd {
     max-height: 45%;
   }
 }
+/* Stage times: watch a saved replay (game/replay/store.ts) - a play chip on a run's row and the newest under the table. */
+.menu-replay {
+  position: relative;
+  isolation: isolate;
+  margin-left: 8px;
+  padding: 2px 9px 2px 7px;
+  border: 0;
+  background: none;
+  color: var(--ui-text);
+  font: italic 700 15px/1.2 var(--ui-font-display);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.menu-replay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--ui-raised);
+  border-left: 3px solid var(--ui-accent);
+  transform: skewX(var(--ui-slant));
+  transition: background var(--ui-move);
+}
+.menu-replay:hover::before,
+.menu-replay:focus-visible::before {
+  background: var(--ui-raised-hover);
+}
+.menu-replay svg {
+  width: 12px;
+  height: 12px;
+  margin-right: 4px;
+  vertical-align: -1px;
+  color: var(--ui-accent);
+}
+.menu-replays h3 {
+  margin: 18px 0 8px;
+  font: 700 14px/1 var(--ui-font-display);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ui-text-2);
+}
+.menu-replays ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.menu-replays li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--ui-text-2);
+}
+.menu-replays .menu-replay {
+  margin-left: 0;
+  min-width: 6.4em;
+  text-align: left;
+}
+.menu-replays h4 {
+  margin: 12px 0 4px;
+  font: 600 12px/1 var(--ui-font-body);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ui-text-off);
+}
+.menu-replay-info {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menu-replays li.named .menu-replay-info b {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font: italic 700 15px/1.2 var(--ui-font-display);
+  color: var(--ui-text);
+}
+.menu-replays li.named .menu-replay-info small {
+  font-size: 12px;
+}
+.menu-replays li.named .menu-replay::before {
+  border-left-color: var(--ui-best);
+}
+.menu-replays-more {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--ui-text-off);
+}
+/* Row actions: Name / Rename (a quiet word) and the delete x. */
+.menu-replay-act {
+  padding: 3px 6px;
+  border: 0;
+  background: none;
+  color: var(--ui-text-off);
+  font: 700 13px/1 var(--ui-font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color var(--ui-move);
+}
+.menu-replay-act:hover,
+.menu-replay-act:focus-visible {
+  color: var(--ui-accent);
+}
+/* Delete a saved replay: a quiet x at the row's end; the first click arms it ("Delete?" in the penalty colour). */
+.menu-replay-del {
+  padding: 3px 6px;
+  border: 0;
+  background: none;
+  color: var(--ui-text-off);
+  font: 700 13px/1 var(--ui-font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color var(--ui-move);
+}
+.menu-replay-del svg {
+  width: 13px;
+  height: 13px;
+  vertical-align: -2px;
+}
+.menu-replay-del:hover,
+.menu-replay-del:focus-visible {
+  color: var(--ui-text);
+}
+.menu-replay-del.armed {
+  color: var(--ui-penalty);
+  box-shadow: inset 0 0 0 1px var(--ui-penalty);
+}
+@media (prefers-reduced-motion: reduce) {
+  .menu-replay-del,
+  .menu-replay-act {
+    transition: none;
+  }
+}
+
+/* Replay name field (results, replay bar, Stage times rows; game/replay/manage-ui.ts). */
+.replay-name {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+}
+.replay-name-input {
+  flex: 1;
+  min-width: 8em;
+  padding: 6px 10px;
+  border: 0;
+  border-left: 3px solid var(--ui-accent);
+  border-radius: 0;
+  background: var(--ui-raised-hover);
+  color: var(--ui-text);
+  font: 500 15px/1.2 var(--ui-font-body);
+  outline: none;
+}
+.replay-name-input:focus-visible {
+  box-shadow: 0 0 0 2px var(--ui-text);
+}
+.replay-name-input::placeholder {
+  color: var(--ui-text-off);
+}
+.replay-name button {
+  padding: 6px 12px;
+  border: 0;
+  background: var(--ui-raised);
+  color: var(--ui-text);
+  font: 700 14px/1 var(--ui-font-display);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.replay-name .replay-name-save {
+  background: var(--ui-accent);
+  color: var(--ui-on-accent);
+}
+.replay-name button:focus-visible {
+  box-shadow: 0 0 0 2px var(--ui-text);
+}
+.res-name-form {
+  margin: 0 0 10px;
+  max-width: 100%;
+}
+.res-name-form .replay-name-input {
+  min-width: 0;
+}
+
+/* Storage line over the replay lists: count / size + "Delete auto saves"; at the soft limit a notice. */
+.replay-storage {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--ui-text-2);
+}
+.replay-storage-msg {
+  margin: 0 0 6px;
+}
+.replay-storage.full {
+  padding: 10px 12px;
+  background: rgb(var(--ui-glass-rgb) / 0.6);
+  box-shadow: inset 3px 0 0 var(--ui-penalty);
+}
+.replay-storage.full .replay-storage-msg {
+  color: var(--ui-text);
+}
+.replay-storage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+.replay-storage .menu-btn {
+  font-size: 15px;
+  padding: 4px 12px;
+}
+.replay-confirm.armed::before {
+  border-left-color: var(--ui-penalty);
+}
+.menu-btn.replay-confirm.armed {
+  color: var(--ui-penalty);
+}
+.replay-keep {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.replay-keep input {
+  accent-color: var(--ui-accent);
+}
+.replay-bulk-none {
+  font-size: 12px;
+  color: var(--ui-text-off);
+}
+.res-replay-extra:empty {
+  display: none;
+}
+.res-replay-extra {
+  margin-top: 12px;
+}
+/* A narrow card (under 1100 px wide screens) has no room for the row chip: the list under the table has the same replays. */
+@media (max-width: 1099px) {
+  .menu-times-card td .menu-replay {
+    display: none;
+  }
+}
+
 /* Stage times: Back as wide as on Select stage (half the row), left aligned. */
 .menu-panel[data-screen='times'] .menu-buttons .menu-btn {
   flex: 0 0 calc(50% - 5px);

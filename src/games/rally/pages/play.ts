@@ -45,6 +45,16 @@ import { paramInt } from '../../../shared/url-params';
 import { stageSeason } from '../maps/shared/climate';
 import { seasonParam } from '../season';
 import { stageCardImageUrl } from '../tools/stage-card';
+import { ReplayUi } from '../game/replay/replay-ui';
+import { readHeader } from '../game/replay/codec';
+import { formatBytes, nameForm, storageLine } from '../game/replay/manage-ui';
+import {
+  cleanName,
+  loadReplay,
+  renameReplay,
+  replayId,
+  REPLAYS_ENABLED,
+} from '../game/replay/store';
 
 /**
  * /games/rally/                -> main menu (welcome -> stage -> car, options)
@@ -308,9 +318,11 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
         </div>
         <div class="menu">
           <button class="menu-btn primary" data-a="again">Drive again (Enter)</button>
+          ${REPLAYS_ENABLED ? '<button class="menu-btn res-replay" data-a="replay">Watch replay<small data-ref="replayNote"></small></button><button class="menu-btn res-name" data-a="nameReplay" hidden>Save replay</button>' : ''}
           <button class="menu-btn" data-a="menu">Main menu</button>
           ${portalButton}
         </div>
+        <div class="res-replay-extra" data-ref="replayExtra"></div>
       </div>
       <div class="res-board" data-ref="board"></div>
     </div>`);
@@ -319,12 +331,107 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
     results.classList.add('hidden');
     game.input.enabled = !game.paused;
   };
+  // --- replays (game/replay/) -----------------------------------------------------------------
+  /** `?replay=<saved id>` (or `pending`: a pasted / loaded one) opens the page as a replay viewer. */
+  const replayParam = REPLAYS_ENABLED
+    ? new URLSearchParams(location.search).get('replay')
+    : null;
+  const replayUi = new ReplayUi(root, game, {
+    exitLabel: replayParam ? 'Menu' : 'Results',
+    onExit: () => {
+      game.exitReplay();
+      replayUi.hide();
+      if (replayParam) {
+        mainMenu();
+        return;
+      }
+      results.classList.remove('hidden');
+      game.input.enabled = false;
+      results.querySelector<HTMLElement>('[data-a="replay"]')!.focus();
+    },
+  });
+  const watch = async (file?: Uint8Array) => {
+    try {
+      const session = await game.watchReplay(file);
+      results.classList.add('hidden');
+      replayUi.show(session);
+    } catch (e) {
+      console.error(e);
+      game.hud.message('REPLAY NOT AVAILABLE', 2, 'small bad');
+    }
+  };
+  /** The finished run's saved replay (an auto save until named here). */
+  let savedId: string | null = null;
+  const replayNote = (text: string) => {
+    const note = results.querySelector('[data-ref="replayNote"]');
+    if (note) note.textContent = text;
+  };
+  const nameButton = () =>
+    results.querySelector<HTMLButtonElement>('[data-a="nameReplay"]');
+  /** A new finish: drop the last run's note / name button until this run's replay is saved (onReplayReady). */
+  const clearReplayResult = () => {
+    savedId = null;
+    replayNote('');
+    const nb = nameButton();
+    if (nb) nb.hidden = true;
+    results.querySelector('.res-name-form')?.remove();
+    results.querySelector('[data-ref="replayExtra"]')?.replaceChildren();
+  };
+  game.onReplayReady = (file, saved) => {
+    savedId = saved ? replayId(readHeader(file)) : null;
+    replayNote(saved ? `auto save · ${formatBytes(file.length)}` : '');
+    const nb = nameButton();
+    if (nb) {
+      nb.hidden = !saved;
+      nb.textContent = 'Save replay';
+    }
+    results.querySelector('.res-name-form')?.remove();
+    const extra = results.querySelector<HTMLElement>(
+      '[data-ref="replayExtra"]',
+    )!;
+    extra.replaceChildren();
+    // Past the soft limit: the notice with "Delete auto saves" (saving never stops).
+    if (saved)
+      void storageLine(() => game.onReplayReady?.(file, saved)).then((line) => {
+        if (line?.classList.contains('full')) extra.append(line);
+      });
+  };
+  const nameReplay = () => {
+    const nb = nameButton();
+    if (!nb || !savedId) return;
+    const id = savedId;
+    const form = nameForm(
+      '',
+      async (raw) => {
+        const name = cleanName(raw);
+        if (await renameReplay(id, raw)) {
+          replayNote(name ? `named “${name}”` : 'auto save');
+          nb.textContent = name ? 'Rename replay' : 'Save replay';
+        }
+        form.remove();
+        nb.hidden = false;
+        nb.focus();
+      },
+      () => {
+        form.remove();
+        nb.hidden = false;
+        nb.focus();
+      },
+    );
+    form.classList.add('res-name-form');
+    nb.hidden = true;
+    nb.after(form);
+  };
+
   results.addEventListener('click', (e) => {
-    const a = (e.target as HTMLElement).dataset.a;
+    const a = (e.target as HTMLElement).closest<HTMLElement>('[data-a]')
+      ?.dataset.a;
     if (a === 'again') {
       hideResults();
       game.restart();
     }
+    if (a === 'replay') void watch();
+    if (a === 'nameReplay') nameReplay();
     if (a === 'menu') mainMenu();
     if (a === 'portal') toPortal();
   });
@@ -338,6 +445,7 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
     if (p) hideResults();
   };
   game.onFinish = (time, delta, run, board) => {
+    if (REPLAYS_ENABLED) clearReplayResult();
     const sectors = buildSectors(board, run);
     results
       .querySelector('[data-ref="board"]')!
@@ -368,20 +476,29 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
     }, 1200);
   };
   window.addEventListener('keydown', (e) => {
-    if (e.code === 'Enter') hideResults();
+    if (e.code === 'Enter' && !replayUi.open) hideResults();
   });
 
   // --- gamepad: drive whichever overlay is open --------------------------------------------
   // Start toggles pause in the game itself (input.ts), so it's ignored here.
   new GamepadMenuNav((a: NavAction) => {
-    const box = !pause.classList.contains('hidden')
-      ? pauseBox
-      : !results.classList.contains('hidden')
-        ? results
-        : null;
+    const box = replayUi.open
+      ? replayUi.box
+      : !pause.classList.contains('hidden')
+        ? pauseBox
+        : !results.classList.contains('hidden')
+          ? results
+          : null;
     if (!box || a === 'start') return;
     if (a === 'confirm') activateFocused(box);
     else if (a === 'back') {
+      if (box === replayUi.box) {
+        replayUi.setClean(false);
+        document
+          .querySelector<HTMLElement>('.replay-ui [data-a="exit"]')
+          ?.click();
+        return;
+      }
       if (box !== pauseBox) return;
       if (pauseView === 'options') showPauseMenu();
       else game.setPaused(false);
@@ -395,7 +512,22 @@ async function play(raw: typeof DEFAULTS): Promise<void> {
 
   game
     .init(setLoading)
-    .then(() => {
+    .then(async () => {
+      // F2 panel: the hidden debug exports (also `__rally.replay` in the console). Dev-only like the replays.
+      if (REPLAYS_ENABLED) {
+        game.telemetry.addAction('Copy replay', () => game.replay.copy());
+        game.telemetry.addAction('Copy trace 5 s', () =>
+          game.replay.copyTrace(5, 4),
+        );
+        game.telemetry.addAction('Download trace 20 s', () =>
+          game.replay.downloadTrace(20, 1),
+        );
+      }
+      if (replayParam) {
+        const file = await loadReplay(replayParam);
+        if (file) await watch(file);
+        else game.hud.message('REPLAY NOT FOUND', 2.5, 'small bad');
+      }
       loading.remove();
       if (touch)
         touchControls = new TouchControls(

@@ -739,6 +739,43 @@ export class Vehicle {
 
   /** Raycast every wheel and apply spring/damper/anti-roll forces. */
   private suspensionPass(dt: number): void {
+    this.probeGround();
+    // Forces (second pass, so anti-roll bars can see both sides).
+    for (let i = 0; i < 4; i++) {
+      const w = this.wheels[i];
+      if (!w.contact) {
+        w.load = 0;
+        continue;
+      }
+      const other = this.wheels[i ^ 1];
+      const a = w.axle;
+      const compVel = (w.compression - w.prevCompression) / dt;
+      let f =
+        a.spring * w.compression + (compVel > 0 ? a.bump : a.rebound) * compVel;
+      f += a.antiRoll * (w.compression - other.compression);
+      if (this.def.hardBumpStop) f += a.spring * 12 * w.bumpStop;
+      else {
+        // Progressive bump stop over the last part of the travel: rate 0 -> 2 x spring at full bump, rising on.
+        const zone = STOP_ZONE * a.travel;
+        const d = Math.max(0, w.compression - a.travel + zone) + w.bumpStop;
+        f += (a.spring * d * d) / zone;
+      }
+      f = Math.max(0, f);
+      w.load = f;
+      const mountW = _v1
+        .copy(w.mount)
+        .applyQuaternion(this.quaternion)
+        .add(this.position);
+      this.applyForce(_v2.copy(this.up).multiplyScalar(f), mountW);
+    }
+  }
+
+  /**
+   * The ground under each wheel at the current pose (a ray along body down from the mount): extension, contact,
+   * surface, contact point and normal. Pure geometry: replay playback (game/replay/playback.ts) calls it to put
+   * the wheels on the ground from the recorded pose alone. `updateBasis` must have run for this pose.
+   */
+  probeGround(): void {
     const s = this.sample;
     for (const w of this.wheels) {
       const mountW = _v1
@@ -786,34 +823,6 @@ export class Vehicle {
       );
       // Bump stop when the wheel would have to go past full compression.
       w.bumpStop = Math.max(0, w.radius - t);
-    }
-    // Forces (second pass, so anti-roll bars can see both sides).
-    for (let i = 0; i < 4; i++) {
-      const w = this.wheels[i];
-      if (!w.contact) {
-        w.load = 0;
-        continue;
-      }
-      const other = this.wheels[i ^ 1];
-      const a = w.axle;
-      const compVel = (w.compression - w.prevCompression) / dt;
-      let f =
-        a.spring * w.compression + (compVel > 0 ? a.bump : a.rebound) * compVel;
-      f += a.antiRoll * (w.compression - other.compression);
-      if (this.def.hardBumpStop) f += a.spring * 12 * w.bumpStop;
-      else {
-        // Progressive bump stop over the last part of the travel: rate 0 -> 2 x spring at full bump, rising on.
-        const zone = STOP_ZONE * a.travel;
-        const d = Math.max(0, w.compression - a.travel + zone) + w.bumpStop;
-        f += (a.spring * d * d) / zone;
-      }
-      f = Math.max(0, f);
-      w.load = f;
-      const mountW = _v1
-        .copy(w.mount)
-        .applyQuaternion(this.quaternion)
-        .add(this.position);
-      this.applyForce(_v2.copy(this.up).multiplyScalar(f), mountW);
     }
   }
 

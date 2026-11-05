@@ -108,6 +108,14 @@ The menu slab with one slanted row per setting (`.setup-tune`: white icon, label
   under dark glass), plus the stage plate.
   Leaving a stage (main menu, portal) shows the same box (`Loading menu…`), its bar easing on while the next page loads.
 - **Results** is a wide glass box: your time, sector chips, then the stage's best times.
+- **Replay** (`game/replay/replay.css`): the HUD stays (clock, splits, dash above the bar); top right a camera plate (`REPLAY`
+  on amber, then the shot); along the bottom one slanted glass slab with an amber edge: time, timeline (amber fill, white
+  playhead, split / finish ticks with labels), transport (play = the one amber button), speed and camera `.menu-seg`s
+  (camera = a dropdown under 1360 px), Save / Clean feed / Record video / Exit, and a key-hint line (hidden on touch and phones).
+  Clean feed hides everything; a hint fades out after 3 s. Stage times lists replays with ▶ chips (`.menu-replay`; a named
+  save's edge in `--ui-best`), quiet row actions (Name / Rename, ×) and a storage line; anything destructive asks once
+  (`.replay-confirm.armed`: "Delete?" in `--ui-penalty`). The name field (`.replay-name`) is an amber-edged input with
+  Save (amber) / Cancel; the soft-limit notice is a glass block with a penalty edge.
 
 ## Layout rules
 

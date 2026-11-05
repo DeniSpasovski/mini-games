@@ -131,6 +131,16 @@ import type { MapDef, StageDef } from '../maps/shared/types';
 import { trackTemp } from '../physics/tyre-temp';
 import type { TyreGaugeState } from './tyre-gauge';
 import { ForceLines, Telemetry } from './telemetry';
+import { encodeReplay } from './replay/codec';
+import {
+  DEFAULT_STRIDE,
+  REPLAY_FORMAT,
+  type ReplayHeader,
+} from './replay/format';
+import { ReplayRecorder } from './replay/recorder';
+import { ReplaySession, tvCamerasFor } from './replay/session';
+import { REPLAYS_ENABLED, saveReplay } from './replay/store';
+import { ReplayConsole } from './replay/debug-export';
 import { paramNumber } from '../../../shared/url-params';
 
 export interface GameOptions {
@@ -216,6 +226,8 @@ const GLARE =
   new URLSearchParams(location.search).get('glare') !== '0';
 /** Road spray on hard ground (lit like the dust). */
 const SPRAY_COLOR = 0xd4d9de;
+/** The replay keeps recording this long after the finish line (s): the car braking to a stop on the run-off. */
+const REPLAY_TAIL = 6;
 
 export class RallyGame {
   readonly scene = new Scene();
@@ -334,6 +346,24 @@ export class RallyGame {
   private finishPilot?: Autopilot;
   private lastFov = 0;
   private freeDrive: boolean;
+  /** Records every run (game/replay/recorder.ts): the replay and the physics trace. */
+  readonly recorder = new ReplayRecorder(
+    PHYSICS_HZ,
+    DEFAULT_STRIDE,
+    REPLAYS_ENABLED,
+  );
+  /** The replay being watched (the car is posed from it; the physics does not step). */
+  watching?: ReplaySession;
+  /** Console / debug API (`__rally.replay`, game/replay/debug-export.ts). */
+  readonly replay = new ReplayConsole(this);
+  /** The finished run's replay file (encoded REPLAY_TAIL s after the finish). */
+  lastReplay?: Promise<Uint8Array>;
+  private replayHeader?: ReplayHeader;
+  private finishedAtFrame = -1;
+  /** Called when a replay opens / closes (the page swaps its overlays). */
+  onReplayChange?: (on: boolean) => void;
+  /** Called when the finished run's replay is encoded (and saved, ranked runs). */
+  onReplayReady?: (file: Uint8Array, saved: boolean) => void;
 
   constructor(
     private container: HTMLElement,
@@ -1030,6 +1060,10 @@ export class RallyGame {
     }
     this.lastCount = -1;
     this.finishPilot = undefined;
+    this.recorder.start();
+    this.replayHeader = undefined;
+    this.lastReplay = undefined;
+    this.finishedAtFrame = -1;
   }
 
   start(): void {
@@ -1118,11 +1152,14 @@ export class RallyGame {
       v.reset(s.position, s.heading);
       this.tyreMarks.breakStrips();
       this.rig.snap();
+      this.recorder.markTeleport();
     }
   }
 
   private onAction(a: InputAction): void {
     const v = this.vehicle;
+    // Watching a replay: the replay UI owns the keys; only mute and telemetry pass.
+    if (this.watching && a !== 'mute' && a !== 'telemetry') return;
     switch (a) {
       case 'pause':
         this.setPaused(!this.paused);
@@ -1212,6 +1249,7 @@ export class RallyGame {
     this.tyreMarks.breakStrips();
     this.autopilot?.reset(along);
     this.rig.snap();
+    this.recorder.markTeleport();
   }
 
   /** Shared GA params of a ranked run (see src/shared/analytics.ts, DETAILS.md "Analytics"). */
@@ -1326,8 +1364,139 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
           game_character: this.car.id,
         });
       }
+      this.replayHeader = this.makeReplayHeader(run);
+      this.finishedAtFrame = this.recorder.frames;
       this.onFinish?.(e.time!, e.delta, run, board);
     }
+  }
+
+  /** The replay file header of this run (`run` = the finished run's record; none = a run still going). */
+  private makeReplayHeader(run?: RunRecord): ReplayHeader {
+    const st = this.world.stageDef;
+    const ref = this.stage.referenceSectorTimes();
+    return {
+      format: REPLAY_FORMAT,
+      game: gameManifest.version,
+      stage: st.id,
+      map: this.world.map.id,
+      car: this.car.id,
+      livery: this.opts.livery,
+      tyre: this.opts.tyre,
+      setup: this.opts.setup,
+      gearing: this.opts.gearing,
+      season: this.season,
+      ...(this.env.hour !== undefined ? { hour: this.env.hour } : {}),
+      ...(this.env.weather !== 'dry' ? { weather: this.env.weather } : {}),
+      stageVer: timesVersion(st.id),
+      carVer: carTimesVersion(this.car.id),
+      date: run?.date ?? Date.now(),
+      ...(run ? { time: run.time } : {}),
+      ...(run?.penalty ? { penalty: run.penalty } : {}),
+      splits: [...(run?.splits ?? this.stage.splitTimes)],
+      ...(ref ? { refSectors: ref } : {}),
+      stride: this.recorder.stride,
+      hz: PHYSICS_HZ,
+      frames: this.recorder.frames,
+      ...(this.freeDrive ? { free: true } : {}),
+    };
+  }
+
+  /** The finished run's recording is complete: encode it, save it (ranked runs) and tell the page. */
+  private finishReplay(): void {
+    if (!REPLAYS_ENABLED) return;
+    if (this.recorder.stopped && this.lastReplay) return;
+    this.recorder.stopped = true;
+    const header = this.replayHeader ?? this.makeReplayHeader();
+    const rows = this.recorder.snapshot();
+    const ranked = !this.freeDrive && !!this.replayHeader;
+    const p = encodeReplay(header, rows).then(async (file) => {
+      const saved = ranked ? await saveReplay(file) : false;
+      this.onReplayReady?.(file, saved);
+      return file;
+    });
+    p.catch((e) => console.warn('replay: not encoded', e));
+    this.lastReplay = p;
+    // The TV cameras, in slices while the results show: Watch replay opens at once.
+    if (!this.freeDrive) void tvCamerasFor(this.world);
+  }
+
+  /** The current run as a replay file (still running: up to now; console `__rally.replay`). */
+  async currentReplay(): Promise<Uint8Array> {
+    if (this.lastReplay) return this.lastReplay;
+    return encodeReplay(
+      this.replayHeader ?? this.makeReplayHeader(),
+      this.recorder.snapshot(),
+    );
+  }
+
+  /**
+   * Watch a replay (default: the run just finished; its recording ends here if the tail is still going). The stage and
+   * car must be this page's: a replay of another stage or car opens by loading that stage (pages/play.ts).
+   */
+  async watchReplay(file?: Uint8Array): Promise<ReplaySession> {
+    if (!REPLAYS_ENABLED) throw new Error('replays are dev-only');
+    if (!file && this.replayHeader) this.finishReplay();
+    const f = file ?? (await this.currentReplay());
+    const session = await ReplaySession.open(f, this.world, this.camera);
+    const h = session.track.header;
+    if (h.stage !== this.world.stageDef.id || h.car !== this.car.id)
+      throw new Error(
+        `replay of ${h.stage} / ${h.car}, this page drives ${this.world.stageDef.id} / ${this.car.id}`,
+      );
+    this.watching?.director.snap();
+    this.watching = session;
+    this.input.enabled = false;
+    this.autopilot = undefined;
+    this.tyreMarks.breakStrips();
+    this.breakables.reset((inst) => this.streamer.setMatrix(inst, null));
+    this.hud.el.classList.add('replay');
+    this.audio.setPaused(false);
+    this.onReplayChange?.(true);
+    return session;
+  }
+
+  /** Back to the stage: the car stays where the replay left it, at rest. */
+  exitReplay(): void {
+    const r = this.watching;
+    if (!r) return;
+    this.watching = undefined;
+    const v = this.vehicle;
+    r.track.apply(r.duration, 0, v);
+    v.velocity.set(0, 0, 0);
+    v.angularVelocity.set(0, 0, 0);
+    for (const w of v.wheels) w.omega = 0;
+    v.holding = true;
+    this.tyreMarks.breakStrips();
+    this.rig.snap();
+    this.hud.el.classList.remove('replay', 'clean');
+    this.audio.setPaused(this.paused || !this.running);
+    this.onReplayChange?.(false);
+  }
+
+  /** Replay frame: pose the car at the replay's time; knocked-over posts, people and tyre marks follow it. */
+  private replayStep(dt: number): void {
+    const r = this.watching!;
+    const v = this.vehicle;
+    this.input.poll();
+    r.advance(dt);
+    if (r.jumped && r.wentBack)
+      this.breakables.reset((inst) => this.streamer.setMatrix(inst, null));
+    const teleport = r.track.apply(r.time, r.dt, v);
+    if (teleport || r.jumped) {
+      this.tyreMarks.breakStrips();
+      r.director.snap();
+    }
+    r.clock.update(r.time);
+    this.audio.setPaused(!r.playing);
+    if (r.dt > 0) this.knockPosts(r.dt);
+    this.people.update(
+      Math.abs(r.dt),
+      v.position.x,
+      v.position.z,
+      v.velocity.x,
+      v.velocity.z,
+      (inst, m) => this.streamer.setMatrix(inst, m),
+    );
   }
 
   /**
@@ -1569,7 +1738,9 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     const t0 = performance.now();
     const v = this.vehicle;
     // --- input + physics --------------------------------------------------------
-    if (!this.paused) {
+    const replay = this.watching;
+    if (replay) this.replayStep(dt);
+    else if (!this.paused) {
       const lat = v.velocity.dot(v.right);
       const lon = v.velocity.dot(v.forward);
       const slip =
@@ -1609,11 +1780,20 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
           v.forward.z,
           v.speed,
         );
+        this.recorder.step(v, this.stage);
         this.acc -= STEP;
         steps++;
       }
       // Slow-mo instead of a death spiral; keep the remainder (< 1 step) so the interpolated car never steps back.
       if (steps === MAX_STEPS) this.acc = Math.min(this.acc, STEP);
+      // The replay records on past the finish while the car stops, then is encoded (after the physics).
+      if (
+        this.finishedAtFrame >= 0 &&
+        !this.recorder.stopped &&
+        this.recorder.frames - this.finishedAtFrame >
+          (REPLAY_TAIL * PHYSICS_HZ) / this.recorder.stride
+      )
+        this.finishReplay();
       this.knockPosts(dt);
       this.people.update(
         dt,
@@ -1625,7 +1805,9 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
       );
     } else this.input.poll();
     const tPhysics = performance.now();
-    const alpha = this.paused ? 1 : this.acc / STEP;
+    const alpha = this.paused || replay ? 1 : this.acc / STEP;
+    // Effects and the camera run on replay time (slow motion, pause, scrubbing).
+    const fdt = replay ? Math.max(0, replay.dt) : dt;
 
     // --- car model + camera -------------------------------------------------------------
     this.model.updateFromVehicle(v, alpha);
@@ -1640,7 +1822,15 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     this.renderFwd.set(0, 0, 1).applyQuaternion(this.model.root.quaternion);
     this.renderUp.set(0, 1, 0).applyQuaternion(this.model.root.quaternion);
     // Paused: the camera freezes where it is (the rig would keep carrying it at the car's frozen velocity).
-    if (!this.paused)
+    if (replay)
+      replay.director.update(
+        replay.dt,
+        v,
+        this.renderPos,
+        this.renderFwd,
+        this.renderUp,
+      );
+    else if (!this.paused)
       this.rig.update(dt, v, this.renderPos, this.renderFwd, this.renderUp);
     if (Math.abs(this.camera.fov - this.lastFov) > 0.5)
       this.updateParticleScale();
@@ -1657,7 +1847,10 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     const tObjects = performance.now();
     this.slack -= tObjects - tTerrain;
     this.trees.setJobBudget(Math.min(1.5, Math.max(0.3, this.slack)));
-    this.trees.update(this.camera, this.rig.steady);
+    this.trees.update(
+      this.camera,
+      replay ? replay.director.rig.steady : this.rig.steady,
+    );
     const tTrees = performance.now();
     const treeJob = this.trees.current.jobMs;
     this.slack -= treeJob;
@@ -1695,7 +1888,7 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         camPos.z,
       );
       if (!this.paused && this.rain.mesh.visible)
-        this.emitRainHits(camPos, dir, dt);
+        this.emitRainHits(camPos, dir, fdt);
       if (this.post) {
         // Drops gather on the lens in the rain (the bumper and hood views take the most), dry off in a tunnel.
         const view =
@@ -1721,16 +1914,16 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     const canopyMs = performance.now() - tCanopy;
 
     // --- effects / audio / HUD ------------------------------------------------------------------
-    if (!this.paused) {
-      this.emitDust(dt);
+    if (replay ? replay.dt > 0 : !this.paused) {
+      this.emitDust(fdt);
       this.tyreMarks.update();
       if (this.tyreDust.update(dt, this.vehicle))
         this.model.setTyreDust(this.tyreDust.level, this.tyreDust.color);
     }
-    this.dust.update(dt);
-    this.splash.update(dt, 0.9, -9.8);
-    this.gravel.update(dt, 0.35, -9.8);
-    this.haze?.update(dt, 0.12, 0.02);
+    this.dust.update(fdt);
+    this.splash.update(fdt, 0.9, -9.8);
+    this.gravel.update(fdt, 0.35, -9.8);
+    this.haze?.update(fdt, 0.12, 0.02);
     this.forceLines.update(v);
     const slide = Math.max(
       ...v.wheels.map((w) => (w.contact ? w.slideSpeed : 0)),
@@ -1748,7 +1941,13 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
     for (const w of v.wheels)
       if (w.contact)
         surfaces[w.surface.id] = (surfaces[w.surface.id] ?? 0) + 0.25;
-    this.audio.setListener(this.rig.mode);
+    this.audio.setListener(
+      replay
+        ? replay.director.shot === 'hood' || replay.director.shot === 'bumper'
+          ? replay.director.shot
+          : 'chase_far'
+        : this.rig.mode,
+    );
     this.audio.setWeather(this.env.weatherLook.rain, this.env.weatherLook.wet);
     this.audio.update({
       rpm: v.drivetrain.rpm,
@@ -1777,8 +1976,9 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         const g = this.world.road.at(along);
         return Math.hypot(g.x - cam.x, g.z - cam.z) < CLOCK_NEAR;
       };
-      if (near(st.start)) setClockTime('start', this.stage.time);
-      if (near(st.finish)) setClockTime('finish', this.stage.time);
+      const time = replay ? replay.clock.time : this.stage.time;
+      if (near(st.start)) setClockTime('start', time);
+      if (near(st.finish)) setClockTime('finish', time);
     }
     this.hud.update(
       dt,
@@ -1795,13 +1995,14 @@ ${TYRES[this.opts.tyre].name} tyres on ${wrong}... hold on!`,
         hold: v.parked || v.holding,
         tyres: this.tyreGaugeState(),
       },
-      this.stage,
+      replay ? replay.clock : this.stage,
     );
     const st = this.world.stage;
+    const progress = replay ? replay.clock.progress : this.stage.progress;
     this.hud.setDistance(
       this.freeDrive
         ? 'free drive'
-        : `${Math.max(0, this.stage.progress - st.start).toFixed(0)} / ${(st.finish - st.start).toFixed(0)} m`,
+        : `${Math.max(0, Math.min(st.finish, progress) - st.start).toFixed(0)} / ${(st.finish - st.start).toFixed(0)} m`,
     );
     this.telemetry.update(dt, v);
 
