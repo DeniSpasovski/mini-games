@@ -1,9 +1,17 @@
 import type { InputController } from './input';
+import type { TouchSteering } from './settings';
 
 /**
- * On-screen controls for phones / tablets: steer left / right under the left
- * thumb, brake / gas under the right one, plus a small pause button (there is
- * no Esc key on an iPad). Shown only on touch devices.
+ * On-screen controls for phones / tablets: a steering stick (or left / right
+ * buttons, Options -> Touch steering) under the left thumb, brake / gas under
+ * the right one, plus a small pause button (there is no Esc key on an iPad).
+ * Shown only on touch devices.
+ *
+ * The stick floats, like most mobile games' sticks: it rests bottom left, and a
+ * thumb landing anywhere in the left zone moves the base under it, so the
+ * thumb never has to find the centre. Only its X steers; it feeds
+ * InputController like a gamepad stick, so it gets the same pad steering mode
+ * (rack speed, speed-sensitive lock). Released, it springs back to the rest spot.
  *
  * Every finger is tracked by pointerId and mapped to the button under it on
  * each move (`elementFromPoint` respects the landscape rotation below), so a
@@ -37,9 +45,13 @@ export class TouchControls {
     private input: InputController,
     onPause: () => void,
     onReset: () => void,
+    steering: TouchSteering = 'stick',
   ) {
     this.el.className = 'touch-controls';
     this.el.innerHTML = `
+      <div class="touch-stick-zone" aria-label="Steer">
+        <div class="touch-stick"><div class="touch-knob"></div></div>
+      </div>
       <div class="touch-pad left">
         <div class="touch-btn" data-touch="left" aria-label="Steer left">◀</div>
         <div class="touch-btn" data-touch="right" aria-label="Steer right">▶</div>
@@ -85,6 +97,8 @@ export class TouchControls {
       pad.addEventListener('pointerup', release);
       pad.addEventListener('pointercancel', release);
     }
+    this.initStick();
+    this.setSteering(steering);
     // App switch / notification: never leave a pedal stuck down.
     window.addEventListener('blur', () => this.reset());
     document.addEventListener('visibilitychange', () => {
@@ -93,6 +107,83 @@ export class TouchControls {
     // No long-press menu / magnifier on the buttons.
     this.el.addEventListener('contextmenu', (e) => e.preventDefault());
   }
+
+  /** Stick or left / right buttons (Options -> Touch steering). */
+  setSteering(mode: TouchSteering): void {
+    this.el.classList.toggle('stick', mode === 'stick');
+    this.releaseStick();
+    this.input.touchStick = mode === 'stick' ? 0 : null;
+  }
+
+  private initStick(): void {
+    const zone = this.el.querySelector<HTMLElement>('.touch-stick-zone')!;
+    const base = zone.querySelector<HTMLElement>('.touch-stick')!;
+    const knob = base.querySelector<HTMLElement>('.touch-knob')!;
+    let id: number | null = null;
+    let cx = 0;
+    let cy = 0;
+    // Screen -> game axes: #root is turned 90° when a portrait screen is shown sideways (forceLandscape).
+    const rotated = () =>
+      document.documentElement.classList.contains('force-landscape');
+    const local = (e: PointerEvent) =>
+      rotated()
+        ? { x: e.clientY, y: -e.clientX }
+        : { x: e.clientX, y: e.clientY };
+    const move = (e: PointerEvent) => {
+      if (e.pointerId !== id) return;
+      e.preventDefault();
+      const p = local(e);
+      // Travel to full lock: a bit under the base radius.
+      const r = base.offsetWidth * 0.4;
+      let dx = p.x - cx;
+      let dy = p.y - cy;
+      const d = Math.hypot(dx, dy);
+      if (d > r) {
+        dx *= r / d;
+        dy *= r / d;
+      }
+      knob.style.transform = `translate(${dx}px, ${dy}px)`;
+      if (this.input.touchStick !== null) this.input.touchStick = dx / r;
+      this.input.device = 'touch';
+    };
+    zone.addEventListener('pointerdown', (e) => {
+      if (id !== null) return;
+      e.preventDefault();
+      id = e.pointerId;
+      try {
+        zone.setPointerCapture(e.pointerId);
+      } catch {
+        // Pointer already gone (or synthetic).
+      }
+      // Float: the base centres under the thumb (zone-local, in game axes).
+      const p = local(e);
+      const z = zone.getBoundingClientRect();
+      const origin = rotated()
+        ? { x: z.top, y: -z.right }
+        : { x: z.left, y: z.top };
+      cx = p.x;
+      cy = p.y;
+      base.style.left = `${p.x - origin.x}px`;
+      base.style.top = `${p.y - origin.y}px`;
+      base.classList.add('on');
+      move(e);
+    });
+    zone.addEventListener('pointermove', move);
+    const up = (e: PointerEvent) => {
+      if (e.pointerId === id) this.releaseStick();
+    };
+    zone.addEventListener('pointerup', up);
+    zone.addEventListener('pointercancel', up);
+    this.releaseStick = () => {
+      id = null;
+      base.style.left = base.style.top = '';
+      base.classList.remove('on');
+      knob.style.transform = '';
+      if (this.input.touchStick !== null) this.input.touchStick = 0;
+    };
+  }
+
+  private releaseStick: () => void = () => {};
 
   /** Push the held buttons into the input controller + light them up. */
   private sync(): void {
@@ -107,6 +198,7 @@ export class TouchControls {
   reset(): void {
     this.fingers.clear();
     this.sync();
+    this.releaseStick();
   }
 }
 

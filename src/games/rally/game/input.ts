@@ -1,4 +1,5 @@
 import type { VehicleControls } from '../physics/types';
+import { PadSteering } from './pad-steering';
 
 /**
  * Keyboard + gamepad + touch buttons -> smoothed VehicleControls.
@@ -65,6 +66,10 @@ export interface DriveState {
   slipAngle: number;
   /** Max wheel steer angle (rad) - used to scale the counter-steer allowance. */
   maxSteer: number;
+  /** Direction the front axle is travelling vs the nose (rad, + = left): `Vehicle.frontTravel()`. Pad assist only. */
+  frontTravel?: number;
+  /** Front tyres' peak slip angle (rad): `Vehicle.frontPeakAngle()`. Pad assist only. */
+  frontPeakAngle?: number;
 }
 
 export class InputController {
@@ -74,6 +79,12 @@ export class InputController {
     steer: 0,
     handbrake: 0,
   };
+  /** Stick -> steer for the gamepad (mode + tuning: Options / `?padsteer=`, see pad-steering.ts). */
+  readonly pad = new PadSteering();
+  /** Last raw stick X (-1..1), for the telemetry line. */
+  stickX = 0;
+  /** Touch steering stick X (-1..1), set by touch-controls.ts; null = touch steers with the left / right buttons. */
+  touchStick: number | null = null;
   /** Last device used, for HUD hints. */
   device: 'keyboard' | 'gamepad' | 'touch' = 'keyboard';
   private _enabled = true;
@@ -160,7 +171,7 @@ export class InputController {
       c.throttle = pad.throttle;
       c.brake = pad.brake;
       c.handbrake = pad.handbrake;
-      c.steer = pad.steer;
+      c.steer = this.stick(dt, pad.steer, s);
       return c;
     }
     const ramp = (cur: number, target: number, up: number, downRate: number) =>
@@ -181,6 +192,11 @@ export class InputController {
     );
     c.handbrake = this.down('Space') ? 1 : 0;
 
+    // Touch steering stick (touch-controls.ts): steered like a pad stick.
+    if (this.touchStick !== null && this.device === 'touch') {
+      c.steer = this.stick(dt, this.touchStick, s);
+      return c;
+    }
     const target =
       (this.down('KeyD', 'ArrowRight', 'TouchRight') ? 1 : 0) -
       (this.down('KeyA', 'ArrowLeft', 'TouchLeft') ? 1 : 0);
@@ -202,6 +218,19 @@ export class InputController {
     const rate = returning ? (counter ? 9 : 6) : 3.2;
     c.steer = ramp(c.steer, goal, rate, rate);
     return c;
+  }
+
+  /** Pad or touch stick X -> steer, through the pad steering mode. */
+  private stick(dt: number, x: number, s: DriveState): number {
+    this.stickX = x;
+    return this.pad.update(dt, x, this.controls.steer, {
+      speed: s.speed,
+      slipAngle: s.slipAngle,
+      maxSteer: s.maxSteer,
+      frontTravel: s.frontTravel ?? 0,
+      frontPeakAngle: s.frontPeakAngle ?? (8 * Math.PI) / 180,
+      speedLock: keyboardSteerLimit(s.speed),
+    });
   }
 
   private syncPadButtons(): void {
@@ -228,18 +257,17 @@ export class InputController {
         this.emit(a);
       this.padButtons[i] = b.pressed;
     });
-    const sx = pad.axes[0] ?? 0;
-    const dz = 0.08;
-    const steer =
-      Math.abs(sx) < dz
-        ? 0
-        : Math.sign(sx) * ((Math.abs(sx) - dz) / (1 - dz)) ** 1.4;
+    // Raw stick X: the dead zone, curve and rack are PadSteering's.
+    const steer = pad.axes[0] ?? 0;
     const throttle = pad.buttons[7]?.value ?? 0;
     const brake = pad.buttons[6]?.value ?? 0;
     const handbrake =
       pad.buttons[0]?.pressed || pad.buttons[2]?.pressed ? 1 : 0;
     const active =
-      Math.abs(steer) > 0 || throttle > 0.05 || brake > 0.05 || handbrake > 0;
+      Math.abs(steer) > 0.08 ||
+      throttle > 0.05 ||
+      brake > 0.05 ||
+      handbrake > 0;
     if (active) this.device = 'gamepad';
     if (this.device !== 'gamepad') return null;
     return { steer, throttle, brake, handbrake };

@@ -1,5 +1,6 @@
 import { clampCarNumber } from '../cars/shared/rally-badge';
 import type { CameraMode } from './camera-rig';
+import { PAD_STEER_MODES, type PadSteerMode } from './pad-steering';
 
 /**
  * Player options + last menu selection, persisted in localStorage
@@ -21,6 +22,10 @@ export interface RallySettings {
   carNumber: number;
   /** Starting camera (C cycles in game). */
   camera: CameraMode;
+  /** How the controller stick turns the wheels (game/pad-steering.ts). */
+  padSteering: PadSteerMode;
+  /** Phones / tablets: a floating steering stick or left / right buttons (touch-controls.ts). */
+  touchSteering: TouchSteering;
   /** How far trees, buildings and props are drawn (multiplies the graphics preset's LOD distances). */
   objectDistance: ObjectDistance;
   /** Share of the screen's pixels the game renders (sharp high-DPI screens: fewer pixels, more frames per second). */
@@ -44,6 +49,8 @@ export const DEFAULT_SETTINGS: RallySettings = {
   abs: true,
   carNumber: 7,
   camera: 'chase',
+  padSteering: 'buildup',
+  touchSteering: 'stick',
   objectDistance: 'normal',
   renderScale: '100',
   bloom: 'off',
@@ -52,6 +59,9 @@ export const DEFAULT_SETTINGS: RallySettings = {
   car: '',
   livery: 0,
 };
+
+export type TouchSteering = 'stick' | 'buttons';
+const TOUCH_STEERING: readonly TouchSteering[] = ['stick', 'buttons'];
 
 export type ObjectDistance = 'normal' | 'far' | 'max';
 
@@ -120,6 +130,8 @@ export function sanitizeSettings(raw: unknown): RallySettings {
         ? clampCarNumber(o.carNumber)
         : d.carNumber,
     camera: oneOf(o.camera, CAMERAS, d.camera),
+    padSteering: oneOf(o.padSteering, PAD_STEER_MODES, d.padSteering),
+    touchSteering: oneOf(o.touchSteering, TOUCH_STEERING, d.touchSteering),
     objectDistance: oneOf(o.objectDistance, DISTANCES, d.objectDistance),
     renderScale: oneOf(o.renderScale, SCALES, d.renderScale),
     bloom: oneOf(o.bloom, BLOOMS, d.bloom),

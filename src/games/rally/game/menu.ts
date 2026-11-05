@@ -69,6 +69,12 @@ import {
   saveDisplayMode,
 } from '../engine/display';
 import { CAMERA_MODES, type CameraMode } from './camera-rig';
+import { isTouchDevice } from './touch-controls';
+import {
+  PAD_STEER_LABELS,
+  PAD_STEER_MODES,
+  type PadSteerMode,
+} from './pad-steering';
 import {
   activateFocused,
   GamepadMenuNav,
@@ -104,11 +110,7 @@ import {
 } from '../weather';
 import { Showroom } from './showroom';
 import { replayUrl } from './replay/debug-export';
-import {
-  confirmButton,
-  nameForm,
-  storageLine,
-} from './replay/manage-ui';
+import { confirmButton, nameForm, storageLine } from './replay/manage-ui';
 import {
   deleteReplay,
   isNamed,
@@ -1895,6 +1897,31 @@ export function buildOptions(opts: {
     ),
     'C in game',
   );
+  row(
+    'Pad steering',
+    choice(
+      PAD_STEER_MODES.map((m): [PadSteerMode, string] => [
+        m,
+        PAD_STEER_LABELS[m],
+      ]),
+      s.padSteering,
+      (v) => set({ padSteering: v }),
+    ),
+    'controller · touch stick',
+  );
+  if (isTouchDevice())
+    row(
+      'Touch steering',
+      choice(
+        [
+          ['stick', 'Stick'],
+          ['buttons', 'Buttons'],
+        ],
+        s.touchSteering,
+        (v) => set({ touchSteering: v }),
+      ),
+      'stick floats under the left thumb',
+    );
   el.append(buttons(['Back', opts.onBack, true]));
   return el;
 }
