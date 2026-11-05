@@ -434,3 +434,10 @@ html.touch .rp-keys {
   text-transform: none;
   color: var(--ui-text-off);
 }
+
+/* Save is done: "Saved", inactive. */
+.rp-actions .menu-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+  pointer-events: none;
+}
